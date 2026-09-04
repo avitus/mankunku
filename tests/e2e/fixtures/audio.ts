@@ -16,7 +16,20 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
  *     built from an OscillatorNode — enough to satisfy MediaStreamSource and
  *     keep AudioContext happy. No real mic permission prompt fires (and on
  *     Firefox + WebKit, where Playwright can't grant 'microphone', this is
- *     the only path that works at all).
+ *     the only path that works at all). The REAL API is never called, on any
+ *     engine — not even raced against a timeout. It used to be tried first on
+ *     Chromium (`--use-fake-device-for-media-stream`), and on 2026-09-03 that
+ *     call hung forever on the dev Mac while its CoreAudio default output (a
+ *     Universal Audio interface) was wedged — and a pending fake-device
+ *     capture request wedges Chromium's audio service with it: every
+ *     AudioContext created afterwards never renders a frame (measured with a
+ *     standalone probe — a context created before the call ran, one created
+ *     200 ms after it sat at currentTime 0 forever), Tone's transport never
+ *     moved, and ten seconds later Chromium's stall watchdog logged "The
+ *     AudioContext encountered an error from the audio device or the WebAudio
+ *     renderer" on both. A test suite must not depend on the host's audio
+ *     hardware, and the synthetic stream is what two of the three engines
+ *     ran on already.
  *
  *  2. `window.MediaRecorder` is replaced with a class that, on `.stop()`,
  *     dispatches a `dataavailable` event with a pre-loaded Blob built from
@@ -68,27 +81,13 @@ export async function installAudioMock(
 			// Build a real MediaStream backed by a silent oscillator. Real
 			// MediaStream + MediaStreamTrack instances satisfy code that
 			// inspects them (track.kind === 'audio', track.stop(), etc.).
-			const realGetUserMedia = navigator.mediaDevices?.getUserMedia?.bind(
-				navigator.mediaDevices
-			);
+			// The browser's own getUserMedia is deliberately NOT called, not
+			// even raced against a timeout: a pending fake-device capture
+			// request can wedge Chromium's audio service so that no
+			// AudioContext created after it ever renders (see the module
+			// comment) — and a rejected race leaves the request pending.
 			if (navigator.mediaDevices) {
 				navigator.mediaDevices.getUserMedia = async () => {
-					try {
-						// Try the real API first. On Chromium with --use-fake-* flags,
-						// this works. On Firefox/WebKit it may fail or hang — fall
-						// through to the synthetic stream below.
-						if (realGetUserMedia) {
-							const real = await Promise.race([
-								realGetUserMedia({ audio: true }),
-								new Promise<never>((_, rej) =>
-									setTimeout(() => rej(new Error('gum-timeout')), 200)
-								)
-							]);
-							return real;
-						}
-					} catch {
-						// fall through
-					}
 					// Build a synthetic stream from an oscillator. This is enough
 					// for AudioContext.createMediaStreamSource() to bind to.
 					const ctx = new (window.AudioContext ||

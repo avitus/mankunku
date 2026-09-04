@@ -312,16 +312,21 @@ test.describe('lick-practice session flow', () => {
 	});
 
 	/**
-	 * Read-ahead: the lead sheet is READ, so it must be wholly on screen and
-	 * lit a key BEFORE it is played, not slide into the viewport at its own
-	 * downbeat. A Daily session plays keys in ramp order, so the revealed
-	 * (newest) key is the LAST row — the shape that used to arrive half-clipped
-	 * and dimmed exactly when the mic opened. Playwright's `toBeVisible` does
-	 * not see clipping by an ancestor's `overflow: hidden`, so the assertions
-	 * are geometric: the row's box inside the viewport's box, measured in one
+	 * The sheet appears only once the previous key has been PLAYED, over a
+	 * reading pause. A Daily session plays keys in ramp order, so the revealed
+	 * (newest) key is the LAST row: while C plays, G's row shows G's chord
+	 * chart and the engraved staff beneath it is hidden (engraved ahead, not
+	 * shown); when C's window closes the row becomes current, steps into the
+	 * slot and the staff fades in while the band vamps a ii-V into G for
+	 * `LEAD_SHEET_PAUSE_BARS` — the tab reads READ, then counts the entrance
+	 * in — and only then does G's first pass open, with the sheet wholly on
+	 * screen and nothing moving at its downbeat. Read-ahead parking (the sheet
+	 * lit a whole key early) was the previous behaviour and is what this test
+	 * must fail on. Playwright's `toBeVisible` does not see clipping by an
+	 * ancestor's `overflow: hidden`, so the geometry is measured in one
 	 * evaluate so every field describes the same frame.
 	 */
-	test('lead sheet is fully on screen and lit a key before it is played', async ({
+	test('lead sheet appears after the previous key, over a reading pause, before its own window', async ({
 		page,
 		browserName,
 		consoleCollector: _consoleCollector
@@ -330,7 +335,7 @@ test.describe('lick-practice session flow', () => {
 			browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
 			'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device'
 		);
-		test.setTimeout(120_000);
+		test.setTimeout(150_000);
 
 		await seedOnboardedAnonymous(page);
 		await seedUserLicks(page);
@@ -350,11 +355,16 @@ test.describe('lick-practice session flow', () => {
 			timeout: 20_000
 		});
 
+		// The sheet row exists and is engraved from the first paint (abcjs has
+		// done its work ahead of time) — but it is HIDDEN, and G's chord chart
+		// stands in its place.
 		const reveal = page.getByTestId('lead-sheet-row');
-		await expect(reveal).toBeVisible({ timeout: 20_000 });
-		await expect(reveal.locator('.abcjs-container svg .abcjs-notehead').first()).toBeVisible({
-			timeout: 10_000
-		});
+		await expect(reveal).toHaveCount(1, { timeout: 20_000 });
+		await expect
+			.poll(() => reveal.locator('.abcjs-container svg .abcjs-notehead').count(), { timeout: 10_000 })
+			.toBeGreaterThan(0);
+		await expect(reveal).toBeHidden();
+		await expect(page.getByTestId('lead-sheet-placeholder')).toHaveCount(1);
 
 		// One frame's worth of facts about the stack, from the sheet outward so
 		// no bare class selector can catch some other component's viewport.
@@ -371,41 +381,65 @@ test.describe('lick-practice session flow', () => {
 				return {
 					currentIndex: rows.findIndex((r) => r.classList.contains('current')),
 					leadIndex: rows.indexOf(leadRow),
+					leadVisibility: getComputedStyle(lead).visibility,
 					leadInside: l.top >= v.top && l.bottom <= v.bottom && l.left >= v.left && l.right <= v.right,
-					leadRowOpacity: getComputedStyle(leadRow).opacity,
 					transform: getComputedStyle(stack).transform,
-					playhead: !!lead.querySelector('.playhead-under-bar')
+					playhead: !!lead.querySelector('.playhead-under-bar'),
+					recording: !!stack.querySelector('.chart-wrap.recording')
 				};
 			});
 
-		// From the first paint, through the count-in, the demo and C's window:
-		// row 0 (C) is current, the sheet (row 1) sits wholly inside the
-		// viewport at full ink, with no playhead yet, and the stack has not
-		// moved. (Under the old parking the sheet's box straddled the
-		// viewport's bottom edge at 35% opacity.)
-		const ahead = {
-			currentIndex: 0,
-			leadIndex: 1,
-			leadInside: true,
-			leadRowOpacity: '1',
-			transform: 'matrix(1, 0, 0, 1, 0, 0)',
-			playhead: false
-		};
-		await expect.poll(measure, { timeout: 10_000 }).toEqual(ahead);
-
-		// C's own window: the ring on row 0, a PLAY tab with no pass counter (C
-		// plays once), and the sheet exactly where it was.
+		// C's window: row 0 is current and recording, the stack sits at its
+		// opening position (the empty slot above row 0), and the sheet — row 1,
+		// straddling the viewport's bottom edge like any upcoming row — is
+		// still hidden. Under read-ahead parking it was visible and lit here.
 		await expect(page.locator('.chart-wrap.recording')).toBeVisible({ timeout: 60_000 });
 		const playTab = page.locator('.phase-tab[data-kind="play"]');
 		await expect(playTab).toBeVisible();
 		await expect(playTab).not.toHaveAttribute('data-pass');
-		expect(await measure()).toEqual(ahead);
+		expect(await measure()).toEqual({
+			currentIndex: 0,
+			leadIndex: 1,
+			leadVisibility: 'hidden',
+			leadInside: false,
+			transform: 'matrix(1, 0, 0, 1, 0, 105)',
+			playhead: false,
+			recording: true
+		});
 
-		// G's first pass: the row becomes current and gets its playhead, and
-		// NOTHING moves — the transform is the identity it has been all along.
-		await expect(playTab).toHaveAttribute('data-pass', '1', { timeout: 30_000 });
+		// C's window closes → the reading pause: the tab reads READ (red: don't
+		// play yet), the mic is shut, the sheet row is current, and within the
+		// pause the stack has stepped so the whole sheet is inside the viewport
+		// at full visibility, its placeholder chart gone, no bar marker yet.
+		await expect(page.locator('.phase-tab[data-kind="read"]')).toBeVisible({ timeout: 30_000 });
+		await expect(page.locator('.chart-wrap.recording')).toHaveCount(0);
+		const inPlace = {
+			currentIndex: 1,
+			leadIndex: 1,
+			leadVisibility: 'visible',
+			leadInside: true,
+			transform: 'matrix(1, 0, 0, 1, 0, 0)',
+			playhead: false,
+			recording: false
+		};
+		await expect.poll(measure, { timeout: 2_000 }).toEqual(inPlace);
+		await expect(page.getByTestId('lead-sheet-placeholder')).toHaveCount(0, { timeout: 2_000 });
+
+		// The pause's last bar counts the entrance in by name — an ordinary
+		// entrance, not the no-demo "Straight in". One retrying assertion: the
+		// countdown lasts a single bar (1.3 s at this tempo), so a second
+		// assertion on the same transient tab can arrive after it has flipped.
+		// (Written pitch: concert G reads "A" on the seeded tenor, so the key is
+		// not spelled out here.)
+		await expect(page.locator('.phase-tab[data-kind="play-in"]')).toContainText(/Play \S+ in/, {
+			timeout: 10_000
+		});
+
+		// G's first pass: the row records, gets its bar marker, and NOTHING
+		// moves — the step already happened during the pause.
+		await expect(playTab).toHaveAttribute('data-pass', '1', { timeout: 10_000 });
 		await expect(reveal.locator('.abcjs-container svg .playhead-under-bar').first()).toBeVisible();
-		expect(await measure()).toEqual({ ...ahead, currentIndex: 1, playhead: true });
+		expect(await measure()).toEqual({ ...inPlace, playhead: true, recording: true });
 	});
 
 	/**

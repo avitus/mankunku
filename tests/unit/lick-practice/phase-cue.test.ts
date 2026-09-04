@@ -75,6 +75,28 @@ describe('buildPhaseTimeline', () => {
 		]);
 	});
 
+	it('marks the reading pause before a revealed key as READ, never as listen', () => {
+		// [C, G ×3, F] at 4 bars a key, a 2-bar pause before G's first pass:
+		// demo 0–4, C 4–8, read 8–10, G 10–22 + F 22–26 as one play block.
+		const windows = planCycleWindows({
+			audioStartTick: 0,
+			demoBars: 4,
+			keyBars: 4,
+			ticksPerBar: TICKS_PER_BAR,
+			keyCount: 3,
+			passes: [1, 3, 1],
+			pauses: [0, 2, 0],
+			userBarsOffsetTicks: 0
+		});
+		const timeline = buildPhaseTimeline({ audioStartTick: 0, windows, ticksPerBar: TICKS_PER_BAR });
+		expect(timeline).toEqual([
+			{ phase: 'listen', startTick: 0, endTick: 4 * TICKS_PER_BAR },
+			{ phase: 'play', startTick: 4 * TICKS_PER_BAR, endTick: 8 * TICKS_PER_BAR },
+			{ phase: 'read', startTick: 8 * TICKS_PER_BAR, endTick: 10 * TICKS_PER_BAR },
+			{ phase: 'play', startTick: 10 * TICKS_PER_BAR, endTick: 26 * TICKS_PER_BAR }
+		]);
+	});
+
 	it('omits the listen block entirely when the demo is skipped', () => {
 		const timeline = buildPhaseTimeline({
 			audioStartTick: 0,
@@ -271,6 +293,15 @@ describe('phaseTabView', () => {
 			'F'
 		);
 		expect(fromCountIn).toEqual({ kind: 'listen-in', text: 'Listen in', count: 4 });
+	});
+
+	it('reads READ through the pause, then counts into the revealed key by name', () => {
+		const pause: PhaseCue = { phase: 'read', next: 'play', beatsUntilNext: 8, countdown: 0 };
+		expect(phaseTabView(pause, 'G')).toEqual({ kind: 'read', text: 'Read', count: 0 });
+		// The last bar of the pause is an ordinary entrance countdown — not
+		// "Straight in", which is reserved for the no-demo turnaround.
+		const lastBar: PhaseCue = { phase: 'read', next: 'play', beatsUntilNext: 3, countdown: 3 };
+		expect(phaseTabView(lastBar, 'G')).toEqual({ kind: 'play-in', text: 'Play G in', count: 3 });
 	});
 
 	it('rests quietly in a long transition and hides when idle', () => {

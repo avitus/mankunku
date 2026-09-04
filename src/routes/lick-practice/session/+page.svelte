@@ -20,7 +20,8 @@
 		buildLickSuperPhrase,
 		getKeyBars,
 		getDemoBars,
-	getKeyPasses,
+		getKeyPasses,
+		getKeyPauses,
 		recordKeyAttempt,
 		advance,
 		startInterLickTransition,
@@ -43,8 +44,12 @@
 		progressionMode
 	} from '$lib/data/progressions';
 	import { shellVoicing, voiceLead } from '$lib/audio/voicings';
-	import { resolveNextCycleStart, planCycleWindows } from '$lib/state/lick-practice-rotation';
-import { rowScrollFraction } from '$lib/ui/key-stack-layout';
+	import {
+		resolveNextCycleStart,
+		planCycleWindows,
+		cyclePositionAt,
+		type CyclePositionArgs
+	} from '$lib/state/lick-practice-rotation';
 	import {
 		INTER_LICK_REST_BARS,
 		SCORE_HOLD_BARS
@@ -202,28 +207,19 @@ import { rowScrollFraction } from '$lib/ui/key-stack-layout';
 	// stopAll is blocked by isSessionRunning; this guards a hypothetical
 	// double fire of the same boundary within a running session.
 	let lastBoundaryTick: number | null = null;
-	// Non-reactive tick-based timing anchors. Updated only at lick start,
-	// then read each animation frame to compute scrollFraction and
-	// currentBeat. Using ticks instead of seconds avoids the constant-BPM
-	// assumption that breaks when tempo changes between licks — ticks are
-	// tempo-independent.
-	let lickStartTick = 0;
-	// Transport tick at which the current lick's audio first sounds
-	// (demo in continuous mode, first app-phrase in call-response).  Used
-	// to freeze the beat indicator during the inter-lick rest so the newly
-	// shown first row doesn't animate before its demo starts.
-	let lickAudioStartTick = 0;
-	let ticksPerKey = 0;
-	// Slots (key windows) each planned row spans — 1, or the lead-sheet passes
-	// for a revealed row, which holds through all of them.
-	let rowSpans: number[] = [];
-	// Beat-wrap length for the chord chart highlight. Updated on every lick
-	// boundary so licks with different progression lengths wrap correctly.
-	let beatLoopBeats = 0;
-	// Tick where the current lick's audio ends. Beat tracking clamps to this
-	// during the score-hold bar so the finished lick's chart doesn't animate
-	// through phantom beats while its results stay on screen.
-	let lickEndFreezeTick: number | null = null;
+	// Non-reactive tick-domain layout of the current cycle, installed by
+	// scheduleLickWindows from the SAME window plan the recorder is scheduled
+	// against, then read each animation frame (`cyclePositionAt`) to derive
+	// scrollFraction and currentBeat: which row is current, how far through
+	// its passes, which beat to light — and −1 through a reading pause or
+	// past the cycle end, so the finished chart never animates through
+	// phantom beats. Ticks, not seconds, so a tempo change between licks
+	// cannot skew it. Null between a display flip and its scheduling (the
+	// display then sits on row 0, beat 0, exactly as a lead-in should look).
+	let cycleLayout: CyclePositionArgs | null = null;
+	// Rotation slot → planned row, for the same cycle (rows skip a key whose
+	// phrase failed to build, so the two can differ).
+	let rowOfKey: number[] = [];
 
 	// Listen/play signalling. The timeline is a non-reactive tick anchor
 	// (rebuilt from the SAME window plan the recorder is scheduled against,
@@ -555,21 +551,14 @@ import { rowScrollFraction } from '$lib/ui/key-stack-layout';
 		// for licks that fit, longer for licks with extension. Drives demo
 		// length and (in C&R mode) the offset between the app and user halves.
 		const lickBars = mode === 'call-response' ? keyBars / 2 : keyBars;
-		// Demo block length — normally `lickBars` in continuous mode, but 0 on
-		// deep-practice cycles whose head key is already proficient (the state
-		// module's demoNextCycle decision) and always 0 in C&R mode (each key
-		// has its own app-then-user pattern). getDemoBars is the same source
-		// buildLickSuperPhrase reads, so audio and windows stay in lockstep.
-		const demoBars = getDemoBars(lickIdx);
 
-		// Build the planned-keys stack and timing anchors for the continuous
-		// scroll preview. Both update on every lick boundary so the scroll
-		// resets cleanly when a new lick starts (and adapts to a possible
-		// tempo change at the same time).
+		// Build the planned-keys stack for the continuous scroll preview. It
+		// updates on every lick boundary so the scroll resets cleanly when a
+		// new lick starts; the tick layout the scroll reads is installed with
+		// the windows (scheduleLickWindows), from the same plan.
 		plannedKeysForLick = getPlannedKeysForLick(lickIdx);
-		rowSpans = plannedKeysForLick.map((pk) => pk.passes);
-		ticksPerKey = keyBars * ticksPerBar;
-		beatLoopBeats = lickBars * beatsPerBar;
+		rowOfKey = rowIndexByKey(plannedKeysForLick);
+		cycleLayout = null;
 
 		lickPractice.phase = 'lick-running';
 		lickPractice.currentKeyIndex = 0;
@@ -582,18 +571,12 @@ import { rowScrollFraction } from '$lib/ui/key-stack-layout';
 			isSessionRunning = true;
 			currentBeat = 0;
 			scrollFraction = 0;
-			// Transport starts at tick 0; the count-in occupies 1 bar. After
-			// the count-in, the demo plays for `demoBars` bars (continuous
-			// only). Anchors are in ticks (tempo-independent) so they stay
-			// correct even when BPM changes between licks.
-			lickAudioStartTick = ticksPerBar;
-			lickStartTick = (1 + demoBars) * ticksPerBar;
 			startBeatTracking();
 
 			// playPhrase schedules count-in (1 bar) + metronome + backing +
 			// the full super-phrase melody (which now includes the continuous
-			// demo notes). The super phrase's harmony spans demoBars + 12 × P
-			// bars in continuous mode (or 12 × 2P bars in C&R mode).
+			// demo notes). The super phrase's harmony spans the demo, any
+			// reading pause, and one slot per pass (buildLickSuperPhrase).
 			//
 			// CRITICAL: schedule the recording-window callbacks inside the
 			// onStarted hook. playPhrase calls stopPlayback() (which runs
@@ -631,12 +614,6 @@ import { rowScrollFraction } from '$lib/ui/key-stack-layout';
 				toneModule.getTransport().bpm.value = opts.tempo;
 			}
 
-			// Tick-based anchors for the scroll and beat tracking. Ticks are
-			// tempo-independent, so these stay correct regardless of BPM
-			// history — unlike the old seconds-based anchors which assumed
-			// constant BPM from Transport start.
-			lickAudioStartTick = audioStartTick;
-			lickStartTick = audioStartTick + demoBars * ticksPerBar;
 			scrollFraction = 0;
 
 			void playback.scheduleNextPhrase(superPhrase, opts, {
@@ -686,9 +663,11 @@ import { rowScrollFraction } from '$lib/ui/key-stack-layout';
 		// users play the full window.
 		const userBarsOffset = mode === 'call-response' ? lickBars * ticksPerBar : 0;
 
-		// Windows per key: one, or the lead-sheet passes for a revealed key.
-		// Same source buildLickSuperPhrase laid the backing out from.
+		// Windows per key (one, or the lead-sheet passes for a revealed key)
+		// and the reading pause before a revealed key that does not open the
+		// cycle. Same sources buildLickSuperPhrase laid the backing out from.
 		const passes = getKeyPasses(lickIdx);
+		const pauses = getKeyPauses(lickIdx);
 		const windows = planCycleWindows({
 			audioStartTick,
 			demoBars,
@@ -696,10 +675,21 @@ import { rowScrollFraction } from '$lib/ui/key-stack-layout';
 			ticksPerBar,
 			keyCount: item.keys.length,
 			passes,
+			pauses,
 			userBarsOffsetTicks: userBarsOffset
 		});
 		const lickEndTick = windows.cycleEndTick;
-		lickEndFreezeTick = lickEndTick;
+
+		// The display reads its position off this same plan every frame.
+		cycleLayout = {
+			audioStartTick,
+			demoBars,
+			keyBars,
+			ticksPerBar,
+			ticksPerBeat: transport.PPQ,
+			loopBeats: lickBars * Math.round(ticksPerBar / transport.PPQ),
+			windows
+		};
 
 		// Listen/play timeline for this cycle, derived from the very windows
 		// scheduled above. Single-lick cycles join over one turnaround bar;
@@ -958,21 +948,17 @@ import { rowScrollFraction } from '$lib/ui/key-stack-layout';
 			if (toneModule) {
 				const ticks = toneModule.getTransport().ticks;
 
-				// Anchor the beat indicator to when the current lick's audio
-				// actually starts (count-in end for lick 1, audioStartTick for
-				// subsequent licks).  This freezes currentBeat at 0 during the
-				// inter-lick rest so the newly shown first row doesn't animate
-				// through beats before its demo plays. During the score-hold
-				// bar the finished lick is still on screen — park the beat at
-				// -1 (no active cell) so its chart doesn't wrap around and
-				// re-highlight beat 0 as if the key had restarted.
-				if (lickEndFreezeTick !== null && ticks >= lickEndFreezeTick) {
-					currentBeat = -1;
-				} else {
-					const elapsedTicks = ticks - lickAudioStartTick;
-					const phrasePos = elapsedTicks < 0 ? 0 : elapsedTicks / ppq;
-					currentBeat = beatLoopBeats > 0 ? phrasePos % beatLoopBeats : 0;
-				}
+				// Position in the cycle, off the scheduled window plan: the beat
+				// sits at 0 through the lead-in (count-in / rest / turnaround) so
+				// the newly shown head row doesn't animate before its downbeat,
+				// counts through the demo and each key slot from ITS OWN start
+				// (so a reading pause of any length leaves every later key
+				// aligned), and parks at -1 (no lit cell, no bar marker) through
+				// a reading pause and past the cycle end — during the score-hold
+				// bar the finished chart must not wrap round to beat 0 as if the
+				// key had restarted.
+				const position = cycleLayout ? cyclePositionAt(ticks, cycleLayout) : null;
+				currentBeat = position ? position.beat : 0;
 
 				// Listen/play cue. Re-read every frame (so the countdown lands
 				// on the beat) but only committed when a rendered field moves —
@@ -986,18 +972,11 @@ import { rowScrollFraction } from '$lib/ui/key-stack-layout';
 					phaseCue = nextCue;
 				}
 
-				// Continuous scroll position for the upcoming-keys preview.
-				// Clamped to the number of planned keys so the display
-				// never scrolls past the last key into phantom rows.
-				const scrollTicks = ticks - lickStartTick;
-				const rawScroll =
-					scrollTicks > 0 && ticksPerKey > 0
-						? scrollTicks / ticksPerKey
-						: 0;
-				// Slot units → row units: a revealed row spans its three passes and
-				// holds through them. Clamped to the row count inside, so the
-				// display never scrolls past the last row into phantom rows.
-				scrollFraction = rowScrollFraction(rawScroll, rowSpans);
+				// Scroll position for the key stack, in ROW units: key units from
+				// the plan (a revealed key spans its pause and its passes and holds
+				// through them), mapped onto the planned rows. Clamped to the row
+				// count so the display never scrolls into phantom rows.
+				scrollFraction = position ? rowFractionFor(position.keyFraction) : 0;
 			}
 			beatAnimFrame = requestAnimationFrame(tick);
 		}
@@ -1010,6 +989,27 @@ import { rowScrollFraction } from '$lib/ui/key-stack-layout';
 			beatAnimFrame = null;
 		}
 		currentBeat = 0;
+	}
+
+	/**
+	 * Rotation slot → row index for a planned stack. Rows are built from the
+	 * same key list in order, skipping a key whose phrase fails to build, so
+	 * each key's row is the count of rows whose key index precedes it.
+	 */
+	function rowIndexByKey(rows: readonly PlannedKey[]): number[] {
+		const keyCount = rows.length > 0 ? rows[rows.length - 1].keyIndex + 1 : 0;
+		const map: number[] = [];
+		for (let k = 0; k < keyCount; k++) {
+			map.push(rows.filter((pk) => pk.keyIndex < k).length);
+		}
+		return map;
+	}
+
+	/** Key units (slot + progress) → row units for the current stack. */
+	function rowFractionFor(keyFraction: number): number {
+		const key = Math.floor(keyFraction);
+		if (key >= rowOfKey.length) return plannedKeysForLick.length;
+		return (rowOfKey[key] ?? key) + (keyFraction - key);
 	}
 
 	/**
@@ -1521,12 +1521,8 @@ import { rowScrollFraction } from '$lib/ui/key-stack-layout';
 		plannedKeysForLick = [];
 		scrollFraction = 0;
 		currentBeat = 0;
-		lickStartTick = 0;
-		lickAudioStartTick = 0;
-		ticksPerKey = 0;
-		rowSpans = [];
-		beatLoopBeats = 0;
-		lickEndFreezeTick = null;
+		cycleLayout = null;
+		rowOfKey = [];
 		phaseTimeline = [];
 		phaseCue = IDLE_CUE;
 		// finishSession() can leave the score hold up, and the new plan renders

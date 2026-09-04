@@ -20,15 +20,22 @@
  *   the time the next one unlocks), never once all twelve are unlocked, and
  *   never for a key that has not been attempted yet — the first pass is
  *   always by ear. A revealed key runs `LEAD_SHEET_PASSES` windows in a row
- *   so the line can be memorised from the page. Same rule in every session
- *   type, not just deep practice.
+ *   so the line can be memorised from the page, and — unless it opens the
+ *   cycle, where the demo already does this — a `LEAD_SHEET_PAUSE_BARS`
+ *   reading pause precedes its first pass: the band vamps a ii-V into the
+ *   key while the sheet steps in, so the switch from playing by memory to
+ *   reading is heralded, not sprung. Same rule in every session type, not
+ *   just deep practice.
  *
  * The timing helpers keep the boundary robust: the cycle boundary fires at
  * the last key's close tick, leaving exactly the turnaround bar of
  * scheduling lead — `resolveNextCycleStart` stretches the turnaround by
  * whole bars when a late callback (stalled main thread) has eaten that
- * lead, and `planCycleWindows` computes the recording windows for any
- * demo-bars/key-bars layout so the scheduler stays declarative.
+ * lead, `planCycleWindows` computes the recording windows for any
+ * demo/pause/key layout so the scheduler stays declarative, and
+ * `cyclePositionAt` reads the display's position (row, pass, beat) back off
+ * that same plan, so the stack and the chart can never disagree with the
+ * microphone about where in the cycle they are.
  *
  * The tempo helpers (`deepPracticeStartTempo`, `nextCycleTempo`) shape the
  * ramp: a session eases in below the lick's stored tempo and climbs back by
@@ -91,6 +98,20 @@ export function shouldDemoHeadKey(
  * the line, read it again, and then play it from memory.
  */
 export const LEAD_SHEET_PASSES = 3;
+
+/**
+ * Bars of band-only pause before a revealed key's first pass, when that key
+ * does not open the cycle. Playing from memory and reading are different
+ * modes, and a player needs a beat to change modes: the previous key's
+ * window closes, its score lands, the sheet steps into place and lights,
+ * the band vamps a ii-V into the new key, and the tab counts the entrance
+ * in. Two bars is the app's established shape for an entrance the player
+ * must reorient for (the inter-lick rest: one bar to see the score, one cue
+ * bar; record-a-lick's two-bar count-in) — the ONE-bar turnaround joins
+ * keys played in the same mode. A revealed key that opens the cycle needs
+ * none: the demo of that key, with the sheet already up, is its herald.
+ */
+export const LEAD_SHEET_PAUSE_BARS = 2;
 
 /**
  * The key a lick's player is currently learning: the most recently unlocked
@@ -362,17 +383,26 @@ export interface CycleWindowPlan {
 	keyIndex: number[];
 	/** True on a key's last window — the attempt of record; earlier passes are rehearsals. */
 	finalPass: boolean[];
+	/**
+	 * Ticks of band-only reading pause laid immediately before this window's
+	 * slot — non-zero only on a revealed key's FIRST window. The phase
+	 * timeline reads it as a `read` block and the display holds the row
+	 * current, unplayed, through it.
+	 */
+	pauseTicks: number[];
 	/** Tick where the last window closes — the cycle boundary. */
 	cycleEndTick: number;
 }
 
 /**
  * Lay out a cycle's recording windows: an optional demo block of
- * `demoBars`, then one window of `keyBars` per pass, back to back — every
- * key gets one pass unless `passes` says otherwise (a revealed key gets
- * `LEAD_SHEET_PASSES`, abutting, in its own rotation slot).
- * `userBarsOffsetTicks` delays each window's open within its slot
- * (call-response mode, where the app plays the first half).
+ * `demoBars`, then per key an optional pause of `pauses[i]` bars followed by
+ * one window of `keyBars` per pass, back to back — every key gets one pass
+ * unless `passes` says otherwise (a revealed key gets `LEAD_SHEET_PASSES`,
+ * abutting, in its own rotation slot, behind its `LEAD_SHEET_PAUSE_BARS`
+ * pause). `userBarsOffsetTicks` delays each window's open within its slot
+ * (call-response mode, where the app plays the first half). Where the
+ * pauses go is the caller's policy (`getKeyPauses`); this only lays them out.
  */
 export function planCycleWindows(args: {
 	audioStartTick: number;
@@ -382,6 +412,8 @@ export function planCycleWindows(args: {
 	keyCount: number;
 	/** Windows per key, in rotation order; defaults to one each. Must match `keyCount`. */
 	passes?: readonly number[];
+	/** Bars of pause before each key's first window; defaults to none. Must match `keyCount`. */
+	pauses?: readonly number[];
 	userBarsOffsetTicks: number;
 }): CycleWindowPlan {
 	const { audioStartTick, demoBars, keyBars, ticksPerBar, keyCount, userBarsOffsetTicks } = args;
@@ -389,25 +421,128 @@ export function planCycleWindows(args: {
 	if (passes.length !== keyCount) {
 		throw new Error(`planCycleWindows: ${passes.length} pass counts for ${keyCount} keys`);
 	}
-	const keyTicks = keyBars * ticksPerBar;
-	const cycleStartTick = audioStartTick + demoBars * ticksPerBar;
+	const pauses = args.pauses ?? Array.from({ length: keyCount }, () => 0);
+	if (pauses.length !== keyCount) {
+		throw new Error(`planCycleWindows: ${pauses.length} pause counts for ${keyCount} keys`);
+	}
 
 	const opens: number[] = [];
 	const closes: number[] = [];
 	const keyIndex: number[] = [];
 	const finalPass: boolean[] = [];
-	let slot = 0;
+	const pauseTicks: number[] = [];
+	// Bars laid out so far, from the audio start: the demo, then each key's
+	// pause and passes in turn.
+	let barCursor = demoBars;
 	for (let i = 0; i < keyCount; i++) {
+		const pause = Math.max(0, pauses[i]);
+		barCursor += pause;
 		const count = Math.max(1, passes[i]);
 		for (let pass = 0; pass < count; pass++) {
-			const slotStartTick = cycleStartTick + slot * keyTicks;
+			const slotStartTick = audioStartTick + barCursor * ticksPerBar;
 			opens.push(slotStartTick + userBarsOffsetTicks);
-			closes.push(slotStartTick + keyTicks);
+			closes.push(slotStartTick + keyBars * ticksPerBar);
 			keyIndex.push(i);
 			finalPass.push(pass === count - 1);
-			slot++;
+			pauseTicks.push(pass === 0 ? pause * ticksPerBar : 0);
+			barCursor += keyBars;
 		}
 	}
 
-	return { opens, closes, keyIndex, finalPass, cycleEndTick: cycleStartTick + slot * keyTicks };
+	return {
+		opens,
+		closes,
+		keyIndex,
+		finalPass,
+		pauseTicks,
+		cycleEndTick: audioStartTick + barCursor * ticksPerBar
+	};
+}
+
+/** Where in its cycle the transport is, for the display. */
+export interface CyclePosition {
+	/**
+	 * `lead` — before the audio (count-in, turnaround, inter-lick rest);
+	 * `demo` — the app playing the head key; `pause` — a revealed key's
+	 * reading pause; `play` — inside a key's slot (a call-response slot
+	 * includes the app's half); `done` — at or past the cycle end.
+	 */
+	segment: 'lead' | 'demo' | 'pause' | 'play' | 'done';
+	/**
+	 * Position in KEY units: the integer part is the rotation slot whose row
+	 * is current, the fraction its progress through that key's passes (a
+	 * three-pass key runs 0 → 1 across all three). Exactly the integer through
+	 * a pause — the row is up, nothing has been played. Clamped to
+	 * `[0, keyCount]`; the key count means "past the last key".
+	 */
+	keyFraction: number;
+	/**
+	 * Beat within the sounding chart loop (`0 ≤ beat < loopBeats`), restarting
+	 * at each slot start — the chord chart's lit cell and the lead sheet's bar
+	 * marker read it. −1 through a pause and past the cycle end (nothing to
+	 * mark); 0 before the audio starts (the head row waits on its downbeat).
+	 */
+	beat: number;
+}
+
+export interface CyclePositionArgs {
+	/** Tick where the cycle's audio begins (after any count-in / turnaround). */
+	audioStartTick: number;
+	demoBars: number;
+	/** Bars per key slot (the whole slot in call-response — call + answer). */
+	keyBars: number;
+	ticksPerBar: number;
+	ticksPerBeat: number;
+	/**
+	 * Beats the chord chart loops over: the lick's bars × beats per bar. In
+	 * call-response that is HALF the slot, so the call and the answer animate
+	 * the chart identically.
+	 */
+	loopBeats: number;
+	windows: CycleWindowPlan;
+}
+
+/**
+ * Read the display's position off the window plan: which key's row is
+ * current, how far through its passes it is, and which beat of the chart to
+ * light. The same plan the recorder is scheduled against, so the stack, the
+ * chart and the microphone can never disagree — and the one place the
+ * pause is understood, so a pause of any length keeps every later slot's
+ * beat aligned to its own downbeat (a global modulo over the cycle would
+ * drift by the pause).
+ */
+export function cyclePositionAt(tick: number, args: CyclePositionArgs): CyclePosition {
+	const { audioStartTick, demoBars, keyBars, ticksPerBar, ticksPerBeat, loopBeats, windows } = args;
+	const beatAt = (ticksIntoSlot: number): number =>
+		loopBeats > 0 && ticksPerBeat > 0 ? (ticksIntoSlot / ticksPerBeat) % loopBeats : 0;
+	const keyCount = windows.keyIndex.length > 0 ? windows.keyIndex[windows.keyIndex.length - 1] + 1 : 0;
+
+	if (tick < audioStartTick) return { segment: 'lead', keyFraction: 0, beat: 0 };
+	const demoEndTick = audioStartTick + demoBars * ticksPerBar;
+	if (tick < demoEndTick) {
+		return { segment: 'demo', keyFraction: 0, beat: beatAt(tick - audioStartTick) };
+	}
+
+	const keyTicks = keyBars * ticksPerBar;
+	for (let w = 0; w < windows.closes.length; w++) {
+		const closeTick = windows.closes[w];
+		if (tick >= closeTick) continue;
+		const key = windows.keyIndex[w];
+		const slotStartTick = closeTick - keyTicks;
+		if (tick < slotStartTick) return { segment: 'pause', keyFraction: key, beat: -1 };
+		// This key's passes: the windows sharing its slot index, in order.
+		let firstWindow = w;
+		while (firstWindow > 0 && windows.keyIndex[firstWindow - 1] === key) firstWindow--;
+		let passes = 0;
+		for (let k = firstWindow; k < windows.keyIndex.length && windows.keyIndex[k] === key; k++) passes++;
+		const pass = w - firstWindow;
+		const within = keyTicks > 0 ? (tick - slotStartTick) / keyTicks : 0;
+		return {
+			segment: 'play',
+			keyFraction: key + (pass + within) / passes,
+			beat: beatAt(tick - slotStartTick)
+		};
+	}
+
+	return { segment: 'done', keyFraction: keyCount, beat: -1 };
 }

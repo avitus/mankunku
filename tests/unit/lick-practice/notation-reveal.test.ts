@@ -22,9 +22,10 @@ import {
 	getPlannedKey,
 	getPlannedKeysForLick,
 	getKeyPasses,
+	getKeyPauses,
 	resetSession
 } from '$lib/state/lick-practice.svelte';
-import { LEAD_SHEET_PASSES } from '$lib/state/lick-practice-rotation';
+import { LEAD_SHEET_PASSES, LEAD_SHEET_PAUSE_BARS } from '$lib/state/lick-practice-rotation';
 import { bumpUnlockedKeyCount, updateKeyProgress } from '$lib/persistence/lick-practice-store';
 import { trickVariantKey, type TrickParameters } from '$lib/types/tricks';
 import { settings } from '$lib/state/settings.svelte';
@@ -217,6 +218,31 @@ describe('planned rows carry the reveal decision', () => {
 		expect(getKeyPasses(99)).toEqual([]);
 	});
 
+	it('pauses before the revealed key when it does not open the cycle — the herald of the switch to reading', () => {
+		setUnlockedCount('lick-f', 3);
+		seedRolling('lick-f', { G: 0.9, F: 0.5 });
+		startSingleLickSession(makeLick('C', 'lick-f'));
+		// Rotation [C, F, G]: F is read, and it follows C's window.
+		expect(getKeyPauses(0)).toEqual([0, LEAD_SHEET_PAUSE_BARS, 0]);
+		expect(getKeyPauses(0)).toHaveLength(lickPractice.plan[0].keys.length);
+		expect(getKeyPauses(99)).toEqual([]);
+	});
+
+	it('never pauses before a revealed key that opens the cycle — the demo is its herald', () => {
+		startSingleLickSession(makeLick('C', 'fresh-lick'));
+		recordKeyAttempt(makeScore(0.6));
+		advanceSingleLickRound();
+		expect(getPlannedKeysForLick(0)[0].reveal).toBe(true);
+		expect(getKeyPauses(0)).toEqual([0]);
+	});
+
+	it('never pauses before an unrevealed key', () => {
+		setUnlockedCount('lick-f', 3);
+		seedRolling('lick-f', { C: 0.2, G: 0.3, F: 0.9 });
+		startSingleLickSession(makeLick('C', 'lick-f'));
+		expect(getKeyPauses(0)).toEqual([0, 0, 0]);
+	});
+
 	it('keeps one pass per key in call-response mode — the app already plays each half', () => {
 		setUnlockedCount('lick-f', 3);
 		seedRolling('lick-f', { G: 0.9, F: 0.5 });
@@ -226,6 +252,9 @@ describe('planned rows carry the reveal decision', () => {
 		expect(rows.map((pk) => pk.reveal)).toEqual([false, true, false]);
 		expect(rows.map((pk) => pk.passes)).toEqual([1, 1, 1]);
 		expect(getKeyPasses(0)).toEqual([1, 1, 1]);
+		// Each call-and-response window opens with the app's half, which is
+		// already a pause with the sheet up — no extra bars.
+		expect(getKeyPauses(0)).toEqual([0, 0, 0]);
 	});
 
 	it('never stamps a reveal on a trick round\'s rows', () => {

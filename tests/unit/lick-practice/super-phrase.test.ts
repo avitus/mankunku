@@ -27,13 +27,14 @@ import {
 	buildLickSuperPhrase,
 	getKeyBars,
 	getKeyPasses,
+	getKeyPauses,
 	getLickBars,
 	getProgressionBars,
 	advance,
 	startInterLickTransition,
 	recordKeyAttempt
 } from '$lib/state/lick-practice.svelte';
-import { LEAD_SHEET_PASSES } from '$lib/state/lick-practice-rotation';
+import { LEAD_SHEET_PASSES, LEAD_SHEET_PAUSE_BARS } from '$lib/state/lick-practice-rotation';
 import { bumpUnlockedKeyCount, updateKeyProgress } from '$lib/persistence/lick-practice-store';
 import type { Phrase } from '$lib/types/music';
 import type { LickPracticePlanItem } from '$lib/types/lick-practice';
@@ -255,30 +256,73 @@ describe('buildLickSuperPhrase — lead-sheet passes', () => {
 		lickPractice.plan = plan({ id: SHORT_LICK_ID, keys: ['C', 'F', 'Bb'] });
 	});
 
-	it('lays the revealed key\'s harmony once per pass, in consecutive slots', () => {
+	/** Segments starting at whole-note offset `bar` (bars, in 4/4). */
+	function startsAt(sp: Phrase, bar: number) {
+		return sp.harmony.filter((seg) => fractionToFloat(seg.startOffset) === bar);
+	}
+
+	it('lays the revealed key\'s harmony once per pass, in consecutive slots after its reading pause', () => {
 		expect(getKeyPasses(0)).toEqual([1, LEAD_SHEET_PASSES, 1]);
+		expect(getKeyPauses(0)).toEqual([0, LEAD_SHEET_PAUSE_BARS, 0]);
 		const sp = buildLickSuperPhrase(0)!;
-		const segsPerKey = 3;
-		// demo (C) + C + F ×3 + Bb = 6 slots × 3 segments
-		expect(sp.harmony.length).toBe(6 * segsPerKey);
-		// Slots are 2 bars each after the 2-bar demo: C@2, F@4, F@6, F@8, Bb@10.
-		const slotStarts = [1, 2, 3, 4, 5].map((slot) =>
-			fractionToFloat(sp.harmony[slot * segsPerKey].startOffset)
-		);
-		expect(slotStarts).toEqual([2, 4, 6, 8, 10]);
-		const slotRoots = [1, 2, 3, 4, 5].map((slot) => sp.harmony[slot * segsPerKey].chord.root);
-		// ii of C = D, ii of F = G (three times), ii of Bb = C
-		expect(slotRoots).toEqual(['D', 'G', 'G', 'G', 'C']);
+		// demo C @0, C @2, reading pause 4–6, F @6 @8 @10, Bb @12.
+		// ii of C = D, ii of F = G (three times), ii of Bb = C.
+		expect(startsAt(sp, 0)[0].chord).toEqual({ root: 'D', quality: 'min7' });
+		expect(startsAt(sp, 2)[0].chord).toEqual({ root: 'D', quality: 'min7' });
+		for (const bar of [6, 8, 10]) {
+			expect(startsAt(sp, bar)[0].chord).toEqual({ root: 'G', quality: 'min7' });
+			// A full lick slot, not a pause bar: the ii lasts half a bar, the I a bar.
+			expect(fractionToFloat(startsAt(sp, bar + 1)[0].duration)).toBe(1);
+		}
+		expect(startsAt(sp, 12)[0].chord).toEqual({ root: 'C', quality: 'min7' });
 	});
 
-	it('extends the total length by the extra passes', () => {
+	it('fills the reading pause with the band vamping a ii-V into the revealed key', () => {
+		// Two bars of | Gm7 C7 | Gm7 C7 | before the F slot — the cycle-join
+		// turnaround, repeated: "vamp till ready".
 		const sp = buildLickSuperPhrase(0)!;
-		// 2 demo + (1 + 3 + 1) × 2 = 12 bars
-		expect(sp.difficulty.lengthBars).toBe(12);
+		const pause = sp.harmony.filter((seg) => {
+			const at = fractionToFloat(seg.startOffset);
+			return at >= 4 && at < 6;
+		});
+		expect(
+			pause.map((seg) => [
+				fractionToFloat(seg.startOffset),
+				seg.chord.root,
+				seg.chord.quality,
+				fractionToFloat(seg.duration)
+			])
+		).toEqual([
+			[4, 'G', 'min7', 0.5],
+			[4.5, 'C', '7', 0.5],
+			[5, 'G', 'min7', 0.5],
+			[5.5, 'C', '7', 0.5]
+		]);
+		// Harmony stays in playing order for the backing engine.
+		const offsets = sp.harmony.map((seg) => fractionToFloat(seg.startOffset));
+		expect(offsets).toEqual([...offsets].sort((a, b) => a - b));
+	});
+
+	it('extends the total length by the extra passes and the pause', () => {
+		const sp = buildLickSuperPhrase(0)!;
+		// 2 demo + 2 (C) + 2 (pause) + 3 × 2 (F) + 2 (Bb) = 14 bars
+		expect(sp.difficulty.lengthBars).toBe(14);
 	});
 
 	it('still plays the demo exactly once', () => {
 		expect(buildLickSuperPhrase(0)!.notes.length).toBe(4);
+	});
+
+	it('inserts no pause when the revealed key opens the cycle — the demo heralds it', () => {
+		lickPractice.plan = plan({ id: SHORT_LICK_ID, keys: ['F', 'C', 'Bb'] });
+		expect(getKeyPauses(0)).toEqual([0, 0, 0]);
+		const sp = buildLickSuperPhrase(0)!;
+		// demo F @0, F @2 @4 @6, C @8, Bb @10 — six lick slots of three
+		// segments and nothing else: no vamp bars anywhere.
+		expect(sp.difficulty.lengthBars).toBe(12);
+		expect(sp.harmony.length).toBe(6 * 3);
+		expect(startsAt(sp, 2)[0].chord).toEqual({ root: 'G', quality: 'min7' });
+		expect(startsAt(sp, 8)[0].chord).toEqual({ root: 'D', quality: 'min7' });
 	});
 });
 

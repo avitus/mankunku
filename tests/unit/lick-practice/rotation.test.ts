@@ -15,8 +15,10 @@ import {
 	shouldRevealNotation,
 	newestUnlockedKey,
 	LEAD_SHEET_PASSES,
+	LEAD_SHEET_PAUSE_BARS,
 	resolveNextCycleStart,
 	planCycleWindows,
+	cyclePositionAt,
 	nextCycleTempo,
 	focusStartTempo,
 	focusStepDownTempo,
@@ -284,6 +286,184 @@ describe('planCycleWindows', () => {
 				userBarsOffsetTicks: 0
 			})
 		).toThrow();
+	});
+});
+
+describe('planCycleWindows reading pause', () => {
+	const ticksPerBar = 4 * 480;
+	const bar = (n: number) => n * ticksPerBar;
+
+	it('inserts the pause bars before a key\'s first window and shifts everything after it', () => {
+		// [C, G, F]; G is the revealed key: three passes, and a reading pause
+		// before the first of them so the switch from memory to reading is
+		// heralded rather than sprung. Demo 0–2, C 2–4, pause 4–6, G 6–12, F 12–14.
+		expect(LEAD_SHEET_PAUSE_BARS).toBe(2);
+		const plan = planCycleWindows({
+			audioStartTick: 0,
+			demoBars: 2,
+			keyBars: 2,
+			ticksPerBar,
+			keyCount: 3,
+			passes: [1, LEAD_SHEET_PASSES, 1],
+			pauses: [0, LEAD_SHEET_PAUSE_BARS, 0],
+			userBarsOffsetTicks: 0
+		});
+		expect(plan.opens).toEqual([bar(2), bar(6), bar(8), bar(10), bar(12)]);
+		expect(plan.closes).toEqual([bar(4), bar(8), bar(10), bar(12), bar(14)]);
+		expect(plan.keyIndex).toEqual([0, 1, 1, 1, 2]);
+		expect(plan.finalPass).toEqual([true, false, false, true, true]);
+		// The pause is attached to the key's FIRST window only.
+		expect(plan.pauseTicks).toEqual([0, bar(2), 0, 0, 0]);
+		expect(plan.cycleEndTick).toBe(bar(14));
+	});
+
+	it('honours a pause on the opening key too — the policy, not the layout, decides where pauses go', () => {
+		const plan = planCycleWindows({
+			audioStartTick: bar(1),
+			demoBars: 0,
+			keyBars: 2,
+			ticksPerBar,
+			keyCount: 2,
+			pauses: [1, 0],
+			userBarsOffsetTicks: 0
+		});
+		expect(plan.opens).toEqual([bar(2), bar(4)]);
+		expect(plan.pauseTicks).toEqual([bar(1), 0]);
+		expect(plan.cycleEndTick).toBe(bar(6));
+	});
+
+	it('reports zero pause ticks on every window when no pauses are given', () => {
+		const plan = planCycleWindows({
+			audioStartTick: 0,
+			demoBars: 0,
+			keyBars: 2,
+			ticksPerBar,
+			keyCount: 2,
+			passes: [2, 1],
+			userBarsOffsetTicks: 0
+		});
+		expect(plan.pauseTicks).toEqual([0, 0, 0]);
+		expect(plan.cycleEndTick).toBe(bar(6));
+	});
+
+	it('rejects a pauses list that does not match the key count', () => {
+		expect(() =>
+			planCycleWindows({
+				audioStartTick: 0,
+				demoBars: 0,
+				keyBars: 2,
+				ticksPerBar,
+				keyCount: 2,
+				pauses: [0],
+				userBarsOffsetTicks: 0
+			})
+		).toThrow();
+	});
+});
+
+describe('cyclePositionAt', () => {
+	// The display reads the SAME window plan the recorder is scheduled
+	// against: count-in bar 0, audio from bar 1, a 2-bar demo, then
+	// [C, G ×3 with a 2-bar reading pause, F] at 2 bars a key, 4/4.
+	const ppq = 480;
+	const ticksPerBar = 4 * ppq;
+	const bar = (n: number) => n * ticksPerBar;
+	const windows = planCycleWindows({
+		audioStartTick: bar(1),
+		demoBars: 2,
+		keyBars: 2,
+		ticksPerBar,
+		keyCount: 3,
+		passes: [1, 3, 1],
+		pauses: [0, 2, 0],
+		userBarsOffsetTicks: 0
+	});
+	const args = {
+		audioStartTick: bar(1),
+		demoBars: 2,
+		keyBars: 2,
+		ticksPerBar,
+		ticksPerBeat: ppq,
+		loopBeats: 8,
+		windows
+	};
+	const at = (bars: number) => cyclePositionAt(bar(bars), args);
+
+	it('is the lead-in before the audio starts: key 0, beat 0, nothing animating', () => {
+		expect(at(0)).toEqual({ segment: 'lead', keyFraction: 0, beat: 0 });
+		expect(at(0.75)).toEqual({ segment: 'lead', keyFraction: 0, beat: 0 });
+	});
+
+	it('runs the demo on key 0 with the beat counting through the chart loop', () => {
+		expect(at(1)).toEqual({ segment: 'demo', keyFraction: 0, beat: 0 });
+		// 1.25 bars into the demo = beat 5 of the 8-beat loop.
+		expect(at(2.25)).toEqual({ segment: 'demo', keyFraction: 0, beat: 5 });
+	});
+
+	it('advances a one-pass key from its slot start and restarts the beat there', () => {
+		expect(at(3)).toEqual({ segment: 'play', keyFraction: 0, beat: 0 });
+		expect(at(4)).toEqual({ segment: 'play', keyFraction: 0.5, beat: 4 });
+	});
+
+	it('holds the revealed key at its integer through the whole pause, with no beat', () => {
+		// The row is current (the sheet steps in and lights up) but nothing
+		// plays: no chord cell, no bar marker.
+		expect(at(5)).toEqual({ segment: 'pause', keyFraction: 1, beat: -1 });
+		expect(at(6.99)).toEqual({ segment: 'pause', keyFraction: 1, beat: -1 });
+	});
+
+	it('spreads the revealed key\'s passes over its fraction and restarts the beat each pass', () => {
+		expect(at(7)).toEqual({ segment: 'play', keyFraction: 1, beat: 0 });
+		const secondPass = at(9);
+		expect(secondPass.segment).toBe('play');
+		expect(secondPass.keyFraction).toBeCloseTo(1 + 1 / 3, 9);
+		expect(secondPass.beat).toBe(0);
+		const midThird = at(12);
+		expect(midThird.keyFraction).toBeCloseTo(1 + 2.5 / 3, 9);
+		expect(midThird.beat).toBe(4);
+	});
+
+	it('moves to the next key exactly at its slot start', () => {
+		expect(at(13)).toEqual({ segment: 'play', keyFraction: 2, beat: 0 });
+		expect(at(14.5)).toEqual({ segment: 'play', keyFraction: 2.75, beat: 6 });
+	});
+
+	it('is done past the cycle end: the key count, no beat', () => {
+		expect(at(15)).toEqual({ segment: 'done', keyFraction: 3, beat: -1 });
+		expect(at(20)).toEqual({ segment: 'done', keyFraction: 3, beat: -1 });
+	});
+
+	it('counts the beat through the app half of a call-response window and wraps for the answer', () => {
+		// keyBars 4 = call 2 + answer 2; the chart loop is the 2-bar lick, so
+		// both halves animate identically. No demo, no pauses.
+		const cr = planCycleWindows({
+			audioStartTick: 0,
+			demoBars: 0,
+			keyBars: 4,
+			ticksPerBar,
+			keyCount: 2,
+			userBarsOffsetTicks: bar(2)
+		});
+		const crArgs = { ...args, audioStartTick: 0, demoBars: 0, keyBars: 4, windows: cr };
+		expect(cyclePositionAt(bar(1), crArgs)).toEqual({ segment: 'play', keyFraction: 0.25, beat: 4 });
+		expect(cyclePositionAt(bar(2), crArgs)).toEqual({ segment: 'play', keyFraction: 0.5, beat: 0 });
+		expect(cyclePositionAt(bar(5), crArgs)).toEqual({ segment: 'play', keyFraction: 1.25, beat: 4 });
+	});
+
+	it('handles an empty plan', () => {
+		const empty = planCycleWindows({
+			audioStartTick: bar(1),
+			demoBars: 0,
+			keyBars: 2,
+			ticksPerBar,
+			keyCount: 0,
+			userBarsOffsetTicks: 0
+		});
+		expect(cyclePositionAt(bar(3), { ...args, demoBars: 0, windows: empty })).toEqual({
+			segment: 'done',
+			keyFraction: 0,
+			beat: -1
+		});
 	});
 });
 

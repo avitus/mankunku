@@ -3,6 +3,7 @@
 	import NotationDisplay, {
 		type RangeMarker
 	} from '$lib/components/notation/NotationDisplay.svelte';
+	import { fade } from 'svelte/transition';
 	import { accuracyTierInfo } from '$lib/ui/score-colors';
 	import { keyStackLayout } from '$lib/ui/key-stack-layout';
 	import { leadSheetTuneFor, leadSheetAbcOptions } from '$lib/music/lead-sheet';
@@ -19,11 +20,12 @@
 		plannedKeys: PlannedKey[];
 		/**
 		 * Scroll position in ROW units: the integer part is the row being
-		 * played, the fraction the position within it (for a multi-pass row,
-		 * `floor(fraction × passes) + 1` is the pass). The session converts the
-		 * transport's slot-unit progress with `rowScrollFraction` before passing
-		 * it, so a three-pass row holds through all its passes — raw key units
-		 * would move that row after its first pass. Updated each animation frame.
+		 * played — or read: a lead-sheet row is current from the start of its
+		 * reading pause — and the fraction the progress through its passes (for
+		 * a multi-pass row, `floor(fraction × passes) + 1` is the pass; exactly
+		 * the integer through the pause). The session derives it from the cycle's
+		 * window plan (`cyclePositionAt`), so a three-pass row holds through all
+		 * its passes and its pause. Updated each animation frame.
 		 */
 		scrollFraction: number;
 		/** Active beat in the currently-playing key (drives chord-box highlight). */
@@ -96,16 +98,15 @@
 	// start, the slot above row 0 is empty until the first key boundary
 	// populates it.
 	//
-	// Read-ahead: when the NEXT row is the lead sheet, the layout parks the
-	// current row at the top instead, so the whole sheet is on screen for the
-	// preceding key and nothing moves at its downbeat — a sheet is read, and
-	// half a staff sliding in as the mic opens was the "not completely
-	// displayed" report. That row is lit (`.ahead`) on the same condition; it
-	// stays `.current`-gated for the playhead, beat and ring, which must wait
-	// for its key. Costs, accepted: the row played two keys before the sheet
-	// scrolls out with its score flash (the ring keeps the score), and the
-	// lick name above row 0 is clipped from the start when row 1 is the sheet
-	// (it is clipped after the first key in every session anyway).
+	// A lead-sheet row waits its turn like any other: until its key arrives it
+	// shows the key's chord chart (dimmed, below the active row) and the
+	// engraved staff underneath stays hidden — engraved ahead, so abcjs has
+	// done its work, but not shown. The row becomes current at the START of
+	// its reading pause (the previous key's window has just closed), steps
+	// into the slot, and the chart cross-fades into the staff: the switch from
+	// memory to reading is visible as a switch. Read-ahead parking (the sheet
+	// lit a whole key early) was tried and withdrawn — Andy: the sheet should
+	// not appear until the previous key has been played.
 	const rowHeights = $derived(plannedKeys.map((pk) => (pk.reveal ? LEAD_ROW_HEIGHT : ROW_HEIGHT)));
 	const layout = $derived(keyStackLayout(rowHeights, scrollFraction, ROW_HEIGHT, VISIBLE_ROWS));
 	const translateYpx = $derived(layout.translateY);
@@ -176,11 +177,10 @@
 		{#each plannedKeys as pk, i (pk.lickId + ':' + pk.key + ':' + i)}
 			{@const isCurrent = i === visualCurrentRow}
 			{@const sheet = leadSheets[i]}
-			{@const isAhead = !!sheet && i === visualCurrentRow + 1}
+			{@const isRevealed = !!sheet && i <= visualCurrentRow}
 			<div
 				class="row"
 				class:current={isCurrent}
-				class:ahead={isAhead}
 				style="height: {rowHeights[i]}px;"
 			>
 				{#if i === 0}
@@ -204,9 +204,12 @@
 							     marks the bar, placed by the engraver's own geometry; it is
 							     the only playback indication (a lit-note cursor was tried and
 							     dropped as redundant). No caption by decision: the engraving
-							     is the message. -->
+							     is the message. Hidden (not merely faded — `visibility`) until
+							     the row's key arrives; the key's chord chart stands in its
+							     place meanwhile and fades out as the staff fades in. -->
 							<div
 								class="lead-sheet"
+								class:revealed={isRevealed}
 								data-testid="lead-sheet-row"
 								style="--lead-staff-box: {LEAD_STAFF_BOX}px;"
 							>
@@ -219,6 +222,23 @@
 									rangeMarkers={isCurrent ? activeMarkers : NO_MARKERS}
 								/>
 							</div>
+							{#if !isRevealed}
+								<div
+									class="sheet-placeholder"
+									data-testid="lead-sheet-placeholder"
+									out:fade={{ duration: 400 }}
+								>
+									<ChordChart
+										harmony={pk.harmony}
+										currentBeat={0}
+										timeSignature={[4, 4]}
+										isPlaying={false}
+										key={pk.key}
+										mode={lickMode(pk.phrase)}
+										{instrument}
+									/>
+								</div>
+							{/if}
 					{:else}
 						<ChordChart
 							harmony={pk.harmony}
@@ -264,6 +284,18 @@
 										stroke-width="1.3"
 										stroke-linecap="round"
 									/>
+								</svg>
+							{:else if tab.kind === 'read'}
+								<!-- A staff with a note on it: the sheet is up, read it, don't play yet. -->
+								<svg class="tab-glyph" viewBox="0 0 16 16" aria-hidden="true">
+									<path
+										d="M2 4.5h12M2 8h12M2 11.5h12"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="1.1"
+									/>
+									<ellipse cx="10.2" cy="9.8" rx="2" ry="1.5" fill="currentColor" />
+									<path d="M12.1 9.6V3.2" fill="none" stroke="currentColor" stroke-width="1.2" />
 								</svg>
 							{:else if tab.kind === 'listen' || tab.kind === 'listen-in'}
 								<svg class="tab-glyph" viewBox="0 0 16 16" aria-hidden="true">
@@ -318,8 +350,7 @@
 		opacity: 0.35;
 		transition: opacity 250ms ease;
 	}
-	.row.current,
-	.row.ahead {
+	.row.current {
 		opacity: 1;
 	}
 	.chart-wrap {
@@ -350,6 +381,24 @@
 		height: var(--lead-staff-box);
 		padding: 26px 0 0;
 		overflow: hidden;
+		/* Engraved ahead, shown at the reading pause: `visibility` (not just
+		   opacity) so the staff is genuinely absent from the page until then,
+		   then a fade in as the placeholder chart fades out over it. */
+		visibility: hidden;
+		opacity: 0;
+		transition: opacity 400ms ease;
+	}
+	.lead-sheet.revealed {
+		visibility: visible;
+		opacity: 1;
+	}
+	/* The key's chord chart standing in for the sheet until its key arrives —
+	   so an upcoming lead-sheet row looks like every other upcoming row. Sits
+	   over the (hidden) staff box, top-aligned like a chord row's chart. */
+	.sheet-placeholder {
+		position: absolute;
+		inset: 0 0 auto 0;
+		pointer-events: none;
 	}
 	.lead-sheet :global(.abcjs-container) {
 		display: block !important;
@@ -446,8 +495,10 @@
 	.phase-tab > * {
 		position: relative;
 	}
+	/* READ shares the listen colour: red means don't play yet. */
 	.phase-tab[data-kind='listen'],
-	.phase-tab[data-kind='listen-in'] {
+	.phase-tab[data-kind='listen-in'],
+	.phase-tab[data-kind='read'] {
 		color: color-mix(in srgb, var(--color-phase-listen) 70%, var(--color-text));
 		background: color-mix(in srgb, var(--color-phase-listen) 16%, var(--color-bg));
 		border-color: color-mix(in srgb, var(--color-phase-listen) 40%, transparent);

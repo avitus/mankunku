@@ -69,6 +69,7 @@ import {
 	updateKeyProgress
 } from '$lib/persistence/lick-practice-store';
 import { getAllLicks } from '$lib/phrases/library-loader';
+import { LEAD_SHEET_PAUSE_BARS } from '$lib/state/lick-practice-rotation';
 
 beforeEach(() => {
 	store.clear();
@@ -112,6 +113,13 @@ describe('lick-practice-duration (pure cost model)', () => {
 		expect(
 			lickAudioBars({ keyCount: 3, lickBars: 2, mode: 'continuous', extraWindows: 2 })
 		).toBe(12);
+	});
+
+	it('charges the reading pause before a revealed key as plain bars', () => {
+		expect(
+			lickAudioBars({ keyCount: 3, lickBars: 2, mode: 'continuous', extraWindows: 2, pauseBars: 2 })
+		).toBe(14);
+		expect(lickAudioBars({ keyCount: 3, lickBars: 2, mode: 'continuous', pauseBars: 0 })).toBe(8);
 	});
 
 	it('reads beats-per-bar from the phrase rather than assuming 4/4', () => {
@@ -170,8 +178,13 @@ describe('estimatePlanSeconds', () => {
 			lickBars: getLickBars(getAllLicks().find((l) => l.id === 'bc-041')!, 'blues', false),
 			mode: 'continuous'
 		});
-		// Two extra windows of one cycle each.
-		expect(superPhrase.difficulty.lengthBars).toBe(plain + 2 * getLickBars(getAllLicks().find((l) => l.id === 'bc-041')!, 'blues', false));
+		// Two extra windows of one cycle each, plus the reading pause before G —
+		// G follows C's window, so the switch to reading is heralded.
+		expect(superPhrase.difficulty.lengthBars).toBe(
+			plain +
+				2 * getLickBars(getAllLicks().find((l) => l.id === 'bc-041')!, 'blues', false) +
+				LEAD_SHEET_PAUSE_BARS
+		);
 		const tempo = resolveLickTempo(lickPractice.progress, 'bc-041');
 		const expected =
 			((superPhrase.difficulty.lengthBars + INTER_LICK_REST_BARS) * superPhrase.timeSignature[0] * 60) /
