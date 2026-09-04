@@ -232,8 +232,22 @@ describe('planned rows carry the reveal decision', () => {
 		startSingleLickSession(makeLick('C', 'fresh-lick'));
 		recordKeyAttempt(makeScore(0.6));
 		advanceSingleLickRound();
+		expect(lickPractice.demoNextCycle).toBe(true);
 		expect(getPlannedKeysForLick(0)[0].reveal).toBe(true);
 		expect(getKeyPauses(0)).toEqual([0]);
+	});
+
+	it('pauses before a revealed key that opens a refill cycle — with no demo, the pause is its herald', () => {
+		startSingleLickSession(makeLick('C', 'fresh-lick'));
+		recordKeyAttempt(makeScore(0.6)); // C: 0.6, under the floor → revealed
+		advanceSingleLickRound();
+		// C clears the whole (one-key) rotation, but its EWMA only reaches
+		// 0.4 × 0.95 + 0.6 × 0.6 = 0.74: still revealed, now with no demo.
+		recordKeyAttempt(makeScore(0.95));
+		advanceSingleLickRound();
+		expect(lickPractice.demoNextCycle).toBe(false);
+		expect(getPlannedKeysForLick(0)[0].reveal).toBe(true);
+		expect(getKeyPauses(0)).toEqual([LEAD_SHEET_PAUSE_BARS]);
 	});
 
 	it('never pauses before an unrevealed key', () => {

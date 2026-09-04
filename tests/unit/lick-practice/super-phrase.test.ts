@@ -67,6 +67,8 @@ beforeEach(() => {
 	lickPractice.keyResults = [];
 	lickPractice.allAttempts = [];
 	lickPractice.plan = [];
+	lickPractice.mode = 'standard';
+	lickPractice.demoNextCycle = true;
 });
 
 describe('getPlannedKey lookahead', () => {
@@ -322,6 +324,31 @@ describe('buildLickSuperPhrase — lead-sheet passes', () => {
 		expect(sp.difficulty.lengthBars).toBe(12);
 		expect(sp.harmony.length).toBe(6 * 3);
 		expect(startsAt(sp, 2)[0].chord).toEqual({ root: 'G', quality: 'min7' });
+		expect(startsAt(sp, 8)[0].chord).toEqual({ root: 'D', quality: 'min7' });
+	});
+
+	it('lays the pause at the top of the cycle when the revealed key opens it with no demo', () => {
+		// A deep-practice refill cycle: F just cleared but is still under the
+		// floor, so it is revealed AND at the head of a cycle that never demos.
+		// The pause takes the demo's place as the sheet's herald.
+		lickPractice.plan = plan({ id: SHORT_LICK_ID, keys: ['F', 'C', 'Bb'] });
+		lickPractice.mode = 'single-lick';
+		lickPractice.demoNextCycle = false;
+		expect(getKeyPauses(0)).toEqual([LEAD_SHEET_PAUSE_BARS, 0, 0]);
+		const sp = buildLickSuperPhrase(0)!;
+		// pause 0–2 (| Gm7 C7 | Gm7 C7 |), F @2 @4 @6, C @8, Bb @10 — and no
+		// demo notes anywhere.
+		expect(sp.notes).toHaveLength(0);
+		expect(sp.difficulty.lengthBars).toBe(12);
+		const pause = sp.harmony.filter((seg) => fractionToFloat(seg.startOffset) < 2);
+		expect(pause.map((seg) => [fractionToFloat(seg.startOffset), seg.chord.root])).toEqual([
+			[0, 'G'],
+			[0.5, 'C'],
+			[1, 'G'],
+			[1.5, 'C']
+		]);
+		expect(startsAt(sp, 2)[0].chord).toEqual({ root: 'G', quality: 'min7' });
+		expect(fractionToFloat(startsAt(sp, 3)[0].duration)).toBe(1); // a lick slot, not a vamp bar
 		expect(startsAt(sp, 8)[0].chord).toEqual({ root: 'D', quality: 'min7' });
 	});
 });

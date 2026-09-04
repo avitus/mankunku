@@ -109,6 +109,33 @@ describe('buildPhaseTimeline', () => {
 		]);
 	});
 
+	it('opens with READ when a revealed key opens a no-demo cycle behind its pause', () => {
+		// A deep-practice refill cycle whose head key is still under the floor:
+		// no demo, so the reading pause is laid at the very top of the cycle.
+		const windows = planCycleWindows({
+			audioStartTick: 0,
+			demoBars: 0,
+			keyBars: 4,
+			ticksPerBar: TICKS_PER_BAR,
+			keyCount: 2,
+			passes: [3, 1],
+			pauses: [2, 0],
+			userBarsOffsetTicks: 0
+		});
+		const timeline = buildPhaseTimeline({ audioStartTick: 0, windows, ticksPerBar: TICKS_PER_BAR });
+
+		expect(timeline).toEqual([
+			{ phase: 'read', startTick: 0, endTick: 2 * TICKS_PER_BAR },
+			{ phase: 'play', startTick: 2 * TICKS_PER_BAR, endTick: 18 * TICKS_PER_BAR }
+		]);
+		// From the turnaround bar before it, the cue counts into READ, never
+		// into PLAY: "Straight in" would tell the user to play on a downbeat
+		// where the sheet is only just stepping in.
+		const cue = phaseCueAt(-2 * PPQ, timeline, PPQ);
+		expect(cue).toEqual({ phase: 'transition', next: 'read', beatsUntilNext: 2, countdown: 2 });
+		expect(phaseTabView(cue, 'G')).toEqual({ kind: 'rest', text: 'Rest', count: 0 });
+	});
+
 	it('alternates listen/play per key in call-response mode', () => {
 		const windows = planCycleWindows({
 			audioStartTick: 0,

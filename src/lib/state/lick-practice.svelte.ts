@@ -1400,18 +1400,21 @@ export function getKeyPasses(lickIdx: number): number[] {
 
 /**
  * Bars of reading pause laid before the key at rotation slot `slot`:
- * `LEAD_SHEET_PAUSE_BARS` for a revealed key in continuous mode that does
- * not open the cycle, else none. The pause heralds the switch from playing
- * by memory to reading — the previous key's window has closed, the sheet
- * steps in, the band vamps a ii-V into the new key, the tab counts the
- * entrance. The head key needs no herald: it follows the demo (a revealed
- * key is under the floor, so its cycle always demos) with the sheet already
- * up. Call-response opens every window with the app's half, which already
- * gives the reader that bar.
+ * `LEAD_SHEET_PAUSE_BARS` for a revealed key in continuous mode, unless it
+ * opens a cycle that demos — else none. The pause heralds the switch from
+ * playing by memory to reading — the previous key's window has closed, the
+ * sheet steps in, the band vamps a ii-V into the new key, the tab counts
+ * the entrance. A head key that follows the demo needs no herald: the sheet
+ * is already up while the line plays. A head key with NO demo — a
+ * deep-practice refill cycle, where the key just cleared but its rolling
+ * score still lags under the floor — gets the pause in the demo's place, so
+ * the sheet is never sprung on the downbeat the mic opens. Call-response
+ * opens every window with the app's half, which already gives the reader
+ * that bar.
  */
 function pauseBarsFor(item: LickPracticePlanItem, key: PitchClass, slot: number): number {
-	if (slot === 0) return 0;
 	if (lickPractice.config.practiceMode !== 'continuous') return 0;
+	if (slot === 0 && cycleDemos()) return 0;
 	return revealFor(item, key) ? LEAD_SHEET_PAUSE_BARS : 0;
 }
 
@@ -1431,8 +1434,10 @@ export function getKeyPauses(lickIdx: number): number[] {
  * What the lead-sheet reveal adds to a lick's cycle at PLAN time, before a
  * plan item exists: `LEAD_SHEET_PASSES − 1` extra windows for each key that
  * reveals (at most one — the newest), and its `LEAD_SHEET_PAUSE_BARS` reading
- * pause when that key does not open the cycle. Feeds `lickAudioBars` so the
- * Daily budget fill and the setup estimate charge what the session plays.
+ * pause when that key does not open the cycle (the sessions planned here —
+ * standard and Daily — always demo, so an opening key never pauses). Feeds
+ * `lickAudioBars` so the Daily budget fill and the setup estimate charge
+ * what the session plays.
  */
 function leadSheetExtras(
 	phraseId: string,
@@ -1706,20 +1711,28 @@ function harmonyForLick(
 }
 
 /**
- * How many demo bars a plan item's next cycle carries. Continuous mode
- * normally opens every lick/round with a `lickBars`-long demo of keys[0];
- * single-lick cycles drop it (0 bars) when `demoNextCycle` is false — for
- * licks once the head key is proficient, for tricks once the round's
- * example style has already been heard — so strong cycles flow
- * back-to-back. Standard sessions always demo; call-response never does
- * (each key embeds its own app half).
+ * Does the current plan item's next cycle open with the app playing the
+ * lick? Continuous mode normally opens every lick/round with a demo of
+ * keys[0]; single-lick cycles drop it when `demoNextCycle` is false — for
+ * licks once the head key is proficient or the cycle is a refill, for
+ * tricks once the round's example style has already been heard — so strong
+ * cycles flow back-to-back. Standard sessions always demo; call-response
+ * never does (each key embeds its own app half). The demo block and the
+ * reading pause both read this, so a skipped demo hands the herald over to
+ * the pause (`pauseBarsFor`).
  */
-function demoBarsForItem(item: LickPracticePlanItem, lickBars: number): number {
-	if (lickPractice.config.practiceMode !== 'continuous') return 0;
-	if (lickPractice.mode === 'single-lick' && !lickPractice.demoNextCycle) {
-		return 0;
-	}
-	return lickBars;
+function cycleDemos(): boolean {
+	if (lickPractice.config.practiceMode !== 'continuous') return false;
+	if (lickPractice.mode === 'single-lick' && !lickPractice.demoNextCycle) return false;
+	return true;
+}
+
+/**
+ * How many demo bars a plan item's next cycle carries: `lickBars` when the
+ * cycle demos (`cycleDemos`), else 0.
+ */
+function demoBarsForItem(_item: LickPracticePlanItem, lickBars: number): number {
+	return cycleDemos() ? lickBars : 0;
 }
 
 /**
@@ -2129,14 +2142,22 @@ export function advanceSingleLickRound(): void {
 		// Sort the next cycle worst-first from the rolling scores — which at
 		// this point already include this cycle's attempts — so the demo (and
 		// the user's first answer) land on the struggling key. Then decide
-		// whether that key still needs the demo at all: once the head key is
-		// proficient, cycles run back-to-back with no listening interlude.
-		// Call-response mode has its own per-key call, so never demos here.
+		// whether that key still needs the demo at all. Never on a refill
+		// cycle: the rotation was just cleared in full, so every key in it was
+		// played at this tempo moments ago, and a rolling score that lags the
+		// clear (a 0.95 from a 0.7 history lands at 0.8) is no reason to
+		// replay the line — that was "it plays even at tempo bumps". A refill
+		// is any rotation rebuilt after a full clear: the plain bump-and-refill
+		// and the focus ramp's step-up and admission cycles alike. Otherwise
+		// only while the head key is below proficient, so proficient cycles
+		// run back-to-back with no listening interlude. Call-response mode has
+		// its own per-key call, so never demos here.
 		item.keys = sortKeysWorstFirst(item.keys, (k) =>
 			getRollingScore(lickPractice.progress, item.phraseId, k)
 		);
 		lickPractice.demoNextCycle =
 			lickPractice.config.practiceMode === 'continuous' &&
+			survivors.length > 0 &&
 			shouldDemoHeadKey(getRollingScore(lickPractice.progress, item.phraseId, item.keys[0]));
 	}
 

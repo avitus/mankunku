@@ -2505,3 +2505,44 @@ opened in Chrome.
 - Not done, by decision: the pause is fixed at two bars (a constant, not a
   setting); the phones-letterbox and single-key-empty-slot follow-ups from
   09-01 stand.
+
+## 2026-09-03 (fourth pass) — No demo on a refill cycle
+
+- Andy, after the explanation: "Ok, skip the demo on any refill cycle."
+  One of the two quieting options; the 0.90 threshold stays.
+- Rule: a rotation rebuilt after a full clear never demos — the plain
+  bump-and-refill and the focus ramp's step-up and re-admission cycles
+  alike (`survivors.length > 0` joins the `demoNextCycle` conjunction in
+  `advanceSingleLickRound`; `shouldDemoHeadKey` is now the score half
+  only). Read "any" as broad: the same veto everywhere a cleared rotation
+  comes back.
+- The interaction I nearly missed: the peer session (mankunku-b9) had
+  landed the reading pause an hour earlier (452b446), whose design says a
+  revealed key at slot 0 needs no pause because "its cycle always demos".
+  That invariant held only because a revealed key (< 0.75) always sorted
+  to the head with a demo-worthy score; a refill breaks it — a 0.95 clear
+  from a 0.6 history lands at 0.74, still revealed, now with no demo — and
+  the sheet would have been sprung on the downbeat the mic opened, the
+  exact bug the pause fixed. So `cycleDemos()` is now the one source both
+  `demoBarsForItem` and `pauseBarsFor` read, and slot 0 gets the pause when
+  the cycle has no demo. From the turnaround bar the tab reads REST into
+  READ (never "Straight in" — pinned).
+- TDD: six red across five suites (each on the predicted assertion: the
+  refill demo flag, the ramp's step-up and admission, the slot-0 pause in
+  `getKeyPauses` and in the super phrase) → green; the phase-cue case was
+  a pin, not a red (the timeline already handled a leading pause).
+  Lick-practice suites 26 files / 582 tests.
+- Docs on every surface: CLAUDE.md, state-management.md, user-guide.md
+  (three sentences), overview.md, state.md (four rows), README changelog,
+  repo MEMORY.md; home memory updated, and the stale lead-sheet memory
+  (still describing parking as current) corrected.
+- Process note: HEAD moved under me mid-session (two commits from the
+  peer session, which also swept my earlier CLAUDIUS notes into its
+  commit). SendMessage is not in this build, so no coordination channel;
+  kept the diff small and re-read every touched region from the tree.
+
+**Notes:**
+
+- Ramp consequence to flag to Andy: a key re-admitted during the rebuild
+  now arrives with no demo (its admission follows a clear), and a step-up
+  on the focus key too. A miss on the focus key still demos.

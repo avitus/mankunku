@@ -12,7 +12,11 @@
  *   call-and-response on exactly the key that needs ear work.
  * - The demo itself is conditional (`shouldDemoHeadKey`): it plays only
  *   while the head key's rolling score is below proficient, so strong
- *   cycles run back-to-back with no listening interlude.
+ *   cycles run back-to-back with no listening interlude — and never on a
+ *   refill cycle, a rotation rebuilt after a full clear (the state module's
+ *   `advanceSingleLickRound` applies that half of the rule): the user just
+ *   played every key in it, and a rolling score that lags the clear is no
+ *   reason to replay the line.
  * - The sheet music is conditional too (`shouldRevealNotation`): the
  *   session shows notation only for the key the player is LEARNING — the
  *   most recently unlocked one (`newestUnlockedKey`) — while that key's
@@ -20,12 +24,12 @@
  *   the time the next one unlocks), never once all twelve are unlocked, and
  *   never for a key that has not been attempted yet — the first pass is
  *   always by ear. A revealed key runs `LEAD_SHEET_PASSES` windows in a row
- *   so the line can be memorised from the page, and — unless it opens the
- *   cycle, where the demo already does this — a `LEAD_SHEET_PAUSE_BARS`
- *   reading pause precedes its first pass: the band vamps a ii-V into the
- *   key while the sheet steps in, so the switch from playing by memory to
- *   reading is heralded, not sprung. Same rule in every session type, not
- *   just deep practice.
+ *   so the line can be memorised from the page, and — unless it opens a
+ *   cycle that demos, where the demo already does this — a
+ *   `LEAD_SHEET_PAUSE_BARS` reading pause precedes its first pass: the band
+ *   vamps a ii-V into the key while the sheet steps in, so the switch from
+ *   playing by memory to reading is heralded, not sprung. Same rule in
+ *   every session type, not just deep practice.
  *
  * The timing helpers keep the boundary robust: the cycle boundary fires at
  * the last key's close tick, leaving exactly the turnaround bar of
@@ -84,7 +88,8 @@ export function sortKeysWorstFirst(
  * Should the next cycle open with the app playing the lick in the head
  * (worst) key? Yes while that key is unknown or below proficient — the
  * user still needs the reference; no once it clears the bar, so proficient
- * cycles flow without stoppage.
+ * cycles flow without stoppage. This is the score half of the rule; the
+ * caller vetoes the demo outright on a refill cycle, whatever the score.
  */
 export function shouldDemoHeadKey(
 	headRolling: number | undefined,

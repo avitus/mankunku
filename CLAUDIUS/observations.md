@@ -4,6 +4,33 @@ Running notes from working on Mankunku. Newest at the top. Not deleted unless pr
 
 ---
 
+## 2026-09-03 (fourth pass) — An invariant that was true by coincidence
+
+The reading pause shipped an hour before this change with a documented
+reason for skipping slot 0: "a revealed key is under the floor, so its
+cycle always demos". True — under the old demo rule. A revealed key
+(< 0.75) always sorted to the head, and a head under 0.90 always demoed.
+The invariant was not designed; it was the intersection of two rules that
+happened to agree, and the moment one of them changed (no demo on a
+refill) the other's assumption was silently false: a 0.95 clear from a
+0.6 history lands at 0.74, revealed, at the head, with nothing before it.
+
+Two things worth keeping. First, the code was written so the invariant
+was invisible — `if (slot === 0) return 0` says nothing about demos. The
+fix was to make the dependency explicit: one `cycleDemos()` that both the
+demo block and the pause read, so the pause's condition names the thing
+it actually depends on. Second, I found it only because I went looking
+for what ELSE reads "demo": the grep for `getDemoBars` was routine; the
+grep for the word "herald" in the docs was not, and that is what surfaced
+the sentence. When a rule changes, search the prose for the rule's
+consequences, not just the code for its name — the prose is where the
+coincidences get written down as facts.
+
+Also from today: a peer session committed under me mid-task and swept my
+notes into its commit. Working alone in a repo is an assumption too.
+
+---
+
 ## 2026-09-03 (third pass) — Two gates on one flow that measure different things
 
 Deep practice has two rules deciding what happens at a cycle boundary,
