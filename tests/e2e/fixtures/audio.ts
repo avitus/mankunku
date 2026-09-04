@@ -18,18 +18,19 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
  *     Firefox + WebKit, where Playwright can't grant 'microphone', this is
  *     the only path that works at all). The REAL API is never called, on any
  *     engine — not even raced against a timeout. It used to be tried first on
- *     Chromium (`--use-fake-device-for-media-stream`), and on 2026-09-03 that
- *     call hung forever on the dev Mac while its CoreAudio default output (a
- *     Universal Audio interface) was wedged — and a pending fake-device
- *     capture request wedges Chromium's audio service with it: every
- *     AudioContext created afterwards never renders a frame (measured with a
- *     standalone probe — a context created before the call ran, one created
- *     200 ms after it sat at currentTime 0 forever), Tone's transport never
- *     moved, and ten seconds later Chromium's stall watchdog logged "The
- *     AudioContext encountered an error from the audio device or the WebAudio
- *     renderer" on both. A test suite must not depend on the host's audio
- *     hardware, and the synthetic stream is what two of the three engines
- *     ran on already.
+ *     Chromium (`--use-fake-device-for-media-stream`). On 2026-09-03 that
+ *     call hung for a whole evening of runs because macOS was showing a
+ *     microphone-permission prompt for the process hosting Playwright's
+ *     Chromium (the desktop app the session ran from) that nobody had seen
+ *     or accepted. While it was pending the process's whole audio path was
+ *     frozen: every AudioContext reported "running" with a clock stuck at 0
+ *     (a context created after the pending request never rendered a frame),
+ *     Tone's transport never moved, and ten seconds later Chromium logged
+ *     "The AudioContext encountered an error from the audio device or the
+ *     WebAudio renderer". Accepting the prompt cleared all of it at once. A
+ *     test suite must not depend on an OS dialog every fresh machine shows,
+ *     and the synthetic stream is what two of the three engines ran on
+ *     already — so Chromium no longer asks the OS for a microphone at all.
  *
  *  2. `window.MediaRecorder` is replaced with a class that, on `.stop()`,
  *     dispatches a `dataavailable` event with a pre-loaded Blob built from
@@ -82,10 +83,10 @@ export async function installAudioMock(
 			// MediaStream + MediaStreamTrack instances satisfy code that
 			// inspects them (track.kind === 'audio', track.stop(), etc.).
 			// The browser's own getUserMedia is deliberately NOT called, not
-			// even raced against a timeout: a pending fake-device capture
-			// request can wedge Chromium's audio service so that no
-			// AudioContext created after it ever renders (see the module
-			// comment) — and a rejected race leaves the request pending.
+			// even raced against a timeout: it asks the OS for a microphone,
+			// and a pending macOS permission prompt froze the process's whole
+			// audio path for an evening (see the module comment) — and a
+			// rejected race leaves the request pending.
 			if (navigator.mediaDevices) {
 				navigator.mediaDevices.getUserMedia = async () => {
 					// Build a synthetic stream from an oscillator. This is enough

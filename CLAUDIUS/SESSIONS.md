@@ -2396,3 +2396,112 @@ opened in Chrome.
   the test's fake module not satisfying `typeof import('abcjs')` — cast it.
 - vitest 281 files, 4482 passed / 35 expected-fail; svelte-check 0/0;
   24 e2e on chromium (lick-practice ×4 + every notation-heavy tune spec).
+
+## 2026-09-03 (third pass) — Why deep practice still demos at a tempo bump (explanation only)
+
+- Andy: "still too much interruption from the app playing the lick. The
+  first time is ok, but it seems to be playing it even at tempo bumps.
+  Explain to me again how that works." Explanation requested, no change.
+- Traced the chain: `startSingleLickSession` forces the first-cycle demo;
+  every boundary runs `advanceSingleLickRound` → this-cycle ≥ 0.95 drops a
+  key, survivors empty → `nextCycleTempo` (+1%, ceil) and REFILL to the
+  whole unlocked circle → `sortKeysWorstFirst` by persisted EWMA
+  (`ROLLING_SCORE_ALPHA` 0.4, written on every attempt) →
+  `demoNextCycle = shouldDemoHeadKey(rolling(keys[0]))`, i.e. demo iff
+  the worst key's EWMA is undefined or < 0.90. `getDemoBars` then gives
+  the super-phrase and the window scheduler `lickBars` (one pass of the
+  lick in that key) or 0.
+- Why the bump demos: the refill puts the worst EWMA of the WHOLE circle
+  at the head, and the EWMA lags the clear — from 0.70 a 0.95 clear lands
+  at 0.80, and it takes four consecutive ≥ 0.95 cycles to cross 0.90. So
+  "skip once proficient" is reachable only once every unlocked key has a
+  strong history, well after the tempo has been bumping.
+- All of this is pinned as intended in `single-lick-demo-policy.test.ts`
+  and `rotation.test.ts`; the tests are right about the code, the two
+  gates just measure different things. See observations.
+
+**Notes:**
+
+- No code touched. Offered the smallest quieting change (skip the demo on
+  a refill cycle; demo below the FLOOR rather than proficient) as a
+  follow-up for Andy to decide.
+
+## 2026-09-03 (third pass) — The sheet waits its turn; a reading pause heralds it
+
+**What happened:**
+
+- Andy, on the lead-sheet row: "working well", but two changes — a short
+  pause to herald the change in modality (memory → reading), and the sheet
+  must not appear until the user finishes playing the previous key. The
+  morning's read-ahead parking had shown the sheet a whole key early; this
+  withdraws it.
+- Design: a `LEAD_SHEET_PAUSE_BARS` (2) reading pause before a revealed
+  key's first pass when it does not open the cycle (slot 0 follows the
+  demo — a revealed key is under the floor, so its cycle always demos — and
+  the demo is its herald). The pause bars are laid INTO the super phrase as
+  `turnaroundHarmony` repeated (the cycle-join ii-V, "vamp till ready"),
+  so the band plays them like any other bars; `turnaroundHarmony` moved
+  from audio/turnaround-bar.ts to data/progressions.ts so the state layer
+  needn't import audio. `planCycleWindows` takes `pauses` and returns
+  per-window `pauseTicks`; `buildPhaseTimeline` turns them into a new
+  `read` phase (tab READ in listen-red with a staff glyph, then the usual
+  "Play G in 4·3·2·1" — never "Straight in"); the cost model charges them
+  (`lickAudioBars.pauseBars`). Two bars, not one: the app's established
+  shape for an entrance the player must reorient for (inter-lick rest,
+  record-a-lick count-in); the one-bar turnaround joins keys in the same
+  mode.
+- The display now reads its position off the scheduled plan:
+  `cyclePositionAt(tick, layout)` → segment / keyFraction / beat. The old
+  route math was a uniform-slot modulo that was only right because every
+  segment was a multiple of the key length; a 2-bar pause under a 4-bar
+  key would have skewed every later beat. `rowScrollFraction` deleted; the
+  route's five tick anchors collapsed into one `cycleLayout`.
+- Component: an upcoming lead-sheet row shows the key's chord chart as a
+  placeholder over the engraved staff, which stays `visibility: hidden`
+  (engraved ahead, not shown — abcjs's work is done) until the row is
+  current, i.e. from the start of its pause; the stack steps and the chart
+  fades into the staff, all inside the pause. `.row.ahead` and the
+  read-ahead branch of `keyStackLayout` removed — one parking rule again.
+- TDD: 24 red across rotation (pause layout, `cyclePositionAt` ×9),
+  reveal (`getKeyPauses`), super-phrase (vamp bars, offsets, length, no
+  pause at slot 0), duration, phase-cue (`read` segment + tab), stack
+  layout (plain parking pinned, read-ahead cases removed) → green. One
+  test predicate of mine was wrong (a half-bar V at .5 is the short
+  template's own G7, not a vamp bar) — fixed the test. E2E third spec
+  rewritten: hidden-but-engraved during C, READ tab + step + fade during
+  the pause, `play-in`, then pass 1 with nothing moving.
+- Verification detour (≈1 h), with a misdiagnosis: after the change, three
+  of the four lick-practice e2e specs failed with Chromium's "The
+  AudioContext encountered an error from the audio device or the WebAudio
+  renderer", the transport frozen at the count-in. Not my change: unrelated
+  specs (ear training, record-a-lick) failed the same way, serially too.
+  Standalone Playwright probes against a scratch page showed a bare
+  AudioContext "running" with its clock stuck at 0, running under
+  `--disable-audio-output`; the app STILL froze under the flag; an in-page
+  hook on every AudioContext/decode/getUserMedia put the app's stall 350 ms
+  after the fixture fired the REAL `getUserMedia` (fake device), which
+  never settled, and a fourth probe reproduced it in isolation (a context
+  created after the pending call never rendered a frame). I attributed all
+  of it to Andy's Universal Audio interface (the default output) being
+  wedged. Wrong: the next morning Andy had accepted a macOS
+  microphone-permission prompt for the process hosting Chromium — pending
+  and unseen all evening — and the same probes ran normally at once, real
+  `getUserMedia` included. One cause, outside the system I was probing.
+  The test-infra fixes stand on their own merits: `--disable-audio-output`
+  (silent, hardware-independent) and a synthetic-only mic stub (Chromium
+  never asks the OS for a mic, so no fresh machine hangs on the prompt).
+  Ear-training / record-lick / tune-practice / backing-render /
+  sample-decode / calibration specs all pass under both. I did not touch
+  the Mac's audio settings.
+
+**Notes:**
+
+- vitest 4492 passed / 35 expected-fail; svelte-check 0/0; lick-practice
+  e2e chromium 4/4 (the pause spec needed two fixes of its own: a second
+  assertion on the one-bar "Play A in" tab raced its flip, and the tab
+  text is written pitch — concert G reads A on tenor — plus leading
+  whitespace, so the regex became `/Play \S+ in/`); control + audio specs
+  10 passed / 1 skipped under the new config.
+- Not done, by decision: the pause is fixed at two bars (a constant, not a
+  setting); the phones-letterbox and single-key-empty-slot follow-ups from
+  09-01 stand.
