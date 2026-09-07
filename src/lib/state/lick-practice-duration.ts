@@ -79,7 +79,8 @@ export function barsToSeconds(bars: number, beatsPerBar: number, tempo: number):
  * one `lickBars` window; call-response has no upfront demo but doubles every
  * key window (app half, then user half). `extraWindows` are the additional
  * whole key windows the lead-sheet passes add (a revealed key plays three
- * times, not once).
+ * times, not once), and `pauseBars` the band-only bars of reading pause laid
+ * before a revealed key that does not open the cycle.
  */
 export function lickAudioBars(args: {
 	keyCount: number;
@@ -87,10 +88,12 @@ export function lickAudioBars(args: {
 	mode: LickPracticeMode;
 	/** Extra key windows beyond one per key (lead-sheet passes). Default 0. */
 	extraWindows?: number;
+	/** Bars of reading pause before revealed keys (`LEAD_SHEET_PAUSE_BARS` each). Default 0. */
+	pauseBars?: number;
 }): number {
 	const keyBars = args.mode === 'call-response' ? args.lickBars * 2 : args.lickBars;
 	const demoBars = args.mode === 'continuous' ? args.lickBars : 0;
-	return (args.keyCount + (args.extraWindows ?? 0)) * keyBars + demoBars;
+	return (args.keyCount + (args.extraWindows ?? 0)) * keyBars + demoBars + (args.pauseBars ?? 0);
 }
 
 /**

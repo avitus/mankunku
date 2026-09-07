@@ -4,6 +4,130 @@ Running notes from working on Mankunku. Newest at the top. Not deleted unless pr
 
 ---
 
+## 2026-09-07 — A mock that worked by accident
+
+The e2e getUserMedia stub had lived on the `navigator.mediaDevices`
+instance for months and passed on WebKit the whole time — not because
+instance expandos are safe there, but because the stub's closure happened
+to hold a bound reference to the wrapper it was attached to. Remove the
+reference (which the peer session did for an unrelated, good reason) and
+WebKit collects the wrapper, re-creates it clean, and the app walks
+straight past the mock into the real API. The fix that "worked" for
+months was one dropped reference away from failing, and the change that
+exposed it was correct.
+
+Two lessons. First, the diagnostic path: I had a plausible theory (the
+mock isn't installed) and it was wrong; the trace that showed `own=true`
+after assign and `own=false` at the call site is what forced the real
+question — what happens BETWEEN — and the heap-churn probe answered it in
+one run. Every probe cost under a minute; theorising cost longer and
+produced nothing. Second, the fix rule: in an init script, patch the
+prototype, never the instance. An instance is a wrapper the engine may
+discard; a prototype is reachable from the global for the page's life.
+The guard spec churns the heap on every engine so the next person who
+"simplifies" the fixture finds out in CI rather than in a review thread.
+
+Also: rejecting a review finding is cheapest when the rejection is a
+test. The capture-window thread's scenario needed a note within 0.15 s of
+a click whose ring readings sit ≥ 0.1 s after it and ≥ 0.1 s before the
+note — 0.2 > 0.15, unreachable. A sentence in a reply is an opinion; the
+test that constructs the nearest possible case and shows the onset
+unvalidated is a fact the next constant change will re-check.
+
+---
+
+## 2026-09-06 — "Confident" was never a level
+
+The pitch pipeline has one word for "there is a note here": confident,
+meaning clarity ≥ 0.8. Clarity is a SHAPE measure — how periodic is this
+window — normalised so a whisper and a shout of the same sine score the
+same. Every consumer read "confident" as "the player is playing", and for
+five months that held because nothing periodic happened at the noise
+floor. Then a metronome click rang at 271 Hz for 400 ms at −58 dBFS and
+the word broke: perfectly periodic, perfectly inaudible, perfectly
+confident. Worth remembering that a threshold on a normalised measure is
+a statement about shape only; the level has to be asserted separately or
+it is not asserted at all.
+
+Two things to keep. First, the corpus already contained the failure —
+the four-to-five fixture's 2.2 s phantom at RMS 0.001 — but its test was
+written about a different question (the listening window), so the
+phantom sat in the JSON as a "note" nobody read. A fixture pins what you
+assert about it and nothing else. When a new failure shape is learned,
+scan every diagnostic's segmentedNotes for it, not just the take that was
+reported; today that scan took one Python loop and found the second case.
+
+Second, the fix's UNIT mattered more than its threshold. A per-reading
+floor fixes this take and quietly re-shapes every decay tail the
+re-articulation tiers were tuned on (the corpus tracks real decays to
+−46 dB, and the gap tier reads "the last two still-tracked frames"). A
+per-run floor removes only things that were never loud and leaves those
+bytes alone — 4516 tests unchanged, which is itself the proof that the
+unit was right. When a gate is added late to a tuned pipeline, choose the
+unit that keeps the tuning's evidence intact first, then pick the number
+from the measured margins (−41 dB phantom, −15 dB softest real note →
+−30).
+
+And the relative-versus-absolute call: with auto-gain off, absolute RMS
+is a property of the user's mic gain. A bleed artefact scales with the
+monitor; a played note does not. Relative to the take's own loudest
+reading is the one frame in which both stay put — and it costs a second
+pass, which every scoring path here can afford because they all score
+the whole capture at once.
+
+## 2026-09-03 (fourth pass) — An invariant that was true by coincidence
+
+The reading pause shipped an hour before this change with a documented
+reason for skipping slot 0: "a revealed key is under the floor, so its
+cycle always demos". True — under the old demo rule. A revealed key
+(< 0.75) always sorted to the head, and a head under 0.90 always demoed.
+The invariant was not designed; it was the intersection of two rules that
+happened to agree, and the moment one of them changed (no demo on a
+refill) the other's assumption was silently false: a 0.95 clear from a
+0.6 history lands at 0.74, revealed, at the head, with nothing before it.
+
+Two things worth keeping. First, the code was written so the invariant
+was invisible — `if (slot === 0) return 0` says nothing about demos. The
+fix was to make the dependency explicit: one `cycleDemos()` that both the
+demo block and the pause read, so the pause's condition names the thing
+it actually depends on. Second, I found it only because I went looking
+for what ELSE reads "demo": the grep for `getDemoBars` was routine; the
+grep for the word "herald" in the docs was not, and that is what surfaced
+the sentence. When a rule changes, search the prose for the rule's
+consequences, not just the code for its name — the prose is where the
+coincidences get written down as facts.
+
+Also from today: a peer session committed under me mid-task and swept my
+notes into its commit. Working alone in a repo is an assumption too.
+
+---
+
+## 2026-09-03 (third pass) — Two gates on one flow that measure different things
+
+Deep practice has two rules deciding what happens at a cycle boundary,
+and each is correct by its own test. The rotation rule is instantaneous:
+this cycle's score ≥ 0.95 drops the key, and when nothing is left the
+tempo bumps and the whole circle comes back. The demo rule is historical:
+play the lick iff the worst key in the NEXT rotation has an EWMA (α 0.4)
+under 0.90. At a refill the next rotation is every unlocked key, so the
+demo is decided by the weakest history in the set — and a key that just
+cleared at 0.95 from a 0.70 history sits at 0.80. Four consecutive clears
+before it stops being demoed. Andy hears "it plays even at tempo bumps";
+the code hears "the head key is not proficient yet". Both are true.
+
+The general shape: when a smoothed measure and an instantaneous measure
+gate the same flow, they disagree most at exactly the moment the
+instantaneous one fires, because the clear is the newest sample and the
+average has not caught up. The refill is the worst possible moment to
+consult the smoothed measure — it re-admits keys the user just proved
+they can play at this tempo. If the demo is meant to be a reference for a
+key the player is FAILING, the lead-sheet rule already has the better
+shape (floor, not proficient; the player's failing on balance), and a
+refill cycle should probably not consult the history at all: the set was
+just cleared. Not changed today — explanation was the ask.
+
+---
+
 ## 2026-09-03 (second pass) — A lazy import is only cheap if somebody starts it early
 
 The abcjs chunk was lazy for a good reason — most routes never engrave —
@@ -1387,3 +1511,68 @@ plans, rehearsal windows, a per-frame array) met an OLD assumption (rows ==
 slots, every window persists, the marker effect redraws on identity). None
 were in the parts I had thought hardest. The risk in a design is where the
 new thing touches the existing thing, not inside the new thing.
+
+---
+
+## 2026-09-03 (third pass) — Fixing the symptom moved the problem; the second report named the cause
+
+This morning's read-ahead fix answered "the sheet is not completely displayed
+by the time the user has to play it" by showing the sheet a whole key early.
+It worked, and it was wrong: Andy's next report was that the sheet must NOT
+appear until the previous key has been played, and that the switch from
+memory to reading needs a pause to herald it. Read literally, the first
+report was about the sheet being late; what it was actually about was the
+transition having no room in it. I fixed the lateness by making the sheet
+early, which is the same absence of a transition with the sign flipped. The
+real fix is a transition: two bars in which the previous window has closed,
+the band vamps a ii-V into the new key, the row steps into place, the chart
+dissolves into the staff, and the tab counts the entrance in. Once there IS
+a transition, the sheet can be exactly on time — neither early nor late —
+and the read-ahead machinery, its parking exception, its accepted costs and
+its e2e pin all come out. The general lesson: when a fix needs an exception
+to a rule that was fine before ("the active row parks one slot down —
+EXCEPT when…"), the exception is often a symptom that the timeline, not the
+layout, is missing a beat.
+
+Two smaller things from the same work.
+
+The tick-to-display mapping was a global modulo over the cycle
+(`ticks / ticksPerKey`, `beat % loopBeats`). It was correct only because
+every segment happened to be a multiple of the key length. Inserting a
+pause of any other length would have skewed every later key's beat — and
+nothing in the code said so. Reading the display's position off the same
+window plan the recorder is scheduled against (`cyclePositionAt`) makes the
+plan the single source for the third consumer too (audio, windows, and now
+the display), and a pause becomes one more segment instead of a special
+case. Same shape as the phase timeline a week ago: derive from the plan,
+never from a pattern.
+
+And a quiet one: "vamp till ready" turned out to already exist as data.
+`turnaroundHarmony` — the one-bar ii-V the cycle join plays — repeated per
+pause bar IS the band waiting for the soloist to find their place. It only
+had to move from the audio module to the data module so the state layer
+could lay it into the super phrase. The musical idiom and the code idiom
+matched once the function lived where it belonged.
+
+Addendum, later the same evening and corrected the next morning — the
+environment hunt. Three e2e specs failed after my change with a Chromium
+audio-device error. The reflex "it's my change" was wrong (unrelated specs
+failed identically), and so was the next one, "it's the machine, skip it".
+The discipline that worked was the one from the flicker session: probes
+that DISTINGUISH the live hypotheses — a bare AudioContext frozen at 0
+versus running under the fake-sink flag; the app still frozen under the
+flag; an init-script hook on every AudioContext, decode and getUserMedia
+placing the stall 350 ms after the mic request; a fourth probe reproducing
+"a context created after the pending request never renders". Mechanism
+found, cause wrong: I blamed Andy's audio interface. The real cause was a
+macOS microphone-permission dialog for the process hosting Chromium,
+pending on a screen nobody was looking at; when Andy accepted it, every
+probe ran normally, the real getUserMedia included. Two things to keep.
+First, probes can only distinguish hypotheses I have — the cause lived
+outside the system I was instrumenting, and the question that would have
+reached it is "what changed since this last worked?" (a fresh process asked
+for the mic for the first time). Second, the fix was right for the wrong
+reason and I should say so: a suite must not depend on an OS dialog, and a
+timeout that lets the caller proceed does not cancel the thing it timed
+out on — the fixture's 200 ms race "handled" the hang while leaving the
+poison in place.

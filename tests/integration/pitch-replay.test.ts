@@ -2647,3 +2647,116 @@ describe('pitch replay regression: hard-tongued repeated F under a crescendo on 
 		expect(result.chosen.overall).toBeGreaterThan(0.9);
 	});
 });
+
+/**
+ * "Tonic Turn with Leading Tone" (m47-014) in concert C at 100 BPM on tenor
+ * sax, 2026-09-03 — played CORRECTLY (C4 B3 D4 C4, quarter notes, the take's
+ * fundamentals at 266 / 247 / 294 / 266 Hz) yet saved as try-again: pitch
+ * 0.25, overall 0.418, 1 of 4 hit, with the real B, D and C flagged EXTRA.
+ *
+ * The capture is pre-armed, so it opens on the metronome. Each click leaves a
+ * ringing tail in the room — a single pure spectral line at ~271 Hz, 14 dB
+ * above anything else in the silence between clicks — that decays over the
+ * next ~400 ms at RMS 0.0006–0.0016 (−58 dBFS, inaudible under the click
+ * itself). McLeod clarity is amplitude-invariant, so a pure tone at the noise
+ * floor reads as CONFIDENT (0.84–0.95): the detector reported C-and-a-quarter-
+ * tone for 1.2 s before the player came in, 35–40 dB under the notes that
+ * followed (RMS 0.04–0.19).
+ *
+ * `trimToPerformance` anchored the pre-roll on the first of those readings,
+ * the segmenter built three notes out of them (C#−39 / C+44 / C#−19 at 0.25,
+ * 0.55 and 0.65 s), and DTW matched the phantoms against the first three
+ * expected notes, leaving the real B, D and C as extras. The offline replay
+ * reproduces the saved score byte for byte.
+ *
+ * The fix is one rule in `trimToPerformance`: a run of readings that never
+ * comes within `PERFORMANCE_FLOOR_DB` (−30 dB) of the take's loudest reading
+ * is not the performance and is dropped before the trim anchors — leading,
+ * trailing, or between notes. Runs that DO reach performance level keep every
+ * reading, decay tail included, so the segmenter's tiers see exactly the
+ * evidence they were tuned on (the corpus tracks real decays down to −46 dB).
+ * The same phantom shape sits in the 2026-07-08 four-to-five fixture: a
+ * 2.2 s "note" at RMS 0.001 after the one real note.
+ */
+describe('pitch replay regression: Tonic Turn click-ring phantoms before the entrance (concert C, 2026-09-03)', () => {
+	const TRANSPORT_SECONDS = 53.85551020408163;
+	const TEMPO = 100;
+	const SWING = 0.6;
+
+	// Four quarter notes: C4 B3 D4 C4 — the session ran the curated C5 line
+	// an octave down, as the saved noteResults record.
+	const expectedPhrase: Phrase = {
+		id: 'm47-014_C',
+		name: 'Tonic Turn with Leading Tone',
+		timeSignature: [4, 4],
+		key: 'C',
+		notes: [
+			{ pitch: 60, duration: [1, 4], offset: [0, 1] }, // C4
+			{ pitch: 59, duration: [1, 4], offset: [1, 4] }, // B3
+			{ pitch: 62, duration: [1, 4], offset: [1, 2] }, // D4
+			{ pitch: 60, duration: [1, 4], offset: [3, 4] }  // C4
+		],
+		harmony: [],
+		difficulty: { level: 11, pitchComplexity: 10, rhythmComplexity: 5, lengthBars: 1 },
+		category: 'bebop-lines',
+		tags: [],
+		source: 'curated'
+	};
+
+	const FIXTURE = 'recordings/2026-09-03-tonic-turn-with-leading-tone.wav';
+	const replayPipeline = () => replayEarTrainingTake(FIXTURE, TRANSPORT_SECONDS, TEMPO);
+
+	it('the click ring reads as confident pitch 35 dB under the performance', async () => {
+		// Documents the evidence: every reading in the 1.2 s before the entrance
+		// (raw 0.65–1.45 s) is confident yet sits under RMS 0.002, while the
+		// take's loudest reading clears 0.15.
+		const wav = loadWavFixture(FIXTURE);
+		const raw = await replayFromAudioBuffer(makeFakeAudioBuffer(wav.channel, wav.sampleRate));
+		const lead = raw.readings.filter((r) => r.time < 1.5);
+		expect(lead.length).toBeGreaterThan(20);
+		for (const r of lead) {
+			expect(r.clarity).toBeGreaterThanOrEqual(0.8);
+			expect(r.rms).toBeLessThan(0.002);
+		}
+		expect(Math.max(...raw.readings.map((r) => r.rms))).toBeGreaterThan(0.15);
+	});
+
+	it('anchors the trim on the entrance, not on the ringing click', async () => {
+		// Saved captureTrimSeconds was 0.30 — the pre-roll ahead of the first
+		// ring reading at raw 0.65 s. The first performance reading is at
+		// raw 1.833 s.
+		const { trimmed } = await replayPipeline();
+		expect(trimmed.offset).toBeCloseTo(1.833 - 0.35, 2);
+		expect(trimmed.readings[0].time).toBeCloseTo(0.35, 2);
+	});
+
+	it('detects exactly the four notes played (was C#, C, C#, C, B, D, C)', async () => {
+		const { detected } = await replayPipeline();
+		expect(detected.map((n) => n.midi)).toEqual([60, 59, 62, 60]);
+		// The first attack sits inside the pre-roll, where the trim keeps it.
+		expect(detected[0].onsetTime).toBeGreaterThan(0.3);
+		expect(detected[0].onsetTime).toBeLessThan(0.5);
+	});
+
+	it('scores all four hit (saved: pitch 0.25, overall 0.418, try-again)', async () => {
+		const { trimmed, detected } = await replayPipeline();
+		const result = runScorePipeline({
+			detected,
+			phrase: expectedPhrase,
+			tempo: TEMPO,
+			transportSeconds: TRANSPORT_SECONDS + trimmed.offset,
+			swing: SWING,
+			bleedFilterEnabled: false
+		});
+
+		for (const nr of result.chosen.noteResults) {
+			expect(nr.missed).toBe(false);
+			expect(nr.extra).toBe(false);
+		}
+		expect(result.chosen.notesHit).toBe(4);
+		expect(result.chosen.pitchAccuracy).toBe(1);
+		// Measured 0.975 after the fix (rhythm 0.937).
+		expect(result.chosen.overall).toBeGreaterThan(0.9);
+		expect(result.chosen.grade).toBe('perfect');
+	});
+});

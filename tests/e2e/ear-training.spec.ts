@@ -38,21 +38,13 @@ test.describe('ear-training: double-start guard', () => {
 		);
 
 		await seedOnboardedAnonymous(page);
-		await installAudioMock(page);
+		// The call counter rides inside the mock's own init script: a second
+		// script wrapping the stub would depend on init-script order, which
+		// Playwright leaves undefined (see fixtures/audio.ts).
+		await installAudioMock(page, { countGetUserMediaCalls: true });
 		// Flow test, never asserts audible output: serve the piano/sax samples
 		// locally so a CDN CORS hiccup can't fail it (see fixtures/audio.ts).
 		await stubCdnInstrumentSamples(page);
-
-		await page.addInitScript((): void => {
-			(window as unknown as { __gumCount: number }).__gumCount = 0;
-			const orig = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
-			navigator.mediaDevices.getUserMedia = async (
-				constraints?: MediaStreamConstraints
-			): Promise<MediaStream> => {
-				(window as unknown as { __gumCount: number }).__gumCount++;
-				return orig(constraints);
-			};
-		});
 
 		await page.goto('/ear-training', { waitUntil: 'networkidle' });
 		await expect(page.locator('main')).toBeVisible();

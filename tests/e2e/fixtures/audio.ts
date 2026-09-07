@@ -16,7 +16,25 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
  *     built from an OscillatorNode — enough to satisfy MediaStreamSource and
  *     keep AudioContext happy. No real mic permission prompt fires (and on
  *     Firefox + WebKit, where Playwright can't grant 'microphone', this is
- *     the only path that works at all).
+ *     the only path that works at all). The REAL API is never called, on any
+ *     engine — not even raced against a timeout. It used to be tried first on
+ *     Chromium (`--use-fake-device-for-media-stream`). On 2026-09-03 that
+ *     call hung for a whole evening of runs because macOS was showing a
+ *     microphone-permission prompt for the process hosting Playwright's
+ *     Chromium (the desktop app the session ran from) that nobody had seen
+ *     or accepted. While it was pending the process's whole audio path was
+ *     frozen: every AudioContext reported "running" with a clock stuck at 0
+ *     (a context created after the pending request never rendered a frame),
+ *     Tone's transport never moved, and ten seconds later Chromium logged
+ *     "The AudioContext encountered an error from the audio device or the
+ *     WebAudio renderer". Accepting the prompt cleared all of it at once. A
+ *     test suite must not depend on an OS dialog every fresh machine shows,
+ *     and the synthetic stream is what two of the three engines ran on
+ *     already — so Chromium no longer asks the OS for a microphone at all.
+ *     The stub lives on `MediaDevices.prototype`, because WebKit can
+ *     re-create the `navigator.mediaDevices` wrapper between the init
+ *     script and the app's call and an instance-level override dies with
+ *     the old wrapper (see the inline note).
  *
  *  2. `window.MediaRecorder` is replaced with a class that, on `.stop()`,
  *     dispatches a `dataavailable` event with a pre-loaded Blob built from
@@ -31,6 +49,14 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 export interface AudioMockOptions {
 	/** Path relative to tests/fixtures/recordings/ */
 	fixturePath?: string;
+	/**
+	 * Count the app's getUserMedia calls in `window.__gumCount`. Lives inside
+	 * this init script rather than in a second one that wraps the stub:
+	 * Playwright leaves the evaluation order of multiple init scripts
+	 * undefined, so a separate wrapper could be installed first and then be
+	 * replaced by the stub, leaving the count at zero.
+	 */
+	countGetUserMediaCalls?: boolean;
 }
 
 const FIXTURES_DIR = resolve(__dirname, '..', '..', 'fixtures', 'recordings');
@@ -61,45 +87,49 @@ export async function installAudioMock(
 	}
 
 	await page.addInitScript(
-		([fixtureArr, mime]) => {
+		([fixtureArr, mime, countCalls]) => {
 			const fixtureUint8 = new Uint8Array(fixtureArr as number[]);
+			if (countCalls) (window as unknown as { __gumCount: number }).__gumCount = 0;
 
 			// ── getUserMedia stub ───────────────────────────────────────
 			// Build a real MediaStream backed by a silent oscillator. Real
 			// MediaStream + MediaStreamTrack instances satisfy code that
 			// inspects them (track.kind === 'audio', track.stop(), etc.).
-			const realGetUserMedia = navigator.mediaDevices?.getUserMedia?.bind(
-				navigator.mediaDevices
-			);
-			if (navigator.mediaDevices) {
-				navigator.mediaDevices.getUserMedia = async () => {
-					try {
-						// Try the real API first. On Chromium with --use-fake-* flags,
-						// this works. On Firefox/WebKit it may fail or hang — fall
-						// through to the synthetic stream below.
-						if (realGetUserMedia) {
-							const real = await Promise.race([
-								realGetUserMedia({ audio: true }),
-								new Promise<never>((_, rej) =>
-									setTimeout(() => rej(new Error('gum-timeout')), 200)
-								)
-							]);
-							return real;
-						}
-					} catch {
-						// fall through
-					}
-					// Build a synthetic stream from an oscillator. This is enough
-					// for AudioContext.createMediaStreamSource() to bind to.
-					const ctx = new (window.AudioContext ||
-						(window as unknown as { webkitAudioContext: typeof AudioContext })
-							.webkitAudioContext)();
-					const osc = ctx.createOscillator();
-					const dest = ctx.createMediaStreamDestination();
-					osc.connect(dest);
-					osc.start();
-					return dest.stream;
-				};
+			// The browser's own getUserMedia is deliberately NOT called, not
+			// even raced against a timeout: it asks the OS for a microphone,
+			// and a pending macOS permission prompt froze the process's whole
+			// audio path for an evening (see the module comment) — and a
+			// rejected race leaves the request pending.
+			const syntheticGetUserMedia = async (): Promise<MediaStream> => {
+				if (countCalls) (window as unknown as { __gumCount: number }).__gumCount++;
+				// Build a synthetic stream from an oscillator. This is enough
+				// for AudioContext.createMediaStreamSource() to bind to.
+				const ctx = new (window.AudioContext ||
+					(window as unknown as { webkitAudioContext: typeof AudioContext })
+						.webkitAudioContext)();
+				const osc = ctx.createOscillator();
+				const dest = ctx.createMediaStreamDestination();
+				osc.connect(dest);
+				osc.start();
+				return dest.stream;
+			};
+			// Installed on MediaDevices.prototype, NOT on the navigator.mediaDevices
+			// instance. WebKit's JS wrapper for that object is collectable: an
+			// override set on the instance here was present right after this
+			// script ran and GONE by the time the app called getUserMedia — a GC
+			// in between re-creates the wrapper without its expandos (measured
+			// 2026-09-07: after twelve rounds of heap churn the instance expando
+			// had vanished while ones on MediaDevices.prototype and window
+			// survived). The app then reached the native getUserMedia, which in
+			// Playwright's WebKit rejects with NotAllowedError, and every WebKit
+			// spec that opened a mic failed in CI. The prototype is reachable
+			// from the global and lives as long as the page; the instance lookup
+			// falls through to it whatever wrapper the page holds. audio-mock
+			// .spec.ts pins this on every engine.
+			if (typeof MediaDevices !== 'undefined') {
+				MediaDevices.prototype.getUserMedia = syntheticGetUserMedia;
+			} else if (navigator.mediaDevices) {
+				navigator.mediaDevices.getUserMedia = syntheticGetUserMedia;
 			}
 
 			// ── MediaRecorder stub ──────────────────────────────────────
@@ -151,7 +181,11 @@ export async function installAudioMock(
 			(window as unknown as { MediaRecorder: typeof MediaRecorder }).MediaRecorder =
 				MockMediaRecorder as unknown as typeof MediaRecorder;
 		},
-		[fixtureBytes, fixtureMime] as [number[], string]
+		[fixtureBytes, fixtureMime, options.countGetUserMediaCalls === true] as [
+			number[],
+			string,
+			boolean
+		]
 	);
 }
 

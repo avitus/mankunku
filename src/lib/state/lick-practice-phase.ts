@@ -11,8 +11,11 @@
  * `buildPhaseTimeline` folds a `CycleWindowPlan` into contiguous segments:
  * every open recording window is a `play` block, every gap inside the cycle
  * (the demo block in continuous mode, the app's half of each key in
- * call-response) is a `listen` block, with the optional count-in bar in front
- * and the turnaround / inter-lick rest behind.
+ * call-response) is a `listen` block — except the reading pause the plan
+ * lays before a revealed key's first pass (`pauseTicks`), which is a `read`
+ * block: the band vamps, the sheet is up, and the player must NOT play yet
+ * but is not listening to a line either — they are reading one. With the
+ * optional count-in bar in front and the turnaround / inter-lick rest behind.
  *
  * `phaseCueAt` then answers two questions per animation frame: what phase am I
  * in, and how many beats until it changes. The second one is the point —
@@ -22,7 +25,7 @@
 
 import type { CycleWindowPlan } from './lick-practice-rotation';
 
-export type PracticePhase = 'count-in' | 'listen' | 'play' | 'transition' | 'idle';
+export type PracticePhase = 'count-in' | 'listen' | 'read' | 'play' | 'transition' | 'idle';
 
 export interface PhaseSegment {
 	phase: Exclude<PracticePhase, 'idle'>;
@@ -78,13 +81,18 @@ export function buildPhaseTimeline(args: {
 
 	// Walk the windows in order; anything between the cursor and the next
 	// window open is the app playing (demo block, or the call half of a
-	// call-response key).
+	// call-response key) — save for the reading pause laid immediately before
+	// a revealed key's slot, which is its own phase.
 	let cursor = audioStartTick;
 	for (let i = 0; i < windows.opens.length; i++) {
 		const open = windows.opens[i];
 		const close = windows.closes[i];
-		if (open > cursor) {
-			push(segments, { phase: 'listen', startTick: cursor, endTick: open });
+		const readStart = open - (windows.pauseTicks[i] ?? 0);
+		if (readStart > cursor) {
+			push(segments, { phase: 'listen', startTick: cursor, endTick: readStart });
+		}
+		if (open > Math.max(cursor, readStart)) {
+			push(segments, { phase: 'read', startTick: Math.max(cursor, readStart), endTick: open });
 		}
 		if (close > open) {
 			push(segments, { phase: 'play', startTick: open, endTick: close });
@@ -131,6 +139,7 @@ export function buildOpenEndedTimeline(args: {
 			closes: [OPEN_ENDED_TICK],
 			keyIndex: [0],
 			finalPass: [true],
+			pauseTicks: [0],
 			cycleEndTick: OPEN_ENDED_TICK
 		},
 		ticksPerBar,
@@ -198,7 +207,7 @@ function cue(
 
 /** What the on-chart phase tab renders for one cue. */
 export interface PhaseTabView {
-	kind: 'listen' | 'listen-in' | 'play-in' | 'play' | 'rest' | 'hidden';
+	kind: 'listen' | 'listen-in' | 'read' | 'play-in' | 'play' | 'rest' | 'hidden';
 	/** Smallcaps label; the countdown numeral renders separately from `count`. */
 	text: string;
 	/** Countdown numeral (leadBeats..1), or 0 when none shows. */
@@ -223,6 +232,10 @@ export interface PhaseTabView {
  * half (call-response: `play` → `listen`) must NOT flip the tab early, or it
  * tells the user their turn is over a bar before the mic closes. Countdowns
  * exist to warn the user to START, never to stop.
+ *
+ * A reading pause reads `read` (the sheet has just come up; don't play yet),
+ * and its last bar is an ordinary "Play <key> in" entrance count — not
+ * "Straight in", which is reserved for the no-demo turnaround.
  */
 export function phaseTabView(cue: PhaseCue, keyLabel: string): PhaseTabView {
 	if (cue.phase === 'idle') return { kind: 'hidden', text: '', count: 0 };
@@ -235,6 +248,7 @@ export function phaseTabView(cue: PhaseCue, keyLabel: string): PhaseTabView {
 		};
 	}
 	if (cue.phase === 'play') return { kind: 'play', text: 'Play', count: 0 };
+	if (cue.phase === 'read') return { kind: 'read', text: 'Read', count: 0 };
 	if (cue.countdown > 0 && cue.next === 'listen') {
 		return { kind: 'listen-in', count: cue.countdown, text: 'Listen in' };
 	}

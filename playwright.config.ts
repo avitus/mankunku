@@ -44,7 +44,21 @@ export default defineConfig({
 					args: [
 						'--use-fake-ui-for-media-stream',
 						'--use-fake-device-for-media-stream',
-						'--autoplay-policy=no-user-gesture-required'
+						'--autoplay-policy=no-user-gesture-required',
+						// Render WebAudio into Chromium's fake output sink instead of the
+						// machine's default output device. The AudioContext clock — and so
+						// Tone's transport, every count-in and every recording window —
+						// still advances in real time, but nothing depends on the hardware
+						// and the suite is silent instead of audible. Added 2026-09-03, an
+						// evening when every transport-driven spec froze at the count-in
+						// with "The AudioContext encountered an error from the audio device
+						// or the WebAudio renderer". The cause turned out to be a pending
+						// macOS microphone-permission prompt for the process hosting
+						// Chromium (see fixtures/audio.ts), not the output device — but a
+						// standalone probe showed the fake sink rendering through it
+						// regardless, and CI's device-less boxes already got this fallback
+						// implicitly.
+						'--disable-audio-output'
 					]
 				}
 			}

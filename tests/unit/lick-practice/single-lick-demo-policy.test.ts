@@ -6,7 +6,9 @@
  * - `advanceSingleLickRound` re-sorts the survivors (and the refilled circle)
  *   from the rolling scores — which by then include this cycle's attempts —
  *   and decides `demoNextCycle`: demo only while the head (worst) key is
- *   below proficient, and only in continuous mode.
+ *   below proficient, only in continuous mode, and NEVER on a refill cycle —
+ *   a rotation rebuilt after a full clear was played in full moments ago,
+ *   and a rolling score that lags the clear is no reason to replay the line.
  * - Tricks keep their rotation order (worst-first is a lick concept) but
  *   follow the same demo gate: `advanceSingleLickRound` demos a trick cycle
  *   only when its example STYLE is new to the session (enclosures: round 1
@@ -142,7 +144,34 @@ describe('advanceSingleLickRound rotation + demo decision', () => {
 		advanceSingleLickRound();
 
 		expect(lickPractice.plan[0].keys).toEqual(['C', 'Bb', 'F']);
-		expect(lickPractice.demoNextCycle).toBe(false); // all proficient
+		expect(lickPractice.demoNextCycle).toBe(false); // a refill never demos
+	});
+
+	it('skips the demo on a refill cycle even when the head key is still weak by history', () => {
+		setUnlockedCount('lick-f', 3);
+		startSingleLickSession(makeLick('F', 'lick-f'));
+		// Every key cleared this cycle, but C's EWMA still lags the clear: a
+		// 0.95 from a 0.7 history lands at 0.8. The old rule demoed C here —
+		// "it plays even at tempo bumps" — for a key the user just cleared.
+		seedRolling('lick-f', { F: 0.99, Bb: 0.98, C: 0.8 });
+		lickPractice.masteredThisRound = [...lickPractice.plan[0].keys];
+
+		advanceSingleLickRound();
+
+		expect(lickPractice.plan[0].keys).toEqual(['C', 'Bb', 'F']);
+		expect(lickPractice.demoNextCycle).toBe(false);
+	});
+
+	it('still demos a weak head key when the rotation was not cleared in full', () => {
+		setUnlockedCount('lick-f', 3);
+		startSingleLickSession(makeLick('F', 'lick-f'));
+		seedRolling('lick-f', { F: 0.99, Bb: 0.98, C: 0.8 });
+		lickPractice.masteredThisRound = ['F', 'Bb']; // C survives
+
+		advanceSingleLickRound();
+
+		expect(lickPractice.plan[0].keys).toEqual(['C']);
+		expect(lickPractice.demoNextCycle).toBe(true);
 	});
 
 	it('ranks a never-practiced key worst so it gets the demo', () => {

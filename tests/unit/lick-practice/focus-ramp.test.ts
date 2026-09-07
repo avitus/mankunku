@@ -258,8 +258,11 @@ describe('focus phase staircase', () => {
 		expect(lickPractice.ramp?.upToSpeedRound).toBe(10);
 		expect(lickPractice.ramp?.admitted).toEqual(['D', 'A']);
 		// Worst-first: A (0.5) now ranks below D, whose rolling score climbed
-		// past 0.96 over the ten clears — so the demo and first answer land on A.
+		// past 0.96 over the ten clears — so the first answer lands on A. No
+		// demo: the admission followed a clear, and a cleared rotation never
+		// demos.
 		expect(rotation()).toEqual(['A', 'D']);
+		expect(lickPractice.demoNextCycle).toBe(false);
 	});
 
 	it('never writes the lick tempo or a progress-history sample while ramping', () => {
@@ -407,5 +410,42 @@ describe('session report', () => {
 		startSingleLickSession(lick);
 		clearRotation();
 		expect(getSessionReport().ramp).toBeUndefined();
+	});
+});
+
+describe('the demo on the staircase and the rebuild', () => {
+	it('skips the demo after the focus key clears — a step up is a refill of the one-key rotation', () => {
+		const lick = seedTwelveKeyLick();
+		startSingleLickSession(lick, { focusKey: 'D' });
+		expect(lickPractice.demoNextCycle).toBe(true); // the session-start reminder
+
+		clearRotation();
+
+		// D's EWMA is 0.4 → 0.63 after one clear, far under proficient; the
+		// old rule replayed the line at every step up regardless.
+		expect(rotation()).toEqual(['D']);
+		expect(lickPractice.currentTempo).toBeGreaterThan(focusStartTempo(SAVED_TEMPO));
+		expect(lickPractice.demoNextCycle).toBe(false);
+	});
+
+	it('still demos the focus key after a miss — the rotation was not cleared', () => {
+		const lick = seedTwelveKeyLick();
+		startSingleLickSession(lick, { focusKey: 'D' });
+
+		play('D', 0.6);
+		advanceSingleLickRound();
+
+		expect(rotation()).toEqual(['D']);
+		expect(lickPractice.demoNextCycle).toBe(true);
+	});
+
+	it('skips the demo on the clear that re-admits a key during the rebuild', () => {
+		const lick = seedTwelveKeyLick();
+		startSingleLickSession(lick, { focusKey: 'D' });
+		for (let round = 1; round <= 11; round++) clearRotation();
+
+		expect(lickPractice.ramp?.phase).toBe('rebuild');
+		expect(rotation()).toHaveLength(3);
+		expect(lickPractice.demoNextCycle).toBe(false);
 	});
 });

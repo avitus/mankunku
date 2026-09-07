@@ -20,9 +20,16 @@
 import type { PitchClass, HarmonicSegment } from '$lib/types/music';
 import type { ChordProgressionType } from '$lib/types/lick-practice';
 import type { BackingStyle } from '$lib/types/instruments';
-import { transposeProgression, progressionMode, MINOR_CADENCE } from '$lib/data/progressions';
+import { turnaroundHarmony } from '$lib/data/progressions';
 import { BACKING_STYLES, type DrumVoice } from './backing-styles';
 import { generateBacking, resolveBackingSwing } from './backing-generation';
+
+/**
+ * The bar's harmony lives with the progression templates
+ * (`data/progressions.ts`) so the lead-sheet reading pause can vamp the same
+ * bar inside a super phrase without the state layer importing audio code.
+ */
+export { turnaroundHarmony };
 
 /** One instrument trigger, mirroring the backing Parts' callback payloads. */
 export type BackingHit =
@@ -34,57 +41,6 @@ export interface TurnaroundEvent {
 	/** Ticks from the start of the turnaround bar. */
 	tickOffset: number;
 	hit: BackingHit;
-}
-
-/**
- * The turnaround's harmony: half a bar of ii, half a bar of V, resolving
- * into `targetKey`. Chord qualities and scales follow the house templates —
- * a minor-tonic progression gets the minor cadence (half-diminished ii,
- * altered V), everything else the major one. Offsets/durations are in
- * whole-note fractions, so one bar of `beatsPerBar` beats spans [beatsPerBar, 4].
- */
-export function turnaroundHarmony(
-	progressionType: ChordProgressionType,
-	targetKey: PitchClass,
-	beatsPerBar: number
-): HarmonicSegment[] {
-	// Mode-matched to the progression's tonic (same rule as
-	// getTransitionCadenceChords); the minor cadence is MINOR_CADENCE so the
-	// cue, the templates and the transition chords can't drift.
-	const minor = progressionMode(progressionType) === 'minor';
-
-	const half: [number, number] = [beatsPerBar, 8];
-	const cRooted: HarmonicSegment[] = minor
-		? [
-				{
-					chord: { root: 'D', quality: MINOR_CADENCE.ii.quality },
-					scaleId: MINOR_CADENCE.ii.scaleId,
-					startOffset: [0, 1],
-					duration: half
-				},
-				{
-					chord: { root: 'G', quality: MINOR_CADENCE.V.quality },
-					scaleId: MINOR_CADENCE.V.scaleId,
-					startOffset: half,
-					duration: half
-				}
-			]
-		: [
-				{
-					chord: { root: 'D', quality: 'min7' },
-					scaleId: 'major.dorian',
-					startOffset: [0, 1],
-					duration: half
-				},
-				{
-					chord: { root: 'G', quality: '7' },
-					scaleId: 'major.mixolydian',
-					startOffset: half,
-					duration: half
-				}
-			];
-
-	return transposeProgression(cRooted, targetKey);
 }
 
 /**

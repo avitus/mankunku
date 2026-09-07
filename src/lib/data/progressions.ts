@@ -803,6 +803,57 @@ export function getTransitionCadenceChords(
 	];
 }
 
+/**
+ * One bar of ii-V into `targetKey`: half a bar of ii, half a bar of V, as
+ * harmony the backing engine can play. Mode-matched to the progression's
+ * tonic like `getTransitionCadenceChords` — a minor-tonic progression gets
+ * `MINOR_CADENCE` (half-diminished ii, V7b9), everything else the major
+ * cadence — so the deep-practice turnaround bar, the lead-sheet reading pause
+ * (which vamps this bar) and the inter-lick cue can't drift apart. Offsets and
+ * durations are whole-note fractions, so one bar of `beatsPerBar` beats spans
+ * `[beatsPerBar, 4]`.
+ */
+export function turnaroundHarmony(
+	progressionType: ChordProgressionType,
+	targetKey: PitchClass,
+	beatsPerBar: number
+): HarmonicSegment[] {
+	const minor = progressionMode(progressionType) === 'minor';
+
+	const half: [number, number] = [beatsPerBar, 8];
+	const cRooted: HarmonicSegment[] = minor
+		? [
+				{
+					chord: { root: 'D', quality: MINOR_CADENCE.ii.quality },
+					scaleId: MINOR_CADENCE.ii.scaleId,
+					startOffset: [0, 1],
+					duration: half
+				},
+				{
+					chord: { root: 'G', quality: MINOR_CADENCE.V.quality },
+					scaleId: MINOR_CADENCE.V.scaleId,
+					startOffset: half,
+					duration: half
+				}
+			]
+		: [
+				{
+					chord: { root: 'D', quality: 'min7' },
+					scaleId: 'major.dorian',
+					startOffset: [0, 1],
+					duration: half
+				},
+				{
+					chord: { root: 'G', quality: '7' },
+					scaleId: 'major.mixolydian',
+					startOffset: half,
+					duration: half
+				}
+			];
+
+	return transposeProgression(cRooted, targetKey);
+}
+
 // ─── Fit: which progressions a lick can actually be played over ───────────────
 
 /**

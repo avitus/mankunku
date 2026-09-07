@@ -2396,3 +2396,247 @@ opened in Chrome.
   the test's fake module not satisfying `typeof import('abcjs')` — cast it.
 - vitest 281 files, 4482 passed / 35 expected-fail; svelte-check 0/0;
   24 e2e on chromium (lick-practice ×4 + every notation-heavy tune spec).
+
+## 2026-09-03 (third pass) — Why deep practice still demos at a tempo bump (explanation only)
+
+- Andy: "still too much interruption from the app playing the lick. The
+  first time is ok, but it seems to be playing it even at tempo bumps.
+  Explain to me again how that works." Explanation requested, no change.
+- Traced the chain: `startSingleLickSession` forces the first-cycle demo;
+  every boundary runs `advanceSingleLickRound` → this-cycle ≥ 0.95 drops a
+  key, survivors empty → `nextCycleTempo` (+1%, ceil) and REFILL to the
+  whole unlocked circle → `sortKeysWorstFirst` by persisted EWMA
+  (`ROLLING_SCORE_ALPHA` 0.4, written on every attempt) →
+  `demoNextCycle = shouldDemoHeadKey(rolling(keys[0]))`, i.e. demo iff
+  the worst key's EWMA is undefined or < 0.90. `getDemoBars` then gives
+  the super-phrase and the window scheduler `lickBars` (one pass of the
+  lick in that key) or 0.
+- Why the bump demos: the refill puts the worst EWMA of the WHOLE circle
+  at the head, and the EWMA lags the clear — from 0.70 a 0.95 clear lands
+  at 0.80, and it takes four consecutive ≥ 0.95 cycles to cross 0.90. So
+  "skip once proficient" is reachable only once every unlocked key has a
+  strong history, well after the tempo has been bumping.
+- All of this is pinned as intended in `single-lick-demo-policy.test.ts`
+  and `rotation.test.ts`; the tests are right about the code, the two
+  gates just measure different things. See observations.
+
+**Notes:**
+
+- No code touched. Offered the smallest quieting change (skip the demo on
+  a refill cycle; demo below the FLOOR rather than proficient) as a
+  follow-up for Andy to decide.
+
+## 2026-09-03 (third pass) — The sheet waits its turn; a reading pause heralds it
+
+**What happened:**
+
+- Andy, on the lead-sheet row: "working well", but two changes — a short
+  pause to herald the change in modality (memory → reading), and the sheet
+  must not appear until the user finishes playing the previous key. The
+  morning's read-ahead parking had shown the sheet a whole key early; this
+  withdraws it.
+- Design: a `LEAD_SHEET_PAUSE_BARS` (2) reading pause before a revealed
+  key's first pass when it does not open the cycle (slot 0 follows the
+  demo — a revealed key is under the floor, so its cycle always demos — and
+  the demo is its herald). The pause bars are laid INTO the super phrase as
+  `turnaroundHarmony` repeated (the cycle-join ii-V, "vamp till ready"),
+  so the band plays them like any other bars; `turnaroundHarmony` moved
+  from audio/turnaround-bar.ts to data/progressions.ts so the state layer
+  needn't import audio. `planCycleWindows` takes `pauses` and returns
+  per-window `pauseTicks`; `buildPhaseTimeline` turns them into a new
+  `read` phase (tab READ in listen-red with a staff glyph, then the usual
+  "Play G in 4·3·2·1" — never "Straight in"); the cost model charges them
+  (`lickAudioBars.pauseBars`). Two bars, not one: the app's established
+  shape for an entrance the player must reorient for (inter-lick rest,
+  record-a-lick count-in); the one-bar turnaround joins keys in the same
+  mode.
+- The display now reads its position off the scheduled plan:
+  `cyclePositionAt(tick, layout)` → segment / keyFraction / beat. The old
+  route math was a uniform-slot modulo that was only right because every
+  segment was a multiple of the key length; a 2-bar pause under a 4-bar
+  key would have skewed every later beat. `rowScrollFraction` deleted; the
+  route's five tick anchors collapsed into one `cycleLayout`.
+- Component: an upcoming lead-sheet row shows the key's chord chart as a
+  placeholder over the engraved staff, which stays `visibility: hidden`
+  (engraved ahead, not shown — abcjs's work is done) until the row is
+  current, i.e. from the start of its pause; the stack steps and the chart
+  fades into the staff, all inside the pause. `.row.ahead` and the
+  read-ahead branch of `keyStackLayout` removed — one parking rule again.
+- TDD: 24 red across rotation (pause layout, `cyclePositionAt` ×9),
+  reveal (`getKeyPauses`), super-phrase (vamp bars, offsets, length, no
+  pause at slot 0), duration, phase-cue (`read` segment + tab), stack
+  layout (plain parking pinned, read-ahead cases removed) → green. One
+  test predicate of mine was wrong (a half-bar V at .5 is the short
+  template's own G7, not a vamp bar) — fixed the test. E2E third spec
+  rewritten: hidden-but-engraved during C, READ tab + step + fade during
+  the pause, `play-in`, then pass 1 with nothing moving.
+- Verification detour (≈1 h), with a misdiagnosis: after the change, three
+  of the four lick-practice e2e specs failed with Chromium's "The
+  AudioContext encountered an error from the audio device or the WebAudio
+  renderer", the transport frozen at the count-in. Not my change: unrelated
+  specs (ear training, record-a-lick) failed the same way, serially too.
+  Standalone Playwright probes against a scratch page showed a bare
+  AudioContext "running" with its clock stuck at 0, running under
+  `--disable-audio-output`; the app STILL froze under the flag; an in-page
+  hook on every AudioContext/decode/getUserMedia put the app's stall 350 ms
+  after the fixture fired the REAL `getUserMedia` (fake device), which
+  never settled, and a fourth probe reproduced it in isolation (a context
+  created after the pending call never rendered a frame). I attributed all
+  of it to Andy's Universal Audio interface (the default output) being
+  wedged. Wrong: the next morning Andy had accepted a macOS
+  microphone-permission prompt for the process hosting Chromium — pending
+  and unseen all evening — and the same probes ran normally at once, real
+  `getUserMedia` included. One cause, outside the system I was probing.
+  The test-infra fixes stand on their own merits: `--disable-audio-output`
+  (silent, hardware-independent) and a synthetic-only mic stub (Chromium
+  never asks the OS for a mic, so no fresh machine hangs on the prompt).
+  Ear-training / record-lick / tune-practice / backing-render /
+  sample-decode / calibration specs all pass under both. I did not touch
+  the Mac's audio settings.
+
+**Notes:**
+
+- vitest 4492 passed / 35 expected-fail; svelte-check 0/0; lick-practice
+  e2e chromium 4/4 (the pause spec needed two fixes of its own: a second
+  assertion on the one-bar "Play A in" tab raced its flip, and the tab
+  text is written pitch — concert G reads A on tenor — plus leading
+  whitespace, so the regex became `/Play \S+ in/`); control + audio specs
+  10 passed / 1 skipped under the new config.
+- Not done, by decision: the pause is fixed at two bars (a constant, not a
+  setting); the phones-letterbox and single-key-empty-slot follow-ups from
+  09-01 stand.
+
+## 2026-09-03 (fourth pass) — No demo on a refill cycle
+
+- Andy, after the explanation: "Ok, skip the demo on any refill cycle."
+  One of the two quieting options; the 0.90 threshold stays.
+- Rule: a rotation rebuilt after a full clear never demos — the plain
+  bump-and-refill and the focus ramp's step-up and re-admission cycles
+  alike (`survivors.length > 0` joins the `demoNextCycle` conjunction in
+  `advanceSingleLickRound`; `shouldDemoHeadKey` is now the score half
+  only). Read "any" as broad: the same veto everywhere a cleared rotation
+  comes back.
+- The interaction I nearly missed: the peer session (mankunku-b9) had
+  landed the reading pause an hour earlier (452b446), whose design says a
+  revealed key at slot 0 needs no pause because "its cycle always demos".
+  That invariant held only because a revealed key (< 0.75) always sorted
+  to the head with a demo-worthy score; a refill breaks it — a 0.95 clear
+  from a 0.6 history lands at 0.74, still revealed, now with no demo — and
+  the sheet would have been sprung on the downbeat the mic opened, the
+  exact bug the pause fixed. So `cycleDemos()` is now the one source both
+  `demoBarsForItem` and `pauseBarsFor` read, and slot 0 gets the pause when
+  the cycle has no demo. From the turnaround bar the tab reads REST into
+  READ (never "Straight in" — pinned).
+- TDD: six red across five suites (each on the predicted assertion: the
+  refill demo flag, the ramp's step-up and admission, the slot-0 pause in
+  `getKeyPauses` and in the super phrase) → green; the phase-cue case was
+  a pin, not a red (the timeline already handled a leading pause).
+  Lick-practice suites 26 files / 582 tests.
+- Docs on every surface: CLAUDE.md, state-management.md, user-guide.md
+  (three sentences), overview.md, state.md (four rows), README changelog,
+  repo MEMORY.md; home memory updated, and the stale lead-sheet memory
+  (still describing parking as current) corrected.
+- Process note: HEAD moved under me mid-session (two commits from the
+  peer session, which also swept my earlier CLAUDIUS notes into its
+  commit). SendMessage is not in this build, so no coordination channel;
+  kept the diff small and re-read every touched region from the tree.
+
+**Notes:**
+
+- Ramp consequence to flag to Andy: a key re-admitted during the rebuild
+  now arrives with no demo (its admission follows a clear), and a step-up
+  on the focus key too. A miss on the focus key still demos.
+
+## 2026-09-06 — Click-ring phantoms before the entrance (ear training)
+
+- Andy: "This ear training lick was incorrectly scored", with the
+  2026-09-03 tonic-turn diagnostic (JSON + WAV). A correct take — C B D C,
+  quarters at 100 BPM, fundamentals 266/247/294/266 Hz — saved as
+  try-again, 1 of 4 hit, pitch 0.25, the real B, D, C flagged EXTRA.
+- Root cause, in the order the evidence came: the WAV's RMS envelope
+  shows clicks every 0.6 s and the sax entering at 1.9 s; the diagnostic's
+  per-reading `rms` column shows 1.2 s of clarity 0.84–0.95 readings at
+  RMS 0.0006–0.0016 before that entrance, 35–40 dB under the notes; an
+  FFT of the inter-click silence shows ONE pure line at ~271 Hz, 14 dB
+  above anything else, appearing after each click and decaying ~400 ms —
+  the click ringing in the room. McLeod clarity is amplitude-invariant,
+  so the ring is "confident"; `trimToPerformance` anchored on it (offset
+  0.30 instead of 1.48), the segmenter cut three notes out of the ring
+  (C#−39 / C+44 / C#−19), and DTW matched them against expected C, B, D.
+  The offline replay reproduced the saved score byte for byte.
+- Fix: `dropSubFloorRuns` in capture-window.ts, called first by
+  `trimToPerformance`. Runs (split at holes > 0.1 s) whose peak never
+  comes within −30 dB of the take's loudest reading are dropped wherever
+  they sit — leading, mid-rest, trailing; a run that reached performance
+  level keeps every reading. Relative because auto-gain is off. The RUN
+  is the unit so the corpus's decay tails (tracked to −46 dB; the tiers'
+  evidence) are untouched: 281 files / 4516 tests byte-identical.
+- TDD: 12 unit cases + a 4-test regression block red on the predicted
+  assertions (offset 0.30 vs 1.483; 7 notes vs 4; extras) → green; the
+  take now scores 4/4, pitch 1.0, rhythm 0.937, overall 0.975, perfect.
+  Fixture pair copied into tests/fixtures/recordings/.
+- The same phantom already sat in the corpus: 2026-07-08 four-to-five's
+  second "note" is 2.2 s at RMS 0.001 after the one real note. Its test
+  pins the listening window, so the note was never read.
+- Docs: CLAUDE.md (audio/ capture paragraph), api-reference/audio.md
+  (new `dropSubFloorRuns` entry), repo MEMORY.md, home memory.
+- Open, not done: lick-practice windows, tune practice and record-a-lick
+  don't route through `trimToPerformance`, so they carry no gate. The
+  band or kit plays through those takes, and there is no diagnostic
+  showing the phantom there — flagged in the report, no speculative gate.
+
+**Notes:**
+
+- Process: background job; the harness enforces a worktree, which
+  EnterWorktree branched from origin/main — three commits behind dev —
+  so the first act was `git reset --hard dev` on the fresh branch. Andy's
+  rule against unsolicited branches stands; this one exists because the
+  harness refuses edits outside a worktree, and the report says so.
+
+## 2026-09-07 — PR #245 (dev → main): the WebKit mic failure was a garbage collector
+
+- Andy: "push to dev" then "open a pr to main". Pushed 55720b4 (no PR
+  existed, so no review side effect); opened #245 as a DRAFT, asked
+  `@coderabbitai rate limit` on it (reviews available), marked it ready,
+  armed the checker loop and the conversion guard per the skill.
+- The PR head was not my commit: the peer session (mankunku-b9) had pushed
+  ed664bb (ear-training capture trim) minutes after me. The checker said
+  FIX_CI: CircleCI's e2e job red on three consecutive dev heads — mine
+  included — green on main. CircleCI's MCP tools reject every call in this
+  build (`next_page_token` demanded in a slot the schema doesn't expose);
+  the public v1.1 API gave the step logs and Playwright artifacts.
+- Seven specs, all WebKit, all "Mic error: NotAllowedError" from the app's
+  own getUserMedia. Reproduced locally at once. Three probes in Playwright's
+  WebKit: every synthetic-stream step works and only the real gUM throws;
+  the init-script mock IS installed (own property present after assign);
+  at the app's call site the own property is GONE and the function is
+  native. A fourth probe (twelve rounds of heap churn) showed the instance
+  expando vanish while `MediaDevices.prototype` and `window` kept theirs:
+  WebKit collects and re-creates the `navigator.mediaDevices` wrapper. The
+  old fixture survived because its closure bound the real gUM to that
+  wrapper; the peer's 09-03 change removed the reference.
+- Fix: the stub lives on `MediaDevices.prototype`; the ear-training spec's
+  call-counting wrapper moves there too (it was stuck at 0 for the same
+  reason). New `audio-mock.spec.ts`: churn the heap, assert the mock, not
+  `[native code]`, answers — red on the old fixture (exact CI error), green
+  on all three engines. 10 of the 11 WebKit failures cleared; the 11th was
+  a non-retrying sample in the peer's reading-pause spec between the tab
+  flip (timeline-driven) and the recording class (callback-driven) — polled
+  like the spec's own earlier step.
+- CodeRabbit round 1: two threads. Docs wording (adopted — "after a clear"
+  → "on a refill cycle", the older README entry qualified). capture-window
+  "a dropped ring's click onset can attach to the next note" — rejected
+  with arithmetic: the run gap (0.1) plus the detector lag (~0.1) exceeds
+  the 0.15 validation window, so a note close enough to be validated by
+  the click shares the ring's run and the run is kept; pinned as a test.
+
+**Notes:**
+
+- Ran the fix's red deliberately against the checkout's HEAD fixture for
+  ~30 s — a peer session shares this checkout; restored immediately.
+- CodeRabbit round 2 (on 9e2bca9): one thread, valid — Playwright's docs
+  leave the evaluation order of multiple init scripts undefined, so the
+  spec's call-counting wrapper (a second script over the stub) could in
+  principle be installed first and then replaced; the old instance-level
+  version had the same latent dependency. Folded the counter into
+  `installAudioMock` as `countGetUserMediaCalls` — one script, no order.

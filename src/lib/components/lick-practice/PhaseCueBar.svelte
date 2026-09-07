@@ -10,6 +10,7 @@
 	const LABELS: Record<PracticePhase, string> = {
 		'count-in': 'Count in',
 		listen: 'Listen',
+		read: 'Read',
 		play: 'Play',
 		transition: 'Rest',
 		idle: ''
@@ -30,8 +31,15 @@
 	<span class="lamp" class:lit={cue.phase === 'play'} aria-hidden="true"></span>
 
 	<!-- Icon is the colour-independent half of the signal: a speaker while the
-	     app plays, a microphone while you do. -->
-	{#if cue.phase === 'listen' || cue.phase === 'count-in'}
+	     app plays, a staff while you read the sheet that has just come up, a
+	     microphone while you play. -->
+	{#if cue.phase === 'read'}
+		<svg class="glyph" viewBox="0 0 16 16" aria-hidden="true">
+			<path d="M2 4.5h12M2 8h12M2 11.5h12" fill="none" stroke="currentColor" stroke-width="1.1" />
+			<ellipse cx="10.2" cy="9.8" rx="2" ry="1.5" fill="currentColor" />
+			<path d="M12.1 9.6V3.2" fill="none" stroke="currentColor" stroke-width="1.2" />
+		</svg>
+	{:else if cue.phase === 'listen' || cue.phase === 'count-in'}
 		<svg class="glyph" viewBox="0 0 16 16" aria-hidden="true">
 			<path d="M2 6h2.5L8 3v10L4.5 10H2z" fill="currentColor" />
 			<path
@@ -112,6 +120,7 @@
 		border-color: color-mix(in srgb, var(--color-phase-play) 35%, transparent);
 	}
 	.cue[data-phase='listen'],
+	.cue[data-phase='read'],
 	.cue[data-phase='count-in'] {
 		color: color-mix(in srgb, var(--color-phase-listen) 70%, var(--color-text));
 		background: color-mix(in srgb, var(--color-phase-listen) 12%, transparent);

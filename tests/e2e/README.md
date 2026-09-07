@@ -44,7 +44,7 @@ tests/e2e/
 │   ├── console-errors.ts      ← console + pageerror capture, fails on uncaught
 │   ├── storage.ts             ← seed localStorage before page load
 │   ├── auth.ts                ← signedInPage fixture, Supabase route mocks
-│   └── audio.ts               ← MediaRecorder + getUserMedia mocks
+│   └── audio.ts               ← MediaRecorder + getUserMedia mocks (synthetic mic stream only — the real API is never called; getUserMedia is patched on MediaDevices.prototype because WebKit can re-create the navigator.mediaDevices wrapper mid-test — audio-mock.spec.ts pins it)
 └── *.spec.ts                  ← per-feature flows
 ```
 
