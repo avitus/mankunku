@@ -2592,3 +2592,45 @@ opened in Chrome.
   so the first act was `git reset --hard dev` on the fresh branch. Andy's
   rule against unsolicited branches stands; this one exists because the
   harness refuses edits outside a worktree, and the report says so.
+
+## 2026-09-07 — PR #245 (dev → main): the WebKit mic failure was a garbage collector
+
+- Andy: "push to dev" then "open a pr to main". Pushed 55720b4 (no PR
+  existed, so no review side effect); opened #245 as a DRAFT, asked
+  `@coderabbitai rate limit` on it (reviews available), marked it ready,
+  armed the checker loop and the conversion guard per the skill.
+- The PR head was not my commit: the peer session (mankunku-b9) had pushed
+  ed664bb (ear-training capture trim) minutes after me. The checker said
+  FIX_CI: CircleCI's e2e job red on three consecutive dev heads — mine
+  included — green on main. CircleCI's MCP tools reject every call in this
+  build (`next_page_token` demanded in a slot the schema doesn't expose);
+  the public v1.1 API gave the step logs and Playwright artifacts.
+- Seven specs, all WebKit, all "Mic error: NotAllowedError" from the app's
+  own getUserMedia. Reproduced locally at once. Three probes in Playwright's
+  WebKit: every synthetic-stream step works and only the real gUM throws;
+  the init-script mock IS installed (own property present after assign);
+  at the app's call site the own property is GONE and the function is
+  native. A fourth probe (twelve rounds of heap churn) showed the instance
+  expando vanish while `MediaDevices.prototype` and `window` kept theirs:
+  WebKit collects and re-creates the `navigator.mediaDevices` wrapper. The
+  old fixture survived because its closure bound the real gUM to that
+  wrapper; the peer's 09-03 change removed the reference.
+- Fix: the stub lives on `MediaDevices.prototype`; the ear-training spec's
+  call-counting wrapper moves there too (it was stuck at 0 for the same
+  reason). New `audio-mock.spec.ts`: churn the heap, assert the mock, not
+  `[native code]`, answers — red on the old fixture (exact CI error), green
+  on all three engines. 10 of the 11 WebKit failures cleared; the 11th was
+  a non-retrying sample in the peer's reading-pause spec between the tab
+  flip (timeline-driven) and the recording class (callback-driven) — polled
+  like the spec's own earlier step.
+- CodeRabbit round 1: two threads. Docs wording (adopted — "after a clear"
+  → "on a refill cycle", the older README entry qualified). capture-window
+  "a dropped ring's click onset can attach to the next note" — rejected
+  with arithmetic: the run gap (0.1) plus the detector lag (~0.1) exceeds
+  the 0.15 validation window, so a note close enough to be validated by
+  the click shares the ring's run and the run is kept; pinned as a test.
+
+**Notes:**
+
+- Ran the fix's red deliberately against the checkout's HEAD fixture for
+  ~30 s — a peer session shares this checkout; restored immediately.

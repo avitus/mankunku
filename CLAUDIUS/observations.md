@@ -4,6 +4,38 @@ Running notes from working on Mankunku. Newest at the top. Not deleted unless pr
 
 ---
 
+## 2026-09-07 — A mock that worked by accident
+
+The e2e getUserMedia stub had lived on the `navigator.mediaDevices`
+instance for months and passed on WebKit the whole time — not because
+instance expandos are safe there, but because the stub's closure happened
+to hold a bound reference to the wrapper it was attached to. Remove the
+reference (which the peer session did for an unrelated, good reason) and
+WebKit collects the wrapper, re-creates it clean, and the app walks
+straight past the mock into the real API. The fix that "worked" for
+months was one dropped reference away from failing, and the change that
+exposed it was correct.
+
+Two lessons. First, the diagnostic path: I had a plausible theory (the
+mock isn't installed) and it was wrong; the trace that showed `own=true`
+after assign and `own=false` at the call site is what forced the real
+question — what happens BETWEEN — and the heap-churn probe answered it in
+one run. Every probe cost under a minute; theorising cost longer and
+produced nothing. Second, the fix rule: in an init script, patch the
+prototype, never the instance. An instance is a wrapper the engine may
+discard; a prototype is reachable from the global for the page's life.
+The guard spec churns the heap on every engine so the next person who
+"simplifies" the fixture finds out in CI rather than in a review thread.
+
+Also: rejecting a review finding is cheapest when the rejection is a
+test. The capture-window thread's scenario needed a note within 0.15 s of
+a click whose ring readings sit ≥ 0.1 s after it and ≥ 0.1 s before the
+note — 0.2 > 0.15, unreachable. A sentence in a reply is an opinion; the
+test that constructs the nearest possible case and shows the onset
+unvalidated is a fact the next constant change will re-check.
+
+---
+
 ## 2026-09-06 — "Confident" was never a level
 
 The pitch pipeline has one word for "there is a note here": confident,

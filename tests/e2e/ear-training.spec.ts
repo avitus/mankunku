@@ -45,12 +45,18 @@ test.describe('ear-training: double-start guard', () => {
 
 		await page.addInitScript((): void => {
 			(window as unknown as { __gumCount: number }).__gumCount = 0;
-			const orig = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
-			navigator.mediaDevices.getUserMedia = async (
+			// Wrapped on the prototype, like the mock it wraps: WebKit can
+			// re-create the navigator.mediaDevices wrapper between here and the
+			// click, and an instance-level wrapper would be dropped with it
+			// (count stuck at 0 — see fixtures/audio.ts).
+			const proto = MediaDevices.prototype;
+			const orig = proto.getUserMedia;
+			proto.getUserMedia = function (
+				this: MediaDevices,
 				constraints?: MediaStreamConstraints
-			): Promise<MediaStream> => {
+			): Promise<MediaStream> {
 				(window as unknown as { __gumCount: number }).__gumCount++;
-				return orig(constraints);
+				return orig.call(this, constraints);
 			};
 		});
 

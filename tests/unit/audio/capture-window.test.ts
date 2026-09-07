@@ -8,6 +8,7 @@ import {
 	READING_RUN_GAP_SECONDS,
 	ANCHOR_EARLY_TOLERANCE_SECONDS
 } from '$lib/audio/capture-window';
+import { validateOnsets } from '$lib/audio/note-segmenter';
 import type { PitchReading } from '$lib/audio/pitch-frame';
 
 function makeReading(midi: number, time: number, clarity = 0.95, rms = 0.1): PitchReading {
@@ -221,6 +222,37 @@ describe('trimToPerformance', () => {
 		expect(result.offset).toBe(0);
 		expect(result.readings).toEqual(note);
 		expect(result.duration).toBe(2.0);
+	});
+
+	it('leaves a dropped ring\'s click onset with nothing to validate it — the run gap and the detector lag together exceed the validation window', () => {
+		// The nearest a following note can sit to a click whose ring was
+		// dropped: the ring's first confident reading arrives one analyser
+		// window (~0.1 s) after the click, the run is a single frame, and the
+		// note's first reading lands just past the run gap. The click onset
+		// itself survives the trim (it is not in the lead-in), but no kept
+		// reading falls inside `validateOnsets`' 0.15 s window after it, so the
+		// segmenter never adopts the click time as the note's start — dropping
+		// the ring's readings cannot hand its onset to the next note. A note
+		// any closer shares the ring's run, which then peaks at the note's
+		// level and is kept whole. Pins the arithmetic: raise
+		// READING_RUN_GAP_SECONDS or the validation window and this trips.
+		const detectorLag = 0.1;
+		const click = 5.0;
+		const ringStart = click + detectorLag;
+		const ring = run(60, ringStart, ringStart + 1 / 60, RING_RMS);
+		const noteStart = ringStart + 1 / 60 + READING_RUN_GAP_SECONDS + 0.001;
+		const note = run(67, noteStart, noteStart + 0.5, NOTE_RMS);
+		const first = run(64, 0.5, 1.0, NOTE_RMS);
+		const readings = [...first, ...ring, ...note];
+
+		const trimmed = trimToPerformance(readings, [0.4, click, noteStart - 0.02], noteStart + 1);
+
+		expect(trimmed.readings.some((r) => r.rms === RING_RMS)).toBe(false);
+		const clickRebased = click - trimmed.offset;
+		expect(trimmed.workletOnsets.some((t) => Math.abs(t - clickRebased) < 1e-9)).toBe(true);
+		const validated = validateOnsets(trimmed.workletOnsets, trimmed.readings);
+		expect(validated.some((t) => Math.abs(t - clickRebased) < 1e-9)).toBe(false);
+		expect(validated.some((t) => Math.abs(t - (noteStart - 0.02 - trimmed.offset)) < 1e-9)).toBe(true);
 	});
 
 	it('holds the pre-roll clear of the detection lag it exists to undo', () => {

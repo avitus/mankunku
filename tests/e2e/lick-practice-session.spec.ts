@@ -436,10 +436,16 @@ test.describe('lick-practice session flow', () => {
 		});
 
 		// G's first pass: the row records, gets its bar marker, and NOTHING
-		// moves — the step already happened during the pause.
+		// moves — the step already happened during the pause. The tab and the
+		// marker read the scheduled timeline off the transport tick, while the
+		// recording class is set by the window's transport callback; on WebKit
+		// the callback can land a few frames after the tick, so the final
+		// sample retries briefly — a moved stack would still fail it.
 		await expect(playTab).toHaveAttribute('data-pass', '1', { timeout: 10_000 });
 		await expect(reveal.locator('.abcjs-container svg .playhead-under-bar').first()).toBeVisible();
-		expect(await measure()).toEqual({ ...inPlace, playhead: true, recording: true });
+		await expect
+			.poll(measure, { timeout: 2_000 })
+			.toEqual({ ...inPlace, playhead: true, recording: true });
 	});
 
 	/**

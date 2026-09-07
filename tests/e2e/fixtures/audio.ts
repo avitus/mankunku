@@ -31,6 +31,10 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
  *     test suite must not depend on an OS dialog every fresh machine shows,
  *     and the synthetic stream is what two of the three engines ran on
  *     already — so Chromium no longer asks the OS for a microphone at all.
+ *     The stub lives on `MediaDevices.prototype`, because WebKit can
+ *     re-create the `navigator.mediaDevices` wrapper between the init
+ *     script and the app's call and an instance-level override dies with
+ *     the old wrapper (see the inline note).
  *
  *  2. `window.MediaRecorder` is replaced with a class that, on `.stop()`,
  *     dispatches a `dataavailable` event with a pre-loaded Blob built from
@@ -87,19 +91,35 @@ export async function installAudioMock(
 			// and a pending macOS permission prompt froze the process's whole
 			// audio path for an evening (see the module comment) — and a
 			// rejected race leaves the request pending.
-			if (navigator.mediaDevices) {
-				navigator.mediaDevices.getUserMedia = async () => {
-					// Build a synthetic stream from an oscillator. This is enough
-					// for AudioContext.createMediaStreamSource() to bind to.
-					const ctx = new (window.AudioContext ||
-						(window as unknown as { webkitAudioContext: typeof AudioContext })
-							.webkitAudioContext)();
-					const osc = ctx.createOscillator();
-					const dest = ctx.createMediaStreamDestination();
-					osc.connect(dest);
-					osc.start();
-					return dest.stream;
-				};
+			const syntheticGetUserMedia = async (): Promise<MediaStream> => {
+				// Build a synthetic stream from an oscillator. This is enough
+				// for AudioContext.createMediaStreamSource() to bind to.
+				const ctx = new (window.AudioContext ||
+					(window as unknown as { webkitAudioContext: typeof AudioContext })
+						.webkitAudioContext)();
+				const osc = ctx.createOscillator();
+				const dest = ctx.createMediaStreamDestination();
+				osc.connect(dest);
+				osc.start();
+				return dest.stream;
+			};
+			// Installed on MediaDevices.prototype, NOT on the navigator.mediaDevices
+			// instance. WebKit's JS wrapper for that object is collectable: an
+			// override set on the instance here was present right after this
+			// script ran and GONE by the time the app called getUserMedia — a GC
+			// in between re-creates the wrapper without its expandos (measured
+			// 2026-09-07: after twelve rounds of heap churn the instance expando
+			// had vanished while ones on MediaDevices.prototype and window
+			// survived). The app then reached the native getUserMedia, which in
+			// Playwright's WebKit rejects with NotAllowedError, and every WebKit
+			// spec that opened a mic failed in CI. The prototype is reachable
+			// from the global and lives as long as the page; the instance lookup
+			// falls through to it whatever wrapper the page holds. audio-mock
+			// .spec.ts pins this on every engine.
+			if (typeof MediaDevices !== 'undefined') {
+				MediaDevices.prototype.getUserMedia = syntheticGetUserMedia;
+			} else if (navigator.mediaDevices) {
+				navigator.mediaDevices.getUserMedia = syntheticGetUserMedia;
 			}
 
 			// ── MediaRecorder stub ──────────────────────────────────────
