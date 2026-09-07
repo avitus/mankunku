@@ -49,6 +49,14 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 export interface AudioMockOptions {
 	/** Path relative to tests/fixtures/recordings/ */
 	fixturePath?: string;
+	/**
+	 * Count the app's getUserMedia calls in `window.__gumCount`. Lives inside
+	 * this init script rather than in a second one that wraps the stub:
+	 * Playwright leaves the evaluation order of multiple init scripts
+	 * undefined, so a separate wrapper could be installed first and then be
+	 * replaced by the stub, leaving the count at zero.
+	 */
+	countGetUserMediaCalls?: boolean;
 }
 
 const FIXTURES_DIR = resolve(__dirname, '..', '..', 'fixtures', 'recordings');
@@ -79,8 +87,9 @@ export async function installAudioMock(
 	}
 
 	await page.addInitScript(
-		([fixtureArr, mime]) => {
+		([fixtureArr, mime, countCalls]) => {
 			const fixtureUint8 = new Uint8Array(fixtureArr as number[]);
+			if (countCalls) (window as unknown as { __gumCount: number }).__gumCount = 0;
 
 			// ── getUserMedia stub ───────────────────────────────────────
 			// Build a real MediaStream backed by a silent oscillator. Real
@@ -92,6 +101,7 @@ export async function installAudioMock(
 			// audio path for an evening (see the module comment) — and a
 			// rejected race leaves the request pending.
 			const syntheticGetUserMedia = async (): Promise<MediaStream> => {
+				if (countCalls) (window as unknown as { __gumCount: number }).__gumCount++;
 				// Build a synthetic stream from an oscillator. This is enough
 				// for AudioContext.createMediaStreamSource() to bind to.
 				const ctx = new (window.AudioContext ||
@@ -171,7 +181,11 @@ export async function installAudioMock(
 			(window as unknown as { MediaRecorder: typeof MediaRecorder }).MediaRecorder =
 				MockMediaRecorder as unknown as typeof MediaRecorder;
 		},
-		[fixtureBytes, fixtureMime] as [number[], string]
+		[fixtureBytes, fixtureMime, options.countGetUserMediaCalls === true] as [
+			number[],
+			string,
+			boolean
+		]
 	);
 }
 

@@ -2634,3 +2634,9 @@ opened in Chrome.
 
 - Ran the fix's red deliberately against the checkout's HEAD fixture for
   ~30 s — a peer session shares this checkout; restored immediately.
+- CodeRabbit round 2 (on 9e2bca9): one thread, valid — Playwright's docs
+  leave the evaluation order of multiple init scripts undefined, so the
+  spec's call-counting wrapper (a second script over the stub) could in
+  principle be installed first and then replaced; the old instance-level
+  version had the same latent dependency. Folded the counter into
+  `installAudioMock` as `countGetUserMediaCalls` — one script, no order.
