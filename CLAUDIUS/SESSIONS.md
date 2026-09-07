@@ -2743,4 +2743,18 @@ opened in Chrome.
   (1.6 min) where every attempt had failed before.
   Docs: CLAUDE.md, state-management, README changelog (2026-09-07 entry),
   in-repo MEMORY.md; home memory `project_e2e_webkit_init_contention`.
+- CodeRabbit round 2 (on 045af87): one thread, valid — with the stack now
+  built before the mic is asked for, a refused microphone's early return
+  left the rows standing as a populated, silent stack (before, the same
+  return left an EMPTY stack, equally silent — the session route had no
+  mic-failure surface at all; tune practice has one). Mirrored that:
+  `micError` state, the early return clears `plannedKeysForLick`/`rowOfKey`
+  and sets it, and the banner ("Microphone unavailable — check permissions
+  and try again", `role="alert"`, `data-testid="mic-error"`) renders in the
+  stack's place; End Session remains the way out. TDD: a new e2e rejects
+  `getUserMedia` on `MediaDevices.prototype` via `page.evaluate` after the
+  setup page loads (a prototype patch, like the mock's, so WebKit's
+  collectable wrapper can't drop it) — red on "mic-error not found" with the
+  rows up, green at 573 ms. lick-practice e2e ×5 on chromium AND webkit
+  10/10; svelte-check 0/0; vitest 281 files 4519 passed / 35 expected-fail.
 

@@ -144,6 +144,9 @@
 	let isRecording = $state(false);
 	let isSessionRunning = $state(false);
 	let isLoading = $state(false);
+	// The microphone was refused during setup: the key stack (built before the
+	// mic is asked for) is cleared and the banner takes its place.
+	let micError = $state(false);
 	let currentBeat = $state(0);
 	let sessionReport: SessionReport | null = $state(null);
 
@@ -496,9 +499,15 @@
 		rowOfKey = rowIndexByKey(plannedKeysForLick);
 
 		isLoading = true;
+		micError = false;
 		const micOk = await ensureMicCapture();
 		if (!micOk) {
 			isLoading = false;
+			// The rows were built above, before the mic was asked for; a refused
+			// mic must not leave them standing as a populated, silent stack.
+			micError = true;
+			plannedKeysForLick = [];
+			rowOfKey = [];
 			return;
 		}
 
@@ -1920,6 +1929,15 @@
 		     score-hold bar the frozen last-key chart cross-fades out and the
 		     breather card fades in over the same reserved space, so nothing
 		     below jumps. -->
+		{#if micError}
+			<div
+				class="rounded-lg bg-[var(--color-error)]/15 p-3 text-sm text-[var(--color-error-text)]"
+				role="alert"
+				data-testid="mic-error"
+			>
+				Microphone unavailable — check permissions and try again.
+			</div>
+		{:else}
 		<div class="relative">
 			<div
 				class="transition-opacity duration-300"
@@ -1950,6 +1968,7 @@
 				</div>
 			{/if}
 		</div>
+		{/if}
 
 		<!-- Key progress ring -->
 		<div class="flex justify-center">

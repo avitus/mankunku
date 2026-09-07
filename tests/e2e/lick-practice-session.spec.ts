@@ -467,6 +467,51 @@ test.describe('lick-practice session flow', () => {
 	 * reveals the one key, so a session that only fetched on engrave still
 	 * fetches — and fails on the ORDER, not on a missing request.
 	 */
+	/**
+	 * The key stack is built before the microphone is requested (so it is on
+	 * screen while the samples load), which means a refused microphone must
+	 * not leave a populated, silent stack behind: the session shows the same
+	 * microphone banner tune practice shows, and no chart. The refusal is
+	 * installed on `MediaDevices.prototype` (like the mock itself) so WebKit's
+	 * collectable `navigator.mediaDevices` wrapper cannot drop it.
+	 */
+	test('shows a microphone error instead of the key stack when the mic is refused', async ({
+		page,
+		browserName,
+		consoleCollector: _consoleCollector
+	}) => {
+		test.skip(
+			browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+			'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device'
+		);
+		test.setTimeout(60_000);
+
+		await seedOnboardedAnonymous(page);
+		await seedUserLicks(page);
+		await seedStorage(page, {
+			'user-lick-tags': { 'e2e-user-lick-bebop': ['practice', 'prog:ii-V-I-major'] },
+			...SEEDED_PROGRESS
+		});
+		await installAudioMock(page);
+		await stubCdnInstrumentSamples(page);
+
+		await page.goto('/lick-practice');
+		await page.evaluate(() => {
+			MediaDevices.prototype.getUserMedia = () =>
+				Promise.reject(new DOMException('Permission denied', 'NotAllowedError'));
+		});
+		const startBtn = page.getByRole('button', { name: /start daily practice/i });
+		await expect(startBtn).toBeEnabled();
+		await startBtn.click();
+		await expect(page).toHaveURL(/\/lick-practice\/session$/);
+
+		await expect(page.getByTestId('mic-error')).toBeVisible({ timeout: 20_000 });
+		await expect(page.locator('.chart-wrap')).toHaveCount(0);
+		await expect(page.getByTestId('lead-sheet-row')).toHaveCount(0);
+		// The way out is still there.
+		await expect(page.getByRole('button', { name: /end session/i })).toBeVisible();
+	});
+
 	test('fetches the notation engine and builds the key stack during session setup, before the samples load', async ({
 		page,
 		browserName,
