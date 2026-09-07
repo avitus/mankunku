@@ -13,9 +13,10 @@
  *   the first boundary moves nothing but the highlight (the component
  *   animates each step). It does not drift: a staff crawling upward a pixel
  *   per frame strobes;
- * - the viewport reserves the tallest row plus its neighbour, so it never
- *   resizes between cycles, and is never shorter than the fixed-height
- *   stack was;
+ * - the viewport reserves the tallest row plus its neighbour — and the
+ *   lead-sheet row plus a chord row whether or not this stack has one
+ *   (`reserveRowHeight`) — so it never resizes between cycles or licks, and
+ *   is never shorter than the fixed-height stack was;
  * - a lead-sheet row NEXT gets no special parking: it steps into the slot
  *   when its own key arrives, and the reading pause before that key
  *   (`cyclePositionAt` in the rotation module) is what gives the step time
@@ -152,6 +153,23 @@ describe('keyStackLayout', () => {
 				}
 			}
 		}
+	});
+
+	it('reserves the lead-sheet row and its neighbour whether or not this stack has one', () => {
+		// Between one stack and the next — a key recovering above the floor
+		// drops its sheet, the lick after a revealed one has none — the viewport
+		// must not change by the 2 px between 315 (three chord rows) and 317
+		// (sheet + chord row): the ring under it would jump. The component passes
+		// the lead-sheet row height as the reserve, so every stack gets the same
+		// viewport; a row taller than the reserve still wins.
+		const LEAD = 212;
+		expect(keyStackLayout([SLOT, SLOT, SLOT], 0, SLOT, VISIBLE, LEAD).viewportHeight).toBe(LEAD + SLOT);
+		expect(keyStackLayout([SLOT], 0, SLOT, VISIBLE, LEAD).viewportHeight).toBe(LEAD + SLOT);
+		expect(keyStackLayout([], 0, SLOT, VISIBLE, LEAD).viewportHeight).toBe(LEAD + SLOT);
+		expect(keyStackLayout([SLOT, LEAD], 0, SLOT, VISIBLE, LEAD).viewportHeight).toBe(LEAD + SLOT);
+		expect(keyStackLayout([260], 0, SLOT, VISIBLE, LEAD).viewportHeight).toBe(260 + SLOT);
+		// Without a reserve (the default), the rule is as before.
+		expect(keyStackLayout([SLOT, SLOT, SLOT], 0, SLOT, VISIBLE).viewportHeight).toBe(SLOT * VISIBLE);
 	});
 
 	it('handles an empty stack', () => {

@@ -24,6 +24,11 @@
  * viewport for the first key of every lick and every cycle (Andy,
  * 2026-09-06: "wasted space above the top of the first progression").
  *
+ * The viewport is reserved for the lead-sheet row plus a chord row whether
+ * or not this stack has a sheet (`reserveRowHeight`): a key recovering above
+ * the floor drops its sheet at the next cycle, and the ring under a viewport
+ * that shrank 2 px with it moved (CodeRabbit on #246, 2026-09-07).
+ *
  * A lead-sheet row NEXT gets no special treatment: it waits under the
  * active row like any chord row (dimmed, its top on screen) and steps into
  * the slot when its own key arrives. Read-ahead parking — the active row at
@@ -40,10 +45,12 @@ export interface KeyStackLayout {
 	translateY: number;
 	/** Index of the row being played (floor of the scroll, clamped to the last row). */
 	currentRow: number;
-	/** Fixed viewport height (px): never shorter than the fixed-height stack, and
+	/** Fixed viewport height (px): never shorter than the fixed-height stack,
 	 *  room for TWO of the tallest rows whenever any row is tall — a handover
 	 *  between two tall rows needs both on screen, and the height must not
-	 *  depend on where the tall rows sit, since the next cycle re-sorts them. */
+	 *  depend on where the tall rows sit, since the next cycle re-sorts them —
+	 *  and never less than `reserveRowHeight` plus a slot, so it does not
+	 *  depend on whether THIS stack has a tall row either. */
 	viewportHeight: number;
 }
 
@@ -54,12 +61,20 @@ export interface KeyStackLayout {
  * @param slotHeight    the standard one-chart row height — the unit the viewport's
  *                       floor is counted in, and the neighbour reserved beside a tall row
  * @param visibleRows   how many standard rows the fixed-height viewport showed
+ * @param reserveRowHeight the tallest row the component can build (the lead-sheet
+ *                       row), reserved with a neighbour whether or not this stack
+ *                       has one: a key recovering above the floor drops its sheet,
+ *                       the lick after a revealed one has none, and a viewport that
+ *                       changed with the stack moved the ring under it by the 2 px
+ *                       between three chord rows and a sheet plus one. A row taller
+ *                       than the reserve still wins. 0 reserves only what the stack has.
  */
 export function keyStackLayout(
 	heights: readonly number[],
 	scrollFraction: number,
 	slotHeight: number,
-	visibleRows: number
+	visibleRows: number,
+	reserveRowHeight = 0
 ): KeyStackLayout {
 	const n = heights.length;
 	const s = Math.max(0, scrollFraction);
@@ -80,7 +95,11 @@ export function keyStackLayout(
 			second = h;
 		}
 	}
-	const viewportHeight = Math.max(slotHeight * visibleRows, tallest + Math.max(slotHeight, second));
+	const viewportHeight = Math.max(
+		slotHeight * visibleRows,
+		tallest + Math.max(slotHeight, second),
+		reserveRowHeight + slotHeight
+	);
 
 	let top = 0;
 	for (let i = 0; i < currentRow; i++) top += heights[i];

@@ -115,7 +115,13 @@
 	// lit a whole key early) was tried and withdrawn — Andy: the sheet should
 	// not appear until the previous key has been played.
 	const rowHeights = $derived(plannedKeys.map((pk) => (pk.reveal ? LEAD_ROW_HEIGHT : ROW_HEIGHT)));
-	const layout = $derived(keyStackLayout(rowHeights, scrollFraction, ROW_HEIGHT, VISIBLE_ROWS));
+	// The viewport reserves the lead-sheet row plus a chord row whether or not
+	// this stack has a sheet: the ring under it must not move when the next
+	// cycle's stack (a key recovered above the floor) or the next lick's has
+	// no lead row — it used to shift 2 px between 315 and 317.
+	const layout = $derived(
+		keyStackLayout(rowHeights, scrollFraction, ROW_HEIGHT, VISIBLE_ROWS, LEAD_ROW_HEIGHT)
+	);
 	const translateYpx = $derived(layout.translateY);
 	const visualCurrentRow = $derived(layout.currentRow);
 

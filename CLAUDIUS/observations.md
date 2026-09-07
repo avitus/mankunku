@@ -35,6 +35,19 @@ bug in the fix, only in a tempting simplification of it — exactly the trap
 a "simplify" pass walks into after the tests are green, so the code
 comment names it.
 
+Round-1 addendum, the same evening: CodeRabbit's one finding on #246 was
+not about the code but about three sentences of mine saying the ring under
+the stack "never moves" — while the repo's own follow-up list, five lines
+below one of them, recorded that the viewport flips 315 ↔ 317 between a
+stack with a sheet and one without. I had read that line that afternoon
+and edited around it. The claim was true in spirit (the viewport is fixed
+by design) and false by 2 px, and a doc that states a design's intent as
+its behaviour is exactly the sentence a follow-up list exists to correct.
+The reviewer offered two ways out — soften the claim or make it true — and
+the second was smaller than the first: one reserve parameter, one red
+test, and the follow-up closes. Whenever the fix is shorter than the
+caveat, the caveat is the wrong choice.
+
 ## 2026-09-07 — A mock that worked by accident
 
 The e2e getUserMedia stub had lived on the `navigator.mediaDevices`

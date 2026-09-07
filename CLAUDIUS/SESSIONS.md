@@ -2695,3 +2695,14 @@ opened in Chrome.
 - Seen in the screenshots, pre-existing and by design: an upcoming row's
   dim "Changes" liner label shows above its boxes; the phase tab covers it
   only on the current row.
+- CodeRabbit round 1 (on aa61800): one thread, valid — three sentences of
+  mine said the ring under the stack "never moves", while MEMORY.md's own
+  follow-up list recorded the 315 ↔ 317 flip between a stack with a sheet
+  and one without (the viewport reserved the tallest row THIS stack had).
+  Took the reviewer's second option and made the claim true: `keyStackLayout`
+  takes `reserveRowHeight` (the component passes `LEAD_ROW_HEIGHT`), so
+  every stack gets 317 and a row taller than the reserve still wins — red
+  test first ("expected 315 to be 317"), then one extra `Math.max`
+  candidate. Docs aligned on every surface; the follow-up closed. vitest
+  281 files, 4519 passed / 35 expected-fail; svelte-check 0/0; lick-practice
+  e2e chromium 4/4.
