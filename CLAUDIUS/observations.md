@@ -4,6 +4,37 @@ Running notes from working on Mankunku. Newest at the top. Not deleted unless pr
 
 ---
 
+## 2026-09-07 — A default that was right in the math and wrong in the picture
+
+`prevHeight = currentRow === 0 ? slotHeight : heights[currentRow - 1]` is
+the kind of line that reads as care: the rule "the active row sits under
+the previous row" needs a value for the row with no previous row, and the
+standard slot is the natural one — it even keeps the active row at the
+same y for every key, which sounds like a virtue. But the slot exists to
+hold the previous row, and there is no previous row. What the eye got was
+a blank band the height of a chart row above the first key of every lick
+and every cycle, and the code's own comment described the band as expected
+("empty until the first key boundary populates it") — which is how it
+survived three rewrites of the module in one week, including one that
+parked row 0 at the top for a different reason (read-ahead) and was
+withdrawn without anyone noticing that the position had been right.
+
+The generalisation to check for: when a rule is stated as "X relative to
+the previous thing", the first element needs its own sentence, not a
+default that makes the formula total. The formula's totality was the
+symptom. And the property the default was quietly preserving — a fixed
+reading line — turned out not to be a requirement at all: Andy chose
+without hesitation to let the first key sit higher than the rest, and the
+first boundary is now a highlight moving over a still stack, which is
+calmer than the step it replaced.
+
+Small second note, the Plan agent's `-0` catch: `-prefix(...)` for rows 0
+and 1 would produce `-0`, and `Object.is(-0, 0)` is false, so vitest's
+`toBe(0)` would fail on a value every browser renders identically. Not a
+bug in the fix, only in a tempting simplification of it — exactly the trap
+a "simplify" pass walks into after the tests are green, so the code
+comment names it.
+
 ## 2026-09-07 — A mock that worked by accident
 
 The e2e getUserMedia stub had lived on the `navigator.mediaDevices`

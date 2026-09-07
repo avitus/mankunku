@@ -316,15 +316,20 @@ test.describe('lick-practice session flow', () => {
 	 * reading pause. A Daily session plays keys in ramp order, so the revealed
 	 * (newest) key is the LAST row: while C plays, G's row shows G's chord
 	 * chart and the engraved staff beneath it is hidden (engraved ahead, not
-	 * shown); when C's window closes the row becomes current, steps into the
-	 * slot and the staff fades in while the band vamps a ii-V into G for
-	 * `LEAD_SHEET_PAUSE_BARS` — the tab reads READ, then counts the entrance
-	 * in — and only then does G's first pass open, with the sheet wholly on
-	 * screen and nothing moving at its downbeat. Read-ahead parking (the sheet
-	 * lit a whole key early) was the previous behaviour and is what this test
-	 * must fail on. Playwright's `toBeVisible` does not see clipping by an
-	 * ancestor's `overflow: hidden`, so the geometry is measured in one
-	 * evaluate so every field describes the same frame.
+	 * shown); when C's window closes the row becomes current and the staff
+	 * fades in while the band vamps a ii-V into G for `LEAD_SHEET_PAUSE_BARS`
+	 * — the tab reads READ, then counts the entrance in — and only then does
+	 * G's first pass open, with the sheet wholly on screen and nothing moving
+	 * at its downbeat. Read-ahead parking (the sheet lit a whole key early)
+	 * was the previous behaviour and is what this test must fail on. Since
+	 * row 0 parks at the top of the viewport (2026-09-06), G's row is wholly
+	 * inside it from the first frame and a two-row stack never moves at all —
+	 * the sheet is withheld by `visibility` and its placeholder chart, not by
+	 * geometry, so those are the pin against an early sheet; `transform` and
+	 * `leadInside` pin that the stack stands still. Playwright's `toBeVisible`
+	 * does not see clipping by an ancestor's `overflow: hidden`, so the
+	 * geometry is measured in one evaluate so every field describes the same
+	 * frame.
 	 */
 	test('lead sheet appears after the previous key, over a reading pause, before its own window', async ({
 		page,
@@ -389,10 +394,10 @@ test.describe('lick-practice session flow', () => {
 				};
 			});
 
-		// C's window: row 0 is current and recording, the stack sits at its
-		// opening position (the empty slot above row 0), and the sheet — row 1,
-		// straddling the viewport's bottom edge like any upcoming row — is
-		// still hidden. Under read-ahead parking it was visible and lit here.
+		// C's window: row 0 is current and recording, flush with the top of the
+		// viewport (no slot above it), and the sheet — row 1, wholly inside the
+		// viewport under it — is still HIDDEN behind G's chord chart. Under
+		// read-ahead parking it was visible and lit here.
 		await expect(page.locator('.chart-wrap.recording')).toBeVisible({ timeout: 60_000 });
 		const playTab = page.locator('.phase-tab[data-kind="play"]');
 		await expect(playTab).toBeVisible();
@@ -401,16 +406,18 @@ test.describe('lick-practice session flow', () => {
 			currentIndex: 0,
 			leadIndex: 1,
 			leadVisibility: 'hidden',
-			leadInside: false,
-			transform: 'matrix(1, 0, 0, 1, 0, 105)',
+			leadInside: true,
+			transform: 'matrix(1, 0, 0, 1, 0, 0)',
 			playhead: false,
 			recording: true
 		});
 
 		// C's window closes → the reading pause: the tab reads READ (red: don't
 		// play yet), the mic is shut, the sheet row is current, and within the
-		// pause the stack has stepped so the whole sheet is inside the viewport
-		// at full visibility, its placeholder chart gone, no bar marker yet.
+		// pause the staff is at full visibility, its placeholder chart gone, no
+		// bar marker yet. Nothing has moved: in a two-row stack there is no row
+		// above to step past (a third row would step here, during the pause,
+		// which is the time the step needs).
 		await expect(page.locator('.phase-tab[data-kind="read"]')).toBeVisible({ timeout: 30_000 });
 		await expect(page.locator('.chart-wrap.recording')).toHaveCount(0);
 		const inPlace = {
@@ -436,11 +443,11 @@ test.describe('lick-practice session flow', () => {
 		});
 
 		// G's first pass: the row records, gets its bar marker, and NOTHING
-		// moves — the step already happened during the pause. The tab and the
-		// marker read the scheduled timeline off the transport tick, while the
-		// recording class is set by the window's transport callback; on WebKit
-		// the callback can land a few frames after the tick, so the final
-		// sample retries briefly — a moved stack would still fail it.
+		// moves — the stack has stood still since the first paint. The tab and
+		// the marker read the scheduled timeline off the transport tick, while
+		// the recording class is set by the window's transport callback; on
+		// WebKit the callback can land a few frames after the tick, so the
+		// final sample retries briefly — a moved stack would still fail it.
 		await expect(playTab).toHaveAttribute('data-pass', '1', { timeout: 10_000 });
 		await expect(reveal.locator('.abcjs-container svg .playhead-under-bar').first()).toBeVisible();
 		await expect

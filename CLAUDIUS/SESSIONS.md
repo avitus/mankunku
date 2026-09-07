@@ -2640,3 +2640,53 @@ opened in Chrome.
   principle be installed first and then replaced; the old instance-level
   version had the same latent dependency. Folded the counter into
   `installAudioMock` as `countGetUserMediaCalls` — one script, no order.
+
+## 2026-09-07 — No empty slot above the first key (Daily lick practice)
+
+- Andy (2026-09-06, evening): "On the daily lick practice, there seems to
+  be wasted space above the top of the first progression." Plan mode. One
+  Explore pass traced it: `keyStackLayout` gave row 0 the same slot as every
+  other row — `prevHeight = slotHeight` when there is no previous row — so
+  the stack sat 105 px down in a 315 px viewport for the first key of every
+  lick and every deep-practice cycle. The component comment described the
+  band as expected ("the slot above row 0 is empty until the first key
+  boundary populates it") and the in-repo MEMORY.md carried it as an open
+  follow-up. A Plan agent validated every shape's numbers before code.
+- Branch: the worktree had been cut from main, but dev was three commits
+  ahead and one of them (452b446, the reading pause) had rewritten exactly
+  these files. Asked; rebased onto dev (fast-forward — no own commits).
+- Decisions (asked; Andy took the recommended option each time): rebase
+  onto dev; remove the `.row-label` lick name that hung 16 px above row 0
+  (a duplicate of LickHeader's h2 — and it would be clipped at the top of an
+  `overflow: hidden` viewport); keep the fixed viewport, so a one- or
+  two-key stack's spare space now sits below the rows instead of above.
+- Fix (two lines): `activeTop = currentRow === 0 ? 0 : heights[currentRow - 1]`,
+  `translateY = activeTop - top` — kept as that subtraction because a
+  `-prefix()` form yields `-0` for rows 0 and 1 and vitest's `toBe(0)` tells
+  it apart (the Plan agent's catch). Rows ≥ 1 are byte-identical; the first
+  key boundary now moves nothing (only the highlight steps), the first
+  420 ms step is at row 2, a two-row Daily stack never moves at all. Top
+  edge measured: row padding-top 4 px, so the ring's 2 px spread ends 2 px
+  inside the clip — clear, nothing to spare.
+- TDD: unit test rewritten first — 5 of 9 red, every one "expected 105 to
+  be 0" (the row-0 branch), the rows-≥-1 cases already green — then the
+  two lines. e2e: the two-key reading-pause test's C-window sample flips to
+  `transform 0` / `leadInside: true`; the withheld sheet is pinned by
+  `leadVisibility: 'hidden'` + the placeholder count, not geometry, and the
+  docblock now says so. Throwaway screenshot spec (deleted) from the
+  one-key and two-key seeds: row 0 top = 0, chart top = 4, ring fully drawn.
+- Docs on every surface: CLAUDE.md, components.md, state-management.md,
+  user-guide.md, README changelog (dated 2026-09-06), in-repo MEMORY.md
+  (the rule, and the follow-up closed).
+
+**Notes:**
+
+- vitest 281 files, 4518 passed / 35 expected-fail; svelte-check 0/0
+  (after copying the gitignored local `.env` into the worktree, as the
+  other worktree had — without it, check reports nine `$env/static/public`
+  errors that have nothing to do with the change); lick-practice e2e on
+  chromium 4/4, plus the two throwaway tests.
+- Committed on the worktree branch; not pushed, no PR — Andy's call.
+- Seen in the screenshots, pre-existing and by design: an upcoming row's
+  dim "Changes" liner label shows above its boxes; the phase tab covers it
+  only on the current row.
