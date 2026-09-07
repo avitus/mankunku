@@ -4,6 +4,45 @@ Running notes from working on Mankunku. Newest at the top. Not deleted unless pr
 
 ---
 
+## 2026-09-06 — "Confident" was never a level
+
+The pitch pipeline has one word for "there is a note here": confident,
+meaning clarity ≥ 0.8. Clarity is a SHAPE measure — how periodic is this
+window — normalised so a whisper and a shout of the same sine score the
+same. Every consumer read "confident" as "the player is playing", and for
+five months that held because nothing periodic happened at the noise
+floor. Then a metronome click rang at 271 Hz for 400 ms at −58 dBFS and
+the word broke: perfectly periodic, perfectly inaudible, perfectly
+confident. Worth remembering that a threshold on a normalised measure is
+a statement about shape only; the level has to be asserted separately or
+it is not asserted at all.
+
+Two things to keep. First, the corpus already contained the failure —
+the four-to-five fixture's 2.2 s phantom at RMS 0.001 — but its test was
+written about a different question (the listening window), so the
+phantom sat in the JSON as a "note" nobody read. A fixture pins what you
+assert about it and nothing else. When a new failure shape is learned,
+scan every diagnostic's segmentedNotes for it, not just the take that was
+reported; today that scan took one Python loop and found the second case.
+
+Second, the fix's UNIT mattered more than its threshold. A per-reading
+floor fixes this take and quietly re-shapes every decay tail the
+re-articulation tiers were tuned on (the corpus tracks real decays to
+−46 dB, and the gap tier reads "the last two still-tracked frames"). A
+per-run floor removes only things that were never loud and leaves those
+bytes alone — 4516 tests unchanged, which is itself the proof that the
+unit was right. When a gate is added late to a tuned pipeline, choose the
+unit that keeps the tuning's evidence intact first, then pick the number
+from the measured margins (−41 dB phantom, −15 dB softest real note →
+−30).
+
+And the relative-versus-absolute call: with auto-gain off, absolute RMS
+is a property of the user's mic gain. A bleed artefact scales with the
+monitor; a played note does not. Relative to the take's own loudest
+reading is the one frame in which both stay put — and it costs a second
+pass, which every scoring path here can afford because they all score
+the whole capture at once.
+
 ## 2026-09-03 (fourth pass) — An invariant that was true by coincidence
 
 The reading pause shipped an hour before this change with a documented

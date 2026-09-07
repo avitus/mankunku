@@ -19,16 +19,32 @@
  * decides WHICH expected note went missing.
  *
  * So the capture is armed early and then trimmed back to a fixed, small
- * pre-roll before the first confident reading. That reconstructs the frame the
- * old trigger-armed capture had (first note near t=0, which is what the corpus
- * was tuned against) while keeping the attack, which it did not have.
+ * pre-roll before the first PERFORMANCE reading. That reconstructs the frame
+ * the old trigger-armed capture had (first note near t=0, which is what the
+ * corpus was tuned against) while keeping the attack, which it did not have.
  *
- * The rule is deliberately a pure function of the capture itself — first
- * reading minus a constant — so the live path, the authoritative replay
- * rescore and /diagnostics all derive the same offset from the same audio
- * without threading a stored value through IndexedDB. Recordings saved before
- * this existed replay identically: their first reading is already at ~0, so
- * the offset clamps to 0 and nothing moves.
+ * "Performance" is not the same as "confident". McLeod clarity is amplitude-
+ * invariant, so a pure tone at the noise floor reads as a confident pitch: the
+ * metronome's ringing tail — a single ~271 Hz line at −58 dBFS decaying for
+ * ~400 ms after each click on the 2026-09-03 tonic-turn take — produced 1.2 s
+ * of clarity-0.9 readings before the player came in, 35–40 dB under the notes
+ * that followed. Anchoring on those put the real first note at 1.6 s and the
+ * segmenter cut three phantom notes out of the ring, which DTW then matched
+ * against the expected line (1 of 4 hit, try-again, for a correct take). So a
+ * run of readings that never comes within `PERFORMANCE_FLOOR_DB` of the
+ * take's loudest reading is dropped before the trim anchors — wherever it
+ * sits, since a click rings in a mid-phrase rest and after the last note
+ * too. The unit is the RUN, not the reading: a run that reached performance
+ * level keeps every reading, decay tail included, so the segmenter's tiers
+ * see exactly the evidence they were tuned on (the corpus tracks real decays
+ * down to −46 dB, and the re-articulation tiers read those tails).
+ *
+ * The rule is deliberately a pure function of the capture itself — gate,
+ * then first surviving reading minus a constant — so the live path, the
+ * authoritative replay rescore and /diagnostics all derive the same offset
+ * from the same audio without threading a stored value through IndexedDB.
+ * Recordings saved before this existed replay identically: their first
+ * reading is already at ~0, so the offset clamps to 0 and nothing moves.
  */
 
 import type { PitchReading } from './pitch-frame';
@@ -55,6 +71,76 @@ export const PERFORMANCE_PREROLL_SECONDS = 0.35;
  */
 const MIN_TRIM_SECONDS = 1e-6;
 
+/**
+ * How far under the take's loudest reading a run may sit and still be the
+ * performance.
+ *
+ * Relative, not absolute: the mic runs with auto-gain OFF (capture.ts), so
+ * absolute levels track the user's gain, while a bleed artefact scales with
+ * the monitor and the played notes do not. Measured margins: the 2026-09-03
+ * click ring peaks at RMS 0.0016 against a 0.185 loudest reading (−41 dB),
+ * the 2026-07-08 four-to-five phantom at 0.0014 against 0.159 (−41 dB); the
+ * corpus's softest real note peaks ~15 dB under its take's loudest. −30 dB
+ * clears both by more than 10 dB.
+ */
+export const PERFORMANCE_FLOOR_DB = -30;
+
+/**
+ * A hole between consecutive readings longer than this ends a run.
+ *
+ * Readings arrive on a ~1/60 s grid and the detector drops frames at
+ * clarity dips, so a decaying tail carries short holes; six frames keeps such
+ * a tail attached to its note. A click's ring starts ≥ 100 ms after the click
+ * and the silence before the player's entry is longer still, so phantoms
+ * always stand as runs of their own.
+ */
+export const READING_RUN_GAP_SECONDS = 0.1;
+
+/**
+ * Drop every run of readings whose peak never reaches `floorDb` below the
+ * loudest reading in `readings`.
+ *
+ * Returns the input array itself when nothing is dropped. A capture with no
+ * performance at all (every run at the floor) keeps its loudest run — the
+ * floor is relative, so there is nothing to measure it against, and the take
+ * scores as it always did.
+ */
+export function dropSubFloorRuns(
+	readings: PitchReading[],
+	floorDb: number = PERFORMANCE_FLOOR_DB,
+	gapSeconds: number = READING_RUN_GAP_SECONDS
+): PitchReading[] {
+	if (readings.length === 0) return readings;
+
+	let loudest = 0;
+	for (const r of readings) if (r.rms > loudest) loudest = r.rms;
+	const floor = loudest * Math.pow(10, floorDb / 20);
+
+	const kept: PitchReading[] = [];
+	let dropped = false;
+	let runStart = 0;
+	let runPeak = 0;
+	const flush = (end: number) => {
+		if (runPeak >= floor) {
+			for (let i = runStart; i < end; i++) kept.push(readings[i]);
+		} else {
+			dropped = true;
+		}
+	};
+
+	for (let i = 0; i < readings.length; i++) {
+		if (i > runStart && readings[i].time - readings[i - 1].time > gapSeconds) {
+			flush(i);
+			runStart = i;
+			runPeak = 0;
+		}
+		if (readings[i].rms > runPeak) runPeak = readings[i].rms;
+	}
+	flush(readings.length);
+
+	return dropped ? kept : readings;
+}
+
 export interface TrimmedCapture {
 	readings: PitchReading[];
 	/** Worklet onsets, rebased and with anything before the window dropped. */
@@ -69,8 +155,9 @@ export interface TrimmedCapture {
 }
 
 /**
- * Drop everything more than `preroll` ahead of the first confident reading and
- * rebase what survives to the new origin.
+ * Drop the runs that never reach performance level, then everything more than
+ * `preroll` ahead of the first surviving reading, and rebase what is left to
+ * the new origin.
  *
  * A capture with no readings is returned untouched (offset 0) — there is no
  * performance to centre on, and a silent take should still carry its full
@@ -82,17 +169,18 @@ export function trimToPerformance(
 	duration: number,
 	preroll: number = PERFORMANCE_PREROLL_SECONDS
 ): TrimmedCapture {
-	if (readings.length === 0) {
-		return { readings, workletOnsets, duration, offset: 0 };
+	const performance = dropSubFloorRuns(readings);
+	if (performance.length === 0) {
+		return { readings: performance, workletOnsets, duration, offset: 0 };
 	}
 
-	const offset = readings[0].time - preroll;
+	const offset = performance[0].time - preroll;
 	if (offset < MIN_TRIM_SECONDS) {
-		return { readings, workletOnsets, duration, offset: 0 };
+		return { readings: performance, workletOnsets, duration, offset: 0 };
 	}
 
 	return {
-		readings: readings.map((r) => ({ ...r, time: r.time - offset })),
+		readings: performance.map((r) => ({ ...r, time: r.time - offset })),
 		// Onsets inside the discarded lead-in describe audio the segmenter can
 		// no longer see; keeping them would place attacks at negative times.
 		workletOnsets: workletOnsets.filter((t) => t >= offset).map((t) => t - offset),

@@ -2546,3 +2546,49 @@ opened in Chrome.
 - Ramp consequence to flag to Andy: a key re-admitted during the rebuild
   now arrives with no demo (its admission follows a clear), and a step-up
   on the focus key too. A miss on the focus key still demos.
+
+## 2026-09-06 — Click-ring phantoms before the entrance (ear training)
+
+- Andy: "This ear training lick was incorrectly scored", with the
+  2026-09-03 tonic-turn diagnostic (JSON + WAV). A correct take — C B D C,
+  quarters at 100 BPM, fundamentals 266/247/294/266 Hz — saved as
+  try-again, 1 of 4 hit, pitch 0.25, the real B, D, C flagged EXTRA.
+- Root cause, in the order the evidence came: the WAV's RMS envelope
+  shows clicks every 0.6 s and the sax entering at 1.9 s; the diagnostic's
+  per-reading `rms` column shows 1.2 s of clarity 0.84–0.95 readings at
+  RMS 0.0006–0.0016 before that entrance, 35–40 dB under the notes; an
+  FFT of the inter-click silence shows ONE pure line at ~271 Hz, 14 dB
+  above anything else, appearing after each click and decaying ~400 ms —
+  the click ringing in the room. McLeod clarity is amplitude-invariant,
+  so the ring is "confident"; `trimToPerformance` anchored on it (offset
+  0.30 instead of 1.48), the segmenter cut three notes out of the ring
+  (C#−39 / C+44 / C#−19), and DTW matched them against expected C, B, D.
+  The offline replay reproduced the saved score byte for byte.
+- Fix: `dropSubFloorRuns` in capture-window.ts, called first by
+  `trimToPerformance`. Runs (split at holes > 0.1 s) whose peak never
+  comes within −30 dB of the take's loudest reading are dropped wherever
+  they sit — leading, mid-rest, trailing; a run that reached performance
+  level keeps every reading. Relative because auto-gain is off. The RUN
+  is the unit so the corpus's decay tails (tracked to −46 dB; the tiers'
+  evidence) are untouched: 281 files / 4516 tests byte-identical.
+- TDD: 12 unit cases + a 4-test regression block red on the predicted
+  assertions (offset 0.30 vs 1.483; 7 notes vs 4; extras) → green; the
+  take now scores 4/4, pitch 1.0, rhythm 0.937, overall 0.975, perfect.
+  Fixture pair copied into tests/fixtures/recordings/.
+- The same phantom already sat in the corpus: 2026-07-08 four-to-five's
+  second "note" is 2.2 s at RMS 0.001 after the one real note. Its test
+  pins the listening window, so the note was never read.
+- Docs: CLAUDE.md (audio/ capture paragraph), api-reference/audio.md
+  (new `dropSubFloorRuns` entry), repo MEMORY.md, home memory.
+- Open, not done: lick-practice windows, tune practice and record-a-lick
+  don't route through `trimToPerformance`, so they carry no gate. The
+  band or kit plays through those takes, and there is no diagnostic
+  showing the phantom there — flagged in the report, no speculative gate.
+
+**Notes:**
+
+- Process: background job; the harness enforces a worktree, which
+  EnterWorktree branched from origin/main — three commits behind dev —
+  so the first act was `git reset --hard dev` on the fresh branch. Andy's
+  rule against unsolicited branches stands; this one exists because the
+  harness refuses edits outside a worktree, and the report says so.
