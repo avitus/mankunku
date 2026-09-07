@@ -48,6 +48,45 @@ the second was smaller than the first: one reserve parameter, one red
 test, and the follow-up closes. Whenever the fix is shorter than the
 caveat, the caveat is the wrong choice.
 
+CI addendum, later that evening — a red job that was not about the code.
+CI's e2e job went red on three consecutive heads of #246, one WebKit test,
+nine attempts out of nine, on the very commit that moved row 0; the base
+had passed twice that afternoon. Every instinct said "your change". Two
+probes said otherwise, and they are the two to reach for first on any
+CI-only timing failure: rerun the identical commit (it passed — so the
+condition is environmental), then reproduce under a one-core Docker
+throttle of Playwright's own image and bisect UNDER the throttle (base and
+head both failed, both put the mic source up at 15–19 s and the first row
+at ~45 s). The failing test had given session setup 20 s while its
+siblings in the same file give the same event 60 and 90 s, with a comment
+naming runner contention. Nine failures in a row still meant nothing about
+the diff; it meant CI had a slow half-hour and one test had no slack.
+
+Then the slack turned out to be the wrong fix. Raising the budget to
+60 s failed under the throttle just as 20 s had, and an extended probe
+put numbers on why: the mic was live at 9 s and the first row arrived
+at 57 s, behind 307 serial audio decodes — the sax set, then two
+velocity layers of a grand piano the backing track wants, then the kit.
+The rows are plan state; nothing about them needs a sample. They waited
+on the audio only because `startLick` built them, and `startLick` runs
+after the instrument loads. So the fix moved two lines to the top of
+`initializeSession`, pinned by an ordering assertion (row in the DOM
+before the first sample fetch — red at 864 ms vs 546 ms, then green),
+and a user on a slow connection gets the chart and the sheet while the
+band downloads. A test budget is a claim about how long something
+SHOULD take; when the thing has no business taking that long, the
+claim is the bug.
+
+Two smaller notes. The page looked perfectly healthy in every screenshot —
+header, countdown, ring, End Session — because all of those read state the
+setup page had already written; only the key stack waits for the audio
+setup, so an empty stack under a running clock is the signature of "init
+still running", not "init broken". And I hit the zsh `[ "$a" \> "$b" ]`
+trap the coderabbit-loop skill warns about, in my own poll loop, the same
+day I re-read the warning: a syntax error inside `if` fails the condition
+quietly and the loop just sleeps to its deadline. Warnings in skills are
+read once; `[[ ]]` has to be the habit.
+
 ## 2026-09-07 — A mock that worked by accident
 
 The e2e getUserMedia stub had lived on the `navigator.mediaDevices`

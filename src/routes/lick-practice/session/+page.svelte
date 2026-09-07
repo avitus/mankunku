@@ -484,6 +484,17 @@
 	async function initializeSession() {
 		if (!playback) return;
 
+		// Build the first lick's key stack NOW, before the mic, worklet, samples
+		// and detector below. The rows are plan state, not audio state, and the
+		// sheet (engine fetched at mount) is readable while the instrument
+		// loads — 307 sample decodes on the Daily path, which on a slow
+		// connection is the whole download and on a contended CI runner
+		// measured 20–45 s (three consecutive e2e builds on 2026-09-07 timed
+		// out waiting for the row). startLick rebuilds the same rows when the
+		// audio starts; the keyed rows keep their DOM.
+		plannedKeysForLick = getPlannedKeysForLick(lickPractice.currentLickIndex);
+		rowOfKey = rowIndexByKey(plannedKeysForLick);
+
 		isLoading = true;
 		const micOk = await ensureMicCapture();
 		if (!micOk) {

@@ -467,7 +467,7 @@ test.describe('lick-practice session flow', () => {
 	 * reveals the one key, so a session that only fetched on engrave still
 	 * fetches — and fails on the ORDER, not on a missing request.
 	 */
-	test('fetches the notation engine during session setup, before the count-in', async ({
+	test('fetches the notation engine and builds the key stack during session setup, before the samples load', async ({
 		page,
 		browserName,
 		consoleCollector: _consoleCollector
@@ -506,16 +506,53 @@ test.describe('lick-practice session flow', () => {
 		await page.route('https://smpldsnds.github.io/**', noteSamples);
 		await page.route('https://gleitz.github.io/**', noteSamples);
 
+		// In-page, one clock: when the lead-sheet row enters the DOM versus the
+		// first instrument sample fetch. The rows are plan state, not audio
+		// state, so they must not wait behind the sample load — the sax set is
+		// 66 files and with the backing kit the Daily path decodes 307, which
+		// is a slow connection's whole download and measured 20–45 s on a
+		// contended CI runner (three consecutive builds timed out waiting for
+		// the row on 2026-09-07).
+		await page.addInitScript(() => {
+			const order = { leadRowAt: null as number | null, sampleFetchAt: null as number | null };
+			(window as unknown as { __order: typeof order }).__order = order;
+			const origFetch = window.fetch.bind(window);
+			window.fetch = (input, init) => {
+				const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+				if (order.sampleFetchAt === null && /\/samples\/|smpldsnds|gleitz/.test(url)) {
+					order.sampleFetchAt = performance.now();
+				}
+				return origFetch(input, init);
+			};
+			new MutationObserver((_, observer) => {
+				if (order.leadRowAt === null && document.querySelector('[data-testid="lead-sheet-row"]')) {
+					order.leadRowAt = performance.now();
+					observer.disconnect();
+				}
+			}).observe(document, { childList: true, subtree: true });
+		});
+
 		await page.goto('/lick-practice');
 		const startBtn = page.getByRole('button', { name: /start daily practice/i });
 		await expect(startBtn).toBeEnabled();
 		await startBtn.click();
 		await expect(page).toHaveURL(/\/lick-practice\/session$/);
-		// The stack exists once setup is done and the count-in has begun.
+		// The stack exists as soon as setup begins — before the samples, which
+		// the instrument load requests a little later.
 		await expect(page.locator('.chart-wrap').first()).toBeVisible({ timeout: 60_000 });
 		await expect.poll(() => abcjsRequestedAt, { timeout: 20_000 }).not.toBeNull();
+		await expect.poll(() => samplesRequestedAt, { timeout: 60_000 }).not.toBeNull();
 
-		expect(samplesRequestedAt).not.toBeNull();
 		expect(abcjsRequestedAt!).toBeLessThan(samplesRequestedAt!);
+
+		// The row was on screen before the instrument asked for its first sample.
+		const readOrder = () =>
+			page.evaluate(
+				() => (window as unknown as { __order: { leadRowAt: number | null; sampleFetchAt: number | null } }).__order
+			);
+		await expect.poll(async () => (await readOrder()).sampleFetchAt, { timeout: 60_000 }).not.toBeNull();
+		const order = await readOrder();
+		expect(order.leadRowAt).not.toBeNull();
+		expect(order.leadRowAt!).toBeLessThan(order.sampleFetchAt!);
 	});
 });

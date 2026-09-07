@@ -2706,3 +2706,41 @@ opened in Chrome.
   candidate. Docs aligned on every surface; the follow-up closed. vitest
   281 files, 4519 passed / 35 expected-fail; svelte-check 0/0; lick-practice
   e2e chromium 4/4.
+- CI round (after CodeRabbit was clean): the e2e job was red on all three
+  heads — `[webkit] daily session runs a full round`, `lead-sheet-row`
+  "element(s) not found", 9 attempts of 9; the row-0 commit's own run also
+  failed the two-key reading-pause test the same way once. The CircleCI MCP
+  log tools reject every call (`next_page_token`); the v1.1 API is open and
+  gave the step logs, artifacts, screenshots and trace. Playwright's
+  error-context ARIA snapshot showed the session chrome up with the stack
+  component mounted and EMPTY — no rows at all for 27 s — and the CI
+  history showed the base green twice that afternoon. Local WebKit passed;
+  Linux WebKit in Docker (Playwright's own image, deps in a named volume)
+  passed unthrottled (row at 8 s).
+- Probes, in order: rerun the identical commit — PASSED (so: environmental);
+  `docker run --cpus=1` reproduced the failure exactly; swapping the two
+  changed source files to their base versions under the same throttle
+  failed identically (mic live at 14–19 s, no rows through 40 s). Raising
+  the row budget to 60 s ALSO failed under the throttle — which is what
+  sent me back for the timeline: an extended probe (fetch + decodeAudioData
+  hooks) showed 66 sax samples fetched at 9.7 s, 229 grand-piano and 12
+  drum samples after, 307 decodes serial at ~0.35 s each on a starved
+  core, and the first row at 57.7 s.
+- Fix (root cause, TDD): `initializeSession` builds `plannedKeysForLick` +
+  `rowOfKey` at its top, before the mic/worklet/samples/detector awaits —
+  the rows are plan state; `startLick` rebuilds the same rows, the keyed
+  `{#each}` keeps the DOM. Pinned in the notation-order e2e with an in-page
+  fetch hook + MutationObserver: the lead-sheet row enters the DOM before
+  the first sample fetch — red (864 ms vs 546 ms), green (843 ms run).
+  That test's own `samplesRequestedAt` read had assumed the chart waits for
+  setup; it now polls. The 60 s budget edit was reverted: a budget is a
+  claim about how long a thing should take, and the thing had no business
+  taking that long.
+- Verified: lick-practice e2e ×4 on chromium AND webkit locally 8/8;
+  svelte-check 0/0; vitest 281 files 4519 passed / 35 expected-fail; the
+  one-core Linux WebKit probe re-run: rows at +6.3 s as the 66 sax fetches
+  go out (mic live at 7.0 s), and the full Daily test PASSED at one core
+  (1.6 min) where every attempt had failed before.
+  Docs: CLAUDE.md, state-management, README changelog (2026-09-07 entry),
+  in-repo MEMORY.md; home memory `project_e2e_webkit_init_contention`.
+
