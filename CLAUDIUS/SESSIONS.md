@@ -2686,7 +2686,12 @@ opened in Chrome.
   other worktree had — without it, check reports nine `$env/static/public`
   errors that have nothing to do with the change); lick-practice e2e on
   chromium 4/4, plus the two throwaway tests.
-- Committed on the worktree branch; not pushed, no PR — Andy's call.
+- Committed on the worktree branch. Then Andy: "Push to dev and open a
+  pr." #245 had merged that afternoon, so main already held everything
+  on dev; pushed 8c1bc7d to dev (fast-forward — no PR existed, so no
+  review side effect), opened #246 (dev → main) as a DRAFT with no
+  attribution line (the repo rule), asked `@coderabbitai rate limit` on
+  it before marking it ready, per the loop skill.
 - Seen in the screenshots, pre-existing and by design: an upcoming row's
   dim "Changes" liner label shows above its boxes; the phase tab covers it
   only on the current row.
