@@ -90,13 +90,20 @@
 	const VISIBLE_ROWS = 3;
 	const NO_MARKERS: RangeMarker[] = [];
 
-	// The current key HOLDS one slot below the top for its whole duration —
-	// the previous row (and its score flash) fully visible above it — and the
-	// stack steps one row at each key change, eased by the CSS transition on
-	// `.stack`. It does not drift: a staff crawling upward a pixel per frame
-	// strobes. `keyStackLayout` owns the math for mixed heights. At session
-	// start, the slot above row 0 is empty until the first key boundary
-	// populates it.
+	// Row 0 parks at the TOP of the viewport; from row 1 on, the current key
+	// HOLDS one slot below the top for its whole duration — the previous row
+	// (and its score flash) fully visible above it — and the stack steps one
+	// row at each key change after the first (row 0 is already where row 1's
+	// previous row belongs, so the first boundary moves only the highlight),
+	// eased by the CSS transition on `.stack`. It does not drift: a staff
+	// crawling upward a pixel per frame strobes. `keyStackLayout` owns the
+	// math for mixed heights. Row 0 used to hold the same slot with nothing
+	// above it — a chart-row-tall empty band at the top for the first key of
+	// every lick and cycle ("wasted space above the top of the first
+	// progression"). With the first row flush with the top, the recording
+	// ring's 2 px spread and the arming outline on its chart end 2 px inside
+	// the viewport's `overflow: hidden` edge (row padding-top 4 px): clear,
+	// with nothing to spare for a wider ring or a thinner row.
 	//
 	// A lead-sheet row waits its turn like any other: until its key arrives it
 	// shows the key's chord chart (dimmed, below the active row) and the
@@ -108,7 +115,13 @@
 	// lit a whole key early) was tried and withdrawn — Andy: the sheet should
 	// not appear until the previous key has been played.
 	const rowHeights = $derived(plannedKeys.map((pk) => (pk.reveal ? LEAD_ROW_HEIGHT : ROW_HEIGHT)));
-	const layout = $derived(keyStackLayout(rowHeights, scrollFraction, ROW_HEIGHT, VISIBLE_ROWS));
+	// The viewport reserves the lead-sheet row plus a chord row whether or not
+	// this stack has a sheet: the ring under it must not move when the next
+	// cycle's stack (a key recovered above the floor) or the next lick's has
+	// no lead row — it used to shift 2 px between 315 and 317.
+	const layout = $derived(
+		keyStackLayout(rowHeights, scrollFraction, ROW_HEIGHT, VISIBLE_ROWS, LEAD_ROW_HEIGHT)
+	);
 	const translateYpx = $derived(layout.translateY);
 	const visualCurrentRow = $derived(layout.currentRow);
 
@@ -183,15 +196,11 @@
 				class:current={isCurrent}
 				style="height: {rowHeights[i]}px;"
 			>
-				{#if i === 0}
-				<div class="row-label">
-					<span class="lick-name">{pk.lickName}</span>
-				</div>
-				{/if}
-				<!-- Recording ring wraps just the chord chart, not the row
-				     label, so the ring sits below the label rather than above
-				     it. Dashed while arming, solid once the mic is live — a
-				     shape change, so the state reads without relying on colour. -->
+				<!-- Recording ring wraps the chord chart. Dashed while arming,
+				     solid once the mic is live — a shape change, so the state
+				     reads without relying on colour. (A lick-name label used to
+				     hang above row 0, in the slot the stack no longer leaves;
+				     the header's title names the lick.) -->
 				<div
 					class="chart-wrap"
 					class:recording={isCurrent && isRecording}
@@ -444,18 +453,6 @@
 		100% {
 			opacity: 0;
 		}
-	}
-	.row-label {
-		position: absolute;
-		top: -1rem;
-		left: 0.5rem;
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-	}
-	.lick-name {
-		font-size: 0.75rem;
-		color: var(--color-text-secondary);
 	}
 
 	/* Phase tab — the listen/play booth sign pinned to the active row. The

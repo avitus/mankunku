@@ -2640,3 +2640,121 @@ opened in Chrome.
   principle be installed first and then replaced; the old instance-level
   version had the same latent dependency. Folded the counter into
   `installAudioMock` as `countGetUserMediaCalls` — one script, no order.
+
+## 2026-09-07 — No empty slot above the first key (Daily lick practice)
+
+- Andy (2026-09-06, evening): "On the daily lick practice, there seems to
+  be wasted space above the top of the first progression." Plan mode. One
+  Explore pass traced it: `keyStackLayout` gave row 0 the same slot as every
+  other row — `prevHeight = slotHeight` when there is no previous row — so
+  the stack sat 105 px down in a 315 px viewport for the first key of every
+  lick and every deep-practice cycle. The component comment described the
+  band as expected ("the slot above row 0 is empty until the first key
+  boundary populates it") and the in-repo MEMORY.md carried it as an open
+  follow-up. A Plan agent validated every shape's numbers before code.
+- Branch: the worktree had been cut from main, but dev was three commits
+  ahead and one of them (452b446, the reading pause) had rewritten exactly
+  these files. Asked; rebased onto dev (fast-forward — no own commits).
+- Decisions (asked; Andy took the recommended option each time): rebase
+  onto dev; remove the `.row-label` lick name that hung 16 px above row 0
+  (a duplicate of LickHeader's h2 — and it would be clipped at the top of an
+  `overflow: hidden` viewport); keep the fixed viewport, so a one- or
+  two-key stack's spare space now sits below the rows instead of above.
+- Fix (two lines): `activeTop = currentRow === 0 ? 0 : heights[currentRow - 1]`,
+  `translateY = activeTop - top` — kept as that subtraction because a
+  `-prefix()` form yields `-0` for rows 0 and 1 and vitest's `toBe(0)` tells
+  it apart (the Plan agent's catch). Rows ≥ 1 are byte-identical; the first
+  key boundary now moves nothing (only the highlight steps), the first
+  420 ms step is at row 2, a two-row Daily stack never moves at all. Top
+  edge measured: row padding-top 4 px, so the ring's 2 px spread ends 2 px
+  inside the clip — clear, nothing to spare.
+- TDD: unit test rewritten first — 5 of 9 red, every one "expected 105 to
+  be 0" (the row-0 branch), the rows-≥-1 cases already green — then the
+  two lines. e2e: the two-key reading-pause test's C-window sample flips to
+  `transform 0` / `leadInside: true`; the withheld sheet is pinned by
+  `leadVisibility: 'hidden'` + the placeholder count, not geometry, and the
+  docblock now says so. Throwaway screenshot spec (deleted) from the
+  one-key and two-key seeds: row 0 top = 0, chart top = 4, ring fully drawn.
+- Docs on every surface: CLAUDE.md, components.md, state-management.md,
+  user-guide.md, README changelog (dated 2026-09-06), in-repo MEMORY.md
+  (the rule, and the follow-up closed).
+
+**Notes:**
+
+- vitest 281 files, 4518 passed / 35 expected-fail; svelte-check 0/0
+  (after copying the gitignored local `.env` into the worktree, as the
+  other worktree had — without it, check reports nine `$env/static/public`
+  errors that have nothing to do with the change); lick-practice e2e on
+  chromium 4/4, plus the two throwaway tests.
+- Committed on the worktree branch. Then Andy: "Push to dev and open a
+  pr." #245 had merged that afternoon, so main already held everything
+  on dev; pushed 8c1bc7d to dev (fast-forward — no PR existed, so no
+  review side effect), opened #246 (dev → main) as a DRAFT with no
+  attribution line (the repo rule), asked `@coderabbitai rate limit` on
+  it before marking it ready, per the loop skill.
+- Seen in the screenshots, pre-existing and by design: an upcoming row's
+  dim "Changes" liner label shows above its boxes; the phase tab covers it
+  only on the current row.
+- CodeRabbit round 1 (on aa61800): one thread, valid — three sentences of
+  mine said the ring under the stack "never moves", while MEMORY.md's own
+  follow-up list recorded the 315 ↔ 317 flip between a stack with a sheet
+  and one without (the viewport reserved the tallest row THIS stack had).
+  Took the reviewer's second option and made the claim true: `keyStackLayout`
+  takes `reserveRowHeight` (the component passes `LEAD_ROW_HEIGHT`), so
+  every stack gets 317 and a row taller than the reserve still wins — red
+  test first ("expected 315 to be 317"), then one extra `Math.max`
+  candidate. Docs aligned on every surface; the follow-up closed. vitest
+  281 files, 4519 passed / 35 expected-fail; svelte-check 0/0; lick-practice
+  e2e chromium 4/4.
+- CI round (after CodeRabbit was clean): the e2e job was red on all three
+  heads — `[webkit] daily session runs a full round`, `lead-sheet-row`
+  "element(s) not found", 9 attempts of 9; the row-0 commit's own run also
+  failed the two-key reading-pause test the same way once. The CircleCI MCP
+  log tools reject every call (`next_page_token`); the v1.1 API is open and
+  gave the step logs, artifacts, screenshots and trace. Playwright's
+  error-context ARIA snapshot showed the session chrome up with the stack
+  component mounted and EMPTY — no rows at all for 27 s — and the CI
+  history showed the base green twice that afternoon. Local WebKit passed;
+  Linux WebKit in Docker (Playwright's own image, deps in a named volume)
+  passed unthrottled (row at 8 s).
+- Probes, in order: rerun the identical commit — PASSED (so: environmental);
+  `docker run --cpus=1` reproduced the failure exactly; swapping the two
+  changed source files to their base versions under the same throttle
+  failed identically (mic live at 14–19 s, no rows through 40 s). Raising
+  the row budget to 60 s ALSO failed under the throttle — which is what
+  sent me back for the timeline: an extended probe (fetch + decodeAudioData
+  hooks) showed 66 sax samples fetched at 9.7 s, 229 grand-piano and 12
+  drum samples after, 307 decodes serial at ~0.35 s each on a starved
+  core, and the first row at 57.7 s.
+- Fix (root cause, TDD): `initializeSession` builds `plannedKeysForLick` +
+  `rowOfKey` at its top, before the mic/worklet/samples/detector awaits —
+  the rows are plan state; `startLick` rebuilds the same rows, the keyed
+  `{#each}` keeps the DOM. Pinned in the notation-order e2e with an in-page
+  fetch hook + MutationObserver: the lead-sheet row enters the DOM before
+  the first sample fetch — red (864 ms vs 546 ms), green (843 ms run).
+  That test's own `samplesRequestedAt` read had assumed the chart waits for
+  setup; it now polls. The 60 s budget edit was reverted: a budget is a
+  claim about how long a thing should take, and the thing had no business
+  taking that long.
+- Verified: lick-practice e2e ×4 on chromium AND webkit locally 8/8;
+  svelte-check 0/0; vitest 281 files 4519 passed / 35 expected-fail; the
+  one-core Linux WebKit probe re-run: rows at +6.3 s as the 66 sax fetches
+  go out (mic live at 7.0 s), and the full Daily test PASSED at one core
+  (1.6 min) where every attempt had failed before.
+  Docs: CLAUDE.md, state-management, README changelog (2026-09-07 entry),
+  in-repo MEMORY.md; home memory `project_e2e_webkit_init_contention`.
+- CodeRabbit round 2 (on 045af87): one thread, valid — with the stack now
+  built before the mic is asked for, a refused microphone's early return
+  left the rows standing as a populated, silent stack (before, the same
+  return left an EMPTY stack, equally silent — the session route had no
+  mic-failure surface at all; tune practice has one). Mirrored that:
+  `micError` state, the early return clears `plannedKeysForLick`/`rowOfKey`
+  and sets it, and the banner ("Microphone unavailable — check permissions
+  and try again", `role="alert"`, `data-testid="mic-error"`) renders in the
+  stack's place; End Session remains the way out. TDD: a new e2e rejects
+  `getUserMedia` on `MediaDevices.prototype` via `page.evaluate` after the
+  setup page loads (a prototype patch, like the mock's, so WebKit's
+  collectable wrapper can't drop it) — red on "mic-error not found" with the
+  rows up, green at 573 ms. lick-practice e2e ×5 on chromium AND webkit
+  10/10; svelte-check 0/0; vitest 281 files 4519 passed / 35 expected-fail.
+

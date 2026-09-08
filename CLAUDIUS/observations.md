@@ -4,6 +4,89 @@ Running notes from working on Mankunku. Newest at the top. Not deleted unless pr
 
 ---
 
+## 2026-09-07 — A default that was right in the math and wrong in the picture
+
+`prevHeight = currentRow === 0 ? slotHeight : heights[currentRow - 1]` is
+the kind of line that reads as care: the rule "the active row sits under
+the previous row" needs a value for the row with no previous row, and the
+standard slot is the natural one — it even keeps the active row at the
+same y for every key, which sounds like a virtue. But the slot exists to
+hold the previous row, and there is no previous row. What the eye got was
+a blank band the height of a chart row above the first key of every lick
+and every cycle, and the code's own comment described the band as expected
+("empty until the first key boundary populates it") — which is how it
+survived three rewrites of the module in one week, including one that
+parked row 0 at the top for a different reason (read-ahead) and was
+withdrawn without anyone noticing that the position had been right.
+
+The generalisation to check for: when a rule is stated as "X relative to
+the previous thing", the first element needs its own sentence, not a
+default that makes the formula total. The formula's totality was the
+symptom. And the property the default was quietly preserving — a fixed
+reading line — turned out not to be a requirement at all: Andy chose
+without hesitation to let the first key sit higher than the rest, and the
+first boundary is now a highlight moving over a still stack, which is
+calmer than the step it replaced.
+
+Small second note, the Plan agent's `-0` catch: `-prefix(...)` for rows 0
+and 1 would produce `-0`, and `Object.is(-0, 0)` is false, so vitest's
+`toBe(0)` would fail on a value every browser renders identically. Not a
+bug in the fix, only in a tempting simplification of it — exactly the trap
+a "simplify" pass walks into after the tests are green, so the code
+comment names it.
+
+Round-1 addendum, the same evening: CodeRabbit's one finding on #246 was
+not about the code but about three sentences of mine saying the ring under
+the stack "never moves" — while the repo's own follow-up list, five lines
+below one of them, recorded that the viewport flips 315 ↔ 317 between a
+stack with a sheet and one without. I had read that line that afternoon
+and edited around it. The claim was true in spirit (the viewport is fixed
+by design) and false by 2 px, and a doc that states a design's intent as
+its behaviour is exactly the sentence a follow-up list exists to correct.
+The reviewer offered two ways out — soften the claim or make it true — and
+the second was smaller than the first: one reserve parameter, one red
+test, and the follow-up closes. Whenever the fix is shorter than the
+caveat, the caveat is the wrong choice.
+
+CI addendum, later that evening — a red job that was not about the code.
+CI's e2e job went red on three consecutive heads of #246, one WebKit test,
+nine attempts out of nine, on the very commit that moved row 0; the base
+had passed twice that afternoon. Every instinct said "your change". Two
+probes said otherwise, and they are the two to reach for first on any
+CI-only timing failure: rerun the identical commit (it passed — so the
+condition is environmental), then reproduce under a one-core Docker
+throttle of Playwright's own image and bisect UNDER the throttle (base and
+head both failed, both put the mic source up at 15–19 s and the first row
+at ~45 s). The failing test had given session setup 20 s while its
+siblings in the same file give the same event 60 and 90 s, with a comment
+naming runner contention. Nine failures in a row still meant nothing about
+the diff; it meant CI had a slow half-hour and one test had no slack.
+
+Then the slack turned out to be the wrong fix. Raising the budget to
+60 s failed under the throttle just as 20 s had, and an extended probe
+put numbers on why: the mic was live at 9 s and the first row arrived
+at 57 s, behind 307 serial audio decodes — the sax set, then two
+velocity layers of a grand piano the backing track wants, then the kit.
+The rows are plan state; nothing about them needs a sample. They waited
+on the audio only because `startLick` built them, and `startLick` runs
+after the instrument loads. So the fix moved two lines to the top of
+`initializeSession`, pinned by an ordering assertion (row in the DOM
+before the first sample fetch — red at 864 ms vs 546 ms, then green),
+and a user on a slow connection gets the chart and the sheet while the
+band downloads. A test budget is a claim about how long something
+SHOULD take; when the thing has no business taking that long, the
+claim is the bug.
+
+Two smaller notes. The page looked perfectly healthy in every screenshot —
+header, countdown, ring, End Session — because all of those read state the
+setup page had already written; only the key stack waits for the audio
+setup, so an empty stack under a running clock is the signature of "init
+still running", not "init broken". And I hit the zsh `[ "$a" \> "$b" ]`
+trap the coderabbit-loop skill warns about, in my own poll loop, the same
+day I re-read the warning: a syntax error inside `if` fails the condition
+quietly and the loop just sleeps to its deadline. Warnings in skills are
+read once; `[[ ]]` has to be the habit.
+
 ## 2026-09-07 — A mock that worked by accident
 
 The e2e getUserMedia stub had lived on the `navigator.mediaDevices`

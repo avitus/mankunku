@@ -316,15 +316,20 @@ test.describe('lick-practice session flow', () => {
 	 * reading pause. A Daily session plays keys in ramp order, so the revealed
 	 * (newest) key is the LAST row: while C plays, G's row shows G's chord
 	 * chart and the engraved staff beneath it is hidden (engraved ahead, not
-	 * shown); when C's window closes the row becomes current, steps into the
-	 * slot and the staff fades in while the band vamps a ii-V into G for
-	 * `LEAD_SHEET_PAUSE_BARS` — the tab reads READ, then counts the entrance
-	 * in — and only then does G's first pass open, with the sheet wholly on
-	 * screen and nothing moving at its downbeat. Read-ahead parking (the sheet
-	 * lit a whole key early) was the previous behaviour and is what this test
-	 * must fail on. Playwright's `toBeVisible` does not see clipping by an
-	 * ancestor's `overflow: hidden`, so the geometry is measured in one
-	 * evaluate so every field describes the same frame.
+	 * shown); when C's window closes the row becomes current and the staff
+	 * fades in while the band vamps a ii-V into G for `LEAD_SHEET_PAUSE_BARS`
+	 * — the tab reads READ, then counts the entrance in — and only then does
+	 * G's first pass open, with the sheet wholly on screen and nothing moving
+	 * at its downbeat. Read-ahead parking (the sheet lit a whole key early)
+	 * was the previous behaviour and is what this test must fail on. Since
+	 * row 0 parks at the top of the viewport (2026-09-06), G's row is wholly
+	 * inside it from the first frame and a two-row stack never moves at all —
+	 * the sheet is withheld by `visibility` and its placeholder chart, not by
+	 * geometry, so those are the pin against an early sheet; `transform` and
+	 * `leadInside` pin that the stack stands still. Playwright's `toBeVisible`
+	 * does not see clipping by an ancestor's `overflow: hidden`, so the
+	 * geometry is measured in one evaluate so every field describes the same
+	 * frame.
 	 */
 	test('lead sheet appears after the previous key, over a reading pause, before its own window', async ({
 		page,
@@ -389,10 +394,10 @@ test.describe('lick-practice session flow', () => {
 				};
 			});
 
-		// C's window: row 0 is current and recording, the stack sits at its
-		// opening position (the empty slot above row 0), and the sheet — row 1,
-		// straddling the viewport's bottom edge like any upcoming row — is
-		// still hidden. Under read-ahead parking it was visible and lit here.
+		// C's window: row 0 is current and recording, flush with the top of the
+		// viewport (no slot above it), and the sheet — row 1, wholly inside the
+		// viewport under it — is still HIDDEN behind G's chord chart. Under
+		// read-ahead parking it was visible and lit here.
 		await expect(page.locator('.chart-wrap.recording')).toBeVisible({ timeout: 60_000 });
 		const playTab = page.locator('.phase-tab[data-kind="play"]');
 		await expect(playTab).toBeVisible();
@@ -401,16 +406,18 @@ test.describe('lick-practice session flow', () => {
 			currentIndex: 0,
 			leadIndex: 1,
 			leadVisibility: 'hidden',
-			leadInside: false,
-			transform: 'matrix(1, 0, 0, 1, 0, 105)',
+			leadInside: true,
+			transform: 'matrix(1, 0, 0, 1, 0, 0)',
 			playhead: false,
 			recording: true
 		});
 
 		// C's window closes → the reading pause: the tab reads READ (red: don't
 		// play yet), the mic is shut, the sheet row is current, and within the
-		// pause the stack has stepped so the whole sheet is inside the viewport
-		// at full visibility, its placeholder chart gone, no bar marker yet.
+		// pause the staff is at full visibility, its placeholder chart gone, no
+		// bar marker yet. Nothing has moved: in a two-row stack there is no row
+		// above to step past (a third row would step here, during the pause,
+		// which is the time the step needs).
 		await expect(page.locator('.phase-tab[data-kind="read"]')).toBeVisible({ timeout: 30_000 });
 		await expect(page.locator('.chart-wrap.recording')).toHaveCount(0);
 		const inPlace = {
@@ -436,11 +443,11 @@ test.describe('lick-practice session flow', () => {
 		});
 
 		// G's first pass: the row records, gets its bar marker, and NOTHING
-		// moves — the step already happened during the pause. The tab and the
-		// marker read the scheduled timeline off the transport tick, while the
-		// recording class is set by the window's transport callback; on WebKit
-		// the callback can land a few frames after the tick, so the final
-		// sample retries briefly — a moved stack would still fail it.
+		// moves — the stack has stood still since the first paint. The tab and
+		// the marker read the scheduled timeline off the transport tick, while
+		// the recording class is set by the window's transport callback; on
+		// WebKit the callback can land a few frames after the tick, so the
+		// final sample retries briefly — a moved stack would still fail it.
 		await expect(playTab).toHaveAttribute('data-pass', '1', { timeout: 10_000 });
 		await expect(reveal.locator('.abcjs-container svg .playhead-under-bar').first()).toBeVisible();
 		await expect
@@ -460,7 +467,52 @@ test.describe('lick-practice session flow', () => {
 	 * reveals the one key, so a session that only fetched on engrave still
 	 * fetches — and fails on the ORDER, not on a missing request.
 	 */
-	test('fetches the notation engine during session setup, before the count-in', async ({
+	/**
+	 * The key stack is built before the microphone is requested (so it is on
+	 * screen while the samples load), which means a refused microphone must
+	 * not leave a populated, silent stack behind: the session shows the same
+	 * microphone banner tune practice shows, and no chart. The refusal is
+	 * installed on `MediaDevices.prototype` (like the mock itself) so WebKit's
+	 * collectable `navigator.mediaDevices` wrapper cannot drop it.
+	 */
+	test('shows a microphone error instead of the key stack when the mic is refused', async ({
+		page,
+		browserName,
+		consoleCollector: _consoleCollector
+	}) => {
+		test.skip(
+			browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+			'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device'
+		);
+		test.setTimeout(60_000);
+
+		await seedOnboardedAnonymous(page);
+		await seedUserLicks(page);
+		await seedStorage(page, {
+			'user-lick-tags': { 'e2e-user-lick-bebop': ['practice', 'prog:ii-V-I-major'] },
+			...SEEDED_PROGRESS
+		});
+		await installAudioMock(page);
+		await stubCdnInstrumentSamples(page);
+
+		await page.goto('/lick-practice');
+		await page.evaluate(() => {
+			MediaDevices.prototype.getUserMedia = () =>
+				Promise.reject(new DOMException('Permission denied', 'NotAllowedError'));
+		});
+		const startBtn = page.getByRole('button', { name: /start daily practice/i });
+		await expect(startBtn).toBeEnabled();
+		await startBtn.click();
+		await expect(page).toHaveURL(/\/lick-practice\/session$/);
+
+		await expect(page.getByTestId('mic-error')).toBeVisible({ timeout: 20_000 });
+		await expect(page.locator('.chart-wrap')).toHaveCount(0);
+		await expect(page.getByTestId('lead-sheet-row')).toHaveCount(0);
+		// The way out is still there.
+		await expect(page.getByRole('button', { name: /end session/i })).toBeVisible();
+	});
+
+	test('fetches the notation engine and builds the key stack during session setup, before the samples load', async ({
 		page,
 		browserName,
 		consoleCollector: _consoleCollector
@@ -499,16 +551,53 @@ test.describe('lick-practice session flow', () => {
 		await page.route('https://smpldsnds.github.io/**', noteSamples);
 		await page.route('https://gleitz.github.io/**', noteSamples);
 
+		// In-page, one clock: when the lead-sheet row enters the DOM versus the
+		// first instrument sample fetch. The rows are plan state, not audio
+		// state, so they must not wait behind the sample load — the sax set is
+		// 66 files and with the backing kit the Daily path decodes 307, which
+		// is a slow connection's whole download and measured 20–45 s on a
+		// contended CI runner (three consecutive builds timed out waiting for
+		// the row on 2026-09-07).
+		await page.addInitScript(() => {
+			const order = { leadRowAt: null as number | null, sampleFetchAt: null as number | null };
+			(window as unknown as { __order: typeof order }).__order = order;
+			const origFetch = window.fetch.bind(window);
+			window.fetch = (input, init) => {
+				const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+				if (order.sampleFetchAt === null && /\/samples\/|smpldsnds|gleitz/.test(url)) {
+					order.sampleFetchAt = performance.now();
+				}
+				return origFetch(input, init);
+			};
+			new MutationObserver((_, observer) => {
+				if (order.leadRowAt === null && document.querySelector('[data-testid="lead-sheet-row"]')) {
+					order.leadRowAt = performance.now();
+					observer.disconnect();
+				}
+			}).observe(document, { childList: true, subtree: true });
+		});
+
 		await page.goto('/lick-practice');
 		const startBtn = page.getByRole('button', { name: /start daily practice/i });
 		await expect(startBtn).toBeEnabled();
 		await startBtn.click();
 		await expect(page).toHaveURL(/\/lick-practice\/session$/);
-		// The stack exists once setup is done and the count-in has begun.
+		// The stack exists as soon as setup begins — before the samples, which
+		// the instrument load requests a little later.
 		await expect(page.locator('.chart-wrap').first()).toBeVisible({ timeout: 60_000 });
 		await expect.poll(() => abcjsRequestedAt, { timeout: 20_000 }).not.toBeNull();
+		await expect.poll(() => samplesRequestedAt, { timeout: 60_000 }).not.toBeNull();
 
-		expect(samplesRequestedAt).not.toBeNull();
 		expect(abcjsRequestedAt!).toBeLessThan(samplesRequestedAt!);
+
+		// The row was on screen before the instrument asked for its first sample.
+		const readOrder = () =>
+			page.evaluate(
+				() => (window as unknown as { __order: { leadRowAt: number | null; sampleFetchAt: number | null } }).__order
+			);
+		await expect.poll(async () => (await readOrder()).sampleFetchAt, { timeout: 60_000 }).not.toBeNull();
+		const order = await readOrder();
+		expect(order.leadRowAt).not.toBeNull();
+		expect(order.leadRowAt!).toBeLessThan(order.sampleFetchAt!);
 	});
 });
