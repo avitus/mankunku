@@ -1707,3 +1707,21 @@ reason and I should say so: a suite must not depend on an OS dialog, and a
 timeout that lets the caller proceed does not cancel the thing it timed
 out on — the fixture's 200 ms race "handled" the hang while leaving the
 poison in place.
+
+## 2026-09-09 — A timestamp nobody designed as evidence dated the first request a process ever served
+
+The health endpoint stamps `startedAt` at module load, and SvelteKit loads
+a route module on its first request. That detail, written for cheapness,
+turned one JSON line into a witness: the "old" process reported a
+`startedAt` 0.66 s after the new one's, which could only mean the verify
+step's first poll was the first /api/health that process had ever served —
+so it was not the process release.sh had just checked, and not on the same
+machine. Everything after (DNS, certificate serials, the PM2 journal) was
+confirmation. Two things to keep. First, the cheapest evidence is often a
+side effect of an implementation choice; read the code that produces a
+field before reading the field. Second, the verify step could only fire
+after the wrong box had been deployed to and its PM2 restarted — a check at
+the END of a pipeline proves what happened, it cannot prevent it. The
+missing guard is a preflight, and a preflight against DNS encodes a
+topology assumption (no CDN, no floating IP) that the person running the
+infrastructure should choose to make, not me.

@@ -2859,3 +2859,56 @@ opened in Chrome.
   docstring coverage 70% < 80% on the touched functions — documented
   `findReArticulationsInSegment` and the three new test helpers. CircleCI
   test + e2e green on the first run.
+
+## 2026-09-09 — PR #247's merge "failed CI": the deploy went to a droplet DNS no longer points at
+
+- Pipeline on main at 06bf440 (builds 3104–3109): test, build, db-migrate,
+  e2e green; `deploy` failed at its LAST step, "Verify production serves
+  this commit" — six polls of https://mankunkujazz.com/api/health answered
+  c701e18 (the previous release) at uptime 96 700 s, while release.sh's own
+  health check on 127.0.0.1:3000 had PASSED with 06bf440 seconds earlier.
+  The two `startedAt`s made the hypothesis concrete before any SSH: the new
+  process's health module loaded at 07:13:05.597Z (release.sh's poll) and
+  the old process's at 07:13:06.259Z — the verify step's first request was
+  the FIRST /api/health that process ever served (`STARTED_AT` is
+  module-load time). Two machines behind one hostname.
+- Evidence, all read-only: DNS A for mankunkujazz.com → 64.23.176.115
+  (DigitalOcean, TTL 1800), not the deploy box 107.170.227.53
+  (`martial-eagle`). On martial-eagle: `current` → 20260909-071149-06bf440,
+  one node listener on 0.0.0.0:3000 (the new build, 210 MB) under a
+  deploy-user PM2 daemon that release.sh had to SPAWN at 07:13:02 because
+  `pm2-deploy.service` had been stopped — journal: "Stopping
+  pm2-deploy.service" 2026-09-08 04:19:55Z, all applications stopped,
+  never restarted; no reboot (up 29 days), no OOM. Ninety seconds later,
+  04:21:29Z, the c701e18 process on 64.23.176.115 started (its uptime,
+  counted back). Both IPs present the SAME TLS certificate (serial
+  06FD92E1…, issued Aug 4) and, queried by IP with `curl --resolve`, the
+  SAME backend process (identical uptimeSeconds in the same second) — the
+  old droplet's 443 forwards to the new one. `last` shows no interactive
+  login near 04:19Z: a non-interactive SSH command or a script. The
+  auto-mode classifier blocked reading `/etc/nginx`, `iptables`, and any
+  SSH to the unknown host key, so the forwarding mechanism is inferred, not
+  read.
+- Conclusion: production was moved to a new droplet (a snapshot clone —
+  same cert, same release tree, same Node) around 2026-09-08 04:20Z, DNS
+  repointed, the old box's app stopped and its 443 forwarded — but
+  CircleCI's `DEPLOY_HOST` still names the old droplet. The deploy job
+  faithfully installed 06bf440 there, spawned a stray PM2 daemon + app that
+  nothing routes to, and the verify step — written for exactly "nginx
+  pointing somewhere stale" — failed correctly. Users are on c701e18; the
+  two ear-training scorer fixes in 06bf440 are not live.
+- Nothing in my notes, home memory, glen, or other projects' memories
+  records the move (veetbot's `DEPLOY_HOST` mentions are mid-August and its
+  own). Asked Andy whether the move was his and which box is production
+  going forward. Either way the fix is settings, not code: `DEPLOY_HOST` →
+  64.23.176.115 in the CircleCI project (the job's `ssh-keyscan` step picks
+  up the new host key), then rerun the workflow's deploy job — or DNS back
+  to 107.170.227.53. Follow-ups: stop the stray PM2 on the old box (Andy's
+  call), `~/.ssh/config` Host mankunku still says 107.170.227.53; a
+  deploy-job preflight asserting DEPLOY_HOST and the production hostname
+  resolve to the same address would fail fast before touching any box, but
+  would break every deploy the day a CDN fronts the site — offered, not
+  built.
+- CircleCI reading: v1.1 job JSON needs `json.loads(..., strict=False)`
+  (raw control characters in step output); step `output_url`s are
+  presigned and public.
