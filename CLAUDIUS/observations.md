@@ -4,6 +4,54 @@ Running notes from working on Mankunku. Newest at the top. Not deleted unless pr
 
 ---
 
+## 2026-09-08 — The latency window was a lookahead, and nobody had measured the stamp
+
+The bleed model says a click reaches the worklet 50–200 ms after its
+scheduled time and calls that "speaker→mic latency". The recording mixes the
+master bus straight into the blob, so the direct click sits at the schedule
+with no latency at all — and the ~100 ms the design measured in May was
+Tone's `lookAhead`, which `Transport.seconds` silently adds. The window
+worked for months because two errors cancelled: a stamp 0.1 s ahead of the
+audio clock, and a rule expecting 0.1 s of room. Then pre-arming moved the
+stamp by another 0.15–0.30 s and the whole click-suppression apparatus went
+blind, while its tests kept passing on the stored stamps. Nothing in the
+code could have noticed, because the ground truth was never in the code: it
+was in the WAV, where the direct-mix clicks are impulses you can find with
+a first-difference and a median. The lesson is not about metronomes. A
+constant that encodes a physical latency should be measured against the
+signal it claims to describe, and re-measured whenever the thing that
+produces the timestamp changes hands. I did not fix it — the fix is a
+re-baseline of a month of tuning, and three fixtures change under an
+aligned grid — but I wrote down the numbers, which is the part that was
+missing.
+
+Two smaller things from the same evening.
+
+The stabiliser's inertia moved the evidence. The octave respell needed the
+lower fundamental to appear on ≥ 25% of a sliver's raw frames; the sliver
+had one such frame in five, because the 3-frame octave confirm reports the
+flip two frames late in BOTH directions — the first two frames of the burst
+still say G3 while the raw pick says G4, and the frame after the burst says
+G4 while the raw pick is back at G3. Reading `midi` you see 55 55 67 67 67;
+reading `frequency` you see 67 67 67 67 55. The rule had to look one
+analyser window past the boundary that ended the sliver, which turned out
+to be the right physics anyway: an amplitude onset that brings no new pitch
+within a window of itself did not end the note. When a derived field
+disagrees with the raw one, the disagreement is the phenomenon.
+
+And the honest failure. A ride click on a held note and a feather tongue on
+the beat leave the same readings — spike, shallow shape dip, held energy, no
+wobble — and the two 2026-08-13 tongues the rescue was built for sit 20–26
+ms from their clicks, this click 2 ms. Every cut I could draw between them
+was a frame wide. The corpus is the population every gate is a claim
+about, and here the population says the two classes overlap; the correct
+move was an `it.fails` with the measurements, not a threshold nudged past
+one take. The scorer already forgave it (0.968, the extra flagged) — the
+defect is a note in a list, and it is better left visible than hidden
+behind a number chosen to make one test green.
+
+---
+
 ## 2026-09-07 — A default that was right in the math and wrong in the picture
 
 `prevHeight = currentRow === 0 ? slotHeight : heights[currentRow - 1]` is
