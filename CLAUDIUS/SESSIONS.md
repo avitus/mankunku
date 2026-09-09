@@ -2849,3 +2849,13 @@ opened in Chrome.
   finding), documentation/architecture/audio-pipeline.md (onset
   validation, respell bullet, tier 2 wording), documentation/README.md
   changelog (2026-09-08), in-repo MEMORY.md, home memories.
+- PR: pushed c2060cf to dev (fast-forward over #246's merge commit),
+  opened #247 (dev → main) as a draft, asked `@coderabbitai rate limit`
+  ("Reviews are available now"), marked ready; the review was accepted at
+  once and completed 11 minutes later. Zero threads, one body-only nitpick
+  — audio-pipeline.md said a note's pitch is the median of its readings;
+  it is `pickMidi`'s clarity-weighted pitch-class + octave vote, the median
+  is cents only — adopted, wording kept musician-facing. Pre-merge check:
+  docstring coverage 70% < 80% on the touched functions — documented
+  `findReArticulationsInSegment` and the three new test helpers. CircleCI
+  test + e2e green on the first run.

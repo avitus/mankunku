@@ -2066,6 +2066,17 @@ function bandFloorStopsAndHolds(stable: PitchReading[], g: number, preRms: numbe
 	return held / count >= preRms * RE_ARTICULATION_GAP_HOLD;
 }
 
+/**
+ * Scan one same-MIDI run for re-articulations the worklet missed and return
+ * their onset times, in ascending order and deduped within
+ * RE_ARTICULATION_MIN_INTERVAL. The tiers run in evidence order — reading
+ * gap, HF transient, envelope dip, clarity dip-and-recover, waveform shape —
+ * each with the gates documented at its constants; `allReadings` (the full
+ * stream, warmup included) lets the gap tiers tell a true detector silence
+ * from a warmup-bridged hole, `sortedBleed` carries the scheduled click
+ * times, and `sortedBaseOnsets` lets the shape tier treat an attack the
+ * baseline already found as the start of a settle window.
+ */
 function findReArticulationsInSegment(
 	readings: PitchReading[],
 	segStart: number,

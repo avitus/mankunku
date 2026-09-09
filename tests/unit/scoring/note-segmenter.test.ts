@@ -1167,7 +1167,7 @@ describe('mergeOctaveBoundariesWithoutAttack', () => {
 });
 
 describe('validateOnsets — a reading vouches only for the onset whose event it heard', () => {
-	// Readings are ~1/60 s apart; the analyser window is 4096/44100 ≈ 93 ms.
+	/** One reading at `time`; readings are ~1/60 s apart and the analyser window is 4096/44100 ≈ 93 ms. */
 	function reading(midi: number, time: number, warmup = false): PitchReading {
 		const r = makeReading(midi, time);
 		if (warmup) r.warmup = true;
@@ -1218,8 +1218,10 @@ describe('validateOnsets — a reading vouches only for the onset whose event it
 });
 
 describe('segmentNotes — octave respell of a re-attacked sliver', () => {
-	// Readings carry a real `frequency` here because the respell reads the
-	// raw pick, not the stabilised midi.
+	/**
+	 * One reading whose `frequency` is the equal-tempered pitch of `rawMidi` —
+	 * the respell reads the raw pick, not the stabilised `midi`.
+	 */
 	function reading(midi: number, time: number, rawMidi = midi, warmup = false): PitchReading {
 		const r: PitchReading = {
 			midi,
@@ -1234,6 +1236,7 @@ describe('segmentNotes — octave respell of a re-attacked sliver', () => {
 		return r;
 	}
 	const FRAME = 1 / 60;
+	/** Consecutive 60 fps readings at `midi` over [from, to). */
 	function run(midi: number, from: number, to: number, rawMidi = midi): PitchReading[] {
 		const out: PitchReading[] = [];
 		for (let t = from; t < to - 1e-9; t += FRAME) out.push(reading(midi, +t.toFixed(4), rawMidi));
