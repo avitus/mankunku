@@ -4,7 +4,8 @@ import {
 	resolveOnsets,
 	mergeSamePitchWithoutAttack,
 	mergeOctaveBoundariesWithoutAttack,
-	getMetronomeBleedOnsets
+	getMetronomeBleedOnsets,
+	validateOnsets
 } from '$lib/audio/note-segmenter';
 import type { PitchReading } from '$lib/audio/pitch-detector';
 import type { DetectedNote } from '$lib/types/audio';
@@ -1162,5 +1163,188 @@ describe('mergeOctaveBoundariesWithoutAttack', () => {
 		expect(merged[0].midi).toBe(60);
 		expect(merged[0].onsetTime).toBeCloseTo(0.0, 5);
 		expect(merged[0].duration).toBeCloseTo(2.0, 5);
+	});
+});
+
+describe('validateOnsets — a reading vouches only for the onset whose event it heard', () => {
+	// Readings are ~1/60 s apart; the analyser window is 4096/44100 ≈ 93 ms.
+	function reading(midi: number, time: number, warmup = false): PitchReading {
+		const r = makeReading(midi, time);
+		if (warmup) r.warmup = true;
+		return r;
+	}
+
+	it('drops an onset whose only readings already look at the next onset', () => {
+		// 2026-09-09 blue-note-drop: the downbeat click (0.259) 135 ms ahead of
+		// the A3 attack, whose worklet onset is 0.436. The A3's first reading
+		// starts 91 ms after the click — inside the 150 ms window — but its
+		// analyser window already contains the A3 onset, so it is the A3's
+		// evidence, not the click's.
+		const readings = [
+			reading(57, 0.35, true),
+			reading(57, 0.3667, true),
+			reading(57, 0.3833, true),
+			reading(57, 0.4, true),
+			reading(57, 0.4167, true),
+			reading(57, 0.4333),
+			reading(57, 0.45),
+			reading(57, 0.4667),
+			reading(57, 0.4833)
+		];
+		expect(validateOnsets([0.2587, 0.4357], readings)).toEqual([0.4357]);
+	});
+
+	it('keeps an onset that has a reading of its own ahead of the next onset window', () => {
+		const readings = [
+			reading(60, 0.02),
+			reading(60, 0.04),
+			reading(60, 0.06),
+			reading(60, 0.3),
+			reading(64, 0.52),
+			reading(64, 0.54)
+		];
+		expect(validateOnsets([0.0, 0.5], readings)).toEqual([0.0, 0.5]);
+	});
+
+	it('bounds the last onset by the window alone', () => {
+		expect(validateOnsets([1.0], [reading(60, 1.12)])).toEqual([1.0]);
+		expect(validateOnsets([1.0], [reading(60, 1.2)])).toEqual([]);
+	});
+
+	it('returns the survivors in ascending order', () => {
+		const readings = [reading(60, 0.05), reading(64, 0.55)];
+		expect(validateOnsets([0.5, 0.0], readings)).toEqual([0.0, 0.5]);
+	});
+});
+
+describe('segmentNotes — octave respell of a re-attacked sliver', () => {
+	// Readings carry a real `frequency` here because the respell reads the
+	// raw pick, not the stabilised midi.
+	function reading(midi: number, time: number, rawMidi = midi, warmup = false): PitchReading {
+		const r: PitchReading = {
+			midi,
+			midiFloat: midi,
+			cents: 0,
+			clarity: 0.95,
+			time,
+			frequency: 440 * Math.pow(2, (rawMidi - 69) / 12),
+			rms: 0.1
+		};
+		if (warmup) r.warmup = true;
+		return r;
+	}
+	const FRAME = 1 / 60;
+	function run(midi: number, from: number, to: number, rawMidi = midi): PitchReading[] {
+		const out: PitchReading[] = [];
+		for (let t = from; t < to - 1e-9; t += FRAME) out.push(reading(midi, +t.toFixed(4), rawMidi));
+		return out;
+	}
+
+	it('respells a short octave-up sliver back to the note it re-attacks', () => {
+		// G3 held, re-tongued at 0.40 (shape-tier articulation), the worklet
+		// reporting the same attack's energy rise at 0.48, then A3. The
+		// re-attack's first frames speak on the 2nd harmonic: 55, 55, 67, 67, 67.
+		const readings = [
+			...run(55, 0.0, 0.4),
+			reading(55, 0.4),
+			reading(55, 0.4167),
+			reading(67, 0.4333),
+			reading(67, 0.45),
+			reading(67, 0.4667),
+			...run(57, 0.56, 1.0)
+		];
+		const notes = segmentNotes(
+			readings,
+			[0.0, 0.4, 0.48],
+			1.0,
+			undefined,
+			undefined,
+			undefined,
+			[0.0, 0.48],
+			undefined,
+			[0.4]
+		);
+		expect(notes.map((n) => n.midi)).toEqual([55, 55, 57]);
+		expect(notes[1].onsetTime).toBeCloseTo(0.4, 5);
+		expect(notes[1].duration).toBeCloseTo(0.08, 5);
+	});
+
+	it('respells when the fundamental only returns in the window after the boundary that ended the sliver', () => {
+		// The 2026-09-09 climb-to-five shape exactly: raw picks 67 67 67 67 55
+		// across the sliver (the stabiliser still reports 55 on the first two
+		// and 67 on the last), the frame after the worklet boundary reads 55
+		// again, and the A3 only begins later.
+		const readings = [
+			...run(55, 0.0, 0.4),
+			reading(55, 0.4, 67),
+			reading(55, 0.4167, 67),
+			reading(67, 0.4333),
+			reading(67, 0.45),
+			reading(67, 0.4667, 55),
+			reading(55, 0.4833, 55, true),
+			...run(57, 0.62, 1.0)
+		];
+		const notes = segmentNotes(
+			readings,
+			[0.0, 0.4, 0.48],
+			1.0,
+			undefined,
+			undefined,
+			undefined,
+			[0.0, 0.48],
+			undefined,
+			[0.4]
+		);
+		expect(notes.map((n) => n.midi)).toEqual([55, 55, 57]);
+	});
+
+	it('leaves a real short upper-octave note alone when its frames carry no lower fundamental', () => {
+		const readings = [
+			...run(55, 0.0, 0.4),
+			reading(67, 0.4),
+			reading(67, 0.4167),
+			reading(67, 0.4333),
+			reading(67, 0.45),
+			reading(67, 0.4667),
+			...run(57, 0.56, 1.0)
+		];
+		const notes = segmentNotes(
+			readings,
+			[0.0, 0.4, 0.48],
+			1.0,
+			undefined,
+			undefined,
+			undefined,
+			[0.0, 0.48],
+			undefined,
+			[0.4]
+		);
+		expect(notes.map((n) => n.midi)).toEqual([55, 67, 57]);
+	});
+
+	it('leaves the head of a real octave leap alone when the upper octave continues', () => {
+		// G3 → G4 (the leap's first frames still hear some fundamental) → G4 held.
+		const readings = [
+			...run(55, 0.0, 0.4),
+			reading(55, 0.4),
+			reading(55, 0.4167),
+			reading(67, 0.4333),
+			reading(67, 0.45),
+			reading(67, 0.4667),
+			...run(67, 0.56, 1.0)
+		];
+		const notes = segmentNotes(
+			readings,
+			[0.0, 0.4, 0.48],
+			1.0,
+			undefined,
+			undefined,
+			undefined,
+			[0.0, 0.4, 0.48],
+			undefined,
+			undefined
+		);
+		expect(notes[notes.length - 1].midi).toBe(67);
+		expect(notes.some((n) => n.midi === 67 && n.onsetTime < 0.45)).toBe(true);
 	});
 });

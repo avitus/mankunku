@@ -29,6 +29,15 @@ import type { PitchReading } from './pitch-detector';
  */
 const WARMUP_WEIGHT_FACTOR = 0.25;
 
+/**
+ * Length of the pitch analyser's window: fftSize 4096 at 44.1 kHz (85 ms at
+ * 48 kHz — the longer value is used so a reading is never credited to an
+ * onset it could not have heard). A reading describes the audio inside ONE
+ * such window, so a reading that starts less than this before the next onset
+ * is already looking at that attack, not at the event before it.
+ */
+const ANALYSER_WINDOW_SECONDS = 4096 / 44100;
+
 function readingWeight(r: PitchReading): number {
 	const w = r.clarity * r.clarity;
 	return r.warmup ? w * WARMUP_WEIGHT_FACTOR : w;
@@ -42,6 +51,20 @@ function readingWeight(r: PitchReading): number {
  * sounds have low clarity and don't produce pitch readings) or other
  * environmental noise picked up by the mic.
  *
+ * The reading has to be the onset's OWN. A pitched reading that starts within
+ * one analyser window of the NEXT onset is looking at that attack — so it can
+ * vouch for the next onset, never for this one. The 2026-09-09 "blue-note-drop"
+ * take is the reference: the capture is pre-armed, so the downbeat click the
+ * player came in on sits 135 ms ahead of the first note's attack. The worklet
+ * fired on the click, and the A3's first reading — a window starting 91 ms
+ * after the click and already reaching past the A3's own onset — validated it.
+ * The A3 was cut into a 177 ms head and a body, both A3, each behind a real
+ * attack, and DTW matched the head to the first expected note and the body to
+ * the second (a G3): a correct take saved as 2 of 3. A click produces no
+ * pitched window of its own; only borrowing the note's could keep it.
+ *
+ * Returns the surviving onsets in ascending order.
+ *
  * @param onsets - Raw onset timestamps (seconds, relative to recording start)
  * @param readings - Pitch readings (sorted by time)
  * @param window - Max time after onset to look for a pitch reading (seconds)
@@ -54,11 +77,15 @@ export function validateOnsets(
 ): number[] {
 	if (readings.length === 0) return [];
 
-	return onsets.filter(onset => {
-		// Check if any pitch reading falls within [onset, onset + window]
+	const sorted = [...onsets].sort((a, b) => a - b);
+	return sorted.filter((onset, i) => {
+		const next = i + 1 < sorted.length ? sorted[i + 1] : Infinity;
+		// A reading vouches for this onset only inside [onset, onset + window]
+		// AND with its whole analyser window ahead of the next onset.
+		const latest = Math.min(onset + window, next - ANALYSER_WINDOW_SECONDS);
 		for (const r of readings) {
-			if (r.time >= onset && r.time <= onset + window) return true;
-			if (r.time > onset + window) break; // readings are sorted
+			if (r.time > latest) break; // readings are sorted
+			if (r.time >= onset) return true;
 		}
 		return false;
 	});
@@ -185,6 +212,46 @@ export function segmentNotes(
 		) {
 			notes.splice(k, 1);
 		}
+	}
+
+	// Octave RESPELL of a re-attacked sliver — the counterpart of the deletion
+	// walk above for the note BEFORE the sliver. A sub-150 ms note exactly an
+	// octave from the longer note it follows, whose octave the note after it
+	// does not continue, and around which the raw frequencies carry the
+	// neighbour's fundamental on ≥ OCTAVE_ARTIFACT_RAW_MATCH of frames, is that
+	// note's pitch spoken on the wrong partial. It keeps its attack (the
+	// boundary may well be a real tongue, which is exactly why
+	// mergeOctaveBoundariesWithoutAttack below refuses to merge it) and takes
+	// the neighbour's octave.
+	//
+	// Reference: the 2026-09-09 "climb-to-five" take — a re-tongued G3 whose
+	// first ~70 ms speak on the 2nd harmonic (392 Hz carries 5–7× the
+	// fundamental's energy until the reed settles). The shape tier found the
+	// tongue at 1.38 s and the worklet reported the same attack's energy rise
+	// 78 ms later, so the transient became a 5-frame note of its own that voted
+	// G4 and scored the second G3 as a wrong pitch. A genuinely played G4
+	// contains no 196 Hz, so its raw frames never read it; here the 196 Hz pick
+	// returns on the sliver's last frame and the frame after it. The frames
+	// judged are the sliver's own plus the first analyser window past the
+	// boundary that ended it: an amplitude onset that brings no new pitch
+	// within a window of itself did not end the note (the octave stabiliser's
+	// confirm inertia also shifts the reported octave a frame or two late, so
+	// a 5-frame sliver can carry only one of its own fundamental frames). A
+	// frame that DOES read the next note's pitch counts against the respell,
+	// so a real leap into a different note stays as played, and a leap whose
+	// upper octave CONTINUES into the next note is skipped outright — that
+	// sliver is the leap's own attack.
+	for (let k = 1; k < notes.length; k++) {
+		const prev = notes[k - 1];
+		const cur = notes[k];
+		const next = notes[k + 1];
+		if (Math.abs(cur.midi - prev.midi) !== 12) continue;
+		if (cur.duration >= MIN_DURABLE_SUB_DURATION || cur.duration >= prev.duration) continue;
+		if (next && next.midi === cur.midi) continue;
+		const until = cur.onsetTime + cur.duration + ANALYSER_WINDOW_SECONDS;
+		const frames = readings.filter((r) => r.time >= cur.onsetTime && r.time < until);
+		if (rawMidiMatchFraction(frames, prev.midi) < OCTAVE_ARTIFACT_RAW_MATCH) continue;
+		notes[k] = { ...cur, midi: prev.midi };
 	}
 
 	// Sandwich rule: a note that is ±12 from BOTH neighbors when those
@@ -1445,6 +1512,47 @@ const RE_ARTICULATION_GAP_SUSTAIN = 0.85;
 const RE_ARTICULATION_BROKEN_ENTRY_SHAPE = 0.25;
 
 /**
+ * Stop-and-hold acceptance for the short-gap tier: the tongue that stops the
+ * horn and restarts it a shade softer, ON a click.
+ *
+ * Reference: the 2026-09-09 "blue-note-drop" fixture (concert D, 100 BPM,
+ * A3 · G3 · G3 on the beats). The second G3 is tongued on beat 3, under the
+ * ride click: a reed reset (cycle correlation 0.60 in the raw audio, a
+ * low-band thump) that blanks tracking for 117 ms, after which the note
+ * resumes at 0.81× and holds ~0.84× for the rest of the half note. Every
+ * energy path reads that as a dropout — no step-up (0.81), no bloom (peak
+ * 0.88× within 200 ms), and the shape collapse at the hole's entry is a
+ * single frame at 0.65, not the two ≤ 0.25 frames the broken-entry path was
+ * cut for. A correct take saved as 2 of 3.
+ *
+ * What the tongue does leave is a collapse of the instrument-band floor
+ * (`bandRmsMin`, 250–5000 Hz) ACROSS the hole: 0.65× the pre-hole floor.
+ * That is click-immune evidence by construction — a click only ADDS energy,
+ * so it can raise the sub-window minimum but never lower it — and it is not
+ * enough on its own: a note DECAYING under a click drops its floor just as
+ * far. So the path asks for both halves of a stop-and-restart, measured on
+ * the 22 true-silence short holes in the fixture corpus (2026-09-09):
+ *
+ *   STOP   band floor across the hole ≤ 0.75×. Tongues: 0.42 (2026-05-20
+ *          blues-curl-up), 0.65 (2026-08-01 flat-five-chromatic-down, this
+ *          take 0.65). Clicks on a held note never get there: 0.83 is the
+ *          nearest (2026-08-01 down-to-the-third's downbeat kick, the impostor
+ *          the cut is measured against), 0.91–1.2 for the rest.
+ *   HOLD   the note's level 100–400 ms after tracking resumes ≥ 0.75× the
+ *          pre-hole level. Tongues: 0.83 / 1.17 / 0.84. Decaying notes under a
+ *          click drop their floor to 0.16–0.50 and would pass STOP, but their
+ *          level keeps falling: 0.05–0.54 across the corpus (the 2026-07-30
+ *          climb-to-five A3 tail is the highest, 0.54).
+ *
+ * Both are ratios, so the pre-hole floor must clear
+ * BAND_FLOOR_STOP_MIN_SUSTAIN as for the other band-floor shapes.
+ */
+const RE_ARTICULATION_GAP_BAND_STOP = 0.75;
+const RE_ARTICULATION_GAP_HOLD = 0.75;
+const RE_ARTICULATION_GAP_HOLD_FROM = 0.1;
+const RE_ARTICULATION_GAP_HOLD_TO = 0.4;
+
+/**
  * Energy floor the bare-gap tier demands instead when a scheduled click sits
  * INSIDE the hole — the note must have got louder across it, not merely held.
  *
@@ -1929,6 +2037,35 @@ function bandFloorDips(stable: PitchReading[], from: number, to: number): boolea
 	);
 }
 
+/**
+ * Whether the instrument-band floor collapsed across the hole ending at
+ * `stable[g]` and the note then held its level — see
+ * RE_ARTICULATION_GAP_BAND_STOP. `preRms` is the pre-hole level the hold is
+ * measured against.
+ */
+function bandFloorStopsAndHolds(stable: PitchReading[], g: number, preRms: number): boolean {
+	const pre = stable.slice(Math.max(0, g - RE_ARTICULATION_GAP_RMS_FRAMES), g);
+	const post = stable.slice(g, g + RE_ARTICULATION_GAP_RMS_FRAMES);
+	if (pre.length === 0 || post.length === 0 || preRms <= 0) return false;
+	if (pre.some((r) => r.bandRmsMin == null) || post.some((r) => r.bandRmsMin == null)) return false;
+	const preBand = pre.reduce((sum, r) => sum + (r.bandRmsMin as number), 0) / pre.length;
+	const postBand = post.reduce((sum, r) => sum + (r.bandRmsMin as number), 0) / post.length;
+	if (preBand < BAND_FLOOR_STOP_MIN_SUSTAIN) return false;
+	if (postBand > preBand * RE_ARTICULATION_GAP_BAND_STOP) return false;
+	const resumed = stable[g].time;
+	let held = 0;
+	let count = 0;
+	for (let k = g + 1; k < stable.length; k++) {
+		const dt = stable[k].time - resumed;
+		if (dt <= RE_ARTICULATION_GAP_HOLD_FROM) continue;
+		if (dt > RE_ARTICULATION_GAP_HOLD_TO) break;
+		held += stable[k].rms;
+		count++;
+	}
+	if (count === 0) return false;
+	return held / count >= preRms * RE_ARTICULATION_GAP_HOLD;
+}
+
 function findReArticulationsInSegment(
 	readings: PitchReading[],
 	segStart: number,
@@ -2049,7 +2186,12 @@ function findReArticulationsInSegment(
 					s2 <= RE_ARTICULATION_BROKEN_ENTRY_SHAPE &&
 					postRms >= preRms * RE_ARTICULATION_GAP_SUSTAIN;
 			}
-			if (!stepsUp && !blooms && !brokenEntry) continue;
+			// Stop-and-hold path: the horn audibly stopped across the hole and
+			// then held its level — see the RE_ARTICULATION_GAP_BAND_STOP block
+			// comment.
+			const stopsAndHolds =
+				!stepsUp && !blooms && !brokenEntry && bandFloorStopsAndHolds(stable, g, preRms);
+			if (!stepsUp && !blooms && !brokenEntry && !stopsAndHolds) continue;
 		}
 		const onsetTime = stable[g].time - RE_ARTICULATION_ATTACK_LATENCY;
 		if (onsetTime > segStart + RE_ARTICULATION_ONSET_GUARD) {
@@ -2311,6 +2453,34 @@ function findReArticulationsInSegment(
 			}
 		}
 		if (spanHasGap) {
+			// One hole, one onset. When the gap pass above already marked the
+			// hole inside this span, the recovery-anchored onset this pass would
+			// place 50–150 ms later is the same articulation seen from its
+			// re-bloom — defer to the pass anchored on the resumption itself.
+			// 2026-09-09: the stop-and-hold path found the 2026-05-20
+			// blues-curl-up tongue at 1.097 s; this pass then re-emitted it at
+			// 1.163 s, past the 60 ms dedupe, and the sliver between the two
+			// became a fourth note.
+			let holeAlreadyMarked = false;
+			for (let k = Math.max(1, i - 1); k <= Math.min(stable.length - 1, rmsMinIdx); k++) {
+				if (stable[k].time - stable[k - 1].time < READING_GAP_SPLIT_THRESHOLD) continue;
+				const holeStart = stable[k - 1].time;
+				const holeEnd = stable[k].time;
+				if (
+					onsets.some(
+						(o) =>
+							o >= holeStart - RE_ARTICULATION_ONSET_GUARD &&
+							o <= holeEnd + RE_ARTICULATION_ATTACK_LATENCY
+					)
+				) {
+					holeAlreadyMarked = true;
+					break;
+				}
+			}
+			if (holeAlreadyMarked) {
+				i = rmsMinIdx + 1;
+				continue;
+			}
 			const preFloors: number[] = [];
 			for (let k = preStart; k < i; k++) {
 				if (stable[k].rmsMin != null) preFloors.push(stable[k].rmsMin as number);

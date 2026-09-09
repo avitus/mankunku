@@ -256,3 +256,58 @@ describe('findReArticulations: waveform-shape tier under the live window-end anc
 		expect(findReArticulations(liveRun({ breakIndex: 30, breakValue: 0.33 }), [])).toEqual([]);
 	});
 });
+
+describe('findReArticulations: stop-and-hold short-gap path', () => {
+	/**
+	 * A same-MIDI run at 60 fps with a 117 ms true-silence hole. The level
+	 * after the hole and the instrument-band floor across it are the knobs;
+	 * every other signal is held steady so no other tier can fire.
+	 */
+	function holeRun(opts: { bandAfter: number; rmsAfter: number; holdRms: number }): PitchReading[] {
+		const out: PitchReading[] = [];
+		const push = (time: number, rms: number, band: number) =>
+			out.push({
+				midiFloat: 55,
+				midi: 55,
+				cents: 0,
+				clarity: 0.98,
+				time,
+				frequency: 196,
+				rms,
+				hfRms: 0.008,
+				rmsMin: rms * 0.95,
+				bandRmsMin: band,
+				shapeBreak: 0.99,
+				shapeBreakAt: 0.045
+			});
+		// 0.5 s of steady note, then the hole (7 frames skipped), then the rest.
+		for (let i = 0; i < 30; i++) push(0.1 + i * (1 / 60), 0.1, 0.09);
+		const resume = 0.1 + 37 * (1 / 60);
+		for (let i = 0; i < 30; i++) {
+			const t = resume + i * (1 / 60);
+			const early = t - resume <= 0.1;
+			push(t, early ? opts.rmsAfter : opts.holdRms, early ? opts.bandAfter : 0.09);
+		}
+		return out;
+	}
+
+	it('splits when the band floor collapses across the hole and the note then holds', () => {
+		// 2026-09-09 blue-note-drop beat 3: band 0.65×, resumes at 0.81×, holds 0.84×.
+		const readings = holeRun({ bandAfter: 0.058, rmsAfter: 0.081, holdRms: 0.084 });
+		const onsets = findReArticulations(readings, [0.1]);
+		expect(onsets).toHaveLength(1);
+		expect(onsets[0]).toBeCloseTo(0.1 + 37 / 60 - 0.02, 3);
+	});
+
+	it('does not split a click-blanked sustain — the band floor barely moves', () => {
+		// The 2026-08-01 down-to-the-third kick hole measures 0.83×; the corpus
+		// impostor the STOP gate is cut against.
+		const readings = holeRun({ bandAfter: 0.075, rmsAfter: 0.089, holdRms: 0.082 });
+		expect(findReArticulations(readings, [0.1])).toEqual([]);
+	});
+
+	it('does not split a note decaying under a click — the level never holds', () => {
+		const readings = holeRun({ bandAfter: 0.045, rmsAfter: 0.069, holdRms: 0.04 });
+		expect(findReArticulations(readings, [0.1])).toEqual([]);
+	});
+});

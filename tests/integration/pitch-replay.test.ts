@@ -2760,3 +2760,237 @@ describe('pitch replay regression: Tonic Turn click-ring phantoms before the ent
 		expect(result.chosen.grade).toBe('perfect');
 	});
 });
+
+/**
+ * "Climb to Five" (bbn-025) again — concert D at 100 BPM on tenor sax,
+ * 2026-09-09, metronome on. F3 · G3 G3 (tongued eighths) · A3, played
+ * correctly, saved as 3 of 4 with the second G3 reported as a WRONG PITCH
+ * (G4): pitch 0.75, overall 0.823.
+ *
+ * The re-tongued G3 speaks on its SECOND harmonic. For the first ~70 ms of
+ * the re-attack the 392 Hz partial carries 5–7× the fundamental's energy
+ * (measured on the raw audio: h1/h2 = 0.15–0.21 across the 1.38–1.45 s
+ * windows) and the fundamental only takes over ~100 ms in. That is the reed
+ * settling, not a G4 — the raw autocorrelation says the same thing, and the
+ * frame after the transient reads G3 again.
+ *
+ * Two detectors then cut that transient into a note of its own: the shape
+ * tier found the re-attack at 1.38 s (a −0.13 shapeBreak) and the onset
+ * worklet reported the same attack's energy rise 78 ms later, at 1.458 s.
+ * The 5-frame sliver between them votes G4 (three 392 Hz frames outweigh
+ * two 196 Hz ones), and every octave rule already in the segmenter declines
+ * it: the within-segment collapse cannot see across an onset boundary, the
+ * cross-segment walk only compares a sliver with the note AFTER it, the
+ * boundary merge needs the boundary to carry no attack (it does — the
+ * tongue is real), and the whole-note lock flag is scoped to fundamentals
+ * under 370 Hz.
+ *
+ * The fix is a cross-segment RESPELL, the counterpart of the deletion walk:
+ * a sub-150 ms note exactly an octave from the longer note before it, whose
+ * octave the following note does not continue and whose own raw frequencies
+ * carry the lower fundamental on ≥ 25% of frames (the same smoking gun the
+ * within-segment collapse and the boundary merge already rely on), keeps
+ * its attack and takes the previous note's octave.
+ */
+describe('pitch replay regression: Climb to Five re-tongued G3 speaks on its second harmonic (concert D, 2026-09-09)', () => {
+	const TRANSPORT_SECONDS = 212.13526077097507;
+	const TEMPO = 100;
+	const SWING = 0.6;
+
+	const expectedPhrase: Phrase = {
+		id: 'bbn-025_D',
+		name: 'Climb to Five',
+		timeSignature: [4, 4],
+		key: 'D',
+		notes: [
+			{ pitch: 53, duration: [1, 4], offset: [0, 1] }, // F3
+			{ pitch: 55, duration: [1, 8], offset: [1, 4] }, // G3
+			{ pitch: 55, duration: [1, 8], offset: [3, 8] }, // G3
+			{ pitch: 57, duration: [1, 2], offset: [1, 2] }  // A3
+		],
+		harmony: [],
+		difficulty: { level: 9, pitchComplexity: 13, rhythmComplexity: 5, lengthBars: 1 },
+		category: 'blues',
+		tags: [],
+		source: 'curated'
+	};
+
+	const FIXTURE = 'recordings/2026-09-09-climb-to-five.wav';
+	const replayPipeline = () => replayEarTrainingTake(FIXTURE, TRANSPORT_SECONDS, TEMPO);
+
+	it('trims the pre-armed lead-in back to the performance', async () => {
+		const { trimmed } = await replayPipeline();
+		expect(trimmed.offset).toBeCloseTo(0.15, 2);
+	});
+
+	it('the re-attack transient reads an octave up for three frames, then G3 again', async () => {
+		// Documents the evidence the respell acts on.
+		const { trimmed } = await replayPipeline();
+		const window = trimmed.readings.filter((r) => r.time > 1.37 && r.time < 1.48);
+		expect(window.map((r) => r.midi)).toEqual([55, 55, 67, 67, 67, 55]);
+	});
+
+	it('keeps both tongued G3s as G3 (saved: the second as G4)', async () => {
+		const { detected } = await replayPipeline();
+		expect(detected.map((n) => n.midi)).toEqual([53, 55, 55, 57]);
+		// The re-attack sits where the shape tier found it.
+		expect(detected[2].onsetTime).toBeGreaterThan(1.3);
+		expect(detected[2].onsetTime).toBeLessThan(1.45);
+	});
+
+	it('scores all four hit (saved: pitch 0.75, overall 0.823, second G3 wrong)', async () => {
+		const { trimmed, detected } = await replayPipeline();
+		const result = runScorePipeline({
+			detected,
+			phrase: expectedPhrase,
+			tempo: TEMPO,
+			transportSeconds: TRANSPORT_SECONDS + trimmed.offset,
+			swing: SWING,
+			bleedFilterEnabled: false
+		});
+
+		for (const nr of result.chosen.noteResults) {
+			expect(nr.missed).toBe(false);
+			expect(nr.extra).toBe(false);
+		}
+		expect(result.chosen.notesHit).toBe(4);
+		expect(result.chosen.pitchAccuracy).toBe(1);
+		expect(result.chosen.overall).toBeGreaterThan(0.9);
+	});
+});
+
+/**
+ * "Blue Note Drop" (bbn-013) in concert D at 100 BPM on tenor sax,
+ * 2026-09-09, metronome on. A3 · G3 · G3 (quarter, quarter, half), played on
+ * the beats, saved as 2 of 3: pitch 0.667, overall 0.712, with the first
+ * expected G3 reported as a WRONG PITCH (an A3) and one G3 EXTRA.
+ *
+ * Three things went wrong, all of them the metronome sitting on the beats
+ * the player was playing on:
+ *
+ *  1. The downbeat click became the first note. The capture is pre-armed,
+ *     so the click the player came in on is inside it, 135 ms before the
+ *     A3's attack (0.252 vs 0.388 s trimmed). The worklet fired on the
+ *     click; `validateOnsets` then accepted that onset because a pitch
+ *     reading appeared within 150 ms of it — but that reading was the A3
+ *     ITSELF, seen through an analyser window that starts 90 ms after the
+ *     click and already reaches past the A3's own worklet onset at 0.436.
+ *     The A3 was cut into a 177 ms head (five warmup frames plus the one
+ *     confident frame 2 ms before the second onset) and a body, both A3,
+ *     and the head's boundary carried a real attack, so nothing merged them.
+ *     An onset is validated only by readings that describe ITS event: a
+ *     reading whose window already contains the next onset is that attack's
+ *     evidence, not this one's.
+ *
+ *  2. The second G3 was tongued ON beat 3, under the click: a hard tongue
+ *     (reed reset, cycle correlation 0.60, a low-band thump) that blanks
+ *     tracking for 117 ms, dips the note 20% and shifts its timbre while it
+ *     re-blooms. No tier accepts that shape yet.
+ *
+ *  3. The beat-4 click on the held G3 fabricated a split at 2.03 s.
+ */
+describe('pitch replay regression: Blue Note Drop — the downbeat click before the entrance (concert D, 2026-09-09)', () => {
+	const TRANSPORT_SECONDS = 82.64394557823128;
+	const TEMPO = 100;
+	const SWING = 0.6;
+
+	const expectedPhrase: Phrase = {
+		id: 'bbn-013_D',
+		name: 'Blue Note Drop',
+		timeSignature: [4, 4],
+		key: 'D',
+		notes: [
+			{ pitch: 57, duration: [1, 4], offset: [0, 1] }, // A3
+			{ pitch: 55, duration: [1, 4], offset: [1, 4] }, // G3
+			{ pitch: 55, duration: [1, 2], offset: [1, 2] }  // G3
+		],
+		harmony: [],
+		difficulty: { level: 5, pitchComplexity: 9, rhythmComplexity: 1, lengthBars: 1 },
+		category: 'blues',
+		tags: [],
+		source: 'curated'
+	};
+
+	const FIXTURE = 'recordings/2026-09-09-blue-note-drop.wav';
+	const replayPipeline = () => replayEarTrainingTake(FIXTURE, TRANSPORT_SECONDS, TEMPO);
+
+	it('trims the pre-armed lead-in back to the performance', async () => {
+		const { trimmed } = await replayPipeline();
+		expect(trimmed.offset).toBeCloseTo(0.267, 2);
+	});
+
+	it('the click onset has no pitched window of its own before the A3 attack', async () => {
+		// Documents the evidence: worklet onsets at the click (0.259) and the
+		// A3 (0.436); the first reading starts 91 ms after the click and its
+		// 93 ms window already contains the A3 onset.
+		const { trimmed } = await replayPipeline();
+		expect(trimmed.workletOnsets[0]).toBeCloseTo(0.259, 2);
+		expect(trimmed.workletOnsets[1]).toBeCloseTo(0.436, 2);
+		const first = trimmed.readings[0];
+		expect(first.time).toBeCloseTo(0.35, 2);
+		expect(first.time + 4096 / 44100).toBeGreaterThan(trimmed.workletOnsets[1]);
+	});
+
+	it('does not make a note out of the downbeat click (saved: two A3s)', async () => {
+		const { detected } = await replayPipeline();
+		const a3s = detected.filter((n) => n.midi === 57);
+		expect(a3s).toHaveLength(1);
+		expect(a3s[0].onsetTime).toBeGreaterThan(0.38);
+		expect(a3s[0].onsetTime).toBeLessThan(0.46);
+		expect(detected[0].midi).toBe(57);
+	});
+
+	it('finds the second G3 tongued on beat 3 under the click (saved: MISSED)', async () => {
+		// The stop-and-hold path: the instrument-band floor falls to 0.65× across
+		// the 117 ms hole and the note then holds ~0.84× — see
+		// RE_ARTICULATION_GAP_BAND_STOP.
+		const { detected } = await replayPipeline();
+		expect(detected.slice(0, 3).map((n) => n.midi)).toEqual([57, 55, 55]);
+		expect(detected[2].onsetTime).toBeGreaterThan(1.4);
+		expect(detected[2].onsetTime).toBeLessThan(1.56);
+	});
+
+	it('scores all three expected notes hit (saved: pitch 0.667, overall 0.712)', async () => {
+		const { trimmed, detected } = await replayPipeline();
+		const result = runScorePipeline({
+			detected,
+			phrase: expectedPhrase,
+			tempo: TEMPO,
+			transportSeconds: TRANSPORT_SECONDS + trimmed.offset,
+			swing: SWING,
+			bleedFilterEnabled: false
+		});
+
+		for (const nr of result.chosen.noteResults) {
+			expect(nr.missed).toBe(false);
+		}
+		expect(result.chosen.notesHit).toBe(3);
+		expect(result.chosen.pitchAccuracy).toBe(1);
+		// Measured 0.968 (rhythm 0.92) — the beat-4 phantom below is flagged
+		// EXTRA and costs nothing here, but it is still a fourth note the take
+		// never had.
+		expect(result.chosen.overall).toBeGreaterThan(0.9);
+		expect(result.chosen.grade).toBe('perfect');
+	});
+
+	/**
+	 * OPEN — the beat-4 ride click on the held G3 (2.052 s) still fabricates a
+	 * split at 2.03 s. The HF tier's feather-tongue rescue accepts it: an hfRms
+	 * spike of 4.1× the run median, shapeBreak 0.806–0.811 across five frames
+	 * on a 0.98 baseline, energy sustained at 0.93×, no fundamental wobble
+	 * (0.017 st), band floor dented 10.6%. Measured across every HF spike in
+	 * the fixture corpus (2026-09-09), that signature is indistinguishable
+	 * from the two feather tongues the rescue was built for (2026-08-13:
+	 * shape 0.848 / 0.877, spikes 3.6×, wobble 0.04–0.14 st, no band dent) —
+	 * and those tongues sat 20–26 ms from their clicks too, so the schedule
+	 * cannot separate them either without margins of a frame or less. A ride
+	 * on a held note and a feather tongue on the beat leave the same readings.
+	 * Left as an expected failure rather than a threshold nudged to fit one
+	 * take; the transport-stamp drift documented in the session notes must be
+	 * fixed before the click schedule can carry more weight here.
+	 */
+	it.fails('does not split the held G3 at the beat-4 click (OPEN)', async () => {
+		const { detected } = await replayPipeline();
+		expect(detected.map((n) => n.midi)).toEqual([57, 55, 55]);
+	});
+});

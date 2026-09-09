@@ -2758,3 +2758,94 @@ opened in Chrome.
   rows up, green at 573 ms. lick-practice e2e ×5 on chromium AND webkit
   10/10; svelte-check 0/0; vitest 281 files 4519 passed / 35 expected-fail.
 
+
+## 2026-09-08 — Two ear-training takes mis-scored (Climb to Five, Blue Note Drop)
+
+- Andy attached two diagnostics from the evening of 2026-09-09 (local), both
+  concert D at 100 BPM on tenor with the metronome on, "incorrectly scored".
+  Climb to Five (F3 · G3 G3 · A3) saved 3/4 with the second G3 as a WRONG
+  PITCH (G4), 0.823. Blue Note Drop (A3 · G3 · G3) saved 2/3, 0.712, the
+  first expected G3 matched to an A3 and one G3 EXTRA. Fixtures copied to
+  tests/fixtures/recordings/2026-09-09-*.{json,wav}; the offline replay
+  reproduces both saved segmentations exactly.
+- Four defects, three fixed, one pinned open:
+  1. **Climb — octave sliver.** The re-tongued G3 speaks on its 2nd harmonic
+     for ~70 ms (FFT of the raw windows: h1/h2 0.15–0.21; the crude
+     autocorrelation agrees). The shape tier found the tongue at 1.38 s, the
+     worklet reported the same attack's energy rise at 1.458 s, and the
+     5-frame sliver between them voted G4. Every octave rule declined it
+     (within-segment collapse can't cross an onset; the cross-segment walk
+     only looks at the note AFTER; the boundary merge needs no attack; the
+     octave-up flag is scoped < 370 Hz). Fix: a cross-segment RESPELL in
+     `segmentNotes` — sub-150 ms, ±12 from the longer previous note, next
+     note not continuing the octave, raw frequencies over the sliver plus one
+     analyser window past its end reading the neighbour's fundamental on
+     ≥ 25% of frames. The window extension was forced by the data: the
+     stabiliser's 3-frame confirm inertia shifts the reported octave two
+     frames late, so the sliver's own frames carry ONE 196 Hz pick (0.2 <
+     0.25) and the second lands on the frame after the boundary.
+  2. **Blue — phantom first note.** Pre-armed capture; the downbeat click
+     (0.252 s) sits 135 ms ahead of the A3 attack (0.388 s, from the WAV
+     envelope); the worklet fired on both (0.259 / 0.436); `validateOnsets`
+     kept the click because the A3's first reading started 91 ms after it
+     — inside 150 ms — with a window already reaching past the A3's onset.
+     Fix: a reading vouches for an onset only if its analyser window
+     (`ANALYSER_WINDOW_SECONDS` = 4096/44100) ends before the NEXT onset.
+     Cost analysed: onsets less than ~110 ms before the next lose
+     validation, and those slivers were already all-warmup non-notes.
+  3. **Blue — missed tongue on beat 3.** The second G3 is tongued ON the
+     click at 1.452 s: raw audio shows a reed reset (cycle correlation
+     0.60), a low-band thump, a 117 ms tracking hole, the note back at 0.81×
+     and holding 0.84×. No tier accepted it (no step-up, no bloom, one shape
+     frame at 0.65 not two ≤ 0.25). Built a survey over every fixture's
+     true-silence short holes (22) with click-aligned context: tongues
+     have band-floor ratio ≤ 0.65 AND hold ≥ 0.83; clicks on held notes have
+     band ≥ 0.83 (the down-to-the-third kick is the nearest); decaying notes
+     under clicks have band down to 0.16 but hold ≤ 0.54. Fix: the
+     **stop-and-hold** path (`RE_ARTICULATION_GAP_BAND_STOP` 0.75, HOLD 0.75
+     over 100–400 ms). It double-fired with the clarity-dip tier on the
+     2026-05-20 blues-curl-up tongue (gap anchor 1.097, dip anchor 1.163 —
+     66 ms > the 60 ms dedupe → a fourth note); the dip tier now defers on a
+     hole the gap pass already marked.
+  4. **Blue — phantom on beat 4 (OPEN, `it.fails`).** The ride click on the
+     held G3 at 2.052 s fires the HF tier's feather-tongue rescue: 4.1×
+     spike, shape 0.806–0.811 ×5 frames, 0.93× sustain, 0.017 st wobble,
+     band 0.894. The HF-spike survey over the corpus shows the 2026-08-13
+     feather tongues (shape 0.848/0.877, 3.6×, 0.04–0.14 st, no band dent)
+     are the same signature, 20–26 ms from their clicks; a frame-level
+     margin is all that separates them. Not nudged. Score is unaffected
+     (0.968 perfect, 3/3 hit, the extra flagged) — the defect is a fourth
+     note in the detected list.
+- **The click grid is off (measured, OPEN).** Impulse-detecting the
+  direct-mix clicks in every metronome fixture and comparing with
+  `getMetronomeBleedOnsets(transportSeconds + trim)`: the one pre-arming
+  take (08-10) sits at +0.098 — Tone's 0.1 s `lookAhead`, confirmed in
+  node_modules (`Transport.seconds` → `Clock.seconds` → `now()` =
+  `currentTime + lookAhead`); every pre-armed take sits at 0.25–0.40
+  (08-11 0.336/0.304, 08-13 0.264/0.288, 08-18 0.280, 09-03 0.402, 09-09
+  0.363/0.248). The sign is ambiguous modulo a beat: blob 0.15–0.30 s
+  EARLY (a buffered backlog) or 0.20–0.35 s LATE (recorder start latency —
+  the natural reading, and it makes the pre-arming +0.098 a −0.47).
+  Consequence: `isLikelyBleed`, `hasBleedInsideGap` and the HF suppression
+  window never see the real clicks in production ear-training; aligning
+  the grid in the survey changed three fixtures' segmentation (08-10 pent
+  run gains a split, 08-11 blue-note-climb moves its split, 08-13 pair
+  gains an articulation), so the fix is a re-baseline (stamp + fixture
+  constants + bleed windows), not a stamp tweak. Tried to measure the
+  mechanism with a probe page (Tone transport + Sequence clicks →
+  MediaStreamDestination → MediaRecorder → decode → impulse residuals vs
+  `transport.seconds` and `getSecondsAtTime(currentTime)`): the in-app
+  Browser pane's AudioContext errors on its device; Playwright Chromium and
+  Playwright-driven installed Chrome (`channel: 'chrome'`, mute-audio
+  removed) both report `state running` with `currentTime` frozen at 0 and a
+  110-byte blob; the Claude-in-Chrome extension was not connected. To run
+  it by hand: serve the probe, click Go, read the residual lines.
+- Verified: vitest full 4539 passed / 36 expected-fail (35 + the beat-4
+  phantom); svelte-check 0/0 after copying the gitignored `.env` into the
+  worktree (nine `$env/static/public` errors without it, as on 09-07);
+  replay corpus + pipeline integration suites green; new unit tests for
+  validateOnsets (4), the respell (4), stop-and-hold (3).
+- Docs: CLAUDE.md audio bullet (three rules, the deferral, the grid
+  finding), documentation/architecture/audio-pipeline.md (onset
+  validation, respell bullet, tier 2 wording), documentation/README.md
+  changelog (2026-09-08), in-repo MEMORY.md, home memories.
