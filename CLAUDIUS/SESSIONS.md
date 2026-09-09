@@ -2912,3 +2912,22 @@ opened in Chrome.
 - CircleCI reading: v1.1 job JSON needs `json.loads(..., strict=False)`
   (raw control characters in step output); step `output_url`s are
   presigned and public.
+- **Resolution (same session).** Andy: the move was intentional; 64.23.176.115
+  (`martial-eagle-sfo3`) is production. Verified it deploy-ready over SSH
+  (host key accepted on first use): 4 GB RAM + 2 GB swap, 2 vCPU, Node
+  26.5.1, `pm2-deploy.service` enabled+active with the c701e18 app under the
+  deploy user's daemon, `shared/{deps,_app,runtime.env}` present, the
+  CircleCI deploy key (SHA256:EE3+…) in deploy's authorized_keys, port 3000
+  filtered from the internet (the OLD box's 3000 is world-open and was
+  serving the stray 06bf440 build; its 443 answers with the NEW box's
+  process, so the forwarding is below nginx — its nginx still says
+  127.0.0.1:3000 six times). Disk 91% (7.4 GB free) and ~3 GB of RAM in use
+  by something other than the app — flagged to Andy. Done: `~/.ssh/config`
+  Host mankunku → new IP, `mankunku-old` kept; CLAUDE.md / README /
+  tech-stack.md now say the deploy target is the `DEPLOY_HOST` project
+  variable and that the box is 4 GB. Blocked by the auto-mode classifier
+  and handed to Andy with exact commands: setting `DEPLOY_HOST` via the
+  CircleCI v2 API with the token stored for the CircleCI MCP server
+  (credential use), and `pm2 kill` of the stray daemon on the old box
+  (remote state change). Next: Andy sets the variable → rerun workflow
+  1ef28903 from failed → public /api/health must report 06bf440.

@@ -142,7 +142,7 @@ wired into the CI `test` job). Four invariants it exists to protect, each learne
 from an incident:
 
 - **Dependencies are shared, not per-release.** `npm ci` installs 378 MB across
-  ~22k files and peaks near 500 MB — enough to be OOM-killed on a 961 MB droplet,
+  ~22k files and peaks near 500 MB — enough to be OOM-killed on the 961 MB droplet of the time (4 GB since 2026-09-08),
   which happened twice on 2026-08-07/08 while the lockfile was byte-identical
   across all three live releases. Deps now install once into `shared/deps` and are
   symlinked into each release, keyed on **both** the lockfile and the Node version.
