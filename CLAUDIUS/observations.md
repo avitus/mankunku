@@ -1725,3 +1725,23 @@ the END of a pipeline proves what happened, it cannot prevent it. The
 missing guard is a preflight, and a preflight against DNS encodes a
 topology assumption (no CDN, no floating IP) that the person running the
 infrastructure should choose to make, not me.
+
+## 2026-09-09 (second pass) — A shared box makes every tenant's hygiene everyone's outage
+
+The disk that mankunku's deploy would have hit in two days was filled by a
+neighbour's deploy that never deleted yesterday's image. Nothing in
+mankunku's release script could have prevented it, and nothing in it would
+have explained it either — release.sh's "failed deploy removes its staged
+release" invariant is the same rule the neighbour lacked, applied to
+directories instead of images. Two notes. First, the fix for a shared
+resource lives in the tenant that consumes it, so the deliverable here was
+an instruction for another agent, written to stand alone: repo names, tag
+scheme, sizes, what must never be deleted. Second, my own contribution to
+the disk was small but structurally identical — a log nobody rotated — and
+its cause was a default I had never looked at: Sentry's wrapper declines to
+capture a 404 and then prints its stack anyway. "The library handles it" is
+true of the capture and false of the log; read what the fallback does, not
+what the wrapper's name promises. And the `-q` that wasn't there: I shipped
+a script I could not run and checked its syntax, which is not the same as
+checking its commands. When the harness moves execution to Andy, the
+verification standard should go up, not down.

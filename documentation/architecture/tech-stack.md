@@ -95,6 +95,7 @@ The display serif **Fraunces** (variable font, weight 300–800, Latin subset, s
 - **`tsconfig.json`** — Extends SvelteKit's generated config. Strict mode enabled with bundler module resolution.
 - **`vite.config.ts`** — Registers Sentry, Tailwind, and SvelteKit plugins. Also carries the **Vitest** config (there is no `vitest.config.ts`): `tests/unit/**` + `tests/integration/**`, `node` environment, `vitest.setup.ts` for the IndexedDB polyfill.
 - **`playwright.config.ts`** — E2E: `tests/e2e`, three browser projects, and a `webServer` that builds and previews on port 4173 with `PLAYWRIGHT=1` set (which enables the `e2e-test-user` auth branch in `hooks.server.ts`).
+- **`src/hooks.server.ts`** — `handle` = Sentry's request handle → Supabase per-request client → security headers; `handleError` = `Sentry.handleErrorWithSentry(createServerErrorHandler())` (`src/lib/server/error-handler.ts`, unit-tested): silent on 4xx, one entry with the request line and the stack for anything else. Sentry's wrapper skips capturing 4xx but still calls the handler for them, and its own fallback printed a full stack per route-less 404 — scanner probes filled PM2's error log to 320 MB by 2026-09-09. On the droplet `pm2-logrotate` (20 MB, 14 files, compressed) caps the logs regardless.
 
 ## Architecture Summary
 

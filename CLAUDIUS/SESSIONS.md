@@ -2942,3 +2942,37 @@ opened in Chrome.
   the release. The retired box still holds `current` → 06bf440 with PM2
   stopped and its unit enabled, so a reboot there would serve the same
   build — a fallback, not a hazard.
+
+## 2026-09-09 — The full disk was the other tenant's; the noisy log was ours
+
+- Andy: Veetbot shares the new droplet. Root disk 77 GB at 96% and still
+  climbing. `/var/lib/containerd` held 61 GB: 55 Docker images, 43 of them
+  `veetbot-browser-profile-service:<YYYYMMDD-HHMMSS-sha7>` at 2.22 GB each
+  (one per Veetbot deploy since Aug 25, exactly one in use, no prune timer,
+  no retention step), 49 GB reclaimable, plus a 4.2 GB BuildKit cache; the
+  3 GB the disk grew during this session was Veetbot's 20:38Z deploy. Also:
+  1.2 GB of journal under the OLD droplet's machine-id (the clone brought
+  it, `journalctl` won't vacuum a foreign id), and OUR `mankunku-error-0.log`
+  at 320 MB / 2.9 M lines — a full stack trace per scanner 404
+  (`/+CSCOE+/logon.html` …), because `hooks.server.ts` exported
+  `Sentry.handleErrorWithSentry()` with no handler and Sentry's fallback is
+  `console.error(error.stack)` for every error it declines to capture.
+- The classifier blocks destructive remote commands, so the cleanup went to
+  Andy as a script. First version had `docker rmi -q` — `rmi` has no `-q`
+  (I conflated it with `docker images -q`) and every removal "skipped":
+  build cache, journal, `pm2 flush` and `pm2-logrotate` (20 MB / 14 /
+  compressed, saved) landed, images did not. Corrected script
+  (`cleanup-images.sh`, running + newest-other tag kept) handed over. A
+  `bash -n` pass proves nothing about a flag; run the one-liner against
+  `docker rmi --help` next time, or run the script where it can run.
+- Fix in the repo (TDD, red → green): `lib/server/error-handler.ts`
+  `createServerErrorHandler(log)` — silent on 4xx (nginx's access log has
+  them), one entry with status + request line + stack otherwise;
+  `hooks.server.ts` passes it to `handleErrorWithSentry`; 4 unit tests;
+  svelte-check 0/0; vitest 4543 passed / 36 expected fail. Docs:
+  tech-stack.md hooks bullet, README changelog 2026-09-09, CLAUDE.md
+  routes line. Instruction for the Veetbot agent written: keep the newest
+  two timestamped tags per repo, never the running one or `production`,
+  builder prune after build, and move `playwright install` + deps above the
+  source COPY so the 600 MB of Chromium stops landing in a fresh layer per
+  build (two snapshot dirs from one build carried it).
