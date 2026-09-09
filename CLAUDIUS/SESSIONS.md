@@ -2931,3 +2931,14 @@ opened in Chrome.
   (credential use), and `pm2 kill` of the stray daemon on the old box
   (remote state change). Next: Andy sets the variable → rerun workflow
   1ef28903 from failed → public /api/health must report 06bf440.
+- **Closed.** Andy set `DEPLOY_HOST` and killed the stray daemon (old box's
+  3000 now closed). Rerun of workflow 1ef28903 from failed → workflow
+  3b2c59a3, build 3110 `deploy` green in ~3.5 min: release
+  20260909-203929-06bf440 on `martial-eagle-sfo3`, the systemd-managed
+  daemon reused (deleteProcessId, no "Spawning"), shared deps reused,
+  local health passed, public verify "Production is serving 06bf440".
+  Confirmed independently: https://mankunkujazz.com/api/health and
+  /_app/version.json report 06bf440; `current` on the new box points at
+  the release. The retired box still holds `current` → 06bf440 with PM2
+  stopped and its unit enabled, so a reboot there would serve the same
+  build — a fallback, not a hazard.
