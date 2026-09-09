@@ -2976,3 +2976,7 @@ opened in Chrome.
   builder prune after build, and move `playwright install` + deps above the
   source COPY so the 600 MB of Chromium stops landing in a fresh layer per
   build (two snapshot dirs from one build carried it).
+- **Disk closed.** Andy ran the corrected image script: 41 tags removed,
+  root disk 73 GB → 16 GB used (96% → 21%, 61 GB free), 14 images / 4.7 GB
+  left, both Veetbot containers still up. The lasting retention rule is with
+  the Veetbot agent.
