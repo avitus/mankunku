@@ -17,6 +17,7 @@ import {
 	placeEndingSection,
 	type EndingPlacement
 } from './ending-layout';
+import { resolvePickupLength } from './pickup';
 import {
 	abcKeyField,
 	approxToFraction,
@@ -400,21 +401,36 @@ export function tuneToAbcWithMap(
 	 * annotations. Visible rests live in M so single-voice placement is
 	 * correct and we no longer need a post-render rest-shift on voice H.
 	 */
-	function chordBar(barStartAbs: number): {
+	function chordBar(
+		barStartAbs: number,
+		printedFrom = 0
+	): {
 		tokens: string[];
 		slots: { beat: number; chord: string | null }[];
 	} {
+		// A partial pickup bar prints only from `printedFrom` (whole notes into
+		// the bar): the spacer run must match the melody voice's length or
+		// abcjs mis-aligns the two voices.
+		const start = barStartAbs + printedFrom;
 		const be = barStartAbs + barDuration;
 		// Cut only at chord events (and bar edges). H is spacer-only, so
 		// melody sound-span boundaries no longer affect the chord voice —
 		// mid-bar chords still land on their beat via the event cuts.
-		const cuts = new Set<number>([barStartAbs, be]);
-		for (const c of chordEvents) if (c.at > barStartAbs + 1e-9 && c.at < be - 1e-9) cuts.add(c.at);
+		const cuts = new Set<number>([start, be]);
+		for (const c of chordEvents) if (c.at > start + 1e-9 && c.at < be - 1e-9) cuts.add(c.at);
 		const points = [...cuts].sort((a, b) => a - b);
 		const segs: { chord: string | null; from: number; to: number }[] = [];
 		for (let i = 0; i + 1 < points.length; i++) {
 			const [s0, s1] = [points[i], points[i + 1]];
-			const chord = chordEvents.find((c) => Math.abs(c.at - s0) < 1e-9)?.text ?? null;
+			let chord = chordEvents.find((c) => Math.abs(c.at - s0) < 1e-9)?.text ?? null;
+			// A chord anchored inside the silent prefix (the section builder
+			// carries/snaps pickup chords to the bar start) prints at the
+			// start of the printed pickup rather than vanishing.
+			if (chord === null && printedFrom > 0 && Math.abs(s0 - start) < 1e-9) {
+				for (const c of chordEvents) {
+					if (c.at >= barStartAbs - 1e-9 && c.at < start - 1e-9) chord = c.text;
+				}
+			}
 			const prev = segs[segs.length - 1];
 			// Merge consecutive chordless spacers (no event on either side).
 			if (prev && chord === null && prev.chord === null) {
@@ -452,6 +468,22 @@ export function tuneToAbcWithMap(
 			acc += s.bars;
 		}
 	}
+	// Pickup (anacrusis) bars: the timeline keeps a full bar, the engraving
+	// starts `prefix` whole notes into it. One resolver for every consumer
+	// (see ./pickup): the explicit field, else the legacy lone '' section.
+	const sectionPickup: (Fraction | null)[] = sheet.sections.map((_, i) => resolvePickupLength(sheet, i));
+	const sectionPrefix: number[] = sectionPickup.map((L) => (L ? barDuration - fractionToFloat(L) : 0));
+	const pickupPrefixByAbsBar = new Map<number, number>();
+	sheet.sections.forEach((_, i) => {
+		if (sectionPickup[i]) pickupPrefixByAbsBar.set(sectionBases[i], sectionPrefix[i]);
+	});
+	/**
+	 * The lone pickup section every importer writes: hangs off the front of
+	 * the form's first system, fills no column, carries no label of its own.
+	 */
+	const isPickupOnly = (i: number): boolean =>
+		sectionPickup[i] !== null && sheet.sections[i].bars === 1 && sheet.sections[i].label.trim() === '';
+
 	function absBarToSection(absBar: number): { sectionIdx: number; bar: number } {
 		let idx = 0;
 		for (let s = 0; s < sectionBases.length; s++) {
@@ -486,7 +518,7 @@ export function tuneToAbcWithMap(
 		// — and record a chord slot per segment token.
 		for (let b = lineStartBar; b < endBar; b++) {
 			if (b > lineStartBar) tokens.push(' | ');
-			const { tokens: segTokens, slots } = chordBar(b * barDuration);
+			const { tokens: segTokens, slots } = chordBar(b * barDuration, pickupPrefixByAbsBar.get(b) ?? 0);
 			const { sectionIdx, bar } = absBarToSection(b);
 			for (let s = 0; s < segTokens.length; s++) {
 				if (s > 0) tokens.push(' ');
@@ -509,9 +541,17 @@ export function tuneToAbcWithMap(
 		const sec = sheet.sections[secIdx];
 		const sectionEnd = sec.bars * barDuration;
 		const prevSec = secIdx > 0 ? sheet.sections[secIdx - 1] : null;
+		const pickup = sectionPickup[secIdx];
+		const prefix = sectionPrefix[secIdx];
+		// Bars of this section that fill no layout column: the partial first bar.
+		const partial = pickup ? 1 : 0;
+		const pickupOnly = isPickupOnly(secIdx);
+		const prevPickupOnly = secIdx > 0 && isPickupOnly(secIdx - 1);
 		const placement: EndingPlacement = placeEndingSection(
-			{ bars: sec.bars, ending: sec.ending },
-			prevSec ? { bars: prevSec.bars, ending: prevSec.ending } : null,
+			{ bars: sec.bars, ending: sec.ending, pickupBar: pickup !== null },
+			prevSec
+				? { bars: prevSec.bars, ending: prevSec.ending, pickupBar: sectionPickup[secIdx - 1] !== null }
+				: null,
 			endingState,
 			barsPerLine
 		);
@@ -519,21 +559,33 @@ export function tuneToAbcWithMap(
 
 		if (placement.startsNewLine) {
 			flushLine(sectionBaseBars);
-			// Section prelude: part label between systems. Blank labels (pickup
-			// bars, front matter) get no marker and don't disturb the
-			// consecutive-duplicate suppression.
-			if (sec.label.trim() !== '') {
-				if (sec.label !== previousLabel) {
-					tokens.push(`P:${sec.label}\n`);
+			// Section prelude: part label between systems. Blank labels (front
+			// matter) get no marker and don't disturb the consecutive-duplicate
+			// suppression. abcjs draws a part label only at a line start, so a
+			// pickup-only section opens its shared system with the boxed letter
+			// of the section it leads INTO (NotationDisplay then nudges the box
+			// over that section's first bar).
+			const labelOf = pickupOnly ? (sheet.sections[secIdx + 1]?.label ?? '') : sec.label;
+			if (labelOf.trim() !== '') {
+				if (labelOf !== previousLabel) {
+					tokens.push(`P:${labelOf}\n`);
 				}
-				previousLabel = sec.label;
+				previousLabel = labelOf;
 			}
 			openLine(sectionBaseBars);
 		} else {
+			if (prevPickupOnly && sec.repeatStart) {
+				// The pickup's barline IS this repeat: a thin bar before |: would
+				// print two barlines. Close the pickup's span on the |: itself and
+				// restamp the printed bar count past the anacrusis.
+				tokens.push(' |:');
+				closeBarSpan(tokens.length - 1);
+				tokens.push('[I:setbarnb 1]');
+			}
 			tokens.push(' ');
 			if (sec.label.trim() !== '') previousLabel = sec.label;
 		}
-		if (sec.repeatStart) tokens.push('|:');
+		if (sec.repeatStart && !prevPickupOnly) tokens.push('|:');
 		if (sec.ending) tokens.push(`[${sec.ending}`);
 		// The section body always opens at bar 0 (section-local offsets start
 		// at 0); the span begins after the |: / [n decorations above.
@@ -543,10 +595,23 @@ export function tuneToAbcWithMap(
 		// voice — visible rests come from the chord voice) ──────────────
 		const inputNotes: Note[] = [];
 		const inputSources: (number | null)[] = [];
-		let cursor = 0;
+		// A pickup section's silent prefix is never engraved: the cursor
+		// opens where the printed bar does, stored rests inside the prefix
+		// (the editor writes the lead-in back as one) are dropped, and a rest
+		// straddling the boundary is clipped to the printed span.
+		let cursor = prefix;
 		for (let i = 0; i < sec.notes.length; i++) {
 			const n = sec.notes[i];
 			const off = fractionToFloat(n.offset);
+			const end = off + fractionToFloat(n.duration);
+			if (prefix > 0 && n.pitch === null && off < prefix - 1e-9) {
+				if (end > cursor + 1e-9) {
+					inputNotes.push({ pitch: null, duration: approxToFraction(end - cursor), offset: approxToFraction(cursor) });
+					inputSources.push(null);
+					cursor = end;
+				}
+				continue;
+			}
 			if (off > cursor + 1e-9) {
 				inputNotes.push({ pitch: null, duration: approxToFraction(off - cursor), offset: approxToFraction(cursor) });
 				inputSources.push(null);
@@ -604,10 +669,14 @@ export function tuneToAbcWithMap(
 				if (bar > prevBar) {
 					tokens.push(' |');
 					closeBarSpan(tokens.length - 1);
+					// abcjs counts the anacrusis as bar 1; restamp so the next
+					// system prints the number the chart's reader expects.
+					if (partial && prevBar === 0) tokens.push('[I:setbarnb 1]');
 					// lineColumn + bar: an inline-flowed section (a first ending
 					// continuing the body's line) enters mid-line, so breaks track
-					// the ABSOLUTE column, not the section-local bar.
-					if ((lineColumn + bar) % barsPerLine === 0) {
+					// the ABSOLUTE column, not the section-local bar. A partial
+					// first bar fills no column, and the step out of it never breaks.
+					if (bar > partial && (lineColumn + bar - partial) % barsPerLine === 0) {
 						flushLine(sectionBaseBars + bar);
 						openLine(sectionBaseBars + bar);
 					} else {
@@ -663,7 +732,12 @@ export function tuneToAbcWithMap(
 		// section closer must be thick/double/repeat so [1]/[2] close cleanly.
 		const isLast = secIdx === sheet.sections.length - 1;
 		const next = isLast ? null : sheet.sections[secIdx + 1];
-		if (sec.repeatEnd) {
+		// A pickup leading into a |: takes that repeat as its barline (emitted
+		// by the next section's open, which also closes this bar's span).
+		const deferBarline = pickupOnly && !isLast && !sec.repeatEnd && next?.repeatStart === true;
+		if (deferBarline) {
+			// nothing: the next section's ' |:' closes this bar
+		} else if (sec.repeatEnd) {
 			// First ending typically ends the repeat back to the start.
 			tokens.push(' :|');
 		} else if (sec.ending === 1 || sec.ending === 2) {
@@ -677,16 +751,20 @@ export function tuneToAbcWithMap(
 			tokens.push(isLast ? ' |]' : ' ||');
 		} else if (isLast) {
 			tokens.push(' |]');
-		} else if (next?.ending) {
-			// Approach into a first ending — thin bar is fine (ending starts next).
+		} else if (pickupOnly || next?.ending) {
+			// A pickup flows into the form with a thin bar; an approach into a
+			// first ending likewise (the ending starts next).
 			tokens.push(' |');
 		} else {
 			tokens.push(' ||');
 		}
-		closeBarSpan(tokens.length - 1); // the section's last bar closes here
+		if (!deferBarline) {
+			closeBarSpan(tokens.length - 1); // the section's last bar closes here
+			if (pickupOnly) tokens.push('[I:setbarnb 1]');
+		}
 
 		endingState = advanceEndingLayout(
-			{ bars: sec.bars, ending: sec.ending },
+			{ bars: sec.bars, ending: sec.ending, pickupBar: pickup !== null },
 			placement,
 			endingState,
 			barsPerLine

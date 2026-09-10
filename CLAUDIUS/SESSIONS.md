@@ -2859,3 +2859,384 @@ opened in Chrome.
   docstring coverage 70% < 80% on the touched functions — documented
   `findReArticulationsInSegment` and the three new test helpers. CircleCI
   test + e2e green on the first run.
+
+## 2026-09-09 — PR #247's merge "failed CI": the deploy went to a droplet DNS no longer points at
+
+- Pipeline on main at 06bf440 (builds 3104–3109): test, build, db-migrate,
+  e2e green; `deploy` failed at its LAST step, "Verify production serves
+  this commit" — six polls of https://mankunkujazz.com/api/health answered
+  c701e18 (the previous release) at uptime 96 700 s, while release.sh's own
+  health check on 127.0.0.1:3000 had PASSED with 06bf440 seconds earlier.
+  The two `startedAt`s made the hypothesis concrete before any SSH: the new
+  process's health module loaded at 07:13:05.597Z (release.sh's poll) and
+  the old process's at 07:13:06.259Z — the verify step's first request was
+  the FIRST /api/health that process ever served (`STARTED_AT` is
+  module-load time). Two machines behind one hostname.
+- Evidence, all read-only: DNS A for mankunkujazz.com → 64.23.176.115
+  (DigitalOcean, TTL 1800), not the deploy box 107.170.227.53
+  (`martial-eagle`). On martial-eagle: `current` → 20260909-071149-06bf440,
+  one node listener on 0.0.0.0:3000 (the new build, 210 MB) under a
+  deploy-user PM2 daemon that release.sh had to SPAWN at 07:13:02 because
+  `pm2-deploy.service` had been stopped — journal: "Stopping
+  pm2-deploy.service" 2026-09-08 04:19:55Z, all applications stopped,
+  never restarted; no reboot (up 29 days), no OOM. Ninety seconds later,
+  04:21:29Z, the c701e18 process on 64.23.176.115 started (its uptime,
+  counted back). Both IPs present the SAME TLS certificate (serial
+  06FD92E1…, issued Aug 4) and, queried by IP with `curl --resolve`, the
+  SAME backend process (identical uptimeSeconds in the same second) — the
+  old droplet's 443 forwards to the new one. `last` shows no interactive
+  login near 04:19Z: a non-interactive SSH command or a script. The
+  auto-mode classifier blocked reading `/etc/nginx`, `iptables`, and any
+  SSH to the unknown host key, so the forwarding mechanism is inferred, not
+  read.
+- Conclusion: production was moved to a new droplet (a snapshot clone —
+  same cert, same release tree, same Node) around 2026-09-08 04:20Z, DNS
+  repointed, the old box's app stopped and its 443 forwarded — but
+  CircleCI's `DEPLOY_HOST` still names the old droplet. The deploy job
+  faithfully installed 06bf440 there, spawned a stray PM2 daemon + app that
+  nothing routes to, and the verify step — written for exactly "nginx
+  pointing somewhere stale" — failed correctly. Users are on c701e18; the
+  two ear-training scorer fixes in 06bf440 are not live.
+- Nothing in my notes, home memory, glen, or other projects' memories
+  records the move (veetbot's `DEPLOY_HOST` mentions are mid-August and its
+  own). Asked Andy whether the move was his and which box is production
+  going forward. Either way the fix is settings, not code: `DEPLOY_HOST` →
+  64.23.176.115 in the CircleCI project (the job's `ssh-keyscan` step picks
+  up the new host key), then rerun the workflow's deploy job — or DNS back
+  to 107.170.227.53. Follow-ups: stop the stray PM2 on the old box (Andy's
+  call), `~/.ssh/config` Host mankunku still says 107.170.227.53; a
+  deploy-job preflight asserting DEPLOY_HOST and the production hostname
+  resolve to the same address would fail fast before touching any box, but
+  would break every deploy the day a CDN fronts the site — offered, not
+  built.
+- CircleCI reading: v1.1 job JSON needs `json.loads(..., strict=False)`
+  (raw control characters in step output); step `output_url`s are
+  presigned and public.
+- **Resolution (same session).** Andy: the move was intentional; 64.23.176.115
+  (`martial-eagle-sfo3`) is production. Verified it deploy-ready over SSH
+  (host key accepted on first use): 4 GB RAM + 2 GB swap, 2 vCPU, Node
+  26.5.1, `pm2-deploy.service` enabled+active with the c701e18 app under the
+  deploy user's daemon, `shared/{deps,_app,runtime.env}` present, the
+  CircleCI deploy key (SHA256:EE3+…) in deploy's authorized_keys, port 3000
+  filtered from the internet (the OLD box's 3000 is world-open and was
+  serving the stray 06bf440 build; its 443 answers with the NEW box's
+  process, so the forwarding is below nginx — its nginx still says
+  127.0.0.1:3000 six times). Disk 91% (7.4 GB free) and ~3 GB of RAM in use
+  by something other than the app — flagged to Andy. Done: `~/.ssh/config`
+  Host mankunku → new IP, `mankunku-old` kept; CLAUDE.md / README /
+  tech-stack.md now say the deploy target is the `DEPLOY_HOST` project
+  variable and that the box is 4 GB. Blocked by the auto-mode classifier
+  and handed to Andy with exact commands: setting `DEPLOY_HOST` via the
+  CircleCI v2 API with the token stored for the CircleCI MCP server
+  (credential use), and `pm2 kill` of the stray daemon on the old box
+  (remote state change). Next: Andy sets the variable → rerun workflow
+  1ef28903 from failed → public /api/health must report 06bf440.
+- **Closed.** Andy set `DEPLOY_HOST` and killed the stray daemon (old box's
+  3000 now closed). Rerun of workflow 1ef28903 from failed → workflow
+  3b2c59a3, build 3110 `deploy` green in ~3.5 min: release
+  20260909-203929-06bf440 on `martial-eagle-sfo3`, the systemd-managed
+  daemon reused (deleteProcessId, no "Spawning"), shared deps reused,
+  local health passed, public verify "Production is serving 06bf440".
+  Confirmed independently: https://mankunkujazz.com/api/health and
+  /_app/version.json report 06bf440; `current` on the new box points at
+  the release. The retired box still holds `current` → 06bf440 with PM2
+  stopped and its unit enabled, so a reboot there would serve the same
+  build — a fallback, not a hazard.
+
+## 2026-09-09 — The full disk was the other tenant's; the noisy log was ours
+
+- Andy: Veetbot shares the new droplet. Root disk 77 GB at 96% and still
+  climbing. `/var/lib/containerd` held 61 GB: 55 Docker images, 43 of them
+  `veetbot-browser-profile-service:<YYYYMMDD-HHMMSS-sha7>` at 2.22 GB each
+  (one per Veetbot deploy since Aug 25, exactly one in use, no prune timer,
+  no retention step), 49 GB reclaimable, plus a 4.2 GB BuildKit cache; the
+  3 GB the disk grew during this session was Veetbot's 20:38Z deploy. Also:
+  1.2 GB of journal under the OLD droplet's machine-id (the clone brought
+  it, `journalctl` won't vacuum a foreign id), and OUR `mankunku-error-0.log`
+  at 320 MB / 2.9 M lines — a full stack trace per scanner 404
+  (`/+CSCOE+/logon.html` …), because `hooks.server.ts` exported
+  `Sentry.handleErrorWithSentry()` with no handler and Sentry's fallback is
+  `console.error(error.stack)` for every error it declines to capture.
+- The classifier blocks destructive remote commands, so the cleanup went to
+  Andy as a script. First version had `docker rmi -q` — `rmi` has no `-q`
+  (I conflated it with `docker images -q`) and every removal "skipped":
+  build cache, journal, `pm2 flush` and `pm2-logrotate` (20 MB / 14 /
+  compressed, saved) landed, images did not. Corrected script
+  (`cleanup-images.sh`, running + newest-other tag kept) handed over. A
+  `bash -n` pass proves nothing about a flag; run the one-liner against
+  `docker rmi --help` next time, or run the script where it can run.
+- Fix in the repo (TDD, red → green): `lib/server/error-handler.ts`
+  `createServerErrorHandler(log)` — silent on 4xx (nginx's access log has
+  them), one entry with status + request line + stack otherwise;
+  `hooks.server.ts` passes it to `handleErrorWithSentry`; 4 unit tests;
+  svelte-check 0/0; vitest 4543 passed / 36 expected fail. Docs:
+  tech-stack.md hooks bullet, README changelog 2026-09-09, CLAUDE.md
+  routes line. Instruction for the Veetbot agent written: keep the newest
+  two timestamped tags per repo, never the running one or `production`,
+  builder prune after build, and move `playwright install` + deps above the
+  source COPY so the 600 MB of Chromium stops landing in a fresh layer per
+  build (two snapshot dirs from one build carried it).
+- **Disk closed.** Andy ran the corrected image script: 41 tags removed,
+  root disk 73 GB → 16 GB used (96% → 21%, 61 GB free), 14 images / 4.7 GB
+  left, both Veetbot containers still up. The lasting retention rule is with
+  the Veetbot agent.
+## 2026-09-10 — MaxListenersExceededWarning in the dev server: Sentry re-initialised on every module-graph wipe
+
+- Andy: `(node:81718) MaxListenersExceededWarning: Possible EventEmitter memory
+  leak detected. 11 error listeners added to [ChildProcess]` in the dev
+  environment. PID 81718 was the main checkout's `vite dev`, 13 h old, started
+  by the desktop app. Glen had nothing on it.
+- Mechanism, reproduced standalone: N `Sentry.init` calls in one Node process,
+  then any spawn — the child carries N `error` listeners, and the 11th init trips
+  the warning by itself because Sentry's `nodeContextIntegration` execFiles
+  `/usr/bin/sw_vers` at setup on macOS. Three sibling warnings on `process`
+  (beforeExit ×11 from `startClientReportTracking`, uncaughtException and
+  unhandledRejection ×11 from the integrations). The listeners are
+  `childProcessIntegration`'s `diagnostics_channel('child_process')`
+  subscribers — one per init, never removed.
+- Where the re-inits come from: SvelteKit's dev middleware awaits
+  `vite.ssrLoadModule(src/instrumentation.server)` on EVERY request
+  (kit/src/exports/vite/dev/index.js ~503), so the module re-evaluates after any
+  SSR module-graph invalidation. Measured with a `--require` preload wrapping
+  `ActiveChannel.prototype.subscribe` (wrapping the channel instance's own
+  `subscribe` recurses — `Channel.prototype.subscribe` re-dispatches through
+  `this.subscribe` after `markActive`): hooks.server.ts edit → no;
+  `$lib/util/sentry-filters` (importee) → +1; the file itself → +1;
+  vite.config.ts / .env / svelte.config.js restart → +1 each; tsconfig.json
+  add/change/unlink → +1 (Vite 8 `reloadOnTsconfigChange` → `invalidateAll()`
+  on every environment, hooked on both `onFileChange` and `onFileAddUnlink`);
+  .svelte-kit/tsconfig.json, `svelte-kit sync`, app.html, package.json,
+  +layout.server.ts, dependency discovery on a cold cache → no.
+- Ground truth from the live process (`kill -USR1` + CDP `Runtime.evaluate`):
+  48 subscribers = 48 uncaughtException handlers = 97 beforeExit, every one a
+  Sentry closure; 54 twenty minutes later; touching MY worktree's tsconfig.json
+  plus one GET on :5173 → 55. The main checkout's watcher covers
+  `.claude/worktrees/**` — Vite ignores only `**/.git/**`, `**/node_modules/**`
+  and SvelteKit's `<outDir>/!(generated)` — so every parallel session's worktree
+  creation or checkout is a tsconfig event for the main dev server.
+- Fix: `if (!Sentry.isInitialized()) Sentry.init(...)` in
+  `src/instrumentation.server.ts`, pinned by
+  `tests/unit/server/instrumentation-server.test.ts` (mocked
+  `@sentry/sveltekit`, `vi.resetModules()` between two imports; failed 2 ≠ 1
+  before the guard). Verified in the dev server: the count holds at 1 through
+  every trigger above.
+- Three invalid measurement runs before the valid one: my first instrumented
+  server was left running on :5199, the later ones fell back to :5200 ("Port
+  5199 is in use, trying another one…" sat on line 2 of every log) and the
+  driver kept polling :5199 — zeros everywhere. Also: a stdout fd opened 'w' and
+  a stderr fd opened 'a' on the same log file clobber each other; use one fd.
+  And the sandboxed background shell has no curl/sleep/cat on PATH — node has
+  fetch and timers, use those.
+- Verified: svelte-check 0/0 (2752 files); vitest full 282 files, 4541 passed /
+  36 expected-fail (the two new tests are the +2). Side finding, not
+  changed: the main dev server watching the nested worktrees also means a
+  spurious "changed tsconfig file detected — forcing full-reload" in Andy's dev
+  tab whenever any session creates a worktree; `server.watch.ignored:
+  ['**/.claude/worktrees/**']` would stop it. Flagged as a follow-up.
+- Andy: "Remember to commit directly to dev in future. Merge it in to dev now."
+  Recorded as a rule (home memory + MEMORY.md): finish = the commit is on
+  origin/dev; the desktop app's `claude/*` worktree branch is plumbing. Merged
+  the right way round in a detached HEAD (dev had moved five commits — the
+  droplet move, the scanner-404 log fix — while this ran), pushed `HEAD:dev`.
+
+## 2026-09-10 — Pickup bars: the flag that never left the importer
+
+- Andy: TWNBAY's one-note pickup renders as a full bar taking the whole first
+  line; make it a partial pickup bar on line 1, keep 4 bars per line, plan a
+  generalizable solution. Explored with three agents (notation/layout,
+  importers/editor, playback/practice); read the row out of the local
+  Supabase DB (`imported-musescore`, `['',1] A8 B8 A8 C8`, the pickup bar
+  holding an explicit 3/4 rest + one quarter at 3/4). Three causes:
+  `section-builder` computes `pickup` and drops it (no field on
+  `TuneSection`), the renderer gap-fills from 0 (leading rest), and
+  `placeEndingSection` gives every non-volta section its own system;
+  `%%stretchlast 0` then justifies the lone bar across the staff. Printed
+  bar numbers were off by one too (abcjs counts the anacrusis as bar 1).
+- The decision that shaped everything: the timeline keeps a FULL bar. The
+  playback survey found every consumer past `flattenTune` is either
+  offset-driven (indifferent) or bar-grid-driven (`buildBarInfos`,
+  `bars × barTicks`, `offset ÷ barWholeNotes`, integer `sectionMap.barOffset`,
+  the seeded drum/bass RNG keyed by bar, the 1-bar count-in, the golden
+  backing fixtures) — a short first bar in the timeline would shift every
+  later downbeat three beats and re-index the band. Licks already do it
+  this way (`pickupBars` moves the progression, never a note). So the field
+  is notation-only: `TuneSection.pickupLength`, per section (curated Amazing
+  Grace / Saints carry theirs inside the labelled A section; imports carry a
+  lone '' section), and `music/pickup.ts` resolves it with a legacy
+  inference for pre-field rows so Andy's tune fixed itself with no re-import.
+- Design choices Andy made: the boxed letter sits over the first FULL bar
+  (MuseScore / Real Book — abcjs only draws `P:` at a line start, so the
+  ABC hands the pickup line the NEXT section's label and NotationDisplay
+  nudges it past the pickup, composing with the clef-seating translate); the
+  editor gets a Pickup select now (creates/resizes/removes a lone pickup
+  section with its lead-in stored as a rest so step entry lands the first
+  note on the pickup's beat and the user's sections keep their bar counts).
+- Course corrections during the build: the beat unit must come from the
+  METER, not a reduced bar fraction (4/4 → `[1,1]` made a whole-note beat);
+  the resolver takes the whole sheet because a lone blank section is a
+  lick's lead-sheet window (`leadSheetTuneFor`) and must never infer — the
+  section builder only ever splits an anacrusis off when a form follows;
+  the existing `[0, 1]` offset literal widened to `number[]` inside a
+  spread (svelte-check, not vitest, caught it).
+- abcjs facts: inline `[P:]` → `partForNextLine` (never mid-line);
+  `[I:setbarnb 1]` right after the pickup's barline restamps correctly
+  (`setBarNumberImmediate` at a bar boundary), whereas `%%setbarnb 0` in the
+  header would print "0" on line 1 (`currBarNumber !== 1` guard); a partial
+  first measure needs no `M:` change, but voice H's spacer run must be
+  shortened to the same length or the two voices misalign.
+- TDD throughout: 45 new/extended tests (resolver, validator, section
+  builder, both importers, layout policy, ABC goldens incl. the deferred
+  `|:` barline, in-pickup rest, explicit-rest byte-identity, contradiction
+  fallback, chord-slot beats; geometry; adapter; editor state; curated pins),
+  MuseScore fixtures re-recorded (TWNBAY + ATTYA gained the field, nothing
+  else changed), 4591 passing, svelte-check clean. Visual on a worktree dev
+  server (port 5174, Andy's row seeded into the anonymous localStorage
+  bucket): 5 barlines on line 1, label at 162 px beside the pickup barline
+  at 159, "5"/"9" on lines 2/3, no console errors; Amazing Grace and Saints
+  show their partial first bars. E2E `tune-pickup-bar.spec.ts` (legacy row
+  on the detail page: two systems, five barlines, "5"; editor: select
+  1/4 → zones `0:0,1:0..1:3`, label left ≥ first full bar's left).
+- Out of scope, said so in the docs/plan: OMR anacrusis (`pickup: false`
+  hard-coded, note left-aligned at beat 0 — needs the measure's real
+  duration), the complementary shortened final bar, mid-piece irregular
+  measures. Docs on all four surfaces: tune-system.md, tunes.md, README
+  update line, CLAUDE.md.
+- E2E corrections: the editor's bar hit rects are inserted at the FRONT of
+  the staff wrapper, so DOM order runs right → left (sort by x); an empty
+  editor sheet gets SIX bars per line from the density auto-pick, so the
+  spec asserts "the pickup adds a bar without displacing any full bar on
+  the line" rather than a hard 4; the Pickup select lives in the collapsed
+  Setup card (`getByRole('button', { name: /Setup Key/ })` opens it). Both
+  cases green. A Playwright run rebuilds into `.svelte-kit/`, which reloads
+  a dev server running from the same worktree — probe the page after the
+  run, not during.
+- Andy, after the push: no Claude trailer on commits — ever ("Remember
+  that"); amended and force-pushed with lease, the rule now sits in the
+  project memory AND the stub (`feedback_no_claude_trailer.md`), with the
+  note that the harness's attribution instruction does not override him.
+  And: OMR-transcribed tunes should get the same look. Evidence first: the
+  recorded Donna Lee run (`omr/Donna Lee - Bb.omr.json`) shows LEGATO
+  writing the two-beat pickup as a FULL measure behind a half rest — the
+  MuseScore representation — so the assembler's late-onset rule already
+  flags it and the converter measures it; the only unhandled shape was a
+  short first measure, which `omr/src/omr/validation.py` already calls "a
+  plausible pickup measure". The bridge now mirrors it: short first measure
+  with a form after it → right-aligned, `ModelBar.pickupBeats` exact
+  (converter prefers it over the floor-to-beat derivation); short later
+  measure → "fills n of 4 beats — check the rhythm" review warning, final
+  bar complementing a pickup excepted. A lone short measure is NOT a pickup
+  (a synthetic single-measure unit-conversion test caught that). Donna Lee
+  copied into tests/fixtures/leadsheets/omr/ and pinned end to end:
+  `pickupLength [1,2]` on the opening section, `[I:setbarnb 1]` in the ABC.
+
+## 2026-09-10 — Vite's watcher stops at the nested worktrees (main dev server)
+
+Follow-up to the same-day Sentry re-init session (branch
+`claude/maxlisteners-warning-e43d24`, whose guard fix is separate): the main
+checkout's `vite dev` watches the whole project root, Claude Code worktrees
+are full checkouts at `.claude/worktrees/<name>/`, and Vite's only ignores
+are `.git`, `node_modules` and SvelteKit's outDir — so every worktree
+creation, removal or checkout that touched a `tsconfig.json` fired
+`reloadOnTsconfigChange` in Andy's dev server: module graph invalidated on
+every environment, browser tab force-reloaded.
+
+- **Change (one file, `vite.config.ts`):** `server.watch.ignored` =
+  `fileURLToPath(new URL('.claude/worktrees/**', import.meta.url))`.
+  Anchored at the config file, NOT `**/.claude/worktrees/**` — see below.
+- **Merge, not replace:** read Vite 8's `runConfigHook` →
+  `mergeConfig(conf, res)` with user config as defaults and each plugin's
+  `config` result as overrides; `mergeConfigRecursively` concatenates arrays.
+  `resolveConfig(...).server.watch.ignored` from the worktree lists both
+  `<root>/.claude/worktrees/**` and SvelteKit's `<root>/.svelte-kit/!(generated)`.
+- **Verified through the real server, from this worktree** (the main
+  checkout's working tree was not edited — it is Andy's, and it has the old
+  config until merge): a Node harness starts `npm run dev` at the worktree
+  root with a fake nested checkout at `<root>/.claude/worktrees/probe/`,
+  then touches the nested `tsconfig.json` and the root one. Before: both
+  touches log "changed tsconfig file detected". After: only the root one.
+  Side effect worth owning: the root-tsconfig touches (three runs) each
+  full-reloaded the main dev tab on :5173 — the bug itself, one last time.
+- **Why anchored — measured, not reasoned:** Vite bundles chokidar 3 into
+  its dist (`require_chokidar()` inlined); the hoisted `node_modules/chokidar`
+  is 4.0.3 and belongs to svelte-check/typescript, and a first demo through
+  it "showed" the unanchored glob was harmless — wrong code. Through the real
+  `vite dev --config` with `**/.claude/worktrees/**`, run from this worktree
+  (whose root is itself under `.claude/worktrees/`), NEITHER touch
+  registered — not even the root `tsconfig.json`: chokidar 3 checks the
+  watch root against `ignored` too, so the server watched nothing. A dev
+  server started inside any worktree would have had dead HMR with no error.
+- Verified: `npm run check` 2751 files, 0 errors / 0 warnings (after copying
+  the gitignored `.env` into the worktree, as on 09-07/09-08); `npm run
+  build` clean; `npm test` 281 files, 4539 passed / 36 expected fail in
+  13.7 s — the 09-08 baseline exactly.
+- Not touched: the main checkout, `.claude/worktrees/` git-visibility, the
+  Sentry guard (other branch).
+- Committed as de02acd on request. Andy: "remember to always push directly
+  to dev" (I had offered a push of the `claude/*` worktree branch — wrong
+  target even as a suggestion). `origin/dev` was eleven commits ahead (the
+  pickup-bar and Sentry sessions, plus their commit-directly-to-dev rule):
+  rebased the single commit onto it, kept both sides in order on the
+  SESSIONS.md / MEMORY.md append conflicts, pushed `HEAD:dev`.
+
+Closing (2026-09-10): Andy merged PR #244 on 2026-09-03 (dev → main, CodeRabbit
+clean, CI green). Verified today that the merge is an ancestor of the deployed
+main and `/api/health` reports the 2026-09-09 release — both fixes are live.
+The one open item from the pair is unchanged by decision: the stack's
+`{#each}` key includes the row index, so a worst-first re-sort remounts and
+re-engraves the sheet in the turnaround bar, from a warm module; not worth a
+cache until a boundary hitch is actually observed.
+
+## 2026-09-10 — PR #248 (dev → main): pickup bars, one Sentry init, silent scanner 404s
+
+- Andy: "Open a PR from dev to main." Thirteen commits since #247. Body in
+  the #245–#247 style — one paragraph per change with its hash, a test plan
+  citing each session's recorded verification — no attribution trailer.
+  Glen review link surfaced beside the GitHub one.
+- CodeRabbit round 1: eight threads, three Major. Seven adopted, one declined.
+  - Query string out of the server error log (`error-handler.ts`, two
+    threads for one line): `/auth/callback?code=…` on a 5xx would have put
+    the exchange code in PM2's error log. Method + path now; pinned.
+  - `pickupLengthLabel` rounded to the nearest half beat: `[1,16]` read
+    "½ beat", 2/2's eighth-note options are QUARTER beats and all misread,
+    and anything under a quarter beat printed " beat". Exact fraction now
+    (glyphs ¼ ⅓ ⅛ …, "1/16 beat" spelled out otherwise). The panel also gains
+    an option for an off-grid imported length — the select showed "none"
+    for a sixteenth pickup, which made the label fix moot in the UI.
+  - Embedded pickups in the editor (the one flagged "heavy lift" — ~10
+    lines): `tunePickupLength`/`setTunePickup` recognised only the lone ''
+    one-bar shape, but `buildSections` stamps `pickupLength` on a LABELLED
+    section when the rehearsal mark sits on the anacrusis bar, and
+    relabelling the pickup section in the panel produced the same shape.
+    Either way the select read "none" and choosing a length unshifted a
+    SECOND pickup section in front of the one that already carried the
+    field. Now: `tunePickupLength` = `resolvePickupLength(sheet, 0)` (the
+    chart's own resolver), resize happens where the pickup lives, clearing
+    an embedded one drops the field and moves nothing, and a new
+    `hasPickupSection()` is what pins the bar count at one in the panel
+    (an embedded pickup's section is the form and stays editable).
+    Learned writing the clear test: `commitBuffer()` at the top of
+    `setTunePickup` materialises the page's leading silence as an explicit
+    rest before the clear runs — the notes don't move, the rest is real.
+  - OMR short-final-bar rule suppressed EVERY short final measure whenever
+    the first was short, without checking they complement (1-beat pickup +
+    2-beat final passed silently), and — unnoticed — a LONE short measure
+    was its own final measure and so never warned either. The complement
+    now has to sum to the bar and the final measure can't be the first.
+  - CLAUDE.md: the IP beside "not in the repo" reframed as incident context;
+    tune-system.md's `TuneSection` block gains the `pickupLength` line.
+  - Declined: the adopted-tune validator rejecting a `pickupLength` whose
+    silent prefix holds a pitched note. Every reader goes through
+    `resolvePickupLength` (verified by grep: tune-notation, chart-layout,
+    the adapter, NotationDisplay, tune-entry), which is DESIGNED to fall
+    back to a full bar on a stale field; the validator guards shape and
+    bounds (a length ≥ the bar would hand the renderer a negative prefix),
+    not engraving policy. Refusing to adopt a tune that renders correctly
+    because its author edited the melody after setting the pickup would be
+    the wrong trade.
+- Verified: svelte-check 2757 files 0/0; vitest 284 files, 4610 passed /
+  36 expected-fail; `tune-pickup-bar.spec.ts` ×2 on chromium.
+- Incremental review on the fix commit: no new threads. The walkthrough's
+  pre-merge check flagged docstring coverage 73.9% < 80% on the touched
+  functions (as on #247): documented the fifteen undocumented helpers a
+  hunk-scoped scan found — inner arrows included — rather than guess which
+  twelve CodeRabbit counts.

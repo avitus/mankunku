@@ -22,6 +22,12 @@ export interface ModelBar {
 	endRepeat: boolean;
 	ending: number | null;
 	pickup: boolean;
+	/**
+	 * Exact printed length of a pickup bar in declared-meter beats, when the
+	 * source knows it (the OMR bridge measures the short first measure);
+	 * absent, the converter derives it from the bar's first pitched beat.
+	 */
+	pickupBeats?: number;
 	melody: Array<[number, number, string] | [number, number, string, boolean]>;
 }
 
@@ -266,6 +272,7 @@ export function assembleClaudeDoc(systems: AssembleSystemInput[], meta: Assemble
 								: bar.endRepeat && dotsConfirmEnd,
 					ending,
 					pickup,
+					...(pickup && bar.pickupBeats !== undefined ? { pickupBeats: bar.pickupBeats } : {}),
 					chords: chordsByBar.get(i) ?? [],
 					melody: bar.melody
 				};

@@ -48,3 +48,34 @@ describe('buildSections', () => {
 		]);
 	});
 });
+
+describe('buildSections — pickup length', () => {
+	const pickupNote = [{ pitch: 55, duration: [1, 4] as Fraction, offset: [3, 4] as Fraction }];
+
+	it('stamps the printed length on a lone pickup section', () => {
+		const measures: BarStructure[] = [
+			bar(0, { pickup: true, pickupLength: [1, 4] }),
+			bar(1, { rehearsalMark: 'A' })
+		];
+		const sections = buildSections(measures, pickupNote, [], () => {});
+		expect(sections.map((s) => [s.label, s.bars, s.pickupLength])).toEqual([
+			['', 1, [1, 4]],
+			['A', 1, undefined]
+		]);
+	});
+
+	it('stamps it on a labelled section whose first bar is the pickup (no split point)', () => {
+		const measures: BarStructure[] = [bar(0, { pickup: true, pickupLength: [1, 4] }), bar(1)];
+		const sections = buildSections(measures, pickupNote, [], () => {});
+		expect(sections).toHaveLength(1);
+		expect(sections[0].bars).toBe(2);
+		expect(sections[0].pickupLength).toEqual([1, 4]);
+	});
+
+	it('omits the field when the flagged pickup has no known length', () => {
+		const measures: BarStructure[] = [bar(0, { pickup: true }), bar(1, { rehearsalMark: 'A' })];
+		const sections = buildSections(measures, pickupNote, [], () => {});
+		expect(sections[0].label).toBe('');
+		expect('pickupLength' in sections[0]).toBe(false);
+	});
+});

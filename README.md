@@ -175,7 +175,7 @@ App-only changes (under `src/`, `tests/`, `static/`, etc.) do not trigger `nginx
 
 | Variable | Purpose |
 |---|---|
-| `DEPLOY_HOST` | Server hostname or IP |
+| `DEPLOY_HOST` | Server hostname or IP. The app deploy job reads the same variable, so a server move must update it here — the 2026-09-08 move to a new droplet was missed and PR #247's deploy landed on the retired one, caught only by the job's public verify step |
 | `DEPLOY_USER` | SSH user (must have passwordless `sudo` for `nginx`, `systemctl`, `install`, `mkdir`, `cp`, `ln`, `rm` on the relevant paths) |
 | `DEPLOY_PORT` | *(optional)* SSH port; defaults to `22` |
 

@@ -283,6 +283,21 @@ describe('assembleClaudeDoc', () => {
 		expect(doc.systems[0].bars[1].pickup).toBe(false);
 	});
 
+	it('passes an exact pickup length through from the model bar', () => {
+		const systems: AssembleSystemInput[] = [
+			{
+				geometry: geometry([400, 700]),
+				texts: { chords: [], marks: [], endings: [], barNumber: null },
+				model: { fifths: 0, bars: [bar([[3, 1, 'A4']], { pickup: true, pickupBeats: 1 }), bar([[0, 4, 'F4']])] }
+			}
+		];
+		const doc = assembleClaudeDoc(systems, meta) as {
+			systems: Array<{ bars: Array<{ pickup: boolean; pickupBeats?: number }> }>;
+		};
+		expect(doc.systems[0].bars[0]).toMatchObject({ pickup: true, pickupBeats: 1 });
+		expect(doc.systems[0].bars[1].pickupBeats).toBeUndefined();
+	});
+
 	it('forces the pickup flag when the first bar is geometrically narrow', () => {
 		// TWNBAY: bar 1 spans 0.62 of the median bar width (time signature
 		// to first barline) — a pickup regardless of what the model said.

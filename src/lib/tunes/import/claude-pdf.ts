@@ -1,7 +1,8 @@
 import type { Fraction, Note, PitchClass } from '$lib/types/music';
 import type { Tune, TuneSection } from '$lib/types/tune';
 import { PITCH_CLASSES } from '$lib/types/music';
-import { noteNameToMidi } from '$lib/music/intervals';
+import { fractionToFloat, noteNameToMidi } from '$lib/music/intervals';
+import { pickupLengthFromMelody } from '$lib/music/pickup';
 import { parseChordSymbol } from '$lib/music/chord-symbol';
 import { harmonicSegmentFromChordSymbol } from '$lib/tunes/segment-from-symbol';
 import {
@@ -252,6 +253,24 @@ export function claudeJsonToTune(data: unknown): ClaudePdfConversion {
 					if (tied === true) note.tied = true;
 					noteEvents.push(note);
 					totalNotes++;
+				}
+				// A flagged pickup's printed length: exact when the source
+				// measured it (`pickupBeats`, the OMR bridge), else the bar minus
+				// its first pitched beat — the model reports notes at their real
+				// late beats. A chords-only pickup keeps no length.
+				const exactBeats = rawBar?.pickupBeats;
+				if (bar.pickup && isFiniteNumber(exactBeats) && exactBeats > 0 && exactBeats < tsNum) {
+					bar.pickupLength = toFraction(exactBeats * beatUnit);
+				} else if (bar.pickup) {
+					const barNotes = noteEvents.filter((n) => {
+						const off = fractionToFloat(n.offset);
+						return off >= barBase * beatUnit - 1e-9 && off < (barBase + tsNum) * beatUnit - 1e-9;
+					});
+					const length = pickupLengthFromMelody(
+						barNotes.map((n) => ({ ...n, offset: toFraction(fractionToFloat(n.offset) - barBase * beatUnit) })),
+						[tsNum, tsDen]
+					);
+					if (length) bar.pickupLength = length;
 				}
 			}
 		}

@@ -1,4 +1,5 @@
 import type { Tune } from '$lib/types/tune';
+import { resolvePickupLength } from './pickup';
 import type { Fraction } from '$lib/types/music';
 import { fractionToFloat } from './intervals';
 import { approxToFraction, durationToAbc } from './notation';
@@ -58,8 +59,10 @@ export function emptyMelodyBars(sheet: Tune): Set<number> {
 	const barDuration = sheet.timeSignature[0] / sheet.timeSignature[1];
 	const empty = new Set<number>();
 	let base = 0;
-	for (const sec of sheet.sections) {
-		for (let b = 0; b < sec.bars; b++) {
+	for (const [i, sec] of sheet.sections.entries()) {
+		// A partial pickup bar prints a rest of its own length, never slashes.
+		const partialFirst = resolvePickupLength(sheet, i) !== null;
+		for (let b = partialFirst ? 1 : 0; b < sec.bars; b++) {
 			const barStart = b * barDuration;
 			const barEnd = barStart + barDuration;
 			const hasPitch = sec.notes.some((n) => {

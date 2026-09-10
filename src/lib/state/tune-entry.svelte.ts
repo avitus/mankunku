@@ -48,6 +48,7 @@ import {
 } from '$lib/state/step-entry.svelte';
 import { getDurationFraction } from '$lib/step-entry/durations';
 import { transposeTune } from '$lib/tunes/book-loader';
+import { isPickupOnlySection, pickupPrefix, resolvePickupLength } from '$lib/music/pickup';
 import {
 	defaultSourceTransposition,
 	sourceTranspositionSemitones,
@@ -1026,6 +1027,83 @@ export function removeSection(index: number): void {
 	}
 	tuneEntry.currentPage = 0;
 	loadBuffer(tuneEntry.currentSection, 0);
+}
+
+/**
+ * The tune's opening pickup: section 0's printed first-bar length, whether
+ * the pickup is its own unlabeled one-bar section (the shape the Pickup
+ * control creates and the importers write) or embedded in a labelled
+ * section (an import whose rehearsal mark sits on the anacrusis bar, or a
+ * pickup section the user has since labelled). Explicit field or legacy
+ * inference alike — the same resolver the chart reads — and null when the
+ * first bar is full.
+ */
+export function tunePickupLength(): Fraction | null {
+	return resolvePickupLength({ timeSignature: tuneEntry.timeSignature, sections: tuneEntry.sections }, 0);
+}
+
+/**
+ * True when the opening pickup is its own unlabeled one-bar section: the
+ * shape whose bar count is fixed at one and which clearing the pickup
+ * removes. An embedded pickup's section is the form and stays editable.
+ */
+export function hasPickupSection(): boolean {
+	return isPickupOnlySection({ timeSignature: tuneEntry.timeSignature, sections: tuneEntry.sections }, 0);
+}
+
+/**
+ * Set or clear the tune's opening pickup. A NEW pickup gets its own
+ * unlabeled one-bar section in front of the form (so the user's sections
+ * keep their bar counts) with the silent lead-in stored as a rest, which is
+ * what makes step entry land the first typed note on the pickup's beat.
+ * An EXISTING pickup is resized where it lives — its own section or the
+ * first bar of a labelled one — never by inserting a second pickup section
+ * in front of a section that already carries one: only the lead-in is
+ * replaced, and anything that would now start inside the silent prefix is
+ * dropped (mirroring setSectionBars' truncation). Clearing removes a
+ * pickup-only section; an embedded pickup just loses the field, its notes
+ * staying where they are (they are the form's).
+ */
+export function setTunePickup(length: Fraction | null): void {
+	commitBuffer();
+	const ts = tuneEntry.timeSignature;
+	const sheet = { timeSignature: ts, sections: tuneEntry.sections };
+	const current = resolvePickupLength(sheet, 0);
+	if (length === null) {
+		if (current === null) return;
+		if (isPickupOnlySection(sheet, 0)) {
+			tuneEntry.sections.splice(0, 1);
+			tuneEntry.currentSection = Math.max(0, tuneEntry.currentSection - 1);
+			tuneEntry.currentPage = 0;
+		} else {
+			delete tuneEntry.sections[0].pickupLength;
+		}
+		loadBuffer(tuneEntry.currentSection, tuneEntry.currentPage);
+		return;
+	}
+	const prefix = pickupPrefix(length, ts);
+	const prefixF = fractionToFloat(prefix);
+	if (current !== null) {
+		const sec = tuneEntry.sections[0];
+		const oldPrefixF = fractionToFloat(pickupPrefix(current, ts));
+		const kept = sec.notes.filter((n) => {
+			const start = fractionToFloat(n.offset);
+			const end = start + fractionToFloat(n.duration);
+			// The old lead-in rest goes; so does anything starting in the new prefix.
+			if (n.pitch === null && end <= oldPrefixF + 1e-9) return false;
+			return start >= prefixF - 1e-9;
+		});
+		sec.pickupLength = length;
+		const leadIn: Note = { pitch: null, duration: prefix, offset: [0, 1] };
+		sec.notes = [leadIn, ...kept].sort((a, b) => compareFractions(a.offset, b.offset));
+		sec.harmony = sec.harmony.filter((h) => fractionToFloat(h.startOffset) >= prefixF - 1e-9);
+		recomputeHarmonyDurations(sec);
+	} else {
+		const leadIn: Note = { pitch: null, duration: prefix, offset: [0, 1] };
+		tuneEntry.sections.unshift({ label: '', bars: 1, pickupLength: length, notes: [leadIn], harmony: [] });
+		tuneEntry.currentSection += 1;
+	}
+	loadBuffer(tuneEntry.currentSection, tuneEntry.currentPage);
 }
 
 /** Update label/repeat/ending markers on a section. */

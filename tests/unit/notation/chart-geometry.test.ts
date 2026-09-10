@@ -10,6 +10,7 @@ import {
 	chordZones,
 	nextBeatPos,
 	prevBeatPos,
+	clipBarSpanX,
 	type LayoutItem,
 	type SystemLayout,
 	type BarZone
@@ -358,5 +359,53 @@ describe('integration — real tuneToAbcWithMap anchors → zones', () => {
 			for (let b = 1; b < cells.length; b++) expect(cells[b].x0).toBeCloseTo(cells[b - 1].x1, 9);
 			expect(cells.every((c) => c.x0 <= c.x1)).toBe(true);
 		}
+	});
+});
+
+// ── Pickup (partial) bars ─────────────────────────────────────────────────
+// A pickup bar prints only its last beats: cells, edges and marker clipping
+// cover the printed span, while beat numbers stay those of the FULL bar so a
+// chord written from a cell lands on its real offset.
+describe('partial pickup bars', () => {
+	it('beatEdges pins the first printed beat to x0 and parks earlier beats there', () => {
+		expect(beatEdges(ZONE, [], 4, 3)).toEqual([0, 0, 0, 0, 100]);
+		expect(beatEdges(ZONE, [], 4, 2)).toEqual([0, 0, 0, 50, 100]);
+	});
+
+	it('chordZones emits cells only from the first printed beat of a partial bar', () => {
+		const { systems, barAnchors } = twoSystemLayout();
+		const zones = chordZones({
+			systems,
+			barAnchors,
+			noteAnchors: [],
+			chordSlotAnchors: [],
+			beatsPerBar: 4,
+			barDurationWholeNotes: 1,
+			partialBars: new Map([['0:0', 3]])
+		});
+		expect(zones).toHaveLength(29); // 7 full bars × 4 + one pickup cell
+		const pickup = zones.filter((z) => z.sectionIdx === 0 && z.bar === 0);
+		expect(pickup.map((z) => [z.beat, z.x0, z.x1])).toEqual([[3, 10, 40]]);
+	});
+
+	it('clipBarSpanX maps only the printed portion of a partial bar', () => {
+		// One-beat pickup: the printed span is the bar's last quarter.
+		expect(clipBarSpanX(0, 100, 0, 1, 0, 1, 0.75)).toEqual({ x0: 0, x1: 100 });
+		expect(clipBarSpanX(0, 100, 0, 1, 0.875, 1, 0.75)).toEqual({ x0: 50, x1: 100 });
+		// A range wholly inside the silent prefix paints nothing.
+		expect(clipBarSpanX(0, 100, 0, 1, 0, 0.5, 0.75)).toBeNull();
+		// Default keeps the full-bar mapping byte-identical.
+		expect(clipBarSpanX(0, 100, 0, 1, 0.5, 1)).toEqual({ x0: 50, x1: 100 });
+	});
+
+	it('beat stepping never lands inside a partial bar\'s silent prefix', () => {
+		const form = { sections: [{ bars: 1, firstBeat: 3 }, { bars: 1 }], beatsPerBar: 4 };
+		expect(prevBeatPos({ sectionIdx: 0, bar: 0, beat: 3 }, form)).toBeNull();
+		expect(prevBeatPos({ sectionIdx: 1, bar: 0, beat: 0 }, form)).toEqual({ sectionIdx: 0, bar: 0, beat: 3 });
+		expect(nextBeatPos({ sectionIdx: 0, bar: 0, beat: 3 }, form)).toEqual({ sectionIdx: 1, bar: 0, beat: 0 });
+		// Entering a labelled section whose first bar is partial starts at its first printed beat.
+		const inSection = { sections: [{ bars: 1 }, { bars: 2, firstBeat: 2 }], beatsPerBar: 4 };
+		expect(nextBeatPos({ sectionIdx: 0, bar: 0, beat: 3 }, inSection)).toEqual({ sectionIdx: 1, bar: 0, beat: 2 });
+		expect(prevBeatPos({ sectionIdx: 1, bar: 1, beat: 0 }, inSection)).toEqual({ sectionIdx: 1, bar: 0, beat: 3 });
 	});
 });

@@ -22,6 +22,8 @@ import {
 	validateOmrTranscription
 } from '$lib/tunes/import/omr-transcription';
 import type { SystemGeometry } from '$lib/tunes/import/pdf-geometry';
+import { resolvePickupLength } from '$lib/music/pickup';
+import { tuneToAbc } from '$lib/music/tune-notation';
 
 const payload = JSON.parse(
 	readFileSync(
@@ -118,5 +120,51 @@ describe('OMR fusion through the existing assemble/convert pipeline', () => {
 		// of this chart and nothing concert-shifted.
 		expect(pitches.length).toBeGreaterThan(40);
 		expect(pitches.every((p) => /^[A-G][b#]{0,2}\d$/.test(p))).toBe(true);
+	});
+});
+
+/**
+ * Donna Lee (a REAL recorded LEGATO run, `omr/Donna Lee - Bb.omr.json`):
+ * the head opens with a two-beat pickup, which the model transcribed the
+ * way MuseScore stores one — a full first measure with the anacrusis behind
+ * a half rest. The assembler's late-onset rule flags it and the converter
+ * measures it, so the pickup reaches the Tune as `pickupLength` and the
+ * chart engraves it short, the same as a MuseScore import.
+ */
+describe('OMR fusion — a pickup transcribed as a full measure behind a rest (Donna Lee)', () => {
+	const donnaLee = JSON.parse(
+		readFileSync(
+			fileURLToPath(new URL('../../fixtures/leadsheets/omr/donna-lee.omr.json', import.meta.url)),
+			'utf8'
+		)
+	);
+
+	it('reaches the Tune as pickupLength on the opening section and engraves as a partial bar', () => {
+		expect(validateOmrTranscription(donnaLee).valid).toBe(true);
+		const omr = omrNormalized(donnaLee);
+		// 32 transcribed measures laid out as 8 systems × 4 bars.
+		const { responses } = omrSystemResponses(omr, [4, 4, 4, 4, 4, 4, 4, 4], METER);
+		expect(responses.every((r) => r !== null)).toBe(true);
+		const systems: AssembleSystemInput[] = responses.map((response) => ({
+			geometry: geometry(),
+			texts: { chords: [], marks: [], endings: [], barNumber: null },
+			model: { fifths: response!.keySignature?.fifths ?? null, bars: response!.bars }
+		}));
+		const doc = assembleClaudeDoc(systems, {
+			title: 'Donna Lee',
+			composer: 'Charlie Parker',
+			timeSignature: METER
+		});
+		const converted = claudeJsonToTune(doc);
+		expect(converted.errors).toEqual([]);
+		const sheet = converted.sheet!;
+		// No rehearsal marks on the page → one section whose first bar is the pickup.
+		expect(sheet.sections[0].pickupLength).toEqual([1, 2]);
+		expect(resolvePickupLength(sheet, 0)).toEqual([1, 2]);
+		expect(sheet.sections[0].notes[0].offset).toEqual([1, 2]);
+		const abc = tuneToAbc(sheet);
+		// The partial bar restamps the printed bar count past the anacrusis.
+		expect(abc).toContain('[I:setbarnb 1]');
+		expect(abc).not.toMatch(/\[V:M\]z4 z4/);
 	});
 });

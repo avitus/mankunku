@@ -279,3 +279,100 @@ describe('omrSystemResponses', () => {
 		expect(responses[0]!.warnings.some((w) => w.startsWith('bar 2:'))).toBe(true);
 	});
 });
+
+describe('omrSystemResponses — pickup bars', () => {
+	const meter: [number, number] = [4, 4];
+
+	it('right-aligns a short first measure as a pickup with its exact length', () => {
+		// A one-beat anacrusis the model transcribed as a one-beat measure.
+		const omr = omrNormalized(payload([
+			measure(1, [note('G4', [0, 1], [1, 4])]),
+			measure(2, [note('C5', [0, 1], [1, 1])])
+		]));
+		const { responses, warnings } = omrSystemResponses(omr, [2], meter);
+		const [pickup, full] = responses[0]!.bars;
+		expect(pickup.pickup).toBe(true);
+		expect(pickup.pickupBeats).toBe(1);
+		expect(pickup.melody).toEqual([[3, 1, 'G4']]);
+		expect(full.pickup).toBe(false);
+		expect(full.melody).toEqual([[0, 4, 'C5']]);
+		expect(warnings).toEqual([]);
+		expect(responses[0]!.warnings).toEqual([]);
+	});
+
+	it('keeps a rest inside the pickup: the length is the measure content, not the first note', () => {
+		// Eighth rest + eighth note = a one-beat pickup whose note is on the and-of-4.
+		const omr = omrNormalized(payload([
+			measure(1, [note(null, [0, 1], [1, 8]), note('G4', [1, 8], [1, 8])]),
+			measure(2, [note('C5', [0, 1], [1, 1])])
+		]));
+		const { responses } = omrSystemResponses(omr, [2], meter);
+		expect(responses[0]!.bars[0].pickupBeats).toBe(1);
+		expect(responses[0]!.bars[0].melody).toEqual([[3.5, 0.5, 'G4']]);
+	});
+
+	it('leaves a full first measure with a leading rest to the assembler heuristics', () => {
+		// LEGATO's own habit (Donna Lee): the anacrusis right-aligned inside a
+		// full measure. Nothing to shift; the late-onset rule flags it later.
+		const omr = omrNormalized(payload([
+			measure(1, [note(null, [0, 1], [1, 2]), note('A5', [1, 2], [1, 2])]),
+			measure(2, [note('C5', [0, 1], [1, 1])])
+		]));
+		const { responses } = omrSystemResponses(omr, [2], meter);
+		expect(responses[0]!.bars[0].pickup).toBe(false);
+		expect(responses[0]!.bars[0].pickupBeats).toBeUndefined();
+		expect(responses[0]!.bars[0].melody).toEqual([[2, 2, 'A5']]);
+	});
+
+	it('does not read a short LATER measure as a pickup — it is flagged for review instead', () => {
+		const omr = omrNormalized(payload([
+			measure(1, [note('C5', [0, 1], [1, 1])]),
+			measure(2, [note('G4', [0, 1], [1, 2])]),
+			measure(3, [note('C5', [0, 1], [1, 1])])
+		]));
+		const { responses } = omrSystemResponses(omr, [3], meter);
+		const short = responses[0]!.bars[1];
+		expect(short.pickup).toBe(false);
+		expect(short.melody).toEqual([[0, 2, 'G4']]);
+		expect(responses[0]!.warnings).toEqual(['bar 2: the transcription fills 2 of 4 beats — check the rhythm']);
+	});
+
+	it('accepts a short final bar that complements the pickup — together they make one bar', () => {
+		const omr = omrNormalized(payload([
+			measure(1, [note('G4', [0, 1], [1, 4])]),
+			measure(2, [note('C5', [0, 1], [1, 1])]),
+			measure(3, [note('C5', [0, 1], [3, 4])])
+		]));
+		const { responses } = omrSystemResponses(omr, [3], meter);
+		expect(responses[0]!.bars[0].pickup).toBe(true);
+		expect(responses[0]!.bars[2].pickup).toBe(false);
+		expect(responses[0]!.warnings).toEqual([]);
+	});
+
+	it('flags a short final bar that does NOT complement the pickup — a beat is missing somewhere', () => {
+		const omr = omrNormalized(payload([
+			measure(1, [note('G4', [0, 1], [1, 4])]),
+			measure(2, [note('C5', [0, 1], [1, 1])]),
+			measure(3, [note('C5', [0, 1], [1, 2])])
+		]));
+		const { responses } = omrSystemResponses(omr, [3], meter);
+		expect(responses[0]!.warnings).toEqual(['bar 3: the transcription fills 2 of 4 beats — check the rhythm']);
+	});
+
+	it('flags a lone short measure — with no form after it, it is a misread, not a pickup', () => {
+		const omr = omrNormalized(payload([measure(1, [note('G4', [0, 1], [1, 2])])]));
+		const { responses } = omrSystemResponses(omr, [1], meter);
+		expect(responses[0]!.bars[0].pickup).toBe(false);
+		expect(responses[0]!.warnings).toEqual(['bar 1: the transcription fills 2 of 4 beats — check the rhythm']);
+	});
+
+	it('does not read an empty first measure as a pickup', () => {
+		const omr = omrNormalized(payload([
+			measure(1, []),
+			measure(2, [note('C5', [0, 1], [1, 1])])
+		]));
+		const { responses } = omrSystemResponses(omr, [2], meter);
+		expect(responses[0]!.bars[0].pickup).toBe(false);
+		expect(responses[0]!.bars[0].melody).toEqual([]);
+	});
+});

@@ -147,3 +147,29 @@ describe('validateAdoptedTune', () => {
 		expect(sectionsResult.errors.join('; ')).toContain('too many sections');
 	});
 });
+
+describe('validateAdoptedTune — pickupLength', () => {
+	it('accepts a pickupLength strictly inside one bar', () => {
+		const sheet = validSheet();
+		sheet.sections[0].pickupLength = [1, 4];
+		expect(validateAdoptedTune(sheet).errors).toEqual([]);
+	});
+
+	it('rejects a pickupLength that is malformed, zero, or not shorter than the bar', () => {
+		for (const bad of [[1, 1], [5, 4], [0, 1], [1, 0], 'x', [1]] as unknown[]) {
+			const sheet = validSheet();
+			(sheet.sections[0] as unknown as Record<string, unknown>).pickupLength = bad;
+			const result = validateAdoptedTune(sheet);
+			expect(result.valid, JSON.stringify(bad)).toBe(false);
+			expect(result.errors.join('\n')).toMatch(/section 0: invalid pickup length/);
+		}
+	});
+
+	it('measures the bar against the tune meter', () => {
+		const sheet = validSheet({ timeSignature: [3, 4] });
+		sheet.sections[0].pickupLength = [3, 4];
+		expect(validateAdoptedTune(sheet).valid).toBe(false);
+		sheet.sections[0].pickupLength = [1, 2];
+		expect(validateAdoptedTune(sheet).valid).toBe(true);
+	});
+});

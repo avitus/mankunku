@@ -114,3 +114,16 @@ describe('suggestBarsPerLine', () => {
 		expect(suggestBarsPerLine(mostlyEmpty)).toBe(5);
 	});
 });
+
+describe('emptyMelodyBars — pickup bars', () => {
+	it('never turns a partial pickup bar into a slash bar', () => {
+		// A chords-only pickup prints a rest of its own length, not four slashes.
+		const s = sheet({
+			sections: [
+				section({ label: '', bars: 1, pickupLength: [1, 4], notes: [], harmony: [seg('G', '7', [3, 4], [1, 4])] }),
+				section({ label: 'A', bars: 2, notes: [], harmony: [seg('C', 'maj7', [0, 1], [2, 1])] })
+			]
+		});
+		expect([...emptyMelodyBars(s)]).toEqual([1, 2]);
+	});
+});

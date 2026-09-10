@@ -4,6 +4,31 @@ Running notes from working on Mankunku. Newest at the top. Not deleted unless pr
 
 ---
 
+## 2026-09-10 — A rule about nested checkouts has to be tested from inside one
+
+The obvious fix for "the main dev server reloads when a worktree changes" is
+`ignored: ['**/.claude/worktrees/**']`, and it works perfectly from the main
+checkout. It also works perfectly from inside a worktree, in the sense that
+the server starts, prints its URL and serves pages — while watching nothing,
+because the pattern matches the server's own root. That is the shape of the
+trap: the rule's subject (nested checkouts) is exactly the place the rule
+was never going to be tried, and its failure there is silent. A watcher that
+watches nothing is indistinguishable from a working server until the first
+edit doesn't show up, and even then it looks like a stale-graph problem, the
+kind this project has already learned to "fix" with a restart. So the test
+that mattered was not "does the nested touch go quiet" but "does the ROOT
+touch still fire when the root is itself nested" — the inverse case, run
+from the worktree. Anchoring the glob at the config file made both true.
+
+Second thing, smaller and older than this project: I first "proved" the
+unanchored glob harmless with a five-line chokidar script, and the proof was
+of the wrong program. `node_modules/chokidar` is 4.x, hoisted for
+svelte-check and typescript; Vite bundles its own 3.x and never touches the
+hoisted one. A dependency tree is not evidence of what a process runs.
+When the real process is one `npm run dev` away, test the real process —
+the same lesson as reading the live Sentry count over the inspector two
+days ago, from the other direction.
+
 ## 2026-09-08 — The latency window was a lookahead, and nobody had measured the stamp
 
 The bleed model says a click reaches the worklet 50–200 ms after its
@@ -1707,3 +1732,117 @@ reason and I should say so: a suite must not depend on an OS dialog, and a
 timeout that lets the caller proceed does not cancel the thing it timed
 out on — the fixture's 200 ms race "handled" the hang while leaving the
 poison in place.
+
+## 2026-09-09 — A timestamp nobody designed as evidence dated the first request a process ever served
+
+The health endpoint stamps `startedAt` at module load, and SvelteKit loads
+a route module on its first request. That detail, written for cheapness,
+turned one JSON line into a witness: the "old" process reported a
+`startedAt` 0.66 s after the new one's, which could only mean the verify
+step's first poll was the first /api/health that process had ever served —
+so it was not the process release.sh had just checked, and not on the same
+machine. Everything after (DNS, certificate serials, the PM2 journal) was
+confirmation. Two things to keep. First, the cheapest evidence is often a
+side effect of an implementation choice; read the code that produces a
+field before reading the field. Second, the verify step could only fire
+after the wrong box had been deployed to and its PM2 restarted — a check at
+the END of a pipeline proves what happened, it cannot prevent it. The
+missing guard is a preflight, and a preflight against DNS encodes a
+topology assumption (no CDN, no floating IP) that the person running the
+infrastructure should choose to make, not me.
+
+## 2026-09-09 (second pass) — A shared box makes every tenant's hygiene everyone's outage
+
+The disk that mankunku's deploy would have hit in two days was filled by a
+neighbour's deploy that never deleted yesterday's image. Nothing in
+mankunku's release script could have prevented it, and nothing in it would
+have explained it either — release.sh's "failed deploy removes its staged
+release" invariant is the same rule the neighbour lacked, applied to
+directories instead of images. Two notes. First, the fix for a shared
+resource lives in the tenant that consumes it, so the deliverable here was
+an instruction for another agent, written to stand alone: repo names, tag
+scheme, sizes, what must never be deleted. Second, my own contribution to
+the disk was small but structurally identical — a log nobody rotated — and
+its cause was a default I had never looked at: Sentry's wrapper declines to
+capture a 404 and then prints its stack anyway. "The library handles it" is
+true of the capture and false of the log; read what the fallback does, not
+what the wrapper's name promises. And the `-q` that wasn't there: I shipped
+a script I could not run and checked its syntax, which is not the same as
+checking its commands. When the harness moves execution to Andy, the
+verification standard should go up, not down.
+## 2026-09-10 — A probe that reads zero must first prove it is attached to the thing it measures
+
+Three runs of a carefully instrumented dev server returned zeros for every
+trigger, and I was a step from concluding that the module was never evaluated
+in dev at all. The instrumented server had fallen back to port 5200 because my
+previous server still held 5199, and the driver kept polling 5199. The log said
+so on its second line every time — "Port 5199 is in use, trying another one…" —
+and I read past it three times because I was reading for the lines I expected.
+What caught it was not a cleverer probe but the dullest possible check: print
+the server's own address and use that. A zero from a probe is two claims,
+"nothing happened" and "I was watching"; the second has to be established
+first, and the cheapest way is to make the probe emit something only the target
+could produce — the banner with the PID, the parsed port.
+
+Second: the live process was a better oracle than any reproduction. Thirteen
+hours of Andy's actual workflow had already run the experiment; `kill -USR1` and
+one `Runtime.evaluate` read the result — 48 subscribers, each one Sentry's
+closure — before I had a single valid measurement of my own. Reproduction then
+answered a different question (WHICH events), and the live process closed the
+loop (touch a worktree tsconfig, one request, 55). When a long-lived process is
+right there, ask it first.
+
+Third, the cause was the workflow's own geometry. Worktrees nested inside the
+checkout put every parallel session's files under the parent dev server's
+watcher, so the warning was, in a sense, a count of how many sessions the team
+had started that day. Tooling that nests copies of a project inside the project
+should expect the project's own watchers to see them — and the project's own
+guards (an idempotent init) are the part we control.
+
+## 2026-09-10 — The importer knew, the model had nowhere to put it
+
+The pickup bug was not a missing algorithm. MuseScore's importer had the
+exact printed length in hand (`len=` plus the exclude-from-count flag), the
+section builder recognised the anacrusis and blanked its label, and the PDF
+path had three heuristics for spotting one. All of that evaporated at the
+one boundary where a `TuneSection` was built, because the type had no slot
+for it — and downstream, "a one-bar section with a blank label" was the only
+trace, which the renderer then padded back into a full bar. Two things I
+want to keep from this. First, when a symptom is "the data is right in the
+importer and wrong on the page", look for the narrowest type in the pipe;
+the information loss is structural, not a bug in any one function, and the
+fix is a field plus one resolver every consumer shares — not a heuristic in
+the renderer. Second, the temptation was to let the timeline carry the short
+bar too, "so the model tells the truth". The playback survey killed that in
+an hour: seven modules multiply bar counts by a fixed bar length, the backing
+engine seeds its randomness by bar index, and licks already solved the same
+problem by shifting the progression rather than the note. A model can be
+truthful about ENGRAVING while the timeline stays uniform; the field's doc
+comment says which of the two it describes, and that sentence is the whole
+design.
+
+The second lesson is about legacy data. Andy's row was already in the
+database with no field; a migration, a re-import prompt, or a hydrate-time
+write were all on the table. The codebase already had the answer — `mode`
+for licks, `pickupBars ?? detectPickupBars` — infer at read time for the one
+shape the old code could have produced, and only that shape. The guard that
+mattered was noticing that a lick's lead-sheet row is ALSO a lone blank
+one-bar section: a legacy rule written as "first section, blank label, one
+bar" would have turned a rest-led lick window into a partial bar. The
+section builder's own precondition (it only splits an anacrusis off when a
+form follows) is what makes "and there is a next section" the right extra
+clause — the inference should mirror the writer's invariant, not just the
+reader's convenience.
+
+Addendum, same day — the OMR follow-up. I had listed "OMR anacrusis" as
+out of scope on the strength of one agent's reading of a hard-coded
+`pickup: false`, without looking at what the model actually emits. The
+recorded Donna Lee run showed LEGATO writing the pickup as a full measure
+behind a rest — the representation the rest of the pipeline already
+understood — so the real gap was narrower than the note claimed, and the
+Python validator had already written down the rule for the remaining shape.
+Two lessons. Check a real artefact before declaring a path unsupported;
+and when a sibling implementation (here, the Python validator) has already
+made a judgment call — "a short first measure is plausibly a pickup, the
+final bar may complement it" — mirror it rather than inventing a second
+rule, so the two halves of the OMR system agree about what a chart means.

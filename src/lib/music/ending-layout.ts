@@ -15,6 +15,18 @@ export interface EndingSectionShape {
 	bars: number;
 	/** 1 | 2 when this section is a numbered ending. */
 	ending?: 1 | 2;
+	/**
+	 * The section's first bar is a partial anacrusis. It engraves short and
+	 * fills no bars-per-line column; a one-bar section with it (the lone
+	 * pickup section every importer writes) fills none at all, and the
+	 * section after it continues the same system.
+	 */
+	pickupBar?: boolean;
+}
+
+/** Bars that occupy a layout column — the partial pickup bar never does. */
+export function columnsOf(sec: EndingSectionShape): number {
+	return Math.max(0, sec.bars - (sec.pickupBar ? 1 : 0));
 }
 
 export interface EndingPlacement {
@@ -94,6 +106,16 @@ export function placeEndingSection(
 		};
 	}
 
+	// After a pickup-only section the form's first system is already open
+	// with the pickup hanging off its front: continue it, no break.
+	if (prev !== null && columnsOf(prev) === 0) {
+		return {
+			startsNewLine: false,
+			startColumn: state.prevEndColumn,
+			alignUnderFirstEnding: false
+		};
+	}
+
 	// Ordinary section: always a new system (form break / double bar).
 	return {
 		startsNewLine: true,
@@ -124,12 +146,17 @@ export function advanceEndingLayout(
 	}
 
 	// Column after this section's last bar within its last system line.
+	// A partial pickup bar fills no column, so a pickup-only section leaves
+	// the line exactly where it found it.
+	const columns = columnsOf(sec);
 	const prevEndColumn =
-		lineColumn === 0
-			? sec.bars % bpl === 0
-				? bpl
-				: sec.bars % bpl
-			: (lineColumn + sec.bars) % bpl;
+		columns === 0
+			? lineColumn
+			: lineColumn === 0
+				? columns % bpl === 0
+					? bpl
+					: columns % bpl
+				: (lineColumn + columns) % bpl;
 
 	return {
 		lineColumn,

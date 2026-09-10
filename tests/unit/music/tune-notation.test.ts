@@ -963,3 +963,110 @@ describe('tuneToAbcWithMap — merged rest source ownership', () => {
 		expect(restAnchors[0].sourceIndexEnd).toBeUndefined();
 	});
 });
+
+// ── Pickup (anacrusis) bars ───────────────────────────────────────────────
+// The timeline keeps a full bar; only the engraving is short. The pickup
+// hangs off the front of the form's first system, fills no column, its
+// barline re-stamps the printed bar count, and the boxed part label belongs
+// to the section it leads into.
+describe('tuneToAbc — pickup bars', () => {
+	const G_PICKUP: Note = { pitch: 55, duration: [1, 4], offset: [3, 4] };
+	/** Eight bars of whole-note C4, one per bar. */
+	const eightWholes = (): Note[] =>
+		Array.from({ length: 8 }, (_, b) => ({ pitch: 60, duration: [1, 1] as [number, number], offset: [b, 1] as [number, number] }));
+	/** An eight-bar A section of whole notes over one CΔ7. */
+	const A8 = () => section({ label: 'A', bars: 8, notes: eightWholes(), harmony: [seg('C', 'maj7', [0, 1], [8, 1])] });
+
+	const PICKUP_GOLDEN =
+		HDR +
+		'P:A\n[V:M]G,2 |[I:setbarnb 1] C8 | C8 | C8 | C8 |\n[V:H]x2 | "CΔ7"x8 | x8 | x8 | x8 |\n' +
+		'[V:M]C8 | C8 | C8 | C8 |]\n[V:H]x8 | x8 | x8 | x8 |\n';
+
+	it('engraves a one-beat pickup as a partial bar on the first system (golden)', () => {
+		const s = sheet({
+			sections: [section({ label: '', bars: 1, pickupLength: [1, 4], notes: [G_PICKUP] }), A8()]
+		});
+		expect(tuneToAbc(s, undefined, BPL4)).toBe(PICKUP_GOLDEN);
+	});
+
+	it('renders the legacy import shape (no field) and an explicit leading rest identically', () => {
+		const legacy = sheet({ sections: [section({ label: '', bars: 1, notes: [G_PICKUP] }), A8()] });
+		expect(tuneToAbc(legacy, undefined, BPL4)).toBe(PICKUP_GOLDEN);
+		// The editor writes the silent prefix back as a stored rest.
+		const edited = sheet({
+			sections: [
+				section({ label: '', bars: 1, pickupLength: [1, 4], notes: [{ pitch: null, duration: [3, 4], offset: [0, 1] }, G_PICKUP] }),
+				A8()
+			]
+		});
+		expect(tuneToAbc(edited, undefined, BPL4)).toBe(PICKUP_GOLDEN);
+	});
+
+	it('lets the next section\'s |: serve as the pickup\'s barline', () => {
+		const s = sheet({
+			sections: [section({ label: '', bars: 1, pickupLength: [1, 4], notes: [G_PICKUP] }), { ...A8(), repeatStart: true }]
+		});
+		const abc = tuneToAbc(s, undefined, BPL4);
+		expect(abc).toContain('[V:M]G,2 |:[I:setbarnb 1] C8 | C8 | C8 | C8 |\n');
+		expect(abc).not.toContain('| |:');
+	});
+
+	it('keeps a rest INSIDE the pickup while dropping the silent prefix', () => {
+		// Two-beat pickup, note only on beat 4: the beat-3 rest is printed.
+		const s = sheet({
+			sections: [section({ label: '', bars: 1, pickupLength: [1, 2], notes: [G_PICKUP] }), A8()]
+		});
+		const abc = tuneToAbc(s, undefined, BPL4);
+		expect(abc).toMatch(/\[V:M\]z2 ?G,2 \|\[I:setbarnb 1\] C8/);
+		expect(abc).toContain('[V:H]x4 | "CΔ7"x8');
+	});
+
+	it('breaks a labelled section with a partial first bar so the partial fills no column', () => {
+		// Amazing-Grace shape in 4/4: partial + 5 full bars → [p 1 2 3 4] [5].
+		const notes: Note[] = [G_PICKUP, ...Array.from({ length: 5 }, (_, b) => ({ pitch: 60, duration: [1, 1] as [number, number], offset: [b + 1, 1] as [number, number] }))];
+		const s = sheet({ sections: [section({ label: 'A', bars: 6, pickupLength: [1, 4], notes })] });
+		expect(tuneToAbc(s, undefined, BPL4)).toBe(
+			HDR +
+				'P:A\n[V:M]G,2 |[I:setbarnb 1] C8 | C8 | C8 | C8 |\n[V:H]x2 | x8 | x8 | x8 | x8 |\n' +
+				'[V:M]C8 |]\n[V:H]x8 |\n'
+		);
+	});
+
+	it('falls back to the full bar when the field contradicts the melody', () => {
+		const s = sheet({
+			sections: [
+				section({ label: '', bars: 1, pickupLength: [1, 4], notes: [{ pitch: 60, duration: [1, 4], offset: [1, 2] }, G_PICKUP] }),
+				A8()
+			]
+		});
+		const abc = tuneToAbc(s, undefined, BPL4);
+		expect(abc).toContain('[V:M]z4 C2G,2 ||');
+		expect(abc).not.toContain('setbarnb');
+	});
+
+	it('anchors the pickup bar and places a pickup chord on its real beat', () => {
+		const s = sheet({
+			sections: [
+				section({ label: '', bars: 1, pickupLength: [1, 4], notes: [G_PICKUP], harmony: [seg('G', '7', [3, 4], [1, 4])] }),
+				A8()
+			]
+		});
+		const { abc, barAnchors, chordSlotAnchors } = tuneToAbcWithMap(s, undefined, BPL4);
+		expect(abc).toContain('[V:H]"G7"x2 | "CΔ7"x8');
+		expect(barAnchors[0]).toMatchObject({ sectionIdx: 0, bar: 0 });
+		expect(abc.slice(barAnchors[0].startChar, barAnchors[0].endChar)).toBe('G,2 |');
+		expect(chordSlotAnchors[0]).toMatchObject({ sectionIdx: 0, bar: 0, beat: 3, chord: 'G7' });
+	});
+
+	it('prints a chord carried into the silent prefix at the start of the printed pickup', () => {
+		const s = sheet({
+			sections: [
+				section({ label: '', bars: 1, pickupLength: [1, 4], notes: [G_PICKUP], harmony: [seg('G', '7', [0, 1], [1, 1])] }),
+				A8()
+			]
+		});
+		const { abc, chordSlotAnchors } = tuneToAbcWithMap(s, undefined, BPL4);
+		expect(abc).toContain('[V:H]"G7"x2 | "CΔ7"x8');
+		expect(chordSlotAnchors[0]).toMatchObject({ sectionIdx: 0, bar: 0, beat: 3, chord: 'G7' });
+	});
+});

@@ -2,8 +2,9 @@ import type { Tune } from '$lib/types/tune';
 
 /**
  * "Amazing Grace" (New Britain) — traditional (public domain).
- * 3/4 ballad in concert F. Bar 1 carries the pickup; the final "see" is held
- * across the last two bars with a tie.
+ * 3/4 ballad in concert F. Bar 1 is the one-beat pickup ("A-"), engraved as
+ * a partial bar via `pickupLength`; the final "see" is held across the last
+ * two bars with a tie.
  */
 export const AMAZING_GRACE: Tune = {
 	id: 'ls-amazing-grace',
@@ -19,6 +20,7 @@ export const AMAZING_GRACE: Tune = {
 		{
 			label: 'A',
 			bars: 17,
+			pickupLength: [1, 4],
 			notes: [
 				// m1 (pickup): "A-"
 				{ pitch: 60, duration: [1, 4], offset: [1, 2] },

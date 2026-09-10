@@ -23,6 +23,7 @@ import { sequence } from '@sveltejs/kit/hooks';
 import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/public';
 import type { Database } from '$lib/supabase/types';
 import { isAuthVerificationUnavailable } from '$lib/supabase/auth-errors';
+import { createServerErrorHandler } from '$lib/server/error-handler';
 
 /**
  * Playwright test-only escape hatch.
@@ -357,4 +358,8 @@ const securityHeadersHandle: Handle = async ({ event, resolve }) => {
  * // export const handle: Handle = sequence(supabaseHandle, securityHeadersHandle, authGuardHandle);
  */
 export const handle: Handle = sequence(Sentry.sentryHandle(), sequence(supabaseHandle, securityHeadersHandle));
-export const handleError = Sentry.handleErrorWithSentry();
+// Sentry's wrapper skips capturing 4xx but still calls the handler for them,
+// and its fallback handler logs a full stack for each — see
+// lib/server/error-handler.ts for why that mattered (a 320 MB PM2 error log
+// of scanner 404s).
+export const handleError = Sentry.handleErrorWithSentry(createServerErrorHandler());

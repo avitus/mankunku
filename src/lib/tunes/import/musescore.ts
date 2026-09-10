@@ -188,6 +188,8 @@ interface MeasureInfo {
 	endRepeat: boolean;
 	/** True for a right-aligned anacrusis (used to label a lone pickup section). */
 	pickup: boolean;
+	/** The anacrusis's printed length (MuseScore's `len=`), when `pickup`. */
+	pickupLength?: Fraction;
 	/** Volta this measure belongs to (1st/2nd ending), if any. */
 	ending?: 1 | 2;
 }
@@ -359,6 +361,7 @@ export function parseMscx(xml: string, preferred?: PreferredInstrument): MuseSco
 			startRepeat: block.includes('<startRepeat') || struct.includes('<startRepeat'),
 			endRepeat: block.includes('<endRepeat') || struct.includes('<endRepeat'),
 			pickup: pad[0] > 0,
+			...(pad[0] > 0 && actualLen ? { pickupLength: actualLen } : {}),
 			ending: endingByMeasure[measureIdx]
 		};
 

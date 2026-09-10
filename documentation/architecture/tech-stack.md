@@ -94,7 +94,9 @@ The display serif **Fraunces** (variable font, weight 300–800, Latin subset, s
 - **`svelte.config.js`** — Enables runes mode for all non-node_modules files via `dynamicCompileOptions`. Uses `adapter-node` so the server can run authentication hooks and session middleware.
 - **`tsconfig.json`** — Extends SvelteKit's generated config. Strict mode enabled with bundler module resolution.
 - **`vite.config.ts`** — Registers Sentry, Tailwind, and SvelteKit plugins. Also carries the **Vitest** config (there is no `vitest.config.ts`): `tests/unit/**` + `tests/integration/**`, `node` environment, `vitest.setup.ts` for the IndexedDB polyfill.
+- **`src/instrumentation.server.ts`** — Server-side Sentry init. Production loads it once, via Node's `--import`; `npm run dev` loads it through `vite.ssrLoadModule` on every request, so any wipe of Vite's SSR module graph (a config/`.env` restart, an edit to the file or its import, any `tsconfig.json` add/change/unlink under the project root — worktrees under `.claude/worktrees/` included) evaluates it again in the same process. Sentry's `init` is not idempotent — each call stacks another `child_process` diagnostics-channel subscriber, another `uncaughtException`/`unhandledRejection`/`beforeExit` handler and, on macOS, a `sw_vers` spawn whose child carries every subscriber's `error` listener; that is where `MaxListenersExceededWarning: 11 error listeners added to [ChildProcess]` came from (2026-09-10) — so the call is guarded by `Sentry.isInitialized()`: one client per process, and an edit to the options in dev needs a dev-server restart. Pinned by `tests/unit/server/instrumentation-server.test.ts`.
 - **`playwright.config.ts`** — E2E: `tests/e2e`, three browser projects, and a `webServer` that builds and previews on port 4173 with `PLAYWRIGHT=1` set (which enables the `e2e-test-user` auth branch in `hooks.server.ts`).
+- **`src/hooks.server.ts`** — `handle` = Sentry's request handle → Supabase per-request client → security headers; `handleError` = `Sentry.handleErrorWithSentry(createServerErrorHandler())` (`src/lib/server/error-handler.ts`, unit-tested): silent on 4xx, one entry with the status, method + path (never the query string — the auth callback carries its exchange code there) and the stack for anything else. Sentry's wrapper skips capturing 4xx but still calls the handler for them, and its own fallback printed a full stack per route-less 404 — scanner probes filled PM2's error log to 320 MB by 2026-09-09. On the droplet `pm2-logrotate` (20 MB, 14 files, compressed) caps the logs regardless.
 
 ## Architecture Summary
 
@@ -142,7 +144,7 @@ wired into the CI `test` job). Four invariants it exists to protect, each learne
 from an incident:
 
 - **Dependencies are shared, not per-release.** `npm ci` installs 378 MB across
-  ~22k files and peaks near 500 MB — enough to be OOM-killed on a 961 MB droplet,
+  ~22k files and peaks near 500 MB — enough to be OOM-killed on the 961 MB droplet of the time (4 GB since 2026-09-08),
   which happened twice on 2026-08-07/08 while the lockfile was byte-identical
   across all three live releases. Deps now install once into `shared/deps` and are
   symlinked into each release, keyed on **both** the lockfile and the Node version.

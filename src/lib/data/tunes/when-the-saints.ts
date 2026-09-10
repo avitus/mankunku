@@ -2,7 +2,9 @@ import type { Tune } from '$lib/types/tune';
 
 /**
  * "When the Saints Go Marching In" — traditional (public domain).
- * 16-bar single-section form in concert C, lightly simplified.
+ * 16-bar single-section form in concert C, lightly simplified. Bar 1 is the
+ * three-beat pickup ("Oh when the"), engraved as a partial bar via
+ * `pickupLength`.
  */
 export const WHEN_THE_SAINTS: Tune = {
 	id: 'ls-when-the-saints',
@@ -18,6 +20,7 @@ export const WHEN_THE_SAINTS: Tune = {
 		{
 			label: 'A',
 			bars: 16,
+			pickupLength: [3, 4],
 			notes: [
 				// m1: (beat 1 rest) "Oh when the"
 				{ pitch: 60, duration: [1, 4], offset: [1, 4] },

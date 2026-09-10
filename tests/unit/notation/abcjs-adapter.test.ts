@@ -18,6 +18,7 @@ import {
 	chordSymbolDeltas,
 	chordHorizontalNudges,
 	partLabelDelta,
+	pickupPartLabelDx,
 	glissandoWave,
 	type AdapterVisualObj,
 	type AdapterVoiceItem,
@@ -617,5 +618,36 @@ describe('glissandoWave — wavy connector path between notehead boxes', () => {
 	it('scales stroke width with staff spacing, with a 1px floor', () => {
 		expect(glissandoWave(headA, headB, 10)!.strokeWidth).toBe('1.30');
 		expect(glissandoWave(headA, headB, 1)!.strokeWidth).toBe('1.00');
+	});
+});
+
+describe('formShape / bar stepping — partial pickup bars', () => {
+	it('stamps the first printed beat of a section whose first bar is a pickup', () => {
+		const tune = {
+			timeSignature: [4, 4] as [number, number],
+			sections: [
+				{ label: '', bars: 1, pickupLength: [1, 4] as [number, number], notes: [{ pitch: 55, duration: [1, 4] as [number, number], offset: [3, 4] as [number, number] }], harmony: [] },
+				{ label: 'A', bars: 8, notes: [], harmony: [] }
+			]
+		};
+		expect(formShape(tune)).toEqual({ sections: [{ bars: 1, firstBeat: 3 }, { bars: 8 }], beatsPerBar: 4 });
+	});
+
+	it('Tab-stepping into a partial bar lands on its first printed beat', () => {
+		const form = { sections: [{ bars: 1, firstBeat: 3 }, { bars: 2 }], beatsPerBar: 4 };
+		expect(prevBarStart({ sectionIdx: 1, bar: 0, beat: 2 }, form)).toEqual({ sectionIdx: 0, bar: 0, beat: 3 });
+		expect(nextBarStart({ sectionIdx: 0, bar: 0, beat: 3 }, form)).toEqual({ sectionIdx: 1, bar: 0, beat: 0 });
+	});
+});
+
+describe('pickupPartLabelDx — seat the boxed letter over the first FULL bar', () => {
+	it('moves a label parked over the pickup right to the first full bar (MuseScore convention)', () => {
+		const part = { x: 23.5, y: 10, width: 22, height: 22 };
+		// First full bar opens at x = 80: target left = 80 + 0.35 * spacing.
+		expect(pickupPartLabelDx(part, 80, 10)).toBeCloseTo(80 + 3.5 - 23.5, 6);
+	});
+
+	it('never moves a label left', () => {
+		expect(pickupPartLabelDx({ x: 120, y: 10, width: 22, height: 22 }, 80, 10)).toBe(0);
 	});
 });
