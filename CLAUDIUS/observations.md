@@ -1745,3 +1745,31 @@ what the wrapper's name promises. And the `-q` that wasn't there: I shipped
 a script I could not run and checked its syntax, which is not the same as
 checking its commands. When the harness moves execution to Andy, the
 verification standard should go up, not down.
+## 2026-09-10 — A probe that reads zero must first prove it is attached to the thing it measures
+
+Three runs of a carefully instrumented dev server returned zeros for every
+trigger, and I was a step from concluding that the module was never evaluated
+in dev at all. The instrumented server had fallen back to port 5200 because my
+previous server still held 5199, and the driver kept polling 5199. The log said
+so on its second line every time — "Port 5199 is in use, trying another one…" —
+and I read past it three times because I was reading for the lines I expected.
+What caught it was not a cleverer probe but the dullest possible check: print
+the server's own address and use that. A zero from a probe is two claims,
+"nothing happened" and "I was watching"; the second has to be established
+first, and the cheapest way is to make the probe emit something only the target
+could produce — the banner with the PID, the parsed port.
+
+Second: the live process was a better oracle than any reproduction. Thirteen
+hours of Andy's actual workflow had already run the experiment; `kill -USR1` and
+one `Runtime.evaluate` read the result — 48 subscribers, each one Sentry's
+closure — before I had a single valid measurement of my own. Reproduction then
+answered a different question (WHICH events), and the live process closed the
+loop (touch a worktree tsconfig, one request, 55). When a long-lived process is
+right there, ask it first.
+
+Third, the cause was the workflow's own geometry. Worktrees nested inside the
+checkout put every parallel session's files under the parent dev server's
+watcher, so the warning was, in a sense, a count of how many sessions the team
+had started that day. Tooling that nests copies of a project inside the project
+should expect the project's own watchers to see them — and the project's own
+guards (an idempotent init) are the part we control.
