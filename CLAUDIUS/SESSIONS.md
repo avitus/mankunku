@@ -3128,3 +3128,52 @@ opened in Chrome.
   (a synthetic single-measure unit-conversion test caught that). Donna Lee
   copied into tests/fixtures/leadsheets/omr/ and pinned end to end:
   `pickupLength [1,2]` on the opening section, `[I:setbarnb 1]` in the ABC.
+
+## 2026-09-10 — Vite's watcher stops at the nested worktrees (main dev server)
+
+Follow-up to the same-day Sentry re-init session (branch
+`claude/maxlisteners-warning-e43d24`, whose guard fix is separate): the main
+checkout's `vite dev` watches the whole project root, Claude Code worktrees
+are full checkouts at `.claude/worktrees/<name>/`, and Vite's only ignores
+are `.git`, `node_modules` and SvelteKit's outDir — so every worktree
+creation, removal or checkout that touched a `tsconfig.json` fired
+`reloadOnTsconfigChange` in Andy's dev server: module graph invalidated on
+every environment, browser tab force-reloaded.
+
+- **Change (one file, `vite.config.ts`):** `server.watch.ignored` =
+  `fileURLToPath(new URL('.claude/worktrees/**', import.meta.url))`.
+  Anchored at the config file, NOT `**/.claude/worktrees/**` — see below.
+- **Merge, not replace:** read Vite 8's `runConfigHook` →
+  `mergeConfig(conf, res)` with user config as defaults and each plugin's
+  `config` result as overrides; `mergeConfigRecursively` concatenates arrays.
+  `resolveConfig(...).server.watch.ignored` from the worktree lists both
+  `<root>/.claude/worktrees/**` and SvelteKit's `<root>/.svelte-kit/!(generated)`.
+- **Verified through the real server, from this worktree** (the main
+  checkout's working tree was not edited — it is Andy's, and it has the old
+  config until merge): a Node harness starts `npm run dev` at the worktree
+  root with a fake nested checkout at `<root>/.claude/worktrees/probe/`,
+  then touches the nested `tsconfig.json` and the root one. Before: both
+  touches log "changed tsconfig file detected". After: only the root one.
+  Side effect worth owning: the root-tsconfig touches (three runs) each
+  full-reloaded the main dev tab on :5173 — the bug itself, one last time.
+- **Why anchored — measured, not reasoned:** Vite bundles chokidar 3 into
+  its dist (`require_chokidar()` inlined); the hoisted `node_modules/chokidar`
+  is 4.0.3 and belongs to svelte-check/typescript, and a first demo through
+  it "showed" the unanchored glob was harmless — wrong code. Through the real
+  `vite dev --config` with `**/.claude/worktrees/**`, run from this worktree
+  (whose root is itself under `.claude/worktrees/`), NEITHER touch
+  registered — not even the root `tsconfig.json`: chokidar 3 checks the
+  watch root against `ignored` too, so the server watched nothing. A dev
+  server started inside any worktree would have had dead HMR with no error.
+- Verified: `npm run check` 2751 files, 0 errors / 0 warnings (after copying
+  the gitignored `.env` into the worktree, as on 09-07/09-08); `npm run
+  build` clean; `npm test` 281 files, 4539 passed / 36 expected fail in
+  13.7 s — the 09-08 baseline exactly.
+- Not touched: the main checkout, `.claude/worktrees/` git-visibility, the
+  Sentry guard (other branch).
+- Committed as de02acd on request. Andy: "remember to always push directly
+  to dev" (I had offered a push of the `claude/*` worktree branch — wrong
+  target even as a suggestion). `origin/dev` was eleven commits ahead (the
+  pickup-bar and Sentry sessions, plus their commit-directly-to-dev rule):
+  rebased the single commit onto it, kept both sides in order on the
+  SESSIONS.md / MEMORY.md append conflicts, pushed `HEAD:dev`.

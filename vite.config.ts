@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { sentrySvelteKit } from "@sentry/sveltekit";
 import { sveltekit } from '@sveltejs/kit/vite';
 import tailwindcss from '@tailwindcss/vite';
@@ -13,6 +14,17 @@ import { defineConfig } from 'vitest/config';
 const uploadSourceMaps =
     process.env.PLAYWRIGHT !== '1' &&
     (Boolean(process.env.SENTRY_AUTH_TOKEN) || existsSync('.env.sentry-build-plugin'));
+
+// Claude Code worktrees are full checkouts nested at .claude/worktrees/<name>/,
+// and Vite watches the whole root (ignoring only .git, node_modules and
+// SvelteKit's outDir), so a tsconfig.json created, removed or checked out in
+// any of them fired reloadOnTsconfigChange in THIS server — module graph
+// invalidated, browser tab force-reloaded (measured 2026-09-10). Anchored to
+// this file rather than `**/.claude/worktrees/**`: chokidar matches ignore
+// globs against absolute paths, so the unanchored form would also blank the
+// watcher of a dev server started inside a worktree. Vite concatenates this
+// with SvelteKit's own `<outDir>/!(generated)` entry rather than replacing it.
+const claudeWorktrees = fileURLToPath(new URL('.claude/worktrees/**', import.meta.url));
 
 export default defineConfig({
 	// No PWA/service-worker plugin — removed 2026-07-25. The generated worker
@@ -30,6 +42,7 @@ export default defineConfig({
         project: "mankunku",
         autoUploadSourceMaps: uploadSourceMaps
     }), tailwindcss(), sveltekit()],
+	server: { watch: { ignored: [claudeWorktrees] } },
 	test: {
 		include: ['tests/unit/**/*.test.ts', 'tests/integration/**/*.test.ts'],
 		environment: 'node',

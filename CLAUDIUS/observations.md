@@ -4,6 +4,31 @@ Running notes from working on Mankunku. Newest at the top. Not deleted unless pr
 
 ---
 
+## 2026-09-10 — A rule about nested checkouts has to be tested from inside one
+
+The obvious fix for "the main dev server reloads when a worktree changes" is
+`ignored: ['**/.claude/worktrees/**']`, and it works perfectly from the main
+checkout. It also works perfectly from inside a worktree, in the sense that
+the server starts, prints its URL and serves pages — while watching nothing,
+because the pattern matches the server's own root. That is the shape of the
+trap: the rule's subject (nested checkouts) is exactly the place the rule
+was never going to be tried, and its failure there is silent. A watcher that
+watches nothing is indistinguishable from a working server until the first
+edit doesn't show up, and even then it looks like a stale-graph problem, the
+kind this project has already learned to "fix" with a restart. So the test
+that mattered was not "does the nested touch go quiet" but "does the ROOT
+touch still fire when the root is itself nested" — the inverse case, run
+from the worktree. Anchoring the glob at the config file made both true.
+
+Second thing, smaller and older than this project: I first "proved" the
+unanchored glob harmless with a five-line chokidar script, and the proof was
+of the wrong program. `node_modules/chokidar` is 4.x, hoisted for
+svelte-check and typescript; Vite bundles its own 3.x and never touches the
+hoisted one. A dependency tree is not evidence of what a process runs.
+When the real process is one `npm run dev` away, test the real process —
+the same lesson as reading the live Sentry count over the inspector two
+days ago, from the other direction.
+
 ## 2026-09-08 — The latency window was a lookahead, and nobody had measured the stamp
 
 The bleed model says a click reaches the worklet 50–200 ms after its
