@@ -2980,6 +2980,64 @@ opened in Chrome.
   root disk 73 GB → 16 GB used (96% → 21%, 61 GB free), 14 images / 4.7 GB
   left, both Veetbot containers still up. The lasting retention rule is with
   the Veetbot agent.
+## 2026-09-10 — MaxListenersExceededWarning in the dev server: Sentry re-initialised on every module-graph wipe
+
+- Andy: `(node:81718) MaxListenersExceededWarning: Possible EventEmitter memory
+  leak detected. 11 error listeners added to [ChildProcess]` in the dev
+  environment. PID 81718 was the main checkout's `vite dev`, 13 h old, started
+  by the desktop app. Glen had nothing on it.
+- Mechanism, reproduced standalone: N `Sentry.init` calls in one Node process,
+  then any spawn — the child carries N `error` listeners, and the 11th init trips
+  the warning by itself because Sentry's `nodeContextIntegration` execFiles
+  `/usr/bin/sw_vers` at setup on macOS. Three sibling warnings on `process`
+  (beforeExit ×11 from `startClientReportTracking`, uncaughtException and
+  unhandledRejection ×11 from the integrations). The listeners are
+  `childProcessIntegration`'s `diagnostics_channel('child_process')`
+  subscribers — one per init, never removed.
+- Where the re-inits come from: SvelteKit's dev middleware awaits
+  `vite.ssrLoadModule(src/instrumentation.server)` on EVERY request
+  (kit/src/exports/vite/dev/index.js ~503), so the module re-evaluates after any
+  SSR module-graph invalidation. Measured with a `--require` preload wrapping
+  `ActiveChannel.prototype.subscribe` (wrapping the channel instance's own
+  `subscribe` recurses — `Channel.prototype.subscribe` re-dispatches through
+  `this.subscribe` after `markActive`): hooks.server.ts edit → no;
+  `$lib/util/sentry-filters` (importee) → +1; the file itself → +1;
+  vite.config.ts / .env / svelte.config.js restart → +1 each; tsconfig.json
+  add/change/unlink → +1 (Vite 8 `reloadOnTsconfigChange` → `invalidateAll()`
+  on every environment, hooked on both `onFileChange` and `onFileAddUnlink`);
+  .svelte-kit/tsconfig.json, `svelte-kit sync`, app.html, package.json,
+  +layout.server.ts, dependency discovery on a cold cache → no.
+- Ground truth from the live process (`kill -USR1` + CDP `Runtime.evaluate`):
+  48 subscribers = 48 uncaughtException handlers = 97 beforeExit, every one a
+  Sentry closure; 54 twenty minutes later; touching MY worktree's tsconfig.json
+  plus one GET on :5173 → 55. The main checkout's watcher covers
+  `.claude/worktrees/**` — Vite ignores only `**/.git/**`, `**/node_modules/**`
+  and SvelteKit's `<outDir>/!(generated)` — so every parallel session's worktree
+  creation or checkout is a tsconfig event for the main dev server.
+- Fix: `if (!Sentry.isInitialized()) Sentry.init(...)` in
+  `src/instrumentation.server.ts`, pinned by
+  `tests/unit/server/instrumentation-server.test.ts` (mocked
+  `@sentry/sveltekit`, `vi.resetModules()` between two imports; failed 2 ≠ 1
+  before the guard). Verified in the dev server: the count holds at 1 through
+  every trigger above.
+- Three invalid measurement runs before the valid one: my first instrumented
+  server was left running on :5199, the later ones fell back to :5200 ("Port
+  5199 is in use, trying another one…" sat on line 2 of every log) and the
+  driver kept polling :5199 — zeros everywhere. Also: a stdout fd opened 'w' and
+  a stderr fd opened 'a' on the same log file clobber each other; use one fd.
+  And the sandboxed background shell has no curl/sleep/cat on PATH — node has
+  fetch and timers, use those.
+- Verified: svelte-check 0/0 (2752 files); vitest full 282 files, 4541 passed /
+  36 expected-fail (the two new tests are the +2). Side finding, not
+  changed: the main dev server watching the nested worktrees also means a
+  spurious "changed tsconfig file detected — forcing full-reload" in Andy's dev
+  tab whenever any session creates a worktree; `server.watch.ignored:
+  ['**/.claude/worktrees/**']` would stop it. Flagged as a follow-up.
+- Andy: "Remember to commit directly to dev in future. Merge it in to dev now."
+  Recorded as a rule (home memory + MEMORY.md): finish = the commit is on
+  origin/dev; the desktop app's `claude/*` worktree branch is plumbing. Merged
+  the right way round in a detached HEAD (dev had moved five commits — the
+  droplet move, the scanner-404 log fix — while this ran), pushed `HEAD:dev`.
 
 ## 2026-09-10 — Pickup bars: the flag that never left the importer
 
