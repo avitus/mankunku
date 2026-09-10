@@ -29,11 +29,13 @@ import { compareFractions, fractionToFloat, gcd, subtractFractions } from './int
 
 const EPS = 1e-9;
 
+/** One bar of the meter as a reduced whole-note fraction. */
 function barLengthOf(timeSignature: [number, number]): Fraction {
 	const g = gcd(timeSignature[0], timeSignature[1]);
 	return [timeSignature[0] / g, timeSignature[1] / g];
 }
 
+/** A well-formed fraction strictly greater than zero — a foreign field arrives untyped. */
 function isPositiveFraction(f: unknown): f is Fraction {
 	return (
 		Array.isArray(f) &&
@@ -76,6 +78,10 @@ export function pickupLengthFromMelody(
 	return length[0] > 0 ? length : null;
 }
 
+/**
+ * An explicit field counts only when it is strictly inside one bar and no
+ * pitched note of bar 0 starts inside the silent prefix it implies.
+ */
 function explicitIsValid(sec: TuneSection, barLength: Fraction): boolean {
 	const L = sec.pickupLength;
 	if (!isPositiveFraction(L)) return false;

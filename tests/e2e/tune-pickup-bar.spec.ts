@@ -61,7 +61,7 @@ test('the editor adds a pickup that fills no column and seats the letter over th
 	await page.goto('/tunes/editor');
 	await expect(page.locator('[data-bar-pos="0:0"]')).toBeVisible();
 
-	// Hit rects are inserted at the front of the wrapper, so read them left → right by x.
+	/** The first system's bar positions, left → right — hit rects are inserted at the FRONT of the wrapper, so DOM order runs backwards. */
 	const firstSystemBars = () =>
 		page.evaluate(() => {
 			const wrapper = document.querySelector('.abcjs-container svg g.abcjs-staff-wrapper');

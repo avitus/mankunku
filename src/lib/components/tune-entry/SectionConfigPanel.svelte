@@ -18,6 +18,7 @@
 	// section an import or a relabel left it in — is resized or cleared where
 	// it lives (see setTunePickup). Only the own-section shape pins its bar
 	// count at one.
+	/** Two lengths are the same pickup when their whole-note values agree — an import may store an unreduced fraction. */
 	const sameLength = (a: Fraction, b: Fraction) => Math.abs(fractionToFloat(a) - fractionToFloat(b)) < 1e-9;
 	const pickupCurrent = $derived(tunePickupLength());
 	const pickupOptions = $derived.by(() => {
@@ -35,6 +36,7 @@
 	);
 	const pickupIsOwnSection = $derived(hasPickupSection());
 
+	/** "none" clears the pickup; any other option value is its `n/d` length in whole notes. */
 	function handlePickupChange(event: Event): void {
 		const value = (event.currentTarget as HTMLSelectElement).value;
 		if (value === '') return setTunePickup(null);

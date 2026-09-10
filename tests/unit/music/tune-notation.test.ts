@@ -971,8 +971,10 @@ describe('tuneToAbcWithMap — merged rest source ownership', () => {
 // to the section it leads into.
 describe('tuneToAbc — pickup bars', () => {
 	const G_PICKUP: Note = { pitch: 55, duration: [1, 4], offset: [3, 4] };
+	/** Eight bars of whole-note C4, one per bar. */
 	const eightWholes = (): Note[] =>
 		Array.from({ length: 8 }, (_, b) => ({ pitch: 60, duration: [1, 1] as [number, number], offset: [b, 1] as [number, number] }));
+	/** An eight-bar A section of whole notes over one CΔ7. */
 	const A8 = () => section({ label: 'A', bars: 8, notes: eightWholes(), harmony: [seg('C', 'maj7', [0, 1], [8, 1])] });
 
 	const PICKUP_GOLDEN =

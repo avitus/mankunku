@@ -582,10 +582,12 @@ describe('pickup bar', () => {
 		expect(tunePickupLength()).toBeNull();
 	});
 
+	/**
+	 * An import whose rehearsal mark sits ON the anacrusis bar: the section
+	 * builder keeps the pickup inside the labelled section (as the curated
+	 * Amazing Grace / Saints charts are entered) — not a lone '' section.
+	 */
 	function embeddedPickupSheet(): Tune {
-		// An import whose rehearsal mark sits ON the anacrusis bar: the section
-		// builder keeps the pickup inside the labelled section (as the curated
-		// Amazing Grace / Saints charts are entered) — not a lone '' section.
 		return {
 			id: 'sheet-embedded',
 			title: 'Embedded',

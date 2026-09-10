@@ -3235,3 +3235,8 @@ cache until a boundary hitch is actually observed.
     the wrong trade.
 - Verified: svelte-check 2757 files 0/0; vitest 284 files, 4610 passed /
   36 expected-fail; `tune-pickup-bar.spec.ts` ×2 on chromium.
+- Incremental review on the fix commit: no new threads. The walkthrough's
+  pre-merge check flagged docstring coverage 73.9% < 80% on the touched
+  functions (as on #247): documented the fifteen undocumented helpers a
+  hunk-scoped scan found — inner arrows included — rather than guess which
+  twelve CodeRabbit counts.

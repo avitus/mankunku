@@ -16,6 +16,7 @@ import { describe, it, expect, vi } from 'vitest';
 import type { RequestEvent } from '@sveltejs/kit';
 import { createServerErrorHandler } from '../../../src/lib/server/error-handler';
 
+/** The slice of a RequestEvent the handler reads: method, URL and route id. */
 function makeEvent(method: string, path: string, routeId: string | null = null): RequestEvent {
 	return {
 		request: { method } as Request,

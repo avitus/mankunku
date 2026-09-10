@@ -14,6 +14,7 @@ import {
 const FOUR_FOUR: [number, number] = [4, 4];
 const THREE_FOUR: [number, number] = [3, 4];
 
+/** A section with the import defaults — blank label, one bar, no content — plus overrides. */
 function sec(overrides: Partial<TuneSection>): TuneSection {
 	return { label: '', bars: 1, notes: [], harmony: [], ...overrides };
 }

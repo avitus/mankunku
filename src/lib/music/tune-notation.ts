@@ -477,8 +477,10 @@ export function tuneToAbcWithMap(
 	sheet.sections.forEach((_, i) => {
 		if (sectionPickup[i]) pickupPrefixByAbsBar.set(sectionBases[i], sectionPrefix[i]);
 	});
-	// The lone pickup section every importer writes: hangs off the front of
-	// the form's first system, fills no column, carries no label of its own.
+	/**
+	 * The lone pickup section every importer writes: hangs off the front of
+	 * the form's first system, fills no column, carries no label of its own.
+	 */
 	const isPickupOnly = (i: number): boolean =>
 		sectionPickup[i] !== null && sheet.sections[i].bars === 1 && sheet.sections[i].label.trim() === '';
 

@@ -22,6 +22,7 @@ import type { HandleServerError } from '@sveltejs/kit';
 
 export type ErrorLogger = (...args: unknown[]) => void;
 
+/** The `handleError` for hooks.server.ts; `log` defaults to console.error and is injected for tests. */
 export function createServerErrorHandler(log: ErrorLogger = console.error): HandleServerError {
 	return ({ error, event, status }) => {
 		if (status >= 400 && status < 500) return;

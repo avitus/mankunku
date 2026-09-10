@@ -277,8 +277,10 @@ export function omrSystemResponses(
 	// a short LATER measure is a misread to review, unless it is the final
 	// bar complementing a pickup.
 	const beatsPerBar = declaredMeter[0];
+	/** A measure's content in declared beats: the end of its last event, rests included. */
 	const contentBeats = (m: OmrMeasure): number =>
 		(m.notes ?? []).reduce((end, n) => Math.max(end, toBeat(n.onset) + toBeat(n.duration)), 0);
+	/** Strictly between empty and a full bar. */
 	const isShort = (beats: number): boolean => beats > 1e-9 && beats < beatsPerBar - 1e-9;
 	const firstBeats = total > 0 ? contentBeats(omr.measures[0]) : 0;
 	const firstIsShort = isShort(firstBeats);
