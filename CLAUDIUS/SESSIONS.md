@@ -2980,3 +2980,75 @@ opened in Chrome.
   root disk 73 GB → 16 GB used (96% → 21%, 61 GB free), 14 images / 4.7 GB
   left, both Veetbot containers still up. The lasting retention rule is with
   the Veetbot agent.
+
+## 2026-09-10 — Pickup bars: the flag that never left the importer
+
+- Andy: TWNBAY's one-note pickup renders as a full bar taking the whole first
+  line; make it a partial pickup bar on line 1, keep 4 bars per line, plan a
+  generalizable solution. Explored with three agents (notation/layout,
+  importers/editor, playback/practice); read the row out of the local
+  Supabase DB (`imported-musescore`, `['',1] A8 B8 A8 C8`, the pickup bar
+  holding an explicit 3/4 rest + one quarter at 3/4). Three causes:
+  `section-builder` computes `pickup` and drops it (no field on
+  `TuneSection`), the renderer gap-fills from 0 (leading rest), and
+  `placeEndingSection` gives every non-volta section its own system;
+  `%%stretchlast 0` then justifies the lone bar across the staff. Printed
+  bar numbers were off by one too (abcjs counts the anacrusis as bar 1).
+- The decision that shaped everything: the timeline keeps a FULL bar. The
+  playback survey found every consumer past `flattenTune` is either
+  offset-driven (indifferent) or bar-grid-driven (`buildBarInfos`,
+  `bars × barTicks`, `offset ÷ barWholeNotes`, integer `sectionMap.barOffset`,
+  the seeded drum/bass RNG keyed by bar, the 1-bar count-in, the golden
+  backing fixtures) — a short first bar in the timeline would shift every
+  later downbeat three beats and re-index the band. Licks already do it
+  this way (`pickupBars` moves the progression, never a note). So the field
+  is notation-only: `TuneSection.pickupLength`, per section (curated Amazing
+  Grace / Saints carry theirs inside the labelled A section; imports carry a
+  lone '' section), and `music/pickup.ts` resolves it with a legacy
+  inference for pre-field rows so Andy's tune fixed itself with no re-import.
+- Design choices Andy made: the boxed letter sits over the first FULL bar
+  (MuseScore / Real Book — abcjs only draws `P:` at a line start, so the
+  ABC hands the pickup line the NEXT section's label and NotationDisplay
+  nudges it past the pickup, composing with the clef-seating translate); the
+  editor gets a Pickup select now (creates/resizes/removes a lone pickup
+  section with its lead-in stored as a rest so step entry lands the first
+  note on the pickup's beat and the user's sections keep their bar counts).
+- Course corrections during the build: the beat unit must come from the
+  METER, not a reduced bar fraction (4/4 → `[1,1]` made a whole-note beat);
+  the resolver takes the whole sheet because a lone blank section is a
+  lick's lead-sheet window (`leadSheetTuneFor`) and must never infer — the
+  section builder only ever splits an anacrusis off when a form follows;
+  the existing `[0, 1]` offset literal widened to `number[]` inside a
+  spread (svelte-check, not vitest, caught it).
+- abcjs facts: inline `[P:]` → `partForNextLine` (never mid-line);
+  `[I:setbarnb 1]` right after the pickup's barline restamps correctly
+  (`setBarNumberImmediate` at a bar boundary), whereas `%%setbarnb 0` in the
+  header would print "0" on line 1 (`currBarNumber !== 1` guard); a partial
+  first measure needs no `M:` change, but voice H's spacer run must be
+  shortened to the same length or the two voices misalign.
+- TDD throughout: 45 new/extended tests (resolver, validator, section
+  builder, both importers, layout policy, ABC goldens incl. the deferred
+  `|:` barline, in-pickup rest, explicit-rest byte-identity, contradiction
+  fallback, chord-slot beats; geometry; adapter; editor state; curated pins),
+  MuseScore fixtures re-recorded (TWNBAY + ATTYA gained the field, nothing
+  else changed), 4591 passing, svelte-check clean. Visual on a worktree dev
+  server (port 5174, Andy's row seeded into the anonymous localStorage
+  bucket): 5 barlines on line 1, label at 162 px beside the pickup barline
+  at 159, "5"/"9" on lines 2/3, no console errors; Amazing Grace and Saints
+  show their partial first bars. E2E `tune-pickup-bar.spec.ts` (legacy row
+  on the detail page: two systems, five barlines, "5"; editor: select
+  1/4 → zones `0:0,1:0..1:3`, label left ≥ first full bar's left).
+- Out of scope, said so in the docs/plan: OMR anacrusis (`pickup: false`
+  hard-coded, note left-aligned at beat 0 — needs the measure's real
+  duration), the complementary shortened final bar, mid-piece irregular
+  measures. Docs on all four surfaces: tune-system.md, tunes.md, README
+  update line, CLAUDE.md.
+- E2E corrections: the editor's bar hit rects are inserted at the FRONT of
+  the staff wrapper, so DOM order runs right → left (sort by x); an empty
+  editor sheet gets SIX bars per line from the density auto-pick, so the
+  spec asserts "the pickup adds a bar without displacing any full bar on
+  the line" rather than a hard 4; the Pickup select lives in the collapsed
+  Setup card (`getByRole('button', { name: /Setup Key/ })` opens it). Both
+  cases green. A Playwright run rebuilds into `.svelte-kit/`, which reloads
+  a dev server running from the same worktree — probe the page after the
+  run, not during.

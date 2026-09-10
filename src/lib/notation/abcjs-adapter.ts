@@ -1,4 +1,5 @@
 import {
+	firstBeatOf,
 	nextBeatPos,
 	prevBeatPos,
 	type BeatPosition,
@@ -8,6 +9,8 @@ import {
 } from '$lib/notation/chart-geometry';
 import type { NoteAnchor } from '$lib/music/notation';
 import type { BarAnchor, ChordSlotAnchor } from '$lib/music/tune-notation';
+import type { TuneSection } from '$lib/types/tune';
+import { pickupFirstBeat, resolvePickupLength } from '$lib/music/pickup';
 
 /**
  * Adapts abcjs-shaped render output onto chart-geometry's pure input shapes,
@@ -169,11 +172,27 @@ export function overlayBoxPct(
 
 /** Derive the beat-advance form shape from a tune's sections + meter. */
 export function formShape(tune: {
-	sections: { bars: number }[];
+	sections: Array<{ bars: number } & Partial<Pick<TuneSection, 'label' | 'notes' | 'pickupLength'>>>;
 	timeSignature: [number, number];
 }): FormShape {
+	// A section whose first bar is a partial pickup starts at a later beat;
+	// resolve it exactly as the renderer does (explicit field, else legacy).
+	const sheet = {
+		timeSignature: tune.timeSignature,
+		sections: tune.sections.map((s) => ({
+			label: s.label ?? 'A',
+			bars: s.bars,
+			notes: s.notes ?? [],
+			harmony: [],
+			...(s.pickupLength ? { pickupLength: s.pickupLength } : {})
+		}))
+	};
 	return {
-		sections: tune.sections.map((s) => ({ bars: s.bars })),
+		sections: tune.sections.map((s, i) => {
+			const L = resolvePickupLength(sheet, i);
+			const firstBeat = L ? Math.floor(pickupFirstBeat(L, tune.timeSignature)) : 0;
+			return { bars: s.bars, ...(firstBeat > 0 ? { firstBeat } : {}) };
+		}),
 		beatsPerBar: tune.timeSignature[0]
 	};
 }
@@ -182,16 +201,19 @@ export function formShape(tune: {
 export function nextBarStart(pos: BeatPosition, form: FormShape): BeatPosition | null {
 	const { sectionIdx, bar } = pos;
 	if (bar + 1 < form.sections[sectionIdx].bars) return { sectionIdx, bar: bar + 1, beat: 0 };
-	if (sectionIdx + 1 < form.sections.length) return { sectionIdx: sectionIdx + 1, bar: 0, beat: 0 };
+	if (sectionIdx + 1 < form.sections.length) {
+		return { sectionIdx: sectionIdx + 1, bar: 0, beat: firstBeatOf(form, sectionIdx + 1, 0) };
+	}
 	return null;
 }
 
 /** Beat 0 of the previous bar across the form, or null before the first bar. */
 export function prevBarStart(pos: BeatPosition, form: FormShape): BeatPosition | null {
 	const { sectionIdx, bar } = pos;
-	if (bar - 1 >= 0) return { sectionIdx, bar: bar - 1, beat: 0 };
+	if (bar - 1 >= 0) return { sectionIdx, bar: bar - 1, beat: firstBeatOf(form, sectionIdx, bar - 1) };
 	if (sectionIdx - 1 >= 0) {
-		return { sectionIdx: sectionIdx - 1, bar: form.sections[sectionIdx - 1].bars - 1, beat: 0 };
+		const lastBar = form.sections[sectionIdx - 1].bars - 1;
+		return { sectionIdx: sectionIdx - 1, bar: lastBar, beat: firstBeatOf(form, sectionIdx - 1, lastBar) };
 	}
 	return null;
 }
@@ -402,6 +424,24 @@ export function partLabelDelta(
 	// with a positive overshoot — Math.max(0, dy) keeps high marks from going
 	// lower than allowed only when dy is already the correct drop).
 	return { dx, dy: Math.max(0, dy) };
+}
+
+/**
+ * Horizontal shift seating a boxed part letter over the first FULL bar of a
+ * system that opens with a partial pickup bar. abcjs can only draw a part
+ * label at the line start, so the ABC hands the pickup line the label of the
+ * section it leads into and NotationDisplay moves it past the pickup, the way
+ * MuseScore and the Real Book print it. Never moves a label left.
+ *
+ * @param partBox — the label's CURRENT box (prior translate applied)
+ * @param firstFullBarX0 — left edge of the first full bar's zone (its opening barline)
+ * @param spacing — one staff-space in user units
+ */
+export function pickupPartLabelDx(partBox: Box, firstFullBarX0: number, spacing: number): number {
+	if (!Number.isFinite(spacing) || spacing <= 0 || !Number.isFinite(firstFullBarX0)) return 0;
+	const targetLeft = firstFullBarX0 + PART_CLEF_INSET_SPACINGS * spacing;
+	const dx = targetLeft - partBox.x;
+	return dx > 0 ? dx : 0;
 }
 
 /**

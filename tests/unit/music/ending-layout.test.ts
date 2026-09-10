@@ -266,3 +266,43 @@ describe('placeEndingSection / advanceEndingLayout state machine', () => {
 		expect(p.alignToColumn).toBe(2);
 	});
 });
+
+describe('placeEndingSection / advanceEndingLayout — pickup bars', () => {
+	it('a pickup-only section opens the first system but fills no column', () => {
+		let state = initialEndingLayoutState();
+		const pickup = { bars: 1, pickupBar: true };
+		const p = placeEndingSection(pickup, null, state, 4);
+		expect(p.startsNewLine).toBe(true);
+		state = advanceEndingLayout(pickup, p, state, 4);
+		// The old `bars % bpl === 0 → bpl` branch must not fire for zero columns.
+		expect(state.prevEndColumn).toBe(0);
+		expect(state.lineColumn).toBe(0);
+	});
+
+	it('the section after a pickup-only section continues its line from column 0', () => {
+		let state = initialEndingLayoutState();
+		const pickup = { bars: 1, pickupBar: true };
+		state = advanceEndingLayout(pickup, placeEndingSection(pickup, null, state, 4), state, 4);
+		const a = { bars: 8 };
+		const p = placeEndingSection(a, pickup, state, 4);
+		expect(p).toEqual({ startsNewLine: false, startColumn: 0, alignUnderFirstEnding: false });
+		state = advanceEndingLayout(a, p, state, 4);
+		expect(state.prevEndColumn).toBe(4);
+	});
+
+	it('an ordinary section after an ordinary section still opens a new system', () => {
+		let state = initialEndingLayoutState();
+		const a = { bars: 8 };
+		state = advanceEndingLayout(a, placeEndingSection(a, null, state, 4), state, 4);
+		expect(placeEndingSection({ bars: 8 }, a, state, 4).startsNewLine).toBe(true);
+	});
+
+	it('a labelled section whose first bar is the pickup counts one column fewer', () => {
+		const state = initialEndingLayoutState();
+		const a = { bars: 17, pickupBar: true }; // Amazing Grace: partial + 16 full
+		const p = placeEndingSection(a, null, state, 4);
+		expect(advanceEndingLayout(a, p, state, 4).prevEndColumn).toBe(4);
+		const b = { bars: 6, pickupBar: true }; // partial + 5 full → last line holds 1
+		expect(advanceEndingLayout(b, placeEndingSection(b, null, state, 4), state, 4).prevEndColumn).toBe(1);
+	});
+});

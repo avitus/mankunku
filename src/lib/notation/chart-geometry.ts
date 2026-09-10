@@ -69,8 +69,20 @@ export interface BeatPosition {
 
 /** The bar/beat shape of a whole song form, for beat-advance wrapping. */
 export interface FormShape {
-	sections: { bars: number }[];
+	sections: {
+		bars: number;
+		/**
+		 * First printed beat of the section's bar 0 when it is a partial
+		 * pickup bar (a one-beat pickup in 4/4 → 3). Absent = full bar.
+		 */
+		firstBeat?: number;
+	}[];
 	beatsPerBar: number;
+}
+
+/** First printed beat of a bar: a section's partial pickup bar starts late. */
+export function firstBeatOf(form: FormShape, sectionIdx: number, bar: number): number {
+	return bar === 0 ? (form.sections[sectionIdx]?.firstBeat ?? 0) : 0;
 }
 
 /** Inputs for {@link chordZones}: layout + anchors + the meter it renders in. */
@@ -82,6 +94,12 @@ export interface ChordZoneInputs {
 	beatsPerBar: number;
 	/** Whole-note duration of one bar, i.e. `timeSig[0] / timeSig[1]`. */
 	barDurationWholeNotes: number;
+	/**
+	 * Partial pickup bars, keyed `${sectionIdx}:${bar}` → first printed beat.
+	 * Cells are emitted only from that beat; beat numbers stay those of the
+	 * full bar so a chord written from a cell lands on its real offset.
+	 */
+	partialBars?: ReadonlyMap<string, number>;
 }
 
 /**
@@ -181,19 +199,26 @@ function interpolate(points: { beat: number; x: number }[], q: number): number {
  * so an edge that coincides with a sample lands exactly on it. No interior
  * samples ⇒ even division.
  */
-export function beatEdges(zone: BarZone, samples: BeatSample[], beatsPerBar: number): number[] {
+export function beatEdges(
+	zone: BarZone,
+	samples: BeatSample[],
+	beatsPerBar: number,
+	firstBeat = 0
+): number[] {
 	const { x0, x1 } = zone;
 	// Merge interior samples by (rounded) beat, averaging any collisions, and
-	// clamp their x into the bar span so control points can't escape it.
+	// clamp their x into the bar span so control points can't escape it. A
+	// partial pickup bar's printed span starts at `firstBeat`: edges before
+	// it all sit at x0 (no cell is emitted for them).
 	const byBeat = new Map<number, number[]>();
 	for (const s of samples) {
-		if (s.beat <= 1e-9 || s.beat >= beatsPerBar - 1e-9) continue;
+		if (s.beat <= firstBeat + 1e-9 || s.beat >= beatsPerBar - 1e-9) continue;
 		const key = Math.round(s.beat * 1e6) / 1e6;
 		const xs = byBeat.get(key) ?? [];
 		xs.push(clamp(s.x, x0, x1));
 		byBeat.set(key, xs);
 	}
-	const points: { beat: number; x: number }[] = [{ beat: 0, x: x0 }];
+	const points: { beat: number; x: number }[] = [{ beat: firstBeat, x: x0 }];
 	for (const beat of [...byBeat.keys()].sort((a, b) => a - b)) {
 		const xs = byBeat.get(beat)!;
 		points.push({ beat, x: xs.reduce((a, b) => a + b, 0) / xs.length });
@@ -203,7 +228,7 @@ export function beatEdges(zone: BarZone, samples: BeatSample[], beatsPerBar: num
 	const edges: number[] = [];
 	let prev = x0;
 	for (let k = 0; k <= beatsPerBar; k++) {
-		const e = clamp(interpolate(points, k), x0, x1);
+		const e = k < firstBeat ? x0 : clamp(interpolate(points, k), x0, x1);
 		const monotone = e < prev ? prev : e; // never step backwards
 		edges.push(monotone);
 		prev = monotone;
@@ -232,6 +257,7 @@ function offsetToBeatInBar(
 export function chordZones(inputs: ChordZoneInputs): ChordZone[] {
 	const { systems, barAnchors, noteAnchors, chordSlotAnchors, beatsPerBar, barDurationWholeNotes } =
 		inputs;
+	const partialBars = inputs.partialBars;
 	const result: ChordZone[] = [];
 	for (const anchor of barAnchors) {
 		const loc = locateBar(systems, anchor);
@@ -255,8 +281,9 @@ export function chordZones(inputs: ChordZoneInputs): ChordZone[] {
 			samples.push({ beat: cs.beat, x: hit.x });
 		}
 
-		const edges = beatEdges(zone, samples, beatsPerBar);
-		for (let beat = 0; beat < beatsPerBar; beat++) {
+		const firstBeat = partialBars?.get(`${anchor.sectionIdx}:${anchor.bar}`) ?? 0;
+		const edges = beatEdges(zone, samples, beatsPerBar, firstBeat);
+		for (let beat = firstBeat; beat < beatsPerBar; beat++) {
 			result.push({
 				sectionIdx: anchor.sectionIdx,
 				bar: anchor.bar,
@@ -275,14 +302,17 @@ export function nextBeatPos(pos: BeatPosition, form: FormShape): BeatPosition | 
 	const { sectionIdx, bar, beat } = pos;
 	if (beat + 1 < form.beatsPerBar) return { sectionIdx, bar, beat: beat + 1 };
 	if (bar + 1 < form.sections[sectionIdx].bars) return { sectionIdx, bar: bar + 1, beat: 0 };
-	if (sectionIdx + 1 < form.sections.length) return { sectionIdx: sectionIdx + 1, bar: 0, beat: 0 };
+	if (sectionIdx + 1 < form.sections.length) {
+		return { sectionIdx: sectionIdx + 1, bar: 0, beat: firstBeatOf(form, sectionIdx + 1, 0) };
+	}
 	return null;
 }
 
 /** The previous beat position across the whole form, or null before its first beat. */
 export function prevBeatPos(pos: BeatPosition, form: FormShape): BeatPosition | null {
 	const { sectionIdx, bar, beat } = pos;
-	if (beat - 1 >= 0) return { sectionIdx, bar, beat: beat - 1 };
+	// Never step into a partial pickup bar's silent prefix.
+	if (beat - 1 >= firstBeatOf(form, sectionIdx, bar)) return { sectionIdx, bar, beat: beat - 1 };
 	if (bar - 1 >= 0) return { sectionIdx, bar: bar - 1, beat: form.beatsPerBar - 1 };
 	if (sectionIdx - 1 >= 0) {
 		const prevSection = sectionIdx - 1;
@@ -308,6 +338,8 @@ const CLIP_EPS = 1e-9;
  * @param barWholeNotes Length of one bar in whole notes (1 for 4/4, 0.75 for 3/4)
  * @param rangeStart Inclusive start of the marker span (whole notes from form 0)
  * @param rangeEnd Exclusive end of the marker span
+ * @param printedFrom Whole notes into the bar where its engraving starts — a
+ *   partial pickup bar's silent prefix has no x-span; 0 for a full bar
  * @returns Clipped `[x0, x1]` or null when the range misses this bar
  */
 export function clipBarSpanX(
@@ -316,16 +348,19 @@ export function clipBarSpanX(
 	absBar: number,
 	barWholeNotes: number,
 	rangeStart: number,
-	rangeEnd: number
+	rangeEnd: number,
+	printedFrom = 0
 ): { x0: number; x1: number } | null {
 	if (!(barWholeNotes > 0) || !(x1 > x0)) return null;
-	const barStart = absBar * barWholeNotes;
-	const barEnd = barStart + barWholeNotes;
+	const barStart = absBar * barWholeNotes + printedFrom;
+	const barEnd = absBar * barWholeNotes + barWholeNotes;
+	const printed = barEnd - barStart;
+	if (!(printed > 0)) return null;
 	const t0 = Math.max(barStart, rangeStart);
 	const t1 = Math.min(barEnd, rangeEnd);
 	if (t1 <= t0 + CLIP_EPS) return null;
 	const w = x1 - x0;
-	const f0 = (t0 - barStart) / barWholeNotes;
-	const f1 = (t1 - barStart) / barWholeNotes;
+	const f0 = (t0 - barStart) / printed;
+	const f1 = (t1 - barStart) / printed;
 	return { x0: x0 + w * f0, x1: x0 + w * f1 };
 }

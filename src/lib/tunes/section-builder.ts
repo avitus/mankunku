@@ -32,6 +32,12 @@ export interface BarStructure {
 	endRepeat: boolean;
 	/** True for a right-aligned anacrusis bar. */
 	pickup: boolean;
+	/**
+	 * Printed length of a pickup bar (`length` stays the nominal meter — the
+	 * timeline never has a short bar). Set by importers that know it; when
+	 * absent the notation infers it from the melody for the legacy shape.
+	 */
+	pickupLength?: Fraction;
 	/** Volta this bar belongs to (1st/2nd ending), if any. */
 	ending?: 1 | 2;
 }
@@ -207,12 +213,19 @@ export function buildSections(
 			return [segment];
 		});
 
+		// A section opening on a flagged pickup bar carries its printed
+		// length — whether the pickup is a lone '' section or the padded
+		// first bar of a labelled one, the renderer applies the same rule.
+		const first = measures[b.firstMeasure];
+		const pickupLength = first?.pickup && first.pickupLength ? first.pickupLength : undefined;
+
 		return {
 			label: b.label ?? 'A',
 			bars: b.measureCount,
 			...(b.startRepeat ? { repeatStart: true } : {}),
 			...(b.endRepeat ? { repeatEnd: true } : {}),
 			...(b.ending ? { ending: b.ending } : {}),
+			...(pickupLength ? { pickupLength } : {}),
 			notes: sectionNotes,
 			harmony
 		};

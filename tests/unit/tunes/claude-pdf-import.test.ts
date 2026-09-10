@@ -221,6 +221,16 @@ describe('claudeJsonToTune — bar-wise schema (v2)', () => {
 		expect(sheet!.sections[0].notes).toEqual([
 			{ pitch: 65, duration: [1, 4], offset: [3, 4] }
 		]);
+		// …and the printed length is read off it (bar minus the first beat).
+		expect(sheet!.sections[0].pickupLength).toEqual([1, 4]);
+	});
+
+	it('leaves a chords-only pickup bar without a printed length', () => {
+		const doc = barwiseDoc();
+		(doc.systems as Array<{ bars: Array<Record<string, unknown>> }>)[0].bars[0].melody = [];
+		const { sheet } = claudeJsonToTune(doc);
+		expect(sheet!.sections[0].label).toBe('');
+		expect(sheet!.sections[0].pickupLength).toBeUndefined();
 	});
 
 	it('skips rest melody tuples silently, not as unreadable pitches', () => {

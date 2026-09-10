@@ -525,6 +525,9 @@ describe('parseMscx — pickup bars', () => {
 			{ pitch: 57, duration: [1, 8], offset: [7, 8] }
 		]);
 		expect(sheet.sections[1].notes[0].offset).toEqual([0, 1]);
+		// The printed length rides along so notation can engrave a partial bar.
+		expect(sheet.sections[0].pickupLength).toEqual([1, 4]);
+		expect(sheet.sections[1].pickupLength).toBeUndefined();
 	});
 
 	it('right-aligns a pickup inside a single unmarked section too', () => {
@@ -553,6 +556,7 @@ describe('parseMscx — pickup bars', () => {
 			{ pitch: 55, duration: [1, 4], offset: [3, 4] },
 			{ pitch: 60, duration: [1, 1], offset: [1, 1] }
 		]);
+		expect(sec.pickupLength).toEqual([1, 4]);
 	});
 
 	it('pads the pickup against the actual meter, not an assumed 4/4', () => {
@@ -575,6 +579,7 @@ describe('parseMscx — pickup bars', () => {
 		}));
 		expect(warnings).toEqual([]);
 		expect(sheets[0].sections[0].notes[0].offset).toEqual([5, 8]); // 3/4 bar − 1/8
+		expect(sheets[0].sections[0].pickupLength).toEqual([1, 8]);
 	});
 
 	it('anchors pickup harmony at the padded position', () => {

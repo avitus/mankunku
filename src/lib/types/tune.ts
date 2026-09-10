@@ -1,4 +1,4 @@
-import type { DifficultyMetadata, HarmonicSegment, Note, PitchClass } from './music';
+import type { DifficultyMetadata, Fraction, HarmonicSegment, Note, PitchClass } from './music';
 
 /**
  * Tune data model.
@@ -33,6 +33,17 @@ export interface TuneSection {
 	repeatEnd?: boolean;
 	/** Marks this section as a numbered volta ending. */
 	ending?: 1 | 2;
+	/**
+	 * Printed length of this section's first bar when it is an anacrusis
+	 * (pickup), in whole-note units; `0 < pickupLength < one bar`. The bar
+	 * still occupies a FULL `timeSignature` bar on the timeline — its melody
+	 * is right-aligned and the offsets already carry the leading silence —
+	 * so playback, backing and every bar-indexed consumer stay uniform.
+	 * Notation engraves the bar at this length, and it occupies no
+	 * bars-per-line column (`$lib/music/pickup` resolves it, with a legacy
+	 * inference for pre-field imports).
+	 */
+	pickupLength?: Fraction;
 	/** Melody, offsets relative to the section start. Empty for harmony-only sheets. */
 	notes: Note[];
 	/** Harmony, offsets relative to the section start. */

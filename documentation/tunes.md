@@ -31,7 +31,7 @@ Tap **+ Add a tune** and you land on a chooser with five routes in. They all end
 
 - **iReal Pro** gives you *changes only* — iReal charts carry no melody. You get sections, repeats, endings, the key, and the style label. Paste a link containing several tunes and you get a review list; pick which ones to keep.
 - **Band-in-a-Box** reads the binary song file directly, and falls back to MusicXML if you exported one. Changes and form come across; melody comes across when the file has one.
-- **MuseScore** is the richest source: melody, chord symbols, key signature, note spellings, glissandi, and the section/repeat structure. Chord shorthand typed the MuseScore way (`t` for Δ, `0` for ø) is normalised on the way in.
+- **MuseScore** is the richest source: melody, chord symbols, key signature, note spellings, glissandi, and the section/repeat structure. Chord shorthand typed the MuseScore way (`t` for Δ, `0` for ø) is normalised on the way in. A **pickup bar** comes across as a short partial bar when the score marks it as one — tick *Exclude from measure count* in the pickup bar's Measure Properties before exporting; a short first bar without that flag is imported as a full bar, and the import tells you so.
 - **PDF Upload** is the fallback for everything else — a photo of a page, a Real Book scan, a chart someone emailed you. The app sends the pages to Claude, which reads staves, barlines, chord symbols, and noteheads. It shows real progress as it works ("Reading pages…", "Transcribing system 3 of 6…") rather than an open-ended spinner. **It is not perfect and it does not pretend to be**: the import lands in a review panel where anything the reader was unsure about is flagged with the bar it printed in, so you can fix it before saving. The original PDF stays attached to the tune.
 - **PDF + OMR transcription** (optional, for the technically inclined): if you run the local OMR tool on the chart first (from the repository root: `cd omr && uv run python -m omr transcribe ../path/to/chart.pdf` — see `docs/omr/` in the repository), you can attach the resulting `.omr.json` above the PDF picker. Lines the transcription covers get their melody from a dedicated music-reading model — measurably more accurate than the AI reader on typeset charts — and skip the AI call entirely; chord symbols still come from the page's own text. Lines it can't cover fall back to the AI as usual.
 
@@ -43,7 +43,7 @@ Tap any tune to open it. You get:
 
 - The **title, composer, style, and time signature** across the top.
 - A **Key** selector in *your written pitch* — the same key you'd read off the page on your horn. Tap a key and the chart re-engraves there. (Under the hood the app converts to concert pitch; you never have to do that arithmetic.)
-- The **chart itself**, engraved Real Book style: masthead title block, jazz chord symbols above the staff at the height MuseScore puts them, section letters, repeat barlines, and stacked first/second endings.
+- The **chart itself**, engraved Real Book style: masthead title block, jazz chord symbols above the staff at the height MuseScore puts them, section letters, repeat barlines, stacked first/second endings, and a pickup bar drawn short at the front of the first line (bar numbers count from the first full bar, and the section letter sits over it).
 - **Play** — hear the tune with the rhythm section, melody and all.
 - **Practice licks** — drop into a scored practice session over the form. See [Playing Over Tunes](./tune-practice.md).
 - **Edit** and **Delete** on charts you own; **Return to community** on charts you adopted.
@@ -55,7 +55,7 @@ Tap any tune to open it. You get:
 The workflow:
 
 1. **Set up the tune** — title, composer, style, key, time signature.
-2. **Build the section list** — A, B, Intro, Coda, and so on. Each section has a bar count, and optional repeat-start / repeat-end markers and numbered endings. The section list is the authoritative form; this is the thing that makes an AABA chart an AABA chart.
+2. **Build the section list** — A, B, Intro, Coda, and so on. Each section has a bar count, and optional repeat-start / repeat-end markers and numbered endings. The section list is the authoritative form; this is the thing that makes an AABA chart an AABA chart. A **Pickup** control above the list adds an anacrusis (½ to 3½ beats in 4/4): the app puts a short unlabeled bar in front of the form with its lead-in already filled, so the first note you enter in it lands on the pickup's beat and your sections keep their bar counts.
 3. **Enter the changes.** Type chord symbols in *written* pitch — the same text you'd write on the page. Click a slot on the chart to edit it in place.
 4. **Enter the melody**, one page of up to four bars at a time. The entry rail on the left (a dock at the bottom on mobile) holds the duration picker, the pitch pad, and the accidental toggles. Pages commit as you navigate, so moving between pages or sections never loses work.
 

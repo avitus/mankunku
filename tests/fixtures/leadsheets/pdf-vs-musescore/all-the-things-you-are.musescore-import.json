@@ -12,6 +12,10 @@
   {
    "label": "",
    "bars": 1,
+   "pickupLength": [
+    1,
+    4
+   ],
    "notes": [
     {
      "pitch": 57,

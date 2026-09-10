@@ -48,6 +48,7 @@ import {
 } from '$lib/state/step-entry.svelte';
 import { getDurationFraction } from '$lib/step-entry/durations';
 import { transposeTune } from '$lib/tunes/book-loader';
+import { isPickupOnlySection, pickupPrefix, resolvePickupLength } from '$lib/music/pickup';
 import {
 	defaultSourceTransposition,
 	sourceTranspositionSemitones,
@@ -1026,6 +1027,62 @@ export function removeSection(index: number): void {
 	}
 	tuneEntry.currentPage = 0;
 	loadBuffer(tuneEntry.currentSection, 0);
+}
+
+/**
+ * The tune's opening pickup, read off section 0 when it is a lone pickup
+ * section (the import shape — an unlabeled one-bar section holding the
+ * anacrusis, explicit field or legacy inference alike). Null otherwise.
+ */
+export function tunePickupLength(): Fraction | null {
+	const sheet = { timeSignature: tuneEntry.timeSignature, sections: tuneEntry.sections };
+	return isPickupOnlySection(sheet, 0) ? resolvePickupLength(sheet, 0) : null;
+}
+
+/**
+ * Set or clear the tune's opening pickup. The pickup lives in its own
+ * unlabeled one-bar section in front of the form (so the user's sections
+ * keep their bar counts) with the silent lead-in stored as a rest, which is
+ * what makes step entry land the first typed note on the pickup's beat.
+ * Resizing replaces only that lead-in; anything that would now start inside
+ * the silent prefix is dropped (mirroring setSectionBars' truncation).
+ */
+export function setTunePickup(length: Fraction | null): void {
+	commitBuffer();
+	const ts = tuneEntry.timeSignature;
+	const sheet = { timeSignature: ts, sections: tuneEntry.sections };
+	const hasPickup = isPickupOnlySection(sheet, 0);
+	if (length === null) {
+		if (!hasPickup) return;
+		tuneEntry.sections.splice(0, 1);
+		tuneEntry.currentSection = Math.max(0, tuneEntry.currentSection - 1);
+		tuneEntry.currentPage = 0;
+		loadBuffer(tuneEntry.currentSection, tuneEntry.currentPage);
+		return;
+	}
+	const prefix = pickupPrefix(length, ts);
+	const prefixF = fractionToFloat(prefix);
+	if (hasPickup) {
+		const sec = tuneEntry.sections[0];
+		const oldPrefixF = fractionToFloat(pickupPrefix(resolvePickupLength(sheet, 0) as Fraction, ts));
+		const kept = sec.notes.filter((n) => {
+			const start = fractionToFloat(n.offset);
+			const end = start + fractionToFloat(n.duration);
+			// The old lead-in rest goes; so does anything starting in the new prefix.
+			if (n.pitch === null && end <= oldPrefixF + 1e-9) return false;
+			return start >= prefixF - 1e-9;
+		});
+		sec.pickupLength = length;
+		const leadIn: Note = { pitch: null, duration: prefix, offset: [0, 1] };
+		sec.notes = [leadIn, ...kept].sort((a, b) => compareFractions(a.offset, b.offset));
+		sec.harmony = sec.harmony.filter((h) => fractionToFloat(h.startOffset) >= prefixF - 1e-9);
+		recomputeHarmonyDurations(sec);
+	} else {
+		const leadIn: Note = { pitch: null, duration: prefix, offset: [0, 1] };
+		tuneEntry.sections.unshift({ label: '', bars: 1, pickupLength: length, notes: [leadIn], harmony: [] });
+		tuneEntry.currentSection += 1;
+	}
+	loadBuffer(tuneEntry.currentSection, tuneEntry.currentPage);
 }
 
 /** Update label/repeat/ending markers on a section. */

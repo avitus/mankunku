@@ -112,6 +112,17 @@ export function validateAdoptedTune(input: unknown): AdoptedTuneValidation {
 		if (sec.ending !== undefined && sec.ending !== 1 && sec.ending !== 2) {
 			errors.push(`section ${s}: invalid ending marker`);
 		}
+		// A pickup bar prints shorter than the meter but still occupies a
+		// full bar on the timeline; a foreign length ≥ the bar (or ≤ 0) would
+		// hand the renderer a negative or empty silent prefix.
+		if (sec.pickupLength !== undefined) {
+			const L = sec.pickupLength;
+			const ts = sheet.timeSignature;
+			const bar = isFraction(ts, false) ? ts[0] / ts[1] : 1;
+			if (!isFraction(L, false) || L[0] / L[1] >= bar) {
+				errors.push(`section ${s}: invalid pickup length`);
+			}
+		}
 
 		const notes = sec.notes;
 		if (!Array.isArray(notes)) {

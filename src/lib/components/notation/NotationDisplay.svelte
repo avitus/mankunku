@@ -14,7 +14,14 @@
 		type TuneAbcOptions
 	} from '$lib/music/tune-notation';
 	import { alignStackedEndingsInContainer } from '$lib/notation/ending-align-dom';
-	import { barZones, chordZones, clipBarSpanX, type ChordZone } from '$lib/notation/chart-geometry';
+	import {
+		barZones,
+		chordZones,
+		clipBarSpanX,
+		type BarZone,
+		type ChordZone
+	} from '$lib/notation/chart-geometry';
+	import { pickupFirstBeat, resolvePickupLength } from '$lib/music/pickup';
 	import {
 		buildFollowSystems,
 		followOffsetPx as computeFollowOffset,
@@ -34,6 +41,7 @@
 		chordSymbolDeltas,
 		chordHorizontalNudges,
 		partLabelDelta,
+		pickupPartLabelDx,
 		glissandoWave,
 		type AdapterVisualObj,
 		type BandGeometry,
@@ -470,6 +478,7 @@
 
 		const sectionBases = sectionBarBases(sheet);
 		const barWholeNotes = sheet.timeSignature[0] / sheet.timeSignature[1];
+		const pickupPrefixes = pickupPrefixesFor(sheet);
 
 		for (const marker of markers) {
 			// Merge the marker's bar zones into one x-run per system row.
@@ -488,7 +497,9 @@
 						absBar,
 						barWholeNotes,
 						marker.timeRange.start,
-						marker.timeRange.end
+						marker.timeRange.end,
+						// A partial pickup bar's silent prefix has no x-span.
+						zone.bar === 0 ? (pickupPrefixes.get(zone.sectionIdx) ?? 0) : 0
 					);
 					if (!clipped) continue;
 					x0 = clipped.x0;
@@ -700,6 +711,7 @@
 		}
 
 		lastBarZones = barZones(systems, anchors.barAnchors);
+		nudgePartLabelsPastPickups(lastBarZones, sheet);
 
 		if (onBarClick) {
 			for (const zone of lastBarZones) {
@@ -725,7 +737,8 @@
 				noteAnchors: anchors.noteAnchors.filter((a) => !a.rest),
 				chordSlotAnchors: anchors.chordSlotAnchors,
 				beatsPerBar: sheet.timeSignature[0],
-				barDurationWholeNotes: sheet.timeSignature[0] / sheet.timeSignature[1]
+				barDurationWholeNotes: sheet.timeSignature[0] / sheet.timeSignature[1],
+				partialBars: partialBarsFor(sheet)
 			});
 			for (const zone of lastChordZones) {
 				const band = systemBands[zone.systemIdx];
@@ -1003,6 +1016,87 @@
 	 * just right of the treble clef on system starts, dropped toward the staff
 	 * so they sit lower than the chord-symbol lane. Mid-line marks only drop.
 	 */
+	/**
+	 * Sections whose bar 0 is a partial pickup bar → first printed (integer)
+	 * beat, keyed like the hit zones. Resolved exactly as the ABC was.
+	 */
+	function partialBarsFor(sheet: Tune): Map<string, number> {
+		const out = new Map<string, number>();
+		sheet.sections.forEach((_, i) => {
+			const L = resolvePickupLength(sheet, i);
+			if (!L) return;
+			const beat = Math.floor(pickupFirstBeat(L, sheet.timeSignature));
+			if (beat > 0) out.set(`${i}:0`, beat);
+		});
+		return out;
+	}
+
+	/** Whole notes of silent prefix before each pickup section's engraving. */
+	function pickupPrefixesFor(sheet: Tune): Map<number, number> {
+		const bar = sheet.timeSignature[0] / sheet.timeSignature[1];
+		const out = new Map<number, number>();
+		sheet.sections.forEach((_, i) => {
+			const L = resolvePickupLength(sheet, i);
+			if (L) out.set(i, bar - L[0] / L[1]);
+		});
+		return out;
+	}
+
+	/** abcjs may put the part class on a group (letter + box) or a text node. */
+	function partLabelElements(wrapper: SVGGElement): SVGGraphicsElement[] {
+		return [
+			...wrapper.querySelectorAll<SVGGElement>('g.abcjs-part'),
+			...[...wrapper.querySelectorAll<SVGTextElement>('text.abcjs-part')].filter(
+				(t) => !t.closest('g.abcjs-part')
+			)
+		];
+	}
+
+	/**
+	 * Seat the boxed letter of a system that opens with a partial pickup bar
+	 * over the first FULL bar (MuseScore / Real Book). The ABC hands the
+	 * pickup line the label of the section it leads into, since abcjs draws
+	 * part labels only at a line start; this pass moves it past the pickup.
+	 * Runs once the bar zones are known, composing with the translate that
+	 * repositionPartLabels already set.
+	 */
+	function nudgePartLabelsPastPickups(zones: BarZone[], sheet: Tune): void {
+		const partial = partialBarsFor(sheet);
+		if (partial.size === 0) return;
+		for (let sys = 0; sys < systemBands.length; sys++) {
+			const inSystem = zones.filter((z) => z.systemIdx === sys).sort((a, b) => a.x0 - b.x0);
+			if (inSystem.length < 2) continue;
+			const [first, firstFull] = inSystem;
+			if (!partial.has(`${first.sectionIdx}:${first.bar}`)) continue;
+			const wrapper = systemBands[sys].wrapper;
+			const staffEl = wrapper.querySelector<SVGGraphicsElement>('.abcjs-staff');
+			if (!staffEl) continue;
+			const spacing = staffEl.getBBox().height / 4;
+			if (!Number.isFinite(spacing) || spacing <= 0) continue;
+			for (const part of partLabelElements(wrapper)) {
+				let box: DOMRect;
+				try {
+					box = part.getBBox();
+				} catch {
+					continue;
+				}
+				if (!Number.isFinite(box.width) || box.width <= 0) continue;
+				const prev = part.getAttribute('transform') ?? '';
+				const m = /translate\(\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\)/.exec(prev);
+				const dx0 = m ? Number.parseFloat(m[1]) : 0;
+				const dy0 = m ? Number.parseFloat(m[2]) : 0;
+				// getBBox is local: add the prior translate to get the seated x.
+				const dx = pickupPartLabelDx(
+					{ x: box.x + dx0, y: box.y, width: box.width, height: box.height },
+					firstFull.x0,
+					spacing
+				);
+				if (dx < 0.01) continue;
+				part.setAttribute('transform', `translate(${(dx0 + dx).toFixed(2)}, ${dy0.toFixed(2)})`);
+			}
+		}
+	}
+
 	function repositionPartLabels(container: HTMLDivElement): void {
 		for (const svg of container.querySelectorAll('svg')) {
 			for (const wrapper of svg.querySelectorAll<SVGGElement>('g.abcjs-staff-wrapper')) {
@@ -1029,14 +1123,7 @@
 					}
 				}
 
-				// abcjs may put the part class on a group (letter + box) or a text node.
-				const partEls = [
-					...wrapper.querySelectorAll<SVGGElement>('g.abcjs-part'),
-					...[...wrapper.querySelectorAll<SVGTextElement>('text.abcjs-part')].filter(
-						(t) => !t.closest('g.abcjs-part')
-					)
-				];
-				for (const part of partEls) {
+				for (const part of partLabelElements(wrapper)) {
 					let box: DOMRect;
 					try {
 						box = part.getBBox();

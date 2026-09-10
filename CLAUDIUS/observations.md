@@ -1745,3 +1745,38 @@ what the wrapper's name promises. And the `-q` that wasn't there: I shipped
 a script I could not run and checked its syntax, which is not the same as
 checking its commands. When the harness moves execution to Andy, the
 verification standard should go up, not down.
+
+## 2026-09-10 — The importer knew, the model had nowhere to put it
+
+The pickup bug was not a missing algorithm. MuseScore's importer had the
+exact printed length in hand (`len=` plus the exclude-from-count flag), the
+section builder recognised the anacrusis and blanked its label, and the PDF
+path had three heuristics for spotting one. All of that evaporated at the
+one boundary where a `TuneSection` was built, because the type had no slot
+for it — and downstream, "a one-bar section with a blank label" was the only
+trace, which the renderer then padded back into a full bar. Two things I
+want to keep from this. First, when a symptom is "the data is right in the
+importer and wrong on the page", look for the narrowest type in the pipe;
+the information loss is structural, not a bug in any one function, and the
+fix is a field plus one resolver every consumer shares — not a heuristic in
+the renderer. Second, the temptation was to let the timeline carry the short
+bar too, "so the model tells the truth". The playback survey killed that in
+an hour: seven modules multiply bar counts by a fixed bar length, the backing
+engine seeds its randomness by bar index, and licks already solved the same
+problem by shifting the progression rather than the note. A model can be
+truthful about ENGRAVING while the timeline stays uniform; the field's doc
+comment says which of the two it describes, and that sentence is the whole
+design.
+
+The second lesson is about legacy data. Andy's row was already in the
+database with no field; a migration, a re-import prompt, or a hydrate-time
+write were all on the table. The codebase already had the answer — `mode`
+for licks, `pickupBars ?? detectPickupBars` — infer at read time for the one
+shape the old code could have produced, and only that shape. The guard that
+mattered was noticing that a lick's lead-sheet row is ALSO a lone blank
+one-bar section: a legacy rule written as "first section, blank label, one
+bar" would have turned a rest-led lick window into a partial bar. The
+section builder's own precondition (it only splits an anacrusis off when a
+form follows) is what makes "and there is a next section" the right extra
+clause — the inference should mirror the writer's invariant, not just the
+reader's convenience.
