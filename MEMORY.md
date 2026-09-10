@@ -102,6 +102,13 @@ When the user asks to create a PR, base it on the branch they're currently on. D
 
 **How to apply:** commit locally and stop — the user batches fixes on `dev` and decides when to push and when a PR opens ("Don't push any more yet. I had more fixes which is why I didn't want to open a PR"). Push when told; after a push, say a PR can be opened on request. "Commit and create a PR" → commit on current branch, push, open PR from that branch. Only create a new branch if explicitly asked.
 
+### Commit directly to dev — finished work lands on origin/dev (2026-09-10)
+Andy, after the Sentry re-init fix sat on the desktop app's `claude/maxlisteners-warning-e43d24` worktree branch: "Remember to commit directly to dev in future. Merge it in to dev now." The `claude/*` branch a worktree session starts on is plumbing, not where the work lives.
+
+**Why:** `dev` is the integration line (dev → main PRs); work left on a side branch is invisible to the next session and to CI, and Andy has to come back and merge it.
+
+**How to apply:** finish = the commit is on `origin/dev`. `git fetch origin && git push origin HEAD:dev` when dev hasn't moved; otherwise merge the right way round without any worktree holding `dev`: `git checkout --detach origin/dev && git merge <branch> && git push origin HEAD:dev && git checkout <branch> && git merge --ff-only origin/dev`. Parallel sessions append to CLAUDIUS/SESSIONS.md, observations.md and this file — keep both sides in order on conflict. Still no new branches and no unasked PRs; the earlier "commit locally and stop" in the section above is superseded for the dev line by this instruction.
+
 ### Skip redundant git checks; chain add, commit, and push
 When changes are already known from the current conversation, skip `git diff` / `git log` and chain `add`, `commit`, and `push` in a single Bash call.
 

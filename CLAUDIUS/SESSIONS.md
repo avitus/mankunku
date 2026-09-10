@@ -2913,3 +2913,8 @@ opened in Chrome.
   spurious "changed tsconfig file detected — forcing full-reload" in Andy's dev
   tab whenever any session creates a worktree; `server.watch.ignored:
   ['**/.claude/worktrees/**']` would stop it. Flagged as a follow-up.
+- Andy: "Remember to commit directly to dev in future. Merge it in to dev now."
+  Recorded as a rule (home memory + MEMORY.md): finish = the commit is on
+  origin/dev; the desktop app's `claude/*` worktree branch is plumbing. Merged
+  the right way round in a detached HEAD (dev had moved five commits — the
+  droplet move, the scanner-404 log fix — while this ran), pushed `HEAD:dev`.
