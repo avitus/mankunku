@@ -26,7 +26,8 @@ import {
 	melodyEditingSupported,
 	setSourceTransposition,
 	setTunePickup,
-	tunePickupLength
+	tunePickupLength,
+	hasPickupSection
 } from '$lib/state/tune-entry.svelte';
 
 // ─── Mock localStorage (settings persist on write) ────────────────────
@@ -579,6 +580,83 @@ describe('pickup bar', () => {
 		expect(tuneEntry.sections.map((s) => s.label)).toEqual(['A']);
 		expect(tuneEntry.currentSection).toBe(0);
 		expect(tunePickupLength()).toBeNull();
+	});
+
+	function embeddedPickupSheet(): Tune {
+		// An import whose rehearsal mark sits ON the anacrusis bar: the section
+		// builder keeps the pickup inside the labelled section (as the curated
+		// Amazing Grace / Saints charts are entered) — not a lone '' section.
+		return {
+			id: 'sheet-embedded',
+			title: 'Embedded',
+			key: 'C',
+			timeSignature: [4, 4],
+			tags: [],
+			source: 'imported-musescore',
+			sections: [
+				{
+					label: 'A',
+					bars: 8,
+					pickupLength: [1, 4],
+					notes: [
+						{ pitch: 55, duration: [1, 4], offset: [3, 4] },
+						{ pitch: 60, duration: [1, 1], offset: [1, 1] }
+					],
+					harmony: []
+				}
+			]
+		};
+	}
+
+	it('reads a pickup embedded in a labelled first section and resizes it in place — never a second pickup section', () => {
+		loadFromTune(embeddedPickupSheet(), INSTRUMENTS.concert);
+		expect(tunePickupLength()).toEqual([1, 4]);
+		expect(hasPickupSection()).toBe(false);
+		setTunePickup([1, 2]);
+		expect(tuneEntry.sections.map((s) => [s.label, s.bars, s.pickupLength])).toEqual([['A', 8, [1, 2]]]);
+		expect(tuneEntry.sections[0].notes).toEqual([
+			{ pitch: null, duration: [1, 2], offset: [0, 1] },
+			{ pitch: 55, duration: [1, 4], offset: [3, 4] },
+			{ pitch: 60, duration: [1, 1], offset: [1, 1] }
+		]);
+		expect(tunePickupLength()).toEqual([1, 2]);
+		expect(tuneEntry.currentSection).toBe(0);
+	});
+
+	it('clears an embedded pickup in place — the section is the form and stays, notes where they were', () => {
+		loadFromTune(embeddedPickupSheet(), INSTRUMENTS.concert);
+		setTunePickup(null);
+		expect(tuneEntry.sections).toHaveLength(1);
+		expect(tuneEntry.sections[0].label).toBe('A');
+		expect(tuneEntry.sections[0].pickupLength).toBeUndefined();
+		// The buffer commit writes the leading silence back as an explicit rest;
+		// without the field that is just a rest in a full first bar. No pitched
+		// note moved.
+		expect(tuneEntry.sections[0].notes.map((n) => [n.pitch, n.offset, n.duration])).toEqual([
+			[null, [0, 1], [3, 4]],
+			[55, [3, 4], [1, 4]],
+			[60, [1, 1], [1, 1]]
+		]);
+		expect(tunePickupLength()).toBeNull();
+	});
+
+	it('keeps following a pickup section the user has labelled', () => {
+		setTunePickup([1, 4]);
+		updateSectionMeta(0, { label: 'Intro' });
+		expect(tunePickupLength()).toEqual([1, 4]);
+		setTunePickup([1, 2]);
+		expect(tuneEntry.sections.map((s) => [s.label, s.bars, s.pickupLength])).toEqual([
+			['Intro', 1, [1, 2]],
+			['A', 8, undefined]
+		]);
+	});
+
+	it('hasPickupSection is true only for the lone unlabeled one-bar shape the control creates', () => {
+		expect(hasPickupSection()).toBe(false);
+		setTunePickup([1, 4]);
+		expect(hasPickupSection()).toBe(true);
+		updateSectionMeta(0, { label: 'Intro' });
+		expect(hasPickupSection()).toBe(false);
 	});
 
 	it('reads a legacy imported pickup (no field) and stamps it on the next change', () => {

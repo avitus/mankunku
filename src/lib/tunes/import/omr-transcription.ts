@@ -280,7 +280,8 @@ export function omrSystemResponses(
 	const contentBeats = (m: OmrMeasure): number =>
 		(m.notes ?? []).reduce((end, n) => Math.max(end, toBeat(n.onset) + toBeat(n.duration)), 0);
 	const isShort = (beats: number): boolean => beats > 1e-9 && beats < beatsPerBar - 1e-9;
-	const firstIsShort = total > 0 && isShort(contentBeats(omr.measures[0]));
+	const firstBeats = total > 0 ? contentBeats(omr.measures[0]) : 0;
+	const firstIsShort = isShort(firstBeats);
 
 	let cursor = 0;
 	const responses = barCounts.map((count) => {
@@ -305,7 +306,15 @@ export function omrSystemResponses(
 			// follow: a lone short measure is a misread, not a pickup.
 			const pickup = global === 0 && short && total > 1;
 			const shift = pickup ? beatsPerBar - beats : 0;
-			if (short && !pickup && !(global === total - 1 && firstIsShort)) {
+			// A short LAST measure passes only when it complements the pickup:
+			// the two together fill exactly one bar. A lone short measure is
+			// its own last measure and complements nothing.
+			const complementsPickup =
+				global === total - 1 &&
+				global > 0 &&
+				firstIsShort &&
+				Math.abs(firstBeats + beats - beatsPerBar) < 1e-9;
+			if (short && !pickup && !complementsPickup) {
 				const filled = Math.round(beats * 100) / 100;
 				systemWarnings.push(
 					`bar ${local + 1}: the transcription fills ${filled} of ${beatsPerBar} beats — check the rhythm`

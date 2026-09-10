@@ -6,14 +6,34 @@
 		updateSectionMeta,
 		setSectionBars,
 		setTunePickup,
-		tunePickupLength
+		tunePickupLength,
+		hasPickupSection
 	} from '$lib/state/tune-entry.svelte';
 	import { pickupLengthLabel, pickupLengthOptions } from '$lib/music/pickup';
+	import { fractionToFloat } from '$lib/music/intervals';
+	import type { Fraction } from '$lib/types/music';
 
-	// The opening pickup lives in an unlabeled one-bar section in front of the
-	// form; this control creates, resizes, or removes it (see setTunePickup).
-	const pickupOptions = $derived(pickupLengthOptions(tuneEntry.timeSignature));
-	const pickupValue = $derived(tunePickupLength()?.join('/') ?? '');
+	// A new pickup gets its own unlabeled one-bar section in front of the
+	// form; an existing one — that section, or the first bar of a labelled
+	// section an import or a relabel left it in — is resized or cleared where
+	// it lives (see setTunePickup). Only the own-section shape pins its bar
+	// count at one.
+	const sameLength = (a: Fraction, b: Fraction) => Math.abs(fractionToFloat(a) - fractionToFloat(b)) < 1e-9;
+	const pickupCurrent = $derived(tunePickupLength());
+	const pickupOptions = $derived.by(() => {
+		const opts = pickupLengthOptions(tuneEntry.timeSignature);
+		const cur = pickupCurrent;
+		// An imported length off the eighth-note grid (a sixteenth pickup)
+		// still needs an option, or the select would show it as "none".
+		if (cur && !opts.some((o) => sameLength(o, cur))) {
+			return [...opts, cur].sort((a, b) => fractionToFloat(a) - fractionToFloat(b));
+		}
+		return opts;
+	});
+	const pickupValue = $derived(
+		pickupCurrent ? (pickupOptions.find((o) => sameLength(o, pickupCurrent)) ?? pickupCurrent).join('/') : ''
+	);
+	const pickupIsOwnSection = $derived(hasPickupSection());
 
 	function handlePickupChange(event: Event): void {
 		const value = (event.currentTarget as HTMLSelectElement).value;
@@ -55,7 +75,7 @@
 	<div class="space-y-2">
 		{#each tuneEntry.sections as sec, i (i)}
 			{@const isCurrent = i === tuneEntry.currentSection}
-			{@const isPickup = i === 0 && pickupValue !== ''}
+			{@const isPickup = i === 0 && pickupIsOwnSection}
 			<div
 				class="flex flex-wrap items-center gap-2 rounded p-2 text-sm
 					{isCurrent ? 'bg-[var(--color-accent)]/10 ring-1 ring-[var(--color-accent)]/40' : 'bg-[var(--color-bg-tertiary)]'}"

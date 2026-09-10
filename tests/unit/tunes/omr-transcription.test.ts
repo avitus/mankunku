@@ -337,6 +337,35 @@ describe('omrSystemResponses — pickup bars', () => {
 		expect(responses[0]!.warnings).toEqual(['bar 2: the transcription fills 2 of 4 beats — check the rhythm']);
 	});
 
+	it('accepts a short final bar that complements the pickup — together they make one bar', () => {
+		const omr = omrNormalized(payload([
+			measure(1, [note('G4', [0, 1], [1, 4])]),
+			measure(2, [note('C5', [0, 1], [1, 1])]),
+			measure(3, [note('C5', [0, 1], [3, 4])])
+		]));
+		const { responses } = omrSystemResponses(omr, [3], meter);
+		expect(responses[0]!.bars[0].pickup).toBe(true);
+		expect(responses[0]!.bars[2].pickup).toBe(false);
+		expect(responses[0]!.warnings).toEqual([]);
+	});
+
+	it('flags a short final bar that does NOT complement the pickup — a beat is missing somewhere', () => {
+		const omr = omrNormalized(payload([
+			measure(1, [note('G4', [0, 1], [1, 4])]),
+			measure(2, [note('C5', [0, 1], [1, 1])]),
+			measure(3, [note('C5', [0, 1], [1, 2])])
+		]));
+		const { responses } = omrSystemResponses(omr, [3], meter);
+		expect(responses[0]!.warnings).toEqual(['bar 3: the transcription fills 2 of 4 beats — check the rhythm']);
+	});
+
+	it('flags a lone short measure — with no form after it, it is a misread, not a pickup', () => {
+		const omr = omrNormalized(payload([measure(1, [note('G4', [0, 1], [1, 2])])]));
+		const { responses } = omrSystemResponses(omr, [1], meter);
+		expect(responses[0]!.bars[0].pickup).toBe(false);
+		expect(responses[0]!.warnings).toEqual(['bar 1: the transcription fills 2 of 4 beats — check the rhythm']);
+	});
+
 	it('does not read an empty first measure as a pickup', () => {
 		const omr = omrNormalized(payload([
 			measure(1, []),

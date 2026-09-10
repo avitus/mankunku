@@ -12,9 +12,11 @@
  *
  * Policy: a 4xx is the client's mistake and is already in nginx's access log,
  * so it logs nothing here. Anything else logs ONE entry carrying the status,
- * the request line and the stack, which is what you want when reading
- * `pm2 logs mankunku` during an incident. The logger is injected so the
- * policy is unit-testable in plain Node.
+ * the method + path and the stack, which is what you want when reading
+ * `pm2 logs mankunku` during an incident. Never the query string: the auth
+ * callback carries its exchange code there, and a log file is the last place
+ * a credential belongs. The logger is injected so the policy is
+ * unit-testable in plain Node.
  */
 import type { HandleServerError } from '@sveltejs/kit';
 
@@ -25,7 +27,8 @@ export function createServerErrorHandler(log: ErrorLogger = console.error): Hand
 		if (status >= 400 && status < 500) return;
 
 		const detail = error instanceof Error && error.stack ? error.stack : String(error);
-		const requestLine = `${event.request.method} ${event.url.pathname}${event.url.search}`;
+		// Method + path only — see the module comment for why the query stays out.
+		const requestLine = `${event.request.method} ${event.url.pathname}`;
 		log(`[server error] ${status} ${requestLine}\n${detail}`);
 	};
 }

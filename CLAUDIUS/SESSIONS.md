@@ -3185,3 +3185,53 @@ The one open item from the pair is unchanged by decision: the stack's
 `{#each}` key includes the row index, so a worst-first re-sort remounts and
 re-engraves the sheet in the turnaround bar, from a warm module; not worth a
 cache until a boundary hitch is actually observed.
+
+## 2026-09-10 — PR #248 (dev → main): pickup bars, one Sentry init, silent scanner 404s
+
+- Andy: "Open a PR from dev to main." Thirteen commits since #247. Body in
+  the #245–#247 style — one paragraph per change with its hash, a test plan
+  citing each session's recorded verification — no attribution trailer.
+  Glen review link surfaced beside the GitHub one.
+- CodeRabbit round 1: eight threads, three Major. Seven adopted, one declined.
+  - Query string out of the server error log (`error-handler.ts`, two
+    threads for one line): `/auth/callback?code=…` on a 5xx would have put
+    the exchange code in PM2's error log. Method + path now; pinned.
+  - `pickupLengthLabel` rounded to the nearest half beat: `[1,16]` read
+    "½ beat", 2/2's eighth-note options are QUARTER beats and all misread,
+    and anything under a quarter beat printed " beat". Exact fraction now
+    (glyphs ¼ ⅓ ⅛ …, "1/16 beat" spelled out otherwise). The panel also gains
+    an option for an off-grid imported length — the select showed "none"
+    for a sixteenth pickup, which made the label fix moot in the UI.
+  - Embedded pickups in the editor (the one flagged "heavy lift" — ~10
+    lines): `tunePickupLength`/`setTunePickup` recognised only the lone ''
+    one-bar shape, but `buildSections` stamps `pickupLength` on a LABELLED
+    section when the rehearsal mark sits on the anacrusis bar, and
+    relabelling the pickup section in the panel produced the same shape.
+    Either way the select read "none" and choosing a length unshifted a
+    SECOND pickup section in front of the one that already carried the
+    field. Now: `tunePickupLength` = `resolvePickupLength(sheet, 0)` (the
+    chart's own resolver), resize happens where the pickup lives, clearing
+    an embedded one drops the field and moves nothing, and a new
+    `hasPickupSection()` is what pins the bar count at one in the panel
+    (an embedded pickup's section is the form and stays editable).
+    Learned writing the clear test: `commitBuffer()` at the top of
+    `setTunePickup` materialises the page's leading silence as an explicit
+    rest before the clear runs — the notes don't move, the rest is real.
+  - OMR short-final-bar rule suppressed EVERY short final measure whenever
+    the first was short, without checking they complement (1-beat pickup +
+    2-beat final passed silently), and — unnoticed — a LONE short measure
+    was its own final measure and so never warned either. The complement
+    now has to sum to the bar and the final measure can't be the first.
+  - CLAUDE.md: the IP beside "not in the repo" reframed as incident context;
+    tune-system.md's `TuneSection` block gains the `pickupLength` line.
+  - Declined: the adopted-tune validator rejecting a `pickupLength` whose
+    silent prefix holds a pitched note. Every reader goes through
+    `resolvePickupLength` (verified by grep: tune-notation, chart-layout,
+    the adapter, NotationDisplay, tune-entry), which is DESIGNED to fall
+    back to a full bar on a stale field; the validator guards shape and
+    bounds (a length ≥ the bar would hand the renderer a negative prefix),
+    not engraving policy. Refusing to adopt a tune that renders correctly
+    because its author edited the melody after setting the pickup would be
+    the wrong trade.
+- Verified: svelte-check 2757 files 0/0; vitest 284 files, 4610 passed /
+  36 expected-fail; `tune-pickup-bar.spec.ts` ×2 on chromium.

@@ -155,4 +155,23 @@ describe('pickupLengthLabel', () => {
 		expect(pickupLengthLabel([1, 2], FOUR_FOUR)).toBe('2 beats');
 		expect(pickupLengthLabel([5, 8], THREE_FOUR)).toBe('2½ beats');
 	});
+
+	it('keeps a length finer than half a beat exact instead of rounding it to the nearest half', () => {
+		const TWO_TWO: [number, number] = [2, 2];
+		const SIX_EIGHT: [number, number] = [6, 8];
+		expect(pickupLengthLabel([1, 16], FOUR_FOUR)).toBe('¼ beat');
+		expect(pickupLengthLabel([3, 16], FOUR_FOUR)).toBe('¾ beat');
+		expect(pickupLengthLabel([5, 16], FOUR_FOUR)).toBe('1¼ beats');
+		expect(pickupLengthLabel([1, 12], FOUR_FOUR)).toBe('⅓ beat');
+		expect(pickupLengthLabel([1, 32], FOUR_FOUR)).toBe('⅛ beat');
+		// 2/2: the beat is a half note, so the editor's eighth-note options are quarter beats.
+		expect(pickupLengthLabel([1, 8], TWO_TWO)).toBe('¼ beat');
+		expect(pickupLengthLabel([3, 8], TWO_TWO)).toBe('¾ beat');
+		// 6/8: the beat is an eighth.
+		expect(pickupLengthLabel([1, 8], SIX_EIGHT)).toBe('1 beat');
+		expect(pickupLengthLabel([3, 8], SIX_EIGHT)).toBe('3 beats');
+		// No glyph for the remainder: spelled out, never an empty label.
+		expect(pickupLengthLabel([1, 64], FOUR_FOUR)).toBe('1/16 beat');
+		expect(pickupLengthLabel([17, 64], FOUR_FOUR)).toBe('1 1/16 beats');
+	});
 });

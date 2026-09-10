@@ -159,11 +159,38 @@ export function pickupLengthOptions(timeSignature: [number, number]): Fraction[]
 	return out;
 }
 
-/** "½ beat", "1 beat", "1½ beats" — a length named in the meter's beats. */
+const BEAT_FRACTION_GLYPHS: Record<string, string> = {
+	'1/2': '½',
+	'1/4': '¼',
+	'3/4': '¾',
+	'1/3': '⅓',
+	'2/3': '⅔',
+	'1/8': '⅛',
+	'3/8': '⅜',
+	'5/8': '⅝',
+	'7/8': '⅞',
+	'1/6': '⅙',
+	'5/6': '⅚'
+};
+
+/**
+ * "½ beat", "1 beat", "1½ beats", "¼ beat" — a length named EXACTLY in the
+ * meter's beats. The editor's options are eighth-note multiples, which are
+ * half beats in 4/4 but quarter beats in 2/2, and an imported field can be
+ * any fraction; nothing is rounded, and a remainder without a glyph is
+ * spelled out ("1/16 beat") rather than dropped.
+ */
 export function pickupLengthLabel(length: Fraction, timeSignature: [number, number]): string {
-	const beats = Math.round(fractionToFloat(length) * timeSignature[1] * 2) / 2;
-	const whole = Math.floor(beats);
-	const half = beats - whole >= 0.5;
-	const number = `${whole > 0 ? whole : ''}${half ? '½' : ''}`;
-	return `${number} beat${beats > 1 ? 's' : ''}`;
+	// Beats as an exact fraction: whole notes × the meter's denominator.
+	const num = length[0] * timeSignature[1];
+	const g = gcd(num, length[1]);
+	const n = num / g;
+	const d = length[1] / g;
+	const whole = Math.floor(n / d);
+	const rem = n - whole * d;
+	const glyph = rem === 0 ? undefined : BEAT_FRACTION_GLYPHS[`${rem}/${d}`];
+	const frac = rem === 0 ? '' : (glyph ?? `${rem}/${d}`);
+	const number =
+		whole === 0 ? frac : frac === '' ? `${whole}` : glyph ? `${whole}${glyph}` : `${whole} ${frac}`;
+	return `${number} beat${n > d ? 's' : ''}`;
 }

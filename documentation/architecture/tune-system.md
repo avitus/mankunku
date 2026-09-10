@@ -27,6 +27,7 @@ interface TuneSection {
   repeatStart?: boolean;        // |:
   repeatEnd?: boolean;          // :|
   ending?: 1 | 2;               // numbered volta
+  pickupLength?: Fraction;      // printed length of an anacrusis first bar (0 < L < bar); the timeline still holds a full bar
   notes: Note[];                // SECTION-LOCAL offsets, starting at [0,1]
   harmony: HarmonicSegment[];   // SECTION-LOCAL offsets
 }

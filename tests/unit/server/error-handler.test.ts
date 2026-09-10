@@ -74,6 +74,24 @@ describe('createServerErrorHandler', () => {
 		expect(line).toContain(error.stack);
 	});
 
+	it('logs the path but never the query string — a callback code or token in the URL must not reach the PM2 log', async () => {
+		const log = vi.fn();
+		const handleError = createServerErrorHandler(log);
+
+		await handleError({
+			error: new Error('exchange failed'),
+			event: makeEvent('GET', '/auth/callback?code=s3cret-authorization-code&next=%2Fprogress', '/auth/callback'),
+			status: 500,
+			message: 'Internal Error'
+		});
+
+		expect(log).toHaveBeenCalledTimes(1);
+		const line = log.mock.calls[0].join(' ');
+		expect(line).toContain('GET /auth/callback');
+		expect(line).not.toContain('s3cret');
+		expect(line).not.toContain('code=');
+	});
+
 	it('logs a thrown non-Error value by its string form when there is no stack', async () => {
 		const log = vi.fn();
 		const handleError = createServerErrorHandler(log);
