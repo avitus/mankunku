@@ -122,10 +122,11 @@ The GraphQL `reviewThreads` query only returns inline diff comments. CodeRabbit 
 - PR review bodies (`reviews` endpoint)
 - Outside-diff comments
 - Top-level PR comments
+- The walkthrough comment's **Pre-merge checks** table, edited in place — its Docstring Coverage row fails under 80% of the functions the diff touches (`/** */` directly above; a `//` comment doesn't count, inner arrow consts do, a module docstring above the imports doesn't cover the function below). It names no functions and posts no thread, and the checker's DONE verdict doesn't see it (#247, #248).
 
-**Why:** Missed valid CodeRabbit findings on PR #28 because only inline review threads were queried.
+**Why:** Missed valid CodeRabbit findings on PR #28 because only inline review threads were queried; the coverage row recurs on every dev→main PR.
 
-**How to apply:** Use multiple API calls covering all comment locations, or ask the user to paste any missed comments.
+**How to apply:** Use multiple API calls covering all comment locations, or ask the user to paste any missed comments. For the coverage row, don't guess which N functions CodeRabbit counts: scan the touched hunks of `git diff origin/main...HEAD --unified=0 -- src tests` for declarations whose previous non-blank line doesn't end in `*/` and document ALL of them in one docs commit (#248: 73.9% → 89.1%). `gh pr comment` has no `--jq` — a trailing `|| true` hid a failed summary post; verify with the issues/comments API.
 
 ### CodeRabbit rate limits: never trigger into one, never stop because of one (2026-08-21)
 When CodeRabbit answers "Review rate limited" / the walkthrough shows "Review limit reached", do not post `@coderabbitai review` — check first, wait out the ETA plus margin, then trigger ONCE. And do not stop or hand back: on rejection, back off and wait for the next ETA; keep going until the review runs. Every attempt counts toward the 7-day Fair-Usage total (a push's automatic attempt included) and lowers the hourly allowance, so blind retries lengthen the lockout — but persistence is the user's explicit choice.
