@@ -3177,3 +3177,11 @@ every environment, browser tab force-reloaded.
   pickup-bar and Sentry sessions, plus their commit-directly-to-dev rule):
   rebased the single commit onto it, kept both sides in order on the
   SESSIONS.md / MEMORY.md append conflicts, pushed `HEAD:dev`.
+
+Closing (2026-09-10): Andy merged PR #244 on 2026-09-03 (dev → main, CodeRabbit
+clean, CI green). Verified today that the merge is an ancestor of the deployed
+main and `/api/health` reports the 2026-09-09 release — both fixes are live.
+The one open item from the pair is unchanged by decision: the stack's
+`{#each}` key includes the row index, so a worst-first re-sort remounts and
+re-engraves the sheet in the turnaround bar, from a warm module; not worth a
+cache until a boundary hitch is actually observed.
