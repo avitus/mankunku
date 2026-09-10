@@ -3052,3 +3052,21 @@ opened in Chrome.
   cases green. A Playwright run rebuilds into `.svelte-kit/`, which reloads
   a dev server running from the same worktree — probe the page after the
   run, not during.
+- Andy, after the push: no Claude trailer on commits — ever ("Remember
+  that"); amended and force-pushed with lease, the rule now sits in the
+  project memory AND the stub (`feedback_no_claude_trailer.md`), with the
+  note that the harness's attribution instruction does not override him.
+  And: OMR-transcribed tunes should get the same look. Evidence first: the
+  recorded Donna Lee run (`omr/Donna Lee - Bb.omr.json`) shows LEGATO
+  writing the two-beat pickup as a FULL measure behind a half rest — the
+  MuseScore representation — so the assembler's late-onset rule already
+  flags it and the converter measures it; the only unhandled shape was a
+  short first measure, which `omr/src/omr/validation.py` already calls "a
+  plausible pickup measure". The bridge now mirrors it: short first measure
+  with a form after it → right-aligned, `ModelBar.pickupBeats` exact
+  (converter prefers it over the floor-to-beat derivation); short later
+  measure → "fills n of 4 beats — check the rhythm" review warning, final
+  bar complementing a pickup excepted. A lone short measure is NOT a pickup
+  (a synthetic single-measure unit-conversion test caught that). Donna Lee
+  copied into tests/fixtures/leadsheets/omr/ and pinned end to end:
+  `pickupLength [1,2]` on the opening section, `[I:setbarnb 1]` in the ABC.

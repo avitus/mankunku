@@ -254,10 +254,14 @@ export function claudeJsonToTune(data: unknown): ClaudePdfConversion {
 					noteEvents.push(note);
 					totalNotes++;
 				}
-				// A flagged pickup's printed length is the bar minus its first
-				// beat — the model reports notes at their real late beats. A
-				// chords-only pickup keeps no length (nothing to right-align).
-				if (bar.pickup) {
+				// A flagged pickup's printed length: exact when the source
+				// measured it (`pickupBeats`, the OMR bridge), else the bar minus
+				// its first pitched beat — the model reports notes at their real
+				// late beats. A chords-only pickup keeps no length.
+				const exactBeats = rawBar?.pickupBeats;
+				if (bar.pickup && isFiniteNumber(exactBeats) && exactBeats > 0 && exactBeats < tsNum) {
+					bar.pickupLength = toFraction(exactBeats * beatUnit);
+				} else if (bar.pickup) {
 					const barNotes = noteEvents.filter((n) => {
 						const off = fractionToFloat(n.offset);
 						return off >= barBase * beatUnit - 1e-9 && off < (barBase + tsNum) * beatUnit - 1e-9;

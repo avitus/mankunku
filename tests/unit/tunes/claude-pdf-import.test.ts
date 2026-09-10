@@ -225,6 +225,18 @@ describe('claudeJsonToTune — bar-wise schema (v2)', () => {
 		expect(sheet!.sections[0].pickupLength).toEqual([1, 4]);
 	});
 
+	it('prefers an exact pickupBeats over the first-beat derivation', () => {
+		const doc = barwiseDoc();
+		const bars = (doc.systems as Array<{ bars: Array<Record<string, unknown>> }>)[0].bars;
+		// Two eighths + a quarter: 1½ beats, which floor-to-beat would call 2.
+		bars[0] = { pickup: true, pickupBeats: 1.5, chords: [], melody: [[2.5, 0.5, 'E4'], [3, 0.5, 'F4'], [3.5, 0.5, 'G4']] };
+		const { sheet } = claudeJsonToTune(doc);
+		expect(sheet!.sections[0].pickupLength).toEqual([3, 8]);
+		// An impossible value falls back to the derivation.
+		bars[0].pickupBeats = 4;
+		expect(claudeJsonToTune(doc).sheet!.sections[0].pickupLength).toEqual([1, 2]);
+	});
+
 	it('leaves a chords-only pickup bar without a printed length', () => {
 		const doc = barwiseDoc();
 		(doc.systems as Array<{ bars: Array<Record<string, unknown>> }>)[0].bars[0].melody = [];

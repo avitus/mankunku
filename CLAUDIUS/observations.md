@@ -1780,3 +1780,16 @@ section builder's own precondition (it only splits an anacrusis off when a
 form follows) is what makes "and there is a next section" the right extra
 clause — the inference should mirror the writer's invariant, not just the
 reader's convenience.
+
+Addendum, same day — the OMR follow-up. I had listed "OMR anacrusis" as
+out of scope on the strength of one agent's reading of a hard-coded
+`pickup: false`, without looking at what the model actually emits. The
+recorded Donna Lee run showed LEGATO writing the pickup as a full measure
+behind a rest — the representation the rest of the pipeline already
+understood — so the real gap was narrower than the note claimed, and the
+Python validator had already written down the rule for the remaining shape.
+Two lessons. Check a real artefact before declaring a path unsupported;
+and when a sibling implementation (here, the Python validator) has already
+made a judgment call — "a short first measure is plausibly a pickup, the
+final bar may complement it" — mirror it rather than inventing a second
+rule, so the two halves of the OMR system agree about what a chart means.

@@ -271,6 +271,17 @@ export function omrSystemResponses(
 	const keySignature = fifths === null ? null : { fifths };
 	const timeSignature = omr.time_signature ?? null;
 
+	// A measure's content in declared beats: the end of its last event,
+	// rests included. The model has no partial bars, but the score may — a
+	// short FIRST measure is an anacrusis (the Python validator's rule too);
+	// a short LATER measure is a misread to review, unless it is the final
+	// bar complementing a pickup.
+	const beatsPerBar = declaredMeter[0];
+	const contentBeats = (m: OmrMeasure): number =>
+		(m.notes ?? []).reduce((end, n) => Math.max(end, toBeat(n.onset) + toBeat(n.duration)), 0);
+	const isShort = (beats: number): boolean => beats > 1e-9 && beats < beatsPerBar - 1e-9;
+	const firstIsShort = total > 0 && isShort(contentBeats(omr.measures[0]));
+
 	let cursor = 0;
 	const responses = barCounts.map((count) => {
 		const start = cursor;
@@ -286,17 +297,32 @@ export function omrSystemResponses(
 			if ((m.raw_unparsed?.length ?? 0) > 0 && (m.warnings?.length ?? 0) === 0) {
 				systemWarnings.push(`bar ${local + 1}: unreadable region in the OMR transcription`);
 			}
+			const global = start + local;
+			const beats = contentBeats(m);
+			const short = isShort(beats);
+			// Right-align the anacrusis inside a full bar (downbeats stay
+			// downbeats) and carry its exact printed length. A form must
+			// follow: a lone short measure is a misread, not a pickup.
+			const pickup = global === 0 && short && total > 1;
+			const shift = pickup ? beatsPerBar - beats : 0;
+			if (short && !pickup && !(global === total - 1 && firstIsShort)) {
+				const filled = Math.round(beats * 100) / 100;
+				systemWarnings.push(
+					`bar ${local + 1}: the transcription fills ${filled} of ${beatsPerBar} beats — check the rhythm`
+				);
+			}
 			return {
 				startRepeat: m.start_repeat ?? false,
 				endRepeat: m.end_repeat ?? false,
 				ending: m.ending ?? null,
-				pickup: false,
+				pickup,
+				...(pickup ? { pickupBeats: beats } : {}),
 				melody: (m.notes ?? [])
 					.filter((n) => !n.is_rest && n.spelled_pitch)
 					.map((n) =>
 						n.tied_to_next
-							? ([toBeat(n.onset), toBeat(n.duration), n.spelled_pitch as string, true] as const)
-							: ([toBeat(n.onset), toBeat(n.duration), n.spelled_pitch as string] as const)
+							? ([toBeat(n.onset) + shift, toBeat(n.duration), n.spelled_pitch as string, true] as const)
+							: ([toBeat(n.onset) + shift, toBeat(n.duration), n.spelled_pitch as string] as const)
 					)
 					.map((entry) => entry as unknown as ModelBar['melody'][number])
 			};
