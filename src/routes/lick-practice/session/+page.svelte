@@ -147,6 +147,11 @@
 	// The microphone was refused during setup: the key stack (built before the
 	// mic is asked for) is cleared and the banner takes its place.
 	let micError = $state(false);
+	// The audio modules failed to import at mount; same banner slot, the
+	// session never starts.
+	let loadError = $state(false);
+	/** Set by onDestroy, so a late import rejection knows the page is gone. */
+	let destroyed = false;
 	let currentBeat = $state(0);
 	let sessionReport: SessionReport | null = $state(null);
 
@@ -384,12 +389,23 @@
 		// of paying a ~125 KB download during the count-in. A failed fetch is
 		// not fatal here: NotationDisplay retries on mount.
 		abcjsLoader.load().catch(() => {});
-		playback = await import('$lib/audio/playback');
-		captureModule = await import('$lib/audio/capture');
-		pitchModule = await import('$lib/audio/pitch-detector');
-		onsetModule = await import('$lib/audio/onset-detector');
-		backingTrack = await import('$lib/audio/backing-track');
-		toneModule = await import('tone');
+		try {
+			playback = await import('$lib/audio/playback');
+			captureModule = await import('$lib/audio/capture');
+			pitchModule = await import('$lib/audio/pitch-detector');
+			onsetModule = await import('$lib/audio/onset-detector');
+			backingTrack = await import('$lib/audio/backing-track');
+			toneModule = await import('tone');
+		} catch (err) {
+			// A navigation that cuts the fetch off rejects the import too; once
+			// the page is gone that is nobody's error. Still up (offline, a stale
+			// deploy's missing chunk), the session can't start, so the banner
+			// takes the key stack's place and says why.
+			if (destroyed) return;
+			console.warn('[lick-practice] audio modules failed to load:', err);
+			loadError = true;
+			return;
+		}
 
 		timerInterval = setInterval(() => {
 			updateElapsedTime();
@@ -401,6 +417,7 @@
 	});
 
 	onDestroy(() => {
+		destroyed = true;
 		releaseScreenWakeLock();
 		stopAll();
 	});
@@ -511,18 +528,32 @@
 			return;
 		}
 
-		if (!playback.isInstrumentLoaded()) {
-			await playback.loadInstrument(
-				settings.instrumentId,
-				settings.masterVolume,
-				settings.backingInstrument
-			);
-		} else if (backingTrack) {
-			await backingTrack.loadBackingInstruments(settings.backingInstrument);
-		}
+		// A rejected sample fetch (offline, a dropped connection) or a detector
+		// error must not strand the session behind its prebuilt rows with the
+		// rejection unhandled: unwind, clear the rows as the mic path does, and
+		// let the setup banner say why — as tune practice does at the same spot.
+		try {
+			if (!playback.isInstrumentLoaded()) {
+				await playback.loadInstrument(
+					settings.instrumentId,
+					settings.masterVolume,
+					settings.backingInstrument
+				);
+			} else if (backingTrack) {
+				await backingTrack.loadBackingInstruments(settings.backingInstrument);
+			}
 
-		setMasterVolume(settings.masterVolume);
-		await ensurePitchDetector();
+			setMasterVolume(settings.masterVolume);
+			await ensurePitchDetector();
+		} catch (err) {
+			isLoading = false;
+			if (destroyed) return;
+			console.warn('[lick-practice] audio setup failed:', err);
+			loadError = true;
+			plannedKeysForLick = [];
+			rowOfKey = [];
+			return;
+		}
 		isLoading = false;
 
 		// Stamp the session log base id + timestamp once per session. Per-key
@@ -1936,6 +1967,14 @@
 				data-testid="mic-error"
 			>
 				Microphone unavailable — check permissions and try again.
+			</div>
+		{:else if loadError}
+			<div
+				class="rounded-lg bg-[var(--color-error)]/15 p-3 text-sm text-[var(--color-error-text)]"
+				role="alert"
+				data-testid="load-error"
+			>
+				Audio setup failed — check your connection and reload.
 			</div>
 		{:else}
 		<div class="relative">

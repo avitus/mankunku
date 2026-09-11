@@ -253,16 +253,37 @@
 	});
 	session.tempo = settings.defaultTempo;
 
+	/** Set by onDestroy, so a late import rejection knows the page is gone. */
+	let destroyed = false;
+	/** The audio modules failed to import while the page was up — Play is inert, the status line says why. */
+	let audioLoadFailed = $state(false);
+
 	onMount(async () => {
 		void acquireScreenWakeLock();
-		playback = await import('$lib/audio/playback');
-		captureModule = await import('$lib/audio/capture');
-		pitchModule = await import('$lib/audio/pitch-detector');
-		onsetModule = await import('$lib/audio/onset-detector');
+		try {
+			// All or nothing: a partial set would let Play start a phrase whose
+			// listening window can never open.
+			[playback, captureModule, pitchModule, onsetModule] = await Promise.all([
+				import('$lib/audio/playback'),
+				import('$lib/audio/capture'),
+				import('$lib/audio/pitch-detector'),
+				import('$lib/audio/onset-detector')
+			]);
+		} catch (err) {
+			// A navigation that cuts the fetch off rejects the import too; once
+			// the page is gone that is nobody's error. While it is still up
+			// (offline, a stale deploy's missing chunk), say so rather than
+			// leave a Play button that silently does nothing.
+			if (destroyed) return;
+			console.warn('[ear-training] audio modules failed to load', err);
+			audioLoadFailed = true;
+			return;
+		}
 		session.micPermission = await captureModule.checkMicPermission();
 	});
 
 	onDestroy(() => {
+		destroyed = true;
 		releaseScreenWakeLock();
 		stopDetection();
 		stopRecording();
@@ -878,7 +899,7 @@
 
 <div class="flex min-h-[80vh] flex-col items-center justify-center gap-6 px-4">
 	<div class="absolute right-4 top-2">
-		<HelpLink href="/docs/user-guide#practice" label="Practice docs" />
+		<HelpLink href="/docs/user-guide#side-a-ear-training" label="Practice docs" />
 	</div>
 
 	<!-- Practice-time counter. Balances the help link in the opposite corner,
@@ -991,6 +1012,8 @@
 			<span class="font-medium text-[var(--color-phase-play)]">Listening&hellip;</span>
 		{:else if session.engineState === 'playing'}
 			<span class="font-medium text-[var(--color-phase-listen)]">Listen&hellip;</span>
+		{:else if audioLoadFailed}
+			<span class="text-[var(--color-text-secondary)]">Couldn't load audio — reload to try again</span>
 		{:else if !isActive && session.micPermission !== 'granted'}
 			<span class="text-[var(--color-text-secondary)]">Tap to start — mic access required</span>
 		{/if}

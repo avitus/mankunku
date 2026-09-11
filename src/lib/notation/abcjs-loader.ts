@@ -53,5 +53,32 @@ export function createAbcjsLoader(importer: () => Promise<AbcjsModule>): AbcjsLo
 	};
 }
 
+/**
+ * Join the import on behalf of one mounted consumer; returns its cancel.
+ *
+ * The outcome reaches `loaded` or `failed` only while the consumer is live.
+ * A navigation that cuts the fetch off rejects the import too, and a chart
+ * that is gone has nobody to tell — so after cancel both are dropped. The
+ * rejection is handled either way: WebKit logs an unhandled one as a page
+ * error, which is what the e2e console guard caught.
+ */
+export function joinAbcjsLoad(
+	loader: AbcjsLoader,
+	handlers: { loaded: (module: AbcjsModule) => void; failed: (err: unknown) => void }
+): () => void {
+	let live = true;
+	loader.load().then(
+		(m) => {
+			if (live) handlers.loaded(m);
+		},
+		(err: unknown) => {
+			if (live) handlers.failed(err);
+		}
+	);
+	return () => {
+		live = false;
+	};
+}
+
 /** The app's shared loader. Browser-only: never call `load()` during SSR. */
 export const abcjsLoader: AbcjsLoader = createAbcjsLoader(() => import('abcjs'));

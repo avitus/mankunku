@@ -110,7 +110,15 @@
 
 	onMount(async () => {
 		window.addEventListener('keydown', handleKeydown);
-		playbackModule = await import('$lib/audio/playback');
+		try {
+			playbackModule = await import('$lib/audio/playback');
+		} catch (err) {
+			// Playback is only the preview: a failed import must not skip the
+			// hydration below, or the module-scoped rune keeps a previous edit
+			// session's lick — and its Update target. A navigation that cut the
+			// fetch off rejects it too; that is dropped with the page.
+			if (editHydrationActive) console.warn('[lick-editor] playback failed to load; Play is unavailable', err);
+		}
 		if (!editHydrationActive) return;
 
 		// Edit mode: `?edit=<id>` loads an existing lick into the editor.

@@ -456,17 +456,193 @@ test.describe('lick-practice session flow', () => {
 	});
 
 	/**
-	 * The notation engine (abcjs, the second-largest chunk in the bundle) is a
-	 * dynamic import that nothing on the Daily path touches before the session
-	 * — so the first lead-sheet row used to issue the fetch from its own mount,
-	 * which is the moment the count-in starts. The session must request it
-	 * during SETUP instead: before the instrument samples, which `initializeSession`
-	 * awaits (after the mic, before the pitch detector) ahead of the first
-	 * count-in. Both timestamps are taken in this process, from the requests
-	 * themselves, so the ordering is not a race against the page. The seed
-	 * reveals the one key, so a session that only fetched on engrave still
-	 * fetches — and fails on the ORDER, not on a missing request.
+	 * A revealed key plays three windows, and only the LAST is the attempt of
+	 * record: the two rehearsal passes are scored and flashed, but nothing
+	 * about them persists — no per-key progress write (`recordKeyAttempt`), no
+	 * session-log attempt, no saved take. A regression here is silent and
+	 * compounding: every revealed key would fold three EWMA steps into its
+	 * rolling score per session (dragging a struggling key down three times as
+	 * fast, so it stays revealed), the session log would count three attempts
+	 * where the player made one, and /diagnostics would list orphan takes that
+	 * no result references.
+	 *
+	 * The Daily seed has one key, C, under the floor: count-in, demo, three
+	 * passes, report — about a dozen bars at 180 BPM. Every write to the
+	 * progress blob is logged in order, so the count of rolling-score updates
+	 * does not depend on when it is sampled. The mock recorder hands back a
+	 * real WAV, because the default empty blob is never saved and "one saved
+	 * take" would be unobservable. The persistence checks are soft: they are
+	 * independent facets of the same rule, and a regression that breaks all
+	 * of them should say so in one run.
 	 */
+	test('a revealed key persists only its final pass: one progress update, one logged attempt, one take', async ({
+		page,
+		browserName
+	}) => {
+		test.skip(
+			browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+			'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device'
+		);
+		test.setTimeout(150_000);
+
+		const seededRolling = SUB_FLOOR_PROGRESS['lick-practice-progress']['e2e-user-lick-bebop'].C.rollingScore;
+		await seedOnboardedAnonymous(page);
+		await seedUserLicks(page);
+		await seedStorage(page, {
+			'user-lick-tags': { 'e2e-user-lick-bebop': ['practice', 'prog:ii-V-I-major'] },
+			...SUB_FLOOR_PROGRESS
+		});
+		await installAudioMock(page, { fixturePath: '2026-07-08-four-to-five.wav' });
+		await stubCdnInstrumentSamples(page);
+		await page.addInitScript(() => {
+			const w = window as unknown as {
+				__writes: Array<[string, string]>;
+				__recorderStarts: number;
+				MediaRecorder: typeof MediaRecorder;
+			};
+			// The per-key progress blob, and the three blobs an attempt of record
+			// writes after it: the session log, the daily summary, the streak.
+			const LOGGED = new Set([
+				'mankunku:lick-practice-progress',
+				'mankunku:lick-practice-sessions',
+				'mankunku:daily-summaries',
+				'mankunku:progress'
+			]);
+			const writes: Array<[string, string]> = [];
+			w.__writes = writes;
+			const setItem = Storage.prototype.setItem;
+			Storage.prototype.setItem = function (key: string, value: string): void {
+				if (LOGGED.has(key)) writes.push([key, value]);
+				setItem.call(this, key, value);
+			};
+			// Count recorder starts. The mock recorder is installed by another
+			// init script, and Playwright leaves the order of init scripts
+			// undefined — so wrap whichever constructor is current AND any
+			// assigned after this runs.
+			w.__recorderStarts = 0;
+			const counting = (Base: typeof MediaRecorder): typeof MediaRecorder =>
+				class extends Base {
+					start(timeslice?: number): void {
+						w.__recorderStarts++;
+						super.start(timeslice);
+					}
+				};
+			let current = counting(w.MediaRecorder);
+			Object.defineProperty(window, 'MediaRecorder', {
+				configurable: true,
+				get: () => current,
+				set: (next: typeof MediaRecorder) => {
+					current = counting(next);
+				}
+			});
+		});
+
+		await page.goto('/lick-practice');
+		const startBtn = page.getByRole('button', { name: /start daily practice/i });
+		await expect(startBtn).toBeEnabled();
+		await startBtn.click();
+		await expect(page).toHaveURL(/\/lick-practice\/session$/);
+		await expect(page.getByTestId('lead-sheet-row')).toHaveCount(1, { timeout: 20_000 });
+
+		// All three windows run: the PLAY tab numbers them. The windows abut, so
+		// the tab is the observable, not the recording ring.
+		const playTab = page.locator('.phase-tab[data-kind="play"]');
+		await expect(playTab).toHaveAttribute('data-pass', '1', { timeout: 90_000 });
+		await expect(playTab).toHaveAttribute('data-pass', '2', { timeout: 30_000 });
+		await expect(playTab).toHaveAttribute('data-pass', '3', { timeout: 30_000 });
+		await expect(page.getByRole('heading', { name: /session report/i })).toBeVisible({
+			timeout: 60_000
+		});
+
+		// The session log holds ONE attempt for the three windows.
+		const sessions = await page.evaluate(
+			() => JSON.parse(localStorage.getItem('mankunku:lick-practice-sessions') ?? '[]') as Array<{
+				report: { totalAttempts: number; licks: Array<{ keys: Array<{ key: string; sessionId?: string }> }> };
+			}>
+		);
+		expect(sessions).toHaveLength(1);
+		const report = sessions[0].report;
+		expect.soft(report.totalAttempts, 'attempts in the session log').toBe(1);
+		expect.soft(report.licks.flatMap((l) => l.keys.map((k) => k.key))).toEqual(['C']);
+		const attemptSessionId = report.licks[0]?.keys[0]?.sessionId;
+
+		// The key's rolling score moved exactly once from its seed. The end-of-
+		// lick tempo write re-saves the same value, so updates are counted as
+		// changes, not writes; the seed may or may not be in the log (init-
+		// script order is Playwright's), which counting from the seed absorbs.
+		const writes = await page.evaluate(
+			() => (window as unknown as { __writes: Array<[string, string]> }).__writes
+		);
+		const updateAt: number[] = [];
+		let rolling: number | undefined = seededRolling;
+		writes.forEach(([key, value], i) => {
+			if (key !== 'mankunku:lick-practice-progress') return;
+			const next = (JSON.parse(value) as Record<string, Record<string, { rollingScore?: number }>>)[
+				'e2e-user-lick-bebop'
+			]?.C?.rollingScore;
+			if (next !== rolling) updateAt.push(i);
+			rolling = next;
+		});
+		expect.soft(updateAt, 'rolling-score updates to key C').toHaveLength(1);
+		// Nothing else about the attempt lands before it either: the session
+		// log, the daily summary and the streak are first written by the final
+		// pass, after its progress write — a rehearsal pass that bumped the
+		// streak would count a practice day with no attempt of record.
+		const firstRecordWrite = writes.findIndex(([key]) => key !== 'mankunku:lick-practice-progress');
+		expect
+			.soft(firstRecordWrite, 'first session-log / summary / streak write, after the progress update')
+			.toBeGreaterThan(updateAt[0] ?? Infinity);
+
+		// One take recorded for the three windows: a rehearsal pass starts no
+		// recorder at all.
+		expect
+			.soft(
+				await page.evaluate(() => (window as unknown as { __recorderStarts: number }).__recorderStarts),
+				'recorders started'
+			)
+			.toBe(1);
+
+		// ...and the saved take is the attempt the log references. WebKit cannot
+		// store a Blob in IndexedDB in Playwright's ephemeral context (the put's
+		// transaction aborts; the app warns and keeps going), so no take is
+		// ever saved there and the recorder count above is its pin.
+		if (browserName === 'webkit') return;
+		// The probe creates the store if the app has not (same shape as
+		// audio-store.ts), so opening it early can never leave the app a
+		// store-less database.
+		const readTakes = () =>
+			page.evaluate(async () => {
+				const db = await new Promise<IDBDatabase>((resolve, reject) => {
+					const req = indexedDB.open('mankunku-audio:anon', 1);
+					req.onupgradeneeded = () => {
+						if (!req.result.objectStoreNames.contains('recordings')) {
+							req.result.createObjectStore('recordings', { keyPath: 'sessionId' });
+						}
+					};
+					req.onsuccess = () => resolve(req.result);
+					req.onerror = () => reject(req.error);
+				});
+				try {
+					const rows = await new Promise<
+						Array<{ sessionId: string; blob: Blob; metadata: { source?: string } | null }>
+					>((resolve, reject) => {
+						const req = db.transaction('recordings', 'readonly').objectStore('recordings').getAll();
+						req.onsuccess = () => resolve(req.result);
+						req.onerror = () => reject(req.error);
+					});
+					return rows
+						.filter((r) => r.metadata?.source === 'lick-practice' && r.blob.size > 0)
+						.map((r) => r.sessionId);
+				} finally {
+					db.close();
+				}
+			});
+		// Saved asynchronously after the window closes; the rehearsal takes, if
+		// any were kept, closed whole passes earlier and are in by then.
+		await expect.poll(readTakes, { timeout: 10_000 }).toContain(attemptSessionId);
+		expect.soft(await readTakes(), 'saved lick-practice takes').toEqual([attemptSessionId]);
+	});
+
 	/**
 	 * The key stack is built before the microphone is requested (so it is on
 	 * screen while the samples load), which means a refused microphone must
@@ -512,6 +688,95 @@ test.describe('lick-practice session flow', () => {
 		await expect(page.getByRole('button', { name: /end session/i })).toBeVisible();
 	});
 
+	/**
+	 * The instrument load is the one long network wait in session setup, and
+	 * a failed one used to strand the page: `initializeSession` awaited it
+	 * with no catch, so the rejection escaped as an unhandled promise and the
+	 * prebuilt key stack stood forever — populated, silent, never counting in.
+	 * Every instrument source is made to fail — the local sax samples and the
+	 * soundfont `playback.ts` falls back to when they fail — so the load
+	 * rejects. The failure lands in the setup banner, in the stack's place;
+	 * the automatic console guard fails the test on the unhandled rejection
+	 * the unguarded await used to leave.
+	 *
+	 * The failure is a rejected `fetch`, installed in the page, rather than an
+	 * aborted route: an aborted request writes the browser's own
+	 * "Failed to load resource" line to the console (the guard would fail on
+	 * the condition the test induces on purpose), and a rejected fetch is
+	 * exactly what smplr sees from a dropped connection — it calls the global
+	 * `fetch` for every sample.
+	 */
+	test('shows the setup error instead of hanging when the instrument samples fail to load', async ({
+		page,
+		browserName,
+		consoleCollector
+	}) => {
+		test.skip(
+			browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+			'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device'
+		);
+		test.setTimeout(60_000);
+
+		await seedOnboardedAnonymous(page);
+		await seedUserLicks(page);
+		await seedStorage(page, {
+			'user-lick-tags': { 'e2e-user-lick-bebop': ['practice', 'prog:ii-V-I-major'] },
+			...SEEDED_PROGRESS
+		});
+		await installAudioMock(page);
+		await stubCdnInstrumentSamples(page);
+		await page.addInitScript(() => {
+			const w = window as unknown as { __failedSampleFetches: number };
+			w.__failedSampleFetches = 0;
+			const origFetch = window.fetch.bind(window);
+			window.fetch = (input, init) => {
+				const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+				if (/\/samples\/tenor-sax\/|gleitz\.github\.io/.test(url)) {
+					w.__failedSampleFetches++;
+					return Promise.reject(new TypeError('Failed to fetch'));
+				}
+				return origFetch(input, init);
+			};
+		});
+
+		await page.goto('/lick-practice');
+		const startBtn = page.getByRole('button', { name: /start daily practice/i });
+		await expect(startBtn).toBeEnabled();
+		await startBtn.click();
+		await expect(page).toHaveURL(/\/lick-practice\/session$/);
+
+		await expect(page.getByTestId('load-error')).toBeVisible({ timeout: 30_000 });
+		// The failure really was the instrument load, not some earlier step.
+		expect(
+			await page.evaluate(
+				() => (window as unknown as { __failedSampleFetches: number }).__failedSampleFetches
+			)
+		).toBeGreaterThan(0);
+		// The banner stands in the stack's place — no silent rows left behind,
+		// nothing counting in — and the way out is still there.
+		await expect(page.locator('.chart-wrap')).toHaveCount(0);
+		await expect(page.getByTestId('lead-sheet-row')).toHaveCount(0);
+		await expect(page.locator('.phase-tab')).toHaveCount(0);
+		await expect(page.getByRole('button', { name: /end session/i })).toBeVisible();
+		// Logged, as a warning: the banner is the user's report of a dropped
+		// connection, and a console.error would fail the guard.
+		await expect
+			.poll(() => consoleCollector.warnings.some((w) => w.startsWith('[lick-practice] audio setup failed')))
+			.toBe(true);
+	});
+
+	/**
+	 * The notation engine (abcjs, the second-largest chunk in the bundle) is a
+	 * dynamic import that nothing on the Daily path touches before the session
+	 * — so the first lead-sheet row used to issue the fetch from its own mount,
+	 * which is the moment the count-in starts. The session must request it
+	 * during SETUP instead: before the instrument samples, which `initializeSession`
+	 * awaits (after the mic, before the pitch detector) ahead of the first
+	 * count-in. Both timestamps are taken in this process, from the requests
+	 * themselves, so the ordering is not a race against the page. The seed
+	 * reveals the one key, so a session that only fetched on engrave still
+	 * fetches — and fails on the ORDER, not on a missing request.
+	 */
 	test('fetches the notation engine and builds the key stack during session setup, before the samples load', async ({
 		page,
 		browserName,

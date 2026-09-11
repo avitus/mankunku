@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { onMount, tick, untrack } from 'svelte';
-	import { abcjsLoader, type AbcjsModule } from '$lib/notation/abcjs-loader';
+	import { tick, untrack } from 'svelte';
+	import { abcjsLoader, joinAbcjsLoad, type AbcjsModule } from '$lib/notation/abcjs-loader';
 	import type { Snippet } from 'svelte';
 	import type { Phrase } from '$lib/types/music';
 	import type { Tune } from '$lib/types/tune';
@@ -170,9 +170,10 @@
 		 */
 		frameless?: boolean;
 		/**
-		 * abcjs staff width in SVG units (default `CHART_STAFF_WIDTH`). A host
-		 * that sizes the SVG by HEIGHT (a fixed-height row) asks for a wider
-		 * staff so the single system spans the row.
+		 * abcjs staff width in SVG units (default `CHART_STAFF_WIDTH`, 750). A
+		 * host that sizes the SVG by WIDTH makes this the zoom: the lick-practice
+		 * lead-sheet row (`UpcomingKeysDisplay`) passes a narrower 640, so its
+		 * one system engraves larger across the full row.
 		 */
 		staffWidth?: number;
 	}
@@ -210,6 +211,8 @@
 	// instance mounting after it resolved gets the module synchronously —
 	// it engraves in its first effect flush rather than one microtask later.
 	let abcjs = $state<AbcjsModule | null>(abcjsLoader.loaded());
+	/** The engine import failed while this instance was mounted; a quiet line stands in for the staff. */
+	let engineFailed = $state(false);
 
 	// ── Inline chord editor state ────────────────────────────────────────────
 	let chordEdit: BeatPos | null = $state(null);
@@ -249,8 +252,26 @@
 		return bases;
 	}
 
-	onMount(async () => {
-		if (!abcjs) abcjs = await abcjsLoader.load();
+	// Fetch the engine unless the shared loader already holds it. The chart
+	// content is a dependency so a failed import (offline, a stale deploy's
+	// missing chunk) is retried by the next phrase/tune this instance is
+	// handed, as well as by the next mount — the loader never caches a
+	// rejection. The cleanup drops an outcome that lands after this instance
+	// is gone (a navigation that cut the fetch off).
+	$effect(() => {
+		if (abcjs) return;
+		void phrase;
+		void tune;
+		return joinAbcjsLoad(abcjsLoader, {
+			loaded: (m) => {
+				abcjs = m;
+				engineFailed = false;
+			},
+			failed: (err) => {
+				engineFailed = true;
+				console.warn('[NotationDisplay] abcjs failed to load; the chart will retry', err);
+			}
+		});
 	});
 
 	$effect(() => () => {
@@ -1299,6 +1320,15 @@
 					style={autoScrollPlayhead ? `transform: translateY(${followOffsetPx}px)` : undefined}
 				>
 					<div bind:this={containerEl} class="abcjs-container"></div>
+					{#if engineFailed}
+						<p
+							class="py-3 text-center text-sm italic text-[var(--color-text-secondary)]"
+							role="status"
+							data-testid="chart-load-error"
+						>
+							Couldn't load the notation — reload to try again.
+						</p>
+					{/if}
 				</div>
 			</div>
 			{#if chordEdit && overlayBox}

@@ -85,15 +85,29 @@
 		? midiToNoteName(currentPitchMidi + instrument.transpositionSemitones)
 		: null);
 
+	/** Set by onDestroy, so a late import rejection knows the page is gone. */
+	let destroyed = false;
+	/** The audio modules failed to import while the page was up — Record is inert, the idle view says why. */
+	let audioLoadFailed = $state(false);
+
 	onMount(async () => {
 		void acquireScreenWakeLock();
-		playbackModule = await import('$lib/audio/playback');
-		captureModule = await import('$lib/audio/capture');
-		pitchModule = await import('$lib/audio/pitch-detector');
-		onsetModule = await import('$lib/audio/onset-detector');
+		try {
+			playbackModule = await import('$lib/audio/playback');
+			captureModule = await import('$lib/audio/capture');
+			pitchModule = await import('$lib/audio/pitch-detector');
+			onsetModule = await import('$lib/audio/onset-detector');
+		} catch (err) {
+			// A navigation that cuts the fetch off rejects the import too; once
+			// the page is gone that is nobody's error.
+			if (destroyed) return;
+			console.warn('[record-lick] audio modules failed to load', err);
+			audioLoadFailed = true;
+		}
 	});
 
 	onDestroy(() => {
+		destroyed = true;
 		releaseScreenWakeLock();
 		cleanup();
 	});
@@ -469,8 +483,14 @@
 				<span class="text-sm text-[var(--color-text-secondary)]">BPM</span>
 			</div>
 
+			<!-- The idle status line: a failed audio import replaces the hint,
+			     since Record does nothing without the modules. -->
 			<p class="text-xs text-[var(--color-text-secondary)]">
-				Headphones recommended to avoid metronome bleed
+				{#if audioLoadFailed}
+					Couldn't load audio — reload to try again
+				{:else}
+					Headphones recommended to avoid metronome bleed
+				{/if}
 			</p>
 
 		{:else if recordState === 'counting-in' || recordState === 'recording'}

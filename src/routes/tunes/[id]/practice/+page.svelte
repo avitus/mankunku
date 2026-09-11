@@ -395,12 +395,23 @@
 
 	onMount(async () => {
 		void acquireScreenWakeLock();
-		playback = await import('$lib/audio/playback');
-		captureModule = await import('$lib/audio/capture');
-		pitchModule = await import('$lib/audio/pitch-detector');
-		onsetModule = await import('$lib/audio/onset-detector');
-		backingTrack = await import('$lib/audio/backing-track');
-		toneModule = await import('tone');
+		try {
+			playback = await import('$lib/audio/playback');
+			captureModule = await import('$lib/audio/capture');
+			pitchModule = await import('$lib/audio/pitch-detector');
+			onsetModule = await import('$lib/audio/onset-detector');
+			backingTrack = await import('$lib/audio/backing-track');
+			toneModule = await import('tone');
+		} catch (err) {
+			// A navigation that cuts the fetch off rejects the import too; once
+			// the page is gone that is nobody's error. Still up (offline, a stale
+			// deploy's missing chunk), Start is inert without the modules, so the
+			// audio-setup banner says why.
+			if (!mounted) return;
+			console.warn('[tune-practice] audio modules failed to load:', err);
+			loadError = true;
+			return;
+		}
 
 		// Unmounting during the dynamic imports above runs onDestroy while
 		// timerInterval is still null; without this guard the continuation would

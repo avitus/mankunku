@@ -149,7 +149,15 @@
 
 	onMount(async () => {
 		window.addEventListener('keydown', handleKeydown);
-		playbackModule = await import('$lib/audio/playback');
+		try {
+			playbackModule = await import('$lib/audio/playback');
+		} catch (err) {
+			// Playback is only the preview: a failed import must not skip the
+			// setup below (edit hydration, an import's review handoff, clearing
+			// a stale draft). A navigation that cut the fetch off rejects it
+			// too; that is dropped with the page.
+			if (!destroyed) console.warn('[tune-editor] playback failed to load; Play is unavailable', err);
+		}
 		if (!editHydrationActive) return;
 		const editId = page.url.searchParams.get('edit');
 		if (editId) {
