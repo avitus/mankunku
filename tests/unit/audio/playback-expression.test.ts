@@ -82,3 +82,38 @@ describe('phraseToEvents — expression reaches the event', () => {
 		expect(events[3].cutoffHz).toBeLessThan(4500);
 	});
 });
+
+describe('phraseToEvents — breath detune', () => {
+	it('scoops the first note −15 cents, notes below middle C −8, the rest 0', () => {
+		vi.spyOn(Math, 'random').mockReturnValue(0.5);
+		const phrase = makePhrase([
+			{ pitch: 60, duration: [1, 8], offset: [0, 1] },
+			{ pitch: 55, duration: [1, 8], offset: [1, 8] },
+			{ pitch: 64, duration: [1, 8], offset: [1, 4] }
+		]);
+		expect(phraseToEvents(phrase, 120, 0.5, PPQ).map((e) => e.detune)).toEqual([-15, -8, 0]);
+	});
+});
+
+describe('phraseToEvents — timing humanization bounds', () => {
+	// The ±6 ms budget scales with 120/tempo and so does the tick length, so
+	// at PPQ 192 the jitter is ±2 ticks at EVERY tempo: the played grid never
+	// sits more than 2 ticks off the scorer's, and the downbeat can never be
+	// pulled ahead of tick 0 into the count-in.
+	const grid = EIGHTH_LINE.map((n) =>
+		Math.round(applySwingToBeats(fractionToFloat(n.offset) * 4, 0.5) * PPQ)
+	);
+
+	it('shifts every onset by at most 2 ticks either way, at any tempo', () => {
+		for (const tempo of [60, 120, 240]) {
+			vi.spyOn(Math, 'random').mockReturnValue(1);
+			const late = phraseToEvents(makePhrase(EIGHTH_LINE), tempo, 0.5, PPQ).map((e) => e.ticks);
+			vi.restoreAllMocks();
+			vi.spyOn(Math, 'random').mockReturnValue(0);
+			const early = phraseToEvents(makePhrase(EIGHTH_LINE), tempo, 0.5, PPQ).map((e) => e.ticks);
+			vi.restoreAllMocks();
+			expect(late, `tempo ${tempo}`).toEqual(grid.map((t) => t + 2));
+			expect(early, `tempo ${tempo}`).toEqual(grid.map((t, i) => (i === 0 ? 0 : t - 2)));
+		}
+	});
+});

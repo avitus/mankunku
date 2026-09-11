@@ -17,11 +17,35 @@ import {
 	lickPractice,
 	startSingleLickSession,
 	advanceSingleLickRound,
+	recordKeyAttempt,
+	resetLick,
 	resetSession
 } from '$lib/state/lick-practice.svelte';
-import { bumpUnlockedKeyCount } from '$lib/persistence/lick-practice-store';
+import {
+	bumpUnlockedKeyCount,
+	getProgressionTags,
+	getUnlockedKeyCount,
+	hasPracticeTag,
+	loadLickPracticeProgress,
+	togglePracticeTag,
+	toggleProgressionTag
+} from '$lib/persistence/lick-practice-store';
 import { nextCycleTempo } from '$lib/state/lick-practice-rotation';
 import type { PitchClass, Phrase } from '$lib/types/music';
+import type { Score } from '$lib/types/scoring';
+
+function makeScore(overall: number): Score {
+	return {
+		pitchAccuracy: overall,
+		rhythmAccuracy: overall,
+		overall,
+		grade: 'A',
+		noteResults: [],
+		notesHit: 0,
+		notesTotal: 0,
+		timing: { bias: 0, spread: 0, offsets: [] }
+	} as unknown as Score;
+}
 
 // Node test env has no real localStorage; stub a Map-backed one so the
 // `lick-unlock-count` reads/writes the per-lick store goes through actually
@@ -150,5 +174,28 @@ describe('advanceSingleLickRound refill', () => {
 
 		// D should now appear in the refilled rotation.
 		expect(lickPractice.plan[0].keys).toContain('D');
+	});
+});
+
+describe('resetLick', () => {
+	it('relocks the lick to its entry key and clears its scores, but keeps its tags', () => {
+		setUnlockedCount('lick-c', 3);
+		togglePracticeTag('lick-c');
+		toggleProgressionTag('lick-c', 'ii-V-I-major');
+		startSingleLickSession(makeLick('C', 'lick-c'));
+		expect(lickPractice.plan[0].keys).toHaveLength(3);
+		recordKeyAttempt(makeScore(0.9));
+		expect(lickPractice.progress['lick-c']?.[lickPractice.plan[0].keys[0]]).toBeDefined();
+
+		resetLick('lick-c');
+
+		// The reactive map was reassigned, not mutated in place, and persisted.
+		expect(lickPractice.progress['lick-c']).toBeUndefined();
+		expect(loadLickPracticeProgress()['lick-c']).toBeUndefined();
+		expect(getUnlockedKeyCount(lickPractice.progress, 'lick-c')).toBe(1);
+		startSingleLickSession(makeLick('C', 'lick-c'));
+		expect(lickPractice.plan[0].keys).toEqual(['C']);
+		expect(hasPracticeTag('lick-c')).toBe(true);
+		expect(getProgressionTags('lick-c')).toEqual(['ii-V-I-major']);
 	});
 });

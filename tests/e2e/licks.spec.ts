@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures/test';
-import { seedOnboardedAnonymous, seedUserLicks } from './fixtures/storage';
+import { seedOnboardedAnonymous, seedUserLicks, SAMPLE_USER_LICKS } from './fixtures/storage';
 
 test.describe('licks', () => {
 	test.beforeEach(async ({ page }) => {
@@ -7,15 +7,6 @@ test.describe('licks', () => {
 		// The library lists only the user's own licks, so seed a personal
 		// collection — otherwise the page renders its empty state.
 		await seedUserLicks(page);
-	});
-
-	test('renders the licks heading and search input', async ({
-		page,
-		consoleCollector: _consoleCollector
-	}) => {
-		await page.goto('/licks');
-		await expect(page.getByRole('heading', { name: /your licks/i })).toBeVisible();
-		await expect(page.getByPlaceholder(/find a lick/i)).toBeVisible();
 	});
 
 	test('header links route to the community browse and the add chooser', async ({
@@ -53,22 +44,25 @@ test.describe('licks', () => {
 		consoleCollector: _consoleCollector
 	}) => {
 		await page.goto('/licks');
+		await expect(page.getByRole('heading', { name: /your licks/i })).toBeVisible();
 
 		// Each LickCard renders the lick name as a level-3 heading — counting
 		// those gives a reliable card count via a semantic locator that survives
 		// styling refactors. (Section titles are h2, so this targets only cards.)
-		// User licks load asynchronously, so wait for the first card to render
-		// before snapshotting the count.
+		// User licks load asynchronously, so the count is a retrying assertion.
 		const cards = page.locator('main').getByRole('heading', { level: 3 });
-		await expect(cards.first()).toBeVisible();
-		const initialCount = await cards.count();
-		expect(initialCount, 'seeded licks page should show at least one lick').toBeGreaterThan(0);
+		await expect(cards).toHaveCount(SAMPLE_USER_LICKS.length);
 
-		await page.getByPlaceholder(/find a lick/i).fill('zzz-no-such-lick');
+		const search = page.getByPlaceholder(/find a lick/i);
 
-		await expect(async () => {
-			const filtered = await cards.count();
-			expect(filtered).toBeLessThan(initialCount);
-		}).toPass({ timeout: 5_000 });
+		// A hit narrows the book to the matching card.
+		await search.fill('Blues');
+		await expect(cards).toHaveCount(1);
+		await expect(page.getByRole('heading', { name: 'Test Blues Riff' })).toBeVisible();
+
+		// A miss empties it and says so, rather than leaving stale cards up.
+		await search.fill('zzz-no-such-lick');
+		await expect(cards).toHaveCount(0);
+		await expect(page.getByText('No licks match your search.')).toBeVisible();
 	});
 });

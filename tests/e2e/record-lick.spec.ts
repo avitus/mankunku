@@ -8,16 +8,17 @@ import { installAudioMock } from './fixtures/audio';
  *
  * Pins the cue sequence and the state machine around it, not pitch content —
  * the transcription pipeline is covered by the Vitest replay suites, and
- * pitch assertions on a fake media stream are flaky by construction. On
- * Chromium the mock hands through the REAL fake-device stream, which emits
- * periodic beeps: whether the detector reads them confidently (review) or
- * not (idle) is not this spec's business, so the ending accepts either exit
- * from the take. The silence auto-stop is untestable here for the same
- * reason — the beeps keep refreshing it.
+ * pitch assertions on a synthetic media stream are flaky by construction.
+ * The mock's stream is a bare oscillator on every engine (fixtures/audio.ts
+ * never calls the native getUserMedia): whether the detector reads it
+ * confidently (review) or not (idle) is not this spec's business, so the
+ * ending accepts either exit from the take. The silence auto-stop is
+ * untestable here for the same reason — the tone never stops.
  *
- * Chromium-only: the flow rides Tone.start(), which hangs in headless Linux
- * Firefox without an audio device (see ear-training.spec.ts), and the cue is
- * browser-agnostic DOM.
+ * Skipped only on headless Linux Firefox in CI, where Tone.start() hangs
+ * without an audio device (see ear-training.spec.ts); the cue is
+ * browser-agnostic DOM and the mock is engine-agnostic, so Chromium and
+ * WebKit both run it.
  */
 test.describe('record a lick: start signal', () => {
 	test('counts in with a countdown, flips on air, and stop exits the take', async ({
@@ -27,7 +28,10 @@ test.describe('record a lick: start signal', () => {
 		page: Page;
 		browserName: string;
 	}): Promise<void> => {
-		test.skip(browserName !== 'chromium', 'cue sequence is browser-agnostic; Tone.start() is not');
+		test.skip(
+			browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+			'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device'
+		);
 		test.setTimeout(60_000);
 
 		await seedOnboardedAnonymous(page);

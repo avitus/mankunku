@@ -41,12 +41,16 @@ describe('createOctaveStabilizer', () => {
 			expect(next.warmup).toBe(false);
 		});
 
-		it('when all warmup frames have the same MIDI, stable MIDI matches', () => {
-			const stab = createOctaveStabilizer(OCTAVE_CONFIRM_FRAMES, 5);
-			for (let i = 0; i < 5; i++) {
-				stab.process(60, 0.9);
-			}
-			// Steady-state: returns same MIDI
+		it('seeds the stable MIDI with the most recent key when weights tie', () => {
+			// A late-stabilising sustain must beat an equal-weight attack
+			// transient; `weightedMode` breaks ties toward the later index.
+			const stab = createOctaveStabilizer(3, 4);
+			stab.process(48, 0.9);
+			stab.process(48, 0.9);
+			stab.process(60, 0.9);
+			stab.process(60, 0.9); // warmup ends: 48 and 60 tie at 1.62 each
+			// Seeded on 60 this is steady state; seeded on 48 it would be a
+			// suppressed +12 jump reported as 48.
 			const result = stab.process(60, 0.9);
 			expect(result.midi).toBe(60);
 			expect(result.warmup).toBe(false);
@@ -485,5 +489,47 @@ describe('measureShapeBreak silence handling', () => {
 
 	it('returns null when nothing in the buffer is measurable', () => {
 		expect(measureShapeBreak(new Float32Array(4096), 196, sampleRate)).toBeNull();
+	});
+});
+
+describe('detectFrame on a window too short for the sub-window floors', () => {
+	it('falls back rmsMin to the window rms and omits bandRmsMin', () => {
+		// 256 samples is two 128-sample blocks: under the four a span needs.
+		// The consumers treat an absent bandRmsMin as "skip that tier".
+		const buf = new Float32Array(256);
+		for (let i = 0; i < buf.length; i++) buf[i] = 0.3 * Math.sin((2 * Math.PI * 440 * i) / 48000);
+		const result = detectFrame(buf, 0, makeMockDetector(440, 0.95) as any, null, { sampleRate: 48000 });
+		expect(result.reading).not.toBeNull();
+		expect(result.reading!.rmsMin).toBe(result.reading!.rms);
+		expect(result.reading!.bandRmsMin).toBeUndefined();
+	});
+});
+
+describe('detectFrame instrument-band floor', () => {
+	const sampleRate = 44100;
+	const f0 = 400;
+
+	/** A tone dipping to a fifth of its level over [1500, 2500); optionally an 8 kHz ride burst inside the dip. */
+	function dippedTone(withRide: boolean): Float32Array {
+		const buf = new Float32Array(4096);
+		for (let i = 0; i < buf.length; i++) {
+			const inDip = i >= 1500 && i < 2500;
+			let s = (inDip ? 0.06 : 0.3) * Math.sin((2 * Math.PI * f0 * i) / sampleRate);
+			if (withRide && inDip) s += 0.3 * Math.sin((2 * Math.PI * 8000 * i) / sampleRate);
+			buf[i] = s;
+		}
+		return buf;
+	}
+
+	it('a ride burst fills the full-band floor but cannot fill the 250–5000 Hz floor', () => {
+		// The click-schedule veto rests on this: a click only ADDS energy, and
+		// in the instrument band it adds ~none, so a tongue stop under a ride
+		// still reads as a dip there while `rmsMin` is filled in.
+		const det = makeMockDetector(f0, 0.95);
+		const clean = detectFrame(dippedTone(false), 0, det as any, null, { sampleRate }).reading!;
+		const ridden = detectFrame(dippedTone(true), 0, det as any, null, { sampleRate }).reading!;
+		expect(clean.bandRmsMin!).toBeLessThan(0.1); // the dip registered in-band
+		expect(ridden.rmsMin!).toBeGreaterThan(clean.rmsMin! * 2);
+		expect(ridden.bandRmsMin!).toBeLessThan(clean.bandRmsMin! * 1.15);
 	});
 });

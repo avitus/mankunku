@@ -93,6 +93,33 @@ describe('cadence licks (curated, table-driven over every template)', () => {
 		expect(fittingProgressionsForLick(half)).toEqual(['ii-V-I-minor']);
 	});
 
+	it('lets the LAST segment overrun the template\'s final slot (the engine tail-extends it) but no inner slot', () => {
+		const seg = (root: 'D' | 'G' | 'C', quality: 'min7' | '7' | 'maj7', start: [number, number], dur: [number, number]) => ({
+			chord: { root, quality },
+			scaleId: 'major.ionian',
+			startOffset: start,
+			duration: dur
+		});
+		// A 4-bar ii-V-I whose I rings for three bars: longer than the long
+		// template's 2-bar final slot, and still a fit.
+		const longTail = userLick('ii-V-I-major', {
+			harmony: [seg('D', 'min7', [0, 1], [1, 1]), seg('G', '7', [1, 1], [1, 1]), seg('C', 'maj7', [2, 1], [3, 1])],
+			difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 5 }
+		});
+		expect(progressionFitsLick(longTail, 'ii-V-I-major-long')).toEqual({ fits: true });
+		// A ii-V whose V lasts a whole bar against the short template's
+		// half-bar V: the overrun lands on an inner slot, so it is the wrong shape.
+		const wideV = userLick('short-ii-V-I-major', {
+			harmony: [seg('D', 'min7', [0, 1], [1, 2]), seg('G', '7', [1, 2], [1, 1])]
+		});
+		expect(progressionFitsLick(wideV, 'ii-V-I-major')).toEqual({ fits: false, reason: 'shape' });
+		// A segment starting where the template has no change point at all.
+		const offGrid = userLick('ii-V-I-major', {
+			harmony: [seg('D', 'min7', [0, 1], [1, 1]), seg('G', '7', [5, 4], [3, 4])]
+		});
+		expect(progressionFitsLick(offGrid, 'ii-V-I-major-long')).toEqual({ fits: false, reason: 'shape' });
+	});
+
 	it('getProgressionsForLick is the category set filtered by fit (the seeding set)', () => {
 		const full = ALL_CURATED_LICKS.find((l) => l.id === 'ii-V-I-min-001')!;
 		expect(getProgressionsForLick(full)).toEqual(['ii-V-I-minor-long']);
@@ -110,6 +137,15 @@ describe('harmony-less cadence licks (editor licks) fall back to the native entr
 		expect(progressionFitsLick(three, 'ii-V-I-minor')).toEqual({ fits: false, reason: 'length' });
 		const two = userLick('ii-V-I-minor', { difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 2 } });
 		expect(fittingProgressionsForLick(two)).toEqual(['ii-V-I-minor', 'ii-V-I-minor-long']);
+	});
+
+	it('measures the room AFTER the native entry offset, not the whole template', () => {
+		// V-I-major sits at bar 1 of the 4-bar long template: three bars of
+		// room. A 3-bar lick fits; a 4-bar one would run past the cycle.
+		const three = userLick('V-I-major', { difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 3 } });
+		expect(progressionFitsLick(three, 'ii-V-I-major-long')).toEqual({ fits: true });
+		const four = userLick('V-I-major', { difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 4 } });
+		expect(progressionFitsLick(four, 'ii-V-I-major-long')).toEqual({ fits: false, reason: 'length' });
 	});
 
 	it('a user short ii-V fits the short template only', () => {

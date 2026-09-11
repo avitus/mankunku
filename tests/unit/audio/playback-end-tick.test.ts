@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getPhraseEndTicks } from '$lib/audio/playback';
+import { getPhraseEndTicks, getPhraseDuration } from '$lib/audio/playback';
 import type { Phrase } from '$lib/types/music';
 
 const PPQ = 192;
@@ -72,5 +72,44 @@ describe('getPhraseEndTicks', () => {
 	it('falls back to whole-bar semantics when the melody is all rests', () => {
 		const allRests = makePhrase([{ pitch: null, duration: [1, 1], offset: [0, 1] }], 2);
 		expect(getPhraseEndTicks(allRests, PPQ, true)).toBe(2 * 4 * PPQ + PPQ);
+	});
+
+	it('counts bars from the melody when it outruns the harmony', () => {
+		// One-bar harmony under a melody that runs into bar 2: whole-bar
+		// semantics round the MELODY extent up, not only the harmony's.
+		const overrun = makePhrase([{ pitch: 60, duration: [1, 2], offset: [1, 1] }], 1);
+		expect(getPhraseEndTicks(overrun, PPQ)).toBe(2 * 4 * PPQ + PPQ);
+	});
+
+	it('sizes bars by the declared meter', () => {
+		// Four beats of harmony is two bars of 3/4, not one bar of 4/4.
+		const waltz: Phrase = { ...makePhrase([], 1), timeSignature: [3, 4] };
+		expect(getPhraseEndTicks(waltz, PPQ)).toBe(2 * 3 * PPQ + PPQ);
+	});
+});
+
+describe('getPhraseDuration', () => {
+	it('is the latest note end in seconds, whichever note that is', () => {
+		// The last array entry is not the latest-ending note.
+		const phrase = makePhrase(
+			[
+				{ pitch: 60, duration: [1, 1], offset: [0, 1] }, // ends beat 4
+				{ pitch: 62, duration: [1, 4], offset: [1, 4] } // ends beat 2
+			],
+			1
+		);
+		expect(getPhraseDuration(phrase, 120)).toBeCloseTo(4 * 0.5, 10);
+		expect(getPhraseDuration(phrase, 60)).toBeCloseTo(4 * 1.0, 10);
+	});
+
+	it('lasts through a trailing rest', () => {
+		const phrase = makePhrase(
+			[
+				{ pitch: 60, duration: [1, 4], offset: [0, 1] },
+				{ pitch: null, duration: [1, 4], offset: [1, 4] }
+			],
+			1
+		);
+		expect(getPhraseDuration(phrase, 120)).toBeCloseTo(2 * 0.5, 10);
 	});
 });

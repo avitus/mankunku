@@ -104,6 +104,19 @@ describe('recordKeyAttempt every-attempt persistence', () => {
 		expect(entry!.rollingScore).toBeCloseTo(0.95, 10);
 	});
 
+	it('credits a pass at exactly KEY_PROFICIENT_THRESHOLD (0.90) and not a hair under', () => {
+		// The pass bar is the green tier: it is what passCount — and so the
+		// key-unlock gate's "3 passes" — counts.
+		startSingleLickSession(makeLick('C', 'fresh-lick'));
+		recordKeyAttempt(makeScore(0.899));
+		expect(lickPractice.keyResults[0].passed).toBe(false);
+		expect(lickPractice.progress['fresh-lick']?.C?.passCount).toBe(0);
+
+		recordKeyAttempt(makeScore(0.9));
+		expect(lickPractice.keyResults[1].passed).toBe(true);
+		expect(lickPractice.progress['fresh-lick']?.C?.passCount).toBe(1);
+	});
+
 	it('blends successive attempts into the EWMA', () => {
 		startSingleLickSession(makeLick('C', 'fresh-lick'));
 		recordKeyAttempt(makeScore(0.95));
@@ -126,5 +139,41 @@ describe('recordKeyAttempt every-attempt persistence', () => {
 		recordKeyAttempt(makeScore(0.95)); // pass
 
 		expect(lickPractice.progress).toEqual({});
+	});
+
+	it('records nothing and does not throw when no key is current', () => {
+		// A late score landing after the plan was cleared (resetSession mid-round).
+		lickPractice.plan = [];
+		recordKeyAttempt(makeScore(0.95));
+		expect(lickPractice.keyResults).toEqual([]);
+		expect(lickPractice.progress).toEqual({});
+	});
+});
+
+describe('recordKeyAttempt mastery tracking (deep practice drops a key at ≥ 0.95)', () => {
+	it('masters a key at exactly 0.95 and not a hair under', () => {
+		startSingleLickSession(makeLick('C', 'fresh-lick'));
+		recordKeyAttempt(makeScore(0.949));
+		expect(lickPractice.masteredThisRound).toEqual([]);
+		// A pass (≥ 0.90) is not mastery: the key stays in the rotation.
+		expect(lickPractice.keyResults[0].passed).toBe(true);
+
+		recordKeyAttempt(makeScore(0.95));
+		expect(lickPractice.masteredThisRound).toEqual(['C']);
+	});
+
+	it('lists a key once however many times it clears in the same round', () => {
+		startSingleLickSession(makeLick('C', 'fresh-lick'));
+		recordKeyAttempt(makeScore(0.97));
+		recordKeyAttempt(makeScore(0.99));
+		expect(lickPractice.masteredThisRound).toEqual(['C']);
+	});
+
+	it('never tracks mastery in a standard session — the rotation there is fixed', () => {
+		startSingleLickSession(makeLick('C', 'fresh-lick'));
+		lickPractice.mode = 'standard';
+		recordKeyAttempt(makeScore(1.0));
+		expect(lickPractice.masteredThisRound).toEqual([]);
+		expect(lickPractice.latestKeyResults).toEqual({});
 	});
 });

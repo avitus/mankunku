@@ -142,6 +142,31 @@ describe('listening checklist', () => {
 		expect(report).toContain('⬜');
 		expect(report).toContain('ride too loud');
 	});
+
+	it('omits the Notes block when the notes are blank', () => {
+		const report = buildListeningReport(
+			{ presetLabel: 'Blues', style: 'swing', tempo: 160, seed: 0, notes: '   ' },
+			{}
+		);
+		expect(report).not.toContain('**Notes**');
+	});
+});
+
+describe('generateForBounce', () => {
+	it('refuses a phrase with no harmony', () => {
+		const preset = BACKING_LAB_PRESETS[0];
+		expect(() =>
+			generateForBounce({
+				style: 'swing',
+				tempo: 160,
+				swing: 0.5,
+				instrument: 'piano',
+				volume: 0.6,
+				mix: DEFAULT_BACKING_MIX,
+				phrase: { ...preset.phrase, harmony: [] }
+			})
+		).toThrow(/no harmony/);
+	});
 });
 
 describe('golden JSON rendering', () => {

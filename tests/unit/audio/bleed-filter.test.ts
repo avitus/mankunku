@@ -98,4 +98,18 @@ describe('filterBleed', () => {
 		expect(kept).toHaveLength(2);
 		expect(filtered).toHaveLength(0);
 	});
+
+	it('filters a two-octave alias of the bass', () => {
+		// Bass E2 (40); the detector locked two octaves up on E4 (64).
+		const { kept, filtered } = filterBleed([note(64, 0.0, 0.83)], schedule, RECORDING_TRANSPORT);
+		expect(kept).toHaveLength(0);
+		expect(filtered).toHaveLength(1);
+	});
+
+	it('keeps exactly the ceiling, and sends exactly the floor to the coincidence check', () => {
+		expect(filterBleed([note(40, 0.0, 0.92)], schedule, RECORDING_TRANSPORT).kept).toHaveLength(1);
+		// 0.88 is NOT below the floor — coincidence decides. Comp starts at recording 0.5.
+		expect(filterBleed([note(60, 0.5, 0.88)], schedule, RECORDING_TRANSPORT).filtered).toHaveLength(1);
+		expect(filterBleed([note(60, 0.7, 0.88)], schedule, RECORDING_TRANSPORT).kept).toHaveLength(1);
+	});
 });

@@ -25,24 +25,49 @@ describe('createInitialAdaptiveState', () => {
 });
 
 describe('processScaleAttempt', () => {
-	it('starts at level 1', () => {
-		const state = createInitialScaleProficiency();
-		expect(state.level).toBe(1);
-		expect(state.totalAttempts).toBe(0);
-	});
-
 	it('increments totalAttempts', () => {
 		let state = createInitialScaleProficiency();
 		state = processScaleAttempt(state, 0.9);
 		expect(state.totalAttempts).toBe(1);
 	});
 
-	it('advances after sustained high scores', () => {
+	it('advances on exactly the 10th qualifying attempt, not the 9th', () => {
 		let state = createInitialScaleProficiency();
-		for (let i = 0; i < 11; i++) {
+		for (let i = 0; i < 9; i++) {
 			state = processScaleAttempt(state, 0.95);
 		}
-		expect(state.level).toBeGreaterThan(1);
+		expect(state.level).toBe(1);
+		state = processScaleAttempt(state, 0.95);
+		expect(state.level).toBe(2);
+		// A level change restarts the cooldown counters.
+		expect(state.attemptsSinceChange).toBe(0);
+		expect(state.attemptsAtLevel).toBe(0);
+	});
+
+	it('never retreats below level 1, however bad the run', () => {
+		let state = createInitialScaleProficiency();
+		for (let i = 0; i < 40; i++) {
+			state = processScaleAttempt(state, 0.1);
+		}
+		expect(state.level).toBe(1);
+	});
+
+	it('never advances past level 100', () => {
+		let state = { ...createInitialScaleProficiency(), level: 100 };
+		for (let i = 0; i < 20; i++) {
+			state = processScaleAttempt(state, 1.0);
+		}
+		expect(state.level).toBe(100);
+	});
+
+	it('keeps a rolling window of the last 25 scores', () => {
+		let state = createInitialScaleProficiency();
+		for (let i = 0; i < 30; i++) {
+			state = processScaleAttempt(state, i / 100);
+		}
+		expect(state.recentScores).toHaveLength(25);
+		expect(state.recentScores[0]).toBeCloseTo(0.05, 9);
+		expect(state.recentScores[24]).toBeCloseTo(0.29, 9);
 	});
 
 	it('retreats after sustained low scores', () => {

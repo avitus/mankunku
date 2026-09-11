@@ -38,28 +38,6 @@ describe('calculateDifficulty', () => {
 		expect(diff.pitchComplexity).toBeLessThan(30);
 	});
 
-	it('complex phrase has higher difficulty', () => {
-		// Many notes, large intervals, chromatic, fast rhythm
-		const phrase = makePhrase([
-			makeNote(60, [0, 1], [1, 16]),
-			makeNote(72, [1, 16], [1, 16]),     // large leap
-			makeNote(61, [2, 16], [1, 16]),     // chromatic
-			makeNote(73, [3, 16], [1, 16]),     // large leap
-			makeNote(62, [4, 16], [1, 16]),     // chromatic
-			makeNote(74, [5, 16], [1, 16]),
-			makeNote(63, [6, 16], [1, 16]),
-			makeNote(75, [7, 16], [1, 16]),
-			makeNote(64, [8, 16], [1, 16]),
-			makeNote(76, [9, 16], [1, 16]),
-			makeNote(65, [10, 16], [1, 16]),
-			makeNote(77, [11, 16], [1, 16]),
-			makeNote(66, [12, 16], [1, 16]),
-			makeNote(78, [13, 16], [1, 16])
-		]);
-		const diff = calculateDifficulty(phrase);
-		expect(diff.level).toBeGreaterThan(30);
-	});
-
 	it('larger intervals increase pitch complexity', () => {
 		const stepwise = makePhrase([
 			makeNote(60, [0, 1]),
@@ -111,10 +89,55 @@ describe('calculateDifficulty', () => {
 	});
 
 	it('level is clamped between 1 and 100', () => {
-		const simple = makePhrase([makeNote(60, [0, 1]), makeNote(62, [1, 4])]);
-		const diff = calculateDifficulty(simple);
-		expect(diff.level).toBeGreaterThanOrEqual(1);
-		expect(diff.level).toBeLessThanOrEqual(100);
+		// A 14-note sixteenth line of octave-wide chromatic leaps saturates
+		// every dimension: the raw scores run past 100 and must clamp there.
+		const saturating = makePhrase(
+			Array.from({ length: 14 }, (_, i) =>
+				makeNote(i % 2 === 0 ? 60 + i / 2 : 72 + (i - 1) / 2, [i, 16], [1, 16])
+			)
+		);
+		expect(calculateDifficulty(saturating)).toMatchObject({
+			level: 100,
+			pitchComplexity: 100,
+			rhythmComplexity: 100
+		});
+		// Rests carry no pitch content: the pitch score sits on the floor of 1.
+		const rests = makePhrase([makeNote(null, [0, 1]), makeNote(null, [1, 4])]);
+		expect(calculateDifficulty(rests).pitchComplexity).toBe(1);
+	});
+
+	it('scores a chromatic RUN above the same intervals played out of sequence', () => {
+		// Same multiset of intervals {1, 1, 3}, same non-diatonic count, same
+		// range and rhythm — only the run term separates the two.
+		const run = makePhrase([
+			makeNote(60, [0, 1]),
+			makeNote(61, [1, 4]),
+			makeNote(62, [2, 4]),
+			makeNote(65, [3, 4])
+		]);
+		const scattered = makePhrase([
+			makeNote(60, [0, 1]),
+			makeNote(61, [1, 4]),
+			makeNote(64, [2, 4]),
+			makeNote(65, [3, 4])
+		]);
+		expect(calculateDifficulty(run).pitchComplexity).toBeGreaterThan(
+			calculateDifficulty(scattered).pitchComplexity
+		);
+	});
+
+	it('ranks triplet eighths between straight eighths and sixteenths', () => {
+		const withDuration = (dur: Fraction) =>
+			makePhrase(
+				Array.from({ length: 4 }, (_, i) =>
+					makeNote(60 + (i % 2) * 2, [i * dur[0], dur[1]], dur)
+				)
+			);
+		const eighths = calculateDifficulty(withDuration([1, 8])).rhythmComplexity;
+		const triplets = calculateDifficulty(withDuration([1, 12])).rhythmComplexity;
+		const sixteenths = calculateDifficulty(withDuration([1, 16])).rhythmComplexity;
+		expect(triplets).toBeGreaterThan(eighths);
+		expect(sixteenths).toBeGreaterThan(triplets);
 	});
 
 	it('computes lengthBars from note extents', () => {

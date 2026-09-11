@@ -120,21 +120,49 @@ describe('scoreAttempt', () => {
 		expect(score.grade).toBe('perfect');
 	});
 
-	it('populates timing diagnostics', () => {
+	it('populates timing diagnostics from the latency-corrected offsets', () => {
 		const phrase = makePhrase([
 			makeNote(60, [0, 1]),
-			makeNote(62, [1, 8])
+			makeNote(62, [1, 8]),
+			makeNote(64, [1, 4])
 		]);
+		// Raw offsets +50, +60, +30 ms: the median (50) is the latency
+		// correction, leaving residuals of 0, +10, −20 ms — positive = late.
 		const detected = [
 			makeDetected(60, 0.05),
-			makeDetected(62, 0.30)
+			makeDetected(62, 0.31),
+			makeDetected(64, 0.53)
 		];
 		const score = scoreAttempt(phrase, detected, TEMPO);
-		expect(score.timing).toBeDefined();
-		expect(typeof score.timing.meanOffsetMs).toBe('number');
-		expect(typeof score.timing.medianOffsetMs).toBe('number');
-		expect(typeof score.timing.stdDevMs).toBe('number');
-		expect(score.timing.perNoteOffsetMs.length).toBeGreaterThan(0);
+		expect(score.timing.latencyCorrectionMs).toBeCloseTo(50, 5);
+		expect(score.timing.perNoteOffsetMs).toEqual([
+			expect.closeTo(0, 5),
+			expect.closeTo(10, 5),
+			expect.closeTo(-20, 5)
+		]);
+		expect(score.timing.meanOffsetMs).toBeCloseTo(-10 / 3, 5);
+		expect(score.timing.medianOffsetMs).toBeCloseTo(0, 5);
+		// Population standard deviation of [0, 10, −20].
+		expect(score.timing.stdDevMs).toBeCloseTo(12.472, 2);
+	});
+
+	it('ignores the transportSeconds argument — detected times are already phrase-relative', () => {
+		// Kept for API compatibility only: an earlier scorer anchored detected
+		// times to the nearest bar downbeat and corrupted the rhythm cost for a
+		// mid-bar entry (see the scoreAttempt doc comment).
+		const phrase = makePhrase([
+			makeNote(60, [0, 1]),
+			makeNote(62, [1, 8]),
+			makeNote(64, [1, 4])
+		]);
+		const detected = [
+			makeDetected(60, 0.12),
+			makeDetected(62, 0.35),
+			makeDetected(64, 0.63)
+		];
+		expect(scoreAttempt(phrase, detected, TEMPO, 1.7)).toEqual(
+			scoreAttempt(phrase, detected, TEMPO, 0)
+		);
 	});
 
 	it('marks extra detected notes', () => {

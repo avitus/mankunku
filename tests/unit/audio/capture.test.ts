@@ -2,11 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // ─── Mocks ────────────────────────────────────────────────────
 
-function createMockAnalyser(fftSize = 4096) {
+// Defaults are deliberately NOT the values capture.ts assigns (4096 / 0), so
+// the assertions on them can fail if the assignments are dropped.
+function createMockAnalyser(fftSize = 2048) {
 	const buffer = new Float32Array(fftSize);
 	return {
 		fftSize,
-		smoothingTimeConstant: 0,
+		smoothingTimeConstant: 0.8,
 		getFloatTimeDomainData: vi.fn((out: Float32Array) => {
 			out.set(buffer);
 		}),
@@ -128,6 +130,25 @@ describe('startMicCapture', () => {
 		const first = await captureModule.startMicCapture();
 		const second = await captureModule.startMicCapture();
 		expect(first).toBe(second);
+	});
+
+	it('caches nothing when getUserMedia rejects, so a retry prompts again', async () => {
+		const gum = navigator.mediaDevices.getUserMedia as ReturnType<typeof vi.fn>;
+		gum.mockRejectedValueOnce(new DOMException('Permission denied', 'NotAllowedError'));
+		await expect(captureModule.startMicCapture()).rejects.toThrow(/Permission denied/);
+		expect(captureModule.getMicCapture()).toBeNull();
+
+		const capture = await captureModule.startMicCapture();
+		expect(capture).not.toBeNull();
+		expect(gum).toHaveBeenCalledTimes(2);
+	});
+
+	it('re-acquires the microphone after stopMicCapture', async () => {
+		const first = await captureModule.startMicCapture();
+		captureModule.stopMicCapture();
+		const second = await captureModule.startMicCapture();
+		expect(second).not.toBe(first);
+		expect(navigator.mediaDevices.getUserMedia).toHaveBeenCalledTimes(2);
 	});
 });
 

@@ -274,4 +274,78 @@ describe('detectKey', () => {
 		];
 		expect(detectKey(detected)).toBe('C');
 	});
+
+	it('prefers the lowest pitch class on a tie, regardless of order', () => {
+		expect(detectKey([note(64, 0, 0.5), note(60, 0.5, 0.5)])).toBe('C');
+		expect(detectKey([note(67, 0, 0.5), note(62, 0.5, 0.5)])).toBe('D');
+	});
+});
+
+describe('quantizer vocabulary edges', () => {
+	// Tempo 120: beat = 0.5s.
+	const BEAT = 0.5;
+
+	it("rounds the final note's duration up to its beat's unit — never a sub-vocabulary sliver", () => {
+		// A 50 ms final note reads as a full eighth on a straight beat…
+		const straight = quantizeNotes([note(60, 0, BEAT), note(62, BEAT, 0.05)], 120, [4, 4]).filter(
+			(n) => n.pitch !== null
+		);
+		expect(straight[1].duration).toEqual([1, 8]);
+		// …and as a triplet eighth on a triplet beat.
+		const triplet = quantizeNotes(
+			[note(60, 0, BEAT / 3), note(62, BEAT / 3, BEAT / 3), note(64, (2 * BEAT) / 3, 0.05)],
+			120,
+			[4, 4]
+		).filter((n) => n.pitch !== null);
+		expect(triplet[2].duration).toEqual([1, 12]);
+	});
+
+	it('carries the quarter-note-triplet continuation transitively, from the right', () => {
+		// Beat 2 is a triplet beat by its 1/3 onset; beat 1 joins through beat
+		// 2, and beat 0 through beat 1 — an ascending walk would visit beat 0
+		// before beat 1 had joined and leave it a straight eighth.
+		const detected = [
+			note(60, (2 * BEAT) / 3, (2 * BEAT) / 3),
+			note(62, BEAT + (2 * BEAT) / 3, (2 * BEAT) / 3),
+			note(64, 2 * BEAT + BEAT / 3, (2 * BEAT) / 3),
+			note(65, 3 * BEAT, BEAT)
+		];
+		const pitched = quantizeNotes(detected, 120, [4, 4]).filter((n) => n.pitch !== null);
+		expect(pitched.map((n) => n.offset)).toEqual([[1, 6], [5, 12], [7, 12], [3, 4]]);
+	});
+
+	it('degrades a sixteenth figure to the vocabulary, dropping the collided note rather than emitting an empty one', () => {
+		// Four sixteenths on one beat: 0 and 1/4 land on the downbeat and the
+		// triplet eighth, 1/2 and 3/4 both collapse onto the last triplet slot.
+		const detected = Array.from({ length: 4 }, (_, i) => note(60 + i, (i * BEAT) / 4, BEAT / 4));
+		const pitched = quantizeNotes(detected, 120, [4, 4]).filter((n) => n.pitch !== null);
+		expect(pitched.map((n) => n.offset)).toEqual([[0, 1], [1, 12], [1, 6]]);
+		for (const n of pitched) expect(n.duration).toEqual([1, 12]);
+	});
+
+	it('labels onsets by the midpoints between vocabulary positions', () => {
+		const at = (frac: number) =>
+			quantizeNotes([note(60, frac * BEAT, 0.2), note(62, 2 * BEAT, BEAT)], 120, [4, 4]).filter(
+				(n) => n.pitch !== null
+			)[0].offset;
+		// 1/6 splits the downbeat from the triplet eighth…
+		expect(at(0.16)).toEqual([0, 1]);
+		expect(at(0.17)).toEqual([1, 12]);
+		// …5/12 splits the triplet eighth from the straight upbeat.
+		expect(at(0.41)).toEqual([1, 12]);
+		expect(at(0.42)).toEqual([1, 8]);
+	});
+
+	it('joins a triplet neighbour only from the 2/3 sub-window (7/12 and up)', () => {
+		// Beat 1 is a triplet beat with no downbeat of its own; beat 0's lone
+		// upbeat continues it only once it sits at 7/12 or later.
+		const at = (frac: number) =>
+			quantizeNotes(
+				[note(60, frac * BEAT, 0.2), note(62, BEAT + BEAT / 3, BEAT / 3), note(64, 2 * BEAT, BEAT)],
+				120,
+				[4, 4]
+			).filter((n) => n.pitch !== null)[0].offset;
+		expect(at(0.57)).toEqual([1, 8]);
+		expect(at(0.59)).toEqual([1, 6]);
+	});
 });

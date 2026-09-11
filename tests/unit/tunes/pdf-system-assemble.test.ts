@@ -283,6 +283,23 @@ describe('assembleClaudeDoc', () => {
 		expect(doc.systems[0].bars[1].pickup).toBe(false);
 	});
 
+	it('moves a rehearsal mark printed over the pickup onto the first full bar', () => {
+		// Engraving may set the boxed "A" over the anacrusis, but a mark never
+		// labels a pickup bar: it anchors to the bar the pickup leads into.
+		const systems: AssembleSystemInput[] = [
+			{
+				geometry: geometry([400, 700, 1000]),
+				texts: { chords: [], marks: [{ x: 105, text: 'A' }], endings: [], barNumber: null },
+				model: { fifths: 0, bars: [bar([[3, 1, 'A4']], { pickup: true }), bar([[0, 4, 'F4']]), bar()] }
+			}
+		];
+		const doc = assembleClaudeDoc(systems, meta) as {
+			systems: Array<{ bars: Array<{ mark: string | null; pickup: boolean }> }>;
+		};
+		expect(doc.systems[0].bars.map((b) => b.mark)).toEqual([null, 'A', null]);
+		expect(doc.systems[0].bars[0].pickup).toBe(true);
+	});
+
 	it('passes an exact pickup length through from the model bar', () => {
 		const systems: AssembleSystemInput[] = [
 			{
@@ -453,6 +470,40 @@ describe('assembleClaudeDoc', () => {
 		expect(sheet?.title).toBe('Test Chart');
 		expect(sheet?.sections.reduce((n, s) => n + s.bars, 0)).toBe(4);
 	});
+
+	it('keeps a line that failed every attempt as empty bars carrying the page\'s chords (partial results)', () => {
+		// The import page hands a never-transcribed line in as `bars: []`,
+		// `fifths: null`. Dropping it would shift every later bar and lose the
+		// chords the text layer read; it must come through as blank bars at its
+		// place in the form, with its chords, and must not vote on the key.
+		const line = (chords: Array<{ x: number; text: string }>, model: AssembleSystemInput['model']): AssembleSystemInput => ({
+			geometry: geometry([400, 700]),
+			texts: { chords, marks: [], endings: [], barNumber: null },
+			model
+		});
+		const systems: AssembleSystemInput[] = [
+			line([{ x: 250, text: 'F6' }], { fifths: -1, bars: [bar([[0, 4, 'F4']]), bar([[0, 4, 'A4']])] }),
+			line([{ x: 250, text: 'G-7' }, { x: 410, text: 'C7' }], { fifths: null, bars: [] }),
+			line([{ x: 250, text: 'F6' }], { fifths: -1, bars: [bar([[0, 4, 'C5']]), bar([[0, 4, 'F4']])] })
+		];
+		const doc = assembleClaudeDoc(systems, meta) as {
+			keySignature: { fifths: number };
+			systems: Array<{ bars: Array<{ chords: unknown[]; melody: unknown[] }> }>;
+		};
+		expect(doc.keySignature.fifths).toBe(-1);
+		expect(doc.systems.map((s) => s.bars.length)).toEqual([2, 2, 2]);
+		expect(doc.systems[1].bars.map((b) => b.melody)).toEqual([[], []]);
+		expect(doc.systems[1].bars.map((b) => b.chords)).toEqual([[[0, 'G-7']], [[0, 'C7']]]);
+
+		const { sheet, errors } = claudeJsonToTune(doc);
+		expect(errors).toEqual([]);
+		const notes = sheet!.sections.flatMap((s) => s.notes);
+		const harmony = sheet!.sections.flatMap((s) => s.harmony.map((h) => h.symbol));
+		expect(sheet!.sections.reduce((n, s) => n + s.bars, 0)).toBe(6);
+		// The third line's melody still starts in bar 5 — nothing shifted up.
+		expect(notes.map((n) => n.pitch)).toEqual([65, 69, 72, 65]);
+		expect(harmony).toEqual(['F6', 'G-7', 'C7', 'F6']);
+	});
 });
 
 describe('importReviewNotes', () => {
@@ -505,6 +556,29 @@ describe('importReviewNotes', () => {
 		// One line for the system, not one per bar.
 		expect(result.warnings).toHaveLength(1);
 		expect(result.warnings[0]).toContain('bars 3-5');
+	});
+
+	it('passes a system-wide warning through verbatim and reports an evidence mismatch on a suspect bar only once', () => {
+		const result = importReviewNotes([
+			{
+				barCount: 2,
+				warnings: [
+					// Not addressed to a bar — the route's bar-count line — so it is
+					// neither renumbered nor turned into a suspect bar.
+					'expected 2 bars but the transcription returned 1',
+					'bar 2: sums to 3 beats — the bar must fill exactly 4 beats'
+				],
+				modelNoteCounts: [1, 2],
+				// Bar 2 ALSO disagrees with the detector: it is already suspect
+				// from the rhythm warning and must not be listed twice.
+				evidenceCounts: [1, 3]
+			}
+		]);
+		expect(result.warnings).toEqual([
+			'expected 2 bars but the transcription returned 1',
+			'bar 2: sums to 3 beats — the bar must fill exactly 4 beats'
+		]);
+		expect(result.suspectBars).toEqual([2]);
 	});
 
 	it('names a single untranscribed bar without a range', () => {

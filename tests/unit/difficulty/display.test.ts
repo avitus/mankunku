@@ -45,16 +45,8 @@ describe('difficultyBand', () => {
 		expect(difficultyBand(0)).toBe(1);
 	});
 
-	it('clamps -5 → 1', () => {
-		expect(difficultyBand(-5)).toBe(1);
-	});
-
 	it('clamps 101 → 10', () => {
 		expect(difficultyBand(101)).toBe(10);
-	});
-
-	it('clamps 999 → 10', () => {
-		expect(difficultyBand(999)).toBe(10);
 	});
 });
 

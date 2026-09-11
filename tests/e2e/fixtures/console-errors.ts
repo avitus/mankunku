@@ -10,14 +10,6 @@ import { test as base, type ConsoleMessage, type Page, type Response } from '@pl
 type IgnoreRule = RegExp | ((text: string, url: string) => boolean);
 
 const IGNORED_PATTERNS: IgnoreRule[] = [
-	// Vite preview occasionally logs HMR-style messages even in preview mode.
-	/\[vite\]/i,
-	// Chrome DevTools Protocol noise that surfaces only via Playwright's
-	// console hook, not in real browsers' devtools.
-	/Failed to load resource: net::ERR_INTERNET_DISCONNECTED/,
-	// Sentry surfaces a one-time info log when it boots in dev mode.
-	// Production builds don't emit this — see fix in commit 1fe8365.
-	/\[Sentry\] (?:Initializing|Setting transport)/i,
 	// WebKit-specific transient that fires when Sentry's beacon tries to
 	// flush its envelope to /api/monitoring as the page is navigating away
 	// (e.g. window.location.href change during account deletion). Chromium
@@ -73,13 +65,34 @@ function isIgnored(text: string, url: string): boolean {
 	return false;
 }
 
+/** The browser's own line for a navigated document that answered 404 (Chromium, WebKit; Firefox logs none). */
+const DOCUMENT_404 = /^Failed to load resource: the server responded with a status of 404 \(Not Found\)$/;
+
 export interface ConsoleCollector {
 	errors: string[];
 	warnings: string[];
 	pageErrors: string[];
 }
 
-export const test = base.extend<{ consoleCollector: ConsoleCollector }>({
+interface ConsoleGuardFixtures {
+	consoleCollector: ConsoleCollector;
+}
+
+interface ConsoleGuardOptions {
+	/**
+	 * Opt-in for specs whose subject IS a 404 page (`test.use({ allowDocument404: true })`).
+	 * Admits exactly one kind of line: the browser's "Failed to load resource:
+	 * ... 404 (Not Found)" console.error whose source URL is a MAIN-FRAME
+	 * NAVIGATION that actually answered 404 — the document under test, one line
+	 * per such navigation. A fetch, an asset or an API call that 404s still
+	 * fails (even at the same URL), as does every other console.error and
+	 * every pageerror. No pageerror is admitted on any engine.
+	 */
+	allowDocument404: boolean;
+}
+
+export const test = base.extend<ConsoleGuardFixtures & ConsoleGuardOptions>({
+	allowDocument404: [false, { option: true }],
 	// goto() additionally waits for the app to hydrate before returning.
 	// Until PR #229 the SSR'd onboarding overlay covered every page and
 	// incidentally blocked clicks until hydration tore it down; with the
@@ -106,61 +119,101 @@ export const test = base.extend<{ consoleCollector: ConsoleCollector }>({
 		}) as typeof page.goto;
 		await use(page);
 	},
-	consoleCollector: async ({ page }, use, testInfo): Promise<void> => {
-		const errors: string[] = [];
-		const warnings: string[] = [];
-		const pageErrors: string[] = [];
+	// AUTO: every test gets the guard whether or not it names the fixture — a
+	// spec that forgot to destructure `consoleCollector` used to run unguarded.
+	// Naming it is still how a test reads the collected output mid-test.
+	consoleCollector: [
+		async ({ page, allowDocument404 }, use, testInfo): Promise<void> => {
+			const errors: string[] = [];
+			const warnings: string[] = [];
+			const pageErrors: string[] = [];
 
-		const onConsole = (msg: ConsoleMessage): void => {
-			const text = msg.text();
-			const url = msg.location()?.url ?? '';
-			if (isIgnored(text, url)) return;
-			// Keep the URL in the recorded text. The browser's auto-emitted
-			// "Failed to load resource: ... 400" carries no URL in its message,
-			// so without this a failure reports a status and nothing else —
-			// which is not enough to act on, and cost a full debugging session.
-			const detail = url ? `${text}  [${url}]` : text;
-			if (msg.type() === 'error') errors.push(detail);
-			if (msg.type() === 'warning') warnings.push(detail);
-		};
-		const onPageError = (err: Error): void => {
-			const text = err.stack ?? err.message;
-			// pageerror events don't expose the originating URL, so URL-gated
-			// patterns can't apply — only the global IGNORED_PATTERNS list does.
-			if (isIgnored(text, '')) return;
-			pageErrors.push(text);
-		};
+			// allowDocument404 bookkeeping: how many main-frame navigations
+			// answered 404, per URL, and every candidate 404 line. Settled at
+			// teardown — the response and console events travel separately, so
+			// their order isn't guaranteed — one admitted line per such navigation.
+			const document404Navigations = new Map<string, number>();
+			const candidateDocument404: Array<{ url: string; detail: string }> = [];
+			const onResponse = (response: Response): void => {
+				const request = response.request();
+				if (
+					response.status() === 404 &&
+					request.isNavigationRequest() &&
+					request.frame() === page.mainFrame()
+				) {
+					const url = response.url();
+					document404Navigations.set(url, (document404Navigations.get(url) ?? 0) + 1);
+				}
+			};
 
-		page.on('console', onConsole);
-		page.on('pageerror', onPageError);
+			const onConsole = (msg: ConsoleMessage): void => {
+				const text = msg.text();
+				const url = msg.location()?.url ?? '';
+				if (isIgnored(text, url)) return;
+				// Keep the URL in the recorded text. The browser's auto-emitted
+				// "Failed to load resource: ... 400" carries no URL in its message,
+				// so without this a failure reports a status and nothing else —
+				// which is not enough to act on, and cost a full debugging session.
+				const detail = url ? `${text}  [${url}]` : text;
+				if (msg.type() === 'error') {
+					if (allowDocument404 && DOCUMENT_404.test(text) && url !== '') {
+						candidateDocument404.push({ url, detail });
+						return;
+					}
+					errors.push(detail);
+				}
+				if (msg.type() === 'warning') warnings.push(detail);
+			};
+			const onPageError = (err: Error): void => {
+				const text = err.stack ?? err.message;
+				// pageerror events don't expose the originating URL, so URL-gated
+				// patterns can't apply — only the global IGNORED_PATTERNS list does.
+				if (isIgnored(text, '')) return;
+				pageErrors.push(text);
+			};
 
-		const collector: ConsoleCollector = { errors, warnings, pageErrors };
-		await use(collector);
+			if (allowDocument404) page.on('response', onResponse);
+			page.on('console', onConsole);
+			page.on('pageerror', onPageError);
 
-		page.off('console', onConsole);
-		page.off('pageerror', onPageError);
+			const collector: ConsoleCollector = { errors, warnings, pageErrors };
+			await use(collector);
 
-		// Attach the collected output to the test result so it's visible
-		// in the HTML report regardless of whether the test passed.
-		// Reviewing this output is the whole point of the smoke layer.
-		if (errors.length || warnings.length || pageErrors.length) {
-			await testInfo.attach('console-output', {
-				body: JSON.stringify(collector, null, 2),
-				contentType: 'application/json'
-			});
-		}
+			if (allowDocument404) page.off('response', onResponse);
+			page.off('console', onConsole);
+			page.off('pageerror', onPageError);
 
-		// Fail the test if any uncaught error or unhandled rejection fired.
-		// Warnings are surfaced via attachment but don't fail by default —
-		// to fail on warnings, assert in the spec: expect(warnings).toEqual([]).
-		if (errors.length || pageErrors.length) {
-			const summary = [
-				...errors.map((e) => `console.error: ${e}`),
-				...pageErrors.map((e) => `pageerror: ${e}`)
-			].join('\n');
-			throw new Error(`Unexpected browser errors:\n${summary}`);
-		}
-	}
+			// A 404 line beyond the count of main-frame navigations that answered
+			// 404 at its URL was a fetch or an asset, not the document under test.
+			for (const { url, detail } of candidateDocument404) {
+				const remaining = document404Navigations.get(url) ?? 0;
+				if (remaining > 0) document404Navigations.set(url, remaining - 1);
+				else errors.push(detail);
+			}
+
+			// Attach the collected output to the test result so it's visible
+			// in the HTML report regardless of whether the test passed.
+			// Reviewing this output is the whole point of the smoke layer.
+			if (errors.length || warnings.length || pageErrors.length) {
+				await testInfo.attach('console-output', {
+					body: JSON.stringify(collector, null, 2),
+					contentType: 'application/json'
+				});
+			}
+
+			// Fail the test if any uncaught error or unhandled rejection fired.
+			// Warnings are surfaced via attachment but don't fail by default —
+			// to fail on warnings, assert in the spec: expect(warnings).toEqual([]).
+			if (errors.length || pageErrors.length) {
+				const summary = [
+					...errors.map((e) => `console.error: ${e}`),
+					...pageErrors.map((e) => `pageerror: ${e}`)
+				].join('\n');
+				throw new Error(`Unexpected browser errors:\n${summary}`);
+			}
+		},
+		{ auto: true }
+	]
 });
 
 export { expect } from '@playwright/test';

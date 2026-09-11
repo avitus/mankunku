@@ -10,6 +10,7 @@
  */
 
 import { test, expect } from './fixtures/auth';
+import { seedOnboardedAnonymous } from './fixtures/storage';
 
 // signedInPage sets its cookie from testUser during FIXTURE SETUP, so the
 // admin variant overrides the fixture rather than mutating it mid-test.
@@ -23,30 +24,49 @@ const adminTest = test.extend({
 	}
 });
 
+// Every signed-in test seeds storage first. Beyond onboarding, that pre-stamps
+// the user's storage namespace (fixtures/storage.ts), as a completed sign-in
+// does. Without it the synthesized session arrives with the namespace still
+// anonymous and the root layout re-homes with a location.reload() in the
+// middle of hydration; the loads that reload cuts off surface as errors
+// (WebKit "Fetch API cannot load … due to access control checks", Firefox
+// "error loading dynamically imported module"). data-isolation.spec and
+// seo-landing.spec's signed-in test exercise that reload on purpose; these
+// tests are about the /admin guard, not about it.
 test.describe('admin — access control', () => {
-	test('signed-out visitors get a 404', async ({ page }) => {
-		const response = await page.goto('/admin');
-		expect(response?.status()).toBe(404);
-	});
+	test.describe('the refusal is a 404 document', () => {
+		// The 404 IS the response under test: admit the browser's own "Failed to
+		// load resource: ... 404" line for the /admin document (and only it).
+		test.use({ allowDocument404: true });
 
-	// The 404 and no-link checks are separate tests on purpose: in WebKit a
-	// hydrated 404 page reloads itself once (the auth-state invalidation's
-	// __data.json fetch dies with an "access control checks" pageerror and
-	// SvelteKit hard-navigates as its fallback — pre-existing on every 404
-	// page, not admin-specific), and a same-test follow-up goto() races that
-	// reload: "Navigation to / is interrupted by another navigation to /admin".
-	test('signed-in non-admins get a 404', async ({ signedInPage }) => {
-		const response = await signedInPage.goto('/admin');
-		expect(response?.status()).toBe(404);
+		test('signed-out visitors get a 404', async ({ page }) => {
+			const response = await page.goto('/admin');
+			expect(response?.status()).toBe(404);
+		});
+
+		// The 404 and no-link checks are separate tests. They were split while
+		// this spec seeded nothing: the namespace re-home reload (above) raced a
+		// same-test follow-up goto() — "Navigation to / is interrupted by another
+		// navigation to /admin". The seed removes that reload; the split stays.
+		test('signed-in non-admins get a 404', async ({ signedInPage }) => {
+			await seedOnboardedAnonymous(signedInPage);
+			const response = await signedInPage.goto('/admin');
+			expect(response?.status()).toBe(404);
+		});
 	});
 
 	test('signed-in non-admins see no Admin link', async ({ signedInPage }) => {
+		await seedOnboardedAnonymous(signedInPage);
 		await signedInPage.goto('/');
 		await expect(signedInPage.locator('a[href="/admin"]')).toHaveCount(0);
 	});
 });
 
 adminTest.describe('admin — dashboard', () => {
+	adminTest.beforeEach(async ({ signedInPage }) => {
+		await seedOnboardedAnonymous(signedInPage);
+	});
+
 	adminTest('admins see the dashboard shell (data unavailable in test mode)', async ({
 		signedInPage
 	}) => {

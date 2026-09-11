@@ -1164,6 +1164,23 @@ describe('mergeOctaveBoundariesWithoutAttack', () => {
 		expect(merged[0].onsetTime).toBeCloseTo(0.0, 5);
 		expect(merged[0].duration).toBeCloseTo(2.0, 5);
 	});
+
+	it('segmentNotes hands its bleedOnsets on to this merge — a click at the boundary keeps no harmonic lock alive', () => {
+		// The unit above takes bleedOnsets directly; this pins the plumbing.
+		// The worklet onset at 0.79 is bleed from the 0.70 click, so the C5→C4
+		// boundary has no real attack and the locked C5 collapses into the C4.
+		const readings = [
+			...makeMixedReadings(0.0, 0.8, 72, 60, 5),
+			...makeMixedReadings(0.8, 1.6, 60, 60, 0)
+		];
+		const segment = (bleedOnsets?: number[]) =>
+			segmentNotes(readings, [0.0, 0.8], 1.6, undefined, undefined, undefined, [0.0, 0.79], bleedOnsets);
+
+		expect(segment().map((n) => n.midi)).toEqual([72, 60]);
+		const merged = segment([0.7]);
+		expect(merged).toHaveLength(1);
+		expect(merged[0].midi).toBe(60);
+	});
 });
 
 describe('validateOnsets — a reading vouches only for the onset whose event it heard', () => {

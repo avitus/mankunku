@@ -17,5 +17,11 @@ test.describe('docs', () => {
 		// at least a few across all sections.
 		const cards = page.locator('a[href^="/docs/"]');
 		expect(await cards.count()).toBeGreaterThan(2);
+
+		// A card leads to a real doc page: the Welcome link opens the
+		// getting-started guide, rendered with its own heading.
+		await page.getByRole('link', { name: 'Welcome', exact: true }).click();
+		await expect(page).toHaveURL(/\/docs\/getting-started$/);
+		await expect(page.getByRole('heading', { name: /welcome to mankunku/i })).toBeVisible();
 	});
 });

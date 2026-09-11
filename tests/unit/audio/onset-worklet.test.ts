@@ -1,6 +1,14 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
+	ENERGY_SMOOTHING,
 	ONSET_THRESHOLD,
+	MIN_ONSET_INTERVAL,
+	SILENCE_THRESHOLD,
+	SETTLE_FRAMES,
+	SILENCE_DECAY,
 	createOnsetState,
 	processOnsetFrame
 } from '$lib/audio/onset-core';
@@ -186,5 +194,53 @@ describe('onset detection algorithm', () => {
 			const state = createOnsetState();
 			expect(processOnsetFrame(new Float32Array(0), state, 0)).toBeNull();
 		});
+	});
+});
+
+/**
+ * The worklet is plain JS that Vite ships as a raw asset, so it cannot
+ * import onset-core.ts — it re-declares the algorithm, and every doc says the
+ * two are "kept in sync". A drift only ever fails in a browser, so pin the
+ * sync here, on the source text.
+ */
+describe('onset-worklet.js stays in sync with onset-core.ts', () => {
+	const audioDir = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'src', 'lib', 'audio');
+	const worklet = readFileSync(join(audioDir, 'onset-worklet.js'), 'utf8');
+	const core = readFileSync(join(audioDir, 'onset-core.ts'), 'utf8');
+
+	it('declares the same six constants', () => {
+		const constant = (name: string): number => {
+			const m = worklet.match(new RegExp(`^const ${name} = ([^;]+);`, 'm'));
+			expect(m, `${name} missing from the worklet`).not.toBeNull();
+			return Number(m![1]);
+		};
+		expect(constant('ENERGY_SMOOTHING')).toBe(ENERGY_SMOOTHING);
+		expect(constant('ONSET_THRESHOLD')).toBe(ONSET_THRESHOLD);
+		expect(constant('MIN_ONSET_INTERVAL')).toBe(MIN_ONSET_INTERVAL);
+		expect(constant('SILENCE_THRESHOLD')).toBe(SILENCE_THRESHOLD);
+		expect(constant('SETTLE_FRAMES')).toBe(SETTLE_FRAMES);
+		expect(constant('SILENCE_DECAY')).toBe(SILENCE_DECAY);
+	});
+
+	it('re-implements processOnsetFrame token for token (types and comments aside)', () => {
+		const bodyOf = (src: string): string => {
+			const start = src.indexOf('function processOnsetFrame(');
+			expect(start).toBeGreaterThanOrEqual(0);
+			const open = src.indexOf('{', start);
+			let depth = 0;
+			for (let i = open; i < src.length; i++) {
+				if (src[i] === '{') depth++;
+				else if (src[i] === '}' && --depth === 0) return src.slice(open, i + 1);
+			}
+			throw new Error('unbalanced braces');
+		};
+		const normalize = (body: string): string =>
+			body
+				.replace(/\/\*[\s\S]*?\*\//g, '')
+				.replace(/\/\/[^\n]*/g, '')
+				.replace(/:\s*(Float32Array|OnsetState|number|OnsetEvent \| null)\b/g, '')
+				.replace(/\s+/g, ' ')
+				.trim();
+		expect(normalize(bodyOf(worklet))).toBe(normalize(bodyOf(core)));
 	});
 });

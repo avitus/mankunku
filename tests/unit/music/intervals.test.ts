@@ -10,6 +10,7 @@ import {
 	quantizePitch,
 	fractionToFloat,
 	addFractions,
+	multiplyFraction,
 	compareFractions,
 	subtractFractions
 } from '$lib/music/intervals';
@@ -63,6 +64,13 @@ describe('noteNameToMidi', () => {
 		expect(noteNameToMidi('F#3')).toBe(54);
 	});
 
+	it('parses enharmonic aliases, adjusting the octave where the alias crosses B/C', () => {
+		expect(noteNameToMidi('Gb4')).toBe(66);
+		expect(noteNameToMidi('E#4')).toBe(65);
+		expect(noteNameToMidi('Cb4')).toBe(59); // Cb4 sounds as B3
+		expect(noteNameToMidi('B#3')).toBe(60); // B#3 sounds as C4
+	});
+
 	it('throws on invalid input', () => {
 		expect(() => noteNameToMidi('X4')).toThrow();
 	});
@@ -104,6 +112,12 @@ describe('fraction utilities', () => {
 	it('addFractions adds and simplifies', () => {
 		expect(addFractions([1, 4], [1, 4])).toEqual([1, 2]);
 		expect(addFractions([1, 8], [1, 8])).toEqual([1, 4]);
+	});
+
+	it('multiplyFraction scales and simplifies', () => {
+		expect(multiplyFraction([1, 4], 2)).toEqual([1, 2]);
+		expect(multiplyFraction([3, 8], 4)).toEqual([3, 2]);
+		expect(multiplyFraction([1, 4], 0)).toEqual([0, 1]);
 	});
 
 	it('compareFractions returns 0 for equal fractions', () => {

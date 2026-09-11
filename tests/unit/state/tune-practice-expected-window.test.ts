@@ -3,7 +3,16 @@ import type { LickSuggestion } from '$lib/tunes/lick-matcher';
 import type { InsertionPoint } from '$lib/state/tune-practice-plan';
 import { getAllLicks } from '$lib/phrases/library-loader';
 import { fractionToFloat } from '$lib/music/intervals';
-import { expectedForWindow, tunePractice, resetTunePractice } from '$lib/state/tune-practice.svelte';
+import {
+	expectedForWindow,
+	pickSuggestion,
+	suggestionNameFor,
+	trickForWindow,
+	tunePractice,
+	resetTunePractice
+} from '$lib/state/tune-practice.svelte';
+import { getTrickById } from '$lib/tricks';
+import type { TrickContext } from '$lib/types/tricks';
 
 // getAllLicks reads localStorage for user licks; mock it so the curated catalog
 // loads cleanly in node.
@@ -74,5 +83,69 @@ describe('expectedForWindow', () => {
 
 	it('returns null when the picked suggestion cannot be resolved', () => {
 		expect(expectedForWindow(ip([0, 1], suggestion('no-such-lick-id', [0, 1])))).toBeNull();
+	});
+});
+
+describe('picking a suggestion (suggest mode cycles picks per window)', () => {
+	const licks = getAllLicks().filter((l) => l.notes.some((n) => n.pitch !== null));
+
+	beforeEach(() => resetTunePractice());
+
+	it('the pick selects both the chart label and the phrase the window expects', () => {
+		const first = { ...suggestion(licks[0].id, [0, 1]), lickName: 'First' };
+		const second = { ...suggestion(licks[1].id, [0, 1]), lickName: 'Second' };
+		const point = { id: 'ip-0', startOffset: [0, 1], suggestions: [first, second] } as InsertionPoint;
+
+		expect(suggestionNameFor(point)).toBe('First');
+		pickSuggestion('ip-0', 1);
+		expect(tunePractice.pickedSuggestion).toEqual({ 'ip-0': 1 });
+		expect(suggestionNameFor(point)).toBe('Second');
+		expect(expectedForWindow(point)!.lickName).toBe('Second');
+		expect(expectedForWindow(point)!.phrase.id).toBe(licks[1].id);
+	});
+
+	it('names nothing for a window with no suggestions', () => {
+		expect(suggestionNameFor({ id: 'ip-9', startOffset: [0, 1], suggestions: [] } as unknown as InsertionPoint)).toBeNull();
+	});
+});
+
+describe('trickForWindow (Fluency-scored windows)', () => {
+	const context: TrickContext = {
+		chordRoot: 'C',
+		chordQuality: 'maj7',
+		scaleId: 'major.ionian',
+		key: 'C',
+		timeSignature: [4, 4],
+		level: 50,
+		tempo: 120
+	};
+	const params = { pair: 'major-whole' };
+	function trickSuggestion(trickId: string, insertionOffset: [number, number]): LickSuggestion {
+		return {
+			...suggestion(`${trickId}:pair=major-whole`, insertionOffset),
+			trick: { trickId, parameters: params, context }
+		};
+	}
+
+	beforeEach(() => resetTunePractice());
+
+	it('is null for an ordinary lick pick — that window scores on the exact-phrase path', () => {
+		const lick = getAllLicks()[0];
+		expect(trickForWindow(ip([0, 1], suggestion(lick.id, [0, 1])))).toBeNull();
+	});
+
+	it('resolves the device and rebases by the insertion\'s shift inside the window', () => {
+		// The window opens at bar 1 but the trick is aligned to bar 3: the
+		// played onsets must be moved back by two bars before scoring.
+		const out = trickForWindow(ip([1, 1], trickSuggestion('triad-pairs', [3, 1])));
+		expect(out).not.toBeNull();
+		expect(out!.trick).toBe(getTrickById('triad-pairs'));
+		expect(out!.parameters).toBe(params);
+		expect(out!.context).toBe(context);
+		expect(fractionToFloat(out!.shift)).toBe(2);
+	});
+
+	it('is null when the suggestion names a trick the catalog no longer has', () => {
+		expect(trickForWindow(ip([0, 1], trickSuggestion('retired-device', [0, 1])))).toBeNull();
 	});
 });

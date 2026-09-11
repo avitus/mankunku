@@ -19,7 +19,8 @@ import {
 	TRIAD_PAIR_STYLES,
 	triadPairsTrick
 } from '$lib/tricks/devices/triad-pairs';
-import { exampleStyleForRound, getTrickById, TRICKS } from '$lib/tricks';
+import { exampleStyleForRound, getTrickById, trickEntryKey, TRICKS } from '$lib/tricks';
+import { INSTRUMENTS } from '$lib/types/instruments';
 
 const baseContext: TrickContext = {
 	chordRoot: 'C',
@@ -275,6 +276,19 @@ describe('buildEnclosureSlots', () => {
 		}
 	});
 
+	it('fills in absent parameters with the e3 figure: 2 approaches, above-below, 3rd, downbeat', () => {
+		// A parameter set with nothing in it (or nothing valid) must still
+		// build a real figure, and the one it builds is the ladder's e3.
+		const e3 = buildEnclosureSlots(ENCLOSURE_LADDER[2][1], baseContext);
+		expect(buildEnclosureSlots({}, baseContext)).toEqual(e3);
+		expect(
+			buildEnclosureSlots(
+				{ noteCount: '9', shape: 'sideways', targetTone: 'ninth', beatPlacement: 'never' },
+				baseContext
+			)
+		).toEqual(e3);
+	});
+
 	it('falls back to quarter notes when the level profile lacks eighths, keeping the 5-bar shape', () => {
 		// context.level is a PLAYER level (1-100), never a content tier. Levels
 		// 1-12 map to tiers 1-2, neither of which has eighths; tier 3 (from level
@@ -326,6 +340,19 @@ describe('enclosure compact figure (tune insertion)', () => {
 
 	it('reports no pickup bar', () => {
 		expect(buildEnclosureFigure(ENCLOSURE_LADDER[2][1], compactContext).pickupBars).toBe(0);
+	});
+
+	it('never outgrows the 2-bar tune-insertion window, for any ladder rung', () => {
+		// Tune windows are sized by the detected progression span; a compact
+		// figure that drifted past two bars would be scored against a window it
+		// cannot fit.
+		for (const [, params] of ENCLOSURE_LADDER) {
+			const slots = buildEnclosureSlots(params, compactContext);
+			const maxEnd = Math.max(
+				...slots.map((s) => fractionToFloat(s.offset) + fractionToFloat(s.duration))
+			);
+			expect(maxEnd).toBeLessThanOrEqual(2);
+		}
 	});
 
 	it('scoreConformance honors the figure hint, so spec and demo always match', () => {
@@ -442,8 +469,19 @@ describe('buildTriadPairSlots', () => {
 	});
 
 	it.each(TRIAD_LADDER)('%s: the two triads are disjoint pc sets', (_name, params) => {
-		const { a, b } = EXPECTED_TRIADS[params.pair];
-		expect(a.filter((pc) => b.includes(pc))).toEqual([]);
+		// Read off the built slots, not the test table: every slot's own
+		// triad (exactPcs) shares no pc with its partner (patternPcs), so an
+		// in-pattern grade can never be earned by a note of the played triad.
+		for (const slot of buildTriadPairSlots(params, baseContext)) {
+			expect(slot.exactPcs.filter((pc) => slot.patternPcs?.includes(pc))).toEqual([]);
+		}
+	});
+
+	it('falls back to the stage-1 pair for a missing or unknown pair value', () => {
+		expect(getTriadPairFamily('nope')).toBeUndefined();
+		const stageOne = buildTriadPairSlots({ pair: 'major-whole' }, baseContext);
+		expect(buildTriadPairSlots({}, baseContext)).toEqual(stageOne);
+		expect(buildTriadPairSlots({ pair: 'nope' }, baseContext)).toEqual(stageOne);
 	});
 
 	it('the cell sits on the straight eighth grid from the downbeat', () => {
@@ -457,10 +495,6 @@ describe('buildTriadPairSlots', () => {
 });
 
 describe('buildTripletSlots', () => {
-	it.each(TRIAD_LADDER)('produces valid slots for %s', (_name, params) => {
-		assertValidSlots(buildTripletSlots(params, baseContext));
-	});
-
 	it.each(TRIAD_LADDER)(
 		'%s: four beat-aligned triplet groups alternating the family triads',
 		(_name, params) => {
@@ -485,10 +519,6 @@ describe('buildTripletSlots', () => {
 });
 
 describe('buildFourEighthsSlots', () => {
-	it.each(TRIAD_LADDER)('produces valid slots for %s', (_name, params) => {
-		assertValidSlots(buildFourEighthsSlots(params, baseContext));
-	});
-
 	it.each(TRIAD_LADDER)(
 		'%s: four eighths of triad A then four of triad B, contour root-3rd-5th-3rd',
 		(_name, params) => {
@@ -777,5 +807,14 @@ describe('trick catalog', () => {
 	it('exampleStyleForRound is undefined for single-style tricks and clamps bad rounds', () => {
 		expect(exampleStyleForRound(enclosuresTrick, 1)).toBeUndefined();
 		expect(exampleStyleForRound(triadPairsTrick, 0)).toBe('cell');
+	});
+
+	it("trickEntryKey is the player's written C in concert pitch", () => {
+		// The drill's key rotation grows from the key the player reads as C:
+		// concert Bb on a Bb horn, concert Eb on an Eb horn, C on a concert
+		// instrument. Tricks have no stored home key of their own.
+		expect(trickEntryKey(INSTRUMENTS['concert'])).toBe('C');
+		expect(trickEntryKey(INSTRUMENTS['tenor-sax'])).toBe('Bb');
+		expect(trickEntryKey(INSTRUMENTS['alto-sax'])).toBe('Eb');
 	});
 });

@@ -1082,6 +1082,209 @@ describe('parseMscx — structure', () => {
 	});
 });
 
+/**
+ * Minimal ZIP writer for the .mscz tests: local headers, a central
+ * directory, and the end-of-central-directory record, in the layout
+ * `extractMscxFromZip` reads. CRCs are left at zero — the reader never
+ * checks them — so the fixture stays independent of a zip library.
+ */
+function makeZip(entries: Array<{ name: string; data: Uint8Array; method?: 0 | 8 }>): Uint8Array {
+	const enc = new TextEncoder();
+	const parts: Uint8Array[] = [];
+	const central: Uint8Array[] = [];
+	let offset = 0;
+	for (const e of entries) {
+		const name = enc.encode(e.name);
+		const method = e.method ?? 0;
+		const local = new Uint8Array(30 + name.length);
+		const lv = new DataView(local.buffer);
+		lv.setUint32(0, 0x04034b50, true);
+		lv.setUint16(4, 20, true);
+		lv.setUint16(8, method, true);
+		lv.setUint32(18, e.data.length, true);
+		lv.setUint32(22, e.data.length, true);
+		lv.setUint16(26, name.length, true);
+		local.set(name, 30);
+		const cd = new Uint8Array(46 + name.length);
+		const cv = new DataView(cd.buffer);
+		cv.setUint32(0, 0x02014b50, true);
+		cv.setUint16(4, 20, true);
+		cv.setUint16(6, 20, true);
+		cv.setUint16(10, method, true);
+		cv.setUint32(20, e.data.length, true);
+		cv.setUint32(24, e.data.length, true);
+		cv.setUint16(28, name.length, true);
+		cv.setUint32(42, offset, true);
+		cd.set(name, 46);
+		parts.push(local, e.data);
+		offset += local.length + e.data.length;
+		central.push(cd);
+	}
+	const cdStart = offset;
+	const cdSize = central.reduce((n, c) => n + c.length, 0);
+	const eocd = new Uint8Array(22);
+	const ev = new DataView(eocd.buffer);
+	ev.setUint32(0, 0x06054b50, true);
+	ev.setUint16(8, entries.length, true);
+	ev.setUint16(10, entries.length, true);
+	ev.setUint32(12, cdSize, true);
+	ev.setUint32(16, cdStart, true);
+	const all = [...parts, ...central, eocd];
+	const out = new Uint8Array(all.reduce((n, p) => n + p.length, 0));
+	let at = 0;
+	for (const p of all) {
+		out.set(p, at);
+		at += p.length;
+	}
+	return out;
+}
+
+async function deflateRaw(bytes: Uint8Array): Promise<Uint8Array> {
+	const stream = new Blob([bytes as BlobPart]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+	return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+describe('parseMuseScoreFile — .mscz archives', () => {
+	const scoreXml = (title: string): Uint8Array =>
+		new TextEncoder().encode(
+			mscx({
+				staves: `
+    <Staff id="1">
+      <Measure>
+        <voice>
+          <TimeSig><sigN>4</sigN><sigD>4</sigD></TimeSig>
+          ${CHORD(60, 'whole')}
+        </voice>
+      </Measure>
+    </Staff>`
+			}).replace('<metaTag name="workTitle">Unit Tune</metaTag>', `<metaTag name="workTitle">${title}</metaTag>`)
+		);
+
+	it('reads a STORED .mscx entry out of the archive', async () => {
+		const bytes = makeZip([{ name: 'score.mscx', data: scoreXml('Stored Tune') }]);
+		const result = await parseMuseScoreFile({ name: 'tune.mscz', bytes });
+		expect(result.warnings).toEqual([]);
+		expect(result.sheets[0].title).toBe('Stored Tune');
+	});
+
+	it('inflates a DEFLATE .mscx entry — the way MuseScore actually saves', async () => {
+		const bytes = makeZip([{ name: 'score.mscx', data: await deflateRaw(scoreXml('Deflated Tune')), method: 8 }]);
+		const result = await parseMuseScoreFile({ name: 'tune.MSCZ', bytes });
+		expect(result.warnings).toEqual([]);
+		expect(result.sheets[0].title).toBe('Deflated Tune');
+	});
+
+	it('prefers the root-level score over a part extract under Excerpts/', async () => {
+		// MuseScore 4 archives also hold per-part extracts; the root score is
+		// the one with every part, and it wins whatever the archive order.
+		const bytes = makeZip([
+			{ name: 'Excerpts/Tenor Saxophone.mscx', data: scoreXml('Part Extract') },
+			{ name: 'Thumbnails/thumbnail.png', data: new Uint8Array([1, 2, 3]) },
+			{ name: 'score.mscx', data: scoreXml('Root Score') }
+		]);
+		const result = await parseMuseScoreFile({ name: 'tune.mscz', bytes });
+		expect(result.sheets[0].title).toBe('Root Score');
+	});
+
+	it('reports an archive with no .mscx inside', async () => {
+		const bytes = makeZip([{ name: 'README.txt', data: new TextEncoder().encode('hello') }]);
+		const result = await parseMuseScoreFile({ name: 'tune.mscz', bytes });
+		expect(result.sheets).toEqual([]);
+		expect(result.warnings).toEqual(['No .mscx score found inside the .mscz archive.']);
+	});
+
+	it('reports bytes that are not a zip at all instead of throwing', async () => {
+		const result = await parseMuseScoreFile({ name: 'tune.mscz', bytes: new TextEncoder().encode('<museScore/>') });
+		expect(result.sheets).toEqual([]);
+		expect(result.warnings).toHaveLength(1);
+		expect(result.warnings[0]).toMatch(/Failed to read the \.mscz archive \(not a zip archive\)/);
+		expect(result.declaredTransposition).toBe(0);
+	});
+});
+
+describe('parseMscx — skipped and unsupported content', () => {
+	it('drops grace notes with one warning and does not advance the cursor for them', () => {
+		const { sheets, warnings } = parseMscx(mscx({
+			staves: `
+    <Staff id="1">
+      <Measure>
+        <voice>
+          <TimeSig><sigN>4</sigN><sigD>4</sigD></TimeSig>
+          <Chord>
+            <acciaccatura/>
+            <durationType>eighth</durationType>
+            <Note><pitch>62</pitch></Note>
+          </Chord>
+          ${CHORD(60, 'half')}
+          <Chord>
+            <grace16/>
+            <durationType>16th</durationType>
+            <Note><pitch>64</pitch></Note>
+          </Chord>
+          ${CHORD(65, 'half')}
+        </voice>
+      </Measure>
+    </Staff>`
+		}));
+		expect(warnings).toEqual(['Grace notes are not imported.']);
+		// The main notes keep their true positions — a grace note has no
+		// duration of its own on the timeline.
+		expect(sheets[0].sections[0].notes).toEqual([
+			{ pitch: 60, duration: [1, 2], offset: [0, 1] },
+			{ pitch: 65, duration: [1, 2], offset: [1, 2] }
+		]);
+	});
+
+	it('imports a 3rd ending as plain bars with a warning', () => {
+		const { sheets, warnings } = parseMscx(mscx({
+			staves: `
+    <Staff id="1">
+      <Measure>
+        <startRepeat/>
+        <voice>
+          <TimeSig><sigN>4</sigN><sigD>4</sigD></TimeSig>
+          ${CHORD(60, 'whole')}
+        </voice>
+      </Measure>
+      <Measure>
+        <endRepeat>3</endRepeat>
+        <voice>
+          <Spanner type="Volta">
+            <Volta><endings>3</endings></Volta>
+            <next><location><measures>1</measures></location></next>
+          </Spanner>
+          ${CHORD(62, 'whole')}
+        </voice>
+      </Measure>
+    </Staff>`
+		}));
+		expect(warnings).toEqual(['Ending "3" is not supported (only 1st/2nd) — imported as plain bars.']);
+		expect(sheets[0].sections.every((s) => s.ending === undefined)).toBe(true);
+	});
+
+	it('reads the MuseScore 3 <accidental> key signature when <concertKey> is absent', () => {
+		const { sheets } = parseMscx(mscx({
+			staves: `
+    <Staff id="1">
+      <Measure>
+        <voice>
+          <KeySig><accidental>2</accidental></KeySig>
+          <TimeSig><sigN>4</sigN><sigD>4</sigD></TimeSig>
+          ${CHORD(62, 'whole')}
+        </voice>
+      </Measure>
+    </Staff>`
+		}));
+		expect(sheets[0].key).toBe('D');
+	});
+
+	it('returns no sheet for a score whose staves carry no measures', () => {
+		const result = parseMscx(mscx({ staves: '<Staff id="1"></Staff>' }));
+		expect(result.sheets).toEqual([]);
+		expect(result.warnings).toEqual(['No staff with measures found in the MuseScore file.']);
+	});
+});
+
 describe('parseMuseScoreFile dispatch', () => {
 	it('parses raw .mscx bytes', async () => {
 		const xml = mscx({

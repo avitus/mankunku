@@ -31,6 +31,14 @@ vi.stubGlobal('localStorage', {
 // runs the localStorage path on import.
 vi.stubGlobal('window', { document: {} });
 
+// Only the resetTours-with-a-client test reaches the cloud; every other test
+// passes no client. Spies stand in so that test can see WHICH cloud write ran.
+vi.mock('$lib/persistence/sync', () => ({
+	syncTourStateToCloud: vi.fn(() => Promise.resolve()),
+	loadTourStateFromCloud: vi.fn(() => Promise.resolve(null)),
+	clearTourStateInCloud: vi.fn(() => Promise.resolve())
+}));
+
 beforeEach(() => {
 	store.clear();
 	vi.resetModules();
@@ -135,6 +143,23 @@ describe('resetTours', () => {
 		expect(m.tourState.dismissedTours.size).toBe(0);
 		expect(m.tourState.tourInProgress).toBeNull();
 		// And a write was issued so the cleared state lands in localStorage.
+		expect(persisted()).toEqual({ completed: [], dismissed: [] });
+	});
+
+	it('clears the cloud row through the replace path, never the union push', async () => {
+		// The union push (saveTourState → syncTourStateToCloud) merges with the
+		// remote row, so routing a reset through it would re-add every tour
+		// the reset just cleared.
+		const m = await import('$lib/state/tour.svelte');
+		const sync = await import('$lib/persistence/sync');
+		m.markComplete('a');
+		const client = {} as Parameters<typeof m.resetTours>[0];
+
+		m.resetTours(client);
+		await vi.dynamicImportSettled();
+
+		expect(sync.clearTourStateInCloud).toHaveBeenCalledWith(client);
+		expect(sync.syncTourStateToCloud).not.toHaveBeenCalled();
 		expect(persisted()).toEqual({ completed: [], dismissed: [] });
 	});
 });

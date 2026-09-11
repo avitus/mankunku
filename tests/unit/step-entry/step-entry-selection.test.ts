@@ -3,14 +3,18 @@ import {
 	stepEntry,
 	addNote,
 	addRest,
+	adjustOctave,
 	adjustSelectedNotePitch,
 	deleteSelectedNote,
 	flipSelectedNoteSpelling,
 	enterTiedNote,
+	getCurrentBarAndBeat,
+	getPaddedNotes,
 	reset,
 	selectNote,
 	selectPrev,
 	selectNext,
+	setAccidental,
 	setBarCount,
 	setDuration
 } from '$lib/state/step-entry.svelte';
@@ -359,5 +363,55 @@ describe('reset and setBarCount touching selection', () => {
 		selectNote(0);
 		setBarCount(2); // pops index 2 but leaves 0 and 1 intact
 		expect(stepEntry.selectedNoteIndex).toBe(0);
+	});
+});
+
+describe('entry surface controls', () => {
+	it('setAccidental toggles off when pressed again, and addNote clears it', () => {
+		setAccidental('sharp');
+		expect(stepEntry.accidental).toBe('sharp');
+		setAccidental('sharp');
+		expect(stepEntry.accidental).toBe('natural');
+		setAccidental('flat');
+		setAccidental('sharp');
+		expect(stepEntry.accidental).toBe('sharp');
+		addNote(0, 4, stepEntry.accidental);
+		expect(stepEntry.accidental).toBe('natural');
+	});
+
+	it('adjustOctave clamps to octaves 1–8', () => {
+		stepEntry.selectedOctave = 8;
+		adjustOctave(1);
+		expect(stepEntry.selectedOctave).toBe(8);
+		stepEntry.selectedOctave = 1;
+		adjustOctave(-1);
+		expect(stepEntry.selectedOctave).toBe(1);
+		adjustOctave(2);
+		expect(stepEntry.selectedOctave).toBe(3);
+	});
+
+	it('adjustSelectedNotePitch refuses a shift that leaves the written entry range', () => {
+		stepEntry.enteredNotes = [{ pitch: 89, duration: [1, 4], offset: [0, 1] }]; // F6, the ceiling
+		stepEntry.selectedNoteIndex = 0;
+		adjustSelectedNotePitch(1);
+		expect(stepEntry.enteredNotes[0].pitch).toBe(89);
+		adjustSelectedNotePitch(-1);
+		expect(stepEntry.enteredNotes[0].pitch).toBe(88);
+	});
+
+	it('getPaddedNotes fills the canvas with one rest and adds nothing when it is full', () => {
+		addNote(0, 4, 'natural'); // one quarter of a 4-bar canvas
+		expect(getCurrentBarAndBeat()).toEqual({ bar: 1, beat: 2 });
+		const padded = getPaddedNotes();
+		expect(padded).toHaveLength(2);
+		expect(padded[1]).toEqual({ pitch: null, duration: [15, 4], offset: [1, 4] });
+		expect(stepEntry.enteredNotes).toHaveLength(1); // the padding is never entered
+
+		reset();
+		setBarCount(1);
+		setDuration('whole');
+		addNote(0, 4, 'natural');
+		expect(getCurrentBarAndBeat()).toEqual({ bar: 2, beat: 1 });
+		expect(getPaddedNotes()).toHaveLength(1);
 	});
 });

@@ -170,6 +170,33 @@ describe('parseIRealUrl — cell semantics', () => {
 		expect(sheet.sections[0].harmony[1].startOffset).toEqual([3, 4]);
 	});
 
+	it('ignores a mid-tune time signature change with a warning, keeping the opening meter', () => {
+		const url = 'irealbook://' + encodeURIComponent('X=Y=Swing=C=n=T44C^7 |T34G7 Z');
+		const { sheets, warnings } = parseIRealUrl(url);
+		expect(warnings).toEqual(['iReal: mid-tune time signature change ignored']);
+		expect(sheets[0].timeSignature).toEqual([4, 4]);
+		expect(sheets[0].sections[0].bars).toBe(2);
+	});
+
+	it('imports a 3rd ending as a plain section with a warning', () => {
+		const url = 'irealbook://' + encodeURIComponent('X=Y=Swing=C=n={T44C^7 |N1G7 } N3F7 Z');
+		const { sheets, warnings } = parseIRealUrl(url);
+		expect(warnings).toEqual(['iReal: ending N3 imported as a plain section']);
+		expect(sheets[0].sections.map((s) => [s.bars, s.ending ?? 0])).toEqual([
+			[1, 0],
+			[1, 1],
+			[1, 0]
+		]);
+	});
+
+	it('skips a chord the parser cannot read, naming it, and keeps the bar', () => {
+		const sheet = sheetFor('T44C++ |G7 Z');
+		expect(sheet.sections[0].bars).toBe(2);
+		expect(sheet.sections[0].harmony.map((h) => h.symbol)).toEqual(['G7']);
+		const { warnings } = parseIRealUrl('irealbook://' + encodeURIComponent('X=Y=Swing=C=n=T44C++ |G7 Z'));
+		expect(warnings).toEqual(['iReal: skipped unparseable chord "C++"']);
+	});
+
 	it('strips staff text, size hints, and alternate chords with a warning-free parse', () => {
 		const sheet = sheetFor('T44*A<Solo break>sC^7 l(A-7) |D-7 G7 Z');
 		expect(sheet.sections[0].harmony.map((h) => h.symbol)).toEqual(['C^7', 'D-7', 'G7']);
@@ -205,5 +232,18 @@ describe('parseIRealUrl — irealb:// (scrambled)', () => {
 		const result = parseIRealUrl('not a url');
 		expect(result.sheets).toEqual([]);
 		expect(result.warnings.length).toBeGreaterThan(0);
+	});
+
+	it('reports a URL whose percent-encoding is broken instead of throwing', () => {
+		const result = parseIRealUrl('irealbook://Bad%E0%A4%AUrl');
+		expect(result.sheets).toEqual([]);
+		expect(result.warnings).toEqual(['The iReal URL is not valid percent-encoding.']);
+	});
+
+	it('reports a song whose field layout it cannot resolve', () => {
+		// Five fields is neither the plain six-field layout nor any scrambled one.
+		const result = parseIRealUrl('irealbook://' + encodeURIComponent('Title=Composer=Swing=C=T44C^7 Z'));
+		expect(result.sheets).toEqual([]);
+		expect(result.warnings).toEqual(['iReal: unrecognized song field layout (5 fields)']);
 	});
 });

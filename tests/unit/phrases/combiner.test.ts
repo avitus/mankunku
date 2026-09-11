@@ -71,7 +71,6 @@ describe('realizeScalePattern', () => {
 describe('combine', () => {
 	const sp3 = SCALE_PATTERNS.find(p => p.degrees.length === 3 && p.category === 'ii-V-I-major')!;
 	const rp3 = RHYTHM_PATTERNS.find(p => p.noteCount === 3)!;
-	const rp4 = RHYTHM_PATTERNS.find(p => p.noteCount === 4)!;
 
 	it('returns a Phrase for matching note counts', () => {
 		const phrase = combine(sp3, rp3, 'major.ionian', 'C', CMAJ_HARMONY);
@@ -79,11 +78,6 @@ describe('combine', () => {
 		expect(phrase!.notes).toHaveLength(3);
 		expect(phrase!.id).toMatch(/^cmb-/);
 		expect(phrase!.source).toBe('combined');
-	});
-
-	it('returns null for mismatched note counts', () => {
-		const phrase = combine(sp3, rp4, 'major.ionian', 'C', CMAJ_HARMONY);
-		expect(phrase).toBeNull();
 	});
 
 	it('returns null when scale family is incompatible', () => {

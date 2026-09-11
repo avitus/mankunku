@@ -10,7 +10,7 @@
  * already aligns with the authoritative score.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Score } from '$lib/types/scoring';
 
 const store = new Map<string, string>();
@@ -212,5 +212,48 @@ describe('recordAttempt daily-summary snapshot', () => {
 				scaleLevels: { dorian: 1 }
 			})
 		);
+	});
+});
+
+describe('daily practice streak (bumpStreakForToday)', () => {
+	// Noon local time, so "yesterday" (now − 24 h) is always the previous
+	// calendar day whatever the zone.
+	const day = (d: number): Date => new Date(2026, 2, d, 12, 0, 0);
+
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it('starts at 1, grows on consecutive days, and resets after a missed day', () => {
+		vi.useFakeTimers({ toFake: ['Date'] });
+
+		vi.setSystemTime(day(10));
+		progressModule.bumpStreakForToday();
+		expect(progressModule.progress.streakDays).toBe(1);
+		expect(progressModule.progress.lastPracticeDate).toBe('2026-03-10');
+
+		vi.setSystemTime(day(11));
+		progressModule.bumpStreakForToday();
+		expect(progressModule.progress.streakDays).toBe(2);
+
+		// The 12th is skipped: practising on the 13th starts a new run.
+		vi.setSystemTime(day(13));
+		progressModule.bumpStreakForToday();
+		expect(progressModule.progress.streakDays).toBe(1);
+		expect(progressModule.progress.lastPracticeDate).toBe('2026-03-13');
+	});
+
+	it('counts a day once: a second practice the same day neither grows the streak nor rewrites storage', () => {
+		vi.useFakeTimers({ toFake: ['Date'] });
+		vi.setSystemTime(day(10));
+		progressModule.bumpStreakForToday();
+		vi.setSystemTime(day(11));
+		progressModule.bumpStreakForToday();
+		const writes = vi.mocked(localStorage.setItem).mock.calls.length;
+
+		progressModule.bumpStreakForToday();
+
+		expect(progressModule.progress.streakDays).toBe(2);
+		expect(vi.mocked(localStorage.setItem).mock.calls.length).toBe(writes);
 	});
 });

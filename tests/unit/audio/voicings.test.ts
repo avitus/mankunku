@@ -5,6 +5,8 @@ import {
 	drop2Voicing,
 	rootlessVoicingA,
 	rootlessVoicingB,
+	guideToneVoicing,
+	quartalVoicing,
 	voiceLead
 } from '$lib/audio/voicings';
 import type { PitchClass, ChordQuality } from '$lib/types/music';
@@ -281,5 +283,78 @@ describe('voiceLead', () => {
 		const chords = [{ root: 'C' as PitchClass, quality: 'maj7' as ChordQuality }];
 		const result = voiceLead(chords, shellVoicing);
 		expect(result).toHaveLength(1);
+	});
+});
+
+describe('voiceLead per-chord registers', () => {
+	const chords = [
+		{ root: 'D' as PitchClass, quality: 'min7' as ChordQuality },
+		{ root: 'G' as PitchClass, quality: '7' as ChordQuality },
+		{ root: 'C' as PitchClass, quality: 'maj7' as ChordQuality }
+	];
+
+	it('accepts one register centre per chord', () => {
+		const result = voiceLead(chords, rootlessVoicingA, [58, 62, 66]);
+		expect(result).toHaveLength(3);
+		for (const v of result) expect(v).toHaveLength(4);
+	});
+
+	it('fails loudly when the register array does not match the chord count', () => {
+		// A short array would give NaN search bounds and emit silent empty
+		// voicings instead of comp hits.
+		expect(() => voiceLead(chords, rootlessVoicingA, [58, 62])).toThrow(/2 registers for 3 chords/);
+	});
+});
+
+describe('unknown chord quality', () => {
+	it('every builder returns an empty voicing rather than throwing', () => {
+		const bogus = 'nope' as ChordQuality;
+		for (const fn of [shellVoicing, drop2Voicing, rootlessVoicingA, rootlessVoicingB, guideToneVoicing, quartalVoicing]) {
+			expect(fn('C', bogus)).toEqual([]);
+		}
+	});
+});
+
+describe('drop2Voicing on a triad', () => {
+	it('pads to four strictly ascending notes of the triad', () => {
+		const v = drop2Voicing('C', 'aug');
+		expect(v).toHaveLength(4);
+		for (let i = 1; i < v.length; i++) expect(v[i]).toBeGreaterThan(v[i - 1]);
+		expect(new Set(v.map((m) => m % 12))).toEqual(new Set([0, 4, 8]));
+	});
+});
+
+describe('guideToneVoicing', () => {
+	const pcs = (v: number[]) => new Set(v.map((m) => ((m % 12) + 12) % 12));
+
+	it('voices the 3rd and 7th only', () => {
+		expect(pcs(guideToneVoicing('C', 'maj7'))).toEqual(new Set([4, 11]));
+		expect(pcs(guideToneVoicing('C', 'min7'))).toEqual(new Set([3, 10]));
+		expect(pcs(guideToneVoicing('C', '7'))).toEqual(new Set([4, 10]));
+		expect(guideToneVoicing('C', '7')).toHaveLength(2);
+	});
+
+	it('falls back to 3rd + 5th on a triad', () => {
+		expect(pcs(guideToneVoicing('C', 'aug'))).toEqual(new Set([4, 8]));
+	});
+});
+
+describe('quartalVoicing', () => {
+	const pcs = (v: number[]) => new Set(v.map((m) => ((m % 12) + 12) % 12));
+
+	it('stacks 9-5-1 with the 11 added for minor and sus qualities', () => {
+		expect(pcs(quartalVoicing('C', 'min7'))).toEqual(new Set([2, 7, 0, 5]));
+		expect(quartalVoicing('C', 'min7')).toHaveLength(4);
+		expect(pcs(quartalVoicing('C', 'sus4'))).toEqual(new Set([2, 7, 0, 5]));
+	});
+
+	it('stacks 9-5-1 alone for major and plain dominant', () => {
+		expect(pcs(quartalVoicing('C', 'maj7'))).toEqual(new Set([2, 7, 0]));
+		expect(quartalVoicing('C', '7')).toHaveLength(3);
+	});
+
+	it('declines altered, diminished, augmented and half-diminished chords', () => {
+		const excluded: ChordQuality[] = ['7alt', '7b9', '7#9', '7#11', '7b13', 'dim7', 'dim', 'aug', 'aug7', 'min7b5'];
+		for (const q of excluded) expect(quartalVoicing('C', q), q).toEqual([]);
 	});
 });

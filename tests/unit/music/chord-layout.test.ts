@@ -61,6 +61,11 @@ describe('layoutFromChordSymbol', () => {
 		const p = layoutFromChordSymbol(cs, 'F');
 		expect(p.root).toBe('Gb');
 	});
+
+	it('respells the slash bass for the key context too', () => {
+		expect(layoutFromChordSymbol(parseChordSymbol('C/F#')!, 'F').bass).toBe('Gb');
+		expect(chordDisplayModelFromText('C/F#', 'F')).toMatchObject({ root: 'C', bass: 'G♭' });
+	});
 });
 
 describe('chordDisplayLine', () => {

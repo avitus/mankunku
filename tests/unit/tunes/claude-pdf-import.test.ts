@@ -131,10 +131,16 @@ describe('claudeJsonToTune — print-fidelity fields', () => {
 		expect(claudeJsonToTune(zero).sheet!.key).toBe('C');
 	});
 
-	it('still accepts legacy responses with only a key name', () => {
-		const { sheet, errors } = claudeJsonToTune(validDoc());
-		expect(errors).toEqual([]);
-		expect(sheet!.key).toBe('Bb');
+	it('skips a pitch outside the MIDI range with a warning instead of a bogus note', () => {
+		const doc = validDoc();
+		(doc.sections as Array<{ melody: unknown[] }>)[1].melody = [
+			{ bar: 0, beat: 0, durationBeats: 1, pitch: 'G#9' }, // 128
+			{ bar: 0, beat: 1, durationBeats: 1, pitch: 'Cb-1' }, // -1
+			{ bar: 0, beat: 2, durationBeats: 1, pitch: 'C4' }
+		];
+		const { sheet, warnings } = claudeJsonToTune(doc);
+		expect(warnings.filter((w) => /out of MIDI range/.test(w))).toHaveLength(2);
+		expect(sheet!.sections[1].notes.map((n) => n.pitch)).toEqual([60]);
 	});
 
 	it('reads natural-marked and unicode-accidental pitches', () => {
@@ -305,6 +311,108 @@ describe('claudeJsonToTune — bar-wise schema (v2)', () => {
 		const chords = sheet!.sections.flatMap((s) => s.harmony.map((h) => [h.startOffset[0] / h.startOffset[1], h.symbol]));
 		expect(chords).toContainEqual([4, 'C6']);
 		expect(chords).toContainEqual([5, 'A7']);
+	});
+
+	it('accepts pickup-COUNTED bar numbering without resyncing (bar 1 = the pickup)', () => {
+		// Some charts number the pickup as bar 1: after a pickup plus 4 full
+		// bars the next system prints 6, one more than the engraving default.
+		// Both conventions must pass as-is — resyncing this one would insert a
+		// phantom bar.
+		const doc = {
+			title: 'Counted Pickup',
+			keySignature: { fifths: 0 },
+			timeSignature: [4, 4],
+			systems: [
+				{
+					firstBarNumber: 1,
+					bars: [
+						{ pickup: true, chords: [], melody: [[3, 1, 'G4']] },
+						{ mark: 'A', chords: [[0, 'C6']], melody: [] },
+						{ chords: [], melody: [] },
+						{ chords: [], melody: [] },
+						{ chords: [], melody: [] }
+					]
+				},
+				{
+					firstBarNumber: 6,
+					bars: [{ chords: [[0, 'G7']], melody: [] }]
+				}
+			]
+		};
+		const { sheet, warnings } = claudeJsonToTune(doc);
+		expect(warnings).toEqual([]);
+		expect(sheet!.sections.reduce((a, s) => a + s.bars, 0)).toBe(6);
+	});
+
+	it('warns on an OVERcount against the printed bar number without inserting or dropping bars', () => {
+		// System 1 transcribed 4 bars but system 2 prints bar 3: the model
+		// invented a bar. Nothing can be removed safely — the warning names
+		// the disagreement and the count is left alone.
+		const doc = {
+			title: 'Overcount',
+			keySignature: { fifths: 0 },
+			timeSignature: [4, 4],
+			systems: [
+				{
+					firstBarNumber: 1,
+					bars: [
+						{ chords: [[0, 'C6']], melody: [] },
+						{ chords: [], melody: [] },
+						{ chords: [], melody: [] },
+						{ chords: [], melody: [] }
+					]
+				},
+				{
+					firstBarNumber: 3,
+					bars: [{ chords: [[0, 'G7']], melody: [] }, { chords: [], melody: [] }]
+				}
+			]
+		};
+		const { sheet, warnings } = claudeJsonToTune(doc);
+		expect(warnings).toEqual(['bar count mismatch: transcription has 4 bars before printed bar 3']);
+		expect(sheet!.sections.reduce((a, s) => a + s.bars, 0)).toBe(6);
+		// …and the mismatch counts toward the route's retry decision.
+		expect(extractionConsistencyScore(warnings)).toBe(1);
+	});
+
+	it('skips a malformed system entry with a warning and keeps the rest', () => {
+		const doc = {
+			title: 'Malformed System',
+			keySignature: { fifths: 0 },
+			timeSignature: [4, 4],
+			systems: [
+				{ bars: [{ chords: [[0, 'C6']], melody: [[0, 4, 'C4']] }] },
+				'not a system',
+				{ bars: 'nope' },
+				{ bars: [{ chords: [[0, 'F6']], melody: [[0, 4, 'F4']] }] }
+			]
+		};
+		const { sheet, warnings } = claudeJsonToTune(doc);
+		expect(warnings.filter((w) => w === 'malformed system entry skipped')).toHaveLength(2);
+		expect(sheet!.sections.reduce((a, s) => a + s.bars, 0)).toBe(2);
+	});
+
+	it('rejects a bar-wise document that yields no bars at all', () => {
+		const doc = { title: 'Empty', keySignature: { fifths: 0 }, timeSignature: [4, 4], systems: [{ bars: [] }, {}] };
+		const { sheet, errors } = claudeJsonToTune(doc);
+		expect(sheet).toBeNull();
+		expect(errors).toEqual(['no bars extracted']);
+	});
+
+	it('reads natural-marked and unicode-accidental pitches on the bar-wise path too', () => {
+		// The v2 walker normalizes pitches independently of the v1 section
+		// path — both copies must accept what the model actually prints.
+		const doc = barwiseDoc();
+		(doc.systems as Array<{ bars: Array<Record<string, unknown>> }>)[1].bars[1].melody = [
+			[0, 1, 'B♮4'],
+			[1, 1, 'F♯4'],
+			[2, 1, 'E♭4'],
+			[3, 1, 'Bn4']
+		];
+		const { sheet, warnings } = claudeJsonToTune(doc);
+		expect(warnings).toEqual([]);
+		const last = sheet!.sections[sheet!.sections.length - 1];
+		expect(last.notes.map((n) => n.pitch)).toEqual([71, 66, 63, 71]);
 	});
 
 	it('accounts for an excluded pickup bar when resyncing', () => {

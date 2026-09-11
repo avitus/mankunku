@@ -301,6 +301,52 @@ describe('scoreFluency', () => {
 		expect(score.noteResults.map((r) => r.expected.pitch)).toEqual([60, 64, 67, 71]);
 		expect(score.overall).toBeCloseTo(1, 5);
 	});
+
+	it('falls back to placeholder expected notes when the example note count disagrees with the slot count', () => {
+		// Three example notes for four slots: trusting the example would index
+		// past its end, so every expected note is the [0,1]-pinned placeholder —
+		// an exact slot takes its played pitch class, placed nearest middle C.
+		const shortNotes: Note[] = [
+			{ pitch: 60, offset: [0, 1], duration: [1, 8] },
+			{ pitch: 64, offset: [1, 8], duration: [1, 8] },
+			{ pitch: 67, offset: [2, 8], duration: [1, 8] }
+		];
+		const phrase: Phrase = {
+			id: 'short-example',
+			name: 'Short Example',
+			timeSignature: [4, 4],
+			key: 'C',
+			notes: shortNotes,
+			harmony: [
+				{ chord: { root: 'C', quality: 'maj7' }, scaleId: 'major.ionian', startOffset: [0, 1], duration: [1, 1] }
+			],
+			difficulty: { level: 10, pitchComplexity: 10, rhythmComplexity: 10, lengthBars: 1 },
+			category: 'triad-pairs',
+			tags: ['trick'],
+			source: 'generated'
+		};
+		const score = fluency(perfectPlayed, makeTrick(arpSlots, phrase));
+		expect(score.noteResults).toHaveLength(4);
+		expect(score.noteResults.map((r) => r.expected.offset)).toEqual([[0, 1], [0, 1], [0, 1], [0, 1]]);
+		// Nearest instance to middle C, ties resolving upward at +6: G (pc 7)
+		// lands at 55, B (pc 11) at 59.
+		expect(score.noteResults.map((r) => r.expected.pitch)).toEqual([60, 64, 55, 59]);
+		expect(score.overall).toBeCloseTo(1, 5);
+	});
+
+	it('places an off-formula slot\'s placeholder on the chord root near middle C', () => {
+		// No example at all (the default trick): the in-scale D for E is not an
+		// exact pc, so its expected note falls back to the chord root.
+		const played = [
+			makeDetected(60, 0),
+			makeDetected(62, 0.25),
+			makeDetected(67, 0.5),
+			makeDetected(71, 0.75)
+		];
+		const score = fluency(played);
+		expect(score.conformance.slots[1].tier).toBe('in-scale');
+		expect(score.noteResults.map((r) => r.expected.pitch)).toEqual([60, 60, 55, 59]);
+	});
 });
 
 describe('scoreToFluencyGrade', () => {

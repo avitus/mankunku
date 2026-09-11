@@ -86,6 +86,14 @@ describe('placeEventTicks', () => {
 		expect(t).toBe(Math.round(PPQ + msToTicks(8, 300)));
 	});
 
+	it('compresses a negative (on-top) offset symmetrically', () => {
+		// The bass's −3 ms never reaches the cap; a −30 ms probe at 300 BPM must
+		// compress to −8 ms, not keep its sign-blind magnitude.
+		const profile = { offsetMs: -30, jitterMs: 0 };
+		const rng = createRng(seedFrom('probe', 300, 'bass-time', 0));
+		expect(placeEventTicks(1, 0.5, PPQ, 300, profile, rng)).toBe(Math.round(PPQ - msToTicks(8, 300)));
+	});
+
 	it('never returns negative ticks', () => {
 		const profile = { offsetMs: -30, jitterMs: 10 };
 		const rng = createRng(seedFrom('probe', 60, 'bass-time', 0));

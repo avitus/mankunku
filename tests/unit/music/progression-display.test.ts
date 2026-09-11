@@ -10,13 +10,6 @@ describe('progressionColor', () => {
 	// automatically and fails loudly if its colour token was forgotten.
 	const allTypes = Object.keys(PROGRESSION_TEMPLATES) as ChordProgressionType[];
 
-	it('returns a colour for every progression in PROGRESSION_TEMPLATES', () => {
-		for (const type of allTypes) {
-			const color = progressionColor(type);
-			expect(color, `missing colour for ${type}`).toMatch(/^var\(--/);
-		}
-	});
-
 	it('maps each progression to its own --prog-<type> token', () => {
 		for (const type of allTypes) {
 			expect(progressionColor(type)).toBe(`var(--prog-${type})`);

@@ -58,6 +58,7 @@ import {
 	estimatePlanSeconds,
 	previewSessionSeconds,
 	startDailyPracticeSession,
+	startSession,
 	startSingleLickSession,
 	getLickBars,
 	resolveLickTempo
@@ -75,6 +76,7 @@ beforeEach(() => {
 	store.clear();
 	lickPractice.progress = {};
 	lickPractice.plan = [];
+	lickPractice.phase = 'setup';
 	lickPractice.mode = 'standard';
 	lickPractice.config.sessionType = 'daily';
 	lickPractice.config.progressionType = 'ii-V-I-major';
@@ -300,6 +302,62 @@ describe('previewSessionSeconds (the number the setup screen shows)', () => {
 		expect(previewSessionSeconds()).toEqual({ lickCount: 0, seconds: 0 });
 		lickPractice.config.sessionType = 'trick';
 		expect(previewSessionSeconds()).toEqual({ lickCount: 0, seconds: 0 });
+	});
+
+	it('prices a Focused session from the single-progression plan', () => {
+		tagUniformNewLicks(12);
+		lickPractice.config.sessionType = 'focused';
+		lickPractice.config.progressionType = 'blues';
+		lickPractice.config.durationMinutes = 20;
+
+		expect(previewSessionSeconds()).toEqual({ lickCount: 12, seconds: 288 });
+		// A progression none of the tagged licks fit prices to nothing.
+		lickPractice.config.progressionType = 'ii-V-I-major-long';
+		expect(previewSessionSeconds()).toEqual({ lickCount: 0, seconds: 0 });
+		expect(lickPractice.plan).toEqual([]);
+	});
+});
+
+describe('startSession (Focused)', () => {
+	it('is a no-op on an empty plan — the session never leaves setup', () => {
+		lickPractice.config.sessionType = 'focused';
+		lickPractice.config.progressionType = 'blues';
+
+		startSession();
+
+		expect(lickPractice.plan).toEqual([]);
+		expect(lickPractice.phase).toBe('setup');
+	});
+
+	it('installs the plan, opens the count-in at the first lick\'s own tempo and clears deep-practice state', () => {
+		const ids = tagUniformNewLicks(3);
+		lickPractice.config.sessionType = 'focused';
+		lickPractice.config.progressionType = 'blues';
+		lickPractice.progress = updateKeyProgress(lickPractice.progress, ids[0], 'C', {
+			currentTempo: 84,
+			lastPracticedAt: 1
+		});
+		// Left over from a deep-practice configuration; a focused start must drop it.
+		lickPractice.config.singleLickId = ids[1];
+		lickPractice.roundNumber = 4;
+
+		startSession();
+
+		expect(lickPractice.phase).toBe('count-in');
+		expect(lickPractice.mode).toBe('standard');
+		expect(lickPractice.plan.map((item) => item.phraseId).sort()).toEqual([...ids].sort());
+		// Least-recently-practiced first: the two never-practiced licks lead,
+		// so the first lick opens at the 60 BPM new-lick tempo, not ids[0]'s 84.
+		expect(lickPractice.plan[0].phraseId).not.toBe(ids[0]);
+		expect(lickPractice.currentTempo).toBe(
+			resolveLickTempo(lickPractice.progress, lickPractice.plan[0].phraseId)
+		);
+		expect(lickPractice.currentTempo).toBe(60);
+		expect(lickPractice.plannedSeconds).toBeCloseTo(estimatePlanSeconds(lickPractice.plan), 6);
+		expect(lickPractice.config.singleLickId).toBeUndefined();
+		expect(lickPractice.roundNumber).toBe(0);
+		expect(lickPractice.currentLickIndex).toBe(0);
+		expect(lickPractice.currentKeyIndex).toBe(0);
 	});
 });
 

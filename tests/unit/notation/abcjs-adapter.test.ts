@@ -633,6 +633,17 @@ describe('formShape / bar stepping — partial pickup bars', () => {
 		expect(formShape(tune)).toEqual({ sections: [{ bars: 1, firstBeat: 3 }, { bars: 8 }], beatsPerBar: 4 });
 	});
 
+	it('infers the legacy import pickup (blank label, one bar, form after) with no field', () => {
+		const tune = {
+			timeSignature: [4, 4] as [number, number],
+			sections: [
+				{ label: '', bars: 1, notes: [{ pitch: 55, duration: [1, 4] as [number, number], offset: [3, 4] as [number, number] }] },
+				{ label: 'A', bars: 8 }
+			]
+		};
+		expect(formShape(tune)).toEqual({ sections: [{ bars: 1, firstBeat: 3 }, { bars: 8 }], beatsPerBar: 4 });
+	});
+
 	it('Tab-stepping into a partial bar lands on its first printed beat', () => {
 		const form = { sections: [{ bars: 1, firstBeat: 3 }, { bars: 2 }], beatsPerBar: 4 };
 		expect(prevBarStart({ sectionIdx: 1, bar: 0, beat: 2 }, form)).toEqual({ sectionIdx: 0, bar: 0, beat: 3 });

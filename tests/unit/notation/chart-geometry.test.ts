@@ -91,6 +91,16 @@ describe('barZones — bar x-spans per system', () => {
 		expect(zones.filter((z) => z.systemIdx === 0)).toHaveLength(4);
 		expect(zones.filter((z) => z.systemIdx === 1)).toHaveLength(4);
 	});
+
+	it("resolves a bar whose opening token has no layout item by the system's char range", () => {
+		// The bar opens on an unrendered token; its system is the one whose
+		// char range brackets it, and its span still runs barline to barline.
+		const systems: SystemLayout[] = [
+			{ items: [item(0, 2, 10, 6, 'note'), item(2, 3, 40, 2, 'bar'), item(6, 7, 80, 2, 'bar')] }
+		];
+		const zones = barZones(systems, [{ startChar: 4, endChar: 7, sectionIdx: 0, bar: 1 }]);
+		expect(zones).toEqual([{ sectionIdx: 0, bar: 1, systemIdx: 0, x0: 40, x1: 80 }]);
+	});
 });
 
 const ZONE: BarZone = { sectionIdx: 0, bar: 0, systemIdx: 0, x0: 0, x1: 100 };
@@ -396,6 +406,14 @@ describe('partial pickup bars', () => {
 		expect(clipBarSpanX(0, 100, 0, 1, 0, 0.5, 0.75)).toBeNull();
 		// Default keeps the full-bar mapping byte-identical.
 		expect(clipBarSpanX(0, 100, 0, 1, 0.5, 1)).toEqual({ x0: 50, x1: 100 });
+	});
+
+	it('clipBarSpanX returns null for a range that misses the bar or for degenerate geometry', () => {
+		expect(clipBarSpanX(0, 100, 1, 1, 0, 1)).toBeNull(); // bar 1; the range ends where the bar starts
+		expect(clipBarSpanX(0, 100, 0, 1, 1, 2)).toBeNull(); // bar 0; the range starts at bar 1
+		expect(clipBarSpanX(100, 100, 0, 1, 0, 1)).toBeNull(); // zero-width zone
+		expect(clipBarSpanX(0, 100, 0, 0, 0, 1)).toBeNull(); // zero-length bar
+		expect(clipBarSpanX(0, 100, 2, 1, 0, 10)).toEqual({ x0: 0, x1: 100 }); // wholly covered
 	});
 
 	it('beat stepping never lands inside a partial bar\'s silent prefix', () => {

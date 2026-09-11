@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getScale, getScalesByFamily, getScalesForChord } from '$lib/music/scales';
+import { getScale, getScalesByFamily, getScalesForChord, getMvpScales, MVP_SCALE_IDS } from '$lib/music/scales';
 
 describe('getScale', () => {
 	it('finds by ID', () => {
@@ -38,5 +38,13 @@ describe('getScalesForChord', () => {
 		const ids = scales.map((s) => s.id);
 		expect(ids).toContain('major.mixolydian');
 		expect(ids).toContain('bebop.dominant');
+	});
+});
+
+describe('getMvpScales', () => {
+	it('resolves every MVP id to a catalog scale — a typo would surface as undefined', () => {
+		const mvp = getMvpScales();
+		expect(mvp).toHaveLength(MVP_SCALE_IDS.length);
+		expect(mvp.map((s) => s?.id)).toEqual(MVP_SCALE_IDS);
 	});
 });

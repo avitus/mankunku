@@ -168,6 +168,37 @@ ok "release's own chunks untouched by hydration"
     || fail "current not swapped to release 2"
 ok "current swapped to newest release"
 
+# --- Release-id validation ---
+# The id becomes a filesystem path and the `current` target, and the cleanup
+# trap hands $STAGE to `rm -rf`. Anything that is not the CI-generated shape
+# must be refused BEFORE any of that — including a traversal attempt — with
+# the previous release left serving.
+for bad in '../../etc' '20260101-000000-AAAAAAA' 'latest' '20260101-000000-aaaaaaa; rm -rf /'; do
+    set +e
+    OUT=$(bash "$RELEASE_SH" "$bad" 2>&1)
+    rc=$?
+    set -e
+    [[ $rc -eq 2 ]] || fail "invalid release id '$bad' was not refused with exit 2 (rc=$rc)"
+    echo "$OUT" | grep -q "invalid release id" \
+        || fail "no invalid-id diagnostic for '$bad': $OUT"
+done
+ok "malformed release ids are refused before touching the filesystem"
+[[ "$(readlink "${MANKUNKU_ROOT}/current")" == "releases/${ID2}" ]] \
+    || fail "a refused release id moved current"
+[[ -f "${MANKUNKU_ROOT}/releases/${ID2}/build/index.js" ]] \
+    || fail "a refused release id damaged the live release"
+ok "a refused release id leaves the live release untouched"
+
+# A well-formed id with nothing staged behind it: the rsync step never ran.
+set +e
+OUT=$(bash "$RELEASE_SH" "20260199-000000-0000000" 2>&1)
+rc=$?
+set -e
+[[ $rc -eq 2 ]] || fail "missing staged release was not refused with exit 2 (rc=$rc)"
+echo "$OUT" | grep -q "staged release not found" \
+    || fail "no staged-release-missing diagnostic: $OUT"
+ok "a release id with no staged directory is refused"
+
 # Retention: a chunk no recent deploy ships ages out; still-shipped chunks stay.
 touch -t "$(date -v-40d +%Y%m%d0000 2>/dev/null || date -d '40 days ago' +%Y%m%d0000)" \
     "${POOL}/2.AAAAAAA.js"
@@ -401,6 +432,33 @@ smoke_elapsed=$(( SECONDS - smoke_start ))
 (( smoke_elapsed <= 8 )) \
     || fail "health check overran its 3s budget: ${smoke_elapsed}s elapsed (counting sleeps, not wall clock?)"
 ok "health-check budget measures wall clock, not accumulated sleep (${smoke_elapsed}s)"
+
+# --- Prune: keep the newest KEEP_RELEASES, never touch a hand-made dir ---
+# `ls -1t | tail -n +N` prunes by mtime, and everything it lists is handed to
+# `rm -rf` — so the id regex is the only thing standing between a human's
+# `pre-migration-*` snapshot (real on the server) and deletion. The just
+# deployed release must survive as well, whatever the tie-breaking on mtime.
+ID20="20260120-000000-aaa2020"
+stage_release "$ID20" "2.TTTTTTT.js"
+mkdir -p "${MANKUNKU_ROOT}/releases/pre-migration-20260422-211746"
+echo "hands off" > "${MANKUNKU_ROOT}/releases/pre-migration-20260422-211746/keep.txt"
+echo "operator notes" > "${MANKUNKU_ROOT}/releases/notes.txt"
+KEEP_RELEASES=2 bash "$RELEASE_SH" "$ID20" >/dev/null
+matching=$(find "${MANKUNKU_ROOT}/releases" -mindepth 1 -maxdepth 1 -type d \
+    | sed 's|.*/||' | grep -cE '^[0-9]{8}-[0-9]{6}-[0-9a-f]{7}$' || true)
+(( matching <= 2 )) || fail "prune kept ${matching} release dirs with KEEP_RELEASES=2"
+ok "prune retains only KEEP_RELEASES release dirs"
+[[ -d "${MANKUNKU_ROOT}/releases/${ID20}" ]] \
+    || fail "prune deleted the release it had just deployed"
+[[ "$(readlink "${MANKUNKU_ROOT}/current")" == "releases/${ID20}" ]] \
+    || fail "current not on the just-deployed release after prune"
+ok "prune spares the live release"
+[[ -f "${MANKUNKU_ROOT}/releases/pre-migration-20260422-211746/keep.txt" ]] \
+    || fail "prune deleted a hand-made directory that is not a release id"
+[[ -f "${MANKUNKU_ROOT}/releases/notes.txt" ]] \
+    || fail "prune deleted a stray file under releases/"
+ok "prune skips anything that is not a CI-generated release id"
+rm -rf "${MANKUNKU_ROOT}/releases/pre-migration-20260422-211746" "${MANKUNKU_ROOT}/releases/notes.txt"
 
 # --- Whole-deploy lock (2026-07-13 incident) ---
 # Two release.sh runs must serialize: concurrent npm ci's memory-thrashed the

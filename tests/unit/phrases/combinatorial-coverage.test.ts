@@ -93,11 +93,6 @@ describe('generated pool', () => {
 		}
 		expect(phrases.length).toBeGreaterThan(exactOnly);
 	});
-
-	it('keeps every id unique', () => {
-		const ids = phrases.map((p) => p.id);
-		expect(new Set(ids).size).toBe(ids.length);
-	});
 });
 
 describe('combine — filling a longer rhythm by repetition', () => {

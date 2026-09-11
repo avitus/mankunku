@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Phrase, HarmonicSegment, Note } from '$lib/types/music';
 import type { PlaybackOptions } from '$lib/types/audio';
+import { drumBufferForVelocity } from '$lib/audio/sample-maps';
 
 /**
  * The backing track must cover the whole phrase.
@@ -18,6 +19,8 @@ interface Recorded {
 	kind: 'part' | 'sequence';
 	events: unknown[];
 	started: boolean;
+	/** The fake Part itself, so the loop settings the SUT assigns are visible. */
+	part?: { loop: boolean; loopStart: unknown; loopEnd: unknown };
 }
 
 const recorded: Recorded[] = [];
@@ -25,7 +28,7 @@ const recorded: Recorded[] = [];
 function record(kind: 'part' | 'sequence', events: unknown[]) {
 	const r: Recorded = { kind, events, started: false };
 	recorded.push(r);
-	return {
+	const part = {
 		start() {
 			r.started = true;
 			return this;
@@ -37,9 +40,11 @@ function record(kind: 'part' | 'sequence', events: unknown[]) {
 			return this;
 		},
 		loop: false,
-		loopStart: 0,
-		loopEnd: 0
+		loopStart: 0 as unknown,
+		loopEnd: 0 as unknown
 	};
+	r.part = part;
+	return part;
 }
 
 vi.mock('tone', () => ({
@@ -56,11 +61,17 @@ vi.mock('tone', () => ({
 	getTransport: () => ({ PPQ: 480 })
 }));
 
+/** Every fake smplr instrument built, by class, with its constructor options. */
+const instruments: Array<{ kind: string; inst: FakeInstrument; options: unknown }> = [];
+
 class FakeInstrument {
 	load = Promise.resolve();
 	start = vi.fn();
 	stop = vi.fn();
 	disconnect = vi.fn();
+	constructor(_ctx?: unknown, options?: unknown) {
+		instruments.push({ kind: new.target.name, inst: this, options });
+	}
 }
 
 vi.mock('smplr', () => ({
@@ -224,5 +235,90 @@ describe('backing track covers the full phrase', () => {
 		const drums = findDrums();
 		// 2 bars, no spurious extension.
 		expect(rideBeats(drums!.events)).toEqual(new Set(Array.from({ length: 8 }, (_, i) => i)));
+	});
+});
+
+describe('backing track loop mode', () => {
+	beforeEach(() => {
+		vi.resetModules();
+		recorded.length = 0;
+	});
+
+	it('loops every Part over the melody-extended harmony and hands the schedule its loop length', async () => {
+		const mod = await import('$lib/audio/backing-track');
+		await mod.loadBackingInstruments('piano');
+		await mod.scheduleBackingTrack(PHRASE, OPTIONS, PPQ * BEATS_PER_BAR, true, () => true);
+
+		// 3 bars once the harmony is extended to cover the melody — the loop
+		// must be that long, or the recording phase would loop a dry bar 3.
+		const loopTicks = 3 * BEATS_PER_BAR * PPQ;
+		const parts = recorded.filter((r) => r.kind === 'part');
+		expect(parts).toHaveLength(3);
+		for (const p of parts) {
+			expect(p.part!.loop).toBe(true);
+			expect(p.part!.loopStart).toBe(0);
+			expect(p.part!.loopEnd).toBe(`${loopTicks}i`);
+		}
+		// The bleed schedule wraps at the same length, so rejection works past pass 1.
+		expect(mod.getActiveSchedule()!.loopSeconds).toBeCloseTo((loopTicks / PPQ) * (60 / OPTIONS.tempo), 9);
+	});
+
+	it('plays once, with no loop length on the schedule, when not looping', async () => {
+		const mod = await import('$lib/audio/backing-track');
+		await mod.loadBackingInstruments('piano');
+		await mod.scheduleBackingTrack(PHRASE, OPTIONS, PPQ * BEATS_PER_BAR, false, () => true);
+
+		for (const p of recorded.filter((r) => r.kind === 'part')) expect(p.part!.loop).toBe(false);
+		expect(mod.getActiveSchedule()!.loopSeconds).toBeNull();
+	});
+});
+
+describe('playBackingHitsNow', () => {
+	beforeEach(() => {
+		vi.resetModules();
+		recorded.length = 0;
+		instruments.length = 0;
+	});
+
+	it('plays each hit straight onto its instrument at the given time — no Part for a later dispose to kill', async () => {
+		// The deep-practice turnaround bar rides this: standalone events, because
+		// scheduleNextPhrase's deferred disposeBackingParts would silence any
+		// Part-scheduled tail.
+		const mod = await import('$lib/audio/backing-track');
+		await mod.loadBackingInstruments('piano');
+		const only = (kind: string) => instruments.filter((i) => i.kind === kind);
+		// Drum samplers are told apart by the family pan they feed.
+		const drumAt = (pan: number) =>
+			only('Sampler').find(
+				(i) => (i.options as { destination: { pan: { value: number } } }).destination.pan.value === pan
+			)!.inst;
+		const [bass] = only('Smolken');
+		const [comp] = only('SplendidGrandPiano');
+		expect(only('Sampler')).toHaveLength(3);
+
+		mod.playBackingHitsNow(
+			[
+				{ kind: 'bass', midi: 43, velocity: 90, duration: 0.4 },
+				{ kind: 'comp', notes: [59, 64, 69], velocity: 60, duration: 0.3 },
+				{ kind: 'drum', drum: 'ride', velocity: 0.5 },
+				{ kind: 'drum', drum: 'kick', velocity: 0.3 }
+			],
+			12.5
+		);
+
+		expect(recorded).toHaveLength(0);
+		expect(bass.inst.start).toHaveBeenCalledTimes(1);
+		expect(bass.inst.start).toHaveBeenCalledWith({ note: 43, velocity: 90, duration: 0.4, time: 12.5 });
+		expect(comp.inst.start.mock.calls.map(([arg]) => arg)).toEqual(
+			[59, 64, 69].map((note) => ({ note, velocity: 60, duration: 0.3, time: 12.5 }))
+		);
+		// Cymbals pan 0.25, kick 0, snare −0.1 (BACKING_PANS).
+		expect(drumAt(0.25).start).toHaveBeenCalledWith(
+			expect.objectContaining({ note: drumBufferForVelocity('ride', 0.5), time: 12.5 })
+		);
+		expect(drumAt(0).start).toHaveBeenCalledWith(
+			expect.objectContaining({ note: drumBufferForVelocity('kick', 0.3), time: 12.5 })
+		);
+		expect(drumAt(-0.1).start).not.toHaveBeenCalled();
 	});
 });

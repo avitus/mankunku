@@ -19,8 +19,6 @@ interface RouteCheck {
 	path: string;
 	/** Optional final URL after redirects, if it differs from path. */
 	finalPath?: string;
-	/** Optional text we expect to appear somewhere on the rendered page. */
-	expectText?: string | RegExp;
 	/** Optional reason this route is special (e.g., requires auth, redirects). */
 	notes?: string;
 }
@@ -31,15 +29,28 @@ const ROUTES: RouteCheck[] = [
 	{ path: '/ear-training' },
 	{ path: '/practice', finalPath: '/ear-training', notes: '308 redirect to /ear-training' },
 	{ path: '/lick-practice' },
+	{
+		path: '/lick-practice/cue-preview',
+		notes: 'unlinked listen/play cue design preview; ships to production'
+	},
 	{ path: '/licks' },
 	{ path: '/licks/community' },
 	{ path: '/licks/record' },
 	{ path: '/licks/editor' },
 	{ path: '/licks/add' },
+	{ path: '/tricks' },
 	{ path: '/tunes' },
 	{ path: '/tunes/community' },
 	{ path: '/tunes/editor' },
 	{ path: '/tunes/add' },
+	{ path: '/tunes/import/ireal' },
+	{ path: '/tunes/import/biab' },
+	{ path: '/tunes/import/musescore' },
+	{ path: '/tunes/import/pdf' },
+	{
+		path: '/tunes/playhead-preview',
+		notes: 'unlinked playhead style preview; ships to production'
+	},
 	{ path: '/progress' },
 	{ path: '/settings' },
 	{ path: '/scales' },
@@ -102,10 +113,6 @@ test.describe('smoke: every route renders cleanly', () => {
 				page.locator('head title'),
 				`${route.path} must emit exactly one <title>`
 			).toHaveCount(1);
-
-			if (route.expectText) {
-				await expect(page.getByText(route.expectText).first()).toBeVisible();
-			}
 		});
 	}
 

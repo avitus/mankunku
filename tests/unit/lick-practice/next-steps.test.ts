@@ -10,10 +10,16 @@
  *    short bad patch never tells the user to stop
  *  - trick report entries carry composite variant keys as their `lickId`;
  *    handing one to a lick start path is a real bug, so they are never targeted
+ *
+ * The last block drives the runes wrapper `getNextStep`, which the report
+ * screen actually calls: it alone picks the key formatter (the configured
+ * instrument's written pitch) and the plan.
  */
 
-import { describe, it, expect } from 'vitest';
+import { afterEach, describe, it, expect } from 'vitest';
 import { buildNextStep } from '$lib/state/lick-practice-next-steps';
+import { getNextStep, lickPractice } from '$lib/state/lick-practice.svelte';
+import { settings } from '$lib/state/settings.svelte';
 import type { LickPracticePlanItem, LickReport, SessionReport } from '$lib/types/lick-practice';
 import type { PitchClass, Phrase } from '$lib/types/music';
 
@@ -485,5 +491,85 @@ describe('buildNextStep — focus key', () => {
 		const step = buildNextStep({ report, plan: planFor(report) });
 		expect(step?.kind).toBe('drill-weak-lick');
 		expect(step?.action?.focusKey).toBeUndefined();
+	});
+});
+
+// ── getNextStep: the runes wrapper the report screen calls ──
+//
+// Every test above hands `buildNextStep` a stub formatter or none, so they
+// can't see the wrapper drop `concertKeyToWritten` or read a fixed
+// instrument. Either way a tenor player would read "Drill C" beside a "D"
+// key chip.
+
+describe('getNextStep — keys in the copy are written pitch for the configured instrument', () => {
+	/** Weakest key is concert C; F is proficient. */
+	function weakConcertC(): SessionReport {
+		return makeReport([
+			makeLickReport({
+				lickId: 'lick-a',
+				lickName: 'Bird Blues',
+				keys: [
+					{ key: 'C', score: 0.6 },
+					{ key: 'F', score: 0.95 }
+				]
+			})
+		]);
+	}
+
+	afterEach(() => {
+		settings.instrumentId = 'tenor-sax';
+		lickPractice.plan = [];
+	});
+
+	const cases: { instrumentId: string; written: string }[] = [
+		{ instrumentId: 'tenor-sax', written: 'D' },
+		{ instrumentId: 'alto-sax', written: 'A' },
+		{ instrumentId: 'concert', written: 'C' }
+	];
+
+	for (const { instrumentId, written } of cases) {
+		it(`${instrumentId}: concert C is named ${written} in the headline and the reason`, () => {
+			settings.instrumentId = instrumentId;
+			const report = weakConcertC();
+			lickPractice.plan = planFor(report);
+
+			const step = getNextStep(report);
+
+			expect(step?.kind).toBe('drill-weak-key');
+			expect(step?.headline).toBe(`Drill ${written} on Bird Blues.`);
+			expect(step?.reason).toContain(`starts on ${written} alone`);
+		});
+	}
+
+	it('hands the start path the focus key in CONCERT pitch — only the copy is transposed', () => {
+		// The focus ramp plans its rotation in concert keys; a written key here
+		// would open the drill a whole step away from the key that failed.
+		settings.instrumentId = 'tenor-sax';
+		const report = weakConcertC();
+		lickPractice.plan = planFor(report);
+
+		expect(getNextStep(report)?.action?.focusKey).toBe('C');
+	});
+
+	it('reads trick entries off the live session plan, so a trick is never targeted', () => {
+		settings.instrumentId = 'tenor-sax';
+		const report = makeReport([
+			makeLickReport({
+				lickId: 'enclosures:scale=major',
+				lickName: 'Enclosures',
+				keys: [{ key: 'C', score: 0.3 }]
+			}),
+			makeLickReport({ lickId: 'lick-a', lickName: 'Bird Blues', keys: [{ key: 'F', score: 0.6 }] })
+		]);
+		lickPractice.plan = [
+			makePlanItem({ phraseId: 'enclosures:scale=major', kind: 'trick' }),
+			makePlanItem({ phraseId: 'lick-a' })
+		];
+
+		const step = getNextStep(report);
+
+		expect(step?.action?.lickId).toBe('lick-a');
+		// Concert F on tenor sax reads G.
+		expect(step?.headline).toBe('Drill G on Bird Blues.');
 	});
 });

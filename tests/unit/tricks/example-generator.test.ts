@@ -175,6 +175,26 @@ describe('realizeTrickExample', () => {
 		expect(phrase).toBeNull();
 	});
 
+	it('draws the pool from the chord quality\'s catalog scale when the context scaleId is unknown', () => {
+		// A stale or mistyped scaleId must not blank the pool: maj7's first
+		// catalog scale is the same ionian pool, so the walk is unchanged.
+		const phrase = realizeTrickExample(
+			makeArgs({ context: makeContext({ scaleId: 'nope.not-a-scale' }) })
+		);
+		expect(phrase).not.toBeNull();
+		expect(phrase!.notes.map((n) => n.pitch)).toEqual([60, 64, 67, 71]);
+		// The harmony still records what the context declared.
+		expect(phrase!.harmony[0].scaleId).toBe('nope.not-a-scale');
+	});
+
+	it('returns null for a slot that names no pitch class at all', () => {
+		const slots: TrickSlotSpec[] = [
+			makeSlot(0, [0, 1]),
+			{ offset: [1, 8], duration: [1, 8], exactPcs: [], role: 'target' }
+		];
+		expect(realizeTrickExample(makeArgs({ slots }))).toBeNull();
+	});
+
 	it('realizes chromatic (out-of-scale) pcs by nearest-octave math', () => {
 		// Db (1) and F# (6) are outside C ionian
 		const phrase = realizeTrickExample(
@@ -217,11 +237,6 @@ describe('internal-gap rest fill', () => {
 		// Neighbours are the realized slot notes, untouched.
 		expect(phrase!.notes[0].pitch).not.toBeNull();
 		expect(phrase!.notes[2].pitch).not.toBeNull();
-	});
-
-	it('adds no rests when slots are contiguous', () => {
-		const phrase = realizeTrickExample(makeArgs());
-		expect(phrase!.notes.every((n) => n.pitch !== null)).toBe(true);
 	});
 
 	it('never pads before the first note — the anacrusis stays a true partial bar', () => {

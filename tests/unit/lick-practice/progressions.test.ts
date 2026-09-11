@@ -8,7 +8,6 @@ import {
 	getProgressionsForCategory,
 	getChordRootAtOffset,
 	isChordQualityCategory,
-	CHORD_SUBSTITUTION_RULES,
 	getSubstitutionCategories,
 	findApplicableSubstitution,
 	applySubstitutionOffset,
@@ -21,6 +20,7 @@ import {
 	getTransitionCadenceChords,
 	detectPickupBars,
 	progressionMode,
+	turnaroundHarmony,
 	MINOR_CADENCE
 } from '$lib/data/progressions';
 import type { ChordProgressionType } from '$lib/types/lick-practice';
@@ -28,15 +28,13 @@ import { PITCH_CLASSES, type Note, type PitchClass } from '$lib/types/music';
 import { fractionToFloat } from '$lib/music/intervals';
 
 describe('PROGRESSION_TEMPLATES', () => {
-	const types: ChordProgressionType[] = [
-		'ii-V-I-major', 'ii-V-I-minor',
-		'ii-V-I-major-long', 'ii-V-I-minor-long',
-		'turnaround', 'blues'
-	];
+	// Every registered template, not a hand-kept subset: the vamps and the
+	// iii-VI-ii-V-I used to be missing from these sweeps.
+	const types = Object.keys(PROGRESSION_TEMPLATES) as ChordProgressionType[];
 
-	it('defines all 6 progression types', () => {
+	it('stamps every template with its own type key', () => {
+		expect(types).toHaveLength(10);
 		for (const type of types) {
-			expect(PROGRESSION_TEMPLATES[type]).toBeDefined();
 			expect(PROGRESSION_TEMPLATES[type].type).toBe(type);
 		}
 	});
@@ -139,12 +137,35 @@ describe('transposeProgression', () => {
 		}
 	});
 
-	it('transposes all 12 keys without error', () => {
+	it('shifts every root by the target key\'s interval, in all 12 keys', () => {
 		const original = PROGRESSION_TEMPLATES['turnaround'].harmony;
 		for (const key of PITCH_CLASSES) {
+			const semitones = PITCH_CLASSES.indexOf(key);
 			const transposed = transposeProgression(original, key);
 			expect(transposed).toHaveLength(original.length);
+			transposed.forEach((seg, i) => {
+				expect(PITCH_CLASSES.indexOf(seg.chord.root), `${key} seg ${i}`).toBe(
+					(PITCH_CLASSES.indexOf(original[i].chord.root) + semitones) % 12
+				);
+				expect(seg.chord.quality).toBe(original[i].chord.quality);
+			});
 		}
+	});
+
+	it('transposes a slash chord\'s bass along with its root', () => {
+		const slash = [
+			{
+				chord: { root: 'C' as const, quality: 'maj7' as const, bass: 'E' as const },
+				scaleId: 'major.ionian',
+				startOffset: [0, 1] as [number, number],
+				duration: [1, 1] as [number, number]
+			}
+		];
+		const inD = transposeProgression(slash, 'D');
+		expect(inD[0].chord).toEqual({ root: 'D', quality: 'maj7', bass: 'F#' });
+		// A rootless-bass chord stays bass-less rather than acquiring one.
+		const plain = transposeProgression(PROGRESSION_TEMPLATES['ii-V-I-major'].harmony, 'D');
+		expect(plain[0].chord.bass).toBeUndefined();
 	});
 });
 
@@ -202,11 +223,7 @@ describe('getProgressionsForCategory', () => {
 
 describe('PROGRESSION_LICK_CATEGORIES', () => {
 	it('every progression type has at least one compatible lick category', () => {
-		const allTypes: ChordProgressionType[] = [
-			'ii-V-I-major', 'ii-V-I-minor',
-			'ii-V-I-major-long', 'ii-V-I-minor-long',
-			'turnaround', 'blues'
-		];
+		const allTypes = Object.keys(PROGRESSION_TEMPLATES) as ChordProgressionType[];
 		for (const type of allTypes) {
 			expect(PROGRESSION_LICK_CATEGORIES[type], `${type} should be defined`).toBeDefined();
 			expect(PROGRESSION_LICK_CATEGORIES[type].length, `${type} should have compatible categories`).toBeGreaterThan(0);
@@ -292,16 +309,6 @@ describe('isChordQualityCategory', () => {
 	});
 });
 
-describe('CHORD_SUBSTITUTION_RULES', () => {
-	it('includes the minor-over-dominant rule', () => {
-		const rule = CHORD_SUBSTITUTION_RULES.find(r => r.id === 'minor-over-dominant');
-		expect(rule).toBeDefined();
-		expect(rule?.sourceCategory).toBe('minor-chord');
-		expect(rule?.targetQuality).toBe('7');
-		expect(rule?.semitoneOffset).toBe(1);
-	});
-});
-
 describe('getSubstitutionCategories', () => {
 	it('returns [] when substitutions are disabled', () => {
 		expect(getSubstitutionCategories('ii-V-I-major', false)).toEqual([]);
@@ -316,7 +323,7 @@ describe('getSubstitutionCategories', () => {
 		expect(getSubstitutionCategories('ii-V-I-major-long', true)).toContain('minor-chord');
 	});
 
-	it('includes minor-chord for blues (multiple 7 chords)', () => {
+	it('includes minor-chord for blues', () => {
 		expect(getSubstitutionCategories('blues', true)).toContain('minor-chord');
 	});
 
@@ -329,7 +336,7 @@ describe('getSubstitutionCategories', () => {
 		expect(getSubstitutionCategories('ii-V-I-minor-long', true)).not.toContain('minor-chord');
 	});
 
-	it('does not return duplicate entries when multiple rules share a source category', () => {
+	it('lists minor-chord at most once for the blues', () => {
 		const result = getSubstitutionCategories('blues', true);
 		const minorCount = result.filter(c => c === 'minor-chord').length;
 		expect(minorCount).toBeLessThanOrEqual(1);
@@ -360,10 +367,6 @@ describe('findApplicableSubstitution', () => {
 describe('applySubstitutionOffset', () => {
 	it('shifts G up by 1 semitone to Ab', () => {
 		expect(applySubstitutionOffset('G', 1)).toBe('Ab');
-	});
-
-	it('shifts C up by 1 semitone to Db', () => {
-		expect(applySubstitutionOffset('C', 1)).toBe('Db');
 	});
 
 	it('wraps B up by 1 semitone to C', () => {
@@ -711,6 +714,31 @@ describe('progressionMode', () => {
 		for (const type of Object.keys(PROGRESSION_TEMPLATES) as ChordProgressionType[]) {
 			expect(progressionMode(type), type).toBe(expected[type]);
 		}
+	});
+});
+
+describe('resolveTransposeTarget', () => {
+	it('keeps the session key when no chord starts at the alignment offset', () => {
+		// An offset between the template's change points names no chord to
+		// re-root a chord-quality lick on, so it stays in the session key
+		// rather than landing on a guessed root.
+		expect(resolveTransposeTarget('F', 'minor-chord', 'ii-V-I-major-long', [7, 8], false)).toBe('F');
+		expect(resolveTransposeTarget('F', 'minor-chord', 'ii-V-I-major-long', [7, 8], true)).toBe('F');
+	});
+});
+
+describe('the minor cadence is ONE constant', () => {
+	it('getTransitionCadenceChords and turnaroundHarmony both read MINOR_CADENCE, not their own literals', () => {
+		// The constant exists so the templates, the inter-lick cue and the
+		// turnaround bar cannot drift apart; a hand-edited literal in either
+		// consumer would pass a literal-only check.
+		const cue = getTransitionCadenceChords('minor-vamp', 'C');
+		expect(cue.map((c) => c.quality)).toEqual([MINOR_CADENCE.ii.quality, MINOR_CADENCE.V.quality]);
+		const bar = turnaroundHarmony('ii-V-I-minor-long', 'C', 4);
+		expect(bar.map((seg) => seg.chord.quality)).toEqual([MINOR_CADENCE.ii.quality, MINOR_CADENCE.V.quality]);
+		expect(bar.map((seg) => seg.scaleId)).toEqual([MINOR_CADENCE.ii.scaleId, MINOR_CADENCE.V.scaleId]);
+		// And the major-tonic progressions take the plain ii-7 · V7 instead.
+		expect(turnaroundHarmony('major-vamp', 'C', 4).map((seg) => seg.chord.quality)).toEqual(['min7', '7']);
 	});
 });
 

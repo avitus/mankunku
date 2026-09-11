@@ -13,12 +13,14 @@ import {
 	getKeyUnlockRequirements,
 	nextKeyUnlock,
 	nextScaleUnlock,
+	getTodaysTonality,
+	dateHash,
 	KEY_UNLOCK_ORDER,
-	SCALE_UNLOCK_ORDER,
-	SCALE_PREREQUISITES,
-	KEY_UNLOCK_PREREQUISITES
+	SCALE_UNLOCK_ORDER
 } from '$lib/tonality/tonality';
 import type { UnlockContext } from '$lib/types/progress';
+import { INSTRUMENTS } from '$lib/types/instruments';
+import { localDateStr } from '$lib/util/local-date';
 
 /** Helper to build an UnlockContext with specific levels */
 function ctx(
@@ -219,6 +221,72 @@ describe('daily tonality selection', () => {
 	});
 });
 
+describe('daily tonality block lengths', () => {
+	// Thirty consecutive days; a "change point" is a day whose tonality
+	// differs from the day before. Every change point must sit on a block
+	// boundary of the length the unlocked count selects — a wrong block
+	// length puts change points on days the schedule says are mid-block.
+	const DATES = Array.from({ length: 30 }, (_, i) => `2026-06-${String(i + 1).padStart(2, '0')}`);
+	const epochDay = (date: string) => Math.floor(Date.parse(`${date}T00:00:00Z`) / 86400000);
+
+	function changePoints(c: UnlockContext): number[] {
+		const days = DATES.map((d) => getDailyTonality(d, c));
+		const points: number[] = [];
+		for (let i = 1; i < days.length; i++) {
+			if (!tonalitiesEqual(days[i - 1], days[i])) points.push(epochDay(DATES[i]));
+		}
+		return points;
+	}
+
+	it('rotates in 3-day blocks with 2–3 tonalities unlocked', () => {
+		// major-pent 15 → 3 scales × C = 3 tonalities.
+		const c = ctx({ 'major-pentatonic': 15 });
+		expect(getUnlockedTonalities(c)).toHaveLength(3);
+		const points = changePoints(c);
+		expect(points.length).toBeGreaterThan(0);
+		for (const day of points) expect(day % 3).toBe(0);
+	});
+
+	it('rotates in 2-day blocks with 4–6 tonalities unlocked', () => {
+		// major-pent 15 + minor-pent 15 → major-pent, minor-pent, major, blues × C.
+		const c = ctx({ 'major-pentatonic': 15, 'minor-pentatonic': 15 });
+		expect(getUnlockedTonalities(c)).toHaveLength(4);
+		const points = changePoints(c);
+		expect(points.length).toBeGreaterThan(0);
+		for (const day of points) expect(day % 2).toBe(0);
+		// Not every 3-block boundary is a 2-block boundary, so a 3-day rule
+		// would put a change point on an odd epoch day somewhere in the month.
+		expect(points.some((day) => day % 3 !== 0)).toBe(true);
+	});
+
+	it('rotates daily once seven or more tonalities are unlocked', () => {
+		// major-pent 15 → 3 scales; C 10 → 3 keys: 9 tonalities.
+		const c = ctx({ 'major-pentatonic': 15 }, { C: 10 });
+		expect(getUnlockedTonalities(c)).toHaveLength(9);
+		const points = changePoints(c);
+		// Daily rotation: change points fall on odd and even days alike.
+		expect(points.some((day) => day % 2 === 1)).toBe(true);
+		expect(points.some((day) => day % 2 === 0)).toBe(true);
+	});
+
+	it('hashes dates to an unsigned 32-bit integer', () => {
+		for (const d of DATES) {
+			const h = dateHash(d);
+			expect(Number.isInteger(h)).toBe(true);
+			expect(h).toBeGreaterThanOrEqual(0);
+			expect(h).toBeLessThan(2 ** 32);
+		}
+		expect(dateHash('2026-06-01')).not.toBe(dateHash('2026-06-02'));
+	});
+
+	it("getTodaysTonality is today's daily tonality in local time", () => {
+		const c = ctx({ 'major-pentatonic': 15 }, { C: 10 });
+		expect(
+			tonalitiesEqual(getTodaysTonality(c), getDailyTonality(localDateStr(new Date()), c))
+		).toBe(true);
+	});
+});
+
 describe('getUnlockedTonalities', () => {
 	it('returns 1 tonality at empty proficiency (C major-pentatonic)', () => {
 		const t = getUnlockedTonalities(EMPTY_CTX);
@@ -321,6 +389,13 @@ describe('display helpers', () => {
 		expect(formatTonality({ key: 'D', scaleType: 'dorian' })).toBe('D Dorian');
 		expect(formatTonality({ key: 'Bb', scaleType: 'blues' })).toBe('Bb Blues');
 		expect(formatTonality({ key: 'C', scaleType: 'major' })).toBe('C Major');
+	});
+
+	it('spells the key at written pitch when an instrument is given', () => {
+		// Concert Bb reads as C on a Bb horn and as G on an Eb horn.
+		expect(formatTonality({ key: 'Bb', scaleType: 'blues' }, INSTRUMENTS['tenor-sax'])).toBe('C Blues');
+		expect(formatTonality({ key: 'Bb', scaleType: 'blues' }, INSTRUMENTS['alto-sax'])).toBe('G Blues');
+		expect(formatTonality({ key: 'Bb', scaleType: 'blues' }, INSTRUMENTS['concert'])).toBe('Bb Blues');
 	});
 
 	it('compares tonalities for equality', () => {

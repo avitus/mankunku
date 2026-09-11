@@ -134,6 +134,26 @@ describe('validateOmrTranscription', () => {
 		expect(validateOmrTranscription(bare).valid).toBe(true);
 	});
 
+	it('accepts a bare normalized document with no CLI wrapper, and omrNormalized returns it as-is', () => {
+		const bare = payload([measure(1, [note('C4', [0, 1], [1, 4])])]).normalized;
+		expect(validateOmrTranscription(bare).valid).toBe(true);
+		expect(omrNormalized(bare)).toBe(bare);
+		// The wrapped form unwraps to the same object.
+		expect(omrNormalized({ normalized: bare })).toBe(bare);
+	});
+
+	it('names the measure with an invalid number and stops listing after 40 errors', () => {
+		// A hostile or garbled file could carry thousands of bad measures; the
+		// error list is bounded so the UI never renders a wall of them.
+		const result = validateOmrTranscription(
+			payload(Array.from({ length: 60 }, () => ({ number: 0, notes: [] })))
+		);
+		expect(result.valid).toBe(false);
+		expect(result.errors[0]).toBe('measure 1 has an invalid number');
+		expect(result.errors[result.errors.length - 1]).toBe('further errors suppressed');
+		expect(result.errors.length).toBeLessThan(60);
+	});
+
 	it('enforces DoS caps on measure and note counts', () => {
 		const tooManyMeasures = payload(
 			Array.from({ length: 513 }, (_, i) => measure(i + 1, []))
@@ -166,6 +186,12 @@ describe('omrKeyToFifths', () => {
 		expect(omrKeyToFifths('F#m')).toBe(3);
 		expect(omrKeyToFifths('Dmin')).toBe(-1);
 		expect(omrKeyToFifths('c minor')).toBe(-3);
+	});
+
+	it('reads unicode accidentals the way it reads ASCII ones', () => {
+		expect(omrKeyToFifths('F♯')).toBe(6);
+		expect(omrKeyToFifths('B♭')).toBe(-2);
+		expect(omrKeyToFifths('E♭m')).toBe(-6);
 	});
 
 	it('returns null for unparseable keys', () => {
@@ -357,6 +383,40 @@ describe('omrSystemResponses — pickup bars', () => {
 		]));
 		const { responses } = omrSystemResponses(omr, [3], meter);
 		expect(responses[0]!.warnings).toEqual(['bar 3: the transcription fills 2 of 4 beats — check the rhythm']);
+	});
+
+	it('flags a short MIDDLE bar even when it would complement the pickup — only the final bar may', () => {
+		// 1 + 3 = one full bar, but a 3-beat bar in the middle of the form is
+		// a misread: the complement exemption belongs to the closing bar alone.
+		const omr = omrNormalized(payload([
+			measure(1, [note('G4', [0, 1], [1, 4])]),
+			measure(2, [note('C5', [0, 1], [3, 4])]),
+			measure(3, [note('C5', [0, 1], [1, 1])])
+		]));
+		const { responses } = omrSystemResponses(omr, [3], meter);
+		expect(responses[0]!.bars[0].pickup).toBe(true);
+		expect(responses[0]!.warnings).toEqual(['bar 2: the transcription fills 3 of 4 beats — check the rhythm']);
+	});
+
+	it('exempts the transcription\'s final bar, not the last bar of each system', () => {
+		// A 3-beat bar closing system 1 complements the 1-beat pickup
+		// arithmetically, but the form goes on — it is a misread. The one at
+		// the very end of system 2 is the real closing complement. Warnings
+		// stay numbered system-locally.
+		const omr = omrNormalized(payload([
+			measure(1, [note('G4', [0, 1], [1, 4])]),
+			measure(2, [note('C5', [0, 1], [1, 1])]),
+			measure(3, [note('C5', [0, 1], [3, 4])]),
+			measure(4, [note('C5', [0, 1], [1, 1])]),
+			measure(5, [note('C5', [0, 1], [3, 4])])
+		]));
+		const { responses } = omrSystemResponses(omr, [3, 2], meter);
+		expect(responses[0]!.bars[0].pickup).toBe(true);
+		expect(responses[1]!.bars[0].pickup).toBe(false);
+		expect(responses.map((r) => r!.warnings)).toEqual([
+			['bar 3: the transcription fills 3 of 4 beats — check the rhythm'],
+			[]
+		]);
 	});
 
 	it('flags a lone short measure — with no form after it, it is a misread, not a pickup', () => {

@@ -12,6 +12,8 @@ const NAV_LINKS = [
 	{ name: /ear training/i, expectPath: '/ear-training' },
 	{ name: /lick practice/i, expectPath: '/lick-practice' },
 	{ name: /^licks$/i, expectPath: '/licks' },
+	{ name: /^tricks$/i, expectPath: '/tricks' },
+	{ name: /^tunes$/i, expectPath: '/tunes' },
 	{ name: /^progress$/i, expectPath: '/progress' },
 	{ name: /^docs$/i, expectPath: '/docs' },
 	{ name: /^settings$/i, expectPath: '/settings' }

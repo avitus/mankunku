@@ -127,6 +127,15 @@ describe('validatePhrase', () => {
 		expect(result.valid).toBe(false);
 		expect(result.errors.some(e => e.includes('direction changes'))).toBe(true);
 	});
+
+	it('does not demand direction changes of a phrase with three pitched notes or fewer', () => {
+		// A three-note cell has at most one turn; asking for two would reject
+		// every short beginner lick. The rule only applies from four notes on.
+		const three = makePhrase([makeNote(60), makeNote(62), makeNote(64)]);
+		expect(validatePhrase(three, { minDirectionChanges: 2 }).valid).toBe(true);
+		const four = makePhrase([makeNote(60), makeNote(62), makeNote(64), makeNote(65)]);
+		expect(validatePhrase(four, { minDirectionChanges: 2 }).errors.some((e) => e.includes('direction changes'))).toBe(true);
+	});
 });
 
 describe('isChordTone', () => {

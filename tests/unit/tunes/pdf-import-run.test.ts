@@ -133,6 +133,25 @@ describe('runSystemTranscriptions', () => {
 		expect(started.length).toBeLessThan(8);
 	});
 
+	it('starts nothing when the caller\'s signal is already aborted', async () => {
+		// The import page can cancel between building the plan and starting
+		// the run; an already-aborted signal must not fan out a single call.
+		const controller = new AbortController();
+		controller.abort();
+		const transcribe = vi.fn(async () => 'sys');
+		const run = await runSystemTranscriptions<string>({
+			count: 3,
+			signal: controller.signal,
+			transcribe
+		});
+		expect(transcribe).not.toHaveBeenCalled();
+		expect(run.aborted).toBe(true);
+		expect(run.results).toEqual([null, null, null]);
+		// Never started, so never "failed" — the reviewer must not be told
+		// these lines could not be transcribed.
+		expect(run.progress.map((p) => p.status)).toEqual(['pending', 'pending', 'pending']);
+	});
+
 	it('hands the transcriber a signal that aborts with the run', async () => {
 		const controller = new AbortController();
 		let observed: AbortSignal | null = null;

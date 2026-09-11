@@ -6,10 +6,11 @@
  *   - lick-practice-sessions (lick log)
  *
  * Tests cover: pure derivation, recompute idempotency, source-table mixing,
- * cloud merge, and an end-to-end simulation of the session→summary flow
- * (the path that historically lost lick-practice contributions).
+ * cloud merge, an end-to-end simulation of the session→summary flow
+ * (the path that historically lost lick-practice contributions), and the
+ * read-side queries the /progress page draws from the summaries.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { DailySummary, SessionResult, UserProgress } from '$lib/types/progress';
 import type { Grade } from '$lib/types/scoring';
 import type { LickPracticeSessionLogEntry } from '$lib/persistence/lick-practice-sessions';
@@ -596,5 +597,129 @@ describe('end-to-end session→summary flow', () => {
 
 		const summary = historyModule.dailySummaries.find((s) => s.date === '2025-06-18');
 		expect(summary?.lickPracticeSessions).toBe(20);
+	});
+});
+
+describe('history queries (the /progress period cards, heatmap and streak)', () => {
+	function day(date: string, sessionCount: number, avg: number): DailySummary {
+		return {
+			date,
+			sessionCount,
+			earTrainingSessions: sessionCount,
+			lickPracticeSessions: 0,
+			practiceMinutes: sessionCount * 2,
+			avgOverall: avg,
+			avgPitch: avg,
+			avgRhythm: avg,
+			bestScore: avg,
+			notesTotal: sessionCount * 8,
+			notesHit: sessionCount * 7,
+			grades: { perfect: 0, great: 0, good: sessionCount, fair: 0, tryAgain: 0 },
+			categories: {}
+		};
+	}
+
+	async function loadWith(summaries: DailySummary[]): Promise<void> {
+		store.clear();
+		store.set('mankunku:daily-summaries', JSON.stringify(summaries));
+		vi.resetModules();
+		historyModule = await import('$lib/state/history.svelte');
+	}
+
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it('comparePeriods weights each day by its session count and reports current − previous', async () => {
+		await loadWith([
+			day('2025-04-28', 2, 0.5), // previous week
+			day('2025-05-05', 1, 1.0), // current week
+			day('2025-05-06', 3, 0.6),
+			day('2025-05-20', 9, 0.1) // outside both ranges
+		]);
+
+		const { current, previous, delta } = historyModule.comparePeriods(
+			'2025-05-05', '2025-05-11', '2025-04-28', '2025-05-04'
+		);
+
+		// (1.0·1 + 0.6·3) / 4 = 0.7 — a plain mean of the two days would say 0.8.
+		expect(current.sessionCount).toBe(4);
+		expect(current.avgOverall).toBeCloseTo(0.7, 10);
+		expect(current.practiceDays).toBe(2);
+		expect(current.practiceMinutes).toBe(8);
+		expect(previous).toMatchObject({ sessionCount: 2, practiceDays: 1, practiceMinutes: 4 });
+		expect(delta.sessionCount).toBe(2);
+		expect(delta.avgOverall).toBeCloseTo(0.2, 10);
+		expect(delta.practiceDays).toBe(1);
+	});
+
+	it('an empty period reports zeros, not NaN', async () => {
+		await loadWith([day('2025-05-05', 1, 0.9)]);
+		const { previous, delta } = historyModule.comparePeriods(
+			'2025-05-05', '2025-05-11', '2025-04-28', '2025-05-04'
+		);
+		expect(previous).toEqual({
+			sessionCount: 0, avgOverall: 0, avgPitch: 0, avgRhythm: 0, practiceMinutes: 0, practiceDays: 0
+		});
+		expect(delta.avgOverall).toBeCloseTo(0.9, 10);
+	});
+
+	it('updateLongestStreak finds the longest run of practice days and only ever grows', async () => {
+		await loadWith([
+			day('2025-05-01', 1, 0.8),
+			day('2025-05-02', 1, 0.8),
+			day('2025-05-03', 1, 0.8),
+			day('2025-05-04', 0, 0), // a zero-session day breaks the run
+			day('2025-05-05', 1, 0.8)
+		]);
+
+		historyModule.updateLongestStreak();
+		expect(historyModule.progressMeta.longestStreak).toBe(3);
+		expect(historyModule.progressMeta.longestStreakEndDate).toBe('2025-05-03');
+
+		// A historical peak survives the summaries that earned it being pruned.
+		historyModule.progressMeta.longestStreak = 10;
+		historyModule.updateLongestStreak();
+		expect(historyModule.progressMeta.longestStreak).toBe(10);
+	});
+
+	it('getWeekRanges runs Monday → today against the whole previous Monday → Sunday, even on a Sunday', async () => {
+		await loadWith([]);
+		vi.useFakeTimers({ toFake: ['Date'] });
+		vi.setSystemTime(new Date(2025, 4, 11, 15, 0)); // Sunday 11 May 2025
+		expect(historyModule.getWeekRanges()).toEqual({
+			currentStart: '2025-05-05',
+			currentEnd: '2025-05-11',
+			previousStart: '2025-04-28',
+			previousEnd: '2025-05-04'
+		});
+	});
+
+	it('getMonthRanges compares against the whole previous month, across a year boundary', async () => {
+		await loadWith([]);
+		vi.useFakeTimers({ toFake: ['Date'] });
+		vi.setSystemTime(new Date(2026, 0, 15, 12, 0));
+		expect(historyModule.getMonthRanges()).toEqual({
+			currentStart: '2026-01-01',
+			currentEnd: '2026-01-15',
+			previousStart: '2025-12-01',
+			previousEnd: '2025-12-31'
+		});
+		vi.setSystemTime(new Date(2025, 2, 3, 12, 0));
+		expect(historyModule.getMonthRanges().previousEnd).toBe('2025-02-28');
+	});
+
+	it('getYearHeatmap keeps the trailing year only', async () => {
+		await loadWith([
+			day('2024-06-14', 1, 0.5), // a year and a day ago
+			day('2024-06-15', 2, 0.6),
+			day('2025-06-15', 3, 0.7)
+		]);
+		vi.useFakeTimers({ toFake: ['Date'] });
+		vi.setSystemTime(new Date(2025, 5, 15, 12, 0));
+
+		const heatmap = historyModule.getYearHeatmap();
+		expect([...heatmap.keys()]).toEqual(['2024-06-15', '2025-06-15']);
+		expect(heatmap.get('2025-06-15')).toEqual({ sessionCount: 3, avgOverall: 0.7 });
 	});
 });

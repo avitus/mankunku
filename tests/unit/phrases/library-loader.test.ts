@@ -142,6 +142,7 @@ const {
 	getAllLicks,
 	getLickById,
 	getBaseLickFromId,
+	isCuratedLickId,
 	queryLicks
 } = await import('$lib/phrases/library-loader');
 
@@ -227,6 +228,24 @@ describe('getLickById', () => {
 	it('returns undefined for unknown ID', () => {
 		const lick = getLickById('nonexistent-id');
 		expect(lick).toBeUndefined();
+	});
+});
+
+describe('isCuratedLickId', () => {
+	it('is true only for a curated catalog id — never a user or community lick, never a transposed id', () => {
+		// Tune practice uses this to keep the user's own licks eligible
+		// whether or not they have progress; getLickById finds all three
+		// kinds, so answering through it would silently treat user licks as
+		// catalog entries.
+		mockGetUserLicksLocal.mockReturnValue(FIXTURE_USER_LICKS);
+		mockGetStolenLicksLocal.mockReturnValue([makePhrase({ id: 'stolen-1', source: 'user-recorded' })]);
+		expect(isCuratedLickId('lick-1')).toBe(true);
+		expect(getLickById('user-1')).toBeDefined();
+		expect(isCuratedLickId('user-1')).toBe(false);
+		expect(isCuratedLickId('stolen-1')).toBe(false);
+		// A transposition suffix names a derived phrase, not the catalog entry.
+		expect(isCuratedLickId('lick-1_D')).toBe(false);
+		expect(isCuratedLickId('nonexistent-id')).toBe(false);
 	});
 });
 
