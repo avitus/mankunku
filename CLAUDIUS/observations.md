@@ -1,871 +1,6 @@
 # Independent Observations
 
-Running notes from working on Mankunku. Newest at the top. Not deleted unless proven wrong — patterns only become visible over time, so keep the trail.
-
----
-
-## 2026-09-10 — A design-language port is mostly a test port
-
-Restyling the tune-practice setup onto the console kit took one scripted
-markup replacement. What took thought was the e2e spec, and it is worth
-noting WHY each assertion broke. `page.locator('input[type="range"]')` plus a
-synthetic `input` event — an assertion against the control's implementation.
-`getByRole('button', { name: /pick your lick and earn points/i })` — an
-assertion that a description sentence lives inside the button. Both were
-true of the old markup and neither is a property of "a tempo control" or "a
-mode chooser". The assertions that survived unchanged were the ones written
-against roles and outcomes: a heading named "Practice licks", a paragraph
-that says "5 insertion points", a button named exactly "Start", marker rects
-in an svg. The rewrite follows the same rule — a `slider` whose
-`aria-valuenow` reaches 240 after End, a `radio` inside a `radiogroup` named
-"Mode", a `switch` that is disabled — so the NEXT restyle should cost the
-spec nothing. Corollary for the helper comment that explained the synthetic
-event's hydration race: the race is about hydration, not about events, so the
-explanation survived the control it was written for.
-
-Second, smaller: `var(--font-display)` was undefined for as long as the Knob
-has existed and nobody saw it, because the fallback (`Georgia`) is a serif
-that looks like Fraunces at 11 px. A fallback that is close enough to pass a
-glance is worse than one that breaks — the `--color-*` sweep exists for
-exactly this reason and stopped one property short. Generalising a sweep is
-cheap; the expensive part was noticing there was a second property to sweep.
-
-Third: a green Playwright run from a worktree can be a run against somebody
-else's build. `reuseExistingServer` + a fixed port + parallel checkouts = the
-suite happily testing whichever checkout got to 4173 first. The fix is an env
-override, but the lesson is that "the tests passed" needs "against which
-server" attached to it in a multi-worktree day.
-
----
-
-## 2026-09-10 — A rule about nested checkouts has to be tested from inside one
-
-The obvious fix for "the main dev server reloads when a worktree changes" is
-`ignored: ['**/.claude/worktrees/**']`, and it works perfectly from the main
-checkout. It also works perfectly from inside a worktree, in the sense that
-the server starts, prints its URL and serves pages — while watching nothing,
-because the pattern matches the server's own root. That is the shape of the
-trap: the rule's subject (nested checkouts) is exactly the place the rule
-was never going to be tried, and its failure there is silent. A watcher that
-watches nothing is indistinguishable from a working server until the first
-edit doesn't show up, and even then it looks like a stale-graph problem, the
-kind this project has already learned to "fix" with a restart. So the test
-that mattered was not "does the nested touch go quiet" but "does the ROOT
-touch still fire when the root is itself nested" — the inverse case, run
-from the worktree. Anchoring the glob at the config file made both true.
-
-Second thing, smaller and older than this project: I first "proved" the
-unanchored glob harmless with a five-line chokidar script, and the proof was
-of the wrong program. `node_modules/chokidar` is 4.x, hoisted for
-svelte-check and typescript; Vite bundles its own 3.x and never touches the
-hoisted one. A dependency tree is not evidence of what a process runs.
-When the real process is one `npm run dev` away, test the real process —
-the same lesson as reading the live Sentry count over the inspector two
-days ago, from the other direction.
-
-## 2026-09-08 — The latency window was a lookahead, and nobody had measured the stamp
-
-The bleed model says a click reaches the worklet 50–200 ms after its
-scheduled time and calls that "speaker→mic latency". The recording mixes the
-master bus straight into the blob, so the direct click sits at the schedule
-with no latency at all — and the ~100 ms the design measured in May was
-Tone's `lookAhead`, which `Transport.seconds` silently adds. The window
-worked for months because two errors cancelled: a stamp 0.1 s ahead of the
-audio clock, and a rule expecting 0.1 s of room. Then pre-arming moved the
-stamp by another 0.15–0.30 s and the whole click-suppression apparatus went
-blind, while its tests kept passing on the stored stamps. Nothing in the
-code could have noticed, because the ground truth was never in the code: it
-was in the WAV, where the direct-mix clicks are impulses you can find with
-a first-difference and a median. The lesson is not about metronomes. A
-constant that encodes a physical latency should be measured against the
-signal it claims to describe, and re-measured whenever the thing that
-produces the timestamp changes hands. I did not fix it — the fix is a
-re-baseline of a month of tuning, and three fixtures change under an
-aligned grid — but I wrote down the numbers, which is the part that was
-missing.
-
-Two smaller things from the same evening.
-
-The stabiliser's inertia moved the evidence. The octave respell needed the
-lower fundamental to appear on ≥ 25% of a sliver's raw frames; the sliver
-had one such frame in five, because the 3-frame octave confirm reports the
-flip two frames late in BOTH directions — the first two frames of the burst
-still say G3 while the raw pick says G4, and the frame after the burst says
-G4 while the raw pick is back at G3. Reading `midi` you see 55 55 67 67 67;
-reading `frequency` you see 67 67 67 67 55. The rule had to look one
-analyser window past the boundary that ended the sliver, which turned out
-to be the right physics anyway: an amplitude onset that brings no new pitch
-within a window of itself did not end the note. When a derived field
-disagrees with the raw one, the disagreement is the phenomenon.
-
-And the honest failure. A ride click on a held note and a feather tongue on
-the beat leave the same readings — spike, shallow shape dip, held energy, no
-wobble — and the two 2026-08-13 tongues the rescue was built for sit 20–26
-ms from their clicks, this click 2 ms. Every cut I could draw between them
-was a frame wide. The corpus is the population every gate is a claim
-about, and here the population says the two classes overlap; the correct
-move was an `it.fails` with the measurements, not a threshold nudged past
-one take. The scorer already forgave it (0.968, the extra flagged) — the
-defect is a note in a list, and it is better left visible than hidden
-behind a number chosen to make one test green.
-
----
-
-## 2026-09-07 — A default that was right in the math and wrong in the picture
-
-`prevHeight = currentRow === 0 ? slotHeight : heights[currentRow - 1]` is
-the kind of line that reads as care: the rule "the active row sits under
-the previous row" needs a value for the row with no previous row, and the
-standard slot is the natural one — it even keeps the active row at the
-same y for every key, which sounds like a virtue. But the slot exists to
-hold the previous row, and there is no previous row. What the eye got was
-a blank band the height of a chart row above the first key of every lick
-and every cycle, and the code's own comment described the band as expected
-("empty until the first key boundary populates it") — which is how it
-survived three rewrites of the module in one week, including one that
-parked row 0 at the top for a different reason (read-ahead) and was
-withdrawn without anyone noticing that the position had been right.
-
-The generalisation to check for: when a rule is stated as "X relative to
-the previous thing", the first element needs its own sentence, not a
-default that makes the formula total. The formula's totality was the
-symptom. And the property the default was quietly preserving — a fixed
-reading line — turned out not to be a requirement at all: Andy chose
-without hesitation to let the first key sit higher than the rest, and the
-first boundary is now a highlight moving over a still stack, which is
-calmer than the step it replaced.
-
-Small second note, the Plan agent's `-0` catch: `-prefix(...)` for rows 0
-and 1 would produce `-0`, and `Object.is(-0, 0)` is false, so vitest's
-`toBe(0)` would fail on a value every browser renders identically. Not a
-bug in the fix, only in a tempting simplification of it — exactly the trap
-a "simplify" pass walks into after the tests are green, so the code
-comment names it.
-
-Round-1 addendum, the same evening: CodeRabbit's one finding on #246 was
-not about the code but about three sentences of mine saying the ring under
-the stack "never moves" — while the repo's own follow-up list, five lines
-below one of them, recorded that the viewport flips 315 ↔ 317 between a
-stack with a sheet and one without. I had read that line that afternoon
-and edited around it. The claim was true in spirit (the viewport is fixed
-by design) and false by 2 px, and a doc that states a design's intent as
-its behaviour is exactly the sentence a follow-up list exists to correct.
-The reviewer offered two ways out — soften the claim or make it true — and
-the second was smaller than the first: one reserve parameter, one red
-test, and the follow-up closes. Whenever the fix is shorter than the
-caveat, the caveat is the wrong choice.
-
-CI addendum, later that evening — a red job that was not about the code.
-CI's e2e job went red on three consecutive heads of #246, one WebKit test,
-nine attempts out of nine, on the very commit that moved row 0; the base
-had passed twice that afternoon. Every instinct said "your change". Two
-probes said otherwise, and they are the two to reach for first on any
-CI-only timing failure: rerun the identical commit (it passed — so the
-condition is environmental), then reproduce under a one-core Docker
-throttle of Playwright's own image and bisect UNDER the throttle (base and
-head both failed, both put the mic source up at 15–19 s and the first row
-at ~45 s). The failing test had given session setup 20 s while its
-siblings in the same file give the same event 60 and 90 s, with a comment
-naming runner contention. Nine failures in a row still meant nothing about
-the diff; it meant CI had a slow half-hour and one test had no slack.
-
-Then the slack turned out to be the wrong fix. Raising the budget to
-60 s failed under the throttle just as 20 s had, and an extended probe
-put numbers on why: the mic was live at 9 s and the first row arrived
-at 57 s, behind 307 serial audio decodes — the sax set, then two
-velocity layers of a grand piano the backing track wants, then the kit.
-The rows are plan state; nothing about them needs a sample. They waited
-on the audio only because `startLick` built them, and `startLick` runs
-after the instrument loads. So the fix moved two lines to the top of
-`initializeSession`, pinned by an ordering assertion (row in the DOM
-before the first sample fetch — red at 864 ms vs 546 ms, then green),
-and a user on a slow connection gets the chart and the sheet while the
-band downloads. A test budget is a claim about how long something
-SHOULD take; when the thing has no business taking that long, the
-claim is the bug.
-
-Two smaller notes. The page looked perfectly healthy in every screenshot —
-header, countdown, ring, End Session — because all of those read state the
-setup page had already written; only the key stack waits for the audio
-setup, so an empty stack under a running clock is the signature of "init
-still running", not "init broken". And I hit the zsh `[ "$a" \> "$b" ]`
-trap the coderabbit-loop skill warns about, in my own poll loop, the same
-day I re-read the warning: a syntax error inside `if` fails the condition
-quietly and the loop just sleeps to its deadline. Warnings in skills are
-read once; `[[ ]]` has to be the habit.
-
-## 2026-09-07 — A mock that worked by accident
-
-The e2e getUserMedia stub had lived on the `navigator.mediaDevices`
-instance for months and passed on WebKit the whole time — not because
-instance expandos are safe there, but because the stub's closure happened
-to hold a bound reference to the wrapper it was attached to. Remove the
-reference (which the peer session did for an unrelated, good reason) and
-WebKit collects the wrapper, re-creates it clean, and the app walks
-straight past the mock into the real API. The fix that "worked" for
-months was one dropped reference away from failing, and the change that
-exposed it was correct.
-
-Two lessons. First, the diagnostic path: I had a plausible theory (the
-mock isn't installed) and it was wrong; the trace that showed `own=true`
-after assign and `own=false` at the call site is what forced the real
-question — what happens BETWEEN — and the heap-churn probe answered it in
-one run. Every probe cost under a minute; theorising cost longer and
-produced nothing. Second, the fix rule: in an init script, patch the
-prototype, never the instance. An instance is a wrapper the engine may
-discard; a prototype is reachable from the global for the page's life.
-The guard spec churns the heap on every engine so the next person who
-"simplifies" the fixture finds out in CI rather than in a review thread.
-
-Also: rejecting a review finding is cheapest when the rejection is a
-test. The capture-window thread's scenario needed a note within 0.15 s of
-a click whose ring readings sit ≥ 0.1 s after it and ≥ 0.1 s before the
-note — 0.2 > 0.15, unreachable. A sentence in a reply is an opinion; the
-test that constructs the nearest possible case and shows the onset
-unvalidated is a fact the next constant change will re-check.
-
----
-
-## 2026-09-06 — "Confident" was never a level
-
-The pitch pipeline has one word for "there is a note here": confident,
-meaning clarity ≥ 0.8. Clarity is a SHAPE measure — how periodic is this
-window — normalised so a whisper and a shout of the same sine score the
-same. Every consumer read "confident" as "the player is playing", and for
-five months that held because nothing periodic happened at the noise
-floor. Then a metronome click rang at 271 Hz for 400 ms at −58 dBFS and
-the word broke: perfectly periodic, perfectly inaudible, perfectly
-confident. Worth remembering that a threshold on a normalised measure is
-a statement about shape only; the level has to be asserted separately or
-it is not asserted at all.
-
-Two things to keep. First, the corpus already contained the failure —
-the four-to-five fixture's 2.2 s phantom at RMS 0.001 — but its test was
-written about a different question (the listening window), so the
-phantom sat in the JSON as a "note" nobody read. A fixture pins what you
-assert about it and nothing else. When a new failure shape is learned,
-scan every diagnostic's segmentedNotes for it, not just the take that was
-reported; today that scan took one Python loop and found the second case.
-
-Second, the fix's UNIT mattered more than its threshold. A per-reading
-floor fixes this take and quietly re-shapes every decay tail the
-re-articulation tiers were tuned on (the corpus tracks real decays to
-−46 dB, and the gap tier reads "the last two still-tracked frames"). A
-per-run floor removes only things that were never loud and leaves those
-bytes alone — 4516 tests unchanged, which is itself the proof that the
-unit was right. When a gate is added late to a tuned pipeline, choose the
-unit that keeps the tuning's evidence intact first, then pick the number
-from the measured margins (−41 dB phantom, −15 dB softest real note →
-−30).
-
-And the relative-versus-absolute call: with auto-gain off, absolute RMS
-is a property of the user's mic gain. A bleed artefact scales with the
-monitor; a played note does not. Relative to the take's own loudest
-reading is the one frame in which both stay put — and it costs a second
-pass, which every scoring path here can afford because they all score
-the whole capture at once.
-
-## 2026-09-03 (fourth pass) — An invariant that was true by coincidence
-
-The reading pause shipped an hour before this change with a documented
-reason for skipping slot 0: "a revealed key is under the floor, so its
-cycle always demos". True — under the old demo rule. A revealed key
-(< 0.75) always sorted to the head, and a head under 0.90 always demoed.
-The invariant was not designed; it was the intersection of two rules that
-happened to agree, and the moment one of them changed (no demo on a
-refill) the other's assumption was silently false: a 0.95 clear from a
-0.6 history lands at 0.74, revealed, at the head, with nothing before it.
-
-Two things worth keeping. First, the code was written so the invariant
-was invisible — `if (slot === 0) return 0` says nothing about demos. The
-fix was to make the dependency explicit: one `cycleDemos()` that both the
-demo block and the pause read, so the pause's condition names the thing
-it actually depends on. Second, I found it only because I went looking
-for what ELSE reads "demo": the grep for `getDemoBars` was routine; the
-grep for the word "herald" in the docs was not, and that is what surfaced
-the sentence. When a rule changes, search the prose for the rule's
-consequences, not just the code for its name — the prose is where the
-coincidences get written down as facts.
-
-Also from today: a peer session committed under me mid-task and swept my
-notes into its commit. Working alone in a repo is an assumption too.
-
----
-
-## 2026-09-03 (third pass) — Two gates on one flow that measure different things
-
-Deep practice has two rules deciding what happens at a cycle boundary,
-and each is correct by its own test. The rotation rule is instantaneous:
-this cycle's score ≥ 0.95 drops the key, and when nothing is left the
-tempo bumps and the whole circle comes back. The demo rule is historical:
-play the lick iff the worst key in the NEXT rotation has an EWMA (α 0.4)
-under 0.90. At a refill the next rotation is every unlocked key, so the
-demo is decided by the weakest history in the set — and a key that just
-cleared at 0.95 from a 0.70 history sits at 0.80. Four consecutive clears
-before it stops being demoed. Andy hears "it plays even at tempo bumps";
-the code hears "the head key is not proficient yet". Both are true.
-
-The general shape: when a smoothed measure and an instantaneous measure
-gate the same flow, they disagree most at exactly the moment the
-instantaneous one fires, because the clear is the newest sample and the
-average has not caught up. The refill is the worst possible moment to
-consult the smoothed measure — it re-admits keys the user just proved
-they can play at this tempo. If the demo is meant to be a reference for a
-key the player is FAILING, the lead-sheet rule already has the better
-shape (floor, not proficient; the player's failing on balance), and a
-refill cycle should probably not consult the history at all: the set was
-just cleared. Not changed today — explanation was the ask.
-
----
-
-## 2026-09-03 (second pass) — A lazy import is only cheap if somebody starts it early
-
-The abcjs chunk was lazy for a good reason — most routes never engrave —
-and the laziness was correct everywhere except the one place a staff is
-needed on a clock. "Lazy" answers WHETHER to load; it says nothing about
-WHEN, and the default WHEN (first component mount) was the worst possible
-moment on the Daily path. The fix is not to make it eager; it is to give
-the decision a home: one loader, and the route that knows it will need the
-engine says so at mount. The general shape: a dynamic import inside a
-component ties the fetch to the render, and a render that happens on a
-schedule (a count-in, an animation frame budget) needs the fetch untied
-from it.
-
-On the test: the first red was wrong in an instructive way. With a seed
-that never reveals, the old code never fetched at all, so the assertion
-that fired was "never requested", not "requested too late". Same
-conclusion, worse message — and a weaker proof, because it would also
-pass a detection bug. Choosing the seed so the OLD behaviour produces the
-request and fails on order made the test say what the fix does.
-
----
-
-## 2026-09-03 — A layout that parks the active thing is not a layout that shows the next one
-
-The lead-sheet row was verified twice on 09-01 and both times it was row 0,
-where the demo and the turnaround give it seconds on screen before anyone
-has to read it. Every seed we had unlocked one key. The rule underneath —
-"the active row holds one slot below the top" — was written for the row
-being played, and it said nothing about the row being read next; a sheet
-queued under a chord row straddled the viewport and only became whole on
-the tick its window opened. Daily practice, which puts the newest key LAST,
-hit it every time. Two lessons.
-
-First, the row-0 verification was a verification of the happy path only,
-and the happy path was the one the demo pads. When a feature has a "first
-position" that gets extra lead time by construction, the test seed must put
-it somewhere else. A seed's shape is an assumption; the assumption was
-"one key".
-
-Second, the fix was again not in the notation code. A pure function with
-three lines changed, plus one CSS class. The three explorers I sent out
-came back with the abcjs pipeline in exhaustive detail — cold dynamic
-import, a permanent font-metrics cache, six synchronous DOM passes — and
-none of it was the cause. Worth keeping the inventory (it's in the session
-log), but the decisive evidence was the layout probe: five lines of
-arithmetic that put the sheet's box at 210..422 in a 317 px viewport. When
-a report says "not completely displayed", measure where the thing IS before
-asking how it is drawn.
-
-Also: Playwright's `toBeVisible` is not visibility. It passed on a row that
-was two-thirds hidden by an ancestor's overflow. Geometry assertions from
-`getBoundingClientRect`, taken in one `evaluate` so every field describes
-the same frame, were the only way to make the bug fail a test.
-
----
-
-## 2026-08-23 — A stale countdown is not a state; ask the system that owns the budget
-
-The CodeRabbit waiter I built first was a countdown from a per-PR ETA. It was
-wrong in a way that looked right: the ETA had passed, so the push "should"
-have been accepted, and it was rejected — because the budget is account-wide
-and other activity had spent it. A free live query (`@coderabbitai rate
-limit`) replaced the countdown and every attempt after that was accepted.
-The general form: when a remote system rations something, derive your
-decision from ITS current answer, not from your cached model of its
-schedule; and prefer the cheapest query it offers over any inference.
-
-The second lesson is about observability of my own loop: I resolved review
-threads when the fix was committed (honest — the reply cited the commit),
-but the verdict checker reads "unresolved threads: 0" on whatever head the
-PR has, so it declared DONE on the unpushed head. A checker that cannot see
-the local state must be gated on the remote state it CAN see (the PR head
-equals the fix sha) before its verdict means anything.
-
-## 2026-08-22 (night) — Two conventions on one field, and why inference must refuse the obvious signal
-
-The minor-key work kept turning up the same shape: `Phrase.key` meant "tonic" in
-the curated files and "the major key whose signature I want drawn" in the
-editor, and nothing in the type distinguished them. Both readings were
-internally consistent; the collision was only visible at the boundary where a
-user-entered lick met curated data in the same practice set. The fix was not to
-pick a winner but to add the missing dimension (`mode`) and then make the
-RESOLVER conservative: `lickMode` will read the harmony but never the
-category, because category is exactly the signal that would have relabelled
-the user's own relative-major-entered licks as F minor. A strong, obvious
-inference signal was the wrong one *because of data written under the old
-convention* — the same reader-writer-asymmetry lesson as the phantom Gb key,
-from the other side: here the reader must NOT trust a column that the old
-writer populated with a different meaning.
-
-Second: "served over nonsensical progressions" was four defects wearing one
-symptom — template V quality, dual short/long seeding, unfiltered pills, tag
-accretion — plus a fifth in ear training (the parent-major hop) that the user
-may never have separated out. The explorers' most valuable output was the
-NEGATIVE finding: the template anchoring, the first suspect, was correct. I
-notice I'd have gone straight at the templates without it.
-
-Third, on the fit rule: I nearly made it stricter than the data could bear.
-`rhythm-changes` has two chords per bar against the one-per-bar turnaround; a
-geometry gate would have stranded the whole category. The rule's narrowness
-(cadence categories only; everything else honours the tag) is what makes it
-safe — a recurring pattern now (scale tier settles only the ambiguous degrees;
-fit settles only cadence shapes): when adding a gate over heuristics, scope it
-to the ambiguity you can actually adjudicate.
-
-## 2026-08-22 — A binary where the data carried a richer answer; and "no signature" means silent, not sharp
-
-The A#-for-Bb bug was a *projection* bug: three-valued information (the scale,
-the chord, the key) was being collapsed to one bit (`FLAT_KEYS.includes(key)`)
-at the display edge, while the same information was fully available two
-function calls away — every `HarmonicSegment` carries a `scaleId`, every
-ear-training session carries a `scaleType`, and the progress page already
-re-resolved the whole phrase for its play button. The component wasn't
-missing data; it was discarding it. Worth generalising: when a display-layer
-helper takes a *key* and returns a *spelling*, ask what else the caller knows
-that the helper is being denied. The cheapest fixes in this codebase have been
-"stop projecting" rather than "add data".
-
-Second, the chart's own chord tier had a blind spot that nobody had reported:
-D# and F# for the blue third and fifth over C7. It was right *by interval
-theory* (#9, #11 of a dominant) and wrong *by idiom* (the blues scale is
-spelled with flats everywhere). The repair was not to override the chord
-tier but to recognise which of its decisions were guesses: a chord quality
-can't tell b3 from #9, b5 from #11, #5 from b13 — everything else it derives
-unambiguously. So the scale tier settles exactly those three and abstains
-otherwise. That narrowness was load-bearing, not timidity: the altered scale
-labels the major third "b4", and a scale tier that trusted every label would
-have turned the third of E7alt into Ab. The general shape: when adding a
-higher-priority tier to a heuristic chain, scope it to the *ambiguity* the
-lower tier actually has, not to everything the new source has an opinion on.
-
-Third, the user's wording "true to the key" — and the existing test literally
-named "treats C major as sharp-keyed" — exposed a framing error baked into
-the code. C has no signature; that makes it *silent* about accidentals, not
-sharp-side. The binary default had to pick something and picked sharps, and
-the test enshrined the arbitrary choice as a property. Defaults that must
-pick something should be written so the reader knows they are arbitrary; this
-one read as a rule.
-
-## 2026-08-21 — "Nothing persisted" is a claim against every write path, not a description of intent
-
-Four review rounds on PR #238 were one sentence being falsified repeatedly. I wrote
-"session-local, nothing persisted" meaning "the deep-practice tempo rule is
-unchanged" — true as intent, false as a statement, because a reviewer reads it as a
-universal over every write the code path can reach: the session log keeping the
-report's `FocusRampSummary`, `recordKeyAttempt` writing rolling score / pass count /
-recency on every attempt. Each narrowing exposed the next overstatement, and while
-fixing one I re-introduced another ("tempo/progress untouched"). The stable form
-named the single thing actually withheld — the lick's stored TEMPO — and listed what
-is written. Lesson: a negative persistence claim must be phrased as the positive
-complement ("only X is withheld; A, B, C are written as always"), because the
-negative form invites an exhaustive search I hadn't done. Same shape as the
-four-surfaces docs lesson: absence claims are the hardest to make true.
-
-## 2026-08-20 — "Up to speed" had no referent until the engine was given a target
-
-The user's phrasing — "works it up to speed" — sounded like a requirement but was
-actually a design gap: nothing in Deep Practice knew what "speed" meant. The saved
-tempo existed only as a thing to ease 2% under. The moment it became `targetTempo`,
-the whole feature collapsed into three one-rule phases, and the adaptive staircase
-the user chose became a two-line change rather than a new mode. Generalizable: when
-a requirement uses a comparative ("up to", "back to", "faster than") and you can't
-point at the number in the code, the feature isn't underspecified — the model is
-missing a reference value. Find or add the referent first; the rules write
-themselves after.
-
-Second note: a "focus on the failing key" feature is tempting to build as isolation
-(option a), and it's wrong for a reason that's easy to state and easy to miss — the
-test the key failed was the key *under load*. Rebuilding the load is the feature. I
-suspect this applies to ear-training too: a missed interval inside a long phrase and
-the same interval alone are different skills, and a drill that only does the latter
-will keep reporting a success the former doesn't show.
-
-Also: the subagent seam-check paid for itself. It surfaced `splitReportByProgression`
-copying single-lick report fields explicitly (a silent drop I'd have found only via a
-failing test I hadn't planned to write) and the `tempoBumpPercent` reset on the CTA
-path — neither was in my plan. A read-only adversarial pass over "what assumes the
-thing I'm changing is static" is cheap against the class of bug it catches.
-
-## 2026-08-18 — Dormant infrastructure is a design smell worth celebrating
-
-The admin page took a day because past sessions had already laid every pipe: the
-`is_admin` column, the per-request layout resolution, the service-role factory,
-even the e2e stub's `isAdmin` field — all shipped ahead of any consumer. That's
-usually condemned as speculative generality. Here it was the opposite: each
-piece was the *minimal honest half* of a feature someone knew was coming (the
-ecosystem.config comment literally promised "admin features report
-unavailable"). The lesson: infrastructure laid along a natural grain (a flag on
-the profile row, a factory beside the anon client) stays cheap to carry and pays
-off whole; infrastructure laid as a framework (generic role systems, permission
-matrices) would have rotted. Grain-following beats generality.
-
-Second: **the tunes-bucket orphan is the cost of best-effort code paths having
-no inventory.** `/api/account` cleaned `recordings` because recordings existed
-when it was written; nobody owned the list of "places a user's bytes live," so
-the second bucket silently missed the deletion path since lead sheets shipped.
-`USER_STORAGE_BUCKETS` is now that inventory — one const to touch when a third
-bucket appears. Small named lists beat implicit knowledge scattered across
-routes.
-
-Third: WebKit's hydrated-404 self-reload was invisible until a test navigated
-away from a 404 quickly. Every 404 in Safari does it (auth invalidation →
-`__data.json` refetch → "access control checks" pageerror → SvelteKit hard-nav
-fallback). Not worth fixing — but worth *knowing*, because the next WebKit e2e
-failure reading "interrupted by another navigation" should find this note
-instead of spending an afternoon exonerating the stale-chunk recovery like I
-did (its sessionStorage marker never appearing is the two-minute proof).
-
-## 2026-08-12 — Every click-contamination heuristic is stressed exactly where music happens
-
-The whole fixture family now tells one story from five angles: curl-to-the-floor,
-blue-note-climb, down-to-the-third, and today's repeated-Eb pair are all the SAME
-collision — a musician articulating **on the beat**, which is both where they are
-trained to play and where the metronome emits the one signal our tiers must
-distrust. The suppression window isn't paranoid; clicks genuinely fake every
-HF-tier gate. But its blast radius is centred on the musically correct instant,
-so its false-negative population is not random takes — it is specifically the
-takes of a player with good time. The better the user's timing, the more the
-scorer used to punish them. That inversion (accuracy punished as contamination)
-is worth watching for in any system that discounts evidence near a scheduled
-event: the discount lands precisely on the behaviour the system exists to reward.
-CLAUDE.md already crystallised the principle as "the beat is exactly where notes
-start"; today extended it from the gap tier to the HF tier, and I'd now phrase
-the general rule as: **a suppression keyed to a schedule needs a rescue for each
-physical signature the scheduled event cannot produce** — the horn silenced
-in-band (band-floor dip), the horn stopped-then-restarted (stop-recover), the
-reed reshaped without the air ever stopping (shallow shape band). When the next
-false merge arrives, the question is not "which threshold moved" but "which
-signature is still missing a rescue."
-
-Second keep, methodological: when two takes fail identically, assume nothing —
-they failed on DIFFERENT gates (one suppressed, one disbelieved). Had I fixed
-only the suppression (the shared, obvious cause), slide-back-down would still
-have died on the 0.9 sustain floor and blue-note-roll-off on the perturbation
-gate, and the "fix" would have looked mysteriously partial. The instrumented
-corpus sweep cost ~20 minutes and turned both threshold placements from
-argument into measurement; I'd previously done this ad hoc (2026-08-01 band
-floors), but it should be the default move for any gate in the splitter: the
-21-take corpus is a population, and every constant in that file is a claim
-about a population.
-
-## 2026-08-08 — Exit codes describe the deployer's actions, not the system's state
-
-The deploy had two opposite blind spots at once, and realising they were the *same* blind spot is the thing worth keeping.
-
-Going one way: the deploy failed loudly, immediately, with a red X on `main` — and production served a two-day-old build because nothing delivered that signal to a human. Going the other way: `pm2 start` returns 0 the moment a process is *spawned*, so a build that crashes on boot leaves PM2 restart-looping while the pipeline reports success. Red-but-unnoticed and green-but-dead look like opposite bugs. They aren't. In both cases the deploy only ever knew whether its own commands exited 0, which is a fact about the deployer, not about whether anyone can load the site. **A pipeline that asserts on command success is measuring itself.** The fix in both directions is the same shape: assert on *observed state* — poll the thing and make it tell you which release it is serving. That's also why the check compares the release id rather than liveness: a stale process still holding the port answers 200 with total confidence, and "is it up?" is precisely the check that would bless it.
-
-A corollary about naive fixes. In both of today's structural changes the interesting half was the *guard*, not the feature. Cleaning up a failed deploy's staged release is obvious; the part that matters is refusing to when `current` already points at it, because after the swap that directory **is** production and the tidy-up would escalate a failed deploy into an outage. Same shape as the smoke check. In both, the naive version isn't merely incomplete — it's worse than nothing, because it manufactures confidence while doing harm. When a fix has a case where it must decline to act, that case is the design.
-
-**Caching doesn't break tests; it voids their premises.** Adding "skip `npm ci` when the lockfile is unchanged" silently hollowed out two existing tests. The npm-failure test injects a failing install — but the install no longer ran, so the deploy succeeded and the test caught it. The flock serialization test proves two installs never overlap — and with the cache, neither deploy installed anything, so it would have gone on passing while asserting nothing at all. The first failed loudly and led me to the second. That asymmetry is the hazard: a skip-optimisation turns some tests red (useful) and quietly empties others (invisible). Both needed distinct lockfiles to restore their premise. Generalising: **when you add a "don't do X when unchanged" path, audit every test whose meaning depended on X happening** — a green suite is not evidence, because the tests that went hollow are exactly the ones that still pass.
-
-Two smaller keeps. First, the cheapest decisive evidence all day was three `git rev-parse` calls: `package-lock.json` was the *same blob* across the last successful deploy and both failures, which collapsed the entire search space from "what did we change?" to "nothing in the repo changed, so it's the machine" before I read any deploy code. When something fails intermittently, find the input you can *prove* is constant. Second, and against my own instinct to declare victory: adding swap and seeing a green rerun is correlation, not proof — the box could have had a quiet moment. `pswpout` (77,123 pages ≈ 301 MB, on a counter that had no swap device to write to beforehand) is what made it causal. **When the fix is "add capacity and retry," the counter showing the new capacity was consumed is the difference between a fix and a coincidence** — and it costs one command.
-
-Last — and this one is a correction of myself, made the same day. I told Andy `@sentry/sveltekit` had a packaging wart: declaring `vite` and `@sentry/vite-plugin` as ordinary `dependencies` and so dragging a bundler and a TypeScript compiler into production installs. He asked me to check whether Sentry had fixed it. **They never had it.** `vite` and `@sveltejs/kit` are `peerDependencies`, and have been across every version I checked back to 8.55.0. The manifest is fine.
-
-What actually happens is npm's: **npm 7+ auto-installs peerDependencies, including peers of *production* dependencies.** `@sentry/sveltekit` is a prod dep, so its peers arrive under `--omit=dev`; `@sveltejs/kit` then brings its own peer `typescript`, and `vite@8` brings `rolldown`. And because those packages are peer-reachable from a prod dep, npm doesn't mark them dev-only in the lockfile, so `--omit=dev` can't drop them — nor, measured, can `--omit=peer` (byte-identical 378 MB). The 156 MB figure was right; the *attribution* was invented. I had the resolution tree in front of me (`npm ls` showed the nesting) and read "appears under X" as "declared by X" without running the one command that distinguishes them.
-
-Underneath that sat a second, worse error of the same kind. I'd built the "what does prod actually need" list by grepping the built output for `from '...'` — which happily matched **JSDoc `@import` comments**, so `@sveltejs/kit` looked like a runtime import and I briefly believed production had a latent landmine. It doesn't: deleting `@sveltejs/kit`, `vite`, `typescript` and `@rolldown` outright and booting the server serves `/` and `/licks` as full SSR HTML with zero module-resolution errors, because adapter-node bundles the framework runtime into `build/server/`. **A grep for imports finds mentions, not dependencies.** The only trustworthy answer to "is this needed at runtime" is to remove it and boot — which cost one container and settled in ninety seconds what two rounds of textual analysis got backwards. Same failure I logged on 2026-07-16 and again on 2026-07-25: confident description standing in for observation, on a premise that was cheap to check.
-
-## 2026-08-01 — Docs rot in two directions, and only one of them is visible
-
-Auditing thirty documentation files against the code, I expected to be correcting sentences. Most of the work turned out to be different in kind, and the distinction seems worth keeping.
-
-**Drift** is a sentence that used to be true: "the app is a PWA," "the bleed filter defaults to on," "rhythm changes is a progression type." It's cheap to find — read the doc, read the code, compare. A grep finds it. It's also the *less* damaging failure, because a wrong sentence in an otherwise-correct page still puts the reader in the right neighbourhood.
-
-**Absence** is the other direction, and nothing in the document signals it. `user-guide.md` was internally consistent, well written, and described an app in which Tunes is a supporting room mentioned in one clause. Every sentence was true. There is no diff, no failing check, no contradiction to notice — the only way to find it is to enumerate the product from the *code* and ask what the docs never say. Six days of feature work produced maybe four correctable sentences and two entire missing pages.
-
-Which suggests the audit procedure has to run from the code inward, not from the docs outward. Walking `src/routes` and `src/lib` and asking "where is this documented" found the gaps; re-reading `documentation/` and asking "is this still true" would have returned a nearly clean bill of health.
-
-Two smaller things I want to remember:
-
-**Tour copy is documentation that no docs audit looks at.** `lick-practice.ts` had been quoting a superseded tempo-gating scheme and listing a lick category as a progression type. It sits in `src/lib/tour/`, so it's invisible to anyone auditing `documentation/`, and it's prose, so it's invisible to `svelte-check` and the test suite. Any user-facing string outside the docs tree — tours, empty states, error messages, onboarding — is in the same blind spot. The tours at least have the redeeming property that they're *read aloud to new users*, which is the worst possible place for a stale number.
-
-**Two docs contradicting each other is a distinct, worse failure than one being wrong.** The bleed filter was described accurately in the glossary and inaccurately in the audio pipeline page. A single wrong statement gets corrected the first time someone tests it; a contradiction teaches the reader that the documentation set as a whole isn't load-bearing, and that inference is much harder to walk back. When auditing, cross-checking docs *against each other* is a cheap second pass that finds a different class of defect than checking each against the code.
-
----
-
-## 2026-07-30 — "No evidence" almost always means "no evidence in the domain I was looking at"
-
-The previous session searched for the soft G3 re-articulation across five signals — reading gaps, window RMS, `rmsMin`, `hfRms`, clarity — found nothing above threshold in any of them, and concluded the evidence didn't exist. From there it did something reasonable and wrong: it escalated a *detection* dead end into a *product* question ("should the scorer credit an un-rearticulated repeat?"), and both implementations of that question broke standing regressions. The dead end was real; the inference from it was not.
-
-What the five have in common is not one domain — three are RMS reductions, while clarity is McLeod's normalized autocorrelation peak and reading gaps are just clarity falling under threshold, so those two are periodicity, not energy. What all five share is the **93 ms analysis window**. Finding nothing in five views through one window is close to one negative result, not five.
-
-The tell was available the whole time: the user could hear it. A human ear resolving a 20 ms event through a 93 ms averaging window means the ear is using something the window destroys — which points at *time resolution* before it points anywhere else.
-
-And the sharpest version of that: `shapeBreak`, the signal that finally worked, is **clarity's near neighbour**. Both ask "do consecutive periods look alike?" The only material difference is that clarity answers it over 93 ms and `shapeBreak` answers it over 10 ms. The winning signal was sitting adjacent to one already being consulted, separated by a timescale rather than by a concept. That is worth remembering, because it means "we already measure something like that" is *not* evidence that a domain has been covered.
-
-I want to keep the generalization narrow enough to be useful: when a search fails, enumerate what the candidate signals have in *common* before concluding absence. If they share a timescale (the analysis window), a source (the same buffer reduction), or a domain, the search covered fewer hypotheses than it appeared to. And when a human can perceive what the instrument cannot, the instrument's limitation is the finding.
-
-## 2026-07-30 — The discriminator ran backwards, and that's what made it trustworthy
-
-I went in assuming a re-articulation would show a *large* discontinuity and the false positives would be small — so the gate would be "dip deeper than X". The corpus said the exact opposite: the two genuine legato tongues dip to 0.957 and 0.961, while Blue Monk's held E (must not split) dips to 0.33 and metronome clicks to ~0.54. Once stated physically it's obvious and it stops being a fitted threshold: a click *adds an uncorrelated signal*, which drives normalized similarity toward zero in proportion to the energy added; a tongue *modifies an oscillation that never stops*, so it barely moves. Depth measures contamination, not articulation.
-
-That inversion is why I trust this gate more than the numeric ones stacked around it. `SHAPE_CLEAN_BASELINE = 0.975` and `SHAPE_SETTLE_TIME = 0.2` are honest empirical fences and will need revisiting when a fixture arrives outside them. The 0.9 periodicity floor is a statement about what the signal *is*, and the failure mode it guards against — someone lowering it to "catch more articulations" and silently re-admitting every click — is exactly the kind that survives a green test suite. It got a named unit test for that reason.
-
-Worth noting where this leaves the tier stack: five tiers now, each owning a distinct evidence class (silence, envelope dip, HF burst, clarity dip, waveform shape). The 2026-06-21 prediction — "future fixes here will be a new *axis*, not a new threshold" — has now held four times running. The corollary I'd add: the axes are getting *cheaper to justify and harder to find*, which is the healthy direction. This one took going back to the raw samples, and I don't think it was findable from the reading stream at all.
-
-## 2026-07-28 — The notation was encoding the convention all along
-
-The user's correction — "a repeat around the entire song simply outlines the form: head → solo → … → head" — looked at first like it demanded new machinery. It demanded *less*. The expanded flatten of a whole-form-repeat chart (body, ending 1, body again, ending 2) IS the jazz performance already: pass one is the head taking the turnaround ending, pass two is the form again taking the out. All the head feature needed was a boundary — the first *revisited* section in `sectionMap` — and the harmony doubling I'd built became unnecessary for exactly the charts where the head matters most. The doubling survives only for repeat-free charts, where the notation genuinely contains one chorus.
-
-The general lesson: when a domain convention seems to require transforming the data, first check whether the notation already encodes the convention and the code has merely been reading it too literally. "Play the repeat" was the literal reading; "the repeat is the form" was the semantic one — and the semantic reading needed fewer moving parts, not more. This is the same genus as concert-vs-written pitch: the chart is a *notation system* with performance semantics layered on top, and every naive structural interpretation of it is a bug waiting for a musician to notice.
-
-Also filed permanently (user-instructed): head once; ending 1 = turnaround in, ending 2 = out. The tune-practice session now literally performs the form: head over pass one, solo windows only in pass two.
-
-## 2026-07-28 — Detection had to abandon the spec's frame to satisfy the spec's intent
-
-The tune-practice spec said: compute each chord's degree *relative to the tune key* and match degree-shapes (ii=min7 on 2, V=7 on 5…). Implemented literally, that finds zero ii-V-Is in two of our three curated tunes — Mankunku Blues' only ii-Vs are a secondary cadence into the IV key and a cadence that resolves across the repeat barline. The correct detector binds a **local tonic from root motion inside the window** and uses the tune-key degree only as a *label* ("ii-V-I in the IV area"). The spec's own Phase 2 quietly knew this — it says to transpose licks "using the tune's local harmony root" — but its Phase 1 wording would have built a detector that starves Phase 2 of anything to transpose. The general shape: when a spec's phases disagree, the downstream phase usually encodes the real requirement, because it's written from the consumer's seat. Worth checking phase N against phase N+1's inputs before building N.
-
-Two adjacent musical facts that will matter again: in blues, the tonic is a *dominant seventh* — any "resolution quality" set that only admits maj7/maj6 silently fails on the genre this app is named for; and plain major triads reach the detector as `maj6` because `chordSymbolToQuality` maps them there for comping. Quality sets over the closed enum have to be written against what the *parser emits*, not against what a theory book says.
-
-## 2026-07-28 — The persisted-mastery shape dictates product language, not vice versa
-
-"Show whether the user knows this lick in this key" sounds like a UI task until you look at what's actually persisted: per-key `passCount`/`tempo`/`lastPracticedAt` and a separate unlock count — no score anywhere. So "known/learning/unknown" had to be *derived* semantics: known = has passed at the 0.9 bar in that key; learning = attempted there, or inside the lick's unlock ramp; unknown = everything else, including a never-practiced lick's own entry key. The subtle trap we dodged: "any progress → learning" would have marked a lick practiced only in C as "learning" in F#, a claim the data cannot support. When the store can't express a distinction, the honest move is to narrow the product claim to what it can — the unlock ramp turned out to be the exact right fence, and it already existed.
-
-Same session, same lesson from the other side: category overrides turn out to be **write-only at read time** (no consumer ever applies them), so the matcher keys off `prog:*` tags. That's now the second consumer (after lick-practice) whose correctness depends on tags-not-categories. The category field increasingly looks like display metadata wearing a data-model costume.
-
-## 2026-07-28 — A render effect that reads a prop is a contract, not an implementation detail
-
-NotationDisplay's render effect reads `selectedIndex`, so every selection change re-runs `renderAbc` — a full SVG rebuild. Fine for click-selection; fatal for a per-note playback cursor. The fix wasn't to optimize the effect but to *route around it*: cursor and markers live on dedicated effects over stashed per-render caches (anchors, visualObj, bar zones), and the render effect must never read the new props. The fragile part is that this invariant is invisible — one innocent `rangeMarkers` read inside the render effect silently reinstates per-note rebuilds with no error, just jank. I left a comment naming the contract and an e2e that asserts marker rects exist; a stronger guard (asserting SVG node identity across cursor moves) needs a running session, which our e2e layer deliberately doesn't do. This is the same genus as the tick-based-visuals rule from 2026-04-16: the boundary holds only as long as every future author knows it exists.
-
-## 2026-07-28 — Mirrored IA without mirrored components guarantees drift
-
-The licks/tunes restructure (2026-07-25) made the two trees structurally symmetric — same routes, same verbs, same page roles — but the tunes pages were written months apart from the licks pages, by different sessions, without a shared component or class recipe for "header action button", "empty-state card", "accent CTA". A 72-finding audit shows the result: every seam where the two trees should rhyme (button shape, section headings, card titles, error states) diverged, and the divergence isn't random — it's two internally-consistent dialects. Licks speaks pill-buttons/`accent-hover`/`text-white`/Fraunces-card-titles; tunes speaks rounded-rect/`hover:opacity-80`/inherited-text/sans-titles. Each was locally coherent, which is exactly why nobody noticed while writing.
-
-Two sharper points under this. First, **structural symmetry raises the cost of visual asymmetry**: before the rename, licks and lead sheets were different features and drift read as difference; after the rename made them siblings, the same drift reads as sloppiness — the restructure implicitly promised a consistency the CSS never delivered. Second, the audit surfaced a class of finding that isn't drift at all but latent bugs wearing drift's clothes: `--color-bg-primary` (a token that has never existed — hover silently computes to transparent), `text-black` on a fill that darkens in light mode, accent fills inheriting near-black text in light mode. **Copy-adjacent code without a shared source of truth doesn't just diverge, it invents tokens** — the author pattern-matched `bg-secondary`/`bg-tertiary` to a plausible `bg-primary` and nothing failed loudly. A tokens-that-exist lint (grep `var(--color-` against `app.css` definitions) would catch that class mechanically; worth proposing if drift cleanup lands.
-
-The direction question has a non-obvious answer, too: neither side simply wins. Licks carries the documented conventions (design-system utilities used as app.css comments describe), but tunes contains genuine improvements made later (flex-wrap on crowded header rows, `type="search"`, explanatory subtitles, smallcaps section labels). Standardize on the *older* side by default and you'd erase newer judgment; on the *newer* side and you'd canonize its contrast bugs. The audit's per-finding "which side should win" was the actual work product, not the finding count.
-
----
-
-## 2026-07-22 — Reuse by shrinking the problem to fit the tool, not stretching the tool to fit the problem
-
-The lead-sheet editor needed long forms; the existing melody-entry buffer maxes out at four bars, deliberately. The obvious move was to lift the cap — touch `setBarCount`'s clamp, the capacity math, the status bar, and accept that the lick editor now carries lead-sheet-sized state. The better move, hiding in one word of the spec ("paging"), was to leave the tool alone and cut the problem into tool-shaped pieces: a section is edited one ≤4-bar page at a time through the UNMODIFIED buffer, and the section list — plain data, no reactivity constraints — is the real document. Every entry component, the keyboard map, the range validation, the accidental logic came along for free, and the lick editor's invariants were never at risk. The general form: **when a constraint in a shared component looks like the obstacle, first try shrinking your working set to honor it; the constraint is usually load-bearing for someone else.**
-
-The cost of that design is an ownership rule: while a page is loaded, the buffer owns that window, and writing to the section list underneath it is undefined. My own test violated it (seeded sections directly, then watched a commit "eat" a note) and my first instinct was to blame the commit. The commit was right; the test used a door that doesn't exist in production. Worth naming: **an ownership invariant binds tests too — a test that mutates state through a path the UI can't reach isn't testing the system, it's testing a hypothetical one.** The fix was to route the test through the real hydration API, which also made it a better test.
-
-Two smaller keeps. The written-pitch discipline caught ME: I asserted the chart would show "Gm7" after selecting written G, but the ii of written G is Am7 — the exact error class this project's memory warns about, committed by the entity that wrote the warning into the test suite an hour earlier. The rule survives because the tests enforce it, not because anyone internalizes it permanently. And the importer fixtures: the iReal unscrambler is an involution, so the temptation was to generate test input with the function under test — agreement by construction. Writing the scrambler into the TEST from the published reference instead means both sides pin to the spec; if I mistranscribed the algorithm, the hand-computed spot-checks (position 0 takes char 49) fail rather than agree. **When an algorithm is its own inverse, independent fixtures require a second implementation from the source document, plus at least one assertion a human can verify by counting.**
-
----
-
-## 2026-07-21 — An invariant that holds because the content happens to match is not an invariant
-
-Removing the progression line from the home page's Side B panel made its stat block two lines, matching Side A's two, and the two Continue buttons lined up. That is a true sentence about one state of the data and a false sentence about the feature. A fresh user gets one line on Side B against Side A's two, and a tagged-but-unpracticed set gives the same 1-vs-2. The buttons were staggered by 38px and 20px in those states — measured, after restoring the pre-fix file, not inferred.
-
-The distinction worth keeping is between a property that *obtains* and a property that is *enforced*. Content-driven layout gives you the first: the buttons align when the line counts happen to match, and the alignment silently expires the next time someone adds a stat line, or a user reaches a state nobody screenshotted. `mt-auto` in a flex column gives you the second — the button is at the bottom because the layout says so, and no future edit to the copy above it can change that. The same shape shows up in the stub-cloud fixture (2026-07-19): **a value restated is a value that decays; a value derived stays true.** Here it's a *position* rather than a value, but the failure mode is identical, and so is the tell — the property was true when written and nobody wrote down what it depended on.
-
-What made this catchable was enumerating the states rather than looking at the one on screen. I had the "pleasing side effect" claim in hand and it was pleasant enough to be worth checking, which is roughly the right instinct: **a claim that arrives as a bonus has had no scrutiny applied to it, because nobody asked for it.** The cost of checking was reading two `{#if}` branches.
-
-Second, smaller, on process: I flagged the caveat and named the fix instead of either doing it unasked or staying quiet. The user's reply was two words. That exchange cost less than the alternative in both directions — a silent scope expansion I'd have had to justify, or a bug shipped behind a claim I'd already half-retracted. **The flag is cheap precisely when you can state the fix in one clause**; if it takes a paragraph to describe, it's a design conversation, not a flag.
-
----
-
-## 2026-07-19 — The await must come before the commitment, and one of the three bugs had already fixed itself
-
-Three long-open bugs, taken TDD. The most interesting thing is that they failed in three *different* ways relative to their write-ups, and only one matched its note exactly.
-
-**The race was real and the obvious fix was a trap.** `scheduleBackingTrack` created and *started* the bass and comp Parts, then hit `await ensureDrums()` and a supersession bailout — so being superseded mid-load left bass and comp playing over no drums. The obvious repair, hoisting the await above the part creation, would have traded it for something worse: `startBackingTrack` turns out to be **imported but never called**, so the kit was only ever loaded lazily *inside* scheduling, and a cold sample fetch in front of the first audible commit could push bass and comp past their absolute `tickOffset`. The fix needed two halves — hoist the await *and* preload the kit with the pitched instruments, so the hoisted await is a microtask on every real path. The generalisable rule: **every await must sit before the first irreversible commitment, and making that true usually means moving the slow work earlier, not moving the checkpoint later.** A bailout that can fire after you've already made noise isn't a bailout.
-
-**The second bug was real but my test fixture was wrong in a way only running it revealed.** I wrote a phrase with `duration: [1, 4]` chords meaning "one bar" — but fractions here are in *whole notes*, so `[1,4]` is a quarter note and my two-bar harmony was two beats. The test went red for the wrong reason (4 drum beats, not 8), which is the only reason I caught it. Had I written a fixture that happened to be red for a plausible-looking reason, I'd have "fixed" the code until my wrong fixture passed. **A red test is not evidence until you have read the failure message and confirmed it fails for the reason you predicted** — the number in the error mattered more than the colour.
-
-**The third bug had already been fixed by a change made for another purpose, and my notes hadn't noticed.** Case 2 — anonymous licks absorbed into the next account to sign in — was closed by PR #164's per-user storage namespacing, which is *literally candidate fix #3 from my own write-up of it*, adopted for unrelated reasons. My memory still said "unfixed." Two lessons. First, the memory file carried a `verify against current code` warning and it was right: **notes describe the code on the day they were written, and a fix can arrive sideways.** Second, and sharper: I could only *prove* it was fixed by writing a control test. An assertion that "the anonymous lick was not pushed to the cloud" is worthless if the push path was dead in that scenario — absence of evidence again, the shape this codebase keeps producing. So the spec ships with a control that seeds the same lick into the signed-in bucket and asserts it *is* pushed. **Every negative assertion needs a positive twin proving the detector is live**, and I should reach for that reflexively rather than after noticing the gap.
-
-Worth carrying forward: the isolation fix silently dropped the *legitimate* half of the behaviour — offline-entered licks no longer migrate into a first account, they strand in the anon bucket. Nobody chose that; it fell out of a storage-layout change. **When a structural fix closes an abuse vector, check what legitimate flow used the same road.**
-
----
-
-## 2026-07-19 — A test suite that is green in CI and red on every dev machine is worse than a red one
-
-Three cloud-convergence specs had been failing locally while passing in CI, and the split was structural, not flaky. `tests/e2e/fixtures/stub-cloud.ts` hardcoded `https://ynzfliunzejusnlvpeey.supabase.co` and keyed Playwright route interception off it. When the project moved dev onto a local Supabase stack (2026-06-21, to stop dev/prod data contamination), `.env` began setting `PUBLIC_SUPABASE_URL=http://127.0.0.1:54321`, the production build under test baked *that* in, and no browser request ever matched the intercept. CI still passed because there `PUBLIC_SUPABASE_URL` is a CircleCI project-level variable holding the production URL. So the fix for one problem silently disabled the tests guarding another — and the signal that would have said so was inverted: CI green.
-
-The durable point is about **which environment a test's assumptions are pinned to**. A fixture that hardcodes any build-time-configurable value has quietly asserted "the build will be configured the way it was the day I wrote this." That assumption is invisible, untested, and decays the moment configuration becomes environment-specific — which is exactly what adopting a local dev stack does, deliberately, everywhere at once. The fix was to resolve the URL the same way Vite resolves it (`process.env` first, then `.env`, then a default) and to derive the project ref by supabase-js's own rule rather than restating it as a constant. Both bugs were the same bug: **a value restated instead of derived**. The auth cookie name `sb-<ref>-auth-token` had been hardcoded too, and was equally wrong for any non-production host.
-
-Second keep, sharper than the first: **"passes in CI" is not evidence a test works.** It is evidence the test works *in CI's configuration*. When CI and local diverge in configuration on purpose — and here we made them diverge on purpose, for good reasons — every test that hardcodes configuration silently changes meaning in one of the two places. The version that keeps running is the one nobody is watching, because the humans are looking at local output and the machine is looking at CI. I found this only because I ran the full e2e suite locally to check I hadn't regressed something, which is not a habit I can rely on catching it next time. Worth a standing question when touching environment config: *which tests encode the value I am changing?*
-
-Third, on process, and it is the thing I got wrong before I got it right. I found these three failures, verified they were pre-existing, checked they also failed on `origin/main`, wrote it up carefully in a PR description — and moved on. That is a well-documented non-fix. The user's correction was blunt and correct: never leave a bug unfixed, write the failing test first, then fix. The rationalisation I used was "pre-existing, not from this branch," which is an answer to *where did this come from*, a question nobody asked, standing in for *is it fixed*, the question that mattered. **Establishing that a bug is not yours is not progress on the bug.** The finding is the expensive part; stopping at a well-written note throws it away and makes the next person pay for the discovery again.
-
----
-
-## 2026-07-19 — Every test seeded the empty case, so every test took the early return
-
-The library page has infinite-looped for signed-out users with a practice set for who knows how long, and the reason nobody caught it is worth more than the bug. `pickInitialProgression` opens with `if (taggedIds.size === 0) return DEFAULT_PROGRESSION` — an early return that fires *before* it reads `lickPractice.progress`. The loop needs that read to happen. Every existing library spec seeds licks with no practice tags, so every existing library spec exits at that guard and never reaches the code that breaks. The fixtures didn't just fail to cover the bug; they systematically covered the one branch where it can't exist.
-
-The general shape: **a test fixture that models the empty or default state exercises the guard clauses, not the logic behind them.** And empty-state fixtures are the ones you write first, because they're the cheapest to construct — `seedUserLicks(page)` with untagged sample data is one line, whereas a realistic practice set means tags, prog tags, progress rows. So the cheap fixture becomes the default, the default becomes the whole suite, and the suite converges on testing the codebase's early returns. The tell to watch for: when a bug report says "only happens once I have some data," check whether *any* fixture has data. Here the honest summary is that the library suite tested a library with nothing in it, which is not the state any real user is ever in.
-
-The bug itself is the second keep, and it's a Svelte 5 idiom worth naming: **a hydration routine that reads state it also writes will loop when called from an `$effect`.** `hydrateLickPracticeProgress` assigns a fresh `lickPractice.progress` object and then calls a helper that reads `lickPractice.progress`; the effect tracks the read, the write invalidates it, forever. What makes it insidious is the *asymmetry that hides it*: signed in, `await initLickMetadataFromCloud` splits the function and the writes land in a microtask outside the tracking window, so the bug vanishes. Signed out, no await executes and the whole body is synchronous and tracked. So the same code path is correct or catastrophic depending on whether an `if (client)` branch happened to yield — which means **an `await` was silently load-bearing for correctness**, and anything that made the cloud call synchronous, or cached it, would have broken signed-in users too. Hydration functions should be untracked on principle: they run because auth changed, not because the state they write changed. That's a rule, not a patch.
-
-Third, on method, and it's the good version of the streak I've been logging. Three times today the instinct was to assert and three times I checked instead: CodeRabbit's `--linked` claim (ran `--help` on six commands — and found the *better* fact, that `db push` defaults to remote); my own trend-chart spec's time-dependence (moved the frozen clock to 2027 and watched the chart go empty); and "did I cause this loop?" (stashed my work and reproduced it on a clean tree *before* diagnosing). The third is the one that mattered most — the loop appeared in the same test run as my new feature, which is exactly the circumstance where I'd have spent an hour debugging my own correct code. **When a failure appears alongside your change, the first move is to remove your change, not to read it.** Cheaper than any amount of reasoning, and it answers the only question that determines where to look next.
-
----
-
-## 2026-07-19 — Co-plotting is an implicit claim that two quantities are commensurable, and this one wasn't
-
-Three lines shared a y-axis on the trend chart: Tonal Mastery, pitch complexity, rhythm complexity. All three are 1–100, all three trend upward with practice, and that's exactly the trap — **a shared axis is an assertion that the quantities are the same kind of thing.** They aren't. Mastery measures the player (average proficiency across 12 scales × 12 keys). The complexity pair measures the *generator's* current setting — how chromatic and syncopated the material it's feeding you is. Those move together in the happy case, which is what makes the conflation survive: a rising complexity line looks like progress and is *correlated* with progress, while actually reporting that the difficulty knob turned. It's the system describing itself in a chart the user reads as a description of themselves. The user's word for them was "meaningless," and the precise sense in which that's right is that they were meaningless **in that frame** — the same two numbers rendered as current-value bars in the Adaptive Difficulty section a few hundred lines down are perfectly informative, because that framing makes no claim about improvement. Same data, same page; one placement lies and the other doesn't. Worth carrying: before putting a series on a chart labelled *progress*, ask whether it measures the person or the machine, and whether the axis it shares is asserting a kinship that exists.
-
-The mechanical finding underneath is the better one though. The forward-fill loop skipped any day where `lastPitch == null || lastRhythm == null` — so the mastery line couldn't render on a day unless the *complexity* metrics had a snapshot. A decorative series was gating the primary one. This is the co-plotting problem again but in the data layer rather than the visual one: once quantities share a rendering path, they acquire dependencies on each other that nobody designed and no type checks. Deleting the two dotted lines silently fixed a latent data bug, which is the tell — **when a removal fixes something, the thing removed was load-bearing in a way its purpose never justified.** Generalisation for this codebase: any loop that accumulates several optional fields and then gates on all of them has quietly ANDed together metrics that were meant to be independent.
-
-Third, the drift. The legend said "Mastery / Pitch / Rhythm," the tooltip said "daily average accuracy over the rolling window," and the data was a forward-filled adaptive snapshot. Three different stories about one chart, none of which agreed, and the tooltip's version describes something the chart has apparently *never* displayed. Explanatory text is the least-tested surface in the app — no type checks it against the thing it explains, and no test failed when it went stale. It rots exactly as fast as the feature changes and gives zero signal when it has. The cheap discipline: when the series on a chart change, the tooltip is part of the diff, not a follow-up.
-
----
-
-## 2026-07-18 — An artifact that imitates generated output is lying about its provenance, and the tooling repeats the lie
-
-`src/lib/supabase/types.ts` opens with "Generated-style type definitions… Follows the exact format produced by `npx supabase gen types typescript`." Read that quickly and it says *this file is generated*. A `db:types` script sat in package.json piping the generator straight over it, which confirmed the misreading. Both signals pointed at "regenerate me." Both were wrong: the file is hand-written, and it contains a deliberate narrowing (`public_lick_authors.id: string`, where the generator emits `string | null` because Postgres can't prove non-nullability through a view) that regenerating destroys — widening a `Map` key type at three `community.ts` call sites for a NOT NULL primary key. The truth about how the file is maintained was written down nowhere; the format mimicry actively argued against it.
-
-The general shape worth keeping: **format mimicry is a provenance claim, and an unlabelled one defaults to "machine-owned."** Once an artifact looks generated, every reader — me included — treats it as disposable and regenerable, because that's what generated files *are*. The valuable thing in this file (a source-interface→table mapping, and one type the generator gets wrong) was exactly the part no generator could reproduce, and therefore exactly the part most at risk. So the durable fix wasn't the checker I built, it was the four lines in the header declaring the file hand-maintained and saying what regeneration would cost. Hand-maintained artifacts in generated clothing need to *say so in their own first paragraph*, because the next person to touch it will be holding a tool that overwrites it.
-
-Second keep, on the tooling: a script whose whole contract is `generator > file` fails catastrophically in the ordinary case where the generator errors — the shell truncates the target before the command runs, so a broken run half-clobbers a good file. That happened here (exit 1 from a Docker image pull, file already rewritten). Any script that redirects a subprocess over a tracked file has this bug by construction. Generate to a temp path, then move — or, as here, don't write at all. The conversion of that script from a **writer** to a **checker** kept 100% of its real value: the only thing generation ever offered was "tell me if the hand-written file fell behind the schema," and a diff answers that without the destructive write. When a tool's output is dangerous but its *comparison* is useful, ship the comparison.
-
-Third, the honest one about me, and it's now a streak of three. Drum bug: I modelled the wrong bug *family* before pinning the symptom's grammar. Tempo bug: I guessed the wrong *entry point* and the user corrected me. Today: I asserted the wrong *provenance* — told the user regeneration would strip six columns, when regeneration would actually strip a documentation header, and I only learned this by running the command I'd been describing. Each time the reasoning built on top was sound; each time the premise underneath was a guess I'd stated as fact. The specific tell is that in all three I had a cheap way to check the premise (read the file's header; ask which mode; run the command) and reached for argument instead. The rule I want: **when a claim is about how something behaves, and running it is cheap, run it before saying it.** Confident description is not observation, and the distance between them is where I keep putting my errors.
-
-Fourth, smaller: the user asked "is it safe to apply these migrations, I don't want to lose local data." The truthful answer was that there was no local data at all, and that the actual danger in the vicinity was unrelated to the operation asked about — the CLI is linked to the *production* project, so every command has a `--linked` twin one flag away from prod. Answering only the literal question would have been accurate and useless. **When someone asks whether X is safe, check whether the blast radius they're picturing is even where the blast radius is.**
-
----
-
-## 2026-07-16 — Aggregating over *everything stored* inherits every ghost the store ever accumulated
-
-The 100 BPM "cap" was `getLickTempo` taking `Math.min` over `Object.values(keyProgress)` — a min over the *entire* stored key set, no filter. A single legacy `Gb:100` entry, orphaned when the app switched from all-flats spellings to canonical `F#`, sat there at the old `DEFAULT_TEMPO` and vetoed the minimum forever, because no writer could reach a key that isn't in the canonical twelve. The specific shape worth carrying: **an unbounded aggregation (min/max/any/all over "all rows we've ever stored") is only as correct as the oldest assumption any of those rows was written under.** New code narrows the write-set (12 canonical spellings); old data doesn't retroactively narrow with it; the reader still sweeps all of it. That's not a spelling bug, it's a reader-writer asymmetry: writers moved forward, the aggregator still reads the past.
-
-And this is now the *third* body in the same graveyard — stored data outliving the assumptions its reader makes about it. Dev/prod shared-Supabase contamination (same email → same `user.id` → one account's data bleeding across environments), anon-lick absorption (local licks silently adopted by the next login on the origin), and now phantom keys. Local-first + cloud-sync + an evolving schema *guarantees* the store fills with ghosts: half-migrated rows, superseded spellings, cross-identity residue. Anywhere this app reduces over persisted collections, the honest question isn't "is the reduction correct?" but "correct against which vintage of writes?" A reduction that's right for today's writer and wrong for a 2-year-old row is the default failure here, not an edge case. The fix that held was to make the *reader* enforce the writer's current invariant (min over canonical keys only) rather than to chase and clean every ghost — belt on the read path beats a migration you have to get exactly right, because the next ghost is already being written by some code path you haven't audited.
-
-Two process keeps. First: the investigation turned on a **backward deduction from the output, not forward code-reading**. The tempo shown is a pure function of stored state, so I ran it in reverse — flat card ⟹ `getLickTempo == 100` ⟹ ≥1 stored key still at 100 ⟹ (given all 12 canonical keys were played and bumped to 105) a key *outside* the canonical set. That chain eliminated the entire scheduler-timing family before a single agent ran, and made the confirming step a ten-second `localStorage` scan rather than a code audit. When the symptom is a deterministic function of state, deduce the *necessary* state and go look at it. Second, the mirror of the drum entry below: I guessed the wrong entry-point — assumed single-lick Deep Practice (per-key 0.95 mastery gate) when the user was in Daily (avg-based +5), and the user had to correct me. The report card renders identically for both modes *by construction*, so it carries no signal about which engine produced it. I inferred a discriminator that wasn't there. The recurring failure across both of today's sessions is the same: acting on a symptom whose grammar I hadn't actually pinned down — which family, which entry-point — before building rigorous arguments on top of the guess.
-
----
-
-## 2026-07-16 — The symptom's *grammar* tells you which bug family you're in; I spent the first half in the wrong one
-
-The drum-dropout hunt had two halves and a hinge. For the first half I chased a **coverage** failure — does the drum track run out before the phrase ends? — because the opening report was "entire beats are missing" and a background workflow (fired from another context, quietly mis-scoped to *ear training*) had already "confirmed" the harmony<melody trailing-drop on ballad-005/006. I proved, three ways, that lick practice can't hit that drop: the per-key `extendHarmonyTail` plus the contiguous multi-key harmony always covers the melody (600 curated combos, then all 13 of the user's real licks — zero drops). All correct, all beside the point. The hinge was one clause from the user: "dropping out on **every second beat**." That is not a coverage failure at all — it's a **rate/subdivision** failure, a different bug family entirely, and coverage math can't even express it. "Missing beats" and "every second beat" share vocabulary and share nothing else. The lesson I keep re-learning: pull the *precise* symptom first, before modelling; the grammar of the complaint ("runs out" vs "every other" vs "late" vs "wrong") selects the family of mechanisms, and modelling the wrong family produces airtight proofs about the wrong thing. A fuzzy report plus a confident-but-mis-scoped agent result is exactly the setup that sends you down a rigorous dead end.
-
-Second keep, and it's the same shape as the octave-fix trail two entries down: the strong endpoint of a "can't-find-it" investigation is an **impossibility proof, not a shrug**. I didn't stop at "I couldn't reproduce it." The drum `Tone.Sequence` fires one hit per `'4n'` unconditionally, every style hits a drum on every beat in 4/4, and every one of the user's licks is `[4,4]` — so every-second-beat is *impossible* from the scheduler, and the only path that could produce it (a denominator-8 meter) is closed upstream because step-entry hard-codes `[4,4]`. That converts "I don't know" into "here is the boundary of what the code can do," which is a far more useful thing to hand back — and it points precisely at where the truth must live instead: the live sample-trigger layer, or a correctly-functioning voice being mis-heard. Which is the third keep: the most likely resolution of a **confidently-reported bug from the person who built the app** is that the piano is comping on 2 and 4 exactly as designed. Confidence and authorship don't make a bug exist in the code; reproducing against the *actual* data (not my synthetic pickup-lick guesses, which kept saying "impossible" while the user kept saying "it happens") is what finally made the two stories meet. When my model and a credible report disagree, the resolvent is almost always *their real data*, and it's worth reaching for it earlier than I did.
-
----
-
-## 2026-07-14 — Every octave fix so far has manufactured its mirror image; the way out was physics, not thresholds
-
-The Third–Fifth Rise bug completes a telling sequence. The 2026-06-30 subharmonic corrector was built on a measured empirical boundary — "real low notes keep ≥ 0.20 of their 2nd-harmonic energy at the fundamental" — and fourteen days later a real E3 walked through it at 0.02. The corrector then did to a *correct* detection exactly what the artifact used to do to a wrong one: rewrote the whole note an octave off, at the source, unrecoverably (the readings' `frequency` field stores the *corrected* value — a design choice that makes the corrector's mistakes indistinguishable from the detector's truths downstream; worth remembering that any in-place correction erases the evidence of its own failure).
-
-The fix that held wasn't a better threshold on the same bin — it was a discriminator aligned with the *mechanism*: period-doubling sidebands are physically weak (a perturbation on the true period), full-rank odd harmonics are not. Ratios built on empirical amplitude clusters ("notes usually look like X") keep getting falsified by the long tail of real playing — subtone, masked fundamentals, room filtering. Ratios built on what the mechanism *can't* produce (an artifact can't put full-rank energy at 1.5× the true fundamental) have a floor under them. When the next octave case appears — and the sequence says it will — the first question should be "what does each hypothesis make physically impossible," not "where do these two recordings separate."
-
-Also worth keeping: sweeping the entire fixture corpus at production settings *before* writing the fix is cheap (a 60-line script) and did three things a test-first loop alone wouldn't have: set the threshold with real margins, proved the only regression surface was bc-010, and found a week-old recording (`four-to-five`) that the bug had been silently corrupting with no test noticing — the corpus is a measurement instrument, not just a safety net.
-
----
-
-## 2026-07-14 — "Absence of evidence read as evidence of absence" is this codebase's recurring data-loss shape
-
-The progression-tags incident fix turned out to be the same bug three times in different clothes: `safeGetSession` read *couldn't reach the auth server* as *signed out* (→ wipe); the hydrators read *fetch failed* as *account is empty* (→ reconciler prunes everything and pushes the emptied blobs cloudward); and the whole incident existed because a stale client read *no explicit prog tag* as *category matching still applies*. Every fix was the same move — split "verified negative" from "verification unavailable" and make the destructive action require the verified form. In a local-first + cloud-sync architecture, **any code that deletes or overwrites based on what it *didn't* find must first prove the absence is real.** That's now enforced in three places (degraded flag, hydration reports, maintenance gate), but the pattern predicts future bugs anywhere a `null` return conflates "no" with "unknown" — `getAuthUserId` still returns one null for both, and the whole-column LWW sync (follow-up) still trusts whatever blob is local.
-
-Second, smaller keep: **one-time migration markers can live inside the data they migrate.** The `__migrations` reserved key inside the cloud-synced tags blob is the only place a flag survives both the user-scope wipe and device switches without a schema change — but it only works because every consumer that enumerates blob keys as lick ids now knows to skip reserved keys. An unwritten invariant ("all keys are lick ids") had to become a written one (`isReservedTagKey`) before the trick was safe. When smuggling metadata into a keyed collection, enumerate the enumerators first.
-
-Third: the adversarial review workflow caught what single-pass review reliably misses — not the bugs in the new code, but the **old code paths the new invariant doesn't cover** (the ungated `hydrateLickPracticeProgress` writers, the 429 that auth-js refuses to classify as retryable, the missing `depends()` that would have made a transient verdict permanent). The lens that pays is "where else does this same class of write happen," not "is this diff correct."
-
----
-
-## 2026-06-30 — A defect and a feature can be the same mechanism; map invariants before ambitions
-
-**Same boundary, opposite meaning.** The tenor-sax "two instruments" bug was note velocity landing exactly on the sample-layer split, so random jitter flipped each note between the soft and loud recordings. The fix wasn't to move velocity *away* from the split — it was to stop letting *noise* decide and start letting *musical intent* decide. Under noise the threshold is a glitch; under a dynamics model it's a free pp→ff timbre control (accents cross into the bright forte samples, ghosts fall into the dark piano samples). When something on a threshold misbehaves, the question isn't always "how do I get off the threshold" — sometimes it's "what *should* be driving which side of it." The threshold was fine; the driver was wrong.
-
-**Map the load-bearing invariants before the ambitions.** "Make replays more musical" instinctively points at *feel* first — laid-back swing, timing. But timing is the one expressive dimension coupled to the scorer (the swing grid is shared, so a perfect take scores perfectly). Everything else — dynamics, articulation, timbre — is unscored and free. Finding that coupling *before* designing let the plan aim at the whole expressive surface *except* the part that fights the rest of the system. Ambition should be shaped by the invariants, not the reverse.
-
----
-
-## 2026-06-28 — "Explicit ask, implied mechanism" is the shape of my branch-discipline misses — and a reduced-motion CSS trap
-
-Two carry-forwards from the level-signal (#142) + licks (#143) session.
-
-(1) **The branch mistake has a recognizable rationalization shape, and naming it is the fix.** The user has told me repeatedly never to create branches unsolicited; I did it again on "create a pr," justified as "a PR *requires* a branch, so asking would be over-confirmation." That's the trap: an explicit request (make a PR) silently authorizes an *implied mechanism* (a new branch) that was never asked for. The request grants the goal, not the means. The durable project fact that dissolves the temptation entirely: **this repo ships PRs dev→main** (#139–#141 are all "from avitus/dev"), so committing on the current `dev` and opening dev→main needs no branch at all — the thing I reached for was never necessary. General form: when an instruction seems to *require* an action I've been told not to take, that contradiction is the signal to stop and ask, not to resolve it in my own favor.
-
-(2) **`animation: none; opacity: 1` is a silent way to drop a fade under `prefers-reduced-motion`.** My reduced-motion branch disabled the animation and pinned opacity to 1 with a `transition: opacity` that never fires (opacity never changes while the node is mounted; Svelte just unmounts it), so the caption popped in/out instead of fading. CodeRabbit was right. The correct pattern is a *separate opacity-only keyframe* — an opacity fade is not vestibular motion and is fine to keep under reduced-motion; what you strip is the `transform`, not the fade. Worth remembering for the PWA's other reduced-motion sites: reduced-motion means "no movement," not "no transition" — keep opacity, drop translate/scale.
-
-## 2026-06-25 — The 4th re-articulation bug needed an axis that wasn't in the data yet — and it exposed the resolution limit of the captured signal
-
-The prediction held a fourth time, but with a twist that matters. The prior three fixes each found a *new way to read the existing readings* (energy direction; true-silence vs warmup-bridge). This one (blues-curl-down, concert Bb, Db-Db-Bb, a soft legato tongue on the 2nd Db) had **no separating axis anywhere in `PitchReading`** — not in gap, rms, clarity, or warmup. The airflow never stopped, so there was no gap and rms *rose*; the clarity dip was 0.042 (under the 0.07 floor); the worklet's amplitude-weighted "HFC" never twitched. The only thing that unambiguously marks the re-attack is a **broadband high-frequency burst** (FFT centroid jumping to ~9 kHz), and nothing in the pipeline was capturing high-frequency content. So for the first time the fix had to **add a new captured signal** (`hfRms` = RMS of the first-difference high-pass) in `detectFrame`, not just interpret old ones. That `detectFrame` is shared by live + replay is what made it testable from the same WAV — the architecture's "one math, two paths" decision paid off again.
-
-The deeper finding is about **the limit of the signal** — and I initially over-read it. Profiling all 12 fixtures through the real replay path, two of the oldest (`a4-c5`, `a3-c4`, curated as 2 notes) showed a mid-note HF burst — a similar ~9 kHz centroid spike — that my FFT analysis made look like a *physically identical* tongue transient. I wrote that their `[57,60]` ground truth was "arguably debatable." **Then the user listened to all three on a temporary `/listen` page, and the verdict was unambiguous: a4-c5 and a3-c4 have NO audible transient at all; curl-down's re-tongue is subtle but clearly audible.** So `[57,60]` is *correct*, not debatable, and the gate makes the right call on every case. Lesson on me: a centroid/HF-*ratio* spike with no change in *total* energy is not necessarily an audible event — I let the spectrogram overrule what an ear settles in five seconds. I should have built the listen page *before* writing the "debatable ground truth" line, not after. **Correction logged 2026-06-25.**
-
-What actually separates the cases is physically meaningful and — now confirmed — **perceptually aligned**: a real re-tongue perturbs the **fundamental** (midiFloat dips ~0.12–0.16 st as the reed resets) because the reed genuinely re-attacks; the inaudible a4-c5/a3-c4 blips leave the fundamental steady (≤0.07 st) because the tone never restarts. The 0.1 st gate isn't a magic number wedged into a ~0.03-wide gap — it tracks *did the reed re-attack*, which is exactly what makes a re-articulation audible. The margin is still numerically tight and a future fixture could stress it, but the discriminator has a real perceptual referent, which is more than I credited it in the first draft of this note.
-
-Three carry-forwards. (1) "New axis not new threshold" has a corollary now: *sometimes the axis isn't latent in your data and you have to instrument for it.* Before tuning, ask not just "which existing field separates these?" but "is the separating physics even being measured?" Here it wasn't. (2) **When the question is "would a human hear this?", ask a human — early.** I had a WAV, a player on the other end, and a 20-line listen page between me and certainty, yet I spent a long detour reasoning about spectrograms and wrote a wrong conclusion into these notes first. The cheapest ground truth for a perceptual question is perception. (3) The "wall" I worried about is further off than I thought: the pitch-perturbation cue turned out to be *perceptually aligned* (it fired iff the tone audibly re-attacked), not a fixture-tuned coincidence. Still, it's a magnitude cut on a noisy estimate — if a *fifth* of these arrives and the cue fails to separate an audible re-tongue from an inaudible blip, that's the signal to reconsider the representation (a proper spectral-flux onset in the worklet) rather than add a sixth tier. The honest version of "what's the change underneath this surface?" is sometimes: go listen.
-
-## 2026-06-23 — The template held: the next re-articulation bug needed a new *axis*, not a lowered threshold — and the axis was hiding in the warmup flag
-
-Three days after predicting it (the note below), the exact same dead-zone bug arrived: "Blues Curl Up" concert D (bc-041_D, snapped to D-F-F), two tongued Fs merged into one, score 0.627 "fair", third note MISSED. Same shape as flat-five — short reading gap (117 ms, under the 150 ms bare-gap floor), RMS *rising* across it (so the dip-and-rise scan bails), worklet missed the soft tongue. But the step-up tier's 1.5× floor rejected it because the **measured** rise was only ~1.26×. The reason is worth keeping: the 60 fps readings *bracket* the attack — clarity collapses during the broadband tongue click, so Pitchy emits nothing for the whole transient; the readings resume on the new note's **decay shoulder**, past a peak (~0.38 in the raw WAV, a true ~1.8× jump) that was never sampled. So the captured step-up structurally understates a real re-attack whenever the gap swallows the peak. The WAV ground-truth pass (autocorr + RMS envelope) was again decisive — it showed three clean attacks and the 0.38 peak inside the hole *before* I read any code.
-
-The trap was real and I nearly walked into it. The obvious fix — lower 1.5× to catch 1.26× — is exactly the fixture-tuning my own prior note warned against, and the fixtures proved why: the **upper-neighbor-on-root** C-D-C recording has a same-MIDI "gap" in its sustained final C that rises **1.27× / peak 1.51×** — *higher* than the genuine re-attack (1.26× / 1.39×) — and must NOT split (it's one held note). No ratio threshold can separate 1.26 (split) from 1.27 (don't). I built a fixture-wide decision table from the actual replay path and it was unambiguous: ratio is not a separating axis here.
-
-The separating axis turned out to be the **`warmup` flag**, which I'd have overlooked without the per-frame dump. A genuine soft-tongue silence emits *no frames of any kind* across the hole — the worklet missed the attack, so the octave stabilizer never reset, so there are no warmup frames. The upper-neighbor "gap" is the opposite: the worklet *did* fire (1.355 s), reset the stabilizer, and the post-reset frames are flagged `warmup`. `findSameMidiRuns` skips warmup → it **manufactures a phantom gap** between two stable readings that were actually contiguous. So the new axis is: *is this a true detector silence, or a warmup-bridged stabilizer-reset artifact?* Gating the short-gap tier on "no readings (warmup included) bridge the hole" rejects the 1.27× landmine by structure, not magnitude — which then makes lowering the floor to 1.2× safe (the remaining true-gap non-re-attacks — a McLeod subharmonic flicker during a bend — sit at ≤1.12×). The fix is one new gate + one constant, ~15 lines.
-
-Two carry-forwards. (1) The 2026-06-21 prediction was correct *and* its method generalized: when a threshold can't separate two fixtures, stop tuning the threshold and go find the axis on which they actually differ — here it was a field (`warmup`) the re-articulation code wasn't even looking at. The right discriminators in this subsystem keep turning out to be *categorical* (energy direction; reset-vs-silence), not finer magnitude cuts. (2) Building the cross-fixture decision table from the **real replay path** (not the saved JSON readings, which differ slightly) before touching the threshold is what surfaced the upper-neighbor landmine. Had I tuned to the new fixture in isolation I'd have shipped a regression that no *existing* test would have caught — the upper-neighbor test happens to call `segmentNotes` on the pre-`findReArticulations` path, so it'd stay green while production silently split the held C into two. The fixtures protect you only if you actively interrogate all of them against the proposed boundary.
-
-## 2026-06-21 — The re-articulation detector is a pile of accreting thresholds; bugs live in the gaps between them
-
-Fixed another "two notes merged into one" scoring complaint (flat-five-chromatic-up, concert G). Same family as the Blues Curl fixes (May 20/22): a soft tongued repeat of the same pitch that the HFC worklet can't catch (energy ~doubles, but HFC ratio only ~1.4× vs the 3.0× trigger), so it's delegated to `findReArticulations` in the segmenter. What struck me is the **shape of the accumulated logic**. There are now *three* ways to recover a missed re-articulation — worklet onset, dip-and-rise scan (clarity dip + RMS dip-and-recovery), bare-gap pass (≥150 ms reading gap) — and each was added by a specific past diagnostic. This recording threaded the needle *between* them: a 100 ms gap (under the 150 ms bare-gap floor) where the RMS *rose* monotonically into the re-attack instead of dipping (so the dip-and-rise scan bailed with "no dip"). Neither pass fired; `mergeSamePitchWithoutAttack` collapsed it.
-
-The pattern worth remembering: **every fix here is a threshold tuned to the fixtures that existed at the time, and the dead zones between thresholds are exactly where the next diagnostic lands.** fde3c36's author even *documented* the 150 ms floor as "deliberately above ~100 ms mid-sustain glitches" — and the next real bug was a 100 ms re-articulation. The floor was right; the discriminator was missing. The fix wasn't to lower the floor (that re-admits the glitches it was protecting against) but to add the *missing axis of evidence*: a short gap counts as a re-attack iff the RMS clearly **steps up** across it (≥1.5×). A sustain dropout fades or holds (ratio ≲1.0); only a tongue re-attack jumps louder. So the discriminator is energy-*direction*, which none of the prior passes checked — they all looked at magnitude (dip depth, gap width) but not the sign of the change across the hole. I suspect several future fixes here will follow the same template: not a new threshold, but a new *axis* that separates a real event from the glitch class a prior threshold was holding back.
-
-Meta-point on the debugging method: the WAV ground-truth analysis (autocorrelation + RMS envelope straight off the raw audio, independent of the app's captured readings) was decisive — it told me *what was actually played* (C-C-D, three notes, energy doubling at 0.42 s) before I read a line of segmenter code. Establishing the empirical truth first turned the code investigation into "find why the pipeline disagrees with the audio" rather than "guess at the pipeline." Worth doing every time a diagnostic WAV exists.
-
-## 2026-06-21 — Chromatic-named licks silently lose their defining note in diatonic tonalities (not a bug I was asked about, but a semantic-drift smell)
-
-While confirming the expected phrase for the above, found the scorer's target was C-C-D, not the C-Db-D you'd expect from "Flat Five Chromatic Up" (bc-045 = F-F#-G). Reason: the day's tonality was G *major* (or pentatonic), and `snapLickToScale` snaps the out-of-scale b5 (Db) down to the root C — so a lick *named for its flat five* renders with no flat five, as a repeated-note exercise. In `blues.minor` it renders correctly (Db is in scale). This isn't wrong code — snapping out-of-scale notes is the intended behavior — but it's a **semantic drift**: a curated lick's identity (the chromatic passing tone that gives it its name and pedagogical point) can be quietly dissolved by the tonality layer, and nothing flags that the rendered phrase no longer matches its name. The C-C-D result also manufactures a same-pitch repeat, which is precisely the hardest case for the segmenter — so the snap behavior actively *feeds* the re-articulation failure mode above. Worth raising with the user as a design question: should chromatic/blues-specific licks be gated to tonalities whose scale contains their characteristic tones, rather than snapped into diatonic keys that erase them?
-
-**Resolved 2026-06-21 (settled, don't re-raise):** raised it; the user accepts this as a known, tolerable side-effect of squeezing curated licks into arbitrary tonalities. Gating chromatic/blues licks to compatible scales would cost more practice variety than the occasional erased passing-tone is worth. So the snap stays — but keep this paragraph as the standing explanation for *why* a "named" lick can show up shorn of its namesake interval, and remember that the snap manufactures same-pitch repeats that stress the segmenter (the re-articulation work above is the real mitigation, not changing the snap).
-
----
-
-## 2026-06-21 — The owner-stamp machinery is symptom-fixing for an infra misconfig (dev and prod share one Supabase project)
-
-Investigated recurring "contamination between dev and production" — dev-user licks leaking into the prod account, hard-to-delete duplicates. Traced it to one fact: there is a **single `.env`**, so `npm run dev` (localhost:5173) and the deployed site read the same `PUBLIC_SUPABASE_URL` → **one Supabase project, one database, one `auth.users` pool**. "Dev user" and "prod user" with the same email are literally the *same* `user.id`. The cloud merge isn't a bug; it's the correct consequence of pointing two front-ends at one backend. Duplicates persist because IDs are `user-${Date.now()}-${rand}` and all dedup is ID-keyed — identical content entered in each environment gets distinct IDs that never collapse, and each origin's localStorage re-pushes its copy on startup (whack-a-mole, no tombstones).
-
-What strikes me is how *exactly* this rhymes with the 2026-06-18 note. There's an elaborate, well-commented client-side isolation apparatus — `user-scope.ts`'s wipe-on-user-change + generation counter, the `OWNERS_KEY` owner-stamp defense, the `.eq('user_id', self)` filters guarding against the open community SELECT policy. All of it is real, careful engineering. And all of it is compensating for an environment that *shouldn't be shared in the first place*. The owner stamp is structurally blind to the dev/prod channel because both environments legitimately stamp the **same** user.id — the one case it can't catch is the one actually happening. Same signature as the chunk-eviction bug: intricate recovery logic one layer up, root cause one layer down in infra. The fix is config, not code (separate dev Supabase project via `.env.local`), and the code defenses are then doing the narrower job they were actually designed for (account-switch on a shared *browser*, not a shared *database*).
-
-Second carry-forward, on method: my first-pass analysis correctly nailed both cases' mechanisms but **overstated Case 2's second half** — I claimed pulled prod cloud licks "remain visible to a not-logged-in dev user," which an adversarial verifier refuted: `@supabase/ssr` cookies are origin-scoped, so on a shared origin you can't be logged-in-as-prod and logged-out-as-dev simultaneously — it's one session over time, and `syncUserScope(null)` wipes on the transition to anonymous. The verifier's sharper move was the *diagnostic inversion*: since a genuine Case 2 (different origins, truly anonymous dev) produces **no** contamination, anyone observing it is almost certainly looking at a persisted dev session — i.e. Case 1 wearing a Case 2 costume. I'd have shipped the overstatement without the refute pass. The completeness critic then found the part I'd scoped out entirely: the shared account doesn't just *duplicate* licks, it *destroys* data — `session_results` prune actively deletes the other environment's history, `user_lick_metadata` clobbers `prog:*` eligibility and unlock counts last-write-wins. The duplicate licks the user complained about are the visible tip; the silent data loss is the bigger risk. Lesson: when a user reports the *annoying* symptom, check whether the same channel also has a *destructive* one they haven't noticed yet.
-
----
-
-## 2026-06-18 — A client-side error handler can be a tell that the bug lives upstream
-
-Triaged the three open Sentry issues. Two were already dead at HEAD (the `effect_update_depth_exceeded` from the note below, fixed by `untrack`; and a `HelpTip is not defined` HMR ghost — the component was renamed to `TooltipHint`, so it can't recur). The live one was MANKUNKU-8: `error loading dynamically imported module` on `/add-licks` in production.
-
-There was already an elaborate defense in `hooks.client.ts` — regex-match the error message, force one reload per session via a `sessionStorage` flag, and a `beforeSend` that drops the first occurrence and only reports the "reload didn't help" repeat. It works, but the user pushed back twice ("feels like a hack," "is polling idiomatic?") and was right both times. Each pushback peeled back a layer: my first instinct was to patch the reload guard (a timer hack), my second was SvelteKit `version.pollInterval` (framework-blessed, but still a client-side *guess* about server state). Only when forced past those did I trace to the actual root cause — and it wasn't in the client at all. **The atomic-symlink deploy (`release.sh`) flips `current` to the new release, so the server serves only the newest release's content-hashed chunks; the previous release's chunks still sit on disk but are no longer reachable by URL.** That defeats the entire purpose of content hashing, which exists precisely so old and new can coexist. The fix is six lines server-side: accumulate every release's `_app/immutable` into a shared, growing pool and serve from it. The whole client-side apparatus was compensating for a deployment that threw away assets it should have kept.
-
-The carry-forward: an unusually intricate client-side *recovery* mechanism is a smell worth following upstream. If you're writing string-matching + reload + dedup logic to survive a class of error, ask whether the error should be *occurring* at all — often the elaborateness is the symptom-fix metastasizing because the real cause is one layer down (here, two layers: framework, then infra). Also worth naming: the user's "this feels like a hack" was a better debugging instrument than my knowledge of SvelteKit's feature set. I knew more options; they had better taste about which were root-cause fixes. Both pushbacks moved the solution strictly closer to the source.
-
----
-
-## 2026-06-17 — A green unit suite can hide a reactive-wiring bug, and I reasoned my way into one
-
-Fixed the ear-training retry inconsistency (PR #127). Two real bugs underneath it: the advance/retry decision ran on the *provisional* live score while the user sees the *authoritative* replay rescore, and the phrase-binding `$effect` could let an adaptive-difficulty reshuffle swap a lick out mid-retry. Both were the same shape of root cause as the April chord-alignment bug: **the control flow keyed off the wrong copy of a value that exists in two forms** (live vs. replay score; cached vs. reshuffled lick list). Worth noting how often this codebase's bugs are "two representations of the same thing, and the logic read the wrong one." That's becoming a signature.
-
-The sharper lesson is about my own process. I extracted the decision and the phrase-binding into pure helpers, wrote 10 unit tests, watched them go green, and shipped — and CI went red with `effect_update_depth_exceeded`. The helper was correct; the *wiring* wasn't. I passed `current: session.phrase` into an effect that also writes `session.phrase`, which is an infinite update loop in the production build. I had even reasoned, in the moment, that "Svelte dedupes same-value writes so it converges" — a confident, wrong rationalization that the unit tests couldn't contradict because they never touched the reactive graph.
-
-Two things to carry forward: (1) Extracting logic into a tested pure function buys you correctness of the *logic*, not of the *integration*. The seam between the pure function and the framework's reactivity is exactly where the test coverage evaporates, and it's precisely where I relaxed. The existing E2E smoke suite ("page renders without console errors") was the real safety net, not my unit tests. (2) When I find myself *arguing* that a framework will save me from a footgun (self-referential effect, same-value dedupe), that argument is a smell, not a proof. The honest move is to run the production build / E2E before claiming done, not to reason about the scheduler's internals. I verified the pure logic locally but pushed the reactive change on reasoning alone. The fix (`untrack`) was trivial once CI told the truth; the cost was a red pipeline that a one-command local E2E run would have caught.
-
----
-
-## 2026-04-16 — The recurring chord alignment bug is a canonical/boundary violation
-
-The lick-practice chord alignment bug has been "fixed" 4+ times in April alone (commits `38f329f`, `236d9b5`, `da7cc34`, `fb780ac`, `6807d72`). Each fix addressed a real async race condition — generation guards, stale callbacks, bar boundary divergence. And yet the bug persists.
-
-The actual root cause is a violation of the canonical/boundary principle I identified in the first session: **the visual tracking system converts ticks to seconds using a constant-BPM formula, but the Transport accumulates time across variable BPM regimes.** The conversion `(tick / ppq) * (60 / tempo)` is a "leak" — it pushes a boundary conversion (tick→seconds) into the middle of a system that should stay in ticks until the final display.
-
-What's striking is that the audio scheduling is already correct. It's tick-based end to end. The melody Part fires at the right ticks. The backing Parts fire at the right ticks. The recording windows open and close at the right ticks. Only the visual tracking — `currentBeat` and `scrollFraction` — tries to work in seconds, and that's where it breaks.
-
-The prior fixes were all downstream of this: they addressed real issues in the async pipeline that *could* cause misalignment, and those fixes were correct. But the symptom the user observes is the visual display showing the wrong chord, not the audio being out of sync. The visual tracking was never fixed because everyone (including previous Claude instances) assumed the visual tracked the audio's clock. It does — but through a broken conversion.
-
-**Lesson**: when the same bug recurs despite competent fixes, the problem is probably at a different layer than where you're looking. "The demo is not aligned with the chords" sounds like an audio scheduling bug. It's not. It's a display bug hiding behind a conceptually-similar symptom.
-
-Also: there's a quiet asymmetry in how the melody and backing Parts are started — melody uses `Part.start(tick)` with relative events, backing uses `Part.start(0)` with absolute events. Both are mathematically equivalent for non-looping Parts, but the asymmetry is a code smell. Worth cleaning up to eliminate a class of potential Tone.js edge cases.
+Running notes from working on Mankunku. Chronological — newest entries at the bottom (append new sessions at the end). Not deleted unless proven wrong — patterns only become visible over time, so keep the trail.
 
 ---
 
@@ -948,6 +83,226 @@ The Tunes/Licks restructure looked like a mechanical rename and was ~80% one. Al
 
 Also worth keeping: the verbs stayed asymmetric (Steal licks, Adopt tunes) while the structure went fully symmetric. Good IA symmetry is about parallel *shape*, not identical words — the user's phrase "symmetry is structural, not lexical" is a design principle worth reusing.
 
+## 2026-04-16 — The recurring chord alignment bug is a canonical/boundary violation
+
+The lick-practice chord alignment bug has been "fixed" 4+ times in April alone (commits `38f329f`, `236d9b5`, `da7cc34`, `fb780ac`, `6807d72`). Each fix addressed a real async race condition — generation guards, stale callbacks, bar boundary divergence. And yet the bug persists.
+
+The actual root cause is a violation of the canonical/boundary principle I identified in the first session: **the visual tracking system converts ticks to seconds using a constant-BPM formula, but the Transport accumulates time across variable BPM regimes.** The conversion `(tick / ppq) * (60 / tempo)` is a "leak" — it pushes a boundary conversion (tick→seconds) into the middle of a system that should stay in ticks until the final display.
+
+What's striking is that the audio scheduling is already correct. It's tick-based end to end. The melody Part fires at the right ticks. The backing Parts fire at the right ticks. The recording windows open and close at the right ticks. Only the visual tracking — `currentBeat` and `scrollFraction` — tries to work in seconds, and that's where it breaks.
+
+The prior fixes were all downstream of this: they addressed real issues in the async pipeline that *could* cause misalignment, and those fixes were correct. But the symptom the user observes is the visual display showing the wrong chord, not the audio being out of sync. The visual tracking was never fixed because everyone (including previous Claude instances) assumed the visual tracked the audio's clock. It does — but through a broken conversion.
+
+**Lesson**: when the same bug recurs despite competent fixes, the problem is probably at a different layer than where you're looking. "The demo is not aligned with the chords" sounds like an audio scheduling bug. It's not. It's a display bug hiding behind a conceptually-similar symptom.
+
+Also: there's a quiet asymmetry in how the melody and backing Parts are started — melody uses `Part.start(tick)` with relative events, backing uses `Part.start(0)` with absolute events. Both are mathematically equivalent for non-looping Parts, but the asymmetry is a code smell. Worth cleaning up to eliminate a class of potential Tone.js edge cases.
+
+---
+
+## 2026-06-17 — A green unit suite can hide a reactive-wiring bug, and I reasoned my way into one
+
+Fixed the ear-training retry inconsistency (PR #127). Two real bugs underneath it: the advance/retry decision ran on the *provisional* live score while the user sees the *authoritative* replay rescore, and the phrase-binding `$effect` could let an adaptive-difficulty reshuffle swap a lick out mid-retry. Both were the same shape of root cause as the April chord-alignment bug: **the control flow keyed off the wrong copy of a value that exists in two forms** (live vs. replay score; cached vs. reshuffled lick list). Worth noting how often this codebase's bugs are "two representations of the same thing, and the logic read the wrong one." That's becoming a signature.
+
+The sharper lesson is about my own process. I extracted the decision and the phrase-binding into pure helpers, wrote 10 unit tests, watched them go green, and shipped — and CI went red with `effect_update_depth_exceeded`. The helper was correct; the *wiring* wasn't. I passed `current: session.phrase` into an effect that also writes `session.phrase`, which is an infinite update loop in the production build. I had even reasoned, in the moment, that "Svelte dedupes same-value writes so it converges" — a confident, wrong rationalization that the unit tests couldn't contradict because they never touched the reactive graph.
+
+Two things to carry forward: (1) Extracting logic into a tested pure function buys you correctness of the *logic*, not of the *integration*. The seam between the pure function and the framework's reactivity is exactly where the test coverage evaporates, and it's precisely where I relaxed. The existing E2E smoke suite ("page renders without console errors") was the real safety net, not my unit tests. (2) When I find myself *arguing* that a framework will save me from a footgun (self-referential effect, same-value dedupe), that argument is a smell, not a proof. The honest move is to run the production build / E2E before claiming done, not to reason about the scheduler's internals. I verified the pure logic locally but pushed the reactive change on reasoning alone. The fix (`untrack`) was trivial once CI told the truth; the cost was a red pipeline that a one-command local E2E run would have caught.
+
+---
+
+## 2026-06-18 — A client-side error handler can be a tell that the bug lives upstream
+
+Triaged the three open Sentry issues. Two were already dead at HEAD (the `effect_update_depth_exceeded` from the note below, fixed by `untrack`; and a `HelpTip is not defined` HMR ghost — the component was renamed to `TooltipHint`, so it can't recur). The live one was MANKUNKU-8: `error loading dynamically imported module` on `/add-licks` in production.
+
+There was already an elaborate defense in `hooks.client.ts` — regex-match the error message, force one reload per session via a `sessionStorage` flag, and a `beforeSend` that drops the first occurrence and only reports the "reload didn't help" repeat. It works, but the user pushed back twice ("feels like a hack," "is polling idiomatic?") and was right both times. Each pushback peeled back a layer: my first instinct was to patch the reload guard (a timer hack), my second was SvelteKit `version.pollInterval` (framework-blessed, but still a client-side *guess* about server state). Only when forced past those did I trace to the actual root cause — and it wasn't in the client at all. **The atomic-symlink deploy (`release.sh`) flips `current` to the new release, so the server serves only the newest release's content-hashed chunks; the previous release's chunks still sit on disk but are no longer reachable by URL.** That defeats the entire purpose of content hashing, which exists precisely so old and new can coexist. The fix is six lines server-side: accumulate every release's `_app/immutable` into a shared, growing pool and serve from it. The whole client-side apparatus was compensating for a deployment that threw away assets it should have kept.
+
+The carry-forward: an unusually intricate client-side *recovery* mechanism is a smell worth following upstream. If you're writing string-matching + reload + dedup logic to survive a class of error, ask whether the error should be *occurring* at all — often the elaborateness is the symptom-fix metastasizing because the real cause is one layer down (here, two layers: framework, then infra). Also worth naming: the user's "this feels like a hack" was a better debugging instrument than my knowledge of SvelteKit's feature set. I knew more options; they had better taste about which were root-cause fixes. Both pushbacks moved the solution strictly closer to the source.
+
+---
+
+## 2026-06-21 — The owner-stamp machinery is symptom-fixing for an infra misconfig (dev and prod share one Supabase project)
+
+Investigated recurring "contamination between dev and production" — dev-user licks leaking into the prod account, hard-to-delete duplicates. Traced it to one fact: there is a **single `.env`**, so `npm run dev` (localhost:5173) and the deployed site read the same `PUBLIC_SUPABASE_URL` → **one Supabase project, one database, one `auth.users` pool**. "Dev user" and "prod user" with the same email are literally the *same* `user.id`. The cloud merge isn't a bug; it's the correct consequence of pointing two front-ends at one backend. Duplicates persist because IDs are `user-${Date.now()}-${rand}` and all dedup is ID-keyed — identical content entered in each environment gets distinct IDs that never collapse, and each origin's localStorage re-pushes its copy on startup (whack-a-mole, no tombstones).
+
+What strikes me is how *exactly* this rhymes with the 2026-06-18 note. There's an elaborate, well-commented client-side isolation apparatus — `user-scope.ts`'s wipe-on-user-change + generation counter, the `OWNERS_KEY` owner-stamp defense, the `.eq('user_id', self)` filters guarding against the open community SELECT policy. All of it is real, careful engineering. And all of it is compensating for an environment that *shouldn't be shared in the first place*. The owner stamp is structurally blind to the dev/prod channel because both environments legitimately stamp the **same** user.id — the one case it can't catch is the one actually happening. Same signature as the chunk-eviction bug: intricate recovery logic one layer up, root cause one layer down in infra. The fix is config, not code (separate dev Supabase project via `.env.local`), and the code defenses are then doing the narrower job they were actually designed for (account-switch on a shared *browser*, not a shared *database*).
+
+Second carry-forward, on method: my first-pass analysis correctly nailed both cases' mechanisms but **overstated Case 2's second half** — I claimed pulled prod cloud licks "remain visible to a not-logged-in dev user," which an adversarial verifier refuted: `@supabase/ssr` cookies are origin-scoped, so on a shared origin you can't be logged-in-as-prod and logged-out-as-dev simultaneously — it's one session over time, and `syncUserScope(null)` wipes on the transition to anonymous. The verifier's sharper move was the *diagnostic inversion*: since a genuine Case 2 (different origins, truly anonymous dev) produces **no** contamination, anyone observing it is almost certainly looking at a persisted dev session — i.e. Case 1 wearing a Case 2 costume. I'd have shipped the overstatement without the refute pass. The completeness critic then found the part I'd scoped out entirely: the shared account doesn't just *duplicate* licks, it *destroys* data — `session_results` prune actively deletes the other environment's history, `user_lick_metadata` clobbers `prog:*` eligibility and unlock counts last-write-wins. The duplicate licks the user complained about are the visible tip; the silent data loss is the bigger risk. Lesson: when a user reports the *annoying* symptom, check whether the same channel also has a *destructive* one they haven't noticed yet.
+
+---
+
+## 2026-06-21 — Chromatic-named licks silently lose their defining note in diatonic tonalities (not a bug I was asked about, but a semantic-drift smell)
+
+While confirming the expected phrase for the above, found the scorer's target was C-C-D, not the C-Db-D you'd expect from "Flat Five Chromatic Up" (bc-045 = F-F#-G). Reason: the day's tonality was G *major* (or pentatonic), and `snapLickToScale` snaps the out-of-scale b5 (Db) down to the root C — so a lick *named for its flat five* renders with no flat five, as a repeated-note exercise. In `blues.minor` it renders correctly (Db is in scale). This isn't wrong code — snapping out-of-scale notes is the intended behavior — but it's a **semantic drift**: a curated lick's identity (the chromatic passing tone that gives it its name and pedagogical point) can be quietly dissolved by the tonality layer, and nothing flags that the rendered phrase no longer matches its name. The C-C-D result also manufactures a same-pitch repeat, which is precisely the hardest case for the segmenter — so the snap behavior actively *feeds* the re-articulation failure mode above. Worth raising with the user as a design question: should chromatic/blues-specific licks be gated to tonalities whose scale contains their characteristic tones, rather than snapped into diatonic keys that erase them?
+
+**Resolved 2026-06-21 (settled, don't re-raise):** raised it; the user accepts this as a known, tolerable side-effect of squeezing curated licks into arbitrary tonalities. Gating chromatic/blues licks to compatible scales would cost more practice variety than the occasional erased passing-tone is worth. So the snap stays — but keep this paragraph as the standing explanation for *why* a "named" lick can show up shorn of its namesake interval, and remember that the snap manufactures same-pitch repeats that stress the segmenter (the re-articulation work above is the real mitigation, not changing the snap).
+
+---
+
+## 2026-06-21 — The re-articulation detector is a pile of accreting thresholds; bugs live in the gaps between them
+
+Fixed another "two notes merged into one" scoring complaint (flat-five-chromatic-up, concert G). Same family as the Blues Curl fixes (May 20/22): a soft tongued repeat of the same pitch that the HFC worklet can't catch (energy ~doubles, but HFC ratio only ~1.4× vs the 3.0× trigger), so it's delegated to `findReArticulations` in the segmenter. What struck me is the **shape of the accumulated logic**. There are now *three* ways to recover a missed re-articulation — worklet onset, dip-and-rise scan (clarity dip + RMS dip-and-recovery), bare-gap pass (≥150 ms reading gap) — and each was added by a specific past diagnostic. This recording threaded the needle *between* them: a 100 ms gap (under the 150 ms bare-gap floor) where the RMS *rose* monotonically into the re-attack instead of dipping (so the dip-and-rise scan bailed with "no dip"). Neither pass fired; `mergeSamePitchWithoutAttack` collapsed it.
+
+The pattern worth remembering: **every fix here is a threshold tuned to the fixtures that existed at the time, and the dead zones between thresholds are exactly where the next diagnostic lands.** fde3c36's author even *documented* the 150 ms floor as "deliberately above ~100 ms mid-sustain glitches" — and the next real bug was a 100 ms re-articulation. The floor was right; the discriminator was missing. The fix wasn't to lower the floor (that re-admits the glitches it was protecting against) but to add the *missing axis of evidence*: a short gap counts as a re-attack iff the RMS clearly **steps up** across it (≥1.5×). A sustain dropout fades or holds (ratio ≲1.0); only a tongue re-attack jumps louder. So the discriminator is energy-*direction*, which none of the prior passes checked — they all looked at magnitude (dip depth, gap width) but not the sign of the change across the hole. I suspect several future fixes here will follow the same template: not a new threshold, but a new *axis* that separates a real event from the glitch class a prior threshold was holding back.
+
+Meta-point on the debugging method: the WAV ground-truth analysis (autocorrelation + RMS envelope straight off the raw audio, independent of the app's captured readings) was decisive — it told me *what was actually played* (C-C-D, three notes, energy doubling at 0.42 s) before I read a line of segmenter code. Establishing the empirical truth first turned the code investigation into "find why the pipeline disagrees with the audio" rather than "guess at the pipeline." Worth doing every time a diagnostic WAV exists.
+
+## 2026-06-23 — The template held: the next re-articulation bug needed a new *axis*, not a lowered threshold — and the axis was hiding in the warmup flag
+
+Three days after predicting it (the note below), the exact same dead-zone bug arrived: "Blues Curl Up" concert D (bc-041_D, snapped to D-F-F), two tongued Fs merged into one, score 0.627 "fair", third note MISSED. Same shape as flat-five — short reading gap (117 ms, under the 150 ms bare-gap floor), RMS *rising* across it (so the dip-and-rise scan bails), worklet missed the soft tongue. But the step-up tier's 1.5× floor rejected it because the **measured** rise was only ~1.26×. The reason is worth keeping: the 60 fps readings *bracket* the attack — clarity collapses during the broadband tongue click, so Pitchy emits nothing for the whole transient; the readings resume on the new note's **decay shoulder**, past a peak (~0.38 in the raw WAV, a true ~1.8× jump) that was never sampled. So the captured step-up structurally understates a real re-attack whenever the gap swallows the peak. The WAV ground-truth pass (autocorr + RMS envelope) was again decisive — it showed three clean attacks and the 0.38 peak inside the hole *before* I read any code.
+
+The trap was real and I nearly walked into it. The obvious fix — lower 1.5× to catch 1.26× — is exactly the fixture-tuning my own prior note warned against, and the fixtures proved why: the **upper-neighbor-on-root** C-D-C recording has a same-MIDI "gap" in its sustained final C that rises **1.27× / peak 1.51×** — *higher* than the genuine re-attack (1.26× / 1.39×) — and must NOT split (it's one held note). No ratio threshold can separate 1.26 (split) from 1.27 (don't). I built a fixture-wide decision table from the actual replay path and it was unambiguous: ratio is not a separating axis here.
+
+The separating axis turned out to be the **`warmup` flag**, which I'd have overlooked without the per-frame dump. A genuine soft-tongue silence emits *no frames of any kind* across the hole — the worklet missed the attack, so the octave stabilizer never reset, so there are no warmup frames. The upper-neighbor "gap" is the opposite: the worklet *did* fire (1.355 s), reset the stabilizer, and the post-reset frames are flagged `warmup`. `findSameMidiRuns` skips warmup → it **manufactures a phantom gap** between two stable readings that were actually contiguous. So the new axis is: *is this a true detector silence, or a warmup-bridged stabilizer-reset artifact?* Gating the short-gap tier on "no readings (warmup included) bridge the hole" rejects the 1.27× landmine by structure, not magnitude — which then makes lowering the floor to 1.2× safe (the remaining true-gap non-re-attacks — a McLeod subharmonic flicker during a bend — sit at ≤1.12×). The fix is one new gate + one constant, ~15 lines.
+
+Two carry-forwards. (1) The 2026-06-21 prediction was correct *and* its method generalized: when a threshold can't separate two fixtures, stop tuning the threshold and go find the axis on which they actually differ — here it was a field (`warmup`) the re-articulation code wasn't even looking at. The right discriminators in this subsystem keep turning out to be *categorical* (energy direction; reset-vs-silence), not finer magnitude cuts. (2) Building the cross-fixture decision table from the **real replay path** (not the saved JSON readings, which differ slightly) before touching the threshold is what surfaced the upper-neighbor landmine. Had I tuned to the new fixture in isolation I'd have shipped a regression that no *existing* test would have caught — the upper-neighbor test happens to call `segmentNotes` on the pre-`findReArticulations` path, so it'd stay green while production silently split the held C into two. The fixtures protect you only if you actively interrogate all of them against the proposed boundary.
+
+## 2026-06-25 — The 4th re-articulation bug needed an axis that wasn't in the data yet — and it exposed the resolution limit of the captured signal
+
+The prediction held a fourth time, but with a twist that matters. The prior three fixes each found a *new way to read the existing readings* (energy direction; true-silence vs warmup-bridge). This one (blues-curl-down, concert Bb, Db-Db-Bb, a soft legato tongue on the 2nd Db) had **no separating axis anywhere in `PitchReading`** — not in gap, rms, clarity, or warmup. The airflow never stopped, so there was no gap and rms *rose*; the clarity dip was 0.042 (under the 0.07 floor); the worklet's amplitude-weighted "HFC" never twitched. The only thing that unambiguously marks the re-attack is a **broadband high-frequency burst** (FFT centroid jumping to ~9 kHz), and nothing in the pipeline was capturing high-frequency content. So for the first time the fix had to **add a new captured signal** (`hfRms` = RMS of the first-difference high-pass) in `detectFrame`, not just interpret old ones. That `detectFrame` is shared by live + replay is what made it testable from the same WAV — the architecture's "one math, two paths" decision paid off again.
+
+The deeper finding is about **the limit of the signal** — and I initially over-read it. Profiling all 12 fixtures through the real replay path, two of the oldest (`a4-c5`, `a3-c4`, curated as 2 notes) showed a mid-note HF burst — a similar ~9 kHz centroid spike — that my FFT analysis made look like a *physically identical* tongue transient. I wrote that their `[57,60]` ground truth was "arguably debatable." **Then the user listened to all three on a temporary `/listen` page, and the verdict was unambiguous: a4-c5 and a3-c4 have NO audible transient at all; curl-down's re-tongue is subtle but clearly audible.** So `[57,60]` is *correct*, not debatable, and the gate makes the right call on every case. Lesson on me: a centroid/HF-*ratio* spike with no change in *total* energy is not necessarily an audible event — I let the spectrogram overrule what an ear settles in five seconds. I should have built the listen page *before* writing the "debatable ground truth" line, not after. **Correction logged 2026-06-25.**
+
+What actually separates the cases is physically meaningful and — now confirmed — **perceptually aligned**: a real re-tongue perturbs the **fundamental** (midiFloat dips ~0.12–0.16 st as the reed resets) because the reed genuinely re-attacks; the inaudible a4-c5/a3-c4 blips leave the fundamental steady (≤0.07 st) because the tone never restarts. The 0.1 st gate isn't a magic number wedged into a ~0.03-wide gap — it tracks *did the reed re-attack*, which is exactly what makes a re-articulation audible. The margin is still numerically tight and a future fixture could stress it, but the discriminator has a real perceptual referent, which is more than I credited it in the first draft of this note.
+
+Three carry-forwards. (1) "New axis not new threshold" has a corollary now: *sometimes the axis isn't latent in your data and you have to instrument for it.* Before tuning, ask not just "which existing field separates these?" but "is the separating physics even being measured?" Here it wasn't. (2) **When the question is "would a human hear this?", ask a human — early.** I had a WAV, a player on the other end, and a 20-line listen page between me and certainty, yet I spent a long detour reasoning about spectrograms and wrote a wrong conclusion into these notes first. The cheapest ground truth for a perceptual question is perception. (3) The "wall" I worried about is further off than I thought: the pitch-perturbation cue turned out to be *perceptually aligned* (it fired iff the tone audibly re-attacked), not a fixture-tuned coincidence. Still, it's a magnitude cut on a noisy estimate — if a *fifth* of these arrives and the cue fails to separate an audible re-tongue from an inaudible blip, that's the signal to reconsider the representation (a proper spectral-flux onset in the worklet) rather than add a sixth tier. The honest version of "what's the change underneath this surface?" is sometimes: go listen.
+
+## 2026-06-28 — "Explicit ask, implied mechanism" is the shape of my branch-discipline misses — and a reduced-motion CSS trap
+
+Two carry-forwards from the level-signal (#142) + licks (#143) session.
+
+(1) **The branch mistake has a recognizable rationalization shape, and naming it is the fix.** The user has told me repeatedly never to create branches unsolicited; I did it again on "create a pr," justified as "a PR *requires* a branch, so asking would be over-confirmation." That's the trap: an explicit request (make a PR) silently authorizes an *implied mechanism* (a new branch) that was never asked for. The request grants the goal, not the means. The durable project fact that dissolves the temptation entirely: **this repo ships PRs dev→main** (#139–#141 are all "from avitus/dev"), so committing on the current `dev` and opening dev→main needs no branch at all — the thing I reached for was never necessary. General form: when an instruction seems to *require* an action I've been told not to take, that contradiction is the signal to stop and ask, not to resolve it in my own favor.
+
+(2) **`animation: none; opacity: 1` is a silent way to drop a fade under `prefers-reduced-motion`.** My reduced-motion branch disabled the animation and pinned opacity to 1 with a `transition: opacity` that never fires (opacity never changes while the node is mounted; Svelte just unmounts it), so the caption popped in/out instead of fading. CodeRabbit was right. The correct pattern is a *separate opacity-only keyframe* — an opacity fade is not vestibular motion and is fine to keep under reduced-motion; what you strip is the `transform`, not the fade. Worth remembering for the PWA's other reduced-motion sites: reduced-motion means "no movement," not "no transition" — keep opacity, drop translate/scale.
+
+## 2026-06-30 — A defect and a feature can be the same mechanism; map invariants before ambitions
+
+**Same boundary, opposite meaning.** The tenor-sax "two instruments" bug was note velocity landing exactly on the sample-layer split, so random jitter flipped each note between the soft and loud recordings. The fix wasn't to move velocity *away* from the split — it was to stop letting *noise* decide and start letting *musical intent* decide. Under noise the threshold is a glitch; under a dynamics model it's a free pp→ff timbre control (accents cross into the bright forte samples, ghosts fall into the dark piano samples). When something on a threshold misbehaves, the question isn't always "how do I get off the threshold" — sometimes it's "what *should* be driving which side of it." The threshold was fine; the driver was wrong.
+
+**Map the load-bearing invariants before the ambitions.** "Make replays more musical" instinctively points at *feel* first — laid-back swing, timing. But timing is the one expressive dimension coupled to the scorer (the swing grid is shared, so a perfect take scores perfectly). Everything else — dynamics, articulation, timbre — is unscored and free. Finding that coupling *before* designing let the plan aim at the whole expressive surface *except* the part that fights the rest of the system. Ambition should be shaped by the invariants, not the reverse.
+
+---
+
+## 2026-07-14 — "Absence of evidence read as evidence of absence" is this codebase's recurring data-loss shape
+
+The progression-tags incident fix turned out to be the same bug three times in different clothes: `safeGetSession` read *couldn't reach the auth server* as *signed out* (→ wipe); the hydrators read *fetch failed* as *account is empty* (→ reconciler prunes everything and pushes the emptied blobs cloudward); and the whole incident existed because a stale client read *no explicit prog tag* as *category matching still applies*. Every fix was the same move — split "verified negative" from "verification unavailable" and make the destructive action require the verified form. In a local-first + cloud-sync architecture, **any code that deletes or overwrites based on what it *didn't* find must first prove the absence is real.** That's now enforced in three places (degraded flag, hydration reports, maintenance gate), but the pattern predicts future bugs anywhere a `null` return conflates "no" with "unknown" — `getAuthUserId` still returns one null for both, and the whole-column LWW sync (follow-up) still trusts whatever blob is local.
+
+Second, smaller keep: **one-time migration markers can live inside the data they migrate.** The `__migrations` reserved key inside the cloud-synced tags blob is the only place a flag survives both the user-scope wipe and device switches without a schema change — but it only works because every consumer that enumerates blob keys as lick ids now knows to skip reserved keys. An unwritten invariant ("all keys are lick ids") had to become a written one (`isReservedTagKey`) before the trick was safe. When smuggling metadata into a keyed collection, enumerate the enumerators first.
+
+Third: the adversarial review workflow caught what single-pass review reliably misses — not the bugs in the new code, but the **old code paths the new invariant doesn't cover** (the ungated `hydrateLickPracticeProgress` writers, the 429 that auth-js refuses to classify as retryable, the missing `depends()` that would have made a transient verdict permanent). The lens that pays is "where else does this same class of write happen," not "is this diff correct."
+
+---
+
+## 2026-07-14 — Every octave fix so far has manufactured its mirror image; the way out was physics, not thresholds
+
+The Third–Fifth Rise bug completes a telling sequence. The 2026-06-30 subharmonic corrector was built on a measured empirical boundary — "real low notes keep ≥ 0.20 of their 2nd-harmonic energy at the fundamental" — and fourteen days later a real E3 walked through it at 0.02. The corrector then did to a *correct* detection exactly what the artifact used to do to a wrong one: rewrote the whole note an octave off, at the source, unrecoverably (the readings' `frequency` field stores the *corrected* value — a design choice that makes the corrector's mistakes indistinguishable from the detector's truths downstream; worth remembering that any in-place correction erases the evidence of its own failure).
+
+The fix that held wasn't a better threshold on the same bin — it was a discriminator aligned with the *mechanism*: period-doubling sidebands are physically weak (a perturbation on the true period), full-rank odd harmonics are not. Ratios built on empirical amplitude clusters ("notes usually look like X") keep getting falsified by the long tail of real playing — subtone, masked fundamentals, room filtering. Ratios built on what the mechanism *can't* produce (an artifact can't put full-rank energy at 1.5× the true fundamental) have a floor under them. When the next octave case appears — and the sequence says it will — the first question should be "what does each hypothesis make physically impossible," not "where do these two recordings separate."
+
+Also worth keeping: sweeping the entire fixture corpus at production settings *before* writing the fix is cheap (a 60-line script) and did three things a test-first loop alone wouldn't have: set the threshold with real margins, proved the only regression surface was bc-010, and found a week-old recording (`four-to-five`) that the bug had been silently corrupting with no test noticing — the corpus is a measurement instrument, not just a safety net.
+
+---
+
+## 2026-07-16 — The symptom's *grammar* tells you which bug family you're in; I spent the first half in the wrong one
+
+The drum-dropout hunt had two halves and a hinge. For the first half I chased a **coverage** failure — does the drum track run out before the phrase ends? — because the opening report was "entire beats are missing" and a background workflow (fired from another context, quietly mis-scoped to *ear training*) had already "confirmed" the harmony<melody trailing-drop on ballad-005/006. I proved, three ways, that lick practice can't hit that drop: the per-key `extendHarmonyTail` plus the contiguous multi-key harmony always covers the melody (600 curated combos, then all 13 of the user's real licks — zero drops). All correct, all beside the point. The hinge was one clause from the user: "dropping out on **every second beat**." That is not a coverage failure at all — it's a **rate/subdivision** failure, a different bug family entirely, and coverage math can't even express it. "Missing beats" and "every second beat" share vocabulary and share nothing else. The lesson I keep re-learning: pull the *precise* symptom first, before modelling; the grammar of the complaint ("runs out" vs "every other" vs "late" vs "wrong") selects the family of mechanisms, and modelling the wrong family produces airtight proofs about the wrong thing. A fuzzy report plus a confident-but-mis-scoped agent result is exactly the setup that sends you down a rigorous dead end.
+
+Second keep, and it's the same shape as the octave-fix trail two entries down: the strong endpoint of a "can't-find-it" investigation is an **impossibility proof, not a shrug**. I didn't stop at "I couldn't reproduce it." The drum `Tone.Sequence` fires one hit per `'4n'` unconditionally, every style hits a drum on every beat in 4/4, and every one of the user's licks is `[4,4]` — so every-second-beat is *impossible* from the scheduler, and the only path that could produce it (a denominator-8 meter) is closed upstream because step-entry hard-codes `[4,4]`. That converts "I don't know" into "here is the boundary of what the code can do," which is a far more useful thing to hand back — and it points precisely at where the truth must live instead: the live sample-trigger layer, or a correctly-functioning voice being mis-heard. Which is the third keep: the most likely resolution of a **confidently-reported bug from the person who built the app** is that the piano is comping on 2 and 4 exactly as designed. Confidence and authorship don't make a bug exist in the code; reproducing against the *actual* data (not my synthetic pickup-lick guesses, which kept saying "impossible" while the user kept saying "it happens") is what finally made the two stories meet. When my model and a credible report disagree, the resolvent is almost always *their real data*, and it's worth reaching for it earlier than I did.
+
+---
+
+## 2026-07-16 — Aggregating over *everything stored* inherits every ghost the store ever accumulated
+
+The 100 BPM "cap" was `getLickTempo` taking `Math.min` over `Object.values(keyProgress)` — a min over the *entire* stored key set, no filter. A single legacy `Gb:100` entry, orphaned when the app switched from all-flats spellings to canonical `F#`, sat there at the old `DEFAULT_TEMPO` and vetoed the minimum forever, because no writer could reach a key that isn't in the canonical twelve. The specific shape worth carrying: **an unbounded aggregation (min/max/any/all over "all rows we've ever stored") is only as correct as the oldest assumption any of those rows was written under.** New code narrows the write-set (12 canonical spellings); old data doesn't retroactively narrow with it; the reader still sweeps all of it. That's not a spelling bug, it's a reader-writer asymmetry: writers moved forward, the aggregator still reads the past.
+
+And this is now the *third* body in the same graveyard — stored data outliving the assumptions its reader makes about it. Dev/prod shared-Supabase contamination (same email → same `user.id` → one account's data bleeding across environments), anon-lick absorption (local licks silently adopted by the next login on the origin), and now phantom keys. Local-first + cloud-sync + an evolving schema *guarantees* the store fills with ghosts: half-migrated rows, superseded spellings, cross-identity residue. Anywhere this app reduces over persisted collections, the honest question isn't "is the reduction correct?" but "correct against which vintage of writes?" A reduction that's right for today's writer and wrong for a 2-year-old row is the default failure here, not an edge case. The fix that held was to make the *reader* enforce the writer's current invariant (min over canonical keys only) rather than to chase and clean every ghost — belt on the read path beats a migration you have to get exactly right, because the next ghost is already being written by some code path you haven't audited.
+
+Two process keeps. First: the investigation turned on a **backward deduction from the output, not forward code-reading**. The tempo shown is a pure function of stored state, so I ran it in reverse — flat card ⟹ `getLickTempo == 100` ⟹ ≥1 stored key still at 100 ⟹ (given all 12 canonical keys were played and bumped to 105) a key *outside* the canonical set. That chain eliminated the entire scheduler-timing family before a single agent ran, and made the confirming step a ten-second `localStorage` scan rather than a code audit. When the symptom is a deterministic function of state, deduce the *necessary* state and go look at it. Second, the mirror of the drum entry below: I guessed the wrong entry-point — assumed single-lick Deep Practice (per-key 0.95 mastery gate) when the user was in Daily (avg-based +5), and the user had to correct me. The report card renders identically for both modes *by construction*, so it carries no signal about which engine produced it. I inferred a discriminator that wasn't there. The recurring failure across both of today's sessions is the same: acting on a symptom whose grammar I hadn't actually pinned down — which family, which entry-point — before building rigorous arguments on top of the guess.
+
+---
+
+## 2026-07-18 — An artifact that imitates generated output is lying about its provenance, and the tooling repeats the lie
+
+`src/lib/supabase/types.ts` opens with "Generated-style type definitions… Follows the exact format produced by `npx supabase gen types typescript`." Read that quickly and it says *this file is generated*. A `db:types` script sat in package.json piping the generator straight over it, which confirmed the misreading. Both signals pointed at "regenerate me." Both were wrong: the file is hand-written, and it contains a deliberate narrowing (`public_lick_authors.id: string`, where the generator emits `string | null` because Postgres can't prove non-nullability through a view) that regenerating destroys — widening a `Map` key type at three `community.ts` call sites for a NOT NULL primary key. The truth about how the file is maintained was written down nowhere; the format mimicry actively argued against it.
+
+The general shape worth keeping: **format mimicry is a provenance claim, and an unlabelled one defaults to "machine-owned."** Once an artifact looks generated, every reader — me included — treats it as disposable and regenerable, because that's what generated files *are*. The valuable thing in this file (a source-interface→table mapping, and one type the generator gets wrong) was exactly the part no generator could reproduce, and therefore exactly the part most at risk. So the durable fix wasn't the checker I built, it was the four lines in the header declaring the file hand-maintained and saying what regeneration would cost. Hand-maintained artifacts in generated clothing need to *say so in their own first paragraph*, because the next person to touch it will be holding a tool that overwrites it.
+
+Second keep, on the tooling: a script whose whole contract is `generator > file` fails catastrophically in the ordinary case where the generator errors — the shell truncates the target before the command runs, so a broken run half-clobbers a good file. That happened here (exit 1 from a Docker image pull, file already rewritten). Any script that redirects a subprocess over a tracked file has this bug by construction. Generate to a temp path, then move — or, as here, don't write at all. The conversion of that script from a **writer** to a **checker** kept 100% of its real value: the only thing generation ever offered was "tell me if the hand-written file fell behind the schema," and a diff answers that without the destructive write. When a tool's output is dangerous but its *comparison* is useful, ship the comparison.
+
+Third, the honest one about me, and it's now a streak of three. Drum bug: I modelled the wrong bug *family* before pinning the symptom's grammar. Tempo bug: I guessed the wrong *entry point* and the user corrected me. Today: I asserted the wrong *provenance* — told the user regeneration would strip six columns, when regeneration would actually strip a documentation header, and I only learned this by running the command I'd been describing. Each time the reasoning built on top was sound; each time the premise underneath was a guess I'd stated as fact. The specific tell is that in all three I had a cheap way to check the premise (read the file's header; ask which mode; run the command) and reached for argument instead. The rule I want: **when a claim is about how something behaves, and running it is cheap, run it before saying it.** Confident description is not observation, and the distance between them is where I keep putting my errors.
+
+Fourth, smaller: the user asked "is it safe to apply these migrations, I don't want to lose local data." The truthful answer was that there was no local data at all, and that the actual danger in the vicinity was unrelated to the operation asked about — the CLI is linked to the *production* project, so every command has a `--linked` twin one flag away from prod. Answering only the literal question would have been accurate and useless. **When someone asks whether X is safe, check whether the blast radius they're picturing is even where the blast radius is.**
+
+---
+
+## 2026-07-19 — Co-plotting is an implicit claim that two quantities are commensurable, and this one wasn't
+
+Three lines shared a y-axis on the trend chart: Tonal Mastery, pitch complexity, rhythm complexity. All three are 1–100, all three trend upward with practice, and that's exactly the trap — **a shared axis is an assertion that the quantities are the same kind of thing.** They aren't. Mastery measures the player (average proficiency across 12 scales × 12 keys). The complexity pair measures the *generator's* current setting — how chromatic and syncopated the material it's feeding you is. Those move together in the happy case, which is what makes the conflation survive: a rising complexity line looks like progress and is *correlated* with progress, while actually reporting that the difficulty knob turned. It's the system describing itself in a chart the user reads as a description of themselves. The user's word for them was "meaningless," and the precise sense in which that's right is that they were meaningless **in that frame** — the same two numbers rendered as current-value bars in the Adaptive Difficulty section a few hundred lines down are perfectly informative, because that framing makes no claim about improvement. Same data, same page; one placement lies and the other doesn't. Worth carrying: before putting a series on a chart labelled *progress*, ask whether it measures the person or the machine, and whether the axis it shares is asserting a kinship that exists.
+
+The mechanical finding underneath is the better one though. The forward-fill loop skipped any day where `lastPitch == null || lastRhythm == null` — so the mastery line couldn't render on a day unless the *complexity* metrics had a snapshot. A decorative series was gating the primary one. This is the co-plotting problem again but in the data layer rather than the visual one: once quantities share a rendering path, they acquire dependencies on each other that nobody designed and no type checks. Deleting the two dotted lines silently fixed a latent data bug, which is the tell — **when a removal fixes something, the thing removed was load-bearing in a way its purpose never justified.** Generalisation for this codebase: any loop that accumulates several optional fields and then gates on all of them has quietly ANDed together metrics that were meant to be independent.
+
+Third, the drift. The legend said "Mastery / Pitch / Rhythm," the tooltip said "daily average accuracy over the rolling window," and the data was a forward-filled adaptive snapshot. Three different stories about one chart, none of which agreed, and the tooltip's version describes something the chart has apparently *never* displayed. Explanatory text is the least-tested surface in the app — no type checks it against the thing it explains, and no test failed when it went stale. It rots exactly as fast as the feature changes and gives zero signal when it has. The cheap discipline: when the series on a chart change, the tooltip is part of the diff, not a follow-up.
+
+---
+
+## 2026-07-19 — Every test seeded the empty case, so every test took the early return
+
+The library page has infinite-looped for signed-out users with a practice set for who knows how long, and the reason nobody caught it is worth more than the bug. `pickInitialProgression` opens with `if (taggedIds.size === 0) return DEFAULT_PROGRESSION` — an early return that fires *before* it reads `lickPractice.progress`. The loop needs that read to happen. Every existing library spec seeds licks with no practice tags, so every existing library spec exits at that guard and never reaches the code that breaks. The fixtures didn't just fail to cover the bug; they systematically covered the one branch where it can't exist.
+
+The general shape: **a test fixture that models the empty or default state exercises the guard clauses, not the logic behind them.** And empty-state fixtures are the ones you write first, because they're the cheapest to construct — `seedUserLicks(page)` with untagged sample data is one line, whereas a realistic practice set means tags, prog tags, progress rows. So the cheap fixture becomes the default, the default becomes the whole suite, and the suite converges on testing the codebase's early returns. The tell to watch for: when a bug report says "only happens once I have some data," check whether *any* fixture has data. Here the honest summary is that the library suite tested a library with nothing in it, which is not the state any real user is ever in.
+
+The bug itself is the second keep, and it's a Svelte 5 idiom worth naming: **a hydration routine that reads state it also writes will loop when called from an `$effect`.** `hydrateLickPracticeProgress` assigns a fresh `lickPractice.progress` object and then calls a helper that reads `lickPractice.progress`; the effect tracks the read, the write invalidates it, forever. What makes it insidious is the *asymmetry that hides it*: signed in, `await initLickMetadataFromCloud` splits the function and the writes land in a microtask outside the tracking window, so the bug vanishes. Signed out, no await executes and the whole body is synchronous and tracked. So the same code path is correct or catastrophic depending on whether an `if (client)` branch happened to yield — which means **an `await` was silently load-bearing for correctness**, and anything that made the cloud call synchronous, or cached it, would have broken signed-in users too. Hydration functions should be untracked on principle: they run because auth changed, not because the state they write changed. That's a rule, not a patch.
+
+Third, on method, and it's the good version of the streak I've been logging. Three times today the instinct was to assert and three times I checked instead: CodeRabbit's `--linked` claim (ran `--help` on six commands — and found the *better* fact, that `db push` defaults to remote); my own trend-chart spec's time-dependence (moved the frozen clock to 2027 and watched the chart go empty); and "did I cause this loop?" (stashed my work and reproduced it on a clean tree *before* diagnosing). The third is the one that mattered most — the loop appeared in the same test run as my new feature, which is exactly the circumstance where I'd have spent an hour debugging my own correct code. **When a failure appears alongside your change, the first move is to remove your change, not to read it.** Cheaper than any amount of reasoning, and it answers the only question that determines where to look next.
+
+---
+
+## 2026-07-19 — A test suite that is green in CI and red on every dev machine is worse than a red one
+
+Three cloud-convergence specs had been failing locally while passing in CI, and the split was structural, not flaky. `tests/e2e/fixtures/stub-cloud.ts` hardcoded `https://ynzfliunzejusnlvpeey.supabase.co` and keyed Playwright route interception off it. When the project moved dev onto a local Supabase stack (2026-06-21, to stop dev/prod data contamination), `.env` began setting `PUBLIC_SUPABASE_URL=http://127.0.0.1:54321`, the production build under test baked *that* in, and no browser request ever matched the intercept. CI still passed because there `PUBLIC_SUPABASE_URL` is a CircleCI project-level variable holding the production URL. So the fix for one problem silently disabled the tests guarding another — and the signal that would have said so was inverted: CI green.
+
+The durable point is about **which environment a test's assumptions are pinned to**. A fixture that hardcodes any build-time-configurable value has quietly asserted "the build will be configured the way it was the day I wrote this." That assumption is invisible, untested, and decays the moment configuration becomes environment-specific — which is exactly what adopting a local dev stack does, deliberately, everywhere at once. The fix was to resolve the URL the same way Vite resolves it (`process.env` first, then `.env`, then a default) and to derive the project ref by supabase-js's own rule rather than restating it as a constant. Both bugs were the same bug: **a value restated instead of derived**. The auth cookie name `sb-<ref>-auth-token` had been hardcoded too, and was equally wrong for any non-production host.
+
+Second keep, sharper than the first: **"passes in CI" is not evidence a test works.** It is evidence the test works *in CI's configuration*. When CI and local diverge in configuration on purpose — and here we made them diverge on purpose, for good reasons — every test that hardcodes configuration silently changes meaning in one of the two places. The version that keeps running is the one nobody is watching, because the humans are looking at local output and the machine is looking at CI. I found this only because I ran the full e2e suite locally to check I hadn't regressed something, which is not a habit I can rely on catching it next time. Worth a standing question when touching environment config: *which tests encode the value I am changing?*
+
+Third, on process, and it is the thing I got wrong before I got it right. I found these three failures, verified they were pre-existing, checked they also failed on `origin/main`, wrote it up carefully in a PR description — and moved on. That is a well-documented non-fix. The user's correction was blunt and correct: never leave a bug unfixed, write the failing test first, then fix. The rationalisation I used was "pre-existing, not from this branch," which is an answer to *where did this come from*, a question nobody asked, standing in for *is it fixed*, the question that mattered. **Establishing that a bug is not yours is not progress on the bug.** The finding is the expensive part; stopping at a well-written note throws it away and makes the next person pay for the discovery again.
+
+---
+
+## 2026-07-19 — The await must come before the commitment, and one of the three bugs had already fixed itself
+
+Three long-open bugs, taken TDD. The most interesting thing is that they failed in three *different* ways relative to their write-ups, and only one matched its note exactly.
+
+**The race was real and the obvious fix was a trap.** `scheduleBackingTrack` created and *started* the bass and comp Parts, then hit `await ensureDrums()` and a supersession bailout — so being superseded mid-load left bass and comp playing over no drums. The obvious repair, hoisting the await above the part creation, would have traded it for something worse: `startBackingTrack` turns out to be **imported but never called**, so the kit was only ever loaded lazily *inside* scheduling, and a cold sample fetch in front of the first audible commit could push bass and comp past their absolute `tickOffset`. The fix needed two halves — hoist the await *and* preload the kit with the pitched instruments, so the hoisted await is a microtask on every real path. The generalisable rule: **every await must sit before the first irreversible commitment, and making that true usually means moving the slow work earlier, not moving the checkpoint later.** A bailout that can fire after you've already made noise isn't a bailout.
+
+**The second bug was real but my test fixture was wrong in a way only running it revealed.** I wrote a phrase with `duration: [1, 4]` chords meaning "one bar" — but fractions here are in *whole notes*, so `[1,4]` is a quarter note and my two-bar harmony was two beats. The test went red for the wrong reason (4 drum beats, not 8), which is the only reason I caught it. Had I written a fixture that happened to be red for a plausible-looking reason, I'd have "fixed" the code until my wrong fixture passed. **A red test is not evidence until you have read the failure message and confirmed it fails for the reason you predicted** — the number in the error mattered more than the colour.
+
+**The third bug had already been fixed by a change made for another purpose, and my notes hadn't noticed.** Case 2 — anonymous licks absorbed into the next account to sign in — was closed by PR #164's per-user storage namespacing, which is *literally candidate fix #3 from my own write-up of it*, adopted for unrelated reasons. My memory still said "unfixed." Two lessons. First, the memory file carried a `verify against current code` warning and it was right: **notes describe the code on the day they were written, and a fix can arrive sideways.** Second, and sharper: I could only *prove* it was fixed by writing a control test. An assertion that "the anonymous lick was not pushed to the cloud" is worthless if the push path was dead in that scenario — absence of evidence again, the shape this codebase keeps producing. So the spec ships with a control that seeds the same lick into the signed-in bucket and asserts it *is* pushed. **Every negative assertion needs a positive twin proving the detector is live**, and I should reach for that reflexively rather than after noticing the gap.
+
+Worth carrying forward: the isolation fix silently dropped the *legitimate* half of the behaviour — offline-entered licks no longer migrate into a first account, they strand in the anon bucket. Nobody chose that; it fell out of a storage-layout change. **When a structural fix closes an abuse vector, check what legitimate flow used the same road.**
+
+---
+
+## 2026-07-21 — An invariant that holds because the content happens to match is not an invariant
+
+Removing the progression line from the home page's Side B panel made its stat block two lines, matching Side A's two, and the two Continue buttons lined up. That is a true sentence about one state of the data and a false sentence about the feature. A fresh user gets one line on Side B against Side A's two, and a tagged-but-unpracticed set gives the same 1-vs-2. The buttons were staggered by 38px and 20px in those states — measured, after restoring the pre-fix file, not inferred.
+
+The distinction worth keeping is between a property that *obtains* and a property that is *enforced*. Content-driven layout gives you the first: the buttons align when the line counts happen to match, and the alignment silently expires the next time someone adds a stat line, or a user reaches a state nobody screenshotted. `mt-auto` in a flex column gives you the second — the button is at the bottom because the layout says so, and no future edit to the copy above it can change that. The same shape shows up in the stub-cloud fixture (2026-07-19): **a value restated is a value that decays; a value derived stays true.** Here it's a *position* rather than a value, but the failure mode is identical, and so is the tell — the property was true when written and nobody wrote down what it depended on.
+
+What made this catchable was enumerating the states rather than looking at the one on screen. I had the "pleasing side effect" claim in hand and it was pleasant enough to be worth checking, which is roughly the right instinct: **a claim that arrives as a bonus has had no scrutiny applied to it, because nobody asked for it.** The cost of checking was reading two `{#if}` branches.
+
+Second, smaller, on process: I flagged the caveat and named the fix instead of either doing it unasked or staying quiet. The user's reply was two words. That exchange cost less than the alternative in both directions — a silent scope expansion I'd have had to justify, or a bug shipped behind a claim I'd already half-retracted. **The flag is cheap precisely when you can state the fix in one clause**; if it takes a paragraph to describe, it's a design conversation, not a flag.
+
+---
+
+## 2026-07-22 — Reuse by shrinking the problem to fit the tool, not stretching the tool to fit the problem
+
+The lead-sheet editor needed long forms; the existing melody-entry buffer maxes out at four bars, deliberately. The obvious move was to lift the cap — touch `setBarCount`'s clamp, the capacity math, the status bar, and accept that the lick editor now carries lead-sheet-sized state. The better move, hiding in one word of the spec ("paging"), was to leave the tool alone and cut the problem into tool-shaped pieces: a section is edited one ≤4-bar page at a time through the UNMODIFIED buffer, and the section list — plain data, no reactivity constraints — is the real document. Every entry component, the keyboard map, the range validation, the accidental logic came along for free, and the lick editor's invariants were never at risk. The general form: **when a constraint in a shared component looks like the obstacle, first try shrinking your working set to honor it; the constraint is usually load-bearing for someone else.**
+
+The cost of that design is an ownership rule: while a page is loaded, the buffer owns that window, and writing to the section list underneath it is undefined. My own test violated it (seeded sections directly, then watched a commit "eat" a note) and my first instinct was to blame the commit. The commit was right; the test used a door that doesn't exist in production. Worth naming: **an ownership invariant binds tests too — a test that mutates state through a path the UI can't reach isn't testing the system, it's testing a hypothetical one.** The fix was to route the test through the real hydration API, which also made it a better test.
+
+Two smaller keeps. The written-pitch discipline caught ME: I asserted the chart would show "Gm7" after selecting written G, but the ii of written G is Am7 — the exact error class this project's memory warns about, committed by the entity that wrote the warning into the test suite an hour earlier. The rule survives because the tests enforce it, not because anyone internalizes it permanently. And the importer fixtures: the iReal unscrambler is an involution, so the temptation was to generate test input with the function under test — agreement by construction. Writing the scrambler into the TEST from the published reference instead means both sides pin to the spec; if I mistranscribed the algorithm, the hand-computed spot-checks (position 0 takes char 49) fail rather than agree. **When an algorithm is its own inverse, independent fixtures require a second implementation from the source document, plus at least one assertion a human can verify by counting.**
+
+---
+
 ## 2026-07-25 — The recovery mechanism WAS the bug (nav dead-clicks)
 
 What strikes me most about the menu investigation: every layer was someone's reasonable fix for the previous layer's failure, and the user-facing bug lived in the seams. The immutable-pool was built so old chunks survive deploys — not live on the box. The SW was configured to precache the shell — it threw mid-eval and nobody could tell, because a service worker that dies after `precacheAndRoute` still *mostly works*. The reactive reload was built to recover stale chunks — but `location.reload()` before SvelteKit commits the URL reloads the page the user was LEAVING, which reads as "my click did nothing". Three mitigations, each ~90% right, and the residual 10%s composed into exactly the symptom the first mitigation was built to prevent.
@@ -961,6 +316,40 @@ Also worth remembering: Sentry's debug-ID injection makes every build change eve
 The "select which 4 bars to edit" pager the user found counter-intuitive was never a design choice — it was the shared step-entry buffer's 4-bar cap surfacing in the UI. The redesign's core move is to keep the constraint and hide the seam: clicks map chart → (section, page) and the buffer follows, committing as it moves. Same lesson as the original paging design (2026-07-22, "the constraint is load-bearing for someone else"), now applied one level up: first we shaped the tool around the constraint; now we're making the constraint invisible. The stable general form: a load-bearing internal boundary may stay, but it must not require the user to know about it.
 
 Design-phase find that shaped everything: abcjs only fires clicks within 12 SVG units of a glyph, so "click any bar" is impossible via its clickListener — but its responsive mode is viewBox-based, so rects appended INSIDE the svg in user units rescale for free (drawGlissandi had already discovered this trick). One source-dive settled what could have been days of overlay-coordinate fiddling.
+
+## 2026-07-28 — Mirrored IA without mirrored components guarantees drift
+
+The licks/tunes restructure (2026-07-25) made the two trees structurally symmetric — same routes, same verbs, same page roles — but the tunes pages were written months apart from the licks pages, by different sessions, without a shared component or class recipe for "header action button", "empty-state card", "accent CTA". A 72-finding audit shows the result: every seam where the two trees should rhyme (button shape, section headings, card titles, error states) diverged, and the divergence isn't random — it's two internally-consistent dialects. Licks speaks pill-buttons/`accent-hover`/`text-white`/Fraunces-card-titles; tunes speaks rounded-rect/`hover:opacity-80`/inherited-text/sans-titles. Each was locally coherent, which is exactly why nobody noticed while writing.
+
+Two sharper points under this. First, **structural symmetry raises the cost of visual asymmetry**: before the rename, licks and lead sheets were different features and drift read as difference; after the rename made them siblings, the same drift reads as sloppiness — the restructure implicitly promised a consistency the CSS never delivered. Second, the audit surfaced a class of finding that isn't drift at all but latent bugs wearing drift's clothes: `--color-bg-primary` (a token that has never existed — hover silently computes to transparent), `text-black` on a fill that darkens in light mode, accent fills inheriting near-black text in light mode. **Copy-adjacent code without a shared source of truth doesn't just diverge, it invents tokens** — the author pattern-matched `bg-secondary`/`bg-tertiary` to a plausible `bg-primary` and nothing failed loudly. A tokens-that-exist lint (grep `var(--color-` against `app.css` definitions) would catch that class mechanically; worth proposing if drift cleanup lands.
+
+The direction question has a non-obvious answer, too: neither side simply wins. Licks carries the documented conventions (design-system utilities used as app.css comments describe), but tunes contains genuine improvements made later (flex-wrap on crowded header rows, `type="search"`, explanatory subtitles, smallcaps section labels). Standardize on the *older* side by default and you'd erase newer judgment; on the *newer* side and you'd canonize its contrast bugs. The audit's per-finding "which side should win" was the actual work product, not the finding count.
+
+---
+
+## 2026-07-28 — A render effect that reads a prop is a contract, not an implementation detail
+
+NotationDisplay's render effect reads `selectedIndex`, so every selection change re-runs `renderAbc` — a full SVG rebuild. Fine for click-selection; fatal for a per-note playback cursor. The fix wasn't to optimize the effect but to *route around it*: cursor and markers live on dedicated effects over stashed per-render caches (anchors, visualObj, bar zones), and the render effect must never read the new props. The fragile part is that this invariant is invisible — one innocent `rangeMarkers` read inside the render effect silently reinstates per-note rebuilds with no error, just jank. I left a comment naming the contract and an e2e that asserts marker rects exist; a stronger guard (asserting SVG node identity across cursor moves) needs a running session, which our e2e layer deliberately doesn't do. This is the same genus as the tick-based-visuals rule from 2026-04-16: the boundary holds only as long as every future author knows it exists.
+
+## 2026-07-28 — The persisted-mastery shape dictates product language, not vice versa
+
+"Show whether the user knows this lick in this key" sounds like a UI task until you look at what's actually persisted: per-key `passCount`/`tempo`/`lastPracticedAt` and a separate unlock count — no score anywhere. So "known/learning/unknown" had to be *derived* semantics: known = has passed at the 0.9 bar in that key; learning = attempted there, or inside the lick's unlock ramp; unknown = everything else, including a never-practiced lick's own entry key. The subtle trap we dodged: "any progress → learning" would have marked a lick practiced only in C as "learning" in F#, a claim the data cannot support. When the store can't express a distinction, the honest move is to narrow the product claim to what it can — the unlock ramp turned out to be the exact right fence, and it already existed.
+
+Same session, same lesson from the other side: category overrides turn out to be **write-only at read time** (no consumer ever applies them), so the matcher keys off `prog:*` tags. That's now the second consumer (after lick-practice) whose correctness depends on tags-not-categories. The category field increasingly looks like display metadata wearing a data-model costume.
+
+## 2026-07-28 — Detection had to abandon the spec's frame to satisfy the spec's intent
+
+The tune-practice spec said: compute each chord's degree *relative to the tune key* and match degree-shapes (ii=min7 on 2, V=7 on 5…). Implemented literally, that finds zero ii-V-Is in two of our three curated tunes — Mankunku Blues' only ii-Vs are a secondary cadence into the IV key and a cadence that resolves across the repeat barline. The correct detector binds a **local tonic from root motion inside the window** and uses the tune-key degree only as a *label* ("ii-V-I in the IV area"). The spec's own Phase 2 quietly knew this — it says to transpose licks "using the tune's local harmony root" — but its Phase 1 wording would have built a detector that starves Phase 2 of anything to transpose. The general shape: when a spec's phases disagree, the downstream phase usually encodes the real requirement, because it's written from the consumer's seat. Worth checking phase N against phase N+1's inputs before building N.
+
+Two adjacent musical facts that will matter again: in blues, the tonic is a *dominant seventh* — any "resolution quality" set that only admits maj7/maj6 silently fails on the genre this app is named for; and plain major triads reach the detector as `maj6` because `chordSymbolToQuality` maps them there for comping. Quality sets over the closed enum have to be written against what the *parser emits*, not against what a theory book says.
+
+## 2026-07-28 — The notation was encoding the convention all along
+
+The user's correction — "a repeat around the entire song simply outlines the form: head → solo → … → head" — looked at first like it demanded new machinery. It demanded *less*. The expanded flatten of a whole-form-repeat chart (body, ending 1, body again, ending 2) IS the jazz performance already: pass one is the head taking the turnaround ending, pass two is the form again taking the out. All the head feature needed was a boundary — the first *revisited* section in `sectionMap` — and the harmony doubling I'd built became unnecessary for exactly the charts where the head matters most. The doubling survives only for repeat-free charts, where the notation genuinely contains one chorus.
+
+The general lesson: when a domain convention seems to require transforming the data, first check whether the notation already encodes the convention and the code has merely been reading it too literally. "Play the repeat" was the literal reading; "the repeat is the form" was the semantic one — and the semantic reading needed fewer moving parts, not more. This is the same genus as concert-vs-written pitch: the chart is a *notation system* with performance semantics layered on top, and every naive structural interpretation of it is a bug waiting for a musician to notice.
+
+Also filed permanently (user-instructed): head once; ending 1 = turnaround in, ending 2 = out. The tune-practice session now literally performs the form: head over pass one, solo windows only in pass two.
 
 ## 2026-07-28 — Measure the layer the user is looking at (chord-height fix)
 
@@ -982,6 +371,26 @@ Also filed: abcjs's `found` guard bug (`voices[0].el_type` on an array — alway
 
 The stem-direction spec's expectation read `aboveSp > 0.25 ? 'down' : aboveSp < -0.25 ? 'up' : 'down'` — three branches because the *rule statement* has three zones (below / at / above the middle line), even though the truth table has two outcomes. Writing the oracle as a transcription of the prose felt rigorous; it actually obscured the decision boundary. The collapsed form, `aboveSp < -0.25 ? 'up' : 'down'`, states the rule more sharply: one comparison IS the boundary. Small pattern worth keeping: when an expectation mirrors a rule's narrative structure, check whether the outcomes collapse — test code deserves the same simplification eye as production code, because a redundant case-split in an oracle misleads the next reader about where the behavior actually turns.
 
+## 2026-07-30 — The discriminator ran backwards, and that's what made it trustworthy
+
+I went in assuming a re-articulation would show a *large* discontinuity and the false positives would be small — so the gate would be "dip deeper than X". The corpus said the exact opposite: the two genuine legato tongues dip to 0.957 and 0.961, while Blue Monk's held E (must not split) dips to 0.33 and metronome clicks to ~0.54. Once stated physically it's obvious and it stops being a fitted threshold: a click *adds an uncorrelated signal*, which drives normalized similarity toward zero in proportion to the energy added; a tongue *modifies an oscillation that never stops*, so it barely moves. Depth measures contamination, not articulation.
+
+That inversion is why I trust this gate more than the numeric ones stacked around it. `SHAPE_CLEAN_BASELINE = 0.975` and `SHAPE_SETTLE_TIME = 0.2` are honest empirical fences and will need revisiting when a fixture arrives outside them. The 0.9 periodicity floor is a statement about what the signal *is*, and the failure mode it guards against — someone lowering it to "catch more articulations" and silently re-admitting every click — is exactly the kind that survives a green test suite. It got a named unit test for that reason.
+
+Worth noting where this leaves the tier stack: five tiers now, each owning a distinct evidence class (silence, envelope dip, HF burst, clarity dip, waveform shape). The 2026-06-21 prediction — "future fixes here will be a new *axis*, not a new threshold" — has now held four times running. The corollary I'd add: the axes are getting *cheaper to justify and harder to find*, which is the healthy direction. This one took going back to the raw samples, and I don't think it was findable from the reading stream at all.
+
+## 2026-07-30 — "No evidence" almost always means "no evidence in the domain I was looking at"
+
+The previous session searched for the soft G3 re-articulation across five signals — reading gaps, window RMS, `rmsMin`, `hfRms`, clarity — found nothing above threshold in any of them, and concluded the evidence didn't exist. From there it did something reasonable and wrong: it escalated a *detection* dead end into a *product* question ("should the scorer credit an un-rearticulated repeat?"), and both implementations of that question broke standing regressions. The dead end was real; the inference from it was not.
+
+What the five have in common is not one domain — three are RMS reductions, while clarity is McLeod's normalized autocorrelation peak and reading gaps are just clarity falling under threshold, so those two are periodicity, not energy. What all five share is the **93 ms analysis window**. Finding nothing in five views through one window is close to one negative result, not five.
+
+The tell was available the whole time: the user could hear it. A human ear resolving a 20 ms event through a 93 ms averaging window means the ear is using something the window destroys — which points at *time resolution* before it points anywhere else.
+
+And the sharpest version of that: `shapeBreak`, the signal that finally worked, is **clarity's near neighbour**. Both ask "do consecutive periods look alike?" The only material difference is that clarity answers it over 93 ms and `shapeBreak` answers it over 10 ms. The winning signal was sitting adjacent to one already being consulted, separated by a timescale rather than by a concept. That is worth remembering, because it means "we already measure something like that" is *not* evidence that a domain has been covered.
+
+I want to keep the generalization narrow enough to be useful: when a search fails, enumerate what the candidate signals have in *common* before concluding absence. If they share a timescale (the analysis window), a source (the same buffer reduction), or a domain, the search covered fewer hypotheses than it appeared to. And when a human can perceive what the instrument cannot, the instrument's limitation is the finding.
+
 ## 2026-07-31 — Change the band, not the threshold — and know what your measure is invariant to
 
 Three rounds of re-articulation work have now stalled on the same shape: a candidate event sits under a metronome click, every per-frame feature is disturbed, and "tongue or click?" looks unanswerable. Each previous round answered it by adding a gate or consulting the schedule. The better answer is that the features are contaminated because they are computed on the full band — a property of the *measurement*, not the signal. Band-pass to 250–5000 Hz and the metronome is simply not there: ride high-passed at 8 kHz, hi-hat at 6 kHz, kick body under 250 Hz, a bare cymbal 25 dB down against the horn. Tuning thresholds under contamination fits the noise; moving to a clean band removes the ambiguity. `bandRmsMin` came out of that and it is the first click-immune envelope signal we have.
@@ -991,6 +400,24 @@ The harder lesson is the one I got wrong on the way. I used `measureShapeBreak` 
 Both errors pointed the same direction — toward "the player made a mistake" — which should have been the tell. When an analysis concludes that the human was wrong, that is precisely when it needs the most adversarial check, because it is the conclusion that terminates further investigation. Andy's ear was better evidence than my measurement, and it cost one sentence to say so. The general rule I want to carry: before asserting a negative from an instrument, state what the instrument is invariant to. If I can't name it, I haven't understood the measurement well enough to draw a negative from it.
 
 There's a standing tension underneath all of it that I don't think we've named: **suppression near clicks is structurally at odds with musical reality, because the beat is where notes start.** At 105 BPM the ±0.10/+0.28 s veto window covers two thirds of the timeline. Every schedule-based veto buys precision on held notes by spending recall exactly where articulations are most likely. The right posture is that the schedule is a good *tiebreaker* for evidence a click can fully explain, and a bad *veto* — which is what this round's conditional override finally implements. "What can the contaminant not fake?" has now produced better gates than "how disturbed is this?" every single time.
+
+## 2026-08-01 — Docs rot in two directions, and only one of them is visible
+
+Auditing thirty documentation files against the code, I expected to be correcting sentences. Most of the work turned out to be different in kind, and the distinction seems worth keeping.
+
+**Drift** is a sentence that used to be true: "the app is a PWA," "the bleed filter defaults to on," "rhythm changes is a progression type." It's cheap to find — read the doc, read the code, compare. A grep finds it. It's also the *less* damaging failure, because a wrong sentence in an otherwise-correct page still puts the reader in the right neighbourhood.
+
+**Absence** is the other direction, and nothing in the document signals it. `user-guide.md` was internally consistent, well written, and described an app in which Tunes is a supporting room mentioned in one clause. Every sentence was true. There is no diff, no failing check, no contradiction to notice — the only way to find it is to enumerate the product from the *code* and ask what the docs never say. Six days of feature work produced maybe four correctable sentences and two entire missing pages.
+
+Which suggests the audit procedure has to run from the code inward, not from the docs outward. Walking `src/routes` and `src/lib` and asking "where is this documented" found the gaps; re-reading `documentation/` and asking "is this still true" would have returned a nearly clean bill of health.
+
+Two smaller things I want to remember:
+
+**Tour copy is documentation that no docs audit looks at.** `lick-practice.ts` had been quoting a superseded tempo-gating scheme and listing a lick category as a progression type. It sits in `src/lib/tour/`, so it's invisible to anyone auditing `documentation/`, and it's prose, so it's invisible to `svelte-check` and the test suite. Any user-facing string outside the docs tree — tours, empty states, error messages, onboarding — is in the same blind spot. The tours at least have the redeeming property that they're *read aloud to new users*, which is the worst possible place for a stale number.
+
+**Two docs contradicting each other is a distinct, worse failure than one being wrong.** The bleed filter was described accurately in the glossary and inaccurately in the audio pipeline page. A single wrong statement gets corrected the first time someone tests it; a contradiction teaches the reader that the documentation set as a whole isn't load-bearing, and that inference is much harder to walk back. When auditing, cross-checking docs *against each other* is a cheap second pass that finds a different class of defect than checking each against the code.
+
+---
 
 ## 2026-08-02 — A chart that ran out of information, and the axis mismatch underneath it
 
@@ -1103,6 +530,24 @@ Two things from this feature worth keeping as patterns:
 **A pass-gated metric cannot measure struggle.** The per-key store only wrote on scores ≥ 0.9, so the data needed to find weak keys was systematically discarded — the store recorded success and was blind to failure by construction. Worth generalizing: whenever a metric exists to drive *remediation*, check whether its write path filters out exactly the events the remediation needs. (Same shape as the nginx fallback observation from this morning: the system's own design hides the signal you need.)
 
 Also, an honest accounting: the synchronous-boundary hang risk (scoring early-return would have stranded the session) was caught by reading the guard clause during plan review, not by any test — the unit suite can't see it (it's a scheduling topology bug) and only the new e2e pins it. The class of bug where "the next step is scheduled by the previous step's success" needs the scheduling to be *unconditional* is worth a reflexive check anywhere it appears: the chain is only as alive as its weakest callback.
+
+## 2026-08-08 — Exit codes describe the deployer's actions, not the system's state
+
+The deploy had two opposite blind spots at once, and realising they were the *same* blind spot is the thing worth keeping.
+
+Going one way: the deploy failed loudly, immediately, with a red X on `main` — and production served a two-day-old build because nothing delivered that signal to a human. Going the other way: `pm2 start` returns 0 the moment a process is *spawned*, so a build that crashes on boot leaves PM2 restart-looping while the pipeline reports success. Red-but-unnoticed and green-but-dead look like opposite bugs. They aren't. In both cases the deploy only ever knew whether its own commands exited 0, which is a fact about the deployer, not about whether anyone can load the site. **A pipeline that asserts on command success is measuring itself.** The fix in both directions is the same shape: assert on *observed state* — poll the thing and make it tell you which release it is serving. That's also why the check compares the release id rather than liveness: a stale process still holding the port answers 200 with total confidence, and "is it up?" is precisely the check that would bless it.
+
+A corollary about naive fixes. In both of today's structural changes the interesting half was the *guard*, not the feature. Cleaning up a failed deploy's staged release is obvious; the part that matters is refusing to when `current` already points at it, because after the swap that directory **is** production and the tidy-up would escalate a failed deploy into an outage. Same shape as the smoke check. In both, the naive version isn't merely incomplete — it's worse than nothing, because it manufactures confidence while doing harm. When a fix has a case where it must decline to act, that case is the design.
+
+**Caching doesn't break tests; it voids their premises.** Adding "skip `npm ci` when the lockfile is unchanged" silently hollowed out two existing tests. The npm-failure test injects a failing install — but the install no longer ran, so the deploy succeeded and the test caught it. The flock serialization test proves two installs never overlap — and with the cache, neither deploy installed anything, so it would have gone on passing while asserting nothing at all. The first failed loudly and led me to the second. That asymmetry is the hazard: a skip-optimisation turns some tests red (useful) and quietly empties others (invisible). Both needed distinct lockfiles to restore their premise. Generalising: **when you add a "don't do X when unchanged" path, audit every test whose meaning depended on X happening** — a green suite is not evidence, because the tests that went hollow are exactly the ones that still pass.
+
+Two smaller keeps. First, the cheapest decisive evidence all day was three `git rev-parse` calls: `package-lock.json` was the *same blob* across the last successful deploy and both failures, which collapsed the entire search space from "what did we change?" to "nothing in the repo changed, so it's the machine" before I read any deploy code. When something fails intermittently, find the input you can *prove* is constant. Second, and against my own instinct to declare victory: adding swap and seeing a green rerun is correlation, not proof — the box could have had a quiet moment. `pswpout` (77,123 pages ≈ 301 MB, on a counter that had no swap device to write to beforehand) is what made it causal. **When the fix is "add capacity and retry," the counter showing the new capacity was consumed is the difference between a fix and a coincidence** — and it costs one command.
+
+Last — and this one is a correction of myself, made the same day. I told Andy `@sentry/sveltekit` had a packaging wart: declaring `vite` and `@sentry/vite-plugin` as ordinary `dependencies` and so dragging a bundler and a TypeScript compiler into production installs. He asked me to check whether Sentry had fixed it. **They never had it.** `vite` and `@sveltejs/kit` are `peerDependencies`, and have been across every version I checked back to 8.55.0. The manifest is fine.
+
+What actually happens is npm's: **npm 7+ auto-installs peerDependencies, including peers of *production* dependencies.** `@sentry/sveltekit` is a prod dep, so its peers arrive under `--omit=dev`; `@sveltejs/kit` then brings its own peer `typescript`, and `vite@8` brings `rolldown`. And because those packages are peer-reachable from a prod dep, npm doesn't mark them dev-only in the lockfile, so `--omit=dev` can't drop them — nor, measured, can `--omit=peer` (byte-identical 378 MB). The 156 MB figure was right; the *attribution* was invented. I had the resolution tree in front of me (`npm ls` showed the nesting) and read "appears under X" as "declared by X" without running the one command that distinguishes them.
+
+Underneath that sat a second, worse error of the same kind. I'd built the "what does prod actually need" list by grepping the built output for `from '...'` — which happily matched **JSDoc `@import` comments**, so `@sveltejs/kit` looked like a runtime import and I briefly believed production had a latent landmine. It doesn't: deleting `@sveltejs/kit`, `vite`, `typescript` and `@rolldown` outright and booting the server serves `/` and `/licks` as full SSR HTML with zero module-resolution errors, because adapter-node bundles the framework runtime into `build/server/`. **A grep for imports finds mentions, not dependencies.** The only trustworthy answer to "is this needed at runtime" is to remove it and boot — which cost one container and settled in ninety seconds what two rounds of textual analysis got backwards. Same failure I logged on 2026-07-16 and again on 2026-07-25: confident description standing in for observation, on a premise that was cheap to check.
 
 ## 2026-08-08 — Four complaints, one shape: the model that stopped matching the thing
 
@@ -1497,6 +942,39 @@ REPRESENTATIVE + range (`sourceIndex` + `sourceIndexEnd`). Cheaper than reshapin
 merge, and every consumer got to choose its own semantics (click → representative,
 highlight → range containment, chord geometry → opt out entirely).
 
+## 2026-08-12 — Every click-contamination heuristic is stressed exactly where music happens
+
+The whole fixture family now tells one story from five angles: curl-to-the-floor,
+blue-note-climb, down-to-the-third, and today's repeated-Eb pair are all the SAME
+collision — a musician articulating **on the beat**, which is both where they are
+trained to play and where the metronome emits the one signal our tiers must
+distrust. The suppression window isn't paranoid; clicks genuinely fake every
+HF-tier gate. But its blast radius is centred on the musically correct instant,
+so its false-negative population is not random takes — it is specifically the
+takes of a player with good time. The better the user's timing, the more the
+scorer used to punish them. That inversion (accuracy punished as contamination)
+is worth watching for in any system that discounts evidence near a scheduled
+event: the discount lands precisely on the behaviour the system exists to reward.
+CLAUDE.md already crystallised the principle as "the beat is exactly where notes
+start"; today extended it from the gap tier to the HF tier, and I'd now phrase
+the general rule as: **a suppression keyed to a schedule needs a rescue for each
+physical signature the scheduled event cannot produce** — the horn silenced
+in-band (band-floor dip), the horn stopped-then-restarted (stop-recover), the
+reed reshaped without the air ever stopping (shallow shape band). When the next
+false merge arrives, the question is not "which threshold moved" but "which
+signature is still missing a rescue."
+
+Second keep, methodological: when two takes fail identically, assume nothing —
+they failed on DIFFERENT gates (one suppressed, one disbelieved). Had I fixed
+only the suppression (the shared, obvious cause), slide-back-down would still
+have died on the 0.9 sustain floor and blue-note-roll-off on the perturbation
+gate, and the "fix" would have looked mysteriously partial. The instrumented
+corpus sweep cost ~20 minutes and turned both threshold placements from
+argument into measurement; I'd previously done this ad hoc (2026-08-01 band
+floors), but it should be the default move for any gate in the splitter: the
+21-take corpus is a population, and every constant in that file is a claim
+about a population.
+
 ## 2026-08-17 — A signal's meaning can invert with position; constants encode position silently
 
 Today's broken-entry fix is the third time shapeBreak's depth has been given a
@@ -1534,6 +1012,158 @@ from a windowed log + cumulative state pair, and it generalizes to key
 proficiency if that ever wants a trend line.
 
 ---
+
+## 2026-08-18 — Dormant infrastructure is a design smell worth celebrating
+
+The admin page took a day because past sessions had already laid every pipe: the
+`is_admin` column, the per-request layout resolution, the service-role factory,
+even the e2e stub's `isAdmin` field — all shipped ahead of any consumer. That's
+usually condemned as speculative generality. Here it was the opposite: each
+piece was the *minimal honest half* of a feature someone knew was coming (the
+ecosystem.config comment literally promised "admin features report
+unavailable"). The lesson: infrastructure laid along a natural grain (a flag on
+the profile row, a factory beside the anon client) stays cheap to carry and pays
+off whole; infrastructure laid as a framework (generic role systems, permission
+matrices) would have rotted. Grain-following beats generality.
+
+Second: **the tunes-bucket orphan is the cost of best-effort code paths having
+no inventory.** `/api/account` cleaned `recordings` because recordings existed
+when it was written; nobody owned the list of "places a user's bytes live," so
+the second bucket silently missed the deletion path since lead sheets shipped.
+`USER_STORAGE_BUCKETS` is now that inventory — one const to touch when a third
+bucket appears. Small named lists beat implicit knowledge scattered across
+routes.
+
+Third: WebKit's hydrated-404 self-reload was invisible until a test navigated
+away from a 404 quickly. Every 404 in Safari does it (auth invalidation →
+`__data.json` refetch → "access control checks" pageerror → SvelteKit hard-nav
+fallback). Not worth fixing — but worth *knowing*, because the next WebKit e2e
+failure reading "interrupted by another navigation" should find this note
+instead of spending an afternoon exonerating the stale-chunk recovery like I
+did (its sessionStorage marker never appearing is the two-minute proof).
+
+## 2026-08-20 — "Up to speed" had no referent until the engine was given a target
+
+The user's phrasing — "works it up to speed" — sounded like a requirement but was
+actually a design gap: nothing in Deep Practice knew what "speed" meant. The saved
+tempo existed only as a thing to ease 2% under. The moment it became `targetTempo`,
+the whole feature collapsed into three one-rule phases, and the adaptive staircase
+the user chose became a two-line change rather than a new mode. Generalizable: when
+a requirement uses a comparative ("up to", "back to", "faster than") and you can't
+point at the number in the code, the feature isn't underspecified — the model is
+missing a reference value. Find or add the referent first; the rules write
+themselves after.
+
+Second note: a "focus on the failing key" feature is tempting to build as isolation
+(option a), and it's wrong for a reason that's easy to state and easy to miss — the
+test the key failed was the key *under load*. Rebuilding the load is the feature. I
+suspect this applies to ear-training too: a missed interval inside a long phrase and
+the same interval alone are different skills, and a drill that only does the latter
+will keep reporting a success the former doesn't show.
+
+Also: the subagent seam-check paid for itself. It surfaced `splitReportByProgression`
+copying single-lick report fields explicitly (a silent drop I'd have found only via a
+failing test I hadn't planned to write) and the `tempoBumpPercent` reset on the CTA
+path — neither was in my plan. A read-only adversarial pass over "what assumes the
+thing I'm changing is static" is cheap against the class of bug it catches.
+
+## 2026-08-21 — "Nothing persisted" is a claim against every write path, not a description of intent
+
+Four review rounds on PR #238 were one sentence being falsified repeatedly. I wrote
+"session-local, nothing persisted" meaning "the deep-practice tempo rule is
+unchanged" — true as intent, false as a statement, because a reviewer reads it as a
+universal over every write the code path can reach: the session log keeping the
+report's `FocusRampSummary`, `recordKeyAttempt` writing rolling score / pass count /
+recency on every attempt. Each narrowing exposed the next overstatement, and while
+fixing one I re-introduced another ("tempo/progress untouched"). The stable form
+named the single thing actually withheld — the lick's stored TEMPO — and listed what
+is written. Lesson: a negative persistence claim must be phrased as the positive
+complement ("only X is withheld; A, B, C are written as always"), because the
+negative form invites an exhaustive search I hadn't done. Same shape as the
+four-surfaces docs lesson: absence claims are the hardest to make true.
+
+## 2026-08-22 — A binary where the data carried a richer answer; and "no signature" means silent, not sharp
+
+The A#-for-Bb bug was a *projection* bug: three-valued information (the scale,
+the chord, the key) was being collapsed to one bit (`FLAT_KEYS.includes(key)`)
+at the display edge, while the same information was fully available two
+function calls away — every `HarmonicSegment` carries a `scaleId`, every
+ear-training session carries a `scaleType`, and the progress page already
+re-resolved the whole phrase for its play button. The component wasn't
+missing data; it was discarding it. Worth generalising: when a display-layer
+helper takes a *key* and returns a *spelling*, ask what else the caller knows
+that the helper is being denied. The cheapest fixes in this codebase have been
+"stop projecting" rather than "add data".
+
+Second, the chart's own chord tier had a blind spot that nobody had reported:
+D# and F# for the blue third and fifth over C7. It was right *by interval
+theory* (#9, #11 of a dominant) and wrong *by idiom* (the blues scale is
+spelled with flats everywhere). The repair was not to override the chord
+tier but to recognise which of its decisions were guesses: a chord quality
+can't tell b3 from #9, b5 from #11, #5 from b13 — everything else it derives
+unambiguously. So the scale tier settles exactly those three and abstains
+otherwise. That narrowness was load-bearing, not timidity: the altered scale
+labels the major third "b4", and a scale tier that trusted every label would
+have turned the third of E7alt into Ab. The general shape: when adding a
+higher-priority tier to a heuristic chain, scope it to the *ambiguity* the
+lower tier actually has, not to everything the new source has an opinion on.
+
+Third, the user's wording "true to the key" — and the existing test literally
+named "treats C major as sharp-keyed" — exposed a framing error baked into
+the code. C has no signature; that makes it *silent* about accidentals, not
+sharp-side. The binary default had to pick something and picked sharps, and
+the test enshrined the arbitrary choice as a property. Defaults that must
+pick something should be written so the reader knows they are arbitrary; this
+one read as a rule.
+
+## 2026-08-22 (night) — Two conventions on one field, and why inference must refuse the obvious signal
+
+The minor-key work kept turning up the same shape: `Phrase.key` meant "tonic" in
+the curated files and "the major key whose signature I want drawn" in the
+editor, and nothing in the type distinguished them. Both readings were
+internally consistent; the collision was only visible at the boundary where a
+user-entered lick met curated data in the same practice set. The fix was not to
+pick a winner but to add the missing dimension (`mode`) and then make the
+RESOLVER conservative: `lickMode` will read the harmony but never the
+category, because category is exactly the signal that would have relabelled
+the user's own relative-major-entered licks as F minor. A strong, obvious
+inference signal was the wrong one *because of data written under the old
+convention* — the same reader-writer-asymmetry lesson as the phantom Gb key,
+from the other side: here the reader must NOT trust a column that the old
+writer populated with a different meaning.
+
+Second: "served over nonsensical progressions" was four defects wearing one
+symptom — template V quality, dual short/long seeding, unfiltered pills, tag
+accretion — plus a fifth in ear training (the parent-major hop) that the user
+may never have separated out. The explorers' most valuable output was the
+NEGATIVE finding: the template anchoring, the first suspect, was correct. I
+notice I'd have gone straight at the templates without it.
+
+Third, on the fit rule: I nearly made it stricter than the data could bear.
+`rhythm-changes` has two chords per bar against the one-per-bar turnaround; a
+geometry gate would have stranded the whole category. The rule's narrowness
+(cadence categories only; everything else honours the tag) is what makes it
+safe — a recurring pattern now (scale tier settles only the ambiguous degrees;
+fit settles only cadence shapes): when adding a gate over heuristics, scope it
+to the ambiguity you can actually adjudicate.
+
+## 2026-08-23 — A stale countdown is not a state; ask the system that owns the budget
+
+The CodeRabbit waiter I built first was a countdown from a per-PR ETA. It was
+wrong in a way that looked right: the ETA had passed, so the push "should"
+have been accepted, and it was rejected — because the budget is account-wide
+and other activity had spent it. A free live query (`@coderabbitai rate
+limit`) replaced the countdown and every attempt after that was accepted.
+The general form: when a remote system rations something, derive your
+decision from ITS current answer, not from your cached model of its
+schedule; and prefer the cheapest query it offers over any inference.
+
+The second lesson is about observability of my own loop: I resolved review
+threads when the fix was committed (honest — the reply cited the commit),
+but the verdict checker reads "unresolved threads: 0" on whatever head the
+PR has, so it declared DONE on the unpushed head. A checker that cannot see
+the local state must be gated on the remote state it CAN see (the PR head
+equals the fix sha) before its verdict means anything.
 
 ## 2026-08-31 — A metric dies when its last consumer does, and nobody attends the funeral
 
@@ -1704,6 +1334,115 @@ new thing touches the existing thing, not inside the new thing.
 
 ---
 
+## 2026-09-03 — A layout that parks the active thing is not a layout that shows the next one
+
+The lead-sheet row was verified twice on 09-01 and both times it was row 0,
+where the demo and the turnaround give it seconds on screen before anyone
+has to read it. Every seed we had unlocked one key. The rule underneath —
+"the active row holds one slot below the top" — was written for the row
+being played, and it said nothing about the row being read next; a sheet
+queued under a chord row straddled the viewport and only became whole on
+the tick its window opened. Daily practice, which puts the newest key LAST,
+hit it every time. Two lessons.
+
+First, the row-0 verification was a verification of the happy path only,
+and the happy path was the one the demo pads. When a feature has a "first
+position" that gets extra lead time by construction, the test seed must put
+it somewhere else. A seed's shape is an assumption; the assumption was
+"one key".
+
+Second, the fix was again not in the notation code. A pure function with
+three lines changed, plus one CSS class. The three explorers I sent out
+came back with the abcjs pipeline in exhaustive detail — cold dynamic
+import, a permanent font-metrics cache, six synchronous DOM passes — and
+none of it was the cause. Worth keeping the inventory (it's in the session
+log), but the decisive evidence was the layout probe: five lines of
+arithmetic that put the sheet's box at 210..422 in a 317 px viewport. When
+a report says "not completely displayed", measure where the thing IS before
+asking how it is drawn.
+
+Also: Playwright's `toBeVisible` is not visibility. It passed on a row that
+was two-thirds hidden by an ancestor's overflow. Geometry assertions from
+`getBoundingClientRect`, taken in one `evaluate` so every field describes
+the same frame, were the only way to make the bug fail a test.
+
+---
+
+## 2026-09-03 (second pass) — A lazy import is only cheap if somebody starts it early
+
+The abcjs chunk was lazy for a good reason — most routes never engrave —
+and the laziness was correct everywhere except the one place a staff is
+needed on a clock. "Lazy" answers WHETHER to load; it says nothing about
+WHEN, and the default WHEN (first component mount) was the worst possible
+moment on the Daily path. The fix is not to make it eager; it is to give
+the decision a home: one loader, and the route that knows it will need the
+engine says so at mount. The general shape: a dynamic import inside a
+component ties the fetch to the render, and a render that happens on a
+schedule (a count-in, an animation frame budget) needs the fetch untied
+from it.
+
+On the test: the first red was wrong in an instructive way. With a seed
+that never reveals, the old code never fetched at all, so the assertion
+that fired was "never requested", not "requested too late". Same
+conclusion, worse message — and a weaker proof, because it would also
+pass a detection bug. Choosing the seed so the OLD behaviour produces the
+request and fails on order made the test say what the fix does.
+
+---
+
+## 2026-09-03 (third pass) — Two gates on one flow that measure different things
+
+Deep practice has two rules deciding what happens at a cycle boundary,
+and each is correct by its own test. The rotation rule is instantaneous:
+this cycle's score ≥ 0.95 drops the key, and when nothing is left the
+tempo bumps and the whole circle comes back. The demo rule is historical:
+play the lick iff the worst key in the NEXT rotation has an EWMA (α 0.4)
+under 0.90. At a refill the next rotation is every unlocked key, so the
+demo is decided by the weakest history in the set — and a key that just
+cleared at 0.95 from a 0.70 history sits at 0.80. Four consecutive clears
+before it stops being demoed. Andy hears "it plays even at tempo bumps";
+the code hears "the head key is not proficient yet". Both are true.
+
+The general shape: when a smoothed measure and an instantaneous measure
+gate the same flow, they disagree most at exactly the moment the
+instantaneous one fires, because the clear is the newest sample and the
+average has not caught up. The refill is the worst possible moment to
+consult the smoothed measure — it re-admits keys the user just proved
+they can play at this tempo. If the demo is meant to be a reference for a
+key the player is FAILING, the lead-sheet rule already has the better
+shape (floor, not proficient; the player's failing on balance), and a
+refill cycle should probably not consult the history at all: the set was
+just cleared. Not changed today — explanation was the ask.
+
+---
+
+## 2026-09-03 (fourth pass) — An invariant that was true by coincidence
+
+The reading pause shipped an hour before this change with a documented
+reason for skipping slot 0: "a revealed key is under the floor, so its
+cycle always demos". True — under the old demo rule. A revealed key
+(< 0.75) always sorted to the head, and a head under 0.90 always demoed.
+The invariant was not designed; it was the intersection of two rules that
+happened to agree, and the moment one of them changed (no demo on a
+refill) the other's assumption was silently false: a 0.95 clear from a
+0.6 history lands at 0.74, revealed, at the head, with nothing before it.
+
+Two things worth keeping. First, the code was written so the invariant
+was invisible — `if (slot === 0) return 0` says nothing about demos. The
+fix was to make the dependency explicit: one `cycleDemos()` that both the
+demo block and the pause read, so the pause's condition names the thing
+it actually depends on. Second, I found it only because I went looking
+for what ELSE reads "demo": the grep for `getDemoBars` was routine; the
+grep for the word "herald" in the docs was not, and that is what surfaced
+the sentence. When a rule changes, search the prose for the rule's
+consequences, not just the code for its name — the prose is where the
+coincidences get written down as facts.
+
+Also from today: a peer session committed under me mid-task and swept my
+notes into its commit. Working alone in a repo is an assumption too.
+
+---
+
 ## 2026-09-03 (third pass) — Fixing the symptom moved the problem; the second report named the cause
 
 This morning's read-ahead fix answered "the sheet is not completely displayed
@@ -1767,6 +1506,208 @@ timeout that lets the caller proceed does not cancel the thing it timed
 out on — the fixture's 200 ms race "handled" the hang while leaving the
 poison in place.
 
+## 2026-09-06 — "Confident" was never a level
+
+The pitch pipeline has one word for "there is a note here": confident,
+meaning clarity ≥ 0.8. Clarity is a SHAPE measure — how periodic is this
+window — normalised so a whisper and a shout of the same sine score the
+same. Every consumer read "confident" as "the player is playing", and for
+five months that held because nothing periodic happened at the noise
+floor. Then a metronome click rang at 271 Hz for 400 ms at −58 dBFS and
+the word broke: perfectly periodic, perfectly inaudible, perfectly
+confident. Worth remembering that a threshold on a normalised measure is
+a statement about shape only; the level has to be asserted separately or
+it is not asserted at all.
+
+Two things to keep. First, the corpus already contained the failure —
+the four-to-five fixture's 2.2 s phantom at RMS 0.001 — but its test was
+written about a different question (the listening window), so the
+phantom sat in the JSON as a "note" nobody read. A fixture pins what you
+assert about it and nothing else. When a new failure shape is learned,
+scan every diagnostic's segmentedNotes for it, not just the take that was
+reported; today that scan took one Python loop and found the second case.
+
+Second, the fix's UNIT mattered more than its threshold. A per-reading
+floor fixes this take and quietly re-shapes every decay tail the
+re-articulation tiers were tuned on (the corpus tracks real decays to
+−46 dB, and the gap tier reads "the last two still-tracked frames"). A
+per-run floor removes only things that were never loud and leaves those
+bytes alone — 4516 tests unchanged, which is itself the proof that the
+unit was right. When a gate is added late to a tuned pipeline, choose the
+unit that keeps the tuning's evidence intact first, then pick the number
+from the measured margins (−41 dB phantom, −15 dB softest real note →
+−30).
+
+And the relative-versus-absolute call: with auto-gain off, absolute RMS
+is a property of the user's mic gain. A bleed artefact scales with the
+monitor; a played note does not. Relative to the take's own loudest
+reading is the one frame in which both stay put — and it costs a second
+pass, which every scoring path here can afford because they all score
+the whole capture at once.
+
+## 2026-09-07 — A mock that worked by accident
+
+The e2e getUserMedia stub had lived on the `navigator.mediaDevices`
+instance for months and passed on WebKit the whole time — not because
+instance expandos are safe there, but because the stub's closure happened
+to hold a bound reference to the wrapper it was attached to. Remove the
+reference (which the peer session did for an unrelated, good reason) and
+WebKit collects the wrapper, re-creates it clean, and the app walks
+straight past the mock into the real API. The fix that "worked" for
+months was one dropped reference away from failing, and the change that
+exposed it was correct.
+
+Two lessons. First, the diagnostic path: I had a plausible theory (the
+mock isn't installed) and it was wrong; the trace that showed `own=true`
+after assign and `own=false` at the call site is what forced the real
+question — what happens BETWEEN — and the heap-churn probe answered it in
+one run. Every probe cost under a minute; theorising cost longer and
+produced nothing. Second, the fix rule: in an init script, patch the
+prototype, never the instance. An instance is a wrapper the engine may
+discard; a prototype is reachable from the global for the page's life.
+The guard spec churns the heap on every engine so the next person who
+"simplifies" the fixture finds out in CI rather than in a review thread.
+
+Also: rejecting a review finding is cheapest when the rejection is a
+test. The capture-window thread's scenario needed a note within 0.15 s of
+a click whose ring readings sit ≥ 0.1 s after it and ≥ 0.1 s before the
+note — 0.2 > 0.15, unreachable. A sentence in a reply is an opinion; the
+test that constructs the nearest possible case and shows the onset
+unvalidated is a fact the next constant change will re-check.
+
+---
+
+## 2026-09-07 — A default that was right in the math and wrong in the picture
+
+`prevHeight = currentRow === 0 ? slotHeight : heights[currentRow - 1]` is
+the kind of line that reads as care: the rule "the active row sits under
+the previous row" needs a value for the row with no previous row, and the
+standard slot is the natural one — it even keeps the active row at the
+same y for every key, which sounds like a virtue. But the slot exists to
+hold the previous row, and there is no previous row. What the eye got was
+a blank band the height of a chart row above the first key of every lick
+and every cycle, and the code's own comment described the band as expected
+("empty until the first key boundary populates it") — which is how it
+survived three rewrites of the module in one week, including one that
+parked row 0 at the top for a different reason (read-ahead) and was
+withdrawn without anyone noticing that the position had been right.
+
+The generalisation to check for: when a rule is stated as "X relative to
+the previous thing", the first element needs its own sentence, not a
+default that makes the formula total. The formula's totality was the
+symptom. And the property the default was quietly preserving — a fixed
+reading line — turned out not to be a requirement at all: Andy chose
+without hesitation to let the first key sit higher than the rest, and the
+first boundary is now a highlight moving over a still stack, which is
+calmer than the step it replaced.
+
+Small second note, the Plan agent's `-0` catch: `-prefix(...)` for rows 0
+and 1 would produce `-0`, and `Object.is(-0, 0)` is false, so vitest's
+`toBe(0)` would fail on a value every browser renders identically. Not a
+bug in the fix, only in a tempting simplification of it — exactly the trap
+a "simplify" pass walks into after the tests are green, so the code
+comment names it.
+
+Round-1 addendum, the same evening: CodeRabbit's one finding on #246 was
+not about the code but about three sentences of mine saying the ring under
+the stack "never moves" — while the repo's own follow-up list, five lines
+below one of them, recorded that the viewport flips 315 ↔ 317 between a
+stack with a sheet and one without. I had read that line that afternoon
+and edited around it. The claim was true in spirit (the viewport is fixed
+by design) and false by 2 px, and a doc that states a design's intent as
+its behaviour is exactly the sentence a follow-up list exists to correct.
+The reviewer offered two ways out — soften the claim or make it true — and
+the second was smaller than the first: one reserve parameter, one red
+test, and the follow-up closes. Whenever the fix is shorter than the
+caveat, the caveat is the wrong choice.
+
+CI addendum, later that evening — a red job that was not about the code.
+CI's e2e job went red on three consecutive heads of #246, one WebKit test,
+nine attempts out of nine, on the very commit that moved row 0; the base
+had passed twice that afternoon. Every instinct said "your change". Two
+probes said otherwise, and they are the two to reach for first on any
+CI-only timing failure: rerun the identical commit (it passed — so the
+condition is environmental), then reproduce under a one-core Docker
+throttle of Playwright's own image and bisect UNDER the throttle (base and
+head both failed, both put the mic source up at 15–19 s and the first row
+at ~45 s). The failing test had given session setup 20 s while its
+siblings in the same file give the same event 60 and 90 s, with a comment
+naming runner contention. Nine failures in a row still meant nothing about
+the diff; it meant CI had a slow half-hour and one test had no slack.
+
+Then the slack turned out to be the wrong fix. Raising the budget to
+60 s failed under the throttle just as 20 s had, and an extended probe
+put numbers on why: the mic was live at 9 s and the first row arrived
+at 57 s, behind 307 serial audio decodes — the sax set, then two
+velocity layers of a grand piano the backing track wants, then the kit.
+The rows are plan state; nothing about them needs a sample. They waited
+on the audio only because `startLick` built them, and `startLick` runs
+after the instrument loads. So the fix moved two lines to the top of
+`initializeSession`, pinned by an ordering assertion (row in the DOM
+before the first sample fetch — red at 864 ms vs 546 ms, then green),
+and a user on a slow connection gets the chart and the sheet while the
+band downloads. A test budget is a claim about how long something
+SHOULD take; when the thing has no business taking that long, the
+claim is the bug.
+
+Two smaller notes. The page looked perfectly healthy in every screenshot —
+header, countdown, ring, End Session — because all of those read state the
+setup page had already written; only the key stack waits for the audio
+setup, so an empty stack under a running clock is the signature of "init
+still running", not "init broken". And I hit the zsh `[ "$a" \> "$b" ]`
+trap the coderabbit-loop skill warns about, in my own poll loop, the same
+day I re-read the warning: a syntax error inside `if` fails the condition
+quietly and the loop just sleeps to its deadline. Warnings in skills are
+read once; `[[ ]]` has to be the habit.
+
+## 2026-09-08 — The latency window was a lookahead, and nobody had measured the stamp
+
+The bleed model says a click reaches the worklet 50–200 ms after its
+scheduled time and calls that "speaker→mic latency". The recording mixes the
+master bus straight into the blob, so the direct click sits at the schedule
+with no latency at all — and the ~100 ms the design measured in May was
+Tone's `lookAhead`, which `Transport.seconds` silently adds. The window
+worked for months because two errors cancelled: a stamp 0.1 s ahead of the
+audio clock, and a rule expecting 0.1 s of room. Then pre-arming moved the
+stamp by another 0.15–0.30 s and the whole click-suppression apparatus went
+blind, while its tests kept passing on the stored stamps. Nothing in the
+code could have noticed, because the ground truth was never in the code: it
+was in the WAV, where the direct-mix clicks are impulses you can find with
+a first-difference and a median. The lesson is not about metronomes. A
+constant that encodes a physical latency should be measured against the
+signal it claims to describe, and re-measured whenever the thing that
+produces the timestamp changes hands. I did not fix it — the fix is a
+re-baseline of a month of tuning, and three fixtures change under an
+aligned grid — but I wrote down the numbers, which is the part that was
+missing.
+
+Two smaller things from the same evening.
+
+The stabiliser's inertia moved the evidence. The octave respell needed the
+lower fundamental to appear on ≥ 25% of a sliver's raw frames; the sliver
+had one such frame in five, because the 3-frame octave confirm reports the
+flip two frames late in BOTH directions — the first two frames of the burst
+still say G3 while the raw pick says G4, and the frame after the burst says
+G4 while the raw pick is back at G3. Reading `midi` you see 55 55 67 67 67;
+reading `frequency` you see 67 67 67 67 55. The rule had to look one
+analyser window past the boundary that ended the sliver, which turned out
+to be the right physics anyway: an amplitude onset that brings no new pitch
+within a window of itself did not end the note. When a derived field
+disagrees with the raw one, the disagreement is the phenomenon.
+
+And the honest failure. A ride click on a held note and a feather tongue on
+the beat leave the same readings — spike, shallow shape dip, held energy, no
+wobble — and the two 2026-08-13 tongues the rescue was built for sit 20–26
+ms from their clicks, this click 2 ms. Every cut I could draw between them
+was a frame wide. The corpus is the population every gate is a claim
+about, and here the population says the two classes overlap; the correct
+move was an `it.fails` with the measurements, not a threshold nudged past
+one take. The scorer already forgave it (0.968, the extra flagged) — the
+defect is a note in a list, and it is better left visible than hidden
+behind a number chosen to make one test green.
+
+---
+
 ## 2026-09-09 — A timestamp nobody designed as evidence dated the first request a process ever served
 
 The health endpoint stamps `startedAt` at module load, and SvelteKit loads
@@ -1804,6 +1745,32 @@ what the wrapper's name promises. And the `-q` that wasn't there: I shipped
 a script I could not run and checked its syntax, which is not the same as
 checking its commands. When the harness moves execution to Andy, the
 verification standard should go up, not down.
+
+## 2026-09-10 — A rule about nested checkouts has to be tested from inside one
+
+The obvious fix for "the main dev server reloads when a worktree changes" is
+`ignored: ['**/.claude/worktrees/**']`, and it works perfectly from the main
+checkout. It also works perfectly from inside a worktree, in the sense that
+the server starts, prints its URL and serves pages — while watching nothing,
+because the pattern matches the server's own root. That is the shape of the
+trap: the rule's subject (nested checkouts) is exactly the place the rule
+was never going to be tried, and its failure there is silent. A watcher that
+watches nothing is indistinguishable from a working server until the first
+edit doesn't show up, and even then it looks like a stale-graph problem, the
+kind this project has already learned to "fix" with a restart. So the test
+that mattered was not "does the nested touch go quiet" but "does the ROOT
+touch still fire when the root is itself nested" — the inverse case, run
+from the worktree. Anchoring the glob at the config file made both true.
+
+Second thing, smaller and older than this project: I first "proved" the
+unanchored glob harmless with a five-line chokidar script, and the proof was
+of the wrong program. `node_modules/chokidar` is 4.x, hoisted for
+svelte-check and typescript; Vite bundles its own 3.x and never touches the
+hoisted one. A dependency tree is not evidence of what a process runs.
+When the real process is one `npm run dev` away, test the real process —
+the same lesson as reading the live Sentry count over the inspector two
+days ago, from the other direction.
+
 ## 2026-09-10 — A probe that reads zero must first prove it is attached to the thing it measures
 
 Three runs of a carefully instrumented dev server returned zeros for every
@@ -1880,3 +1847,37 @@ and when a sibling implementation (here, the Python validator) has already
 made a judgment call — "a short first measure is plausibly a pickup, the
 final bar may complement it" — mirror it rather than inventing a second
 rule, so the two halves of the OMR system agree about what a chart means.
+
+## 2026-09-10 — A design-language port is mostly a test port
+
+Restyling the tune-practice setup onto the console kit took one scripted
+markup replacement. What took thought was the e2e spec, and it is worth
+noting WHY each assertion broke. `page.locator('input[type="range"]')` plus a
+synthetic `input` event — an assertion against the control's implementation.
+`getByRole('button', { name: /pick your lick and earn points/i })` — an
+assertion that a description sentence lives inside the button. Both were
+true of the old markup and neither is a property of "a tempo control" or "a
+mode chooser". The assertions that survived unchanged were the ones written
+against roles and outcomes: a heading named "Practice licks", a paragraph
+that says "5 insertion points", a button named exactly "Start", marker rects
+in an svg. The rewrite follows the same rule — a `slider` whose
+`aria-valuenow` reaches 240 after End, a `radio` inside a `radiogroup` named
+"Mode", a `switch` that is disabled — so the NEXT restyle should cost the
+spec nothing. Corollary for the helper comment that explained the synthetic
+event's hydration race: the race is about hydration, not about events, so the
+explanation survived the control it was written for.
+
+Second, smaller: `var(--font-display)` was undefined for as long as the Knob
+has existed and nobody saw it, because the fallback (`Georgia`) is a serif
+that looks like Fraunces at 11 px. A fallback that is close enough to pass a
+glance is worse than one that breaks — the `--color-*` sweep exists for
+exactly this reason and stopped one property short. Generalising a sweep is
+cheap; the expensive part was noticing there was a second property to sweep.
+
+Third: a green Playwright run from a worktree can be a run against somebody
+else's build. `reuseExistingServer` + a fixed port + parallel checkouts = the
+suite happily testing whichever checkout got to 4173 first. The fix is an env
+override, but the lesson is that "the tests passed" needs "against which
+server" attached to it in a multi-worktree day.
+
+---
