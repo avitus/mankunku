@@ -21,20 +21,18 @@ import { resolvePickupLength } from './pickup';
 import {
 	abcKeyField,
 	approxToFraction,
-	chordSpellingPreference,
 	displayPitchClass,
 	durationToAbc,
 	getBeamGroupDuration,
 	getTripletBase,
-	governingSegment,
 	initBarState,
 	mergeConsecutiveRests,
 	midiToAbcPitch,
+	resolveUseFlats,
 	sameDuration,
 	shorterFraction,
 	signatureAccidentalsFor,
-	signatureFlatsFor,
-	signatureSpelling,
+	spellingContextAt,
 	type KeySigMap,
 	type NoteAnchor
 } from './notation';
@@ -124,8 +122,8 @@ interface DisplayElement {
 	sourceIndex: number | null;
 	/** Last stored flattened index a merged display rest covers (else = sourceIndex). */
 	sourceIndexEnd: number | null;
-	/** The harmony segment governing this element's offset, for spelling. */
-	governing: HarmonicSegment | null;
+	/** The section's harmony — the chord governing this element's offset spells it. */
+	harmony: readonly HarmonicSegment[];
 }
 
 /** Build the display text for one harmony segment's chord symbol. */
@@ -150,7 +148,8 @@ function escapeChordAnnotation(text: string): string {
 function chordDisplayText(
 	seg: HarmonicSegment,
 	instrument: InstrumentConfig | undefined,
-	keyContext: PitchClass
+	keyContext: PitchClass,
+	mode: Mode
 ): string {
 	const semitones = instrument?.transpositionSemitones ?? 0;
 
@@ -167,7 +166,7 @@ function chordDisplayText(
 				root: transposePitchClass(parsed.root, semitones),
 				bass: parsed.bass ? transposePitchClass(parsed.bass, semitones) : undefined
 			};
-			return respellFormat(shifted, keyContext);
+			return respellFormat(shifted, keyContext, mode);
 		}
 		if (semitones === 0) return seg.symbol;
 		// Unparseable + transposing — fall through to the structured chord.
@@ -177,16 +176,20 @@ function chordDisplayText(
 	const bass = seg.chord.bass
 		? instrument ? concertKeyToWritten(seg.chord.bass, instrument) : seg.chord.bass
 		: undefined;
-	const bassStr = bass ? `/${displayPitchClass(bass, keyContext)}` : '';
-	return `${displayPitchClass(root, keyContext)}${CHORD_DEFINITIONS[seg.chord.quality].symbol}${bassStr}`;
+	const bassStr = bass ? `/${displayPitchClass(bass, keyContext, mode)}` : '';
+	return `${displayPitchClass(root, keyContext, mode)}${CHORD_DEFINITIONS[seg.chord.quality].symbol}${bassStr}`;
 }
 
-/** Format a ChordSymbol with roots respelled for the key context (F#→Gb in flat keys). */
-function respellFormat(cs: ChordSymbol, keyContext: PitchClass): string {
-	const rootStr = displayPitchClass(cs.root, keyContext);
+/**
+ * Format a ChordSymbol with roots respelled for the key context (F#→Gb in
+ * flat keys; a minor key reads through its relative major, as ChordChart and
+ * the note-spelling chain do).
+ */
+function respellFormat(cs: ChordSymbol, keyContext: PitchClass, mode: Mode): string {
+	const rootStr = displayPitchClass(cs.root, keyContext, mode);
 	// Format against a placeholder root, then strip it — keeps one formatter.
 	const body = formatChordSymbol({ ...cs, root: 'C', bass: undefined }).slice(1);
-	const bassStr = cs.bass ? `/${displayPitchClass(cs.bass, keyContext)}` : '';
+	const bassStr = cs.bass ? `/${displayPitchClass(cs.bass, keyContext, mode)}` : '';
 	return `${rootStr}${body}${bassStr}`;
 }
 
@@ -210,7 +213,6 @@ export function tuneToAbcWithMap(
 
 	const displayKey = instrument ? concertKeyToWritten(sheet.key, instrument) : sheet.key;
 	const mode: Mode = options.mode ?? 'major';
-	const useFlats = signatureFlatsFor(displayKey, mode);
 	const keySigAccidentals: KeySigMap = signatureAccidentalsFor(displayKey, mode);
 
 	const barDuration = sheet.timeSignature[0] / sheet.timeSignature[1];
@@ -315,31 +317,22 @@ export function tuneToAbcWithMap(
 			return `z${durationToAbc(duration, defaultLength)}`;
 		}
 		const midi = instrument ? concertToWritten(note.pitch, instrument) : note.pitch;
-		// Spelling priority: the user's explicit choice, then diatonic-to-the-
-		// governing-chord (judged at WRITTEN pitch), then the key signature.
-		const chordPref = el.governing
-			? chordSpellingPreference(
-					midi,
-					displayPitchClass(
-						instrument
-							? concertKeyToWritten(el.governing.chord.root, instrument)
-							: el.governing.chord.root,
-						displayKey
-					),
-					el.governing.chord.quality
-				)
-			: null;
-		// Spelling priority: explicit choice > the enharmonic that is IN the
-		// key signature (no accidental needed — a C# in D major must not
-		// print as Db) > chord-diatonic preference > key-side default.
-		const sigPref = signatureSpelling(((midi % 12) + 12) % 12, keySigAccidentals);
-		const noteUseFlats = note.spelling === 'flat' ? true
-			: note.spelling === 'sharp' ? false
-			: sigPref === 'flat' ? true
-			: sigPref === 'sharp' ? false
-			: chordPref === 'flat' ? true
-			: chordPref === 'sharp' ? false
-			: useFlats;
+		// The ONE enharmonic policy `phraseToAbc` and every note-name display
+		// use: explicit > key signature > the segment's declared scale >
+		// governing chord (judged at WRITTEN pitch, root read in the display
+		// key and mode) > key-side default. A lick engraved as a lead-sheet
+		// row must print what its lick chart and note list print.
+		const noteUseFlats = resolveUseFlats(
+			midi,
+			spellingContextAt({
+				displayKey,
+				mode,
+				harmony: el.harmony,
+				offset: fractionToFloat(note.offset),
+				transpositionSemitones: instrument?.transpositionSemitones ?? 0,
+				explicit: note.spelling
+			})
+		);
 		const pitch = midiToAbcPitch(midi, noteUseFlats, keySigAccidentals, barState);
 		const art = noteArticulationPrefix(note);
 		const tieSuffix = note.tied ? '-' : '';
@@ -386,7 +379,7 @@ export function tuneToAbcWithMap(
 		for (const sec of sheet.sections) {
 			for (const h of sec.harmony) {
 				const at = base + fractionToFloat(h.startOffset);
-				const text = chordDisplayText(h, instrument, displayKey);
+				const text = chordDisplayText(h, instrument, displayKey, mode);
 				const existing = chordEvents.findIndex((c) => Math.abs(c.at - at) < 1e-9);
 				if (existing >= 0) chordEvents[existing] = { at, text };
 				else chordEvents.push({ at, text });
@@ -649,7 +642,7 @@ export function tuneToAbcWithMap(
 				note,
 				sourceIndex,
 				sourceIndexEnd,
-				governing: governingSegment(sec.harmony, fractionToFloat(note.offset))
+				harmony: sec.harmony
 			};
 		});
 
