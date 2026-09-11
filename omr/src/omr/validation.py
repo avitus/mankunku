@@ -39,9 +39,12 @@ def _check_measure_durations(normalized: NormalizedScore) -> list[OMRWarning]:
         meter = measure.meter or normalized.time_signature
         return Fraction(*meter) if meter else None
 
+    # A pickup leads into a form: a lone short measure has nothing after it
+    # and is a misread, not a pickup (same rule as omr-transcription.ts).
     first_expected = expected_for(measures[0])
-    first_is_short = (
-        first_expected is not None and _measure_total(measures[0]) < first_expected
+    first_total = _measure_total(measures[0])
+    has_pickup = (
+        len(measures) > 1 and first_expected is not None and first_total < first_expected
     )
 
     for measure in measures:
@@ -53,10 +56,10 @@ def _check_measure_durations(normalized: NormalizedScore) -> list[OMRWarning]:
         total = _measure_total(measure)
         if total == expected:
             continue
-        if measure.number == 1 and total < expected:
+        if measure.number == 1 and has_pickup:
             continue  # plausible pickup measure — recognized, not an error
-        if measure.number == len(measures) and total < expected and first_is_short:
-            continue  # final measure complementing the pickup
+        if measure.number == len(measures) and has_pickup and first_total + total == expected:
+            continue  # final measure complementing the pickup to exactly one bar
         warnings.append(
             OMRWarning(
                 code="MEASURE_DURATION_MISMATCH",

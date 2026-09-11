@@ -91,3 +91,22 @@ def test_midtones_are_not_binarized() -> None:
     out = preprocess_page(_page(img), trim=False, min_short_side=0).image
 
     assert sorted(set(out.getdata())) == [64, 128, 192, 255]
+
+
+def test_blank_page_is_returned_untouched() -> None:
+    page = _page(Image.new("L", (1400, 1400), 255))
+    assert preprocess_page(page) is page
+
+
+def test_colour_page_keeps_its_mode_after_trimming() -> None:
+    # The corpus PDFs carry coloured practice-highlight boxes; the content
+    # mask is computed in grayscale, but the page itself is never converted.
+    img = Image.new("RGB", (1400, 1400), "white")
+    for x in range(600, 800):
+        for y in range(600, 700):
+            img.putpixel((x, y), (200, 30, 30))
+
+    out = preprocess_page(_page(img), min_short_side=0).image
+
+    assert out.mode == "RGB"
+    assert out.width < 1400 and out.height < 1400

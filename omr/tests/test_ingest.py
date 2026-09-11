@@ -62,3 +62,15 @@ def test_non_positive_dpi_falls_back_to_default(tmp_path: Path) -> None:
     Image.new("RGB", (60, 60), "white").save(p, dpi=(0, 0))
     # PNG preserves a zero pHYs resolution; the loader must not record 0 dpi.
     assert load_score(p).pages[0].dpi == 72.0
+
+
+def test_uppercase_extension_is_accepted(tmp_path: Path) -> None:
+    p = tmp_path / "CHART.PNG"
+    Image.new("RGB", (60, 60), "white").save(p)
+    assert load_score(p).kind == "image"
+
+
+def test_image_resolution_metadata_is_recorded(tmp_path: Path) -> None:
+    p = tmp_path / "scan.png"
+    Image.new("RGB", (60, 60), "white").save(p, dpi=(150, 150))
+    assert load_score(p).pages[0].dpi == pytest.approx(150, abs=0.1)

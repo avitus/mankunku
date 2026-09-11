@@ -53,3 +53,17 @@ def test_align_measures_prefers_content_over_position() -> None:
     pairs = align_measures(gt, pred)
 
     assert pairs == [(1, 0)]
+
+
+def test_align_measures_empty_inputs() -> None:
+    assert align_measures([], [{"C4"}]) == []
+    assert align_measures([{"C4"}], []) == []
+
+
+def test_align_measures_with_inserted_measure() -> None:
+    gt = [{"C4"}, {"D4"}, {"E4"}]
+    pred = [{"C4"}, {"D4"}, {"X9"}, {"E4"}]  # model invented a measure
+
+    pairs = align_measures(gt, pred)
+
+    assert pairs == [(0, 0), (1, 1), (2, 3)]

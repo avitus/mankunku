@@ -1,9 +1,11 @@
 """Hermetic runner tests: artifact encoding contract with the FakeBackend."""
 
 import json
+import re
 from pathlib import Path
 
-from conftest import FakeBackend
+import pytest
+from conftest import FAKE_ABC, FakeBackend
 from PIL import Image
 
 from omr.benchmark.runner import run_benchmark
@@ -64,8 +66,6 @@ def test_benchmark_artifacts_use_explicit_utf8(tmp_path, monkeypatch) -> None:
 
 
 def test_duplicate_ground_truth_slugs_are_rejected(tmp_path: Path) -> None:
-    import pytest
-
     gt_path = _write_gt(tmp_path)
     dup = tmp_path / "fake-tune-copy.json"
     dup.write_text(gt_path.read_text(encoding="utf-8"), encoding="utf-8")
@@ -110,3 +110,31 @@ def test_backend_standing_elision_warning_adds_the_note(tmp_path: Path) -> None:
 
     notes = outcome["results"][0]["notes"]
     assert sum("does not transcribe text" in n for n in notes) == 1
+
+
+def test_missing_source_pdf_is_an_error_naming_the_chart(tmp_path: Path) -> None:
+    gt_path = _write_gt(tmp_path)
+    (tmp_path / "score.pdf").unlink()
+
+    with pytest.raises(FileNotFoundError, match="fake-tune"):
+        run_benchmark(FakeBackend(), [gt_path], repo_root=tmp_path, out_dir=tmp_path / "out")
+
+
+def test_per_chart_artifacts_and_a_single_summary_note_without_elision(tmp_path: Path) -> None:
+    gt_path = _write_gt(tmp_path)
+    out_dir = tmp_path / "out"
+
+    outcome = run_benchmark(FakeBackend(), [gt_path], repo_root=tmp_path, out_dir=out_dir)
+
+    assert (out_dir / "fake-tune.raw.abc").read_text(encoding="utf-8") == FAKE_ABC
+    normalized = json.loads((out_dir / "fake-tune.normalized.json").read_text(encoding="utf-8"))
+    assert normalized["title"] == "Fake Tune"
+    assert outcome["report_md"] == out_dir / "report.md"
+    assert outcome["report_json"].exists()
+    assert "pitch_strict" in outcome["aggregate"]
+
+    # No elision anywhere: the only note is the warning-count summary.
+    [note] = outcome["results"][0]["notes"]
+    assert re.fullmatch(
+        r"\d+ backend warning\(s\), \d+ parse warning\(s\), \d+ validation warning\(s\)", note
+    )
