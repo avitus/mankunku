@@ -50,7 +50,7 @@ const PROGRESSION_CATEGORIES = new Set<PhraseCategory>(
 	Object.keys(CATEGORY_COMPATIBILITY) as PhraseCategory[]
 );
 
-/** All known ScaleType values — returned for user licks and unknown fallback */
+/** All known ScaleType values — the fallback for licks with no readable harmony */
 const ALL_SCALE_TYPES: ScaleType[] = [...SCALE_UNLOCK_ORDER];
 
 // ── Public API ───────────────────────────────────────────────────────
@@ -59,15 +59,16 @@ const ALL_SCALE_TYPES: ScaleType[] = [...SCALE_UNLOCK_ORDER];
  * Derive which ScaleTypes a lick is compatible with.
  *
  * Resolution order:
- * 1. User-recorded licks → all ScaleTypes
- * 2. Progression categories (ii-V-I, turnarounds, etc.) → category mapping
- * 3. harmony[0].scaleId → scale-level mapping
- * 4. Fallback → all ScaleTypes (safe for unknown licks)
+ * 1. Progression categories (ii-V-I, turnarounds, etc.) → category mapping
+ * 2. harmony[0].scaleId → scale-level mapping
+ * 3. Fallback → all ScaleTypes (safe for unknown licks)
+ *
+ * User licks get no special case: they are saved without harmony, so outside
+ * a progression category they reach the fallback and fit every scale type;
+ * filed under a progression category they are gated like any other lick
+ * (a major ii-V-I must not be served — and bent — into a pentatonic session).
  */
 export function getCompatibleScaleTypes(lick: Phrase): ScaleType[] {
-	// User licks always pass
-	if (lick.source === 'user') return ALL_SCALE_TYPES;
-
 	// Multi-chord progression categories use broader compatibility
 	if (PROGRESSION_CATEGORIES.has(lick.category)) {
 		return CATEGORY_COMPATIBILITY[lick.category] ?? ALL_SCALE_TYPES;
