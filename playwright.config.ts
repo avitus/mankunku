@@ -1,6 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const PORT = 4173;
+// Overridable so a second checkout (a parallel worktree) can run the suite
+// beside a preview already holding 4173 — `reuseExistingServer` below would
+// otherwise attach to that other checkout's build and test the wrong code.
+const PORT = Number(process.env.PLAYWRIGHT_PORT ?? 4173);
 const BASE_URL = `http://localhost:${PORT}`;
 
 const isCI = !!process.env.CI;

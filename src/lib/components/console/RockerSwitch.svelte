@@ -1,14 +1,23 @@
 <script lang="ts">
+	import TooltipHint from '$lib/components/ui/TooltipHint.svelte';
+
 	interface Props {
 		checked: boolean;
 		label: string;
 		ariaLabel?: string;
+		/** Tooltip hint beside the engraved label, as on Knob. */
+		helpText?: string;
+		/** Greys the whole switch out and ignores input — a setting the chart
+		 *  cannot honour (the head on a chords-only tune) reads as unavailable,
+		 *  not as a choice. */
+		disabled?: boolean;
 		onChange: (checked: boolean) => void;
 	}
 
-	let { checked, label, ariaLabel, onChange }: Props = $props();
+	let { checked, label, ariaLabel, helpText, disabled = false, onChange }: Props = $props();
 
 	function toggle() {
+		if (disabled) return;
 		onChange(!checked);
 	}
 
@@ -34,6 +43,8 @@
 			role="switch"
 			aria-checked={checked}
 			aria-label={ariaLabel ?? label}
+			{disabled}
+			class:disabled
 			onclick={toggle}
 			onkeydown={onKeyDown}
 			class="rocker-housing group relative h-[32px] w-[80px] rounded-[6px] outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brass-soft)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-bg-secondary)]"
@@ -46,7 +57,12 @@
 			</span>
 		</button>
 	</div>
-	<span class="smallcaps console-engrave">{label}</span>
+	<span class="smallcaps console-engrave inline-flex items-center gap-1">
+		{label}
+		{#if helpText}
+			<TooltipHint text={helpText} position="top" />
+		{/if}
+	</span>
 </div>
 
 <style>
@@ -64,6 +80,12 @@
 		   state — otherwise the glow bleeds past the right border and reads
 		   as the cap being misaligned / spilling out of the switch. */
 		overflow: hidden;
+	}
+	/* Same dimming as SelectorPad's locked options; on the housing so the
+	   cap, LED and legends fade together. */
+	.rocker-housing.disabled {
+		opacity: 0.45;
+		cursor: not-allowed;
 	}
 	.rocker-mark {
 		position: absolute;

@@ -4,6 +4,40 @@ Running notes from working on Mankunku. Newest at the top. Not deleted unless pr
 
 ---
 
+## 2026-09-10 — A design-language port is mostly a test port
+
+Restyling the tune-practice setup onto the console kit took one scripted
+markup replacement. What took thought was the e2e spec, and it is worth
+noting WHY each assertion broke. `page.locator('input[type="range"]')` plus a
+synthetic `input` event — an assertion against the control's implementation.
+`getByRole('button', { name: /pick your lick and earn points/i })` — an
+assertion that a description sentence lives inside the button. Both were
+true of the old markup and neither is a property of "a tempo control" or "a
+mode chooser". The assertions that survived unchanged were the ones written
+against roles and outcomes: a heading named "Practice licks", a paragraph
+that says "5 insertion points", a button named exactly "Start", marker rects
+in an svg. The rewrite follows the same rule — a `slider` whose
+`aria-valuenow` reaches 240 after End, a `radio` inside a `radiogroup` named
+"Mode", a `switch` that is disabled — so the NEXT restyle should cost the
+spec nothing. Corollary for the helper comment that explained the synthetic
+event's hydration race: the race is about hydration, not about events, so the
+explanation survived the control it was written for.
+
+Second, smaller: `var(--font-display)` was undefined for as long as the Knob
+has existed and nobody saw it, because the fallback (`Georgia`) is a serif
+that looks like Fraunces at 11 px. A fallback that is close enough to pass a
+glance is worse than one that breaks — the `--color-*` sweep exists for
+exactly this reason and stopped one property short. Generalising a sweep is
+cheap; the expensive part was noticing there was a second property to sweep.
+
+Third: a green Playwright run from a worktree can be a run against somebody
+else's build. `reuseExistingServer` + a fixed port + parallel checkouts = the
+suite happily testing whichever checkout got to 4173 first. The fix is an env
+override, but the lesson is that "the tests passed" needs "against which
+server" attached to it in a multi-worktree day.
+
+---
+
 ## 2026-09-10 — A rule about nested checkouts has to be tested from inside one
 
 The obvious fix for "the main dev server reloads when a worktree changes" is

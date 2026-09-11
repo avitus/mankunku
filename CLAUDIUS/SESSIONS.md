@@ -3240,3 +3240,55 @@ cache until a boundary hitch is actually observed.
   functions (as on #247): documented the fifteen undocumented helpers a
   hunk-scoped scan found — inner arrows included — rather than guess which
   twelve CodeRabbit counts.
+
+## 2026-09-10 — Tune-practice setup restyled in the settings console language
+
+- Andy: "On the tune practice page, the setup section at the top is awfully
+  designed. Redesign it using the elements from the main settings page so
+  that it has consistent look and feel." Planned in plan mode (bounded; two
+  Explore passes + one Plan pass), then built.
+- What it was: the old form idiom — a flat `rounded-lg` box, `w-20` label
+  column, `rounded-full` pills, a raw `<input type=range>`, a raw checkbox.
+  The lick-practice setup had moved to the console kit long ago; this was the
+  one setup screen left behind.
+- What it is: the songbook header (brass kicker "The Songbook", Fraunces h1,
+  jazz rule, description, tour/docs links right); one settings-anatomy
+  section (icon chip + display h2 + subtitle) over the divided card. Row 1 =
+  how you're scored: Mode and Strictness `SelectorPad`s with short sublabels
+  (the old long mode descriptions survive as hover titles). Row 2 = what
+  plays: Head `RockerSwitch`, Key pad (sm, six columns, written pitch), Tempo
+  `Knob` (50–240, "100 BPM" readout), Backing pad on `BACKING_STYLE_NAMES`.
+  Row 3 = the insertion-point readout as settings' status strip, paragraphs
+  byte-identical (the e2e reads `p` by text). Start is the lick-practice CTA
+  with a caption: head first / straight to the changes / no melody.
+- `RockerSwitch` gained `helpText` (Knob's tooltip-in-the-engraved-label) and
+  `disabled` (native `disabled`, `.rocker-housing.disabled` opacity 0.45 like
+  a locked pad option). The Head switch reads OFF on a chords-only chart even
+  though `config.playHead` defaults true — the plan resolves
+  `playHead && hasMelody`, and an ON-but-disabled switch would promise a head
+  that never plays. `tooltips.ts` gained a `tunePractice` group.
+- Bug found on the way: `Knob.svelte` read `var(--font-display)` and nothing
+  defined it, so every knob readout (settings included) had rendered in
+  Georgia since the console shipped. The design-token sweep now covers
+  `--font-*` as well as `--color-*` — failed on the Knob first, then
+  `app.css` defines `--font-display` and `.font-display` reads it.
+- Test hazard found on the way: `playwright.config.ts` pinned port 4173 and
+  `reuseExistingServer` is on locally; another worktree's `vite preview` held
+  4173, so a run from here would have attached to THAT checkout's build and
+  reported green for the wrong code. `PORT` is now `PLAYWRIGHT_PORT ?? 4173`.
+- e2e rewrites: `setTempoMax` presses End on the `slider` role and asserts
+  `aria-valuenow` (the readout is two SVG text nodes in an aria-hidden svg,
+  so no text assertion); the mode test scopes `radio`s by named `radiogroup`;
+  a new test seeds a chords-only user sheet and pins the disabled switch and
+  the caption. The pre-hydration retry loops stay — a key event before
+  hydration is as much a no-op as the old synthetic input event was.
+- Verified: svelte-check 2757 files 0/0; vitest 284 files, 4611 passed / 36
+  expected-fail (baseline 4610 + the font sweep); e2e tune-practice chromium
+  6/6, firefox + webkit 12/12; settings + lick-practice chromium 8/8 (the
+  untouched RockerSwitch callers); screenshots at 1100 px dark, 1100 px
+  light and 375 px — both console rows on one line at desktop, wrapped and
+  centred on mobile, no console errors.
+- Docs: `tune-practice.md` setup-screen table (knob wording, the readout and
+  caption), `components.md` RockerSwitch props.
+- A parallel session (`tune-practice-strictness-modes-…`) started during
+  planning on the same block; rebased onto `origin/dev` before pushing.

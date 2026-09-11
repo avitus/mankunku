@@ -36,8 +36,10 @@ A trick played here earns points and counts toward your take, but it writes **no
 | **Strictness** | Guided, Standard, or Solo. Controls how much the app tells you and how strictly it listens. |
 | **Head** | Play the melody once through before the practice chorus. Greyed out on charts with no melody. |
 | **Key** | The written key you want to read the chart in. |
-| **Tempo** | 50–240 BPM. |
+| **Tempo** | 50–240 BPM on the tempo knob — drag, scroll, or use the arrow keys. |
 | **Backing** | Swing, Bossa Nova, Ballad, or Straight — see [The band](./user-guide.md#the-band). |
+
+The controls are the same knobs, rocker switches and selector pads as the [settings page](./user-guide.md#settings); the insertion-point readout sits at the foot of the panel, and the caption under **Start** says whether the first chorus is the head or straight into the changes.
 
 Below the settings, the chart previews with the insertion points shaded in, so you can see where in the form you'll be playing before you commit.
 

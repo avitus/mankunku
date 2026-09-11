@@ -119,6 +119,27 @@ export const tooltips = {
 		}
 	} satisfies TooltipMap,
 
+	tunePractice: {
+		mode: {
+			text: 'Suggest names the top lick at every insertion point. Points lets you pick the lick and scores it, doubling back-to-back hits. Freestyle drops the windows — the band plays, you solo, and known licks earn applause.',
+			learnMore: '/docs/tune-practice'
+		},
+		strictness: {
+			text: 'How much the app tells you and how strictly it listens — never the grading scale. Guided: full cues, any octave. Standard: cues on approach, any octave. Solo: no cues, exact register.',
+			learnMore: '/docs/tune-practice'
+		},
+		head: {
+			text: 'Play the melody once through first, then the chart clears and the changes are yours.',
+			learnMore: '/docs/tune-practice'
+		},
+		headNoMelody: {
+			text: 'This chart has no melody, so there is no head to play.'
+		},
+		tempo: {
+			text: 'Session tempo, 50–240 BPM. Suggest mode only offers licks you can already play at this speed.'
+		}
+	} satisfies TooltipMap,
+
 	settings: {
 		instrument: {
 			text: 'Sets transposition. Notation displays in your written pitch (Bb tenor sees C as written D); audio always plays at concert pitch.'
@@ -156,5 +177,6 @@ export type TooltipKey =
 	| keyof typeof tooltips.licks
 	| keyof typeof tooltips.progress
 	| keyof typeof tooltips.lickPractice
+	| keyof typeof tooltips.tunePractice
 	| keyof typeof tooltips.settings
 	| keyof typeof tooltips.jazz;

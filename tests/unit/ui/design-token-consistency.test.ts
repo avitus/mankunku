@@ -8,6 +8,7 @@ import { join, relative } from 'node:path';
  * 1. Every `var(--color-*)` reference resolves to a token defined in app.css.
  *    An undefined token fails silently in CSS (the property computes to
  *    nothing), so a typo like --color-bg-primary ships a broken hover.
+ *    The same sweep runs for `var(--font-*)`.
  * 2. Solid colored fills (accent/success/error, incl. hover: variants) on
  *    text-bearing elements carry an explicit `text-white`. Without it the
  *    label inherits var(--color-text), which flips to near-black in light
@@ -47,6 +48,29 @@ describe('design token consistency', () => {
 		for (const file of files) {
 			const source = readFileSync(file, 'utf8');
 			for (const m of source.matchAll(/var\((--color-[a-z0-9-]+)\)/g)) {
+				if (!defined.has(m[1])) {
+					const users = undefinedUses.get(m[1]) ?? [];
+					if (!users.includes(rel(file))) users.push(rel(file));
+					undefinedUses.set(m[1], users);
+				}
+			}
+		}
+		expect(
+			[...undefinedUses.entries()].map(([token, users]) => `${token} (${users.join(', ')})`)
+		).toEqual([]);
+	});
+
+	it('every var(--font-*) referenced in src/ is defined in app.css', () => {
+		// Same failure mode as the colour sweep, one property over: an
+		// undefined font token leaves `font-family: var(--font-display), Georgia`
+		// resolving to Georgia, so every knob readout quietly lost Fraunces.
+		const defined = new Set(
+			[...APP_CSS.matchAll(/(--font-[a-z0-9-]+)\s*:/g)].map((m) => m[1])
+		);
+		const undefinedUses = new Map<string, string[]>();
+		for (const file of files) {
+			const source = readFileSync(file, 'utf8');
+			for (const m of source.matchAll(/var\((--font-[a-z0-9-]+)\)/g)) {
 				if (!defined.has(m[1])) {
 					const users = undefinedUses.get(m[1]) ?? [];
 					if (!users.includes(rel(file))) users.push(rel(file));

@@ -601,7 +601,7 @@ Renders `LISTENING_CHECKLIST` from `$lib/audio/backing-listening-checklist` — 
 
 **Path:** `src/lib/components/console/`
 
-The Settings page is styled as a studio console rather than a form. These three are the primitives; each carries the same keyboard and screen-reader behaviour as the plain input it replaces.
+The Settings page is styled as a studio console rather than a form — as are the lick-practice and tune-practice setup screens. These three are the primitives; each carries the same keyboard and screen-reader behaviour as the plain input it replaces.
 
 ### `Knob.svelte`
 
@@ -623,6 +623,8 @@ The Settings page is styled as a studio console rather than a form. These three 
 | `checked` | `boolean` | State |
 | `label` | `string` | Caption |
 | `ariaLabel` | `string` | Accessible name |
+| `helpText` | `string` | Tooltip hint beside the caption, as on `Knob` |
+| `disabled` | `boolean` | Greys the switch out and ignores input (the Head switch on a chords-only chart) |
 | `onChange` | `(checked: boolean) => void` | Toggle handler |
 
 ### `SelectorPad.svelte`

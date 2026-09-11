@@ -67,25 +67,22 @@ async function expectChartVisibleInFollowViewport(page: Page): Promise<void> {
 }
 
 /**
- * Max the tempo slider and confirm the label updates (Svelte range bind).
+ * Max the tempo knob (End key → max) and confirm the value moved.
  *
- * The dispatch is retried until the label actually moves. Callers reach here
- * as soon as the Start button is VISIBLE, but visible is not hydrated: the
- * setup screen is server-rendered, so a synthetic `input` event can land
- * before Svelte has attached `bind:value` — the slider's own value changes,
- * no handler runs, and `config.tempo` stays at its default. That produced a
- * ~70% failure rate locally on `chart stays visible through first insertion`,
- * with the misleading symptom of a missing "240 BPM" label.
+ * The keypress is retried until `aria-valuenow` reaches the max. Callers
+ * reach here as soon as the Start button is VISIBLE, but visible is not
+ * hydrated: the setup screen is server-rendered, so a key event can land
+ * before Svelte has attached the Knob's keydown handler — nothing runs and
+ * `config.tempo` stays at its default. The old range-input version of this
+ * helper hit that race ~70% of the time locally on `chart stays visible
+ * through first insertion`. The readout is not asserted by text: the Knob
+ * draws "240" and "BPM" as two SVG text nodes inside an aria-hidden svg.
  */
 async function setTempoMax(page: Page): Promise<void> {
-	const slider = page.locator('input[type="range"]');
+	const knob = page.getByRole('slider', { name: /^tempo$/i });
 	await expect(async () => {
-		await slider.evaluate((el: HTMLInputElement) => {
-			el.value = el.max;
-			el.dispatchEvent(new Event('input', { bubbles: true }));
-			el.dispatchEvent(new Event('change', { bubbles: true }));
-		});
-		await expect(page.getByText(/240\s*BPM/i)).toBeVisible({ timeout: 1_000 });
+		await knob.press('End');
+		await expect(knob).toHaveAttribute('aria-valuenow', '240', { timeout: 1_000 });
 	}).toPass({ timeout: 15_000 });
 }
 
@@ -151,15 +148,65 @@ test.describe('tune practice setup', () => {
 		consoleCollector: _consoleCollector
 	}) => {
 		await page.goto('/tunes/ls-when-the-saints/practice');
+		const head = page.getByRole('switch', { name: /play the head first/i });
+		const modes = page.getByRole('radiogroup', { name: 'Mode', exact: true });
 		// The play-the-head option applies to every mode.
-		await expect(page.getByText(/play the head first/i)).toBeVisible();
-		await page.getByRole('button', { name: /freestyle/i }).click();
-		await expect(page.getByText(/play the head first/i)).toBeVisible();
-		// The mode button's accessible name includes its description line.
-		await page.getByRole('button', { name: /pick your lick and earn points/i }).click();
-		await expect(page.getByText(/play the head first/i)).toBeVisible();
-		// Strictness pills present.
-		await expect(page.getByRole('button', { name: /^solo$/i })).toBeVisible();
+		await expect(head).toBeVisible();
+		await expect(head).toBeEnabled();
+		await modes.getByRole('radio', { name: /^freestyle/i }).click();
+		await expect(head).toBeVisible();
+		// A pad option's accessible name is its label plus its sublabel line.
+		await modes.getByRole('radio', { name: /^points\b.*streaks double/i }).click();
+		await expect(head).toBeVisible();
+		// Strictness pad present.
+		await expect(
+			page
+				.getByRole('radiogroup', { name: 'Strictness', exact: true })
+				.getByRole('radio', { name: /^solo\b/i })
+		).toBeVisible();
+	});
+
+	test('head switch is disabled on a chords-only chart', async ({
+		page,
+		consoleCollector: _consoleCollector
+	}) => {
+		// A user sheet with harmony but no pitched notes: the head cannot play,
+		// so the switch reads OFF and unavailable (config.playHead still defaults
+		// true — the plan resolves playHead && hasMelody) and the Start caption
+		// says why.
+		const chordsOnlyTune = {
+			id: 'e2e-chords-only',
+			title: 'Chords Only',
+			composer: 'E2E',
+			key: 'C',
+			timeSignature: [4, 4],
+			style: 'Medium Swing',
+			tags: ['e2e'],
+			sections: [
+				{
+					label: 'A',
+					bars: 2,
+					notes: [
+						{ pitch: null, duration: [1, 1], offset: [0, 1] },
+						{ pitch: null, duration: [1, 1], offset: [1, 1] }
+					],
+					harmony: [
+						{ chord: { root: 'D', quality: 'min7' }, scaleId: 'major.dorian', startOffset: [0, 1], duration: [1, 2], symbol: 'Dm7' },
+						{ chord: { root: 'G', quality: '7' }, scaleId: 'major.mixolydian', startOffset: [1, 2], duration: [1, 2], symbol: 'G7' },
+						{ chord: { root: 'C', quality: 'maj7' }, scaleId: 'major.ionian', startOffset: [1, 1], duration: [1, 1], symbol: 'Cmaj7' }
+					]
+				}
+			],
+			source: 'user'
+		};
+		await seedTunes(page, [chordsOnlyTune]);
+		await page.goto('/tunes/e2e-chords-only/practice');
+		const head = page.getByRole('switch', { name: /play the head first/i });
+		await expect(head).toBeVisible();
+		await expect(head).toBeDisabled();
+		await expect(head).toHaveAttribute('aria-checked', 'false');
+		// Scoped to a <p>: the switch's tooltip carries similar copy off-screen.
+		await expect(page.locator('p', { hasText: /no melody/i })).toBeVisible();
 	});
 });
 
