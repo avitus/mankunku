@@ -1,18 +1,21 @@
 # Data Model
 
-All core types live in `src/lib/types/`. This document describes the interfaces and type aliases in that directory.
+All core types live in `src/lib/types/`. This document describes the interfaces and type aliases in that directory that the app consumes. Three declarations there have no consumer and are not covered: `UserProfile` and `AuthState` (`auth.ts` — the layout reads Supabase's own `Session`/`User` instead) and `AudioState` (`audio.ts`).
 
-Types that belong to one subsystem and are declared beside it — `FlattenedTune` and `InsertionPoint` (tunes), `PitchReading` (audio), `LickFeature` / `MatchIndex` (matching), `ChordSymbol` (notation) — are documented with their subsystem: see [Tune System](./tune-system.md), [API Reference: Audio](../api-reference/audio.md), and [API Reference: Music](../api-reference/music.md).
+Types that belong to one subsystem and are declared beside it — `FlattenedTune` and `InsertionPoint` (tunes), `PlannedKey` (lick-practice state), `PitchReading` (audio), `LickFeature` / `MatchIndex` (matching), `ChordSymbol` (notation) — are documented with their subsystem: see [Tune System](./tune-system.md), [State Management](./state-management.md), [API Reference: Audio](../api-reference/audio.md), and [API Reference: Music](../api-reference/music.md).
+
+The cloud side of every persisted type is `src/lib/supabase/types.ts`, which is **hand-maintained** in the generator's format (see [Tech Stack](./tech-stack.md#database)); where a type below lands in a table or column, the section says so.
 
 ## Music Types (`src/lib/types/music.ts`)
 
-### PitchClass
+### PitchClass / Mode
 
 ```typescript
 type PitchClass = 'C' | 'Db' | 'D' | 'Eb' | 'E' | 'F' | 'F#' | 'G' | 'Ab' | 'A' | 'Bb' | 'B';
+type Mode = 'major' | 'minor';
 ```
 
-The 12 chromatic pitch classes, using flat notation for every accidental except the tritone-from-C slot, which is spelled `'F#'`. The constant `PITCH_CLASSES` provides them in the same order.
+The 12 chromatic pitch classes, using flat notation for every accidental except the tritone-from-C slot, which is spelled `'F#'`. The constant `PITCH_CLASSES` provides them in the same order. `Mode` says how to read a key: a lick's `key` is always the TONIC, and `mode` tells you whether that tonic is major or minor.
 
 ### ChordQuality
 
@@ -34,12 +37,12 @@ type PhraseCategory =
   | 'short-ii-V-I-major' | 'short-ii-V-I-minor'
   | 'V-I-major' | 'V-I-minor'
   | 'major-chord' | 'dominant-chord' | 'minor-chord' | 'diminished-chord'
-  | 'pentatonic' | 'enclosures' | 'digital-patterns'
+  | 'pentatonic' | 'enclosures' | 'digital-patterns' | 'triad-pairs'
   | 'rhythm-changes' | 'ballad' | 'modal'
   | 'user';
 ```
 
-Categories for organizing phrases: 18 curated/combinatorial categories plus `'user'` for user-recorded licks. The curated library holds 452 hand-written licks across these categories (plus algorithmically generated combinations, for ~538 licks at import). `CATEGORY_LABELS` in `music.ts` provides the canonical display label for every value.
+Categories for organizing phrases: 19 curated/combinatorial categories plus `'user'` for user-recorded licks. The curated library holds 452 hand-written licks across these categories (plus the runtime-generated `COMBINED_LICKS` from `phrases/combiner.ts`, for 923 licks at import — 452 curated + 471 combined, measured 2026-09-10). `CATEGORY_LABELS` in `music.ts` provides the canonical display label for every value. `'enclosures'` and `'triad-pairs'` double as the categories the two melodic devices register under (see [Trick Scoring](./trick-scoring.md)).
 
 ### Fraction
 
@@ -60,6 +63,7 @@ interface Note {
   articulation?: Articulation; // 'normal' | 'accent' | 'ghost' | 'bend-up' | 'staccato' | 'legato'
   scaleDegree?: string;        // e.g. '1', 'b3', '#4'
   spelling?: 'sharp' | 'flat'; // Override enharmonic spelling for notation display
+  gliss?: boolean;             // Glissando/portamento INTO the next melody note (imported charts)
   tied?: boolean;              // Ties note to the next: renders an ABC tie and plays as one
                                // sustained pitch when pitches match; the scorer collapses tied
                                // same-pitch chains into a single sustained note
@@ -86,24 +90,44 @@ Defines the harmonic context for a portion of a phrase — the chord and the ass
 
 `symbol` preserves display fidelity where the mapping onto the closed `ChordQuality` union is imperfect: **display prefers `symbol`, audio uses `chord`**. It is populated by manual chord entry and every tune importer via `harmonicSegmentFromSymbol` (see [Tune System](./tune-system.md)).
 
+### DifficultyMetadata
+
+```typescript
+interface DifficultyMetadata {
+  level: number;               // 1 (easiest) – 100
+  pitchComplexity: number;     // 1-100
+  rhythmComplexity: number;    // 1-100
+  lengthBars: number;
+  pickupBars?: number;         // Whole bars of anacrusis before the bulk downbeat; default 0
+}
+```
+
+`pickupBars` shifts a lick's category alignment left inside a progression cycle so the bulk lands on the target chord; absent, it is inferred from the notes by `detectPickupBars` (see [Lick Alignment](./lick-alignment.md)). The enclosure drill figure stamps it explicitly on generated phrases.
+
 ### Phrase
 
 ```typescript
 interface Phrase {
-  id: string;                          // Unique ID (e.g. 'ii-V-I-maj-001' or 'gen-1710000000-0')
+  id: string;                          // e.g. 'ii-V-I-maj-001' (curated), 'cmb-<scale>_<rhythm>' (combiner),
+                                       // 'trick-<variantKey>-<key>-<n>' (trick example)
   name: string;
   timeSignature: [number, number];     // e.g. [4, 4]
-  key: PitchClass;                     // Concert pitch key
+  key: PitchClass;                     // Concert-pitch TONIC
+  mode?: Mode;                         // How to read `key`; absent = not stated
   notes: Note[];
   harmony: HarmonicSegment[];
   difficulty: DifficultyMetadata;
   category: PhraseCategory;
   tags: string[];
-  source: 'curated' | 'generated' | string;  // or 'mutated:<parentId>'
+  source: 'curated' | 'generated' | string;  // in use: 'curated', 'combined', 'generated' (trick examples),
+                                             // 'user-entered', 'user-recorded', 'tune'
+  sectionMap?: { sourceSection: number; barOffset: number }[];  // tune-derived phrases only
 }
 ```
 
-The central data structure. Curated licks are stored in concert C — the TONIC, so a minor lick is `key: 'C'` + `mode: 'minor'` (C minor), never its relative major — and transposed at runtime. User licks keep the concert key they were entered in. `mode` is optional: absent means "not stated" and `lickMode()` (music/mode.ts) infers from the harmony's tonic segment (never the category — legacy user licks in minor categories were entered with key = relative major).
+The central data structure. Curated licks are stored in concert C — the TONIC, so a minor lick is `key: 'C'` + `mode: 'minor'` (C minor), never its relative major — and transposed at runtime. User licks keep the concert key they were entered in. `mode` is optional: absent means "not stated" and `lickMode()` (music/mode.ts) infers from the harmony's tonic segment (never the category — legacy user licks in minor categories were entered with key = relative major). In the cloud it is the `user_licks.mode` column (`TEXT NULL`, `'major' | 'minor'`); it rides four hand-written row mappers (`user-licks.ts` `cloudRowToPhrase`/`phraseToRow`, `community.ts` `rowToPhrase`, `sync.ts` `toRow`), and since reconcile is whole-row last-writer-wins, a mapper that forgets the column writes NULL and erases the mode on the next pull — each mapper has a test.
+
+`sectionMap` is present only on phrases built from a tune (`tuneToPhraseWithFlat`): it mirrors `FlattenedTune.sectionMap` so the backing-track engine can find section/chorus boundaries; licks and generated phrases leave it unset.
 
 ### ScaleDefinition
 
@@ -141,10 +165,13 @@ interface TuneSection {
   repeatStart?: boolean;       // Opens |: at the start of this section
   repeatEnd?: boolean;         // Closes :| at the end of this section
   ending?: 1 | 2;              // Numbered volta ending
+  pickupLength?: Fraction;     // Printed length of an anacrusis first bar (0 < L < one bar)
   notes: Note[];               // SECTION-LOCAL offsets, starting at [0,1]
   harmony: HarmonicSegment[];  // SECTION-LOCAL offsets
 }
 ```
+
+`pickupLength` changes only the engraving: the bar still occupies a FULL meter bar on the timeline, with its melody right-aligned behind a leading silence, so playback, backing and every bar-indexed consumer stay uniform. `music/pickup.ts` (`resolvePickupLength`) is the one resolver, with a legacy inference for tunes imported before the field existed — see [Tune System](./tune-system.md#engraving).
 
 ### Tune
 
@@ -205,8 +232,9 @@ type LickPracticeProgress =
 
 Per-lick, per-key progress, persisted to localStorage via `persistence/lick-practice-store.ts`.
 
-`passCount` counts only *passes* (≥ 0.90), at most one per session — it drives
-unlocking. `rollingScore` is different on purpose: it is updated on **every**
+`passCount` counts only *passes* (≥ 0.90) on an attempt of record — once per key
+per lick in a Daily/Focused session, once per replay in Deep Practice, where a key
+under 0.95 stays in the rotation — and it drives unlocking. `rollingScore` is different on purpose: it is updated on **every**
 scored attempt including failures, so deep-practice can rank a lick's keys
 worst-first and aim the per-cycle demo at the key that actually needs it. It is
 optional because entries written before the field existed have none; absent is
@@ -229,9 +257,36 @@ type LickProgressHistory = Record<string, LickProgressPoint[]>;
 
 Append-only time series, sampled whenever a session bumps tempo or unlocks a key. Drives the two-panel progress chart on the lick detail page — plotted against real elapsed time, not sample index.
 
+### FocusRamp / FocusRampSummary
+
+```typescript
+interface FocusRamp {
+  focusKey: PitchClass;
+  targetTempo: number;                       // the lick's saved tempo when the session opened
+  phase: 'focus' | 'rebuild' | 'complete';
+  admitted: PitchClass[];                    // rebuild: focus key + every key re-admitted so far
+  queue: PitchClass[];                       // not yet admitted, worst-first
+  upToSpeedRound: number | null;
+  rebuiltRound: number | null;
+}
+
+interface FocusRampSummary {
+  focusKey: PitchClass;
+  targetTempo: number;
+  lowestTempo: number;                       // lowest session tempo the staircase reached
+  upToSpeedRound: number | null;
+  rebuiltRound: number | null;
+}
+```
+
+The live state of the deep-practice focus ramp (launched from the report's weak-key
+recommendation) is session-local and never persisted; only the `FocusRampSummary` on
+`SessionReport.ramp` outlives the session, logged like any other report field. Policy
+lives in `state/lick-practice-rotation.ts` — see [State Management](./state-management.md).
+
 ### Other types in this module
 
-`LickPracticeMode` (`'continuous' | 'call-response'`), `LickPracticeSessionType` (`'daily' | 'focused' | 'deep' | 'trick'`), `LickPracticeConfig`, `ChordSubstitutionRule`, `LickPracticePlanItem`, `SingleLickRoundEntry`, `LickPracticePhase` (`'setup' | 'count-in' | 'lick-running' | 'inter-lick-rest' | 'complete'`), `LickPracticeKeyResult`, `LickReport`, `SessionReport`. See [API Reference: State](../api-reference/state.md#lick-practicesveltets).
+`LickPracticeMode` (`'continuous' | 'call-response'`), `LickPracticeSessionType` (`'daily' | 'focused' | 'deep' | 'trick'`), `LickPracticeConfig` (session type, progression, duration, practice mode, backing style, `enableSubstitutions`, `singleLickId`, `tempoBumpPercent`, `trickId` + `trickParameters`), `ChordSubstitutionRule`, `LickPracticePlanItem`, `SingleLickRoundEntry`, `LickPracticePhase` (`'setup' | 'count-in' | 'lick-running' | 'inter-lick-rest' | 'complete'`), `LickPracticeKeyResult`, `LickReport` (carries an optional `progressionType`, since Daily Practice varies it per lick and the report's key chips read their mode from it), `SessionReport`. See [API Reference: State](../api-reference/state.md#lick-practicesveltets).
 
 `LickPracticePlanItem` carries an optional `kind: 'lick' | 'trick'` (absent means
 `'lick'`). For a trick item, `phraseId` **is** the composite trick variant key, and
@@ -240,6 +295,15 @@ the item additionally carries `trickId`, `trickParameters`, and the C-rooted
 on a variant key, so every helper falls back to the item's own `phrase` — which is
 why a trick can ride the lick-practice engine without the lick catalog knowing it
 exists.
+
+`PlannedKey` — one row of the in-session key stack — is declared in
+`state/lick-practice.svelte.ts` rather than here. Beside the key, phrase and
+harmony it carries two flags stamped ONCE when the stack is built and never
+re-derived mid-cycle: `reveal` (does this row show the lead sheet — decided from
+the key's persisted `rollingScore` by `shouldRevealNotation`; trick rows never)
+and `passes` (consecutive play windows: `LEAD_SHEET_PASSES` = 3 for a revealed
+row in continuous mode, else 1). A row's height must not change while the
+stack scrolls, which is why they are frozen at build time.
 
 ## Trick Types (`src/lib/types/tricks.ts`)
 
@@ -273,6 +337,30 @@ interface TrickSlotSpec {
 ```
 
 Everything is **pitch classes**, never MIDI: a trick is a shape, not a register.
+
+### `TrickContext`
+
+```typescript
+interface TrickContext {
+  chordRoot: PitchClass;
+  chordQuality: ChordQuality;
+  scaleId: string;                 // conventionally rooted at chordRoot
+  key: PitchClass;                 // concert target key of the practice window
+  timeSignature: [number, number];
+  level: number;                   // 1-100, drives getProfileForLevel bounds (eighth vs quarter grid)
+  tempo: number;
+  swing?: number;                  // 0.5 straight; defaults to 0.5
+  exampleStyle?: string;           // which of Trick.exampleStyles to demonstrate; scoring ignores it
+  figure?: 'full' | 'compact';     // drill figure (default) vs the tune-insertion gesture; BOTH
+                                   // scoreConformance and generateExample honour it
+}
+```
+
+Everything in the context is **context, never a parameter** — none of it enters
+the variant key. `exampleStyle` only steers the demo (all styles are always
+accepted when scoring); `figure` steers both contracts, so the judged spec
+always matches the demonstrated phrase. `tricks/index.ts` builds one with
+`trickContextFor(trick, params, key, tempo)` over the variant's own practice bed.
 
 ### `ConformanceResult` / `SlotConformanceResult`
 
@@ -448,8 +536,8 @@ interface AlignmentPair {
 
 ```typescript
 interface UserProgress {
-  adaptive: AdaptiveState;
-  sessions: SessionResult[];                    // Last 100 sessions (MAX_SESSIONS)
+  adaptive: AdaptiveState;                      // FROZEN — see below
+  sessions: SessionResult[];                    // Last 100 sessions (MAX_SESSIONS, persistence/limits.ts)
   categoryProgress: Record<string, CategoryProgress>;
   keyProgress: Partial<Record<PitchClass, { attempts: number; averageScore: number }>>;
   scaleProficiency: Partial<Record<ScaleType, ScaleProficiency>>;  // per-scale proficiency (1-100)
@@ -478,6 +566,16 @@ interface AdaptiveState {
 }
 ```
 
+**Frozen since 2026-08-31.** The global pitch/rhythm complexity ratchet that wrote
+this (`processAttempt`) was retired — nothing consumed its output after the
+generator's removal, so it only saturated at 100. The field survives because it
+round-trips through hydrate, the cloud merge and the `adaptive_state` JSONB
+column on the progress row; `createInitialAdaptiveState()` still seeds it for a
+new user. Do not add a writer for it and do not drop it. The live adaptive system
+is the per-scale / per-key proficiency (`ScaleProficiency` / `KeyProficiency`,
+same shape: `level` 1-100, a 25-score window, cooldown counters) — see
+[Adaptive Difficulty](./adaptive-difficulty.md).
+
 ### SessionResult
 
 ```typescript
@@ -502,6 +600,47 @@ interface SessionResult {
   timing?: TimingDiagnostics;                   // optional, backward compat
 }
 ```
+
+### DailySummary / ProgressMeta
+
+```typescript
+interface DailySummary {
+  date: string;                          // "YYYY-MM-DD"
+  sessionCount: number;                  // ear + lick
+  earTrainingSessions?: number;          // absent on pre-split rows: treat as sessionCount
+  lickPracticeSessions?: number;         // absent on pre-split rows: treat as 0
+  practiceMinutes: number;               // estimated, ~2 min per session
+  avgOverall: number; avgPitch: number; avgRhythm: number; bestScore: number;   // 0-1
+  notesTotal: number; notesHit: number;
+  grades: GradeDistribution;             // { perfect, great, good, fair, tryAgain }
+  categories: Record<string, number>;    // category → session count
+  // ComplexitySnapshot — point-in-time, NOT derivable from the source tables:
+  pitchComplexity?: number;              // frozen adaptive value, ear-training only
+  rhythmComplexity?: number;
+  tonalMastery?: number;                 // avg proficiency over 12 scales + 12 keys, 0-100
+  scaleLevels?: Partial<Record<ScaleType, number>>;   // per-scale level at end of day
+}
+
+interface ProgressMeta {
+  version: number;                       // 2 = derive-on-write summaries
+  lastAggregationTimestamp: number;
+  longestStreak: number;
+  longestStreakEndDate: string;
+  allTimeSessionCount: number;
+}
+```
+
+Everything above the snapshot fields is a **pure derivation** of `progress.sessions`
++ the lick-practice session log, recomputed on every write to either
+([State Management](./state-management.md#history-state-srclibstatehistorysveltets)).
+The four snapshot fields are supplied only by ear-training's `recordAttempt`
+(`ComplexitySnapshot` in `history.svelte.ts`), and every recompute or cloud merge
+without a fresh one **preserves** the stored values — a defined value always beats
+an absent one, because a cloud row mapped from NULL columns carries them as
+present-but-undefined, which a plain spread would erase. `scaleLevels` is unioned
+by key across devices. Cloud: the `daily_summaries` table (one row per user-date;
+`scale_levels` column added 2026-08-26), synced through the `dailySummaries`
+outbox kind.
 
 ## Instrument Types (`src/lib/types/instruments.ts`)
 
@@ -529,3 +668,27 @@ interface InstrumentConfig {
 | `tenor-sax` | Tenor Saxophone | Bb | +14 | 44–76 | 66 |
 | `alto-sax` | Alto Saxophone | Eb | +9 | 49–80 | 65 |
 | `trumpet` | Trumpet | Bb | +2 | 52–82 | 56 |
+
+## Combinatorial Types (`src/lib/types/combinatorial.ts`)
+
+```typescript
+interface ScalePattern {
+  id: string; name: string;
+  degrees: number[];                        // 0-based indices into the realized scale tone pool (negative = below root)
+  category: PhraseCategory; tags: string[];
+  compatibleFamilies?: ScaleFamily[] | null; // null/absent = every family
+}
+
+interface RhythmPattern {
+  id: string; name: string;
+  noteCount: number;
+  slots: { offset: Fraction; duration: Fraction }[];
+  timeSignature: [number, number]; bars: number; tags: string[];
+}
+```
+
+The two inputs of `phrases/combiner.ts`: a scale pattern (the tables in `data/patterns/`)
+pairs with every rhythm pattern whose `noteCount` it fills — once, or repeated/sequenced —
+and each pairing realizes to an ordinary `Phrase` (`source: 'combined'`, id
+`cmb-<scale>_<rhythm>`), the `COMBINED_LICKS` part of the catalog. These pattern tables are
+the lever for ear-training variety.

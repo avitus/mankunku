@@ -4,13 +4,21 @@ The microphone is the most important piece of gear in this app. Everything Manku
 
 ## What the microphone hears
 
-Your computer's audio system hands the app a stream of sound: the air pressure your mic detected, sampled tens of thousands of times a second. The app pulls a small sliding window from that stream — about 85 milliseconds of recent audio — and asks: *is there a periodic waveform in this window, and if so, at what frequency?*
+Your computer's audio system hands the app a stream of sound: the air pressure your mic detected, sampled tens of thousands of times a second. The app pulls a small sliding window from that stream — about 90 milliseconds of recent audio — and asks: *is there a periodic waveform in this window, and if so, at what frequency?*
 
 If you're playing a steady note on a horn, the answer is usually clear: the air column in your instrument vibrates at a fundamental frequency, your mic captures that vibration, and the algorithm picks it up. The frequency converts to a MIDI note (440 Hz is concert A4; an octave up is 880 Hz; one semitone up from 440 is about 466). The app rounds to the nearest note and also reports how many cents flat or sharp you are.
 
 The algorithm Mankunku uses is called the **McLeod Pitch Method**. It's an autocorrelation technique — it asks how well each segment of audio matches a delayed copy of itself, and the delay that matches best corresponds to the period of the note. It's particularly good at single-instrument signals like a sax or a trumpet, which is why it's the right tool here.
 
 Each frame, the app gets a frequency *and* a **clarity score** between 0 and 1. Clarity tells the app how confident it is — a clean, sustained note has clarity above 0.92; a noise burst, an attack transient, or two notes overlapping might score 0.5. Mankunku ignores any frame with clarity below 0.80, so room noise and embouchure adjustments don't trigger phantom notes.
+
+## When the app starts listening
+
+In ear training the microphone opens the moment your turn starts — before you play a note. That matters more than it sounds: a recording that waits for a confident pitch reading before it starts can't contain the attack of the note that triggered it, because a confident reading needs most of one analysis window of the note first. So the app arms the mic early and then trims the take back to a fixed third of a second before your first *played* note. Your reaction time is discarded, not scored, and you can take a breath before coming in.
+
+"Played" is the operative word. The pitch detector's confidence has nothing to do with loudness, so the faint ring the metronome leaves in a quiet room reads as a perfectly confident note — and once anchored the trim there, three phantom notes out of a click's tail were scored against the line. Now any stretch of readings that never gets within 30 dB of the loudest thing in the take is thrown away before the trim looks for your entrance, wherever it sits — before you come in, in a rest, after the last note. A run that reaches playing level keeps everything, decay tail included.
+
+Lick Practice and Tune Practice solve the same problem differently — the detector runs for the whole session and each playing window is sliced out of it on the bar line — and Record a lick schedules your entrance (the downbeat of bar 3, after a two-bar woodblock count-in), so it needs no reaction-time trim: a note that comes in a hair early is kept and pulled onto the beat.
 
 ## Detecting where each note begins
 
@@ -88,7 +96,7 @@ The fix is to measure in a band the metronome cannot reach. The ride is high-pas
 
 The result: your sustained notes stay sustained, your on-the-beat tonguing still registers, and the scorer doesn't penalise rhythm for phantom subdivisions you didn't play.
 
-One honest caveat: the instrument-band reasoning above is calibrated against the *metronome's* voices. The backing track's piano, bass and snare do carry energy in that 250–5000 Hz band, so through loud speakers they can fill or fake the dips this tier reads. Suppressing onsets near known backing events covers the common cases, but if you practise on speakers with the band up and see notes splitting where you didn't tongue, that's the reason. Headphones sidestep all of it.
+Two honest caveats. First, in ear training — where the mic opens before your turn — the app's reckoning of when each click sounded has been measured running about a third of a second off the real clicks, so the click-suppression window described above isn't landing on them there yet. It's a known, open issue, and one more reason to wear headphones on Side A. Second, the instrument-band reasoning above is calibrated against the *metronome's* voices. The backing track's piano, bass and snare do carry energy in that 250–5000 Hz band, so through loud speakers they can fill or fake the dips this tier reads. Suppressing onsets near known backing events covers the common cases, but if you practise on speakers with the band up and see notes splitting where you didn't tongue, that's the reason. Headphones sidestep all of it.
 
 ## Latency and reaction time
 
@@ -96,22 +104,16 @@ There's a small delay between you blowing a note and the app registering it: the
 
 What you *do* get docked for is timing variation between notes: rushing one note and dragging another. That's because the latency correction subtracts the median; what's left is your actual jitter relative to your own internal clock.
 
-## Tuning feedback
+## Tuning
 
-While you're playing, the pitch meter shows three things:
-
-- The note name (in your instrument's written pitch).
-- A **cents** offset — how flat or sharp you are relative to the nearest note. ±5 cents is "in tune"; ±20 cents starts to sound off; ±50 cents is the edge between two notes.
-- A clarity dot. Bright = locked on, dim = the detector isn't sure.
-
-Cents readings are useful for long-tone practice and intonation checking. Bear in mind they're a snapshot of the current 85 ms window — vibrato and bends will swing the reading, which is correct behavior.
+There's no live tuner in the practice rooms — deliberately; the score is the feedback. But tuning is still measured: every note the detector hears carries a **cents** offset — how flat or sharp you were relative to the nearest note (±5 cents is "in tune"; ±20 starts to sound off; ±50 is the edge between two notes) — and the scorer pays a small bonus for landing near zero. Each note's reading is the median over the note, so vibrato and a bend that resolves are read as the note they resolve to. The note-by-note comparison under an ear-training session on the Progress page, and the diagnostics page, show what was heard.
 
 ## What this means for getting clean scores
 
 A few practical things:
 
 - **Use headphones for Side A** if you can. It removes the speaker-bleed problem entirely.
-- **Sit close to the mic** but not so close that you saturate the input. The level meter on the practice page should bounce around the middle of its range, not pin to the top.
+- **Sit close to the mic** but not so close that you saturate the input. A laptop's built-in mic works from a few feet away; a USB condenser is better.
 - **Quiet the room** as much as is reasonable. Turn off the fan, close the window. The app handles a moderate room tone, but it's listening for the clean periodic signal of your horn — anything else is competition.
-- **Watch the clarity dot.** If it's flickering during sustained notes, the detector is struggling. Move closer to the mic, or check whether something else is making sound in the room.
-- **Don't overdrive.** Most laptop mics will distort if you blow too loud into them. The pitch detector handles distorted signals badly because the harmonics get mangled. If your level meter is pinning, back off.
+- **If clean takes score low, check the detector.** The diagnostics page (`/diagnostics`) replays your saved recordings and lists the notes it heard with their clarity. Sustained notes that come back chopped up or low-clarity mean the detector is struggling: move closer to the mic, or check whether something else is making sound in the room.
+- **Don't overdrive.** Most laptop mics will distort if you blow too loud into them. The pitch detector handles distorted signals badly because the harmonics get mangled. If the replay shows notes breaking up on loud passages, back off.

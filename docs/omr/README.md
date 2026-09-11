@@ -8,13 +8,14 @@ symbolic transcription *alongside* the page image instead of being asked to
 read pixels itself.
 
 **Status**: standalone OMR subsystem with an optional SvelteKit hybrid
-import: `/tunes/import/pdf` accepts a `.omr.json` produced by `python -m omr
-transcribe` and bypasses `/api/tune-parse` for the systems it covers
-(uncovered systems still fall back to Claude).
-The intended engine — **LEGATO 2 — is not publicly released** (see
-[legato2.md](legato2.md)); a clearly-labeled LEGATO **v1** backend exists for
-experimentation, with a hard limitation: **it transcribes no text, so chord
-symbols are absent from its output.**
+import (shipped 2026-08-10): `/tunes/import/pdf` accepts a `.omr.json`
+produced by `python -m omr transcribe` and bypasses `/api/tune-parse` for the
+systems it covers (uncovered systems still fall back to Claude). Nothing else
+in the app calls this subsystem.
+The intended engine — **LEGATO 2 — is not publicly released** (re-checked
+2026-09-10; see [legato2.md](legato2.md)); a clearly-labeled LEGATO **v1**
+backend exists for experimentation, with a hard limitation: **it transcribes
+no text, so chord symbols are absent from its output.**
 
 ## Architecture
 
@@ -37,12 +38,33 @@ PDF / image  ─►  ingest (pdfium render / EXIF)  ─►  conservative preproc
 - `backends/legato2.py` — documented stub; raises until LEGATO 2 is released.
 - `abc_parser.py` — resilient lead-sheet-subset ABC parser. Built for hostile
   input: an unlexable span costs one measure (kept verbatim in
-  `raw_unparsed` + `UNPARSEABLE_REGION` warning), never the score.
+  `raw_unparsed` + `UNPARSEABLE_REGION` warning), never the score. A quoted
+  string after the last note or rest is kept verbatim in an
+  `UNANCHORED_STRING` warning — deliberately not attached to the previous
+  note, which would put a chord at the wrong onset. Broken rhythms honour
+  their depth per ABC 2.1 (`>` = 3/2 + 1/2, `>>` = 7/4 + 1/4, `>>>` =
+  15/8 + 1/8, `<` mirrored; a longer run leaves both notes as written and
+  warns `BROKEN_RHYTHM_UNDEFINED`), and `(5`, `(7`, `(9` printed without a
+  ratio take the meter-aware default — in the time of 3 under 6/8, 9/8 or
+  12/8, of 2 otherwise. Whitespace around a broken-rhythm marker doesn't
+  matter (`C > D` = `C>D`, as in the standard's own `[CEG]- > [CEG]`); a
+  marker whose bar closes before the next note pairs nothing and warns
+  `UNPARSEABLE_REGION`, and LEGATO's `<|text|>` placeholder is never read as
+  a marker. A chord cluster keeps its TOP note's pitch and its FIRST note's
+  length (ABC 2.1 §4.17), times any suffix after the bracket. A malformed
+  tuplet (`(0`, `(3:0`) costs its measure, never the parse. Not yet read —
+  each costs its measure with a warning rather than a guess: a grace note or
+  a closing slur between a note and its broken-rhythm marker (`A{g}<A`,
+  `(CD) > E`) and the single-letter decoration shorthands (`H`, `T`, …).
 - `normalize.py` — structural assembly, **zero inference**: absent info stays
   `None` (no default tempo, no guessed key, no filled-in chords).
 - `validation.py` — deterministic checks (`MEASURE_DURATION_MISMATCH`,
   `EMPTY_PAGE`, `POSSIBLE_TRUNCATION`, …). Flags, never rewrites. No
-  fabricated confidence numbers anywhere.
+  fabricated confidence numbers anywhere. A short first measure is a
+  plausible pickup only when more measures follow it (a lone short measure
+  is a misread), and a short final measure is exempt only when it and the
+  pickup sum to exactly one bar — the same rule as the app's
+  `omr-transcription.ts`.
 - `benchmark/` — fixtures + metrics usable identically for any backend.
 - `vendor/legato/` — vendored MIT model code, pinned commit (see
   `VENDORED.md`).
@@ -96,9 +118,11 @@ repo. A missing grant fails loudly with the exact URL to visit
   `--device auto` never selects MPS; `--device mps` remains available for
   retesting after a torch upgrade, at your own risk.
 - **CUDA**: upstream's tested path (CUDA 12.4); auto-selected when present.
-- **Never the production droplet** (961MB RAM — `npm ci` alone has OOM-killed
-  it). OMR inference is a local/dev tool; if it ever serves production it
-  runs as a separate GPU service behind the same `OMRBackend` seam.
+- **Never the production droplet** (4GB RAM + 2GB swap since the 2026-09-08
+  move; a CPU run peaks near 3.6GB RSS after a ≈20GB encoder download, on a
+  box that is busy serving the app). OMR inference is a local/dev tool; if it
+  ever serves production it runs as a separate GPU service behind the same
+  `OMRBackend` seam.
 
 ## CLI
 
@@ -113,7 +137,7 @@ uv run python -m omr benchmark --backend legato_v1
 ```
 
 Every run prints the engine identity to stderr:
-`omr 0.1.0 · backend=legato_v1 · model=guangyangmusic/legato@<rev> · device=mps`.
+`omr 0.1.0 · backend=legato_v1 · model=guangyangmusic/legato@<rev> · device=cpu`.
 
 Exit codes: `0` success (warnings allowed) · `2` bad input/arguments ·
 `3` backend unavailable · `4` transcription failure.
@@ -180,9 +204,28 @@ Fusion rules (implemented in `src/lib/tunes/import/omr-transcription.ts`):
 the OMR transcription supplies **melody** for every line it covers (those
 lines never call the AI); the page's text layer keeps chord symbols, marks,
 and endings; page geometry keeps bar counts; notehead evidence still flags
-suspect bars for review. Lines the transcription can't cover fall back to
+suspect bars for review. The file is validated as untrusted input, its flat
+measure list is sliced into systems by the geometry's bar counts, and its
+whole-note fractions are converted to beats of the meter the user declares
+on the page before uploading — a measure-count mismatch is warned and the
+systems past it fall back. Lines the transcription can't cover fall back to
 the AI reader — or stay blank for hand entry when no AI key is configured,
-which makes OMR-assisted import work entirely offline.
+so OMR-assisted import works with no AI key at all.
+
+**Pickups** (2026-09-10) reach the chart exactly as a MuseScore import's do:
+`TuneSection.pickupLength`, engraved as a short partial bar. A short *first*
+measure with more measures after it is the anacrusis — right-aligned into a
+full bar so downbeats stay downbeats, its printed length carried as
+`ModelBar.pickupBeats`. A short *later* measure is flagged for review
+("fills n of 4 beats — check the rhythm") unless it is the final measure and
+complements the pickup to exactly one bar; a lone short measure is never a
+pickup. LEGATO's own habit — a full first measure with the anacrusis behind a
+leading rest — is caught downstream by `pdf-system-assemble.ts`, which also
+treats a first bar whose melody starts in the back half of the meter as a
+pickup. The recorded Donna Lee run (`omr/Donna Lee - Bb.omr.json`, fixture
+copy `tests/fixtures/leadsheets/omr/donna-lee.omr.json`) pins that path end
+to end in `tests/unit/tunes/omr-fusion-assemble.test.ts`: `pickupLength`
+`[1, 2]` on the opening section.
 
 Recorded result vs the MuseScore references (see the OMR family in
 `tests/integration/pdf-vs-musescore.test.ts`): melody pitch agreement
@@ -243,13 +286,18 @@ segment; LEGATO v1 does not, and no artifacts are ever fabricated.
 
 ```sh
 uv run pytest                       # hermetic: no network, no model, fast
-uv run pytest -m omr_integration    # opt-in: downloads checkpoint, real inference
+uv run pytest -m omr_integration    # opt-in: real inference — needs the `legato` extra
+                                    # and HF access to BOTH gated repos (see Model access)
 ```
 
-CI runs the hermetic suite only, in a path-filtered job that triggers on
-`omr/**` changes (`.circleci/continue-config.yml`, mirroring the
-`nginx-changed` pattern). The Python suite runs separately from the app's
-tests; on the app side, the hybrid `.omr.json` import path has its own
-Vitest coverage (`tests/unit/tunes/omr-*.test.ts`, `pdf-vs-musescore`'s OMR
-family) and an env-gated Playwright fixture recorder
-(`tests/e2e/record-omr-fixtures.spec.ts`).
+The default run excludes the marker (`addopts` in `pyproject.toml`). CI runs
+the hermetic suite plus `uv run ruff check src tests` — never the `legato`
+extra, never a model, no HF token — in the `omr-test` job of
+`.circleci/continue-config.yml`, which fires on any branch only when `omr/**`
+(or `.circleci/**`) changed; the path filter is the `omr-changed` parameter
+in `.circleci/config.yml`, mirroring `nginx-changed`. The Python suite runs
+separately from the app's tests; on the app side, the hybrid `.omr.json`
+import path has its own Vitest coverage (`tests/unit/tunes/omr-*.test.ts`,
+`pdf-vs-musescore`'s OMR family) and an env-gated Playwright fixture recorder
+(`RECORD_OMR_FIXTURES=1 npx playwright test record-omr-fixtures
+--project=chromium`), so CI never rewrites fixtures.

@@ -10,7 +10,7 @@ The scoring system aligns detected notes to expected notes and produces per-note
 
 Dynamic Time Warping (DTW) alignment of detected notes to expected notes.
 
-### `alignNotes(expected, detected, tempo, swing?): AlignmentPair[]`
+### `alignNotes(expected, detected, tempo, swing?, octaveInsensitive?): AlignmentPair[]`
 
 Find the minimum-cost alignment between two note sequences.
 
@@ -19,7 +19,8 @@ Find the minimum-cost alignment between two note sequences.
 | `expected` | `Note[]` | — | Notes from the phrase (rests are filtered out internally) |
 | `detected` | `DetectedNote[]` | — | Notes captured from microphone |
 | `tempo` | `number` | — | BPM for converting offsets to seconds |
-| `swing` | `number` | `0.5` | Swing ratio; shifts expected off-beat 8ths in the cost function to match swing playback |
+| `swing` | `number` | `0.5` | Swing ratio; shifts expected off-beat 8ths in the cost function (via the shared `applySwingToBeats`) to match swing playback |
+| `octaveInsensitive` | `boolean` | `false` | Same pitch class in any octave is a zero-cost pitch match (lick-practice continuous mode) |
 
 **Returns:** `AlignmentPair[]` where each pair is one of:
 - `{ expectedIndex, detectedIndex, cost }` — matched pair
@@ -42,13 +43,15 @@ Find the minimum-cost alignment between two note sequences.
 
 Per-note pitch accuracy scoring.
 
-### `scorePitch(expected, detected): number`
+### `scorePitch(expected, detected, octaveInsensitive?): number`
 
 | Case | Score |
 |---|---|
 | Rest | `1.0` |
 | Wrong MIDI note | `0.0` |
 | Correct MIDI note | `1.0 + intonation bonus` |
+
+With `octaveInsensitive` (default `false`) the match is by pitch class, any octave — lick-practice continuous mode, where the user may legitimately answer an octave up or down. The bonus still uses `detected.cents`, which is deviation from the nearest integer MIDI and so octave-independent.
 
 **Intonation bonus:** `0.1 * max(0, 1 - |cents| / 50)`
 - 0 cents: +0.10 (total 1.10)
@@ -221,6 +224,10 @@ grading.
 
 Score-to-grade mapping and display constants.
 
+### `GRADE_THRESHOLDS`
+
+`readonly { grade: Grade; min: number }[]`, highest first: perfect 0.95 · great 0.85 · good 0.70 · fair 0.55. The source of truth for the boundaries — `scoreToGrade` and the UI-layer `GRADE_COLORS` both derive from it, so a threshold change can't desync them. `try-again` is the implicit fallback below `fair`.
+
 ### `scoreToGrade(overall): Grade`
 
 | Grade | Threshold |
@@ -235,6 +242,10 @@ Score-to-grade mapping and display constants.
 
 Display labels: `'Perfect'`, `'Great'`, `'Good'`, `'Fair'`, `'Try Again'`.
 
+### `GRADE_CAPTIONS: Record<Grade, readonly string[]>` / `getGradeCaption(grade): string`
+
+Liner-note captions shown under the grade label after an attempt — Blue Note sleeve-style one-liners and quotes from the giants, one pool per grade. `getGradeCaption` picks one at random from the grade's pool.
+
 Grade-to-color mapping lives in the UI layer, not here — `scoring/grades.ts` stays free of UI/CSS concerns.
 
 ---
@@ -242,6 +253,20 @@ Grade-to-color mapping lives in the UI layer, not here — `scoring/grades.ts` s
 ## ui/score-colors.ts
 
 Score → color mappings (UI/presentation layer). The display companion to the pure scoring layer.
+
+### Accuracy medal scale — `ACCURACY_TIERS`, `accuracyTierInfo(score01)`, `accuracyTier(score01)`
+
+The counterpart to the Tonal Mastery ramp (`masteryDisplay` in `difficulty/display.ts`): mastery is a smooth teal→gold climb, accuracy is a PERFORMANCE score and gets **discrete** tiers with meaningful breakpoints so a glance says which keys or notes need work. `ACCURACY_TIERS` (`AccuracyTier[]`, descending by `min`; `AccuracyTierKey` is `'gold' | 'silver' | 'bronze' | 'teal' | 'deep'`):
+
+| Tier | Score | Label |
+|---|---|---|
+| gold | ≥ 95% | Excellence |
+| silver | 85–94% | Very good |
+| bronze | 70–84% | Decent |
+| teal | 55–69% | Needs work |
+| deep | < 55% | Rough |
+
+The breakpoints match `GRADE_THRESHOLDS`, so grades, report chips, the key ring and per-note colours all agree. `accuracyTierInfo` returns the whole `{ key, min, color, label, range }` record (input clamped to [0, 1]); `accuracyTier` returns just its `color` — a theme-aware `var(--accuracy-*)` reference safe in an inline `style` — and is the one-stop helper for chips, the ring, grade readouts and per-note pitch/rhythm colours.
 
 ### `GRADE_COLORS: Record<Grade, string>`
 

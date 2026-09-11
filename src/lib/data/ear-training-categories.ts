@@ -1,16 +1,12 @@
 import type { PhraseCategory } from '$lib/types/music';
 
 /**
- * The categories ear training draws from when the user asks for a random
- * phrase. Excludes long variants, niche categories and 'user'.
- *
- * This lives here rather than inline in the route because it is the demand
- * side of a contract the supply side has no other way to see: the
- * combinatorial generator's pattern tables are what fill these categories,
- * and a category listed here with no scale patterns produces a session that
- * silently falls through to the widened difficulty pool. That hole is
- * invisible from either file alone, so `combinatorial-coverage.test.ts`
- * asserts the join.
+ * NOT consumed by the app. This was the random-category pool of the
+ * /ear-training/settings page, removed 2026-08-09; /ear-training now draws
+ * from the whole lick library (`getAllLicks()`, difficulty-gated), every
+ * category. Its only reader is `combinatorial-coverage.test.ts`, which asserts
+ * each category listed here has at least three combiner scale patterns and
+ * ten combined licks. (Excludes long variants, niche categories and 'user'.)
  */
 export const EAR_TRAINING_CATEGORIES: PhraseCategory[] = [
 	'ii-V-I-major',

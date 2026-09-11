@@ -5,6 +5,17 @@ Mankunku's lick-naming feature uses a compact index derived from the
 maintained by the Jazzomat Research Project at the Hochschule für Musik
 Franz Liszt Weimar.
 
+Where it is used: the lick editor (`/licks/editor`) posts a
+transposition-invariant encoding of the line (intervals + inter-onset
+intervals) to `POST /api/lick-match`, which searches the WJazzD index plus a
+small curated quote library (`src/lib/matching/data/quotes.json`) with the
+shared n-gram matcher in `src/lib/matching/`. That endpoint weights pitch at
+**0.7** (`pitchWeight: 0.7`) — the tuned attribution weighting, the one
+exception to the matcher's 0.6 default. The index is imported only by that
+server route and never ships to the browser; client-side freestyle
+recognition in tune practice (`book-index.ts`) searches the user's own licks
+only, never WJazzD.
+
 - Project page: <https://jazzomat.hfm-weimar.de/>
 - Database downloads: <https://jazzomat.hfm-weimar.de/dbformat/dbdownload.html>
 - Citation: Pfleiderer, M.; Frieler, K.; Abeßer, J.; Zaddach, W.-G.; Burkhart, B. (Eds.), *Inside the Jazzomat — New Perspectives for Jazz Research*. Schott Campus, 2017.
@@ -18,9 +29,11 @@ Full license text: <https://creativecommons.org/licenses/by-nc-sa/4.0/>.
 The derived index file at `src/lib/matching/data/wjazzd-index.json` is a
 derivative work and inherits the same license. Implications:
 
-- **Attribution.** Every match-suggestion response from `/api/lick-match`
-  includes the source performer + title so WJazzD credit follows the data
-  wherever it surfaces in the UI.
+- **Attribution.** Every WJazzD match returned by `/api/lick-match` carries
+  the performer and title in its `label`, a `Weimar Jazz Database: …`
+  `attribution` string (with the recording year when known) and
+  `license: 'CC-BY-NC-SA'`, so the credit follows the data wherever it
+  surfaces in the UI.
 - **Non-commercial.** This index cannot be redistributed as part of a
   commercial offering. Confirm Mankunku's status as non-commercial before
   shipping the index to end users; if the app is ever distributed

@@ -12,7 +12,7 @@ The app keeps a rolling window of your last 25 attempts in each scale type (and 
 - **If your average accuracy is < 50%**, it ticks down by 1.
 - **Between 50% and 85%**, it holds. The app has decided you're at the right level for now.
 
-There's a 10-attempt cooldown between adjustments — once a proficiency moves, it can't move again until you've played 10 more phrases. This prevents the level from oscillating on a noisy day.
+There's a 10-attempt cooldown between adjustments — once a proficiency moves, it can't move again until you've played 10 more phrases (and nothing moves at all before your first 10). This prevents the level from oscillating on a noisy day.
 
 The window of 25 is long enough to smooth out lucky guesses and unlucky stumbles. A single Try Again won't drop your level; a string of them across two or three sessions will.
 
@@ -22,8 +22,8 @@ When a proficiency moves, a small cue flashes under the ear-training status line
 
 Three things, all of them the real levers of difficulty:
 
-1. **The phrase pool.** Ear training admits licks whose difficulty rating is at or below your proficiency in the active scale, then filters for scale fit and shuffles. As your Blues proficiency climbs, harder blues licks surface.
-2. **Key unlocks.** New keys open around the circle of fifths when their prerequisite key reaches a set level — G and F need C at 10; the last keys (Db, F#) need their neighbours at 15. See [The Daily Key](./tonality-system.md).
+1. **The phrase pool.** Ear training admits licks whose difficulty rating is at or below your proficiency in the active scale, then filters for scale fit and shuffles. As your Blues proficiency climbs, harder blues licks surface. Length counts too: a lick with more notes than a tier allows is treated as at least that longer tier's level, however simple its notes — hearing a thirteen-note line and playing it back is a memory test on its own.
+2. **Key unlocks.** New keys open around the circle of fifths when their prerequisite key reaches a set level — G and F need C at 10; the last five (E, Ab, B, Db, F#) need their neighbours at 15. See [The Daily Key](./tonality-system.md).
 3. **Scale unlocks.** New scale types open when their prerequisites are met — Dorian needs Minor Pentatonic at 20, Altered needs Melodic Minor at 40, and so on.
 
 The **Keys & Scales** card on the Progress page shows this frontier directly: how many of the 12 keys and 12 scale types you've unlocked, and exactly what the next unlock requires.
@@ -32,29 +32,29 @@ The **Keys & Scales** card on the Progress page shows this frontier directly: ho
 
 Every lick carries its own difficulty rating (1–100), computed from its pitch demands (chromaticism, range, interval leaps) and rhythm demands (density, syncopation, tuplets). The app groups these ratings into ten **content tiers** describing how difficulty opens up — which scale families come into play, which rhythms, what tempos and keys, and how many notes a phrase may run to.
 
-How that reaches you differs by mode. On **Side A**, the tier table is a description rather than a selector: harder material surfaces as your proficiency climbs, but nothing consults the tier directly. **Tricks** do read the tier — the profile for your level sets the rhythms, interval span and note counts a generated example may use.
+How that reaches you differs by mode. On **Side A**, the tier table is a description rather than a selector: harder material surfaces as your proficiency climbs, and the note-count ceilings below are the one part the pool enforces directly (see the phrase pool, above). **Tricks** read a tier too, but a fixed one — the middle of the range — so a drill's examples use the same rhythms whatever your level.
 
 Roughly:
 
 | Tier | Levels | What's in it |
 |---|---|---|
-| **1** | 1–5 | Major modes only. Quarter notes, no swing, no syncopation. 1-bar phrases at 60–80 BPM. Keys: C, F, G. Roots and 5ths only — small interval leaps. |
-| **2** | 6–12 | Adds pentatonic. Still quarter notes. 1 bar, 60–90 BPM. Adds D and Bb. Slightly wider intervals. |
-| **3** | 13–20 | Adds eighth notes and swing. 1–2 bars, 70–100 BPM. Adds Eb, A. |
-| **4** | 21–30 | Adds blues. Syncopation enters. 1–2 bars, 80–120 BPM. All 12 keys. |
-| **5** | 31–40 | Adds bebop scales and approach notes. Triplets enter. 2 bars, 90–140 BPM. |
-| **6** | 41–52 | Adds melodic minor modes. Wider intervals (up to an octave). 2 bars, 100–160 BPM. |
-| **7** | 53–65 | Adds harmonic minor modes. Sixteenth notes enter. 2–4 bars, 120–180 BPM. Bebop lines proper. |
-| **8** | 66–78 | Adds symmetric scales (whole-tone, diminished). Mixed durations across the bar. 2–4 bars, 140–200 BPM. |
-| **9** | 79–90 | Same scale palette as tier 8. Wider intervals (up to a major tenth). 2–4 bars, 160–240 BPM. |
-| **10** | 91–100 | All limits relaxed. 4 bars at 180–300 BPM. Two-octave leaps possible. The vocabulary of advanced bebop and post-bop. |
+| **1** | 1–5 | Major modes only. Quarter notes, no swing, no syncopation. 1-bar phrases of up to 5 notes at 60–80 BPM. Keys: C, F, G. Leaps no wider than a major third. |
+| **2** | 6–12 | Adds pentatonic. Still quarter notes. 1 bar, up to 7 notes, 60–90 BPM. Adds D and Bb. Leaps up to a fourth. |
+| **3** | 13–20 | Adds eighth notes and swing. 1–2 bars, up to 9 notes, 70–100 BPM. Adds Eb, A. Leaps up to a fifth. |
+| **4** | 21–30 | Adds blues. Syncopation enters. 1–2 bars, up to 11 notes, 80–120 BPM. All 12 keys. |
+| **5** | 31–40 | Adds bebop scales and approach notes. Triplets enter. 2 bars, up to 13 notes, 90–140 BPM. |
+| **6** | 41–52 | Adds melodic minor modes. Wider intervals (up to an octave). 2 bars, up to 17 notes, 100–160 BPM. |
+| **7** | 53–65 | Adds harmonic minor modes. Sixteenth notes enter. Leaps up to a major ninth. 2–4 bars, up to 21 notes, 120–180 BPM. Bebop lines proper. |
+| **8** | 66–78 | Adds symmetric scales (whole-tone, diminished). Leaps up to a major tenth. 2–4 bars, up to 25 notes, 140–200 BPM. |
+| **9** | 79–90 | Same scale palette as tier 8. Wider intervals (up to a twelfth). 2–4 bars, up to 30 notes, 160–240 BPM. |
+| **10** | 91–100 | All limits relaxed: any length, whole and half notes back in the mix, 4 bars at 180–300 BPM, two-octave leaps possible. The vocabulary of advanced bebop and post-bop. |
 
-Every tier above tier 1 also raises the **interval ceiling** — the largest leap allowed between two consecutive notes — and the **rhythm density**, which controls how many notes fit per bar. So tier 4 isn't just "tier 1 plus syncopation"; the average note count per bar goes up, the average interval goes up, and the tempo range opens.
+Most tiers also raise the **interval ceiling** — the largest leap allowed between two consecutive notes — and every tier raises the **note ceiling**. So tier 4 isn't just "tier 1 plus syncopation"; the lines get longer, the leaps wider, and the tempo range opens.
 
 ## What you'll see on the Progress page
 
 - **Tonal Mastery** — your average proficiency across all 12 scale types and all 12 keys, with never-attempted slots counted as zero. It climbs slowly by design: ground you've never covered counts against the average until you cover it. The trend chart plots this single line over time. Snapshots are forward-filled, so a lick-practice-only day inherits the prior day's value rather than dropping to zero.
-- **Scale Proficiency** — your level in each scale you've practiced. Tap a scale to expand its level-over-time chart.
+- **Scale Proficiency** — your level in each scale you've practiced, with its attempt count. Tap a scale and its level-over-time chart opens in place beneath it (days before the app began recording levels are filled in by replaying your surviving sessions).
 - **Keys & Scales** — the unlock frontier: keys and scales unlocked out of 12, plus what the next unlock requires.
 
 Watch the slope, not the noise. Single sessions vary; the rolling window smooths most of that out, but a bad night can still nudge the line. The trend over a week is the reliable signal.

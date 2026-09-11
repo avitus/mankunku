@@ -1,5 +1,7 @@
 # Mankunku: Jazz Ear Training Web Application
 
+*This is the original product-requirements document from the start of the project, kept for history. `CLAUDE.md` and `documentation/` describe the current system.*
+
 ## Context
 
 A web-based jazz ear training app modeled on PitchBop Pro but with more customization. The primary training mode is **call-and-response**: the app plays a 1-4 bar jazz phrase, the user plays it back on their instrument via microphone, and the app scores pitch and rhythm accuracy. Phrases must be idiomatically jazz (not random), drawing from curated licks and algorithmic generation. The app should support all standard jazz scales and adapt difficulty as the user improves. Future extensibility for other melodic instruments (alto sax, trumpet, etc.) is required.

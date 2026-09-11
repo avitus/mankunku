@@ -1,7 +1,7 @@
 import type { ScaleDefinition } from '$lib/types/music';
 
 /**
- * Complete scale catalog — 35 scales across 7 families.
+ * Complete scale catalog — 33 scales across 7 families.
  *
  * Each scale's `intervals` array contains semitone steps between consecutive
  * degrees and must sum to 12. The `degrees` array labels each degree

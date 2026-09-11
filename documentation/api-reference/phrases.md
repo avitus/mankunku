@@ -82,24 +82,29 @@ interface LibraryQuery {
 
 | Function | Signature | Description |
 |---|---|---|
-| `getAllLicks` | `() → Phrase[]` | All licks: ~923 curated (452 hand-written + ~470 combinatorial) plus the user's own and adopted-community licks |
-| `getLickById` | `(id) → Phrase \| undefined` | O(1) lookup by ID |
-| `getBaseLickFromId` | `(id) → Phrase \| undefined` | Lookup that also resolves a transposed id with a `_<KEY>` suffix to its base lick |
+| `getAllLicks` | `() → Phrase[]` | All licks: ~923 curated (452 hand-written + ~470 combinatorial) plus the user's own and adopted-community licks. The user cache is deduped by id (first occurrence wins) because anonymous/offline clients never run the cloud Map-merge that collapses same-id rows |
+| `isCuratedLickId` | `(id) → boolean` | Whether the id belongs to the built-in catalog (as opposed to a user-recorded or community-adopted lick); O(1) off the module-load index |
+| `getLickById` | `(id) → Phrase \| undefined` | O(1) curated lookup, then the user cache, then the adopted cache |
+| `baseLickId` | `(id) → string` | Strips a trailing `_<KEY>` transposition suffix (KEY one of the 12 pitch classes), which `transposeLick` / `transposeLickForTonality` append — same-lick variants dedupe on this |
+| `getBaseLickFromId` | `(id) → Phrase \| undefined` | Tries the id verbatim, then `baseLickId(id)` — stored session results carry suffixed ids, so direct lookup fails on them |
 | `queryLicks` | `(query) → Phrase[]` | Multi-filter query |
+| `PROGRESSION_CATEGORIES` | `ReadonlySet<PhraseCategory>` | The categories whose licks span multi-chord progressions — `ii-V-I-major/minor`, `short-ii-V-I-major/minor`, `V-I-major/minor`, `rhythm-changes` — and so take parent-key (or, when minor, tonic-keyed) transposition in `transposeLickForTonality` |
 
 ### `snapLickToScale(lick, key, scaleId, rangeHigh?): Phrase`
 
 Adjust a transposed lick so every note lies in the given scale. Out-of-scale pitches are snapped to the nearest scale degree (ties break up). Useful for reusing major-family licks against non-major tonalities.
 
-### `transposeLick(lick, targetKey): Phrase`
+### `transposeLick(lick, targetKey, rangeLow?, rangeHigh?): Phrase`
 
-Transpose a lick from concert C to a target key. Shifts all MIDI pitches and harmony roots by the interval from C to the target key, then applies an **octave adjustment** via `bestOctaveShift()` to keep notes within the tenor sax range (MIDI 60–75, C4–Eb5).
+Transpose a lick from its own `key` to a target key. Shifts all MIDI pitches and harmony roots by the interval between the two, then applies an **octave adjustment** via `bestOctaveShift()` to keep notes within `[rangeLow, rangeHigh]` — defaulting to the tenor-sax fallback range (MIDI 60–75, C4–Eb5) when neither is given. Returns the lick itself when the interval is zero and no custom range was passed; a custom range alone still re-places the octave.
 
-The octave shift algorithm evaluates -3 to +3 octave shifts, maximizing notes in range and using proximity to the midpoint (67.5) as a tiebreaker. Returns the original phrase for `targetKey === 'C'`.
+### `bestOctaveShift(midiNotes, rangeLow, rangeHigh): number`
 
-### `transposeLickForTonality(lick, key, scaleId): Phrase`
+The octave shift (in octaves, −3…+3) that places the most notes inside the range, ties broken by proximity of the shifted average pitch to the range midpoint. `0` for an empty list.
 
-Transpose a lick for a specific tonality (key + scale). Handles four cases:
+### `transposeLickForTonality(lick, key, scaleId, rangeLow?, rangeHigh?): Phrase`
+
+Transpose a lick for a specific tonality (key + scale); the optional range bounds flow into `transposeLick` and a final safety clamp that drops any note above `rangeHigh` by whole octaves. Handles four cases:
 
 0. **Minor cadence licks** (a progression category whose `lickMode` is minor — the curated ii-V-i, short ii-V and V-i minor files, keyed by their TONIC): transposes tonic → tonality root under any tonality, never snapped (the lick's own harmony is the context)
 1. **Major-family progressions** (ii-V-I, turnarounds, rhythm changes): Transposes to the parent major key to preserve chord relationships
@@ -120,17 +125,17 @@ Filters are applied in order:
 
 ## combiner.ts
 
-Combinatorial lick generation — pairs scale patterns with rhythm patterns (from `src/lib/data/patterns/`) to produce a large pool of `Phrase` objects. Output shows up in the library alongside curated licks.
+Combinatorial lick generation — pairs scale patterns with rhythm patterns (from `src/lib/data/patterns/`) to produce a large pool of `Phrase` objects. Output shows up in the library alongside curated licks. This is the **only** generator: the earlier algorithmic phrase generator was deleted (2026-08-08), so the combiner's pattern tables are the lever for ear-training variety.
 
 ### `realizeScalePattern(degrees, scaleId, key): number[] | null`
 
 Map scale-degree indices to MIDI pitches against a scale in the given key. Anchors the root closest to C4 (MIDI 60) and indexes up/down from there through a MIDI 36–96 pool. Returns `null` if the scale is unknown, the root isn't in the pool, or any degree falls outside the pool bounds.
 
-### `combine(sp, rp, scaleId, key, harmony, opts?): Phrase | null`
+### `combine(sp, rp, scaleId, key, harmony, opts?: CombineOptions): Phrase | null`
 
 Pair a `ScalePattern` with a `RhythmPattern` and build a `Phrase`.
 
-- `opts.repeat` (default 1) is how many times the shape is laid end-to-end; `opts.step` displaces each pass by that many scale degrees (0 = literal repeat, 1 = sequence up a step). `sp.degrees.length * repeat` must equal `rp.noteCount` exactly — a partial fit returns `null` rather than truncating or padding the melodic idea.
+- `CombineOptions` is `{ repeat?, step? }`: `repeat` (default 1) is how many times the shape is laid end-to-end; `step` (default 0) displaces each pass by that many scale degrees (0 = literal repeat, 1 = sequence up a step — "1-2-3, 2-3-4", the reason repetition is worth having; ignored when `repeat` is 1). `sp.degrees.length * repeat` must equal `rp.noteCount` exactly — a partial fit returns `null` rather than truncating or padding the melodic idea.
 - If the scale pattern declares `compatibleFamilies`, the scale's family must be one of them.
 - Returns `null` when a sequence walks off the end of the tone pool.
 - Difficulty is computed via `calculateDifficulty()` on the finished phrase.

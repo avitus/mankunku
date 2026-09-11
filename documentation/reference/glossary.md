@@ -4,7 +4,7 @@ Jazz terminology, pitch terminology, and a few app-specific terms — defined in
 
 ## Jazz vocabulary
 
-**Anacrusis** (also called *pickup*) — One or more notes that lead into the first downbeat of a phrase. *I've Got Rhythm* opens with an anacrusis: three pickup notes before the downbeat.
+**Anacrusis** (also called *pickup*) — One or more notes that lead into the first downbeat of a phrase. *I've Got Rhythm* opens with an anacrusis: three pickup notes before the downbeat. In the app a tune's pickup is engraved as a short first bar — the bar numbers start counting after it — and the tune editor's **Pickup** control adds one. The enclosure trick's drill figure opens with one too: its approach notes sit in a pickup bar ahead of the first landing.
 
 **Approach note** — A note (often chromatic) used to lead into a target note, creating forward motion. Bebop is built on chromatic approach notes — playing a half step above or below a chord tone before resolving to it.
 
@@ -40,7 +40,7 @@ Jazz terminology, pitch terminology, and a few app-specific terms — defined in
 
 **Dominant** — A chord (or scale) with a major 3rd and a minor 7th. The V chord in a major key. Wants to resolve down a fifth to the I.
 
-**Enclosure** — Surrounding a target note with notes above and below it before resolving. A common bebop figure is to enclose the 3rd of a chord by playing the note above, the note below, and then the 3rd itself. One of the app's two [tricks](../tricks.md).
+**Enclosure** — Surrounding a target note with notes above and below it before resolving. A common bebop figure is to enclose the 3rd of a chord by playing the note above, the note below, and then the 3rd itself. One of the app's two [tricks](../tricks.md), drilled on three parallel ladders — over major, minor and dominant chords — each open from its first rung.
 
 **Fill** — A short drum figure that marks a seam in the form — the end of a section, the turn into a new chorus — rather than keeping time. In Mankunku, fills only fire on tunes, because a two-bar vamp has no seams to mark.
 
@@ -50,7 +50,7 @@ Jazz terminology, pitch terminology, and a few app-specific terms — defined in
 
 **Chorus** — One complete pass through the form. A solo is measured in choruses, not bars.
 
-**Head** — The written melody of a tune. Convention plays it once at the top, once at the end, and solos on the changes in between. Mankunku follows the once-at-the-top half of that rule literally.
+**Head** — The written melody of a tune. Convention plays it once at the top, once at the end, and solos on the changes in between. Mankunku follows the once-at-the-top half of that rule literally: with tune practice's **Head** switch on, the melody plays one chorus and then the chart clears for you.
 
 **Lead sheet / chart** — The one-page written form of a tune: melody on the staff, chord symbols above it, section letters and repeat markers defining the form.
 
@@ -112,15 +112,15 @@ Jazz terminology, pitch terminology, and a few app-specific terms — defined in
 
 **Tonality** — A key plus a scale type. *C major* is one tonality; *C Dorian* is another; *G blues* is another. The app rotates one tonality per day on Side A (the "daily key").
 
-**Triad pair** — Two triads that share no notes, alternated to build angular lines out of a six-note palette — C and D over a Cmaj7, or D♭m and E♭m over a C7alt. A staple of post-bop and one of the app's two [tricks](../tricks.md).
+**Triad pair** — Two triads that share no notes, alternated to build angular lines out of a six-note palette — C and D over a Cmaj7, or D♭m and E♭m over a C7alt. A staple of post-bop and one of the app's two [tricks](../tricks.md), drilled as one ladder of eight families, from diatonic neighbours to whole tone.
 
 **Transposing instrument** — An instrument whose written notes don't match concert pitch. Tenor sax is in B♭: when you read a C, you sound a B♭ (a major 9th lower than written, when treated as the same octave; actually a major 2nd lower in the same staff position). Alto sax is in E♭. Trumpet is in B♭. The app handles transposition automatically — you read in your written key, the app stores in concert.
 
-**Turnaround** — A short cadence (often I-vi-ii-V) at the end of a chorus that loops the form back to the top. Builds harmonic tension that resolves at the next downbeat. Mankunku also plays a one-bar ii-V turnaround between cycles of a Deep Practice or Tricks drill, aimed at the key you're about to play.
+**Turnaround** — A short cadence (often I-vi-ii-V) at the end of a chorus that loops the form back to the top. Builds harmonic tension that resolves at the next downbeat. *Turnaround* is also one of Lick Practice's ten progressions (I–VI7–ii–V, a bar each). Mankunku also plays a one-bar ii-V turnaround between cycles of a Deep Practice or Tricks drill, aimed at the key you're about to play.
 
 **Two-feel** — Playing half notes in the bass instead of walking quarters, giving a section a lighter, more open lift. Jazz convention often puts the head in 2 and opens up to 4 for the solos. Mankunku's ballad style is permanently in 2; swing and straight may sit in 2 for the first chorus of a tune and then latch into 4 for the rest of the take.
 
-**Vamp** — A repeating chord (or short pattern) sustained for a while. *So What* opens with a vamp. *A Night in Tunisia* has a vamp at the end of each chorus. Lick Practice and Tricks drill over two-bar vamps.
+**Vamp** — A repeating chord (or short pattern) sustained for a while. *So What* opens with a vamp. *A Night in Tunisia* has a vamp at the end of each chorus. Three of Lick Practice's ten progressions are two-bar vamps (major, minor, dominant), and every Tricks drill runs over one.
 
 **Walking bass** — A bass line in steady quarter notes that connects each chord to the next, usually approaching the coming downbeat by a step or a half step. The default bass behaviour in the swing and straight styles.
 
@@ -144,11 +144,11 @@ Jazz terminology, pitch terminology, and a few app-specific terms — defined in
 
 **Bleed filter** — A filter that drops detected notes that look like room bleed from the speakers — the app re-hearing its own playback through your microphone. Helps when you're not using headphones. It always runs, but whether its result becomes your score is decided for you — Tune Practice uses it at Guided and Standard strictness, and nothing else does. There is no user-facing toggle.
 
-**Combinatorial lick** — A catalog phrase built by pairing a melodic shape (written as scale degrees) with a rhythm template, rather than written out by hand. About 470 of these, alongside the roughly 450 hand-written ones. Indistinguishable from a hand-written lick in use: same difficulty scale, same transposition, same scoring.
+**Combinatorial lick** (or phrase) — A catalog phrase built by pairing a melodic shape (written as scale degrees) with a rhythm template, rather than written out by hand — about half the catalog: 471 of these, alongside 452 hand-written ones. Indistinguishable from a hand-written lick in use: same difficulty scale, same transposition, same scoring.
 
-**Curated lick** — A hand-written lick. The bulk of the catalog.
+**Curated lick** — A hand-written lick that ships with the app: 452 of them, just under half the catalog. (Loosely, the whole shipped catalog is sometimes called curated, as opposed to your own licks.)
 
-**Daily key (Daily tonality)** — The key + scale type the app picks for you each day. Same pick for everyone on the same date. Rotates at midnight. Can be overridden in Side A's settings.
+**Daily key (Daily tonality)** — The key + scale type Side A practises in. Chosen from the date and the tonalities you've unlocked, so it's the same on all your devices; it holds for two or three days while you have only a few unlocked, and changes every day once you have seven or more. Can be overridden on the Settings page, under Ear Training.
 
 **Detected note** — A note the app heard through your microphone. Each detected note has a pitch, an onset time, a duration, and a clarity score.
 
@@ -160,25 +160,25 @@ Jazz terminology, pitch terminology, and a few app-specific terms — defined in
 
 **Conformance** — Whether a note you played belongs to a trick's formula, judged by pitch class alone (octave never matters). Full credit for exactly what the formula calls for, 0.7 for the right device but the wrong member, 0.4 for something merely in the scale, 0.1 for a chromatic miss, 0 for a note you didn't play.
 
-**Combinatorial phrase** — A catalog phrase built by pairing a scale pattern with a rhythm pattern of the same note count, rather than written out by hand. About half the catalog.
-
 **Grade** — The label assigned to your overall percentage: Perfect (≥ 95%), Great (≥ 85%), Good (≥ 70%), Fair (≥ 55%), or Try Again (< 55%).
 
-**Insertion point** — A window inside a tune's form where a known progression was detected and a lick will fit. Tune Practice schedules one scored window per insertion point and suggests licks from your book that match the progression *and* its local key. See [Playing Over Tunes](../tune-practice.md).
+**Insertion point** — A window inside a tune's form where a known progression was detected and a lick will fit. Tune Practice schedules one scored window per insertion point and suggests licks that match the progression, transposed to its local key and ranked by how well you know them there. See [Playing Over Tunes](../tune-practice.md).
 
 **Connection bonus** — Points mode's doubling rule: clear the 90% pass bar on two consecutive insertion points and the second one scores twice. Rewards coming out of one lick ready for the next.
 
-**Strictness** — How much Tune Practice tells you and how strictly it listens. Guided (full cues, any octave), Standard (cues on approach, any octave), Solo (no cues, exact register). It never changes the grading scale.
+**Strictness** — How much Tune Practice tells you and how strictly it listens. Guided (full cues, any octave), Standard (described as cues on approach, any octave — for now it cues exactly like Guided), Solo (no cues, exact register). It never changes the grading scale.
 
 **Progression colour** — Each of the ten progression types has an identity hue that follows it everywhere: the category pill on a lick card, the Side B session header, and the bands on a tune chart. Consistent colour means a ii-V is recognisable at a glance wherever it appears.
 
-**Practice tag** — A star you can apply to a lick to add it to your Side B practice book. Tagged licks rotate through all 12 keys in Lick Practice sessions.
+**Practice tag** — The mark that puts a lick in your Side B practice set: **+ Practice** on its card on the Licks page, or *☆ Add to Practice* on its own page. Tagged licks rotate through the keys they've earned in Lick Practice sessions, gaining keys toward all 12. A tagged lick also needs a *progression tag* before a session will schedule it.
+
+**Progression tag** — One of the *Practice over* pills on a lick's page: which of Lick Practice's ten backing progressions the lick is served over. Seeded from the lick's category when you set it (only for progressions the lick's own chord changes fit), never guessed after that; pills that don't fit are greyed out with the reason.
 
 **Proficiency** — Your 1–100 level in each key and each scale type, adjusted from a rolling window of your recent accuracy. Proficiency is what gates ear-training content and drives key/scale unlocks. See [Levels & Difficulty](../architecture/adaptive-difficulty.md).
 
 **Tonal Mastery** — Your average proficiency across all 12 scale types and all 12 keys, with never-attempted slots counted as zero. The headline progress number on the home and Progress pages.
 
-**Source** — Where a phrase came from: `curated` (hand-written), `generated` (algorithmic), `combined` (scale × rhythm pairing), or user-created (`user-entered` for step entry, `user-recorded` for recordings).
+**Source** — Where a phrase came from: `curated` (hand-written), `combined` (scale × rhythm pairing), `generated` (a trick's freshly made example), or yours (`user-entered` from the editor, `user-recorded` from a recording).
 
 **Tonality** — A key plus a scale type. See *Tonality* under the jazz vocabulary above.
 
@@ -189,3 +189,31 @@ Jazz terminology, pitch terminology, and a few app-specific terms — defined in
 **Variant** — One specific setting of a trick's parameters (*Enclose the 3rd, above then below*; *Minor pair from the ♭9*). Variants are what you unlock, star, and track progress against — eight per device, arranged on a **mastery ladder**.
 
 **Pass (on the mastery ladder)** — One attempt at 90% or better inside a Trick Drill. Three passes of a variant, counted across all keys, unlocks the next rung. Not to be confused with the 95% needed to clear a key out of the rotation.
+
+**Continuous / Call & Response** — Lick Practice's two modes. *Continuous*: the app plays the lick once as a demo, then you play it through your keys back to back over a non-stop band. *Call & Response*: in every key the app plays the lick first and you answer it.
+
+**Count-in** — The bar (or bars) of click before the music starts. Lick Practice, Tricks and Tune Practice count in one bar; Record a lick counts in two, in woodblock, so the switch to the drum-kit click marks your entrance. Ear Training clicks a bar before each phrase but gives no count-off before your answer — you come in on the click that's still going.
+
+**Demo** — In Lick Practice and Tricks, the app playing the line to you before your turn (the *Listen* tab, in red). In Deep Practice the first cycle always opens with one; later cycles only while the key at the head of the rotation is under 90% — and never on a refill cycle.
+
+**Focus drill** (focus ramp) — The shape of Deep Practice launched from the report's *Drill <key>* card: that key alone, 10% under the lick's saved tempo, stepping up after a clear and down (three steps) after a miss under 75%, until it's back at the saved tempo; then the other keys return one per cleared rotation, weakest first.
+
+**Home key** (entry key) — The key a lick is written in, where its key ladder starts. A new lick has only its home key; the others unlock from there around the circle of fifths. For tricks it's your written C.
+
+**Lead-sheet row** — The taller row in a Lick Practice session's chord stack that shows the line as sheet music. It appears for one key per lick — the most recently unlocked, while its rolling score is under 75% — and that key is played three times running in Continuous mode, only the last pass counting.
+
+**Phase of expertise** — The four stages a lick's progress chart names: *new* (fewer than 12 keys unlocked), *learning* (all 12, under 120 BPM), *proficient* (120–149 BPM), *expert* (150 BPM and up). A mirror, not a gate.
+
+**Reading pause** — The two bars the band vamps (a ii-V into the new key) before a lead-sheet row's first pass, when that key doesn't open the cycle — time to switch from playing by memory to reading. The tab reads *Read*, then counts you in.
+
+**Refill cycle** — In Deep Practice, the cycle after you've cleared every key in the rotation: the full set comes back, the tempo steps up, and there's no demo.
+
+**Rolling score** — A running average of your recent attempts in one key of one lick, weighted toward the newest. It decides which key Deep Practice puts first, whether a demo plays, and whether the sheet music shows.
+
+**Rotation** — The keys a lick (or trick variant) cycles through in a session: the ones it has unlocked so far. In Deep Practice and Tricks, keys you clear at 95% drop out of it until the next refill.
+
+**Tempo Bump** — The Deep Practice setup knob (0.5–5%, 1% by default): how much the tempo rises each time you clear the whole rotation, rounded up to a whole BPM. It also sizes the focus drill's steps, and governs Trick Drills.
+
+**OMR** — Optical music recognition: software that reads printed music from an image. The PDF importer can take an `.omr.json` transcription from the repository's OMR tool for a more accurate melody.
+
+**Written pitch** — The note names printed in your part, as opposed to concert pitch. The app shows keys, charts and note names in your instrument's written pitch (set by *Instrument* in Settings).

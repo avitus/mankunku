@@ -1,9 +1,14 @@
 # LEGATO 2 availability — findings and integration readiness
 
-**Verdict (verified 2026-08-09): LEGATO 2 is published as a paper but its
-code and weights have NOT been publicly released.** The `Legato2Backend`
-in this repo is a documented stub; nothing here pretends otherwise, and
-LEGATO 1 is never presented as LEGATO 2.
+**Verdict (verified 2026-08-09, re-checked 2026-09-10): LEGATO 2 is
+published as a paper but its code and weights have NOT been publicly
+released.** The `Legato2Backend` in this repo is a documented stub; nothing
+here pretends otherwise, and LEGATO 1 is never presented as LEGATO 2.
+
+The 2026-09-10 re-check: arXiv still shows only v1 (2026-07-07) with no venue
+or journal reference; the GitHub repo still implements LEGATO 1 only; the
+`guangyangmusic` HF profile still lists exactly `legato`, `legato-small`,
+`legato-1.5` and `legato-1.5-YOLO` — no `legato-2`-class model.
 
 ## The questions, answered
 
@@ -119,3 +124,9 @@ no text → **no chord symbols** (the exact capability this app needs most),
 whole-page 2,048-token cap, classical training data. That gap is measured
 by the benchmark, not hidden — and it is the concrete, quantified argument
 for adopting LEGATO 2 when it ships.
+
+v1 is also what the app's hybrid PDF import consumes today (since
+2026-08-10): its **melody** only, with chord symbols, marks and endings read
+from the PDF's text layer. That split works for digital-born PDFs; a scan
+or photo has no text layer, so there the missing chords are exactly the
+LEGATO 2 gap.

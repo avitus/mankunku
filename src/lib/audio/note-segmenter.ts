@@ -1338,11 +1338,18 @@ const RE_ARTICULATION_READING_GAP = 0.15;
  * gap reads lower than the true ~1.8× energy jump in the raw audio. Lowering
  * the floor to 1.2 admits it. This is only safe because the short-gap pass now
  * ALSO requires a true reading-time silence (see the gap pass below): the
- * dangerous false positive — the C-D-C upper-neighbor fixture, whose final-C
+ * dangerous false positive — the C-D-C upper-neighbor recording, whose final-C
  * "gap" is a warmup-bridged stabilizer reset rising ~1.27× (HIGHER than this
  * real re-attack) — is rejected by the silence gate, not by the ratio. The
  * remaining true-gap non-re-attacks (a McLeod subharmonic flicker during a
  * note bend, mid-sustain dropouts) sit at ≤ ~1.12, comfortably below 1.2.
+ *
+ * No fixture test pins the silence gate: that recording's pitch-replay tests
+ * never call findReArticulations (with the gate removed it gains a phantom
+ * onset at 1.43 s), and the replayed corpus passes without the gate
+ * (2026-09-10). Its pin is 'findReArticulations: the short-gap tier demands a
+ * true detector silence' in tests/unit/audio/note-segmenter.test.ts — the same
+ * 1.27× step-up across a true vs a warmup-bridged hole.
  */
 const RE_ARTICULATION_GAP_ATTACK_RISE = 1.2;
 const RE_ARTICULATION_GAP_RMS_FRAMES = 3;
@@ -1379,13 +1386,20 @@ const RE_ARTICULATION_GAP_RMS_FRAMES = 3;
  *
  * The counterexample the three gates are measured against is the kick-induced
  * 117 ms hole in the same day's "down-to-the-third" fixture, mid-way through a
- * genuinely held Db: trough 0.96 (passes), rise 1.03, exceed 0.99 — the note
- * never climbs, because there is no attack. Measured margins on the two
- * fixtures are 14% (rise) and 9% (exceed).
+ * genuinely held Db: trough 0.96 (fails the ≤ 0.95 gate, by 1%), rise 1.03,
+ * exceed 0.99 — the note never climbs, because there is no attack. Measured
+ * margins on the two fixtures are 14% (rise) and 9% (exceed).
  *
  * This is an additional acceptance path, not a replacement: a sharp re-attack
  * that IS at full level on resumption still passes through the step-up test
  * above, which every fixture predating this one relies on.
+ *
+ * The reference fixture no longer depends on this path: with it removed, the
+ * stop-and-hold path (RE_ARTICULATION_GAP_BAND_STOP) recovers the same note and
+ * the replayed corpus still passes (2026-09-10; the fixture fails only with
+ * both removed). The path and each of its three gates are pinned by
+ * 'findReArticulations: slow-bloom short-gap path' in
+ * tests/unit/audio/note-segmenter.test.ts.
  */
 const RE_ARTICULATION_GAP_BLOOM_WINDOW = 0.2;
 const RE_ARTICULATION_GAP_BLOOM_TROUGH = 0.95;
@@ -1638,6 +1652,12 @@ const HF_BLEED_SUPPRESS_AFTER = 0.28;
  * A metronome click can fabricate the perturbation but never the dip
  * (clicks ADD energy), so the pass is click-immune by construction.
  *
+ * The Blue Monk take no longer depends on the corroborators: the replayed
+ * corpus passes with them removed (2026-09-10). They are pinned by
+ * 'findReArticulations: envelope dip-recover tier' in
+ * tests/unit/audio/note-segmenter.test.ts — each corroborator alone splits, a
+ * bare dip does not.
+ *
  * Dips that coincide with a reading gap ≥ READING_GAP_SPLIT_THRESHOLD are
  * left to the gap tiers (they own that evidence class; double-firing here
  * would bypass their warmup-bridge and sustain gates).
@@ -1849,8 +1869,8 @@ function hasReadingInOpenInterval(readings: PitchReading[], from: number, to: nu
 }
 
 /**
- * Detect re-articulations within same-MIDI runs by looking for paired
- * clarity and RMS dip-and-recovery patterns in the pitch readings.
+ * Detect re-articulations (tongued repeats of the same pitch) within same-MIDI
+ * runs of the pitch readings, through five evidence tiers.
  *
  * Returns extra onset times (relative to recording start) that the worklet
  * missed. These are meant to be merged into the baseline onset list AND
@@ -1866,18 +1886,32 @@ function hasReadingInOpenInterval(readings: PitchReading[], from: number, to: nu
  * both the "no baseline boundary" case (Blues Curl Down) and the
  * "baseline boundary present but merged away" case (Blues Curl Up).
  *
- * Algorithm (per same-MIDI run):
- *   1. Walk the readings. When clarity drops > RE_ARTICULATION_CLARITY_DROP
- *      below the trailing pre-window max, mark a candidate.
- *   2. Find the clarity minimum in the next ~140 ms.
- *   3. Look forward up to RE_ARTICULATION_PAIR_WINDOW for the RMS minimum.
- *   4. Require: rms drop ratio ≥ RE_ARTICULATION_RMS_DROP_RATIO,
- *      post-min recovery max ≥ RE_ARTICULATION_RMS_RECOVERY_RATIO of the
- *      pre-window rms max.
- *   5. Onset point: the first reading after the rms min where rms first
- *      crosses RE_ARTICULATION_RMS_ONSET_RATIO of the pre-window rms max
- *      while rising. Subtract RE_ARTICULATION_ATTACK_LATENCY so the
- *      boundary lands at the start of the rise, not the steady-state plateau.
+ * Tiers, in the order `findReArticulationsInSegment` runs them on each run
+ * (gates documented at each tier's constants):
+ *   1. Reading gap. A hole ≥ RE_ARTICULATION_READING_GAP fires when energy is
+ *      sustained across it (RE_ARTICULATION_GAP_SUSTAIN), or steps up
+ *      (RE_ARTICULATION_GAP_CLICK_RISE) when a scheduled click lands inside it.
+ *      A shorter hole (≥ READING_GAP_SPLIT_THRESHOLD) must be a TRUE detector
+ *      silence — no warmup frames bridging it — and pass one of four paths:
+ *      step-up (RE_ARTICULATION_GAP_ATTACK_RISE), slow bloom
+ *      (RE_ARTICULATION_GAP_BLOOM_*), broken entry
+ *      (RE_ARTICULATION_BROKEN_ENTRY_SHAPE), or stop-and-hold
+ *      (RE_ARTICULATION_GAP_BAND_STOP).
+ *   2. HF spike. An `hfRms` burst with a fundamental perturbation and held
+ *      energy, or with the feather-tongue shape band; inside a click's window
+ *      it is suppressed unless `bandFloorDips` or `feathersTongueShape` rescues it.
+ *   3. Envelope dip. An `rmsMin` floor dip that recovers, corroborated by
+ *      tongue noise or a pitch wobble; dips at a reading gap are left to tier 1.
+ *   4. Clarity dip-and-recover. A clarity drop paired with an RMS dip and
+ *      recovery, anchored where the RMS climbs back. Across a reading gap it
+ *      also needs the `rmsMin` floor to collapse (RE_ARTICULATION_GAP_SPAN_FLOOR),
+ *      and it defers to a hole an earlier onset already marks — one hole, one onset.
+ *   5. Waveform shape. A shallow `shapeBreak` dip on a clean, settled tone with
+ *      held energy (SHAPE_*); last, so its settle gate sees every earlier onset.
+ * Each run's onsets from all tiers are merged, sorted and deduped within
+ * RE_ARTICULATION_MIN_INTERVAL; runs are concatenated in time order.
+ * `bleedOnsets` (scheduled click times) feed tier 1's click rule and the click
+ * suppression in tiers 2 and 5 — dropping them at a call site restores phantoms.
  */
 export function findReArticulations(
 	readings: PitchReading[],

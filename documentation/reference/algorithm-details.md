@@ -41,6 +41,8 @@ pitchDistance(e, d) = {
 rhythmDistance(e, d) = min(1.0, |e.onset - d.onset| / beatDuration)
 ```
 
+`E` is the phrase's *sounding* notes, not its raw note list: `scoreAttempt` runs `extractSoundingNotes` first, dropping rests and merging tied same-pitch chains, so the scorer expects exactly what playback sounded (a held note written as an eighth tied into a half is one expected note, not two). Expected onsets are swung with `applySwingToBeats` from `music/swing.ts` — the same off-beat-eighth shift playback applies — so a perfect performance of a swung phrase scores perfectly.
+
 ### Backtracking
 
 Starting from `dp[N][M]`, trace back to `dp[0][0]` by checking which of the three options (match, skip expected, skip detected) produced each cell's value. This produces an `AlignmentPair[]`.
@@ -63,9 +65,10 @@ Human latency (reaction time + audio detection delay) creates a constant offset 
 
 ### Algorithm
 
-1. For each matched pair (expectedIndex, detectedIndex), compute: `offset = detected.onset - expected.onset`
-2. Take the **median** of all offsets (robust to outliers from misaligned pairs)
-3. Subtract this median from all detected onsets
+1. Align with DTW on the raw recording-relative onsets (recording start ≡ phrase offset 0)
+2. For each matched pair (expectedIndex, detectedIndex), compute: `offset = detected.onset - expected.onset`
+3. Take the **median** of all offsets (robust to outliers from misaligned pairs)
+4. Subtract this median from all detected onsets, then score per-note rhythm against the corrected onsets
 
 The median typically absorbs 100–300ms of constant delay without affecting relative timing accuracy between notes.
 
@@ -75,7 +78,7 @@ The mean is sensitive to outliers — a single badly aligned pair could skew the
 
 ## McLeod Pitch Method
 
-**Source:** `src/lib/audio/pitch-detector.ts` (via [Pitchy](https://github.com/ianprime0509/pitchy))
+**Source:** `src/lib/audio/pitch-detector.ts` (the live loop, via [Pitchy](https://github.com/ianprime0509/pitchy)); the per-frame math and its constants live in `src/lib/audio/pitch-frame.ts`, shared with the offline replay path.
 
 The McLeod Pitch Method is an autocorrelation-based algorithm optimized for monophonic pitch detection.
 
@@ -90,11 +93,16 @@ The McLeod Pitch Method is an autocorrelation-based algorithm optimized for mono
 
 | Parameter | Value | Rationale |
 |---|---|---|
-| Buffer size | 4096 samples | At 48kHz, gives ~85ms windows. Sufficient for frequencies down to ~80Hz. |
-| Clarity threshold | 0.80 | Only accept readings where the signal is clearly periodic. |
+| Buffer size | 4096 samples | The `AnalyserNode`'s `fftSize`: ~93 ms at 44.1 kHz (the figure the segmenter's `ANALYSER_WINDOW_SECONDS` assumes), ~85 ms at 48 kHz. Sufficient for frequencies down to ~80 Hz. |
+| Clarity threshold | 0.80 | `DEFAULT_CLARITY_THRESHOLD` — only accept readings where the signal is clearly periodic. Clarity is amplitude-invariant, so a quiet periodic sound (a metronome's ringing tail) reads as confident too; level gating happens later, in `capture-window.ts`. |
 | Min frequency | 80 Hz | Below the lowest note of supported instruments. |
 | Max frequency | 1200 Hz | Above the highest fundamental of supported instruments. |
 | Update rate | ~60fps | `requestAnimationFrame` loop. |
+| Octave confirm | 3 frames (~50 ms) | `OCTAVE_CONFIRM_FRAMES` — an octave-only jump (±12/±24) must persist this long before it is accepted, filtering subharmonic glitches. |
+| Warmup | 5 frames (~80 ms) | `WARMUP_FRAMES` — confident frames observed before committing to an initial stable MIDI; warmup readings are flagged and down-weighted downstream. |
+| Octave-lock checks | ≤ 350 Hz / 160–370 Hz | Single-bin Goertzel tests on low readings: a *subharmonic* lock (doubled period, reported an octave low — often with higher clarity than the truth; tested at ≤ 350 Hz via the fundamental's energy and the odd-harmonic rank) and a *2nd-harmonic* lock (halved period, reported an octave high; tested for readings in 160–370 Hz). Notes from ~G3 up detect their own fundamental and never mislock. |
+
+The analyser window ENDS at the live loop's timestamp (`windowAnchor: 'end'`), while the replay harness timestamps a window by its start — `detectFrame` takes the anchor explicitly so both paths agree on when a reading happened.
 
 ### MIDI Conversion
 
@@ -123,21 +131,32 @@ The weighting by `(i + 1)` emphasizes later samples in each frame, which corresp
 ### Detection Logic
 
 ```text
-EMA_new = alpha * EMA_old + (1 - alpha) * HFC     // alpha = 0.85
-ratio = HFC / EMA
+energy = sum(sample[i]²) / N
+if energy < silenceFloor:
+  EMA = EMA * silenceDecay       // the EMA sinks through silence, so the
+  return                         // next attack produces a large ratio
 
+ratio = HFC / EMA                 // against the EMA *before* this frame
 if ratio > threshold AND time - lastOnset > cooldown:
   fire onset event
   lastOnset = currentTime
+EMA = alpha * EMA + (1 - alpha) * HFC
 ```
 
-| Parameter | Value |
-|---|---|
-| Alpha (smoothing) | 0.85 |
-| Threshold | 3.0 |
-| Cooldown | 60ms |
-| Silence floor | 0.001 energy |
-| Settle frames | 5 |
+The first `settleFrames` frames only seed the EMA.
+
+| Parameter | Constant | Value |
+|---|---|---|
+| Alpha (smoothing) | `ENERGY_SMOOTHING` | 0.85 |
+| Threshold | `ONSET_THRESHOLD` | 3.0 |
+| Cooldown | `MIN_ONSET_INTERVAL` | 60 ms |
+| Silence floor | `SILENCE_THRESHOLD` | 0.001 (mean squared amplitude) |
+| Silence decay | `SILENCE_DECAY` | 0.95 per frame |
+| Settle frames | `SETTLE_FRAMES` | 5 |
+
+### Without the worklet
+
+Every mic route wraps `createOnsetDetector` in a try/catch; if the worklet cannot load (no `AudioWorklet`, a failed `addModule`) the take is segmented without worklet onsets. `resolveOnsets` in `note-segmenter.ts` falls back to `extractOnsetsFromReadings` — an onset at every reading gap over 100 ms (backdated 50 ms for attack latency) or pitch change, at least 80 ms apart — and the same fallback covers a take whose worklet onsets all fail validation. A repeated note tongued without a reading gap then has no onset of its own until the segmenter's re-articulation tiers find one ([Audio Pipeline](../architecture/audio-pipeline.md)).
 
 ### Why HFC over Spectral Flux?
 
@@ -163,28 +182,42 @@ Each reading's weight is `clarity²`, further scaled by `0.25` for warmup frames
 
 The cents deviation *is* a median, but only over the readings that already match the chosen MIDI (filtering out octave errors before computing intonation).
 
+## Rhythmic Quantization
+
+**Source:** `src/lib/audio/quantizer.ts` (used by record-a-lick to turn a take into notation)
+
+`quantizeNotes` snaps detected onsets to a 48-ticks-per-whole-note grid whose per-beat vocabulary is **{0, 1/3, 1/2, 2/3}** of a quarter-note beat — no sixteenths (a played sixteenth degrades to the nearest allowed position), and nothing before the entrance downbeat (clamped to beat 0). Swung eighths are *written straight*, so the swing ratio never decides the notation; the onset pattern of each beat does.
+
+Each onset is labelled by its fraction `f` of the beat:
+
+| Fraction | Label |
+|---|---|
+| `f < 1/6` | downbeat |
+| `1/6 ≤ f < 5/12` | triplet middle (the 1/3 point) |
+| `5/12 ≤ f < MAX_SWING + 0.05` (`MAX_SWING` = 0.8, `music/swing.ts`) | off-beat |
+| `f ≥ MAX_SWING + 0.05` | the *next* beat's downbeat — a rushed downbeat, not a swing the knob can express |
+
+A beat is a **triplet beat** iff it holds a triplet-middle onset (no swing feel puts an upbeat that early), or its off-beat sits at `f ≥ 7/12` and the next beat is a triplet beat with no downbeat of its own — the quarter-note-triplet continuation, which is why the classification walks the beats right to left. On a triplet beat an off-beat snaps to 1/3 or 2/3; on any other beat everything from straight 0.5 through `MAX_SWING` collapses to the straight off-beat eighth. Classification is per beat, not per take, so one bar can mix swung eighths with a genuine triplet. Durations run to the next note's grid position (the last note rounds to its beat's own unit); a gap over 1.5 ticks becomes a rest; takes are capped at 8 bars.
+
 ## Proficiency Advancement
 
 **Source:** `src/lib/difficulty/adaptive.ts`
 
-### State Machine
+### Rule
 
-```text
-                  avg >= 85%
-    ┌─────────────────────────────┐
-    │                             ▼
-  HOLD ◄───── 50% <= avg < 85% ──── ADVANCE
-    │                             │
-    │         avg < 50%           │
-    └────────────────────────────►┘
-                RETREAT
-```
+Each attempt's overall score is pushed into a 25-score window, then:
 
-Transitions require at least 10 attempts since the last change, preventing oscillation.
+| Condition (checked only when ≥ 10 attempts since the last change) | Result |
+|---|---|
+| window average ≥ 85% | level + 1 (max 100) |
+| window average < 50% | level − 1 (min 1) |
+| otherwise | hold |
+
+A change resets the since-change counter, so the level moves at most one step per ten attempts, preventing oscillation.
 
 ### Per-Scale / Per-Key Tracking
 
-The same single-dimension rule runs independently for each scale type (`processScaleAttempt`) and each key (`processKeyAttempt`): a 25-score accuracy window, advance at ≥ 85% average, retreat at < 50%, 10-attempt cooldown, levels clamped to 1–100. These proficiencies gate ear-training content selection and drive key/scale unlocks.
+The same single-dimension rule runs independently for each scale type (`processScaleAttempt`) and each key (`processKeyAttempt`). These proficiencies gate ear-training content selection and drive key/scale unlocks.
 
 The old global two-dimension variant (`processAttempt`, averaging a pitch and a rhythm complexity into a displayed level) was retired 2026-08-31 — nothing consumed its output, so it only ratcheted to 100.
 

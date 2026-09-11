@@ -58,7 +58,7 @@ Difficulty level profiles defining what musical elements are available at each l
 
 ```typescript
 interface DifficultyProfile {
-  level: number;
+  level: number;                 // the content TIER, 1–10
   name: string;
   scaleTypes: ScaleFamily[];
   maxInterval: number;
@@ -66,35 +66,46 @@ interface DifficultyProfile {
   swing: boolean;
   syncopation: boolean;
   barsRange: [number, number];
+  maxNotes: number;              // most pitched notes a phrase at this tier may hold
   tempoRange: [number, number];
   keys: PitchClass[];
 }
 ```
 
+`maxNotes` is the length half of the rubric — playing back a 13-note line by ear is a memory task however diatonic the notes are, and nothing else here bounds density (`barsRange` limits duration). The ceilings are calibrated against the licks `calculateDifficulty` itself rated (longest lines per tier 2, 4, 9, 9, 11, 17, 16, 13) and pinned by `tests/unit/data/difficulty-calibration.test.ts`.
+
 ### `DIFFICULTY_PROFILES: DifficultyProfile[]`
 
 10 profiles (levels 1–10).
 
-| Level | Name | Scale Families | Rhythm | Tempo | Keys |
-|---|---|---|---|---|---|
-| 1 | Roots & 5ths | major | quarter | 60–80 | C, F, G |
-| 2 | Full Pentatonic | major, pentatonic | quarter | 60–90 | C, D, F, G, Bb |
-| 3 | Swing 8ths | major, pentatonic | quarter, eighth | 70–100 | 7 keys |
-| 4 | Diatonic Lines | +blues | quarter, eighth | 80–120 | all 12 |
-| 5 | Approach Notes | +bebop | +triplet | 90–140 | all 12 |
-| 6 | Enclosures | +melodic-minor | +triplet | 100–160 | all 12 |
-| 7 | Bebop Lines | +harmonic-minor | +sixteenth | 120–180 | all 12 |
-| 8 | Altered Harmony | +symmetric | +sixteenth | 140–200 | all 12 |
-| 9 | Complex Rhythm | same as 8 | same as 8 | 160–240 | all 12 |
-| 10 | No Limits | same as 8 | all | 180–300 | all 12 |
+| Level | Name | Scale Families | Rhythm | Max notes | Tempo | Keys |
+|---|---|---|---|---|---|---|
+| 1 | Roots & 5ths | major | quarter | 5 | 60–80 | C, F, G |
+| 2 | Full Pentatonic | major, pentatonic | quarter | 7 | 60–90 | C, D, F, G, Bb |
+| 3 | Swing 8ths | major, pentatonic | quarter, eighth | 9 | 70–100 | 7 keys |
+| 4 | Diatonic Lines | +blues | quarter, eighth | 11 | 80–120 | all 12 |
+| 5 | Approach Notes | +bebop | +triplet | 13 | 90–140 | all 12 |
+| 6 | Enclosures | +melodic-minor | +triplet | 17 | 100–160 | all 12 |
+| 7 | Bebop Lines | +harmonic-minor | +sixteenth | 21 | 120–180 | all 12 |
+| 8 | Altered Harmony | +symmetric | +sixteenth | 25 | 140–200 | all 12 |
+| 9 | Complex Rhythm | same as 8 | same as 8 | 30 | 160–240 | all 12 |
+| 10 | No Limits | same as 8 | all | unbounded | 180–300 | all 12 |
 
 ### `levelToContentTier(playerLevel): number`
 
-Maps player levels 1-100 to content tiers 1-10. E.g., levels 1-5 → tier 1, levels 91-100 → tier 10.
+Maps player levels 1-100 to content tiers 1-10: 1–5 → 1, 6–12 → 2, 13–20 → 3, 21–30 → 4, 31–40 → 5, 41–52 → 6, 53–65 → 7, 66–78 → 8, 79–90 → 9, 91–100 → 10.
 
-### `getProfile(level): DifficultyProfile`
+### `getProfileForTier(tier): DifficultyProfile`
 
-Returns the profile for a level. Accepts both content tiers (1-10) and player levels (1-100, auto-mapped via `levelToContentTier`). Throws if the level is invalid.
+The profile for a **content tier** (1–10). **Throws** on anything outside 1–10 (non-integers included) rather than guessing. Use it only when the caller genuinely holds a tier index — in practice the tier-walking tests. There is deliberately no single overloaded `getProfile`: the two scales overlap on 1–10, and a function that inferred the scale from the argument's magnitude inverted the bottom tenth of the 1–100 range — a player level of 10 selected tier 10, "No Limits".
+
+### `getProfileForLevel(level): DifficultyProfile`
+
+The profile for a **player level** (1–100), via `levelToContentTier`. Total over the whole real line: the level is clamped into 1–100 first (mirroring `difficultyBand`, so a control's label and the content it selects can never disagree about an out-of-range value) and non-finite input falls to tier 1 — every comparison against NaN is false, so letting it reach `levelToContentTier` would fall through to tier 10. Every production caller holds a level and uses this form.
+
+### `noteCountFloorLevel(noteCount): number`
+
+The lowest player **level** (1–100, not a tier) whose content tier admits a phrase of `noteCount` pitched notes — the length half of the rubric, so a level-gated pool never serves a line longer than its tier's `maxNotes` however simple the notes are. Monotonic in `noteCount` because `maxNotes` never decreases as tiers rise. Being a level, it resolves through `getProfileForLevel`.
 
 ---
 
@@ -120,6 +131,10 @@ Compute a `{ level, pitchComplexity, rhythmComplexity, lengthBars }` summary (al
 - **Rests** (≤ 5 pts)
 
 Raw sub-scores are multiplied by a **1.5× scaling factor** to stretch into the usable 1–70 range so the adaptive system has room to progress. Overall level is weighted 55% pitch / 45% rhythm.
+
+### `effectiveDifficultyLevel(phrase): number`
+
+The level a phrase should be **gated** at: its stored `difficulty.level`, raised to `noteCountFloorLevel(pitchedCount)` when that sits higher. Stored levels come from three places that can all be wrong about length — hand-written curated entries, community rows (the adopted validator only range-checks the level, it never recomputes it) and phrases rated before a rubric change — so selection paths that gate on level read this rather than `phrase.difficulty.level` directly. Deliberately not folded into `calculateDifficulty`, which also rates whole tunes via `tuneToPhrase`, where hundreds of notes would peg every chart at the top tier.
 
 ---
 
@@ -160,7 +175,7 @@ new.
 | `phaseDisplay` | `(phase) → LickPhaseDisplay` | `{ phase, label, color }`; colour is a `var(--mastery-N)` band, **not** the difficulty ramp — a phase is accomplishment earned, not material hardness |
 | `allKeysUnlockedAt` | `(points) → number \| null` | Timestamp the series first reached 12 keys |
 | `unlockEvents` | `(points) → UnlockEvent[]` | Every `from → to` key-count jump in the series |
-| `collapseUnlockMarkers` | `(...) → UnlockMarker[]` | Merges unlock events that would overplot into one marker |
+| `collapseUnlockMarkers` | `(markers, minGap) → UnlockMarker[]` | Merges markers closer than `minGap` into one (earliest position, widened key range). Gaps are measured against the last *kept* marker, so a dense run collapses into one marker rather than a chain of near-misses |
 | `unlockMarkerLabel` | `(marker) → string` | Tooltip text — one key by ordinal, several as a range |
 | `bpmAxisRange` | `(values) → { lo, hi }` | Y-range for the BPM panel, widened so a nearby threshold stays on screen |
 | `bpmBandSlices` | `(lo, hi) → BpmBandSlice[]` | The visible slice of each tempo band, for the shaded backdrop |

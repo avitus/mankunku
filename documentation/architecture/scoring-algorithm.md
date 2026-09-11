@@ -20,10 +20,10 @@ Pitch is weighted more heavily than rhythm — 60/40 — because in practice it'
 | **Perfect** | ≥ 95% | Right in the pocket. Move on. |
 | **Great** | ≥ 85% | Cookin'. The phrase is solidly in your ear. |
 | **Good** | ≥ 70% | Swinging along. You passed — the next phrase is queued up. |
-| **Fair** | ≥ 55% | Off the changes here and there. The same phrase will retry. |
+| **Fair** | ≥ 55% | Off the changes here and there. The same phrase comes round again. |
 | **Try Again** | < 55% | Take it again from the top. |
 
-On **Side A**, the pass line is **70%** — at that threshold the app moves you on, and below it the same phrase replays so you can take another swing. **Side B** is tighter: each key is graded on a green/yellow/red scale (green ≥ 90%, yellow 75–89%, red < 75%). Green is what *counts toward* tempo bumps and key unlocks; yellow holds the line without earning either; a single red key blocks tempo *increases* and unlocks until you bring it back up. A green key on its own doesn't unlock anything — the next key needs the session average at 90%+, three clean passes on the newest key, and no red key anywhere. See [The Practice Modes](./overview.md) and [How to Practice](../user-guide.md). The grades themselves don't gate anything — the per-mode thresholds are what move the practice forward.
+On **Side A**, the pass line is **70%** — at that threshold the app moves you on, and below it the same phrase replays once so you can take another swing (miss it twice and the loop moves on regardless). **Side B** is tighter: each key lands in one of three bands — 90% and up, 75–89%, under 75%. A key at 90%+ is what *counts toward* tempo bumps and key unlocks; the middle band holds the line without earning either; a single key under 75% blocks tempo *increases* and unlocks until you bring it back up. A 90% key on its own doesn't unlock anything — the next key needs the session average at 90%+, three clean passes on the newest key, and no key under 75% anywhere. (The colours on the key ring are a finer five-step scale, gold down to a deep shade, and don't mark these lines exactly — see [the three bands](../user-guide.md#the-three-bands).) See [The Practice Modes](./overview.md) and [How to Practice](../user-guide.md). The grades themselves don't gate anything — the per-mode thresholds are what move the practice forward.
 
 **Tricks** are scored on a different axis again — not "did you play these exact notes" but "does what you played obey the device's formula". The percentage and the grades come out on the same scale, so a Great is a Great; what feeds them is described in [Practicing Tricks](../tricks.md).
 
@@ -39,7 +39,7 @@ What this means for you, in plain terms:
 
 - **You can be a little late.** A beat or so off and the alignment still finds the match.
 - **You can be a little early.** Same.
-- **You can play in a different octave** if "octave-insensitive" is on (it's on for Side B's continuous mode, which assumes you might transpose a lick to keep it on the horn). Side A is strict about the octave.
+- **You can play in a different octave** where the app allows it: Side B's continuous mode (which assumes you might move a lick to keep it on the horn) and tune practice at Guided or Standard strictness. Side A, Side B's Call & Response, and tune practice at Solo are strict about the octave. Tricks never care about the octave.
 - **Missed notes don't ruin everything else.** If you skip note 3, the app still tries to match notes 4, 5, and 6 against their counterparts. It just docks you for the missed one.
 - **Extra notes don't ruin everything else.** If you add an extra grace note, the alignment treats it as an extra and grades the rest against the original.
 
@@ -71,7 +71,7 @@ Every player — and every microphone — has a fraction of a second of constant
 
 ### Swing
 
-If the metronome is set to swing and the original phrase has off-beat eighth notes, the expected position of those off-beats shifts to match a triplet feel. You won't get rhythmically dinged for swinging when you're supposed to swing.
+If the session swings — the Swing setting, which ear training always follows and the band follows on the Swing backing style — and the original phrase has off-beat eighth notes, the expected position of those off-beats shifts by the same amount. You won't get rhythmically dinged for swinging when you're supposed to swing; on a straight style (Bossa Nova, Straight) the scorer expects even eighths.
 
 ## Why missing or adding a note hurts both pitch *and* rhythm
 
@@ -119,5 +119,5 @@ There is **no user-facing switch** for it. The filter always runs, but whether i
 
 Two situations commonly cause the score to disagree with your gut:
 
-- **You played it cleanly but the score is low.** Usually a microphone problem — the room is noisy, the mic is far from the bell, or the input level is too low and the pitch detector is losing clarity. Watch the clarity dot on the pitch meter while you play; if it's flickering, that's why.
+- **You played it cleanly but the score is low.** Usually a microphone problem — the room is noisy, the mic is far from the bell, or the input level is too low and the pitch detector is losing clarity. There's no live meter in the practice rooms, but the diagnostics page (`/diagnostics`) replays a saved take and lists the notes it heard with their clarity; if the clarity of your sustained notes is low or the notes are chopped up, that's why.
 - **You stumbled but the score is high.** Usually because you stopped playing instead of finishing the phrase wrong. The app stops listening after about two seconds of silence; if you cut yourself off, the missed notes don't get logged because the alignment never sees them. This rounds in your favor in the short term, but it doesn't help your ear, so finishing through a stumble is the right move even when it costs a few points.

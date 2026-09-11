@@ -10,7 +10,7 @@ Open any tune from your book and hit **Practice licks**.
 
 Before the session starts, Mankunku reads the tune's changes and looks for **progressions it knows** — short ii-Vs, long ii-Vs (major and minor), turnarounds, iii-VI-ii-V-I, minor/major/dominant vamps, and blues. Each one it finds becomes an **insertion point**: a window in the form, in a specific local key, where a lick tagged for that progression will land correctly.
 
-So a tune in F that has a ii-V into Bb in bar 5 gives you an insertion point in Bb — and the app suggests licks from *your* practice set that you've already earned in Bb. It knows which keys you've unlocked and which you've drilled; suggestions are ranked with that mastery in mind, so it isn't asking you to sight-transpose something you've never played.
+So a tune in F that has a ii-V into Bb in bar 5 gives you an insertion point in Bb, and the app looks for licks that fit it: licks tagged for that progression, or whose category belongs to it. It knows which keys you've unlocked and which you've drilled, and ranks with that in mind — licks you've passed in that key first, then ones you're still learning there, then ones that would be new to you; within that, licks tagged for the progression and licks in your practice set come first. In **Suggest** mode it goes further and only names licks you already have in that key — played there, or unlocked there on Side B — at a practised tempo at or above the session's. It won't ask you to sight-transpose something you've never touched. (If nothing qualifies, the band on the chart names the progression instead, so you still know what you're blowing over.)
 
 The setup screen tells you what it found before you start: *"6 insertion points: 3× Short ii-V-I (Maj), 2× Turnaround, 1× Blues."* If it finds nothing it says so — you can still play along, but there'll be nothing scored.
 
@@ -23,25 +23,29 @@ Licks aren't the only thing that can fill a window. Any [trick](./tricks.md) var
 Where they can appear is deliberately narrow:
 
 - Only over **vamps and ii-V-Is** (major and minor, short and long). Never over a turnaround, a iii-VI-ii-V-I, or a blues.
-- Always **ranked below** licks written for that progression, so a real ii-V-I lick is named first.
-- **Triad pairs get re-rooted onto the chord they belong on.** The app looks through the progression for a full bar whose chord quality suits the pair — so an altered pair lands on the V of a long ii-V-I rather than on the tonic. If nothing in the progression fits, that pair is quietly skipped.
+- **Ranked below** licks tagged for that progression, at the same level of mastery — a ii-V-I lick you've passed in that key is named ahead of a trick you've also passed there.
+- **A device gets re-rooted onto the chord it belongs on.** The app looks through the progression for a full bar whose chord quality suits the variant — the triad-pair family, or the enclosure's chord type — so an altered pair lands on the V of a long ii-V-I rather than on the tonic. If nothing in the progression fits, that variant is quietly skipped. Enclosures play a compact two-bar version of their figure here, sized to the window.
 
 A trick played here earns points and counts toward your take, but it writes **nothing** back to the trick: no passes, no key unlocks, no tempo. That's the drill's job.
 
 ## The setup screen
 
-| Setting | What it does |
+Under a link back to the tune, the page is headed **Practice licks**, with a line on what's about to happen, a *How this works* link that runs the guided tour, and a docs link. Everything you set lives in one **Session** card, built from the same selector pads, rocker switch and knob as the [settings page](./user-guide.md#settings) — most labels carry a short explanation on hover:
+
+| Control | What it does |
 |---|---|
-| **Mode** | Suggest, Points, or Freestyle — see below. |
-| **Strictness** | Guided, Standard, or Solo. Controls how much the app tells you and how strictly it listens. |
-| **Head** | Play the melody once through before the practice chorus. Greyed out on charts with no melody. |
-| **Key** | The written key you want to read the chart in. |
-| **Tempo** | 50–240 BPM on the tempo knob — drag, scroll, or use the arrow keys. |
+| **Mode** | *Suggest* — lick named for you; *Points* — you pick, streaks double; *Freestyle* — backing only, just solo. See [the three modes](#the-three-modes). Starts on Suggest. |
+| **Strictness** | *Guided* — full cues, any octave; *Standard* — cues on approach; *Solo* — no cues, exact register. How much the app tells you and how strictly it listens — see [Strictness](#strictness). Starts on Standard. |
+| **Head** | A rocker switch. ON plays the melody once through before your chorus ([the head rule](#the-head-rule)); OFF goes straight to the changes. On a chart with no melody it reads OFF and can't be switched on — there's no head to play. |
+| **Key** | Twelve pads in your written pitch: the key the tune is played and charted in for this session. It starts in the tune's own key. |
+| **Tempo** | A knob, 50–240 BPM in steps of 5 — drag, scroll, or use the arrow keys. It starts at your Settings tempo. In Suggest mode it also decides which licks can be named: only ones you already practise at this speed or faster. |
 | **Backing** | Swing, Bossa Nova, Ballad, or Straight — see [The band](./user-guide.md#the-band). |
 
-The controls are the same knobs, rocker switches and selector pads as the [settings page](./user-guide.md#settings); the insertion-point readout sits at the foot of the panel, and the caption under **Start** says whether the first chorus is the head or straight into the changes.
+At the foot of the card, a readout says what the detector found (*6 insertion points: …*, or that there are none), with the warning about untagged licks under it when there are any.
 
-Below the settings, the chart previews with the insertion points shaded in, so you can see where in the form you'll be playing before you commit.
+Below the card sits **Start** — it reads *Setting up…* while the instrument loads — with a caption that says how the take will open: *Head first, then the chart clears for your licks*, *Straight to the changes*, or, on a chords-only chart, *This chart has no melody — straight to the changes*. If the microphone is refused you'll see *Microphone unavailable — check permissions and try again*; if the sounds fail to load, *Audio setup failed — check your connection and try again*.
+
+Under that, the chart previews in the chosen key with the insertion points shaded in their progression colours, so you can see where in the form you'll be playing before you commit.
 
 ## The head rule
 
@@ -63,13 +67,13 @@ This is the mode to start in. It turns a tune into a set of prompts.
 
 ### Points — pick your lick and connect them
 
-You choose which lick to play at the next window from a pick card, then earn points for how well you play it: **your score out of 100**, straight. The twist is the **connection bonus** — clear the pass bar (90%) on two windows *back to back* and the second one scores **double**.
+You choose which lick to play at the next window from a **Pick your lick** card — the five best-ranked candidates for it, each with the key you'll play it in and a badge: *Known* (you've passed it in that key), *Learning* (attempted there, or the key is unlocked but unplayed) or *New*. Points mode doesn't filter the way Suggest does, so new material can turn up. Pick before the window opens; if you don't, the top one is scored. Then you earn points for how well you play it: **your score out of 100**, straight. The twist is the **connection bonus** — clear the pass bar (90%) on two windows *back to back* and the second one scores **double**.
 
-That rewards the thing that's actually hard: not playing one good lick, but coming out of one and being ready for the next. A running streak counter sits in the header with a 🔥 when it's live.
+That rewards the thing that's actually hard: not playing one good lick, but coming out of one and being ready for the next. The header keeps your running total, with the streak and a 🔥 once two in a row have landed (*240 pts · 3🔥*). At Solo strictness there's no pick card at all — the top-ranked lick is the one scored, unannounced.
 
 ### Freestyle — take a solo
 
-No cues, no windows, no scoring. The rhythm section plays the form and you blow over it. What the app does is **listen for licks it recognises**: whenever something you play matches a line from your book closely enough to be a genuine quote — not "reminiscent of", an actual match — you get applause and the lick's name on screen.
+No cues, no windows, no scoring. The rhythm section plays the form and you blow over it. What the app does is **listen for licks it recognises**: whenever something you play matches a line from your book closely enough to be a genuine quote — not "reminiscent of", an actual match — a 👏 card pops up with the lick's name and how close the match was, and the status line keeps count (*Your solo — 3 known licks heard*).
 
 The recognition pool is deliberately narrow: licks in your practice set, licks you have practice history on, and licks you wrote, recorded, or adopted. It won't celebrate a curated lick you've never seen — that would be noise, not feedback.
 
@@ -81,20 +85,20 @@ Strictness changes what the app *shows* you and how strictly it *listens*. It ne
 
 | Level | Cues | Listening |
 |---|---|---|
-| **Guided** | Full — every insertion point labelled ahead of time | Octave-insensitive; bleed filter forced on |
-| **Standard** | Reduced — cues appear on approach | Octave-insensitive; bleed filter forced on |
-| **Solo** | None | Exact register required; bleed filter follows the app-wide setting (off by default) |
+| **Guided** | Full — every insertion point labelled with its lick ahead of time; the Points pick card | Octave-insensitive; bleed filter forced on |
+| **Standard** | Described as "cues on approach" — but today it labels the chart exactly as Guided does | Octave-insensitive; bleed filter forced on |
+| **Solo** | None — the bands are still drawn, unlabelled, and there's no pick card | Exact register required; bleed filter follows the app-wide setting (off by default) |
 
-Guided and Standard match how continuous Side B sessions listen. Solo matches call-and-response strictness: play it in the right octave or it doesn't count.
+So for now Guided and Standard behave the same; the difference is only in the setup pad's description. Both match how continuous Side B sessions listen. Solo matches call-and-response strictness: play it in the right octave or it doesn't count.
 
 On the bleed filter: Guided and Standard switch it on regardless, which is the forgiving choice if you practise on speakers. Solo defers to the internal app-wide flag, which is off unless changed — there is no user-facing control for it. Either way it only matters on speakers; on headphones there's no bleed to filter.
 
 ## During the session
 
-- The chart **follows the playhead** teleprompter-style — it slides inside its own frame rather than scrolling the page, so the status line and the pick card stay put.
-- Insertion points show as **coloured bands** on the chart, each in its progression's identity colour — the same colour that progression carries on your lick cards and in Side B's session header. A ii-V looks like a ii-V wherever you meet it.
-- The status line tells you where you are: *Count-in…*, *Head — melody once through, then it's yours*, *Comping — insertion 3 of 6 coming up*, and then **Your turn — play the lick!** when a window opens.
-- The **End** button stops the take whenever you want.
+- The chart **follows the playhead** teleprompter-style — it slides inside its own frame rather than scrolling the page, so the status line and the pick card stay put — and the current bar is marked on it.
+- Insertion points show as **coloured bands** on the chart, each in its progression's identity colour — the same colour that progression carries on your lick cards and in Side B's session header. A ii-V looks like a ii-V wherever you meet it. A band clears a bar after its window has passed, so the chart ahead of you stays clean; a later pass through the same bars labels it again.
+- The status line under the title tells you where you are: *Count-in…*, *Head — melody once through, then it's yours* (Head in red — you're listening), *Comping — insertion 3 of 6 coming up*, and then **Your turn — play the lick!** in brass when a window opens.
+- The header also keeps the time elapsed and, in Points mode, your score; the **End** button stops the take whenever you want.
 
 ### The band plays the form, not a loop
 
@@ -109,15 +113,15 @@ None of this happens in Lick Practice, because a two-bar vamp has no form to mar
 
 ## The report
 
-**Take complete** in Suggest and Points lists every insertion point in the form: the bar it started in, the local key (in your written pitch), the progression, the lick that was scored, and the grade. Windows where you didn't play read **No take** — a skip, not a failure. Points mode adds the total and your best streak.
+**Take complete** in Suggest and Points opens with how many of the insertion points you hit, then lists every one in the form: the bar it started in, the local key (in your written pitch), the progression, the lick that was scored, and the grade. Windows where you didn't play read **No take** — a skip, not a failure. Points mode adds the total and your best streak. **Practice again** returns you to the setup screen; **Back to tune** takes you out.
 
 Freestyle has no insertion points to report, so its take instead lists every lick the app recognised, with the bar it landed in and how close the match was.
 
-Tune-practice takes are **not written into your progress history**. They don't move your adaptive level, don't touch per-lick key scores, and don't affect Side B unlocks. This is deliberate: this is the applying-it room, not the drilling room. Your streak and your levels come from Side A and Side B.
+Tune-practice takes are **not written into your progress history**. They don't move your adaptive level, don't touch per-lick key scores, and don't affect Side B unlocks. This is deliberate: this is the applying-it room, not the drilling room. Your streak and your levels come from the drilling rooms — Side A, Side B and Tricks.
 
 ## How to use it
 
-- **Learn the tune first.** Read the head, hit Play on the tune page a few times, get the form in your ear. Practising licks over changes you can't hear is just typing.
+- **Learn the tune first.** Read the head, hit Play on the tune page to hear the melody a few times, get the form in your ear. Practising licks over changes you can't hear is just typing.
 - **Start in Suggest / Guided.** Let the app tell you what fits where. You'll notice quickly which spots you have vocabulary for and which you don't.
 - **Move to Points when the spots stop surprising you.** The connection bonus is the honest test of whether the vocabulary is really available to you.
 - **Finish in Freestyle.** Play the tune for real, and see which of your lines actually came out. What the app recognises is what you own.

@@ -2,7 +2,7 @@
 
 How a lick gets placed inside a chord progression cycle, and how that placement adapts when the lick doesn't fit the cycle's bar count cleanly.
 
-**Source files:** `src/lib/data/progressions.ts`, `src/lib/state/lick-practice.svelte.ts`
+**Source files:** `src/lib/data/progressions.ts`, `src/lib/state/lick-practice.svelte.ts`, `src/lib/phrases/library-loader.ts` (ear-training's `transposeLickForTonality`)
 
 ## The problem
 
@@ -68,6 +68,18 @@ Alignment says *where* a lick lands in a template; fit says *whether* it belongs
 
 The category table (`PROGRESSION_LICK_CATEGORIES`) stays as-is; fit is the per-lick refinement over it. Pinned by `tests/unit/lick-practice/progression-fit.test.ts` (table-driven over every curated cadence lick × every template).
 
+Tags are the only thing that makes a lick eligible, and they are seeded exactly once — on a category write (`updateLickCategory` → `getProgressionsForLick`) — never inferred on hydrate. The one-time category-inference migration (`backfillInferredProgressionTags`, run via `runLickMetadataMaintenance`) was removed with the orphan reconciler in the data-layer simplification (PR #165); a user-removed tag stays removed, and the only hydrate-time tag write left is the prune above.
+
+## Mode and the minor cadence
+
+Templates are written in C, so a progression's mode is read off its tonic segment: `progressionMode(type)` is `'minor'` when the segment rooted on C has a minor-tonic quality (min7, min6, minMaj7). `buildPhraseFor` stamps `mode: progressionMode(type)` on every session phrase, which is what labels a minor drill's keys `Dm` (`keyLabel`) in the header, the rows, the ring, the report and the progress page.
+
+The minor templates use one cadence, `MINOR_CADENCE` — iiø7 from the locrian ♮6 mode and V7(♭9) from phrygian dominant, modes 2 and 5 of the SAME harmonic-minor parent, resolving to i-7 — and three consumers read it so they can't drift: the two minor ii-V-i templates, `getTransitionCadenceChords(type, key)` (the two-chord inter-lick cue the session route plays, mode-matched: iiø7–V7♭9 under a minor tonic, iim7–V7 otherwise — dominant and blues tonics take the major cadence, which resolves idiomatically to I7), and `turnaroundHarmony(type, targetKey, beatsPerBar)` — one bar of ii-V into a key as `HarmonicSegment[]` the backing engine can play, with the same mode rule. `turnaroundHarmony` is the deep-practice cycle-join bar (`audio/turnaround-bar.ts`) and, repeated once per pause bar, the lead-sheet reading pause `buildLickSuperPhrase` lays in; it moved into `data/progressions.ts` so those two and the inter-lick cue share one cadence definition.
+
+### Ear training: tonic-keyed transposition
+
+`transposeLickForTonality(lick, key, scaleId, rangeLow?, rangeHigh?)` (`phrases/library-loader.ts`) has three paths. A **minor cadence lick** — a `PROGRESSION_CATEGORIES` lick whose `lickMode` is minor — is keyed by its TONIC (curated ii-V-i licks are written in C *minor*), so it transposes tonic → tonality root under any tonality and is never snapped: the lick's own harmony is the context. Other cadence licks under a major-family mode hop to the **parent major** (an A Dorian ii-V-I lands in G major) so chord relationships survive — that hop assumes `lick.key` is the parent major, which is true for modal licks stored in C but sent a C-minor lick to F minor under a "D minor" tonality, the bug the first path fixes. Single-chord modal licks and every non-major scale transpose to the root and snap out-of-scale notes to the nearest scale tone (`snapLickToScale`).
+
 ## Worked example
 
 The 3-bar `major-chord-pickup-001` lick (triplet pickup → bulk → resolution, `lengthBars: 3`, `pickupBars: 1`):
@@ -95,20 +107,24 @@ pickupBars = lick.difficulty.pickupBars ?? detectPickupBars(lick.notes)
 3. Find the smallest sounded-note offset that's exactly on an integer downbeat (`firstDownbeatBar`).
 4. Return `floor(firstDownbeatBar)` only when `firstOffset < firstDownbeatBar` (i.e. there's anacrusis before the first clean downbeat). Otherwise return 0.
 
-Existing curated multi-bar licks all start on `[0, 1]`, so detection returns 0 and behavior is unchanged. Explicit `pickupBars` always wins over auto-detection.
+Existing curated multi-bar licks all start on `[0, 1]`, so detection returns 0 and behavior is unchanged. Explicit `pickupBars` always wins over auto-detection. The enclosures device (`tricks/devices/enclosures.ts`) is the one generator that stamps it explicitly, through `realizeTrickExample`'s `pickupBars` argument — `1` for the drill figure's approach-note anacrusis bar, `0` when the offbeat single-approach edge case rebases that figure and for the compact tune-insertion figure. Explicit rather than detected because an offbeat figure may have no note on an integer downbeat for `detectPickupBars` to find.
 
 ## File map
 
 | File | Purpose |
 |---|---|
-| `src/lib/data/progressions.ts` | `PROGRESSION_LICK_CATEGORIES`, `applyPickupBarShift`, `extendHarmonyTail`, `detectPickupBars`, `resolveLickAlignmentOffset`, `resolveTransposeTarget` |
+| `src/lib/data/progressions.ts` | `PROGRESSION_TEMPLATES`, `PROGRESSION_LICK_CATEGORIES`, `applyPickupBarShift`, `extendHarmonyTail`, `detectPickupBars`, `resolveLickAlignmentOffset`, `resolveTransposeTarget`, `resolveQualityRoleEntry` (trick suggestions), `progressionFitsLick` / `getProgressionsForLick` / `fitReasonLabel`, `MINOR_CADENCE`, `progressionMode`, `getTransitionCadenceChords`, `turnaroundHarmony` |
 | `src/lib/state/lick-practice.svelte.ts` | `resolveAlignedLickOffset` (private), `getLickBars` (exported), `harmonyForLick`, `buildPhraseFor`, `buildLickSuperPhrase` |
+| `src/lib/phrases/library-loader.ts` | `transposeLickForTonality`, `PROGRESSION_CATEGORIES`, `snapLickToScale` |
 | `src/routes/lick-practice/session/+page.svelte` | Routes per-lick `lickBars` through `scheduleLickWindows` so transport ticks stretch with the lick |
 
 ## Tests
 
-- `tests/unit/lick-practice/progressions.test.ts` — `applyPickupBarShift`, `extendHarmonyTail`, `detectPickupBars`, `resolveLickAlignmentOffset`
-- `tests/unit/lick-practice/super-phrase.test.ts` — full-cycle integration: `getKeyBars`, `buildLickSuperPhrase`, transposition split, auto-detection fallback
+- `tests/unit/lick-practice/progression-helpers.test.ts` — `applyPickupBarShift`, `extendHarmonyTail`
+- `tests/unit/lick-practice/progressions.test.ts` — the templates, `detectPickupBars`, `resolveLickAlignmentOffset`, `resolveTransposeTarget`, the substitution helpers, `getTransitionCadenceChords`, `progressionMode`, and the minor ii-7b5 · V7b9 · i-7 templates
+- `tests/unit/lick-practice/super-phrase.test.ts` — full-cycle integration: `getKeyBars`, `buildLickSuperPhrase` (demo, per-key transposition, lead-sheet passes), the 3-bar pickup lick over `major-vamp` / short and long ii-V-I, and the `pickupBars` auto-detection fallback
+- `tests/unit/lick-practice/progression-fit.test.ts` — `progressionFitsLick`, table-driven over every curated cadence lick × every template
+- `tests/unit/audio/turnaround-bar.test.ts` — the turnaround bar built on `turnaroundHarmony`
 
 ---
 

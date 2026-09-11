@@ -22,7 +22,7 @@ export const tunesTour: DriveStep[] = [
 		popover: {
 			title: 'Five ways in',
 			description:
-				"Chart a tune by hand in the editor, or import one: paste an iReal Pro link, drop a Band-in-a-Box song, upload a MuseScore score, or let the AI read a PDF of a printed chart. Imports land in a review panel first — nothing is saved until you've looked at it.",
+				"Chart a tune by hand in the editor, or import one: paste an iReal Pro link, drop a Band-in-a-Box song, upload a MuseScore score, or let the AI read a PDF of a printed chart. Every import shows you what it found before anything is saved, and a PDF always opens in the editor for you to check.",
 			side: 'bottom',
 			align: 'end'
 		}
@@ -51,7 +51,7 @@ export const tunesTour: DriveStep[] = [
 		popover: {
 			title: 'Reading a chart',
 			description:
-				"Open any tune and it engraves Real Book style — jazz chord symbols, section letters, repeats, stacked first and second endings. The key selector reads in YOUR written pitch, so tap a key and the chart re-engraves where your horn reads it. Hit Play to hear it with the rhythm section.",
+				"Open any tune and it engraves Real Book style — jazz chord symbols, section letters, repeats, stacked first and second endings. The key selector reads in YOUR written pitch, so tap a key and the chart re-engraves where your horn reads it. Hit Play to hear the melody; the rhythm section comes in when you practice over it.",
 			align: 'center'
 		}
 	},
@@ -59,7 +59,7 @@ export const tunesTour: DriveStep[] = [
 		popover: {
 			title: 'Then put your licks in it',
 			description:
-				"The Practice licks button on any tune is where the two halves of the app meet: Mankunku finds the ii-Vs and turnarounds hiding in the changes and hands you those spots to fill from your own practice set. Settings → Tours & Help has a walkthrough of that session.",
+				"The Practice licks button on any tune is where the two halves of the app meet: the band plays the form, and Mankunku finds the ii-Vs and turnarounds hiding in the changes and hands you those spots to fill with licks from your book. Its setup screen has a How this works walkthrough, and so does Settings → Tours & Help.",
 			align: 'center'
 		}
 	}

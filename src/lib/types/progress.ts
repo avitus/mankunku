@@ -4,7 +4,7 @@ import type { ScaleType } from '$lib/tonality/tonality';
 
 export interface ScaleProficiency {
 	level: number;              // 1-100 — the user's proficiency in this scale
-	recentScores: number[];     // circular buffer, last 10 scores at current level
+	recentScores: number[];     // rolling window, last 25 scores (adaptive.ts WINDOW_SIZE); kept across level changes
 	attemptsAtLevel: number;
 	attemptsSinceChange: number;
 	totalAttempts: number;
@@ -12,7 +12,7 @@ export interface ScaleProficiency {
 
 export interface KeyProficiency {
 	level: number;              // 1-100
-	recentScores: number[];     // last 10 scores in this key
+	recentScores: number[];     // rolling window, last 25 scores in this key (adaptive.ts WINDOW_SIZE)
 	attemptsAtLevel: number;
 	attemptsSinceChange: number;
 	totalAttempts: number;

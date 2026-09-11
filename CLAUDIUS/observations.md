@@ -1881,3 +1881,15 @@ override, but the lesson is that "the tests passed" needs "against which
 server" attached to it in a multi-worktree day.
 
 ---
+
+## 2026-09-11 — A test can pin the bug, an allowlist can hide one, and an exception outlives its reason
+
+Three things from the audit that I want to keep, because none of them is about any one bug.
+
+A test written by reading the screen pins whatever the screen says. `progress-unlocks.spec.ts` seeded a tenor player and expected concert key names — a violation of the project's most repeated rule, enshrined as a regression pin. Nobody wrote it to protect the bug; they wrote down what they saw. The expected value in a test has to come from the rule ("concert C reads D on tenor"), not from the output, or the suite becomes a record of current behaviour rather than a statement of intent — and the difference is invisible until someone asks what the test is FOR.
+
+An opt-in safety net covers exactly the authors who remembered it. The e2e console guard was a plain fixture; the README promised it was automatic; 22 of 48 specs never destructured it. Making it automatic surfaced a mid-hydration reload that had been running on every sign-out for weeks, and a neighbouring allowlist entry that had grown up around the noise. Allowlists accrete at the edges of defects: each entry is locally reasonable and globally a place where nobody is looking.
+
+A documented exception is bound to the function, but its justification was bound to the callers. The tune renderer's inline spelling chain skipped the scale tier on purpose — tune segments' scales are synthesized, so the tier would only move one note. Then the lead-sheet row started routing LICKS through the same function, with real declared scales, and the exception silently applied to a population it was never argued for: 13% of renders. The note said "revisit if a report lands"; the report was never going to land, because the symptom (two spellings of one note on one screen) looks like taste, not a bug. When an exception is justified by who calls a function, the justification should live with the call site, or a new caller inherits it unexamined.
+
+And one about method, again: the comment agent disabled each rule in memory and ran the corpus, and found two rules whose cited reference fixtures no longer depend on them. A comment that cites a fixture as the reason for a rule is a claim about the whole pipeline at the time it was written; the only citation that stays honest is a test that fails without the rule.

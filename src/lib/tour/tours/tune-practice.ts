@@ -31,7 +31,7 @@ export const tunePracticeTour: DriveStep[] = [
 		popover: {
 			title: 'It suggests licks you can actually play',
 			description:
-				"Suggestions come from YOUR practice set, filtered to licks tagged for that progression and ranked by what you've unlocked and drilled. It won't ask for a line in a key you haven't earned. Licks with no progression tag can't be suggested — the setup screen links you off to fix that.",
+				"Suggestions are licks that fit that progression, ranked by what YOU have unlocked and drilled in that key. In Suggest mode it only names licks you already have in that key, at the session tempo or faster, so it won't ask for a line in a key you haven't earned. Licks with no progression tag can't be suggested — the setup screen links you off to fix that.",
 			align: 'center'
 		}
 	},
@@ -39,7 +39,7 @@ export const tunePracticeTour: DriveStep[] = [
 		popover: {
 			title: 'The head plays once',
 			description:
-				"Jazz convention, implemented literally. With Head on, the melody plays one chorus, then the staff clears and the changes are yours. On a chart whose repeats outline the whole form, pass one IS the head and pass two is your chorus; on other charts a solo chorus is appended.",
+				"Jazz convention, implemented literally. With the Head switch on, the melody plays one chorus, then the staff clears and the changes are yours. On a chart whose repeats outline the whole form, pass one IS the head and pass two is your chorus; on other charts a solo chorus is appended. A chords-only chart has no head, so the switch sits at OFF — the caption under Start tells you which way the take opens.",
 			align: 'center'
 		}
 	},
@@ -47,7 +47,7 @@ export const tunePracticeTour: DriveStep[] = [
 		popover: {
 			title: 'Three modes',
 			description:
-				"Suggest names the lick for you at every insertion point — start here. Points lets you pick, scores you out of 100, and DOUBLES a window when you cleared the one before it. Freestyle drops the windows entirely: just solo, and the app applauds the licks from your book it recognises.",
+				"Suggest names the lick for you at every insertion point — start here. Points lets you pick, scores you out of 100, and DOUBLES a window when it and the one before it both clear 90%. Freestyle drops the windows entirely: just solo, and the app applauds the licks from your book it recognises.",
 			align: 'center'
 		}
 	},
@@ -55,7 +55,7 @@ export const tunePracticeTour: DriveStep[] = [
 		popover: {
 			title: 'Strictness',
 			description:
-				"Guided shows every cue ahead of time and accepts any octave. Standard reveals cues on approach. Solo shows nothing and wants the exact register. It changes what you're told and how strictly the app listens — never the grading scale, so a score means the same thing at every level.",
+				"Guided shows every cue ahead of time and accepts any octave. Standard also accepts any octave; it's meant to hold cues back until you approach, but for now it cues just like Guided. Solo shows nothing and wants the exact register. It changes what you're told and how strictly the app listens — never the grading scale, so a score means the same thing at every level.",
 			align: 'center'
 		}
 	},

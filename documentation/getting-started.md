@@ -16,29 +16,31 @@ Alongside them is a third drill: **Tricks.** Not lines but *devices* — enclosu
 
 Then there's the room where all of it meets: **Tune Practice.** Open a full song form from your book and the app plays the rhythm section through it, finds the ii-Vs and turnarounds and vamps inside the changes, and hands you those spots to fill with the licks you've been drilling. Score them, chain them together for bonus points, or just take a solo and let the app tell you which of your lines it recognised. See [Playing Over Tunes](./tune-practice.md).
 
-Around those are the supporting rooms: a **Licks** page holding your personal book of lines; a **[Tunes](./tunes.md)** page for full song forms — hand-charted, imported from iReal Pro / Band-in-a-Box / MuseScore / a PDF, or adopted from the community; a **progress** view with your streak, a calendar heatmap of practice days, and trend graphs over time; a **scales** reference; and tools for **adding licks** of your own — either by writing them note by note in the editor, or by recording a phrase from your horn and letting the app transcribe it.
+Around those are the supporting rooms: a **Licks** page holding your personal book of lines; a **[Tunes](./tunes.md)** page for full song forms — hand-charted, imported from iReal Pro / Band-in-a-Box / MuseScore / a PDF, or adopted from the community; a **progress** view with your streak, a calendar heatmap of practice days, and trend graphs over time; a **scales** reference; tools for **adding licks** of your own — either by writing them note by note in the editor, or by recording a phrase from your horn and letting the app transcribe it; and these **docs**, with an assistant you can ask questions of.
 
 ## What you'll need
 
-- A modern browser. The app is installable — add it to your home screen or dock and it opens in its own window — but it isn't an offline app: loading a page still needs the network. Your practice data is written to *this device* first and works without an account; clearing your browser storage while signed out loses it. Sign in and it also syncs to the cloud, so it follows you between devices and survives a browser wipe.
+- A modern browser. The app is installable — add it to your home screen or dock and it opens in its own window — but it isn't an offline app: loading a page still needs the network. Your practice data is written to *this device* first and works without an account; clearing your browser storage while signed out loses it. Sign in (**Sign In**, top right — an email and a password; *Create Account* is on the same page) and it also syncs to the cloud, so it follows you between devices and survives a browser wipe. Signing in also shares the licks and tunes you save with other players — see [Sharing and adopting](./tunes.md#sharing-and-adopting).
 - A microphone the app can hear your horn through. A laptop's built-in mic works for most monophonic instruments. A USB condenser is better.
-- Headphones, ideally. The app plays a phrase out of your speakers, then listens; if your speakers are loud enough that the mic re-hears the phrase, the score gets confused. There is a "bleed filter" that helps, but headphones make life simpler.
+- Headphones, ideally. The app plays a phrase out of your speakers, then listens; if your speakers are loud enough that the mic re-hears the phrase, the score gets confused. The app knows exactly what the click and the band played and discounts them where it can, but headphones make life simpler.
 - A quiet room. Not silent — but the pitch detector listens for one note at a time, so a clattering dishwasher next door will trip it up.
 
 ## Your first session
 
-The first time you open the app it asks two questions:
+The first time you open one of the rooms that listens — Ear Training, Lick Practice, Tricks, Record a lick, or a tune's practice session — the app asks two questions before it starts:
 
 1. **What do you play?** Pick your instrument — Concert Pitch (for C instruments like flute or piano), soprano sax, tenor sax, alto sax, or trumpet. This sets the transposition (your sheet music will read in the right key for your horn) and tells the app what range to expect.
-2. **Can it use your microphone?** Grant access. You can skip and turn this on later, but without it nothing gets scored.
+2. **Can it use your microphone?** Tap *Allow Microphone*. You can skip and turn this on later in your browser, but without it nothing gets scored.
 
-After that you land on the dashboard. Hit **Side A** to drop into ear training, or **Side B** if you've already tagged some licks for the 12-key drill.
+(Signed in on a new device? If your account already holds practice data, the app first offers to restore it — *Restore My Progress* or *Start Fresh Instead*.)
 
-The first phrase you hear will be in **today's key**. The app picks one new key + scale combination per day — same one for everybody who opens the app on the same date — and rotates it the next morning. Today might be C Major Pentatonic; tomorrow could be F Blues; next week, A Dorian. As your accuracy climbs, more keys and more scale types unlock and join the rotation.
+The browsing pages — the dashboard, your books, the docs — never ask. From the dashboard, hit **Side A** to drop into ear training, or **Side B** if you've already tagged some licks for the 12-key drill.
+
+The first phrase you hear will be in **today's key**. The app picks one key + scale combination at a time and rotates it: every two or three days while you have only a few unlocked, every day once you have seven or more, so a new key has time to settle in your ear. The pick comes from the date and what you've unlocked, so it's the same on all your devices. Today might be C Major Pentatonic; next week, F Blues; later, A Dorian. As your accuracy climbs, more keys and more scale types unlock and join the rotation.
 
 ## A note on starting low
 
-Every player who's tried this app has the same instinct: start at level 50 because "I'm not a beginner." Resist it. The early levels are designed to give you wins — short cells, three or four notes, slow tempos — and the adaptive system needs a few sessions to figure out where you actually live. Stumble through ten ambitious sessions and the level *drops*; play five clean sessions at a comfortable level and it starts pushing you up. Either way you end up in roughly the same place, but the second route doesn't sour the first ten minutes.
+There is no level to set. Every player starts at level 1 in every scale — short cells, three or four notes, slow tempos — and the app moves you from there on your accuracy over the last twenty-five attempts: hold 85% and the level ticks up, fall under 50% and it ticks down. The only lever you have is playing clean. That's deliberate: the first ten minutes are meant to be wins, and the system needs a few sessions to find out where you actually live. Play a session of clean takes and it starts pushing you up on its own; the daily key and the scale types open up as it does.
 
 ## Where to go from here
 
@@ -48,7 +50,7 @@ Every player who's tried this app has the same instinct: start at level 50 becau
 - **[Your Tunes](./tunes.md)** — building a songbook: charting, importing, adopting.
 - **[Playing Over Tunes](./tune-practice.md)** — putting your vocabulary into a real form.
 - **[How Scoring Works](./architecture/scoring-algorithm.md)** — what the app rewards and what it forgives.
-- **[The Daily Key](./architecture/tonality-system.md)** — why the key changes every day, and how new ones unlock.
+- **[The Daily Key](./architecture/tonality-system.md)** — why the key rotates, and how new ones unlock.
 - **[Glossary](./reference/glossary.md)** — jazz terms used throughout the app.
 
 Building the app rather than practising with it? See **[Development Setup](./contributing/contributing.md#development-setup)**.

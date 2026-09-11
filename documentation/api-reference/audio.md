@@ -16,11 +16,11 @@ Initialize the audio engine. Must be called from a user gesture (click/tap). Ide
 
 ### `getAudioContext(): Promise<AudioContext>`
 
-Returns the raw `AudioContext`. Throws if `initAudio()` hasn't been called.
+Returns the raw `AudioContext` Tone.js holds (for passing to smplr). It does **not** check `initAudio()` — Tone creates its context lazily, so before init this is a suspended context with no master gain; `getMasterGain()` is the accessor that throws when audio isn't initialized.
 
 ### `getNativeAudioContext(): Promise<AudioContext>`
 
-Variant that returns the native `AudioContext` — used when a module needs to hand the underlying context to browser APIs that don't accept Tone's wrapper.
+Variant that unwraps standardized-audio-context's wrapper (`_nativeAudioContext`) — needed by APIs that check `instanceof BaseAudioContext`, e.g. the native `AudioWorkletNode` constructor the onset detector uses.
 
 ### `isAudioInitialized(): boolean`
 
@@ -28,7 +28,7 @@ Returns `true` if audio has been initialized.
 
 ### `getMasterGain(): GainNode`
 
-Returns the shared master gain node. All instrument chains and backing-track output connect to this node, which in turn connects to `context.destination`.
+Returns the shared master gain node. All instrument chains and backing-track output connect to this node, which in turn connects to `context.destination`. Throws if `initAudio()` hasn't run.
 
 ### `setMasterVolume(volume: number): void`
 
@@ -67,8 +67,18 @@ interface PhrasePlaybackOpts {
   resolveAtMelodyEnd?: boolean;  // Resolve the promise 1 beat after the melody's last note (call-and-response handoffs); ignored when skipMelody is set or the phrase has no melody
   onStarted?: () => void;        // Callback fired after Transport start
   startTick?: number;            // Explicit start tick for bar-aligned scheduling
+  onNote?: (event: PlaybackNoteEvent) => void;  // Per sounding melody note, at the audible moment
+}
+
+interface PlaybackNoteEvent {
+  sourceIndex: number;           // phrase.notes index of the first note of a (possibly tied) chain
+  midi: number;
+  ticks: number;                 // phrase-relative onset (excludes the count-in / startTick offset)
+  durationSec: number;           // sounding duration after the articulation durationScale
 }
 ```
+
+`onNote` fires on the UI thread via `Tone.Draw`, scheduled from the same tick-anchored melody Part the audio uses, so a notation cursor and the sound share one clock; the schedule-generation guard suppresses a stale callback that survives `stopPlayback`, and it never fires under `skipMelody`. Tune practice drives its chart cursor with it.
 
 ### `playPhrase(phrase, options, keepMetronome?, opts?): Promise<void>`
 
@@ -99,9 +109,17 @@ Schedule a follow-on phrase onto the already-running Transport without stopping 
 
 Stop current playback immediately — transport, metronome, backing track, and all ringing notes.
 
+### `phraseToEvents(phrase, tempo, swing, ppq): PlaybackEvent[]`
+
+The pure note → event conversion behind `playPhrase`: `extractSoundingNotes` (rest-skip + tie-merge), then `computeExpression` at `'moderate'` intensity, then tick placement with the swing pre-shift and humanization described above. The expression pass never touches timing, so the swung onset grid stays identical to the scorer's. Each `PlaybackEvent` carries `{ time, midi, duration, velocity, layerVelocity, release, cutoffHz, detune }` — `velocity` is the humanized loudness, `layerVelocity` the intended, un-humanized value that picks the piano/forte sample layer, so timbre tracks intent and never flickers with gain jitter.
+
 ### `getPhraseDuration(phrase, tempo): number`
 
 Calculate total phrase duration in seconds.
+
+### `getPhraseEndTicks(phrase, ppq, resolveAtMelodyEnd?): number`
+
+Ticks from phrase start to the end-of-phrase notification, including a 1-beat margin for the last note's decay; callers add their own start offset. Default is whole-bar semantics — the max of melody and harmony extents, rounded up to a full bar (super phrases whose harmony outlives the demo melody need it). `resolveAtMelodyEnd` (default `false`) ends 1 beat after the last **sounding** note instead, so a call-and-response handoff isn't held back by a harmony vamp that outlasts the call; it falls back to whole-bar semantics when the phrase has no sounding notes.
 
 ### `getIsPlaying(): boolean`
 
@@ -173,7 +191,7 @@ The gate `trimToPerformance` applies first. "Confident" is not "performance": Mc
 
 ### `rebaseToAnchor(readings, workletOnsets, anchorOffset, tolerance?): RebasedCapture`
 
-For **scheduled** entrances (record-a-lick — the entrance is the bar-3 downbeat, known in advance). The detectors run from the top of the count-in; once the take ends, this discards the count-in and re-origins everything on the anchor. No reaction time means no preroll — instead `ANCHOR_EARLY_TOLERANCE_SECONDS` (0.15) keeps events slightly **before** the anchor, because an attack played exactly on the downbeat starts sounding before either detector can report it. The tolerance sits above attack-transient scale (~50–80 ms) and below one beat at 240 BPM (250 ms), so the previous count-in click never survives. Events inside the tolerance come out at slightly negative times on purpose; the quantizer clamps them to beat 0. `anchorOffset` is the entrance in the capture's own timebase — anchor context time minus the detectors' shared epoch.
+For **scheduled** entrances (record-a-lick — the entrance is the bar-3 downbeat, known in advance). The detectors run from the top of the count-in; once the take ends, this discards the count-in and re-origins everything on the anchor. No reaction time means no preroll — instead `ANCHOR_EARLY_TOLERANCE_SECONDS` (0.15) keeps events slightly **before** the anchor, because an attack played exactly on the downbeat starts sounding before either detector can report it. The tolerance sits above attack-transient scale (~50–80 ms) and below one beat at 240 BPM (250 ms), so the previous count-in click never survives. Events inside the tolerance come out at slightly negative times on purpose; the quantizer clamps them to beat 0. `anchorOffset` is the entrance in the capture's own timebase — the context time Tone hands the bar-3 `transport.schedule` callback (the audible downbeat, not the ~0.1 s-early callback time) minus the detectors' shared epoch. Returns `{ readings, workletOnsets }`.
 
 ---
 
@@ -183,7 +201,7 @@ The record-a-lick transcription tail, extracted from `/licks/record` so the whol
 
 ### `transcribeTake({ readings, workletOnsets, anchorOffset, tempo }): Phrase | null`
 
-Rebases the raw capture onto the scheduled entrance (`rebaseToAnchor`), computes the take duration (guarded to ≥ 0 — the rebase keeps readings down to −tolerance), runs the same segmentation pipeline as ear training with the count-in click grid as bleed evidence (`RECORD_COUNT_IN_BEATS = 8` beats of transport offset), quantizes in 4/4, and normalizes to concert C (`detectKey` → shift, `key: 'C'`) with `calculateDifficulty` stamped. Returns `null` when no readings survive the anchor or nothing survives segmentation — the page returns to idle. The phrase comes back with an empty `name` and `id`; the page assigns the name, and the id is stamped when the lick is saved (`saveUserLick`).
+Rebases the raw capture onto the scheduled entrance (`rebaseToAnchor`), computes the take duration (guarded to ≥ 0 — the rebase keeps readings down to −tolerance), then runs the SAME segmentation pipeline as ear training: `resolveOnsets` → `findReArticulations` → `segmentNotes`, with `getMetronomeBleedOnsets` over the take as bleed evidence at a transport offset of `RECORD_COUNT_IN_BEATS` (8 — the two woodblock bars). The kit clicks through the whole take, so dropping that grid restores phantom splits. It then quantizes in 4/4 and normalizes to concert C (`detectKey` → shift, `key: 'C'`) with `calculateDifficulty` stamped. Returns `null` when no readings survive the anchor or nothing survives segmentation — the page returns to idle. The phrase comes back with an empty `name` and `id`; the page assigns the name, and the id is stamped when the lick is saved (`saveUserLick`).
 
 ---
 
@@ -250,14 +268,39 @@ Create a pitch detector bound to an `AnalyserNode`.
 | `onPitch` | `(reading: PitchReading \| null, rawClarity: number) => void` | Callback on each frame |
 
 **Detection parameters:**
-- Runs at ~60fps via `requestAnimationFrame`
+- Runs at ~60fps via `requestAnimationFrame`; the per-frame math is `detectFrame` in `pitch-frame.ts` (below), shared with the offline replay path
 - Clarity threshold: `CLARITY_THRESHOLD = 0.80`
-- Frequency range: `80–1200 Hz`
+- Frequency range: `MIN_FREQUENCY`–`MAX_FREQUENCY`, `80–1200 Hz`
 - MIDI conversion: `12 * log2(freq / 440) + 69`
+
+`CLARITY_THRESHOLD`, `MIN_FREQUENCY`, `MAX_FREQUENCY` and `OCTAVE_CONFIRM_FRAMES` are re-exports of the `DEFAULT_*` constants in `pitch-frame.ts`.
 
 ### `OCTAVE_CONFIRM_FRAMES: 3`
 
 Exported constant: number of consecutive frames required before the detector commits to an octave change. Prevents flicker when the pitch is midway between octaves.
+
+---
+
+## pitch-frame.ts
+
+The per-frame pitch math, shared by the live rAF loop (`pitch-detector.ts`) and the offline replay harness (`replay.ts`) so both produce identical readings from identical audio. Defines `PitchReading` (above).
+
+### `detectFrame(buffer, time, detector, stabilizer, opts: FrameOptions): FrameResult`
+
+One analyser window → `{ reading: PitchReading | null, rawClarity }` (`rawClarity` is always present, for UI meters; `reading` is null below the clarity threshold or out of range). Runs Pitchy, lifts an octave-down subharmonic pick with `correctSubharmonic` before the frequency enters the MIDI stream, measures the envelope/timbre fields (`rms`, `rmsMin`, `bandRmsMin`, `hfRms`, `shapeBreak`), applies the octave stabilizer (pass `null` to skip it), and flags `octaveUp` only on a frame neither the subharmonic correction nor the stabilizer moved. `FrameOptions` is `{ sampleRate, clarityThreshold?, minFrequency?, maxFrequency?, windowAnchor? }`; the thresholds default to `DEFAULT_CLARITY_THRESHOLD` (0.80), `DEFAULT_MIN_FREQUENCY` (80) and `DEFAULT_MAX_FREQUENCY` (1200).
+
+### `createOctaveStabilizer(confirmFrames?, warmupFrames?): OctaveStabilizer`
+
+Suppresses McLeod subharmonic glitches. **Warmup:** the first `warmupFrames` (`WARMUP_FRAMES`, 5 — ~80 ms) confident readings pass through raw, flagged `warmup`, and the clarity-weighted mode (ties → most recent) seeds the stable MIDI — the old first-frame lock latched onto the inharmonic partials of a reed attack. **Steady state:** an octave-only jump (±12/±24) must persist `confirmFrames` (`OCTAVE_CONFIRM_FRAMES`, 3) frames before it is accepted; any other change is accepted at once. `OctaveStabilizer` is `{ process(rawMidi, clarity): StabilizerResult; reset() }`, with `StabilizerResult = { midi, warmup }`. The confirm inertia means a reported octave change lands a frame or two late — the segmenter's octave-respell rule accounts for it.
+
+### Spectral predicates — `goertzelMagnitude`, `correctSubharmonic`, `isOctaveUpLock`, `measureShapeBreak`
+
+| Function | Purpose |
+|---|---|
+| `goertzelMagnitude(buffer, frequency, sampleRate)` | Magnitude at one frequency over a Hann-windowed buffer — O(n), allocation-free, far cheaper than an FFT when only a few bins are needed |
+| `correctSubharmonic(buffer, frequency, sampleRate)` | Doubles the frequency when it is an octave-down subharmonic: the fundamental bin is empty against the octave above AND the odd harmonics (3f, 5f) are weak — a genuine low note that masks its own fundamental still has full-rank odd harmonics. A correction, applied in place |
+| `isOctaveUpLock(buffer, frequency, sampleRate)` | Whether the frame looks like a 2nd-harmonic lock (energy at the odd half-multiples 1.5f / 2.5f, i.e. the 3rd/5th harmonics of f/2), for 160–370 Hz only. A **predicate, not a correction** — an attack transient can fake it for a frame, so the decision is deferred to `mergeWholeNoteOctaveUpLocks`, which acts only on a strong majority of a note's frames |
+| `measureShapeBreak(buffer, frequency, sampleRate)` | `{ value, offsetSeconds } \| null` — the lowest period-to-period waveform similarity inside the window ("did the reed restart?"), best lag searched within a tolerance so bends and vibrato can't fake a break. ~0.99 on a steady tone. `null` when the pitch is too low for enough scan positions |
 
 ---
 
@@ -305,6 +348,16 @@ Clear collected onsets and synchronize the timestamp reference with the pitch de
 
 ---
 
+## onset-core.ts
+
+The same algorithm as a pure TypeScript module, used by the offline replay harness (and mirrored by hand in the worklet). Constants: `ENERGY_SMOOTHING` (0.85), `ONSET_THRESHOLD` (3.0), `MIN_ONSET_INTERVAL` (0.06 s), `SILENCE_THRESHOLD` (0.001), `SETTLE_FRAMES` (5), `SILENCE_DECAY` (0.95 — the EMA decays through silence so the next loud frame produces a large ratio; that is how silence → signal registers, and settling can complete through silence).
+
+### `createOnsetState(): OnsetState` · `processOnsetFrame(input, state, currentTime): OnsetEvent | null`
+
+`OnsetState` is `{ smoothedEnergy, lastOnsetTime, frameCount }`. `processOnsetFrame` consumes one block (128 samples in the worklet), mutates `state`, and returns `{ onset: true, time }` when the block triggers an onset.
+
+---
+
 ## note-segmenter.ts
 
 Combines pitch readings and onset timestamps into `DetectedNote[]`.
@@ -321,6 +374,8 @@ Filter raw onset timestamps to only those confirmed by a pitch reading within a 
 
 An onset is dropped if no pitch reading falls within `[onset, onset + window]`. This rejects false positives from metronome bleed and other percussive environmental noise that don't produce pitched content.
 
+**The reading must be the onset's own.** A reading vouches for an onset only if its whole analyser window ends before the NEXT onset — the scan stops at `min(onset + window, nextOnset − ANALYSER_WINDOW_SECONDS)`, where `ANALYSER_WINDOW_SECONDS` (module-internal) is `4096 / 44100` ≈ 0.093 s, the longer of the two sample rates so a reading is never credited to an onset it could not have heard. Reference: the 2026-09-09 blue-note-drop take — a pre-armed capture holds the downbeat click the player enters on, the worklet fired on that click 135 ms ahead of the A3, and the A3's own first reading validated it, cutting a 177 ms phantom head off the note (a correct take saved as 2 of 3). A click produces no pitched window of its own; only borrowing the note's could keep it.
+
 ### `segmentNotes(readings, onsets, recordingDuration, minNoteDuration?, onsetGuard?, minReadings?, workletOnsets?, bleedOnsets?, articulationOnsets?): DetectedNote[]`
 
 All parameters are positional (there is no `options` bag).
@@ -332,44 +387,73 @@ All parameters are positional (there is no `options` bag).
 | `recordingDuration` | `number` | — | Total recording duration (seconds) |
 | `minNoteDuration` | `number` | `0.05` | Minimum note duration to keep |
 | `onsetGuard` | `number` | `0.08` | Seconds after a segment start during which FFT-tainted readings from the previous note are skipped |
-| `minReadings` | `number` | `3` | Minimum pitch readings required to keep a segment |
+| `minReadings` | `number` | `3` | Readings needed for the full pitch vote; a segment with fewer (but ≥ 2) falls back to its clearest reading |
 | `workletOnsets` | `number[]?` | — | Raw AudioWorklet onset times. Used by the same-pitch consolidation pass to tell artifact splits apart from real re-articulations. |
-| `bleedOnsets` | `number[]?` | — | Timestamps of scheduled audible events. Every caller supplies `resolveBleedEvidence(...)` (see `bleed-evidence.ts`): backing-track transient onsets when backing is enabled and a schedule exists (the metronome is count-in only under backing), else the metronome click grid via `getMetronomeBleedOnsets(...)` when the metronome is enabled, else `undefined` — **no call site passes demo- or melody-playback events**. Worklet onsets landing inside the 50–200 ms speaker→mic bleed window after one of these are not counted as attack evidence during `mergeSamePitchWithoutAttack`, so an artifact split a click or backing hit caused gets collapsed back into one note. These timestamps don't drop any onsets pre-segmentation — segmentation uses `onsets` as given. |
+| `bleedOnsets` | `number[]?` | — | Timestamps of scheduled audible events. The scored surfaces (ear training, lick practice, tune-practice windows) supply `resolveBleedEvidence(...)` (see `bleed-evidence.ts`): backing-track transient onsets when backing is enabled and a schedule exists (the metronome is count-in only under backing), else the metronome click grid via `getMetronomeBleedOnsets(...)` when the metronome is enabled, else `undefined`. Record-a-lick always passes the metronome grid (the kit clicks through the whole take); /diagnostics re-derives it from the stored recording metadata; tune practice's live freestyle scan passes none (pitch-derived onsets only). **No call site passes demo- or melody-playback events**. Worklet onsets landing inside the 50–200 ms speaker→mic bleed window after one of these are not counted as attack evidence during `mergeSamePitchWithoutAttack`, so an artifact split a click or backing hit caused gets collapsed back into one note. These timestamps don't drop any onsets pre-segmentation — segmentation uses `onsets` as given. |
 | `articulationOnsets` | `number[]?` | — | Articulation onset times used by the re-articulation detector. |
 
 **Algorithm:**
-1. Use the resolved `onsets` as segment boundaries (no pre-segmentation drop; bleed-window suppression happens in the cleanup phase below).
-2. For each segment, compute median MIDI note, median cents on matching readings, and average clarity.
-3. Filter segments shorter than `minNoteDuration`.
-4. If no onsets detected, treat all readings as one note.
-5. **`mergeSamePitchWithoutAttack`** — Collapse adjacent same-MIDI segments whose boundary has no `workletOnsets` entry within ±75 ms. A worklet onset that *does* sit inside the bleed window after a `bleedOnsets` event is treated as bleed, not attack, so the split collapses anyway. Catches clarity dropouts and detector wobble that split a single held note.
-6. **`mergeOctaveBoundariesWithoutAttack`** — Collapse a stray upper-octave segment back into its neighbour when ≥ 3 of the segment's raw frames match the lower fundamental (McLeod octave-lock artifact).
-7. **`mergeWholeNoteOctaveUpLocks`** — Drop a whole note an octave when a strong majority of its frames carry `octaveUp` (a 2nd-harmonic lock). Acted on at the note level, not the frame level, so a stray attack-transient frame on a genuine mid-register note is harmless.
+1. Use the resolved `onsets` as segment boundaries (no pre-segmentation drop; bleed-window suppression happens in the cleanup phase below). If there are no onsets, all readings form one note.
+2. For each segment, skip readings inside `onsetGuard` — but only when the boundary IS an amplitude onset (worklet or articulation); a pitch-derived boundary already starts where the readings show the new pitch, and guarding it ate the frames that define the note (2026-07-25 root-frame). Split on durable pitch changes (legato), then pick the pitch by a clarity-weighted pitch-class vote with a nearest-octave tie-break (warmup frames down-weighted), median cents, average clarity. Drop segments shorter than `minNoteDuration` or made only of warmup frames; one with 2 to `minReadings − 1` readings takes its single clearest reading (clarity halved) rather than vanishing.
+3. **Cross-segment octave collapse** — delete a sub-150 ms note exactly an octave from the longer note after it (an attack-subharmonic glitch that landed before the boundary).
+4. **Octave respell** — a sub-150 ms note exactly an octave from the longer note BEFORE it, whose octave the next note does not continue, takes that neighbour's octave (keeping its onset) when the raw frequencies across the sliver plus one analyser window past its end read the neighbour's fundamental on ≥ 25% of frames. A re-tongued G3 speaks on its 2nd harmonic for ~70 ms (2026-09-09 climb-to-five); a genuinely played G4 contains no 196 Hz, so a real leap stays as played.
+5. **Sandwich rule** — a note ±12 from two same-MIDI neighbours merges with both into one note, whatever its duration (a stuck 2nd-harmonic stretch mid-sustain).
+6. **`mergeSamePitchWithoutAttack`** — Collapse adjacent same-MIDI segments whose boundary has no `workletOnsets` entry within ±75 ms. A worklet onset that *does* sit inside the bleed window after a `bleedOnsets` event is treated as bleed, not attack, so the split collapses anyway. Catches clarity dropouts and detector wobble that split a single held note.
+7. **`mergeOctaveBoundariesWithoutAttack`** — Collapse a stray upper-octave segment back into its neighbour when ≥ 3 of the segment's raw frames match the lower fundamental (McLeod octave-lock artifact).
+8. **`mergeWholeNoteOctaveUpLocks`** — Drop a whole note an octave when a strong majority of its frames carry `octaveUp` (a 2nd-harmonic lock). Acted on at the note level, not the frame level, so a stray attack-transient frame on a genuine mid-register note is harmless.
 
-The two **boundary** merge passes (5 and 6) are conservative: they require explicit absence-of-attack evidence at the boundary, so genuine same-pitch re-articulations are preserved. Pass 7 is not a boundary merge — it re-pitches a whole note on a majority of `octaveUp` frames and has no attack-evidence requirement.
+Passes 6 and 7 run only when the caller supplies attack evidence (`workletOnsets` or `articulationOnsets`); without it only pass 8 runs. The two **boundary** merge passes are conservative: they require explicit absence-of-attack evidence at the boundary, so genuine same-pitch re-articulations are preserved. Pass 8 is not a boundary merge — it re-pitches a whole note on a majority of `octaveUp` frames and has no attack-evidence requirement.
 
-### `findReArticulations(...)`
+### Merge passes — exported individually
 
-The counterpart to the merge passes — it *splits* a same-MIDI run where the player re-attacked but the worklet's amplitude-weighted HFC threshold missed it. Five tiers run in order of evidence strength, each rejecting an impostor the others let through:
+| Function | Signature |
+|---|---|
+| `mergeSamePitchWithoutAttack` | `(notes, workletOnsets, window = 0.075, bleedOnsets?, articulationOnsets?) → DetectedNote[]` — cents and clarity of a merged note are duration-weighted, so a long sustain isn't overridden by a glitch fragment. Articulation onsets count as attack evidence without the bleed filter (they are pitch-derived, not subject to speaker→mic latency) |
+| `mergeOctaveBoundariesWithoutAttack` | `(notes, readings, workletOnsets, window = 0.075, bleedOnsets?) → DetectedNote[]` — merges toward the LOWER octave only; sub-octave artifacts are vanishingly rare and handled within segments |
+| `mergeWholeNoteOctaveUpLocks` | `(notes, readings) → DetectedNote[]` — ≥ 60% of at least 3 confident frames flagged `octaveUp` |
+
+**The bleed evidence is load-bearing, and the caller supplies it.** `resolveOnsets` takes no bleed argument, so a click can and does survive as a base onset; what removes the resulting split is `bleedOnsets` reaching `findReArticulations` and `mergeSamePitchWithoutAttack` (via `segmentNotes`). Dropping it at a call site silently restores the phantom — `tests/integration/pitch-replay.test.ts` scores the same take both ways.
+
+### `resolveOnsets(workletOnsets, readings): number[]`
+
+The baseline onset list for segmentation — **no bleed argument**. Worklet onsets are validated (`validateOnsets`); if none survive, it falls back to `extractOnsetsFromReadings`. It then prepends stable-pitch-run starts for notes the worklet missed before its first attack (legato entries, a take that starts mid-note), skipping warmup readings so an attack subharmonic can't seed a ghost; when the last such start lands within 150 ms of the first worklet onset and the note after agrees on pitch, the two describe one attack and the earlier stable-run start replaces the worklet onset.
+
+### `extractOnsetsFromReadings(readings): number[]`
+
+Fallback onset extractor for when the worklet produced nothing useful: the first reading, then every reading after a hole > 0.1 s (backdated 50 ms for attack latency) or on a MIDI change, at least 80 ms apart.
+
+### `findReArticulations(readings, baseOnsets, bleedOnsets?): number[]`
+
+The counterpart to the merge passes — it *splits* a same-MIDI run where the player re-attacked but the worklet's amplitude-weighted HFC threshold missed it. Scans contiguous same-MIDI runs of the READINGS (not the baseline segments, because a re-articulation can straddle a boundary the merge pass would collapse), and returns extra onset times the caller merges into the onset list AND passes to `segmentNotes` as `articulationOnsets`, so the merge passes keep the new boundaries. `baseOnsets` (the `resolveOnsets` output) lets the shape tier treat an attack the baseline already found as the start of a settle window; `bleedOnsets` carries the scheduled click times. Five tiers run in this order, each rejecting an impostor the others let through, and each run's onsets are sorted and deduped within 60 ms:
 
 | Tier | Trigger | Key constants |
 |---|---|---|
-| Reading gap | Pitch track drops out, energy steps back up on resumption | `RE_ARTICULATION_READING_GAP`, `RE_ARTICULATION_GAP_ATTACK_RISE`, plus a **bloom** acceptance path — a reed attack blooms over 100–200 ms and can read *below* the pre-gap mean on resumption |
-| Clarity dip | Clarity drop paired with an RMS dip and recovery | `RE_ARTICULATION_CLARITY_DROP`, `RE_ARTICULATION_RMS_DROP_RATIO`, `RE_ARTICULATION_RMS_RECOVERY_RATIO` |
+| Reading gap | Pitch tracking drops out inside the run — see the gap rules below | `RE_ARTICULATION_READING_GAP` (0.15 s), `RE_ARTICULATION_GAP_SUSTAIN` (0.85), `RE_ARTICULATION_GAP_ATTACK_RISE` (1.2), `RE_ARTICULATION_GAP_BLOOM_*`, `RE_ARTICULATION_BROKEN_ENTRY_SHAPE` (0.25), `RE_ARTICULATION_GAP_BAND_STOP` / `_HOLD` (0.75 / 0.75) |
+| High-frequency spike | `hfRms` spikes ≥ 3× the run median with the fundamental perturbed ≥ 0.1 st against its local neighbours and the envelope sustained | `HF_RE_ARTICULATION_SPIKE_RATIO`, `HF_RE_ARTICULATION_MIN_PITCH_PERTURB`, `HF_RE_ARTICULATION_MIN_RMS_SUSTAIN`, `HF_BLEED_SUPPRESS_BEFORE` / `_AFTER` |
 | Envelope dip | `rmsMin` dips and recovers with no dropout | `ENV_DIP_RATIO`, `ENV_RECOVER_RATIO`, `ENV_HF_CORROBORATION` |
-| High-frequency spike | `hfRms` spikes ≥ 3× the run baseline with the envelope sustained | `HF_RE_ARTICULATION_SPIKE_RATIO`, `HF_RE_ARTICULATION_MIN_RMS_SUSTAIN` |
-| Waveform shape | `shapeBreak` dips — the legato-tongue last resort | `SHAPE_CLEAN_BASELINE`, `SHAPE_MIN_DROP`, `SHAPE_MIN_PERIODICITY`, `SHAPE_SETTLE_TIME`, `SHAPE_MIN_SUSTAIN` |
+| Clarity dip | Clarity drop paired with an RMS dip and recovery | `RE_ARTICULATION_CLARITY_DROP`, `RE_ARTICULATION_RMS_DROP_RATIO`, `RE_ARTICULATION_RMS_RECOVERY_RATIO` |
+| Waveform shape | `shapeBreak` dips — the legato-tongue last resort; runs last so its settle gate sees every onset the tiers above emitted | `SHAPE_CLEAN_BASELINE`, `SHAPE_MIN_DROP`, `SHAPE_MIN_PERIODICITY`, `SHAPE_SETTLE_TIME`, `SHAPE_MIN_SUSTAIN` |
 
-Two non-obvious rules govern the last two tiers, and both are load-bearing:
+Each tier is gated on its field being present, so readings restored from older diagnostic JSON skip the tiers they cannot feed.
+
+**The reading-gap rules.** A hole of 75 ms (the segmenter's split threshold) up to 150 ms is a *short* gap; ≥ 150 ms is a *bare* gap.
+
+- **Bare gap:** fires when the energy after the hole is ≥ `RE_ARTICULATION_GAP_SUSTAIN` × the energy before it — a click on a decaying note wipes tracking just as long, but the note keeps fading (0.67 on the counterexample, 0.94/0.97 on real tongue stops). When a scheduled click lands **inside** the hole the floor rises to a genuine step-up (`RE_ARTICULATION_GAP_ATTACK_RISE`): a click only ever adds energy and masks tracking, it can never make the note louder, and the 2026-08-10 pent run split a held G by landing at 0.85, right on the plain floor.
+- **Short gap:** must be a true detector silence — a hole bridged by warmup frames is a stabilizer-reset artifact and never fires. Then any one of four acceptances: **step-up** (energy ≥ 1.2× across the hole); **bloom** (the attack fell inside the hole, so the note resumes below the pre-hole level and climbs past it within 200 ms); **broken entry** (both of the last two tracked frames before the hole carry `shapeBreak` ≤ 0.25 with energy sustained ≥ 0.85 — tongue damping is progressive, so it leaves TWO deep frames at the entry where an impulse abrupt enough to blank tracking leaves at most one; 2026-08-18 crescendo tongue); **stop-and-hold** (the instrument-band floor `bandRmsMin` falls ≤ 0.75× across the hole — click-immune — AND the level 100–400 ms after tracking resumes holds ≥ 0.75× the pre-hole level; a note decaying under a click passes the first test and fails the second; 2026-09-09 blue-note-drop).
+- **One hole, one onset:** once the gap tier has marked a hole, the clarity tier defers on it — its recovery-anchored onset lands 50–150 ms later, past the dedupe, and the sliver between the two became a fourth note (2026-05-20 blues-curl-up).
+
+Two non-obvious rules govern the HF and shape tiers, and both are load-bearing:
 
 - **`SHAPE_MIN_PERIODICITY` is a floor, not a ceiling.** The tier fires on a *shallow* similarity dip and rejects deep ones. A genuine legato tongue only reshapes an oscillation that never stops, so similarity barely moves (0.957, 0.961 against ~0.99 baselines); an impulsive contaminant — a metronome click, a key click, a thump — *adds* an uncorrelated signal and drives similarity toward zero (0.33, 0.54, 0.86 in the fixture corpus). Anything that destroys periodicity belongs to another tier or to nothing at all. Inverting this gate reintroduces every click false-positive.
-- **The click-schedule veto is conditional, not unconditional.** The beat is exactly where notes start, so vetoing all HF evidence at a scheduled click discards real articulations. `bandRmsMin` resolves it: a click can only *add* energy, so a dip measured in the 250–5000 Hz instrument band is evidence no click can manufacture. The band-floor override is only ever consulted at cymbal clicks — kicks cannot reach the HF tier's 3× requirement in the first place.
+- **The click-schedule veto is conditional, not unconditional.** A click's broadband burst clears every HF gate, so a spike inside a click's window (`HF_BLEED_SUPPRESS_BEFORE` 0.10 s / `_AFTER` 0.28 s) is discarded — but the beat is exactly where notes start, so the veto has three rescues, one per tongue signature a click can't fake: an in-span dip of the 250–5000 Hz instrument-band floor and a pre-spike stop-and-recover (both `bandFloorDips` — a click can only *add* energy), and the **feather tongue** (`feathersTongueShape`, 2026-08-13 repeated-Eb pair): no energy evidence at all, but a multi-frame `shapeBreak` dip in the shallow 0.80–0.92 band on a clean-baseline run, which also stands in for the pitch-perturbation corroborator and accepts the 0.85 re-attack sustain floor. Measured clicks null `shapeBreak` or drive it ≤ 0.60; the corpus's shallow non-events are single-frame or ≥ 0.956. The band-floor rescue is only ever consulted at cymbal clicks — kicks cannot reach the HF tier's 3× requirement in the first place.
 
 `SHAPE_SETTLE_TIME` (and `RE_ARTICULATION_READING_GAP`) are **physical, not beat-relative**. They admit the swung-eighth pair the tier was built for (0.34 s at 105 BPM) but not straight sixteenths at fast tempos — intended conservatism for last-resort tiers, since a re-articulation that fast disturbs the envelope enough for the tiers above to catch it.
 
-### `getMetronomeBleedOnsets(...)`
+### `getMetronomeBleedOnsets(recordingTransportSeconds, tempo, recordingDuration): number[]`
 
-Computes click times rather than reading them from a log: the metronome plays every beat, so click times are integer multiples of `60/tempo`. Onsets landing inside the 50–200 ms speaker→mic window (`BLEED_LATENCY_MIN` / `BLEED_LATENCY_MAX`) after a computed click aren't counted as attack evidence.
+Computes click times rather than reading them from a log: the metronome plays every beat from Transport 0, so click times are integer multiples of `60/tempo`, converted to recording time by subtracting `recordingTransportSeconds`, with a 250 ms pre-recording lookback so a click that fired just before capture but arrived inside it is still represented. Onsets landing inside the 50–200 ms speaker→mic window (`BLEED_LATENCY_MIN` / `BLEED_LATENCY_MAX`) after a computed click aren't counted as attack evidence.
+
+**OPEN (measured 2026-09-08): on every pre-armed ear-training take this grid lands 0.25–0.40 s off the real clicks** (direct-mix click impulses in eight fixtures vs the grid at `transportSeconds + trim`). The one pre-arming fixture measures +0.098 s, which is Tone's 0.1 s `lookAhead` — `Transport.seconds` reads `currentTime + lookAhead`. So `isLikelyBleed`'s window, the HF suppression window and the in-gap click rule do not see the real clicks in production ear training; the corpus passes on the stored stamps. The fix is a re-baseline (stamp, fixture constants and bleed windows together), not a stamp tweak.
 
 ---
 
@@ -389,7 +473,7 @@ Schedule a jazz metronome pattern.
 |---|---|---|
 | `beatsPerBar` | `number` | Typically 4 |
 | `bars` | `number \| null` | Number of bars, or `null` for infinite loop. `playPhrase` passes `1` — the count-in bar only — whenever the backing track will play, so the synthesized kit never doubles the real one |
-| `startAt` | `string \| number` | Transport time of the first beat (default `0`). Prefer tick notation (e.g. `` `${8 * transport.PPQ}i` ``) over bar notation like `'2m'`: bar-based times convert through the **sticky global** `Transport.timeSignature`, which a prior playback in another meter may have left at 3 |
+| `startAt` | `string \| number` | Transport time of the first beat (default `0`). Pass **ticks** (e.g. `` `${8 * transport.PPQ}i` ``), never bar notation like `'2m'`: bar-based times convert through the **sticky global** `Transport.timeSignature`, which a prior playback in another meter may have left at 3 |
 
 **Pattern:**
 - **Kick drum** (beat 1): `MembraneSynth` at C1 for a short membrane thump marking the downbeat
@@ -435,6 +519,20 @@ interface RecorderHandle {
 | `audioCtx` | `AudioContext` | Shared audio context |
 
 Fans out both sources into a `MediaStreamDestinationNode` without disturbing existing connections. Mic signal is attenuated (~−8 dB) so it sits alongside the metronome. Chooses `audio/webm;codecs=opus` where supported, falling back to `audio/mp4` (Safari) or browser default.
+
+---
+
+## replay.ts
+
+Offline replay of a captured buffer through the same pitch + onset pipeline as the live path (`detectFrame`, `processOnsetFrame`). Deterministic — no rAF jitter, no worklet scheduling — which is why the **authoritative** score is the post-hoc rescore of the saved recording, not the live readings. Also drives `tests/integration/pitch-replay.test.ts` and the /diagnostics Pitch Replay panel.
+
+### `replayFromAudioBuffer(buffer, opts?: ReplayOptions): Promise<ReplayResult>`
+
+Onsets are computed first, in 128-sample blocks to match the worklet, so the pitch loop can reset the octave stabilizer at each onset and every note warms up independently. `ReplayOptions` is `{ hopSize?, fftSize?, clarityThreshold?, minFrequency?, maxFrequency? }` — `hopSize` defaults to `sampleRate / 60` (the live 60 fps), `fftSize` to 4096 (the `AnalyserNode` size). Returns `ReplayResult = { readings, onsets, duration, sampleRate }`, time base starting at 0 (readings stamped at their window START — the live path stamps the END; see `FrameOptions.windowAnchor`). Accepts any AudioBuffer-like `{ sampleRate, length, numberOfChannels, duration, getChannelData }`, so tests pass a shim.
+
+### `replayFromBlob(blob, audioCtx?, opts?): Promise<ReplayResult>`
+
+Decodes a `MediaRecorder` blob and replays it. Pass the shared `AudioContext` where one exists; otherwise one is constructed at the platform default rate.
 
 ---
 
@@ -538,6 +636,7 @@ type DrumBufferName =
 - **`SOPRANO_SAX_SAMPLES: SampleMap`** — Soprano sax multi-samples with per-note tuning corrections.
 - **`SAMPLE_MAPS: Record<string, SampleMap>`** — Registry keyed by instrument id. Currently `'tenor-sax'`, `'alto-sax'`, and `'soprano-sax'` (mapping to `TENOR_SAX_SAMPLES`, `ALTO_SAX_SAMPLES`, and `SOPRANO_SAX_SAMPLES` respectively).
 - **`DRUM_BUFFERS: Record<DrumBufferName, string>`** — Static drum sample URLs (Virtuosity Drums, CC0), one per velocity layer/articulation (kick, three ride layers + bell, hats + pedal, three snare layers, cross-stick, crash).
+- **`DRUM_ARTICULATIONS: Record<DrumVoice, DrumLayer[]>`** — velocity layers per semantic voice, `DrumLayer = { buffer, maxVelocity }` (inclusive upper bound, 0–1): ride `ride_soft` ≤ 0.38 / `ride` ≤ 0.72 / `ride_acc`; snare `snare_ghost` ≤ 0.3 / `snare_med` ≤ 0.62 / `snare_acc`; every other voice one layer. Layers exist only where a soft and a hard stroke differ in timbre, not just level — all buffers are peak-normalized to −3 dBFS, so velocity (times the mix trims) is the only level control. **`drumBufferForVelocity(voice, velocity)`** picks the buffer for a generated, pre-trim velocity (the top layer when nothing matches).
 - **`DRUM_FAMILY_BY_VOICE`** / **`DRUM_BUFFER_FAMILY`** — which sampler family (kick / snare / cymbals — see `DrumFamily` in backing-mix.ts) plays each semantic voice; the buffer-level table is derived from `DRUM_ARTICULATIONS` so a future velocity layer lands in its voice's family automatically.
 
 ### `layerToBuffers(layer): Record<string, string>`
@@ -688,9 +787,9 @@ Lives in `backing-bass.ts` (re-exported here, along with `chordToneIntervalsForB
 
 `feelOverride: 'two'` pins the planner to permanent two-feel — no chorus latch, no walk escapes. This is the entire ballad bass mechanism: `generateBacking` passes it whenever `style.bass === 'two'`.
 
-### `generateComping(harmony, beatsPerBar, style, params, barInfos)`
+### `generateComping(harmony, beatsPerBar, style, params, barInfos): { events, onsetsByBar }`
 
-A voicing type per chord (rootless A/B, shell, drop-2, or quartal where the quality suits it — seeded, quality-aware; the arc thins shells out and brings quartal color in as intensity builds, and the voice-led register center drifts lerp(58, 66, intensity)), voice-led across the sequence, placed by the style's per-bar figures; for `compPlanning` styles in 4/4 the figures come from the phrase-wide planner and guide-tone bars thin the voicing to the 3rd+7th. Off-beat (eighth) hits voice the chord sounding on the **next** beat, so pushes across a chord change anticipate the coming harmony.
+`events` are `CompEvent`s; `onsetsByBar` (`Map<bar, beatOffsets[]>`) is what `generateDrums` reads for comp/snare dialogue. A voicing type per chord (rootless A/B, shell, drop-2, or quartal where the quality suits it — seeded, quality-aware; the arc thins shells out and brings quartal color in as intensity builds, and the voice-led register center drifts lerp(58, 66, intensity)), voice-led across the sequence, placed by the style's per-bar figures; for `compPlanning` styles in 4/4 the figures come from the phrase-wide planner and guide-tone bars thin the voicing to the 3rd+7th. Off-beat (eighth) hits voice the chord sounding on the **next** beat, so pushes across a chord change anticipate the coming harmony.
 
 ### `generateDrums(beatsPerBar, style, params, barInfos, compOnsetsByBar, bassOnsetsByBar?): DrumEvent[]`
 
@@ -800,7 +899,7 @@ Collapse the generated event arrays (tick-string `time` values) into the schedul
 
 ### `resolveBleedEvidence(ctx): number[] | undefined`
 
-The one rule for what bleed evidence the segmenter receives, shared by all recording surfaces (ear training, lick practice, tune practice, diagnostics replay). `ctx` is `{ schedule, backingTrackEnabled, metronomeEnabled, recordingTransportSeconds, tempo, recordingDuration }`. Backing enabled + schedule present → the schedule's `bleedEventsIn(...)` (the synth metronome is count-in only under backing, so the quarter-note click grid would be false evidence — and it never covered off-beat backing content); else metronome enabled → `getMetronomeBleedOnsets(...)`; else `undefined`. This also closes the old hole where metronome-off + backing-on produced no suppression at all.
+The one rule for what bleed evidence the segmenter receives, shared by the scored recording surfaces (ear training — live and the authoritative replay rescore — lick practice, tune practice). /diagnostics does not call it: it replays the evidence stored with the recording (`backingBleedOnsets`, else the metronome grid from the saved transport stamp). `ctx` is `{ schedule, backingTrackEnabled, metronomeEnabled, recordingTransportSeconds, tempo, recordingDuration }`. Backing enabled + schedule present → the schedule's `bleedEventsIn(...)` (the synth metronome is count-in only under backing, so the quarter-note click grid would be false evidence — and it never covered off-beat backing content); else metronome enabled → `getMetronomeBleedOnsets(...)`; else `undefined`. This also closes the old hole where metronome-off + backing-on produced no suppression at all.
 
 ---
 
@@ -908,6 +1007,22 @@ Trigger one-off chord stabs directly on the module-level comp instrument, outsid
 
 Stab times **must** be near-now (within smplr's ~200 ms lookahead) so a later `compInstrument.stop()` (`disposeBackingParts` / teardown) can cut them. Schedule far-future stabs as Transport events that call this at fire time instead.
 
+### `playBackingHitsNow(hits: BackingHit[], time): void`
+
+The full-rhythm-section version of the same near-now contract: triggers bass, comp and drum `BackingHit`s (from `buildTurnaroundBarEvents`, below) directly on the loaded instruments, outside any `Tone.Part`. Callers schedule each batch as a transport event and pass the callback's `time` through. It lives here because the drum velocity-layer and trim mapping (`drumBufferForVelocity`, `BACKING_BASE_TRIMS`, the live mix levels) is module-private, so this mirrors the backing Parts' trigger callbacks.
+
+---
+
+## turnaround-bar.ts
+
+One bar of rhythm-section ii-V into a target key as plain, schedulable data — the glue between continuous deep-practice cycles. It cannot be phrase harmony: the next cycle's `scheduleNextPhrase` runs a deferred `disposeBackingParts()` that destroys not-yet-fired Part events exactly when the turnaround should sound. Nor can it be built into the super phrase: its target is the NEXT cycle's head key, decided by scores earned during the current cycle.
+
+### `buildTurnaroundBarEvents({ progressionType, targetKey, backingStyle, tempo, swing, ppq, beatsPerBar }): TurnaroundEvent[]`
+
+Realizes `turnaroundHarmony(progressionType, targetKey, beatsPerBar)` through `generateBacking` (seeded on `turnaround:<type>:<key>`, so each key gets its own figures and replays are identical) and returns `{ tickOffset, hit }` events relative to the bar start, sorted. Events are clamped into the bar: negative jitter plays at 0, anything pushed past the barline is dropped so it can't collide with the next cycle's downbeat. `BackingHit` is a tagged union — `{ kind: 'bass', midi, velocity, duration } | { kind: 'comp', notes, velocity, duration } | { kind: 'drum', drum, velocity }`.
+
+`turnaroundHarmony` itself lives in `data/progressions.ts` (re-exported here) so the lead-sheet reading pause can vamp the same bar inside a super phrase without the state layer importing audio code.
+
 ---
 
 ## backing-comp-figures.ts
@@ -941,7 +1056,7 @@ The backing **listening lab** (see `documentation/contributing/backing-listening
 
   Drum buffers come from `getDecodedDrumBuffersForBounce()` and the IR from `getDecodedRoomIrForBounce(sampleRate)` in backing-track.ts, so a bounce with no IR renders dry exactly like the app would. Note the bounce calls plain `generateBacking`, not the memoized variant.
 - **backing-report.ts** — `buildBackingReport()`: deterministic ASCII statistics over lab presets × tempi × seeds (bass intervals/stepwise/downbeat-root, comp density/placement, drum voice activity). Snapshot at `documentation/reference/backing-report.txt`, regenerated by `npm run backing:report` and pinned by `tests/unit/audio/backing-report.test.ts`; golden event fixtures live under `tests/fixtures/backing/` via `npm run backing:golden`.
-- **backing-listening-checklist.ts** — `LISTENING_CHECKLIST` (the single source of truth for human listening items), `buildListeningReport(meta, verdicts)` → markdown for PRs and the listening log.
+- **backing-listening-checklist.ts** — `LISTENING_CHECKLIST` (the single source of truth for human listening items: `ListeningChecklistItem = { id, section, prompt, detail }`, grouped by `ChecklistSection` — swing-feel / bass / comp / drums / ensemble / mix, labelled by `CHECKLIST_SECTION_LABELS`), `buildListeningReport(meta: ListeningReportMeta, verdicts)` → markdown for PRs and the listening log (`ChecklistVerdict` is `'pass' | 'fail' | 'skip'`; `meta` is `{ presetLabel, style, tempo, seed, notes? }`).
 
 ---
 

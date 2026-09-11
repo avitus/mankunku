@@ -88,9 +88,11 @@ const II_V_I_MAJOR_LONG: HarmonicSegment[] = [
  * three can't drift: iiø7 from the locrian ♮6 mode and a V7(b9) from the
  * phrygian-dominant mode — modes 2 and 5 of the SAME harmonic-minor parent,
  * the way the major template's dorian/mixolydian/ionian share one major
- * scale. The b9 dominant (not 7alt) is the idiomatic minor ii-V7-i; its
- * degrees spell the b9 and b13 flat, which the chart's spelling tier and the
- * backing bass read.
+ * scale. The b9 dominant (not 7alt) is the idiomatic minor ii-V7-i. The
+ * backing bass walks its degrees; the charts' shared spelling chain does
+ * not need them — the chord tier already spells a 7b9's b9 and b13 flat,
+ * and the scale tier settles only b3/#9, b5/#11, #5/b13 (here the b6: the
+ * same flat b13).
  */
 export const MINOR_CADENCE = {
 	ii: { quality: 'min7b5' as ChordQuality, scaleId: 'harmonic-minor.locrian-sharp6' },
@@ -455,7 +457,7 @@ export const PROGRESSION_LICK_CATEGORIES: Record<ChordProgressionType, Compatibl
 		{ category: 'ii-V-I-minor',      offset: [0, 1] },
 		{ category: 'V-I-minor',         offset: [1, 1] },
 		{ category: 'diminished-chord',  offset: [0, 1] }, // ii = min7b5 (half-dim)
-		{ category: 'dominant-chord',    offset: [1, 1] }, // V = 7alt
+		{ category: 'dominant-chord',    offset: [1, 1] }, // V = 7b9 (MINOR_CADENCE)
 		{ category: 'minor-chord',       offset: [2, 1] }, // I = min7 starts bar 2
 		{ category: 'enclosures',        offset: [2, 1] }, // the I bar, like minor-chord
 		{ category: 'triad-pairs',       offset: [2, 1] }

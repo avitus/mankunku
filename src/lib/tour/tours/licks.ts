@@ -10,7 +10,7 @@ export const licksTour: DriveStep[] = [
 		popover: {
 			title: 'Your Licks',
 			description:
-				"This is your personal collection — the licks you've recorded, written in the editor, or stolen from the community. It's where you manage the lines you're learning for Lick Practice. (The app's built-in ear-training licks live inside Ear Training and Lick Practice, not here.)",
+				"This is your personal collection — the licks you've recorded, written in the editor, or stolen from the community. It's where you manage the lines you're learning for Lick Practice. (The app's built-in ear-training licks live inside Ear Training, not here.)",
 			align: 'center'
 		}
 	},
@@ -28,7 +28,7 @@ export const licksTour: DriveStep[] = [
 		popover: {
 			title: 'Practice set',
 			description:
-				"Open a lick and tag it for practice to add it here. Each card shows when you last drilled it, and Lick Practice rotates this set through every key at increasing tempo.",
+				"Tap + Practice on a lick (or ☆ Add to Practice on its page) to add it here; Remove takes it out. Each card shows the tempo Lick Practice has you at on that line, the most recently drilled first, and Lick Practice rotates this set through every key it has earned at increasing tempo.",
 			align: 'center'
 		}
 	},

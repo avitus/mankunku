@@ -208,19 +208,23 @@ function mergeProficiency<T extends { totalAttempts: number; level: number }>(
 
 /**
  * Initialize progress from cloud data for authenticated users.
- * Merges cloud data with local state, preferring cloud when more recent.
  * Called from the layout/page level after authentication — never on module import.
  *
- * Merge strategy:
- *  - If cloud has >= sessions as local → cloud data takes full precedence (practiced on another device)
- *  - If local has more sessions → keep entire local state (offline practice not yet synced)
- *
- * Note on aggregate fields (totalPracticeTime, streakDays, categoryProgress, keyProgress,
- * scaleProficiency, keyProficiency): When local has more sessions than cloud, these aggregate
- * fields are NOT merged from the cloud. This is intentional — aggregate fields are derived from
- * session history, so the local values (computed from the longer session list) are already more
- * complete. Merging partial cloud aggregates could introduce inconsistencies. The next cloud sync
- * after connectivity is restored will push the full local state to the server, reconciling both.
+ * Tri-state read: `error` leaves local untouched and keeps the cloud push gated
+ * (`progressHydrationOk` false); `empty` (new cloud account) keeps local as
+ * authoritative and enqueues a push. Otherwise the two sides merge field by field:
+ *  - sessions: union by id (local wins a shared id), newest MAX_SESSIONS kept
+ *  - categoryProgress / keyProgress: per key, the side with more attempts wins
+ *    (ties to local); categoryProgress also keeps the loser's higher bestScore
+ *    and newer lastAttempt
+ *  - scaleProficiency / keyProficiency: per id, more `totalAttempts` wins; a tie
+ *    goes to the higher level (cloud when levels are equal too)
+ *  - adaptive (frozen): the whole blob from the side whose newest session is
+ *    later (ties to local) — its buffers can't be rebuilt from the session window
+ *  - totalPracticeTime / streakDays: max; lastPracticeDate: the later one
+ *  - lickProgress: local (the cloud row doesn't carry it)
+ * Proficiency maps empty on both sides are rebuilt from the merged sessions; the
+ * result is saved locally and pushed back so the cloud converges.
  *
  * Errors are caught and logged as warnings — the app remains fully functional offline.
  */

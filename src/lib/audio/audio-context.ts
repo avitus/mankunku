@@ -67,7 +67,8 @@ export function setMasterVolume(volume: number): void {
 
 /**
  * Get the raw AudioContext (for passing to smplr).
- * Throws if initAudio() hasn't been called.
+ * Does not throw before initAudio(): it returns Tone's context either way,
+ * possibly still suspended until initAudio() runs (only getMasterGain throws).
  */
 export async function getAudioContext(): Promise<AudioContext> {
 	const Tone = await getTone();
