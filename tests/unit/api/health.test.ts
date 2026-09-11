@@ -12,7 +12,10 @@
  * passthrough. `realpath` is injected so these run in Node with no fixture
  * tree, and so the failure paths (dangling symlink, local dev) are reachable.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { mkdtempSync, mkdirSync, rmSync, symlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { resolveReleaseId, buildHealthSnapshot } from '../../../src/lib/server/health';
 
 const RELEASE_ROOT = '/home/deploy/mankunku';
@@ -87,5 +90,59 @@ describe('buildHealthSnapshot', () => {
 		expect(snapshot.status).toBe('ok');
 		expect(snapshot.releaseId).toBeNull();
 		expect(snapshot.uptimeSeconds).toBe(0);
+	});
+});
+
+describe('GET /api/health — the route wiring', () => {
+	// The builder and resolver above are pure; this pins what the ROUTE feeds
+	// them: the release id comes from realpath(process.cwd()) through a real
+	// `current` symlink (PM2's cwd), and the answer must never be cached — a
+	// cached health check is a lie about the current process.
+	const tmpRoots: string[] = [];
+
+	afterEach(() => {
+		vi.restoreAllMocks();
+		vi.doUnmock('$app/environment');
+		for (const dir of tmpRoots.splice(0)) rmSync(dir, { recursive: true, force: true });
+	});
+
+	async function loadRouteWithCwd(cwd: string) {
+		vi.resetModules();
+		vi.doMock('$app/environment', () => ({ version: 'd40ed2540e194e07befbf324837b52c7c2807528' }));
+		vi.spyOn(process, 'cwd').mockReturnValue(cwd);
+		return await import('../../../src/routes/api/health/+server');
+	}
+
+	it('reports the release that `current` resolves to, uncached, and is never prerendered', async () => {
+		const root = mkdtempSync(join(tmpdir(), 'mankunku-health-'));
+		tmpRoots.push(root);
+		mkdirSync(join(root, 'releases', '20260910-120000-abcdef0'), { recursive: true });
+		symlinkSync(join('releases', '20260910-120000-abcdef0'), join(root, 'current'));
+
+		const route = await loadRouteWithCwd(join(root, 'current'));
+		expect(route.prerender).toBe(false);
+		const res = await route.GET({} as Parameters<typeof route.GET>[0]);
+		expect(res.status).toBe(200);
+		expect(res.headers.get('cache-control')).toBe('no-store');
+		expect(res.headers.get('content-type')).toBe('application/json');
+		const body = await res.json();
+		expect(body).toMatchObject({
+			status: 'ok',
+			version: 'd40ed2540e194e07befbf324837b52c7c2807528',
+			releaseId: '20260910-120000-abcdef0',
+			node: process.version
+		});
+	});
+
+	it('answers ok with a null release id when the cwd is not a release (a dangling symlink included)', async () => {
+		const root = mkdtempSync(join(tmpdir(), 'mankunku-health-'));
+		tmpRoots.push(root);
+		// `current` points at a release that was pruned away.
+		symlinkSync(join('releases', '20260910-120000-abcdef0'), join(root, 'current'));
+
+		const route = await loadRouteWithCwd(join(root, 'current'));
+		const body = await (await route.GET({} as Parameters<typeof route.GET>[0])).json();
+		expect(body.status).toBe('ok');
+		expect(body.releaseId).toBeNull();
 	});
 });

@@ -1,4 +1,4 @@
-import { error, json, type RequestHandler } from '@sveltejs/kit';
+import { error, isHttpError, json, type RequestHandler } from '@sveltejs/kit';
 import {
 	getAnthropicClient,
 	isAnthropicConfigured,
@@ -26,7 +26,7 @@ Mankunku is a SvelteKit PWA that plays a jazz phrase, listens via the user's mic
 Tone:
 - Direct and practical. Short answers preferred over essays.
 - Speak like a knowledgeable jazz musician (Coltrane references welcome) — not a corporate help bot.
-- Cite docs by URL when answering, e.g. "/docs/user-guide#practice" or "/docs/architecture/scoring-algorithm".
+- Cite docs by URL when answering, e.g. "/docs/user-guide#side-a-ear-training" or "/docs/architecture/scoring-algorithm".
 - If the user asks something the docs don't cover, say so — don't fabricate.
 - For bug reports or troubleshooting, point users to the docs' troubleshooting section if relevant; otherwise suggest they reach out to the maintainers.
 
@@ -57,6 +57,46 @@ const MAX_HISTORY_CHARS = 12_000;
 // pathological clients sending multi-MB `history` arrays. The endpoint trims
 // history later, but only after request.json() has materialized it.
 const MAX_REQUEST_BYTES = 32_000;
+
+/**
+ * Stream the body with a running byte count (the lick-match / tune-parse
+ * pattern). The declared content-length check below is only a fast path — a
+ * chunked upload carries no header, and `request.json()` would materialize
+ * all of it before any cap applied. Throws SvelteKit errors.
+ */
+async function readBodyBounded(request: Request): Promise<string> {
+	const body = request.body;
+	if (!body) return '';
+	const reader = body.getReader();
+	const chunks: Uint8Array[] = [];
+	let total = 0;
+	try {
+		while (true) {
+			const { done, value } = await reader.read();
+			if (done) break;
+			if (!value) continue;
+			total += value.byteLength;
+			if (total > MAX_REQUEST_BYTES) {
+				await reader.cancel();
+				throw error(413, 'Request body too large.');
+			}
+			chunks.push(value);
+		}
+	} catch (err) {
+		if (isHttpError(err)) throw err;
+		// adapter-node errors the stream with a SvelteKitError(413) when the
+		// declared length exceeds BODY_SIZE_LIMIT — surface that as 413.
+		if ((err as { status?: unknown })?.status === 413) throw error(413, 'Request body too large.');
+		throw error(400, 'Malformed request body.');
+	}
+	const buffer = new Uint8Array(total);
+	let offset = 0;
+	for (const chunk of chunks) {
+		buffer.set(chunk, offset);
+		offset += chunk.byteLength;
+	}
+	return new TextDecoder().decode(buffer);
+}
 
 function rateLimitKey(userId: string | null, getClientAddress: () => string): string {
 	// Prefer a server-validated user id so the limit can't be bypassed by
@@ -102,8 +142,9 @@ export const POST: RequestHandler = async ({ request, getClientAddress, locals }
 
 	let body: ChatRequestBody;
 	try {
-		body = (await request.json()) as ChatRequestBody;
-	} catch {
+		body = JSON.parse(await readBodyBounded(request)) as ChatRequestBody;
+	} catch (err) {
+		if (isHttpError(err)) throw err;
 		throw error(400, 'Invalid JSON body.');
 	}
 

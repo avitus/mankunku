@@ -42,7 +42,12 @@ function makeEvent(body: unknown, headers: Record<string, string> = {}, userId: 
 	} as unknown as Parameters<RequestHandler>[0];
 }
 
-async function loadRoute() {
+/**
+ * Both model ids default to ONE string so the existing assertions stay
+ * model-agnostic; the fallback tests pass distinct ids to see which model a
+ * given attempt was sent to.
+ */
+async function loadRoute(models: { base: string; tune: string } = { base: 'claude-test-model', tune: 'claude-test-model' }) {
 	vi.resetModules();
 	vi.doMock('$lib/server/anthropic', () => ({
 		isAnthropicConfigured: () => configured,
@@ -61,11 +66,27 @@ async function loadRoute() {
 						}
 					}
 				: null,
-		ANTHROPIC_MODEL: 'claude-test-model',
-		ANTHROPIC_TUNE_MODEL: 'claude-test-model',
+		ANTHROPIC_MODEL: models.base,
+		ANTHROPIC_TUNE_MODEL: models.tune,
 		ANTHROPIC_TUNE_MAX_TOKENS: 8192
 	}));
 	return await import('../../../src/routes/api/tune-parse/+server');
+}
+
+/** A POST whose body arrives as a stream — no content-length, so only the counting reader can gate it. */
+function makeStreamEvent(body: ReadableStream<Uint8Array>, userId = 'stream-user') {
+	const request = new Request('http://localhost/api/tune-parse', {
+		method: 'POST',
+		headers: { 'content-type': 'application/json' },
+		body,
+		// Node's fetch requires this for a streaming request body.
+		...({ duplex: 'half' } as Record<string, unknown>)
+	});
+	return {
+		request,
+		getClientAddress: () => '127.0.0.1',
+		locals: { safeGetSession: async () => ({ user: { id: userId }, session: null }) }
+	} as unknown as Parameters<RequestHandler>[0];
 }
 
 beforeEach(() => {
@@ -105,6 +126,67 @@ describe('POST /api/tune-parse — guards', () => {
 		} catch (e) {
 			expect(isHttpError(e) && e.status).toBe(400);
 		}
+	});
+
+	it('413s a streamed body past 15 MB even with no content-length header (the counting reader is the real gate)', async () => {
+		const { POST } = await loadRoute();
+		// 1 MB chunks of whitespace with no header: the declared-size fast path
+		// is blind, so only the byte-counting reader can refuse this before it
+		// buffers the whole thing. Without the cap the body would be parsed as
+		// JSON (and 400) after allocating every byte.
+		/** A whitespace body of `total` bytes; `pulled()` counts the chunks read. */
+		const spaces = (total: number) => {
+			let sent = 0;
+			let pulls = 0;
+			const stream = new ReadableStream<Uint8Array>({
+				pull(controller) {
+					if (sent >= total) {
+						controller.close();
+						return;
+					}
+					const n = Math.min(1_000_000, total - sent);
+					sent += n;
+					pulls++;
+					controller.enqueue(new Uint8Array(n).fill(0x20));
+				}
+			});
+			return { stream, pulled: () => pulls };
+		};
+
+		const huge = spaces(40_000_000);
+		const event = makeStreamEvent(huge.stream, 'cap-huge');
+		expect(event.request.headers.get('content-length')).toBeNull();
+		await expect(POST(event)).rejects.toMatchObject({ status: 413 });
+		// Cancelled at the cap, not drained: the 16th megabyte crosses 15 MB,
+		// and at most a chunk or two of read-ahead follows it — never all 40.
+		expect(huge.pulled()).toBeGreaterThanOrEqual(16);
+		expect(huge.pulled()).toBeLessThan(20);
+
+		// The cap is inclusive: exactly 15 000 000 bytes gets past the reader
+		// (and fails as JSON), one byte more is refused as too large.
+		await expect(POST(makeStreamEvent(spaces(15_000_000).stream, 'cap-at'))).rejects.toMatchObject({ status: 400 });
+		await expect(POST(makeStreamEvent(spaces(15_000_001).stream, 'cap-over'))).rejects.toMatchObject({ status: 413 });
+	});
+
+	it('400s a body whose stream breaks mid-read, and passes the adapter\'s own 413 through', async () => {
+		const { POST } = await loadRoute();
+		// A socket that dies mid-body is a malformed request, not a server fault.
+		const broken = new ReadableStream<Uint8Array>({
+			pull(controller) {
+				controller.error(new Error('socket hang up'));
+			}
+		});
+		await expect(POST(makeStreamEvent(broken, 'broken-a'))).rejects.toMatchObject({ status: 400 });
+
+		// adapter-node errors the stream with a SvelteKitError(413) when the
+		// declared Content-Length exceeds BODY_SIZE_LIMIT — surface THAT as 413,
+		// never as a malformed payload.
+		const tooBig = new ReadableStream<Uint8Array>({
+			pull(controller) {
+				controller.error(Object.assign(new Error('Content-length exceeds limit'), { status: 413 }));
+			}
+		});
+		await expect(POST(makeStreamEvent(tooBig, 'broken-b'))).rejects.toMatchObject({ status: 413 });
 	});
 
 	it('400s when pdf is missing or not base64', async () => {
@@ -262,6 +344,33 @@ describe('POST /api/tune-parse — extraction path', () => {
 		} catch (e) {
 			expect(isHttpError(e) && e.status).toBe(502);
 		}
+	});
+
+	it('retries a whole-PDF extraction that died outright on the baseline model, without the thinking config', async () => {
+		const { POST } = await loadRoute({ base: 'claude-base', tune: 'claude-tune' });
+		mockCreate
+			.mockRejectedValueOnce(new Error('output blocked'))
+			.mockResolvedValueOnce({
+				content: [
+					{
+						type: 'text',
+						text: JSON.stringify({
+							title: 'Recovered',
+							keySignature: { fifths: 0 },
+							timeSignature: [4, 4],
+							systems: [{ bars: [{ chords: [[0, 'C']], melody: [[0, 4, 'C4']] }] }]
+						})
+					}
+				]
+			});
+		const res = await POST(makeEvent({ pdf: TINY_PDF_B64 }));
+		expect(res.status).toBe(200);
+		expect((await res.json()).sheet.title).toBe('Recovered');
+		const [first, second] = mockCreate.mock.calls.map((c) => c[0]);
+		expect(first.model).toBe('claude-tune');
+		expect(first.thinking).toEqual({ type: 'adaptive' });
+		expect(second.model).toBe('claude-base');
+		expect(second.thinking).toBeUndefined();
 	});
 });
 
@@ -487,6 +596,137 @@ describe('POST /api/tune-parse — per-system mode', () => {
 		await expect(POST(makeEvent({ system: { image: PNG_B64 } }))).rejects.toMatchObject({
 			status: 400
 		});
+	});
+
+	it('400s on both sides of the 1-32 barCount window', async () => {
+		const { POST } = await loadRoute();
+		for (const barCount of [0, 33, 2.5]) {
+			await expect(
+				POST(makeEvent({ system: { image: PNG_B64, barCount, timeSignature: [4, 4] } })),
+				`barCount ${barCount}`
+			).rejects.toMatchObject({ status: 400 });
+		}
+		expect(mockCreate).not.toHaveBeenCalled();
+	});
+
+	it('asks for the pickup check only on the chart\'s first system', async () => {
+		const { POST } = await loadRoute();
+		mockCreate.mockResolvedValue({
+			content: [{ type: 'text', text: JSON.stringify({ keySignature: { fifths: 0 }, bars: goodBars }) }]
+		});
+		await POST(makeEvent({ system: { image: PNG_B64, barCount: 2, timeSignature: [4, 4], first: true } }));
+		await POST(makeEvent({ system: { image: PNG_B64, barCount: 2, timeSignature: [4, 4] } }));
+		const promptOf = (call: number): string =>
+			mockCreate.mock.calls[call][0].messages[0].content.find((b: { type: string }) => b.type === 'text').text;
+		expect(promptOf(0)).toContain('PICKUP');
+		expect(promptOf(1)).not.toContain('PICKUP');
+	});
+
+	it('re-reads a bar whose note count disagrees with the notehead evidence, and merges per bar toward the evidence', async () => {
+		const { POST } = await loadRoute();
+		const one = (pitch: string) => ({ startRepeat: false, endRepeat: false, ending: null, pickup: false, melody: [[0, 4, pitch]] });
+		const two = (a: string, b: string) => ({
+			startRepeat: false,
+			endRepeat: false,
+			ending: null,
+			pickup: false,
+			melody: [[0, 2, a], [2, 2, b]]
+		});
+		// Both attempts tile cleanly, so nothing but the evidence can decide.
+		// Bar 1: the first read has 1 note where the detector saw 2; the retry
+		// has 2. Bar 2: the first read already agrees (2 notes) and the retry
+		// regresses to 1 — it must keep the first read.
+		mockCreate
+			.mockResolvedValueOnce({
+				content: [{ type: 'text', text: JSON.stringify({ keySignature: { fifths: 0 }, bars: [one('C4'), two('E4', 'G4')] }) }]
+			})
+			.mockResolvedValueOnce({
+				content: [{ type: 'text', text: JSON.stringify({ keySignature: { fifths: 0 }, bars: [two('C4', 'D4'), one('E4')] }) }]
+			});
+		const res = await POST(
+			makeEvent({
+				system: {
+					image: PNG_B64,
+					barCount: 2,
+					timeSignature: [4, 4],
+					barEvidence: [{ count: 2, letters: ['C4', 'D4'] }, { count: 2, letters: ['E4', 'G4'] }]
+				}
+			})
+		);
+		expect(res.status).toBe(200);
+		const payload = await res.json();
+		expect(mockCreate).toHaveBeenCalledTimes(2);
+		expect(payload.bars[0].melody).toEqual([[0, 2, 'C4'], [2, 2, 'D4']]);
+		expect(payload.bars[1].melody).toEqual([[0, 2, 'E4'], [2, 2, 'G4']]);
+		expect(payload.warnings).toEqual([]);
+		// The retry prompt names the disagreeing bar, the detector's count, and
+		// the line/space letters — with the caveat that they are letters only.
+		const retryText = mockCreate.mock.calls[1][0].messages[0].content.find(
+			(b: { type: string }) => b.type === 'text'
+		).text;
+		expect(retryText).toContain('bar 1: independent notehead detection reads 2 notehead(s)');
+		expect(retryText).toContain('on lines/spaces C4 D4');
+		expect(retryText).toContain('letters only');
+		expect(retryText).not.toContain('bar 2:');
+	});
+
+	it('does not re-read when the transcription already agrees with the evidence', async () => {
+		const { POST } = await loadRoute();
+		mockCreate.mockResolvedValue({
+			content: [{ type: 'text', text: JSON.stringify({ keySignature: { fifths: 0 }, bars: goodBars }) }]
+		});
+		const res = await POST(
+			makeEvent({
+				system: {
+					image: PNG_B64,
+					barCount: 2,
+					timeSignature: [4, 4],
+					barEvidence: [{ count: 1, letters: ['C4'] }, { count: 2, letters: ['D4', 'E4'] }]
+				}
+			})
+		);
+		expect(res.status).toBe(200);
+		expect(mockCreate).toHaveBeenCalledTimes(1);
+	});
+
+	it('falls back to the baseline model, without the thinking config, when the tune model fails outright', async () => {
+		// Fable's output filter blocks some well-known tunes as an explicit API
+		// error or an empty response; the retry has to reach a different model,
+		// and the thinking/effort fields are Fable-only — sending them to the
+		// baseline model is a 400 at the API.
+		const { POST } = await loadRoute({ base: 'claude-base', tune: 'claude-tune' });
+		mockCreate
+			.mockRejectedValueOnce(new Error('output blocked'))
+			.mockResolvedValueOnce({
+				content: [{ type: 'text', text: JSON.stringify({ keySignature: { fifths: 0 }, bars: goodBars }) }]
+			});
+		const res = await POST(makeEvent({ system: { image: PNG_B64, barCount: 2, timeSignature: [4, 4] } }));
+		expect(res.status).toBe(200);
+		expect((await res.json()).bars).toHaveLength(2);
+		expect(mockCreate).toHaveBeenCalledTimes(2);
+		const [first, second] = mockCreate.mock.calls.map((c) => c[0]);
+		expect(first.model).toBe('claude-tune');
+		expect(first.thinking).toEqual({ type: 'adaptive' });
+		expect(second.model).toBe('claude-base');
+		expect(second.thinking).toBeUndefined();
+		expect(second.output_config).toBeUndefined();
+	});
+
+	it('429s the 61st system transcription in a minute from one user', async () => {
+		const { POST } = await loadRoute();
+		mockCreate.mockResolvedValue({
+			content: [{ type: 'text', text: JSON.stringify({ keySignature: { fifths: 0 }, bars: goodBars }) }]
+		});
+		const event = () =>
+			makeEvent({ system: { image: PNG_B64, barCount: 2, timeSignature: [4, 4] } }, {}, 'user-sys-limit');
+		for (let i = 0; i < 60; i++) {
+			expect((await POST(event())).status, `request ${i + 1}`).toBe(200);
+		}
+		await expect(POST(event())).rejects.toMatchObject({ status: 429 });
+		// Another user's allowance is untouched.
+		expect(
+			(await POST(makeEvent({ system: { image: PNG_B64, barCount: 2, timeSignature: [4, 4] } }, {}, 'user-other'))).status
+		).toBe(200);
 	});
 });
 

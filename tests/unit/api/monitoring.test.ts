@@ -148,6 +148,42 @@ describe('POST /api/monitoring — allow-list rejection paths', () => {
 		expect(res.status).toBe(413);
 		expect(upstream).not.toHaveBeenCalled();
 	});
+
+	it('answers 400 when the body stream breaks, and 413 when the adapter already refused it', async () => {
+		// A streaming Request needs `duplex` under Node's fetch; the cast keeps
+		// the lib types quiet.
+		const streamRequest = (body: ReadableStream<Uint8Array>): Request =>
+			new Request('http://localhost/api/monitoring', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/x-sentry-envelope' },
+				body,
+				...({ duplex: 'half' } as Record<string, unknown>)
+			});
+		const upstream = vi.fn();
+
+		// A socket that dies mid-envelope: malformed, never relayed.
+		const broken = new ReadableStream<Uint8Array>({
+			pull(controller) {
+				controller.error(new Error('socket hang up'));
+			}
+		});
+		const res400 = await call(streamRequest(broken), upstream as unknown as typeof fetch);
+		expect(res400.status).toBe(400);
+		expect(await res400.text()).toBe('Malformed envelope');
+
+		// adapter-node errors the stream with a SvelteKitError(413) when the
+		// declared Content-Length exceeds BODY_SIZE_LIMIT — before any bytes
+		// arrive. That must read as too-large, not as a client bug.
+		const refused = new ReadableStream<Uint8Array>({
+			pull(controller) {
+				controller.error(Object.assign(new Error('Content-length exceeds limit'), { status: 413 }));
+			}
+		});
+		const res413 = await call(streamRequest(refused), upstream as unknown as typeof fetch);
+		expect(res413.status).toBe(413);
+		expect(await res413.text()).toBe('Envelope too large');
+		expect(upstream).not.toHaveBeenCalled();
+	});
 });
 
 describe('POST /api/monitoring — e2e test mode', () => {
