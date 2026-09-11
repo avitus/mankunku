@@ -15,7 +15,8 @@
 		getUnlockedKeys,
 		getUnlockedScaleTypes,
 		nextKeyUnlock,
-		nextScaleUnlock
+		nextScaleUnlock,
+		formatNextKeyUnlock
 	} from '$lib/tonality/tonality';
 	import type { ScaleType } from '$lib/tonality/tonality';
 	import NoteComparison from '$lib/components/practice/NoteComparison.svelte';
@@ -815,9 +816,7 @@
 					</div>
 					<div class="mt-1 text-xs text-[var(--color-text-secondary)]">
 						{#if nextKey}
-							Next: {nextKey.key} — {nextKey.requirements
-								.map(r => `${r.key} ≥ ${r.level} (now ${r.current})`)
-								.join(' + ')}
+							Next: {formatNextKeyUnlock(nextKey, instrument)}
 						{:else}
 							All {KEY_UNLOCK_ORDER.length} unlocked
 						{/if}

@@ -112,7 +112,7 @@
 		</div>
 		<div class="flex items-center gap-3">
 			<TourTrigger tourId="lick-practice" steps={lickPracticeTour} />
-			<HelpLink href="/docs/user-guide#practice" label="Lick practice docs" />
+			<HelpLink href="/docs/user-guide#side-b-lick-practice" label="Lick practice docs" />
 		</div>
 	</div>
 
