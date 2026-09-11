@@ -55,7 +55,7 @@ export const tunePracticeTour: DriveStep[] = [
 		popover: {
 			title: 'Strictness',
 			description:
-				"Guided shows every cue ahead of time and accepts any octave. Standard also accepts any octave; it's meant to hold cues back until you approach, but for now it cues just like Guided. Solo shows nothing and wants the exact register. It changes what you're told and how strictly the app listens — never the grading scale, so a score means the same thing at every level.",
+				"Guided names the lick to play over each insertion point. Standard names only the progression, so the vocabulary is yours — any lick of yours that fits counts. Solo shows nothing. It changes what you're told, never how the app listens (any octave, at every level) or the grading scale, so a score means the same thing everywhere.",
 			align: 'center'
 		}
 	},

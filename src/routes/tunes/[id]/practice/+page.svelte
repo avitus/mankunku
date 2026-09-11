@@ -23,8 +23,7 @@
 		initTunePractice,
 		previewSessionPlan,
 		startTunePracticeSession,
-		expectedForWindow,
-		trickForWindow,
+		candidatesForWindow,
 		markHead,
 		markRunning,
 		markWindowOpen,
@@ -38,11 +37,14 @@
 		recordFreestyleMatch,
 		clearCelebration,
 		type TunePracticeAudioPlan,
-		type InsertionPoint
+		type InsertionPoint,
+		type WindowCandidate
 	} from '$lib/state/tune-practice.svelte';
 	import {
 		notationBarForPlaybackBar,
 		strictnessKnobs,
+		bestCandidateResult,
+		insertionLabel,
 		insertionMarkerCleared,
 		indexResultsByInsertion,
 		type TunePracticeMode,
@@ -63,6 +65,7 @@
 	import { concertKeyToWritten, writtenKeyToConcert } from '$lib/music/transposition';
 	import { PITCH_CLASSES, type PitchClass } from '$lib/types/music';
 	import type { PlaybackOptions } from '$lib/types/audio';
+	import type { Score } from '$lib/types/scoring';
 	import type { PlaybackNoteEvent } from '$lib/audio/playback';
 	import type { PitchDetectorHandle, PitchReading } from '$lib/audio/pitch-detector';
 	import type { MicCapture } from '$lib/audio/capture';
@@ -117,9 +120,12 @@
 
 	interface OpenWindow {
 		ip: InsertionPoint;
-		expected: { phrase: import('$lib/types/music').Phrase; lickName: string } | null;
-		/** Non-null when the picked suggestion is a trick — scored via Fluency. */
-		trickInfo: ReturnType<typeof trickForWindow>;
+		/**
+		 * The answers the window accepts, fixed at open time: the named lick
+		 * alone when the chart names licks, every fitting lick otherwise — the
+		 * take is scored against each and the best match is the result.
+		 */
+		candidates: WindowCandidate[];
 		recordingTransportSeconds: number;
 		micStartTime: number;
 		readingsStartCount: number;
@@ -188,9 +194,9 @@
 		}
 	];
 	const STRICTNESS_OPTIONS: { value: TunePracticeStrictness; label: string; sublabel: string }[] = [
-		{ value: 'guided', label: 'Guided', sublabel: 'full cues, any octave' },
-		{ value: 'standard', label: 'Standard', sublabel: 'cues on approach' },
-		{ value: 'solo', label: 'Solo', sublabel: 'no cues, exact register' }
+		{ value: 'guided', label: 'Guided', sublabel: 'names the lick to play' },
+		{ value: 'standard', label: 'Standard', sublabel: 'names the progression only' },
+		{ value: 'solo', label: 'Solo', sublabel: 'no cues — any fitting lick' }
 	];
 	/** Written-pitch key names as the pad labels; `selectWrittenKey` converts. */
 	const KEY_OPTIONS = PITCH_CLASSES.map((pc) => ({ value: pc, label: pc }));
@@ -240,7 +246,7 @@
 		}))
 	);
 
-	const knobs = $derived(strictnessKnobs(tunePractice.config.strictness, settings.bleedFilterEnabled));
+	const knobs = $derived(strictnessKnobs(tunePractice.config.strictness));
 
 	// The chart shows the full melody through the head, then swaps to the
 	// changes-only sheet (one deliberate re-render at a musical boundary).
@@ -284,15 +290,16 @@
 			let status: RangeMarker['status'] = 'upcoming';
 			if (result) status = result.grade !== null && result.grade !== 'try-again' ? 'hit' : 'missed';
 			if (tunePractice.windowOpen && tunePractice.currentIndex === i) status = 'active';
-			// Annotate as far in advance as possible: whenever the mode/strictness
-			// reveals names at all, label every still-relevant point (no short
-			// countdown window). Solo (cueLevel 'none') and freestyle stay unlabeled.
-			const showName = tunePractice.config.mode !== 'freestyle' && knobs.cueLevel !== 'none';
-			// When no lick meets the song's key/tempo requirements, the band still
-			// names its progression so the player knows what to blow over.
-			const label = showName
-				? (suggestionNameFor(ip) ?? PROGRESSION_TEMPLATES[ip.progressionType].shortName)
-				: undefined;
+			// Annotate as far in advance as possible: whatever the strictness
+			// reveals, it reveals on every still-relevant point (no short
+			// countdown window). Guided names the lick, Standard the progression,
+			// Solo nothing; freestyle stays unlabeled at any level.
+			const label = insertionLabel({
+				mode: tunePractice.config.mode,
+				cueLevel: knobs.cueLevel,
+				lickName: suggestionNameFor(ip),
+				progressionName: PROGRESSION_TEMPLATES[ip.progressionType].shortName
+			});
 			const existing = byKey.get(ip.markerKey);
 			if (!existing) {
 				byKey.set(ip.markerKey, {
@@ -637,8 +644,7 @@
 		if (!ip) return;
 		currentWindow = {
 			ip,
-			expected: expectedForWindow(ip),
-			trickInfo: trickForWindow(ip),
+			candidates: candidatesForWindow(ip, knobs.cueLevel),
 			recordingTransportSeconds: playback.getTransportSeconds(),
 			micStartTime: micCapture.context.currentTime,
 			readingsStartCount: pitchDetector.getReadings().length,
@@ -663,7 +669,7 @@
 			rebased.push({ ...r, time: r.time - windowOffset });
 		}
 
-		if (!win.expected) {
+		if (win.candidates.length === 0) {
 			recordWindowResult(win.ip.id, null, null);
 			return;
 		}
@@ -696,47 +702,53 @@
 
 		if (detected.length === 0) {
 			// Nothing played — a skipped insertion point, not a fail.
-			recordWindowResult(win.ip.id, win.expected.lickName, null);
+			recordWindowResult(win.ip.id, win.candidates[0].lickName, null);
 			return;
 		}
 
 		const bleedResult = win.schedule
 			? filterBleed(detected, win.schedule, win.recordingTransportSeconds)
 			: null;
-		if (win.trickInfo) {
-			// Trick windows judge FLUENCY (conformance to the device's formula),
-			// not exact reproduction — route around runScorePipeline. Bleed
-			// handling collapses to the chosen-notes rule: filtered notes when
-			// the knob is on and a schedule produced them, raw notes otherwise.
-			let played = knobs.bleedFilterEnabled && bleedResult ? bleedResult.kept : detected;
-			// The window opens at the progression start but the trick is aligned
-			// to a later bar; Fluency slots start at 0, so played onsets must be
-			// rebased to the aligned bar (notes before it go negative and
-			// correctly fail to match).
-			const shiftSeconds = fractionToFloat(win.trickInfo.shift) * 4 * (60 / tempo);
-			if (shiftSeconds !== 0) {
-				played = played.map((n) => ({ ...n, onsetTime: n.onsetTime - shiftSeconds }));
+		const scoreCandidate = (candidate: WindowCandidate): Score | null => {
+			if (candidate.trickInfo) {
+				// Trick windows judge FLUENCY (conformance to the device's formula),
+				// not exact reproduction — route around runScorePipeline. Bleed
+				// handling collapses to the chosen-notes rule: filtered notes when
+				// the knob is on and a schedule produced them, raw notes otherwise.
+				let played = knobs.bleedFilterEnabled && bleedResult ? bleedResult.kept : detected;
+				// The window opens at the progression start but the trick is aligned
+				// to a later bar; Fluency slots start at 0, so played onsets must be
+				// rebased to the aligned bar (notes before it go negative and
+				// correctly fail to match).
+				const shiftSeconds = fractionToFloat(candidate.trickInfo.shift) * 4 * (60 / tempo);
+				if (shiftSeconds !== 0) {
+					played = played.map((n) => ({ ...n, onsetTime: n.onsetTime - shiftSeconds }));
+				}
+				return scoreFluency({
+					played,
+					trick: candidate.trickInfo.trick,
+					parameters: candidate.trickInfo.parameters,
+					context: { ...candidate.trickInfo.context, tempo, swing: effectiveSwing }
+				});
 			}
-			const score = scoreFluency({
-				played,
-				trick: win.trickInfo.trick,
-				parameters: win.trickInfo.parameters,
-				context: { ...win.trickInfo.context, tempo, swing: effectiveSwing }
-			});
-			recordWindowResult(win.ip.id, win.expected.lickName, score);
-			return;
-		}
-		const result = runScorePipeline({
-			detected,
-			phrase: win.expected.phrase,
-			tempo,
-			transportSeconds: win.recordingTransportSeconds,
-			swing: effectiveSwing,
-			bleedFilterEnabled: knobs.bleedFilterEnabled,
-			bleedResult,
-			octaveInsensitive: knobs.octaveInsensitive
-		});
-		recordWindowResult(win.ip.id, win.expected.lickName, result.chosen);
+			if (!candidate.phrase) return null;
+			return runScorePipeline({
+				detected,
+				phrase: candidate.phrase,
+				tempo,
+				transportSeconds: win.recordingTransportSeconds,
+				swing: effectiveSwing,
+				bleedFilterEnabled: knobs.bleedFilterEnabled,
+				bleedResult,
+				octaveInsensitive: knobs.octaveInsensitive
+			}).chosen;
+		};
+		// One take, every accepted answer: the best match is the window's result,
+		// so a Standard/Solo player is graded on the lick they chose to play.
+		const best = bestCandidateResult(
+			win.candidates.map((c) => ({ lickName: c.lickName, score: scoreCandidate(c) }))
+		);
+		recordWindowResult(win.ip.id, best.lickName, best.score);
 	}
 
 	function handlePlaybackNote(event: PlaybackNoteEvent) {
@@ -1103,7 +1115,7 @@
 			<LickCelebration celebration={tunePractice.celebration} onDismiss={clearCelebration} />
 		{/if}
 
-		{#if pickTargetIndex >= 0 && knobs.cueLevel !== 'none'}
+		{#if pickTargetIndex >= 0 && knobs.cueLevel === 'lick'}
 			<SuggestionPickCard
 				entries={pickEntries}
 				picked={tunePractice.pickedSuggestion[tunePractice.plan[pickTargetIndex].id] ?? 0}

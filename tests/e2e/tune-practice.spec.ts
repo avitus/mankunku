@@ -158,11 +158,16 @@ test.describe('tune practice setup', () => {
 		// A pad option's accessible name is its label plus its sublabel line.
 		await modes.getByRole('radio', { name: /^points\b.*streaks double/i }).click();
 		await expect(head).toBeVisible();
-		// Strictness pad present.
+		// Strictness pad present, and the three levels differ in what the
+		// chart tells you, never in how it listens — each option's sublabel
+		// (part of its accessible name) says what that level names.
+		const strictness = page.getByRole('radiogroup', { name: 'Strictness', exact: true });
+		await expect(strictness.getByRole('radio', { name: /^guided\b.*names the lick/i })).toBeVisible();
 		await expect(
-			page
-				.getByRole('radiogroup', { name: 'Strictness', exact: true })
-				.getByRole('radio', { name: /^solo\b/i })
+			strictness.getByRole('radio', { name: /^standard\b.*names the progression only/i })
+		).toBeVisible();
+		await expect(
+			strictness.getByRole('radio', { name: /^solo\b.*no cues — any fitting lick/i })
 		).toBeVisible();
 	});
 

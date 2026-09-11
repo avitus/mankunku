@@ -7,7 +7,11 @@ import type { ChordProgressionType } from '$lib/types/lick-practice';
 import { flattenTune, type FlattenedTune } from '$lib/tunes/flatten';
 import { tuneToPhraseWithFlat } from '$lib/tunes/to-phrase';
 import { detectProgressions, selectNonOverlapping } from '$lib/tunes/progression-detector';
-import { buildLickMatcherDeps, suggestLicksForProgression } from '$lib/tunes/lick-matcher';
+import {
+	buildLickMatcherDeps,
+	suggestLicksForProgression,
+	type LickSuggestion
+} from '$lib/tunes/lick-matcher';
 import { transposeTune } from '$lib/tunes/book-loader';
 import { getAllLicks, getBaseLickFromId, isCuratedLickId, transposeLick } from '$lib/phrases/library-loader';
 import { getTrickById } from '$lib/tricks';
@@ -29,6 +33,8 @@ import {
 	emptyResultTally,
 	headBarsForFlat,
 	resolvePickedSuggestion,
+	windowCandidates,
+	type CueLevel,
 	type InsertionPoint,
 	type InsertionResult,
 	type TunePracticeMode,
@@ -309,16 +315,15 @@ export function startTunePracticeSession(sheet: Tune, ppq: number): TunePractice
 }
 
 /**
- * Resolve the expected phrase for an insertion window: the picked (or top)
- * suggestion, transposed to its target key, with note offsets shifted by the
+ * Resolve the expected phrase for one suggestion in an insertion window:
+ * the lick transposed to its target key, with note offsets shifted by the
  * suggestion's alignment inside the window so the scorer's timeline matches
  * what the user is asked to play (window open = time zero).
  */
-export function expectedForWindow(
-	ip: InsertionPoint
+export function expectedForSuggestion(
+	ip: InsertionPoint,
+	suggestion: LickSuggestion
 ): { phrase: Phrase; lickName: string } | null {
-	const suggestion = resolvePickedSuggestion(ip.suggestions, tunePractice.pickedSuggestion[ip.id]);
-	if (!suggestion) return null;
 	let transposed: Phrase;
 	if (suggestion.trick && suggestion.phrase) {
 		// Synthetic trick suggestion: the generated example is ALREADY in the
@@ -346,20 +351,30 @@ export function expectedForWindow(
 	};
 }
 
+/** A trick suggestion's scoring parts — windows with these score via Fluency. */
+export interface TrickWindowInfo {
+	trick: Trick;
+	parameters: TrickParameters;
+	context: TrickContext;
+	/**
+	 * The suggestion's alignment inside the window (the same math
+	 * `expectedForSuggestion` applies to note offsets): the window opens at the
+	 * progression start but the trick is aligned to a later bar, so the
+	 * scorer's played onsets must be rebased by it.
+	 */
+	shift: Fraction;
+}
+
 /**
- * Resolve the picked suggestion's trick parts for an insertion window, or
- * null when the pick is not a trick (or its trick id is unknown). Windows
- * with a non-null result score via Fluency instead of the exact-phrase
- * pipeline. `shift` is the suggestion's alignment inside the window (the
- * same math `expectedForWindow` applies to note offsets): the window opens
- * at the progression start but the trick is aligned to a later bar, so the
- * scorer's played onsets must be rebased by it.
+ * Resolve one suggestion's trick parts, or null when it is not a trick (or
+ * its trick id is unknown). A non-null result scores via Fluency instead of
+ * the exact-phrase pipeline.
  */
-export function trickForWindow(
-	ip: InsertionPoint
-): { trick: Trick; parameters: TrickParameters; context: TrickContext; shift: Fraction } | null {
-	const suggestion = resolvePickedSuggestion(ip.suggestions, tunePractice.pickedSuggestion[ip.id]);
-	if (!suggestion?.trick) return null;
+export function trickForSuggestion(
+	ip: InsertionPoint,
+	suggestion: LickSuggestion
+): TrickWindowInfo | null {
+	if (!suggestion.trick) return null;
 	const trick = getTrickById(suggestion.trick.trickId);
 	if (!trick) return null;
 	return {
@@ -368,6 +383,43 @@ export function trickForWindow(
 		context: suggestion.trick.context,
 		shift: subtractFractions(suggestion.insertionOffset, ip.startOffset)
 	};
+}
+
+/** One answer a window accepts: the lick's window-aligned phrase, or its trick. */
+export interface WindowCandidate {
+	lickName: string;
+	/** The transposed, window-aligned phrase; null when the lick could not be resolved. */
+	phrase: Phrase | null;
+	/** Non-null when the candidate is a trick — scored via Fluency, not the phrase. */
+	trickInfo: TrickWindowInfo | null;
+}
+
+/**
+ * The answers an insertion window is scored against, resolved from the plan's
+ * suggestions by the strictness cue level (`windowCandidates`): the named
+ * lick alone when the chart names licks, every fitting suggestion otherwise.
+ * Resolved once at window open, so a pick made after the downbeat cannot
+ * change what the take is scored against.
+ *
+ * Scoring every candidate is cheap enough to run in the close handler: an
+ * UNRESTRICTED list is 260 suggestions at its worst across the curated tunes,
+ * and scoring all 260 through `runScorePipeline` measures 0.6-2.2 ms (2026-09-11)
+ * — orders below the segmentation that precedes it. Production lists are far
+ * smaller anyway: suggest mode passes `playableKeysOnly` (the player's own
+ * unlocked vocabulary) and points mode caps at `MAX_SUGGESTIONS`. The cap that
+ * matters is therefore about MEANING, not speed — a best-of-N over the whole
+ * 923-lick catalog would let some lick fluke a match against any take, which
+ * is why the candidate pool stays the player's own book, as freestyle
+ * recognition does with `buildFreestyleBook`.
+ */
+export function candidatesForWindow(ip: InsertionPoint, cueLevel: CueLevel): WindowCandidate[] {
+	return windowCandidates(ip.suggestions, tunePractice.pickedSuggestion[ip.id], cueLevel).map(
+		(s) => ({
+			lickName: s.lickName,
+			phrase: expectedForSuggestion(ip, s)?.phrase ?? null,
+			trickInfo: trickForSuggestion(ip, s)
+		})
+	);
 }
 
 export function pickSuggestion(insertionId: string, index: number): void {

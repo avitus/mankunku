@@ -341,7 +341,7 @@ export const tunePractice = $state<{
 }>( /* defaults */ );
 ```
 
-Exports: `initTunePractice(sheet)`, `previewSessionPlan(sheet, playHead)`, `startTunePracticeSession(sheet, ppq) → TunePracticeAudioPlan`, the phase transitions (`markHead`, `markRunning`, `markWindowOpen`, `completeTunePracticeSession`), `expectedForWindow` / `trickForWindow` (what a window is scored against), `pickSuggestion` / `suggestionNameFor`, `recordWindowResult`, `buildFreestyleBook(ppq)`, `recordFreestyleMatch`, `clearCelebration`, `updateElapsedTime`, `resetTunePractice`. See [Tune System](./tune-system.md#session-planning) and [API Reference: State](../api-reference/state.md#tune-practicesveltets).
+Exports: `initTunePractice(sheet)`, `previewSessionPlan(sheet, playHead)`, `startTunePracticeSession(sheet, ppq) → TunePracticeAudioPlan`, the phase transitions (`markHead`, `markRunning`, `markWindowOpen`, `completeTunePracticeSession`), `candidatesForWindow` (what a window is scored against — the named lick, or every fitting one), `pickSuggestion` / `suggestionNameFor`, `recordWindowResult`, `buildFreestyleBook(ppq)`, `recordFreestyleMatch`, `clearCelebration`, `updateElapsedTime`, `resetTunePractice`. See [Tune System](./tune-system.md#session-planning) and [API Reference: State](../api-reference/state.md#tune-practicesveltets).
 
 ### Tune Community State (`src/lib/state/tune-community.svelte.ts`)
 

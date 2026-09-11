@@ -696,8 +696,9 @@ export const tunePractice = $state<{
 
 ### Windows and suggestions
 
-- `expectedForWindow(ip): { phrase, lickName } | null` — The expected note sequence a closed window is scored against.
-- `trickForWindow(ip): { trick, parameters, context, shift } | null` — The picked suggestion's trick parts when the pick is a trick variant; such windows score through Fluency instead of the exact-phrase pipeline, with the played onsets rebased by `shift` (the suggestion's alignment inside the window — the window opens at the progression start, the trick lands on a later bar).
+- `candidatesForWindow(ip, cueLevel): WindowCandidate[]` — The answers a window is scored against, resolved ONCE at window open so a pick made after the downbeat can't change them: the named lick alone at `'lick'`, every fitting suggestion at `'progression'` / `'none'`. The route scores the take against each and keeps the best (`bestCandidateResult`).
+- `expectedForSuggestion(ip, suggestion): { phrase, lickName } | null` — One suggestion's window-aligned expected notes (transposed to its target key, offsets shifted by its alignment inside the window).
+- `trickForSuggestion(ip, suggestion): { trick, parameters, context, shift } | null` — That suggestion's trick parts when it is a trick variant; such candidates score through Fluency instead of the exact-phrase pipeline, with the played onsets rebased by `shift` (the window opens at the progression start, the trick lands on a later bar).
 - `pickSuggestion(insertionId, index)` / `suggestionNameFor(ip)` — Points-mode pick card.
 - `updateElapsedTime()`, `clearCelebration()`.
 
@@ -720,14 +721,17 @@ Pure planning + accumulation logic behind the runes wrapper above. Plain module 
 | `headBarsForFlat(flat) → { headBars, formRepeats }` | The jazz form rule — decides head length from the **expanded section map**, never raw repeat markers, which imports express inconsistently; an internal repeat like `\|: A :\| B A` is not a form outline |
 | `buildSessionPhrase(args)` | Head chorus (melody once) + melody-free solo material; appends a duplicate chorus on repeat-free charts |
 | `assignSuggestRotation(plan)` | Least-used-first lick rotation per progression type |
-| `strictnessKnobs(strictness, userBleedFilterEnabled)` | Maps strictness onto existing pipeline knobs only — the grading scale never changes |
+| `strictnessKnobs(strictness)` | Maps strictness onto existing pipeline knobs only — listening is identical at every level; only `cueLevel` differs |
+| `windowCandidates(suggestions, pickedIndex, cueLevel)` | The answers a window accepts: the named lick alone at `'lick'`, every fitting suggestion otherwise |
+| `insertionLabel(args)` | Band text: the lick, the progression, or nothing — never in freestyle |
+| `bestCandidateResult(results)` | The candidate the take matched best; unscorable ranks below scored |
 | `resolvePickedSuggestion(suggestions, pickedIndex)` | The user's pick, else the top rank, else null |
 | `emptyResultTally()` / `applyInsertionResult(tally, insertionId, lickName, score, mode)` | A fresh `ResultTally`; then points = `round(overall * 100)`, doubled when this and the previous window both clear `KEY_PROFICIENT_THRESHOLD` |
 | `indexResultsByInsertion(results)` | Keyed lookup — a skipped window contributes no result, so array-position lookup misaligns everything after a gap |
 | `insertionMarkerCleared(args)` | Whether a chart marker's every playback window has been cleared |
 | `notationBarForPlaybackBar(...)` | Project a playback bar onto its chart bar via `sectionMap` |
 
-Types: `TunePracticeMode` (`'suggest' | 'points' | 'freestyle'`), `TunePracticeStrictness` (`'guided' | 'standard' | 'solo'`), `TunePracticePhase`, `InsertionPoint`, `InsertionResult`, `StrictnessKnobs`, `ResultTally`.
+Types: `TunePracticeMode` (`'suggest' | 'points' | 'freestyle'`), `TunePracticeStrictness` (`'guided' | 'standard' | 'solo'`), `CueLevel` (`'lick' | 'progression' | 'none'`), `TunePracticePhase`, `InsertionPoint`, `InsertionResult`, `StrictnessKnobs`, `CandidateResult`, `ResultTally`.
 
 See [Tune System](../architecture/tune-system.md#session-planning) for the design rationale behind each.
 

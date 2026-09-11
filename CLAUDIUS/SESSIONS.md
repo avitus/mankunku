@@ -3309,3 +3309,55 @@ cache until a boundary hitch is actually observed.
   - Dead `source === 'user'` branch in scale-compatibility, pinned by a test that invented a source no lick has — both replaced by real-source tests.
 - Docs: all twenty player/tour/blurb files, eight architecture, seven API-reference, twelve README/contributing/reference/OMR files, the e2e README, the testing guide, CLAUDE.md (CI graph, five-tier order is gap → HF → envelope → clarity → shape, ring chips `D-`, record-a-lick normalises to C, preview pages ship ungated, server/ ui/ content/ modules, re-home, one spelling chain, Tests section), a dozen source comments (measured, not read: the corpus no longer depends on the bloom path or the envelope corroborators — only today's unit pins do).
 - Open, for Andy: tune practice's Standard strictness behaves exactly like Guided though its label promises cues on approach; the tune page and editor Play buttons play melody only (docs used to promise the band). Follow-up chip: dead exports across src/lib.
+## 2026-09-10/11 — Tune-practice strictness: the tier that existed only in its type
+
+- Andy asked what separates Guided/Standard/Solo; Guided and Standard "seem
+  very similar", and Solo should not require a given register. Both halves
+  of the observation were right, and for different reasons.
+- **Guided and Standard were byte-identical in behaviour.** Standard's
+  `'reduced'` cue level once meant "label an insertion only when active or
+  ≤ 2 bars out"; e603bc3 (2026-07-29 — a commit about teleprompter SCROLL)
+  replaced that check with `cueLevel !== 'none'` and the countdown died
+  there. Six weeks of caption ("cues on approach"), docs table and tour copy
+  describing behaviour that no longer existed, because `strictnessKnobs`
+  still returned the string and the unit test still pinned it.
+- **Solo's exact-register rule imported an analogy without its premise.**
+  The comment said Solo "mirrors call-and-response strictness" — but in
+  call-and-response the app has just PLAYED the phrase, so register is a
+  heard target. In tune practice nothing is demonstrated: the only octave
+  in play is wherever the transposition landed, invisible to the player and
+  often off the horn. `score-pipeline.ts`'s own docstring already said
+  moving a lick an octave to stay on the horn is legitimate.
+- Rebuilt on Andy's pick of the ladder I recommended: strictness now tells,
+  it never listens. Every level is octave-insensitive with the bleed filter
+  on (the hidden `settings.bleedFilterEnabled` A/B flag no longer decides
+  Solo). Guided names the lick (and owns the Points pick card); Standard
+  names only the progression; Solo names nothing. At Standard/Solo the
+  player was never told WHICH lick to play, so `windowCandidates` scores the
+  take against every fitting suggestion and `bestCandidateResult` keeps the
+  best — the report names the lick the take actually matched.
+- Seams: `expectedForSuggestion`/`trickForSuggestion` replace the
+  pick-bound `expectedForWindow`/`trickForWindow`; `candidatesForWindow`
+  resolves the accepted answers ONCE at window open, so a pick made after
+  the downbeat can't change what is scored. `insertionLabel` is the
+  band-text rule (freestyle never labels, at any level).
+- **Measured rather than guessed the cost** of scoring N candidates in the
+  close handler: unrestricted worst case is 260 suggestions/point across the
+  curated tunes, and all 260 through `runScorePipeline` is 0.6–2.2 ms —
+  orders under the segmentation preceding it. Production never sees that
+  list anyway (suggest mode passes `playableKeysOnly`, points caps at 5).
+  The real cap is about MEANING: a best-of-N over all 923 catalog licks
+  would let something fluke a match against any take, which is exactly why
+  freestyle's `buildFreestyleBook` indexes only the player's own book.
+  Noted in the docstring so it isn't re-litigated.
+- Verified: svelte-check 2757 files 0/0; vitest 284 files, 4621 passed /
+  36 expected-fail; tune-practice e2e 6/6 on chromium incl. both live
+  sessions.
+- **Process failure worth keeping:** two "re-runs" of the e2e reported the
+  SAME stale failure because my `sed` on `const PORT = 4173;` silently
+  matched nothing — dev had already parameterised it to
+  `process.env.PLAYWRIGHT_PORT ?? 4173`, so both runs attached to another
+  worktree's preview on 4173 and tested that checkout's build. The
+  screenshot showing pre-redesign UI was the tell. A sed that edits nothing
+  and a test that fails identically look exactly like a real failure; the
+  memory note for this existed and I reached for sed anyway.

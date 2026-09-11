@@ -125,7 +125,7 @@ export const tooltips = {
 			learnMore: '/docs/tune-practice'
 		},
 		strictness: {
-			text: 'How much the app tells you and how strictly it listens — never the grading scale. Guided: full cues, any octave. Standard: cues on approach, any octave. Solo: no cues, exact register.',
+			text: 'How much the chart tells you about each insertion point — never how the app listens (any octave, at every level) or the grading scale. Guided names the lick to play. Standard names only the progression, so any lick of yours that fits counts. Solo names nothing.',
 			learnMore: '/docs/tune-practice'
 		},
 		head: {

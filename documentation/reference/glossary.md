@@ -142,7 +142,7 @@ Jazz terminology, pitch terminology, and a few app-specific terms — defined in
 
 **Backing style** — Which band you practice with: Swing, Bossa Nova, Ballad, or Straight. Chosen per session on the Lick Practice and tune-practice setup screens (not in Settings). Ear Training never plays one.
 
-**Bleed filter** — A filter that drops detected notes that look like room bleed from the speakers — the app re-hearing its own playback through your microphone. Helps when you're not using headphones. It always runs, but whether its result becomes your score is decided for you — Tune Practice uses it at Guided and Standard strictness, and nothing else does. There is no user-facing toggle.
+**Bleed filter** — A filter that drops detected notes that look like room bleed from the speakers — the app re-hearing its own playback through your microphone. Helps when you're not using headphones. It always runs, but whether its result becomes your score is decided for you — Tune Practice uses it at every strictness level, and nothing else does. There is no user-facing toggle.
 
 **Combinatorial lick** (or phrase) — A catalog phrase built by pairing a melodic shape (written as scale degrees) with a rhythm template, rather than written out by hand — about half the catalog: 471 of these, alongside 452 hand-written ones. Indistinguishable from a hand-written lick in use: same difficulty scale, same transposition, same scoring.
 
@@ -166,7 +166,7 @@ Jazz terminology, pitch terminology, and a few app-specific terms — defined in
 
 **Connection bonus** — Points mode's doubling rule: clear the 90% pass bar on two consecutive insertion points and the second one scores twice. Rewards coming out of one lick ready for the next.
 
-**Strictness** — How much Tune Practice tells you and how strictly it listens. Guided (full cues, any octave), Standard (described as cues on approach, any octave — for now it cues exactly like Guided), Solo (no cues, exact register). It never changes the grading scale.
+**Strictness** — How much Tune Practice tells you about each insertion point. Guided names the lick to play, Standard names only the progression, Solo names nothing; at Standard and Solo any of your licks that fits the spot counts, and the best match is your result. It never changes how the app listens (any octave, at every level) or the grading scale.
 
 **Progression colour** — Each of the ten progression types has an identity hue that follows it everywhere: the category pill on a lick card, the Side B session header, and the bands on a tune chart. Consistent colour means a ii-V is recognisable at a glance wherever it appears.
 

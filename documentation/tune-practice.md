@@ -35,7 +35,7 @@ Under a link back to the tune, the page is headed **Practice licks**, with a lin
 | Control | What it does |
 |---|---|
 | **Mode** | *Suggest* — lick named for you; *Points* — you pick, streaks double; *Freestyle* — backing only, just solo. See [the three modes](#the-three-modes). Starts on Suggest. |
-| **Strictness** | *Guided* — full cues, any octave; *Standard* — cues on approach; *Solo* — no cues, exact register. How much the app tells you and how strictly it listens — see [Strictness](#strictness). Starts on Standard. |
+| **Strictness** | *Guided* — names the lick to play; *Standard* — names only the progression; *Solo* — no cues. How much the chart tells you about each insertion point — see [Strictness](#strictness). Starts on Standard. |
 | **Head** | A rocker switch. ON plays the melody once through before your chorus ([the head rule](#the-head-rule)); OFF goes straight to the changes. On a chart with no melody it reads OFF and can't be switched on — there's no head to play. |
 | **Key** | Twelve pads in your written pitch: the key the tune is played and charted in for this session. It starts in the tune's own key. |
 | **Tempo** | A knob, 50–240 BPM in steps of 5 — drag, scroll, or use the arrow keys. It starts at your Settings tempo. In Suggest mode it also decides which licks can be named: only ones you already practise at this speed or faster. |
@@ -69,7 +69,7 @@ This is the mode to start in. It turns a tune into a set of prompts.
 
 You choose which lick to play at the next window from a **Pick your lick** card — the five best-ranked candidates for it, each with the key you'll play it in and a badge: *Known* (you've passed it in that key), *Learning* (attempted there, or the key is unlocked but unplayed) or *New*. Points mode doesn't filter the way Suggest does, so new material can turn up. Pick before the window opens; if you don't, the top one is scored. Then you earn points for how well you play it: **your score out of 100**, straight. The twist is the **connection bonus** — clear the pass bar (90%) on two windows *back to back* and the second one scores **double**.
 
-That rewards the thing that's actually hard: not playing one good lick, but coming out of one and being ready for the next. The header keeps your running total, with the streak and a 🔥 once two in a row have landed (*240 pts · 3🔥*). At Solo strictness there's no pick card at all — the top-ranked lick is the one scored, unannounced.
+That rewards the thing that's actually hard: not playing one good lick, but coming out of one and being ready for the next. The header keeps your running total, with the streak and a 🔥 once two in a row have landed (*240 pts · 3🔥*). The pick card belongs to Guided: at Standard and Solo the chart never names a lick, so there is nothing to pick and any of your licks that fits the spot is scored.
 
 ### Freestyle — take a solo
 
@@ -81,17 +81,17 @@ At the end you get a list of everything it heard, with the bar it landed in.
 
 ## Strictness
 
-Strictness changes what the app *shows* you and how strictly it *listens*. It never changes the grading scale — the same score means the same thing at every level.
+Strictness changes what the chart *tells* you about each insertion point. It never changes how the app listens or the grading scale: every level scores any octave, because nothing is demonstrated in tune practice, so there is no register to match, and moving a lick an octave to keep it on the horn is legitimate. The same score means the same thing at every level.
 
-| Level | Cues | Listening |
+| Level | The band over each insertion point | What counts |
 |---|---|---|
-| **Guided** | Full — every insertion point labelled with its lick ahead of time; the Points pick card | Octave-insensitive; bleed filter forced on |
-| **Standard** | Described as "cues on approach" — but today it labels the chart exactly as Guided does | Octave-insensitive; bleed filter forced on |
-| **Solo** | None — the bands are still drawn, unlabelled, and there's no pick card | Exact register required; bleed filter follows the app-wide setting (off by default) |
+| **Guided** | Names the lick to play, ahead of time; the Points pick card | That lick |
+| **Standard** | Names only the progression — a ii-V, a turnaround | Any of your licks that fits the spot: the take is scored against each and the best match is your result |
+| **Solo** | Nothing — the bands are still drawn, unlabelled | Any of your licks that fits, as in Standard |
 
-So for now Guided and Standard behave the same; the difference is only in the setup pad's description. Both match how continuous Side B sessions listen. Solo matches call-and-response strictness: play it in the right octave or it doesn't count.
+Guided is the app telling you what to play. Standard tells you what you're playing *over* and leaves the vocabulary to you. Solo tells you nothing: you have to hear the spot coming. All three listen identically — the same pipeline, the same pass bar.
 
-On the bleed filter: Guided and Standard switch it on regardless, which is the forgiving choice if you practise on speakers. Solo defers to the internal app-wide flag, which is off unless changed — there is no user-facing control for it. Either way it only matters on speakers; on headphones there's no bleed to filter.
+On the bleed filter: it's on at every level, which is the forgiving choice if you practise on speakers. On headphones there's no bleed to filter.
 
 ## During the session
 

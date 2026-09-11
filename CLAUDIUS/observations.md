@@ -1893,3 +1893,54 @@ An opt-in safety net covers exactly the authors who remembered it. The e2e conso
 A documented exception is bound to the function, but its justification was bound to the callers. The tune renderer's inline spelling chain skipped the scale tier on purpose — tune segments' scales are synthesized, so the tier would only move one note. Then the lead-sheet row started routing LICKS through the same function, with real declared scales, and the exception silently applied to a population it was never argued for: 13% of renders. The note said "revisit if a report lands"; the report was never going to land, because the symptom (two spellings of one note on one screen) looks like taste, not a bug. When an exception is justified by who calls a function, the justification should live with the call site, or a new caller inherits it unexamined.
 
 And one about method, again: the comment agent disabled each rule in memory and ran the corpus, and found two rules whose cited reference fixtures no longer depend on them. A comment that cites a fixture as the reason for a rule is a claim about the whole pipeline at the time it was written; the only citation that stays honest is a test that fails without the rule.
+## 2026-09-10 — A strictness tier that exists only in its type
+
+Tune practice offers Guided, Standard and Solo. The type, the knob-mapping
+test, the caption under the buttons ("cues on approach") and the docs table
+("Reduced — cues appear on approach") all describe three tiers. The route
+checks `cueLevel !== 'none'` and nothing else — Standard's only
+distinguishing behaviour, a 2-bar label countdown, was collapsed into "label
+everything" by the teleprompter-scroll fix on 2026-07-29 (e603bc3), a commit
+about scrolling. Guided and Standard have been byte-identical in behaviour for
+six weeks and nobody noticed because `strictnessKnobs` still returns
+`'reduced'` and the test still pins that string. Lesson: a mode's identity is
+what the user sees differ, so pin the DIFFERENCE (labels present vs absent at
+bar N) and not the enum the difference is supposed to hang off. A knob-mapping
+test survives the knob's death.
+
+The second point is sharper. Solo demands exact register because it "mirrors
+call-and-response strictness". In call-and-response the app has just PLAYED
+the phrase, so the register is a heard target and matching it is a real ear
+skill. In tune practice nothing is demonstrated: the only octave in play is
+whatever the transposition into the local key happened to land on, invisible
+to the player and often off the horn. Exact register there scores against a
+target the player was never given. The analogy imported the rule without the
+condition that justified it. `score-pipeline.ts`'s own docstring already
+says a player "legitimately" moves a lick an octave to keep it on the horn.
+
+Addendum (2026-09-11), on measuring the thing you are about to be afraid of.
+Before shipping the best-of-N scoring I talked myself into a performance
+worry: a loop over every fitting lick, running inside the window-close
+handler, at a musical boundary, with the band still playing. The instinct
+was to cap it. Instead I measured — 260 candidates, 0.6–2.2 ms — and the
+worry evaporated. What the measurement then handed me was the REAL problem,
+which I had not been looking for: with 260 chances, best-of-N stops meaning
+"you played this well" and starts meaning "something in the catalog
+resembles this". The cap that matters is semantic, not temporal, and the
+codebase had already solved it once in `buildFreestyleBook` ("never the
+whole curated catalog"). Two lessons. A measurement is worth taking even
+when you expect it to say "fine", because the number reframes the question.
+And when a system has faced the same shape of problem before, its earlier
+answer is evidence about the new one — freestyle recognition and
+Standard-strictness scoring are the same multiple-comparisons problem
+wearing different clothes.
+
+The strictness bug itself has a moral I want to keep. The tier was dead for
+six weeks in plain sight because everything that described it still agreed:
+the type had three members, the knob function returned three values, the
+test asserted all three, the docs tabled all three, the tour narrated all
+three. Only the ONE line that made the difference visible to a player had
+changed, and it changed inside a commit about scrolling. A test that pins
+`cueLevel === 'reduced'` survives the death of everything reduced means. So
+pin the difference a user could see — labels present at bar N versus absent
+— not the enum the difference is supposed to hang off.

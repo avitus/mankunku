@@ -309,6 +309,13 @@ Andy called the tune-practice setup block "awfully designed" and asked for the s
 - **Resuming after a usage limit**: agents' partial edits survive on disk. Checkpoint-commit → merge origin/dev → `reset --mixed origin/dev` rebases a dirty tree cleanly; relaunch each agent with "review the predecessor's `git diff HEAD` against the criteria first".
 - **Notes files are chronological** since 2026-09-11 — CLAUDIUS/SESSIONS.md and observations.md: append new entries at the BOTTOM (they had drifted into a newest-first block plus an ascending tail).
 - **Open for Andy**: tune practice's Standard strictness behaves exactly like Guided (label promises cues on approach); tune page/editor Play is melody only (docs now say so). Known flakes, pre-existing: `progress-trend-chart.spec.ts:99` (fake clock vs Sentry Replay timer ids, ~1–2/80 under stress), `backing-render-audio` (local-only).
+### Tune-practice strictness tells, it never listens (2026-09-11)
+
+Guided/Standard were byte-identical for six weeks: Standard's 2-bar label countdown died inside e603bc3, a commit about teleprompter SCROLL, while the caption, docs table, tour copy and knob test all kept describing it. Solo demanded the exact register because it "mirrors call-and-response strictness" — an analogy that dropped its premise, since call-and-response DEMONSTRATES the phrase and tune practice demonstrates nothing.
+
+Now strictness only changes what the chart tells you. Every level: any octave, bleed filter on. `cueLevel` is the sole difference — Guided names the lick (and owns the Points pick card), Standard names only the progression, Solo names nothing. At Standard/Solo the player was never told which lick to play, so the take is scored against every fitting suggestion and the best match is the result (`windowCandidates` + `bestCandidateResult`, resolved once at window open by `candidatesForWindow`).
+
+Scoring every candidate is free — 260 at the unrestricted worst case measures 0.6–2.2 ms — so the cap that matters is semantic, not temporal: best-of-N over the whole 923-lick catalog would let something fluke a match against any take, which is why the pool stays the player's own book (freestyle's `buildFreestyleBook` rule). Lesson pinned in CLAUDIUS: test the difference a user can SEE, not the enum it hangs off.
 
 ## Reference map
 

@@ -39,7 +39,7 @@ What this means for you, in plain terms:
 
 - **You can be a little late.** A beat or so off and the alignment still finds the match.
 - **You can be a little early.** Same.
-- **You can play in a different octave** where the app allows it: Side B's continuous mode (which assumes you might move a lick to keep it on the horn) and tune practice at Guided or Standard strictness. Side A, Side B's Call & Response, and tune practice at Solo are strict about the octave. Tricks never care about the octave.
+- **You can play in a different octave** where the app allows it: Side B's continuous mode (which assumes you might move a lick to keep it on the horn) and tune practice at every strictness level (nothing is demonstrated there, so there is no register to match). Side A and Side B's Call & Response are strict about the octave — both play the phrase first, so the register is a heard target. Tricks never care about the octave.
 - **Missed notes don't ruin everything else.** If you skip note 3, the app still tries to match notes 4, 5, and 6 against their counterparts. It just docks you for the missed one.
 - **Extra notes don't ruin everything else.** If you add an extra grace note, the alignment treats it as an extra and grades the rest against the original.
 
@@ -113,7 +113,7 @@ The score is a tool for tracking your accuracy on the *content* of the phrase. O
 
 If you don't use headphones, your microphone may pick up the playback or the backing track and mistake it for notes you played. To prevent that, the app runs a bleed filter on the detected notes before scoring: notes that line up with active backing-track pitches are dropped if the signal is weak. The filter is conservative — it only drops what looks like room bleed, not what looks like you playing the same note as the backing track.
 
-There is **no user-facing switch** for it. The filter always runs, but whether its result becomes your score is decided for you: Tune Practice turns it on at the Guided and Standard strictness levels, and everywhere else the app scores the unfiltered notes. On headphones none of this matters — there's no bleed to find.
+There is **no user-facing switch** for it. The filter always runs, but whether its result becomes your score is decided for you: Tune Practice turns it on at every strictness level, and everywhere else the app scores the unfiltered notes. On headphones none of this matters — there's no bleed to find.
 
 ## When the score doesn't match how it felt
 
