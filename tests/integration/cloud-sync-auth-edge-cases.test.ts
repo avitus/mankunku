@@ -56,6 +56,9 @@ vi.mock('$lib/persistence/sync', () => ({
 	syncSettingsToCloud: vi.fn().mockResolvedValue(true),
 	loadSettingsFromCloud: async (...args: unknown[]) => {
 		const data = await mockLoadSettings(...args);
+		// An explicit tri-state ({ status: 'error' }) passes straight through —
+		// a settings payload never carries a `status` key.
+		if (data && typeof data === 'object' && 'status' in data) return data;
 		return data == null ? { status: 'empty' } : { status: 'ok', data };
 	},
 	syncLickMetadataToCloud: vi.fn().mockResolvedValue(undefined),
@@ -349,6 +352,56 @@ describe('settings.loadSettingsFromCloud — scope generation guard', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Settings push gate — never push over a row this session could not read
+// ---------------------------------------------------------------------------
+
+describe('settings.flushSettingsToCloud — push gate (the 2026-07-13 class)', () => {
+	async function freshSettings() {
+		vi.resetModules();
+		const settingsModule = await import('$lib/state/settings.svelte');
+		const sync = await import('$lib/persistence/sync');
+		return { settingsModule, push: vi.mocked(sync.syncSettingsToCloud) };
+	}
+
+	it('THROWS and never pushes before any hydration this session', async () => {
+		const { settingsModule, push } = await freshSettings();
+
+		await expect(settingsModule.flushSettingsToCloud({ auth: {} } as never)).rejects.toThrow(
+			/not hydrated/
+		);
+		expect(push).not.toHaveBeenCalled();
+	});
+
+	it("an 'error' read keeps local settings intact and leaves the gate CLOSED — the flush still throws", async () => {
+		store.set('mankunku:settings', JSON.stringify({ defaultTempo: 77 }));
+		const { settingsModule, push } = await freshSettings();
+		const storedBefore = store.get('mankunku:settings');
+		mockLoadSettings.mockResolvedValue({ status: 'error' });
+
+		await settingsModule.loadSettingsFromCloud({ auth: {} } as never);
+
+		expect(settingsModule.settings.defaultTempo).toBe(77);
+		expect(store.get('mankunku:settings')).toBe(storedBefore);
+		await expect(settingsModule.flushSettingsToCloud({ auth: {} } as never)).rejects.toThrow(
+			/not hydrated/
+		);
+		expect(push).not.toHaveBeenCalled();
+	});
+
+	it("an 'empty' read (a fresh account) opens the gate: the flush pushes the local settings", async () => {
+		store.set('mankunku:settings', JSON.stringify({ defaultTempo: 77 }));
+		const { settingsModule, push } = await freshSettings();
+		mockLoadSettings.mockResolvedValue(null);
+
+		await settingsModule.loadSettingsFromCloud({ auth: {} } as never);
+		await settingsModule.flushSettingsToCloud({ auth: {} } as never);
+
+		expect(push).toHaveBeenCalledTimes(1);
+		expect(push.mock.calls[0][1]).toMatchObject({ defaultTempo: 77 });
+	});
+});
+
+// ---------------------------------------------------------------------------
 // Hydration fault tolerance — one path failing does not stop another
 // ---------------------------------------------------------------------------
 
@@ -532,6 +585,123 @@ describe('lick-metadata.initLickMetadataFromCloud — scope generation guard', (
 		// one-time migration another device already completed.
 		expect(localTags['__migrations']).toContain('prog-backfill-v1');
 	});
+
+	it("an 'error' read reports false, leaves local untouched, and queues NO push (the 2026-07-13 class)", async () => {
+		vi.resetModules();
+		const lickStore = await import('$lib/persistence/lick-practice-store');
+		getScopeGenerationMock.mockReturnValue(0);
+
+		store.set('mankunku:user-lick-tags', JSON.stringify({ 'lick-local': ['practice'] }));
+		store.set(
+			'mankunku:lick-practice-progress',
+			JSON.stringify({ 'lick-local': { C: { currentTempo: 88, lastPracticedAt: 1, passCount: 2 } } })
+		);
+		mockLoadLickMetadata.mockResolvedValue({ status: 'error' });
+
+		const ok = await lickStore.initLickMetadataFromCloud({ auth: {} } as never);
+
+		expect(ok).toBe(false);
+		// Every blob is byte-identical: no merge against an unknown cloud.
+		expect(JSON.parse(store.get('mankunku:user-lick-tags')!)).toEqual({ 'lick-local': ['practice'] });
+		expect(JSON.parse(store.get('mankunku:lick-practice-progress')!)).toEqual({
+			'lick-local': { C: { currentTempo: 88, lastPracticedAt: 1, passCount: 2 } }
+		});
+		expect(store.has('mankunku:lick-merge-meta')).toBe(false);
+		// And nothing was queued for the outbox to push over the intact cloud row.
+		expect(store.has('mankunku:outbox')).toBe(false);
+	});
+});
+
+describe('lick-metadata.flushLickMetadataToCloud — the outbox write path', () => {
+	async function freshStore() {
+		vi.resetModules();
+		const lickStore = await import('$lib/persistence/lick-practice-store');
+		const sync = await import('$lib/persistence/sync');
+		getScopeGenerationMock.mockReturnValue(0);
+		return { lickStore, upsert: vi.mocked(sync.upsertLickMetadataRow) };
+	}
+
+	it("THROWS on an 'error' read and never upserts — no merge-against-empty", async () => {
+		const { lickStore, upsert } = await freshStore();
+		store.set('mankunku:user-lick-tags', JSON.stringify({ 'lick-local': ['practice'] }));
+		mockLoadLickMetadata.mockResolvedValue({ status: 'error' });
+
+		await expect(lickStore.flushLickMetadataToCloud({ auth: {} } as never)).rejects.toThrow(
+			/deferring push/
+		);
+		expect(upsert).not.toHaveBeenCalled();
+		expect(JSON.parse(store.get('mankunku:user-lick-tags')!)).toEqual({ 'lick-local': ['practice'] });
+	});
+
+	it("seeds a fresh cloud row from local on an 'empty' read", async () => {
+		const { lickStore, upsert } = await freshStore();
+		store.set('mankunku:user-lick-tags', JSON.stringify({ 'lick-local': ['practice'] }));
+		store.set('mankunku:lick-unlock-count', JSON.stringify({ 'lick-local': 4 }));
+		mockLoadLickMetadata.mockResolvedValue({ status: 'empty' });
+
+		await lickStore.flushLickMetadataToCloud({ auth: {} } as never);
+
+		expect(upsert).toHaveBeenCalledTimes(1);
+		const [, data] = upsert.mock.calls[0];
+		expect(data.lickTags).toEqual({ 'lick-local': ['practice'] });
+		expect(data.unlockCounts).toEqual({ 'lick-local': 4 });
+	});
+
+	it("folds the cloud row in on an 'ok' read: both sides converge locally AND in the pushed row", async () => {
+		const { lickStore, upsert } = await freshStore();
+		store.set('mankunku:user-lick-tags', JSON.stringify({ 'lick-local': ['prog:blues'] }));
+		store.set('mankunku:lick-merge-meta', JSON.stringify({ tags: { 'lick-local': 500 } }));
+		mockLoadLickMetadata.mockResolvedValue({
+			status: 'ok',
+			data: {
+				lickTags: { 'lick-local': ['practice'], 'lick-cloud': ['practice'] },
+				practiceProgress: {},
+				tagOverrides: {},
+				categoryOverrides: {},
+				unlockCounts: { 'lick-cloud': 7 },
+				progressHistory: {}
+			},
+			mergeMeta: { tags: { 'lick-local': 100, 'lick-cloud': 100 } }
+		});
+
+		await lickStore.flushLickMetadataToCloud({ auth: {} } as never);
+
+		const [, data, mergeMeta] = upsert.mock.calls[0];
+		// Local's newer stamp wins its own id; the cloud-only id survives; the
+		// cloud-only unlock count survives.
+		expect(data.lickTags).toEqual({ 'lick-local': ['prog:blues'], 'lick-cloud': ['practice'] });
+		expect(data.unlockCounts).toEqual({ 'lick-cloud': 7 });
+		expect(mergeMeta.tags).toEqual({ 'lick-local': 500, 'lick-cloud': 100 });
+		// The merged result was saved locally too (both sides converge).
+		expect(JSON.parse(store.get('mankunku:user-lick-tags')!)).toEqual(data.lickTags);
+		expect(JSON.parse(store.get('mankunku:lick-unlock-count')!)).toEqual({ 'lick-cloud': 7 });
+	});
+
+	it('aborts silently (no throw, no upsert, no local write) when the user switches mid-flight', async () => {
+		const { lickStore, upsert } = await freshStore();
+		store.set('mankunku:user-lick-tags', JSON.stringify({ 'lick-local': ['practice'] }));
+		let callCount = 0;
+		getScopeGenerationMock.mockImplementation(() => {
+			callCount++;
+			return callCount === 1 ? 0 : 1;
+		});
+		mockLoadLickMetadata.mockResolvedValue({
+			status: 'ok',
+			data: {
+				lickTags: { 'lick-cloud': ['practice'] },
+				practiceProgress: {},
+				tagOverrides: {},
+				categoryOverrides: {},
+				unlockCounts: {},
+				progressHistory: {}
+			},
+			mergeMeta: { tags: { 'lick-cloud': 100 } }
+		});
+
+		await expect(lickStore.flushLickMetadataToCloud({ auth: {} } as never)).resolves.toBeUndefined();
+		expect(upsert).not.toHaveBeenCalled();
+		expect(JSON.parse(store.get('mankunku:user-lick-tags')!)).toEqual({ 'lick-local': ['practice'] });
+	});
 });
 
 // User-licks and community do not go through the mocked sync.ts — they query
@@ -626,6 +796,79 @@ describe('user-licks.initUserLicksFromCloud — scope generation guard', () => {
 		// No lick should have landed in localStorage — the writeback is gated
 		// on the generation guard.
 		expect(store.has('mankunku:user-licks')).toBe(false);
+	});
+
+	it('flushUserLicksToCloud THROWS on a mid-flight switch so the outbox keeps (or uid-gates) the intent', async () => {
+		vi.resetModules();
+		const userLicks = await import('$lib/persistence/user-licks');
+
+		let callCount = 0;
+		getScopeGenerationMock.mockImplementation(() => {
+			callCount++;
+			return callCount === 1 ? 0 : 1;
+		});
+
+		const supabase = makeQueryClient({ userId: 'user-A', tableData: { user_licks: [] } });
+
+		// A silent resolve here would let the drain DELETE the intent as
+		// handled while the reconcile never ran.
+		await expect(userLicks.flushUserLicksToCloud(supabase as never)).rejects.toThrow(/aborted/);
+		expect(store.has('mankunku:user-licks')).toBe(false);
+	});
+});
+
+describe('user-tunes.initTunesFromCloud — scope generation guard', () => {
+	const cloudTune = {
+		id: 'cloud-tune',
+		user_id: 'user-A',
+		title: 'Cloud',
+		composer: null,
+		key: 'C',
+		time_signature: [4, 4],
+		style: null,
+		tags: [],
+		sections: [{ label: 'A', bars: 4, notes: [], harmony: [] }],
+		difficulty: null,
+		source: 'user',
+		pdf_url: null,
+		favorite_count: 0,
+		deleted_at: null,
+		client_mtime: 100,
+		created_at: '',
+		updated_at: ''
+	};
+
+	it('reports false and writes nothing when the user switches mid-flight', async () => {
+		vi.resetModules();
+		const userTunes = await import('$lib/persistence/user-tunes');
+
+		let callCount = 0;
+		getScopeGenerationMock.mockImplementation(() => {
+			callCount++;
+			return callCount === 1 ? 0 : 1;
+		});
+
+		const supabase = makeQueryClient({ userId: 'user-A', tableData: { tunes: [cloudTune] } });
+		const ok = await userTunes.initTunesFromCloud(supabase as never);
+
+		expect(ok).toBe(false);
+		expect(store.has('mankunku:user-tunes')).toBe(false);
+		expect(store.has('mankunku:user-tunes-meta')).toBe(false);
+	});
+
+	it('flushTunesToCloud THROWS on the same switch (outbox contract)', async () => {
+		vi.resetModules();
+		const userTunes = await import('$lib/persistence/user-tunes');
+
+		let callCount = 0;
+		getScopeGenerationMock.mockImplementation(() => {
+			callCount++;
+			return callCount === 1 ? 0 : 1;
+		});
+
+		const supabase = makeQueryClient({ userId: 'user-A', tableData: { tunes: [cloudTune] } });
+		await expect(userTunes.flushTunesToCloud(supabase as never)).rejects.toThrow(/aborted/);
+		expect(store.has('mankunku:user-tunes')).toBe(false);
 	});
 });
 

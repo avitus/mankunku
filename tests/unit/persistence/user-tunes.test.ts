@@ -414,4 +414,26 @@ describe('failure conventions', () => {
 		const { client } = createMockSupabase([], { fetchError: 'boom' });
 		await expect(flushTunesToCloud(client)).rejects.toThrow();
 	});
+
+	it('a failed fetch never pushes the local book over the unread cloud, and leaves local byte-identical', async () => {
+		// The 2026-07-13 class: merging against an unread cloud makes every local
+		// sheet look local-only, and the reconcile would upsert all of them. With
+		// a local sheet seeded, a merge-against-empty would be visible here.
+		seedLive([makeSheet({ id: 'L', title: 'Local only' })]);
+		seedMeta({ L: { mtime: 50 } });
+		seedOwners({ L: CLOUD_UID });
+		const liveBefore = localStorageMock.getItem(nsFull('user-tunes'));
+		const metaBefore = localStorageMock.getItem(nsFull('user-tunes-meta'));
+		const { client, upsertedRows, tombstoneUpdates } = createMockSupabase([], { fetchError: 'boom' });
+		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+		await expect(initTunesFromCloud(client)).resolves.toBe(false);
+		await expect(flushTunesToCloud(client)).rejects.toThrow(/fetch lead sheets failed/);
+
+		warnSpy.mockRestore();
+		expect(upsertedRows).toHaveLength(0);
+		expect(tombstoneUpdates).toHaveLength(0);
+		expect(localStorageMock.getItem(nsFull('user-tunes'))).toBe(liveBefore);
+		expect(localStorageMock.getItem(nsFull('user-tunes-meta'))).toBe(metaBefore);
+	});
 });

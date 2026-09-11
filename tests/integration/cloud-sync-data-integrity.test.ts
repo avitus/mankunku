@@ -24,9 +24,7 @@ vi.mock('@supabase/supabase-js', () => ({ createClient: vi.fn() }));
 import {
 	syncProgressToCloud,
 	loadProgressFromCloud,
-	syncSettingsToCloud,
-	loadSettingsFromCloud,
-	uploadRecording
+	loadSettingsFromCloud
 } from '../../src/lib/persistence/sync';
 import type { UserProgress } from '../../src/lib/types/progress';
 
@@ -128,29 +126,9 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 describe('loadProgressFromCloud — malformed cloud data', () => {
-	it('reports empty gracefully when no progress row exists', async () => {
-		const supabase = supabaseWith('u1', {
-			user_progress: chainMock('user_progress', {
-				maybeSingle: { data: null, error: null }
-			})
-		});
-		const result = await loadProgressFromCloud(supabase as never);
-		// No row (data:null,error:null) is an affirmative empty, not an error.
-		expect(result.status).toBe('empty');
-	});
-
-	it('reports error when the progress fetch reports an error', async () => {
-		const supabase = supabaseWith('u1', {
-			user_progress: chainMock('user_progress', {
-				maybeSingle: { data: null, error: { message: 'unexpected' } }
-			})
-		});
-		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-		const result = await loadProgressFromCloud(supabase as never);
-		warnSpy.mockRestore();
-		expect(result.status).toBe('error');
-	});
-
+	// The single-query empty/error tri-state is pinned in
+	// tests/unit/persistence/sync.test.ts; this describe covers the partial and
+	// malformed shapes that file does not.
 	it('reports error when session_results fetch fails even though progress loaded', async () => {
 		const supabase = supabaseWith('u1', {
 			user_progress: chainMock('user_progress', {
@@ -334,36 +312,6 @@ describe('partial sync failures', () => {
 // ---------------------------------------------------------------------------
 
 describe('loadSettingsFromCloud — bad inputs', () => {
-	it('handles null required fields by passing them through (caller defaults)', async () => {
-		const supabase = supabaseWith('u1', {
-			user_settings: chainMock('user_settings', {
-				maybeSingle: {
-					data: {
-						user_id: 'u1',
-						instrument_id: 'tenor-sax',
-						default_tempo: 120,
-						master_volume: 0.8,
-						metronome_enabled: true,
-						metronome_volume: 0.6,
-						swing: 0.5,
-						theme: 'dark',
-						onboarding_complete: true,
-						tonality_override: null,
-						highest_note: null
-					},
-					error: null
-				}
-			})
-		});
-
-		const result = await loadSettingsFromCloud(supabase as never);
-		expect(result.status).toBe('ok');
-		if (result.status !== 'ok') return;
-		// highestNote null → passes through; caller uses instrument default.
-		expect(result.data.highestNote).toBeNull();
-		expect(result.data.tonalityOverride).toBeNull();
-	});
-
 	it('coerces a null backing-track volume to the default 0.6', async () => {
 		const supabase = supabaseWith('u1', {
 			user_settings: chainMock('user_settings', {
@@ -395,138 +343,5 @@ describe('loadSettingsFromCloud — bad inputs', () => {
 		expect(result.data.backingTrackVolume).toBe(0.6);
 		expect(result.data.backingInstrument).toBe('piano');
 		expect(result.data.backingTrackEnabled).toBe(true);
-	});
-
-	it('reports error when the settings fetch reports an error', async () => {
-		const supabase = supabaseWith('u1', {
-			user_settings: chainMock('user_settings', {
-				maybeSingle: { data: null, error: { message: 'down' } }
-			})
-		});
-
-		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-		const result = await loadSettingsFromCloud(supabase as never);
-		warnSpy.mockRestore();
-		expect(result.status).toBe('error');
-	});
-});
-
-// ---------------------------------------------------------------------------
-// localStorage quota — storage layer swallows errors
-// ---------------------------------------------------------------------------
-
-describe('localStorage quota exhaustion', () => {
-	it('save() logs a warning and does not throw when setItem throws QuotaExceededError', async () => {
-		const { save, load } = await import('../../src/lib/persistence/storage');
-
-		const originalLocal = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
-		const failingStorage = {
-			getItem: () => null,
-			setItem: () => {
-				throw new DOMException('quota exceeded', 'QuotaExceededError');
-			},
-			removeItem: () => {},
-			clear: () => {},
-			length: 0,
-			key: () => null
-		};
-		Object.defineProperty(globalThis, 'localStorage', {
-			value: failingStorage,
-			writable: true,
-			configurable: true
-		});
-
-		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-		expect(() => save('some-key', { a: 1 })).not.toThrow();
-		expect(warnSpy).toHaveBeenCalled();
-		warnSpy.mockRestore();
-
-		// load() on a failing store returns null, not a thrown.
-		expect(load('some-key')).toBeNull();
-
-		if (originalLocal) {
-			Object.defineProperty(globalThis, 'localStorage', originalLocal);
-		}
-	});
-
-	it('load() returns null when stored JSON is malformed', async () => {
-		const { load } = await import('../../src/lib/persistence/storage');
-
-		const originalLocal = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
-		const corruptStorage = {
-			getItem: () => '{not: valid json',
-			setItem: () => {},
-			removeItem: () => {},
-			clear: () => {},
-			length: 0,
-			key: () => null
-		};
-		Object.defineProperty(globalThis, 'localStorage', {
-			value: corruptStorage,
-			writable: true,
-			configurable: true
-		});
-
-		expect(load('anything')).toBeNull();
-
-		if (originalLocal) {
-			Object.defineProperty(globalThis, 'localStorage', originalLocal);
-		}
-	});
-});
-
-// ---------------------------------------------------------------------------
-// Upload safety — sync functions are no-throw under auth/fetch failure
-// ---------------------------------------------------------------------------
-
-describe('sync functions never throw', () => {
-	it('uploadRecording swallows a storage error', async () => {
-		const supabase: unknown = {
-			auth: {
-				getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'u1' } } })
-			},
-			storage: {
-				from: () => ({
-					upload: vi.fn().mockResolvedValue({ error: { message: 'storage down' } }),
-					list: vi.fn().mockResolvedValue({ data: [], error: null }),
-					remove: vi.fn().mockResolvedValue({ error: null })
-				})
-			}
-		};
-
-		const blob = new Blob(['x']);
-		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-		await expect(uploadRecording(supabase as never, 'session-1', blob)).resolves.toBeUndefined();
-		warnSpy.mockRestore();
-	});
-
-	it('syncSettingsToCloud swallows an auth.getUser rejection', async () => {
-		const supabase: unknown = {
-			auth: { getUser: vi.fn().mockRejectedValue(new Error('auth down')) },
-			from: vi.fn()
-		};
-
-		const settings = {
-			instrumentId: 'tenor-sax',
-			defaultTempo: 120,
-			masterVolume: 0.8,
-			metronomeEnabled: true,
-			metronomeVolume: 0.6,
-			backingTrackEnabled: true,
-			backingInstrument: 'piano',
-			backingTrackVolume: 0.6,
-			swing: 0.5,
-			theme: 'dark',
-			onboardingComplete: true,
-			tonalityOverride: null,
-			highestNote: null,
-			backingStyle: 'swing',
-			bleedFilterEnabled: false
-		};
-
-		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-		// New contract: returns false on the caught auth rejection (was void).
-		await expect(syncSettingsToCloud(supabase as never, settings)).resolves.toBe(false);
-		warnSpy.mockRestore();
 	});
 });

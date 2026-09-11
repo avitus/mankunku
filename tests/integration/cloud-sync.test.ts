@@ -1,10 +1,11 @@
 /**
  * Integration tests for the cloud sync module.
  *
- * Tests sync.ts functions with a fully mocked Supabase client:
- * progress round-trip, settings round-trip, session capping,
- * unauthenticated handling, user lick sync, recording upload,
- * and error resilience.
+ * Tests sync.ts functions with a fully mocked Supabase client: the
+ * tonality-override validator, the empty-batch guard, the SAFE_ID_RE guard on
+ * recording paths, progress-detail deletion, and error resilience when
+ * auth itself rejects. Field mapping and the per-function tri-state live in
+ * tests/unit/persistence/sync.test.ts.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -154,158 +155,12 @@ function makeProgress(): UserProgress {
 	};
 }
 
-// ─── Progress Sync ─────────────────────────────────────────────
-
-describe('progress sync', () => {
-	it('syncProgressToCloud calls upsert on user_progress table', async () => {
-		const supabase = createMockSupabase();
-		const progress = makeProgress();
-
-		await syncProgressToCloud(supabase as any, progress);
-
-		expect(supabase.auth.getUser).toHaveBeenCalled();
-		expect(supabase.from).toHaveBeenCalledWith('user_progress');
-	});
-
-	it('syncProgressToCloud is a no-op when unauthenticated', async () => {
-		const supabase = createMockSupabase(null);
-		const progress = makeProgress();
-
-		await syncProgressToCloud(supabase as any, progress);
-
-		// from() should not be called since getUser returns null
-		expect(supabase.from).not.toHaveBeenCalled();
-	});
-
-	it('syncProgressToCloud does not throw on Supabase errors', async () => {
-		const supabase = createMockSupabase();
-		supabase.from = vi.fn().mockReturnValue({
-			upsert: vi.fn().mockResolvedValue({ error: { message: 'DB error' } })
-		});
-
-		const progress = makeProgress();
-
-		// New contract: returns false on a caught Supabase error (was void). Still
-		// never throws.
-		await expect(syncProgressToCloud(supabase as any, progress)).resolves.toBe(false);
-	});
-
-	it('loadProgressFromCloud reports error when unauthenticated', async () => {
-		const supabase = createMockSupabase(null);
-		const result = await loadProgressFromCloud(supabase as any);
-		// Unauthenticated is 'error' (cloud truth unknown), not 'empty'.
-		expect(result.status).toBe('error');
-	});
-
-	it('loadProgressFromCloud reports empty when no data exists', async () => {
-		const supabase = createMockSupabase();
-
-		// Mock the chained select → eq → maybeSingle
-		const chainedQuery = {
-			select: vi.fn().mockReturnThis(),
-			eq: vi.fn().mockReturnThis(),
-			maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-			order: vi.fn().mockReturnThis(),
-			limit: vi.fn().mockResolvedValue({ data: [], error: null })
-		};
-		supabase.from = vi.fn().mockReturnValue(chainedQuery);
-
-		const result = await loadProgressFromCloud(supabase as any);
-		// maybeSingle → {data:null,error:null} is an affirmative no-row: 'empty'.
-		expect(result.status).toBe('empty');
-	});
-});
-
 // ─── Settings Sync ─────────────────────────────────────────────
+// Field mapping, auth gating and the empty/error tri-state live in
+// tests/unit/persistence/sync.test.ts; only the tonality-override validator
+// (isValidTonality) is pinned here.
 
 describe('settings sync', () => {
-	const settings = {
-		instrumentId: 'tenor-sax',
-		defaultTempo: 120,
-		masterVolume: 0.8,
-		metronomeEnabled: true,
-		metronomeVolume: 0.6,
-		backingTrackEnabled: false,
-		backingInstrument: 'piano',
-		backingTrackVolume: 0.5,
-		swing: 0.5,
-		theme: 'dark',
-		onboardingComplete: true,
-		tonalityOverride: null,
-		highestNote: null,
-		backingStyle: 'swing',
-		bleedFilterEnabled: false
-	};
-
-	it('syncSettingsToCloud calls upsert on user_settings table', async () => {
-		const supabase = createMockSupabase();
-
-		await syncSettingsToCloud(supabase as any, settings);
-
-		expect(supabase.from).toHaveBeenCalledWith('user_settings');
-	});
-
-	it('syncSettingsToCloud is a no-op when unauthenticated', async () => {
-		const supabase = createMockSupabase(null);
-
-		await syncSettingsToCloud(supabase as any, settings);
-
-		expect(supabase.from).not.toHaveBeenCalled();
-	});
-
-	it('loadSettingsFromCloud reports error when unauthenticated', async () => {
-		const supabase = createMockSupabase(null);
-		const result = await loadSettingsFromCloud(supabase as any);
-		// Unauthenticated is 'error' (cloud truth unknown), not 'empty'.
-		expect(result.status).toBe('error');
-	});
-
-	it('loadSettingsFromCloud returns mapped settings', async () => {
-		const supabase = createMockSupabase();
-
-		const chainedQuery = {
-			select: vi.fn().mockReturnThis(),
-			eq: vi.fn().mockReturnThis(),
-			maybeSingle: vi.fn().mockResolvedValue({
-				data: {
-					instrument_id: 'tenor-sax',
-					default_tempo: 120,
-					master_volume: 0.8,
-					metronome_enabled: true,
-					metronome_volume: 0.6,
-					backing_track_enabled: false,
-					backing_instrument: 'piano',
-					backing_track_volume: 0.5,
-					swing: 0.5,
-					theme: 'dark',
-					onboarding_complete: true,
-					tonality_override: null,
-					highest_note: null
-				},
-				error: null
-			})
-		};
-		supabase.from = vi.fn().mockReturnValue(chainedQuery);
-
-		const result = await loadSettingsFromCloud(supabase as any);
-
-		expect(result.status).toBe('ok');
-		if (result.status !== 'ok') return;
-		expect(result.data.instrumentId).toBe('tenor-sax');
-		expect(result.data.defaultTempo).toBe(120);
-		expect(result.data.masterVolume).toBe(0.8);
-		expect(result.data.metronomeEnabled).toBe(true);
-		expect(result.data.metronomeVolume).toBe(0.6);
-		expect(result.data.backingTrackEnabled).toBe(false);
-		expect(result.data.backingInstrument).toBe('piano');
-		expect(result.data.backingTrackVolume).toBe(0.5);
-		expect(result.data.swing).toBe(0.5);
-		expect(result.data.theme).toBe('dark');
-		expect(result.data.onboardingComplete).toBe(true);
-		expect(result.data.tonalityOverride).toBeNull();
-		expect(result.data.highestNote).toBeNull();
-	});
-
 	it('loadSettingsFromCloud validates tonality override shape', async () => {
 		const supabase = createMockSupabase();
 
@@ -366,27 +221,6 @@ describe('settings sync', () => {
 // ─── User Licks Sync ───────────────────────────────────────────
 
 describe('user licks sync', () => {
-	it('syncUserLicksToCloud calls upsert on user_licks table', async () => {
-		const supabase = createMockSupabase();
-
-		const licks = [{
-			id: 'lick-1',
-			name: 'My Lick',
-			timeSignature: [4, 4] as [number, number],
-			key: 'C' as const,
-			notes: [{ pitch: 60, offset: [0, 1] as [number, number], duration: [1, 4] as [number, number] }],
-			harmony: [],
-			difficulty: { level: 5, pitchComplexity: 5, rhythmComplexity: 5, lengthBars: 1 },
-			category: 'user' as const,
-			tags: ['custom'],
-			source: 'user'
-		}];
-
-		await syncUserLicksToCloud(supabase as any, licks);
-
-		expect(supabase.from).toHaveBeenCalledWith('user_licks');
-	});
-
 	it('syncUserLicksToCloud skips empty lick array', async () => {
 		const supabase = createMockSupabase();
 
@@ -402,15 +236,9 @@ describe('user licks sync', () => {
 // ─── Recording Sync ────────────────────────────────────────────
 
 describe('recording upload/download', () => {
-	it('uploadRecording stores to recordings bucket with user path', async () => {
-		const supabase = createMockSupabase();
-		const blob = new Blob(['audio-data'], { type: 'audio/webm' });
-
-		await uploadRecording(supabase as any, 'session-abc', blob);
-
-		expect(supabase.storage.from).toHaveBeenCalledWith('recordings');
-	});
-
+	// Path construction, upload options and the unauthenticated early return are
+	// pinned in tests/unit/persistence/supabase-storage.test.ts; this describe
+	// keeps only the SAFE_ID_RE guard on both directions.
 	it('uploadRecording rejects unsafe session IDs', async () => {
 		const supabase = createMockSupabase();
 		const blob = new Blob(['audio']);
@@ -422,21 +250,6 @@ describe('recording upload/download', () => {
 		// before any storage access happens.
 		expect(supabase.auth.getUser).toHaveBeenCalled();
 		expect(supabase.storage.from).not.toHaveBeenCalled();
-	});
-
-	it('uploadRecording is a no-op when unauthenticated', async () => {
-		const supabase = createMockSupabase(null);
-		const blob = new Blob(['audio']);
-
-		await uploadRecording(supabase as any, 'session-1', blob);
-
-		expect(supabase.storage.from).not.toHaveBeenCalled();
-	});
-
-	it('downloadRecording returns null when unauthenticated', async () => {
-		const supabase = createMockSupabase(null);
-		const result = await downloadRecording(supabase as any, 'session-1');
-		expect(result).toBeNull();
 	});
 
 	it('downloadRecording rejects unsafe session IDs', async () => {

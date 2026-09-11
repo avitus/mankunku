@@ -24,7 +24,15 @@ import {
 	syncDailySummaryToCloud,
 	syncAllDailySummariesToCloud,
 	loadDailySummariesFromCloud,
-	deleteDailySummariesFromCloud
+	deleteDailySummariesFromCloud,
+	syncTourStateToCloud,
+	loadTourStateFromCloud,
+	clearTourStateInCloud,
+	upsertLickMetadataRow,
+	loadLickMetadataFromCloud,
+	syncTrickStateToCloud,
+	loadTrickStateFromCloud,
+	deleteAllRecordingsFromCloud
 } from '$lib/persistence/sync';
 import type {
 	UserProgress,
@@ -413,6 +421,36 @@ describe('syncProgressToCloud', () => {
 			expect.objectContaining({ onConflict: 'user_id' })
 		);
 	});
+
+	it('falls back to per-row session upserts when the batch fails, and reports success when every row lands', async () => {
+		// One poisoned id (a legacy global-id collision with another user's row)
+		// fails the WHOLE batch with 42501. The fallback must retry each row on
+		// its own so one bad row cannot freeze session sync — and when the
+		// per-row pass succeeds, the outbox may dequeue (true).
+		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const mock = createMockSupabase();
+		const sessions = [
+			{ ...TEST_SESSION, id: 'session-a' },
+			{ ...TEST_SESSION, id: 'session-b' },
+			{ ...TEST_SESSION, id: 'session-c' }
+		];
+		mock._upsertFn.mockImplementation(async (rows: unknown) =>
+			Array.isArray(rows) && rows.length > 1 && (rows[0] as { phrase_id?: string }).phrase_id
+				? { error: { code: '42501', message: 'row-level security' } }
+				: { data: null, error: null }
+		);
+
+		await expect(
+			syncProgressToCloud(mock as any, { ...TEST_PROGRESS, sessions })
+		).resolves.toBe(true);
+
+		const perRow = mock._upsertFn.mock.calls.filter(
+			(call: any[]) => !Array.isArray(call[0]) && call[0]?.phrase_id
+		);
+		expect(perRow.map((call: any[]) => call[0].id)).toEqual(['session-a', 'session-b', 'session-c']);
+		for (const call of perRow) expect(call[1]).toEqual({ onConflict: 'id' });
+		warnSpy.mockRestore();
+	});
 });
 
 // ═════════════════════════════════════════════════════════════════════
@@ -580,17 +618,6 @@ describe('loadProgressFromCloud', () => {
 		expect(result.status).toBe('empty');
 	});
 
-	it('never throws on any error', async () => {
-		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-		const mock = createMockSupabase();
-		mock.auth.getUser.mockRejectedValue(new Error('Auth service down'));
-
-		const result = await loadProgressFromCloud(mock as any);
-		expect(result.status).toBe('error');
-
-		warnSpy.mockRestore();
-	});
-
 	it('returns progress with empty sessions when session_results table is empty', async () => {
 		const mock = createMockSupabase({
 			tableResults: {
@@ -690,19 +717,6 @@ describe('syncSettingsToCloud', () => {
 		expect(mock._upsertFn).toHaveBeenCalledWith(
 			expect.objectContaining({ tonality_override: null }),
 			expect.any(Object)
-		);
-	});
-
-	it('includes updated_at timestamp in the settings row', async () => {
-		const mock = createMockSupabase();
-
-		await syncSettingsToCloud(mock as any, TEST_SETTINGS);
-
-		expect(mock._upsertFn).toHaveBeenCalledWith(
-			expect.objectContaining({
-				updated_at: expect.any(String)
-			}),
-			expect.objectContaining({ onConflict: 'user_id' })
 		);
 	});
 
@@ -851,17 +865,6 @@ describe('loadSettingsFromCloud', () => {
 		expect(result.status).toBe('error');
 		warnSpy.mockRestore();
 	});
-
-	it('never throws on auth failure', async () => {
-		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-		const mock = createMockSupabase();
-		mock.auth.getUser.mockRejectedValue(new Error('Auth service down'));
-
-		const result = await loadSettingsFromCloud(mock as any);
-		expect(result.status).toBe('error');
-
-		warnSpy.mockRestore();
-	});
 });
 
 // ═════════════════════════════════════════════════════════════════════
@@ -921,14 +924,6 @@ describe('syncUserLicksToCloud', () => {
 		expect(mock._fromFn).not.toHaveBeenCalled();
 	});
 
-	it('skips the table write for an empty licks array', async () => {
-		const mock = createMockSupabase();
-
-		await syncUserLicksToCloud(mock as any, []);
-
-		expect(mock._fromFn).not.toHaveBeenCalled();
-	});
-
 	it('catches errors and does not throw', async () => {
 		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 		const mock = createMockSupabase({
@@ -941,19 +936,6 @@ describe('syncUserLicksToCloud', () => {
 
 		expect(warnSpy).toHaveBeenCalled();
 		warnSpy.mockRestore();
-	});
-
-	it('syncs multiple licks in a single upsert', async () => {
-		const mock = createMockSupabase();
-		const lick2: Phrase = { ...TEST_LICK, id: 'user-5678-efgh', name: 'Dorian Riff' };
-
-		await syncUserLicksToCloud(mock as any, [TEST_LICK, lick2]);
-
-		// Find the upsert call with an array of 2 lick rows
-		const upsertCall = mock._upsertFn.mock.calls.find(
-			(call: any[]) => Array.isArray(call[0]) && call[0].length === 2
-		);
-		expect(upsertCall).toBeDefined();
 	});
 
 	it('sets audio_url to null for each lick', async () => {
@@ -1184,6 +1166,12 @@ describe('syncAllDailySummariesToCloud', () => {
 		await syncAllDailySummariesToCloud(mock as any, []);
 		expect(mock._upsertFn).not.toHaveBeenCalled();
 	});
+
+	it('skips when unauthenticated even with summaries to push', async () => {
+		const mock = createMockSupabase({ user: null });
+		await syncAllDailySummariesToCloud(mock as any, [TEST_SUMMARY]);
+		expect(mock._upsertFn).not.toHaveBeenCalled();
+	});
 });
 
 describe('loadDailySummariesFromCloud', () => {
@@ -1266,6 +1254,460 @@ describe('loadDailySummariesFromCloud', () => {
 		const mock = createMockSupabase({ user: null });
 		const out = await loadDailySummariesFromCloud(mock as any);
 		expect(out).toBeNull();
+	});
+
+	it('returns null (not []) on a query error — history flush must defer, never push over an unread cloud', async () => {
+		// history.svelte.ts's flushDailySummariesToCloud throws on null so the
+		// outbox retries; an [] here would read as "cloud is empty" and push the
+		// local set as authoritative (the 2026-07-13 class).
+		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const mock = createMockSupabase({
+			tableResults: { daily_summaries: { data: null, error: { message: 'timeout' } } }
+		});
+		expect(await loadDailySummariesFromCloud(mock as any)).toBeNull();
+		warnSpy.mockRestore();
+	});
+
+	it('returns [] when the read succeeds with no rows (an affirmatively empty account)', async () => {
+		const mock = createMockSupabase({
+			tableResults: { daily_summaries: { data: [], error: null } }
+		});
+		expect(await loadDailySummariesFromCloud(mock as any)).toEqual([]);
+	});
+});
+
+// ═════════════════════════════════════════════════════════════════════
+//  Lick-metadata row (the durable-outbox write path + tri-state read)
+// ═════════════════════════════════════════════════════════════════════
+
+const TEST_LICK_METADATA = {
+	lickTags: { 'lick-1': ['practice', 'prog:blues'] },
+	practiceProgress: { 'lick-1': { C: { currentTempo: 120, lastPracticedAt: 5, passCount: 1 } } },
+	tagOverrides: {},
+	categoryOverrides: {},
+	unlockCounts: { 'lick-1': 3 },
+	progressHistory: {}
+};
+
+describe('upsertLickMetadataRow', () => {
+	it('writes every blob plus merge_meta keyed on user_id', async () => {
+		const mock = createMockSupabase();
+		await upsertLickMetadataRow(mock as any, TEST_LICK_METADATA as any, { tags: { 'lick-1': 99 } });
+
+		expect(mock._fromFn).toHaveBeenCalledWith('user_lick_metadata');
+		const [row, opts] = mock._upsertFn.mock.calls[0];
+		expect(opts).toEqual({ onConflict: 'user_id' });
+		expect(row).toMatchObject({
+			user_id: 'test-user-id',
+			lick_tags: TEST_LICK_METADATA.lickTags,
+			practice_progress: TEST_LICK_METADATA.practiceProgress,
+			unlock_counts: TEST_LICK_METADATA.unlockCounts,
+			merge_meta: { tags: { 'lick-1': 99 } }
+		});
+	});
+
+	it('THROWS when unauthenticated so the outbox keeps the intent (never a silent no-op)', async () => {
+		const mock = createMockSupabase({ user: null });
+		await expect(
+			upsertLickMetadataRow(mock as any, TEST_LICK_METADATA as any, {})
+		).rejects.toThrow(/not authenticated/);
+		expect(mock._fromFn).not.toHaveBeenCalled();
+	});
+
+	it('THROWS on an upsert error so the outbox backs off and retries', async () => {
+		const mock = createMockSupabase({ upsertResult: { error: { message: 'RLS violation' } } });
+		await expect(
+			upsertLickMetadataRow(mock as any, TEST_LICK_METADATA as any, {})
+		).rejects.toThrow(/RLS violation/);
+	});
+});
+
+describe('loadLickMetadataFromCloud', () => {
+	it('coalesces null legacy columns (pre-00015 rows) to empty blobs instead of failing the load', async () => {
+		const mock = createMockSupabase({
+			tableResults: {
+				user_lick_metadata: {
+					data: {
+						user_id: 'test-user-id',
+						lick_tags: { a: ['practice'] },
+						practice_progress: null,
+						tag_overrides: null,
+						category_overrides: null,
+						unlock_counts: null,
+						progress_history: null,
+						merge_meta: null
+					},
+					error: null
+				}
+			}
+		});
+		const result = await loadLickMetadataFromCloud(mock as any);
+		expect(result.status).toBe('ok');
+		if (result.status !== 'ok') return;
+		expect(result.data).toEqual({
+			lickTags: { a: ['practice'] },
+			practiceProgress: {},
+			tagOverrides: {},
+			categoryOverrides: {},
+			unlockCounts: {},
+			progressHistory: {}
+		});
+		expect(result.mergeMeta).toEqual({});
+	});
+
+	it('reports empty on no row, and error on a query failure or unverifiable auth', async () => {
+		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const empty = createMockSupabase({
+			tableResults: { user_lick_metadata: { data: null, error: null } }
+		});
+		expect((await loadLickMetadataFromCloud(empty as any)).status).toBe('empty');
+
+		const failed = createMockSupabase({
+			tableResults: { user_lick_metadata: { data: null, error: { message: 'down' } } }
+		});
+		expect((await loadLickMetadataFromCloud(failed as any)).status).toBe('error');
+
+		const unauth = createMockSupabase({ user: null });
+		expect((await loadLickMetadataFromCloud(unauth as any)).status).toBe('error');
+		expect(unauth._fromFn).not.toHaveBeenCalled();
+		warnSpy.mockRestore();
+	});
+});
+
+// ═════════════════════════════════════════════════════════════════════
+//  Trick-state column (the durable-outbox write path + tri-state read)
+// ═════════════════════════════════════════════════════════════════════
+
+const TEST_TRICK_STATE = {
+	selectedVariants: ['enclosures:type=major'],
+	selectedUpdatedAt: 10,
+	migrations: ['enclosure-type-v1'],
+	progress: { 'enclosures:type=major': { C: { currentTempo: 66, lastPracticedAt: 3, passCount: 1 } } },
+	unlockCounts: { 'enclosures:type=major': 2 },
+	history: { 'enclosures:type=major': [{ t: 1, bpm: 60, keys: 1 }] }
+};
+
+describe('syncTrickStateToCloud', () => {
+	it('writes the blob wholesale as a partial user_settings upsert', async () => {
+		const mock = createMockSupabase();
+		await syncTrickStateToCloud(mock as any, TEST_TRICK_STATE);
+		expect(mock._fromFn).toHaveBeenCalledWith('user_settings');
+		const [row, opts] = mock._upsertFn.mock.calls[0];
+		expect(opts).toEqual({ onConflict: 'user_id' });
+		expect(row.trick_state).toEqual(TEST_TRICK_STATE);
+		expect(Object.keys(row).sort()).toEqual(['trick_state', 'updated_at', 'user_id']);
+	});
+
+	it('THROWS when unauthenticated and on an upsert error (outbox contract)', async () => {
+		const unauth = createMockSupabase({ user: null });
+		await expect(syncTrickStateToCloud(unauth as any, TEST_TRICK_STATE)).rejects.toThrow(
+			/not authenticated/
+		);
+		expect(unauth._fromFn).not.toHaveBeenCalled();
+
+		const failed = createMockSupabase({ upsertResult: { error: { message: 'quota' } } });
+		await expect(syncTrickStateToCloud(failed as any, TEST_TRICK_STATE)).rejects.toThrow(/quota/);
+	});
+});
+
+describe('loadTrickStateFromCloud', () => {
+	it('reports missing on no row, error on a query failure, error on unverifiable auth', async () => {
+		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const missing = createMockSupabase({
+			tableResults: { user_settings: { data: null, error: null } }
+		});
+		expect((await loadTrickStateFromCloud(missing as any)).status).toBe('missing');
+
+		const failed = createMockSupabase({
+			tableResults: { user_settings: { data: null, error: { message: 'down' } } }
+		});
+		expect((await loadTrickStateFromCloud(failed as any)).status).toBe('error');
+
+		const unauth = createMockSupabase({ user: null });
+		expect((await loadTrickStateFromCloud(unauth as any)).status).toBe('error');
+		warnSpy.mockRestore();
+	});
+
+	it('reads a row whose column was never written as ok + all-empty (not missing)', async () => {
+		const mock = createMockSupabase({
+			tableResults: { user_settings: { data: { trick_state: null }, error: null } }
+		});
+		expect(await loadTrickStateFromCloud(mock as any)).toEqual({
+			status: 'ok',
+			data: {
+				selectedVariants: [],
+				selectedUpdatedAt: 0,
+				migrations: [],
+				progress: {},
+				unlockCounts: {},
+				history: {}
+			}
+		});
+	});
+
+	it('narrows every sub-field — malformed entries are dropped, never trusted', async () => {
+		const mock = createMockSupabase({
+			tableResults: {
+				user_settings: {
+					data: {
+						trick_state: {
+							selectedVariants: ['v1', 42, null],
+							selectedUpdatedAt: 'not-a-number',
+							migrations: ['m1', {}],
+							progress: {
+								v1: {
+									C: { currentTempo: 60, lastPracticedAt: 1, passCount: 1 },
+									Gb: { currentTempo: 40, lastPracticedAt: 1, passCount: 1 }, // non-canonical key
+									F: { currentTempo: 'fast', lastPracticedAt: 1, passCount: 1 }, // NaN tempo
+									G: 'garbage'
+								},
+								v2: 'not-an-object'
+							},
+							unlockCounts: { v1: 3, v2: 'three', v3: Infinity },
+							history: {
+								v1: [{ t: 1, bpm: 60, keys: 1 }, { t: 'x', bpm: 60, keys: 1 }, 'junk'],
+								v2: 'not-an-array'
+							}
+						}
+					},
+					error: null
+				}
+			}
+		});
+		const result = await loadTrickStateFromCloud(mock as any);
+		expect(result.status).toBe('ok');
+		if (result.status !== 'ok') return;
+		expect(result.data.selectedVariants).toEqual(['v1']);
+		expect(result.data.selectedUpdatedAt).toBe(0);
+		expect(result.data.migrations).toEqual(['m1']);
+		expect(result.data.progress).toEqual({
+			v1: { C: { currentTempo: 60, lastPracticedAt: 1, passCount: 1 } }
+		});
+		expect(result.data.unlockCounts).toEqual({ v1: 3 });
+		expect(result.data.history).toEqual({ v1: [{ t: 1, bpm: 60, keys: 1 }] });
+	});
+});
+
+// ═════════════════════════════════════════════════════════════════════
+//  deleteAllRecordingsFromCloud (paginated by always re-listing offset 0)
+// ═════════════════════════════════════════════════════════════════════
+
+/** Storage client whose `list` serves the given pages in order, then empty. */
+function makeRecordingsStorageClient(
+	userId: string | null,
+	pages: Array<{ name: string }[]>,
+	opts: { listError?: string; removeError?: string } = {}
+) {
+	let call = 0;
+	const list = vi.fn().mockImplementation(async () =>
+		opts.listError
+			? { data: null, error: { message: opts.listError } }
+			: { data: pages[call++] ?? [], error: null }
+	);
+	const remove = vi.fn().mockResolvedValue(
+		opts.removeError ? { data: null, error: { message: opts.removeError } } : { data: [], error: null }
+	);
+	return {
+		client: {
+			auth: { getUser: vi.fn().mockResolvedValue({ data: { user: userId ? { id: userId } : null } }) },
+			storage: { from: vi.fn().mockReturnValue({ list, remove }) }
+		},
+		list,
+		remove
+	};
+}
+
+describe('deleteAllRecordingsFromCloud', () => {
+	it('re-lists offset 0 after each removal until the folder is empty', async () => {
+		const { client, list, remove } = makeRecordingsStorageClient('u1', [
+			[{ name: 'a.webm' }, { name: 'b.webm' }],
+			[{ name: 'c.webm' }]
+		]);
+
+		await deleteAllRecordingsFromCloud(client as any);
+
+		expect(client.storage.from).toHaveBeenCalledWith('recordings');
+		// Two non-empty pages + the terminating empty page, every list at offset 0
+		// (an advancing cursor over a shrinking folder skips every second page).
+		expect(list).toHaveBeenCalledTimes(3);
+		for (const call of list.mock.calls) expect(call).toEqual(['u1', { limit: 100, offset: 0 }]);
+		expect(remove.mock.calls).toEqual([[['u1/a.webm', 'u1/b.webm']], [['u1/c.webm']]]);
+	});
+
+	it('stops on a list error without removing anything', async () => {
+		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const { client, list, remove } = makeRecordingsStorageClient('u1', [], { listError: 'down' });
+		await deleteAllRecordingsFromCloud(client as any);
+		expect(list).toHaveBeenCalledTimes(1);
+		expect(remove).not.toHaveBeenCalled();
+		warnSpy.mockRestore();
+	});
+
+	it('stops on a remove error instead of re-listing the same page forever', async () => {
+		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const { client, list, remove } = makeRecordingsStorageClient(
+			'u1',
+			[[{ name: 'a.webm' }], [{ name: 'a.webm' }], [{ name: 'a.webm' }]],
+			{ removeError: 'forbidden' }
+		);
+		await deleteAllRecordingsFromCloud(client as any);
+		expect(list).toHaveBeenCalledTimes(1);
+		expect(remove).toHaveBeenCalledTimes(1);
+		warnSpy.mockRestore();
+	});
+
+	it('is a no-op when unauthenticated', async () => {
+		const { client, list } = makeRecordingsStorageClient(null, [[{ name: 'a.webm' }]]);
+		await deleteAllRecordingsFromCloud(client as any);
+		expect(list).not.toHaveBeenCalled();
+	});
+});
+
+// ═════════════════════════════════════════════════════════════════════
+//  Tour-state sync
+// ═════════════════════════════════════════════════════════════════════
+
+describe('syncTourStateToCloud', () => {
+	it('does NOT upsert when the remote read fails (a failed read must never clobber the cloud row)', async () => {
+		// The 2026-07-13 incident class, tour edition: tour completion is a set
+		// unioned with the remote row before every write. If the remote read
+		// fails and the merge proceeds against "nothing", the local-only set is
+		// written WHOLESALE over a cloud row that may hold another device's
+		// completions — a tour finished elsewhere replays on the next device.
+		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const mock = createMockSupabase({
+			tableResults: {
+				user_settings: { data: null, error: { message: 'connection reset' } }
+			}
+		});
+
+		await syncTourStateToCloud(mock as any, { completed: [], dismissed: ['library-intro'] });
+
+		expect(mock._upsertFn).not.toHaveBeenCalled();
+		warnSpy.mockRestore();
+	});
+
+	it('does NOT upsert when the remote read THROWS (a transport failure is the same unknown)', async () => {
+		// loadTourStateFromCloud swallows a thrown read into null — the shape a
+		// merge would read as "no remote set". The push path must not route its
+		// read through that swallow.
+		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const mock = createMockSupabase();
+		mock._fromFn.mockImplementationOnce(() => {
+			const builder: Record<string, any> = {};
+			builder.select = vi.fn(() => builder);
+			builder.eq = vi.fn(() => builder);
+			builder.maybeSingle = vi.fn().mockRejectedValue(new TypeError('fetch failed'));
+			builder.upsert = mock._upsertFn;
+			return builder;
+		});
+
+		await syncTourStateToCloud(mock as any, { completed: ['welcome'], dismissed: [] });
+
+		expect(mock._upsertFn).not.toHaveBeenCalled();
+		warnSpy.mockRestore();
+	});
+
+	it('unions the local set with the remote row and writes the merged column', async () => {
+		const mock = createMockSupabase({
+			tableResults: {
+				user_settings: {
+					data: { tour_state: { completed: ['welcome'], dismissed: [] } },
+					error: null
+				}
+			}
+		});
+
+		await syncTourStateToCloud(mock as any, { completed: [], dismissed: ['library-intro'] });
+
+		expect(mock._upsertFn).toHaveBeenCalledTimes(1);
+		const [row, opts] = mock._upsertFn.mock.calls[0];
+		expect(opts).toEqual({ onConflict: 'user_id' });
+		expect(row.user_id).toBe('test-user-id');
+		expect(row.tour_state).toEqual({ completed: ['welcome'], dismissed: ['library-intro'] });
+		// A partial upsert: the rest of the settings row is never touched.
+		expect(Object.keys(row).sort()).toEqual(['tour_state', 'updated_at', 'user_id']);
+	});
+
+	it('treats an affirmatively missing row as an empty remote set and still writes', async () => {
+		const mock = createMockSupabase({
+			tableResults: { user_settings: { data: null, error: null } }
+		});
+
+		await syncTourStateToCloud(mock as any, { completed: ['welcome'], dismissed: [] });
+
+		expect(mock._upsertFn).toHaveBeenCalledTimes(1);
+		expect(mock._upsertFn.mock.calls[0][0].tour_state).toEqual({
+			completed: ['welcome'],
+			dismissed: []
+		});
+	});
+
+	it('skips when unauthenticated', async () => {
+		const mock = createMockSupabase({ user: null });
+		await syncTourStateToCloud(mock as any, { completed: ['welcome'], dismissed: [] });
+		expect(mock._fromFn).not.toHaveBeenCalled();
+	});
+});
+
+describe('loadTourStateFromCloud', () => {
+	it('returns null on a query error (unknown cloud truth), not an empty set', async () => {
+		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const mock = createMockSupabase({
+			tableResults: { user_settings: { data: null, error: { message: 'down' } } }
+		});
+		expect(await loadTourStateFromCloud(mock as any)).toBeNull();
+		warnSpy.mockRestore();
+	});
+
+	it('reads a row whose column was never written as an empty set', async () => {
+		const mock = createMockSupabase({
+			tableResults: { user_settings: { data: { tour_state: null }, error: null } }
+		});
+		expect(await loadTourStateFromCloud(mock as any)).toEqual({ completed: [], dismissed: [] });
+	});
+
+	it('narrows the column: non-string entries and non-array fields are dropped', async () => {
+		const mock = createMockSupabase({
+			tableResults: {
+				user_settings: {
+					data: { tour_state: { completed: ['welcome', 7, null], dismissed: 'not-an-array' } },
+					error: null
+				}
+			}
+		});
+		expect(await loadTourStateFromCloud(mock as any)).toEqual({
+			completed: ['welcome'],
+			dismissed: []
+		});
+	});
+});
+
+describe('clearTourStateInCloud', () => {
+	it('REPLACES the column with an empty set (the one non-union tour write)', async () => {
+		const mock = createMockSupabase({
+			tableResults: {
+				user_settings: {
+					data: { tour_state: { completed: ['welcome'], dismissed: ['x'] } },
+					error: null
+				}
+			}
+		});
+
+		await clearTourStateInCloud(mock as any);
+
+		// No read-merge: the reset must not union with (and so resurrect) the
+		// remote set the way syncTourStateToCloud deliberately does.
+		expect(mock._upsertFn).toHaveBeenCalledTimes(1);
+		const [row, opts] = mock._upsertFn.mock.calls[0];
+		expect(opts).toEqual({ onConflict: 'user_id' });
+		expect(row.tour_state).toEqual({ completed: [], dismissed: [] });
+	});
+
+	it('skips when unauthenticated', async () => {
+		const mock = createMockSupabase({ user: null });
+		await clearTourStateInCloud(mock as any);
+		expect(mock._fromFn).not.toHaveBeenCalled();
 	});
 });
 

@@ -7,6 +7,7 @@ import {
 	updateLickCategory,
 	getLickCategoryOverrides,
 	initUserLicksFromCloud,
+	flushUserLicksToCloud,
 	deleteUserLick
 } from '$lib/persistence/user-licks';
 import { getProgressionTags } from '$lib/persistence/lick-practice-store';
@@ -24,8 +25,9 @@ vi.mock('$lib/persistence/sync', () => ({
 }));
 
 // ─── Mock community module (stolen licks cache) ─────────────
+const mockStolenLicks: Phrase[] = [];
 vi.mock('$lib/persistence/community', () => ({
-	getStolenLicksLocal: () => []
+	getStolenLicksLocal: () => mockStolenLicks
 }));
 
 // ─── Mock localStorage ────────────────────────────────────────
@@ -42,6 +44,7 @@ Object.defineProperty(globalThis, 'localStorage', { value: localStorageMock, wri
 
 beforeEach(() => {
 	localStorageMock.clear();
+	mockStolenLicks.length = 0;
 	vi.clearAllMocks();
 	// Storage is now per-user namespaced; reset the cached active uid so each
 	// test re-resolves against the freshly-cleared store (→ anonymous by default).
@@ -100,14 +103,6 @@ describe('saveUserLick', () => {
 		const stored = getUserLicksLocal();
 		expect(stored).toHaveLength(2);
 		expect(stored.map((l) => l.id)).toEqual(['first', 'second']);
-	});
-
-	it('upserts an existing lick by id, replacing in place', () => {
-		saveUserLick(makePhrase({ id: 'edit-me', name: 'Original' }));
-		saveUserLick(makePhrase({ id: 'edit-me', name: 'Edited' }));
-		const stored = getUserLicksLocal();
-		expect(stored).toHaveLength(1);
-		expect(stored[0].name).toBe('Edited');
 	});
 
 	it('preserves list order when updating a lick in the middle of the array', () => {
@@ -174,6 +169,21 @@ describe('updateLickCategory', () => {
 	it('stores a curated override when no own user lick matches', () => {
 		updateLickCategory('curated-x', 'modal');
 		expect(getLickCategoryOverrides()['curated-x']).toBe('modal');
+	});
+
+	it('refuses a category write on a STOLEN lick: no curated override, no prog:* tags seeded', () => {
+		// Adopted community licks are read-only for the adopter. Without the
+		// guard the id falls through to the curated-override path and seeds
+		// practice tags against a lick this user does not own.
+		mockStolenLicks.push(makePhrase({ id: 'stolen-1', category: 'user' }));
+		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+		updateLickCategory('stolen-1', 'blues');
+
+		expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('stolen lick stolen-1'));
+		warnSpy.mockRestore();
+		expect(getLickCategoryOverrides()['stolen-1']).toBeUndefined();
+		expect(getProgressionTags('stolen-1')).toEqual([]);
 	});
 
 	it('auto-adds prog:* tags for every compatible progression on user licks', () => {
@@ -380,7 +390,9 @@ describe('initUserLicksFromCloud', () => {
 		const supabase = createMockSupabase([{ id: 'cloud-1' }]);
 		await initUserLicksFromCloud(supabase);
 
-		expect(mockSyncUserLicksToCloud).not.toHaveBeenCalled();
+		// A pull-only reconcile (nothing local, one cloud row) issues no upsert at
+		// all — the live-row batch is empty, so no write reaches the cloud.
+		expect(supabase.__upsertMock).not.toHaveBeenCalled();
 		expect(getUserLicksLocal()).toHaveLength(1);
 	});
 
@@ -422,6 +434,30 @@ describe('initUserLicksFromCloud', () => {
 		expect(getUserLicksLocal()).toHaveLength(1);
 		expect(getUserLicksLocal()[0].id).toBe('my-lick');
 		expect(supabase.from).not.toHaveBeenCalled();
+	});
+
+	it('flushUserLicksToCloud THROWS on a failed cloud fetch (outbox retries) and leaves local intact', async () => {
+		// The outbox handler is the one caller that must NOT swallow: a silent
+		// resolve dequeues the intent and the offline edit never reaches the
+		// cloud. initUserLicksFromCloud swallows for the startup path; the flush
+		// path surfaces the same failure.
+		saveUserLick(makePhrase({ id: 'offline-edit', name: 'Edited offline' }));
+		const upsert = vi.fn().mockResolvedValue({ error: null });
+		const supabase = {
+			auth: {
+				getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-123' } }, error: null })
+			},
+			from: vi.fn().mockReturnValue({
+				select: vi.fn().mockReturnValue({
+					eq: vi.fn().mockReturnValue({ data: null, error: { message: 'network error' }, then: undefined })
+				}),
+				upsert
+			})
+		} as any;
+
+		await expect(flushUserLicksToCloud(supabase)).rejects.toThrow(/fetch user licks failed/);
+		expect(upsert).not.toHaveBeenCalled();
+		expect(getUserLicksLocal().map((l) => l.id)).toEqual(['offline-edit']);
 	});
 });
 

@@ -427,56 +427,9 @@ describe('adaptive state — forward-compat merge', () => {
 // ---------------------------------------------------------------------------
 
 describe('recording upload — per-user path isolation', () => {
-	it('places the blob under the authenticated user id', async () => {
-		const { uploadRecording } = await import('$lib/persistence/sync');
-
-		const uploadSpy = vi.fn().mockResolvedValue({ error: null });
-		const supabase = {
-			auth: {
-				getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-A' } } })
-			},
-			storage: {
-				from: vi.fn().mockReturnValue({
-					upload: uploadSpy,
-					list: vi.fn().mockResolvedValue({ data: [], error: null }),
-					remove: vi.fn().mockResolvedValue({ error: null })
-				})
-			}
-		};
-
-		await uploadRecording(supabase as never, 'session-abc', new Blob(['x']));
-
-		expect(uploadSpy).toHaveBeenCalled();
-		const pathArg = uploadSpy.mock.calls[0][0] as string;
-		// Upload path must be scoped to the authenticated user so one user
-		// cannot read another's recordings even with a leaked session id.
-		expect(pathArg).toContain('user-A');
-		expect(pathArg).toContain('session-abc');
-	});
-
-	it('rejects recordings with path-traversal session ids', async () => {
-		const { uploadRecording } = await import('$lib/persistence/sync');
-
-		const uploadSpy = vi.fn().mockResolvedValue({ error: null });
-		const supabase = {
-			auth: {
-				getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-A' } } })
-			},
-			storage: {
-				from: vi.fn().mockReturnValue({
-					upload: uploadSpy,
-					list: vi.fn().mockResolvedValue({ data: [], error: null }),
-					remove: vi.fn().mockResolvedValue({ error: null })
-				})
-			}
-		};
-
-		await uploadRecording(supabase as never, '../../etc/passwd', new Blob(['x']));
-
-		// No upload attempted with the unsafe id.
-		expect(uploadSpy).not.toHaveBeenCalled();
-	});
-
+	// The exact `{userId}/{sessionId}.webm` path and the SAFE_ID_RE rejection are
+	// pinned in supabase-storage.test.ts / cloud-sync.test.ts; this keeps the
+	// two-user isolation case.
 	it('writes to distinct paths for distinct authenticated users', async () => {
 		const { uploadRecording } = await import('$lib/persistence/sync');
 

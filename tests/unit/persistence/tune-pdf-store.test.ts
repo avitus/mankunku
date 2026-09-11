@@ -157,6 +157,22 @@ describe('local PDF cache round-trip', () => {
 	it('returns null for a missing PDF without a cloud client', async () => {
 		expect(await getTunePdf('nope')).toBeNull();
 	});
+
+	it('prunes the oldest PDFs beyond the local cap of 50', async () => {
+		// PDFs are heavyweight; the cache must not grow without bound. Save 52
+		// with strictly increasing timestamps and expect the first two gone.
+		for (let i = 0; i < 52; i++) {
+			await saveTunePdf(`sheet-${String(i).padStart(2, '0')}`, makePdfBlob(16));
+			// Deterministic ordering — the prune sorts by timestamp.
+			await new Promise((r) => setTimeout(r, 1));
+		}
+		const ids = await getTunePdfIds();
+		expect(ids.size).toBe(50);
+		expect(ids.has('sheet-00')).toBe(false);
+		expect(ids.has('sheet-01')).toBe(false);
+		expect(ids.has('sheet-02')).toBe(true);
+		expect(ids.has('sheet-51')).toBe(true);
+	});
 });
 
 describe('cloud upload/download', () => {

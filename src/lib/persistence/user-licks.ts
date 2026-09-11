@@ -341,8 +341,14 @@ async function reconcileUserLicks(supabase: SupabaseClient<Database>): Promise<b
 				}
 			} else {
 				// Equal mtime — keep local; adopt a cloud tombstone if present.
+				// A LOCAL tombstone wins the tie too (and pushes), mirroring the
+				// strictly-newer branch above — the merge is total: every arm
+				// resolves to exactly one of live/tombstone (user-tunes has the
+				// same rule). Leaving this arm with neither dropped the lick from
+				// the live set without telling the cloud.
 				if (cloud.deletedAt) setMeta(id, { mtime: cloud.mtime, deletedAt: cloud.deletedAt });
-				else if (!localDeleted) mergedLive.set(id, local);
+				else if (localDeleted) tombstones.push({ id, deletedAt: localDeleted });
+				else mergedLive.set(id, local);
 			}
 			claimOwner(id);
 		}

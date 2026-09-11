@@ -32,7 +32,13 @@ const localStorageMock = {
 Object.defineProperty(globalThis, 'localStorage', { value: localStorageMock, writable: true });
 
 import { setActiveUid, __resetNamespaceCacheForTests } from '$lib/persistence/namespace';
-import { enqueue, drainOutbox } from '$lib/persistence/outbox';
+import {
+	enqueue,
+	drainOutbox,
+	flushOnHide,
+	flushAllPendingSync,
+	setOutboxClient
+} from '$lib/persistence/outbox';
 import { load } from '$lib/persistence/storage';
 import { flushSettingsToCloud } from '$lib/state/settings.svelte';
 import { flushProgressToCloud } from '$lib/state/progress.svelte';
@@ -95,6 +101,129 @@ describe('outbox drain — success path', () => {
 
 		expect(flushSettingsToCloud).toHaveBeenCalledTimes(1);
 		expect(flushProgressToCloud).toHaveBeenCalledTimes(1);
+		expect(outbox()).toEqual({});
+	});
+});
+
+describe('outbox drain — identity, concurrency and coalescing guards', () => {
+	/** Raw outbox blob under an explicit namespace prefix. */
+	function rawOutbox(prefix: string): Record<string, StoredEntry> | null {
+		const raw = store[`mankunku:${prefix}outbox`];
+		return raw ? JSON.parse(raw) : null;
+	}
+
+	it('discards an entry stamped for a DIFFERENT uid without running its handler', async () => {
+		// The queue lives in user-a's bucket but this entry was enqueued under
+		// another identity (e.g. an anon-era intent adopted into the bucket by
+		// adoptAnonInto). It must never be pushed under user-a's session.
+		enqueue('settings');
+		const map = outbox();
+		map.settings.uid = 'someone-else';
+		store['mankunku:u:user-a:outbox'] = JSON.stringify(map);
+
+		await drainOutbox(authedAs('user-a'));
+
+		expect(flushSettingsToCloud).not.toHaveBeenCalled();
+		expect(outbox()).toEqual({});
+	});
+
+	it('keeps an entry that was re-enqueued DURING its push (rev bumped) instead of deleting the fresher intent', async () => {
+		// A second local edit lands while the first push is in flight: the push
+		// carried the OLD state, so the intent must survive the drain and run
+		// again — deleting it would let local and cloud silently diverge.
+		vi.mocked(flushSettingsToCloud).mockImplementation(async () => {
+			enqueue('settings');
+		});
+
+		enqueue('settings');
+		expect(outbox().settings.rev).toBe(1);
+
+		await drainOutbox(authedAs('user-a'));
+
+		expect(flushSettingsToCloud).toHaveBeenCalledTimes(1);
+		const map = outbox();
+		expect(Object.keys(map)).toEqual(['settings']);
+		expect(map.settings.rev).toBe(2);
+		expect(map.settings.attempts).toBe(0);
+	});
+
+	it('abandons the drain when the account switches mid-push: the entry stays in the ORIGINAL bucket and nothing lands in the new one', async () => {
+		vi.mocked(flushSettingsToCloud).mockImplementation(async () => {
+			setActiveUid('user-b'); // reconcileActiveUser re-homed the realm mid-flight
+		});
+
+		enqueue('settings');
+		await drainOutbox(authedAs('user-a'));
+
+		expect(flushSettingsToCloud).toHaveBeenCalledTimes(1);
+		// user-a's queued intent is untouched (it drains later under user-a)…
+		expect(Object.keys(rawOutbox('u:user-a:') ?? {})).toEqual(['settings']);
+		// …and the drain wrote nothing into user-b's namespace.
+		expect(rawOutbox('u:user-b:')).toBeNull();
+	});
+
+	it('treats an unknown kind as handled and removes it (the v3 schema upgrade relies on this)', async () => {
+		// namespace.ts rewrites a persisted `leadSheets` intent to `tunes` at
+		// upgrade time precisely BECAUSE the drain deletes kinds it does not
+		// know; pin the deletion so the rewrite stays load-bearing.
+		enqueue('settings');
+		const map = outbox() as Record<string, StoredEntry>;
+		map.bogus = { ...map.settings, kind: 'bogus' };
+		store['mankunku:u:user-a:outbox'] = JSON.stringify(map);
+
+		await drainOutbox(authedAs('user-a'));
+
+		expect(flushSettingsToCloud).toHaveBeenCalledTimes(1);
+		expect(outbox()).toEqual({});
+	});
+
+	it('is re-entrant-safe: a second drain while one is in flight is a no-op', async () => {
+		// The first push parks inside its handler until released. The drain
+		// reaches the handler through getUser() AND runKind's dynamic import, so
+		// wait for the handler itself rather than a fixed number of microtasks.
+		// Any later call resolves at once, so a broken guard fails on the call
+		// count below instead of hanging the test.
+		let release!: () => void;
+		let markEntered!: () => void;
+		const entered = new Promise<void>((resolve) => { markEntered = resolve; });
+		vi.mocked(flushSettingsToCloud).mockImplementationOnce(
+			() => new Promise<void>((resolve) => { release = resolve; markEntered(); })
+		);
+		enqueue('settings');
+
+		const first = drainOutbox(authedAs('user-a'));
+		await entered;
+		await drainOutbox(authedAs('user-a'));
+
+		// One push for one intent — the concurrent drain did not double-send.
+		expect(flushSettingsToCloud).toHaveBeenCalledTimes(1);
+
+		release();
+		await first;
+		expect(outbox()).toEqual({});
+	});
+});
+
+describe('outbox — flush entry points', () => {
+	it('flushAllPendingSync is a no-op until a client is registered, then drains with it', async () => {
+		enqueue('settings');
+
+		await flushAllPendingSync();
+		expect(flushSettingsToCloud).not.toHaveBeenCalled();
+		expect(Object.keys(outbox())).toEqual(['settings']);
+
+		const sb = authedAs('user-a');
+		setOutboxClient(sb);
+		await flushAllPendingSync();
+		expect(flushSettingsToCloud).toHaveBeenCalledWith(sb);
+		expect(outbox()).toEqual({});
+	});
+
+	it('flushOnHide drains against the client it is handed', async () => {
+		enqueue('progress');
+		const sb = authedAs('user-a');
+		await flushOnHide(sb);
+		expect(flushProgressToCloud).toHaveBeenCalledWith(sb);
 		expect(outbox()).toEqual({});
 	});
 });
@@ -171,5 +300,83 @@ describe('outbox drain — failure / retry / backoff', () => {
 		const map = outbox();
 		expect(Object.keys(map)).toEqual(['settings']);
 		expect(map.settings.attempts).toBe(1);
+	});
+});
+
+describe('outbox drain — ordering, failure isolation and self-scheduled retries', () => {
+	/** A client verified as user-a, with its getUser spy exposed: the drain calls
+	 *  getUser synchronously on entry, so the spy marks the instant a drain starts. */
+	function client(): { sb: never; getUser: ReturnType<typeof vi.fn> } {
+		const getUser = vi.fn().mockResolvedValue({ data: { user: { id: 'user-a' } } });
+		return { sb: { auth: { getUser } } as never, getUser };
+	}
+
+	it('drains one kind at a time in first-enqueued order: a switch during the first push leaves the later kind unpushed and queued', async () => {
+		// settings is enqueued BEFORE progress (the reverse of alphabetical order)
+		// and its push re-homes the realm. A drain that ran kinds concurrently, or
+		// in any order other than enqueue order, would push progress under the
+		// session that just stopped being the active one.
+		vi.mocked(flushSettingsToCloud).mockImplementation(async () => {
+			setActiveUid('user-b');
+		});
+		enqueue('settings');
+		enqueue('progress');
+
+		await drainOutbox(authedAs('user-a'));
+
+		expect(flushSettingsToCloud).toHaveBeenCalledTimes(1);
+		expect(flushProgressToCloud).not.toHaveBeenCalled();
+		const userA = JSON.parse(store['mankunku:u:user-a:outbox']) as Record<string, StoredEntry>;
+		expect(Object.keys(userA)).toEqual(['settings', 'progress']);
+	});
+
+	it('a failing kind does not block the kinds queued after it', async () => {
+		vi.mocked(flushSettingsToCloud).mockRejectedValue(new Error('push failed'));
+		enqueue('settings');
+		enqueue('progress');
+
+		await drainOutbox(authedAs('user-a'));
+
+		expect(flushProgressToCloud).toHaveBeenCalledTimes(1);
+		const map = outbox();
+		expect(Object.keys(map)).toEqual(['settings']);
+		expect(map.settings.attempts).toBe(1);
+	});
+
+	it('schedules its own retry: a backed-off entry drains again when its backoff expires, with no new enqueue', async () => {
+		const { sb, getUser } = client();
+		setOutboxClient(sb);
+		vi.mocked(flushSettingsToCloud)
+			.mockRejectedValueOnce(new Error('transient'))
+			.mockResolvedValue(undefined);
+		enqueue('settings');
+
+		await drainOutbox(sb); // fails → backoff(1) = 2000 ms, follow-up scheduled
+		expect(getUser).toHaveBeenCalledTimes(1);
+
+		await vi.advanceTimersByTimeAsync(1999);
+		expect(getUser).toHaveBeenCalledTimes(1);
+
+		await vi.advanceTimersByTimeAsync(1);
+		expect(getUser).toHaveBeenCalledTimes(2);
+		await vi.waitFor(() => expect(outbox()).toEqual({}));
+		expect(flushSettingsToCloud).toHaveBeenCalledTimes(2);
+	});
+
+	it('enqueue debounces: a burst of edits drains ONCE, 600 ms after the LAST enqueue', async () => {
+		const { sb, getUser } = client();
+		setOutboxClient(sb);
+
+		enqueue('settings');
+		await vi.advanceTimersByTimeAsync(400);
+		enqueue('settings'); // restarts the window rather than riding the first timer
+		await vi.advanceTimersByTimeAsync(599);
+		expect(getUser).not.toHaveBeenCalled();
+
+		await vi.advanceTimersByTimeAsync(1);
+		expect(getUser).toHaveBeenCalledTimes(1);
+		await vi.waitFor(() => expect(outbox()).toEqual({}));
+		expect(flushSettingsToCloud).toHaveBeenCalledTimes(1);
+		expect(flushSettingsToCloud).toHaveBeenCalledWith(sb);
 	});
 });

@@ -232,3 +232,86 @@ describe('LWW — two devices write to same user_progress row', () => {
 		if (pulled.status === 'ok') expect(pulled.data.adaptive.currentLevel).toBe(70);
 	});
 });
+
+describe("daily summaries — a failed cloud read defers the push instead of writing over another device's rows", () => {
+	// history.svelte.ts's flushDailySummariesToCloud reconciles against the
+	// cloud table before pushing. A read that fails must not be treated as an
+	// empty table: every local day would then count as local-only and be
+	// upserted over whatever the other device stored for that date.
+	const LOCAL_DAY = '2026-06-10';
+	const REMOTE_DAY = '2026-06-11';
+
+	const localSummary = {
+		date: LOCAL_DAY,
+		sessionCount: 1,
+		earTrainingSessions: 1,
+		lickPracticeSessions: 0,
+		practiceMinutes: 2,
+		avgOverall: 0.8,
+		avgPitch: 0.8,
+		avgRhythm: 0.8,
+		bestScore: 0.9,
+		notesTotal: 10,
+		notesHit: 8,
+		grades: { perfect: 0, great: 1, good: 0, fair: 0, tryAgain: 0 },
+		categories: {}
+	};
+	const remoteRow = {
+		user_id: 'user-A',
+		date: REMOTE_DAY,
+		session_count: 4,
+		ear_training_sessions: 4,
+		lick_practice_sessions: 0,
+		practice_minutes: 8,
+		avg_overall: 0.7,
+		avg_pitch: 0.7,
+		avg_rhythm: 0.7,
+		best_score: 0.8,
+		notes_total: 40,
+		notes_hit: 28,
+		grades: { perfect: 0, great: 0, good: 4, fair: 0, tryAgain: 0 },
+		categories: {},
+		updated_at: new Date(500).toISOString()
+	};
+
+	/** Seed this device's summary cache, then load a FRESH history module homed to user-A. */
+	async function freshHistory() {
+		store.set('mankunku:u:user-A:daily-summaries', JSON.stringify([localSummary]));
+		vi.resetModules();
+		const ns = await import('$lib/persistence/namespace');
+		ns.__resetNamespaceCacheForTests();
+		ns.setActiveUid('user-A');
+		return await import('$lib/state/history.svelte');
+	}
+
+	it('throws, and leaves the cloud table exactly as the other device wrote it', async () => {
+		const cloud = createCloudState();
+		seed(cloud, 'daily_summaries', [remoteRow]);
+		const history = await freshHistory();
+		const sb = mockSupabaseFromCloud(cloud, {
+			auth: { userId: 'user-A' },
+			failures: (op) =>
+				op.kind === 'select' && op.table === 'daily_summaries' ? { message: 'timeout' } : null
+		});
+		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+		await expect(history.flushDailySummariesToCloud(sb as never)).rejects.toThrow(/deferring push/);
+
+		warnSpy.mockRestore();
+		expect(peek(cloud, 'daily_summaries')).toEqual([remoteRow]);
+	});
+
+	it("control: with the read healthy, the same local-only day IS pushed and the other device's row survives", async () => {
+		const cloud = createCloudState();
+		seed(cloud, 'daily_summaries', [remoteRow]);
+		const history = await freshHistory();
+		const sb = mockSupabaseFromCloud(cloud, { auth: { userId: 'user-A' } });
+
+		await history.flushDailySummariesToCloud(sb as never);
+
+		const rows = peek(cloud, 'daily_summaries');
+		expect(rows.map((r) => r.date).sort()).toEqual([LOCAL_DAY, REMOTE_DAY]);
+		expect(rows.find((r) => r.date === REMOTE_DAY)?.session_count).toBe(4);
+		expect(rows.find((r) => r.date === LOCAL_DAY)?.session_count).toBe(1);
+	});
+});

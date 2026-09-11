@@ -207,11 +207,11 @@ describe('saveLickPracticeRecording', () => {
 		expect(full!.metadata!.score).toBeNull();
 	});
 
-	it('lists lick-practice recordings in getAllRecordingSummaries alongside ear-training', async () => {
+	it('forwards the backing-track bleed onsets, and leaves them absent when the window had none', async () => {
 		await saveLickPracticeRecording({
-			sessionId: 'lp-summary-1',
+			sessionId: 'lp-session-bleed',
 			blob: makeBlob(),
-			phrase: makePhrase({ id: 'lick-A-C', key: 'C' }),
+			phrase: makePhrase(),
 			tempo: 120,
 			swing: 0,
 			score: makeScore(),
@@ -219,12 +219,13 @@ describe('saveLickPracticeRecording', () => {
 			backingTrackLog: null,
 			bleedFilterLog: null,
 			transportSeconds: 4.5,
-			metronomeEnabled: true
+			metronomeEnabled: true,
+			backingBleedOnsets: [0.5, 1.0, 1.5]
 		});
 		await saveLickPracticeRecording({
-			sessionId: 'lp-summary-2',
+			sessionId: 'lp-session-no-bleed',
 			blob: makeBlob(),
-			phrase: makePhrase({ id: 'lick-A-G', key: 'G' }),
+			phrase: makePhrase(),
 			tempo: 120,
 			swing: 0,
 			score: makeScore(),
@@ -232,14 +233,15 @@ describe('saveLickPracticeRecording', () => {
 			backingTrackLog: null,
 			bleedFilterLog: null,
 			transportSeconds: 4.5,
-			metronomeEnabled: true
+			metronomeEnabled: false
 		});
 
-		const summaries = await getAllRecordingSummaries();
-		const lickSources = summaries
-			.filter((r) => r.metadata?.source === 'lick-practice')
-			.map((r) => r.sessionId)
-			.sort();
-		expect(lickSources).toEqual(['lp-summary-1', 'lp-summary-2']);
+		// A /diagnostics replay reads these to reuse the exact bleed evidence the
+		// app scored with; a wrapper that dropped the field would silently replay
+		// unsuppressed (CLAUDE.md: the bleed evidence is supplied by the caller).
+		const withBleed = await getRecordingFull('lp-session-bleed');
+		expect(withBleed!.metadata!.backingBleedOnsets).toEqual([0.5, 1.0, 1.5]);
+		const noBleed = await getRecordingFull('lp-session-no-bleed');
+		expect(noBleed!.metadata!.backingBleedOnsets).toBeUndefined();
 	});
 });

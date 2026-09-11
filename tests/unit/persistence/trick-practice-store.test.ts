@@ -29,6 +29,12 @@ import type { TrickPracticeProgress } from '$lib/types/tricks';
 // ─── Mock the outbox so writes round-trip through localStorage only ──────────
 vi.mock('$lib/persistence/outbox', () => ({ enqueue: vi.fn() }));
 
+// ─── Controllable scope generation for the mid-flight user-switch tests ──────
+const getScopeGenerationMock = vi.fn(() => 0);
+vi.mock('$lib/persistence/user-scope', () => ({
+	getScopeGeneration: () => getScopeGenerationMock()
+}));
+
 // ─── Partially mock sync.ts: intercept the cloud read/push (so each tri-state
 //    can be returned at will) but keep the REAL mergeTrickState so the merge
 //    contract is exercised against production code (the
@@ -59,6 +65,7 @@ Object.defineProperty(globalThis, 'localStorage', { value: localStorageMock, wri
 beforeEach(() => {
 	localStorageMock.clear();
 	vi.clearAllMocks();
+	getScopeGenerationMock.mockReturnValue(0);
 	__resetNamespaceCacheForTests();
 });
 
@@ -328,6 +335,59 @@ describe('cloud tri-state (init + flush)', () => {
 		expect(mockSyncTrickState).toHaveBeenCalledTimes(1);
 		const pushed = mockSyncTrickState.mock.calls[0][1] as SyncableTrickState;
 		expect(pushed.selectedVariants).toEqual([V1]);
+	});
+
+	it('init: a failed PUSH after a successful merge still reports true and queues a durable retry', async () => {
+		saveSelectedTrickVariants([V1]);
+		vi.mocked(enqueue).mockClear();
+		mockLoadTrickState.mockResolvedValue({
+			status: 'ok',
+			data: cloudState({ unlockCounts: { other: 5 } })
+		});
+		mockSyncTrickState.mockRejectedValue(new Error('offline'));
+
+		await expect(initTrickStateFromCloud(fakeSupabase)).resolves.toBe(true);
+		// The local merge landed (hydration succeeded)…
+		expect(getTrickUnlockedKeyCount('other')).toBe(5);
+		expect(loadSelectedTrickVariants()).toEqual([V1]);
+		// …and the outbox owns the retry instead of the init failing.
+		expect(enqueue).toHaveBeenCalledWith('trickState');
+	});
+
+	it('init: a user switch mid-flight reports false, keeps local untouched and never pushes', async () => {
+		saveSelectedTrickVariants([V1]);
+		let callCount = 0;
+		getScopeGenerationMock.mockImplementation(() => {
+			callCount++;
+			return callCount === 1 ? 0 : 1;
+		});
+		mockLoadTrickState.mockResolvedValue({
+			status: 'ok',
+			data: cloudState({ selectedVariants: ['cloud-v'], selectedUpdatedAt: Date.now() + 10_000 })
+		});
+		mockSyncTrickState.mockResolvedValue(undefined);
+
+		await expect(initTrickStateFromCloud(fakeSupabase)).resolves.toBe(false);
+		expect(mockSyncTrickState).not.toHaveBeenCalled();
+		expect(loadSelectedTrickVariants()).toEqual([V1]);
+	});
+
+	it('flush: a user switch mid-flight aborts silently — no throw, no push, no local write', async () => {
+		saveSelectedTrickVariants([V1]);
+		let callCount = 0;
+		getScopeGenerationMock.mockImplementation(() => {
+			callCount++;
+			return callCount === 1 ? 0 : 1;
+		});
+		mockLoadTrickState.mockResolvedValue({
+			status: 'ok',
+			data: cloudState({ unlockCounts: { other: 5 } })
+		});
+		mockSyncTrickState.mockResolvedValue(undefined);
+
+		await expect(flushTrickStateToCloud(fakeSupabase)).resolves.toBeUndefined();
+		expect(mockSyncTrickState).not.toHaveBeenCalled();
+		expect(getTrickUnlockedKeyCount('other')).toBe(1);
 	});
 
 	it('flush: an ok read folds the cloud row in before the upsert', async () => {

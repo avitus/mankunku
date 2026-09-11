@@ -737,11 +737,55 @@ export interface SyncableTourState {
 }
 
 /**
+ * Tri-state read of the tour_state column for an already-verified user. The
+ * distinction is load-bearing for `syncTourStateToCloud`: `error` means the
+ * cloud set is UNKNOWN and must not be merged against (the union would be
+ * local-only and overwrite another device's completions), `missing` is an
+ * affirmative no-row (a fresh account), `ok` carries the narrowed column — an
+ * existing row whose column was never written reads `ok` with empty sets.
+ */
+type TourStateRead =
+	| { status: 'ok'; data: SyncableTourState }
+	| { status: 'missing' }
+	| { status: 'error' };
+
+async function readTourStateRow(supabase: SupabaseDB, userId: string): Promise<TourStateRead> {
+	const { data, error } = await supabase
+		.from('user_settings')
+		.select('tour_state')
+		.eq('user_id', userId)
+		.maybeSingle();
+
+	if (error) {
+		console.warn('Failed to load tour state from cloud:', error);
+		return { status: 'error' };
+	}
+	if (!data) return { status: 'missing' };
+
+	const raw = data.tour_state as unknown;
+	if (!raw || typeof raw !== 'object') return { status: 'ok', data: { completed: [], dismissed: [] } };
+	const obj = raw as Record<string, unknown>;
+	const completed = Array.isArray(obj.completed)
+		? (obj.completed.filter((v) => typeof v === 'string') as string[])
+		: [];
+	const dismissed = Array.isArray(obj.dismissed)
+		? (obj.dismissed.filter((v) => typeof v === 'string') as string[])
+		: [];
+	return { status: 'ok', data: { completed, dismissed } };
+}
+
+/**
  * Upsert tour completion state into the user_settings.tour_state column.
  *
  * Uses a partial upsert keyed on user_id so we don't clobber the rest of the
  * settings row. If the user has no settings row yet (rare — onboarding writes
  * one), the upsert creates a default-row with only tour_state populated.
+ *
+ * A FAILED remote read skips the write entirely: the merge below unions with
+ * the remote set, so merging against "nothing" would push the local-only set
+ * wholesale over a row holding another device's completions (the 2026-07-13
+ * read-failure clobber class). The caller is fire-and-forget; the next local
+ * tour event retries the push.
  */
 export async function syncTourStateToCloud(
 	supabase: SupabaseDB,
@@ -755,10 +799,15 @@ export async function syncTourStateToCloud(
 		// device while another device completes tour B should produce the
 		// union, not whichever wrote last. Read remote first and merge before
 		// upserting.
-		const remote = await loadTourStateFromCloud(supabase);
+		const remote = await readTourStateRow(supabase, userId);
+		if (remote.status === 'error') {
+			console.warn('Skipping tour state push: remote read failed, cloud set unknown');
+			return;
+		}
+		const base = remote.status === 'ok' ? remote.data : { completed: [], dismissed: [] };
 		const merged: SyncableTourState = {
-			completed: [...new Set([...(remote?.completed ?? []), ...state.completed])],
-			dismissed: [...new Set([...(remote?.dismissed ?? []), ...state.dismissed])]
+			completed: [...new Set([...base.completed, ...state.completed])],
+			dismissed: [...new Set([...base.dismissed, ...state.dismissed])]
 		};
 
 		const { error } = await supabase.from('user_settings').upsert(
@@ -790,28 +839,8 @@ export async function loadTourStateFromCloud(
 		const userId = await getAuthUserId(supabase);
 		if (!userId) return null;
 
-		const { data, error } = await supabase
-			.from('user_settings')
-			.select('tour_state')
-			.eq('user_id', userId)
-			.maybeSingle();
-
-		if (error) {
-			console.warn('Failed to load tour state from cloud:', error);
-			return null;
-		}
-		if (!data) return null;
-
-		const raw = data.tour_state as unknown;
-		if (!raw || typeof raw !== 'object') return { completed: [], dismissed: [] };
-		const obj = raw as Record<string, unknown>;
-		const completed = Array.isArray(obj.completed)
-			? (obj.completed.filter((v) => typeof v === 'string') as string[])
-			: [];
-		const dismissed = Array.isArray(obj.dismissed)
-			? (obj.dismissed.filter((v) => typeof v === 'string') as string[])
-			: [];
-		return { completed, dismissed };
+		const read = await readTourStateRow(supabase, userId);
+		return read.status === 'ok' ? read.data : null;
 	} catch (error) {
 		console.warn('Failed to load tour state from cloud:', error);
 		return null;

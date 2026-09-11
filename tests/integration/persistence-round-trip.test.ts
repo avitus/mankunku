@@ -28,7 +28,7 @@ vi.mock('$lib/persistence/sync', () => ({
 	loadProgressFromCloud: vi.fn().mockResolvedValue(null)
 }));
 
-import { save, load, remove, listKeys, clearAll } from '$lib/persistence/storage';
+import { save, listKeys, clearAll } from '$lib/persistence/storage';
 import {
 	saveLickPracticeProgress,
 	loadLickPracticeProgress,
@@ -43,18 +43,9 @@ beforeEach(() => {
 });
 
 describe('storage round-trip', () => {
-	it('load returns null for non-existent key', () => {
-		const loaded = load('does-not-exist');
-		expect(loaded).toBeNull();
-	});
-
-	it('corrupted JSON falls back gracefully', () => {
-		// Manually inject invalid JSON under the mankunku prefix
-		store.set('mankunku:broken', '{not valid json!!!');
-		const loaded = load('broken');
-		expect(loaded).toBeNull();
-	});
-
+	// Missing-key and corrupt-JSON loads are pinned in
+	// tests/unit/persistence/storage.test.ts; this describe covers the
+	// save → listKeys/clearAll round trip.
 	it('clearAll removes only mankunku keys', () => {
 		save('key-a', { a: 1 });
 		save('key-b', { b: 2 });

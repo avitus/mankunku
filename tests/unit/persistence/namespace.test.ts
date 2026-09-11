@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 // ─── Mock localStorage ────────────────────────────────────────────────
 const store: Record<string, string> = {};
@@ -104,6 +104,75 @@ describe('one-time namespace upgrade', () => {
 		runNamespaceUpgradeIfNeeded();
 		expect(store['mankunku:progress']).toBe(JSON.stringify({ v: 2 }));
 		expect(store['mankunku:u:user-x:progress']).toBe(JSON.stringify({ v: 1 }));
+	});
+});
+
+describe('active-uid resolution from the Supabase auth cookie (the synchronous fast path)', () => {
+	// Resolution order is cookie uid › __active pointer › anon. The cookie read
+	// is what lets the module-eval $state singletons home to the right bucket
+	// on the very first load after login without a self-correcting reload.
+	const b64url = (s: string): string =>
+		Buffer.from(s, 'utf8').toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+	const jwt = (sub: string): string =>
+		`${b64url('{"alg":"HS256","typ":"JWT"}')}.${b64url(JSON.stringify({ sub, aud: 'authenticated' }))}.${b64url('sig')}`;
+
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
+	it('reads `sub` out of the access-token JWT in a plain sb-<ref>-auth-token cookie', () => {
+		setActiveUid('stale-pointer');
+		__resetNamespaceCacheForTests();
+		vi.stubGlobal('document', {
+			cookie: `theme=dark; sb-abc123-auth-token=${encodeURIComponent(JSON.stringify({ access_token: jwt('user-jwt'), refresh_token: 'r' }))}`
+		});
+
+		// The cookie wins over the __active pointer from the previous reconcile.
+		expect(getActiveUid()).toBe('user-jwt');
+	});
+
+	it('reassembles a chunked base64- cookie (.0, .1 …) before extracting the JWT', () => {
+		__resetNamespaceCacheForTests();
+		const blob = 'base64-' + Buffer.from(JSON.stringify({ access_token: jwt('user-chunked'), refresh_token: 'r' })).toString('base64');
+		const mid = Math.floor(blob.length / 2);
+		// Chunks deliberately listed out of order — the parser sorts by index.
+		vi.stubGlobal('document', {
+			cookie: `sb-abc123-auth-token.1=${encodeURIComponent(blob.slice(mid))}; sb-abc123-auth-token.0=${encodeURIComponent(blob.slice(0, mid))}`
+		});
+
+		expect(getActiveUid()).toBe('user-chunked');
+	});
+
+	it('falls back to a plain session object carrying user.id when no JWT is present', () => {
+		__resetNamespaceCacheForTests();
+		vi.stubGlobal('document', {
+			cookie: `sb-abc123-auth-token=${encodeURIComponent(JSON.stringify({ user: { id: 'user-plain' } }))}`
+		});
+		expect(getActiveUid()).toBe('user-plain');
+	});
+
+	it('ignores a garbled cookie and falls back to the __active pointer, then anon', () => {
+		// A real device has already run the schema upgrade (storage.ts does it at
+		// import) before any pointer exists; on an un-upgraded store the v2 step
+		// would re-stamp __active from the legacy marker and mask the fallback.
+		runNamespaceUpgradeIfNeeded();
+		setActiveUid('user-pointer');
+		__resetNamespaceCacheForTests();
+		vi.stubGlobal('document', { cookie: 'sb-abc123-auth-token=%E0%A4%A; other=1' });
+		expect(getActiveUid()).toBe('user-pointer');
+
+		__resetNamespaceCacheForTests();
+		vi.stubGlobal('document', { cookie: 'sb-abc123-auth-token=not-a-session' });
+		delete store['mankunku:__active'];
+		expect(getActiveUid()).toBe('anon');
+	});
+
+	it('never resolves from an unrelated cookie', () => {
+		__resetNamespaceCacheForTests();
+		vi.stubGlobal('document', {
+			cookie: `other-auth-token=${encodeURIComponent(JSON.stringify({ access_token: jwt('not-ours') }))}`
+		});
+		expect(getActiveUid()).toBe('anon');
 	});
 });
 

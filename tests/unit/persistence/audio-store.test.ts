@@ -1,9 +1,10 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
 	saveRecording,
 	getAllRecordingSummaries,
 	getRecordingFull,
 	getRecording,
+	getRecordingIds,
 	deleteRecording,
 	updateRecordingMetadata,
 	clearAllRecordings,
@@ -214,5 +215,102 @@ describe('getRecording (blob only)', () => {
 	it('returns null when recording does not exist', async () => {
 		const blob = await getRecording('nonexistent');
 		expect(blob).toBeNull();
+	});
+});
+
+// ─── Cloud mirror (the `recordings` bucket, per-user path) ───────────────────
+
+function makeStorageClient(downloadBlob: Blob | null = null) {
+	const uploads: Array<{ path: string; opts?: { contentType?: string; upsert?: boolean } }> = [];
+	const removals: string[][] = [];
+	const download = vi.fn((_path: string) =>
+		Promise.resolve(
+			downloadBlob ? { data: downloadBlob, error: null } : { data: null, error: { message: 'not found' } }
+		)
+	);
+	const storage = {
+		from: vi.fn((_bucket: string) => ({
+			upload: vi.fn((path: string, _blob: Blob, opts?: { contentType?: string; upsert?: boolean }) => {
+				uploads.push({ path, opts });
+				return Promise.resolve({ error: null });
+			}),
+			download,
+			remove: vi.fn((paths: string[]) => {
+				removals.push(paths);
+				return Promise.resolve({ error: null });
+			})
+		}))
+	};
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	return { client: { storage } as any, storage, uploads, removals, download };
+}
+
+describe('cloud mirror', () => {
+	it('uploads to the recordings bucket under {userId}/{sessionId}.webm on save, fire-and-forget', async () => {
+		const { client, storage, uploads } = makeStorageClient();
+		await saveRecording('session-up', makeBlob(), { supabase: client, userId: 'user-9' });
+		await new Promise((r) => setTimeout(r, 0));
+		expect(storage.from).toHaveBeenCalledWith('recordings');
+		expect(uploads).toEqual([
+			{ path: 'user-9/session-up.webm', opts: { contentType: 'audio/webm', upsert: true } }
+		]);
+		// The local write still happened.
+		expect((await getRecording('session-up'))!.size).toBe(100);
+	});
+
+	it('does not touch the cloud when only one of supabase/userId is supplied', async () => {
+		const { client, uploads } = makeStorageClient();
+		await saveRecording('session-half', makeBlob(), { supabase: client });
+		await new Promise((r) => setTimeout(r, 0));
+		expect(uploads).toEqual([]);
+	});
+
+	it('falls back to a cloud download when the blob is missing locally (and only then)', async () => {
+		const cloudBlob = makeBlob(512);
+		const { client, download } = makeStorageClient(cloudBlob);
+
+		const restored = await getRecording('cloud-only', client, 'user-9');
+		expect(restored).toBe(cloudBlob);
+		expect(download).toHaveBeenCalledWith('user-9/cloud-only.webm');
+
+		// A local hit never reaches for the cloud.
+		await saveRecording('local-hit', makeBlob(64));
+		download.mockClear();
+		expect((await getRecording('local-hit', client, 'user-9'))!.size).toBe(64);
+		expect(download).not.toHaveBeenCalled();
+	});
+
+	it('returns null when the cloud fallback itself fails', async () => {
+		const { client } = makeStorageClient(null);
+		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		expect(await getRecording('nowhere', client, 'user-9')).toBeNull();
+		expect(warnSpy).toHaveBeenCalled();
+		warnSpy.mockRestore();
+	});
+
+	it('requests the cloud removal on delete so a later sync cannot resurrect the take', async () => {
+		await saveRecording('to-remove', makeBlob());
+		const { client, removals } = makeStorageClient();
+		await deleteRecording('to-remove', client, 'user-9');
+		await new Promise((r) => setTimeout(r, 0));
+		expect(removals).toEqual([['user-9/to-remove.webm']]);
+		expect(await getRecording('to-remove')).toBeNull();
+	});
+});
+
+describe('getRecordingIds', () => {
+	it('returns the set of locally stored session ids', async () => {
+		await saveRecording('id-1', makeBlob());
+		await saveRecording('id-2', makeBlob());
+		const ids = await getRecordingIds();
+		expect(ids).toEqual(new Set(['id-1', 'id-2']));
+	});
+});
+
+describe('clearAllRecordings(uid)', () => {
+	it('targets only the named user database, not the active one', async () => {
+		await saveRecording('mine', makeBlob()); // active (anon) DB
+		await clearAllRecordings('someone-else');
+		expect((await getRecordingIds()).has('mine')).toBe(true);
 	});
 });

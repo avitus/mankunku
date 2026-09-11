@@ -34,10 +34,11 @@ const mockAdmin = {
 };
 
 vi.mock('$lib/supabase/admin', () => ({
-	createAdminClient: () => mockAdmin
+	createAdminClient: vi.fn(() => mockAdmin)
 }));
 
 import { DELETE } from '../../src/routes/api/account/+server';
+import { createAdminClient } from '$lib/supabase/admin';
 
 // ─── Test Setup ────────────────────────────────────────────────
 
@@ -75,6 +76,27 @@ describe('account deletion — authentication', () => {
 
 		expect(response.status).toBe(401);
 		expect(body.error).toBe('Not authenticated');
+	});
+
+	it('returns 500 (and deletes nothing) when the admin client cannot be created', async () => {
+		// The 2026-08-18 shape: createAdminClient threw in production (a
+		// mis-sourced env var — see tests/unit/supabase/admin-client.test.ts).
+		// The endpoint must answer, not crash, and must not have touched storage
+		// or auth.
+		vi.mocked(createAdminClient).mockImplementationOnce(() => {
+			throw new Error('SUPABASE_SERVICE_ROLE_KEY is not set');
+		});
+		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+		const locals = createMockLocals(true);
+		const response = await DELETE({ locals } as any);
+		const body = await response.json();
+
+		expect(response.status).toBe(500);
+		expect(body.error).toBe('Failed to delete account. Please try again.');
+		expect(mockAdminStorage.from).not.toHaveBeenCalled();
+		expect(mockAdminAuth.admin.deleteUser).not.toHaveBeenCalled();
+		errorSpy.mockRestore();
 	});
 });
 

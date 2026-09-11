@@ -10,7 +10,7 @@
  * Mock strategy: no live Supabase instance is required.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // ─── Module-Level Mocks ──────────────────────────────────────────────
 // These are hoisted by vitest and execute before any imports.
@@ -45,22 +45,33 @@ vi.mock('@supabase/ssr', () => ({
 /**
  * Mock @sveltejs/kit/hooks to provide a simplified sequence() implementation.
  * The real sequence() composes multiple Handle functions into one so that each
- * wraps the next. This mock preserves that composition so every handler in the
- * chain runs (Sentry passthrough → supabaseHandle → securityHeadersHandle).
+ * wraps the next, but it needs SvelteKit's per-request store, which only exists
+ * inside a real request. This mock preserves that composition so every handler
+ * in the chain runs (Sentry passthrough → supabaseHandle → securityHeadersHandle)
+ * AND carries `filterSerializedResponseHeaders` down the chain the way the real
+ * one does — an earlier handler's option wins, a later handler fills a gap — so
+ * the option supabaseHandle sets survives securityHeadersHandle's bare
+ * `resolve(event)`.
  */
-type ResolveFn = (event: unknown, opts?: unknown) => Promise<unknown> | unknown;
+type ResolveOpts = { filterSerializedResponseHeaders?: (name: string, value: string) => boolean };
+type ResolveFn = (event: unknown, opts?: ResolveOpts) => Promise<unknown> | unknown;
 type HandleFn = (args: { event: unknown; resolve: ResolveFn }) => Promise<unknown> | unknown;
 
 vi.mock('@sveltejs/kit/hooks', () => ({
 	sequence: vi.fn((...fns: HandleFn[]) => {
 		return async ({ event, resolve }: { event: unknown; resolve: ResolveFn }) => {
-			let i = 0;
-			const next: ResolveFn = async (evt, opts) => {
-				if (i >= fns.length) return resolve(evt, opts);
-				const fn = fns[i++];
-				return fn({ event: evt, resolve: next });
-			};
-			return next(event);
+			const apply = (i: number, evt: unknown, parent: ResolveOpts): Promise<unknown> | unknown =>
+				fns[i]({
+					event: evt,
+					resolve: (e, opts) => {
+						const merged: ResolveOpts = {
+							filterSerializedResponseHeaders:
+								parent.filterSerializedResponseHeaders ?? opts?.filterSerializedResponseHeaders
+						};
+						return i < fns.length - 1 ? apply(i + 1, e, merged) : resolve(e, merged);
+					}
+				});
+			return apply(0, event, {});
 		};
 	})
 }));
@@ -244,6 +255,65 @@ describe('Auth Page Server Actions — /auth', () => {
 		const result = await actions.login(mockEvent as any);
 		expect(result?.status).toBe(400);
 		expect((result as any)?.data?.error).toBe('Email and password are required.');
+	});
+
+	it('login action — rejects a malformed email before contacting Supabase', async () => {
+		const formData = createMockFormData({ email: 'not-an-email', password: 'password123' });
+
+		const mockEvent = {
+			request: createMockRequest(formData),
+			locals: { supabase: mockSupabase },
+			url: createMockUrl('/auth'),
+			cookies: createMockCookies()
+		};
+
+		const result = await actions.login(mockEvent as any);
+		expect(result?.status).toBe(400);
+		expect((result as any)?.data?.error).toBe('Please enter a valid email address.');
+		expect((result as any)?.data?.email).toBe('not-an-email');
+		expect(mockSupabase.auth.signInWithPassword).not.toHaveBeenCalled();
+	});
+
+	it('register action — rejects a malformed email before contacting Supabase', async () => {
+		const formData = createMockFormData({ email: 'nobody@nowhere', password: 'password123' });
+
+		const mockEvent = {
+			request: createMockRequest(formData),
+			locals: { supabase: mockSupabase },
+			url: createMockUrl('/auth'),
+			cookies: createMockCookies()
+		};
+
+		const result = await actions.register(mockEvent as any);
+		expect(result?.status).toBe(400);
+		expect((result as any)?.data?.error).toBe('Please enter a valid email address.');
+		expect(mockSupabase.auth.signUp).not.toHaveBeenCalled();
+	});
+
+	it('register action — hands Supabase the /auth/callback confirmation redirect on the request origin', async () => {
+		const formData = createMockFormData({ email: 'newuser@example.com', password: 'password123' });
+		mockSupabase.auth.signUp.mockResolvedValue({ error: null });
+
+		const mockEvent = {
+			request: createMockRequest(formData),
+			locals: { supabase: mockSupabase },
+			url: createMockUrl('/auth'),
+			cookies: createMockCookies()
+		};
+
+		try {
+			await actions.register(mockEvent as any);
+		} catch {
+			// The success path redirects by throwing; only the signUp call matters here.
+		}
+
+		// The callback route exists for exactly this link — a wrong origin or
+		// path would strand email confirmation.
+		expect(mockSupabase.auth.signUp).toHaveBeenCalledWith({
+			email: 'newuser@example.com',
+			password: 'password123',
+			options: { emailRedirectTo: 'http://localhost:5173/auth/callback' }
+		});
 	});
 
 	it('login action — returns fail(400) for invalid credentials', async () => {
@@ -469,6 +539,150 @@ describe('Auth Callback — /auth/callback', () => {
 			expect(e.status).toBe(303);
 			expect(e.location).toBe('/auth?error=callback_error');
 		}
+	});
+
+	it('redirects to /auth?error=callback_error when the exchange THROWS (transport failure), not a 500', async () => {
+		mockSupabase.auth.exchangeCodeForSession.mockRejectedValue(new TypeError('fetch failed'));
+		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+		const mockEvent = {
+			url: createMockUrl('/auth/callback', { code: 'some-code' }),
+			locals: { supabase: mockSupabase },
+			cookies: createMockCookies()
+		};
+
+		try {
+			await callbackGET(mockEvent as any);
+			expect.fail('Expected redirect to be thrown');
+		} catch (e: any) {
+			expect(e.status).toBe(303);
+			expect(e.location).toBe('/auth?error=callback_error');
+		}
+		expect(warnSpy).toHaveBeenCalled();
+		warnSpy.mockRestore();
+	});
+});
+
+describe('Server Hook — response shaping', () => {
+	it('stamps the four security headers on every response', async () => {
+		mockSupabase.auth.getSession.mockResolvedValue({ data: { session: null } });
+		const event = { locals: {} as any, cookies: createMockCookies() };
+		const resolve = vi.fn(async () => new Response('OK'));
+
+		const response = (await handle({ event, resolve } as any)) as Response;
+
+		expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff');
+		expect(response.headers.get('X-Frame-Options')).toBe('SAMEORIGIN');
+		expect(response.headers.get('Referrer-Policy')).toBe('strict-origin-when-cross-origin');
+		// The microphone MUST stay allowed for self — practice records the user.
+		expect(response.headers.get('Permissions-Policy')).toBe(
+			'camera=(), geolocation=(), microphone=(self)'
+		);
+	});
+
+	it('lets only the Supabase pagination/version headers through SSR serialization', async () => {
+		mockSupabase.auth.getSession.mockResolvedValue({ data: { session: null } });
+		const event = { locals: {} as any, cookies: createMockCookies() };
+		const resolve = vi.fn(async (_event: unknown, _opts?: ResolveOpts) => new Response('OK'));
+
+		await handle({ event, resolve } as any);
+
+		const opts = resolve.mock.calls[0][1] as Required<ResolveOpts>;
+		expect(typeof opts.filterSerializedResponseHeaders).toBe('function');
+		const allowed = (name: string): boolean => opts.filterSerializedResponseHeaders(name, '');
+		expect(allowed('content-range')).toBe(true);
+		expect(allowed('x-supabase-api-version')).toBe(true);
+		expect(allowed('set-cookie')).toBe(false);
+		expect(allowed('authorization')).toBe(false);
+	});
+});
+
+describe('Server Hook — Playwright escape hatch (PLAYWRIGHT=1 + e2e-test-user cookie)', () => {
+	// The gate is evaluated at module scope, so each case imports a FRESH
+	// hooks.server after setting the env (vi.resetModules runs in beforeEach).
+	const testUser = { id: 'e2e-user-1', email: 'e2e@example.com', isAdmin: true };
+
+	function eventFor(hostname: string, cookie: string | null) {
+		const cookies = createMockCookies();
+		if (cookie !== null) cookies.set('e2e-test-user', cookie);
+		return {
+			locals: {} as any,
+			cookies,
+			url: new URL(`http://${hostname}:5173/`)
+		};
+	}
+
+	async function freshHandle() {
+		const ssr = await import('@supabase/ssr');
+		const fresh = await import('../../src/hooks.server');
+		return { handle: fresh.handle, createServerClient: vi.mocked(ssr.createServerClient) };
+	}
+
+	afterEach(() => {
+		vi.unstubAllEnvs();
+	});
+
+	it('synthesises the session from the cookie on loopback and never builds a real Supabase client', async () => {
+		vi.stubEnv('PLAYWRIGHT', '1');
+		const { handle, createServerClient } = await freshHandle();
+		const event = eventFor('localhost', encodeURIComponent(JSON.stringify(testUser)));
+		const resolve = vi.fn(async () => new Response('OK'));
+
+		await handle({ event, resolve } as any);
+
+		expect(createServerClient).not.toHaveBeenCalled();
+		const { user, session, degraded } = await event.locals.safeGetSession();
+		expect(user).toEqual({ id: 'e2e-user-1', email: 'e2e@example.com' });
+		expect(session?.user).toEqual({ id: 'e2e-user-1', email: 'e2e@example.com' });
+		expect(degraded).toBe(false);
+		// The stub answers the admin-profile lookup from the cookie's isAdmin.
+		const profile = await event.locals.supabase.from('user_profiles').select('is_admin').eq('id', 'x').single();
+		expect(profile).toEqual({ data: { is_admin: true }, error: null });
+	});
+
+	it('signOut on the stub ENDS the synthetic session by deleting the cookie', async () => {
+		vi.stubEnv('PLAYWRIGHT', '1');
+		const { handle } = await freshHandle();
+		const event = eventFor('127.0.0.1', encodeURIComponent(JSON.stringify(testUser)));
+		await handle({ event, resolve: vi.fn(async () => new Response('OK')) } as any);
+
+		await event.locals.supabase.auth.signOut();
+
+		expect(event.cookies.delete).toHaveBeenCalledWith('e2e-test-user', { path: '/' });
+	});
+
+	it('REFUSES the cookie on a routable host even with PLAYWRIGHT=1 (defense-in-depth)', async () => {
+		vi.stubEnv('PLAYWRIGHT', '1');
+		const { handle, createServerClient } = await freshHandle();
+		createServerClient.mockReturnValue(createMockSupabaseClient() as any);
+		const event = eventFor('mankunkujazz.com', encodeURIComponent(JSON.stringify(testUser)));
+
+		await handle({ event, resolve: vi.fn(async () => new Response('OK')) } as any);
+
+		// Real path: a real server client was constructed for the request.
+		expect(createServerClient).toHaveBeenCalledTimes(1);
+	});
+
+	it('ignores the cookie entirely when PLAYWRIGHT is not set', async () => {
+		vi.stubEnv('PLAYWRIGHT', '');
+		const { handle, createServerClient } = await freshHandle();
+		createServerClient.mockReturnValue(createMockSupabaseClient() as any);
+		const event = eventFor('localhost', encodeURIComponent(JSON.stringify(testUser)));
+
+		await handle({ event, resolve: vi.fn(async () => new Response('OK')) } as any);
+
+		expect(createServerClient).toHaveBeenCalledTimes(1);
+	});
+
+	it('ignores a malformed cookie (no id/email) and falls through to the real client', async () => {
+		vi.stubEnv('PLAYWRIGHT', '1');
+		const { handle, createServerClient } = await freshHandle();
+		createServerClient.mockReturnValue(createMockSupabaseClient() as any);
+		const event = eventFor('localhost', encodeURIComponent(JSON.stringify({ id: 42 })));
+
+		await handle({ event, resolve: vi.fn(async () => new Response('OK')) } as any);
+
+		expect(createServerClient).toHaveBeenCalledTimes(1);
 	});
 });
 

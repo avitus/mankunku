@@ -24,7 +24,12 @@ Object.defineProperty(globalThis, 'localStorage', {
 	configurable: true
 });
 
-import { anonBucketNonEmpty, adoptAnonInto, clearNamespace } from '$lib/persistence/namespace';
+import {
+	anonBucketNonEmpty,
+	adoptAnonInto,
+	clearNamespace,
+	runNamespaceUpgradeIfNeeded
+} from '$lib/persistence/namespace';
 
 beforeEach(() => {
 	accessorReads.mockClear();
@@ -43,6 +48,13 @@ describe('namespace guards under an SSR runtime with a lazy localStorage accesso
 
 	it('clearNamespace short-circuits without evaluating the accessor', () => {
 		expect(() => clearNamespace('user-1')).not.toThrow();
+		expect(accessorReads).not.toHaveBeenCalled();
+	});
+
+	it('the module-eval schema upgrade (storage.ts imports it) short-circuits without evaluating the accessor', () => {
+		// storage.ts runs this at import time on the server too, so it is the
+		// first candidate to trip the accessor on every SSR request.
+		expect(() => runNamespaceUpgradeIfNeeded()).not.toThrow();
 		expect(accessorReads).not.toHaveBeenCalled();
 	});
 

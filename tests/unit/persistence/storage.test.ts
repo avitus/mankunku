@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterAll, vi } from 'vitest';
 import { save, load, remove, listKeys, clearAll } from '$lib/persistence/storage';
+import { setActiveUid, __resetNamespaceCacheForTests } from '$lib/persistence/namespace';
 
 type MockStorage = Storage & { _store: Record<string, string> };
 
@@ -148,6 +149,36 @@ describe('listKeys', () => {
 		expect(keys).toContain('a');
 		expect(keys).toContain('b');
 		expect(keys).toContain('c');
+	});
+});
+
+describe('under an authenticated namespace', () => {
+	beforeEach(() => {
+		__resetNamespaceCacheForTests();
+		setActiveUid('user-a');
+	});
+
+	afterAll(() => {
+		__resetNamespaceCacheForTests();
+	});
+
+	it('listKeys strips the u:<uid>: prefix and omits other users, the anon bucket and control keys', () => {
+		mock._store['mankunku:u:user-a:settings'] = '{}';
+		mock._store['mankunku:u:user-a:progress'] = '[]';
+		mock._store['mankunku:u:user-b:settings'] = '{}';
+		mock._store['mankunku:settings'] = '{}'; // anon bucket
+		expect(listKeys().sort()).toEqual(['progress', 'settings']);
+	});
+
+	it('clearAll erases only the active user bucket — never another user, the anon bucket or the pointer', () => {
+		mock._store['mankunku:u:user-a:settings'] = '{}';
+		mock._store['mankunku:u:user-b:settings'] = '"keep"';
+		mock._store['mankunku:settings'] = '"anon-keep"';
+		clearAll();
+		expect(mock._store['mankunku:u:user-a:settings']).toBeUndefined();
+		expect(mock._store['mankunku:u:user-b:settings']).toBe('"keep"');
+		expect(mock._store['mankunku:settings']).toBe('"anon-keep"');
+		expect(mock._store['mankunku:__active']).toBe(JSON.stringify('user-a'));
 	});
 });
 
