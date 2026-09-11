@@ -87,13 +87,30 @@ export const load: LayoutLoad = async ({ data, depends, fetch }) => {
 	// (auth server unreachable, e.g. the 2026-07-13 outage) or a genuine
 	// sign-out is handled non-destructively inside reconcileActiveUser.
 	//
-	// When a reload is scheduled (a real user switch / first-login adoption),
-	// this realm is about to be torn down — do NOT kick off hydration in it, or
-	// it would run against the previous user's namespace before the reload lands.
+	// On a PAGE LOAD this is a no-op: hooks.client.ts `init` already ran the
+	// same reconcile against the same verdict (the head <meta>, from the same
+	// memoized safeGetSession) before SvelteKit imported any route node, and on
+	// a reload never let hydration start. A reload decided HERE during
+	// hydration races the node imports hydration has in flight — which is why
+	// the page-load decision moved to `init`; this call only decides one if a
+	// page arrives without the head verdict. It stays for the client-side
+	// RE-RUNS `init` never sees: login (use:enhance → goto with invalidateAll)
+	// and `invalidate('supabase:auth')` from onAuthStateChange.
+	//
+	// When a reload has started, this realm is about to be torn down: park the
+	// load on a promise that never settles. Returning data would let SvelteKit
+	// render the target page from the previous user's in-memory state while
+	// storage already points at the new bucket; parking also means SvelteKit
+	// never awaits a sibling node whose import the reload aborts (a client-side
+	// load awaits its branch in order and swallows the rest), so its error path
+	// can't run during teardown.
 	if (isBrowser()) {
 		const { reconcileActiveUser } = await import('$lib/persistence/user-scope');
-		const { action } = reconcileActiveUser(user?.id ?? null, data.degraded);
+		const { action, reloading } = reconcileActiveUser(user?.id ?? null, data.degraded);
+		if (reloading) return new Promise<never>(() => {});
 		if (action === 'reload') {
+			// The loop guard declined the reload: skip hydration (it would run
+			// against in-memory state read from the previous namespace).
 			return { supabase, session, user, isAdmin };
 		}
 	}

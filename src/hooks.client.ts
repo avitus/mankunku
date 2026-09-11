@@ -1,7 +1,7 @@
 import { handleErrorWithSentry, replayIntegration } from "@sentry/sveltekit";
 import * as Sentry from '@sentry/sveltekit';
 import type { ErrorEvent, EventHint } from '@sentry/sveltekit';
-import type { HandleClientError } from '@sveltejs/kit';
+import type { ClientInit, HandleClientError } from '@sveltejs/kit';
 import {
   isStaleChunkErrorMessage,
   shouldDropStaleChunkReport,
@@ -11,6 +11,9 @@ import {
 } from '$lib/util/stale-chunk';
 import { isEmptyErrorEvent } from '$lib/util/sentry-filters';
 import { serverReachable } from '$lib/util/server-reachable';
+import { documentSettled } from '$lib/util/document-settled';
+import { readAuthVerdict } from '$lib/persistence/auth-verdict';
+import { reconcileBeforeHydration } from '$lib/persistence/user-scope';
 
 // `import.meta.env.DEV` is false for `npm run preview`, so a preview running
 // on localhost still shipped events with environment='production' (see Sentry
@@ -37,112 +40,122 @@ const SENTRY_ENVIRONMENT = detectEnvironment();
 // is the actionable case and is reported. The report/recovery decisions are
 // keyed per chunk URL in $lib/util/stale-chunk (unit-tested). See MANKUNKU-8.
 
-Sentry.init({
-  dsn: 'https://a12d5e915778d470c90bf492a29f1bb4@o135479.ingest.us.sentry.io/4511259307081728',
+/**
+ * Start Sentry — from `init`, once this page is known to boot. A realm being
+ * re-homed starts nothing: `Sentry.init` would spin up Replay's compression
+ * worker and send a session envelope to /api/monitoring, and the reload would
+ * tear both down mid-flight (Playwright's Firefox logs the killed worker as
+ * NS_BINDING_ABORTED). The window this gives up — module evaluation up to
+ * SvelteKit calling `init` — runs no app code.
+ */
+function startSentry(): void {
+  Sentry.init({
+    dsn: 'https://a12d5e915778d470c90bf492a29f1bb4@o135479.ingest.us.sentry.io/4511259307081728',
 
-  // Tag events with the actual environment so dev sessions on localhost don't
-  // pollute production. The SDK defaults to 'production' when this is unset,
-  // which leaks every HMR/compile glitch from `npm run dev` into the prod
-  // project (see Sentry MANKUNKU-6/D/1/C/F/7/B/E).
-  environment: SENTRY_ENVIRONMENT,
+    // Tag events with the actual environment so dev sessions on localhost don't
+    // pollute production. The SDK defaults to 'production' when this is unset,
+    // which leaks every HMR/compile glitch from `npm run dev` into the prod
+    // project (see Sentry MANKUNKU-6/D/1/C/F/7/B/E).
+    environment: SENTRY_ENVIRONMENT,
 
-  // In dev, Vite's HMR/dev-server churn produces "error loading dynamically
-  // imported module" against localhost:5173 source URLs (e.g. app.css) when a
-  // hot update is mid-flight or the dev server restarts. Not actionable — the
-  // page recovers on the next HMR tick or via handleNavErrorRecovery below.
-  // The AbortError pattern fires when an <audio>/<video> src changes while a
-  // load is in flight (Firefox is loud about this); not actionable. See
-  // Sentry MANKUNKU-8 and MANKUNKU-M.
-  ignoreErrors: [
-    // Browsers fire AbortError on media elements when the src changes mid-load
-    // or the user navigates away. Surfaces as an unhandled rejection in
-    // Firefox; harmless. Keep filtering across all environments.
-    /The fetching process for the media resource was aborted/i,
-    /AbortError: .*aborted by the user agent/i,
-    ...(SENTRY_ENVIRONMENT === 'development'
-      ? [
-          /error loading dynamically imported module/i,
-          /Failed to fetch dynamically imported module/i
-        ]
-      : [])
-  ],
+    // In dev, Vite's HMR/dev-server churn produces "error loading dynamically
+    // imported module" against localhost:5173 source URLs (e.g. app.css) when a
+    // hot update is mid-flight or the dev server restarts. Not actionable — the
+    // page recovers on the next HMR tick or via handleNavErrorRecovery below.
+    // The AbortError pattern fires when an <audio>/<video> src changes while a
+    // load is in flight (Firefox is loud about this); not actionable. See
+    // Sentry MANKUNKU-8 and MANKUNKU-M.
+    ignoreErrors: [
+      // Browsers fire AbortError on media elements when the src changes mid-load
+      // or the user navigates away. Surfaces as an unhandled rejection in
+      // Firefox; harmless. Keep filtering across all environments.
+      /The fetching process for the media resource was aborted/i,
+      /AbortError: .*aborted by the user agent/i,
+      ...(SENTRY_ENVIRONMENT === 'development'
+        ? [
+            /error loading dynamically imported module/i,
+            /Failed to fetch dynamically imported module/i
+          ]
+        : [])
+    ],
 
-  // Drop events whose error has no message and no stacktrace — they read as
-  // "<unknown>" / "undefined" in the UI and aren't actionable. See Sentry
-  // MANKUNKU-K.
-  beforeSend(event: ErrorEvent, hint: EventHint): ErrorEvent | null {
-    const ex = event.exception?.values?.[0];
-    if (isEmptyErrorEvent(event, hint)) {
-      return null;
-    }
+    // Drop events whose error has no message and no stacktrace — they read as
+    // "<unknown>" / "undefined" in the UI and aren't actionable. See Sentry
+    // MANKUNKU-K.
+    beforeSend(event: ErrorEvent, hint: EventHint): ErrorEvent | null {
+      const ex = event.exception?.values?.[0];
+      if (isEmptyErrorEvent(event, hint)) {
+        return null;
+      }
 
-    // Drop errors thrown from Vite/Svelte HMR machinery in dev — they surface
-    // mid-save when a module is being re-evaluated and a dependent runs an
-    // effect against a momentarily-stale scope (a binding that's not defined
-    // yet, or an export that's transiently undefined). The page recovers on
-    // the next HMR tick. Two sources:
-    //   - `@vite/client`: Vite's own HMR client (see MANKUNKU-P).
-    //   - `hmr/wrapper`: Svelte's HMR effect re-runner. Surfaces as transient
-    //     "X is not defined" ReferenceErrors on localhost:5173 while editing a
-    //     component, where X is a variable/component that was just refactored
-    //     or removed. See MANKUNKU-Q/S/T/V.
-    if (SENTRY_ENVIRONMENT === 'development') {
-      const frames = ex?.stacktrace?.frames ?? [];
+      // Drop errors thrown from Vite/Svelte HMR machinery in dev — they surface
+      // mid-save when a module is being re-evaluated and a dependent runs an
+      // effect against a momentarily-stale scope (a binding that's not defined
+      // yet, or an export that's transiently undefined). The page recovers on
+      // the next HMR tick. Two sources:
+      //   - `@vite/client`: Vite's own HMR client (see MANKUNKU-P).
+      //   - `hmr/wrapper`: Svelte's HMR effect re-runner. Surfaces as transient
+      //     "X is not defined" ReferenceErrors on localhost:5173 while editing a
+      //     component, where X is a variable/component that was just refactored
+      //     or removed. See MANKUNKU-Q/S/T/V.
+      if (SENTRY_ENVIRONMENT === 'development') {
+        const frames = ex?.stacktrace?.frames ?? [];
+        if (
+          frames.some(
+            (f) =>
+              (typeof f.filename === 'string' && f.filename.includes('@vite/client')) ||
+              (typeof f.function === 'string' && f.function.includes('hmr/wrapper'))
+          )
+        ) {
+          return null;
+        }
+      }
+
+      // Stale-chunk errors: handleNavErrorRecovery below auto-recovers the first
+      // occurrence for a chunk by navigating to the click target. Don't pollute
+      // Sentry with that first
+      // occurrence — but DO report once a reload for that same chunk was already
+      // attempted, because it means the reload didn't help and the error is
+      // actionable. See MANKUNKU-8.
+      const exMessage = typeof ex?.value === 'string' ? ex.value : '';
+      const messageStr = typeof event.message === 'string' ? event.message : '';
+      const staleMessage = [exMessage, messageStr].find(isStaleChunkErrorMessage);
       if (
-        frames.some(
-          (f) =>
-            (typeof f.filename === 'string' && f.filename.includes('@vite/client')) ||
-            (typeof f.function === 'string' && f.function.includes('hmr/wrapper'))
-        )
+        staleMessage &&
+        typeof sessionStorage !== 'undefined' &&
+        shouldDropStaleChunkReport(staleMessage, sessionStorage)
       ) {
         return null;
       }
-    }
 
-    // Stale-chunk errors: handleNavErrorRecovery below auto-recovers the first
-    // occurrence for a chunk by navigating to the click target. Don't pollute
-    // Sentry with that first
-    // occurrence — but DO report once a reload for that same chunk was already
-    // attempted, because it means the reload didn't help and the error is
-    // actionable. See MANKUNKU-8.
-    const exMessage = typeof ex?.value === 'string' ? ex.value : '';
-    const messageStr = typeof event.message === 'string' ? event.message : '';
-    const staleMessage = [exMessage, messageStr].find(isStaleChunkErrorMessage);
-    if (
-      staleMessage &&
-      typeof sessionStorage !== 'undefined' &&
-      shouldDropStaleChunkReport(staleMessage, sessionStorage)
-    ) {
-      return null;
-    }
+      return event;
+    },
 
-    return event;
-  },
+    // Route envelopes through a same-origin endpoint so ad blockers and
+    // Firefox ETP don't cancel them. See src/routes/api/monitoring/+server.ts.
+    tunnel: '/api/monitoring',
 
-  // Route envelopes through a same-origin endpoint so ad blockers and
-  // Firefox ETP don't cancel them. See src/routes/api/monitoring/+server.ts.
-  tunnel: '/api/monitoring',
+    tracesSampleRate: 1.0,
 
-  tracesSampleRate: 1.0,
+    // Enable logs to be sent to Sentry
+    enableLogs: true,
 
-  // Enable logs to be sent to Sentry
-  enableLogs: true,
+    // This sets the sample rate to be 10%. You may want this to be 100% while
+    // in development and sample at a lower rate in production
+    replaysSessionSampleRate: 0.1,
 
-  // This sets the sample rate to be 10%. You may want this to be 100% while
-  // in development and sample at a lower rate in production
-  replaysSessionSampleRate: 0.1,
+    // If the entire session is not sampled, use the below sample rate to sample
+    // sessions when an error occurs.
+    replaysOnErrorSampleRate: 1.0,
 
-  // If the entire session is not sampled, use the below sample rate to sample
-  // sessions when an error occurs.
-  replaysOnErrorSampleRate: 1.0,
+    // If you don't want to use Session Replay, just remove the line below:
+    integrations: [replayIntegration()],
 
-  // If you don't want to use Session Replay, just remove the line below:
-  integrations: [replayIntegration()],
-
-  // Enable sending user PII (Personally Identifiable Information)
-  // https://docs.sentry.io/platforms/javascript/guides/sveltekit/configuration/options/#sendDefaultPii
-  sendDefaultPii: true,
-});
+    // Enable sending user PII (Personally Identifiable Information)
+    // https://docs.sentry.io/platforms/javascript/guides/sveltekit/configuration/options/#sendDefaultPii
+    sendDefaultPii: true,
+  });
+}
 
 /**
  * After a deploy, an open tab's cached HTML may reference chunk hashes the
@@ -219,3 +232,31 @@ const handleNavErrorRecovery: HandleClientError = async ({ error, event }) => {
 
 // If you have a custom error handler, pass it to `handleErrorWithSentry`
 export const handleError = handleErrorWithSentry(handleNavErrorRecovery);
+
+/**
+ * Re-home the per-user storage namespace BEFORE hydration starts.
+ *
+ * SvelteKit's client `start()` awaits this hook before it imports any route
+ * node, so a re-home reload decided here has nothing of the app's in flight to
+ * abort — the reason it moved out of the root +layout.ts load, where the
+ * aborted hydration imports surfaced as page errors, recovery probes and a
+ * Sentry event per re-home. The verdict comes from the `<meta>` hooks.server.ts
+ * writes into the head (auth-verdict.ts). On a reload this hook stays pending,
+ * so the realm never hydrates and never starts Sentry, and the reload itself
+ * waits for the document to finish loading what it started (document-settled.ts)
+ * so it aborts nothing either. Everything else — including a page without a
+ * verdict — starts Sentry and boots normally. See `reconcileBeforeHydration`.
+ *
+ * Keep state modules (anything that reads storage at module evaluation) out of
+ * this file's static imports. When the reload loop guard declines a reload, the
+ * realm hydrates on the namespace the reconcile just set — correct only because
+ * nothing in it has read storage yet.
+ */
+export const init: ClientInit = async () => {
+  const reloading = reconcileBeforeHydration(readAuthVerdict(document), () =>
+    documentSettled(document, window)
+  );
+  // Pending until the reload replaces this realm; resolves only if it failed.
+  if (reloading) await reloading;
+  startSentry();
+};

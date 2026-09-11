@@ -16,7 +16,8 @@ import { describe, it, expect, beforeEach, afterEach, afterAll, vi } from 'vites
 import {
 	reconcileActiveUser,
 	getScopeGeneration,
-	getLastUserId
+	getLastUserId,
+	wipeUserData
 } from '$lib/persistence/user-scope';
 import {
 	getActiveUid,
@@ -131,6 +132,128 @@ describe('reconcileActiveUser', () => {
 	});
 });
 
+describe('wipeUserData', () => {
+	it('erases the active user bucket, invalidates in-flight writebacks, and re-homes to anon', async () => {
+		setActiveUid('user-A');
+		local.setItem('mankunku:u:user-A:progress', '{"a":1}');
+		local.setItem('mankunku:u:user-B:progress', '{"b":1}');
+		const genBefore = getScopeGeneration();
+
+		await wipeUserData('user-A');
+
+		// Generation bumps BEFORE the wipe so a straggling sync cannot re-persist
+		// the deleted state (or copy it into the anon bucket).
+		expect(getScopeGeneration()).toBe(genBefore + 1);
+		expect(local.getItem('mankunku:u:user-A:progress')).toBeNull();
+		expect(local.getItem('mankunku:u:user-B:progress')).toBe('{"b":1}');
+		expect(getActiveUidOrNull()).toBeNull();
+	});
+
+	it('wiping an INACTIVE user leaves the realm homed where it was and does not bump the generation', async () => {
+		setActiveUid('user-A');
+		local.setItem('mankunku:u:user-A:progress', '{"a":1}');
+		local.setItem('mankunku:u:user-B:progress', '{"b":1}');
+		const genBefore = getScopeGeneration();
+
+		await wipeUserData('user-B');
+
+		expect(getScopeGeneration()).toBe(genBefore);
+		expect(getActiveUid()).toBe('user-A');
+		expect(local.getItem('mankunku:u:user-A:progress')).toBe('{"a":1}');
+		expect(local.getItem('mankunku:u:user-B:progress')).toBeNull();
+	});
+});
+
+describe('initCrossTabSync', () => {
+	type Listener = (ev: unknown) => void;
+
+	interface FakeChannel {
+		listeners: Map<string, Set<Listener>>;
+		addEventListener: (type: string, fn: Listener) => void;
+		removeEventListener: (type: string, fn: Listener) => void;
+		postMessage: (data: unknown) => void;
+		emit: (type: string, ev: unknown) => void;
+	}
+
+	function makeFakeChannel(): FakeChannel {
+		const listeners = new Map<string, Set<Listener>>();
+		return {
+			listeners,
+			addEventListener: (type, fn) => {
+				if (!listeners.has(type)) listeners.set(type, new Set());
+				listeners.get(type)!.add(fn);
+			},
+			removeEventListener: (type, fn) => listeners.get(type)?.delete(fn),
+			postMessage: () => {},
+			emit: (type, ev) => {
+				for (const fn of listeners.get(type) ?? []) fn(ev);
+			}
+		};
+	}
+
+	/** Fresh module instances so the memoised BroadcastChannel is per-test. */
+	async function freshModules(channel: FakeChannel, windowListeners: Map<string, Listener>) {
+		vi.stubGlobal('BroadcastChannel', function () {
+			return channel;
+		});
+		vi.stubGlobal('window', {
+			addEventListener: (type: string, fn: Listener) => windowListeners.set(type, fn),
+			removeEventListener: (type: string) => windowListeners.delete(type)
+		});
+		vi.resetModules();
+		const ns = await import('$lib/persistence/namespace');
+		const us = await import('$lib/persistence/user-scope');
+		return { ns, us };
+	}
+
+	it('reloads when another tab announces a DIFFERENT uid, and ignores an announcement of the current one', async () => {
+		const channel = makeFakeChannel();
+		const windowListeners = new Map<string, Listener>();
+		const { ns, us } = await freshModules(channel, windowListeners);
+		ns.setActiveUid('user-A');
+
+		const teardown = us.initCrossTabSync();
+
+		channel.emit('message', { data: { type: 'user-changed', uid: 'user-A' } });
+		expect(reloadMock).not.toHaveBeenCalled();
+
+		channel.emit('message', { data: { type: 'user-changed', uid: 'user-B' } });
+		expect(reloadMock).toHaveBeenCalledTimes(1);
+
+		teardown();
+		expect(channel.listeners.get('message')?.size ?? 0).toBe(0);
+		expect(windowListeners.has('storage')).toBe(false);
+	});
+
+	it('reloads on a storage event that moves the __active pointer to another uid', async () => {
+		const channel = makeFakeChannel();
+		const windowListeners = new Map<string, Listener>();
+		const { ns, us } = await freshModules(channel, windowListeners);
+		ns.setActiveUid('user-A');
+		us.initCrossTabSync();
+
+		const onStorage = windowListeners.get('storage')!;
+		onStorage({ key: 'mankunku:u:user-A:progress', newValue: '{}' }); // ordinary data write
+		onStorage({ key: 'mankunku:__active', newValue: JSON.stringify('user-A') }); // same uid
+		expect(reloadMock).not.toHaveBeenCalled();
+
+		onStorage({ key: 'mankunku:__active', newValue: JSON.stringify('user-B') });
+		expect(reloadMock).toHaveBeenCalledTimes(1);
+	});
+
+	it('guards against a reload loop: the same target is reloaded once per tab-session', async () => {
+		const channel = makeFakeChannel();
+		const { ns, us } = await freshModules(channel, new Map());
+		ns.setActiveUid('user-A');
+		us.initCrossTabSync();
+
+		channel.emit('message', { data: { type: 'user-changed', uid: 'user-B' } });
+		channel.emit('message', { data: { type: 'user-changed', uid: 'user-B' } });
+		expect(reloadMock).toHaveBeenCalledTimes(1);
+		expect(session.getItem('mankunku:reload-target')).toBe('user-B');
+	});
+});
+
 describe('getLastUserId', () => {
 	it('reflects the active uid, and is null in the anonymous bucket', () => {
 		setActiveUid('user-A');
@@ -138,17 +261,5 @@ describe('getLastUserId', () => {
 
 		setActiveUid(null); // → anon
 		expect(getLastUserId()).toBeNull();
-	});
-});
-
-describe('namespace — active uid resolution', () => {
-	it('setActiveUid round-trips through getActiveUid / getActiveUidOrNull', () => {
-		setActiveUid('user-X');
-		expect(getActiveUid()).toBe('user-X');
-		expect(getActiveUidOrNull()).toBe('user-X');
-
-		setActiveUid(null);
-		expect(getActiveUid()).toBe('anon');
-		expect(getActiveUidOrNull()).toBeNull();
 	});
 });
