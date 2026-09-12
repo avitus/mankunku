@@ -18,6 +18,19 @@ const IGNORED_PATTERNS: IgnoreRule[] = [
 	// users see this as a no-op because the page already moved on. Pinned to
 	// the /api/monitoring path so unrelated CORS regressions still fail.
 	/Fetch API cannot load .*\/api\/monitoring(?:[/?#].*)? due to access control checks/,
+	// The Chromium face of the same beacon race, seen as a console.error
+	// rather than a pageerror: `net::ERR_CONNECTION_RESET` on the tunnel POST.
+	// It reproduces only in backing-render-audio.spec, which blocks the main
+	// thread for seconds at a time decoding whole WAVs sample-by-sample, and
+	// it is not new here — the spec fails the same way on dev's tip before
+	// this rule. The endpoint itself is healthy throughout —
+	// it answers a direct POST in ~1 ms and the server logs nothing — so what
+	// is lost is one telemetry envelope, which is exactly what a user closing
+	// a busy tab loses too. Pinned to BOTH the reset and the /api/monitoring
+	// path: any other connection reset, and any other failure on this path,
+	// still fails the test.
+	(text, url) =>
+		/net::ERR_CONNECTION_RESET/.test(text) && /\/api\/monitoring(?:[/?#]|$)/.test(url),
 	// Firefox-only Playwright artifact: when a pointer action's hit-target
 	// check races DOM that mounts/unmounts under the cursor (click-expanded
 	// panels; hover-revealed popovers before them), the harness's own injected
