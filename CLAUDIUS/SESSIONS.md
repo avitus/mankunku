@@ -3521,3 +3521,29 @@ Andy: "show practice time on /progress."
 - Verified: 2 new e2e specs (chromium) plus the 7 other /progress-area specs,
   all green on a fresh build at port 4191; vitest 302 files / 5023 passed;
   svelte-check 2786 files clean. `origin/dev` 26a6958.
+
+### Same session, fourth part — the all-time card
+
+Andy: "add an all-time practice-time card next to Day Streak. i'm the only
+user and I can live with the slight inconsistency."
+
+- Worth recording that the objection I raised — pre-switch days inflate the
+  total — was real but not decisive, and he settled it in one line. The card
+  is honest enough for an audience of one, and the alternative (restating
+  history) is the thing he'd already ruled out. Raise the cost, name it in the
+  commit, build the thing.
+- Layout: three cards became four, `grid-cols-2 sm:grid-cols-4`, which also
+  improves the phone case the old `grid-cols-3` squeezed. Colour: first pass
+  gave the card brass-soft and put two identical brass-soft numbers side by
+  side; switching it to brass pairs it with the streak (both showing-up
+  numbers) and leaves brass-soft as mastery's achievement tone. Checked in a
+  screenshot both ways rather than reasoned about.
+- The e2e seeds a day OUTSIDE the current month so the card (2h 35m) and the
+  period panel (1h 35m) are proved to disagree by exactly that day. A test
+  where both read the same number would pass with the card wired to either.
+- Self-inflicted: I stripped a temporary screenshot line with
+  `git checkout <file>` and took an uncommitted new test with it. The file had
+  work in it that HEAD didn't. Revert edits the way I made them — by editing —
+  not with a command that resets to the index.
+- Verified: vitest 302 files / 5024 passed; svelte-check 2786 clean; 10
+  /progress-area e2e green on chromium. `origin/dev` 21f5d1b.
