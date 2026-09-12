@@ -15,3 +15,22 @@ export function formatDuration(seconds: number): string {
 	const pad = (n: number): string => n.toString().padStart(2, '0');
 	return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`;
 }
+
+/**
+ * Format a total in whole minutes the way a person says it — "43m",
+ * "1h 12m", "2h".
+ *
+ * Distinct from `formatDuration` on purpose: that one is a running clock, read
+ * a second at a time, so it pads and keeps every field. This is a total read at
+ * a glance (a day's practice, a week's), where a seconds field is noise and
+ * "1h 0m" is worse than "1h". Input is rounded, not truncated — a summary of
+ * fractional minutes should say 5m rather than 4m — and negatives clamp to
+ * zero, since a total can't be negative.
+ */
+export function formatMinutes(minutes: number): string {
+	const total = Math.max(0, Math.round(minutes));
+	const h = Math.floor(total / 60);
+	const m = total % 60;
+	if (h === 0) return `${m}m`;
+	return m === 0 ? `${h}h` : `${h}h ${m}m`;
+}
