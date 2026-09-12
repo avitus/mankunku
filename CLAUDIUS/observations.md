@@ -2027,3 +2027,39 @@ production scheduler. And the guard that the reveal actually fired: I nearly
 shipped the test without it, and it would have passed with `passes = [1,1]`
 everywhere — a green test asserting nothing about the feature it was named
 for. A conditional feature's test needs an assertion that the condition held.
+
+## A metric that never measured the thing it was named for
+
+The practice-minutes fix is the same lesson as the clock, one level up. Andy
+suspected the lead-sheet passes had broken the time calculation. They hadn't
+broken the estimate — but they exposed that the *other* time number in the app
+had never been a time number. `(attempts) × 2 minutes` is a count wearing a
+unit. Adding three play-throughs to a difficult key lengthens a session by
+half again and moves that figure by nothing, because nothing in it is a
+duration. The feature didn't break the metric; it revealed that the metric was
+decorative.
+
+What makes this worth remembering is how comfortable such a number is. It is
+monotonic, it never NaNs, it rises when you practise more, and it sits in a
+cloud column called `practice_minutes` with a comment saying "estimated". Every
+property except correspondence to reality. I'd guess most "estimated" constants
+in most codebases are this: a plausible-looking placeholder that survives
+because nothing ever contradicts it out loud.
+
+The structural bit worth keeping: when a derived field stops being a function
+of the fields it used to be derived from, every place that reasoned about it
+*through* those fields silently breaks. Here it was the cloud reconcile's push
+check — a list of counters, each asked "is local bigger?", which covered
+minutes for free while minutes were `count × 2`. The merge itself I remembered
+to change; the push check nearly slipped, and its failure mode is invisible:
+two devices agreeing on every count, one holding a longer day, and no path for
+the shorter to ever learn. A derived field's dependents are not only the code
+that computes it.
+
+And one thing I got right by asking rather than assuming: ear training has a
+real, idle-excluding practice clock already written, sitting in page-local
+state. It was tempting to plumb it through a new `session_results` column in
+the same change. But "fix the calculation" and "add a synced column plus a
+production migration" are different asks, and the honest 0.5-minute estimate
+carries its own docstring saying exactly what it would take to make it exact.
+Leaving a well-labelled approximation beats an unasked migration.

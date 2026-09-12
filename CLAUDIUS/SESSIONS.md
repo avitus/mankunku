@@ -3459,3 +3459,40 @@ play throughs for difficult keys."
 - Verified: vitest 284 files / 4613 passed + 36 expected-fail before the
   rebase, 27 lick-practice files / 610 passed after it; svelte-check 2785
   files, 0 errors / 0 warnings. Landed on `origin/dev` as 806baae.
+
+### Same session, second half — practice minutes
+
+Andy: "yes, fix the practice minutes calculation too. There is no need to go
+back and rewrite history."
+
+- The old figure was `(ear attempts + lick KEY attempts) × 2`. Note what that
+  means for the thing he had just asked about: the lead-sheet passes made
+  sessions materially longer and moved this number by exactly zero, because it
+  never measured time at all.
+- Lick practice already records its length, so that side became real. The trap
+  was `splitReportByProgression`, which copies the session-wide
+  `elapsedMinutes` onto every per-progression slice: a Daily session across
+  three progressions leaves three rows each claiming the whole session, so
+  `SUM(rows)` trebles it. `sumLickPracticeMinutes` groups by the base id the
+  session page mints (`${base}-${progressionType}`) and takes one figure per
+  session — max, since every scored key re-upserts all slices. That docstring's
+  old claim that consumers "ignore" the session-wide fields is now false, so it
+  changed too.
+- Ear training genuinely has nothing to read: `session_results` stores no
+  duration, and the ear-training page's active-practice clock — which is
+  careful, idle-excluding work — is page-local. Making it exact needs a column;
+  told Andy rather than migrating unasked. Meanwhile 0.5 min/attempt instead of
+  2 min/row.
+- "No rewriting history" fell out for free: `mergeWithExisting` takes the MAX
+  of the two sides, the same monotonic rule the counters use, so stored days
+  keep their old figure. The consequence I nearly missed is on the other side
+  of the same coin — the reconcile's push check tests each counter to decide
+  whether the cloud must learn the local row, and minutes used to be implied by
+  `sessionCount`. Now they aren't, so minutes needed their own clause or two
+  devices agreeing on every count would never reconcile the longer day. Pinned.
+- Noted in passing, not touched: `UserProgress.totalPracticeTime` has no
+  writer anywhere. It initialises to 0, is max-merged, and is synced to
+  `total_practice_time`. A second practice-time field that has always read
+  zero.
+- Verified: vitest 302 files / 5019 passed + 36 expected-fail; svelte-check
+  2785 files clean. `origin/dev` 56d5238.
