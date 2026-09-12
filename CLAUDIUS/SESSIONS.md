@@ -3414,3 +3414,48 @@ cache until a boundary hitch is actually observed.
   2785 files, 0 errors / 0 warnings; chromium e2e 205 passed / 5 skipped
   against a fresh `PLAYWRIGHT=1` build of this worktree on port 4187.
   Landed on `origin/dev` as 2c2b126 + c3f2072.
+
+## 2026-09-11 — Daily-practice time: the 3× passes were charged, the clock was not
+
+Andy: "with recent changes to the daily lick practice, I don't believe we are
+calculating the time correctly any longer" — then, asked which surface: the
+setup estimate, and "just check the calculation because we recently added 3x
+play throughs for difficult keys."
+
+- **The 3× charge is correct, and now provably so.** `leadSheetExtras` →
+  `lickAudioBars({extraWindows, pauseBars})` reproduces what the scheduler
+  plays: `LEAD_SHEET_PASSES − 1` extra whole key windows and, for a revealed
+  key that doesn't open the cycle, `LEAD_SHEET_PAUSE_BARS`. Verified three
+  ways rather than by re-reading the arithmetic: against
+  `buildLickSuperPhrase`'s `lengthBars` (the phrase the transport is handed),
+  against `planCycleWindows`'s `cycleEndTick` (the layout the recording
+  windows are scheduled from, called with the page's own
+  `getDemoBars`/`getKeyPasses`/`getKeyPauses`), and preview-vs-Start. With a
+  guard — `expect(revealed).toBe(3)` — because a reveal test where nothing
+  reveals passes for free and proves nothing.
+- Magnitude, for the record: a 2-bar lick with 2 keys costs 8 transport bars
+  plain, 14 when the newest key reveals (demo 2 + key 2 + pause 2 + 3×2).
+  75% more. On a 4-bar progression, 12 → 24 bars. The estimate moving a lot
+  after the lead-sheet work is the estimate being right, not wrong.
+- **What was actually wrong sits one layer out: the session mixes two
+  clocks.** `totalSeconds` is `plannedSeconds`, pure bars and beats with the
+  load excluded on purpose. `elapsedSeconds` was wall clock from the Start
+  press — which precedes `goto()`, the mic prompt and 307 sample decodes. So
+  the load was charged to the session twice over: the countdown ran fast
+  (zero, then overtime, licks still to play), and `startInterLickTransition`'s
+  `timeUp` compares that same wall clock against the duration knob, so a plan
+  that fills the budget could lose its last lick to loading time.
+  `markSessionTransportStart()` in playPhrase's `onStarted` re-origins it at
+  tick 0 = the count-in bar the cost model charges first. This was latent
+  until `cf079eb` made the countdown total tight; against a 20-minute knob
+  nobody would ever have seen it.
+- **Not fixed, flagged:** `/progress`'s `practiceMinutes` is
+  `(ear attempts + lick KEY attempts) × ESTIMATED_MINUTES_PER_SESSION (2)`.
+  A 3-lick × 2-key Daily session — four real minutes — books twelve. Real
+  numbers exist for both sides now (`plannedSeconds`, and each log entry's
+  `elapsedMinutes`), but the field is cloud-synced (`daily_summaries
+  .practice_minutes`) and derive-on-write, so changing its meaning rewrites
+  history. Andy's call, not mine.
+- Verified: vitest 284 files / 4613 passed + 36 expected-fail before the
+  rebase, 27 lick-practice files / 610 passed after it; svelte-check 2785
+  files, 0 errors / 0 warnings. Landed on `origin/dev` as 806baae.

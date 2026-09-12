@@ -1993,3 +1993,37 @@ sitting in plain sight, and the only reason that was caught is that I grepped
 it like every other entry instead of trusting the list. The cost of checking
 was one line of output; the cost of not checking would have been a broken
 rotation sort in deep practice.
+
+## The estimate was innocent; the clock it was compared against was not
+
+Andy's instinct ("the 3× play-throughs — check the calculation") pointed at
+the newest, most suspicious code, and that code was right. The cost model had
+been updated in the very commits that added the passes and the reading pause,
+and the call sites all pass `leadSheetExtras`. What was wrong was the oldest,
+dullest thing in the frame: `Date.now()` at the Start press.
+
+The lesson I want to keep is about where a number's error lives. An estimate
+is a pair — a prediction and the measurement it will be judged against — and
+this codebase had put enormous care into one half. `lick-practice-duration.ts`
+is a small essay on the bar layout, and it earns it: I could check the
+prediction against the scheduler's own tick math and get exact agreement to
+six decimals. The measurement half had no docstring, no test, and one line:
+`Math.floor((Date.now() - startTime) / 1000)`. Nobody lied; the two halves
+were just written to answer different questions, one in transport bars and one
+in wall-clock seconds, and the moment `cf079eb` made the total tight the
+mismatch became visible as "the time is wrong."
+
+That's the shape of the bug class: not an error inside a calculation, but two
+calculations that agree in units and disagree about what they are measuring.
+Bars vs seconds would have been caught by types. Seconds vs seconds was not.
+
+Second thing worth writing down: the verification that convinced me was not
+re-reading `lickAudioBars` — I had already read it twice and it looked right
+both times, which is exactly what a wrong function looks like. What convinced
+me was calling `planCycleWindows` from the test with the same three arguments
+the session page passes it, and asserting the super phrase spans the same
+bars. Three independent derivations of the same bar count, one of them the
+production scheduler. And the guard that the reveal actually fired: I nearly
+shipped the test without it, and it would have passed with `passes = [1,1]`
+everywhere — a green test asserting nothing about the feature it was named
+for. A conditional feature's test needs an assertion that the condition held.
