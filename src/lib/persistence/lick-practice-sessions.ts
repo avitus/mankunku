@@ -73,6 +73,45 @@ export function upsertLickPracticeSession(
 	return entry;
 }
 
+/**
+ * The session a log entry belongs to.
+ *
+ * The session page mints one base id per session and upserts one entry per
+ * practiced progression under `${base}-${progressionType}`, so a Daily session
+ * across three progressions leaves three entries of one session. Progression
+ * names never collide with the base's own `lp-<ms>-<4 chars>` shape, and an
+ * entry whose id predates the composite scheme is its own session.
+ */
+function baseSessionId(entry: LickPracticeSessionLogEntry): string {
+	const suffix = `-${entry.progressionType}`;
+	return entry.id.endsWith(suffix) ? entry.id.slice(0, -suffix.length) : entry.id;
+}
+
+/**
+ * Real minutes of practice these entries represent.
+ *
+ * `report.elapsedMinutes` describes the whole SESSION, and
+ * `splitReportByProgression` copies it onto every slice — summing rows would
+ * count a three-progression Daily session three times over. So group by
+ * session and take one figure each: the max, since every scored key re-upserts
+ * all of a session's slices and the largest is the most complete. This is what
+ * the daily summary charges for lick practice, in place of the flat per-attempt
+ * estimate it used before the session length was recorded.
+ */
+export function sumLickPracticeMinutes(
+	entries: readonly LickPracticeSessionLogEntry[]
+): number {
+	const perSession = new Map<string, number>();
+	for (const entry of entries) {
+		const id = baseSessionId(entry);
+		const minutes = entry.report.elapsedMinutes ?? 0;
+		perSession.set(id, Math.max(perSession.get(id) ?? 0, minutes));
+	}
+	let total = 0;
+	for (const minutes of perSession.values()) total += minutes;
+	return total;
+}
+
 export function clearLickPracticeSessions(): void {
 	saveLickPracticeSessions([]);
 }
@@ -83,8 +122,9 @@ export function clearLickPracticeSessions(): void {
  * whose plan item used that progression, with aggregates recomputed for
  * the subset (overallAverage, totalAttempts, totalPassed). Session-wide
  * fields (elapsedMinutes, single-lick round metadata) are preserved on
- * every slice — they describe the whole session, and the persisted log's
- * consumers (picker, daily summary) ignore them.
+ * every slice — they describe the whole session, so a consumer that adds them
+ * up has to group the slices back into their session first
+ * (`sumLickPracticeMinutes`).
  *
  * Daily Practice sessions need this so the session log records each
  * progression actually practiced, rather than collapsing the whole

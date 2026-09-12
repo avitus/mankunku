@@ -28,7 +28,10 @@ import type {
 } from '$lib/types/progress';
 import type { Grade } from '$lib/types/scoring';
 import type { ScaleType } from '$lib/tonality/tonality';
-import type { LickPracticeSessionLogEntry } from '$lib/persistence/lick-practice-sessions';
+import {
+	sumLickPracticeMinutes,
+	type LickPracticeSessionLogEntry
+} from '$lib/persistence/lick-practice-sessions';
 import { save, load, remove } from '$lib/persistence/storage';
 import { scoreToGrade } from '$lib/scoring/grades';
 
@@ -47,7 +50,19 @@ export interface ComplexitySnapshot {
 
 const SUMMARIES_KEY = 'daily-summaries';
 const META_KEY = 'progress-meta';
-const ESTIMATED_MINUTES_PER_SESSION = 2;
+/**
+ * Minutes charged per scored ear-training attempt.
+ *
+ * The lick side of `practiceMinutes` is real recorded time, but ear training
+ * stores no duration — `SessionResult` has a timestamp and nothing else to go
+ * on, and the ear-training page's active-practice clock is page-local. So its
+ * attempts are still estimated; this is the size of one attempt rather than the
+ * flat two minutes per *row* that used to be charged to both sides (which read
+ * a six-key lick session as twelve minutes). An attempt is a phrase played, a
+ * phrase answered and a score read: of the order of half a minute at normal
+ * tempos, not two.
+ */
+const EAR_MINUTES_PER_ATTEMPT = 0.5;
 const PROGRESS_KEY = 'progress';
 const LICK_SESSIONS_KEY = 'lick-practice-sessions';
 
@@ -150,12 +165,23 @@ export function deriveDailySummary(
 		categories[s.category] = (categories[s.category] ?? 0) + 1;
 	}
 
+	// Lick practice knows how long it ran; ear training doesn't (see
+	// EAR_MINUTES_PER_ATTEMPT). Lick rows are grouped back into their sessions
+	// before summing — a Daily session leaves one row per progression, each
+	// carrying the whole session's length. Only genuine ear-training rows are
+	// charged the per-attempt estimate: a legacy `source: 'lick-practice'` row
+	// in progress.sessions has its time counted on the lick side already.
+	const earMinutes =
+		dayEar.filter((s) => (s.source ?? 'ear-training') === 'ear-training').length *
+		EAR_MINUTES_PER_ATTEMPT;
+	const practiceMinutes = Math.round(earMinutes + sumLickPracticeMinutes(dayLick));
+
 	const summary: DailySummary = {
 		date,
 		sessionCount: total,
 		earTrainingSessions: earCount,
 		lickPracticeSessions: lickCount,
-		practiceMinutes: total * ESTIMATED_MINUTES_PER_SESSION,
+		practiceMinutes,
 		avgOverall: overallSum / attemptCount,
 		avgPitch: pitchSum / attemptCount,
 		avgRhythm: rhythmSum / attemptCount,
@@ -224,7 +250,11 @@ function mergeWithExisting(existing: DailySummary | undefined, derived: DailySum
 		earTrainingSessions: ear,
 		lickPracticeSessions: lick,
 		sessionCount: ear + lick,
-		practiceMinutes: (ear + lick) * ESTIMATED_MINUTES_PER_SESSION,
+		// Minutes are monotonic within a day for the same reason the counters
+		// are — you can't un-practise — so the larger figure wins. That also
+		// leaves days written under the old per-attempt model alone: their
+		// stored figure stands rather than being quietly restated.
+		practiceMinutes: Math.max(existing.practiceMinutes, derived.practiceMinutes),
 		// bestScore is a personal best — always the max of both sides, independent
 		// of which side has more attempts (a higher best can live on the side with
 		// fewer sessions).
@@ -486,7 +516,10 @@ export function reconcileCloudSummaries(cloudSummaries: DailySummary[]): DailySu
 		Object.assign(existing, merged);
 		changed = true;
 		// Push when the merged result exceeds cloud on ANY counter — not just
-		// when aggregate session totals differ. Two devices' same-day activity
+		// when aggregate session totals differ. Minutes are on that list in
+		// their own right since they stopped being a function of the counts:
+		// two devices can agree on every count and still disagree on how long
+		// the day was. Two devices' same-day activity
 		// can net equal totals while the per-source decomposition (or notes/best)
 		// is richer locally, which the cloud must still learn.
 		//
@@ -503,6 +536,7 @@ export function reconcileCloudSummaries(cloudSummaries: DailySummary[]): DailySu
 			merged.sessionCount > cs.sessionCount ||
 			(merged.earTrainingSessions ?? 0) > (cs.earTrainingSessions ?? 0) ||
 			(merged.lickPracticeSessions ?? 0) > (cs.lickPracticeSessions ?? 0) ||
+			merged.practiceMinutes > cs.practiceMinutes ||
 			merged.bestScore > cs.bestScore ||
 			merged.notesTotal > cs.notesTotal ||
 			merged.notesHit > cs.notesHit ||

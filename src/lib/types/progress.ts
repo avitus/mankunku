@@ -152,7 +152,13 @@ export interface DailySummary {
 	 * compatibility with pre-split summaries (treat undefined as 0).
 	 */
 	lickPracticeSessions?: number;
-	practiceMinutes: number;               // estimated ~2 min per session
+	/**
+	 * Lick practice's own recorded length plus an estimate for ear-training
+	 * attempts, which record none — see EAR_MINUTES_PER_ATTEMPT. Whole
+	 * minutes. Days written before the switch keep their old per-attempt
+	 * figure: the merge takes the larger of the two.
+	 */
+	practiceMinutes: number;
 	avgOverall: number;                    // 0-1
 	avgPitch: number;                      // 0-1
 	avgRhythm: number;                     // 0-1

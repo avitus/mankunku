@@ -231,6 +231,21 @@ describe('reconcileCloudSummaries — AGED-OUT date MAX-merges', () => {
 		expect(toPush.some((s) => s.date === E)).toBe(true);
 	});
 
+	it('pushes a date whose only richer field is the minutes', async () => {
+		// Minutes stopped being a function of the counters when lick practice
+		// started reporting its real length, so a day can be identical on every
+		// count and still hold more practice time on one side — the cloud has to
+		// learn that, or it sits on the shorter figure forever.
+		const E = '2026-05-09';
+		const history = await setupHistory({ summaries: [makeSummary(E, 4, { practiceMinutes: 19 })] });
+
+		const toPush = history.reconcileCloudSummaries([makeSummary(E, 4, { practiceMinutes: 8 })]);
+
+		const merged = history.dailySummaries.find((s) => s.date === E);
+		expect(merged?.practiceMinutes).toBe(19);
+		expect(toPush.some((s) => s.date === E)).toBe(true);
+	});
+
 	it('bestScore is the max of both sides even when the other side has more attempts', async () => {
 		const E = '2026-05-04';
 		// Aged-out local summary: fewer sessions (2) but a HIGHER bestScore (0.95).

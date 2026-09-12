@@ -609,7 +609,7 @@ interface DailySummary {
   sessionCount: number;                  // ear + lick
   earTrainingSessions?: number;          // absent on pre-split rows: treat as sessionCount
   lickPracticeSessions?: number;         // absent on pre-split rows: treat as 0
-  practiceMinutes: number;               // estimated, ~2 min per session
+  practiceMinutes: number;               // lick sessions' recorded length + ~0.5 min/ear attempt
   avgOverall: number; avgPitch: number; avgRhythm: number; bestScore: number;   // 0-1
   notesTotal: number; notesHit: number;
   grades: GradeDistribution;             // { perfect, great, good, fair, tryAgain }
