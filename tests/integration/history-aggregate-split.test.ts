@@ -804,6 +804,26 @@ describe('practiceMinutes', () => {
 		expect(summary?.practiceMinutes).toBe(9);
 	});
 
+	it('totals every retained day for the all-time figure', async () => {
+		seedProgress([makeEarSession({ timestamp: ts })]);
+		seedLickLog([
+			makeLickEntry({ id: 'lp-1-aaaa-blues', progressionType: 'blues', timestamp: ts, elapsedMinutes: 12 }),
+			makeLickEntry({
+				id: 'lp-2-bbbb-blues',
+				progressionType: 'blues',
+				timestamp: new Date('2026-09-09T12:00:00').getTime(),
+				elapsedMinutes: 20
+			})
+		]);
+		vi.resetModules();
+		historyModule = await import('$lib/state/history.svelte');
+		historyModule.recomputeAllDailySummaries();
+
+		// 12 + 0.5 (the ear attempt, rounded up with its day) on the 11th, 20 on
+		// the 9th — the sum of the days, not a re-derivation across them.
+		expect(historyModule.allTimePracticeMinutes()).toBe(33);
+	});
+
 	it('never lowers a day already on record', async () => {
 		// History is not rewritten: a stored summary from the old per-attempt
 		// model (or from a device whose source rows have since been pruned)

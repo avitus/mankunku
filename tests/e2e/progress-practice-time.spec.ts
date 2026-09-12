@@ -70,6 +70,31 @@ test('the period panel reports practice time and its change', async ({
 	await expect(cell).toContainText('2h 35m');
 });
 
+test('the summary card totals every day on record, not the period', async ({
+	page,
+	consoleCollector: _c
+}) => {
+	await page.clock.install({ time: NOW });
+
+	await seedStorage(page, {
+		settings: SETTINGS_ONBOARDED,
+		'tour-state': TOUR_DISMISSED,
+		'daily-summaries': [
+			summary('2026-06-02', 60), // outside July entirely
+			summary('2026-07-15', 47),
+			summary('2026-07-19', 48)
+		]
+	});
+
+	await page.goto('/progress');
+
+	// 60 + 47 + 48 = 2h 35m all time, where the month panel sees only 1h 35m.
+	const card = page.getByTestId('practice-time-total');
+	await expect(card).toContainText('2h 35m');
+	await expect(card).toContainText('all time');
+	await expect(page.locator('[data-metric="Practice Time"]')).toContainText('1h 35m');
+});
+
 test('a calendar day carries the time practised', async ({ page, consoleCollector: _c }) => {
 	await page.clock.install({ time: NOW });
 

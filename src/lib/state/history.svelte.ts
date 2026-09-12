@@ -578,6 +578,23 @@ export async function flushDailySummariesToCloud(
 
 // ── Query functions ──────────────────────────────────────────────
 
+/**
+ * Every minute of practice still on record.
+ *
+ * The sum of the retained daily summaries, which outlive the 100-attempt source
+ * window and are unioned across devices on cloud merge — so this is "all time"
+ * as far as the app can still account for it, not a separate running total
+ * (`UserProgress.totalPracticeTime` is a field with no writer, and has always
+ * read zero). Days logged before practice time was measured rather than
+ * estimated carry their old per-attempt figure, which the merge's MAX rule
+ * deliberately leaves standing.
+ */
+export function allTimePracticeMinutes(): number {
+	let total = 0;
+	for (const s of dailySummaries) total += s.practiceMinutes;
+	return total;
+}
+
 export function getSummariesInRange(start: string, end: string): DailySummary[] {
 	return dailySummaries.filter((s) => s.date >= start && s.date <= end);
 }
