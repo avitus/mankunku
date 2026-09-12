@@ -27,6 +27,7 @@
 		startInterLickTransition,
 		advanceSingleLickRound,
 		updateElapsedTime,
+		markSessionTransportStart,
 		resetSession,
 		resetLick,
 		startSession,
@@ -638,6 +639,11 @@
 				skipMelody,
 				loopBacking: false,
 				onStarted: () => {
+					// The session clock starts HERE, not at the Start press:
+					// everything before this — the navigation, the mic prompt,
+					// the instrument load — is off the transport, and the
+					// countdown's total (plannedSeconds) counts bars only.
+					markSessionTransportStart();
 					// Transport starts at tick 0 with a 1-bar count-in, so
 					// the lick's audio begins at tick `ticksPerBar`. The
 					// scheduler then offsets the user windows by demoBars.

@@ -61,7 +61,12 @@ import {
 	startSession,
 	startSingleLickSession,
 	getLickBars,
-	resolveLickTempo
+	resolveLickTempo,
+	getDemoBars,
+	getKeyPasses,
+	getKeyPauses,
+	markSessionTransportStart,
+	updateElapsedTime
 } from '$lib/state/lick-practice.svelte';
 import {
 	togglePracticeTag,
@@ -70,7 +75,13 @@ import {
 	updateKeyProgress
 } from '$lib/persistence/lick-practice-store';
 import { getAllLicks } from '$lib/phrases/library-loader';
-import { LEAD_SHEET_PAUSE_BARS } from '$lib/state/lick-practice-rotation';
+import {
+	LEAD_SHEET_PAUSE_BARS,
+	planCycleWindows,
+	newestUnlockedKey
+} from '$lib/state/lick-practice-rotation';
+import type { PitchClass } from '$lib/types/music';
+import type { ChordProgressionType } from '$lib/types/lick-practice';
 
 beforeEach(() => {
 	store.clear();
@@ -377,5 +388,140 @@ describe('plannedSeconds (the in-session countdown total)', () => {
 
 		expect(startSingleLickSession(ids[0])).toBe(true);
 		expect(lickPractice.plannedSeconds).toBe(0);
+	});
+});
+
+/**
+ * The lead-sheet reveal is the newest cost in the model: a revealed key plays
+ * `LEAD_SHEET_PASSES` windows behind `LEAD_SHEET_PAUSE_BARS` of reading pause
+ * instead of one bare window. The single-lick case above pins it against the
+ * super phrase; this pins a whole multi-lick Daily plan against
+ * `planCycleWindows` — the very layout the session page schedules its
+ * recording windows from — so the estimate is checked against the scheduler
+ * rather than against a second copy of the same arithmetic.
+ */
+describe('lead-sheet passes across a multi-lick Daily plan', () => {
+	/** Tag `count` licks from distinct progressions and give each a revealing newest key. */
+	function tagRevealingLicks(): { id: string; entryKey: PitchClass }[] {
+		const picks: { id: string; progression: ChordProgressionType }[] = [];
+		const wanted: [string, ChordProgressionType][] = [
+			['blues', 'blues'],
+			['ii-V-I-major', 'ii-V-I-major-long'],
+			['ii-V-I-minor', 'ii-V-I-minor-long']
+		];
+		for (const [category, progression] of wanted) {
+			const lick = getAllLicks().find((l) => l.category === category);
+			expect(lick, `no library lick in category ${category}`).toBeDefined();
+			togglePracticeTag(lick!.id);
+			toggleProgressionTag(lick!.id, progression);
+			picks.push({ id: lick!.id, progression });
+		}
+		// Two unlocked keys each, with a sub-floor rolling score on the newest
+		// (the key being learned) so its row reveals and runs three passes.
+		return picks.map(({ id }) => {
+			const lick = getAllLicks().find((l) => l.id === id)!;
+			bumpUnlockedKeyCount(lickPractice.progress, id);
+			const newest = newestUnlockedKey(lick.key, 2)!;
+			lickPractice.progress = updateKeyProgress(lickPractice.progress, id, newest, {
+				lastPracticedAt: 1,
+				rollingScore: 0.5
+			});
+			return { id, entryKey: lick.key };
+		});
+	}
+
+	it('charges exactly the bars planCycleWindows lays out, per lick', () => {
+		tagRevealingLicks();
+		lickPractice.config.durationMinutes = 30;
+		buildDailyPracticePlan();
+		expect(lickPractice.plan.length).toBe(3);
+
+		const PPQ = 192;
+		let revealed = 0;
+		let expectedSeconds = 0;
+
+		for (let i = 0; i < lickPractice.plan.length; i++) {
+			const item = lickPractice.plan[i];
+			const lick = getAllLicks().find((l) => l.id === item.phraseId)!;
+			const lickBars = getLickBars(lick, item.progressionType, false);
+			const beatsPerBar = lick.timeSignature[0];
+			const ticksPerBar = beatsPerBar * PPQ;
+			const passes = getKeyPasses(i);
+			const pauses = getKeyPauses(i);
+			if (passes.includes(3)) revealed++;
+
+			// The scheduler's own layout, from the same three sources the
+			// session page passes it (getDemoBars / getKeyPasses / getKeyPauses).
+			const windows = planCycleWindows({
+				audioStartTick: ticksPerBar,
+				demoBars: getDemoBars(i),
+				keyBars: lickBars,
+				ticksPerBar,
+				keyCount: item.keys.length,
+				passes,
+				pauses,
+				userBarsOffsetTicks: 0
+			});
+			const scheduledAudioBars = (windows.cycleEndTick - ticksPerBar) / ticksPerBar;
+
+			// …and the phrase the transport is handed must span the same bars.
+			expect(buildLickSuperPhrase(i)!.difficulty.lengthBars).toBe(scheduledAudioBars);
+			// One window per pass: two keys, three passes on the revealed one.
+			expect(windows.opens.length).toBe(passes.reduce((a, b) => a + b, 0));
+
+			const tempo = resolveLickTempo(lickPractice.progress, item.phraseId);
+			expectedSeconds +=
+				((scheduledAudioBars + INTER_LICK_REST_BARS) * beatsPerBar * 60) / tempo;
+		}
+
+		// Guard: a vacuous pass (nothing revealed) would prove nothing.
+		expect(revealed).toBe(3);
+		expect(estimatePlanSeconds(lickPractice.plan)).toBeCloseTo(expectedSeconds, 6);
+		// The setup screen quotes a plan it builds itself — same number.
+		expect(previewSessionSeconds().seconds).toBeCloseTo(expectedSeconds, 6);
+	});
+
+	it('quotes the same session the Start button installs', () => {
+		tagRevealingLicks();
+		lickPractice.config.durationMinutes = 30;
+		const quoted = previewSessionSeconds();
+		startDailyPracticeSession();
+		expect(lickPractice.plan.length).toBe(quoted.lickCount);
+		expect(lickPractice.plannedSeconds).toBeCloseTo(quoted.seconds, 6);
+	});
+});
+
+/**
+ * The estimate is transport time by construction — bars and beats, with the
+ * instrument load and the mic prompt deliberately excluded (they are not on
+ * the transport clock). The in-session countdown subtracts `elapsedSeconds`
+ * from it, so that clock has to measure the same thing: it must start at the
+ * first count-in bar, not at the Start press, which is a page navigation, a
+ * mic prompt and 307 sample decodes earlier. Otherwise the load is silently
+ * charged to the session — the countdown runs fast, and `startInterLickTransition`'s
+ * time-up check can end a budget-filling plan a lick early.
+ */
+describe('the session clock measures transport time, not loading time', () => {
+	it('starts counting at the transport, not at the Start press', () => {
+		vi.useFakeTimers();
+		try {
+			vi.setSystemTime(new Date('2026-09-11T10:00:00Z'));
+			tagUniformNewLicks(2);
+			startDailyPracticeSession();
+			expect(lickPractice.plan.length).toBe(2);
+
+			// Route load + mic prompt + instrument: 30 s before the count-in.
+			vi.setSystemTime(new Date('2026-09-11T10:00:30Z'));
+			markSessionTransportStart();
+			updateElapsedTime();
+			expect(lickPractice.elapsedSeconds).toBe(0);
+
+			// From there it tracks real playing time against the plan estimate.
+			vi.setSystemTime(new Date('2026-09-11T10:00:40Z'));
+			updateElapsedTime();
+			expect(lickPractice.elapsedSeconds).toBe(10);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 });

@@ -2185,6 +2185,26 @@ export function advanceSingleLickRound(): void {
 	lickPractice.phase = 'inter-lick-rest';
 }
 
+/**
+ * Re-origin the session clock on the transport's first bar.
+ *
+ * The session's `startTime` is stamped when the user presses Start, which is
+ * a page navigation, a mic prompt and an instrument load (307 samples on the
+ * Daily path) before the count-in. The clock it feeds is compared against
+ * `plannedSeconds`, which is pure bars-and-beats (lick-practice-duration.ts
+ * excludes everything off the transport on purpose), so leaving the load in
+ * charges it to the session twice over: the countdown runs fast — it can
+ * reach zero and show overtime with licks still to play — and the time-up
+ * check in `startInterLickTransition` can drop the last lick of a plan that
+ * fills the duration budget. Called from the route when the transport
+ * actually starts (playPhrase's `onStarted`, tick 0 = the count-in bar the
+ * cost model's first charged bar).
+ */
+export function markSessionTransportStart(): void {
+	lickPractice.startTime = Date.now();
+	lickPractice.elapsedSeconds = 0;
+}
+
 /** Check if time budget is exceeded */
 export function updateElapsedTime(): void {
 	if (lickPractice.startTime > 0) {
