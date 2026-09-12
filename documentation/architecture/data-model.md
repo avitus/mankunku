@@ -1,6 +1,6 @@
 # Data Model
 
-All core types live in `src/lib/types/`. This document describes the interfaces and type aliases in that directory that the app consumes. Three declarations there have no consumer and are not covered: `UserProfile` and `AuthState` (`auth.ts` — the layout reads Supabase's own `Session`/`User` instead) and `AudioState` (`audio.ts`).
+All core types live in `src/lib/types/`. This document describes the interfaces and type aliases in that directory that the app consumes.
 
 Types that belong to one subsystem and are declared beside it — `FlattenedTune` and `InsertionPoint` (tunes), `PlannedKey` (lick-practice state), `PitchReading` (audio), `LickFeature` / `MatchIndex` (matching), `ChordSymbol` (notation) — are documented with their subsystem: see [Tune System](./tune-system.md), [State Management](./state-management.md), [API Reference: Audio](../api-reference/audio.md), and [API Reference: Music](../api-reference/music.md).
 

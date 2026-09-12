@@ -26,7 +26,6 @@ import { getProgressionsForCategory, getProgressionsForLick } from '$lib/data/pr
 import { ALL_CURATED_LICKS } from '$lib/data/licks';
 import {
 	ensureProgressionTag,
-	stampTagOverrideMtime,
 	stampCategoryOverrideMtime
 } from './lick-practice-store';
 import type { SupabaseClient } from '@supabase/supabase-js';
@@ -450,49 +449,6 @@ export function saveUserLick(
 	return toSave;
 }
 
-/**
- * Update tags for a lick (curated or user-recorded).
- *
- * For curated licks, stores tag overrides in a separate localStorage key.
- * For user licks, updates the lick's tags array in-place.
- * Fire-and-forget cloud sync when a Supabase client is provided.
- *
- * Stolen community licks are read-only for the thief — if the id matches
- * a stolen lick, this no-ops with a warning. The library UI must not
- * surface tag-editing for stolen licks; this is a defensive guard.
- */
-export function updateUserLickTags(
-	id: string,
-	tags: string[],
-	supabase?: SupabaseClient<Database>
-): void {
-	// Try updating in user licks first
-	const licks = load<Phrase[]>(STORAGE_KEY) ?? [];
-	const idx = licks.findIndex((l) => l.id === id);
-	if (idx !== -1) {
-		licks[idx] = { ...licks[idx], tags };
-		save(STORAGE_KEY, licks);
-		stampLickEdited(id);
-		if (getLastUserId()) enqueue('userLicks');
-		return;
-	}
-
-	// Stolen community licks are read-only — refuse to create curated-style
-	// overrides against them. This guards against the library UI mistakenly
-	// routing a stolen-lick edit through this function.
-	if (getStolenLicksLocal().some((l) => l.id === id)) {
-		console.warn(`Refusing to edit tags on stolen lick ${id}; stolen licks are read-only.`);
-		return;
-	}
-
-	// For curated licks, store tag overrides separately (synced as lick metadata).
-	const overrides = load<Record<string, string[]>>(TAGS_OVERRIDE_KEY) ?? {};
-	overrides[id] = tags;
-	save(TAGS_OVERRIDE_KEY, overrides);
-	stampTagOverrideMtime(id);
-	if (getLastUserId()) enqueue('lickMeta');
-}
-
 /** Get tag overrides for curated licks */
 export function getLickTagOverrides(): Record<string, string[]> {
 	return load<Record<string, string[]>>(TAGS_OVERRIDE_KEY) ?? {};
@@ -505,7 +461,8 @@ export function getLickTagOverrides(): Record<string, string[]> {
  * For curated licks, stores category overrides in a separate key.
  * Fire-and-forget cloud sync when a Supabase client is provided.
  *
- * Stolen community licks are read-only — same guard as updateUserLickTags.
+ * Stolen community licks are read-only — the same guard `updateLickCategory`
+ * applies below: a stolen-lick edit no-ops with a warning.
  */
 export function updateLickCategory(
 	id: string,

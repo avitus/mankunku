@@ -917,11 +917,6 @@ export function ensureProgressionTag(phraseId: string, type: ChordProgressionTyp
 	return true;
 }
 
-/** Stamp a curated tag-override edit so it wins the per-id merge (for user-licks.ts). */
-export function stampTagOverrideMtime(id: string): void {
-	stampMergeMeta('overrides', id);
-}
-
 /** Stamp a curated category-override edit so it wins the per-id merge. */
 export function stampCategoryOverrideMtime(id: string): void {
 	stampMergeMeta('catOverrides', id);

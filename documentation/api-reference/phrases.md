@@ -65,19 +65,6 @@ Check if all pitched notes in an array are within a MIDI range.
 
 Indexes the curated lick library for fast querying.
 
-### `LibraryQuery` interface
-
-```typescript
-interface LibraryQuery {
-  category?: PhraseCategory;
-  maxDifficulty?: number;
-  minDifficulty?: number;
-  tags?: string[];
-  search?: string;
-  scaleType?: ScaleType;
-}
-```
-
 ### Query functions
 
 | Function | Signature | Description |
@@ -87,7 +74,6 @@ interface LibraryQuery {
 | `getLickById` | `(id) → Phrase \| undefined` | O(1) curated lookup, then the user cache, then the adopted cache |
 | `baseLickId` | `(id) → string` | Strips a trailing `_<KEY>` transposition suffix (KEY one of the 12 pitch classes), which `transposeLick` / `transposeLickForTonality` append — same-lick variants dedupe on this |
 | `getBaseLickFromId` | `(id) → Phrase \| undefined` | Tries the id verbatim, then `baseLickId(id)` — stored session results carry suffixed ids, so direct lookup fails on them |
-| `queryLicks` | `(query) → Phrase[]` | Multi-filter query |
 | `PROGRESSION_CATEGORIES` | `ReadonlySet<PhraseCategory>` | The categories whose licks span multi-chord progressions — `ii-V-I-major/minor`, `short-ii-V-I-major/minor`, `V-I-major/minor`, `rhythm-changes` — and so take parent-key (or, when minor, tonic-keyed) transposition in `transposeLickForTonality` |
 
 ### `snapLickToScale(lick, key, scaleId, rangeHigh?): Phrase`
@@ -110,16 +96,6 @@ Transpose a lick for a specific tonality (key + scale); the optional range bound
 1. **Major-family progressions** (ii-V-I, turnarounds, rhythm changes): Transposes to the parent major key to preserve chord relationships
 2. **Major-family single-chord licks**: Transposes to the modal root, snaps to scale
 3. **Non-major scales** (blues, pentatonic, melodic minor): Transposes to key, snaps out-of-scale notes to nearest scale tone
-
-### `queryLicks(query): Phrase[]`
-
-Filters are applied in order:
-1. Category match
-2. Max difficulty
-3. Min difficulty
-4. Tag overlap (any tag matches)
-5. Text search (name or tags, case-insensitive)
-6. Scale type compatibility (via `isLickCompatible` from `scale-compatibility.ts`)
 
 ---
 

@@ -34,7 +34,7 @@ A missed note is not pitch information: no pitch was heard, so there is nothing 
 
 A single difficulty number drives selection on the one surviving path:
 
-- Ear-training lick selection (`routes/ear-training/+page.svelte`) keeps every lick whose `effectiveDifficultyLevel` (the stored `level`, raised to the note-count floor — `difficulty/calculate.ts`) is at or below the active scale's proficiency level, then narrows to scale-compatible licks. Both sides of that comparison are single scalars; neither separates the two dimensions. (`queryLicks` in `library-loader.ts` filters the same way on `level <= maxDifficulty`, but only its tests call it.)
+- Ear-training lick selection (`routes/ear-training/+page.svelte`) keeps every lick whose `effectiveDifficultyLevel` (the stored `level`, raised to the note-count floor — `difficulty/calculate.ts`) is at or below the active scale's proficiency level, then narrows to scale-compatible licks. Both sides of that comparison are single scalars; neither separates the two dimensions.
 
 (The algorithmic phrase generator used to be the second path here, and it *did* diverge slightly above difficulty 80 by capping `rhythmComplexity`. It was removed along with the ear-training settings page that was its only caller, so the coupling is now total rather than near-total.)
 

@@ -175,7 +175,8 @@ export function bumpTrickUnlockedKeyCount(variantKey: string): number {
 
 // ── Progress history (per-variant BPM / keys-unlocked time series) ───────────
 
-export function loadTrickProgressHistory(): TrickProgressHistory {
+/** Raw per-variant progress-history blob. Internal — callers use the accessors below. */
+function loadTrickProgressHistory(): TrickProgressHistory {
 	return load<TrickProgressHistory>(HISTORY_KEY) ?? {};
 }
 

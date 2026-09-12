@@ -140,19 +140,6 @@ export function multiRestRuns(
 	return runs;
 }
 
-/** Absolute bars covered by multi-measure rests (first bar of each run only emits Z). */
-export function multiRestBarMap(
-	runs: readonly MultiRestRun[]
-): Map<number, MultiRestRun> {
-	const map = new Map<number, MultiRestRun>();
-	for (const run of runs) {
-		for (let k = 0; k < run.bars; k++) {
-			map.set(run.startAbsBar + k, run);
-		}
-	}
-	return map;
-}
-
 /**
  * Choose bars-per-system from melody + chord density.
  * Dense bars (many notes or several mid-bar chords) get fewer bars/line so

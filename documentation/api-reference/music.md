@@ -137,14 +137,6 @@ Returns `['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'Db', 'Ab', 'Eb', 'Bb', 'F']`.
 
 Reverse of `circleOfFifths()` (without duplicating the starting note).
 
-### `getNextKeyInCircle(current, direction?): PitchClass`
-
-Return the next key around the circle of fourths. `direction` is `1` (fourths, default) or `-1` (fifths).
-
-### `getKeyAtIndex(index: number): PitchClass`
-
-Return the key at the given position in the circle of fourths. The index wraps around (negative values and values ≥ 12 are normalized via modulo).
-
 ### `relativeMajor(minorKey): PitchClass`
 
 The relative major of a minor tonic (D → F). Used by the minor key-signature table and the editor's "Read as relative key" relabel.
@@ -374,7 +366,6 @@ Pure engraving layout policy for tune charts.
 | `slashCellDuration(ts)`, `slashBarAbc(...)` | Emit the slash bar |
 | `emptyMelodyBars(sheet)` | Which printed bars have no melody |
 | `multiRestRuns(sheet, emptyBars, chordEvents)`, `MultiRestRun` | Consecutive-empty-bar runs (≥ 2) with no chord change after the run's downbeat — multi-measure-rest candidates; a mid-run chord change keeps slash bars |
-| `multiRestBarMap(runs)` | Absolute bar → its run, for every bar a run covers |
 
 Empty bars currently engrave as beat-aligned slashes (jazz idiom). Collapsing them to ABC `Z{n}` multi-rests is **deferred** — it fights bar anchors, system reflow and playhead zones — so the two multi-rest helpers are exported for callers and tests only.
 
@@ -404,7 +395,7 @@ Pure engraving geometry: root and `-` flow on the baseline at size 1; the sup ru
 
 ### Structural parts — `layoutChordParts(text, keyContext?)` · `layoutFromChordSymbol(cs, keyContext?)` · `ChordLayoutParts`
 
-The unprettified split `{ root, quality, alterations[], bass }` (roots and bass respelled for the key via `displayPitchClass`) that the display model is built from. `formatAlterations(alts)` renders the tokens for single-line contexts (one bare, two+ as `(b9,#11)`), `chordDisplayLine(text, keyContext?)` is the compact flat form (`E7(b9,#11)/G`) and `chordAbcAnnotation` is its deprecated alias. `CHORD_STACK_GAP_EM` (0.12) and `alterationStackX(mainBox, baseSize, gapEm?)` give the column's left edge from the painted main-line box — callers must place alterations with `text-anchor="start"`, or abcjs's default `middle` centres each one on that point and paints its left half over the quality.
+The unprettified split `{ root, quality, alterations[], bass }` (roots and bass respelled for the key via `displayPitchClass`) that the display model is built from. `formatAlterations(alts)` renders the tokens for single-line contexts (one bare, two+ as `(b9,#11)`), `chordDisplayLine(text, keyContext?)` is the compact flat form (`E7(b9,#11)/G`). `CHORD_STACK_GAP_EM` (0.12) and `alterationStackX(mainBox, baseSize, gapEm?)` give the column's left edge from the painted main-line box — callers must place alterations with `text-anchor="start"`, or abcjs's default `middle` centres each one on that point and paints its left half over the quality.
 
 ---
 
@@ -419,7 +410,7 @@ Pure first/second-ending (volta) placement policy, following Sibelius / Real Boo
 
 `EndingSectionShape` is `{ bars, ending?, pickupBar? }`: a section whose first bar is a partial pickup fills one column fewer (`columnsOf(sec)` = `bars − 1`), and a one-bar section with it — the lone pickup section every importer writes — fills none at all and leaves its system open for the section after it.
 
-`initialEndingLayoutState` / `placeEndingSection` / `advanceEndingLayout` drive the incremental walk; `planEndingPlacements` does it in one pass (a test scaffold — the notation pass places sections inline). `endingAlignTransform` / `endingAlignMatrix` produce the post-render transform (`x' = sx·x + tx`, line art only) applied by `notation/ending-align-dom.ts`; the rigid-glyph helpers keep noteheads, barlines and chord text at their own width under it — `endingGlyphTranslateDx` / `endingGlyphTranslate` (pure translate of a glyph centre, never a scale), `rigidGlyphScreenSpanAfterTranslate`, `endingLabelHookNudge` (+dx so the full-size volta number clears the scaled left hook by `ENDING_LABEL_HOOK_MIN_GAP`, 5 u), `endingChordGroupNudge` (uniform +dx so every chord clears the label by `ENDING_LABEL_CHORD_MIN_GAP`, 8 u), `endingChordVerticalMatchDy` (drops a floating `[2]` chord row onto `[1]`'s; never raises it), `meanFinite`, and `planStackedEndingRigidGlyphs`, which composes them under four test-locked invariants (glyph width unchanged, centres map to `sx·cx + tx`, the number clears the hook, label and chords never overlap). `endingRigidGlyphCounterScale`, `endingBarCounterScale`, `endingScreenNudgeToLocal` and `rigidGlyphScreenSpan` are deprecated aliases of the pre-translate approach.
+`initialEndingLayoutState` / `placeEndingSection` / `advanceEndingLayout` drive the incremental walk; `planEndingPlacements` does it in one pass (a test scaffold — the notation pass places sections inline). `endingAlignTransform` / `endingAlignMatrix` produce the post-render transform (`x' = sx·x + tx`, line art only) applied by `notation/ending-align-dom.ts`; the rigid-glyph helpers keep noteheads, barlines and chord text at their own width under it — `endingGlyphTranslateDx` / `endingGlyphTranslate` (pure translate of a glyph centre, never a scale), `rigidGlyphScreenSpanAfterTranslate`, `endingLabelHookNudge` (+dx so the full-size volta number clears the scaled left hook by `ENDING_LABEL_HOOK_MIN_GAP`, 5 u), `endingChordGroupNudge` (uniform +dx so every chord clears the label by `ENDING_LABEL_CHORD_MIN_GAP`, 8 u), `endingChordVerticalMatchDy` (drops a floating `[2]` chord row onto `[1]`'s; never raises it), `meanFinite`, and `planStackedEndingRigidGlyphs`, which composes them under four test-locked invariants (glyph width unchanged, centres map to `sx·cx + tx`, the number clears the hook, label and chords never overlap).
 
 ---
 

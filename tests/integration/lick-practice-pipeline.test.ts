@@ -42,7 +42,6 @@ vi.mock('$lib/persistence/sync', () => ({
 import {
 	getAllLicks,
 	getLickById,
-	queryLicks,
 	transposeLick
 } from '$lib/phrases/library-loader';
 import {
@@ -103,23 +102,6 @@ describe('lick practice pipeline', () => {
 		}
 	});
 
-	it('queryLicks filters by category with real data', () => {
-		const results = queryLicks({ category: 'blues' });
-
-		expect(results.length).toBeGreaterThan(0);
-		for (const lick of results) {
-			expect(lick.category).toBe('blues');
-		}
-	});
-
-	it('queryLicks filters by maxDifficulty with real data', () => {
-		const results = queryLicks({ maxDifficulty: 30 });
-
-		expect(results.length).toBeGreaterThan(0);
-		for (const lick of results) {
-			expect(lick.difficulty.level).toBeLessThanOrEqual(30);
-		}
-	});
 });
 
 // ── Key Ordering ─────────────────────────────────────────────

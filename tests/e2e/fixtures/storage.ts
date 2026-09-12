@@ -177,7 +177,7 @@ export async function seedUserLicks(
  * repeat, exercising the multi-system chart rendering. Shape matches
  * `Tune` (src/lib/types/tune.ts); loosely typed to avoid `$lib`.
  */
-export const SAMPLE_USER_TUNES: unknown[] = [
+const SAMPLE_USER_TUNES: unknown[] = [
 	{
 		id: 'e2e-user-sheet-1',
 		title: 'Test Session Tune',

@@ -25,18 +25,6 @@ export function circleOfFourths(): PitchClass[] {
 	return [...CIRCLE_OF_FOURTHS];
 }
 
-/** Get the next key in the circle of fourths (or fifths if direction is -1) */
-export function getNextKeyInCircle(current: PitchClass, direction: 1 | -1 = 1): PitchClass {
-	const idx = CIRCLE_OF_FOURTHS.indexOf(current);
-	const nextIdx = ((idx + direction) % 12 + 12) % 12;
-	return CIRCLE_OF_FOURTHS[nextIdx];
-}
-
-/** Get the key at a given index in the circle of fourths (wraps) */
-export function getKeyAtIndex(index: number): PitchClass {
-	return CIRCLE_OF_FOURTHS[((index % 12) + 12) % 12];
-}
-
 /** Get the relative major of a minor key (D minor → F). */
 export function relativeMajor(minorKey: PitchClass): PitchClass {
 	const idx = PITCH_CLASSES.indexOf(minorKey);

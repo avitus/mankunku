@@ -6,15 +6,35 @@
  * lick" but "produces nothing for a category the user actually practises".
  * That kind of hole is invisible from the generator's own tests — every
  * combination it emits is valid, there are just no combinations to emit — so
- * these assertions are stated against the categories ear training draws from
+ * these assertions are stated against the categories the pool has to cover
  * rather than against the pattern tables.
  */
 import { describe, it, expect } from 'vitest';
 import { combine, generateAllCombinations } from '$lib/phrases/combiner';
 import { SCALE_PATTERNS, RHYTHM_PATTERNS } from '$lib/data/patterns/index';
-import { EAR_TRAINING_CATEGORIES } from '$lib/data/ear-training-categories';
 import { fractionToFloat } from '$lib/music/intervals';
-import type { HarmonicSegment } from '$lib/types/music';
+import type { HarmonicSegment, PhraseCategory } from '$lib/types/music';
+
+/**
+ * The categories the generated pool has to cover.
+ *
+ * Deliberately a fixture and not a production constant: ear training does not
+ * select by category at all — `/ear-training` filters the WHOLE pool by
+ * `effectiveDifficultyLevel` and scale compatibility — so a src-side list
+ * would have no consumer and would drift unnoticed. What it pins is the join
+ * between the two halves of the generator that cannot see each other: a
+ * category with no scale patterns yields no licks, and the resulting hole is
+ * invisible from either the pattern tables or the combiner alone.
+ */
+const COVERED_CATEGORIES: PhraseCategory[] = [
+	'ii-V-I-major',
+	'ii-V-I-minor',
+	'short-ii-V-I-major',
+	'short-ii-V-I-minor',
+	'blues',
+	'bebop-lines',
+	'pentatonic'
+];
 
 const CMAJ_HARMONY: HarmonicSegment[] = [
 	{ chord: { root: 'C', quality: 'maj7' }, scaleId: 'major.ionian', startOffset: [0, 1], duration: [1, 1] }
@@ -68,8 +88,8 @@ describe('rhythm pattern table', () => {
 });
 
 describe('scale pattern coverage', () => {
-	it('gives every ear-training category at least three melodic shapes', () => {
-		for (const category of EAR_TRAINING_CATEGORIES) {
+	it('gives every covered category at least three melodic shapes', () => {
+		for (const category of COVERED_CATEGORIES) {
 			const shapes = SCALE_PATTERNS.filter((sp) => sp.category === category);
 			expect(shapes.length, `category '${category}' has ${shapes.length} scale pattern(s)`).toBeGreaterThanOrEqual(3);
 		}
@@ -79,8 +99,8 @@ describe('scale pattern coverage', () => {
 describe('generated pool', () => {
 	const phrases = generateAllCombinations();
 
-	it('produces licks for every ear-training category', () => {
-		for (const category of EAR_TRAINING_CATEGORIES) {
+	it('produces licks for every covered category', () => {
+		for (const category of COVERED_CATEGORIES) {
 			const inCat = phrases.filter((p) => p.category === category);
 			expect(inCat.length, `category '${category}' generated ${inCat.length} licks`).toBeGreaterThanOrEqual(10);
 		}
