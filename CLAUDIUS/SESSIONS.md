@@ -3496,3 +3496,28 @@ back and rewrite history."
   zero.
 - Verified: vitest 302 files / 5019 passed + 36 expected-fail; svelte-check
   2785 files clean. `origin/dev` 56d5238.
+
+### Same session, third part — showing it
+
+Andy: "show practice time on /progress."
+
+- Two homes, both already had the data and neither had ever displayed it:
+  `PeriodCompare` (which *computed* `practiceMinutes` and its delta and then
+  rendered five other metrics) and the calendar cell, where the heatmap colour
+  tracks session count and so can say nothing about time. Six metrics: 2 / 3 / 6
+  columns by breakpoint, checked at 1280 and 390 px rather than assumed.
+- `deltaDisplay` grew a unit rather than a boolean: `isPercent = true|false`
+  became `kind: 'count' | 'percent' | 'duration'`, so "+35m" sits under
+  "1h 35m" instead of "+35". A boolean flag that names one of its two states is
+  always one requirement away from being wrong.
+- `formatMinutes` is a sibling of `formatDuration`, not a replacement: one is a
+  running clock (padded, every field, read a second at a time), the other a
+  total read at a glance, where "1h 0m" is worse than "1h". Same module,
+  different job, docstring says which is which.
+- Deliberately NOT added: an all-time practice-time card beside Day Streak. The
+  summaries it would total include days written under the old per-attempt model,
+  and a headline trophy number I'd have to footnote is worse than no number.
+  Week-over-week and per-day are both honest because they are recent.
+- Verified: 2 new e2e specs (chromium) plus the 7 other /progress-area specs,
+  all green on a fresh build at port 4191; vitest 302 files / 5023 passed;
+  svelte-check 2786 files clean. `origin/dev` 26a6958.
