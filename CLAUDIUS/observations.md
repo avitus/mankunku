@@ -1944,3 +1944,52 @@ changed, and it changed inside a commit about scrolling. A test that pins
 `cueLevel === 'reduced'` survives the death of everything reduced means. So
 pin the difference a user could see — labels present at bar N versus absent
 — not the enum the difference is supposed to hang off.
+
+## Dead code and the tests that hold it up (2026-09-11)
+
+The instruction that made this task sharp was "a use only in its own tests
+counts as unused". It is the right rule, and following it literally would
+still have destroyed something valuable twice over, in two different ways.
+
+The first way: `EAR_TRAINING_CATEGORIES` had exactly one reader, a test. By
+the rule, module and test both go. But the test was not *about* the module —
+it was about the combiner, and the module was merely the yardstick it measured
+coverage against. Delete both and you lose a genuine invariant (a category
+with no scale patterns silently yields no licks) that nothing else asserts.
+The resolution was to keep the yardstick and move it into the test, where its
+lack of a production consumer is a feature rather than a lie. What I want to
+remember: "only a test uses it" tells you where the symbol should LIVE, not
+whether the behaviour it supports should exist. The right question is not
+"who imports this" but "what breaks if this assertion stops running".
+
+The second way is the mirror image. `queryLicks` also had only tests — and
+there the tests really were about it, so they went with it. The difference is
+not the citation count; it is whether the test's subject survives the
+deletion. Same evidence, opposite conclusion, and no amount of grepping
+distinguishes them. You have to read what the test is trying to say.
+
+The docs case rhymes. `pitch-rhythm-coupling.md` justified a real
+architectural claim — selection collapses to one scalar — by pointing at
+`queryLicks`. Deleting the sentence with the function would have removed a
+true statement because its footnote rotted. A stale citation is a bug in the
+citation, not in the claim; the claim had simply outlived the code that first
+demonstrated it, and now points at `/ear-training`'s own filter.
+
+The process lesson is blunter and I nearly paid for it. I ran the whole grep
+sweep against a worktree based on `main`, not noticing that the twelve commits
+on `dev` were the very audit that produced my list. The audit's docs pass had
+*documented* several of these symbols as dead — a table row for
+`multiRestBarMap`, a sentence naming four deprecated aliases, a note in
+data-model.md — rather than removing them. None of that existed in the tree I
+searched. Had I pushed the pre-rebase result, the code would have been clean
+and the docs would have described four functions that no longer exist, which
+is a worse state than before I started. Rebase first, then re-derive every
+claim; a dead-code audit is a statement about a tree, and it expires the
+moment the tree moves. The re-sweep after the rebase is not a formality.
+
+Last: the audit list was twelve items and two were wrong. Being handed a list
+is not being handed a conclusion. `circleOfFourthsFrom` had two live callers
+sitting in plain sight, and the only reason that was caught is that I grepped
+it like every other entry instead of trusting the list. The cost of checking
+was one line of output; the cost of not checking would have been a broken
+rotation sort in deep practice.

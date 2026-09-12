@@ -3361,3 +3361,56 @@ cache until a boundary hitch is actually observed.
   screenshot showing pre-redesign UI was the tell. A sed that edits nothing
   and a test that fails identically look exactly like a real failure; the
   memory note for this existed and I reached for sed anyway.
+
+## 2026-09-11 — the audit's removal list, carried out
+
+- Andy handed over the 2026-09-10 coverage/docs audit's dead-export list —
+  twelve symbols — with the rule that a use only in a symbol's own tests
+  counts as unused. Ten were dead and are gone; two were not.
+- **`circleOfFourthsFrom` was a false positive.** `lick-practice.svelte.ts`
+  sorts the rotation with it and `PracticeSetup.svelte` builds the key circle
+  from it. Kept, and said so rather than quietly dropping it from the list.
+  `loadTrickProgressHistory` is real but internal to its own module — three
+  callers, all in the same file — so it is un-exported, not deleted.
+- One deletion cascaded: `updateUserLickTags` was the only caller of
+  `stampTagOverrideMtime`, whose own docstring named it ("for user-licks.ts").
+  Removing the first without the second would have created exactly the kind of
+  dead export this task exists to remove. Checked first that the legacy
+  `lick-tag-overrides` blob is now read-only by design — `toggleProgressionTag`
+  in `lick-practice-store.ts` is the live writer, on its own key — so deleting
+  the last writer breaks nothing.
+- **`EAR_TRAINING_CATEGORIES` was the interesting one.** Its header claimed
+  ear training drew from it; `/ear-training` never looks at a category at all
+  (it filters the whole pool by `effectiveDifficultyLevel` and scale
+  compatibility). The audit had already corrected that header in place. But
+  the test reading it — `combinatorial-coverage.test.ts` — pins something
+  real: a category with no scale patterns yields no licks, invisible from
+  either the pattern tables or the combiner alone. So the module goes and the
+  list moves into the test as a fixture, with the reason written down. Deleting
+  the test with the module would have thrown the invariant away.
+- Same shape in the docs: `pitch-rhythm-coupling.md` cited `queryLicks` as the
+  curated-selection filter. The *claim* was still true — selection is one
+  scalar — only the citation was stale, so it is re-pointed at the code that
+  actually filters rather than deleted.
+- **The base was wrong and the greps had to be redone.** The worktree sat on
+  `main`; the twelve commits on `dev` WERE the audit itself. Rebasing produced
+  six conflicts, and — more to the point — the audit's docs commit had
+  *documented* several of these symbols as dead (`multiRestBarMap`'s table row,
+  the deprecated-alias sentence, data-model.md's "three declarations have no
+  consumer") rather than removing them. Those lines only turned up on the
+  re-sweep after the rebase. A pre-rebase grep would have shipped docs
+  describing symbols that no longer exist.
+- Also on dev already: `PLAYWRIGHT_PORT`, which I had just added to
+  `playwright.config.ts` on the stale base. Took dev's version.
+- One pre-existing e2e failure surfaced: `backing-render-audio.spec` trips the
+  audit's new console guard with `net::ERR_CONNECTION_RESET` on
+  `/api/monitoring`. Proved it pre-existing by rebuilding at `c150587` and
+  reproducing it there, then fixed it as its own commit — the WebKit face of
+  the same Sentry-beacon race is already ignored three lines above; this is
+  the Chromium face. A `tune-practice` follow-scroll spec failed once under
+  full parallel load and passed alone in 19.4 s and on the re-run: the known
+  sample-decode contention flake, not touched.
+- Verified: vitest 302 files, 5009 passed / 36 expected-fail; svelte-check
+  2785 files, 0 errors / 0 warnings; chromium e2e 205 passed / 5 skipped
+  against a fresh `PLAYWRIGHT=1` build of this worktree on port 4187.
+  Landed on `origin/dev` as 2c2b126 + c3f2072.
