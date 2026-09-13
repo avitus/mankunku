@@ -41,11 +41,17 @@ class FakeMediaRecorder {
 		this.mimeType = options?.mimeType ?? 'audio/webm';
 		instances.push(this as unknown as FakeRecorderInstance);
 	}
+	/** Whether `type` is in the test's `supported` list — the container negotiation's only input. */
 	static isTypeSupported(type: string): boolean {
 		return supported.includes(type);
 	}
 }
 
+/**
+ * The audio graph createRecorder wires: a context handing out one stream
+ * destination and one mic gain, plus a mic source and a master gain, each a
+ * spy so the connections and the trim can be asserted on.
+ */
 function graph() {
 	const dest = { stream: { id: 'mixed' } };
 	const micGain = { gain: { value: 1 }, connect: vi.fn(), disconnect: vi.fn() };

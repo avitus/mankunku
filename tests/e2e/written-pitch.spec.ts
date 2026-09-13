@@ -31,7 +31,7 @@ test.describe('written pitch follows the instrument setting', () => {
 		page,
 		consoleCollector: _consoleCollector
 	}) => {
-		// The key block: caption, the written key, then the scale name.
+		/** The key block: caption, the written key, then the scale name. */
 		const todaysKey = () => page.getByText("Today's key", { exact: true }).locator('..');
 
 		// Tenor: concert C reads D.
@@ -71,8 +71,11 @@ test.describe('written pitch follows the instrument setting', () => {
 		// carries its gate as a tooltip. Concert D because, on each horn, a
 		// pad label OR a tooltip left at concert yields a different string
 		// (the neighbouring concert key needs another key, or level 15).
+		/** The /progress unlock card, which names the next key and its gate. */
 		const unlockCard = () => page.locator('[data-tour="unlocks"]');
+		/** The Settings key pad — a locked key's title names its gate. */
 		const keyPad = () => page.getByRole('radiogroup', { name: 'Key center', exact: true });
+		/** The Settings instrument picker; re-queried after each navigation. */
 		const instrumentGroup = () => page.getByRole('radiogroup', { name: 'Instrument', exact: true });
 
 		// Tenor: concert G reads A, C reads D; concert D reads E, gated on A.

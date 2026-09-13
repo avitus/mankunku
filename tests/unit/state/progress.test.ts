@@ -216,8 +216,10 @@ describe('recordAttempt daily-summary snapshot', () => {
 });
 
 describe('daily practice streak (bumpStreakForToday)', () => {
-	// Noon local time, so "yesterday" (now − 24 h) is always the previous
-	// calendar day whatever the zone.
+	/**
+	 * Noon local time on 2026-03-<d>, so "yesterday" (now − 24 h) is always the
+	 * previous calendar day whatever the zone.
+	 */
 	const day = (d: number): Date => new Date(2026, 2, d, 12, 0, 0);
 
 	afterEach(() => {

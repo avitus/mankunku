@@ -356,6 +356,10 @@ describe('settings.loadSettingsFromCloud — scope generation guard', () => {
 // ---------------------------------------------------------------------------
 
 describe('settings.flushSettingsToCloud — push gate (the 2026-07-13 class)', () => {
+	/**
+	 * A settings module imported fresh — the hydration gate is module state —
+	 * with the mocked cloud push beside it.
+	 */
 	async function freshSettings() {
 		vi.resetModules();
 		const settingsModule = await import('$lib/state/settings.svelte');
@@ -613,6 +617,10 @@ describe('lick-metadata.initLickMetadataFromCloud — scope generation guard', (
 });
 
 describe('lick-metadata.flushLickMetadataToCloud — the outbox write path', () => {
+	/**
+	 * A lick-practice store imported fresh, scope generation pinned at 0, with
+	 * the mocked row upsert beside it.
+	 */
 	async function freshStore() {
 		vi.resetModules();
 		const lickStore = await import('$lib/persistence/lick-practice-store');

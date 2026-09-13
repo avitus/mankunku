@@ -227,8 +227,10 @@ describe('daily tonality block lengths', () => {
 	// boundary of the length the unlocked count selects — a wrong block
 	// length puts change points on days the schedule says are mid-block.
 	const DATES = Array.from({ length: 30 }, (_, i) => `2026-06-${String(i + 1).padStart(2, '0')}`);
+	/** Whole days since the epoch — the index `getDailyTonality` divides by the block length to pick a block. */
 	const epochDay = (date: string) => Math.floor(Date.parse(`${date}T00:00:00Z`) / 86400000);
 
+	/** Epoch days in DATES whose tonality under `c` differs from the day before's. */
 	function changePoints(c: UnlockContext): number[] {
 		const days = DATES.map((d) => getDailyTonality(d, c));
 		const points: number[] = [];

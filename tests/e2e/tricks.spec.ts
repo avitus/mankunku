@@ -76,9 +76,12 @@ test.describe('tricks', () => {
 		});
 		await signedInPage.goto('/tricks/enclosures');
 
-		// Variant pills: an unlocked rung is a selectable button; a locked one is
-		// padlocked text. `exact` keeps the pill apart from the mastery-tree row
-		// of the same label (whose accessible name carries its pass count).
+		/**
+		 * A variant pill by its exact label: an unlocked rung is a selectable
+		 * button; a locked one is padlocked text. `exact` keeps the pill apart
+		 * from the mastery-tree row of the same label (whose accessible name
+		 * carries its pass count).
+		 */
 		const pill = (label: string) => signedInPage.getByRole('button', { name: label, exact: true });
 		await expect(pill('Single chromatic approach — major')).toBeVisible();
 		await expect(pill('Single chromatic approach — minor')).toBeVisible();
@@ -118,6 +121,10 @@ test.describe('tricks', () => {
 		await signedInPage.goto('/tricks/triad-pairs');
 		await expect(signedInPage.getByRole('heading', { name: 'Triad Pairs', exact: true })).toBeVisible();
 
+		/**
+		 * A variant pill by its exact label — `exact` keeps it apart from the
+		 * mastery-tree row of the same label; a locked rung has no button.
+		 */
 		const pill = (label: string) => signedInPage.getByRole('button', { name: label, exact: true });
 		await expect(pill('Major pair a whole step apart (C·D)')).toBeVisible();
 		await expect(pill('Major + minor a whole step apart (C·Dm)')).toHaveCount(0);

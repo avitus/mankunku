@@ -126,7 +126,6 @@ interface DisplayElement {
 	harmony: readonly HarmonicSegment[];
 }
 
-/** Build the display text for one harmony segment's chord symbol. */
 /**
  * ABC chord annotations are delimited by double quotes (`"C7"`), so a raw
  * imported symbol containing a `"` (or a newline / control char) would break the
@@ -145,6 +144,13 @@ function escapeChordAnnotation(text: string): string {
 	return out;
 }
 
+/**
+ * Build the display text for one harmony segment's chord symbol, at written
+ * pitch: a parseable raw symbol is transposed and re-formatted canonically
+ * with its root respelled for the display key and mode; an unparseable one
+ * shows verbatim (untransposed) or, on a transposing instrument, falls back
+ * to the structured chord.
+ */
 function chordDisplayText(
 	seg: HarmonicSegment,
 	instrument: InstrumentConfig | undefined,
@@ -306,6 +312,12 @@ export function tuneToAbcWithMap(
 		);
 	}
 
+	/**
+	 * The ABC token for one display element: a whole empty bar draws as
+	 * rhythm slashes, any other rest as `z`, and a note as its written pitch —
+	 * spelled by the app's ONE enharmonic policy against the running bar
+	 * state — with its articulation prefix and tie.
+	 */
 	function renderElement(el: DisplayElement, duration: Fraction, barState: ReturnType<typeof initBarState>): string {
 		const note = el.note;
 		if (note.pitch === null) {

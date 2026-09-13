@@ -94,6 +94,7 @@ describe('cadence licks (curated, table-driven over every template)', () => {
 	});
 
 	it('lets the LAST segment overrun the template\'s final slot (the engine tail-extends it) but no inner slot', () => {
+		/** A HarmonicSegment on the ii-V-I roots, at `start` for `dur` in whole-note fractions. */
 		const seg = (root: 'D' | 'G' | 'C', quality: 'min7' | '7' | 'maj7', start: [number, number], dur: [number, number]) => ({
 			chord: { root, quality },
 			scaleId: 'major.ionian',

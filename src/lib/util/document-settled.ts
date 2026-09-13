@@ -30,6 +30,7 @@ export interface LoadEventSource {
 /** Upper bound on the wait, in ms. */
 export const DOCUMENT_SETTLE_CAP_MS = 5000;
 
+/** Absorbs `document.fonts.ready`'s value and its rejection alike — settled either way. */
 const noop = (): void => {};
 
 /**

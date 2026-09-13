@@ -79,9 +79,13 @@ function startSentry(): void {
         : [])
     ],
 
-    // Drop events whose error has no message and no stacktrace — they read as
-    // "<unknown>" / "undefined" in the UI and aren't actionable. See Sentry
-    // MANKUNKU-K.
+    /**
+     * Three drops, each pinned to a Sentry issue: events whose error has no
+     * message and no stacktrace — they read as "<unknown>" / "undefined" in
+     * the UI and aren't actionable (MANKUNKU-K); dev-only errors thrown from
+     * Vite/Svelte HMR machinery; and the first occurrence of a stale-chunk
+     * error, which `handleNavErrorRecovery` below fixes by navigating.
+     */
     beforeSend(event: ErrorEvent, hint: EventHint): ErrorEvent | null {
       const ex = event.exception?.values?.[0];
       if (isEmptyErrorEvent(event, hint)) {

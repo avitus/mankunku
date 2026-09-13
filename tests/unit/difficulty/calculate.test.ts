@@ -127,6 +127,7 @@ describe('calculateDifficulty', () => {
 	});
 
 	it('ranks triplet eighths between straight eighths and sixteenths', () => {
+		/** Four notes alternating C and D back to back, every one lasting `dur`. */
 		const withDuration = (dur: Fraction) =>
 			makePhrase(
 				Array.from({ length: 4 }, (_, i) =>

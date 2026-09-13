@@ -209,6 +209,7 @@ describe('onset-worklet.js stays in sync with onset-core.ts', () => {
 	const core = readFileSync(join(audioDir, 'onset-core.ts'), 'utf8');
 
 	it('declares the same six constants', () => {
+		/** The numeric value of a top-level `const NAME = …;` in the worklet source. */
 		const constant = (name: string): number => {
 			const m = worklet.match(new RegExp(`^const ${name} = ([^;]+);`, 'm'));
 			expect(m, `${name} missing from the worklet`).not.toBeNull();
@@ -223,6 +224,7 @@ describe('onset-worklet.js stays in sync with onset-core.ts', () => {
 	});
 
 	it('re-implements processOnsetFrame token for token (types and comments aside)', () => {
+		/** The brace-balanced body of `processOnsetFrame` in either source text. */
 		const bodyOf = (src: string): string => {
 			const start = src.indexOf('function processOnsetFrame(');
 			expect(start).toBeGreaterThanOrEqual(0);
@@ -234,6 +236,7 @@ describe('onset-worklet.js stays in sync with onset-core.ts', () => {
 			}
 			throw new Error('unbalanced braces');
 		};
+		/** Strip comments, the TS annotations and whitespace so the two bodies compare token for token. */
 		const normalize = (body: string): string =>
 			body
 				.replace(/\/\*[\s\S]*?\*\//g, '')

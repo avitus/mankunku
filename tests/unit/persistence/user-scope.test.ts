@@ -175,6 +175,7 @@ describe('initCrossTabSync', () => {
 		emit: (type: string, ev: unknown) => void;
 	}
 
+	/** A BroadcastChannel stand-in with inspectable listeners and an `emit` that delivers a message as another tab would. */
 	function makeFakeChannel(): FakeChannel {
 		const listeners = new Map<string, Set<Listener>>();
 		return {

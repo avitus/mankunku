@@ -325,6 +325,7 @@ describe('drop2Voicing on a triad', () => {
 });
 
 describe('guideToneVoicing', () => {
+	/** The pitch-class set of a voicing, octave-folded. */
 	const pcs = (v: number[]) => new Set(v.map((m) => ((m % 12) + 12) % 12));
 
 	it('voices the 3rd and 7th only', () => {
@@ -340,6 +341,7 @@ describe('guideToneVoicing', () => {
 });
 
 describe('quartalVoicing', () => {
+	/** The pitch-class set of a voicing, octave-folded. */
 	const pcs = (v: number[]) => new Set(v.map((m) => ((m % 12) + 12) % 12));
 
 	it('stacks 9-5-1 with the 11 added for minor and sus qualities', () => {

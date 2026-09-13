@@ -111,8 +111,10 @@ describe('active-uid resolution from the Supabase auth cookie (the synchronous f
 	// Resolution order is cookie uid › __active pointer › anon. The cookie read
 	// is what lets the module-eval $state singletons home to the right bucket
 	// on the very first load after login without a self-correcting reload.
+	/** Unpadded base64url — the segment encoding of a Supabase access-token JWT. */
 	const b64url = (s: string): string =>
 		Buffer.from(s, 'utf8').toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+	/** A three-segment JWT whose payload carries `sub`; the signature is a dummy, only the claim is read. */
 	const jwt = (sub: string): string =>
 		`${b64url('{"alg":"HS256","typ":"JWT"}')}.${b64url(JSON.stringify({ sub, aud: 'authenticated' }))}.${b64url('sig')}`;
 

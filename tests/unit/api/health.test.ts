@@ -106,6 +106,10 @@ describe('GET /api/health — the route wiring', () => {
 		for (const dir of tmpRoots.splice(0)) rmSync(dir, { recursive: true, force: true });
 	});
 
+	/**
+	 * Import the route fresh with `process.cwd()` pinned to `cwd` first — the
+	 * release id is resolved once at module load, so the stub must precede it.
+	 */
 	async function loadRouteWithCwd(cwd: string) {
 		vi.resetModules();
 		vi.doMock('$app/environment', () => ({ version: 'd40ed2540e194e07befbf324837b52c7c2807528' }));

@@ -122,6 +122,7 @@ describe('POST /api/lick-match', () => {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: new ReadableStream<Uint8Array>({
+				/** Fail the first read: the socket died mid-body. */
 				pull(controller) {
 					controller.error(new Error('socket hang up'));
 				}

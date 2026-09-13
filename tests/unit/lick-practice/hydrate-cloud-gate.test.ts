@@ -23,6 +23,7 @@ vi.stubGlobal('localStorage', {
 	setItem: vi.fn((key: string, val: string) => store.set(key, val)),
 	removeItem: vi.fn((key: string) => store.delete(key)),
 	key: vi.fn((i: number) => [...store.keys()][i] ?? null),
+	/** `Storage.length`, read off the backing map. */
 	get length() {
 		return store.size;
 	},
@@ -88,6 +89,11 @@ function seedMaintenanceInputs(): void {
 	]);
 }
 
+/**
+ * Read the three passes' signals back from the real stores: the misfit tag
+ * pruned, the legacy `practice` override seeded into the tags, the logged
+ * session turned into a history point.
+ */
 function maintenanceRan(): { pruned: boolean; backfilled: boolean; seeded: boolean } {
 	return {
 		pruned: !getProgressionTags(MISFIT_LICK).includes('ii-V-I-major'),

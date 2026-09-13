@@ -476,6 +476,7 @@ describe('assembleClaudeDoc', () => {
 		// `fifths: null`. Dropping it would shift every later bar and lose the
 		// chords the text layer read; it must come through as blank bars at its
 		// place in the form, with its chords, and must not vote on the key.
+		/** A two-bar system with its text-layer chords and the model result the import page handed in — `bars: []`, `fifths: null` for a line that failed. */
 		const line = (chords: Array<{ x: number; text: string }>, model: AssembleSystemInput['model']): AssembleSystemInput => ({
 			geometry: geometry([400, 700]),
 			texts: { chords, marks: [], endings: [], barNumber: null },

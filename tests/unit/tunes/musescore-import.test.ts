@@ -1139,12 +1139,14 @@ function makeZip(entries: Array<{ name: string; data: Uint8Array; method?: 0 | 8
 	return out;
 }
 
+/** Raw DEFLATE (zip method 8) via CompressionStream — how MuseScore stores the .mscx entry. */
 async function deflateRaw(bytes: Uint8Array): Promise<Uint8Array> {
 	const stream = new Blob([bytes as BlobPart]).stream().pipeThrough(new CompressionStream('deflate-raw'));
 	return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 
 describe('parseMuseScoreFile — .mscz archives', () => {
+	/** A one-bar 4/4 score as UTF-8 XML with its workTitle set to `title`, so the test can tell which entry was read. */
 	const scoreXml = (title: string): Uint8Array =>
 		new TextEncoder().encode(
 			mscx({

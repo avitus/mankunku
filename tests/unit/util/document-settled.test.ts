@@ -19,6 +19,7 @@ function fakeWindow(): LoadEventSource & { fireLoad: () => void; listeners: numb
 	return {
 		addEventListener: (_type, listener) => void listeners.push(listener),
 		fireLoad: () => listeners.splice(0).forEach((listener) => listener()),
+		/** How many `load` listeners are still registered. */
 		get listeners() {
 			return listeners.length;
 		}
@@ -27,7 +28,9 @@ function fakeWindow(): LoadEventSource & { fireLoad: () => void; listeners: numb
 
 /** A promise the test resolves or rejects by hand. */
 function deferred(): { promise: Promise<void>; resolve: () => void; reject: (e: unknown) => void } {
+	/** Swapped for the executor's `res`; the no-op only satisfies definite assignment. */
 	let resolve: () => void = () => {};
+	/** Swapped for the executor's `rej`; the no-op only satisfies definite assignment. */
 	let reject: (e: unknown) => void = () => {};
 	const promise = new Promise<void>((res, rej) => {
 		resolve = res;

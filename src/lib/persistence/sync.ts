@@ -749,6 +749,12 @@ type TourStateRead =
 	| { status: 'missing' }
 	| { status: 'error' };
 
+/**
+ * Read one user's `tour_state` column as a `TourStateRead`: a query error is
+ * `error`, no row is `missing`, and a present row is narrowed to its string
+ * arrays — a NULL or malformed column reads `ok` with empty sets, which is
+ * safe to merge against.
+ */
 async function readTourStateRow(supabase: SupabaseDB, userId: string): Promise<TourStateRead> {
 	const { data, error } = await supabase
 		.from('user_settings')

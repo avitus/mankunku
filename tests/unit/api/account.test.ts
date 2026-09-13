@@ -23,6 +23,7 @@ vi.mock('$lib/server/account-deletion', () => ({
 
 import { DELETE } from '../../../src/routes/api/account/+server';
 
+/** A request event whose session resolves to `user` (null = signed out) — all the route reads before the admin client. */
 function eventFor(user: { id: string } | null) {
 	return {
 		locals: {

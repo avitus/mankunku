@@ -142,6 +142,7 @@ describe('trickForSuggestion (Fluency-scored windows)', () => {
 		tempo: 120
 	};
 	const params = { pair: 'major-whole' };
+	/** A `suggestion` carrying a trick — `trickId` over the major-whole pair in the shared context — so its window scores on the Fluency path. */
 	function trickSuggestion(trickId: string, insertionOffset: [number, number]): LickSuggestion {
 		return {
 			...suggestion(`${trickId}:pair=major-whole`, insertionOffset),

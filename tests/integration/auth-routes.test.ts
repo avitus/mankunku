@@ -60,6 +60,10 @@ type HandleFn = (args: { event: unknown; resolve: ResolveFn }) => Promise<unknow
 vi.mock('@sveltejs/kit/hooks', () => ({
 	sequence: vi.fn((...fns: HandleFn[]) => {
 		return async ({ event, resolve }: { event: unknown; resolve: ResolveFn }) => {
+			/**
+			 * Run handler `i` with a resolve that chains into `i + 1`, the upstream
+			 * `filterSerializedResponseHeaders` winning over the handler's own.
+			 */
 			const apply = (i: number, evt: unknown, parent: ResolveOpts): Promise<unknown> | unknown =>
 				fns[i]({
 					event: evt,
@@ -589,6 +593,7 @@ describe('Server Hook — response shaping', () => {
 
 		const opts = resolve.mock.calls[0][1] as Required<ResolveOpts>;
 		expect(typeof opts.filterSerializedResponseHeaders).toBe('function');
+		/** Whether the hook's filter lets a response header of that name into the serialized page. */
 		const allowed = (name: string): boolean => opts.filterSerializedResponseHeaders(name, '');
 		expect(allowed('content-range')).toBe(true);
 		expect(allowed('x-supabase-api-version')).toBe(true);
@@ -602,6 +607,10 @@ describe('Server Hook — Playwright escape hatch (PLAYWRIGHT=1 + e2e-test-user 
 	// hooks.server after setting the env (vi.resetModules runs in beforeEach).
 	const testUser = { id: 'e2e-user-1', email: 'e2e@example.com', isAdmin: true };
 
+	/**
+	 * A request on `hostname` carrying the `e2e-test-user` cookie when one is
+	 * given — the gate reads the host off `event.url` and the user off the cookie.
+	 */
 	function eventFor(hostname: string, cookie: string | null) {
 		const cookies = createMockCookies();
 		if (cookie !== null) cookies.set('e2e-test-user', cookie);
@@ -612,6 +621,10 @@ describe('Server Hook — Playwright escape hatch (PLAYWRIGHT=1 + e2e-test-user 
 		};
 	}
 
+	/**
+	 * Import hooks.server anew so its module-scope PLAYWRIGHT gate reads the env
+	 * this case stubbed; the mocked `createServerClient` comes back beside it.
+	 */
 	async function freshHandle() {
 		const ssr = await import('@supabase/ssr');
 		const fresh = await import('../../src/hooks.server');

@@ -329,6 +329,7 @@ describe('findReArticulations: bare-gap tier, a click inside the hole', () => {
 	/** A same-MIDI run at 60 fps; the level after the hole is the only knob. */
 	function bareGapRun(rmsAfter: number): PitchReading[] {
 		const out: PitchReading[] = [];
+		/** One clean G3 reading at `time`; band floor and shape stay flat, so `rms` is the only evidence. */
 		const push = (time: number, rms: number) =>
 			out.push({
 				midiFloat: 55,
@@ -400,6 +401,7 @@ describe('findReArticulations: broken-entry short-gap path', () => {
 	 */
 	function entryRun(entry: [number, number], rmsAfter = 0.11): PitchReading[] {
 		const out: PitchReading[] = [];
+		/** One G3 reading at `time` with the given level and `shapeBreak`; every other field is flat. */
 		const push = (time: number, rms: number, shapeBreak: number) =>
 			out.push({
 				midiFloat: 55,
@@ -538,6 +540,7 @@ describe('findReArticulations: slow-bloom short-gap path', () => {
 	 */
 	function bloomRun(from: number, to: number): PitchReading[] {
 		const out: PitchReading[] = [];
+		/** One clean G3 reading at `time`; the bloom is drawn in `rms` alone. */
 		const push = (time: number, rms: number) =>
 			out.push({
 				midiFloat: 55,
@@ -594,8 +597,14 @@ describe('findReArticulations: slow-bloom short-gap path', () => {
 describe('findReArticulations: the short-gap tier demands a true detector silence', () => {
 	const resume = 0.1 + 37 / 60; // 7 frames skipped — a 117 ms hole
 
+	/**
+	 * A same-MIDI run at 60 fps with a 117 ms hole that is either a true silence
+	 * or bridged by WARMUP frames (a stabiliser reset). `entry` sets the shapeBreak
+	 * of the two frames before the hole, `rmsAfter` the level after it.
+	 */
 	function holeRun(opts: { bridged: boolean; rmsAfter: number; entry?: [number, number] }): PitchReading[] {
 		const out: PitchReading[] = [];
+		/** One G3 reading at `time`; `warmup` flags it as a stabiliser warmup frame. */
 		const push = (time: number, rms: number, shapeBreak: number, warmup = false) => {
 			const r: PitchReading = {
 				midiFloat: 55,
@@ -649,6 +658,11 @@ describe('findReArticulations: the short-gap tier demands a true detector silenc
 describe('findReArticulations: envelope dip-recover tier', () => {
 	const DIP = [30, 31];
 
+	/**
+	 * A held G3 at 60 fps for a second, with the sub-window floor `rmsMin` dipping
+	 * on frames 30–31 while the window `rms` barely moves — corroborated by a
+	 * tongue-noise `hfRms` burst and/or a fundamental wobble only when asked.
+	 */
 	function dipRun(opts: { hfBurst?: boolean; wobble?: boolean }): PitchReading[] {
 		const out: PitchReading[] = [];
 		for (let i = 0; i < 60; i++) {

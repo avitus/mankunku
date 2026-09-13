@@ -238,10 +238,12 @@ function rowAbc(p: Phrase, instrument?: InstrumentConfig): string {
 	return tuneToAbc(tune, instrument, leadSheetAbcOptions(p, bars));
 }
 
+/** The row's spelling of the phrase: pitched tokens of every `[V:M]` melody line in `rowAbc`. */
 function rowSpelling(p: Phrase, instrument?: InstrumentConfig): string[] {
 	return pitchTokens(rowAbc(p, instrument).split('\n').filter((l) => l.startsWith('[V:M]')).join(' '));
 }
 
+/** One segment over the whole phrase — `root quality` with the scale declared, the tier that settles the chord's ambiguous degrees. */
 function over(root: PitchClass, quality: ChordQuality, scaleId: string): HarmonicSegment[] {
 	return [{ chord: { root, quality }, scaleId, startOffset: [0, 1], duration: [1, 1] }];
 }

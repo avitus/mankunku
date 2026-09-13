@@ -324,6 +324,7 @@ describe('quantizer vocabulary edges', () => {
 	});
 
 	it('labels onsets by the midpoints between vocabulary positions', () => {
+		/** The quantized offset of a short note at `frac` of beat 0, with a beat-2 note closing the phrase. */
 		const at = (frac: number) =>
 			quantizeNotes([note(60, frac * BEAT, 0.2), note(62, 2 * BEAT, BEAT)], 120, [4, 4]).filter(
 				(n) => n.pitch !== null
@@ -337,8 +338,11 @@ describe('quantizer vocabulary edges', () => {
 	});
 
 	it('joins a triplet neighbour only from the 2/3 sub-window (7/12 and up)', () => {
-		// Beat 1 is a triplet beat with no downbeat of its own; beat 0's lone
-		// upbeat continues it only once it sits at 7/12 or later.
+		/**
+		 * The quantized offset of a note at `frac` of beat 0 when beat 1 is a triplet
+		 * beat with no downbeat of its own; beat 0's lone upbeat continues it only
+		 * once it sits at 7/12 or later.
+		 */
 		const at = (frac: number) =>
 			quantizeNotes(
 				[note(60, frac * BEAT, 0.2), note(62, BEAT + BEAT / 3, BEAT / 3), note(64, 2 * BEAT, BEAT)],

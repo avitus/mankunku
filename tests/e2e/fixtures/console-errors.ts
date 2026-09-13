@@ -147,6 +147,7 @@ export const test = base.extend<ConsoleGuardFixtures & ConsoleGuardOptions>({
 			// their order isn't guaranteed — one admitted line per such navigation.
 			const document404Navigations = new Map<string, number>();
 			const candidateDocument404: Array<{ url: string; detail: string }> = [];
+			/** Count the main-frame navigations that answered 404, per URL. */
 			const onResponse = (response: Response): void => {
 				const request = response.request();
 				if (
@@ -159,6 +160,10 @@ export const test = base.extend<ConsoleGuardFixtures & ConsoleGuardOptions>({
 				}
 			};
 
+			/**
+			 * Record every console.error / warning no ignore rule admits, URL
+			 * appended; a document-404 candidate is held back for teardown.
+			 */
 			const onConsole = (msg: ConsoleMessage): void => {
 				const text = msg.text();
 				const url = msg.location()?.url ?? '';
@@ -177,6 +182,7 @@ export const test = base.extend<ConsoleGuardFixtures & ConsoleGuardOptions>({
 				}
 				if (msg.type() === 'warning') warnings.push(detail);
 			};
+			/** Record an uncaught error or unhandled rejection, stack first. */
 			const onPageError = (err: Error): void => {
 				const text = err.stack ?? err.message;
 				// pageerror events don't expose the originating URL, so URL-gated

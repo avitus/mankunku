@@ -16,6 +16,10 @@
 
 	let { checked, label, ariaLabel, helpText, disabled = false, onChange }: Props = $props();
 
+	/**
+	 * Flip the switch. The click and the Space/Enter path both land here, so
+	 * `disabled` is honoured once, for both.
+	 */
 	function toggle() {
 		if (disabled) return;
 		onChange(!checked);

@@ -34,6 +34,7 @@ import { nextCycleTempo } from '$lib/state/lick-practice-rotation';
 import type { PitchClass, Phrase } from '$lib/types/music';
 import type { Score } from '$lib/types/scoring';
 
+/** A Score whose every accuracy is `overall`; only the overall drives the rotation. */
 function makeScore(overall: number): Score {
 	return {
 		pitchAccuracy: overall,

@@ -27,6 +27,7 @@ class FakeWorkletNode {
 	}
 }
 
+/** A fake MediaStreamAudioSourceNode; the tests read back what it was connected to. */
 function source() {
 	return { connect: vi.fn(), disconnect: vi.fn() } as unknown as MediaStreamAudioSourceNode;
 }

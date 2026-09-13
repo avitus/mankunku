@@ -20,6 +20,10 @@ import { seedStorage, SETTINGS_ONBOARDED, TOUR_DISMISSED } from './fixtures/stor
  */
 const NOW = new Date('2026-07-19T12:00:00Z');
 
+/**
+ * One seeded daily summary of ear-training sessions carrying the
+ * `practiceMinutes` under test; every other field is a plausible constant.
+ */
 function summary(date: string, practiceMinutes: number, sessionCount = 2) {
 	return {
 		date,

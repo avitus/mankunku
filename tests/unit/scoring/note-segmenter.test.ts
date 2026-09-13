@@ -1173,6 +1173,7 @@ describe('mergeOctaveBoundariesWithoutAttack', () => {
 			...makeMixedReadings(0.0, 0.8, 72, 60, 5),
 			...makeMixedReadings(0.8, 1.6, 60, 60, 0)
 		];
+		/** The full segmenter over the fixture with the worklet onsets fixed at 0.0 and 0.79; only the click grid varies. */
 		const segment = (bleedOnsets?: number[]) =>
 			segmentNotes(readings, [0.0, 0.8], 1.6, undefined, undefined, undefined, [0.0, 0.79], bleedOnsets);
 

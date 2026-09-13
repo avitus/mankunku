@@ -17,6 +17,7 @@ import { fileURLToPath } from 'node:url';
 import { ALL_PAGES, DOC_TREE, getBreadcrumbs, getPage, getSectionFor } from '$lib/docs/structure';
 import { getDocContext, getPageContext } from '$lib/docs/context';
 
+/** The absolute path of the markdown file behind `slug`. */
 const docFile = (slug: string): string =>
 	fileURLToPath(new URL(`../../../documentation/${slug}.md`, import.meta.url));
 

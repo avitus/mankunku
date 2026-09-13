@@ -139,6 +139,7 @@ describe('POST /api/tune-parse — guards', () => {
 			let sent = 0;
 			let pulls = 0;
 			const stream = new ReadableStream<Uint8Array>({
+				/** Hand over the next megabyte of spaces, closing once `total` bytes are out. */
 				pull(controller) {
 					if (sent >= total) {
 						controller.close();
@@ -172,6 +173,7 @@ describe('POST /api/tune-parse — guards', () => {
 		const { POST } = await loadRoute();
 		// A socket that dies mid-body is a malformed request, not a server fault.
 		const broken = new ReadableStream<Uint8Array>({
+			/** Fail the first read: the socket died mid-body. */
 			pull(controller) {
 				controller.error(new Error('socket hang up'));
 			}
@@ -182,6 +184,7 @@ describe('POST /api/tune-parse — guards', () => {
 		// declared Content-Length exceeds BODY_SIZE_LIMIT — surface THAT as 413,
 		// never as a malformed payload.
 		const tooBig = new ReadableStream<Uint8Array>({
+			/** Fail the first read the way adapter-node does past BODY_SIZE_LIMIT: a 413-tagged error. */
 			pull(controller) {
 				controller.error(Object.assign(new Error('Content-length exceeds limit'), { status: 413 }));
 			}
@@ -616,6 +619,7 @@ describe('POST /api/tune-parse — per-system mode', () => {
 		});
 		await POST(makeEvent({ system: { image: PNG_B64, barCount: 2, timeSignature: [4, 4], first: true } }));
 		await POST(makeEvent({ system: { image: PNG_B64, barCount: 2, timeSignature: [4, 4] } }));
+		/** The text block of the user message on the `call`-th model request. */
 		const promptOf = (call: number): string =>
 			mockCreate.mock.calls[call][0].messages[0].content.find((b: { type: string }) => b.type === 'text').text;
 		expect(promptOf(0)).toContain('PICKUP');
@@ -624,7 +628,9 @@ describe('POST /api/tune-parse — per-system mode', () => {
 
 	it('re-reads a bar whose note count disagrees with the notehead evidence, and merges per bar toward the evidence', async () => {
 		const { POST } = await loadRoute();
+		/** A bar filled by one four-beat note. */
 		const one = (pitch: string) => ({ startRepeat: false, endRepeat: false, ending: null, pickup: false, melody: [[0, 4, pitch]] });
+		/** A bar of two two-beat notes. */
 		const two = (a: string, b: string) => ({
 			startRepeat: false,
 			endRepeat: false,
@@ -717,6 +723,7 @@ describe('POST /api/tune-parse — per-system mode', () => {
 		mockCreate.mockResolvedValue({
 			content: [{ type: 'text', text: JSON.stringify({ keySignature: { fifths: 0 }, bars: goodBars }) }]
 		});
+		/** A fresh request each time — a Request body reads once — from the user being rate-limited. */
 		const event = () =>
 			makeEvent({ system: { image: PNG_B64, barCount: 2, timeSignature: [4, 4] } }, {}, 'user-sys-limit');
 		for (let i = 0; i < 60; i++) {

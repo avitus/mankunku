@@ -150,8 +150,10 @@ describe('POST /api/monitoring — allow-list rejection paths', () => {
 	});
 
 	it('answers 400 when the body stream breaks, and 413 when the adapter already refused it', async () => {
-		// A streaming Request needs `duplex` under Node's fetch; the cast keeps
-		// the lib types quiet.
+		/**
+		 * A POST whose body is the stream. A streaming Request needs `duplex`
+		 * under Node's fetch; the cast keeps the lib types quiet.
+		 */
 		const streamRequest = (body: ReadableStream<Uint8Array>): Request =>
 			new Request('http://localhost/api/monitoring', {
 				method: 'POST',
@@ -163,6 +165,7 @@ describe('POST /api/monitoring — allow-list rejection paths', () => {
 
 		// A socket that dies mid-envelope: malformed, never relayed.
 		const broken = new ReadableStream<Uint8Array>({
+			/** Fail the first read: the socket died mid-envelope. */
 			pull(controller) {
 				controller.error(new Error('socket hang up'));
 			}
@@ -175,6 +178,7 @@ describe('POST /api/monitoring — allow-list rejection paths', () => {
 		// declared Content-Length exceeds BODY_SIZE_LIMIT — before any bytes
 		// arrive. That must read as too-large, not as a client bug.
 		const refused = new ReadableStream<Uint8Array>({
+			/** Fail the first read the way adapter-node does past BODY_SIZE_LIMIT: a 413-tagged error. */
 			pull(controller) {
 				controller.error(Object.assign(new Error('Content-length exceeds limit'), { status: 413 }));
 			}

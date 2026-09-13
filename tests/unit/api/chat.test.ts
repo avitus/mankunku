@@ -34,6 +34,10 @@ interface HandlerOpts {
 	docContext?: string;
 }
 
+/**
+ * Import the route behind fresh mocks: the docs context answers from `opts`,
+ * and the SDK client carries `stream` — or is null when not configured.
+ */
 async function importHandler(
 	configured: boolean,
 	opts: HandlerOpts = {}
@@ -63,12 +67,14 @@ function recordingStream(): { stream: ReturnType<typeof vi.fn>; requests: Array<
 		requests.push(req);
 		return {
 			abort: vi.fn(),
+			/** Yields nothing, so the handler closes the SSE response at once. */
 			async *[Symbol.asyncIterator]() {}
 		};
 	});
 	return { stream, requests };
 }
 
+/** A JSON POST from `ip`, signed in as `userId` when given — the two inputs the rate-limit key is built from. */
 function eventFor(body: unknown, userId: string | null = null, ip = '127.0.0.1') {
 	return {
 		request: new Request('http://localhost/api/chat', {
@@ -159,6 +165,7 @@ describe('POST /api/chat — request size cap', () => {
 		expect(json.byteLength).toBeGreaterThan(32_000);
 		const event = streamEvent(
 			new ReadableStream<Uint8Array>({
+				/** Enqueue the oversized JSON in 4 KB chunks, so no chunk alone crosses the cap. */
 				start(controller) {
 					for (let at = 0; at < json.byteLength; at += 4_096) controller.enqueue(json.slice(at, at + 4_096));
 					controller.close();
@@ -173,6 +180,7 @@ describe('POST /api/chat — request size cap', () => {
 	it('400s a body whose stream breaks mid-read, and passes the adapter\'s own 413 through', async () => {
 		const { POST } = await importHandler(true);
 		const broken = new ReadableStream<Uint8Array>({
+			/** Fail the first read: the socket died mid-body. */
 			pull(controller) {
 				controller.error(new Error('socket hang up'));
 			}
@@ -181,6 +189,7 @@ describe('POST /api/chat — request size cap', () => {
 		// adapter-node errors the stream with a SvelteKitError(413) when the
 		// declared length exceeds BODY_SIZE_LIMIT — that is too-large, not malformed.
 		const refused = new ReadableStream<Uint8Array>({
+			/** Fail the first read the way adapter-node does past BODY_SIZE_LIMIT: a 413-tagged error. */
 			pull(controller) {
 				controller.error(Object.assign(new Error('Content-length exceeds limit'), { status: 413 }));
 			}

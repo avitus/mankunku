@@ -101,6 +101,11 @@
 
 	let tooltip = $state<{ text: string; x: number; y: number } | null>(null);
 
+	/**
+	 * Build the hover tooltip for a practised day: the date, its session count
+	 * with the ear-training / lick-practice split, the average score and the
+	 * practice time. A future or empty cell clears it.
+	 */
 	function showTooltip(cell: Cell, event: MouseEvent) {
 		if (cell.future || !cell.summary) {
 			tooltip = null;

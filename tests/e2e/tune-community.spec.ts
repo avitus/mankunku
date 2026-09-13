@@ -55,6 +55,10 @@ const COMMUNITY_AUTHOR_ROW = {
 	avatar_url: null
 };
 
+/**
+ * A route handler answering a Supabase REST call with `body` as a 200 JSON
+ * list, `content-range` included so supabase-js reads it as a page.
+ */
 function jsonRoute(body: unknown) {
 	return async (route: import('@playwright/test').Route) => {
 		await route.fulfill({

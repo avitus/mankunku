@@ -124,6 +124,13 @@ function isRateLimited(key: string): boolean {
 	return false;
 }
 
+/**
+ * The docs assistant's chat endpoint. Rate-limited per verified user (else
+ * per IP), body capped by `readBodyBounded`, history trimmed to the last
+ * `MAX_HISTORY_MESSAGES` / `MAX_HISTORY_CHARS`; answers as an SSE stream of
+ * Anthropic text deltas with the doc context cached upstream, and aborts the
+ * upstream stream when the client disconnects.
+ */
 export const POST: RequestHandler = async ({ request, getClientAddress, locals }) => {
 	if (!isAnthropicConfigured()) {
 		throw error(503, 'AI assistant is not configured. Set ANTHROPIC_API_KEY in the environment.');

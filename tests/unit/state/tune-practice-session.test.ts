@@ -25,6 +25,7 @@ function mkScore(overall: number): Score {
 	} as unknown as Score;
 }
 
+/** A minimal ii-V-I suggestion in C named after its `lickId`, so candidate lists read back by id. */
 function mkSuggestion(lickId: string): LickSuggestion {
 	return {
 		lickId,

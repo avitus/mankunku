@@ -98,6 +98,7 @@ describe('sample maps', () => {
 		// A wrong URL is the same silent death as a bad codec: smplr falls back
 		// to a misleading `/<name>.ogg` 404 and the instrument never sounds.
 		const missing: string[] = [];
+		/** Record `url` as missing when nothing ships at that path under static/. */
 		const check = (url: string) => {
 			if (!existsSync(join(process.cwd(), 'static', url))) missing.push(url);
 		};

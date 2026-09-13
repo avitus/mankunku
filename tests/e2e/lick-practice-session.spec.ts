@@ -520,8 +520,14 @@ test.describe('lick-practice session flow', () => {
 			// undefined — so wrap whichever constructor is current AND any
 			// assigned after this runs.
 			w.__recorderStarts = 0;
+			/**
+			 * Subclass a MediaRecorder constructor so every `start` bumps the
+			 * count — applied to the current constructor and, via the setter
+			 * below, to any the mock installs after this script.
+			 */
 			const counting = (Base: typeof MediaRecorder): typeof MediaRecorder =>
 				class extends Base {
+					/** Count the start, then defer to the wrapped recorder. */
 					start(timeslice?: number): void {
 						w.__recorderStarts++;
 						super.start(timeslice);
@@ -607,9 +613,12 @@ test.describe('lick-practice session flow', () => {
 		// transaction aborts; the app warns and keeps going), so no take is
 		// ever saved there and the recorder count above is its pin.
 		if (browserName === 'webkit') return;
-		// The probe creates the store if the app has not (same shape as
-		// audio-store.ts), so opening it early can never leave the app a
-		// store-less database.
+		/**
+		 * Session ids of the saved lick-practice takes in the anon audio store.
+		 * The probe creates the store if the app has not (same shape as
+		 * audio-store.ts), so opening it early can never leave the app a
+		 * store-less database.
+		 */
 		const readTakes = () =>
 			page.evaluate(async () => {
 				const db = await new Promise<IDBDatabase>((resolve, reject) => {

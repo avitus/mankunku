@@ -49,6 +49,7 @@ function docWith(content: string | null | undefined): AuthVerdictSource & { sele
 	return {
 		selectors,
 		head: {
+			/** Records the selector the reader asked for and answers with the meta, or nothing when `content` is undefined. */
 			querySelector(selector: string) {
 				selectors.push(selector);
 				if (content === undefined) return null;

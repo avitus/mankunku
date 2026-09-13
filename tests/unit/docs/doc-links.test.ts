@@ -48,6 +48,7 @@ function extractDocLinks(source: string): DocLink[] {
 	return links;
 }
 
+/** Every .svelte and .ts file under `dir`, recursively. */
 function walk(dir: string, out: string[] = []): string[] {
 	for (const entry of readdirSync(dir)) {
 		const path = join(dir, entry);

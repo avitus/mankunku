@@ -18,6 +18,7 @@ vi.stubGlobal('localStorage', {
 	setItem: vi.fn((key: string, val: string) => store.set(key, val)),
 	removeItem: vi.fn((key: string) => store.delete(key)),
 	key: vi.fn((i: number) => [...store.keys()][i] ?? null),
+	/** Storage's live key count. */
 	get length() {
 		return store.size;
 	},

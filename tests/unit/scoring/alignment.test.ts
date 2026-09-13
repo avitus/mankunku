@@ -228,6 +228,7 @@ describe('alignNotes', () => {
 
 	it('grades the strict pitch cost: one semitone costs 0.5, two or more saturate at 1.0', () => {
 		const expected = [makeNote(60, [0, 1])];
+		/** Alignment cost of a lone detected `midi` played on time against the expected C4. */
 		const costFor = (midi: number) =>
 			alignNotes(expected, [makeDetected(midi, 0)], TEMPO).find(p => p.expectedIndex === 0)!.cost;
 		expect(costFor(61)).toBeCloseTo(0.5, 5);
@@ -240,6 +241,7 @@ describe('alignNotes', () => {
 		// performance sits more than a beat late, timing stops disambiguating.
 		const expected = [makeNote(60, [0, 1])];
 		const beat = 60 / TEMPO;
+		/** Alignment cost of the right pitch played `onset` seconds in against the expected note on beat 1. */
 		const costAt = (onset: number) =>
 			alignNotes(expected, [makeDetected(60, onset)], TEMPO).find(
 				p => p.expectedIndex === 0 && p.detectedIndex === 0

@@ -30,6 +30,7 @@ const ORIGINAL_LOCAL = Object.getOwnPropertyDescriptor(globalThis, 'localStorage
 const ORIGINAL_SESSION = Object.getOwnPropertyDescriptor(globalThis, 'sessionStorage');
 const RELOAD_GUARD = 'mankunku:reload-target';
 
+/** A map-backed Storage with its contents reachable as `_store`; one each stands in for localStorage and sessionStorage. */
 function createStorageMock(): MockStorage {
 	const store: Record<string, string> = {};
 	return {
@@ -43,6 +44,7 @@ function createStorageMock(): MockStorage {
 		clear: () => {
 			for (const k of Object.keys(store)) delete store[k];
 		},
+		/** Storage's live key count. */
 		get length() {
 			return Object.keys(store).length;
 		},
@@ -153,6 +155,7 @@ describe('reconcileBeforeHydration — boot proceeds', () => {
 
 	it('when the reconcile throws: boot never hangs on it', () => {
 		setActiveUid('user-A');
+		/** A settle probe that throws synchronously; the reconcile must swallow it and let boot proceed. */
 		const whenSettled = (): Promise<void> => {
 			throw new Error('settle probe blew up');
 		};
@@ -181,6 +184,7 @@ describe('reconcileBeforeHydration — boot proceeds', () => {
 describe('reconcileBeforeHydration — parked while the reload lands', () => {
 	it('persists the switch at once, reloads only once the document settles, and never settles', async () => {
 		setActiveUid('user-A');
+		/** Resolves the settle probe's promise when the test is ready; a no-op until `whenSettled` has run. */
 		let settle: () => void = () => {};
 		const whenSettled = vi.fn(() => new Promise<void>((resolve) => (settle = resolve)));
 

@@ -60,8 +60,10 @@ test.describe('lick detail page', () => {
 			.poll(() => page.locator('.abcjs-container svg .abcjs-notehead').count())
 			.toBeGreaterThanOrEqual(4);
 
-		// Progressions the lick fits are live pills; the ones it can't play
-		// over are disabled and explain why.
+		/**
+		 * A "Practice over" pill by its exact label. Progressions the lick fits
+		 * are live pills; the ones it can't play over are disabled and explain why.
+		 */
 		const pill = (name: string) => page.getByRole('button', { name, exact: true });
 		await expect(pill('Major')).toBeEnabled();
 		await expect(pill('Short ii-V-I (Maj)')).toBeEnabled();
@@ -78,6 +80,10 @@ test.describe('lick detail page', () => {
 		await page.goto(`/licks/${LICK_ID}`);
 		await page.getByRole('button', { name: 'Major', exact: true }).click();
 
+		/**
+		 * The lick's tags as the tag store persists them — a pill toggle writes
+		 * its `prog:*` tag here.
+		 */
 		const readTags = () =>
 			page.evaluate((id) => {
 				const raw = window.localStorage.getItem('mankunku:user-lick-tags');

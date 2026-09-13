@@ -25,6 +25,11 @@ interface Recorded {
 
 const recorded: Recorded[] = [];
 
+/**
+ * Stand-in for a Tone Part/Sequence constructor: logs the events and whether
+ * start() ran onto `recorded`, and keeps the fake itself so the loop settings
+ * the SUT assigns can be asserted on.
+ */
 function record(kind: 'part' | 'sequence', events: unknown[]) {
 	const r: Recorded = { kind, events, started: false };
 	recorded.push(r);
@@ -286,8 +291,9 @@ describe('playBackingHitsNow', () => {
 		// Part-scheduled tail.
 		const mod = await import('$lib/audio/backing-track');
 		await mod.loadBackingInstruments('piano');
+		/** The fake instruments of one smplr class, in construction order. */
 		const only = (kind: string) => instruments.filter((i) => i.kind === kind);
-		// Drum samplers are told apart by the family pan they feed.
+		/** The drum sampler on a family pan — the kit's three are told apart by the pan they feed. */
 		const drumAt = (pan: number) =>
 			only('Sampler').find(
 				(i) => (i.options as { destination: { pan: { value: number } } }).destination.pan.value === pan

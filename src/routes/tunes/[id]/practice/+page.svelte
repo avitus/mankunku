@@ -637,6 +637,11 @@
 		if (match) recordFreestyleMatch(match);
 	}
 
+	/**
+	 * Transport callback at an insertion point's open tick: snapshot the
+	 * window — its accepted answers, the transport time, the mic clock and the
+	 * readings count to slice from — and reset the onset detector to it.
+	 */
 	function openInsertionWindow(index: number) {
 		// A cancelled event can still fire if already dequeued when End ran.
 		if (!isSessionRunning || !playback || !pitchDetector || !micCapture) return;
@@ -654,6 +659,13 @@
 		onsetDetector?.reset(currentWindow.micStartTime);
 	}
 
+	/**
+	 * Transport callback at the window's close tick: rebase the readings
+	 * collected since it opened into window-local seconds, run the shared
+	 * segmentation (worklet + re-articulation onsets, with the bleed grid),
+	 * score the take against every accepted answer and record the best match.
+	 * Nothing played is a skipped window, not a fail.
+	 */
 	function closeInsertionWindow() {
 		if (!currentWindow || !pitchDetector) return;
 		const win = currentWindow;
@@ -709,6 +721,11 @@
 		const bleedResult = win.schedule
 			? filterBleed(detected, win.schedule, win.recordingTransportSeconds)
 			: null;
+		/**
+		 * Score the take against one accepted answer: a trick window judges
+		 * fluency (onsets rebased to its aligned bar), a lick window runs the
+		 * full score pipeline; null when the candidate has no phrase.
+		 */
 		const scoreCandidate = (candidate: WindowCandidate): Score | null => {
 			if (candidate.trickInfo) {
 				// Trick windows judge FLUENCY (conformance to the device's formula),

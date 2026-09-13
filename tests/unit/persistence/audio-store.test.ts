@@ -220,6 +220,11 @@ describe('getRecording (blob only)', () => {
 
 // ─── Cloud mirror (the `recordings` bucket, per-user path) ───────────────────
 
+/**
+ * A Supabase storage stand-in for the `recordings` bucket: every upload's
+ * path + options and every remove call are recorded, and `download` answers
+ * with `downloadBlob` or a not-found error.
+ */
 function makeStorageClient(downloadBlob: Blob | null = null) {
 	const uploads: Array<{ path: string; opts?: { contentType?: string; upsert?: boolean } }> = [];
 	const removals: string[][] = [];

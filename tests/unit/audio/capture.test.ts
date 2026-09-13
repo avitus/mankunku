@@ -2,8 +2,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // ─── Mocks ────────────────────────────────────────────────────
 
-// Defaults are deliberately NOT the values capture.ts assigns (4096 / 0), so
-// the assertions on them can fail if the assignments are dropped.
+/**
+ * A fake AnalyserNode whose time-domain reads return a zeroed buffer. Defaults
+ * are deliberately NOT the values capture.ts assigns (4096 / 0), so the
+ * assertions on them can fail if the assignments are dropped.
+ */
 function createMockAnalyser(fftSize = 2048) {
 	const buffer = new Float32Array(fftSize);
 	return {

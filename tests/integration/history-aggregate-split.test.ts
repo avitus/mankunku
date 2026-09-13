@@ -53,6 +53,10 @@ function makeEarSession(overrides: Partial<SessionResult> = {}): SessionResult {
 	};
 }
 
+/**
+ * A one-lick session-log entry whose report totals are derived from `keys`,
+ * so a summary can be checked against exactly what was logged.
+ */
 function makeLickEntry(overrides: {
 	id?: string;
 	timestamp?: number;
@@ -604,6 +608,7 @@ describe('end-to-end session→summary flow', () => {
 });
 
 describe('history queries (the /progress period cards, heatmap and streak)', () => {
+	/** A stored summary of `sessionCount` ear-training sessions on `date`, every score `avg` — one heatmap cell. */
 	function day(date: string, sessionCount: number, avg: number): DailySummary {
 		return {
 			date,
@@ -622,6 +627,7 @@ describe('history queries (the /progress period cards, heatmap and streak)', () 
 		};
 	}
 
+	/** Seed the persisted summaries and re-import the history module so it hydrates from them alone. */
 	async function loadWith(summaries: DailySummary[]): Promise<void> {
 		store.clear();
 		store.set('mankunku:daily-summaries', JSON.stringify(summaries));

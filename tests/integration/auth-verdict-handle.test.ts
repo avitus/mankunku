@@ -38,10 +38,15 @@ type HandleFn = (args: { event: unknown; resolve: ResolveFn }) => Promise<unknow
 vi.mock('@sveltejs/kit/hooks', () => ({
 	sequence: (...fns: HandleFn[]) => {
 		return async ({ event, resolve }: { event: unknown; resolve: ResolveFn }) => {
+			/**
+			 * Run handler `i` with a resolve that chains into `i + 1`, merging both
+			 * options the way SvelteKit's `sequence` does.
+			 */
 			const apply = (i: number, evt: unknown, parent: ResolveOpts): Promise<unknown> | unknown =>
 				fns[i]({
 					event: evt,
 					resolve: (e, opts) => {
+						/** The handler's own transform first, then the upstream ones — SvelteKit applies them in reverse order. */
 						const transformPageChunk: Transform = async ({ html, done }) => {
 							if (opts?.transformPageChunk) html = (await opts.transformPageChunk({ html, done })) ?? '';
 							if (parent.transformPageChunk) html = (await parent.transformPageChunk({ html, done })) ?? '';
@@ -73,10 +78,12 @@ import { AUTH_VERDICT_META_NAME, parseAuthVerdict } from '$lib/persistence/auth-
 
 const PAGE = '<!doctype html><html><head><meta charset="utf-8"></head><body><div>app</div></body></html>';
 
+/** The two auth calls `safeGetSession` makes; each case scripts them before rendering. */
 function createMockSupabaseClient() {
 	return { auth: { getSession: vi.fn(), getUser: vi.fn() } };
 }
 
+/** A Map-backed cookie jar covering the `getAll`/`set` surface the Supabase cookie adapter calls. */
 function createMockCookies() {
 	const store = new Map<string, string>();
 	return {

@@ -66,6 +66,10 @@ function canReload(): boolean {
 	return typeof location !== 'undefined' && typeof location.reload === 'function';
 }
 
+/**
+ * The default reload effect — `location.reload()` at once. Named so
+ * `scheduleReload`'s default and the boot path's deferred reload share it.
+ */
 function reloadNow(): void {
 	location.reload();
 }
@@ -294,10 +298,19 @@ export function reconcileBeforeHydration(
 	whenSettled?: () => PromiseLike<unknown>
 ): Promise<void> | undefined {
 	if (!verdict) return undefined;
+	/**
+	 * Releases `parked`. The placeholder is swapped for the promise's resolver
+	 * by the executor below (synchronously), before anything can call it.
+	 */
 	let resume: () => void = () => {};
 	const parked = new Promise<void>((resolve) => {
 		resume = resolve;
 	});
+	/**
+	 * The reload effect handed to `reconcileActiveUser`: wait for the document
+	 * to settle (a failed wait is ignored), then reload; only a reload that
+	 * itself throws releases the parked boot.
+	 */
 	const reloadOnceSettled = (): void => {
 		Promise.resolve(whenSettled?.())
 			.catch(() => undefined)
