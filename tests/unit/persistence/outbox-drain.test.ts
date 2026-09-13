@@ -11,6 +11,15 @@ vi.mock('$lib/state/progress.svelte', () => ({
 	flushProgressToCloud: vi.fn()
 }));
 
+// The scope generation is a module-private counter that re-homes and wipes
+// bump; expose a knob so a push can move it WITHOUT moving the uid pointer,
+// which is the case the drain's uid gate cannot see.
+const scope = vi.hoisted(() => ({ generation: 0 }));
+vi.mock('$lib/persistence/user-scope', async (importOriginal) => ({
+	...(await importOriginal<typeof import('$lib/persistence/user-scope')>()),
+	getScopeGeneration: () => scope.generation
+}));
+
 // ─── Mock localStorage (community.test.ts pattern) ────────────────────────────
 const store: Record<string, string> = {};
 const localStorageMock = {
@@ -160,6 +169,24 @@ describe('outbox drain — identity, concurrency and coalescing guards', () => {
 		expect(Object.keys(rawOutbox('u:user-a:') ?? {})).toEqual(['settings']);
 		// …and the drain wrote nothing into user-b's namespace.
 		expect(rawOutbox('u:user-b:')).toBeNull();
+	});
+
+	it('keeps an entry whose push was cancelled by a scope-generation bump that left the uid in place', async () => {
+		// Every flush handler returns silently when the generation moves under
+		// it — no upsert. wipeUserData bumps the generation BEFORE it re-homes
+		// the pointer, so a drain gating on the uid alone would read that
+		// silence as success and delete the intent.
+		vi.mocked(flushSettingsToCloud).mockImplementation(async () => {
+			scope.generation += 1;
+		});
+		enqueue('settings');
+
+		await drainOutbox(authedAs('user-a'));
+
+		expect(flushSettingsToCloud).toHaveBeenCalledTimes(1);
+		const map = outbox();
+		expect(Object.keys(map)).toEqual(['settings']);
+		expect(map.settings.attempts).toBe(0);
 	});
 
 	it('treats an unknown kind as handled and removes it (the v3 schema upgrade relies on this)', async () => {

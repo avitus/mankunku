@@ -64,13 +64,16 @@ describe('design token consistency', () => {
 		// Same failure mode as the colour sweep, one property over: an
 		// undefined font token leaves `font-family: var(--font-display), Georgia`
 		// resolving to Georgia, so every knob readout quietly lost Fraunces.
+		// The pattern accepts a comma as well as the closing paren, because a
+		// reference with an inline fallback — `var(--font-x, Georgia)` — is the
+		// exact shape that hides the slip.
 		const defined = new Set(
 			[...APP_CSS.matchAll(/(--font-[a-z0-9-]+)\s*:/g)].map((m) => m[1])
 		);
 		const undefinedUses = new Map<string, string[]>();
 		for (const file of files) {
 			const source = readFileSync(file, 'utf8');
-			for (const m of source.matchAll(/var\((--font-[a-z0-9-]+)\)/g)) {
+			for (const m of source.matchAll(/var\(\s*(--font-[a-z0-9-]+)\s*[,)]/g)) {
 				if (!defined.has(m[1])) {
 					const users = undefinedUses.get(m[1]) ?? [];
 					if (!users.includes(rel(file))) users.push(rel(file));

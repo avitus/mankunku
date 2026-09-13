@@ -473,7 +473,9 @@ describe('buildTriadPairSlots', () => {
 		// triad (exactPcs) shares no pc with its partner (patternPcs), so an
 		// in-pattern grade can never be earned by a note of the played triad.
 		for (const slot of buildTriadPairSlots(params, baseContext)) {
-			expect(slot.exactPcs.filter((pc) => slot.patternPcs?.includes(pc))).toEqual([]);
+			expect(slot.patternPcs).toBeDefined();
+			const partner = slot.patternPcs ?? [];
+			expect(slot.exactPcs.filter((pc) => partner.includes(pc))).toEqual([]);
 		}
 	});
 

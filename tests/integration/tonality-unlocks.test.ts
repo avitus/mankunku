@@ -131,10 +131,11 @@ describe('tonality unlock system', () => {
 describe('daily tonality selection', () => {
 	it('accepts Date objects and resolves them to the same day as the ISO string', () => {
 		const ctx = fullContext();
-		// Noon UTC is the same calendar day in every zone within ±12 h, so the
-		// Date arm must land on the string arm's tonality — a timezone slip in
-		// the day conversion would pick the neighbouring day's hash.
-		const date = new Date('2024-06-15T12:00:00Z');
+		// Local noon is June 15 in whatever zone the test runs in — noon UTC is
+		// already June 16 from UTC+12 eastwards — so the Date arm must land on
+		// the string arm's tonality; a timezone slip in the day conversion
+		// would pick the neighbouring day's hash.
+		const date = new Date(2024, 5, 15, 12);
 
 		const t = getDailyTonality(date, ctx);
 		expect(tonalitiesEqual(t, getDailyTonality('2024-06-15', ctx))).toBe(true);

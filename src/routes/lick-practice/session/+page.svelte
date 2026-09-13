@@ -407,6 +407,10 @@
 			loadError = true;
 			return;
 		}
+		// The success path can land after teardown too — a navigation that let
+		// the last import finish — and stopAll() has already run by then. A
+		// timer or a session opened here would outlive the page.
+		if (destroyed) return;
 
 		timerInterval = setInterval(() => {
 			updateElapsedTime();

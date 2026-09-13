@@ -279,6 +279,9 @@
 			audioLoadFailed = true;
 			return;
 		}
+		// The success path can land after teardown too — a navigation that let
+		// the fetch finish. The page's state is nobody's to write then.
+		if (destroyed) return;
 		session.micPermission = await captureModule.checkMicPermission();
 	});
 
@@ -940,10 +943,12 @@
 		<button
 			data-tour="play-button"
 			onclick={isActive ? handleStop : handlePlay}
-			disabled={session.isLoadingInstrument || starting}
+			disabled={session.isLoadingInstrument || starting || audioLoadFailed}
 			class="group relative flex h-28 w-28 shrink-0 items-center justify-center rounded-full
 				   transition-all duration-300 active:scale-95 ring-1 ring-[var(--color-brass)]/50
-				   {session.isLoadingInstrument
+				   {audioLoadFailed
+					? 'bg-[var(--color-bg-tertiary)] opacity-40 cursor-not-allowed'
+					: session.isLoadingInstrument
 					? 'bg-[var(--color-bg-tertiary)] cursor-wait'
 					: isActive
 						? 'bg-[var(--color-onair)] hover:bg-[var(--color-onair-hover)] shadow-lg'

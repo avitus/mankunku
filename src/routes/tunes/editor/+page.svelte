@@ -132,6 +132,8 @@
 	/** Mobile dock: rows 2-4 (the entry panels) visible. */
 	let dockExpanded = $state(true);
 	let playbackModule: typeof import('$lib/audio/playback') | null = null;
+	/** The playback module failed to import while the page was up — Play is disabled and the status line says why. */
+	let playbackLoadFailed = $state(false);
 	let isPlaying = $state(false);
 	// Guards the async start path (instrument load): a second click during
 	// the await would otherwise start overlapping playback.
@@ -156,7 +158,10 @@
 			// setup below (edit hydration, an import's review handoff, clearing
 			// a stale draft). A navigation that cut the fetch off rejects it
 			// too; that is dropped with the page.
-			if (!destroyed) console.warn('[tune-editor] playback failed to load; Play is unavailable', err);
+			if (!destroyed) {
+				console.warn('[tune-editor] playback failed to load; Play is unavailable', err);
+				playbackLoadFailed = true;
+			}
 		}
 		if (!editHydrationActive) return;
 		const editId = page.url.searchParams.get('edit');
@@ -304,6 +309,9 @@
 	{#if cursorPos}
 		· Bar {cursorPos.barInSection + 1}, Beat {Math.floor(cursorPos.beatInBar + 1e-9) + 1}
 	{/if}
+	{#if playbackLoadFailed}
+		· Couldn't load playback — reload to try again
+	{/if}
 {/snippet}
 
 {#snippet meterNotice()}
@@ -318,7 +326,9 @@
 {#snippet entryActions(sizing: string)}
 	<button
 		onclick={togglePlay}
-		class="flex items-center justify-center gap-1.5 rounded-lg text-sm font-medium text-white transition-colors {sizing}
+		disabled={playbackLoadFailed}
+		title={playbackLoadFailed ? "Couldn't load playback — reload to try again" : undefined}
+		class="flex items-center justify-center gap-1.5 rounded-lg text-sm font-medium text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40 {sizing}
 			{isPlaying
 				? 'bg-[var(--color-onair)] hover:bg-[var(--color-onair-hover)]'
 				: 'bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)]'}"

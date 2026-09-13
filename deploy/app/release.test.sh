@@ -438,6 +438,9 @@ ok "health-check budget measures wall clock, not accumulated sleep (${smoke_elap
 # `rm -rf` — so the id regex is the only thing standing between a human's
 # `pre-migration-*` snapshot (real on the server) and deletion. The just
 # deployed release must survive as well, whatever the tie-breaking on mtime.
+# And the count is exact: the snapshot dir and the stray file below are
+# NEWER than every release, so a prune that counted them toward KEEP would
+# leave one real release where two were asked for.
 ID20="20260120-000000-aaa2020"
 stage_release "$ID20" "2.TTTTTTT.js"
 mkdir -p "${MANKUNKU_ROOT}/releases/pre-migration-20260422-211746"
@@ -446,8 +449,8 @@ echo "operator notes" > "${MANKUNKU_ROOT}/releases/notes.txt"
 KEEP_RELEASES=2 bash "$RELEASE_SH" "$ID20" >/dev/null
 matching=$(find "${MANKUNKU_ROOT}/releases" -mindepth 1 -maxdepth 1 -type d \
     | sed 's|.*/||' | grep -cE '^[0-9]{8}-[0-9]{6}-[0-9a-f]{7}$' || true)
-(( matching <= 2 )) || fail "prune kept ${matching} release dirs with KEEP_RELEASES=2"
-ok "prune retains only KEEP_RELEASES release dirs"
+(( matching == 2 )) || fail "prune left ${matching} release dirs with KEEP_RELEASES=2 (want exactly 2)"
+ok "prune retains exactly KEEP_RELEASES release dirs"
 [[ -d "${MANKUNKU_ROOT}/releases/${ID20}" ]] \
     || fail "prune deleted the release it had just deployed"
 [[ "$(readlink "${MANKUNKU_ROOT}/current")" == "releases/${ID20}" ]] \

@@ -93,10 +93,21 @@
 	onMount(async () => {
 		void acquireScreenWakeLock();
 		try {
-			playbackModule = await import('$lib/audio/playback');
-			captureModule = await import('$lib/audio/capture');
-			pitchModule = await import('$lib/audio/pitch-detector');
-			onsetModule = await import('$lib/audio/onset-detector');
+			// All or nothing, assigned only once every module is in: a partial
+			// set left `captureModule` standing while the pitch detector was
+			// missing, so an enabled Record opened the microphone before
+			// startRecording noticed it had nothing to run.
+			const [playback, capture, pitch, onset] = await Promise.all([
+				import('$lib/audio/playback'),
+				import('$lib/audio/capture'),
+				import('$lib/audio/pitch-detector'),
+				import('$lib/audio/onset-detector')
+			]);
+			if (destroyed) return;
+			playbackModule = playback;
+			captureModule = capture;
+			pitchModule = pitch;
+			onsetModule = onset;
 		} catch (err) {
 			// A navigation that cuts the fetch off rejects the import too; once
 			// the page is gone that is nobody's error.
@@ -458,10 +469,12 @@
 
 			<button
 				onclick={startRecording}
+				disabled={audioLoadFailed}
 				aria-label="Start recording"
 				class="group relative flex h-28 w-28 items-center justify-center rounded-full
 					   bg-[var(--color-onair)] hover:bg-[var(--color-onair-hover)] shadow-lg ring-1 ring-[var(--color-brass)]/50
-					   transition-all duration-300 hover:bg-[var(--color-onair-hover)] active:scale-95"
+					   transition-all duration-300 hover:bg-[var(--color-onair-hover)] active:scale-95
+					   disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-[var(--color-onair)]"
 			>
 				<svg class="h-10 w-10 text-white" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
 					<circle cx="12" cy="12" r="6" />

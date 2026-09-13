@@ -23,6 +23,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types';
 import { load, save } from './storage';
 import { getActiveUidOrNull } from './namespace';
+import { getScopeGeneration } from './user-scope';
 
 export type OutboxKind =
 	| 'progress'
@@ -201,6 +202,13 @@ export async function drainOutbox(supabase: SupabaseClient<Database>): Promise<v
 				continue;
 			}
 			const revAtStart = entry.rev;
+			// The flush handlers abort silently when the scope generation moves
+			// under them (a re-home mid-flight): they return without upserting.
+			// The uid check below misses a bump that leaves the pointer where it
+			// was (a wipe bumps before it re-homes; adoption into the account
+			// already active), so the generation is checked in its own right —
+			// a cancelled flush keeps its intent.
+			const genAtStart = getScopeGeneration();
 			try {
 				await runKind(kind, supabase);
 			} catch {
@@ -216,9 +224,10 @@ export async function drainOutbox(supabase: SupabaseClient<Database>): Promise<v
 				if (e) rescheduleDelay = Math.min(rescheduleDelay, Math.max(0, e.nextAttemptAt - Date.now()));
 				continue;
 			}
-			// Success. Abort if the account switched mid-push; otherwise delete the
-			// entry ONLY if it wasn't re-enqueued during the push (rev unchanged).
-			if (getActiveUidOrNull() !== activeUid) return;
+			// Success. Abort if the account scope moved mid-push (uid or generation);
+			// otherwise delete the entry ONLY if it wasn't re-enqueued during the
+			// push (rev unchanged).
+			if (getActiveUidOrNull() !== activeUid || getScopeGeneration() !== genAtStart) return;
 			patch((m) => {
 				const e = m[kind];
 				if (e && e.uid === activeUid && e.rev === revAtStart) delete m[kind];
