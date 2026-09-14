@@ -22,7 +22,7 @@ When a proficiency moves, a small cue flashes under the ear-training status line
 
 Three things, all of them the real levers of difficulty:
 
-1. **The phrase pool.** Ear training admits licks whose difficulty rating is at or below your proficiency in the active scale, then filters for scale fit and shuffles. As your Blues proficiency climbs, harder blues licks surface. Length counts too: a lick with more notes than a tier allows is treated as at least that longer tier's level, however simple its notes — hearing a thirteen-note line and playing it back is a memory test on its own.
+1. **The phrase pool.** Ear training requires a difficulty rating at or below your proficiency in the active scale, a phrase within the ear-training length limit below, and a matching scale. These are independent gates: a low rating cannot admit an overlong phrase. Your own and adopted book licks must fit the scale with their actual notes, measured from their stored concert key; broad category labels cannot substitute for that check. A small pool repeats its eligible phrases. If a newly unlocked scale has no matching material yet, short curated single-chord exercises are adapted into it, under the same rating and length limits; book licks and multi-chord progressions never enter through this fallback.
 2. **Key unlocks.** New keys open around the circle of fifths when their prerequisite key reaches a set level — G and F need C at 10; the last five (E, Ab, B, Db, F#) need their neighbours at 15. See [The Daily Key](./tonality-system.md).
 3. **Scale unlocks.** New scale types open when their prerequisites are met — Dorian needs Minor Pentatonic at 20, Altered needs Melodic Minor at 40, and so on.
 
@@ -32,7 +32,24 @@ The **Keys & Scales** card on the Progress page shows this frontier directly: ho
 
 Every lick carries its own difficulty rating (1–100), computed from its pitch demands (chromaticism, range, interval leaps) and rhythm demands (density, syncopation, tuplets). The app groups these ratings into ten **content tiers** describing how difficulty opens up — which scale families come into play, which rhythms, what tempos and keys, and how many notes a phrase may run to.
 
-How that reaches you differs by mode. On **Side A**, the tier table is a description rather than a selector: harder material surfaces as your proficiency climbs, and the note-count ceilings below are the one part the pool enforces directly (see the phrase pool, above). **Tricks** read a tier too, but a fixed one — the middle of the range — so a drill's examples use the same rhythms whatever your level.
+**Ear training** has a stricter length progression for remembering and playing back a phrase. Only pitched notes count; rests do not. The stored rating still applies, so meeting the length limit alone does not make a lick eligible.
+
+| Scale proficiency | Maximum notes per ear-training phrase |
+|---|---|
+| 1–5 | 4 |
+| 6–12 | 5 |
+| 13–20 | 6 |
+| 21–30 | 7 |
+| 31–40 | 8 |
+| 41–52 | 9 |
+| 53–65 | 10 |
+| 66–78 | 12 |
+| 79–90 | 16 |
+| 91–100 | 24 |
+
+At level 59, a 16-note lick is excluded even if its stored rating is 55. Sixteen-note phrases first become eligible at level 79, provided their rating and scale also fit. If no phrase meets all the conditions, ear training says so and leaves Play disabled.
+
+The broader content profiles below describe the vocabulary and generation limits, rather than the ear-training memory ceiling. **Tricks** read a fixed tier in the middle of the range, so a drill's examples use the same rhythms whatever your level.
 
 Roughly:
 

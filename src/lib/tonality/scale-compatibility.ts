@@ -9,7 +9,10 @@
 
 import type { Phrase, PhraseCategory } from '$lib/types/music';
 import type { ScaleType } from './tonality';
-import { SCALE_UNLOCK_ORDER } from './tonality';
+import { SCALE_UNLOCK_ORDER, SCALE_TYPE_TO_SCALE_ID } from './tonality';
+import { PITCH_CLASSES } from '$lib/types/music';
+import { getScale } from '$lib/music/scales';
+import { realizeScale } from '$lib/music/keys';
 
 // ── Scale-level compatibility ────────────────────────────────────────
 // Maps a lick's native scaleId to the ScaleTypes it works with.
@@ -50,13 +53,29 @@ const PROGRESSION_CATEGORIES = new Set<PhraseCategory>(
 	Object.keys(CATEGORY_COMPATIBILITY) as PhraseCategory[]
 );
 
-/** All known ScaleType values — the fallback for licks with no readable harmony */
+/** All known scale types for the broad curated-adaptation fallback. */
 const ALL_SCALE_TYPES: ScaleType[] = [...SCALE_UNLOCK_ORDER];
+
+/**
+ * Whether every pitched note belongs to a scale rooted on the lick's stored
+ * concert key. Rests supply no pitch evidence; an empty melody is not a fit.
+ * This deliberately ignores category and harmony labels, which can be broad,
+ * absent or stale on personal and adopted licks.
+ */
+export function melodyFitsScale(lick: Phrase, scaleType: ScaleType): boolean {
+	const root = PITCH_CLASSES.indexOf(lick.key);
+	const scale = getScale(SCALE_TYPE_TO_SCALE_ID[scaleType]);
+	const pitches = lick.notes.filter(note => note.pitch !== null);
+	if (root < 0 || !scale || pitches.length === 0) return false;
+	const allowed = new Set(realizeScale(lick.key, scale.intervals));
+	return pitches.every(note => allowed.has(((note.pitch! % 12) + 12) % 12));
+}
 
 // ── Public API ───────────────────────────────────────────────────────
 
 /**
- * Derive which ScaleTypes a lick is compatible with.
+ * Derive which ScaleTypes a lick can be adapted to. Ear training uses
+ * melodyFitsScale for book licks instead: their melodies must fit unchanged.
  *
  * Resolution order:
  * 1. Progression categories (ii-V-I, turnarounds, etc.) → category mapping

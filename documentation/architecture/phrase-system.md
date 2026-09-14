@@ -74,14 +74,14 @@ Set **Highest** to the top note you actually play and the app respects it; lower
 
 ## Tonality-aware transposition
 
-For practice sessions, the transposition logic gets one more layer of nuance. Different scale types have different parent-key relationships:
+For curated ear-training exercises, the transposition logic gets one more layer of nuance. Different scale types have different parent-key relationships:
 
 - **Major modes with multi-chord progressions** (ii-V-I, turnarounds, rhythm changes) transpose to the **parent major key**. So an A Dorian ii-V-I doesn't transpose so the lick literally starts on A — it transposes to G major, the parent of A Dorian, so the chord progression Am7 → D7 → Gmaj7 still works as a real ii-V-I.
 - **Minor cadence licks** (the ii-V-i, short ii-V-i and V-i minor vocabulary) are written from their tonic, not the parent major, so they move **tonic → the session's root** under any minor-flavoured tonality (minor, Dorian, melodic minor) and are never snapped: the lick's own harmony is the context. A C-minor ii-V-i in a D minor session is played in D minor.
 - **Major modes with single-chord licks** transpose directly to the modal root, then snap any note that falls outside the mode to the nearest scale tone. A Dorian lick over Dm7 transposes so it starts on D.
 - **Non-major scales** (blues, pentatonic, melodic minor, harmonic minor) transpose to the key, then **snap any out-of-scale notes to the nearest scale tone**, preferring flats when equidistant. This handles the case where a chromatic passing tone in the original would land on a sharp seventh in the new key — the snap nudges it to the actual scale member.
 
-You don't have to think about any of this while you play. It happens automatically when the daily key changes or when you switch scale types in settings.
+Your own and adopted book licks follow a stricter rule in ear training: their actual notes must already fit the selected scale relative to their stored concert key. Accepted book licks transpose from their key to the session key as a whole, preserving the melody and rhythm, with whole-phrase octave centering. They are never snapped into a new scale or remapped through a parent major key. If the melody does not fit, it stays out of that session's pool.
 
 ## The combinatorial generator
 
