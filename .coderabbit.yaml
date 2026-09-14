@@ -3,3 +3,9 @@ reviews:
   tools:
     eslint:
       enabled: false
+  path_filters:
+    # Claude's session logs and project memory are notes, not code: nothing
+    # there is review material, and every file counts against the plan's
+    # 300-file cap on a PR.
+    - "!CLAUDIUS/**"
+    - "!MEMORY.md"

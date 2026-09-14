@@ -94,6 +94,8 @@
 	});
 
 	let playbackModule: typeof import('$lib/audio/playback') | null = null;
+	/** The playback module failed to import while the page was up — Play is disabled and says why. */
+	let playbackLoadFailed = $state(false);
 	let savedConfirmation = $state(false);
 	let isPlaying = $state(false);
 	let saveResetTimer: ReturnType<typeof setTimeout> | undefined;
@@ -110,7 +112,18 @@
 
 	onMount(async () => {
 		window.addEventListener('keydown', handleKeydown);
-		playbackModule = await import('$lib/audio/playback');
+		try {
+			playbackModule = await import('$lib/audio/playback');
+		} catch (err) {
+			// Playback is only the preview: a failed import must not skip the
+			// hydration below, or the module-scoped rune keeps a previous edit
+			// session's lick — and its Update target. A navigation that cut the
+			// fetch off rejects it too; that is dropped with the page.
+			if (editHydrationActive) {
+				console.warn('[lick-editor] playback failed to load; Play is unavailable', err);
+				playbackLoadFailed = true;
+			}
+		}
 		if (!editHydrationActive) return;
 
 		// Edit mode: `?edit=<id>` loads an existing lick into the editor.
@@ -536,7 +549,8 @@
 	<div class="flex justify-center gap-3">
 		<button
 			onclick={handlePlayBack}
-			disabled={!hasNotes || isPlaying}
+			disabled={!hasNotes || isPlaying || playbackLoadFailed}
+			title={playbackLoadFailed ? "Couldn't load playback — reload to try again" : undefined}
 			class="flex items-center gap-1.5 rounded-lg bg-[var(--color-accent)] px-4 py-2 text-sm font-medium text-white
 				transition-colors hover:bg-[var(--color-accent-hover)] disabled:opacity-40"
 		>
@@ -585,6 +599,11 @@
 			</button>
 		{/if}
 	</div>
+	{#if playbackLoadFailed}
+		<p class="text-center text-xs text-[var(--color-text-secondary)]">
+			Couldn't load playback — reload to try again
+		</p>
+	{/if}
 
 	<!-- Keyboard shortcuts -->
 	<details class="text-xs text-[var(--color-text-secondary)]">

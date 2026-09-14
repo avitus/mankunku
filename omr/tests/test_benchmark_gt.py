@@ -89,3 +89,41 @@ def test_to_fraction_accepts_fraction_and_rejects_bool() -> None:
     assert to_fraction(Fraction(1, 3)) == Fraction(1, 3)
     with pytest.raises(ValueError):
         to_fraction(True)
+
+
+def test_missing_time_signature_defaults_beats_to_quarters(tmp_path: Path) -> None:
+    data = {k: v for k, v in SAMPLE.items() if k != "time_signature"}
+    p = tmp_path / "no-ts.json"
+    p.write_text(json.dumps(data))
+
+    gt = load_ground_truth(p)
+
+    assert gt.time_signature is None
+    assert gt.measures[0].meter is None
+    assert gt.measures[0].notes[0].duration == Fraction(1, 4)
+
+
+def test_reviewed_defaults_to_false_when_absent(tmp_path: Path) -> None:
+    # A chart that never says it was checked is provisional, not trusted.
+    data = {k: v for k, v in SAMPLE.items() if k != "reviewed"}
+    p = tmp_path / "unreviewed.json"
+    p.write_text(json.dumps(data))
+
+    assert load_ground_truth(p).reviewed is False
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [(2, Fraction(2)), ("3/2", Fraction(3, 2)), (2.5, Fraction(5, 2)), (0.3333, Fraction(1, 3))],
+)
+def test_to_fraction_value_forms(value, expected: Fraction) -> None:
+    # Floats snap to the nearest small denominator so a typed 0.3333 is a triplet.
+    assert to_fraction(value) == expected
+
+
+@pytest.mark.parametrize(
+    "spelled,midi",
+    [("C##4", 62), ("Dbb4", 60), ("B#3", 60), ("Cb4", 59), ("C-1", 0)],
+)
+def test_spelled_to_midi_double_accidentals_and_edge_octaves(spelled: str, midi: int) -> None:
+    assert spelled_to_midi(spelled) == midi

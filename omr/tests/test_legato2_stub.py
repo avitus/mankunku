@@ -15,6 +15,8 @@ def test_stub_instantiates_and_satisfies_protocol() -> None:
     assert backend.name == "legato2"
     info = backend.model_info()
     assert info.model_id is None  # no released checkpoint exists to name
+    assert info.revision is None
+    assert info.details["status"] == "unreleased"
 
 
 def test_stub_is_selectable_via_registry() -> None:

@@ -3,6 +3,7 @@ import type { Score } from '$lib/types/scoring';
 import type { InsertionPoint } from '$lib/state/tune-practice-plan';
 import {
 	tunePractice,
+	initTunePractice,
 	markHead,
 	markRunning,
 	markWindowOpen,
@@ -10,6 +11,7 @@ import {
 	completeTunePracticeSession,
 	resetTunePractice
 } from '$lib/state/tune-practice.svelte';
+import { sheet } from '../../helpers/tune-fixtures';
 
 function mkScore(overall: number): Score {
 	return {
@@ -99,5 +101,50 @@ describe('tune-practice orchestrator (runes module)', () => {
 		expect(tunePractice.bestStreak).toBe(0);
 		expect(tunePractice.windowOpen).toBe(false);
 		expect(tunePractice.currentIndex).toBe(0);
+	});
+
+	// The session key is picked with the written-key pills and stored as
+	// `config.concertKey`. The state module outlives the route, so coming back
+	// to the same tune must keep that pick; a different tune starts from its
+	// own stored key, because a key chosen for one tune means nothing for
+	// another.
+	describe('initTunePractice — the chosen concert key', () => {
+		beforeEach(() => {
+			tunePractice.tuneId = null;
+			tunePractice.config.concertKey = 'C';
+		});
+
+		it("first entry takes the tune's stored key", () => {
+			initTunePractice(sheet({ id: 'tune-a', key: 'F' }));
+			expect(tunePractice.tuneId).toBe('tune-a');
+			expect(tunePractice.config.concertKey).toBe('F');
+		});
+
+		it('re-entering the SAME tune keeps the chosen key, and still returns to a clean setup', () => {
+			initTunePractice(sheet({ id: 'tune-a', key: 'F' }));
+			tunePractice.config.concertKey = 'Ab';
+			tunePractice.config.mode = 'points';
+			tunePractice.plan = fakePlan(1);
+			recordWindowResult('ip-0', 'A', mkScore(0.95));
+			tunePractice.phase = 'running';
+
+			initTunePractice(sheet({ id: 'tune-a', key: 'F' }));
+
+			expect(tunePractice.config.concertKey).toBe('Ab');
+			expect(tunePractice.phase).toBe('setup');
+			expect(tunePractice.results).toEqual([]);
+			expect(tunePractice.totalPoints).toBe(0);
+		});
+
+		it("entering a DIFFERENT tune resets to that tune's stored key", () => {
+			initTunePractice(sheet({ id: 'tune-a', key: 'F' }));
+			tunePractice.config.concertKey = 'Ab';
+
+			initTunePractice(sheet({ id: 'tune-b', title: 'Other Tune', key: 'Bb' }));
+
+			expect(tunePractice.tuneId).toBe('tune-b');
+			expect(tunePractice.tuneTitle).toBe('Other Tune');
+			expect(tunePractice.config.concertKey).toBe('Bb');
+		});
 	});
 });

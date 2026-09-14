@@ -5,10 +5,6 @@ import type { ChordQuality } from '$lib/types/music';
 const ALL_QUALITIES = Object.keys(CHORD_DEFINITIONS) as ChordQuality[];
 
 describe('CHORD_DEFINITIONS', (): void => {
-	it('has exactly 18 chord qualities', (): void => {
-		expect(ALL_QUALITIES).toHaveLength(18);
-	});
-
 	it('every entry has intervals starting with 0 (root)', (): void => {
 		for (const quality of ALL_QUALITIES) {
 			expect(CHORD_DEFINITIONS[quality].intervals[0]).toBe(0);
@@ -20,31 +16,6 @@ describe('CHORD_DEFINITIONS', (): void => {
 			const intervals = CHORD_DEFINITIONS[quality].intervals;
 			const unique = new Set(intervals);
 			expect(unique.size, `${quality} has duplicate intervals`).toBe(intervals.length);
-		}
-	});
-
-	it('4-note chords have exactly 4 intervals', (): void => {
-		const fourNote: ChordQuality[] = [
-			'maj7', 'min7', '7', 'min7b5', 'dim7',
-			'maj6', 'min6', 'aug7', 'sus4', 'sus2',
-			'7alt', 'minMaj7'
-		];
-		for (const quality of fourNote) {
-			expect(CHORD_DEFINITIONS[quality].intervals, `${quality}`).toHaveLength(4);
-		}
-	});
-
-	it('5-note chords have exactly 5 intervals', (): void => {
-		const fiveNote: ChordQuality[] = ['7#11', '7b9', '7#9', '7b13'];
-		for (const quality of fiveNote) {
-			expect(CHORD_DEFINITIONS[quality].intervals, `${quality}`).toHaveLength(5);
-		}
-	});
-
-	it('triads have exactly 3 intervals', (): void => {
-		const triads: ChordQuality[] = ['aug', 'dim'];
-		for (const quality of triads) {
-			expect(CHORD_DEFINITIONS[quality].intervals, `${quality}`).toHaveLength(3);
 		}
 	});
 

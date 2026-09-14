@@ -53,6 +53,18 @@ describe('targetContentY — continuous system lerp', () => {
 	it('returns 0 for empty geometry', () => {
 		expect(targetContentY([], 3)).toBe(0);
 	});
+
+	it('falls back to the NEAREST system when no range holds the bar, never the last', () => {
+		const gapped: FollowSystem[] = [
+			{ firstBar: 0, lastBarExclusive: 4, topPx: 0 },
+			{ firstBar: 10, lastBarExclusive: 14, topPx: 100 },
+			{ firstBar: 20, lastBarExclusive: 24, topPx: 200 }
+		];
+		// Bars 5 and 8 sit in the first gap: the nearest system's lerp clamps
+		// to the next top (100). Snapping to the last system would jump to 200.
+		expect(targetContentY(gapped, 5.5)).toBe(100);
+		expect(targetContentY(gapped, 8)).toBe(100);
+	});
 });
 
 describe('followOffsetPx — reading line + clamp', () => {

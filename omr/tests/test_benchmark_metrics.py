@@ -2,6 +2,8 @@
 
 from fractions import Fraction
 
+import pytest
+
 from omr.benchmark.metrics import evaluate_chart
 from omr.models import ChordSymbol, Measure, NoteEvent
 
@@ -190,4 +192,113 @@ def test_chord_metrics_do_not_alias_repeated_chord_instances() -> None:
     ]
     m = evaluate_chart(gt, pred, gt_key="C", pred_key="C", gt_ts=(4, 4), pred_ts=(4, 4))
     assert m.chord_exact.num == 2 and m.chord_exact.den == 2
+    assert m.chord_insertions == 0
+
+
+def test_unknown_key_or_time_signature_yields_none_not_a_miss() -> None:
+    # Absent = None all the way through: an engine that did not read the key
+    # gets n/a on that row, not a failure.
+    m = evaluate_chart(GT, GT, gt_key="C", pred_key=None, gt_ts=(4, 4), pred_ts=None)
+    assert m.key_signature_match is None
+    assert m.time_signature_match is None
+    # ...and surrounding whitespace is not a mismatch.
+    m = evaluate_chart(GT, GT, gt_key="C", pred_key=" C ", gt_ts=(4, 4), pred_ts=(4, 4))
+    assert m.key_signature_match is True
+
+
+def test_extra_predicted_chord_counts_as_an_insertion() -> None:
+    pred = [
+        _measure(
+            1,
+            notes=list(GT[0].notes),
+            chords=[_chord("Cmaj7", 0), _chord("G7", Fraction(1, 4))],
+            start_repeat=True,
+            rehearsal_mark="A",
+        ),
+        GT[1],
+    ]
+    m = evaluate_chart(GT, pred, gt_key="C", pred_key="C", gt_ts=(4, 4), pred_ts=(4, 4))
+
+    assert m.chord_exact.num == 3 and m.chord_exact.den == 3
+    assert m.chord_insertions == 1
+
+
+def test_alterations_are_scored_only_where_root_and_quality_match() -> None:
+    gt = [_measure(1, chords=[_chord("C7b9", 0)])]
+    for pred_symbol, expected in (("C7b9", (1, 1)), ("C7", (0, 1)), ("Cm7", (0, 0))):
+        pred = [_measure(1, chords=[_chord(pred_symbol, 0)])]
+        m = evaluate_chart(gt, pred, gt_key=None, pred_key=None, gt_ts=None, pred_ts=None)
+        assert (m.chord_alterations.num, m.chord_alterations.den) == expected, pred_symbol
+    # den 0 is "nothing to score", surfaced as None rather than 0.0
+    assert m.chord_alterations.value is None
+
+
+def test_partial_repeat_recovery_scores_a_fractional_f1() -> None:
+    end_repeat_missed = _measure(2, notes=list(GT[1].notes), chords=list(GT[1].chords))
+    m = evaluate_chart(
+        GT, [GT[0], end_repeat_missed], gt_key="C", pred_key="C", gt_ts=(4, 4), pred_ts=(4, 4)
+    )
+    assert m.repeat_f1 == pytest.approx(2 / 3)
+
+
+def test_marks_on_unaligned_predicted_measures_are_false_positives() -> None:
+    # An extra measure the model invented pairs with no ground-truth measure;
+    # a rehearsal mark on it must count against precision, never vanish with
+    # the measure.
+    invented = _measure(3, notes=[_note("G5", 79, 0, Fraction(1, 4))], rehearsal_mark="B")
+    m = evaluate_chart(
+        GT, [*GT, invented], gt_key="C", pred_key="C", gt_ts=(4, 4), pred_ts=(4, 4)
+    )
+
+    assert m.measure_count_error == 1
+    assert m.measure_alignment.value == 1.0
+    assert m.rehearsal_f1 == pytest.approx(2 / 3)
+
+
+def test_rests_are_excluded_from_melody_denominators() -> None:
+    gt = [
+        _measure(
+            1,
+            notes=[
+                _note("C4", 60, 0, Fraction(1, 4)),
+                _note(None, None, Fraction(1, 4), Fraction(1, 4)),
+            ],
+        )
+    ]
+    m = evaluate_chart(gt, gt, gt_key=None, pred_key=None, gt_ts=None, pred_ts=None)
+    assert m.pitch_strict.den == 1 and m.pitch_midi.den == 1
+
+
+def test_endings_count_as_repeat_events() -> None:
+    # Volta brackets are part of the printed repeat structure (A-Train's
+    # |1 ... :|2 is scored exactly): a missed ending costs repeat F1.
+    gt = [
+        _measure(1, notes=[_note("C4", 60, 0, 1)], start_repeat=True),
+        _measure(2, notes=[_note("D4", 62, 0, 1)], ending=1, end_repeat=True),
+        _measure(3, notes=[_note("E4", 64, 0, 1)], ending=2),
+    ]
+    m = evaluate_chart(gt, gt, gt_key=None, pred_key=None, gt_ts=None, pred_ts=None)
+    assert m.repeat_f1 == 1.0
+
+    no_endings = [
+        gt[0],
+        _measure(2, notes=list(gt[1].notes), end_repeat=True),
+        _measure(3, notes=list(gt[2].notes)),
+    ]
+    m = evaluate_chart(gt, no_endings, gt_key=None, pred_key=None, gt_ts=None, pred_ts=None)
+    assert m.repeat_f1 == pytest.approx(2 * 2 / (4 + 2))
+
+
+def test_unparseable_chords_score_on_their_raw_text_only() -> None:
+    # A symbol parse_chord cannot read is kept raw with parsed=None. It can
+    # still match exactly as printed, but it never earns root/quality credit
+    # it was never read into — and a malformed prediction earns nothing.
+    gt = [_measure(1, chords=[_chord("N.C.", 0), _chord("C7", Fraction(1, 2))])]
+    pred = [_measure(1, chords=[_chord("N.C.", 0), _chord("C7x", Fraction(1, 2))])]
+
+    m = evaluate_chart(gt, pred, gt_key=None, pred_key=None, gt_ts=None, pred_ts=None)
+
+    assert (m.chord_exact.num, m.chord_exact.den) == (1, 2)
+    assert (m.chord_root.num, m.chord_quality.num) == (0, 0)
+    assert m.chord_alterations.den == 0
     assert m.chord_insertions == 0

@@ -90,6 +90,41 @@ describe('createRng', () => {
 		expect(heavy).toBeGreaterThan(800);
 		expect(heavy).toBeLessThan(980);
 	});
+
+	it('weighted() returns the last entry when every weight is zero', () => {
+		// The documented caller contract: it still draws exactly once, so
+		// determinism holds, and the LAST entry is the answer.
+		const rng = createRng(8);
+		for (let i = 0; i < 20; i++) {
+			expect(
+				rng.weighted([
+					{ value: 'a', weight: 0 },
+					{ value: 'b', weight: 0 },
+					{ value: 'last', weight: 0 }
+				])
+			).toBe('last');
+		}
+	});
+
+	it('weighted() treats a negative weight as zero', () => {
+		const rng = createRng(9);
+		for (let i = 0; i < 200; i++) {
+			expect(rng.weighted([{ value: 'neg', weight: -5 }, { value: 'a', weight: 1 }])).toBe('a');
+		}
+	});
+
+	it('int() with equal bounds always returns that bound', () => {
+		const rng = createRng(10);
+		for (let i = 0; i < 50; i++) expect(rng.int(4, 4)).toBe(4);
+	});
+
+	it('chance(p) is true about p of the time between the short-circuits', () => {
+		const rng = createRng(12);
+		let hits = 0;
+		for (let i = 0; i < 1000; i++) if (rng.chance(0.3)) hits++;
+		expect(hits).toBeGreaterThan(240);
+		expect(hits).toBeLessThan(360);
+	});
 });
 
 describe('seedFrom', () => {

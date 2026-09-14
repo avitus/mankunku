@@ -626,21 +626,21 @@ export async function playPhrase(
 		throw new Error('Instrument not loaded. Call loadInstrument() first.');
 	}
 
+	// Claim setup before yielding so a teardown or newer play cancels even
+	// the initial Tone lookup and AudioContext activation.
+	const scheduleId = ++currentScheduleId;
 	const Tone = await getTone();
+	if (scheduleId !== currentScheduleId) return;
 	const transport = Tone.getTransport();
 
 	// Ensure AudioContext is active — the browser may have suspended it
 	// between loadInstrument() and this call if no audio was playing.
 	await Tone.start();
+	if (scheduleId !== currentScheduleId) return;
 
-	// Clean up any previous playback (this bumps currentScheduleId so
-	// any in-flight scheduleNextPhrase from the prior session bails out).
-	await stopPlayback();
-
-	// Acquire our own generation token AFTER stopPlayback so subsequent
-	// awaits in this invocation can detect if a newer playPhrase /
-	// scheduleNextPhrase supersedes us mid-setup.
-	const scheduleId = ++currentScheduleId;
+	// Release the prior playback without yielding or replacing our token.
+	// Calling public stopPlayback here would invalidate this invocation too.
+	stopPlaybackResources(Tone);
 
 	// Configure transport
 	transport.bpm.value = options.tempo;
@@ -768,13 +768,16 @@ export async function playPhrase(
  * Stop current playback immediately (transport, metronome, everything).
  */
 export async function stopPlayback(): Promise<void> {
+	// Invalidate pending setup synchronously, including its earliest awaits.
+	const scheduleId = ++currentScheduleId;
 	const Tone = await getTone();
-	const transport = Tone.getTransport();
+	if (scheduleId !== currentScheduleId) return;
+	stopPlaybackResources(Tone);
+}
 
-	// Bump the generation token so any in-flight playPhrase /
-	// scheduleNextPhrase setup bails out and can't re-arm callbacks
-	// after we've torn everything down.
-	++currentScheduleId;
+/** Release scheduled playback synchronously without changing setup ownership. */
+function stopPlaybackResources(Tone: ToneModule): void {
+	const transport = Tone.getTransport();
 
 	transport.stop();
 	transport.position = 0;

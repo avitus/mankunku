@@ -7,7 +7,7 @@
  * deploy.
  */
 import { describe, it, expect } from 'vitest';
-import { GET, _escapeXml as escapeXml } from '../../../src/routes/sitemap.xml/+server';
+import { GET, prerender, _escapeXml as escapeXml } from '../../../src/routes/sitemap.xml/+server';
 import { ALL_PAGES } from '$lib/docs/structure';
 
 async function sitemapBody(): Promise<string> {
@@ -54,6 +54,21 @@ describe('sitemap.xml', () => {
 		const body = await sitemapBody();
 		expect(body).not.toContain('/licks/community');
 		expect(body).not.toContain('/tunes/community');
+	});
+
+	it('is a prerendered XML document listing each URL exactly once', async () => {
+		// Prerendered so crawlers get a static file; a docs slug that
+		// duplicated a top-level route would advertise the same URL twice.
+		expect(prerender).toBe(true);
+		const res = GET();
+		expect(res.headers.get('content-type')).toBe('application/xml; charset=utf-8');
+		const body = await res.text();
+		expect(body.startsWith('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">')).toBe(true);
+		expect(body.trimEnd().endsWith('</urlset>')).toBe(true);
+		const locs = [...body.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]);
+		expect(locs.length).toBeGreaterThan(ALL_PAGES.length);
+		expect(new Set(locs).size).toBe(locs.length);
+		expect(locs.every((loc) => loc.startsWith('https://mankunkujazz.com/'))).toBe(true);
 	});
 
 	it('emits no lastmod', async () => {

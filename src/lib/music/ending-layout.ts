@@ -420,26 +420,3 @@ export function planStackedEndingRigidGlyphs(
 
 	return { labelExtraDx, chordExtraDx, labelScreen, chordScreens, hookScreenX };
 }
-
-// ─── Deprecated aliases (call sites may still import briefly) ───────────
-
-/** @deprecated Use {@link endingGlyphTranslate}. */
-export function endingRigidGlyphCounterScale(sx: number, cx: number): string | null {
-	// Old counter-scale API — kept only so accidental imports typecheck.
-	// New code must use endingGlyphTranslate (no parent scale on glyphs).
-	if (!Number.isFinite(sx) || !Number.isFinite(cx) || Math.abs(sx) < 1e-6) return null;
-	if (Math.abs(sx - 1) < 0.02) return null;
-	const inv = 1 / sx;
-	return `translate(${cx.toFixed(2)},0) scale(${inv.toFixed(5)},1) translate(${(-cx).toFixed(2)},0)`;
-}
-
-/** @deprecated */
-export const endingBarCounterScale = endingRigidGlyphCounterScale;
-
-/** @deprecated Screen nudge is 1:1 with glyph space under pure-translate. */
-export function endingScreenNudgeToLocal(screenDx: number, _sx: number): number {
-	return screenDx > 0 ? screenDx : 0;
-}
-
-/** @deprecated Use {@link rigidGlyphScreenSpanAfterTranslate}. */
-export const rigidGlyphScreenSpan = rigidGlyphScreenSpanAfterTranslate;

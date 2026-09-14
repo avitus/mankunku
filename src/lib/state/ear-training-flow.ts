@@ -9,17 +9,19 @@
 
 /** What the loop should do after an attempt is scored. */
 export interface NextDecision {
-	action: 'advance' | 'retry';
+	action: 'advance' | 'retry' | 'stop';
 	/** The fail counter to carry into the next attempt. */
 	nextFailCount: number;
 }
 
 /**
- * Decide whether to advance to the next phrase or retry the current one.
+ * Decide whether to advance, retry, or stop when the eligible pool is empty.
  *
  * Rule: a passing score (`>= passThreshold`) always advances. A miss retries
  * the same phrase exactly once; a second consecutive miss advances anyway so
  * the user is never stuck. Either advance path resets the counter to 0.
+ * An empty pool overrides both paths, stopping between attempts rather than
+ * replaying a phrase that is no longer eligible after a proficiency change.
  *
  * The caller is responsible for passing the *authoritative* score (the one the
  * user sees after the post-hoc replay rescore lands), not the provisional live
@@ -29,8 +31,10 @@ export function decideNext(opts: {
 	scoreOverall: number;
 	failCount: number;
 	passThreshold: number;
+	hasEligiblePhrases?: boolean;
 }): NextDecision {
 	const { scoreOverall, failCount, passThreshold } = opts;
+	if (opts.hasEligiblePhrases === false) return { action: 'stop', nextFailCount: 0 };
 	const passed = scoreOverall >= passThreshold;
 	if (passed || failCount >= 1) {
 		return { action: 'advance', nextFailCount: 0 };

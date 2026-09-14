@@ -82,4 +82,21 @@ describe('replayFromAudioBuffer', () => {
 		const tight = await replayFromAudioBuffer(buffer, { hopSize: 500 });
 		expect(tight.readings.length).toBeGreaterThan(wide.readings.length);
 	});
+
+	it('passes the frequency band through to the frame detector', async () => {
+		const buffer = makeFakeAudioBuffer(makeSine(440, 0.3, 48000, 0.5), 48000);
+		const above = await replayFromAudioBuffer(buffer, { minFrequency: 500 });
+		const below = await replayFromAudioBuffer(buffer, { maxFrequency: 400 });
+		expect(above.readings).toHaveLength(0);
+		expect(below.readings).toHaveLength(0);
+	});
+
+	it('yields no readings for a buffer shorter than one analysis window but keeps its duration', async () => {
+		// 2400 samples: fewer than the 4096-sample window, so the pitch loop
+		// never runs; the duration still describes the audio that was there.
+		const buffer = makeFakeAudioBuffer(makeSine(440, 0.05, 48000, 0.5), 48000);
+		const result = await replayFromAudioBuffer(buffer);
+		expect(result.readings).toEqual([]);
+		expect(result.duration).toBeCloseTo(0.05, 6);
+	});
 });

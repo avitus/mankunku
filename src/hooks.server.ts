@@ -24,6 +24,7 @@ import { PUBLIC_SUPABASE_URL, PUBLIC_SUPABASE_ANON_KEY } from '$env/static/publi
 import type { Database } from '$lib/supabase/types';
 import { isAuthVerificationUnavailable } from '$lib/supabase/auth-errors';
 import { createServerErrorHandler } from '$lib/server/error-handler';
+import { injectAuthVerdict } from '$lib/persistence/auth-verdict';
 
 /**
  * Playwright test-only escape hatch.
@@ -214,15 +215,23 @@ const supabaseHandle: Handle = async ({ event, resolve }) => {
      * verdict (no cookie session, or an affirmatively rejected token), while
      * `degraded: true` means the verdict is UNKNOWN — the auth server was
      * unreachable (network failure, reboot, 5xx). Client-side user-scope
-     * reconciliation (`+layout.ts` → `syncUserScope`) only treats a null user as a
+     * reconciliation (`reconcileActiveUser`, fed by the root layout data and by
+     * the head verdict `authVerdictHandle` writes) only treats a null user as a
      * sign-out when the verdict is trustworthy; wiping on an unknown verdict is
      * how a transient backend outage destroyed local-first data on 2026-07-13.
+     *
+     * MEMOIZED per request: the root layout load, a page load (e.g. /auth's
+     * guard) and `authVerdictHandle` all ask, and they must see ONE verdict —
+     * a second `getUser()` could disagree with the first if the auth server
+     * flaked in between, and the head verdict would then contradict the layout
+     * data the client reconciles against on re-runs. It also saves the round
+     * trip.
      *
      * @returns An object with `session` (verified Session or null), `user`
      *   (verified User or null), and `degraded` (true when auth verification
      *   was unavailable rather than negative)
      */
-    event.locals.safeGetSession = async () => {
+    const verifySession: App.Locals['safeGetSession'] = async () => {
         try {
             // Step 1: Read session from cookies. Normally no network call, but a
             // cookie session past its access-token expiry triggers a refresh
@@ -275,6 +284,8 @@ const supabaseHandle: Handle = async ({ event, resolve }) => {
             return { session: null, user: null, degraded: true };
         }
     };
+    let verdict: ReturnType<App.Locals['safeGetSession']> | undefined;
+    event.locals.safeGetSession = () => (verdict ??= verifySession());
 
     // Resolve the request, filtering response headers to allow Supabase-specific
     // headers through SvelteKit's serialization layer. Without this filter,
@@ -287,6 +298,31 @@ const supabaseHandle: Handle = async ({ event, resolve }) => {
         }
     });
 };
+
+/**
+ * Auth-verdict handle.
+ *
+ * Writes this request's server-verified verdict — the user id and the degraded
+ * flag, nothing else — into the page head as a `<meta>` (auth-verdict.ts), so
+ * hooks.client.ts `init` can re-home the per-user storage namespace (and reload
+ * when it must) BEFORE SvelteKit starts hydrating. `init` takes no arguments
+ * and cannot reach the SSR data payload, which is why the verdict rides the
+ * markup.
+ *
+ * It reads the same memoized `safeGetSession()` the root layout load returned,
+ * so the head can never disagree with the layout data. Only the chunk carrying
+ * `</head>` asks; streamed tail chunks pass through. Applies to rendered pages
+ * only — SvelteKit never runs `transformPageChunk` on endpoints or
+ * `__data.json`.
+ */
+const authVerdictHandle: Handle = async ({ event, resolve }) =>
+    resolve(event, {
+        transformPageChunk: async ({ html }) => {
+            if (!html.includes('</head>')) return html;
+            const { user, degraded } = await event.locals.safeGetSession();
+            return injectAuthVerdict(html, { uid: user?.id ?? null, degraded });
+        }
+    });
 
 /**
  * Security response headers handle.
@@ -346,8 +382,10 @@ const securityHeadersHandle: Handle = async ({ event, resolve }) => {
  * Exported SvelteKit handle hook.
  *
  * Uses `sequence()` for composability — the supabaseHandle runs first to establish
- * the authenticated Supabase client and session, then securityHeadersHandle applies
- * defense-in-depth response headers to every outgoing response.
+ * the authenticated Supabase client and session, authVerdictHandle (which needs
+ * `locals.safeGetSession`) writes the verdict into rendered pages, then
+ * securityHeadersHandle applies defense-in-depth response headers to every
+ * outgoing response.
  *
  * Additional hooks (e.g., rate limiting, logging, or route guards) can be added
  * to the sequence in the future without refactoring existing handlers.
@@ -357,7 +395,10 @@ const securityHeadersHandle: Handle = async ({ event, resolve }) => {
  * // const authGuardHandle: Handle = async ({ event, resolve }) => { ... };
  * // export const handle: Handle = sequence(supabaseHandle, securityHeadersHandle, authGuardHandle);
  */
-export const handle: Handle = sequence(Sentry.sentryHandle(), sequence(supabaseHandle, securityHeadersHandle));
+export const handle: Handle = sequence(
+    Sentry.sentryHandle(),
+    sequence(supabaseHandle, authVerdictHandle, securityHeadersHandle)
+);
 // Sentry's wrapper skips capturing 4xx but still calls the handler for them,
 // and its fallback handler logs a full stack for each — see
 // lib/server/error-handler.ts for why that mattered (a 320 MB PM2 error log

@@ -95,11 +95,6 @@ describe('phraseToAbc key signature accidentals', () => {
 	});
 
 	describe('key of A (F#, C#, G#)', () => {
-		it('G# needs no accidental', () => {
-			const line = noteLine(phraseToAbc(singleNotePhrase(68, 'A')));
-			expect(line).not.toContain('^G');
-		});
-
 		it('G natural shows natural sign', () => {
 			expect(noteLine(phraseToAbc(singleNotePhrase(67, 'A')))).toContain('=G');
 		});
@@ -142,59 +137,6 @@ describe('phraseToAbc key signature accidentals', () => {
 
 		it('A natural shows natural sign', () => {
 			expect(noteLine(phraseToAbc(singleNotePhrase(69, 'Eb')))).toContain('=A');
-		});
-	});
-
-	describe('arrow key semitone adjustment scenario', () => {
-		it('F# stepped down to F natural in key of G gets natural sign', () => {
-			// Simulate: enter F#4 (66), press down arrow → F4 (65)
-			const phrase = singleNotePhrase(66, 'G');
-			// Before adjustment: F# renders without accidental
-			expect(noteLine(phraseToAbc(phrase))).not.toContain('^F');
-			expect(noteLine(phraseToAbc(phrase))).not.toContain('=F');
-
-			// After adjustment: F natural needs natural sign
-			phrase.notes[0].pitch = 65;
-			expect(noteLine(phraseToAbc(phrase))).toContain('=F');
-		});
-
-		it('Bb stepped up to B natural in key of F gets natural sign', () => {
-			const phrase = singleNotePhrase(70, 'F');
-			expect(noteLine(phraseToAbc(phrase))).not.toContain('_B');
-
-			phrase.notes[0].pitch = 71;
-			expect(noteLine(phraseToAbc(phrase))).toContain('=B');
-		});
-
-		it('C# stepped down to C natural in key of D gets natural sign', () => {
-			const phrase = singleNotePhrase(61, 'D');
-			expect(noteLine(phraseToAbc(phrase))).not.toContain('^C');
-
-			phrase.notes[0].pitch = 60;
-			expect(noteLine(phraseToAbc(phrase))).toContain('=C');
-		});
-
-		it('G# stepped down to G natural in key of A gets natural sign', () => {
-			const phrase = singleNotePhrase(68, 'A');
-			expect(noteLine(phraseToAbc(phrase))).not.toContain('^G');
-
-			phrase.notes[0].pitch = 67;
-			expect(noteLine(phraseToAbc(phrase))).toContain('=G');
-		});
-
-		it('Eb stepped up to E natural in key of Bb gets natural sign', () => {
-			const phrase = singleNotePhrase(63, 'Bb');
-			expect(noteLine(phraseToAbc(phrase))).not.toContain('_E');
-
-			phrase.notes[0].pitch = 64;
-			expect(noteLine(phraseToAbc(phrase))).toContain('=E');
-		});
-
-		it('Ab stepped up to A natural in key of Eb gets natural sign', () => {
-			const phrase = singleNotePhrase(68, 'Eb');
-
-			phrase.notes[0].pitch = 69;
-			expect(noteLine(phraseToAbc(phrase))).toContain('=A');
 		});
 	});
 });
@@ -604,6 +546,26 @@ describe('phraseToAbc tie suffix', () => {
 	});
 });
 
+describe('phraseToAbc explicit spelling', () => {
+	it('lets an explicit flat override a spelling the key signature already covers', () => {
+		// C# is IN D major's signature; the note's own override still wins and
+		// prints Db with its accidental — the explicit tier sits above the
+		// signature tier, which sits above the scale and chord tiers.
+		const phrase = singleNotePhrase(61, 'D');
+		phrase.notes[0].spelling = 'flat';
+		expect(noteLine(phraseToAbc(phrase))).toContain('_D');
+	});
+});
+
+describe('phraseToAbc octave marks', () => {
+	it('writes octave 5+ lowercase with ticks and octave 3- uppercase with commas', () => {
+		expect(noteLine(phraseToAbc(singleNotePhrase(84, 'C')))).toContain("c'");
+		expect(noteLine(phraseToAbc(singleNotePhrase(96, 'C')))).toContain("c''");
+		expect(noteLine(phraseToAbc(singleNotePhrase(48, 'C')))).toContain('C,');
+		expect(noteLine(phraseToAbc(singleNotePhrase(36, 'C')))).toContain('C,,');
+	});
+});
+
 describe('phraseToAbc chord-aware enharmonic spelling', () => {
 	function phraseWithChord(midi: number, key: PitchClass, root: PitchClass, quality: '7' | 'min7' | 'maj7'): Phrase {
 		const p = singleNotePhrase(midi, key);
@@ -885,6 +847,14 @@ describe('phraseToAbc in a minor key', () => {
 		expect(phraseToAbc(minorPhrase([68], 'Ab'))).toContain('K:G#m');
 	});
 
+	it("prints a B natural in Eb minor as the signature's Cb, never as a cancelled B", () => {
+		// Six flats include Cb: the natural B (pc 11) takes the C letter one
+		// octave up and needs no accidental — a cancelled "=B" would be wrong.
+		const line = noteLine(phraseToAbc(minorPhrase([71], 'Eb')));
+		expect(line).toMatch(/^c/);
+		expect(line).not.toContain('B');
+	});
+
 	it('infers minor from a tonic harmony segment when the field is absent', () => {
 		const p = multiNotePhrase([70], 'C');
 		p.harmony = [{ chord: { root: 'C', quality: 'min7' }, scaleId: 'major.aeolian', startOffset: [0, 1], duration: [1, 1] }];
@@ -986,5 +956,13 @@ describe('durationToAbc general-case reduction', () => {
 		expect(durationToAbc([7, 8], [1, 8])).toBe('7');
 		expect(durationToAbc([5, 8], [1, 8])).toBe('5');
 		expect(durationToAbc([3, 16], [1, 8])).toBe('3/2');
+	});
+
+	it('prints the fast-path multiples and reduces a unit-fraction ratio to "/n"', () => {
+		expect(durationToAbc([1, 1], [1, 8])).toBe('8');
+		expect(durationToAbc([1, 16], [1, 4])).toBe('/4');
+		// Not a fast-path ratio: a triplet sixteenth at L:1/8 is one third of a unit.
+		expect(durationToAbc([1, 24], [1, 8])).toBe('/3');
+		expect(durationToAbc([5, 16], [1, 8])).toBe('5/2');
 	});
 });

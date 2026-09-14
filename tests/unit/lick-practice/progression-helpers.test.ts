@@ -30,9 +30,11 @@ describe('applyPickupBarShift', () => {
 	});
 
 	it('preserves a non-1 denominator on subtraction', () => {
-		// Half-bar alignment with a 1-bar pickup: subtracts denominator units.
-		// [1, 2] − 1 × 2/2 = [-1, 2] → clamp to [0, 1].
-		expect(applyPickupBarShift([1, 2], 1)).toEqual([0, 1]);
+		// Half-bar units: a 1-bar pickup subtracts `denominator` numerator
+		// units and the result keeps the denominator, un-reduced.
+		// [5, 2] − 1 × 2/2 = [3, 2]; [3, 2] − 1 × 2/2 = [1, 2].
+		expect(applyPickupBarShift([5, 2], 1)).toEqual([3, 2]);
+		expect(applyPickupBarShift([3, 2], 1)).toEqual([1, 2]);
 	});
 });
 

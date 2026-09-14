@@ -6,13 +6,15 @@
  *   - lick-practice-sessions (lick log)
  *
  * Tests cover: pure derivation, recompute idempotency, source-table mixing,
- * cloud merge, and an end-to-end simulation of the session→summary flow
- * (the path that historically lost lick-practice contributions).
+ * cloud merge, an end-to-end simulation of the session→summary flow
+ * (the path that historically lost lick-practice contributions), and the
+ * read-side queries the /progress page draws from the summaries.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { DailySummary, SessionResult, UserProgress } from '$lib/types/progress';
 import type { Grade } from '$lib/types/scoring';
 import type { LickPracticeSessionLogEntry } from '$lib/persistence/lick-practice-sessions';
+import type { ChordProgressionType } from '$lib/types/lick-practice';
 
 const store = new Map<string, string>();
 vi.stubGlobal('localStorage', {
@@ -51,9 +53,15 @@ function makeEarSession(overrides: Partial<SessionResult> = {}): SessionResult {
 	};
 }
 
+/**
+ * A one-lick session-log entry whose report totals are derived from `keys`,
+ * so a summary can be checked against exactly what was logged.
+ */
 function makeLickEntry(overrides: {
 	id?: string;
 	timestamp?: number;
+	progressionType?: ChordProgressionType;
+	elapsedMinutes?: number;
 	keys?: { score?: number; pitchAccuracy?: number; rhythmAccuracy?: number; passed?: boolean }[];
 } = {}): LickPracticeSessionLogEntry {
 	const keys = (overrides.keys ?? [{}]).map((k) => ({
@@ -66,7 +74,7 @@ function makeLickEntry(overrides: {
 	return {
 		id: overrides.id ?? `lp-${Math.random().toString(36).slice(2)}`,
 		timestamp: overrides.timestamp ?? Date.now(),
-		progressionType: 'ii-V-I-major',
+		progressionType: overrides.progressionType ?? 'ii-V-I-major',
 		practiceMode: 'continuous',
 		report: {
 			licks: [
@@ -83,7 +91,7 @@ function makeLickEntry(overrides: {
 			overallAverage: keys.reduce((s, k) => s + k.score, 0) / keys.length,
 			totalAttempts: keys.length,
 			totalPassed: keys.filter((k) => k.passed).length,
-			elapsedMinutes: 5
+			elapsedMinutes: overrides.elapsedMinutes ?? 5
 		}
 	};
 }
@@ -596,5 +604,268 @@ describe('end-to-end session→summary flow', () => {
 
 		const summary = historyModule.dailySummaries.find((s) => s.date === '2025-06-18');
 		expect(summary?.lickPracticeSessions).toBe(20);
+	});
+});
+
+describe('history queries (the /progress period cards, heatmap and streak)', () => {
+	/** A stored summary of `sessionCount` ear-training sessions on `date`, every score `avg` — one heatmap cell. */
+	function day(date: string, sessionCount: number, avg: number): DailySummary {
+		return {
+			date,
+			sessionCount,
+			earTrainingSessions: sessionCount,
+			lickPracticeSessions: 0,
+			practiceMinutes: sessionCount * 2,
+			avgOverall: avg,
+			avgPitch: avg,
+			avgRhythm: avg,
+			bestScore: avg,
+			notesTotal: sessionCount * 8,
+			notesHit: sessionCount * 7,
+			grades: { perfect: 0, great: 0, good: sessionCount, fair: 0, tryAgain: 0 },
+			categories: {}
+		};
+	}
+
+	/** Seed the persisted summaries and re-import the history module so it hydrates from them alone. */
+	async function loadWith(summaries: DailySummary[]): Promise<void> {
+		store.clear();
+		store.set('mankunku:daily-summaries', JSON.stringify(summaries));
+		vi.resetModules();
+		historyModule = await import('$lib/state/history.svelte');
+	}
+
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it('comparePeriods weights each day by its session count and reports current − previous', async () => {
+		await loadWith([
+			day('2025-04-28', 2, 0.5), // previous week
+			day('2025-05-05', 1, 1.0), // current week
+			day('2025-05-06', 3, 0.6),
+			day('2025-05-20', 9, 0.1) // outside both ranges
+		]);
+
+		const { current, previous, delta } = historyModule.comparePeriods(
+			'2025-05-05', '2025-05-11', '2025-04-28', '2025-05-04'
+		);
+
+		// (1.0·1 + 0.6·3) / 4 = 0.7 — a plain mean of the two days would say 0.8.
+		expect(current.sessionCount).toBe(4);
+		expect(current.avgOverall).toBeCloseTo(0.7, 10);
+		expect(current.practiceDays).toBe(2);
+		expect(current.practiceMinutes).toBe(8);
+		expect(previous).toMatchObject({ sessionCount: 2, practiceDays: 1, practiceMinutes: 4 });
+		expect(delta.sessionCount).toBe(2);
+		expect(delta.avgOverall).toBeCloseTo(0.2, 10);
+		expect(delta.practiceDays).toBe(1);
+	});
+
+	it('an empty period reports zeros, not NaN', async () => {
+		await loadWith([day('2025-05-05', 1, 0.9)]);
+		const { previous, delta } = historyModule.comparePeriods(
+			'2025-05-05', '2025-05-11', '2025-04-28', '2025-05-04'
+		);
+		expect(previous).toEqual({
+			sessionCount: 0, avgOverall: 0, avgPitch: 0, avgRhythm: 0, practiceMinutes: 0, practiceDays: 0
+		});
+		expect(delta.avgOverall).toBeCloseTo(0.9, 10);
+	});
+
+	it('updateLongestStreak finds the longest run of practice days and only ever grows', async () => {
+		await loadWith([
+			day('2025-05-01', 1, 0.8),
+			day('2025-05-02', 1, 0.8),
+			day('2025-05-03', 1, 0.8),
+			day('2025-05-04', 0, 0), // a zero-session day breaks the run
+			day('2025-05-05', 1, 0.8)
+		]);
+
+		historyModule.updateLongestStreak();
+		expect(historyModule.progressMeta.longestStreak).toBe(3);
+		expect(historyModule.progressMeta.longestStreakEndDate).toBe('2025-05-03');
+
+		// A historical peak survives the summaries that earned it being pruned.
+		historyModule.progressMeta.longestStreak = 10;
+		historyModule.updateLongestStreak();
+		expect(historyModule.progressMeta.longestStreak).toBe(10);
+	});
+
+	it('getWeekRanges runs Monday → today against the whole previous Monday → Sunday, even on a Sunday', async () => {
+		await loadWith([]);
+		vi.useFakeTimers({ toFake: ['Date'] });
+		vi.setSystemTime(new Date(2025, 4, 11, 15, 0)); // Sunday 11 May 2025
+		expect(historyModule.getWeekRanges()).toEqual({
+			currentStart: '2025-05-05',
+			currentEnd: '2025-05-11',
+			previousStart: '2025-04-28',
+			previousEnd: '2025-05-04'
+		});
+	});
+
+	it('getMonthRanges compares against the whole previous month, across a year boundary', async () => {
+		await loadWith([]);
+		vi.useFakeTimers({ toFake: ['Date'] });
+		vi.setSystemTime(new Date(2026, 0, 15, 12, 0));
+		expect(historyModule.getMonthRanges()).toEqual({
+			currentStart: '2026-01-01',
+			currentEnd: '2026-01-15',
+			previousStart: '2025-12-01',
+			previousEnd: '2025-12-31'
+		});
+		vi.setSystemTime(new Date(2025, 2, 3, 12, 0));
+		expect(historyModule.getMonthRanges().previousEnd).toBe('2025-02-28');
+	});
+
+	it('getYearHeatmap keeps the trailing year only', async () => {
+		await loadWith([
+			day('2024-06-14', 1, 0.5), // a year and a day ago
+			day('2024-06-15', 2, 0.6),
+			day('2025-06-15', 3, 0.7)
+		]);
+		vi.useFakeTimers({ toFake: ['Date'] });
+		vi.setSystemTime(new Date(2025, 5, 15, 12, 0));
+
+		const heatmap = historyModule.getYearHeatmap();
+		expect([...heatmap.keys()]).toEqual(['2024-06-15', '2025-06-15']);
+		expect(heatmap.get('2025-06-15')).toEqual({ sessionCount: 3, avgOverall: 0.7 });
+	});
+});
+
+/**
+ * Practice minutes.
+ *
+ * The figure used to be `(ear attempts + lick KEY attempts) × 2`, which read a
+ * three-lick, two-key Daily session — four real minutes — as twelve. Lick
+ * practice records its own length (`report.elapsedMinutes`), so that side is
+ * real time now; ear training records no duration at all, so its attempts
+ * still carry a per-attempt estimate — but one the size of an attempt.
+ */
+describe('practiceMinutes', () => {
+	beforeEach(async () => {
+		store.clear();
+		vi.resetModules();
+		historyModule = await import('$lib/state/history.svelte');
+	});
+
+	const ts = new Date('2026-09-11T12:00:00').getTime();
+	const date = '2026-09-11';
+
+	it('charges a lick session its recorded length, not its key count', () => {
+		// Six keys played in a four-minute session. Per-attempt costing said 12.
+		const summary = historyModule.deriveDailySummary(
+			date,
+			[],
+			[makeLickEntry({ timestamp: ts, elapsedMinutes: 4, keys: [{}, {}, {}, {}, {}, {}] })]
+		);
+		expect(summary?.lickPracticeSessions).toBe(6);
+		expect(summary?.practiceMinutes).toBe(4);
+	});
+
+	it('counts a Daily session once across its per-progression slices', () => {
+		// splitReportByProgression copies the session-wide elapsedMinutes onto
+		// every slice, so three progressions leave three rows each claiming the
+		// whole nine minutes. They share the base id the session page mints.
+		const slices: ChordProgressionType[] = ['blues', 'ii-V-I-major-long', 'minor-vamp'];
+		const summary = historyModule.deriveDailySummary(
+			date,
+			[],
+			slices.map((progressionType) =>
+				makeLickEntry({
+					id: `lp-1757592000000-ab12-${progressionType}`,
+					progressionType,
+					timestamp: ts,
+					elapsedMinutes: 9
+				})
+			)
+		);
+		expect(summary?.practiceMinutes).toBe(9);
+	});
+
+	it('keeps two separate lick sessions separate', () => {
+		const summary = historyModule.deriveDailySummary(date, [], [
+			makeLickEntry({ id: 'lp-1-aaaa-blues', progressionType: 'blues', timestamp: ts, elapsedMinutes: 6 }),
+			makeLickEntry({ id: 'lp-2-bbbb-blues', progressionType: 'blues', timestamp: ts, elapsedMinutes: 3 })
+		]);
+		expect(summary?.practiceMinutes).toBe(9);
+	});
+
+	it('charges ear-training attempts a per-attempt estimate', () => {
+		const summary = historyModule.deriveDailySummary(
+			date,
+			[1, 2, 3, 4].map(() => makeEarSession({ timestamp: ts })),
+			[]
+		);
+		expect(summary?.earTrainingSessions).toBe(4);
+		expect(summary?.practiceMinutes).toBe(2);
+	});
+
+	it('adds the two sides of a mixed day', () => {
+		const summary = historyModule.deriveDailySummary(
+			date,
+			[1, 2, 3, 4].map(() => makeEarSession({ timestamp: ts })),
+			[makeLickEntry({ timestamp: ts, elapsedMinutes: 7 })]
+		);
+		expect(summary?.practiceMinutes).toBe(9);
+	});
+
+	it('totals every retained day for the all-time figure', async () => {
+		seedProgress([makeEarSession({ timestamp: ts })]);
+		seedLickLog([
+			makeLickEntry({ id: 'lp-1-aaaa-blues', progressionType: 'blues', timestamp: ts, elapsedMinutes: 12 }),
+			makeLickEntry({
+				id: 'lp-2-bbbb-blues',
+				progressionType: 'blues',
+				timestamp: new Date('2026-09-09T12:00:00').getTime(),
+				elapsedMinutes: 20
+			})
+		]);
+		vi.resetModules();
+		historyModule = await import('$lib/state/history.svelte');
+		historyModule.recomputeAllDailySummaries();
+
+		// 12 + 0.5 (the ear attempt, rounded up with its day) on the 11th, 20 on
+		// the 9th — the sum of the days, not a re-derivation across them.
+		expect(historyModule.allTimePracticeMinutes()).toBe(33);
+	});
+
+	it('never lowers a day already on record', async () => {
+		// History is not rewritten: a stored summary from the old per-attempt
+		// model (or from a device whose source rows have since been pruned)
+		// keeps its figure, the same monotonic rule the counters follow.
+		seedProgress([makeEarSession({ timestamp: ts })]);
+		seedLickLog([makeLickEntry({ timestamp: ts, elapsedMinutes: 3 })]);
+		const stored: DailySummary = {
+			date,
+			sessionCount: 29,
+			earTrainingSessions: 29,
+			lickPracticeSessions: 0,
+			practiceMinutes: 58,
+			avgOverall: 0.8,
+			avgPitch: 0.8,
+			avgRhythm: 0.8,
+			bestScore: 0.9,
+			notesTotal: 100,
+			notesHit: 80,
+			grades: { perfect: 0, great: 0, good: 29, fair: 0, tryAgain: 0 },
+			categories: {}
+		};
+		store.set('mankunku:daily-summaries', JSON.stringify([stored]));
+		store.set(
+			'mankunku:progress-meta',
+			JSON.stringify({
+				version: 2,
+				lastAggregationTimestamp: 0,
+				longestStreak: 0,
+				longestStreakEndDate: '',
+				allTimeSessionCount: 0
+			})
+		);
+		vi.resetModules();
+		historyModule = await import('$lib/state/history.svelte');
+
+		const summary = historyModule.recomputeDailySummary(date);
+		expect(summary?.practiceMinutes).toBe(58);
 	});
 });

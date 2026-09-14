@@ -99,11 +99,6 @@ export function chordDisplayLine(displayText: string, keyContext?: PitchClass): 
 	return `${parts.root}${parts.quality}${formatAlterations(parts.alterations)}${bass}`;
 }
 
-/** @deprecated Use chordDisplayLine. */
-export function chordAbcAnnotation(displayText: string, keyContext?: PitchClass): string {
-	return chordDisplayLine(displayText, keyContext);
-}
-
 /**
  * Pretty display parts — the ONE convention every chord surface renders
  * (leadsheet SVG, practice chart, chord lists). Display-only: canonical and

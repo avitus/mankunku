@@ -110,6 +110,28 @@ describe('validateAdoptedTune', () => {
 		expect(validateAdoptedTune(badSymbol).valid).toBe(false);
 	});
 
+	it('rejects the remaining malformed fields each by name', () => {
+		const cases: Array<[string, (s: Tune) => void, RegExp]> = [
+			['ending 3', (s) => ((s.sections[0] as { ending?: number }).ending = 3), /invalid ending marker/],
+			['difficulty level 0', (s) => (s.difficulty = { level: 0, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 }), /invalid difficulty/],
+			['difficulty not an object', (s) => ((s as unknown as { difficulty: unknown }).difficulty = 'hard'), /invalid difficulty/],
+			['chord bass', (s) => (s.sections[0].harmony[0].chord.bass = 'H' as never), /invalid chord bass/],
+			['missing scaleId', (s) => (s.sections[0].harmony[0].scaleId = ''), /missing scaleId/],
+			['tags not an array', (s) => ((s as unknown as { tags: unknown }).tags = 'blues'), /tags is not an array/],
+			['section not an object', (s) => ((s.sections as unknown[])[0] = null), /section 0 is not an object/],
+			['bar count 0', (s) => (s.sections[0].bars = 0), /section 0: invalid bar count/],
+			['unsafe label', (s) => (s.sections[0].label = '<b>A</b>'), /section 0: unsafe label/],
+			['harmony offsets', (s) => (s.sections[0].harmony[0].duration = [0, 1]), /malformed harmony offsets/]
+		];
+		for (const [name, mutate, message] of cases) {
+			const sheet = validSheet();
+			mutate(sheet);
+			const result = validateAdoptedTune(sheet);
+			expect(result.valid, name).toBe(false);
+			expect(result.errors.join('\n'), name).toMatch(message);
+		}
+	});
+
 	it('allows harmless angle brackets and text', () => {
 		expect(validateAdoptedTune(validSheet({ title: 'I <3 Jazz' })).valid).toBe(true);
 	});

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
 	COMP_FIGURES,
 	compFigureById,
+	headFigureFor,
 	planCompFigures,
 	hitsForPlannedBar
 } from '$lib/audio/backing-comp-figures';
@@ -150,5 +151,66 @@ describe('planned comp end-to-end', () => {
 			}
 		}
 		expect(cadencePush / cadenceBars).toBeGreaterThan((ordinaryPush / ordinaryBars) * 1.5);
+	});
+});
+
+describe('anti-repetition memory', () => {
+	it('is keyed on repeatKey, so sound-alike figures cannot chain three choices running', () => {
+		// charleston-answer shares the key 'charleston': a figureId-level check
+		// would wave charleston → charleston-answer → charleston through.
+		for (const seed of [0, 1, 2, 3, 4, 5]) {
+			const plan = planCompFigures(infos, 4, `comp-probe#${seed}`, 160);
+			const keys: string[] = [];
+			for (const bar of plan) {
+				if (bar.figureId === 'cont') continue;
+				const f = compFigureById(bar.figureId as string)!;
+				keys.push(f.repeatKey ?? f.id);
+			}
+			for (let i = 2; i < keys.length; i++) {
+				expect(new Set(keys.slice(i - 2, i + 1)).size, `choices ${i - 2}–${i} (seed ${seed})`).toBeGreaterThan(1);
+			}
+		}
+	});
+});
+
+describe('hitsForPlannedBar', () => {
+	const finalInfo = infos[infos.length - 1];
+	const midInfo = infos[1];
+	const tail = [
+		{ figureId: 'sparse-2bar', guideTones: false },
+		{ figureId: 'cont', guideTones: false }
+	];
+
+	it('pads a final bar whose figure was stripped to nothing', () => {
+		// sparse-2bar's tail has no hits of its own; push-only's hits all sit
+		// past the final-bar cut. Neither may leave the phrase's last bar silent.
+		expect(finalInfo.isFinalBar).toBe(true);
+		expect(hitsForPlannedBar(tail[1], tail, 1, finalInfo, 4)).toEqual([{ b: 0, d: 2 }]);
+		const push = [{ figureId: 'push-only', guideTones: false }];
+		expect(compFigureById('push-only')!.hits[0].every((h) => h.b >= 3.5)).toBe(true);
+		expect(hitsForPlannedBar(push[0], push, 0, finalInfo, 4)).toEqual([{ b: 0, d: 2 }]);
+	});
+
+	it("leaves a non-final bar's hits untouched, empty tail included", () => {
+		expect(midInfo.isFinalBar).toBe(false);
+		expect(hitsForPlannedBar(tail[1], tail, 1, midInfo, 4)).toEqual([]);
+		expect(hitsForPlannedBar(tail[0], tail, 0, midInfo, 4)).toEqual(compFigureById('sparse-2bar')!.hits[0]);
+	});
+});
+
+describe('figure lookups', () => {
+	it('compFigureById is undefined for an unknown id', () => {
+		expect(compFigureById('nope')).toBeUndefined();
+	});
+
+	it('headFigureFor resolves a tail to its head, and nothing to a missing bar or an orphan tail', () => {
+		const plan = [
+			{ figureId: 'red-garland', guideTones: false },
+			{ figureId: 'cont', guideTones: false }
+		];
+		expect(headFigureFor(plan, 0)?.id).toBe('red-garland');
+		expect(headFigureFor(plan, 1)?.id).toBe('red-garland');
+		expect(headFigureFor(plan, 2)).toBeUndefined();
+		expect(headFigureFor([{ figureId: 'cont', guideTones: false }], 0)).toBeUndefined();
 	});
 });

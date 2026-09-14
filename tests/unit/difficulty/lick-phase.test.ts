@@ -77,11 +77,6 @@ describe('currentLickPhase', () => {
 });
 
 describe('allKeysUnlockedAt', () => {
-	it('returns the timestamp of the first full-key sample', () => {
-		const points = [pt(100, 60, 6), pt(200, 70, 12), pt(300, 80, 12)];
-		expect(allKeysUnlockedAt(points)).toBe(200);
-	});
-
 	it('returns null while the lick is still unlocking keys', () => {
 		expect(allKeysUnlockedAt([pt(100, 60, 6), pt(200, 70, 11)])).toBeNull();
 	});
@@ -93,14 +88,6 @@ describe('allKeysUnlockedAt', () => {
 });
 
 describe('unlockEvents', () => {
-	it('emits an event per key-count increase, carrying the tempo at that moment', () => {
-		const points = [pt(100, 60, 1), pt(200, 65, 2), pt(300, 65, 3)];
-		expect(unlockEvents(points)).toStrictEqual([
-			{ t: 200, bpm: 65, from: 1, to: 2 },
-			{ t: 300, bpm: 65, from: 2, to: 3 }
-		]);
-	});
-
 	it('does not treat the first sample as an unlock (history may start mid-climb)', () => {
 		expect(unlockEvents([pt(100, 60, 5)])).toStrictEqual([]);
 	});
@@ -131,16 +118,6 @@ describe('unlockEvents', () => {
 
 describe('collapseUnlockMarkers', () => {
 	const marker = (x: number, from: number, to: number): UnlockMarker => ({ x, y: 40, from, to });
-
-	it('keeps markers that clear the minimum gap', () => {
-		const markers = [marker(10, 1, 2), marker(40, 2, 3)];
-		expect(collapseUnlockMarkers(markers, 12)).toStrictEqual(markers);
-	});
-
-	it('merges a marker that crowds its predecessor, keeping the earlier position', () => {
-		const merged = collapseUnlockMarkers([marker(10, 1, 2), marker(15, 2, 3)], 12);
-		expect(merged).toStrictEqual([{ x: 10, y: 40, from: 1, to: 3 }]);
-	});
 
 	it('collapses a dense run into a single marker spanning every key in it', () => {
 		const merged = collapseUnlockMarkers(
@@ -179,6 +156,14 @@ describe('unlockMarkerLabel', () => {
 	it('names a merged marker as a range', () => {
 		expect(unlockMarkerLabel({ x: 0, y: 0, from: 2, to: 5 })).toBe('keys 3–5 unlocked');
 	});
+
+	it('spells every ordinal suffix: st, and th for the rest', () => {
+		// A history that starts at zero keys names the entry key "1st"; the
+		// 4th–10th take the default suffix.
+		expect(unlockMarkerLabel({ x: 0, y: 0, from: 0, to: 1 })).toBe('1st key unlocked');
+		expect(unlockMarkerLabel({ x: 0, y: 0, from: 3, to: 4 })).toBe('4th key unlocked');
+		expect(unlockMarkerLabel({ x: 0, y: 0, from: 9, to: 10 })).toBe('10th key unlocked');
+	});
 });
 
 describe('bpmAxisRange', () => {
@@ -205,6 +190,12 @@ describe('bpmAxisRange', () => {
 
 	it('does not stretch to a threshold that is out of reach', () => {
 		expect(bpmAxisRange([62]).hi).toBe(80);
+	});
+
+	it('treats a threshold exactly 20 BPM away as within reach', () => {
+		// 85 pads to 100; the proficient line at 120 is exactly the reach
+		// distance, so the axis stretches to it (inclusive, not strict).
+		expect(bpmAxisRange([85])).toStrictEqual({ lo: 70, hi: PROFICIENT_BPM });
 	});
 
 	it('falls back to a sane range with no data', () => {

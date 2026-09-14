@@ -337,6 +337,32 @@ export function formatTonality(tonality: Tonality, instrument?: InstrumentConfig
 	return `${displayKey} ${SCALE_TYPE_NAMES[tonality.scaleType]}`;
 }
 
+/**
+ * The /progress hint for the next key unlock, e.g. "A — D ≥ 10 (now 3)" on a
+ * tenor (concert G, gated on concert C). Both the key being unlocked and each
+ * prerequisite key are spelled at written pitch for `instrument`.
+ */
+export function formatNextKeyUnlock(next: NextKeyUnlock, instrument: InstrumentConfig): string {
+	const requirements = next.requirements
+		.map(r => `${concertKeyToWritten(r.key, instrument)} ≥ ${r.level} (now ${r.current})`)
+		.join(' + ');
+	return `${concertKeyToWritten(next.key, instrument)} — ${requirements}`;
+}
+
+/**
+ * Tooltip for a key on the Settings key pad, e.g. "Requires D proficiency
+ * level 10" on a tenor (concert G, gated on concert C) — prerequisite keys at
+ * written pitch for `instrument`. A key with no prerequisites reads as its
+ * own written name.
+ */
+export function formatKeyUnlockRequirements(key: PitchClass, instrument: InstrumentConfig): string {
+	const reqs = getKeyUnlockRequirements(key);
+	if (reqs.length === 0) return concertKeyToWritten(key, instrument);
+	return reqs
+		.map(r => `Requires ${concertKeyToWritten(r.key, instrument)} proficiency level ${r.level}`)
+		.join('; ');
+}
+
 /** Compare two tonalities for equality */
 export function tonalitiesEqual(a: Tonality, b: Tonality): boolean {
 	return a.key === b.key && a.scaleType === b.scaleType;

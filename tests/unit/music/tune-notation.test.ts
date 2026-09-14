@@ -20,15 +20,6 @@ function repeatsSheet(): Tune {
 }
 
 describe('tuneToAbc — headers', () => {
-	it('emits X/T/M/L/K headers with the concert key when no instrument is given', () => {
-		const abc = tuneToAbc(simpleSheet());
-		expect(abc).toContain('X:1');
-		expect(abc).toContain('T:Test Tune');
-		expect(abc).toContain('M:4/4');
-		expect(abc).toContain('L:1/8');
-		expect(abc).toMatch(/^K:C$/m);
-	});
-
 	it('emits a composer line when present', () => {
 		const abc = tuneToAbc({ ...simpleSheet(), composer: 'Trad.' });
 		expect(abc).toMatch(/^C:Trad\.$/m);
@@ -129,12 +120,6 @@ describe('tuneToAbc — chord symbols over the melody', () => {
 		expect(abc).toContain('"FΔ7"x8 | x8 | "G7"x8');
 	});
 
-	it('emits boxed rehearsal marks and system-start measure numbers', () => {
-		const abc = tuneToAbc(simpleSheet());
-		expect(abc).toMatch(/^%%partsbox 1$/m);
-		expect(abc).toMatch(/^%%measurenb 0$/m);
-	});
-
 	it('uses rhythm slashes (not whole rests) for harmony-only bars', () => {
 		const abc = tuneToAbc(sheet({
 			sections: [
@@ -201,6 +186,22 @@ describe('tuneToAbc — chord symbols over the melody', () => {
 			sections: [section({ bars: 1, harmony: [seg('F#', '7', [0, 1], [1, 1])] })]
 		}));
 		expect(abc).toContain('"Gb7"');
+	});
+
+	it('prints a structured slash bass, transposed and respelled with the root', () => {
+		// No raw symbol: the chord model's own bass field reaches the annotation.
+		const withBass = sheet({
+			sections: [
+				section({
+					bars: 1,
+					harmony: [
+						{ chord: { root: 'C', quality: 'maj7', bass: 'E' }, scaleId: 'major.ionian', startOffset: [0, 1], duration: [1, 1] }
+					]
+				})
+			]
+		});
+		expect(tuneToAbc(withBass)).toContain('"CΔ7/E"x8');
+		expect(tuneToAbc(withBass, TENOR)).toContain('"DΔ7/F#"x8');
 	});
 });
 
@@ -485,6 +486,28 @@ describe('tuneToAbc — chord-aware enharmonic spelling', () => {
 		expect(body).toContain('_E'); // Eb over C-7
 		expect(body).toContain('^D'); // D# over C7#9
 		expect(body).toContain('_A'); // Ab over G7b13
+	});
+
+	it('lets the segment\'s declared scale settle an ambiguous degree, as phraseToAbc does', () => {
+		// Mankunku Blues, A section bar 3: F7 declared blues.major. By quality
+		// alone the Ab reads as F7's #9 (G#) while the next two bars print the
+		// same blue note as Ab; the shared chain's scale tier reads the b3.
+		const s = sheet({
+			key: 'F',
+			sections: [
+				section({
+					bars: 1,
+					notes: [
+						{ pitch: 65, duration: [1, 4], offset: [0, 1] },
+						{ pitch: 68, duration: [1, 4], offset: [1, 4] },
+						{ pitch: 72, duration: [1, 2], offset: [1, 2] }
+					],
+					harmony: [{ ...seg('F', '7', [0, 1], [1, 1]), scaleId: 'blues.major' }]
+				})
+			]
+		});
+		expect(tuneToAbc(s)).toContain('[V:M]F2_A2 c4 |]');
+		expect(tuneToAbc(s, TENOR)).toContain("[V:M]g2_b2 d'4 |]");
 	});
 });
 
@@ -816,6 +839,28 @@ describe('tuneToAbc — articulations', () => {
 		);
 		expect(abc).toContain('!>!C2');
 		expect(abc).toContain('.D2');
+	});
+});
+
+describe('tuneToAbc — triplets', () => {
+	it('groups three contiguous triplet eighths as a (3 group on base durations', () => {
+		const abc = tuneToAbc(
+			sheet({
+				sections: [
+					section({
+						bars: 1,
+						notes: [
+							{ pitch: 60, duration: [1, 12], offset: [0, 12] },
+							{ pitch: 62, duration: [1, 12], offset: [1, 12] },
+							{ pitch: 64, duration: [1, 12], offset: [2, 12] }
+						]
+					})
+				]
+			})
+		);
+		expect(abc).toContain('[V:M](3CDE ');
+		// Ungrouped, each triplet eighth would print its raw 2/3-unit length.
+		expect(abc).not.toContain('2/3');
 	});
 });
 

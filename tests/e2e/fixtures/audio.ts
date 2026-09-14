@@ -46,7 +46,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
  * to every navigation in the context.
  */
 
-export interface AudioMockOptions {
+interface AudioMockOptions {
 	/** Path relative to tests/fixtures/recordings/ */
 	fixturePath?: string;
 	/**

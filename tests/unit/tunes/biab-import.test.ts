@@ -173,6 +173,23 @@ describe('parseBiabFile', () => {
 		expect(sheets).toEqual([]);
 		expect(warnings.length).toBeGreaterThan(0);
 	});
+
+	it('rejects an unknown style byte with a warning pointing at the MusicXML route', () => {
+		const bytes = syntheticSgu();
+		bytes[13] = 0x40; // style 64: past the 24-entry table
+		const { sheets, warnings } = parseBiabFile(bytes);
+		expect(sheets).toEqual([]);
+		expect(warnings).toEqual(['Unknown Band-in-a-Box style 64 — try the MusicXML export instead.']);
+	});
+
+	it('degrades a truncated file to a warning instead of throwing', () => {
+		// Cut inside the chord-extension stream: the reader runs off the end.
+		const { sheets, warnings } = parseBiabFile(syntheticSgu().slice(0, 24));
+		expect(sheets).toEqual([]);
+		expect(warnings).toEqual([
+			'Failed to read Band-in-a-Box file (unexpected end of file) — try the MusicXML export instead.'
+		]);
+	});
 });
 
 const MUSIC_XML = `<?xml version="1.0" encoding="UTF-8"?>
@@ -242,5 +259,13 @@ describe('importBandInABox dispatch', () => {
 		const result = importBandInABox({ name: 'song.pdf' });
 		expect(result.sheets).toEqual([]);
 		expect(result.warnings.length).toBeGreaterThan(0);
+	});
+
+	it('decodes MusicXML handed over as bytes, and names a missing payload for either route', () => {
+		const fromBytes = importBandInABox({ name: 'song.xml', bytes: new TextEncoder().encode(MUSIC_XML) });
+		expect(fromBytes.sheets[0].title).toBe('Exported Tune');
+
+		expect(importBandInABox({ name: 'song.mgu' }).warnings).toEqual(['No file bytes provided.']);
+		expect(importBandInABox({ name: 'song.musicxml' }).warnings).toEqual(['No file text provided.']);
 	});
 });

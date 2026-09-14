@@ -9,6 +9,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { INSTRUMENTS } from '$lib/types/instruments';
 
 // Mock localStorage
 const store = new Map<string, string>();
@@ -235,5 +236,22 @@ describe('loadSettingsFromCloud', () => {
 		expect(saved).toBeDefined();
 		const parsed = JSON.parse(saved!);
 		expect(parsed.swing).toBeCloseTo(0.7);
+	});
+});
+
+describe('instrument lookups', () => {
+	it('falls back to tenor sax for a stored instrument id the app no longer knows', () => {
+		settingsModule.settings.instrumentId = 'kazoo' as typeof settingsModule.settings.instrumentId;
+		expect(settingsModule.getInstrument()).toEqual(INSTRUMENTS['tenor-sax']);
+	});
+
+	it('the highest note defaults to one semitone under the instrument\'s concert ceiling; an explicit one wins', () => {
+		settingsModule.settings.instrumentId = 'tenor-sax';
+		expect(settingsModule.getEffectiveHighestNote()).toBe(INSTRUMENTS['tenor-sax'].concertRangeHigh - 1);
+		settingsModule.settings.instrumentId = 'alto-sax';
+		expect(settingsModule.getEffectiveHighestNote()).toBe(INSTRUMENTS['alto-sax'].concertRangeHigh - 1);
+
+		settingsModule.settings.highestNote = 70;
+		expect(settingsModule.getEffectiveHighestNote()).toBe(70);
 	});
 });

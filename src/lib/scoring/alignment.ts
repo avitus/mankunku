@@ -20,8 +20,8 @@ const SKIP_COST = 2.0;
  *
  * When `octaveInsensitive` is true, same pitch class (any octave) is distance
  * 0, and the cyclic pitch-class distance (min of |diff| and 12-|diff|) drives
- * the cost. Tritone is the max cyclic distance (6) → cost saturates at 1.0,
- * matching the strict path's ceiling.
+ * the cost at the same 0.5 per semitone, so it saturates at 1.0 from a cyclic
+ * distance of 2 semitones — the same 2-semitone ceiling as the strict path.
  */
 function pitchDistance(
 	expected: Note,

@@ -225,4 +225,29 @@ describe('alignNotes', () => {
 		expect(matched).toBeDefined();
 		expect(matched!.cost).toBeCloseTo(1.0, 1);
 	});
+
+	it('grades the strict pitch cost: one semitone costs 0.5, two or more saturate at 1.0', () => {
+		const expected = [makeNote(60, [0, 1])];
+		/** Alignment cost of a lone detected `midi` played on time against the expected C4. */
+		const costFor = (midi: number) =>
+			alignNotes(expected, [makeDetected(midi, 0)], TEMPO).find(p => p.expectedIndex === 0)!.cost;
+		expect(costFor(61)).toBeCloseTo(0.5, 5);
+		expect(costFor(62)).toBeCloseTo(1.0, 5);
+		expect(costFor(67)).toBeCloseTo(1.0, 5);
+	});
+
+	it('saturates the rhythm cost at one beat — three beats late costs no more than one', () => {
+		// The pre-roll bound in capture-window.ts rests on this: once a whole
+		// performance sits more than a beat late, timing stops disambiguating.
+		const expected = [makeNote(60, [0, 1])];
+		const beat = 60 / TEMPO;
+		/** Alignment cost of the right pitch played `onset` seconds in against the expected note on beat 1. */
+		const costAt = (onset: number) =>
+			alignNotes(expected, [makeDetected(60, onset)], TEMPO).find(
+				p => p.expectedIndex === 0 && p.detectedIndex === 0
+			)!.cost;
+		expect(costAt(0.5 * beat)).toBeCloseTo(0.5, 5);
+		expect(costAt(beat)).toBeCloseTo(1.0, 5);
+		expect(costAt(3 * beat)).toBeCloseTo(1.0, 5);
+	});
 });

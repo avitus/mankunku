@@ -21,7 +21,7 @@
 		isScaleTypeUnlocked,
 		getTodaysTonality,
 		getScaleUnlockRequirements,
-		getKeyUnlockRequirements
+		formatKeyUnlockRequirements
 	} from '$lib/tonality/tonality';
 	import { page } from '$app/state';
 	import { TOURS } from '$lib/tour/tours';
@@ -71,12 +71,6 @@
 		const reqs = getScaleUnlockRequirements(scaleType);
 		if (reqs.length === 0) return SCALE_TYPE_NAMES[scaleType];
 		return reqs.map(r => `Requires ${r.scales.map(s => SCALE_TYPE_NAMES[s]).join(' + ')} level ${r.level}`).join('; ');
-	}
-
-	function keyUnlockTooltip(key: PitchClass): string {
-		const reqs = getKeyUnlockRequirements(key);
-		if (reqs.length === 0) return key;
-		return reqs.map(r => `Requires ${r.key} proficiency level ${r.level}`).join('; ');
 	}
 
 	function selectKey(key: PitchClass) {
@@ -398,7 +392,7 @@
 								disabled: !isKeyUnlocked(key, unlockCtx),
 								title: isKeyUnlocked(key, unlockCtx)
 									? concertKeyToWritten(key, instrument)
-									: keyUnlockTooltip(key)
+									: formatKeyUnlockRequirements(key, instrument)
 							}))}
 							onChange={selectKey}
 						/>
@@ -551,9 +545,10 @@
 			<!-- Session config info -->
 			<div class="px-4 py-4 flex items-start justify-between gap-4">
 				<p class="text-sm text-[var(--color-text-secondary)] leading-relaxed">
-					Lick practice session settings — chord progression, backing style, mode, and tempo — are configured directly on the
+					Lick practice session settings — session type, chord progression, duration, backing style, and mode — are configured directly on the
 					<a href="/lick-practice" class="text-[var(--color-accent)] hover:underline font-medium">Lick Practice</a>
-					page before each session. They are saved automatically per session.
+					page before each session. They stay as you left them until the app is reloaded. There's no tempo to set: each lick keeps its own,
+					starting at 60 BPM and moving automatically with your scores.
 				</p>
 				<a
 					href="/lick-practice"

@@ -285,6 +285,33 @@ describe('cloud tombstone with a newer client_mtime deletes the local live copy'
 	});
 });
 
+// ─── 3b. A local tombstone that TIES a live cloud row still wins ─────────
+describe('a local tombstone tying a live cloud row on mtime is pushed, not dropped', () => {
+	it('removes the zombie locally AND pushes the tombstone in the same pass', async () => {
+		// Cross-tab race artifact: a live local copy coexists with a local
+		// tombstone stamped at exactly the cloud row's client_mtime. The merge
+		// resolves every other arm to exactly one of live/tombstone (user-tunes
+		// pins the same rule); leaving this arm with NEITHER drops the lick from
+		// the live set without telling the cloud, so the cloud row stays live
+		// until a second reconcile happens to run.
+		seedLive([makePhrase({ id: 'X', name: 'Zombie' })]);
+		seedMeta({ X: { mtime: 100, deletedAt: 100 } });
+		seedOwners({ X: CLOUD_UID });
+
+		const { client, tombstoneUpdates, upsertedRows } = createMockSupabase([
+			makeCloudRow({ id: 'X', deleted_at: null, client_mtime: 100 })
+		]);
+		const ok = await initUserLicksFromCloud(client);
+
+		expect(ok).toBe(true);
+		expect(getUserLicksLocal().map((l) => l.id)).not.toContain('X');
+		expect(upsertedRows).toHaveLength(0);
+		expect(tombstoneUpdates).toHaveLength(1);
+		expect(tombstoneUpdates[0].id).toBe('X');
+		expect(tombstoneUpdates[0].client_mtime).toBe(100);
+	});
+});
+
 // ─── 4. Newer re-creation beats an older tombstone ───────────────────────
 describe('a newer cloud re-creation overrides an older local tombstone', () => {
 	it('brings X back to life locally', async () => {

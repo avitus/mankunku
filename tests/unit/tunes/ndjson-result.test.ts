@@ -71,6 +71,34 @@ describe('readNdjsonResult', () => {
 		await expect(readNdjsonResult(res, { inactivityMs: 1_000 })).rejects.toThrow(/overloaded/);
 	});
 
+	it('skips a line that is not JSON rather than failing the import', async () => {
+		// A proxy or a partial write can inject junk between lines; the
+		// terminal line is what matters, so a malformed one is ignored.
+		const seen: number[] = [];
+		const res = streamed([
+			'{"type":"progress","elapsedMs":3000}\n',
+			'<html>502 Bad Gateway</html>\n',
+			'{"type":"result","bars":[3]}\n'
+		]);
+		await expect(
+			readNdjsonResult(res, { inactivityMs: 1_000, onProgress: (p) => seen.push(p.elapsedMs ?? 0) })
+		).resolves.toEqual({ bars: [3] });
+		expect(seen).toEqual([3000]);
+	});
+
+	it('names the status when an error line carries no message', async () => {
+		const res = streamed(['{"type":"error","status":502}\n']);
+		await expect(readNdjsonResult(res, { inactivityMs: 1_000 })).rejects.toThrow(
+			'Transcription failed (502).'
+		);
+	});
+
+	it('rejects a response with no body at all', async () => {
+		await expect(
+			readNdjsonResult(new Response(null, { status: 200 }), { inactivityMs: 1_000 })
+		).rejects.toThrow(/empty response/i);
+	});
+
 	it('throws when the stream ends with no terminal line', async () => {
 		const res = streamed(['{"type":"progress","elapsedMs":3000}\n']);
 		await expect(readNdjsonResult(res, { inactivityMs: 1_000 })).rejects.toThrow(/ended/i);

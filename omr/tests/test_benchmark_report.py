@@ -1,10 +1,14 @@
 """Report rendering: denominators visible, aggregate honest."""
 
+from fractions import Fraction
+
 from test_benchmark_metrics import GT
 
+from omr.backends.legato2 import Legato2Backend
+from omr.backends.legato_v1 import LegatoV1Backend
 from omr.benchmark.metrics import evaluate_chart
 from omr.benchmark.report import render_json, render_markdown
-from omr.models import BackendInfo
+from omr.models import BackendInfo, Measure, NoteEvent
 
 
 def _results():
@@ -69,3 +73,60 @@ def test_chart_without_chords_renders_na_and_stays_out_of_the_aggregate() -> Non
 
     data = render_json(results, _backend_info())
     assert data["aggregate"]["chord_exact"] is None
+
+
+def test_backend_note_and_missing_model_render_honestly() -> None:
+    # LEGATO v1's "NOT LEGATO 2" note must head every report it produces;
+    # the unreleased stub has no model to name.
+    md = render_markdown(_results(), LegatoV1Backend().model_info())
+    assert "> LEGATO v1 experimentation backend — NOT LEGATO 2" in md
+    assert "guangyangmusic/legato@" in md
+
+    md = render_markdown(_results(), Legato2Backend().model_info())
+    assert "(no model)" in md
+    header = md.split("## ", 1)[0]
+    assert not any(line.startswith("> ") for line in header.splitlines())
+
+
+def test_chart_notes_render_as_bullets() -> None:
+    results = _results()
+    results[0]["notes"] = ["chord metrics reflect a model limitation"]
+
+    md = render_markdown(results, _backend_info())
+
+    assert "- chord metrics reflect a model limitation" in md
+
+
+def test_bool_scalars_render_yes_no_and_average_as_ratios() -> None:
+    hit = evaluate_chart(GT, GT, gt_key="C", pred_key="C", gt_ts=(4, 4), pred_ts=(4, 4))
+    miss = evaluate_chart(GT, GT, gt_key="C", pred_key="Bb", gt_ts=(4, 4), pred_ts=(4, 4))
+    results = [
+        {"slug": "hit", "reviewed": True, "metrics": hit, "notes": []},
+        {"slug": "miss", "reviewed": True, "metrics": miss, "notes": []},
+    ]
+
+    md = render_markdown(results, _backend_info())
+    assert "| Key signature match | yes |" in md
+    assert "| Key signature match | NO |" in md
+    assert render_json(results, _backend_info())["aggregate"]["key_signature_match"] == 0.5
+
+
+def test_aggregate_is_an_unweighted_macro_average() -> None:
+    # Chart A: 3 of 3 notes right. Chart B: 0 of 1. Macro = 0.5; a pooled
+    # (micro) average would report 0.75.
+    perfect = evaluate_chart(GT, GT, gt_key="C", pred_key="C", gt_ts=(4, 4), pred_ts=(4, 4))
+    wrong_note = Measure(
+        number=1,
+        notes=[NoteEvent(spelled_pitch="F4", midi=65, onset=Fraction(0), duration=Fraction(1, 2))],
+        chords=list(GT[1].chords),
+        end_repeat=True,
+    )
+    wrong = evaluate_chart(
+        [GT[1]], [wrong_note], gt_key="C", pred_key="C", gt_ts=(4, 4), pred_ts=(4, 4)
+    )
+    results = [
+        {"slug": "a", "reviewed": True, "metrics": perfect, "notes": []},
+        {"slug": "b", "reviewed": True, "metrics": wrong, "notes": []},
+    ]
+
+    assert render_json(results, _backend_info())["aggregate"]["pitch_strict"] == 0.5

@@ -3,6 +3,7 @@ import {
 	parseChordSymbol,
 	formatChordSymbol,
 	chordSymbolToQuality,
+	transposeChordSymbol,
 	type ChordSymbol
 } from '$lib/music/chord-symbol';
 
@@ -255,6 +256,11 @@ describe('parseChordSymbol — slash bass', () => {
 	it('normalizes enharmonic bass notes', () => {
 		expect(parseChordSymbol('C/G#')?.bass).toBe('Ab');
 	});
+
+	it('rejects the whole symbol when the slash carries no parseable bass', () => {
+		expect(parseChordSymbol('C/H')).toBeNull();
+		expect(parseChordSymbol('C7/')).toBeNull();
+	});
 });
 
 describe('parseChordSymbol — rejects', () => {
@@ -384,6 +390,10 @@ describe('chordSymbolToQuality', () => {
 		expect(q('Caug7')).toBe('aug7');
 	});
 
+	it('maps a minor triad with a bare flat five to dim — no seventh to make it half-diminished', () => {
+		expect(q('Cmb5')).toBe('dim');
+	});
+
 	it('maps suspended chords', () => {
 		expect(q('C7sus4')).toBe('sus4');
 		expect(q('Csus2')).toBe('sus2');
@@ -392,5 +402,20 @@ describe('chordSymbolToQuality', () => {
 
 	it('ignores the bass note when mapping quality', () => {
 		expect(q('Am7/G')).toBe('min7');
+	});
+});
+
+describe('transposeChordSymbol', () => {
+	it('moves the root and the slash bass together and re-formats canonically', () => {
+		expect(transposeChordSymbol('Am7/G', 2)).toBe('B-7/A');
+		expect(transposeChordSymbol('C#7', 0)).toBe('Db7');
+		expect(transposeChordSymbol('F#-7', -1)).toBe('F-7');
+	});
+
+	it('returns undefined for missing or unparseable text so callers drop the symbol', () => {
+		expect(transposeChordSymbol(undefined, 2)).toBeUndefined();
+		expect(transposeChordSymbol('', 2)).toBeUndefined();
+		expect(transposeChordSymbol('N.C.', 2)).toBeUndefined();
+		expect(transposeChordSymbol('Cxyz', 2)).toBeUndefined();
 	});
 });

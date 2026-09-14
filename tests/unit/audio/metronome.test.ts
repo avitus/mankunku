@@ -132,6 +132,14 @@ describe('scheduleMetronome', () => {
 		expect(sequences[0].startedAt).toEqual(['3840i']);
 	});
 
+	it('passes startAt through on the finite path too — the documented count-in pairing', async () => {
+		// scheduleCountInClicks' doc pairs it with scheduleMetronome(beatsPerBar,
+		// bars, startAt), the FINITE form; a hard-coded start there would stack
+		// the kit on top of the woodblocks.
+		await metronome.scheduleMetronome(4, 2, '3840i');
+		expect(sequences[0].startedAt).toEqual(['3840i']);
+	});
+
 	it('defaults startAt to transport 0', async () => {
 		await metronome.scheduleMetronome(4, null);
 		expect(sequences[0].startedAt).toEqual([0]);
@@ -234,5 +242,13 @@ describe('setMetronomeVolume', () => {
 	it('boots the synth graph with the default knob position trimmed', async () => {
 		await metronome.warmUpMetronome();
 		expect(gains[0].gain.value).toBeCloseTo(0.5 * 0.6, 10);
+	});
+
+	it('boots the synth graph itself when the knob is set before any warm-up', async () => {
+		// Settings can apply the knob before the first playPhrase(); the setter
+		// must build the graph rather than dereference a missing gain node.
+		await metronome.setMetronomeVolume(0.8);
+		expect(gains).toHaveLength(1);
+		expect(gains[0].gain.value).toBeCloseTo(0.8 * 0.6, 10);
 	});
 });

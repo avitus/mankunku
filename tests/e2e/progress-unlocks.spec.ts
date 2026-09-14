@@ -50,7 +50,8 @@ test('unlock card shows counts and next requirements; adaptive card is gone', as
 	await expect(card).toContainText('Keys & Scales');
 	await expect(card).toContainText('3/12');
 	await expect(card).toContainText('6/12');
-	await expect(card).toContainText('Next: D — G ≥ 10 (now 7)');
+	// Written pitch for the seeded tenor: concert D (gated on concert G) reads E — A.
+	await expect(card).toContainText('Next: E — A ≥ 10 (now 7)');
 	await expect(card).toContainText('Next: Mixolydian — Major ≥ 20 (now 18)');
 
 	// The dead ratchet display is gone.

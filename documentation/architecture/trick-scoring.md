@@ -79,7 +79,48 @@ report's expected notes match the style the player actually used.
 Styles are deliberately NOT trick parameters: they never enter the variant
 key, so one progress record covers all styles of a variant. Practice-session
 previews rotate through `Trick.exampleStyles` round by round
-(`exampleStyleForRound`), teaching the styles by demonstration.
+(`exampleStyleForRound`, round 1 = the first, canonical style), teaching the
+styles by demonstration.
+
+**A trick demos only when the round introduces a style the session has not
+heard** (`trickRoundIntroducesStyle` in `src/lib/tricks/index.ts`, the veto
+`advanceSingleLickRound` reads for trick items). A device with no declared
+styles (enclosures) therefore demos once, at the very start; triad pairs demo
+once per style — cell, triplets, four eighths — and then never again. Tricks
+used to demo every cycle on the grounds that the example regenerates each
+round, but a fresh realization of the same figure is not new to the ear, and
+the Listen bars piled up (2026-08-22).
+
+## Where a drill lives: key, bed, context
+
+Tricks have no stored home key. `trickEntryKey(instrument)` anchors a drill's
+unlock ramp and circle-of-4ths rotation at the player's **written C** in concert
+pitch (concert Bb on a Bb horn) — exactly like a lick entered in written C — and
+the tune-practice mastery-tier mirror resolves the anchor through the same
+function. Examples generate in a concert-C context and transpose per key.
+
+`trickPracticeBed(trick, params)` is the ONE place the `'major-vamp'` fallback
+for a device with no `practiceBed` lives (both shipped devices declare beds, so
+it is purely defensive); `trickBedHarmony` reads that bed's first chord and
+scale, and `trickContextFor(trick, params, key, tempo)` builds the full
+`TrickContext` over it. The practice session and the trick page's notation
+preview both go through these — they used to drift: the preview hard-coded
+maj7 / ionian, so the whole-tone pair rendered "C+·D+ over Cmaj7", harmony it
+would never be played over, and its example fell out of the scale pool onto the
+chromatic fallback placement.
+
+The secondary contract, `generateExample`, goes through
+`realizeTrickExample` (`src/lib/tricks/example-generator.ts`): a deterministic
+walk that seeds the first slot nearest middle C and takes each next pitch-class
+instance nearest the previous note, within the level profile's `maxInterval` where
+it can, then stamps `difficulty.pickupBars` when the device passes it (the
+enclosure drill figure's anacrusis). The result must pass `validatePhrase`, but
+with the lick contour rules switched off — no step ratio, no leap recovery, no
+minimum direction changes — because a triad-pair cell is wall-to-wall leaps and an
+enclosure leans on chromatic neighbours; only the realization range (tenor sax, concert
+44–75, unless the caller passes one), a single-interval cap of at least 9 semitones
+and at most 12 consecutive leaps remain. Examples are disposable
+(`source: 'generated'`, a fresh id per call); a session regenerates one every round.
 
 ## Layer 2: Fluency (the final grade)
 

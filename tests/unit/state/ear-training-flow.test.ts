@@ -18,6 +18,13 @@
 import { describe, it, expect } from 'vitest';
 import { decideNext, resolveBoundPhrase } from '$lib/state/ear-training-flow';
 
+describe('an empty eligible pool stops the loop between attempts', () => {
+	it.each([0.4, 0.9])('stops after score %s instead of retrying or advancing', scoreOverall => {
+		expect(decideNext({ scoreOverall, failCount: 0, passThreshold: 0.7, hasEligiblePhrases: false }))
+			.toEqual({ action: 'stop', nextFailCount: 0 });
+	});
+});
+
 describe('decideNext', () => {
 	const PASS = 0.7;
 

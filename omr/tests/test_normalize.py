@@ -92,3 +92,33 @@ def test_spelled_pitch_and_midi_carried_through() -> None:
     bb = norm.measures[1].notes[1]
     assert bb.spelled_pitch == "Bb3"
     assert bb.midi == 58
+
+
+def test_positioned_annotations_off_the_first_note_are_text_not_marks() -> None:
+    # Only a short uppercase body on a measure's FIRST event is a rehearsal
+    # mark. A second one there, a mid-bar one, and a wordy one are text; an
+    # empty one is nothing. Header subtitles land in the same list, first.
+    abc = 'X:1\nT:Main\nT:Sub\nL:1/4\nK:C\n"^A""^B" C "^C" D "^Solo" E "^" F |]\n'
+    score, warnings = parse_abc(abc)
+    norm = normalize(score, warnings)
+
+    assert norm.measures[0].rehearsal_mark == "A"
+    assert norm.text_annotations == ["Sub", "B", "C", "Solo"]
+    assert norm.measures[0].chords == []
+
+
+def test_chords_over_rests_are_kept_at_the_rest_onset() -> None:
+    score, warnings = parse_abc('X:1\nL:1/4\nK:C\n"C7" z2 "F7" z2 |]\n')
+    norm = normalize(score, warnings)
+
+    m1 = norm.measures[0]
+    assert all(n.is_rest for n in m1.notes)
+    assert [(c.raw, c.onset) for c in m1.chords] == [("C7", Fraction(0)), ("F7", Fraction(1, 2))]
+
+
+def test_inline_meter_is_recorded_per_measure() -> None:
+    score, warnings = parse_abc("X:1\nM:4/4\nL:1/4\nK:C\nCDEF | [M:3/4] CDE |]\n")
+    norm = normalize(score, warnings)
+
+    assert norm.time_signature == (4, 4)
+    assert [m.meter for m in norm.measures] == [(4, 4), (3, 4)]

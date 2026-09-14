@@ -1,11 +1,14 @@
 /**
  * Integration tests for the adaptive difficulty system: scale/key
  * proficiency tracking (the live engine that gates content and unlocks),
- * plus the level→tier profile mapping and difficulty display bands.
+ * plus the tier profile ladder.
  *
  * The global pitch/rhythm complexity ratchet (`processAttempt`) was retired
  * 2026-08-31 — nothing consumed its output. Only the frozen initial-state
  * shape is still pinned, because `progress.adaptive` round-trips sync.
+ * Level→tier boundaries and display bands are pinned per-value in
+ * tests/integration/difficulty-gated-content.test.ts and
+ * tests/unit/difficulty/display.test.ts.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -16,8 +19,7 @@ import {
 	processScaleAttempt,
 	processKeyAttempt
 } from '../../src/lib/difficulty/adaptive';
-import { getProfileForTier, levelToContentTier, DIFFICULTY_PROFILES } from '../../src/lib/difficulty/params';
-import { difficultyBand, difficultyDisplay } from '../../src/lib/difficulty/display';
+import { getProfileForTier, DIFFICULTY_PROFILES } from '../../src/lib/difficulty/params';
 
 // ─── Initial State ─────────────────────────────────────────────
 
@@ -102,35 +104,11 @@ describe('key proficiency tracking', () => {
 
 		expect(prof.level).toBe(2);
 	});
-
-	it('maintains separate tracking per key', () => {
-		let cProf = createInitialKeyProficiency();
-		let gProf = createInitialKeyProficiency();
-
-		for (let i = 0; i < 11; i++) {
-			cProf = processKeyAttempt(cProf, 0.95);
-		}
-
-		for (let i = 0; i < 11; i++) {
-			gProf = processKeyAttempt(gProf, 0.4);
-		}
-
-		expect(cProf.level).toBeGreaterThan(gProf.level);
-	});
 });
 
 // ─── Difficulty Profile Mapping ────────────────────────────────
 
 describe('difficulty profile mapping', () => {
-	it('maps player levels 1-100 to content tiers 1-10', () => {
-		expect(levelToContentTier(1)).toBe(1);
-		expect(levelToContentTier(5)).toBe(1);
-		expect(levelToContentTier(6)).toBe(2);
-		expect(levelToContentTier(50)).toBe(6);
-		expect(levelToContentTier(91)).toBe(10);
-		expect(levelToContentTier(100)).toBe(10);
-	});
-
 	it('getProfileForTier returns valid profiles for all tiers', () => {
 		for (let tier = 1; tier <= 10; tier++) {
 			const profile = getProfileForTier(tier);
@@ -153,31 +131,5 @@ describe('difficulty profile mapping', () => {
 
 	it('all 10 difficulty profiles are defined', () => {
 		expect(DIFFICULTY_PROFILES).toHaveLength(10);
-	});
-});
-
-// ─── Difficulty Display ────────────────────────────────────────
-
-describe('difficulty display', () => {
-	it('maps levels to correct bands', () => {
-		expect(difficultyBand(1)).toBe(1);
-		expect(difficultyBand(10)).toBe(1);
-		expect(difficultyBand(11)).toBe(2);
-		expect(difficultyBand(50)).toBe(5);
-		expect(difficultyBand(100)).toBe(10);
-	});
-
-	it('clamps out-of-range values', () => {
-		expect(difficultyBand(0)).toBe(1);
-		expect(difficultyBand(101)).toBe(10);
-	});
-
-	it('returns display info with all fields', () => {
-		const display = difficultyDisplay(50);
-
-		expect(display.band).toBe(5);
-		expect(display.label).toBe('41-50');
-		expect(display.color).toBeTruthy();
-		expect(display.name).toBeTruthy();
 	});
 });

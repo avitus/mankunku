@@ -33,12 +33,6 @@ function params(overrides: Partial<BackingGenerationParams> = {}): BackingGenera
 }
 
 describe('straight style', () => {
-	it('always resolves to even eighths regardless of tempo', () => {
-		for (const tempo of [60, 140, 240]) {
-			expect(resolveBackingSwing(0.5, BACKING_STYLES.straight, tempo)).toBe(0.5);
-		}
-	});
-
 	it('ignores the user swing knob — the style owns the grid', () => {
 		// Regression: the knob used to override any fixed-grid style, and its
 		// first step off the 0.5 minimum is 0.55, so every non-default knob

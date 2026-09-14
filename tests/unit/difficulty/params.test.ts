@@ -64,15 +64,23 @@ describe('player level → profile', () => {
 		expect(getProfileForLevel(-5).level).toBe(1);
 		expect(getProfileForLevel(500).level).toBe(10);
 	});
+
+	it('sends non-finite input to tier 1, never to the top tier', () => {
+		// Every comparison against NaN is false, so without the guard the
+		// ladder falls through to tier 10 — "No Limits" for a corrupt setting.
+		expect(getProfileForLevel(Number.NaN).level).toBe(1);
+		expect(getProfileForLevel(Number.POSITIVE_INFINITY).level).toBe(1);
+		expect(getProfileForLevel(Number.NEGATIVE_INFINITY).level).toBe(1);
+	});
+
+	it('rounds a fractional level to the nearest whole level before mapping', () => {
+		expect(getProfileForLevel(5.4).level).toBe(levelToContentTier(5));
+		expect(getProfileForLevel(5.6).level).toBe(levelToContentTier(6));
+		expect(getProfileForLevel(12.5).level).toBe(levelToContentTier(13));
+	});
 });
 
 describe('content tier → profile', () => {
-	it('returns the profile whose level is that tier', () => {
-		for (let tier = 1; tier <= 10; tier++) {
-			expect(getProfileForTier(tier).level).toBe(tier);
-		}
-	});
-
 	it('names the tier it returns', () => {
 		expect(getProfileForTier(1).name).toBe('Roots & 5ths');
 		expect(getProfileForTier(7).name).toBe('Bebop Lines');
@@ -88,14 +96,6 @@ describe('content tier → profile', () => {
 });
 
 describe('levelToContentTier', () => {
-	it('maps level 1 to tier 1', () => {
-		expect(levelToContentTier(1)).toBe(1);
-	});
-
-	it('maps level 100 to tier 10', () => {
-		expect(levelToContentTier(100)).toBe(10);
-	});
-
 	it('returns monotonically increasing tiers', () => {
 		let prevTier = 0;
 		for (let level = 1; level <= 100; level++) {

@@ -1,7 +1,32 @@
 import type { Page } from '@playwright/test';
 import { test, expect, type ConsoleCollector } from './fixtures/test';
-import { seedOnboardedAnonymous } from './fixtures/storage';
+import { seedOnboardedAnonymous, seedStorage, SETTINGS_ONBOARDED, TOUR_DISMISSED } from './fixtures/storage';
 import { installAudioMock, stubCdnInstrumentSamples } from './fixtures/audio';
+
+/** A newly unlocked scale can start; an invalid legacy level cannot bypass the gates. */
+for (const level of [0, 1]) test(`ear-training: Altered at level ${level} respects pool eligibility`, async ({ page }) => {
+	await seedStorage(page, {
+		settings: { ...SETTINGS_ONBOARDED, tonalityOverride: { key: 'C', scaleType: 'altered' } },
+		'tour-state': TOUR_DISMISSED,
+		progress: {
+			scaleProficiency: {
+				'melodic-minor': { level: 40 }, // Unlock Altered independently of its own level.
+				altered: { level }
+			}
+		}
+	});
+	await installAudioMock(page);
+	await stubCdnInstrumentSamples(page);
+	await page.goto('/ear-training', { waitUntil: 'networkidle' });
+	await expect(page.getByText('Altered', { exact: true })).toBeVisible();
+	if (level === 0) {
+		await expect(page.getByText('No phrases fit this scale at your current level.')).toBeVisible();
+		await expect(page.locator('[data-tour="play-button"]')).toBeDisabled();
+	} else {
+		await expect(page.getByText('No phrases fit this scale at your current level.')).toHaveCount(0);
+		await expect(page.locator('[data-tour="play-button"]')).toBeEnabled();
+	}
+});
 
 /**
  * Regression: clicking the start button twice in quick succession used to

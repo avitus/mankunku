@@ -16,15 +16,6 @@ import { getScale } from '$lib/music/scales';
 import { realizeScale } from '$lib/music/keys';
 import { lickMode } from '$lib/music/mode';
 
-export interface LibraryQuery {
-	category?: PhraseCategory;
-	maxDifficulty?: number;
-	minDifficulty?: number;
-	tags?: string[];
-	search?: string;
-	scaleType?: ScaleType;
-}
-
 /** Pre-built index for fast querying */
 const byId = new Map<string, Phrase>();
 
@@ -95,44 +86,6 @@ export function getBaseLickFromId(id: string): Phrase | undefined {
 	if (direct) return direct;
 	const base = baseLickId(id);
 	return base === id ? undefined : getLickById(base);
-}
-
-/** Query licks with multiple filters */
-export function queryLicks(query: LibraryQuery): Phrase[] {
-	let results = getAllLicks();
-
-	if (query.category) {
-		results = results.filter((l) => l.category === query.category);
-	}
-
-	if (query.maxDifficulty !== undefined) {
-		results = results.filter((l) => l.difficulty.level <= query.maxDifficulty!);
-	}
-
-	if (query.minDifficulty !== undefined) {
-		results = results.filter((l) => l.difficulty.level >= query.minDifficulty!);
-	}
-
-	if (query.tags && query.tags.length > 0) {
-		results = results.filter((l) =>
-			query.tags!.some((tag) => l.tags.includes(tag))
-		);
-	}
-
-	if (query.search) {
-		const term = query.search.toLowerCase();
-		results = results.filter(
-			(l) =>
-				l.name.toLowerCase().includes(term) ||
-				l.tags.some((t) => t.includes(term))
-		);
-	}
-
-	if (query.scaleType) {
-		results = results.filter((l) => isLickCompatible(l, query.scaleType!));
-	}
-
-	return results;
 }
 
 /** Fallback low range when caller doesn't specify (preserves legacy central-range behavior) */

@@ -447,6 +447,17 @@ describe('suggestLicksForProgression — trick suggestions', () => {
 		expect(slowAtKey.suggestions).toHaveLength(0);
 	});
 
+	it('ignores a selected variant key that no longer exists, without throwing', () => {
+		// A stale key can survive in a synced selection blob (an old device, a
+		// retired ladder rung); suggestion building must skip it, not crash
+		// the tune page.
+		const result = suggestLicksForProgression(
+			vampDetection('major-vamp', 'F'),
+			makeDeps({ selectedTrickVariants: new Set(['enclosures:retired=1', 'no-such-trick:x=1', E1.key]) })
+		);
+		expect(trickSuggestions(result).map((s) => s.lickId)).toEqual([`${TRICK_PREFIX}${E1.key}`]);
+	});
+
 	it('keeps distinct variants of the same trick through dedupe', () => {
 		expect(baseLickId(`${TRICK_PREFIX}${E1.key}`)).toBe(`${TRICK_PREFIX}${E1.key}`);
 		expect(baseLickId(`${TRICK_PREFIX}${E2.key}`)).toBe(`${TRICK_PREFIX}${E2.key}`);

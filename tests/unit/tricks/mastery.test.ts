@@ -118,11 +118,6 @@ describe('TRICK_MASTERY_PATHS', () => {
 		expect(getVariantsForTrick('nope')).toEqual([]);
 	});
 
-	it('has globally unique variant keys', () => {
-		const allKeys = [...enclosures, ...triadPairs].map((v) => v.key);
-		expect(new Set(allKeys).size).toBe(allKeys.length);
-	});
-
 	it('every enclosure variant uses exactly the pinned parameter names and values', () => {
 		for (const variant of enclosures) {
 			expect(variant.trickId).toBe('enclosures');
@@ -176,6 +171,15 @@ describe('getVariantByKey', () => {
 
 	it('returns undefined for unknown keys', () => {
 		expect(getVariantByKey('enclosures:not=a-variant')).toBeUndefined();
+	});
+
+	it('keys are the stored composite literal: trickId, colon, name=value pairs sorted by name', () => {
+		// These strings are what progress blobs and cloud rows are keyed by; a
+		// change of separator, ordering or parameter set orphans every stored key.
+		expect(e1.key).toBe(
+			'enclosures:beatPlacement=downbeat,noteCount=1,shape=chromatic-below,targetTone=root,type=major'
+		);
+		expect(t1.key).toBe('triad-pairs:pair=major-whole');
 	});
 
 	it('keys are order-independent over parameter insertion order', () => {

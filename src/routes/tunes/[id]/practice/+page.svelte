@@ -7,19 +7,23 @@
 	import LickCelebration from '$lib/components/tune-practice/LickCelebration.svelte';
 	import TourTrigger from '$lib/components/ui/TourTrigger.svelte';
 	import HelpLink from '$lib/components/ui/HelpLink.svelte';
+	import TooltipHint from '$lib/components/ui/TooltipHint.svelte';
+	import Knob from '$lib/components/console/Knob.svelte';
+	import RockerSwitch from '$lib/components/console/RockerSwitch.svelte';
+	import SelectorPad from '$lib/components/console/SelectorPad.svelte';
+	import { tooltips } from '$lib/content/tooltips';
 	import { tunePracticeTour } from '$lib/tour/tours/tune-practice';
 	import { getTuneById, transposeTune } from '$lib/tunes/book-loader';
 	import { awaitHydration } from '$lib/state/hydration';
 	import { settings, getInstrument } from '$lib/state/settings.svelte';
-	import { BACKING_STYLE_IDS, melodySwingForStyle } from '$lib/audio/backing-styles';
+	import { BACKING_STYLE_IDS, BACKING_STYLE_NAMES, melodySwingForStyle } from '$lib/audio/backing-styles';
 	import { setMasterVolume } from '$lib/audio/audio-context';
 	import {
 		tunePractice,
 		initTunePractice,
 		previewSessionPlan,
 		startTunePracticeSession,
-		expectedForWindow,
-		trickForWindow,
+		candidatesForWindow,
 		markHead,
 		markRunning,
 		markWindowOpen,
@@ -33,11 +37,14 @@
 		recordFreestyleMatch,
 		clearCelebration,
 		type TunePracticeAudioPlan,
-		type InsertionPoint
+		type InsertionPoint,
+		type WindowCandidate
 	} from '$lib/state/tune-practice.svelte';
 	import {
 		notationBarForPlaybackBar,
 		strictnessKnobs,
+		bestCandidateResult,
+		insertionLabel,
 		insertionMarkerCleared,
 		indexResultsByInsertion,
 		type TunePracticeMode,
@@ -58,6 +65,7 @@
 	import { concertKeyToWritten, writtenKeyToConcert } from '$lib/music/transposition';
 	import { PITCH_CLASSES, type PitchClass } from '$lib/types/music';
 	import type { PlaybackOptions } from '$lib/types/audio';
+	import type { Score } from '$lib/types/scoring';
 	import type { PlaybackNoteEvent } from '$lib/audio/playback';
 	import type { PitchDetectorHandle, PitchReading } from '$lib/audio/pitch-detector';
 	import type { MicCapture } from '$lib/audio/capture';
@@ -112,9 +120,12 @@
 
 	interface OpenWindow {
 		ip: InsertionPoint;
-		expected: { phrase: import('$lib/types/music').Phrase; lickName: string } | null;
-		/** Non-null when the picked suggestion is a trick — scored via Fluency. */
-		trickInfo: ReturnType<typeof trickForWindow>;
+		/**
+		 * The answers the window accepts, fixed at open time: the named lick
+		 * alone when the chart names licks, every fitting lick otherwise — the
+		 * take is scored against each and the best match is the result.
+		 */
+		candidates: WindowCandidate[];
 		recordingTransportSeconds: number;
 		micStartTime: number;
 		readingsStartCount: number;
@@ -152,6 +163,48 @@
 	 */
 	let playheadBarF = $state(-1);
 
+	// ── Setup-screen controls ─────────────────────────────────────────────────
+	// The console pads read typed option lists so SelectorPad's generic infers
+	// the config union and onChange assigns without a cast. Sublabels are kept
+	// short so each row of the setup card fits one line at the page's max
+	// width; the fuller mode descriptions survive as hover titles.
+	const MODE_OPTIONS: {
+		value: TunePracticeMode;
+		label: string;
+		sublabel: string;
+		title: string;
+	}[] = [
+		{
+			value: 'suggest',
+			label: 'Suggest',
+			sublabel: 'lick named for you',
+			title: 'Cued practice — the top lick is named at every insertion point.'
+		},
+		{
+			value: 'points',
+			label: 'Points',
+			sublabel: 'you pick, streaks double',
+			title: 'Pick your lick and earn points; back-to-back hits score double.'
+		},
+		{
+			value: 'freestyle',
+			label: 'Freestyle',
+			sublabel: 'backing only, just solo',
+			title: 'Backing only. Take a solo — known licks earn applause.'
+		}
+	];
+	const STRICTNESS_OPTIONS: { value: TunePracticeStrictness; label: string; sublabel: string }[] = [
+		{ value: 'guided', label: 'Guided', sublabel: 'names the lick to play' },
+		{ value: 'standard', label: 'Standard', sublabel: 'names the progression only' },
+		{ value: 'solo', label: 'Solo', sublabel: 'no cues — any fitting lick' }
+	];
+	/** Written-pitch key names as the pad labels; `selectWrittenKey` converts. */
+	const KEY_OPTIONS = PITCH_CLASSES.map((pc) => ({ value: pc, label: pc }));
+	const BACKING_OPTIONS = BACKING_STYLE_IDS.map((id) => ({
+		value: id,
+		label: BACKING_STYLE_NAMES[id]
+	}));
+
 	// ── Setup-screen derived state ────────────────────────────────────────────
 	let selectedWrittenKey: PitchClass | null = $state(null);
 	$effect(() => {
@@ -177,6 +230,14 @@
 	const tuneHasMelody = $derived(
 		(baseSheet?.sections ?? []).some((sec) => sec.notes.some((n) => n.pitch !== null))
 	);
+	/** Caption under Start: what the first chorus will be, and why. */
+	const startCaption = $derived(
+		!tuneHasMelody
+			? 'This chart has no melody — straight to the changes.'
+			: tunePractice.config.playHead
+				? 'Head first, then the chart clears for your licks.'
+				: 'Straight to the changes.'
+	);
 	const previewMarkers = $derived<RangeMarker[]>(
 		(preview?.markers ?? []).map((m) => ({
 			...m,
@@ -185,7 +246,7 @@
 		}))
 	);
 
-	const knobs = $derived(strictnessKnobs(tunePractice.config.strictness, settings.bleedFilterEnabled));
+	const knobs = $derived(strictnessKnobs(tunePractice.config.strictness));
 
 	// The chart shows the full melody through the head, then swaps to the
 	// changes-only sheet (one deliberate re-render at a musical boundary).
@@ -229,15 +290,16 @@
 			let status: RangeMarker['status'] = 'upcoming';
 			if (result) status = result.grade !== null && result.grade !== 'try-again' ? 'hit' : 'missed';
 			if (tunePractice.windowOpen && tunePractice.currentIndex === i) status = 'active';
-			// Annotate as far in advance as possible: whenever the mode/strictness
-			// reveals names at all, label every still-relevant point (no short
-			// countdown window). Solo (cueLevel 'none') and freestyle stay unlabeled.
-			const showName = tunePractice.config.mode !== 'freestyle' && knobs.cueLevel !== 'none';
-			// When no lick meets the song's key/tempo requirements, the band still
-			// names its progression so the player knows what to blow over.
-			const label = showName
-				? (suggestionNameFor(ip) ?? PROGRESSION_TEMPLATES[ip.progressionType].shortName)
-				: undefined;
+			// Annotate as far in advance as possible: whatever the strictness
+			// reveals, it reveals on every still-relevant point (no short
+			// countdown window). Guided names the lick, Standard the progression,
+			// Solo nothing; freestyle stays unlabeled at any level.
+			const label = insertionLabel({
+				mode: tunePractice.config.mode,
+				cueLevel: knobs.cueLevel,
+				lickName: suggestionNameFor(ip),
+				progressionName: PROGRESSION_TEMPLATES[ip.progressionType].shortName
+			});
 			const existing = byKey.get(ip.markerKey);
 			if (!existing) {
 				byKey.set(ip.markerKey, {
@@ -340,12 +402,23 @@
 
 	onMount(async () => {
 		void acquireScreenWakeLock();
-		playback = await import('$lib/audio/playback');
-		captureModule = await import('$lib/audio/capture');
-		pitchModule = await import('$lib/audio/pitch-detector');
-		onsetModule = await import('$lib/audio/onset-detector');
-		backingTrack = await import('$lib/audio/backing-track');
-		toneModule = await import('tone');
+		try {
+			playback = await import('$lib/audio/playback');
+			captureModule = await import('$lib/audio/capture');
+			pitchModule = await import('$lib/audio/pitch-detector');
+			onsetModule = await import('$lib/audio/onset-detector');
+			backingTrack = await import('$lib/audio/backing-track');
+			toneModule = await import('tone');
+		} catch (err) {
+			// A navigation that cuts the fetch off rejects the import too; once
+			// the page is gone that is nobody's error. Still up (offline, a stale
+			// deploy's missing chunk), Start is inert without the modules, so the
+			// audio-setup banner says why.
+			if (!mounted) return;
+			console.warn('[tune-practice] audio modules failed to load:', err);
+			loadError = true;
+			return;
+		}
 
 		// Unmounting during the dynamic imports above runs onDestroy while
 		// timerInterval is still null; without this guard the continuation would
@@ -564,6 +637,11 @@
 		if (match) recordFreestyleMatch(match);
 	}
 
+	/**
+	 * Transport callback at an insertion point's open tick: snapshot the
+	 * window — its accepted answers, the transport time, the mic clock and the
+	 * readings count to slice from — and reset the onset detector to it.
+	 */
 	function openInsertionWindow(index: number) {
 		// A cancelled event can still fire if already dequeued when End ran.
 		if (!isSessionRunning || !playback || !pitchDetector || !micCapture) return;
@@ -571,8 +649,7 @@
 		if (!ip) return;
 		currentWindow = {
 			ip,
-			expected: expectedForWindow(ip),
-			trickInfo: trickForWindow(ip),
+			candidates: candidatesForWindow(ip, knobs.cueLevel),
 			recordingTransportSeconds: playback.getTransportSeconds(),
 			micStartTime: micCapture.context.currentTime,
 			readingsStartCount: pitchDetector.getReadings().length,
@@ -582,6 +659,13 @@
 		onsetDetector?.reset(currentWindow.micStartTime);
 	}
 
+	/**
+	 * Transport callback at the window's close tick: rebase the readings
+	 * collected since it opened into window-local seconds, run the shared
+	 * segmentation (worklet + re-articulation onsets, with the bleed grid),
+	 * score the take against every accepted answer and record the best match.
+	 * Nothing played is a skipped window, not a fail.
+	 */
 	function closeInsertionWindow() {
 		if (!currentWindow || !pitchDetector) return;
 		const win = currentWindow;
@@ -597,7 +681,7 @@
 			rebased.push({ ...r, time: r.time - windowOffset });
 		}
 
-		if (!win.expected) {
+		if (win.candidates.length === 0) {
 			recordWindowResult(win.ip.id, null, null);
 			return;
 		}
@@ -630,47 +714,58 @@
 
 		if (detected.length === 0) {
 			// Nothing played — a skipped insertion point, not a fail.
-			recordWindowResult(win.ip.id, win.expected.lickName, null);
+			recordWindowResult(win.ip.id, win.candidates[0].lickName, null);
 			return;
 		}
 
 		const bleedResult = win.schedule
 			? filterBleed(detected, win.schedule, win.recordingTransportSeconds)
 			: null;
-		if (win.trickInfo) {
-			// Trick windows judge FLUENCY (conformance to the device's formula),
-			// not exact reproduction — route around runScorePipeline. Bleed
-			// handling collapses to the chosen-notes rule: filtered notes when
-			// the knob is on and a schedule produced them, raw notes otherwise.
-			let played = knobs.bleedFilterEnabled && bleedResult ? bleedResult.kept : detected;
-			// The window opens at the progression start but the trick is aligned
-			// to a later bar; Fluency slots start at 0, so played onsets must be
-			// rebased to the aligned bar (notes before it go negative and
-			// correctly fail to match).
-			const shiftSeconds = fractionToFloat(win.trickInfo.shift) * 4 * (60 / tempo);
-			if (shiftSeconds !== 0) {
-				played = played.map((n) => ({ ...n, onsetTime: n.onsetTime - shiftSeconds }));
+		/**
+		 * Score the take against one accepted answer: a trick window judges
+		 * fluency (onsets rebased to its aligned bar), a lick window runs the
+		 * full score pipeline; null when the candidate has no phrase.
+		 */
+		const scoreCandidate = (candidate: WindowCandidate): Score | null => {
+			if (candidate.trickInfo) {
+				// Trick windows judge FLUENCY (conformance to the device's formula),
+				// not exact reproduction — route around runScorePipeline. Bleed
+				// handling collapses to the chosen-notes rule: filtered notes when
+				// the knob is on and a schedule produced them, raw notes otherwise.
+				let played = knobs.bleedFilterEnabled && bleedResult ? bleedResult.kept : detected;
+				// The window opens at the progression start but the trick is aligned
+				// to a later bar; Fluency slots start at 0, so played onsets must be
+				// rebased to the aligned bar (notes before it go negative and
+				// correctly fail to match).
+				const shiftSeconds = fractionToFloat(candidate.trickInfo.shift) * 4 * (60 / tempo);
+				if (shiftSeconds !== 0) {
+					played = played.map((n) => ({ ...n, onsetTime: n.onsetTime - shiftSeconds }));
+				}
+				return scoreFluency({
+					played,
+					trick: candidate.trickInfo.trick,
+					parameters: candidate.trickInfo.parameters,
+					context: { ...candidate.trickInfo.context, tempo, swing: effectiveSwing }
+				});
 			}
-			const score = scoreFluency({
-				played,
-				trick: win.trickInfo.trick,
-				parameters: win.trickInfo.parameters,
-				context: { ...win.trickInfo.context, tempo, swing: effectiveSwing }
-			});
-			recordWindowResult(win.ip.id, win.expected.lickName, score);
-			return;
-		}
-		const result = runScorePipeline({
-			detected,
-			phrase: win.expected.phrase,
-			tempo,
-			transportSeconds: win.recordingTransportSeconds,
-			swing: effectiveSwing,
-			bleedFilterEnabled: knobs.bleedFilterEnabled,
-			bleedResult,
-			octaveInsensitive: knobs.octaveInsensitive
-		});
-		recordWindowResult(win.ip.id, win.expected.lickName, result.chosen);
+			if (!candidate.phrase) return null;
+			return runScorePipeline({
+				detected,
+				phrase: candidate.phrase,
+				tempo,
+				transportSeconds: win.recordingTransportSeconds,
+				swing: effectiveSwing,
+				bleedFilterEnabled: knobs.bleedFilterEnabled,
+				bleedResult,
+				octaveInsensitive: knobs.octaveInsensitive
+			}).chosen;
+		};
+		// One take, every accepted answer: the best match is the window's result,
+		// so a Standard/Solo player is graded on the lick they chose to play.
+		const best = bestCandidateResult(
+			win.candidates.map((c) => ({ lickName: c.lickName, score: scoreCandidate(c) }))
+		);
+		recordWindowResult(win.ip.id, best.lickName, best.score);
 	}
 
 	function handlePlaybackNote(event: PlaybackNoteEvent) {
@@ -784,10 +879,13 @@
 			&larr; {baseSheet.title}
 		</a>
 
-		<div class="flex flex-wrap items-start justify-between gap-4">
+		<!-- Page header — the songbook/settings pattern (neutral domain) -->
+		<div class="flex flex-wrap items-end justify-between gap-3">
 			<div class="min-w-0">
-				<h1 class="text-2xl font-bold">Practice licks</h1>
-				<p class="mt-1 text-sm text-[var(--color-text-secondary)]">
+				<div class="smallcaps text-[var(--color-brass)]">The Songbook</div>
+				<h1 class="font-display text-4xl font-bold tracking-tight">Practice licks</h1>
+				<div class="jazz-rule mt-2 max-w-[140px]"></div>
+				<p class="mt-3 max-w-prose text-sm text-[var(--color-text-secondary)]">
 					The tune plays with the rhythm section; at each highlighted progression the melody rests
 					and you play a lick from your book. Every insertion is scored.
 				</p>
@@ -803,130 +901,133 @@
 			</div>
 		</div>
 
-		<div class="space-y-4 rounded-lg bg-[var(--color-bg-secondary)] p-4">
-			<div class="flex items-start gap-3">
-				<span class="w-20 shrink-0 pt-1.5 text-sm text-[var(--color-text-secondary)]">Mode</span>
-				<div class="flex-1 space-y-1">
-					{#each [
-						{ id: 'suggest', label: 'Suggest', desc: 'Cued practice — the top lick is named at every insertion point.' },
-						{ id: 'points', label: 'Points', desc: 'Pick your lick and earn points; back-to-back hits score double.' },
-						{ id: 'freestyle', label: 'Freestyle', desc: 'Backing only. Take a solo — known licks earn applause.' }
-					] as const as mode (mode.id)}
-						<button
-							onclick={() => {
-								tunePractice.config.mode = mode.id as TunePracticeMode;
-							}}
-							class="flex w-full items-baseline gap-2 rounded px-2 py-1.5 text-left transition-colors
-								{tunePractice.config.mode === mode.id
-									? 'bg-[var(--color-accent)]/20 ring-1 ring-[var(--color-accent)]'
-									: 'hover:bg-[var(--color-bg-tertiary)]'}"
-						>
-							<span class="w-20 shrink-0 text-sm font-medium">{mode.label}</span>
-							<span class="text-xs text-[var(--color-text-secondary)]">{mode.desc}</span>
-						</button>
-					{/each}
+		<!-- ── SESSION ──────────────────────────────────────────────── -->
+		<!-- Same section anatomy as /settings: icon chip + display h2 +
+		     subtitle over a divided card of console rows. -->
+		<div class="space-y-4">
+			<div class="flex items-center gap-3">
+				<div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--color-bg-tertiary)]">
+					<!-- Play icon -->
+					<svg class="h-4 w-4 text-[var(--color-text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+						<circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8" fill="currentColor" stroke="none"/>
+					</svg>
+				</div>
+				<div>
+					<h2 class="font-display text-xl font-semibold">Session</h2>
+					<p class="text-xs text-[var(--color-text-secondary)]">Mode, strictness, head, key, tempo, and backing</p>
 				</div>
 			</div>
 
-			<div class="flex items-center gap-3">
-				<span class="w-20 shrink-0 text-sm text-[var(--color-text-secondary)]">Strictness</span>
-				<div class="flex flex-wrap gap-1">
-					{#each [
-						{ id: 'guided', label: 'Guided' },
-						{ id: 'standard', label: 'Standard' },
-						{ id: 'solo', label: 'Solo' }
-					] as const as level (level.id)}
-						<button
-							onclick={() => {
-								tunePractice.config.strictness = level.id as TunePracticeStrictness;
-							}}
-							class="rounded-full px-3 py-1 text-xs transition-colors
-								{tunePractice.config.strictness === level.id
-									? 'bg-[var(--color-accent)] text-white'
-									: 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg)]'}"
-						>
-							{level.label}
-						</button>
-					{/each}
-				</div>
-				<span class="text-xs text-[var(--color-text-secondary)]">
-					{tunePractice.config.strictness === 'guided'
-						? 'full cues, any octave'
-						: tunePractice.config.strictness === 'standard'
-							? 'cues on approach, any octave'
-							: 'no cues, exact register'}
-				</span>
-			</div>
+			<div class="rounded-xl border border-[var(--color-bg-tertiary)] bg-[var(--color-bg-secondary)] divide-y divide-[var(--color-bg-tertiary)]">
+				<!-- Row 1: how you're scored -->
+				<div class="flex flex-wrap items-end justify-center gap-x-14 gap-y-6 px-5 py-5">
+					<div class="inline-flex flex-col items-center gap-1.5">
+						<div class="flex items-center justify-center" style:min-height="84px">
+							<SelectorPad
+								ariaLabel="Mode"
+								value={tunePractice.config.mode}
+								options={MODE_OPTIONS}
+								onChange={(v) => (tunePractice.config.mode = v)}
+							/>
+						</div>
+						<span class="smallcaps console-engrave inline-flex items-center gap-1">
+							Mode
+							<TooltipHint
+								text={tooltips.tunePractice.mode.text}
+								learnMore={tooltips.tunePractice.mode.learnMore}
+								position="top"
+							/>
+						</span>
+					</div>
 
-			<div class="flex items-center gap-3">
-				<span class="w-20 shrink-0 text-sm text-[var(--color-text-secondary)]">Head</span>
-				<label class="flex items-center gap-2 text-sm {tuneHasMelody ? '' : 'opacity-50'}">
-					<input
-						type="checkbox"
-						bind:checked={tunePractice.config.playHead}
+					<div class="inline-flex flex-col items-center gap-1.5">
+						<div class="flex items-center justify-center" style:min-height="84px">
+							<SelectorPad
+								ariaLabel="Strictness"
+								value={tunePractice.config.strictness}
+								options={STRICTNESS_OPTIONS}
+								onChange={(v) => (tunePractice.config.strictness = v)}
+							/>
+						</div>
+						<span class="smallcaps console-engrave inline-flex items-center gap-1">
+							Strictness
+							<TooltipHint
+								text={tooltips.tunePractice.strictness.text}
+								learnMore={tooltips.tunePractice.strictness.learnMore}
+								position="top"
+							/>
+						</span>
+					</div>
+				</div>
+
+				<!-- Row 2: what plays -->
+				<div class="flex flex-wrap items-end justify-center gap-x-14 gap-y-6 px-5 py-5">
+					<!-- Reads OFF on a chords-only chart even though config.playHead
+					     defaults true: the plan resolves playHead && hasMelody, and an
+					     ON-but-disabled switch would promise a head that never plays. -->
+					<RockerSwitch
+						label="Head"
+						ariaLabel="Play the head first"
+						checked={tuneHasMelody && tunePractice.config.playHead}
 						disabled={!tuneHasMelody}
-						class="accent-[var(--color-accent)]"
+						helpText={tuneHasMelody
+							? tooltips.tunePractice.head.text
+							: tooltips.tunePractice.headNoMelody.text}
+						onChange={(v) => (tunePractice.config.playHead = v)}
 					/>
-					{#if tuneHasMelody}
-						Play the head first — melody once through, then the chart clears for your licks
-					{:else}
-						Play the head first (this chart has no melody)
-					{/if}
-				</label>
-			</div>
 
-			<div class="flex items-center gap-3">
-				<span class="w-20 shrink-0 text-sm text-[var(--color-text-secondary)]">Key</span>
-				<div class="flex flex-wrap gap-1">
-					{#each PITCH_CLASSES as pc (pc)}
-						<button
-							onclick={() => selectWrittenKey(pc)}
-							class="rounded-full px-2 py-0.5 text-xs transition-colors
-								{writtenKey === pc
-									? 'bg-[var(--color-accent)] text-white'
-									: 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg)]'}"
-						>
-							{pc}
-						</button>
-					{/each}
+					<div class="inline-flex flex-col items-center gap-1.5">
+						<div class="flex items-center justify-center" style:min-height="84px">
+							<SelectorPad
+								ariaLabel="Key"
+								size="sm"
+								columns={6}
+								value={writtenKey}
+								options={KEY_OPTIONS}
+								onChange={selectWrittenKey}
+							/>
+						</div>
+						<span class="smallcaps console-engrave">Key</span>
+					</div>
+
+					<Knob
+						label="Tempo"
+						ariaLabel="Tempo"
+						helpText={tooltips.tunePractice.tempo.text}
+						value={tunePractice.config.tempo}
+						min={50}
+						max={240}
+						step={5}
+						displayValue={`${tunePractice.config.tempo} BPM`}
+						onInput={(v) => (tunePractice.config.tempo = v)}
+					/>
+
+					<div class="inline-flex flex-col items-center gap-1.5">
+						<div class="flex items-center justify-center" style:min-height="84px">
+							<SelectorPad
+								ariaLabel="Backing style"
+								value={tunePractice.config.backingStyle}
+								options={BACKING_OPTIONS}
+								onChange={(v) => (tunePractice.config.backingStyle = v)}
+							/>
+						</div>
+						<span class="smallcaps console-engrave inline-flex items-center gap-1">
+							Backing
+							<TooltipHint
+								text={tooltips.lickPractice.backingStyle.text}
+								learnMore={tooltips.lickPractice.backingStyle.learnMore}
+								position="top"
+							/>
+						</span>
+					</div>
 				</div>
-			</div>
 
-			<div class="flex items-center gap-3">
-				<span class="w-20 shrink-0 text-sm text-[var(--color-text-secondary)]">Tempo</span>
-				<input
-					type="range"
-					min="50"
-					max="240"
-					step="5"
-					bind:value={tunePractice.config.tempo}
-					class="flex-1 accent-[var(--color-accent)]"
-				/>
-				<span class="w-16 shrink-0 text-right text-sm">{tunePractice.config.tempo} BPM</span>
-			</div>
-
-			<div class="flex items-center gap-3">
-				<span class="w-20 shrink-0 text-sm text-[var(--color-text-secondary)]">Backing</span>
-				<div class="flex flex-wrap gap-1">
-					{#each BACKING_STYLE_IDS as style (style)}
-						<button
-							onclick={() => {
-								tunePractice.config.backingStyle = style;
-							}}
-							class="rounded-full px-3 py-1 text-xs capitalize transition-colors
-								{tunePractice.config.backingStyle === style
-									? 'bg-[var(--color-accent)] text-white'
-									: 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg)]'}"
-						>
-							{style.replace('-', ' ')}
-						</button>
-					{/each}
-				</div>
-			</div>
-		</div>
-
-		{#if preview}
-			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 text-sm">
+				<!-- Row 3: what the detector found — settings' status-strip idiom.
+				     The paragraphs are unchanged; the e2e reads the summary with
+				     locator('p', { hasText: /insertion point/i }). -->
+				{#if preview}
+					<div class="px-5 py-4">
+						<div class="rounded-lg bg-[var(--color-bg-tertiary)] px-3 py-2 text-sm">
 				{#if preview.total === 0}
 					<p class="text-[var(--color-text-secondary)]">
 						No known progressions detected in this tune yet — you can still play along, but no
@@ -950,8 +1051,11 @@
 						<a href="/licks" class="text-[var(--color-accent)]">lick pages</a>.
 					</p>
 				{/if}
+						</div>
+					</div>
+				{/if}
 			</div>
-		{/if}
+		</div>
 
 		{#if micError}
 			<div class="rounded-lg bg-[var(--color-error)]/15 p-3 text-sm text-[var(--color-error-text)]">
@@ -965,13 +1069,17 @@
 			</div>
 		{/if}
 
-		<button
-			onclick={startSession}
-			disabled={isLoading}
-			class="w-full rounded-lg bg-[var(--color-accent)] py-3 font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-		>
-			{isLoading ? 'Setting up…' : 'Start'}
-		</button>
+		<!-- Start — the lick-practice setup's CTA block -->
+		<div class="flex flex-col items-center gap-1.5">
+			<button
+				onclick={startSession}
+				disabled={isLoading}
+				class="rounded-lg bg-[var(--color-accent)] px-8 py-2.5 text-base font-bold text-white shadow-md transition-opacity hover:opacity-90 disabled:opacity-50"
+			>
+				{isLoading ? 'Setting up…' : 'Start'}
+			</button>
+			<p class="text-center text-xs text-[var(--color-text-secondary)]">{startCaption}</p>
+		</div>
 
 		{#if previewSheet}
 			<NotationDisplay tune={previewSheet} instrument={getInstrument()} rangeMarkers={previewMarkers} />
@@ -1024,7 +1132,7 @@
 			<LickCelebration celebration={tunePractice.celebration} onDismiss={clearCelebration} />
 		{/if}
 
-		{#if pickTargetIndex >= 0 && knobs.cueLevel !== 'none'}
+		{#if pickTargetIndex >= 0 && knobs.cueLevel === 'lick'}
 			<SuggestionPickCard
 				entries={pickEntries}
 				picked={tunePractice.pickedSuggestion[tunePractice.plan[pickTargetIndex].id] ?? 0}

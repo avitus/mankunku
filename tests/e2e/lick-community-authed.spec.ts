@@ -40,5 +40,12 @@ test.describe('community — authed browse', () => {
 		await expect(signedInPage.getByRole('button', { name: /^popular$/i })).toBeVisible();
 		await expect(signedInPage.getByRole('button', { name: /^newest$/i })).toBeVisible();
 		await expect(signedInPage.getByRole('button', { name: /^all$/i }).first()).toBeVisible();
+		await expect(signedInPage.getByRole('link', { name: /sign in/i })).toHaveCount(0);
+
+		// The stubbed empty cloud resolves to the library's empty state — not a
+		// spinner left running, not a blank list.
+		await expect(
+			signedInPage.getByText('The Community library is just getting started.')
+		).toBeVisible();
 	});
 });

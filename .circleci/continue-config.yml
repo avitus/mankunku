@@ -93,7 +93,9 @@ jobs:
   e2e:
     # Playwright's official image bundles all three browsers preinstalled,
     # so no `npx playwright install` step is needed and there's no need to
-    # apt-install browser deps. Tag matches @playwright/test in package.json.
+    # apt-install browser deps. Tag matches the @playwright/test version
+    # package-lock.json resolves (1.62.1), not package.json's ^1.58.2 range —
+    # bump it with the lockfile, or the browsers won't match the runner.
     docker:
       - image: mcr.microsoft.com/playwright:v1.62.1-noble
     # Shard the spec × browser matrix across containers — this job is the

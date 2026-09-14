@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { Note } from '$lib/types/music';
+import type { Fraction, Note } from '$lib/types/music';
 import type { TuneSection } from '$lib/types/tune';
 import {
 	isPickupOnlySection,
@@ -78,6 +78,14 @@ describe('resolvePickupLength', () => {
 		expect(resolvePickupLength(sheetOf(sec({ pickupLength: [5, 4], label: 'A' })), 0)).toBeNull();
 		expect(resolvePickupLength(sheetOf(sec({ pickupLength: [0, 1], label: 'A' })), 0)).toBeNull();
 		expect(resolvePickupLength(sheetOf(sec({ pickupLength: [3, 4], label: 'A' }), THREE_FOUR), 0)).toBeNull();
+	});
+
+	it('rejects a malformed foreign field outright — never reads it, never falls back to inference', () => {
+		const late = [{ pitch: 46, duration: [1, 4], offset: [3, 4] }] as Note[];
+		for (const bad of [['1', 4], [1, 0], [Number.NaN, 4], [1], 0.25, null]) {
+			const s = sec({ notes: late, pickupLength: bad as unknown as Fraction });
+			expect(resolvePickupLength(sheetOf(s), 0), JSON.stringify(bad)).toBeNull();
+		}
 	});
 
 	it('infers the length for a legacy lone pickup section (blank label, one bar, first section)', () => {

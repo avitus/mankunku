@@ -27,6 +27,7 @@
 		startInterLickTransition,
 		advanceSingleLickRound,
 		updateElapsedTime,
+		markSessionTransportStart,
 		resetSession,
 		resetLick,
 		startSession,
@@ -147,6 +148,11 @@
 	// The microphone was refused during setup: the key stack (built before the
 	// mic is asked for) is cleared and the banner takes its place.
 	let micError = $state(false);
+	// The audio modules failed to import at mount; same banner slot, the
+	// session never starts.
+	let loadError = $state(false);
+	/** Set by onDestroy, so a late import rejection knows the page is gone. */
+	let destroyed = false;
 	let currentBeat = $state(0);
 	let sessionReport: SessionReport | null = $state(null);
 
@@ -384,12 +390,27 @@
 		// of paying a ~125 KB download during the count-in. A failed fetch is
 		// not fatal here: NotationDisplay retries on mount.
 		abcjsLoader.load().catch(() => {});
-		playback = await import('$lib/audio/playback');
-		captureModule = await import('$lib/audio/capture');
-		pitchModule = await import('$lib/audio/pitch-detector');
-		onsetModule = await import('$lib/audio/onset-detector');
-		backingTrack = await import('$lib/audio/backing-track');
-		toneModule = await import('tone');
+		try {
+			playback = await import('$lib/audio/playback');
+			captureModule = await import('$lib/audio/capture');
+			pitchModule = await import('$lib/audio/pitch-detector');
+			onsetModule = await import('$lib/audio/onset-detector');
+			backingTrack = await import('$lib/audio/backing-track');
+			toneModule = await import('tone');
+		} catch (err) {
+			// A navigation that cuts the fetch off rejects the import too; once
+			// the page is gone that is nobody's error. Still up (offline, a stale
+			// deploy's missing chunk), the session can't start, so the banner
+			// takes the key stack's place and says why.
+			if (destroyed) return;
+			console.warn('[lick-practice] audio modules failed to load:', err);
+			loadError = true;
+			return;
+		}
+		// The success path can land after teardown too — a navigation that let
+		// the last import finish — and stopAll() has already run by then. A
+		// timer or a session opened here would outlive the page.
+		if (destroyed) return;
 
 		timerInterval = setInterval(() => {
 			updateElapsedTime();
@@ -401,6 +422,7 @@
 	});
 
 	onDestroy(() => {
+		destroyed = true;
 		releaseScreenWakeLock();
 		stopAll();
 	});
@@ -424,12 +446,19 @@
 		if (micCapture) return true;
 		try {
 			micCapture = await captureModule.startMicCapture();
+			if (destroyed) {
+				// Teardown ran while the prompt was open: onDestroy's stopAll()
+				// found nothing to release, so release it here, publish nothing.
+				captureModule.stopMicCapture();
+				micCapture = null;
+				return false;
+			}
 			levelInterval = setInterval(() => {
 				captureModule!.getInputLevel();
 			}, 50);
 			if (onsetModule && !onsetDetector) {
 				try {
-					onsetDetector = await onsetModule.createOnsetDetector(
+					const onset = await onsetModule.createOnsetDetector(
 						micCapture.context,
 						micCapture.source,
 						// Per-onset stabilizer reset: each note attack warms up
@@ -444,6 +473,13 @@
 							}
 						}
 					);
+					if (destroyed) {
+						// The worklet came up after teardown; the caller's stopAll()
+						// releases the mic and its poll, this releases the worklet.
+						onset.dispose();
+						return false;
+					}
+					onsetDetector = onset;
 				} catch {
 					// AudioWorklet unavailable
 				}
@@ -464,12 +500,17 @@
 	 */
 	async function ensurePitchDetector(): Promise<void> {
 		if (!pitchModule || !micCapture || pitchDetector) return;
-		pitchDetector = await pitchModule.createPitchDetector(
+		const detector = await pitchModule.createPitchDetector(
 			micCapture.analyser,
 			() => {
 				/* no-op — session page polls readings itself */
 			}
 		);
+		// Teardown during creation has already released the capture; a
+		// detector that was never started has nothing to stop — just don't
+		// publish it (or read `micCapture.context` off a cleared capture).
+		if (destroyed || !micCapture) return;
+		pitchDetector = detector;
 		// Capture the mic-context time at the exact moment start() sets its
 		// internal recordingStartTime. PitchReading.time is always relative
 		// to that moment, so closeAndScoreWindow needs this to rebase
@@ -501,6 +542,16 @@
 		isLoading = true;
 		micError = false;
 		const micOk = await ensureMicCapture();
+		// A navigation during the mic prompt — or the sample load and the
+		// detector start below — lands here with the page gone. onDestroy's
+		// stopAll() ran before these resources existed, so it runs again for
+		// them (the mic, its level poll, the onset worklet, the detector),
+		// and nothing below may start a session.
+		if (destroyed) {
+			isLoading = false;
+			stopAll();
+			return;
+		}
 		if (!micOk) {
 			isLoading = false;
 			// The rows were built above, before the mic was asked for; a refused
@@ -511,19 +562,50 @@
 			return;
 		}
 
-		if (!playback.isInstrumentLoaded()) {
-			await playback.loadInstrument(
-				settings.instrumentId,
-				settings.masterVolume,
-				settings.backingInstrument
-			);
-		} else if (backingTrack) {
-			await backingTrack.loadBackingInstruments(settings.backingInstrument);
-		}
+		// A rejected sample fetch (offline, a dropped connection) or a detector
+		// error must not strand the session behind its prebuilt rows with the
+		// rejection unhandled: unwind, clear the rows as the mic path does, and
+		// let the setup banner say why — as tune practice does at the same spot.
+		try {
+			if (!playback.isInstrumentLoaded()) {
+				await playback.loadInstrument(
+					settings.instrumentId,
+					settings.masterVolume,
+					settings.backingInstrument
+				);
+			} else if (backingTrack) {
+				await backingTrack.loadBackingInstruments(settings.backingInstrument);
+			}
+			if (destroyed) {
+				isLoading = false;
+				stopAll();
+				return;
+			}
 
-		setMasterVolume(settings.masterVolume);
-		await ensurePitchDetector();
+			setMasterVolume(settings.masterVolume);
+			await ensurePitchDetector();
+		} catch (err) {
+			isLoading = false;
+			if (destroyed) {
+				// The mic above is already open on the dead page; release it.
+				stopAll();
+				return;
+			}
+			console.warn('[lick-practice] audio setup failed:', err);
+			// The mic, its level poll and the elapsed timer are already
+			// running; the banner below is a stopped session, not a paused one.
+			stopAll();
+			loadError = true;
+			plannedKeysForLick = [];
+			rowOfKey = [];
+			return;
+		}
 		isLoading = false;
+		if (destroyed) {
+			// The detector came up after teardown; stop it with the rest.
+			stopAll();
+			return;
+		}
 
 		// Stamp the session log base id + timestamp once per session. Per-key
 		// upserts keyed off the composite `${baseId}-${progressionType}` keep
@@ -607,6 +689,11 @@
 				skipMelody,
 				loopBacking: false,
 				onStarted: () => {
+					// The session clock starts HERE, not at the Start press:
+					// everything before this — the navigation, the mic prompt,
+					// the instrument load — is off the transport, and the
+					// countdown's total (plannedSeconds) counts bars only.
+					markSessionTransportStart();
 					// Transport starts at tick 0 with a 1-bar count-in, so
 					// the lick's audio begins at tick `ticksPerBar`. The
 					// scheduler then offsets the user windows by demoBars.
@@ -1936,6 +2023,14 @@
 				data-testid="mic-error"
 			>
 				Microphone unavailable — check permissions and try again.
+			</div>
+		{:else if loadError}
+			<div
+				class="rounded-lg bg-[var(--color-error)]/15 p-3 text-sm text-[var(--color-error-text)]"
+				role="alert"
+				data-testid="load-error"
+			>
+				Audio setup failed — check your connection and reload.
 			</div>
 		{:else}
 		<div class="relative">

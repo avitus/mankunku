@@ -85,15 +85,40 @@
 		? midiToNoteName(currentPitchMidi + instrument.transpositionSemitones)
 		: null);
 
+	/** Set by onDestroy, so a late import rejection knows the page is gone. */
+	let destroyed = false;
+	/** The audio modules failed to import while the page was up — Record is inert, the idle view says why. */
+	let audioLoadFailed = $state(false);
+
 	onMount(async () => {
 		void acquireScreenWakeLock();
-		playbackModule = await import('$lib/audio/playback');
-		captureModule = await import('$lib/audio/capture');
-		pitchModule = await import('$lib/audio/pitch-detector');
-		onsetModule = await import('$lib/audio/onset-detector');
+		try {
+			// All or nothing, assigned only once every module is in: a partial
+			// set left `captureModule` standing while the pitch detector was
+			// missing, so an enabled Record opened the microphone before
+			// startRecording noticed it had nothing to run.
+			const [playback, capture, pitch, onset] = await Promise.all([
+				import('$lib/audio/playback'),
+				import('$lib/audio/capture'),
+				import('$lib/audio/pitch-detector'),
+				import('$lib/audio/onset-detector')
+			]);
+			if (destroyed) return;
+			playbackModule = playback;
+			captureModule = capture;
+			pitchModule = pitch;
+			onsetModule = onset;
+		} catch (err) {
+			// A navigation that cuts the fetch off rejects the import too; once
+			// the page is gone that is nobody's error.
+			if (destroyed) return;
+			console.warn('[record-lick] audio modules failed to load', err);
+			audioLoadFailed = true;
+		}
 	});
 
 	onDestroy(() => {
+		destroyed = true;
 		releaseScreenWakeLock();
 		cleanup();
 	});
@@ -444,10 +469,12 @@
 
 			<button
 				onclick={startRecording}
+				disabled={audioLoadFailed}
 				aria-label="Start recording"
 				class="group relative flex h-28 w-28 items-center justify-center rounded-full
 					   bg-[var(--color-onair)] hover:bg-[var(--color-onair-hover)] shadow-lg ring-1 ring-[var(--color-brass)]/50
-					   transition-all duration-300 hover:bg-[var(--color-onair-hover)] active:scale-95"
+					   transition-all duration-300 hover:bg-[var(--color-onair-hover)] active:scale-95
+					   disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-[var(--color-onair)]"
 			>
 				<svg class="h-10 w-10 text-white" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
 					<circle cx="12" cy="12" r="6" />
@@ -469,8 +496,14 @@
 				<span class="text-sm text-[var(--color-text-secondary)]">BPM</span>
 			</div>
 
+			<!-- The idle status line: a failed audio import replaces the hint,
+			     since Record does nothing without the modules. -->
 			<p class="text-xs text-[var(--color-text-secondary)]">
-				Headphones recommended to avoid metronome bleed
+				{#if audioLoadFailed}
+					Couldn't load audio — reload to try again
+				{:else}
+					Headphones recommended to avoid metronome bleed
+				{/if}
 			</p>
 
 		{:else if recordState === 'counting-in' || recordState === 'recording'}

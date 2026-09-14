@@ -9,7 +9,7 @@ import { makePhrase } from '../helpers/lick-builders';
 /**
  * Tune-practice window scoring, end to end through the real pipeline: the
  * expected phrase is a lick transposed to the insertion point's target key
- * (exactly what `expectedForWindow` produces), and the detected notes are
+ * (exactly what `expectedForSuggestion` produces), and the detected notes are
  * synthetic mic captures in window-local time (exactly what the route's
  * close handler feeds `runScorePipeline` after rebasing).
  */

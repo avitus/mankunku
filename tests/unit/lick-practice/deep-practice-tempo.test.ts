@@ -29,6 +29,7 @@ import {
 	startSingleLickSession,
 	recordKeyAttempt,
 	advanceSingleLickRound,
+	getSessionReport,
 	resetSession
 } from '$lib/state/lick-practice.svelte';
 import {
@@ -268,5 +269,64 @@ describe('deep practice never writes the lick tempo', () => {
 		expect(entry!.rollingScore).toBeCloseTo(0.62, 10);
 		expect(entry!.lastPracticedAt).toBeGreaterThan(0);
 		expect(entry!.currentTempo).toBe(120);
+	});
+});
+
+describe('single-lick session report', () => {
+	it('rolls every round into one lick entry and reports the ramp as start → final tempo', () => {
+		seedTempo('lick-c', { C: 120 });
+		startSingleLickSession(makeLick('C', 'lick-c'));
+
+		recordKeyAttempt(makeScore(0.97)); // round 1 at 118
+		clearRotation();
+		recordKeyAttempt(makeScore(0.98)); // round 2 at 120
+		clearRotation();
+		recordKeyAttempt(makeScore(0.6)); // round 3 in progress at 122
+
+		const report = getSessionReport();
+		expect(report.licks).toHaveLength(1);
+		expect(report.licks[0].lickId).toBe('lick-c');
+		// In-progress round results ride along with the archived rounds.
+		expect(report.licks[0].keys.map((k) => k.score)).toEqual([0.97, 0.98, 0.6]);
+		expect(report.totalAttempts).toBe(3);
+		expect(report.totalPassed).toBe(2);
+		expect(report.licks[0].tempo).toBe(118);
+		expect(report.licks[0].newTempo).toBe(122);
+		expect(report.finalTempo).toBe(122);
+		// roundNumber points at the round being entered, so two boundaries = two completed.
+		expect(report.roundsCompleted).toBe(2);
+		expect(report.keysMasteredByRound).toEqual([
+			{ round: 1, tempo: 118, keys: ['C'] },
+			{ round: 2, tempo: 120, keys: ['C'] }
+		]);
+	});
+
+	it('reports no tempo change and zero rounds before the first cycle boundary', () => {
+		seedTempo('lick-c', { C: 120 });
+		startSingleLickSession(makeLick('C', 'lick-c'));
+		recordKeyAttempt(makeScore(0.8));
+
+		const report = getSessionReport();
+		expect(report.roundsCompleted).toBe(0);
+		expect(report.licks[0].newTempo).toBeNull();
+		expect(report.keysMasteredByRound).toEqual([]);
+	});
+
+	it('logs a round that cleared only some keys in rotation order, not attempt order', () => {
+		seedTempo('two-key-lick', { C: 100, G: 100 });
+		setUnlockedCount('two-key-lick', 2);
+		startSingleLickSession(makeLick('C', 'two-key-lick'));
+		expect(lickPractice.plan[0].keys).toEqual(['C', 'G']);
+
+		// G clears first, then C — the log keeps the rotation's order.
+		lickPractice.currentKeyIndex = 1;
+		recordKeyAttempt(makeScore(0.96));
+		lickPractice.currentKeyIndex = 0;
+		recordKeyAttempt(makeScore(0.97));
+		advanceSingleLickRound();
+
+		expect(getSessionReport().keysMasteredByRound).toEqual([
+			{ round: 1, tempo: 98, keys: ['C', 'G'] }
+		]);
 	});
 });

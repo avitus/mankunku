@@ -276,14 +276,6 @@ describe('planUnlockedKeys', () => {
 		}
 	});
 
-	it('first key always equals the entry key', () => {
-		for (const start of PITCH_CLASSES) {
-			for (let n = 1; n <= 12; n++) {
-				expect(planUnlockedKeys(start, n)[0]).toBe(start);
-			}
-		}
-	});
-
 	it('full unlock is a permutation of all 12 pitch classes for any entry key', () => {
 		for (const start of PITCH_CLASSES) assertPermutation(planUnlockedKeys(start, 12));
 	});

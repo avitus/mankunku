@@ -5,7 +5,8 @@ import {
 } from '$lib/tonality/scale-compatibility';
 import type { Phrase } from '$lib/types/music';
 import type { ScaleType } from '$lib/tonality/tonality';
-import { SCALE_UNLOCK_ORDER } from '$lib/tonality/tonality';
+import { SCALE_UNLOCK_ORDER, SCALE_TYPE_TO_SCALE_ID } from '$lib/tonality/tonality';
+import { getScale } from '$lib/music/scales';
 
 /** Minimal lick stub for testing */
 function makeLick(overrides: {
@@ -140,10 +141,24 @@ describe('progression category compatibility', () => {
 });
 
 describe('user and unknown lick fallback', () => {
-	it('user lick is compatible with all scale types', () => {
-		const lick = makeLick({ scaleId: 'pentatonic.major', source: 'user' });
+	it.each(['user-recorded', 'user-entered'])(
+		'a %s lick (saved without harmony) outside a progression category fits every scale type',
+		(source) => {
+			const lick: Phrase = { ...makeLick({ category: 'user', source }), harmony: [] };
+			expect(getCompatibleScaleTypes(lick)).toEqual(SCALE_UNLOCK_ORDER);
+		}
+	);
+
+	it('a user lick filed under a progression category is gated like any other lick', () => {
+		// No user-lick exemption: a major ii-V-I must not be offered in a
+		// pentatonic session, where ear training would bend its notes to fit.
+		const lick: Phrase = {
+			...makeLick({ category: 'ii-V-I-major', source: 'user-entered' }),
+			harmony: []
+		};
 		const compat = getCompatibleScaleTypes(lick);
-		expect(compat).toEqual(SCALE_UNLOCK_ORDER);
+		expect(compat).toEqual(['major', 'dorian', 'mixolydian', 'lydian']);
+		expect(compat).not.toContain('major-pentatonic');
 	});
 
 	it('lick with unknown scaleId falls back to all scale types', () => {
@@ -151,23 +166,26 @@ describe('user and unknown lick fallback', () => {
 		const compat = getCompatibleScaleTypes(lick);
 		expect(compat).toEqual(SCALE_UNLOCK_ORDER);
 	});
+
+	it('a lick with no harmony at all falls back to all scale types', () => {
+		const lick: Phrase = { ...makeLick({ category: 'modal' }), harmony: [] };
+		expect(getCompatibleScaleTypes(lick)).toEqual(SCALE_UNLOCK_ORDER);
+	});
 });
 
-describe('isLickCompatible', () => {
-	it('returns true for compatible pair', () => {
-		const lick = makeLick({ scaleId: 'pentatonic.major' });
-		expect(isLickCompatible(lick, 'major')).toBe(true);
-	});
-
-	it('returns false for incompatible pair', () => {
-		const lick = makeLick({ scaleId: 'major.ionian', category: 'bebop-lines' });
-		expect(isLickCompatible(lick, 'major-pentatonic')).toBe(false);
-	});
-
-	it('user lick is always compatible', () => {
-		const lick = makeLick({ source: 'user' });
+describe('tonality scale ids', () => {
+	it('every scale type names a real catalog scale', () => {
+		// Ear training reads the active tonality's scale through this map; an
+		// id the catalog lacks silently falls back to a 7-note default.
 		for (const st of SCALE_UNLOCK_ORDER) {
-			expect(isLickCompatible(lick, st)).toBe(true);
+			expect(getScale(SCALE_TYPE_TO_SCALE_ID[st]), st).toBeDefined();
+		}
+	});
+
+	it('a curated lick written in a tonality\'s own scale is served in that tonality', () => {
+		for (const st of SCALE_UNLOCK_ORDER) {
+			const lick = makeLick({ scaleId: SCALE_TYPE_TO_SCALE_ID[st], category: 'modal' });
+			expect(isLickCompatible(lick, st), st).toBe(true);
 		}
 	});
 });

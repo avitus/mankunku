@@ -50,6 +50,13 @@ describe('emptyMelodyBars', () => {
 		});
 		expect([...emptyMelodyBars(s)].sort((a, b) => a - b)).toEqual([0, 2]);
 	});
+
+	it('counts a bar as melodic when a note sustains into it from the bar before', () => {
+		// Beat 3 of bar 0 through beat 2 of bar 1: both bars carry melody.
+		const notes: Note[] = [{ pitch: 60, duration: [1, 1], offset: [1, 2] }];
+		const s = sheet({ sections: [section({ bars: 3, notes })] });
+		expect([...emptyMelodyBars(s)]).toEqual([2]);
+	});
 });
 
 describe('suggestBarsPerLine', () => {
@@ -86,6 +93,24 @@ describe('suggestBarsPerLine', () => {
 			}
 		}
 		const s = sheet({ sections: [section({ bars: 4, notes: fixed })] });
+		expect(suggestBarsPerLine(s)).toBe(3);
+	});
+
+	it('tightens to 3 bars/line when a bar carries three chords, even with no melody', () => {
+		const s = sheet({
+			sections: [
+				section({
+					bars: 4,
+					harmony: [
+						seg('D', 'min7', [0, 1], [1, 4]),
+						seg('G', '7', [1, 4], [1, 4]),
+						seg('C', 'maj7', [1, 2], [1, 2]),
+						seg('C', 'maj7', [1, 1], [3, 1])
+					]
+				})
+			]
+		});
+		// Melody-silent alone would widen to 6; the chord density wins.
 		expect(suggestBarsPerLine(s)).toBe(3);
 	});
 

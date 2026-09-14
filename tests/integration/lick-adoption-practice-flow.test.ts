@@ -48,7 +48,7 @@ beforeEach(() => {
 
 // ─── Imports under test ──────────────────────────────────────────────
 
-const { getAllLicks, getLickById, queryLicks, transposeLick } = await import(
+const { getAllLicks, getLickById, transposeLick } = await import(
 	'$lib/phrases/library-loader'
 );
 const { makePhrase } = await import('../helpers/lick-builders');
@@ -135,52 +135,6 @@ describe('getLickById reaches into the adopted pool', () => {
 	});
 });
 
-// ---------------------------------------------------------------------------
-// Category / difficulty filtering over adopted content
-// ---------------------------------------------------------------------------
-
-describe('queryLicks over adopted licks', () => {
-	it('filters adopted licks by category', () => {
-		seedAdopted([
-			makePhrase({ id: 'a-ii-V', category: 'ii-V-I-major' }),
-			makePhrase({ id: 'a-blues', category: 'blues' })
-		]);
-
-		const iiVs = queryLicks({ category: 'ii-V-I-major' });
-		const iiVIds = iiVs.map((l) => l.id);
-		expect(iiVIds).toContain('a-ii-V');
-		expect(iiVIds).not.toContain('a-blues');
-	});
-
-	it('filters adopted licks by max difficulty', () => {
-		seedAdopted([
-			makePhrase({
-				id: 'easy-adopted',
-				difficulty: { level: 10, pitchComplexity: 10, rhythmComplexity: 10, lengthBars: 1 }
-			}),
-			makePhrase({
-				id: 'hard-adopted',
-				difficulty: { level: 90, pitchComplexity: 90, rhythmComplexity: 90, lengthBars: 1 }
-			})
-		]);
-
-		const easy = queryLicks({ maxDifficulty: 50 });
-		const ids = easy.map((l) => l.id);
-		expect(ids).toContain('easy-adopted');
-		expect(ids).not.toContain('hard-adopted');
-	});
-
-	it('text search over adopted names and tags is origin-agnostic', () => {
-		seedAdopted([
-			makePhrase({ id: 'needle', name: 'needle-in-a-haystack' }),
-			makePhrase({ id: 'haystack', name: 'different' })
-		]);
-
-		const hits = queryLicks({ search: 'needle' });
-		expect(hits.map((l) => l.id)).toContain('needle');
-		expect(hits.map((l) => l.id)).not.toContain('haystack');
-	});
-});
 
 // ---------------------------------------------------------------------------
 // Transposition over adopted content

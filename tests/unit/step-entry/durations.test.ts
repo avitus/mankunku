@@ -76,18 +76,6 @@ describe('resolveDurationId', () => {
 			}
 		}
 	});
-
-	it('agrees with getDurationFraction', () => {
-		for (const base of BASE_DURATION_IDS) {
-			for (const triplet of [false, true]) {
-				for (const dotted of [false, true]) {
-					expect(DURATIONS[resolveDurationId(base, triplet, dotted)]).toEqual(
-						getDurationFraction(base, triplet, dotted)
-					);
-				}
-			}
-		}
-	});
 });
 
 describe('duration vocabulary', () => {

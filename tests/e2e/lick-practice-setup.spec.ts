@@ -18,8 +18,14 @@ test.describe('lick-practice setup', () => {
 		consoleCollector: _consoleCollector
 	}) => {
 		await page.goto('/lick-practice');
-		// Empty practice set → no "Start Session" button rendered.
-		await expect(page.getByRole('button', { name: /start session/i })).toHaveCount(0);
+		// Empty practice set → no start button of ANY kind is rendered. The
+		// label follows the session type (Start Daily Practice / Start Session
+		// / Start Drill), so match the verb, not one label — the old
+		// /start session/ check passed vacuously under the Daily default.
+		await expect(page.getByRole('button', { name: /^start /i })).toHaveCount(0);
+		await expect(
+			page.locator('main').getByText('No licks tagged for practice yet.').first()
+		).toBeVisible();
 		// Page should point users at the library to tag their first lick.
 		// Scope to <main> so the assertion proves the empty-state guidance link
 		// renders — an unscoped /licks/i locator would match the global nav's

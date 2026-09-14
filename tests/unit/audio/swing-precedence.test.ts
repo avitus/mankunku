@@ -107,4 +107,21 @@ describe('melodySwingForStyle', () => {
 			}
 		}
 	});
+
+	it('falls back to the swing style on an unknown id rather than indexing blind', () => {
+		const bogus = 'nope' as BackingStyle;
+		expect(melodySwingForStyle(0.7, bogus)).toBe(0.7);
+		expect(melodySwingForStyle(STRAIGHT_SWING, bogus)).toBe(STRAIGHT_SWING);
+	});
+});
+
+describe('the shipped default knob', () => {
+	// settings.svelte.ts defaults swing to 0.62 — off the 0.05 UI grid above,
+	// so the sweeps never visit the value every new user actually runs at.
+	it('rules both band and melody on the swing style', () => {
+		for (const tempo of TEMPOS) {
+			expect(resolveBackingSwing(0.62, BACKING_STYLES.swing, tempo)).toBe(0.62);
+		}
+		expect(resolveMelodySwing(0.62, BACKING_STYLES.swing)).toBe(0.62);
+	});
 });

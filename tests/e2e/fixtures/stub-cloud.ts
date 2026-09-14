@@ -60,7 +60,7 @@ const ROOT_DIR = fileURLToPath(new URL('../../../', import.meta.url));
  *
  * Mode is `production` because the e2e webServer runs `npm run build`.
  */
-export function buildTimeSupabaseUrl(): string {
+function buildTimeSupabaseUrl(): string {
 	const env = loadEnv('production', ROOT_DIR, 'PUBLIC_');
 	return env.PUBLIC_SUPABASE_URL || DEFAULT_SUPABASE_URL;
 }
@@ -69,7 +69,7 @@ const target = resolveSupabaseTarget(buildTimeSupabaseUrl());
 
 /** The exact host every browser Supabase request goes to. Routing keys off it. */
 export const SUPABASE_URL = target.url;
-export const PROJECT_REF = target.projectRef;
+const PROJECT_REF = target.projectRef;
 
 /** Loose row shape — the cloud is schemaless; the app maps snake_case columns. */
 export type Row = Record<string, unknown>;
@@ -179,7 +179,7 @@ function makeSession(user: E2ETestUser): Row {
  * Seeding this cookie is what makes `supabase.auth.getUser()` do a real network
  * call (which we route) instead of short-circuiting to a null user.
  */
-export function sessionCookieValue(user: E2ETestUser): string {
+function sessionCookieValue(user: E2ETestUser): string {
 	return 'base64-' + b64url(JSON.stringify(makeSession(user)));
 }
 

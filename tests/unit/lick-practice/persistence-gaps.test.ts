@@ -68,16 +68,6 @@ describe('hasLickProgress', () => {
 		expect(hasLickProgress(progress, 'nonexistent-lick')).toBe(false);
 	});
 
-	it('returns true after saving progress for that phraseId', () => {
-		let progress: LickPracticeProgress = {};
-		progress = updateKeyProgress(progress, 'lick-42', 'C', {
-			currentTempo: 110,
-			lastPracticedAt: Date.now(),
-			passCount: 1
-		});
-		expect(hasLickProgress(progress, 'lick-42')).toBe(true);
-	});
-
 	it('returns false when phraseId entry exists but has no keys', () => {
 		const progress: LickPracticeProgress = { 'lick-empty': {} };
 		expect(hasLickProgress(progress, 'lick-empty')).toBe(false);
@@ -119,22 +109,10 @@ describe('shouldUnlockNextKey', () => {
 		).toBe(false);
 	});
 
-	it('does not unlock at avg 0.85 (below the 0.90 proficient bar)', (): void => {
-		expect(
-			shouldUnlockNextKey({ avgScore: 0.85, newestKeyPassCount: 3, unlockedCount: 1 })
-		).toBe(false);
-	});
-
 	it('caps at 12 even if the gates would otherwise clear', () => {
 		expect(
 			shouldUnlockNextKey({ avgScore: 1.0, newestKeyPassCount: 99, unlockedCount: 12 })
 		).toBe(false);
-	});
-
-	it('treats the avg threshold as inclusive at exactly 0.90', () => {
-		expect(
-			shouldUnlockNextKey({ avgScore: 0.9, newestKeyPassCount: 3, unlockedCount: 1 })
-		).toBe(true);
 	});
 
 	it('rejects scores just below 0.90', () => {

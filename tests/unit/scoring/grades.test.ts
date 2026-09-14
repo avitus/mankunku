@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { scoreToGrade, GRADE_LABELS } from '$lib/scoring/grades';
+import { describe, it, expect, vi } from 'vitest';
+import { scoreToGrade, getGradeCaption, GRADE_LABELS, GRADE_CAPTIONS } from '$lib/scoring/grades';
 
 const GRADE_KEYS = ['perfect', 'great', 'good', 'fair', 'try-again'] as const;
 
@@ -53,4 +53,21 @@ describe('grade display mappings', () => {
 	});
 	// GRADE_COLORS now lives in the UI layer; its color mapping is covered by
 	// tests/unit/ui/score-colors.test.ts.
+});
+
+describe('getGradeCaption', () => {
+	it('draws from the pool of the grade asked for, across its whole range', () => {
+		const random = vi.spyOn(Math, 'random');
+		try {
+			for (const key of GRADE_KEYS) {
+				const pool = GRADE_CAPTIONS[key];
+				random.mockReturnValue(0);
+				expect(getGradeCaption(key)).toBe(pool[0]);
+				random.mockReturnValue(0.999999);
+				expect(getGradeCaption(key)).toBe(pool[pool.length - 1]);
+			}
+		} finally {
+			random.mockRestore();
+		}
+	});
 });

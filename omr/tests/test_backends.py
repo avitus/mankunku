@@ -50,3 +50,12 @@ def test_backend_module_import_is_lazy() -> None:
         "assert 'torch' not in sys.modules"
     )
     subprocess.run([sys.executable, "-c", code], check=True)
+
+
+def test_builtin_factory_receives_options() -> None:
+    # Constructing LegatoV1Backend is torch-free; the CLI relies on the lazy
+    # built-in path forwarding --device/--beams exactly like a registered one.
+    backend = get_backend("legato_v1", device="cpu", num_beams=2)
+    assert backend.name == "legato_v1"
+    assert backend.requested_device == "cpu"
+    assert backend.num_beams == 2

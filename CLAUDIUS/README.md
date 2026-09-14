@@ -13,6 +13,6 @@ Per the project's operating principles (mirrored in `MEMORY.md`):
 
 ## Conventions
 
-- Sessions log entries are dated `## YYYY-MM-DD` and may have multiple per day.
-- Observations entries are also dated and ordered newest-first at the top of the file. Don't delete old observations unless they're proven wrong — old observations are how patterns become visible over time.
+- Sessions log entries are dated `## YYYY-MM-DD`, may have multiple per day, and are appended in chronological order (newest at the bottom).
+- Observations entries are also dated and kept in chronological order (newest at the bottom; `tail` shows the latest). Don't delete old observations unless they're proven wrong — old observations are how patterns become visible over time.
 - Both files are checked into the repo so they sync across devices alongside the rest of the project.

@@ -5,7 +5,7 @@ import { seedOnboardedAnonymous } from './fixtures/storage';
  * Community route, anonymous user. The page shows a "sign in" CTA instead
  * of the browse UI when there is no Supabase session — verify that gate.
  * Authenticated browse / favorite / steal flows are covered in
- * community-authed.spec.ts via the test cookie.
+ * lick-community-authed.spec.ts via the test cookie.
  */
 
 test.describe('community — anonymous gate', () => {

@@ -4,8 +4,8 @@
 	import SeoHead from '$lib/components/seo/SeoHead.svelte';
 	import { getGradeCaption } from '$lib/scoring/grades';
 	import { GRADE_COLORS } from '$lib/ui/score-colors';
-	import { TEST_PHRASES } from '$lib/data/test-phrases';
-	import { getAllLicks, transposeLickForTonality } from '$lib/phrases/library-loader';
+	import { getAllLicks } from '$lib/phrases/library-loader';
+	import { selectEarTrainingLicks, transposeEarTrainingLick } from '$lib/phrases/ear-training-pool';
 	import { settings, getInstrument, getEffectiveHighestNote, saveSettings } from '$lib/state/settings.svelte';
 	import { setMasterVolume, getMasterGain } from '$lib/audio/audio-context';
 	import { createRecorder, type RecorderHandle } from '$lib/audio/recorder';
@@ -21,10 +21,8 @@
 	import { getTodaysTonality, isTonalityUnlocked, dateHash, SCALE_TYPE_NAMES, SCALE_TYPE_TO_SCALE_ID } from '$lib/tonality/tonality';
 	import { seededShuffle } from '$lib/util/seeded-shuffle';
 	import { formatDuration } from '$lib/util/format-duration';
-	import { isLickCompatible } from '$lib/tonality/scale-compatibility';
 	import { getScale } from '$lib/music/scales';
 	import { createInitialScaleProficiency } from '$lib/difficulty/adaptive';
-	import { effectiveDifficultyLevel } from '$lib/difficulty/calculate';
 	import { levelSignalDirection } from '$lib/difficulty/level-signal';
 	import { loadBackingInstruments, getActiveSchedule } from '$lib/audio/backing-track';
 	import { melodySwingForStyle } from '$lib/audio/backing-styles';
@@ -80,19 +78,8 @@
 	);
 
 	const allLicksRaw = getAllLicks();
-	// Gate on the EFFECTIVE level, not the stored one: a lick's rated level can
-	// sit below the floor its note count demands (hand-written curated ratings,
-	// community rows the adopted validator only range-checks), and this filter
-	// is the only thing standing between that and a beginner's ears.
-	const difficultyFiltered = $derived(
-		allLicksRaw.filter(lick => effectiveDifficultyLevel(lick) <= scaleProfLevel)
-	);
-	const scaleFilteredLicks = $derived(
-		difficultyFiltered.filter(lick => isLickCompatible(lick, activeTonality.scaleType))
-	);
-	// Fallback: if scale filtering leaves < 3 licks, widen to all at difficulty level
 	const filteredLicks = $derived(
-		scaleFilteredLicks.length >= 3 ? scaleFilteredLicks : difficultyFiltered
+		selectEarTrainingLicks(allLicksRaw, scaleProfLevel, activeTonality.scaleType)
 	);
 	const scaleId = $derived(SCALE_TYPE_TO_SCALE_ID[activeTonality.scaleType]);
 	const scaleNoteCount = $derived(
@@ -100,7 +87,7 @@
 	);
 	const shuffledLicks = $derived(seededShuffle(filteredLicks, sessionShuffleSeed));
 	const allLicks = $derived(shuffledLicks.map(lick =>
-		transposeLickForTonality(lick, activeTonality.key, scaleId, instrument.concertRangeLow, getEffectiveHighestNote())
+		transposeEarTrainingLick(lick, activeTonality.key, activeTonality.scaleType, instrument.concertRangeLow, getEffectiveHighestNote())
 	));
 
 	let phraseIndex = $state(0);
@@ -225,8 +212,8 @@
 
 	// Bind the active phrase to the derived lick list. Runs reactively so a
 	// later activeTonality.key flip (which reshapes allLicks) lands on a
-	// matching phrase. Falls back to TEST_PHRASES[0] only when the lick
-	// library is empty AND no phrase has been chosen yet.
+	// matching phrase. An empty pool clears the idle session rather than
+	// substituting an unfiltered test phrase in the wrong key or scale.
 	//
 	// `resolveBoundPhrase` freezes the active phrase while `looping` is true so
 	// an adaptive-difficulty reshuffle of allLicks between a miss and its retry
@@ -239,7 +226,7 @@
 	$effect(() => {
 		void activeTonality.key;
 		if (allLicks.length === 0) {
-			if (!untrack(() => session.phrase)) session.phrase = TEST_PHRASES[0];
+			if (!looping) session.phrase = null;
 			return;
 		}
 		const resolved = resolveBoundPhrase({
@@ -253,16 +240,43 @@
 	});
 	session.tempo = settings.defaultTempo;
 
+	/** Set by onDestroy, so a late import rejection knows the page is gone. */
+	let destroyed = false;
+	/** The audio modules failed to import while the page was up — Play is inert, the status line says why. */
+	let audioLoadFailed = $state(false);
+
 	onMount(async () => {
 		void acquireScreenWakeLock();
-		playback = await import('$lib/audio/playback');
-		captureModule = await import('$lib/audio/capture');
-		pitchModule = await import('$lib/audio/pitch-detector');
-		onsetModule = await import('$lib/audio/onset-detector');
-		session.micPermission = await captureModule.checkMicPermission();
+		try {
+			// All or nothing: a partial set would let Play start a phrase whose
+			// listening window can never open.
+			[playback, captureModule, pitchModule, onsetModule] = await Promise.all([
+				import('$lib/audio/playback'),
+				import('$lib/audio/capture'),
+				import('$lib/audio/pitch-detector'),
+				import('$lib/audio/onset-detector')
+			]);
+		} catch (err) {
+			// A navigation that cuts the fetch off rejects the import too; once
+			// the page is gone that is nobody's error. While it is still up
+			// (offline, a stale deploy's missing chunk), say so rather than
+			// leave a Play button that silently does nothing.
+			if (destroyed) return;
+			console.warn('[ear-training] audio modules failed to load', err);
+			audioLoadFailed = true;
+			return;
+		}
+		// The success path can land after teardown too — a navigation that let
+		// the fetch finish — and so can the permission query behind it. The
+		// page's state is nobody's to write then, on either side of the await.
+		if (destroyed) return;
+		const micPermission = await captureModule.checkMicPermission();
+		if (destroyed) return;
+		session.micPermission = micPermission;
 	});
 
 	onDestroy(() => {
+		destroyed = true;
 		releaseScreenWakeLock();
 		stopDetection();
 		stopRecording();
@@ -508,6 +522,7 @@
 		if (silenceTimeout) { clearTimeout(silenceTimeout); silenceTimeout = null; }
 	}
 
+	/** Score and save the finished take, then schedule its retry, advance, or pool-empty stop. */
 	function finishRecording() {
 		if (!session.isRecording || !session.phrase || !pitchDetector) return;
 		const rawReadings = pitchDetector.getReadings();
@@ -709,9 +724,15 @@
 					const decision = decideNext({
 						scoreOverall: latest.overall,
 						failCount,
-						passThreshold: PASS_THRESHOLD
+						passThreshold: PASS_THRESHOLD,
+						hasEligiblePhrases: allLicks.length > 0
 					});
 					failCount = decision.nextFailCount;
+					if (decision.action === 'stop') {
+						void handleStop();
+						session.phrase = null;
+						return;
+					}
 					// On 'retry' the phrase is left untouched so playNextInLoop
 					// replays the same lick; the loop-freeze in the binding effect
 					// keeps it from being swapped out underneath us.
@@ -864,7 +885,13 @@
 
 	// ─── Navigation ──────────────────────────────────────────
 
+	/** Advance within the eligible pool, stopping if a proficiency change emptied it. */
 	function nextPhrase() {
+		if (allLicks.length === 0) {
+			handleStop();
+			session.phrase = null;
+			return;
+		}
 		phraseIndex = (phraseIndex + 1) % allLicks.length;
 		session.phrase = allLicks[phraseIndex];
 		session.lastScore = null;
@@ -878,7 +905,7 @@
 
 <div class="flex min-h-[80vh] flex-col items-center justify-center gap-6 px-4">
 	<div class="absolute right-4 top-2">
-		<HelpLink href="/docs/user-guide#practice" label="Practice docs" />
+		<HelpLink href="/docs/user-guide#side-a-ear-training" label="Practice docs" />
 	</div>
 
 	<!-- Practice-time counter. Balances the help link in the opposite corner,
@@ -919,10 +946,12 @@
 		<button
 			data-tour="play-button"
 			onclick={isActive ? handleStop : handlePlay}
-			disabled={session.isLoadingInstrument || starting}
+			disabled={session.isLoadingInstrument || starting || audioLoadFailed || (!isActive && !session.phrase)}
 			class="group relative flex h-28 w-28 shrink-0 items-center justify-center rounded-full
 				   transition-all duration-300 active:scale-95 ring-1 ring-[var(--color-brass)]/50
-				   {session.isLoadingInstrument
+				   {audioLoadFailed
+					? 'bg-[var(--color-bg-tertiary)] opacity-40 cursor-not-allowed'
+					: session.isLoadingInstrument
 					? 'bg-[var(--color-bg-tertiary)] cursor-wait'
 					: isActive
 						? 'bg-[var(--color-onair)] hover:bg-[var(--color-onair-hover)] shadow-lg'
@@ -991,6 +1020,10 @@
 			<span class="font-medium text-[var(--color-phase-play)]">Listening&hellip;</span>
 		{:else if session.engineState === 'playing'}
 			<span class="font-medium text-[var(--color-phase-listen)]">Listen&hellip;</span>
+		{:else if audioLoadFailed}
+			<span class="text-[var(--color-text-secondary)]">Couldn't load audio — reload to try again</span>
+		{:else if !session.phrase}
+			<span class="text-[var(--color-text-secondary)]">No phrases fit this scale at your current level.</span>
 		{:else if !isActive && session.micPermission !== 'granted'}
 			<span class="text-[var(--color-text-secondary)]">Tap to start — mic access required</span>
 		{/if}

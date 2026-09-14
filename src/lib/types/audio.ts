@@ -17,19 +17,6 @@ export type MicPermissionState = 'prompt' | 'granted' | 'denied' | 'unavailable'
 
 export type AudioEngineState = 'uninitialized' | 'loading' | 'ready' | 'playing' | 'recording' | 'error';
 
-export interface AudioState {
-	engineState: AudioEngineState;
-	micPermission: MicPermissionState;
-	/** Current input level (0-1) for mic meter */
-	inputLevel: number;
-	/** Real-time detected pitch during recording */
-	currentPitch: number | null;
-	/** Real-time clarity during recording */
-	currentClarity: number;
-	/** Sample rate of the AudioContext */
-	sampleRate: number;
-}
-
 export interface PlaybackOptions {
 	/** BPM */
 	tempo: number;

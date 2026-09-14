@@ -38,8 +38,6 @@ const {
 	getStolenAuthorsLocal,
 	hasAcknowledgedCommunityPrivacy,
 	acknowledgeCommunityPrivacy,
-	stealLick,
-	returnLick,
 	toggleFavorite,
 	listCommunityLicks
 } = await import('$lib/persistence/community');
@@ -213,66 +211,9 @@ describe('toggleFavorite', () => {
 	});
 });
 
-describe('stealLick / returnLick', () => {
-	it('stealLick stores steal id and caches payload', async () => {
-		const phraseRow = {
-			id: 'lick-1',
-			user_id: 'author-1',
-			name: 'Test',
-			key: 'C',
-			time_signature: [4, 4],
-			notes: [
-				{ pitch: 60, duration: [1, 4], offset: [0, 1] },
-				{ pitch: 62, duration: [1, 4], offset: [1, 4] },
-				{ pitch: 64, duration: [1, 4], offset: [2, 4] },
-				{ pitch: 65, duration: [1, 4], offset: [3, 4] }
-			],
-			harmony: [],
-			difficulty: { level: 10, pitchComplexity: 10, rhythmComplexity: 10, lengthBars: 1 },
-			category: 'user',
-			tags: [],
-			source: 'user-recorded',
-			audio_url: null,
-			created_at: '',
-			updated_at: '',
-			favorite_count: 0
-		};
-		const sb = makeSupabaseMock({
-			user: { id: 'u1' },
-			singleRows: {
-				user_licks: phraseRow,
-				public_lick_authors: { id: 'author-1', display_name: 'Dex', avatar_url: null }
-			}
-		}) as Parameters<typeof stealLick>[0];
-
-		await stealLick(sb, 'lick-1');
-		expect(getStealsLocal().has('lick-1')).toBe(true);
-		expect(getStolenLicksLocal().find((l) => l.id === 'lick-1')).toBeDefined();
-		expect(getStolenAuthorsLocal()['lick-1']?.authorName).toBe('Dex');
-	});
-
-	it('returnLick removes steal + cache entries', async () => {
-		localStorageMock.setItem('mankunku:community-adoptions', JSON.stringify(['lick-1']));
-		localStorageMock.setItem(
-			'mankunku:community-adopted-payloads',
-			JSON.stringify([{ id: 'lick-1', name: 'x', timeSignature: [4, 4], key: 'C', notes: [], harmony: [], difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 }, category: 'user', tags: [], source: 'user-recorded' }])
-		);
-		localStorageMock.setItem(
-			'mankunku:community-adopted-authors',
-			JSON.stringify({ 'lick-1': { authorId: 'a1', authorName: 'Dex', authorAvatarUrl: null } })
-		);
-
-		const sb = makeSupabaseMock({
-			user: { id: 'u1' },
-			onDelete: () => ({ error: null })
-		}) as Parameters<typeof returnLick>[0];
-
-		await returnLick(sb, 'lick-1');
-		expect(getStealsLocal().has('lick-1')).toBe(false);
-		expect(getStolenLicksLocal()).toEqual([]);
-		expect(getStolenAuthorsLocal()['lick-1']).toBeUndefined();
-	});
-});
+// The steal → return round trip (all three caches + the cloud row) is pinned in
+// tests/integration/lick-adoption-lifecycle.test.ts against the shared cloud
+// harness; the tests here cover what that file does not.
 
 describe('listCommunityLicks', () => {
 	it('returns empty list when no licks match', async () => {
@@ -348,37 +289,14 @@ describe('listCommunityLicks', () => {
 		expect(two.isStolenByMe).toBe(true);
 	});
 
-	// Cross-device favorites tests live next to the listing tests
-	// because `initCommunityFromCloud` is the common entry point. The mock
+	// Cross-device hydration tests live next to the listing tests because
+	// `initCommunityFromCloud` is the common entry point (favorites hydration
+	// itself is pinned in tests/integration/lick-adoption-lifecycle.test.ts
+	// against the shared cloud harness). The mock
 	// `makeSupabaseMock` resolves `lick_favorites` queries via `data[table]`
 	// — pre-set rows simulate a particular cloud snapshot, with the filter
 	// being implicit (production filters by user_id; the mock's row set is
 	// what the production filter would have returned).
-
-	it('cross-device — device A favorites X, device B favorites Y, hydration sees both (UNION)', async () => {
-		const { initCommunityFromCloud } = await import('$lib/persistence/community');
-
-		// Cloud snapshot reflects what device A and device B both wrote: rows
-		// for both lick-X and lick-Y owned by user-A.
-		const sb = makeSupabaseMock({
-			user: { id: 'user-A' },
-			data: {
-				lick_favorites: [
-					{ user_id: 'user-A', lick_id: 'lick-X' },
-					{ user_id: 'user-A', lick_id: 'lick-Y' }
-				],
-				lick_adoptions: [],
-				user_licks: []
-			}
-		}) as Parameters<typeof initCommunityFromCloud>[0];
-
-		// An affirmatively-empty steal set is still a faithful hydration.
-		await expect(initCommunityFromCloud(sb)).resolves.toBe(true);
-
-		const localFavs = getFavoritesLocal();
-		expect(localFavs.has('lick-X')).toBe(true);
-		expect(localFavs.has('lick-Y')).toBe(true);
-	});
 
 	it('cross-device — stolen licks union across two devices stays consistent', async () => {
 		const { initCommunityFromCloud } = await import('$lib/persistence/community');

@@ -201,6 +201,28 @@ describe('computeExpression — authored overrides honored', () => {
 		const expr = computeExpression(extractSoundingNotes(phrase.notes), phrase);
 		expect(expr[1].durationScale).toBeLessThanOrEqual(0.55);
 	});
+
+	it('honors an authored legato: never ghosted and sounded full length', () => {
+		// C→D→E stepwise eighths: the D would ghost as a passing tone.
+		const notes: Note[] = [
+			{ pitch: 60, duration: [1, 8], offset: [0, 1] },
+			{ pitch: 62, duration: [1, 8], offset: [1, 8], articulation: 'legato' },
+			{ pitch: 64, duration: [1, 8], offset: [1, 4] }
+		];
+		const phrase = makePhrase(notes);
+		const expr = computeExpression(extractSoundingNotes(phrase.notes), phrase);
+		expect(expr[1].isGhost).toBe(false);
+		expect(expr[1].durationScale).toBe(1);
+	});
+});
+
+describe('computeExpression — timbre', () => {
+	it('darkens the low register even when the note is loud enough for no filter', () => {
+		const phrase = makePhrase([{ pitch: 48, duration: [1, 4], offset: [0, 1] }]);
+		const expr = computeExpression(extractSoundingNotes(phrase.notes), phrase);
+		expect(expr[0].velocity).toBeGreaterThanOrEqual(88);
+		expect(expr[0].cutoffHz).toBe(3600);
+	});
 });
 
 describe('computeExpression — intensity scaling', () => {

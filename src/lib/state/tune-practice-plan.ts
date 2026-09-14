@@ -339,35 +339,95 @@ export function notationBarForPlaybackBar(
 	return null;
 }
 
+/** What the chart names over an insertion band. */
+export type CueLevel = 'lick' | 'progression' | 'none';
+
 export interface StrictnessKnobs {
 	octaveInsensitive: boolean;
 	bleedFilterEnabled: boolean;
-	/** How much the UI reveals: full cues, reduced (keys/countdown only), or none. */
-	cueLevel: 'full' | 'reduced' | 'none';
+	/**
+	 * What the bands name: the lick (and, in points mode, the pick card), the
+	 * progression alone, or nothing.
+	 */
+	cueLevel: CueLevel;
 }
 
 /**
- * Strictness maps onto EXISTING pipeline knobs only — the grading scale never
- * changes. Guided/standard mirror continuous lick-practice (octave-insensitive,
- * bleed filter on); solo mirrors call-and-response strictness and respects the
- * user's real bleed-filter preference.
+ * Strictness is about how much the chart TELLS the player, never about how
+ * the app listens. Every level scores any octave — nothing is demonstrated in
+ * tune practice, so there is no heard register to match, and a lick
+ * legitimately moves an octave to stay on the horn — and every level scores
+ * the bleed-filtered notes (forgiving on speakers, inert on headphones). The
+ * grading scale never changes. Guided names the lick over each band; Standard
+ * names only the progression, so the vocabulary is the player's choice and
+ * every fitting lick is a valid answer (`windowCandidates`); Solo names
+ * nothing.
  */
-export function strictnessKnobs(
-	strictness: TunePracticeStrictness,
-	userBleedFilterEnabled: boolean
-): StrictnessKnobs {
+export function strictnessKnobs(strictness: TunePracticeStrictness): StrictnessKnobs {
+	const listening = { octaveInsensitive: true, bleedFilterEnabled: true };
 	switch (strictness) {
 		case 'guided':
-			return { octaveInsensitive: true, bleedFilterEnabled: true, cueLevel: 'full' };
+			return { ...listening, cueLevel: 'lick' };
 		case 'standard':
-			return { octaveInsensitive: true, bleedFilterEnabled: true, cueLevel: 'reduced' };
+			return { ...listening, cueLevel: 'progression' };
 		case 'solo':
-			return {
-				octaveInsensitive: false,
-				bleedFilterEnabled: userBleedFilterEnabled,
-				cueLevel: 'none'
-			};
+			return { ...listening, cueLevel: 'none' };
 	}
+}
+
+/**
+ * The suggestions a window is scored against. When the chart names the lick,
+ * that lick (the user's pick, else the top rank) is the one answer. When it
+ * names only the progression, or nothing, the player was never told which
+ * lick to play, so every fitting suggestion is a candidate — the take is
+ * scored against each and `bestCandidateResult` keeps the best.
+ */
+export function windowCandidates(
+	suggestions: readonly LickSuggestion[],
+	pickedIndex: number | undefined,
+	cueLevel: CueLevel
+): LickSuggestion[] {
+	if (cueLevel === 'lick') {
+		const picked = resolvePickedSuggestion(suggestions, pickedIndex);
+		return picked ? [picked] : [];
+	}
+	return [...suggestions];
+}
+
+/**
+ * The text drawn over an insertion band, if any: the lick at the lick cue
+ * level (the progression when no lick fits, so the player still knows what
+ * to blow over), the progression alone at the progression level, nothing at
+ * none — and nothing in freestyle, whatever the level.
+ */
+export function insertionLabel(args: {
+	mode: TunePracticeMode;
+	cueLevel: CueLevel;
+	lickName: string | null;
+	progressionName: string;
+}): string | undefined {
+	if (args.mode === 'freestyle' || args.cueLevel === 'none') return undefined;
+	if (args.cueLevel === 'lick') return args.lickName ?? args.progressionName;
+	return args.progressionName;
+}
+
+export interface CandidateResult {
+	lickName: string;
+	score: Score | null;
+}
+
+/**
+ * The candidate the take matched best. An unscorable candidate (its lick could
+ * not be resolved) ranks below any scored one; when none scored, the first
+ * stands, unscored, so the window still records which lick it was for.
+ */
+export function bestCandidateResult(results: readonly CandidateResult[]): CandidateResult {
+	if (results.length === 0) throw new Error('bestCandidateResult: no candidates');
+	let best = results[0];
+	for (const r of results.slice(1)) {
+		if (r.score && (!best.score || r.score.overall > best.score.overall)) best = r;
+	}
+	return best;
 }
 
 /**

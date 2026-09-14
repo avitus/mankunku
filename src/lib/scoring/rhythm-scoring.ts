@@ -10,9 +10,10 @@
  * fraction-of-a-beat represents a tighter absolute window, so we can
  * afford a steeper penalty without being unfair.
  *
- * Base penalty 0.8 gives 0% at 1.25 beats off (750 ms at 100 BPM).
- * At 60 BPM → penalty 0.65, 0% at ~1.5 beats (1500 ms).
- * At 200 BPM → penalty 1.0, 0% at 1 beat (300 ms).
+ * PENALTY = min(1.0, 0.5 + tempo / 300); a note scores 0% at 1 / PENALTY beats off.
+ * At 60 BPM → penalty 0.7, 0% at ~1.43 beats (~1430 ms).
+ * At 100 BPM → penalty ~0.83, 0% at 1.2 beats (720 ms).
+ * From 150 BPM up → penalty 1.0 (capped), 0% at 1 beat (400 ms at 150, 300 ms at 200).
  */
 
 import type { Note } from '$lib/types/music';

@@ -273,6 +273,36 @@ describe('startInterLickTransition — always-on score-weighted adjustment', () 
 		expect(lickPractice.progress[LICK_ID]?.G?.currentTempo).toBeUndefined();
 	});
 
+	it('opens the next lick at its OWN stored tempo and enters the inter-lick rest', () => {
+		// Lick 1 ratchets to 102; lick 2 was last left at 80 and must not
+		// inherit lick 1's tempo.
+		setupLick({
+			currentTempo: 100,
+			results: [{ key: 'C', score: 1.0 }]
+		});
+		lickPractice.plan.push({
+			phraseId: 'test-lick-2',
+			phraseName: 'test-lick-2',
+			phraseNumber: 2,
+			category: 'ii-V-I-major',
+			keys: ['D', 'Eb'],
+			progressionType: 'ii-V-I-major'
+		});
+		lickPractice.progress = {
+			'test-lick-2': { D: { currentTempo: 80, lastPracticedAt: 1, passCount: 0 } }
+		};
+		lickPractice.currentKeyIndex = 1;
+		lickPractice.config.durationMinutes = 20;
+
+		expect(startInterLickTransition()).toBe('next-lick');
+
+		expect(lickPractice.progress[LICK_ID]?.C?.currentTempo).toBe(102);
+		expect(lickPractice.currentLickIndex).toBe(1);
+		expect(lickPractice.currentKeyIndex).toBe(0);
+		expect(lickPractice.currentTempo).toBe(80);
+		expect(lickPractice.phase).toBe('inter-lick-rest');
+	});
+
 	it("applies the adjustment to all of the lick's keys, not just the scored ones", () => {
 		// Plan has 5 keys but the user only scored 2 before the session rolled
 		// over — the 3 unscored keys should still get the new tempo, proving

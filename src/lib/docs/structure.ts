@@ -33,7 +33,8 @@ export const DOC_TREE: DocSection[] = [
 			{
 				slug: 'user-guide',
 				title: 'How to Practice',
-				blurb: 'A walk through the practice loop — what you hear, what you play, what gets scored.'
+				blurb:
+					'Every room in the app — ear training, lick practice, your books, progress, settings — what you hear, what you play, and what each control does.'
 			}
 		]
 	},
@@ -59,7 +60,8 @@ export const DOC_TREE: DocSection[] = [
 			{
 				slug: 'tune-practice',
 				title: 'Playing Over Tunes',
-				blurb: 'The scored session over a real form: insertion points, the three modes, and the head rule.'
+				blurb:
+					'The session over a real form: insertion points, the setup screen, the three modes, strictness, and the head rule.'
 			}
 		]
 	},
@@ -69,7 +71,8 @@ export const DOC_TREE: DocSection[] = [
 			{
 				slug: 'architecture/overview',
 				title: 'The Practice Modes',
-				blurb: 'Side A (Ear Training), Side B (Lick Practice), and Tune Practice — when to use each.'
+				blurb:
+					'Side A (Ear Training), Side B (Lick Practice), Tricks, and Tune Practice — when to use each.'
 			},
 			{
 				slug: 'architecture/scoring-algorithm',
@@ -79,17 +82,19 @@ export const DOC_TREE: DocSection[] = [
 			{
 				slug: 'architecture/audio-pipeline',
 				title: 'How the App Listens',
-				blurb: 'What the microphone hears, why the room matters, and what to expect from pitch detection.'
+				blurb:
+					'What the microphone hears, when it starts listening, why the room matters, and what to expect from pitch detection.'
 			},
 			{
 				slug: 'architecture/tonality-system',
 				title: 'The Daily Key',
-				blurb: 'A new key + scale every day. Why it rotates, and how new tonalities unlock.'
+				blurb: 'One key + scale at a time for ear training. Why it rotates, and how new tonalities unlock.'
 			},
 			{
 				slug: 'architecture/adaptive-difficulty',
 				title: 'Levels & Difficulty',
-				blurb: 'How the difficulty climbs as you improve — and what each level adds musically.'
+				blurb:
+					'Your 1–100 level in each scale and key: how it climbs as you improve, and what each level adds musically.'
 			},
 			{
 				slug: 'architecture/phrase-system',
@@ -104,12 +109,13 @@ export const DOC_TREE: DocSection[] = [
 			{
 				slug: 'reference/scale-and-lick-catalog',
 				title: 'Scales & Lick Categories',
-				blurb: 'Every scale and every lick category, with the harmonic context they belong to.'
+				blurb:
+					'Every scale and every lick category, with lick counts, the minor-key categories, and the harmonic context each belongs to.'
 			},
 			{
 				slug: 'reference/glossary',
 				title: 'Glossary',
-				blurb: 'Jazz terminology used throughout the app, defined in plain language.'
+				blurb: 'Jazz terminology and app terms used throughout, defined in plain language.'
 			}
 		]
 	}

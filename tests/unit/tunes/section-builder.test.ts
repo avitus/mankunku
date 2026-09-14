@@ -72,6 +72,36 @@ describe('buildSections — pickup length', () => {
 		expect(sections[0].pickupLength).toEqual([1, 4]);
 	});
 
+	it('attributes an unrecognized chord anchored in the pickup bar to bar 1, never "bar 0"', () => {
+		// Printed numbering excludes the pickup, so a chord IN the pickup
+		// counts both bar++ and pickups++ — the clamp charges it to the bar
+		// the pickup leads into.
+		const measures: BarStructure[] = [
+			bar(0, { pickup: true, pickupLength: [1, 4] }),
+			bar(1, { rehearsalMark: 'A' }),
+			bar(2)
+		];
+		// The parameter is `warnOnce` by contract: the in-effect chord is
+		// restated at the next section boundary and would be reported again
+		// there (the importers all dedupe).
+		const warned: string[] = [];
+		buildSections(
+			measures,
+			pickupNote,
+			[
+				{ offset: [3, 4], text: 'Xyz' },
+				{ offset: [2, 1], text: 'Qrs' }
+			],
+			(msg) => {
+				if (!warned.includes(msg)) warned.push(msg);
+			}
+		);
+		expect(warned).toEqual([
+			'bar 1: Chord "Xyz" was not recognized and was skipped.',
+			'bar 2: Chord "Qrs" was not recognized and was skipped.'
+		]);
+	});
+
 	it('omits the field when the flagged pickup has no known length', () => {
 		const measures: BarStructure[] = [bar(0, { pickup: true }), bar(1, { rehearsalMark: 'A' })];
 		const sections = buildSections(measures, pickupNote, [], () => {});

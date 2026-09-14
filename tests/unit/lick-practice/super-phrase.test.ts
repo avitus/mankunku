@@ -30,6 +30,7 @@ import {
 	getKeyPauses,
 	getLickBars,
 	getProgressionBars,
+	getCurrentHarmony,
 	advance,
 	startInterLickTransition,
 	recordKeyAttempt
@@ -759,6 +760,32 @@ describe('pickupBars auto-detection — user/community licks without explicit fi
 		const lick = { ...userPickupLick() };
 		lick.difficulty = { ...lick.difficulty, pickupBars: 0 };
 		expect(getLickBars(lick, 'ii-V-I-major', false)).toBe(4);
+	});
+});
+
+describe('getCurrentHarmony (the chord chart\'s source)', () => {
+	it('is empty with no plan', () => {
+		expect(getCurrentHarmony()).toEqual([]);
+	});
+
+	it('transposes the progression to the current key with the lick\'s tail extension applied', () => {
+		// The 3-bar pickup lick stretches the 2-bar short ii-V-I to 3 bars, so
+		// the I chord sustains through the tail — exactly what the backing plays.
+		lickPractice.config.progressionType = 'ii-V-I-major';
+		lickPractice.plan = planMajorChord({ id: PICKUP_LICK_ID, keys: ['F'] });
+		const harmony = getCurrentHarmony();
+		expect(harmony.map((seg) => seg.chord.root)).toEqual(['G', 'C', 'F']);
+		expect(fractionToFloat(harmony[2].duration)).toBe(2);
+	});
+
+	it('falls back to the bare template when the plan item\'s lick cannot be resolved', () => {
+		// A plan item pointing at a lick deleted mid-session: the chart still
+		// shows the progression in the current key, with no extension.
+		lickPractice.config.progressionType = 'ii-V-I-major';
+		lickPractice.plan = plan({ id: 'no-such-lick', keys: ['Bb'] });
+		const harmony = getCurrentHarmony();
+		expect(harmony.map((seg) => seg.chord.root)).toEqual(['C', 'F', 'Bb']);
+		expect(fractionToFloat(harmony[2].duration)).toBe(1);
 	});
 });
 

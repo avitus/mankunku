@@ -447,6 +447,9 @@ function inferUpsertKey(table: string, row: CloudRow): string[] {
 		case 'tune_favorites':
 		case 'tune_adoptions':
 			return ['user_id', 'tune_id'];
+		case 'daily_summaries':
+			// Production upserts ON CONFLICT (user_id, date): one row per day.
+			return ['user_id', 'date'];
 		default:
 			return row.id !== undefined ? ['id'] : ['user_id'];
 	}

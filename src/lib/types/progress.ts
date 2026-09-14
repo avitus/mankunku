@@ -4,7 +4,7 @@ import type { ScaleType } from '$lib/tonality/tonality';
 
 export interface ScaleProficiency {
 	level: number;              // 1-100 — the user's proficiency in this scale
-	recentScores: number[];     // circular buffer, last 10 scores at current level
+	recentScores: number[];     // rolling window, last 25 scores (adaptive.ts WINDOW_SIZE); kept across level changes
 	attemptsAtLevel: number;
 	attemptsSinceChange: number;
 	totalAttempts: number;
@@ -12,7 +12,7 @@ export interface ScaleProficiency {
 
 export interface KeyProficiency {
 	level: number;              // 1-100
-	recentScores: number[];     // last 10 scores in this key
+	recentScores: number[];     // rolling window, last 25 scores in this key (adaptive.ts WINDOW_SIZE)
 	attemptsAtLevel: number;
 	attemptsSinceChange: number;
 	totalAttempts: number;
@@ -152,7 +152,13 @@ export interface DailySummary {
 	 * compatibility with pre-split summaries (treat undefined as 0).
 	 */
 	lickPracticeSessions?: number;
-	practiceMinutes: number;               // estimated ~2 min per session
+	/**
+	 * Lick practice's own recorded length plus an estimate for ear-training
+	 * attempts, which record none — see EAR_MINUTES_PER_ATTEMPT. Whole
+	 * minutes. Days written before the switch keep their old per-attempt
+	 * figure: the merge takes the larger of the two.
+	 */
+	practiceMinutes: number;
 	avgOverall: number;                    // 0-1
 	avgPitch: number;                      // 0-1
 	avgRhythm: number;                     // 0-1

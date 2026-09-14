@@ -39,6 +39,7 @@ Routes that belong to the lick-practice domain:
 
 - `/lick-practice` — setup
 - `/lick-practice/session` — running session
+- `/lick-practice/cue-preview` — temporary listen/play cue design compare, unlinked from the nav (inherits the prefix)
 
 **Identity color**: warm terracotta / burnt sienna. This is the LP-sleeve counterpart to the ear-training teal — complementary in hue, same visual weight, reads as jazz-era rather than "success/error" signal.
 
@@ -56,10 +57,11 @@ Routes that belong to neither domain (or that serve both):
 - `/` — home
 - `/licks`, `/licks/[id]` — your lick book (used by both modes)
 - `/licks/add`, `/licks/editor`, `/licks/record` — adding new licks (book-building, not practice)
-- `/tunes` and its subroutes — the tune songbook
+- `/tunes` and its subroutes — the tune songbook, including the scored `/tunes/[id]/practice` session (a tune take is not a lick-practice session; it earns no domain accent)
 - `/tricks`, `/tricks/[id]` — the melodic-device catalog and its mastery ladders (the *session* they launch runs under `/lick-practice`, which is where the terracotta appears)
 - `/settings` — global app settings
-- `/auth`, `/diagnostics` and its subroutes — utility pages
+- `/docs` and its subroutes — in-app documentation
+- `/auth`, `/diagnostics`, `/admin` and their subroutes — utility pages
 
 **Identity color**: slate / desaturated. The neutral domain has no strong accent — interactive elements use `--color-text-secondary` or a slate neutral, and CTAs typically use `--color-bg-tertiary` backgrounds instead of an accent fill.
 
@@ -133,7 +135,13 @@ The counterpart to the Mastery ramp, for **performance scores** (poor → perfec
 | **Teal** | `--accuracy-teal` | 55–69% | Needs work |
 | **Deep teal** | `--accuracy-deep` | < 55% | Rough |
 
-Podium medals reward good takes; the two teal shades below "decent" keep the low end calm and encouraging (a rough key reads teal, never alarm-red). It stays in the app's teal↔gold family so it never fights the Mastery ramp, but where mastery is a 10-step gradient, accuracy is 5 crisp tiers. Access via `accuracyTier(score01)` (`src/lib/ui/score-colors.ts`), which returns the tier's `var(--accuracy-*)` token. Used by: the lick-practice **key ring** + **per-key report chips**, the **progress per-key detail**, **grade readouts** (`GRADE_COLORS`), and **per-note pitch/rhythm** (`NoteComparison`). The exact % is always shown alongside, so precision within a tier isn't lost.
+Podium medals reward good takes; the two teal shades below "decent" keep the low end calm and encouraging (a rough key reads teal, never alarm-red). It stays in the app's teal↔gold family so it never fights the Mastery ramp, but where mastery is a 10-step gradient, accuracy is 5 crisp tiers. Access via `accuracyTier(score01)` (`src/lib/ui/score-colors.ts`), which returns the tier's `var(--accuracy-*)` token (`accuracyTierInfo` gives the whole tier). Used by: the lick-practice **key ring** + **per-key report chips**, the **progress per-key detail**, **grade readouts** (`GRADE_COLORS`), and **per-note pitch/rhythm** (`NoteComparison`). The exact % is always shown alongside, so precision within a tier isn't lost.
+
+The three medal tiers are backed by theme-invariant **metal** tokens — `--metal-gold` / `--metal-silver` / `--metal-bronze`, literals, the single source of truth for each coin — which the dark `--accuracy-{gold,silver,bronze}` reference directly; `:root.light` re-points those `--accuracy-*` to darker, paper-legible text accents but leaves `--metal-*` untouched, so a light-theme coin stays metal. The lustre tokens (`--medal-<metal>-hi/mid/lo/label/rim`, `color-mix` over the tier colour) draw the key-ring dots' radial gradient and the report chips (`.lp-medal-chip`): a soft sheen in dark, an opaque struck coin in light.
+
+### Progression identity palette
+
+One muted hue per chord progression — `--prog-<ChordProgressionType>` (`--prog-minor-vamp` … `--prog-ii-V-I-major-long`), consumed only through `progressionColor(type)` in `src/lib/music/progression-display.ts` (an exhaustive `Record`, so a new progression won't type-check without a hue). It tints the library card's category pill and dots and carries into the lick-practice session header, so a lick reads as one thing across both. The hue encodes tonality as a cool→warm spectrum: minor progressions teal→indigo, the cyclic/bluesy turnarounds violet→rose, dominant and major terracotta→gold; `:root.light` re-steps them darker.
 
 ## Typography
 
@@ -147,16 +155,33 @@ Self-hosted variable font (weight 300–800, Latin subset, `.woff2`, license SIL
 - Lick names
 - Primary nav labels for "Side A / Side B" practice modes
 
-Apply via the `.font-display` utility:
+The face is a token, `--font-display`, and the `.font-display` utility reads it:
 
 ```css
+:root {
+  --font-display: Fraunces, ui-serif, Georgia, 'Times New Roman', serif;
+}
+
 .font-display {
-  font-family: Fraunces, ui-serif, Georgia, 'Times New Roman', serif;
+  font-family: var(--font-display);
   font-optical-sizing: auto;
   font-variation-settings: 'SOFT' 50, 'WONK' 0;
   letter-spacing: -0.01em;
 }
 ```
+
+Component-scoped CSS that cannot take a utility class reads the token directly — the `Knob` readout's `font-family: var(--font-display), Georgia, serif`. The token was once referenced without being defined, so every knob readout silently fell back to Georgia; the design-token test now sweeps `var(--font-*)` as well as `var(--color-*)`.
+
+### Chord symbols — `--chord-font`
+
+```css
+:root {
+  --chord-font: Fraunces, Edwin, ui-serif, Georgia, serif;
+  --chord-font-weight: 500;
+}
+```
+
+The ONE chord-symbol face, everywhere a chord is drawn: the lead-sheet SVG (`NotationDisplay`'s chord tspans), the practice `ChordChart`, and the HTML `ChordSymbolText`. Fraunces carries the letters; **Edwin** (MuseScore's engraved text face, self-hosted Roman + Bold, SIL OFL) fills the Δ ♭ ♯ glyphs Fraunces lacks. What is drawn in it is the app-wide pretty convention from `music/chord-layout.ts` (`chordDisplayModel`: root and the minor "-" on the baseline, everything after in superscript with real glyphs — ø7 / °7 / +7 — a single alteration parenthesized in the superscript run, two or more stacked in one tall paren pair). That model is **display-only**: `formatChordSymbol` and the ABC text stay canonical ASCII-plus-Δ. **MuseJazzText** (also from MuseScore) is abcjs's `infofont` for the boxed section marks.
 
 ### Body — system UI sans
 
@@ -188,6 +213,18 @@ Everything else uses the Tailwind default sans stack. No custom webfont for body
 ### Peripheral accent stripe
 
 A thin stripe (`h-0.5`, 2px = 0.125rem) at the top of non-neutral pages, rendered in `bg-[var(--color-accent)]`. It's a peripheral cue — the eye registers it without dwelling on it. On neutral pages there is no stripe.
+
+### Console controls
+
+Setup screens speak a mixing-console idiom instead of form controls. `app.css` carries the shared surfaces — `.console-panel` (brushed-slate faceplate, thin brass inner rim), `.console-engrave` (engraved `--color-brass-soft` label), and the LED dot `.led` with two lit states: `.led-on` in `--color-onair` and `.led-accent-on` in the domain accent. Three components in `src/lib/components/console/` use them:
+
+| Component | Control | Colour |
+|---|---|---|
+| `Knob` | rotary value (drag, arrow keys), Fraunces readout via `--font-display` | value arc in `--color-accent`; brass body |
+| `SelectorPad` | radio group of pads (`columns` for a grid; per-option `disabled` dims to a locked pad) | active pad and its LED in `--color-accent` |
+| `RockerSwitch` | ON/OFF switch | brass cap; ON legend and LED in `--color-onair`, whatever the domain |
+
+`Knob` and `RockerSwitch` take an optional `helpText`, rendered as a `TooltipHint` beside the engraved label; `RockerSwitch` also takes `disabled` (native disabled, housing dimmed to 0.45 like a locked `SelectorPad` option) for a setting the context cannot honour — tune practice's Head switch on a chords-only chart, where the plan's effective `playHead` is false anyway. Their copy lives in `src/lib/content/tooltips.ts`, one group per screen (`tooltips.lickPractice`, `tooltips.tunePractice`, `tooltips.settings`, …). The idiom covers the settings page, the lick-practice setup (`PracticeSetup`) and the tune-practice setup, all three with the songbook header (brass kicker, display title, jazz rule). The housing is pinned in px, not rem, because the sliding cap's geometry is px: a housing that scaled with the root font size would leave the cap short of the ON position.
 
 ## Single-variable implementation
 
@@ -248,18 +285,16 @@ It's applied as `data-domain={dataDomain}` on the layout's outermost element. Th
 
 Every component that uses `var(--color-accent)` flips for free when the domain changes. A non-exhaustive sample:
 
-- **Active navigation underline** (`+layout.svelte`) — turns terracotta on lick-practice, slate on neutral
-- **Sign In link** in nav
+- **Sign In link** in nav (desktop and mobile)
 - **Primary CTA buttons** on `/ear-training`, `/lick-practice`, session reports
-- **`KeyProgressRing`** (current key indicator)
+- **`LickHeader`** key readout in the lick-practice session
 - **`ChordChart`** (active cell highlight, beat dots, progress bar)
-- **`UpcomingKeysDisplay`** (phase tab on the active row — LISTEN in on-air red / PLAY in brass via the phase aliases / "Straight in" turnaround announcement — plus the recording ring)
 - **`SessionTimer`** progress bar fill
-- **`LickCard`** play button and progression-tag chips
-- **`PracticeSetup`** / `CategoryFilter` selected state
+- **`LickCard`** play button (progression-tag chips take their hue from the progression palette above, not the domain accent)
+- **`PracticeSetup`** selected state, and the console controls' accent parts — the `Knob` value arc and the active `SelectorPad` pad + LED
 - All `border-l-[var(--color-accent)]` / `text-[var(--color-accent)]` / `bg-[var(--color-accent)]` usages
 
-The user opens `/lick-practice` and the entire interactive vocabulary turns terracotta, but the page layout is unchanged.
+The user opens `/lick-practice` and the entire interactive vocabulary turns terracotta, but the page layout is unchanged. What does *not* follow the domain, by design: the active-nav marker (a brass hairline under the desktop item, a brass left border in the mobile menu), the practice-phase indicators on `UpcomingKeysDisplay` / `PhaseCueBar` (the phase aliases), the `KeyProgressRing` (medal tokens for scored keys, a pulsing `--color-brass-soft` outline on the current key), and the `RockerSwitch`'s on-air legend and LED.
 
 ## What we deliberately don't change
 
@@ -277,7 +312,7 @@ The only thing that changes per domain is the **accent color**, applied via the 
 ## Edge cases
 
 - **`/progress`** — classified as ear-training because it shows the global ear-training session history. If lick-practice gets its own long-term progress page, that route can opt in separately.
-- **`/licks`, `/licks/add`, and `/licks/editor`** — neutral (no domain accent), even though `LickCard` renders per-lick metadata such as category, difficulty, and accent-colored progression-type chips (which inherit the domain accent — slate on the neutral licks page). Those chips identify a lick's musical attributes, not the page chrome.
+- **`/licks`, `/licks/add`, and `/licks/editor`** — neutral (no domain accent), even though `LickCard` renders per-lick metadata such as category, difficulty, and progression-tinted chips (`--prog-*`, not the domain accent). Those chips identify a lick's musical attributes, not the page chrome.
 - **`/licks/record`** — neutral. Recording a phrase from the mic builds your book; it is not an ear-training session, so this route moved out of the blue ear-training domain when it became a licks subroute.
 - **`/diagnostics`** — neutral.
 - **Light mode** — every override has a `:root.light [data-domain='…']` equivalent so themes stay coherent.
@@ -292,6 +327,8 @@ The base behavior lives in just two files:
 | `src/routes/+layout.svelte`  | Derives `dataDomain`, applies `data-domain`, renders the peripheral stripe.   |
 
 No component-level files need to change. Every existing `var(--color-accent)` usage automatically picks up the new color.
+
+`tests/unit/ui/design-token-consistency.test.ts` pins the contract: every `var(--color-*)` and every `var(--font-*)` referenced under `src/` is defined in `app.css` (an undefined custom property fails silently — the property computes to nothing, or to the next font in the stack); solid coloured fills on text-bearing elements set explicit white text; the two phase aliases resolve to brass and on-air; the phase surfaces it sweeps — `UpcomingKeysDisplay`, `PhaseCueBar` and the cue-preview route's `CueStage` — never reach past the aliases to a raw `--color-brass` / `--color-onair` token (the other listen/play surfaces use the aliases by convention, unswept); and feedback *text* uses the `-text` variants, never the fill tokens.
 
 ## Verification
 
@@ -308,15 +345,15 @@ After changes, walk through these surfaces and confirm the accent is correct:
 | `/licks`, `/licks/[id]`          | neutral       | slate                               |
 | `/licks/add`, `/licks/editor`    | neutral       | slate                               |
 | `/licks/record`, `/tunes`        | neutral       | slate                               |
-| `/settings`, `/auth`, `/diag…`   | neutral       | slate                               |
+| `/tunes/[id]/practice`, `/tricks` | neutral      | slate                               |
+| `/settings`, `/docs`, `/auth`, `/diag…` | neutral | slate                              |
 
 For each page confirm:
 
-1. Active nav item underline color
-2. Primary CTA button color
-3. Current-state highlights (selected pill, current key chip, active beat)
-4. The peripheral accent stripe is present on ear-training and lick-practice pages, hidden on neutral
-5. Brass chrome (wordmark, jazz rules) is unchanged across domains
-6. The on-air red appears only on active practice/record buttons and on LISTEN-phase indicators (via `--color-phase-listen`); PLAY-phase indicators are brass (`--color-phase-play`)
+1. Primary CTA button color
+2. Current-state highlights (selected pill or pad, active chord cell and beat)
+3. The peripheral accent stripe is present on ear-training and lick-practice pages, hidden on neutral
+4. Brass chrome (wordmark, jazz rules, the active-nav marker) is unchanged across domains
+5. The on-air red appears only on active practice/record buttons, the console rocker's ON legend and LED, and LISTEN-phase indicators (via `--color-phase-listen`); PLAY-phase indicators are brass (`--color-phase-play`)
 
 Check both light and dark modes.

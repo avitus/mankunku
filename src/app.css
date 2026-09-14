@@ -23,6 +23,10 @@
  */
 
 :root {
+	/* Display serif as a token so component-scoped CSS (the Knob readout)
+	   can reach it — `.font-display` below reads the same value. */
+	--font-display: Fraunces, ui-serif, Georgia, 'Times New Roman', serif;
+
 	--color-bg: #0f172a;
 	--color-bg-secondary: #1e293b;
 	--color-bg-tertiary: #334155;
@@ -395,7 +399,7 @@ html {
 
 /* Display serif — page titles, wordmark, key/grade readouts, lick names. */
 .font-display {
-	font-family: Fraunces, ui-serif, Georgia, 'Times New Roman', serif;
+	font-family: var(--font-display);
 	font-optical-sizing: auto;
 	font-variation-settings: 'SOFT' 50, 'WONK' 0;
 	letter-spacing: -0.01em;

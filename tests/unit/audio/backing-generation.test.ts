@@ -487,4 +487,30 @@ describe('generateBackingCached', () => {
 		expect(otherStyle.drumEvents).not.toEqual(base.drumEvents);
 		expect(otherHarmony.bassEvents).not.toEqual(base.bassEvents);
 	});
+
+	it('recomputes an entry evicted by four newer keys, identical to the direct path', async () => {
+		const { generateBackingCached } = await import('$lib/audio/backing-generation');
+		const harmony = bars(['D', 'min7'], ['G', '7'], ['C', 'maj7'], ['C', 'maj7']);
+		const first = params({ tempo: 91 });
+		const direct = generateBacking(harmony, BACKING_STYLES.swing, first);
+		expect(generateBackingCached(harmony, BACKING_STYLES.swing, first)).toEqual(direct);
+		for (const tempo of [92, 93, 94, 95]) {
+			generateBackingCached(harmony, BACKING_STYLES.swing, params({ tempo }));
+		}
+		expect(generateBackingCached(harmony, BACKING_STYLES.swing, first)).toEqual(direct);
+	});
+});
+
+describe('generateComping over bare triads', () => {
+	it('still comps through shell / drop-2 shapes, every note a chord tone', () => {
+		// Rootless shapes return [] for a triad; without the triad branch the
+		// `voicing.length === 0` guard would silence every bar of the chart.
+		const harmony = bars(['C', 'aug'], ['C', 'aug'], ['C', 'aug'], ['C', 'aug']);
+		const { compEvents } = generateBacking(harmony, BACKING_STYLES.swing, params({ phraseId: 'triads' }));
+		expect(compEvents.length).toBeGreaterThan(0);
+		const tones = new Set([0, 4, 8]);
+		for (const e of compEvents) {
+			for (const n of e.notes) expect(tones.has(pc(n)), `note ${n} at beat ${e.absBeat}`).toBe(true);
+		}
+	});
 });

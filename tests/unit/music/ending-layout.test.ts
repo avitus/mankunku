@@ -90,6 +90,16 @@ describe('endingAlignTransform', () => {
 		const t = endingAlignTransform({ x: 200, width: 100 }, { x: 50, width: 200 })!;
 		expect(endingAlignMatrix(t)).toMatch(/^matrix\([-\d.]+ 0 0 1 [-\d.]+ 0\)$/);
 	});
+
+	it('never shifts a same-width [2] leftward, only rightward (translate-only guard)', () => {
+		expect(endingAlignTransform({ x: 100, width: 100 }, { x: 300, width: 100 })).toBeNull();
+		expect(endingAlignTransform({ x: 300, width: 100 }, { x: 100, width: 100 })).toEqual({ sx: 1, tx: 200 });
+	});
+
+	it('falls back to translate-only when the width ratio is pathological', () => {
+		// A single-glyph [1] against a full-staff [2] would compress 50×.
+		expect(endingAlignTransform({ x: 300, width: 10 }, { x: 40, width: 500 })).toEqual({ sx: 1, tx: 260 });
+	});
 });
 
 describe('endingGlyphTranslate — no horizontal squash', () => {

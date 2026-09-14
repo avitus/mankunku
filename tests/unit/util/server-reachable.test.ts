@@ -1,5 +1,9 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { serverReachable } from '$lib/util/server-reachable';
+
+afterEach(() => {
+	vi.unstubAllGlobals();
+});
 
 function fetchRecorder(result: () => Promise<Response>) {
 	const calls: { href: string; init: RequestInit | undefined }[] = [];
@@ -21,6 +25,15 @@ describe('serverReachable', () => {
 			throw new TypeError('Failed to fetch');
 		});
 		await expect(serverReachable('http://localhost/x', fn)).resolves.toBe(false);
+	});
+
+	it('reports unreachable without probing when the browser says it is offline', async () => {
+		// navigator.onLine === false is a definite answer: no fetch, no
+		// timeout wait, and the recovery stays in the local-first app.
+		vi.stubGlobal('navigator', { onLine: false });
+		const { fn, calls } = fetchRecorder(async () => new Response(null, { status: 200 }));
+		await expect(serverReachable('http://localhost/x', fn)).resolves.toBe(false);
+		expect(calls).toHaveLength(0);
 	});
 
 	it('bounds the probe with an abort signal so a stalled server cannot hang recovery', async () => {

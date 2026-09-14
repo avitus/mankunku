@@ -7,9 +7,12 @@ The backing-track upgrade program ("professional session musicians") is verified
    - `documentation/reference/backing-report.txt` — statistics report; regenerate with
      `npm run backing:report`, review the diff, commit it. A drifted report fails
      `tests/unit/audio/backing-report.test.ts`.
-   - `tests/fixtures/backing/golden-*.json` — full event dumps for fixed
-     (preset, tempo) pairs; regenerate with `npm run backing:golden`. A drifted engine
-     fails `tests/unit/audio/backing-golden.test.ts`.
+   - `tests/fixtures/backing/golden-*.json` — full event dumps for six fixed
+     (preset, style, tempo) cases: three swing (the mixer loop at 140, blues and AABA
+     at 160) and one per other style — bossa nova (blues, 130), ballad (AABA, 72),
+     straight (blues, 140). Non-swing fixtures carry the style in the filename
+     (`golden-lab-aaba-c-ballad-72.json`). Regenerate with `npm run backing:golden`; a
+     drifted engine fails `tests/unit/audio/backing-golden.test.ts`.
 2. **Human listening milestones** — the part no test can do. The program gates on three
    listening passes (A: after tempo-dependent swing; B: after the full-band vocabulary
    and intensity arc; C: final, all styles). Individual PRs between milestones rely on
@@ -23,10 +26,12 @@ The backing-track upgrade program ("professional session musicians") is verified
   3-chorus AABA form with a section map. Use the AABA preset for anything involving
   setups, fills, or chorus arc — loop mode replays a single generated pass, so a short
   loop literally cannot exhibit chorus-to-chorus behavior.
+- **Style**: swing, bossa nova, ballad, straight — the four styles at parity; defaults to
+  the Settings backing style. **Instrument**: piano or organ comping.
 - **Tempo presets**: 90 / 160 / 240 BPM — the protocol's three swing-feel anchors.
-- **Variation seed**: re-rolls every generation stream (the seed suffixes the phrase id,
-  which all seeds derive from). Seed 0 is canonical: the golden fixtures and the
-  reference bounces use it. The statistics report aggregates several seeds per preset.
+- **Variation seed** (0–99): re-rolls every generation stream (the seed suffixes the
+  phrase id, which all seeds derive from). Seed 0 is canonical: the golden fixtures and
+  the reference bounces use it. The statistics report aggregates several seeds per preset.
 - **Bounce to WAV**: renders the exact events the live engine would schedule, through the
   same instruments and mix math. Keep dated bounces (the filename embeds preset, style,
   tempo and date) as references for later comparisons.
@@ -70,7 +75,8 @@ For each milestone (A, B, C):
 2. Blind-A/B each against the corresponding baseline/previous-milestone bounce. If you
    don't have a dated reference WAV, reproduce one from data: grab the golden events JSON
    for the engine you want to compare against out of git history
-   (`git show <commit>:tests/fixtures/backing/golden-<preset>-<tempo>.json > old.json`),
+   (`git show <commit>:tests/fixtures/backing/golden-lab-blues-f-160.json > old.json` —
+   the pattern is `golden-<preset>[-<style>]-<tempo>.json`),
    then use the lab's **Render WAV from events JSON** — it plays any past engine's exact
    events through today's instruments and mix, so the comparison surface is placement,
    swing and vocabulary rather than level balance.
@@ -121,10 +127,10 @@ carrier) is the quietest voice in the mix (revisit balance in increment 9), and
 the pre-vocabulary engine's sparse repetitive texture gives the ear little to
 anchor on — vocabulary increments 5–7 are expected to dominate perception.
 
-### Baseline audit — pending
+### Baseline audit — never recorded
 
-The post-PR-#201 engine has not yet had a recorded listening pass (PR #36 and #201 both
-shipped without one). The first milestone-A session should start by auditing the baseline
-bounces and pasting the reports here — expected failures at baseline include: fixed swing
-ratio at all tempi, mutually-quantized instruments, comping loops on short forms, no
-snare (so no fills), and the synthesized metronome doubling the kit when enabled.
+The post-PR-#201 engine never had a checklist pass of its own (PR #36 and #201 both
+shipped without one); Milestone A heard it only as the "old" side of the blind pairs.
+The failures expected of it at the time: fixed swing ratio at all tempi,
+mutually-quantized instruments, comping loops on short forms, no snare (so no fills),
+and the synthesized metronome doubling the kit when enabled.

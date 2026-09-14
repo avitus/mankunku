@@ -246,6 +246,23 @@ describe('detectProgressions — synthetic harmony', () => {
 		expect(dets[0].segmentIndices).toEqual([1, 2, 0]);
 	});
 
+	it('restricts the scan to the requested shape types', () => {
+		// Mankunku Blues carries every shape the detector knows; asking for
+		// vamps and short cadences only must drop the turnarounds, the long
+		// ii-V-I and the blues bars without touching what remains.
+		const all = detect(MANKUNKU_BLUES);
+		const some = detect(MANKUNKU_BLUES, { types: ['ii-V-I-major', 'major-vamp'] });
+		expect(some.length).toBeGreaterThan(0);
+		expect(new Set(some.map((d) => d.type))).toEqual(new Set(['ii-V-I-major']));
+		expect(some).toEqual(all.filter((d) => d.type === 'ii-V-I-major'));
+		expect(detect(MANKUNKU_BLUES, { types: [] })).toEqual([]);
+	});
+
+	it('returns nothing for a tune with no harmony', () => {
+		const tune = sheet({ key: 'C', sections: [section({ bars: 4, harmony: [] })] });
+		expect(detect(tune)).toEqual([]);
+	});
+
 	it('coalesces split same-chord segments into one vamp anchored at the run head', () => {
 		const tune = sheet({
 			key: 'C',

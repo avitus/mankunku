@@ -127,4 +127,40 @@ describe('transcribeTake', () => {
 			expect(n.duration[0]).toBeGreaterThan(0);
 		}
 	});
+
+	it('hands the click grid to the segmenter — a worklet onset that is metronome bleed does not split a held note', () => {
+		// One D4 held for two beats from the entrance. The worklet fires on the
+		// attack and again 80 ms after the beat-2 click (speaker→mic latency,
+		// inside the segmenter's 50–200 ms bleed window). The click runs through
+		// the whole take, so only the analytic grid derived from the count-in
+		// offset tells the merge pass that second onset is not a re-attack;
+		// drop the grid at the call site and the half note becomes two D4s.
+		const beat = 60 / TEMPO;
+		const readings = steadyNote(62, ANCHOR, ANCHOR + 2 * beat);
+		const workletOnsets = [ANCHOR, ANCHOR + beat + 0.08];
+
+		const phrase = transcribeTake({ readings, workletOnsets, anchorOffset: ANCHOR, tempo: TEMPO });
+
+		expect(phrase).not.toBeNull();
+		const pitched = phrase!.notes.filter((n) => n.pitch !== null);
+		expect(pitched).toHaveLength(1);
+		expect(pitched[0].offset).toEqual([0, 1]);
+	});
+
+	it('hands the click grid to findReArticulations too — a click-masked hole in a held note is not a tongue stop', () => {
+		// A D4 held for four beats loses pitch tracking for ~200 ms around the
+		// beat-3 click, with the level unchanged either side. Unmasked, a hole
+		// that long with the energy sustained IS a tongue stop (bare-gap tier);
+		// with a scheduled click inside it the tier demands a real step-up. The
+		// articulation onset it would otherwise emit counts as attack evidence
+		// whatever the bleed grid says, so the segment-level merge cannot undo it.
+		const readings = steadyNote(62, ANCHOR, ANCHOR + 2).filter(
+			(r) => r.time - ANCHOR < 0.92 || r.time - ANCHOR >= 1.12
+		);
+
+		const phrase = transcribeTake({ readings, workletOnsets: [ANCHOR], anchorOffset: ANCHOR, tempo: TEMPO });
+
+		expect(phrase).not.toBeNull();
+		expect(phrase!.notes.filter((n) => n.pitch !== null)).toHaveLength(1);
+	});
 });

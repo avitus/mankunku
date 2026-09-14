@@ -52,6 +52,14 @@ describe('outbox', () => {
 		expect(map.progress.uid).toBe('user-a');
 	});
 
+	it("stamps anonymous enqueues 'anon' in the bare bucket, so a later signed-in drain uid-gates them", () => {
+		setActiveUid(null);
+		enqueue('progress');
+		const raw = localStorageMock.getItem('mankunku:outbox');
+		expect(raw).not.toBeNull();
+		expect(JSON.parse(raw!).progress.uid).toBe('anon');
+	});
+
 	it('does NOT drain (or drop) entries when the authenticated user differs from the active namespace', async () => {
 		enqueue('settings');
 		// A supabase client whose verified user is someone ELSE.

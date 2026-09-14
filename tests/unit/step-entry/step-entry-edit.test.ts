@@ -90,6 +90,14 @@ describe('loadFromPhrase', () => {
 		expect(stepEntry.barCount).toBe(4);
 	});
 
+	it('clamps a zero-bar lick up to one bar', () => {
+		loadFromPhrase(
+			makePhrase({ difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 0 } }),
+			INSTRUMENTS['concert']
+		);
+		expect(stepEntry.barCount).toBe(1);
+	});
+
 	it('round-trips key on a transposing instrument: getCurrentPhrase converts back to concert', () => {
 		const tenor = INSTRUMENTS['tenor-sax'];
 		loadFromPhrase(makePhrase({ key: 'F' }), tenor);

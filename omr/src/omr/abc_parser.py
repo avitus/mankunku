@@ -133,7 +133,9 @@ _STRING_RE = re.compile(r'"([^"]*)"')
 _INLINE_FIELD_RE = re.compile(r"\[([A-Za-z]):([^\]]*)\]")
 _BARLINE_RE = re.compile(r"(:+)?(\|\]|\[\||\|\||\||::)(:+)?(\d)?")
 _ENDING_RE = re.compile(r"\[(\d)")
-_TUPLET_RE = re.compile(r"\((\d)(?::(\d))?(?::(\d))?")
+# (p, (p:q, (p:q:r, (p:q: — or (p::r / (p:: with q omitted. The `::` form
+# must be matched whole here: left behind, it lexes as a double-repeat barline.
+_TUPLET_RE = re.compile(r"\((\d)(?::(\d)(?::(\d)?)?|::(\d)?)?")
 _NOTE_RE = re.compile(r"(\^{1,2}|_{1,2}|=)?([A-Ga-g])([',]*)(\d+/\d+|\d+/|/\d+|/+|\d+)?")
 _CLUSTER_INNER_RE = re.compile(
     r"(?:(?:\^{1,2}|_{1,2}|=)?[A-Ga-g][',]*(?:\d+/\d+|\d+/|/\d+|/+|\d+)?)+"
@@ -145,6 +147,36 @@ _GRACE_RE = re.compile(r"\{[^}]*\}")
 _SKIP_RE = re.compile(r"[\s`$\\)]+|\((?!\d)")
 
 _TUPLET_DEFAULT_Q = {2: 3, 3: 2, 4: 3, 6: 2, 8: 3}
+# (5, (7 and (9 are "in the time of n": three when the time signature is
+# compound, two otherwise. ABC 2.1 §4.13 defines compound by a closed list,
+# "(6/8, 9/8, 12/8)", and that list is the whole test. It was narrowed on
+# purpose: ABC 1.6 read "(3/8, 6/8, 9/8, 3/4, etc.)" (abcm2ps and abc2midi
+# still apply that as numerator % 3 == 0); 2.0 dropped the 3/4 and the "etc.",
+# and 2.1 and 2.2 keep the three.
+_COMPOUND_METERS = frozenset({(6, 8), (9, 8), (12, 8)})
+
+# ABC 2.1 §4.4 defines runs of one, two and three broken-rhythm markers.
+_BROKEN_MAX_DEPTH = 3
+
+
+def _tuplet_default_q(p: int, meter: tuple[int, int] | None) -> int:
+    """The q of a tuplet printed without one, under the meter in force."""
+    if p in _TUPLET_DEFAULT_Q:
+        return _TUPLET_DEFAULT_Q[p]
+    return 3 if meter in _COMPOUND_METERS else 2
+
+
+def _broken_factors(marker: str, depth: int) -> tuple[Fraction, Fraction]:
+    """(previous, next) duration multipliers for a run of ``depth`` markers.
+
+    ABC 2.1 §4.4: ``>`` dots the previous note and halves the next, ``>>``
+    double-dots it and quarters the next, ``>>>`` triple-dots it and divides
+    the next by eight; ``<`` is the mirror image. The pair's total length is
+    the same at every depth.
+    """
+    cut = Fraction(1, 2**depth)
+    dotted = 2 - cut
+    return (dotted, cut) if marker == ">" else (cut, dotted)
 
 
 def _parse_duration_suffix(suffix: str | None) -> Fraction:
@@ -202,7 +234,11 @@ class _BodyParser:
         self.key_acc = key_accidentals(header.key_raw or "")
         self.measure_acc: dict[tuple[str, int], str] = {}
         self.pending_strings: list[str] = []
-        self.pending_broken: str | None = None
+        # A broken-rhythm run waiting for the event after it: (marker, depth,
+        # the event before it, the run as printed). Neither event is rescaled
+        # until that second event arrives, so a run its bar closes on first
+        # pairs nothing and both keep their written lengths.
+        self.pending_broken: tuple[str, int, AbcEvent, str] | None = None
         self.tuplet_remaining = 0
         self.tuplet_factor = Fraction(1)
         self.tuplet_label: tuple[int, int] | None = None
@@ -223,6 +259,7 @@ class _BodyParser:
             self.pending_ending = None
 
     def close_bar(self, *, end_repeat: bool = False) -> None:
+        self._flag_unpaired_broken()
         bar = self.current
         if bar.events or bar.raw_unparsed:
             bar.end_repeat = end_repeat
@@ -237,12 +274,24 @@ class _BodyParser:
     # -- event helpers ------------------------------------------------------
 
     def _apply_broken(self, duration: Fraction) -> Fraction:
-        if self.pending_broken == ">":
-            duration *= Fraction(1, 2)
-        elif self.pending_broken == "<":
-            duration *= Fraction(3, 2)
-        self.pending_broken = None
+        """Complete a pending broken-rhythm pair: rescale the event before the
+        run by the first factor and return ``duration`` scaled by the second."""
+        if self.pending_broken is not None:
+            marker, depth, previous, _ = self.pending_broken
+            first, second = _broken_factors(marker, depth)
+            previous.duration *= first
+            duration *= second
+            self.pending_broken = None
         return duration
+
+    def _flag_unpaired_broken(self) -> None:
+        """A broken rhythm pairs two events of ONE bar. A run with no readable
+        event after it in its bar pairs nothing: it is kept verbatim like any
+        span the parser cannot read, and the event before it stays as written."""
+        if self.pending_broken is not None:
+            raw = self.pending_broken[3]
+            self.pending_broken = None
+            self._keep_unparsed(raw)
 
     def _apply_tuplet(self, duration: Fraction) -> tuple[Fraction, tuple[int, int] | None]:
         if self.tuplet_remaining > 0:
@@ -408,8 +457,18 @@ class _BodyParser:
             m = _TUPLET_RE.match(line, pos)
             if m:
                 p = int(m.group(1))
-                q = int(m.group(2)) if m.group(2) else _TUPLET_DEFAULT_Q.get(p, 2)
-                r = int(m.group(3)) if m.group(3) else p
+                printed_q = int(m.group(2)) if m.group(2) else None
+                printed_r = m.group(3) or m.group(4)
+                r = int(printed_r) if printed_r else p
+                if p < 2 or printed_q == 0 or r == 0:
+                    # ABC defines (2 through (9, and a zero ratio or count
+                    # means nothing — (0 divided by zero and aborted the
+                    # score. The spec costs its measure like any unreadable
+                    # span; the barline search starts past it, since a
+                    # (p::r spec itself contains `::`.
+                    pos = self._recover(line, pos, scan_from=m.end())
+                    continue
+                q = printed_q if printed_q is not None else _tuplet_default_q(p, self.meter)
                 self.tuplet_remaining = r
                 self.tuplet_factor = Fraction(q, p)
                 self.tuplet_label = (p, q)
@@ -461,18 +520,50 @@ class _BodyParser:
             pos = self._recover(line, pos)
 
     def _maybe_broken(self, line: str, pos: int) -> int:
-        if pos < len(line) and line[pos] in "<>":
-            marker = line[pos]
-            while pos < len(line) and line[pos] == marker:
-                pos += 1  # >> and <<< collapse to a single-level broken rhythm
-            if self.current.events:
-                last = self.current.events[-1]
-                last.duration *= Fraction(3, 2) if marker == ">" else Fraction(1, 2)
-            self.pending_broken = marker
+        """Consume a broken-rhythm run after an event and leave it pending
+        for the next one.
+
+        Whitespace either side of the marker is insignificant — ABC 2.1
+        §4.17 spaces its own example, ``[CEG]- > [CEG]``. LEGATO's
+        ``<|text|>`` placeholder opens with ``<`` and is not a marker.
+        """
+        start = pos
+        while start < len(line) and line[start] in " \t":
+            start += 1
+        if start >= len(line) or line[start] not in "<>" or _TEXT_TOKEN_RE.match(line, start):
+            return pos
+        marker, pos = line[start], start
+        while pos < len(line) and line[pos] == marker:
+            pos += 1
+        depth = pos - start
+        if depth > _BROKEN_MAX_DEPTH:
+            # Undefined past three (abc2midi rejects it too). Both notes keep
+            # their written lengths — the pair's total is depth-independent,
+            # so the bar still adds up — and the run surfaces verbatim.
+            self.warnings.append(
+                OMRWarning(
+                    code="BROKEN_RHYTHM_UNDEFINED",
+                    message=(
+                        f"broken-rhythm run of {depth} markers; ABC defines at most "
+                        f"{_BROKEN_MAX_DEPTH}, so both notes keep their written lengths"
+                    ),
+                    measure=len(self.bars) + 1,
+                    raw=line[start:pos],
+                )
+            )
+            return pos
+        # Called straight after add_event, so the bar's last event is the one
+        # the run follows.
+        self.pending_broken = (marker, depth, self.current.events[-1], line[start:pos])
         return pos
 
     def _try_chord_cluster(self, line: str, pos: int) -> int | None:
-        """Parse [CEG] — keep the top note (lead-sheet melody) and warn."""
+        """Parse [CEG] — keep the top note (lead-sheet melody) and warn.
+
+        The kept event has the CHORD's length, not the top note's: ABC 2.1
+        §4.17 gives a chord of unequal notes its first note's length, times
+        any length after the closing bracket.
+        """
         end = line.find("]", pos)
         if end == -1:
             return None
@@ -498,7 +589,7 @@ class _BodyParser:
         after = dur_match.end() if dur_match else after
 
         top = max(events, key=lambda e: e.midi or 0)
-        top.duration = max(e.duration for e in events) * outer_mult
+        top.duration = events[0].duration * outer_mult
         top.duration = self._apply_broken(top.duration)
         top.duration, top.tuplet = self._apply_tuplet(top.duration)
         tied = after < len(line) and line[after] == "-"
@@ -514,26 +605,56 @@ class _BodyParser:
                 raw=line[pos : end + 1],
             )
         )
-        return after
+        # A chord takes the same postfixes as a note (ABC 2.1 §4.17).
+        return self._maybe_broken(line, after)
 
-    def _recover(self, line: str, pos: int) -> int:
-        bar_match = _BARLINE_RE.search(line, pos)
+    def _recover(self, line: str, pos: int, *, scan_from: int | None = None) -> int:
+        """Keep ``line[pos:]`` up to the next barline verbatim as unparsed.
+
+        ``scan_from`` starts the barline search later than ``pos`` when the
+        unreadable span opens with a lexeme that itself looks like a barline.
+        """
+        # Whatever the span held is lost, so a broken-rhythm run waiting for
+        # its next event has no readable one: flagged first, in printed order.
+        self._flag_unpaired_broken()
+        bar_match = _BARLINE_RE.search(line, pos if scan_from is None else scan_from)
         end = bar_match.start() if bar_match else len(line)
         span = line[pos:end].strip()
         if span:
-            self.current.raw_unparsed.append(span)
-            self.warnings.append(
-                OMRWarning(
-                    code="UNPARSEABLE_REGION",
-                    message=f"unparseable ABC span in measure {len(self.bars) + 1}",
-                    measure=len(self.bars) + 1,
-                    raw=span,
-                )
-            )
+            self._keep_unparsed(span)
         return end if end > pos else pos + 1
+
+    def _keep_unparsed(self, span: str) -> None:
+        """Preserve ``span`` verbatim on the current measure and warn."""
+        self.current.raw_unparsed.append(span)
+        self.warnings.append(
+            OMRWarning(
+                code="UNPARSEABLE_REGION",
+                message=f"unparseable ABC span in measure {len(self.bars) + 1}",
+                measure=len(self.bars) + 1,
+                raw=span,
+            )
+        )
 
     def finish(self) -> list[AbcBar]:
         self.close_bar()
+        if self.pending_strings:
+            # A quoted string after the last event (an annotation over the
+            # final barline) has no note or rest to attach to. Attaching it to
+            # the previous note would put a chord at the wrong onset, so it is
+            # kept verbatim in a warning instead of being dropped silently.
+            self.warnings.append(
+                OMRWarning(
+                    code="UNANCHORED_STRING",
+                    message=(
+                        f"{len(self.pending_strings)} quoted string(s) after the last "
+                        "event have no note or rest to attach to"
+                    ),
+                    measure=len(self.bars) or None,
+                    raw=" ".join(f'"{s}"' for s in self.pending_strings),
+                )
+            )
+            self.pending_strings = []
         if self.text_elided:
             self.warnings.append(
                 OMRWarning(

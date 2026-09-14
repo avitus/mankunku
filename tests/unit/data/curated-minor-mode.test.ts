@@ -25,7 +25,7 @@ describe('curated minor licks', () => {
 	});
 
 	it('the hand-written cadence and minor-chord files state the mode explicitly', () => {
-		// Combiner-generated entries (source 'generated') rely on their Cm7
+		// Combiner entries (source 'combined') rely on their Cm7
 		// context harmony; the curated literals carry the field.
 		for (const l of minorLicks.filter((x) => x.source === 'curated')) {
 			expect(l.mode, `${l.id} (${l.category})`).toBe('minor');

@@ -26,7 +26,7 @@ export const welcomeTour: DriveStep[] = [
 		popover: {
 			title: 'Side A — Ear Training',
 			description:
-				"This is the call-and-response side. Mankunku plays a lick, you play it back. Each day rotates a new key + scale combination, and the difficulty adapts to your recent accuracy.",
+				"This is the call-and-response side. Mankunku plays a lick, you play it back. It works in one key + scale at a time — the daily key — and the difficulty adapts to your recent accuracy.",
 			side: 'right',
 			align: 'start'
 		}
@@ -36,7 +36,7 @@ export const welcomeTour: DriveStep[] = [
 		popover: {
 			title: "Today's key",
 			description:
-				"Every 24 hours rotates through a new key + scale. Practicing all 12 keys is the canonical jazz drill — Coltrane practiced standards in every key before recording.",
+				"The key + scale you're working in. It holds for a few days at first, then changes daily once you've unlocked more, and new keys and scales join as you improve. Practicing all 12 keys is the canonical jazz drill — Coltrane practiced standards in every key before recording.",
 			side: 'bottom',
 			align: 'start'
 		}
@@ -46,7 +46,7 @@ export const welcomeTour: DriveStep[] = [
 		popover: {
 			title: 'Side B — Lick Practice',
 			description:
-				"This side rotates a tagged lick across all 12 keys over a chord progression (ii–V–I, blues, rhythm changes…). Backing track keeps time. Tag licks from your book to fill your set.",
+				"This side rotates a tagged lick through the keys it has earned over a chord progression (ii–V–I, turnaround, blues…), adding keys until it has all 12. A generated rhythm section keeps time. Tag licks from your book to fill your set.",
 			side: 'left',
 			align: 'start'
 		}
@@ -66,7 +66,7 @@ export const welcomeTour: DriveStep[] = [
 		popover: {
 			title: 'Your Tunes',
 			description:
-				"Whole song forms — charted by hand, imported from iReal Pro, Band-in-a-Box, MuseScore or a PDF, or adopted from the community. Open one and hit Practice licks: the app finds the ii-Vs and turnarounds in the changes and hands you those spots to fill from your practice set. It's where Side A and Side B pay off.",
+				"Whole song forms — charted by hand, imported from iReal Pro, Band-in-a-Box, MuseScore or a PDF, or adopted from the community. Open one and hit Practice licks: the band plays the form, and the app finds the ii-Vs and turnarounds in the changes and hands you those spots to fill with licks from your book. It's where Side A and Side B pay off.",
 			side: 'bottom',
 			align: 'center'
 		}
@@ -76,7 +76,7 @@ export const welcomeTour: DriveStep[] = [
 		popover: {
 			title: 'Progress',
 			description:
-				"Your practice calendar, streak, scale proficiency, and recent sessions live here. Daily summaries persist beyond the 100-session pruning window.",
+				"Your practice calendar, streak, scale proficiency, key unlocks, and recent sessions live here. The calendar keeps every day you've practiced, even after older session details roll off.",
 			side: 'bottom',
 			align: 'center'
 		}
@@ -86,7 +86,7 @@ export const welcomeTour: DriveStep[] = [
 		popover: {
 			title: "Let's go.",
 			description:
-				"Tap Ear Training when you're ready. The app will load your instrument samples, play a phrase, then listen for your response. You can take this tour again from Settings.",
+				"Tap Ear Training when you're ready. The app will load your instrument samples, play a phrase, then listen for your response. You can take this tour again from Settings → Tours & Help.",
 			side: 'bottom',
 			align: 'center'
 		}

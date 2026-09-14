@@ -133,6 +133,31 @@ describe('transposeTune', () => {
 		expect(transposed.sections[0].harmony[0].symbol).toBeUndefined();
 	});
 
+	it('moves a slash chord\'s bass with its root, keeps rests silent, and leaves the pickup length alone', () => {
+		const sheet = userSheet();
+		sheet.sections[0].pickupLength = [1, 4];
+		sheet.sections[0].notes = [
+			{ pitch: null, duration: [3, 4], offset: [0, 1] },
+			{ pitch: 60, duration: [1, 4], offset: [3, 4] }
+		];
+		sheet.sections[0].harmony[0] = {
+			chord: { root: 'C', quality: '7', bass: 'E' },
+			scaleId: 'major.mixolydian',
+			startOffset: [0, 1],
+			duration: [1, 1],
+			symbol: 'C7/E'
+		};
+		const transposed = transposeTune(sheet, 'Eb');
+		// C7/E up a minor third is Eb7/G — never Eb7 over the old E.
+		expect(transposed.sections[0].harmony[0].chord).toEqual({ root: 'Eb', quality: '7', bass: 'G' });
+		expect(transposed.sections[0].harmony[0].symbol).toBe('Eb7/G');
+		expect(transposed.sections[0].notes.map((n) => n.pitch)).toEqual([null, 63]);
+		// The anacrusis is a length, not a pitch: key-invariant.
+		expect(transposed.sections[0].pickupLength).toEqual([1, 4]);
+		// The source sheet is not mutated.
+		expect(sheet.sections[0].harmony[0].chord.bass).toBe('E');
+	});
+
 	it('keeps the melody within the requested range via octave adjustment', () => {
 		const sheet = userSheet();
 		sheet.sections[0].notes = [

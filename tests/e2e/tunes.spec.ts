@@ -15,7 +15,7 @@ test.beforeEach(async ({ page }) => {
 	await seedTunes(page);
 });
 
-test('header links route to the community browse and the add chooser', async ({ page }) => {
+test('header links route to the community browse and the add chooser', async ({ page, consoleCollector: _c }) => {
 	await page.goto('/tunes');
 	await expect(page.getByRole('link', { name: /browse community/i }).first()).toHaveAttribute(
 		'href',
@@ -27,7 +27,7 @@ test('header links route to the community browse and the add chooser', async ({ 
 	);
 });
 
-test('tune book lists curated tunes and the user book', async ({ page }) => {
+test('tune book lists curated tunes and the user book', async ({ page, consoleCollector: _c }) => {
 	await page.goto('/tunes');
 
 	await expect(page.getByRole('heading', { name: 'Tunes', exact: true })).toBeVisible();
@@ -41,7 +41,7 @@ test('tune book lists curated tunes and the user book', async ({ page }) => {
 	await expect(page.getByRole('button', { name: /Open Mankunku Blues/ })).toBeVisible();
 });
 
-test('search filters the catalog', async ({ page }) => {
+test('search filters the catalog', async ({ page, consoleCollector: _c }) => {
 	await page.goto('/tunes');
 
 	await page.getByPlaceholder(/search by title/i).fill('amazing');
@@ -50,7 +50,7 @@ test('search filters the catalog', async ({ page }) => {
 	await expect(page.getByRole('button', { name: /Open Test Session Tune/ })).toHaveCount(0);
 });
 
-test('detail page renders a multi-system chart with transposed chord symbols', async ({ page }) => {
+test('detail page renders a multi-system chart with transposed chord symbols', async ({ page, consoleCollector: _c }) => {
 	await page.goto('/tunes/ls-when-the-saints');
 
 	await expect(page.getByRole('heading', { name: 'When the Saints Go Marching In' })).toBeVisible();
@@ -72,7 +72,7 @@ test('detail page renders a multi-system chart with transposed chord symbols', a
 		.toBeGreaterThan(0);
 });
 
-test('user sheet detail supports the two-stage delete', async ({ page }) => {
+test('user sheet detail supports the two-stage delete', async ({ page, consoleCollector: _c }) => {
 	await page.goto('/tunes/e2e-user-sheet-1');
 
 	await expect(page.getByRole('heading', { name: 'Test Session Tune' })).toBeVisible();
@@ -92,7 +92,7 @@ test('user sheet detail supports the two-stage delete', async ({ page }) => {
 	expect(JSON.parse(stored ?? '[]')).toEqual([]);
 });
 
-test('key selector re-transposes the chart', async ({ page }) => {
+test('key selector re-transposes the chart', async ({ page, consoleCollector: _c }) => {
 	await page.goto('/tunes/e2e-user-sheet-1');
 
 	// Tenor default: concert C sheet shows written D as the active key.
