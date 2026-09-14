@@ -109,6 +109,8 @@ Schedule a follow-on phrase onto the already-running Transport without stopping 
 
 Stop current playback immediately — transport, metronome, backing track, and all ringing notes.
 
+Pending phrase setup is invalidated before this function yields. A `playPhrase()` still waiting for Tone or audio-context activation exits without scheduling playback, even if the caller does not await `stopPlayback()` during page teardown. A newer play request also supersedes an older activation; the older request cannot stop or replace the newer phrase.
+
 ### `phraseToEvents(phrase, tempo, swing, ppq): PlaybackEvent[]`
 
 The pure note → event conversion behind `playPhrase`: `extractSoundingNotes` (rest-skip + tie-merge), then `computeExpression` at `'moderate'` intensity, then tick placement with the swing pre-shift and humanization described above. The expression pass never touches timing, so the swung onset grid stays identical to the scorer's. Each `PlaybackEvent` carries `{ time, midi, duration, velocity, layerVelocity, release, cutoffHz, detune }` — `velocity` is the humanized loudness, `layerVelocity` the intended, un-humanized value that picks the piano/forte sample layer, so timbre tracks intent and never flickers with gain jitter.
