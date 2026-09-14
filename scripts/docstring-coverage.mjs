@@ -27,7 +27,7 @@ if (base.startsWith('-')) throw new Error('The base reference must not start wit
 // Argument-based git, so a ref with shell metacharacters is a ref, not a command.
 const diff = execFileSync(
 	'git',
-	['diff', '-U0', '--diff-filter=AM', base, '--', '*.ts', '*.svelte', '*.js', '*.mjs', '*.cjs'],
+	['diff', '-U0', '--diff-filter=AMR', base, '--', '*.ts', '*.svelte', '*.js', '*.mjs', '*.cjs'],
 	{ encoding: 'utf8', maxBuffer: 1 << 28 }
 );
 

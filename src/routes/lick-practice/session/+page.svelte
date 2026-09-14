@@ -446,12 +446,19 @@
 		if (micCapture) return true;
 		try {
 			micCapture = await captureModule.startMicCapture();
+			if (destroyed) {
+				// Teardown ran while the prompt was open: onDestroy's stopAll()
+				// found nothing to release, so release it here, publish nothing.
+				captureModule.stopMicCapture();
+				micCapture = null;
+				return false;
+			}
 			levelInterval = setInterval(() => {
 				captureModule!.getInputLevel();
 			}, 50);
 			if (onsetModule && !onsetDetector) {
 				try {
-					onsetDetector = await onsetModule.createOnsetDetector(
+					const onset = await onsetModule.createOnsetDetector(
 						micCapture.context,
 						micCapture.source,
 						// Per-onset stabilizer reset: each note attack warms up
@@ -466,6 +473,13 @@
 							}
 						}
 					);
+					if (destroyed) {
+						// The worklet came up after teardown; the caller's stopAll()
+						// releases the mic and its poll, this releases the worklet.
+						onset.dispose();
+						return false;
+					}
+					onsetDetector = onset;
 				} catch {
 					// AudioWorklet unavailable
 				}
@@ -486,12 +500,17 @@
 	 */
 	async function ensurePitchDetector(): Promise<void> {
 		if (!pitchModule || !micCapture || pitchDetector) return;
-		pitchDetector = await pitchModule.createPitchDetector(
+		const detector = await pitchModule.createPitchDetector(
 			micCapture.analyser,
 			() => {
 				/* no-op — session page polls readings itself */
 			}
 		);
+		// Teardown during creation has already released the capture; a
+		// detector that was never started has nothing to stop — just don't
+		// publish it (or read `micCapture.context` off a cleared capture).
+		if (destroyed || !micCapture) return;
+		pitchDetector = detector;
 		// Capture the mic-context time at the exact moment start() sets its
 		// internal recordingStartTime. PitchReading.time is always relative
 		// to that moment, so closeAndScoreWindow needs this to rebase
@@ -573,6 +592,9 @@
 				return;
 			}
 			console.warn('[lick-practice] audio setup failed:', err);
+			// The mic, its level poll and the elapsed timer are already
+			// running; the banner below is a stopped session, not a paused one.
+			stopAll();
 			loadError = true;
 			plannedKeysForLick = [];
 			rowOfKey = [];
