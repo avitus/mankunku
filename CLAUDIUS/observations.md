@@ -2063,3 +2063,32 @@ the same change. But "fix the calculation" and "add a synced column plus a
 production migration" are different asks, and the honest 0.5-minute estimate
 carries its own docstring saying exactly what it would take to make it exact.
 Leaving a well-labelled approximation beats an unasked migration.
+
+## 2026-09-13 — A "make the assertion stricter" nit that was a bug report
+
+CodeRabbit's comment on the prune test was filed as Minor, Quick win: `<= 2`
+passes if pruning deletes too much, so assert `== 2`. Routine. Except that
+tightening it would have FAILED: the prune kept one release, not two, because
+`ls -1t | tail -n +3` counts every entry in releases/ toward KEEP_RELEASES and
+the operator's `pre-migration-*` snapshot is newer than every release. The
+test had been passing for months with the permissive comparison exactly
+because the permissive comparison covered the bug. Worth keeping as a
+reflex: when a reviewer asks for a stricter assertion, the question is not
+"is the stricter assertion true" but "what does the code do when I try" —
+run it before editing the test, because a `<=` that was written instead of
+`==` is often a `==` that didn't pass at the time.
+
+The other widening was the reverse shape. CodeRabbit asked one flush handler
+to throw on a scope-generation change so the outbox would keep the intent —
+a correct local fix. Grep found the same silent return in six handlers. The
+fix belongs where the class lives: the drain captures the generation before
+each push and treats a change like a uid switch. One place, every kind, no
+handler has to remember. Andy's rule about fixing the whole bug class is a
+rule about WHERE to fix, as much as how many places.
+
+And the 300-file cap is a signal about cadence, not tooling. Nothing in
+CodeRabbit's config raises it; path filters got #249 under, but the honest
+reading is that 24 commits and 312 files is too much for one review to
+carry — a reviewer that reads 273 files in twenty minutes is reading them
+thinly. The filter for `documentation/**` is temporary and says so in the
+yaml; the durable fix is merging dev to main more often.

@@ -3547,3 +3547,119 @@ user and I can live with the slight inconsistency."
   not with a command that resets to the index.
 - Verified: vitest 302 files / 5024 passed; svelte-check 2786 clean; 10
   /progress-area e2e green on chromium. `origin/dev` 21f5d1b.
+
+## 2026-09-13 — #249 dev→main: CodeRabbit's 300-file cap, one review round, the coverage row
+
+Andy: "Open a PR from dev to main and handle all CodeRabbit's review
+comments."
+
+- 24 commits since #248, 312 files. The PR body was written from the commit
+  messages; CI on the dev head was already green.
+- **CodeRabbit skipped the PR outright** — "Too many files! 312, 12 over the
+  limit of 300." No setting raises the cap. Took a 40-file cut through
+  `.coderabbit.yaml` path filters: `CLAUDIUS/**` and `MEMORY.md` out for good
+  (notes, not code), `documentation/**` out for THIS PR only — the tally of
+  inline threads on #240–#248 (37 src, 10 documentation, 4 tests, 4
+  MEMORY.md, 2 CLAUDE.md) says the docs comments are worth keeping. The
+  config is read from the head branch: pushing the yaml to dev re-ran the
+  review with 273 files selected.
+- **Round 1: 11 threads, 1 outside-diff comment, the coverage row at
+  24.46%.** All twelve applied; three widened past what the comment asked:
+  - the outbox, not the flush handler. CodeRabbit wanted
+    `flushLickMetadataToCloud` to throw on a scope-generation change so the
+    drain would keep the intent; the same silent return sits in six flush
+    handlers, so the drain now captures the generation per push and keeps
+    the entry when it moved — the uid gate alone cannot see a bump that
+    leaves the pointer in place (`wipeUserData` bumps before it re-homes).
+    Pinned through a mocked `getScopeGeneration`.
+  - the prune test's `matching <= 2` was hiding a real bug, not just a weak
+    assertion: `ls -1t | tail -n +3` counted the hand-made `pre-migration-*`
+    dir and the stray file — both newer than every release — toward
+    KEEP_RELEASES, so KEEP=2 retained one release. release.sh filters to
+    release ids before counting; the test asks for exactly two.
+  - record-a-lick's four sequential awaits → `Promise.all`, assigned only
+    when all four are in, after the teardown check; Record disabled on
+    failure. The two editors and ear training disable and dim Play and say
+    why. Ear training and the lick-practice session return on `destroyed`
+    after a SUCCESSFUL import too — the rejection path had the guard, the
+    success path was starting timers and opening the mic on a dead page.
+- **The coverage row** now has a tool: `scripts/docstring-coverage.mjs`
+  (`npm run docstrings:check`), a TypeScript-AST scan that maps every changed
+  line of the working-tree diff to its enclosing declaration. 216 touched
+  functions, 100 documented. Four parallel agents wrote the 116 (14 in src/,
+  the rest test helpers); the audit of their 57 files found every added line
+  a comment line and one orphan docstring in tune-notation.ts moved to the
+  function it names. 217/217 after. Two things learned on the way: a scan of
+  the COMMITTED range read against a tree with uncommitted insertions lands
+  its line numbers on the wrong declarations (group C caught it); and I told
+  the agents to satisfy prettier — the repo has no prettier — caught before
+  any file was rewritten.
+- Verified on the sidecar, booted fresh from the snapshot (which needed
+  `npm ci` first: 10 svelte-check errors and 4 vitest failures of dependency
+  drift, all gone after): vitest 302 files / 5025 passed + 36 expected-fail,
+  svelte-check 0/0, the deploy suite green with the exact-count assertion,
+  full chromium e2e 208 passed / 5 skipped in 3.5 min. Pushed as 3c31b09 +
+  e85ce03 + a09a646 at 20:00Z.
+- **Round 2 (20:32Z, incremental over 72 files): 1 thread, 2 outside-diff,
+  1 nitpick — all applied.** The same shape as round 1, one await deeper:
+  ear training guarded the import but wrote `session.micPermission` after a
+  second await (`checkMicPermission`); the outbox's catch path lacked the
+  generation check its success path had just gained (a failure after a
+  same-uid bump would inflate the NEW scope's backoff); `initializeSession`
+  checked `destroyed` only in its catch — a navigation during the mic prompt,
+  the sample load or the detector start let the success path open the mic
+  and call `startLick()` on a page whose `stopAll()` had already run. Each
+  boundary now returns through `stopAll()` (idempotent: the archival arm
+  keys off `keyResults`, empty at init), the catch path included, since the
+  mic is already open by then. The nitpick: the scanner's `execSync` with an
+  interpolated ref → `execFileSync` with an argument list. 10 of 11 round-1
+  threads auto-resolved; the outbox one stayed open because the fix is in
+  the drain, not the file it pointed at — resolved by hand after confirming
+  the drain carries both checks.
+- **The coverage row is a ceiling, not a target, on a test-heavy diff.**
+  24.46% → 40.20% after 116 docstrings, and the kinds breakdown over the
+  incremental range says why the rest can't move: 21 named declarations vs
+  97 call-argument arrows — the `describe`/`it`/`onMount` callbacks enclosing
+  every changed line, the ones around a helper that just gained a docstring
+  included. CodeRabbit's 121 documented of 301 is the named set exactly; the
+  180 are anonymous. Documented the named declarations, stopped there, and
+  wrote the rule down (MEMORY.md) so the next release PR doesn't chase it.
+- Verified (round 2) on the sidecar: vitest 302 files / 5025 passed + 36
+  expected-fail, svelte-check 0/0, chromium e2e 208 passed / 5 skipped.
+- **Round 3 (01:15Z, 4 files): 3 threads + 1 outside-diff; three applied,
+  one skipped on the record.** Applied: `--diff-filter=AMR` so the scanner
+  follows renames; `stopAll()` on an ACTIVE-page setup failure too (the mic,
+  its poll and the elapsed timer had stayed running under the banner); and
+  the helpers themselves — `ensureMicCapture` releases a capture that
+  answered after teardown instead of publishing it, disposes a worklet that
+  came up late, and `ensurePitchDetector` declines to publish a detector
+  created against a capture teardown has already cleared (the old code
+  threw on `micCapture.context` there, caught one level up — worked by
+  accident). Skipped: a pending-drain timer for the outbox when a scope
+  move ends a drain without a reload — the early return mirrors the
+  pre-existing uid-switch return, the intent is durable and drains on the
+  next enqueue / page hide / hydration, and the data layer's standing rule
+  is no speculative machinery. Replied on the thread and resolved it.
+  Also in this push: the temporary `!documentation/**` filter comes out of
+  `.coderabbit.yaml`, as its comment promised.
+- Verified (round 3) on the sidecar: vitest 302 files / 5025 passed + 36
+  expected-fail, svelte-check 0/0, chromium e2e 208 passed / 5 skipped.
+- **Round 4 (01:34Z, 3 files; `.coderabbit.yaml` listed as "no reviewable
+  changes" — the config edit triggered no full pass and no cap check): 0
+  inline, 1 outside-diff, skipped.** `startLick()` fires `playPhrase()`
+  unawaited, so a teardown during playPhrase's own awaits lets it schedule
+  transport resources after `stopAll()`. Real, but pre-existing, shared by
+  every practice route, and the fix is a cancellation boundary inside
+  `audio/playback`, not another guard on this page — out of a review-fix
+  commit's scope and past the loop's three-round cap. Filed as a follow-up
+  and noted on the PR. Each round found the next await boundary down the
+  same chain; that is the shape to expect from a stability-minded reviewer
+  on teardown code, and the cap is what stops it. CodeRabbit accepted the
+  outbox skip in its reply and recorded a learning for the drain's early
+  return.
+- **Final state on e4c405b4:** 15 threads, 0 open; CodeRabbit check green;
+  CI test / e2e / omr-test green; Docstring Coverage stays a 40.20% warning
+  (anonymous callbacks). Four review passes in all — one full over 273
+  files, three incremental. The main checkout's `dev` still sits at
+  7c8d535c: this worktree pushed `HEAD:dev` throughout, so a
+  `git pull --ff-only` there catches it up.
