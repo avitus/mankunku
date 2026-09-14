@@ -6,8 +6,10 @@ import type { Trick, TrickContext, TrickParameters } from '$lib/types/tricks';
 import type { PitchClass } from '$lib/types/music';
 import type { ChordProgressionType } from '$lib/types/lick-practice';
 import type { InstrumentConfig } from '$lib/types/instruments';
-import { PROGRESSION_TEMPLATES } from '$lib/data/progressions';
-import { writtenKeyToConcert } from '$lib/music/transposition';
+import { PROGRESSION_TEMPLATES, transposeProgression } from '$lib/data/progressions';
+import { pitchClassInterval, transposePitchClass, writtenKeyToConcert } from '$lib/music/transposition';
+import { chordSymbol } from '$lib/music/chords';
+import { resolveEnclosurePracticeBed } from './enclosure-practice';
 import { enclosuresTrick } from './devices/enclosures';
 import { triadPairsTrick } from './devices/triad-pairs';
 
@@ -100,20 +102,74 @@ export function trickPracticeBed(
 	return trick.practiceBed?.(parameters) ?? 'major-vamp';
 }
 
+/** Session-only bed selection; other tricks keep their own family bed. */
+export function resolveTrickPracticeBed(
+	trick: Trick,
+	parameters: TrickParameters,
+	requested?: ChordProgressionType
+): ChordProgressionType {
+	return trick.id === 'enclosures'
+		? resolveEnclosurePracticeBed(parameters, requested)
+		: trickPracticeBed(trick, parameters);
+}
+
+/** Keep the stored variant family canonical for its selected practice bed. */
+export function normalizeTrickPracticeParameters(
+	trick: Trick,
+	parameters: TrickParameters,
+	requested?: ChordProgressionType
+): TrickParameters {
+	if (trick.id !== 'enclosures') return { ...parameters };
+	const bed = resolveTrickPracticeBed(trick, parameters, requested);
+	const type = bed === 'dominant-vamp' ? 'dominant'
+		: bed === 'minor-vamp' || bed === 'ii-V-I-minor-long' ? 'minor' : 'major';
+	return { ...parameters, type };
+}
+
 /** A full `TrickContext` rooted at `key`, over the variant's own practice bed. */
 export function trickContextFor(
 	trick: Trick,
 	parameters: TrickParameters,
 	key: PitchClass,
-	tempo: number
+	tempo: number,
+	progressionType?: ChordProgressionType
 ): TrickContext {
+	const bed = PROGRESSION_TEMPLATES[resolveTrickPracticeBed(trick, parameters, progressionType)];
+	const harmony = transposeProgression(bed.harmony, key);
+	const first = harmony[0];
 	return {
-		...trickBedHarmony(trick, parameters),
-		chordRoot: key,
+		chordQuality: first.chord.quality,
+		scaleId: first.scaleId,
+		chordRoot: first.chord.root,
 		key,
 		timeSignature: [4, 4],
 		level: 50,
 		tempo,
-		swing: 0.5
+		swing: 0.5,
+		...(harmony.length > 1 ? { harmony } : {})
+	};
+}
+
+/** Move the entire context from its tonic to a practiced key, without mutating it. */
+export function transposeTrickContext(context: TrickContext, key: PitchClass): TrickContext {
+	const semitones = pitchClassInterval(context.key, key);
+	return {
+		...context,
+		key,
+		chordRoot: transposePitchClass(context.chordRoot, semitones),
+		...(context.harmony ? {
+			harmony: context.harmony.map((segment) => {
+				const root = transposePitchClass(segment.chord.root, semitones);
+				return {
+					...segment,
+					chord: {
+						...segment.chord,
+						root,
+						...(segment.chord.bass ? { bass: transposePitchClass(segment.chord.bass, semitones) } : {})
+					},
+					symbol: chordSymbol(root, segment.chord.quality)
+				};
+			})
+		} : {})
 	};
 }

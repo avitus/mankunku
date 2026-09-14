@@ -2092,3 +2092,10 @@ reading is that 24 commits and 312 files is too much for one review to
 carry — a reviewer that reads 273 files in twenty minutes is reading them
 thinly. The filter for `documentation/**` is temporary and says so in the
 yaml; the durable fix is merging dev to main more often.
+
+
+## 2026-09-14 — A diagram can expose a musical model error
+
+The enclosure canvas made an implicit promise explicit: a note drawn below the target should sound below it. Pitch-class scoring had never needed that guarantee, and the old nearest-note walk could put an approach an octave above the arrival when a chord changed. The useful unit of register selection is the whole gesture, anchored on its target. Reusing slots across scoring, playback and the graphic helps, but the graphic also needs the realized register; a pitch class alone cannot express the relationship the player is learning.
+
+Progression choice is a different axis from the gesture. Keeping it outside the enclosure parameters preserves both the old mastery identities and the ability to practice one idea in several harmonic settings. The new registry should remain references to the existing progression catalog, rather than a second collection of chord definitions.

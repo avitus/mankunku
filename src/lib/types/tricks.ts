@@ -12,7 +12,7 @@
  * generated preview phrase.
  */
 
-import type { ChordQuality, Fraction, Phrase, PhraseCategory, PitchClass } from './music';
+import type { ChordQuality, Fraction, HarmonicSegment, Phrase, PhraseCategory, PitchClass } from './music';
 import type { DetectedNote } from './audio';
 // Type-only, so the tricks ↔ lick-practice type cycle is erased at runtime.
 import type { ChordProgressionType } from './lick-practice';
@@ -65,6 +65,12 @@ export interface TrickContext {
 	 * Devices without a span distinction (triad-pairs) ignore it.
 	 */
 	figure?: 'full' | 'compact';
+	/**
+	 * Optional progression cycle in concert pitch, starting at offset zero.
+	 * The device adds its pickup when building the full figure. Kept outside
+	 * parameters so choosing a practice bed never rewrites a mastery key.
+	 */
+	harmony?: HarmonicSegment[];
 }
 
 /**
@@ -88,6 +94,8 @@ export interface TrickSlotSpec {
 	generatePc?: number;
 	/** Diagnostic role label, e.g. 'target', 'approach-above', 'chromatic-below', 'triad-a' */
 	role: string;
+	/** Arrival harmony for this formula slot, including its preceding approaches. */
+	harmonicContext?: Pick<TrickContext, 'chordRoot' | 'chordQuality' | 'scaleId'>;
 }
 
 /** Conformance tier for one expected slot, best → worst. */

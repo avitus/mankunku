@@ -29,10 +29,23 @@ import {
 	resetSession,
 	getLickBars,
 	getDemoBars,
-	getKeyBars
+	getKeyBars,
+	getCurrentPhrase,
+	getCurrentHarmony,
+	getPhraseFor,
+	getPlannedKeysForLick,
+	buildLickSuperPhrase,
+	getSessionReport,
+	trickPracticeProgressKey,
+	trickPracticeLabel
 } from '$lib/state/lick-practice.svelte';
 import { trickVariantKey, type TrickParameters } from '$lib/types/tricks';
-import { getTrickById, trickContextFor } from '$lib/tricks';
+import { getTrickById, trickContextFor, transposeTrickContext } from '$lib/tricks';
+import { getVariantByKey } from '$lib/tricks/mastery';
+import { PITCH_CLASSES } from '$lib/types/music';
+import { fractionToFloat } from '$lib/music/intervals';
+import { scoreFluency } from '$lib/scoring/fluency';
+import { migrateEnclosureVariantKey } from '$lib/persistence/trick-state-migrations';
 import {
 	loadTrickPracticeProgress,
 	saveTrickPracticeProgress,
@@ -98,10 +111,201 @@ beforeEach(() => {
 	lickPractice.progress = {};
 	lickPractice.config.trickId = 'enclosures';
 	lickPractice.config.trickParameters = { ...E1_PARAMS };
+	lickPractice.config.trickProgressionType = undefined;
+	lickPractice.config.practiceMode = 'continuous';
 	lickPractice.config.tempoBumpPercent = undefined;
 	// Explicit anchor for the key pins below: on the tenor (a Bb horn) the
 	// player's written C is concert Bb, so the drill rotation starts there.
 	settings.instrumentId = 'tenor-sax';
+});
+
+describe('enclosure progression sessions', () => {
+	const enclosure = getTrickById('enclosures')!;
+	const beds = ['ii-V-I-major-long', 'ii-V-I-minor-long'] as const;
+
+	it('keeps progression progress stable, canonical and separate from every family key', () => {
+		const major = trickPracticeProgressKey(enclosure, E1_PARAMS, beds[0]);
+		const minor = trickPracticeProgressKey(enclosure, E1_PARAMS, beds[1]);
+		expect(major).toBe(`trick-progression:${beds[0]}:${E1_KEY}`);
+		expect(minor).not.toBe(major);
+		expect(trickPracticeProgressKey(enclosure, { ...E1_PARAMS, type: 'dominant' }, beds[0])).toBe(major);
+		expect(trickPracticeProgressKey(enclosure, { ...E1_PARAMS, type: 'minor' }, beds[1])).toBe(minor);
+		expect(trickPracticeProgressKey(enclosure, E1_PARAMS)).toBe(E1_KEY);
+		// The old enclosure migration must never reinterpret the new namespace.
+		expect(migrateEnclosureVariantKey(major)).toBe(major);
+		expect(migrateEnclosureVariantKey(minor)).toBe(minor);
+	});
+
+	it.each(beds)('starts %s independently of the standard lick progression and remembered family', (bed) => {
+		lickPractice.config.progressionType = 'blues';
+		lickPractice.config.trickParameters = { ...E1_PARAMS, type: 'dominant' };
+		lickPractice.config.trickProgressionType = bed;
+		expect(startTrickSession()).toBe(true);
+		const item = lickPractice.plan[0];
+		expect(item.progressionType).toBe(bed);
+		expect(item.trickParameters?.type).toBe(bed === beds[0] ? 'major' : 'minor');
+		expect(item.trickContext?.harmony?.map((s) => s.chord.root)).toEqual(['D', 'G', 'C']);
+		expect(item.phrase!.harmony.map((s) => s.chord.root)).toEqual(['C', 'D', 'G', 'C']);
+		expect(item.phrase!.harmony.map((s) => fractionToFloat(s.startOffset))).toEqual([0, 1, 2, 3]);
+		expect(item.phrase!.harmony.map((s) => fractionToFloat(s.duration))).toEqual([1, 1, 1, 2]);
+		expect(item.phrase!.difficulty.pickupBars).toBe(1);
+		expect(getDemoBars(0)).toBe(5);
+		expect(getKeyBars()).toBe(5);
+		expect(lickPractice.config.progressionType).toBe('blues');
+	});
+
+	it.each(beds)('transposes all %s arrival groups, accompaniment and scoring across all keys', (bed) => {
+		lickPractice.config.trickProgressionType = bed;
+		expect(startTrickSession()).toBe(true);
+		const item = lickPractice.plan[0];
+		item.keys = [...PITCH_CLASSES];
+		for (let index = 0; index < PITCH_CLASSES.length; index++) {
+			const key = PITCH_CLASSES[index];
+			lickPractice.currentKeyIndex = index;
+			const phrase = getCurrentPhrase()!;
+			const pitched = phrase.notes.filter((n) => n.pitch !== null);
+			// Root targets: chromatic pickup into ii, V and I. These must
+			// transpose as a complete progression, not align with I as a lick.
+			expect(pitched.map((n) => n.pitch! % 12)).toEqual(
+				[1, 2, 6, 7, 11, 0].map((pc) => (pc + index) % 12)
+			);
+			expect(pitched.map((n) => fractionToFloat(n.offset))).toEqual([0.875, 1, 1.875, 2, 2.875, 3]);
+			expect(phrase.harmony.map((s) => s.chord.root)).toEqual(
+				[0, 2, 7, 0].map((pc) => PITCH_CLASSES[(pc + index) % 12])
+			);
+			expect(phrase.harmony[0].symbol).toContain(key);
+			expect(getCurrentHarmony()).toEqual(phrase.harmony);
+			expect(getPhraseFor(0, index)).toEqual(phrase);
+			const context = transposeTrickContext(item.trickContext!, key);
+			const played = pitched.map((n) => ({
+				midi: n.pitch!, cents: 0, clarity: 1,
+				onsetTime: fractionToFloat(n.offset) * 4 * 60 / context.tempo,
+				duration: fractionToFloat(n.duration) * 4 * 60 / context.tempo
+			}));
+			const score = scoreFluency({ played, trick: enclosure, parameters: item.trickParameters!, context });
+			expect(score.pitchAccuracy).toBe(1);
+			expect(score.conformance.slots.every((slot) => slot.tier === 'exact')).toBe(true);
+		}
+		expect(getPlannedKeysForLick(0).map((row) => row.harmony)).toEqual(
+			PITCH_CLASSES.map((_, index) => getPhraseFor(0, index)!.harmony)
+		);
+	});
+
+	it.each(['continuous', 'call-response'] as const)('schedules the same pickup and complete harmony in %s mode', (mode) => {
+		lickPractice.config.trickProgressionType = beds[0];
+		lickPractice.config.practiceMode = mode;
+		expect(startTrickSession()).toBe(true);
+		lickPractice.plan[0].keys = ['Bb', 'F'];
+		const phrase = buildLickSuperPhrase(0)!;
+		const copies = mode === 'continuous' ? ['Bb', 'Bb', 'F'] : ['Bb', 'Bb', 'F', 'F'];
+		expect(phrase.difficulty.lengthBars).toBe(copies.length * 5);
+		expect(phrase.harmony).toHaveLength(copies.length * 4);
+		copies.forEach((key, index) => {
+			const segments = phrase.harmony.slice(index * 4, index * 4 + 4);
+			expect(segments[0].chord.root).toBe(key);
+			expect(segments.map((s) => fractionToFloat(s.startOffset))).toEqual(
+				[0, 1, 2, 3].map((offset) => offset + index * 5)
+			);
+			expect(segments.map((s) => fractionToFloat(s.duration))).toEqual([1, 1, 1, 2]);
+		});
+		expect(phrase.notes.filter((n) => n.pitch !== null)).toHaveLength(mode === 'continuous' ? 6 : 12);
+		const firstNotes = getPhraseFor(0, 0)!.notes;
+		expect(phrase.notes.slice(0, firstNotes.length)).toEqual(firstNotes);
+		if (mode === 'call-response') {
+			expect(phrase.notes.slice(firstNotes.length).map((n) => fractionToFloat(n.offset))).toEqual(
+				getPhraseFor(0, 1)!.notes.map((n) => fractionToFloat(n.offset) + 10)
+			);
+		}
+	});
+
+	it('does not add a pickup bar when a one-note offbeat approach fits at the start', () => {
+		lickPractice.config.trickProgressionType = beds[0];
+		lickPractice.config.trickParameters = { ...E1_PARAMS, beatPlacement: 'offbeat' };
+		expect(startTrickSession()).toBe(true);
+		expect(getCurrentPhrase()!.difficulty.pickupBars).toBe(0);
+		expect(getCurrentHarmony()).toHaveLength(3);
+		expect(getCurrentPhrase()!.notes[0].offset).toEqual([0, 1]);
+		expect(getKeyBars()).toBe(4);
+		expect(getDemoBars(0)).toBe(4);
+		expect(buildLickSuperPhrase(0)!.difficulty.lengthBars).toBe(8);
+	});
+
+	it('persists progression improvement without changing family passes, tempo, unlocks or history', () => {
+		saveTrickPracticeProgress(updateTrickKeyProgress({}, E1_KEY, 'Bb', {
+			passCount: 7, currentTempo: 100, lastPracticedAt: 1
+		}));
+		bumpTrickUnlockedKeyCount(E1_KEY);
+		const familyBefore = loadTrickPracticeProgress()[E1_KEY];
+		lickPractice.config.trickProgressionType = beds[0];
+		expect(startTrickSession()).toBe(true);
+		const progressKey = lickPractice.plan[0].phraseId;
+		expect(lickPractice.currentTempo).toBe(TRICK_DEFAULT_TEMPO);
+		expect(lickPractice.plan[0].keys).toEqual(['Bb']);
+		const phraseBefore = lickPractice.plan[0].phrase!.id;
+		recordKeyAttempt(makeScore(0.99), 'progression-take');
+		advanceSingleLickRound();
+		expect(loadTrickPracticeProgress()[progressKey]?.Bb?.passCount).toBe(1);
+		expect(getTrickUnlockedKeyCount(progressKey)).toBe(2);
+		expect(getTrickProgressHistory(progressKey)).toHaveLength(1);
+		expect(lickPractice.plan[0].keys).toEqual(['Bb', 'F']);
+		expect(lickPractice.plan[0].phrase!.id).not.toBe(phraseBefore);
+		expect(lickPractice.plan[0].phrase!.harmony).toHaveLength(4);
+		expect(loadTrickPracticeProgress()[E1_KEY]).toEqual(familyBefore);
+		expect(getTrickUnlockedKeyCount(E1_KEY)).toBe(2);
+		expect(getTrickProgressHistory(E1_KEY)).toEqual([]);
+		expect(lickPractice.progress).toEqual({});
+		expect(getSessionReport().licks[0].keys[0].sessionId).toBe('progression-take');
+		const savedTempo = lickPractice.currentTempo;
+		resetSession();
+		expect(startTrickSession()).toBe(true);
+		expect(lickPractice.currentTempo).toBe(savedTempo);
+		expect(lickPractice.plan[0].keys).toEqual(['Bb', 'F']);
+		resetSession();
+		lickPractice.config.trickProgressionType = beds[1];
+		expect(startTrickSession()).toBe(true);
+		expect(lickPractice.currentTempo).toBe(TRICK_DEFAULT_TEMPO);
+		expect(lickPractice.plan[0].keys).toEqual(['Bb']);
+	});
+
+	it('accepts a valid progression gesture outside the family mastery catalog', () => {
+		lickPractice.config.trickProgressionType = beds[1];
+		lickPractice.config.trickParameters = {
+			...E1_PARAMS, noteCount: '3', shape: 'double-chromatic', targetTone: 'fifth', beatPlacement: 'offbeat'
+		};
+		expect(startTrickSession()).toBe(true);
+		expect(getCurrentPhrase()!.notes.filter((n) => n.pitch !== null)).toHaveLength(12);
+		expect(lickPractice.plan[0].phraseId).toMatch(/^trick-progression:/);
+		expect(lickPractice.plan[0].phraseName).toBe(
+			'Enclosures · Minor · Three approach notes · Double chromatic · Target 5th · Off the beat'
+		);
+		expect(lickPractice.plan[0].phraseName).not.toMatch(/noteCount|targetTone|beatPlacement|=/);
+	});
+
+	it('preserves catalog labels and shares readable custom labels with setup', () => {
+		expect(trickPracticeLabel(enclosure, E1_PARAMS)).toBe(getVariantByKey(E1_KEY)!.label);
+		const custom = { ...E1_PARAMS, targetTone: 'fifth' };
+		expect(trickPracticeLabel(enclosure, custom)).toBe(
+			'Major · One approach note · Chromatic from below · Target 5th · On the beat'
+		);
+	});
+
+	it('normalizes an explicitly selected vamp to its matching family', () => {
+		lickPractice.config.trickProgressionType = 'minor-vamp';
+		expect(startTrickSession()).toBe(true);
+		expect(lickPractice.plan[0].phraseId).toBe(trickVariantKey('enclosures', { ...E1_PARAMS, type: 'minor' }));
+		expect(lickPractice.plan[0].trickContext?.chordQuality).toBe('min7');
+		expect(lickPractice.plan[0].trickContext?.harmony).toBeUndefined();
+	});
+
+	it('does not apply an enclosure progression selection to triad pairs', () => {
+		lickPractice.config.trickId = 'triad-pairs';
+		lickPractice.config.trickParameters = { pair: 'minor-b9' };
+		lickPractice.config.trickProgressionType = beds[1];
+		expect(startTrickSession()).toBe(true);
+		expect(lickPractice.plan[0].progressionType).toBe('dominant-vamp');
+		expect(lickPractice.plan[0].phraseId).toBe(trickVariantKey('triad-pairs', { pair: 'minor-b9' }));
+		expect(lickPractice.plan[0].trickContext?.harmony).toBeUndefined();
+	});
 });
 
 describe('startTrickSession', () => {

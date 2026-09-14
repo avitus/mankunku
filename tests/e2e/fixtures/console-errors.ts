@@ -184,7 +184,8 @@ export const test = base.extend<ConsoleGuardFixtures & ConsoleGuardOptions>({
 			};
 			/** Record an uncaught error or unhandled rejection, stack first. */
 			const onPageError = (err: Error): void => {
-				const text = err.stack ?? err.message;
+				// WebKit can supply an empty stack for browser-generated errors.
+				const text = err.stack || err.message || err.name;
 				// pageerror events don't expose the originating URL, so URL-gated
 				// patterns can't apply — only the global IGNORED_PATTERNS list does.
 				if (isIgnored(text, '')) return;

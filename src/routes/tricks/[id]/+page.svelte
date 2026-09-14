@@ -4,6 +4,7 @@
 	import NotationDisplay from '$lib/components/notation/NotationDisplay.svelte';
 	import LickProgressChart from '$lib/components/licks/LickProgressChart.svelte';
 	import TrickMasteryTree from '$lib/components/tricks/TrickMasteryTree.svelte';
+	import EnclosureDetail from '$lib/components/tricks/EnclosureDetail.svelte';
 	import { getTrickById, trickContextFor } from '$lib/tricks';
 	import { getTriadPairFamily } from '$lib/tricks/devices/triad-pairs';
 	import {
@@ -173,7 +174,9 @@
 		&larr; Tricks
 	</a>
 
-	{#if trick}
+	{#if trick?.id === 'enclosures'}
+		<EnclosureDetail />
+	{:else if trick}
 		<div>
 			<h1 class="text-2xl font-bold">{trick.name}</h1>
 			<p class="mt-1 text-sm text-[var(--color-text-secondary)]">{trick.description}</p>

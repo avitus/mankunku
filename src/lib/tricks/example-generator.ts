@@ -6,8 +6,10 @@
  * that spec into a playable preview Phrase by walking the slots and choosing a
  * concrete MIDI instance for each pitch class: the first note seeds nearest
  * middle C, each subsequent note takes the instance nearest the previous choice
- * (bounded by the level profile's maxInterval when possible). The walk is fully
- * deterministic — same spec, same context, same pitches.
+ * (bounded by the level profile's maxInterval when possible). Enclosure
+ * approaches move with their target as one group so "above" and "below"
+ * survive register placement. The walk is fully deterministic — same spec,
+ * same context, same pitches.
  *
  * Generated examples are disposable; progress is keyed by the trick variant
  * key, never by the ids minted here.
@@ -51,6 +53,8 @@ export interface TrickExampleArgs {
 	 * downbeat notes, which offbeat figures may not have.
 	 */
 	pickupBars?: number;
+	/** Device-resolved timeline, including pickup; absent preserves the one-chord demo. */
+	harmony?: HarmonicSegment[];
 }
 
 /**
@@ -107,25 +111,64 @@ function nearestTo(candidates: number[], anchor: number): number {
 }
 
 /**
- * Nearest-instance realization walk. Mirrors realizeScalePattern's seeding
- * (nearest MIDI 60) in the degrees→MIDI direction, but keyed by absolute
- * pitch class instead of scale degree. Returns null when any slot's pitch
- * class has no in-range instance.
+ * Realize absolute pitch classes near MIDI 60, then near the previous note.
+ * Enclosure groups instead move together around a target anchor so their
+ * approaches retain the promised side of the target. Returns null when a
+ * pitch or complete enclosure cannot fit the requested range.
  */
 function realizePitches(
 	slots: TrickSlotSpec[],
 	context: TrickContext,
 	low: number,
-	high: number
+	high: number,
+	keepEnclosureSides = false
 ): number[] | null {
-	const pool = buildScalePool(context, low, high);
-	const poolPcs = new Set(pool.map((m) => m % 12));
+	const defaultPool = buildScalePool(context, low, high);
 	const maxInterval = getProfileForLevel(context.level).maxInterval;
 
 	const pitches: number[] = [];
 	let prev: number | null = null;
 
-	for (const slot of slots) {
+	for (let index = 0; index < slots.length; index++) {
+		const slot = slots[index];
+		if (keepEnclosureSides && (slot.role === 'approach-above' || slot.role === 'chromatic-below')) {
+			let targetIndex = index;
+			while (targetIndex < slots.length && ['approach-above', 'chromatic-below'].includes(slots[targetIndex].role)) targetIndex++;
+			const target = slots[targetIndex];
+			if (!target || target.role !== 'target') return null;
+			const rawTargetPc = target.generatePc ?? target.exactPcs[0];
+			if (rawTargetPc === undefined) return null;
+			const targetPc = ((rawTargetPc % 12) + 12) % 12;
+			const distances: number[] = [];
+			for (let approachIndex = index; approachIndex < targetIndex; approachIndex++) {
+				const approach = slots[approachIndex];
+				const rawPc = approach.generatePc ?? approach.exactPcs[0];
+				if (rawPc === undefined) return null;
+				const pc = ((rawPc % 12) + 12) % 12;
+				distances.push(approach.role === 'approach-above'
+					? (pc - targetPc + 12) % 12
+					: -((targetPc - pc + 12) % 12));
+			}
+			distances.push(0);
+			// Move an enclosure as a unit. A nearest-note walk can put a
+			// "below" approach an octave above its target at the range edge.
+			const candidates = pcInstances(targetPc, low, high)
+				.filter((pitch) => distances.every((distance) => pitch + distance >= low && pitch + distance <= high));
+			if (candidates.length === 0) return null;
+			const firstNotes = candidates.map((pitch) => pitch + distances[0]);
+			const anchor = prev ?? 60;
+			const bounded = firstNotes.filter((pitch) => Math.abs(pitch - anchor) <= maxInterval);
+			const first = nearestTo(bounded.length > 0 ? bounded : firstNotes, anchor);
+			const chosenTarget = first - distances[0];
+			pitches.push(...distances.map((distance) => chosenTarget + distance));
+			prev = chosenTarget;
+			index = targetIndex;
+			continue;
+		}
+		const pool = slot.harmonicContext
+			? buildScalePool({ ...context, ...slot.harmonicContext }, low, high)
+			: defaultPool;
+		const poolPcs = new Set(pool.map((m) => m % 12));
 		const rawPc = slot.generatePc ?? slot.exactPcs.at(0);
 		if (rawPc === undefined) return null;
 		const pc = ((rawPc % 12) + 12) % 12;
@@ -168,14 +211,15 @@ export function realizeTrickExample(args: TrickExampleArgs): Phrase | null {
 	const high = args.rangeHigh ?? DEFAULT_RANGE_HIGH;
 	if (slots.length === 0) return null;
 
-	const pitches = realizePitches(slots, context, low, high);
+	const pitches = realizePitches(slots, context, low, high, args.trickId === 'enclosures');
 	if (!pitches) return null;
 
 	// Bridge internal gaps between slots with explicit rests: notation emits
 	// tokens purely by offset and does NOT synthesize rests for gaps, so a
 	// gapped bar would render underfull. Never pad before the first note —
 	// a leading rest would defeat the partial-bar anacrusis rendering — and
-	// never after the last (nothing follows to misalign).
+	// ordinarily never after the last. A device-supplied harmony timeline is
+	// padded below so its held final chord remains visible and keeps its time.
 	const notes: Note[] = [];
 	slots.forEach((slot, i) => {
 		if (i > 0) {
@@ -189,14 +233,19 @@ export function realizeTrickExample(args: TrickExampleArgs): Phrase | null {
 				});
 			}
 		}
-		notes.push({ pitch: pitches[i], duration: slot.duration, offset: slot.offset });
+		notes.push({
+			pitch: pitches[i], duration: slot.duration, offset: slot.offset
+		});
 	});
 
 	// One harmonic segment spans the whole example, rounded up to whole notes
 	const totalWholeNotes = Math.max(
 		...slots.map((s) => fractionToFloat(s.offset) + fractionToFloat(s.duration))
 	);
-	const harmony: HarmonicSegment[] = [
+	const harmony: HarmonicSegment[] = args.harmony?.map((segment) => ({
+		...segment, chord: { ...segment.chord },
+		startOffset: [...segment.startOffset], duration: [...segment.duration]
+	})) ?? [
 		{
 			chord: { root: context.chordRoot, quality: context.chordQuality },
 			scaleId: context.scaleId,
@@ -205,6 +254,18 @@ export function realizeTrickExample(args: TrickExampleArgs): Phrase | null {
 			symbol: chordSymbol(context.chordRoot, context.chordQuality)
 		}
 	];
+	if (args.harmony?.length) {
+		const harmonyEnd = harmony.reduce((latest, segment) => {
+			const end = addFractions(segment.startOffset, segment.duration);
+			return compareFractions(end, latest) > 0 ? end : latest;
+		}, [0, 1] as [number, number]);
+		const lastNote = notes[notes.length - 1];
+		const noteEnd = addFractions(lastNote.offset, lastNote.duration);
+		if (compareFractions(harmonyEnd, noteEnd) > 0) {
+			// The notation rest normalizer splits this span at beat/bar boundaries.
+			notes.push({ pitch: null, offset: noteEnd, duration: subtractFractions(harmonyEnd, noteEnd) });
+		}
+	}
 
 	exampleCounter++;
 	const phrase: Phrase = {

@@ -76,36 +76,31 @@ test.describe('tricks', () => {
 		});
 		await signedInPage.goto('/tricks/enclosures');
 
-		/**
-		 * A variant pill by its exact label: an unlocked rung is a selectable
-		 * button; a locked one is padlocked text. `exact` keeps the pill apart
-		 * from the mastery-tree row of the same label (whose accessible name
-		 * carries its pass count).
-		 */
-		const pill = (label: string) => signedInPage.getByRole('button', { name: label, exact: true });
-		await expect(pill('Single chromatic approach — major')).toBeVisible();
-		await expect(pill('Single chromatic approach — minor')).toBeVisible();
-		await expect(pill('Single chromatic approach — dominant')).toBeVisible();
-		await expect(pill('Scale step down to the 3rd — major')).toBeVisible();
-		await expect(pill('Scale step down to the 3rd — minor')).toHaveCount(0);
-		await expect(pill('Scale step down to the 3rd — dominant')).toHaveCount(0);
-		await expect(
-			signedInPage.getByText('🔒 Scale step down to the 3rd — minor', { exact: true })
-		).toBeVisible();
-		await expect(
-			signedInPage.getByText('🔒 Scale step down to the 3rd — dominant', { exact: true })
-		).toBeVisible();
-
-		// Mastery path: the practised rung reads its pass total; the locked
-		// rungs on the other chains name the prerequisite they still need.
-		const tree = signedInPage.getByRole('button', { name: 'Single chromatic approach — major 3 passes' });
-		await expect(tree).toBeVisible();
-		await expect(
-			signedInPage.getByText('needs 3 passes of Single chromatic approach — minor')
-		).toBeVisible();
-		await expect(
-			signedInPage.getByText('needs 3 passes of Single chromatic approach — dominant')
-		).toBeVisible();
+		const map = signedInPage.getByTestId('enclosure-mastery-map');
+		await expect(map.locator('[data-variant-key]')).toHaveCount(8);
+		await expect(map.locator('[data-step-index="1"]')).toContainText('3 passes');
+		await expect(map.locator('[data-step-index="2"]')).toHaveAttribute('data-state', 'ready');
+		await expect(map.locator('.connectors path')).toHaveCount(8);
+		for (const family of ['minor-vamp', 'dominant-vamp']) {
+			await signedInPage.getByRole('combobox', { name: 'Chord family', exact: true }).selectOption(family);
+			await expect(map.locator('[data-step-index="1"]')).toHaveAttribute('data-state', 'ready');
+			await expect(map.locator('[data-step-index="2"]')).toHaveAttribute('data-state', 'locked');
+			expect(await map.locator('.contour circle').evaluateAll(circles => circles.every(circle => {
+				const y = Number(circle.getAttribute('cy')), r = Number(circle.getAttribute('r'));
+				return y - r >= 0 && y + r <= 32;
+			}))).toBe(true);
+			// Locked steps remain useful previews, but cannot start a drill.
+			await map.locator('[data-step-index="2"]').click();
+			await expect(signedInPage.getByRole('button', { name: /practice this enclosure/i })).toBeDisabled();
+			await expect(signedInPage.locator('[data-enclosure-target]')).toBeVisible();
+		}
+		for (const width of [360, 768, 1100]) {
+			await signedInPage.setViewportSize({ width, height: 1400 });
+			await expect(map.locator('[data-variant-key]')).toHaveCount(8);
+			await expect.poll(async () => signedInPage.evaluate(() =>
+				document.documentElement.scrollWidth <= window.innerWidth
+			)).toBe(true);
+		}
 
 		// The catalog card counts the unlock too.
 		await signedInPage.goto('/tricks');
@@ -169,7 +164,7 @@ test.describe('tricks', () => {
 		expect(JSON.parse(stored ?? '[]')).toEqual([ENCLOSURE_E1('major')]);
 	});
 
-	test('Practice this variant hands off to the setup page and starts a trick drill', async ({
+	test('Practice this enclosure hands off to setup and starts a trick drill', async ({
 		signedInPage,
 		browserName,
 		consoleCollector: _consoleCollector
@@ -184,7 +179,7 @@ test.describe('tricks', () => {
 		await stubCdnInstrumentSamples(signedInPage);
 
 		await signedInPage.goto('/tricks/enclosures');
-		await signedInPage.getByRole('button', { name: /practice this variant/i }).click();
+		await signedInPage.getByRole('button', { name: /practice this enclosure/i }).click();
 
 		// The detail page presets the config and the setup page owns the start.
 		await expect(signedInPage).toHaveURL(/\/lick-practice$/);
@@ -200,5 +195,86 @@ test.describe('tricks', () => {
 		await expect(signedInPage.getByText(/Single chromatic approach — major/).first()).toBeVisible({
 			timeout: 20_000
 		});
+	});
+
+	for (const [bed, label] of [
+		['ii-V-I-major-long', 'Long ii-V-I (Maj)'],
+		['ii-V-I-minor-long', 'Long ii-V-I (Min)']
+	] as const) {
+		test(`${bed} starts a drill with the configured enclosure`, async ({ signedInPage, browserName }) => {
+			test.skip(
+				browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+				'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device'
+			);
+			test.setTimeout(90_000);
+			await installAudioMock(signedInPage);
+			await stubCdnInstrumentSamples(signedInPage);
+			await signedInPage.goto('/tricks/enclosures');
+			await signedInPage.getByRole('button', { name: /practice this enclosure/i }).click();
+			await signedInPage.getByRole('combobox', { name: 'Practice over', exact: true }).selectOption(bed);
+			// This combination is outside the mastery catalog: progressions must
+			// retain the gesture and use a readable session name without gating it.
+			await signedInPage.locator('[data-enclosure-target]').click();
+			await signedInPage.getByLabel('Place in the chord', { exact: true }).selectOption('third');
+			await signedInPage.getByRole('button', { name: 'Land on the and of beat 1', exact: true }).click();
+			await signedInPage.getByRole('button', { name: /start trick drill/i }).click();
+			await expect(signedInPage).toHaveURL(/\/lick-practice\/session$/);
+			await expect(signedInPage.getByRole('button', { name: /end session/i })).toBeVisible();
+			await expect(signedInPage.getByRole('heading', { name: /Enclosures · .*Target 3rd · Off the beat/ })).toBeVisible();
+			await expect(signedInPage.getByText(label, { exact: true })).toBeVisible();
+			// A single offbeat approach begins on beat one: ii / V / I / I,
+			// with no empty pickup bar added to the chart.
+			await expect(signedInPage.locator('.chart-wrap').first().locator('.chord-symbol')).toHaveCount(4);
+		});
+	}
+
+	test('phrase canvas preserves the gesture across major and minor ii-V-I arrivals', async ({ signedInPage }) => {
+		await signedInPage.goto('/tricks/enclosures');
+		await signedInPage.getByRole('button', { name: /practice this enclosure/i }).click();
+		const progression = signedInPage.getByRole('combobox', { name: 'Practice over', exact: true });
+		await expect(progression.locator('option')).toHaveCount(5);
+		await progression.selectOption('ii-V-I-major-long');
+		await signedInPage.getByRole('button', { name: '2 approach notes', exact: true }).click();
+		await signedInPage.locator('[data-enclosure-note="0"]').click();
+		await signedInPage.getByLabel('Complete approach pattern', { exact: true }).selectOption('above-below');
+		const target = signedInPage.locator('[data-enclosure-target]');
+		await target.click();
+		await signedInPage.getByLabel('Place in the chord', { exact: true }).selectOption('third');
+		await expect(target).toBeFocused();
+		const arrivals = signedInPage.locator('[aria-label="Preview an arrival chord"] button');
+		for (const [bed, pitches] of [
+			['ii-V-I-major-long', ['F', 'B', 'E']],
+			['ii-V-I-minor-long', ['F', 'B', 'Eb']]
+		] as const) {
+			await progression.selectOption(bed);
+			for (let i = 0; i < pitches.length; i++) {
+				await arrivals.nth(i).click();
+				await expect(target).toHaveAttribute('aria-label', new RegExp(`^Target ${pitches[i]}\\d,`));
+				await expect(signedInPage.getByRole('button', { name: '2 approach notes', exact: true })).toHaveAttribute('aria-pressed', 'true');
+			}
+		}
+		await arrivals.nth(0).click();
+		await target.click();
+		await signedInPage.getByLabel('Place in the chord', { exact: true }).selectOption('fifth');
+		await expect(target).toHaveAttribute('aria-label', /^Target Ab\d, diminished 5th/);
+		await expect(target).toContainText('♭5');
+		await arrivals.nth(1).click();
+		await expect(target).toHaveAttribute('aria-label', /^Target D\d, 5th/);
+		await expect(signedInPage.getByRole('button', { name: /start trick drill/i })).toBeEnabled();
+
+		for (const width of [360, 768, 1100]) {
+			await signedInPage.setViewportSize({ width, height: 1400 });
+			for (const beat of ['Land on beat 1', 'Land on the and of beat 1']) {
+				await signedInPage.getByRole('button', { name: beat, exact: true }).click();
+				await expect.poll(async () => signedInPage.evaluate(() => {
+					const line = document.querySelector('[data-beat-one-marker]')!.getBoundingClientRect();
+					const beat = document.querySelector('[aria-label="Land on beat 1"]')!.getBoundingClientRect();
+					return Math.abs(line.left - (beat.left + beat.width / 2));
+				})).toBeLessThan(1);
+			}
+			const widths = await arrivals.evaluateAll(nodes => nodes.map(node => node.getBoundingClientRect().width));
+			expect(widths[2] / widths[0]).toBeCloseTo(2, 1);
+			expect(await signedInPage.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+		}
 	});
 });

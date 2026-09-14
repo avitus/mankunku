@@ -45,7 +45,11 @@ played note is judged against its slot on a tier ladder:
 The DTW match cost also adds a rhythm term — `|onset error| / beat length`,
 capped at 1.0 — so timing influences *which* note aligns to *which* slot,
 not just the final score. When the context `scaleId` is unknown, the
-in-scale set degrades gracefully to the chord tones of the context chord.
+in-scale set degrades gracefully to the chord tones of the context chord. A
+slot's optional `harmonicContext` overrides the root, quality, and scale for
+that slot. Progression enclosures attach the destination chord to both its
+approaches and target, while keeping one DTW alignment and latency correction
+for the complete phrase.
 
 After alignment, the median (detected − expected) offset over matched pairs
 is subtracted, exactly as in `scorer.ts`, so constant human/mic latency does
@@ -99,15 +103,25 @@ pitch (concert Bb on a Bb horn) — exactly like a lick entered in written C —
 the tune-practice mastery-tier mirror resolves the anchor through the same
 function. Examples generate in a concert-C context and transpose per key.
 
-`trickPracticeBed(trick, params)` is the ONE place the `'major-vamp'` fallback
-for a device with no `practiceBed` lives (both shipped devices declare beds, so
-it is purely defensive); `trickBedHarmony` reads that bed's first chord and
-scale, and `trickContextFor(trick, params, key, tempo)` builds the full
-`TrickContext` over it. The practice session and the trick page's notation
-preview both go through these — they used to drift: the preview hard-coded
-maj7 / ionian, so the whole-tone pair rendered "C+·D+ over Cmaj7", harmony it
-would never be played over, and its example fell out of the scale pool onto the
-chromatic fallback placement.
+`trickPracticeBed(trick, params)` owns the default bed. For enclosure practice,
+`resolveTrickPracticeBed(trick, params, requested)` also accepts choices from
+`ENCLOSURE_PRACTICE_BEDS` in `tricks/enclosure-practice.ts`. That list references
+the existing progression catalog, so adding a supported bed does not require
+another UI selector or duplicate harmony definition.
+
+`trickContextFor(trick, params, key, tempo, requestedBed?)` roots every chord of
+the selected bed in the session key; multi-chord contexts carry an unshifted
+`harmony` timeline. `transposeTrickContext` moves that whole timeline, including
+chord symbols, for playback and judging in each key. The generator adds the
+pickup harmony once. Session scheduling preserves it rather than substituting
+single-chord harmony or applying lick alignment a second time.
+
+`trickProgressionType` belongs to the session config, outside `trickParameters`.
+`normalizeTrickPracticeParameters` canonicalizes the chord family for the chosen
+bed. `trickPracticeProgressKey` keeps old single-chord keys unchanged and uses
+`trick-progression:<bed>:<variantKey>` for a multi-chord bed. The existing trick
+store therefore saves progression passes, key unlocks, tempo, and history
+without awarding family-mastery credit or needing a data migration.
 
 The secondary contract, `generateExample`, goes through
 `realizeTrickExample` (`src/lib/tricks/example-generator.ts`): a deterministic
@@ -194,6 +208,21 @@ Two figures share one parameter set, selected by `TrickContext.figure` (both
   notes resolving into the target on beat 3 and bar-2 beat 1 in eighths
   mode. Tune windows are sized by the detected progression span, which the
   5-bar drill figure cannot fit.
+
+With a multi-chord `context.harmony`, the full figure instead creates one
+enclosure at each chord change. The supported long cadences have arrivals at
+content bars 1, 2, and 3, with the tonic continuing through bar 4. A pickup uses
+the cycle's last chord. The final target rings for a half note, followed by
+rests over the remaining tonic harmony; the offbeat single-approach case still
+rebases to omit an empty pickup. Compact tune gestures retain their existing
+layout.
+
+`resolveEnclosureTarget` selects intervals by chord role, never by the position
+of a note in an extended chord's sorted tone array. G7♭9 therefore targets B,
+D, and F for its 3rd, 5th, and 7th, and Dm7♭5 targets A♭ for its 5th. An
+unavailable role, such as the 7th of a sixth chord, produces no figure rather
+than substituting a different role. `buildEnclosurePreview` extracts one actual
+generated arrival for the shared canvas and its audition.
 
 Both use an eighth grid, or quarters at content tiers without eighths. The
 `type` parameter (major/minor/dominant) never reaches slot construction — it

@@ -335,3 +335,8 @@ Scoring every candidate is free — 260 at the unrestricted worst case measures 
 - **Testing rules and suites**: `documentation/contributing/testing-guide.md`; e2e harness: `tests/e2e/README.md`
 - **Independent observations**: `CLAUDIUS/observations.md`
 - **Sessions log**: `CLAUDIUS/SESSIONS.md`
+
+
+## Enclosure practice model (2026-09-14)
+
+The approved Phrase canvas is shared between `/tricks/enclosures` and `/lick-practice`: faint staff, beat-one marker centered on beat one, target chord role, one to three approach notes, and minimal annotations. Enclosure variants and prerequisites share one graph; the existing three family mastery chains keep their keys and gates. Long major/minor ii–V–I practice uses the catalog's 1 + 1 + 2-bar beds and applies the same gesture at each of three arrivals. `trickProgressionType` is separate from melodic parameters; progression progress uses `trick-progression:<bed>:<variantKey>` in the existing trick store, never family mastery credit. Future beds belong in `enclosure-practice.ts` as catalog references. Realization anchors each gesture on its target to preserve above/below register; display spelling resolves after transposition against arrival harmony, without generated absolute `Note.spelling` overrides.

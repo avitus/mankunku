@@ -254,7 +254,7 @@ Rendered by `/lick-practice` during multi-key lick drills.
 
 **Path:** `src/lib/components/lick-practice/PracticeSetup.svelte`
 
-Pre-session configuration screen in the console language: session type (Daily / Focused / Deep / Tricks — with a lick picker for Deep and a variant picker for Tricks), chord progression, backing style, mode, duration budget, tempo increment. Shows the real session length — the plan's, not the knob's — since a standard session plays its plan once and the plan is usually capped by how many licks are tagged.
+Pre-session configuration screen in the console language: session type (Daily / Focused / Deep / Tricks — with a lick picker for Deep, a phrase canvas for Enclosures, and parameter pads for Triad Pairs), chord progression, backing style, mode, duration budget, tempo increment. Shows the real session length — the plan's, not the knob's — since a standard session plays its plan once and the plan is usually capped by how many licks are tagged.
 
 | Prop | Type | Description |
 |---|---|---|
@@ -647,7 +647,7 @@ Catalog tile for one device on `/tricks`, showing its name, description, and an 
 
 ### `TrickMasteryTree.svelte`
 
-The variant ladder on `/tricks/[id]`: unlocked variants, the next locked ones, and each one's total pass count against its prerequisite.
+The linear variant ladder used by triad pairs on `/tricks/[id]`: unlocked variants, the next locked ones, and each one's total pass count against its prerequisite.
 
 | Prop | Type | Description |
 |---|---|---|
@@ -657,6 +657,14 @@ The variant ladder on `/tricks/[id]`: unlocked variants, the next locked ones, a
 | `version` | `number` | Bumped by the parent after a practice-state change to force a re-read |
 
 `version` exists because persisted progress isn't reactive — the tree re-reads `loadTrickUnlockContext()` inside a `$derived.by` that touches `version`. It is SSR-safe: storage reads return `null` on the server, so it renders the empty-progress state rather than throwing.
+
+### `EnclosurePhraseCanvas.svelte`
+
+Shared interactive enclosure setup for `/tricks/enclosures` and `/lick-practice`. Takes `parameters`, `onchange`, a concert-pitch `context`, and `progressionType`. An optional `onprogressionchange` enables the grouped practice-bed picker and proportional chord strip; without it, the selector changes the single-chord family. Optional `onhear(phrase)`, `hearing`, and `onpreviewchange` connect page-owned audition playback. The larger target and smaller approach buttons open native selectors; beat controls move the target while the beat-1 marker stays centered. Notes and chord names use the shared written-pitch spelling/display helpers. `buildEnclosurePreview` provides the actual generated notes, and `ui/enclosure-canvas.ts` owns responsive staff geometry.
+
+### `EnclosureMasteryMap.svelte` and `EnclosureDetail.svelte`
+
+The map combines variant selection and mastery dependencies for one `family`. It reads the real variant definitions/pass counts and highlights `selectedKey`; `onselect(key)` also permits locked previews. Connector positions follow the rendered nodes as the map reflows. `EnclosureDetail` coordinates that selection with the shared canvas, practice handoff, tune-suggestion stars, and per-variant history. A locked or uncatalogued single-chord combination cannot start practice.
 
 ---
 

@@ -2,8 +2,10 @@
 	import type {
 		LickPracticeConfig,
 		LickPracticeMode,
-		LickPracticeSessionType
+		LickPracticeSessionType,
+		ChordProgressionType
 	} from '$lib/types/lick-practice';
+	import { onDestroy } from 'svelte';
 	import type { BackingStyle } from '$lib/types/instruments';
 	import type { PitchClass, Phrase } from '$lib/types/music';
 	import {
@@ -13,7 +15,7 @@
 	import { BACKING_STYLE_NAMES } from '$lib/audio/backing-styles';
 	import { getAllLicks } from '$lib/phrases/library-loader';
 	import { getPracticeTaggedIds, getUnlockedKeyCount } from '$lib/persistence/lick-practice-store';
-	import { TRICKS, getTrickById } from '$lib/tricks';
+	import { TRICKS, getTrickById, trickContextFor, trickEntryKey, resolveTrickPracticeBed, normalizeTrickPracticeParameters } from '$lib/tricks';
 	import {
 		getUnlockedVariants,
 		getNextLockedVariants,
@@ -22,7 +24,10 @@
 		type TrickVariantDefinition
 	} from '$lib/tricks/mastery';
 	import { trickVariantKey, type TrickParameters } from '$lib/types/tricks';
-	import { lickPractice } from '$lib/state/lick-practice.svelte';
+	import { lickPractice, trickPracticeProgressKey, trickPracticeLabel } from '$lib/state/lick-practice.svelte';
+	import { getTrickTempo, loadTrickPracticeProgress } from '$lib/persistence/trick-practice-store';
+	import { createTrickAudition } from '$lib/state/trick-audition.svelte';
+	import EnclosurePhraseCanvas from '$lib/components/tricks/EnclosurePhraseCanvas.svelte';
 	import { DEFAULT_TEMPO_BUMP_PERCENT } from '$lib/state/lick-practice-rotation';
 	import { getInstrument } from '$lib/state/settings.svelte';
 	import { circleOfFourthsFrom, planUnlockedKeys } from '$lib/music/key-ordering';
@@ -158,6 +163,35 @@
 	const selectedVariantUnlocked = $derived(
 		selectedVariantKey !== null && unlockedVariants.some((v) => v.key === selectedVariantKey)
 	);
+	const isEnclosure = $derived(config.sessionType === 'trick' && selectedTrick?.id === 'enclosures');
+	const trickBed = $derived(selectedTrick && config.trickParameters
+		? resolveTrickPracticeBed(selectedTrick, config.trickParameters, config.trickProgressionType)
+		: 'major-vamp');
+	const progressionDrill = $derived(isEnclosure && PROGRESSION_TEMPLATES[trickBed].harmony.length > 1);
+	const trickTempo = $derived.by(() => {
+		void trickUnlockVersion;
+		return selectedTrick && config.trickParameters
+			? getTrickTempo(loadTrickPracticeProgress(), trickPracticeProgressKey(selectedTrick, config.trickParameters, trickBed)) : 60;
+	});
+	const trickContext = $derived(selectedTrick && config.trickParameters
+		? trickContextFor(selectedTrick, config.trickParameters, trickEntryKey(instrument), trickTempo, trickBed) : null);
+	const audition = createTrickAudition();
+	onDestroy(audition.dispose);
+
+	/** The canvas may explore any shape; only a known unlocked vamp variant can start. */
+	function updateEnclosureParameters(parameters: TrickParameters): void {
+		if (!selectedTrick) return;
+		void audition.stop();
+		onupdate({ trickParameters: normalizeTrickPracticeParameters(selectedTrick, parameters, trickBed) });
+	}
+
+	/** Progression selection retains the gesture while canonicalizing its chord family. */
+	function updateTrickProgression(progression: ChordProgressionType): void {
+		if (!selectedTrick || !config.trickParameters) return;
+		void audition.stop();
+		onupdate({ trickProgressionType: progression,
+			trickParameters: normalizeTrickPracticeParameters(selectedTrick, config.trickParameters, progression) });
+	}
 
 	// One-line hint for the unlock frontier, e.g.
 	// "Double chromatic → 7th, off the beat (needs 3 passes of ...)".
@@ -172,11 +206,13 @@
 		return `${next.label} (needs ${clause.passes} passes of ${prereqLabels})`;
 	});
 
+	/** Start a new device with an unlocked variant and clear the previous enclosure bed. */
 	function handleTrickSelect(trickId: string): void {
 		// Seed the parameters from the trick's first unlocked variant so the
 		// selection always starts on a startable combination.
 		const first = getUnlockedVariants(trickId, loadTrickUnlockContext())[0];
-		onupdate({ trickId, trickParameters: first ? { ...first.params } : undefined });
+		void audition.stop();
+		onupdate({ trickId, trickParameters: first ? { ...first.params } : undefined, trickProgressionType: undefined });
 	}
 
 	/** Parameter values reachable through at least one unlocked variant. */
@@ -204,7 +240,7 @@
 	}
 
 	const canStart = $derived.by(() => {
-		if (config.sessionType === 'trick') return selectedVariantUnlocked;
+		if (config.sessionType === 'trick') return progressionDrill || selectedVariantUnlocked;
 		if (config.sessionType === 'deep') return selectedLick !== null;
 		if (config.sessionType === 'daily') return dailyLickCount > 0;
 		return availableLickCount > 0;
@@ -223,6 +259,7 @@
 	const startCaption = $derived.by(() => {
 		if (config.sessionType === 'trick') {
 			if (!selectedTrick) return 'Pick a trick to drill.';
+			if (progressionDrill) return 'Progress saved separately for this progression · end anytime';
 			if (!selectedVariantUnlocked) return 'That variant is still locked — clear its prerequisites first.';
 			const variantLabel = selectedVariantKey
 				? (getVariantByKey(selectedVariantKey)?.label ?? null)
@@ -270,6 +307,7 @@
 						// it whenever the user toggles session types so the Tricks
 						// branch reflects progress earned since the last visit.
 						trickUnlockVersion++;
+						void audition.stop();
 						onupdate({ sessionType: v });
 					}}
 				/>
@@ -416,8 +454,8 @@
 					{/if}
 				</div>
 			{:else if config.sessionType === 'trick'}
-				<!-- Trick drill: device picker + one control per parameter,
-				     restricted to values reachable through unlocked variants. -->
+				<!-- Enclosures use the shared canvas below; other devices retain
+				     the parameter controls restricted to unlocked variants. -->
 				<div class="space-y-3">
 					<div class="flex flex-col items-center gap-1.5">
 						<SelectorPad
@@ -429,7 +467,7 @@
 						<span class="smallcaps console-engrave">Trick</span>
 					</div>
 
-					{#if selectedTrick && config.trickParameters}
+					{#if selectedTrick && config.trickParameters && !isEnclosure}
 						{@const params = config.trickParameters}
 						<div class="flex flex-wrap items-end justify-center gap-x-8 gap-y-3">
 							{#each selectedTrick.parameters as def (def.name)}
@@ -465,12 +503,35 @@
 		</div>
 	</section>
 
+	{#if isEnclosure && config.trickParameters && trickContext}
+		<section aria-label="Enclosure setup">
+			<EnclosurePhraseCanvas parameters={config.trickParameters} onchange={updateEnclosureParameters}
+				context={trickContext} progressionType={trickBed} onprogressionchange={updateTrickProgression}
+				status={progressionDrill || selectedVariantUnlocked ? 'Ready to practice' : getVariantByKey(selectedVariantKey ?? '') ? 'Locked · preview' : 'Exploration'}
+				statusKind={progressionDrill || selectedVariantUnlocked ? 'ready' : getVariantByKey(selectedVariantKey ?? '') ? 'locked' : 'exploration'}
+				onhear={phrase => audition.play(phrase, trickTempo)} hearing={audition.state.playing}
+				onpreviewchange={() => { void audition.stop(); }} />
+			{#if audition.state.error}<p class="mt-2 text-sm text-[var(--color-error-text)]" role="alert">{audition.state.error}</p>{/if}
+			<div class="mt-4 flex flex-wrap justify-between items-center gap-3 text-sm">
+				<span>{selectedTrick ? trickPracticeLabel(selectedTrick, config.trickParameters).replace(/ — (major|minor|dominant)$/, '') : ''}</span>
+				<a class="text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text)]" href="/tricks/enclosures">Mastery path →</a>
+			</div>
+		</section>
+	{/if}
+
 	<!-- ── BACKING & FLOW ──────────────────────────────────────── -->
 	<section class="space-y-2">
-		<h2 class="smallcaps text-[var(--color-brass)]">Backing &amp; Flow</h2>
+		<h2 class={isEnclosure ? 'font-display text-2xl' : 'smallcaps text-[var(--color-brass)]'}>{isEnclosure ? 'Practice settings' : 'Backing & Flow'}</h2>
 		<div
 			class="rounded-xl border border-[var(--color-accent)]/20 bg-[var(--color-bg-secondary)] p-4"
 		>
+			{#if isEnclosure}
+				<div class="mb-5 grid grid-cols-1 gap-4 border-b border-[var(--color-bg-tertiary)] pb-5 sm:grid-cols-3">
+					<div class="flex justify-between items-center gap-3 sm:block"><span class="text-xs text-[var(--color-text-secondary)]">Starting tempo</span><div class="font-display text-2xl">{trickTempo} <span class="font-sans text-xs text-[var(--color-text-secondary)]">BPM</span></div></div>
+					<div class="flex justify-between items-center gap-3 sm:block"><span class="text-xs text-[var(--color-text-secondary)]">First key</span><div class="font-display text-2xl">{concertKeyToWritten(trickEntryKey(instrument), instrument)} <span class="font-sans text-xs text-[var(--color-text-secondary)]">written</span></div></div>
+					<div class="flex justify-between items-center gap-3 sm:block"><span class="text-xs text-[var(--color-text-secondary)]">Backing</span><div class="text-sm mt-1">{PROGRESSION_TEMPLATES[trickBed].name}</div></div>
+				</div>
+			{/if}
 			<div class="flex flex-wrap items-end justify-center gap-x-10 gap-y-4">
 				<!-- Backing style -->
 				<div class="flex flex-col items-center gap-1.5">
@@ -514,7 +575,7 @@
 	<div class="flex flex-col items-center gap-1.5">
 		{#if canStart}
 			<button
-				onclick={onstart}
+				onclick={() => { void audition.stop(); onstart(); }}
 				class="rounded-lg bg-[var(--color-accent)] px-8 py-2.5 text-base font-bold text-white shadow-md transition-opacity hover:opacity-90"
 			>
 				{startLabel}
@@ -523,7 +584,7 @@
 		<p class="text-center text-xs text-[var(--color-text-secondary)]">
 			{startCaption}
 		</p>
-		{#if !canStart && dailyLickCount === 0}
+		{#if !canStart && dailyLickCount === 0 && config.sessionType !== 'trick'}
 			<a href="/licks" class="text-xs text-[var(--color-accent)] underline">
 				Browse your licks to tag more
 			</a>
