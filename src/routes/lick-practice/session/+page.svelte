@@ -523,6 +523,16 @@
 		isLoading = true;
 		micError = false;
 		const micOk = await ensureMicCapture();
+		// A navigation during the mic prompt — or the sample load and the
+		// detector start below — lands here with the page gone. onDestroy's
+		// stopAll() ran before these resources existed, so it runs again for
+		// them (the mic, its level poll, the onset worklet, the detector),
+		// and nothing below may start a session.
+		if (destroyed) {
+			isLoading = false;
+			stopAll();
+			return;
+		}
 		if (!micOk) {
 			isLoading = false;
 			// The rows were built above, before the mic was asked for; a refused
@@ -547,12 +557,21 @@
 			} else if (backingTrack) {
 				await backingTrack.loadBackingInstruments(settings.backingInstrument);
 			}
+			if (destroyed) {
+				isLoading = false;
+				stopAll();
+				return;
+			}
 
 			setMasterVolume(settings.masterVolume);
 			await ensurePitchDetector();
 		} catch (err) {
 			isLoading = false;
-			if (destroyed) return;
+			if (destroyed) {
+				// The mic above is already open on the dead page; release it.
+				stopAll();
+				return;
+			}
 			console.warn('[lick-practice] audio setup failed:', err);
 			loadError = true;
 			plannedKeysForLick = [];
@@ -560,6 +579,11 @@
 			return;
 		}
 		isLoading = false;
+		if (destroyed) {
+			// The detector came up after teardown; stop it with the rest.
+			stopAll();
+			return;
+		}
 
 		// Stamp the session log base id + timestamp once per session. Per-key
 		// upserts keyed off the composite `${baseId}-${progressionType}` keep

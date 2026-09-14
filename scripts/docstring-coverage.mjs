@@ -15,16 +15,19 @@
 //   against a working tree with uncommitted insertions lands its line numbers
 //   on the wrong declarations).
 import ts from 'typescript';
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 
 const args = process.argv.slice(2);
 const jsonIdx = args.indexOf('--json');
 const jsonOut = jsonIdx >= 0 ? args[jsonIdx + 1] : null;
 const base = args.find((a, i) => !a.startsWith('--') && (jsonIdx < 0 || i !== jsonIdx + 1)) ?? 'origin/main';
+if (base.startsWith('-')) throw new Error('The base reference must not start with "-"');
 
-const diff = execSync(
-	`git diff -U0 ${base} --diff-filter=AM -- '*.ts' '*.svelte' '*.js' '*.mjs' '*.cjs'`,
+// Argument-based git, so a ref with shell metacharacters is a ref, not a command.
+const diff = execFileSync(
+	'git',
+	['diff', '-U0', '--diff-filter=AM', base, '--', '*.ts', '*.svelte', '*.js', '*.mjs', '*.cjs'],
 	{ encoding: 'utf8', maxBuffer: 1 << 28 }
 );
 

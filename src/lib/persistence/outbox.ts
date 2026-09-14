@@ -212,8 +212,11 @@ export async function drainOutbox(supabase: SupabaseClient<Database>): Promise<v
 			try {
 				await runKind(kind, supabase);
 			} catch {
-				// Re-check scope, then bump backoff on whatever the current entry is.
-				if (getActiveUidOrNull() !== activeUid) return;
+				// Re-check scope (uid AND generation — a same-uid bump means the
+				// entry now belongs to the new scope, whose backoff this failure
+				// must not inflate), then bump backoff on whatever the current
+				// entry is.
+				if (getActiveUidOrNull() !== activeUid || getScopeGeneration() !== genAtStart) return;
 				patch((m) => {
 					const e = m[kind];
 					if (!e || e.uid !== activeUid) return;

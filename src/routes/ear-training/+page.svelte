@@ -280,9 +280,12 @@
 			return;
 		}
 		// The success path can land after teardown too — a navigation that let
-		// the fetch finish. The page's state is nobody's to write then.
+		// the fetch finish — and so can the permission query behind it. The
+		// page's state is nobody's to write then, on either side of the await.
 		if (destroyed) return;
-		session.micPermission = await captureModule.checkMicPermission();
+		const micPermission = await captureModule.checkMicPermission();
+		if (destroyed) return;
+		session.micPermission = micPermission;
 	});
 
 	onDestroy(() => {
