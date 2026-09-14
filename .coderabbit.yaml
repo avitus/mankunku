@@ -9,8 +9,3 @@ reviews:
     # 300-file cap on a PR.
     - "!CLAUDIUS/**"
     - "!MEMORY.md"
-    # TEMPORARY, #249 only: the dev→main PR carried 312 files and CodeRabbit
-    # skipped it at the cap. The documentation tree does get useful review
-    # comments (adopted on #245), so this line comes out again once #249's
-    # review is in — do not carry it past that merge.
-    - "!documentation/**"
