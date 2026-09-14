@@ -111,6 +111,8 @@ Stop current playback immediately — transport, metronome, backing track, and a
 
 Pending phrase setup is invalidated before this function yields. A `playPhrase()` still waiting for Tone or audio-context activation exits without scheduling playback, even if the caller does not await `stopPlayback()` during page teardown. A newer play request also supersedes an older activation; the older request cannot stop or replace the newer phrase.
 
+The same guard reaches the helpers `playPhrase` awaits: `scheduleMetronome` and `scheduleBackingTrack` take it as `isStillCurrent` and allocate nothing once it is false, so a stop landing inside the metronome setup or the backing kit load releases what the phrase had already scheduled and starts nothing after it. A stale continuation never touches the slot either way — a newer phrase may own it by then. Pinned by `tests/unit/audio/playback-cancellation.test.ts` (the Tone lookup and activation holds) and `playback-cancel.test.ts` (the helper holds).
+
 ### `phraseToEvents(phrase, tempo, swing, ppq): PlaybackEvent[]`
 
 The pure note → event conversion behind `playPhrase`: `extractSoundingNotes` (rest-skip + tie-merge), then `computeExpression` at `'moderate'` intensity, then tick placement with the swing pre-shift and humanization described above. The expression pass never touches timing, so the swung onset grid stays identical to the scorer's. Each `PlaybackEvent` carries `{ time, midi, duration, velocity, layerVelocity, release, cutoffHz, detune }` — `velocity` is the humanized loudness, `layerVelocity` the intended, un-humanized value that picks the piano/forte sample layer, so timbre tracks intent and never flickers with gain jitter.
@@ -467,7 +469,7 @@ Synthesized jazz metronome using Tone.js synths.
 
 Pre-create the metronome synths so the audio graph is stable before the first beat fires. Call during instrument loading, well before the first `playPhrase()`.
 
-### `scheduleMetronome(beatsPerBar, bars, startAt?): Promise<void>`
+### `scheduleMetronome(beatsPerBar, bars, startAt?, isStillCurrent?): Promise<void>`
 
 Schedule a jazz metronome pattern.
 
@@ -476,6 +478,7 @@ Schedule a jazz metronome pattern.
 | `beatsPerBar` | `number` | Typically 4 |
 | `bars` | `number \| null` | Number of bars, or `null` for infinite loop. `playPhrase` passes `1` — the count-in bar only — whenever the backing track will play, so the synthesized kit never doubles the real one |
 | `startAt` | `string \| number` | Transport time of the first beat (default `0`). Pass **ticks** (e.g. `` `${8 * transport.PPQ}i` ``), never bar notation like `'2m'`: bar-based times convert through the **sticky global** `Transport.timeSignature`, which a prior playback in another meter may have left at 3 |
+| `isStillCurrent` | `() => boolean` | Checked once, after both internal awaits and before the sequence slot is touched (default `() => true`). `playPhrase` passes its generation guard, so a continuation that a `stopPlayback()` or a newer phrase overtook neither leaves a sequence started on the stopped transport nor disposes the newer phrase's — the same effect as `scheduleBackingTrack`'s guard, which checks after each of its awaits |
 
 **Pattern:**
 - **Kick drum** (beat 1): `MembraneSynth` at C1 for a short membrane thump marking the downbeat

@@ -629,6 +629,10 @@ export async function playPhrase(
 	// Claim setup before yielding so a teardown or newer play cancels even
 	// the initial Tone lookup and AudioContext activation.
 	const scheduleId = ++currentScheduleId;
+	// The one cancellation boundary, shared with the helpers awaited below:
+	// they yield before they allocate, and must allocate nothing once a
+	// stopPlayback() or a newer phrase has bumped the generation.
+	const isStillCurrent = () => scheduleId === currentScheduleId;
 	const Tone = await getTone();
 	if (scheduleId !== currentScheduleId) return;
 	const transport = Tone.getTransport();
@@ -692,26 +696,20 @@ export async function playPhrase(
 		if (scheduleId !== currentScheduleId) return;
 		const backingWillPlay = (options.backingTrackEnabled ?? false) && isBackingLoaded();
 		if (backingWillPlay) {
-			await scheduleMetronome(beatsPerBar, 1); // count-in bar only
+			await scheduleMetronome(beatsPerBar, 1, 0, isStillCurrent); // count-in bar only
 		} else if (keepMetronome) {
 			// Loop indefinitely — will keep playing during recording
-			await scheduleMetronome(beatsPerBar, null);
+			await scheduleMetronome(beatsPerBar, null, 0, isStillCurrent);
 		} else {
 			const bars = getPhraseBars(phrase) + 1; // +1 for count-in bar
-			await scheduleMetronome(beatsPerBar, bars);
+			await scheduleMetronome(beatsPerBar, bars, 0, isStillCurrent);
 		}
 		if (scheduleId !== currentScheduleId) return;
 	}
 
 	// Schedule backing track if enabled
 	if (options.backingTrackEnabled && isBackingLoaded()) {
-		await scheduleBackingTrack(
-			phrase,
-			options,
-			barTicks,
-			loopBacking,
-			() => scheduleId === currentScheduleId
-		);
+		await scheduleBackingTrack(phrase, options, barTicks, loopBacking, isStillCurrent);
 		if (scheduleId !== currentScheduleId) return;
 	}
 

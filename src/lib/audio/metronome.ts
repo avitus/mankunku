@@ -96,14 +96,22 @@ export async function warmUpMetronome(): Promise<void> {
  *   (e.g. `` `${8 * transport.PPQ}i` ``) over '2m': bar-based times convert
  *   through the STICKY global Transport.timeSignature, which a prior
  *   playback in another meter may have left at 3.
+ * @param isStillCurrent - Optional predicate checked after the internal
+ *   awaits, before the sequence slot is touched. `playPhrase` passes its
+ *   generation guard: a `stopPlayback()` or a newer phrase landing in those
+ *   awaits has already released the slot — or is about to own it — so a
+ *   stale continuation must neither leave a sequence started on the stopped
+ *   transport nor dispose the newer phrase's.
  */
 export async function scheduleMetronome(
 	beatsPerBar: number,
 	bars: number | null,
-	startAt: string | number = 0
+	startAt: string | number = 0,
+	isStillCurrent: () => boolean = () => true
 ): Promise<void> {
 	await ensureSynths();
 	const Tone = await getTone();
+	if (!isStillCurrent()) return;
 
 	// Dispose previous sequence
 	if (sequence) {

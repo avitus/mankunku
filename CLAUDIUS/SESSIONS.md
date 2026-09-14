@@ -3663,3 +3663,79 @@ comments."
   files, three incremental. The main checkout's `dev` still sits at
   7c8d535c: this worktree pushed `HEAD:dev` throughout, so a
   `git pull --ff-only` there catches it up.
+
+## 2026-09-14 — Playback cancellation reaches the metronome helper (dev, no PR)
+
+**What happened:**
+
+- The follow-up filed in #249's round 4: `startLick()` fires `playPhrase()`
+  unawaited, so a teardown during its awaits could schedule transport
+  resources after `stopAll()`; fix it as ONE boundary inside `audio/playback`,
+  not another route guard. Read dev's tip before the code: 8cbc2bf1
+  (09-13 21:59, after the round-4 log entry) already carries most of it —
+  the generation token is claimed before `playPhrase`'s first await,
+  re-checked after `getTone()`, `Tone.start()`, `setMetronomeVolume`,
+  `scheduleMetronome`, `scheduleBackingTrack` and in the promise constructor,
+  and `stopPlayback()` bumps it synchronously, with
+  `playback-cancellation.test.ts` holding the Tone lookup and the activation.
+  Every route sets its playing flag BEFORE calling `playPhrase` and gates its
+  onDestroy stop on that flag, so the boundary already reached all of them;
+  no route edits.
+- What the token did NOT reach: the helpers' own awaits. `scheduleBackingTrack`
+  takes `isStillCurrent` (the supersede test's contract); `scheduleMetronome`
+  did not — `await ensureSynths(); await getTone();` then
+  dispose-the-previous-and-allocate. A stop landing in those awaits ran
+  `disposeMetronome()` on an empty slot, the continuation then allocated a
+  `Tone.Sequence` and started it on the stopped transport, and `playPhrase`
+  bailed one line later — a started sequence the stop could no longer see,
+  alive until the next `disposeMetronome`. The worse shape: a NEWER phrase
+  superseding during those awaits had scheduled its own sequence by the time
+  the old continuation resumed, and the old one's "dispose previous" step
+  disposed the newer phrase's metronome and started the old pattern in its
+  place. Both are microtask-window races in production (warm synths, cached
+  Tone), which is why nobody heard them; both are exactly what "re-checked
+  after each internal await" has to mean.
+- Fix: `scheduleMetronome(beatsPerBar, bars, startAt = 0, isStillCurrent =
+  () => true)` checks the predicate after its awaits and before it touches
+  the slot — the same atomic bailout the backing helper has; `playPhrase`
+  builds `isStillCurrent` once and hands it to both helpers. No scheduling
+  time changes; the other caller (record-a-lick's count-in) gets the default.
+- Rejected: disposing in the stale continuation (`if stale: disposeMetronome()`
+  after the await in `playPhrase`). The module-level slot may already be the
+  newer phrase's; a stale continuation must never touch it, only decline to.
+- Test first — `tests/unit/audio/playback-cancel.test.ts`, the REAL metronome
+  module under a mocked Tone that records every Part/Sequence: (1) a stop
+  during the backing kit load releases the melody Part and count-in Sequence
+  already scheduled and allocates none of bass/comp/drums — passes today,
+  pins the release half; (2) a stop during the metronome setup leaves no
+  sequence — RED (a started, undisposed Sequence); (3) a superseded metronome
+  setup does not replace the newer phrase's sequence — RED (the newer
+  sequence came back disposed). The hold stands in FRONT of the real
+  `scheduleMetronome`, because its own awaits resolve as microtasks once Tone
+  is cached and cannot be held from outside; the file says so.
+- Docs: `api-reference/audio.md` (`scheduleMetronome` signature, the
+  `stopPlayback` paragraph) and the CLAUDE.md audio bullet name the boundary
+  as ONE place, so the next stability-minded review round has the answer to
+  "add a guard on this page" ready.
+- Fresh-context review before the commit: no blockers; it walked every
+  interleaving (the stop that has bumped but not yet released is safe — a
+  leak needs an allocation AFTER the release, and every allocation follows a
+  guard with no await between). Taken: the CLAUDE.md claim "every practice
+  route fires it unawaited" was false as written (only `startLick` `void`s
+  it; the rest await it inside a handler nobody awaits at teardown) —
+  reworded; a fourth test for the un-awaited-stop shape; a comment saying
+  the kit-load test's "no bass/comp/drums" assertion pins the predicate
+  handoff, not the real kit path. Left, on the record: record-a-lick's
+  count-in (`licks/record/+page.svelte` 210–212) calls `scheduleCountInClicks`
+  + `scheduleMetronome` directly, outside playPhrase, with no predicate —
+  the same continuation shape, but the fix there is a page-owned guard or a
+  new claim-a-token entry in playback.ts, not this commit.
+- Verified on the sidecar (fresh from the snapshot, `npm ci` first per the
+  09-13 drift note): the new file 2 red → 4/4 green; vitest 305 files / 5073
+  passed + 36 expected fail; svelte-check 0/0; chromium e2e 209 passed / 5
+  skipped / 1 failed — `tune-practice.spec.ts` "chart stays visible through
+  first insertion (Autumn Leaves)", the known sidecar flake. Checked at the
+  base, not assumed: `git checkout -- src/` on the sidecar (the next sync
+  re-applies the patch) and the spec 3× — Mankunku Blues failed 3 of 3 at
+  5148c918 with no change of mine in src/, so it is the base's, and CI is
+  where it passes.
