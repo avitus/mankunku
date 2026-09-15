@@ -281,7 +281,7 @@ A practice-tagged lick is only eligible for a session if it also carries an expl
 export const lickPractice = $state<{
   config: LickPracticeConfig;          // sessionType, progressionType, durationMinutes, practiceMode,
                                        //   backingStyle, enableSubstitutions?, singleLickId?, tempoBumpPercent?,
-                                       //   trickId?, trickParameters?
+                                       //   trickId?, trickParameters?, trickProgressionType?
   phase: LickPracticePhase;            // 'setup' | 'count-in' | 'lick-running' | 'inter-lick-rest' | 'complete'
   plan: LickPracticePlanItem[];         // Ordered licks + planned keys
   plannedSeconds: number;               // The in-session countdown's total — the PLAN's length, not durationMinutes; 0 for deep/trick
@@ -364,8 +364,8 @@ export interface PlannedKey {
 - `getCurrentPlanItem(): LickPracticePlanItem | null`
 - `getCurrentProgressionType(): ChordProgressionType` — The active plan item's progression; Daily sessions mix progressions across items, so the header, substitution detection and chord chart read this rather than `config.progressionType` (the fallback before a plan exists).
 - `getCurrentKey(): PitchClass | null`
-- `getCurrentPhrase(): Phrase | null` — Current lick transposed to the current key with progression harmony substituted.
-- `getCurrentHarmony(): HarmonicSegment[]` — Progression template transposed to current key.
+- `getCurrentPhrase(): Phrase | null` — Current plan item transposed to the current key: a lick aligned into the progression with template harmony substituted, or a progression trick's complete generated figure, whose every harmonic root moves with it so notes and harmony stay aligned through its generated pickup bar.
+- `getCurrentHarmony(): HarmonicSegment[]` — A progression trick's own generated harmony when the item carries one; otherwise the progression template transposed to the current key, aligned for the lick and carrying the per-lick tail extension when the lick stretches the cycle.
 - `getPhraseFor(lickIdx, keyIdx): Phrase | null` — Pure variant for scoring keys that have already advanced.
 - `getPlannedKey(offset): PlannedKey | null` — Lookahead across lick boundaries.
 - `getUpcomingKeys(): { current; next; afterNext }` — Three-row preview helper.
