@@ -114,9 +114,18 @@ import {
 } from './lick-practice-duration';
 import type { SupabaseClient, Session } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types';
-import type { TrickContext } from '$lib/types/tricks';
-import { normalizeParameterSignature, trickVariantKey } from '$lib/types/tricks';
-import { exampleStyleForRound, getTrickById, trickContextFor, trickEntryKey, trickPracticeBed, trickRoundIntroducesStyle } from '$lib/tricks';
+import type { Trick, TrickContext, TrickParameters } from '$lib/types/tricks';
+import { trickVariantKey } from '$lib/types/tricks';
+import {
+	exampleStyleForRound,
+	getTrickById,
+	normalizeTrickPracticeParameters,
+	resolveTrickPracticeBed,
+	trickContextFor,
+	trickEntryKey,
+	trickRoundIntroducesStyle,
+	transposeTrickContext
+} from '$lib/tricks';
 import { getVariantByKey } from '$lib/tricks/mastery';
 import {
 	loadTrickPracticeProgress,
@@ -519,11 +528,7 @@ export function resolveLickTempo(progress: LickPracticeProgress, phraseId: strin
 function timingSpecForItem(item: LickPracticePlanItem): LickTimingSpec | null {
 	const lick = resolveLickFor(item);
 	if (!lick) return null;
-	const lickBars = getLickBars(
-		lick,
-		item.progressionType,
-		lickPractice.config.enableSubstitutions ?? false
-	);
+	const lickBars = barsForItem(item, lick);
 	return {
 		audioBars: lickAudioBars({
 			keyCount: item.keys.length,
@@ -977,15 +982,54 @@ export function startSingleLickSession(
 }
 
 /**
+ * Stable progress identity shared by setup and the session. Single-chord
+ * drills retain their exact catalog keys. Multi-chord drills use a separate
+ * `trick-progression:<bed>:<variant>` namespace in the existing trick store,
+ * so passes, tempo and key unlocks persist without earning family mastery.
+ * The canonical parameters prevent remembered chord-family settings from
+ * splitting the same progression exercise into several progress records.
+ */
+export function trickPracticeProgressKey(
+	trick: Trick,
+	parameters: TrickParameters,
+	requestedBed?: ChordProgressionType
+): string {
+	const bed = resolveTrickPracticeBed(trick, parameters, requestedBed);
+	const normalized = normalizeTrickPracticeParameters(trick, parameters, bed);
+	const variantKey = trickVariantKey(trick.id, normalized);
+	return PROGRESSION_TEMPLATES[bed].harmony.length > 1
+		? `trick-progression:${bed}:${variantKey}`
+		: variantKey;
+}
+
+/** Catalog names stay familiar; custom practice uses the setup's human labels. */
+export function trickPracticeLabel(trick: Trick, parameters: TrickParameters): string {
+	const catalogLabel = getVariantByKey(trickVariantKey(trick.id, parameters))?.label;
+	if (catalogLabel) return catalogLabel;
+	return trick.parameters
+		.flatMap((parameter) => {
+			const value = parameters[parameter.name];
+			if (value === undefined) return [];
+			const label = parameter.valueLabels?.[value] ?? value.replaceAll('-', ' ');
+			if (parameter.name === 'noteCount') {
+				return [`${label} approach ${value === '1' ? 'note' : 'notes'}`];
+			}
+			if (parameter.name === 'targetTone') return [`Target ${label.toLowerCase()}`];
+			return [label];
+		})
+		.join(' · ');
+}
+
+/**
  * Start a trick drill session: one melodic-device variant (from
  * `config.trickId` + `config.trickParameters`) cycled through its unlocked
  * keys, reusing the whole single-lick round loop (mastery at ≥ 0.95,
  * refill + tempo bump when the rotation clears).
  *
- * The plan item is a `kind: 'trick'` item whose `phraseId` is the composite
- * variant key and whose `phrase` is a generated example built in a C-rooted
- * context — key 'C', over the chord/scale of the device's preferred vamp —
- * so the existing per-key transposition path works unchanged. The KEY
+ * The plan item's `phraseId` is its stable practice-progress key. Its
+ * generated example uses concert C and either the device's preferred vamp
+ * or an explicitly selected progression. Progression figures already carry
+ * their complete harmony and pickup, so they transpose as one phrase. The KEY
  * ROTATION anchors elsewhere: at `trickEntryKey`, the player's written C in
  * concert pitch, so the drill starts on the key the player reads as C and
  * grows outward exactly like a lick entered in written C (a lick's anchor is
@@ -997,49 +1041,46 @@ export function startSingleLickSession(
  * example generation fails for the C context.
  */
 export function startTrickSession(): boolean {
-	const { trickId, trickParameters } = lickPractice.config;
-	if (!trickId || !trickParameters) return false;
+	const { trickId, trickParameters: selectedParameters, trickProgressionType } = lickPractice.config;
+	if (!trickId || !selectedParameters) return false;
 	const trick = getTrickById(trickId);
 	if (!trick) return false;
+	const trickParameters = normalizeTrickPracticeParameters(trick, selectedParameters, trickProgressionType);
 
 	// Defensive: clear single-lick state in case the user toggled into Tricks
 	// from a deep-practice configuration. Mirrors the other start functions.
 	lickPractice.config.singleLickId = undefined;
 
-	const variantKey = trickVariantKey(trickId, trickParameters);
-	const tempo = clampTempo(getTrickTempo(loadTrickPracticeProgress(), variantKey));
+	const progressKey = trickPracticeProgressKey(trick, trickParameters, trickProgressionType);
+	const tempo = clampTempo(getTrickTempo(loadTrickPracticeProgress(), progressKey));
 
-	// The device picks the vamp its selected variant sounds correct over
-	// (altered triad pairs on the dominant vamp, minor-type enclosures on the
-	// minor vamp); major-vamp only for a device with no practiceBed hook.
-	const progressionType = trickPracticeBed(trick, trickParameters);
+	// Explicit supported beds override the device default. Other tricks keep
+	// their own family bed even if the setup retains an enclosure selection.
+	const progressionType = resolveTrickPracticeBed(trick, trickParameters, trickProgressionType);
 
-	// C-rooted context mirroring that vamp's chord + scale, so examples and
-	// conformance agree with what the rhythm section plays and the per-key
-	// path transposes from C exactly like a C-stored lick would. Shared with
-	// the trick page's preview via trickContextFor so the two cannot drift.
-	const cContext: TrickContext = trickContextFor(trick, trickParameters, 'C', tempo);
+	// Share the tonic-C context with setup previews so the expected formula
+	// and the backing track use the same chords and scale choices.
+	const cContext: TrickContext = trickContextFor(trick, trickParameters, 'C', tempo, progressionType);
 
 	const phrase = trick.generateExample(trickParameters, {
 		...cContext,
 		exampleStyle: exampleStyleForRound(trick, 1)
 	});
 	if (!phrase) return false;
+	lickPractice.config.trickParameters = trickParameters;
 
-	const variantLabel =
-		getVariantByKey(variantKey)?.label ?? normalizeParameterSignature(trickParameters);
+	const variantLabel = trickPracticeLabel(trick, trickParameters);
 
 	const trickCircle = unlockedCircleFrom(
 		trickEntryKey(getInstrument()),
-		getTrickUnlockedKeyCount(variantKey)
+		getTrickUnlockedKeyCount(progressKey)
 	);
 	lickPractice.plan = [
 		{
 			kind: 'trick',
-			// For trick items the composite variant key IS the phraseId — the
-			// stable progress key. getLickById misses on it by design; every
-			// helper falls back to `phrase`.
-			phraseId: variantKey,
+			// Progression drills persist independently of single-chord mastery.
+			// Both kinds of practice key miss the lick library by design.
+			phraseId: progressKey,
 			phraseName: `${trick.name} · ${variantLabel}`,
 			phraseNumber: 1,
 			category: trick.category,
@@ -1102,6 +1143,18 @@ function resolveLickFor(item: LickPracticePlanItem): Phrase | undefined {
 	return getLickById(item.phraseId) ?? item.phrase;
 }
 
+/** The generated progression figure already includes its pickup and harmony. */
+function hasTrickProgression(item: LickPracticePlanItem): boolean {
+	return item.kind === 'trick' && !!item.trickContext?.harmony?.length;
+}
+
+/** Keep full progression figures at their generated span; align ordinary licks to their bed. */
+function barsForItem(item: LickPracticePlanItem, phrase: Phrase): number {
+	return hasTrickProgression(item)
+		? phrase.difficulty.lengthBars
+		: getLickBars(phrase, item.progressionType, lickPractice.config.enableSubstitutions ?? false);
+}
+
 /** Get the current key being practiced */
 export function getCurrentKey(): PitchClass | null {
 	const item = getCurrentPlanItem();
@@ -1118,7 +1171,7 @@ export function getCurrentPhrase(): Phrase | null {
 	const item = getCurrentPlanItem();
 	const key = getCurrentKey();
 	if (!item || !key) return null;
-	return buildPhraseFor(item.phraseId, key, item.progressionType, item.phrase);
+	return buildPhraseFor(item, key);
 }
 
 /**
@@ -1132,7 +1185,7 @@ export function getPhraseFor(lickIdx: number, keyIdx: number): Phrase | null {
 	if (!item) return null;
 	const key = item.keys[keyIdx];
 	if (!key) return null;
-	return buildPhraseFor(item.phraseId, key, item.progressionType, item.phrase);
+	return buildPhraseFor(item, key);
 }
 
 /** Get the transposed harmony for the current key (for ChordChart). Includes
@@ -1141,6 +1194,7 @@ export function getCurrentHarmony(): HarmonicSegment[] {
 	const key = getCurrentKey();
 	if (!key) return [];
 	const item = getCurrentPlanItem();
+	if (item && hasTrickProgression(item)) return buildPhraseFor(item, key)?.harmony ?? [];
 	const itemProgression = item?.progressionType ?? lickPractice.config.progressionType;
 	const lick = item ? resolveLickFor(item) : undefined;
 	if (!lick) {
@@ -1163,22 +1217,32 @@ export function getCurrentHarmony(): HarmonicSegment[] {
  * If the lick's category has an alignment offset configured for the given
  * progression (e.g. a 2-bar V-I lick inside a 4-bar ii-V-I long), every
  * melody note is shifted by that offset so it lands on the matching bar of
- * the parent progression. Harmony always comes from the progression template
- * — the lick's intrinsic harmony is discarded.
+ * the parent progression. Lick harmony comes from the progression template.
+ * A progression-aware trick instead supplies a complete figure whose notes
+ * and harmony must stay aligned, including its generated pickup bar.
  *
- * `progressionType` is passed in (rather than read from config) so callers
- * can resolve it from the relevant plan item. Daily Practice sessions assign
+ * The progression comes from the passed plan item rather than config.
+ * Daily Practice sessions assign
  * each lick its own progression, so it can change from one plan item to the
  * next within a single session.
  */
-function buildPhraseFor(
-	lickId: string,
-	key: PitchClass,
-	progressionType: ChordProgressionType,
-	fallback?: Phrase
-): Phrase | null {
-	const baseLick = getLickById(lickId) ?? fallback;
+function buildPhraseFor(item: LickPracticePlanItem, key: PitchClass): Phrase | null {
+	const baseLick = resolveLickFor(item);
 	if (!baseLick) return null;
+	const progressionType = item.progressionType;
+	const instrument = getInstrument();
+	if (hasTrickProgression(item) && item.trickContext) {
+		// This is a complete ii–V–I figure, not a chord-quality lick that
+		// should be moved to just one compatible chord of the template.
+		return {
+			...transposeLick(baseLick, key, instrument.concertRangeLow, getEffectiveHighestNote()),
+			key,
+			mode: progressionMode(progressionType),
+			// transposeLick preserves literal chord symbols. Rebuild those
+			// along with every harmonic root for the practiced key.
+			harmony: transposeTrickContext({ ...item.trickContext, harmony: baseLick.harmony }, key).harmony!
+		};
+	}
 
 	const enableSubstitutions = lickPractice.config.enableSubstitutions ?? false;
 	// Two alignment offsets, both needed:
@@ -1207,7 +1271,6 @@ function buildPhraseFor(
 		enableSubstitutions
 	);
 
-	const instrument = getInstrument();
 	const transposed = transposeLick(
 		baseLick,
 		transposeTarget,
@@ -1250,7 +1313,7 @@ export function getPlannedKey(offset: number): PlannedKey | null {
 		const item = lickPractice.plan[lickIdx];
 		if (keyIdx < item.keys.length) {
 			const key = item.keys[keyIdx];
-			const phrase = buildPhraseFor(item.phraseId, key, item.progressionType, item.phrase);
+			const phrase = buildPhraseFor(item, key);
 			if (!phrase) return null;
 			return {
 				lickIndex: lickIdx,
@@ -1295,7 +1358,7 @@ export function getPlannedKeysForLick(lickIdx: number): PlannedKey[] {
 	const result: PlannedKey[] = [];
 	for (let i = 0; i < item.keys.length; i++) {
 		const key = item.keys[i];
-		const phrase = buildPhraseFor(item.phraseId, key, item.progressionType, item.phrase);
+		const phrase = buildPhraseFor(item, key);
 		if (!phrase) continue;
 		result.push({
 			lickIndex: lickIdx,
@@ -1489,39 +1552,12 @@ export function buildLickSuperPhrase(lickIdx: number): Phrase | null {
 	if (!baseLick) return null;
 
 	const progressionType = item.progressionType;
-	const enableSubstitutions = lickPractice.config.enableSubstitutions ?? false;
 	const practiceMode = lickPractice.config.practiceMode;
 	// Per-lick cycle length: equals the progression's bar count for licks
 	// that fit, otherwise extends to host a long lick's pickup + tail.
-	const lickBars = getLickBars(baseLick, progressionType, enableSubstitutions);
+	const lickBars = barsForItem(item, baseLick);
 	const keyBars = practiceMode === 'call-response' ? lickBars * 2 : lickBars;
 	const demoBars = demoBarsForItem(item, lickBars);
-	const instrument = getInstrument();
-	const highestNote = getEffectiveHighestNote();
-
-	// Shift applied to every melody note so short-form licks (e.g. a 2-bar
-	// V-I lick inside a 4-bar ii-V-I) land on the matching bar of the
-	// progression cycle. `[0, 1]` means no shift. The resolver also pulls
-	// the alignment back by the lick's `pickupBars` so the bulk lands on
-	// the same chord as the no-pickup variant of its category. Substitutions
-	// fall through to the substitution target chord's offset.
-	const alignmentOffset = resolveAlignedLickOffset(baseLick, progressionType, enableSubstitutions);
-	// Transposition reads the un-shifted alignment so the lick transposes to
-	// its body chord (e.g. the I), not the pickup chord (e.g. the V).
-	const bodyAlignment = resolveLickAlignmentOffset(progressionType, baseLick.category, enableSubstitutions);
-
-	// For chord-quality licks, transpose to the target chord's root rather
-	// than the session key (see buildPhraseFor for the rationale). When a
-	// substitution rule applies, the resolver shifts the root by the rule's
-	// semitone offset.
-	const targetFor = (sessionKey: PitchClass): PitchClass =>
-		resolveTransposeTarget(
-			sessionKey,
-			baseLick.category,
-			progressionType,
-			bodyAlignment,
-			enableSubstitutions
-		);
 
 	const superHarmony: HarmonicSegment[] = [];
 	const superNotes: Note[] = [];
@@ -1533,23 +1569,15 @@ export function buildLickSuperPhrase(lickIdx: number): Phrase | null {
 	// cycles whose head key is already proficient — see demoBarsForItem.
 	if (demoBars > 0) {
 		const firstKey = item.keys[0];
-		const demoHarmony = harmonyForLick(baseLick, firstKey, progressionType, enableSubstitutions);
-		for (const seg of demoHarmony) {
+		const demoPhrase = buildPhraseFor(item, firstKey);
+		if (!demoPhrase) return null;
+		for (const seg of demoPhrase.harmony) {
 			// startOffset is already in [0, P) for a single progression cycle,
 			// so the demo segments land directly at the start of the phrase.
 			superHarmony.push({ ...seg });
 		}
-		const demoLick = transposeLick(
-			baseLick,
-			targetFor(firstKey),
-			instrument.concertRangeLow,
-			highestNote
-		);
-		for (const note of demoLick.notes) {
-			superNotes.push({
-				...note,
-				offset: addFractions(note.offset, alignmentOffset)
-			});
+		for (const note of demoPhrase.notes) {
+			superNotes.push({ ...note });
 		}
 	}
 
@@ -1567,7 +1595,11 @@ export function buildLickSuperPhrase(lickIdx: number): Phrase | null {
 	let barCursor = demoBars;
 	for (let i = 0; i < item.keys.length; i++) {
 		const key = item.keys[i];
-		const keyHarmony = harmonyForLick(baseLick, key, progressionType, enableSubstitutions);
+		// Use the same per-key melody and harmony as notation and scoring.
+		// Progression-aware tricks must retain their generated pickup bar.
+		const keyPhrase = buildPhraseFor(item, key);
+		if (!keyPhrase) return null;
+		const keyHarmony = keyPhrase.harmony;
 
 		// Reading pause: the band vamps the cycle-join turnaround (a bar of
 		// ii-V into this key) once per pause bar — "vamp till ready" — so the
@@ -1587,7 +1619,7 @@ export function buildLickSuperPhrase(lickIdx: number): Phrase | null {
 		// don't emit notes because the user plays them.
 		const callNotes =
 			practiceMode === 'call-response'
-				? transposeLick(baseLick, targetFor(key), instrument.concertRangeLow, highestNote).notes
+				? keyPhrase.notes
 				: [];
 		for (let pass = 0; pass < (passes[i] ?? 1); pass++, barCursor += keyBars) {
 			const keyOffsetWhole = barsToWhole(barCursor);
@@ -1614,7 +1646,7 @@ export function buildLickSuperPhrase(lickIdx: number): Phrase | null {
 			for (const note of callNotes) {
 				superNotes.push({
 					...note,
-					offset: addFractions(addFractions(note.offset, alignmentOffset), keyOffsetWhole)
+					offset: addFractions(note.offset, keyOffsetWhole)
 				});
 			}
 		}
@@ -1686,11 +1718,7 @@ function getCurrentLickBars(): number {
 	if (!item) return template.bars;
 	const lick = resolveLickFor(item);
 	if (!lick) return template.bars;
-	return getLickBars(
-		lick,
-		progressionType,
-		lickPractice.config.enableSubstitutions ?? false
-	);
+	return barsForItem(item, lick);
 }
 
 /**
@@ -1746,11 +1774,7 @@ export function getDemoBars(lickIdx: number): number {
 	if (!item) return 0;
 	const lick = resolveLickFor(item);
 	if (!lick) return 0;
-	const lickBars = getLickBars(
-		lick,
-		item.progressionType,
-		lickPractice.config.enableSubstitutions ?? false
-	);
+	const lickBars = barsForItem(item, lick);
 	return demoBarsForItem(item, lickBars);
 }
 
@@ -1808,8 +1832,8 @@ export function recordKeyAttempt(score: Score, sessionId?: string): void {
 	}
 
 	if (item.kind === 'trick') {
-		// Trick progress lives in the trick store, keyed by the composite
-		// variant key (item.phraseId) — never in lickPractice.progress.
+		// The stable practice key isolates progression drills from family
+		// mastery. Both live in the trick store, never lickPractice.progress.
 		if (passed) {
 			const trickProgress = loadTrickPracticeProgress();
 			const prevPasses = getTrickKeyProgress(trickProgress, item.phraseId, key).passCount;
@@ -2078,7 +2102,7 @@ export function advanceSingleLickRound(): void {
 			// Tricks have no other unlock path: clearing the whole rotation IS
 			// the unlock. Bump the count FIRST so the refilled circle includes
 			// the newly earned key, then persist the elevated tempo per key to
-			// the TRICK store — item.phraseId is a variant key, so the lick
+			// the TRICK store — item.phraseId is a practice key, so the lick
 			// store must never see it.
 			const newCount = bumpTrickUnlockedKeyCount(item.phraseId);
 			const fullCircle = unlockedCircleFrom(trickEntryKey(getInstrument()), newCount);

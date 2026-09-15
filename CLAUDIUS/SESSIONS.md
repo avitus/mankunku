@@ -3663,3 +3663,115 @@ comments."
   files, three incremental. The main checkout's `dev` still sits at
   7c8d535c: this worktree pushed `HEAD:dev` throughout, so a
   `git pull --ff-only` there catches it up.
+
+## 2026-09-14 — Playback cancellation reaches the metronome helper (dev, no PR)
+
+**What happened:**
+
+- The follow-up filed in #249's round 4: `startLick()` fires `playPhrase()`
+  unawaited, so a teardown during its awaits could schedule transport
+  resources after `stopAll()`; fix it as ONE boundary inside `audio/playback`,
+  not another route guard. Read dev's tip before the code: 8cbc2bf1
+  (09-13 21:59, after the round-4 log entry) already carries most of it —
+  the generation token is claimed before `playPhrase`'s first await,
+  re-checked after `getTone()`, `Tone.start()`, `setMetronomeVolume`,
+  `scheduleMetronome`, `scheduleBackingTrack` and in the promise constructor,
+  and `stopPlayback()` bumps it synchronously, with
+  `playback-cancellation.test.ts` holding the Tone lookup and the activation.
+  Every route sets its playing flag BEFORE calling `playPhrase` and gates its
+  onDestroy stop on that flag, so the boundary already reached all of them;
+  no route edits.
+- What the token did NOT reach: the helpers' own awaits. `scheduleBackingTrack`
+  takes `isStillCurrent` (the supersede test's contract); `scheduleMetronome`
+  did not — `await ensureSynths(); await getTone();` then
+  dispose-the-previous-and-allocate. A stop landing in those awaits ran
+  `disposeMetronome()` on an empty slot, the continuation then allocated a
+  `Tone.Sequence` and started it on the stopped transport, and `playPhrase`
+  bailed one line later — a started sequence the stop could no longer see,
+  alive until the next `disposeMetronome`. The worse shape: a NEWER phrase
+  superseding during those awaits had scheduled its own sequence by the time
+  the old continuation resumed, and the old one's "dispose previous" step
+  disposed the newer phrase's metronome and started the old pattern in its
+  place. Both are microtask-window races in production (warm synths, cached
+  Tone), which is why nobody heard them; both are exactly what "re-checked
+  after each internal await" has to mean.
+- Fix: `scheduleMetronome(beatsPerBar, bars, startAt = 0, isStillCurrent =
+  () => true)` checks the predicate after its awaits and before it touches
+  the slot — the same atomic bailout the backing helper has; `playPhrase`
+  builds `isStillCurrent` once and hands it to both helpers. No scheduling
+  time changes; the other caller (record-a-lick's count-in) gets the default.
+- Rejected: disposing in the stale continuation (`if stale: disposeMetronome()`
+  after the await in `playPhrase`). The module-level slot may already be the
+  newer phrase's; a stale continuation must never touch it, only decline to.
+- Test first — `tests/unit/audio/playback-cancel.test.ts`, the REAL metronome
+  module under a mocked Tone that records every Part/Sequence: (1) a stop
+  during the backing kit load releases the melody Part and count-in Sequence
+  already scheduled and allocates none of bass/comp/drums — passes today,
+  pins the release half; (2) a stop during the metronome setup leaves no
+  sequence — RED (a started, undisposed Sequence); (3) a superseded metronome
+  setup does not replace the newer phrase's sequence — RED (the newer
+  sequence came back disposed). The hold stands in FRONT of the real
+  `scheduleMetronome`, because its own awaits resolve as microtasks once Tone
+  is cached and cannot be held from outside; the file says so.
+- Docs: `api-reference/audio.md` (`scheduleMetronome` signature, the
+  `stopPlayback` paragraph) and the CLAUDE.md audio bullet name the boundary
+  as ONE place, so the next stability-minded review round has the answer to
+  "add a guard on this page" ready.
+- Fresh-context review before the commit: no blockers; it walked every
+  interleaving (the stop that has bumped but not yet released is safe — a
+  leak needs an allocation AFTER the release, and every allocation follows a
+  guard with no await between). Taken: the CLAUDE.md claim "every practice
+  route fires it unawaited" was false as written (only `startLick` `void`s
+  it; the rest await it inside a handler nobody awaits at teardown) —
+  reworded; a fourth test for the un-awaited-stop shape; a comment saying
+  the kit-load test's "no bass/comp/drums" assertion pins the predicate
+  handoff, not the real kit path. Left, on the record: record-a-lick's
+  count-in (`licks/record/+page.svelte` 210–212) calls `scheduleCountInClicks`
+  + `scheduleMetronome` directly, outside playPhrase, with no predicate —
+  the same continuation shape, but the fix there is a page-owned guard or a
+  new claim-a-token entry in playback.ts, not this commit.
+- Verified on the sidecar (fresh from the snapshot, `npm ci` first per the
+  09-13 drift note): the new file 2 red → 4/4 green; vitest 305 files / 5073
+  passed + 36 expected fail; svelte-check 0/0; chromium e2e 209 passed / 5
+  skipped / 1 failed — `tune-practice.spec.ts` "chart stays visible through
+  first insertion (Autumn Leaves)", the known sidecar flake. Checked at the
+  base, not assumed: `git checkout -- src/` on the sidecar (the next sync
+  re-applies the patch) and the spec 3× — Mankunku Blues failed 3 of 3 at
+  5148c918 with no change of mine in src/, so it is the base's, and CI is
+  where it passes.
+
+
+## 2026-09-14 — Enclosure phrase canvas and long ii–V–I practice
+
+- Implemented the approved Phrase canvas on `/tricks/enclosures` and enclosure setup in `/lick-practice`: subtle staff, clickable approach/target notes, chord roles, a beat-one marker centered on the beat, and compact pattern/count/arrival controls. The guide combines the existing eight-step variants and prerequisite branches in one responsive mastery graph; locked steps remain previews.
+- The shared bed registry references the existing major/minor/dominant vamps and long major/minor ii–V–I templates. Long figures repeat the same gesture at three chord arrivals over 1 + 1 + 2 bars, with the preceding loop chord under a pickup when needed. The final tonic rings for a half note and rests through the remaining harmony.
+- Progression selection stays outside the melodic parameters. Normalized progression/variant keys persist separately in the existing trick progress store, preserving tempo and unlocked keys without awarding single-chord mastery passes. Existing vamp keys, tune suggestions and triad-pair practice remain compatible.
+- Independent musical review caught a real octave inversion: a one-note approach to the third on the last C-major chord could play Eb5 → E4. Enclosures now choose a target anchor and move every approach with it. Also avoided absolute note-spelling overrides that would survive key/instrument transposition; the canvas uses the shared spelling chain against the arrival chord.
+- Browser review found the global navigation overflowed at tablet width; the existing compact menu now remains active until the full navigation fits. WebKit also exposed a canvas ResizeObserver loop at the compact-height breakpoint: width updates now run in an animation frame outside observer delivery, with unmount cleanup. The e2e console guard now falls back to the error message when WebKit supplies an empty stack, so these failures retain their diagnostic. Preview audio is page-owned and cancels across selection changes, loading and teardown.
+- Tests cover real browser setup/session handoff, all graph gates, target roles, proportional chord durations, beat alignment, transposition, audition cancellation, persistence isolation, and 3,840 musical contour combinations. The existing session integration suite also checks the shared engine. Documentation and the practice tour describe the new flow.
+- Final local verification: 308 Vitest files, 5,124 passing tests plus 36 expected-failure pins; 48 production-browser tests passed across Chromium, Firefox and WebKit; svelte-check 0 errors / 0 warnings; all 70 touched named functions documented; diff whitespace check clean. Production build succeeded with existing bundle-size, plugin-timing and empty-chunk diagnostics. WebKit resize regression was observed failing three times before the fix, then passed in the final browser run.
+
+
+## 2026-09-15 — #250 opened dev → main; one docs-drift finding
+
+- Opened the dev → main PR for the two commits since #249: the enclosure
+  phrase canvas with long ii–V–I beds (199765f) and the metronome's share of
+  the playback cancellation token (a52d0ac). CI was already green on the dev
+  tip before the PR existed — `path-filtering`, `test` and `e2e` at
+  2026-09-14T21:57Z — so the PR was a description job, not a verification one.
+- CodeRabbit's first pass: zero threads, all five pre-merge checks green
+  (docstring coverage 92.31% against the 80% threshold — the check that has
+  recurred on every dev → main PR), and ONE outside-diff finding, which is
+  where this PR's only real content was. Outside-diff items carry no thread,
+  so they are answered in a PR comment and closed there.
+- The finding held up in both halves, checked against dev rather than the
+  diff: `LickPracticeConfig` gained `trickProgressionType` in this PR and the
+  `config:` comment in `api-reference/state.md` still stopped at
+  `trickParameters?`; and both accessor summaries described only the ordinary
+  lick path, when `getCurrentHarmony` now opens with
+  `if (item && hasTrickProgression(item)) return buildPhraseFor(item, key)?.harmony ?? []`
+  and `getCurrentPhrase` has the same branch one level down in
+  `buildPhraseFor`, returning the generated figure with `transposeTrickContext`
+  moving every harmonic root. Adopted in 3722cfd, pushed straight to dev;
+  `tests/unit/docs` 3 files / 68 passed, and the incremental review came back
+  clean on the new head with CI green at 16:12Z.

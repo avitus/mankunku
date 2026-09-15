@@ -25,6 +25,11 @@
  * both grids. Edge case: offbeat with a single approach would put that
  * approach ON the bar-1 downbeat leaving bar 0 empty, so the whole figure
  * rebases back one bar (starts at offset 0, `pickupBars: 0`, 4 bars).
+ * With `context.harmony`, the full figure instead places one enclosure at
+ * each chord change. Approaches resolve against the arrival chord's scale,
+ * the pickup sounds over the loop's last chord, and the last target rings a
+ * half note before resting through the remaining harmony. A held tonic bar
+ * does not add another gesture.
  *
  * COMPACT (`figure: 'compact'` — the tune-insertion gesture): the legacy
  * 2-bar layout. Position 0 states the target chord tone, then two enclosure
@@ -57,15 +62,16 @@
  *   noteCount 2-3: chromatic-below → double-chromatic; scale-above →
  *     above-below
  */
-import type { ChordQuality, Fraction } from '$lib/types/music';
+import type { ChordQuality, Fraction, HarmonicSegment, Note, Phrase, PitchClass } from '$lib/types/music';
 import { PITCH_CLASSES } from '$lib/types/music';
 import type { Trick, TrickContext, TrickParameters, TrickSlotSpec } from '$lib/types/tricks';
 // Type-only, mirroring types/tricks.ts — erased at runtime, so no cycle.
 import type { ChordProgressionType } from '$lib/types/lick-practice';
-import { chordTones } from '$lib/music/chords';
+import { chordSymbol, chordTones } from '$lib/music/chords';
 import { getScale } from '$lib/music/scales';
 import { realizeScale } from '$lib/music/keys';
-import { gcd } from '$lib/music/intervals';
+import { addFractions, fractionToFloat, gcd, subtractFractions } from '$lib/music/intervals';
+import { calculateDifficulty } from '$lib/difficulty/calculate';
 import { getProfileForLevel } from '$lib/difficulty/params';
 import { scoreConformanceAgainstSpec } from '../conformance';
 import { realizeTrickExample } from '../example-generator';
@@ -118,8 +124,33 @@ function typeFor(params: TrickParameters): EnclosureTypeFamily {
 	return ENCLOSURE_TYPES.find((t) => t.value === value)!;
 }
 
-/** Chord-tone index per target tone (clamped to the tones the quality has). */
-const TONE_INDEX: Record<TargetTone, number> = { root: 0, third: 1, fifth: 2, seventh: 3 };
+export interface EnclosureTarget {
+	pc: number;
+	interval: number;
+	label: string;
+}
+
+/** Resolve a chord role, never an array position (extensions may precede it). */
+export function resolveEnclosureTarget(
+	targetTone: string,
+	chordRoot: PitchClass,
+	quality: ChordQuality
+): EnclosureTarget | null {
+	const intervals = chordTones(0, quality);
+	let interval: number | undefined;
+	if (targetTone === 'root') interval = 0;
+	else if (targetTone === 'third') interval = intervals.includes(4) ? 4 : intervals.includes(3) ? 3 : undefined;
+	else if (targetTone === 'fifth') interval = [7, 6, 8].find((value) => intervals.includes(value));
+	else if (targetTone === 'seventh') {
+		interval = intervals.includes(11) ? 11 : intervals.includes(10) ? 10 : quality === 'dim7' ? 9 : undefined;
+	}
+	if (interval === undefined) return null;
+	const labels: Record<number, string> = {
+		0: 'root', 3: 'minor 3rd', 4: 'major 3rd', 6: 'diminished 5th',
+		7: '5th', 8: 'augmented 5th', 9: 'diminished 7th', 10: 'minor 7th', 11: 'major 7th'
+	};
+	return { pc: mod12(PITCH_CLASSES.indexOf(chordRoot) + interval), interval, label: labels[interval] };
+}
 
 const TONE_LABEL: Record<TargetTone, string> = {
 	root: 'root',
@@ -265,7 +296,8 @@ interface FigureIngredients {
 	unit: Fraction;
 }
 
-function figureIngredients(parameters: TrickParameters, context: TrickContext): FigureIngredients {
+/** Resolve the target, approach pitches and timing grid shared by both figures. */
+function figureIngredients(parameters: TrickParameters, context: TrickContext): FigureIngredients | null {
 	const noteCount = pick(parameters, 'noteCount', NOTE_COUNTS, '2');
 	const shape = coerceShape(noteCount, pick(parameters, 'shape', SHAPES, 'above-below'));
 	const targetTone = pick(parameters, 'targetTone', TARGET_TONES, 'third');
@@ -273,8 +305,9 @@ function figureIngredients(parameters: TrickParameters, context: TrickContext): 
 
 	const rootMidi = PITCH_CLASSES.indexOf(context.chordRoot) + 60;
 	const tonePcs = chordTones(rootMidi, context.chordQuality).map(mod12);
-	const toneIndex = Math.min(TONE_INDEX[targetTone], tonePcs.length - 1);
-	const targetPc = tonePcs[toneIndex];
+	const target = resolveEnclosureTarget(targetTone, context.chordRoot, context.chordQuality);
+	if (!target) return null;
+	const targetPc = target.pc;
 	const otherChordPcs = [...new Set(tonePcs.filter((pc) => pc !== targetPc))];
 
 	const scalePcs = contextScalePcs(context);
@@ -328,6 +361,8 @@ export interface EnclosureFigure {
 	slots: TrickSlotSpec[];
 	/** Whole leading bars of anacrusis before the figure's first full bar */
 	pickupBars: 0 | 1;
+	/** Final playback timeline, including the loop's preceding chord during pickup. */
+	harmony?: HarmonicSegment[];
 }
 
 /** The 5-bar drill figure: anacrusis + four groups targeting content-bar downbeats. */
@@ -335,7 +370,9 @@ export function buildFullEnclosureFigure(
 	parameters: TrickParameters,
 	context: TrickContext
 ): EnclosureFigure {
+	if (context.harmony?.length) return buildProgressionEnclosureFigure(parameters, context);
 	const ingredients = figureIngredients(parameters, context);
+	if (!ingredients) return { slots: [], pickupBars: 0 };
 	const { approaches, den, shift } = ingredients;
 	const k = approaches.length;
 	const anchor = den + shift;
@@ -358,12 +395,65 @@ export function buildFullEnclosureFigure(
 	return { slots, pickupBars: rebase > 0 ? 0 : 1 };
 }
 
+/** One gesture per harmonic change; harmony retains the full final chord span. */
+function buildProgressionEnclosureFigure(
+	parameters: TrickParameters,
+	context: TrickContext
+): EnclosureFigure {
+	const cycle = context.harmony!;
+	const first = figureIngredients(parameters, {
+		...context, chordRoot: cycle[0].chord.root,
+		chordQuality: cycle[0].chord.quality, scaleId: cycle[0].scaleId
+	});
+	if (!first) return { slots: [], pickupBars: 0 };
+	const pickupBars: 0 | 1 = first.shift >= first.approaches.length ? 0 : 1;
+	const harmony: HarmonicSegment[] = cycle.map((segment) => ({
+		...segment,
+		chord: { ...segment.chord },
+		startOffset: addFractions(segment.startOffset, [pickupBars, 1]),
+		duration: [...segment.duration],
+		symbol: chordSymbol(segment.chord.root, segment.chord.quality)
+	}));
+	if (pickupBars) {
+		const previous = cycle[cycle.length - 1];
+		harmony.unshift({
+			...previous, chord: { ...previous.chord }, startOffset: [0, 1], duration: [1, 1],
+			symbol: chordSymbol(previous.chord.root, previous.chord.quality)
+		});
+	}
+	const slots: TrickSlotSpec[] = [];
+	for (let index = 0; index < cycle.length; index++) {
+		const segment = cycle[index];
+		const harmonicContext = {
+			chordRoot: segment.chord.root, chordQuality: segment.chord.quality, scaleId: segment.scaleId
+		};
+		const ingredients = figureIngredients(parameters, { ...context, ...harmonicContext });
+		if (!ingredients) return { slots: [], pickupBars };
+		const { den, shift, approaches } = ingredients;
+		const start = fractionToFloat(segment.startOffset) * den;
+		const span = fractionToFloat(segment.duration) * den;
+		if (!Number.isInteger(start) || !Number.isInteger(span) || span <= approaches.length) {
+			return { slots: [], pickupBars };
+		}
+		const targetPos = start + pickupBars * den + shift;
+		for (let n = 0; n < approaches.length; n++) {
+			slots.push({ ...approachSlot(ingredients, approaches[n], targetPos - approaches.length + n), harmonicContext });
+		}
+		const duration = index === cycle.length - 1
+			? [1, 2] as Fraction
+			: ringDuration(span - approaches.length, den);
+		slots.push({ ...targetSlot(ingredients, targetPos, duration), harmonicContext });
+	}
+	return { slots, pickupBars, harmony };
+}
+
 /** The legacy 2-bar gesture used inside tune-practice insertion windows. */
 export function buildEnclosureCompactSlots(
 	parameters: TrickParameters,
 	context: TrickContext
 ): TrickSlotSpec[] {
 	const ingredients = figureIngredients(parameters, context);
+	if (!ingredients) return [];
 	const { targetPc, otherChordPcs, approaches, den, shift, unit } = ingredients;
 	const k = approaches.length;
 
@@ -462,6 +552,7 @@ export const enclosuresTrick: Trick = {
 	scoreConformance(played, parameters, context) {
 		return scoreConformanceAgainstSpec(played, buildEnclosureSlots(parameters, context), context);
 	},
+	/** Realize the same enclosure figure and harmonic timeline used for judging. */
 	generateExample(parameters, context) {
 		const noteCount = pick(parameters, 'noteCount', NOTE_COUNTS, '2');
 		const shape = coerceShape(noteCount, pick(parameters, 'shape', SHAPES, 'above-below'));
@@ -474,8 +565,79 @@ export const enclosuresTrick: Trick = {
 			tags: ['trick', 'enclosure'],
 			slots: figure.slots,
 			pickupBars: figure.pickupBars,
+			harmony: figure.harmony,
 			parameters,
 			context
 		});
 	}
 };
+
+export interface EnclosurePreview {
+	notes: { midi: number; offset: Fraction; duration: Fraction; role: string; spelling?: Note['spelling'] }[];
+	targetIndex: number;
+	/** Beat one of the selected arrival, in the normalized audition phrase. */
+	arrivalOffset: Fraction;
+	/** Unshifted cycle for the chord strip; phrase.harmony includes the audition pickup. */
+	harmony: HarmonicSegment[];
+	chordContext: Pick<TrickContext, 'chordRoot' | 'chordQuality' | 'scaleId'>;
+	target: EnclosureTarget;
+	phrase: Phrase;
+}
+
+/** Preview one arrival using the full figure's actual generated notes and register. */
+export function buildEnclosurePreview(
+	parameters: TrickParameters,
+	context: TrickContext,
+	harmonyIndex = 0
+): EnclosurePreview | null {
+	const fullContext: TrickContext = { ...context, figure: 'full' };
+	const figure = buildEnclosureFigure(parameters, fullContext);
+	const source = enclosuresTrick.generateExample(parameters, fullContext);
+	if (!source || figure.slots.length === 0) return null;
+	const harmony = context.harmony ?? [{
+		chord: { root: context.chordRoot, quality: context.chordQuality },
+		scaleId: context.scaleId, startOffset: [0, 1] as Fraction, duration: [2, 1] as Fraction,
+		symbol: chordSymbol(context.chordRoot, context.chordQuality)
+	}];
+	const index = Math.min(harmony.length - 1, Math.max(0, Number.isFinite(harmonyIndex) ? Math.trunc(harmonyIndex) : 0));
+	const targetIndices = figure.slots.flatMap((slot, i) => slot.role === 'target' ? [i] : []);
+	const end = targetIndices[index];
+	const start = index === 0 ? 0 : targetIndices[index - 1] + 1;
+	const group = figure.slots.slice(start, end + 1);
+	const targetSlot = group[group.length - 1];
+	const chordContext = targetSlot.harmonicContext ?? {
+		chordRoot: context.chordRoot, chordQuality: context.chordQuality, scaleId: context.scaleId
+	};
+	const target = resolveEnclosureTarget(pick(parameters, 'targetTone', TARGET_TONES, 'third'), chordContext.chordRoot, chordContext.chordQuality);
+	if (!target) return null;
+	const arrivalOffset: Fraction = [figure.pickupBars, 1];
+	const offbeat: Fraction = parameters.beatPlacement === 'offbeat' ? group[0].duration : [0, 1];
+	const shift = subtractFractions(subtractFractions(targetSlot.offset, offbeat), arrivalOffset);
+	const pitched = source.notes.filter((note): note is Note & { pitch: number } => note.pitch !== null);
+	const notes: Note[] = pitched.slice(start, end + 1).map((note, n) => ({
+		...note,
+		offset: subtractFractions(note.offset, shift),
+		duration: n === group.length - 1 ? [1, 2] : note.duration
+	}));
+	const arrival = harmony[index];
+	const auditionHarmony: HarmonicSegment[] = [{
+		...arrival, chord: { ...arrival.chord }, startOffset: arrivalOffset, duration: [1, 1],
+		symbol: chordSymbol(arrival.chord.root, arrival.chord.quality)
+	}];
+	if (figure.pickupBars) {
+		const previous = harmony[(index + harmony.length - 1) % harmony.length];
+		auditionHarmony.unshift({
+			...previous, chord: { ...previous.chord }, startOffset: [0, 1], duration: [1, 1],
+			symbol: chordSymbol(previous.chord.root, previous.chord.quality)
+		});
+	}
+	const phrase: Phrase = { ...source, id: `${source.id}-preview-${index}`, notes, harmony: auditionHarmony };
+	phrase.difficulty = { ...calculateDifficulty(phrase), pickupBars: figure.pickupBars };
+	return {
+		notes: notes.map((note, n) => ({
+			midi: note.pitch!, offset: note.offset, duration: note.duration, role: group[n].role,
+			...(note.spelling ? { spelling: note.spelling } : {})
+		})),
+		targetIndex: notes.length - 1, arrivalOffset, harmony, chordContext, target, phrase
+	};
+}

@@ -75,7 +75,7 @@
 	import { setMasterVolume, getMasterGain } from '$lib/audio/audio-context';
 	import { runScorePipeline } from '$lib/scoring/score-pipeline';
 	import { scoreFluency } from '$lib/scoring/fluency';
-	import { getTrickById } from '$lib/tricks';
+	import { getTrickById, transposeTrickContext } from '$lib/tricks';
 	import { resolveOnsets, segmentNotes, findReArticulations } from '$lib/audio/note-segmenter';
 	import { resolveBleedEvidence } from '$lib/audio/bleed-evidence';
 	import { filterBleed } from '$lib/audio/bleed-filter';
@@ -1271,13 +1271,10 @@
 					played,
 					trick,
 					parameters: windowItem.trickParameters,
-					// Re-root the stored C context at the practiced key with the
-					// live session tempo/swing so expected slots land on this
-					// window's beat grid.
+					// Transpose every chord in the stored context, then use the
+					// live tempo/swing for this window's expected beat grid.
 					context: {
-						...windowItem.trickContext,
-						chordRoot: key,
-						key,
+						...transposeTrickContext(windowItem.trickContext, key),
 						tempo: lickPractice.currentTempo,
 						swing: effectiveSwing
 					}

@@ -40,6 +40,14 @@ export const lickPracticeTour: DriveStep[] = [
 	},
 	{
 		popover: {
+			title: 'Enclosures across the changes',
+			description:
+				'In Tricks → Enclosures, tap the large note to choose its chord tone, a small note to choose the approach pattern, and the beat ruler to move the landing. Practice over a single chord or a long major or minor ii–V–I. Select a chord cell to inspect its arrival; the same enclosure follows each change. Long progressions save their own tempo and key progress, separately from the single-chord mastery paths.',
+			align: 'center'
+		}
+	},
+	{
+		popover: {
 			title: 'Backing styles',
 			description:
 				"Swing for straight-ahead jazz, bossa nova for Latin feel, ballad for slow tempos with sustained comping, straight for jazz on even eighths. The bass + drums + comping are generated to match.",

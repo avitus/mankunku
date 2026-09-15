@@ -81,11 +81,18 @@ export interface LickPracticeConfig {
 	 * Trick (melodic device) to drill. Only meaningful when
 	 * `sessionType === 'trick'`. `trickId` selects the device from the TRICKS
 	 * catalog; together with `trickParameters` it forms the composite variant
-	 * key (`trickVariantKey`) that all trick progress is stored under.
+	 * key (`trickVariantKey`) for single-chord mastery. Explicit multi-chord
+	 * practice adds a separate progression scope around that identity.
 	 */
 	trickId?: string;
 	/** Parameter variant of the selected trick — see `trickId`. */
 	trickParameters?: TrickParameters;
+	/**
+	 * Optional practice bed for the selected trick. Kept outside its formula
+	 * parameters so the existing single-chord mastery keys never change.
+	 * Supported multi-chord beds keep their own progress, tempo and key unlocks.
+	 */
+	trickProgressionType?: ChordProgressionType;
 }
 
 /**
@@ -164,8 +171,9 @@ export interface LickPracticePlanItem {
 	phrase?: Phrase;
 	/**
 	 * Item kind. Absent = 'lick' (every pre-tricks plan builder). For a
-	 * 'trick' item, `phraseId` IS the composite variant key
-	 * (`trickVariantKey(trickId, trickParameters)`) — `getLickById` simply
+	 * 'trick' item, `phraseId` is its stable practice-progress key: the
+	 * composite variant key for single chords, or a separate progression scope
+	 * for multi-chord practice. `getLickById` simply
 	 * misses on it and every helper falls back to `phrase`, the generated
 	 * example realization.
 	 */
@@ -176,8 +184,8 @@ export interface LickPracticePlanItem {
 	trickParameters?: TrickParameters;
 	/**
 	 * The C-rooted context `phrase` was generated in (trick items only).
-	 * Scoring re-roots it per practiced key: chordRoot/key ← the current key,
-	 * tempo/swing ← the live session values.
+	 * Scoring transposes it per practiced key, including every harmonic root
+	 * when present; tempo/swing use the live session values.
 	 */
 	trickContext?: TrickContext;
 }

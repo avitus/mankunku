@@ -128,7 +128,7 @@ function alignSlots(
 	slots: TrickSlotSpec[],
 	played: DetectedNote[],
 	context: TrickContext,
-	scaleSet: Set<number>
+	scaleSets: Set<number>[]
 ): SlotAlignmentPair[] {
 	const swing = context.swing ?? 0.5;
 	const beatDuration = 60 / context.tempo;
@@ -140,8 +140,9 @@ function alignSlots(
 		return slots.map((_, i) => ({ slotIndex: i, playedIndex: null }));
 	}
 
+	/** Combine arrival-harmony pitch credit with onset error for one candidate match. */
 	const matchCost = (i: number, j: number): number => {
-		const tier = tierFor(midiToPitchClass(played[j].midi), slots[i], scaleSet);
+		const tier = tierFor(midiToPitchClass(played[j].midi), slots[i], scaleSets[i]);
 		const expOnset = slotOnsetSeconds(slots[i], context.tempo, swing);
 		const rhythm = Math.min(1.0, Math.abs(expOnset - played[j].onsetTime) / beatDuration);
 		return TIER_COST[tier] + rhythm;
@@ -200,7 +201,9 @@ export function scoreConformanceAgainstSpec(
 ): ConformanceResult {
 	const swing = context.swing ?? 0.5;
 	const scaleSet = conformanceScaleSet(context);
-	const pairs = alignSlots(slots, played, context, scaleSet);
+	const scaleSets = slots.map((slot) => slot.harmonicContext
+		? conformanceScaleSet({ ...context, ...slot.harmonicContext }) : scaleSet);
+	const pairs = alignSlots(slots, played, context, scaleSets);
 
 	// Median matched-pair offset absorbs constant human/detection latency;
 	// applied to detected onsets only — the alignment itself is not re-run.
@@ -237,12 +240,12 @@ export function scoreConformanceAgainstSpec(
 			};
 		}
 		const det = played[playedIndex];
-		const tier = tierFor(midiToPitchClass(det.midi), slot, scaleSet);
+		const tier = tierFor(midiToPitchClass(det.midi), slot, scaleSets[i]);
 		const expOnset = slotOnsetSeconds(slot, context.tempo, swing);
 		return {
 			slotIndex: i,
 			role: slot.role,
-			playedDegree: playedDegreeLabel(det.midi, context.chordRoot),
+			playedDegree: playedDegreeLabel(det.midi, slot.harmonicContext?.chordRoot ?? context.chordRoot),
 			playedMidi: det.midi,
 			tier,
 			credit: TIER_CREDIT[tier],

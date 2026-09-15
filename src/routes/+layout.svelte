@@ -293,8 +293,8 @@
 				</a>
 			</div>
 
-			<!-- Desktop nav -->
-			<div class="hidden gap-4 text-sm sm:flex items-center">
+			<!-- Keep the full link row collapsed until it fits beside the wordmark. -->
+			<div class="hidden gap-4 text-sm lg:flex items-center">
 				{#each navItems as { href, label, primary, tourKey }, i}
 					{@const prevPrimary = i > 0 ? navItems[i - 1].primary : false}
 					{@const needsDivider = prevPrimary && !primary}
@@ -377,7 +377,7 @@
 
 			<!-- Mobile hamburger -->
 			<button
-				class="sm:hidden rounded p-1.5 text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-tertiary)]"
+				class="lg:hidden rounded p-1.5 text-[var(--color-text-secondary)] hover:text-[var(--color-text)] hover:bg-[var(--color-bg-tertiary)]"
 				onclick={() => { mobileMenuOpen = !mobileMenuOpen; }}
 				aria-label="Toggle menu"
 			>
@@ -393,7 +393,7 @@
 
 		<!-- Mobile menu -->
 		{#if mobileMenuOpen}
-			<div class="mt-3 space-y-1 border-t border-[var(--color-bg-tertiary)] pt-3 sm:hidden">
+			<div class="mt-3 space-y-1 border-t border-[var(--color-bg-tertiary)] pt-3 lg:hidden">
 				{#each navItems as { href, label, primary, tourKey }, i}
 					{@const prevPrimary = i > 0 ? navItems[i - 1].primary : false}
 					{@const needsDivider = prevPrimary && !primary}
