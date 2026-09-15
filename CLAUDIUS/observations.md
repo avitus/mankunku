@@ -2099,3 +2099,21 @@ yaml; the durable fix is merging dev to main more often.
 The enclosure canvas made an implicit promise explicit: a note drawn below the target should sound below it. Pitch-class scoring had never needed that guarantee, and the old nearest-note walk could put an approach an octave above the arrival when a chord changed. The useful unit of register selection is the whole gesture, anchored on its target. Reusing slots across scoring, playback and the graphic helps, but the graphic also needs the realized register; a pitch class alone cannot express the relationship the player is learning.
 
 Progression choice is a different axis from the gesture. Keeping it outside the enclosure parameters preserves both the old mastery identities and the ability to practice one idea in several harmonic settings. The new registry should remain references to the existing progression catalog, rather than a second collection of chord definitions.
+
+
+## 2026-09-15 — Coverage measures presence, not truth
+
+The docstring-coverage gate passed at 92.31% on the very PR whose prose was
+wrong. It counts declarations that have a comment; it cannot read one and ask
+whether it still describes the function underneath. The two stale lines in
+`api-reference/state.md` were not missing documentation — they were confident,
+well-formed sentences about behaviour that had acquired a branch.
+
+`buildPhraseFor`'s own docstring WAS updated in the feature commit, in the same
+file as the code. The copy that drifted was the one in `documentation/`, a
+surface away from the edit. That is the four-surfaces problem again with a
+fifth surface: the API reference paraphrases docstrings, so every docstring
+that earns a new branch has a mirror somewhere that earns the same branch and
+no tooling relates the two. The check that caught it was a reviewer reading
+both — which is the argument for keeping the review round on docs-only diffs,
+not the argument for another coverage metric.

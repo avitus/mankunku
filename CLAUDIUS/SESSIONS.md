@@ -3750,3 +3750,28 @@ comments."
 - Browser review found the global navigation overflowed at tablet width; the existing compact menu now remains active until the full navigation fits. WebKit also exposed a canvas ResizeObserver loop at the compact-height breakpoint: width updates now run in an animation frame outside observer delivery, with unmount cleanup. The e2e console guard now falls back to the error message when WebKit supplies an empty stack, so these failures retain their diagnostic. Preview audio is page-owned and cancels across selection changes, loading and teardown.
 - Tests cover real browser setup/session handoff, all graph gates, target roles, proportional chord durations, beat alignment, transposition, audition cancellation, persistence isolation, and 3,840 musical contour combinations. The existing session integration suite also checks the shared engine. Documentation and the practice tour describe the new flow.
 - Final local verification: 308 Vitest files, 5,124 passing tests plus 36 expected-failure pins; 48 production-browser tests passed across Chromium, Firefox and WebKit; svelte-check 0 errors / 0 warnings; all 70 touched named functions documented; diff whitespace check clean. Production build succeeded with existing bundle-size, plugin-timing and empty-chunk diagnostics. WebKit resize regression was observed failing three times before the fix, then passed in the final browser run.
+
+
+## 2026-09-15 — #250 opened dev → main; one docs-drift finding
+
+- Opened the dev → main PR for the two commits since #249: the enclosure
+  phrase canvas with long ii–V–I beds (199765f) and the metronome's share of
+  the playback cancellation token (a52d0ac). CI was already green on the dev
+  tip before the PR existed — `path-filtering`, `test` and `e2e` at
+  2026-09-14T21:57Z — so the PR was a description job, not a verification one.
+- CodeRabbit's first pass: zero threads, all five pre-merge checks green
+  (docstring coverage 92.31% against the 80% threshold — the check that has
+  recurred on every dev → main PR), and ONE outside-diff finding, which is
+  where this PR's only real content was. Outside-diff items carry no thread,
+  so they are answered in a PR comment and closed there.
+- The finding held up in both halves, checked against dev rather than the
+  diff: `LickPracticeConfig` gained `trickProgressionType` in this PR and the
+  `config:` comment in `api-reference/state.md` still stopped at
+  `trickParameters?`; and both accessor summaries described only the ordinary
+  lick path, when `getCurrentHarmony` now opens with
+  `if (item && hasTrickProgression(item)) return buildPhraseFor(item, key)?.harmony ?? []`
+  and `getCurrentPhrase` has the same branch one level down in
+  `buildPhraseFor`, returning the generated figure with `transposeTrickContext`
+  moving every harmonic root. Adopted in 3722cfd, pushed straight to dev;
+  `tests/unit/docs` 3 files / 68 passed, and the incremental review came back
+  clean on the new head with CI green at 16:12Z.
