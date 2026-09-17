@@ -2165,3 +2165,14 @@ What I should keep: when a fix changes what the app *hears*, I can decide;
 when it changes what the app *accepts*, I propose. My earlier note said "it
 is Andy's call to overrule" — true, but the cleaner move was to ship the
 detection and ask about the allowance, not ship both and invite a veto.
+
+## 2026-09-16 — A debugging tool needs each flow's own pipeline
+
+/diagnostics was written when ear training was the only source, and "do what
+the scoring path does" quietly turned into "do what ear training does". A
+panel that exists to reproduce a result has to ask which path produced that
+result, and `metadata.source` already carried the answer. Two pipelines that
+look alike (same detector, same segmenter) still differ in their framing:
+trim, gate and duration. Those differences are where a replay drifts, and
+the corpus cannot see them because each fixture test hand-builds the right
+frame. The duration rule is the next such difference, and it is still open.

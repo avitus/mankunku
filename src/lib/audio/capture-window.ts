@@ -203,6 +203,39 @@ export function trimToPerformance(
 }
 
 /**
+ * The frame /diagnostics replays a saved recording in: the one its own
+ * scoring path segmented.
+ *
+ * Only ear training trims — live and in the authoritative blob rescore. Lick
+ * practice segments its window untrimmed and ungated (one continuous detector,
+ * windows opening on a bar line), so trimming its recordings here would move
+ * every time on the panel and let the gate or the pre-roll change the
+ * segmentation the moment a take's first note lands past the pre-roll. A
+ * recording with no stated `source` is replayed untrimmed too: every writer
+ * has stamped metadata since 2026-04, months before the capture was pre-armed
+ * (2026-08-09), so such a record predates the trim, which would be a no-op on
+ * it anyway.
+ *
+ * `raw` is a `ReplayResult`. The untrimmed frame hands its arrays back as
+ * given, with `offset` 0.
+ */
+export function diagnosticsReplayFrame(
+	source: string | null | undefined,
+	raw: { readings: PitchReading[]; weakReadings: PitchReading[]; onsets: number[]; duration: number }
+): TrimmedCapture {
+	if (source === 'ear-training') {
+		return trimToPerformance(raw.readings, raw.onsets, raw.duration, undefined, raw.weakReadings);
+	}
+	return {
+		readings: raw.readings,
+		weakReadings: raw.weakReadings,
+		workletOnsets: raw.onsets,
+		duration: raw.duration,
+		offset: 0
+	};
+}
+
+/**
  * How far ahead of a fixed entrance the capture window opens.
  *
  * `rebaseToAnchor` keeps events slightly BEFORE the anchor because an attack

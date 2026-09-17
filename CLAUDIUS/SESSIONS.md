@@ -3831,3 +3831,28 @@ comments."
   this: 6 of 9 live, 4 of 9 in replay, the Cs never heard.
 - Tests flipped first (4 red), then the rule; re-inserting an allowance turns
   five tests red. Docs, CLAUDE.md, memory updated.
+
+## 2026-09-16 — /diagnostics replays each recording in its own scoring frame
+
+- Closed the item the ghost-notes session left open: /diagnostics ran
+  `trimToPerformance` on every recording, but only ear training trims (live
+  and rescore). Lick practice segments its window untrimmed and ungated, so
+  a lick-practice take whose first note landed past the 0.35 s pre-roll
+  replayed with shifted times, gated readings and a nonzero
+  `captureTrimSeconds` that the scored take never had.
+- Fix: `diagnosticsReplayFrame(source, raw)` in `capture-window.ts` trims
+  `'ear-training'` only; every other source, and a record with no metadata
+  (which predates pre-arming), comes back as given with offset 0. The page
+  calls it with `full.metadata?.source`; the export's comments now say
+  `captureTrimSeconds` is always 0 for lick practice.
+- TDD: unit tests went red against an always-trim version of the helper
+  (offset 1.15), then green. A new diagnostics e2e seeds one synthesized
+  late-entry WAV under both sources and reads the replayed duration off
+  each row. Against the old page it failed (lick practice 1.42 s, not
+  2.5 s). Skipped on WebKit, which cannot store a Blob in ephemeral
+  IndexedDB (the same limit lick-practice-session.spec.ts records).
+- Vitest 5210 + 36 expected fail, svelte-check 0/0, diagnostics e2e 5
+  passed + 1 skipped across the three engines.
+- Left as is, noted: lick practice segments with
+  `lastReading.time + 0.1` as its duration, and the panel uses the blob
+  duration, so the last note's length can still differ on the panel.

@@ -15,7 +15,7 @@
 	import { replayFromBlob } from '$lib/audio/replay';
 	import { getAudioContext, isAudioInitialized } from '$lib/audio/audio-context';
 	import { segmentNotes, resolveOnsets, findReArticulations, getMetronomeBleedOnsets } from '$lib/audio/note-segmenter';
-	import { trimToPerformance } from '$lib/audio/capture-window';
+	import { diagnosticsReplayFrame } from '$lib/audio/capture-window';
 	import type { PitchReading } from '$lib/audio/pitch-detector';
 	import type { DetectedNote } from '$lib/types/audio';
 	import type { PitchClass } from '$lib/types/music';
@@ -51,9 +51,10 @@
 		duration: number;
 		sampleRate: number;
 		/**
-		 * Lead-in `trimToPerformance` removed from the decoded blob. Everything
-		 * else on this object is in the trimmed frame; the blob and the WAV
-		 * download are not, so anything correlating the two needs this.
+		 * Lead-in `trimToPerformance` removed from the decoded blob — ear
+		 * training only; 0 for every other source (`diagnosticsReplayFrame`).
+		 * Everything else on this object is in the replay frame; the blob and
+		 * the WAV download are not, so anything correlating the two needs this.
 		 */
 		trimOffset: number;
 	}
@@ -116,8 +117,8 @@
 
 	/**
 	 * Expand a recording row — replay its blob through the current detector
-	 * and segmenter, trimmed and bleed-matched the way the scoring paths did,
-	 * weak readings included — or collapse it when it is already open.
+	 * and segmenter, framed and bleed-matched the way its own scoring path
+	 * did, weak readings included — or collapse it when it is already open.
 	 */
 	async function toggle(id: string) {
 		if (expandedId === id) {
@@ -139,13 +140,12 @@
 			const ctx = isAudioInitialized() ? await getAudioContext() : undefined;
 			const raw = await replayFromBlob(full.blob, ctx);
 			if (requestId !== replayRequestId || expandedId !== id) return;
-			// Trim the armed lead-in off exactly as the scoring paths do, so this
-			// panel reproduces the saved result instead of disagreeing with it.
-			// Recordings captured before the capture was pre-armed have their
-			// first reading at ~0, so the offset clamps to 0 and they are
-			// untouched. `metadata.transportSeconds` always describes the blob's
-			// first sample, hence the offset is added back on top of it.
-			const trimmed = trimToPerformance(raw.readings, raw.onsets, raw.duration, undefined, raw.weakReadings);
+			// Replay in the frame the recording's own scoring path used, so this
+			// panel reproduces the saved result instead of disagreeing with it:
+			// ear training trims the armed lead-in, lick practice segments its
+			// window untrimmed. `metadata.transportSeconds` always describes the
+			// blob's first sample, hence the offset is added back on top of it.
+			const trimmed = diagnosticsReplayFrame(full.metadata?.source, raw);
 			const { readings, weakReadings, workletOnsets: onsets, duration } = trimmed;
 			const sampleRate = raw.sampleRate;
 			const baseOnsets = resolveOnsets(onsets, readings);
@@ -332,10 +332,10 @@
 					// half of these investigations turn on whether a candidate
 					// onset sits under a click. Null on pre-2026-08-01 captures.
 					metronomeEnabled: md?.metronomeEnabled ?? null,
-					// Trimmed frame, matching `detection` below — the stored
+					// Replay frame, matching `detection` below — the stored
 					// metadata value describes the blob's first sample, so the
-					// lead-in this replay discarded is added back on. Consumers
-					// can hand this straight to getMetronomeBleedOnsets.
+					// lead-in this replay discarded (if any) is added back on.
+					// Consumers can hand this straight to getMetronomeBleedOnsets.
 					transportSeconds:
 						md?.transportSeconds != null ? md.transportSeconds + replay.trimOffset : null,
 					// Recording-relative backing onsets — the bleed evidence the
@@ -348,9 +348,11 @@
 					/**
 					 * Seconds `trimToPerformance` dropped off the front. The
 					 * sibling .wav download is the UNTRIMMED blob, so a test
-					 * replaying it has to trim before its timeline matches the
-					 * `detection` block here. 0 for anything captured before
-					 * ear-training pre-armed its mic.
+					 * replaying an ear-training take has to trim before its
+					 * timeline matches the `detection` block here. Always 0 for
+					 * sources whose scoring path does not trim (lick practice),
+					 * and for ear-training takes captured before it pre-armed
+					 * its mic.
 					 */
 					captureTrimSeconds: replay.trimOffset
 				},
