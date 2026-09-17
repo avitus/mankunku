@@ -253,7 +253,7 @@ describe('alignNotes', () => {
 });
 
 describe('alignNotes with a ghost note', () => {
-	it('matches a sharp ghost to the expected note it brackets at no pitch cost', () => {
+	it('prices a ghost a semitone off like any wrong semitone, and still pairs it with its slot', () => {
 		const expected = [makeNote(62, [0, 1]), makeNote(60, [1, 8]), makeNote(62, [1, 4])];
 		const detected: DetectedNote[] = [
 			makeDetected(62, 0),
@@ -263,6 +263,6 @@ describe('alignNotes with a ghost note', () => {
 		const pairs = alignNotes(expected, detected, TEMPO);
 		const ghostPair = pairs.find((p) => p.detectedIndex === 1);
 		expect(ghostPair?.expectedIndex).toBe(1);
-		expect(ghostPair?.cost).toBeCloseTo(0, 5);
+		expect(ghostPair?.cost).toBeCloseTo(0.5, 5);
 	});
 });

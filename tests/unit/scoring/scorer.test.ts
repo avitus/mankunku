@@ -180,29 +180,30 @@ describe('scoreAttempt', () => {
 
 
 describe('scoreAttempt with ghost notes', () => {
-	it('counts a sharp ghosted C as a hit (2026-09-16 D–C–D, Cs at C + 40–70 cents)', () => {
-		const phrase = makePhrase([
-			makeNote(62, [0, 1]),
-			makeNote(60, [1, 8]),
-			makeNote(62, [1, 4])
-		]);
+	const phrase = makePhrase([
+		makeNote(62, [0, 1]),
+		makeNote(60, [1, 8]),
+		makeNote(62, [1, 4])
+	]);
+
+	it('counts a ghost that rounds to C# as a wrong note, not a missed one (2026-09-16)', () => {
 		const detected: DetectedNote[] = [
 			makeDetected(62, 0),
 			{ ...makeDetected(61, 0.25, -30), ghost: true },
 			makeDetected(62, 0.5)
 		];
 		const score = scoreAttempt(phrase, detected, TEMPO);
-		expect(score.notesHit).toBe(3);
-		expect(score.pitchAccuracy).toBeGreaterThan(0.99);
+		expect(score.notesHit).toBe(2);
+		expect(score.noteResults[1].missed).toBe(false);
+		expect(score.noteResults[1].pitchScore).toBe(0);
 	});
 
-	it('still misses the same measurement when it was a confident note', () => {
-		const phrase = makePhrase([
-			makeNote(62, [0, 1]),
-			makeNote(60, [1, 8]),
-			makeNote(62, [1, 4])
-		]);
-		const detected = [makeDetected(62, 0), makeDetected(61, 0.25, -30), makeDetected(62, 0.5)];
-		expect(scoreAttempt(phrase, detected, TEMPO).notesHit).toBe(2);
+	it('counts a ghost that rounds to C as a hit', () => {
+		const detected: DetectedNote[] = [
+			makeDetected(62, 0),
+			{ ...makeDetected(60, 0.25, 43), ghost: true },
+			makeDetected(62, 0.5)
+		];
+		expect(scoreAttempt(phrase, detected, TEMPO).notesHit).toBe(3);
 	});
 });

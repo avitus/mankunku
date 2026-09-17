@@ -766,7 +766,7 @@
 																{midiToDisplayName(n.midi)}
 																<span class="text-[var(--color-text-secondary)]">({n.midi})</span>
 																{#if n.ghost}
-																	<span class="text-[var(--color-text-secondary)]" title="Recovered from low-clarity frames; its pitch counts as either neighbouring semitone">ghost</span>
+																	<span class="text-[var(--color-text-secondary)]" title="Recovered from low-clarity frames (a ghosted note)">ghost</span>
 																{/if}
 															</td>
 															<td class="py-1 px-2 text-right">{n.onsetTime.toFixed(2)}s</td>

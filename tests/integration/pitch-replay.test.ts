@@ -3005,13 +3005,14 @@ describe('pitch replay regression: Blue Note Drop — the downbeat click before 
  * "Sharp 9 Flat 9 Dom" (a user lick) in concert E at 129 BPM on tenor sax,
  * 2026-09-16, Deep Practice (lick-practice, continuous mode, octave-
  * insensitive), metronome on, no backing. Over B7: D C D C D C (#9 b9 ×3)
- * B A, landing on G# — written E D E D E D C# B A#. Played correctly, saved
- * 6 of 9: pitch 0.667, overall 0.739 ("good").
+ * B A, landing on G# — written E D E D E D C# B A#. Saved 6 of 9: pitch
+ * 0.667, overall 0.739 ("good"), with the Cs not heard at all.
  *
  * The player GHOSTED the three off-beat Cs, jazz-style: 9–12 dB under the Ds,
  * breathy, half-fingered — they sound C + 40–70 cents (268–272 Hz, stable in
  * a 23 ms window too), with a click landing at the end of each (0.555, 1.020,
- * 1.485 s). McLeod clarity across each C sits at 0.54–0.76, under the 0.80
+ * 1.485 s). Two of them measure far enough sharp to round to C#, and those
+ * score as wrong notes: a ghost gets no pitch allowance. McLeod clarity across each C sits at 0.54–0.76, under the 0.80
  * threshold, so the confident stream held three holes and the Ds swallowed
  * them. The live path caught a few frames of the second C and scored D, D, D,
  * C+46, C#, D against D C D C D C.
@@ -3135,7 +3136,7 @@ describe('pitch replay regression: Sharp 9 Flat 9 Dom — ghosted Cs in Deep Pra
 			const [from, to] = GHOST_WINDOWS[i];
 			expect(g.onsetTime).toBeGreaterThanOrEqual(from - 0.01);
 			expect(g.onsetTime).toBeLessThan(to);
-			// Measured C + 40–70 cents: within a semitone above C.
+			// Kept as measured: C + 43 to + 70 cents, within a semitone above C.
 			const measured = g.midi + g.cents / 100;
 			expect(measured).toBeGreaterThan(60);
 			expect(measured).toBeLessThan(61);
@@ -3151,22 +3152,31 @@ describe('pitch replay regression: Sharp 9 Flat 9 Dom — ghosted Cs in Deep Pra
 		expect(detected[a + 1].midi).toBe(56);
 	});
 
-	it('scores all nine notes hit (saved: 6 of 9, 0.739; replay before the fix: 4 of 9, 0.518)', async () => {
+	it('scores the two Cs played 62–70 cents sharp as wrong notes, the third as a C (saved: 6 of 9, 0.739)', async () => {
+		// Andy, 2026-09-16: "if a note is that far out of tune, it should count
+		// as incorrect" — a ghost is judged by its nearest semitone like any
+		// note. Replay before the fix: 4 of 9, 0.518, three Cs never found.
 		const { score } = await lickPracticeTake();
-		for (const nr of score.noteResults) expect(nr.missed).toBe(false);
-		expect(score.notesHit).toBe(9);
-		expect(score.pitchAccuracy).toBe(1);
-		// Measured 0.977 (rhythm 0.943).
-		expect(score.overall).toBeGreaterThan(0.95);
-		expect(score.grade).toBe('perfect');
+		const scored = score.noteResults.filter((nr) => !nr.extra);
+		expect(scored).toHaveLength(9);
+		for (const nr of scored) expect(nr.missed).toBe(false);
+		const cSlots = scored.filter((nr) => nr.expected.pitch === 60);
+		expect(cSlots.map((nr) => nr.detected?.ghost)).toEqual([true, true, true]);
+		expect(cSlots.map((nr) => nr.detected?.midi)).toEqual([61, 61, 60]);
+		expect(cSlots.map((nr) => nr.pitchScore)).toEqual([0, 0, 1]);
+		expect(score.notesHit).toBe(7);
+		// Measured 0.844 (pitch 0.778, rhythm 0.943).
+		expect(score.overall).toBeGreaterThan(0.8);
+		expect(score.grade).toBe('good');
 	});
 
 	it('scores the same in the live detector time base (frames stamped at window end)', async () => {
 		const { detected, score } = await lickPracticeTake({ live: true });
-		expect(detected.filter((n) => n.ghost)).toHaveLength(3);
-		expect(score.notesHit).toBe(9);
-		// Measured 0.961.
-		expect(score.overall).toBeGreaterThan(0.95);
+		expect(detected.filter((n) => n.ghost).map((n) => n.midi)).toEqual([61, 61, 60]);
+		expect(score.notesHit).toBe(7);
+		for (const nr of score.noteResults) expect(nr.missed).toBe(false);
+		// Measured 0.828.
+		expect(score.overall).toBeGreaterThan(0.8);
 	});
 
 	it('loses the Cs again when a call site drops the weak readings', async () => {

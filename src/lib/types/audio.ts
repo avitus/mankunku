@@ -13,9 +13,9 @@ export interface DetectedNote {
 	clarity: number;
 	/**
 	 * True when the note was recovered from sub-threshold frames by the
-	 * segmenter's ghost-note pass (`findGhostNotes`). Its pitch is only known
-	 * to the pair of semitones `midi + cents / 100` falls between, and the
-	 * scorer credits either (`pitchMatches`). Omitted on ordinary notes.
+	 * segmenter's ghost-note pass (`findGhostNotes`). Informational: a ghost
+	 * is scored by its nearest semitone like any other note. Omitted on
+	 * ordinary notes.
 	 */
 	ghost?: true;
 }

@@ -24,8 +24,7 @@ const SKIP_COST = 2.0;
  * the cost at the same 0.5 per semitone, so it saturates at 1.0 from a cyclic
  * distance of 2 semitones — the same 2-semitone ceiling as the strict path.
  *
- * Any pair `pitchMatches` accepts costs 0 — which is how a ghost note's
- * semitone bracket reaches the alignment.
+ * Any pair `pitchMatches` accepts costs 0 — the same rule the scorer applies.
  */
 function pitchDistance(
 	expected: Note,

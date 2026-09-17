@@ -31,7 +31,7 @@ Find the minimum-cost alignment between two note sequences.
 
 | Match type | Cost |
 |---|---|
-| Same MIDI note (or any pair `pitchMatches` accepts — a ghost's semitone bracket) | `0.0` pitch + rhythm distance |
+| Same MIDI note (`pitchMatches`) | `0.0` pitch + rhythm distance |
 | 1 semitone off | `0.5` pitch |
 | 2+ semitones off | `1.0` pitch (capped) |
 | Skip (missed/extra) | `2.0` flat penalty |
@@ -45,7 +45,7 @@ Per-note pitch accuracy scoring.
 
 ### `pitchMatches(expectedPitch, detected, octaveInsensitive?): boolean`
 
-The one match rule, shared by `scorePitch`, the DTW pitch cost and the scorer's `notesHit`. An ordinary note matches on its MIDI number (its pitch class when `octaveInsensitive`). A **ghost** note (`detected.ghost`, recovered by `findGhostNotes` from sub-threshold frames) matches any expected pitch less than `GHOST_PITCH_TOLERANCE` (1 semitone) from its measured pitch `midi + cents / 100` — cyclic over the octave when `octaveInsensitive`. That credits exactly the two semitones the measurement falls between: the 2026-09-16 ghosted Cs measured C + 40–70 cents (a half-fingered note is pitched between keys, and the analysis window drags it toward its louder neighbours), so one read as C# −30 and still matched the expected C. Never a whole step, and an in-tune ghost matches only its own semitone.
+The one match rule, shared by `scorePitch`, the DTW pitch cost and the scorer's `notesHit`: the MIDI number (the pitch class when `octaveInsensitive`). A **ghost** note (`detected.ghost`, recovered by `findGhostNotes` from sub-threshold frames) gets no allowance — a ghost far enough out of tune to round to the neighbouring semitone is a wrong note, like any other (Andy, 2026-09-16: two of that take's ghosted Cs measured C + 62 and + 70 cents and score as C#).
 
 ### `scorePitch(expected, detected, octaveInsensitive?): number`
 
@@ -57,7 +57,7 @@ The one match rule, shared by `scorePitch`, the DTW pitch cost and the scorer's 
 
 With `octaveInsensitive` (default `false`) the match is by pitch class, any octave — lick-practice continuous mode, where the user may legitimately answer an octave up or down. The bonus still uses `detected.cents`, which is deviation from the nearest integer MIDI and so octave-independent.
 
-**Intonation bonus:** `0.1 * max(0, 1 - |cents| / 50)` — for a ghost, the cents are its measured distance from the expected pitch rather than from its own nearest semitone
+**Intonation bonus:** `0.1 * max(0, 1 - |cents| / 50)`
 - 0 cents: +0.10 (total 1.10)
 - 25 cents: +0.05 (total 1.05)
 - 50 cents: +0.00 (total 1.00)

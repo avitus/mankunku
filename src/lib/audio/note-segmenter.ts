@@ -2898,8 +2898,9 @@ function skipAbsorbed(
  * before the hole — to the next note's first reading.
  *
  * Its pitch is the plateau median, kept as measured: `midi` is the nearest
- * semitone and `cents` the rest, so a ghost half a semitone sharp keeps both
- * candidates visible and the scorer credits either (`pitchMatches`).
+ * semitone and `cents` the rest. The scorer judges it like any other note, so
+ * a ghost far enough out of tune to round to the next semitone is a wrong
+ * note — two of the reference Cs (C + 62 and + 70 cents) score as C#.
  *
  * @param readings - Confident pitch readings (sorted by time)
  * @param weakReadings - Sub-threshold frames from the same capture, same time base

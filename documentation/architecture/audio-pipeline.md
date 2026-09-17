@@ -42,7 +42,7 @@ These passes are deliberately conservative: they only fire when the absence-of-a
 
 A ghosted note — half-fingered, breathed rather than blown, the swallowed off-beat in a bebop line — is exactly what the 0.80 clarity cutoff was built to ignore: breathy, quiet, and pitched somewhere between two keys. Left to the confident frames alone, a ghost leaves nothing but a short gap, and the notes on either side close over it. So the app looks inside those gaps at the frames it set aside. When a short gap (under about 0.4 s) holds a steady run of them — at least three frames agreeing on one pitch, at least three-quarters of a semitone from the notes on both sides, and no more than 20 dB quieter than they are — that's a ghost note, and it goes into the line where you played it.
 
-A ghost's pitch is only known roughly: the half-closed key puts it between semitones, and the louder notes around it pull the measurement toward them. So a ghost counts as either of the two semitones its pitch falls between — a C played 50 cents sharp is a C (or a C♯), never a D. Only ghosts get that allowance; a clearly played note still has to be the right semitone.
+Once found, a ghost is scored like any other note: by the nearest semitone to the pitch it actually sounded. Being quiet doesn't earn it any leeway — a ghosted C that sounds more than half a semitone sharp is heard as a C♯ and counts as a wrong note. Finding the ghost still matters even then: the rest of the line stays lined up with what you played, instead of the app treating the note as missing.
 
 ### Telling a glitch from a real re-articulation
 

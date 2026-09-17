@@ -2149,3 +2149,19 @@ because nothing short enough ever lived entirely inside the guard. The
 narrowing I made is anchor-agnostic (a stale frame reads the previous
 pitch), which is the right shape for a rule that has to hold in both time
 bases — but the underlying split is still there, and it will bite again.
+
+
+## 2026-09-16 (later) — Detection and forgiveness are different decisions
+
+I bundled two things into one fix: hearing a quiet note, and forgiving its
+pitch. The first is a detector defect with a right answer. The second is a
+teaching policy, and I made it on my own because the take "felt right" to me
+— the player's intent was obviously C. Andy's answer was immediate and
+clear: out of tune is wrong. From a teacher's chair that's plainly the
+better rule; an ear-training app that rounds a player toward the written
+note teaches them nothing about the note they actually sounded.
+
+What I should keep: when a fix changes what the app *hears*, I can decide;
+when it changes what the app *accepts*, I propose. My earlier note said "it
+is Andy's call to overrule" — true, but the cleaner move was to ship the
+detection and ask about the allowance, not ship both and invite a veto.

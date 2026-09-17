@@ -3817,3 +3817,17 @@ comments."
   /diagnostics trims lick-practice recordings the live path never trimmed;
   this window's click grid is +0.08 s off the audio (added to the grid-drift
   memory — ear-training's 0.25–0.40 is the pre-arm path's alone).
+
+
+## 2026-09-16 (later) — Andy overrules the ghost pitch allowance
+
+- "Yes, if a note is that far out of tune, it should count as incorrect."
+  The ghost-note recovery stays; the semitone allowance goes. `pitchMatches`
+  is still the one shared rule, with no ghost branch; `GHOST_PITCH_TOLERANCE`
+  and the measured-distance bonus are gone.
+- The take now scores 7 of 9 (0.844, good) from the recording and 7 of 9
+  (0.828) in the live time base: the Cs at C + 70 and + 62 cents are aligned
+  as C# wrong notes (nothing missed), the one at + 43 is a C. Before any of
+  this: 6 of 9 live, 4 of 9 in replay, the Cs never heard.
+- Tests flipped first (4 red), then the rule; re-inserting an allowance turns
+  five tests red. Docs, CLAUDE.md, memory updated.
