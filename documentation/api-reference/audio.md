@@ -42,7 +42,7 @@ Phrase playback using Tone.js Transport plus either custom multi-sampled instrum
 
 ### `loadInstrument(instrumentId?, masterVolume?, backingInstrument?): Promise<void>`
 
-Load the user's instrument. Defaults to `'tenor-sax'`. Looks up a `SampleMap` in `sample-maps.ts` and loads custom multi-sampled recordings (soprano, alto, and tenor sax ship with sample maps); when no sample map is available **or** custom samples fail to decode, it falls back to the **MusyngKite** SoundFont via smplr (with `loadLoopData: true` for natural sustain). Cached after first load. Previous instruments are disconnected on switch.
+Load the user's instrument. Defaults to `'tenor-sax'`. Looks up a `SampleMap` in `sample-maps.ts` and loads custom multi-sampled recordings (soprano, alto, and tenor sax ship with sample maps); when no sample map is available **or** custom samples fail to decode, it falls back to the **MusyngKite** SoundFont via smplr (with `loadLoopData: true` for natural sustain). Every call tears down the previous instrument and loads again — the tune, lick and progress pages call it on each Play. Teardown disposes the instruments before the expression nodes: on a SoundFont the warmth filter is an insert that smplr's channel disconnects by destination, and Web Audio throws `InvalidAccessError` for a connection already cut (Sentry MANKUNKU-1T: every second trumpet Play failed). Pinned for both instrument paths by `tests/unit/audio/playback-soundfont-reload.test.ts`.
 
 | Parameter | Type | Description |
 |---|---|---|
