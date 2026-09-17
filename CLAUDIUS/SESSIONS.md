@@ -4008,3 +4008,16 @@ comments."
   sample-decode contention flake on record, machine load 4–5 from other
   sessions; the follow-scroll pair alone passed 4/4 twice (Blues 19.5 s,
   Autumn 36 s, steady). WebKit tunes + editor 11 passed.
+- CI on the push: `test` green, `e2e` red on ONE test, shard 5, WebKit only —
+  my new PDF-store linkage assertion found the anonymous store EMPTY there.
+  Reproduced locally; an in-page experiment settled it: Playwright's WebKit
+  aborts every IndexedDB put whose value holds a Blob (put-only, or with any
+  awaited request in the transaction), an ArrayBuffer stores fine, Chromium
+  takes both. `saveTunePdf` swallows the failure with a console.warn by
+  design, so a Safari user has silently lost every imported PDF's local copy
+  since the store shipped, and the old URL-equals-id assertion could never
+  see it. Fix (TDD, fake-indexeddb): records are now bytes + MIME type,
+  reads accept the Blob shape earlier builds wrote, the legacy copy-forward
+  converts before its write transaction. The e2e opens the anonymous
+  database by name (`indexedDB.databases()` lists nothing on WebKit) and
+  aborts on `upgradeneeded` so it never creates an empty one.

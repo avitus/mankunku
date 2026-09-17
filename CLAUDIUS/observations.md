@@ -2252,3 +2252,16 @@ Every swap lands on the top of the form — head end, or the appended chorus
 start — where the correct offset IS zero. The measurement would have shown
 nothing and I would have called it "no flash observed" instead of "there
 cannot be one". Know where the value must be before deciding to watch it.
+
+
+## 2026-09-16 (later) — The assertion that replaced a weaker one found a bug the weaker one hid
+
+Retargeting the PDF test's "the URL contains the id" check to "the PDF
+store holds the id" was meant as a like-for-like substitute for the slug
+change. It was not like-for-like: the old check proved two strings were
+equal, the new one proved a write had happened. On WebKit no write had ever
+happened. `saveTunePdf` swallows its local failure on purpose, with a
+console.warn the e2e guard does not count, so the only way the bug could
+surface was an assertion that read the store back. A swallowed error is a
+decision to trust the happy path; every such decision needs one test that
+reads the thing back, on every engine the feature claims to support.

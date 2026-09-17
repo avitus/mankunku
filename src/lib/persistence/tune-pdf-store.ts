@@ -25,10 +25,43 @@ const MAX_PDFS = 50;
 
 const BUCKET = 'tunes';
 
+/**
+ * The stored shape: the PDF's BYTES plus its MIME type, never a Blob.
+ * Playwright's WebKit aborts every IndexedDB put whose value holds a Blob
+ * (put-only or with any awaited request in the transaction) while an
+ * ArrayBuffer stores fine — measured 2026-09-16 when the PDF-import e2e found
+ * the anonymous store empty on WebKit with "Failed to cache tune PDF
+ * locally: AbortError"; `saveTunePdf` swallows that by design, so a Safari
+ * user silently lost every imported PDF's local copy. Reads still accept the
+ * Blob-valued records earlier builds wrote.
+ */
 interface PdfRecord {
+	tuneId: string;
+	bytes: ArrayBuffer;
+	type: string;
+	timestamp: number;
+}
+
+/** Record shape builds before 2026-09-16 wrote under the current database. */
+interface BlobPdfRecord {
 	tuneId: string;
 	blob: Blob;
 	timestamp: number;
+}
+
+type StoredPdfRecord = PdfRecord | BlobPdfRecord;
+
+const PDF_TYPE = 'application/pdf';
+
+async function toRecord(tuneId: string, blob: Blob, timestamp: number): Promise<PdfRecord> {
+	return { tuneId, bytes: await blob.arrayBuffer(), type: blob.type || PDF_TYPE, timestamp };
+}
+
+function toBlob(record: StoredPdfRecord | undefined): Blob | null {
+	if (!record) return null;
+	if ('bytes' in record && record.bytes) return new Blob([record.bytes], { type: record.type || PDF_TYPE });
+	if ('blob' in record && record.blob) return record.blob;
+	return null;
 }
 
 /** Record shape the pre-rename build wrote under the legacy database. */
@@ -84,15 +117,18 @@ function migrateLegacyPdfDb(uid: string): Promise<void> {
 				legacy.close();
 			}
 			if (records.length > 0) {
+				// Convert BEFORE the write transaction: reading a Blob is async, and a
+				// Blob-valued put would abort on WebKit anyway.
+				const converted = await Promise.all(
+					records.map((r) => toRecord(r.sheetId, r.blob, r.timestamp))
+				);
 				const db = await openRawDb(dbNameFor(uid), 'tuneId');
 				try {
 					const tx = db.transaction(STORE_NAME, 'readwrite');
 					const dest = tx.objectStore(STORE_NAME);
-					for (const r of records) {
-						const existing = await idbReq<PdfRecord | undefined>(dest.get(r.sheetId));
-						if (!existing) {
-							dest.put({ tuneId: r.sheetId, blob: r.blob, timestamp: r.timestamp });
-						}
+					for (const r of converted) {
+						const existing = await idbReq<StoredPdfRecord | undefined>(dest.get(r.tuneId));
+						if (!existing) dest.put(r);
 					}
 					await idbTx(tx);
 				} finally {
@@ -164,17 +200,19 @@ export async function saveTunePdf(
 	options: SaveTunePdfOptions = {}
 ): Promise<void> {
 	try {
+		// Read the bytes before the transaction opens: an await on anything but
+		// an IndexedDB request would let the transaction auto-commit under us.
+		const record = await toRecord(tuneId, blob, Date.now());
 		const db = await openDb();
 		try {
 			const tx = db.transaction(STORE_NAME, 'readwrite');
 			const store = tx.objectStore(STORE_NAME);
-			const record: PdfRecord = { tuneId, blob, timestamp: Date.now() };
 			store.put(record);
 
 			// Prune oldest beyond the cap.
-			const all = await idbReq(store.getAll());
+			const all = (await idbReq(store.getAll())) as StoredPdfRecord[];
 			if (all.length > MAX_PDFS) {
-				const sorted = (all as PdfRecord[]).sort((a, b) => a.timestamp - b.timestamp);
+				const sorted = all.sort((a, b) => a.timestamp - b.timestamp);
 				for (const stale of sorted.slice(0, all.length - MAX_PDFS)) {
 					store.delete(stale.tuneId);
 				}
@@ -215,8 +253,9 @@ export async function getTunePdf(
 		const db = await openDb();
 		try {
 			const tx = db.transaction(STORE_NAME, 'readonly');
-			const record = await idbReq<PdfRecord | undefined>(tx.objectStore(STORE_NAME).get(tuneId));
-			if (record?.blob) return record.blob;
+			const record = await idbReq<StoredPdfRecord | undefined>(tx.objectStore(STORE_NAME).get(tuneId));
+			const cached = toBlob(record);
+			if (cached) return cached;
 		} finally {
 			db.close();
 		}

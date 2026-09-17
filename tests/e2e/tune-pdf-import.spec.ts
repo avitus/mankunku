@@ -165,15 +165,20 @@ test('a PDF chart lands in the editor for review and saves from there', async ({
 	expect(sheets[0].title).toBe('Fly Me to the Moon');
 	expect(sheets[0].id).toMatch(/^sheet-/);
 	expect(page.url()).toMatch(/\/tunes\/fly-me-to-the-moon$/);
+	// The anonymous bucket's store, opened by its exact name (WebKit's
+	// `indexedDB.databases()` lists nothing here); an `upgradeneeded` means the
+	// database did not exist, so abort rather than create an empty one.
 	const pdfIds = await page.evaluate(async () => {
-		const dbs = await indexedDB.databases();
-		const name = dbs.map((d) => d.name ?? '').find((n) => n.startsWith('mankunku-tune-pdfs'));
-		if (!name) return [] as string[];
-		const db = await new Promise<IDBDatabase>((res, rej) => {
-			const req = indexedDB.open(name);
+		const db = await new Promise<IDBDatabase | null>((res, rej) => {
+			const req = indexedDB.open('mankunku-tune-pdfs:anon');
+			req.onupgradeneeded = () => {
+				req.transaction?.abort();
+				res(null);
+			};
 			req.onsuccess = () => res(req.result);
-			req.onerror = () => rej(req.error);
+			req.onerror = () => (req.error?.name === 'AbortError' ? res(null) : rej(req.error));
 		});
+		if (!db) return [] as string[];
 		return new Promise<string[]>((res, rej) => {
 			const req = db.transaction('pdfs').objectStore('pdfs').getAllKeys();
 			req.onsuccess = () => res(req.result.map(String));
