@@ -37,7 +37,7 @@ test('iReal link imports straight into the book', async ({ page }) => {
 	await page.getByRole('button', { name: 'Add to book' }).click();
 	await page.getByRole('link', { name: /Added — view/ }).click();
 
-	await page.waitForURL('**/tunes/sheet-*');
+	await page.waitForURL('**/tunes/imported-blues');
 	await expect(page.getByRole('heading', { name: 'Imported Blues' })).toBeVisible();
 	// The chart renders with chords (tenor settings: concert F7 → written G7).
 	await expect(page.locator('.abcjs-container svg text').filter({ hasText: 'G7' }).first()).toBeVisible();
@@ -60,7 +60,7 @@ test('iReal review flow opens the imported form in the editor', async ({ page })
 
 	// Saving lands on a fresh sheet detail.
 	await page.getByRole('button', { name: 'Save', exact: true }).click();
-	await page.waitForURL('**/tunes/sheet-*');
+	await page.waitForURL('**/tunes/imported-blues');
 	await expect(page.getByRole('heading', { name: 'Imported Blues' })).toBeVisible();
 });
 
@@ -78,7 +78,8 @@ test('the source selector re-interprets a chart as a written-pitch part', async 
 	await page.getByRole('button', { name: 'Add to book' }).click();
 	await page.getByRole('link', { name: /Added — view/ }).click();
 
-	await page.waitForURL('**/tunes/sheet-*');
+	// A saved tune lands on its title slug, never the minted `sheet-…` id.
+	await page.waitForURL(/\/tunes\/(?!editor$|sheet-)[a-z0-9-]+$/);
 	await expect(page.locator('.abcjs-container svg text').filter({ hasText: /^F7$/ }).first()).toBeVisible();
 });
 
@@ -100,7 +101,8 @@ test('a real Band-in-a-Box file imports with sections and a chorus repeat', asyn
 	await page.getByRole('button', { name: 'Add to book' }).click();
 	await page.getByRole('link', { name: /Added — view/ }).click();
 
-	await page.waitForURL('**/tunes/sheet-*');
+	// A saved tune lands on its title slug, never the minted `sheet-…` id.
+	await page.waitForURL(/\/tunes\/(?!editor$|sheet-)[a-z0-9-]+$/);
 	// Boxed part labels for both sections render on the chart.
 	await expect(page.locator('.abcjs-container svg text').filter({ hasText: /^A$/ }).first()).toBeVisible();
 	await expect(page.locator('.abcjs-container svg text').filter({ hasText: /^B$/ }).first()).toBeVisible();
@@ -128,7 +130,7 @@ test('a real MuseScore file imports melody and changes at concert pitch', async 
 	await page.getByRole('button', { name: 'Add to book' }).click();
 	await page.getByRole('link', { name: /Added — view/ }).click();
 
-	await page.waitForURL('**/tunes/sheet-*');
+	await page.waitForURL('**/tunes/fly-me-to-the-moon');
 	await expect(page.getByRole('heading', { name: 'Fly me to the moon' })).toBeVisible();
 	// The file stores concert pitch (the tenor part's transposition is
 	// display-only), so the seeded tenor shows the opening chord written a
@@ -153,7 +155,8 @@ test('a MuseScore file that CLAIMS concert defaults to the user instrument', asy
 	await page.getByRole('button', { name: 'Add to book' }).click();
 	await page.getByRole('link', { name: /Added — view/ }).click();
 
-	await page.waitForURL('**/tunes/sheet-*');
+	// A saved tune lands on its title slug, never the minted `sheet-…` id.
+	await page.waitForURL(/\/tunes\/(?!editor$|sheet-)[a-z0-9-]+$/);
 	// Round trip: displayed back on tenor, the chart reads exactly as typed.
 	// (Had the Concert default applied, this would display as D♭-7.)
 	await expect(page.locator('.abcjs-container svg text').filter({ hasText: /^B-7$/ }).first()).toBeVisible();

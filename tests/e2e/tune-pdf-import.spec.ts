@@ -150,17 +150,37 @@ test('a PDF chart lands in the editor for review and saves from there', async ({
 	// The per-system pipeline (importViaSystems) assigns its own generated
 	// sheet id client-side — the route fixture's id only applies on the
 	// single-shot fallback path — so match the id shape, not a fixed value.
-	await page.waitForURL(/\/tunes\/sheet-[^/]+$/);
+	// The saved tune lands on its title slug (the pre-assigned `sheet-…` id stays the PDF key).
+	await page.waitForURL(/\/tunes\/(?!editor$|sheet-)[a-z0-9-]+$/);
 	await expect(page.getByRole('heading', { name: 'Fly Me to the Moon' })).toBeVisible();
 	await expect(page.locator('.abcjs-container svg').first()).toBeVisible();
 
-	// Saved into the book, and the detail URL is the saved sheet's id — the
-	// same id the PDF blob was stored under, so the linkage holds.
+	// Saved into the book under its pre-assigned `sheet-…` id — the same id the
+	// PDF blob was stored under, so the linkage holds. The detail URL is the
+	// title slug (2026-09-16), so the linkage is checked against the PDF store
+	// itself rather than read off the address bar.
 	const stored = await page.evaluate(() => window.localStorage.getItem('mankunku:user-tunes'));
 	const sheets = JSON.parse(stored ?? '[]') as Array<{ id: string; title: string }>;
 	expect(sheets).toHaveLength(1);
 	expect(sheets[0].title).toBe('Fly Me to the Moon');
-	expect(page.url()).toContain(`/tunes/${sheets[0].id}`);
+	expect(sheets[0].id).toMatch(/^sheet-/);
+	expect(page.url()).toMatch(/\/tunes\/fly-me-to-the-moon$/);
+	const pdfIds = await page.evaluate(async () => {
+		const dbs = await indexedDB.databases();
+		const name = dbs.map((d) => d.name ?? '').find((n) => n.startsWith('mankunku-tune-pdfs'));
+		if (!name) return [] as string[];
+		const db = await new Promise<IDBDatabase>((res, rej) => {
+			const req = indexedDB.open(name);
+			req.onsuccess = () => res(req.result);
+			req.onerror = () => rej(req.error);
+		});
+		return new Promise<string[]>((res, rej) => {
+			const req = db.transaction('pdfs').objectStore('pdfs').getAllKeys();
+			req.onsuccess = () => res(req.result.map(String));
+			req.onerror = () => rej(req.error);
+		});
+	});
+	expect(pdfIds).toContain(sheets[0].id);
 });
 
 test('the declared time signature goes out with every line, with none waiting on another', async ({

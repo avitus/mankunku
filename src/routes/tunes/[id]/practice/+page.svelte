@@ -13,7 +13,8 @@
 	import SelectorPad from '$lib/components/console/SelectorPad.svelte';
 	import { tooltips } from '$lib/content/tooltips';
 	import { tunePracticeTour } from '$lib/tour/tours/tune-practice';
-	import { getTuneById, transposeTune } from '$lib/tunes/book-loader';
+	import { transposeTune } from '$lib/tunes/book-loader';
+	import { resolveTuneRef, tunePath } from '$lib/tunes/tune-slug';
 	import { awaitHydration } from '$lib/state/hydration';
 	import { settings, getInstrument } from '$lib/state/settings.svelte';
 	import { BACKING_STYLE_IDS, BACKING_STYLE_NAMES, melodySwingForStyle } from '$lib/audio/backing-styles';
@@ -99,7 +100,7 @@
 
 	const baseSheet = $derived.by(() => {
 		void cacheVersion;
-		return getTuneById(page.params.id ?? '');
+		return resolveTuneRef(page.params.id ?? '');
 	});
 
 	// ── Audio modules + live handles (lick-practice session pattern) ──────────
@@ -883,7 +884,7 @@
 		</div>
 	{:else if tunePractice.phase === 'setup'}
 		<a
-			href="/tunes/{baseSheet.id}"
+			href={tunePath(baseSheet)}
 			class="inline-flex items-center gap-1 text-sm text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text)]"
 		>
 			&larr; {baseSheet.title}
@@ -1249,7 +1250,7 @@
 				Practice again
 			</button>
 			<a
-				href="/tunes/{baseSheet.id}"
+				href={tunePath(baseSheet)}
 				class="flex-1 rounded-lg bg-[var(--color-bg-tertiary)] py-2.5 text-center font-medium transition-colors hover:bg-[var(--color-bg-secondary)]"
 			>
 				Back to tune

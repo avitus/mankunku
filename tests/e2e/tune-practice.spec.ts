@@ -123,7 +123,8 @@ test.describe('tune practice setup', () => {
 	}) => {
 		await page.goto('/tunes/ls-when-the-saints');
 		await page.getByRole('button', { name: /practice licks/i }).click();
-		await expect(page).toHaveURL(/\/tunes\/ls-when-the-saints\/practice$/);
+		// Links carry the title slug; the curated `ls-` id still resolves too.
+		await expect(page).toHaveURL(/\/tunes\/when-the-saints-go-marching-in\/practice$/);
 
 		await expect(page.getByRole('heading', { name: /practice licks/i })).toBeVisible();
 		// When the Saints: 3 major-vamps + 1 dominant-vamp + 1 blues bar.

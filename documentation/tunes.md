@@ -41,7 +41,7 @@ Whatever route you take, the chart is stored in its **real concert key** — unl
 
 ## Reading a chart
 
-Tap any tune to open it. You get:
+Tap any tune to open it. Its address is readable — `/tunes/autumn-leaves`, and `/tunes/autumn-leaves/practice` for the session — derived from the title (two tunes with the same title get `-2`, `-3`; a link saved under a tune's older id keeps working). You get:
 
 - The **title, composer, style, and time signature** across the top (plus *shared by* on an adopted chart and a **Curated** badge on the ones that ship with the app).
 - A **Key** selector in *your written pitch* — the same key you'd read off the page on your horn. Tap a key and the chart re-engraves there. (Under the hood the app converts to concert pitch; you never have to do that arithmetic.)

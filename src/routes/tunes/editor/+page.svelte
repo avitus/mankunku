@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
+	import { tunePath } from '$lib/tunes/tune-slug';
 	import { onDestroy, onMount } from 'svelte';
 	import NotationDisplay from '$lib/components/notation/NotationDisplay.svelte';
 	import DurationSelector from '$lib/components/step-entry/DurationSelector.svelte';
@@ -277,7 +278,7 @@
 		sheet.difficulty = calculateDifficulty(phrase);
 		const saved = saveUserTune(sheet);
 		initNewTune();
-		goto(`/tunes/${saved.id}`);
+		goto(tunePath(saved));
 	}
 
 	function handleCancel(): void {

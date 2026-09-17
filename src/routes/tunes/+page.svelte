@@ -7,6 +7,7 @@
 	import HelpLink from '$lib/components/ui/HelpLink.svelte';
 	import { tunesTour } from '$lib/tour/tours/tunes';
 	import { getAllTunes, isCuratedTuneId } from '$lib/tunes/book-loader';
+	import { tunePath } from '$lib/tunes/tune-slug';
 	import { getAdoptedTuneAuthorsLocal, getTuneAdoptionsLocal } from '$lib/persistence/tune-community';
 	import { awaitHydration } from '$lib/state/hydration';
 	import type { Tune } from '$lib/types/tune';
@@ -133,7 +134,7 @@
 						{sheet}
 						badge={badgeFor(sheet)}
 						authorName={adoptedAuthors[sheet.id]?.authorName ?? null}
-						onclick={() => goto(`/tunes/${sheet.id}`)}
+						onclick={() => goto(tunePath(sheet))}
 					/>
 				{/each}
 			</div>
@@ -148,7 +149,7 @@
 		{#if curatedSheets.length > 0}
 			<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
 				{#each curatedSheets as sheet (sheet.id)}
-					<TuneCard {sheet} onclick={() => goto(`/tunes/${sheet.id}`)} />
+					<TuneCard {sheet} onclick={() => goto(tunePath(sheet))} />
 				{/each}
 			</div>
 		{:else}

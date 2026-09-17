@@ -40,7 +40,8 @@ test('creates a tune with melody and chords', async ({ page }) => {
 	await page.getByRole('textbox', { name: 'Tune title' }).fill('My First Chart');
 	await page.getByRole('button', { name: 'Save', exact: true }).click();
 
-	await page.waitForURL('**/tunes/sheet-*');
+	// The book links a tune by its title slug; the minted `sheet-…` id keeps resolving too.
+	await page.waitForURL('**/tunes/my-first-chart');
 	await expect(page.getByRole('heading', { name: 'My First Chart' })).toBeVisible();
 	await expect(page.locator('.abcjs-container svg').first()).toBeVisible();
 	await expect(page.locator('.abcjs-container svg text').filter({ hasText: 'D-7' }).first()).toBeVisible();
@@ -57,7 +58,8 @@ test('edits an existing sheet via ?edit= and updates in place', async ({ page })
 	await title.fill('Test Session Tune v2');
 	await page.getByRole('button', { name: 'Update' }).click();
 
-	await page.waitForURL('**/tunes/e2e-user-sheet-1');
+	// A renamed title moves the slug; the stored id below is untouched.
+	await page.waitForURL('**/tunes/test-session-tune-v2');
 	await expect(page.getByRole('heading', { name: 'Test Session Tune v2' })).toBeVisible();
 
 	// The stored sheet kept its id and got the new title.
