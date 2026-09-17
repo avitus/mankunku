@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import type { LayoutItem } from '$lib/notation/chart-geometry';
+import { barZones, chordZones, type LayoutItem, type SystemLayout } from '$lib/notation/chart-geometry';
+import { endingAlignTransform } from '$lib/music/ending-layout';
 import type { BarAnchor, ChordSlotAnchor } from '$lib/music/tune-notation';
 import type { NoteAnchor } from '$lib/music/notation';
 import {
@@ -20,6 +21,7 @@ import {
 	partLabelDelta,
 	pickupPartLabelDx,
 	glissandoWave,
+	alignSystemLayouts,
 	type AdapterVisualObj,
 	type AdapterVoiceItem,
 	type ChordGlyphBox
@@ -660,5 +662,88 @@ describe('pickupPartLabelDx — seat the boxed letter over the first FULL bar', 
 
 	it('never moves a label left', () => {
 		expect(pickupPartLabelDx({ x: 120, y: 10, width: 22, height: 22 }, 80, 10)).toBe(0);
+	});
+});
+
+describe('alignSystemLayouts — stacked [2] zones follow the aligned glyphs', () => {
+	/**
+	 * A Real Book volta. System 0 carries the approach bars with [1] flowing
+	 * inline in its last column, bracket spanning x 300–420. System 1 is the
+	 * one-bar [2] that abcjs drew at natural width from the line start
+	 * (x 40–190). ending-align-dom then translates every [2] glyph so the
+	 * bracket stacks under [1]: the layout has to follow the same map, or the
+	 * zones stay where abcjs put them and every band draws beside the music.
+	 */
+	function voltaLayout(): { systems: SystemLayout[]; barAnchors: BarAnchor[]; slotAnchors: ChordSlotAnchor[] } {
+		const sys0: LayoutItem[] = [];
+		const barAnchors: BarAnchor[] = [];
+		const noteXs = [50, 170, 290, 310];
+		const barXs = [160, 280, 300, 420];
+		for (let b = 0; b < 4; b++) {
+			const c = b * 4;
+			sys0.push({ startChar: c, endChar: c + 2, x: noteXs[b], w: 12, type: 'note' });
+			sys0.push({ startChar: c + 2, endChar: c + 4, x: barXs[b], w: 2, type: 'bar' });
+			// Bars 0–2 are the body's last three bars; bar 3 is the inline [1].
+			barAnchors.push(
+				b < 3
+					? { startChar: c, endChar: c + 4, sectionIdx: 0, bar: b }
+					: { startChar: c, endChar: c + 4, sectionIdx: 1, bar: 0 }
+			);
+		}
+		// System 1: the `[2` marker (an invisible bar), one note, the closing ||.
+		const sys1: LayoutItem[] = [
+			{ startChar: 16, endChar: 18, x: 40, w: 0, type: 'bar' },
+			{ startChar: 18, endChar: 20, x: 60, w: 12, type: 'note' },
+			{ startChar: 20, endChar: 22, x: 190, w: 2, type: 'bar' }
+		];
+		// The bar span opens after the `[2` decoration, as tuneToAbcWithMap anchors it.
+		barAnchors.push({ startChar: 18, endChar: 22, sectionIdx: 2, bar: 0 });
+		const slotAnchors: ChordSlotAnchor[] = [
+			{ startChar: 18, endChar: 20, sectionIdx: 2, bar: 0, beat: 2, chord: 'C7' }
+		];
+		return { systems: [{ items: sys0 }, { items: sys1 }], barAnchors, slotAnchors };
+	}
+
+	/** The transform ending-align-dom computed from the two bracket boxes. */
+	const xform = endingAlignTransform({ x: 300, width: 120 }, { x: 40, width: 150 })!;
+
+	it('maps the [2] bar zone onto the [1] span the glyphs were moved under', () => {
+		const { systems, barAnchors } = voltaLayout();
+		// The unaligned layout is the bug: the [2] zone sits at the line start.
+		const raw = barZones(systems, barAnchors).find((z) => z.sectionIdx === 2)!;
+		expect(raw).toMatchObject({ systemIdx: 1, x0: 40, x1: 190 });
+
+		const aligned = barZones(alignSystemLayouts(systems, [{ systemIdx: 1, ...xform }]), barAnchors);
+		const first = aligned.find((z) => z.sectionIdx === 1)!;
+		const second = aligned.find((z) => z.sectionIdx === 2)!;
+		expect(first).toMatchObject({ x0: 300, x1: 420 });
+		expect(second.x0).toBeCloseTo(first.x0, 0);
+		expect(second.x1).toBeCloseTo(first.x1, 0);
+	});
+
+	it('moves note items by the rigid-glyph rule so beat cells follow too', () => {
+		const { systems, barAnchors, slotAnchors } = voltaLayout();
+		const cells = chordZones({
+			systems: alignSystemLayouts(systems, [{ systemIdx: 1, ...xform }]),
+			barAnchors,
+			noteAnchors: [],
+			chordSlotAnchors: slotAnchors,
+			beatsPerBar: 4,
+			barDurationWholeNotes: 1
+		});
+		// The note's centre (66) maps to sx·cx + tx; its left keeps the width.
+		const expectedNoteX = 60 + ((xform.sx - 1) * 66 + xform.tx);
+		const beat2 = cells.find((z) => z.sectionIdx === 2 && z.beat === 2)!;
+		expect(beat2.x0).toBeCloseTo(expectedNoteX, 6);
+	});
+
+	it('leaves other systems alone, passes through with no alignments, and never mutates its input', () => {
+		const { systems } = voltaLayout();
+		const snapshot = JSON.stringify(systems);
+		expect(alignSystemLayouts(systems, [])).toEqual(systems);
+		const aligned = alignSystemLayouts(systems, [{ systemIdx: 1, ...xform }]);
+		expect(aligned[0]).toEqual(systems[0]);
+		expect(aligned[1]).not.toEqual(systems[1]);
+		expect(JSON.stringify(systems)).toBe(snapshot);
 	});
 });

@@ -2203,3 +2203,25 @@ because a crack is a flaw in one note's attack, not a second note, and the
 segmenter already folded the same thing a frame shorter. If Andy wants
 cracks graded as technique, that belongs in a separate signal on the note,
 not an extra wrong-octave note.
+
+## 2026-09-16 (evening) — "Measured after" is not "derived after"
+
+The `[2]` bands were wrong and the `[2]` chord heights were right, and the difference is
+worth naming. The bands' vertical geometry is *measured* from the SVG after every
+correction pass has run, so a chord row dropped by `matchSecondEndingChordHeight` was
+already where the band measured it. The bar zones are *derived* from abcjs's layout
+model, which no DOM pass ever touches — so the one pass that moves glyphs horizontally
+left the model, and everything derived from it, describing a chart that no longer
+existed. The `notation/` boundary that makes the geometry Node-testable ("DOM-free,
+adapts `visualObj`") is exactly what made it blind: a correction applied on the DOM side
+of that line has to be handed back across it as data, or the model quietly becomes a
+lie. The rule I take from it: every post-render pass that moves ink must return what it
+did, and every derivation from the pre-render model must consume that. Return values,
+not side effects, are how a DOM pass stays honest with a pure module.
+
+Second, smaller: the playhead test. A one-bar window at 240 BPM is a second wide; a test
+that polls it from the runner passes on a quiet laptop and fails on a loaded CI box, and
+that is the exact species of flake this repo has spent September hunting. Observing the
+insertion — measuring at the moment the thing exists rather than asking whether it
+still does — removes the timing from the test entirely. Where the assertion is about a
+transient, put the measurement inside the page, at the mutation.

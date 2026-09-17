@@ -13,6 +13,10 @@
  *   the digit clears the left hook after the path is compressed.
  * - **Chords**: pure translate + clearance past the (nudged) "2".
  * - Ending group is re-appended last so the "2" paints above chords.
+ * - The pass RETURNS every transform it applied, keyed by staff wrapper,
+ *   because the hit-zone / marker geometry is derived from abcjs's
+ *   pre-alignment layout and has to be mapped through the same rule
+ *   (`alignSystemLayouts` in abcjs-adapter) or it draws beside the music.
  */
 
 import {
@@ -65,17 +69,27 @@ function screenToLocal(
 	return local > 0.5 ? local : 0;
 }
 
-/**
- * Align every stacked [2] under its preceding [1] inside `container`.
- * Mutates the SVG DOM in place.
- */
-export function alignStackedEndingsInContainer(container: ParentNode): void {
-	for (const svg of container.querySelectorAll('svg')) {
-		alignStackedEndingsInSvg(svg);
-	}
+/** One stacked [2] whose glyphs this pass moved, and the map it applied. */
+export interface AppliedEndingAlignment {
+	/** The [2] system's `g.abcjs-staff-wrapper`. */
+	wrapper: Element;
+	transform: EndingAlignTransform;
 }
 
-export function alignStackedEndingsInSvg(svg: Element): void {
+/**
+ * Align every stacked [2] under its preceding [1] inside `container`.
+ * Mutates the SVG DOM in place and returns the alignments it applied.
+ */
+export function alignStackedEndingsInContainer(container: ParentNode): AppliedEndingAlignment[] {
+	const applied: AppliedEndingAlignment[] = [];
+	for (const svg of container.querySelectorAll('svg')) {
+		applied.push(...alignStackedEndingsInSvg(svg));
+	}
+	return applied;
+}
+
+export function alignStackedEndingsInSvg(svg: Element): AppliedEndingAlignment[] {
+	const applied: AppliedEndingAlignment[] = [];
 	const endings = [...svg.querySelectorAll<SVGGElement>('g.abcjs-ending')];
 	type Labeled = { g: SVGGElement; label: string; x: number; width: number };
 	const labeled: Labeled[] = [];
@@ -97,8 +111,10 @@ export function alignStackedEndingsInSvg(svg: Element): void {
 			{ x: second.x, width: second.width }
 		);
 		if (!xform) continue;
-		alignOneSecondEnding(second.g, first.g, xform, second.x);
+		const moved = alignOneSecondEnding(second.g, first.g, xform, second.x);
+		if (moved) applied.push(moved);
 	}
+	return applied;
 }
 
 function alignOneSecondEnding(
@@ -106,9 +122,9 @@ function alignOneSecondEnding(
 	firstEndingG: SVGGElement,
 	xform: EndingAlignTransform,
 	secondLeftX: number
-): void {
+): AppliedEndingAlignment | null {
 	const wrapper = endingG.closest('g.abcjs-staff-wrapper');
-	if (!wrapper) return;
+	if (!wrapper) return null;
 
 	const threshold = secondLeftX - 0.5;
 	const selector =
@@ -122,7 +138,7 @@ function alignOneSecondEnding(
 		if (el.closest('.abcjs-clef, .abcjs-key-signature, .abcjs-time-signature')) continue;
 		movers.push(el);
 	}
-	if (movers.length === 0) return;
+	if (movers.length === 0) return null;
 
 	const layer = document.createElementNS('http://www.w3.org/2000/svg', 'g');
 	layer.setAttribute('class', 'abcjs-ending-align');
@@ -217,6 +233,8 @@ function alignOneSecondEnding(
 	clearChordsFromEndingLabel(layer);
 	// Drop [2] chords to the same height above the staff as [1]'s chord row.
 	matchSecondEndingChordHeight(firstEndingG, layer);
+
+	return { wrapper, transform: xform };
 }
 
 /**

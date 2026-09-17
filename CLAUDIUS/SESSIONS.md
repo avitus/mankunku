@@ -3922,3 +3922,31 @@ comments."
   mid-take crack there has no warmup frames and rule 3 can't see it (the
   replay rescore can). A crack whose continuation sounds no longer than it
   stays two notes. The segment still starts at the click, not at the horn.
+
+## 2026-09-16 (evening) — The stacked [2]'s bands followed abcjs, not the music
+
+- **Report.** On a repeat-with-endings tune the practice playhead and insertion bands
+  on the `[2]` system drew at the line start while the music sat under `[1]`.
+  Root cause read straight off `NotationDisplay`'s render effect: it runs
+  `alignStackedEndingsInContainer` (DOM translates on every `[2]` glyph) and then
+  `buildHitZones`, which rebuilds `lastBarZones` from `visualObj`'s pre-alignment
+  `abselem.x/w`. Nothing fed the transform back. The editor's `bar-hit`/`chord-hit`
+  rects and the chord-editor overlay were misplaced by the same 260 units; the
+  per-system bands were NOT, because they are measured from the SVG after the pass
+  and only ever carry y.
+- **Fix, one seam.** `alignStackedEndingsInSvg` now returns what it moved
+  (`AppliedEndingAlignment`: wrapper + `{sx, tx}`), and `alignSystemLayouts` in
+  `abcjs-adapter.ts` maps the matching system's layout items through
+  `endingGlyphTranslateDx` — the DOM pass's own rigid-glyph rule, reused so the two
+  cannot drift — before `barZones`/`chordZones` run. Every x-span downstream follows.
+- **Tests, red first.** Unit: a two-system volta layout where the raw `[2]` zone is
+  40..190 and the aligned one lands on `[1]`'s 300..420, plus beat cells and a
+  no-mutation check. E2E, in the A-Train spec: the editor's `[2]` hit rect must sit
+  within 2.5 staff-spaces of the translated bracket (was 453 px off), and a real
+  session's playhead on the `[2]` bar likewise (394 px off) — measured by a
+  `MutationObserver` at the instant the marker effect inserts the playhead into the
+  aligned wrapper, because that bar lasts one second at 240 BPM and sampling it from
+  the runner is a flake by construction. It caught the bar in 17 s on Chromium.
+- 5223 unit/integration green, `svelte-check` 0/0, A-Train spec green on Chromium;
+  cross-browser + neighbouring chart specs run before the push. Docs: tune-system.md,
+  api-reference/music.md, CLAUDE.md `notation/` bullet.
