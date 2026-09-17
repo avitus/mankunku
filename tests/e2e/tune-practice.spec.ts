@@ -262,9 +262,13 @@ test.describe('tune practice setup', () => {
 		});
 		expect(stored?.backingTrackEnabled).toBe(false);
 
-		// Leave setup and come back: one-time means the switch re-seeds.
-		await page.goto('/tunes/ls-when-the-saints');
+		// Leave setup and come back THROUGH THE APP: the state module outlives
+		// the route, so only a client-side round trip exercises the re-seed —
+		// a page.goto would reload the module and pass for the wrong reason.
+		await page.getByRole('link', { name: /when the saints go marching in/i }).click();
+		await expect(page).toHaveURL(/\/tunes\/when-the-saints-go-marching-in$/);
 		await page.getByRole('button', { name: /practice licks/i }).click();
+		await expect(page.getByRole('heading', { name: /practice licks/i })).toBeVisible();
 		await expect(backing).toHaveAttribute('aria-checked', 'false');
 	});
 });

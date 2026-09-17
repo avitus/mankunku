@@ -2333,3 +2333,32 @@ spelled the global out in prose. A test that greps source cannot tell code
 from commentary, so it polices the file's whole text, and its failure message
 has to say so or the next person will read a real-looking violation into a
 sentence. Cheap guard, but it enlarges what counts as "the code".
+
+## 2026-09-17 (later) — A passing test can prove the wrong path
+
+The e2e I wrote for "the override is one-time" navigated away with
+`page.goto` and back, and asserted the switch had re-seeded. It passed on
+three engines. It was testing a reload — and a reload reloads the state
+module, so the value it observed came from module initialisation, not from
+the re-seed I had written. The path that actually mattered, a client-side
+return with the module still alive, was the one path the test could not
+reach.
+
+The tell was available and I did not read it: the whole reason this feature
+needs a re-seed at all is that **the state module outlives the route**.
+CLAUDE.md says so, the route says so in a comment two lines above the effect
+I should have read. A test for a property that only exists because state
+survives navigation must navigate the way that lets it survive. `page.goto`
+is not "leaving the page" in a SPA; it is restarting the app.
+
+Generalising: when the bug you are preventing is about *persistence across a
+boundary*, the test has to cross the boundary in the weakest way that still
+counts. Going around it through a stronger reset makes the assertion true by
+construction, and a green result then certifies nothing. Ask of every passing
+test written for a lifetime rule: which reset made this pass — mine, or the
+platform's?
+
+Worth noting the review caught it by reading the surrounding code rather than
+the diff: the guard it flagged was not in my patch at all. A diff-shaped
+reading of this change could not have found it, and neither could my
+test-shaped one, because both stopped at the edge of what I had touched.

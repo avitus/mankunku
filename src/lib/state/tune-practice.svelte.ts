@@ -166,15 +166,31 @@ export const tunePractice = $state<{
 	elapsedSeconds: 0
 });
 
+/**
+ * Seed the session's backing switch from the global setting.
+ *
+ * Called at EVERY arrival at the setup screen — a fresh tune, a return to the
+ * same one, "practice again" after a take — because the switch is a one-time
+ * override and must never carry a previous session's choice. This module
+ * outlives the route and keeps `tuneId`, so a client-side return to the same
+ * tune reaches neither `initTunePractice` nor `resetTunePractice`; the route
+ * calls this at mount to cover it.
+ *
+ * Read ONCE per arrival, never reactively: the switch must not snap back under
+ * the user mid-setup, whether they flip it or another tab edits the setting.
+ */
+export function seedSessionBackingFromSettings(): void {
+	tunePractice.config.backingTrackEnabled = settings.backingTrackEnabled;
+}
+
 /** Enter the setup phase for a tune (idempotent per tune). */
 export function initTunePractice(sheet: Tune): void {
 	if (tunePractice.tuneId !== sheet.id) {
 		tunePractice.config.concertKey = sheet.key;
 	}
-	// The backing switch is a ONE-TIME override: unlike concertKey, which stays
-	// put for the same tune, it follows the global setting again on every
-	// arrival at setup, so last session's choice can never silently persist.
-	tunePractice.config.backingTrackEnabled = settings.backingTrackEnabled;
+	// Unlike concertKey, which stays put for the same tune, the backing switch
+	// forgets — see seedSessionBackingFromSettings.
+	seedSessionBackingFromSettings();
 	tunePractice.tuneId = sheet.id;
 	tunePractice.tuneTitle = sheet.title;
 	tunePractice.phase = 'setup';
@@ -542,8 +558,16 @@ export function updateElapsedTime(): void {
 	}
 }
 
+/**
+ * Return to the setup screen, clearing everything a take produced (plan,
+ * results, streaks, picks, celebration) while leaving the config's own
+ * choices alone. Used by "practice again" and by the route's guard against a
+ * mid-session phase left behind by navigating away. It IS an arrival at
+ * setup, so the backing switch re-seeds — see seedSessionBackingFromSettings.
+ */
 export function resetTunePractice(): void {
 	tunePractice.phase = 'setup';
+	seedSessionBackingFromSettings();
 	tunePractice.plan = [];
 	tunePractice.currentIndex = 0;
 	tunePractice.windowOpen = false;

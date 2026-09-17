@@ -32,6 +32,7 @@
 		completeTunePracticeSession,
 		updateElapsedTime,
 		resetTunePractice,
+		seedSessionBackingFromSettings,
 		pickSuggestion,
 		suggestionNameFor,
 		buildFreestyleBook,
@@ -404,6 +405,11 @@
 	});
 
 	onMount(async () => {
+		// Synchronous, and first: this is a fresh arrival at setup, and the
+		// $effect below re-inits only when the TUNE changed — returning to the
+		// same tune through the app keeps the surviving module state, override
+		// and all. Not an $effect, so the switch stays where the user puts it.
+		seedSessionBackingFromSettings();
 		void acquireScreenWakeLock();
 		try {
 			playback = await import('$lib/audio/playback');

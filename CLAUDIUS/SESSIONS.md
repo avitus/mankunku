@@ -4121,3 +4121,25 @@ a backing *style* pad but no on/off — the band was whatever Settings said.
 - Docs: the setup-screen table in `documentation/tune-practice.md` now has
   **Backing** and **Style** rows. `npm run check` clean, 5275 unit tests
   green, docstring coverage 3/3 on the changed declarations.
+
+## 2026-09-17 (later) — PR #252: the re-seed CodeRabbit caught
+
+One Major finding, outside the diff, and correct. The route re-inits only when
+the tune id changes (`tunePractice.tuneId !== baseSheet.id`), and teardown
+keeps `tuneId`, so a client-side return to the SAME tune reached neither
+`initTunePractice` nor `resetTunePractice` — the previous session's override
+survived. `practiceAgain()` had the same hole from the other direction.
+
+My own e2e asserted the return visit and passed, for the wrong reason:
+`page.goto` is a full reload, which reloads the module, so the re-seed it
+proved was the one path that never needed fixing. The leg now leaves and
+returns through the app's own links (back link → *Practice licks*), which is
+the only route that keeps the module alive; it failed, then passed.
+
+Fix: `seedSessionBackingFromSettings()` in the state module, called from
+`initTunePractice`, from `resetTunePractice` and once at route mount —
+"every arrival at the setup screen", which is what the docs and tests already
+claimed. Read once per arrival, never in an `$effect`, so the switch cannot
+snap back while the user is looking at it. Added a unit test for the
+practice-again path. 5276 unit tests green, tune-practice e2e 8/8 on
+Chromium, the switch spec green on all three engines, docstring coverage 5/5.

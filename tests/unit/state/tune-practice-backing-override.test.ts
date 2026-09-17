@@ -2,7 +2,11 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { settings } from '$lib/state/settings.svelte';
-import { tunePractice, initTunePractice } from '$lib/state/tune-practice.svelte';
+import {
+	tunePractice,
+	initTunePractice,
+	resetTunePractice
+} from '$lib/state/tune-practice.svelte';
 import { sheet } from '../../helpers/tune-fixtures';
 
 /**
@@ -47,6 +51,18 @@ describe('tune practice backing-track session override', () => {
 		// Leaving the session and coming back to the SAME tune: the override
 		// was for one session, so the switch follows Settings again.
 		initTunePractice(tune);
+
+		expect(tunePractice.config.backingTrackEnabled).toBe(false);
+	});
+
+	it('re-seeds when the setup screen is re-entered after a take', () => {
+		settings.backingTrackEnabled = false;
+		initTunePractice(tune);
+		tunePractice.config.backingTrackEnabled = true;
+
+		// "Practice again" returns to setup without re-initialising the tune,
+		// and the zombie-phase guard takes the same path.
+		resetTunePractice();
 
 		expect(tunePractice.config.backingTrackEnabled).toBe(false);
 	});
