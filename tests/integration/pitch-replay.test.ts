@@ -5,12 +5,17 @@ import {
 	validateOnsets,
 	resolveOnsets,
 	findReArticulations,
-	getMetronomeBleedOnsets
+	getMetronomeBleedOnsets,
+	findGhostNotes
 } from '$lib/audio/note-segmenter';
 import { runScorePipeline } from '$lib/scoring/score-pipeline';
 import type { Phrase } from '$lib/types/music';
 import type { DetectedNote } from '$lib/types/audio';
 import { trimToPerformance } from '$lib/audio/capture-window';
+import { readdirSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import type { PitchReading } from '$lib/audio/pitch-frame';
 import { loadWavFixture, makeFakeAudioBuffer, type FakeAudioBuffer } from '../helpers/audio-fixtures';
 
 /**
@@ -2253,7 +2258,7 @@ describe('pitch replay regression: pent run, metronome click on the held G (2026
 async function replayEarTrainingTake(file: string, transportSeconds: number, tempo: number) {
 	const wav = loadWavFixture(file);
 	const raw = await replayFromAudioBuffer(makeFakeAudioBuffer(wav.channel, wav.sampleRate));
-	const trimmed = trimToPerformance(raw.readings, raw.onsets, raw.duration);
+	const trimmed = trimToPerformance(raw.readings, raw.onsets, raw.duration, undefined, raw.weakReadings);
 	const bleedOnsets = getMetronomeBleedOnsets(
 		transportSeconds + trimmed.offset,
 		tempo,
@@ -2271,7 +2276,8 @@ async function replayEarTrainingTake(file: string, transportSeconds: number, tem
 		undefined,
 		trimmed.workletOnsets,
 		bleedOnsets,
-		articulationOnsets
+		articulationOnsets,
+		trimmed.weakReadings
 	);
 	return { trimmed, articulationOnsets, detected };
 }
@@ -2992,5 +2998,206 @@ describe('pitch replay regression: Blue Note Drop — the downbeat click before 
 	it.fails('does not split the held G3 at the beat-4 click (OPEN)', async () => {
 		const { detected } = await replayPipeline();
 		expect(detected.map((n) => n.midi)).toEqual([57, 55, 55]);
+	});
+});
+
+/**
+ * "Sharp 9 Flat 9 Dom" (a user lick) in concert E at 129 BPM on tenor sax,
+ * 2026-09-16, Deep Practice (lick-practice, continuous mode, octave-
+ * insensitive), metronome on, no backing. Over B7: D C D C D C (#9 b9 ×3)
+ * B A, landing on G# — written E D E D E D C# B A#. Played correctly, saved
+ * 6 of 9: pitch 0.667, overall 0.739 ("good").
+ *
+ * The player GHOSTED the three off-beat Cs, jazz-style: 9–12 dB under the Ds,
+ * breathy, half-fingered — they sound C + 40–70 cents (268–272 Hz, stable in
+ * a 23 ms window too), with a click landing at the end of each (0.555, 1.020,
+ * 1.485 s). McLeod clarity across each C sits at 0.54–0.76, under the 0.80
+ * threshold, so the confident stream held three holes and the Ds swallowed
+ * them. The live path caught a few frames of the second C and scored D, D, D,
+ * C+46, C#, D against D C D C D C.
+ *
+ * Replayed here the take lost one more note: the A3 is tracked for five
+ * frames before the downbeat kick (1.93 s) blanks it, all inside the 80 ms
+ * onset guard and all stabilizer warmup — either rule alone dropped it, and
+ * the G# that followed without an onset took its segment. Before the fix the
+ * replay scored 4 of 9 (0.518).
+ *
+ * Also on the record, not fixed here: the first D cracks into its lower
+ * octave for ~110 ms before the octave vent speaks (a D3 note ahead of the
+ * D4, harmless as an unmatched extra), and the click grid stamped for this
+ * window runs 0.08 s ahead of the clicks in the audio.
+ */
+describe('pitch replay regression: Sharp 9 Flat 9 Dom — ghosted Cs in Deep Practice (concert E, 2026-09-16)', () => {
+	const TRANSPORT_SECONDS = 107.89600907029455;
+	const TEMPO = 129;
+	const SWING = 0.6;
+	const FIXTURE = 'recordings/2026-09-16-sharp-9-flat-9-dom.wav';
+
+	const eighths = [62, 60, 62, 60, 62, 60, 59, 57]; // D C D C D C B A
+	const expectedPhrase: Phrase = {
+		id: 'user-1775774545194-4dj7_E',
+		name: 'Sharp 9 Flat 9 Dom',
+		timeSignature: [4, 4],
+		key: 'E',
+		notes: [
+			...eighths.map((pitch, i) => ({
+				pitch,
+				duration: [1, 8] as [number, number],
+				offset: [i, 8] as [number, number]
+			})),
+			{ pitch: 56, duration: [1, 2], offset: [1, 1] } // G#
+		],
+		harmony: [],
+		difficulty: { level: 30, pitchComplexity: 30, rhythmComplexity: 20, lengthBars: 2 },
+		category: 'ii-V-I-major',
+		tags: [],
+		source: 'user'
+	};
+
+	/** Seconds from a replay reading's window start to its end. */
+	const ANALYSER_WINDOW = 4096 / 44100;
+
+	/**
+	 * The lick-practice close path: no trim (the detector runs for the whole
+	 * session and the window opens on a bar line), the metronome grid as bleed
+	 * evidence. `live` re-stamps every frame at its window END, the time base
+	 * the rAF detector hands the session.
+	 */
+	async function lickPracticeTake(opts: { weak?: boolean; live?: boolean } = {}) {
+		const { weak = true, live = false } = opts;
+		const wav = loadWavFixture(FIXTURE);
+		const raw = await replayFromAudioBuffer(makeFakeAudioBuffer(wav.channel, wav.sampleRate));
+		/** Move a replay frame from its window start to its window end, `shapeBreakAt` with it. */
+		const restamp = (r: PitchReading): PitchReading =>
+			live
+				? {
+						...r,
+						time: r.time + ANALYSER_WINDOW,
+						...(r.shapeBreakAt !== undefined ? { shapeBreakAt: r.shapeBreakAt - ANALYSER_WINDOW } : {})
+					}
+				: r;
+		const readings = raw.readings.map(restamp);
+		const weakReadings = raw.weakReadings.map(restamp);
+		const bleedOnsets = getMetronomeBleedOnsets(TRANSPORT_SECONDS, TEMPO, raw.duration);
+		const baseOnsets = resolveOnsets(raw.onsets, readings);
+		const articulationOnsets = findReArticulations(readings, baseOnsets, bleedOnsets);
+		const onsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
+		const detected = segmentNotes(
+			readings,
+			onsets,
+			raw.duration,
+			undefined,
+			undefined,
+			undefined,
+			raw.onsets,
+			bleedOnsets,
+			articulationOnsets,
+			weak ? weakReadings : undefined
+		);
+		const score = runScorePipeline({
+			detected,
+			phrase: expectedPhrase,
+			tempo: TEMPO,
+			transportSeconds: TRANSPORT_SECONDS,
+			swing: SWING,
+			bleedFilterEnabled: false,
+			octaveInsensitive: true
+		}).chosen;
+		return { raw, detected, score };
+	}
+
+	/** Where the three Cs sound (the pitch plateaus, measured on the audio). */
+	const GHOST_WINDOWS: Array<[number, number]> = [
+		[0.45, 0.55],
+		[0.9, 1.03],
+		[1.35, 1.52]
+	];
+
+	it('the ghosted Cs leave holes in the confident readings, filled by weak C frames', async () => {
+		// Documents the evidence the ghost pass acts on.
+		const { raw } = await lickPracticeTake();
+		for (const [from, to] of GHOST_WINDOWS) {
+			const confident = raw.readings.filter((r) => r.time > from && r.time < to - 0.03);
+			expect(confident.filter((r) => r.midi === 60 || r.midi === 61).length).toBeLessThanOrEqual(1);
+			const weakCs = raw.weakReadings.filter(
+				(r) => r.time > from && r.time < to && (r.midi === 60 || r.midi === 61 || r.midi === 48)
+			);
+			expect(weakCs.length).toBeGreaterThanOrEqual(3);
+			for (const w of weakCs) expect(w.clarity).toBeLessThan(0.8);
+		}
+	});
+
+	it('recovers all three ghosted Cs (saved: one C, one C#, one missing)', async () => {
+		const { detected } = await lickPracticeTake();
+		const ghosts = detected.filter((n) => n.ghost);
+		expect(ghosts).toHaveLength(3);
+		ghosts.forEach((g, i) => {
+			const [from, to] = GHOST_WINDOWS[i];
+			expect(g.onsetTime).toBeGreaterThanOrEqual(from - 0.01);
+			expect(g.onsetTime).toBeLessThan(to);
+			// Measured C + 40–70 cents: within a semitone above C.
+			const measured = g.midi + g.cents / 100;
+			expect(measured).toBeGreaterThan(60);
+			expect(measured).toBeLessThan(61);
+		});
+	});
+
+	it('keeps the A the downbeat kick cut short (replay: swallowed by the G#)', async () => {
+		const { detected } = await lickPracticeTake();
+		const a = detected.findIndex((n) => n.midi === 57);
+		expect(a).toBeGreaterThan(-1);
+		expect(detected[a].onsetTime).toBeCloseTo(1.779, 2);
+		expect(detected[a - 1].midi).toBe(59);
+		expect(detected[a + 1].midi).toBe(56);
+	});
+
+	it('scores all nine notes hit (saved: 6 of 9, 0.739; replay before the fix: 4 of 9, 0.518)', async () => {
+		const { score } = await lickPracticeTake();
+		for (const nr of score.noteResults) expect(nr.missed).toBe(false);
+		expect(score.notesHit).toBe(9);
+		expect(score.pitchAccuracy).toBe(1);
+		// Measured 0.977 (rhythm 0.943).
+		expect(score.overall).toBeGreaterThan(0.95);
+		expect(score.grade).toBe('perfect');
+	});
+
+	it('scores the same in the live detector time base (frames stamped at window end)', async () => {
+		const { detected, score } = await lickPracticeTake({ live: true });
+		expect(detected.filter((n) => n.ghost)).toHaveLength(3);
+		expect(score.notesHit).toBe(9);
+		// Measured 0.961.
+		expect(score.overall).toBeGreaterThan(0.95);
+	});
+
+	it('loses the Cs again when a call site drops the weak readings', async () => {
+		// The evidence is supplied by the caller: segmentNotes cannot recover a
+		// ghost it was never shown.
+		const { detected, score } = await lickPracticeTake({ weak: false });
+		expect(detected.some((n) => n.ghost)).toBe(false);
+		expect(detected.some((n) => n.midi === 60 || n.midi === 61)).toBe(false);
+		expect(score.notesHit).toBeLessThan(9);
+	});
+});
+
+/**
+ * The ghost-note pass must not find notes nobody played. Across the fixture
+ * corpus (2026-09-16) the only plateaus clear of both neighbours are the three
+ * ghosted Cs; every other hole's frames are a neighbour's decay or attack.
+ */
+describe('pitch replay regression: ghost notes appear only where they were played', () => {
+	const here = dirname(fileURLToPath(import.meta.url));
+	const recordings = resolve(here, '../fixtures/recordings');
+	const wavs = readdirSync(recordings).filter((f) => f.endsWith('.wav'));
+	const EXPECTED_GHOSTS: Record<string, number> = {
+		'2026-09-16-sharp-9-flat-9-dom.wav': 3
+	};
+
+	it.each(wavs)('%s', async (file) => {
+		const wav = loadWavFixture(`recordings/${file}`);
+		const raw = await replayFromAudioBuffer(makeFakeAudioBuffer(wav.channel, wav.sampleRate));
+		expect(findGhostNotes(raw.readings, raw.weakReadings)).toHaveLength(EXPECTED_GHOSTS[file] ?? 0);
+		// The ear-training frame shifts both streams together; nothing moves.
+		const trimmed = trimToPerformance(raw.readings, raw.onsets, raw.duration, undefined, raw.weakReadings);
+		expect(findGhostNotes(trimmed.readings, trimmed.weakReadings)).toHaveLength(EXPECTED_GHOSTS[file] ?? 0);
 	});
 });

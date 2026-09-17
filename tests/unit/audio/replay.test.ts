@@ -40,6 +40,31 @@ describe('replayFromAudioBuffer', () => {
 		}
 	});
 
+	it('returns sub-threshold frames as weakReadings, apart from readings', async () => {
+		// A C4 under seeded white noise reads McLeod clarity ~0.69 — breathy
+		// enough to miss the threshold, pitched enough to clear the weak floor.
+		const sampleRate = 48000;
+		const channel = new Float32Array(Math.floor(0.6 * sampleRate));
+		let seed = 12345;
+		/** Seeded white noise in [-0.5, 0.5), so the buffer is the same on every run. */
+		const noise = () => {
+			seed = (seed * 1664525 + 1013904223) >>> 0;
+			return seed / 4294967296 - 0.5;
+		};
+		for (let i = 0; i < channel.length; i++) {
+			channel[i] = 0.3 * Math.sin((2 * Math.PI * 261.6 * i) / sampleRate) + 0.5 * noise();
+		}
+		const { readings, weakReadings } = await replayFromAudioBuffer(makeFakeAudioBuffer(channel, sampleRate));
+		expect(readings).toHaveLength(0);
+		expect(weakReadings.length).toBeGreaterThan(10);
+		for (const w of weakReadings) {
+			expect(Math.abs(w.midiFloat - 60)).toBeLessThan(1);
+			expect(w.weak).toBe(true);
+			expect(w.clarity).toBeLessThan(0.8);
+			expect(w.clarity).toBeGreaterThanOrEqual(0.5);
+		}
+	});
+
 	it('emits no onsets on pure sustained sine (no transient)', async () => {
 		// Steady-state amplitude means HFC ratio stays near 1, well below threshold.
 		const channel = makeSine(440, 0.5, 48000, 0.5);

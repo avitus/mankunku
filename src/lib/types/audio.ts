@@ -11,6 +11,13 @@ export interface DetectedNote {
 	duration: number;
 	/** Pitch detection clarity (0-1) */
 	clarity: number;
+	/**
+	 * True when the note was recovered from sub-threshold frames by the
+	 * segmenter's ghost-note pass (`findGhostNotes`). Its pitch is only known
+	 * to the pair of semitones `midi + cents / 100` falls between, and the
+	 * scorer credits either (`pitchMatches`). Omitted on ordinary notes.
+	 */
+	ghost?: true;
 }
 
 export type MicPermissionState = 'prompt' | 'granted' | 'denied' | 'unavailable';

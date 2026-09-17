@@ -75,3 +75,43 @@ describe('scorePitch with octaveInsensitive=true', () => {
 		expect(scorePitch(makeNote(null), makeDetected(60), true)).toBe(1.0);
 	});
 });
+
+/**
+ * A ghost note is recovered from sub-threshold frames, so its pitch is only
+ * known to the pair of semitones it falls between — the 2026-09-16 ghosted
+ * Cs measured C + 40–70 cents. It matches either of them.
+ */
+describe('scorePitch for a ghost note', () => {
+	/** A ghost note measured at `midi` + `cents`. */
+	function ghost(midi: number, cents: number): DetectedNote {
+		return { ...makeDetected(midi, cents), ghost: true };
+	}
+
+	it('credits the semitone below a ghost measured 70 cents above it', () => {
+		// 60.7 reads as C# -30; the expected C is the other bracketing semitone.
+		expect(scorePitch(makeNote(60), ghost(61, -30))).toBeCloseTo(1.0, 2);
+	});
+
+	it('credits the nearer semitone with its intonation bonus', () => {
+		expect(scorePitch(makeNote(61), ghost(61, -30))).toBeCloseTo(1.04, 2);
+	});
+
+	it('does not credit a semitone a whole step or more away', () => {
+		expect(scorePitch(makeNote(62), ghost(61, -30))).toBe(0);
+		expect(scorePitch(makeNote(59), ghost(61, -30))).toBe(0);
+	});
+
+	it('does not stretch an in-tune ghost to its neighbour', () => {
+		expect(scorePitch(makeNote(61), ghost(60, 0))).toBe(0);
+		expect(scorePitch(makeNote(59), ghost(60, 0))).toBe(0);
+	});
+
+	it('applies the same bracket in any octave when octave-insensitive', () => {
+		expect(scorePitch(makeNote(60), ghost(49, -30), true)).toBeCloseTo(1.0, 2);
+		expect(scorePitch(makeNote(60), ghost(49, -30))).toBe(0);
+	});
+
+	it('leaves a confident note strict: C# -30 is not a C', () => {
+		expect(scorePitch(makeNote(60), makeDetected(61, -30))).toBe(0);
+	});
+});

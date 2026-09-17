@@ -7,6 +7,7 @@ import {
 	DEFAULT_CLARITY_THRESHOLD,
 	DEFAULT_MIN_FREQUENCY,
 	DEFAULT_MAX_FREQUENCY,
+	WEAK_CLARITY_FLOOR,
 	measureShapeBreak,
 } from '$lib/audio/pitch-frame';
 
@@ -531,5 +532,59 @@ describe('detectFrame instrument-band floor', () => {
 		expect(clean.bandRmsMin!).toBeLessThan(0.1); // the dip registered in-band
 		expect(ridden.rmsMin!).toBeGreaterThan(clean.rmsMin! * 2);
 		expect(ridden.bandRmsMin!).toBeLessThan(clean.bandRmsMin! * 1.15);
+	});
+});
+
+/**
+ * Sub-threshold frames are kept on a side channel so the segmenter can recover
+ * a ghosted note from the hole it leaves in the confident readings.
+ */
+describe('detectFrame weak readings', () => {
+	const sampleRate = 48000;
+	const buffer = new Float32Array(2048);
+	const baseOpts = { sampleRate };
+
+	it('returns a weak reading, not a reading, between the floor and the threshold', () => {
+		const detector = makeMockDetector(269, 0.65);
+		const result = detectFrame(buffer, 0.5, detector as any, null, baseOpts);
+		expect(result.reading).toBeNull();
+		expect(result.weakReading).toBeDefined();
+		expect(result.weakReading!.weak).toBe(true);
+		expect(result.weakReading!.time).toBe(0.5);
+		expect(result.weakReading!.clarity).toBe(0.65);
+		expect(result.weakReading!.frequency).toBe(269);
+		expect(result.weakReading!.midiFloat).toBeCloseTo(60.48, 2);
+		expect(result.weakReading!.midi).toBe(60);
+		expect(result.weakReading!.cents).toBe(48);
+		expect(result.rawClarity).toBe(0.65);
+	});
+
+	it('includes a frame exactly at the floor', () => {
+		const detector = makeMockDetector(269, WEAK_CLARITY_FLOOR);
+		expect(detectFrame(buffer, 0, detector as any, null, baseOpts).weakReading).toBeDefined();
+	});
+
+	it('returns no weak reading below the floor', () => {
+		const detector = makeMockDetector(269, WEAK_CLARITY_FLOOR - 0.01);
+		expect(detectFrame(buffer, 0, detector as any, null, baseOpts).weakReading).toBeUndefined();
+	});
+
+	it('returns no weak reading out of range', () => {
+		expect(detectFrame(buffer, 0, makeMockDetector(50, 0.65) as any, null, baseOpts).weakReading).toBeUndefined();
+		expect(detectFrame(buffer, 0, makeMockDetector(1500, 0.65) as any, null, baseOpts).weakReading).toBeUndefined();
+	});
+
+	it('returns no weak reading for a confident frame', () => {
+		const detector = makeMockDetector(440, DEFAULT_CLARITY_THRESHOLD);
+		const result = detectFrame(buffer, 0, detector as any, null, baseOpts);
+		expect(result.reading).not.toBeNull();
+		expect(result.weakReading).toBeUndefined();
+	});
+
+	it('never feeds the octave stabilizer', () => {
+		const stabilizer = createOctaveStabilizer();
+		const processSpy = vi.spyOn(stabilizer, 'process');
+		detectFrame(buffer, 0, makeMockDetector(269, 0.65) as any, stabilizer, baseOpts);
+		expect(processSpy).not.toHaveBeenCalled();
 	});
 });

@@ -110,6 +110,17 @@ export interface PitchReading {
 	 * genuine mid-register note is harmless. Omitted when not flagged.
 	 */
 	octaveUp?: boolean;
+	/**
+	 * True on a SUB-threshold frame (clarity in [WEAK_CLARITY_FLOOR,
+	 * threshold)). These never enter the confident reading stream: detectors
+	 * return them as `FrameResult.weakReading` and collect them on a side
+	 * channel whose only consumer is the segmenter's ghost-note pass
+	 * (`findGhostNotes`). A weak frame bypasses the octave stabilizer, so
+	 * `midi`/`midiFloat` are the raw pick after subharmonic correction, and it
+	 * carries only the window-level fields (`rms`, `hfRms`, `rmsMin`).
+	 * Omitted on confident readings.
+	 */
+	weak?: true;
 }
 
 /**
@@ -265,6 +276,17 @@ let shapeBestScratch = new Float64Array(0);
 
 /** Default clarity floor for accepting a reading */
 export const DEFAULT_CLARITY_THRESHOLD = 0.80;
+
+/**
+ * Lowest clarity a frame may have and still be kept as a WEAK reading (see
+ * `PitchReading.weak`). A ghosted note is breathy and half-fingered, and the
+ * 93 ms window that measures it also holds the louder notes around it: the
+ * 2026-09-16 "sharp-9-flat-9-dom" ghosted Cs read clarity 0.54–0.76 across
+ * their plateaus, so a confident-only stream held nothing but a hole where
+ * each one was. Below 0.5 the pick stops being a pitch at all — the same
+ * take's click bursts and breath noise read 0.35–0.49.
+ */
+export const WEAK_CLARITY_FLOOR = 0.5;
 
 /** Default min frequency (below tenor sax range) */
 export const DEFAULT_MIN_FREQUENCY = 80;
@@ -530,6 +552,11 @@ export interface FrameResult {
 	reading: PitchReading | null;
 	/** Raw clarity from the detector (always provided, for UI meters) */
 	rawClarity: number;
+	/**
+	 * The frame as a weak reading when it is in range but its clarity sits in
+	 * [WEAK_CLARITY_FLOOR, threshold) — never set alongside `reading`.
+	 */
+	weakReading?: PitchReading;
 }
 
 /**
@@ -783,12 +810,31 @@ export function detectFrame(
 			? rms
 			: Math.sqrt(minSpanEnergy / (RMS_MIN_SPAN_BLOCKS * RMS_MIN_BLOCK_SIZE));
 
-	if (
-		clarity < clarityThreshold ||
-		frequency < minFrequency ||
-		frequency > maxFrequency
-	) {
+	if (frequency < minFrequency || frequency > maxFrequency) {
 		return { reading: null, rawClarity: clarity };
+	}
+	if (clarity < clarityThreshold) {
+		if (clarity < WEAK_CLARITY_FLOOR) return { reading: null, rawClarity: clarity };
+		// Raw pick, no stabilizer: a sub-threshold frame must not move the
+		// octave state the confident stream relies on.
+		const weakMidiFloat = frequencyToMidi(frequency);
+		const { midi: weakMidi, cents: weakCents } = quantizePitch(weakMidiFloat);
+		return {
+			reading: null,
+			rawClarity: clarity,
+			weakReading: {
+				midiFloat: weakMidiFloat,
+				midi: weakMidi,
+				cents: weakCents,
+				clarity,
+				time,
+				frequency,
+				rms,
+				hfRms,
+				rmsMin,
+				weak: true
+			}
+		};
 	}
 
 	const rawMidiFloat = frequencyToMidi(frequency);

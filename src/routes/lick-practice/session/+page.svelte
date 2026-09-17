@@ -282,6 +282,8 @@
 		recordingTransportSeconds: number;
 		micStartTime: number;
 		readingsStartCount: number;
+		/** Same as `readingsStartCount`, for the detector's weak-reading stream. */
+		weakReadingsStartCount: number;
 		/**
 		 * The key's last window this cycle — the attempt of record. A revealed
 		 * key plays `LEAD_SHEET_PASSES` windows; the earlier ones are rehearsals:
@@ -1166,6 +1168,7 @@
 			recordingTransportSeconds: transportSecondsAtOpen,
 			micStartTime: micCapture?.context.currentTime ?? 0,
 			readingsStartCount: readings.length,
+			weakReadingsStartCount: pitchDetector.getWeakReadings().length,
 			finalPass,
 			passes
 		};
@@ -1223,6 +1226,12 @@
 			const r = allReadings[i];
 			rebased.push({ ...r, time: r.time - windowOffset });
 		}
+		// The sub-threshold frames the ghost-note pass reads, sliced and
+		// rebased the same way.
+		const rebasedWeak = pitchDetector
+			.getWeakReadings()
+			.slice(window.weakReadingsStartCount)
+			.map((r) => ({ ...r, time: r.time - windowOffset }));
 
 		const workletOnsets = onsetDetector?.getOnsets() ?? [];
 		// Segment over the full capture window, not the notional phrase length:
@@ -1242,7 +1251,7 @@
 		});
 		const articulationOnsets = findReArticulations(rebased, baseOnsets, bleedOnsets);
 		const onsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
-		const detected = segmentNotes(rebased, onsets, recordingDuration, undefined, undefined, undefined, workletOnsets, bleedOnsets, articulationOnsets);
+		const detected = segmentNotes(rebased, onsets, recordingDuration, undefined, undefined, undefined, workletOnsets, bleedOnsets, articulationOnsets, rebasedWeak);
 		const bleedResult = window.schedule
 			? filterBleed(detected, window.schedule, window.recordingTransportSeconds)
 			: null;

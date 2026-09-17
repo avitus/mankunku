@@ -1369,3 +1369,59 @@ describe('segmentNotes — octave respell of a re-attacked sliver', () => {
 		expect(notes.some((n) => n.midi === 67 && n.onsetTime < 0.45)).toBe(true);
 	});
 });
+
+/**
+ * The 2026-09-16 "sharp-9-flat-9-dom" A3: an eighth note between a B and a
+ * G#, whose tracking the downbeat kick blanked after five frames. Those five
+ * frames sat inside the 80 ms onset guard (replay timestamps a reading at its
+ * window START, so they were the A's own audio, not the B's tail) and were
+ * all octave-stabilizer warmup frames; either rule alone dropped the A, and
+ * the G# that followed without an onset took over its segment.
+ */
+describe('segmentNotes: a short note cut off right after its attack', () => {
+	const HOP = 1 / 60;
+	/** `count` confident readings of `midi`, one hop apart from `from`. */
+	function run(midi: number, from: number, count: number, opts: { warmup?: boolean } = {}): PitchReading[] {
+		return Array.from({ length: count }, (_, i) => {
+			const r = makeReading(midi, from + i * HOP);
+			if (opts.warmup) r.warmup = true;
+			return r;
+		});
+	}
+	const b = run(59, 0, 18);
+	const gSharp = run(56, 0.6, 24);
+
+	it('keeps a note whose frames complete the stabilizer warmup, all on one pitch', () => {
+		// Past the guard window, so only the all-warmup rule is in play.
+		const a = run(57, 0.44, 5, { warmup: true });
+		const notes = segmentNotes([...b, ...a, ...gSharp], [0, 0.35], 1.0, undefined, undefined, undefined, [0, 0.35]);
+		expect(notes.map((n) => n.midi)).toEqual([59, 57, 56]);
+	});
+
+	it('still drops a partial warmup burst', () => {
+		const a = run(57, 0.44, 3, { warmup: true });
+		const notes = segmentNotes([...b, ...a, ...gSharp], [0, 0.35], 1.0, undefined, undefined, undefined, [0, 0.35]);
+		expect(notes.map((n) => n.midi)).toEqual([59, 56]);
+	});
+
+	it('keeps frames inside the onset guard that do not read the previous note', () => {
+		const a = run(57, 0.353, 5);
+		const notes = segmentNotes([...b, ...a, ...gSharp], [0, 0.35], 1.0, undefined, undefined, undefined, [0, 0.35]);
+		expect(notes.map((n) => n.midi)).toEqual([59, 57, 56]);
+		expect(notes[1].onsetTime).toBeCloseTo(0.35, 5);
+	});
+
+	it('still skips stale frames of the previous note inside the onset guard', () => {
+		const stale = run(59, 0.353, 5);
+		const c = run(60, 0.44, 30);
+		const notes = segmentNotes([...b, ...stale, ...c], [0, 0.35], 1.0, undefined, undefined, undefined, [0, 0.35]);
+		expect(notes.map((n) => n.midi)).toEqual([59, 60]);
+		expect(notes[1].onsetTime).toBeCloseTo(0.35, 5);
+	});
+
+	it('keeps the A when both rules apply at once, as on the take', () => {
+		const a = run(57, 0.353, 5, { warmup: true });
+		const notes = segmentNotes([...b, ...a, ...gSharp], [0, 0.35], 1.0, undefined, undefined, undefined, [0, 0.35]);
+		expect(notes.map((n) => n.midi)).toEqual([59, 57, 56]);
+	});
+});

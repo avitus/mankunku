@@ -103,7 +103,7 @@ The two notes you played correctly carry most of the credit. The wrong-pitch G d
 
 A few things deliberately stay out of the score:
 
-- **Tone, dynamics, and articulation.** The pitch detector hears the fundamental frequency, not your sound. A breathy ghost note and a fortissimo accent score the same as long as the pitch and timing land.
+- **Tone, dynamics, and articulation.** The pitch detector hears the fundamental frequency, not your sound. A breathy ghost note and a fortissimo accent score the same as long as the pitch and timing land. Because a ghost is pitched between keys by nature, a ghost note counts as either of the two semitones it falls between (see [Ghost notes](./audio-pipeline.md#ghost-notes)).
 - **Vibrato and bends.** The pitch detector takes a median across each note's duration, so a bend that resolves to the right pitch is counted as the right pitch.
 - **Phrasing nuance** like swing degree or laid-back feel. Beyond the swing-aware scoring of off-beat eighths, the app doesn't try to read your phrasing. If you're playing the right notes at roughly the right times, you'll pass.
 

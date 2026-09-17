@@ -526,6 +526,7 @@
 	function finishRecording() {
 		if (!session.isRecording || !session.phrase || !pitchDetector) return;
 		const rawReadings = pitchDetector.getReadings();
+		const rawWeakReadings = pitchDetector.getWeakReadings();
 		stopRecording();
 
 		const rawWorkletOnsets = onsetDetector?.getOnsets() ?? [];
@@ -541,7 +542,7 @@
 		// stored blob keeps the lead-in — `recordingTransportSeconds` still
 		// describes its first sample — so every replay path re-derives this
 		// offset from the audio rather than trusting a persisted value.
-		const trimmed = trimToPerformance(rawReadings, rawWorkletOnsets, rawDuration);
+		const trimmed = trimToPerformance(rawReadings, rawWorkletOnsets, rawDuration, undefined, rawWeakReadings);
 		const readings = trimmed.readings;
 		const workletOnsets = trimmed.workletOnsets;
 		const recordingDuration = trimmed.duration;
@@ -559,7 +560,7 @@
 		});
 		const articulationOnsets = findReArticulations(readings, baseOnsets, bleedOnsets);
 		const onsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
-		const detected = segmentNotes(readings, onsets, recordingDuration, undefined, undefined, undefined, workletOnsets, bleedOnsets, articulationOnsets);
+		const detected = segmentNotes(readings, onsets, recordingDuration, undefined, undefined, undefined, workletOnsets, bleedOnsets, articulationOnsets, trimmed.weakReadings);
 		const bleedResult = schedule
 			? filterBleed(detected, schedule, transportSeconds)
 			: null;
@@ -790,9 +791,10 @@
 		// Same trim the live path applied, re-derived from the blob rather than
 		// carried across — `transportSeconds` describes the blob's first sample,
 		// so the offset has to be added back on top of it here.
-		const trimmed = trimToPerformance(rawReplay.readings, rawReplay.onsets, rawReplay.duration);
+		const trimmed = trimToPerformance(rawReplay.readings, rawReplay.onsets, rawReplay.duration, undefined, rawReplay.weakReadings);
 		const replay = {
 			readings: trimmed.readings,
+			weakReadings: trimmed.weakReadings,
 			onsets: trimmed.workletOnsets,
 			duration: trimmed.duration
 		};
@@ -825,7 +827,7 @@
 		});
 		const articulationOnsets = findReArticulations(replay.readings, baseOnsets, bleedOnsets);
 		const onsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
-		const detected = segmentNotes(replay.readings, onsets, replay.duration, undefined, undefined, undefined, replay.onsets, bleedOnsets, articulationOnsets);
+		const detected = segmentNotes(replay.readings, onsets, replay.duration, undefined, undefined, undefined, replay.onsets, bleedOnsets, articulationOnsets, replay.weakReadings);
 		const bleedResult = schedule
 			? filterBleed(detected, schedule, trimmedTransportSeconds)
 			: null;

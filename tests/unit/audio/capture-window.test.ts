@@ -197,6 +197,29 @@ describe('trimToPerformance', () => {
 		expect(twice.duration).toBe(once.duration);
 	});
 
+	it('rebases the weak readings with the confident ones and drops those in the lead-in', () => {
+		const readings = run(60, 2.0, 3.0);
+		const weak: PitchReading[] = [
+			{ ...makeReading(61, 0.8, 0.6), weak: true },
+			{ ...makeReading(61, 2.5, 0.6), weak: true }
+		];
+		const result = trimToPerformance(readings, [], 3.1, undefined, weak);
+
+		expect(result.weakReadings).toHaveLength(1);
+		expect(result.weakReadings[0].time).toBeCloseTo(2.5 - result.offset, 10);
+		expect(result.weakReadings[0].clarity).toBe(0.6);
+	});
+
+	it('hands the weak readings back untouched when nothing is trimmed', () => {
+		const weak: PitchReading[] = [{ ...makeReading(61, 0.25, 0.6), weak: true }];
+		expect(trimToPerformance(run(60, 0, 0.5), [], 0.6, undefined, weak).weakReadings).toBe(weak);
+		expect(trimToPerformance([], [], 0.6, undefined, weak).weakReadings).toBe(weak);
+	});
+
+	it('defaults the weak readings to none', () => {
+		expect(trimToPerformance(run(60, 2.0, 3.0), [], 3.1).weakReadings).toEqual([]);
+	});
+
 	it('anchors the pre-roll on the first performance-level reading, not a click ring', () => {
 		// The 2026-09-03 tonic-turn shape: the metronome's ringing tail reads
 		// as a confident pitch 1.2 s before the user comes in. Anchoring on it

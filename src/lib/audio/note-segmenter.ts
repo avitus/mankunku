@@ -21,6 +21,7 @@ const BLEED_LATENCY_MAX = 0.200;
 
 import type { DetectedNote } from '$lib/types/audio';
 import type { PitchReading } from './pitch-detector';
+import { WARMUP_FRAMES } from './pitch-frame';
 
 /**
  * Warmup frames (emitted during the octave stabilizer's warmup window) are
@@ -106,6 +107,11 @@ export function validateOnsets(
  *   Pass the unprocessed worklet onsets (not the resolved/validated set),
  *   since resolveOnsets mixes in pitch-derived starts that we explicitly
  *   want to ignore here.
+ * @param weakReadings - Optional sub-threshold frames from the same capture
+ *   (`getWeakReadings()` / `ReplayResult.weakReadings`, same time base as
+ *   `readings`). When supplied, ghosted notes recovered from them
+ *   (`findGhostNotes`) are carved into the result — omitting them at a call
+ *   site silently drops every ghosted note the player played.
  */
 export function segmentNotes(
 	readings: PitchReading[],
@@ -116,9 +122,16 @@ export function segmentNotes(
 	minReadings: number = 3,
 	workletOnsets?: number[],
 	bleedOnsets?: number[],
-	articulationOnsets?: number[]
+	articulationOnsets?: number[],
+	weakReadings?: PitchReading[]
 ): DetectedNote[] {
 	if (readings.length === 0) return [];
+
+	/** Carve the capture's ghost notes into `merged` — last, so no merge pass reaches across one. */
+	const withGhosts = (merged: DetectedNote[]): DetectedNote[] =>
+		weakReadings && weakReadings.length > 0
+			? insertGhostNotes(merged, findGhostNotes(readings, weakReadings), minNoteDuration)
+			: merged;
 
 	// If no onsets detected, treat all readings as one note
 	const boundaries = onsets.length > 0
@@ -156,13 +169,24 @@ export function segmentNotes(
 		// is the reference: the guard ate five of the six B♭ frames of a
 		// stable-run segment, a McLeod C3 subharmonic glitch won the vote,
 		// and the sandwich collapse then swallowed C–B♭–C into one long C.
+		//
+		// Inside the guard window only a frame that reads the previous note is
+		// stale — that is the whole charge against it. A frame on another
+		// pitch is the new note, and may be all of it: the 2026-09-16
+		// "sharp-9-flat-9-dom" A3 was tracked for five frames before the
+		// downbeat kick blanked it, every one inside the window, and the G#
+		// that followed without an onset of its own took the segment over.
 		const guarded =
 			i > 0 &&
 			(amplitudeOnsets === null ||
 				hasOnsetNear(amplitudeOnsets, segStart, ONSET_GUARD_MATCH_WINDOW));
 		const effectiveStart = guarded ? segStart + onsetGuard : segStart;
+		const staleMidi = notes.length > 0 ? notes[notes.length - 1].midi : null;
 		let segReadings = readings.filter(
-			(r) => r.time >= effectiveStart && r.time < segEnd
+			(r) =>
+				r.time < segEnd &&
+				(r.time >= effectiveStart ||
+					(r.time >= segStart && staleMidi !== null && r.midi !== staleMidi))
 		);
 		// Fallback: if the guard window ate all readings (very short note),
 		// use the unguarded range so the note isn't silently dropped.
@@ -273,7 +297,7 @@ export function segmentNotes(
 	const haveAttackEvidence =
 		(workletOnsets && workletOnsets.length > 0) ||
 		(articulationOnsets && articulationOnsets.length > 0);
-	if (!haveAttackEvidence) return mergeWholeNoteOctaveUpLocks(sandwiched, readings);
+	if (!haveAttackEvidence) return withGhosts(mergeWholeNoteOctaveUpLocks(sandwiched, readings));
 
 	const samePitchMerged = mergeSamePitchWithoutAttack(
 		sandwiched,
@@ -303,7 +327,7 @@ export function segmentNotes(
 	// its own segment reads an octave high across the entire note, so the
 	// adjacent-segment merge above can't reach it. Drop it here on a strong
 	// majority of octave-up-flagged frames.
-	return mergeWholeNoteOctaveUpLocks(octaveMerged, readings);
+	return withGhosts(mergeWholeNoteOctaveUpLocks(octaveMerged, readings));
 }
 
 /**
@@ -938,6 +962,13 @@ function splitOnReadingGaps(
 	return result;
 }
 
+/**
+ * Turn one sub-segment's readings into a note, or null when they don't make
+ * one: nothing but a partial warmup burst, or too few readings (the 2 to
+ * `minReadings − 1` case keeps its single clearest reading at half clarity).
+ * Otherwise the pitch comes from `pickMidi`, with the median cents and mean
+ * clarity of the readings on the chosen MIDI.
+ */
 function emitNote(
 	subReadings: PitchReading[],
 	subStart: number,
@@ -948,12 +979,15 @@ function emitNote(
 ): DetectedNote | null {
 	if (subReadings.length === 0) return null;
 
-	// Reject sub-segments composed entirely of warmup readings. By definition
-	// the stabilizer never confirmed a steady pitch on these frames, so they
-	// don't represent a real note — they're transient noise (mouthpiece
-	// artifacts, post-reset bursts, etc.) that the emit-time aggregation
-	// would otherwise crystallize into a phantom MIDI.
-	if (subReadings.every((r) => r.warmup)) return null;
+	// Reject sub-segments composed entirely of warmup readings. The
+	// stabilizer never confirmed a steady pitch on a partial warmup burst, so
+	// it isn't a real note — it's transient noise (mouthpiece artifacts,
+	// post-reset bursts, etc.) that the emit-time aggregation would otherwise
+	// crystallize into a phantom MIDI. A full warmup window on ONE pitch is
+	// the exception: the warmup vote completed there, on that pitch. The
+	// 2026-09-16 "sharp-9-flat-9-dom" A3 is exactly that — five frames on
+	// 57 before the downbeat kick blanked tracking.
+	if (subReadings.every((r) => r.warmup) && !isCompletedWarmup(subReadings)) return null;
 
 	// Short-note fallback (4d): when a segment has some data but not enough
 	// to run the full vote, pick the single highest-clarity reading so a
@@ -993,6 +1027,14 @@ function emitNote(
 		duration: subDuration,
 		clarity: avgClarity
 	};
+}
+
+/**
+ * True when the readings hold at least a full stabilizer warmup window
+ * (`WARMUP_FRAMES`) and every one of them reads the same MIDI.
+ */
+function isCompletedWarmup(readings: PitchReading[]): boolean {
+	return readings.length >= WARMUP_FRAMES && readings.every((r) => r.midi === readings[0].midi);
 }
 
 /**
@@ -2692,4 +2734,272 @@ function findReArticulationsInSegment(
 		}
 	}
 	return deduped;
+}
+
+// ---------------------------------------------------------------------------
+// Ghost notes
+// ---------------------------------------------------------------------------
+//
+// A ghosted note — half-fingered, breathed rather than blown — is heard in the
+// line but reads under the clarity threshold for its whole length, so the
+// confident stream holds only a HOLE where it was and the segmenter hands the
+// hole to the notes around it. The 2026-09-16 "sharp-9-flat-9-dom" take is the
+// reference: D C D C D C B A G# with the three Cs ghosted on the off-beats,
+// 9–12 dB under the Ds at McLeod clarity 0.54–0.76, each followed by a click
+// that blanks tracking on the next attack. Every C vanished and the take
+// scored 6 of 9. The detector's sub-threshold frames (`PitchReading.weak`) are
+// the only record of those notes; `findGhostNotes` reads them inside the holes
+// and `segmentNotes` carves the result into the note list.
+//
+// The frames inside a hole are mostly the edges of the notes around it — a
+// decay sagging flat, the next attack blooming — so a ghost needs a PLATEAU:
+// consecutive frames agreeing on one pitch, clear of both neighbours, at a
+// level no click ring reaches. Replayed across the 34 fixture takes
+// (2026-09-16) the only plateaus far enough from both flanks were the three
+// ghosted Cs; every other candidate sat within 0.72 st of a neighbour.
+
+/** Shortest reading hole that can hold a ghost — the reading-gap split's floor. */
+const GHOST_MIN_HOLE = READING_GAP_SPLIT_THRESHOLD;
+
+/**
+ * Longest reading hole searched. The reference ghosts sit in 133–217 ms holes;
+ * past 400 ms a hole is a rest or a breath, and a low-clarity plateau there is
+ * room noise or backing bleed, not a note of the line.
+ */
+const GHOST_MAX_HOLE = 0.4;
+
+/** Plateau frames required — ~50 ms of agreement at 60 fps. */
+const GHOST_MIN_FRAMES = 3;
+
+/** Largest step between consecutive plateau frames: one dropped rAF tick. */
+const GHOST_MAX_FRAME_STEP = 0.04;
+
+/**
+ * How far a plateau frame may sit from the plateau's median. The reference
+ * plateaus spread ±0.30 st (a breathy ghost wobbles); a glide between two
+ * notes moves further than this inside three frames.
+ */
+const GHOST_PLATEAU_TOLERANCE = 0.35;
+
+/**
+ * Minimum pitch-class distance between the plateau and BOTH flanking notes.
+ * The window mixes the louder neighbours into every ghost frame, dragging its
+ * pitch toward them; the reference ghosts still sit 1.30–1.57 st clear, while
+ * every decay tail and early attack in the corpus sits within 0.72 st.
+ */
+const GHOST_MIN_FLANK_DISTANCE = 0.75;
+
+/**
+ * Plateau level, as a fraction of the louder flank, below which it is not a
+ * note (−20 dB). The reference ghosts sit at 0.47–0.58; the metronome's
+ * ringing tail sits at −35 to −41 dB (see capture-window.ts).
+ */
+const GHOST_MIN_LEVEL = 0.1;
+
+/**
+ * A confident frame within this distance of the plateau belongs to the ghost:
+ * the reference's third C cleared the threshold on one frame, so the first
+ * reading after its hole was the C itself, not the B that followed it.
+ */
+const GHOST_ABSORB_TOLERANCE = 0.5;
+
+/**
+ * Most confident frames a ghost may absorb on either side of its hole. A
+ * longer run on the plateau's pitch is a note the detector heard perfectly
+ * well — the hole was its attack, not a ghost.
+ */
+const GHOST_MAX_ABSORBED = 2;
+
+/** Fractional MIDI of a reading's raw pick — `midiFloat` carries stabilizer corrections. */
+function rawMidiFloat(r: PitchReading): number {
+	return 12 * Math.log2(r.frequency / 440) + 69;
+}
+
+/**
+ * Move `midi` by octaves to within a half-octave of `reference`. A breathy
+ * ghost's frames flip between the fundamental and its doubled period (133 Hz
+ * under a 266 Hz C on the reference take), and the line's register is the
+ * only thing that says which one was played.
+ */
+function foldToward(midi: number, reference: number): number {
+	let m = midi;
+	while (m - reference > 6) m -= 12;
+	while (reference - m > 6) m += 12;
+	return m;
+}
+
+/** Distance between two pitches ignoring octave, in semitones (0–6). */
+function pitchClassDistance(a: number, b: number): number {
+	const d = Math.abs(a - b) % 12;
+	return Math.min(d, 12 - d);
+}
+
+interface GhostPlateau {
+	/** Index of the first plateau frame in the hole's weak frames. */
+	start: number;
+	/** Exclusive end index. */
+	end: number;
+	/** Median folded pitch. */
+	pitch: number;
+}
+
+/**
+ * The longest run of consecutive frames (`GHOST_MAX_FRAME_STEP` apart at most)
+ * whose folded pitches all sit within `GHOST_PLATEAU_TOLERANCE` of the run's
+ * median, or null when no run reaches `GHOST_MIN_FRAMES`. Ties keep the
+ * earliest run.
+ */
+function findGhostPlateau(frames: PitchReading[], pitches: number[]): GhostPlateau | null {
+	let best: GhostPlateau | null = null;
+	for (let s = 0; s < frames.length; s++) {
+		for (let e = s + GHOST_MIN_FRAMES; e <= frames.length; e++) {
+			if (frames[e - 1].time - frames[e - 2].time > GHOST_MAX_FRAME_STEP) break;
+			const run = pitches.slice(s, e);
+			const pitch = median(run);
+			if (run.some((p) => Math.abs(p - pitch) > GHOST_PLATEAU_TOLERANCE)) continue;
+			if (!best || e - s > best.end - best.start) best = { start: s, end: e, pitch };
+		}
+	}
+	return best;
+}
+
+/**
+ * Walk from `from` in `step` direction over confident readings that sit on
+ * the plateau's pitch. Returns the index of the first reading that does not,
+ * or null when the walk runs off the stream or past `GHOST_MAX_ABSORBED` —
+ * either way there is no flanking note on that side to set the ghost against.
+ */
+function skipAbsorbed(
+	readings: PitchReading[],
+	from: number,
+	step: 1 | -1,
+	pitch: number
+): number | null {
+	let k = from;
+	let absorbed = 0;
+	while (k >= 0 && k < readings.length) {
+		if (pitchClassDistance(rawMidiFloat(readings[k]), pitch) >= GHOST_ABSORB_TOLERANCE) return k;
+		if (++absorbed > GHOST_MAX_ABSORBED) return null;
+		k += step;
+	}
+	return null;
+}
+
+/**
+ * Recover ghosted notes from the sub-threshold frames inside the holes of the
+ * confident reading stream (see the section comment above).
+ *
+ * A hole between consecutive readings, `GHOST_MIN_HOLE`–`GHOST_MAX_HOLE` long,
+ * yields a ghost when its weak frames hold a plateau (`findGhostPlateau`) that
+ * sits `GHOST_MIN_FLANK_DISTANCE` or more from the confident note on each side
+ * (ignoring octave, after absorbing up to `GHOST_MAX_ABSORBED` confident frames
+ * on the plateau's own pitch) at `GHOST_MIN_LEVEL` or more of the louder of
+ * them. The ghost runs from its first frame — or the first absorbed frame
+ * before the hole — to the next note's first reading.
+ *
+ * Its pitch is the plateau median, kept as measured: `midi` is the nearest
+ * semitone and `cents` the rest, so a ghost half a semitone sharp keeps both
+ * candidates visible and the scorer credits either (`pitchMatches`).
+ *
+ * @param readings - Confident pitch readings (sorted by time)
+ * @param weakReadings - Sub-threshold frames from the same capture, same time base
+ * @returns Ghost notes (`ghost: true`) in time order
+ */
+export function findGhostNotes(
+	readings: PitchReading[],
+	weakReadings: PitchReading[]
+): DetectedNote[] {
+	if (readings.length < 2 || weakReadings.length < GHOST_MIN_FRAMES) return [];
+	const weak = [...weakReadings].sort((a, b) => a.time - b.time);
+
+	const ghosts: DetectedNote[] = [];
+	for (let i = 1; i < readings.length; i++) {
+		const holeStart = readings[i - 1].time;
+		const holeEnd = readings[i].time;
+		const hole = holeEnd - holeStart;
+		if (hole < GHOST_MIN_HOLE || hole > GHOST_MAX_HOLE) continue;
+
+		const frames = weak.filter((w) => w.time > holeStart && w.time < holeEnd);
+		if (frames.length < GHOST_MIN_FRAMES) continue;
+
+		const register = readings[i - 1].midi;
+		const plateau = findGhostPlateau(
+			frames,
+			frames.map((w) => foldToward(rawMidiFloat(w), register))
+		);
+		if (!plateau) continue;
+
+		const before = skipAbsorbed(readings, i - 1, -1, plateau.pitch);
+		const after = skipAbsorbed(readings, i, 1, plateau.pitch);
+		if (before === null || after === null) continue;
+		const prevNote = readings[before];
+		const nextNote = readings[after];
+		if (pitchClassDistance(plateau.pitch, prevNote.midi) < GHOST_MIN_FLANK_DISTANCE) continue;
+		if (pitchClassDistance(plateau.pitch, nextNote.midi) < GHOST_MIN_FLANK_DISTANCE) continue;
+
+		const plateauFrames = frames.slice(plateau.start, plateau.end);
+		const level = median(plateauFrames.map((w) => w.rms));
+		if (level < GHOST_MIN_LEVEL * Math.max(prevNote.rms, nextNote.rms)) continue;
+
+		const onsetTime = before < i - 1 ? readings[before + 1].time : plateauFrames[0].time;
+		const midi = Math.round(plateau.pitch);
+		ghosts.push({
+			midi,
+			cents: Math.round((plateau.pitch - midi) * 100),
+			onsetTime,
+			duration: nextNote.time - onsetTime,
+			clarity: plateauFrames.reduce((sum, w) => sum + w.clarity, 0) / plateauFrames.length,
+			ghost: true
+		});
+	}
+	return ghosts;
+}
+
+/**
+ * Carve each ghost's span out of the notes it overlaps and place it between
+ * them: a note straddling the span keeps its head and its tail, a note
+ * starting inside it starts where the ghost ends. A fragment shorter than
+ * `minNoteDuration` is dropped, and a ghost that starts inside an earlier
+ * ghost is skipped.
+ */
+function insertGhostNotes(
+	notes: DetectedNote[],
+	ghosts: DetectedNote[],
+	minNoteDuration: number
+): DetectedNote[] {
+	let result = notes;
+	let lastGhostEnd = -Infinity;
+	for (const ghost of ghosts) {
+		const gStart = ghost.onsetTime;
+		const gEnd = ghost.onsetTime + ghost.duration;
+		if (gStart < lastGhostEnd) continue;
+		lastGhostEnd = gEnd;
+
+		const next: DetectedNote[] = [];
+		let placed = false;
+		/** Emit the ghost once, at the first position past the notes before it. */
+		const place = () => {
+			if (!placed) next.push(ghost);
+			placed = true;
+		};
+		for (const n of result) {
+			const nStart = n.onsetTime;
+			const nEnd = n.onsetTime + n.duration;
+			if (nEnd <= gStart) {
+				next.push(n);
+				continue;
+			}
+			if (nStart >= gEnd) {
+				place();
+				next.push(n);
+				continue;
+			}
+			if (gStart - nStart >= minNoteDuration) next.push({ ...n, duration: gStart - nStart });
+			place();
+			if (nEnd - gEnd >= minNoteDuration) next.push({ ...n, onsetTime: gEnd, duration: nEnd - gEnd });
+		}
+		place();
+		result = next;
+	}
+	return result;
 }

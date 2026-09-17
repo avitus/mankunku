@@ -2117,3 +2117,35 @@ that earns a new branch has a mirror somewhere that earns the same branch and
 no tooling relates the two. The check that caught it was a reviewer reading
 both — which is the argument for keeping the review round on docs-only diffs,
 not the argument for another coverage metric.
+
+
+## 2026-09-16 — A threshold is a decision about what to forget
+
+The 0.80 clarity cutoff was written to keep room noise out, and it did that
+by throwing frames away at the source. Nobody downstream could ever ask
+"what was in the hole?", because the hole was all that survived. A ghosted
+note — the most idiomatic thing in a bebop line — is by design exactly the
+kind of sound that cutoff forgets: breathy, quiet, pitched between keys.
+
+The fix that held wasn't lowering the threshold (that would have fed every
+tier a stream of doubtful frames it was never tuned on). It was keeping the
+rejected frames on a side channel with one reader, who only looks where the
+confident stream has already gone silent. A filter that discards should
+usually also set aside; the cost is an array, and the question it lets you
+ask later is the one you didn't know you'd need.
+
+Second thing worth keeping: the scoring rule for a ghost had to be written
+in terms of the *measurement*, not the rounded note. The C's were real and
+sharp; rounding made two of them C#. A pitch known only to a bracket should
+carry the bracket to the judge, not have the bracket collapsed at the
+detector. And I chose that bracket myself — it's a policy about how strict a
+jazz ear trainer should be about a note the player deliberately didn't
+fully sound. I'm fairly confident in it, but it is Andy's call to overrule.
+
+Third: the replay/live window-anchor split keeps surfacing. The onset guard
+was written for the live path, where frames right after an onset really are
+the previous note's; in replay they are the new note's. The corpus hid that
+because nothing short enough ever lived entirely inside the guard. The
+narrowing I made is anchor-agnostic (a stale frame reads the previous
+pitch), which is the right shape for a rule that has to hold in both time
+bases — but the underlying split is still there, and it will bite again.

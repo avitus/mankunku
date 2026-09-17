@@ -10,7 +10,7 @@ If you're playing a steady note on a horn, the answer is usually clear: the air 
 
 The algorithm Mankunku uses is called the **McLeod Pitch Method**. It's an autocorrelation technique — it asks how well each segment of audio matches a delayed copy of itself, and the delay that matches best corresponds to the period of the note. It's particularly good at single-instrument signals like a sax or a trumpet, which is why it's the right tool here.
 
-Each frame, the app gets a frequency *and* a **clarity score** between 0 and 1. Clarity tells the app how confident it is — a clean, sustained note has clarity above 0.92; a noise burst, an attack transient, or two notes overlapping might score 0.5. Mankunku ignores any frame with clarity below 0.80, so room noise and embouchure adjustments don't trigger phantom notes.
+Each frame, the app gets a frequency *and* a **clarity score** between 0 and 1. Clarity tells the app how confident it is — a clean, sustained note has clarity above 0.92; a noise burst, an attack transient, or two notes overlapping might score 0.5. Mankunku ignores any frame with clarity below 0.80, so room noise and embouchure adjustments don't trigger phantom notes. Frames between 0.50 and 0.80 are set aside rather than thrown away: they're how the app hears a ghosted note (see below).
 
 ## When the app starts listening
 
@@ -37,6 +37,12 @@ After segmentation, the app does two cleanup passes that handle real-world failu
 - **Octave respell of a re-attack.** A saxophone re-attack often speaks on its second harmonic for the first 50–100 ms before the fundamental fills in. When that transient gets cut into a note of its own — very short, exactly an octave above the note before it, with the lower fundamental still showing in the raw frequencies around it and the next note not continuing the upper octave — it keeps its attack and takes the neighbour's octave, rather than scoring as a wrong pitch.
 
 These passes are deliberately conservative: they only fire when the absence-of-attack evidence is unambiguous, so genuine re-articulations of the same pitch still register as separate notes.
+
+### Ghost notes
+
+A ghosted note — half-fingered, breathed rather than blown, the swallowed off-beat in a bebop line — is exactly what the 0.80 clarity cutoff was built to ignore: breathy, quiet, and pitched somewhere between two keys. Left to the confident frames alone, a ghost leaves nothing but a short gap, and the notes on either side close over it. So the app looks inside those gaps at the frames it set aside. When a short gap (under about 0.4 s) holds a steady run of them — at least three frames agreeing on one pitch, at least three-quarters of a semitone from the notes on both sides, and no more than 20 dB quieter than they are — that's a ghost note, and it goes into the line where you played it.
+
+A ghost's pitch is only known roughly: the half-closed key puts it between semitones, and the louder notes around it pull the measurement toward them. So a ghost counts as either of the two semitones its pitch falls between — a C played 50 cents sharp is a C (or a C♯), never a D. Only ghosts get that allowance; a clearly played note still has to be the right semitone.
 
 ### Telling a glitch from a real re-articulation
 

@@ -15,10 +15,10 @@ import type { Phrase, Note } from '$lib/types/music';
 import type { DetectedNote } from '$lib/types/audio';
 import type { Score, NoteResult, TimingDiagnostics } from '$lib/types/scoring';
 import { alignNotes } from './alignment';
-import { scorePitch } from './pitch-scoring';
+import { scorePitch, pitchMatches } from './pitch-scoring';
 import { scoreRhythm } from './rhythm-scoring';
 import { scoreToGrade } from './grades';
-import { fractionToFloat, midiToPitchClass } from '$lib/music/intervals';
+import { fractionToFloat } from '$lib/music/intervals';
 import { extractSoundingNotes, type SoundingNote } from '$lib/music/expression';
 
 /**
@@ -136,10 +136,7 @@ export function scoreAttempt(
 			signedOffsets.push(offsetMs);
 
 			const pitchMatched =
-				exp.pitch !== null &&
-				(octaveInsensitive
-					? midiToPitchClass(exp.pitch) === midiToPitchClass(det.midi)
-					: exp.pitch === det.midi);
+				exp.pitch !== null && pitchMatches(exp.pitch, det, octaveInsensitive);
 			if (pitchMatched) notesHit++;
 			pitchSum += pitch;
 			rhythmSum += rhythm;

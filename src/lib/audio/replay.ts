@@ -39,6 +39,8 @@ export interface ReplayOptions {
 
 export interface ReplayResult {
 	readings: PitchReading[];
+	/** Sub-threshold frames (`PitchReading.weak`) — the live detector's `getWeakReadings()`. */
+	weakReadings: PitchReading[];
 	onsets: number[];
 	duration: number;
 	sampleRate: number;
@@ -114,6 +116,7 @@ export async function replayFromAudioBuffer(
 	// Reset the stabilizer when we cross an onset so each note warms up
 	// independently; no cross-note octave leak.
 	const readings: PitchReading[] = [];
+	const weakReadings: PitchReading[] = [];
 	const window = new Float32Array(fftSize);
 	let nextOnsetIdx = 0;
 
@@ -124,12 +127,14 @@ export async function replayFromAudioBuffer(
 			nextOnsetIdx++;
 		}
 		for (let i = 0; i < fftSize; i++) window[i] = channel[start + i];
-		const { reading } = detectFrame(window, time, detector, stabilizer, frameOpts);
+		const { reading, weakReading } = detectFrame(window, time, detector, stabilizer, frameOpts);
 		if (reading) readings.push(reading);
+		else if (weakReading) weakReadings.push(weakReading);
 	}
 
 	return {
 		readings,
+		weakReadings,
 		onsets,
 		duration: buffer.duration,
 		sampleRate

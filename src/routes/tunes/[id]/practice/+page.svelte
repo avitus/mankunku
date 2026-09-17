@@ -129,6 +129,8 @@
 		recordingTransportSeconds: number;
 		micStartTime: number;
 		readingsStartCount: number;
+		/** Same as `readingsStartCount`, for the detector's weak-reading stream. */
+		weakReadingsStartCount: number;
 		schedule: BackingTrackSchedule | null;
 	}
 	let currentWindow: OpenWindow | null = null;
@@ -653,6 +655,7 @@
 			recordingTransportSeconds: playback.getTransportSeconds(),
 			micStartTime: micCapture.context.currentTime,
 			readingsStartCount: pitchDetector.getReadings().length,
+			weakReadingsStartCount: pitchDetector.getWeakReadings().length,
 			schedule: backingTrack?.getActiveSchedule() ?? null
 		};
 		markWindowOpen(index);
@@ -680,6 +683,12 @@
 			const r = allReadings[i];
 			rebased.push({ ...r, time: r.time - windowOffset });
 		}
+		// The sub-threshold frames the ghost-note pass reads, sliced and
+		// rebased the same way.
+		const rebasedWeak = pitchDetector
+			.getWeakReadings()
+			.slice(win.weakReadingsStartCount)
+			.map((r) => ({ ...r, time: r.time - windowOffset }));
 
 		if (win.candidates.length === 0) {
 			recordWindowResult(win.ip.id, null, null);
@@ -709,7 +718,8 @@
 			undefined,
 			workletOnsets,
 			bleedOnsets,
-			articulationOnsets
+			articulationOnsets,
+			rebasedWeak
 		);
 
 		if (detected.length === 0) {

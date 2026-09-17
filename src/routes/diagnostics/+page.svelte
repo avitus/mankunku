@@ -43,6 +43,8 @@
 	interface ReplayState {
 		sessionId: string;
 		readings: PitchReading[];
+		/** Sub-threshold frames, same (trimmed) frame as `readings`. */
+		weakReadings: PitchReading[];
 		onsets: number[];
 		resolvedOnsets: number[];
 		segmented: DetectedNote[];
@@ -112,6 +114,11 @@
 	 */
 	let replayRequestId = 0;
 
+	/**
+	 * Expand a recording row — replay its blob through the current detector
+	 * and segmenter, trimmed and bleed-matched the way the scoring paths did,
+	 * weak readings included — or collapse it when it is already open.
+	 */
 	async function toggle(id: string) {
 		if (expandedId === id) {
 			collapseCurrent();
@@ -138,8 +145,8 @@
 			// first reading at ~0, so the offset clamps to 0 and they are
 			// untouched. `metadata.transportSeconds` always describes the blob's
 			// first sample, hence the offset is added back on top of it.
-			const trimmed = trimToPerformance(raw.readings, raw.onsets, raw.duration);
-			const { readings, workletOnsets: onsets, duration } = trimmed;
+			const trimmed = trimToPerformance(raw.readings, raw.onsets, raw.duration, undefined, raw.weakReadings);
+			const { readings, weakReadings, workletOnsets: onsets, duration } = trimmed;
 			const sampleRate = raw.sampleRate;
 			const baseOnsets = resolveOnsets(onsets, readings);
 			// Reconstruct the bleed evidence the app scored against. Backing
@@ -161,10 +168,11 @@
 					: undefined);
 			const articulationOnsets = findReArticulations(readings, baseOnsets, bleedOnsets);
 			const resolvedOnsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
-			const segmented = segmentNotes(readings, resolvedOnsets, duration, undefined, undefined, undefined, onsets, bleedOnsets, articulationOnsets);
+			const segmented = segmentNotes(readings, resolvedOnsets, duration, undefined, undefined, undefined, onsets, bleedOnsets, articulationOnsets, weakReadings);
 			replay = {
 				sessionId: id,
 				readings,
+				weakReadings,
 				onsets,
 				resolvedOnsets,
 				segmented,
@@ -350,7 +358,10 @@
 					rawWorkletOnsets: replay.onsets,
 					resolvedOnsets: replay.resolvedOnsets,
 					segmentedNotes: replay.segmented,
-					readings: replay.readings
+					readings: replay.readings,
+					// Sub-threshold frames — the ghost-note pass's evidence.
+					// Absent from exports made before 2026-09-16.
+					weakReadings: replay.weakReadings
 				},
 				scoring: {
 					savedDetectedNotes: md?.detectedNotes ?? null,
@@ -754,6 +765,9 @@
 															<td class="py-1 px-2">
 																{midiToDisplayName(n.midi)}
 																<span class="text-[var(--color-text-secondary)]">({n.midi})</span>
+																{#if n.ghost}
+																	<span class="text-[var(--color-text-secondary)]" title="Recovered from low-clarity frames; its pitch counts as either neighbouring semitone">ghost</span>
+																{/if}
 															</td>
 															<td class="py-1 px-2 text-right">{n.onsetTime.toFixed(2)}s</td>
 															<td class="py-1 px-2 text-right">{n.duration.toFixed(2)}s</td>
@@ -786,7 +800,7 @@
 												</span>
 											</div>
 											<div class="text-[var(--color-text-secondary)]">
-												{replay.readings.length} readings · {replay.duration.toFixed(2)}s · {replay.sampleRate} Hz
+												{replay.readings.length} readings · {replay.weakReadings.length} weak · {replay.duration.toFixed(2)}s · {replay.sampleRate} Hz
 											</div>
 										</div>
 									</div>

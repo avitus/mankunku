@@ -3775,3 +3775,45 @@ comments."
   moving every harmonic root. Adopted in 3722cfd, pushed straight to dev;
   `tests/unit/docs` 3 files / 68 passed, and the incremental review came back
   clean on the new head with CI green at 16:12Z.
+
+
+## 2026-09-16 — A correct Deep Practice take saved 6 of 9: the ghosted Cs
+
+- Andy's diagnostic: "Sharp 9 Flat 9 Dom" (user lick, concert E, 129 BPM,
+  D C D C D C B A G# over B7) scored 0.739, 6 of 9, in Deep Practice. The
+  first lick-practice take in the fixture corpus.
+- What the audio says: he ghosted the three off-beat Cs, 9–12 dB under the
+  Ds and sounding C + 40–70 cents (a 23 ms YIN window agrees, so it's the
+  horn, not window smear; the click ring here is ~30 dB lower and couldn't
+  be it). McLeod clarity across each C: 0.54–0.76. Every C was a hole in the
+  confident stream, and the Ds closed over it. A click lands at the end of
+  each C (0.555 / 1.020 / 1.485), which is why the next attack's tracking
+  also breaks.
+- Fix: a weak-reading side channel (`detectFrame` → `weakReading`, clarity
+  ≥ 0.5, no stabilizer; `getWeakReadings()`, `ReplayResult.weakReadings`,
+  trim's 5th arg), `findGhostNotes` (plateau in a 75–400 ms hole, ≥ 3
+  frames ±0.35 st, ≥ 0.75 st clear of both flanks by pitch class, ≥ −20 dB,
+  ≤ 2 absorbed confident frames), carved in last via `segmentNotes`' 10th
+  arg, and `pitchMatches` — a ghost matches either semitone its measured
+  pitch falls between. Wired into ear-training (live + rescore),
+  lick-practice, tune-practice scored windows and /diagnostics (which now
+  also exports `weakReadings` and tags ghosts). Not record-a-lick or the
+  freestyle scan.
+- Replay also dropped the A3: five frames, all inside the 80 ms onset guard
+  AND all stabilizer warmup, before the downbeat kick blanked tracking.
+  Narrowed both: the guard skips only frames on the previous note's MIDI,
+  and a full one-pitch warmup window survives.
+- Evidence the change is safe: full corpus diffed against HEAD's segmenter —
+  33 older takes × {raw, trimmed} byte-identical with weak readings passed.
+  Mutation pass: every ghost gate (distance, absorb, level, plateau,
+  frames), the guard and the warmup rule each turn at least one test red.
+  A per-fixture ghost-count pin guards false positives.
+- Result: replay 4/9 (0.518) → 9/9 (0.977); the same take re-stamped at
+  window END (the live time base) 0.961. Vitest 5207 + 36 expected fail,
+  svelte-check 0/0, docstring scanner 41/41, chromium e2e for the five
+  touched routes 19/19.
+- On the record, not fixed: the first D cracks down an octave for ~110 ms
+  (a free extra in scoring); trick fluency ignores the ghost flag;
+  /diagnostics trims lick-practice recordings the live path never trimmed;
+  this window's click grid is +0.08 s off the audio (added to the grid-drift
+  memory — ear-training's 0.25–0.40 is the pre-arm path's alone).

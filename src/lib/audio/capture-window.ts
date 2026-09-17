@@ -143,6 +143,12 @@ export function dropSubFloorRuns(
 
 export interface TrimmedCapture {
 	readings: PitchReading[];
+	/**
+	 * Sub-threshold frames (`PitchReading.weak`), rebased with `readings` and
+	 * with anything in the discarded lead-in dropped. Not floor-gated: they are
+	 * only ever read inside the holes of `readings` (`findGhostNotes`).
+	 */
+	weakReadings: PitchReading[];
 	/** Worklet onsets, rebased and with anything before the window dropped. */
 	workletOnsets: number[];
 	duration: number;
@@ -162,25 +168,32 @@ export interface TrimmedCapture {
  * A capture with no readings is returned untouched (offset 0) — there is no
  * performance to centre on, and a silent take should still carry its full
  * duration so bleed evidence covers the window that was actually recorded.
+ *
+ * `weakReadings` (the detector's sub-threshold frames) ride the same offset;
+ * pass them whenever the result is segmented, or ghosted notes are lost.
  */
 export function trimToPerformance(
 	readings: PitchReading[],
 	workletOnsets: number[],
 	duration: number,
-	preroll: number = PERFORMANCE_PREROLL_SECONDS
+	preroll: number = PERFORMANCE_PREROLL_SECONDS,
+	weakReadings: PitchReading[] = []
 ): TrimmedCapture {
 	const performance = dropSubFloorRuns(readings);
 	if (performance.length === 0) {
-		return { readings: performance, workletOnsets, duration, offset: 0 };
+		return { readings: performance, weakReadings, workletOnsets, duration, offset: 0 };
 	}
 
 	const offset = performance[0].time - preroll;
 	if (offset < MIN_TRIM_SECONDS) {
-		return { readings: performance, workletOnsets, duration, offset: 0 };
+		return { readings: performance, weakReadings, workletOnsets, duration, offset: 0 };
 	}
 
 	return {
 		readings: performance.map((r) => ({ ...r, time: r.time - offset })),
+		weakReadings: weakReadings
+			.filter((r) => r.time >= offset)
+			.map((r) => ({ ...r, time: r.time - offset })),
 		// Onsets inside the discarded lead-in describe audio the segmenter can
 		// no longer see; keeping them would place attacks at negative times.
 		workletOnsets: workletOnsets.filter((t) => t >= offset).map((t) => t - offset),
