@@ -31,7 +31,7 @@ Find the minimum-cost alignment between two note sequences.
 
 | Match type | Cost |
 |---|---|
-| Same MIDI note | `0.0` pitch + rhythm distance |
+| Same MIDI note (`pitchMatches`) | `0.0` pitch + rhythm distance |
 | 1 semitone off | `0.5` pitch |
 | 2+ semitones off | `1.0` pitch (capped) |
 | Skip (missed/extra) | `2.0` flat penalty |
@@ -43,13 +43,17 @@ Find the minimum-cost alignment between two note sequences.
 
 Per-note pitch accuracy scoring.
 
+### `pitchMatches(expectedPitch, detected, octaveInsensitive?): boolean`
+
+The one match rule, shared by `scorePitch`, the DTW pitch cost and the scorer's `notesHit`: the MIDI number (the pitch class when `octaveInsensitive`). A **ghost** note (`detected.ghost`, recovered by `findGhostNotes` from sub-threshold frames) gets no allowance — a ghost far enough out of tune to round to the neighbouring semitone is a wrong note, like any other (Andy, 2026-09-16: two of that take's ghosted Cs measured C + 62 and + 70 cents and score as C#).
+
 ### `scorePitch(expected, detected, octaveInsensitive?): number`
 
 | Case | Score |
 |---|---|
 | Rest | `1.0` |
-| Wrong MIDI note | `0.0` |
-| Correct MIDI note | `1.0 + intonation bonus` |
+| No match (`pitchMatches` false) | `0.0` |
+| Match | `1.0 + intonation bonus` |
 
 With `octaveInsensitive` (default `false`) the match is by pitch class, any octave — lick-practice continuous mode, where the user may legitimately answer an octave up or down. The bonus still uses `detected.cents`, which is deviation from the nearest integer MIDI and so octave-independent.
 

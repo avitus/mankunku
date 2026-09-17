@@ -148,6 +148,43 @@ describe('createPitchDetector', () => {
 		expect(detector.getReadings()).toHaveLength(0);
 	});
 
+	it('keeps sub-threshold frames in getWeakReadings(), apart from getReadings()', async () => {
+		const analyser = createMockAnalyser();
+		const onPitch = vi.fn();
+
+		mockFindPitch
+			.mockReturnValueOnce([440, 0.95])
+			.mockReturnValueOnce([269, 0.65])
+			.mockReturnValueOnce([269, 0.3]);
+
+		const detector = await createPitchDetector(analyser, onPitch);
+		detector.start(); // confident
+		pumpFrame(); // weak
+		pumpFrame(); // below the weak floor
+
+		expect(detector.getReadings()).toHaveLength(1);
+		expect(detector.getWeakReadings()).toHaveLength(1);
+		expect(detector.getWeakReadings()[0].weak).toBe(true);
+		expect(onPitch.mock.calls[1][0]).toBeNull();
+	});
+
+	it('clear() and start() empty the weak readings too', async () => {
+		const analyser = createMockAnalyser();
+		const onPitch = vi.fn();
+
+		mockFindPitch.mockReturnValue([269, 0.65]);
+
+		const detector = await createPitchDetector(analyser, onPitch);
+		detector.start();
+		expect(detector.getWeakReadings()).toHaveLength(1);
+		detector.clear();
+		expect(detector.getWeakReadings()).toHaveLength(0);
+		pumpFrame();
+		detector.stop();
+		detector.start();
+		expect(detector.getWeakReadings()).toHaveLength(1);
+	});
+
 	it('stop() prevents further detection', async () => {
 		const analyser = createMockAnalyser();
 		const onPitch = vi.fn();

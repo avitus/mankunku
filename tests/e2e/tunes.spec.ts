@@ -72,6 +72,29 @@ test('detail page renders a multi-system chart with transposed chord symbols', a
 		.toBeGreaterThan(0);
 });
 
+test('tunes link by title slug, and the minted id keeps resolving', async ({ page, consoleCollector: _c }) => {
+	// 2026-09-16: `/tunes/sheet-1789579191100-55iq/practice` → `/tunes/autumn-leaves/practice`.
+	// The slug is an alias derived from the title; the id stays the storage key.
+	await page.goto('/tunes');
+	await page.getByRole('button', { name: /Open Test Session Tune/ }).click();
+	await expect(page).toHaveURL(/\/tunes\/test-session-tune$/);
+	await expect(page.getByRole('heading', { name: 'Test Session Tune' })).toBeVisible();
+
+	await page.getByRole('button', { name: /practice licks/i }).click();
+	await expect(page).toHaveURL(/\/tunes\/test-session-tune\/practice$/);
+	await expect(page.getByRole('button', { name: /^start$/i })).toBeVisible();
+
+	// A curated tune resolves by its title slug as well as its `ls-` id.
+	await page.goto('/tunes/amazing-grace');
+	await expect(page.getByRole('heading', { name: 'Amazing Grace' })).toBeVisible();
+
+	// Old id URLs — bookmarks, the PDF flow's pre-assigned id — still open the tune.
+	await page.goto('/tunes/e2e-user-sheet-1');
+	await expect(page.getByRole('heading', { name: 'Test Session Tune' })).toBeVisible();
+	await page.goto('/tunes/e2e-user-sheet-1/practice');
+	await expect(page.getByRole('button', { name: /^start$/i })).toBeVisible();
+});
+
 test('user sheet detail supports the two-stage delete', async ({ page, consoleCollector: _c }) => {
 	await page.goto('/tunes/e2e-user-sheet-1');
 

@@ -15,7 +15,7 @@
 	import { progress, recordAttempt, updateSessionScore, getUnlockContext } from '$lib/state/progress.svelte';
 	import { runScorePipeline } from '$lib/scoring/score-pipeline';
 	import { resolveOnsets, segmentNotes, findReArticulations } from '$lib/audio/note-segmenter';
-	import { trimToPerformance } from '$lib/audio/capture-window';
+	import { durationThroughLastReading, trimToPerformance } from '$lib/audio/capture-window';
 	import { resolveBleedEvidence } from '$lib/audio/bleed-evidence';
 	import { filterBleed } from '$lib/audio/bleed-filter';
 	import { getTodaysTonality, isTonalityUnlocked, dateHash, SCALE_TYPE_NAMES, SCALE_TYPE_TO_SCALE_ID } from '$lib/tonality/tonality';
@@ -526,6 +526,7 @@
 	function finishRecording() {
 		if (!session.isRecording || !session.phrase || !pitchDetector) return;
 		const rawReadings = pitchDetector.getReadings();
+		const rawWeakReadings = pitchDetector.getWeakReadings();
 		stopRecording();
 
 		const rawWorkletOnsets = onsetDetector?.getOnsets() ?? [];
@@ -533,15 +534,14 @@
 		// recording deliberately runs past the phrase end (grace beats) because
 		// the user starts late by their reaction latency, so the final note can
 		// land after phraseDuration and a phrase-length bound truncates it.
-		const rawLastReading = rawReadings[rawReadings.length - 1];
-		const rawDuration = rawLastReading ? rawLastReading.time + 0.1 : 0;
+		const rawDuration = durationThroughLastReading(rawReadings);
 
 		// Discard the lead-in between arming the capture and the user coming in,
 		// keeping a fixed pre-roll so the first note's attack survives. The
 		// stored blob keeps the lead-in — `recordingTransportSeconds` still
 		// describes its first sample — so every replay path re-derives this
 		// offset from the audio rather than trusting a persisted value.
-		const trimmed = trimToPerformance(rawReadings, rawWorkletOnsets, rawDuration);
+		const trimmed = trimToPerformance(rawReadings, rawWorkletOnsets, rawDuration, undefined, rawWeakReadings);
 		const readings = trimmed.readings;
 		const workletOnsets = trimmed.workletOnsets;
 		const recordingDuration = trimmed.duration;
@@ -559,7 +559,7 @@
 		});
 		const articulationOnsets = findReArticulations(readings, baseOnsets, bleedOnsets);
 		const onsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
-		const detected = segmentNotes(readings, onsets, recordingDuration, undefined, undefined, undefined, workletOnsets, bleedOnsets, articulationOnsets);
+		const detected = segmentNotes(readings, onsets, recordingDuration, undefined, undefined, undefined, workletOnsets, bleedOnsets, articulationOnsets, trimmed.weakReadings);
 		const bleedResult = schedule
 			? filterBleed(detected, schedule, transportSeconds)
 			: null;
@@ -790,9 +790,10 @@
 		// Same trim the live path applied, re-derived from the blob rather than
 		// carried across — `transportSeconds` describes the blob's first sample,
 		// so the offset has to be added back on top of it here.
-		const trimmed = trimToPerformance(rawReplay.readings, rawReplay.onsets, rawReplay.duration);
+		const trimmed = trimToPerformance(rawReplay.readings, rawReplay.onsets, rawReplay.duration, undefined, rawReplay.weakReadings);
 		const replay = {
 			readings: trimmed.readings,
+			weakReadings: trimmed.weakReadings,
 			onsets: trimmed.workletOnsets,
 			duration: trimmed.duration
 		};
@@ -825,7 +826,7 @@
 		});
 		const articulationOnsets = findReArticulations(replay.readings, baseOnsets, bleedOnsets);
 		const onsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
-		const detected = segmentNotes(replay.readings, onsets, replay.duration, undefined, undefined, undefined, replay.onsets, bleedOnsets, articulationOnsets);
+		const detected = segmentNotes(replay.readings, onsets, replay.duration, undefined, undefined, undefined, replay.onsets, bleedOnsets, articulationOnsets, replay.weakReadings);
 		const bleedResult = schedule
 			? filterBleed(detected, schedule, trimmedTransportSeconds)
 			: null;

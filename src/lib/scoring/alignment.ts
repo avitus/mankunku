@@ -10,6 +10,7 @@ import type { DetectedNote } from '$lib/types/audio';
 import type { AlignmentPair } from '$lib/types/scoring';
 import { midiToPitchClass } from '$lib/music/intervals';
 import { applySwingToBeats } from '$lib/music/swing';
+import { pitchMatches } from './pitch-scoring';
 
 /** Cost for a completely missed or extra note */
 const SKIP_COST = 2.0;
@@ -22,6 +23,8 @@ const SKIP_COST = 2.0;
  * 0, and the cyclic pitch-class distance (min of |diff| and 12-|diff|) drives
  * the cost at the same 0.5 per semitone, so it saturates at 1.0 from a cyclic
  * distance of 2 semitones — the same 2-semitone ceiling as the strict path.
+ *
+ * Any pair `pitchMatches` accepts costs 0 — the same rule the scorer applies.
  */
 function pitchDistance(
 	expected: Note,
@@ -29,6 +32,7 @@ function pitchDistance(
 	octaveInsensitive = false
 ): number {
 	if (expected.pitch === null) return 0; // rest — no pitch to compare
+	if (pitchMatches(expected.pitch, detected, octaveInsensitive)) return 0;
 	if (octaveInsensitive) {
 		const pcDiff = Math.abs(midiToPitchClass(expected.pitch) - midiToPitchClass(detected.midi));
 		const cyclic = Math.min(pcDiff, 12 - pcDiff);

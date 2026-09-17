@@ -3,7 +3,8 @@
 	import { goto } from '$app/navigation';
 	import { onDestroy } from 'svelte';
 	import NotationDisplay from '$lib/components/notation/NotationDisplay.svelte';
-	import { getTuneById, isCuratedTuneId, transposeTune } from '$lib/tunes/book-loader';
+	import { isCuratedTuneId, transposeTune } from '$lib/tunes/book-loader';
+	import { resolveTuneRef, tunePracticePath } from '$lib/tunes/tune-slug';
 	import { tuneToPhrase } from '$lib/tunes/to-phrase';
 	import { getUserTunesLocal, deleteUserTune } from '$lib/persistence/user-tunes';
 	import {
@@ -40,7 +41,7 @@
 
 	const baseSheet = $derived.by(() => {
 		void cacheVersion;
-		return getTuneById(page.params.id ?? '');
+		return resolveTuneRef(page.params.id ?? '');
 	});
 	const isCurated = $derived(baseSheet ? isCuratedTuneId(baseSheet.id) : false);
 	const isAdopted = $derived.by(() => {
@@ -213,7 +214,7 @@
 					{/if}
 				</button>
 				<button
-					onclick={() => goto(`/tunes/${baseSheet.id}/practice`)}
+					onclick={() => goto(tunePracticePath(baseSheet))}
 					class="rounded-full bg-[var(--color-brass)]/15 px-3 py-1.5 text-sm font-medium text-[var(--color-brass)] transition-colors hover:bg-[var(--color-brass)]/25"
 				>
 					Practice licks

@@ -22,6 +22,7 @@ import { cloudRowToTune } from './user-tunes';
 import { validateAdoptedTune } from '$lib/tunes/adopted-tune-validator';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types';
+import { getUserCoalesced } from '$lib/supabase/get-user';
 
 /** localStorage key holding favorited lead-sheet ids. */
 const FAVORITES_KEY = 'tune-favorites';
@@ -216,7 +217,7 @@ export async function toggleTuneFavorite(
 
 	const {
 		data: { user }
-	} = await supabase.auth.getUser();
+	} = await getUserCoalesced(supabase);
 	if (!user) {
 		// Revert — no session to persist the toggle under.
 		if (wasFavorited) favorites.add(sheetId);
@@ -274,7 +275,7 @@ export async function adoptTune(
 
 	const {
 		data: { user }
-	} = await supabase.auth.getUser();
+	} = await getUserCoalesced(supabase);
 	if (!user) {
 		console.warn('Cannot adopt lead sheet without an authenticated session');
 		return false;
@@ -344,7 +345,7 @@ export async function returnTune(
 
 	const {
 		data: { user }
-	} = await supabase.auth.getUser();
+	} = await getUserCoalesced(supabase);
 	if (!user) return false;
 
 	const { error } = await supabase
@@ -388,7 +389,7 @@ export async function initTuneCommunityFromCloud(
 	try {
 		const {
 			data: { user }
-		} = await supabase.auth.getUser();
+		} = await getUserCoalesced(supabase);
 		if (!user) return false;
 
 		// 1. Favorites — best-effort.

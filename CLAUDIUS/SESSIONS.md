@@ -3775,3 +3775,313 @@ comments."
   moving every harmonic root. Adopted in 3722cfd, pushed straight to dev;
   `tests/unit/docs` 3 files / 68 passed, and the incremental review came back
   clean on the new head with CI green at 16:12Z.
+
+
+## 2026-09-16 — A correct Deep Practice take saved 6 of 9: the ghosted Cs
+
+- Andy's diagnostic: "Sharp 9 Flat 9 Dom" (user lick, concert E, 129 BPM,
+  D C D C D C B A G# over B7) scored 0.739, 6 of 9, in Deep Practice. The
+  first lick-practice take in the fixture corpus.
+- What the audio says: he ghosted the three off-beat Cs, 9–12 dB under the
+  Ds and sounding C + 40–70 cents (a 23 ms YIN window agrees, so it's the
+  horn, not window smear; the click ring here is ~30 dB lower and couldn't
+  be it). McLeod clarity across each C: 0.54–0.76. Every C was a hole in the
+  confident stream, and the Ds closed over it. A click lands at the end of
+  each C (0.555 / 1.020 / 1.485), which is why the next attack's tracking
+  also breaks.
+- Fix: a weak-reading side channel (`detectFrame` → `weakReading`, clarity
+  ≥ 0.5, no stabilizer; `getWeakReadings()`, `ReplayResult.weakReadings`,
+  trim's 5th arg), `findGhostNotes` (plateau in a 75–400 ms hole, ≥ 3
+  frames ±0.35 st, ≥ 0.75 st clear of both flanks by pitch class, ≥ −20 dB,
+  ≤ 2 absorbed confident frames), carved in last via `segmentNotes`' 10th
+  arg, and `pitchMatches` — a ghost matches either semitone its measured
+  pitch falls between. Wired into ear-training (live + rescore),
+  lick-practice, tune-practice scored windows and /diagnostics (which now
+  also exports `weakReadings` and tags ghosts). Not record-a-lick or the
+  freestyle scan.
+- Replay also dropped the A3: five frames, all inside the 80 ms onset guard
+  AND all stabilizer warmup, before the downbeat kick blanked tracking.
+  Narrowed both: the guard skips only frames on the previous note's MIDI,
+  and a full one-pitch warmup window survives.
+- Evidence the change is safe: full corpus diffed against HEAD's segmenter —
+  33 older takes × {raw, trimmed} byte-identical with weak readings passed.
+  Mutation pass: every ghost gate (distance, absorb, level, plateau,
+  frames), the guard and the warmup rule each turn at least one test red.
+  A per-fixture ghost-count pin guards false positives.
+- Result: replay 4/9 (0.518) → 9/9 (0.977); the same take re-stamped at
+  window END (the live time base) 0.961. Vitest 5207 + 36 expected fail,
+  svelte-check 0/0, docstring scanner 41/41, chromium e2e for the five
+  touched routes 19/19.
+- On the record, not fixed: the first D cracks down an octave for ~110 ms
+  (a free extra in scoring); trick fluency ignores the ghost flag;
+  /diagnostics trims lick-practice recordings the live path never trimmed;
+  this window's click grid is +0.08 s off the audio (added to the grid-drift
+  memory — ear-training's 0.25–0.40 is the pre-arm path's alone).
+
+
+## 2026-09-16 (later) — Andy overrules the ghost pitch allowance
+
+- "Yes, if a note is that far out of tune, it should count as incorrect."
+  The ghost-note recovery stays; the semitone allowance goes. `pitchMatches`
+  is still the one shared rule, with no ghost branch; `GHOST_PITCH_TOLERANCE`
+  and the measured-distance bonus are gone.
+- The take now scores 7 of 9 (0.844, good) from the recording and 7 of 9
+  (0.828) in the live time base: the Cs at C + 70 and + 62 cents are aligned
+  as C# wrong notes (nothing missed), the one at + 43 is a C. Before any of
+  this: 6 of 9 live, 4 of 9 in replay, the Cs never heard.
+- Tests flipped first (4 red), then the rule; re-inserting an allowance turns
+  five tests red. Docs, CLAUDE.md, memory updated.
+
+## 2026-09-16 — /diagnostics replays each recording in its own scoring frame
+
+- Closed the item the ghost-notes session left open: /diagnostics ran
+  `trimToPerformance` on every recording, but only ear training trims (live
+  and rescore). Lick practice segments its window untrimmed and ungated, so
+  a lick-practice take whose first note landed past the 0.35 s pre-roll
+  replayed with shifted times, gated readings and a nonzero
+  `captureTrimSeconds` that the scored take never had.
+- Fix: `diagnosticsReplayFrame(source, raw)` in `capture-window.ts` trims
+  `'ear-training'` only; every other source, and a record with no metadata
+  (which predates pre-arming), comes back as given with offset 0. The page
+  calls it with `full.metadata?.source`; the export's comments now say
+  `captureTrimSeconds` is always 0 for lick practice.
+- TDD: unit tests went red against an always-trim version of the helper
+  (offset 1.15), then green. A new diagnostics e2e seeds one synthesized
+  late-entry WAV under both sources and reads the replayed duration off
+  each row. Against the old page it failed (lick practice 1.42 s, not
+  2.5 s). Skipped on WebKit, which cannot store a Blob in ephemeral
+  IndexedDB (the same limit lick-practice-session.spec.ts records).
+- Vitest 5210 + 36 expected fail, svelte-check 0/0, diagnostics e2e 5
+  passed + 1 skipped across the three engines.
+- Left as is, noted: lick practice segments with
+  `lastReading.time + 0.1` as its duration, and the panel uses the blob
+  duration, so the last note's length can still differ on the panel.
+
+## 2026-09-16 (later still) — The lick-practice duration on /diagnostics
+
+- Andy: "align the lick-practice duration on the panel too." The panel
+  segmented lick-practice replays over the blob's length. The close path
+  uses last reading + 0.1 s, so the last note's segment ran on to wherever
+  the recorder stopped.
+- The rule is now one function, `durationThroughLastReading` (+
+  `LAST_READING_TAIL_SECONDS`), in `capture-window.ts`. The lick-practice
+  close path, ear training's live path and `diagnosticsReplayFrame` (for
+  `'lick-practice'`) all call it. Ear training's replay still uses the blob
+  duration less the trim, which is what its rescore uses. A record with no
+  metadata keeps the blob duration.
+- TDD: five unit tests went red first (helper missing; a lick-practice take
+  kept the blob's 2.8 s). The e2e now reads the JSON export instead of the
+  summary line. It seeds a 3.5 s take (silence, one second of C4,
+  silence) and checks trim, first reading and duration per source. Against
+  the previous commit it failed: 3.5 s where the rule gives 2.583.
+- Vitest 5212 + 36 expected fail, svelte-check 0/0, diagnostics e2e 5 +
+  1 skip on three engines, and on Chromium diagnostics + ear-training +
+  lick-practice-session 13/13.
+
+## 2026-09-16 (late) — The first D's octave crack
+
+- Andy's brief: the Sharp 9 take opens with a tenor attack that cracks into
+  the lower octave (D3 for ~110 ms, then D4, no onset at the switch). Tell it
+  apart from a slurred octave leap if possible, conservatively and
+  test-first, and diff the whole corpus's segmentation.
+- What the audio says: the 0.093 worklet onset is the downbeat CLICK (the
+  click period puts one at 0.090), and the horn enters at ~0.143. From there
+  to ~0.253 the spectrum carries H3 (440 Hz) beside an already-present D4
+  series, so the 147 Hz period is real. Then H3 dies and D4 speaks.
+- Frames: 5 warmup D3, 2 confirmed, 2 inertia (raw D4, reported D3), D4
+  from 0.283. The span (click → reported switch) is 190 ms, past the 150 ms
+  rule, and 2 of 9 upper frames miss the 25% raw-match rule.
+- Survey: the same crack is already in the corpus twice (2026-08-11
+  curl-to-the-floor D3→D4 and blue-note-climb C3→C4, both confirming
+  nothing), folded by the 25% rule only because the inertia pair is a
+  quarter of a ≤ 8-frame head. 2026-06-24 blues-curl-up cracks UP and the
+  150 ms rule folds it.
+- Fix: rule 3 in `collapseOctaveArtifacts`, `isUnconfirmedOctaveCrack`. The
+  head has fewer than `OCTAVE_CONFIRM_FRAMES` non-warmup frames on its raw
+  pitch, and more raw frames in the neighbour's octave (inertia pair
+  included) than in its own. It works in both directions. My first cut kept
+  the span guard and failed the live time base (head 283 ms vs D4 167 ms
+  after the window-end restamp), so the guard counts frames.
+- Evidence: 34 takes × raw/trimmed/live, only this take changes, checked
+  against HEAD and again after rebasing onto the three commits that landed
+  meanwhile. With rule 2 disabled, rule 3 alone still folds the two 08-11
+  cracks. Seven mutations (rule removed, threshold 4, warmup counted,
+  reported MIDI counted, sounded-guard removed, lower-first only, span
+  guard) each turn a test red.
+- Scores: octave-insensitive unchanged (0.844 recording, 0.828 live).
+  Strict goes 0.835 → 0.844: the first D is timed from its attack (rhythm
+  0.71 before), and strict now equals insensitive, which is what the strict
+  pin asserts after the rebase (the ghost allowance was gone by then, so a
+  hit count would have tested the wrong thing).
+- Docs: audio.md step 2, the in-app audio-pipeline page (whose "two cleanup
+  passes" already listed three), CLAUDE.md.
+- Vitest 5220 + 36 expected fail, svelte-check 0/0 (with placeholder
+  PUBLIC_SUPABASE_* values, since this worktree has no .env), docstring
+  scanner 9/9.
+- Open: live ear training resets the stabilizer only at capture start, so a
+  mid-take crack there has no warmup frames and rule 3 can't see it (the
+  replay rescore can). A crack whose continuation sounds no longer than it
+  stays two notes. The segment still starts at the click, not at the horn.
+
+## 2026-09-16 (evening) — The stacked [2]'s bands followed abcjs, not the music
+
+- **Report.** On a repeat-with-endings tune the practice playhead and insertion bands
+  on the `[2]` system drew at the line start while the music sat under `[1]`.
+  Root cause read straight off `NotationDisplay`'s render effect: it runs
+  `alignStackedEndingsInContainer` (DOM translates on every `[2]` glyph) and then
+  `buildHitZones`, which rebuilds `lastBarZones` from `visualObj`'s pre-alignment
+  `abselem.x/w`. Nothing fed the transform back. The editor's `bar-hit`/`chord-hit`
+  rects and the chord-editor overlay were misplaced by the same 260 units; the
+  per-system bands were NOT, because they are measured from the SVG after the pass
+  and only ever carry y.
+- **Fix, one seam.** `alignStackedEndingsInSvg` now returns what it moved
+  (`AppliedEndingAlignment`: wrapper + `{sx, tx}`), and `alignSystemLayouts` in
+  `abcjs-adapter.ts` maps the matching system's layout items through
+  `endingGlyphTranslateDx` — the DOM pass's own rigid-glyph rule, reused so the two
+  cannot drift — before `barZones`/`chordZones` run. Every x-span downstream follows.
+- **Tests, red first.** Unit: a two-system volta layout where the raw `[2]` zone is
+  40..190 and the aligned one lands on `[1]`'s 300..420, plus beat cells and a
+  no-mutation check. E2E, in the A-Train spec: the editor's `[2]` hit rect must sit
+  within 2.5 staff-spaces of the translated bracket (was 453 px off), and a real
+  session's playhead on the `[2]` bar likewise (394 px off) — measured by a
+  `MutationObserver` at the instant the marker effect inserts the playhead into the
+  aligned wrapper, because that bar lasts one second at 240 BPM and sampling it from
+  the runner is a flake by construction. It caught the bar in 17 s on Chromium.
+- 5223 unit/integration green, `svelte-check` 0/0, A-Train spec green on Chromium;
+  cross-browser + neighbouring chart specs run before the push. Docs: tune-system.md,
+  api-reference/music.md, CLAUDE.md `notation/` bullet.
+## 2026-09-16 — Autumn Leaves' second A: the form rule, the changes sheet, and readable tune URLs
+
+- Andy, testing lick insertion on Autumn Leaves in production: as soon as the
+  second repeat begins the scroll breaks, systems collapse to single bars, some
+  bars shrink to slivers, "not adhering to the best practices we've implemented
+  when laying out the lead sheet". Also asked for `/tunes/autumn-leaves/practice`
+  in place of `/tunes/sheet-1789579191100-55iq/practice`. Plan mode; three
+  explorers (routing/ids, the practice chart pipeline, my own notes), the dev
+  Supabase copy of the tune read straight from Postgres for its section shape,
+  Sentry checked (nothing relevant; it did show curated ids are `ls-<kebab>`).
+- Root cause traced before any fix, two defects. `headBarsForFlat` called the
+  internal `|: A [1 :| [2 | B` a whole-form outline because its only internal
+  test was replay-after-new and nothing replays after B — head at bar 9, melody
+  cut (22 of 77 notes), chart swapped to the changes sheet on the second A's
+  downbeat. Then the changes sheet — the melody sheet minus notes — engraved
+  DIFFERENT systems: the legacy pickup's length is inferred from the melody
+  just removed (lone full-width bar on system 1) and bars-per-line is a
+  note-density pick (4 → 6); `[1]` split across systems and the `[2]` stack
+  compressed to a fifth of its width. Take the A Train's local import (the
+  closing A authored as its own section) is misread by the same rule.
+- Fix 1 (TDD, four red cases incl. the corpus Autumn Leaves and A Train through
+  `flattenTune(expandRepeats)`): a form outline needs the new tail after the
+  replayed body SHORTER than the pass it follows; tie → internal. Pinned shapes:
+  whole-form + 2-bar tail, coda case, `A A B A`, `|: 32 [1 2 :| [2 2] coda 8`,
+  `|: A(8) :| B(8)` tie. Docs (`tune-practice.md`, `tune-system.md`, api
+  `state.md`, CLAUDE.md) had promised "only a second ending or coda" all along.
+- Fix 2 (TDD): `tunes/changes-sheet.ts` `changesSheetFor` stamps each
+  section's resolved pickup length (a rejected explicit field stays rejected)
+  and `TunePracticeAudioPlan.chartOptions.barsPerLine` is the melody sheet's
+  own pick passed to BOTH renders. `changes-sheet.test.ts` compares per-system
+  bar counts off the `[V:M]` lines for every corpus MuseScore import, with a
+  bare-strip control that differs. E2E: the Autumn Leaves follow-scroll spec
+  now records the head's system signature (`g.abcjs-bar` per staff wrapper,
+  `[5,4,3,4,4,4,4]`) and asserts the post-swap chart matches — RED on the
+  reverted source read `[1,7,2,3,6,6,4]` (screenshot showed exactly Andy's
+  report), GREEN in 36 s on the fix. The `followOffsetPx = 0` on re-render is
+  not a flash: every swap lands on the top of the form where 0 is right.
+- Readable URLs: `tunes/tune-slug.ts` — slug as ALIAS (`slugify(foldAccents)`,
+  `util/slug.ts` lifted from docs/markdown with the fold kept separate so
+  heading anchors stay byte-identical), `resolveTuneRef` id-first, duplicates
+  `-2`/`-3` curated-then-creation order, unsluggable → id, `tunePath`/
+  `tunePracticePath` on `baseSheet`. Both `[id]` routes resolve either form;
+  book, detail→practice, practice back links, editor save and the import
+  result list link by slug; community and `?edit=` keep ids. Nine unit cases;
+  e2e: a slug-navigation test in `tunes.spec.ts` (book → slug → practice slug,
+  curated by title slug, old id and old id/practice still open), and the
+  `**/tunes/sheet-*` URL-shape asserts in editor/import/pdf specs retargeted to
+  the title slug or a slug-shaped regex that rejects `sheet-`.
+- Verified after rebasing onto dev (ghost notes, the stacked-`[2]` zone fix
+  that had already landed as 273c120 — the chip I raised for it was moot):
+  vitest 311 files / 5244 passed + 36 expected fail; svelte-check 0/0;
+  chromium e2e over tunes / editor / import / pdf-import / a-train / pickup /
+  practice: 38 passed, with the Mankunku Blues session-start timeout (End
+  not visible in 45 s, Start still pressed on the setup screen) firing at
+  the tail of the long serial run and once under parallel load — the
+  sample-decode contention flake on record, machine load 4–5 from other
+  sessions; the follow-scroll pair alone passed 4/4 twice (Blues 19.5 s,
+  Autumn 36 s, steady). WebKit tunes + editor 11 passed.
+- CI on the push: `test` green, `e2e` red on ONE test, shard 5, WebKit only —
+  my new PDF-store linkage assertion found the anonymous store EMPTY there.
+  Reproduced locally; an in-page experiment settled it: Playwright's WebKit
+  aborts every IndexedDB put whose value holds a Blob (put-only, or with any
+  awaited request in the transaction), an ArrayBuffer stores fine, Chromium
+  takes both. `saveTunePdf` swallows the failure with a console.warn by
+  design, so a Safari user has silently lost every imported PDF's local copy
+  since the store shipped, and the old URL-equals-id assertion could never
+  see it. Fix (TDD, fake-indexeddb): records are now bytes + MIME type,
+  reads accept the Blob shape earlier builds wrote, the legacy copy-forward
+  converts before its write transaction. The e2e opens the anonymous
+  database by name (`indexedDB.databases()` lists nothing on WebKit) and
+  aborts on `upgradeneeded` so it never creates an empty one.
+
+
+## 2026-09-16 (evening) — Sentry sweep: four "production" issues, three fixes
+
+- Andy: "Fix any production errors on sentry and push to dev". Four unresolved
+  issues matched `environment:production`; each was traced before any edit.
+- **MANKUNKU-1T** — bare `InvalidAccessError` (DOMException code 15, empty
+  message, no stack) on `/tunes/ls-amazing-grace`, Chrome/Windows, trumpet.
+  The breadcrumbs show Play → trumpet SoundFont load → key chip → Play, then
+  the rejection 3 ms later. `loadInstrument` reloads on every call, and
+  `cleanupInstruments` ran `cleanupJazzExpression` first, which cut the warmth
+  filter's outputs; smplr's channel teardown then disconnected
+  warmthFilter → volume *by destination*, and standardized-audio-context throws
+  `new DOMException('', 'InvalidAccessError')` for a missing connection. That
+  constructor is the empty-message fingerprint. Only trumpet is affected (the
+  three saxes have sample maps), and it fails on every second load in a realm:
+  a second Play, or a second practice page. Fix: dispose instruments first.
+  The test drives the real smplr `Instrument`/`Channel` on a fake graph that
+  keeps Web Audio's disconnect rules. The trumpet row goes red without the fix;
+  the sax row pins the reordered custom-sample teardown. Reproduced in the
+  in-app browser before the fix (Uncaught (in promise), code 15, no Stop
+  button); after it, three Plays in a row all started.
+- **MANKUNKU-1Q** — "N+1 API Call", 16 production events on pageloads of `/`,
+  `/progress`, `/licks`, `/lick-practice`, `/ear-training` and
+  `/tunes/[id]/practice`. The offending span is `GET /auth/v1/user`: 17 on one
+  load, with 11 in the hydration burst at durations 171 → 1064 ms, queued
+  behind supabase-js's session lock. Every persistence call site checked the
+  session on its own. `getUserCoalesced` (`src/lib/supabase/get-user.ts`) now
+  shares an in-flight request per auth client, and 12 call sites were switched
+  to it. The integration test runs six real initializers against the cloud
+  mock with a 20 ms auth delay: 6 calls before the fix, 1 after. Not checked in
+  a signed-in browser (that would mean entering a password).
+- **MANKUNKU-1V** — Anthropic "Output blocked by content filtering policy" on
+  `POST /api/tune-parse`. `server_name` was the Mac Studio and the URL was
+  `localhost:4174`, so this was a local preview (NODE_ENV=production), almost
+  certainly the WebKit PDF-cache session running at the time. The trace shows
+  claude-fable-5 blocked, then claude-opus-4-8 succeeding: the route's fallback
+  worked. Two fixes follow. First, the server's `beforeSend` and
+  `beforeSendTransaction` now refile loopback-request events under development.
+  A scratch script against the real `@sentry/node` with a capturing transport
+  confirmed that both the event and the transaction carry `request.url` and
+  that the override lands. Second, the content-filter block from the
+  `auto.ai.anthropic*` mechanism is dropped; every other Anthropic error still
+  reports. The client's hostname check now shares `isLocalHostname`.
+- **MANKUNKU-1M** — Safari "Load failed" on `/tunes`, 2026-08-23 07:23 UTC,
+  release 005818b. No deploy was near it: #238 shipped 08-21, and #239 merged
+  08-23 at 17:38 UTC. It was a one-off network failure; the nav recovery
+  handles it, and `shouldDropStaleChunkReport` keeps it visible on purpose.
+  No code change, and left unresolved for Andy to decide.
+- Issues close through `Fixes MANKUNKU-1T/1Q/1V` trailers when dev merges to
+  main. Docs: audio.md (reload teardown), state-management.md (coalesced
+  session check), tech-stack.md (server environment + content filter),
+  README changelog, CLAUDE.md.
+- PR #251 (dev → main) opened on request; CodeRabbit's first pass: pre-merge
+  checks 5/5 (docstring coverage 90.11%), two Minor threads, both real.
+  (1) A tune titled "Editor" slugged to `/tunes/editor`, and SvelteKit ranks
+  the static route above `[id]` — `RESERVED_TUNE_SEGMENTS` now sends such a
+  title to its id, pinned against the route directory so a new static route
+  under /tunes cannot slip past. (2) In the ghost-note pass (another
+  session's 63df49a) `findGhostPlateau` checked only the newest frame gap,
+  so the first window's leading gap was never validated and a stray frame
+  ahead of a hole led the plateau — and the ghost's onset — by 70 ms. Every
+  gap in the first window is checked now; the recorded-take corpus is
+  unchanged (735 passed, 1 expected fail).

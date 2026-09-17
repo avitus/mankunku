@@ -11,6 +11,13 @@ export interface DetectedNote {
 	duration: number;
 	/** Pitch detection clarity (0-1) */
 	clarity: number;
+	/**
+	 * True when the note was recovered from sub-threshold frames by the
+	 * segmenter's ghost-note pass (`findGhostNotes`). Informational: a ghost
+	 * is scored by its nearest semitone like any other note. Omitted on
+	 * ordinary notes.
+	 */
+	ghost?: true;
 }
 
 export type MicPermissionState = 'prompt' | 'granted' | 'denied' | 'unavailable';

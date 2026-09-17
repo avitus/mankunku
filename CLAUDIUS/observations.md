@@ -2117,3 +2117,184 @@ that earns a new branch has a mirror somewhere that earns the same branch and
 no tooling relates the two. The check that caught it was a reviewer reading
 both — which is the argument for keeping the review round on docs-only diffs,
 not the argument for another coverage metric.
+
+
+## 2026-09-16 — A threshold is a decision about what to forget
+
+The 0.80 clarity cutoff was written to keep room noise out, and it did that
+by throwing frames away at the source. Nobody downstream could ever ask
+"what was in the hole?", because the hole was all that survived. A ghosted
+note — the most idiomatic thing in a bebop line — is by design exactly the
+kind of sound that cutoff forgets: breathy, quiet, pitched between keys.
+
+The fix that held wasn't lowering the threshold (that would have fed every
+tier a stream of doubtful frames it was never tuned on). It was keeping the
+rejected frames on a side channel with one reader, who only looks where the
+confident stream has already gone silent. A filter that discards should
+usually also set aside; the cost is an array, and the question it lets you
+ask later is the one you didn't know you'd need.
+
+Second thing worth keeping: the scoring rule for a ghost had to be written
+in terms of the *measurement*, not the rounded note. The C's were real and
+sharp; rounding made two of them C#. A pitch known only to a bracket should
+carry the bracket to the judge, not have the bracket collapsed at the
+detector. And I chose that bracket myself — it's a policy about how strict a
+jazz ear trainer should be about a note the player deliberately didn't
+fully sound. I'm fairly confident in it, but it is Andy's call to overrule.
+
+Third: the replay/live window-anchor split keeps surfacing. The onset guard
+was written for the live path, where frames right after an onset really are
+the previous note's; in replay they are the new note's. The corpus hid that
+because nothing short enough ever lived entirely inside the guard. The
+narrowing I made is anchor-agnostic (a stale frame reads the previous
+pitch), which is the right shape for a rule that has to hold in both time
+bases — but the underlying split is still there, and it will bite again.
+
+
+## 2026-09-16 (later) — Detection and forgiveness are different decisions
+
+I bundled two things into one fix: hearing a quiet note, and forgiving its
+pitch. The first is a detector defect with a right answer. The second is a
+teaching policy, and I made it on my own because the take "felt right" to me
+— the player's intent was obviously C. Andy's answer was immediate and
+clear: out of tune is wrong. From a teacher's chair that's plainly the
+better rule; an ear-training app that rounds a player toward the written
+note teaches them nothing about the note they actually sounded.
+
+What I should keep: when a fix changes what the app *hears*, I can decide;
+when it changes what the app *accepts*, I propose. My earlier note said "it
+is Andy's call to overrule" — true, but the cleaner move was to ship the
+detection and ask about the allowance, not ship both and invite a veto.
+
+## 2026-09-16 — A debugging tool needs each flow's own pipeline
+
+/diagnostics was written when ear training was the only source, and "do what
+the scoring path does" quietly turned into "do what ear training does". A
+panel that exists to reproduce a result has to ask which path produced that
+result, and `metadata.source` already carried the answer. Two pipelines that
+look alike (same detector, same segmenter) still differ in their framing:
+trim, gate and duration. Those differences are where a replay drifts, and
+the corpus cannot see them because each fixture test hand-builds the right
+frame. The duration rule is the next such difference, and it is still open.
+
+## 2026-09-16 (late) — A rule that works by coincidence is not a rule
+
+The 25% raw-match rule was written for long subharmonic locks. For a month
+it had also been the crack rule, without anyone knowing: the stabilizer's
+two inertia frames happen to be a quarter of an eight-frame head. So the
+first crack that held one frame longer walked straight through it, and
+nothing in the code said why the earlier ones hadn't. Naming what is
+actually true ("the stabilizer never confirmed this octave") gave a rule
+that covers every crack in the corpus on its own. It also reaches exactly
+one frame past where the coincidence stopped. That's the conservatism I
+wanted, and I could only state it once the old reach had a name.
+
+Two smaller things. The segment's "attack" was the click; the player's
+entrance was not an onset at all. After a month of click-grid work, I still
+assumed an onset at the head of the first note meant the player. And the
+span guard I first reached for failed only in the live time base. Every
+span-based rule in this segmenter quietly depends on which end of the
+analyser window a frame is stamped at, and frame counts don't. When a rule
+is about how long something sounded, count what sounded.
+
+On whether this was mine to decide: the player really did sound a D3 for a
+tenth of a second. I treated folding it as detection, not forgiveness,
+because a crack is a flaw in one note's attack, not a second note, and the
+segmenter already folded the same thing a frame shorter. If Andy wants
+cracks graded as technique, that belongs in a separate signal on the note,
+not an extra wrong-octave note.
+
+## 2026-09-16 (evening) — "Measured after" is not "derived after"
+
+The `[2]` bands were wrong and the `[2]` chord heights were right, and the difference is
+worth naming. The bands' vertical geometry is *measured* from the SVG after every
+correction pass has run, so a chord row dropped by `matchSecondEndingChordHeight` was
+already where the band measured it. The bar zones are *derived* from abcjs's layout
+model, which no DOM pass ever touches — so the one pass that moves glyphs horizontally
+left the model, and everything derived from it, describing a chart that no longer
+existed. The `notation/` boundary that makes the geometry Node-testable ("DOM-free,
+adapts `visualObj`") is exactly what made it blind: a correction applied on the DOM side
+of that line has to be handed back across it as data, or the model quietly becomes a
+lie. The rule I take from it: every post-render pass that moves ink must return what it
+did, and every derivation from the pre-render model must consume that. Return values,
+not side effects, are how a DOM pass stays honest with a pure module.
+
+Second, smaller: the playhead test. A one-bar window at 240 BPM is a second wide; a test
+that polls it from the runner passes on a quiet laptop and fails on a loaded CI box, and
+that is the exact species of flake this repo has spent September hunting. Observing the
+insertion — measuring at the moment the thing exists rather than asking whether it
+still does — removes the timing from the test entirely. Where the assertion is about a
+transient, put the measurement inside the page, at the mutation.
+## 2026-09-16 — A copy that drops data must carry what the data implied
+
+The changes sheet was defined as "the melody sheet with the notes removed",
+and that definition hid the bug for seven weeks. Two engraving inputs were
+never fields on the sheet — the pickup bar's printed length and the
+bars-per-line density — they were FUNCTIONS of the notes, recomputed at
+render. Strip the notes and both silently change: the pickup stops being a
+pickup, the lines widen, the endings re-stack. Nothing was wrong with any
+single function; the wrong thing was believing a derived copy is "the same
+chart" when part of the chart lives in what was derived from the removed
+part. The fix is a rule I want to keep: when a transform drops data, stamp
+the things that data implied onto the copy (pickup length explicitly, bars
+per line explicitly) — congruence by construction, then pin it with a
+signature (bars per system), not with "is it visible".
+
+The second thing: the docs said "only a second ending or coda afterwards"
+for the whole life of the form rule, and the code checked no length at all.
+The word *only* was doing work the code never did. Reading docs as a spec of
+intent and then asking "where is the bound this word implies?" would have
+found the Autumn Leaves case before anyone imported Autumn Leaves.
+
+And a small one about not instrumenting what reasoning settles: I planned to
+measure whether the render effect's follow-offset reset flashed at the swap.
+Every swap lands on the top of the form — head end, or the appended chorus
+start — where the correct offset IS zero. The measurement would have shown
+nothing and I would have called it "no flash observed" instead of "there
+cannot be one". Know where the value must be before deciding to watch it.
+
+
+## 2026-09-16 (later) — The assertion that replaced a weaker one found a bug the weaker one hid
+
+Retargeting the PDF test's "the URL contains the id" check to "the PDF
+store holds the id" was meant as a like-for-like substitute for the slug
+change. It was not like-for-like: the old check proved two strings were
+equal, the new one proved a write had happened. On WebKit no write had ever
+happened. `saveTunePdf` swallows its local failure on purpose, with a
+console.warn the e2e guard does not count, so the only way the bug could
+surface was an assertion that read the store back. A swallowed error is a
+decision to trust the happy path; every such decision needs one test that
+reads the thing back, on every engine the feature claims to support.
+
+
+## 2026-09-16 (evening) — Mirrored pairs, uninformative errors, permissive fakes
+
+Two of four "production" issues were not production. The client had fixed
+its environment claim months ago (MANKUNKU-K: read the hostname, because
+`vite preview` is NODE_ENV=production). The server went on making the same
+claim, in a file whose shared helper module says it exists "so the two stay
+in sync". When a fix lands on one side of a mirrored pair, the remaining
+asymmetry is the next bug. And the first question for any server event is
+`server_name` plus the request URL, before the stack.
+
+The InvalidAccessError had no message and no stack. That emptiness was the
+most informative thing in the event. Native Chrome errors explain
+themselves; `new DOMException('', name)` is a library talking. Grepping
+node_modules for the empty-message constructor named the layer before any
+browser ran. "What would produce an error this uninformative?" is a question
+worth asking first.
+
+The test that should have caught 1T already existed in spirit:
+`playback-cancellation.test.ts` calls `loadInstrument('trumpet')` in every
+`beforeEach`, which is exactly the double load that failed in production.
+Its fake nodes had a `disconnect()` that never throws. A fake that is more
+permissive than the platform erases the platform's rules, so the test could
+never fail on them. Fakes should carry the constraints, not just the shape.
+Here the constraint is one line: disconnecting a connection that does not
+exist throws.
+
+The N+1 was nobody's decision. "Validate the session before any cloud call"
+is right at each call site, and the fan-out turned it into seventeen
+round-trips queued on one lock. A rule applied per call turns into a burst
+once callers run concurrently, so the fix belongs in the rule's shared
+helper, not in each caller.

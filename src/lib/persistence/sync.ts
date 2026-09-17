@@ -43,6 +43,7 @@ import type { LickMergeMeta } from './lick-metadata-merge';
 import type { Grade, NoteResult, TimingDiagnostics } from '$lib/types/scoring';
 import { SCALE_UNLOCK_ORDER, type ScaleType } from '$lib/tonality/tonality';
 import { MAX_HISTORY_POINTS as MAX_TRICK_HISTORY_POINTS, MAX_SESSIONS } from './limits';
+import { getUserCoalesced } from '$lib/supabase/get-user';
 
 // ── Type alias for convenience ───────────────────────────────────────
 
@@ -100,12 +101,13 @@ function isValidTonality(value: unknown): boolean {
 /**
  * Retrieve the authenticated user ID, or `null` if not signed in.
  * Uses `getUser()` (not `getSession()`) for server-side JWT validation
- * per the server-side JWT validation rule.
+ * per the server-side JWT validation rule — coalesced, so the calls a
+ * page-load hydration makes at once share one request (MANKUNKU-1Q).
  */
 async function getAuthUserId(supabase: SupabaseDB): Promise<string | null> {
 	const {
 		data: { user }
-	} = await supabase.auth.getUser();
+	} = await getUserCoalesced(supabase);
 	return user?.id ?? null;
 }
 

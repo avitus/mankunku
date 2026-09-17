@@ -178,3 +178,32 @@ describe('scoreAttempt', () => {
 	});
 });
 
+
+describe('scoreAttempt with ghost notes', () => {
+	const phrase = makePhrase([
+		makeNote(62, [0, 1]),
+		makeNote(60, [1, 8]),
+		makeNote(62, [1, 4])
+	]);
+
+	it('counts a ghost that rounds to C# as a wrong note, not a missed one (2026-09-16)', () => {
+		const detected: DetectedNote[] = [
+			makeDetected(62, 0),
+			{ ...makeDetected(61, 0.25, -30), ghost: true },
+			makeDetected(62, 0.5)
+		];
+		const score = scoreAttempt(phrase, detected, TEMPO);
+		expect(score.notesHit).toBe(2);
+		expect(score.noteResults[1].missed).toBe(false);
+		expect(score.noteResults[1].pitchScore).toBe(0);
+	});
+
+	it('counts a ghost that rounds to C as a hit', () => {
+		const detected: DetectedNote[] = [
+			makeDetected(62, 0),
+			{ ...makeDetected(60, 0.25, 43), ghost: true },
+			makeDetected(62, 0.5)
+		];
+		expect(scoreAttempt(phrase, detected, TEMPO).notesHit).toBe(3);
+	});
+});

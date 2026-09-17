@@ -75,3 +75,31 @@ describe('scorePitch with octaveInsensitive=true', () => {
 		expect(scorePitch(makeNote(null), makeDetected(60), true)).toBe(1.0);
 	});
 });
+
+/**
+ * A ghost note (recovered from sub-threshold frames) is judged like any other
+ * note: by its nearest semitone. Andy, 2026-09-16: "if a note is that far out
+ * of tune, it should count as incorrect" — the ghosted Cs measured C + 43 to
+ * + 70 cents, and the two that round to C# are wrong notes.
+ */
+describe('scorePitch for a ghost note', () => {
+	/** A ghost note measured at `midi` + `cents`. */
+	function ghost(midi: number, cents: number): DetectedNote {
+		return { ...makeDetected(midi, cents), ghost: true };
+	}
+
+	it('does not credit a ghost that rounds to the next semitone (C + 70 cents is not a C)', () => {
+		expect(scorePitch(makeNote(60), ghost(61, -30))).toBe(0);
+	});
+
+	it('credits a ghost on its own nearest semitone, with the usual intonation bonus', () => {
+		expect(scorePitch(makeNote(61), ghost(61, -30))).toBeCloseTo(1.04, 2);
+		expect(scorePitch(makeNote(60), ghost(60, 43))).toBeCloseTo(1.014, 3);
+	});
+
+	it('matches any octave of its pitch class only when octave-insensitive', () => {
+		expect(scorePitch(makeNote(60), ghost(48, 43), true)).toBeCloseTo(1.014, 3);
+		expect(scorePitch(makeNote(60), ghost(49, -30), true)).toBe(0);
+		expect(scorePitch(makeNote(60), ghost(48, 43))).toBe(0);
+	});
+});

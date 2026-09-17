@@ -391,6 +391,8 @@ Unlike auto-saving stores, Mankunku uses **explicit save calls**. This avoids ex
 
 Cloud pushes go through the durable **outbox** (`persistence/outbox.ts`): intents coalesce by kind — `progress`, `settings`, `dailySummaries`, `trickState`, `lickMeta`, `userLicks`, `tunes` (`OutboxKind`) — and are drained against the *current* local state, so rapid edits collapse into one push and a push that throws is retried. The layout drains it once cloud hydration settles, which is also when anything queued offline or in an earlier session goes up. Tour state is the exception: `saveTourState` syncs directly, not through the outbox.
 
+Every cloud read and write first confirms the session with `auth.getUser()` — a round-trip to the Supabase Auth server, which supabase-js serializes behind its session lock. The layout starts all the cloud initializers at once, so those checks go through `getUserCoalesced` (`src/lib/supabase/get-user.ts`): calls made while one is in flight on the same client share it, and a call after it settles asks again. Before this, one production page load sent 17 `GET /auth/v1/user` requests, eleven of them queued together (Sentry MANKUNKU-1Q); `tests/integration/hydration-auth-fanout.test.ts` pins one check for the initializers started together.
+
 ## Svelte 5 Runes Pattern
 
 All state uses the `$state` rune at module scope:

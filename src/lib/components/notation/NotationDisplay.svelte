@@ -13,7 +13,10 @@
 		type ChordSlotAnchor,
 		type TuneAbcOptions
 	} from '$lib/music/tune-notation';
-	import { alignStackedEndingsInContainer } from '$lib/notation/ending-align-dom';
+	import {
+		alignStackedEndingsInContainer,
+		type AppliedEndingAlignment
+	} from '$lib/notation/ending-align-dom';
 	import {
 		barZones,
 		chordZones,
@@ -30,6 +33,7 @@
 	import {
 		systemsFromVisualObj,
 		toSystemLayouts,
+		alignSystemLayouts,
 		findVoiceItem,
 		overlayBoxPct,
 		formShape,
@@ -391,11 +395,13 @@
 		repositionPartLabels(containerEl);
 		// Stacked second endings: map [2] onto [1]'s horizontal span (pure-translate
 		// glyphs, scale only volta/beam line art) — driven entirely from the rendered
-		// DOM geometry, no ABC-side hints.
-		alignStackedEndingsInContainer(containerEl);
+		// DOM geometry, no ABC-side hints. The transforms it applied feed the
+		// zone builder: zones come from abcjs's pre-alignment layout and must
+		// follow the moved glyphs, or bands and hit rects draw beside the music.
+		const endingAlignments = alignStackedEndingsInContainer(containerEl);
 		drawGlissandi(vo, noteAnchors);
 		applySelectionHighlight(vo, noteAnchors, selectedIndex);
-		buildHitZones(containerEl, vo, rendered);
+		buildHitZones(containerEl, vo, rendered, endingAlignments);
 		// Stash for the cursor/marker effects. The cursor element belonged to
 		// the SVG this render just replaced, so forget it.
 		lastVisualObj = vo;
@@ -694,7 +700,8 @@
 			noteAnchors: NoteAnchor[];
 			barAnchors: BarAnchor[];
 			chordSlotAnchors: ChordSlotAnchor[];
-		}
+		},
+		endingAlignments: readonly AppliedEndingAlignment[] = []
 	): void {
 		lastChordZones = [];
 		systemBands = [];
@@ -709,7 +716,7 @@
 		const vb = svg.viewBox.baseVal;
 		lastViewBox = { width: vb.width, height: vb.height };
 
-		const systems = toSystemLayouts(systemsFromVisualObj(visualObj));
+		const rawSystems = toSystemLayouts(systemsFromVisualObj(visualObj));
 		// Wrapper n ↔ system n: both follow the visualObj music-line order.
 		// Measure every band BEFORE inserting rects (rects would inflate boxes).
 		for (const wrapper of svg.querySelectorAll<SVGGElement>('g.abcjs-staff-wrapper')) {
@@ -724,12 +731,25 @@
 		// above truncated — later zones would attach to the wrong system. Surface
 		// it loudly in dev rather than mis-placing silently if abcjs's SVG shape
 		// ever drifts.
-		if (import.meta.env.DEV && systemBands.length !== systems.length) {
+		if (import.meta.env.DEV && systemBands.length !== rawSystems.length) {
 			console.warn(
 				`[NotationDisplay] staff-wrapper/system count mismatch: ${systemBands.length} bands vs ` +
-					`${systems.length} systems — follow-scroll and range markers may mis-attach.`
+					`${rawSystems.length} systems — follow-scroll and range markers may mis-attach.`
 			);
 		}
+
+		// A stacked [2] system's glyphs were moved under [1] after abcjs laid
+		// them out; its layout items take the same map so every x-span below
+		// (bar zones, beat cells, the pickup label seat) lands under the music.
+		// The bands need no remap: they carry only y, measured from the SVG
+		// after the alignment ran.
+		const systems = alignSystemLayouts(
+			rawSystems,
+			endingAlignments.flatMap((a) => {
+				const systemIdx = systemBands.findIndex((b) => b.wrapper === a.wrapper);
+				return systemIdx < 0 ? [] : [{ systemIdx, ...a.transform }];
+			})
+		);
 
 		lastBarZones = barZones(systems, anchors.barAnchors);
 		nudgePartLabelsPastPickups(lastBarZones, sheet);

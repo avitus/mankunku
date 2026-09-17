@@ -10,7 +10,7 @@ If you're playing a steady note on a horn, the answer is usually clear: the air 
 
 The algorithm Mankunku uses is called the **McLeod Pitch Method**. It's an autocorrelation technique — it asks how well each segment of audio matches a delayed copy of itself, and the delay that matches best corresponds to the period of the note. It's particularly good at single-instrument signals like a sax or a trumpet, which is why it's the right tool here.
 
-Each frame, the app gets a frequency *and* a **clarity score** between 0 and 1. Clarity tells the app how confident it is — a clean, sustained note has clarity above 0.92; a noise burst, an attack transient, or two notes overlapping might score 0.5. Mankunku ignores any frame with clarity below 0.80, so room noise and embouchure adjustments don't trigger phantom notes.
+Each frame, the app gets a frequency *and* a **clarity score** between 0 and 1. Clarity tells the app how confident it is — a clean, sustained note has clarity above 0.92; a noise burst, an attack transient, or two notes overlapping might score 0.5. Mankunku ignores any frame with clarity below 0.80, so room noise and embouchure adjustments don't trigger phantom notes. Frames between 0.50 and 0.80 are set aside rather than thrown away: they're how the app hears a ghosted note (see below).
 
 ## When the app starts listening
 
@@ -30,13 +30,20 @@ If the onset detector is unavailable (older browsers, some mobile devices), the 
 
 Once the app has both the pitch readings and the onset times, segmenting them into notes is straightforward: each onset starts a new note; each note's pitch comes from a clarity-weighted vote over the pitch readings that fell inside its window — the pitch class first, then the octave, with a tie broken toward the previous note — so a single octave glitch in one frame can't change the answer (the cents figure is the median of the winning readings); each note's duration runs to the next onset or until the player stops playing. An onset only counts if the pitch detector actually heard a note in it — and heard it *there*: a reading whose analysis window already reaches the next onset is that attack's evidence, not this one's. That matters because the capture opens before you play, so the click you come in on is inside it; without the rule, your first note's own attack used to vouch for the click's onset and split the note in two.
 
-After segmentation, the app does two cleanup passes that handle real-world failure modes the raw detector can't avoid:
+After segmentation, the app runs cleanup passes that handle real-world failure modes the raw detector can't avoid:
 
 - **Same-pitch consolidation.** If two adjacent segments share the same MIDI pitch *and* the boundary between them has no AudioWorklet onset within ±75 ms — meaning there was no actual attack — they're merged back into one note. This catches octave glitches and clarity dropouts that briefly split a single sustained note into two.
 - **Octave-boundary collapse.** When the McLeod method temporarily locks to the wrong octave for a few frames, the app spots the artifact (three or more raw frames inside the segment match the lower fundamental) and merges the stray segment back into its neighbour.
 - **Octave respell of a re-attack.** A saxophone re-attack often speaks on its second harmonic for the first 50–100 ms before the fundamental fills in. When that transient gets cut into a note of its own — very short, exactly an octave above the note before it, with the lower fundamental still showing in the raw frequencies around it and the next note not continuing the upper octave — it keeps its attack and takes the neighbour's octave, rather than scoring as a wrong pitch.
+- **Cracked attacks.** A saxophone attack sometimes speaks in the wrong octave for its first tenth of a second before the octave vent takes over — no new attack, just a jump. The detector hears that as a short note an octave away, but the wrong octave never lasts long enough to be confirmed: once the detector's settling window after an attack ends, it wants three steady frames of an octave before it believes it. So the crack folds into the note it settles on, which starts where you tongued it. A real slur up or down an octave holds its first note long enough to be confirmed, so an octave leap you actually play stays two notes.
 
 These passes are deliberately conservative: they only fire when the absence-of-attack evidence is unambiguous, so genuine re-articulations of the same pitch still register as separate notes.
+
+### Ghost notes
+
+A ghosted note — half-fingered, breathed rather than blown, the swallowed off-beat in a bebop line — is exactly what the 0.80 clarity cutoff was built to ignore: breathy, quiet, and pitched somewhere between two keys. Left to the confident frames alone, a ghost leaves nothing but a short gap, and the notes on either side close over it. So the app looks inside those gaps at the frames it set aside. When a short gap (under about 0.4 s) holds a steady run of them — at least three frames agreeing on one pitch, at least three-quarters of a semitone from the notes on both sides, and no more than 20 dB quieter than they are — that's a ghost note, and it goes into the line where you played it.
+
+Once found, a ghost is scored like any other note: by the nearest semitone to the pitch it actually sounded. Being quiet doesn't earn it any leeway — a ghosted C that sounds more than half a semitone sharp is heard as a C♯ and counts as a wrong note. Finding the ghost still matters even then: the rest of the line stays lined up with what you played, instead of the app treating the note as missing.
 
 ### Telling a glitch from a real re-articulation
 

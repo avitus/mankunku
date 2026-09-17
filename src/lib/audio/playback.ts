@@ -191,9 +191,15 @@ function cleanupJazzExpression(): void {
 
 /**
  * Clean up all instrument state (samplers and SoundFont).
+ *
+ * Instruments go first. A SoundFont's warmth filter is an insert on smplr's
+ * channel, and the channel's teardown disconnects it from the channel's volume
+ * node by destination — which throws InvalidAccessError once
+ * `cleanupJazzExpression` has already cut that connection (Sentry MANKUNKU-1T:
+ * every second trumpet Play rejected). The expression nodes follow with
+ * argument-less disconnects, which never throw.
  */
 function cleanupInstruments(): void {
-	cleanupJazzExpression();
 	if (samplerPiano) {
 		samplerPiano.disconnect();
 		samplerPiano = null;
@@ -211,6 +217,7 @@ function cleanupInstruments(): void {
 		instrument.disconnect();
 		instrument = null;
 	}
+	cleanupJazzExpression();
 }
 
 /**

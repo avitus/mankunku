@@ -13,7 +13,8 @@
 	import SelectorPad from '$lib/components/console/SelectorPad.svelte';
 	import { tooltips } from '$lib/content/tooltips';
 	import { tunePracticeTour } from '$lib/tour/tours/tune-practice';
-	import { getTuneById, transposeTune } from '$lib/tunes/book-loader';
+	import { transposeTune } from '$lib/tunes/book-loader';
+	import { resolveTuneRef, tunePath } from '$lib/tunes/tune-slug';
 	import { awaitHydration } from '$lib/state/hydration';
 	import { settings, getInstrument } from '$lib/state/settings.svelte';
 	import { BACKING_STYLE_IDS, BACKING_STYLE_NAMES, melodySwingForStyle } from '$lib/audio/backing-styles';
@@ -99,7 +100,7 @@
 
 	const baseSheet = $derived.by(() => {
 		void cacheVersion;
-		return getTuneById(page.params.id ?? '');
+		return resolveTuneRef(page.params.id ?? '');
 	});
 
 	// ── Audio modules + live handles (lick-practice session pattern) ──────────
@@ -129,6 +130,8 @@
 		recordingTransportSeconds: number;
 		micStartTime: number;
 		readingsStartCount: number;
+		/** Same as `readingsStartCount`, for the detector's weak-reading stream. */
+		weakReadingsStartCount: number;
 		schedule: BackingTrackSchedule | null;
 	}
 	let currentWindow: OpenWindow | null = null;
@@ -653,6 +656,7 @@
 			recordingTransportSeconds: playback.getTransportSeconds(),
 			micStartTime: micCapture.context.currentTime,
 			readingsStartCount: pitchDetector.getReadings().length,
+			weakReadingsStartCount: pitchDetector.getWeakReadings().length,
 			schedule: backingTrack?.getActiveSchedule() ?? null
 		};
 		markWindowOpen(index);
@@ -680,6 +684,12 @@
 			const r = allReadings[i];
 			rebased.push({ ...r, time: r.time - windowOffset });
 		}
+		// The sub-threshold frames the ghost-note pass reads, sliced and
+		// rebased the same way.
+		const rebasedWeak = pitchDetector
+			.getWeakReadings()
+			.slice(win.weakReadingsStartCount)
+			.map((r) => ({ ...r, time: r.time - windowOffset }));
 
 		if (win.candidates.length === 0) {
 			recordWindowResult(win.ip.id, null, null);
@@ -709,7 +719,8 @@
 			undefined,
 			workletOnsets,
 			bleedOnsets,
-			articulationOnsets
+			articulationOnsets,
+			rebasedWeak
 		);
 
 		if (detected.length === 0) {
@@ -873,7 +884,7 @@
 		</div>
 	{:else if tunePractice.phase === 'setup'}
 		<a
-			href="/tunes/{baseSheet.id}"
+			href={tunePath(baseSheet)}
 			class="inline-flex items-center gap-1 text-sm text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text)]"
 		>
 			&larr; {baseSheet.title}
@@ -1146,6 +1157,7 @@
 			<NotationDisplay
 				tune={displayedSheet}
 				instrument={getInstrument()}
+				tuneOptions={audioPlan?.chartOptions}
 				{cursorIndex}
 				rangeMarkers={markers}
 				autoScrollPlayhead
@@ -1238,7 +1250,7 @@
 				Practice again
 			</button>
 			<a
-				href="/tunes/{baseSheet.id}"
+				href={tunePath(baseSheet)}
 				class="flex-1 rounded-lg bg-[var(--color-bg-tertiary)] py-2.5 text-center font-medium transition-colors hover:bg-[var(--color-bg-secondary)]"
 			>
 				Back to tune

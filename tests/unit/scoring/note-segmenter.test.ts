@@ -1369,3 +1369,150 @@ describe('segmentNotes — octave respell of a re-attacked sliver', () => {
 		expect(notes.some((n) => n.midi === 67 && n.onsetTime < 0.45)).toBe(true);
 	});
 });
+
+/**
+ * The 2026-09-16 "sharp-9-flat-9-dom" A3: an eighth note between a B and a
+ * G#, whose tracking the downbeat kick blanked after five frames. Those five
+ * frames sat inside the 80 ms onset guard (replay timestamps a reading at its
+ * window START, so they were the A's own audio, not the B's tail) and were
+ * all octave-stabilizer warmup frames; either rule alone dropped the A, and
+ * the G# that followed without an onset took over its segment.
+ */
+describe('segmentNotes: a short note cut off right after its attack', () => {
+	const HOP = 1 / 60;
+	/** `count` confident readings of `midi`, one hop apart from `from`. */
+	function run(midi: number, from: number, count: number, opts: { warmup?: boolean } = {}): PitchReading[] {
+		return Array.from({ length: count }, (_, i) => {
+			const r = makeReading(midi, from + i * HOP);
+			if (opts.warmup) r.warmup = true;
+			return r;
+		});
+	}
+	const b = run(59, 0, 18);
+	const gSharp = run(56, 0.6, 24);
+
+	it('keeps a note whose frames complete the stabilizer warmup, all on one pitch', () => {
+		// Past the guard window, so only the all-warmup rule is in play.
+		const a = run(57, 0.44, 5, { warmup: true });
+		const notes = segmentNotes([...b, ...a, ...gSharp], [0, 0.35], 1.0, undefined, undefined, undefined, [0, 0.35]);
+		expect(notes.map((n) => n.midi)).toEqual([59, 57, 56]);
+	});
+
+	it('still drops a partial warmup burst', () => {
+		const a = run(57, 0.44, 3, { warmup: true });
+		const notes = segmentNotes([...b, ...a, ...gSharp], [0, 0.35], 1.0, undefined, undefined, undefined, [0, 0.35]);
+		expect(notes.map((n) => n.midi)).toEqual([59, 56]);
+	});
+
+	it('keeps frames inside the onset guard that do not read the previous note', () => {
+		const a = run(57, 0.353, 5);
+		const notes = segmentNotes([...b, ...a, ...gSharp], [0, 0.35], 1.0, undefined, undefined, undefined, [0, 0.35]);
+		expect(notes.map((n) => n.midi)).toEqual([59, 57, 56]);
+		expect(notes[1].onsetTime).toBeCloseTo(0.35, 5);
+	});
+
+	it('still skips stale frames of the previous note inside the onset guard', () => {
+		const stale = run(59, 0.353, 5);
+		const c = run(60, 0.44, 30);
+		const notes = segmentNotes([...b, ...stale, ...c], [0, 0.35], 1.0, undefined, undefined, undefined, [0, 0.35]);
+		expect(notes.map((n) => n.midi)).toEqual([59, 60]);
+		expect(notes[1].onsetTime).toBeCloseTo(0.35, 5);
+	});
+
+	it('keeps the A when both rules apply at once, as on the take', () => {
+		const a = run(57, 0.353, 5, { warmup: true });
+		const notes = segmentNotes([...b, ...a, ...gSharp], [0, 0.35], 1.0, undefined, undefined, undefined, [0, 0.35]);
+		expect(notes.map((n) => n.midi)).toEqual([59, 57, 56]);
+	});
+});
+
+/**
+ * The 2026-09-16 "sharp-9-flat-9-dom" first D: a tenor attack that speaks in
+ * the octave below for ~110 ms before the octave vent takes over, with no new
+ * attack at the switch. The octave stabilizer resets at the attack, so the
+ * lower octave's frames are its five warmup frames (raw passthrough), two
+ * confirmed frames, and the two frames its octave-confirm inertia keeps
+ * reporting after the raw pitch has already moved up. The head spans 190 ms
+ * from the attack to the reported switch — past the 150 ms short-glitch rule —
+ * and only two of its nine frames read the upper octave, under the 25 %
+ * raw-match rule.
+ */
+describe('segmentNotes — an attack that cracks into the neighbouring octave', () => {
+	const FRAME = 1 / 60;
+	interface Part {
+		midi: number;
+		count: number;
+		/** The raw pick's MIDI when the stabilizer reports something else. */
+		raw?: number;
+		warmup?: boolean;
+	}
+	/** Consecutive 60 fps readings from `from`, one part after another. */
+	function frames(parts: Part[], from = 0.04): PitchReading[] {
+		const out: PitchReading[] = [];
+		let t = from;
+		for (const p of parts) {
+			for (let i = 0; i < p.count; i++, t += FRAME) {
+				const raw = p.raw ?? p.midi;
+				const r: PitchReading = {
+					midi: p.midi,
+					midiFloat: p.midi,
+					cents: 0,
+					clarity: 0.95,
+					time: +t.toFixed(4),
+					frequency: 440 * Math.pow(2, (raw - 69) / 12),
+					rms: 0.1
+				};
+				if (p.warmup) r.warmup = true;
+				out.push(r);
+			}
+		}
+		return out;
+	}
+	/** One segment from an attack at 0, the way the take's first D was segmented. */
+	function segment(readings: PitchReading[], duration: number): DetectedNote[] {
+		return segmentNotes(readings, [0], duration, undefined, undefined, undefined, [0]);
+	}
+	/** The octave the attack speaks in: five warmup frames, then `confirmed` frames of its own. */
+	const head = (midi: number, confirmed: number, upper: number): Part[] => [
+		{ midi, count: 5, warmup: true },
+		{ midi, count: confirmed },
+		{ midi, raw: upper, count: 2 } // the stabilizer still reports `midi`
+	];
+
+	it('folds a lower octave the stabilizer never confirmed into the note it cracks into', () => {
+		const notes = segment(frames([...head(50, 2, 62), { midi: 62, count: 20 }]), 0.6);
+		expect(notes.map((n) => n.midi)).toEqual([62]);
+		expect(notes[0].onsetTime).toBe(0);
+		expect(notes[0].duration).toBeCloseTo(0.6, 5);
+	});
+
+	it('keeps the lower note once it holds for three confirmed frames past the warmup (a slurred leap)', () => {
+		const notes = segment(frames([...head(50, 3, 62), { midi: 62, count: 20 }]), 0.6);
+		expect(notes.map((n) => n.midi)).toEqual([50, 62]);
+	});
+
+	it('keeps a full slurred eighth below a held upper octave', () => {
+		// 129 BPM: a straight eighth of D3 (~14 frames tracked), then a quarter of D4.
+		const notes = segment(frames([...head(50, 9, 62), { midi: 62, count: 40 }]), 1.0);
+		expect(notes.map((n) => n.midi)).toEqual([50, 62]);
+		expect(notes[1].onsetTime).toBeCloseTo(0.04 + 16 * FRAME, 3);
+	});
+
+	it('folds an attack that speaks an octave HIGH into the note it settles on', () => {
+		const notes = segment(frames([...head(62, 2, 50), { midi: 50, count: 20 }]), 0.6);
+		expect(notes.map((n) => n.midi)).toEqual([50]);
+		expect(notes[0].onsetTime).toBe(0);
+	});
+
+	it('leaves the crack alone when the octave it cracks into sounds no longer than it', () => {
+		// The tracker loses the D4 after three frames and finds it for two more:
+		// 173 ms of span, but five D4 frames (seven with the inertia pair)
+		// against the head's seven D3 frames.
+		const readings = [
+			...frames([...head(50, 2, 62), { midi: 62, count: 3 }]),
+			...frames([{ midi: 62, count: 2 }], 0.33)
+		];
+		const notes = segment(readings, 0.33 + 2 * FRAME);
+		expect(notes.map((n) => n.midi)).toEqual([50, 62]);
+	});
+});

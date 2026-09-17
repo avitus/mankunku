@@ -9,7 +9,7 @@ import {
   shouldAttemptNavRecovery,
   pendingNavTarget
 } from '$lib/util/stale-chunk';
-import { isEmptyErrorEvent } from '$lib/util/sentry-filters';
+import { isEmptyErrorEvent, isLocalHostname } from '$lib/util/sentry-filters';
 import { serverReachable } from '$lib/util/server-reachable';
 import { documentSettled } from '$lib/util/document-settled';
 import { readAuthVerdict } from '$lib/persistence/auth-verdict';
@@ -21,11 +21,8 @@ import { reconcileBeforeHydration } from '$lib/persistence/user-scope';
 // hostname too so preview/test sessions land in the right bucket.
 function detectEnvironment(): 'development' | 'production' {
   if (import.meta.env.DEV) return 'development';
-  if (typeof location !== 'undefined') {
-    const host = location.hostname;
-    if (host === 'localhost' || host === '127.0.0.1' || host === '[::1]') {
-      return 'development';
-    }
+  if (typeof location !== 'undefined' && isLocalHostname(location.hostname)) {
+    return 'development';
   }
   return 'production';
 }

@@ -251,3 +251,18 @@ describe('alignNotes', () => {
 		expect(costAt(3 * beat)).toBeCloseTo(1.0, 5);
 	});
 });
+
+describe('alignNotes with a ghost note', () => {
+	it('prices a ghost a semitone off like any wrong semitone, and still pairs it with its slot', () => {
+		const expected = [makeNote(62, [0, 1]), makeNote(60, [1, 8]), makeNote(62, [1, 4])];
+		const detected: DetectedNote[] = [
+			makeDetected(62, 0),
+			{ ...makeDetected(61, 0.25, -30), ghost: true },
+			makeDetected(62, 0.5)
+		];
+		const pairs = alignNotes(expected, detected, TEMPO);
+		const ghostPair = pairs.find((p) => p.detectedIndex === 1);
+		expect(ghostPair?.expectedIndex).toBe(1);
+		expect(ghostPair?.cost).toBeCloseTo(0.5, 5);
+	});
+});

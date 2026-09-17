@@ -55,7 +55,13 @@ export interface PitchDetectorHandle {
 	stop: () => void;
 	/** Get all readings collected so far */
 	getReadings: () => PitchReading[];
-	/** Clear collected readings */
+	/**
+	 * Sub-threshold frames collected so far (`PitchReading.weak`), in time
+	 * order — the evidence the segmenter's ghost-note pass reads inside the
+	 * holes of `getReadings()`. Never mixed into that stream.
+	 */
+	getWeakReadings: () => PitchReading[];
+	/** Clear collected readings (confident and weak) */
 	clear: () => void;
 	/**
 	 * Queue a reset of the octave stabilizer. The reset is applied at the
@@ -89,12 +95,18 @@ export async function createPitchDetector(
 	const detector = Pitchy.PitchDetector.forFloat32Array(bufferSize);
 
 	const readings: PitchReading[] = [];
+	const weakReadings: PitchReading[] = [];
 	let running = false;
 	let animFrameId: number | null = null;
 	let recordingStartTime = 0;
 	let stabilizer: OctaveStabilizer = createOctaveStabilizer();
 	let pendingReset = false;
 
+	/**
+	 * One rAF tick: apply a queued stabilizer reset, analyse the analyser's
+	 * current window, file the frame as a reading or a weak reading, report
+	 * it, and schedule the next tick.
+	 */
 	function detect() {
 		if (!running) return;
 
@@ -109,7 +121,7 @@ export async function createPitchDetector(
 		// `time` is read AFTER getFloatTimeDomainData, so the analyser's window
 		// is the fftSize samples ENDING at it — unlike replay, which timestamps
 		// a window by its start. See FrameOptions.windowAnchor.
-		const { reading, rawClarity } = detectFrame(buffer, time, detector, stabilizer, {
+		const { reading, rawClarity, weakReading } = detectFrame(buffer, time, detector, stabilizer, {
 			sampleRate,
 			windowAnchor: 'end'
 		});
@@ -118,6 +130,7 @@ export async function createPitchDetector(
 			readings.push(reading);
 			onPitch(reading, rawClarity);
 		} else {
+			if (weakReading) weakReadings.push(weakReading);
 			onPitch(null, rawClarity);
 		}
 
@@ -125,11 +138,13 @@ export async function createPitchDetector(
 	}
 
 	return {
+		/** Begin a fresh capture: zero the clock, empty both streams, reset the stabilizer. */
 		start() {
 			if (running) return;
 			running = true;
 			recordingStartTime = analyser.context.currentTime;
 			readings.length = 0;
+			weakReadings.length = 0;
 			stabilizer.reset();
 			pendingReset = false;
 			detect();
@@ -142,8 +157,11 @@ export async function createPitchDetector(
 			}
 		},
 		getReadings: () => readings,
+		getWeakReadings: () => weakReadings,
+		/** Empty the confident and the weak streams without stopping. */
 		clear() {
 			readings.length = 0;
+			weakReadings.length = 0;
 		},
 		resetOctaveStateAt(_time: number) {
 			pendingReset = true;

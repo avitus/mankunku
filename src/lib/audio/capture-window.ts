@@ -143,6 +143,12 @@ export function dropSubFloorRuns(
 
 export interface TrimmedCapture {
 	readings: PitchReading[];
+	/**
+	 * Sub-threshold frames (`PitchReading.weak`), rebased with `readings` and
+	 * with anything in the discarded lead-in dropped. Not floor-gated: they are
+	 * only ever read inside the holes of `readings` (`findGhostNotes`).
+	 */
+	weakReadings: PitchReading[];
 	/** Worklet onsets, rebased and with anything before the window dropped. */
 	workletOnsets: number[];
 	duration: number;
@@ -162,31 +168,98 @@ export interface TrimmedCapture {
  * A capture with no readings is returned untouched (offset 0) — there is no
  * performance to centre on, and a silent take should still carry its full
  * duration so bleed evidence covers the window that was actually recorded.
+ *
+ * `weakReadings` (the detector's sub-threshold frames) ride the same offset;
+ * pass them whenever the result is segmented, or ghosted notes are lost.
  */
 export function trimToPerformance(
 	readings: PitchReading[],
 	workletOnsets: number[],
 	duration: number,
-	preroll: number = PERFORMANCE_PREROLL_SECONDS
+	preroll: number = PERFORMANCE_PREROLL_SECONDS,
+	weakReadings: PitchReading[] = []
 ): TrimmedCapture {
 	const performance = dropSubFloorRuns(readings);
 	if (performance.length === 0) {
-		return { readings: performance, workletOnsets, duration, offset: 0 };
+		return { readings: performance, weakReadings, workletOnsets, duration, offset: 0 };
 	}
 
 	const offset = performance[0].time - preroll;
 	if (offset < MIN_TRIM_SECONDS) {
-		return { readings: performance, workletOnsets, duration, offset: 0 };
+		return { readings: performance, weakReadings, workletOnsets, duration, offset: 0 };
 	}
 
 	return {
 		readings: performance.map((r) => ({ ...r, time: r.time - offset })),
+		weakReadings: weakReadings
+			.filter((r) => r.time >= offset)
+			.map((r) => ({ ...r, time: r.time - offset })),
 		// Onsets inside the discarded lead-in describe audio the segmenter can
 		// no longer see; keeping them would place attacks at negative times.
 		workletOnsets: workletOnsets.filter((t) => t >= offset).map((t) => t - offset),
 		duration: Math.max(0, duration - offset),
 		offset
 	};
+}
+
+/**
+ * Audio a live capture keeps past its last pitch reading, so the final note's
+ * segment does not end on its last frame.
+ */
+export const LAST_READING_TAIL_SECONDS = 0.1;
+
+/**
+ * The duration a live capture is segmented over: through its last reading
+ * plus `LAST_READING_TAIL_SECONDS`, or 0 with no readings.
+ *
+ * Not the notional phrase length — the player starts late by their reaction
+ * latency, so the final note can land after the phrase end and a
+ * phrase-length bound truncates it. Not the blob's length either: the
+ * recorder runs on to wherever the window closed.
+ */
+export function durationThroughLastReading(readings: PitchReading[]): number {
+	const last = readings[readings.length - 1];
+	return last ? last.time + LAST_READING_TAIL_SECONDS : 0;
+}
+
+/**
+ * The frame /diagnostics replays a saved recording in: the one its own
+ * scoring path segmented.
+ *
+ * Only ear training trims — live and in the authoritative blob rescore, which
+ * segments over the blob's duration. Lick practice segments its window
+ * untrimmed and ungated (one continuous detector, windows opening on a bar
+ * line), so trimming its recordings here would move every time on the panel
+ * and let the gate or the pre-roll change the segmentation the moment a
+ * take's first note lands past the pre-roll. Its close path has no rescore,
+ * so its duration is the live one, `durationThroughLastReading`, and the
+ * blob's length would stretch the last note's segment to wherever the
+ * recorder stopped. A recording with no stated `source` is replayed as given:
+ * every writer has stamped metadata since 2026-04, months before the capture
+ * was pre-armed (2026-08-09), so such a record is an ear-training take the
+ * trim would not move.
+ *
+ * `raw` is a `ReplayResult`. The untrimmed frames hand its arrays back as
+ * given, with `offset` 0.
+ */
+export function diagnosticsReplayFrame(
+	source: string | null | undefined,
+	raw: { readings: PitchReading[]; weakReadings: PitchReading[]; onsets: number[]; duration: number }
+): TrimmedCapture {
+	if (source === 'ear-training') {
+		return trimToPerformance(raw.readings, raw.onsets, raw.duration, undefined, raw.weakReadings);
+	}
+	const untrimmed: TrimmedCapture = {
+		readings: raw.readings,
+		weakReadings: raw.weakReadings,
+		workletOnsets: raw.onsets,
+		duration: raw.duration,
+		offset: 0
+	};
+	if (source === 'lick-practice') {
+		return { ...untrimmed, duration: durationThroughLastReading(raw.readings) };
+	}
+	return untrimmed;
 }
 
 /**

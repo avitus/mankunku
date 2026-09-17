@@ -18,7 +18,8 @@ describe('isOnboardingRoute', () => {
 		'/tricks/enclosures',
 		'/licks/record',
 		'/tunes/abc123/practice',
-		'/tunes/abc123/practice/'
+		'/tunes/abc123/practice/',
+		'/tunes/autumn-leaves/practice'
 	])('mic-driven practice surface %s triggers onboarding', (path) => {
 		expect(isOnboardingRoute(path)).toBe(true);
 	});
@@ -33,6 +34,7 @@ describe('isOnboardingRoute', () => {
 		'/licks/some-lick-id',
 		'/tunes',
 		'/tunes/abc123',
+		'/tunes/autumn-leaves',
 		'/tunes/community',
 		'/tunes/add',
 		'/scales',

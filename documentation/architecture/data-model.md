@@ -424,6 +424,7 @@ interface DetectedNote {
   onsetTime: number;  // Onset relative to recording start (seconds)
   duration: number;   // Duration in seconds
   clarity: number;    // Pitch detection clarity (0-1)
+  ghost?: true;       // Recovered from sub-threshold frames (informational; scored like any note)
 }
 ```
 

@@ -19,6 +19,7 @@ import { enqueue } from './outbox';
 import { getAdoptedTunesLocal } from './tune-community';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database, Json } from '$lib/supabase/types';
+import { getUserCoalesced } from '$lib/supabase/get-user';
 
 const STORAGE_KEY = 'user-tunes';
 
@@ -182,7 +183,7 @@ async function reconcileLeadSheets(supabase: SupabaseClient<Database>): Promise<
 	const gen = getScopeGeneration();
 	const {
 		data: { user }
-	} = await supabase.auth.getUser();
+	} = await getUserCoalesced(supabase);
 	if (!user) throw new Error('not authenticated');
 	if (gen !== getScopeGeneration()) return false; // user switched mid-flight
 	const userId = user.id;

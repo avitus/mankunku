@@ -58,7 +58,8 @@ for (const { slug, pdf } of CHARTS) {
 
 		await page.waitForURL('**/tunes/editor', { timeout: 60_000 });
 		await page.getByRole('button', { name: 'Update' }).click();
-		await page.waitForURL(/\/tunes\/sheet-[^/]+$/);
+		// The saved tune lands on its title slug (the pre-assigned `sheet-…` id stays the PDF key).
+		await page.waitForURL(/\/tunes\/(?!editor$|sheet-)[a-z0-9-]+$/);
 
 		const stored = await page.evaluate(() => window.localStorage.getItem('mankunku:user-tunes'));
 		const sheets = JSON.parse(stored ?? '[]') as Array<Record<string, unknown>>;

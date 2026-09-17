@@ -66,6 +66,45 @@ async function seedLegacyDb(sheetId: string, blob: Blob): Promise<void> {
 	db.close();
 }
 
+/** The raw record under a key in a database, as IndexedDB holds it (no store creation). */
+async function rawRecord(dbName: string, key: string): Promise<Record<string, unknown> | undefined> {
+	const db = await new Promise<IDBDatabase>((resolve, reject) => {
+		const req = indexedDB.open(dbName);
+		req.onsuccess = () => resolve(req.result);
+		req.onerror = () => reject(req.error);
+	});
+	try {
+		return await new Promise((resolve, reject) => {
+			const req = db.transaction('pdfs', 'readonly').objectStore('pdfs').get(key);
+			req.onsuccess = () => resolve(req.result as Record<string, unknown> | undefined);
+			req.onerror = () => reject(req.error);
+		});
+	} finally {
+		db.close();
+	}
+}
+
+/** Seed the CURRENT database with the Blob-valued record shape builds before 2026-09-16 wrote. */
+async function seedBlobRecord(tuneId: string, blob: Blob): Promise<void> {
+	const db = await new Promise<IDBDatabase>((resolve, reject) => {
+		const req = indexedDB.open('mankunku-tune-pdfs:anon', 1);
+		req.onupgradeneeded = () => {
+			if (!req.result.objectStoreNames.contains('pdfs')) {
+				req.result.createObjectStore('pdfs', { keyPath: 'tuneId' });
+			}
+		};
+		req.onsuccess = () => resolve(req.result);
+		req.onerror = () => reject(req.error);
+	});
+	await new Promise<void>((resolve, reject) => {
+		const tx = db.transaction('pdfs', 'readwrite');
+		tx.objectStore('pdfs').put({ tuneId, blob, timestamp: 222 });
+		tx.oncomplete = () => resolve();
+		tx.onerror = () => reject(tx.error);
+	});
+	db.close();
+}
+
 /** Object-store names of a database, without creating stores as a side effect. */
 async function storeNamesOf(dbName: string): Promise<string[]> {
 	const db = await new Promise<IDBDatabase>((resolve, reject) => {
@@ -128,6 +167,42 @@ describe('legacy lead-sheet PDF database migration', () => {
 		} finally {
 			holdOpen.close();
 		}
+	});
+});
+
+describe('storage format: bytes, never a Blob (WebKit, 2026-09-16)', () => {
+	// Playwright's WebKit aborts EVERY IndexedDB put whose value holds a Blob
+	// (put-only, or with any awaited request in the transaction), while an
+	// ArrayBuffer stores fine — measured on 2026-09-16 when the PDF-import e2e
+	// found the anonymous store empty on WebKit with "Failed to cache tune PDF
+	// locally: AbortError". saveTunePdf swallows that warning by design, so a
+	// Safari user silently lost every imported PDF's local copy.
+	it('stores the PDF as an ArrayBuffer with its type, not as a Blob', async () => {
+		await saveTunePdf('sheet-1-abcd', makePdfBlob(300));
+		const record = await rawRecord('mankunku-tune-pdfs:anon', 'sheet-1-abcd');
+		expect(record).toBeDefined();
+		expect(record!.blob).toBeUndefined();
+		expect(record!.bytes).toBeInstanceOf(ArrayBuffer);
+		expect((record!.bytes as ArrayBuffer).byteLength).toBe(300);
+		expect(record!.type).toBe('application/pdf');
+	});
+
+	it('still serves a record an earlier build stored as a Blob', async () => {
+		await seedBlobRecord('sheet-old-blob', makePdfBlob(128));
+		const restored = await getTunePdf('sheet-old-blob');
+		expect(restored).not.toBeNull();
+		expect(restored!.size).toBe(128);
+		expect(restored!.type).toBe('application/pdf');
+	});
+
+	it('copies a legacy Blob record forward as bytes', async () => {
+		// The copy-forward would hit the same abort on WebKit if it re-put the Blob.
+		await seedLegacyDb('sheet-legacy-1', makePdfBlob(64));
+		__resetPdfMigrationCacheForTests();
+		expect(await getTunePdf('sheet-legacy-1')).not.toBeNull();
+		const record = await rawRecord('mankunku-tune-pdfs:anon', 'sheet-legacy-1');
+		expect(record!.blob).toBeUndefined();
+		expect((record!.bytes as ArrayBuffer).byteLength).toBe(64);
 	});
 });
 

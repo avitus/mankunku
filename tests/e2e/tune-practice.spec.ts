@@ -67,6 +67,19 @@ async function expectChartVisibleInFollowViewport(page: Page): Promise<void> {
 }
 
 /**
+ * The engraved layout as bars per system — one entry per abcjs staff
+ * wrapper, counting its barline groups (a pickup bar contributes the `|:`
+ * that closes it). Two renders of one chart are congruent iff these match.
+ */
+async function systemSignature(page: Page): Promise<number[]> {
+	return page.evaluate(() => {
+		const vp = document.querySelector('[data-testid="chart-scroll-viewport"].following');
+		const wrappers = [...(vp?.querySelectorAll('svg g.abcjs-staff-wrapper') ?? [])];
+		return wrappers.map((w) => w.querySelectorAll('g.abcjs-bar').length);
+	});
+}
+
+/**
  * Max the tempo knob (End key → max) and confirm the value moved.
  *
  * The keypress is retried until `aria-valuenow` reaches the max. Callers
@@ -110,7 +123,8 @@ test.describe('tune practice setup', () => {
 	}) => {
 		await page.goto('/tunes/ls-when-the-saints');
 		await page.getByRole('button', { name: /practice licks/i }).click();
-		await expect(page).toHaveURL(/\/tunes\/ls-when-the-saints\/practice$/);
+		// Links carry the title slug; the curated `ls-` id still resolves too.
+		await expect(page).toHaveURL(/\/tunes\/when-the-saints-go-marching-in\/practice$/);
 
 		await expect(page.getByRole('heading', { name: /practice licks/i })).toBeVisible();
 		// When the Saints: 3 major-vamps + 1 dominant-vamp + 1 blues bar.
@@ -298,6 +312,11 @@ test.describe.serial('tune practice session follow-scroll', () => {
 		await setTempoMax(page);
 		await startPracticeSession(page);
 
+		// The head chart is the lead sheet as the detail page engraves it:
+		// pickup + 4 bars, then the [1] line, the [2] line, and B in fours.
+		const headSignature = await systemSignature(page);
+		expect(headSignature).toEqual([5, 4, 3, 4, 4, 4, 4]);
+
 		await expect(
 			page.getByText(/your turn — play the lick!|comping — insertion/i)
 		).toBeVisible({ timeout: 75_000 });
@@ -306,6 +325,13 @@ test.describe.serial('tune practice session follow-scroll', () => {
 			await expectChartVisibleInFollowViewport(page);
 			await page.waitForTimeout(200);
 		}
+
+		// 2026-09-16: the head→changes swap re-engraved a different layout —
+		// the melody-free sheet lost its pickup (inferred from the notes just
+		// removed) and widened to 6 bars a line, so the second A landed on a
+		// lone pickup bar with the [2] bars compressed under a split [1]. The
+		// changes sheet must break its systems exactly like the head sheet.
+		expect(await systemSignature(page)).toEqual(headSignature);
 
 		await page.getByRole('button', { name: /^end$/i }).click();
 		await expect(page.getByRole('heading', { name: /take complete/i })).toBeVisible({

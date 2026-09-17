@@ -687,7 +687,7 @@ export const tunePractice = $state<{
 
 - `initTunePractice(sheet): void` — Enter the setup phase (idempotent per tune; resets `config.concertKey` to the sheet's key on a tune change).
 - `previewSessionPlan(sheet, playHead): SessionPreview` — Detect progressions and count insertion points *without* starting audio. Drives the setup screen's "6 insertion points: 3× Short ii-V-I (Maj)…" summary and the preview chart markers.
-- `startTunePracticeSession(sheet, ppq): TunePracticeAudioPlan` — Build the plan and return everything the route's audio layer needs: the transposed session `sheet`, the melody-cleared `changesSheet`, the `playedPhrase`, both flattens (`flat` playback-order, `notationFlat` notation-order), `leadBars`, `duplicatedForm`, and the **effective** `playHead`.
+- `startTunePracticeSession(sheet, ppq): TunePracticeAudioPlan` — Build the plan and return everything the route's audio layer needs: the transposed session `sheet`, the melody-cleared `changesSheet` (via `changesSheetFor`, pickup lengths stamped), `chartOptions` (the melody sheet's `barsPerLine`, for both renders), the `playedPhrase`, both flattens (`flat` playback-order, `notationFlat` notation-order), `leadBars`, `duplicatedForm`, and the **effective** `playHead`.
 - `markHead()`, `markRunning()`, `markWindowOpen(index)`, `recordWindowResult(insertionId, lickName, score)`, `completeTunePracticeSession()`, `resetTunePractice()`.
 
 `SessionPreview` is `{ total, byType, uncategorizedCount, markers }`, the markers deduped by `markerKey` and carrying a whole-note `timeRange` for mid-bar band clipping. The module re-exports `emptyResultTally` and the plan types (`InsertionPoint`, `InsertionResult`, `TunePracticeMode`, `TunePracticePhase`, `TunePracticeStrictness`) so routes import the session vocabulary from one place.
@@ -718,7 +718,7 @@ Pure planning + accumulation logic behind the runes wrapper above. Plain module 
 | Export | Purpose |
 |---|---|
 | `buildSessionPlan(deps: BuildPlanDeps)` | Detected progressions → `InsertionPoint[]`, carrying both timelines, transport open/close ticks, ranked suggestions, and a `markerKey` grouping repeat occurrences |
-| `headBarsForFlat(flat) → { headBars, formRepeats }` | The jazz form rule — decides head length from the **expanded section map**, never raw repeat markers, which imports express inconsistently; an internal repeat like `\|: A :\| B A` is not a form outline |
+| `headBarsForFlat(flat) → { headBars, formRepeats }` | The jazz form rule — decides head length from the **expanded section map**, never raw repeat markers, which imports express inconsistently; a form outline needs a tail SHORTER than the pass it follows, so an internal repeat like `\|: A :\| B A` or `\|: A :\| B` with a B as long as the A (Autumn Leaves) is not one |
 | `buildSessionPhrase(args)` | Head chorus (melody once) + melody-free solo material; appends a duplicate chorus on repeat-free charts |
 | `assignSuggestRotation(plan)` | Least-used-first lick rotation per progression type |
 | `strictnessKnobs(strictness)` | Maps strictness onto existing pipeline knobs only — listening is identical at every level; only `cueLevel` differs |

@@ -10,6 +10,25 @@ import type { DetectedNote } from '$lib/types/audio';
 import { midiToPitchClass } from '$lib/music/intervals';
 
 /**
+ * Does a detected note count as the expected pitch?
+ *
+ * By its MIDI number — its pitch class when `octaveInsensitive`. The single
+ * rule shared by `scorePitch`, the DTW pitch cost and the scorer's hit count.
+ * A ghost note (`detected.ghost`) gets no allowance: it is judged by its
+ * nearest semitone like any other note, so one sounding far enough out of tune
+ * to round to the neighbouring semitone is a wrong note (Andy, 2026-09-16).
+ */
+export function pitchMatches(
+	expectedPitch: number,
+	detected: DetectedNote,
+	octaveInsensitive = false
+): boolean {
+	return octaveInsensitive
+		? midiToPitchClass(expectedPitch) === midiToPitchClass(detected.midi)
+		: expectedPitch === detected.midi;
+}
+
+/**
  * Score pitch accuracy for a single note pair.
  * Returns 0-1.1 (1.0 base + 0.1 intonation bonus), clamped to 0-1 at composite level.
  *
@@ -26,10 +45,7 @@ export function scorePitch(
 ): number {
 	if (expected.pitch === null) return 1.0; // rest — perfect by default
 
-	const matches = octaveInsensitive
-		? midiToPitchClass(expected.pitch) === midiToPitchClass(detected.midi)
-		: expected.pitch === detected.midi;
-	if (!matches) return 0;
+	if (!pitchMatches(expected.pitch, detected, octaveInsensitive)) return 0;
 
 	// Correct note — add intonation bonus based on cents deviation
 	const centsDev = Math.abs(detected.cents);

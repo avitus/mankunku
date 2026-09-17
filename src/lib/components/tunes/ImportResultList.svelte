@@ -2,6 +2,7 @@
 	import type { Tune } from '$lib/types/tune';
 	import { getInstrument } from '$lib/state/settings.svelte';
 	import { concertKeyToWritten } from '$lib/music/transposition';
+	import { resolveTuneRef, tunePath } from '$lib/tunes/tune-slug';
 
 	interface Props {
 		sheets: Tune[];
@@ -24,6 +25,12 @@
 		if (!onadd) return;
 		const savedId = onadd(sheet);
 		addedIds = { ...addedIds, [keyOf(sheet, index)]: savedId };
+	}
+
+	/** The saved tune's slug link; the id is a valid route too, should the book read lag. */
+	function addedHref(id: string): string {
+		const saved = resolveTuneRef(id);
+		return saved ? tunePath(saved) : `/tunes/${id}`;
 	}
 </script>
 
@@ -56,7 +63,7 @@
 				</div>
 				{#if added}
 					<a
-						href="/tunes/{added}"
+						href={addedHref(added)}
 						class="rounded-full bg-[var(--color-success)]/20 px-3 py-1.5 text-xs font-medium text-[var(--color-success)]"
 					>
 						&#10003; Added — view

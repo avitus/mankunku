@@ -1,20 +1,10 @@
 import { Marked } from 'marked';
 import type { Tokens } from 'marked';
 import sanitizeHtml from 'sanitize-html';
+import { slugify } from '$lib/util/slug';
 
-/**
- * Slugify text into a URL-safe heading anchor (matches GitHub's algorithm
- * loosely — lowercase, dashes for spaces, drop non-word characters).
- */
-export function slugify(text: string): string {
-	return text
-		.toLowerCase()
-		.trim()
-		.replace(/[^\w\s-]/g, '')
-		.replace(/\s+/g, '-')
-		.replace(/-+/g, '-')
-		.replace(/^-|-$/g, '');
-}
+/** Heading anchors use the shared slugify (lifted to `util/slug.ts` for tune URLs). */
+export { slugify };
 
 /** Strip Markdown emphasis tokens to plain text for slug generation. */
 function tokensToText(tokens: Tokens.Heading['tokens']): string {

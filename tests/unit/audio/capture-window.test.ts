@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
 	trimToPerformance,
+	diagnosticsReplayFrame,
+	durationThroughLastReading,
+	LAST_READING_TAIL_SECONDS,
 	rebaseToAnchor,
 	dropSubFloorRuns,
 	PERFORMANCE_PREROLL_SECONDS,
@@ -197,6 +200,29 @@ describe('trimToPerformance', () => {
 		expect(twice.duration).toBe(once.duration);
 	});
 
+	it('rebases the weak readings with the confident ones and drops those in the lead-in', () => {
+		const readings = run(60, 2.0, 3.0);
+		const weak: PitchReading[] = [
+			{ ...makeReading(61, 0.8, 0.6), weak: true },
+			{ ...makeReading(61, 2.5, 0.6), weak: true }
+		];
+		const result = trimToPerformance(readings, [], 3.1, undefined, weak);
+
+		expect(result.weakReadings).toHaveLength(1);
+		expect(result.weakReadings[0].time).toBeCloseTo(2.5 - result.offset, 10);
+		expect(result.weakReadings[0].clarity).toBe(0.6);
+	});
+
+	it('hands the weak readings back untouched when nothing is trimmed', () => {
+		const weak: PitchReading[] = [{ ...makeReading(61, 0.25, 0.6), weak: true }];
+		expect(trimToPerformance(run(60, 0, 0.5), [], 0.6, undefined, weak).weakReadings).toBe(weak);
+		expect(trimToPerformance([], [], 0.6, undefined, weak).weakReadings).toBe(weak);
+	});
+
+	it('defaults the weak readings to none', () => {
+		expect(trimToPerformance(run(60, 2.0, 3.0), [], 3.1).weakReadings).toEqual([]);
+	});
+
 	it('anchors the pre-roll on the first performance-level reading, not a click ring', () => {
 		// The 2026-09-03 tonic-turn shape: the metronome's ringing tail reads
 		// as a confident pitch 1.2 s before the user comes in. Anchoring on it
@@ -260,6 +286,92 @@ describe('trimToPerformance', () => {
 		// the ~250 ms where DTW alignment starts flipping. See capture-window.ts.
 		expect(PERFORMANCE_PREROLL_SECONDS).toBeGreaterThan(4096 / 44100 + 1 / 60);
 		expect(PERFORMANCE_PREROLL_SECONDS).toBeLessThan(0.5);
+	});
+});
+
+describe('diagnosticsReplayFrame', () => {
+	/**
+	 * A replayed window whose first note starts well past the pre-roll, with a
+	 * click ring ahead of it — the shape `trimToPerformance` both gates and
+	 * trims. A lick-practice window opens on a bar line and the player may
+	 * enter late (a pickup rest, a slow entry), so this is an ordinary take.
+	 */
+	function lateEntryReplay() {
+		const ring = run(61, 0.2, 0.5, RING_RMS);
+		const note = run(60, 1.5, 2.5, NOTE_RMS);
+		return {
+			readings: [...ring, ...note],
+			weakReadings: [{ ...makeReading(59, 0.9, 0.6), weak: true }] as PitchReading[],
+			onsets: [0.15, 1.42],
+			duration: 2.8
+		};
+	}
+
+	it('trims an ear-training take exactly as its scoring path does', () => {
+		const raw = lateEntryReplay();
+		const frame = diagnosticsReplayFrame('ear-training', raw);
+
+		expect(frame).toEqual(
+			trimToPerformance(raw.readings, raw.onsets, raw.duration, undefined, raw.weakReadings)
+		);
+		expect(frame.offset).toBeCloseTo(1.5 - PERFORMANCE_PREROLL_SECONDS, 10);
+	});
+
+	it('replays a lick-practice take untrimmed and ungated — its close path segments the raw window', () => {
+		const raw = lateEntryReplay();
+		// The trim would have moved this take: the test is meaningless otherwise.
+		expect(trimToPerformance(raw.readings, raw.onsets, raw.duration).offset).toBeGreaterThan(0);
+
+		const frame = diagnosticsReplayFrame('lick-practice', raw);
+
+		expect(frame.offset).toBe(0);
+		expect(frame.readings).toBe(raw.readings);
+		expect(frame.weakReadings).toBe(raw.weakReadings);
+		expect(frame.workletOnsets).toBe(raw.onsets);
+	});
+
+	it('segments a lick-practice take over its close path\'s duration, not the blob\'s', () => {
+		// The close path ends the window a tail past the last reading; the
+		// blob runs on to wherever the recorder stopped, and the last note's
+		// segment ends at whichever the segmenter is handed.
+		const raw = lateEntryReplay();
+		const last = raw.readings[raw.readings.length - 1];
+		expect(raw.duration).toBeGreaterThan(last.time + LAST_READING_TAIL_SECONDS);
+
+		const frame = diagnosticsReplayFrame('lick-practice', raw);
+
+		expect(frame.duration).toBe(last.time + LAST_READING_TAIL_SECONDS);
+		expect(frame.duration).toBe(durationThroughLastReading(raw.readings));
+	});
+
+	it('gives a lick-practice take with no readings no duration, as its close path does', () => {
+		const frame = diagnosticsReplayFrame('lick-practice', { ...lateEntryReplay(), readings: [] });
+		expect(frame.duration).toBe(0);
+	});
+
+	it('leaves a recording with no stated source untrimmed, over the blob\'s duration', () => {
+		const raw = lateEntryReplay();
+		for (const source of [null, undefined]) {
+			const frame = diagnosticsReplayFrame(source, raw);
+			expect(frame.offset).toBe(0);
+			expect(frame.readings).toBe(raw.readings);
+			expect(frame.duration).toBe(raw.duration);
+		}
+	});
+});
+
+describe('durationThroughLastReading', () => {
+	it('ends a live capture one tail past its last reading', () => {
+		const readings = [makeReading(60, 0.2), makeReading(62, 0.73)];
+		expect(durationThroughLastReading(readings)).toBe(0.73 + LAST_READING_TAIL_SECONDS);
+	});
+
+	it('is zero for a capture with no readings', () => {
+		expect(durationThroughLastReading([])).toBe(0);
+	});
+
+	it('keeps the tail at the 0.1 s the scored flows were tuned with', () => {
+		expect(LAST_READING_TAIL_SECONDS).toBe(0.1);
 	});
 });
 

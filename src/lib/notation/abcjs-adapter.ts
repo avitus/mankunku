@@ -11,6 +11,7 @@ import type { NoteAnchor } from '$lib/music/notation';
 import type { BarAnchor, ChordSlotAnchor } from '$lib/music/tune-notation';
 import type { TuneSection } from '$lib/types/tune';
 import { pickupFirstBeat, resolvePickupLength } from '$lib/music/pickup';
+import { endingGlyphTranslateDx } from '$lib/music/ending-layout';
 
 /**
  * Adapts abcjs-shaped render output onto chart-geometry's pure input shapes,
@@ -102,6 +103,43 @@ export function systemsFromVisualObj(visualObj: AdapterVisualObj): SystemVoiceIt
 /** Merge each system's voices into chart-geometry's `SystemLayout` shape. */
 export function toSystemLayouts(systems: SystemVoiceItems[]): SystemLayout[] {
 	return systems.map((s) => ({ items: [...s.melody, ...s.harmony] }));
+}
+
+/** One stacked-[2] system's post-render alignment, by system index. */
+export interface SystemAlignment {
+	systemIdx: number;
+	/** Horizontal scale of the volta line art (1 = translate-only). */
+	sx: number;
+	/** Translation term in x' = sx * x + tx. */
+	tx: number;
+}
+
+/**
+ * Map the layout items of aligned systems the way `ending-align-dom` moved
+ * their glyphs, so zones built from the layout land under the music. Every
+ * note/bar item is a rigid glyph there: its box keeps its width and its
+ * centre goes to `sx * cx + tx` ({@link endingGlyphTranslateDx}, the same
+ * rule, so the two cannot drift). Every item on a [2] system is mapped — its
+ * music all sits under the bracket, and the clef/key/meter the DOM pass
+ * leaves in place are not layout items. Other systems pass through untouched;
+ * the input is never mutated.
+ */
+export function alignSystemLayouts(
+	systems: SystemLayout[],
+	alignments: readonly SystemAlignment[]
+): SystemLayout[] {
+	if (alignments.length === 0) return systems;
+	const byIdx = new Map(alignments.map((a) => [a.systemIdx, a]));
+	return systems.map((system, idx) => {
+		const a = byIdx.get(idx);
+		if (!a) return system;
+		return {
+			items: system.items.map((it) => ({
+				...it,
+				x: it.x + endingGlyphTranslateDx(a.sx, a.tx, it.x + it.w / 2)
+			}))
+		};
+	});
 }
 
 /**
