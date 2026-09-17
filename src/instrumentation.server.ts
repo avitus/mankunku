@@ -1,6 +1,10 @@
 import * as Sentry from '@sentry/sveltekit';
 import type { ErrorEvent, EventHint } from '@sentry/sveltekit';
-import { isEmptyErrorEvent } from '$lib/util/sentry-filters';
+import {
+  isAnthropicContentFilterBlock,
+  isEmptyErrorEvent,
+  isLocalRequestEvent
+} from '$lib/util/sentry-filters';
 
 // SvelteKit loads this file via Node's `--import` flag, BEFORE Vite's transform
 // pipeline kicks in. That means `import.meta.env.DEV` is undefined here even
@@ -8,6 +12,8 @@ import { isEmptyErrorEvent } from '$lib/util/sentry-filters';
 // localhost dev SSR errors were polluting the prod Sentry project (see
 // MANKUNKU-7). `process.env.NODE_ENV` is set by Vite/SvelteKit in both modes
 // and is observable from raw Node, so it detects the actual runtime mode.
+// `vite preview` is NODE_ENV=production too, so the hooks below also refile
+// anything about a request to a local server under development (MANKUNKU-1V).
 const SENTRY_ENVIRONMENT =
   process.env.NODE_ENV === 'production' ? 'production' : 'development';
 
@@ -41,10 +47,23 @@ if (!Sentry.isInitialized()) {
     // original exception) — they read as "<unknown>" and aren't actionable. The
     // client hook already filters these; this mirrors it for the SSR/load path
     // (e.g. a preview server capturing an empty root-layout load error). See
-    // MANKUNKU-K.
+    // MANKUNKU-K. Also drop the Anthropic content-filter block the AI
+    // integration reports as unhandled although both routes handle it, and
+    // file a local server's events under development (MANKUNKU-1V).
     beforeSend(event: ErrorEvent, hint: EventHint): ErrorEvent | null {
-      if (isEmptyErrorEvent(event, hint)) {
+      if (isEmptyErrorEvent(event, hint) || isAnthropicContentFilterBlock(event)) {
         return null;
+      }
+      if (isLocalRequestEvent(event)) {
+        event.environment = 'development';
+      }
+      return event;
+    },
+
+    // A local server's traces belong with its errors (MANKUNKU-1V).
+    beforeSendTransaction(event) {
+      if (isLocalRequestEvent(event)) {
+        event.environment = 'development';
       }
       return event;
     },
