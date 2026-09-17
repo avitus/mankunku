@@ -18,7 +18,7 @@ import {
 import { transposeTune } from '$lib/tunes/book-loader';
 import { getAllLicks, getBaseLickFromId, isCuratedLickId, transposeLick } from '$lib/phrases/library-loader';
 import { getTrickById } from '$lib/tricks';
-import { getInstrument } from '$lib/state/settings.svelte';
+import { getInstrument, settings } from '$lib/state/settings.svelte';
 import {
 	getEffectivePracticeLickIds,
 	hasLickProgress,
@@ -61,6 +61,15 @@ export interface TunePracticeConfig {
 	backingStyle: BackingStyle;
 	/** Play the head (the written melody, one chorus) before the practice chorus. */
 	playHead: boolean;
+	/**
+	 * Does the rhythm section play in THIS session? A one-time override of
+	 * `settings.backingTrackEnabled`, re-seeded from it on every entry to
+	 * setup (see `initTunePractice`) and never written back. The route must
+	 * read this rather than the global wherever the two could disagree —
+	 * including the bleed evidence, where claiming a comp grid that isn't
+	 * sounding would suppress real onsets.
+	 */
+	backingTrackEnabled: boolean;
 }
 
 /** Everything the route's audio layer needs, returned by session start. */
@@ -134,7 +143,10 @@ export const tunePractice = $state<{
 		tempo: 100,
 		concertKey: 'C',
 		backingStyle: 'swing',
-		playHead: true
+		playHead: true,
+		// Overwritten from settings on every initTunePractice; this literal
+		// only matters before the first setup screen mounts.
+		backingTrackEnabled: true
 	},
 	phase: 'setup',
 	tuneId: null,
@@ -159,6 +171,10 @@ export function initTunePractice(sheet: Tune): void {
 	if (tunePractice.tuneId !== sheet.id) {
 		tunePractice.config.concertKey = sheet.key;
 	}
+	// The backing switch is a ONE-TIME override: unlike concertKey, which stays
+	// put for the same tune, it follows the global setting again on every
+	// arrival at setup, so last session's choice can never silently persist.
+	tunePractice.config.backingTrackEnabled = settings.backingTrackEnabled;
 	tunePractice.tuneId = sheet.id;
 	tunePractice.tuneTitle = sheet.title;
 	tunePractice.phase = 'setup';

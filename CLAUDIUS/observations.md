@@ -2298,3 +2298,38 @@ is right at each call site, and the fan-out turned it into seventeen
 round-trips queued on one lock. A rule applied per call turns into a burst
 once callers run concurrently, so the fix belongs in the rule's shared
 helper, not in each caller.
+
+## 2026-09-17 — A flag about sound is also a claim about the microphone
+
+The backing switch looks like an audio preference, and if that were all it
+was, the change would have been one line in `getPlaybackOptions`. But this
+app listens while it plays, so the same flag is an input to the scorer: the
+bleed evidence asks "will the mic hear the band?" and answers from the same
+boolean. Get the audio wrong and you hear it immediately. Get the bleed
+evidence wrong and nothing is audible at all — the segmenter just quietly
+treats the player's own attacks as clicks and drops notes.
+
+The asymmetry is worth naming: **a wrong flag on the playback side announces
+itself, and the same wrong flag on the listening side hides.** So when a knob
+describes what sounds, the first question is which of the listening paths
+consumes it, not whether the audio changed. CLAUDE.md already says the bleed
+evidence is load-bearing and supplied by the caller. This is the mirror of
+that rule: when the caller's answer becomes overridable, every one of its
+consumers has to be re-asked, not just the one you can hear.
+
+The second thing: `TunePracticeConfig` now holds three different lifetimes in
+one object — `concertKey`, which sticks for a tune; `backingTrackEnabled`,
+which re-seeds from a global on every entry; and the rest, which are plain
+defaults. Nothing in the type distinguishes them; the difference lives only
+in the body of `initTunePractice`, as an if-statement and two unconditional
+assignments. That reads fine today because the function is short, but the
+next field added will inherit whichever lifetime its author happened to
+notice. If a fourth appears, the lifetimes belong in the shape — grouped, or
+named — rather than in the order of statements.
+
+Third, smaller: the route has no Node seam, so the only honest guard for its
+wiring was a source sweep. It passed, then failed — on my own comment, which
+spelled the global out in prose. A test that greps source cannot tell code
+from commentary, so it polices the file's whole text, and its failure message
+has to say so or the next person will read a real-looking violation into a
+sentence. Cheap guard, but it enlarges what counts as "the code".

@@ -458,6 +458,12 @@
 		stopAll();
 	});
 
+	/**
+	 * Audio options for every play call this session makes. Metronome, backing
+	 * instrument and volumes come from the user's settings; tempo, swing, style
+	 * and whether the band plays at all are the SESSION's — the backing switch
+	 * on the setup screen is a one-time override of the global setting.
+	 */
 	function getPlaybackOptions(): PlaybackOptions {
 		return {
 			tempo: tunePractice.config.tempo,
@@ -465,7 +471,7 @@
 			countInBeats: 0,
 			metronomeEnabled: settings.metronomeEnabled,
 			metronomeVolume: settings.metronomeVolume,
-			backingTrackEnabled: settings.backingTrackEnabled,
+			backingTrackEnabled: tunePractice.config.backingTrackEnabled,
 			backingInstrument: settings.backingInstrument,
 			backingTrackVolume: settings.backingTrackVolume,
 			backingStyle: tunePractice.config.backingStyle
@@ -702,7 +708,7 @@
 		const baseOnsets = resolveOnsets(workletOnsets, rebased);
 		const bleedOnsets = resolveBleedEvidence({
 			schedule: win.schedule,
-			backingTrackEnabled: settings.backingTrackEnabled,
+			backingTrackEnabled: tunePractice.config.backingTrackEnabled,
 			metronomeEnabled: settings.metronomeEnabled,
 			recordingTransportSeconds: win.recordingTransportSeconds,
 			tempo,
@@ -1012,28 +1018,53 @@
 						displayValue={`${tunePractice.config.tempo} BPM`}
 						onInput={(v) => (tunePractice.config.tempo = v)}
 					/>
-
-					<div class="inline-flex flex-col items-center gap-1.5">
-						<div class="flex items-center justify-center" style:min-height="84px">
-							<SelectorPad
-								ariaLabel="Backing style"
-								value={tunePractice.config.backingStyle}
-								options={BACKING_OPTIONS}
-								onChange={(v) => (tunePractice.config.backingStyle = v)}
-							/>
-						</div>
-						<span class="smallcaps console-engrave inline-flex items-center gap-1">
-							Backing
-							<TooltipHint
-								text={tooltips.lickPractice.backingStyle.text}
-								learnMore={tooltips.lickPractice.backingStyle.learnMore}
-								position="top"
-							/>
-						</span>
-					</div>
 				</div>
 
-				<!-- Row 3: what the detector found — settings' status-strip idiom.
+				<!-- Row 3: the band. Its own row because row 2 already fills the
+				     card's width at the page max, and because Backing and Style
+				     belong together: the switch decides whether there is a band,
+				     the pad what it plays. -->
+				<div class="flex flex-wrap items-end justify-center gap-x-14 gap-y-6 px-5 py-5">
+					<!-- A ONE-TIME override of the global backing-track setting,
+					     seeded from it on every arrival at setup (initTunePractice)
+					     and never written back: taking one tune unaccompanied must
+					     not cost you the band everywhere else. The session value —
+					     not the global — is what reaches playback AND the bleed
+					     evidence; see TunePracticeConfig.backingTrackEnabled. -->
+					<RockerSwitch
+						label="Backing"
+						ariaLabel="Backing track this session"
+						checked={tunePractice.config.backingTrackEnabled}
+						helpText={tooltips.tunePractice.backing.text}
+						onChange={(v) => (tunePractice.config.backingTrackEnabled = v)}
+					/>
+
+					<!-- Style is a property OF the backing track, so it goes with it
+					     rather than reading as a live choice over silence — the
+					     settings page hides instrument and volume the same way. -->
+					{#if tunePractice.config.backingTrackEnabled}
+						<div class="inline-flex flex-col items-center gap-1.5">
+							<div class="flex items-center justify-center" style:min-height="84px">
+								<SelectorPad
+									ariaLabel="Backing style"
+									value={tunePractice.config.backingStyle}
+									options={BACKING_OPTIONS}
+									onChange={(v) => (tunePractice.config.backingStyle = v)}
+								/>
+							</div>
+							<span class="smallcaps console-engrave inline-flex items-center gap-1">
+								Style
+								<TooltipHint
+									text={tooltips.lickPractice.backingStyle.text}
+									learnMore={tooltips.lickPractice.backingStyle.learnMore}
+									position="top"
+								/>
+							</span>
+						</div>
+					{/if}
+				</div>
+
+				<!-- Row 4: what the detector found — settings' status-strip idiom.
 				     The paragraphs are unchanged; the e2e reads the summary with
 				     locator('p', { hasText: /insertion point/i }). -->
 				{#if preview}
