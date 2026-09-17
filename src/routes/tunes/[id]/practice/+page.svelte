@@ -1156,6 +1156,7 @@
 			<NotationDisplay
 				tune={displayedSheet}
 				instrument={getInstrument()}
+				tuneOptions={audioPlan?.chartOptions}
 				{cursorIndex}
 				rangeMarkers={markers}
 				autoScrollPlayhead

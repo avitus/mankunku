@@ -5,6 +5,9 @@ import type { Tune } from '$lib/types/tune';
 import type { BackingStyle } from '$lib/types/instruments';
 import type { ChordProgressionType } from '$lib/types/lick-practice';
 import { flattenTune, type FlattenedTune } from '$lib/tunes/flatten';
+import { changesSheetFor } from '$lib/tunes/changes-sheet';
+import { suggestBarsPerLine } from '$lib/music/chart-layout';
+import type { TuneAbcOptions } from '$lib/music/tune-notation';
 import { tuneToPhraseWithFlat } from '$lib/tunes/to-phrase';
 import { detectProgressions, selectNonOverlapping } from '$lib/tunes/progression-detector';
 import {
@@ -64,8 +67,18 @@ export interface TunePracticeConfig {
 export interface TunePracticeAudioPlan {
 	/** Transposed session sheet — a stable reference for NotationDisplay. */
 	sheet: Tune;
-	/** The same sheet with the melody cleared — shown once the head is done. */
+	/**
+	 * The same sheet with the melody cleared — shown once the head is done.
+	 * Built by `changesSheetFor`, which keeps the pickup bar the melody implied.
+	 */
 	changesSheet: Tune;
+	/**
+	 * Engraving options for BOTH sheets: the melody sheet's own bars-per-line
+	 * pick, pinned so the changes sheet breaks its systems identically and the
+	 * head→changes swap re-engraves the same layout (the density pick reads
+	 * note counts, so a melody-free sheet would otherwise widen its lines).
+	 */
+	chartOptions: TuneAbcOptions;
 	/** Head chorus melody (if any) + harmony across every chorus. */
 	playedPhrase: Phrase;
 	/** Playback-order flatten with provenance (cursor + window projection). */
@@ -280,10 +293,8 @@ export function startTunePracticeSession(sheet: Tune, ppq: number): TunePractice
 		harmony: built.harmony,
 		difficulty: { ...phrase.difficulty, lengthBars: built.phraseBars }
 	};
-	const changesSheet: Tune = {
-		...transposed,
-		sections: transposed.sections.map((sec) => ({ ...sec, notes: [] }))
-	};
+	const changesSheet = changesSheetFor(transposed);
+	const chartOptions: TuneAbcOptions = { barsPerLine: suggestBarsPerLine(transposed) };
 
 	tunePractice.tuneId = sheet.id;
 	tunePractice.tuneTitle = sheet.title;
@@ -305,6 +316,7 @@ export function startTunePracticeSession(sheet: Tune, ppq: number): TunePractice
 	return {
 		sheet: transposed,
 		changesSheet,
+		chartOptions,
 		playedPhrase,
 		flat,
 		notationFlat,

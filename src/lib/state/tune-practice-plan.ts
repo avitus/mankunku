@@ -193,11 +193,15 @@ export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
  * chart use) — never the raw repeat markers, which imported charts express
  * inconsistently. A whole-form outline is a repeat where, once the second
  * pass begins (the first revisited section), the replayed body runs to the
- * end with only new tail sections (a second ending / coda) after it. An
- * INTERNAL repeat (e.g. `|: A :| B A` in an AABA chart) interleaves NEW form
- * material with the replayed body — a new section followed by a replayed one
- * — and is an ordinary play-twice repeat, not a form outline; those charts
- * head through the whole form and get an appended solo chorus instead.
+ * end with only a SHORT new tail (a second ending / coda) after it — shorter
+ * than the pass it follows. An INTERNAL repeat is anything else: either NEW
+ * form material interleaved with the replayed body (`|: A :| B A` in an AABA
+ * chart — a new section followed by a replayed one), or a tail at least as
+ * long as the pass (`|: A [1 :| [2 | B` — Autumn Leaves, where a 16-bar B
+ * follows an 8-bar repeat; the closing A of an AABA chart authored as its own
+ * section is the same shape, since it never reads as a replay). Both are
+ * ordinary play-twice repeats, not form outlines; those charts head through
+ * the whole form and get an appended solo chorus instead.
  */
 export function headBarsForFlat(flat: FlattenedTune): { headBars: number; formRepeats: boolean } {
 	const noRepeat = { headBars: flat.totalBars, formRepeats: false };
@@ -217,15 +221,22 @@ export function headBarsForFlat(flat: FlattenedTune): { headBars: number; formRe
 	// From the second pass onward, a NEW section (never seen in pass one)
 	// followed later by a replayed one means new form material is sandwiched
 	// inside the repeat → internal repeat, not a whole-form outline.
-	let sawNew = false;
+	let firstNewIdx = -1;
 	for (let i = revisitIdx; i < sm.length; i++) {
 		if (seen.has(sm[i].sourceSection)) {
-			if (sawNew) return noRepeat;
-		} else {
-			sawNew = true;
+			if (firstNewIdx !== -1) return noRepeat;
+		} else if (firstNewIdx === -1) {
+			firstNewIdx = i;
 		}
 	}
-	return { headBars: sm[revisitIdx].barOffset, formRepeats: true };
+
+	// The new sections are now a contiguous tail. A second ending or a coda is
+	// shorter than the pass it follows; a tail at least as long as pass one is
+	// the rest of the form, and the repeat only enclosed a section of it.
+	const headBars = sm[revisitIdx].barOffset;
+	const tailBars = firstNewIdx === -1 ? 0 : flat.totalBars - sm[firstNewIdx].barOffset;
+	if (tailBars >= headBars) return noRepeat;
+	return { headBars, formRepeats: true };
 }
 
 /**

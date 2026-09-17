@@ -17,6 +17,19 @@ import {
 } from '$lib/state/tune-practice-plan';
 import { flattenTune } from '$lib/tunes/flatten';
 import { seg, section, sheet } from '../../helpers/tune-fixtures';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import type { Tune } from '$lib/types/tune';
+
+/** A recorded MuseScore import from the lead-sheet corpus, as the app stores it. */
+function corpusTune(slug: string): Tune {
+	return JSON.parse(
+		readFileSync(
+			resolve(`tests/fixtures/leadsheets/pdf-vs-musescore/${slug}.musescore-import.json`),
+			'utf8'
+		)
+	) as Tune;
+}
 
 function mkFlat(overrides: Partial<FlattenedTune>): FlattenedTune {
 	return {
@@ -321,6 +334,54 @@ describe('headBarsForFlat', () => {
 		});
 		expect(headBarsForFlat(flat)).toEqual({ headBars: 16, formRepeats: false });
 	});
+
+	it('Autumn Leaves 2026-09-16: `|: A [1 :| [2 | B` is a section repeat, not the form', () => {
+		// pickup(1) |: A(5) [1 (3) :| [2 (3) | B(16). Expanded: pickup, A, e1, A, e2, B
+		// (offsets 0,1,6,9,14,17; 33 bars). Nothing replayed follows B, so the
+		// replay-after-new scan alone called this a whole-form outline and cut the
+		// head at bar 9 — the second A's downbeat, where the melody stopped and the
+		// chart swapped to the changes sheet. The 19 bars after the repeat are
+		// longer than the 9-bar pass they follow: the repeat encloses a section.
+		const flat = flattenTune(corpusTune('autumn-leaves'), { expandRepeats: true });
+		expect(flat.sectionMap.map((e) => e.barOffset)).toEqual([0, 1, 6, 9, 14, 17]);
+		expect(headBarsForFlat(flat)).toEqual({ headBars: 33, formRepeats: false });
+	});
+
+	it('Take the A Train with the last A authored as its own section is still internal', () => {
+		// |: A(7) [1 :| [2 | B(8) | A(8) — the closing A is a separate authored
+		// section, so it never reads as a REPLAY and the replay-after-new scan is
+		// blind to it; the tail length is what says the repeat is not the form.
+		const flat = flattenTune(corpusTune('take-the-a-train'), { expandRepeats: true });
+		expect(headBarsForFlat(flat)).toEqual({ headBars: 32, formRepeats: false });
+	});
+
+	it('a tail as long as the pass it follows is a section repeat (tie goes to internal)', () => {
+		// |: A(8) :| B(8) → A A B: the 8-bar B after the repeat equals the 8-bar pass.
+		const flat = mkFlat({
+			totalBars: 24,
+			sectionMap: [
+				{ sourceSection: 0, barOffset: 0 },
+				{ sourceSection: 0, barOffset: 8 },
+				{ sourceSection: 1, barOffset: 16 }
+			]
+		});
+		expect(headBarsForFlat(flat)).toEqual({ headBars: 24, formRepeats: false });
+	});
+
+	it('a whole-form repeat keeps its outline when a long coda follows the second ending', () => {
+		// |: A(32) [1 (2) :| [2 (2) | Coda(8): pass one is 34 bars, the tail 10.
+		const flat = mkFlat({
+			totalBars: 76,
+			sectionMap: [
+				{ sourceSection: 0, barOffset: 0 },
+				{ sourceSection: 1, barOffset: 32 },
+				{ sourceSection: 0, barOffset: 34 },
+				{ sourceSection: 2, barOffset: 66 },
+				{ sourceSection: 3, barOffset: 68 }
+			]
+		});
+		expect(headBarsForFlat(flat)).toEqual({ headBars: 34, formRepeats: true });
+	});
 });
 
 describe('assignSuggestRotation', () => {
@@ -419,6 +480,19 @@ describe('buildSessionPhrase', () => {
 		expect(built.phraseBars).toBe(4);
 		expect(built.headBars).toBe(2);
 		expect(built.duplicatedForm).toBe(false);
+	});
+
+	it('Autumn Leaves 2026-09-16: the head runs the whole expanded form, every note kept', () => {
+		// The section repeat used to be read as the form: head cut at bar 9,
+		// every note after it dropped (22 of 77 kept), and the take swapped to
+		// the changes sheet on the second A. Now the head is the full 33-bar
+		// form and the practice chorus is appended.
+		const flat = flattenTune(corpusTune('autumn-leaves'), { expandRepeats: true });
+		const built = buildSessionPhrase({ flat, timeSignature: [4, 4], playHead: true });
+		expect(built.notes).toHaveLength(flat.notes.length);
+		expect(built.headBars).toBe(33);
+		expect(built.phraseBars).toBe(66);
+		expect(built.duplicatedForm).toBe(true);
 	});
 
 	it('without a head: no melody, one chorus of changes', () => {

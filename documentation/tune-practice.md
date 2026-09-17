@@ -51,9 +51,9 @@ Under that, the chart previews in the chosen key with the insertion points shade
 
 Jazz plays the head **once**, then everybody solos. The app follows that rule literally.
 
-- If the chart's repeat markers outline the whole form — a repeat that runs the body twice with only a second ending or coda afterwards — the app treats **pass one as the head and pass two as your chorus**. The melody prints and plays on the first pass; on the second the staff clears and it's your turn over the same changes.
+- If the chart's repeat markers outline the whole form — a repeat that runs the body twice with only a short tail afterwards, a second ending or a coda shorter than the pass it follows — the app treats **pass one as the head and pass two as your chorus**. The melody prints and plays on the first pass; on the second the staff clears and it's your turn over the same changes.
 - If the chart has no whole-form repeat, the app appends a second chorus of the changes for you to play over.
-- An *internal* repeat (say `|: A :| B A` inside an AABA chart) is just a section played twice, not a form outline — those charts play the head through the whole form and then get an appended solo chorus.
+- An *internal* repeat is just a section played twice, not a form outline — `|: A :| B A` inside an AABA chart, or `|: A :| B` where the B after the repeat is as long as the A inside it (Autumn Leaves' 8-bar repeat under a 16-bar B). Those charts play the head through the whole form and then get an appended solo chorus.
 
 Turn **Head** off and you go straight to the changes.
 
