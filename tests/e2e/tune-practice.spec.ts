@@ -227,6 +227,59 @@ test.describe('tune practice setup', () => {
 		// Scoped to a <p>: the switch's tooltip carries similar copy off-screen.
 		await expect(page.locator('p', { hasText: /no melody/i })).toBeVisible();
 	});
+
+	test('backing switch starts at the global setting and overrides it for one session', async ({
+		page,
+		consoleCollector: _consoleCollector
+	}) => {
+		// Global backing OFF. Written unconditionally AFTER the beforeEach seed
+		// (seedStorage only fills absent keys, so it cannot override it) and on
+		// every navigation, which is what makes the return-visit leg meaningful.
+		await page.addInitScript(() => {
+			const key = 'mankunku:settings';
+			const raw = window.localStorage.getItem(key);
+			const parsed = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
+			window.localStorage.setItem(key, JSON.stringify({ ...parsed, backingTrackEnabled: false }));
+		});
+		await page.goto('/tunes/ls-when-the-saints/practice');
+
+		const backing = page.getByRole('switch', { name: /backing track this session/i });
+		const style = page.getByRole('radiogroup', { name: 'Backing style', exact: true });
+		await expect(backing).toBeVisible();
+		await expect(backing).toHaveAttribute('aria-checked', 'false');
+		// Style is a property OF the backing track — with no band there is nothing
+		// to style, as on the settings page.
+		await expect(style).toBeHidden();
+
+		// Freestyle's copy describes what plays, so it has to follow the switch:
+		// "backing only" is a promise of a band. (A pad option's accessible name
+		// is its label plus its sublabel line.)
+		const freestyle = page
+			.getByRole('radiogroup', { name: 'Mode', exact: true })
+			.getByRole('radio', { name: /^freestyle/i });
+		await expect(freestyle).not.toHaveAccessibleName(/backing only/i);
+
+		await backing.click();
+		await expect(backing).toHaveAttribute('aria-checked', 'true');
+		await expect(style).toBeVisible();
+		await expect(freestyle).toHaveAccessibleName(/backing only/i);
+
+		// Checked before navigating: the override must not write the global back.
+		const stored = await page.evaluate(() => {
+			const raw = window.localStorage.getItem('mankunku:settings');
+			return raw ? (JSON.parse(raw) as { backingTrackEnabled?: boolean }) : null;
+		});
+		expect(stored?.backingTrackEnabled).toBe(false);
+
+		// Leave setup and come back THROUGH THE APP: the state module outlives
+		// the route, so only a client-side round trip exercises the re-seed —
+		// a page.goto would reload the module and pass for the wrong reason.
+		await page.getByRole('link', { name: /when the saints go marching in/i }).click();
+		await expect(page).toHaveURL(/\/tunes\/when-the-saints-go-marching-in$/);
+		await page.getByRole('button', { name: /practice licks/i }).click();
+		await expect(page.getByRole('heading', { name: /practice licks/i })).toBeVisible();
+		await expect(backing).toHaveAttribute('aria-checked', 'false');
+	});
 });
 
 /**
@@ -280,6 +333,84 @@ test.describe.serial('tune practice session follow-scroll', () => {
 		await expect(page.getByRole('heading', { name: /take complete/i })).toBeVisible({
 			timeout: 10_000
 		});
+	});
+
+	test('a session runs with the backing switched off', async ({
+		page,
+		browserName,
+		consoleCollector: _consoleCollector
+	}) => {
+		test.skip(
+			browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+			'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device'
+		);
+		// The override exists so a tune can be taken unaccompanied, and no other
+		// test ever starts a session in that state: with no band there is no
+		// backing schedule for the window's bleed evidence to read, and the
+		// automatic console guard fails the test if that path throws.
+		test.setTimeout(150_000);
+
+		await seedOnboardedAnonymous(page);
+		await installAudioMock(page);
+		await stubCdnInstrumentSamples(page);
+
+		await page.goto('/tunes/ls-mankunku-blues/practice');
+		await expect(page.getByRole('button', { name: /^start$/i })).toBeVisible();
+
+		const backing = page.getByRole('switch', { name: /backing track this session/i });
+		await backing.click();
+		await expect(backing).toHaveAttribute('aria-checked', 'false');
+
+		await setTempoMax(page);
+		await startPracticeSession(page);
+
+		// Reaching a scored window is the point: it is where the missing
+		// schedule would be read.
+		await expect(
+			page.getByText(/your turn — play the lick!|comping — insertion/i)
+		).toBeVisible({ timeout: 75_000 });
+
+		await page.getByRole('button', { name: /^end$/i }).click();
+		await expect(page.getByRole('heading', { name: /take complete/i })).toBeVisible({
+			timeout: 10_000
+		});
+	});
+
+	test('freestyle with the backing off does not claim the band was listening', async ({
+		page,
+		browserName,
+		consoleCollector: _consoleCollector
+	}) => {
+		test.skip(
+			browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+			'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device'
+		);
+		test.setTimeout(150_000);
+
+		await seedOnboardedAnonymous(page);
+		await installAudioMock(page);
+		await stubCdnInstrumentSamples(page);
+
+		await page.goto('/tunes/ls-when-the-saints/practice');
+		await expect(page.getByRole('button', { name: /^start$/i })).toBeVisible();
+
+		await page
+			.getByRole('radiogroup', { name: 'Mode', exact: true })
+			.getByRole('radio', { name: /^freestyle/i })
+			.click();
+		await page.getByRole('switch', { name: /backing track this session/i }).click();
+		await setTempoMax(page);
+		await startPracticeSession(page);
+
+		// End with nothing played: the no-match branch of the freestyle summary,
+		// which must not credit a band that never played.
+		await page.getByRole('button', { name: /^end$/i }).click();
+		await expect(page.getByRole('heading', { name: /take complete/i })).toBeVisible({
+			timeout: 10_000
+		});
+		const summary = page.locator('p', { hasText: /no known licks recognized/i });
+		await expect(summary).toBeVisible();
+		await expect(summary).not.toContainText(/band/i);
 	});
 
 	test('chart stays visible through first insertion (Autumn Leaves)', async ({

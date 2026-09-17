@@ -34,12 +34,13 @@ Under a link back to the tune, the page is headed **Practice licks**, with a lin
 
 | Control | What it does |
 |---|---|
-| **Mode** | *Suggest* — lick named for you; *Points* — you pick, streaks double; *Freestyle* — backing only, just solo. See [the three modes](#the-three-modes). Starts on Suggest. |
+| **Mode** | *Suggest* — lick named for you; *Points* — you pick, streaks double; *Freestyle* — backing only, just solo (it reads *no windows, just solo* with **Backing** off, since there is no band to solo over). See [the three modes](#the-three-modes). Starts on Suggest. |
 | **Strictness** | *Guided* — names the lick to play; *Standard* — names only the progression; *Solo* — no cues. How much the chart tells you about each insertion point — see [Strictness](#strictness). Starts on Standard. |
 | **Head** | A rocker switch. ON plays the melody once through before your chorus ([the head rule](#the-head-rule)); OFF goes straight to the changes. On a chart with no melody it reads OFF and can't be switched on — there's no head to play. |
 | **Key** | Twelve pads in your written pitch: the key the tune is played and charted in for this session. It starts in the tune's own key. |
 | **Tempo** | A knob, 50–240 BPM in steps of 5 — drag, scroll, or use the arrow keys. It starts at your Settings tempo. In Suggest mode it also decides which licks can be named: only ones you already practise at this speed or faster. |
-| **Backing** | Swing, Bossa Nova, Ballad, or Straight — see [The band](./user-guide.md#the-band). |
+| **Backing** | A rocker switch: does the rhythm section play this session? It starts wherever your main backing-track setting is and applies to this session alone — turning the band off to hear one tune unaccompanied leaves the setting itself untouched, and the switch follows it again next time you set the tune up. With it OFF the metronome still follows your Settings, and the insertion points are scheduled and scored exactly as before. |
+| **Style** | Swing, Bossa Nova, Ballad, or Straight — see [The band](./user-guide.md#the-band). It's a property of the band, so it's only there while **Backing** is on. |
 
 At the foot of the card, a readout says what the detector found (*6 insertion points: …*, or that there are none), with the warning about untagged licks under it when there are any.
 

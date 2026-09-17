@@ -4085,3 +4085,71 @@ comments."
   ahead of a hole led the plateau — and the ghost's onset — by 70 ms. Every
   gap in the first window is checked now; the recorded-take corpus is
   unchanged (735 passed, 1 expected fail).
+
+## 2026-09-17 — The tune-practice backing switch: a one-time override
+
+Andy wanted a way to enable the backing track when setting a tune up for lick
+practice, overriding the main setting once rather than changing it. The
+setup screen (`/tunes/[id]/practice`, headed "Practice licks") already carried
+a backing *style* pad but no on/off — the band was whatever Settings said.
+
+- `TunePracticeConfig` gained `backingTrackEnabled`, and `initTunePractice`
+  re-seeds it from `settings.backingTrackEnabled` on every arrival at setup.
+  That re-seed is what makes the override one-time: unlike `concertKey`, which
+  is deliberately sticky for the same tune, this field forgets. Nothing is
+  written back, and the config was never persisted, so there is no path from
+  the switch to the stored setting.
+- Two call sites read the global and now read the session value:
+  `getPlaybackOptions()` and — the one that matters — `resolveBleedEvidence`.
+  The second is not about sound: claiming a comp grid that isn't sounding
+  feeds the segmenter click evidence it should not have, and real onsets get
+  suppressed as bleed. Silent, and it costs the player notes.
+- UI: a `RockerSwitch` labelled **Backing** (the same control the settings
+  page uses for this setting), with the style pad relabelled **Style** and
+  hidden while the band is off, as Settings hides instrument and volume. The
+  two controls took their own row — an existing comment on the option tables
+  said each row is meant to fit one line at the page max, and a fifth control
+  in row 2 wrapped Style onto a line of its own. Verified in the real app at
+  800 and 1280 px, on and off.
+- Tests: four unit tests on the seeding and the one-time rule, two source
+  sweeps pinning that the route reads the session value in both places
+  (a Node-testable seam does not exist for the route's audio wiring), an e2e
+  on three engines for the switch reading the global and re-seeding on a
+  return visit, and — a path nothing else covered — an e2e that runs a whole
+  session with the band off, through a scored window, under the automatic
+  console guard.
+- Docs: the setup-screen table in `documentation/tune-practice.md` now has
+  **Backing** and **Style** rows. `npm run check` clean, 5275 unit tests
+  green, docstring coverage 3/3 on the changed declarations.
+
+## 2026-09-17 (later) — PR #252: the re-seed CodeRabbit caught
+
+One Major finding, outside the diff, and correct. The route re-inits only when
+the tune id changes (`tunePractice.tuneId !== baseSheet.id`), and teardown
+keeps `tuneId`, so a client-side return to the SAME tune reached neither
+`initTunePractice` nor `resetTunePractice` — the previous session's override
+survived. `practiceAgain()` had the same hole from the other direction.
+
+My own e2e asserted the return visit and passed, for the wrong reason:
+`page.goto` is a full reload, which reloads the module, so the re-seed it
+proved was the one path that never needed fixing. The leg now leaves and
+returns through the app's own links (back link → *Practice licks*), which is
+the only route that keeps the module alive; it failed, then passed.
+
+Fix: `seedSessionBackingFromSettings()` in the state module, called from
+`initTunePractice`, from `resetTunePractice` and once at route mount —
+"every arrival at the setup screen", which is what the docs and tests already
+claimed. Read once per arrival, never in an `$effect`, so the switch cannot
+snap back while the user is looking at it. Added a unit test for the
+practice-again path. 5276 unit tests green, tune-practice e2e 8/8 on
+Chromium, the switch spec green on all three engines, docstring coverage 5/5.
+- Round 2, one Minor and also right: two pieces of copy described what plays
+  and were guarded only by Freestyle mode. The mode pad said *backing only,
+  just solo* with the band switched off, and the freestyle summary credited
+  "the band was listening" after a take with no band. `MODE_OPTIONS` became
+  `$derived` so the sublabel and hover title follow the switch (falling back
+  to what freestyle is either way — no scored windows), and the consolation
+  clause is conditional. Both pinned: an accessible-name assertion on the pad
+  option, and a freestyle take started with the band off and ended
+  immediately, which lands on exactly that summary branch. tune-practice e2e
+  9/9 on Chromium.

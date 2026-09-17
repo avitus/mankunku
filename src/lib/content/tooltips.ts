@@ -137,6 +137,10 @@ export const tooltips = {
 		},
 		tempo: {
 			text: 'Session tempo, 50–240 BPM. Suggest mode only offers licks you can already play at this speed.'
+		},
+		backing: {
+			text: 'Does the rhythm section play this session? Starts wherever your main backing-track setting is and applies to this session only — it never changes the setting itself.',
+			learnMore: '/docs/tune-practice'
 		}
 	} satisfies TooltipMap,
 
