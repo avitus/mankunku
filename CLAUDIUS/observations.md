@@ -2265,3 +2265,36 @@ console.warn the e2e guard does not count, so the only way the bug could
 surface was an assertion that read the store back. A swallowed error is a
 decision to trust the happy path; every such decision needs one test that
 reads the thing back, on every engine the feature claims to support.
+
+
+## 2026-09-16 (evening) — Mirrored pairs, uninformative errors, permissive fakes
+
+Two of four "production" issues were not production. The client had fixed
+its environment claim months ago (MANKUNKU-K: read the hostname, because
+`vite preview` is NODE_ENV=production). The server went on making the same
+claim, in a file whose shared helper module says it exists "so the two stay
+in sync". When a fix lands on one side of a mirrored pair, the remaining
+asymmetry is the next bug. And the first question for any server event is
+`server_name` plus the request URL, before the stack.
+
+The InvalidAccessError had no message and no stack. That emptiness was the
+most informative thing in the event. Native Chrome errors explain
+themselves; `new DOMException('', name)` is a library talking. Grepping
+node_modules for the empty-message constructor named the layer before any
+browser ran. "What would produce an error this uninformative?" is a question
+worth asking first.
+
+The test that should have caught 1T already existed in spirit:
+`playback-cancellation.test.ts` calls `loadInstrument('trumpet')` in every
+`beforeEach`, which is exactly the double load that failed in production.
+Its fake nodes had a `disconnect()` that never throws. A fake that is more
+permissive than the platform erases the platform's rules, so the test could
+never fail on them. Fakes should carry the constraints, not just the shape.
+Here the constraint is one line: disconnecting a connection that does not
+exist throws.
+
+The N+1 was nobody's decision. "Validate the session before any cloud call"
+is right at each call site, and the fan-out turned it into seventeen
+round-trips queued on one lock. A rule applied per call turns into a burst
+once callers run concurrently, so the fix belongs in the rule's shared
+helper, not in each caller.

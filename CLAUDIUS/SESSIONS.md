@@ -4021,3 +4021,56 @@ comments."
   converts before its write transaction. The e2e opens the anonymous
   database by name (`indexedDB.databases()` lists nothing on WebKit) and
   aborts on `upgradeneeded` so it never creates an empty one.
+
+
+## 2026-09-16 (evening) — Sentry sweep: four "production" issues, three fixes
+
+- Andy: "Fix any production errors on sentry and push to dev". Four unresolved
+  issues matched `environment:production`; each was traced before any edit.
+- **MANKUNKU-1T** — bare `InvalidAccessError` (DOMException code 15, empty
+  message, no stack) on `/tunes/ls-amazing-grace`, Chrome/Windows, trumpet.
+  The breadcrumbs show Play → trumpet SoundFont load → key chip → Play, then
+  the rejection 3 ms later. `loadInstrument` reloads on every call, and
+  `cleanupInstruments` ran `cleanupJazzExpression` first, which cut the warmth
+  filter's outputs; smplr's channel teardown then disconnected
+  warmthFilter → volume *by destination*, and standardized-audio-context throws
+  `new DOMException('', 'InvalidAccessError')` for a missing connection. That
+  constructor is the empty-message fingerprint. Only trumpet is affected (the
+  three saxes have sample maps), and it fails on every second load in a realm:
+  a second Play, or a second practice page. Fix: dispose instruments first.
+  The test drives the real smplr `Instrument`/`Channel` on a fake graph that
+  keeps Web Audio's disconnect rules. The trumpet row goes red without the fix;
+  the sax row pins the reordered custom-sample teardown. Reproduced in the
+  in-app browser before the fix (Uncaught (in promise), code 15, no Stop
+  button); after it, three Plays in a row all started.
+- **MANKUNKU-1Q** — "N+1 API Call", 16 production events on pageloads of `/`,
+  `/progress`, `/licks`, `/lick-practice`, `/ear-training` and
+  `/tunes/[id]/practice`. The offending span is `GET /auth/v1/user`: 17 on one
+  load, with 11 in the hydration burst at durations 171 → 1064 ms, queued
+  behind supabase-js's session lock. Every persistence call site checked the
+  session on its own. `getUserCoalesced` (`src/lib/supabase/get-user.ts`) now
+  shares an in-flight request per auth client, and 12 call sites were switched
+  to it. The integration test runs six real initializers against the cloud
+  mock with a 20 ms auth delay: 6 calls before the fix, 1 after. Not checked in
+  a signed-in browser (that would mean entering a password).
+- **MANKUNKU-1V** — Anthropic "Output blocked by content filtering policy" on
+  `POST /api/tune-parse`. `server_name` was the Mac Studio and the URL was
+  `localhost:4174`, so this was a local preview (NODE_ENV=production), almost
+  certainly the WebKit PDF-cache session running at the time. The trace shows
+  claude-fable-5 blocked, then claude-opus-4-8 succeeding: the route's fallback
+  worked. Two fixes follow. First, the server's `beforeSend` and
+  `beforeSendTransaction` now refile loopback-request events under development.
+  A scratch script against the real `@sentry/node` with a capturing transport
+  confirmed that both the event and the transaction carry `request.url` and
+  that the override lands. Second, the content-filter block from the
+  `auto.ai.anthropic*` mechanism is dropped; every other Anthropic error still
+  reports. The client's hostname check now shares `isLocalHostname`.
+- **MANKUNKU-1M** — Safari "Load failed" on `/tunes`, 2026-08-23 07:23 UTC,
+  release 005818b. No deploy was near it: #238 shipped 08-21, and #239 merged
+  08-23 at 17:38 UTC. It was a one-off network failure; the nav recovery
+  handles it, and `shouldDropStaleChunkReport` keeps it visible on purpose.
+  No code change, and left unresolved for Andy to decide.
+- Issues close through `Fixes MANKUNKU-1T/1Q/1V` trailers when dev merges to
+  main. Docs: audio.md (reload teardown), state-management.md (coalesced
+  session check), tech-stack.md (server environment + content filter),
+  README changelog, CLAUDE.md.

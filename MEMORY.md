@@ -356,3 +356,13 @@ The same take's first D: the tenor attack spoke as D3 (147 Hz, its 3rd partial p
 ## Enclosure practice model (2026-09-14)
 
 The approved Phrase canvas is shared between `/tricks/enclosures` and `/lick-practice`: faint staff, beat-one marker centered on beat one, target chord role, one to three approach notes, and minimal annotations. Enclosure variants and prerequisites share one graph; the existing three family mastery chains keep their keys and gates. Long major/minor ii–V–I practice uses the catalog's 1 + 1 + 2-bar beds and applies the same gesture at each of three arrivals. `trickProgressionType` is separate from melodic parameters; progression progress uses `trick-progression:<bed>:<variantKey>` in the existing trick store, never family mastery credit. Future beds belong in `enclosure-practice.ts` as catalog references. Realization anchors each gesture on its target to preserve above/below register; display spelling resolves after transposition against arrival harmony, without generated absolute `Note.spelling` overrides.
+
+
+## Sentry sweep (2026-09-16)
+
+- **Triage a "production" server event by `server_name` and request URL first.** Until 2026-09-16 a local `vite preview` (NODE_ENV=production — Playwright's web server, a worktree preview) filed server events under production. Since then `isLocalRequestEvent` refiles loopback-request errors and traces under development (MANKUNKU-1V); the client has done the same by hostname since MANKUNKU-K.
+- **Sentry's Anthropic integration captures every API error as unhandled** before the route's own `catch` runs. `beforeSend` drops only the content-filter block ("Output blocked by content filtering policy", which `/api/tune-parse` answers by falling back from Fable to Opus); auth and credit errors still report.
+- **Trumpet is the only SoundFont instrument**, and until 2026-09-16 every second `loadInstrument` in a realm threw (`cleanupInstruments` ran the expression cleanup before smplr's channel teardown; MANKUNKU-1T). A Web Audio fake must throw on `disconnect(destination)` for a missing connection, or it cannot catch this class of bug.
+- **Client-side `auth.getUser()` goes through `getUserCoalesced`**: concurrent calls share one request. Page-load hydration used to send 17 (MANKUNKU-1Q, Sentry's N+1 detector).
+- The Sentry MCP in this environment now exposes `update_issue`. `Fixes MANKUNKU-X` trailers are still the default way to resolve. MANKUNKU-1M (a one-off Safari "Load failed", no deploy nearby) was left unresolved for Andy.
+
