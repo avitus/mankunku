@@ -2225,3 +2225,30 @@ that is the exact species of flake this repo has spent September hunting. Observ
 insertion — measuring at the moment the thing exists rather than asking whether it
 still does — removes the timing from the test entirely. Where the assertion is about a
 transient, put the measurement inside the page, at the mutation.
+## 2026-09-16 — A copy that drops data must carry what the data implied
+
+The changes sheet was defined as "the melody sheet with the notes removed",
+and that definition hid the bug for seven weeks. Two engraving inputs were
+never fields on the sheet — the pickup bar's printed length and the
+bars-per-line density — they were FUNCTIONS of the notes, recomputed at
+render. Strip the notes and both silently change: the pickup stops being a
+pickup, the lines widen, the endings re-stack. Nothing was wrong with any
+single function; the wrong thing was believing a derived copy is "the same
+chart" when part of the chart lives in what was derived from the removed
+part. The fix is a rule I want to keep: when a transform drops data, stamp
+the things that data implied onto the copy (pickup length explicitly, bars
+per line explicitly) — congruence by construction, then pin it with a
+signature (bars per system), not with "is it visible".
+
+The second thing: the docs said "only a second ending or coda afterwards"
+for the whole life of the form rule, and the code checked no length at all.
+The word *only* was doing work the code never did. Reading docs as a spec of
+intent and then asking "where is the bound this word implies?" would have
+found the Autumn Leaves case before anyone imported Autumn Leaves.
+
+And a small one about not instrumenting what reasoning settles: I planned to
+measure whether the render effect's follow-offset reset flashed at the swap.
+Every swap lands on the top of the form — head end, or the appended chorus
+start — where the correct offset IS zero. The measurement would have shown
+nothing and I would have called it "no flash observed" instead of "there
+cannot be one". Know where the value must be before deciding to watch it.

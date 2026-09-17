@@ -3950,3 +3950,61 @@ comments."
 - 5223 unit/integration green, `svelte-check` 0/0, A-Train spec green on Chromium;
   cross-browser + neighbouring chart specs run before the push. Docs: tune-system.md,
   api-reference/music.md, CLAUDE.md `notation/` bullet.
+## 2026-09-16 — Autumn Leaves' second A: the form rule, the changes sheet, and readable tune URLs
+
+- Andy, testing lick insertion on Autumn Leaves in production: as soon as the
+  second repeat begins the scroll breaks, systems collapse to single bars, some
+  bars shrink to slivers, "not adhering to the best practices we've implemented
+  when laying out the lead sheet". Also asked for `/tunes/autumn-leaves/practice`
+  in place of `/tunes/sheet-1789579191100-55iq/practice`. Plan mode; three
+  explorers (routing/ids, the practice chart pipeline, my own notes), the dev
+  Supabase copy of the tune read straight from Postgres for its section shape,
+  Sentry checked (nothing relevant; it did show curated ids are `ls-<kebab>`).
+- Root cause traced before any fix, two defects. `headBarsForFlat` called the
+  internal `|: A [1 :| [2 | B` a whole-form outline because its only internal
+  test was replay-after-new and nothing replays after B — head at bar 9, melody
+  cut (22 of 77 notes), chart swapped to the changes sheet on the second A's
+  downbeat. Then the changes sheet — the melody sheet minus notes — engraved
+  DIFFERENT systems: the legacy pickup's length is inferred from the melody
+  just removed (lone full-width bar on system 1) and bars-per-line is a
+  note-density pick (4 → 6); `[1]` split across systems and the `[2]` stack
+  compressed to a fifth of its width. Take the A Train's local import (the
+  closing A authored as its own section) is misread by the same rule.
+- Fix 1 (TDD, four red cases incl. the corpus Autumn Leaves and A Train through
+  `flattenTune(expandRepeats)`): a form outline needs the new tail after the
+  replayed body SHORTER than the pass it follows; tie → internal. Pinned shapes:
+  whole-form + 2-bar tail, coda case, `A A B A`, `|: 32 [1 2 :| [2 2] coda 8`,
+  `|: A(8) :| B(8)` tie. Docs (`tune-practice.md`, `tune-system.md`, api
+  `state.md`, CLAUDE.md) had promised "only a second ending or coda" all along.
+- Fix 2 (TDD): `tunes/changes-sheet.ts` `changesSheetFor` stamps each
+  section's resolved pickup length (a rejected explicit field stays rejected)
+  and `TunePracticeAudioPlan.chartOptions.barsPerLine` is the melody sheet's
+  own pick passed to BOTH renders. `changes-sheet.test.ts` compares per-system
+  bar counts off the `[V:M]` lines for every corpus MuseScore import, with a
+  bare-strip control that differs. E2E: the Autumn Leaves follow-scroll spec
+  now records the head's system signature (`g.abcjs-bar` per staff wrapper,
+  `[5,4,3,4,4,4,4]`) and asserts the post-swap chart matches — RED on the
+  reverted source read `[1,7,2,3,6,6,4]` (screenshot showed exactly Andy's
+  report), GREEN in 36 s on the fix. The `followOffsetPx = 0` on re-render is
+  not a flash: every swap lands on the top of the form where 0 is right.
+- Readable URLs: `tunes/tune-slug.ts` — slug as ALIAS (`slugify(foldAccents)`,
+  `util/slug.ts` lifted from docs/markdown with the fold kept separate so
+  heading anchors stay byte-identical), `resolveTuneRef` id-first, duplicates
+  `-2`/`-3` curated-then-creation order, unsluggable → id, `tunePath`/
+  `tunePracticePath` on `baseSheet`. Both `[id]` routes resolve either form;
+  book, detail→practice, practice back links, editor save and the import
+  result list link by slug; community and `?edit=` keep ids. Nine unit cases;
+  e2e: a slug-navigation test in `tunes.spec.ts` (book → slug → practice slug,
+  curated by title slug, old id and old id/practice still open), and the
+  `**/tunes/sheet-*` URL-shape asserts in editor/import/pdf specs retargeted to
+  the title slug or a slug-shaped regex that rejects `sheet-`.
+- Verified after rebasing onto dev (ghost notes, the stacked-`[2]` zone fix
+  that had already landed as 273c120 — the chip I raised for it was moot):
+  vitest 311 files / 5244 passed + 36 expected fail; svelte-check 0/0;
+  chromium e2e over tunes / editor / import / pdf-import / a-train / pickup /
+  practice: 38 passed, with the Mankunku Blues session-start timeout (End
+  not visible in 45 s, Start still pressed on the setup screen) firing at
+  the tail of the long serial run and once under parallel load — the
+  sample-decode contention flake on record, machine load 4–5 from other
+  sessions; the follow-scroll pair alone passed 4/4 twice (Blues 19.5 s,
+  Autumn 36 s, steady). WebKit tunes + editor 11 passed.
