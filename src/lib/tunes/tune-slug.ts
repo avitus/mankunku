@@ -16,11 +16,27 @@ import { foldAccents, slugify } from '$lib/util/slug';
  * the slug is disambiguated deterministically: curated tunes first, then
  * creation order (`sheet-<ms>-…` ids sort by time) — the earliest keeps the
  * bare slug, later ones get `-2`, `-3`… A title that leaves nothing
- * sluggable (all non-Latin) falls back to the id.
+ * sluggable (all non-Latin), or that slugifies to a static `/tunes` route
+ * (`RESERVED_TUNE_SEGMENTS`), falls back to the id.
  */
 
+/**
+ * The static child routes of `/tunes`. SvelteKit ranks a static segment above
+ * `[id]`, so a title that slugifies to one of these ("Editor") would link to
+ * that page from everywhere and never resolve — such a tune links by its id.
+ * Pinned against the route directory by `tune-slug.test.ts`.
+ */
+export const RESERVED_TUNE_SEGMENTS: readonly string[] = [
+	'add',
+	'community',
+	'editor',
+	'import',
+	'playhead-preview'
+];
+
 function baseSlug(tune: Tune): string {
-	return slugify(foldAccents(tune.title)) || tune.id;
+	const slug = slugify(foldAccents(tune.title));
+	return slug && !RESERVED_TUNE_SEGMENTS.includes(slug) ? slug : tune.id;
 }
 
 function rank(tune: Tune): number {

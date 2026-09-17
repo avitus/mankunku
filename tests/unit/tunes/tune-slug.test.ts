@@ -1,6 +1,13 @@
 import { describe, it, expect } from 'vitest';
+import { readdirSync } from 'node:fs';
 import type { Tune } from '$lib/types/tune';
-import { resolveTuneRef, tunePath, tunePracticePath, tuneSlug } from '$lib/tunes/tune-slug';
+import {
+	RESERVED_TUNE_SEGMENTS,
+	resolveTuneRef,
+	tunePath,
+	tunePracticePath,
+	tuneSlug
+} from '$lib/tunes/tune-slug';
 import { transposeTune } from '$lib/tunes/book-loader';
 import { sheet } from '../../helpers/tune-fixtures';
 
@@ -15,6 +22,26 @@ describe('tuneSlug', () => {
 		expect(tuneSlug(t('a', "'Round Midnight"), [])).toBe('round-midnight');
 		expect(tuneSlug(t('b', 'Bésame Mucho'), [])).toBe('besame-mucho');
 		expect(tuneSlug(t('c', "Take the 'A' Train  "), [])).toBe('take-the-a-train');
+	});
+
+	it('links a title that slugifies to a static /tunes route by its id instead', () => {
+		// SvelteKit ranks the static `/tunes/editor` above `/tunes/[id]`, so a tune
+		// titled "Editor" would open the editor from every link and never resolve.
+		for (const title of ['Editor', 'Community', 'Add', 'Import', 'Playhead Preview']) {
+			const tune = t('sheet-1-abcd', title);
+			expect(tuneSlug(tune, [tune]), title).toBe('sheet-1-abcd');
+			expect(resolveTuneRef(tuneSlug(tune, [tune]), [tune])).toBe(tune);
+		}
+	});
+
+	it('reserves exactly the static child routes of /tunes', () => {
+		// Adding a static route under /tunes must add its segment here, or a
+		// title matching it links to the page instead of the tune.
+		const routes = readdirSync('src/routes/tunes', { withFileTypes: true })
+			.filter((d) => d.isDirectory() && !d.name.startsWith('['))
+			.map((d) => d.name)
+			.sort();
+		expect([...RESERVED_TUNE_SEGMENTS].sort()).toEqual(routes);
 	});
 
 	it('falls back to the id when the title leaves nothing sluggable', () => {

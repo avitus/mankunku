@@ -99,6 +99,18 @@ describe('findGhostNotes', () => {
 		expect(findGhostNotes(readings, scattered)).toEqual([]);
 	});
 
+	it('does not let a stray early frame lead the plateau across a gap (onset is where the run starts)', () => {
+		// One weak frame at 0.31 s, then a 70 ms gap, then three consecutive
+		// frames from 0.38 s. The first window's leading gap was never checked
+		// (only the newest gap was), so the plateau began at 0.31 s and the ghost
+		// carved 70 ms it never sounded out of the D before it.
+		const readings = [...held(62, 0, 0.3), ...held(62, 0.45, 0.8)];
+		const stray = [...weak([60.3], 0.31), ...weak([60.3, 60.35, 60.25], 0.38)];
+		const ghosts = findGhostNotes(readings, stray);
+		expect(ghosts).toHaveLength(1);
+		expect(ghosts[0].onsetTime).toBeCloseTo(0.38, 6);
+	});
+
 	it('needs the plateau frames to agree on a pitch', () => {
 		const readings = [...held(62, 0, 0.3), ...held(62, 0.45, 0.8)];
 		expect(findGhostNotes(readings, weak([60.0, 60.9, 59.9, 60.8], 0.33))).toEqual([]);

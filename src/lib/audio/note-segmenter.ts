@@ -2913,7 +2913,18 @@ function findGhostPlateau(frames: PitchReading[], pitches: number[]): GhostPlate
 	let best: GhostPlateau | null = null;
 	for (let s = 0; s < frames.length; s++) {
 		for (let e = s + GHOST_MIN_FRAMES; e <= frames.length; e++) {
-			if (frames[e - 1].time - frames[e - 2].time > GHOST_MAX_FRAME_STEP) break;
+			// Every gap inside the first window, then only the gap each wider
+			// window adds. Checking the newest gap alone let a stray frame ahead
+			// of a hole lead the plateau, and the ghost's onset with it.
+			const firstGap = e === s + GHOST_MIN_FRAMES ? s + 1 : e - 1;
+			let broken = false;
+			for (let k = firstGap; k < e; k++) {
+				if (frames[k].time - frames[k - 1].time > GHOST_MAX_FRAME_STEP) {
+					broken = true;
+					break;
+				}
+			}
+			if (broken) break;
 			const run = pitches.slice(s, e);
 			const pitch = median(run);
 			if (run.some((p) => Math.abs(p - pitch) > GHOST_PLATEAU_TOLERANCE)) continue;

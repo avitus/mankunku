@@ -4074,3 +4074,14 @@ comments."
   main. Docs: audio.md (reload teardown), state-management.md (coalesced
   session check), tech-stack.md (server environment + content filter),
   README changelog, CLAUDE.md.
+- PR #251 (dev → main) opened on request; CodeRabbit's first pass: pre-merge
+  checks 5/5 (docstring coverage 90.11%), two Minor threads, both real.
+  (1) A tune titled "Editor" slugged to `/tunes/editor`, and SvelteKit ranks
+  the static route above `[id]` — `RESERVED_TUNE_SEGMENTS` now sends such a
+  title to its id, pinned against the route directory so a new static route
+  under /tunes cannot slip past. (2) In the ghost-note pass (another
+  session's 63df49a) `findGhostPlateau` checked only the newest frame gap,
+  so the first window's leading gap was never validated and a stray frame
+  ahead of a hole led the plateau — and the ghost's onset — by 70 ms. Every
+  gap in the first window is checked now; the recorded-take corpus is
+  unchanged (735 passed, 1 expected fail).
