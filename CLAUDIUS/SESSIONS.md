@@ -3877,3 +3877,48 @@ comments."
 - Vitest 5212 + 36 expected fail, svelte-check 0/0, diagnostics e2e 5 +
   1 skip on three engines, and on Chromium diagnostics + ear-training +
   lick-practice-session 13/13.
+
+## 2026-09-16 (late) — The first D's octave crack
+
+- Andy's brief: the Sharp 9 take opens with a tenor attack that cracks into
+  the lower octave (D3 for ~110 ms, then D4, no onset at the switch). Tell it
+  apart from a slurred octave leap if possible, conservatively and
+  test-first, and diff the whole corpus's segmentation.
+- What the audio says: the 0.093 worklet onset is the downbeat CLICK (the
+  click period puts one at 0.090), and the horn enters at ~0.143. From there
+  to ~0.253 the spectrum carries H3 (440 Hz) beside an already-present D4
+  series, so the 147 Hz period is real. Then H3 dies and D4 speaks.
+- Frames: 5 warmup D3, 2 confirmed, 2 inertia (raw D4, reported D3), D4
+  from 0.283. The span (click → reported switch) is 190 ms, past the 150 ms
+  rule, and 2 of 9 upper frames miss the 25% raw-match rule.
+- Survey: the same crack is already in the corpus twice (2026-08-11
+  curl-to-the-floor D3→D4 and blue-note-climb C3→C4, both confirming
+  nothing), folded by the 25% rule only because the inertia pair is a
+  quarter of a ≤ 8-frame head. 2026-06-24 blues-curl-up cracks UP and the
+  150 ms rule folds it.
+- Fix: rule 3 in `collapseOctaveArtifacts`, `isUnconfirmedOctaveCrack`. The
+  head has fewer than `OCTAVE_CONFIRM_FRAMES` non-warmup frames on its raw
+  pitch, and more raw frames in the neighbour's octave (inertia pair
+  included) than in its own. It works in both directions. My first cut kept
+  the span guard and failed the live time base (head 283 ms vs D4 167 ms
+  after the window-end restamp), so the guard counts frames.
+- Evidence: 34 takes × raw/trimmed/live, only this take changes, checked
+  against HEAD and again after rebasing onto the three commits that landed
+  meanwhile. With rule 2 disabled, rule 3 alone still folds the two 08-11
+  cracks. Seven mutations (rule removed, threshold 4, warmup counted,
+  reported MIDI counted, sounded-guard removed, lower-first only, span
+  guard) each turn a test red.
+- Scores: octave-insensitive unchanged (0.844 recording, 0.828 live).
+  Strict goes 0.835 → 0.844: the first D is timed from its attack (rhythm
+  0.71 before), and strict now equals insensitive, which is what the strict
+  pin asserts after the rebase (the ghost allowance was gone by then, so a
+  hit count would have tested the wrong thing).
+- Docs: audio.md step 2, the in-app audio-pipeline page (whose "two cleanup
+  passes" already listed three), CLAUDE.md.
+- Vitest 5220 + 36 expected fail, svelte-check 0/0 (with placeholder
+  PUBLIC_SUPABASE_* values, since this worktree has no .env), docstring
+  scanner 9/9.
+- Open: live ear training resets the stabilizer only at capture start, so a
+  mid-take crack there has no warmup frames and rule 3 can't see it (the
+  replay rescore can). A crack whose continuation sounds no longer than it
+  stays two notes. The segment still starts at the click, not at the horn.

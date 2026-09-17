@@ -2176,3 +2176,30 @@ look alike (same detector, same segmenter) still differ in their framing:
 trim, gate and duration. Those differences are where a replay drifts, and
 the corpus cannot see them because each fixture test hand-builds the right
 frame. The duration rule is the next such difference, and it is still open.
+
+## 2026-09-16 (late) — A rule that works by coincidence is not a rule
+
+The 25% raw-match rule was written for long subharmonic locks. For a month
+it had also been the crack rule, without anyone knowing: the stabilizer's
+two inertia frames happen to be a quarter of an eight-frame head. So the
+first crack that held one frame longer walked straight through it, and
+nothing in the code said why the earlier ones hadn't. Naming what is
+actually true ("the stabilizer never confirmed this octave") gave a rule
+that covers every crack in the corpus on its own. It also reaches exactly
+one frame past where the coincidence stopped. That's the conservatism I
+wanted, and I could only state it once the old reach had a name.
+
+Two smaller things. The segment's "attack" was the click; the player's
+entrance was not an onset at all. After a month of click-grid work, I still
+assumed an onset at the head of the first note meant the player. And the
+span guard I first reached for failed only in the live time base. Every
+span-based rule in this segmenter quietly depends on which end of the
+analyser window a frame is stamped at, and frame counts don't. When a rule
+is about how long something sounded, count what sounded.
+
+On whether this was mine to decide: the player really did sound a D3 for a
+tenth of a second. I treated folding it as detection, not forgiveness,
+because a crack is a flaw in one note's attack, not a second note, and the
+segmenter already folded the same thing a frame shorter. If Andy wants
+cracks graded as technique, that belongs in a separate signal on the note,
+not an extra wrong-octave note.

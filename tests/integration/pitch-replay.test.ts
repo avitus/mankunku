@@ -3023,9 +3023,20 @@ describe('pitch replay regression: Blue Note Drop — the downbeat click before 
  * the G# that followed without an onset took its segment. Before the fix the
  * replay scored 4 of 9 (0.518).
  *
- * Also on the record, not fixed here: the first D cracks into its lower
- * octave for ~110 ms before the octave vent speaks (a D3 note ahead of the
- * D4, harmless as an unmatched extra), and the click grid stamped for this
+ * The first D cracks: the horn speaks in the octave below (D3, 147 Hz, its
+ * 3rd partial proving the period) from the entrance at ~0.143 s until the
+ * octave vent takes over at ~0.253 s, with no new attack. The worklet's only
+ * onset near it is the downbeat click at 0.093, which resets the octave
+ * stabilizer, so the D3 is five warmup frames, two confirmed frames and the
+ * two frames the octave-confirm inertia holds after the raw pitch has moved.
+ * Measured from the click to the reported switch it spans 190 ms — past the
+ * 150 ms short-glitch rule — and replay emitted D3 @0.093 then D4 @0.283:
+ * a free extra in octave-insensitive lick practice, a wrong-octave extra and
+ * a first D timed 190 ms late in strict scoring. Fixed 2026-09-16: a head
+ * whose octave the stabilizer never confirmed folds into the note it cracks
+ * into.
+ *
+ * Still on the record, not fixed here: the click grid stamped for this
  * window runs 0.08 s ahead of the clicks in the audio.
  */
 describe('pitch replay regression: Sharp 9 Flat 9 Dom — ghosted Cs in Deep Practice (concert E, 2026-09-16)', () => {
@@ -3064,8 +3075,8 @@ describe('pitch replay regression: Sharp 9 Flat 9 Dom — ghosted Cs in Deep Pra
 	 * evidence. `live` re-stamps every frame at its window END, the time base
 	 * the rAF detector hands the session.
 	 */
-	async function lickPracticeTake(opts: { weak?: boolean; live?: boolean } = {}) {
-		const { weak = true, live = false } = opts;
+	async function lickPracticeTake(opts: { weak?: boolean; live?: boolean; strict?: boolean } = {}) {
+		const { weak = true, live = false, strict = false } = opts;
 		const wav = loadWavFixture(FIXTURE);
 		const raw = await replayFromAudioBuffer(makeFakeAudioBuffer(wav.channel, wav.sampleRate));
 		/** Move a replay frame from its window start to its window end, `shapeBreakAt` with it. */
@@ -3102,7 +3113,7 @@ describe('pitch replay regression: Sharp 9 Flat 9 Dom — ghosted Cs in Deep Pra
 			transportSeconds: TRANSPORT_SECONDS,
 			swing: SWING,
 			bleedFilterEnabled: false,
-			octaveInsensitive: true
+			octaveInsensitive: !strict
 		}).chosen;
 		return { raw, detected, score };
 	}
@@ -3143,6 +3154,48 @@ describe('pitch replay regression: Sharp 9 Flat 9 Dom — ghosted Cs in Deep Pra
 		});
 	});
 
+	it('the first D cracks: raw D3 through the stabilizer warmup and two confirmed frames, then D4 with no attack', async () => {
+		// Documents the evidence the octave-crack rule acts on.
+		const { raw } = await lickPracticeTake();
+		/** The raw pick's nearest MIDI — `midi` carries the stabilizer's octave. */
+		const rawMidi = (r: PitchReading) => Math.round(12 * Math.log2(r.frequency / 440) + 69);
+		const lower = raw.readings.filter((r) => r.time < 0.25);
+		expect(lower).toHaveLength(7);
+		expect(lower.every((r) => rawMidi(r) === 50 && r.midi === 50)).toBe(true);
+		expect(lower.filter((r) => !r.warmup)).toHaveLength(2);
+		// From 0.25 the raw pick is D4; the stabilizer reports it from 0.283.
+		const upper = raw.readings.filter((r) => r.time >= 0.25 && r.time < 0.42);
+		expect(upper.every((r) => rawMidi(r) === 62)).toBe(true);
+		expect(upper.filter((r) => r.midi === 50)).toHaveLength(2);
+		// The click at 0.093 is the only onset: nothing marks the entrance or the switch.
+		expect(raw.onsets.filter((o) => o < 0.45).map((o) => +o.toFixed(3))).toEqual([0.093]);
+	});
+
+	it('plays the first D from its attack, not as a D3 ahead of a late D4 (replay before the fix: D3 @0.093, D4 @0.283)', async () => {
+		const { detected } = await lickPracticeTake();
+		expect(detected.some((n) => n.midi === 50)).toBe(false);
+		expect(detected[0].midi).toBe(62);
+		expect(detected[0].onsetTime).toBeCloseTo(0.093, 3);
+		// It runs on to the first ghosted C.
+		expect(detected[1].ghost).toBe(true);
+		expect(detected[0].onsetTime + detected[0].duration).toBeCloseTo(detected[1].onsetTime, 5);
+	});
+
+	it('strict scoring: no wrong-octave extra, and the first D timed from its attack (before the fix: rhythm 0.71)', async () => {
+		const { score } = await lickPracticeTake({ strict: true });
+		expect(score.noteResults.some((nr) => nr.extra && nr.detected?.midi === 50)).toBe(false);
+		const first = score.noteResults.find((nr) => !nr.extra);
+		expect(first?.detected?.midi).toBe(62);
+		expect(first?.pitchScore).toBe(1);
+		expect(first?.rhythmScore).toBeGreaterThan(0.85);
+		// The register no longer changes this take's score: strict grades it
+		// exactly as octave-insensitive lick practice does (before the fix,
+		// rhythm 0.922 against 0.943, overall 0.835 against 0.844).
+		const { score: insensitive } = await lickPracticeTake();
+		expect(score.rhythmAccuracy).toBe(insensitive.rhythmAccuracy);
+		expect(score.overall).toBe(insensitive.overall);
+	});
+
 	it('keeps the A the downbeat kick cut short (replay: swallowed by the G#)', async () => {
 		const { detected } = await lickPracticeTake();
 		const a = detected.findIndex((n) => n.midi === 57);
@@ -3173,6 +3226,11 @@ describe('pitch replay regression: Sharp 9 Flat 9 Dom — ghosted Cs in Deep Pra
 	it('scores the same in the live detector time base (frames stamped at window end)', async () => {
 		const { detected, score } = await lickPracticeTake({ live: true });
 		expect(detected.filter((n) => n.ghost).map((n) => n.midi)).toEqual([61, 61, 60]);
+		// The octave crack folds here too, though the head's span grows by a
+		// whole analyser window when frames are stamped at their end.
+		expect(detected[0].midi).toBe(62);
+		expect(detected[0].onsetTime).toBeCloseTo(0.093, 3);
+		expect(detected.some((n) => n.midi === 50)).toBe(false);
 		expect(score.notesHit).toBe(7);
 		for (const nr of score.noteResults) expect(nr.missed).toBe(false);
 		// Measured 0.828.

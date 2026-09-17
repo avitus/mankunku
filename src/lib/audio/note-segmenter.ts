@@ -21,7 +21,7 @@ const BLEED_LATENCY_MAX = 0.200;
 
 import type { DetectedNote } from '$lib/types/audio';
 import type { PitchReading } from './pitch-detector';
-import { WARMUP_FRAMES } from './pitch-frame';
+import { OCTAVE_CONFIRM_FRAMES, WARMUP_FRAMES } from './pitch-frame';
 
 /**
  * Warmup frames (emitted during the octave stabilizer's warmup window) are
@@ -809,29 +809,88 @@ function splitByPitchChange(
  */
 function rawMidiMatchFraction(readings: PitchReading[], target: number): number {
 	if (readings.length === 0) return 0;
+	return rawMidiMatchCount(readings, target) / readings.length;
+}
+
+/** Number of readings whose RAW (pre-stabilization) MIDI is `target`. */
+function rawMidiMatchCount(readings: PitchReading[], target: number): number {
 	let matches = 0;
 	for (const r of readings) {
 		const rawMidi = Math.round(12 * Math.log2(r.frequency / 440) + 69);
 		if (rawMidi === target) matches++;
 	}
-	return matches / readings.length;
+	return matches;
 }
 
 /** Threshold for raw-frequency-match collapse — see collapseOctaveArtifacts. */
 const OCTAVE_ARTIFACT_RAW_MATCH = 0.25;
 
 /**
+ * Whether `cur` is an attack that cracked into the octave of the sub-segment
+ * `next` that follows it: the octave stabilizer never CONFIRMED `cur`'s pitch,
+ * and the raw pick then sat in `next`'s octave on more frames than it ever sat
+ * in `cur`'s.
+ *
+ * A confirmation is a frame past the warmup window whose raw pick is the
+ * pitch. The other frames reported on it are not: a warmup frame is the raw
+ * pick passed straight through, and a frame the stabilizer holds on the old
+ * octave after the raw pick has moved is its inertia, not the audio. The
+ * stabilizer asks `OCTAVE_CONFIRM_FRAMES` frames of any octave change before
+ * it believes it, and a pitch it never confirmed that often is the attack's,
+ * not the line's.
+ *
+ * Both octaves are measured in raw-pick frames rather than span, which is what
+ * sounded: a span would credit the crack with the lead-in between its onset
+ * and the horn and with the inertia frames, and it depends on the time base —
+ * the live detector stamps frames at window END while onsets keep their own
+ * times, which lengthens a head sub by a whole analyser window.
+ */
+function isUnconfirmedOctaveCrack(cur: SubSegment, next: SubSegment): boolean {
+	let confirmed = 0;
+	for (const r of cur.readings) {
+		if (r.warmup) continue;
+		if (Math.round(12 * Math.log2(r.frequency / 440) + 69) !== cur.primaryMidi) continue;
+		if (++confirmed >= OCTAVE_CONFIRM_FRAMES) return false;
+	}
+	const crack = rawMidiMatchCount(cur.readings, cur.primaryMidi);
+	const settled =
+		rawMidiMatchCount(cur.readings, next.primaryMidi) + rawMidiMatchCount(next.readings, next.primaryMidi);
+	return settled > crack;
+}
+
+/**
  * Merge sub-segments whose primaryMidi is exactly ±12 semitones from a
  * longer neighbor's. Catches McLeod subharmonic glitches at legato
  * transitions and during sustained-note pitch bends.
  *
- * A sub merges into a longer ±12 neighbor when EITHER:
+ * A sub merges into a ±12 neighbor when ANY of:
  *   1. it's shorter than MIN_DURABLE_SUB_DURATION (handles attack-time
  *      glitches that resolve quickly), OR
  *   2. ≥ OCTAVE_ARTIFACT_RAW_MATCH of its raw frequencies match the
  *      neighbor's pitch (handles longer glitches where the stabilizer
  *      locked on a subharmonic while the underlying audio drifted between
- *      the fundamental and the half-frequency).
+ *      the fundamental and the half-frequency), OR
+ *   3. it is followed by that neighbor, the stabilizer never confirmed its
+ *      octave, and the neighbor's octave sounded longer
+ *      (`isUnconfirmedOctaveCrack`) — an attack that cracks into the
+ *      neighboring octave before settling on the note it continues as.
+ *      Rules 1 and 2 need the neighbor to be longer in span; rule 3 measures
+ *      both in frames instead.
+ *
+ * Rule 3 is the 2026-09-16 "sharp-9-flat-9-dom" first D: a tenor D4 whose
+ * attack speaks as D3 for ~110 ms before the octave vent takes over, with no
+ * new attack at the switch. The stabilizer resets at the attack, so the D3 is
+ * five warmup frames, two confirmed ones and the two its inertia holds after
+ * the raw pick has moved up. Its span runs from the onset (there, the downbeat
+ * click, 50 ms before the horn) to the REPORTED switch, 190 ms, past rule 1,
+ * and two upper frames in nine miss rule 2. Rule 2 folds the same crack when
+ * the head confirms at most one frame, because the two inertia frames are
+ * then a quarter of it — that is how the 2026-08-11 curl-to-the-floor D and
+ * blue-note-climb C were folded (the raw pick jumped inside the warmup window
+ * on both, which confirmed nothing), and rule 3 alone folds both as well.
+ * A slurred leap from a real lower note confirms it: a straight eighth at
+ * 129 BPM holds about nine frames past the warmup, and three are enough to
+ * keep it.
  *
  * Only triggers on exact-octave differences, so genuine short non-octave
  * notes (e.g. grace notes in a real phrase) are preserved.
@@ -851,8 +910,9 @@ function collapseOctaveArtifacts(subs: SubSegment[]): SubSegment[] {
 		if (
 			next &&
 			Math.abs(cur.primaryMidi - next.primaryMidi) === 12 &&
-			next.end - next.start > curDuration &&
-			(isShort || rawMidiMatchFraction(cur.readings, next.primaryMidi) >= OCTAVE_ARTIFACT_RAW_MATCH)
+			((next.end - next.start > curDuration &&
+				(isShort || rawMidiMatchFraction(cur.readings, next.primaryMidi) >= OCTAVE_ARTIFACT_RAW_MATCH)) ||
+				isUnconfirmedOctaveCrack(cur, next))
 		) {
 			subs[i + 1] = {
 				start: cur.start,
