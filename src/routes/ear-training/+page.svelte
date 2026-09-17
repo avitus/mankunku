@@ -15,7 +15,7 @@
 	import { progress, recordAttempt, updateSessionScore, getUnlockContext } from '$lib/state/progress.svelte';
 	import { runScorePipeline } from '$lib/scoring/score-pipeline';
 	import { resolveOnsets, segmentNotes, findReArticulations } from '$lib/audio/note-segmenter';
-	import { trimToPerformance } from '$lib/audio/capture-window';
+	import { durationThroughLastReading, trimToPerformance } from '$lib/audio/capture-window';
 	import { resolveBleedEvidence } from '$lib/audio/bleed-evidence';
 	import { filterBleed } from '$lib/audio/bleed-filter';
 	import { getTodaysTonality, isTonalityUnlocked, dateHash, SCALE_TYPE_NAMES, SCALE_TYPE_TO_SCALE_ID } from '$lib/tonality/tonality';
@@ -534,8 +534,7 @@
 		// recording deliberately runs past the phrase end (grace beats) because
 		// the user starts late by their reaction latency, so the final note can
 		// land after phraseDuration and a phrase-length bound truncates it.
-		const rawLastReading = rawReadings[rawReadings.length - 1];
-		const rawDuration = rawLastReading ? rawLastReading.time + 0.1 : 0;
+		const rawDuration = durationThroughLastReading(rawReadings);
 
 		// Discard the lead-in between arming the capture and the user coming in,
 		// keeping a fixed pre-roll so the first note's attack survives. The

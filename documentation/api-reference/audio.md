@@ -195,7 +195,19 @@ The gate `trimToPerformance` applies first. "Confident" is not "performance": Mc
 
 ### `diagnosticsReplayFrame(source, raw): TrimmedCapture`
 
-The frame /diagnostics replays a saved recording in — the one its own scoring path segmented. `source` is the recording's `metadata.source`; `raw` is a `ReplayResult`. Only ear training trims (live and in the authoritative rescore), so `'ear-training'` goes through `trimToPerformance` with the weak readings; every other source — lick practice, whose close path segments its window untrimmed and ungated — and a record with no metadata (which predates pre-arming, so the trim would be a no-op) come back as given with `offset` 0. Trimming a lick-practice take on the panel moved every time and let the gate and pre-roll change its segmentation whenever the first note landed more than `PERFORMANCE_PREROLL_SECONDS` into the window. The panel adds `offset` to the stored `transportSeconds` to rebuild the click grid, and the diagnostic JSON export stamps it as `audio.captureTrimSeconds` — always 0 for a lick-practice take, so a fixture test replays that take's WAV untrimmed.
+The frame /diagnostics replays a saved recording in — the one its own scoring path segmented. `source` is the recording's `metadata.source`; `raw` is a `ReplayResult`.
+
+| `source` | Trim + gate | Duration | Why |
+|---|---|---|---|
+| `'ear-training'` | `trimToPerformance`, weak readings included | the blob's, less the trim | what the authoritative blob rescore segments |
+| `'lick-practice'` | none, `offset` 0 | `durationThroughLastReading(readings)` | the close path segments its window untrimmed and ungated, and has no rescore |
+| none (no metadata) | none, `offset` 0 | the blob's | such a record predates pre-arming, so it is an ear-training take the trim would not move |
+
+Trimming a lick-practice take on the panel moved every time and let the gate and pre-roll change its segmentation whenever the first note landed more than `PERFORMANCE_PREROLL_SECONDS` into the window; the blob's length stretched its last note's segment to wherever the recorder stopped. The panel adds `offset` to the stored `transportSeconds` to rebuild the click grid, and the diagnostic JSON export stamps `offset` as `audio.captureTrimSeconds` and the duration as `audio.duration` — for a lick-practice take, 0 and the through-last-reading duration, so a fixture test replays that take's WAV untrimmed over that duration.
+
+### `durationThroughLastReading(readings): number`
+
+The duration a live capture is segmented over: the last reading's time plus `LAST_READING_TAIL_SECONDS` (0.1), or 0 with no readings. Not the phrase length — the player comes in late by their reaction time, so the final note can land after the phrase end — and not the blob's length, which runs to wherever the window closed. Ear training's live path and lick practice's close path both use it, and so does `diagnosticsReplayFrame` for lick-practice recordings.
 
 ### `rebaseToAnchor(readings, workletOnsets, anchorOffset, tolerance?): RebasedCapture`
 

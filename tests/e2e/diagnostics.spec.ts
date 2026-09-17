@@ -1,5 +1,15 @@
+import { readFileSync } from 'node:fs';
 import { test, expect } from './fixtures/test';
 import { seedOnboardedAnonymous } from './fixtures/storage';
+
+/** Length of the synthesized take the replay test seeds. */
+const BLOB_SECONDS = 3.5;
+
+/** The parts of the /diagnostics JSON export the replay test reads. */
+interface DiagnosticsExport {
+	audio: { duration: number; captureTrimSeconds: number };
+	detection: { readings: Array<{ time: number }> };
+}
 
 /**
  * /diagnostics — the saved-recordings inspector. A fresh browser has no
@@ -46,7 +56,7 @@ test.describe('diagnostics', () => {
 		);
 	});
 
-	test('replays each recording in its own scoring frame — only ear training is trimmed', async ({
+	test('replays each recording in its own scoring frame — trim and duration per source', async ({
 		page,
 		browserName
 	}) => {
@@ -57,12 +67,14 @@ test.describe('diagnostics', () => {
 		await page.goto('/diagnostics');
 		await expect(page.getByText('showing 0 recordings')).toBeVisible();
 
-		// The same take saved under both sources: 1.5 s of silence, then a
-		// second of C4 — a first note well past the 0.35 s pre-roll, so
-		// `trimToPerformance` moves it and a lick-practice window does not.
-		await page.evaluate(async () => {
+		// The same take saved under both sources: 1.5 s of silence, a second of
+		// C4, then a second of silence. The note starts well past the 0.35 s
+		// pre-roll, so `trimToPerformance` moves it and a lick-practice window
+		// does not; the trailing silence separates the blob's duration from
+		// the one lick practice's close path segments over.
+		await page.evaluate(async (blobSeconds) => {
 			const rate = 44100;
-			const samples = Math.round(2.5 * rate);
+			const samples = Math.round(blobSeconds * rate);
 			const wav = new DataView(new ArrayBuffer(44 + samples * 2));
 			const ascii = (at: number, s: string) => {
 				for (let i = 0; i < s.length; i++) wav.setUint8(at + i, s.charCodeAt(i));
@@ -80,7 +92,7 @@ test.describe('diagnostics', () => {
 			wav.setUint16(34, 16, true);
 			ascii(36, 'data');
 			wav.setUint32(40, samples * 2, true);
-			for (let i = Math.round(1.5 * rate); i < samples; i++) {
+			for (let i = Math.round(1.5 * rate); i < Math.round(2.5 * rate); i++) {
 				wav.setInt16(44 + i * 2, Math.round(0.5 * 0x7fff * Math.sin((2 * Math.PI * 261.63 * i) / rate)), true);
 			}
 			const blob = new Blob([wav.buffer], { type: 'audio/wav' });
@@ -125,24 +137,34 @@ test.describe('diagnostics', () => {
 			} finally {
 				db.close();
 			}
-		});
+		}, BLOB_SECONDS);
 		await page.getByRole('button', { name: 'Refresh' }).click();
 		await expect(page.getByText('showing 2 recordings')).toBeVisible();
 
-		/** Expand one row and read the replayed duration off its summary line. */
-		const replayedSeconds = async (source: string): Promise<number> => {
+		/** Expand one row and read its diagnostics JSON export. */
+		const exportFor = async (source: string): Promise<DiagnosticsExport> => {
 			await page.getByRole('button', { name: new RegExp(`Late entry ${source}`) }).click();
-			const summary = page.getByText(/\d+ readings · \d+ weak · [\d.]+s · \d+ Hz/);
-			await expect(summary).toBeVisible();
-			const match = (await summary.textContent())?.match(/· ([\d.]+)s ·/);
-			return Number(match?.[1]);
+			const [download] = await Promise.all([
+				page.waitForEvent('download'),
+				page.getByRole('button', { name: 'Download diagnostics' }).click()
+			]);
+			return JSON.parse(readFileSync(await download.path(), 'utf8')) as DiagnosticsExport;
 		};
 
-		// Lick practice segments its window untrimmed: the whole blob.
-		expect(await replayedSeconds('lick-practice')).toBeCloseTo(2.5, 2);
-		// Ear training trims the lead-in down to the pre-roll.
-		const earSeconds = await replayedSeconds('ear-training');
-		expect(earSeconds).toBeGreaterThan(0.5);
-		expect(earSeconds).toBeLessThan(2);
+		// Lick practice: untrimmed, over its close path's duration — a tail
+		// past the last reading, not the blob's length.
+		const lick = await exportFor('lick-practice');
+		const lickReadings = lick.detection.readings;
+		expect(lick.audio.captureTrimSeconds).toBe(0);
+		expect(lickReadings[0].time).toBeGreaterThan(1.2);
+		expect(lick.audio.duration).toBeCloseTo(lickReadings[lickReadings.length - 1].time + 0.1, 9);
+		expect(lick.audio.duration).toBeLessThan(BLOB_SECONDS - 0.5);
+
+		// Ear training: trimmed to the 0.35 s pre-roll, over the blob's
+		// duration less the trim, as its authoritative rescore segments.
+		const ear = await exportFor('ear-training');
+		expect(ear.audio.captureTrimSeconds).toBeGreaterThan(1);
+		expect(ear.detection.readings[0].time).toBeCloseTo(0.35, 9);
+		expect(ear.audio.duration).toBeCloseTo(BLOB_SECONDS - ear.audio.captureTrimSeconds, 2);
 	});
 });

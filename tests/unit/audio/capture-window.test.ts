@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
 	trimToPerformance,
 	diagnosticsReplayFrame,
+	durationThroughLastReading,
+	LAST_READING_TAIL_SECONDS,
 	rebaseToAnchor,
 	dropSubFloorRuns,
 	PERFORMANCE_PREROLL_SECONDS,
@@ -326,16 +328,50 @@ describe('diagnosticsReplayFrame', () => {
 		expect(frame.readings).toBe(raw.readings);
 		expect(frame.weakReadings).toBe(raw.weakReadings);
 		expect(frame.workletOnsets).toBe(raw.onsets);
-		expect(frame.duration).toBe(raw.duration);
 	});
 
-	it('leaves a recording with no stated source untrimmed', () => {
+	it('segments a lick-practice take over its close path\'s duration, not the blob\'s', () => {
+		// The close path ends the window a tail past the last reading; the
+		// blob runs on to wherever the recorder stopped, and the last note's
+		// segment ends at whichever the segmenter is handed.
+		const raw = lateEntryReplay();
+		const last = raw.readings[raw.readings.length - 1];
+		expect(raw.duration).toBeGreaterThan(last.time + LAST_READING_TAIL_SECONDS);
+
+		const frame = diagnosticsReplayFrame('lick-practice', raw);
+
+		expect(frame.duration).toBe(last.time + LAST_READING_TAIL_SECONDS);
+		expect(frame.duration).toBe(durationThroughLastReading(raw.readings));
+	});
+
+	it('gives a lick-practice take with no readings no duration, as its close path does', () => {
+		const frame = diagnosticsReplayFrame('lick-practice', { ...lateEntryReplay(), readings: [] });
+		expect(frame.duration).toBe(0);
+	});
+
+	it('leaves a recording with no stated source untrimmed, over the blob\'s duration', () => {
 		const raw = lateEntryReplay();
 		for (const source of [null, undefined]) {
 			const frame = diagnosticsReplayFrame(source, raw);
 			expect(frame.offset).toBe(0);
 			expect(frame.readings).toBe(raw.readings);
+			expect(frame.duration).toBe(raw.duration);
 		}
+	});
+});
+
+describe('durationThroughLastReading', () => {
+	it('ends a live capture one tail past its last reading', () => {
+		const readings = [makeReading(60, 0.2), makeReading(62, 0.73)];
+		expect(durationThroughLastReading(readings)).toBe(0.73 + LAST_READING_TAIL_SECONDS);
+	});
+
+	it('is zero for a capture with no readings', () => {
+		expect(durationThroughLastReading([])).toBe(0);
+	});
+
+	it('keeps the tail at the 0.1 s the scored flows were tuned with', () => {
+		expect(LAST_READING_TAIL_SECONDS).toBe(0.1);
 	});
 });
 

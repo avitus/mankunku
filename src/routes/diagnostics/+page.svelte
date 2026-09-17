@@ -142,9 +142,10 @@
 			if (requestId !== replayRequestId || expandedId !== id) return;
 			// Replay in the frame the recording's own scoring path used, so this
 			// panel reproduces the saved result instead of disagreeing with it:
-			// ear training trims the armed lead-in, lick practice segments its
-			// window untrimmed. `metadata.transportSeconds` always describes the
-			// blob's first sample, hence the offset is added back on top of it.
+			// ear training trims the armed lead-in and segments over the blob,
+			// lick practice segments its window untrimmed, through its last
+			// reading. `metadata.transportSeconds` always describes the blob's
+			// first sample, hence the offset is added back on top of it.
 			const trimmed = diagnosticsReplayFrame(full.metadata?.source, raw);
 			const { readings, weakReadings, workletOnsets: onsets, duration } = trimmed;
 			const sampleRate = raw.sampleRate;
@@ -343,6 +344,8 @@
 					backingBleedOnsets: md?.backingBleedOnsets ?? null
 				},
 				audio: {
+					// The duration the flow segmented over — for lick practice
+					// the window through its last reading, not the WAV's length.
 					duration: replay.duration,
 					sampleRate: replay.sampleRate,
 					/**

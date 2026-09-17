@@ -78,6 +78,7 @@
 	import { getTrickById, transposeTrickContext } from '$lib/tricks';
 	import { resolveOnsets, segmentNotes, findReArticulations } from '$lib/audio/note-segmenter';
 	import { resolveBleedEvidence } from '$lib/audio/bleed-evidence';
+	import { durationThroughLastReading } from '$lib/audio/capture-window';
 	import { filterBleed } from '$lib/audio/bleed-filter';
 	import { concertKeyToWritten } from '$lib/music/transposition';
 	import { createRecorder, type RecorderHandle } from '$lib/audio/recorder';
@@ -1237,8 +1238,8 @@
 		// Segment over the full capture window, not the notional phrase length:
 		// the user starts late by their reaction latency, so the final note can
 		// land after the phrase end and a phrase-length bound truncates it.
-		const lastReading = rebased[rebased.length - 1];
-		const recordingDuration = lastReading ? lastReading.time + 0.1 : 0;
+		// /diagnostics replays this window over the same rule.
+		const recordingDuration = durationThroughLastReading(rebased);
 
 		const baseOnsets = resolveOnsets(workletOnsets, rebased);
 		const bleedOnsets = resolveBleedEvidence({

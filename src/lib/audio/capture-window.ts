@@ -203,20 +203,43 @@ export function trimToPerformance(
 }
 
 /**
+ * Audio a live capture keeps past its last pitch reading, so the final note's
+ * segment does not end on its last frame.
+ */
+export const LAST_READING_TAIL_SECONDS = 0.1;
+
+/**
+ * The duration a live capture is segmented over: through its last reading
+ * plus `LAST_READING_TAIL_SECONDS`, or 0 with no readings.
+ *
+ * Not the notional phrase length — the player starts late by their reaction
+ * latency, so the final note can land after the phrase end and a
+ * phrase-length bound truncates it. Not the blob's length either: the
+ * recorder runs on to wherever the window closed.
+ */
+export function durationThroughLastReading(readings: PitchReading[]): number {
+	const last = readings[readings.length - 1];
+	return last ? last.time + LAST_READING_TAIL_SECONDS : 0;
+}
+
+/**
  * The frame /diagnostics replays a saved recording in: the one its own
  * scoring path segmented.
  *
- * Only ear training trims — live and in the authoritative blob rescore. Lick
- * practice segments its window untrimmed and ungated (one continuous detector,
- * windows opening on a bar line), so trimming its recordings here would move
- * every time on the panel and let the gate or the pre-roll change the
- * segmentation the moment a take's first note lands past the pre-roll. A
- * recording with no stated `source` is replayed untrimmed too: every writer
- * has stamped metadata since 2026-04, months before the capture was pre-armed
- * (2026-08-09), so such a record predates the trim, which would be a no-op on
- * it anyway.
+ * Only ear training trims — live and in the authoritative blob rescore, which
+ * segments over the blob's duration. Lick practice segments its window
+ * untrimmed and ungated (one continuous detector, windows opening on a bar
+ * line), so trimming its recordings here would move every time on the panel
+ * and let the gate or the pre-roll change the segmentation the moment a
+ * take's first note lands past the pre-roll. Its close path has no rescore,
+ * so its duration is the live one, `durationThroughLastReading`, and the
+ * blob's length would stretch the last note's segment to wherever the
+ * recorder stopped. A recording with no stated `source` is replayed as given:
+ * every writer has stamped metadata since 2026-04, months before the capture
+ * was pre-armed (2026-08-09), so such a record is an ear-training take the
+ * trim would not move.
  *
- * `raw` is a `ReplayResult`. The untrimmed frame hands its arrays back as
+ * `raw` is a `ReplayResult`. The untrimmed frames hand its arrays back as
  * given, with `offset` 0.
  */
 export function diagnosticsReplayFrame(
@@ -226,13 +249,17 @@ export function diagnosticsReplayFrame(
 	if (source === 'ear-training') {
 		return trimToPerformance(raw.readings, raw.onsets, raw.duration, undefined, raw.weakReadings);
 	}
-	return {
+	const untrimmed: TrimmedCapture = {
 		readings: raw.readings,
 		weakReadings: raw.weakReadings,
 		workletOnsets: raw.onsets,
 		duration: raw.duration,
 		offset: 0
 	};
+	if (source === 'lick-practice') {
+		return { ...untrimmed, duration: durationThroughLastReading(raw.readings) };
+	}
+	return untrimmed;
 }
 
 /**

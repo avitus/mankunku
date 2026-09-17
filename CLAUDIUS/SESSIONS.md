@@ -3856,3 +3856,24 @@ comments."
 - Left as is, noted: lick practice segments with
   `lastReading.time + 0.1` as its duration, and the panel uses the blob
   duration, so the last note's length can still differ on the panel.
+
+## 2026-09-16 (later still) — The lick-practice duration on /diagnostics
+
+- Andy: "align the lick-practice duration on the panel too." The panel
+  segmented lick-practice replays over the blob's length. The close path
+  uses last reading + 0.1 s, so the last note's segment ran on to wherever
+  the recorder stopped.
+- The rule is now one function, `durationThroughLastReading` (+
+  `LAST_READING_TAIL_SECONDS`), in `capture-window.ts`. The lick-practice
+  close path, ear training's live path and `diagnosticsReplayFrame` (for
+  `'lick-practice'`) all call it. Ear training's replay still uses the blob
+  duration less the trim, which is what its rescore uses. A record with no
+  metadata keeps the blob duration.
+- TDD: five unit tests went red first (helper missing; a lick-practice take
+  kept the blob's 2.8 s). The e2e now reads the JSON export instead of the
+  summary line. It seeds a 3.5 s take (silence, one second of C4,
+  silence) and checks trim, first reading and duration per source. Against
+  the previous commit it failed: 3.5 s where the rule gives 2.583.
+- Vitest 5212 + 36 expected fail, svelte-check 0/0, diagnostics e2e 5 +
+  1 skip on three engines, and on Chromium diagnostics + ear-training +
+  lick-practice-session 13/13.
