@@ -251,9 +251,18 @@ test.describe('tune practice setup', () => {
 		// to style, as on the settings page.
 		await expect(style).toBeHidden();
 
+		// Freestyle's copy describes what plays, so it has to follow the switch:
+		// "backing only" is a promise of a band. (A pad option's accessible name
+		// is its label plus its sublabel line.)
+		const freestyle = page
+			.getByRole('radiogroup', { name: 'Mode', exact: true })
+			.getByRole('radio', { name: /^freestyle/i });
+		await expect(freestyle).not.toHaveAccessibleName(/backing only/i);
+
 		await backing.click();
 		await expect(backing).toHaveAttribute('aria-checked', 'true');
 		await expect(style).toBeVisible();
+		await expect(freestyle).toHaveAccessibleName(/backing only/i);
 
 		// Checked before navigating: the override must not write the global back.
 		const stored = await page.evaluate(() => {
@@ -365,6 +374,43 @@ test.describe.serial('tune practice session follow-scroll', () => {
 		await expect(page.getByRole('heading', { name: /take complete/i })).toBeVisible({
 			timeout: 10_000
 		});
+	});
+
+	test('freestyle with the backing off does not claim the band was listening', async ({
+		page,
+		browserName,
+		consoleCollector: _consoleCollector
+	}) => {
+		test.skip(
+			browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+			'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device'
+		);
+		test.setTimeout(150_000);
+
+		await seedOnboardedAnonymous(page);
+		await installAudioMock(page);
+		await stubCdnInstrumentSamples(page);
+
+		await page.goto('/tunes/ls-when-the-saints/practice');
+		await expect(page.getByRole('button', { name: /^start$/i })).toBeVisible();
+
+		await page
+			.getByRole('radiogroup', { name: 'Mode', exact: true })
+			.getByRole('radio', { name: /^freestyle/i })
+			.click();
+		await page.getByRole('switch', { name: /backing track this session/i }).click();
+		await setTempoMax(page);
+		await startPracticeSession(page);
+
+		// End with nothing played: the no-match branch of the freestyle summary,
+		// which must not credit a band that never played.
+		await page.getByRole('button', { name: /^end$/i }).click();
+		await expect(page.getByRole('heading', { name: /take complete/i })).toBeVisible({
+			timeout: 10_000
+		});
+		const summary = page.locator('p', { hasText: /no known licks recognized/i });
+		await expect(summary).toBeVisible();
+		await expect(summary).not.toContainText(/band/i);
 	});
 
 	test('chart stays visible through first insertion (Autumn Leaves)', async ({

@@ -4143,3 +4143,13 @@ claimed. Read once per arrival, never in an `$effect`, so the switch cannot
 snap back while the user is looking at it. Added a unit test for the
 practice-again path. 5276 unit tests green, tune-practice e2e 8/8 on
 Chromium, the switch spec green on all three engines, docstring coverage 5/5.
+- Round 2, one Minor and also right: two pieces of copy described what plays
+  and were guarded only by Freestyle mode. The mode pad said *backing only,
+  just solo* with the band switched off, and the freestyle summary credited
+  "the band was listening" after a take with no band. `MODE_OPTIONS` became
+  `$derived` so the sublabel and hover title follow the switch (falling back
+  to what freestyle is either way — no scored windows), and the consolation
+  clause is conditional. Both pinned: an accessible-name assertion on the pad
+  option, and a freestyle take started with the band off and ended
+  immediately, which lands on exactly that summary branch. tune-practice e2e
+  9/9 on Chromium.

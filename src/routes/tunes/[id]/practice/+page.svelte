@@ -172,12 +172,16 @@
 	// the config union and onChange assigns without a cast. Sublabels are kept
 	// short so each row of the setup card fits one line at the page's max
 	// width; the fuller mode descriptions survive as hover titles.
+	// Freestyle's copy is the one that moves: it describes what PLAYS, so with
+	// the band switched off "backing only" promises something that never
+	// arrives. What freestyle actually is either way — no scored windows — is
+	// what the copy falls back to.
 	const MODE_OPTIONS: {
 		value: TunePracticeMode;
 		label: string;
 		sublabel: string;
 		title: string;
-	}[] = [
+	}[] = $derived([
 		{
 			value: 'suggest',
 			label: 'Suggest',
@@ -193,10 +197,14 @@
 		{
 			value: 'freestyle',
 			label: 'Freestyle',
-			sublabel: 'backing only, just solo',
-			title: 'Backing only. Take a solo — known licks earn applause.'
+			sublabel: tunePractice.config.backingTrackEnabled
+				? 'backing only, just solo'
+				: 'no windows, just solo',
+			title: tunePractice.config.backingTrackEnabled
+				? 'Backing only. Take a solo — known licks earn applause.'
+				: 'No insertion windows. Take a solo — known licks earn applause.'
 		}
-	];
+	]);
 	const STRICTNESS_OPTIONS: { value: TunePracticeStrictness; label: string; sublabel: string }[] = [
 		{ value: 'guided', label: 'Guided', sublabel: 'names the lick to play' },
 		{ value: 'standard', label: 'Standard', sublabel: 'names the progression only' },
@@ -1212,8 +1220,11 @@
 		{#if tunePractice.config.mode === 'freestyle'}
 			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4">
 				{#if tunePractice.freestyleMatches.length === 0}
+					<!-- The consolation only lands if there WAS a band. -->
 					<p class="text-sm text-[var(--color-text-secondary)]">
-						No known licks recognized this take — the band was listening, though.
+						No known licks recognized this take{tunePractice.config.backingTrackEnabled
+							? ' — the band was listening, though.'
+							: '.'}
 					</p>
 				{:else}
 					<p class="text-sm text-[var(--color-text-secondary)]">
