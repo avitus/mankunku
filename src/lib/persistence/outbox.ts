@@ -24,6 +24,7 @@ import type { Database } from '$lib/supabase/types';
 import { load, save } from './storage';
 import { getActiveUidOrNull } from './namespace';
 import { getScopeGeneration } from './user-scope';
+import { getUserCoalesced } from '$lib/supabase/get-user';
 
 export type OutboxKind =
 	| 'progress'
@@ -164,7 +165,7 @@ export async function drainOutbox(supabase: SupabaseClient<Database>): Promise<v
 		try {
 			const {
 				data: { user }
-			} = await supabase.auth.getUser();
+			} = await getUserCoalesced(supabase);
 			authedUid = user?.id ?? null;
 		} catch {
 			return; // auth unavailable — try again later

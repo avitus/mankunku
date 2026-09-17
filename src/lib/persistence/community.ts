@@ -36,6 +36,7 @@ import { getScopeGeneration } from './user-scope';
 import { validateAdoptedPhrase } from '$lib/phrases/adopted-phrase-validator';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types';
+import { getUserCoalesced } from '$lib/supabase/get-user';
 
 /**
  * localStorage key holding the set of lick IDs the current user has favorited.
@@ -306,7 +307,7 @@ export async function toggleFavorite(
 	else favorites.add(lickId);
 	saveFavoritesLocal(favorites);
 
-	const { data: { user } } = await supabase.auth.getUser();
+	const { data: { user } } = await getUserCoalesced(supabase);
 	if (!user) {
 		// Revert — no session, no write.
 		if (wasFavorited) favorites.add(lickId);
@@ -362,7 +363,7 @@ export async function stealLick(
 	const steals = getStealsLocal();
 	if (steals.has(lickId)) return true;
 
-	const { data: { user } } = await supabase.auth.getUser();
+	const { data: { user } } = await getUserCoalesced(supabase);
 	if (!user) {
 		console.warn('Cannot steal lick without auth session');
 		return false;
@@ -445,7 +446,7 @@ export async function returnLick(
 	const steals = getStealsLocal();
 	if (!steals.has(lickId)) return true;
 
-	const { data: { user } } = await supabase.auth.getUser();
+	const { data: { user } } = await getUserCoalesced(supabase);
 	if (!user) return false;
 
 	const { error } = await supabase
@@ -494,7 +495,7 @@ export async function initCommunityFromCloud(
 ): Promise<boolean> {
 	const gen = getScopeGeneration();
 	try {
-		const { data: { user } } = await supabase.auth.getUser();
+		const { data: { user } } = await getUserCoalesced(supabase);
 		if (!user) return false;
 		if (gen !== getScopeGeneration()) return false;
 

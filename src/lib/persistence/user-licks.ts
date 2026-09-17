@@ -30,6 +30,7 @@ import {
 } from './lick-practice-store';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database, Json } from '$lib/supabase/types';
+import { getUserCoalesced } from '$lib/supabase/get-user';
 
 const STORAGE_KEY = 'user-licks';
 
@@ -229,7 +230,7 @@ async function reconcileUserLicks(supabase: SupabaseClient<Database>): Promise<b
 	const gen = getScopeGeneration();
 	const {
 		data: { user }
-	} = await supabase.auth.getUser();
+	} = await getUserCoalesced(supabase);
 	if (!user) throw new Error('not authenticated');
 	if (gen !== getScopeGeneration()) return false; // user switched mid-flight
 	const userId = user.id;
