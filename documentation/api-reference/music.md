@@ -389,13 +389,15 @@ interface ChordDisplayModel {
 
 Root and the minor `-` sit full-size on the baseline; everything after them is one superscript run — extensions, Δ, ø, °, +, sus, and a **single** accidental alteration parenthesized (`G⁷⁽♭⁹⁾`, `Dø⁷`, `C-⁷`, `F♯°⁷`). Two or more accidental alterations become `supStack`, one tall paren pair around a vertical column (the renderer draws the parens); word tokens (`alt`, `add9`) append bare — jazz never parenthesizes them. Accidentals are real glyphs; the ASCII stays in `aria`/`title` attributes and editable inputs. The text form returns the input as a bare root when unparseable, so the engraver never drops ink.
 
+**The text form keeps the spelling the text wrote.** A chart's chord text is already spelled for its key (`displayPitchClass` — `G#ø7` under three sharps), and every consumer hands that text to `chordDisplayModelFromText` with no key: NotationDisplay's tspan pass, `chordChartSymbol`, `ChordSymbolText`. The canonical `ChordSymbol` names every root by `PitchClass` (Ab for G#, Db for C# — only F# is sharp-canonical), so building the model from it printed the G#ø7 · C#7b9 of Autumn Leaves on tenor as A♭ø7 · D♭7(♭9) beside a correct F♯- (2026-09-17). Without a `keyContext`, root and bass now come from `chordSymbolSpellings` (the letters as written, glyph accidentals normalised); with one, the canonical root is respelled for that key as before. `chordDisplayModel(cs, keyContext?)` — the structured entry — has no text to read and stays canonical without a key.
+
 ### `chordTspanSpecs(model): ChordTspanSpec[]` · `CHORD_SUP_SIZE_EM` (0.58) · `CHORD_SUP_RISE_EM` (−0.42)
 
 Pure engraving geometry: root and `-` flow on the baseline at size 1; the sup run flows after them at `CHORD_SUP_SIZE_EM`, raised by `CHORD_SUP_RISE_EM` (top near the root's cap height); a stack is a raised column at 0.56 em wrapped in one paren pair sized `0.62 + 0.32·n`, flagged `stackRight` so the renderer places it past the measured right edge of the main line; the bass hangs below at 0.72 em. Each spec carries `{ text, size, dyEm, role, stackRight }` with `role` one of `root | quality | sup | alteration | paren | bass`.
 
 ### Structural parts — `layoutChordParts(text, keyContext?)` · `layoutFromChordSymbol(cs, keyContext?)` · `ChordLayoutParts`
 
-The unprettified split `{ root, quality, alterations[], bass }` (roots and bass respelled for the key via `displayPitchClass`) that the display model is built from. `formatAlterations(alts)` renders the tokens for single-line contexts (one bare, two+ as `(b9,#11)`), `chordDisplayLine(text, keyContext?)` is the compact flat form (`E7(b9,#11)/G`). `CHORD_STACK_GAP_EM` (0.12) and `alterationStackX(mainBox, baseSize, gapEm?)` give the column's left edge from the painted main-line box — callers must place alterations with `text-anchor="start"`, or abcjs's default `middle` centres each one on that point and paints its left half over the quality.
+The unprettified split `{ root, quality, alterations[], bass }` that the display model is built from — from text, root and bass as written unless a `keyContext` respells them via `displayPitchClass`; from a `ChordSymbol`, canonical unless respelled. `formatAlterations(alts)` renders the tokens for single-line contexts (one bare, two+ as `(b9,#11)`), `chordDisplayLine(text, keyContext?)` is the compact flat form (`E7(b9,#11)/G`). `CHORD_STACK_GAP_EM` (0.12) and `alterationStackX(mainBox, baseSize, gapEm?)` give the column's left edge from the painted main-line box — callers must place alterations with `text-anchor="start"`, or abcjs's default `middle` centres each one on that point and paints its left half over the quality.
 
 ---
 
@@ -422,6 +424,7 @@ The canonical chord model. `ChordSymbol` preserves what a lead sheet actually sa
 |---|---|
 | `ChordBaseQuality` | `'maj' \| 'min' \| 'dom' \| 'dim' \| 'halfdim' \| 'aug' \| 'minmaj' \| 'sus4' \| 'sus2'` |
 | `parseChordSymbol(input)` | Text → `ChordSymbol`, or `null` when unparseable |
+| `chordSymbolSpellings(input)` | `{ root, bass }` exactly as the text spells them (`G#` from `G#ø7`, `Ab` from `Db-7/Ab`, `♯`/`♭` normalised to ASCII), or `null` when the text does not parse. Shares `parseChordSymbol`'s tokenizer (root token, `6/9` collapsed before the split, bass after the last slash), so the two cannot disagree about which characters are the root. The display layer's source for a chart's own spelling, which the canonical `PitchClass` root has already lost |
 | `formatChordSymbol(cs)` | `ChordSymbol` → canonical display text |
 | `transposeChordSymbol(symbol, semitones)` | Takes the raw chord TEXT: parses it, transposes root and slash bass by pitch class, re-formats canonically. `undefined` for missing or unparseable text — callers drop the symbol rather than display a wrong-key one |
 | `chordSymbolToQuality(cs)` | Map onto the nearest playable `ChordQuality` for the audio layer |

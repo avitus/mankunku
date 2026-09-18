@@ -4339,3 +4339,45 @@ carry no lick prompts at all.
   green on WebKit. Pushed to dev (rebased onto the reed-reset commit). A task
   chip raised for the flat-spelled ii/V roots the screenshot showed (A♭ø7
   D♭7 in a three-sharp key) — separate, unexamined.
+
+## 2026-09-17 (later) — Sharp chord roots printed flat: the glyph pass re-derived what the text had decided
+
+Andy's report: the Playwright snapshot of Autumn Leaves on tenor (concert G,
+written A) showed the chord row as `… A♭ø7 D♭7(♭9) F♯-`. The minor ii-V-i of
+F# minor with flat roots under three sharps, and the tonic right.
+
+- **Not the chain.** `tuneToAbc(fixture, tenor)` emits `"G#-7b5"`, `"C#7b9"`,
+  `"F#-"` under `K:A` — `displayPitchClass` spells the diatonic sharps
+  exactly as `documentation/api-reference/music.md` says it should. Chord
+  roots never reach `resolveUseFlats` at all; that chain is for NOTES. The
+  root policy is `displayPitchClass` alone, and it was right.
+- **The glyph pass.** `NotationDisplay.structureChordSymbols` rebuilds each
+  abcjs chord text as pretty tspans through `chordDisplayModelFromText(raw)`
+  — no key — which `parseChordSymbol`s the text into the canonical
+  `ChordSymbol` (root a `PitchClass`: Ab for G#, Db for C#) and prints THAT.
+  F# survived only because it is the one sharp-canonical pitch class. Same
+  hole in `chordChartSymbol` (ChordChart hands in a respelled `C#`, the model
+  drew D♭ — its own comment said "no keyContext is passed" as if the text's
+  spelling survived) and `ChordSymbolText`. Regression from `bd5002c`, the
+  pretty chord voice: before it abcjs drew the annotation text as-is.
+- **Fix at the source, one rule.** `chordSymbolSpellings(text)` in
+  chord-symbol.ts returns the root and bass letters as written, off a
+  tokenizer `parseChordSymbol` now shares (root token, `6/9` collapsed, bass
+  after the last slash), so the two cannot drift. `layoutChordParts` and
+  `chordDisplayModelFromText` keep those letters when no key is given; a key
+  still respells the canonical root as before. `chordDisplayModel(cs)` — the
+  structured entry, no text to read — is unchanged.
+- **Tests, red first (14 failed, all for the stated reason):** the helper
+  and its parser-agreement sweep; the text path (sharp root, glyph accidental,
+  slash bass, a flat root stays flat, key context still respells); the chart
+  cell; the Autumn Leaves fixture through `tuneToAbc` → glyph model, asserting
+  every annotation's drawn root equals its written root; the lick-practice
+  row and ChordChart agreeing at the GLYPH level on the C# minor cadence
+  (`D♯ · G♯ · C♯`, was `E♭ · A♭ · D♭`); and an e2e on the detail page reading
+  the `data-chord-part="root"` tspans. Two of my expectations were wrong, not
+  the code: the structural parts and the line form keep the canonical
+  `-7b5`; only the pretty model says `ø7`.
+- Docs: music.md (chord-layout text form, `chordSymbolSpellings` row),
+  tune-system.md (chord roots spelled once, in the text), CLAUDE.md.
+- 5293 unit tests green, svelte-check clean; the tunes e2e on Chromium is
+  the last check before landing on dev.

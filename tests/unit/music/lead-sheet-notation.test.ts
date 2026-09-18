@@ -13,6 +13,10 @@ import { describe, it, expect } from 'vitest';
 import { tuneToAbc } from '$lib/music/tune-notation';
 import { phraseToAbc } from '$lib/music/notation';
 import { leadSheetTuneFor, leadSheetAbcOptions } from '$lib/music/lead-sheet';
+import { chordDisplayModelFromText } from '$lib/music/chord-layout';
+import { displayPitchClass } from '$lib/music/notation';
+import { concertKeyToWritten } from '$lib/music/transposition';
+import { chordChartSymbol } from '$lib/ui/chord-chart-layout';
 import { MINOR_CADENCE } from '$lib/data/progressions';
 import { INSTRUMENTS, type InstrumentConfig } from '$lib/types/instruments';
 import { seg, sheet, section, simpleSheet } from '../../helpers/tune-fixtures';
@@ -327,5 +331,29 @@ describe('lead-sheet row — one spelling chain with the lick chart', () => {
 		// the note above was judged against — not Eb · Ab · Db.
 		const chords = rowAbc(bMinorCadence(), TENOR).split('\n').find((l) => l.startsWith('[V:H]'));
 		expect(chords).toBe('[V:H]"D#-7b5"x8 | "G#7b9"x8 | "C#-7"x8 | x8 |');
+	});
+});
+
+describe('lead-sheet row — the chord GLYPHS agree with the key chart (2026-09-17)', () => {
+	const TENOR = INSTRUMENTS['tenor-sax'];
+
+	// Both surfaces spell the roots through `displayPitchClass` and then hand
+	// the text to `chordDisplayModelFromText` — the row via NotationDisplay's
+	// tspans, ChordChart via `chordChartSymbol`. The glyph pass used to
+	// re-parse a sharp root into its canonical flat, so a C# minor drill drew
+	// E♭ø7 · A♭7(♭9) · D♭-7 over a four-sharp signature.
+	it('prints D♯ø7 · G♯7(♭9) · C♯-7 on both, never E♭ · A♭ · D♭', () => {
+		const p = bMinorCadence();
+		const rowChords = [...rowAbc(p, TENOR).matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+		const rowRoots = rowChords.map((c) => chordDisplayModelFromText(c).root);
+		expect(rowRoots).toEqual(['D♯', 'G♯', 'C♯']);
+
+		// ChordChart's `displayRoot`: written root respelled in the written key, read in the phrase's mode.
+		const writtenKey = concertKeyToWritten(p.key, TENOR);
+		const chartRoots = p.harmony.map(
+			(seg) =>
+				chordChartSymbol(seg, displayPitchClass(concertKeyToWritten(seg.chord.root, TENOR), writtenKey, 'minor')).root
+		);
+		expect(chartRoots).toEqual(rowRoots);
 	});
 });

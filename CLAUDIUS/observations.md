@@ -2461,3 +2461,34 @@ mastery before span. Whenever a selection criterion is a predicate over a
 pool, ask what the pool is in every caller before trusting the predicate.
 Also: a test pool that is small enough to reason about is small enough to
 hide this.
+
+## 2026-09-17 (later) — A canonical model is lossy in exactly one direction
+
+The chord bug was not in the spelling policy. The policy did its job and
+wrote `G#ø7` into the text. What lost the sharp was a later layer that
+parsed the text back into the canonical model — where a root is a
+`PitchClass`, and the pitch class of G# is spelled Ab — and rebuilt the
+display from the model instead of from the text. Round-tripping through a
+canonical form is safe for everything the form keeps and silently wrong for
+everything it normalises away. Spelling is precisely what it normalises
+away, and the only pitch class it keeps sharp, F#, is why the tonic looked
+right beside two wrong chords and the report read as a policy bug.
+
+The tell is structural, and I want to name it so I recognise it next time:
+**a display layer that re-parses display text**. Text that has already been
+through a policy is an output; parsing it back to the input type and
+re-rendering means the policy runs at most once and the canonicalisation
+runs twice. `chordChartSymbol`'s comment even recorded the assumption — "no
+keyContext is passed to the layout" — as if handing in a respelled root were
+enough. It was enough at the boundary it named and lost one line later.
+
+Two smaller things. First, the fix's shape: I did not thread a key context
+into the glyph pass, though that would also have printed G♯. It would have
+run `displayPitchClass` a second time, on a different surface, from inputs
+NotationDisplay would have to be handed — a second copy of a decision, which
+is how the note chain came to disagree with itself on 13% of renders in
+September. Keeping the letters the text carried makes the text the one
+decision. Second, my own test expectations were wrong twice about the same
+thing: I wrote `ø7` where the structural layer keeps `-7b5`. The pretty
+model is a projection of the parts, and I had let the projection stand in
+for the thing it projects — the same mistake as the bug, from the other side.

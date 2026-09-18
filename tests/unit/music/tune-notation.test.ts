@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
 import type { Tune } from '$lib/types/tune';
 import type { Note } from '$lib/types/music';
 import { INSTRUMENTS } from '$lib/types/instruments';
 import { tuneToAbc, tuneToAbcWithMap } from '$lib/music/tune-notation';
+import { chordDisplayModelFromText } from '$lib/music/chord-layout';
 import { seg, section, sheet, simpleSheet } from '../../helpers/tune-fixtures';
 
 const TENOR = INSTRUMENTS['tenor-sax'];
@@ -1113,5 +1115,47 @@ describe('tuneToAbc — pickup bars', () => {
 		const { abc, chordSlotAnchors } = tuneToAbcWithMap(s, undefined, BPL4);
 		expect(abc).toContain('[V:H]"G7"x2 | "CΔ7"x8');
 		expect(chordSlotAnchors[0]).toMatchObject({ sectionIdx: 0, bar: 0, beat: 3, chord: 'G7' });
+	});
+});
+
+describe('chord symbols — the glyph pass prints what the ABC spelled (2026-09-17, Autumn Leaves on tenor)', () => {
+	// The MuseScore import of Autumn Leaves (concert G) on a Bb tenor reads in
+	// A major. The chain spells the minor ii-V-i of the relative minor with the
+	// signature's own sharps — G#-7b5 · C#7b9 · F#- — and NotationDisplay then
+	// rebuilds each annotation as pretty tspans from `chordDisplayModelFromText`.
+	// That rebuild used to re-parse the text into the canonical Ab / Db roots
+	// and draw A♭ø7 · D♭7(♭9) under three sharps, beside a correct F♯-.
+	const autumnLeaves = JSON.parse(
+		readFileSync(
+			new URL('../../fixtures/leadsheets/pdf-vs-musescore/autumn-leaves.musescore-import.json', import.meta.url),
+			'utf8'
+		)
+	) as Tune;
+
+	/** Every distinct chord annotation of the chart, in order of first appearance. */
+	function annotations(abc: string): string[] {
+		return [...new Set([...abc.matchAll(/"([^"]+)"/g)].map((m) => m[1]))];
+	}
+
+	/** The root as the annotation text spells it, prettified: "G#-7b5" → "G♯". */
+	function writtenRoot(text: string): string {
+		return /^[A-G][#b]?/.exec(text)![0].replace('#', '♯').replace('b', '♭');
+	}
+
+	it('spells the ii-V-i of F# minor with the three-sharp signature\'s own sharps', () => {
+		const abc = tuneToAbc(autumnLeaves, TENOR);
+		expect(abc).toContain('\nK:A\n');
+		expect(annotations(abc)).toEqual(
+			expect.arrayContaining(['G#-7b5', 'C#7b9', 'F#-', 'B-7', 'E7', 'AΔ7'])
+		);
+	});
+
+	it('draws every chord root with the spelling its annotation carries', () => {
+		const chords = annotations(tuneToAbc(autumnLeaves, TENOR));
+		const drawn = Object.fromEntries(chords.map((c) => [c, chordDisplayModelFromText(c).root]));
+		expect(drawn).toMatchObject({ 'G#-7b5': 'G♯', 'C#7b9': 'C♯', 'F#-': 'F♯' });
+		for (const c of chords) expect(drawn[c], c).toBe(writtenRoot(c));
+		expect(Object.values(drawn)).not.toContain('A♭');
+		expect(Object.values(drawn)).not.toContain('D♭');
 	});
 });

@@ -1,5 +1,6 @@
 import type { PitchClass } from '$lib/types/music';
 import {
+	chordSymbolSpellings,
 	formatChordSymbol,
 	parseChordSymbol,
 	type ChordSymbol
@@ -49,6 +50,12 @@ export function formatAlterations(alts: readonly string[]): string {
  * Split a canonical display chord string (or parseable raw symbol) into
  * layout parts. Unparseable strings return a single-root fallback so the
  * engraver never drops ink.
+ *
+ * With a `keyContext` the canonical root and bass are respelled for that key.
+ * Without one the text IS the display spelling and its root and bass are kept
+ * as written: the chart already spelled them for its key, and the canonical
+ * model names every root by pitch class, so rebuilding from it printed the
+ * G#ø7 a three-sharp chart wrote as A♭ø7 (2026-09-17, Autumn Leaves on tenor).
  */
 export function layoutChordParts(
 	displayText: string,
@@ -58,7 +65,9 @@ export function layoutChordParts(
 	if (!parsed) {
 		return { root: displayText, quality: '', alterations: [], bass: null };
 	}
-	return layoutFromChordSymbol(parsed, keyContext);
+	if (keyContext) return layoutFromChordSymbol(parsed, keyContext);
+	const written = chordSymbolSpellings(displayText)!;
+	return { ...layoutFromChordSymbol(parsed), root: written.root, bass: written.bass };
 }
 
 /** Layout parts from a structured ChordSymbol (roots re-spelled for key). */
@@ -152,9 +161,13 @@ function displayQualityParts(quality: string): { baselineQuality: '' | '-'; sup:
 	return { baselineQuality: '', sup: quality };
 }
 
-/** Pretty display parts from a structured ChordSymbol. */
+/** Pretty display parts from a structured ChordSymbol (roots respelled for `keyContext`, else canonical). */
 export function chordDisplayModel(cs: ChordSymbol, keyContext?: PitchClass): ChordDisplayModel {
-	const parts = layoutFromChordSymbol(cs, keyContext);
+	return modelFromParts(layoutFromChordSymbol(cs, keyContext));
+}
+
+/** The pretty model of already-split layout parts — the one builder both entry points share. */
+function modelFromParts(parts: ChordLayoutParts): ChordDisplayModel {
 	const { baselineQuality, sup } = displayQualityParts(parts.quality);
 
 	// Accidental alterations get parens (one) or the stack (two+); word
@@ -178,17 +191,18 @@ export function chordDisplayModel(cs: ChordSymbol, keyContext?: PitchClass): Cho
 
 /**
  * Pretty display parts from raw chord text. Unparseable strings return the
- * text as a bare root so the engraver never drops ink.
+ * text as a bare root so the engraver never drops ink. Without a
+ * `keyContext` the root and bass keep the spelling the text wrote
+ * (`layoutChordParts`): the chart already chose it for its key.
  */
 export function chordDisplayModelFromText(
 	displayText: string,
 	keyContext?: PitchClass
 ): ChordDisplayModel {
-	const parsed = parseChordSymbol(displayText);
-	if (!parsed) {
+	if (!parseChordSymbol(displayText)) {
 		return { root: displayText, baselineQuality: '', sup: '', supStack: null, bass: null };
 	}
-	return chordDisplayModel(parsed, keyContext);
+	return modelFromParts(layoutChordParts(displayText, keyContext));
 }
 
 /**

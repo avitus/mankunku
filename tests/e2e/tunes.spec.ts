@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { test, expect } from './fixtures/test';
 import { seedOnboardedAnonymous, seedTunes } from './fixtures/storage';
 
@@ -125,4 +128,38 @@ test('key selector re-transposes the chart', async ({ page, consoleCollector: _c
 	// WRITTEN key — chords on screen are always written pitch, never concert).
 	await page.getByRole('button', { name: 'G', exact: true }).click();
 	await expect(page.locator('.abcjs-container svg text').filter({ hasText: 'A-7' }).first()).toBeVisible();
+});
+
+test('a sharp-key chart draws sharp chord roots — G♯ø7 under three sharps, not A♭ø7 (2026-09-17)', async ({ page, consoleCollector: _c }) => {
+	// Autumn Leaves (concert G) on the seeded tenor reads in A major. The ABC
+	// spells the relative minor's ii-V-i as G#-7b5 · C#7b9 · F#-; the pretty
+	// tspan pass used to re-parse those into the canonical Ab / Db roots and
+	// draw A♭ø7 · D♭7(♭9) beside a correct F♯-.
+	const autumnLeaves = JSON.parse(
+		readFileSync(
+			resolve(
+				dirname(fileURLToPath(import.meta.url)),
+				'../fixtures/leadsheets/pdf-vs-musescore/autumn-leaves.musescore-import.json'
+			),
+			'utf8'
+		)
+	);
+	// The beforeEach seed already holds the user book, and `seedStorage` never
+	// overwrites a key that is set — so replace the book from a loaded page.
+	await page.goto('/tunes');
+	await page.evaluate(
+		(sheets) => window.localStorage.setItem('mankunku:user-tunes', JSON.stringify(sheets)),
+		[{ ...autumnLeaves, id: 'e2e-autumn-leaves', source: 'user' }]
+	);
+
+	await page.goto('/tunes/e2e-autumn-leaves');
+	await expect(page.getByRole('heading', { name: 'Autumn Leaves' })).toBeVisible();
+	await expect(page.locator('.abcjs-container svg').first()).toBeVisible();
+
+	const roots = page.locator('.abcjs-container svg text.abcjs-chord tspan[data-chord-part="root"]');
+	await expect.poll(() => roots.count()).toBeGreaterThan(0);
+	const drawn = [...new Set(await roots.allTextContents())].sort();
+	expect(drawn).toEqual(expect.arrayContaining(['G♯', 'C♯', 'F♯']));
+	expect(drawn).not.toContain('A♭');
+	expect(drawn).not.toContain('D♭');
 });
