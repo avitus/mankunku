@@ -4153,3 +4153,51 @@ Chromium, the switch spec green on all three engines, docstring coverage 5/5.
   option, and a freestyle take started with the band off and ended
   immediately, which lands on exactly that summary branch. tune-practice e2e
   9/9 on Chromium.
+
+## 2026-09-17 (evening) — Blues Curl Up in Bb: the tongued Db pair merged
+
+Andy's ear-training take of "Blues Curl Up" (bc-041_Bb, 100 BPM, tenor,
+metronome on; the diagnostic's own stamp is 2026-09-18 UTC) saved 2 of 3,
+0.570 "fair": Bb3, then ONE 2.91 s Db4, with the second Db marked MISSED. The
+offline replay reproduced the saved notes and score exactly.
+
+- The WAV settles what happened. Clicks sound at 0.86 / 1.46 / 2.06 s after
+  the trim (HF bursts ~20× the floor). The player tongued the second Db
+  ~115 ms after the beat-3 click, the same lag as every other attack on the
+  take. The raw envelope dips 0.59× over ~50 ms at 1.57 s and recovers. Pitch
+  tracking never drops a frame.
+- Every tier missed it for a different reason. There is no gap, so the gap
+  tiers see nothing. The HF tier's spike is 2.5× against its 3× gate, and
+  that spike is the click. The envelope tier sees the whole dip-and-recover
+  (rmsMin 0.54×, back to 0.9× in 67 ms) but needs a corroborator: tongue
+  noise measured 1.86× (gate 2.0) and the pitch wobble 0.057 st (gate
+  0.08). The shape tier finds the reed reset (0.958 on a 0.988 baseline,
+  located at 1.575 s, the dip's floor) but refuses it on SHAPE_MIN_SUSTAIN,
+  since it exists for tongues with no energy evidence.
+- Fix: `resetsReed` is the envelope tier's third corroborator — a shallow
+  shape break inside the dip, judged by the shape tier's own constants
+  (clean baseline, ≥ SHAPE_MIN_DROP, not under SHAPE_MIN_PERIODICITY), every
+  span frame measurable. No new thresholds.
+- Corpus survey: I temporarily instrumented the envelope tier and listed every
+  dip that passes dip+recovery, across all 36 WAVs and the saved-JSON
+  readings. There were three uncorroborated ones. Blue Monk's opening G has
+  no shape drop at all. Sharp-9's D re-blooming after its ghost hole is DEEP
+  (0.842). The new take is the only one to flip. Full suite: 5285 passed
+  + 36 expected fails, the same pins as before, and `npm run check` is clean
+  once the worktree's missing `.env` public keys are supplied.
+- Tests: the fixture pair is in the corpus. pitch-replay has a describe with
+  an evidence test (the margins the fix relies on), the split, the score
+  (0.570 → 0.968, perfect, 3/3) and a live time-base check (0.982).
+  `replayEarTrainingTake` gained an optional `live` restamp. Three unit tests
+  on the envelope tier: a shallow break splits, a deep one doesn't, and a
+  breathy baseline doesn't. The dip run gained a `rebloom` tail so the shape
+  tier cannot claim the synthetic dip itself; my first version passed
+  without the fix except for the onset position. All four behaviour tests
+  go red with the corroborator line disabled.
+- Found alongside, not a bug on this take: both beat clicks on the loud
+  held Db read SHALLOW shape breaks (0.947, 0.928). The segmenter's comment
+  claimed SHAPE_MIN_PERIODICITY rejects every measured click, and that is no
+  longer true. Only the sustain gate refused them, because the note was
+  falling. On a held or swelling note the click schedule is the last guard,
+  and it is 0.33 s off here. I corrected the comment and pinned
+  `[58, 61, 61]`. It is added to the grid-drift record.

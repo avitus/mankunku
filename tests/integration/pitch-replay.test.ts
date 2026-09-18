@@ -2255,10 +2255,32 @@ describe('pitch replay regression: pent run, metronome click on the held G (2026
  * re-articulations → segment. Every fixture block below shares it; the
  * `segmentNotes` positional arguments live in exactly one place.
  */
-async function replayEarTrainingTake(file: string, transportSeconds: number, tempo: number) {
+async function replayEarTrainingTake(
+	file: string,
+	transportSeconds: number,
+	tempo: number,
+	opts: { live?: boolean } = {}
+) {
 	const wav = loadWavFixture(file);
 	const raw = await replayFromAudioBuffer(makeFakeAudioBuffer(wav.channel, wav.sampleRate));
-	const trimmed = trimToPerformance(raw.readings, raw.onsets, raw.duration, undefined, raw.weakReadings);
+	// `live` moves each frame from its window start to its window end, as the
+	// live detector stamps it, carrying `shapeBreakAt` with it.
+	const window = 4096 / 44100;
+	const restamp = (r: PitchReading): PitchReading =>
+		opts.live
+			? {
+					...r,
+					time: r.time + window,
+					...(r.shapeBreakAt !== undefined ? { shapeBreakAt: r.shapeBreakAt - window } : {})
+				}
+			: r;
+	const trimmed = trimToPerformance(
+		raw.readings.map(restamp),
+		raw.onsets,
+		raw.duration,
+		undefined,
+		raw.weakReadings.map(restamp)
+	);
 	const bleedOnsets = getMetronomeBleedOnsets(
 		transportSeconds + trimmed.offset,
 		tempo,
@@ -3244,6 +3266,141 @@ describe('pitch replay regression: Sharp 9 Flat 9 Dom — ghosted Cs in Deep Pra
 		expect(detected.some((n) => n.ghost)).toBe(false);
 		expect(detected.some((n) => n.midi === 60 || n.midi === 61)).toBe(false);
 		expect(score.notesHit).toBeLessThan(9);
+	});
+});
+
+/**
+ * "Blues Curl Up" (bc-041_Bb) in concert Bb at 100 BPM on tenor sax,
+ * 2026-09-18, ear training, metronome on, no backing. Bb3 quarter, Db4
+ * quarter, Db4 half; the player tongued the repeated Db and the pair merged
+ * into one 2.91 s Db, with the second scored MISSED (saved 0.570, "fair",
+ * 2 of 3). The replay reproduces the saved notes exactly.
+ *
+ * The tongue sits ~115 ms after the beat-3 click, the same lag as every
+ * other attack on this take (the clicks sound at 0.86 / 1.46 / 2.06 s after
+ * the trim). It never loses pitch tracking, so the gap tiers have nothing to
+ * see. The envelope tier sees all of it: `rmsMin` falls to 0.54× the
+ * trailing level across eight frames and window RMS is back at 0.9× within
+ * 67 ms. The tier then asks for a corroborator to tell a tongue from a
+ * breath pulse, and both of the ones it had fall short. Tongue noise
+ * peaks at 1.86× the run's hfRms median against a 2.0 gate, and only on the
+ * first dip frame, which still carries the click's decaying burst. The
+ * fundamental moves 0.057 st against a 0.08 gate.
+ *
+ * What the tongue does leave is a reed reset: shapeBreak 0.958–0.961 on the
+ * five frames at the floor of the dip, on a 0.988 baseline, every one of
+ * them locating its minimum at 1.575 s (the bottom of the dip), with
+ * hfRms back at baseline. The click's own shape dip (0.947–0.949, located
+ * at 1.476 s) comes 100 ms earlier and ends before the dip begins. The shape
+ * tier finds the reset and rejects it on SHAPE_MIN_SUSTAIN, because it
+ * exists for tongues that leave NO energy evidence and this one dips the
+ * energy. Each tier held half the evidence; the envelope tier now takes a
+ * shallow shape break as its third corroborator. Across the corpus, the only
+ * other uncorroborated dip carries a DEEP break (2026-09-16 sharp-9-flat-9-dom,
+ * 0.842: the D re-blooming after a ghost-note hole), and Blue Monk's breath
+ * pulse has none at all.
+ *
+ * Also on the record, not fixed here: the click grid stamped for this take
+ * runs 0.33 s ahead of the clicks in the audio (predicted 0.526 / 1.126 /
+ * 1.726 s), the open metronome-grid drift. Nothing here depends on the grid:
+ * the envelope tier is click-immune by construction, because a click only
+ * adds energy. The same two clicks on the Db read SHALLOW shape breaks
+ * (0.947 on beat 3, 0.928 on beat 4), inside the shape tier's reed-reset
+ * band, where every click measured before sat deep. Neither splits the note,
+ * because the note's energy is falling at both and the shape tier's
+ * sustain gate refuses them. `[58, 61, 61]` below pins that.
+ */
+describe('pitch replay regression: Blues Curl Up — a tongued Db pair with a reed reset at the envelope floor (concert Bb, 2026-09-18)', () => {
+	const TRANSPORT_SECONDS = 213.4236507936509;
+	const TEMPO = 100;
+	const SWING = 0.6;
+	const FIXTURE = 'recordings/2026-09-18-blues-curl-up.wav';
+
+	const expectedPhrase: Phrase = {
+		id: 'bc-041_Bb',
+		name: 'Blues Curl Up',
+		timeSignature: [4, 4],
+		key: 'Bb',
+		notes: [
+			{ pitch: 58, duration: [1, 4], offset: [0, 1] }, // Bb3
+			{ pitch: 61, duration: [1, 4], offset: [1, 4] }, // Db4
+			{ pitch: 61, duration: [1, 2], offset: [1, 2] }  // Db4
+		],
+		harmony: [],
+		difficulty: { level: 7, pitchComplexity: 11, rhythmComplexity: 3, lengthBars: 1 },
+		category: 'blues',
+		tags: [],
+		source: 'curated'
+	};
+
+	const replayPipeline = () => replayEarTrainingTake(FIXTURE, TRANSPORT_SECONDS, TEMPO);
+
+	it('trims the pre-armed lead-in back to the performance', async () => {
+		const { trimmed } = await replayPipeline();
+		// The saved diagnostic's captureTrimSeconds.
+		expect(trimmed.offset).toBeCloseTo(1.45, 2);
+	});
+
+	it('the tongue leaves an envelope dip with a shallow reed reset at its floor, under both older corroborator gates', async () => {
+		// Documents the evidence the fix relies on, measured on the Db run's
+		// readings across the dip (1.48–1.61 s after the trim).
+		const { trimmed } = await replayPipeline();
+		const run = trimmed.readings.filter((r) => r.midi === 61 && r.time >= 1.05);
+		const median = (xs: number[]) => {
+			const s = [...xs].sort((a, b) => a - b);
+			const m = s.length >> 1;
+			return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+		};
+		const dipStart = run.findIndex((r) => r.time > 1.48);
+		const before = run.slice(dipStart - 8, dipStart);
+		const dip = run.filter((r) => r.time > 1.48 && r.time < 1.61);
+		const level = median(before.map((r) => r.rms));
+		const pitch = median(before.map((r) => r.midiFloat));
+		const hfMedian = median(run.map((r) => r.hfRms ?? 0));
+		const shapeBaseline = median(run.map((r) => r.shapeBreak ?? 1));
+
+		expect(Math.min(...dip.map((r) => r.rmsMin ?? Infinity)) / level).toBeLessThan(0.56);
+		expect(Math.max(...dip.map((r) => (r.hfRms ?? 0) / hfMedian))).toBeLessThan(1.9);
+		expect(Math.max(...dip.map((r) => Math.abs(r.midiFloat - pitch)))).toBeLessThan(0.06);
+		expect(shapeBaseline).toBeGreaterThan(0.985);
+		const floorShape = Math.min(...dip.map((r) => r.shapeBreak ?? 1));
+		expect(floorShape).toBeGreaterThan(0.955);
+		expect(floorShape).toBeLessThan(0.962);
+		const deepest = dip.find((r) => r.shapeBreak === floorShape)!;
+		expect(deepest.time + (deepest.shapeBreakAt ?? 0)).toBeCloseTo(1.575, 2);
+	});
+
+	it('splits the tongued Db pair (saved: one 2.91 s Db)', async () => {
+		const { detected } = await replayPipeline();
+		expect(detected.map((n) => n.midi)).toEqual([58, 61, 61]);
+		expect(detected[2].onsetTime).toBeGreaterThan(1.55);
+		expect(detected[2].onsetTime).toBeLessThan(1.7);
+	});
+
+	it('scores all three notes hit (saved: 2 of 3, 0.570, fair)', async () => {
+		const { trimmed, detected } = await replayPipeline();
+		const result = runScorePipeline({
+			detected,
+			phrase: expectedPhrase,
+			tempo: TEMPO,
+			transportSeconds: TRANSPORT_SECONDS + trimmed.offset,
+			swing: SWING,
+			bleedFilterEnabled: false
+		});
+
+		for (const nr of result.chosen.noteResults) {
+			expect(nr.missed).toBe(false);
+			expect(nr.extra).toBe(false);
+		}
+		expect(result.chosen.notesHit).toBe(3);
+		expect(result.chosen.pitchAccuracy).toBe(1);
+		// Measured 0.968 (rhythm 0.92).
+		expect(result.chosen.overall).toBeGreaterThan(0.9);
+	});
+
+	it('splits the pair the same way in the live detector time base (frames stamped at window end)', async () => {
+		const { detected } = await replayEarTrainingTake(FIXTURE, TRANSPORT_SECONDS, TEMPO, { live: true });
+		expect(detected.map((n) => n.midi)).toEqual([58, 61, 61]);
 	});
 });
 

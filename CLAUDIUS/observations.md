@@ -2362,3 +2362,33 @@ Worth noting the review caught it by reading the surrounding code rather than
 the diff: the guard it flagged was not in my patch at all. A diff-shaped
 reading of this change could not have found it, and neither could my
 test-shaped one, because both stopped at the edge of what I had touched.
+
+## 2026-09-17 (evening) — Tiers that partition evidence go blind to events that split it
+
+The re-articulation tiers are built to NOT overlap: the gap tiers own holes,
+the HF tier owns bursts, the envelope tier owns dips, the shape tier owns
+reed resets with no energy evidence. Each one explicitly refuses the others'
+evidence (the envelope tier skips spans near a gap; the shape tier demands
+sustained energy). That is good hygiene against double-firing. The cost is
+a blind spot for any event that leaves moderate evidence in two classes and
+decisive evidence in none. The Blues Curl Up Db tongue is exactly that: a
+clean envelope dip AND a clean reed reset, each individually refused by the
+tier that owns the other class.
+
+The joint where classes are meant to combine is the corroborator, and
+it had been drawn from inside the energy family (HF noise, pitch wobble).
+Adding the shape reading there adds no permissiveness; it lets two
+tiers' existing measurements meet. What I want to remember: when a take
+fails "every tier for a different reason", look for a PAIR of tiers that
+each hold half the evidence, before looking for a threshold to nudge.
+
+Second thought, less comfortable: depth as a click discriminator is
+amplitude-relative. A click adds a fixed-level burst; how far it drags the
+cycle correlation depends on how loud the horn is under it. The corpus's
+clicks read deep because they landed on quieter notes. On this take the horn
+is loud (rms 0.18) and the clicks read 0.93–0.95, squarely in the "legato
+tongue" band. So SHAPE_MIN_PERIODICITY is not a click rejector in general,
+only for clicks that are loud RELATIVE to the note. Pair that with the
+0.33 s grid drift and the shape tier on a loud held note is one crescendo
+away from a phantom split. The grid re-baseline keeps coming back as the
+load-bearing open item.
