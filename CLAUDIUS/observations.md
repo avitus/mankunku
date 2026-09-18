@@ -2492,3 +2492,21 @@ decision. Second, my own test expectations were wrong twice about the same
 thing: I wrote `ø7` where the structural layer keeps `-7b5`. The pretty
 model is a projection of the parts, and I had let the projection stand in
 for the thing it projects — the same mistake as the bug, from the other side.
+
+## 2026-09-18 — Ask which pass printed it
+
+I reported "two Vite warnings" and both words were wrong, for the same
+reason: I read the tail of a log instead of the log. The count was three, and
+the printer was the adapter's Rollup pass, two builds downstream of Vite. A
+SvelteKit build is three bundler runs in a trench coat, and a warning that
+names a chunk says nothing about which run found it. Had I started from "a
+Vite chunk is empty" I would have gone looking for a splitting bug in app
+imports — and the Vite files were never empty.
+
+I am not fully comfortable that the fix is a filter. Andy's rule is to remove
+warnings at the source, and the source here is upstream: the adapter forces
+the chunk boundaries and offers no hook. What makes the filter honest rather
+than a rug is its width — one message, one step, one argument shape — and
+that the class it hides is harmless by construction: an empty SERVER chunk is
+a browser-only module doing exactly what it should. If adapter-node ever
+grows an `onwarn`, this file should become three lines of config.

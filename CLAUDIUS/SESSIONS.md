@@ -4381,3 +4381,29 @@ F# minor with flat roots under three sharps, and the tonic right.
   tune-system.md (chord roots spelled once, in the text), CLAUDE.md.
 - 5293 unit tests green, svelte-check clean; the tunes e2e on Chromium is
   the last check before landing on dev.
+
+## 2026-09-18 — The "two Vite warnings" were three, and not Vite's
+
+Andy asked me to fix the empty-chunk warnings I had flagged the night before.
+
+- **Three, not two.** I had read them off a `tail -12`; the full log has
+  `chunks/env.js` above the two I reported.
+- **Not Vite.** They print after both Vite builds finish, under
+  `> Using @sveltejs/adapter-node`, and the Vite server files are 1–4 KB, not
+  empty. adapter-node re-bundles the server output with Rollup; its
+  `manualChunks` keeps every Vite file as its own chunk (kit #16092, a
+  circular-import fix), and Rollup warns for each one tree-shaking emptied.
+  `wake-lock` is the instructive one: the pages' `onDestroy` still calls
+  `releaseScreenWakeLock`, but with `acquire` unused on the server `held` is
+  a never-reassigned `false`, the function is a proven no-op, the call goes,
+  the chunk empties. `env.js` is SvelteKit's own virtual module.
+- **Fix:** adapter-node is already latest and accepts no Rollup options (it
+  calls `rollup()` with no `onwarn`, so the message lands on `console.warn`).
+  `withoutEmptyChunkWarnings` in `scripts/quiet-empty-chunks.js` wraps the
+  adapter and drops that one message — single string argument, anchored
+  prefix — for the adapter step only, restoring `console.warn` in `finally`.
+  Five unit tests, red first; the wiring test was watched failing with the
+  config unwired. Build log: 3 lines before, 0 after, adapter step otherwise
+  identical. Full suite and svelte-check green.
+- Left alone and flagged: the server build's "chunks are larger than 500 kB"
+  notice — a different warning, a judgment call on a limit, not asked for.
