@@ -955,3 +955,20 @@ export function getTransportSeconds(): number {
 	if (!tone) return 0;
 	return tone.getTransport().seconds;
 }
+
+/**
+ * The transport position AT audio-clock time `contextTime`, and Tone's
+ * lookahead. `getTransportSeconds()` reads the position at `now()`, which is
+ * `currentTime + lookAhead`; this reading carries no lookahead, so a capture
+ * can record how far its stamp ran ahead (capture-timing.ts). Diagnostic
+ * only. Null before Tone loads.
+ */
+export function getTransportClockAt(
+	contextTime: number
+): { secondsAtContextTime: number; lookAhead: number } | null {
+	if (!tone) return null;
+	return {
+		secondsAtContextTime: tone.getTransport().getSecondsAtTime(contextTime),
+		lookAhead: tone.getContext().lookAhead
+	};
+}

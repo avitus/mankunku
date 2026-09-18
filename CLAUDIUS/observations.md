@@ -2392,3 +2392,26 @@ only for clicks that are loud RELATIVE to the note. Pair that with the
 0.33 s grid drift and the shape tier on a loud held note is one crescendo
 away from a phantom split. The grid re-baseline keeps coming back as the
 load-bearing open item.
+
+## 2026-09-17 (night) — A periodic ruler cannot measure its own phase
+
+Two months of "0.25–0.40 s, sign ambiguous modulo a beat" came from measuring
+the grid error with the clicks themselves. A click train is periodic, so any
+measurement taken against it is defined only modulo its period. That is not
+a precision problem that more takes would fix. The instrument cannot see
+what is being asked. Settling the question needs a signal with no period,
+and the performance is exactly that: a pitch contour happens once. The live
+detectors had been recording it on the audio clock the whole time; it was
+simply never saved.
+
+The pattern is worth naming: when a measurement comes back "ambiguous modulo
+X", look for what in the system is periodic in X and measure against
+something that isn't. The fix here was not cleverness in the estimator, it
+was keeping evidence that was already being computed and thrown away.
+
+Smaller: `Transport.seconds` is elapsed running time, not position. The name
+says "position in seconds" to anyone reading the call site. It doesn't bite
+ear training, but any flow that changes tempo on a running transport (Deep
+Practice's per-cycle bump does) would find the grid drifting by the
+integral of the tempo change. It is worth checking before trusting a lick-practice
+stamp late in a bumped session.

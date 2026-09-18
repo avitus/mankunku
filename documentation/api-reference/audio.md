@@ -131,7 +131,11 @@ Whether playback is currently active.
 
 ### `getTransportSeconds(): number`
 
-Get the Transport's current position in seconds. Returns `0` if Tone.js hasn't been loaded.
+Get the Transport's current position in seconds. Returns `0` if Tone.js hasn't been loaded. This is `Transport.seconds`, which Tone reads at `now()` = `currentTime + lookAhead` (0.1 s), and which counts elapsed running time since the transport last started, not musical position.
+
+### `getTransportClockAt(contextTime): { secondsAtContextTime, lookAhead } | null`
+
+Diagnostic only. The transport position AT audio-clock time `contextTime` (`transport.getSecondsAtTime`, so no lookahead), beside Tone's lookahead. Captures record it next to their `getTransportSeconds()` stamp so the lookahead's share of the click-grid error is measured rather than assumed (see capture-timing.ts). Null before Tone loads.
 
 ---
 
@@ -212,6 +216,34 @@ The duration a live capture is segmented over: the last reading's time plus `LAS
 ### `rebaseToAnchor(readings, workletOnsets, anchorOffset, tolerance?): RebasedCapture`
 
 For **scheduled** entrances (record-a-lick — the entrance is the bar-3 downbeat, known in advance). The detectors run from the top of the count-in; once the take ends, this discards the count-in and re-origins everything on the anchor. No reaction time means no preroll — instead `ANCHOR_EARLY_TOLERANCE_SECONDS` (0.15) keeps events slightly **before** the anchor, because an attack played exactly on the downbeat starts sounding before either detector can report it. The tolerance sits above attack-transient scale (~50–80 ms) and below one beat at 240 BPM (250 ms), so the previous count-in click never survives. Events inside the tolerance come out at slightly negative times on purpose; the quantizer clamps them to beat 0. `anchorOffset` is the entrance in the capture's own timebase — the context time Tone hands the bar-3 `transport.schedule` callback (the audible downbeat, not the ~0.1 s-early callback time) minus the detectors' shared epoch. Returns `{ readings, workletOnsets }`.
+
+---
+
+## capture-timing.ts
+
+Diagnostic instrumentation for the OPEN click-grid drift: on pre-armed ear-training takes the click grid built from the capture's transport stamp misses the recorded clicks by 0.25–0.40 s, and the clicks alone can only measure that modulo a beat. Nothing in scoring reads this module.
+
+Each saved take carries a `CaptureTiming` block in `RecordingMetadata.captureTiming` (ear training and lick practice, recordings from 2026-09-17 on):
+
+- `arm`: the arm instant on every clock — `AudioContext.currentTime` (the live detectors' t=0), `performance.now()`, the stamped `transportSeconds` and the lookahead-free `transportSecondsAtContextTime`, `lookAhead`, sample rate, the live analyser window, `baseLatency` / `outputLatency` and `getOutputTimestamp()` where the browser exposes them (read through Tone's context wrapper to the native context).
+- `recorder`: the MediaRecorder's `start()` call and its `start` event, each on both clocks (`RecorderHandle.timing()`).
+- `liveOnsets` / `liveReadings`: the live worklet onsets and the live pitch readings as `[time, midiFloat, rms]`, seconds from the arm instant, stamped at the analyser window's END.
+
+### `snapshotArmTiming(ctx, transportSeconds, transportClock, analyserFftSize, performanceNowMs): ArmTiming`
+
+Call in the same synchronous block that stamps `transportSeconds` and resets the live detectors. Fields a browser does not expose are recorded as `null`.
+
+### `buildCaptureTiming({ arm, recorder, liveOnsets, liveReadings }): CaptureTiming`
+
+Assembles the saved block, compacting live readings.
+
+### `estimateBlobStartOffset(liveReadings, liveWindowSeconds, replayReadings, replayWindowSeconds): BlobStartEstimate | null`
+
+Where the recording's first sample sits relative to the arm instant, measured by sliding the live readings over the recording's UNTRIMMED replay (1 ms steps, ±1 s). A live frame and a replayed frame analysed the same audio when their window centres coincide; the replayed pitch is interpolated between adjacent frames on one pitch class, and the score is the octave-blind pitch distance. A pitch contour is not periodic, so unlike the clicks this has no one-beat ambiguity. Returns `null` with fewer than 20 frames, fewer than two pitch classes held ≥ 5 frames (a held note matches at any lag), or no lag where the streams agree (mean error > 0.5 st). Accurate to a few milliseconds on real audio (pinned on the 2026-09-18 take replayed from two starting samples).
+
+### `predictedGridError(arm, blobStartOffset, tempo)` · `describeCaptureAlignment(timing, replayReadings, replayWindowSeconds, tempo): CaptureAlignment`
+
+The grid error the measured offset implies, observed − predicted: `transportSeconds − transportSecondsAtContextTime − blobStartOffset`, plus the same folded into one beat (`modBeat`, the figure a click survey measures). `describeCaptureAlignment` bundles it with the stamp lead and the recorder's start-call and start-event delays from the arm instant; /diagnostics shows it on the replay panel ("Capture timing") and exports it as `captureAlignment` beside the raw `captureTiming`.
 
 ---
 
@@ -538,6 +570,8 @@ interface RecorderHandle {
   start(): void;
   stop(): Promise<Blob>;
   dispose(): void;
+  /** The latest start() call and the recorder's `start` event, on the audio and page clocks. Null before start(). */
+  timing(): RecorderTiming | null;
 }
 ```
 

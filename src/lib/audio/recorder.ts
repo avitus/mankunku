@@ -4,6 +4,8 @@
  * MediaStreamDestination + MediaRecorder.
  */
 
+import type { RecorderTiming } from './capture-timing';
+
 /** Attenuate raw mic signal (~-8 dB) so it balances with the metronome/playback mix. */
 const MIC_RECORDING_GAIN = 0.4;
 
@@ -14,6 +16,12 @@ export interface RecorderHandle {
 	stop(): Promise<Blob>;
 	/** Disconnect recording nodes from the audio graph. Safe to call multiple times. */
 	dispose(): void;
+	/**
+	 * When the latest `start()` ran and when the recorder's own `start` event
+	 * fired, on the audio and page clocks — diagnostic evidence for where the
+	 * recording's first sample sits (capture-timing.ts). Null before `start()`.
+	 */
+	timing(): RecorderTiming | null;
 }
 
 /**
@@ -49,20 +57,32 @@ export function createRecorder(
 	let mediaRecorder: MediaRecorder | null = null;
 	let chunks: Blob[] = [];
 	let disposed = false;
+	let timing: RecorderTiming | null = null;
+	const now = () => ({ contextTime: audioCtx.currentTime, performanceNowMs: performance.now() });
 
 	return {
 		start() {
 			if (disposed) return;
 			chunks = [];
 			const mimeType = preferredMimeType();
-			mediaRecorder = new MediaRecorder(
+			const recorder = new MediaRecorder(
 				dest.stream,
 				mimeType ? { mimeType } : undefined
 			);
-			mediaRecorder.ondataavailable = (e) => {
+			mediaRecorder = recorder;
+			recorder.ondataavailable = (e) => {
 				if (e.data.size > 0) chunks.push(e.data);
 			};
-			mediaRecorder.start();
+			const started: RecorderTiming = {
+				mimeType: recorder.mimeType || mimeType,
+				startCall: now(),
+				startEvent: null
+			};
+			timing = started;
+			recorder.onstart = () => {
+				started.startEvent = now();
+			};
+			recorder.start();
 		},
 
 		stop(): Promise<Blob> {
@@ -79,6 +99,10 @@ export function createRecorder(
 				};
 				mediaRecorder.stop();
 			});
+		},
+
+		timing() {
+			return timing;
 		},
 
 		dispose() {

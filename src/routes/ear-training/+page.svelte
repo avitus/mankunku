@@ -9,6 +9,7 @@
 	import { settings, getInstrument, getEffectiveHighestNote, saveSettings } from '$lib/state/settings.svelte';
 	import { setMasterVolume, getMasterGain } from '$lib/audio/audio-context';
 	import { createRecorder, type RecorderHandle } from '$lib/audio/recorder';
+	import { buildCaptureTiming, snapshotArmTiming, type ArmTiming } from '$lib/audio/capture-timing';
 	import { concertKeyToWritten } from '$lib/music/transposition';
 	import { session } from '$lib/state/session.svelte';
 	import { decideNext, resolveBoundPhrase } from '$lib/state/ear-training-flow';
@@ -100,6 +101,8 @@
 	let recorderHandle: RecorderHandle | null = null;
 	let awaitingInput = $state(false);
 	let recordingTransportSeconds = 0;
+	/** The clocks at the arm instant, saved with the take for the click-grid investigation (capture-timing.ts). */
+	let armTiming: ArmTiming | null = null;
 	// Synchronous guard against double-start. handlePlay awaits getUserMedia /
 	// instrument load before engineState/isLoadingInstrument flip, so without
 	// this a second click during that window enters handlePlay twice.
@@ -472,7 +475,20 @@
 		// Restart fresh — buffer now has only ambient/user audio
 		pitchDetector?.start();
 		recordingTransportSeconds = playback?.getTransportSeconds() ?? 0;
-		onsetDetector?.reset(micCapture?.context.currentTime ?? 0);
+		const armContextTime = micCapture?.context.currentTime ?? 0;
+		onsetDetector?.reset(armContextTime);
+		// Diagnostic: where this instant sits on every clock the recording's
+		// alignment depends on, taken in the same synchronous block as the
+		// stamp above.
+		armTiming = micCapture
+			? snapshotArmTiming(
+					micCapture.context,
+					recordingTransportSeconds,
+					playback?.getTransportClockAt(armContextTime) ?? null,
+					micCapture.analyser.fftSize,
+					performance.now()
+				)
+			: null;
 
 		// Record the mic + master mix from the same instant, so the blob the
 		// authoritative rescore replays covers the attack too.
@@ -530,6 +546,17 @@
 		stopRecording();
 
 		const rawWorkletOnsets = onsetDetector?.getOnsets() ?? [];
+		// The live detectors' view of the take, untrimmed and on the audio clock
+		// from the arm instant — /diagnostics lines it up against the saved
+		// blob's replay to measure where the blob starts.
+		const captureTiming = armTiming
+			? buildCaptureTiming({
+					arm: armTiming,
+					recorder: recorderHandle?.timing() ?? null,
+					liveOnsets: rawWorkletOnsets,
+					liveReadings: rawReadings
+				})
+			: undefined;
 		// Segment over the full capture, not the notional phrase length: the
 		// recording deliberately runs past the phrase end (grace beats) because
 		// the user starts late by their reaction latency, so the final note can
@@ -669,7 +696,8 @@
 						backingTrackLog: attachedBackingLog,
 						bleedFilterLog: provisionalBleedLog,
 						transportSeconds: transportForRescore,
-						metronomeEnabled: metronomeEnabledForRescore
+						metronomeEnabled: metronomeEnabledForRescore,
+						captureTiming
 					};
 					await saveRecording(sessionId, blob, {
 						metadata: baseMetadata,

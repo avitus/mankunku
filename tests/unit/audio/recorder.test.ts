@@ -16,6 +16,7 @@ interface FakeRecorderInstance {
 	mimeType: string;
 	ondataavailable: DataListener;
 	onstop: (() => void) | null;
+	onstart: (() => void) | null;
 	stop: ReturnType<typeof vi.fn>;
 }
 
@@ -27,6 +28,7 @@ class FakeMediaRecorder {
 	mimeType: string;
 	ondataavailable: DataListener = null;
 	onstop: (() => void) | null = null;
+	onstart: (() => void) | null = null;
 	start = vi.fn(() => {
 		this.state = 'recording';
 	});
@@ -56,6 +58,7 @@ function graph() {
 	const dest = { stream: { id: 'mixed' } };
 	const micGain = { gain: { value: 1 }, connect: vi.fn(), disconnect: vi.fn() };
 	const ctx = {
+		currentTime: 7.5,
 		createMediaStreamDestination: vi.fn(() => dest),
 		createGain: vi.fn(() => micGain)
 	} as unknown as AudioContext;
@@ -120,6 +123,25 @@ describe('createRecorder', () => {
 
 		const again = await rec.stop();
 		expect(again.size).toBe(0);
+	});
+
+	it('times the start call and the recorder\'s start event on both clocks (capture-timing.ts)', () => {
+		const g = graph();
+		const rec = createRecorder(g.mic, g.master, g.ctx);
+		expect(rec.timing()).toBeNull();
+		rec.start();
+		const started = rec.timing();
+		expect(started?.mimeType).toBe('audio/webm;codecs=opus');
+		expect(started?.startCall.contextTime).toBe(7.5);
+		expect(started?.startCall.performanceNowMs).toBeGreaterThan(0);
+		expect(started?.startEvent).toBeNull();
+
+		// The browser fires `start` once recording has actually begun.
+		(g.ctx as unknown as { currentTime: number }).currentTime = 7.9;
+		instances[0].onstart!();
+		const fired = rec.timing();
+		expect(fired?.startEvent?.contextTime).toBe(7.9);
+		expect(fired!.startEvent!.performanceNowMs).toBeGreaterThanOrEqual(fired!.startCall.performanceNowMs);
 	});
 
 	it('start after dispose is a no-op, and dispose is idempotent even when a disconnect throws', () => {

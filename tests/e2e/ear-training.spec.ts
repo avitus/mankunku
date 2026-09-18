@@ -154,3 +154,92 @@ test.describe('ear-training: practice-time counter', () => {
 			.toBeGreaterThan(first);
 	});
 });
+
+/**
+ * A whole ear-training take, Play to saved recording. The mocked mic holds a
+ * steady tone, so the listening window opens, the take starts on the tone and
+ * ends on the phrase's time bound, and the mocked recorder hands back a
+ * fixture WAV that is saved with the take's metadata.
+ *
+ * Pins that the saved take carries the clock evidence the click-grid
+ * investigation reads (capture-timing.ts): the arm instant with the transport
+ * read both ways, the recorder's start call and start event, and the live
+ * detectors' readings on the audio clock.
+ */
+test.describe('ear-training: saved take', () => {
+	test('is saved with its capture timing', async ({
+		page,
+		browserName,
+		consoleCollector: _consoleCollector
+	}: {
+		page: Page;
+		browserName: string;
+		consoleCollector: ConsoleCollector;
+	}): Promise<void> => {
+		// Same limit the lick-practice take spec records: WebKit cannot store a
+		// Blob in IndexedDB in Playwright's ephemeral context.
+		test.skip(browserName === 'webkit', 'WebKit cannot store a Blob in ephemeral IndexedDB');
+		test.skip(
+			browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+			'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device'
+		);
+		test.setTimeout(60_000);
+
+		await seedOnboardedAnonymous(page);
+		await installAudioMock(page, { fixturePath: '2026-09-18-blues-curl-up.wav' });
+		await stubCdnInstrumentSamples(page);
+		await page.goto('/ear-training', { waitUntil: 'networkidle' });
+		await page.locator('[data-tour="play-button"]').click();
+
+		/** The capture timing of the first saved ear-training take, or null while there is none. */
+		const readTiming = () =>
+			page.evaluate(async () => {
+				const db = await new Promise<IDBDatabase>((resolve, reject) => {
+					const req = indexedDB.open('mankunku-audio:anon', 1);
+					req.onupgradeneeded = () => {
+						if (!req.result.objectStoreNames.contains('recordings')) {
+							req.result.createObjectStore('recordings', { keyPath: 'sessionId' });
+						}
+					};
+					req.onsuccess = () => resolve(req.result);
+					req.onerror = () => reject(req.error);
+				});
+				try {
+					const rows = await new Promise<
+						Array<{ metadata: { source?: string; captureTiming?: unknown } | null }>
+					>((resolve, reject) => {
+						const req = db.transaction('recordings', 'readonly').objectStore('recordings').getAll();
+						req.onsuccess = () => resolve(req.result);
+						req.onerror = () => reject(req.error);
+					});
+					const take = rows.find((r) => r.metadata?.source === 'ear-training');
+					return take ? (take.metadata?.captureTiming ?? 'missing') : null;
+				} finally {
+					db.close();
+				}
+			});
+
+		await expect.poll(readTiming, { timeout: 45_000 }).not.toBeNull();
+		const t = (await readTiming()) as {
+			version: number;
+			arm: {
+				transportSeconds: number;
+				transportSecondsAtContextTime: number | null;
+				lookAhead: number | null;
+				liveWindowSeconds: number;
+			};
+			recorder: { startEvent: { contextTime: number } | null } | null;
+			liveReadings: Array<[number, number, number]>;
+		};
+		expect(t).not.toBe('missing');
+		expect(t.version).toBe(1);
+		expect(typeof t.arm.transportSeconds).toBe('number');
+		expect(typeof t.arm.transportSecondsAtContextTime).toBe('number');
+		expect(t.arm.lookAhead).toBeGreaterThan(0);
+		expect(t.arm.liveWindowSeconds).toBeGreaterThan(0.05);
+		expect(t.recorder?.startEvent).not.toBeNull();
+		// The mocked mic's steady tone: the take started on it, so the live
+		// detector read it.
+		expect(t.liveReadings.length).toBeGreaterThan(0);
+	});
+});

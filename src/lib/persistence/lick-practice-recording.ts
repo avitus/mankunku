@@ -18,6 +18,7 @@ import type { Phrase } from '$lib/types/music';
 import type { DetectedNote } from '$lib/types/audio';
 import type { Score, BleedFilterLog } from '$lib/types/scoring';
 import type { BackingTrackLog } from '$lib/audio/backing-track';
+import type { CaptureTiming } from '$lib/audio/capture-timing';
 import { saveRecording, type RecordingMetadata } from './audio-store';
 
 export interface SaveLickPracticeRecordingInput {
@@ -39,6 +40,8 @@ export interface SaveLickPracticeRecordingInput {
 	metronomeEnabled: boolean;
 	/** Recording-relative backing transient onsets (see RecordingMetadata). */
 	backingBleedOnsets?: number[];
+	/** Clock evidence for the window's recording (see RecordingMetadata). */
+	captureTiming?: CaptureTiming;
 	/** Optional Supabase client for cloud sync. */
 	supabase?: SupabaseClient<Database>;
 	/** Authenticated user ID, paired with `supabase`. */
@@ -65,7 +68,8 @@ export async function saveLickPracticeRecording(
 		bleedFilterLog: input.bleedFilterLog,
 		transportSeconds: input.transportSeconds,
 		metronomeEnabled: input.metronomeEnabled,
-		backingBleedOnsets: input.backingBleedOnsets
+		backingBleedOnsets: input.backingBleedOnsets,
+		captureTiming: input.captureTiming
 	};
 	await saveRecording(input.sessionId, input.blob, {
 		metadata,

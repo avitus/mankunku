@@ -4201,3 +4201,56 @@ offline replay reproduced the saved notes and score exactly.
   falling. On a held or swelling note the click schedule is the last guard,
   and it is 0.33 s off here. I corrected the comment and pinned
   `[58, 61, 61]`. It is added to the grid-drift record.
+
+## 2026-09-17 (night) — Capture-timing instrumentation for the click-grid drift
+
+Andy asked what fixing the grid drift would take, then asked for the cause:
+"It feels essential to first understand the root cause of the problem before
+we try to fix old captures." Instrumentation first, no fix.
+
+- Read before building. Tone's source settles one suspicion: `Transport.seconds`
+  is elapsed RUNNING time since the last stop (TickSource.getSecondsAtTime), not
+  musical position, so it drifts from the tick grid whenever the tempo changes
+  on a running transport. Ear training never does that (tempo set once per
+  session, every Play stops and restarts the transport), so it is ruled out.
+  Also ruled out: speaker-to-mic delay (the metronome routes through masterGain,
+  which the recorder taps) and the mic reopening at arm (`ensureMicCapture`
+  returns early). Still standing: the MediaRecorder's start. One clue against
+  it: lick practice creates its recorder identically and measured only the
+  lookahead (+0.08) — one take each side, so undecided.
+- `audio/capture-timing.ts` (pure): `snapshotArmTiming` (audio clock, page
+  clock, stamp and `getSecondsAtTime` transport reads, lookahead, latencies,
+  `getOutputTimestamp`, through Tone's wrapper to the native context),
+  `buildCaptureTiming`, `estimateBlobStartOffset` (slides the live readings over
+  the UNTRIMMED replay, 1 ms steps ±1 s, window-centre alignment, interpolated
+  replay pitch, octave-blind distance, plateau centre; refuses < 20 frames,
+  < 2 held pitch classes, or mean error > 0.5 st), `predictedGridError`
+  (S − P − L, and folded into a beat), `describeCaptureAlignment`.
+- `RecorderHandle.timing()` logs `start()` and the `start` event on both
+  clocks; `playback.getTransportClockAt`. Ear training snapshots at arm and
+  assembles at finish; lick practice at window open / close. Saved as
+  `RecordingMetadata.captureTiming`; /diagnostics shows "Capture timing" on the
+  replay panel and exports `captureTiming` + `captureAlignment`.
+- First cut of the estimator paired nearest frames and was biased ~10 ms on
+  step contours: two detector runs sample on different frame phases, so
+  nearest-frame pairing resolves only to a hop. Interpolating the replayed
+  pitch fixed it; the synthetic contour now glides between notes the way an
+  analysis window blurs a transition. On real audio (the Blues Curl Up WAV
+  replayed from sample 0 and from sample 11038) it lands within 5 ms.
+- Tests: 17 unit tests on the module, one on the recorder, one on the
+  transport read, one on the lick-practice save helper, and three e2e. The
+  e2e cover the /diagnostics measurement on a seeded two-note take, the
+  lick-practice saved take's timing block, and a NEW whole ear-training take.
+  That last one was always possible: the audio mock's 440 Hz oscillator opens a
+  take, and a fixture blob makes it save. Nothing had exercised the ear-training
+  save path end to end before. Each new test was mutated red: centre shift,
+  held-class guard, error ceiling, grid-error sign, native-context fallback,
+  `getSecondsAtTime` → `.seconds`, the onstart handler, the save-helper field,
+  and both routes' metadata field. The touched specs pass on all three engines
+  (WebKit skips the Blob-storing ones, as before). 5305 unit tests green,
+  `npm run check` clean with dummy public env.
+- Next: one real metronome-on ear-training take from Andy, exported from
+  /diagnostics. The JSON then says where the blob starts (sign and size), how
+  much of the error the lookahead explains, and whether the recorder's start
+  event accounts for the rest. Ideally a lick-practice take in the same
+  session too, to settle the contradicting clue.

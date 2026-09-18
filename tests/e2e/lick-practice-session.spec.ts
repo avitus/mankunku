@@ -650,6 +650,46 @@ test.describe('lick-practice session flow', () => {
 		// any were kept, closed whole passes earlier and are in by then.
 		await expect.poll(readTakes, { timeout: 10_000 }).toContain(attemptSessionId);
 		expect.soft(await readTakes(), 'saved lick-practice takes').toEqual([attemptSessionId]);
+
+		// The take carries the clock evidence the click-grid investigation reads
+		// (capture-timing.ts): the window's open instant with the transport read
+		// both ways, the recorder's start call and start event, and the live
+		// readings. The mocked recorder fires its start event, so it is present.
+		const timing = await page.evaluate(async (id) => {
+			if (!id) return null;
+			const db = await new Promise<IDBDatabase>((resolve, reject) => {
+				const req = indexedDB.open('mankunku-audio:anon', 1);
+				req.onsuccess = () => resolve(req.result);
+				req.onerror = () => reject(req.error);
+			});
+			try {
+				const row = await new Promise<{ metadata?: { captureTiming?: unknown } } | undefined>(
+					(resolve, reject) => {
+						const req = db.transaction('recordings', 'readonly').objectStore('recordings').get(id);
+						req.onsuccess = () => resolve(req.result);
+						req.onerror = () => reject(req.error);
+					}
+				);
+				return row?.metadata?.captureTiming ?? null;
+			} finally {
+				db.close();
+			}
+		}, attemptSessionId);
+		const t = timing as {
+			version: number;
+			arm: { transportSeconds: number; transportSecondsAtContextTime: number | null; lookAhead: number | null; liveWindowSeconds: number };
+			recorder: { startCall: { contextTime: number }; startEvent: { contextTime: number } | null } | null;
+			liveReadings: unknown[];
+			liveOnsets: unknown[];
+		} | null;
+		expect.soft(t?.version, 'capture timing saved with the take').toBe(1);
+		expect.soft(typeof t?.arm.transportSeconds, 'stamped transport position').toBe('number');
+		expect.soft(typeof t?.arm.transportSecondsAtContextTime, 'transport position at the audio clock').toBe('number');
+		expect.soft(t?.arm.lookAhead, "Tone's lookahead").toBeGreaterThan(0);
+		expect.soft(t?.arm.liveWindowSeconds, 'live analyser window').toBeGreaterThan(0.05);
+		expect.soft(t?.recorder?.startEvent, 'recorder start event').not.toBeNull();
+		expect.soft(Array.isArray(t?.liveReadings), 'live readings').toBe(true);
+		expect.soft(Array.isArray(t?.liveOnsets), 'live onsets').toBe(true);
 	});
 
 	/**

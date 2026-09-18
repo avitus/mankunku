@@ -82,6 +82,7 @@
 	import { filterBleed } from '$lib/audio/bleed-filter';
 	import { concertKeyToWritten } from '$lib/music/transposition';
 	import { createRecorder, type RecorderHandle } from '$lib/audio/recorder';
+	import { buildCaptureTiming, snapshotArmTiming, type ArmTiming } from '$lib/audio/capture-timing';
 	import { saveLickPracticeRecording } from '$lib/persistence/lick-practice-recording';
 	import {
 		upsertLickPracticeSession,
@@ -293,6 +294,8 @@
 		finalPass: boolean;
 		/** Windows this key gets in the cycle (1, or the lead-sheet passes). */
 		passes: number;
+		/** The clocks at window open, saved with the take for the click-grid investigation (capture-timing.ts). */
+		armTiming: ArmTiming | null;
 	}
 	let currentWindow: RecordingWindow | null = null;
 
@@ -1171,7 +1174,16 @@
 			readingsStartCount: readings.length,
 			weakReadingsStartCount: pitchDetector.getWeakReadings().length,
 			finalPass,
-			passes
+			passes,
+			armTiming: micCapture
+				? snapshotArmTiming(
+						micCapture.context,
+						transportSecondsAtOpen,
+						playback.getTransportClockAt(micCapture.context.currentTime),
+						micCapture.analyser.fftSize,
+						performance.now()
+					)
+				: null
 		};
 
 		// Spin up a recorder that mixes mic + master (metronome + backing)
@@ -1411,6 +1423,17 @@
 					: undefined;
 			const supabaseForSave = supabase;
 			const userIdForSave = user?.id;
+			// The live detectors' view of this window, on the audio clock from
+			// the window's open — /diagnostics lines it up against the blob's
+			// replay to measure where the blob starts.
+			const captureTimingForSave = windowForSave.armTiming
+				? buildCaptureTiming({
+						arm: windowForSave.armTiming,
+						recorder: handle.timing(),
+						liveOnsets: workletOnsets,
+						liveReadings: rebased
+					})
+				: undefined;
 			void handle
 				.stop()
 				.then(async (blob) => {
@@ -1428,6 +1451,7 @@
 						transportSeconds: windowForSave.recordingTransportSeconds,
 						metronomeEnabled: metronomeForSave,
 						backingBleedOnsets: backingOnsetsForSave,
+						captureTiming: captureTimingForSave,
 						supabase: supabaseForSave ?? undefined,
 						userId: userIdForSave
 					});
