@@ -56,8 +56,11 @@ export interface DetectOptions {
 const EPSILON = 1e-9;
 const ZERO: Fraction = [0, 1];
 
-/** Selection priority: most specific shapes first. Shared with `selectNonOverlapping`. */
-const SHAPE_PRIORITY: Record<ChordProgressionType, number> = {
+/**
+ * Selection priority: most specific shapes first. Shared with
+ * `selectNonOverlapping` and the session planner's window selection.
+ */
+export const SHAPE_PRIORITY: Record<ChordProgressionType, number> = {
 	// Five-chord iii-VI-ii-V-I is the most specific shape: it wins ties over the
 	// turnaround and the ii-V-I it embeds. Duration already favours it (4 bars vs
 	// the embedded cadence's ~1½), so this only settles equal-length overlaps.
@@ -118,6 +121,19 @@ export function detectProgressions(
 		const slotRecords: DetectedSlot[] = [];
 
 		for (const slot of shape.slots) {
+			// An optional slot that fails ends the match at the previous slot
+			// instead of rejecting it — restore the cursor and any wrap the
+			// positioning step just committed, since nothing was consumed.
+			const posBefore = pos;
+			const wrappedBefore = wrapped;
+			const fail = (): DetectedProgression | null | 'stop' => {
+				if (!slot.optional || slotRecords.length === 0) return null;
+				pos = posBefore;
+				wrapped = wrappedBefore;
+				return 'stop';
+			};
+			let outcome: DetectedProgression | null | 'stop' = null;
+
 			// Position the cursor at this slot's first segment: exactly contiguous
 			// with the previous slot, or — once, when cyclic — wrapped to the top
 			// of the form after consuming the final segment.
@@ -130,21 +146,35 @@ export function detectProgressions(
 						pos >= order.length &&
 						compareFractions(prevEnd, formEnd) === 0 &&
 						compareFractions(harmony[order[0]].startOffset, ZERO) === 0;
-					if (!canWrap) return null;
+					if (!canWrap) {
+						outcome = fail();
+						if (outcome === 'stop') break;
+						return null;
+					}
 					pos = 0;
 					wrapped = true;
 				}
 			}
-			if (wrapped && pos >= start) return null;
+			if (wrapped && pos >= start) {
+				outcome = fail();
+				if (outcome === 'stop') break;
+				return null;
+			}
 			const first = harmony[order[pos]];
 
 			if (localTonic === null) {
 				localTonic = transposePitchClass(first.chord.root, -slot.rootOffset);
 				if (shape.requireTonicIsTuneKey && localTonic !== tune.key) return null;
 			} else if (pitchClassInterval(localTonic, first.chord.root) !== slot.rootOffset) {
+				outcome = fail();
+				if (outcome === 'stop') break;
 				return null;
 			}
-			if (!slot.qualities.includes(first.chord.quality)) return null;
+			if (!slot.qualities.includes(first.chord.quality)) {
+				outcome = fail();
+				if (outcome === 'stop') break;
+				return null;
+			}
 
 			// Consume the maximal same-chord contiguous run. Coalescing never
 			// crosses the wrap boundary — only advancing to a new slot may wrap.
@@ -164,8 +194,14 @@ export function detectProgressions(
 
 			const runBars =
 				(fractionToFloat(runEnd) - fractionToFloat(first.startOffset)) / barFloat;
-			if (slot.minBars !== undefined && runBars < slot.minBars - EPSILON) return null;
-			if (slot.maxBars !== undefined && runBars > slot.maxBars + EPSILON) return null;
+			if (
+				(slot.minBars !== undefined && runBars < slot.minBars - EPSILON) ||
+				(slot.maxBars !== undefined && runBars > slot.maxBars + EPSILON)
+			) {
+				outcome = fail();
+				if (outcome === 'stop') break;
+				return null;
+			}
 
 			slotRecords.push({
 				templateOffset: slot.templateOffset,

@@ -26,6 +26,8 @@ ii-V-I-major  (2 bars)
 └── short-ii-V-I-major offset [0, 1]
 ```
 
+**Tune windows are sized by the role, not the progression (2026-09-17).** Side B plays the whole template, so the offset only says where the lick starts. In tune practice the same offset picks a *slot* of the detected progression, and the session planner (`state/tune-practice-plan.ts`) makes that slot the window: a chord-quality lick's window is the aligned chord's run, offered only when the chord lasts at least `lengthBars`, drawn as the chord's own vamp band; a phrase-shaped lick's window runs from its aligned bar to the progression's end, stretched to its own length. So a `minor-chord` lick on a long ii-V-i is a 2-bar Minor window on the i, not a 4-bar ii-V-i window with the lick aligned two bars in — the shape that named Cry Me a River at the top of every long cadence in Autumn Leaves. A role whose slot the detection lacks (the tonic of an unresolved ii-V) is not offered at all.
+
 ## Alignment math
 
 Given a session:

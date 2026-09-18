@@ -18,7 +18,7 @@ import {
 	bumpUnlockedKeyCount
 } from '$lib/persistence/lick-practice-store';
 import { MANKUNKU_BLUES } from '$lib/data/tunes/mankunku-blues';
-import { simpleSheet } from '../../helpers/tune-fixtures';
+import { seg, section, sheet, simpleSheet } from '../../helpers/tune-fixtures';
 import { makePhrase } from '../../helpers/lick-builders';
 
 // Mock localStorage (same pattern as tests/unit/lick-practice/persistence.test.ts)
@@ -439,5 +439,90 @@ describe('buildLickMatcherDeps — live store assembly, strictly read-only', () 
 		expect(result.suggestions[0].lickId).toBe(lickId);
 
 		expect(localStorageMock.setItem).not.toHaveBeenCalled();
+	});
+});
+
+describe('suggestLicksForProgression — what the role-window planner needs (2026-09-17)', () => {
+	function unresolvedShortInD(): DetectedProgression {
+		const tune = sheet({
+			key: 'G',
+			sections: [
+				section({
+					bars: 2,
+					harmony: [
+						seg('E', 'min7', [0, 1], [1, 2]),
+						seg('A', '7', [1, 2], [1, 2]),
+						seg('D', 'min7', [1, 1], [1, 1])
+					]
+				})
+			]
+		});
+		const det = detectProgressions(flattenTune(tune), tune, { cyclic: false }).find(
+			(d) => d.type === 'ii-V-I-major'
+		);
+		if (!det || det.slots.length !== 2) throw new Error('fixture should be an unresolved ii-V');
+		return det;
+	}
+
+	it('carries the lick length in bars and its major/minor reading', () => {
+		const twoBarMinor = makePhrase({
+			id: 'l-min-2',
+			category: 'minor-chord',
+			harmony: [
+				{ chord: { root: 'C', quality: 'min7' }, scaleId: 'major.dorian', startOffset: [0, 1], duration: [2, 1] }
+			],
+			difficulty: { level: 20, pitchComplexity: 20, rhythmComplexity: 20, lengthBars: 2 }
+		});
+		const oneBarMajor = makePhrase({ id: 'l-maj-1', category: 'major-chord' });
+		const result = suggestLicksForProgression(
+			detectShortInC(),
+			makeDeps({ licks: [twoBarMinor, oneBarMajor] })
+		);
+		const byId = Object.fromEntries(result.suggestions.map((s) => [s.lickId, s]));
+		expect(byId['l-maj-1'].lengthBars).toBe(1);
+		expect(byId['l-maj-1'].mode).toBe('major');
+		// The short major cadence hosts no minor-chord role; a minor lick sits
+		// on the long one.
+		expect(byId['l-min-2']).toBeUndefined();
+	});
+
+	it('reads a minor lick as minor by its own harmony, not its category', () => {
+		const tune = sheet({
+			key: 'C',
+			sections: [
+				section({
+					bars: 4,
+					harmony: [
+						seg('D', 'min7', [0, 1], [1, 1]),
+						seg('G', '7', [1, 1], [1, 1]),
+						seg('C', 'maj7', [2, 1], [2, 1])
+					]
+				})
+			]
+		});
+		const longC = detectProgressions(flattenTune(tune), tune).find(
+			(d) => d.type === 'ii-V-I-major-long'
+		)!;
+		const minorLick = makePhrase({
+			id: 'l-min',
+			category: 'minor-chord',
+			harmony: [
+				{ chord: { root: 'C', quality: 'min7' }, scaleId: 'major.dorian', startOffset: [0, 1], duration: [1, 1] }
+			]
+		});
+		const result = suggestLicksForProgression(longC, makeDeps({ licks: [minorLick] }));
+		expect(result.suggestions[0].mode).toBe('minor');
+		expect(result.suggestions[0].targetKey).toBe('D');
+	});
+
+	it('offers no suggestion for a role whose slot the detection lacks (unresolved ii-V)', () => {
+		const det = unresolvedShortInD();
+		const lickMaj = makePhrase({ id: 'l-maj', category: 'major-chord' });
+		const lickShort = makePhrase({ id: 'l-short', category: 'short-ii-V-I-major' });
+		const result = suggestLicksForProgression(det, makeDeps({ licks: [lickMaj, lickShort] }));
+		// The I role has nowhere to land — it must not fall back to the ii.
+		expect(result.suggestions.map((s) => s.lickId)).toEqual(['l-short']);
+		expect(result.suggestions[0].insertionOffset).toEqual([0, 1]);
+		expect(result.suggestions[0].targetKey).toBe('D');
 	});
 });

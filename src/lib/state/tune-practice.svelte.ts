@@ -9,7 +9,8 @@ import { changesSheetFor } from '$lib/tunes/changes-sheet';
 import { suggestBarsPerLine } from '$lib/music/chart-layout';
 import type { TuneAbcOptions } from '$lib/music/tune-notation';
 import { tuneToPhraseWithFlat } from '$lib/tunes/to-phrase';
-import { detectProgressions, selectNonOverlapping } from '$lib/tunes/progression-detector';
+import { detectProgressions } from '$lib/tunes/progression-detector';
+import { concertKeyToWritten } from '$lib/music/transposition';
 import {
 	buildLickMatcherDeps,
 	suggestLicksForProgression,
@@ -27,7 +28,6 @@ import {
 import { buildBookIndex, type FreestyleBook } from '$lib/matching/book-index';
 import type { FreestyleMatch } from '$lib/matching/freestyle';
 import { addFractions, compareFractions, subtractFractions } from '$lib/music/intervals';
-import { PROGRESSION_TEMPLATES } from '$lib/data/progressions';
 import {
 	applyInsertionResult,
 	assignSuggestRotation,
@@ -37,6 +37,7 @@ import {
 	headBarsForFlat,
 	resolvePickedSuggestion,
 	windowCandidates,
+	windowLabel,
 	type CueLevel,
 	type InsertionPoint,
 	type InsertionResult,
@@ -242,7 +243,7 @@ export function previewSessionPlan(sheet: Tune, playHead: boolean): SessionPrevi
 		timeSignature: sheet.timeSignature,
 		ppq: 480,
 		head: effectiveHead ? { bars: headBars, mode: formRepeats ? 'filter' : 'shift' } : undefined,
-		detect: (f) => selectNonOverlapping(detectProgressions(f, sheet)),
+		detect: (f) => detectProgressions(f, sheet),
 		match: () => ({ suggestions: [], uncategorized: [] })
 	});
 
@@ -261,13 +262,13 @@ export function previewSessionPlan(sheet: Tune, playHead: boolean): SessionPrevi
 			startBar: ip.notationBarRange.start,
 			endBarExclusive: ip.notationBarRange.endExclusive,
 			timeRange: ip.notationTimeRange,
-			label: PROGRESSION_TEMPLATES[ip.progressionType].shortName,
+			label: ip.bandName,
 			progressionType: ip.progressionType
 		});
 	}
 
 	let uncategorizedCount = 0;
-	const detections = selectNonOverlapping(detectProgressions(notationFlat, sheet));
+	const detections = detectProgressions(notationFlat, sheet);
 	if (detections.length > 0) {
 		const deps = buildLickMatcherDeps(sheet, getInstrument());
 		uncategorizedCount = suggestLicksForProgression(detections[0], deps).uncategorized.length;
@@ -306,17 +307,23 @@ export function startTunePracticeSession(sheet: Tune, ppq: number): TunePractice
 		head: playHead
 			? { bars: built.headBars, mode: built.duplicatedForm ? 'shift' : 'filter' }
 			: undefined,
-		detect: (f) => selectNonOverlapping(detectProgressions(f, transposed)),
+		// Every detection, overlaps included: the planner keeps the longest
+		// window that has a lick and fills the rest shorter.
+		detect: (f) => detectProgressions(f, transposed),
 		match: (det) => {
 			// Suggest mode cycles the FULL eligible list, restricted to licks the
 			// user can deploy at this song's tempo and in this spot's key.
 			const options =
 				mode === 'suggest'
 					? { playableKeysOnly: true, sessionTempo: tunePractice.config.tempo }
-					: { limit: MAX_SUGGESTIONS };
+					: {};
 			const result = suggestLicksForProgression(det, matcherDeps, options);
 			return { suggestions: result.suggestions, uncategorized: result.uncategorized };
-		}
+		},
+		// Points mode caps the pick card; the cap applies per chosen window, so
+		// a role's licks are never crowded out by another role's on the same
+		// progression.
+		suggestionLimit: mode === 'suggest' ? undefined : MAX_SUGGESTIONS
 	});
 
 	const playedPhrase: Phrase = {
@@ -480,10 +487,18 @@ export function markRunning(): void {
 	}
 }
 
-/** The name shown on the chart for an insertion point (pick-aware), if any. */
+/**
+ * The text shown on the chart for an insertion point (pick-aware), if any:
+ * the lick and the written key it is played in (`windowLabel`).
+ */
 export function suggestionNameFor(ip: InsertionPoint): string | null {
 	const suggestion = resolvePickedSuggestion(ip.suggestions, tunePractice.pickedSuggestion[ip.id]);
-	return suggestion?.lickName ?? null;
+	if (!suggestion) return null;
+	return windowLabel(
+		suggestion.lickName,
+		concertKeyToWritten(suggestion.targetKey, getInstrument()),
+		suggestion.mode
+	);
 }
 
 export function markWindowOpen(index: number): void {

@@ -43,6 +43,7 @@
 		type WindowCandidate
 	} from '$lib/state/tune-practice.svelte';
 	import {
+		annotationsVisible,
 		notationBarForPlaybackBar,
 		strictnessKnobs,
 		bestCandidateResult,
@@ -279,10 +280,17 @@
 	// skipped window records no result, so a positional read would shift every
 	// later grade/colour by one (see indexResultsByInsertion).
 	const resultByInsertion = $derived(indexResultsByInsertion(tunePractice.results));
+	// No lick prompts while the head plays: the melody sheet carries only the
+	// playhead through the count-in and the head; bands, names and the pick
+	// card arrive with the solo chorus (Andy, 2026-09-17).
+	const showAnnotations = $derived(
+		annotationsVisible({ phase: tunePractice.phase, playHead: audioPlan?.playHead ?? false })
+	);
 	const markers = $derived.by<RangeMarker[]>(() => {
 		const leadBars = audioPlan?.leadBars ?? 0;
 		const byKey = new Map<string, RangeMarker>();
-		tunePractice.plan.forEach((ip, i) => {
+		const annotated = showAnnotations ? tunePractice.plan : [];
+		annotated.forEach((ip, i) => {
 			const result = resultByInsertion.get(ip.id);
 			// Clear a played insertion shortly after its window passes (~1 bar past
 			// the window's final bar) so the chart behind the playhead stays clean
@@ -310,7 +318,7 @@
 				mode: tunePractice.config.mode,
 				cueLevel: knobs.cueLevel,
 				lickName: suggestionNameFor(ip),
-				progressionName: PROGRESSION_TEMPLATES[ip.progressionType].shortName
+				progressionName: ip.bandName
 			});
 			const existing = byKey.get(ip.markerKey);
 			if (!existing) {
@@ -393,6 +401,7 @@
 	// open window already locked in its pick at open time).
 	const pickTargetIndex = $derived.by(() => {
 		if (tunePractice.config.mode !== 'points') return -1;
+		if (!showAnnotations) return -1;
 		if (
 			tunePractice.phase !== 'count-in' &&
 			tunePractice.phase !== 'head' &&
@@ -1266,10 +1275,10 @@
 							b{ip.notationBarRange.start + 1}
 						</span>
 						<span class="shrink-0 font-medium text-[var(--color-brass)]">
-							{concertKeyToWritten(ip.localKey, getInstrument())}
+							{concertKeyToWritten(ip.keyCenter, getInstrument())}
 						</span>
 						<span class="min-w-0 flex-1 truncate">
-							{PROGRESSION_TEMPLATES[ip.progressionType].shortName}
+							{ip.bandName}
 							{#if result?.lickName}
 								<span class="text-[var(--color-text-secondary)]"> — {result.lickName}</span>
 							{/if}

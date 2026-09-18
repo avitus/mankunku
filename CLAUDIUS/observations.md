@@ -2415,3 +2415,49 @@ ear training, but any flow that changes tempo on a running transport (Deep
 Practice's per-cycle bump does) would find the grid drifting by the
 integral of the tempo change. It is worth checking before trusting a lick-practice
 stamp late in a bumped session.
+
+## 2026-09-17 (evening) — Selection that runs before it knows what it is selecting for
+
+The tune planner chose windows by the shape of the harmony and only then
+asked which licks fit them. That order is natural to write — detect, then
+match — and it produced a rule that reads well ("the longer progression
+wins") while doing the wrong thing whenever the longer progression had
+nothing to offer. The fix was not a smarter tie-break. It was moving the
+question "is there a lick for this?" ahead of the question "which window?"
+The general shape: any greedy selection whose fitness depends on a later
+stage is really a selection over the product of both, and collapsing it
+into two passes silently fixes the answer to the first.
+
+Second: an offset that lives only in the scorer is a lie to the player. The
+alignment table was correct for months, because on Side B the band plays
+the whole template and the offset just says where you start. In a tune, the
+same offset picked a slot two bars into a band drawn from bar one, and
+nothing drawn on the chart carried that information. When a number moves
+from "where playback starts" to "where inside a window the player must
+enter", every surface that shows the window has to consume it too. I found
+the scorer honouring it and the chart ignoring it; the report showed a
+third key, the progression's. Three consumers, three answers.
+
+Third, small: a `getByText(/regex/)` does not normalise whitespace where a
+string would. The first failure of the new e2e was a false red on a line
+break in the template. Worth remembering because the fix — `\s+` — is
+trivial and the symptom looks like the app.
+
+## 2026-09-17 (later) — "Has a lick" is free when the catalog is in the pool
+
+The planner's new rule read "the longest progression with a lick wins". It
+held in the unit tests, which fed it a book of two licks, and collapsed in
+the browser, where Points mode feeds it 924. With the whole catalog eligible
+every long cadence "has a lick", so the condition stopped discriminating and
+the rule degraded back to longest-wins — the exact behaviour I was replacing.
+The user's own known lick sat in the dropped window.
+
+The lesson is about the word in the rule, not the code: "ready" and "has"
+mean different things in the two modes, and a rule that reads the same in
+both is being satisfied by different facts in each. Suggest's readiness
+filter had already made "has a lick" mean "has a lick they can play"; Points
+never had that filter, so in Points the rule needed to say it explicitly —
+mastery before span. Whenever a selection criterion is a predicate over a
+pool, ask what the pool is in every caller before trusting the predicate.
+Also: a test pool that is small enough to reason about is small enough to
+hide this.

@@ -9,7 +9,9 @@ import {
 	resolvePickedSuggestion,
 	strictnessKnobs,
 	windowCandidates,
-	type ResultTally
+	type ResultTally,
+	annotationsVisible,
+	windowLabel
 } from '$lib/state/tune-practice-plan';
 
 function mkScore(overall: number): Score {
@@ -39,7 +41,9 @@ function mkSuggestion(lickId: string): LickSuggestion {
 		matchSources: ['category'],
 		substitution: null,
 		inPracticeSet: false,
-		difficultyLevel: 20
+		difficultyLevel: 20,
+		lengthBars: 2,
+		mode: 'major'
 	};
 }
 
@@ -210,7 +214,9 @@ describe('resolvePickedSuggestion', () => {
 		matchSources: ['category'],
 		substitution: null,
 		inPracticeSet: false,
-		difficultyLevel: 20
+		difficultyLevel: 20,
+		lengthBars: 2,
+		mode: 'major'
 	});
 	const suggestions = [suggestion('a'), suggestion('b'), suggestion('c')];
 
@@ -228,5 +234,28 @@ describe('resolvePickedSuggestion', () => {
 
 	it('returns null when there are no suggestions', () => {
 		expect(resolvePickedSuggestion([], undefined)).toBeNull();
+	});
+});
+
+describe('what the chart shows before the solo chorus (2026-09-17)', () => {
+	// Andy: no prompts for licks during the head. The melody sheet carries no
+	// bands, no lick names and no pick card until the solo chorus begins.
+	it('hides every annotation through the count-in and the head when a head plays', () => {
+		expect(annotationsVisible({ phase: 'count-in', playHead: true })).toBe(false);
+		expect(annotationsVisible({ phase: 'head', playHead: true })).toBe(false);
+		expect(annotationsVisible({ phase: 'running', playHead: true })).toBe(true);
+		expect(annotationsVisible({ phase: 'complete', playHead: true })).toBe(true);
+	});
+
+	it('annotates from the count-in when there is no head to hear', () => {
+		expect(annotationsVisible({ phase: 'count-in', playHead: false })).toBe(true);
+		expect(annotationsVisible({ phase: 'running', playHead: false })).toBe(true);
+	});
+});
+
+describe('windowLabel', () => {
+	it('names the lick with the key it is played in, minor keys with the m suffix', () => {
+		expect(windowLabel('Cry Me a River', 'F#', 'minor')).toBe('Cry Me a River · F#m');
+		expect(windowLabel('Bird Blues', 'Bb', 'major')).toBe('Bird Blues · Bb');
 	});
 });

@@ -1,16 +1,19 @@
-import type { Fraction, HarmonicSegment, Note, PitchClass } from '$lib/types/music';
+import type { Fraction, HarmonicSegment, Mode, Note, PhraseCategory, PitchClass } from '$lib/types/music';
 import type { ChordProgressionType } from '$lib/types/lick-practice';
 import type { Grade, Score } from '$lib/types/scoring';
 import type { FlattenedTune } from '$lib/tunes/flatten';
 import type { TuneSection } from '$lib/types/tune';
-import type { DetectedProgression } from '$lib/tunes/progression-detector';
+import { SHAPE_PRIORITY, type DetectedProgression } from '$lib/tunes/progression-detector';
 import type { LickSuggestion } from '$lib/tunes/lick-matcher';
 import {
 	addFractions,
 	compareFractions,
 	fractionToFloat,
-	multiplyFraction
+	multiplyFraction,
+	subtractFractions
 } from '$lib/music/intervals';
+import { PROGRESSION_TEMPLATES, isChordQualityCategory } from '$lib/data/progressions';
+import { keyLabel } from '$lib/music/notation';
 import { scoreToGrade } from '$lib/scoring/grades';
 import { KEY_PROFICIENT_THRESHOLD } from '$lib/persistence/lick-practice-store';
 
@@ -27,11 +30,31 @@ export type TunePracticePhase = 'setup' | 'count-in' | 'head' | 'running' | 'com
 
 export interface InsertionPoint {
 	id: string;
+	/**
+	 * What the window is FOR — the band's colour, name and rotation pool. A
+	 * cadence window carries its progression; a single-chord role carved out
+	 * of a longer progression carries the chord's own vamp type (a Minor Chord
+	 * lick on the i of a ii-V-i is a `minor-vamp` window on those bars).
+	 */
 	progressionType: ChordProgressionType;
+	/**
+	 * What the band says the window is for: the band type's short name, or
+	 * the chord's for a single-chord role with no vamp type of its own
+	 * ("Diminished").
+	 */
+	bandName: string;
+	/** The detected progression the window was carved from. */
+	detectedType: ChordProgressionType;
 	localKey: PitchClass;
+	/**
+	 * The concert key the window is named in: the top suggestion's target
+	 * (the chord root for a single-chord role), else the progression's local
+	 * key for a bare window.
+	 */
+	keyCenter: PitchClass;
 	/** Tune-key degree label of the local key, e.g. '4' = "the IV key". */
 	degreeLabel: string;
-	/** Playback-timeline span (whole-note units, from the detector). */
+	/** Playback-timeline span of the WINDOW (whole-note units). */
 	startOffset: Fraction;
 	duration: Fraction;
 	playbackBarRange: { start: number; endExclusive: number };
@@ -79,26 +102,179 @@ export interface BuildPlanDeps {
 	 * solo pass, unshifted.
 	 */
 	head?: { bars: number; mode: 'shift' | 'filter' };
-	/** Detector composed with non-overlap selection by the caller. */
+	/**
+	 * Every progression the detector finds, overlaps included — the planner
+	 * resolves them once it knows which have a lick (an already-selected set
+	 * plans identically).
+	 */
 	detect: (flat: FlattenedTune) => DetectedProgression[];
 	match: (detection: DetectedProgression) => {
 		suggestions: LickSuggestion[];
 		uncategorized: unknown[];
 	};
+	/** Cap on suggestions per window, applied after the window is chosen. Absent = unlimited. */
+	suggestionLimit?: number;
 }
 
 const EPSILON = 1e-9;
 
 /**
- * Turn detected progressions into scheduled insertion points. Tick math
- * matches playback.ts exactly: one bar of count-in (`barTicks` offset, the
- * hard-coded playPhrase lead-in) and `wholeNotes * 4 * ppq` per offset. No
- * lead-in — the scorer's DTW + median-latency correction absorb early
- * entries; a 1-beat lead-out captures the resolution's tail, clamped so a
- * window never overlaps the next open or runs past the end of the form.
+ * A single-chord role is drawn as the chord's own vamp band. No diminished
+ * vamp exists, so that role keeps its parent's type (and colour) and only
+ * takes its own name — a 1-bar "Long ii-V-I (Min)" on the iiø7 alone would
+ * misname the window.
+ */
+const CHORD_ROLE_BAND: Partial<
+	Record<PhraseCategory, { type?: ChordProgressionType; name: string }>
+> = {
+	'minor-chord': { type: 'minor-vamp', name: PROGRESSION_TEMPLATES['minor-vamp'].shortName },
+	'major-chord': { type: 'major-vamp', name: PROGRESSION_TEMPLATES['major-vamp'].shortName },
+	'dominant-chord': {
+		type: 'dominant-vamp',
+		name: PROGRESSION_TEMPLATES['dominant-vamp'].shortName
+	},
+	'diminished-chord': { name: 'Diminished' }
+};
+
+/** A window the planner may keep: a lick-bearing role, or a bare progression. */
+interface CandidateWindow {
+	det: DetectedProgression;
+	bandType: ChordProgressionType;
+	bandName: string;
+	start: Fraction;
+	end: Fraction;
+	/** Playback harmony indices the window covers (overlap is decided on these). */
+	segmentIndices: number[];
+	suggestions: LickSuggestion[];
+	uncategorizedCount: number;
+}
+
+function spanBars(w: CandidateWindow): number {
+	return fractionToFloat(w.end) - fractionToFloat(w.start);
+}
+
+/**
+ * A window the player can actually fill: it holds a lick they HAVE in the
+ * window's key — passed there, or unlocked there on Side B (`masteryTier`
+ * known or learning). Points mode admits the whole catalog, so a long
+ * cadence always holds *some* lick; without this a known 2-bar minor lick
+ * lost its window to cadence material the player had never touched.
+ */
+function hasReadyLick(w: CandidateWindow): boolean {
+	return w.suggestions.some((s) => s.masteryTier !== 'unknown');
+}
+
+/**
+ * The windows a detection's suggestions carve out of it, one per ROLE — the
+ * alignment offset the licks share, split by kind. A single-chord lick's
+ * window is the chord it aligns to (the slot's coalesced run), offered only
+ * to licks no longer than that chord and drawn as the chord's own vamp band.
+ * A phrase-shaped lick's window runs from its aligned bar to the end of the
+ * progression, stretched to hold the group's longest lick (an unresolved
+ * ii-V's resolution bar) and taking the harmony segments that fall inside
+ * the stretch, so the band and the scorer cover what the player is asked for.
+ */
+function roleWindowsFor(
+	det: DetectedProgression,
+	suggestions: readonly LickSuggestion[],
+	uncategorizedCount: number,
+	flat: FlattenedTune,
+	timeSignature: [number, number]
+): CandidateWindow[] {
+	const groups = new Map<string, { kind: 'chord' | 'phrase'; suggestions: LickSuggestion[] }>();
+	for (const s of suggestions) {
+		const kind = isChordQualityCategory(s.category) ? 'chord' : 'phrase';
+		const key = `${fractionToFloat(s.templateAlignmentOffset)}|${kind}`;
+		const group = groups.get(key) ?? { kind, suggestions: [] };
+		group.suggestions.push(s);
+		groups.set(key, group);
+	}
+	const detEnd = addFractions(det.startOffset, det.duration);
+	const barWholeNotes = timeSignature[0] / timeSignature[1];
+	const windows: CandidateWindow[] = [];
+	for (const group of groups.values()) {
+		const alignment = group.suggestions[0].templateAlignmentOffset;
+		const slot = det.slots.find((sl) => compareFractions(sl.templateOffset, alignment) === 0) ?? null;
+		if (group.kind === 'chord') {
+			if (!slot) continue;
+			const last = flat.harmony[slot.segmentIndices[slot.segmentIndices.length - 1]];
+			const runEnd = addFractions(last.startOffset, last.duration);
+			const runBars = (fractionToFloat(runEnd) - fractionToFloat(slot.startOffset)) / barWholeNotes;
+			const fitting = group.suggestions.filter((s) => s.lengthBars <= runBars + EPSILON);
+			if (fitting.length === 0) continue;
+			const band = CHORD_ROLE_BAND[fitting[0].category];
+			windows.push({
+				det,
+				bandType: band?.type ?? det.type,
+				bandName: band?.name ?? PROGRESSION_TEMPLATES[det.type].shortName,
+				start: slot.startOffset,
+				end: runEnd,
+				segmentIndices: [...slot.segmentIndices],
+				suggestions: fitting,
+				uncategorizedCount
+			});
+			continue;
+		}
+		const start = slot ? slot.startOffset : det.startOffset;
+		const longest = Math.max(...group.suggestions.map((s) => s.lengthBars));
+		const lickEnd = addFractions(start, [longest * timeSignature[0], timeSignature[1]]);
+		const end = compareFractions(lickEnd, detEnd) > 0 ? lickEnd : detEnd;
+		let segmentIndices = det.segmentIndices;
+		if (slot) {
+			const at = det.segmentIndices.indexOf(slot.segmentIndices[0]);
+			if (at > 0) segmentIndices = det.segmentIndices.slice(at);
+		}
+		if (compareFractions(end, detEnd) > 0) {
+			const extension: number[] = [];
+			flat.harmony.forEach((h, idx) => {
+				if (
+					compareFractions(h.startOffset, detEnd) >= 0 &&
+					compareFractions(h.startOffset, end) < 0 &&
+					!segmentIndices.includes(idx)
+				) {
+					extension.push(idx);
+				}
+			});
+			segmentIndices = [...segmentIndices, ...extension];
+		}
+		windows.push({
+			det,
+			bandType: det.type,
+			bandName: PROGRESSION_TEMPLATES[det.type].shortName,
+			start,
+			end,
+			segmentIndices,
+			suggestions: group.suggestions,
+			uncategorizedCount
+		});
+	}
+	return windows;
+}
+
+/**
+ * Turn detected progressions into scheduled insertion points.
+ *
+ * Selection is lick-aware (2026-09-17): the longest window with a lick the
+ * player has ready wins an overlap, and the bars it leaves are filled by
+ * shorter ones — so a long ii-V-i with no cadence lick ready hands its i
+ * chord to a single-chord lick as that chord's own window, instead of naming
+ * that lick across the whole cadence. Windows with a lick are placed first:
+ * one holding a lick the player HAS in the key (`hasReadyLick`) before one
+ * holding only unknown material, then longest first (shape specificity, then
+ * chart position, break ties); the bare progressions are placed after them by
+ * the same rule, so an untouched stretch still shows its harmony (the band
+ * names the progression) but never over a filled window. Overlap is decided on harmony segments, as
+ * `selectNonOverlapping` decides it, so an already-selected set plans
+ * identically and wrapped detections stay safe.
+ *
+ * Tick math matches playback.ts exactly: one bar of count-in (`barTicks`
+ * offset, the hard-coded playPhrase lead-in) and `wholeNotes * 4 * ppq` per
+ * offset. No lead-in — the scorer's DTW + median-latency correction absorb
+ * early entries; a 1-beat lead-out captures the resolution's tail, clamped so
+ * a window never overlaps the next open or runs past the end of the form.
  */
 export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
-	const { flat, notationFlat, timeSignature, ppq, detect, match } = deps;
+	const { flat, notationFlat, timeSignature, ppq, detect, match, suggestionLimit } = deps;
 	const barTicks = timeSignature[0] * ppq;
 	const barWholeNotes = timeSignature[0] / timeSignature[1];
 	const head = deps.head;
@@ -119,14 +295,57 @@ export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
 		detections = detections.filter((det) => fractionToFloat(det.startOffset) >= boundary - EPSILON);
 	}
 
-	return detections.map((det, i) => {
-		const openTick = leadTicks + ticksOf(det.startOffset);
-		let closeTick = leadTicks + ticksOf(addFractions(det.startOffset, det.duration)) + ppq;
-		const next = detections[i + 1];
-		if (next) closeTick = Math.min(closeTick, leadTicks + ticksOf(next.startOffset));
+	const filled: CandidateWindow[] = [];
+	const bare: CandidateWindow[] = [];
+	for (const det of detections) {
+		const { suggestions, uncategorized } = match(det);
+		filled.push(...roleWindowsFor(det, suggestions, uncategorized.length, flat, timeSignature));
+		bare.push({
+			det,
+			bandType: det.type,
+			bandName: PROGRESSION_TEMPLATES[det.type].shortName,
+			start: det.startOffset,
+			end: addFractions(det.startOffset, det.duration),
+			segmentIndices: det.segmentIndices,
+			suggestions: [],
+			uncategorizedCount: uncategorized.length
+		});
+	}
+
+	const rank = (a: CandidateWindow, b: CandidateWindow): number =>
+		Number(hasReadyLick(b)) - Number(hasReadyLick(a)) ||
+		spanBars(b) - spanBars(a) ||
+		SHAPE_PRIORITY[a.det.type] - SHAPE_PRIORITY[b.det.type] ||
+		compareFractions(a.start, b.start) ||
+		a.det.type.localeCompare(b.det.type) ||
+		a.bandType.localeCompare(b.bandType);
+	const used = new Set<number>();
+	const kept: CandidateWindow[] = [];
+	const place = (candidates: CandidateWindow[]): void => {
+		for (const w of [...candidates].sort(rank)) {
+			if (w.segmentIndices.some((i) => used.has(i))) continue;
+			for (const i of w.segmentIndices) used.add(i);
+			kept.push(w);
+		}
+	};
+	place(filled);
+	place(bare);
+	kept.sort(
+		(a, b) =>
+			compareFractions(a.start, b.start) ||
+			SHAPE_PRIORITY[a.det.type] - SHAPE_PRIORITY[b.det.type] ||
+			a.det.type.localeCompare(b.det.type)
+	);
+
+	return kept.map((w, i) => {
+		const det = w.det;
+		const openTick = leadTicks + ticksOf(w.start);
+		let closeTick = leadTicks + ticksOf(w.end) + ppq;
+		const next = kept[i + 1];
+		if (next) closeTick = Math.min(closeTick, leadTicks + ticksOf(next.start));
 		closeTick = Math.min(closeTick, formEndTick);
 
-		const notationSegmentIndices = det.segmentIndices
+		const notationSegmentIndices = w.segmentIndices
 			.map((s) => flat.segmentSourceIndices[s])
 			.filter((idx): idx is number => idx !== undefined);
 		let notationStart = Infinity;
@@ -140,29 +359,38 @@ export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
 				fractionToFloat(addFractions(seg.startOffset, seg.duration))
 			);
 		}
+		const startFloat = fractionToFloat(w.start);
+		const endFloat = fractionToFloat(w.end);
 		const notationBarRange = Number.isFinite(notationStart)
 			? {
 					start: Math.floor(notationStart / barWholeNotes + EPSILON),
 					endExclusive: Math.ceil(notationEnd / barWholeNotes - EPSILON)
 				}
-			: { start: det.startBar, endExclusive: det.endBarExclusive };
+			: {
+					start: Math.floor(startFloat / barWholeNotes + EPSILON),
+					endExclusive: Math.ceil(endFloat / barWholeNotes - EPSILON)
+				};
 		const notationTimeRange = Number.isFinite(notationStart)
 			? { start: notationStart, end: notationEnd }
-			: {
-					start: fractionToFloat(det.startOffset),
-					end: fractionToFloat(addFractions(det.startOffset, det.duration))
-				};
+			: { start: startFloat, end: endFloat };
 
-		const { suggestions, uncategorized } = match(det);
+		const suggestions =
+			suggestionLimit !== undefined ? w.suggestions.slice(0, suggestionLimit) : w.suggestions;
 
 		return {
 			id: `ip-${i}`,
-			progressionType: det.type,
+			progressionType: w.bandType,
+			bandName: w.bandName,
+			detectedType: det.type,
 			localKey: det.localKey,
+			keyCenter: suggestions[0]?.targetKey ?? det.localKey,
 			degreeLabel: det.tuneKeyDegree.label,
-			startOffset: det.startOffset,
-			duration: det.duration,
-			playbackBarRange: { start: det.startBar, endExclusive: det.endBarExclusive },
+			startOffset: w.start,
+			duration: subtractFractions(w.end, w.start),
+			playbackBarRange: {
+				start: Math.floor(startFloat / barWholeNotes + EPSILON),
+				endExclusive: Math.ceil(endFloat / barWholeNotes - EPSILON)
+			},
 			notationSegmentIndices,
 			notationBarRange,
 			notationTimeRange,
@@ -174,7 +402,7 @@ export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
 					? [...notationSegmentIndices].sort((a, b) => a - b).join(',')
 					: `ip-${i}`,
 			suggestions,
-			uncategorizedCount: uncategorized.length,
+			uncategorizedCount: w.uncategorizedCount,
 			openTick,
 			closeTick
 		};
@@ -348,6 +576,28 @@ export function notationBarForPlaybackBar(
 		}
 	}
 	return null;
+}
+
+/**
+ * Whether the chart carries its insertion bands, lick names and the pick card
+ * yet. While a head plays, the sheet is the melody and nothing prompts for a
+ * lick — the count-in before it included (Andy, 2026-09-17); everything
+ * appears with the solo chorus. Without a head there is nothing to hear
+ * first, so the annotations show from the count-in as before.
+ */
+export function annotationsVisible(args: { phase: TunePracticePhase; playHead: boolean }): boolean {
+	if (!args.playHead) return true;
+	return args.phase !== 'count-in' && args.phase !== 'head';
+}
+
+/**
+ * The text a lick window carries: the lick and the key it is played in, in
+ * the player's written pitch — a single-chord lick may sit on a chord two
+ * bars from where its progression began, so the name alone left the key to
+ * guesswork.
+ */
+export function windowLabel(lickName: string, writtenKey: PitchClass, mode: Mode): string {
+	return `${lickName} · ${keyLabel(writtenKey, mode)}`;
 }
 
 /** What the chart names over an insertion band. */

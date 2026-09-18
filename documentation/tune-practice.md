@@ -8,9 +8,11 @@ Open any tune from your book and hit **Practice licks**.
 
 ## What the app is doing
 
-Before the session starts, Mankunku reads the tune's changes and looks for **progressions it knows** — short ii-Vs, long ii-Vs (major and minor), turnarounds, iii-VI-ii-V-I, minor/major/dominant vamps, and blues. Each one it finds becomes an **insertion point**: a window in the form, in a specific local key, where a lick tagged for that progression will land correctly.
+Before the session starts, Mankunku reads the tune's changes and looks for **progressions it knows** — short ii-Vs (with their I, or without one: a half-bar ii-V that resolves somewhere unexpected is still a ii-V slot, and the lick's resolution falls on whatever comes next), long ii-Vs (major and minor), turnarounds, iii-VI-ii-V-I, minor/major/dominant vamps, and blues. Each one it finds can become an **insertion point**: a window in the form, in a specific local key, where a lick tagged for that progression will land correctly.
 
 So a tune in F that has a ii-V into Bb in bar 5 gives you an insertion point in Bb, and the app looks for licks that fit it: licks tagged for that progression, or whose category belongs to it. It knows which keys you've unlocked and which you've drilled, and ranks with that in mind — licks you've passed in that key first, then ones you're still learning there, then ones that would be new to you; within that, licks tagged for the progression and licks in your practice set come first. In **Suggest** mode it goes further and only names licks you already have in that key — played there, or unlocked there on Side B — at a practised tempo at or above the session's. It won't ask you to sight-transpose something you've never touched. (If nothing qualifies, the band on the chart names the progression instead, so you still know what you're blowing over.)
+
+**Longer first, then fill.** Where progressions overlap — a long ii-V-i is also two bars of its minor chord — the longest one that has a lick you *have* in that key (played there, or unlocked there on Side B) takes the bars, and what it leaves is filled by shorter ones; only where nothing you have fits does the longest window with any lick stand, as new material to try (Points mode lets the whole catalog in). So when none of your long ii-V-I licks is ready, the ii-V-i's tonic still gets a window: a single-chord lick (Minor, Major, Dominant) is offered wherever one chord lasts at least as long as the lick, as that chord's **own** band — a Minor band on the F#- bars, not a ii-V-i band with a minor lick named at the top of it — and the label carries the key it is played in (*Cry Me a River · F#m*). A chord shorter than the lick gets nothing; a stretch with no lick at all keeps its progression band, unnamed, so you still know what you are blowing over. The setup screen's count is of the progressions found; the session fills them by what you have ready.
 
 The setup screen tells you what it found before you start: *"6 insertion points: 3× Short ii-V-I (Maj), 2× Turnaround, 1× Blues."* If it finds nothing it says so — you can still play along, but there'll be nothing scored.
 
@@ -70,7 +72,7 @@ This is the mode to start in. It turns a tune into a set of prompts.
 
 You choose which lick to play at the next window from a **Pick your lick** card — the five best-ranked candidates for it, each with the key you'll play it in and a badge: *Known* (you've passed it in that key), *Learning* (attempted there, or the key is unlocked but unplayed) or *New*. Points mode doesn't filter the way Suggest does, so new material can turn up. Pick before the window opens; if you don't, the top one is scored. Then you earn points for how well you play it: **your score out of 100**, straight. The twist is the **connection bonus** — clear the pass bar (90%) on two windows *back to back* and the second one scores **double**.
 
-That rewards the thing that's actually hard: not playing one good lick, but coming out of one and being ready for the next. The header keeps your running total, with the streak and a 🔥 once two in a row have landed (*240 pts · 3🔥*). The pick card belongs to Guided: at Standard and Solo the chart never names a lick, so there is nothing to pick and any of your licks that fits the spot is scored.
+That rewards the thing that's actually hard: not playing one good lick, but coming out of one and being ready for the next. The header keeps your running total, with the streak and a 🔥 once two in a row have landed (*240 pts · 3🔥*). The pick card belongs to Points at the Guided level: at Standard and Solo the chart never names a lick, so there is nothing to pick and any of your licks that fits the spot is scored. It also waits for the solo chorus — while the head plays there is nothing to pick yet, so the card for the first window appears when the melody ends, and the top-ranked lick stands if you leave it.
 
 ### Freestyle — take a solo
 
@@ -97,7 +99,8 @@ On the bleed filter: it's on at every level, which is the forgiving choice if yo
 ## During the session
 
 - The chart **follows the playhead** teleprompter-style — it slides inside its own frame rather than scrolling the page, so the status line and the pick card stay put — and the current bar is marked on it.
-- Insertion points show as **coloured bands** on the chart, each in its progression's identity colour — the same colour that progression carries on your lick cards and in Side B's session header. A ii-V looks like a ii-V wherever you meet it. A band clears a bar after its window has passed, so the chart ahead of you stays clean; a later pass through the same bars labels it again.
+- Insertion points show as **coloured bands** on the chart, each in its progression's identity colour — the same colour that progression carries on your lick cards and in Side B's session header. A ii-V looks like a ii-V wherever you meet it; a single-chord lick's window looks like its chord (Minor, Major, Dominant; a half-diminished slot keeps its cadence's colour and is labelled *Diminished*). A band clears a bar after its window has passed, so the chart ahead of you stays clean; a later pass through the same bars labels it again.
+- **Nothing prompts for a lick while the head plays.** The melody sheet carries only the playhead — no bands, no lick names, no pick card — through the count-in and the head; they all arrive with the solo chorus. A session without a head shows them from the count-in.
 - The status line under the title tells you where you are: *Count-in…*, *Head — melody once through, then it's yours* (Head in red — you're listening), *Comping — insertion 3 of 6 coming up*, and then **Your turn — play the lick!** in brass when a window opens.
 - The header also keeps the time elapsed and, in Points mode, your score; the **End** button stops the take whenever you want.
 
@@ -114,7 +117,7 @@ None of this happens in Lick Practice, because a two-bar vamp has no form to mar
 
 ## The report
 
-**Take complete** in Suggest and Points opens with how many of the insertion points you hit, then lists every one in the form: the bar it started in, the local key (in your written pitch), the progression, the lick that was scored, and the grade. Windows where you didn't play read **No take** — a skip, not a failure. Points mode adds the total and your best streak. **Practice again** returns you to the setup screen; **Back to tune** takes you out.
+**Take complete** in Suggest and Points opens with how many of the insertion points you hit, then lists every one in the form: the bar it started in, the key the window is played in (in your written pitch — a single-chord window names its chord's root), what the window was for (the progression, or the chord), the lick that was scored, and the grade. Windows where you didn't play read **No take** — a skip, not a failure. Points mode adds the total and your best streak. **Practice again** returns you to the setup screen; **Back to tune** takes you out.
 
 Freestyle has no insertion points to report, so its take instead lists every lick the app recognised, with the bar it landed in and how close the match was.
 

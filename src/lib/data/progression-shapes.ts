@@ -32,6 +32,15 @@ export interface ShapeSlot {
 	 * `PROGRESSION_TEMPLATES[type].harmony` (template space, whole-note units).
 	 */
 	templateOffset: Fraction;
+	/**
+	 * The shape still matches when this slot does not: the detection ends at
+	 * the previous slot and carries no record for this one. Only the LAST slot
+	 * may be optional. Used for the short cadences' tonic — a half-bar ii-V
+	 * whose resolution is deceptive, or absent, is still a ii-V-I slot; the
+	 * lick's resolution falls on whatever the chart puts next (Autumn Leaves
+	 * bars 22-23, 2026-09-17).
+	 */
+	optional?: true;
 }
 
 export interface ProgressionShape {
@@ -96,7 +105,13 @@ export const PROGRESSION_SHAPES: readonly ProgressionShape[] = [
 		slots: [
 			{ rootOffset: 2, qualities: ['min7'], maxBars: 0.5, templateOffset: [0, 1] },
 			{ rootOffset: 7, qualities: DOMINANT_QUALITIES, maxBars: 0.5, templateOffset: [1, 2] },
-			{ rootOffset: 0, qualities: MAJOR_TONIC_QUALITIES, minBars: 0.5, templateOffset: [1, 1] }
+			{
+				rootOffset: 0,
+				qualities: MAJOR_TONIC_QUALITIES,
+				minBars: 0.5,
+				templateOffset: [1, 1],
+				optional: true
+			}
 		]
 	},
 	{
@@ -105,7 +120,13 @@ export const PROGRESSION_SHAPES: readonly ProgressionShape[] = [
 		slots: [
 			{ rootOffset: 2, qualities: ['min7b5'], maxBars: 0.5, templateOffset: [0, 1] },
 			{ rootOffset: 7, qualities: DOMINANT_QUALITIES, maxBars: 0.5, templateOffset: [1, 2] },
-			{ rootOffset: 0, qualities: MINOR_TONIC_QUALITIES, minBars: 0.5, templateOffset: [1, 1] }
+			{
+				rootOffset: 0,
+				qualities: MINOR_TONIC_QUALITIES,
+				minBars: 0.5,
+				templateOffset: [1, 1],
+				optional: true
+			}
 		]
 	},
 	{

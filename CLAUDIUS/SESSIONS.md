@@ -4254,3 +4254,88 @@ we try to fix old captures." Instrumentation first, no fix.
   much of the error the lookahead explains, and whether the recorder's start
   event accounts for the rest. Ideally a lick-practice take in the same
   session too, to settle the contradicting clue.
+
+## 2026-09-17 (evening) — Tune practice: lick-aware windows
+
+Andy, practising over Autumn Leaves with no long ii-V-I lick ready at tempo:
+Cry Me a River (a 2-bar Minor Chord lick) was named over every long ii-V-I —
+on the ii of the major one ("B minor"), on the i of the minor one ("F#-"), and
+in both cases the whole 3-bar band with the name at its first bar. Plus: the
+short ii-V at bars 22-23 never prompted, and (second message) the head must
+carry no lick prompts at all.
+
+- Traced before planning. The category table aligns `minor-chord` to bar 0
+  of a long major ii-V-I and bar 2 of a long minor one; the scorer shifted
+  the expected phrase by that offset but the band and label never did.
+  `selectNonOverlapping` kept the longest DETECTION before any lick was
+  matched; Suggest's tempo filter then emptied the long window down to the
+  chord-quality fallback. Bars 22-23 (concert `E-7 A7 | D-7 G7 | F#ø7`)
+  matched no shape: neither half-bar ii-V resolves to a tonic the short
+  shapes accept. And every band, name and the Points pick card were drawn
+  from the first head bar.
+- Four decisions from Andy (AskUserQuestion): nothing on the chart until the
+  solo chorus; the longest progression with a READY lick wins and the rest is
+  filled shorter, a single-chord lick offered only where one chord lasts at
+  least the lick's length, as its own band with name and key; eligibility
+  unchanged (a minor/dominant/major lick may play over those chords inside a
+  longer progression when nothing else is available); an unresolved ii-V is
+  a short ii-V-I slot.
+- Built, TDD throughout:
+  - `ShapeSlot.optional` on the short cadences' tonic: `matchShapeAt` ends the
+    match at the previous slot when the optional slot fails, restoring the
+    cursor and any wrap it had just committed. Autumn Leaves bar 22 is now a
+    1-bar `ii-V-I-major` in D with two slots; bar 23 stays silent (its D-7
+    is ¾ of a bar, over the half-bar ii bound). Two older pins restated: the
+    iii-VI-ii-V-I fixture's opening Em7 A7 is an unresolved ii-V in D, and a
+    ii-V before a harmony gap stands on its own without reaching the tonic.
+  - `LickSuggestion.lengthBars` + `mode`; no slot ⇒ no suggestion (the I role
+    of an unresolved ii-V used to fall back onto the ii).
+  - `buildSessionPlan` takes RAW detections and selects lick-aware: role
+    windows per (alignment offset, chord|phrase kind); chord roles are the
+    slot's run, gated by `lengthBars`, typed as the chord's vamp; phrase roles
+    run to the progression's end stretched to the longest lick with the
+    stretch's harmony segments; lick windows placed first, longest span ›
+    SHAPE_PRIORITY › position, segment-disjoint; bare detections after. New
+    `InsertionPoint.detectedType`, `keyCenter`; `progressionType` is the
+    band. `suggestionLimit` moved the Points cap into the planner, per window.
+    The no-lick plan is byte-identical to the old selection (pinned).
+  - `annotationsVisible` + `windowLabel` in the plan module;
+    `suggestionNameFor` reads `Cry Me a River · F#m`.
+  - Docs: tune-practice.md (longer-first-then-fill, nothing during the head,
+    the report's key column, the pick card belongs to Points — that line was
+    stale), tune-system.md (the SHAPE_PRIORITY-first sentence contradicted the
+    duration-first code), lick-alignment.md, CLAUDE.md.
+- e2e on Autumn Leaves in Points mode with a seeded 2-bar minor lick: first
+  run failed on the head-status locator — a REGEX in `getByText` is not
+  whitespace-normalised and the template breaks "melody once / through" across
+  a line. The page snapshot from that failure showed the bug itself: the head
+  sheet carrying "Long ii-V-I (Maj)" / "Long ii-V-I (Min)" labels. (The route
+  edit had also silently not landed — one python anchor missed on whitespace
+  and the script ran on without `&&`; always chain the edit to the run.)
+- Second real finding, from the e2e once the head was clean: the Minor band
+  never appeared. Traced in Node with the session's own deps (vitest hides
+  console output here — write the trace to a scratch file): Points mode
+  admits the whole 924-lick catalog, so the long minor cadence held ~80
+  unknown `ii-V-I-minor` licks and won on span; the known 2-bar minor lick
+  was in the dropped window. Before this change the mixed top-5 ranked by
+  mastery would have named the known lick. Fix: lick windows rank by
+  READINESS first — a window holding a lick the player has in that key
+  (known/learning) beats one holding only unknown material — then span.
+  Suggest mode is unchanged (its filter already leaves only ready licks);
+  Points now prefers what the player has, and falls back to new material
+  only where nothing ready fits. Pinned in the planner and in a new
+  session-path test that saves a user lick + progress and runs
+  `startTunePracticeSession` end to end.
+- Third finding from the same e2e screenshot: the ø7 bar carried a 1-bar
+  window labelled "Long ii-V-I (Mi…" — the diminished-chord role has no vamp
+  type, so it fell back to its parent's name. `InsertionPoint.bandName` now
+  names every window ("Diminished" for that role; the band type's short name
+  otherwise), and the route, report and preview read it. Also: the setup's
+  default strictness is Standard, so the e2e selects Guided to see lick
+  names; the report row it checks reads "b8 F# Minor No take" (End came
+  before the window played).
+- Verified: vitest 317 files / 5302 passed + 36 expected fail; svelte-check
+  0/0; tune-practice e2e 10/10 on Chromium, the new Autumn Leaves test also
+  green on WebKit. Pushed to dev (rebased onto the reed-reset commit). A task
+  chip raised for the flat-spelled ii/V roots the screenshot showed (A♭ø7
+  D♭7 in a three-sharp key) — separate, unexamined.

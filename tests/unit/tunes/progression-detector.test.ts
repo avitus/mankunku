@@ -16,6 +16,8 @@ import { MANKUNKU_BLUES } from '$lib/data/tunes/mankunku-blues';
 import { WHEN_THE_SAINTS } from '$lib/data/tunes/when-the-saints';
 import { AMAZING_GRACE } from '$lib/data/tunes/amazing-grace';
 import { seg, section, sheet, simpleSheet } from '../../helpers/tune-fixtures';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 function detect(tune: Tune, options?: DetectOptions, flatten?: FlattenOptions): DetectedProgression[] {
 	return detectProgressions(flattenTune(tune, flatten), tune, options);
@@ -180,9 +182,16 @@ describe('detectProgressions — synthetic harmony', () => {
 		expect(dets[0].segmentIndices).toEqual([0, 1, 2, 3, 4]);
 		expect(dets[0].startBar).toBe(0);
 		expect(dets[0].endBarExclusive).toBe(4);
-		// The embedded Dm7-G7-Cmaj7 ii-V-I is detected too, but the longer,
-		// more specific shape wins the non-overlap selection.
-		expect(byType(detect(tune), 'ii-V-I-major')).toHaveLength(1);
+		// The embedded Dm7-G7-Cmaj7 ii-V-I is detected too — and since 2026-09-17
+		// so is the opening Em7-A7 as an unresolved ii-V in D (it lands on Dm7,
+		// not a major tonic) — but the longer, more specific shape wins the
+		// non-overlap selection over both.
+		expect(
+			byType(detect(tune), 'ii-V-I-major').map((d) => [d.localKey, d.segmentIndices])
+		).toEqual([
+			['D', [0, 1]],
+			['C', [2, 3, 4]]
+		]);
 		const survivors = selectNonOverlapping(detect(tune));
 		expect(survivors.map((d) => d.type)).toEqual(['iii-VI-ii-V-I']);
 	});
@@ -224,7 +233,10 @@ describe('detectProgressions — synthetic harmony', () => {
 				})
 			]
 		});
-		expect(byType(detect(tune), 'ii-V-I-major')).toHaveLength(0);
+		// The ii-V still stands on its own (unresolved, 2026-09-17); the window
+		// never reaches across the silent bar to the tonic.
+		const dets = byType(detect(tune), 'ii-V-I-major');
+		expect(dets.map((d) => [d.segmentIndices, d.duration])).toEqual([[[0, 1], [1, 1]]]);
 	});
 
 	it('scans an unsorted harmony array and reports original indices', () => {
@@ -572,3 +584,128 @@ describe('selectNonOverlapping', () => {
 	});
 });
 
+
+describe('unresolved ii-V — 2026-09-17, Autumn Leaves bars 22-23', () => {
+	// Written F#-7 B7 | E-7 A7 | G#ø7 (concert E-7 A7 | D-7 G7 | F#ø7): neither
+	// half-bar ii-V lands on a tonic the short shapes accept, so no window could
+	// ever be prompted there. Andy's call: a ii-V without its I is still a short
+	// ii-V-I slot — the lick's resolution falls on whatever follows.
+	function corpus(slug: string): Tune {
+		return JSON.parse(
+			readFileSync(
+				resolve(`tests/fixtures/leadsheets/pdf-vs-musescore/${slug}.musescore-import.json`),
+				'utf8'
+			)
+		) as Tune;
+	}
+
+	it('matches a half-bar ii-V that resolves to the wrong quality as a 1-bar short ii-V-I', () => {
+		const tune = sheet({
+			key: 'G',
+			sections: [
+				section({
+					bars: 2,
+					harmony: [
+						seg('E', 'min7', [0, 1], [1, 2]),
+						seg('A', '7', [1, 2], [1, 2]),
+						seg('D', 'min7', [1, 1], [1, 1]) // not a major tonic
+					]
+				})
+			]
+		});
+		const dets = byType(detect(tune, { cyclic: false }), 'ii-V-I-major');
+		expect(dets).toHaveLength(1);
+		const d = dets[0];
+		expect(d.localKey).toBe('D');
+		expect(d.segmentIndices).toEqual([0, 1]);
+		expect(d.duration).toEqual([1, 1]);
+		expect(d.endBarExclusive).toBe(1);
+		expect(d.wrapsAround).toBe(false);
+		// No tonic slot: the I role has nowhere to land.
+		expect(d.slots.map((s) => s.templateOffset)).toEqual([
+			[0, 1],
+			[1, 2]
+		]);
+	});
+
+	it('matches a half-bar ii-V followed by an unrelated chord', () => {
+		const tune = sheet({
+			key: 'G',
+			sections: [
+				section({
+					bars: 2,
+					harmony: [
+						seg('D', 'min7', [0, 1], [1, 2]),
+						seg('G', '7', [1, 2], [1, 2]),
+						seg('F#', 'min7b5', [1, 1], [1, 1])
+					]
+				})
+			]
+		});
+		const dets = byType(detect(tune, { cyclic: false }), 'ii-V-I-major');
+		expect(dets.map((d) => [d.localKey, d.segmentIndices])).toEqual([['C', [0, 1]]]);
+	});
+
+	it('a resolved ii-V-I still yields exactly one detection at its start', () => {
+		const dets = detect(simpleSheet());
+		expect(dets).toHaveLength(1);
+		expect(dets[0].segmentIndices).toEqual([0, 1, 2]);
+		expect(dets[0].duration).toEqual([2, 1]);
+	});
+
+	it('the minor cadence accepts an unresolved iiø-V the same way', () => {
+		const tune = sheet({
+			key: 'C',
+			sections: [
+				section({
+					bars: 2,
+					harmony: [
+						seg('D', 'min7b5', [0, 1], [1, 2]),
+						seg('G', '7b9', [1, 2], [1, 2]),
+						seg('Eb', 'maj7', [1, 1], [1, 1])
+					]
+				})
+			]
+		});
+		const dets = byType(detect(tune, { cyclic: false }), 'ii-V-I-minor');
+		expect(dets.map((d) => [d.localKey, d.segmentIndices, d.duration])).toEqual([
+			['C', [0, 1], [1, 1]]
+		]);
+	});
+
+	it('an unresolved ii-V that would wrap to the top of the form does not claim the top', () => {
+		// The form ends on Dm7 G7 and opens on Fmaj7: the wrap is tried and the
+		// tonic slot fails, so the cadence stays a 1-bar unresolved ii-V.
+		const tune = sheet({
+			key: 'C',
+			sections: [
+				section({
+					bars: 2,
+					harmony: [
+						seg('F', 'maj7', [0, 1], [1, 1]),
+						seg('D', 'min7', [1, 1], [1, 2]),
+						seg('G', '7', [3, 2], [1, 2])
+					]
+				})
+			]
+		});
+		const dets = byType(detect(tune), 'ii-V-I-major');
+		expect(dets.map((d) => [d.segmentIndices, d.duration, d.wrapsAround, d.endBarExclusive])).toEqual([
+			[[1, 2], [1, 1], false, 2]
+		]);
+	});
+
+	it('Autumn Leaves: bar 22 becomes a short ii-V-I in D; bar 23 stays silent (¾-bar ii)', () => {
+		const tune = corpus('autumn-leaves');
+		const dets = detect(tune);
+		const shorts = byType(dets, 'ii-V-I-major');
+		expect(shorts.map((d) => [d.localKey, d.startBar, d.endBarExclusive, d.slots.length])).toEqual([
+			['D', 22, 23, 2]
+		]);
+		// The ¾-bar D-7 in bar 23 exceeds the short shape's half-bar ii, as before.
+		expect(dets.filter((d) => d.startBar === 23)).toHaveLength(0);
+		// Nothing else about the chart changes.
+		expect(byType(dets, 'ii-V-I-major-long').map((d) => d.startBar)).toEqual([1, 16]);
+		expect(byType(dets, 'ii-V-I-minor-long').map((d) => d.startBar)).toEqual([5, 12, 20, 24]);
+	});
+});
