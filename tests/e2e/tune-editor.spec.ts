@@ -107,3 +107,31 @@ test('adds a section with a repeat and sees it in the preview', async ({ page })
 	await expect(page.locator('.abcjs-container svg text').filter({ hasText: /^A$/ }).first()).toBeVisible({ timeout: 15000 });
 	await expect(page.locator('.abcjs-container svg text').filter({ hasText: /^B$/ }).first()).toBeVisible({ timeout: 15000 });
 });
+
+test('the composer is editable on the masthead, without opening Setup', async ({ page }) => {
+	await seedTunes(page);
+	await page.goto('/tunes/editor?edit=e2e-user-sheet-1');
+
+	await expect(page.getByRole('heading', { name: 'Edit Tune' })).toBeVisible();
+
+	// Under the title, as on a lead sheet — NOT inside the collapsed Setup
+	// card, whose summary advertises only the key and section count, so a
+	// composer parked there reads as "no way to edit the composer".
+	const composer = page.getByRole('textbox', { name: 'Composer' });
+	await expect(composer).toBeVisible();
+	await expect(composer).toHaveValue('E2E');
+
+	await composer.fill('Bart Howard');
+	await page.getByRole('button', { name: 'Update' }).click();
+
+	// Title untouched, so the slug is unchanged; the detail page shows the credit.
+	// Scoped to the page header — the print chart engraves the composer too,
+	// so an unscoped match is a strict-mode violation.
+	await page.waitForURL('**/tunes/test-session-tune');
+	const header = page.getByRole('heading', { name: 'Test Session Tune' }).locator('..');
+	await expect(header.getByText('Bart Howard')).toBeVisible();
+
+	const stored = await page.evaluate(() => window.localStorage.getItem('mankunku:user-tunes'));
+	const sheets = JSON.parse(stored ?? '[]') as Array<{ id: string; composer?: string }>;
+	expect(sheets.find((s) => s.id === 'e2e-user-sheet-1')?.composer).toBe('Bart Howard');
+});

@@ -427,11 +427,26 @@
 						bind:value={tuneEntry.title}
 						placeholder="Untitled"
 						aria-label="Tune title"
-						class="mb-2 w-full bg-transparent text-center font-display text-xl font-semibold tracking-tight
+						class="w-full bg-transparent text-center font-display text-xl font-semibold tracking-tight
 							border-b border-dashed border-[var(--color-bg-tertiary)] pb-0.5
 							focus:border-[var(--color-accent)] focus:outline-none
 							placeholder:italic placeholder:font-normal placeholder:text-[var(--color-text-secondary)]"
 					/>
+					<!-- Composer under the title, as on a lead sheet. It carries the
+					     title's dashed rule so a sheet that ALREADY has a composer still
+					     reads as editable; narrow and centred, so it doesn't read as a
+					     second full-width masthead line. -->
+					<div class="mt-1 mb-2 flex justify-center">
+						<input
+							bind:value={tuneEntry.composer}
+							placeholder="Composer"
+							aria-label="Composer"
+							class="w-48 bg-transparent text-center text-sm text-[var(--color-text-secondary)]
+								border-b border-dashed border-[var(--color-bg-tertiary)] pb-0.5
+								focus:border-[var(--color-accent)] focus:outline-none
+								placeholder:italic"
+						/>
+					</div>
 				{/snippet}
 			</NotationDisplay>
 
@@ -485,20 +500,12 @@
 				</button>
 				{#if setupOpen}
 					<div class="space-y-3 px-3 pt-1 pb-3">
-						<div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
-							<input
-								bind:value={tuneEntry.composer}
-								placeholder="Composer"
-								aria-label="Composer"
-								class="rounded bg-[var(--color-bg-tertiary)] px-3 py-1.5 text-sm outline-none ring-[var(--color-accent)] focus:ring-1"
-							/>
-							<input
-								bind:value={tuneEntry.style}
-								placeholder="Style (e.g. Medium Swing)"
-								aria-label="Style"
-								class="rounded bg-[var(--color-bg-tertiary)] px-3 py-1.5 text-sm outline-none ring-[var(--color-accent)] focus:ring-1"
-							/>
-						</div>
+						<input
+							bind:value={tuneEntry.style}
+							placeholder="Style (e.g. Medium Swing)"
+							aria-label="Style"
+							class="w-full rounded bg-[var(--color-bg-tertiary)] px-3 py-1.5 text-sm outline-none ring-[var(--color-accent)] focus:ring-1 sm:max-w-xs"
+						/>
 						<SourceTranspositionSelect
 							value={tuneEntry.sourceTransposition}
 							onchange={setSourceTransposition}
