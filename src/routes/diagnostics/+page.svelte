@@ -16,6 +16,7 @@
 	import { getAudioContext, isAudioInitialized } from '$lib/audio/audio-context';
 	import { segmentNotes, resolveOnsets, findReArticulations, getMetronomeBleedOnsets } from '$lib/audio/note-segmenter';
 	import { diagnosticsReplayFrame } from '$lib/audio/capture-window';
+	import { describeCaptureAlignment, type CaptureAlignment } from '$lib/audio/capture-timing';
 	import type { PitchReading } from '$lib/audio/pitch-detector';
 	import type { DetectedNote } from '$lib/types/audio';
 	import type { PitchClass } from '$lib/types/music';
@@ -57,6 +58,12 @@
 		 * the WAV download are not, so anything correlating the two needs this.
 		 */
 		trimOffset: number;
+		/**
+		 * Where the blob's first sample sits on the audio clock, measured from
+		 * the take's saved capture timing against the UNTRIMMED replay. Null on
+		 * takes recorded before 2026-09-17, which carry no capture timing.
+		 */
+		alignment: CaptureAlignment | null;
 	}
 
 	onMount(async () => {
@@ -140,6 +147,13 @@
 			const ctx = isAudioInitialized() ? await getAudioContext() : undefined;
 			const raw = await replayFromBlob(full.blob, ctx);
 			if (requestId !== replayRequestId || expandedId !== id) return;
+			// Measured on the untrimmed replay: the live readings are stamped
+			// from the arm instant, the replay from the blob's first sample.
+			const timing = full.metadata?.captureTiming;
+			const alignment =
+				timing && full.metadata
+					? describeCaptureAlignment(timing, raw.readings, 4096 / raw.sampleRate, full.metadata.tempo)
+					: null;
 			// Replay in the frame the recording's own scoring path used, so this
 			// panel reproduces the saved result instead of disagreeing with it:
 			// ear training trims the armed lead-in and segments over the blob,
@@ -179,7 +193,8 @@
 				segmented,
 				duration,
 				sampleRate,
-				trimOffset: trimmed.offset
+				trimOffset: trimmed.offset,
+				alignment
 			};
 		} catch (err) {
 			if (requestId === replayRequestId && expandedId === id) {
@@ -373,7 +388,13 @@
 					savedScore: md?.score ?? null
 				},
 				bleedFilterLog: md?.bleedFilterLog ?? null,
-				backingTrackLog: md?.backingTrackLog ?? null
+				backingTrackLog: md?.backingTrackLog ?? null,
+				// Where the blob's first sample sits on the audio clock
+				// (capture-timing.ts): the saved clocks and live readings, and what
+				// this page measured from them against the untrimmed replay. Null
+				// on takes recorded before 2026-09-17.
+				captureTiming: md?.captureTiming ?? null,
+				captureAlignment: replay.alignment
 			};
 			const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
 			const url = URL.createObjectURL(blob);
@@ -417,6 +438,13 @@
 
 	function pct(n: number): string {
 		return `${Math.round(n * 100)}%`;
+	}
+
+	/** Signed seconds as milliseconds, `—` when unknown. */
+	function signedMs(s: number | null | undefined): string {
+		if (s == null) return '—';
+		const ms = Math.round(s * 1000);
+		return `${ms > 0 ? '+' : ms < 0 ? '−' : ''}${Math.abs(ms)} ms`;
 	}
 
 	function displayKey(concertKey: string | undefined): string {
@@ -810,6 +838,46 @@
 										</div>
 									</div>
 								</div>
+
+								<!-- Capture timing: where the blob starts on the audio clock -->
+								{#if replay.alignment}
+									{@const a = replay.alignment}
+									<div data-testid="capture-alignment">
+										<h3 class="text-sm font-semibold mb-1">Capture timing</h3>
+										<div class="text-xs font-mono space-y-0.5">
+											<div>
+												<span class="text-[var(--color-text-secondary)]">Recording starts:</span>
+												{#if a.blobStart}
+													{signedMs(a.blobStart.blobStartOffset)} after arm
+													<span class="text-[var(--color-text-secondary)]">
+														({a.blobStart.matchedFrames} frames, {a.blobStart.meanPitchError.toFixed(2)} st)
+													</span>
+												{:else}
+													<span class="text-[var(--color-text-secondary)]">not measurable on this take</span>
+												{/if}
+											</div>
+											<div>
+												<span class="text-[var(--color-text-secondary)]">Stamp lead:</span>
+												{signedMs(a.stampLead)} ·
+												<span class="text-[var(--color-text-secondary)]">recorder start():</span>
+												{signedMs(a.recorderStartCallDelay)} ·
+												<span class="text-[var(--color-text-secondary)]">start event:</span>
+												{signedMs(a.recorderStartEventDelay)}
+											</div>
+											<div>
+												<span class="text-[var(--color-text-secondary)]">Click grid error:</span>
+												{#if a.gridError}
+													{signedMs(a.gridError.seconds)}
+													<span class="text-[var(--color-text-secondary)]">
+														({signedMs(a.gridError.modBeat)} modulo a beat)
+													</span>
+												{:else}
+													—
+												{/if}
+											</div>
+										</div>
+									</div>
+								{/if}
 
 								<!-- Saved-vs-current diff -->
 								{#if md?.detectedNotes && md.detectedNotes.length > 0}

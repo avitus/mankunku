@@ -81,8 +81,11 @@ export function chordChartCells(
  * minor "-" on the baseline, everything after them superscript (G⁷⁽♭⁹⁾, Dø⁷),
  * the same engraving the tune charts use. `displayRoot` is the
  * already-respelled written root (the component owns instrument transposition
- * and key context), so no keyContext is passed to the layout; `displayBass`
- * is the slash bass respelled the same way, when the segment carries one.
+ * and key context), so no keyContext is passed to the layout — and the text
+ * path keeps the letters as written (`chordSymbolSpellings`), which is what
+ * makes that safe: a C# handed in for B major prints C♯, not the canonical
+ * D♭ (2026-09-17); `displayBass` is the slash bass respelled the same way,
+ * when the segment carries one.
  */
 export function chordChartSymbol(
 	seg: HarmonicSegment,

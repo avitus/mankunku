@@ -18,6 +18,7 @@ import {
 import type { Phrase } from '$lib/types/music';
 import type { Score } from '$lib/types/scoring';
 import type { DetectedNote } from '$lib/types/audio';
+import type { CaptureTiming } from '$lib/audio/capture-timing';
 
 function makeBlob(size = 100): Blob {
 	return new Blob([new Uint8Array(size)], { type: 'audio/webm' });
@@ -243,5 +244,46 @@ describe('saveLickPracticeRecording', () => {
 		expect(withBleed!.metadata!.backingBleedOnsets).toEqual([0.5, 1.0, 1.5]);
 		const noBleed = await getRecordingFull('lp-session-no-bleed');
 		expect(noBleed!.metadata!.backingBleedOnsets).toBeUndefined();
+	});
+
+	it('forwards the capture timing the click-grid investigation reads', async () => {
+		const captureTiming: CaptureTiming = {
+			version: 1,
+			arm: {
+				contextTime: 30.2,
+				performanceNowMs: 51234.5,
+				transportSeconds: 4.5,
+				transportSecondsAtContextTime: 4.4,
+				lookAhead: 0.1,
+				sampleRate: 48000,
+				liveWindowSeconds: 4096 / 48000,
+				baseLatency: 0.005,
+				outputLatency: null,
+				outputTimestamp: null
+			},
+			recorder: {
+				mimeType: 'audio/webm;codecs=opus',
+				startCall: { contextTime: 30.2, performanceNowMs: 51234.6 },
+				startEvent: { contextTime: 30.25, performanceNowMs: 51290 }
+			},
+			liveOnsets: [0.41],
+			liveReadings: [[0.5, 61.2, 0.18]]
+		};
+		await saveLickPracticeRecording({
+			sessionId: 'lp-session-timing',
+			blob: makeBlob(),
+			phrase: makePhrase(),
+			tempo: 120,
+			swing: 0,
+			score: makeScore(),
+			detectedNotes: [],
+			backingTrackLog: null,
+			bleedFilterLog: null,
+			transportSeconds: 4.5,
+			metronomeEnabled: true,
+			captureTiming
+		});
+		const full = await getRecordingFull('lp-session-timing');
+		expect(full!.metadata!.captureTiming).toEqual(captureTiming);
 	});
 });

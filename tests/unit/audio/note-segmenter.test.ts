@@ -661,13 +661,25 @@ describe('findReArticulations: envelope dip-recover tier', () => {
 	/**
 	 * A held G3 at 60 fps for a second, with the sub-window floor `rmsMin` dipping
 	 * on frames 30–31 while the window `rms` barely moves — corroborated by a
-	 * tongue-noise `hfRms` burst and/or a fundamental wobble only when asked.
+	 * tongue-noise `hfRms` burst, a fundamental wobble and/or a waveform-shape
+	 * break (`dipShape` on the dip frames, `baseShape` everywhere else) only when
+	 * asked. `rebloom` holds the five frames after the dip at 0.92 of the level
+	 * before it, as a re-attack blooms back — past the envelope tier's recovery
+	 * ratio, under the shape tier's energy-sustain gate, so the shape tier
+	 * cannot claim the dip for itself.
 	 */
-	function dipRun(opts: { hfBurst?: boolean; wobble?: boolean }): PitchReading[] {
+	function dipRun(opts: {
+		hfBurst?: boolean;
+		wobble?: boolean;
+		dipShape?: number;
+		baseShape?: number;
+		rebloom?: boolean;
+	}): PitchReading[] {
 		const out: PitchReading[] = [];
 		for (let i = 0; i < 60; i++) {
 			const inDip = DIP.includes(i);
-			const rms = inDip ? 0.085 : 0.1;
+			const blooming = opts.rebloom && i > DIP[DIP.length - 1] && i <= DIP[DIP.length - 1] + 5;
+			const rms = inDip ? 0.085 : blooming ? 0.092 : 0.1;
 			out.push({
 				// 0.12 st — the 2026-07-25 blue-step-down tongue's fundamental wobble.
 				midiFloat: inDip && opts.wobble ? 55.12 : 55,
@@ -681,7 +693,7 @@ describe('findReArticulations: envelope dip-recover tier', () => {
 				hfRms: inDip && opts.hfBurst ? 0.02 : 0.008,
 				rmsMin: inDip ? 0.058 : rms * 0.95,
 				bandRmsMin: 0.09,
-				shapeBreak: 0.99,
+				shapeBreak: inDip && opts.dipShape != null ? opts.dipShape : (opts.baseShape ?? 0.99),
 				shapeBreakAt: 0.045
 			});
 		}
@@ -703,5 +715,23 @@ describe('findReArticulations: envelope dip-recover tier', () => {
 
 	it('does not split the same dip with neither corroborator — a breath pulse on a held note', () => {
 		expect(findReArticulations(dipRun({}), [0.1])).toEqual([]);
+		expect(findReArticulations(dipRun({ rebloom: true }), [0.1])).toEqual([]);
+	});
+
+	it('splits a floor dip that recovers when the reed resets — a shallow shape break at the floor (2026-09-18 blues-curl-up)', () => {
+		// 0.958 on a 0.99 baseline: the shape tier's legato-tongue depth.
+		const onsets = findReArticulations(dipRun({ dipShape: 0.958, rebloom: true }), [0.1]);
+		expect(onsets).toHaveLength(1);
+		expect(onsets[0]).toBeCloseTo(recovery - 0.02, 3);
+	});
+
+	it('does not credit a DEEP shape break — periodicity destroyed is contamination or an attack settling, not a reed reset', () => {
+		// 2026-09-16 sharp-9-flat-9-dom: the D re-blooming after a ghost-note
+		// hole reads 0.842 across the same kind of dip.
+		expect(findReArticulations(dipRun({ dipShape: 0.842, rebloom: true }), [0.1])).toEqual([]);
+	});
+
+	it('does not credit a shape break on a breathy tone — the shape signal is noise under SHAPE_CLEAN_BASELINE', () => {
+		expect(findReArticulations(dipRun({ baseShape: 0.96, dipShape: 0.93, rebloom: true }), [0.1])).toEqual([]);
 	});
 });

@@ -2362,3 +2362,151 @@ Worth noting the review caught it by reading the surrounding code rather than
 the diff: the guard it flagged was not in my patch at all. A diff-shaped
 reading of this change could not have found it, and neither could my
 test-shaped one, because both stopped at the edge of what I had touched.
+
+## 2026-09-17 (evening) — Tiers that partition evidence go blind to events that split it
+
+The re-articulation tiers are built to NOT overlap: the gap tiers own holes,
+the HF tier owns bursts, the envelope tier owns dips, the shape tier owns
+reed resets with no energy evidence. Each one explicitly refuses the others'
+evidence (the envelope tier skips spans near a gap; the shape tier demands
+sustained energy). That is good hygiene against double-firing. The cost is
+a blind spot for any event that leaves moderate evidence in two classes and
+decisive evidence in none. The Blues Curl Up Db tongue is exactly that: a
+clean envelope dip AND a clean reed reset, each individually refused by the
+tier that owns the other class.
+
+The joint where classes are meant to combine is the corroborator, and
+it had been drawn from inside the energy family (HF noise, pitch wobble).
+Adding the shape reading there adds no permissiveness; it lets two
+tiers' existing measurements meet. What I want to remember: when a take
+fails "every tier for a different reason", look for a PAIR of tiers that
+each hold half the evidence, before looking for a threshold to nudge.
+
+Second thought, less comfortable: depth as a click discriminator is
+amplitude-relative. A click adds a fixed-level burst; how far it drags the
+cycle correlation depends on how loud the horn is under it. The corpus's
+clicks read deep because they landed on quieter notes. On this take the horn
+is loud (rms 0.18) and the clicks read 0.93–0.95, squarely in the "legato
+tongue" band. So SHAPE_MIN_PERIODICITY is not a click rejector in general,
+only for clicks that are loud RELATIVE to the note. Pair that with the
+0.33 s grid drift and the shape tier on a loud held note is one crescendo
+away from a phantom split. The grid re-baseline keeps coming back as the
+load-bearing open item.
+
+## 2026-09-17 (night) — A periodic ruler cannot measure its own phase
+
+Two months of "0.25–0.40 s, sign ambiguous modulo a beat" came from measuring
+the grid error with the clicks themselves. A click train is periodic, so any
+measurement taken against it is defined only modulo its period. That is not
+a precision problem that more takes would fix. The instrument cannot see
+what is being asked. Settling the question needs a signal with no period,
+and the performance is exactly that: a pitch contour happens once. The live
+detectors had been recording it on the audio clock the whole time; it was
+simply never saved.
+
+The pattern is worth naming: when a measurement comes back "ambiguous modulo
+X", look for what in the system is periodic in X and measure against
+something that isn't. The fix here was not cleverness in the estimator, it
+was keeping evidence that was already being computed and thrown away.
+
+Smaller: `Transport.seconds` is elapsed running time, not position. The name
+says "position in seconds" to anyone reading the call site. It doesn't bite
+ear training, but any flow that changes tempo on a running transport (Deep
+Practice's per-cycle bump does) would find the grid drifting by the
+integral of the tempo change. It is worth checking before trusting a lick-practice
+stamp late in a bumped session.
+
+## 2026-09-17 (evening) — Selection that runs before it knows what it is selecting for
+
+The tune planner chose windows by the shape of the harmony and only then
+asked which licks fit them. That order is natural to write — detect, then
+match — and it produced a rule that reads well ("the longer progression
+wins") while doing the wrong thing whenever the longer progression had
+nothing to offer. The fix was not a smarter tie-break. It was moving the
+question "is there a lick for this?" ahead of the question "which window?"
+The general shape: any greedy selection whose fitness depends on a later
+stage is really a selection over the product of both, and collapsing it
+into two passes silently fixes the answer to the first.
+
+Second: an offset that lives only in the scorer is a lie to the player. The
+alignment table was correct for months, because on Side B the band plays
+the whole template and the offset just says where you start. In a tune, the
+same offset picked a slot two bars into a band drawn from bar one, and
+nothing drawn on the chart carried that information. When a number moves
+from "where playback starts" to "where inside a window the player must
+enter", every surface that shows the window has to consume it too. I found
+the scorer honouring it and the chart ignoring it; the report showed a
+third key, the progression's. Three consumers, three answers.
+
+Third, small: a `getByText(/regex/)` does not normalise whitespace where a
+string would. The first failure of the new e2e was a false red on a line
+break in the template. Worth remembering because the fix — `\s+` — is
+trivial and the symptom looks like the app.
+
+## 2026-09-17 (later) — "Has a lick" is free when the catalog is in the pool
+
+The planner's new rule read "the longest progression with a lick wins". It
+held in the unit tests, which fed it a book of two licks, and collapsed in
+the browser, where Points mode feeds it 924. With the whole catalog eligible
+every long cadence "has a lick", so the condition stopped discriminating and
+the rule degraded back to longest-wins — the exact behaviour I was replacing.
+The user's own known lick sat in the dropped window.
+
+The lesson is about the word in the rule, not the code: "ready" and "has"
+mean different things in the two modes, and a rule that reads the same in
+both is being satisfied by different facts in each. Suggest's readiness
+filter had already made "has a lick" mean "has a lick they can play"; Points
+never had that filter, so in Points the rule needed to say it explicitly —
+mastery before span. Whenever a selection criterion is a predicate over a
+pool, ask what the pool is in every caller before trusting the predicate.
+Also: a test pool that is small enough to reason about is small enough to
+hide this.
+
+## 2026-09-17 (later) — A canonical model is lossy in exactly one direction
+
+The chord bug was not in the spelling policy. The policy did its job and
+wrote `G#ø7` into the text. What lost the sharp was a later layer that
+parsed the text back into the canonical model — where a root is a
+`PitchClass`, and the pitch class of G# is spelled Ab — and rebuilt the
+display from the model instead of from the text. Round-tripping through a
+canonical form is safe for everything the form keeps and silently wrong for
+everything it normalises away. Spelling is precisely what it normalises
+away, and the only pitch class it keeps sharp, F#, is why the tonic looked
+right beside two wrong chords and the report read as a policy bug.
+
+The tell is structural, and I want to name it so I recognise it next time:
+**a display layer that re-parses display text**. Text that has already been
+through a policy is an output; parsing it back to the input type and
+re-rendering means the policy runs at most once and the canonicalisation
+runs twice. `chordChartSymbol`'s comment even recorded the assumption — "no
+keyContext is passed to the layout" — as if handing in a respelled root were
+enough. It was enough at the boundary it named and lost one line later.
+
+Two smaller things. First, the fix's shape: I did not thread a key context
+into the glyph pass, though that would also have printed G♯. It would have
+run `displayPitchClass` a second time, on a different surface, from inputs
+NotationDisplay would have to be handed — a second copy of a decision, which
+is how the note chain came to disagree with itself on 13% of renders in
+September. Keeping the letters the text carried makes the text the one
+decision. Second, my own test expectations were wrong twice about the same
+thing: I wrote `ø7` where the structural layer keeps `-7b5`. The pretty
+model is a projection of the parts, and I had let the projection stand in
+for the thing it projects — the same mistake as the bug, from the other side.
+
+## 2026-09-18 — Ask which pass printed it
+
+I reported "two Vite warnings" and both words were wrong, for the same
+reason: I read the tail of a log instead of the log. The count was three, and
+the printer was the adapter's Rollup pass, two builds downstream of Vite. A
+SvelteKit build is three bundler runs in a trench coat, and a warning that
+names a chunk says nothing about which run found it. Had I started from "a
+Vite chunk is empty" I would have gone looking for a splitting bug in app
+imports — and the Vite files were never empty.
+
+I am not fully comfortable that the fix is a filter. Andy's rule is to remove
+warnings at the source, and the source here is upstream: the adapter forces
+the chunk boundaries and offers no hook. What makes the filter honest rather
+than a rug is its width — one message, one step, one argument shape — and
+that the class it hides is harmless by construction: an empty SERVER chunk is
+a browser-only module doing exactly what it should. If adapter-node ever
+grows an `onwarn`, this file should become three lines of config.

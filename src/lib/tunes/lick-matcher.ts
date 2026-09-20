@@ -1,4 +1,4 @@
-import type { Fraction, Phrase, PhraseCategory, PitchClass } from '$lib/types/music';
+import type { Fraction, Mode, Phrase, PhraseCategory, PitchClass } from '$lib/types/music';
 import type {
 	ChordProgressionType,
 	ChordSubstitutionRule,
@@ -20,6 +20,8 @@ import {
 	resolveTransposeTarget
 } from '$lib/data/progressions';
 import { compareFractions, fractionToFloat } from '$lib/music/intervals';
+import { lickMode } from '$lib/music/mode';
+import { MINOR_TONIC_QUALITIES } from '$lib/data/progression-shapes';
 import { planUnlockedKeys } from '$lib/music/key-ordering';
 import { baseLickId, getAllLicks } from '$lib/phrases/library-loader';
 import { getTrickById, trickEntryKey } from '$lib/tricks';
@@ -77,6 +79,15 @@ export interface LickSuggestion {
 	substitution: ChordSubstitutionRule | null;
 	inPracticeSet: boolean;
 	difficultyLevel: number;
+	/**
+	 * The lick's length in bars (`difficulty.lengthBars`; a trick's generated
+	 * example). The session planner sizes a chord-role window by it: a
+	 * single-chord lick is offered only where its chord lasts at least this
+	 * long, and a cadence window stretches to hold its longest lick.
+	 */
+	lengthBars: number;
+	/** Major or minor reading of the lick (`lickMode`), for the key it is named in. */
+	mode: Mode;
 	/**
 	 * Present only on synthetic trick suggestions (`trick-suggestion:*` ids):
 	 * the device, its parameter selection, and the harmonic context the
@@ -218,9 +229,12 @@ export function suggestLicksForProgression(
 		);
 		// Segment-based mapping: land on the matched slot mirroring the template
 		// chord, not "start + N bars" — correct even when the tune's harmonic
-		// rhythm is compressed relative to the template.
+		// rhythm is compressed relative to the template. No slot means the role
+		// has nowhere to land (an unresolved ii-V carries no tonic), so the lick
+		// is not offered rather than dropped onto the progression's first bar.
 		const slot = slotAtTemplateOffset(detected, templateAlignmentOffset);
-		const insertionOffset = slot ? slot.startOffset : detected.startOffset;
+		if (!slot) continue;
+		const insertionOffset = slot.startOffset;
 		const targetKey = resolveTransposeTarget(
 			detected.localKey,
 			lick.category,
@@ -247,7 +261,9 @@ export function suggestLicksForProgression(
 			matchSources,
 			substitution,
 			inPracticeSet: deps.practiceLickIds.has(lick.id),
-			difficultyLevel: lick.difficulty.level
+			difficultyLevel: lick.difficulty.level,
+			lengthBars: lick.difficulty.lengthBars,
+			mode: lickMode(lick)
 		});
 	}
 
@@ -301,7 +317,8 @@ export function suggestLicksForProgression(
 				);
 			}
 			const slot = slotAtTemplateOffset(detected, templateAlignmentOffset);
-			const insertionOffset = slot ? slot.startOffset : detected.startOffset;
+			if (!slot) continue;
+			const insertionOffset = slot.startOffset;
 
 			// Harmonic context: the template chord the trick aligns to (falling
 			// back to the template's first chord), rooted at the target key.
@@ -358,6 +375,8 @@ export function suggestLicksForProgression(
 				substitution: null,
 				inPracticeSet: true,
 				difficultyLevel: phrase.difficulty.level,
+				lengthBars: phrase.difficulty.lengthBars,
+				mode: MINOR_TONIC_QUALITIES.includes(chord.chord.quality) ? 'minor' : 'major',
 				trick: { trickId: variant.trickId, parameters: variant.params, context },
 				phrase
 			});

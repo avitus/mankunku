@@ -128,3 +128,27 @@ describe('chordChartSymbol — pretty display model for a chart cell', () => {
 		expect(chordChartSymbol(seg('maj7'), 'C').bass).toBeNull();
 	});
 });
+
+describe('chordChartSymbol — a written sharp root stays sharp (2026-09-17)', () => {
+	// ChordChart hands in the root already respelled for the written key
+	// (`displayPitchClass`: C# is diatonic to B major). The model must print
+	// that spelling, not the canonical Db the parser normalises it to.
+	const seg = (quality: HarmonicSegment['chord']['quality']): HarmonicSegment => ({
+		chord: { root: 'Db', quality },
+		scaleId: 'major.dorian',
+		startOffset: [0, 1],
+		duration: [1, 1]
+	});
+
+	test('C#-7 in B major prints C♯, not D♭', () => {
+		expect(chordChartSymbol(seg('min7'), 'C#')).toMatchObject({
+			root: 'C♯',
+			baselineQuality: '-',
+			sup: '7'
+		});
+	});
+
+	test('a sharp slash bass prints sharp too', () => {
+		expect(chordChartSymbol(seg('maj7'), 'E', 'G#').bass).toBe('G♯');
+	});
+});

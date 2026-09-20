@@ -50,6 +50,68 @@ function parseNoteToken(token: string): PitchClass | null {
 	return ROOT_NORMALIZATION[m[1] + accidental] ?? null;
 }
 
+/** The root token at the head of a chord symbol: a letter and an optional accidental, ASCII or glyph. */
+const ROOT_TOKEN = /^([A-G])([#♯b♭])?/;
+
+/** "F♯" → "F#", "B♭" → "Bb"; ASCII accidentals pass through. */
+function asciiAccidental(token: string): string {
+	return token.replace('♯', '#').replace('♭', 'b');
+}
+
+/** A chord symbol split into its written root, quality body and slash-bass tokens. */
+interface ChordSymbolTokens {
+	/** Root as written, accidental normalised to ASCII ("G#", "Db"). */
+	root: string;
+	/** Everything between the root and the slash bass — quality, extensions, alterations. */
+	body: string;
+	/** Slash bass as written (ASCII accidental), or null when the symbol has none. */
+	bass: string | null;
+}
+
+/**
+ * The ONE tokenisation of a chord symbol, shared by `parseChordSymbol` and
+ * `chordSymbolSpellings` so the two can never disagree about which characters
+ * are the root: leading root token, the "6/9" extension pair collapsed before
+ * the split (it is not a slash bass), then the bass after the LAST slash.
+ * Null for empty text, a no-chord marker or a missing root letter; the
+ * tokens are not validated further (an unparseable bass is the caller's call).
+ */
+function tokenizeChordSymbol(input: string): ChordSymbolTokens | null {
+	let s = input.trim();
+	if (s === '') return null;
+	if (/^n\.?c\.?$/i.test(s)) return null;
+
+	const rootMatch = ROOT_TOKEN.exec(s);
+	if (!rootMatch) return null;
+	s = s.slice(rootMatch[0].length);
+
+	// "6/9" is an extension pair, not a slash bass — collapse before splitting.
+	s = s.replace('6/9', '69');
+
+	let bass: string | null = null;
+	const slash = s.lastIndexOf('/');
+	if (slash >= 0) {
+		bass = asciiAccidental(s.slice(slash + 1).trim());
+		s = s.slice(0, slash);
+	}
+	return { root: asciiAccidental(rootMatch[0]), body: s, bass };
+}
+
+/**
+ * The root and slash bass EXACTLY as the chord text spells them — "G#" from
+ * "G#ø7", "Ab" from "Db-7/Ab", glyph accidentals normalised to ASCII — or
+ * null when the text does not parse as a chord. The canonical `ChordSymbol`
+ * names every root by `PitchClass` (Ab for G#), which is right for
+ * transposition and quality logic and wrong for display: a chart's chord text
+ * is already spelled for its key, and the display layer must print the
+ * letters it carried rather than re-derive them from the pitch class.
+ */
+export function chordSymbolSpellings(input: string): { root: string; bass: string | null } | null {
+	if (!parseChordSymbol(input)) return null;
+	const tokens = tokenizeChordSymbol(input)!;
+	return { root: tokens.root, bass: tokens.bass };
+}
+
 const ALTERABLE_DEGREES = new Set(['5', '9', '11', '13']);
 
 /**
@@ -58,27 +120,18 @@ const ALTERABLE_DEGREES = new Set(['5', '9', '11', '13']);
  * unparseable — callers decide whether null means "skip" or "reject".
  */
 export function parseChordSymbol(input: string): ChordSymbol | null {
-	let s = input.trim();
-	if (s === '') return null;
-	if (/^n\.?c\.?$/i.test(s)) return null;
-
-	const rootMatch = /^([A-G])([#♯b♭])?/.exec(s);
-	if (!rootMatch) return null;
-	const root = parseNoteToken(rootMatch[0].replace('♯', '#').replace('♭', 'b'));
+	const tokens = tokenizeChordSymbol(input);
+	if (!tokens) return null;
+	const root = parseNoteToken(tokens.root);
 	if (!root) return null;
-	s = s.slice(rootMatch[0].length);
-
-	// "6/9" is an extension pair, not a slash bass — collapse before splitting.
-	s = s.replace('6/9', '69');
 
 	let bass: PitchClass | undefined;
-	const slash = s.lastIndexOf('/');
-	if (slash >= 0) {
-		const parsed = parseNoteToken(s.slice(slash + 1).trim());
+	if (tokens.bass !== null) {
+		const parsed = parseNoteToken(tokens.bass);
 		if (!parsed) return null;
 		bass = parsed;
-		s = s.slice(0, slash);
 	}
+	let s = tokens.body;
 
 	let quality: ChordBaseQuality | null = null;
 	const extensions: string[] = [];

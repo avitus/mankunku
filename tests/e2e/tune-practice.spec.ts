@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test, expect } from './fixtures/test';
-import { seedOnboardedAnonymous, seedTunes } from './fixtures/storage';
+import { seedOnboardedAnonymous, seedStorage, seedTunes, seedUserLicks } from './fixtures/storage';
 import { installAudioMock, stubCdnInstrumentSamples } from './fixtures/audio';
 
 const autumnLeavesFixture = JSON.parse(
@@ -411,6 +411,114 @@ test.describe.serial('tune practice session follow-scroll', () => {
 		const summary = page.locator('p', { hasText: /no known licks recognized/i });
 		await expect(summary).toBeVisible();
 		await expect(summary).not.toContainText(/band/i);
+	});
+
+	test('no lick prompts through the head; a minor lick gets its own band on the i chord (Autumn Leaves)', async ({
+		page,
+		browserName,
+		consoleCollector: _consoleCollector
+	}) => {
+		test.skip(
+			browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+			'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device'
+		);
+		test.setTimeout(150_000);
+
+		// 2026-09-17: with no long ii-V-I lick ready, a single-chord minor lick
+		// was named across every long ii-V-I from the first head bar. Andy's
+		// rules: nothing prompts for a lick while the melody plays, and a
+		// single-chord lick is offered as its own band on the chord it fits —
+		// the i of the minor ii-V-i — labelled with its name and key.
+		const autumnLeaves = {
+			...autumnLeavesFixture,
+			id: 'e2e-autumn-leaves',
+			source: 'user' as const
+		};
+		const minorLick = {
+			id: 'e2e-minor-lick',
+			name: 'E2E Minor Lick',
+			timeSignature: [4, 4],
+			key: 'C',
+			notes: [
+				{ pitch: 63, duration: [1, 2], offset: [0, 1] },
+				{ pitch: 62, duration: [1, 2], offset: [1, 2] },
+				{ pitch: 60, duration: [1, 1], offset: [1, 1] }
+			],
+			harmony: [
+				{ chord: { root: 'C', quality: 'min7' }, scaleId: 'major.dorian', startOffset: [0, 1], duration: [2, 1], symbol: 'C-7' }
+			],
+			difficulty: { level: 20, pitchComplexity: 20, rhythmComplexity: 20, lengthBars: 2 },
+			category: 'minor-chord',
+			tags: ['practice'],
+			source: 'user-entered'
+		};
+
+		await seedOnboardedAnonymous(page);
+		await seedUserLicks(page, [minorLick]);
+		// Known in concert E (the tune's minor chord): Points mode admits the
+		// whole catalog, and a lick the player HAS in the key outranks a longer
+		// cadence lick they have never touched.
+		await seedStorage(page, {
+			'lick-practice-progress': {
+				'e2e-minor-lick': { E: { passCount: 1, currentTempo: 240, lastPracticedAt: 1 } }
+			}
+		});
+		await seedTunes(page, [autumnLeaves]);
+		await installAudioMock(page);
+		await stubCdnInstrumentSamples(page);
+
+		await page.goto('/tunes/e2e-autumn-leaves/practice');
+		await expect(page.getByRole('button', { name: /^start$/i })).toBeVisible();
+		// Points: no readiness filter, and the pick card is the one prompt a
+		// head could show.
+		await page
+			.getByRole('radiogroup', { name: 'Mode', exact: true })
+			.getByRole('radio', { name: /^points\b/i })
+			.click();
+		// Guided: the bands name the lick (Standard, the default, names the
+		// progression alone).
+		await page
+			.getByRole('radiogroup', { name: 'Strictness', exact: true })
+			.getByRole('radio', { name: /^guided\b/i })
+			.click();
+		await setTempoMax(page);
+		await startPracticeSession(page);
+
+		// The head: the melody sheet carries the playhead and nothing else.
+		// A regex in getByText is not whitespace-normalised, and the template breaks
+		// this line between "once" and "through".
+		await expect(page.getByText(/melody once\s+through/i)).toBeVisible({ timeout: 20_000 });
+		const annotationsDuringHead = await page.evaluate(() => {
+			const vp = document.querySelector('[data-testid="chart-scroll-viewport"].following');
+			const markers = [...(vp?.querySelectorAll('svg .range-marker') ?? [])];
+			return {
+				labels: markers.filter((m) => m.classList.contains('range-marker-label')).length,
+				bands: markers.filter((m) => m.getAttribute('data-marker-id') !== '__playhead').length,
+				pickCard: !!document.querySelector('[data-testid="suggestion-pick-card"]')
+			};
+		});
+		expect(annotationsDuringHead).toEqual({ labels: 0, bands: 0, pickCard: false });
+
+		// The solo chorus: the minor lick is named on its own Minor bands, in
+		// the written key of the chord it sits on (concert E- is F#- on tenor).
+		await expect(
+			page.getByText(/your turn — play the lick!|comping — insertion/i)
+		).toBeVisible({ timeout: 75_000 });
+		const labels = page.locator('svg text.range-marker-label');
+		await expect(labels.first()).toBeVisible();
+		const texts = await labels.allTextContents();
+		expect(texts.filter((t) => t === 'E2E Minor Lick · F#m').length).toBeGreaterThanOrEqual(3);
+		// The pick card, held back through the head, is up for the next window.
+		await expect(page.getByTestId('suggestion-pick-card')).toBeVisible();
+
+		await page.getByRole('button', { name: /^end$/i }).click();
+		await expect(page.getByRole('heading', { name: /take complete/i })).toBeVisible({
+			timeout: 10_000
+		});
+		// The report names the window by its chord: bar, key F#, "Minor" (the
+		// take ended before the window played, so no lick is recorded on it).
+		const minorRows = page.locator('div', { hasText: /b8\s*F#\s*Minor\s*No take/ });
+		await expect(minorRows.first()).toBeVisible();
 	});
 
 	test('chart stays visible through first insertion (Autumn Leaves)', async ({

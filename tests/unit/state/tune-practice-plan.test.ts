@@ -72,7 +72,9 @@ function mkSuggestion(lickId: string): LickSuggestion {
 		matchSources: ['category'],
 		substitution: null,
 		inPracticeSet: false,
-		difficultyLevel: 20
+		difficultyLevel: 20,
+		lengthBars: 2,
+		mode: 'major'
 	};
 }
 
@@ -392,7 +394,10 @@ describe('assignSuggestRotation', () => {
 	): InsertionPoint => ({
 		id,
 		progressionType: type,
+		bandName: type,
+		detectedType: type,
 		localKey: 'C',
+		keyCenter: 'C',
 		degreeLabel: '1',
 		startOffset: [0, 1],
 		duration: [2, 1],

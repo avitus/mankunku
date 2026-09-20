@@ -22,6 +22,7 @@ import type { Database } from '$lib/supabase/types';
 import type { DetectedNote } from '$lib/types/audio';
 import type { Score, BleedFilterLog } from '$lib/types/scoring';
 import type { BackingTrackLog } from '$lib/audio/backing-track';
+import type { CaptureTiming } from '$lib/audio/capture-timing';
 import { getActiveUid } from './namespace';
 
 /**
@@ -101,6 +102,14 @@ export interface RecordingMetadata {
 	 * metronome grid reconstruction, then to unsuppressed.
 	 */
 	backingBleedOnsets?: number[];
+	/**
+	 * Where the blob's first sample sits on the audio clock: the arm instant's
+	 * clocks, the recorder's start timing and the live detectors' view of the
+	 * same take (capture-timing.ts). Diagnostic only — the click-grid drift
+	 * investigation reads it through /diagnostics. Absent on recordings made
+	 * before 2026-09-17.
+	 */
+	captureTiming?: CaptureTiming;
 }
 
 export interface RecordingRecord {

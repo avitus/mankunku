@@ -49,7 +49,9 @@ function suggestion(lickId: string, insertionOffset: [number, number]): LickSugg
 		matchSources: ['category'],
 		substitution: null,
 		inPracticeSet: false,
-		difficultyLevel: 20
+		difficultyLevel: 20,
+		lengthBars: 2,
+		mode: 'major'
 	};
 }
 
@@ -100,10 +102,13 @@ describe('picking a suggestion (suggest mode cycles picks per window)', () => {
 		const second = { ...suggestion(licks[1].id, [0, 1]), lickName: 'Second' };
 		const point = { id: 'ip-0', startOffset: [0, 1], suggestions: [first, second] } as InsertionPoint;
 
-		expect(suggestionNameFor(point)).toBe('First');
+		// The band names the lick AND the key it is played in — written pitch
+		// (concert C is D on the default tenor), since the window may sit on a
+		// chord two bars from where the progression began (2026-09-17).
+		expect(suggestionNameFor(point)).toBe('First · D');
 		pickSuggestion('ip-0', 1);
 		expect(tunePractice.pickedSuggestion).toEqual({ 'ip-0': 1 });
-		expect(suggestionNameFor(point)).toBe('Second');
+		expect(suggestionNameFor(point)).toBe('Second · D');
 		// At the lick cue level (Guided) the pick IS the one accepted answer.
 		const guided = candidatesForWindow(point, 'lick');
 		expect(guided.map((c) => c.lickName)).toEqual(['Second']);
@@ -124,6 +129,17 @@ describe('picking a suggestion (suggest mode cycles picks per window)', () => {
 				'Second'
 			]);
 		}
+	});
+
+	it('labels a minor lick with its minor key', () => {
+		const minor = {
+			...suggestion(licks[0].id, [0, 1]),
+			lickName: 'Cry Me a River',
+			targetKey: 'E' as const,
+			mode: 'minor' as const
+		};
+		const point = { id: 'ip-0', startOffset: [0, 1], suggestions: [minor] } as InsertionPoint;
+		expect(suggestionNameFor(point)).toBe('Cry Me a River · F#m');
 	});
 
 	it('names nothing for a window with no suggestions', () => {

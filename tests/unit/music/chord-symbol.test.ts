@@ -4,6 +4,7 @@ import {
 	formatChordSymbol,
 	chordSymbolToQuality,
 	transposeChordSymbol,
+	chordSymbolSpellings,
 	type ChordSymbol
 } from '$lib/music/chord-symbol';
 
@@ -417,5 +418,54 @@ describe('transposeChordSymbol', () => {
 		expect(transposeChordSymbol('', 2)).toBeUndefined();
 		expect(transposeChordSymbol('N.C.', 2)).toBeUndefined();
 		expect(transposeChordSymbol('Cxyz', 2)).toBeUndefined();
+	});
+});
+
+describe('chordSymbolSpellings — the root and bass exactly as the text writes them', () => {
+	// The canonical model names every root by PitchClass (G# → Ab). A chart's
+	// chord text is already spelled for its key, so the display layer needs the
+	// letters the text carried, tokenised the way `parseChordSymbol` does.
+	it('keeps a sharp root the parser would normalise to a flat', () => {
+		expect(chordSymbolSpellings('G#ø7')).toEqual({ root: 'G#', bass: null });
+		expect(chordSymbolSpellings('C#7b9')).toEqual({ root: 'C#', bass: null });
+	});
+
+	it('normalises accidental glyphs to ASCII', () => {
+		expect(chordSymbolSpellings('C♯7(♭9)')).toEqual({ root: 'C#', bass: null });
+		expect(chordSymbolSpellings('B♭-7/A♭')).toEqual({ root: 'Bb', bass: 'Ab' });
+	});
+
+	it('keeps the slash bass as written, and a flat root flat', () => {
+		expect(chordSymbolSpellings('E/G#')).toEqual({ root: 'E', bass: 'G#' });
+		expect(chordSymbolSpellings('Db-7/Ab')).toEqual({ root: 'Db', bass: 'Ab' });
+	});
+
+	it('reads 6/9 as the extension pair, not a slash bass', () => {
+		expect(chordSymbolSpellings('C6/9')).toEqual({ root: 'C', bass: null });
+	});
+
+	it('rejects what parseChordSymbol rejects', () => {
+		expect(chordSymbolSpellings('N.C.')).toBeNull();
+		expect(chordSymbolSpellings('H7')).toBeNull();
+		expect(chordSymbolSpellings('C/X')).toBeNull();
+		expect(chordSymbolSpellings('')).toBeNull();
+	});
+
+	it('tokenises exactly as parseChordSymbol: the written root normalises to the parsed root', () => {
+		const roots = ['C#', 'Db', 'D#', 'Eb', 'E#', 'F#', 'Gb', 'G#', 'Ab', 'A#', 'Bb', 'Cb', 'B'];
+		const bodies = ['', '7', '-7', 'ø7', 'Δ7', '7(b9,#11)', '6/9', 'm7b5'];
+		for (const root of roots) {
+			for (const body of bodies) {
+				for (const bass of [null, 'F#', 'Bb']) {
+					const text = `${root}${body}${bass ? `/${bass}` : ''}`;
+					const parsed = parseChordSymbol(text)!;
+					const written = chordSymbolSpellings(text)!;
+					expect(written, text).not.toBeNull();
+					expect(parseChordSymbol(written.root)!.root, text).toBe(parsed.root);
+					if (bass) expect(parseChordSymbol(written.bass!)!.root, text).toBe(parsed.bass);
+					else expect(written.bass, text).toBeNull();
+				}
+			}
+		}
 	});
 });

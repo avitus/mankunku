@@ -294,3 +294,44 @@ describe('multiRestRuns', () => {
 		expect(multiRestRuns(s, empty, [{ at: 1, text: 'CΔ7' }])).toEqual([]);
 	});
 });
+
+describe('chord text keeps its written spelling (2026-09-17, Autumn Leaves on tenor)', () => {
+	// The tune chart spelled the minor ii-V-i of F# minor as G#-7b5 · C#7b9
+	// under three sharps; the glyph pass re-parsed that text into the canonical
+	// Ab / Db roots and drew A♭ø7 · D♭7(♭9) beside a correct F♯- (the one
+	// canonical sharp). Without a key to respell for, the text IS the spelling.
+	it('draws a sharp root sharp', () => {
+		expect(chordDisplayModelFromText('G#ø7')).toEqual({
+			root: 'G♯',
+			baselineQuality: '',
+			sup: 'ø7',
+			supStack: null,
+			bass: null
+		});
+		expect(chordDisplayModelFromText('C#7b9')).toMatchObject({ root: 'C♯', sup: '7(♭9)' });
+		expect(chordDisplayModelFromText('D#-7')).toMatchObject({ root: 'D♯', baselineQuality: '-' });
+	});
+
+	it('accepts the accidental as a glyph and still prints one', () => {
+		expect(chordDisplayModelFromText('G♯-7').root).toBe('G♯');
+	});
+
+	it('keeps the slash bass as written', () => {
+		expect(chordDisplayModelFromText('E/G#')).toMatchObject({ root: 'E', bass: 'G♯' });
+	});
+
+	it('keeps a flat root flat — the text decides, not a key default', () => {
+		expect(chordDisplayModelFromText('Abø7').root).toBe('A♭');
+	});
+
+	it('keeps the written spelling in the structural parts and the line form', () => {
+		expect(layoutChordParts('G#-7b5')).toMatchObject({ root: 'G#', quality: '-7b5', bass: null });
+		expect(chordDisplayLine('G#ø7/B')).toBe('G#-7b5/B');
+	});
+
+	it('still respells the canonical root when a key context is given', () => {
+		expect(chordDisplayModelFromText('Abø7', 'A').root).toBe('G♯');
+		expect(chordDisplayModelFromText('G#ø7', 'A').root).toBe('G♯');
+		expect(chordDisplayModelFromText('F#7', 'F').root).toBe('G♭');
+	});
+});

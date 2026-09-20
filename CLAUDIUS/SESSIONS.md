@@ -4153,3 +4153,257 @@ Chromium, the switch spec green on all three engines, docstring coverage 5/5.
   option, and a freestyle take started with the band off and ended
   immediately, which lands on exactly that summary branch. tune-practice e2e
   9/9 on Chromium.
+
+## 2026-09-17 (evening) — Blues Curl Up in Bb: the tongued Db pair merged
+
+Andy's ear-training take of "Blues Curl Up" (bc-041_Bb, 100 BPM, tenor,
+metronome on; the diagnostic's own stamp is 2026-09-18 UTC) saved 2 of 3,
+0.570 "fair": Bb3, then ONE 2.91 s Db4, with the second Db marked MISSED. The
+offline replay reproduced the saved notes and score exactly.
+
+- The WAV settles what happened. Clicks sound at 0.86 / 1.46 / 2.06 s after
+  the trim (HF bursts ~20× the floor). The player tongued the second Db
+  ~115 ms after the beat-3 click, the same lag as every other attack on the
+  take. The raw envelope dips 0.59× over ~50 ms at 1.57 s and recovers. Pitch
+  tracking never drops a frame.
+- Every tier missed it for a different reason. There is no gap, so the gap
+  tiers see nothing. The HF tier's spike is 2.5× against its 3× gate, and
+  that spike is the click. The envelope tier sees the whole dip-and-recover
+  (rmsMin 0.54×, back to 0.9× in 67 ms) but needs a corroborator: tongue
+  noise measured 1.86× (gate 2.0) and the pitch wobble 0.057 st (gate
+  0.08). The shape tier finds the reed reset (0.958 on a 0.988 baseline,
+  located at 1.575 s, the dip's floor) but refuses it on SHAPE_MIN_SUSTAIN,
+  since it exists for tongues with no energy evidence.
+- Fix: `resetsReed` is the envelope tier's third corroborator — a shallow
+  shape break inside the dip, judged by the shape tier's own constants
+  (clean baseline, ≥ SHAPE_MIN_DROP, not under SHAPE_MIN_PERIODICITY), every
+  span frame measurable. No new thresholds.
+- Corpus survey: I temporarily instrumented the envelope tier and listed every
+  dip that passes dip+recovery, across all 36 WAVs and the saved-JSON
+  readings. There were three uncorroborated ones. Blue Monk's opening G has
+  no shape drop at all. Sharp-9's D re-blooming after its ghost hole is DEEP
+  (0.842). The new take is the only one to flip. Full suite: 5285 passed
+  + 36 expected fails, the same pins as before, and `npm run check` is clean
+  once the worktree's missing `.env` public keys are supplied.
+- Tests: the fixture pair is in the corpus. pitch-replay has a describe with
+  an evidence test (the margins the fix relies on), the split, the score
+  (0.570 → 0.968, perfect, 3/3) and a live time-base check (0.982).
+  `replayEarTrainingTake` gained an optional `live` restamp. Three unit tests
+  on the envelope tier: a shallow break splits, a deep one doesn't, and a
+  breathy baseline doesn't. The dip run gained a `rebloom` tail so the shape
+  tier cannot claim the synthetic dip itself; my first version passed
+  without the fix except for the onset position. All four behaviour tests
+  go red with the corroborator line disabled.
+- Found alongside, not a bug on this take: both beat clicks on the loud
+  held Db read SHALLOW shape breaks (0.947, 0.928). The segmenter's comment
+  claimed SHAPE_MIN_PERIODICITY rejects every measured click, and that is no
+  longer true. Only the sustain gate refused them, because the note was
+  falling. On a held or swelling note the click schedule is the last guard,
+  and it is 0.33 s off here. I corrected the comment and pinned
+  `[58, 61, 61]`. It is added to the grid-drift record.
+
+## 2026-09-17 (night) — Capture-timing instrumentation for the click-grid drift
+
+Andy asked what fixing the grid drift would take, then asked for the cause:
+"It feels essential to first understand the root cause of the problem before
+we try to fix old captures." Instrumentation first, no fix.
+
+- Read before building. Tone's source settles one suspicion: `Transport.seconds`
+  is elapsed RUNNING time since the last stop (TickSource.getSecondsAtTime), not
+  musical position, so it drifts from the tick grid whenever the tempo changes
+  on a running transport. Ear training never does that (tempo set once per
+  session, every Play stops and restarts the transport), so it is ruled out.
+  Also ruled out: speaker-to-mic delay (the metronome routes through masterGain,
+  which the recorder taps) and the mic reopening at arm (`ensureMicCapture`
+  returns early). Still standing: the MediaRecorder's start. One clue against
+  it: lick practice creates its recorder identically and measured only the
+  lookahead (+0.08) — one take each side, so undecided.
+- `audio/capture-timing.ts` (pure): `snapshotArmTiming` (audio clock, page
+  clock, stamp and `getSecondsAtTime` transport reads, lookahead, latencies,
+  `getOutputTimestamp`, through Tone's wrapper to the native context),
+  `buildCaptureTiming`, `estimateBlobStartOffset` (slides the live readings over
+  the UNTRIMMED replay, 1 ms steps ±1 s, window-centre alignment, interpolated
+  replay pitch, octave-blind distance, plateau centre; refuses < 20 frames,
+  < 2 held pitch classes, or mean error > 0.5 st), `predictedGridError`
+  (S − P − L, and folded into a beat), `describeCaptureAlignment`.
+- `RecorderHandle.timing()` logs `start()` and the `start` event on both
+  clocks; `playback.getTransportClockAt`. Ear training snapshots at arm and
+  assembles at finish; lick practice at window open / close. Saved as
+  `RecordingMetadata.captureTiming`; /diagnostics shows "Capture timing" on the
+  replay panel and exports `captureTiming` + `captureAlignment`.
+- First cut of the estimator paired nearest frames and was biased ~10 ms on
+  step contours: two detector runs sample on different frame phases, so
+  nearest-frame pairing resolves only to a hop. Interpolating the replayed
+  pitch fixed it; the synthetic contour now glides between notes the way an
+  analysis window blurs a transition. On real audio (the Blues Curl Up WAV
+  replayed from sample 0 and from sample 11038) it lands within 5 ms.
+- Tests: 17 unit tests on the module, one on the recorder, one on the
+  transport read, one on the lick-practice save helper, and three e2e. The
+  e2e cover the /diagnostics measurement on a seeded two-note take, the
+  lick-practice saved take's timing block, and a NEW whole ear-training take.
+  That last one was always possible: the audio mock's 440 Hz oscillator opens a
+  take, and a fixture blob makes it save. Nothing had exercised the ear-training
+  save path end to end before. Each new test was mutated red: centre shift,
+  held-class guard, error ceiling, grid-error sign, native-context fallback,
+  `getSecondsAtTime` → `.seconds`, the onstart handler, the save-helper field,
+  and both routes' metadata field. The touched specs pass on all three engines
+  (WebKit skips the Blob-storing ones, as before). 5305 unit tests green,
+  `npm run check` clean with dummy public env.
+- Next: one real metronome-on ear-training take from Andy, exported from
+  /diagnostics. The JSON then says where the blob starts (sign and size), how
+  much of the error the lookahead explains, and whether the recorder's start
+  event accounts for the rest. Ideally a lick-practice take in the same
+  session too, to settle the contradicting clue.
+
+## 2026-09-17 (evening) — Tune practice: lick-aware windows
+
+Andy, practising over Autumn Leaves with no long ii-V-I lick ready at tempo:
+Cry Me a River (a 2-bar Minor Chord lick) was named over every long ii-V-I —
+on the ii of the major one ("B minor"), on the i of the minor one ("F#-"), and
+in both cases the whole 3-bar band with the name at its first bar. Plus: the
+short ii-V at bars 22-23 never prompted, and (second message) the head must
+carry no lick prompts at all.
+
+- Traced before planning. The category table aligns `minor-chord` to bar 0
+  of a long major ii-V-I and bar 2 of a long minor one; the scorer shifted
+  the expected phrase by that offset but the band and label never did.
+  `selectNonOverlapping` kept the longest DETECTION before any lick was
+  matched; Suggest's tempo filter then emptied the long window down to the
+  chord-quality fallback. Bars 22-23 (concert `E-7 A7 | D-7 G7 | F#ø7`)
+  matched no shape: neither half-bar ii-V resolves to a tonic the short
+  shapes accept. And every band, name and the Points pick card were drawn
+  from the first head bar.
+- Four decisions from Andy (AskUserQuestion): nothing on the chart until the
+  solo chorus; the longest progression with a READY lick wins and the rest is
+  filled shorter, a single-chord lick offered only where one chord lasts at
+  least the lick's length, as its own band with name and key; eligibility
+  unchanged (a minor/dominant/major lick may play over those chords inside a
+  longer progression when nothing else is available); an unresolved ii-V is
+  a short ii-V-I slot.
+- Built, TDD throughout:
+  - `ShapeSlot.optional` on the short cadences' tonic: `matchShapeAt` ends the
+    match at the previous slot when the optional slot fails, restoring the
+    cursor and any wrap it had just committed. Autumn Leaves bar 22 is now a
+    1-bar `ii-V-I-major` in D with two slots; bar 23 stays silent (its D-7
+    is ¾ of a bar, over the half-bar ii bound). Two older pins restated: the
+    iii-VI-ii-V-I fixture's opening Em7 A7 is an unresolved ii-V in D, and a
+    ii-V before a harmony gap stands on its own without reaching the tonic.
+  - `LickSuggestion.lengthBars` + `mode`; no slot ⇒ no suggestion (the I role
+    of an unresolved ii-V used to fall back onto the ii).
+  - `buildSessionPlan` takes RAW detections and selects lick-aware: role
+    windows per (alignment offset, chord|phrase kind); chord roles are the
+    slot's run, gated by `lengthBars`, typed as the chord's vamp; phrase roles
+    run to the progression's end stretched to the longest lick with the
+    stretch's harmony segments; lick windows placed first, longest span ›
+    SHAPE_PRIORITY › position, segment-disjoint; bare detections after. New
+    `InsertionPoint.detectedType`, `keyCenter`; `progressionType` is the
+    band. `suggestionLimit` moved the Points cap into the planner, per window.
+    The no-lick plan is byte-identical to the old selection (pinned).
+  - `annotationsVisible` + `windowLabel` in the plan module;
+    `suggestionNameFor` reads `Cry Me a River · F#m`.
+  - Docs: tune-practice.md (longer-first-then-fill, nothing during the head,
+    the report's key column, the pick card belongs to Points — that line was
+    stale), tune-system.md (the SHAPE_PRIORITY-first sentence contradicted the
+    duration-first code), lick-alignment.md, CLAUDE.md.
+- e2e on Autumn Leaves in Points mode with a seeded 2-bar minor lick: first
+  run failed on the head-status locator — a REGEX in `getByText` is not
+  whitespace-normalised and the template breaks "melody once / through" across
+  a line. The page snapshot from that failure showed the bug itself: the head
+  sheet carrying "Long ii-V-I (Maj)" / "Long ii-V-I (Min)" labels. (The route
+  edit had also silently not landed — one python anchor missed on whitespace
+  and the script ran on without `&&`; always chain the edit to the run.)
+- Second real finding, from the e2e once the head was clean: the Minor band
+  never appeared. Traced in Node with the session's own deps (vitest hides
+  console output here — write the trace to a scratch file): Points mode
+  admits the whole 924-lick catalog, so the long minor cadence held ~80
+  unknown `ii-V-I-minor` licks and won on span; the known 2-bar minor lick
+  was in the dropped window. Before this change the mixed top-5 ranked by
+  mastery would have named the known lick. Fix: lick windows rank by
+  READINESS first — a window holding a lick the player has in that key
+  (known/learning) beats one holding only unknown material — then span.
+  Suggest mode is unchanged (its filter already leaves only ready licks);
+  Points now prefers what the player has, and falls back to new material
+  only where nothing ready fits. Pinned in the planner and in a new
+  session-path test that saves a user lick + progress and runs
+  `startTunePracticeSession` end to end.
+- Third finding from the same e2e screenshot: the ø7 bar carried a 1-bar
+  window labelled "Long ii-V-I (Mi…" — the diminished-chord role has no vamp
+  type, so it fell back to its parent's name. `InsertionPoint.bandName` now
+  names every window ("Diminished" for that role; the band type's short name
+  otherwise), and the route, report and preview read it. Also: the setup's
+  default strictness is Standard, so the e2e selects Guided to see lick
+  names; the report row it checks reads "b8 F# Minor No take" (End came
+  before the window played).
+- Verified: vitest 317 files / 5302 passed + 36 expected fail; svelte-check
+  0/0; tune-practice e2e 10/10 on Chromium, the new Autumn Leaves test also
+  green on WebKit. Pushed to dev (rebased onto the reed-reset commit). A task
+  chip raised for the flat-spelled ii/V roots the screenshot showed (A♭ø7
+  D♭7 in a three-sharp key) — separate, unexamined.
+
+## 2026-09-17 (later) — Sharp chord roots printed flat: the glyph pass re-derived what the text had decided
+
+Andy's report: the Playwright snapshot of Autumn Leaves on tenor (concert G,
+written A) showed the chord row as `… A♭ø7 D♭7(♭9) F♯-`. The minor ii-V-i of
+F# minor with flat roots under three sharps, and the tonic right.
+
+- **Not the chain.** `tuneToAbc(fixture, tenor)` emits `"G#-7b5"`, `"C#7b9"`,
+  `"F#-"` under `K:A` — `displayPitchClass` spells the diatonic sharps
+  exactly as `documentation/api-reference/music.md` says it should. Chord
+  roots never reach `resolveUseFlats` at all; that chain is for NOTES. The
+  root policy is `displayPitchClass` alone, and it was right.
+- **The glyph pass.** `NotationDisplay.structureChordSymbols` rebuilds each
+  abcjs chord text as pretty tspans through `chordDisplayModelFromText(raw)`
+  — no key — which `parseChordSymbol`s the text into the canonical
+  `ChordSymbol` (root a `PitchClass`: Ab for G#, Db for C#) and prints THAT.
+  F# survived only because it is the one sharp-canonical pitch class. Same
+  hole in `chordChartSymbol` (ChordChart hands in a respelled `C#`, the model
+  drew D♭ — its own comment said "no keyContext is passed" as if the text's
+  spelling survived) and `ChordSymbolText`. Regression from `bd5002c`, the
+  pretty chord voice: before it abcjs drew the annotation text as-is.
+- **Fix at the source, one rule.** `chordSymbolSpellings(text)` in
+  chord-symbol.ts returns the root and bass letters as written, off a
+  tokenizer `parseChordSymbol` now shares (root token, `6/9` collapsed, bass
+  after the last slash), so the two cannot drift. `layoutChordParts` and
+  `chordDisplayModelFromText` keep those letters when no key is given; a key
+  still respells the canonical root as before. `chordDisplayModel(cs)` — the
+  structured entry, no text to read — is unchanged.
+- **Tests, red first (14 failed, all for the stated reason):** the helper
+  and its parser-agreement sweep; the text path (sharp root, glyph accidental,
+  slash bass, a flat root stays flat, key context still respells); the chart
+  cell; the Autumn Leaves fixture through `tuneToAbc` → glyph model, asserting
+  every annotation's drawn root equals its written root; the lick-practice
+  row and ChordChart agreeing at the GLYPH level on the C# minor cadence
+  (`D♯ · G♯ · C♯`, was `E♭ · A♭ · D♭`); and an e2e on the detail page reading
+  the `data-chord-part="root"` tspans. Two of my expectations were wrong, not
+  the code: the structural parts and the line form keep the canonical
+  `-7b5`; only the pretty model says `ø7`.
+- Docs: music.md (chord-layout text form, `chordSymbolSpellings` row),
+  tune-system.md (chord roots spelled once, in the text), CLAUDE.md.
+- 5293 unit tests green, svelte-check clean; the tunes e2e on Chromium is
+  the last check before landing on dev.
+
+## 2026-09-18 — The "two Vite warnings" were three, and not Vite's
+
+Andy asked me to fix the empty-chunk warnings I had flagged the night before.
+
+- **Three, not two.** I had read them off a `tail -12`; the full log has
+  `chunks/env.js` above the two I reported.
+- **Not Vite.** They print after both Vite builds finish, under
+  `> Using @sveltejs/adapter-node`, and the Vite server files are 1–4 KB, not
+  empty. adapter-node re-bundles the server output with Rollup; its
+  `manualChunks` keeps every Vite file as its own chunk (kit #16092, a
+  circular-import fix), and Rollup warns for each one tree-shaking emptied.
+  `wake-lock` is the instructive one: the pages' `onDestroy` still calls
+  `releaseScreenWakeLock`, but with `acquire` unused on the server `held` is
+  a never-reassigned `false`, the function is a proven no-op, the call goes,
+  the chunk empties. `env.js` is SvelteKit's own virtual module.
+- **Fix:** adapter-node is already latest and accepts no Rollup options (it
+  calls `rollup()` with no `onwarn`, so the message lands on `console.warn`).
+  `withoutEmptyChunkWarnings` in `scripts/quiet-empty-chunks.js` wraps the
+  adapter and drops that one message — single string argument, anchored
+  prefix — for the adapter step only, restoring `console.warn` in `finally`.
+  Five unit tests, red first; the wiring test was watched failing with the
+  config unwired. Build log: 3 lines before, 0 after, adapter step otherwise
+  identical. Full suite and svelte-check green.
+- Left alone and flagged: the server build's "chunks are larger than 500 kB"
+  notice — a different warning, a judgment call on a limit, not asked for.

@@ -1742,7 +1742,7 @@ const HF_BLEED_SUPPRESS_AFTER = 0.28;
  * ENV_DIP_RATIO × the trailing local RMS level, recovering to
  * ENV_RECOVER_RATIO × that level within a few frames.
  *
- * Two corroborators keep it specific — a bare amplitude dip also matches a
+ * Three corroborators keep it specific — a bare amplitude dip also matches a
  * breath pulse or diaphragm wobble on a held note (the 2026-07-23 Blue Monk
  * held E contains a 42%/25 ms dip at ~4.0 s that must NOT split):
  *   - a broadband burst (hfRms ≥ ENV_HF_CORROBORATION × run median: tongue
@@ -1750,7 +1750,17 @@ const HF_BLEED_SUPPRESS_AFTER = 0.28;
  *   - a fundamental perturbation ≥ ENV_PITCH_PERTURB semitones against the
  *     trailing local median (the reed resetting) — the 2026-07-25
  *     "blue-step-down" tongue is nearly silent in hfRms but wobbles the
- *     fundamental 0.12 st.
+ *     fundamental 0.12 st, OR
+ *   - a shallow waveform-shape break inside the dip (`resetsReed`): the reed
+ *     was damped and restarted, measured with the shape tier's own gates. The
+ *     2026-09-18 "blues-curl-up" Db tongue fell short of both gates above
+ *     (tongue noise 1.86×, wobble 0.057 st) but read 0.958 on a 0.988 shape
+ *     baseline right at the bottom of the dip. The shape tier saw that reset
+ *     and correctly refused it: it requires sustained energy, because it
+ *     exists for tongues that leave no energy evidence. A breath pulse keeps
+ *     the reed vibrating, so its shape does not move: the Blue Monk take's
+ *     one uncorroborated dip (its opening G, 0.45 s into the recording)
+ *     never reads below its 0.993 baseline.
  * A metronome click can fabricate the perturbation but never the dip
  * (clicks ADD energy), so the pass is click-immune by construction.
  *
@@ -1873,6 +1883,35 @@ function feathersTongueShape(stable: PitchReading[], from: number, to: number): 
 		if (s < minShape) minShape = s;
 	}
 	return minShape >= HF_SHAPE_TONGUE_FLOOR && minShape <= HF_SHAPE_TONGUE_CEILING;
+}
+
+/**
+ * Whether the envelope-dip span [from, to) carries a reed reset: a waveform-
+ * shape break judged by the shape tier's own gates. The run's shape baseline
+ * must clear SHAPE_CLEAN_BASELINE, and the span's deepest break must stand
+ * SHAPE_MIN_DROP below it without falling under SHAPE_MIN_PERIODICITY.
+ * Periodicity that is destroyed rather than dented is contamination or a
+ * note's own attack settling (2026-09-16 sharp-9-flat-9-dom: the D
+ * re-blooming after a ghost-note hole reads 0.842 across a dip of the same
+ * depth). Every span frame must carry a measurable break, as in
+ * `feathersTongueShape`: a frame the tracker could not measure is not
+ * evidence of a reset.
+ */
+function resetsReed(stable: PitchReading[], from: number, to: number): boolean {
+	const runShapes: number[] = [];
+	for (const r of stable) {
+		if (r.shapeBreak != null) runShapes.push(r.shapeBreak);
+	}
+	if (runShapes.length === 0) return false;
+	const baseline = median(runShapes);
+	if (baseline < SHAPE_CLEAN_BASELINE) return false;
+	let minShape = Infinity;
+	for (let p = from; p < to; p++) {
+		const s = stable[p].shapeBreak;
+		if (s == null) return false;
+		if (s < minShape) minShape = s;
+	}
+	return minShape <= baseline - SHAPE_MIN_DROP && minShape >= SHAPE_MIN_PERIODICITY;
 }
 
 /**
@@ -2491,9 +2530,10 @@ function findReArticulationsInSegment(
 				continue;
 			}
 
-			// Corroborator: tongue noise (hfRms burst over the run baseline)
-			// or a reed reset (fundamental perturbation against the trailing
-			// local median). A breath pulse on a held note has neither.
+			// Corroborator: tongue noise (hfRms burst over the run baseline),
+			// or a reed reset — a fundamental perturbation against the trailing
+			// local median, or a shallow waveform-shape break. A breath pulse on
+			// a held note has none of them.
 			let corroborated = false;
 			if (runHf > 0) {
 				for (let k = e; k < j && !corroborated; k++) {
@@ -2508,6 +2548,7 @@ function findReArticulationsInSegment(
 					if (Math.abs(stable[k].midiFloat - localMf) >= ENV_PITCH_PERTURB) corroborated = true;
 				}
 			}
+			if (!corroborated) corroborated = resetsReed(stable, e, j);
 			if (!corroborated) {
 				e = j + 1;
 				continue;
@@ -2764,8 +2805,13 @@ function findReArticulationsInSegment(
 				}
 
 				// Defence in depth: a scheduled click is broadband contamination.
-				// SHAPE_MIN_PERIODICITY already rejects every click measured in
-				// the corpus, but the schedule is free and unambiguous.
+				// SHAPE_MIN_PERIODICITY rejected every click measured in the corpus
+				// until the 2026-09-18 blues-curl-up take, whose beat clicks on a
+				// loud held Db read 0.947 and 0.928. The energy-sustain gate
+				// refused both, because the note was falling each time, so on a
+				// held or swelling note the schedule is the guard left — and
+				// ear-training's click grid is still off (CLAUDE.md, the OPEN
+				// click-grid note).
 				if (
 					sortedBleed.some(
 						(b) => t <= b + HF_BLEED_SUPPRESS_AFTER && t >= b - HF_BLEED_SUPPRESS_BEFORE
