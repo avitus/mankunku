@@ -140,6 +140,28 @@ test.describe('tune practice setup', () => {
 		expect(labels.join(' ')).toMatch(/Major|Dominant|Blues/);
 	});
 
+	test('choruses range from 1 to 12 and update the planned insertion count', async ({ page }) => {
+		await page.goto('/tunes/ls-when-the-saints/practice');
+		const choruses = page.getByRole('slider', { name: /^choruses$/i });
+		await expect(choruses).toHaveAttribute('aria-valuenow', '1');
+		await expect(choruses).toHaveAttribute('aria-valuemin', '1');
+		await expect(choruses).toHaveAttribute('aria-valuemax', '12');
+		await expect(async () => {
+			await choruses.press('End');
+			await expect(choruses).toHaveAttribute('aria-valuenow', '12', { timeout: 1000 });
+		}).toPass();
+		await expect(page.getByText(/60 insertion points/i)).toBeVisible();
+		await choruses.press('Home');
+		await expect(page.getByText(/5 insertion points/i)).toBeVisible();
+		await choruses.press('ArrowUp');
+		await expect(page.getByText(/10 insertion points/i)).toBeVisible();
+		await page.reload();
+		await expect(choruses).toHaveAttribute('aria-valuenow', '2');
+		await expect(page.getByText(/10 insertion points/i)).toBeVisible();
+		await page.goto('/tunes/ls-mankunku-blues/practice');
+		await expect(choruses).toHaveAttribute('aria-valuenow', '2');
+	});
+
 	test('mankunku blues previews its ii-V, turnarounds, and blues bars', async ({
 		page,
 		consoleCollector: _consoleCollector
@@ -155,6 +177,10 @@ test.describe('tune practice setup', () => {
 		await expect(summary).toContainText('Short ii-V-I (Maj)');
 		await expect(summary).toContainText('Turnaround');
 		await expect(summary).toContainText('Blues');
+		await page.getByRole('switch', { name: /play the head first/i }).click();
+		await expect(summary).toContainText('5 insertion points');
+		await page.getByRole('slider', { name: /^choruses$/i }).press('ArrowUp');
+		await expect(summary).toContainText('10 insertion points');
 	});
 
 	test('mode selector and the head toggle', async ({
@@ -291,6 +317,39 @@ test.describe('tune practice setup', () => {
  * Serial: both tests own Tone/AudioContext; parallel starts flake.
  */
 test.describe.serial('tune practice session follow-scroll', () => {
+	test('finishes three practice choruses with the head played once', async ({ page, browserName }) => {
+		test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+			'Tone.start() hangs in headless Linux Firefox without an audio device');
+		test.setTimeout(90_000);
+		await seedOnboardedAnonymous(page);
+		await installAudioMock(page);
+		await stubCdnInstrumentSamples(page);
+		await seedTunes(page, [{
+			id: 'e2e-three-choruses', title: 'Three Choruses', composer: 'E2E', key: 'C',
+			timeSignature: [4, 4], style: 'Medium Swing', tags: ['e2e'], source: 'user',
+			sections: [{ label: 'A', bars: 2,
+				notes: [{ pitch: 60, duration: [1, 4], offset: [0, 1] }],
+				harmony: [{ chord: { root: 'C', quality: 'maj7' }, scaleId: 'major.ionian',
+					startOffset: [0, 1], duration: [2, 1], symbol: 'Cmaj7' }]
+			}]
+		}]);
+		await page.goto('/tunes/e2e-three-choruses/practice');
+		await setTempoMax(page);
+		const choruses = page.getByRole('slider', { name: /^choruses$/i });
+		await choruses.press('ArrowUp');
+		await choruses.press('ArrowUp');
+		await expect(choruses).toHaveAttribute('aria-valuenow', '3');
+		await expect(page.getByText(/3 insertion points/i)).toBeVisible();
+		await startPracticeSession(page);
+		// After count-in (1s), head (2s), and the first chorus (2s), the
+		// chart must still follow the second practice chorus, not finish early.
+		await expect(page.getByText('0:05', { exact: true })).toBeVisible({ timeout: 20_000 });
+		await expectChartVisibleInFollowViewport(page);
+		await expect(page.locator('svg .range-marker[class*="playhead-"]').first()).toBeVisible();
+		await expect(page.getByRole('heading', { name: /take complete/i })).toBeVisible({ timeout: 20_000 });
+		await expect(page.getByText(/of 3 insertion points landed/i)).toBeVisible();
+	});
+
 	test('chart stays visible through first insertion (Mankunku Blues, head on)', async ({
 		page,
 		browserName,

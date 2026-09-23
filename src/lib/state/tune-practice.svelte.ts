@@ -1,3 +1,4 @@
+import { load, save } from '$lib/persistence/storage';
 import type { Fraction, Phrase, PitchClass } from '$lib/types/music';
 import type { Score } from '$lib/types/scoring';
 import type { Trick, TrickContext, TrickParameters } from '$lib/types/tricks';
@@ -33,6 +34,7 @@ import {
 	assignSuggestRotation,
 	buildSessionPhrase,
 	buildSessionPlan,
+	normalizeChoruses,
 	emptyResultTally,
 	headBarsForFlat,
 	resolvePickedSuggestion,
@@ -50,7 +52,7 @@ import {
  * Scored tune-practice session state — thin Svelte-5 runes wrapper over the
  * pure logic in `tune-practice-plan.ts` (the lick-practice pattern: state
  * module bridges, plain modules carry the testable logic; the route owns the
- * audio orchestration). Not persisted.
+ * audio orchestration). Results are not persisted; the chorus preference is local per user.
  */
 
 export interface TunePracticeConfig {
@@ -71,6 +73,8 @@ export interface TunePracticeConfig {
 	 * sounding would suppress real onsets.
 	 */
 	backingTrackEnabled: boolean;
+	/** Practice choruses, excluding the head (1–12). */
+	choruses: number;
 }
 
 /** Everything the route's audio layer needs, returned by session start. */
@@ -97,6 +101,8 @@ export interface TunePracticeAudioPlan {
 	notationFlat: FlattenedTune;
 	/** Bars before the practice material starts (0 without a head). */
 	leadBars: number;
+	/** Start of the solo pass within the original expanded chart. */
+	practiceStartBar: number;
 	/**
 	 * The EFFECTIVE head decision (`config.playHead && hasMelody`). Consumers
 	 * must read this rather than `config.playHead`, which ignores that a
@@ -144,6 +150,7 @@ export const tunePractice = $state<{
 		tempo: 100,
 		concertKey: 'C',
 		backingStyle: 'swing',
+		choruses: 1,
 		playHead: true,
 		// Overwritten from settings on every initTunePractice; this literal
 		// only matters before the first setup screen mounts.
@@ -166,6 +173,20 @@ export const tunePractice = $state<{
 	startTime: 0,
 	elapsedSeconds: 0
 });
+
+const CHORUSES_STORAGE_KEY = 'tune-practice-choruses';
+
+/** Restore the active user's last chorus count after browser hydration. */
+export function restoreTunePracticeChoruses(): void {
+	const saved = load<unknown>(CHORUSES_STORAGE_KEY);
+	tunePractice.config.choruses = normalizeChoruses(typeof saved === 'number' ? saved : 1);
+}
+
+/** Remember the chorus count locally for the next tune or visit. */
+export function setTunePracticeChoruses(choruses: number): void {
+	tunePractice.config.choruses = normalizeChoruses(choruses);
+	save(CHORUSES_STORAGE_KEY, tunePractice.config.choruses);
+}
 
 /**
  * Seed the session's backing switch from the global setting.
@@ -231,7 +252,7 @@ export interface SessionPreview {
  * suffices), plus how many user licks can't match anything for lack of prog
  * tags. Chart markers dedupe repeat occurrences by markerKey.
  */
-export function previewSessionPlan(sheet: Tune, playHead: boolean): SessionPreview {
+export function previewSessionPlan(sheet: Tune, playHead: boolean, choruses = 1): SessionPreview {
 	const flat = flattenTune(sheet, { expandRepeats: true });
 	const notationFlat = flattenTune(sheet);
 	const hasMelody = flat.notes.some((n) => n.pitch !== null);
@@ -242,7 +263,10 @@ export function previewSessionPlan(sheet: Tune, playHead: boolean): SessionPrevi
 		notationFlat,
 		timeSignature: sheet.timeSignature,
 		ppq: 480,
-		head: effectiveHead ? { bars: headBars, mode: formRepeats ? 'filter' : 'shift' } : undefined,
+		choruses,
+		head: formRepeats
+			? { bars: headBars, mode: effectiveHead ? 'filter' : 'skip' }
+			: effectiveHead ? { bars: headBars, mode: 'shift' } : undefined,
 		detect: (f) => detectProgressions(f, sheet),
 		match: () => ({ suggestions: [], uncategorized: [] })
 	});
@@ -298,15 +322,18 @@ export function startTunePracticeSession(sheet: Tune, ppq: number): TunePractice
 	const playHead = tunePractice.config.playHead && hasMelody;
 	const mode = tunePractice.config.mode;
 
-	const built = buildSessionPhrase({ flat, timeSignature: transposed.timeSignature, playHead });
+	const { headBars, formRepeats } = headBarsForFlat(flat);
+	const choruses = tunePractice.config.choruses;
+	const built = buildSessionPhrase({ flat, timeSignature: transposed.timeSignature, playHead, choruses });
 	const plan = buildSessionPlan({
 		flat,
 		notationFlat,
 		timeSignature: transposed.timeSignature,
 		ppq,
-		head: playHead
-			? { bars: built.headBars, mode: built.duplicatedForm ? 'shift' : 'filter' }
-			: undefined,
+		choruses,
+		head: formRepeats
+			? { bars: headBars, mode: playHead ? 'filter' : 'skip' }
+			: playHead ? { bars: built.headBars, mode: 'shift' } : undefined,
 		// Every detection, overlaps included: the planner keeps the longest
 		// window that has a lick and fills the rest shorter.
 		detect: (f) => detectProgressions(f, transposed),
@@ -360,6 +387,7 @@ export function startTunePracticeSession(sheet: Tune, ppq: number): TunePractice
 		flat,
 		notationFlat,
 		leadBars: built.headBars,
+		practiceStartBar: formRepeats ? headBars : 0,
 		duplicatedForm: built.duplicatedForm,
 		playHead
 	};
