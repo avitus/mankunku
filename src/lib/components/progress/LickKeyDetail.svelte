@@ -39,13 +39,16 @@
 	// guard stays truthy, so onMount would never re-fire). The cancelled
 	// flag drops a stale in-flight result if a new sessionId arrives mid-load.
 	$effect(() => {
+		// Effects track synchronous reads only. Capture the key before the
+		// dynamic import so switching chips invalidates this lookup.
+		const recordingId = sessionId;
 		let cancelled = false;
 		loading = true;
 		score = null;
 		void (async (): Promise<void> => {
 			try {
 				const { getRecordingFull } = await import('$lib/persistence/audio-store');
-				const record = await getRecordingFull(sessionId);
+				const record = await getRecordingFull(recordingId);
 				if (cancelled) return;
 				const persisted = record?.metadata?.score ?? null;
 				if (persisted) score = persisted;
