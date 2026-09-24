@@ -7,6 +7,8 @@ import {
 	assignSuggestRotation,
 	buildSessionPhrase,
 	buildSessionPlan,
+	playbackBarForSessionBar,
+	normalizeChoruses,
 	headBarsForFlat,
 	indexResultsByInsertion,
 	insertionMarkerCleared,
@@ -598,5 +600,75 @@ describe('indexResultsByInsertion', () => {
 	it('keeps the latest result when an id repeats (a re-annotated repeat pass)', () => {
 		const byId = indexResultsByInsertion([mk('ip-0', 'first'), mk('ip-0', 'second')]);
 		expect(byId.get('ip-0')?.lickName).toBe('second');
+	});
+});
+
+
+describe('multiple practice choruses', () => {
+	it.each([1, 2, 12])('plays the head once and %i practice choruses', (choruses) => {
+		const flat = mkFlat({ totalBars: 2, notes: [{ pitch: 60, offset: [0, 1], duration: [1, 4] }],
+			harmony: [seg('C', 'maj7', [0, 1], [2, 1])] });
+		for (const playHead of [false, true]) {
+			const built = buildSessionPhrase({ flat, timeSignature: [4, 4], playHead, choruses });
+			expect(built.phraseBars).toBe((choruses + Number(playHead)) * 2);
+			expect(built.notes).toHaveLength(Number(playHead));
+			expect(built.harmony.at(-1)?.startOffset).toEqual([(choruses - 1 + Number(playHead)) * 2, 1]);
+		}
+	});
+
+	it('repeats the solo pass of a whole-form repeat, preserving scoring alignment and chart markers', () => {
+		const flat = mkFlat({ totalBars: 4,
+			harmony: [seg('C', 'maj7', [0, 1], [2, 1]), seg('G', '7', [2, 1], [2, 1])],
+			segmentSourceIndices: [0, 0],
+			sectionMap: [{ sourceSection: 0, barOffset: 0 }, { sourceSection: 0, barOffset: 2 }] });
+		const built = buildSessionPhrase({ flat, timeSignature: [4, 4], playHead: true, choruses: 3 });
+		expect(built.phraseBars).toBe(8);
+		expect(built.harmony.map((h) => h.chord.root)).toEqual(['C', 'G', 'G', 'G']);
+		expect(built.harmony.map((h) => h.startOffset)).toEqual([[0, 1], [2, 1], [4, 1], [6, 1]]);
+		const plan = buildSessionPlan(planDeps({ flat, notationFlat: flat, choruses: 3,
+			head: { bars: 2, mode: 'filter' },
+			detect: () => [mkDet({ startOffset: [2, 1], startBar: 2, endBarExclusive: 4, segmentIndices: [1] })],
+			match: () => ({ suggestions: [{ ...mkSuggestion('lick'), insertionOffset: [9, 4], insertionBar: 2 }], uncategorized: [] }) }));
+		expect(plan.map((ip) => ip.id)).toEqual(['ip-0', 'ip-1', 'ip-2']);
+		expect(plan.map((ip) => ip.openTick)).toEqual([3 * 1920, 5 * 1920, 7 * 1920]);
+		expect(plan.map((ip) => ip.closeTick)).toEqual([5 * 1920, 7 * 1920, 9 * 1920]);
+		expect(plan.map((ip) => ip.startOffset)).toEqual([[2, 1], [4, 1], [6, 1]]);
+		expect(plan.map((ip) => ip.suggestions[0].insertionOffset)).toEqual([[9, 4], [17, 4], [25, 4]]);
+		expect(new Set(plan.map((ip) => ip.markerKey)).size).toBe(1);
+		// Head off: one chorus is the solo pass, not both expanded passes.
+		const noHead = buildSessionPhrase({ flat, timeSignature: [4, 4], playHead: false, choruses: 1 });
+		expect(noHead.phraseBars).toBe(2);
+		expect(noHead.harmony.map((h) => h.chord.root)).toEqual(['G']);
+		expect(noHead.harmony[0].startOffset).toEqual([0, 1]);
+		const noHeadPlan = buildSessionPlan(planDeps({ flat, notationFlat: flat, choruses: 3,
+			head: { bars: 2, mode: 'skip' },
+			detect: () => [mkDet({ startOffset: [0, 1] }), mkDet({ startOffset: [2, 1], startBar: 2, endBarExclusive: 4 })] }));
+		expect(noHeadPlan.map((ip) => ip.openTick)).toEqual([1920, 3 * 1920, 5 * 1920]);
+		expect(noHeadPlan.map((ip) => ip.startOffset)).toEqual([[0, 1], [2, 1], [4, 1]]);
+		expect(noHeadPlan.map((ip) => ip.playbackBarRange.start)).toEqual([0, 2, 4]);
+		expect(noHeadPlan.at(-1)?.closeTick).toBe(7 * 1920);
+		expect(playbackBarForSessionBar(4.5, 4, 0, 2)).toBe(2.5);
+	});
+
+	it('repeats windows and harmony at the same 3/4 boundaries after an appended head', () => {
+		const flat = mkFlat({ totalBars: 2, harmony: [seg('C', 'maj7', [0, 1], [3, 2])] });
+		const built = buildSessionPhrase({ flat, timeSignature: [3, 4], playHead: true, choruses: 2 });
+		const plan = buildSessionPlan(planDeps({ flat, timeSignature: [3, 4], choruses: 2,
+			head: { bars: 2, mode: 'shift' }, detect: () => [mkDet({ duration: [3, 2] })] }));
+		expect(built.phraseBars).toBe(6);
+		expect(built.harmony.map((h) => h.startOffset)).toEqual([[0, 1], [3, 2], [3, 1]]);
+		expect(plan.map((ip) => ip.openTick)).toEqual([3 * 1440, 5 * 1440]);
+		expect(plan.at(-1)?.closeTick).toBe(7 * 1440);
+	});
+
+	it('wraps integer and fractional cursors to the correct practice pass', () => {
+		expect(playbackBarForSessionBar(1.5, 4, 4, 0)).toBe(1.5);
+		expect(playbackBarForSessionBar(8.5, 4, 4, 0)).toBe(0.5);
+		expect(playbackBarForSessionBar(6.5, 4, 2, 2)).toBe(2.5);
+		expect(playbackBarForSessionBar(8.5, 4, 0, 0)).toBe(0.5);
+	});
+
+	it('bounds chorus counts to whole numbers from 1 to 12', () => {
+		expect([undefined, NaN, Infinity, 0, 2.6, 20].map(normalizeChoruses)).toEqual([1, 1, 1, 1, 3, 12]);
 	});
 });

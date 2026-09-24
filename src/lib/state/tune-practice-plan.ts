@@ -99,9 +99,12 @@ export interface BuildPlanDeps {
 	 * chorus is an appended duplicate, so every detection shifts by the head's
 	 * length. 'filter' (whole-form repeat charts): the expanded timeline
 	 * ALREADY contains head pass + solo pass — keep only detections in the
-	 * solo pass, unshifted.
+	 * solo pass, unshifted. 'skip' drops that head pass entirely and rebases
+	 * the solo pass to the count-in when Head is off.
 	 */
-	head?: { bars: number; mode: 'shift' | 'filter' };
+	head?: { bars: number; mode: 'shift' | 'filter' | 'skip' };
+	/** Number of practice choruses, excluding the optional head. */
+	choruses?: number;
 	/**
 	 * Every progression the detector finds, overlaps included — the planner
 	 * resolves them once it knows which have a lick (an already-selected set
@@ -117,6 +120,24 @@ export interface BuildPlanDeps {
 }
 
 const EPSILON = 1e-9;
+
+/** Keep session lengths within the setup control's whole-number range. */
+export function normalizeChoruses(choruses = 1): number {
+	return Number.isFinite(choruses) ? Math.max(1, Math.min(12, Math.round(choruses))) : 1;
+}
+
+/** Project any session chorus back onto the original expanded chart timeline. */
+export function playbackBarForSessionBar(
+	bar: number,
+	formBars: number,
+	headBars: number,
+	practiceStartBar: number
+): number {
+	if (bar < headBars) return bar;
+	const start = practiceStartBar;
+	const chorusBars = formBars - start;
+	return chorusBars > 0 ? start + ((bar - headBars) % chorusBars) : bar;
+}
 
 /**
  * A single-chord role is drawn as the chord's own vamp band. No diminished
@@ -282,14 +303,15 @@ export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
 	// the head chorus when it is an appended-duplicate ('shift') head. A
 	// 'filter' head lives INSIDE the detection timeline, so only the count-in
 	// shifts.
-	const leadTicks = barTicks + (head?.mode === 'shift' ? head.bars * barTicks : 0);
+	const leadTicks = barTicks + (head?.mode === 'shift' ? head.bars * barTicks :
+		head?.mode === 'skip' ? -head.bars * barTicks : 0);
 	const formEndTick = leadTicks + flat.totalBars * barTicks;
 	const ticksOf = (f: Fraction) => Math.round(fractionToFloat(f) * 4 * ppq);
 
 	let detections = [...detect(flat)].sort(
 		(a, b) => compareFractions(a.startOffset, b.startOffset) || a.type.localeCompare(b.type)
 	);
-	if (head?.mode === 'filter') {
+	if (head && head.mode !== 'shift') {
 		// Detections inside the head pass are heard, not practiced.
 		const boundary = head.bars * barWholeNotes;
 		detections = detections.filter((det) => fractionToFloat(det.startOffset) >= boundary - EPSILON);
@@ -337,7 +359,7 @@ export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
 			a.det.type.localeCompare(b.det.type)
 	);
 
-	return kept.map((w, i) => {
+	const points = kept.map((w, i) => {
 		const det = w.det;
 		const openTick = leadTicks + ticksOf(w.start);
 		let closeTick = leadTicks + ticksOf(w.end) + ppq;
@@ -407,6 +429,30 @@ export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
 			closeTick
 		};
 	});
+	const chorusBars = flat.totalBars - (head && head.mode !== 'shift' ? head.bars : 0);
+	return Array.from({ length: normalizeChoruses(deps.choruses) }, (_, chorus) => {
+		const bars = chorus * chorusBars;
+		// A skipped head is absent from the practice timeline, including the
+		// relative offsets used to align suggestions inside their windows.
+		const offsetBars = bars - (head?.mode === 'skip' ? head.bars : 0);
+		const shift = multiplyFraction([timeSignature[0], timeSignature[1]], offsetBars);
+		return points.map((ip, i) => ({
+			...ip,
+			id: `ip-${chorus * points.length + i}`,
+			startOffset: addFractions(ip.startOffset, shift),
+			playbackBarRange: {
+				start: ip.playbackBarRange.start + offsetBars,
+				endExclusive: ip.playbackBarRange.endExclusive + offsetBars
+			},
+			suggestions: ip.suggestions.map((suggestion) => ({
+				...suggestion,
+				insertionOffset: addFractions(suggestion.insertionOffset, shift),
+				insertionBar: suggestion.insertionBar + offsetBars
+			})),
+			openTick: ip.openTick + bars * barTicks,
+			closeTick: ip.closeTick + bars * barTicks
+		}));
+	}).flat();
 }
 
 /**
@@ -477,7 +523,7 @@ export function headBarsForFlat(flat: FlattenedTune): { headBars: number; formRe
  * `PlaybackEvent.sourceIndex` values keep indexing `flat.notes` and
  * provenance stays valid.
  */
-export function buildSessionPhrase(args: {
+function buildSingleChorusPhrase(args: {
 	flat: FlattenedTune;
 	timeSignature: [number, number];
 	playHead: boolean;
@@ -492,10 +538,18 @@ export function buildSessionPhrase(args: {
 	const barDuration: Fraction = [timeSignature[0], timeSignature[1]];
 	const barWholeNotes = timeSignature[0] / timeSignature[1];
 	const harmony = flat.harmony.map((h) => ({ ...h, chord: { ...h.chord } }));
-	if (!playHead) {
-		return { notes: [], harmony, phraseBars: flat.totalBars, headBars: 0, duplicatedForm: false };
-	}
 	const { headBars, formRepeats } = headBarsForFlat(flat);
+	if (!playHead) {
+		const start = formRepeats ? headBars : 0;
+		const boundary = multiplyFraction(barDuration, start);
+		const practice = harmony.flatMap((h) => {
+			const end = addFractions(h.startOffset, h.duration);
+			if (compareFractions(end, boundary) <= 0) return [];
+			const from = compareFractions(h.startOffset, boundary) < 0 ? boundary : h.startOffset;
+			return [{ ...h, startOffset: subtractFractions(from, boundary), duration: subtractFractions(end, from) }];
+		});
+		return { notes: [], harmony: practice, phraseBars: flat.totalBars - start, headBars: 0, duplicatedForm: false };
+	}
 	if (formRepeats) {
 		// The head is pass one of the timeline; keep only its melody (a prefix
 		// of flat.notes — sections are emitted in ascending-offset order).
@@ -518,6 +572,36 @@ export function buildSessionPhrase(args: {
 		headBars,
 		duplicatedForm: true
 	};
+}
+
+/** Repeat only the practice material; the optional head always plays once. */
+export function buildSessionPhrase(args: {
+	flat: FlattenedTune;
+	timeSignature: [number, number];
+	playHead: boolean;
+	choruses?: number;
+}): ReturnType<typeof buildSingleChorusPhrase> {
+	const built = buildSingleChorusPhrase(args);
+	const chorusBars = built.phraseBars - built.headBars;
+	const count = normalizeChoruses(args.choruses);
+	const barDuration: Fraction = [args.timeSignature[0], args.timeSignature[1]];
+	const boundary = multiplyFraction(barDuration, built.headBars);
+	// Clip a sustained chord crossing the head boundary before copying it.
+	const practice = built.harmony.flatMap((h) => {
+		const end = addFractions(h.startOffset, h.duration);
+		if (compareFractions(end, boundary) <= 0) return [];
+		const startOffset = compareFractions(h.startOffset, boundary) < 0 ? boundary : h.startOffset;
+		return [{ ...h, startOffset, duration: subtractFractions(end, startOffset) }];
+	});
+	for (let chorus = 1; chorus < count; chorus++) {
+		const shift = multiplyFraction(barDuration, chorus * chorusBars);
+		built.harmony.push(...practice.map((h) => ({
+			...h,
+			chord: { ...h.chord },
+			startOffset: addFractions(h.startOffset, shift)
+		})));
+	}
+	return { ...built, phraseBars: built.headBars + chorusBars * count };
 }
 
 /**

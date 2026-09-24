@@ -22,6 +22,8 @@
 	import {
 		tunePractice,
 		initTunePractice,
+		restoreTunePracticeChoruses,
+		setTunePracticeChoruses,
 		previewSessionPlan,
 		startTunePracticeSession,
 		candidatesForWindow,
@@ -45,6 +47,7 @@
 	import {
 		annotationsVisible,
 		notationBarForPlaybackBar,
+		playbackBarForSessionBar,
 		strictnessKnobs,
 		bestCandidateResult,
 		insertionLabel,
@@ -106,6 +109,7 @@
 	});
 
 	// ── Audio modules + live handles (lick-practice session pattern) ──────────
+	let audioModulesReady = $state(false);
 	let playback: typeof import('$lib/audio/playback') | null = null;
 	let captureModule: typeof import('$lib/audio/capture') | null = null;
 	let pitchModule: typeof import('$lib/audio/pitch-detector') | null = null;
@@ -230,7 +234,7 @@
 	const preview = $derived.by(() => {
 		void cacheVersion;
 		return baseSheet && tunePractice.phase === 'setup'
-			? previewSessionPlan(baseSheet, tunePractice.config.playHead)
+			? previewSessionPlan(baseSheet, tunePractice.config.playHead, tunePractice.config.choruses)
 			: null;
 	});
 	const previewSheet = $derived(
@@ -347,7 +351,7 @@
 		if (audioPlan && (tunePractice.phase === 'head' || tunePractice.phase === 'running')) {
 			const formBars = audioPlan.flat.totalBars;
 			const formBar =
-				audioPlan.duplicatedForm && currentBar >= leadBars ? currentBar - leadBars : currentBar;
+				playbackBarForSessionBar(currentBar, formBars, leadBars, audioPlan.practiceStartBar);
 			if (formBar >= 0 && formBar < formBars) {
 				const chartBar = notationBarForPlaybackBar(
 					audioPlan.flat.sectionMap,
@@ -377,10 +381,7 @@
 		if (tunePractice.phase !== 'head' && tunePractice.phase !== 'running') return null;
 		const leadBars = audioPlan.leadBars;
 		const formBars = audioPlan.flat.totalBars;
-		let formBarF =
-			audioPlan.duplicatedForm && playheadBarF >= leadBars
-				? playheadBarF - leadBars
-				: playheadBarF;
+		const formBarF = playbackBarForSessionBar(playheadBarF, formBars, leadBars, audioPlan.practiceStartBar);
 		if (formBarF < 0 || formBarF >= formBars) return null;
 		const floorBar = Math.floor(formBarF);
 		const frac = formBarF - floorBar;
@@ -422,6 +423,7 @@
 	});
 
 	onMount(async () => {
+		restoreTunePracticeChoruses();
 		// Synchronous, and first: this is a fresh arrival at setup, and the
 		// $effect below re-inits only when the TUNE changed — returning to the
 		// same tune through the app keeps the surviving module state, override
@@ -450,6 +452,7 @@
 		// timerInterval is still null; without this guard the continuation would
 		// arm an interval nothing ever clears.
 		if (!mounted) return;
+		audioModulesReady = true;
 		timerInterval = setInterval(() => updateElapsedTime(), 1000);
 	});
 
@@ -878,9 +881,7 @@
 		if (!audioPlan || barTicksNR <= 0) return 1;
 		const playBar = Math.floor((atTick - barTicksNR) / barTicksNR);
 		const formBar =
-			audioPlan.duplicatedForm && playBar >= audioPlan.leadBars
-				? playBar - audioPlan.leadBars
-				: playBar;
+			playbackBarForSessionBar(playBar, audioPlan.flat.totalBars, audioPlan.leadBars, audioPlan.practiceStartBar);
 		const chartBar = notationBarForPlaybackBar(
 			audioPlan.flat.sectionMap,
 			audioPlan.sheet.sections,
@@ -954,7 +955,7 @@
 				</div>
 				<div>
 					<h2 class="font-display text-xl font-semibold">Session</h2>
-					<p class="text-xs text-[var(--color-text-secondary)]">Mode, strictness, head, key, tempo, and backing</p>
+					<p class="text-xs text-[var(--color-text-secondary)]">Mode, strictness, head, choruses, key, tempo, and backing</p>
 				</div>
 			</div>
 
@@ -1029,6 +1030,18 @@
 						</div>
 						<span class="smallcaps console-engrave">Key</span>
 					</div>
+
+					<Knob
+						label="Choruses"
+						ariaLabel="Choruses"
+						helpText="How many choruses to practice. The optional head plays once before them."
+						value={tunePractice.config.choruses}
+						min={1}
+						max={12}
+						step={1}
+						displayValue={`${tunePractice.config.choruses}`}
+						onInput={setTunePracticeChoruses}
+					/>
 
 					<Knob
 						label="Tempo"
@@ -1138,7 +1151,7 @@
 		<div class="flex flex-col items-center gap-1.5">
 			<button
 				onclick={startSession}
-				disabled={isLoading}
+				disabled={isLoading || !audioModulesReady}
 				class="rounded-lg bg-[var(--color-accent)] px-8 py-2.5 text-base font-bold text-white shadow-md transition-opacity hover:opacity-90 disabled:opacity-50"
 			>
 				{isLoading ? 'Setting up…' : 'Start'}
