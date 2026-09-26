@@ -82,7 +82,7 @@ export function upsertLickPracticeSession(
  * names never collide with the base's own `lp-<ms>-<4 chars>` shape, and an
  * entry whose id predates the composite scheme is its own session.
  */
-function baseSessionId(entry: LickPracticeSessionLogEntry): string {
+export function baseSessionId(entry: LickPracticeSessionLogEntry): string {
 	const suffix = `-${entry.progressionType}`;
 	return entry.id.endsWith(suffix) ? entry.id.slice(0, -suffix.length) : entry.id;
 }

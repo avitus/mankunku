@@ -251,7 +251,7 @@
 	// sessions produce a single entry; Daily Practice produces N entries
 	// (one per progressionType in the plan) so a browser crash mid-session
 	// keeps each progression's activity on disk.
-	let lickPracticeSessionLogId = '';
+	let lickPracticeSessionLogId = $state('');
 	let lickPracticeSessionStartTs = 0;
 
 	// Inter-lick rest (STANDARD mode only): INTER_LICK_REST_BARS of
@@ -1718,9 +1718,7 @@
 
 	// Tee up the report's single recommendation. A weak-key step carries the
 	// key as a focus key, so the drill opens on it ALONE and works it back up
-	// to speed before the other keys return (the focus ramp); a weak-lick
-	// step carries none and deep practice aims itself — worst-first rotation,
-	// demo while the head key is below proficient. The plan item's resolved
+	// to speed before the other keys return (the focus ramp). The plan item's resolved
 	// Phrase is preferred over the bare id because `getLickById` misses for
 	// user/community licks. The tempo-bump knob applies through config.
 	async function handleStartNextStep(action: NextStepAction) {
@@ -1966,9 +1964,9 @@
 			</div>
 		{/if}
 
-		<!-- One recommendation, grounded in the numbers above and startable in a
+		<!-- One recommendation, grounded in recent practice and startable in a
 		     tap. Null only when the session recorded nothing at all. -->
-		{@const nextStep = getNextStep(sessionReport)}
+		{@const nextStep = getNextStep(sessionReport, lickPracticeSessionLogId)}
 		{#if nextStep}
 			<NextStepCard step={nextStep} onstart={handleStartNextStep} />
 		{/if}
