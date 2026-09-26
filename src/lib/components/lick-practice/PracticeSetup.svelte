@@ -6,6 +6,7 @@
 		ChordProgressionType
 	} from '$lib/types/lick-practice';
 	import { onDestroy } from 'svelte';
+	import { loadEnclosureSetup } from '$lib/persistence/enclosure-setup';
 	import type { BackingStyle } from '$lib/types/instruments';
 	import type { PitchClass, Phrase } from '$lib/types/music';
 	import {
@@ -206,13 +207,14 @@
 		return `${next.label} (needs ${clause.passes} passes of ${prereqLabels})`;
 	});
 
-	/** Start a new device with an unlocked variant and clear the previous enclosure bed. */
+	/** Restore enclosure preferences; other devices start with an unlocked variant. */
 	function handleTrickSelect(trickId: string): void {
 		// Seed the parameters from the trick's first unlocked variant so the
 		// selection always starts on a startable combination.
 		const first = getUnlockedVariants(trickId, loadTrickUnlockContext())[0];
 		void audition.stop();
-		onupdate({ trickId, trickParameters: first ? { ...first.params } : undefined, trickProgressionType: undefined });
+		onupdate({ trickId, trickParameters: first ? { ...first.params } : undefined, trickProgressionType: undefined,
+			...(trickId === 'enclosures' ? loadEnclosureSetup() : null) });
 	}
 
 	/** Parameter values reachable through at least one unlocked variant. */
