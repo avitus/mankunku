@@ -34,7 +34,7 @@ import {
 } from '$lib/persistence/lick-practice-sessions';
 import { save, load, remove } from '$lib/persistence/storage';
 import { scoreToGrade } from '$lib/scoring/grades';
-import { readPracticeTime } from '$lib/persistence/practice-time';
+import { readPracticeTime, mergePracticeTime, practiceMinutesWithUncovered } from '$lib/persistence/practice-time';
 
 /**
  * Point-in-time values a summary carries that are NOT derivable from the
@@ -300,22 +300,10 @@ function mergeWithExisting(existing: DailySummary | undefined, derived: DailySum
 	return merged;
 }
 
-/** Prefer verified time, then the correction covering more source attempts. */
-function mergePracticeTime(
-	a: DailySummary['practiceTime'], b: DailySummary['practiceTime']
-): DailySummary['practiceTime'] {
-	if (!a) return b;
-	if (!b) return a;
-	const aCoversB = a.earTrainingSessions >= b.earTrainingSessions && a.lickPracticeSessions >= b.lickPracticeSessions;
-	const bCoversA = b.earTrainingSessions >= a.earTrainingSessions && b.lickPracticeSessions >= a.lickPracticeSessions;
-	if (aCoversB && !bCoversA) return a;
-	if (bCoversA && !aCoversB) return b;
-	return a.minutes >= b.minutes ? a : b;
-}
-
 /**
- * Correct cached time only when the retained logs cover every attempt in BOTH
- * sources. A capped log may contain just part of a day; it must never replace
+ * Start a correction only when retained logs cover both sources; thereafter
+ * refresh each source independently when its own retained coverage is complete.
+ * A capped log may contain just part of a day; it must never replace
  * the full day's time. Old lick reports without a duration cannot repair it.
  * Apply after cloud merging too, so a stale two-minutes-per-attempt estimate
  * cannot resurrect the inflated total on the next sync.
@@ -325,26 +313,28 @@ function correctPracticeMinutes(
 	earSessions: SessionResult[],
 	lickEntries: LickPracticeSessionLogEntry[]
 ): DailySummary {
-	// The snapshot owns its minutes: a legacy client may overwrite only the scalar.
-	const practiceTime = readPracticeTime(summary.practiceTime, summary);
-	summary = { ...summary, practiceTime, practiceMinutes: practiceTime?.minutes ?? summary.practiceMinutes };
+	let practiceTime = readPracticeTime(summary.practiceTime, summary);
 	const derived = deriveDailySummary(summary.date, earSessions, lickEntries);
-	if (
-		!derived ||
-		(derived.earTrainingSessions ?? 0) < (summary.earTrainingSessions ?? summary.sessionCount) ||
-		(derived.lickPracticeSessions ?? 0) < (summary.lickPracticeSessions ?? 0) ||
-		lickEntries.some(
-			(entry) => dateKey(entry.timestamp) === summary.date &&
-				(!Number.isFinite(entry.report.elapsedMinutes) || entry.report.elapsedMinutes < 0)
-		)
-	) return summary;
-	return {
-		...summary, practiceMinutes: derived.practiceMinutes,
-		practiceTime: {
-			minutes: derived.practiceMinutes,
-			earTrainingSessions: derived.earTrainingSessions ?? 0,
-			lickPracticeSessions: derived.lickPracticeSessions ?? 0
+	if (derived) {
+		const earComplete = (derived.earTrainingSessions ?? 0) >= (summary.earTrainingSessions ?? summary.sessionCount);
+		const dayLick = lickEntries.filter((entry) => dateKey(entry.timestamp) === summary.date);
+		const lickComplete = (derived.lickPracticeSessions ?? 0) >= (summary.lickPracticeSessions ?? 0) &&
+			dayLick.every((entry) => Number.isFinite(entry.report.elapsedMinutes) && entry.report.elapsedMinutes >= 0);
+		if (practiceTime || (earComplete && lickComplete)) {
+			const earMinutes = earComplete
+				? earSessions.filter((s) => dateKey(s.timestamp) === summary.date && (s.source ?? 'ear-training') === 'ear-training').length * EAR_MINUTES_PER_ATTEMPT
+				: practiceTime!.earMinutes;
+			const lickMinutes = lickComplete ? sumLickPracticeMinutes(dayLick) : practiceTime!.lickMinutes;
+			practiceTime = {
+				minutes: Math.round(earMinutes + lickMinutes), earMinutes, lickMinutes,
+				earTrainingSessions: earComplete ? derived.earTrainingSessions ?? 0 : practiceTime!.earTrainingSessions,
+				lickPracticeSessions: lickComplete ? derived.lickPracticeSessions ?? 0 : practiceTime!.lickPracticeSessions
+			};
 		}
+	}
+	return {
+		...summary, practiceTime,
+		practiceMinutes: practiceTime ? practiceMinutesWithUncovered(practiceTime, summary) : summary.practiceMinutes
 	};
 }
 
@@ -597,6 +587,8 @@ export function reconcileCloudSummaries(cloudSummaries: DailySummary[]): DailySu
 			(merged.lickPracticeSessions ?? 0) > (cs.lickPracticeSessions ?? 0) ||
 			merged.practiceMinutes !== cs.practiceMinutes ||
 			merged.practiceTime?.minutes !== cs.practiceTime?.minutes ||
+			merged.practiceTime?.earMinutes !== cs.practiceTime?.earMinutes ||
+			merged.practiceTime?.lickMinutes !== cs.practiceTime?.lickMinutes ||
 			merged.practiceTime?.earTrainingSessions !== cs.practiceTime?.earTrainingSessions ||
 			merged.practiceTime?.lickPracticeSessions !== cs.practiceTime?.lickPracticeSessions ||
 			merged.bestScore > cs.bestScore ||

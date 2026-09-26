@@ -359,7 +359,7 @@ describe('practice-time correction from complete source records', () => {
 
 describe('corrected practice time across devices', () => {
 	const date = '2026-09-11';
-	const correction = { minutes: 25, earTrainingSessions: 0, lickPracticeSessions: 120 };
+	const correction = { minutes: 25, earTrainingSessions: 0, lickPracticeSessions: 120, earMinutes: 0, lickMinutes: 25 };
 	const stale = () => makeSummary(date, 120, { earTrainingSessions: 0, lickPracticeSessions: 120 });
 	const corrected = () => ({ ...stale(), practiceMinutes: 25, practiceTime: correction });
 
@@ -394,8 +394,22 @@ describe('corrected practice time across devices', () => {
 		const history = await setupHistory({ summaries: [corrected()] });
 		history.reconcileCloudSummaries([makeSummary(date, 50, {
 			earTrainingSessions: 0, lickPracticeSessions: 50, practiceMinutes: 12,
-			practiceTime: { ...correction, minutes: 12, lickPracticeSessions: 50 }
+			practiceTime: { ...correction, minutes: 12, lickMinutes: 12, lickPracticeSessions: 50 }
 		})]);
 		expect(history.allTimePracticeMinutes()).toBe(25);
 	});
+});
+
+
+it('adds new ear practice after corrected lick history has been pruned', async () => {
+	const date = '2026-09-11';
+	const history = await setupHistory({ sessions: [makeSession(date)], summaries: [makeSummary(date, 120, {
+		earTrainingSessions: 0, lickPracticeSessions: 120, practiceMinutes: 25,
+		practiceTime: { minutes: 25, earTrainingSessions: 0, lickPracticeSessions: 120, earMinutes: 0, lickMinutes: 25 }
+	})] });
+	history.recomputeAllDailySummaries();
+	expect(history.allTimePracticeMinutes()).toBe(26);
+	history.recomputeAllDailySummaries();
+	expect(history.allTimePracticeMinutes()).toBe(26);
+	expect(history.dailySummaries[0].practiceTime?.earMinutes).toBe(0.5);
 });

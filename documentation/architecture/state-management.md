@@ -422,7 +422,7 @@ This is simpler than Svelte 4's writable/derived stores and provides fine-graine
 
 
 Daily practice time corrections carry a `practiceTime` snapshot (minutes plus
-per-source attempt counts), synced as `daily_summaries.practice_time`. Verified
+per-source attempt counts and durations), synced as `daily_summaries.practice_time`. Verified
 snapshots take precedence over legacy estimates even after source logs are
 pruned. The snapshot owns its minutes separately from `practiceMinutes`, so an
 older client's scalar overwrite cannot relabel an inflated estimate as verified.
@@ -435,3 +435,12 @@ more complete provenance when another device flushes a stale snapshot. It also
 keeps the scalar minutes and summary counts consistent with that snapshot, and
 rejects malformed, negative, fractional, or out-of-range provenance. The client
 validates the same shape and checks source coverage before trusting a snapshot.
+
+Corrections merge each source independently: complete ear history can refresh
+its portion while corrected lick time survives pruning, and vice versa. Attempts
+beyond the snapshot's covered counts add a half-minute fallback estimate per
+attempt; the stale cached total is never used as that baseline. Complete source
+logs replace the fallback with the normal ear estimate or recorded lick duration.
+The database applies the same source-wise merge and uncovered-count calculation
+atomically, preserving both source counters. Failed summary pushes throw so the
+outbox retains the correction for retry.

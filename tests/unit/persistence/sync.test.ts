@@ -1092,7 +1092,7 @@ describe('syncDailySummaryToCloud', () => {
 	});
 
 	it('round-trips corrected time with its own minutes and coverage', async () => {
-		const practiceTime = { minutes: 25, earTrainingSessions: 3, lickPracticeSessions: 120 };
+		const practiceTime = { minutes: 25, earTrainingSessions: 3, lickPracticeSessions: 120, earMinutes: 1.5, lickMinutes: 23.5 };
 		const mock = createMockSupabase();
 		await syncDailySummaryToCloud(mock as any, { ...TEST_SUMMARY, sessionCount: 123, lickPracticeSessions: 120, practiceMinutes: 25, practiceTime });
 		const [row] = mock._upsertFn.mock.calls[0];
@@ -1127,6 +1127,12 @@ describe('syncDailySummaryToCloud', () => {
 });
 
 describe('syncAllDailySummariesToCloud', () => {
+	it('rejects failed writes so the outbox can retain and retry the correction', async () => {
+		const mock = createMockSupabase();
+		mock._upsertFn.mockResolvedValue({ error: new Error('offline') });
+		await expect(syncAllDailySummariesToCloud(mock as any, [TEST_SUMMARY])).rejects.toThrow('offline');
+	});
+
 	it('bulk-upserts every summary in one call', async () => {
 		const mock = createMockSupabase();
 		const day2 = { ...TEST_SUMMARY, date: '2026-04-29' };

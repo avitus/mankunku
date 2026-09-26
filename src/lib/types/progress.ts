@@ -161,7 +161,11 @@ export interface DailySummary {
 	practiceMinutes: number;
 	/** Source-derived time and its coverage, kept together so old clients cannot
 	 * turn a stale practiceMinutes overwrite into a verified correction. */
-	practiceTime?: { minutes: number; earTrainingSessions: number; lickPracticeSessions: number };
+	practiceTime?: {
+		minutes: number; earTrainingSessions: number; lickPracticeSessions: number;
+		/** Absent only in the first provenance format; present on new corrections. */
+		earMinutes?: number; lickMinutes?: number;
+	};
 	avgOverall: number;                    // 0-1
 	avgPitch: number;                      // 0-1
 	avgRhythm: number;                     // 0-1

@@ -1,6 +1,6 @@
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT plan(9);
+SELECT plan(13);
 CREATE TEMP TABLE practice_time_test_user AS SELECT gen_random_uuid() AS id;
 INSERT INTO auth.users(id) SELECT id FROM practice_time_test_user;
 INSERT INTO public.daily_summaries(user_id, date, practice_time)
@@ -26,5 +26,12 @@ SELECT is((SELECT session_count FROM public.daily_summaries WHERE user_id = (SEL
 SELECT throws_ok($$UPDATE public.daily_summaries SET practice_time='{"minutes":"bad"}' WHERE user_id=(SELECT id FROM practice_time_test_user)$$, '23514', 'Invalid practice-time provenance', 'malformed provenance is rejected');
 SELECT throws_ok($$UPDATE public.daily_summaries SET practice_time='{"minutes":-1,"earTrainingSessions":0,"lickPracticeSessions":200}' WHERE user_id=(SELECT id FROM practice_time_test_user)$$, '23514', 'Invalid practice-time provenance', 'negative time is rejected');
 SELECT throws_ok($$UPDATE public.daily_summaries SET practice_time='{"minutes":45,"earTrainingSessions":0,"lickPracticeSessions":0}' WHERE user_id=(SELECT id FROM practice_time_test_user)$$, '23514', 'Invalid practice-time provenance', 'a correction requires source coverage');
+UPDATE public.daily_summaries SET ear_training_sessions=1 WHERE user_id=(SELECT id FROM practice_time_test_user);
+SELECT is((SELECT practice_minutes FROM public.daily_summaries WHERE user_id = (SELECT id FROM practice_time_test_user)), 46, 'uncovered ear activity is added to corrected lick time');
+UPDATE public.daily_summaries SET practice_time='{"minutes":3,"earTrainingSessions":6,"lickPracticeSessions":0,"earMinutes":3,"lickMinutes":0}' WHERE user_id=(SELECT id FROM practice_time_test_user);
+SELECT is((SELECT practice_minutes FROM public.daily_summaries WHERE user_id = (SELECT id FROM practice_time_test_user)), 48, 'incomparable source corrections combine');
+UPDATE public.daily_summaries SET practice_time='{"minutes":45,"earTrainingSessions":0,"lickPracticeSessions":200,"earMinutes":0,"lickMinutes":45}', ear_training_sessions=0 WHERE user_id=(SELECT id FROM practice_time_test_user);
+SELECT is((SELECT ear_training_sessions FROM public.daily_summaries WHERE user_id = (SELECT id FROM practice_time_test_user)), 6, 'stale writer preserves the other source count');
+SELECT is((SELECT practice_minutes FROM public.daily_summaries WHERE user_id = (SELECT id FROM practice_time_test_user)), 48, 'stale writer preserves both source durations');
 SELECT * FROM finish();
 ROLLBACK;

@@ -566,12 +566,11 @@ export async function syncAllDailySummariesToCloud(
 				.from('daily_summaries')
 				.upsert(rows, { onConflict: 'user_id,date', defaultToNull: false });
 
-			if (error) {
-				console.warn('Failed to bulk-sync daily summaries to cloud:', error);
-			}
+			if (error) throw error;
 		}
 	} catch (error) {
 		console.warn('Failed to bulk-sync daily summaries to cloud:', error);
+		throw error;
 	}
 }
 
