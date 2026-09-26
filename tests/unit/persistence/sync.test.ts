@@ -1094,7 +1094,7 @@ describe('syncDailySummaryToCloud', () => {
 	it('round-trips corrected time with its own minutes and coverage', async () => {
 		const practiceTime = { minutes: 25, earTrainingSessions: 3, lickPracticeSessions: 120 };
 		const mock = createMockSupabase();
-		await syncDailySummaryToCloud(mock as any, { ...TEST_SUMMARY, practiceMinutes: 25, practiceTime });
+		await syncDailySummaryToCloud(mock as any, { ...TEST_SUMMARY, sessionCount: 123, lickPracticeSessions: 120, practiceMinutes: 25, practiceTime });
 		const [row] = mock._upsertFn.mock.calls[0];
 		expect(row.practice_time).toEqual(practiceTime);
 		const reader = createMockSupabase({ tableResults: {

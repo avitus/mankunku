@@ -429,3 +429,9 @@ older client's scalar overwrite cannot relabel an inflated estimate as verified.
 Only complete retained logs can produce a fresh correction; historical days
 without enough evidence retain their estimates. Cloud writes omit absent
 snapshots and group rows by column shape to preserve other devices' corrections.
+
+A database trigger serializes correction selection at the row write, preserving
+more complete provenance when another device flushes a stale snapshot. It also
+keeps the scalar minutes and summary counts consistent with that snapshot, and
+rejects malformed, negative, fractional, or out-of-range provenance. The client
+validates the same shape and checks source coverage before trusting a snapshot.

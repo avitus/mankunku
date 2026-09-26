@@ -34,6 +34,7 @@ import {
 } from '$lib/persistence/lick-practice-sessions';
 import { save, load, remove } from '$lib/persistence/storage';
 import { scoreToGrade } from '$lib/scoring/grades';
+import { readPracticeTime } from '$lib/persistence/practice-time';
 
 /**
  * Point-in-time values a summary carries that are NOT derivable from the
@@ -248,7 +249,10 @@ function mergeWithExisting(existing: DailySummary | undefined, derived: DailySum
 		derived.earTrainingSessions ?? derived.sessionCount
 	);
 	const lick = Math.max(existing.lickPracticeSessions ?? 0, derived.lickPracticeSessions ?? 0);
-	const practiceTime = mergePracticeTime(existing.practiceTime, derived.practiceTime);
+	const practiceTime = mergePracticeTime(
+		readPracticeTime(existing.practiceTime, existing),
+		readPracticeTime(derived.practiceTime, derived)
+	);
 	const merged: DailySummary = {
 		...derived,
 		earTrainingSessions: ear,
@@ -322,7 +326,8 @@ function correctPracticeMinutes(
 	lickEntries: LickPracticeSessionLogEntry[]
 ): DailySummary {
 	// The snapshot owns its minutes: a legacy client may overwrite only the scalar.
-	if (summary.practiceTime) summary = { ...summary, practiceMinutes: summary.practiceTime.minutes };
+	const practiceTime = readPracticeTime(summary.practiceTime, summary);
+	summary = { ...summary, practiceTime, practiceMinutes: practiceTime?.minutes ?? summary.practiceMinutes };
 	const derived = deriveDailySummary(summary.date, earSessions, lickEntries);
 	if (
 		!derived ||

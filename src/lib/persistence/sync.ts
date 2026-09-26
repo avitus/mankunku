@@ -1,3 +1,4 @@
+import { readPracticeTime } from './practice-time';
 /**
  * Sync orchestrator module.
  *
@@ -488,7 +489,11 @@ function rowToDailySummary(row: {
 		earTrainingSessions: row.ear_training_sessions,
 		lickPracticeSessions: row.lick_practice_sessions,
 		practiceMinutes: row.practice_minutes,
-		practiceTime: (row.practice_time as DailySummary['practiceTime']) ?? undefined,
+		practiceTime: readPracticeTime(row.practice_time, {
+			sessionCount: row.session_count,
+			earTrainingSessions: row.ear_training_sessions,
+			lickPracticeSessions: row.lick_practice_sessions
+		}),
 		avgOverall: row.avg_overall,
 		avgPitch: row.avg_pitch,
 		avgRhythm: row.avg_rhythm,
