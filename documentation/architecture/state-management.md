@@ -419,3 +419,13 @@ let { phrase }: Props = $props();
 ```
 
 This is simpler than Svelte 4's writable/derived stores and provides fine-grained reactivity without subscriptions.
+
+
+Daily practice time corrections carry a `practiceTime` snapshot (minutes plus
+per-source attempt counts), synced as `daily_summaries.practice_time`. Verified
+snapshots take precedence over legacy estimates even after source logs are
+pruned. The snapshot owns its minutes separately from `practiceMinutes`, so an
+older client's scalar overwrite cannot relabel an inflated estimate as verified.
+Only complete retained logs can produce a fresh correction; historical days
+without enough evidence retain their estimates. Cloud writes omit absent
+snapshots and group rows by column shape to preserve other devices' corrections.

@@ -24,9 +24,13 @@
 
 	onMount(() => {
 		const config = lickPractice.config;
-		if ((config.sessionType === 'trick' && config.trickId === 'enclosures') ||
-			(config.sessionType === 'daily' && !config.trickId && wasEnclosureSetupActive())) {
-			const saved = loadEnclosureSetup();
+		const saved = loadEnclosureSetup();
+		if (config.sessionType === 'trick' && config.trickId === 'enclosures') {
+			// In-memory parameters may be an explicit detail-page handoff. Keep
+			// that selection; only the shared rhythm/mode preferences are restored.
+			if (saved) Object.assign(config, { backingStyle: saved.backingStyle, practiceMode: saved.practiceMode });
+		} else if (config.sessionType === 'daily' && !config.trickId && wasEnclosureSetupActive()) {
+			// A reload starts with the default config, so restore the full setup.
 			if (saved) Object.assign(config, saved, { sessionType: 'trick', trickId: 'enclosures' });
 		}
 		saveEnclosureSetup(config);

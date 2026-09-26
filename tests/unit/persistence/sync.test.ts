@@ -1078,6 +1078,7 @@ describe('syncDailySummaryToCloud', () => {
 		expect(row).not.toHaveProperty('rhythm_complexity');
 		expect(row).not.toHaveProperty('tonal_mastery');
 		expect(row).not.toHaveProperty('scale_levels');
+		expect(row).not.toHaveProperty('practice_time');
 	});
 
 	it('encodes the per-scale level snapshot (a forgotten mapper column would erase it on the next pull)', async () => {
@@ -1088,6 +1089,19 @@ describe('syncDailySummaryToCloud', () => {
 		});
 		const [row] = mock._upsertFn.mock.calls[0];
 		expect(row.scale_levels).toEqual({ major: 14, dorian: 3 });
+	});
+
+	it('round-trips corrected time with its own minutes and coverage', async () => {
+		const practiceTime = { minutes: 25, earTrainingSessions: 3, lickPracticeSessions: 120 };
+		const mock = createMockSupabase();
+		await syncDailySummaryToCloud(mock as any, { ...TEST_SUMMARY, practiceMinutes: 25, practiceTime });
+		const [row] = mock._upsertFn.mock.calls[0];
+		expect(row.practice_time).toEqual(practiceTime);
+		const reader = createMockSupabase({ tableResults: {
+			daily_summaries: { data: [row], error: null }
+		} });
+		const loaded = await loadDailySummariesFromCloud(reader as any);
+		expect(loaded?.[0]?.practiceTime).toEqual(practiceTime);
 	});
 
 	it('skips when unauthenticated', async () => {
@@ -1134,6 +1148,7 @@ describe('syncAllDailySummariesToCloud', () => {
 			...TEST_SUMMARY,
 			date: '2026-04-28',
 			scaleLevels: { major: 14 },
+			practiceTime: { minutes: 10, earTrainingSessions: 3, lickPracticeSessions: 2 },
 			tonalMastery: 6.5
 		};
 		const withoutSnapshot: DailySummary = {
@@ -1152,6 +1167,8 @@ describe('syncAllDailySummariesToCloud', () => {
 		const bareRow = flat.find((r: { date: string }) => r.date === '2026-04-29');
 		expect(snapRow.scale_levels).toEqual({ major: 14 });
 		expect(snapRow.tonal_mastery).toBe(6.5);
+		expect(snapRow.practice_time.minutes).toBe(10);
+		expect(bareRow).not.toHaveProperty('practice_time');
 		expect(bareRow).not.toHaveProperty('scale_levels');
 		expect(bareRow).not.toHaveProperty('pitch_complexity');
 		// The two shapes never share a batch.

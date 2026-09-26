@@ -155,10 +155,13 @@ export interface DailySummary {
 	/**
 	 * Lick practice's own recorded length plus an estimate for ear-training
 	 * attempts, which record none — see EAR_MINUTES_PER_ATTEMPT. Whole
-	 * minutes. Complete source logs correct historical estimates; days with
-	 * pruned source records retain the larger cached figure.
+	 * minutes. Complete source logs correct historical estimates; verified
+	 * snapshots survive pruning and take precedence over unverified totals.
 	 */
 	practiceMinutes: number;
+	/** Source-derived time and its coverage, kept together so old clients cannot
+	 * turn a stale practiceMinutes overwrite into a verified correction. */
+	practiceTime?: { minutes: number; earTrainingSessions: number; lickPracticeSessions: number };
 	avgOverall: number;                    // 0-1
 	avgPitch: number;                      // 0-1
 	avgRhythm: number;                     // 0-1

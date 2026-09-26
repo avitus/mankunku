@@ -248,6 +248,7 @@ function mergeWithExisting(existing: DailySummary | undefined, derived: DailySum
 		derived.earTrainingSessions ?? derived.sessionCount
 	);
 	const lick = Math.max(existing.lickPracticeSessions ?? 0, derived.lickPracticeSessions ?? 0);
+	const practiceTime = mergePracticeTime(existing.practiceTime, derived.practiceTime);
 	const merged: DailySummary = {
 		...derived,
 		earTrainingSessions: ear,
@@ -255,7 +256,8 @@ function mergeWithExisting(existing: DailySummary | undefined, derived: DailySum
 		sessionCount: ear + lick,
 		// Preserve time from pruned records here. correctPracticeMinutes replaces
 		// this fallback when complete source logs can repair an inflated estimate.
-		practiceMinutes: Math.max(existing.practiceMinutes, derived.practiceMinutes),
+		practiceMinutes: practiceTime?.minutes ?? Math.max(existing.practiceMinutes, derived.practiceMinutes),
+		practiceTime,
 		// bestScore is a personal best — always the max of both sides, independent
 		// of which side has more attempts (a higher best can live on the side with
 		// fewer sessions).
@@ -294,6 +296,19 @@ function mergeWithExisting(existing: DailySummary | undefined, derived: DailySum
 	return merged;
 }
 
+/** Prefer verified time, then the correction covering more source attempts. */
+function mergePracticeTime(
+	a: DailySummary['practiceTime'], b: DailySummary['practiceTime']
+): DailySummary['practiceTime'] {
+	if (!a) return b;
+	if (!b) return a;
+	const aCoversB = a.earTrainingSessions >= b.earTrainingSessions && a.lickPracticeSessions >= b.lickPracticeSessions;
+	const bCoversA = b.earTrainingSessions >= a.earTrainingSessions && b.lickPracticeSessions >= a.lickPracticeSessions;
+	if (aCoversB && !bCoversA) return a;
+	if (bCoversA && !aCoversB) return b;
+	return a.minutes >= b.minutes ? a : b;
+}
+
 /**
  * Correct cached time only when the retained logs cover every attempt in BOTH
  * sources. A capped log may contain just part of a day; it must never replace
@@ -306,6 +321,8 @@ function correctPracticeMinutes(
 	earSessions: SessionResult[],
 	lickEntries: LickPracticeSessionLogEntry[]
 ): DailySummary {
+	// The snapshot owns its minutes: a legacy client may overwrite only the scalar.
+	if (summary.practiceTime) summary = { ...summary, practiceMinutes: summary.practiceTime.minutes };
 	const derived = deriveDailySummary(summary.date, earSessions, lickEntries);
 	if (
 		!derived ||
@@ -316,7 +333,14 @@ function correctPracticeMinutes(
 				(!Number.isFinite(entry.report.elapsedMinutes) || entry.report.elapsedMinutes < 0)
 		)
 	) return summary;
-	return { ...summary, practiceMinutes: derived.practiceMinutes };
+	return {
+		...summary, practiceMinutes: derived.practiceMinutes,
+		practiceTime: {
+			minutes: derived.practiceMinutes,
+			earTrainingSessions: derived.earTrainingSessions ?? 0,
+			lickPracticeSessions: derived.lickPracticeSessions ?? 0
+		}
+	};
 }
 
 /**
@@ -538,6 +562,7 @@ export function reconcileCloudSummaries(cloudSummaries: DailySummary[]): DailySu
 			const corrected = correctPracticeMinutes(cs, earSessions, lickEntries);
 			dailySummaries.push(corrected);
 			summaryMap.set(cs.date, corrected);
+			if (corrected.practiceMinutes !== cs.practiceMinutes) localWinners.add(cs.date);
 			changed = true;
 			continue;
 		}
@@ -565,7 +590,10 @@ export function reconcileCloudSummaries(cloudSummaries: DailySummary[]): DailySu
 			merged.sessionCount > cs.sessionCount ||
 			(merged.earTrainingSessions ?? 0) > (cs.earTrainingSessions ?? 0) ||
 			(merged.lickPracticeSessions ?? 0) > (cs.lickPracticeSessions ?? 0) ||
-			merged.practiceMinutes > cs.practiceMinutes ||
+			merged.practiceMinutes !== cs.practiceMinutes ||
+			merged.practiceTime?.minutes !== cs.practiceTime?.minutes ||
+			merged.practiceTime?.earTrainingSessions !== cs.practiceTime?.earTrainingSessions ||
+			merged.practiceTime?.lickPracticeSessions !== cs.practiceTime?.lickPracticeSessions ||
 			merged.bestScore > cs.bestScore ||
 			merged.notesTotal > cs.notesTotal ||
 			merged.notesHit > cs.notesHit ||

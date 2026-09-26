@@ -355,3 +355,47 @@ describe('practice-time correction from complete source records', () => {
 		expect(history.allTimePracticeMinutes()).toBe(20);
 	});
 });
+
+
+describe('corrected practice time across devices', () => {
+	const date = '2026-09-11';
+	const correction = { minutes: 25, earTrainingSessions: 0, lickPracticeSessions: 120 };
+	const stale = () => makeSummary(date, 120, { earTrainingSessions: 0, lickPracticeSessions: 120 });
+	const corrected = () => ({ ...stale(), practiceMinutes: 25, practiceTime: correction });
+
+	it('accepts a corrected cloud total with no remaining local source records', async () => {
+		const history = await setupHistory({ summaries: [stale()] });
+		const pushed = history.reconcileCloudSummaries([corrected()]);
+		expect(history.allTimePracticeMinutes()).toBe(25);
+		expect(pushed).toHaveLength(0);
+	});
+
+	it('keeps a local correction after pruning and pushes it over a stale cloud estimate', async () => {
+		const history = await setupHistory({ summaries: [corrected()] });
+		const pushed = history.reconcileCloudSummaries([stale()]);
+		expect(pushed[0]?.practiceMinutes).toBe(25);
+		expect(pushed[0]?.practiceTime).toEqual(correction);
+	});
+
+	it('repairs an old-client scalar overwrite without trusting the estimate as corrected', async () => {
+		const history = await setupHistory({});
+		const pushed = history.reconcileCloudSummaries([{ ...stale(), practiceTime: correction }]);
+		expect(history.allTimePracticeMinutes()).toBe(25);
+		expect(pushed[0]?.practiceMinutes).toBe(25);
+	});
+
+	it('does not lose provenance when the corrected and unverified minutes happen to match', async () => {
+		const history = await setupHistory({ summaries: [corrected()] });
+		const pushed = history.reconcileCloudSummaries([{ ...stale(), practiceMinutes: 25 }]);
+		expect(pushed[0]?.practiceTime).toEqual(correction);
+	});
+
+	it('does not replace a complete correction with an older partial correction', async () => {
+		const history = await setupHistory({ summaries: [corrected()] });
+		history.reconcileCloudSummaries([makeSummary(date, 50, {
+			earTrainingSessions: 0, lickPracticeSessions: 50, practiceMinutes: 12,
+			practiceTime: { ...correction, minutes: 12, lickPracticeSessions: 50 }
+		})]);
+		expect(history.allTimePracticeMinutes()).toBe(25);
+	});
+});

@@ -454,6 +454,7 @@ function dailySummaryToRow(
 	// conflict update and erase another device's stored snapshot. Omit the
 	// key instead; with `defaultToNull: false` the upsert leaves the stored
 	// value untouched. Reset deletes rows, so nothing needs to null one here.
+	if (s.practiceTime !== undefined) row.practice_time = s.practiceTime;
 	if (s.pitchComplexity !== undefined) row.pitch_complexity = s.pitchComplexity;
 	if (s.rhythmComplexity !== undefined) row.rhythm_complexity = s.rhythmComplexity;
 	if (s.tonalMastery !== undefined) row.tonal_mastery = s.tonalMastery;
@@ -467,6 +468,7 @@ function rowToDailySummary(row: {
 	ear_training_sessions: number;
 	lick_practice_sessions: number;
 	practice_minutes: number;
+	practice_time?: Json | null;
 	avg_overall: number;
 	avg_pitch: number;
 	avg_rhythm: number;
@@ -486,6 +488,7 @@ function rowToDailySummary(row: {
 		earTrainingSessions: row.ear_training_sessions,
 		lickPracticeSessions: row.lick_practice_sessions,
 		practiceMinutes: row.practice_minutes,
+		practiceTime: (row.practice_time as DailySummary['practiceTime']) ?? undefined,
 		avgOverall: row.avg_overall,
 		avgPitch: row.avg_pitch,
 		avgRhythm: row.avg_rhythm,
