@@ -830,10 +830,9 @@ describe('practiceMinutes', () => {
 		expect(historyModule.allTimePracticeMinutes()).toBe(33);
 	});
 
-	it('never lowers a day already on record', async () => {
-		// History is not rewritten: a stored summary from the old per-attempt
-		// model (or from a device whose source rows have since been pruned)
-		// keeps its figure, the same monotonic rule the counters follow.
+	it('never lowers a day whose source records are incomplete', async () => {
+		// Only one of 29 ear attempts remains: the retained logs cannot
+		// reconstruct the full day, so its cached time must survive.
 		seedProgress([makeEarSession({ timestamp: ts })]);
 		seedLickLog([makeLickEntry({ timestamp: ts, elapsedMinutes: 3 })]);
 		const stored: DailySummary = {

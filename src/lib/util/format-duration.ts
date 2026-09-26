@@ -34,3 +34,8 @@ export function formatMinutes(minutes: number): string {
 	if (h === 0) return `${m}m`;
 	return m === 0 ? `${h}h` : `${h}h ${m}m`;
 }
+
+/** Format an all-time total in hours, retaining one decimal for partial hours. */
+export function formatHours(minutes: number): string {
+	return `${(Math.max(0, minutes) / 60).toFixed(1)}h`;
+}

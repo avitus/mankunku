@@ -239,21 +239,22 @@ function saveAll(): void {
  * source-table pruning: if the lick log has aged a day's entries out,
  * `derived.lickPracticeSessions` would be 0 but `existing.lickPracticeSessions`
  * still carries the real count. Reset explicitly clears the cache, so
- * max never strands wrong data.
+ * cached counters survive until an explicit reset.
  */
 function mergeWithExisting(existing: DailySummary | undefined, derived: DailySummary): DailySummary {
 	if (!existing) return derived;
-	const ear = Math.max(existing.earTrainingSessions ?? 0, derived.earTrainingSessions ?? 0);
+	const ear = Math.max(
+		existing.earTrainingSessions ?? existing.sessionCount,
+		derived.earTrainingSessions ?? derived.sessionCount
+	);
 	const lick = Math.max(existing.lickPracticeSessions ?? 0, derived.lickPracticeSessions ?? 0);
 	const merged: DailySummary = {
 		...derived,
 		earTrainingSessions: ear,
 		lickPracticeSessions: lick,
 		sessionCount: ear + lick,
-		// Minutes are monotonic within a day for the same reason the counters
-		// are — you can't un-practise — so the larger figure wins. That also
-		// leaves days written under the old per-attempt model alone: their
-		// stored figure stands rather than being quietly restated.
+		// Preserve time from pruned records here. correctPracticeMinutes replaces
+		// this fallback when complete source logs can repair an inflated estimate.
 		practiceMinutes: Math.max(existing.practiceMinutes, derived.practiceMinutes),
 		// bestScore is a personal best — always the max of both sides, independent
 		// of which side has more attempts (a higher best can live on the side with
@@ -277,8 +278,10 @@ function mergeWithExisting(existing: DailySummary | undefined, derived: DailySum
 				: { ...existing.scaleLevels, ...derived.scaleLevels }
 	};
 	// Notes / averages prefer the source with more total attempts on record.
-	const derivedTotal = (derived.earTrainingSessions ?? 0) + (derived.lickPracticeSessions ?? 0);
-	const existingTotal = (existing.earTrainingSessions ?? 0) + (existing.lickPracticeSessions ?? 0);
+	const derivedTotal =
+		(derived.earTrainingSessions ?? derived.sessionCount) + (derived.lickPracticeSessions ?? 0);
+	const existingTotal =
+		(existing.earTrainingSessions ?? existing.sessionCount) + (existing.lickPracticeSessions ?? 0);
 	if (existingTotal > derivedTotal) {
 		merged.notesTotal = existing.notesTotal;
 		merged.notesHit = existing.notesHit;
@@ -289,6 +292,31 @@ function mergeWithExisting(existing: DailySummary | undefined, derived: DailySum
 		merged.categories = existing.categories;
 	}
 	return merged;
+}
+
+/**
+ * Correct cached time only when the retained logs cover every attempt in BOTH
+ * sources. A capped log may contain just part of a day; it must never replace
+ * the full day's time. Old lick reports without a duration cannot repair it.
+ * Apply after cloud merging too, so a stale two-minutes-per-attempt estimate
+ * cannot resurrect the inflated total on the next sync.
+ */
+function correctPracticeMinutes(
+	summary: DailySummary,
+	earSessions: SessionResult[],
+	lickEntries: LickPracticeSessionLogEntry[]
+): DailySummary {
+	const derived = deriveDailySummary(summary.date, earSessions, lickEntries);
+	if (
+		!derived ||
+		(derived.earTrainingSessions ?? 0) < (summary.earTrainingSessions ?? summary.sessionCount) ||
+		(derived.lickPracticeSessions ?? 0) < (summary.lickPracticeSessions ?? 0) ||
+		lickEntries.some(
+			(entry) => dateKey(entry.timestamp) === summary.date &&
+				(!Number.isFinite(entry.report.elapsedMinutes) || entry.report.elapsedMinutes < 0)
+		)
+	) return summary;
+	return { ...summary, practiceMinutes: derived.practiceMinutes };
 }
 
 /**
@@ -330,7 +358,7 @@ export function recomputeAllDailySummaries(
 
 		const derived = deriveDailySummary(date, earSessions, lickEntries, snapshot);
 		if (derived === null) continue;
-		const merged = mergeWithExisting(existing, derived);
+		const merged = correctPracticeMinutes(mergeWithExisting(existing, derived), earSessions, lickEntries);
 
 		if (existing) {
 			Object.assign(existing, merged);
@@ -386,7 +414,7 @@ export function recomputeDailySummary(
 
 	const derived = deriveDailySummary(date, earSessions, lickEntries, snapshot);
 	if (derived === null) return existing ?? null;
-	const merged = mergeWithExisting(existing, derived);
+	const merged = correctPracticeMinutes(mergeWithExisting(existing, derived), earSessions, lickEntries);
 
 	if (existing) {
 		Object.assign(existing, merged);
@@ -503,16 +531,17 @@ export function reconcileCloudSummaries(cloudSummaries: DailySummary[]): DailySu
 		// unioned-sessions re-derivation still wins when it's the larger (the
 		// same-day dedup / deadlock fix), while a full cloud count is never lowered
 		// by a partial local one. Counters are monotonic; a real deletion goes
-		// through reset, which clears the cache both sides, so max never strands
-		// stale data.
+		// through reset, which clears the cache both sides. Practice time is then
+		// corrected separately if the retained sources cover the entire day.
 		const existing = summaryMap.get(cs.date);
 		if (!existing) {
-			dailySummaries.push(cs);
-			summaryMap.set(cs.date, cs);
+			const corrected = correctPracticeMinutes(cs, earSessions, lickEntries);
+			dailySummaries.push(corrected);
+			summaryMap.set(cs.date, corrected);
 			changed = true;
 			continue;
 		}
-		const merged = mergeWithExisting(existing, cs);
+		const merged = correctPracticeMinutes(mergeWithExisting(existing, cs), earSessions, lickEntries);
 		Object.assign(existing, merged);
 		changed = true;
 		// Push when the merged result exceeds cloud on ANY counter — not just
@@ -585,9 +614,8 @@ export async function flushDailySummariesToCloud(
  * window and are unioned across devices on cloud merge — so this is "all time"
  * as far as the app can still account for it, not a separate running total
  * (`UserProgress.totalPracticeTime` is a field with no writer, and has always
- * read zero). Days logged before practice time was measured rather than
- * estimated carry their old per-attempt figure, which the merge's MAX rule
- * deliberately leaves standing.
+ * read zero). Days without complete source records retain historical estimates;
+ * complete days are corrected from the retained session logs.
  */
 export function allTimePracticeMinutes(): number {
 	let total = 0;

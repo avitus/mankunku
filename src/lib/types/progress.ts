@@ -155,8 +155,8 @@ export interface DailySummary {
 	/**
 	 * Lick practice's own recorded length plus an estimate for ear-training
 	 * attempts, which record none — see EAR_MINUTES_PER_ATTEMPT. Whole
-	 * minutes. Days written before the switch keep their old per-attempt
-	 * figure: the merge takes the larger of the two.
+	 * minutes. Complete source logs correct historical estimates; days with
+	 * pruned source records retain the larger cached figure.
 	 */
 	practiceMinutes: number;
 	avgOverall: number;                    // 0-1

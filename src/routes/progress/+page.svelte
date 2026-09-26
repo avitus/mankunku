@@ -28,7 +28,7 @@
 	import PeriodCompare from '$lib/components/progress/PeriodCompare.svelte';
 	import LickKeyDetail from '$lib/components/progress/LickKeyDetail.svelte';
 	import { dailySummaries, allTimePracticeMinutes } from '$lib/state/history.svelte';
-	import { formatMinutes } from '$lib/util/format-duration';
+	import { formatHours } from '$lib/util/format-duration';
 	import { settings, getInstrument, getEffectiveHighestNote, saveSettings } from '$lib/state/settings.svelte';
 	import { concertKeyToWritten } from '$lib/music/transposition';
 	import { CATEGORY_LABELS, PITCH_CLASSES, type HarmonicSegment, type PitchClass, type Phrase } from '$lib/types/music';
@@ -682,8 +682,8 @@
 			<!-- Beside the streak because they answer the same question — did you
 			     show up — one in days, one in hours. Totalled from the retained
 			     daily summaries (allTimePracticeMinutes); days logged before
-			     practice time was measured rather than estimated keep their old
-			     per-attempt figure. -->
+			     practice time was measured can be corrected when complete source
+			     records remain. -->
 			<div
 				data-testid="practice-time-total"
 				class="rounded-lg bg-[var(--color-bg-secondary)] p-4 text-center"
@@ -691,10 +691,10 @@
 				<!-- Brass, like the streak beside it: both are showing-up numbers.
 				     Mastery keeps brass-soft as the achievement tone. -->
 				<div class="font-display text-3xl font-bold tabular-nums text-[var(--color-brass)]">
-					{formatMinutes(totalPracticeMinutes)}
+					{formatHours(totalPracticeMinutes)}
 				</div>
 				<div class="smallcaps text-[var(--color-text-secondary)]">Practice Time</div>
-				<div class="mt-0.5 text-xs text-[var(--color-text-secondary)]">all time</div>
+				<div class="mt-0.5 text-xs text-[var(--color-text-secondary)]">all time · includes estimates</div>
 			</div>
 			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 text-center">
 				<div class="font-display text-3xl font-bold tabular-nums" style="color: var(--color-brass-soft)">
