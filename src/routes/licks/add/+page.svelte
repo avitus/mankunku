@@ -11,30 +11,6 @@
 
 	<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
 		<a
-			href="/licks/record"
-			class="group rounded-lg bg-[var(--color-bg-secondary)] p-6 transition-colors hover:bg-[var(--color-bg-tertiary)]"
-		>
-			<!-- Brass microphone glyph -->
-			<svg
-				class="mb-3 h-8 w-8 text-[var(--color-brass)]"
-				viewBox="0 0 24 24"
-				fill="none"
-				stroke="currentColor"
-				stroke-width="1.6"
-				aria-hidden="true"
-			>
-				<rect x="9" y="3" width="6" height="11" rx="3" />
-				<path d="M7 11a5 5 0 0 0 10 0 M12 16v4 M9 20h6" />
-			</svg>
-			<h2 class="font-display text-xl font-semibold group-hover:text-[var(--color-accent)]">
-				Record
-			</h2>
-			<p class="mt-1 text-sm italic text-[var(--color-text-secondary)]">
-				Play a phrase into your mic and save it as a lick.
-			</p>
-		</a>
-
-		<a
 			href="/licks/editor"
 			class="group rounded-lg bg-[var(--color-bg-secondary)] p-6 transition-colors hover:bg-[var(--color-bg-tertiary)]"
 		>
@@ -57,6 +33,31 @@
 			</h2>
 			<p class="mt-1 text-sm italic text-[var(--color-text-secondary)]">
 				Enter notes one at a time using your keyboard.
+			</p>
+		</a>
+
+		<a
+			href="/licks/record"
+			class="group rounded-lg bg-[var(--color-bg-secondary)] p-6 transition-colors hover:bg-[var(--color-bg-tertiary)]"
+		>
+			<!-- Brass microphone glyph -->
+			<svg
+				class="mb-3 h-8 w-8 text-[var(--color-brass)]"
+				viewBox="0 0 24 24"
+				fill="none"
+				stroke="currentColor"
+				stroke-width="1.6"
+				aria-hidden="true"
+			>
+				<rect x="9" y="3" width="6" height="11" rx="3" />
+				<path d="M7 11a5 5 0 0 0 10 0 M12 16v4 M9 20h6" />
+			</svg>
+			<h2 class="font-display text-xl font-semibold group-hover:text-[var(--color-accent)]">
+				Record
+				<span class="ml-2 font-sans text-xs font-medium text-[var(--color-text-secondary)]">Experimental</span>
+			</h2>
+			<p class="mt-1 text-sm italic text-[var(--color-text-secondary)]">
+				Play a phrase into your mic and save it as a lick.
 			</p>
 		</a>
 	</div>
