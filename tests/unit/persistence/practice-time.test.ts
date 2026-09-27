@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readPracticeTime, mergePracticeTime, practiceMinutesWithUncovered } from '$lib/persistence/practice-time';
+import { readPracticeTime, mergePracticeTime, practiceMinutesWithUncovered, availablePracticeMinutes } from '$lib/persistence/practice-time';
 
 const coverage = { sessionCount: 123, earTrainingSessions: 3, lickPracticeSessions: 120 };
 const snapshot = { minutes: 25, earTrainingSessions: 3, lickPracticeSessions: 120, earMinutes: 1.5, lickMinutes: 23.5 };
@@ -35,5 +35,24 @@ describe('source coverage convergence', () => {
 		const combined = { minutes: 28, earTrainingSessions: 6, lickPracticeSessions: 120, earMinutes: 3, lickMinutes: 25 };
 		expect(mergePracticeTime(ear, lick)).toEqual(combined);
 		expect(mergePracticeTime(lick, ear)).toEqual(combined);
+	});
+});
+
+
+describe('available practice time', () => {
+	const day = { date: '2026-09-11', ...coverage, sessionCount: 123, practiceMinutes: 246 } as import('$lib/types/progress').DailySummary;
+	it('does not treat the obsolete per-attempt estimate as elapsed time', () => {
+		expect(availablePracticeMinutes(day)).toBeUndefined();
+	});
+	it('keeps an unavailable marker after counts change or an old client writes a different scalar', () => {
+		expect(availablePracticeMinutes({ ...day, practiceMinutes: 240, practiceTimeUnavailable: true })).toBeUndefined();
+	});
+	it('keeps usable pre-provenance durations and genuine zero minutes', () => {
+		expect(availablePracticeMinutes({ ...day, practiceMinutes: 25 })).toBe(25);
+		expect(availablePracticeMinutes({ ...day, sessionCount: 0, practiceMinutes: 0 })).toBe(0);
+	});
+	it('accepts source evidence even when it happens to equal the old formula', () => {
+		const time = { minutes: 246, earMinutes: 1.5, lickMinutes: 244.5, earTrainingSessions: 3, lickPracticeSessions: 120 };
+		expect(availablePracticeMinutes({ ...day, practiceTime: time, practiceTimeUnavailable: true })).toBe(246);
 	});
 });

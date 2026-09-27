@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatDuration, formatMinutes } from '$lib/util/format-duration';
+import { formatDuration, formatMinutes, formatHours } from '$lib/util/format-duration';
 
 describe('formatDuration', () => {
 	it('formats sub-minute durations with a padded seconds field', () => {
@@ -53,4 +53,13 @@ describe('formatMinutes', () => {
 		expect(formatMinutes(4.6)).toBe('5m');
 		expect(formatMinutes(-3)).toBe('0m');
 	});
+});
+
+
+describe('formatHours', () => {
+	it.each([[21474, '358h'], [89, '1h'], [90, '2h'], [155, '3h'], [0, '0h'], [-60, '0h']])(
+		'rounds %s minutes to %s', (minutes, expected) => {
+			expect(formatHours(minutes)).toBe(expected);
+		}
+	);
 });

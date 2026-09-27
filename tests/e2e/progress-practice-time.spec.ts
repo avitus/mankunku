@@ -94,7 +94,7 @@ test('the summary card totals every day on record, not the period', async ({
 
 	// 60 + 47 + 48 = 2h 35m all time, where the month panel sees only 1h 35m.
 	const card = page.getByTestId('practice-time-total');
-	await expect(card).toContainText('2.6h');
+	await expect(card).toContainText('3h');
 	await expect(card).not.toContainText('35m');
 	await expect(card).toContainText('all time');
 	await expect(page.locator('[data-metric="Practice Time"]')).toContainText('1h 35m');
@@ -116,4 +116,34 @@ test('a calendar day carries the time practised', async ({ page, consoleCollecto
 	await expect(
 		calendar.getByLabel('2026-07-15: 2 ear-training, 0 lick-practice, 47m practised')
 	).toBeAttached();
+});
+
+
+test('unknown historical durations are excluded and explained across progress views', async ({ page, consoleCollector: _c }) => {
+	await page.clock.install({ time: NOW });
+	await seedStorage(page, {
+		settings: SETTINGS_ONBOARDED, 'tour-state': TOUR_DISMISSED,
+		'daily-summaries': [summary('2026-07-15', 240, 120), summary('2026-07-19', 47)]
+	});
+	await page.goto('/progress');
+	const card = page.getByTestId('practice-time-total');
+	await expect(card).toContainText('1h');
+	await expect(card).toContainText('1 older day excluded: duration unavailable.');
+	await expect(card).not.toContainText('all time');
+	const period = page.locator('[data-metric="Practice Time"]');
+	await expect(period).toContainText('47m');
+	await expect(period).toContainText('Incomplete history');
+	await expect(page.getByLabel('2026-07-15: 120 ear-training, 0 lick-practice, duration unavailable')).toBeAttached();
+});
+
+test('an entirely unknown practice history is not displayed as zero hours', async ({ page, consoleCollector: _c }) => {
+	await page.clock.install({ time: NOW });
+	await seedStorage(page, {
+		settings: SETTINGS_ONBOARDED, 'tour-state': TOUR_DISMISSED,
+		'daily-summaries': [summary('2026-07-15', 240, 120)]
+	});
+	await page.goto('/progress');
+	await expect(page.getByTestId('practice-time-total')).toContainText('—');
+	await expect(page.getByTestId('practice-time-total')).not.toContainText('0h');
+	await expect(page.locator('[data-metric="Practice Time"]')).toContainText('—');
 });

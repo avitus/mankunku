@@ -1091,6 +1091,16 @@ describe('syncDailySummaryToCloud', () => {
 		expect(row.scale_levels).toEqual({ major: 14, dorian: 3 });
 	});
 
+	it('round-trips unavailable historical duration without discarding the raw summary', async () => {
+		const mock = createMockSupabase();
+		await syncDailySummaryToCloud(mock as any, { ...TEST_SUMMARY, practiceTimeUnavailable: true });
+		const [row] = mock._upsertFn.mock.calls[0];
+		expect(row.practice_time_unavailable).toBe(true);
+		expect(row.practice_minutes).toBe(TEST_SUMMARY.practiceMinutes);
+		const reader = createMockSupabase({ tableResults: { daily_summaries: { data: [row], error: null } } });
+		expect((await loadDailySummariesFromCloud(reader as any))?.[0]?.practiceTimeUnavailable).toBe(true);
+	});
+
 	it('round-trips corrected time with its own minutes and coverage', async () => {
 		const practiceTime = { minutes: 25, earTrainingSessions: 3, lickPracticeSessions: 120, earMinutes: 1.5, lickMinutes: 23.5 };
 		const mock = createMockSupabase();

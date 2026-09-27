@@ -48,3 +48,17 @@ export function practiceMinutesWithUncovered(time: PracticeTime, coverage: Cover
 	const lick = Math.max(0, (coverage.lickPracticeSessions ?? 0) - time.lickPracticeSessions);
 	return Math.round(time.earMinutes + time.lickMinutes + (ear + lick) * 0.5);
 }
+
+/**
+ * Read usable time without treating the retired two-minutes-per-attempt formula
+ * as a duration. Keep the raw summary for recovery if source logs later arrive.
+ * A validated source snapshot takes precedence, even if its duration happens to
+ * equal that formula. Without source evidence that coincidence is ambiguous, so
+ * report it as unavailable rather than silently inventing a replacement time.
+ */
+export function availablePracticeMinutes(summary: DailySummary): number | undefined {
+	const time = readPracticeTime(summary.practiceTime, summary);
+	if (time) return practiceMinutesWithUncovered(time, summary);
+	if (summary.practiceTimeUnavailable || (summary.sessionCount > 0 && summary.practiceMinutes === summary.sessionCount * 2)) return undefined;
+	return summary.practiceMinutes;
+}

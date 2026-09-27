@@ -324,10 +324,22 @@ describe('practice-time correction from complete source records', () => {
 		}
 	});
 
-	it('keeps the cached time when some lick attempts have been pruned', async () => {
+	it('preserves a usable cached duration when a pruned report coincidentally matches the old formula', async () => {
+		const partial = lickEntry(2);
+		partial.report.elapsedMinutes = 4;
+		const history = await setupHistory({ lick: [partial], summaries: [{ ...oldSummary(), practiceMinutes: 25 }] });
+		history.recomputeAllDailySummaries();
+		expect(history.allTimePracticeMinutes()).toBe(25);
+		expect(history.allTimePracticeTimeCoverage().missingDays).toBe(0);
+		history.reconcileCloudSummaries([{ ...oldSummary(), sessionCount: 2, lickPracticeSessions: 2, practiceMinutes: 4, practiceTimeUnavailable: true }]);
+		expect(history.allTimePracticeMinutes()).toBe(25);
+	});
+
+	it('excludes unsupported time when some lick attempts have been pruned', async () => {
 		const history = await setupHistory({ lick: [lickEntry(100)], summaries: [oldSummary()] });
 		history.recomputeAllDailySummaries();
-		expect(history.allTimePracticeMinutes()).toBe(240);
+		expect(history.allTimePracticeMinutes()).toBe(0);
+		expect(history.allTimePracticeTimeCoverage().missingDays).toBe(1);
 	});
 
 	it('checks each source separately even when the total count matches', async () => {
@@ -335,7 +347,8 @@ describe('practice-time correction from complete source records', () => {
 			lick: [lickEntry(119)], sessions: [makeSession(date)], summaries: [oldSummary()]
 		});
 		history.recomputeAllDailySummaries();
-		expect(history.allTimePracticeMinutes()).toBe(240);
+		expect(history.allTimePracticeMinutes()).toBe(0);
+		expect(history.allTimePracticeTimeCoverage().missingDays).toBe(1);
 	});
 
 	it('does not turn legacy reports without a duration into zero minutes', async () => {
@@ -343,7 +356,8 @@ describe('practice-time correction from complete source records', () => {
 		delete (entry.report as Partial<typeof entry.report>).elapsedMinutes;
 		const history = await setupHistory({ lick: [entry], summaries: [oldSummary()] });
 		history.recomputeAllDailySummaries();
-		expect(history.allTimePracticeMinutes()).toBe(240);
+		expect(history.allTimePracticeMinutes()).toBe(0);
+		expect(history.allTimePracticeTimeCoverage().missingDays).toBe(1);
 	});
 
 	it('respects pre-split ear counts when checking source completeness', async () => {
@@ -352,7 +366,8 @@ describe('practice-time correction from complete source records', () => {
 		delete stored.lickPracticeSessions;
 		const history = await setupHistory({ sessions: [makeSession(date)], summaries: [stored] });
 		history.recomputeAllDailySummaries();
-		expect(history.allTimePracticeMinutes()).toBe(20);
+		expect(history.allTimePracticeMinutes()).toBe(0);
+		expect(history.allTimePracticeTimeCoverage().missingDays).toBe(1);
 	});
 });
 
@@ -369,6 +384,7 @@ describe('corrected practice time across devices', () => {
 		expect(history.allTimePracticeMinutes()).toBe(25);
 		expect(pushed).toHaveLength(0);
 	});
+
 
 	it('keeps a local correction after pruning and pushes it over a stale cloud estimate', async () => {
 		const history = await setupHistory({ summaries: [corrected()] });

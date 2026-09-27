@@ -34,7 +34,7 @@ import {
 } from '$lib/persistence/lick-practice-sessions';
 import { save, load, remove } from '$lib/persistence/storage';
 import { scoreToGrade } from '$lib/scoring/grades';
-import { readPracticeTime, mergePracticeTime, practiceMinutesWithUncovered } from '$lib/persistence/practice-time';
+import { readPracticeTime, mergePracticeTime, practiceMinutesWithUncovered, availablePracticeMinutes } from '$lib/persistence/practice-time';
 
 /**
  * Point-in-time values a summary carries that are NOT derivable from the
@@ -253,6 +253,13 @@ function mergeWithExisting(existing: DailySummary | undefined, derived: DailySum
 		readPracticeTime(existing.practiceTime, existing),
 		readPracticeTime(derived.practiceTime, derived)
 	);
+	const existingUnavailable = availablePracticeMinutes(existing) === undefined;
+	const derivedUnavailable = availablePracticeMinutes(derived) === undefined;
+	// A pruned subset can coincidentally match the retired formula. It cannot
+	// invalidate a usable duration covering at least as much of both sources.
+	const keepCachedTime = !existingUnavailable && derivedUnavailable &&
+		(derived.earTrainingSessions ?? derived.sessionCount) <= (existing.earTrainingSessions ?? existing.sessionCount) &&
+		(derived.lickPracticeSessions ?? 0) <= (existing.lickPracticeSessions ?? 0);
 	const merged: DailySummary = {
 		...derived,
 		earTrainingSessions: ear,
@@ -260,8 +267,9 @@ function mergeWithExisting(existing: DailySummary | undefined, derived: DailySum
 		sessionCount: ear + lick,
 		// Preserve time from pruned records here. correctPracticeMinutes replaces
 		// this fallback when complete source logs can repair an inflated estimate.
-		practiceMinutes: practiceTime?.minutes ?? Math.max(existing.practiceMinutes, derived.practiceMinutes),
+		practiceMinutes: practiceTime?.minutes ?? (keepCachedTime ? existing.practiceMinutes : Math.max(existing.practiceMinutes, derived.practiceMinutes)),
 		practiceTime,
+		practiceTimeUnavailable: existingUnavailable || (!keepCachedTime && derivedUnavailable),
 		// bestScore is a personal best — always the max of both sides, independent
 		// of which side has more attempts (a higher best can live on the side with
 		// fewer sessions).
@@ -334,6 +342,7 @@ function correctPracticeMinutes(
 	}
 	return {
 		...summary, practiceTime,
+		practiceTimeUnavailable: practiceTime ? false : availablePracticeMinutes(summary) === undefined,
 		practiceMinutes: practiceTime ? practiceMinutesWithUncovered(practiceTime, summary) : summary.practiceMinutes
 	};
 }
@@ -585,6 +594,7 @@ export function reconcileCloudSummaries(cloudSummaries: DailySummary[]): DailySu
 			merged.sessionCount > cs.sessionCount ||
 			(merged.earTrainingSessions ?? 0) > (cs.earTrainingSessions ?? 0) ||
 			(merged.lickPracticeSessions ?? 0) > (cs.lickPracticeSessions ?? 0) ||
+			(merged.practiceTimeUnavailable ?? false) !== (availablePracticeMinutes(cs) === undefined) ||
 			merged.practiceMinutes !== cs.practiceMinutes ||
 			merged.practiceTime?.minutes !== cs.practiceTime?.minutes ||
 			merged.practiceTime?.earMinutes !== cs.practiceTime?.earMinutes ||
@@ -632,20 +642,21 @@ export async function flushDailySummariesToCloud(
 
 // ── Query functions ──────────────────────────────────────────────
 
-/**
- * Every minute of practice still on record.
- *
- * The sum of the retained daily summaries, which outlive the 100-attempt source
- * window and are unioned across devices on cloud merge — so this is "all time"
- * as far as the app can still account for it, not a separate running total
- * (`UserProgress.totalPracticeTime` is a field with no writer, and has always
- * read zero). Days without complete source records retain historical estimates;
- * complete days are corrected from the retained session logs.
- */
+/** Sum available time and explicitly count days whose historical duration is unknown. */
+export function allTimePracticeTimeCoverage(): { minutes: number; missingDays: number; availableDays: number } {
+	let minutes = 0;
+	let missingDays = 0;
+	for (const summary of dailySummaries) {
+		const available = availablePracticeMinutes(summary);
+		if (available === undefined) missingDays++;
+		else minutes += available;
+	}
+	return { minutes, missingDays, availableDays: dailySummaries.length - missingDays };
+}
+
+/** Available practice time; obsolete attempt-count estimates are excluded. */
 export function allTimePracticeMinutes(): number {
-	let total = 0;
-	for (const s of dailySummaries) total += s.practiceMinutes;
-	return total;
+	return allTimePracticeTimeCoverage().minutes;
 }
 
 export function getSummariesInRange(start: string, end: string): DailySummary[] {
@@ -663,13 +674,16 @@ function computePeriodStats(start: string, end: string): PeriodStats {
 	let weightedPitch = 0;
 	let weightedRhythm = 0;
 	let totalMinutes = 0;
+	let missingPracticeTimeDays = 0;
 
 	for (const s of summaries) {
 		totalSessions += s.sessionCount;
 		weightedOverall += s.avgOverall * s.sessionCount;
 		weightedPitch += s.avgPitch * s.sessionCount;
 		weightedRhythm += s.avgRhythm * s.sessionCount;
-		totalMinutes += s.practiceMinutes;
+		const available = availablePracticeMinutes(s);
+		if (available === undefined) missingPracticeTimeDays++;
+		else totalMinutes += available;
 	}
 
 	return {
@@ -678,6 +692,7 @@ function computePeriodStats(start: string, end: string): PeriodStats {
 		avgPitch: weightedPitch / totalSessions,
 		avgRhythm: weightedRhythm / totalSessions,
 		practiceMinutes: totalMinutes,
+		missingPracticeTimeDays,
 		practiceDays: summaries.length
 	};
 }

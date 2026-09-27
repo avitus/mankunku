@@ -35,7 +35,7 @@ export function formatMinutes(minutes: number): string {
 	return m === 0 ? `${h}h` : `${h}h ${m}m`;
 }
 
-/** Format an all-time total in hours, retaining one decimal for partial hours. */
+/** Format an all-time total rounded to the nearest whole hour. */
 export function formatHours(minutes: number): string {
-	return `${(Math.max(0, minutes) / 60).toFixed(1)}h`;
+	return `${Math.round(Math.max(0, minutes) / 60)}h`;
 }
