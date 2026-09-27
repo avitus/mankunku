@@ -324,6 +324,17 @@ describe('practice-time correction from complete source records', () => {
 		}
 	});
 
+	it('preserves a usable cached duration when a pruned report coincidentally matches the old formula', async () => {
+		const partial = lickEntry(2);
+		partial.report.elapsedMinutes = 4;
+		const history = await setupHistory({ lick: [partial], summaries: [{ ...oldSummary(), practiceMinutes: 25 }] });
+		history.recomputeAllDailySummaries();
+		expect(history.allTimePracticeMinutes()).toBe(25);
+		expect(history.allTimePracticeTimeCoverage().missingDays).toBe(0);
+		history.reconcileCloudSummaries([{ ...oldSummary(), sessionCount: 2, lickPracticeSessions: 2, practiceMinutes: 4, practiceTimeUnavailable: true }]);
+		expect(history.allTimePracticeMinutes()).toBe(25);
+	});
+
 	it('excludes unsupported time when some lick attempts have been pruned', async () => {
 		const history = await setupHistory({ lick: [lickEntry(100)], summaries: [oldSummary()] });
 		history.recomputeAllDailySummaries();
@@ -373,6 +384,7 @@ describe('corrected practice time across devices', () => {
 		expect(history.allTimePracticeMinutes()).toBe(25);
 		expect(pushed).toHaveLength(0);
 	});
+
 
 	it('keeps a local correction after pruning and pushes it over a stale cloud estimate', async () => {
 		const history = await setupHistory({ summaries: [corrected()] });

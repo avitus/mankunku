@@ -253,6 +253,13 @@ function mergeWithExisting(existing: DailySummary | undefined, derived: DailySum
 		readPracticeTime(existing.practiceTime, existing),
 		readPracticeTime(derived.practiceTime, derived)
 	);
+	const existingUnavailable = availablePracticeMinutes(existing) === undefined;
+	const derivedUnavailable = availablePracticeMinutes(derived) === undefined;
+	// A pruned subset can coincidentally match the retired formula. It cannot
+	// invalidate a usable duration covering at least as much of both sources.
+	const keepCachedTime = !existingUnavailable && derivedUnavailable &&
+		(derived.earTrainingSessions ?? derived.sessionCount) <= (existing.earTrainingSessions ?? existing.sessionCount) &&
+		(derived.lickPracticeSessions ?? 0) <= (existing.lickPracticeSessions ?? 0);
 	const merged: DailySummary = {
 		...derived,
 		earTrainingSessions: ear,
@@ -260,9 +267,9 @@ function mergeWithExisting(existing: DailySummary | undefined, derived: DailySum
 		sessionCount: ear + lick,
 		// Preserve time from pruned records here. correctPracticeMinutes replaces
 		// this fallback when complete source logs can repair an inflated estimate.
-		practiceMinutes: practiceTime?.minutes ?? Math.max(existing.practiceMinutes, derived.practiceMinutes),
+		practiceMinutes: practiceTime?.minutes ?? (keepCachedTime ? existing.practiceMinutes : Math.max(existing.practiceMinutes, derived.practiceMinutes)),
 		practiceTime,
-		practiceTimeUnavailable: availablePracticeMinutes(existing) === undefined || availablePracticeMinutes(derived) === undefined,
+		practiceTimeUnavailable: existingUnavailable || (!keepCachedTime && derivedUnavailable),
 		// bestScore is a personal best — always the max of both sides, independent
 		// of which side has more attempts (a higher best can live on the side with
 		// fewer sessions).

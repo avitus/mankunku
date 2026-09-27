@@ -1,6 +1,6 @@
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT plan(19);
+SELECT plan(21);
 CREATE TEMP TABLE practice_time_test_user AS SELECT gen_random_uuid() AS id;
 INSERT INTO auth.users(id) SELECT id FROM practice_time_test_user;
 INSERT INTO public.daily_summaries(user_id, date, practice_time)
@@ -50,5 +50,10 @@ SELECT ok(NOT (SELECT practice_time_unavailable FROM public.daily_summaries WHER
 INSERT INTO public.daily_summaries(user_id,date,session_count,ear_training_sessions,practice_minutes)
 SELECT id,'2026-09-09',120,120,25 FROM practice_time_test_user;
 SELECT ok(NOT (SELECT practice_time_unavailable FROM public.daily_summaries WHERE user_id=(SELECT id FROM practice_time_test_user) AND date='2026-09-09'), 'non-formula historic durations remain usable');
+
+UPDATE public.daily_summaries SET session_count=2,ear_training_sessions=2,practice_minutes=4,practice_time_unavailable=true
+WHERE user_id=(SELECT id FROM practice_time_test_user) AND date='2026-09-09';
+SELECT ok(NOT (SELECT practice_time_unavailable FROM public.daily_summaries WHERE user_id=(SELECT id FROM practice_time_test_user) AND date='2026-09-09'), 'partial formula match cannot hide a usable cached duration');
+SELECT is((SELECT practice_minutes FROM public.daily_summaries WHERE user_id=(SELECT id FROM practice_time_test_user) AND date='2026-09-09'),25,'partial formula match preserves cached minutes');
 SELECT * FROM finish();
 ROLLBACK;
