@@ -468,18 +468,27 @@ export function getUpcomingLicks(): UpcomingLickEntry[] {
 /**
  * Resolve the session-complete screen's single next-step recommendation —
  * runes wrapper that supplies the still-intact plan (the source of truth for
- * which report entries are trick items) and the user's written-pitch spelling,
+ * which report entries are trick items), persisted unlock counts and session
+ * history, and the user's written-pitch spelling,
  * then delegates to the pure `buildNextStep`.
  *
  * Takes the report the caller already built rather than calling
  * `getSessionReport()` again, so the card can never disagree with the numbers
- * rendered beside it.
+ * rendered beside it. The base session id excludes its incremental log slices
+ * from the historical evidence, so this sitting contributes exactly once.
  */
-export function getNextStep(report: SessionReport): NextStep | null {
+export function getNextStep(report: SessionReport, currentSessionId: string): NextStep | null {
 	const instrument = getInstrument();
 	return buildNextStep({
 		report,
 		plan: lickPractice.plan,
+		unlockedKeyCounts: Object.fromEntries(
+			lickPractice.plan.filter((item) => item.kind !== 'trick').map((item) => [
+				item.phraseId, getUnlockedKeyCount(lickPractice.progress, item.phraseId)
+			])
+		),
+		sessionLog: loadLickPracticeSessions(),
+		currentSessionId,
 		formatKey: (key) => concertKeyToWritten(key, instrument)
 	});
 }

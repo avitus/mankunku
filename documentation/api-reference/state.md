@@ -342,7 +342,7 @@ export interface PlannedKey {
 - `getDailyPracticeLicks(): Phrase[]` — All `practice`-tagged licks with at least one `prog:*` tag, regardless of progression.
 - `getStrandedPracticeLicks(): Phrase[]` — Practice-tagged licks with no `prog:*` tag, surfaced on the setup screen so the user can finish configuring them.
 - `getUpcomingLicks(): UpcomingLickEntry[]` — The session-complete screen's "Upcoming Licks" list (wraps `buildUpcomingLicks`).
-- `getNextStep(report): NextStep | null` — The report's single recommendation (wraps `buildNextStep` with the still-intact plan and the written-pitch key formatter). Takes the report the caller already built so the card can't disagree with the numbers beside it.
+- `getNextStep(report, currentSessionId): NextStep | null` — Wraps `buildNextStep` with the still-intact plan, resolved unlock counts, saved session log, and written-pitch key formatter. The base session id excludes incremental log slices so the supplied report counts once.
 - `pickInitialProgression(): ChordProgressionType` — The setup screen's pre-selected progression (wraps `selectInitialProgression`); `DEFAULT_PROGRESSION` when nothing is tagged.
 - `resolveLickTempo(progress, phraseId): number` — Session-start tempo: 60 for a never-practiced lick, else the minimum stored tempo across its keys, clamped. Shared by every session type — the deep-practice discount is applied at its call site, never here.
 - `computeSessionPlan(): LickPracticePlanItem[]` / `buildSessionPlan(): void` — Focused mode. Sorts licks by least-recently-practiced and packs them into the `durationMinutes` budget; `compute…` is pure with respect to session state (so the setup screen can price a session), `build…` installs the result.
@@ -476,11 +476,13 @@ Listen / read / play signalling, derived from the SAME window plan the recorder 
 
 ## lick-practice-next-steps.ts
 
-The report's single next-step recommendation — deliberately one suggestion or none. Pure; nothing persisted (a derivation of the report the caller already has).
+The report's single next-step recommendation — one suggestion or none. Pure derivation from the current report, resolved unlock counts, and historical session reports; it writes no state.
 
-### `buildNextStep({ report, plan, formatKey? }): NextStep | null`
+### `buildNextStep({ report, plan, unlockedKeyCounts, sessionLog, currentSessionId, formatKey? }): NextStep | null`
 
-Three outcomes, in order: **rest** (`kind: 'rest'`) — a sub-floor average over at least `REST_MIN_ATTEMPTS` (8) keys, exclusive of everything else, because more reps in the same sitting is the one thing that makes it worse; **the one recommendation** — the weakest key under the floor (`'drill-weak-key'`, handed over as a `focusKey` so Deep Practice opens on it alone — the focus ramp) or, with no key under the floor, the lowest-averaging lick (`'drill-weak-lick'`, no key: deep practice already sorts worst-first and demos the head key); **done** — every lick at or above `KEY_PROFICIENT_THRESHOLD`. The weak-key reason names timing when the key's rhythm trails its pitch by more than `RHYTHM_GAP` (0.15). `NextStep` is `{ kind, headline, reason, action }`; `action` (`NextStepAction`, `{ kind: 'deep', lickId, phrase?, focusKey?, label }`) is null for rest and done. `formatKey` renders keys in written pitch to match the chips beside the card. Trick entries are never targeted — their `lickId` is a composite variant key that must not reach a lick start path.
+The existing **rest** veto (`kind: 'rest'`) applies to a sub-75% average over at least `REST_MIN_ATTEMPTS` (8) keys. Otherwise, **learning licks** (fewer than 12 unlocked keys) take priority over **fully unlocked licks**. For each attempted lick/key, collapse repeated attempts and Daily progression slices to one outcome per base session, replace this session's incremental log entries with the current report, and keep the newest `RECENT_KEY_SESSIONS` (5) outcomes. A key qualifies when a strict majority fall below `KEY_PROFICIENT_THRESHOLD` (90%); fully unlocked licks also require at least `PERSISTENT_WEAK_SESSIONS` (3) weak sessions. Rank each group by median score, then stable lick/key identity. With no prior history, a learning key may qualify on its first session; a fully unlocked key cannot.
+
+The recommendation (`'drill-weak-key'`) always passes the specific concert `focusKey` to Deep Practice. Its copy explains the learning stage and recent evidence. There is no whole-lick fallback that can reintroduce an isolated miss. No qualifying candidate produces **done**; an empty report produces `null`. `NextStep` is `{ kind, headline, reason, action }`; `action` (`NextStepAction`, `{ kind: 'deep', lickId, phrase?, focusKey?, label }`) is null for rest and done. `formatKey` renders written pitch; the resolved `phrase` keeps user/community licks startable. Trick entries are never targeted.
 
 
 ---

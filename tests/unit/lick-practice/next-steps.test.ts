@@ -1,29 +1,12 @@
-/**
- * End-of-session "next step" policy — one recommendation, or none.
- *
- * The suite is mostly boundary cases, because every number in the rule set is
- * an existing engine threshold and the whole value of the card is that it
- * names the gate the engine actually applied:
- *  - the weak-key floor is `< 0.75` (KEY_FLOOR_THRESHOLD), so exactly 0.75 is
- *    NOT weak — matching the unlock/tempo gate in lick-practice.svelte.ts
- *  - the rest veto needs BOTH a sub-floor average AND enough attempts, so a
- *    short bad patch never tells the user to stop
- *  - trick report entries carry composite variant keys as their `lickId`;
- *    handing one to a lick start path is a real bug, so they are never targeted
- *
- * The last block drives the runes wrapper `getNextStep`, which the report
- * screen actually calls: it alone picks the key formatter (the configured
- * instrument's written pitch) and the plan.
- */
-
-import { afterEach, describe, it, expect } from 'vitest';
-import { buildNextStep } from '$lib/state/lick-practice-next-steps';
+/** Recent session evidence, learning priority, and the report-to-focus-ramp boundary. */
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
+import { buildNextStep, type NextStepInput } from '$lib/state/lick-practice-next-steps';
 import { getNextStep, lickPractice } from '$lib/state/lick-practice.svelte';
 import { settings } from '$lib/state/settings.svelte';
+import { saveLickPracticeSessions, type LickPracticeSessionLogEntry } from '$lib/persistence/lick-practice-sessions';
+import { save } from '$lib/persistence/storage';
 import type { LickPracticePlanItem, LickReport, SessionReport } from '$lib/types/lick-practice';
 import type { PitchClass, Phrase } from '$lib/types/music';
-
-// ── fixtures ───────────────────────────────────────────────
 
 interface KeySpec {
 	key: PitchClass;
@@ -95,481 +78,249 @@ function planFor(report: SessionReport): LickPracticePlanItem[] {
 	return report.licks.map((l) => makePlanItem({ phraseId: l.lickId }));
 }
 
-// ── Rule 1: rest veto ──────────────────────────────────────
 
-describe('buildNextStep — rest veto', () => {
-	it('recommends stopping when the session average is under the floor over enough keys', () => {
-		const report = makeReport(
-			[makeLickReport({ keys: [{ key: 'C', score: 0.68 }] })],
-			{ overallAverage: 0.68, totalAttempts: 14 }
-		);
-		const step = buildNextStep({ report, plan: planFor(report) });
-		expect(step?.kind).toBe('rest');
-		expect(step?.action).toBeNull();
-		expect(step?.reason).toContain('68%');
-		expect(step?.reason).toContain('14');
+function entry(id: string, report: SessionReport, timestamp = 1): LickPracticeSessionLogEntry {
+	return { id, timestamp, report, progressionType: 'ii-V-I-major', practiceMode: 'continuous' };
+}
+
+function reportFor(scores: number[], ids = ['learning', 'unlocked']): SessionReport {
+	return makeReport(scores.map((score, i) => makeLickReport({
+		lickId: ids[i], lickName: ids[i], keys: [{ key: 'C', score }]
+	})));
+}
+
+function inputFor(report: SessionReport, overrides: Partial<NextStepInput> = {}): NextStepInput {
+	return {
+		report, plan: planFor(report), currentSessionId: 'current', sessionLog: [],
+		unlockedKeyCounts: Object.fromEntries(report.licks.map((lick) => [lick.lickId, 4])),
+		...overrides
+	};
+}
+
+/** Oldest to newest, so fixtures describe the player's actual sequence. */
+function history(...scores: number[][]): LickPracticeSessionLogEntry[] {
+	return scores.map((values, i) => entry(`prior-${i}`, reportFor(values), i + 1));
+}
+
+describe('learning keys before persistent all-key weaknesses', () => {
+	it('prioritizes a learning key even when a fully unlocked key is much weaker', () => {
+		const step = buildNextStep(inputFor(reportFor([0.84, 0.2]), {
+			unlockedKeyCounts: { learning: 4, unlocked: 12 },
+			sessionLog: history([0.8, 0.3], [0.85, 0.25])
+		}));
+		expect(step?.action).toMatchObject({ lickId: 'learning', focusKey: 'C' });
+		expect(step?.reason).toContain('4/12 keys unlocked');
 	});
 
-	it('does NOT veto at exactly the floor (0.75) — the gate is strictly below', () => {
-		const report = makeReport([makeLickReport({ keys: [{ key: 'C', score: 0.75 }] })], {
-			overallAverage: 0.75,
-			totalAttempts: 20
-		});
-		expect(buildNextStep({ report, plan: planFor(report) })?.kind).not.toBe('rest');
+	it('targets the weak key rather than falling back to the whole lick average', () => {
+		const report = makeReport([makeLickReport({ keys: [
+			{ key: 'C', score: 0.99 }, { key: 'F', score: 0.8 }
+		] })]);
+		expect(buildNextStep(inputFor(report))?.action?.focusKey).toBe('F');
 	});
 
-	it('vetoes at 0.749 with 8 attempts', () => {
-		const report = makeReport([makeLickReport({ keys: [{ key: 'C', score: 0.749 }] })], {
-			overallAverage: 0.749,
-			totalAttempts: 8
-		});
-		expect(buildNextStep({ report, plan: planFor(report) })?.kind).toBe('rest');
+	it('can help a newly learned key after its first attempt', () => {
+		const step = buildNextStep(inputFor(reportFor([0.7])));
+		expect(step?.action?.lickId).toBe('learning');
+		expect(step?.reason).toContain('70% this session');
 	});
 
-	it('does NOT veto at 0.60 with only 7 attempts — too short to call it grinding', () => {
-		const report = makeReport([makeLickReport({ keys: [{ key: 'C', score: 0.6 }] })], {
-			overallAverage: 0.6,
-			totalAttempts: 7
-		});
-		expect(buildNextStep({ report, plan: planFor(report) })?.kind).not.toBe('rest');
+	it('uses the median to rank learning keys instead of today’s lowest score', () => {
+		const step = buildNextStep(inputFor(reportFor([0.05, 0.7]), {
+			sessionLog: history([0.85, 0.6], [0.8, 0.65])
+		}));
+		expect(step?.action?.lickId).toBe('unlocked'); // both are learning in this fixture
+		expect(step?.reason).toContain('typical score 65%');
 	});
 
-	it('outranks a weak key: both conditions true still yields the rest step with no action', () => {
-		const report = makeReport(
-			[
-				makeLickReport({
-					lickId: 'lick-a',
-					keys: [
-						{ key: 'C', score: 0.5 },
-						{ key: 'F', score: 0.7 }
-					]
-				})
-			],
-			{ overallAverage: 0.6, totalAttempts: 10 }
-		);
-		const step = buildNextStep({ report, plan: planFor(report) });
-		expect(step?.kind).toBe('rest');
-		expect(step?.action).toBeNull();
-	});
-});
-
-// ── Rule 2: the one recommendation ─────────────────────────
-
-describe('buildNextStep — weakest key', () => {
-	it('does not treat exactly 0.75 as weak', () => {
-		const report = makeReport([
-			makeLickReport({
-				keys: [
-					{ key: 'C', score: 0.75 },
-					{ key: 'F', score: 0.8 }
-				]
-			})
-		]);
-		expect(buildNextStep({ report, plan: planFor(report) })?.kind).not.toBe('drill-weak-key');
-	});
-
-	it('treats 0.749 as weak', () => {
-		const report = makeReport([
-			makeLickReport({
-				keys: [
-					{ key: 'C', score: 0.749 },
-					{ key: 'F', score: 0.95 }
-				]
-			})
-		]);
-		expect(buildNextStep({ report, plan: planFor(report) })?.kind).toBe('drill-weak-key');
-	});
-
-	it('names the weak key, the lick and the number, and tees up deep practice on it', () => {
-		const report = makeReport([
-			makeLickReport({
-				lickId: 'lick-a',
-				lickName: 'Bird Blues',
-				keys: [
-					{ key: 'C', score: 0.6 },
-					{ key: 'F', score: 0.95 }
-				]
-			})
-		]);
-		const step = buildNextStep({ report, plan: planFor(report) });
-		expect(step?.kind).toBe('drill-weak-key');
-		expect(step?.headline).toContain('C');
-		expect(step?.headline).toContain('Bird Blues');
-		expect(step?.reason).toContain('60%');
-		expect(step?.action).toEqual(
-			expect.objectContaining({ kind: 'deep', lickId: 'lick-a' })
-		);
-	});
-
-	it('picks the single lowest key across licks and names THAT key', () => {
-		const report = makeReport([
-			makeLickReport({
-				lickId: 'lick-a',
-				lickName: 'Blues Head',
-				keys: [{ key: 'C', score: 0.7 }]
-			}),
-			makeLickReport({
-				lickId: 'lick-b',
-				lickName: 'Donna Lee',
-				keys: [
-					{ key: 'Db', score: 0.55 },
-					{ key: 'G', score: 0.99 }
-				]
-			})
-		]);
-		const step = buildNextStep({ report, plan: planFor(report) });
-		expect(step?.kind).toBe('drill-weak-key');
-		expect(step?.action?.lickId).toBe('lick-b');
-		expect(step?.headline).toContain('Db');
-		expect(step?.headline).toContain('Donna Lee');
-		expect(step?.headline).not.toContain('Blues Head');
-	});
-
-	it('skips trick entries entirely, even when the trick holds the worst key', () => {
-		const report = makeReport([
-			makeLickReport({
-				lickId: 'enclosures:scale=major',
-				lickName: 'Enclosures',
-				keys: [{ key: 'C', score: 0.3 }]
-			}),
-			makeLickReport({
-				lickId: 'lick-a',
-				lickName: 'Bird Blues',
-				keys: [{ key: 'F', score: 0.6 }]
-			})
-		]);
-		const plan = [
-			makePlanItem({ phraseId: 'enclosures:scale=major', kind: 'trick' }),
-			makePlanItem({ phraseId: 'lick-a' })
-		];
-		const step = buildNextStep({ report, plan });
-		expect(step?.action?.lickId).toBe('lick-a');
-		expect(step?.headline).toContain('F');
-		expect(step?.headline).not.toContain('Enclosures');
-	});
-
-	it('adds the time-not-notes clause when rhythm trails pitch by more than 0.15', () => {
-		const report = makeReport([
-			makeLickReport({
-				keys: [{ key: 'C', score: 0.7, pitch: 0.8, rhythm: 0.6 }]
-			})
-		]);
-		const step = buildNextStep({ report, plan: planFor(report) });
-		expect(step?.kind).toBe('drill-weak-key');
-		expect(step?.reason).toContain('time, not the notes');
-	});
-
-	it('omits the time-not-notes clause at a 0.10 gap', () => {
-		const report = makeReport([
-			makeLickReport({
-				keys: [{ key: 'C', score: 0.74, pitch: 0.8, rhythm: 0.7 }]
-			})
-		]);
-		const step = buildNextStep({ report, plan: planFor(report) });
-		expect(step?.kind).toBe('drill-weak-key');
-		expect(step?.reason).not.toContain('time, not the notes');
-	});
-
-	it('renders the key through the injected written-pitch formatter', () => {
-		const report = makeReport([makeLickReport({ keys: [{ key: 'C', score: 0.5 }] })]);
-		const step = buildNextStep({
-			report,
-			plan: planFor(report),
-			formatKey: (k) => (k === 'C' ? 'D' : k) // tenor sax: concert C reads as D
-		});
-		expect(step?.headline).toContain('D');
-		expect(step?.headline).not.toMatch(/\bC\b/);
-	});
-});
-
-describe('buildNextStep — weakest lick when no key trips the floor', () => {
-	it('targets the lick with the lowest average', () => {
-		const report = makeReport([
-			makeLickReport({
-				lickId: 'lick-a',
-				lickName: 'Blues Head',
-				keys: [{ key: 'C', score: 0.88 }]
-			}),
-			makeLickReport({
-				lickId: 'lick-b',
-				lickName: 'Donna Lee',
-				keys: [{ key: 'F', score: 0.79 }]
-			})
-		]);
-		const step = buildNextStep({ report, plan: planFor(report) });
-		expect(step?.kind).toBe('drill-weak-lick');
-		expect(step?.action?.lickId).toBe('lick-b');
-		expect(step?.headline).toContain('Donna Lee');
-		expect(step?.reason).toContain('79%');
-		expect(step?.reason).toContain('weakest of the set');
-	});
-
-	it('drops the "weakest of the set" claim when the session held one lick', () => {
-		const report = makeReport([
-			makeLickReport({ lickName: 'Donna Lee', keys: [{ key: 'C', score: 0.83 }] })
-		]);
-		const step = buildNextStep({ report, plan: planFor(report) });
-		expect(step?.kind).toBe('drill-weak-lick');
-		expect(step?.reason).toContain('83%');
-		expect(step?.reason).not.toContain('weakest of the set');
-	});
-
-	it('flags nothing when every lick is at or above proficient', () => {
-		const report = makeReport([
-			makeLickReport({ lickId: 'lick-a', keys: [{ key: 'C', score: 0.9 }] }),
-			makeLickReport({ lickId: 'lick-b', keys: [{ key: 'F', score: 0.97 }] })
-		]);
-		const step = buildNextStep({ report, plan: planFor(report) });
+	it('does not let one lapse turn a consistently good learning key into a target', () => {
+		const step = buildNextStep(inputFor(reportFor([0]), {
+			sessionLog: history([0.96], [0.98], [0.95], [0.99])
+		}));
 		expect(step?.kind).toBe('done');
-		expect(step?.action).toBeNull();
 	});
 
-	it('ignores trick entries when picking the lowest average', () => {
-		const report = makeReport([
-			makeLickReport({ lickId: 'trick:variant', lickName: 'Triad Pairs', keys: [{ key: 'C', score: 0.8 }] }),
-			makeLickReport({ lickId: 'lick-a', lickName: 'Bird Blues', keys: [{ key: 'F', score: 0.86 }] })
-		]);
-		const plan = [
-			makePlanItem({ phraseId: 'trick:variant', kind: 'trick' }),
-			makePlanItem({ phraseId: 'lick-a' })
-		];
-		const step = buildNextStep({ report, plan });
-		expect(step?.action?.lickId).toBe('lick-a');
-	});
-});
-
-// ── Rule 3: fallback ───────────────────────────────────────
-
-describe('buildNextStep — fallback', () => {
-	it('has nothing to target in an all-trick report and says so without an action', () => {
-		const report = makeReport([
-			makeLickReport({ lickId: 'trick:a', lickName: 'Enclosures', keys: [{ key: 'C', score: 0.6 }] })
-		]);
-		const plan = [makePlanItem({ phraseId: 'trick:a', kind: 'trick' })];
-		const step = buildNextStep({ report, plan });
-		expect(step?.kind).toBe('done');
-		expect(step?.action).toBeNull();
+	it('requires a strict weak majority even with only two sessions', () => {
+		expect(buildNextStep(inputFor(reportFor([0]), {
+			sessionLog: history([0.99])
+		}))?.kind).toBe('done');
 	});
 
-	it('returns null for a report with no attempts at all', () => {
-		expect(buildNextStep({ report: makeReport([]), plan: [] })).toBeNull();
-	});
-});
-
-// ── Action plumbing + shape invariants ─────────────────────
-
-describe('buildNextStep — action plumbing', () => {
-	it('carries the plan item resolved Phrase so user/community licks survive a getLickById miss', () => {
-		const phrase = { id: 'lick-a', name: 'Bird Blues' } as unknown as Phrase;
-		const report = makeReport([
-			makeLickReport({ lickId: 'lick-a', keys: [{ key: 'C', score: 0.5 }] })
-		]);
-		const plan = [makePlanItem({ phraseId: 'lick-a', phrase })];
-		expect(buildNextStep({ report, plan })?.action?.phrase).toBe(phrase);
+	it('recommends persistent weakness on a fully unlocked lick when learning keys are healthy', () => {
+		const step = buildNextStep(inputFor(reportFor([0.97, 0.8]), {
+			unlockedKeyCounts: { learning: 4, unlocked: 12 },
+			sessionLog: history([0.98, 0.7], [0.95, 0.75])
+		}));
+		expect(step?.action?.lickId).toBe('unlocked');
+		expect(step?.reason).toContain('All 12 keys unlocked');
+		expect(step?.reason).toContain('3 of its last 3 sessions');
+		expect(step?.reason).not.toContain('next key');
 	});
 
-	it('falls back to the bare lick id when the plan item carries no phrase', () => {
-		const report = makeReport([
-			makeLickReport({ lickId: 'lick-a', keys: [{ key: 'C', score: 0.5 }] })
-		]);
-		const step = buildNextStep({ report, plan: planFor(report) });
-		expect(step?.action?.phrase).toBeUndefined();
-		expect(step?.action?.lickId).toBe('lick-a');
+	it.each([{ prior: [] }, { prior: [[0.6]] }])('does not infer persistence from one or two poor sessions ($prior)', ({ prior }) => {
+		expect(buildNextStep(inputFor(reportFor([0.5]), {
+			unlockedKeyCounts: { learning: 12 }, sessionLog: history(...prior)
+		}))?.kind).toBe('done');
 	});
 
-	it('still targets a lick whose report entry has no matching plan item', () => {
-		const report = makeReport([
-			makeLickReport({ lickId: 'lick-a', keys: [{ key: 'C', score: 0.5 }] })
-		]);
-		const step = buildNextStep({ report, plan: [] });
-		expect(step?.action?.lickId).toBe('lick-a');
+	it('needs three weak sittings, not just three sittings with a low average', () => {
+		expect(buildNextStep(inputFor(reportFor([0.1]), {
+			unlockedKeyCounts: { learning: 12 }, sessionLog: history([0.95], [0.1])
+		}))?.kind).toBe('done');
+	});
+
+	it('retains a persistent weakness through one good session', () => {
+		expect(buildNextStep(inputFor(reportFor([0.95]), {
+			unlockedKeyCounts: { learning: 12 }, sessionLog: history([0.6], [0.7], [0.65])
+		}))?.action?.lickId).toBe('learning');
+	});
+
+	it('forgets old weakness outside the most recent five sessions, regardless of log order', () => {
+		expect(buildNextStep(inputFor(reportFor([0.95]), {
+			unlockedKeyCounts: { learning: 12 },
+			sessionLog: history([0.1], [0.1], [0.1], [0.95], [0.95], [0.95], [0.95]).reverse()
+		}))?.kind).toBe('done');
+	});
+
+	it('treats exactly 90% as proficient and 89.9% as needing practice', () => {
+		expect(buildNextStep(inputFor(reportFor([0.9])))?.kind).toBe('done');
+		expect(buildNextStep(inputFor(reportFor([0.899])))?.kind).toBe('drill-weak-key');
 	});
 });
 
-describe('buildNextStep — shape invariants', () => {
-	const cases: { name: string; input: Parameters<typeof buildNextStep>[0] }[] = [
-		{
-			name: 'weak key',
-			input: (() => {
-				const report = makeReport([makeLickReport({ keys: [{ key: 'C', score: 0.5 }] })]);
-				return { report, plan: planFor(report) };
-			})()
-		},
-		{
-			name: 'weak lick',
-			input: (() => {
-				const report = makeReport([makeLickReport({ keys: [{ key: 'C', score: 0.82 }] })]);
-				return { report, plan: planFor(report) };
-			})()
-		},
-		{
-			name: 'rest',
-			input: (() => {
-				const report = makeReport([makeLickReport({ keys: [{ key: 'C', score: 0.5 }] })], {
-					overallAverage: 0.5,
-					totalAttempts: 12
-				});
-				return { report, plan: planFor(report) };
-			})()
-		},
-		{
-			name: 'done',
-			input: (() => {
-				const report = makeReport([makeLickReport({ keys: [{ key: 'C', score: 0.99 }] })]);
-				return { report, plan: planFor(report) };
-			})()
-		}
-	];
+describe('one observation per actual session', () => {
+	it('replaces the current incremental log with the current report', () => {
+		const report = reportFor([0.2]);
+		expect(buildNextStep(inputFor(report, {
+			unlockedKeyCounts: { learning: 12 },
+			sessionLog: [entry('prior', report), entry('current-ii-V-I-major', report)]
+		}))?.kind).toBe('done');
+	});
 
-	for (const c of cases) {
-		it(`${c.name}: a startable step always has an action, a do-nothing step never does`, () => {
-			const step = buildNextStep(c.input);
-			expect(step).not.toBeNull();
-			if (step!.kind === 'rest' || step!.kind === 'done') {
-				expect(step!.action).toBeNull();
-			} else {
-				expect(step!.action).not.toBeNull();
-				expect(step!.action?.kind).toBe('deep');
-				expect(step!.action?.label.length).toBeGreaterThan(0);
-			}
-			expect(step!.headline.length).toBeGreaterThan(0);
-			expect(step!.reason.length).toBeGreaterThan(0);
+	it('does not count multiple progression slices as multiple sittings', () => {
+		const report = reportFor([0.2]);
+		expect(buildNextStep(inputFor(report, {
+			unlockedKeyCounts: { learning: 12 }, sessionLog: [
+				entry('prior-ii-V-I-major', report),
+				{ ...entry('prior-major-vamp', report), progressionType: 'major-vamp' }
+			]
+		}))?.kind).toBe('done');
+	});
+
+	it('does not treat repeated rounds in one deep-practice session as persistent weakness', () => {
+		const repeated = makeReport([makeLickReport({ lickId: 'learning', keys: [
+			{ key: 'C', score: 0.4 }, { key: 'C', score: 0.3 }, { key: 'C', score: 0.2 }
+		] })]);
+		expect(buildNextStep(inputFor(repeated, {
+			unlockedKeyCounts: { learning: 12 }
+		}))?.kind).toBe('done');
+	});
+
+	it('skips sessions that did not attempt this key', () => {
+		const otherKey = makeReport([makeLickReport({ lickId: 'learning', keys: [{ key: 'F', score: 0 }] })]);
+		expect(buildNextStep(inputFor(reportFor([0.5]), {
+			unlockedKeyCounts: { learning: 12 },
+			sessionLog: [entry('one', otherKey), entry('two', otherKey)]
+		}))?.kind).toBe('done');
+	});
+});
+
+describe('report boundaries and action plumbing', () => {
+	it('retains the broad poor-session rest veto', () => {
+		const report = reportFor([0.6]);
+		report.totalAttempts = 8;
+		expect(buildNextStep(inputFor(report))).toMatchObject({ kind: 'rest', action: null });
+		report.totalAttempts = 7;
+		expect(buildNextStep(inputFor(report))?.kind).toBe('drill-weak-key');
+		report.totalAttempts = 8;
+		report.overallAverage = 0.75;
+		expect(buildNextStep(inputFor(report))?.kind).not.toBe('rest');
+	});
+
+	it('never targets a trick, even if it has the worst score', () => {
+		const report = reportFor([0.1, 0.8]);
+		const plan = planFor(report);
+		plan[0].kind = 'trick';
+		expect(buildNextStep(inputFor(report, { plan }))?.action?.lickId).toBe('unlocked');
+		plan[1].kind = 'trick';
+		expect(buildNextStep(inputFor(report, { plan }))?.action).toBeNull();
+	});
+
+	it('returns null for an empty report and avoids recommendations without unlock evidence', () => {
+		expect(buildNextStep(inputFor(makeReport([])))).toBeNull();
+		expect(buildNextStep(inputFor(reportFor([0.5]), { unlockedKeyCounts: {} }))?.kind).toBe('done');
+	});
+
+	it('preserves resolved user phrases and concert focus keys while formatting written pitch', () => {
+		const report = reportFor([0.7]);
+		const phrase = { id: 'learning' } as Phrase;
+		const plan = [makePlanItem({ phraseId: 'learning', phrase })];
+		const step = buildNextStep(inputFor(report, { plan, formatKey: () => 'D' }));
+		expect(step?.headline).toBe('Drill D on learning.');
+		expect(step?.reason).toContain('starts on D alone');
+		expect(step?.action).toMatchObject({ kind: 'deep', lickId: 'learning', focusKey: 'C' });
+		expect(step?.action?.phrase).toBe(phrase);
+	});
+});
+
+describe('getNextStep reads persisted learning state and history', () => {
+	const store = new Map<string, string>();
+	beforeEach(() => {
+		vi.stubGlobal('localStorage', {
+			getItem: (key: string) => store.get(key) ?? null,
+			setItem: (key: string, value: string) => store.set(key, value),
+			removeItem: (key: string) => store.delete(key)
 		});
-	}
-});
-
-// ── Focus key plumbing ─────────────────────────────────────
-//
-// The weak-key step launches Deep Practice on THAT key alone (the focus
-// ramp); the weak-lick step wants the whole rotation and passes no key.
-
-describe('buildNextStep — focus key', () => {
-	it('hands the weak key to the start path as the focus key', () => {
-		const report = makeReport([
-			makeLickReport({
-				lickId: 'lick-a',
-				keys: [
-					{ key: 'C', score: 0.6 },
-					{ key: 'F', score: 0.95 }
-				]
-			})
-		]);
-		const step = buildNextStep({ report, plan: planFor(report) });
-		expect(step?.kind).toBe('drill-weak-key');
-		expect(step?.action?.focusKey).toBe('C');
+		lickPractice.progress = {};
 	});
-
-	it('explains the focus drill in the reason, naming the key through the written-pitch formatter', () => {
-		const report = makeReport([
-			makeLickReport({
-				lickId: 'lick-a',
-				keys: [
-					{ key: 'C', score: 0.6 },
-					{ key: 'F', score: 0.95 }
-				]
-			})
-		]);
-		const step = buildNextStep({
-			report,
-			plan: planFor(report),
-			formatKey: (k) => `written-${k}`
-		});
-		expect(step?.reason).toContain('starts on written-C alone');
-		expect(step?.reason).not.toContain('on C alone');
-	});
-
-	it('passes no focus key for the weakest-lick step — the whole rotation is the drill', () => {
-		const report = makeReport([
-			makeLickReport({
-				lickId: 'lick-a',
-				keys: [
-					{ key: 'C', score: 0.8 },
-					{ key: 'F', score: 0.85 }
-				]
-			})
-		]);
-		const step = buildNextStep({ report, plan: planFor(report) });
-		expect(step?.kind).toBe('drill-weak-lick');
-		expect(step?.action?.focusKey).toBeUndefined();
-	});
-});
-
-// ── getNextStep: the runes wrapper the report screen calls ──
-//
-// Every test above hands `buildNextStep` a stub formatter or none, so they
-// can't see the wrapper drop `concertKeyToWritten` or read a fixed
-// instrument. Either way a tenor player would read "Drill C" beside a "D"
-// key chip.
-
-describe('getNextStep — keys in the copy are written pitch for the configured instrument', () => {
-	/** Weakest key is concert C; F is proficient. */
-	function weakConcertC(): SessionReport {
-		return makeReport([
-			makeLickReport({
-				lickId: 'lick-a',
-				lickName: 'Bird Blues',
-				keys: [
-					{ key: 'C', score: 0.6 },
-					{ key: 'F', score: 0.95 }
-				]
-			})
-		]);
-	}
-
 	afterEach(() => {
-		settings.instrumentId = 'tenor-sax';
+		store.clear();
+		vi.unstubAllGlobals();
 		lickPractice.plan = [];
+		lickPractice.progress = {};
+		settings.instrumentId = 'tenor-sax';
 	});
 
-	const cases: { instrumentId: string; written: string }[] = [
-		{ instrumentId: 'tenor-sax', written: 'D' },
-		{ instrumentId: 'alto-sax', written: 'A' },
-		{ instrumentId: 'concert', written: 'C' }
-	];
-
-	for (const { instrumentId, written } of cases) {
-		it(`${instrumentId}: concert C is named ${written} in the headline and the reason`, () => {
-			settings.instrumentId = instrumentId;
-			const report = weakConcertC();
-			lickPractice.plan = planFor(report);
-
-			const step = getNextStep(report);
-
-			expect(step?.kind).toBe('drill-weak-key');
-			expect(step?.headline).toBe(`Drill ${written} on Bird Blues.`);
-			expect(step?.reason).toContain(`starts on ${written} alone`);
-		});
-	}
-
-	it('hands the start path the focus key in CONCERT pitch — only the copy is transposed', () => {
-		// The focus ramp plans its rotation in concert keys; a written key here
-		// would open the drill a whole step away from the key that failed.
-		settings.instrumentId = 'tenor-sax';
-		const report = weakConcertC();
+	it('uses explicit unlock counts and persisted history, excluding current-session writes', () => {
+		const report = reportFor([0.85, 0.2]);
 		lickPractice.plan = planFor(report);
-
-		expect(getNextStep(report)?.action?.focusKey).toBe('C');
+		save('lick-unlock-count', { learning: 4, unlocked: 12 });
+		saveLickPracticeSessions([...history([0.8, 0.3], [0.85, 0.25]), entry('current-ii-V-I-major', report)]);
+		expect(getNextStep(report, 'current')?.action?.lickId).toBe('learning');
 	});
 
-	it('reads trick entries off the live session plan, so a trick is never targeted', () => {
-		settings.instrumentId = 'tenor-sax';
-		const report = makeReport([
-			makeLickReport({
-				lickId: 'enclosures:scale=major',
-				lickName: 'Enclosures',
-				keys: [{ key: 'C', score: 0.3 }]
-			}),
-			makeLickReport({ lickId: 'lick-a', lickName: 'Bird Blues', keys: [{ key: 'F', score: 0.6 }] })
-		]);
-		lickPractice.plan = [
-			makePlanItem({ phraseId: 'enclosures:scale=major', kind: 'trick' }),
-			makePlanItem({ phraseId: 'lick-a' })
-		];
-
-		const step = getNextStep(report);
-
-		expect(step?.action?.lickId).toBe('lick-a');
-		// Concert F on tenor sax reads G.
-		expect(step?.headline).toBe('Drill G on Bird Blues.');
+	it('does not classify a short report for a fully unlocked lick as learning', () => {
+		const report = reportFor([0.2]);
+		lickPractice.plan = planFor(report);
+		save('lick-unlock-count', { learning: 12 });
+		expect(getNextStep(report, 'current')?.kind).toBe('done');
 	});
+
+	it('honors legacy all-key progress when no explicit count exists', () => {
+		const keys: PitchClass[] = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
+		lickPractice.progress.learning = Object.fromEntries(keys.map((key) => [key, {
+			currentTempo: 120, lastPracticedAt: 1, passCount: 4
+		}]));
+		const report = reportFor([0.2]);
+		lickPractice.plan = planFor(report);
+		expect(getNextStep(report, 'current')?.kind).toBe('done');
+	});
+
+	it('uses the session log to suppress a one-off lapse on a learning key', () => {
+		const report = reportFor([0]);
+		lickPractice.plan = planFor(report);
+		saveLickPracticeSessions(history([0.96], [0.98], [0.95]));
+		expect(getNextStep(report, 'current')?.kind).toBe('done');
+	});
+
+	it.each([['tenor-sax', 'D'], ['alto-sax', 'A'], ['concert', 'C']])(
+		'formats concert C as %s written %s without changing the focus key', (instrumentId, written) => {
+			settings.instrumentId = instrumentId;
+			const report = reportFor([0.6]);
+			lickPractice.plan = planFor(report);
+			const step = getNextStep(report, 'current');
+			expect(step?.headline).toBe(`Drill ${written} on learning.`);
+			expect(step?.action?.focusKey).toBe('C');
+		}
+	);
 });

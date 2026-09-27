@@ -1,42 +1,18 @@
 /**
- * End-of-session next step — the single recommendation shown on the
- * lick-practice report.
+ * Further practice prioritizes weak keys in learning licks (<12 unlocked),
+ * then persistent weaknesses in fully unlocked licks. Rank by the median of
+ * the last five session outcomes, not the worst attempt in today's report.
+ * Learning keys need a weak majority; fully unlocked keys also need at least
+ * three weak sessions. A new learning key can qualify on its first session.
  *
- * Deliberately ONE suggestion, or none. A list of things to do next is a wall
- * of advice; the value here is that the app names the one gate that actually
- * bound this session and makes it startable in a tap.
- *
- * Three outcomes, in order:
- *
- * 1. **Rest veto.** A sub-floor average over enough keys means the engine has
- *    already stepped the tempo down and blocked the unlock
- *    (`computeAutoTempoAdjustment`, the `KEY_FLOOR_THRESHOLD` gate in
- *    `lick-practice.svelte.ts`). More reps in the same sitting is the one
- *    thing that makes it worse, so this is exclusive — nothing else is
- *    considered.
- * 2. **The one recommendation.** The weakest key under the floor if there is
- *    one, otherwise the weakest lick. Both tee up Deep Practice. The weak-key
- *    step hands over the key as a **focus key**: the drill opens on that key
- *    alone and works it back up to speed before the other keys return (the
- *    focus ramp — `FocusRamp`). The weak-lick step passes no key: deep
- *    practice already sorts the whole rotation worst-first by rolling score
- *    and demos the head key while it is below proficient, so it lands on the
- *    offending key by itself, with the reference played.
- * 3. **Nothing worth flagging.** Every lick at or above
- *    `KEY_PROFICIENT_THRESHOLD` — by the engine's own definition the session
- *    earned its unlocks and tempo — so we say so and get out of the way.
- *
- * Pure and Node-testable: no runes, no storage reads, no `Date.now()`. The
- * whole thing is a derivation of the report that the caller already has, which
- * is why none of it is persisted.
- *
- * Trick report entries are never targeted: their `lickId` is the composite
- * variant key (`trickVariantKey`), and handing one to a lick start path would
- * both miss and risk variant keys entering lick-store blobs.
+ * Pure derivation: the caller supplies unlock state and the session log.
+ * Current-session writes and Daily progression slices count only once.
+ * Trick entries never enter a lick's deep-practice start path.
  */
 
 import type { PitchClass, Phrase } from '$lib/types/music';
 import type { LickPracticePlanItem, LickReport, SessionReport } from '$lib/types/lick-practice';
+import { baseSessionId, type LickPracticeSessionLogEntry } from '$lib/persistence/lick-practice-sessions';
 import { KEY_FLOOR_THRESHOLD, KEY_PROFICIENT_THRESHOLD } from '$lib/persistence/lick-practice-store';
 
 /**
@@ -46,22 +22,12 @@ import { KEY_FLOOR_THRESHOLD, KEY_PROFICIENT_THRESHOLD } from '$lib/persistence/
  */
 export const REST_MIN_ATTEMPTS = 8;
 
-/**
- * How far rhythm must trail pitch on the weak key before we call it a timing
- * problem rather than a note problem. Below this the two are close enough
- * that naming one would be guessing.
- */
-export const RHYTHM_GAP = 0.15;
+/** Each sitting contributes once, regardless of retries or progression slices. */
+export const RECENT_KEY_SESSIONS = 5;
+/** Fully unlocked licks need repeated evidence before they get extra practice. */
+export const PERSISTENT_WEAK_SESSIONS = 3;
 
-export type NextStepKind =
-	/** Stop for today — the session is already past the point of diminishing returns. */
-	| 'rest'
-	/** Deep-practice the lick holding the single weakest key. */
-	| 'drill-weak-key'
-	/** Deep-practice the lowest-averaging lick (no key tripped the floor). */
-	| 'drill-weak-lick'
-	/** Nothing to flag. */
-	| 'done';
+export type NextStepKind = 'rest' | 'drill-weak-key' | 'done';
 
 export interface NextStepAction {
 	/** Only Deep Practice is offered today; the literal keeps the union open. */
@@ -74,8 +40,7 @@ export interface NextStepAction {
 	 */
 	phrase?: Phrase;
 	/**
-	 * Key to open the drill on ALONE — the focus ramp. Set by the weak-key
-	 * step only; the weak-lick step wants the whole rotation.
+	 * Key to open the drill on alone, in concert pitch — the focus ramp.
 	 */
 	focusKey?: PitchClass;
 	/** Button copy. */
@@ -100,6 +65,12 @@ export interface NextStepInput {
 	 * hand to the start path.
 	 */
 	plan: readonly LickPracticePlanItem[];
+	/** Resolved persisted counts, including the legacy all-12-keys fallback. */
+	unlockedKeyCounts: Readonly<Record<string, number>>;
+	/** Includes incremental writes of this session; those are replaced by report. */
+	sessionLog: readonly LickPracticeSessionLogEntry[];
+	currentSessionId: string;
+
 	/**
 	 * Concert pitch class → display label. Injected so the pure module stays
 	 * instrument-agnostic while the copy matches the written-pitch key chips
@@ -138,51 +109,101 @@ export function buildNextStep(input: NextStepInput): NextStep | null {
 	const lickReports = report.licks.filter((l) => !trickIds.has(l.lickId));
 	if (lickReports.length === 0) return doneStep(report);
 
-	// Rule 2a — the single weakest key under the floor, across every lick.
-	let weakest: { lick: LickReport; key: LickReport['keys'][number] } | null = null;
+	// Learning licks always rank before fully unlocked licks. A session's
+	// worst individual score is never the ranking signal: use typical recent
+	// performance, and require a majority of the available sittings to be weak.
+	const candidates: WeakKey[] = [];
 	for (const lick of lickReports) {
-		for (const key of lick.keys) {
-			if (key.score >= KEY_FLOOR_THRESHOLD) continue;
-			if (!weakest || key.score < weakest.key.score) weakest = { lick, key };
+		const unlockedCount = input.unlockedKeyCounts[lick.lickId];
+		// Without unlock state we cannot decide which priority this lick belongs to.
+		if (unlockedCount === undefined) continue;
+		const learning = unlockedCount < 12;
+		for (const key of new Set(lick.keys.map((k) => k.key))) {
+			const scores = recentKeyScores(input, lick.lickId, key);
+			const weakCount = scores.filter((score) => score < KEY_PROFICIENT_THRESHOLD).length;
+			if (weakCount <= scores.length / 2) continue;
+			if (!learning && weakCount < PERSISTENT_WEAK_SESSIONS) continue;
+			candidates.push({
+				lick, key, learning, unlockedCount, scores, weakCount, typical: median(scores)
+			});
 		}
 	}
+	candidates.sort((a, b) =>
+		Number(b.learning) - Number(a.learning) ||
+		a.typical - b.typical ||
+		a.lick.lickId.localeCompare(b.lick.lickId) || a.key.localeCompare(b.key)
+	);
+	const weakest = candidates[0];
+	if (!weakest) return doneStep(report);
 
-	if (weakest) {
-		const { lick, key } = weakest;
-		const timing = key.rhythmAccuracy < key.pitchAccuracy - RHYTHM_GAP;
-		return {
-			kind: 'drill-weak-key',
-			headline: `Drill ${formatKey(key.key)} on ${lick.lickName}.`,
-			reason:
-				`It came in at ${pct(key.score)}% — one key under ${pct(KEY_FLOOR_THRESHOLD)}% blocks both the tempo bump and your next key.` +
-				(timing ? " It's the time, not the notes." : '') +
-				` Deep practice starts on ${formatKey(key.key)} alone and brings the other keys back once it's up to speed.`,
-			action: deepAction(lick.lickId, plan, key.key)
-		};
-	}
-
-	// Rule 2b — nothing tripped the floor, so the weakest lick overall. A lick
-	// at or above proficient earned its unlock and its tempo bump; there is
-	// nothing there to flag.
-	const lowest = lickReports.reduce((worst, l) => (l.averageScore < worst.averageScore ? l : worst));
-	if (lowest.averageScore >= KEY_PROFICIENT_THRESHOLD) return doneStep(report);
-
-	// "the weakest of the set" is only true when there was a set — a deep
-	// practice session reports one lick.
-	const rank = lickReports.length > 1 ? ', the weakest of the set' : '';
+	const { lick, key, learning, unlockedCount, scores, weakCount, typical } = weakest;
+	const stage = learning
+		? `Still learning: ${unlockedCount}/12 keys unlocked.`
+		: 'All 12 keys unlocked; this key is persistently weak.';
+	const evidence = scores.length === 1
+		? `${formatKey(key)} scored ${pct(typical)}% this session.`
+		: `${formatKey(key)} was below ${pct(KEY_PROFICIENT_THRESHOLD)}% in ${weakCount} of its last ${scores.length} sessions (typical score ${pct(typical)}%).`;
 	return {
-		kind: 'drill-weak-lick',
-		headline: `Another pass on ${lowest.lickName}.`,
-		reason: `It averaged ${pct(lowest.averageScore)}%${rank}. Deep practice starts on its worst key and demos it first.`,
-		action: deepAction(lowest.lickId, plan)
+		kind: 'drill-weak-key',
+		headline: `Drill ${formatKey(key)} on ${lick.lickName}.`,
+		reason: `${stage} ${evidence} Deep practice starts on ${formatKey(key)} alone and brings the other keys back once it's up to speed.`,
+		action: deepAction(lick.lickId, plan, key)
 	};
+}
+
+interface WeakKey {
+	lick: LickReport;
+	key: PitchClass;
+	learning: boolean;
+	unlockedCount: number;
+	scores: number[];
+	weakCount: number;
+	typical: number;
+}
+
+/** Median resists one unusually poor performance (or one unusually good one). */
+function median(scores: readonly number[]): number {
+	const sorted = [...scores].sort((a, b) => a - b);
+	const middle = Math.floor(sorted.length / 2);
+	return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+}
+
+/** Collapse any repeated key attempts to one outcome for this sitting. */
+function keyScores(report: SessionReport, lickId: string, key: PitchClass): number[] {
+	return report.licks
+		.filter((lick) => lick.lickId === lickId)
+		.flatMap((lick) => lick.keys)
+		.filter((result) => result.key === key && Number.isFinite(result.score))
+		.map((result) => result.score);
+}
+
+/** Newest five distinct sittings that actually attempted this lick/key. */
+function recentKeyScores(input: NextStepInput, lickId: string, key: PitchClass): number[] {
+	const sessions = new Map<string, { timestamp: number; scores: number[] }>();
+	for (const entry of input.sessionLog) {
+		const id = baseSessionId(entry);
+		if (id === input.currentSessionId) continue;
+		const scores = keyScores(entry.report, lickId, key);
+		if (scores.length === 0) continue;
+		const previous = sessions.get(id);
+		sessions.set(id, {
+			timestamp: Math.max(previous?.timestamp ?? entry.timestamp, entry.timestamp),
+			scores: [...(previous?.scores ?? []), ...scores]
+		});
+	}
+	const current = keyScores(input.report, lickId, key);
+	const prior = [...sessions.values()].sort((a, b) => b.timestamp - a.timestamp);
+	return [current, ...prior.map((session) => session.scores)]
+		.filter((scores) => scores.length > 0)
+		.slice(0, RECENT_KEY_SESSIONS)
+		.map((scores) => scores.reduce((sum, score) => sum + score, 0) / scores.length);
 }
 
 function doneStep(report: SessionReport): NextStep {
 	return {
 		kind: 'done',
 		headline: "That's the session.",
-		reason: `${pct(report.overallAverage)}% average over ${report.totalAttempts} keys. Nothing here needs another round today.`,
+		reason: `${pct(report.overallAverage)}% average over ${report.totalAttempts} keys. No clear learning gap or persistent weakness to prioritize today.`,
 		action: null
 	};
 }

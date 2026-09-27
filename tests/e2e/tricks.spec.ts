@@ -228,6 +228,57 @@ test.describe('tricks', () => {
 		});
 	}
 
+	test('enclosure setup restores the last choices after reload and reopening', async ({ signedInPage }) => {
+		await signedInPage.goto('/tricks/enclosures');
+		await signedInPage.getByRole('button', { name: /practice this enclosure/i }).click();
+		const progression = signedInPage.getByRole('combobox', { name: 'Practice over', exact: true });
+		await progression.selectOption('ii-V-I-minor-long');
+		await signedInPage.getByRole('button', { name: '2 approach notes', exact: true }).click();
+		await signedInPage.locator('[data-enclosure-note="0"]').click();
+		await signedInPage.getByLabel('Complete approach pattern', { exact: true }).selectOption('above-below');
+		await signedInPage.locator('[data-enclosure-target]').click();
+		await signedInPage.getByLabel('Place in the chord', { exact: true }).selectOption('third');
+		await signedInPage.getByRole('button', { name: 'Land on the and of beat 1', exact: true }).click();
+		await signedInPage.getByRole('radio', { name: 'Call & Response', exact: true }).click();
+		await signedInPage.getByRole('radio', { name: 'Bossa Nova', exact: true }).click();
+
+		async function expectRestored() {
+			await expect(progression).toHaveValue('ii-V-I-minor-long');
+			await expect(signedInPage.getByRole('button', { name: '2 approach notes', exact: true })).toHaveAttribute('aria-pressed', 'true');
+			await expect(signedInPage.getByRole('button', { name: 'Land on the and of beat 1', exact: true })).toHaveAttribute('aria-pressed', 'true');
+			await expect(signedInPage.getByRole('radio', { name: 'Call & Response', exact: true })).toHaveAttribute('aria-checked', 'true');
+			await expect(signedInPage.getByRole('radio', { name: 'Bossa Nova', exact: true })).toHaveAttribute('aria-checked', 'true');
+			await signedInPage.locator('[data-enclosure-target]').click();
+			await expect(signedInPage.getByLabel('Place in the chord', { exact: true })).toHaveValue('third');
+			await signedInPage.locator('[data-enclosure-note="0"]').click();
+			await expect(signedInPage.getByLabel('Complete approach pattern', { exact: true })).toHaveValue('above-below');
+		}
+		await signedInPage.reload();
+		await expectRestored();
+		await signedInPage.getByRole('link', { name: 'Mastery path →' }).click();
+		await expect(signedInPage).toHaveURL(/\/tricks\/enclosures$/);
+		await signedInPage.goBack();
+		await expect(signedInPage).toHaveURL(/\/lick-practice$/);
+		await expectRestored();
+		await signedInPage.getByRole('radio', { name: 'Triad Pairs', exact: true }).click();
+		await signedInPage.getByRole('radio', { name: 'Enclosures', exact: true }).click();
+		await expectRestored();
+	});
+
+	test('an explicit enclosure selection takes priority over saved setup parameters', async ({ signedInPage }) => {
+		await signedInPage.goto('/tricks/enclosures');
+		await signedInPage.getByRole('button', { name: /practice this enclosure/i }).click();
+		await signedInPage.getByRole('button', { name: '2 approach notes', exact: true }).click();
+		await signedInPage.getByRole('radio', { name: 'Bossa Nova', exact: true }).click();
+		await signedInPage.getByRole('link', { name: 'Mastery path →' }).click();
+		// The detail page opens on its first unlocked variant: one approach note.
+		await signedInPage.getByRole('button', { name: /practice this enclosure/i }).click();
+		await expect(signedInPage.getByRole('button', { name: '1 approach note', exact: true })).toHaveAttribute('aria-pressed', 'true');
+		await expect(signedInPage.getByRole('radio', { name: 'Bossa Nova', exact: true })).toHaveAttribute('aria-checked', 'true');
+		await signedInPage.reload();
+		await expect(signedInPage.getByRole('button', { name: '1 approach note', exact: true })).toHaveAttribute('aria-pressed', 'true');
+	});
+
 	test('phrase canvas preserves the gesture across major and minor ii-V-I arrivals', async ({ signedInPage }) => {
 		await signedInPage.goto('/tricks/enclosures');
 		await signedInPage.getByRole('button', { name: /practice this enclosure/i }).click();

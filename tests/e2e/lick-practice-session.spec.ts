@@ -25,8 +25,8 @@ const SEEDED_PROGRESS = {
  * been failing. C is the lick's only unlocked key, hence the one being
  * learned, so the session engraves its row as a lead sheet while the rolling
  * score is under the floor (`shouldRevealNotation` → `PlannedKey.reveal`) and
- * runs it for three passes. `lick-practice-next-steps.ts` never reads
- * `rollingScore`, so the report's Drill CTA below is unaffected.
+ * runs it for three passes. Recommendations read separate session history,
+ * so a low rolling score alone cannot manufacture persistent weakness.
  */
 const SUB_FLOOR_PROGRESS = {
 	'lick-practice-progress': {
@@ -82,7 +82,8 @@ const LEAD_AHEAD_PROGRESS = {
  * score's value.
  */
 test.describe('lick-practice session flow', () => {
-	test('daily session runs a full round and lands on the scored report', async ({
+	for (const isolatedLapse of [false, true]) {
+	test(`daily session reports ${isolatedLapse ? 'no extra drill for an isolated lapse' : 'a learning-key focus drill'}`, async ({
 		page,
 		browserName,
 		consoleCollector: _consoleCollector
@@ -104,6 +105,24 @@ test.describe('lick-practice session flow', () => {
 			'user-lick-tags': { 'e2e-user-lick-bebop': ['practice', 'prog:ii-V-I-major'] },
 			...SUB_FLOOR_PROGRESS
 		});
+		if (isolatedLapse) {
+			// Three healthy sittings, followed by today's silent-mic miss. The
+			// live wrapper must read this history and count today's upsert once.
+			await seedStorage(page, {
+				'lick-practice-sessions': [0.96, 0.98, 0.95].map((score, i) => ({
+					id: `prior-${i}-ii-V-I-major`, timestamp: 1754000000000 + i,
+					progressionType: 'ii-V-I-major', practiceMode: 'continuous',
+					report: {
+						licks: [{
+							lickId: 'e2e-user-lick-bebop', lickName: 'Test Bebop Line',
+							tempo: FAST_TEMPO, newTempo: null, averageScore: score, passedCount: 1,
+							keys: [{ key: 'C', score, pitchAccuracy: score, rhythmAccuracy: score, passed: true }]
+						}],
+						overallAverage: score, totalAttempts: 1, totalPassed: 1, elapsedMinutes: 1
+					}
+				}))
+			});
+		}
 		await installAudioMock(page);
 		await stubCdnInstrumentSamples(page);
 
@@ -188,6 +207,12 @@ test.describe('lick-practice session flow', () => {
 		// The report offers the restart path.
 		await expect(page.getByRole('button', { name: /new session/i })).toBeVisible();
 
+		if (isolatedLapse) {
+			await expect(page.getByText('No clear learning gap or persistent weakness to prioritize today.', { exact: false })).toBeVisible();
+			await expect(page.getByRole('button', { name: /start deep practice/i })).toHaveCount(0);
+			return;
+		}
+
 		// The one attempt scored silence (0%), so the report's Next card names
 		// the key and offers Deep Practice on it. That CTA is the ONLY entry
 		// to the focus ramp: the drill must open on that key ALONE, which the
@@ -200,6 +225,8 @@ test.describe('lick-practice session flow', () => {
 		await expect(page.getByTestId('focus-ramp')).toContainText(/→ \d+ BPM$/);
 		await expect(page.getByRole('button', { name: /end session/i })).toBeVisible();
 	});
+
+	}
 
 	/**
 	 * Single-lick Deep Practice continuous flow. The critical regression this

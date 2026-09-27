@@ -511,6 +511,8 @@ export type Database = {
           lick_practice_sessions: number
           /** Estimated practice minutes */
           practice_minutes: number
+          /** Source-derived minutes and per-source attempt coverage; legacy rows are null. */
+          practice_time: Json | null
           /** Average overall score (0.0–1.0) across all attempts on this date */
           avg_overall: number
           /** Average pitch accuracy (0.0–1.0) */
@@ -545,6 +547,7 @@ export type Database = {
           ear_training_sessions?: number
           lick_practice_sessions?: number
           practice_minutes?: number
+          practice_time?: Json | null
           avg_overall?: number
           avg_pitch?: number
           avg_rhythm?: number
@@ -566,6 +569,7 @@ export type Database = {
           ear_training_sessions?: number
           lick_practice_sessions?: number
           practice_minutes?: number
+          practice_time?: Json | null
           avg_overall?: number
           avg_pitch?: number
           avg_rhythm?: number

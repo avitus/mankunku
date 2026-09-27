@@ -292,3 +292,124 @@ describe('reconcileCloudSummaries — local-only dates', () => {
 		expect(pushed?.sessionCount).toBe(3);
 	});
 });
+
+
+describe('practice-time correction from complete source records', () => {
+	const date = '2026-09-11';
+	function lickEntry(attempts = 120): LickPracticeSessionLogEntry {
+		return {
+			id: 'lp-timed-blues', timestamp: tsForDate(date), progressionType: 'blues',
+			practiceMode: 'continuous',
+			report: { totalAttempts: attempts, totalPassed: attempts, overallAverage: 0.8,
+				elapsedMinutes: 25, licks: [] }
+		};
+	}
+	function oldSummary() {
+		return makeSummary(date, 120, { earTrainingSessions: 0, lickPracticeSessions: 120 });
+	}
+
+	it('replaces a four-hour estimate with the recorded 25 minutes on recompute', async () => {
+		const history = await setupHistory({ lick: [lickEntry()], summaries: [oldSummary()] });
+		history.recomputeAllDailySummaries();
+		expect(history.allTimePracticeMinutes()).toBe(25);
+		expect(history.recomputeDailySummary(date)?.practiceMinutes).toBe(25);
+	});
+
+	it('repairs a cloud-only estimate and does not let stale cloud values resurrect it', async () => {
+		const history = await setupHistory({ lick: [lickEntry()] });
+		for (let i = 0; i < 2; i++) {
+			const pushed = history.reconcileCloudSummaries([oldSummary()]);
+			expect(pushed.find((s) => s.date === date)?.practiceMinutes).toBe(25);
+			expect(history.allTimePracticeMinutes()).toBe(25);
+		}
+	});
+
+	it('keeps the cached time when some lick attempts have been pruned', async () => {
+		const history = await setupHistory({ lick: [lickEntry(100)], summaries: [oldSummary()] });
+		history.recomputeAllDailySummaries();
+		expect(history.allTimePracticeMinutes()).toBe(240);
+	});
+
+	it('checks each source separately even when the total count matches', async () => {
+		const history = await setupHistory({
+			lick: [lickEntry(119)], sessions: [makeSession(date)], summaries: [oldSummary()]
+		});
+		history.recomputeAllDailySummaries();
+		expect(history.allTimePracticeMinutes()).toBe(240);
+	});
+
+	it('does not turn legacy reports without a duration into zero minutes', async () => {
+		const entry = lickEntry();
+		delete (entry.report as Partial<typeof entry.report>).elapsedMinutes;
+		const history = await setupHistory({ lick: [entry], summaries: [oldSummary()] });
+		history.recomputeAllDailySummaries();
+		expect(history.allTimePracticeMinutes()).toBe(240);
+	});
+
+	it('respects pre-split ear counts when checking source completeness', async () => {
+		const stored = makeSummary(date, 10);
+		delete stored.earTrainingSessions;
+		delete stored.lickPracticeSessions;
+		const history = await setupHistory({ sessions: [makeSession(date)], summaries: [stored] });
+		history.recomputeAllDailySummaries();
+		expect(history.allTimePracticeMinutes()).toBe(20);
+	});
+});
+
+
+describe('corrected practice time across devices', () => {
+	const date = '2026-09-11';
+	const correction = { minutes: 25, earTrainingSessions: 0, lickPracticeSessions: 120, earMinutes: 0, lickMinutes: 25 };
+	const stale = () => makeSummary(date, 120, { earTrainingSessions: 0, lickPracticeSessions: 120 });
+	const corrected = () => ({ ...stale(), practiceMinutes: 25, practiceTime: correction });
+
+	it('accepts a corrected cloud total with no remaining local source records', async () => {
+		const history = await setupHistory({ summaries: [stale()] });
+		const pushed = history.reconcileCloudSummaries([corrected()]);
+		expect(history.allTimePracticeMinutes()).toBe(25);
+		expect(pushed).toHaveLength(0);
+	});
+
+	it('keeps a local correction after pruning and pushes it over a stale cloud estimate', async () => {
+		const history = await setupHistory({ summaries: [corrected()] });
+		const pushed = history.reconcileCloudSummaries([stale()]);
+		expect(pushed[0]?.practiceMinutes).toBe(25);
+		expect(pushed[0]?.practiceTime).toEqual(correction);
+	});
+
+	it('repairs an old-client scalar overwrite without trusting the estimate as corrected', async () => {
+		const history = await setupHistory({});
+		const pushed = history.reconcileCloudSummaries([{ ...stale(), practiceTime: correction }]);
+		expect(history.allTimePracticeMinutes()).toBe(25);
+		expect(pushed[0]?.practiceMinutes).toBe(25);
+	});
+
+	it('does not lose provenance when the corrected and unverified minutes happen to match', async () => {
+		const history = await setupHistory({ summaries: [corrected()] });
+		const pushed = history.reconcileCloudSummaries([{ ...stale(), practiceMinutes: 25 }]);
+		expect(pushed[0]?.practiceTime).toEqual(correction);
+	});
+
+	it('does not replace a complete correction with an older partial correction', async () => {
+		const history = await setupHistory({ summaries: [corrected()] });
+		history.reconcileCloudSummaries([makeSummary(date, 50, {
+			earTrainingSessions: 0, lickPracticeSessions: 50, practiceMinutes: 12,
+			practiceTime: { ...correction, minutes: 12, lickMinutes: 12, lickPracticeSessions: 50 }
+		})]);
+		expect(history.allTimePracticeMinutes()).toBe(25);
+	});
+});
+
+
+it('adds new ear practice after corrected lick history has been pruned', async () => {
+	const date = '2026-09-11';
+	const history = await setupHistory({ sessions: [makeSession(date)], summaries: [makeSummary(date, 120, {
+		earTrainingSessions: 0, lickPracticeSessions: 120, practiceMinutes: 25,
+		practiceTime: { minutes: 25, earTrainingSessions: 0, lickPracticeSessions: 120, earMinutes: 0, lickMinutes: 25 }
+	})] });
+	history.recomputeAllDailySummaries();
+	expect(history.allTimePracticeMinutes()).toBe(26);
+	history.recomputeAllDailySummaries();
+	expect(history.allTimePracticeMinutes()).toBe(26);
+	expect(history.dailySummaries[0].practiceTime?.earMinutes).toBe(0.5);
+});

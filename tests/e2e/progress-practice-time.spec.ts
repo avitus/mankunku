@@ -94,7 +94,8 @@ test('the summary card totals every day on record, not the period', async ({
 
 	// 60 + 47 + 48 = 2h 35m all time, where the month panel sees only 1h 35m.
 	const card = page.getByTestId('practice-time-total');
-	await expect(card).toContainText('2h 35m');
+	await expect(card).toContainText('2.6h');
+	await expect(card).not.toContainText('35m');
 	await expect(card).toContainText('all time');
 	await expect(page.locator('[data-metric="Practice Time"]')).toContainText('1h 35m');
 });

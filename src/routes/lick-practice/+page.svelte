@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
+	import { loadEnclosureSetup, saveEnclosureSetup, wasEnclosureSetupActive } from '$lib/persistence/enclosure-setup';
 	import SeoHead from '$lib/components/seo/SeoHead.svelte';
 	import { page } from '$app/state';
 	import PracticeSetup from '$lib/components/lick-practice/PracticeSetup.svelte';
@@ -22,6 +23,17 @@
 	import HelpLink from '$lib/components/ui/HelpLink.svelte';
 
 	onMount(() => {
+		const config = lickPractice.config;
+		const saved = loadEnclosureSetup();
+		if (config.sessionType === 'trick' && config.trickId === 'enclosures') {
+			// In-memory parameters may be an explicit detail-page handoff. Keep
+			// that selection; only the shared rhythm/mode preferences are restored.
+			if (saved) Object.assign(config, { backingStyle: saved.backingStyle, practiceMode: saved.practiceMode });
+		} else if (config.sessionType === 'daily' && !config.trickId && wasEnclosureSetupActive()) {
+			// A reload starts with the default config, so restore the full setup.
+			if (saved) Object.assign(config, saved, { sessionType: 'trick', trickId: 'enclosures' });
+		}
+		saveEnclosureSetup(config);
 		// Cloud-backed mode requires both the client and a session; the gate
 		// lives inside hydrateLickPracticeProgress.
 		hydrateLickPracticeProgress(page.data?.supabase ?? null, page.data?.session ?? null);
@@ -70,6 +82,7 @@
 
 	function handleUpdate(update: Partial<LickPracticeConfig>) {
 		Object.assign(lickPractice.config, update);
+		saveEnclosureSetup(lickPractice.config);
 	}
 
 	function handleStart() {
