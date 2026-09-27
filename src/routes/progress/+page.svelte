@@ -27,7 +27,7 @@
 	import { localDateStr } from '$lib/util/local-date';
 	import PeriodCompare from '$lib/components/progress/PeriodCompare.svelte';
 	import LickKeyDetail from '$lib/components/progress/LickKeyDetail.svelte';
-	import { dailySummaries, allTimePracticeMinutes } from '$lib/state/history.svelte';
+	import { dailySummaries, allTimePracticeTimeCoverage } from '$lib/state/history.svelte';
 	import { formatHours } from '$lib/util/format-duration';
 	import { settings, getInstrument, getEffectiveHighestNote, saveSettings } from '$lib/state/settings.svelte';
 	import { concertKeyToWritten } from '$lib/music/transposition';
@@ -230,7 +230,7 @@
 	const mastery = $derived(getTonalMastery());
 	// Reads the summaries rune, so it re-totals when a session lands or a cloud
 	// merge brings another device's days in.
-	const totalPracticeMinutes = $derived(allTimePracticeMinutes());
+	const practiceTimeCoverage = $derived(allTimePracticeTimeCoverage());
 
 	// Key/scale unlock progress — the live difficulty system (per-scale
 	// proficiency gates ear-training content; unlocks gate the daily tonality).
@@ -679,11 +679,7 @@
 				</div>
 				<div class="smallcaps text-[var(--color-text-secondary)]">Day Streak</div>
 			</div>
-			<!-- Beside the streak because they answer the same question — did you
-			     show up — one in days, one in hours. Totalled from the retained
-			     daily summaries (allTimePracticeMinutes); days logged before
-			     practice time was measured can be corrected when complete source
-			     records remain. -->
+			<!-- Show only recoverable time, with missing historical coverage made explicit. -->
 			<div
 				data-testid="practice-time-total"
 				class="rounded-lg bg-[var(--color-bg-secondary)] p-4 text-center"
@@ -691,10 +687,15 @@
 				<!-- Brass, like the streak beside it: both are showing-up numbers.
 				     Mastery keeps brass-soft as the achievement tone. -->
 				<div class="font-display text-3xl font-bold tabular-nums text-[var(--color-brass)]">
-					{formatHours(totalPracticeMinutes)}
+					{practiceTimeCoverage.missingDays > 0 && practiceTimeCoverage.availableDays === 0 ? '—' : formatHours(practiceTimeCoverage.minutes)}
 				</div>
 				<div class="smallcaps text-[var(--color-text-secondary)]">Practice Time</div>
-				<div class="mt-0.5 text-xs text-[var(--color-text-secondary)]">all time · includes estimates</div>
+				<div class="mt-0.5 text-xs text-[var(--color-text-secondary)]">{practiceTimeCoverage.missingDays > 0 ? 'available history' : 'all time'} · includes estimates</div>
+				{#if practiceTimeCoverage.missingDays > 0}
+					<p class="mt-1 text-xs text-[var(--color-text-secondary)]">
+						{practiceTimeCoverage.missingDays} older {practiceTimeCoverage.missingDays === 1 ? 'day excluded' : 'days excluded'}: duration unavailable.
+					</p>
+				{/if}
 			</div>
 			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 text-center">
 				<div class="font-display text-3xl font-bold tabular-nums" style="color: var(--color-brass-soft)">

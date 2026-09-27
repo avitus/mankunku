@@ -655,8 +655,9 @@ describe('history queries (the /progress period cards, heatmap and streak)', () 
 		expect(current.sessionCount).toBe(4);
 		expect(current.avgOverall).toBeCloseTo(0.7, 10);
 		expect(current.practiceDays).toBe(2);
-		expect(current.practiceMinutes).toBe(8);
-		expect(previous).toMatchObject({ sessionCount: 2, practiceDays: 1, practiceMinutes: 4 });
+		expect(current.practiceMinutes).toBe(0);
+		expect(current.missingPracticeTimeDays).toBe(2);
+		expect(previous).toMatchObject({ sessionCount: 2, practiceDays: 1, practiceMinutes: 0, missingPracticeTimeDays: 1 });
 		expect(delta.sessionCount).toBe(2);
 		expect(delta.avgOverall).toBeCloseTo(0.2, 10);
 		expect(delta.practiceDays).toBe(1);

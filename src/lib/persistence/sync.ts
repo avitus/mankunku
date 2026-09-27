@@ -440,6 +440,7 @@ function dailySummaryToRow(
 		ear_training_sessions: s.earTrainingSessions ?? s.sessionCount,
 		lick_practice_sessions: s.lickPracticeSessions ?? 0,
 		practice_minutes: s.practiceMinutes,
+		practice_time_unavailable: s.practiceTimeUnavailable ?? false,
 		avg_overall: s.avgOverall,
 		avg_pitch: s.avgPitch,
 		avg_rhythm: s.avgRhythm,
@@ -470,6 +471,7 @@ function rowToDailySummary(row: {
 	lick_practice_sessions: number;
 	practice_minutes: number;
 	practice_time?: Json | null;
+	practice_time_unavailable?: boolean;
 	avg_overall: number;
 	avg_pitch: number;
 	avg_rhythm: number;
@@ -489,6 +491,7 @@ function rowToDailySummary(row: {
 		earTrainingSessions: row.ear_training_sessions,
 		lickPracticeSessions: row.lick_practice_sessions,
 		practiceMinutes: row.practice_minutes,
+		practiceTimeUnavailable: row.practice_time_unavailable ?? false,
 		practiceTime: readPracticeTime(row.practice_time, {
 			sessionCount: row.session_count,
 			earTrainingSessions: row.ear_training_sessions,

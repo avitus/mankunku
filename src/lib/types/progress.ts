@@ -159,6 +159,8 @@ export interface DailySummary {
 	 * snapshots survive pruning and take precedence over unverified totals.
 	 */
 	practiceMinutes: number;
+	/** The cached scalar came from the obsolete attempt-count formula, not elapsed time. */
+	practiceTimeUnavailable?: boolean;
 	/** Source-derived time and its coverage, kept together so old clients cannot
 	 * turn a stale practiceMinutes overwrite into a verified correction. */
 	practiceTime?: {
@@ -201,6 +203,8 @@ export interface ProgressMeta {
 }
 
 export interface PeriodStats {
+	/** Days excluded from practiceMinutes because their duration cannot be recovered. */
+	missingPracticeTimeDays?: number;
 	sessionCount: number;
 	avgOverall: number;
 	avgPitch: number;

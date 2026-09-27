@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { DailySummary } from '$lib/types/progress';
 	import { getSummariesInRange, localDateStr } from '$lib/state/history.svelte';
+	import { availablePracticeMinutes } from '$lib/persistence/practice-time';
 	import { formatMinutes } from '$lib/util/format-duration';
 
 	const CELL_SIZE = 11;
@@ -121,10 +122,8 @@
 		if (ear > 0) parts.push(`${ear} ear-training`);
 		if (lick > 0) parts.push(`${lick} lick-practice`);
 		const breakdown = parts.length > 0 ? ` (${parts.join(', ')})` : '';
-		// Practice time last: it's the one figure a cell can't hint at through
-		// colour, and a day from before the time model was fixed can carry the
-		// old per-attempt estimate, so it reads as detail rather than headline.
-		const time = s.practiceMinutes > 0 ? `, ${formatMinutes(s.practiceMinutes)}` : '';
+		const minutes = availablePracticeMinutes(s);
+		const time = minutes === undefined ? ', duration unavailable' : `, ${formatMinutes(minutes)}`;
 		tooltip = {
 			text: `${date}: ${s.sessionCount} session${s.sessionCount !== 1 ? 's' : ''}${breakdown}, avg ${Math.round(s.avgOverall * 100)}%${time}`,
 			x: event.offsetX,
@@ -204,7 +203,7 @@
 					fill="transparent"
 					role="img"
 					aria-label={cell.summary
-						? `${cell.date}: ${cell.summary.earTrainingSessions ?? cell.summary.sessionCount} ear-training, ${cell.summary.lickPracticeSessions ?? 0} lick-practice, ${formatMinutes(cell.summary.practiceMinutes)} practised`
+						? `${cell.date}: ${cell.summary.earTrainingSessions ?? cell.summary.sessionCount} ear-training, ${cell.summary.lickPracticeSessions ?? 0} lick-practice, ${availablePracticeMinutes(cell.summary) === undefined ? 'duration unavailable' : `${formatMinutes(availablePracticeMinutes(cell.summary)!)} practised`}`
 						: cell.date}
 					onmouseenter={(e) => showTooltip(cell, e)}
 					onmouseleave={hideTooltip}

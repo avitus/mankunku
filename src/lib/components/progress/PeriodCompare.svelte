@@ -64,12 +64,12 @@
 			delta: deltaDisplay(comparison.delta.practiceDays)
 		},
 		{
-			// Lick practice's recorded length plus an estimate per ear-training
-			// attempt — see EAR_MINUTES_PER_ATTEMPT in history.svelte.ts. Days
-			// logged before that switch carry the old per-attempt figure.
 			label: 'Practice Time',
-			current: formatMinutes(comparison.current.practiceMinutes),
-			delta: deltaDisplay(comparison.delta.practiceMinutes, 'duration')
+			current: (comparison.current.missingPracticeTimeDays ?? 0) > 0 && comparison.current.missingPracticeTimeDays === comparison.current.practiceDays
+				? '—' : formatMinutes(comparison.current.practiceMinutes),
+			delta: (comparison.current.missingPracticeTimeDays ?? 0) + (comparison.previous.missingPracticeTimeDays ?? 0) > 0
+				? { text: 'Incomplete history', color: SECONDARY }
+				: deltaDisplay(comparison.delta.practiceMinutes, 'duration')
 		},
 		{
 			label: 'Avg Score',

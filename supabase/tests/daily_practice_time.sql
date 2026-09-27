@@ -1,6 +1,6 @@
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT plan(13);
+SELECT plan(19);
 CREATE TEMP TABLE practice_time_test_user AS SELECT gen_random_uuid() AS id;
 INSERT INTO auth.users(id) SELECT id FROM practice_time_test_user;
 INSERT INTO public.daily_summaries(user_id, date, practice_time)
@@ -33,5 +33,22 @@ SELECT is((SELECT practice_minutes FROM public.daily_summaries WHERE user_id = (
 UPDATE public.daily_summaries SET practice_time='{"minutes":45,"earTrainingSessions":0,"lickPracticeSessions":200,"earMinutes":0,"lickMinutes":45}', ear_training_sessions=0 WHERE user_id=(SELECT id FROM practice_time_test_user);
 SELECT is((SELECT ear_training_sessions FROM public.daily_summaries WHERE user_id = (SELECT id FROM practice_time_test_user)), 6, 'stale writer preserves the other source count');
 SELECT is((SELECT practice_minutes FROM public.daily_summaries WHERE user_id = (SELECT id FROM practice_time_test_user)), 48, 'stale writer preserves both source durations');
+
+INSERT INTO public.daily_summaries(user_id,date,session_count,ear_training_sessions,practice_minutes)
+SELECT id,'2026-09-10',120,120,240 FROM practice_time_test_user;
+SELECT ok((SELECT practice_time_unavailable FROM public.daily_summaries WHERE user_id=(SELECT id FROM practice_time_test_user) AND date='2026-09-10'), 'legacy formula is marked unavailable');
+UPDATE public.daily_summaries SET practice_time_unavailable=false,session_count=121,ear_training_sessions=121,practice_minutes=241
+WHERE user_id=(SELECT id FROM practice_time_test_user) AND date='2026-09-10';
+SELECT ok((SELECT practice_time_unavailable FROM public.daily_summaries WHERE user_id=(SELECT id FROM practice_time_test_user) AND date='2026-09-10'), 'stale writes and changed counts cannot erase missing-duration evidence');
+SELECT is((SELECT practice_minutes FROM public.daily_summaries WHERE user_id=(SELECT id FROM practice_time_test_user) AND date='2026-09-10'),241,'raw historical scalar is retained for audit');
+UPDATE public.daily_summaries SET practice_time='{"minutes":61,"earTrainingSessions":121,"lickPracticeSessions":0,"earMinutes":60.5,"lickMinutes":0}'
+WHERE user_id=(SELECT id FROM practice_time_test_user) AND date='2026-09-10';
+SELECT ok(NOT (SELECT practice_time_unavailable FROM public.daily_summaries WHERE user_id=(SELECT id FROM practice_time_test_user) AND date='2026-09-10'), 'source recovery clears unavailable marker');
+UPDATE public.daily_summaries SET practice_time=NULL,practice_time_unavailable=true,practice_minutes=242
+WHERE user_id=(SELECT id FROM practice_time_test_user) AND date='2026-09-10';
+SELECT ok(NOT (SELECT practice_time_unavailable FROM public.daily_summaries WHERE user_id=(SELECT id FROM practice_time_test_user) AND date='2026-09-10'), 'stale unavailable marker cannot hide recovered source time');
+INSERT INTO public.daily_summaries(user_id,date,session_count,ear_training_sessions,practice_minutes)
+SELECT id,'2026-09-09',120,120,25 FROM practice_time_test_user;
+SELECT ok(NOT (SELECT practice_time_unavailable FROM public.daily_summaries WHERE user_id=(SELECT id FROM practice_time_test_user) AND date='2026-09-09'), 'non-formula historic durations remain usable');
 SELECT * FROM finish();
 ROLLBACK;
