@@ -68,7 +68,7 @@
 			current: (comparison.current.missingPracticeTimeDays ?? 0) > 0 && comparison.current.missingPracticeTimeDays === comparison.current.practiceDays
 				? '—' : formatMinutes(comparison.current.practiceMinutes),
 			delta: (comparison.current.missingPracticeTimeDays ?? 0) + (comparison.previous.missingPracticeTimeDays ?? 0) > 0
-				? { text: 'Incomplete history', color: SECONDARY }
+				? { text: '', color: SECONDARY }
 				: deltaDisplay(comparison.delta.practiceMinutes, 'duration')
 		},
 		{
