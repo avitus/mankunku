@@ -3,8 +3,7 @@
 	import SeoHead from '$lib/components/seo/SeoHead.svelte';
 	import LickCard from '$lib/components/licks/LickCard.svelte';
 	import { licks } from '$lib/state/licks.svelte';
-	import { settings } from '$lib/state/settings.svelte';
-	import { setMasterVolume } from '$lib/audio/audio-context';
+	import { createLickAudition } from '$lib/state/lick-audition.svelte';
 	import type { Phrase } from '$lib/types/music';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
@@ -33,8 +32,8 @@
 	/** Auth session from layout data (null when anonymous/unauthenticated) */
 	const session = $derived(page.data?.session ?? null);
 
-	let playbackModule: typeof import('$lib/audio/playback') | null = null;
-	let playingId: string | null = $state(null);
+	const audition = createLickAudition();
+	const playingId = $derived(audition.state.playingId);
 
 	/**
 	 * User-recorded + step-entered licks. Seeded synchronously from localStorage
@@ -217,40 +216,11 @@
 	}
 
 	async function handlePlay(lick: Phrase) {
-		if (!playbackModule) {
-			playbackModule = await import('$lib/audio/playback');
-		}
-
-		if (playingId === lick.id) {
-			await playbackModule.stopPlayback();
-			playingId = null;
-			return;
-		}
-
-		if (playingId) {
-			await playbackModule.stopPlayback();
-		}
-
-		if (!playbackModule.isInstrumentLoaded()) {
-			await playbackModule.loadInstrument(settings.instrumentId, settings.masterVolume);
-		}
-		setMasterVolume(settings.masterVolume);
-
-		playingId = lick.id;
-		await playbackModule.playPhrase(lick, {
-			tempo: settings.defaultTempo,
-			swing: settings.swing,
-			countInBeats: 0,
-			metronomeEnabled: false,
-			metronomeVolume: 0
-		});
-		playingId = null;
+		await audition.play(lick);
 	}
 
 	onDestroy(() => {
-		if (playbackModule && playingId) {
-			playbackModule.stopPlayback();
-		}
+		audition.dispose();
 	});
 </script>
 
@@ -258,6 +228,10 @@
 	title="Your Licks — Mankunku"
 	description="Your personal jazz lick book: record licks, write them in the step editor, or adopt them from the community, then send them to multi-key practice."
 />
+
+{#if audition.state.error}
+	<p role="alert" class="text-sm text-[var(--color-error-text)]">{audition.state.error}</p>
+{/if}
 
 {#snippet lickGrid(licks: Phrase[], opts: { toggleLabel?: 'add' | 'remove' })}
 	<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
