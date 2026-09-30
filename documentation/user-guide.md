@@ -33,6 +33,8 @@ This is the call-and-response loop.
 
 When your level moves, a small cue flashes under the status line: *↑ Blues · Lv 23*. That's the adaptive system telling you it's noticed.
 
+If your playing stays consistently sharp or flat across several phrases and different notes, a quiet **“Consistently sharp · check your tuning”** (or flat) reminder appears beneath the score. It waits for at least three takes and three different notes, with a typical offset of at least 15 cents. Uncertain detections and wrong notes don't count toward the reminder. It clears when the next take no longer supports it, and starts fresh when you stop and restart practice. The reminder doesn't change your score.
+
 ### What you can change, and where
 
 Ear Training has no in-page settings panel — everything it uses comes from the global **Settings** page, so you set it once and then just play. Under **Settings → Ear Training**:
