@@ -14,8 +14,7 @@
 		COMMUNITY_PAGE_SIZE,
 		type CommunityLick
 	} from '$lib/persistence/community';
-	import { settings } from '$lib/state/settings.svelte';
-	import { setMasterVolume } from '$lib/audio/audio-context';
+	import { createLickAudition } from '$lib/state/lick-audition.svelte';
 
 	const supabase = $derived(page.data?.supabase ?? null);
 	const session = $derived(page.data?.session ?? null);
@@ -27,8 +26,8 @@
 	let loading = $state(false);
 	let loadError: string | null = $state(null);
 
-	let playbackModule: typeof import('$lib/audio/playback') | null = null;
-	let playingId: string | null = $state(null);
+	const audition = createLickAudition();
+	const playingId = $derived(audition.state.playingId);
 
 	// Debounce free-text inputs so we don't re-query on every keystroke.
 	let searchDebounce: ReturnType<typeof setTimeout> | null = null;
@@ -175,33 +174,13 @@
 		goto(`/licks/${lick.phrase.id}`);
 	}
 
+	/** Toggle a community lick through this page's cancellable audition. */
 	async function handlePlay(lick: Phrase) {
-		if (!playbackModule) {
-			playbackModule = await import('$lib/audio/playback');
-		}
-		if (playingId === lick.id) {
-			await playbackModule.stopPlayback();
-			playingId = null;
-			return;
-		}
-		if (playingId) await playbackModule.stopPlayback();
-		if (!playbackModule.isInstrumentLoaded()) {
-			await playbackModule.loadInstrument(settings.instrumentId, settings.masterVolume);
-		}
-		setMasterVolume(settings.masterVolume);
-		playingId = lick.id;
-		await playbackModule.playPhrase(lick, {
-			tempo: settings.defaultTempo,
-			swing: settings.swing,
-			countInBeats: 0,
-			metronomeEnabled: false,
-			metronomeVolume: 0
-		});
-		playingId = null;
+		await audition.play(lick);
 	}
 
 	onDestroy(() => {
-		if (playbackModule && playingId) playbackModule.stopPlayback();
+		audition.dispose();
 		if (searchDebounce) clearTimeout(searchDebounce);
 		if (authorDebounce) clearTimeout(authorDebounce);
 	});
@@ -227,6 +206,10 @@
 	title="Community Licks — Mankunku"
 	description="Browse jazz licks shared by other players and adopt the ones worth stealing into your own book."
 />
+
+{#if audition.state.error}
+	<p role="alert" class="text-sm text-[var(--color-error-text)]">{audition.state.error}</p>
+{/if}
 
 <svelte:head>
 	<!-- Anonymous visitors see only a sign-in prompt here — keep that thin

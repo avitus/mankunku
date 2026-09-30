@@ -13,7 +13,7 @@
 		resetLick
 	} from '$lib/state/lick-practice.svelte';
 	import { settings, getInstrument, getEffectiveHighestNote } from '$lib/state/settings.svelte';
-	import { setMasterVolume } from '$lib/audio/audio-context';
+	import { createLickAudition } from '$lib/state/lick-audition.svelte';
 	import { PITCH_CLASSES, CATEGORY_LABELS, type PitchClass, type PhraseCategory } from '$lib/types/music';
 	import type { Phrase } from '$lib/types/music';
 	import { difficultyDisplay } from '$lib/difficulty/display';
@@ -110,8 +110,8 @@
 		hydrateLickPracticeProgress(supabase, authSession);
 	});
 
-	let playbackModule: typeof import('$lib/audio/playback') | null = null;
-	let isPlaying = $state(false);
+	const audition = createLickAudition();
+	const isPlaying = $derived(audition.state.playingId !== null);
 	let confirmingDelete = $state(false);
 	// Id-scoped so a mid-confirm state can't carry over to a different lick if
 	// baseLick changes (client-side nav between licks reuses this component).
@@ -223,33 +223,9 @@
 			goto('/lick-practice/session');
 	}
 
+	/** Toggle the displayed lick's preview when its transposed phrase is available. */
 	async function togglePlay() {
-		if (!lick) return;
-
-		if (!playbackModule) {
-			playbackModule = await import('$lib/audio/playback');
-		}
-
-		if (isPlaying) {
-			await playbackModule.stopPlayback();
-			isPlaying = false;
-			return;
-		}
-
-		if (!playbackModule.isInstrumentLoaded()) {
-			await playbackModule.loadInstrument(settings.instrumentId, settings.masterVolume);
-		}
-		setMasterVolume(settings.masterVolume);
-
-		isPlaying = true;
-		await playbackModule.playPhrase(lick, {
-			tempo: settings.defaultTempo,
-			swing: settings.swing,
-			countInBeats: 0,
-			metronomeEnabled: false,
-			metronomeVolume: 0
-		});
-		isPlaying = false;
+		if (lick) await audition.play(lick);
 	}
 
 	/**
@@ -340,15 +316,17 @@
 	}
 
 	onDestroy(() => {
-		if (playbackModule && isPlaying) {
-			playbackModule.stopPlayback();
-		}
+		audition.dispose();
 	});
 </script>
 
 <svelte:head>
 	<title>{lick?.name ?? 'Lick'} — Mankunku</title>
 </svelte:head>
+
+{#if audition.state.error}
+	<p role="alert" class="text-sm text-[var(--color-error-text)]">{audition.state.error}</p>
+{/if}
 
 <div class="space-y-6">
 	<!-- Back link -->

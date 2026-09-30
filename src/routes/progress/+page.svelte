@@ -679,7 +679,7 @@
 				</div>
 				<div class="smallcaps text-[var(--color-text-secondary)]">Day Streak</div>
 			</div>
-			<!-- Show only recoverable time, with missing historical coverage made explicit. -->
+			<!-- Show only recoverable practice time. -->
 			<div
 				data-testid="practice-time-total"
 				class="rounded-lg bg-[var(--color-bg-secondary)] p-4 text-center"
@@ -690,12 +690,6 @@
 					{practiceTimeCoverage.missingDays > 0 && practiceTimeCoverage.availableDays === 0 ? '—' : formatHours(practiceTimeCoverage.minutes)}
 				</div>
 				<div class="smallcaps text-[var(--color-text-secondary)]">Practice Time</div>
-				<div class="mt-0.5 text-xs text-[var(--color-text-secondary)]">{practiceTimeCoverage.missingDays > 0 ? 'available history' : 'all time'} · includes estimates</div>
-				{#if practiceTimeCoverage.missingDays > 0}
-					<p class="mt-1 text-xs text-[var(--color-text-secondary)]">
-						{practiceTimeCoverage.missingDays} older {practiceTimeCoverage.missingDays === 1 ? 'day excluded' : 'days excluded'}: duration unavailable.
-					</p>
-				{/if}
 			</div>
 			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 text-center">
 				<div class="font-display text-3xl font-bold tabular-nums" style="color: var(--color-brass-soft)">

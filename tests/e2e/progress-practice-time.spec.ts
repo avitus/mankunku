@@ -96,7 +96,7 @@ test('the summary card totals every day on record, not the period', async ({
 	const card = page.getByTestId('practice-time-total');
 	await expect(card).toContainText('3h');
 	await expect(card).not.toContainText('35m');
-	await expect(card).toContainText('all time');
+	await expect(card).toHaveText(/3h\s+Practice Time/);
 	await expect(page.locator('[data-metric="Practice Time"]')).toContainText('1h 35m');
 });
 
@@ -119,7 +119,7 @@ test('a calendar day carries the time practised', async ({ page, consoleCollecto
 });
 
 
-test('unknown historical durations are excluded and explained across progress views', async ({ page, consoleCollector: _c }) => {
+test('unknown historical durations stay excluded without practice-time caveats', async ({ page, consoleCollector: _c }) => {
 	await page.clock.install({ time: NOW });
 	await seedStorage(page, {
 		settings: SETTINGS_ONBOARDED, 'tour-state': TOUR_DISMISSED,
@@ -128,12 +128,12 @@ test('unknown historical durations are excluded and explained across progress vi
 	await page.goto('/progress');
 	const card = page.getByTestId('practice-time-total');
 	await expect(card).toContainText('1h');
-	await expect(card).toContainText('1 older day excluded: duration unavailable.');
-	await expect(card).not.toContainText('all time');
+	await expect(card).toHaveText(/1h\s+Practice Time/);
 	const period = page.locator('[data-metric="Practice Time"]');
 	await expect(period).toContainText('47m');
-	await expect(period).toContainText('Incomplete history');
-	await expect(page.getByLabel('2026-07-15: 120 ear-training, 0 lick-practice, duration unavailable')).toBeAttached();
+	await expect(period).not.toContainText('Incomplete history');
+	await expect(page.locator('body')).not.toContainText(/includes estimates|available history|days? excluded|duration unavailable/);
+	await expect(page.getByLabel('2026-07-15: 120 ear-training, 0 lick-practice')).toBeAttached();
 });
 
 test('an entirely unknown practice history is not displayed as zero hours', async ({ page, consoleCollector: _c }) => {

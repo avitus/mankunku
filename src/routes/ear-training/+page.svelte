@@ -15,6 +15,8 @@
 	import { decideNext, resolveBoundPhrase } from '$lib/state/ear-training-flow';
 	import { progress, recordAttempt, updateSessionScore, getUnlockContext } from '$lib/state/progress.svelte';
 	import { runScorePipeline } from '$lib/scoring/score-pipeline';
+	import { createTuningMonitor, type TuningAlert } from '$lib/scoring/tuning';
+	import TuningNotice from '$lib/components/practice/TuningNotice.svelte';
 	import { resolveOnsets, segmentNotes, findReArticulations } from '$lib/audio/note-segmenter';
 	import { durationThroughLastReading, trimToPerformance } from '$lib/audio/capture-window';
 	import { resolveBleedEvidence } from '$lib/audio/bleed-evidence';
@@ -123,6 +125,20 @@
 	let autoAdvanceTimer: ReturnType<typeof setTimeout> | null = null;
 	/** Persists across loop iterations — only replaced when a new score arrives */
 	let persistentScore: Score | null = $state(null);
+	const tuningMonitor = createTuningMonitor();
+	let tuningAlert = $state<TuningAlert | null>(null);
+	$effect(() => {
+		// Hydrated settings can change while the page is open. Evidence must
+		// belong to the current instrument, key and scale, including late replays.
+		void settings.instrumentId;
+		void activeTonality.key;
+		void activeTonality.scaleType;
+		untrack(() => {
+			++latestRescoreId;
+			tuningMonitor.reset();
+			tuningAlert = null;
+		});
+	});
 	/**
 	 * Rotating quote rendered centered beneath the status text. Refreshed
 	 * every 10 scored attempts (on attempts 1, 11, 21, …) rather than on
@@ -142,6 +158,7 @@
 	 */
 	function revealScore(score: Score) {
 		persistentScore = score;
+		tuningAlert = tuningMonitor.record(score);
 		if ((scoredAttemptCount - 1) % 10 === 0) {
 			bottomQuote = getGradeCaption(score.grade);
 		}
@@ -280,6 +297,7 @@
 
 	onDestroy(() => {
 		destroyed = true;
+		++latestRescoreId;
 		releaseScreenWakeLock();
 		stopDetection();
 		stopRecording();
@@ -374,10 +392,16 @@
 		};
 	}
 
+	/** Start a practice run with fresh tuning evidence and exclusive audio setup. */
 	async function handlePlay() {
 		if (starting) return;
 		if (!playback || !session.phrase) return;
 		starting = true;
+		// A paused player may have retuned. Start fresh, and fence any replay
+		// still completing from the previous run before it can supply evidence.
+		++latestRescoreId;
+		tuningMonitor.reset();
+		tuningAlert = null;
 		session.lastScore = null;
 		awaitingInput = false;
 		disposeArmedRecorder();
@@ -1038,6 +1062,8 @@
 			{/if}
 		</div>
 	</div>
+
+	<TuningNotice alert={tuningAlert} />
 
 	<!-- Status text -->
 	<div data-tour="status-text" class="h-6 text-center text-sm">
