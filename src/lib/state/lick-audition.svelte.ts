@@ -15,6 +15,7 @@ export function createLickAudition() {
 		if (disposed) return;
 		const previous = state.playingId;
 		const request = ++generation;
+		/** Fence async continuations after disposal or replacement by another preview. */
 		const cancelled = () => disposed || request !== generation;
 		// Claim the button before the first await so Stop also cancels downloads.
 		state.playingId = previous === phrase.id ? null : phrase.id;

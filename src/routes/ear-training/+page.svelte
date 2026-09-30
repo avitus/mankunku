@@ -392,6 +392,7 @@
 		};
 	}
 
+	/** Start a practice run with fresh tuning evidence and exclusive audio setup. */
 	async function handlePlay() {
 		if (starting) return;
 		if (!playback || !session.phrase) return;

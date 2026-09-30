@@ -223,6 +223,7 @@
 			goto('/lick-practice/session');
 	}
 
+	/** Toggle the displayed lick's preview when its transposed phrase is available. */
 	async function togglePlay() {
 		if (lick) await audition.play(lick);
 	}

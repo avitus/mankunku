@@ -5,6 +5,7 @@ import type { DetectedNote } from '$lib/types/audio';
 import type { Phrase } from '$lib/types/music';
 import type { NoteResult } from '$lib/types/scoring';
 
+/** Build a matched note, allowing tests to vary the reliability of its detection. */
 function note(pitch: number, cents: number, overrides: Partial<DetectedNote> = {}): NoteResult {
 	return {
 		expected: { pitch, offset: [0, 1], duration: [1, 4] },
@@ -13,6 +14,7 @@ function note(pitch: number, cents: number, overrides: Partial<DetectedNote> = {
 	};
 }
 
+/** Distribute cents offsets across a repeatable set of concert pitches. */
 function take(cents: number[], pitches = [60, 62, 64]): { noteResults: NoteResult[] } {
 	return { noteResults: cents.map((c, i) => note(pitches[i % pitches.length], c)) };
 }

@@ -17,6 +17,7 @@ vi.mock('$lib/state/settings.svelte', () => ({ settings: mocks.settings }));
 vi.mock('$lib/audio/audio-context', () => ({ setMasterVolume: mocks.setMasterVolume }));
 vi.mock('@sentry/sveltekit', () => ({ captureException: mocks.captureException }));
 
+/** Hold an audio setup step until the test explicitly completes it. */
 function deferred() {
 	let resolve!: () => void;
 	const promise = new Promise<void>((done) => { resolve = done; });

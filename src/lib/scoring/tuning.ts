@@ -66,7 +66,9 @@ export function createTuningMonitor(): {
 } {
 	let takes: TuningSample[][] = [];
 	return {
+		/** Discard evidence when a new practice run or tuning context begins. */
 		reset() { takes = []; },
+		/** Add one final take and return a cue only while recent evidence agrees. */
 		record(score) {
 			const current = samplesFor(score.noteResults);
 			takes = [...takes, current].slice(-WINDOW_TAKES);

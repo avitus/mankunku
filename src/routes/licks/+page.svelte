@@ -215,6 +215,7 @@
 		goto(`/licks/${id}`);
 	}
 
+	/** Toggle the selected book lick through this page's cancellable audition. */
 	async function handlePlay(lick: Phrase) {
 		await audition.play(lick);
 	}

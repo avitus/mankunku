@@ -174,6 +174,7 @@
 		goto(`/licks/${lick.phrase.id}`);
 	}
 
+	/** Toggle a community lick through this page's cancellable audition. */
 	async function handlePlay(lick: Phrase) {
 		await audition.play(lick);
 	}
