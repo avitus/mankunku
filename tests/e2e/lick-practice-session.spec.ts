@@ -220,10 +220,42 @@ test.describe('lick-practice session flow', () => {
 		// handleStartNextStep → focusKey → startSingleLickSession wiring that
 		// no unit test can reach.
 		await expect(page.getByText(/^Drill /)).toBeVisible();
+		// Make C a previously learned key before opening the focused drill.
+		// Its low score still earns the drill, but only the newest key (G)
+		// may show notation. This exercises memory playing with the real mic
+		// and transport, while the state tests cover graduation from the sheet.
+		await page.evaluate(() => {
+			localStorage.setItem('mankunku:lick-unlock-count', JSON.stringify({ 'e2e-user-lick-bebop': 2 }));
+		});
 		await page.getByRole('button', { name: /start deep practice/i }).click();
 		await expect(page.getByTestId('focus-ramp')).toContainText(/^Focus · /, { timeout: 30_000 });
 		await expect(page.getByTestId('focus-ramp')).toContainText(/→ \d+ BPM$/);
 		await expect(page.getByRole('button', { name: /end session/i })).toBeVisible();
+		await expect(page.locator('.phase-tab[data-kind="play"]')).toBeVisible({ timeout: 30_000 });
+		await expect(page.getByTestId('lead-sheet-row')).toHaveCount(0);
+
+		// Sample every frame across several retries and tempo changes. A
+		// retrying assertion on PLAY alone would miss the unwanted Listen /
+		// Straight in detours between those frames. Recording must also stay
+		// open: merely hiding the countdown doesn't fix the flow.
+		const flow = await page.evaluate(async () => {
+			const interruptions: string[] = [];
+			const tempos = new Set<string>();
+			const until = performance.now() + 12_000;
+			while (performance.now() < until) {
+				const cue = document.querySelector('.phase-tab')?.getAttribute('data-kind');
+				if (cue !== 'play' || !document.querySelector('.chart-wrap.recording')) {
+					interruptions.push(cue ?? 'missing');
+				}
+				tempos.add(document.querySelector('[data-testid="focus-ramp"]')?.textContent ?? '');
+				await new Promise(requestAnimationFrame);
+			}
+			return { interruptions, tempos: [...tempos] };
+		});
+		expect(flow.interruptions).toEqual([]);
+		expect(flow.tempos.length).toBeGreaterThan(1);
+		await page.getByRole('button', { name: /end session/i }).click();
+		await expect(page.getByText('Session Report', { exact: true })).toBeVisible();
 	});
 
 	}

@@ -268,6 +268,11 @@
 	// band never stops and the user keeps playing. The bar doubles as the
 	// scheduling lead for the next cycle's audio.
 	const TURNAROUND_BARS = 1;
+	// A focused drill keeps its musical pulse through retries and tempo steps.
+	// Any sheet preparation is already part of the next cycle's own plan.
+	const turnaroundBars = $derived(
+		lickPractice.ramp && lickPractice.config.practiceMode === 'continuous' ? 0 : TURNAROUND_BARS
+	);
 
 	/**
 	 * Recording window — captures the state needed to score a single key's
@@ -636,7 +641,8 @@
 		isFirstLick: boolean,
 		/** Pre-computed tick where the new lick's audio should begin.
 		 *  Only used for non-first licks (passed from scheduleLickWindows). */
-		nextAudioStartTick?: number
+		nextAudioStartTick?: number,
+		boundaryTime?: number
 	): Promise<void> {
 		if (!playback || !toneModule || !backingTrack) return;
 
@@ -645,10 +651,9 @@
 
 		const opts = getPlaybackOptions();
 		const mode = lickPractice.config.practiceMode;
-		// Continuous mode now embeds a demo of the first key inside the super
-		// phrase, so its melody must play. C&R mode also has melody (one demo
-		// per key). Either way, we don't skip melody.
-		const skipMelody = false;
+		// A joined focused cycle has no demo. Other cycles may embed a demo
+		// (or a call per key in C&R), so retain their melody.
+		const skipMelody = boundaryTime !== undefined;
 
 		const transport = toneModule.getTransport();
 		const ppq = transport.PPQ;
@@ -723,7 +728,7 @@
 			// tempo immediately, before scheduleNextPhrase's async setup.
 			// Without this, the metronome runs at the old BPM until
 			// scheduleNextPhrase's await getTone() resolves.
-			if (toneModule) {
+			if (toneModule && boundaryTime === undefined) {
 				toneModule.getTransport().bpm.value = opts.tempo;
 			}
 
@@ -732,10 +737,17 @@
 			void playback.scheduleNextPhrase(superPhrase, opts, {
 				skipMelody,
 				loopBacking: false,
-				startTick: audioStartTick
+				startTick: audioStartTick,
+				boundaryTime,
+				onStarted: boundaryTime === undefined ? undefined : () => {
+					if (!isSessionRunning) return;
+					scheduleLickWindows(lickIdx, audioStartTick, keyBars, lickBars, ticksPerBar, 0, boundaryTime);
+				}
 			});
 
-			scheduleLickWindows(lickIdx, audioStartTick, keyBars, lickBars, ticksPerBar);
+			if (boundaryTime === undefined) {
+				scheduleLickWindows(lickIdx, audioStartTick, keyBars, lickBars, ticksPerBar);
+			}
 		}
 	}
 
@@ -759,7 +771,8 @@
 		ticksPerBar: number,
 		/** Count-in bars preceding `audioStartTick` — 1 for the session's first
 		 *  lick (the transport opens on a count-in bar), 0 thereafter. */
-		countInBars: number = 0
+		countInBars: number = 0,
+		boundaryTime?: number
 	): void {
 		if (!toneModule) return;
 		const transport = toneModule.getTransport();
@@ -804,19 +817,26 @@
 			windows
 		};
 
-		// Listen/play timeline for this cycle, derived from the very windows
-		// scheduled above. Single-lick cycles join over one turnaround bar;
-		// standard licks over the two-bar inter-lick rest — either way the
-		// trailing segment keeps the cue counting into the next entrance
-		// instead of going blank between cycles.
+		// Derive the cue from the recording windows. Focused drills have no
+		// trailing gap; other deep drills retain a turnaround, and standard
+		// sessions retain their inter-lick rest.
+		const previousPlay = phaseTimeline.at(-1);
 		phaseTimeline = buildPhaseTimeline({
 			audioStartTick,
 			windows,
 			ticksPerBar,
 			countInBars,
 			trailingBars:
-				lickPractice.mode === 'single-lick' ? TURNAROUND_BARS : INTER_LICK_REST_BARS
+				lickPractice.mode === 'single-lick' ? turnaroundBars : INTER_LICK_REST_BARS
 		});
+
+		// Keep PLAY stable across a joined boundary, including the lookahead
+		// between the scheduled callback and the audible downbeat.
+		if (boundaryTime !== undefined && previousPlay?.phase === 'play' &&
+			previousPlay.endTick === audioStartTick) {
+			if (phaseTimeline[0]?.phase === 'play') phaseTimeline[0].startTick = previousPlay.startTick;
+			else phaseTimeline.unshift(previousPlay);
+		}
 
 		for (let w = 0; w < windows.opens.length; w++) {
 			const keyIndexForCallback = windows.keyIndex[w];
@@ -824,10 +844,16 @@
 			const passCount = passes[keyIndexForCallback] ?? 1;
 			const isLastWindow = w === windows.opens.length - 1;
 
-			const openId = transport.scheduleOnce((time: number) => {
-				openRecordingWindow(lickIdx, keyIndexForCallback, finalPass, passCount, time);
-			}, `${windows.opens[w]}i`);
-			scheduledEventIds.push(openId);
+			if (boundaryTime !== undefined && windows.opens[w] === audioStartTick) {
+				// This tick is already being dispatched; scheduling another
+				// callback at it would miss the first recording window.
+				openRecordingWindow(lickIdx, keyIndexForCallback, finalPass, passCount, boundaryTime);
+			} else {
+				const openId = transport.scheduleOnce((time: number) => {
+					openRecordingWindow(lickIdx, keyIndexForCallback, finalPass, passCount, time);
+				}, `${windows.opens[w]}i`);
+				scheduledEventIds.push(openId);
+			}
 
 			const closeId = transport.scheduleOnce((time: number) => {
 				closeAndScoreWindow(time);
@@ -837,7 +863,7 @@
 				// scoring early-return can never leave the session hanging
 				// with no next cycle scheduled.
 				if (isLastWindow && lickPractice.mode === 'single-lick') {
-					handleSingleLickCycleBoundary(lickEndTick, ticksPerBar);
+					handleSingleLickCycleBoundary(lickEndTick, ticksPerBar, time);
 				}
 			}, `${windows.closes[w]}i`);
 			scheduledEventIds.push(closeId);
@@ -892,20 +918,12 @@
 	}
 
 	/**
-	 * SINGLE-LICK cycle boundary — runs at lickEndTick, in the same JS task
-	 * as the last key's closeAndScoreWindow (so the final score is already
-	 * in). One synchronous pass: round bookkeeping (which sorts the next
-	 * rotation worst-first and decides whether it opens with a demo), then
-	 * scheduling the next cycle's audio + windows one turnaround bar out,
-	 * then the turnaround band into the new head key. The band never stops
-	 * and no per-round card ever shows — "rounds" stay invisible until the
-	 * final report.
-	 *
-	 * startLick's non-first branch is synchronous through scheduleLickWindows
-	 * (its scheduleNextPhrase is void-called), which gives the audio ~1 bar +
-	 * Tone's lookahead of lead — the same lead the standard flow provides.
+	 * Score the final key, resolve the next rotation/tempo, then queue its
+	 * audio and windows. Focused drills join on this downbeat using Tone's
+	 * audio lookahead; other drills retain their one-bar turnaround. A late
+	 * callback falls back to a future bar to avoid clipping the entrance.
 	 */
-	function handleSingleLickCycleBoundary(lickEndTick: number, ticksPerBar: number): void {
+	function handleSingleLickCycleBoundary(lickEndTick: number, ticksPerBar: number, time: number): void {
 		// A cancelled event can still fire if it was already dequeued when
 		// End Session ran — never restart audio after stopAll().
 		if (!isSessionRunning || !toneModule) return;
@@ -918,19 +936,20 @@
 		// cycle's layout and the turnaround's target key both depend on it.
 		advanceSingleLickRound();
 
-		// Late-callback degrade: if a stalled main thread left less than a
-		// beat of lead before the ideal downbeat, push the start forward by
-		// whole bars — the turnaround stretches rather than clipping audio.
+		// Tone dispatches this callback ahead of audible time. The focused
+		// drill uses that lead to join at the SAME downbeat. Only an actually
+		// late callback needs recovery time; the normal path adds no beats.
 		const transport = toneModule.getTransport();
-		const nextStartTick = resolveNextCycleStart(
+		const seamless = turnaroundBars === 0 && time - toneModule.immediate() >= 0.015;
+		const nextStartTick = seamless ? lickEndTick : resolveNextCycleStart(
 			lickEndTick + TURNAROUND_BARS * ticksPerBar,
 			transport.ticks,
 			ticksPerBar,
 			transport.PPQ
 		);
 
-		void startLick(0, false, nextStartTick);
-		scheduleTurnaroundBand(nextStartTick, ticksPerBar);
+		void startLick(0, false, nextStartTick, seamless ? time : undefined);
+		if (!seamless) scheduleTurnaroundBand(nextStartTick, ticksPerBar);
 	}
 
 	/**
@@ -1056,10 +1075,17 @@
 	 */
 	function startBeatTracking() {
 		const ppq = toneModule!.getTransport().PPQ;
+		/** Paint the chart position and phase cue from the active transport clock. */
 		function tick() {
 			if (!isSessionRunning) return;
 			if (toneModule) {
-				const ticks = toneModule.getTransport().ticks;
+				const transport = toneModule.getTransport();
+				// The focused drill has no gap to absorb the scheduler's lookahead.
+				// Read the audible clock so its cue cannot run past the current
+				// window before Tone has dispatched the boundary callback.
+				const ticks = turnaroundBars === 0
+					? transport.getTicksAtTime(toneModule.immediate())
+					: transport.ticks;
 
 				// Position in the cycle, off the scheduled window plan: the beat
 				// sits at 0 through the lead-in (count-in / rest / turnaround) so

@@ -596,10 +596,13 @@ export interface PhrasePlaybackOpts {
 	 *  for call-and-response handoffs (see getPhraseEndTicks). Ignored
 	 *  when skipMelody is set or the phrase has no melody notes. */
 	resolveAtMelodyEnd?: boolean;
+	/** After initial transport start, or after a continuation installs its backing schedule. */
 	onStarted?: () => void;
 	/** Override the computed start tick for scheduleNextPhrase (ensures
 	 *  caller and playback agree on the exact bar boundary). */
 	startTick?: number;
+	/** Audio time for a seamless, backing-only continuation at startTick. */
+	boundaryTime?: number;
 	/**
 	 * Fired once per sounding melody note, on the UI thread at the audible
 	 * moment (Tone.Draw), for driving a notation cursor. Scheduled from the
@@ -838,8 +841,12 @@ export async function scheduleNextPhrase(
 	const skipMelody = opts.skipMelody ?? false;
 	const loopBacking = opts.loopBacking ?? true;
 
-	// Ensure BPM stays correct on the running transport
-	transport.bpm.value = options.tempo;
+	// Change tempo on the actual downbeat for seamless continuations.
+	if (opts.boundaryTime !== undefined) {
+		transport.bpm.setValueAtTime(options.tempo, opts.boundaryTime);
+	} else {
+		transport.bpm.value = options.tempo;
+	}
 	// Re-assert the triplet-safe invariant: swing is handled per-note in
 	// phraseToEvents, so Tone.Transport must stay at 0 even if some other
 	// code path mutated it between scheduling calls.
@@ -911,10 +918,15 @@ export async function scheduleNextPhrase(
 			options,
 			nextBarTicks,
 			loopBacking,
-			() => scheduleId === currentScheduleId
+			() => scheduleId === currentScheduleId,
+			opts.boundaryTime
 		);
 		if (scheduleId !== currentScheduleId) return;
 	}
+
+	// The continuation opens its recording windows only once the new backing
+	// schedule exists, so bleed filtering uses this cycle rather than the last.
+	opts.onStarted?.();
 
 	// Schedule end-of-phrase notification — see getPhraseEndTicks for the
 	// whole-bar vs melody-end semantics.
