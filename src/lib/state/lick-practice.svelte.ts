@@ -268,7 +268,8 @@ export const lickPractice = $state<{
 	 * Single-lick mode: should the next cycle open with the app playing the
 	 * lick in the head (worst) key? True for the first cycle of every session;
 	 * afterwards true only while the head key's rolling score is below
-	 * proficient (continuous mode). Tricks: true only for a round whose
+	 * proficient (continuous mode), except focused drills, which demo only
+	 * at the session opening. Tricks: true only for a round whose
 	 * example STYLE is new to the session (`trickRoundIntroducesStyle`) —
 	 * enclosures demo once, triad pairs once per style.
 	 */
@@ -2184,12 +2185,15 @@ export function advanceSingleLickRound(): void {
 		// and the focus ramp's step-up and admission cycles alike. Otherwise
 		// only while the head key is below proficient, so proficient cycles
 		// run back-to-back with no listening interlude. Call-response mode has
-		// its own per-key call, so never demos here.
+		// its own per-key call, so never demos here. A focused drill keeps
+		// moving after its opening demo: a miss changes tempo/rotation, not
+		// whether the player must stop and listen again.
 		item.keys = sortKeysWorstFirst(item.keys, (k) =>
 			getRollingScore(lickPractice.progress, item.phraseId, k)
 		);
 		lickPractice.demoNextCycle =
 			lickPractice.config.practiceMode === 'continuous' &&
+			lickPractice.ramp === null &&
 			survivors.length > 0 &&
 			shouldDemoHeadKey(getRollingScore(lickPractice.progress, item.phraseId, item.keys[0]));
 	}

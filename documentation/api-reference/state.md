@@ -458,6 +458,8 @@ The session-duration cost model — the single source both the planner and the s
 | `lickSlotBars(audioBars)` | Audio plus the lead-in and score-hold bars |
 | `barsToSeconds(bars, beatsPerBar, tempo)`, `estimateLickSeconds(spec)`, `estimateSessionSeconds(specs)` | Seconds, each lick costed at its own tempo and meter. `LickTimingSpec` is `{ audioBars, beatsPerBar, tempo }`. Human overhead (instrument load, mic open, the report screen) is excluded — it is not on the transport clock the in-session timer counts |
 
+Focused drills launched from the Daily report are the exception: one opening demo, then no repeat demos or inter-cycle turnaround. Retries and tempo steps join at the same downbeat; explicit sheet preparation remains. `scheduleNextPhrase` passes the boundary audio time to the backing scheduler, which plays already-dispatched opening hits directly and leaves future hits on the transport. The first recording window opens after the new backing schedule is installed.
+
 ---
 
 ## lick-practice-phase.ts

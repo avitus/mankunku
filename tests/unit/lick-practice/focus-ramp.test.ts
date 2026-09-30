@@ -23,6 +23,9 @@ import {
 	recordKeyAttempt,
 	advanceSingleLickRound,
 	getSessionReport,
+	getDemoBars,
+	getKeyPauses,
+	getPlannedKeysForLick,
 	resetSession
 } from '$lib/state/lick-practice.svelte';
 import {
@@ -414,6 +417,24 @@ describe('session report', () => {
 });
 
 describe('the demo on the staircase and the rebuild', () => {
+	it('graduates from the sheet into uninterrupted memory attempts, including a small mistake', () => {
+		const lick = makeLick('C', LICK_ID);
+		seedKeys(LICK_ID, { C: { tempo: SAVED_TEMPO, rolling: 0.7 } });
+		startSingleLickSession(lick, { focusKey: 'C' });
+		expect(getPlannedKeysForLick(0)[0].reveal).toBe(true);
+
+		clearRotation();
+		expect(getPlannedKeysForLick(0)[0].reveal).toBe(false);
+		expect(getDemoBars(0)).toBe(0);
+		expect(getKeyPauses(0)).toEqual([0]);
+
+		play('C', 0.85);
+		advanceSingleLickRound();
+		expect(getPlannedKeysForLick(0)[0].reveal).toBe(false);
+		expect(getDemoBars(0)).toBe(0);
+		expect(getKeyPauses(0)).toEqual([0]);
+	});
+
 	it('skips the demo after the focus key clears — a step up is a refill of the one-key rotation', () => {
 		const lick = seedTwelveKeyLick();
 		startSingleLickSession(lick, { focusKey: 'D' });
@@ -428,7 +449,7 @@ describe('the demo on the staircase and the rebuild', () => {
 		expect(lickPractice.demoNextCycle).toBe(false);
 	});
 
-	it('still demos the focus key after a miss — the rotation was not cleared', () => {
+	it('keeps playing after a miss in the focused drill', () => {
 		const lick = seedTwelveKeyLick();
 		startSingleLickSession(lick, { focusKey: 'D' });
 
@@ -436,7 +457,8 @@ describe('the demo on the staircase and the rebuild', () => {
 		advanceSingleLickRound();
 
 		expect(rotation()).toEqual(['D']);
-		expect(lickPractice.demoNextCycle).toBe(true);
+		expect(lickPractice.demoNextCycle).toBe(false);
+		expect(getDemoBars(0)).toBe(0);
 	});
 
 	it('skips the demo on the clear that re-admits a key during the rebuild', () => {

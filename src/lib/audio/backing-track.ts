@@ -34,6 +34,7 @@ import {
 	type DrumBufferName
 } from './sample-maps';
 import type { BackingHit } from './turnaround-bar';
+import { scheduleBoundaryEvents } from './boundary-events';
 import {
 	loadBackingMix,
 	saveBackingMix,
@@ -933,7 +934,9 @@ export async function scheduleBackingTrack(
 	options: PlaybackOptions,
 	tickOffset: number,
 	loop: boolean = false,
-	isStillCurrent: () => boolean = () => true
+	isStillCurrent: () => boolean = () => true,
+	/** Audio time of an already-dispatched downbeat; non-looping continuations only. */
+	boundaryTime?: number
 ): Promise<void> {
 	if (!isBackingLoaded()) return;
 
@@ -997,18 +1000,29 @@ export async function scheduleBackingTrack(
 		loop ? harmonyTicks : null
 	);
 
+	const boundary = boundaryTime !== undefined && !loop
+		? {
+			audioTime: boundaryTime,
+			startTick: tickOffset,
+			throughTick: transport.ticks,
+			secondsPerTick: 60 / options.tempo / ppq
+		}
+		: undefined;
+
 	// Schedule bass — Part starts at tickOffset with relative event times.
 	// This matches the melody Part pattern (start at offset, events
 	// relative) and avoids the fragile start(0)-with-absolute-events
 	// pattern on a running transport.
-	bassPart = new Tone.Part((time: number, event: BassEvent) => {
+	/** Trigger one bass hit at its audio-clock time, including a joined downbeat. */
+	const playBass = (time: number, event: BassEvent) => {
 		bassInstrument?.start({
 			note: event.midi,
 			velocity: event.velocity,
 			duration: event.duration,
 			time
 		});
-	}, bassEvents);
+	};
+	bassPart = new Tone.Part(playBass, scheduleBoundaryEvents(bassEvents, playBass, boundary));
 	bassPart.start(`${tickOffset}i`);
 	bassPart.loop = loop;
 	if (loop) {
@@ -1017,7 +1031,8 @@ export async function scheduleBackingTrack(
 	}
 
 	// Schedule comp — same pattern as bass: relative events, start at offset
-	compPart = new Tone.Part((time: number, event: CompEvent) => {
+	/** Trigger every voice in a comping hit on the same audio-clock time. */
+	const playComp = (time: number, event: CompEvent) => {
 		for (const midi of event.notes) {
 			compInstrument?.start({
 				note: midi,
@@ -1026,7 +1041,8 @@ export async function scheduleBackingTrack(
 				time
 			});
 		}
-	}, compEvents);
+	};
+	compPart = new Tone.Part(playComp, scheduleBoundaryEvents(compEvents, playComp, boundary));
 	compPart.start(`${tickOffset}i`);
 	compPart.loop = loop;
 	if (loop) {
@@ -1042,7 +1058,8 @@ export async function scheduleBackingTrack(
 	// generated up front so the whole kit shares the swing grid.
 	setBackingTrackVolume(options.backingTrackVolume ?? 0.5);
 
-	drumPart = new Tone.Part((time: number, event: DrumEvent) => {
+	/** Play the selected drum sample with the current voice and mix trims. */
+	const playDrum = (time: number, event: DrumEvent) => {
 		// Style velocities are 0-1; smplr Sampler takes MIDI 0-127. The
 		// per-voice base trim and mix trim apply here because voice balance
 		// within a family sampler can only be shaped through velocity. The
@@ -1058,7 +1075,8 @@ export async function scheduleBackingTrack(
 			),
 			time
 		});
-	}, drumEvents);
+	};
+	drumPart = new Tone.Part(playDrum, scheduleBoundaryEvents(drumEvents, playDrum, boundary));
 	drumPart.start(`${tickOffset}i`);
 	drumPart.loop = loop;
 	if (loop) {

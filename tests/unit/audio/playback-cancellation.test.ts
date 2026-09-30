@@ -4,8 +4,8 @@ import type { PlaybackOptions } from '$lib/types/audio';
 
 const mocks = vi.hoisted(() => {
 	const transport = {
-		bpm: { value: 120 }, timeSignature: 4, swing: 0, PPQ: 192,
-		position: 0, start: vi.fn(), stop: vi.fn(), cancel: vi.fn(),
+		bpm: { value: 120, setValueAtTime: vi.fn() }, timeSignature: 4, swing: 0, PPQ: 192,
+		position: 0, start: vi.fn(), stop: vi.fn(), cancel: vi.fn(), clear: vi.fn(),
 		scheduleOnce: vi.fn(() => 1)
 	};
 	return {
@@ -77,6 +77,23 @@ describe('playback setup cancellation', () => {
 		await stopPlayback();
 		await loadInstrument('trumpet');
 		vi.clearAllMocks();
+	});
+
+	it('opens recording once at session start and once at a seamless tempo bump', async () => {
+		const { playPhrase, scheduleNextPhrase, stopPlayback } = await import('$lib/audio/playback');
+		const onStarted = vi.fn();
+		const first = playPhrase(phrase, options, true, { onStarted });
+		await vi.waitFor(() => expect(mocks.transport.start).toHaveBeenCalledOnce());
+		expect(onStarted).toHaveBeenCalledOnce();
+
+		const next = scheduleNextPhrase(phrase, { ...options, tempo: 124 }, {
+			skipMelody: true, loopBacking: false, startTick: 768, boundaryTime: 10, onStarted
+		});
+		await vi.waitFor(() => expect(onStarted).toHaveBeenCalledTimes(2));
+		expect(mocks.transport.bpm.setValueAtTime).toHaveBeenCalledWith(124, 10);
+		expect(mocks.transport.start).toHaveBeenCalledOnce();
+		await stopPlayback();
+		await Promise.all([first, next]);
 	});
 
 	it('does not allocate or start playback when stopped during audio activation', async () => {

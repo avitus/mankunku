@@ -18,6 +18,7 @@ import type { PlaybackOptions } from '$lib/types/audio';
 /** Every Part/Sequence the module constructs, so we can inspect start() calls. */
 interface FakePart {
 	kind: 'part' | 'sequence';
+	events: Array<{ time: string }>;
 	started: boolean;
 	disposed: boolean;
 	loop: boolean;
@@ -27,10 +28,13 @@ interface FakePart {
 }
 
 const parts: FakePart[] = [];
+const instrumentHits: Array<{ time?: number }> = [];
 
-function makePart(kind: 'part' | 'sequence'): FakePart {
+/** Track scheduled events and lifecycle calls without a live audio context. */
+function makePart(kind: 'part' | 'sequence', events: Array<{ time: string }> = []): FakePart {
 	const p: FakePart = {
 		kind,
+		events,
 		started: false,
 		disposed: false,
 		loop: false,
@@ -53,7 +57,7 @@ function makePart(kind: 'part' | 'sequence'): FakePart {
 vi.mock('tone', () => ({
 	Part: class {
 		constructor(_cb: unknown, _events: unknown) {
-			return makePart('part') as unknown as never;
+			return makePart('part', _events as Array<{ time: string }>) as unknown as never;
 		}
 	},
 	Sequence: class {
@@ -61,7 +65,7 @@ vi.mock('tone', () => ({
 			return makePart('sequence') as unknown as never;
 		}
 	},
-	getTransport: () => ({ PPQ: 480 })
+	getTransport: () => ({ PPQ: 480, ticks: 490 })
 }));
 
 /** How many Sampler (drum-family) instances were constructed — one kit
@@ -72,7 +76,7 @@ let failDrumLoad = false;
 
 class FakeInstrument {
 	load = Promise.resolve();
-	start = vi.fn();
+	start = vi.fn((hit: { time?: number }) => { instrumentHits.push(hit); });
 	stop = vi.fn();
 	disconnect = vi.fn();
 }
@@ -86,7 +90,7 @@ vi.mock('smplr', () => ({
 				? Promise.reject(new Error('kit unavailable'))
 				: Promise.resolve();
 		}
-		start = vi.fn();
+		start = vi.fn((hit: { time?: number }) => { instrumentHits.push(hit); });
 		stop = vi.fn();
 		disconnect = vi.fn();
 	},
@@ -158,8 +162,28 @@ describe('scheduleBackingTrack supersession', () => {
 	beforeEach(async () => {
 		vi.resetModules();
 		parts.length = 0;
+		instrumentHits.length = 0;
 		drumKitLoads = 0;
 		failDrumLoad = false;
+	});
+
+	it('keeps opening backing hits on the downbeat when the transport has dispatched it already', async () => {
+		const mod = await import('$lib/audio/backing-track');
+		await mod.loadBackingInstruments('piano');
+		await mod.scheduleBackingTrack(PHRASE, OPTIONS, 480, false, () => true, 10);
+		expect(instrumentHits.length).toBeGreaterThan(0);
+		expect(instrumentHits.every(hit => Math.abs(hit.time! - 10) < 0.1)).toBe(true);
+		const futureEvents = parts.flatMap(part => part.events);
+		expect(futureEvents.length).toBeGreaterThan(0);
+		expect(futureEvents.every(event => Number.parseFloat(event.time) > 10)).toBe(true);
+	});
+
+	it('does not sound boundary hits after a cancelled async setup', async () => {
+		const mod = await import('$lib/audio/backing-track');
+		await mod.loadBackingInstruments('piano');
+		await mod.scheduleBackingTrack(PHRASE, OPTIONS, 480, false, supersedeAtCheck(2), 10);
+		expect(instrumentHits).toEqual([]);
+		expect(parts).toEqual([]);
 	});
 
 	it('starts bass, comp and drums when it is not superseded', async () => {
