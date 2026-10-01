@@ -171,6 +171,49 @@ describe('scheduleMetronome', () => {
 		expect(byBeat(3).map((t) => t.synth)).toEqual(['ride', 'hihat']);
 	});
 
+	// 2026-10-01, Autumn Leaves tune-practice e2e: Tone's clock handed the
+	// finite kit sequence beat 102 (t = 26.5156) twice, one pass apart, and
+	// the ride's second start at the same instant threw "Start time must be
+	// strictly greater than previous start time" — which also made Tone skip
+	// the rest of that pass's ticks. A re-delivered beat must play nothing.
+	it.each([
+		['finite', 2],
+		['looping', null]
+	] as const)('a beat Tone re-delivers plays once (%s kit)', async (_label, bars) => {
+		await metronome.scheduleMetronome(4, bars);
+		const cb = sequences[0].cb;
+		cb(26.25, 1);
+		cb(26.5, 2);
+		cb(26.5, 2);
+		cb(26.75, 3);
+		expect(triggered.map((t) => [t.synth, t.args.at(-2)])).toEqual([
+			['ride', 26.25],
+			['hihat', 26.25],
+			['ride', 26.5],
+			['ride', 26.75],
+			['hihat', 26.75]
+		]);
+	});
+
+	it('a re-delivery a rounding error LATER still plays once', async () => {
+		// The second delivery is the same tick recomputed, not the same float:
+		// it can come back a hair later, and Tone's own start check (1e-6 s
+		// tolerance) still calls that the same instant. Bit-equality let the
+		// e2e failure straight through.
+		await metronome.scheduleMetronome(4, 2);
+		sequences[0].cb(26.5156, 2);
+		sequences[0].cb(26.5156 + 4e-15, 2);
+		sequences[0].cb(26.5156 + 1e-7, 2);
+		expect(triggered.map((t) => t.synth)).toEqual(['ride']);
+	});
+
+	it('a downbeat Tone re-delivers sounds one kick', async () => {
+		await metronome.scheduleMetronome(4, 2);
+		sequences[0].cb(27, 0);
+		sequences[0].cb(27, 0);
+		expect(triggered.map((t) => t.synth)).toEqual(['kick']);
+	});
+
 	it('rescheduling disposes the previous kit sequence', async () => {
 		await metronome.scheduleMetronome(4, null);
 		await metronome.scheduleMetronome(4, 2);
@@ -199,6 +242,14 @@ describe('scheduleCountInClicks', () => {
 		expect(triggered[1].args).toEqual(['E5', '32n', 0.5, 0.6]);
 		expect(triggered[2].args).toEqual(['E5', '32n', 1.0, 0.6]);
 		expect(triggered[3].args).toEqual(['E5', '32n', 1.5, 0.6]);
+	});
+
+	it('a count-in click Tone re-delivers sounds once', async () => {
+		await metronome.scheduleCountInClicks(4, 1);
+		sequences[0].cb(0.5, 1);
+		sequences[0].cb(0.5, 1);
+		sequences[0].cb(1.0, 2);
+		expect(triggered.map((t) => t.args[2])).toEqual([0.5, 1.0]);
 	});
 
 	it('rescheduling disposes the previous count-in sequence', async () => {

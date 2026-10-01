@@ -545,6 +545,8 @@ Schedule a jazz metronome pattern.
 
 Must be called before `Transport.start()`.
 
+**Each beat sounds once, even when Tone delivers it twice.** Tone's clock covers `[previous end, currentTime + lookAhead)` per pass, adding up tick durations as it goes. When a pass ends exactly on a tick, the tick can fall inside that pass and, recomputed, inside the next one as well, a rounding error later. The render quantum makes this recur at fixed beats: at 240 BPM, beat 102 (mod 128) at 44.1 kHz and beat 3 of every bar at 48 kHz. A synth restarted at one instant throws "Start time must be strictly greater than previous start time" in `Source.start`, and Tone then skips the rest of that pass's ticks. So every Sequence callback here, count-in included, goes through `playEachBeatOnce`, which drops a beat within 1 ms of the last one played. Exact time equality is not enough, because the re-delivery comes back slightly later. The bug was latent until practice went metronome-only by default (2026-10-01), because before that the synthesized kit played only the count-in bar under the backing track. Pinned in `tests/unit/audio/metronome.test.ts`.
+
 ### `scheduleCountInClicks(beatsPerBar, bars): Promise<void>`
 
 Schedule a finite run of count-in clicks from transport 0: high, dead-short woodblock tocks (`MembraneSynth`), downbeats accented. Deliberately nothing like the kit — record-a-lick pairs this with `scheduleMetronome(4, null, startAt)` so the kit enters exactly where the tocks stop, and the **texture change is the audible "your entrance" cue**. The tocks stay on the same quarter grid as the kit, so `getMetronomeBleedOnsets` needs no special-casing. Must be called before `Transport.start()`.

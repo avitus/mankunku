@@ -77,6 +77,37 @@ async function ensureSynths(): Promise<void> {
 }
 
 /**
+ * Wrap a Sequence callback so a beat Tone delivers twice sounds once.
+ *
+ * Tone's clock can process one tick in two consecutive passes. Each pass
+ * covers [previous end, currentTime + lookAhead), and `TickSource` walks it by
+ * adding tick durations; when a pass ends exactly on a tick, accumulated
+ * rounding can put the tick inside that pass AND, recomputed from scratch,
+ * inside the next. The render-quantum clock pins where a pass CAN end on a
+ * beat: at 240 BPM, beat 102 at 44.1 kHz (all three recorded failures,
+ * 2026-10-01) and beat 3 of every bar at 48 kHz. A synth started twice at one
+ * instant throws in `Source.start` ("Start time must be strictly greater than
+ * previous start time"), and the throw makes Tone skip the rest of that pass's
+ * ticks. The re-delivery is the same tick recomputed, so its time can come
+ * back a rounding error LATER than the first — Tone's check calls anything
+ * within 1e-6 s the same instant. Beats within one sequence are a beat apart
+ * (0.2 s at lick practice's 300 BPM ceiling), so a time within
+ * SAME_BEAT_SECONDS of the last one played is a re-delivery.
+ */
+const SAME_BEAT_SECONDS = 0.001;
+
+function playEachBeatOnce(
+	play: (time: number, beat: number) => void
+): (time: number, beat: number) => void {
+	let lastTime = -Infinity;
+	return (time, beat) => {
+		if (time < lastTime + SAME_BEAT_SECONDS) return;
+		lastTime = time;
+		play(time, beat);
+	};
+}
+
+/**
  * Pre-create metronome synths so the audio graph is stable before the
  * first beat needs to fire. Call this during instrument loading, well
  * before the first playPhrase().
@@ -128,7 +159,7 @@ export async function scheduleMetronome(
 		const allBeats = Array.from({ length: totalBeats }, (_, i) => i % beatsPerBar);
 
 		sequence = new Tone.Sequence(
-			(time, beat) => {
+			playEachBeatOnce((time, beat) => {
 				if (beat === 0) {
 					// Kick drum on the downbeat
 					kickSynth!.triggerAttackRelease('C1', '16n', time, 0.7);
@@ -140,7 +171,7 @@ export async function scheduleMetronome(
 				if (beat === 1 || beat === 3) {
 					hihatSynth!.triggerAttackRelease('32n', time, 0.5);
 				}
-			},
+			}),
 			allBeats,
 			'4n'
 		);
@@ -149,7 +180,7 @@ export async function scheduleMetronome(
 	} else {
 		// Infinite loop for recording phase
 		sequence = new Tone.Sequence(
-			(time, beat) => {
+			playEachBeatOnce((time, beat) => {
 				if (beat === 0) {
 					// Kick drum on the downbeat
 					kickSynth!.triggerAttackRelease('C1', '16n', time, 0.7);
@@ -161,7 +192,7 @@ export async function scheduleMetronome(
 				if (beat === 1 || beat === 3) {
 					hihatSynth!.triggerAttackRelease('32n', time, 0.5);
 				}
-			},
+			}),
 			pattern,
 			'4n'
 		);
@@ -192,9 +223,9 @@ export async function scheduleCountInClicks(beatsPerBar: number, bars: number): 
 	const allBeats = Array.from({ length: totalBeats }, (_: unknown, i: number) => i % beatsPerBar);
 
 	countInSequence = new Tone.Sequence(
-		(time: number, beat: number) => {
+		playEachBeatOnce((time: number, beat: number) => {
 			woodblockSynth!.triggerAttackRelease(beat === 0 ? 'A5' : 'E5', '32n', time, beat === 0 ? 0.9 : 0.6);
-		},
+		}),
 		allBeats,
 		'4n'
 	);
