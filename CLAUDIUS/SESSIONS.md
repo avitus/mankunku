@@ -4430,3 +4430,54 @@ Andy: a user shared Blue Bossa; its card on /tunes/community opened
   can't provide). The click-through and deep-link went red first; the adopt
   test went red with the `cacheVersion` bump removed. 45 tune e2e on all three
   engines, 5487 unit tests, svelte-check clean.
+
+## 2026-10-01 — "A lot of tests failing on CircleCI on dev": one fixed already, three more under it
+
+Andy asked me to investigate dev's red CircleCI runs and fix what needed fixing.
+
+- **The red runs were already fixed.** e2e failed on db203866, b1f51b33 and
+  41892ee2, deterministically, in one test: `a session runs with the backing
+  switched off` clicked the backing switch expecting it to turn OFF, and
+  db203866 had just made OFF the default. Andy's 2dff07f6 fixed the test;
+  dev's tip and main's #260 merge (with deploy) are green.
+- **Under the green: a chronic flake.** Across the last 25 e2e runs,
+  `choruses range from 1 to 12` needed a retry 23 times (WebKit 16, Firefox
+  7) and failed outright on build 3404. Setup's mount imports Tone, whose module
+  evaluation starts a blob-URL clock Worker; the test reloads and `goto`s
+  while it is starting, and the aborted Worker fails the console guard
+  (WebKit "Cannot load blob … due to access control checks", Firefox juggler
+  NS_BINDING_ABORTED). Locally 17/20 WebKit runs failed. Waiting for Start to
+  enable fixed WebKit but not Firefox (3/30): Start means the Worker was
+  CONSTRUCTED, and a probe showed Firefox's came up after the `goto` every
+  time. The test now waits for the Worker itself, found by the global
+  `tick()` Tone's inline script declares — 240/240 on three engines.
+- **A real production bug, found because a full local run went red.**
+  `Start time must be strictly greater than previous start time`, thrown by
+  the metronome's ride during the Autumn Leaves sessions (4/45 locally,
+  Chromium and Firefox). Instrumenting the sequence showed ONE sequence and
+  beat 102 delivered twice, one clock pass apart: the first pass's window
+  end (`currentTime + lookAhead`) sat exactly on the beat, and TickSource's
+  accumulated tick time put it in that pass while the next pass's recomputed
+  start put it in again. The arithmetic predicts the beat: at 44.1 kHz the
+  boundary can only land on a 240 BPM beat n with 17n ≡ 70 (mod 128), i.e.
+  n ≡ 102 — all three logged failures. At 48 kHz it is beat 3 of every bar.
+  It was latent until db203866: the synth metronome used to play only the
+  count-in bar under the default backing track; metronome-only is now the
+  default, so it runs whole sessions. The throw also makes Tone skip the
+  rest of that pass's ticks.
+- **Fix:** `playEachBeatOnce` in metronome.ts wraps all three sequences and
+  drops a beat within 1 ms of the last one played. My first version compared
+  times exactly and the e2e still failed 6/60 — the re-delivery is the tick
+  RECOMPUTED, a rounding error later, and Tone's check has a 1e-6 tolerance.
+  Added that shape to the unit tests red first. 60/60 after.
+- **Last flake: PDF import review click (Firefox, 2 of 25).** The CI video
+  shows the click landing on the chart's bar-3 chord slot: abcjs engraved the
+  chart between Playwright's actionability check and the click, pushing the
+  review box below the fold. `openImportReview` waits for abcjs's `Sheet
+  Music for …` SVG first. Not reproducible locally (60/60 before and after);
+  the fix rests on the video.
+- Not done: Tone's upstream `next` (15.5.44) rewrote this boundary code, but
+  its guard only catches a recomputed tick landing BEFORE the window start,
+  not ON it, so I didn't propose an upgrade. Melody and backing Parts can
+  double-fire on the same boundary too; smplr doesn't throw, so the most it
+  does is double one note's attack. Unfixed, flagged to Andy.

@@ -2520,3 +2520,31 @@ lick side had the fallback from day one; the tune side was built by mirroring
 `community.ts`, and the mirror copied the persistence layer but not the
 detail route's habit of looking a foreign id up. Mirroring a module carries
 its shape, not the obligations its neighbours had taken on.
+
+## 2026-10-01 — A default flip is a coverage change
+
+db203866 changed one default, backing track on → off, and the test that
+broke was the one that clicked the switch. But the change was larger than
+the test suggested. Under the old default the synth metronome played four
+beats a session. Under the new one it plays every beat of every session.
+The Tone boundary double-delivery has been in the metronome since it was
+written, and only one product decision made it reachable at volume. A
+default isn't a UI choice; it decides which code paths run in production. So
+when a default flips, I should ask what now runs that rarely ran before.
+
+Two things about how I found it. The bug turned up only because I ran the
+whole spec file to check a one-test fix, and an unrelated test went red. A
+narrow verification would have shipped the flake fix and missed the
+production throw. And my first theory was wrong in a way the evidence
+should have ruled out: a stall can't make two beats 0.25 s apart collide
+when the ride stops 0.14 s after each start. I built a probe, watched it
+fail to reproduce, and only then instrumented the real thing. Ten lines of
+logging settled it in one run: one sequence, one beat delivered twice. The
+modular arithmetic (n ≡ 102) was the most satisfying part, because it
+turned "always beat 102" from an odd coincidence into a prediction.
+
+The epsilon miss is the lesson I want to keep. I wrote "a re-delivered beat
+has the same time", and the test I wrote encoded the same assumption, so it
+passed. Real re-deliveries are the same tick computed by a different route,
+and those routes round differently. Dedupe needs the tolerance of the check
+it protects, here Tone's 1e-6.
