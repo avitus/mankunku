@@ -1,4 +1,5 @@
 import type { LayoutServerLoad } from './$types';
+import { recordBrowserDevice } from '$lib/server/record-browser-device';
 
 /**
  * Server-side layout load function that runs on every page request.
@@ -13,7 +14,8 @@ import type { LayoutServerLoad } from './$types';
  * - `+layout.ts` via its `data` parameter
  * - All descendant routes via `$page.data`
  */
-export const load: LayoutServerLoad = async ({ locals, cookies, depends }) => {
+export const load: LayoutServerLoad = async (event) => {
+	const { locals, cookies, depends } = event;
 	// Re-run this server load (not just the universal +layout.ts) when
 	// `invalidate('supabase:auth')` fires from onAuthStateChange. Without
 	// this, +layout.ts re-runs against CACHED server data, so a transient
@@ -23,6 +25,7 @@ export const load: LayoutServerLoad = async ({ locals, cookies, depends }) => {
 
 	const { session, user, degraded } = await locals.safeGetSession();
 
+	const observation = recordBrowserDevice(event);
 	let isAdmin = false;
 	if (user) {
 		const { data } = await locals.supabase
@@ -33,6 +36,7 @@ export const load: LayoutServerLoad = async ({ locals, cookies, depends }) => {
 		isAdmin = data?.is_admin ?? false;
 	}
 
+	await observation;
 	return {
 		session,
 		user,

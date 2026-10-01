@@ -74,7 +74,7 @@ async function fetchAdminData(): Promise<Omit<AdminPageData, 'health'>> {
 	// Service-role selects (RLS bypassed), each range-paginated past
 	// PostgREST's max_rows cap so grown tables can't silently under-report
 	// sums. The .order() calls make the pagination windows stable.
-	const [profiles, summaries, lickOwners, tuneOwners, settings] = await Promise.all([
+	const [profiles, summaries, lickOwners, tuneOwners, settings, devices] = await Promise.all([
 		selectAllRows((from, to) =>
 			admin.from('user_profiles').select('id, display_name, is_admin').order('id').range(from, to)
 		),
@@ -94,6 +94,9 @@ async function fetchAdminData(): Promise<Omit<AdminPageData, 'health'>> {
 		),
 		selectAllRows((from, to) =>
 			admin.from('user_settings').select('user_id, updated_at').order('user_id').range(from, to)
+		),
+		selectAllRows((from, to) =>
+			admin.from('user_devices').select('*').order('user_id').order('device_id').range(from, to)
 		)
 	]);
 
@@ -103,7 +106,8 @@ async function fetchAdminData(): Promise<Omit<AdminPageData, 'health'>> {
 		summaries,
 		lickOwners: lickOwners.map((row) => row.user_id),
 		tuneOwners: tuneOwners.map((row) => row.user_id),
-		settings
+		settings,
+		devices
 	};
 
 	const users = buildAdminUserRows(input);

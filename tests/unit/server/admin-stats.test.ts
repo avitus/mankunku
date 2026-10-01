@@ -63,7 +63,8 @@ describe('buildAdminUserRows', () => {
 				practiceMinutes: 35,
 				lickCount: 3,
 				tuneCount: 1,
-				lastSyncAt: '2026-08-16T08:00:00Z'
+				lastSyncAt: '2026-08-16T08:00:00Z',
+				devices: []
 			}
 		]);
 	});
@@ -88,9 +89,26 @@ describe('buildAdminUserRows', () => {
 				practiceMinutes: 0,
 				lickCount: 0,
 				tuneCount: 0,
-				lastSyncAt: null
+				lastSyncAt: null,
+				devices: []
 			}
 		]);
+	});
+
+	it('groups devices by owner, newest first, without treating a visit as practice', () => {
+		const device = { browser_name: 'Safari', browser_version: '18', os_name: 'iOS', device_type: 'phone', first_seen_at: '2026-10-01T10:00:00Z' };
+		const rows = buildAdminUserRows({
+			...emptyInput(),
+			authUsers: [{ id: 'u1' }, { id: 'u2' }],
+			devices: [
+				{ ...device, user_id: 'u1', device_id: 'old', last_seen_at: '2026-10-01T10:00:00Z' },
+				{ ...device, user_id: 'u2', device_id: 'other', last_seen_at: '2026-10-01T12:00:00Z' },
+				{ ...device, user_id: 'u1', device_id: 'new', last_seen_at: '2026-10-01T13:00:00Z' }
+			]
+		});
+		expect(rows.find(r => r.id === 'u1')?.devices.map(d => d.device_id)).toEqual(['new', 'old']);
+		expect(rows.find(r => r.id === 'u2')?.devices.map(d => d.device_id)).toEqual(['other']);
+		expect(rows.every(r => r.lastActiveDate === null && r.sessionCount === 0)).toBe(true);
 	});
 
 	it('sorts newest signup first', () => {

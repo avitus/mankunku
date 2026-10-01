@@ -203,6 +203,15 @@ describe('/admin load', () => {
 		expect(result.totals).toMatchObject({ totalUsers: 2 });
 	});
 
+	it('includes browser observations from the paginated admin query', async () => {
+		const device = { user_id: 'u1', device_id: 'd1', browser_name: 'Safari', browser_version: '18', os_name: 'iOS', device_type: 'phone', first_seen_at: '2026-10-01T10:00:00Z', last_seen_at: '2026-10-01T11:00:00Z' };
+		mockAdminAuth.admin.listUsers.mockResolvedValue({ data: { users: [{ id: 'u1' }] }, error: null });
+		mockAdmin.from.mockImplementation((table: string) => makeQueryMock(table === 'user_devices' ? [device] : []));
+		const result = await runLoad();
+		expect(result.unavailable).toBe(false);
+		expect(result.users[0].devices).toEqual([device]);
+	});
+
 	it('withholds totals when a sixth page proves the user list is truncated', async () => {
 		mockAdminAuth.admin.listUsers.mockImplementation(async ({ page }: { page: number }) => ({
 			data: { users: page <= 5 ? fullAuthPage(page) : fullAuthPage(page).slice(0, 1) },

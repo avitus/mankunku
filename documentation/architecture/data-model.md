@@ -693,3 +693,26 @@ pairs with every rhythm pattern whose `noteCount` it fills — once, or repeated
 and each pairing realizes to an ordinary `Phrase` (`source: 'combined'`, id
 `cmb-<scale>_<rhythm>`), the `COMBINED_LICKS` part of the catalog. These pattern tables are
 the lever for ear-training variety.
+
+## Browser and device activity
+
+`user_devices` stores one row per authenticated user and browser installation, keyed by
+`(user_id, device_id)`. An HTTP-only, SameSite=Lax cookie holds a random UUID for one year;
+clearing cookies or using another browser creates another installation. This is not a
+hardware identifier. Device types are approximate, and unknown browsers remain unknown;
+iPads presenting a desktop user agent may appear as macOS desktops.
+
+The root server layout observes signed-in page loads and authentication refreshes. It
+records browser name/version, OS family, device type, and server-generated first/last-seen
+timestamps. It does not collect IP addresses, raw user agents, fingerprints, or exact
+hardware models. There is no continuous heartbeat for a tab left open. Last-seen writes
+are limited to once per hour per installation unless the browser details change; first
+seen is preserved. The RPC is bounded by a 1.5-second timeout, and failures do not fail
+the page. Tracking is disabled in Playwright mode.
+
+`record_user_device` derives ownership from `auth.uid()` and permits only authenticated
+calls. Clients cannot insert, update or delete table rows directly; RLS limits reads to
+their own rows. The owner-only admin dashboard reads all devices using its existing
+server-side admin client. Account deletion cascades to device records. Observations
+start after deployment and the user's next signed-in page load; past devices cannot be
+reconstructed. Browser visits do not count as completed practice in the admin totals.

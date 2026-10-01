@@ -152,6 +152,19 @@
 							<div><span class="smallcaps">Tunes</span> <span class="tabular-nums">{row.tuneCount}</span></div>
 						</div>
 
+						<details class="text-xs text-[var(--color-text-secondary)]">
+							<summary class="cursor-pointer">Browsers and devices ({row.devices.length})</summary>
+							<p class="mt-2">Observed on signed-in page loads; last seen updates at most hourly unless browser details change. Device type is approximate.</p>
+							{#each row.devices as device (device.device_id)}
+								<div class="mt-2">
+									<span class="font-medium">{device.browser_name}{device.browser_version ? ` ${device.browser_version}` : ''} · {device.os_name} · {device.device_type}</span>
+									<div>First seen {fmtDateTime(device.first_seen_at)} · Last seen {fmtDateTime(device.last_seen_at)}</div>
+								</div>
+							{:else}
+								<p class="mt-2">No browser activity recorded yet.</p>
+							{/each}
+						</details>
+
 						{#if confirmTargetId === row.id}
 							<form
 								method="POST"
