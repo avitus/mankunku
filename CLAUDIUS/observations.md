@@ -2510,3 +2510,13 @@ than a rug is its width — one message, one step, one argument shape — and
 that the class it hides is harmless by construction: an empty SERVER chunk is
 a browser-only module doing exactly what it should. If adapter-node ever
 grows an `onwarn`, this file should become three lines of config.
+
+## 2026-10-01 — A test that stops one click short
+
+The community-tunes e2e asserted everything about the card — author, written
+key, bar count, favourite count, the adopt button — and then stopped. The one
+thing the card is FOR, opening the tune, was the thing that never worked. The
+lick side had the fallback from day one; the tune side was built by mirroring
+`community.ts`, and the mirror copied the persistence layer but not the
+detail route's habit of looking a foreign id up. Mirroring a module carries
+its shape, not the obligations its neighbours had taken on.

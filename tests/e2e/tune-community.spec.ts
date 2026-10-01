@@ -1,6 +1,13 @@
 import type { Page } from '@playwright/test';
 import { test, expect } from './fixtures/auth';
-import { seedOnboardedAnonymous } from './fixtures/storage';
+import {
+	seedOnboardedAnonymous,
+	seedStorage,
+	SETTINGS_ONBOARDED,
+	TOUR_DISMISSED
+} from './fixtures/storage';
+import { createStubCloud, installStubCloud } from './fixtures/stub-cloud';
+import type { E2ETestUser } from './fixtures/auth';
 
 /**
  * /tunes/community — the tune browse page.
@@ -136,6 +143,53 @@ test.describe('tune community — authed browse', () => {
 		await expect(signedInPage.getByText('My sheet')).toHaveCount(0);
 	});
 
+	// 2026-10-01: a user shared Blue Bossa; its card opened "Tune not found:
+	// sheet-…", because the detail route resolved only the viewer's own book
+	// (curated + own + adopted) and never looked a shared tune up.
+	test('opening a card shows the shared sheet, offering to add it', async ({
+		signedInPage,
+		consoleCollector: _consoleCollector
+	}) => {
+		await stubCommunityRows(signedInPage, [COMMUNITY_TUNE_ROW]);
+		await signedInPage.goto('/tunes/community');
+
+		// The app's own click — a client-side navigation, not a reload.
+		await signedInPage.getByRole('button', { name: 'Open Community Test Tune' }).click();
+		await expect(signedInPage).toHaveURL(/\/tunes\/e2e-community-tune-1$/);
+
+		await expect(signedInPage.getByRole('heading', { name: 'Community Test Tune' })).toBeVisible();
+		await expect(signedInPage.getByText('shared by Test Author')).toBeVisible();
+		await expect(signedInPage.getByText(/Tune not found/)).toHaveCount(0);
+		await expect(signedInPage.locator('.abcjs-container svg').first()).toBeVisible();
+
+		// Not in the book yet: the page offers to add it, and practice waits
+		// for that — practice resolves tunes from the book.
+		await expect(signedInPage.getByRole('button', { name: 'Add to my book' })).toBeVisible();
+		await expect(signedInPage.getByRole('button', { name: 'Practice licks' })).toHaveCount(0);
+	});
+
+	test('a cold deep link to a shared tune opens it', async ({
+		signedInPage,
+		consoleCollector: _consoleCollector
+	}) => {
+		await stubCommunityRows(signedInPage, [COMMUNITY_TUNE_ROW]);
+		await signedInPage.goto('/tunes/e2e-community-tune-1');
+
+		await expect(signedInPage.getByRole('heading', { name: 'Community Test Tune' })).toBeVisible();
+		await expect(signedInPage.getByRole('button', { name: 'Add to my book' })).toBeVisible();
+		await expect(signedInPage.getByText(/Tune not found/)).toHaveCount(0);
+	});
+
+	test('an unknown id still reads as not found', async ({
+		signedInPage,
+		consoleCollector: _consoleCollector
+	}) => {
+		await stubCommunityRows(signedInPage, []);
+		await signedInPage.goto('/tunes/sheet-0-nope');
+
+		await expect(signedInPage.getByText('Tune not found: sheet-0-nope')).toBeVisible();
+	});
+
 	test('an empty corpus shows the first-to-share prompt', async ({
 		signedInPage,
 		consoleCollector: _consoleCollector
@@ -149,5 +203,38 @@ test.describe('tune community — authed browse', () => {
 			'href',
 			'/tunes/add'
 		);
+	});
+});
+
+/**
+ * Adding from the detail page needs a browser-side Supabase session (adoption
+ * calls `getUser()`), which only the stub cloud fabricates.
+ */
+test.describe('tune community — add from the detail page', () => {
+	const ADOPTER: E2ETestUser = { id: 'aaaaaaaa-0000-4000-8000-0000000ad097', email: 'adopter@e2e.dev' };
+
+	test('adding a shared tune puts it in the book and unlocks practice', async ({
+		page,
+		baseURL,
+		consoleCollector: _consoleCollector
+	}) => {
+		const cloud = createStubCloud();
+		cloud.seedRow('tunes', COMMUNITY_TUNE_ROW);
+		cloud.seedRow('public_tune_authors', COMMUNITY_AUTHOR_ROW);
+		await installStubCloud(page.context(), cloud, ADOPTER, baseURL as string);
+		await seedStorage(page, { settings: SETTINGS_ONBOARDED, 'tour-state': TOUR_DISMISSED });
+
+		await page.goto('/tunes/e2e-community-tune-1');
+		await expect(page.getByRole('heading', { name: 'Community Test Tune' })).toBeVisible();
+		await expect(page.getByRole('button', { name: 'Practice licks' })).toHaveCount(0);
+
+		await page.getByRole('button', { name: 'Add to my book' }).click();
+
+		await expect(page.getByRole('button', { name: 'Practice licks' })).toBeVisible();
+		await expect(page.getByRole('button', { name: 'Return to community' })).toBeVisible();
+		await expect(page.getByRole('button', { name: 'Add to my book' })).toHaveCount(0);
+		expect(cloud.rows('tune_adoptions')).toEqual([
+			expect.objectContaining({ user_id: ADOPTER.id, tune_id: 'e2e-community-tune-1' })
+		]);
 	});
 });

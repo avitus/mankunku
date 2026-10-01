@@ -33,6 +33,7 @@ const {
 	adoptTune,
 	returnTune,
 	listCommunityTunes,
+	fetchCommunityTune,
 	initTuneCommunityFromCloud,
 	TUNE_PAGE_SIZE
 } = await import('$lib/persistence/tune-community');
@@ -78,6 +79,11 @@ function makeSupabaseMock(response: {
 				single() {
 					const row = response.singleRows?.[table];
 					return Promise.resolve({ data: row ?? null, error: row ? null : new Error('no row') });
+				},
+				maybeSingle() {
+					const err = response.errors?.[table] ?? null;
+					const row = err ? null : (response.singleRows?.[table] ?? null);
+					return Promise.resolve({ data: row, error: err });
 				},
 				insert(row: unknown) {
 					const result = response.onInsert?.(table, row) ?? { error: null };
@@ -264,6 +270,63 @@ describe('toggleTuneFavorite', () => {
 		const result = await toggleTuneFavorite(sb as never, 'sheet-9-wxyz');
 		expect(result).toBe(true);
 		expect(getTuneFavoritesLocal().has('sheet-9-wxyz')).toBe(true);
+	});
+});
+
+// ─── fetchCommunityTune ─────────────────────────────────────
+
+describe('fetchCommunityTune', () => {
+	// The community card links /tunes/<id>; for a tune the viewer has not
+	// adopted, this fetch is the only way the detail page can find it.
+	it('returns the validated sheet and its author for a live shared row', async () => {
+		const captureQueries: QueryState[] = [];
+		const sb = makeSupabaseMock({
+			singleRows: {
+				tunes: makeSheetRow({ pdf_url: 'author-1/sheet-9-wxyz.pdf' }),
+				public_tune_authors: { id: 'author-1', display_name: 'Dizzy', avatar_url: null }
+			},
+			captureQueries
+		});
+		const result = await fetchCommunityTune(sb as never, 'sheet-9-wxyz');
+		expect(result?.sheet.id).toBe('sheet-9-wxyz');
+		expect(result?.sheet.title).toBe('Shared Tune');
+		expect(result?.authorName).toBe('Dizzy');
+		// The author's PDF lives in THEIR private folder — never handed on.
+		expect(result?.sheet.pdfUrl).toBeUndefined();
+		const tuneQuery = captureQueries.find((q) => q.from === 'tunes');
+		expect(tuneQuery?.filters).toContainEqual({ op: 'eq', args: ['id', 'sheet-9-wxyz'] });
+		expect(tuneQuery?.filters).toContainEqual({ op: 'is', args: ['deleted_at', null] });
+	});
+
+	it('does not cache anything — viewing is not adopting', async () => {
+		const sb = makeSupabaseMock({ singleRows: { tunes: makeSheetRow() } });
+		await fetchCommunityTune(sb as never, 'sheet-9-wxyz');
+		expect(getTuneAdoptionsLocal().size).toBe(0);
+		expect(getAdoptedTunesLocal()).toEqual([]);
+	});
+
+	it('keeps the sheet when the author lookup finds no one', async () => {
+		const sb = makeSupabaseMock({ singleRows: { tunes: makeSheetRow() } });
+		const result = await fetchCommunityTune(sb as never, 'sheet-9-wxyz');
+		expect(result?.sheet.id).toBe('sheet-9-wxyz');
+		expect(result?.authorName).toBeNull();
+	});
+
+	it('returns null for a missing or deleted row', async () => {
+		const sb = makeSupabaseMock({});
+		await expect(fetchCommunityTune(sb as never, 'sheet-9-wxyz')).resolves.toBeNull();
+	});
+
+	it('returns null for a payload that fails adopted-tune validation', async () => {
+		const sb = makeSupabaseMock({
+			singleRows: { tunes: makeSheetRow({ title: '<script>alert(1)</script>' }) }
+		});
+		await expect(fetchCommunityTune(sb as never, 'sheet-9-wxyz')).resolves.toBeNull();
+	});
+
+	it('returns null rather than throwing when the query fails', async () => {
+		const sb = makeSupabaseMock({ errors: { tunes: { message: 'offline' } } });
+		await expect(fetchCommunityTune(sb as never, 'sheet-9-wxyz')).resolves.toBeNull();
 	});
 });
 

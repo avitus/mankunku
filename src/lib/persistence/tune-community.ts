@@ -196,6 +196,54 @@ export async function listCommunityTunes(
 	return results;
 }
 
+/** A shared tune fetched for viewing, with its author's display name. */
+export interface SharedTune {
+	sheet: Tune;
+	authorName: string | null;
+}
+
+/**
+ * One shared tune by id, for the detail page: the community card links
+ * `/tunes/<id>`, and the route otherwise resolves only the viewer's own book
+ * (curated + own + adopted), so a tune they have not adopted was "not found".
+ * Validated like an adopted payload (it reaches the ABC engraver) and
+ * stripped of the author's private PDF. Caches nothing — viewing is not
+ * adopting. Null when the row is missing, deleted, unreadable or invalid;
+ * never throws.
+ */
+export async function fetchCommunityTune(
+	supabase: SupabaseClient<Database>,
+	sheetId: string
+): Promise<SharedTune | null> {
+	try {
+		const { data: row, error } = await supabase
+			.from('tunes')
+			.select('*')
+			.eq('id', sheetId)
+			.is('deleted_at', null)
+			.maybeSingle();
+		if (error || !row) {
+			if (error) console.warn('Failed to fetch shared tune:', error);
+			return null;
+		}
+		const sheet = stripForeignAssets(cloudRowToTune(row));
+		const validation = validateAdoptedTune(sheet);
+		if (!validation.valid) {
+			console.warn(`Shared tune ${sheetId} failed validation:`, validation.errors);
+			return null;
+		}
+		const { data: author } = await supabase
+			.from('public_tune_authors')
+			.select('id, display_name, avatar_url')
+			.eq('id', row.user_id)
+			.maybeSingle();
+		return { sheet, authorName: author?.display_name ?? null };
+	} catch (err) {
+		console.warn('Failed to fetch shared tune:', err);
+		return null;
+	}
+}
+
 // ─── Favorites ──────────────────────────────────────────────────────────
 
 /**

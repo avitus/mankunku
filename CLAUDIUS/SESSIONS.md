@@ -4407,3 +4407,26 @@ Andy asked me to fix the empty-chunk warnings I had flagged the night before.
   identical. Full suite and svelte-check green.
 - Left alone and flagged: the server build's "chunks are larger than 500 kB"
   notice — a different warning, a judgment call on a limit, not asked for.
+
+## 2026-10-01 — Community tune card opened "Tune not found"
+
+Andy: a user shared Blue Bossa; its card on /tunes/community opened
+"Tune not found: sheet-1790876129003-9ceu".
+
+- **Cause:** `/tunes/[id]` resolved only the viewer's own book (curated +
+  own + adopted, all local caches). A community tune the viewer had not
+  adopted was in none of them, and nothing fetched it. Never worked — the
+  community e2e checked the card's text but never clicked it. The lick
+  detail page has had the matching fallback since lick sharing.
+- **Fix:** `fetchCommunityTune` (tune-community.ts) reads one live row by id,
+  validates it like an adopted payload, strips the author's PDF, caches
+  nothing. The page shows it with "Add to my book" in place of
+  "Practice licks" (practice resolves from the book; the community page
+  already says "add one to your book to practice it"); adopting bumps
+  `cacheVersion` so the book copy takes over.
+- **Tests:** six unit tests, and four e2e: click-through, cold deep link,
+  unknown id still reads not found, and adopt-from-detail on the stub cloud
+  (adoption needs a browser-side `getUser()`, which the plain cookie fixture
+  can't provide). The click-through and deep-link went red first; the adopt
+  test went red with the `cacheVersion` bump removed. 45 tune e2e on all three
+  engines, 5487 unit tests, svelte-check clean.
