@@ -1,14 +1,15 @@
 /**
  * In-session sheet-music reveal, wired into session state: every planned
  * row of the key stack is stamped `reveal` (and `passes`) when it is built
- * (lick or cycle start). Only the key being LEARNED — the most recently
+ * (lick or cycle start). Initially only the key being LEARNED — the most recently
  * unlocked one — can reveal, and only while its persisted rolling score is
  * defined and below the floor (`shouldRevealNotation`); a revealed row runs
  * `LEAD_SHEET_PASSES` windows in a row. Decided once per stack, never
  * re-derived mid-cycle (a row's height must not change while the stack
  * scrolls); the same rule in both directions, so the sheet withdraws once
  * the EWMA recovers; a never attempted key never reveals (first pass by
- * ear); earlier keys never; nothing at twelve of twelve; trick rows never.
+ * ear). Deep practice also rescues any key after one first attempt below 50%
+ * or two consecutive attempts averaging below 70%; trick rows never.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -108,6 +109,72 @@ beforeEach(() => {
 	lickPractice.progress = {};
 });
 
+describe('deep practice rescue for any unlocked key', () => {
+	it.each([2, 12])('reveals an older key with %i keys unlocked after a first poor attempt', (count) => {
+		setUnlockedCount('rescue', count);
+		seedRolling('rescue', { C: 0.9 });
+		startSingleLickSession(makeLick('C', 'rescue'), { focusKey: 'C' });
+		expect(getPlannedKeysForLick(0)[0].reveal).toBe(false);
+		recordKeyAttempt(makeScore(0.35));
+		expect(getPlannedKeysForLick(0)[0].reveal).toBe(false);
+		advanceSingleLickRound();
+		expect(getPlannedKeysForLick(0)[0].reveal).toBe(true);
+		expect(getKeyPasses(0)).toEqual([LEAD_SHEET_PASSES]);
+		expect(lickPractice.demoNextCycle).toBe(false);
+	});
+
+	it.each([
+		[0.499, undefined, true],
+		[0.5, undefined, false],
+		[0.65, 0.74, true],
+		[0.6, 0.8, false],
+		[0.9, 0.49, true]
+	])('uses strict thresholds for scores %s then %s', (first, second, reveal) => {
+		setUnlockedCount('rescue', 12);
+		startSingleLickSession(makeLick('C', 'rescue'), { focusKey: 'C' });
+		recordKeyAttempt(makeScore(first));
+		advanceSingleLickRound();
+		if (second !== undefined) {
+			recordKeyAttempt(makeScore(second));
+			advanceSingleLickRound();
+		}
+		expect(getPlannedKeysForLick(0)[0].reveal).toBe(reveal);
+	});
+
+	it('keeps attempt history separate for each key and leaves Daily unchanged', () => {
+		setUnlockedCount('rescue', 12);
+		startSingleLickSession(makeLick('C', 'rescue'));
+		for (const [key, score] of [['C', 0.6], ['G', 0.9]] as const) {
+			lickPractice.currentKeyIndex = lickPractice.plan[0].keys.indexOf(key);
+			recordKeyAttempt(makeScore(score));
+		}
+		advanceSingleLickRound();
+		lickPractice.currentKeyIndex = lickPractice.plan[0].keys.indexOf('C');
+		recordKeyAttempt(makeScore(0.7));
+		advanceSingleLickRound();
+		expect(getPlannedKeysForLick(0).find((row) => row.key === 'C')?.reveal).toBe(true);
+		expect(getPlannedKeysForLick(0).find((row) => row.key === 'G')?.reveal).toBe(false);
+		lickPractice.mode = 'standard';
+		lickPractice.plan[0].keys = [...lickPractice.plan[0].keys];
+		expect(getPlannedKeysForLick(0).every((row) => !row.reveal)).toBe(true);
+	});
+
+	it('uses the latest two attempts and clears session history on restart', () => {
+		setUnlockedCount('rescue', 12);
+		startSingleLickSession(makeLick('C', 'rescue'), { focusKey: 'C' });
+		for (const score of [0.35, 0.35, 0.9]) {
+			recordKeyAttempt(makeScore(score));
+			advanceSingleLickRound();
+			expect(getPlannedKeysForLick(0)[0].reveal).toBe(true);
+		}
+		recordKeyAttempt(makeScore(0.9));
+		advanceSingleLickRound();
+		expect(getPlannedKeysForLick(0)[0].reveal).toBe(false);
+		startSingleLickSession(makeLick('C', 'rescue'), { focusKey: 'C' });
+		expect(getPlannedKeysForLick(0)[0].reveal).toBe(false);
+	});
+});
+
 describe('planned rows carry the reveal decision', () => {
 	it('does not reveal a never-attempted key — the first pass is by ear', () => {
 		startSingleLickSession(makeLick('C', 'fresh-lick'));
@@ -176,7 +243,7 @@ describe('planned rows carry the reveal decision', () => {
 		expect(rows.map((pk) => pk.reveal)).toEqual([false, true, false]);
 	});
 
-	it('reveals only the newest unlocked key — earlier keys stay by memory however they score', () => {
+	it('initially reveals only the newest unlocked key based on persisted scores', () => {
 		setUnlockedCount('lick-f', 3);
 		seedRolling('lick-f', { C: 0.2, G: 0.3, F: 0.9 });
 		startSingleLickSession(makeLick('C', 'lick-f'));
@@ -187,7 +254,7 @@ describe('planned rows carry the reveal decision', () => {
 		]);
 	});
 
-	it('never reveals once all twelve keys are unlocked', () => {
+	it('starts from memory once all twelve keys are unlocked', () => {
 		setUnlockedCount('lick-f', 12);
 		seedRolling('lick-f', { C: 0.2, 'F#': 0.2 });
 		startSingleLickSession(makeLick('C', 'lick-f'));

@@ -1438,6 +1438,21 @@ function revealDecisionsFor(item: LickPracticePlanItem): Map<PitchClass, boolean
 	if (decisions) return decisions;
 	const entryKey = item.kind === 'trick' ? undefined : resolveLickFor(item)?.key;
 	decisions = entryKey ? decideReveals(item.phraseId, entryKey, item.keys) : new Map();
+	// Deep practice can revisit an unfamiliar older key, including after all
+	// twelve have unlocked. Recent attempts must override the unlock gate.
+	// Only completed, scored turns count; rehearsal passes are not recorded.
+	if (entryKey && lickPractice.mode === 'single-lick') {
+		const attempts = lickPractice.allAttempts.flat();
+		for (const key of item.keys) {
+			const recent = attempts
+				.filter((attempt) => attempt.key === key)
+				.slice(-2);
+			const struggling = recent.length === 1
+				? recent[0].score < 0.5
+				: recent.length === 2 && (recent[0].score + recent[1].score) / 2 < 0.7;
+			if (struggling) decisions.set(key, true);
+		}
+	}
 	revealDecisions.set(item.keys, decisions);
 	return decisions;
 }
