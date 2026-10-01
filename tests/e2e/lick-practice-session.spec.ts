@@ -366,6 +366,41 @@ test.describe('lick-practice session flow', () => {
 		await expect(page.getByRole('button', { name: /end session/i })).toBeVisible();
 	});
 
+	test('deep practice keeps the chord box and beat dots below a sheet fully visible', async ({ page }) => {
+		await seedOnboardedAnonymous(page);
+		await seedUserLicks(page);
+		await seedStorage(page, {
+			...LEAD_AHEAD_PROGRESS,
+			'lick-practice-progress': {
+				'e2e-user-lick-bebop': {
+					C: { currentTempo: FAST_TEMPO, rollingScore: 0.9, passCount: 3 },
+					G: { currentTempo: FAST_TEMPO, rollingScore: 0.5, passCount: 0 }
+				}
+			}
+		});
+		await installAudioMock(page);
+		await stubCdnInstrumentSamples(page);
+		await page.goto('/licks/e2e-user-lick-bebop');
+		await page.getByRole('button', { name: /^practice$/i }).click();
+		await expect(page.locator('.row').first().locator('.lead-sheet.revealed')).toBeVisible();
+		const geometry = await page.locator('.stack > .row').nth(1).evaluate((row) => {
+			const viewport = row.closest('.viewport')!.getBoundingClientRect();
+			const chart = row.querySelector('.chord-chart')!;
+			const dots = [...chart.querySelectorAll('.rounded-full')];
+			return {
+				chartBottom: chart.getBoundingClientRect().bottom,
+				rowBottom: row.getBoundingClientRect().bottom,
+				viewportBottom: viewport.bottom,
+				dotBottom: Math.max(...dots.map((dot) => dot.getBoundingClientRect().bottom)),
+				dotCount: dots.length
+			};
+		});
+		expect(geometry.dotCount).toBeGreaterThan(0);
+		expect(geometry.chartBottom).toBeLessThanOrEqual(geometry.rowBottom);
+		expect(geometry.chartBottom).toBeLessThanOrEqual(geometry.viewportBottom);
+		expect(geometry.dotBottom).toBeLessThanOrEqual(geometry.viewportBottom);
+	});
+
 	/**
 	 * The sheet appears only once the previous key has been PLAYED, over a
 	 * reading pause. A Daily session plays keys in ramp order, so the revealed

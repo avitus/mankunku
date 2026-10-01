@@ -49,6 +49,46 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      user_devices: {
+        Row: {
+          user_id: string
+          device_id: string
+          browser_name: string
+          browser_version: string | null
+          os_name: string
+          device_type: string
+          first_seen_at: string
+          last_seen_at: string
+        }
+        Insert: {
+          user_id: string
+          device_id: string
+          browser_name: string
+          browser_version?: string | null
+          os_name: string
+          device_type: string
+          first_seen_at?: string
+          last_seen_at?: string
+        }
+        Update: {
+          user_id?: string
+          device_id?: string
+          browser_name?: string
+          browser_version?: string | null
+          os_name?: string
+          device_type?: string
+          first_seen_at?: string
+          last_seen_at?: string
+        }
+        Relationships: [{
+          foreignKeyName: "user_devices_user_id_fkey"
+          columns: ["user_id"]
+          isOneToOne: false
+          referencedRelation: "users"
+          referencedColumns: ["id"]
+        }]
+      }
+
       /**
        * User profiles extending Supabase auth.users.
        * One-to-one relationship with auth.users via id.
@@ -1110,7 +1150,16 @@ export type Database = {
       }
     }
     Functions: {
-      [_ in never]: never
+      record_user_device: {
+        Args: {
+          p_device_id: string
+          p_browser_name: string
+          p_browser_version: string | null
+          p_os_name: string
+          p_device_type: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

@@ -7,7 +7,7 @@
  *  2. Delete the auth user via admin.deleteUser() — ON DELETE CASCADE removes
  *     all rows in user_progress, session_results, scale_proficiency,
  *     key_proficiency, user_settings, user_licks, user_lick_metadata,
- *     daily_summaries, tunes, and user_profiles.
+ *     daily_summaries, tunes, user_devices, and user_profiles.
  *
  * Storage deletion is best-effort (logged but non-blocking). The auth user
  * deletion is the critical step — its error is returned to the caller.

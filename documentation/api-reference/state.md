@@ -52,7 +52,7 @@ export const settings = $state({
   masterVolume: 0.8,                          // 0-1
   metronomeEnabled: true,
   metronomeVolume: 0.5,                       // 0-1 mix position; METRONOME_TRIM (0.6) applies underneath
-  backingTrackEnabled: true,
+  backingTrackEnabled: false,
   backingInstrument: 'piano' as BackingInstrument,
   backingTrackVolume: 0.6,                    // 0-1
   backingStyle: 'swing' as BackingStyle,      // 'swing' | 'bossa-nova' | 'ballad' | 'straight'

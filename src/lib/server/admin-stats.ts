@@ -1,3 +1,7 @@
+import type { Database } from '$lib/supabase/types';
+
+export type AdminDevice = Database['public']['Tables']['user_devices']['Row'];
+
 /**
  * Pure assembly logic for the /admin dashboard: joins auth users with their
  * profile, activity summaries, content counts and sync recency, and computes
@@ -20,6 +24,7 @@ export interface AdminAuthUser {
 
 export interface AdminStatsInput {
 	authUsers: AdminAuthUser[];
+	devices?: AdminDevice[];
 	profiles: { id: string; display_name: string | null; is_admin: boolean }[];
 	summaries: { user_id: string; date: string; session_count: number; practice_minutes: number }[];
 	/** One entry per live (deleted_at IS NULL) lick row — the query does the filtering. */
@@ -44,6 +49,7 @@ export interface AdminUserRow {
 	lickCount: number;
 	tuneCount: number;
 	lastSyncAt: string | null;
+	devices: AdminDevice[];
 }
 
 export interface AdminTotals {
@@ -57,15 +63,26 @@ export function weekCutoffDateStr(now: Date): string {
 	return new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
+/** Count live content records by owner for the admin summary. */
 function countByOwner(owners: string[]): Map<string, number> {
 	const counts = new Map<string, number>();
 	for (const id of owners) counts.set(id, (counts.get(id) ?? 0) + 1);
 	return counts;
 }
 
+/** Join account activity and browser observations into admin rows, newest devices first. */
 export function buildAdminUserRows(input: AdminStatsInput): AdminUserRow[] {
 	const profiles = new Map(input.profiles.map((p) => [p.id, p]));
 	const settings = new Map(input.settings.map((s) => [s.user_id, s]));
+	const devicesByUser = new Map<string, AdminDevice[]>();
+	for (const device of input.devices ?? []) {
+		const rows = devicesByUser.get(device.user_id) ?? [];
+		rows.push(device);
+		devicesByUser.set(device.user_id, rows);
+	}
+	for (const rows of devicesByUser.values()) {
+		rows.sort((a, b) => Date.parse(b.last_seen_at) - Date.parse(a.last_seen_at));
+	}
 	const lickCounts = countByOwner(input.lickOwners);
 	const tuneCounts = countByOwner(input.tuneOwners);
 
@@ -105,7 +122,8 @@ export function buildAdminUserRows(input: AdminStatsInput): AdminUserRow[] {
 			practiceMinutes: act?.practiceMinutes ?? 0,
 			lickCount: lickCounts.get(u.id) ?? 0,
 			tuneCount: tuneCounts.get(u.id) ?? 0,
-			lastSyncAt: settings.get(u.id)?.updated_at ?? null
+			lastSyncAt: settings.get(u.id)?.updated_at ?? null,
+			devices: devicesByUser.get(u.id) ?? []
 		};
 	});
 
@@ -117,6 +135,7 @@ export function buildAdminUserRows(input: AdminStatsInput): AdminUserRow[] {
 	});
 }
 
+/** Count total accounts, recent signups and recently active users in one UTC window. */
 export function buildAdminTotals(rows: AdminUserRow[], now: Date): AdminTotals {
 	// Both "this week" counts share the same 7-calendar-day UTC window so the
 	// two tiles answer the same question. (Supabase timestamps are UTC ISO

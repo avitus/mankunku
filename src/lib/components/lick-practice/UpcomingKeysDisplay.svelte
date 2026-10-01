@@ -74,7 +74,9 @@
 	// Rows are fixed pixel heights so the scroll math is pure: one
 	// chord-chart row, or the taller lead-sheet row the key being learned
 	// gets (staff with chords above it, the current bar marked on the staff).
-	const ROW_HEIGHT = 105;
+	// Chord chart: label + margin (~21), cell (90), and row padding (12).
+	// Keep the complete bottom border and beat dots inside the row budget.
+	const ROW_HEIGHT = 128;
 	// Lead-sheet row budget: row padding 12 + the staff box. The box is the
 	// tab clearance (26) plus the engraving at full row width (measured:
 	// 976 × 171 px for a 664 × 116.5 viewBox at LEAD_STAFF_WIDTH below),

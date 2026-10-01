@@ -717,7 +717,7 @@ export async function loadSettingsFromCloud(
 				masterVolume: data.master_volume,
 				metronomeEnabled: data.metronome_enabled,
 				metronomeVolume: data.metronome_volume,
-				backingTrackEnabled: data.backing_track_enabled ?? true,
+				backingTrackEnabled: data.backing_track_enabled ?? false,
 				backingInstrument: data.backing_instrument ?? 'piano',
 				backingTrackVolume: data.backing_track_volume ?? 0.6,
 				swing: data.swing,

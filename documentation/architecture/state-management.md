@@ -42,7 +42,7 @@ const defaultSettings = {
   masterVolume: 0.8,
   metronomeEnabled: true,
   metronomeVolume: 0.5,      // mix position — METRONOME_TRIM (0.6) applies underneath
-  backingTrackEnabled: true,
+  backingTrackEnabled: false,
   backingInstrument: 'piano' as BackingInstrument,
   backingTrackVolume: 0.6,
   backingStyle: 'swing' as BackingStyle,

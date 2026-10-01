@@ -12,11 +12,13 @@
 	let confirmText = $state('');
 	let deleting = $state(false);
 
+	/** Open account deletion confirmation for one user. */
 	function openConfirm(id: string) {
 		confirmTargetId = id;
 		confirmText = '';
 	}
 
+	/** Clear the selected deletion target and typed confirmation. */
 	function closeConfirm() {
 		confirmTargetId = null;
 		confirmText = '';
@@ -28,14 +30,18 @@
 	}
 
 	// ISO slicing keeps SSR and hydration output identical (no locale drift).
+	/** Format a date identically during server rendering and hydration. */
 	function fmtDate(iso: string | null): string {
 		return iso ? iso.slice(0, 10) : '—';
 	}
 
+	/** Format a date identically during server rendering and hydration. */
+	/** Format an observation timestamp in UTC. */
 	function fmtDateTime(iso: string | null): string {
 		return iso ? `${iso.slice(0, 10)} ${iso.slice(11, 16)} UTC` : '—';
 	}
 
+	/** Render server uptime using whole days, hours and minutes. */
 	function fmtUptime(seconds: number): string {
 		const d = Math.floor(seconds / 86400);
 		const h = Math.floor((seconds % 86400) / 3600);
@@ -151,6 +157,19 @@
 							<div><span class="smallcaps">Licks</span> <span class="tabular-nums">{row.lickCount}</span></div>
 							<div><span class="smallcaps">Tunes</span> <span class="tabular-nums">{row.tuneCount}</span></div>
 						</div>
+
+						<details class="text-xs text-[var(--color-text-secondary)]">
+							<summary class="cursor-pointer">Browsers and devices ({row.devices.length})</summary>
+							<p class="mt-2">Observed on signed-in page loads; last seen updates at most hourly unless browser details change. Device type is approximate.</p>
+							{#each row.devices as device (device.device_id)}
+								<div class="mt-2">
+									<span class="font-medium">{device.browser_name}{device.browser_version ? ` ${device.browser_version}` : ''} · {device.os_name} · {device.device_type}</span>
+									<div>First seen {fmtDateTime(device.first_seen_at)} · Last seen {fmtDateTime(device.last_seen_at)}</div>
+								</div>
+							{:else}
+								<p class="mt-2">No browser activity recorded yet.</p>
+							{/each}
+						</details>
 
 						{#if confirmTargetId === row.id}
 							<form
