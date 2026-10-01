@@ -417,6 +417,10 @@ test.describe.serial('tune practice session follow-scroll', () => {
 		await expect(page.getByRole('button', { name: /^start$/i })).toBeVisible();
 
 		const backing = page.getByRole('switch', { name: /backing track this session/i });
+		// New sessions default to metronome only. Exercise the override in both directions.
+		await expect(backing).toHaveAttribute('aria-checked', 'false');
+		await backing.click();
+		await expect(backing).toHaveAttribute('aria-checked', 'true');
 		await backing.click();
 		await expect(backing).toHaveAttribute('aria-checked', 'false');
 
@@ -457,7 +461,8 @@ test.describe.serial('tune practice session follow-scroll', () => {
 			.getByRole('radiogroup', { name: 'Mode', exact: true })
 			.getByRole('radio', { name: /^freestyle/i })
 			.click();
-		await page.getByRole('switch', { name: /backing track this session/i }).click();
+		await expect(page.getByRole('switch', { name: /backing track this session/i }))
+			.toHaveAttribute('aria-checked', 'false');
 		await setTempoMax(page);
 		await startPracticeSession(page);
 

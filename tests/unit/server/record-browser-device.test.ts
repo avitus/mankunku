@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { recordBrowserDevice } from '$lib/server/record-browser-device';
 
 const DEVICE = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+/** Build a signed-in request with a configurable browser cookie and a stubbed observation RPC. */
 function event(id: string | undefined = DEVICE) {
 	const abortSignal = vi.fn().mockResolvedValue({ error: null });
 	return {
@@ -14,6 +15,7 @@ function event(id: string | undefined = DEVICE) {
 		}
 	};
 }
+/** Adapt the minimal request fixture to the server observation boundary. */
 const record = (e: ReturnType<typeof event>) => recordBrowserDevice(e as never);
 beforeEach(() => vi.unstubAllEnvs());
 

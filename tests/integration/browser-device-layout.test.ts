@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { load } from '../../src/routes/+layout.server';
 
+/** Build a layout request with controlled authentication and a private browser cookie. */
 function event(signedIn: boolean) {
 	const user = signedIn ? { id: 'u1' } : null;
 	const query: Record<string, unknown> = {};

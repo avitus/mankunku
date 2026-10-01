@@ -43,6 +43,7 @@ interface AdminPageData {
 	totals: AdminTotals | null;
 }
 
+/** Fetch paginated admin data with the service role after the caller passes the admin gate. */
 async function fetchAdminData(): Promise<Omit<AdminPageData, 'health'>> {
 	const admin = createAdminClient();
 

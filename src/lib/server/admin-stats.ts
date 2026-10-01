@@ -69,6 +69,7 @@ function countByOwner(owners: string[]): Map<string, number> {
 	return counts;
 }
 
+/** Join account activity and browser observations into admin rows, newest devices first. */
 export function buildAdminUserRows(input: AdminStatsInput): AdminUserRow[] {
 	const profiles = new Map(input.profiles.map((p) => [p.id, p]));
 	const settings = new Map(input.settings.map((s) => [s.user_id, s]));
