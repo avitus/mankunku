@@ -99,6 +99,38 @@ async function setTempoMax(page: Page): Promise<void> {
 	}).toPass({ timeout: 15_000 });
 }
 
+/**
+ * Wait until Tone's clock Worker is running on the current page — call it
+ * before navigating AWAY from a page that has only just loaded.
+ *
+ * Setup's mount imports Tone, and Tone's module evaluation starts its clock
+ * Worker from a blob URL. Leaving while that Worker is still starting aborts
+ * it: WebKit raises "Cannot load blob:… due to access control checks" as a
+ * pageerror, Firefox's harness logs NS_BINDING_ABORTED from juggler's
+ * WorkerMain.js, and the console guard fails the test on either. An enabled
+ * Start button is NOT enough — it means `import('tone')` resolved, i.e. the
+ * Worker was constructed, not that it started: on Firefox the Worker came up
+ * after the next `goto` in every failing probe run. The Worker is identified by
+ * the global `tick()` its inline script declares (Tone 15's Ticker).
+ */
+async function expectToneClockRunning(page: Page): Promise<void> {
+	await expect
+		.poll(
+			async () => {
+				const isClock = await Promise.all(
+					page.workers().map((worker) =>
+						worker
+							.evaluate(() => typeof (self as { tick?: unknown }).tick === 'function')
+							.catch(() => false)
+					)
+				);
+				return isClock.includes(true);
+			},
+			{ message: "Tone's clock Worker never started" }
+		)
+		.toBe(true);
+}
+
 /** Start a session and wait until the running chrome is up (not the setup chart). */
 async function startPracticeSession(page: Page): Promise<void> {
 	await page.getByRole('button', { name: /^start$/i }).click();
@@ -155,9 +187,11 @@ test.describe('tune practice setup', () => {
 		await expect(page.getByText(/5 insertion points/i)).toBeVisible();
 		await choruses.press('ArrowUp');
 		await expect(page.getByText(/10 insertion points/i)).toBeVisible();
+		await expectToneClockRunning(page);
 		await page.reload();
 		await expect(choruses).toHaveAttribute('aria-valuenow', '2');
 		await expect(page.getByText(/10 insertion points/i)).toBeVisible();
+		await expectToneClockRunning(page);
 		await page.goto('/tunes/ls-mankunku-blues/practice');
 		await expect(choruses).toHaveAttribute('aria-valuenow', '2');
 	});
