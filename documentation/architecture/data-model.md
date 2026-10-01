@@ -696,7 +696,7 @@ the lever for ear-training variety.
 
 ## Browser and device activity
 
-`user_devices` stores one row per authenticated user and browser installation, keyed by
+`user_devices` retains up to 32 recent browser installations per authenticated user (oldest last-seen installation evicted on admission). A per-account transaction lock enforces the cap for concurrent RPC calls. Each row is keyed by
 `(user_id, device_id)`. An HTTP-only, SameSite=Lax cookie holds a random UUID for one year;
 clearing cookies or using another browser creates another installation. This is not a
 hardware identifier. Device types are approximate, and unknown browsers remain unknown;

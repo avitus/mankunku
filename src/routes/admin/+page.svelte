@@ -12,11 +12,13 @@
 	let confirmText = $state('');
 	let deleting = $state(false);
 
+	/** Open account deletion confirmation for one user. */
 	function openConfirm(id: string) {
 		confirmTargetId = id;
 		confirmText = '';
 	}
 
+	/** Clear the selected deletion target and typed confirmation. */
 	function closeConfirm() {
 		confirmTargetId = null;
 		confirmText = '';
@@ -28,14 +30,18 @@
 	}
 
 	// ISO slicing keeps SSR and hydration output identical (no locale drift).
+	/** Format a date identically during server rendering and hydration. */
 	function fmtDate(iso: string | null): string {
 		return iso ? iso.slice(0, 10) : '—';
 	}
 
+	/** Format a date identically during server rendering and hydration. */
+	/** Format an observation timestamp in UTC. */
 	function fmtDateTime(iso: string | null): string {
 		return iso ? `${iso.slice(0, 10)} ${iso.slice(11, 16)} UTC` : '—';
 	}
 
+	/** Render server uptime using whole days, hours and minutes. */
 	function fmtUptime(seconds: number): string {
 		const d = Math.floor(seconds / 86400);
 		const h = Math.floor((seconds % 86400) / 3600);

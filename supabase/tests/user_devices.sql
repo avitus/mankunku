@@ -1,6 +1,6 @@
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
-SELECT plan(20);
+SELECT plan(24);
 CREATE TEMP TABLE device_test_ids AS SELECT gen_random_uuid() AS u1, gen_random_uuid() AS u2, gen_random_uuid() AS device;
 GRANT SELECT ON device_test_ids TO authenticated, anon, service_role;
 INSERT INTO auth.users(id) SELECT u1 FROM device_test_ids UNION ALL SELECT u2 FROM device_test_ids;
@@ -43,5 +43,24 @@ SELECT is((SELECT count(*) FROM public.user_devices WHERE user_id IN (SELECT u1 
 RESET ROLE;
 DELETE FROM auth.users WHERE id = (SELECT u1 FROM device_test_ids);
 SELECT is((SELECT count(*) FROM public.user_devices WHERE user_id IN (SELECT u1 FROM device_test_ids UNION ALL SELECT u2 FROM device_test_ids)), 1::bigint, 'account deletion cascades only its own device records');
+-- An authenticated caller cannot grow its account history without bound.
+SELECT set_config('request.jwt.claim.sub', (SELECT u2::text FROM device_test_ids), true);
+SET LOCAL ROLE authenticated;
+SELECT public.record_user_device(gen_random_uuid(), 'Chrome', NULL, 'Windows', 'desktop') FROM generate_series(1, 40);
+SELECT is((SELECT count(*) FROM public.user_devices), 32::bigint, 'fresh identifiers are capped at 32 installations');
+RESET ROLE;
+UPDATE public.user_devices SET last_seen_at = now() - interval '2 hours' WHERE user_id = (SELECT u2 FROM device_test_ids);
+UPDATE public.user_devices SET last_seen_at = now() - interval '1 day'
+WHERE user_id = (SELECT u2 FROM device_test_ids) AND device_id = (SELECT min(device_id::text)::uuid FROM public.user_devices WHERE user_id = (SELECT u2 FROM device_test_ids));
+CREATE TEMP TABLE evicted_device AS SELECT device_id FROM public.user_devices WHERE user_id = (SELECT u2 FROM device_test_ids) ORDER BY last_seen_at LIMIT 1;
+GRANT SELECT ON evicted_device TO authenticated;
+UPDATE device_test_ids SET device = gen_random_uuid();
+SET LOCAL ROLE authenticated;
+SELECT public.record_user_device(device, 'Chrome', NULL, 'Windows', 'desktop') FROM device_test_ids;
+SELECT is((SELECT count(*) FROM public.user_devices), 32::bigint, 'admitting another installation keeps the cap');
+SELECT is((SELECT count(*) FROM public.user_devices WHERE device_id = (SELECT device_id FROM evicted_device)), 0::bigint, 'oldest installation is evicted first');
+SELECT public.record_user_device(device, 'Chrome', '144', 'Windows', 'desktop') FROM device_test_ids;
+SELECT is((SELECT count(*) FROM public.user_devices), 32::bigint, 'an existing installation updates without extra admissions');
+RESET ROLE;
 SELECT * FROM finish();
 ROLLBACK;

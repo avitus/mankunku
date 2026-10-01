@@ -63,6 +63,7 @@ export function weekCutoffDateStr(now: Date): string {
 	return new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
+/** Count live content records by owner for the admin summary. */
 function countByOwner(owners: string[]): Map<string, number> {
 	const counts = new Map<string, number>();
 	for (const id of owners) counts.set(id, (counts.get(id) ?? 0) + 1);
@@ -134,6 +135,7 @@ export function buildAdminUserRows(input: AdminStatsInput): AdminUserRow[] {
 	});
 }
 
+/** Count total accounts, recent signups and recently active users in one UTC window. */
 export function buildAdminTotals(rows: AdminUserRow[], now: Date): AdminTotals {
 	// Both "this week" counts share the same 7-calendar-day UTC window so the
 	// two tiles answer the same question. (Supabase timestamps are UTC ISO
