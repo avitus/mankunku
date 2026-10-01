@@ -342,6 +342,6 @@ describe('loadSettingsFromCloud — bad inputs', () => {
 		if (result.status !== 'ok') return;
 		expect(result.data.backingTrackVolume).toBe(0.6);
 		expect(result.data.backingInstrument).toBe('piano');
-		expect(result.data.backingTrackEnabled).toBe(true);
+		expect(result.data.backingTrackEnabled).toBe(false);
 	});
 });

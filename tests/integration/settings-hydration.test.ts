@@ -54,7 +54,9 @@ function mockSupabase() {
 }
 
 describe('shipped defaults', () => {
-	it('boots with swing 0.62 and metronomeVolume 0.5 on empty storage', () => {
+	it('boots with metronome only, swing 0.62 and metronomeVolume 0.5', () => {
+		expect(settingsModule.settings.backingTrackEnabled).toBe(false);
+		expect(settingsModule.settings.metronomeEnabled).toBe(true);
 		expect(settingsModule.settings.swing).toBe(0.62);
 		expect(settingsModule.settings.metronomeVolume).toBe(0.5);
 	});
@@ -108,6 +110,7 @@ describe('loadSettingsFromCloud', () => {
 		await settingsModule.loadSettingsFromCloud(mockSupabase() as any);
 
 		expect(settingsModule.settings.instrumentId).toBe('alto-sax');
+		expect(settingsModule.settings.backingTrackEnabled).toBe(true);
 		expect(settingsModule.settings.swing).toBeCloseTo(0.67);
 		expect(settingsModule.settings.defaultTempo).toBe(140);
 		expect(settingsModule.settings.theme).toBe('light');

@@ -81,7 +81,7 @@ export const SETTINGS_ONBOARDED = {
 	masterVolume: 0.8,
 	metronomeEnabled: true,
 	metronomeVolume: 0.5,
-	backingTrackEnabled: true,
+	backingTrackEnabled: false,
 	backingInstrument: 'piano',
 	backingTrackVolume: 0.6,
 	backingStyle: 'swing',

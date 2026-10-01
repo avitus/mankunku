@@ -152,9 +152,9 @@ export const tunePractice = $state<{
 		backingStyle: 'swing',
 		choruses: 1,
 		playHead: true,
-		// Overwritten from settings on every initTunePractice; this literal
+		// Overwritten from settings on every initTunePractice; this initial value
 		// only matters before the first setup screen mounts.
-		backingTrackEnabled: true
+		backingTrackEnabled: settings.backingTrackEnabled
 	},
 	phase: 'setup',
 	tuneId: null,
