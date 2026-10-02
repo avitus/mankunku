@@ -14,10 +14,13 @@ let rawContext: {
 	_nativeAudioContext?: object;
 };
 let toneContext: { rawContext: typeof rawContext; updateInterval: number };
+let processTick: ReturnType<typeof vi.fn<(time: number, ticks: number) => void>>;
+let toneTransport: { _clock: { callback: (time: number, ticks: number) => void } };
 
 vi.mock('tone', () => ({
 	start: () => toneStart(),
-	getContext: () => toneContext
+	getContext: () => toneContext,
+	getTransport: () => toneTransport
 }));
 
 type AudioContextModule = typeof import('$lib/audio/audio-context');
@@ -29,6 +32,8 @@ beforeEach(async () => {
 	const gain = { gain: { value: 1 }, connect: vi.fn() };
 	rawContext = { createGain: vi.fn(() => gain), destination: {} };
 	toneContext = { rawContext, updateInterval: 0.05 };
+	processTick = vi.fn<(time: number, ticks: number) => void>();
+	toneTransport = { _clock: { callback: processTick } };
 	mod = await import('$lib/audio/audio-context');
 });
 
@@ -60,6 +65,20 @@ describe('audio-context', () => {
 		expect(mod.isAudioInitialized()).toBe(true);
 		// The scheduler ticks every 25 ms, not Tone's 50 ms default.
 		expect(toneContext.updateInterval).toBe(0.025);
+	});
+
+	it('initAudio guards the transport clock against a re-delivered tick', async () => {
+		// The guard itself is pinned against real Tone in tick-redelivery.test.ts;
+		// this pins that the one audio entry point installs it.
+		await mod.initAudio();
+		const tick = toneTransport._clock.callback;
+		tick(26.5156, 19584);
+		tick(26.5156, 19584);
+		tick(26.7656, 19776);
+		expect(processTick.mock.calls).toEqual([
+			[26.5156, 19584],
+			[26.7656, 19776]
+		]);
 	});
 
 	it('getNativeAudioContext unwraps the standardized-audio-context wrapper', async () => {

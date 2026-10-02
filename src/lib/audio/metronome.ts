@@ -93,6 +93,12 @@ async function ensureSynths(): Promise<void> {
  * within 1e-6 s the same instant. Beats within one sequence are a beat apart
  * (0.2 s at lick practice's 300 BPM ceiling), so a time within
  * SAME_BEAT_SECONDS of the last one played is a re-delivery.
+ *
+ * Since the same day `guardTickRedelivery` (tick-redelivery.ts) drops the
+ * re-delivered tick at the transport clock, before it reaches any event, so
+ * this no longer sees one. It stays as the inner layer: the metronome is the
+ * one consumer where a duplicate THROWS rather than doubling a note, and this
+ * guard does not depend on a hook into Tone's private clock.
  */
 const SAME_BEAT_SECONDS = 0.001;
 
