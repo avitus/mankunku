@@ -21,15 +21,18 @@ const BPM = 240;
 const BEATS = 16;
 const PPQ = 192;
 
+/** Use the 48 kHz boundary that deterministically reproduces the duplicate tick. */
 async function headless(): Promise<HeadlessTransport> {
 	return createHeadlessTransport({ sampleRate: 48000, bpm: BPM, startQuantum: 1 });
 }
 
+/** Run a finite phrase plus enough clock time to dispatch its final scheduled beat. */
 function play(h: HeadlessTransport): void {
 	h.transport.start(h.context.now());
 	h.run((BEATS * 60) / BPM + 0.5);
 }
 
+/** Count each event delivery so duplicates remain visible to the assertions. */
 function tally(counts: Map<number, number>, key: number): void {
 	counts.set(key, (counts.get(key) ?? 0) + 1);
 }
@@ -44,6 +47,7 @@ function beatPart(h: HeadlessTransport, counts: Map<number, number>): void {
 	}).start(0);
 }
 
+/** Identify beats or event IDs delivered more than once. */
 function doubled(counts: Map<number, number>): number[] {
 	return [...counts].filter(([, n]) => n > 1).map(([beat]) => beat);
 }
@@ -151,6 +155,7 @@ describe('Tone tick re-delivery (real Tone clock)', () => {
 		const h = await headless();
 		const repeat = new Map<number, number>();
 		const loop = new Map<number, number>();
+		/** Map callback audio time back to a beat number for repeat-event counting. */
 		const beatAt = (time: number): number => Math.round(h.transport.getTicksAtTime(time) / PPQ);
 		h.transport.scheduleRepeat((time) => tally(repeat, beatAt(time)), '4n', 0);
 		const part = new h.Tone.Part<{ time: number }>({

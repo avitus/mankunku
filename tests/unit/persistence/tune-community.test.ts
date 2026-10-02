@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { Tune } from '$lib/types/tune';
+import { getScopeGeneration } from '$lib/persistence/user-scope';
 
 // ─── Mock sync dependencies ───────────────────────────────────────────
 vi.mock('$lib/persistence/user-scope', () => ({
-	getScopeGeneration: () => 0
+	getScopeGeneration: vi.fn(() => 0)
 }));
 
 // ─── Mock localStorage ────────────────────────────────────────────────
@@ -21,6 +22,7 @@ Object.defineProperty(globalThis, 'localStorage', { value: localStorageMock, wri
 beforeEach(() => {
 	localStorageMock.clear();
 	vi.clearAllMocks();
+	vi.mocked(getScopeGeneration).mockReturnValue(0);
 });
 
 // ─── Load module under test after mocks ───────────────────────────────
@@ -47,6 +49,7 @@ interface QueryState {
 	range: [number, number] | null;
 }
 
+/** Build a configurable Supabase query double and optionally capture its filter chain. */
 function makeSupabaseMock(response: {
 	user?: { id: string } | null;
 	data?: Record<string, unknown[]>;
@@ -60,6 +63,7 @@ function makeSupabaseMock(response: {
 		auth: {
 			getUser: vi.fn().mockResolvedValue({ data: { user: response.user ?? null } })
 		},
+		/** Start an isolated table query with the configured response and captured filters. */
 		from(table: string) {
 			const q: QueryState = { from: table, filters: [], orderings: [], range: null };
 			response.captureQueries?.push(q);
@@ -80,6 +84,7 @@ function makeSupabaseMock(response: {
 					const row = response.singleRows?.[table];
 					return Promise.resolve({ data: row ?? null, error: row ? null : new Error('no row') });
 				},
+				/** Resolve a nullable single row, returning configured errors without data. */
 				maybeSingle() {
 					const err = response.errors?.[table] ?? null;
 					const row = err ? null : (response.singleRows?.[table] ?? null);
@@ -333,6 +338,58 @@ describe('fetchCommunityTune', () => {
 // ─── adoptTune / returnTune ─────────────────────────────────
 
 describe('adoptTune', () => {
+	it('keeps the viewed sheet available when adoption succeeds but the payload fetch fails', async () => {
+		const viewSb = makeSupabaseMock({
+			singleRows: {
+				tunes: makeSheetRow(),
+				public_tune_authors: { id: 'author-1', display_name: 'Dizzy', avatar_url: null }
+			}
+		});
+		const viewed = await fetchCommunityTune(viewSb as never, 'sheet-9-wxyz');
+		expect(viewed).not.toBeNull();
+		const sb = makeSupabaseMock({ user: ME });
+		await expect(adoptTune(sb as never, 'sheet-9-wxyz', viewed!)).resolves.toBe(true);
+		expect(getAdoptedTunesLocal().map((s) => s.id)).toContain('sheet-9-wxyz');
+		expect(getAdoptedTuneAuthorsLocal()['sheet-9-wxyz']?.authorName).toBe('Dizzy');
+		expect(getTuneAdoptionsLocal().has('sheet-9-wxyz')).toBe(true);
+	});
+
+	it('repairs an adoption ID with no cached payload and strips private assets from the fallback', async () => {
+		const viewSb = makeSupabaseMock({ singleRows: { tunes: makeSheetRow() } });
+		const viewed = await fetchCommunityTune(viewSb as never, 'sheet-9-wxyz');
+		viewed!.sheet.pdfUrl = 'author-1/private.pdf';
+		const { save } = await import('$lib/persistence/storage');
+		save('tune-adoptions', ['sheet-9-wxyz']);
+		const sb = makeSupabaseMock({ user: ME });
+		await expect(adoptTune(sb as never, 'sheet-9-wxyz', viewed!)).resolves.toBe(true);
+		expect(getAdoptedTunesLocal()[0]?.id).toBe('sheet-9-wxyz');
+		expect(getAdoptedTunesLocal()[0]?.pdfUrl).toBeUndefined();
+	});
+
+	it.each(['wrong-id', 'invalid-title'])('rejects a %s fallback after a successful insert', async (problem) => {
+		const viewSb = makeSupabaseMock({ singleRows: { tunes: makeSheetRow() } });
+		const viewed = await fetchCommunityTune(viewSb as never, 'sheet-9-wxyz');
+		if (problem === 'wrong-id') viewed!.sheet.id = 'another-tune';
+		else viewed!.sheet.title = '<script>alert(1)</script>';
+		const sb = makeSupabaseMock({ user: ME });
+		await adoptTune(sb as never, 'sheet-9-wxyz', viewed!);
+		expect(getAdoptedTunesLocal()).toEqual([]);
+	});
+
+	it('does not write adoption caches after an account switch during the insert', async () => {
+		const sb = makeSupabaseMock({
+			user: ME,
+			singleRows: { tunes: makeSheetRow() },
+			onInsert: () => {
+				vi.mocked(getScopeGeneration).mockReturnValue(1);
+				return { error: null };
+			}
+		});
+		await expect(adoptTune(sb as never, 'sheet-9-wxyz')).resolves.toBe(false);
+		expect(getAdoptedTunesLocal()).toEqual([]);
+		expect(getTuneAdoptionsLocal().size).toBe(0);
+	});
+
 	it('records the adoption, caches the validated payload and author', async () => {
 		const sb = makeSupabaseMock({
 			user: ME,

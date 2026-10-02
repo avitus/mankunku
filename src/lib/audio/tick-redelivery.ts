@@ -47,6 +47,7 @@ const SAME_TICK_SECONDS = 0.001;
 
 type TickCallback = (time: number, ticks: number) => void;
 
+/** Suppress duplicate clock tick deliveries while preserving simultaneous events and restarts. */
 export function guardTickRedelivery(transport: object): void {
 	const clock = (transport as { _clock?: { callback?: TickCallback } })._clock;
 	const deliver = clock?.callback;

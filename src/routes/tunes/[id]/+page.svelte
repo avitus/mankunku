@@ -173,13 +173,15 @@
 		goto('/tunes');
 	}
 
+	/** Add the viewed community tune to the local book and refresh its available actions. */
 	async function handleAdopt() {
 		if (!baseSheet || !supabase || adopting) return;
 		adopting = true;
 		try {
-			// adoptTune caches the payload before resolving, so a re-read puts
-			// the tune in the book and the page switches to it.
-			if (await adoptTune(supabase, baseSheet.id)) cacheVersion++;
+			// Retain the validated sheet being viewed if the post-insert fetch
+			// fails, so the book and its Practice action are immediately usable.
+			const viewed = sharedSheet && shared ? shared : undefined;
+			if (await adoptTune(supabase, baseSheet.id, viewed)) cacheVersion++;
 		} finally {
 			adopting = false;
 		}

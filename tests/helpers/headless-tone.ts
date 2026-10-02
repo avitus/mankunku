@@ -26,24 +26,31 @@ class StubAudioParam {
 		this.value = value;
 		this.defaultValue = value;
 	}
+	/** Accept automation setup without rendering or advancing the test clock. */
 	setValueAtTime(): this {
 		return this;
 	}
+	/** Accept linear automation; only transport arithmetic is exercised here. */
 	linearRampToValueAtTime(): this {
 		return this;
 	}
+	/** Accept exponential automation without synthesizing audio. */
 	exponentialRampToValueAtTime(): this {
 		return this;
 	}
+	/** Accept target automation while leaving clock advancement to the test. */
 	setTargetAtTime(): this {
 		return this;
 	}
+	/** Accept curve automation without allocating an audio renderer. */
 	setValueCurveAtTime(): this {
 		return this;
 	}
+	/** Satisfy Tone cleanup; this stub stores no automation events. */
 	cancelScheduledValues(): this {
 		return this;
 	}
+	/** Satisfy cancellation while keeping the inert parameter chainable. */
 	cancelAndHoldAtTime(): this {
 		return this;
 	}
@@ -58,9 +65,11 @@ class StubAudioNode {
 	constructor(extra: Record<string, unknown> = {}) {
 		Object.assign(this, extra);
 	}
+	/** Satisfy graph wiring without connecting real audio nodes. */
 	connect(): this {
 		return this;
 	}
+	/** Satisfy graph cleanup; no real connections are allocated. */
 	disconnect(): void {}
 }
 
@@ -76,6 +85,7 @@ const LISTENER_PARAMS = [
 	'upZ'
 ];
 
+/** Build the Web Audio surface Tone needs, with a clock driven only by the test. */
 function stubAudioContext(sampleRate: number): Record<string, unknown> {
 	return {
 		sampleRate,
@@ -85,7 +95,13 @@ function stubAudioContext(sampleRate: number): Record<string, unknown> {
 		listener: Object.fromEntries(LISTENER_PARAMS.map((k) => [k, new StubAudioParam(0)])),
 		createGain: () => new StubAudioNode({ gain: new StubAudioParam(1) }),
 		createConstantSource: () =>
-			new StubAudioNode({ offset: new StubAudioParam(1), start() {}, stop() {} }),
+			new StubAudioNode({
+				offset: new StubAudioParam(1),
+				/** Satisfy constant-source startup without producing samples. */
+				start() {},
+				/** Satisfy constant-source teardown without producing samples. */
+				stop() {}
+			}),
 		createBuffer: (channels: number, length: number, rate: number) => ({
 			getChannelData: () => new Float32Array(length),
 			numberOfChannels: channels,
@@ -93,8 +109,16 @@ function stubAudioContext(sampleRate: number): Record<string, unknown> {
 			sampleRate: rate
 		}),
 		createBufferSource: () =>
-			new StubAudioNode({ playbackRate: new StubAudioParam(1), start() {}, stop() {} }),
+			new StubAudioNode({
+				playbackRate: new StubAudioParam(1),
+				/** Satisfy buffer-source startup without consuming a buffer. */
+				start() {},
+				/** Satisfy buffer-source teardown without scheduling audio. */
+				stop() {}
+			}),
+		/** Context lifecycle events are inert; run() emits Tone scheduler ticks directly. */
 		addEventListener() {},
+		/** No context listeners are retained by this stub. */
 		removeEventListener() {},
 		resume: async () => {},
 		close: async () => {}
@@ -103,6 +127,7 @@ function stubAudioContext(sampleRate: number): Record<string, unknown> {
 
 let tone: ToneModule | null = null;
 
+/** Import Tone once with native-shape stubs available for its capability checks. */
 async function loadTone(): Promise<ToneModule> {
 	if (tone) return tone;
 	const g = globalThis as { window?: unknown };
@@ -132,6 +157,7 @@ export interface HeadlessTransport {
 	run: (seconds: number) => void;
 }
 
+/** Create a real Tone transport at a chosen sample rate, tempo and starting render quantum. */
 export async function createHeadlessTransport(options: {
 	sampleRate: number;
 	bpm: number;
@@ -158,6 +184,7 @@ export async function createHeadlessTransport(options: {
 		Tone,
 		context,
 		transport,
+		/** Advance render quanta and dispatch every possible scheduler pass for this interval. */
 		run(seconds) {
 			const end = raw.currentTime + seconds;
 			while (raw.currentTime < end) {

@@ -213,6 +213,45 @@ test.describe('tune community — authed browse', () => {
 test.describe('tune community — add from the detail page', () => {
 	const ADOPTER: E2ETestUser = { id: 'aaaaaaaa-0000-4000-8000-0000000ad097', email: 'adopter@e2e.dev' };
 
+	test('a failed post-adoption fetch keeps the viewed sheet available for practice', async ({
+		page,
+		baseURL
+	}) => {
+		const cloud = createStubCloud();
+		cloud.seedRow('tunes', COMMUNITY_TUNE_ROW);
+		cloud.seedRow('public_tune_authors', COMMUNITY_AUTHOR_ROW);
+		await installStubCloud(page.context(), cloud, ADOPTER, baseURL as string);
+		await seedStorage(page, { settings: SETTINGS_ONBOARDED, 'tour-state': TOUR_DISMISSED });
+		await page.goto('/tunes/e2e-community-tune-1');
+		await expect(page.getByText('shared by Test Author')).toBeVisible();
+
+		let failedFetches = 0;
+		await page.route('**/rest/v1/tunes?*', async (route) => {
+			// Hydration may re-fetch the viewed sheet before the click. Fail
+			// only the payload request after the server records the adoption.
+			if (cloud.rows('tune_adoptions').length === 0) return route.fallback();
+			failedFetches++;
+			await route.fulfill({
+				status: 404,
+				contentType: 'application/json',
+				body: JSON.stringify({ message: 'Post-insert payload fetch unavailable' })
+			});
+		});
+		await page.getByRole('button', { name: 'Add to my book' }).click();
+
+		await expect(page.getByRole('button', { name: 'Practice licks' })).toBeVisible();
+		await expect(page.getByRole('button', { name: 'Return to community' })).toBeVisible();
+		await expect(page.getByText('shared by Test Author')).toBeVisible();
+		expect(failedFetches).toBeGreaterThan(0);
+		expect(cloud.rows('tune_adoptions')).toEqual([
+			expect.objectContaining({ user_id: ADOPTER.id, tune_id: COMMUNITY_TUNE_ROW.id })
+		]);
+		await page.getByRole('button', { name: 'Practice licks' }).click();
+		await expect(page).toHaveURL(/\/tunes\/[^/]+\/practice$/);
+		await expect(page.getByRole('heading', { name: 'Practice licks' })).toBeVisible();
+		await expect(page.getByRole('img', { name: 'Sheet Music for "Community Test Tune"' })).toBeVisible();
+	});
+
 	test('adding a shared tune puts it in the book and unlocks practice', async ({
 		page,
 		baseURL,

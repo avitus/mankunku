@@ -102,6 +102,7 @@ async function ensureSynths(): Promise<void> {
  */
 const SAME_BEAT_SECONDS = 0.001;
 
+/** Deduplicate near-identical Sequence callback times before a synth can be started twice. */
 function playEachBeatOnce(
 	play: (time: number, beat: number) => void
 ): (time: number, beat: number) => void {
