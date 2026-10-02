@@ -51,8 +51,9 @@
  * circle it opens on the failing key ALONE, `focusStartTempo` under the
  * lick's saved tempo, and staircases that one key (clear → up, sub-floor →
  * `focusStepDownTempo`, in between → hold) until a clear lands back at the
- * saved tempo — "up to speed". Then it re-admits the other keys one per
- * cleared rotation, worst first, at a held tempo, and once the full set is
+ * saved tempo — "up to speed". Each earned admission gets a one-key repeat
+ * with the next chart visible before it enters. The queue is worst first,
+ * but the previewed key always enters first, at a held tempo. Once the full set is
  * back hands over to the ordinary clear → bump → refill rule. One rule per
  * phase: focus earns tempo, rebuild earns keys, a full rotation earns tempo
  * again. It is the unlock ladder in miniature, with expertise standing in
@@ -270,6 +271,8 @@ export function planFocusRamp(
 
 export interface RampCycleInput {
 	ramp: FocusRamp;
+	/** Last key actually played; repeat it while previewing an earned admission. */
+	lastKey: PitchClass;
 	/** Keys left in the rotation after this round's masteries dropped out. */
 	survivors: readonly PitchClass[];
 	tempo: number;
@@ -291,19 +294,17 @@ export interface RampCycleOutput {
  * One cycle boundary of a focus ramp. Pure and non-mutating: returns the
  * next ramp state, the next rotation and the next tempo.
  *
- * - focus, cleared: step up; at or above the target that clear ends focus
- *   and admits the first queued key in the same step (or completes the ramp
- *   outright when nothing is queued). The tempo is clamped to the target on
- *   that clear — a 5% knob from 99 would otherwise open rebuild at 104, and
- *   "held at the saved tempo" is the promise.
+ * - focus, cleared below target: step up, capped at target. A prospective
+ *   bump is not proof the key has been played successfully at that tempo.
+ * - focus, cleared at target: earn a handoff (or complete if nothing queued).
  * - focus, not cleared: step down on a sub-floor score, hold otherwise.
- * - rebuild, cleared: admit the next queued key; the last admission
- *   completes the ramp. Tempo held.
+ * - handoff: admit the previewed key regardless of score. Tempo held.
+ * - rebuild, cleared: earn another one-key handoff. Tempo held.
  * - rebuild, not cleared: survivors keep cycling. Tempo held.
  * - complete: untouched — the caller runs the ordinary rule.
  */
 export function resolveRampCycle(input: RampCycleInput): RampCycleOutput {
-	const { ramp, survivors, bumpPercent, focusScore, round } = input;
+	const { ramp, survivors, bumpPercent, focusScore, round, lastKey } = input;
 	const cleared = survivors.length === 0;
 	let tempo = input.tempo;
 
@@ -314,24 +315,26 @@ export function resolveRampCycle(input: RampCycleInput): RampCycleOutput {
 			}
 			return { ramp: cloneRamp(ramp), rotation: [ramp.focusKey], tempo };
 		}
-		tempo = nextCycleTempo(tempo, bumpPercent);
 		if (tempo < ramp.targetTempo) {
+			tempo = Math.min(ramp.targetTempo, nextCycleTempo(tempo, bumpPercent));
 			return { ramp: cloneRamp(ramp), rotation: [ramp.focusKey], tempo };
 		}
-		// Up to speed — land exactly on the saved tempo (a bump rounds/overshoots;
-		// rebuild holds at the target, never above it). Leave focus and admit the
-		// first queued key now: the user just cleared at speed; there is nothing
-		// left to prove alone.
 		tempo = ramp.targetTempo;
 		return {
-			...admitNext({ ...cloneRamp(ramp), phase: 'rebuild', upToSpeedRound: round }, round),
+			...prepareHandoff({ ...cloneRamp(ramp), upToSpeedRound: round }, lastKey, round),
 			tempo
 		};
 	}
 
+	if (ramp.phase === 'handoff') {
+		// The next chart has been visible for a full loop. Its entrance is a
+		// promise, not another mastery test on the key the player just cleared.
+		return { ...admitNext(cloneRamp(ramp), round), tempo };
+	}
+
 	if (ramp.phase === 'rebuild') {
 		if (!cleared) return { ramp: cloneRamp(ramp), rotation: [...survivors], tempo };
-		return { ...admitNext(cloneRamp(ramp), round), tempo };
+		return { ...prepareHandoff(cloneRamp(ramp), lastKey, round), tempo };
 	}
 
 	return { ramp: cloneRamp(ramp), rotation: [...survivors], tempo };
@@ -339,6 +342,12 @@ export function resolveRampCycle(input: RampCycleInput): RampCycleOutput {
 
 function cloneRamp(ramp: FocusRamp): FocusRamp {
 	return { ...ramp, admitted: [...ramp.admitted], queue: [...ramp.queue] };
+}
+
+/** Replay one familiar key to give the queued key a full loop of advance notice. */
+function prepareHandoff(ramp: FocusRamp, lastKey: PitchClass, round: number): { ramp: FocusRamp; rotation: PitchClass[] } {
+	if (ramp.queue.length === 0) return admitNext(ramp, round);
+	return { ramp: { ...ramp, phase: 'handoff' }, rotation: [lastKey] };
 }
 
 /** Move the head of the queue into the admitted set; an empty queue completes the ramp. */

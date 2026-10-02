@@ -17,6 +17,7 @@
 		getCurrentPhrase,
 		getPhraseFor,
 		getPlannedKeysForLick,
+		getHandoffPreviewKey,
 		buildLickSuperPhrase,
 		getKeyBars,
 		getDemoBars,
@@ -196,6 +197,16 @@
 	// start; scrollFraction is updated each animation frame from
 	// transport.ticks via startBeatTracking().
 	let plannedKeysForLick = $state<PlannedKey[]>([]);
+	let nextCycleKey = $state<PlannedKey | null>(null);
+	// Audio must be queued during lookahead, but the chart must retain the
+	// sounding cycle until its final beat has actually finished.
+	let pendingCycleDisplay: {
+		startTick: number;
+		rows: PlannedKey[];
+		preview: PlannedKey | null;
+		layout: CyclePositionArgs;
+		timeline: PhaseSegment[];
+	} | null = null;
 	let scrollFraction = $state(0);
 	// Score-hold: true only during the first inter-lick rest bar, while the
 	// finished lick's last-key chart would otherwise sit frozen on screen. It
@@ -312,7 +323,15 @@
 	let scheduledEventIds: number[] = [];
 
 	const currentItem = $derived(getCurrentPlanItem());
-	const currentKey = $derived(getCurrentKey());
+	// The scheduler's key index moves during lookahead. In a focused drill
+	// the large key name and ring must follow the sounding chart instead.
+	const currentKey = $derived.by(() => {
+		if (lickPractice.mode === 'single-lick' && lickPractice.ramp && plannedKeysForLick.length) {
+			const row = Math.min(plannedKeysForLick.length - 1, Math.max(0, Math.floor(scrollFraction)));
+			return plannedKeysForLick[row].key;
+		}
+		return getCurrentKey();
+	});
 
 	// Ring props fork by mode. Single-lick renders the STABLE session key set
 	// with session-long latest results — `plan[0].keys` shrinks as keys
@@ -340,7 +359,7 @@
 	const rampStatusLabel = $derived.by(() => {
 		const ramp = lickPractice.ramp;
 		if (lickPractice.mode !== 'single-lick' || !ramp || ramp.phase === 'complete') return null;
-		if (ramp.phase === 'focus') {
+		if (ramp.phase === 'focus' || (ramp.phase === 'handoff' && ramp.admitted.length === 1)) {
 			const key = keyLabel(concertKeyToWritten(ramp.focusKey, instrument), progressionMode(currentProgressionType));
 			return `Focus · ${key} · ${lickPractice.currentTempo} → ${ramp.targetTempo} BPM`;
 		}
@@ -669,9 +688,12 @@
 		// updates on every lick boundary so the scroll resets cleanly when a
 		// new lick starts; the tick layout the scroll reads is installed with
 		// the windows (scheduleLickWindows), from the same plan.
-		plannedKeysForLick = getPlannedKeysForLick(lickIdx);
-		rowOfKey = rowIndexByKey(plannedKeysForLick);
-		cycleLayout = null;
+		if (boundaryTime === undefined) {
+			plannedKeysForLick = getPlannedKeysForLick(lickIdx);
+			nextCycleKey = getHandoffPreviewKey(lickIdx);
+			rowOfKey = rowIndexByKey(plannedKeysForLick);
+			cycleLayout = null;
+		}
 
 		lickPractice.phase = 'lick-running';
 		lickPractice.currentKeyIndex = 0;
@@ -732,8 +754,6 @@
 				toneModule.getTransport().bpm.value = opts.tempo;
 			}
 
-			scrollFraction = 0;
-
 			void playback.scheduleNextPhrase(superPhrase, opts, {
 				skipMelody,
 				loopBacking: false,
@@ -746,6 +766,7 @@
 			});
 
 			if (boundaryTime === undefined) {
+				scrollFraction = 0;
 				scheduleLickWindows(lickIdx, audioStartTick, keyBars, lickBars, ticksPerBar);
 			}
 		}
@@ -807,7 +828,7 @@
 		const lickEndTick = windows.cycleEndTick;
 
 		// The display reads its position off this same plan every frame.
-		cycleLayout = {
+		const nextLayout: CyclePositionArgs = {
 			audioStartTick,
 			demoBars,
 			keyBars,
@@ -821,7 +842,7 @@
 		// trailing gap; other deep drills retain a turnaround, and standard
 		// sessions retain their inter-lick rest.
 		const previousPlay = phaseTimeline.at(-1);
-		phaseTimeline = buildPhaseTimeline({
+		const nextTimeline = buildPhaseTimeline({
 			audioStartTick,
 			windows,
 			ticksPerBar,
@@ -834,8 +855,20 @@
 		// between the scheduled callback and the audible downbeat.
 		if (boundaryTime !== undefined && previousPlay?.phase === 'play' &&
 			previousPlay.endTick === audioStartTick) {
-			if (phaseTimeline[0]?.phase === 'play') phaseTimeline[0].startTick = previousPlay.startTick;
-			else phaseTimeline.unshift(previousPlay);
+			if (nextTimeline[0]?.phase === 'play') nextTimeline[0].startTick = previousPlay.startTick;
+			else nextTimeline.unshift(previousPlay);
+		}
+		if (boundaryTime !== undefined) {
+			pendingCycleDisplay = {
+				startTick: audioStartTick,
+				rows: getPlannedKeysForLick(lickIdx),
+				preview: getHandoffPreviewKey(lickIdx),
+				layout: nextLayout,
+				timeline: nextTimeline
+			};
+		} else {
+			cycleLayout = nextLayout;
+			phaseTimeline = nextTimeline;
 		}
 
 		for (let w = 0; w < windows.opens.length; w++) {
@@ -1086,6 +1119,14 @@
 				const ticks = turnaroundBars === 0
 					? transport.getTicksAtTime(toneModule.immediate())
 					: transport.ticks;
+				if (pendingCycleDisplay && ticks >= pendingCycleDisplay.startTick) {
+					plannedKeysForLick = pendingCycleDisplay.rows;
+					nextCycleKey = pendingCycleDisplay.preview;
+					rowOfKey = rowIndexByKey(plannedKeysForLick);
+					cycleLayout = pendingCycleDisplay.layout;
+					phaseTimeline = pendingCycleDisplay.timeline;
+					pendingCycleDisplay = null;
+				}
 
 				// Position in the cycle, off the scheduled window plan: the beat
 				// sits at 0 through the lead-in (count-in / rest / turnaround) so
@@ -1548,6 +1589,7 @@
 		return getPhraseFor(lickIdx, keyIdx);
 	}
 
+	/** Stop playback and capture, discard pending visual cycles, and finalize completed attempts. */
 	function stopAll() {
 		// If the session ends during the score-hold bar — after the last
 		// key was scored but before the delayed handleLickComplete has
@@ -1575,6 +1617,8 @@
 		}
 		scoreFlash = null;
 		lastBoundaryTick = null;
+		pendingCycleDisplay = null;
+		nextCycleKey = null;
 		// Drop the listen/play cue so a stale "Play" can't outlive the session
 		// on the report screen or into a restart.
 		phaseTimeline = [];
@@ -2097,6 +2141,7 @@
 			>
 				<UpcomingKeysDisplay
 					plannedKeys={plannedKeysForLick}
+					{nextCycleKey}
 					{scrollFraction}
 					{currentBeat}
 					isPlaying={isSessionRunning}

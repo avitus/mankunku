@@ -1385,6 +1385,22 @@ export function getPlannedKeysForLick(lickIdx: number): PlannedKey[] {
 	return result;
 }
 
+/** The promised next-cycle chart; display only, never part of this cycle's audio/windows. */
+export function getHandoffPreviewKey(lickIdx: number): PlannedKey | null {
+	const ramp = lickPractice.ramp;
+	const item = lickPractice.plan[lickIdx];
+	if (lickPractice.mode !== 'single-lick' || ramp?.phase !== 'handoff' || !item) return null;
+	const key = ramp.queue[0];
+	if (!key) return null;
+	const phrase = buildPhraseFor(item, key);
+	if (!phrase) return null;
+	return {
+		lickIndex: lickIdx, keyIndex: item.keys.length, key, phrase,
+		harmony: phrase.harmony, lickName: item.phraseName, lickId: item.phraseId,
+		reveal: false, passes: 1
+	};
+}
+
 /**
  * Reveal decisions, keyed by the rotation array they were taken for. A
  * rotation (`item.keys`) is REPLACED — never mutated — whenever it is rebuilt
@@ -1468,6 +1484,7 @@ function revealFor(item: LickPracticePlanItem, key: PitchClass): boolean {
  * windows already replays the app's half, so three would be three demos.
  */
 function passesFor(item: LickPracticePlanItem, key: PitchClass): number {
+	if (lickPractice.mode === 'single-lick' && lickPractice.ramp?.phase === 'handoff') return 1;
 	return revealFor(item, key) && lickPractice.config.practiceMode === 'continuous'
 		? LEAD_SHEET_PASSES
 		: 1;
@@ -1501,6 +1518,9 @@ export function getKeyPasses(lickIdx: number): number[] {
  * that bar.
  */
 function pauseBarsFor(item: LickPracticePlanItem, key: PitchClass, slot: number): number {
+	// This key just cleared. Its repeat supplies advance notice for the NEXT
+	// key; asking the player to prepare the current sheet again breaks flow.
+	if (lickPractice.mode === 'single-lick' && lickPractice.ramp?.phase === 'handoff') return 0;
 	if (lickPractice.config.practiceMode !== 'continuous') return 0;
 	if (slot === 0 && cycleDemos()) return 0;
 	return revealFor(item, key) ? LEAD_SHEET_PAUSE_BARS : 0;
@@ -2099,6 +2119,7 @@ export function advanceSingleLickRound(): void {
 	// Drop mastered keys from the active rotation.
 	const survivors = item.keys.filter(k => !lickPractice.masteredThisRound.includes(k));
 	const ramp = item.kind === 'trick' ? null : lickPractice.ramp;
+	const promisedKey = ramp?.phase === 'handoff' ? ramp.queue[0] : undefined;
 
 	if (ramp && ramp.phase !== 'complete') {
 		// Focus ramp: the rotation and tempo follow the staircase / rebuild
@@ -2108,6 +2129,7 @@ export function advanceSingleLickRound(): void {
 		const focusResult = [...roundResults].reverse().find((r) => r.key === ramp.focusKey);
 		const next = resolveRampCycle({
 			ramp,
+			lastKey: item.keys.at(-1) ?? ramp.focusKey,
 			survivors,
 			tempo: lickPractice.currentTempo,
 			bumpPercent: lickPractice.config.tempoBumpPercent ?? DEFAULT_TEMPO_BUMP_PERCENT,
@@ -2206,6 +2228,11 @@ export function advanceSingleLickRound(): void {
 		item.keys = sortKeysWorstFirst(item.keys, (k) =>
 			getRollingScore(lickPractice.progress, item.phraseId, k)
 		);
+		// A handoff preview promises the very next key, even if the repeat's
+		// score made an older key weaker. Resume worst-first after that entrance.
+		if (promisedKey && item.keys.includes(promisedKey)) {
+			item.keys = [promisedKey, ...item.keys.filter((key) => key !== promisedKey)];
+		}
 		lickPractice.demoNextCycle =
 			lickPractice.config.practiceMode === 'continuous' &&
 			lickPractice.ramp === null &&

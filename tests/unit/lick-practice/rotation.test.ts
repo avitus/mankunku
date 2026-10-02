@@ -549,242 +549,104 @@ describe('planFocusRamp', () => {
 });
 
 describe('resolveRampCycle', () => {
+	/** A three-key admission queue for focused policy transitions. */
 	const focus = (over: Partial<FocusRamp> = {}): FocusRamp => ({
-		focusKey: 'D',
-		targetTempo: 100,
-		phase: 'focus',
-		admitted: ['D'],
-		queue: ['A', 'E', 'B'],
-		upToSpeedRound: null,
-		rebuiltRound: null,
-		...over
+		focusKey: 'D', targetTempo: 100, phase: 'focus', admitted: ['D'],
+		queue: ['A', 'E', 'B'], upToSpeedRound: null, rebuiltRound: null, ...over
+	});
+	/** Close a target-tempo passing round, overriding only the behavior under test. */
+	const resolve = (over: Partial<Parameters<typeof resolveRampCycle>[0]> = {}) => resolveRampCycle({
+		ramp: focus(), lastKey: 'D', survivors: [], tempo: 100, bumpPercent: 1,
+		focusScore: 0.97, round: 14, ...over
 	});
 
-	describe('focus phase', () => {
-		it('a clear below the target steps the tempo up and keeps the focus key alone', () => {
-			const out = resolveRampCycle({
-				ramp: focus(),
-				survivors: [],
-				tempo: 90,
-				bumpPercent: 1,
-				focusScore: 0.97,
-				round: 1
-			});
-			expect(out.tempo).toBe(91);
+	it('steps up below target and caps an overshooting bump without claiming a target clear', () => {
+		for (const [tempo, bumpPercent, expected] of [[90, 1, 91], [90, 5, 95], [99, 1, 100], [99, 5, 100]]) {
+			const out = resolve({ tempo, bumpPercent });
+			expect(out.tempo).toBe(expected);
 			expect(out.rotation).toEqual(['D']);
 			expect(out.ramp.phase).toBe('focus');
 			expect(out.ramp.upToSpeedRound).toBeNull();
-		});
+		}
+	});
 
-		it('a sub-floor attempt steps the tempo down', () => {
-			const out = resolveRampCycle({
-				ramp: focus(),
-				survivors: ['D'],
-				tempo: 90,
-				bumpPercent: 1,
-				focusScore: 0.6,
-				round: 1
-			});
-			expect(out.tempo).toBe(87);
+	it('steps down below 75%, and holds for the middle band or an unscored key', () => {
+		for (const [focusScore, expected] of [[0.6, 87], [0.75, 90], [0.94, 90], [undefined, 90]]) {
+			const out = resolve({ tempo: 90, focusScore, survivors: ['D'] });
+			expect(out.tempo).toBe(expected);
 			expect(out.rotation).toEqual(['D']);
 			expect(out.ramp.phase).toBe('focus');
-		});
+		}
+	});
 
-		it('an attempt in the 75–94% band holds the tempo', () => {
-			for (const score of [0.75, 0.8, 0.94]) {
-				const out = resolveRampCycle({
-					ramp: focus(),
-					survivors: ['D'],
-					tempo: 90,
-					bumpPercent: 1,
-					focusScore: score,
-					round: 1
-				});
-				expect(out.tempo).toBe(90);
-				expect(out.rotation).toEqual(['D']);
-			}
-		});
+	it('an actual target clear reserves the queue head and repeats the focus key', () => {
+		const out = resolve();
+		expect(out.tempo).toBe(100);
+		expect(out.rotation).toEqual(['D']);
+		expect(out.ramp).toEqual(focus({ phase: 'handoff', upToSpeedRound: 14 }));
+	});
 
-		it('holds when the focus key was not scored this round', () => {
-			const out = resolveRampCycle({
-				ramp: focus(),
-				survivors: ['D'],
-				tempo: 90,
-				bumpPercent: 1,
-				focusScore: undefined,
-				round: 1
-			});
-			expect(out.tempo).toBe(90);
-		});
+	it('completes a single-key ramp at target without a pointless handoff', () => {
+		const out = resolve({ ramp: focus({ queue: [] }) });
+		expect(out.ramp.phase).toBe('complete');
+		expect(out.ramp.upToSpeedRound).toBe(14);
+		expect(out.ramp.rebuiltRound).toBe(14);
+		expect(out.rotation).toEqual(['D']);
+	});
 
-		it('the clear that reaches the target ends focus: admits the next-worst key and stamps the round', () => {
-			const out = resolveRampCycle({
-				ramp: focus(),
-				survivors: [],
-				tempo: 99,
-				bumpPercent: 1,
-				focusScore: 0.97,
-				round: 14
-			});
+	it('honors a handoff after a pass, a miss, or a missing score without changing tempo', () => {
+		for (const focusScore of [0.97, 0.6, 0, undefined]) {
+			const ramp = focus({ phase: 'handoff', upToSpeedRound: 14 });
+			const out = resolve({ ramp, focusScore, survivors: focusScore === 0.97 ? [] : ['D'], round: 15 });
 			expect(out.tempo).toBe(100);
 			expect(out.ramp.phase).toBe('rebuild');
 			expect(out.ramp.admitted).toEqual(['D', 'A']);
 			expect(out.ramp.queue).toEqual(['E', 'B']);
-			expect(out.rotation).toEqual(['D', 'A']);
 			expect(out.ramp.upToSpeedRound).toBe(14);
-			expect(out.ramp.rebuiltRound).toBeNull();
-		});
-
-		it('a bump that overshoots the target is clamped to it — rebuild holds at the saved tempo, not above', () => {
-			// 99 + 5% would be 104; the saved tempo is the promise, so the clear
-			// that gets there lands exactly on it.
-			const out = resolveRampCycle({
-				ramp: focus(),
-				survivors: [],
-				tempo: 99,
-				bumpPercent: 5,
-				focusScore: 0.97,
-				round: 2
-			});
-			expect(out.tempo).toBe(100);
-			expect(out.ramp.phase).toBe('rebuild');
-		});
-
-		it('a bump below the target is never clamped', () => {
-			const out = resolveRampCycle({
-				ramp: focus(),
-				survivors: [],
-				tempo: 90,
-				bumpPercent: 5,
-				focusScore: 0.97,
-				round: 2
-			});
-			expect(out.tempo).toBe(95);
-			expect(out.ramp.phase).toBe('focus');
-		});
-
-		it('with nothing queued, reaching the target completes the ramp outright', () => {
-			const out = resolveRampCycle({
-				ramp: focus({ queue: [] }),
-				survivors: [],
-				tempo: 99,
-				bumpPercent: 1,
-				focusScore: 0.97,
-				round: 3
-			});
-			expect(out.ramp.phase).toBe('complete');
-			expect(out.ramp.upToSpeedRound).toBe(3);
-			expect(out.ramp.rebuiltRound).toBe(3);
-			expect(out.rotation).toEqual(['D']);
-		});
-
-		it('reaching the target with one key queued admits it and completes in the same step', () => {
-			const out = resolveRampCycle({
-				ramp: focus({ queue: ['A'] }),
-				survivors: [],
-				tempo: 99,
-				bumpPercent: 1,
-				focusScore: 0.97,
-				round: 5
-			});
-			expect(out.ramp.phase).toBe('complete');
-			expect(out.ramp.admitted).toEqual(['D', 'A']);
-			expect(out.ramp.queue).toEqual([]);
-			expect(out.ramp.upToSpeedRound).toBe(5);
-			expect(out.ramp.rebuiltRound).toBe(5);
-		});
+			expect(out.rotation).toEqual(['D', 'A']);
+		}
 	});
 
-	describe('rebuild phase', () => {
-		const rebuild = (over: Partial<FocusRamp> = {}): FocusRamp =>
-			focus({
-				phase: 'rebuild',
-				admitted: ['D', 'A'],
-				queue: ['E', 'B'],
-				upToSpeedRound: 14,
-				...over
-			});
-
-		it('a full clear admits the next-worst key and holds the tempo', () => {
-			const out = resolveRampCycle({
-				ramp: rebuild(),
-				survivors: [],
-				tempo: 100,
-				bumpPercent: 1,
-				focusScore: undefined,
-				round: 20
-			});
-			expect(out.tempo).toBe(100);
-			expect(out.ramp.phase).toBe('rebuild');
-			expect(out.ramp.admitted).toEqual(['D', 'A', 'E']);
-			expect(out.ramp.queue).toEqual(['B']);
-			expect(out.rotation).toEqual(['D', 'A', 'E']);
-			expect(out.ramp.rebuiltRound).toBeNull();
-		});
-
-		it('survivors keep cycling at the held tempo without admitting anyone', () => {
-			const out = resolveRampCycle({
-				ramp: rebuild(),
-				survivors: ['A'],
-				tempo: 100,
-				bumpPercent: 1,
-				// Even a sub-floor score does not step down outside the focus phase.
-				focusScore: 0.6,
-				round: 20
-			});
-			expect(out.tempo).toBe(100);
-			expect(out.rotation).toEqual(['A']);
-			expect(out.ramp.admitted).toEqual(['D', 'A']);
-			expect(out.ramp.queue).toEqual(['E', 'B']);
-		});
-
-		it('admitting the last queued key completes the ramp and stamps the round', () => {
-			const out = resolveRampCycle({
-				ramp: rebuild({ queue: ['B'] }),
-				survivors: [],
-				tempo: 100,
-				bumpPercent: 1,
-				focusScore: undefined,
-				round: 27
-			});
-			expect(out.ramp.phase).toBe('complete');
-			expect(out.ramp.rebuiltRound).toBe(27);
-			expect(out.ramp.admitted).toEqual(['D', 'A', 'B']);
-			expect(out.ramp.queue).toEqual([]);
-			expect(out.rotation).toEqual(['D', 'A', 'B']);
-		});
+	it('a rebuild clear repeats the last-played survivor while reserving the next key', () => {
+		const ramp = focus({ phase: 'rebuild', admitted: ['D', 'A'], queue: ['E', 'B'], upToSpeedRound: 14 });
+		const out = resolve({ ramp, lastKey: 'A', focusScore: undefined, round: 20 });
+		expect(out.tempo).toBe(100);
+		expect(out.ramp).toEqual({ ...ramp, phase: 'handoff' });
+		expect(out.rotation).toEqual(['A']);
 	});
 
-	it('never mutates the input ramp', () => {
-		const ramp = focus();
-		const snapshot = structuredClone(ramp);
-		resolveRampCycle({
-			ramp,
-			survivors: [],
-			tempo: 99,
-			bumpPercent: 1,
-			focusScore: 0.97,
-			round: 1
-		});
-		expect(ramp).toEqual(snapshot);
+	it('rebuild survivors keep cycling at held tempo without a handoff or admission', () => {
+		const ramp = focus({ phase: 'rebuild', admitted: ['D', 'A'], queue: ['E', 'B'], upToSpeedRound: 14 });
+		const out = resolve({ ramp, lastKey: 'A', survivors: ['A'], focusScore: 0.6 });
+		expect(out.tempo).toBe(100);
+		expect(out.ramp).toEqual(ramp);
+		expect(out.rotation).toEqual(['A']);
+	});
+
+	it('only the promised final admission completes the ramp and stamps its round', () => {
+		const ramp = focus({ phase: 'rebuild', admitted: ['D', 'A'], queue: ['B'], upToSpeedRound: 14 });
+		const preview = resolve({ ramp, lastKey: 'A', round: 27 });
+		expect(preview.ramp.phase).toBe('handoff');
+		expect(preview.ramp.rebuiltRound).toBeNull();
+		const out = resolve({ ramp: preview.ramp, lastKey: 'A', survivors: ['A'], focusScore: undefined, round: 28 });
+		expect(out.ramp.phase).toBe('complete');
+		expect(out.ramp.rebuiltRound).toBe(28);
+		expect(out.ramp.admitted).toEqual(['D', 'A', 'B']);
+		expect(out.ramp.queue).toEqual([]);
+	});
+
+	it('never mutates an input ramp, including its queue and admitted arrays', () => {
+		for (const phase of ['focus', 'handoff', 'rebuild'] as const) {
+			const ramp = focus({ phase });
+			const snapshot = structuredClone(ramp);
+			resolve({ ramp });
+			expect(ramp).toEqual(snapshot);
+		}
 	});
 
 	it('leaves a completed ramp and its tempo alone', () => {
-		const ramp = focus({
-			phase: 'complete',
-			admitted: ['D', 'A', 'E', 'B'],
-			queue: [],
-			upToSpeedRound: 14,
-			rebuiltRound: 27
-		});
-		const out = resolveRampCycle({
-			ramp,
-			survivors: [],
-			tempo: 100,
-			bumpPercent: 1,
-			focusScore: undefined,
-			round: 30
-		});
+		const ramp = focus({ phase: 'complete', admitted: ['D', 'A', 'E', 'B'], queue: [], upToSpeedRound: 14, rebuiltRound: 28 });
+		const out = resolve({ ramp });
 		expect(out.ramp).toEqual(ramp);
 		expect(out.tempo).toBe(100);
 	});

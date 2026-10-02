@@ -74,6 +74,7 @@ The player guides, plus a handful of the architecture and reference pages, are a
 | Document | Description |
 |---|---|
 | [Overview](./architecture/overview.md) | The three practice surfaces and how a phrase travels through the app |
+| [Lick Practice State Machines](./architecture/lick-practice-state-machines.md) | Daily and recommended Deep Practice: audio, cues, notation, key handoffs and persistence |
 | [Tech Stack](./architecture/tech-stack.md) | Technology choices and rationale |
 | [Data Model](./architecture/data-model.md) | Core TypeScript types with field documentation |
 | [Audio Pipeline](./architecture/audio-pipeline.md) | Playback, capture, detection, segmentation, re-articulation tiers |

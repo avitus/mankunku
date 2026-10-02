@@ -18,6 +18,8 @@
 	interface Props {
 		/** All keys for the current lick, in playback order. */
 		plannedKeys: PlannedKey[];
+		/** Promised first key of the next cycle, visible during a handoff repeat. */
+		nextCycleKey?: PlannedKey | null;
 		/**
 		 * Scroll position in ROW units: the integer part is the row being
 		 * played — or read: a lead-sheet row is current from the start of its
@@ -61,6 +63,7 @@
 
 	let {
 		plannedKeys,
+		nextCycleKey = null,
 		scrollFraction,
 		currentBeat,
 		isPlaying,
@@ -116,13 +119,16 @@
 	// memory to reading is visible as a switch. Read-ahead parking (the sheet
 	// lit a whole key early) was tried and withdrawn — Andy: the sheet should
 	// not appear until the previous key has been played.
-	const rowHeights = $derived(plannedKeys.map((pk) => (pk.reveal ? LEAD_ROW_HEIGHT : ROW_HEIGHT)));
+	const displayKeys = $derived(nextCycleKey ? [...plannedKeys, nextCycleKey] : plannedKeys);
+	const rowHeights = $derived(displayKeys.map((pk) => (pk.reveal ? LEAD_ROW_HEIGHT : ROW_HEIGHT)));
 	// The viewport reserves the lead-sheet row plus a chord row whether or not
 	// this stack has a sheet: the ring under it must not move when the next
 	// cycle's stack (a key recovered above the floor) or the next lick's has
 	// no lead row — it used to shift 2 px between 315 and 317.
 	const layout = $derived(
-		keyStackLayout(rowHeights, scrollFraction, ROW_HEIGHT, VISIBLE_ROWS, LEAD_ROW_HEIGHT)
+		keyStackLayout(rowHeights, nextCycleKey
+			? Math.min(scrollFraction, Math.max(0, plannedKeys.length - 0.0001))
+			: scrollFraction, ROW_HEIGHT, VISIBLE_ROWS, LEAD_ROW_HEIGHT)
 	);
 	const translateYpx = $derived(layout.translateY);
 	const visualCurrentRow = $derived(layout.currentRow);
@@ -132,7 +138,7 @@
 	// options objects for its whole life — abcjs re-engraves on identity, and
 	// a per-frame rebuild would redraw the staff sixty times a second.
 	const leadSheets = $derived(
-		plannedKeys.map((pk) => {
+		displayKeys.map((pk) => {
 			if (!pk.reveal) return null;
 			const sheet = leadSheetTuneFor(pk.phrase);
 			return { ...sheet, options: leadSheetAbcOptions(pk.phrase, sheet.bars) };
@@ -141,10 +147,10 @@
 	// The tab names the key of the row it sits on — that row is always the one
 	// about to be played (the turnaround has already swapped the stack).
 	const activeKeyLabel = $derived.by(() => {
-		const key = plannedKeys[visualCurrentRow]?.key;
+		const key = displayKeys[visualCurrentRow]?.key;
 		if (!key) return '';
 		const written = concertKeyToWritten(key, instrument);
-		return keyLabel(written, lickMode(plannedKeys[visualCurrentRow].phrase));
+		return keyLabel(written, lickMode(displayKeys[visualCurrentRow].phrase));
 	});
 	const tab = $derived(cue ? phaseTabView(cue, activeKeyLabel) : null);
 	// Which pass of a multi-pass (revealed) row is playing: the row spans its
@@ -189,12 +195,13 @@
 
 <div class="viewport" style="height: {layout.viewportHeight}px;">
 	<div class="stack" style="transform: translateY({translateYpx}px);">
-		{#each plannedKeys as pk, i (pk.lickId + ':' + pk.key + ':' + i)}
+		{#each displayKeys as pk, i (pk.lickId + ':' + pk.key)}
 			{@const isCurrent = i === visualCurrentRow}
 			{@const sheet = leadSheets[i]}
 			{@const isRevealed = !!sheet && i <= visualCurrentRow}
 			<div
 				class="row"
+				data-key={pk.key}
 				class:current={isCurrent}
 				style="height: {rowHeights[i]}px;"
 			>
