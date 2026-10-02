@@ -213,6 +213,38 @@ test.describe('tune community — authed browse', () => {
 test.describe('tune community — add from the detail page', () => {
 	const ADOPTER: E2ETestUser = { id: 'aaaaaaaa-0000-4000-8000-0000000ad097', email: 'adopter@e2e.dev' };
 
+	test('an adoption with no cached sheet can be repaired from the detail page', async ({ page, baseURL }) => {
+		const cloud = createStubCloud();
+		cloud.seedRow('tunes', COMMUNITY_TUNE_ROW);
+		cloud.seedRow('public_tune_authors', COMMUNITY_AUTHOR_ROW);
+		cloud.seedRow('tune_adoptions', { user_id: ADOPTER.id, tune_id: COMMUNITY_TUNE_ROW.id });
+		await installStubCloud(page.context(), cloud, ADOPTER, baseURL as string);
+		await seedStorage(page, {
+			settings: SETTINGS_ONBOARDED,
+			'tour-state': TOUR_DISMISSED,
+			'tune-adoptions': [COMMUNITY_TUNE_ROW.id]
+		});
+		// Hydration can recover the adoption ID but fail to cache its payload.
+		// The independent detail lookup and subsequent repair remain available.
+		await page.route('**/rest/v1/tunes?*', async (route) => {
+			if (!new URL(route.request().url()).searchParams.get('id')?.startsWith('in.')) {
+				return route.fallback();
+			}
+			await route.fulfill({
+				status: 404,
+				contentType: 'application/json',
+				body: JSON.stringify({ message: 'Hydrated payload unavailable' })
+			});
+		});
+		await page.goto('/tunes/e2e-community-tune-1');
+		await expect(page.getByText('shared by Test Author')).toBeVisible();
+		await expect(page.getByRole('button', { name: 'Practice licks' })).toHaveCount(0);
+		await page.getByRole('button', { name: 'Add to my book' }).click();
+		await expect(page.getByRole('button', { name: 'Practice licks' })).toBeVisible();
+		await expect(page.getByRole('button', { name: 'Return to community' })).toBeVisible();
+		expect(cloud.rows('tune_adoptions')).toHaveLength(1);
+	});
+
 	test('a failed post-adoption fetch keeps the viewed sheet available for practice', async ({
 		page,
 		baseURL
