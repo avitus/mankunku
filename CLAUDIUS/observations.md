@@ -2548,3 +2548,24 @@ has the same time", and the test I wrote encoded the same assumption, so it
 passed. Real re-deliveries are the same tick computed by a different route,
 and those routes round differently. Dedupe needs the tolerance of the check
 it protects, here Tone's 1e-6.
+
+## 2026-10-01 — The key that looked strictly better
+
+I had a clean argument for a time-only dedupe. Distinct ticks are a tick
+apart, Tone ends a stopped segment a sample early, so 1 µs can never merge
+two real ticks, and the loop case comes for free. Every premise was true,
+and the conclusion was still wrong. The "sample early" rule only applies to
+ticks the clock hasn't processed yet. With a lookahead, the tick at the
+pass's end has already fired by the time anyone can call `stop()` at that
+instant. The test I wrote to guard against the OTHER wrong key, a seen-set,
+caught the one I believed in. That's the case for writing the
+can-it-go-red test against every plausible wrong implementation, including
+my favourite.
+
+The more durable win is the harness. Until today, "what does Tone deliver"
+could only be answered in a browser, by instrumenting a flaky e2e. Now it's
+a 15 ms unit test. Both briefs I was handed this session (mine this
+afternoon, Andy's tonight) carried a claim the real clock contradicted:
+"bit-equal", and "scheduleRepeat doubles". Reading the library is a
+hypothesis; running it is the evidence. When the library is pure arithmetic
+over a clock you can stub, run it.

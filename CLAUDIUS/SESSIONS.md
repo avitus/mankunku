@@ -4481,3 +4481,49 @@ Andy asked me to investigate dev's red CircleCI runs and fix what needed fixing.
   not ON it, so I didn't propose an upgrade. Melody and backing Parts can
   double-fire on the same boundary too; smplr doesn't throw, so the most it
   does is double one note's attack. Unfixed, flagged to Andy.
+
+## 2026-10-01 (evening) — One guard for every re-delivered tick
+
+Andy handed over the open half of the afternoon's find: the metronome was
+guarded, everything else that rides the transport could still fire twice.
+He asked me to choose between a guard at Tone's clock and per-Part wrappers,
+and to implement it test-first.
+
+- **Real Tone, headless.** Every audio test mocks Tone, and a mock can't show
+  what the clock delivers. Tone's scheduler is arithmetic over
+  `currentTime`, so `tests/helpers/headless-tone.ts` runs its real
+  Context/Transport/Clock over a stub AudioContext and emits a scheduler
+  pass at every 128-frame quantum. The first harness run reproduced the bug
+  with Tone's own code. 48 kHz, 240 BPM, started on quantum 1 re-delivers
+  beat 4. Two traps: Tone deep-copies a plain options object, so the stub
+  I held was not the one it read; and standardized-audio-context captures
+  `window` at import.
+- **Two corrections to the brief.** `scheduleRepeat` books every occurrence
+  through `scheduleOnce`, and looping Parts go through `scheduleRepeat`.
+  Both are immune, pinned unguarded, and that covers the turnaround bar and
+  the freestyle scan. Going the other way, I found one path the brief
+  missed: record-a-lick's entrance is a plain `transport.schedule`. Run
+  twice, it orphans its 2 s silence timer, which would end the take 2 s
+  after the downbeat.
+- **The decision: guard at the clock.** `guardTickRedelivery` wraps
+  `transport._clock.callback`, and `initAudio` installs it; nothing sounds
+  before then, since every voice needs `getMasterGain()`. Per-Part wrappers
+  would have meant six sites, and the next one would be forgotten. The
+  real-Tone tests pin the private shape.
+- **The key, where I was wrong for twenty minutes.** I measured the
+  re-delivery gap at 0 to 1.4e-14 s across 128 configurations and argued
+  that a time-only key at 1 µs was strictly better. It also catches a
+  transport loop's wrap, which renumbers the repeat to loopStart, and I
+  reasoned that a stop ends its ticks a sample before a restart. The
+  restart test went red and the log explained why. `stop()` and `start()`
+  both default to `now()`, which is the end of the pass that just played
+  beat 4, so the restart's tick 0 sits on the same instant. At the clock,
+  the loop wrap and the restart are the same `(time, ticks)` pair. Ticks
+  AND time it is (1 ms, the version the e2e ran); the loop gap is an
+  `it.fails` pin, since nothing loops the transport.
+- `playEachBeatOnce` stays as the inner layer: it is where a duplicate
+  throws, and it does not depend on Tone's privates.
+- Verified: 8 new real-Tone tests (each guarded one red first, the restart
+  test red under a seen-set and under a time-only key), 5500 unit plus 37
+  expected failures, svelte-check clean, 21/21 tune and lick practice e2e on
+  Chromium.
