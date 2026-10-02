@@ -1,3 +1,4 @@
+import type { Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { test, expect } from './fixtures/test';
 import { seedOnboardedAnonymous } from './fixtures/storage';
@@ -119,6 +120,23 @@ async function stubParseRoute(
 	});
 }
 
+/**
+ * Expand the editor's import-review notes ("N details").
+ *
+ * Waits for the chart to engrave first. The review box sits directly under
+ * the chart, which abcjs draws after the editor mounts, so a click aimed at
+ * the summary before then is dispatched to wherever the summary WAS: on CI
+ * Firefox (2026-09-27, -30) the engrave landed between Playwright's
+ * actionability check and the click, the review stayed closed below the
+ * fold, and the video shows the pointer's hover highlight on bar 3's chord
+ * slot — the summary's spot in the unengraved layout. `Sheet Music for …` is
+ * abcjs's own label on the engraved SVG.
+ */
+async function openImportReview(page: Page): Promise<void> {
+	await expect(page.getByRole('img', { name: /^Sheet Music for/ })).toBeVisible();
+	await page.getByRole('group').filter({ hasText: /detail/ }).getByText(/detail/).first().click();
+}
+
 test.beforeEach(async ({ page }) => {
 	await seedOnboardedAnonymous(page);
 	await stubParseRoute(page);
@@ -221,7 +239,7 @@ test('a declared meter that contradicts the print is flagged, not silently appli
 	await fileInput.setInputFiles('tests/fixtures/leadsheets/fly-me-to-the-moon.pdf');
 
 	await page.waitForURL('**/tunes/editor', { timeout: 60_000 });
-	await page.getByRole('group').filter({ hasText: /detail/ }).getByText(/detail/).first().click();
+	await openImportReview(page);
 	await expect(page.getByText(/looks like it is in 3\/4/).first()).toBeVisible();
 });
 
@@ -242,7 +260,7 @@ test('a line the AI cannot read is left blank instead of sinking the import', as
 	// The failed line is not silently blank: the review banner names its bars
 	// up front, and the detail says why they are empty.
 	await expect(page.getByText(/Review bars .* — the import wasn't certain there/)).toBeVisible();
-	await page.getByRole('group').filter({ hasText: /detail/ }).getByText(/detail/).first().click();
+	await openImportReview(page);
 	await expect(page.getByText(/could not be transcribed/i).first()).toBeVisible();
 });
 

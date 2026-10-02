@@ -12,7 +12,7 @@ Shared `AudioContext` singleton for Tone.js and smplr, plus a master gain node r
 
 ### `initAudio(): Promise<AudioContext>`
 
-Initialize the audio engine. Must be called from a user gesture (click/tap). Idempotent — safe to call multiple times. Returns the raw `AudioContext` (not Tone.js's wrapper).
+Initialize the audio engine. Must be called from a user gesture (click/tap). Idempotent — safe to call multiple times. Returns the raw `AudioContext` (not Tone.js's wrapper). Installs `guardTickRedelivery` on the transport (see `tick-redelivery.ts` below); nothing can sound earlier, because every voice routes through `getMasterGain()`, which throws until this has run.
 
 ### `getAudioContext(): Promise<AudioContext>`
 
@@ -33,6 +33,32 @@ Returns the shared master gain node. All instrument chains and backing-track out
 ### `setMasterVolume(volume: number): void`
 
 Set the master gain value (0–1). Applied at the graph's final node so it affects melody, metronome, and backing track simultaneously.
+
+---
+
+## tick-redelivery.ts
+
+### `guardTickRedelivery(transport: object): void`
+
+Makes Tone's transport clock deliver each tick once. Tone's clock covers `[previous end, currentTime + lookAhead)` per pass and walks it by adding tick durations, so when a pass ends exactly on a tick the tick can fall inside that pass and, recomputed from the next pass's start, inside the next one too (found 2026-10-01). The repeat carries the same tick number at a time 0 to ~1e-14 s later.
+
+Any transport event that is not a once-event fires twice on that tick, meaning a non-looping `Tone.Part` or `Sequence`, or `transport.schedule`:
+
+- the melody Part, where smplr plays the attack twice (+6 dB);
+- the backing Parts, when they are not looping;
+- the finite metronome and count-in Sequences, where a Tone synth throws;
+- record-a-lick's entrance callback. A second `beginActiveRecording` orphans the first 2 s silence timer, which then cuts the take 2 s after the downbeat.
+
+`scheduleOnce`, `scheduleRepeat` and looping Parts are immune, because every occurrence is a once-event that removes itself when it fires. That covers the turnaround bar, the lick-practice windows and tune practice's freestyle scan.
+
+The guard wraps `transport._clock.callback`, the one point where the clock hands ticks to the transport. It drops a tick whose number repeats the previous tick's within 1 ms. It drops a repeated tick, never a repeated time inside one tick, so simultaneous events such as chord tones or kick + ride all still fire. Both halves of the key are needed:
+
+- **The number alone** would drop real ticks, because tick numbers restart after a stop.
+- **The time alone** would also drop a real tick. Tone's `stop()` and `start()` both default to `now()`, which is the end of the last pass. If that pass ended on a tick, the restart's tick 0 lands on the same instant as the tick just played.
+
+The cost of keying on the number is a transport **loop**. The loop wrap renumbers a re-delivered loop-end tick to loopStart, so the guard lets it through, and at the clock that is the same `(time, ticks)` pair as the restart. The app never loops the transport (looping Parts are immune), and the gap is pinned as an `it.fails` test.
+
+`_clock` is private to Tone, so a transport without it is left alone rather than breaking audio. The real-Tone tests in `tests/unit/audio/tick-redelivery.test.ts`, run headless through `tests/helpers/headless-tone.ts`, pin both Tone's re-delivery and the shape the guard relies on, so an upgrade that changes either one fails there. `initAudio` installs it.
 
 ---
 
@@ -544,6 +570,8 @@ Schedule a jazz metronome pattern.
 - **Hi-hat chick** (beats 2 and 4): Pink noise through 6kHz highpass filter
 
 Must be called before `Transport.start()`.
+
+**Each beat sounds once, even when Tone delivers it twice.** Tone's clock covers `[previous end, currentTime + lookAhead)` per pass, adding up tick durations as it goes. When a pass ends exactly on a tick, the tick can fall inside that pass and, recomputed, inside the next one as well, a rounding error later. The render quantum makes this recur at fixed beats: at 240 BPM, beat 102 (mod 128) at 44.1 kHz and beat 3 of every bar at 48 kHz. A synth restarted at one instant throws "Start time must be strictly greater than previous start time" in `Source.start`, and Tone then skips the rest of that pass's ticks. So every Sequence callback here, count-in included, goes through `playEachBeatOnce`, which drops a beat within 1 ms of the last one played. Exact time equality is not enough, because the re-delivery comes back slightly later. Since the same day, `guardTickRedelivery` drops the re-delivered tick at the transport clock before any Sequence sees it. `playEachBeatOnce` stays as the inner layer, because the metronome is the one place where a duplicate throws instead of doubling a note, and this guard does not rely on Tone's private clock. The bug was latent until practice went metronome-only by default (2026-10-01), because before that the synthesized kit played only the count-in bar under the backing track. Pinned in `tests/unit/audio/metronome.test.ts`.
 
 ### `scheduleCountInClicks(beatsPerBar, bars): Promise<void>`
 

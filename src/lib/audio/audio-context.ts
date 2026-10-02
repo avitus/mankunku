@@ -6,6 +6,8 @@
  * both use the same timeline for scheduling.
  */
 
+import { guardTickRedelivery } from './tick-redelivery';
+
 type ToneModule = typeof import('tone');
 
 let tone: ToneModule | null = null;
@@ -35,6 +37,12 @@ export async function initAudio(): Promise<AudioContext> {
 		// Transport.schedule callbacks too far ahead of time.
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 		(Tone.getContext() as any).updateInterval = 0.025;
+
+		// Tone's clock can hand one tick to two consecutive passes, firing
+		// every non-once transport event on it twice (tick-redelivery.ts).
+		// Nothing sounds before this point: every voice routes through the
+		// master gain created below, which throws until initAudio has run.
+		guardTickRedelivery(Tone.getTransport());
 
 		// Create master gain node for global volume control
 		const ctx = Tone.getContext().rawContext as AudioContext;

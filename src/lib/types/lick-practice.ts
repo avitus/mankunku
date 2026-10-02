@@ -211,12 +211,14 @@ export interface SingleLickRoundEntry {
  * policy in `state/lick-practice-rotation.ts` (`planFocusRamp`,
  * `resolveRampCycle`).
  *
- * Three phases, one rule each:
+ * Four phases:
  * - `focus` — the rotation is `focusKey` alone; the tempo staircases on it
  *   (clear → up by the bump percent, sub-floor → down by three times it,
- *   in between → hold) until a clear lands at or above `targetTempo`.
- * - `rebuild` — every full clear of the admitted set admits the next queued
- *   key (worst first); tempo held. Ends when the queue drains.
+ *   in between → hold) until a clear is performed at `targetTempo`.
+ * - `handoff` — repeat the last-played key once while previewing queue[0].
+ *   Then admit that promised key first, regardless of the repeat's score.
+ * - `rebuild` — every full clear of the admitted set earns another handoff;
+ *   tempo held. Ends when the queue drains.
  * - `complete` — ordinary deep practice from here on (clear → bump → refill
  *   from the full unlocked circle).
  */
@@ -224,7 +226,7 @@ export interface FocusRamp {
 	focusKey: PitchClass;
 	/** The lick's saved tempo when the session opened — the focus phase's target. */
 	targetTempo: number;
-	phase: 'focus' | 'rebuild' | 'complete';
+	phase: 'focus' | 'handoff' | 'rebuild' | 'complete';
 	/** Refill set during rebuild: the focus key plus every key admitted so far, in admission order. */
 	admitted: PitchClass[];
 	/** Keys not yet admitted, worst-first. */

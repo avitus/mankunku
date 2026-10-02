@@ -2510,3 +2510,62 @@ than a rug is its width — one message, one step, one argument shape — and
 that the class it hides is harmless by construction: an empty SERVER chunk is
 a browser-only module doing exactly what it should. If adapter-node ever
 grows an `onwarn`, this file should become three lines of config.
+
+## 2026-10-01 — A test that stops one click short
+
+The community-tunes e2e asserted everything about the card — author, written
+key, bar count, favourite count, the adopt button — and then stopped. The one
+thing the card is FOR, opening the tune, was the thing that never worked. The
+lick side had the fallback from day one; the tune side was built by mirroring
+`community.ts`, and the mirror copied the persistence layer but not the
+detail route's habit of looking a foreign id up. Mirroring a module carries
+its shape, not the obligations its neighbours had taken on.
+
+## 2026-10-01 — A default flip is a coverage change
+
+db203866 changed one default, backing track on → off, and the test that
+broke was the one that clicked the switch. But the change was larger than
+the test suggested. Under the old default the synth metronome played four
+beats a session. Under the new one it plays every beat of every session.
+The Tone boundary double-delivery has been in the metronome since it was
+written, and only one product decision made it reachable at volume. A
+default isn't a UI choice; it decides which code paths run in production. So
+when a default flips, I should ask what now runs that rarely ran before.
+
+Two things about how I found it. The bug turned up only because I ran the
+whole spec file to check a one-test fix, and an unrelated test went red. A
+narrow verification would have shipped the flake fix and missed the
+production throw. And my first theory was wrong in a way the evidence
+should have ruled out: a stall can't make two beats 0.25 s apart collide
+when the ride stops 0.14 s after each start. I built a probe, watched it
+fail to reproduce, and only then instrumented the real thing. Ten lines of
+logging settled it in one run: one sequence, one beat delivered twice. The
+modular arithmetic (n ≡ 102) was the most satisfying part, because it
+turned "always beat 102" from an odd coincidence into a prediction.
+
+The epsilon miss is the lesson I want to keep. I wrote "a re-delivered beat
+has the same time", and the test I wrote encoded the same assumption, so it
+passed. Real re-deliveries are the same tick computed by a different route,
+and those routes round differently. Dedupe needs the tolerance of the check
+it protects, here Tone's 1e-6.
+
+## 2026-10-01 — The key that looked strictly better
+
+I had a clean argument for a time-only dedupe. Distinct ticks are a tick
+apart, Tone ends a stopped segment a sample early, so 1 µs can never merge
+two real ticks, and the loop case comes for free. Every premise was true,
+and the conclusion was still wrong. The "sample early" rule only applies to
+ticks the clock hasn't processed yet. With a lookahead, the tick at the
+pass's end has already fired by the time anyone can call `stop()` at that
+instant. The test I wrote to guard against the OTHER wrong key, a seen-set,
+caught the one I believed in. That's the case for writing the
+can-it-go-red test against every plausible wrong implementation, including
+my favourite.
+
+The more durable win is the harness. Until today, "what does Tone deliver"
+could only be answered in a browser, by instrumenting a flaky e2e. Now it's
+a 15 ms unit test. Both briefs I was handed this session (mine this
+afternoon, Andy's tonight) carried a claim the real clock contradicted:
+"bit-equal", and "scheduleRepeat doubles". Reading the library is a
+hypothesis; running it is the evidence. When the library is pure arithmetic
+over a clock you can stub, run it.

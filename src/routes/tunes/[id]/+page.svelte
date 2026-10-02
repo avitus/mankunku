@@ -10,7 +10,10 @@
 	import {
 		getTuneAdoptionsLocal,
 		getAdoptedTuneAuthorsLocal,
-		returnTune
+		adoptTune,
+		returnTune,
+		fetchCommunityTune,
+		type SharedTune
 	} from '$lib/persistence/tune-community';
 	import { settings, getInstrument, getEffectiveHighestNote } from '$lib/state/settings.svelte';
 	import { awaitHydration } from '$lib/state/hydration';
@@ -39,10 +42,40 @@
 		};
 	});
 
-	const baseSheet = $derived.by(() => {
+	const bookSheet = $derived.by(() => {
 		void cacheVersion;
 		return resolveTuneRef(page.params.id ?? '');
 	});
+
+	// A community tune the viewer has not adopted is in no local cache — the
+	// community card links here by id, so look it up shared. The book always
+	// wins: once adopted (or hydrated), `bookSheet` takes over.
+	let shared = $state<(SharedTune & { ref: string }) | null>(null);
+	let sharedLoading = $state(false);
+
+	$effect(() => {
+		const ref = page.params.id ?? '';
+		const sb = supabase;
+		if (bookSheet || !sb || !session || !ref) {
+			sharedLoading = false;
+			return;
+		}
+		let live = true;
+		sharedLoading = true;
+		fetchCommunityTune(sb, ref).then((result) => {
+			if (!live) return;
+			shared = result ? { ...result, ref } : null;
+			sharedLoading = false;
+		});
+		return () => {
+			live = false;
+		};
+	});
+
+	const sharedSheet = $derived(
+		!bookSheet && shared && shared.ref === page.params.id ? shared.sheet : undefined
+	);
+	const baseSheet = $derived(bookSheet ?? sharedSheet);
 	const isCurated = $derived(baseSheet ? isCuratedTuneId(baseSheet.id) : false);
 	const isAdopted = $derived.by(() => {
 		void cacheVersion;
@@ -54,6 +87,7 @@
 	});
 	const authorName = $derived.by(() => {
 		void cacheVersion;
+		if (sharedSheet) return shared?.authorName ?? null;
 		return baseSheet ? getAdoptedTuneAuthorsLocal()[baseSheet.id]?.authorName ?? null : null;
 	});
 
@@ -90,6 +124,7 @@
 	let destroyed = false;
 	let confirmingDelete = $state(false);
 	let confirmingReturn = $state(false);
+	let adopting = $state(false);
 
 	async function togglePlay() {
 		if (!sheet || starting) return;
@@ -136,6 +171,20 @@
 		}
 		deleteUserTune(baseSheet.id);
 		goto('/tunes');
+	}
+
+	/** Add the viewed community tune to the local book and refresh its available actions. */
+	async function handleAdopt() {
+		if (!baseSheet || !supabase || adopting) return;
+		adopting = true;
+		try {
+			// Retain the validated sheet being viewed if the post-insert fetch
+			// fails, so the book and its Practice action are immediately usable.
+			const viewed = sharedSheet && shared ? shared : undefined;
+			if (await adoptTune(supabase, baseSheet.id, viewed)) cacheVersion++;
+		} finally {
+			adopting = false;
+		}
 	}
 
 	async function handleReturn() {
@@ -213,12 +262,14 @@
 						Play
 					{/if}
 				</button>
-				<button
-					onclick={() => goto(tunePracticePath(baseSheet))}
-					class="rounded-full bg-[var(--color-brass)]/15 px-3 py-1.5 text-sm font-medium text-[var(--color-brass)] transition-colors hover:bg-[var(--color-brass)]/25"
-				>
-					Practice licks
-				</button>
+				{#if bookSheet}
+					<button
+						onclick={() => goto(tunePracticePath(baseSheet))}
+						class="rounded-full bg-[var(--color-brass)]/15 px-3 py-1.5 text-sm font-medium text-[var(--color-brass)] transition-colors hover:bg-[var(--color-brass)]/25"
+					>
+						Practice licks
+					</button>
+				{/if}
 				{#if isOwnSheet}
 					<button
 						onclick={handleEdit}
@@ -235,7 +286,7 @@
 					>
 						{confirmingDelete ? 'Confirm Delete' : 'Delete'}
 					</button>
-				{:else if isAdopted}
+				{:else if isAdopted && bookSheet}
 					<button
 						onclick={handleReturn}
 						class="rounded-full px-3 py-1.5 text-sm font-medium transition-colors
@@ -244,6 +295,16 @@
 								: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'}"
 					>
 						{confirmingReturn ? 'Confirm Return' : 'Return to community'}
+					</button>
+				{:else if sharedSheet}
+					<!-- Practice resolves tunes from the book, so a shared tune is
+					     added first — the community page's own rule. -->
+					<button
+						onclick={handleAdopt}
+						disabled={adopting}
+						class="rounded-full bg-[var(--color-accent)] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)] disabled:opacity-50"
+					>
+						Add to my book
 					</button>
 				{/if}
 			</div>
@@ -280,6 +341,10 @@
 				{/each}
 			</div>
 		{/if}
+	{:else if sharedLoading}
+		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-8 text-center">
+			<p class="italic text-[var(--color-text-secondary)]">Loading…</p>
+		</div>
 	{:else}
 		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-8 text-center">
 			<p class="text-[var(--color-text-secondary)]">

@@ -196,6 +196,58 @@ export async function listCommunityTunes(
 	return results;
 }
 
+/** A shared tune fetched for viewing, with its author's display name. */
+export interface SharedTune extends AdoptedTuneAuthor {
+	sheet: Tune;
+}
+
+/**
+ * One shared tune by id, for the detail page: the community card links
+ * `/tunes/<id>`, and the route otherwise resolves only the viewer's own book
+ * (curated + own + adopted), so a tune they have not adopted was "not found".
+ * Validated like an adopted payload (it reaches the ABC engraver) and
+ * stripped of the author's private PDF. Caches nothing — viewing is not
+ * adopting. Null when the row is missing, deleted, unreadable or invalid;
+ * never throws.
+ */
+export async function fetchCommunityTune(
+	supabase: SupabaseClient<Database>,
+	sheetId: string
+): Promise<SharedTune | null> {
+	try {
+		const { data: row, error } = await supabase
+			.from('tunes')
+			.select('*')
+			.eq('id', sheetId)
+			.is('deleted_at', null)
+			.maybeSingle();
+		if (error || !row) {
+			if (error) console.warn('Failed to fetch shared tune:', error);
+			return null;
+		}
+		const sheet = stripForeignAssets(cloudRowToTune(row));
+		const validation = validateAdoptedTune(sheet);
+		if (!validation.valid) {
+			console.warn(`Shared tune ${sheetId} failed validation:`, validation.errors);
+			return null;
+		}
+		const { data: author } = await supabase
+			.from('public_tune_authors')
+			.select('id, display_name, avatar_url')
+			.eq('id', row.user_id)
+			.maybeSingle();
+		return {
+			sheet,
+			authorId: row.user_id,
+			authorName: author?.display_name ?? null,
+			authorAvatarUrl: author?.avatar_url ?? null
+		};
+	} catch (err) {
+		console.warn('Failed to fetch shared tune:', err);
+		return null;
+	}
+}
+
 // ─── Favorites ──────────────────────────────────────────────────────────
 
 /**
@@ -259,23 +311,29 @@ export async function toggleTuneFavorite(
  * Adopt a community lead sheet into the user's library.
  *
  * Server-first (unlike toggleFavorite): the adoption row is inserted before
- * any local write, because the payload fetch must succeed for the cache to
- * be useful. A Postgres 23505 unique-violation means the server already has
- * this adoption — treated as success.
+ * any local write. If the payload fetch fails, the detail page can supply
+ * the shared sheet already being viewed; it is revalidated before caching.
+ * A Postgres 23505 unique-violation means the server already has this
+ * adoption — treated as success.
  *
  * @returns `true` if the adoption is recorded on the server (or was already),
- *          `false` if the server write failed or no auth session exists.
+ *          `false` if the server write failed, auth is absent or the user changed.
  */
 export async function adoptTune(
 	supabase: SupabaseClient<Database>,
-	sheetId: string
+	sheetId: string,
+	viewed?: SharedTune
 ): Promise<boolean> {
+	const gen = getScopeGeneration();
 	const adoptions = getTuneAdoptionsLocal();
-	if (adoptions.has(sheetId)) return true;
+	if (adoptions.has(sheetId) && getAdoptedTunesLocal().some((sheet) => sheet.id === sheetId)) {
+		return true;
+	}
 
 	const {
 		data: { user }
 	} = await getUserCoalesced(supabase);
+	if (gen !== getScopeGeneration()) return false;
 	if (!user) {
 		console.warn('Cannot adopt lead sheet without an authenticated session');
 		return false;
@@ -284,6 +342,7 @@ export async function adoptTune(
 	const { error: insertError } = await supabase
 		.from('tune_adoptions')
 		.insert({ user_id: user.id, tune_id: sheetId });
+	if (gen !== getScopeGeneration()) return false;
 	if (insertError && (insertError as { code?: string }).code !== '23505') {
 		console.warn('Failed to adopt lead sheet:', insertError);
 		return false;
@@ -294,34 +353,40 @@ export async function adoptTune(
 		.select('*')
 		.eq('id', sheetId)
 		.single();
+	if (gen !== getScopeGeneration()) return false;
+	const fetched = !fetchError && row;
+	const candidate = fetched ? cloudRowToTune(row) : viewed?.sheet;
 	if (fetchError || !row) {
-		// The adoption row is in place; next startup hydration picks the payload up.
+		// Prefer the in-hand shared sheet; otherwise startup hydration retries.
 		console.warn('Adopted tune but failed to fetch payload:', fetchError);
-	} else {
-		const sheet = stripForeignAssets(cloudRowToTune(row));
+	}
+	if (candidate && candidate.id === sheetId) {
+		const sheet = stripForeignAssets(candidate);
 		const validation = validateAdoptedTune(sheet);
 		if (!validation.valid) {
 			console.warn(`Adopted lead sheet ${sheetId} failed validation; not caching payload:`, validation.errors);
 		} else {
-			// The in-hand payload is server-fresh and validated — replace any
-			// cached copy rather than keep it stale (the caches can diverge
-			// after a partially-failed return) until the next full hydration.
+			// Prefer the server-fresh payload; the validated viewed copy is a
+			// fallback. Replace divergent caches after a partially-failed return.
 			const payloads = getAdoptedTunesLocal();
 			const existingIdx = payloads.findIndex((p) => p.id === sheetId);
 			if (existingIdx === -1) payloads.push(sheet);
 			else payloads[existingIdx] = sheet;
 			saveAdoptedPayloadsLocal(payloads);
 
-			const { data: author } = await supabase
-				.from('public_tune_authors')
-				.select('id, display_name, avatar_url')
-				.eq('id', row.user_id)
-				.single();
+			const { data: author } = fetched
+				? await supabase
+					.from('public_tune_authors')
+					.select('id, display_name, avatar_url')
+					.eq('id', row.user_id)
+					.single()
+				: { data: null };
+			if (gen !== getScopeGeneration()) return false;
 			const authors = getAdoptedTuneAuthorsLocal();
 			authors[sheetId] = {
-				authorId: row.user_id,
-				authorName: author?.display_name ?? null,
-				authorAvatarUrl: author?.avatar_url ?? null
+				authorId: fetched ? row.user_id : viewed!.authorId,
+				authorName: fetched ? author?.display_name ?? null : viewed!.authorName,
+				authorAvatarUrl: fetched ? author?.avatar_url ?? null : viewed!.authorAvatarUrl
 			};
 			saveAdoptedAuthorsLocal(authors);
 		}

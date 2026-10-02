@@ -25,6 +25,9 @@ import {
 	getSessionReport,
 	getDemoBars,
 	getKeyPauses,
+	getKeyPasses,
+	getHandoffPreviewKey,
+	buildLickSuperPhrase,
 	getPlannedKeysForLick,
 	resetSession
 } from '$lib/state/lick-practice.svelte';
@@ -215,6 +218,64 @@ describe('startSingleLickSession with a focus key', () => {
 });
 
 describe('focus phase staircase', () => {
+	it('at 83 BPM, previews an earned admission for a full extra loop and honors it after a bad repeat', () => {
+		const lick = seedTwelveKeyLick();
+		startSingleLickSession(lick, { focusKey: 'D' });
+		lickPractice.ramp!.targetTempo = 83;
+		lickPractice.currentTempo = 82;
+
+		clearRotation();
+		expect(rotation()).toEqual(['D']);
+		expect(lickPractice.currentTempo).toBe(83);
+		expect(lickPractice.ramp?.phase).toBe('focus');
+		expect(lickPractice.ramp?.upToSpeedRound).toBeNull();
+
+		clearRotation();
+		expect(lickPractice.ramp?.phase).toBe('handoff');
+		expect(rotation()).toEqual(['D']);
+		expect(lickPractice.ramp?.queue[0]).toBe('A');
+		expect(lickPractice.ramp?.admitted).toEqual(['D']);
+		expect(getDemoBars(0)).toBe(0);
+		expect(getKeyPauses(0)).toEqual([0]);
+
+		// This low score makes D weaker than A again. It must neither revoke
+		// the promised admission nor sort D ahead of the chart already shown.
+		play('D', 0);
+		advanceSingleLickRound();
+		expect(rotation()).toEqual(['A', 'D']);
+		expect(lickPractice.ramp?.phase).toBe('rebuild');
+		expect(lickPractice.currentTempo).toBe(83);
+		expect(lickPractice.allAttempts.at(-1)?.[0].score).toBe(0);
+		expect(getLickTempo(lickPractice.progress, LICK_ID)).toBe(SAVED_TEMPO);
+	});
+
+	it('does not cancel a promised admission when the repeat has no score', () => {
+		startSingleLickSession(seedTwelveKeyLick(), { focusKey: 'D' });
+		lickPractice.currentTempo = SAVED_TEMPO;
+		clearRotation();
+		expect(lickPractice.ramp?.phase).toBe('handoff');
+		advanceSingleLickRound();
+		expect(rotation()[0]).toBe('A');
+		expect(lickPractice.ramp?.admitted).toEqual(['D', 'A']);
+	});
+
+	it('a handoff repeats an already visible sheet once without more preparation, confined to Deep', () => {
+		const lick = makeLick('C', LICK_ID);
+		setUnlockedCount(LICK_ID, 2);
+		seedKeys(LICK_ID, { C: { tempo: 50, rolling: 0.9 }, G: { tempo: 50, rolling: 0.1 } });
+		startSingleLickSession(lick, { focusKey: 'G' });
+		expect(getPlannedKeysForLick(0)[0].reveal).toBe(true);
+		clearRotation();
+		expect(lickPractice.ramp?.phase).toBe('handoff');
+		expect(getPlannedKeysForLick(0)[0].reveal).toBe(true);
+		expect(getKeyPasses(0)).toEqual([1]);
+		expect(getKeyPauses(0)).toEqual([0]);
+		expect(getHandoffPreviewKey(0)?.key).toBe('C');
+		lickPractice.mode = 'standard';
+		expect(getKeyPasses(0)).toEqual([3]);
+		expect(getHandoffPreviewKey(0)).toBeNull();
+	});
+
 	it('a sub-floor attempt steps the tempo down and keeps the focus key alone', () => {
 		const lick = seedTwelveKeyLick();
 		startSingleLickSession(lick, { focusKey: 'D' });
@@ -250,21 +311,25 @@ describe('focus phase staircase', () => {
 		}
 	});
 
-	it('the clear that reaches the saved tempo admits the next-worst key and stamps the round', () => {
-		const lick = seedTwelveKeyLick();
-		startSingleLickSession(lick, { focusKey: 'D' });
-
-		for (let round = 1; round <= 10; round++) clearRotation();
-
+	it('a target clear previews the next key for one loop before admitting it', () => {
+		startSingleLickSession(seedTwelveKeyLick(), { focusKey: 'D' });
+		for (let round = 1; round <= 11; round++) clearRotation();
 		expect(lickPractice.currentTempo).toBe(SAVED_TEMPO);
+		expect(lickPractice.ramp?.phase).toBe('handoff');
+		expect(lickPractice.ramp?.upToSpeedRound).toBe(11);
+		expect(getHandoffPreviewKey(0)?.key).toBe('A');
+		expect(getHandoffPreviewKey(0)?.reveal).toBe(false);
+		expect(getPlannedKeysForLick(0).map(row => row.key)).toEqual(['D']);
+		expect(getKeyPasses(0)).toEqual([1]);
+		expect(getKeyPauses(0)).toEqual([0]);
+		// The preview is visual only; audio still contains just the repeated D.
+		const audio = buildLickSuperPhrase(0)!;
+		expect(audio.harmony).toEqual(getPlannedKeysForLick(0)[0].harmony);
+		clearRotation();
 		expect(lickPractice.ramp?.phase).toBe('rebuild');
-		expect(lickPractice.ramp?.upToSpeedRound).toBe(10);
 		expect(lickPractice.ramp?.admitted).toEqual(['D', 'A']);
-		// Worst-first: A (0.5) now ranks below D, whose rolling score climbed
-		// past 0.96 over the ten clears — so the first answer lands on A. No
-		// demo: the admission followed a clear, and a cleared rotation never
-		// demos.
 		expect(rotation()).toEqual(['A', 'D']);
+		expect(getHandoffPreviewKey(0)).toBeNull();
 		expect(lickPractice.demoNextCycle).toBe(false);
 	});
 
@@ -284,27 +349,33 @@ describe('focus phase staircase', () => {
 });
 
 describe('rebuild phase', () => {
+	/** Reach the first admitted key through the staircase and its committed repeat. */
 	function rampToRebuild(): Phrase {
 		const lick = seedTwelveKeyLick();
 		startSingleLickSession(lick, { focusKey: 'D' });
-		for (let round = 1; round <= 10; round++) clearRotation();
+		for (let round = 1; round <= 12; round++) clearRotation();
 		expect(lickPractice.ramp?.phase).toBe('rebuild');
 		return lick;
 	}
 
-	it('each full clear admits one more key, worst first, with the tempo held', () => {
+	it('each full clear previews one more key, then starts it first with the tempo held', () => {
 		rampToRebuild();
 
 		clearRotation();
+		expect(lickPractice.ramp?.phase).toBe('handoff');
+		expect(getHandoffPreviewKey(0)?.key).toBe('E');
+		clearRotation();
 		expect(lickPractice.ramp?.admitted).toEqual(['D', 'A', 'E']);
 		// A ≈ 0.69 after one clear, E enters at 0.8, D ≈ 0.97.
-		expect(rotation()).toEqual(['A', 'E', 'D']);
+		expect(rotation()).toEqual(['E', 'A', 'D']);
 		expect(lickPractice.currentTempo).toBe(SAVED_TEMPO);
 
 		clearRotation();
+		expect(getHandoffPreviewKey(0)?.key).toBe('C');
+		clearRotation();
 		expect(lickPractice.ramp?.admitted).toEqual(['D', 'A', 'E', 'C']);
 		// A ≈ 0.80, E ≈ 0.87, C enters at 0.9, D ≈ 0.97.
-		expect(rotation()).toEqual(['A', 'E', 'C', 'D']);
+		expect(rotation()).toEqual(['C', 'A', 'E', 'D']);
 		expect(lickPractice.currentTempo).toBe(SAVED_TEMPO);
 	});
 
@@ -319,23 +390,26 @@ describe('rebuild phase', () => {
 		expect(lickPractice.currentTempo).toBe(SAVED_TEMPO);
 		expect(lickPractice.ramp?.admitted).toEqual(['D', 'A']);
 
-		// Clearing the survivor completes the round and admits the next key.
+		// Clearing the survivor earns a repeat with advance notice of the next key.
+		clearRotation();
+		expect(lickPractice.ramp?.phase).toBe('handoff');
+		expect(getHandoffPreviewKey(0)?.key).toBe('E');
 		clearRotation();
 		expect(lickPractice.ramp?.admitted).toEqual(['D', 'A', 'E']);
 		// A ≈ 0.71 after the 0.6 and the clear, E enters at 0.8, D ≈ 0.97.
-		expect(rotation()).toEqual(['A', 'E', 'D']);
+		expect(rotation()).toEqual(['E', 'A', 'D']);
 	});
 
 	it('admitting the last key completes the ramp; the next clear bumps and refills like plain deep practice', () => {
 		rampToRebuild();
 
-		// 10 more keys to admit (12 − D − A): the tenth admission completes it.
-		for (let n = 1; n <= 10; n++) {
+		// Ten remaining admissions, each with a clear and a committed repeat.
+		for (let n = 1; n <= 20; n++) {
 			clearRotation();
 			expect(lickPractice.currentTempo).toBe(SAVED_TEMPO);
 		}
 		expect(lickPractice.ramp?.phase).toBe('complete');
-		expect(lickPractice.ramp?.rebuiltRound).toBe(20);
+		expect(lickPractice.ramp?.rebuiltRound).toBe(32);
 		expect(lickPractice.plan[0].keys).toHaveLength(12);
 
 		clearRotation();
@@ -346,7 +420,7 @@ describe('rebuild phase', () => {
 
 	it('still writes no lick tempo through the whole rebuild', () => {
 		rampToRebuild();
-		for (let n = 1; n <= 11; n++) clearRotation();
+		for (let n = 1; n <= 21; n++) clearRotation();
 		expect(lickPractice.currentTempo).toBe(SAVED_TEMPO + 1);
 		expect(getLickTempo(lickPractice.progress, LICK_ID)).toBe(SAVED_TEMPO);
 		expect(loadLickProgressHistory()[LICK_ID] ?? []).toEqual([]);
@@ -400,10 +474,10 @@ describe('session report', () => {
 	it('stamps the milestones once they happen', () => {
 		const lick = seedTwelveKeyLick();
 		startSingleLickSession(lick, { focusKey: 'D' });
-		for (let round = 1; round <= 10; round++) clearRotation();
+		for (let round = 1; round <= 11; round++) clearRotation();
 
 		const ramp = getSessionReport().ramp;
-		expect(ramp?.upToSpeedRound).toBe(10);
+		expect(ramp?.upToSpeedRound).toBe(11);
 		expect(ramp?.rebuiltRound).toBeNull();
 		expect(ramp?.lowestTempo).toBe(90);
 	});
@@ -464,7 +538,7 @@ describe('the demo on the staircase and the rebuild', () => {
 	it('skips the demo on the clear that re-admits a key during the rebuild', () => {
 		const lick = seedTwelveKeyLick();
 		startSingleLickSession(lick, { focusKey: 'D' });
-		for (let round = 1; round <= 11; round++) clearRotation();
+		for (let round = 1; round <= 14; round++) clearRotation();
 
 		expect(lickPractice.ramp?.phase).toBe('rebuild');
 		expect(rotation()).toHaveLength(3);

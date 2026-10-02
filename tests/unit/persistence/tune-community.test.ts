@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { Tune } from '$lib/types/tune';
+import { getScopeGeneration } from '$lib/persistence/user-scope';
 
 // ─── Mock sync dependencies ───────────────────────────────────────────
 vi.mock('$lib/persistence/user-scope', () => ({
-	getScopeGeneration: () => 0
+	getScopeGeneration: vi.fn(() => 0)
 }));
 
 // ─── Mock localStorage ────────────────────────────────────────────────
@@ -21,6 +22,7 @@ Object.defineProperty(globalThis, 'localStorage', { value: localStorageMock, wri
 beforeEach(() => {
 	localStorageMock.clear();
 	vi.clearAllMocks();
+	vi.mocked(getScopeGeneration).mockReturnValue(0);
 });
 
 // ─── Load module under test after mocks ───────────────────────────────
@@ -33,6 +35,7 @@ const {
 	adoptTune,
 	returnTune,
 	listCommunityTunes,
+	fetchCommunityTune,
 	initTuneCommunityFromCloud,
 	TUNE_PAGE_SIZE
 } = await import('$lib/persistence/tune-community');
@@ -46,6 +49,7 @@ interface QueryState {
 	range: [number, number] | null;
 }
 
+/** Build a configurable Supabase query double and optionally capture its filter chain. */
 function makeSupabaseMock(response: {
 	user?: { id: string } | null;
 	data?: Record<string, unknown[]>;
@@ -59,6 +63,7 @@ function makeSupabaseMock(response: {
 		auth: {
 			getUser: vi.fn().mockResolvedValue({ data: { user: response.user ?? null } })
 		},
+		/** Start an isolated table query with the configured response and captured filters. */
 		from(table: string) {
 			const q: QueryState = { from: table, filters: [], orderings: [], range: null };
 			response.captureQueries?.push(q);
@@ -78,6 +83,12 @@ function makeSupabaseMock(response: {
 				single() {
 					const row = response.singleRows?.[table];
 					return Promise.resolve({ data: row ?? null, error: row ? null : new Error('no row') });
+				},
+				/** Resolve a nullable single row, returning configured errors without data. */
+				maybeSingle() {
+					const err = response.errors?.[table] ?? null;
+					const row = err ? null : (response.singleRows?.[table] ?? null);
+					return Promise.resolve({ data: row, error: err });
 				},
 				insert(row: unknown) {
 					const result = response.onInsert?.(table, row) ?? { error: null };
@@ -267,9 +278,118 @@ describe('toggleTuneFavorite', () => {
 	});
 });
 
+// ─── fetchCommunityTune ─────────────────────────────────────
+
+describe('fetchCommunityTune', () => {
+	// The community card links /tunes/<id>; for a tune the viewer has not
+	// adopted, this fetch is the only way the detail page can find it.
+	it('returns the validated sheet and its author for a live shared row', async () => {
+		const captureQueries: QueryState[] = [];
+		const sb = makeSupabaseMock({
+			singleRows: {
+				tunes: makeSheetRow({ pdf_url: 'author-1/sheet-9-wxyz.pdf' }),
+				public_tune_authors: { id: 'author-1', display_name: 'Dizzy', avatar_url: null }
+			},
+			captureQueries
+		});
+		const result = await fetchCommunityTune(sb as never, 'sheet-9-wxyz');
+		expect(result?.sheet.id).toBe('sheet-9-wxyz');
+		expect(result?.sheet.title).toBe('Shared Tune');
+		expect(result?.authorName).toBe('Dizzy');
+		// The author's PDF lives in THEIR private folder — never handed on.
+		expect(result?.sheet.pdfUrl).toBeUndefined();
+		const tuneQuery = captureQueries.find((q) => q.from === 'tunes');
+		expect(tuneQuery?.filters).toContainEqual({ op: 'eq', args: ['id', 'sheet-9-wxyz'] });
+		expect(tuneQuery?.filters).toContainEqual({ op: 'is', args: ['deleted_at', null] });
+	});
+
+	it('does not cache anything — viewing is not adopting', async () => {
+		const sb = makeSupabaseMock({ singleRows: { tunes: makeSheetRow() } });
+		await fetchCommunityTune(sb as never, 'sheet-9-wxyz');
+		expect(getTuneAdoptionsLocal().size).toBe(0);
+		expect(getAdoptedTunesLocal()).toEqual([]);
+	});
+
+	it('keeps the sheet when the author lookup finds no one', async () => {
+		const sb = makeSupabaseMock({ singleRows: { tunes: makeSheetRow() } });
+		const result = await fetchCommunityTune(sb as never, 'sheet-9-wxyz');
+		expect(result?.sheet.id).toBe('sheet-9-wxyz');
+		expect(result?.authorName).toBeNull();
+	});
+
+	it('returns null for a missing or deleted row', async () => {
+		const sb = makeSupabaseMock({});
+		await expect(fetchCommunityTune(sb as never, 'sheet-9-wxyz')).resolves.toBeNull();
+	});
+
+	it('returns null for a payload that fails adopted-tune validation', async () => {
+		const sb = makeSupabaseMock({
+			singleRows: { tunes: makeSheetRow({ title: '<script>alert(1)</script>' }) }
+		});
+		await expect(fetchCommunityTune(sb as never, 'sheet-9-wxyz')).resolves.toBeNull();
+	});
+
+	it('returns null rather than throwing when the query fails', async () => {
+		const sb = makeSupabaseMock({ errors: { tunes: { message: 'offline' } } });
+		await expect(fetchCommunityTune(sb as never, 'sheet-9-wxyz')).resolves.toBeNull();
+	});
+});
+
 // ─── adoptTune / returnTune ─────────────────────────────────
 
 describe('adoptTune', () => {
+	it('keeps the viewed sheet available when adoption succeeds but the payload fetch fails', async () => {
+		const viewSb = makeSupabaseMock({
+			singleRows: {
+				tunes: makeSheetRow(),
+				public_tune_authors: { id: 'author-1', display_name: 'Dizzy', avatar_url: null }
+			}
+		});
+		const viewed = await fetchCommunityTune(viewSb as never, 'sheet-9-wxyz');
+		expect(viewed).not.toBeNull();
+		const sb = makeSupabaseMock({ user: ME });
+		await expect(adoptTune(sb as never, 'sheet-9-wxyz', viewed!)).resolves.toBe(true);
+		expect(getAdoptedTunesLocal().map((s) => s.id)).toContain('sheet-9-wxyz');
+		expect(getAdoptedTuneAuthorsLocal()['sheet-9-wxyz']?.authorName).toBe('Dizzy');
+		expect(getTuneAdoptionsLocal().has('sheet-9-wxyz')).toBe(true);
+	});
+
+	it('repairs an adoption ID with no cached payload and strips private assets from the fallback', async () => {
+		const viewSb = makeSupabaseMock({ singleRows: { tunes: makeSheetRow() } });
+		const viewed = await fetchCommunityTune(viewSb as never, 'sheet-9-wxyz');
+		viewed!.sheet.pdfUrl = 'author-1/private.pdf';
+		const { save } = await import('$lib/persistence/storage');
+		save('tune-adoptions', ['sheet-9-wxyz']);
+		const sb = makeSupabaseMock({ user: ME });
+		await expect(adoptTune(sb as never, 'sheet-9-wxyz', viewed!)).resolves.toBe(true);
+		expect(getAdoptedTunesLocal()[0]?.id).toBe('sheet-9-wxyz');
+		expect(getAdoptedTunesLocal()[0]?.pdfUrl).toBeUndefined();
+	});
+
+	it.each(['wrong-id', 'invalid-title'])('rejects a %s fallback after a successful insert', async (problem) => {
+		const viewSb = makeSupabaseMock({ singleRows: { tunes: makeSheetRow() } });
+		const viewed = await fetchCommunityTune(viewSb as never, 'sheet-9-wxyz');
+		if (problem === 'wrong-id') viewed!.sheet.id = 'another-tune';
+		else viewed!.sheet.title = '<script>alert(1)</script>';
+		const sb = makeSupabaseMock({ user: ME });
+		await adoptTune(sb as never, 'sheet-9-wxyz', viewed!);
+		expect(getAdoptedTunesLocal()).toEqual([]);
+	});
+
+	it('does not write adoption caches after an account switch during the insert', async () => {
+		const sb = makeSupabaseMock({
+			user: ME,
+			singleRows: { tunes: makeSheetRow() },
+			onInsert: () => {
+				vi.mocked(getScopeGeneration).mockReturnValue(1);
+				return { error: null };
+			}
+		});
+		await expect(adoptTune(sb as never, 'sheet-9-wxyz')).resolves.toBe(false);
+		expect(getAdoptedTunesLocal()).toEqual([]);
+		expect(getTuneAdoptionsLocal().size).toBe(0);
+	});
+
 	it('records the adoption, caches the validated payload and author', async () => {
 		const sb = makeSupabaseMock({
 			user: ME,

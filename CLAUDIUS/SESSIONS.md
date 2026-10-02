@@ -4407,3 +4407,123 @@ Andy asked me to fix the empty-chunk warnings I had flagged the night before.
   identical. Full suite and svelte-check green.
 - Left alone and flagged: the server build's "chunks are larger than 500 kB"
   notice — a different warning, a judgment call on a limit, not asked for.
+
+## 2026-10-01 — Community tune card opened "Tune not found"
+
+Andy: a user shared Blue Bossa; its card on /tunes/community opened
+"Tune not found: sheet-1790876129003-9ceu".
+
+- **Cause:** `/tunes/[id]` resolved only the viewer's own book (curated +
+  own + adopted, all local caches). A community tune the viewer had not
+  adopted was in none of them, and nothing fetched it. Never worked — the
+  community e2e checked the card's text but never clicked it. The lick
+  detail page has had the matching fallback since lick sharing.
+- **Fix:** `fetchCommunityTune` (tune-community.ts) reads one live row by id,
+  validates it like an adopted payload, strips the author's PDF, caches
+  nothing. The page shows it with "Add to my book" in place of
+  "Practice licks" (practice resolves from the book; the community page
+  already says "add one to your book to practice it"); adopting bumps
+  `cacheVersion` so the book copy takes over.
+- **Tests:** six unit tests, and four e2e: click-through, cold deep link,
+  unknown id still reads not found, and adopt-from-detail on the stub cloud
+  (adoption needs a browser-side `getUser()`, which the plain cookie fixture
+  can't provide). The click-through and deep-link went red first; the adopt
+  test went red with the `cacheVersion` bump removed. 45 tune e2e on all three
+  engines, 5487 unit tests, svelte-check clean.
+
+## 2026-10-01 — "A lot of tests failing on CircleCI on dev": one fixed already, three more under it
+
+Andy asked me to investigate dev's red CircleCI runs and fix what needed fixing.
+
+- **The red runs were already fixed.** e2e failed on db203866, b1f51b33 and
+  41892ee2, deterministically, in one test: `a session runs with the backing
+  switched off` clicked the backing switch expecting it to turn OFF, and
+  db203866 had just made OFF the default. Andy's 2dff07f6 fixed the test;
+  dev's tip and main's #260 merge (with deploy) are green.
+- **Under the green: a chronic flake.** Across the last 25 e2e runs,
+  `choruses range from 1 to 12` needed a retry 23 times (WebKit 16, Firefox
+  7) and failed outright on build 3404. Setup's mount imports Tone, whose module
+  evaluation starts a blob-URL clock Worker; the test reloads and `goto`s
+  while it is starting, and the aborted Worker fails the console guard
+  (WebKit "Cannot load blob … due to access control checks", Firefox juggler
+  NS_BINDING_ABORTED). Locally 17/20 WebKit runs failed. Waiting for Start to
+  enable fixed WebKit but not Firefox (3/30): Start means the Worker was
+  CONSTRUCTED, and a probe showed Firefox's came up after the `goto` every
+  time. The test now waits for the Worker itself, found by the global
+  `tick()` Tone's inline script declares — 240/240 on three engines.
+- **A real production bug, found because a full local run went red.**
+  `Start time must be strictly greater than previous start time`, thrown by
+  the metronome's ride during the Autumn Leaves sessions (4/45 locally,
+  Chromium and Firefox). Instrumenting the sequence showed ONE sequence and
+  beat 102 delivered twice, one clock pass apart: the first pass's window
+  end (`currentTime + lookAhead`) sat exactly on the beat, and TickSource's
+  accumulated tick time put it in that pass while the next pass's recomputed
+  start put it in again. The arithmetic predicts the beat: at 44.1 kHz the
+  boundary can only land on a 240 BPM beat n with 17n ≡ 70 (mod 128), i.e.
+  n ≡ 102 — all three logged failures. At 48 kHz it is beat 3 of every bar.
+  It was latent until db203866: the synth metronome used to play only the
+  count-in bar under the default backing track; metronome-only is now the
+  default, so it runs whole sessions. The throw also makes Tone skip the
+  rest of that pass's ticks.
+- **Fix:** `playEachBeatOnce` in metronome.ts wraps all three sequences and
+  drops a beat within 1 ms of the last one played. My first version compared
+  times exactly and the e2e still failed 6/60 — the re-delivery is the tick
+  RECOMPUTED, a rounding error later, and Tone's check has a 1e-6 tolerance.
+  Added that shape to the unit tests red first. 60/60 after.
+- **Last flake: PDF import review click (Firefox, 2 of 25).** The CI video
+  shows the click landing on the chart's bar-3 chord slot: abcjs engraved the
+  chart between Playwright's actionability check and the click, pushing the
+  review box below the fold. `openImportReview` waits for abcjs's `Sheet
+  Music for …` SVG first. Not reproducible locally (60/60 before and after);
+  the fix rests on the video.
+- Not done: Tone's upstream `next` (15.5.44) rewrote this boundary code, but
+  its guard only catches a recomputed tick landing BEFORE the window start,
+  not ON it, so I didn't propose an upgrade. Melody and backing Parts can
+  double-fire on the same boundary too; smplr doesn't throw, so the most it
+  does is double one note's attack. Unfixed, flagged to Andy.
+
+## 2026-10-01 (evening) — One guard for every re-delivered tick
+
+Andy handed over the open half of the afternoon's find: the metronome was
+guarded, everything else that rides the transport could still fire twice.
+He asked me to choose between a guard at Tone's clock and per-Part wrappers,
+and to implement it test-first.
+
+- **Real Tone, headless.** Every audio test mocks Tone, and a mock can't show
+  what the clock delivers. Tone's scheduler is arithmetic over
+  `currentTime`, so `tests/helpers/headless-tone.ts` runs its real
+  Context/Transport/Clock over a stub AudioContext and emits a scheduler
+  pass at every 128-frame quantum. The first harness run reproduced the bug
+  with Tone's own code. 48 kHz, 240 BPM, started on quantum 1 re-delivers
+  beat 4. Two traps: Tone deep-copies a plain options object, so the stub
+  I held was not the one it read; and standardized-audio-context captures
+  `window` at import.
+- **Two corrections to the brief.** `scheduleRepeat` books every occurrence
+  through `scheduleOnce`, and looping Parts go through `scheduleRepeat`.
+  Both are immune, pinned unguarded, and that covers the turnaround bar and
+  the freestyle scan. Going the other way, I found one path the brief
+  missed: record-a-lick's entrance is a plain `transport.schedule`. Run
+  twice, it orphans its 2 s silence timer, which would end the take 2 s
+  after the downbeat.
+- **The decision: guard at the clock.** `guardTickRedelivery` wraps
+  `transport._clock.callback`, and `initAudio` installs it; nothing sounds
+  before then, since every voice needs `getMasterGain()`. Per-Part wrappers
+  would have meant six sites, and the next one would be forgotten. The
+  real-Tone tests pin the private shape.
+- **The key, where I was wrong for twenty minutes.** I measured the
+  re-delivery gap at 0 to 1.4e-14 s across 128 configurations and argued
+  that a time-only key at 1 µs was strictly better. It also catches a
+  transport loop's wrap, which renumbers the repeat to loopStart, and I
+  reasoned that a stop ends its ticks a sample before a restart. The
+  restart test went red and the log explained why. `stop()` and `start()`
+  both default to `now()`, which is the end of the pass that just played
+  beat 4, so the restart's tick 0 sits on the same instant. At the clock,
+  the loop wrap and the restart are the same `(time, ticks)` pair. Ticks
+  AND time it is (1 ms, the version the e2e ran); the loop gap is an
+  `it.fails` pin, since nothing loops the transport.
+- `playEachBeatOnce` stays as the inner layer: it is where a duplicate
+  throws, and it does not depend on Tone's privates.
+- Verified: 8 new real-Tone tests (each guarded one red first, the restart
+  test red under a seen-set and under a time-only key), 5500 unit plus 37
+  expected failures, svelte-check clean, 21/21 tune and lick practice e2e on
+  Chromium.
