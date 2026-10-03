@@ -12,7 +12,7 @@ import { runScorePipeline } from '$lib/scoring/score-pipeline';
 import type { Phrase } from '$lib/types/music';
 import type { DetectedNote } from '$lib/types/audio';
 import { trimToPerformance } from '$lib/audio/capture-window';
-import { readdirSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { PitchReading } from '$lib/audio/pitch-frame';
@@ -2140,7 +2140,7 @@ describe('pitch replay regression: pent run, metronome click on the held G (2026
 		const raw = await replayFromAudioBuffer(loadFixture());
 		const trimmed = trimToPerformance(raw.readings, raw.onsets, raw.duration);
 		const bleedOnsets = bleed
-			? getMetronomeBleedOnsets(TRANSPORT_SECONDS + trimmed.offset, TEMPO, trimmed.duration)
+			? getMetronomeBleedOnsets(TRANSPORT_SECONDS, TEMPO, trimmed.duration)
 			: undefined;
 		const baseOnsets = resolveOnsets(trimmed.workletOnsets, trimmed.readings);
 		const articulationOnsets = findReArticulations(trimmed.readings, baseOnsets, bleedOnsets);
@@ -2281,11 +2281,14 @@ async function replayEarTrainingTake(
 		undefined,
 		raw.weakReadings.map(restamp)
 	);
-	const bleedOnsets = getMetronomeBleedOnsets(
-		transportSeconds + trimmed.offset,
-		tempo,
-		trimmed.duration
-	);
+	// `transportSeconds` is the diagnostic export's `context.transportSeconds`,
+	// which already describes the TRIMMED frame (stamp + capture trim, since
+	// c858635b on 2026-08-09). Until 2026-10-03 this helper added the trim a
+	// second time, which shifted every click grid by (trim mod beat) — the
+	// "0.25–0.40 s grid drift" the notes chased for a month. With the stamp
+	// used as exported, the clicks in every fixture sit 0.077–0.101 s after
+	// the grid: Tone's 0.1 s lookahead less the recorder's start delay.
+	const bleedOnsets = getMetronomeBleedOnsets(transportSeconds, tempo, trimmed.duration);
 	const baseOnsets = resolveOnsets(trimmed.workletOnsets, trimmed.readings);
 	const articulationOnsets = findReArticulations(trimmed.readings, baseOnsets, bleedOnsets);
 	const onsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
@@ -2375,17 +2378,21 @@ describe('pitch replay regression: Curl to the Floor pre-spike tongue stop under
  * 2026-08-11 "Blue Note Climb" — concert G, 105 BPM, swing 0.6, metronome on.
  * bbn-001_G after the tonality snap: C4 half, C4 half, D4 half. The take was
  * scored by a stale pre-#223 client, which merged the two tongued C4 halves
- * and marked the second MISSED (saved 0.666 "fair", pitch 2/3). Current code
- * recovers the split — the worklet caught the re-attack at 1.412 s (337 ms
- * past the previous click, well outside the bleed-latency window, so it
- * counts as real attack evidence) and the bare-gap tier adds an articulation
- * onset at 1.513 s — but the articulation margins are thin: the soft
- * on-beat tongue blanks tracking from 1.317 s to 1.533 s, a 133 ms true
- * hole stretched past RE_ARTICULATION_READING_GAP only by the warmup frames
- * findSameMidiRuns skips, and the post-gap energy holds at 1.19× (over the
- * 0.85 bare-gap sustain floor, but UNDER the 1.2 step-up the short-gap tier
- * would demand if frame alignment ever shortened the measured gap below
- * 150 ms). Pinned end to end because the take sits on that knife edge.
+ * and marked the second MISSED (saved 0.666 "fair", pitch 2/3).
+ *
+ * The tongue is ON the beat. The grid puts a click at 1.308 s (it sounds
+ * ~0.1 s later), so the worklet onset at 1.412 s reads as the click, and the
+ * click sits inside the hole the tongue leaves (tracking blank from 1.317 s
+ * to 1.533 s, a 133 ms true hole stretched past RE_ARTICULATION_READING_GAP
+ * by the warmup frames findSameMidiRuns skips). With a click in the hole the
+ * bare-gap tier demands a 1.2× step-up, and the energy across it is 1.19×.
+ * The split comes from the way INTO the hole: the band floor had already
+ * fallen to 0.59× before the click sounded (`bandFloorFellIntoHole`), so the
+ * plain 0.85 sustain floor applies and the tier adds its onset at 1.513 s.
+ *
+ * Until 2026-10-03 this replay ran on a click grid shifted by a double-
+ * counted capture trim, under which the click missed the hole and the take
+ * passed on sustain alone. In the app, on the real grid, it still merged.
  */
 describe('pitch replay regression: Blue Note Climb on-beat tongued halves (concert G, 2026-08-11)', () => {
 	const TRANSPORT_SECONDS = 205.54866213151925;
@@ -2772,7 +2779,7 @@ describe('pitch replay regression: Tonic Turn click-ring phantoms before the ent
 			detected,
 			phrase: expectedPhrase,
 			tempo: TEMPO,
-			transportSeconds: TRANSPORT_SECONDS + trimmed.offset,
+			transportSeconds: TRANSPORT_SECONDS,
 			swing: SWING,
 			bleedFilterEnabled: false
 		});
@@ -2872,7 +2879,7 @@ describe('pitch replay regression: Climb to Five re-tongued G3 speaks on its sec
 			detected,
 			phrase: expectedPhrase,
 			tempo: TEMPO,
-			transportSeconds: TRANSPORT_SECONDS + trimmed.offset,
+			transportSeconds: TRANSPORT_SECONDS,
 			swing: SWING,
 			bleedFilterEnabled: false
 		});
@@ -2984,7 +2991,7 @@ describe('pitch replay regression: Blue Note Drop — the downbeat click before 
 			detected,
 			phrase: expectedPhrase,
 			tempo: TEMPO,
-			transportSeconds: TRANSPORT_SECONDS + trimmed.offset,
+			transportSeconds: TRANSPORT_SECONDS,
 			swing: SWING,
 			bleedFilterEnabled: false
 		});
@@ -3383,7 +3390,7 @@ describe('pitch replay regression: Blues Curl Up — a tongued Db pair with a re
 			detected,
 			phrase: expectedPhrase,
 			tempo: TEMPO,
-			transportSeconds: TRANSPORT_SECONDS + trimmed.offset,
+			transportSeconds: TRANSPORT_SECONDS,
 			swing: SWING,
 			bleedFilterEnabled: false
 		});
@@ -3401,6 +3408,191 @@ describe('pitch replay regression: Blues Curl Up — a tongued Db pair with a re
 	it('splits the pair the same way in the live detector time base (frames stamped at window end)', async () => {
 		const { detected } = await replayEarTrainingTake(FIXTURE, TRANSPORT_SECONDS, TEMPO, { live: true });
 		expect(detected.map((n) => n.midi)).toEqual([58, 61, 61]);
+	});
+});
+
+/**
+ * "Four to Five" (bbn-004_D) in concert D at 100 BPM on tenor sax, 2026-10-03,
+ * ear training, metronome on. G3 quarter, G3 quarter, A3 half, A3 quarter;
+ * saved 2 of 4 (0.494, "try-again"): one 1.24 s G and one 3.17 s A.
+ *
+ * The G pair was tongued, clearly: ~90 ms after the beat-2 click the band
+ * floor falls to 0.28× and the window RMS to 0.64×, then the note re-blooms.
+ * The envelope tier found the dip (tongue noise and a 0.14 st wobble
+ * corroborate it) and refused it at the RECOVERY gate, because the second G
+ * landed softer than the first: the window RMS came back to 0.897 of the
+ * pre-dip level against the 0.9 ratio. A softer repeat is still a repeat. The
+ * tier now also accepts a stop that re-blooms and holds: the level rises
+ * ≥ 1.25× from the trough (here 1.41×) and the 100–400 ms after it hold
+ * ≥ 0.75× of the pre-dip level (here 0.81×). These are the gap tier's bloom
+ * and hold measures. Across the corpus the three other unrecovered dips with
+ * a tail to measure are decays: rise 0.92–1.12, hold 0.20–0.51.
+ *
+ * The final A is correctly MISSED: the A sustains to the downbeat kick at
+ * 2.69 s and then decays to silence by 2.95 s. No fourth note sounds.
+ */
+describe('pitch replay regression: Four to Five — a tongued G pair whose repeat lands softer (concert D, 2026-10-03)', () => {
+	const TRANSPORT_SECONDS = 225.38639455782314;
+	const TEMPO = 100;
+	const SWING = 0.6;
+	const FIXTURE = 'recordings/2026-10-03-four-to-five.wav';
+
+	const expectedPhrase: Phrase = {
+		id: 'bbn-004_D',
+		name: 'Four to Five',
+		timeSignature: [4, 4],
+		key: 'D',
+		notes: [
+			{ pitch: 55, duration: [1, 4], offset: [0, 1] }, // G3
+			{ pitch: 55, duration: [1, 4], offset: [1, 4] }, // G3
+			{ pitch: 57, duration: [1, 2], offset: [1, 2] }, // A3
+			{ pitch: 57, duration: [1, 4], offset: [1, 1] }  // A3
+		],
+		harmony: [],
+		difficulty: { level: 5, pitchComplexity: 9, rhythmComplexity: 1, lengthBars: 2 },
+		category: 'blues',
+		tags: [],
+		source: 'curated'
+	};
+
+	const replayPipeline = () => replayEarTrainingTake(FIXTURE, TRANSPORT_SECONDS, TEMPO);
+
+	it('trims the pre-armed lead-in back to the performance', async () => {
+		const { trimmed } = await replayPipeline();
+		expect(trimmed.offset).toBeCloseTo(0.833, 2);
+	});
+
+	it('the repeat lands softer: the dip recovers to under 0.9 of the first G, but re-blooms 1.4× from its trough and holds', async () => {
+		// Documents the evidence, on the G run's window RMS around the stop
+		// (dip frames 0.883–1.000 s after the trim).
+		const { trimmed } = await replayPipeline();
+		const run = trimmed.readings.filter((r) => r.midi === 55);
+		const median = (xs: number[]) => {
+			const sorted = [...xs].sort((a, b) => a - b);
+			const m = sorted.length >> 1;
+			return sorted.length % 2 ? sorted[m] : (sorted[m - 1] + sorted[m]) / 2;
+		};
+		const first = run.findIndex((r) => r.time > 0.88);
+		const level = median(run.slice(first - 8, first).map((r) => r.rms));
+		const dip = run.filter((r) => r.time > 0.88 && r.time < 1.005);
+		const lastDip = dip[dip.length - 1].time;
+		const trough = Math.min(...dip.map((r) => r.rms));
+		const best = Math.max(...run.filter((r) => r.time > lastDip && r.time - lastDip <= 0.2).map((r) => r.rms));
+		const held = run.filter((r) => r.time - lastDip > 0.1 && r.time - lastDip <= 0.4).map((r) => r.rms);
+		const hold = held.reduce((a, b) => a + b, 0) / held.length;
+
+		expect(Math.min(...dip.map((r) => r.bandRmsMin ?? Infinity)) / level).toBeLessThan(0.3);
+		expect(best / level).toBeGreaterThan(0.88);
+		expect(best / level).toBeLessThan(0.9);
+		expect(best / trough).toBeGreaterThan(1.35);
+		expect(hold / level).toBeGreaterThan(0.78);
+	});
+
+	it('splits the tongued G pair (saved: one 1.24 s G)', async () => {
+		const { detected } = await replayPipeline();
+		expect(detected.map((n) => n.midi)).toEqual([55, 55, 57]);
+		expect(detected[1].onsetTime).toBeGreaterThan(0.93);
+		expect(detected[1].onsetTime).toBeLessThan(1.06);
+	});
+
+	it('scores three of four: the final A was never sounded (saved: 2 of 4, 0.494)', async () => {
+		const { trimmed, detected } = await replayPipeline();
+		const result = runScorePipeline({
+			detected,
+			phrase: expectedPhrase,
+			tempo: TEMPO,
+			transportSeconds: TRANSPORT_SECONDS,
+			swing: SWING,
+			bleedFilterEnabled: false
+		});
+		expect(trimmed.readings[trimmed.readings.length - 1].time).toBeLessThan(3);
+		expect(result.chosen.notesHit).toBe(3);
+		expect(result.chosen.noteResults.map((nr) => nr.missed)).toEqual([false, false, false, true]);
+	});
+
+	it('splits the pair the same way in the live detector time base', async () => {
+		const { detected } = await replayEarTrainingTake(FIXTURE, TRANSPORT_SECONDS, TEMPO, { live: true });
+		expect(detected.map((n) => n.midi)).toEqual([55, 55, 57]);
+	});
+});
+
+/**
+ * Where the metronome clicks really sit against the grid the segmenter is
+ * handed. Every diagnostic export stamps `context.transportSeconds` in the
+ * frame its readings are in (the capture trim already added), and
+ * `getMetronomeBleedOnsets(thatStamp, tempo, …)` is the grid the app scored
+ * with.
+ *
+ * For a month the notes recorded a "0.25–0.40 s grid drift" on every
+ * pre-armed ear-training take. It was a measurement error: the survey, and
+ * these tests' own replay helper, added the trim to the exported stamp a
+ * second time, which shifts the grid by (trim mod beat) and reproduces those
+ * figures exactly. Measured against the stamp as exported, the click onsets
+ * in every fixture land 0.077–0.101 s after the grid (the burst's energy
+ * peak, which this test finds, ~10 ms later). That is Tone's 0.1 s lookahead (`Transport.seconds` reads the
+ * position at `currentTime + lookAhead`) less the recorder's start delay,
+ * and it is inside the 50–200 ms window the bleed rules were built around.
+ * The capture-timing block saved with takes since 2026-09-17 measures the
+ * same figure from the live readings (see capture-timing.test.ts).
+ *
+ * The click phase is found by a comb: the phase, in 1 ms steps across one
+ * beat, whose beat-spaced frames carry the most high-frequency energy.
+ */
+describe('metronome fixtures: the clicks sit one lookahead after the exported grid', () => {
+	const here = dirname(fileURLToPath(import.meta.url));
+	const recordings = resolve(here, '../fixtures/recordings');
+	interface Diagnostic {
+		context?: { metronomeEnabled?: boolean; transportSeconds?: number | null; tempo?: number };
+		audio?: { captureTrimSeconds?: number };
+	}
+	const takes = readdirSync(recordings)
+		.filter((f) => f.endsWith('.json') && existsSync(resolve(recordings, f.replace('.json', '.wav'))))
+		.map((f) => ({ file: f, diag: JSON.parse(readFileSync(resolve(recordings, f), 'utf8')) as Diagnostic }))
+		.filter((t) => t.diag.context?.metronomeEnabled && t.diag.context.transportSeconds != null);
+
+	/** Seconds from each grid beat to the click nearest after it, folded into one beat. */
+	function clickLag(channel: Float32Array, sampleRate: number, diag: Diagnostic): number {
+		const beat = 60 / diag.context!.tempo!;
+		const trim = diag.audio?.captureTrimSeconds ?? 0;
+		// High-frequency energy per 1 ms frame: a fourth difference is a steep
+		// high-pass, and the ride and hi-hat clicks live above 6 kHz.
+		const hop = Math.round(sampleRate / 1000);
+		const frames = Math.floor((channel.length - 4) / hop);
+		const hf = new Float64Array(frames);
+		for (let f = 0; f < frames; f++) {
+			let e = 0;
+			for (let i = f * hop + 4; i < (f + 1) * hop + 4; i++) {
+				const d = channel[i] - 4 * channel[i - 1] + 6 * channel[i - 2] - 4 * channel[i - 3] + channel[i - 4];
+				e += d * d;
+			}
+			hf[f] = e;
+		}
+		let best = 0;
+		let bestEnergy = -1;
+		const steps = Math.round(beat * 1000);
+		for (let p = 0; p < steps; p++) {
+			let e = 0;
+			for (let t = p / 1000; t * 1000 < frames; t += beat) e += hf[Math.round(t * 1000)] ?? 0;
+			if (e > bestEnergy) {
+				bestEnergy = e;
+				best = p / 1000;
+			}
+		}
+		// `best` is a click time in the untrimmed recording; the stamp is in the
+		// trimmed frame.
+		const lag = (best - trim + diag.context!.transportSeconds!) % beat;
+		return ((lag % beat) + beat) % beat;
+	}
+
+	it('covers the corpus', () => {
+		expect(takes.length).toBeGreaterThanOrEqual(12);
+	});
+
+	it.each(takes.map((t) => [t.file, t] as const))('%s', (_file, take) => {
+		const wav = loadWavFixture(`recordings/${take.file.replace('.json', '.wav')}`);
+		const lag = clickLag(wav.channel, wav.sampleRate, take.diag);
+		expect(lag).toBeGreaterThan(0.06);
+		expect(lag).toBeLessThan(0.13);
 	});
 });
 

@@ -1649,8 +1649,9 @@ describe('2026-08-10 pent run: a metronome click must not split the held G', () 
 // metronome on, no backing track) where a subtle same-pitch re-articulation
 // merged and the second note was scored MISSED. These replay the SAVED live
 // readings — the trim-consistent export shipped in #223, so `transportSeconds`
-// describes the untrimmed blob and `captureTrimSeconds` must be added back to
-// phase the click grid. The WAV twins in pitch-replay.test.ts pin the
+// already describes the trimmed frame the readings are in and phases the
+// click grid as exported (adding `captureTrimSeconds` again, as this replay
+// did until 2026-10-03, shifts the grid by trim mod beat). The WAV twins in pitch-replay.test.ts pin the
 // authoritative blob-rescore path; these pin the same evidence class on the
 // saved-readings path.
 describe('2026-08-11 tongued same-pitch pairs: saved-readings replay', () => {
@@ -1671,7 +1672,7 @@ describe('2026-08-11 tongued same-pitch pairs: saved-readings replay', () => {
 		const worklet = fx.detection.rawWorkletOnsets;
 		const duration = fx.audio.duration;
 		const bleedOnsets = getMetronomeBleedOnsets(
-			fx.context.transportSeconds + fx.audio.captureTrimSeconds,
+			fx.context.transportSeconds,
 			fx.context.tempo,
 			duration
 		);

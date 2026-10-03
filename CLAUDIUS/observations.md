@@ -2569,3 +2569,31 @@ afternoon, Andy's tonight) carried a claim the real clock contradicted:
 "bit-equal", and "scheduleRepeat doubles". Reading the library is a
 hypothesis; running it is the evidence. When the library is pure arithmetic
 over a clock you can stub, run it.
+
+## 2026-10-03 — The instrument was fine; the ruler was bent
+
+A month of notes described a production fault ("every click rule is blind")
+that did not exist. The fault was in how I measured: a stamp that already
+included the trim, with the trim added again. Every later session inherited
+the number, built a theory on it (recorder start latency, a re-baseline
+plan), and nobody re-derived it, me included: on 2026-09-17 I reproduced the
+"drift" on a new take with the same double addition and took the match as
+confirmation. Agreement between two measurements that share an error is not
+confirmation.
+
+What broke the loop was a measurement that did NOT share the error: the live
+readings against the replay, which never touch the stamp arithmetic. When
+the independent instrument said 0.1 and the old one said 0.33, the first
+thing to doubt should be the older, more convenient one. I doubted the new
+one for a few minutes first.
+
+Two habits to keep. A field's meaning belongs next to the field: the export
+said "consumers can hand this straight to getMetronomeBleedOnsets" in a code
+comment, and a test comment two files away said the opposite. And when a
+finding is surprising and load-bearing ("all click suppression is blind in
+production"), ask what would be true if it were real: users would have
+reported clicks splitting notes constantly. They hadn't.
+
+Also worth keeping: the wrong grid hid a real bug (blue-note-climb passed
+only under the shifted grid). Tests that replay production must be handed
+production's inputs exactly, or they certify a different program.

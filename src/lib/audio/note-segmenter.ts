@@ -1691,6 +1691,13 @@ const RE_ARTICULATION_GAP_HOLD_TO = 0.4;
  *
  * Blast radius, measured across the fixture corpus: exactly one recording has
  * a scheduled click inside a bare gap — the pent run this was written for.
+ *
+ * That count was taken with the test replays' click grids shifted by a
+ * double-counted capture trim (corrected 2026-10-03). Under the grids the app
+ * really uses, three holes have a click inside, and one of them is a real
+ * tongue this demand refuses: 2026-08-11 "blue-note-climb", C4 halves tongued
+ * ON the beat, 1.19× across the hole. What separates it from the pent run's
+ * held G is on the way INTO the hole — see `bandFloorFellIntoHole`.
  */
 const RE_ARTICULATION_GAP_CLICK_RISE = RE_ARTICULATION_GAP_ATTACK_RISE;
 
@@ -1769,6 +1776,9 @@ const HF_BLEED_SUPPRESS_AFTER = 0.28;
  * 'findReArticulations: envelope dip-recover tier' in
  * tests/unit/audio/note-segmenter.test.ts — each corroborator alone splits, a
  * bare dip does not.
+ *
+ * Recovery has a second shape for a repeat that lands softer than the note
+ * before it — see `reBloomsAndHolds`.
  *
  * Dips that coincide with a reading gap ≥ READING_GAP_SPLIT_THRESHOLD are
  * left to the gap tiers (they own that evidence class; double-firing here
@@ -1912,6 +1922,58 @@ function resetsReed(stable: PitchReading[], from: number, to: number): boolean {
 		if (s < minShape) minShape = s;
 	}
 	return minShape <= baseline - SHAPE_MIN_DROP && minShape >= SHAPE_MIN_PERIODICITY;
+}
+
+/**
+ * The envelope tier's second recovery shape: a stop whose re-attack lands
+ * SOFTER than the note before it. ENV_RECOVER_RATIO asks the window RMS to
+ * return to 0.9 of the pre-dip level, which tells a re-attack from a fade but
+ * also assumes the repeat is as loud as the first note. The 2026-10-03
+ * "four-to-five" G pair came back at 0.897 and merged.
+ *
+ * What a fade cannot do is rise and stay. So the dip span [from, to) also
+ * recovers when the window RMS climbs RE_ARTICULATION_GAP_BLOOM_RISE× from
+ * the span's trough within ENV_RECOVER_WINDOW, and the level over
+ * RE_ARTICULATION_GAP_HOLD_FROM–HOLD_TO after the span averages at least
+ * RE_ARTICULATION_GAP_HOLD of the pre-dip level `local`. These are the gap
+ * tier's bloom and hold measures, applied to a dip that never lost tracking.
+ * The hold needs ENV_LOCAL_FRAMES frames to be measured at all, as many as
+ * the pre-dip level was taken over.
+ *
+ * Measured on every unrecovered dip in the corpus with a tail to measure
+ * (2026-10-03):
+ *
+ *   four-to-five tongued G .................. rise 1.41, hold 0.81
+ *   down-to-the-third held Db, kick ripple .. rise 1.12, hold 0.20
+ *   blues-curl-down decaying F .............. rise 0.98, hold 0.51
+ *   blues-curl-up-b decaying Bb ............. rise 0.92, hold 0.40
+ *
+ * Returns the index of the re-bloom's peak (the onset anchor), or -1.
+ */
+function reBloomsAndHolds(stable: PitchReading[], from: number, to: number, local: number): number {
+	let trough = Infinity;
+	for (let k = from; k < to; k++) {
+		if (stable[k].rms < trough) trough = stable[k].rms;
+	}
+	const spanEnd = stable[to - 1].time;
+	let peak = -1;
+	for (let k = to; k < stable.length && stable[k].time - spanEnd <= ENV_RECOVER_WINDOW; k++) {
+		if (peak === -1 || stable[k].rms > stable[peak].rms) peak = k;
+	}
+	if (peak === -1 || !(trough > 0) || stable[peak].rms < trough * RE_ARTICULATION_GAP_BLOOM_RISE) {
+		return -1;
+	}
+	let held = 0;
+	let count = 0;
+	for (let k = to; k < stable.length; k++) {
+		const dt = stable[k].time - spanEnd;
+		if (dt <= RE_ARTICULATION_GAP_HOLD_FROM) continue;
+		if (dt > RE_ARTICULATION_GAP_HOLD_TO) break;
+		held += stable[k].rms;
+		count++;
+	}
+	if (count < ENV_LOCAL_FRAMES) return -1;
+	return held / count >= local * RE_ARTICULATION_GAP_HOLD ? peak : -1;
 }
 
 /**
@@ -2213,6 +2275,48 @@ function bandFloorDips(stable: PitchReading[], from: number, to: number): boolea
 }
 
 /**
+ * Whether the instrument-band floor was already falling on the way INTO the
+ * hole that ends at `stable[g]`: the lowest floor of the last
+ * RE_ARTICULATION_GAP_RMS_FRAMES readings before the hole against the median
+ * of the BAND_FLOOR_CONTEXT_FRAMES before those.
+ *
+ * A click in the hole can explain lost tracking, but it only ever adds
+ * energy: it cannot pull the floor down, least of all in readings before it
+ * sounded. So a floor that fell ≤ RE_ARTICULATION_GAP_BAND_STOP on entry is
+ * the horn stopping, and the bare-gap tier may then accept plain sustain
+ * across the hole instead of demanding a step-up. Measured on every ≥ 150 ms
+ * hole with a click inside (2026-10-03, production grids):
+ *
+ *   2026-08-10 pent run, click on a held G ....... 1.03  (flat)
+ *   2026-08-11 blue-note-climb, tongued on beat .. 0.59
+ *   2026-09-16 sharp-9, D stopping into a ghost .. 0.28  (0.81× across: fails sustain)
+ *
+ * False when the readings carry no `bandRmsMin`, when fewer than
+ * RE_ARTICULATION_GAP_RMS_FRAMES readings precede the entry (no level to
+ * measure against), or when that level is under BAND_FLOOR_STOP_MIN_SUSTAIN.
+ */
+function bandFloorFellIntoHole(stable: PitchReading[], g: number): boolean {
+	const entryStart = Math.max(0, g - RE_ARTICULATION_GAP_RMS_FRAMES);
+	const baseStart = Math.max(0, entryStart - BAND_FLOOR_CONTEXT_FRAMES);
+	if (g - entryStart < RE_ARTICULATION_GAP_RMS_FRAMES) return false;
+	if (entryStart - baseStart < RE_ARTICULATION_GAP_RMS_FRAMES) return false;
+	const before: number[] = [];
+	for (let k = baseStart; k < entryStart; k++) {
+		const v = stable[k].bandRmsMin;
+		if (v == null) return false;
+		before.push(v);
+	}
+	let entryFloor = Infinity;
+	for (let k = entryStart; k < g; k++) {
+		const v = stable[k].bandRmsMin;
+		if (v == null) return false;
+		if (v < entryFloor) entryFloor = v;
+	}
+	const sustain = median(before);
+	return sustain >= BAND_FLOOR_STOP_MIN_SUSTAIN && entryFloor <= sustain * RE_ARTICULATION_GAP_BAND_STOP;
+}
+
+/**
  * Whether the instrument-band floor collapsed across the hole ending at
  * `stable[g]` and the note then held its level — see
  * RE_ARTICULATION_GAP_BAND_STOP. `preRms` is the pre-hole level the hold is
@@ -2314,10 +2418,14 @@ function findReArticulationsInSegment(
 			const preRms = meanRms(stable, g - RE_ARTICULATION_GAP_RMS_FRAMES, g);
 			const postRms = meanRms(stable, g, g + RE_ARTICULATION_GAP_RMS_FRAMES);
 			// When a click lands in the hole ITSELF the ratio can't settle it,
-			// so demand a real step-up — see RE_ARTICULATION_GAP_CLICK_RISE.
-			const energyFloor = hasBleedInsideGap(sortedBleed, stable[g - 1].time, stable[g].time)
-				? RE_ARTICULATION_GAP_CLICK_RISE
-				: RE_ARTICULATION_GAP_SUSTAIN;
+			// so demand a real step-up — see RE_ARTICULATION_GAP_CLICK_RISE —
+			// unless the horn was already stopping before the click sounded
+			// (`bandFloorFellIntoHole`), which a click cannot fake.
+			const energyFloor =
+				hasBleedInsideGap(sortedBleed, stable[g - 1].time, stable[g].time) &&
+				!bandFloorFellIntoHole(stable, g)
+					? RE_ARTICULATION_GAP_CLICK_RISE
+					: RE_ARTICULATION_GAP_SUSTAIN;
 			if (preRms <= 0 || postRms < preRms * energyFloor) {
 				continue;
 			}
@@ -2525,6 +2633,9 @@ function findReArticulationsInSegment(
 					break;
 				}
 			}
+			// A repeat may land softer than the note before it — see
+			// `reBloomsAndHolds`.
+			if (recoveryIdx === -1) recoveryIdx = reBloomsAndHolds(stable, e, j, local);
 			if (recoveryIdx === -1) {
 				e = j + 1;
 				continue;

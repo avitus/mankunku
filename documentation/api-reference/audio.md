@@ -157,7 +157,7 @@ Whether playback is currently active.
 
 ### `getTransportSeconds(): number`
 
-Get the Transport's current position in seconds. Returns `0` if Tone.js hasn't been loaded. This is `Transport.seconds`, which Tone reads at `now()` = `currentTime + lookAhead` (0.1 s), and which counts elapsed running time since the transport last started, not musical position.
+Get the Transport's current position in seconds. Returns `0` if Tone.js hasn't been loaded. This is `Transport.seconds`, which Tone reads at `now()` = `currentTime + lookAhead` (0.1 s), and which counts elapsed running time since the transport last started, not musical position. A capture stamped with it therefore predicts each metronome click ~0.1 s before it sounds; the segmenter's bleed windows (50–200 ms after a predicted click) are sized for exactly that.
 
 ### `getTransportClockAt(contextTime): { secondsAtContextTime, lookAhead } | null`
 
@@ -233,7 +233,7 @@ The frame /diagnostics replays a saved recording in — the one its own scoring 
 | `'lick-practice'` | none, `offset` 0 | `durationThroughLastReading(readings)` | the close path segments its window untrimmed and ungated, and has no rescore |
 | none (no metadata) | none, `offset` 0 | the blob's | such a record predates pre-arming, so it is an ear-training take the trim would not move |
 
-Trimming a lick-practice take on the panel moved every time and let the gate and pre-roll change its segmentation whenever the first note landed more than `PERFORMANCE_PREROLL_SECONDS` into the window; the blob's length stretched its last note's segment to wherever the recorder stopped. The panel adds `offset` to the stored `transportSeconds` to rebuild the click grid, and the diagnostic JSON export stamps `offset` as `audio.captureTrimSeconds` and the duration as `audio.duration` — for a lick-practice take, 0 and the through-last-reading duration, so a fixture test replays that take's WAV untrimmed over that duration.
+Trimming a lick-practice take on the panel moved every time and let the gate and pre-roll change its segmentation whenever the first note landed more than `PERFORMANCE_PREROLL_SECONDS` into the window; the blob's length stretched its last note's segment to wherever the recorder stopped. The panel adds `offset` to the stored `transportSeconds` to rebuild the click grid, and the diagnostic JSON export stamps `offset` as `audio.captureTrimSeconds` and the duration as `audio.duration`. The export's `context.transportSeconds` is that sum already (stored stamp + `offset`): a test replaying the export hands it to `getMetronomeBleedOnsets` as it is and must NOT add the trim again (doing so shifts the grid by trim mod beat — the 2026-09/10 "grid drift"). For a lick-practice take they are 0 and the through-last-reading duration, so a fixture test replays that take's WAV untrimmed over that duration.
 
 ### `durationThroughLastReading(readings): number`
 
@@ -247,7 +247,7 @@ For **scheduled** entrances (record-a-lick — the entrance is the bar-3 downbea
 
 ## capture-timing.ts
 
-Diagnostic instrumentation for the OPEN click-grid drift: on pre-armed ear-training takes the click grid built from the capture's transport stamp misses the recorded clicks by 0.25–0.40 s, and the clicks alone can only measure that modulo a beat. Nothing in scoring reads this module.
+Diagnostic instrumentation for where a recording starts on the audio clock, and therefore how far the click grid built from the capture's transport stamp sits from the recorded clicks. It settled a month-long question (2026-10-03): the recording starts at the arm instant, give or take the MediaRecorder's start delay (0–26 ms measured), and the grid runs early by Tone's 0.1 s lookahead less that delay. An earlier "0.25–0.40 s drift" was a measurement error — the capture trim added twice to the exported stamp. Nothing in scoring reads this module.
 
 Each saved take carries a `CaptureTiming` block in `RecordingMetadata.captureTiming` (ear training and lick practice, recordings from 2026-09-17 on):
 

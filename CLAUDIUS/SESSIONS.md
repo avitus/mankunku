@@ -4527,3 +4527,41 @@ and to implement it test-first.
   test red under a seen-set and under a time-only key), 5500 unit plus 37
   expected failures, svelte-check clean, 21/21 tune and lick practice e2e on
   Chromium.
+
+## 2026-10-03 — Four to Five, and the grid drift that never was
+
+Two real takes with capture timing (10-01 enclosure, 10-03 four-to-five) and
+one mis-score.
+
+- **The drift was a measurement error.** Both takes' `captureAlignment` said
+  the recording starts at the arm instant (−0.5 ms, +26 ms, equal to the
+  recorder's start-event delay) and the grid runs early by the lookahead less
+  that (0.100, 0.074 s). The clicks in the WAVs agreed. Re-measuring every
+  metronome fixture gave 0.077–0.101 s, not 0.25–0.40. The difference is the
+  capture trim: the diagnostic export's `context.transportSeconds` has
+  included it since c858635b (2026-08-09, the day pre-arming shipped), and
+  the 2026-09-08 survey and the test helper `replayEarTrainingTake` added it
+  again. Trim mod beat reproduces the old figures to the millisecond. My own
+  first scratch replay on 2026-09-17 made the same mistake (0.334 on the Bb
+  blues-curl-up; really 0.084).
+- So production click handling was never blind: the bleed windows were built
+  around a ~0.1 s "latency", which is what the lookahead supplies. No
+  re-baseline. The TESTS were the ones on shifted grids.
+- Corrected the helper and the 08-11 saved-readings replay. One fixture
+  changed: blue-note-climb (08-11), tongued ON the beat. Under the real grid
+  the click is inside its hole, the tier demands a 1.2 step-up, and the take
+  measures 1.19: still merged in the app. A survey of every ≥ 150 ms hole
+  with a click inside found the separator on the way INTO the hole: band
+  floor 0.59× (tongue) vs 1.03× (pent run's held G). `bandFloorFellIntoHole`
+  lets the bare-gap tier accept plain sustain when the floor fell ≤ 0.75×
+  before the click sounded.
+- Four to Five (G G A A): the tongued G pair merged because the second G came
+  back at 0.897 of the first against the envelope tier's 0.9 recovery ratio.
+  `reBloomsAndHolds` adds a second recovery shape with the gap tier's bloom
+  (≥ 1.25× from the trough) and hold (≥ 0.75× over 100–400 ms) measures;
+  survey: this take 1.41 / 0.81, the three decays 0.92–1.12 / 0.20–0.51.
+  The final A is correctly missed: the note decays to silence after the
+  downbeat kick, no fourth note sounds. Replay 2/4 (0.494) → 3/4.
+- New corpus test pins the click lag per fixture (and fails 10 of 12 when the
+  trim is double-counted); a capture-timing test pins the 10-03 take's real
+  alignment. 5544 unit tests green, check clean.

@@ -1,4 +1,7 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
 	buildCaptureTiming,
 	describeCaptureAlignment,
@@ -7,8 +10,11 @@ import {
 	snapshotArmTiming,
 	type ArmTiming,
 	type AudioClockLike,
+	type CaptureTiming,
 	type LiveReadingSample
 } from '$lib/audio/capture-timing';
+
+const here = dirname(fileURLToPath(import.meta.url));
 import { replayFromAudioBuffer } from '$lib/audio/replay';
 import type { PitchReading } from '$lib/audio/pitch-frame';
 import { loadWavFixture, makeFakeAudioBuffer } from '../../helpers/audio-fixtures';
@@ -133,6 +139,32 @@ describe('estimateBlobStartOffset', () => {
 		expect(est).not.toBeNull();
 		expect(est!.blobStartOffset).toBeCloseTo(-k / wav.sampleRate, 2);
 		expect(est!.meanPitchError).toBeLessThan(0.1);
+	});
+});
+
+describe('a real take with saved capture timing (2026-10-03 four-to-five)', () => {
+	it('places the recording 26 ms after the arm instant, as the recorder\'s start event says, and the grid 74 ms early', async () => {
+		// The first saved takes with capture timing settled the "grid drift":
+		// the recording starts where the recorder says it does, and the grid
+		// error is Tone's lookahead less that delay. The clicks in the WAV agree
+		// (0.077 s; see pitch-replay.test.ts).
+		const diag = JSON.parse(
+			readFileSync(resolve(here, '../../fixtures/recordings/2026-10-03-four-to-five.json'), 'utf8')
+		) as { captureTiming: CaptureTiming; context: { tempo: number } };
+		const wav = loadWavFixture('recordings/2026-10-03-four-to-five.wav');
+		const replay = await replayFromAudioBuffer(makeFakeAudioBuffer(wav.channel, wav.sampleRate));
+		const a = describeCaptureAlignment(
+			diag.captureTiming,
+			replay.readings,
+			4096 / wav.sampleRate,
+			diag.context.tempo
+		);
+		expect(a.blobStart!.matchedFrames).toBeGreaterThan(100);
+		expect(a.blobStart!.meanPitchError).toBeLessThan(0.02);
+		expect(a.blobStart!.blobStartOffset).toBeCloseTo(0.026, 2);
+		expect(a.recorderStartEventDelay).toBeCloseTo(0.0232, 3);
+		expect(a.stampLead).toBeCloseTo(0.1, 6);
+		expect(a.gridError!.seconds).toBeCloseTo(0.074, 2);
 	});
 });
 
