@@ -26,6 +26,29 @@ import {
 const PPQ = 192;
 const TICKS_PER_BAR = 4 * PPQ;
 
+describe('specific next-action cues', () => {
+	it('names the same key and memory change throughout its preparation bar', () => {
+		const cue: PhaseCue = { phase: 'read', next: 'play', beatsUntilNext: 4, countdown: 4 };
+		expect(phaseTabView(cue, 'G', { repeat: true, fromMemory: true, tempo: 83 })).toEqual({
+			kind: 'play-in', text: 'G again · from memory · 83 BPM · in', count: 4
+		});
+	});
+
+	it('announces another sheet pass before the lower chart becomes next', () => {
+		const cue: PhaseCue = { phase: 'play', next: null, beatsUntilNext: null, countdown: 0 };
+		expect(phaseTabView(cue, 'G', { pass: { index: 1, total: 3 }, nextKeyLabel: 'C' }).text)
+			.toBe('Play · 1/3 · G again next');
+		expect(phaseTabView(cue, 'G', { pass: { index: 3, total: 3 }, nextKeyLabel: 'C' }).text)
+			.toBe('Play · 3/3 · C next');
+	});
+
+	it('explains the handoff repeat while promising the next key', () => {
+		const cue: PhaseCue = { phase: 'play', next: null, beatsUntilNext: null, countdown: 0 };
+		expect(phaseTabView(cue, 'G', { handoff: true, nextKeyLabel: 'C' }).text)
+			.toBe('G once more · C next');
+	});
+});
+
 /** Continuous mode: a `demoBars` demo block, then `keyCount` keys of 4 bars. */
 function continuousWindows(
 	demoBars: number,

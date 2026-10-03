@@ -74,6 +74,10 @@
 		instrument
 	}: Props = $props();
 
+	// Capture is armed during audio lookahead. Its ring must wait for the
+	// audible play phase, so it cannot contradict the final preparation beat.
+	const recordingNow = $derived(isRecording && (!cue || cue.phase === 'play'));
+
 	// Rows are fixed pixel heights so the scroll math is pure: one
 	// chord-chart row, or the taller lead-sheet row the key being learned
 	// gets (staff with chords above it, the current bar marked on the staff).
@@ -152,7 +156,6 @@
 		const written = concertKeyToWritten(key, instrument);
 		return keyLabel(written, lickMode(displayKeys[visualCurrentRow].phrase));
 	});
-	const tab = $derived(cue ? phaseTabView(cue, activeKeyLabel) : null);
 	// Which pass of a multi-pass (revealed) row is playing: the row spans its
 	// passes as equal slots, so the fraction within the row says which one.
 	const activePass = $derived.by(() => {
@@ -160,6 +163,22 @@
 		if (!pk || pk.passes <= 1) return null;
 		const frac = Math.max(0, scrollFraction) - visualCurrentRow;
 		return { index: Math.min(pk.passes, Math.floor(frac * pk.passes) + 1), total: pk.passes };
+	});
+	const tab = $derived.by(() => {
+		if (!cue) return null;
+		const cycleEntry = plannedKeys[visualCurrentRow]?.cycleEntry;
+		const next = displayKeys[visualCurrentRow + 1];
+		const nextKeyLabel = next
+			? keyLabel(concertKeyToWritten(next.key, instrument), lickMode(next.phrase)) : undefined;
+		return phaseTabView(cue, activeKeyLabel, {
+			...cycleEntry,
+			handoff: !!nextCycleKey,
+			pass: activePass,
+			nextKeyLabel,
+			nextPrepares: !!next && (next.reveal || (next.cycleEntry?.prepareBars ?? 0) > 0),
+			hasNotation: plannedKeys[visualCurrentRow]?.reveal,
+			prepareNext: !!cycleEntry && !next
+		});
 	});
 
 	// Current bar of the active row's lead sheet (0-based within the
@@ -212,8 +231,8 @@
 				     the header's title names the lick.) -->
 				<div
 					class="chart-wrap"
-					class:recording={isCurrent && isRecording}
-					class:arming={isCurrent && isArming && !isRecording}
+					class:recording={isCurrent && recordingNow}
+					class:arming={isCurrent && isArming && !recordingNow}
 				>
 						{#if sheet}
 							<!-- Lead-sheet row: the key being learned is under the floor, so
@@ -328,13 +347,6 @@
 								</svg>
 							{/if}
 							<span class="smallcaps" aria-hidden="true">{tab.text}</span>
-								{#if tab.kind === 'play' && activePass}
-									<!-- Pass n of the revealed key's three: read it, read it
-									     again, then from memory. -->
-									<span class="tab-pass" aria-hidden="true">
-										· {activePass.index}/{activePass.total}
-									</span>
-								{/if}
 							{#if tab.count > 0}
 								{#key tab.count}
 									<span class="tab-count" aria-hidden="true">{tab.count}</span>
@@ -477,6 +489,7 @@
 		display: flex;
 		align-items: center;
 		gap: 0.4rem;
+		max-width: 100%;
 		padding: 0.18rem 0.55rem;
 		border-radius: 0.45rem;
 		border: 1px solid transparent;
@@ -544,12 +557,6 @@
 		flex: none;
 		width: 0.85rem;
 		height: 0.85rem;
-	}
-	.tab-pass {
-		font-size: 0.8rem;
-		font-weight: 700;
-		font-variant-numeric: tabular-nums;
-		opacity: 0.85;
 	}
 	.tab-count {
 		display: inline-block;

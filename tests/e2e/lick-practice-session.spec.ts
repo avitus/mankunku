@@ -238,16 +238,36 @@ test.describe('lick-practice session flow', () => {
 		const flow = await page.evaluate(async () => {
 			const cues = new Set<string>();
 			let showedSheet = false;
+			let preparationAt: number | null = null;
+			let preparedForMs: number | null = null;
+			let entranceText = '';
+			let recordedDuringPreparation = false;
+			const counts = new Set<string>();
 			const until = performance.now() + 12_000;
 			while (performance.now() < until) {
-				cues.add(document.querySelector('.phase-tab')?.getAttribute('data-kind') ?? 'missing');
+				const tab = document.querySelector('.phase-tab');
+				const kind = tab?.getAttribute('data-kind') ?? 'missing';
+				cues.add(kind);
+				if (kind === 'read' || kind === 'play-in') {
+					preparationAt ??= performance.now();
+					entranceText = tab?.textContent ?? '';
+					const count = tab?.querySelector('.tab-count')?.textContent?.trim();
+					if (count) counts.add(count);
+					recordedDuringPreparation ||= !!document.querySelector('.chart-wrap.recording');
+				} else if (kind === 'play' && preparationAt !== null && preparedForMs === null) {
+					preparedForMs = performance.now() - preparationAt;
+				}
 				showedSheet ||= !!document.querySelector('[data-testid="lead-sheet-row"]');
 				await new Promise(requestAnimationFrame);
 			}
-			return { cues: [...cues], showedSheet };
+			return { cues: [...cues], showedSheet, preparedForMs, entranceText, recordedDuringPreparation, counts: [...counts] };
 		});
 		expect(flow.showedSheet).toBe(true);
 		expect(flow.cues).not.toContain('listen');
+		expect(flow.entranceText).toMatch(/again.*BPM/);
+		expect(flow.counts).toEqual(expect.arrayContaining(['4', '3', '2', '1']));
+		expect(flow.preparedForMs).toBeGreaterThan(4 * 60_000 / FAST_TEMPO);
+		expect(flow.recordedDuringPreparation).toBe(false);
 		await expect(page.getByTestId('lead-sheet-row')).toBeVisible();
 		await expect(page.locator('.chart-wrap.recording')).toBeVisible({ timeout: 15_000 });
 		await page.getByRole('button', { name: /end session/i }).click();

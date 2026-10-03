@@ -214,6 +214,20 @@ export interface PhaseTabView {
 	count: number;
 }
 
+/** Resolved entrance and already-scheduled next action for the current row. */
+export interface PhaseTabContext {
+	repeat?: boolean;
+	fromMemory?: boolean;
+	tempo?: number;
+	handoff?: boolean;
+	pass?: { index: number; total: number } | null;
+	nextKeyLabel?: string;
+	prepareNext?: boolean;
+	nextPrepares?: boolean;
+	hasNotation?: boolean;
+}
+
+
 /**
  * Map a cue to the row tab pinned on the active chart.
  *
@@ -237,18 +251,37 @@ export interface PhaseTabView {
  * and its last bar is an ordinary "Play <key> in" entrance count — not
  * "Straight in", which is reserved for the no-demo turnaround.
  */
-export function phaseTabView(cue: PhaseCue, keyLabel: string): PhaseTabView {
+export function phaseTabView(cue: PhaseCue, keyLabel: string, context: PhaseTabContext = {}): PhaseTabView {
 	if (cue.phase === 'idle') return { kind: 'hidden', text: '', count: 0 };
+	// The outcome is known only after scoring. Keep this exact entrance
+	// visible throughout preparation, with the mic shut until the count ends.
+	const entrance = [
+		`${keyLabel}${context.handoff ? ' once more' : context.repeat ? ' again' : ''}`,
+		context.fromMemory ? 'from memory' : '',
+		context.tempo !== undefined ? `${context.tempo} BPM` : ''
+	].filter(Boolean).join(' · ');
+	const specificEntry = context.repeat || context.fromMemory || context.tempo !== undefined || context.handoff;
 	if (cue.countdown > 0 && cue.next === 'play') {
 		const straightIn = cue.phase === 'transition' || cue.phase === 'count-in';
 		return {
 			kind: 'play-in',
 			count: cue.countdown,
-			text: straightIn ? `Straight in — ${keyLabel}` : `Play ${keyLabel} in`
+			text: specificEntry ? `${entrance} · in` : straightIn ? `Straight in — ${keyLabel}` : `Play ${keyLabel} in`
 		};
 	}
-	if (cue.phase === 'play') return { kind: 'play', text: 'Play', count: 0 };
-	if (cue.phase === 'read') return { kind: 'read', text: 'Read', count: 0 };
+	if (cue.phase === 'play') {
+		const pass = context.pass;
+		const again = pass && pass.index < pass.total;
+		const next = again ? `${keyLabel} again next`
+			: context.nextKeyLabel ? `${cue.next === 'listen' ? 'Listen to ' : context.nextPrepares ? 'Get ready for ' : ''}${context.nextKeyLabel} next`
+			: context.prepareNext ? 'then get ready' : '';
+		const text = [context.handoff ? `${keyLabel} once more` : 'Play',
+			pass ? `${pass.index}/${pass.total}` : '', next].filter(Boolean).join(' · ');
+		return { kind: 'play', text, count: 0 };
+	}
+	if (cue.phase === 'read') return {
+		kind: 'read', text: specificEntry ? `Get ready · ${entrance}` : context.hasNotation === false ? 'Get ready' : 'Read', count: 0
+	};
 	if (cue.countdown > 0 && cue.next === 'listen') {
 		return { kind: 'listen-in', count: cue.countdown, text: 'Listen in' };
 	}
