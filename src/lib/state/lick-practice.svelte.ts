@@ -189,6 +189,8 @@ const MASTERY_THRESHOLD = 0.95;
 
 /** A key within the plan (may cross lick boundaries when looking ahead). */
 export interface PlannedKey {
+	/** Frozen preparation details for this key's next entrance in Deep Practice. */
+	cycleEntry?: DeepCycleEntry | null;
 	lickIndex: number;
 	keyIndex: number;
 	key: PitchClass;
@@ -1379,7 +1381,8 @@ export function getPlannedKeysForLick(lickIdx: number): PlannedKey[] {
 			lickName: item.phraseName,
 			lickId: item.phraseId,
 			reveal: revealFor(item, key),
-			passes: passesFor(item, key)
+			passes: passesFor(item, key),
+			cycleEntry: getDeepCycleEntry(lickIdx, key)
 		});
 	}
 	return result;
@@ -1412,6 +1415,26 @@ export function getHandoffPreviewKey(lickIdx: number): PlannedKey | null {
  * with the plan.
  */
 const revealDecisions = new WeakMap<readonly PitchClass[], Map<PitchClass, boolean>>();
+
+/** A resolved cycle entrance, frozen with the rotation until its audible start. */
+export interface DeepCycleEntry {
+	repeat: boolean;
+	fromMemory: boolean;
+	/** Only a changed tempo needs an extra cue. */
+	tempo?: number;
+	/** Embedded preparation; ordinary Deep already has a turnaround bar. */
+	prepareBars: number;
+}
+
+const cycleEntries = new WeakMap<readonly PitchClass[], Map<PitchClass, DeepCycleEntry>>();
+const lastPlayedReveals = new WeakMap<LickPracticePlanItem, Map<PitchClass, boolean>>();
+
+/** Snapshot for the chart; null outside lick Deep Practice. */
+export function getDeepCycleEntry(lickIdx: number, key?: PitchClass): DeepCycleEntry | null {
+	const item = lickPractice.plan[lickIdx];
+	if (lickPractice.mode !== 'single-lick' || !item || item.kind === 'trick') return null;
+	return cycleEntries.get(item.keys)?.get(key ?? item.keys[0]) ?? { repeat: false, fromMemory: false, prepareBars: 0 };
+}
 
 /**
  * The reveal rule applied to one lick's key list — the single place
@@ -1504,7 +1527,8 @@ export function getKeyPasses(lickIdx: number): number[] {
 }
 
 /**
- * Bars of reading pause laid before the key at rotation slot `slot`:
+ * Bars of preparation laid before the key at rotation slot `slot`:
+ * at least one for an unannounced focused-cycle outcome or sheet graduation;
  * `LEAD_SHEET_PAUSE_BARS` for a revealed key in continuous mode, unless it
  * opens a cycle that demos — else none. The pause heralds the switch from
  * playing by memory to reading — the previous key's window has closed, the
@@ -1518,16 +1542,17 @@ export function getKeyPasses(lickIdx: number): number[] {
  * that bar.
  */
 function pauseBarsFor(item: LickPracticePlanItem, key: PitchClass, slot: number): number {
-	// This key just cleared. Its repeat supplies advance notice for the NEXT
-	// key; asking the player to prepare the current sheet again breaks flow.
-	if (lickPractice.mode === 'single-lick' && lickPractice.ramp?.phase === 'handoff') return 0;
 	if (lickPractice.config.practiceMode !== 'continuous') return 0;
 	if (slot === 0 && cycleDemos()) return 0;
-	return revealFor(item, key) ? LEAD_SHEET_PAUSE_BARS : 0;
+	const entryBars = lickPractice.mode === 'single-lick'
+		? cycleEntries.get(item.keys)?.get(key)?.prepareBars ?? 0 : 0;
+	// Announce the extra repeat even when its sheet is already familiar.
+	if (lickPractice.mode === 'single-lick' && lickPractice.ramp?.phase === 'handoff') return entryBars;
+	return Math.max(entryBars, revealFor(item, key) ? LEAD_SHEET_PAUSE_BARS : 0);
 }
 
 /**
- * Reading-pause bars for the plan item at `lickIdx`, one per rotation slot
+ * Preparation bars for the plan item at `lickIdx`, one per rotation slot
  * (indexed like `item.keys`, like `getKeyPasses`) — the single source
  * `buildLickSuperPhrase` lays the vamp bars from and the session page
  * schedules the windows and the `read` phase from.
@@ -2098,6 +2123,12 @@ export function startInterLickTransition(): 'next-lick' | 'complete' {
 export function advanceSingleLickRound(): void {
 	const item = lickPractice.plan[0];
 	if (!item) return;
+	const previousLastKey = item.keys.at(-1);
+	const previousReveals = revealDecisionsFor(item);
+	const previousTempo = lickPractice.currentTempo;
+	const lastReveals = lastPlayedReveals.get(item) ?? new Map<PitchClass, boolean>();
+	for (const key of item.keys) lastReveals.set(key, previousReveals.get(key) ?? false);
+	lastPlayedReveals.set(item, lastReveals);
 
 	// Snapshot this round's results before archiving — the focus ramp reads
 	// the focus key's score from it, and `keyResults` is reassigned below.
@@ -2262,6 +2293,22 @@ export function advanceSingleLickRound(): void {
 	lickPractice.currentKeyIndex = 0;
 	lickPractice.roundNumber += 1;
 	lickPractice.phase = 'inter-lick-rest';
+	if (item.kind !== 'trick') {
+		const entries = new Map<PitchClass, DeepCycleEntry>();
+		for (const [slot, key] of item.keys.entries()) {
+			const fromMemory = lastReveals.get(key) === true && !revealFor(item, key);
+			entries.set(key, {
+				repeat: slot === 0 && key === previousLastKey,
+				fromMemory,
+				tempo: slot === 0 && lickPractice.currentTempo !== previousTempo ? lickPractice.currentTempo : undefined,
+				// A resolved head needs a bar unless its handoff already promised
+				// it (ordinary Deep has a turnaround). Later sheet graduations
+				// need their own bar, even when rejoining after sitting out a round.
+				prepareBars: slot === 0 ? (ramp && (!promisedKey || fromMemory) ? 1 : 0) : (fromMemory ? 1 : 0)
+			});
+		}
+		cycleEntries.set(item.keys, entries);
+	}
 }
 
 /**

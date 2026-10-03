@@ -27,6 +27,7 @@ import {
 	getKeyPauses,
 	getKeyPasses,
 	getHandoffPreviewKey,
+	getDeepCycleEntry,
 	buildLickSuperPhrase,
 	getPlannedKeysForLick,
 	resetSession
@@ -43,6 +44,9 @@ import {
 	focusStartTempo,
 	DEFAULT_TEMPO_BUMP_PERCENT
 } from '$lib/state/lick-practice-rotation';
+import { planCycleWindows, cyclePositionAt } from '$lib/state/lick-practice-rotation';
+import { buildPhaseTimeline, phaseCueAt } from '$lib/state/lick-practice-phase';
+import { addFractions } from '$lib/music/intervals';
 import { circleOfFourthsFrom } from '$lib/music/key-ordering';
 import type { PitchClass, Phrase } from '$lib/types/music';
 import type { Score } from '$lib/types/scoring';
@@ -155,6 +159,7 @@ beforeEach(() => {
 	resetSession();
 	lickPractice.progress = {};
 	lickPractice.config.tempoBumpPercent = undefined;
+	lickPractice.config.practiceMode = 'continuous';
 });
 
 describe('startSingleLickSession with a focus key', () => {
@@ -218,6 +223,62 @@ describe('startSingleLickSession with a focus key', () => {
 });
 
 describe('focus phase staircase', () => {
+	it('gives sheet graduation into a same-key handoff a full unscored preparation bar', () => {
+		const lick = makeLick('C', LICK_ID);
+		setUnlockedCount(LICK_ID, 2);
+		seedKeys(LICK_ID, { C: { tempo: 50, rolling: 0.9 }, G: { tempo: 50, rolling: 0.7 } });
+		startSingleLickSession(lick, { focusKey: 'G' });
+		expect(getPlannedKeysForLick(0)[0].reveal).toBe(true);
+		clearRotation();
+		expect(lickPractice.ramp?.phase).toBe('handoff');
+		expect(getPlannedKeysForLick(0)[0].reveal).toBe(false);
+		expect(rotation()).toEqual(['G']);
+		expect(getHandoffPreviewKey(0)?.key).toBe('C');
+		expect(getDeepCycleEntry(0)).toMatchObject({ repeat: true, fromMemory: true, prepareBars: 1 });
+		expect(getKeyPauses(0)).toEqual([1]);
+		const ticksPerBar = 4 * 192;
+		const windows = planCycleWindows({
+			audioStartTick: 0, demoBars: getDemoBars(0), keyBars: 2, ticksPerBar,
+			keyCount: 1, passes: getKeyPasses(0), pauses: getKeyPauses(0), userBarsOffsetTicks: 0
+		});
+		expect(windows.opens).toEqual([ticksPerBar]);
+		expect(windows.closes).toEqual([3 * ticksPerBar]);
+		const timeline = buildPhaseTimeline({ audioStartTick: 0, windows, ticksPerBar });
+		for (let beat = 0; beat < 4; beat++) {
+			expect(phaseCueAt(beat * 192, timeline, 192)).toMatchObject({ phase: 'read', countdown: 4 - beat });
+			expect(cyclePositionAt(beat * 192, {
+				audioStartTick: 0, demoBars: 0, keyBars: 2, ticksPerBar,
+				ticksPerBeat: 192, loopBeats: 8, windows
+			}).beat).toBe(-1);
+		}
+		expect(phaseCueAt(ticksPerBar, timeline, 192).phase).toBe('play');
+		// The promised key follows that repeat without another surprise repeat.
+		clearRotation();
+		expect(rotation()[0]).toBe('C');
+		expect(getKeyPauses(0)[0]).toBe(0);
+	});
+
+	it('uses the call as preparation in call and response, without adding a silent bar', () => {
+		startSingleLickSession(seedTwelveKeyLick(), { focusKey: 'D' });
+		lickPractice.config.practiceMode = 'call-response';
+		clearRotation();
+		expect(getKeyPauses(0)).toEqual([0]);
+		expect(getKeyPasses(0)).toEqual([1]);
+	});
+
+	it('prepares an unannounced retry, tempo change, and post-ramp refill', () => {
+		startSingleLickSession(seedTwelveKeyLick(), { focusKey: 'D' });
+		for (const score of [0.85, 0.97, 0.6]) {
+			play('D', score);
+			advanceSingleLickRound();
+			expect(getKeyPauses(0)[0]).toBeGreaterThanOrEqual(1);
+		}
+		lickPractice.ramp!.phase = 'complete';
+		clearRotation();
+		expect(rotation()).toHaveLength(12);
+		expect(getKeyPauses(0)[0]).toBeGreaterThanOrEqual(1);
+	});
+
 	it('at 83 BPM, previews an earned admission for a full extra loop and honors it after a bad repeat', () => {
 		const lick = seedTwelveKeyLick();
 		startSingleLickSession(lick, { focusKey: 'D' });
@@ -236,7 +297,7 @@ describe('focus phase staircase', () => {
 		expect(lickPractice.ramp?.queue[0]).toBe('A');
 		expect(lickPractice.ramp?.admitted).toEqual(['D']);
 		expect(getDemoBars(0)).toBe(0);
-		expect(getKeyPauses(0)).toEqual([0]);
+		expect(getKeyPauses(0)).toEqual([1]);
 
 		// This low score makes D weaker than A again. It must neither revoke
 		// the promised admission nor sort D ahead of the chart already shown.
@@ -259,7 +320,7 @@ describe('focus phase staircase', () => {
 		expect(lickPractice.ramp?.admitted).toEqual(['D', 'A']);
 	});
 
-	it('a handoff repeats an already visible sheet once without more preparation, confined to Deep', () => {
+	it('a handoff announces one extra play with one preparation bar, confined to Deep', () => {
 		const lick = makeLick('C', LICK_ID);
 		setUnlockedCount(LICK_ID, 2);
 		seedKeys(LICK_ID, { C: { tempo: 50, rolling: 0.9 }, G: { tempo: 50, rolling: 0.1 } });
@@ -269,7 +330,7 @@ describe('focus phase staircase', () => {
 		expect(lickPractice.ramp?.phase).toBe('handoff');
 		expect(getPlannedKeysForLick(0)[0].reveal).toBe(true);
 		expect(getKeyPasses(0)).toEqual([1]);
-		expect(getKeyPauses(0)).toEqual([0]);
+		expect(getKeyPauses(0)).toEqual([1]);
 		expect(getHandoffPreviewKey(0)?.key).toBe('C');
 		lickPractice.mode = 'standard';
 		expect(getKeyPasses(0)).toEqual([3]);
@@ -321,10 +382,12 @@ describe('focus phase staircase', () => {
 		expect(getHandoffPreviewKey(0)?.reveal).toBe(false);
 		expect(getPlannedKeysForLick(0).map(row => row.key)).toEqual(['D']);
 		expect(getKeyPasses(0)).toEqual([1]);
-		expect(getKeyPauses(0)).toEqual([0]);
-		// The preview is visual only; audio still contains just the repeated D.
+		expect(getKeyPauses(0)).toEqual([1]);
+		// The preview has no play window: a one-bar vamp precedes only D.
 		const audio = buildLickSuperPhrase(0)!;
-		expect(audio.harmony).toEqual(getPlannedKeysForLick(0)[0].harmony);
+		expect(audio.harmony.filter(segment => segment.startOffset[0] / segment.startOffset[1] >= 1)).toEqual(
+			getPlannedKeysForLick(0)[0].harmony.map(segment => ({ ...segment, startOffset: addFractions(segment.startOffset, [1, 1]) }))
+		);
 		clearRotation();
 		expect(lickPractice.ramp?.phase).toBe('rebuild');
 		expect(lickPractice.ramp?.admitted).toEqual(['D', 'A']);
@@ -491,7 +554,7 @@ describe('session report', () => {
 });
 
 describe('the demo on the staircase and the rebuild', () => {
-	it('graduates from the sheet into uninterrupted memory attempts, including a small mistake', () => {
+	it('graduates from the sheet with preparation and no new demo, including after a small mistake', () => {
 		const lick = makeLick('C', LICK_ID);
 		seedKeys(LICK_ID, { C: { tempo: SAVED_TEMPO, rolling: 0.7 } });
 		startSingleLickSession(lick, { focusKey: 'C' });
@@ -500,13 +563,13 @@ describe('the demo on the staircase and the rebuild', () => {
 		clearRotation();
 		expect(getPlannedKeysForLick(0)[0].reveal).toBe(false);
 		expect(getDemoBars(0)).toBe(0);
-		expect(getKeyPauses(0)).toEqual([0]);
+		expect(getKeyPauses(0)).toEqual([1]);
 
 		play('C', 0.85);
 		advanceSingleLickRound();
 		expect(getPlannedKeysForLick(0)[0].reveal).toBe(false);
 		expect(getDemoBars(0)).toBe(0);
-		expect(getKeyPauses(0)).toEqual([0]);
+		expect(getKeyPauses(0)).toEqual([1]);
 	});
 
 	it('skips the demo after the focus key clears — a step up is a refill of the one-key rotation', () => {

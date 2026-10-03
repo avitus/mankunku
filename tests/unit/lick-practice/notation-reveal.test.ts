@@ -22,6 +22,7 @@ import {
 	getCurrentKey,
 	getPlannedKey,
 	getPlannedKeysForLick,
+	getDeepCycleEntry,
 	getKeyPasses,
 	getKeyPauses,
 	resetSession
@@ -176,6 +177,39 @@ describe('deep practice rescue for any unlocked key', () => {
 });
 
 describe('planned rows carry the reveal decision', () => {
+	it('prepares a later key graduating from sheet music, not just the cycle head', () => {
+		const lick = makeLick('C');
+		setUnlockedCount(lick.id, 2);
+		seedRolling(lick.id, { C: 0.8, G: 0.7 });
+		startSingleLickSession(lick);
+		expect(getPlannedKeysForLick(0).find(row => row.key === 'G')?.reveal).toBe(true);
+		lickPractice.currentKeyIndex = lickPractice.plan[0].keys.indexOf('G');
+		recordKeyAttempt(makeScore(0.9));
+		lickPractice.currentKeyIndex = lickPractice.plan[0].keys.indexOf('C');
+		recordKeyAttempt(makeScore(0.5));
+		advanceSingleLickRound();
+		expect(lickPractice.plan[0].keys).toEqual(['C', 'G']);
+		expect(getKeyPauses(0)).toEqual([0, 1]);
+		expect(getPlannedKeysForLick(0)[1].cycleEntry).toMatchObject({ fromMemory: true, prepareBars: 1 });
+	});
+
+	it('remembers a graduated sheet when that key returns after sitting out a round', () => {
+		const lick = makeLick('C');
+		setUnlockedCount(lick.id, 2);
+		seedRolling(lick.id, { C: 0.8, G: 0.7 });
+		startSingleLickSession(lick);
+		expect(getPlannedKeysForLick(0).find(row => row.key === 'G')?.reveal).toBe(true);
+		lickPractice.currentKeyIndex = lickPractice.plan[0].keys.indexOf('G');
+		recordKeyAttempt(makeScore(0.97));
+		lickPractice.currentKeyIndex = lickPractice.plan[0].keys.indexOf('C');
+		recordKeyAttempt(makeScore(0.6));
+		advanceSingleLickRound();
+		expect(lickPractice.plan[0].keys).toEqual(['C']);
+		recordKeyAttempt(makeScore(0.97));
+		advanceSingleLickRound();
+		expect(getDeepCycleEntry(0, 'G')?.fromMemory).toBe(true);
+	});
+
 	it('does not reveal a never-attempted key — the first pass is by ear', () => {
 		startSingleLickSession(makeLick('C', 'fresh-lick'));
 		expect(getPlannedKeysForLick(0).map((pk) => pk.reveal)).toEqual([false]);
