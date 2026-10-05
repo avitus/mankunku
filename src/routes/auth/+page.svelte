@@ -16,11 +16,19 @@
 	/** Tracks form submission state for loading indicator */
 	let loading = $state(false);
 
-	/** Error from the callback route's URL query parameter (?error=...) */
-	const errorMessage = $derived(page.url?.searchParams.get('error') ?? null);
+	/** True while the in-flight submission is the resend button's, not the main submit */
+	let resending = $state(false);
 
-	/** Form action results from fail() calls in +page.server.ts */
+	/** Form action results from fail() calls and successes in +page.server.ts */
 	const form = $derived(page.form);
+
+	/**
+	 * Error and notice from the callback route's URL query (?error=… / ?notice=…).
+	 * A form result supersedes them: the query outlives the submissions made on
+	 * this page, and "link expired" must not linger above "new link sent".
+	 */
+	const errorMessage = $derived(form ? null : (page.url?.searchParams.get('error') ?? null));
+	const noticeParam = $derived(form ? null : (page.url?.searchParams.get('notice') ?? null));
 
 	/**
 	 * Decode callback error codes into user-friendly messages.
@@ -31,10 +39,39 @@
 		if (!error) return '';
 		const messages: Record<string, string> = {
 			callback_error: 'Authentication failed. Please try again.',
+			link_expired:
+				'That confirmation link has expired or was already used. Already confirmed? Just sign in. Otherwise, enter your email below to get a new link.',
 			unknown: 'An unexpected error occurred.'
 		};
 		return messages[error] ?? 'An error occurred. Please try again.';
 	}
+
+	/** Success copy for the states that leave the user on this page */
+	const notice = $derived.by(() => {
+		// Supabase answers a signup for an already-confirmed address exactly
+		// like a new one but mails nothing, so the copy covers both.
+		if (form?.confirmationSent) {
+			return `If ${form.email} is new here, we've emailed it a confirmation link: open it, then sign in. Already registered? Just sign in.`;
+		}
+		if (form?.resent) {
+			return `If ${form.email} is waiting for confirmation, a new link is on its way. Use the newest email — older links stop working.`;
+		}
+		if (noticeParam === 'email_confirmed') {
+			return 'Your email is confirmed. Sign in to continue.';
+		}
+		return null;
+	});
+
+	/**
+	 * The resend button appears wherever an unconfirmed account could be stuck.
+	 * Not straight after signup: the link was just sent, and Supabase refuses a
+	 * second one to the same address for a minute.
+	 */
+	const offerResend = $derived(
+		Boolean(form?.unconfirmed || form?.resent) ||
+			errorMessage === 'link_expired' ||
+			errorMessage === 'callback_error'
+	);
 </script>
 
 <svelte:head>
@@ -70,15 +107,33 @@
 			</div>
 		{/if}
 
+		{#if notice}
+			<div
+				class="rounded-lg bg-[var(--color-success)]/10 px-4 py-3 text-sm text-[var(--color-text)]"
+				role="status"
+			>
+				{notice}
+			</div>
+		{/if}
+
 		<!-- Email / Password Form -->
 		<form
 			method="POST"
 			action={isSignUp ? '?/register' : '?/login'}
-			use:enhance={() => {
+			use:enhance={({ submitter }) => {
 				loading = true;
-				return async ({ update }) => {
+				resending = submitter?.getAttribute('formaction') === '?/resend';
+				return async ({ result, update }) => {
 					loading = false;
-					await update();
+					resending = false;
+					// A new account waits on its emailed link; the next thing the
+					// user does here is sign in.
+					if (result.type === 'success' && result.data?.confirmationSent) {
+						isSignUp = false;
+					}
+					// No reset: a success that stays on this page (confirmation
+					// sent, link resent) keeps the email the resend button reads.
+					await update({ reset: false });
 				};
 			}}
 			class="space-y-4"
@@ -119,7 +174,7 @@
 				disabled={loading}
 				class="w-full rounded-lg bg-[var(--color-accent)] py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
 			>
-				{#if loading}
+				{#if loading && !resending}
 					<span class="inline-flex items-center gap-2">
 						<svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
 							<circle
@@ -142,6 +197,20 @@
 					{isSignUp ? 'Create Account' : 'Sign In'}
 				{/if}
 			</button>
+
+			<!-- Resend confirmation — submits this form's email to ?/resend;
+			     formnovalidate because the password is not needed for it. -->
+			{#if offerResend}
+				<button
+					type="submit"
+					formaction="?/resend"
+					formnovalidate
+					disabled={loading}
+					class="w-full rounded-lg py-2 text-sm font-medium text-[var(--color-accent)] ring-1 ring-[var(--color-accent)]/40 transition-opacity hover:opacity-80 disabled:opacity-50"
+				>
+					{resending ? 'Sending…' : 'Email me a new confirmation link'}
+				</button>
+			{/if}
 		</form>
 
 		<!-- Toggle sign-in / sign-up mode -->

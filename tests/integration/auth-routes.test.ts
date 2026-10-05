@@ -119,6 +119,7 @@ function createMockSupabaseClient(overrides: Record<string, unknown> = {}) {
 		auth: {
 			signInWithPassword: vi.fn(),
 			signUp: vi.fn(),
+			resend: vi.fn(),
 			exchangeCodeForSession: vi.fn(),
 			signOut: vi.fn(),
 			getSession: vi.fn(),
@@ -296,7 +297,7 @@ describe('Auth Page Server Actions — /auth', () => {
 
 	it('register action — hands Supabase the /auth/callback confirmation redirect on the request origin', async () => {
 		const formData = createMockFormData({ email: 'newuser@example.com', password: 'password123' });
-		mockSupabase.auth.signUp.mockResolvedValue({ error: null });
+		mockSupabase.auth.signUp.mockResolvedValue({ data: { user: null, session: null }, error: null });
 
 		const mockEvent = {
 			request: createMockRequest(formData),
@@ -305,11 +306,9 @@ describe('Auth Page Server Actions — /auth', () => {
 			cookies: createMockCookies()
 		};
 
-		try {
-			await actions.register(mockEvent as any);
-		} catch {
-			// The success path redirects by throwing; only the signUp call matters here.
-		}
+		// No session: the action returns the confirmation-sent state rather
+		// than redirecting, so nothing is thrown.
+		await actions.register(mockEvent as any);
 
 		// The callback route exists for exactly this link — a wrong origin or
 		// path would strand email confirmation.
@@ -342,12 +341,15 @@ describe('Auth Page Server Actions — /auth', () => {
 		expect((result as any)?.data?.email).toBe('test@example.com');
 	});
 
-	it('register action — succeeds and redirects to /', async () => {
+	it('register action — redirects to / when Supabase signs the new user straight in', async () => {
 		const formData = createMockFormData({
 			email: 'newuser@example.com',
 			password: 'password123'
 		});
-		mockSupabase.auth.signUp.mockResolvedValue({ error: null });
+		mockSupabase.auth.signUp.mockResolvedValue({
+			data: { user: { id: 'u1' }, session: { access_token: 't' } },
+			error: null
+		});
 
 		const mockEvent = {
 			request: createMockRequest(formData),
@@ -417,6 +419,95 @@ describe('Auth Page Server Actions — /auth', () => {
 		const result = await actions.register(mockEvent as any);
 		expect(result?.status).toBe(400);
 		expect((result as any)?.data?.error).toBe('User already registered');
+	});
+
+	// avitus+sop, 2026-10-05: production requires confirmation, so signUp
+	// returns no session. The action used to redirect home signed out, and the
+	// user learned a link was waiting only from "Email not confirmed".
+	it('register action — stays on /auth and says a confirmation link was sent when signUp returns no session', async () => {
+		const formData = createMockFormData({ email: 'new@example.com', password: 'password123' });
+		mockSupabase.auth.signUp.mockResolvedValue({
+			data: { user: { id: 'u1' }, session: null },
+			error: null
+		});
+
+		const result = await actions.register({
+			request: createMockRequest(formData),
+			locals: { supabase: mockSupabase },
+			url: createMockUrl('/auth'),
+			cookies: createMockCookies()
+		} as any);
+
+		expect(result).toEqual({ confirmationSent: true, email: 'new@example.com' });
+	});
+
+	it('login action — an unconfirmed email fails with the resend offer, not the bare Supabase message', async () => {
+		const formData = createMockFormData({ email: 'new@example.com', password: 'password123' });
+		mockSupabase.auth.signInWithPassword.mockResolvedValue({
+			error: { message: 'Email not confirmed', code: 'email_not_confirmed' }
+		});
+
+		const result = await actions.login({
+			request: createMockRequest(formData),
+			locals: { supabase: mockSupabase },
+			url: createMockUrl('/auth'),
+			cookies: createMockCookies()
+		} as any);
+
+		expect(result?.status).toBe(400);
+		expect((result as any)?.data?.unconfirmed).toBe(true);
+		expect((result as any)?.data?.email).toBe('new@example.com');
+		expect((result as any)?.data?.error).not.toBe('Email not confirmed');
+	});
+
+	it('resend action — mails a fresh signup link that lands on /auth/callback', async () => {
+		const formData = createMockFormData({ email: 'new@example.com' });
+		mockSupabase.auth.resend.mockResolvedValue({ data: { user: null, session: null }, error: null });
+
+		const result = await actions.resend({
+			request: createMockRequest(formData),
+			locals: { supabase: mockSupabase },
+			url: createMockUrl('/auth'),
+			cookies: createMockCookies()
+		} as any);
+
+		expect(mockSupabase.auth.resend).toHaveBeenCalledWith({
+			type: 'signup',
+			email: 'new@example.com',
+			options: { emailRedirectTo: 'http://localhost:5173/auth/callback' }
+		});
+		expect(result).toEqual({ resent: true, email: 'new@example.com' });
+	});
+
+	it('resend action — surfaces a Supabase refusal (rate limit) and keeps the resend offer', async () => {
+		const formData = createMockFormData({ email: 'new@example.com' });
+		mockSupabase.auth.resend.mockResolvedValue({
+			data: { user: null, session: null },
+			error: { message: 'email rate limit exceeded', code: 'over_email_send_rate_limit' }
+		});
+
+		const result = await actions.resend({
+			request: createMockRequest(formData),
+			locals: { supabase: mockSupabase },
+			url: createMockUrl('/auth'),
+			cookies: createMockCookies()
+		} as any);
+
+		expect(result?.status).toBe(400);
+		expect((result as any)?.data?.error).toBe('email rate limit exceeded');
+		expect((result as any)?.data?.unconfirmed).toBe(true);
+	});
+
+	it('resend action — asks for an email before contacting Supabase', async () => {
+		const result = await actions.resend({
+			request: createMockRequest(createMockFormData({ email: '' })),
+			locals: { supabase: mockSupabase },
+			url: createMockUrl('/auth'),
+			cookies: createMockCookies()
+		} as any);
+
+		expect(result?.status).toBe(400);
+		expect(mockSupabase.auth.resend).not.toHaveBeenCalled();
 	});
 });
 
@@ -525,27 +616,42 @@ describe('Auth Callback — /auth/callback', () => {
 		}
 	});
 
-	it('redirects to /auth?error=callback_error when code exchange fails', async () => {
-		mockSupabase.auth.exchangeCodeForSession.mockResolvedValue({
-			error: { message: 'Invalid code' }
-		});
+	// A code is issued only by the /verify call that confirmed the email, so a
+	// failed exchange is never "try again" — whose resend offer is a dead end,
+	// since Supabase mails nothing to a confirmed address. Each shape is a real
+	// path: the link opened in another browser (no verifier cookie), opened in
+	// the signup browser after the flow state expired, or opened where an older
+	// verifier sits because the newest link was requested from another device.
+	it.each([
+		['pkce_code_verifier_not_found', 'AuthPKCECodeVerifierMissingError'],
+		['flow_state_expired', 'AuthApiError'],
+		['bad_code_verifier', 'AuthApiError']
+	])(
+		'a failed exchange (%s) still means the email IS confirmed: sign in, not try again',
+		async (code, name) => {
+			const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+			mockSupabase.auth.exchangeCodeForSession.mockResolvedValue({
+				data: { user: null, session: null },
+				error: { name, code, message: code }
+			});
 
-		const mockEvent = {
-			url: createMockUrl('/auth/callback', { code: 'invalid-code' }),
-			locals: { supabase: mockSupabase },
-			cookies: createMockCookies()
-		};
-
-		try {
-			await callbackGET(mockEvent as any);
-			expect.fail('Expected redirect to be thrown');
-		} catch (e: any) {
-			expect(e.status).toBe(303);
-			expect(e.location).toBe('/auth?error=callback_error');
+			try {
+				await callbackGET({
+					url: createMockUrl('/auth/callback', { code: 'issued-code' }),
+					locals: { supabase: mockSupabase },
+					cookies: createMockCookies()
+				} as any);
+				expect.fail('Expected redirect to be thrown');
+			} catch (e: any) {
+				expect(e.status).toBe(303);
+				expect(e.location).toBe('/auth?notice=email_confirmed');
+			}
+			expect(warnSpy).toHaveBeenCalled();
+			warnSpy.mockRestore();
 		}
-	});
+	);
 
-	it('redirects to /auth?error=callback_error when the exchange THROWS (transport failure), not a 500', async () => {
+	it('the exchange THROWING (transport failure) still lands on the confirmed notice, not a 500', async () => {
 		mockSupabase.auth.exchangeCodeForSession.mockRejectedValue(new TypeError('fetch failed'));
 		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
@@ -560,9 +666,54 @@ describe('Auth Callback — /auth/callback', () => {
 			expect.fail('Expected redirect to be thrown');
 		} catch (e: any) {
 			expect(e.status).toBe(303);
-			expect(e.location).toBe('/auth?error=callback_error');
+			expect(e.location).toBe('/auth?notice=email_confirmed');
 		}
 		expect(warnSpy).toHaveBeenCalled();
+		warnSpy.mockRestore();
+	});
+
+	// avitus+sop, 2026-10-05: re-clicking a dead confirmation link answered
+	// "Authentication failed. Please try again." — no retry can revive it.
+	// Supabase redirects a rejected link here with error params and no code.
+	it('maps a link Supabase rejected as expired/used (otp_expired) to link_expired, the state that offers a new link', async () => {
+		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+		try {
+			await callbackGET({
+				url: createMockUrl('/auth/callback', {
+					error: 'access_denied',
+					error_code: 'otp_expired',
+					error_description: 'Email link is invalid or has expired'
+				}),
+				locals: { supabase: mockSupabase },
+				cookies: createMockCookies()
+			} as any);
+			expect.fail('Expected redirect to be thrown');
+		} catch (e: any) {
+			expect(e.status).toBe(303);
+			expect(e.location).toBe('/auth?error=link_expired');
+		}
+		expect(mockSupabase.auth.exchangeCodeForSession).not.toHaveBeenCalled();
+		expect(warnSpy).toHaveBeenCalled();
+		warnSpy.mockRestore();
+	});
+
+	it('keeps callback_error for any other rejection Supabase reports', async () => {
+		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+		try {
+			await callbackGET({
+				url: createMockUrl('/auth/callback', {
+					error: 'access_denied',
+					error_code: 'flow_state_not_found'
+				}),
+				locals: { supabase: mockSupabase },
+				cookies: createMockCookies()
+			} as any);
+			expect.fail('Expected redirect to be thrown');
+		} catch (e: any) {
+			expect(e.location).toBe('/auth?error=callback_error');
+		}
 		warnSpy.mockRestore();
 	});
 });
