@@ -234,11 +234,14 @@ export async function saveRecording(
 
 /**
  * Delete the user's cloud recordings beyond the newest MAX_RECORDINGS.
- * Runs after every successful upload, so the steady state removes one file;
- * a backlog drains up to `PRUNE_PAGE` files per upload. Best-effort: a
- * failure is logged and the next upload tries again.
+ * Runs after every successful upload and drains the surplus a page at a
+ * time, re-listing at the same offset because each removal shrinks the tail.
+ * Bounded by `PRUNE_MAX_PASSES`: storage `remove` reports no error when RLS
+ * filters a path out, so a refused delete would otherwise re-list the same
+ * page forever. Best-effort: a failure is logged and the next upload retries.
  */
 const PRUNE_PAGE = 100;
+const PRUNE_MAX_PASSES = 20;
 
 export async function pruneCloudRecordings(
 	supabase: SupabaseClient<Database>,
@@ -246,20 +249,25 @@ export async function pruneCloudRecordings(
 ): Promise<void> {
 	try {
 		const bucket = supabase.storage.from('recordings');
-		const { data: surplus, error: listError } = await bucket.list(userId, {
-			limit: PRUNE_PAGE,
-			offset: MAX_RECORDINGS,
-			sortBy: { column: 'created_at', order: 'desc' }
-		});
-		if (listError) {
-			console.warn('Failed to list cloud recordings for pruning:', listError);
-			return;
+		for (let pass = 0; pass < PRUNE_MAX_PASSES; pass++) {
+			const { data: surplus, error: listError } = await bucket.list(userId, {
+				limit: PRUNE_PAGE,
+				offset: MAX_RECORDINGS,
+				sortBy: { column: 'created_at', order: 'desc' }
+			});
+			if (listError) {
+				console.warn('Failed to list cloud recordings for pruning:', listError);
+				return;
+			}
+			if (!surplus || surplus.length === 0) return;
+			const { error: removeError } = await bucket.remove(
+				surplus.map((f) => `${userId}/${f.name}`)
+			);
+			if (removeError) {
+				console.warn('Failed to prune cloud recordings:', removeError);
+				return;
+			}
 		}
-		if (!surplus || surplus.length === 0) return;
-		const { error: removeError } = await bucket.remove(
-			surplus.map((f) => `${userId}/${f.name}`)
-		);
-		if (removeError) console.warn('Failed to prune cloud recordings:', removeError);
 	} catch (error) {
 		console.warn('Failed to prune cloud recordings:', error);
 	}
