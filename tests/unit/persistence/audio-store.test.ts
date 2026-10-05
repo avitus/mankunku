@@ -8,6 +8,8 @@ import {
 	deleteRecording,
 	updateRecordingMetadata,
 	clearAllRecordings,
+	pruneCloudRecordings,
+	MAX_RECORDINGS,
 	type RecordingMetadata
 } from '$lib/persistence/audio-store';
 
@@ -172,21 +174,25 @@ describe('updateRecordingMetadata', () => {
 });
 
 describe('pruning', () => {
-	it('prunes oldest recordings beyond MAX_RECORDINGS (100)', async () => {
-		for (let i = 0; i < 105; i++) {
+	it('keeps 300 recordings locally', () => {
+		expect(MAX_RECORDINGS).toBe(300);
+	});
+
+	it('prunes oldest recordings beyond MAX_RECORDINGS', async () => {
+		for (let i = 0; i < MAX_RECORDINGS + 5; i++) {
 			await saveRecording(`session-${i}`, makeBlob(), {
 				metadata: makeMetadata({ phraseId: `phrase-${i}` })
 			});
 		}
 
 		const summaries = await getAllRecordingSummaries();
-		expect(summaries).toHaveLength(100);
+		expect(summaries).toHaveLength(MAX_RECORDINGS);
 
 		const ids = summaries.map((s) => s.sessionId);
 		expect(ids).not.toContain('session-0');
 		expect(ids).not.toContain('session-4');
 		expect(ids).toContain('session-5');
-		expect(ids).toContain('session-104');
+		expect(ids).toContain(`session-${MAX_RECORDINGS + 4}`);
 	});
 });
 
@@ -225,8 +231,16 @@ describe('getRecording (blob only)', () => {
  * path + options and every remove call are recorded, and `download` answers
  * with `downloadBlob` or a not-found error.
  */
-function makeStorageClient(downloadBlob: Blob | null = null) {
+function makeStorageClient(
+	downloadBlob: Blob | null = null,
+	listResult: { data: Array<{ name: string }> | null; error: { message: string } | null } = {
+		data: [],
+		error: null
+	},
+	uploadError: { message: string } | null = null
+) {
 	const uploads: Array<{ path: string; opts?: { contentType?: string; upsert?: boolean } }> = [];
+	const lists: Array<{ prefix: string; opts: unknown }> = [];
 	const removals: string[][] = [];
 	const download = vi.fn((_path: string) =>
 		Promise.resolve(
@@ -237,7 +251,11 @@ function makeStorageClient(downloadBlob: Blob | null = null) {
 		from: vi.fn((_bucket: string) => ({
 			upload: vi.fn((path: string, _blob: Blob, opts?: { contentType?: string; upsert?: boolean }) => {
 				uploads.push({ path, opts });
-				return Promise.resolve({ error: null });
+				return Promise.resolve({ error: uploadError });
+			}),
+			list: vi.fn((prefix: string, opts: unknown) => {
+				lists.push({ prefix, opts });
+				return Promise.resolve(listResult);
 			}),
 			download,
 			remove: vi.fn((paths: string[]) => {
@@ -247,7 +265,7 @@ function makeStorageClient(downloadBlob: Blob | null = null) {
 		}))
 	};
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	return { client: { storage } as any, storage, uploads, removals, download };
+	return { client: { storage } as any, storage, uploads, removals, lists, download };
 }
 
 describe('cloud mirror', () => {
@@ -317,5 +335,49 @@ describe('clearAllRecordings(uid)', () => {
 		await saveRecording('mine', makeBlob()); // active (anon) DB
 		await clearAllRecordings('someone-else');
 		expect((await getRecordingIds()).has('mine')).toBe(true);
+	});
+});
+
+// 2026-10-05: only IndexedDB was pruned; one account's cloud folder reached
+// 13,755 takes (1.14 GB) and pushed the project past its storage quota.
+describe('cloud pruning', () => {
+	it('after an upload, lists the folder past the newest MAX_RECORDINGS and removes that surplus', async () => {
+		const { client, lists, removals } = makeStorageClient(null, {
+			data: [{ name: 'old-1.webm' }, { name: 'old-2.webm' }],
+			error: null
+		});
+		await saveRecording('session-new', makeBlob(), { supabase: client, userId: 'user-9' });
+		await new Promise((r) => setTimeout(r, 0));
+		expect(lists).toEqual([
+			{
+				prefix: 'user-9',
+				opts: { limit: 100, offset: MAX_RECORDINGS, sortBy: { column: 'created_at', order: 'desc' } }
+			}
+		]);
+		expect(removals).toEqual([['user-9/old-1.webm', 'user-9/old-2.webm']]);
+	});
+
+	it('removes nothing when the folder is within the cap', async () => {
+		const { client, removals } = makeStorageClient();
+		await pruneCloudRecordings(client, 'user-9');
+		expect(removals).toEqual([]);
+	});
+
+	it('does not prune when the upload failed', async () => {
+		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const { client, lists } = makeStorageClient(null, undefined, { message: 'quota' });
+		await saveRecording('session-fail', makeBlob(), { supabase: client, userId: 'user-9' });
+		await new Promise((r) => setTimeout(r, 0));
+		expect(lists).toEqual([]);
+		warnSpy.mockRestore();
+	});
+
+	it('removes nothing and does not throw when the listing fails', async () => {
+		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		const { client, removals } = makeStorageClient(null, { data: null, error: { message: 'boom' } });
+		await expect(pruneCloudRecordings(client, 'user-9')).resolves.toBeUndefined();
+		expect(removals).toEqual([]);
+		expect(warnSpy).toHaveBeenCalled();
+		warnSpy.mockRestore();
 	});
 });
