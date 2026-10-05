@@ -1,14 +1,15 @@
 /**
  * IndexedDB storage for recorded audio blobs.
- * Keeps at most 100 recordings (locally), pruning oldest on save. That
- * number is chosen to sit alongside the 100-session report cap so /progress
+ * Keeps at most MAX_RECORDINGS (300) recordings locally AND in the cloud,
+ * pruning oldest on save. That covers the 100-session report cap so /progress
  * can usually drill from a logged session's key chip back to its original
  * recording — but see MAX_RECORDINGS: it is not a derived 1:1 pairing.
  *
  * When a Supabase client and userId are provided, recordings are also
  * uploaded to the Supabase Storage bucket `recordings` for cross-device
- * access. Downloads fall back to the cloud when a recording is missing
- * from the local IndexedDB store.
+ * access, and the user's cloud folder is pruned to the same cap after each
+ * upload (`pruneCloudRecordings`). Downloads fall back to the cloud when a
+ * recording is missing from the local IndexedDB store.
  *
  * Each record is `{ sessionId, blob, timestamp, metadata | null }`.
  * Metadata is a self-contained snapshot of the practice context at save
@@ -39,11 +40,15 @@ const DB_VERSION = 1;
  *
  * Recordings are per practice WINDOW, not per session — one 12-key
  * deep-practice cycle writes 12 rows — and MAX_SESSIONS bounds two separate
- * logs, so the two caps are not 1:1 in either direction. They happen to share
- * the value 100; deriving one from the other would mean a bump to a cheap
- * JSON cap silently doubled the IndexedDB blob budget.
+ * logs, so the two caps are not 1:1 in either direction. Deriving one from
+ * the other would mean a bump to a cheap JSON cap silently grew the blob
+ * budget.
+ *
+ * The same cap bounds the cloud bucket. Until 2026-10-05 only IndexedDB was
+ * pruned, and one account's `recordings/` folder grew to 13,755 takes
+ * (1.14 GB) — past the Supabase plan's storage quota.
  */
-const MAX_RECORDINGS = 100;
+export const MAX_RECORDINGS = 300;
 
 function dbNameFor(uid: string): string {
 	return `${DB_NAME_BASE}:${uid}`;
@@ -214,12 +219,49 @@ export async function saveRecording(
 				contentType: 'audio/webm',
 				upsert: true
 			})
-			.then(({ error }) => {
-				if (error) console.warn('Failed to upload recording to cloud:', error);
+			.then(async ({ error }) => {
+				if (error) {
+					console.warn('Failed to upload recording to cloud:', error);
+					return;
+				}
+				await pruneCloudRecordings(supabase, userId);
 			})
 			.catch((error) => {
 				console.warn('Failed to upload recording to cloud:', error);
 			});
+	}
+}
+
+/**
+ * Delete the user's cloud recordings beyond the newest MAX_RECORDINGS.
+ * Runs after every successful upload, so the steady state removes one file;
+ * a backlog drains up to `PRUNE_PAGE` files per upload. Best-effort: a
+ * failure is logged and the next upload tries again.
+ */
+const PRUNE_PAGE = 100;
+
+export async function pruneCloudRecordings(
+	supabase: SupabaseClient<Database>,
+	userId: string
+): Promise<void> {
+	try {
+		const bucket = supabase.storage.from('recordings');
+		const { data: surplus, error: listError } = await bucket.list(userId, {
+			limit: PRUNE_PAGE,
+			offset: MAX_RECORDINGS,
+			sortBy: { column: 'created_at', order: 'desc' }
+		});
+		if (listError) {
+			console.warn('Failed to list cloud recordings for pruning:', listError);
+			return;
+		}
+		if (!surplus || surplus.length === 0) return;
+		const { error: removeError } = await bucket.remove(
+			surplus.map((f) => `${userId}/${f.name}`)
+		);
+		if (removeError) console.warn('Failed to prune cloud recordings:', removeError);
+	} catch (error) {
+		console.warn('Failed to prune cloud recordings:', error);
 	}
 }
 
