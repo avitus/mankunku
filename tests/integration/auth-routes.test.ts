@@ -104,6 +104,10 @@ vi.mock('@sentry/sveltekit', () => ({
 
 import { actions, load as authPageLoad } from '../../src/routes/auth/+page.server';
 import { GET as callbackGET } from '../../src/routes/auth/callback/+server';
+import {
+	actions as resetPasswordActions,
+	load as resetPasswordLoad
+} from '../../src/routes/auth/reset-password/+page.server';
 import { POST as logoutPOST } from '../../src/routes/auth/logout/+server';
 import { handle } from '../../src/hooks.server';
 import { createServerClient } from '@supabase/ssr';
@@ -124,6 +128,7 @@ function createMockSupabaseClient(overrides: Record<string, unknown> = {}) {
 			signOut: vi.fn(),
 			getSession: vi.fn(),
 			getUser: vi.fn(),
+			updateUser: vi.fn(),
 			...overrides
 		}
 	};
@@ -715,6 +720,270 @@ describe('Auth Callback — /auth/callback', () => {
 			expect(e.location).toBe('/auth?error=callback_error');
 		}
 		warnSpy.mockRestore();
+	});
+});
+
+describe('Auth Callback — password recovery links', () => {
+	// Settings' "Change password" sends `redirectTo: <origin>/auth/callback?type=recovery`.
+	// Before, it pointed at /auth, which handles no codes: the /auth guard
+	// bounced a signed-in user to '/' with the code dropped, so no recovery
+	// link ever reached a new-password form.
+
+	// The callback logs every rejected link and failed exchange.
+	let warnSpy: ReturnType<typeof vi.spyOn>;
+	beforeEach(() => {
+		warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+	});
+	afterEach(() => {
+		warnSpy.mockRestore();
+	});
+
+	/** Run the callback for `params` and return where it redirected. */
+	async function callbackRedirect(params: Record<string, string>): Promise<string> {
+		const mockEvent = {
+			url: createMockUrl('/auth/callback', params),
+			locals: { supabase: mockSupabase },
+			cookies: createMockCookies()
+		};
+		try {
+			await callbackGET(mockEvent as any);
+		} catch (e: any) {
+			expect(e.status).toBe(303);
+			return e.location;
+		}
+		return expect.fail('Expected redirect to be thrown');
+	}
+
+	it('exchanges a recovery code and sends the session to the new-password form, not /', async () => {
+		mockSupabase.auth.exchangeCodeForSession.mockResolvedValue({
+			data: { session: {}, user: {} },
+			error: null
+		});
+
+		expect(await callbackRedirect({ type: 'recovery', code: 'recovery-code' })).toBe(
+			'/auth/reset-password'
+		);
+		expect(mockSupabase.auth.exchangeCodeForSession).toHaveBeenCalledWith('recovery-code');
+	});
+
+	it("routes Supabase's otp_expired redirect (no code) to the expired-link message", async () => {
+		// What Supabase's /verify sends back for an expired or already-used
+		// (e.g. mail-scanner prefetched) recovery link.
+		const location = await callbackRedirect({
+			type: 'recovery',
+			error: 'access_denied',
+			error_code: 'otp_expired',
+			error_description: 'Email link is invalid or has expired'
+		});
+
+		expect(location).toBe('/auth/reset-password?link=expired');
+		expect(mockSupabase.auth.exchangeCodeForSession).not.toHaveBeenCalled();
+	});
+
+	it('the marker is the boundary: an expired link WITHOUT it stays on the signup path', async () => {
+		expect(
+			await callbackRedirect({ error: 'access_denied', error_code: 'otp_expired' })
+		).toBe('/auth?error=link_expired');
+	});
+
+	it('a failed recovery exchange is never told "your email is confirmed"', async () => {
+		// The signup branch's reasoning (a code means /verify confirmed the
+		// email) says nothing about a reset: a failed recovery exchange reset
+		// nothing.
+		mockSupabase.auth.exchangeCodeForSession.mockResolvedValue({
+			data: { session: null, user: null },
+			error: { message: 'exchange failed', code: 'flow_state_expired' }
+		});
+
+		expect(await callbackRedirect({ type: 'recovery', code: 'some-code' })).not.toBe(
+			'/auth?notice=email_confirmed'
+		);
+	});
+
+	it.each([
+		['pkce_code_verifier_not_found', 'other-browser'],
+		['flow_state_not_found', 'expired'],
+		['flow_state_expired', 'expired'],
+		['bad_code_verifier', 'invalid']
+	])('a failed recovery exchange (%s) lands on the reset page as %s', async (code, link) => {
+		mockSupabase.auth.exchangeCodeForSession.mockResolvedValue({
+			data: { session: null, user: null },
+			error: { message: 'exchange failed', code }
+		});
+
+		expect(await callbackRedirect({ type: 'recovery', code: 'some-code' })).toBe(
+			`/auth/reset-password?link=${link}`
+		);
+	});
+
+	it('a recovery exchange that THROWS lands on the reset page as invalid, not a 500', async () => {
+		mockSupabase.auth.exchangeCodeForSession.mockRejectedValue(new TypeError('fetch failed'));
+
+		expect(await callbackRedirect({ type: 'recovery', code: 'some-code' })).toBe(
+			'/auth/reset-password?link=invalid'
+		);
+		expect(warnSpy).toHaveBeenCalled();
+	});
+
+	it('a recovery marker with neither code nor error is an invalid link', async () => {
+		expect(await callbackRedirect({ type: 'recovery' })).toBe('/auth/reset-password?link=invalid');
+	});
+});
+
+describe('Reset Password Page — /auth/reset-password', () => {
+	/** A load/action event with `params` on the URL and the given verdict. */
+	function resetEvent(
+		verdict: { user: { id: string; email: string } | null; degraded: boolean },
+		options: { params?: Record<string, string>; form?: Record<string, string> } = {}
+	) {
+		return {
+			url: createMockUrl('/auth/reset-password', options.params ?? {}),
+			request: createMockRequest(createMockFormData(options.form ?? {})),
+			locals: {
+				supabase: mockSupabase,
+				safeGetSession: vi.fn(async () => ({
+					session: verdict.user ? { access_token: 'valid', user: verdict.user } : null,
+					user: verdict.user,
+					degraded: verdict.degraded
+				}))
+			},
+			cookies: createMockCookies()
+		};
+	}
+
+	const user = { id: 'user-123', email: 'test@example.com' };
+
+	describe('load', () => {
+		it('shows the form to a verified (recovery) session', async () => {
+			const result = await resetPasswordLoad(resetEvent({ user, degraded: false }) as any);
+			expect(result).toEqual({ status: 'ready', email: 'test@example.com' });
+		});
+
+		it('reports a signed-out visitor rather than showing a form that cannot save', async () => {
+			const result = await resetPasswordLoad(resetEvent({ user: null, degraded: false }) as any);
+			expect(result).toEqual({ status: 'signed-out', email: null });
+		});
+
+		it('reports unavailable, not signed-out, when the auth verdict is degraded', async () => {
+			const result = await resetPasswordLoad(resetEvent({ user: null, degraded: true }) as any);
+			expect(result).toEqual({ status: 'unavailable', email: null });
+		});
+
+		it('a link problem wins over a session: a signed-in user with an expired link hears it expired', async () => {
+			const result = await resetPasswordLoad(
+				resetEvent({ user, degraded: false }, { params: { link: 'expired' } }) as any
+			);
+			expect(result).toEqual({ status: 'expired', email: 'test@example.com' });
+		});
+
+		it('ignores an unknown ?link= value (URL input is never echoed)', async () => {
+			const result = await resetPasswordLoad(
+				resetEvent({ user, degraded: false }, { params: { link: '<script>' } }) as any
+			);
+			expect(result).toEqual({ status: 'ready', email: 'test@example.com' });
+		});
+	});
+
+	describe('update action', () => {
+		it('sets the new password on the session and reports success', async () => {
+			mockSupabase.auth.updateUser.mockResolvedValue({ data: { user }, error: null });
+
+			const result = await resetPasswordActions.update(
+				resetEvent(
+					{ user, degraded: false },
+					{ form: { password: 'new-secret', confirm: 'new-secret' } }
+				) as any
+			);
+
+			expect(result).toEqual({ success: true });
+			expect(mockSupabase.auth.updateUser).toHaveBeenCalledWith({ password: 'new-secret' });
+		});
+
+		it('refuses with 401 when the session is gone, without calling Supabase', async () => {
+			const result = await resetPasswordActions.update(
+				resetEvent(
+					{ user: null, degraded: false },
+					{ form: { password: 'new-secret', confirm: 'new-secret' } }
+				) as any
+			);
+
+			expect((result as any)?.status).toBe(401);
+			expect((result as any)?.data?.error).toMatch(/request a new link/i);
+			expect(mockSupabase.auth.updateUser).not.toHaveBeenCalled();
+		});
+
+		it('answers 503, not "session ended", when the auth verdict is degraded', async () => {
+			const result = await resetPasswordActions.update(
+				resetEvent(
+					{ user: null, degraded: true },
+					{ form: { password: 'new-secret', confirm: 'new-secret' } }
+				) as any
+			);
+
+			expect((result as any)?.status).toBe(503);
+			expect(mockSupabase.auth.updateUser).not.toHaveBeenCalled();
+		});
+
+		it('rejects a password under 6 characters before contacting Supabase', async () => {
+			const result = await resetPasswordActions.update(
+				resetEvent({ user, degraded: false }, { form: { password: 'abc12', confirm: 'abc12' } }) as any
+			);
+
+			expect((result as any)?.status).toBe(400);
+			expect((result as any)?.data?.error).toBe('Password must be at least 6 characters.');
+			expect(mockSupabase.auth.updateUser).not.toHaveBeenCalled();
+		});
+
+		it('rejects a confirmation that does not match', async () => {
+			const result = await resetPasswordActions.update(
+				resetEvent(
+					{ user, degraded: false },
+					{ form: { password: 'new-secret', confirm: 'new-secreT' } }
+				) as any
+			);
+
+			expect((result as any)?.status).toBe(400);
+			expect((result as any)?.data?.error).toBe('Passwords do not match.');
+			expect(mockSupabase.auth.updateUser).not.toHaveBeenCalled();
+		});
+
+		it("surfaces Supabase's rejection message (e.g. same as the old password)", async () => {
+			mockSupabase.auth.updateUser.mockResolvedValue({
+				data: { user: null },
+				error: {
+					message: 'New password should be different from the old password.',
+					code: 'same_password'
+				}
+			});
+
+			const result = await resetPasswordActions.update(
+				resetEvent(
+					{ user, degraded: false },
+					{ form: { password: 'old-secret', confirm: 'old-secret' } }
+				) as any
+			);
+
+			expect((result as any)?.status).toBe(400);
+			expect((result as any)?.data?.error).toBe(
+				'New password should be different from the old password.'
+			);
+		});
+
+		it('answers 503 (form kept) when updateUser THROWS, not a 500', async () => {
+			mockSupabase.auth.updateUser.mockRejectedValue(new TypeError('fetch failed'));
+			const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+			const result = await resetPasswordActions.update(
+				resetEvent(
+					{ user, degraded: false },
+					{ form: { password: 'new-secret', confirm: 'new-secret' } }
+				) as any
+			);
+
+			expect((result as any)?.status).toBe(503);
+			expect(warnSpy).toHaveBeenCalled();
+			warnSpy.mockRestore();
+		});
 	});
 });
 

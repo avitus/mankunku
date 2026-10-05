@@ -40,7 +40,8 @@ describe('isOnboardingRoute', () => {
 		'/scales',
 		'/settings',
 		'/progress',
-		'/auth'
+		'/auth',
+		'/auth/reset-password'
 	])('browsable surface %s renders clean', (path) => {
 		expect(isOnboardingRoute(path)).toBe(false);
 	});

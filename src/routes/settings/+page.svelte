@@ -28,6 +28,7 @@
 	import { runTour } from '$lib/tour/driver-config';
 	import { hasSeen, resetTours } from '$lib/state/tour.svelte';
 	import { goto } from '$app/navigation';
+	import { passwordRecoveryRedirect } from '$lib/supabase/password-recovery';
 
 	const instruments = Object.entries(INSTRUMENTS);
 	const instrument = $derived(getInstrument());
@@ -193,13 +194,14 @@
 		if (!supabase || !user?.email) return;
 		try {
 			const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
-				redirectTo: `${window.location.origin}/auth`
+				redirectTo: passwordRecoveryRedirect(window.location.origin)
 			});
 			if (error) {
 				console.warn('Failed to send password reset email:', error);
 				alert('Failed to send password reset email. Please try again.');
 			} else {
-				alert('Password reset email sent. Check your inbox.');
+				// PKCE: only this browser holds the verifier the link redeems against.
+				alert('Password reset email sent. Open the link in this browser to choose a new password.');
 			}
 		} catch (err) {
 			console.warn('Password reset error:', err);

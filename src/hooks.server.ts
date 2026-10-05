@@ -120,6 +120,12 @@ function makeE2EStubSupabase(testUser: E2ETestUser, event: RequestEvent): App.Lo
 				event.cookies.delete('e2e-test-user', { path: '/' });
 				return { error: null };
 			},
+			// /auth/reset-password's update action. Accepts any password: what
+			// the e2e drives is the form round-trip, not Supabase's policy.
+			updateUser: async () => ({
+				data: { user: { id: testUser.id, email: testUser.email } },
+				error: null
+			}),
 			onAuthStateChange: () => ({
 				data: { subscription: { unsubscribe: () => {} } }
 			})
