@@ -233,7 +233,9 @@ describe('getRecording (blob only)', () => {
  */
 function makeStorageClient(
 	downloadBlob: Blob | null = null,
-	listResult: { data: Array<{ name: string }> | null; error: { message: string } | null } = {
+	listResult:
+		| { data: Array<{ name: string }> | null; error: { message: string } | null }
+		| Array<{ data: Array<{ name: string }> | null; error: { message: string } | null }> = {
 		data: [],
 		error: null
 	},
@@ -255,7 +257,9 @@ function makeStorageClient(
 			}),
 			list: vi.fn((prefix: string, opts: unknown) => {
 				lists.push({ prefix, opts });
-				return Promise.resolve(listResult);
+				// An array answers successive calls in turn, then repeats its last entry.
+				const pages = Array.isArray(listResult) ? listResult : [listResult];
+				return Promise.resolve(pages[Math.min(lists.length - 1, pages.length - 1)]);
 			}),
 			download,
 			remove: vi.fn((paths: string[]) => {
@@ -342,19 +346,38 @@ describe('clearAllRecordings(uid)', () => {
 // 13,755 takes (1.14 GB) and pushed the project past its storage quota.
 describe('cloud pruning', () => {
 	it('after an upload, lists the folder past the newest MAX_RECORDINGS and removes that surplus', async () => {
-		const { client, lists, removals } = makeStorageClient(null, {
-			data: [{ name: 'old-1.webm' }, { name: 'old-2.webm' }],
-			error: null
-		});
+		const { client, lists, removals } = makeStorageClient(null, [
+			{ data: [{ name: 'old-1.webm' }, { name: 'old-2.webm' }], error: null },
+			{ data: [], error: null }
+		]);
 		await saveRecording('session-new', makeBlob(), { supabase: client, userId: 'user-9' });
 		await new Promise((r) => setTimeout(r, 0));
-		expect(lists).toEqual([
-			{
-				prefix: 'user-9',
-				opts: { limit: 100, offset: MAX_RECORDINGS, sortBy: { column: 'created_at', order: 'desc' } }
-			}
-		]);
+		expect(lists[0]).toEqual({
+			prefix: 'user-9',
+			opts: { limit: 100, offset: MAX_RECORDINGS, sortBy: { column: 'created_at', order: 'desc' } }
+		});
 		expect(removals).toEqual([['user-9/old-1.webm', 'user-9/old-2.webm']]);
+	});
+
+	it('drains a backlog larger than one page, re-listing at the same offset', async () => {
+		const { client, lists, removals } = makeStorageClient(null, [
+			{ data: [{ name: 'a.webm' }], error: null },
+			{ data: [{ name: 'b.webm' }], error: null },
+			{ data: [], error: null }
+		]);
+		await pruneCloudRecordings(client, 'user-9');
+		expect(removals).toEqual([['user-9/a.webm'], ['user-9/b.webm']]);
+		expect(lists.map((l) => (l.opts as { offset: number }).offset)).toEqual([
+			MAX_RECORDINGS,
+			MAX_RECORDINGS,
+			MAX_RECORDINGS
+		]);
+	});
+
+	it('stops after a bounded number of passes when removals never shrink the folder', async () => {
+		const { client, lists } = makeStorageClient(null, { data: [{ name: 'stuck.webm' }], error: null });
+		await pruneCloudRecordings(client, 'user-9');
+		expect(lists.length).toBe(20);
 	});
 
 	it('removes nothing when the folder is within the cap', async () => {
