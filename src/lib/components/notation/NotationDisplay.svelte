@@ -180,6 +180,8 @@
 		 * one system engraves larger across the full row.
 		 */
 		staffWidth?: number;
+		/** One compact staff: remove outer engraving padding and enlarge its chord symbols. */
+		compactStaff?: boolean;
 	}
 
 	let {
@@ -199,7 +201,8 @@
 		titleArea,
 		tuneOptions,
 		frameless = false,
-		staffWidth
+		staffWidth,
+		compactStaff = false
 	}: Props = $props();
 
 	/** Print charts show abcjs's own title/composer/style masthead. */
@@ -312,13 +315,15 @@
 		const [visualObj] = abcjs.renderAbc(containerEl, abc, {
 			responsive: 'resize',
 			staffwidth: staffWidth ?? CHART_STAFF_WIDTH,
-			paddingtop: showEngravedMasthead ? 8 : 12,
-			paddingbottom: 16,
+			paddingtop: compactStaff ? 0 : showEngravedMasthead ? 8 : 12,
+			paddingbottom: compactStaff ? 2 : 16,
 			paddingleft: 12,
 			paddingright: 12,
 			add_classes: true,
 			format: {
-				gchordfont: { face: 'Fraunces, Edwin, Georgia, serif', size: 15, weight: 'normal', style: 'normal', decoration: 'none' },
+				// abcjs parses format values as ABC directives, so the compact
+				// font must be a string for its size to affect engraving geometry.
+				gchordfont: compactStaff ? 'Fraunces 21' : { face: 'Fraunces, Edwin, Georgia, serif', size: 15, weight: 'normal', style: 'normal', decoration: 'none' },
 				// Bold boxed rehearsal letters (%%partsbox 1 draws the square).
 				partsfont: {
 					face: 'Fraunces, Georgia, "Times New Roman", serif',

@@ -11,6 +11,7 @@
 	import NextStepCard from '$lib/components/lick-practice/NextStepCard.svelte';
 	import {
 		lickPractice,
+		isDailyPractice,
 		getCurrentPlanItem,
 		getCurrentProgressionType,
 		getCurrentKey,
@@ -2140,6 +2141,7 @@
 				aria-hidden={inScoreHold}
 			>
 				<UpcomingKeysDisplay
+					daily={isDailyPractice()}
 					plannedKeys={plannedKeysForLick}
 					{nextCycleKey}
 					{scrollFraction}

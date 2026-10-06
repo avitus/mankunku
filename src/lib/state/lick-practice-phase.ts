@@ -216,6 +216,8 @@ export interface PhaseTabView {
 
 /** Resolved entrance and already-scheduled next action for the current row. */
 export interface PhaseTabContext {
+	/** Daily uses only current-action cues; its upcoming sheets are visible ahead. */
+	daily?: boolean;
 	repeat?: boolean;
 	fromMemory?: boolean;
 	tempo?: number;
@@ -253,6 +255,19 @@ export interface PhaseTabContext {
  */
 export function phaseTabView(cue: PhaseCue, keyLabel: string, context: PhaseTabContext = {}): PhaseTabView {
 	if (cue.phase === 'idle') return { kind: 'hidden', text: '', count: 0 };
+	if (context.daily) {
+		if (cue.phase === 'play') {
+			const pass = context.pass;
+			return { kind: 'play', text: pass ? `Play · ${pass.index}/${pass.total}` : 'Play', count: 0 };
+		}
+		if (cue.phase === 'listen' && cue.next === 'play' && cue.countdown > 0) {
+			return { kind: 'play-in', text: 'Play', count: cue.countdown };
+		}
+		if (cue.phase === 'listen' || cue.phase === 'count-in') {
+			return { kind: 'listen', text: 'Listen', count: 0 };
+		}
+		return { kind: 'rest', text: 'Rest', count: 0 };
+	}
 	// The outcome is known only after scoring. Keep this exact entrance
 	// visible throughout preparation, with the mic shut until the count ends.
 	const entrance = [

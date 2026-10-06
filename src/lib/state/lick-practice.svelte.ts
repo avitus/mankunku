@@ -1526,8 +1526,14 @@ export function getKeyPasses(lickIdx: number): number[] {
 	return item.keys.map((key) => passesFor(item, key));
 }
 
+/** Daily presentation applies only to the multi-lick Daily session, never its recommended Deep drill. */
+export function isDailyPractice(): boolean {
+	return lickPractice.mode === 'standard' && lickPractice.config.sessionType === 'daily';
+}
+
 /**
  * Bars of preparation laid before the key at rotation slot `slot`:
+ * Daily shows notation ahead and has no preparation bars. Other sessions use
  * at least one for an unannounced focused-cycle outcome or sheet graduation;
  * `LEAD_SHEET_PAUSE_BARS` for a revealed key in continuous mode, unless it
  * opens a cycle that demos — else none. The pause heralds the switch from
@@ -1542,7 +1548,7 @@ export function getKeyPasses(lickIdx: number): number[] {
  * that bar.
  */
 function pauseBarsFor(item: LickPracticePlanItem, key: PitchClass, slot: number): number {
-	if (lickPractice.config.practiceMode !== 'continuous') return 0;
+	if (lickPractice.config.practiceMode !== 'continuous' || isDailyPractice()) return 0;
 	if (slot === 0 && cycleDemos()) return 0;
 	const entryBars = lickPractice.mode === 'single-lick'
 		? cycleEntries.get(item.keys)?.get(key)?.prepareBars ?? 0 : 0;
@@ -1567,7 +1573,7 @@ export function getKeyPauses(lickIdx: number): number[] {
  * What the lead-sheet reveal adds to a lick's cycle at PLAN time, before a
  * plan item exists: `LEAD_SHEET_PASSES − 1` extra windows for each key that
  * reveals (at most one — the newest), and its `LEAD_SHEET_PAUSE_BARS` reading
- * pause when that key does not open the cycle (the sessions planned here —
+ * pause outside Daily when that key does not open the cycle (the sessions planned here —
  * standard and Daily — always demo, so an opening key never pauses). Feeds
  * `lickAudioBars` so the Daily budget fill and the setup estimate charge
  * what the session plays.
@@ -1584,7 +1590,7 @@ function leadSheetExtras(
 	for (const reveal of decideReveals(phraseId, entryKey, keys).values()) {
 		if (reveal) {
 			extraWindows += LEAD_SHEET_PASSES - 1;
-			if (slot > 0) pauseBars += LEAD_SHEET_PAUSE_BARS;
+			if (slot > 0 && lickPractice.config.sessionType !== 'daily') pauseBars += LEAD_SHEET_PAUSE_BARS;
 		}
 		slot++;
 	}

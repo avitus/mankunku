@@ -7,6 +7,8 @@
 	import { chordChartCells, chordChartSymbol } from '$lib/ui/chord-chart-layout';
 
 	interface Props {
+		/** Retain the label space while Daily shows only its action cue. */
+		showLabel?: boolean;
 		harmony: HarmonicSegment[];
 		currentBeat: number;
 		timeSignature: [number, number];
@@ -24,6 +26,7 @@
 	}
 
 	let {
+		showLabel = true,
 		harmony,
 		currentBeat,
 		timeSignature,
@@ -82,7 +85,7 @@
 </script>
 
 <div class="chord-chart flex flex-col gap-0">
-	<div class="smallcaps mb-1 text-[var(--color-brass)]">Changes</div>
+	<div class="smallcaps mb-1 text-[var(--color-brass)]" class:label-spacer={!showLabel} aria-hidden={!showLabel}>{showLabel ? 'Changes' : ' '}</div>
 	<!-- One structural row, never wrapped: the host (UpcomingKeysDisplay)
 	     sizes each key row to exactly one chart row, so a second row could
 	     only overflow it and paint over the key below. Long windows get
@@ -152,6 +155,7 @@
 </div>
 
 <style>
+	.label-spacer { visibility: hidden; }
 	/* The app-wide chord voice (see --chord-font in app.css) with the
 	   superscript engraving the tune charts draw in SVG: root + "-" on the
 	   baseline, everything after raised at 0.58× — G⁷⁽♭⁹⁾, Dø⁷, C-⁷. */
