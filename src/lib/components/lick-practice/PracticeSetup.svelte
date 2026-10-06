@@ -577,10 +577,11 @@
 	<div class="flex flex-col items-center gap-1.5">
 		{#if canStart}
 			<button
+				disabled={config.sessionType !== 'trick' && lickPractice.progressLoading}
 				onclick={() => { void audition.stop(); onstart(); }}
-				class="rounded-lg bg-[var(--color-accent)] px-8 py-2.5 text-base font-bold text-white shadow-md transition-opacity hover:opacity-90"
+				class="rounded-lg bg-[var(--color-accent)] px-8 py-2.5 text-base font-bold text-white shadow-md transition-opacity hover:opacity-90 disabled:opacity-50"
 			>
-				{startLabel}
+				{config.sessionType !== 'trick' && lickPractice.progressLoading ? 'Loading progress…' : startLabel}
 			</button>
 		{/if}
 		<p class="text-center text-xs text-[var(--color-text-secondary)]">

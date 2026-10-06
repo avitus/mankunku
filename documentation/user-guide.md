@@ -92,6 +92,8 @@ The knobs and switches:
 - **Backing style** — Swing, Bossa Nova, Ballad, or Straight. See [The band](#the-band) below for what each one actually plays.
 - **Mode** — *Continuous* plays the lick once as a demo in the first key, then you play it through the lick's unlocked keys back-to-back over a non-stop backing track. *Call & Response* skips the upfront demo and instead, in every key, the app plays the lick first and you echo it on the next cycle. Both modes score every key you play.
 
+The Start button briefly shows *Loading progress…* while saved progress is loading, so practice begins at the lick's saved tempo and unlocked keys.
+
 There is **no tempo knob** on this screen. Every lick carries its own tempo: a brand-new one opens at 60 BPM, and from there the sessions move it for you. After each lick in a Daily or Focused session, the tempo adjusts on your average score across that lick's keys: +2 BPM at 95%+, +1 BPM at 90%+, -1 BPM in the 75–89% band, and -3 BPM below 75%. A single key scored below 75% blocks *any* upward adjustment, even if the average looks good. A session that unlocks a new key drops the tempo 10% instead of bumping it — rounded to a whole BPM and never below the 50 BPM floor — so the new key starts with headroom. Deep Practice and Tricks run their own tempo rules, described below. If you want a lick's tempo back where it started, that's [Reset Progress](#when-a-lick-keeps-beating-you) on its detail page.
 
 Above the console, a ⚠ line warns you when licks you've tagged for practice have no progression yet — they won't appear in any session until you open them and pick one.

@@ -237,6 +237,9 @@ export interface LickBreatherInfo {
 	next: LickBreatherNext;
 }
 
+// Multiple mounted routes can hydrate concurrently (for example Home → Practice).
+let pendingProgressLoads = 0;
+
 export const lickPractice = $state<{
 	config: LickPracticeConfig;
 	phase: LickPracticePhase;
@@ -258,6 +261,8 @@ export const lickPractice = $state<{
 	startTime: number;
 	elapsedSeconds: number;
 	progress: LickPracticeProgress;
+	/** Keep session starts behind all pending progress hydration. */
+	progressLoading: boolean;
 	/** 'standard' = multi-lick rotation; 'single-lick' = endless deep practice. */
 	mode: 'standard' | 'single-lick';
 	/** Single-lick mode: which round of the 12-key cycle the user is on (1-based). */
@@ -318,6 +323,7 @@ export const lickPractice = $state<{
 	startTime: 0,
 	elapsedSeconds: 0,
 	progress: {},
+	progressLoading: false,
 	mode: 'standard',
 	roundNumber: 0,
 	masteredThisRound: [],
@@ -349,55 +355,66 @@ export async function hydrateLickPracticeProgress(
 	supabase?: SupabaseClient<Database> | null,
 	session?: Session | null
 ): Promise<void> {
-	const client = session ? (supabase ?? null) : null;
+	// Populate cards immediately from the cache. Previously the first await
+	// left progress at {}, so a fast Start captured the new-lick 60 BPM even
+	// while unlock counts already supplied all 12 keys. Finishing hydration
+	// later could not change that captured session tempo; scoring saved it.
+	pendingProgressLoads++;
+	lickPractice.progressLoading = true;
+	try {
+		lickPractice.progress = loadLickPracticeProgress();
+		const client = session ? (supabase ?? null) : null;
 
-	// Hydrate cloud metadata first so localStorage is populated before we
-	// read from it below. initLickMetadataFromCloud never throws; it reports
-	// success/failure, and the app proceeds with local-only data either way —
-	// local-first, cloud sync is best-effort.
-	let cloudOk = true;
-	if (client) {
-		cloudOk = await initLickMetadataFromCloud(client);
+		// Merge cloud metadata before enabling session starts. The loader reports
+		// success/failure, and the app proceeds with local-only data either way —
+		// local-first, cloud sync is best-effort.
+		let cloudOk = true;
+		if (client) {
+			cloudOk = await initLickMetadataFromCloud(client);
+		}
+
+		lickPractice.progress = loadLickPracticeProgress();
+		if (cloudOk) {
+			// Migrate legacy 'practice' markers from lick.tags + tag overrides
+			// into the new user-lick-tags store so getPracticeLicks can find them.
+			backfillPracticeTags(getAllLicks(), getLickTagOverrides());
+			// Drop `prog:*` tags the lick's own harmony doesn't fit (a 3-bar ii-V-i
+			// tagged for the half-bar short template, a cadence lick on a vamp).
+			// Idempotent and write-on-change only, so it can run on every successful
+			// hydrate — per-id LWW can resurrect a stale tag from an old-code
+			// device, and re-pruning folds it. Same cloudOk gate as the backfill.
+			pruneIncompatibleProgressionTags(
+				getAllLicks(),
+				(l: Phrase, t: ChordProgressionType): boolean => progressionFitsLick(l, t).fits
+			);
+			// One-time: seed the per-lick progress-history graph from the local
+			// session log. Gated on cloud success for the same reason as the
+			// backfill above (don't push a partial blob over the intact cloud row).
+			seedProgressHistoryFromSessions();
+		} else {
+			console.warn(
+				'[lick-practice] cloud hydration failed — skipping tag backfill this mount'
+			);
+		}
+
+		// `pickInitialProgression` reads `lickPractice.progress`, which this function
+		// has just *written* a fresh object to. Called from an `$effect` (the library
+		// and lick-practice pages both do), that read is tracked, so the write
+		// re-invalidates the effect and it re-runs forever.
+		//
+		// It only bites signed-out users: with a client, the `await` above splits the
+		// function and these writes land outside the effect's tracking window. And it
+		// needs a non-empty practice set, since `pickInitialProgression` early-returns
+		// before touching `lickPractice.progress` when nothing is tagged — which is
+		// why it stayed invisible for so long.
+		//
+		// Hydration should never establish reactive dependencies in the first place;
+		// it runs *because* auth changed, not because the state it writes changed.
+		lickPractice.config.progressionType = untrack(pickInitialProgression);
+	} finally {
+		pendingProgressLoads--;
+		lickPractice.progressLoading = pendingProgressLoads > 0;
 	}
-
-	lickPractice.progress = loadLickPracticeProgress();
-	if (cloudOk) {
-		// Migrate legacy 'practice' markers from lick.tags + tag overrides
-		// into the new user-lick-tags store so getPracticeLicks can find them.
-		backfillPracticeTags(getAllLicks(), getLickTagOverrides());
-		// Drop `prog:*` tags the lick's own harmony doesn't fit (a 3-bar ii-V-i
-		// tagged for the half-bar short template, a cadence lick on a vamp).
-		// Idempotent and write-on-change only, so it can run on every successful
-		// hydrate — per-id LWW can resurrect a stale tag from an old-code
-		// device, and re-pruning folds it. Same cloudOk gate as the backfill.
-		pruneIncompatibleProgressionTags(
-			getAllLicks(),
-			(l: Phrase, t: ChordProgressionType): boolean => progressionFitsLick(l, t).fits
-		);
-		// One-time: seed the per-lick progress-history graph from the local
-		// session log. Gated on cloud success for the same reason as the
-		// backfill above (don't push a partial blob over the intact cloud row).
-		seedProgressHistoryFromSessions();
-	} else {
-		console.warn(
-			'[lick-practice] cloud hydration failed — skipping tag backfill this mount'
-		);
-	}
-
-	// `pickInitialProgression` reads `lickPractice.progress`, which this function
-	// has just *written* a fresh object to. Called from an `$effect` (the library
-	// and lick-practice pages both do), that read is tracked, so the write
-	// re-invalidates the effect and it re-runs forever.
-	//
-	// It only bites signed-out users: with a client, the `await` above splits the
-	// function and these writes land outside the effect's tracking window. And it
-	// needs a non-empty practice set, since `pickInitialProgression` early-returns
-	// before touching `lickPractice.progress` when nothing is tagged — which is
-	// why it stayed invisible for so long.
-	//
-	// Hydration should never establish reactive dependencies in the first place;
-	// it runs *because* auth changed, not because the state it writes changed.
-	lickPractice.config.progressionType = untrack(pickInitialProgression);
 }
 
 /**
@@ -652,6 +669,7 @@ export function buildSessionPlan(): void {
 
 /** Start the practice session */
 export function startSession(): void {
+	if (lickPractice.progressLoading) return;
 	// Defensive: clear single-lick state in case the user toggled into Focused
 	// from a single-lick configuration. Mirrors startDailyPracticeSession.
 	lickPractice.config.singleLickId = undefined;
@@ -805,6 +823,7 @@ export function previewSessionSeconds(): { lickCount: number; seconds: number } 
  * for plan construction (each plan item carries its own).
  */
 export function startDailyPracticeSession(): void {
+	if (lickPractice.progressLoading) return;
 	// Defensive: clear single-lick state in case the user toggled into Daily
 	// Practice from a single-lick configuration.
 	lickPractice.config.singleLickId = undefined;
@@ -921,6 +940,7 @@ export function startSingleLickSession(
 	lickOrId: string | Phrase,
 	options: SingleLickSessionOptions = {}
 ): boolean {
+	if (lickPractice.progressLoading) return false;
 	const lick = typeof lickOrId === 'string' ? getLickById(lickOrId) : lickOrId;
 	if (!lick) return false;
 

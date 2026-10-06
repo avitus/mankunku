@@ -15,6 +15,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { Session, SupabaseClient } from '@supabase/supabase-js';
+import type { Score } from '$lib/types/scoring';
 import type { Database } from '$lib/supabase/types';
 
 const store = new Map<string, string>();
@@ -36,12 +37,24 @@ vi.mock('$lib/persistence/sync', async (importOriginal) => ({
 }));
 
 import { loadLickMetadataFromCloud } from '$lib/persistence/sync';
-import { hydrateLickPracticeProgress } from '$lib/state/lick-practice.svelte';
+import {
+	hydrateLickPracticeProgress,
+	lickPractice,
+	startDailyPracticeSession,
+	startSession,
+	startSingleLickSession,
+	resetSession,
+	recordKeyAttempt,
+	startInterLickTransition
+} from '$lib/state/lick-practice.svelte';
 import {
 	getProgressionTags,
 	loadLickProgressHistory,
 	loadUserLickTags,
-	toggleProgressionTag
+	toggleProgressionTag,
+	saveLickPracticeProgress,
+	getLickTempo,
+	loadLickPracticeProgress
 } from '$lib/persistence/lick-practice-store';
 import { saveLickPracticeSessions } from '$lib/persistence/lick-practice-sessions';
 import { progressionFitsLick } from '$lib/data/progressions';
@@ -104,6 +117,8 @@ function maintenanceRan(): { pruned: boolean; backfilled: boolean; seeded: boole
 
 beforeEach(() => {
 	store.clear();
+	resetSession();
+	lickPractice.progress = {};
 	vi.mocked(loadLickMetadataFromCloud).mockReset();
 	seedMaintenanceInputs();
 	// Precondition for the prune signal: the short template really is a misfit.
@@ -146,4 +161,78 @@ describe('hydrateLickPracticeProgress — the cloudOk gate', () => {
 		expect(loadLickMetadataFromCloud).not.toHaveBeenCalled();
 		expect(maintenanceRan().pruned).toBe(true);
 	});
+});
+
+describe('practice startup while cloud progress is loading', () => {
+	const savedProgress = {
+		[LEGACY_LICK]: { C: { currentTempo: 117, lastPracticedAt: 1000, passCount: 66 } }
+	};
+
+	it('loads cached tempo synchronously before the cloud request finishes', async () => {
+		saveLickPracticeProgress(savedProgress);
+		let finish!: (value: { status: 'empty' }) => void;
+		vi.mocked(loadLickMetadataFromCloud).mockReturnValue(new Promise(resolve => { finish = resolve; }));
+		const hydration = hydrateLickPracticeProgress(fakeClient, fakeSession);
+		const tempoWhileLoading = getLickTempo(lickPractice.progress, LEGACY_LICK);
+		finish({ status: 'empty' });
+		await hydration;
+		expect(tempoWhileLoading).toBe(117);
+	});
+
+	it.each(['daily', 'focused', 'deep'] as const)('prevents %s from starting on the 60 BPM fallback', async (mode) => {
+		toggleProgressionTag(LEGACY_LICK, 'blues');
+		store.set('mankunku:lick-unlock-count', JSON.stringify({ [LEGACY_LICK]: 12 }));
+		lickPractice.config.progressionType = 'blues';
+		let finish!: (value: Awaited<ReturnType<typeof loadLickMetadataFromCloud>>) => void;
+		vi.mocked(loadLickMetadataFromCloud).mockReturnValue(new Promise(resolve => { finish = resolve; }));
+		const hydration = hydrateLickPracticeProgress(fakeClient, fakeSession);
+		const start = () => mode === 'daily' ? startDailyPracticeSession()
+			: mode === 'focused' ? startSession() : startSingleLickSession(LEGACY_LICK);
+		start();
+		const phaseWhileLoading = lickPractice.phase;
+		finish({ status: 'ok', data: {
+			lickTags: {}, practiceProgress: savedProgress, tagOverrides: {},
+			categoryOverrides: {}, unlockCounts: {}, progressHistory: {}
+		}, mergeMeta: {} });
+		await hydration;
+		expect(phaseWhileLoading).toBe('setup');
+		start();
+		expect(lickPractice.phase).toBe('count-in');
+		expect(lickPractice.currentTempo).toBe(mode === 'deep' ? 115 : 117);
+		if (mode !== 'deep') {
+			for (let i = 0; i < lickPractice.plan[0].keys.length; i++) {
+				lickPractice.currentKeyIndex = i;
+				recordKeyAttempt({ overall: 1, pitchAccuracy: 1, rhythmAccuracy: 1 } as Score);
+			}
+			startInterLickTransition();
+			expect(getLickTempo(loadLickPracticeProgress(), LEGACY_LICK)).toBe(119);
+		}
+	});
+});
+
+it('keeps starts blocked until overlapping hydration requests have both settled', async () => {
+	const completions: Array<(value: { status: 'empty' }) => void> = [];
+	vi.mocked(loadLickMetadataFromCloud).mockImplementation(() => new Promise(resolve => completions.push(resolve)));
+	const first = hydrateLickPracticeProgress(fakeClient, fakeSession);
+	const second = hydrateLickPracticeProgress(fakeClient, fakeSession);
+	completions[0]({ status: 'empty' });
+	await first;
+	const stillLoading = lickPractice.progressLoading;
+	completions[1]({ status: 'empty' });
+	await second;
+	expect(stillLoading).toBe(true);
+	expect(lickPractice.progressLoading).toBe(false);
+});
+
+it('releases the start gate after cloud failure and retains the local tempo', async () => {
+	saveLickPracticeProgress({ [LEGACY_LICK]: { C: { currentTempo: 117, lastPracticedAt: 1000, passCount: 66 } } });
+	vi.mocked(loadLickMetadataFromCloud).mockResolvedValue({ status: 'error' });
+	const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+	try {
+		await hydrateLickPracticeProgress(fakeClient, fakeSession);
+		expect(lickPractice.progressLoading).toBe(false);
+		expect(getLickTempo(lickPractice.progress, LEGACY_LICK)).toBe(117);
+	} finally {
+		warn.mockRestore();
+	}
 });
