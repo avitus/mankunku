@@ -218,6 +218,8 @@ export interface PhaseTabView {
 export interface PhaseTabContext {
 	/** Daily uses only current-action cues; its upcoming sheets are visible ahead. */
 	daily?: boolean;
+	/** Deep shares Daily's current-action cues, with explicit result preparation. */
+	deep?: boolean;
 	repeat?: boolean;
 	fromMemory?: boolean;
 	tempo?: number;
@@ -233,7 +235,10 @@ export interface PhaseTabContext {
 /**
  * Map a cue to the row tab pinned on the active chart.
  *
- * The one rule that must never regress: a countdown into `play` from a
+ * Daily and Deep use current-action cues without next-key names. Deep adds
+ * resolved result details only during preparation and marks its handoff repeat.
+ *
+ * In the legacy presentation, a countdown into `play` from a
  * `transition` or `count-in` announces itself as "Straight in" with the entry
  * key. That is the skipped-demo turnaround — the cycle where nothing sounds
  * before the user's entrance — and it is exactly the moment the timeline
@@ -255,15 +260,28 @@ export interface PhaseTabContext {
  */
 export function phaseTabView(cue: PhaseCue, keyLabel: string, context: PhaseTabContext = {}): PhaseTabView {
 	if (cue.phase === 'idle') return { kind: 'hidden', text: '', count: 0 };
-	if (context.daily) {
+	if (context.daily || context.deep) {
 		if (cue.phase === 'play') {
 			const pass = context.pass;
-			return { kind: 'play', text: pass ? `Play · ${pass.index}/${pass.total}` : 'Play', count: 0 };
+			return { kind: 'play', text: context.deep && context.handoff ? 'Play · once more'
+				: pass ? `Play · ${pass.index}/${pass.total}` : 'Play', count: 0 };
 		}
 		if (cue.phase === 'listen' && cue.next === 'play' && cue.countdown > 0) {
 			return { kind: 'play-in', text: 'Play', count: cue.countdown };
 		}
 		if (cue.phase === 'listen' || cue.phase === 'count-in') {
+			return { kind: 'listen', text: 'Listen', count: 0 };
+		}
+		if (context.deep && (cue.phase === 'read' || cue.phase === 'transition') && cue.next === 'play') {
+			// Only resolved changes need a preparation cue. The active row
+			// already identifies the key; never name an unrelated upcoming key.
+			const details = [context.handoff ? 'once more' : context.repeat ? 'same key' : '',
+				context.fromMemory ? 'from memory' : '',
+				context.tempo !== undefined ? `${context.tempo} BPM` : ''].filter(Boolean);
+			return { kind: cue.countdown > 0 ? 'play-in' : 'read',
+				text: [cue.countdown > 0 ? 'Play' : 'Get ready', ...details].join(' · '), count: cue.countdown };
+		}
+		if (context.deep && cue.phase === 'transition' && cue.next === 'listen') {
 			return { kind: 'listen', text: 'Listen', count: 0 };
 		}
 		return { kind: 'rest', text: 'Rest', count: 0 };

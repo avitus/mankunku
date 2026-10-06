@@ -22,12 +22,13 @@ import {
 	getCurrentKey,
 	getPlannedKey,
 	getPlannedKeysForLick,
+	getHandoffPreviewKey,
 	getDeepCycleEntry,
 	getKeyPasses,
 	getKeyPauses,
 	resetSession
 } from '$lib/state/lick-practice.svelte';
-import { LEAD_SHEET_PASSES, LEAD_SHEET_PAUSE_BARS } from '$lib/state/lick-practice-rotation';
+import { LEAD_SHEET_PASSES } from '$lib/state/lick-practice-rotation';
 import { bumpUnlockedKeyCount, updateKeyProgress } from '$lib/persistence/lick-practice-store';
 import { trickVariantKey, type TrickParameters } from '$lib/types/tricks';
 import { settings } from '$lib/state/settings.svelte';
@@ -319,12 +320,12 @@ describe('planned rows carry the reveal decision', () => {
 		expect(getKeyPasses(99)).toEqual([]);
 	});
 
-	it('pauses before the revealed key when it does not open the cycle — the herald of the switch to reading', () => {
+	it('joins an upcoming Deep sheet directly because its notation is already visible', () => {
 		setUnlockedCount('lick-f', 3);
 		seedRolling('lick-f', { G: 0.9, F: 0.5 });
 		startSingleLickSession(makeLick('C', 'lick-f'));
 		// Rotation [C, F, G]: F is read, and it follows C's window.
-		expect(getKeyPauses(0)).toEqual([0, LEAD_SHEET_PAUSE_BARS, 0]);
+		expect(getKeyPauses(0)).toEqual([0, 0, 0]);
 		expect(getKeyPauses(0)).toHaveLength(lickPractice.plan[0].keys.length);
 		expect(getKeyPauses(99)).toEqual([]);
 	});
@@ -338,7 +339,7 @@ describe('planned rows carry the reveal decision', () => {
 		expect(getKeyPauses(0)).toEqual([0]);
 	});
 
-	it('pauses before a revealed key that opens a refill cycle — with no demo, the pause is its herald', () => {
+	it('uses the existing Deep turnaround without an extra sheet pause on refill', () => {
 		startSingleLickSession(makeLick('C', 'fresh-lick'));
 		recordKeyAttempt(makeScore(0.6)); // C: 0.6, under the floor → revealed
 		advanceSingleLickRound();
@@ -348,7 +349,24 @@ describe('planned rows carry the reveal decision', () => {
 		advanceSingleLickRound();
 		expect(lickPractice.demoNextCycle).toBe(false);
 		expect(getPlannedKeysForLick(0)[0].reveal).toBe(true);
-		expect(getKeyPauses(0)).toEqual([LEAD_SHEET_PAUSE_BARS]);
+		expect(getKeyPauses(0)).toEqual([0]);
+	});
+
+	it('previews a promised sheet as notation and admits it without a reading pause', () => {
+		const lick = makeLick('C', 'preview-sheet');
+		setUnlockedCount(lick.id, 2);
+		seedRolling(lick.id, { C: 0.9, G: 0.5 });
+		startSingleLickSession(lick, { focusKey: 'C' });
+		lickPractice.currentTempo = lickPractice.ramp!.targetTempo;
+		recordKeyAttempt(makeScore(0.98));
+		advanceSingleLickRound();
+		expect(lickPractice.ramp?.phase).toBe('handoff');
+		expect(getHandoffPreviewKey(0)).toMatchObject({ key: 'G', reveal: true });
+		expect(getKeyPauses(0)).toEqual([1]);
+		recordKeyAttempt(makeScore(0.6));
+		advanceSingleLickRound();
+		expect(getPlannedKeysForLick(0)[0]).toMatchObject({ key: 'G', reveal: true, passes: 3 });
+		expect(getKeyPauses(0)[0]).toBe(0);
 	});
 
 	it('never pauses before an unrevealed key', () => {

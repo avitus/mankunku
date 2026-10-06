@@ -87,6 +87,7 @@
 
 	function handleStart() {
 		const { sessionType, singleLickId, tempoBumpPercent } = lickPractice.config;
+		if (sessionType !== 'trick' && lickPractice.progressLoading) return;
 		if (sessionType === 'trick') {
 			if (startTrickSession()) goto('/lick-practice/session');
 			return;

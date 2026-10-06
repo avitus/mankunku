@@ -408,10 +408,11 @@
 					{/if}
 				</button>
 				<button
+					disabled={lickPractice.progressLoading}
 					onclick={practiceThis}
-					class="rounded-full bg-[var(--color-accent)] px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)]"
+					class="rounded-full bg-[var(--color-accent)] px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)] disabled:opacity-50"
 				>
-					Practice
+					{lickPractice.progressLoading ? 'Loading progress…' : 'Practice'}
 				</button>
 				<button
 					onclick={handleTogglePracticeTag}

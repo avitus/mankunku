@@ -18,6 +18,8 @@
 	interface Props {
 		/** Daily presents sheets ahead in equal-height rows and uses current-action cues only. */
 		daily?: boolean;
+		/** Both Deep entry paths use Daily's chart layout and result-preparation cues. */
+		deep?: boolean;
 		/** All keys for the current lick, in playback order. */
 		plannedKeys: PlannedKey[];
 		/** Promised first key of the next cycle, visible during a handoff repeat. */
@@ -65,6 +67,7 @@
 
 	let {
 		daily = false,
+		deep = false,
 		plannedKeys,
 		nextCycleKey = null,
 		scrollFraction,
@@ -76,13 +79,14 @@
 		scoreFlash = null,
 		instrument
 	}: Props = $props();
+	const compact = $derived(daily || deep);
 
 	// Capture is armed during audio lookahead. Its ring must wait for the
 	// audible play phase, so it cannot contradict the final preparation beat.
 	const recordingNow = $derived(isRecording && (!cue || cue.phase === 'play'));
 
 	// Rows are fixed pixel heights so the scroll math is pure: one
-	// chord-chart row (also the Daily sheet height), or a taller Deep/Focused sheet row
+	// chord-chart row (also the Daily/Deep sheet height), or a taller Focused sheet row
 	// with chords above the staff and the current bar marked on it.
 	// Chord chart: label + margin (~21), cell (90), and row padding (12).
 	// Keep the complete bottom border and beat dots inside the row budget.
@@ -101,7 +105,7 @@
 	const LEAD_STAFF_WIDTH = 640;
 	// Keep noteheads readable; compactStaff removes unused engraving margins
 	// before the fixed-height row scales the music to fit.
-	const DAILY_STAFF_WIDTH = 700;
+	const COMPACT_STAFF_WIDTH = 700;
 	const VISIBLE_ROWS = 3;
 	const NO_MARKERS: RangeMarker[] = [];
 
@@ -120,18 +124,10 @@
 	// the viewport's `overflow: hidden` edge (row padding-top 4 px): clear,
 	// with nothing to spare for a wider ring or a thinner row.
 	//
-	// Outside Daily, a lead-sheet row waits its turn like any other: until its key arrives it
-	// shows the key's chord chart (dimmed, below the active row) and the
-	// engraved staff underneath stays hidden — engraved ahead, so abcjs has
-	// done its work, but not shown. The row becomes current at the START of
-	// its reading pause (the previous key's window has just closed), steps
-	// into the slot, and the chart cross-fades into the staff: the switch from
-	// memory to reading is visible as a switch. Read-ahead parking (the sheet
-	// lit a whole key early) was tried and withdrawn — Andy: the sheet should
-	// not appear until the previous key has been played.
-	// Daily shows each eligible sheet immediately, in the same height as its neighbours.
+	// Daily and both Deep entry paths show eligible sheets from the outset,
+	// including the promised handoff row. Focused retains its later reveal.
 	const displayKeys = $derived(nextCycleKey ? [...plannedKeys, nextCycleKey] : plannedKeys);
-	const rowHeights = $derived(displayKeys.map((pk) => (pk.reveal && !daily ? LEAD_ROW_HEIGHT : ROW_HEIGHT)));
+	const rowHeights = $derived(displayKeys.map((pk) => (pk.reveal && !compact ? LEAD_ROW_HEIGHT : ROW_HEIGHT)));
 	// The viewport reserves the lead-sheet row plus a chord row whether or not
 	// this stack has a sheet: the ring under it must not move when the next
 	// cycle's stack (a key recovered above the floor) or the next lick's has
@@ -139,7 +135,7 @@
 	const layout = $derived(
 		keyStackLayout(rowHeights, nextCycleKey
 			? Math.min(scrollFraction, Math.max(0, plannedKeys.length - 0.0001))
-			: scrollFraction, ROW_HEIGHT, VISIBLE_ROWS, daily ? ROW_HEIGHT : LEAD_ROW_HEIGHT)
+			: scrollFraction, ROW_HEIGHT, VISIBLE_ROWS, compact ? ROW_HEIGHT : LEAD_ROW_HEIGHT)
 	);
 	const translateYpx = $derived(layout.translateY);
 	const visualCurrentRow = $derived(layout.currentRow);
@@ -179,6 +175,7 @@
 			? keyLabel(concertKeyToWritten(next.key, instrument), lickMode(next.phrase)) : undefined;
 		return phaseTabView(cue, activeKeyLabel, {
 			daily,
+			deep,
 			...cycleEntry,
 			handoff: !!nextCycleKey,
 			pass: activePass,
@@ -220,16 +217,17 @@
 	{tab && tab.kind !== 'hidden' ? tab.text : ''}
 </span>
 
-<div class="viewport" class:daily style="height: {layout.viewportHeight}px;">
+<div class="viewport" class:compact style="height: {layout.viewportHeight}px;">
 	<div class="stack" style="transform: translateY({translateYpx}px);">
 		{#each displayKeys as pk, i (pk.lickId + ':' + pk.key)}
 			{@const isCurrent = i === visualCurrentRow}
 			{@const sheet = leadSheets[i]}
-			{@const isRevealed = !!sheet && (daily || i <= visualCurrentRow)}
+			{@const isRevealed = !!sheet && (compact || i <= visualCurrentRow)}
 			<div
 				class="row"
 				data-key={pk.key}
 				class:current={isCurrent}
+				class:has-sheet={!!sheet}
 				style="height: {rowHeights[i]}px;"
 			>
 				<!-- Recording ring wraps the chord chart. Dashed while arming,
@@ -249,21 +247,21 @@
 							     marks the bar, placed by the engraver's own geometry; it is
 							     the only playback indication (a lit-note cursor was tried and
 							     dropped as redundant). No caption by decision: the engraving
-							     is the message. Daily shows it from the outset; other modes
-							     reveal it when its key arrives, replacing a chord chart. -->
+							     is the message. Daily/Deep show it from the outset; Focused
+							     reveals it when its key arrives, replacing a chord chart. -->
 							<div
 								class="lead-sheet"
 								class:revealed={isRevealed}
 								data-testid="lead-sheet-row"
-								style="--lead-staff-box: {daily ? ROW_HEIGHT - 12 : LEAD_STAFF_BOX}px;"
+								style="--lead-staff-box: {compact ? ROW_HEIGHT - 12 : LEAD_STAFF_BOX}px;"
 							>
 								<NotationDisplay
 									tune={sheet.tune}
 									tuneOptions={sheet.options}
 									{instrument}
 									frameless
-									staffWidth={daily ? DAILY_STAFF_WIDTH : LEAD_STAFF_WIDTH}
-									compactStaff={daily}
+									staffWidth={compact ? COMPACT_STAFF_WIDTH : LEAD_STAFF_WIDTH}
+									compactStaff={compact}
 									rangeMarkers={isCurrent ? activeMarkers : NO_MARKERS}
 								/>
 							</div>
@@ -274,7 +272,7 @@
 									out:fade={{ duration: 400 }}
 								>
 									<ChordChart
-										showLabel={!daily}
+										showLabel={!compact}
 										harmony={pk.harmony}
 										currentBeat={0}
 										timeSignature={[4, 4]}
@@ -287,7 +285,7 @@
 							{/if}
 					{:else}
 						<ChordChart
-							showLabel={!daily}
+							showLabel={!compact}
 							harmony={pk.harmony}
 							currentBeat={isCurrent ? currentBeat : 0}
 							timeSignature={[4, 4]}
@@ -316,6 +314,7 @@
 					{#if isCurrent && tab && tab.kind !== 'hidden'}
 							<div
 								class="phase-tab"
+								class:result-cue={deep && (!!nextCycleKey || cue?.phase === 'read' || cue?.phase === 'transition')}
 								data-kind={tab.kind}
 								data-pass={tab.kind === 'play' && activePass ? activePass.index : undefined}
 								style="--arm: {tabArm};"
@@ -429,22 +428,27 @@
 		opacity: 0;
 		transition: opacity 400ms ease;
 	}
-	.daily .lead-sheet {
+	.compact .lead-sheet {
 		/* Narrow rows keep the cue above the music. */
 		padding-top: 26px;
 	}
-	.daily .lead-sheet :global(svg) {
+	.compact .lead-sheet :global(svg) {
 		max-height: calc(var(--lead-staff-box) - 30px);
 	}
 	@container (min-width: 900px) {
-		.daily .lead-sheet {
+		.compact .lead-sheet {
 			/* Reserve a fixed cue column, so even a tall phrase that scales
 			   down cannot put its first chord underneath PLAY. Use the full
 			   row height for the music alongside it. */
 			padding: 0 0 0 128px;
 		}
-		.daily .lead-sheet :global(svg) {
+		.compact .lead-sheet :global(svg) {
 			max-height: calc(var(--lead-staff-box) - 4px);
+		}
+		.compact .has-sheet .phase-tab.result-cue {
+			box-sizing: border-box;
+			max-width: 124px;
+			flex-wrap: wrap;
 		}
 	}
 	.lead-sheet.revealed {

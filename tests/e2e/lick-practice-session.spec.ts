@@ -235,6 +235,7 @@ test.describe('lick-practice session flow', () => {
 
 		// The mock microphone scores poorly. Show music on the next cycle,
 		// allowing the preparation cue but never restarting a Listen phase.
+		await page.setViewportSize({ width: 390, height: 900 });
 		const flow = await page.evaluate(async () => {
 			const cues = new Set<string>();
 			let showedSheet = false;
@@ -242,6 +243,8 @@ test.describe('lick-practice session flow', () => {
 			let preparedForMs: number | null = null;
 			let entranceText = '';
 			let recordedDuringPreparation = false;
+			let cueOverlapsSheet = false;
+			let cueOutsideRow = false;
 			const counts = new Set<string>();
 			const until = performance.now() + 12_000;
 			while (performance.now() < until) {
@@ -254,21 +257,42 @@ test.describe('lick-practice session flow', () => {
 					const count = tab?.querySelector('.tab-count')?.textContent?.trim();
 					if (count) counts.add(count);
 					recordedDuringPreparation ||= !!document.querySelector('.chart-wrap.recording');
+					const sheet = document.querySelector('.row.current .lead-sheet');
+					if (sheet && tab) {
+						const cueBox = tab.getBoundingClientRect();
+						const rowBox = sheet.closest('.row')!.getBoundingClientRect();
+						cueOutsideRow ||= cueBox.right > rowBox.right || cueBox.bottom > rowBox.bottom;
+						cueOverlapsSheet ||= [...sheet.querySelectorAll('svg path, svg text.abcjs-chord')].some((ink) => {
+							const r = ink.getBoundingClientRect();
+							return r.left < cueBox.right && r.right > cueBox.left && r.top < cueBox.bottom && r.bottom > cueBox.top;
+						});
+					}
 				} else if (kind === 'play' && preparationAt !== null && preparedForMs === null) {
 					preparedForMs = performance.now() - preparationAt;
 				}
 				showedSheet ||= !!document.querySelector('[data-testid="lead-sheet-row"]');
 				await new Promise(requestAnimationFrame);
 			}
-			return { cues: [...cues], showedSheet, preparedForMs, entranceText, recordedDuringPreparation, counts: [...counts] };
+			return { cues: [...cues], showedSheet, preparedForMs, entranceText, recordedDuringPreparation, cueOverlapsSheet, cueOutsideRow, counts: [...counts] };
 		});
 		expect(flow.showedSheet).toBe(true);
 		expect(flow.cues).not.toContain('listen');
-		expect(flow.entranceText).toMatch(/again.*BPM/);
+		expect(flow.entranceText).toMatch(/Play.*same key.*BPM/);
+		expect(flow.entranceText).not.toMatch(/\bRead\b|\bnext\b/i);
 		expect(flow.counts).toEqual(expect.arrayContaining(['4', '3', '2', '1']));
 		expect(flow.preparedForMs).toBeGreaterThan(4 * 60_000 / FAST_TEMPO);
+		expect(flow.preparedForMs).toBeLessThan(2 * 4 * 60_000 / FAST_TEMPO);
 		expect(flow.recordedDuringPreparation).toBe(false);
+		expect(flow.cueOverlapsSheet).toBe(false);
+		expect(flow.cueOutsideRow).toBe(false);
+		await page.setViewportSize({ width: 1440, height: 1000 });
 		await expect(page.getByTestId('lead-sheet-row')).toBeVisible();
+		const deepSheet = await page.getByTestId('lead-sheet-row').evaluate((sheet) => ({
+			height: sheet.closest('.row')!.getBoundingClientRect().height,
+			noteWidth: sheet.querySelector('.abcjs-notehead')!.getBoundingClientRect().width
+		}));
+		expect(deepSheet.height).toBe(128);
+		expect(deepSheet.noteWidth).toBeGreaterThan(11);
 		await expect(page.locator('.chart-wrap.recording')).toBeVisible({ timeout: 15_000 });
 		await page.getByRole('button', { name: /end session/i }).click();
 		await expect(page.getByText('Session Report', { exact: true })).toBeVisible();
@@ -445,8 +469,9 @@ test.describe('lick-practice session flow', () => {
 		await expect(page.locator('.phase-tab[data-kind="read"]')).toHaveText('Read', { timeout: 20_000 });
 	});
 
-	/** Daily keeps upcoming notation visible and joins its three passes without a preparation state. */
-	test('daily sheet is visible ahead in an equal-height row and enters without a pause', async ({ page, browserName }) => {
+	/** Daily and standalone Deep share the same read-ahead, sizing, and continuous sheet entrance. */
+	for (const practice of ['daily', 'deep'] as const) {
+	test(`${practice} sheet is visible ahead in an equal-height row and enters without a pause`, async ({ page, browserName }) => {
 		test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
 			'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device');
 		test.setTimeout(150_000);
@@ -458,8 +483,8 @@ test.describe('lick-practice session flow', () => {
 		});
 		await installAudioMock(page);
 		await stubCdnInstrumentSamples(page);
-		await page.goto('/lick-practice');
-		await page.getByRole('button', { name: /start daily practice/i }).click();
+		await page.goto(practice === 'daily' ? '/lick-practice' : '/licks/e2e-user-lick-bebop');
+		await page.getByRole('button', { name: practice === 'daily' ? /start daily practice/i : /^practice$/i }).click();
 		const sheet = page.getByTestId('lead-sheet-row');
 		await expect(sheet).toBeVisible({ timeout: 20_000 });
 		await expect(sheet.locator('.abcjs-notehead').first()).toBeVisible();
@@ -521,6 +546,7 @@ test.describe('lick-practice session flow', () => {
 		expect(cues.every((cue) => /^play:Play(?: · 1\/3)?$/.test(cue))).toBe(true);
 		await page.screenshot({ path: test.info().outputPath('daily-sheet-playing.png') });
 	});
+	}
 
 	test('daily sheet keeps its playhead when canvas measurement is unavailable', async ({ page, browserName }) => {
 		test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
