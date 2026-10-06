@@ -522,8 +522,37 @@ test.describe('lick-practice session flow', () => {
 		await page.screenshot({ path: test.info().outputPath('daily-sheet-playing.png') });
 	});
 
+	test('daily sheet keeps its playhead when canvas measurement is unavailable', async ({ page, browserName }) => {
+		test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+			'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device');
+		await seedOnboardedAnonymous(page);
+		await seedUserLicks(page);
+		await seedStorage(page, {
+			'user-lick-tags': { 'e2e-user-lick-bebop': ['practice', 'prog:ii-V-I-major'] },
+			...SUB_FLOOR_PROGRESS
+		});
+		await installAudioMock(page);
+		await stubCdnInstrumentSamples(page);
+		await page.addInitScript(() => {
+			const measure = SVGSVGElement.prototype.getBBox;
+			SVGSVGElement.prototype.getBBox = function () {
+				if (this.closest('[data-testid="lead-sheet-row"]')) {
+					throw new DOMException('Canvas measurement unavailable', 'InvalidStateError');
+				}
+				return measure.call(this);
+			};
+		});
+		await page.goto('/lick-practice');
+		await page.getByRole('button', { name: /start daily practice/i }).click();
+		const sheet = page.getByTestId('lead-sheet-row');
+		await expect(sheet.locator('.abcjs-notehead').first()).toBeVisible();
+		await expect(sheet.locator('.playhead-under-bar').first()).toBeVisible();
+	});
+
 	for (const pitch of [45, 78]) {
-		test(`daily sheet keeps ledger notes and its cue clear at pitch ${pitch}`, async ({ page }) => {
+		test(`daily sheet keeps ledger notes and its cue clear at pitch ${pitch}`, async ({ page, browserName }) => {
+			test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+				'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device');
 			await seedOnboardedAnonymous(page);
 			const lick = structuredClone(SAMPLE_USER_LICKS[0]) as { notes: { pitch: number }[] };
 			lick.notes.forEach((note, i) => { note.pitch = pitch + i; });

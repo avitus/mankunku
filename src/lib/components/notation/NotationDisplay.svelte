@@ -411,8 +411,16 @@
 			// Fit that canvas to the ink before the host applies its height limit;
 			// keep room below the staff for the playback marker as well as stems.
 			for (const svg of containerEl.querySelectorAll('svg')) {
-				const ink = svg.getBBox();
-				const staff = svg.querySelector<SVGGraphicsElement>('.abcjs-staff')?.getBBox();
+				let ink: DOMRect;
+				let staff: DOMRect | undefined;
+				try {
+					ink = svg.getBBox();
+					staff = svg.querySelector<SVGGraphicsElement>('.abcjs-staff')?.getBBox();
+				} catch {
+					// Sizing is optional: retain the original canvas and let the
+					// playback geometry initialize even if this measurement fails.
+					continue;
+				}
 				if (!staff || ink.height <= 0) continue;
 				const top = ink.y - 2;
 				const bottom = Math.max(ink.y + ink.height, staff.y + staff.height * 1.5) + 2;
