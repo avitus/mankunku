@@ -1948,7 +1948,8 @@ function resetsReed(stable: PitchReading[], from: number, to: number): boolean {
  *   blues-curl-down decaying F .............. rise 0.98, hold 0.51
  *   blues-curl-up-b decaying Bb ............. rise 0.92, hold 0.40
  *
- * Returns the index of the re-bloom's peak (the onset anchor), or -1.
+ * Returns the first frame reaching the re-bloom threshold (the onset
+ * anchor), or -1. A later volume peak must not move a soft attack in time.
  */
 function reBloomsAndHolds(stable: PitchReading[], from: number, to: number, local: number): number {
 	let trough = Infinity;
@@ -1956,13 +1957,15 @@ function reBloomsAndHolds(stable: PitchReading[], from: number, to: number, loca
 		if (stable[k].rms < trough) trough = stable[k].rms;
 	}
 	const spanEnd = stable[to - 1].time;
-	let peak = -1;
+	if (!(trough > 0)) return -1;
+	let recovery = -1;
 	for (let k = to; k < stable.length && stable[k].time - spanEnd <= ENV_RECOVER_WINDOW; k++) {
-		if (peak === -1 || stable[k].rms > stable[peak].rms) peak = k;
+		if (stable[k].rms >= trough * RE_ARTICULATION_GAP_BLOOM_RISE) {
+			recovery = k;
+			break;
+		}
 	}
-	if (peak === -1 || !(trough > 0) || stable[peak].rms < trough * RE_ARTICULATION_GAP_BLOOM_RISE) {
-		return -1;
-	}
+	if (recovery === -1) return -1;
 	let held = 0;
 	let count = 0;
 	for (let k = to; k < stable.length; k++) {
@@ -1973,7 +1976,7 @@ function reBloomsAndHolds(stable: PitchReading[], from: number, to: number, loca
 		count++;
 	}
 	if (count < ENV_LOCAL_FRAMES) return -1;
-	return held / count >= local * RE_ARTICULATION_GAP_HOLD ? peak : -1;
+	return held / count >= local * RE_ARTICULATION_GAP_HOLD ? recovery : -1;
 }
 
 /**

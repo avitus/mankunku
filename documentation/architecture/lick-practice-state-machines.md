@@ -55,6 +55,7 @@ stateDiagram-v2
     Running --> Report: End Session
     ScoreHold --> Report: End Session
     Report --> Loading: Start recommended Deep Practice in place
+    Report --> Loading: Start progression in place with Focused configuration
     Report --> Setup: Done
     Loading --> Disposed: Navigate away
     CountIn --> Disposed: Navigate away

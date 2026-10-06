@@ -1779,6 +1779,7 @@
 
 	async function handleStartProgression(progressionType: ChordProgressionType) {
 		await restartInPlace(() => {
+			lickPractice.config.sessionType = 'focused';
 			lickPractice.config.progressionType = progressionType;
 			startSession();
 			// startSession has no return value; the phase check in restartInPlace

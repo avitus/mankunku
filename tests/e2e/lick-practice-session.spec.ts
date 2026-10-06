@@ -421,6 +421,30 @@ test.describe('lick-practice session flow', () => {
 		expect(geometry.dotBottom).toBeLessThanOrEqual(geometry.viewportBottom);
 	});
 
+	/** The report's progression buttons start Focused practice, including its sheet preparation. */
+	test('starting a progression from a Daily report restores Focused sheet preparation', async ({ page, browserName }) => {
+		test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+			'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device');
+		test.setTimeout(60_000);
+		await seedOnboardedAnonymous(page);
+		await seedUserLicks(page);
+		await seedStorage(page, {
+			'user-lick-tags': { 'e2e-user-lick-bebop': ['practice', 'prog:ii-V-I-major'] },
+			...LEAD_AHEAD_PROGRESS
+		});
+		await installAudioMock(page);
+		await stubCdnInstrumentSamples(page);
+		await page.goto('/lick-practice');
+		await page.getByRole('button', { name: /start daily practice/i }).click();
+		await expect(page.getByTestId('lead-sheet-row')).toBeVisible();
+		await expect(page.getByRole('heading', { name: /session report/i })).toBeVisible({ timeout: 45_000 });
+		await page.getByText('Upcoming Licks', { exact: false }).click();
+		await page.locator('details[open]').getByRole('button', { name: 'Short ii-V-I (Maj)', exact: true }).click();
+		await expect(page.getByTestId('lead-sheet-placeholder')).toHaveCount(1);
+		await expect(page.getByTestId('lead-sheet-row')).toBeHidden();
+		await expect(page.locator('.phase-tab[data-kind="read"]')).toHaveText('Read', { timeout: 20_000 });
+	});
+
 	/** Daily keeps upcoming notation visible and joins its three passes without a preparation state. */
 	test('daily sheet is visible ahead in an equal-height row and enters without a pause', async ({ page, browserName }) => {
 		test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,

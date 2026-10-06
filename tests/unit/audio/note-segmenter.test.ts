@@ -798,8 +798,17 @@ describe('findReArticulations: envelope dip-recover tier', () => {
 		// the trough and held.
 		const onsets = findReArticulations(softReattackRun({ after: () => 0.88 }), [0.1]);
 		expect(onsets).toHaveLength(1);
-		// Anchored on the first frame of the re-bloom's peak.
+		// Anchored on the first qualifying re-bloom frame.
 		expect(onsets[0]).toBeCloseTo(0.1 + 34 / 60 - 0.02, 3);
+	});
+
+	it('anchors a rising soft repeat at its first qualifying re-bloom, not its later peak', () => {
+		// The threshold is 0.65 × 1.25 = 0.8125 of the old level. The
+		// re-attack reaches it on frame 36 and keeps swelling through the window.
+		const after = (k: number) => Math.min(0.80 + k * 0.007, 0.88);
+		const onsets = findReArticulations(softReattackRun({ after }), [0.1]);
+		expect(onsets).toHaveLength(1);
+		expect(onsets[0]).toBeCloseTo(0.1 + 36 / 60 - 0.02, 3);
 	});
 
 	it('does not split a note that bounces once and fades — it re-blooms but does not hold', () => {
