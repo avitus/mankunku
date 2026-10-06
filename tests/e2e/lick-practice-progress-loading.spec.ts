@@ -13,6 +13,21 @@ for (const entry of ['daily', 'detail'] as const) {
 			currentTempo: 117, lastPracticedAt: 1000, passCount: 66, rollingScore: 0.95
 		}])) };
 		const cloud = createStubCloud();
+		// This is an established, onboarded account in both storage layers.
+		// An empty settings table lets the tour sync create a partial row,
+		// racing settings hydration and reopening onboarding on slower runners.
+		cloud.seedRow('user_settings', {
+			user_id: USER.id,
+			instrument_id: SETTINGS_ONBOARDED.instrumentId,
+			default_tempo: SETTINGS_ONBOARDED.defaultTempo,
+			master_volume: SETTINGS_ONBOARDED.masterVolume,
+			metronome_enabled: SETTINGS_ONBOARDED.metronomeEnabled,
+			metronome_volume: SETTINGS_ONBOARDED.metronomeVolume,
+			swing: SETTINGS_ONBOARDED.swing,
+			theme: SETTINGS_ONBOARDED.theme,
+			onboarding_complete: true,
+			tour_state: TOUR_DISMISSED
+		});
 		cloud.seedRow('user_lick_metadata', {
 			user_id: USER.id, practice_progress: progress,
 			lick_tags: { [LICK]: ['practice', 'prog:ii-V-I-major'] },
@@ -39,6 +54,7 @@ for (const entry of ['daily', 'detail'] as const) {
 		const loading = page.getByRole('button', { name: 'Loading progress…', exact: true });
 		try {
 			await expect(loading).toBeDisabled();
+			await expect(page.getByTestId('onboarding-overlay')).not.toBeVisible();
 			await expect(page).not.toHaveURL(/\/lick-practice\/session$/);
 		} finally {
 			release();
