@@ -323,7 +323,7 @@
 			format: {
 				// abcjs parses format values as ABC directives, so the compact
 				// font must be a string for its size to affect engraving geometry.
-				gchordfont: compactStaff ? 'Fraunces 21' : { face: 'Fraunces, Edwin, Georgia, serif', size: 15, weight: 'normal', style: 'normal', decoration: 'none' },
+				gchordfont: compactStaff ? 'Fraunces 17' : { face: 'Fraunces, Edwin, Georgia, serif', size: 15, weight: 'normal', style: 'normal', decoration: 'none' },
 				// Bold boxed rehearsal letters (%%partsbox 1 draws the square).
 				partsfont: {
 					face: 'Fraunces, Georgia, "Times New Roman", serif',
@@ -406,6 +406,28 @@
 		const endingAlignments = alignStackedEndingsInContainer(containerEl);
 		drawGlissandi(vo, noteAnchors);
 		applySelectionHighlight(vo, noteAnchors, selectedIndex);
+		if (compactStaff) {
+			// Chord positioning can leave blank space in abcjs's original canvas.
+			// Fit that canvas to the ink before the host applies its height limit;
+			// keep room below the staff for the playback marker as well as stems.
+			for (const svg of containerEl.querySelectorAll('svg')) {
+				let ink: DOMRect;
+				let staff: DOMRect | undefined;
+				try {
+					ink = svg.getBBox();
+					staff = svg.querySelector<SVGGraphicsElement>('.abcjs-staff')?.getBBox();
+				} catch {
+					// Sizing is optional: retain the original canvas and let the
+					// playback geometry initialize even if this measurement fails.
+					continue;
+				}
+				if (!staff || ink.height <= 0) continue;
+				const top = ink.y - 2;
+				const bottom = Math.max(ink.y + ink.height, staff.y + staff.height * 1.5) + 2;
+				const vb = svg.viewBox.baseVal;
+				svg.setAttribute('viewBox', `${vb.x} ${top} ${vb.width} ${bottom - top}`);
+			}
+		}
 		buildHitZones(containerEl, vo, rendered, endingAlignments);
 		// Stash for the cursor/marker effects. The cursor element belonged to
 		// the SVG this render just replaced, so forget it.

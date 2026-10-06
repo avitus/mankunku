@@ -114,6 +114,8 @@ stateDiagram-v2
 
 Daily's sheet rows are visible as notation from the first render, including upcoming rows. They use the same 128 px height as chord-only rows. The CHANGES word is removed while its space remains. The active cue says only Listen, Play, or Rest (plus the sheet-pass number). Only the final bar of a demo/call has a Play countdown, with no key name. Continuous key changes and all three sheet passes join without Read, preparation, or an entrance countdown. The initial audio count-in and two-bar gap between licks remain.
 
+Sheet sizing uses the painted noteheads as well as chord symbols: the compact engraving trims unused vertical canvas while reserving ledger lines and the playback marker. At chart widths of at least 900 px, the cue has a 128 px column alongside the music so the staff can use the full row height; narrower charts keep the cue above it. These layout rules do not add phases or change transition timing.
+
 ```mermaid
 sequenceDiagram
     participant A as Audio

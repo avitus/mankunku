@@ -99,9 +99,9 @@
 	// the zoom: a 960 px row over a ~664-unit viewBox engraves at ~1.45× —
 	// readable from a music stand, where the old 1000-unit staff was not.
 	const LEAD_STAFF_WIDTH = 640;
-	// Daily trades the tall engraving for a full-width, single chord-row staff;
-	// compactStaff enlarges the chord font independently of the smaller notes.
-	const DAILY_STAFF_WIDTH = 1100;
+	// Keep noteheads readable; compactStaff removes unused engraving margins
+	// before the fixed-height row scales the music to fit.
+	const DAILY_STAFF_WIDTH = 700;
 	const VISIBLE_ROWS = 3;
 	const NO_MARKERS: RangeMarker[] = [];
 
@@ -373,6 +373,7 @@
 <style>
 	.viewport {
 		position: relative;
+		container-type: inline-size;
 		overflow: hidden;
 		border-radius: 0.5rem;
 	}
@@ -429,11 +430,22 @@
 		transition: opacity 400ms ease;
 	}
 	.daily .lead-sheet {
-		/* Keep the tab clear and leave four pixels below the engraving. */
-		padding-top: 18px;
+		/* Narrow rows keep the cue above the music. */
+		padding-top: 26px;
 	}
 	.daily .lead-sheet :global(svg) {
-		max-height: calc(var(--lead-staff-box) - 22px);
+		max-height: calc(var(--lead-staff-box) - 30px);
+	}
+	@container (min-width: 900px) {
+		.daily .lead-sheet {
+			/* Reserve a fixed cue column, so even a tall phrase that scales
+			   down cannot put its first chord underneath PLAY. Use the full
+			   row height for the music alongside it. */
+			padding: 0 0 0 128px;
+		}
+		.daily .lead-sheet :global(svg) {
+			max-height: calc(var(--lead-staff-box) - 4px);
+		}
 	}
 	.lead-sheet.revealed {
 		visibility: visible;
