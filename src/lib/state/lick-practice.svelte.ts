@@ -1420,7 +1420,7 @@ export function getHandoffPreviewKey(lickIdx: number): PlannedKey | null {
 	return {
 		lickIndex: lickIdx, keyIndex: item.keys.length, key, phrase,
 		harmony: phrase.harmony, lickName: item.phraseName, lickId: item.phraseId,
-		reveal: false, passes: 1
+		reveal: revealFor(item, key), passes: 1
 	};
 }
 
@@ -1496,13 +1496,18 @@ function revealDecisionsFor(item: LickPracticePlanItem): Map<PitchClass, boolean
 	let decisions = revealDecisions.get(item.keys);
 	if (decisions) return decisions;
 	const entryKey = item.kind === 'trick' ? undefined : resolveLickFor(item)?.key;
-	decisions = entryKey ? decideReveals(item.phraseId, entryKey, item.keys) : new Map();
+	// Freeze the promised preview with the current stack too. It remains
+	// display-only; including its reveal decision creates no audio window.
+	const previewKey = lickPractice.mode === 'single-lick' && lickPractice.ramp?.phase === 'handoff'
+		? lickPractice.ramp.queue[0] : undefined;
+	const keys = previewKey ? [...item.keys, previewKey] : item.keys;
+	decisions = entryKey ? decideReveals(item.phraseId, entryKey, keys) : new Map();
 	// Deep practice can revisit an unfamiliar older key, including after all
 	// twelve have unlocked. Recent attempts must override the unlock gate.
 	// Only completed, scored turns count; rehearsal passes are not recorded.
 	if (entryKey && lickPractice.mode === 'single-lick') {
 		const attempts = lickPractice.allAttempts.flat();
-		for (const key of item.keys) {
+		for (const key of keys) {
 			const recent = attempts
 				.filter((attempt) => attempt.key === key)
 				.slice(-2);
@@ -1553,27 +1558,17 @@ export function isDailyPractice(): boolean {
 
 /**
  * Bars of preparation laid before the key at rotation slot `slot`:
- * Daily shows notation ahead and has no preparation bars. Other sessions use
- * at least one for an unannounced focused-cycle outcome or sheet graduation;
- * `LEAD_SHEET_PAUSE_BARS` for a revealed key in continuous mode, unless it
- * opens a cycle that demos — else none. The pause heralds the switch from
- * playing by memory to reading — the previous key's window has closed, the
- * sheet steps in, the band vamps a ii-V into the new key, the tab counts
- * the entrance. A head key that follows the demo needs no herald: the sheet
- * is already up while the line plays. A head key with NO demo — a
- * deep-practice refill cycle, where the key just cleared but its rolling
- * score still lags under the floor — gets the pause in the demo's place, so
- * the sheet is never sprung on the downbeat the mic opens. Call-response
- * opens every window with the app's half, which already gives the reader
- * that bar.
+ * Daily and Deep show notation ahead, so a sheet alone adds no pause.
+ * Deep retains one bar for a resolved result or sheet graduation (ordinary
+ * Deep's head uses its existing turnaround). Focused retains its two-bar
+ * sheet preparation. A demo or call already prepares its response.
  */
 function pauseBarsFor(item: LickPracticePlanItem, key: PitchClass, slot: number): number {
 	if (lickPractice.config.practiceMode !== 'continuous' || isDailyPractice()) return 0;
 	if (slot === 0 && cycleDemos()) return 0;
 	const entryBars = lickPractice.mode === 'single-lick'
 		? cycleEntries.get(item.keys)?.get(key)?.prepareBars ?? 0 : 0;
-	// Announce the extra repeat even when its sheet is already familiar.
-	if (lickPractice.mode === 'single-lick' && lickPractice.ramp?.phase === 'handoff') return entryBars;
+	if (lickPractice.mode === 'single-lick') return entryBars;
 	return Math.max(entryBars, revealFor(item, key) ? LEAD_SHEET_PAUSE_BARS : 0);
 }
 
