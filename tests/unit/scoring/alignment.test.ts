@@ -123,6 +123,19 @@ describe('alignNotes', () => {
 		for (const p of late) expect(p.cost).toBeCloseTo(0, 5);
 	});
 
+	it.each([false, true])('does not infer delay from wrong-pitch pairs (octaveInsensitive=%s)', (octaveInsensitive) => {
+		const expected = [makeNote(60, [0, 1]), makeNote(62, [1, 4])];
+		const detected = [makeDetected(63, 0), makeDetected(61, 0.1), makeDetected(59, 0.2)];
+		// No note supplies a pitch anchor. Treating the wrong pairs as clock
+		// evidence inferred -0.2s and moved both pairings one detected slot.
+		const pairs = alignNotes(expected, detected, TEMPO, 0.5, octaveInsensitive);
+		expect(pairs.map(p => [p.expectedIndex, p.detectedIndex])).toEqual([
+			[0, 0], [1, 1], [null, 2]
+		]);
+		expect(pairs[1].cost).toBeCloseTo(1.3, 5); // semitone error + 0.4s early
+		expect(pairs[2].cost).toBe(SKIP_COST);
+	});
+
 	it('applies swing offset to off-beat 8th notes', () => {
 		// Note at offset [1,8] = beat 0.5 (an off-beat 8th)
 		const expected = [makeNote(60, [1, 8])];

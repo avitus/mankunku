@@ -53,12 +53,12 @@ Starting from `dp[N][M]`, trace back to `dp[0][0]` by checking which of the thre
 
 `alignNotes` runs the DP twice. The detected onsets sit a constant delay behind the written line — the player's reaction time plus the capture's lag (in lick practice the window opens one Tone lookahead before the bar line and the live detector stamps a reading at the end of its analyser window: ~0.2 s, an eighth note at 162 BPM). Paired on the raw clock, "every note one slot early" looked on time, so a single stray note at the front of a line (a cracked attack saved as its own note, Honeysuckle Rose 2026-10-03) shifted every pairing after it and three correctly played notes were marked wrong.
 
-1. **Read the delay.** Pair on the raw onsets with a skip cost of 2.0 — a pair's ceiling, so this pass pairs wherever it can — and take the median `detected.onset − expected.onset` over the **pitch-matched** pairs. Those are the anchors: the notes the player demonstrably got right. The median over every pair is pulled towards the shifted pairing it came from and would keep it (0.115 s against the real 0.21 s on that take). Only when no pair matches in pitch does every pair count.
+1. **Read the delay.** Pair on the raw onsets with a skip cost of 2.0 — a pair's ceiling, so this pass pairs wherever it can — and take the median `detected.onset − expected.onset` over the **pitch-matched** pairs. Those are the anchors: the notes the player demonstrably got right. The median over every pair is pulled towards the shifted pairing it came from and would keep it (0.115 s against the real 0.21 s on that take). When no pair matches in pitch, infer no delay and retain the raw-clock pairing; reducing the skip cost on that uncorrected clock can invent gaps in a line played a step up. Returned gaps still carry the public `SKIP_COST` of 1.5.
 2. **Pair with the delay removed**, at `SKIP_COST = 1.5`.
 
 The skip cost is the other half. At 2.0 a stray plus a miss cost 4.0 and three wrong pitches 3.0, so whenever a stray and a swallowed note bracketed three notes the aligner preferred to call all three wrong. At 1.5 the pitch costs tie at 3.0 and the timing — a slot per note for the shifted pairing, once the delay is gone — decides for the notes. A wrong note played in time still pairs (1.0 + timing < 3.0); a line played a step up still pairs note for note.
 
-Each pair's `cost` is from the second pass, so a take played a whole beat late pairs at the same cost as one on time; the scorer's own median correction (below) then runs over the final pairs.
+When pitch anchors exist, each pair's `cost` is from the second pass, so a correctly pitched take played a whole beat late pairs at the same cost as one on time. Without anchors, matched costs retain their raw-clock timing. The scorer's own median correction (below) then runs over the final pairs.
 
 ### Complexity
 

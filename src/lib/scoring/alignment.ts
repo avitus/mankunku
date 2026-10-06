@@ -16,7 +16,8 @@
  * pitch-matched pairs — the notes the player demonstrably got right are the
  * anchors; the median over every pair is pulled towards the shifted pairing
  * it came from and would keep it. The second pass pairs with the delay
- * removed. The scorer then subtracts its own median offset over the final
+ * removed. With no pitch anchors, keep the raw-clock pairing. The scorer
+ * then subtracts its own median offset over the final
  * pairs for the rhythm score, as before.
  */
 
@@ -183,8 +184,9 @@ function alignAt(
  * The constant delay a pairing shows: the median (detected − expected) onset
  * offset over its PITCH-MATCHED pairs. Those are the anchors — notes the
  * player demonstrably played — so a first pass that paired three notes one
- * slot early still reads the clock from the notes it got right. Only when
- * nothing matched does every pair count.
+ * slot early still reads the clock from the notes it got right. Without a
+ * pitch anchor there is no evidence of delay; null tells the caller to keep
+ * the raw-clock pairing instead of rerunning it with a cheaper skip cost.
  */
 function constantDelay(
 	exp: PitchedNote[],
@@ -193,14 +195,14 @@ function constantDelay(
 	tempo: number,
 	swing: number,
 	octaveInsensitive: boolean
-): number {
+): number | null {
 	const matched = pairs.filter((p) => p.expectedIndex !== null && p.detectedIndex !== null);
 	const anchors = matched.filter((p) =>
 		pitchMatches(exp[p.expectedIndex!].pitch, detected[p.detectedIndex!], octaveInsensitive)
 	);
-	const source = anchors.length > 0 ? anchors : matched;
+	if (anchors.length === 0) return null;
 	return median(
-		source.map(
+		anchors.map(
 			(p) => detected[p.detectedIndex!].onsetTime - noteOnsetSeconds(exp[p.expectedIndex!], tempo, swing)
 		)
 	);
@@ -211,8 +213,9 @@ function constantDelay(
  *
  * Two passes (see the module comment): the first, on the raw onset times,
  * reads the constant delay off the pitch-matched pairs; the second pairs
- * with that delay removed. Each pair's `cost` is from the second pass, so a
- * take played a whole beat late pairs at the same cost as one on time.
+ * with that delay removed. With no pitch anchors, retain the raw-clock
+ * pairing. Otherwise each pair's `cost` is from the second pass, so a
+ * correctly pitched take played a beat late costs the same as one on time.
  *
  * @param expected - Notes from the phrase (may include rests which are filtered)
  * @param detected - Notes captured from microphone
@@ -239,5 +242,15 @@ export function alignNotes(
 
 	const firstPass = alignAt(exp, detected, tempo, swing, octaveInsensitive, DELAY_PASS_SKIP_COST, 0);
 	const delay = constantDelay(exp, detected, firstPass, tempo, swing, octaveInsensitive);
+	if (delay === null) {
+		// No pitch evidence for a clock correction: keep the raw pairing. A
+		// cheaper second pass on that same clock can invent a stray and a miss
+		// in a line played a step up. Report gaps at the public skip cost.
+		return firstPass.map((pair) =>
+			pair.expectedIndex === null || pair.detectedIndex === null
+				? { ...pair, cost: SKIP_COST }
+				: pair
+		);
+	}
 	return alignAt(exp, detected, tempo, swing, octaveInsensitive, SKIP_COST, delay);
 }
