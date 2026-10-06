@@ -42,6 +42,7 @@ What this means for you, in plain terms:
 - **You can play in a different octave** where the app allows it: Side B's continuous mode (which assumes you might move a lick to keep it on the horn) and tune practice at every strictness level (nothing is demonstrated there, so there is no register to match). Side A and Side B's Call & Response are strict about the octave — both play the phrase first, so the register is a heard target. Tricks never care about the octave.
 - **Missed notes don't ruin everything else.** If you skip note 3, the app still tries to match notes 4, 5, and 6 against their counterparts. It just docks you for the missed one.
 - **Extra notes don't ruin everything else.** If you add an extra grace note, the alignment treats it as an extra and grades the rest against the original.
+- **A stray note doesn't shift everything after it.** An attack that cracks an octave, or a click that reads as a note, is an extra; the notes after it are still matched to their own places, not to the place before.
 
 ## Pitch accuracy, note by note
 

@@ -26,6 +26,10 @@ interface RouteCheck {
 const ROUTES: RouteCheck[] = [
 	{ path: '/' },
 	{ path: '/auth' },
+	{
+		path: '/auth/reset-password',
+		notes: 'signed out: the open-your-reset-email message, no form'
+	},
 	{ path: '/ear-training' },
 	{ path: '/practice', finalPath: '/ear-training', notes: '308 redirect to /ear-training' },
 	{ path: '/lick-practice' },

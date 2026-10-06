@@ -65,3 +65,40 @@ describe('chart next-action contract', () => {
 		expect(body).not.toMatch(/class="chart-wrap [^"]*recording"/);
 	});
 });
+
+describe('Daily chart cues', () => {
+	it('uses plain Listen without an entrance countdown', () => {
+		const { body } = render(UpcomingKeysDisplay, { props: {
+			...base, daily: true, plannedKeys: [row('G', 0)],
+			cue: { phase: 'count-in', next: 'listen', beatsUntilNext: 3, countdown: 3 }
+		} });
+		expect(body).toContain('data-kind="listen"');
+		expect(body).not.toContain('tab-count');
+		expect(body).not.toContain('Listen in');
+	});
+	it('counts into Play without naming a key at the end of the demo', () => {
+		const { body } = render(UpcomingKeysDisplay, { props: {
+			...base, daily: true, plannedKeys: [row('G', 0)],
+			cue: { phase: 'listen', next: 'play', beatsUntilNext: 3, countdown: 3 }
+		} });
+		expect(body).toContain('data-kind="play-in"');
+		expect(body).toContain('tab-count');
+		expect(body).not.toContain('Play A in');
+	});
+	it('keeps Play and the pass number without next-key instructions or Changes', () => {
+		const { body } = render(UpcomingKeysDisplay, { props: {
+			...base, daily: true, plannedKeys: [row('G', 0, 3), row('C', 1)]
+		} });
+		expect(body).toContain('Play · 1/3');
+		expect(body).not.toContain('again next');
+		expect(body).not.toContain('D next');
+		expect(body).not.toContain('Changes');
+	});
+	it('shows an upcoming sheet immediately without a chord placeholder', () => {
+		const { body } = render(UpcomingKeysDisplay, { props: {
+			...base, daily: true, plannedKeys: [row('G', 0), { ...row('C', 1, 3), reveal: true }]
+		} });
+		expect(body).toMatch(/class="lead-sheet [^"]*revealed/);
+		expect(body).not.toContain('lead-sheet-placeholder');
+	});
+});

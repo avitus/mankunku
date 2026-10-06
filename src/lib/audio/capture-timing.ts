@@ -4,14 +4,18 @@
  *
  * Why this exists. The metronome click grid the segmenter is handed
  * (`getMetronomeBleedOnsets(transportSeconds, …)`) assumes the recording
- * starts at the transport position the app stamped. On every pre-armed
- * ear-training take measured so far the clicks in the recording sit
- * 0.25–0.40 s off that grid (2026-09-08; the 2026-09-18 Blues Curl Up take
- * reads +0.334). One part is known: `Transport.seconds` reads the position at
- * `currentTime + lookAhead`, so the stamp runs 0.1 s ahead. The rest varies
- * per take and has never been measured, only inferred modulo a beat from the
- * clicks — which cannot tell a recording that starts late from one that
- * starts early by the rest of a beat.
+ * starts at the transport position the app stamped. For a month the notes
+ * recorded the clicks sitting 0.25–0.40 s off that grid on every pre-armed
+ * ear-training take, measured from the clicks themselves — which can only
+ * answer modulo a beat, so a recording that starts late and one that starts
+ * early by the rest of a beat looked the same.
+ *
+ * This module measured it directly, and the first two real takes (2026-10-01
+ * and 2026-10-03) settled it: the recording starts at the arm instant (−0.5 ms
+ * and +26 ms, matching the recorder's own start event), and the grid runs
+ * early by Tone's 0.1 s lookahead less that delay. The larger figures were a
+ * measurement error — a capture trim added twice to the exported stamp. The
+ * instrumentation stays as the standing check.
  *
  * The live detectors settle that. The pitch detector and the onset worklet
  * both run on the audio clock from the stamp instant, while the recording

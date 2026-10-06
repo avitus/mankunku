@@ -2,9 +2,11 @@
  * Scoring orchestrator: DTW alignment + pitch + rhythm scoring.
  *
  * Rhythm is scored against the expected phrase timeline:
- *   1. DTW aligns detected → expected notes using raw recording-relative
- *      onset times (recording start ≡ phrase start at offset 0).
- *   2. The median timing offset of matched pairs is subtracted,
+ *   1. DTW aligns detected → expected notes (alignment.ts): a first pass on
+ *      the raw recording-relative onset times (recording start ≡ phrase
+ *      start at offset 0) reads the constant delay off the pitch-matched
+ *      pairs, a second pairs with that delay removed.
+ *   2. The median timing offset of the matched pairs is subtracted,
  *      absorbing constant human latency (reaction time, detection delay).
  *   3. Per-note rhythm is scored against the corrected onsets.
  *
@@ -93,7 +95,8 @@ export function scoreAttempt(
 		})
 	);
 
-	// Step 1: DTW alignment on raw recording-relative onset times.
+	// Step 1: DTW alignment — two passes inside alignNotes: read the constant
+	// delay off the pitch-matched pairs, then pair with it removed.
 	const pairs = alignNotes(expected, detected, tempo, swing, octaveInsensitive);
 
 	// Step 2: Compute median timing offset of matched pairs to absorb

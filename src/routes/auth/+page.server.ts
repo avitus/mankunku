@@ -1,9 +1,10 @@
 /**
  * Server-Side Form Actions for Authentication
  *
- * Implements SvelteKit form actions for the /auth page, providing two
- * named actions: login and register. Both use the Supabase server client
- * attached to `event.locals.supabase` by hooks.server.ts.
+ * Implements SvelteKit form actions for the /auth page, providing three
+ * named actions: login, register and resend (a fresh confirmation link).
+ * All use the Supabase server client attached to `event.locals.supabase`
+ * by hooks.server.ts.
  *
  * Email/password is the only sign-in method. Social login was removed
  * deliberately — do not reintroduce a provider here without also wiring
@@ -105,6 +106,15 @@ export const actions: Actions = {
 		});
 
 		if (error) {
+			// An unconfirmed account gets a way out instead of Supabase's bare
+			// "Email not confirmed": the page offers the resend action.
+			if (error.code === 'email_not_confirmed') {
+				return fail(400, {
+					error: 'Please confirm your email first: open the link we sent you, or request a new one below.',
+					email,
+					unconfirmed: true
+				});
+			}
 			// Return the Supabase error message and the email for form pre-filling
 			return fail(400, {
 				error: error.message,
@@ -123,13 +133,19 @@ export const actions: Actions = {
 	 * fields are present and password meets minimum length requirements, then
 	 * calls Supabase's signUp method.
 	 *
-	 * Note: Supabase may or may not require email verification depending on
-	 * project settings. Advanced email verification workflows are out of
-	 * scope — basic email/password signup is sufficient.
+	 * Production requires email confirmation, so signUp normally returns NO
+	 * session: the account exists but cannot sign in until the emailed link is
+	 * opened. That case stays on /auth and says so — it used to redirect home
+	 * signed out, and the first hint that a link was waiting was "Email not
+	 * confirmed" at sign-in. Supabase answers a signup for an address that is
+	 * already confirmed the same way (no session, no error) but mails nothing,
+	 * so the message must not promise an email or claim the account is new.
 	 *
 	 * @param event.request — The HTTP request containing form data with 'email' and 'password' fields
 	 * @param event.locals.supabase — The per-request Supabase server client
-	 * @returns fail(400) with error message on validation/signup failure, or redirect(303, '/') on success
+	 * @returns fail(400) with error message on validation/signup failure,
+	 *   `{ confirmationSent, email }` when the account awaits confirmation, or
+	 *   redirect(303, '/') when Supabase signed the user straight in
 	 */
 	register: async ({ request, locals: { supabase }, url }) => {
 		const formData = await request.formData();
@@ -164,7 +180,7 @@ export const actions: Actions = {
 
 		// Attempt to create a new user account via Supabase Auth.
 		// The server client automatically manages session cookies on success.
-		const { error } = await supabase.auth.signUp({
+		const { data, error } = await supabase.auth.signUp({
 			email,
 			password,
 			options: {
@@ -180,9 +196,52 @@ export const actions: Actions = {
 			});
 		}
 
-		// Redirect to homepage after successful registration.
-		// If Supabase requires email verification, the user will see
-		// appropriate messaging on the homepage or next visit.
+		if (!data.session) {
+			return { confirmationSent: true, email };
+		}
+
 		redirect(303, '/');
+	},
+
+	/**
+	 * Resend action — mails a fresh signup-confirmation link.
+	 *
+	 * The way out for an account whose link expired, was already used, or never
+	 * arrived. Without it the account was stranded: sign-in refuses an
+	 * unconfirmed email, and the old link fails forever. Submitted by the
+	 * resend button inside the sign-in form, so it reads the same email field.
+	 *
+	 * Supabase answers without revealing whether the address has an account
+	 * waiting, so the confirmation copy is conditional rather than a promise.
+	 */
+	resend: async ({ request, locals: { supabase }, url }) => {
+		const formData = await request.formData();
+		const email = formData.get('email') as string;
+
+		if (!email || !/\S+@\S+\.\S+/.test(email)) {
+			return fail(400, {
+				error: 'Enter your email address to get a new confirmation link.',
+				email,
+				unconfirmed: true
+			});
+		}
+
+		const { error } = await supabase.auth.resend({
+			type: 'signup',
+			email,
+			options: {
+				emailRedirectTo: `${url.origin}/auth/callback`
+			}
+		});
+
+		if (error) {
+			return fail(400, {
+				error: error.message,
+				email,
+				unconfirmed: true
+			});
+		}
+
+		return { resent: true, email };
 	}
 };

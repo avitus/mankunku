@@ -116,7 +116,7 @@ Orchestrates the full scoring pipeline.
 
 **Pipeline:**
 
-1. **DTW alignment** — `alignNotes()` matches detected to expected using raw recording-relative onset times (recording start ≡ phrase start at offset 0)
+1. **DTW alignment** — `alignNotes()` pairs detected with expected notes in two passes: the first, on the raw recording-relative onset times (recording start ≡ phrase start at offset 0), reads the constant delay off the pitch-matched pairs; the second pairs with that delay removed, so a stray note at the front cannot make "every note one slot early" look on time. If no pitch-matched pair exists, retain the raw-clock pairing without inferring a delay. An unpaired note costs `SKIP_COST` 1.5, so a stray plus a miss (3.0) no longer outweighs three wrong pitches
 2. **Latency correction** — Compute median timing offset of matched pairs and subtract from all detected onsets (absorbs ~100–300ms constant delay)
 3. **Per-note scoring** — `scorePitch()` and `scoreRhythm()` for each matched pair
 4. **Composite score** — `overall = pitchAccuracy * 0.6 + rhythmAccuracy * 0.4`

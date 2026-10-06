@@ -250,6 +250,7 @@ describe('buildLickSuperPhrase — lead-sheet passes', () => {
 	// Three keys unlocked from C: C, G, F — F is the newest. The plan runs
 	// [C, F, Bb]; F under the floor reveals and gets LEAD_SHEET_PASSES windows.
 	beforeEach(() => {
+		lickPractice.config.sessionType = 'focused';
 		bumpUnlockedKeyCount(lickPractice.progress, SHORT_LICK_ID);
 		bumpUnlockedKeyCount(lickPractice.progress, SHORT_LICK_ID);
 		lickPractice.progress = updateKeyProgress(lickPractice.progress, SHORT_LICK_ID, 'F', {
@@ -278,6 +279,18 @@ describe('buildLickSuperPhrase — lead-sheet passes', () => {
 			expect(fractionToFloat(startsAt(sp, bar + 1)[0].duration)).toBe(1);
 		}
 		expect(startsAt(sp, 12)[0].chord).toEqual({ root: 'C', quality: 'min7' });
+	});
+
+	it('joins Daily sheet passes directly to the preceding key', () => {
+		lickPractice.config.sessionType = 'daily';
+		expect(getKeyPasses(0)).toEqual([1, 3, 1]);
+		expect(getKeyPauses(0)).toEqual([0, 0, 0]);
+		const sp = buildLickSuperPhrase(0)!;
+		for (const bar of [4, 6, 8]) {
+			expect(startsAt(sp, bar)[0].chord).toEqual({ root: 'G', quality: 'min7' });
+		}
+		expect(startsAt(sp, 10)[0].chord).toEqual({ root: 'C', quality: 'min7' });
+		expect(sp.difficulty.lengthBars).toBe(12);
 	});
 
 	it('fills the reading pause with the band vamping a ii-V into the revealed key', () => {

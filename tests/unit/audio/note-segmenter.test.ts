@@ -326,11 +326,15 @@ describe('findReArticulations: bare-gap tier, a click inside the hole', () => {
 	const holeStart = 0.1 + (PRE_FRAMES - 1) / 60; // last reading before the hole
 	const resume = 0.1 + (PRE_FRAMES + HOLE_FRAMES) / 60; // first reading after it
 
-	/** A same-MIDI run at 60 fps; the level after the hole is the only knob. */
-	function bareGapRun(rmsAfter: number): PitchReading[] {
+	/**
+	 * A same-MIDI run at 60 fps. The level after the hole is the main knob;
+	 * `entryBand` sets the instrument-band floor of the last three readings
+	 * before the hole (default: flat with the rest of the note).
+	 */
+	function bareGapRun(rmsAfter: number, entryBand = 0.09): PitchReading[] {
 		const out: PitchReading[] = [];
-		/** One clean G3 reading at `time`; band floor and shape stay flat, so `rms` is the only evidence. */
-		const push = (time: number, rms: number) =>
+		/** One clean G3 reading at `time`; shape stays flat, so energy is the only evidence. */
+		const push = (time: number, rms: number, bandRmsMin: number) =>
 			out.push({
 				midiFloat: 55,
 				midi: 55,
@@ -341,12 +345,12 @@ describe('findReArticulations: bare-gap tier, a click inside the hole', () => {
 				rms,
 				hfRms: 0.008,
 				rmsMin: rms * 0.95,
-				bandRmsMin: 0.09,
+				bandRmsMin,
 				shapeBreak: 0.99,
 				shapeBreakAt: 0.045
 			});
-		for (let i = 0; i < PRE_FRAMES; i++) push(0.1 + i / 60, 0.1);
-		for (let i = 0; i < 30; i++) push(resume + i / 60, rmsAfter);
+		for (let i = 0; i < PRE_FRAMES; i++) push(0.1 + i / 60, 0.1, i >= PRE_FRAMES - 3 ? entryBand : 0.09);
+		for (let i = 0; i < 30; i++) push(resume + i / 60, rmsAfter, 0.09);
 		return out;
 	}
 
@@ -380,6 +384,28 @@ describe('findReArticulations: bare-gap tier, a click inside the hole', () => {
 		const onsets = findReArticulations(bareGapRun(0.095), [0.1], [holeStart - 0.3, resume + 0.3]);
 		expect(onsets).toHaveLength(1);
 		expect(onsets[0]).toBeCloseTo(resume - 0.02, 3);
+	});
+
+	it('splits a sustained hole under a click when the horn was already stopping on the way in', () => {
+		// 2026-08-11 blue-note-climb: tongued ON the beat, 1.19× across the hole
+		// (under the 1.2 step-up), but the band floor had fallen to 0.59× before
+		// the click sounded. A click only adds energy; it cannot lower a floor.
+		const click = (holeStart + resume) / 2;
+		const onsets = findReArticulations(bareGapRun(0.095, 0.09 * 0.6), [0.1], [click]);
+		expect(onsets).toHaveLength(1);
+		expect(onsets[0]).toBeCloseTo(resume - 0.02, 3);
+	});
+
+	it('does not take a falling entry floor alone — the note must still sustain across the hole', () => {
+		// 0.8× across: a note that stopped and did not come back.
+		const click = (holeStart + resume) / 2;
+		expect(findReArticulations(bareGapRun(0.08, 0.09 * 0.6), [0.1], [click])).toEqual([]);
+	});
+
+	it('does not read a shallow entry sag as a stop', () => {
+		// 0.85× of the floor before it: within a held note's ripple.
+		const click = (holeStart + resume) / 2;
+		expect(findReArticulations(bareGapRun(0.095, 0.09 * 0.85), [0.1], [click])).toEqual([]);
 	});
 });
 
@@ -733,5 +759,71 @@ describe('findReArticulations: envelope dip-recover tier', () => {
 
 	it('does not credit a shape break on a breathy tone — the shape signal is noise under SHAPE_CLEAN_BASELINE', () => {
 		expect(findReArticulations(dipRun({ baseShape: 0.96, dipShape: 0.93, rebloom: true }), [0.1])).toEqual([]);
+	});
+
+	/**
+	 * A tongued repeat that lands SOFTER than the note before it (2026-10-03
+	 * four-to-five: the second G came back at 0.897 of the first, a hair under
+	 * the 0.9 recovery ratio). Frames 30–33 are the stop: the window RMS sinks
+	 * to `trough` and the floor collapses, with tongue noise as corroborator.
+	 * `after(k)` is the level k frames past the stop, as a share of the level
+	 * before it.
+	 */
+	function softReattackRun(opts: { trough?: number; after: (k: number) => number; frames?: number }): PitchReading[] {
+		const out: PitchReading[] = [];
+		const stop = [30, 31, 32, 33];
+		for (let i = 0; i < (opts.frames ?? 70); i++) {
+			const inStop = stop.includes(i);
+			const rms = inStop ? (opts.trough ?? 0.065) : i > 33 ? 0.1 * opts.after(i - 34) : 0.1;
+			out.push({
+				midiFloat: 55,
+				midi: 55,
+				cents: 0,
+				clarity: 0.98,
+				time: 0.1 + i / 60,
+				frequency: 196,
+				rms,
+				hfRms: inStop ? 0.02 : 0.008,
+				rmsMin: inStop ? 0.035 : rms * 0.95,
+				bandRmsMin: 0.09,
+				shapeBreak: 0.99,
+				shapeBreakAt: 0.045
+			});
+		}
+		return out;
+	}
+
+	it('splits a stop whose re-attack lands softer than the note before it, when it re-blooms and holds', () => {
+		// Back to 0.88 of the old level: under the 0.9 recovery ratio, but 1.35×
+		// the trough and held.
+		const onsets = findReArticulations(softReattackRun({ after: () => 0.88 }), [0.1]);
+		expect(onsets).toHaveLength(1);
+		// Anchored on the first qualifying re-bloom frame.
+		expect(onsets[0]).toBeCloseTo(0.1 + 34 / 60 - 0.02, 3);
+	});
+
+	it('anchors a rising soft repeat at its first qualifying re-bloom, not its later peak', () => {
+		// The threshold is 0.65 × 1.25 = 0.8125 of the old level. The
+		// re-attack reaches it on frame 36 and keeps swelling through the window.
+		const after = (k: number) => Math.min(0.80 + k * 0.007, 0.88);
+		const onsets = findReArticulations(softReattackRun({ after }), [0.1]);
+		expect(onsets).toHaveLength(1);
+		expect(onsets[0]).toBeCloseTo(0.1 + 36 / 60 - 0.02, 3);
+	});
+
+	it('does not split a note that bounces once and fades — it re-blooms but does not hold', () => {
+		const fade = (k: number) => 0.88 * Math.pow(0.9, k);
+		expect(findReArticulations(softReattackRun({ after: fade }), [0.1])).toEqual([]);
+	});
+
+	it('does not split a drop to a softer level with no re-bloom — the level never rises from the trough', () => {
+		// Trough 0.08, then 0.088: holds, but only 1.1× the trough.
+		expect(findReArticulations(softReattackRun({ trough: 0.08, after: () => 0.088 / 0.1 }), [0.1])).toEqual([]);
+	});
+
+	it('does not split on a soft re-attack when too little of the note follows to measure the hold', () => {
+		// Eleven frames after the stop: only five fall inside the 100–400 ms
+		// hold window, too few to call it held.
+		expect(findReArticulations(softReattackRun({ after: () => 0.88, frames: 45 }), [0.1])).toEqual([]);
 	});
 });

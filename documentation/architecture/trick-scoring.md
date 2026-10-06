@@ -29,9 +29,12 @@ Each slot carries `exactPcs` (the formula pitch classes), optional
 never matter anywhere in trick scoring; everything is pitch classes, because
 a trick is a shape, not a register.
 
-Played notes are aligned to the slots with the same DTW skeleton as the lick
-scorer (3-way dynamic programming, skip cost 2.0, diagonal preferred on
-ties), but the exact-pitch cost is replaced by a **conformance cost**. Each
+Played notes are aligned to the slots with the DTW skeleton the lick scorer
+had until 2026-10-06 (3-way dynamic programming, skip cost 2.0, diagonal
+preferred on ties, one pass on the raw clock — the lick scorer now reads the
+constant delay off a first pass and skips at 1.5; trick scoring keeps the
+older constants), but the exact-pitch cost is replaced by a **conformance
+cost**. Each
 played note is judged against its slot on a tier ladder:
 
 | Tier | Meaning | Credit | DTW cost |

@@ -4527,3 +4527,109 @@ and to implement it test-first.
   test red under a seen-set and under a time-only key), 5500 unit plus 37
   expected failures, svelte-check clean, 21/21 tune and lick practice e2e on
   Chromium.
+
+## 2026-10-03 — Four to Five, and the grid drift that never was
+
+Two real takes with capture timing (10-01 enclosure, 10-03 four-to-five) and
+one mis-score.
+
+- **The drift was a measurement error.** Both takes' `captureAlignment` said
+  the recording starts at the arm instant (−0.5 ms, +26 ms, equal to the
+  recorder's start-event delay) and the grid runs early by the lookahead less
+  that (0.100, 0.074 s). The clicks in the WAVs agreed. Re-measuring every
+  metronome fixture gave 0.077–0.101 s, not 0.25–0.40. The difference is the
+  capture trim: the diagnostic export's `context.transportSeconds` has
+  included it since c858635b (2026-08-09, the day pre-arming shipped), and
+  the 2026-09-08 survey and the test helper `replayEarTrainingTake` added it
+  again. Trim mod beat reproduces the old figures to the millisecond. My own
+  first scratch replay on 2026-09-17 made the same mistake (0.334 on the Bb
+  blues-curl-up; really 0.084).
+- So production click handling was never blind: the bleed windows were built
+  around a ~0.1 s "latency", which is what the lookahead supplies. No
+  re-baseline. The TESTS were the ones on shifted grids.
+- Corrected the helper and the 08-11 saved-readings replay. One fixture
+  changed: blue-note-climb (08-11), tongued ON the beat. Under the real grid
+  the click is inside its hole, the tier demands a 1.2 step-up, and the take
+  measures 1.19: still merged in the app. A survey of every ≥ 150 ms hole
+  with a click inside found the separator on the way INTO the hole: band
+  floor 0.59× (tongue) vs 1.03× (pent run's held G). `bandFloorFellIntoHole`
+  lets the bare-gap tier accept plain sustain when the floor fell ≤ 0.75×
+  before the click sounded.
+- Four to Five (G G A A): the tongued G pair merged because the second G came
+  back at 0.897 of the first against the envelope tier's 0.9 recovery ratio.
+  `reBloomsAndHolds` adds a second recovery shape with the gap tier's bloom
+  (≥ 1.25× from the trough) and hold (≥ 0.75× over 100–400 ms) measures;
+  survey: this take 1.41 / 0.81, the three decays 0.92–1.12 / 0.20–0.51.
+  The final A is correctly missed: the note decays to silence after the
+  downbeat kick, no fourth note sounds. Replay 2/4 (0.494) → 3/4.
+- New corpus test pins the click lag per fixture (and fails 10 of 12 when the
+  trim is double-counted); a capture-timing test pins the 10-03 take's real
+  alignment. 5544 unit tests green, check clean.
+
+## 2026-10-03 → 2026-10-06 — Honeysuckle Rose: two takes saved 2 of 5
+
+Andy brought two Daily-practice takes (concert C and G, 162 BPM) with their
+diagnostics exports, "played a little sloppily", and asked for a diagnosis
+with no code changes. Three days later: "go ahead with step 1".
+
+- **What the audio says** (35 ms autocorrelation over the WAVs, before any
+  code): C take — G4 (attack cracking an octave low for ~100 ms), F4, A3, E4,
+  the C4 a ~60 ms smear scooping into the E. G take — D4 (same crack), E3
+  (attack overblowing an octave for ~110 ms), B3, the C4 70 ms and 30–40 ¢
+  sharp, the G3 ghosted at −27 dB. So 4 of 5 and 3 of 5 were played; both
+  saved 2 of 5. Re-scoring the saved notes reproduces both saved scores
+  exactly, so the scorer and the swing (0.6) were pinned down first.
+- **Why.** (1) The live path saved each crack as its own note. (2) With a
+  stray at the front and a swallowed note behind it, the DTW paired every
+  detected note with the PREVIOUS written one: F and A (C take) marked wrong
+  though played; on the G take a −38 dB tone 0.6 s after the line took the
+  B's slot. Two things made the shift cheaper: timing read off the raw clock,
+  ~0.2 s behind the written line in lick practice (the window opens one
+  lookahead early, the live stamp is a window late) — an eighth at 162 BPM,
+  so "one slot early" looked on time — and a stray plus a miss costing 4.0
+  against three wrong pitches at 3.0. Hand-computed: 4.6 against 6.6.
+- **Why the crack was not folded.** `captureTiming.liveOnsets` is `[]` on
+  both takes. `createOnsetDetector` throws `InvalidAccessError` at
+  `source.connect(node)` — the mic source is a standardized-audio-context
+  wrapper, the worklet node is native — and both routes swallow it. Verified
+  in the browser pane against Andy's running dev server: the wrapper source
+  throws, a native source connects. The line is from the initial commit; the
+  live worklet has apparently never run. No onsets → no stabilizer resets →
+  no warmup frames → `isUnconfirmedOctaveCrack` counts the crack as confirmed.
+  Ear training is shielded by its blob rescore; lick and tune practice are
+  not. The corpus's "live" variants use the blob's onsets, which production
+  lacks.
+- **The alignment change, tested before proposed.** My first framing —
+  "make the alignment robust to latency" — was wrong: removing the delay
+  alone fixed neither take (in an even eighth-note line a one-slot shift IS
+  a constant delay). Scratch harness with `vi.mock` over alignment.ts, run
+  on the two takes, the 32 fixtures with saved notes and eight synthetic
+  guards: known per-path constant + 1.5 sent tonic-turn 1/4 → 0/4 when the
+  constant was wrong for the take; a cost-minimising delay search absorbs
+  the shift; skip 1.0 relabels a wrong note in time as miss + stray. What
+  held: pass 1 at skip 2.0 on the raw clock to READ the delay off the
+  pitch-matched pairs (the all-pairs median — 0.115 s against the real 0.21
+  — keeps the shift), pass 2 at 1.5 with it removed. Pass 1 must stay at
+  2.0: at 1.5 a line a whole step up pairs shifted and the fallback confirms
+  it. 7 of 32 saved-note takes move, none down; every replay assertion in
+  the suite stayed put.
+- **Shipped:** `alignment.ts` two passes + `SKIP_COST` 1.5; unit tests (the
+  take-A shape, strict and insensitive; a step up stays 1:1; wrong note in
+  time stays paired; a beat-late take costs nothing; the saturation and
+  timing tests rewritten for the new contract); both takes in the corpus
+  with saved-notes tests (4/5 and 3/5), a replay test for G, and an
+  `it.fails` pin for the C replay — the recording's own segmentation adds a
+  50 ms F# from the G→F slur that sits in the F's slot a semitone off, and
+  that stray the change does not cover. Docs on every surface that named the
+  2.0 or the raw clock.
+- **Found under dev's new grid test:** the two fixtures measure the clicks
+  0.174 / 0.163 s after the grid, not one lookahead. `transportSeconds mod
+  beat` is 0.078 / 0.063 — the window opens on a tick, the grid counts beats
+  from transport zero, and lick practice changes the tempo on the running
+  transport (`bpm.setValueAtTime` at boundaries). Pinned per fixture, not
+  fixed.
+- **Deferred by Andy, recorded in memory and here:** sub-floor gate for lick
+  practice; attach the worklet and RECORD its onsets first, enable after a
+  week of real data; anchor lick practice's bleed grid at the bar line.
+- Verified: 5605 unit + integration, 40 expected fails (37 + 3 pins),
+  svelte-check clean (the worktree needed `.env` copied, as before).

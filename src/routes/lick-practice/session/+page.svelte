@@ -11,6 +11,7 @@
 	import NextStepCard from '$lib/components/lick-practice/NextStepCard.svelte';
 	import {
 		lickPractice,
+		isDailyPractice,
 		getCurrentPlanItem,
 		getCurrentProgressionType,
 		getCurrentKey,
@@ -1778,6 +1779,7 @@
 
 	async function handleStartProgression(progressionType: ChordProgressionType) {
 		await restartInPlace(() => {
+			lickPractice.config.sessionType = 'focused';
 			lickPractice.config.progressionType = progressionType;
 			startSession();
 			// startSession has no return value; the phase check in restartInPlace
@@ -2140,6 +2142,7 @@
 				aria-hidden={inScoreHold}
 			>
 				<UpcomingKeysDisplay
+					daily={isDailyPractice()}
 					plannedKeys={plannedKeysForLick}
 					{nextCycleKey}
 					{scrollFraction}

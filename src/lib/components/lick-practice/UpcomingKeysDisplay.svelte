@@ -16,6 +16,8 @@
 	import type { PlannedKey } from '$lib/state/lick-practice.svelte';
 
 	interface Props {
+		/** Daily presents sheets ahead in equal-height rows and uses current-action cues only. */
+		daily?: boolean;
 		/** All keys for the current lick, in playback order. */
 		plannedKeys: PlannedKey[];
 		/** Promised first key of the next cycle, visible during a handoff repeat. */
@@ -62,6 +64,7 @@
 	}
 
 	let {
+		daily = false,
 		plannedKeys,
 		nextCycleKey = null,
 		scrollFraction,
@@ -79,8 +82,8 @@
 	const recordingNow = $derived(isRecording && (!cue || cue.phase === 'play'));
 
 	// Rows are fixed pixel heights so the scroll math is pure: one
-	// chord-chart row, or the taller lead-sheet row the key being learned
-	// gets (staff with chords above it, the current bar marked on the staff).
+	// chord-chart row (also the Daily sheet height), or a taller Deep/Focused sheet row
+	// with chords above the staff and the current bar marked on it.
 	// Chord chart: label + margin (~21), cell (90), and row padding (12).
 	// Keep the complete bottom border and beat dots inside the row budget.
 	const ROW_HEIGHT = 128;
@@ -96,6 +99,9 @@
 	// the zoom: a 960 px row over a ~664-unit viewBox engraves at ~1.45× —
 	// readable from a music stand, where the old 1000-unit staff was not.
 	const LEAD_STAFF_WIDTH = 640;
+	// Daily trades the tall engraving for a full-width, single chord-row staff;
+	// compactStaff enlarges the chord font independently of the smaller notes.
+	const DAILY_STAFF_WIDTH = 1100;
 	const VISIBLE_ROWS = 3;
 	const NO_MARKERS: RangeMarker[] = [];
 
@@ -114,7 +120,7 @@
 	// the viewport's `overflow: hidden` edge (row padding-top 4 px): clear,
 	// with nothing to spare for a wider ring or a thinner row.
 	//
-	// A lead-sheet row waits its turn like any other: until its key arrives it
+	// Outside Daily, a lead-sheet row waits its turn like any other: until its key arrives it
 	// shows the key's chord chart (dimmed, below the active row) and the
 	// engraved staff underneath stays hidden — engraved ahead, so abcjs has
 	// done its work, but not shown. The row becomes current at the START of
@@ -123,8 +129,9 @@
 	// memory to reading is visible as a switch. Read-ahead parking (the sheet
 	// lit a whole key early) was tried and withdrawn — Andy: the sheet should
 	// not appear until the previous key has been played.
+	// Daily shows each eligible sheet immediately, in the same height as its neighbours.
 	const displayKeys = $derived(nextCycleKey ? [...plannedKeys, nextCycleKey] : plannedKeys);
-	const rowHeights = $derived(displayKeys.map((pk) => (pk.reveal ? LEAD_ROW_HEIGHT : ROW_HEIGHT)));
+	const rowHeights = $derived(displayKeys.map((pk) => (pk.reveal && !daily ? LEAD_ROW_HEIGHT : ROW_HEIGHT)));
 	// The viewport reserves the lead-sheet row plus a chord row whether or not
 	// this stack has a sheet: the ring under it must not move when the next
 	// cycle's stack (a key recovered above the floor) or the next lick's has
@@ -132,7 +139,7 @@
 	const layout = $derived(
 		keyStackLayout(rowHeights, nextCycleKey
 			? Math.min(scrollFraction, Math.max(0, plannedKeys.length - 0.0001))
-			: scrollFraction, ROW_HEIGHT, VISIBLE_ROWS, LEAD_ROW_HEIGHT)
+			: scrollFraction, ROW_HEIGHT, VISIBLE_ROWS, daily ? ROW_HEIGHT : LEAD_ROW_HEIGHT)
 	);
 	const translateYpx = $derived(layout.translateY);
 	const visualCurrentRow = $derived(layout.currentRow);
@@ -171,6 +178,7 @@
 		const nextKeyLabel = next
 			? keyLabel(concertKeyToWritten(next.key, instrument), lickMode(next.phrase)) : undefined;
 		return phaseTabView(cue, activeKeyLabel, {
+			daily,
 			...cycleEntry,
 			handoff: !!nextCycleKey,
 			pass: activePass,
@@ -212,12 +220,12 @@
 	{tab && tab.kind !== 'hidden' ? tab.text : ''}
 </span>
 
-<div class="viewport" style="height: {layout.viewportHeight}px;">
+<div class="viewport" class:daily style="height: {layout.viewportHeight}px;">
 	<div class="stack" style="transform: translateY({translateYpx}px);">
 		{#each displayKeys as pk, i (pk.lickId + ':' + pk.key)}
 			{@const isCurrent = i === visualCurrentRow}
 			{@const sheet = leadSheets[i]}
-			{@const isRevealed = !!sheet && i <= visualCurrentRow}
+			{@const isRevealed = !!sheet && (daily || i <= visualCurrentRow)}
 			<div
 				class="row"
 				data-key={pk.key}
@@ -241,21 +249,21 @@
 							     marks the bar, placed by the engraver's own geometry; it is
 							     the only playback indication (a lit-note cursor was tried and
 							     dropped as redundant). No caption by decision: the engraving
-							     is the message. Hidden (not merely faded — `visibility`) until
-							     the row's key arrives; the key's chord chart stands in its
-							     place meanwhile and fades out as the staff fades in. -->
+							     is the message. Daily shows it from the outset; other modes
+							     reveal it when its key arrives, replacing a chord chart. -->
 							<div
 								class="lead-sheet"
 								class:revealed={isRevealed}
 								data-testid="lead-sheet-row"
-								style="--lead-staff-box: {LEAD_STAFF_BOX}px;"
+								style="--lead-staff-box: {daily ? ROW_HEIGHT - 12 : LEAD_STAFF_BOX}px;"
 							>
 								<NotationDisplay
 									tune={sheet.tune}
 									tuneOptions={sheet.options}
 									{instrument}
 									frameless
-									staffWidth={LEAD_STAFF_WIDTH}
+									staffWidth={daily ? DAILY_STAFF_WIDTH : LEAD_STAFF_WIDTH}
+									compactStaff={daily}
 									rangeMarkers={isCurrent ? activeMarkers : NO_MARKERS}
 								/>
 							</div>
@@ -266,6 +274,7 @@
 									out:fade={{ duration: 400 }}
 								>
 									<ChordChart
+										showLabel={!daily}
 										harmony={pk.harmony}
 										currentBeat={0}
 										timeSignature={[4, 4]}
@@ -278,6 +287,7 @@
 							{/if}
 					{:else}
 						<ChordChart
+							showLabel={!daily}
 							harmony={pk.harmony}
 							currentBeat={isCurrent ? currentBeat : 0}
 							timeSignature={[4, 4]}
@@ -417,6 +427,13 @@
 		visibility: hidden;
 		opacity: 0;
 		transition: opacity 400ms ease;
+	}
+	.daily .lead-sheet {
+		/* Keep the tab clear and leave four pixels below the engraving. */
+		padding-top: 18px;
+	}
+	.daily .lead-sheet :global(svg) {
+		max-height: calc(var(--lead-staff-box) - 22px);
 	}
 	.lead-sheet.revealed {
 		visibility: visible;

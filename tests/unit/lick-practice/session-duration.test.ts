@@ -76,7 +76,6 @@ import {
 } from '$lib/persistence/lick-practice-store';
 import { getAllLicks } from '$lib/phrases/library-loader';
 import {
-	LEAD_SHEET_PAUSE_BARS,
 	planCycleWindows,
 	newestUnlockedKey
 } from '$lib/state/lick-practice-rotation';
@@ -191,12 +190,11 @@ describe('estimatePlanSeconds', () => {
 			lickBars: getLickBars(getAllLicks().find((l) => l.id === 'bc-041')!, 'blues', false),
 			mode: 'continuous'
 		});
-		// Two extra windows of one cycle each, plus the reading pause before G —
-		// G follows C's window, so the switch to reading is heralded.
+		// Daily shows the sheet ahead and rolls directly into its three passes.
+		expect(getKeyPauses(0)).toEqual([0, 0]);
 		expect(superPhrase.difficulty.lengthBars).toBe(
 			plain +
-				2 * getLickBars(getAllLicks().find((l) => l.id === 'bc-041')!, 'blues', false) +
-				LEAD_SHEET_PAUSE_BARS
+				2 * getLickBars(getAllLicks().find((l) => l.id === 'bc-041')!, 'blues', false)
 		);
 		const tempo = resolveLickTempo(lickPractice.progress, 'bc-041');
 		const expected =
@@ -393,7 +391,7 @@ describe('plannedSeconds (the in-session countdown total)', () => {
 
 /**
  * The lead-sheet reveal is the newest cost in the model: a revealed key plays
- * `LEAD_SHEET_PASSES` windows behind `LEAD_SHEET_PAUSE_BARS` of reading pause
+ * `LEAD_SHEET_PASSES` consecutive windows, with no Daily reading pause,
  * instead of one bare window. The single-lick case above pins it against the
  * super phrase; this pins a whole multi-lick Daily plan against
  * `planCycleWindows` — the very layout the session page schedules its

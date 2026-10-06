@@ -1,8 +1,8 @@
 # Daily and recommended Deep Practice: state machines
 
-Code audit: 2026-10-02, following the handoff implementation at `864bb730`. This document concerns lick practice, not tune practice or trick drills.
+Code audit: 2026-10-06. Daily cue and notation simplification is scoped separately from the Deep handoff implementation at `864bb730` and its later preparation cues. This document concerns lick practice, not tune practice or trick drills.
 
-## Transition audit: predictable next action
+## Deep transition audit: predictable next action
 
 The earlier diagrams exposed the reported bug: notation was reevaluated at a cycle boundary, while `Play → Play` explicitly included retries, tempo steps and handoffs with **zero preparation bars**. The handoff repeated the current key while a different key appeared underneath, but its cue only said “Play”. A sheet graduation at that boundary could therefore remove the sheet and demand another same-key attempt immediately. The strategy was internally consistent; the player-facing state machine was incomplete.
 
@@ -11,13 +11,13 @@ The earlier diagrams exposed the reported bug: notation was reevaluated at a cyc
 | Sheet graduation, including later rows and returning keys | Support disappears on a playing downbeat | Name the key and “from memory” before recording opens; at least one preparation bar |
 | Earned handoff, including later admissions | Lower chart suggests advance, while current key repeats | One preparation bar naming “once more”; repeat cue names the promised next key |
 | Focus retry, tempo step up/down, rebuild survivors, full rotation refill | Outcome depends on the just-finished score; no time to react | “Then get ready” during the final take; resolve result, show the next key and changed BPM, prepare for one bar |
-| Three sheet passes with a different key below | Lower chart is not yet the immediate next action | First two passes say the same key is next; final pass names the next key or upcoming preparation |
+| Deep: three sheet passes with a different key below | Lower chart is not yet the immediate next action | First two passes say the same key is next; final pass names the next key or upcoming preparation |
 | Promised key after handoff | Already announced for an entire loop | Honor it directly; retain two-bar sheet preparation if needed |
 | Ordinary Deep reorder/refill | Existing turnaround gives time, but does not explain a repeat or graduation | Reuse that bar and name the repeat, memory change and changed BPM |
-| Call and response | Per-key call already gives reaction time | Retain calls and turnaround; name “Listen to [key] next” when another call follows |
-| Daily key/lick transitions | Sheet preparation, visible next row and two-bar inter-lick rest already provide notice | Preserve timing; clarify repeated sheet passes in the existing chart cue |
+| Deep call and response | Per-key call already gives reaction time | Retain calls and turnaround; name “Listen to [key] next” when another call follows |
+| Daily key/lick transitions | Upcoming sheets used to appear only at entry, requiring a reading pause | Show notation from the start in equal-height rows; continuous Play between keys, including all three sheet passes; retain two-bar inter-lick rest |
 
-Preparation uses the same pause plan as backing, microphone windows and visual cues. It never adds scored attempts. Existing two-bar sheet preparation absorbs the one-bar requirement; the two are not added together. A later key that graduates from its sheet gets its own one-bar preparation, even if it sat out a round before returning. Key names are in the player's written pitch. Score-dependent future keys are not guessed before the result is known.
+Deep preparation uses the same pause plan as backing, microphone windows and visual cues. It never adds scored attempts. Existing two-bar sheet preparation absorbs the one-bar requirement; the two are not added together. A later key that graduates from its sheet gets its own one-bar preparation, even if it sat out a round before returning. Key names are in the player's written pitch. Score-dependent future keys are not guessed before the result is known.
 
 ## Reading the diagrams
 
@@ -55,6 +55,7 @@ stateDiagram-v2
     Running --> Report: End Session
     ScoreHold --> Report: End Session
     Report --> Loading: Start recommended Deep Practice in place
+    Report --> Loading: Start progression in place with Focused configuration
     Report --> Setup: Done
     Loading --> Disposed: Navigate away
     CountIn --> Disposed: Navigate away
@@ -72,7 +73,7 @@ End Session creates a report from completed attempts, including an in-progress l
 
 ## 2. Daily plan and one complete lick
 
-Daily collects eligible practice-tagged licks across progressions, ordered least recently practiced first. Each lick gets a compatible progression from its tags/history, its saved tempo (new lick default 60 BPM), and its unlocked key set. Under twelve unlocked keys it uses the unlock order; fully unlocked licks use the tempo-dependent key planner. Whole licks fill the duration budget, with one oversized lick permitted so Start is not a no-op. The displayed duration estimates demos, notation rehearsals, preparation, count-in and score hold.
+Daily collects eligible practice-tagged licks across progressions, ordered least recently practiced first. Each lick gets a compatible progression from its tags/history, its saved tempo (new lick default 60 BPM), and its unlocked key set. Under twelve unlocked keys it uses the unlock order; fully unlocked licks use the tempo-dependent key planner. Whole licks fill the duration budget, with one oversized lick permitted so Start is not a no-op. The displayed duration estimates demos, notation rehearsals, count-in and score hold. Daily has no sheet-preparation bars; the budget and audio plan both omit them.
 
 ```mermaid
 stateDiagram-v2
@@ -80,10 +81,8 @@ stateDiagram-v2
     CountIn --> Demo: Continuous mode
     CountIn --> Call: Call and response mode
     Demo --> KeyChoice: App plays first key for one lick length
-    KeyChoice --> Prepare: Revealed later key
-    KeyChoice --> SheetPass1: Revealed first key / demo supplied preparation
+    KeyChoice --> SheetPass1: Revealed key / sheet already visible
     KeyChoice --> MemoryPlay: Unrevealed key
-    Prepare --> SheetPass1: Two preparation bars finish
     SheetPass1 --> SheetPass2: First rehearsal closes / flash score
     SheetPass2 --> SheetPass3: Second rehearsal closes / flash score
     SheetPass3 --> RecordResult: Final pass closes
@@ -103,16 +102,34 @@ stateDiagram-v2
 
 | State | Audio and microphone | Screen and player action | Exit |
 | --- | --- | --- | --- |
-| Count-in | One bar; no scored recording | Initial chart; entrance cue leads to listening | First demo or call |
-| Demo | Melody plus enabled backing; no scored recording | Listen; first sheet already visible if eligible | After one full lick |
+| Count-in | One bar; no scored recording | Initial charts, including eligible sheets; plain red Listen, no numeral | First demo or call |
+| Demo | Melody plus enabled backing; no scored recording | Plain red Listen, then key-free Play 4–1 over the final bar | After one full lick |
 | Memory play | Backing; recording window open | Play; chord chart and beat dots | One lick closes |
-| Preparation (`read`) | Two bars of vamp; no scored recording | Sheet becomes visible; prepare, then final four-beat Play entrance cue | First sheet pass |
 | Sheet rehearsal 1 and 2 | Backing; captured and scored | Play from visible sheet; inline feedback | Immediately next pass, no gap |
 | Sheet final pass | Backing; captured and scored | Play; sheet remains visible | Persist one attempt for that key |
 | Call | App plays lick; no scored recording | Listen; sheet visible if eligible | Player response |
 | Response | Backing; scored recording | Play; one response even if sheet is visible | Persist result |
 | Score hold | First rest bar, no scored recording | Finished lick's feedback/breather | Advance bookkeeping |
 | Next-lick lead | Second rest bar, enabled ii–V cue into next key | Next chart shown before demo/call | Next lick downbeat |
+
+Daily's sheet rows are visible as notation from the first render, including upcoming rows. They use the same 128 px height as chord-only rows. The CHANGES word is removed while its space remains. The active cue says only Listen, Play, or Rest (plus the sheet-pass number). Only the final bar of a demo/call has a Play countdown, with no key name. Continuous key changes and all three sheet passes join without Read, preparation, or an entrance countdown. The initial audio count-in and two-bar gap between licks remain.
+
+```mermaid
+sequenceDiagram
+    participant A as Audio
+    participant U as Daily chart
+    participant P as Player
+    U->>P: Current chords and upcoming sheet visible from the start
+    A->>P: Demonstrate first key
+    U->>P: LISTEN without countdown
+    U->>P: PLAY 4, 3, 2, 1 during final demo bar
+    P->>A: Play current key
+    U->>P: PLAY
+    Note over A,P: Direct key boundary, no added bar
+    U->>P: Activate existing sheet row, PLAY 1/3
+    P->>A: Sheet passes 1, 2, 3 without gaps
+    A->>U: Retain final pass result
+```
 
 The three sheet passes are not three persisted attempts. Only the final pass updates progress, report and recording history. Current production keeps the sheet visible for all three; the comment describing “play it from memory” is not an enforced hide-on-third-pass behavior.
 
@@ -267,8 +284,10 @@ flowchart TD
     Entrance -->|Yes| Ready[One preparation bar, name key and any memory change]
     Ready --> OnePass[One play window, C and R includes a call]
     Entrance -->|No| OnePass
-    Prep -->|Yes| Demo{Opening demo already prepares this key?}
-    Demo -->|Yes| Three[Three consecutive play windows]
+    Prep -->|Yes| Daily{Daily session?}
+    Daily -->|Yes| Three[Three consecutive play windows]
+    Daily -->|No| Demo{Opening demo already prepares this key?}
+    Demo -->|Yes| Three
     Demo -->|No| Pause[Two bars preparation then three windows]
     OnePass --> Final[Persist final attempt]
     Three --> Final
@@ -283,8 +302,9 @@ Important boundaries:
 - 50% exactly does not trigger the first-attempt rescue; 70% exactly does not trigger the two-attempt rescue. These use final recorded attempts, not rehearsal scores or EWMA.
 - Rescue applies to any unlocked Deep key, including older keys and fully unlocked licks. Daily uses the legacy newest-key rule only.
 - Sheet graduation is reevaluated at the next cycle: no legacy reveal and no rescue condition means return to the chord chart with an explicit “from memory” entrance cue and preparation time. A slight memory mistake does not automatically start another Listen phase in a recommended drill.
-- A sheet is engraved ahead, but remains hidden behind its chord-chart placeholder until that key becomes current, at the beginning of preparation. The next key is not illuminated as though already active.
-- A row remains current through preparation and every pass. Previous-row feedback stays visible above it where the stack has room. Mixed sheet/chord row heights determine the viewport so beat dots are not clipped.
+- In Deep and Focused sessions a sheet is engraved ahead, but remains hidden behind its chord-chart placeholder until that key becomes current, at the beginning of preparation. The next key is not illuminated as though already active.
+- Daily shows upcoming notation immediately, without a chord placeholder or preparation pause. Deep and Focused retain the later reveal and taller sheet rows.
+- A row remains current through any preparation and every pass. Previous-row feedback stays visible above it where the stack has room. Mixed sheet/chord row heights determine the viewport so beat dots are not clipped.
 
 ## 6. Musical cues, boundaries, and clocks
 
@@ -295,7 +315,7 @@ stateDiagram-v2
     Listen --> Play: User window opens
     Play --> Play: Announced adjacent key, rehearsal, or promised handoff exit
     Play --> Prepare: Score-dependent Deep result, retry, tempo step, or handoff entry
-    Play --> Prepare: Next key has notation preparation
+    Play --> Prepare: Non-Daily key has notation preparation
     Prepare --> Play: One result-preparation bar or two sheet-preparation bars finish
     Play --> Listen: Next C and R call, or ordinary Deep requests demo
     Play --> Transition: Daily rest or ordinary Deep turnaround
@@ -308,7 +328,7 @@ stateDiagram-v2
     Idle --> [*]
 ```
 
-The phase timeline is derived from the very same window plan as recording. Consecutive play windows merge into one PLAY segment. Final four-beat entrance cues are for an actual return to playing, not every key boundary. Current labels: Listen, Read (sheet preparation), Get ready (other preparation), Play, Rest, and “Straight in” for an unchanged transition directly to Play. The tab also names same-key repeats, sheet graduation, changed BPM and known next keys. Multi-pass rows name another same-key pass before the lower chart becomes next. The compact “Get ready” Daily design preview is provisional; it is not the production label mapped here.
+The phase timeline is derived from the very same window plan as recording. Consecutive play windows merge into one PLAY segment. Final four-beat entrance cues are for an actual return to playing, not every key boundary. Outside Daily, labels are Listen, Read (sheet preparation), Get ready (other preparation), Play, Rest, and “Straight in” for an unchanged transition directly to Play. The tab also names same-key repeats, sheet graduation, changed BPM and known next keys. Multi-pass rows name another same-key pass before the lower chart becomes next. Those detailed labels apply outside Daily. Daily shows plain Listen, key-free Play with only the pass number, and Rest; only the demo/call ending counts into Play. Daily never creates a Read segment.
 
 | Session/mode | Opening | Between cycles/licks |
 | --- | --- | --- |
@@ -366,4 +386,4 @@ Scoring/recording persistence failures are caught so one failed save cannot free
 | Transport, mic windows, cycle boundary, display and report | `src/routes/lick-practice/session/+page.svelte` |
 | Chart stack, notation visibility, compact cue and geometry | `src/lib/components/lick-practice/UpcomingKeysDisplay.svelte` |
 
-Regression obligations: 82→83 alone before actual target clear; full-loop preview after clear; low/missing final-repeat score cannot revoke the promised key or change tempo; promised key starts first despite rolling-score reordering; later admissions receive the same preview; single-key licks need no preview; preview creates no audio/recording window; one preparation bar before a continuous handoff, no new demo; sheet graduation explicitly named; rehearsal repeats named before the lower chart; resolved retry/reorder/refill/tempo change gets preparation; promised admission adds no redundant gap; old chart survives lookahead through its final audible beat; End Session cancels staged display; existing Daily preparation, Deep rescue thresholds, layout and persisted-tempo behavior remain intact.
+Regression obligations: 82→83 alone before actual target clear; full-loop preview after clear; low/missing final-repeat score cannot revoke the promised key or change tempo; promised key starts first despite rolling-score reordering; later admissions receive the same preview; single-key licks need no preview; preview creates no audio/recording window; one preparation bar before a continuous handoff, no new demo; sheet graduation explicitly named; rehearsal repeats named before the lower chart; resolved retry/reorder/refill/tempo change gets preparation; promised admission adds no redundant gap; old chart survives lookahead through its final audible beat; End Session cancels staged display; Daily upcoming notation visible immediately in equal-height rows, key-free final-demo countdown only, no Daily Read segment or pause bars, accurate duration without those bars, three Daily passes retained; Deep rescue thresholds, preparation and persisted-tempo behavior remain intact.
