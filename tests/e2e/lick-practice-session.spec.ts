@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures/test';
-import { seedOnboardedAnonymous, seedUserLicks, seedStorage } from './fixtures/storage';
+import { seedOnboardedAnonymous, seedUserLicks, seedStorage, SAMPLE_USER_LICKS } from './fixtures/storage';
 import { installAudioMock, stubCdnInstrumentSamples } from './fixtures/audio';
 
 /**
@@ -496,21 +496,66 @@ test.describe('lick-practice session flow', () => {
 				heights: rows.map((r) => r.getBoundingClientRect().height),
 				inkInside: ink.every((r) => r.top >= box.top && r.bottom <= box.bottom + 1 && r.left >= box.left && r.right <= box.right + 1),
 				chordFontPx: Number(chord.getAttribute('font-size')) * chord.getScreenCTM()!.a,
+				noteheadWidth: svg.querySelector('.abcjs-notehead')!.getBoundingClientRect().width,
 				current: rows.findIndex((r) => r.classList.contains('current'))
 			};
 		});
 		expect(geometry).toMatchObject({ heights: [128, 128], inkInside: true, current: 0 });
 		expect(geometry.chordFontPx).toBeGreaterThan(23);
+		// Measure painted notes too: the previous 1,100-unit staff made these
+		// only 8px wide even though its oversized chord font passed the check.
+		expect(geometry.noteheadWidth).toBeGreaterThan(11);
 		await page.screenshot({ path: test.info().outputPath('daily-sheet-preview.png') });
 		await expect(play).toHaveAttribute('data-pass', '1', { timeout: 15_000 });
 		await expect(play).toHaveText('Play · 1/3');
 		await expect(sheet.locator('.playhead-under-bar').first()).toBeVisible();
+		const markerInside = await sheet.evaluate((lead) => {
+			const row = lead.getBoundingClientRect();
+			const marker = lead.querySelector('.playhead-under-bar')!.getBoundingClientRect();
+			return marker.top >= row.top && marker.bottom <= row.bottom;
+		});
+		expect(markerInside).toBe(true);
 		await expect(page.locator('.row[data-key="G"] .chart-wrap.recording')).toBeVisible();
 		const cues = await page.evaluate(() => (window as unknown as { dailyCues: string[] }).dailyCues);
 		expect(cues.length).toBeGreaterThan(1);
 		expect(cues.every((cue) => /^play:Play(?: · 1\/3)?$/.test(cue))).toBe(true);
 		await page.screenshot({ path: test.info().outputPath('daily-sheet-playing.png') });
 	});
+
+	for (const pitch of [45, 78]) {
+		test(`daily sheet keeps ledger notes and its cue clear at pitch ${pitch}`, async ({ page }) => {
+			await seedOnboardedAnonymous(page);
+			const lick = structuredClone(SAMPLE_USER_LICKS[0]) as { notes: { pitch: number }[] };
+			lick.notes.forEach((note, i) => { note.pitch = pitch + i; });
+			await seedUserLicks(page, [lick]);
+			await seedStorage(page, {
+				'user-lick-tags': { 'e2e-user-lick-bebop': ['practice', 'prog:ii-V-I-major'] },
+				...SUB_FLOOR_PROGRESS
+			});
+			await installAudioMock(page);
+			await stubCdnInstrumentSamples(page);
+			await page.goto('/lick-practice');
+			await page.getByRole('button', { name: /start daily practice/i }).click();
+			const sheet = page.getByTestId('lead-sheet-row');
+			await expect(sheet.locator('.abcjs-notehead').first()).toBeVisible();
+			await expect(page.locator('.phase-tab')).toBeVisible();
+			for (const width of [1440, 768, 390]) {
+				await page.setViewportSize({ width, height: 900 });
+				const bounds = await sheet.evaluate((lead) => {
+					const box = lead.getBoundingClientRect();
+					const cue = lead.closest('.row')!.querySelector('.phase-tab')!.getBoundingClientRect();
+					const ink = [...lead.querySelectorAll('svg path, svg text.abcjs-chord')]
+						.map((el) => el.getBoundingClientRect());
+					return {
+						rowHeight: lead.closest('.row')!.getBoundingClientRect().height,
+						inside: ink.every((r) => r.top >= box.top && r.bottom <= box.bottom + 1 && r.left >= box.left && r.right <= box.right + 1),
+						cueClear: ink.every((r) => r.left >= cue.right || r.right <= cue.left || r.top >= cue.bottom || r.bottom <= cue.top)
+					};
+				});
+				expect(bounds, `viewport ${width}px`).toEqual({ rowHeight: 128, inside: true, cueClear: true });
+			}
+		});
+	}
 
 	/**
 	 * A revealed key plays three windows, and only the LAST is the attempt of
