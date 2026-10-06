@@ -9,10 +9,10 @@ import {
 	findGhostNotes
 } from '$lib/audio/note-segmenter';
 import { runScorePipeline } from '$lib/scoring/score-pipeline';
-import type { Phrase } from '$lib/types/music';
+import type { Phrase, PitchClass } from '$lib/types/music';
 import type { DetectedNote } from '$lib/types/audio';
 import { trimToPerformance } from '$lib/audio/capture-window';
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { PitchReading } from '$lib/audio/pitch-frame';
@@ -3588,12 +3588,46 @@ describe('metronome fixtures: the clicks sit one lookahead after the exported gr
 		expect(takes.length).toBeGreaterThanOrEqual(12);
 	});
 
-	it.each(takes.map((t) => [t.file, t] as const))('%s', (_file, take) => {
+	/**
+	 * Lick-practice takes whose stamp is off the click grid (OPEN, 2026-10-06).
+	 * The window opens ON a bar line — a transport tick — but
+	 * `getMetronomeBleedOnsets` counts beats in multiples of the beat length
+	 * from transport zero, and `Transport.seconds` is elapsed time: once the
+	 * tempo has changed on the running transport (Daily practice runs each
+	 * lick at its own tempo) the tick grid and the seconds grid part company
+	 * by (stamp mod beat). On these two takes that residue is 0.078 s and
+	 * 0.063 s; add the lookahead and the clicks sit 0.174 s and 0.163 s after
+	 * the grid handed to the segmenter — still inside its 50–200 ms bleed
+	 * windows, which is why the click suppression kept working, but not the
+	 * one-lookahead lag this test pins. The 2026-09-16 lick-practice fixture
+	 * passes only because its residue happens to be ~0 (107.896 s at 129 BPM).
+	 * The grid for lick practice should be anchored at the window's own bar
+	 * line, not at transport zero; pinned until that lands.
+	 */
+	const OFF_GRID_LICK_PRACTICE = new Set(['2026-10-03-honeysuckle-rose.json', '2026-10-03-honeysuckle-rose-b.json']);
+
+	/** Seconds from the grid to the clicks in this fixture's recording. */
+	const lagOf = (take: (typeof takes)[number]) => {
 		const wav = loadWavFixture(`recordings/${take.file.replace('.json', '.wav')}`);
-		const lag = clickLag(wav.channel, wav.sampleRate, take.diag);
+		return clickLag(wav.channel, wav.sampleRate, take.diag);
+	};
+
+	it.each(takes.filter((t) => !OFF_GRID_LICK_PRACTICE.has(t.file)).map((t) => [t.file, t] as const))('%s', (_file, take) => {
+		const lag = lagOf(take);
 		expect(lag).toBeGreaterThan(0.06);
 		expect(lag).toBeLessThan(0.13);
 	});
+
+	for (const take of takes.filter((t) => OFF_GRID_LICK_PRACTICE.has(t.file))) {
+		it.fails(`${take.file} (lick practice after a tempo change: the stamp is off the tick grid by stamp mod beat)`, () => {
+			const beat = 60 / take.diag.context!.tempo!;
+			const residue = take.diag.context!.transportSeconds! % beat;
+			const lag = lagOf(take);
+			// The excess over one lookahead is the stamp's residue on the beat grid.
+			expect(lag - 0.1).toBeCloseTo(residue, 1);
+			expect(lag).toBeLessThan(0.13);
+		});
+	}
 });
 
 /**
@@ -3616,5 +3650,194 @@ describe('pitch replay regression: ghost notes appear only where they were playe
 		// The ear-training frame shifts both streams together; nothing moves.
 		const trimmed = trimToPerformance(raw.readings, raw.onsets, raw.duration, undefined, raw.weakReadings);
 		expect(findGhostNotes(trimmed.readings, trimmed.weakReadings)).toHaveLength(EXPECTED_GHOSTS[file] ?? 0);
+	});
+});
+
+/**
+ * Honeysuckle Rose — two Daily-practice takes, concert C and G, 162 BPM
+ * (2026-10-03). Both saved 2 of 5. On the audio the concert-C take plays G4
+ * (its attack cracking an octave low for ~100 ms), F4, A3 and E4, with the C4
+ * a ~60 ms smear scooping into the E; the concert-G take plays D4 (cracked
+ * the same way), E3 (its attack overblowing an octave for ~110 ms) and B3,
+ * with the C4 a 70 ms note 30–40 cents sharp and the G3 ghosted at −27 dB.
+ *
+ * The live path saved each crack as its own note: it recorded NO onsets
+ * (`captureTiming.liveOnsets` is empty — the worklet never attaches to the
+ * mic), so the stabilizer never reset and the 2026-09-16 crack fold had no
+ * warmup frames to count. With a stray at the front and a swallowed note
+ * behind it, the aligner paired every detected note with the PREVIOUS
+ * written one, and F and A (C take) and B (G take, whose slot a −38 dB stray
+ * tone 0.6 s after the line took) were marked wrong although played. Two
+ * things made the shifted pairing cheaper: timing read off the raw clock,
+ * which runs ~0.2 s behind the written line in lick practice — an eighth at
+ * 162 BPM — and a stray plus a miss costing two skips of 2.0 against three
+ * wrong pitches at 1.0. Fixed 2026-10-06 in the aligner: the constant delay
+ * is removed before pairing and a skip costs 1.5.
+ */
+describe('pitch replay regression: Honeysuckle Rose — a cracked attack shifted the pairing (2026-10-03)', () => {
+	const TEMPO = 162;
+	const SWING = 0.6;
+	/** Seconds from a replay reading's window start to its end. */
+	const ANALYSER_WINDOW = 4096 / 44100;
+	const FIXTURE_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'fixtures', 'recordings');
+
+	interface Take {
+		file: string;
+		key: PitchClass;
+		/** The lick in this key: four eighths from beat 1, a half note on beat 3. */
+		pitches: number[];
+		transportSeconds: number;
+	}
+	const TAKES: Record<'C' | 'G', Take> = {
+		C: { file: '2026-10-03-honeysuckle-rose', key: 'C', pitches: [67, 65, 57, 60, 64], transportSeconds: 832.300544217687 },
+		G: { file: '2026-10-03-honeysuckle-rose-b', key: 'G', pitches: [62, 60, 52, 55, 59], transportSeconds: 841.1937868480725 }
+	};
+
+	function phraseFor(take: Take): Phrase {
+		return {
+			id: `user-1775696356551-tiq6_${take.key}`,
+			name: 'Honeysuckle Rose',
+			timeSignature: [4, 4],
+			key: take.key,
+			notes: take.pitches.map((pitch, i) =>
+				i < 4
+					? { pitch, duration: [1, 8] as [number, number], offset: [i, 8] as [number, number] }
+					: { pitch, duration: [1, 2] as [number, number], offset: [1, 2] as [number, number] }
+			),
+			harmony: [],
+			difficulty: { level: 30, pitchComplexity: 30, rhythmComplexity: 20, lengthBars: 1 },
+			category: 'ii-V-I-major',
+			tags: [],
+			source: 'user'
+		};
+	}
+
+	/** The diagnostics export saved with the take. */
+	function savedTake(take: Take) {
+		return JSON.parse(readFileSync(resolve(FIXTURE_DIR, `${take.file}.json`), 'utf8'));
+	}
+
+	type Scored = ReturnType<typeof runScorePipeline>['chosen'];
+
+	/** The notes the live path saved, through the scorer as the session scored them. */
+	function scoreSaved(take: Take): Scored {
+		return runScorePipeline({
+			detected: savedTake(take).scoring.savedDetectedNotes,
+			phrase: phraseFor(take),
+			tempo: TEMPO,
+			transportSeconds: take.transportSeconds,
+			swing: SWING,
+			bleedFilterEnabled: false,
+			octaveInsensitive: true
+		}).chosen;
+	}
+
+	/**
+	 * The lick-practice close path over the recording: no trim, the metronome
+	 * grid as bleed evidence, every frame re-stamped at its window END as the
+	 * live detector stamps it.
+	 */
+	async function replayTake(take: Take) {
+		const wav = loadWavFixture(`recordings/${take.file}.wav`);
+		const raw = await replayFromAudioBuffer(makeFakeAudioBuffer(wav.channel, wav.sampleRate));
+		const restamp = (r: PitchReading): PitchReading => ({
+			...r,
+			time: r.time + ANALYSER_WINDOW,
+			...(r.shapeBreakAt !== undefined ? { shapeBreakAt: r.shapeBreakAt - ANALYSER_WINDOW } : {})
+		});
+		const readings = raw.readings.map(restamp);
+		const weakReadings = raw.weakReadings.map(restamp);
+		const bleedOnsets = getMetronomeBleedOnsets(take.transportSeconds, TEMPO, raw.duration);
+		const baseOnsets = resolveOnsets(raw.onsets, readings);
+		const articulationOnsets = findReArticulations(readings, baseOnsets, bleedOnsets);
+		const onsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
+		const detected = segmentNotes(
+			readings,
+			onsets,
+			raw.duration,
+			undefined,
+			undefined,
+			undefined,
+			raw.onsets,
+			bleedOnsets,
+			articulationOnsets,
+			weakReadings
+		);
+		const score = runScorePipeline({
+			detected,
+			phrase: phraseFor(take),
+			tempo: TEMPO,
+			transportSeconds: take.transportSeconds,
+			swing: SWING,
+			bleedFilterEnabled: false,
+			octaveInsensitive: true
+		}).chosen;
+		return { detected, score };
+	}
+
+	/** The result row for the written note `pitch` (each pitch occurs once in these licks). */
+	const rowFor = (score: Scored, pitch: number) =>
+		score.noteResults.find((r) => !r.extra && r.expected.pitch === pitch)!;
+
+	it('the live path recorded no onsets and saved each cracked attack as a note of its own', () => {
+		// Documents the evidence: the worklet never attaches, so no warmup frames
+		// reach the segmenter and the crack fold cannot fire live.
+		for (const take of [TAKES.C, TAKES.G]) {
+			const json = savedTake(take);
+			expect(json.captureTiming.liveOnsets).toEqual([]);
+			const [head, body] = json.scoring.savedDetectedNotes;
+			expect(body.midi - head.midi).toBe(12);
+			expect(body.onsetTime - head.onsetTime).toBeLessThan(0.16);
+			expect(json.scoring.savedScore.notesHit).toBe(2);
+		}
+	});
+
+	it('concert C, the saved notes: G, F, A and E are the notes played and the C is missed (saved: 2 of 5, F and A marked wrong)', () => {
+		const score = scoreSaved(TAKES.C);
+		expect(score.notesHit).toBe(4);
+		expect(rowFor(score, 65).detected?.midi).toBe(65);
+		expect(rowFor(score, 57).detected?.midi).toBe(57);
+		expect(rowFor(score, 60).missed).toBe(true);
+		expect(rowFor(score, 64).detected?.midi).toBe(64);
+		// One of the two head notes is the G, the other the stray.
+		expect(score.noteResults.filter((r) => r.extra)).toHaveLength(1);
+		expect(score.overall).toBeGreaterThan(0.75);
+	});
+
+	it('concert G, the saved notes: D, E and B are the notes played; the −38 dB tone after the line is the stray, not the B (saved: 2 of 5)', () => {
+		const score = scoreSaved(TAKES.G);
+		expect(score.notesHit).toBe(3);
+		expect(rowFor(score, 59).detected?.midi).toBe(59);
+		expect(rowFor(score, 55).missed).toBe(true);
+		const extra = score.noteResults.filter((r) => r.extra);
+		expect(extra).toHaveLength(1);
+		expect(extra[0].detected?.midi).toBe(57);
+		expect(score.overall).toBeGreaterThan(0.6);
+	});
+
+	/**
+	 * The recording's own segmentation adds a stray the aligner does NOT see
+	 * through: the G→F slur reads as a 50 ms F# (66 @0.426) a semitone from
+	 * the F, so pairing it into the F's slot costs 0.5, and the F and A after
+	 * it are stamped 0.16 s and 0.14 s behind their slots (the sliver ate the
+	 * F's head, the A's onset is its crescendo). With the delay removed the
+	 * shifted pairing costs ~3.1 against ~3.8 for the notes, and the take
+	 * reads 2 of 5 here where the saved live notes (no sliver) read 4. A
+	 * semitone sliver at a note's slot is the stray this change does not
+	 * cover; it is a segmentation question (the slur's glide frames), pinned
+	 * until that is addressed.
+	 */
+	it.fails("concert C replayed: the pairing holds on the recording's own segmentation (a 50 ms F# from the slur sits in the F's slot)", async () => {
+		const { detected, score } = await replayTake(TAKES.C);
+		expect(detected.map((n) => n.midi)).toEqual([67, 66, 65, 57, 64]);
+		expect(detected[1].duration).toBeLessThan(0.06);
+		expect(score.notesHit).toBe(4);
+		expect(rowFor(score, 60).missed).toBe(true);
+	});
+
+	it('concert G replayed: D, E and B, with the ghosted G missed', async () => {
+		const { score } = await replayTake(TAKES.G);
+		expect(score.notesHit).toBe(3);
+		expect(rowFor(score, 55).missed).toBe(true);
 	});
 });

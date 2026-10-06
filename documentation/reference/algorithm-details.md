@@ -28,7 +28,7 @@ dp[i][j] = min(
 )
 ```
 
-Where `SKIP_COST = 2.0` and:
+Where `SKIP_COST = 1.5` and:
 
 ```text
 matchCost(e, d) = pitchDistance(e, d) + rhythmDistance(e, d)
@@ -49,13 +49,24 @@ Starting from `dp[N][M]`, trace back to `dp[0][0]` by checking which of the thre
 
 `alignNotes` also takes an `octaveInsensitive` flag (used by lick-practice continuous mode, where the player may legitimately drop a line an octave to keep it on the horn). With it set, `pitchDistance` compares pitch *classes* on the cyclic distance `min(d, 12 − d)` instead of absolute MIDI.
 
+### The delay pass
+
+`alignNotes` runs the DP twice. The detected onsets sit a constant delay behind the written line — the player's reaction time plus the capture's lag (in lick practice the window opens one Tone lookahead before the bar line and the live detector stamps a reading at the end of its analyser window: ~0.2 s, an eighth note at 162 BPM). Paired on the raw clock, "every note one slot early" looked on time, so a single stray note at the front of a line (a cracked attack saved as its own note, Honeysuckle Rose 2026-10-03) shifted every pairing after it and three correctly played notes were marked wrong.
+
+1. **Read the delay.** Pair on the raw onsets with a skip cost of 2.0 — a pair's ceiling, so this pass pairs wherever it can — and take the median `detected.onset − expected.onset` over the **pitch-matched** pairs. Those are the anchors: the notes the player demonstrably got right. The median over every pair is pulled towards the shifted pairing it came from and would keep it (0.115 s against the real 0.21 s on that take). Only when no pair matches in pitch does every pair count.
+2. **Pair with the delay removed**, at `SKIP_COST = 1.5`.
+
+The skip cost is the other half. At 2.0 a stray plus a miss cost 4.0 and three wrong pitches 3.0, so whenever a stray and a swallowed note bracketed three notes the aligner preferred to call all three wrong. At 1.5 the pitch costs tie at 3.0 and the timing — a slot per note for the shifted pairing, once the delay is gone — decides for the notes. A wrong note played in time still pairs (1.0 + timing < 3.0); a line played a step up still pairs note for note.
+
+Each pair's `cost` is from the second pass, so a take played a whole beat late pairs at the same cost as one on time; the scorer's own median correction (below) then runs over the final pairs.
+
 ### Complexity
 
 Time: O(N * M). Space: O(N * M). For typical phrase sizes (4–16 notes), this is negligible.
 
 ### The conformance variant
 
-`src/lib/tricks/conformance.ts` runs the same DP skeleton — same `SKIP_COST = 2.0`, same three-way recurrence, same diagonal-first backtrack — but replaces `pitchDistance` with a **tiered conformance cost** against a slot's accepted pitch-class sets (exact 0.0 / in-pattern 0.3 / in-scale 0.6 / out-of-scale 1.0). It is a deliberate clone rather than a parameterization: the two cost models have nothing in common beyond the DP, and merging them would put trick semantics in the path of every lick score. See [Trick Scoring](../architecture/trick-scoring.md).
+`src/lib/tricks/conformance.ts` runs the same DP skeleton — the three-way recurrence and the diagonal-first backtrack, at the skip cost of 2.0 the lick scorer had until 2026-10-06, single pass on the raw clock — but replaces `pitchDistance` with a **tiered conformance cost** against a slot's accepted pitch-class sets (exact 0.0 / in-pattern 0.3 / in-scale 0.6 / out-of-scale 1.0). It is a deliberate clone rather than a parameterization: the two cost models have nothing in common beyond the DP, and merging them would put trick semantics in the path of every lick score. See [Trick Scoring](../architecture/trick-scoring.md).
 
 ## Latency Correction
 
@@ -65,7 +76,7 @@ Human latency (reaction time + audio detection delay) creates a constant offset 
 
 ### Algorithm
 
-1. Align with DTW on the raw recording-relative onsets (recording start ≡ phrase offset 0)
+1. Align with DTW (the two passes above: the first reads the constant delay off the pitch-matched pairs, the second pairs with it removed)
 2. For each matched pair (expectedIndex, detectedIndex), compute: `offset = detected.onset - expected.onset`
 3. Take the **median** of all offsets (robust to outliers from misaligned pairs)
 4. Subtract this median from all detected onsets, then score per-note rhythm against the corrected onsets

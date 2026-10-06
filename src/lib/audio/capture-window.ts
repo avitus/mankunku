@@ -16,7 +16,9 @@
  * over the 21 diagnostic fixtures carrying a saved score, 12 change their
  * grade somewhere between a 0.25 s and a 0.5 s lead-in — takes with a missed
  * note are the sensitive ones, because there the rhythm term is precisely what
- * decides WHICH expected note went missing.
+ * decides WHICH expected note went missing. (Since 2026-10-06 the aligner
+ * removes the constant delay before pairing, so the lead-in no longer moves
+ * the pairing; the trim keeps the frame the corpus was tuned in.)
  *
  * So the capture is armed early and then trimmed back to a fixed, small
  * pre-roll before the first PERFORMANCE reading. That reconstructs the frame
@@ -55,7 +57,7 @@ import type { PitchReading } from './pitch-frame';
  * Must exceed the detection lag it exists to undo — one analyser window
  * (~93 ms) plus a rAF tick (~17 ms), measured at ~190 ms on the 2026-08-10
  * pent-run capture — while staying under the ~250 ms where DTW alignment
- * starts to flip. 0.35 s clears the measured lag by ~160 ms and lands the
+ * used to flip (the aligner has removed the delay itself since 2026-10-06). 0.35 s clears the measured lag by ~160 ms and lands the
  * first note at ~0.16 s, essentially where the trigger-armed capture put it.
  */
 export const PERFORMANCE_PREROLL_SECONDS = 0.35;

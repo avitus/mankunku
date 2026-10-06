@@ -2597,3 +2597,39 @@ reported clicks splitting notes constantly. They hadn't.
 Also worth keeping: the wrong grid hid a real bug (blue-note-climb passed
 only under the shifted grid). Tests that replay production must be handed
 production's inputs exactly, or they certify a different program.
+
+## 2026-10-06 — The amplifier nobody fixed
+
+Four incidents in this corpus share a shape: one false note, three notes
+marked wrong. Tonic-turn's click-ring phantoms, blue-note-drop's phantom
+head, the pent run's split G, now a cracked attack. Each time the fix went
+into detection — the right place for the false note — and the aligner that
+turned one error into three stayed as it was. I only saw the pattern because
+I re-scored the saved notes of the whole corpus under the candidate change
+and the same old fixtures lit up. A detection fix proves the false note is
+gone; it never asks why the false note cost three. The scorer's blast radius
+is its own property and deserves its own test.
+
+Two forms of the change that sounded principled both failed a take. "Subtract
+the known constant" was the most honest-sounding, and a take whose trim had
+anchored on phantoms made the constant wrong and the score worse. "Find the
+delay that pairs cheapest" is elegant and absorbs a one-slot shift as delay in
+any even eighth-note line. The one that held reads the clock from the notes
+the player demonstrably got right. I would not have ranked it first by
+argument; the harness ranked it. The lesson repeats from the tick-redelivery
+session: when the candidates are cheap to run, run all of them before
+choosing, including the one you like.
+
+Andy's brief was "diagnose, don't change code", and that constraint did the
+work. With a fix in hand on day one I would have shipped "remove the delay"
+— my own first sentence — and it fixes nothing. The three days between
+diagnosis and permission were when the framing got corrected, by tests I
+wrote to explain the proposal rather than to defend it.
+
+One more: a line in `onset-detector.ts` has thrown on every call since March
+and nothing noticed, because the catch was empty, the unit test mocked the
+very call that throws, and the e2e asserted that an empty array is an array.
+Three layers of test, each faithful to its own slice, none to the seam. The
+browser experiment that settled it was one JavaScript call against a running
+dev server. "Does this code run in production" is a question the tests
+cannot answer for you when the tests are the only thing that ever ran it.
