@@ -212,7 +212,7 @@ stateDiagram-v2
     Focus --> FullRotation: Clear at target AND queue empty
     state Handoff {
         [*] --> AnnounceRepeat
-        AnnounceRepeat: One unscored bar, name repeat and any sheet graduation
+        AnnounceRepeat: One unscored bar, Play · once more
         AnnounceRepeat --> PreviewLoop: Entrance count ends
         PreviewLoop: Repeat last-played key once at held tempo<br/>Show promised next key underneath<br/>Record actual score, no new pass requirement
     }
