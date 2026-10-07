@@ -1,0 +1,61 @@
+# Per-take ground truth: what the player ACTUALLY sounded, as pinned by the
+# fixture's integration test (tests/integration/pitch-replay.test.ts, "PR") or
+# by the 2026-10-06 Wail analysis (CLAUDIUS/SESSIONS.md:4637-4658).
+#   hits        expected notes the player sounded at the right pitch
+#   total       expected (sounding) notes
+#   real_extras notes the player sounded that are not in the line (detector
+#               slivers, cracked-attack heads and click splits are NOT extras)
+#   verified    true = pinned by a test or a documented analysis; false = the
+#               saved score's notesHit copied over, to be checked in E5
+#   case        E3 named-case tag (see harness/evaluate.py)
+# The evaluator's truth score is hits / (total + real_extras): the 2026-10-06
+# "fair" rule (extras charged as zeros), pitch only, rhythm ignored.
+2026-04-14-a4-c5-tenor-sax:            { hits: 2, total: 2, real_extras: 0, verified: true,  note: "PR:44-70 detected [57,60]; rhythm never recorded" }
+2026-04-14-a3-c4-tenor-noisefloor:     { hits: 2, total: 2, real_extras: 0, verified: true,  note: "PR:175-202 detected [57,60], first onset >1.0 s (noise floor before)" }
+2026-04-19-upper-neighbor-on-root:     { hits: 3, total: 3, real_extras: 0, verified: true,  note: "PR:219-264 exact [60,62,60]" }
+2026-05-07-locrian-descent:            { hits: 7, total: 8, real_extras: 1, verified: true,  case: flawed, note: "PR:298-367 expected F D C C A G F F, played F D C A G F F F: one C dropped, one F added" }
+2026-05-13-pent-5-3-2-1-half-then-eighths: { hits: 4, total: 4, real_extras: 0, verified: true, note: "APP:440-557 [62,59,57,55], overall > 0.95" }
+2026-05-19-flat-seven-octave:          { hits: 2, total: 2, real_extras: 0, verified: true,  note: "APP:709-830 [60,62] > 0.85" }
+2026-05-19-octave-flat-seven-drop:     { hits: 2, total: 2, real_extras: 0, verified: true,  note: "PR:1092-1126 [62,60]; APP > 0.9" }
+2026-05-20-blues-curl-down:            { hits: 3, total: 3, real_extras: 0, verified: true,  note: "PR:388-498 3/3 > 0.85 (saved 0.580)" }
+2026-05-20-blues-curl-up:              { hits: 3, total: 3, real_extras: 0, verified: true,  note: "PR:514-620 3/3 > 0.85 (saved 0.552)" }
+2026-05-22-blues-curl-up:              { hits: 3, total: 3, real_extras: 0, verified: true,  note: "PR:637-750 3/3 (saved 0.645)" }
+2026-05-22-blues-curl-up-b:            { hits: 3, total: 3, real_extras: 0, verified: true,  note: "PR:637-750 3/3 (saved 0.639)" }
+2026-06-21-flat-five-chromatic-up:     { hits: 3, total: 3, real_extras: 0, verified: true,  note: "PR:767-845 3/3 (saved 0.619)" }
+2026-06-24-blues-curl-up:              { hits: 3, total: 3, real_extras: 0, verified: true,  note: "PR:869-970 3/3 (saved 0.627)" }
+2026-06-25-blues-curl-down:            { hits: 3, total: 3, real_extras: 0, verified: true,  note: "PR:987-1075 3/3 (saved 0.631)" }
+2026-06-30-fifth-sixth-step:           { hits: 2, total: 2, real_extras: 0, verified: true,  note: "PR:1128-1212 2/2 (saved 0.520)" }
+2026-07-08-four-to-five:               { hits: 2, total: 4, real_extras: 0, verified: true,  case: flawed, note: "listening-window bug: the recording holds only 2 of the 4 notes (saved 0.329)" }
+2026-07-14-third-fifth-rise:           { hits: 2, total: 2, real_extras: 0, verified: true,  note: "PR:1214-1299 2/2 (saved 0.662)" }
+2026-07-23-blue-monk:                  { hits: 8, total: 8, real_extras: 0, verified: true,  note: "PR:1321-1415 8/8 perfect; one benign detector extra (saved 0.880)" }
+2026-07-25-root-frame:                 { hits: 4, total: 4, real_extras: 0, verified: true,  case: butchered, note: "PR:1459-1621 all hit > 0.9 (saved 0.445)" }
+2026-07-25-blue-note-step-up:          { hits: 3, total: 3, real_extras: 0, verified: true,  note: "PR:1459-1621 (saved 0.655)" }
+2026-07-25-blue-step-down:             { hits: 5, total: 5, real_extras: 0, verified: true,  note: "PR:1459-1621 (saved 0.634)" }
+2026-07-28-pent-1-3-2-5:               { hits: 4, total: 4, real_extras: 0, verified: true,  note: "PR:1631-1715 4/4 > 0.9 (saved 0.737)" }
+2026-07-29-sixth-octave-lift:          { hits: 2, total: 2, real_extras: 0, verified: true,  note: "PR:96-161 2/2 > 0.9 (saved 0.670)" }
+2026-07-30-climb-to-five:              { hits: 4, total: 4, real_extras: 0, verified: true,  note: "PR:1736-1812 4/4 (saved 0.724)" }
+2026-08-01-flat-five-chromatic-down:   { hits: 3, total: 3, real_extras: 0, verified: true,  note: "PR:1878-2085 (saved 0.655)" }
+2026-08-01-down-to-the-third:          { hits: 4, total: 4, real_extras: 0, verified: true,  note: "PR:1878-2085 (saved 0.685)" }
+2026-08-10-pent-1-2-3-5-eighth-run-hold: { hits: 3, total: 4, real_extras: 0, verified: true, case: flawed, note: "PR:2110-2226 the capture lost the first C, the audio never held it" }
+2026-08-11-curl-to-the-floor:          { hits: 5, total: 5, real_extras: 0, verified: true,  note: "PR:2310-2378 5/5 (saved 0.747)" }
+2026-08-11-blue-note-climb:            { hits: 3, total: 3, real_extras: 0, verified: true,  note: "PR:2397-2462 3/3 (saved 0.666)" }
+2026-08-13-slide-back-down:            { hits: 5, total: 5, real_extras: 0, verified: true,  note: "PR:2490-2600 (saved 0.755)" }
+2026-08-13-blue-note-roll-off:         { hits: 4, total: 4, real_extras: 0, verified: true,  note: "PR:2490-2600 (saved 0.711)" }
+2026-08-18-blues-curl-up:              { hits: 3, total: 3, real_extras: 0, verified: true,  note: "PR:2628-2690 3/3 (saved 0.543)" }
+2026-09-03-tonic-turn-with-leading-tone: { hits: 4, total: 4, real_extras: 0, verified: true, case: butchered, note: "PR:2716-2795 correct take C B D C, saved 1/4 (0.418) to click-ring phantoms" }
+2026-09-09-climb-to-five:              { hits: 4, total: 4, real_extras: 0, verified: true,  note: "PR:2830-2895 4/4 (saved 0.823)" }
+2026-09-09-blue-note-drop:             { hits: 3, total: 3, real_extras: 0, verified: true,  case: butchered, note: "PR:2927-3030 3/3 perfect, saved 2/3 to a phantom head; held G3 click split is an it.fails" }
+2026-09-16-sharp-9-flat-9-dom:         { hits: 7, total: 9, real_extras: 0, verified: true,  case: flawed, note: "PR:3071-3275 two ghosted Cs +62/+70 cents judged wrong (Andy 2026-09-16); lick practice" }
+2026-09-18-blues-curl-up:              { hits: 3, total: 3, real_extras: 0, verified: true,  note: "PR:3320-3412 3/3 (saved 0.570)" }
+2026-10-03-four-to-five:               { hits: 3, total: 4, real_extras: 0, verified: true,  case: flawed, note: "PR:3434-3520 the final A was never sounded" }
+2026-10-03-honeysuckle-rose:           { hits: 4, total: 5, real_extras: 0, verified: true,  case: butchered, note: "PR:3677-3843 C take: 4/5 played (C4 a 60 ms smear), saved 2/5; cracked G4 attack is not an extra" }
+2026-10-03-honeysuckle-rose-b:         { hits: 3, total: 5, real_extras: 0, verified: true,  case: butchered, note: "PR:3677-3843 G take: 3/5 played (C4 30-40 c sharp, G3 ghosted -27 dB), saved 2/5" }
+# --- Downloads-only takes (no fixture test). hits = saved notesHit until E5 checks them.
+2026-05-09-fourth-fifth-push:          { hits: 2, total: 2, real_extras: 0, verified: true,  audit: audio, note: "AUDIT 2026-10-07: Bb then C, correct; the recording starts inside the Bb (pre-arming era), hence rhythm 0.20; the 72 extra is a harmonic misread at the click" }
+2026-05-12-pent-1-2-3-5-half-then-eighths: { hits: 4, total: 4, real_extras: 0, verified: true, audit: audio, note: "AUDIT 2026-10-07: C D E G correct; recording starts inside the C; the two saved extras are splits of C and G" }
+2026-05-12-pent-upper-neighbor-dotted-quart: { hits: 3, total: 3, real_extras: 0, verified: true, audit: audio, case: butchered, note: "AUDIT 2026-10-07: C D C correct (pyin reads 60.0 across the final C, 1.25-2.15 s); the saved detector read the final note as C# 61 and a 48 subharmonic at the click, saved 0.620 (pitch 0.67)" }
+2026-07-28-pent-1-3-2-5-dotted-quarter-eigh: { hits: 4, total: 4, real_extras: 0, verified: true, audit: audio, case: butchered, note: "AUDIT 2026-10-07: F A G C all sounded (the C 2.35-2.85 s is plain in the spectrogram and f0); the saved score marked the C missed, saved 0.737" }
+2026-09-12-four-to-five:               { hits: 3, total: 4, real_extras: 0, verified: false, note: "AUDIT 2026-10-07: C held through the second C's slot (one small onset-strength bump at 1.75 s, no pitch gap), D D re-attacked; the saved score's 'second C missed' stands as the best reading but a re-tonguing cannot be settled by eye" }
+2026-10-01-enclosure-from-above-dotted-quar: { hits: 4, total: 4, real_extras: 0, verified: true, audit: audio, note: "AUDIT 2026-10-07: F Db Eb G clean, saved 0.986" }
+2026-10-06-fats-navarro-wail-a:        { hits: 14, total: 16, real_extras: 7, verified: true, case: inflated, note: "saved 0.878 great; fumbled bar-2 ending; 7 real extras of 14 detected; fair estimate 0.63 (2026-10-06)" }
+2026-10-06-fats-navarro-wail-b:        { hits: 15, total: 16, real_extras: 3, verified: true, case: inflated, note: "saved 0.934 great; 3 real extras; fair estimate 0.82 (2026-10-06)" }

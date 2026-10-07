@@ -2653,3 +2653,45 @@ My first draft blamed octave blindness and was wrong — the acoustic check
 showed the opposite (the allowance was covering a detector error). Worth
 remembering: in this codebase "the scorer is lenient" and "the detector is
 wrong" keep masking each other, and only the audio settles which is which.
+
+## 2026-10-07 — The reference did not need to be audio
+
+I built two renderers because the brief said "generated audio", and the
+synthetic one — six sine partials, no samples — matched the app's own tenor
+samples on every metric to the second decimal. What the comparison needs from
+the reference is where each pitch class sits in time, and a template carries
+that with none of the rendering. The lesson generalises: when a method is
+named by its most concrete form ("cross-correlate the audio"), the useful
+part is often the representation it implies, not the operation. Raw
+cross-correlation was the operation; it scored a lick against its own
+transposition as a coin flip, because a player's waveform shares no phase
+with a sample's. The representation one step up (chroma per frame) did
+everything the operation was meant to do.
+
+Two of the three harness bugs were the same bug as the app's own history:
+a window that could not reach where the answer was. The lag search could not
+pass the reference's tail, so it settled 0.23 s early and called every note
+boundary wrong — tonic-turn, the take whose score the app once butchered to
+1/4, now butchered again by my own measurement in the same direction. I only
+saw it because I drew the overlay before trusting a number. "Correct take
+reads 0.61" was the signal; the self-test said everything passed. A self-test
+proves the measure on inputs I constructed; the first real take proves it on
+inputs I did not.
+
+The score the audio gives is a precision measure where the note score is a
+recall measure, and the corpus made that asymmetry concrete: every "extra"
+the note scorer forgives is a frame the chroma charges, and every re-pairing
+cascade the aligner produces is invisible to a measure that never pairs. The
+two disagree exactly where one of them is wrong — five butchered takes on one
+side, two Wail takes on the other — which is the strongest argument for
+shipping the second signal as a *check* before it is a *grade*. A second
+instrument that shares no arithmetic with the first is worth more as a
+disagreement detector than as a replacement; the grid-drift episode taught
+that about measurement, and this is the same thing about scoring.
+
+What it cannot see is also instructive. Chroma cannot hear a tongue: a
+repeated pitch held through its second slot reads as played. The note scorer
+can, because segmentation is the articulation detector. So the honest
+combination is not "replace", it is "each guards the other's blind spot",
+and the open question is the one that keeps returning this autumn — the
+onset worklet that never attached.

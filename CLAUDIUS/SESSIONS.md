@@ -4667,3 +4667,47 @@ for an explanation only — no code changes.
   on-time but out-of-tune note (Sharp-9's ghosted Cs) would score like
   silence. Wail (b) still grades great by 0.001 — its short final note was
   stretched to 6.1 s by the segmenter, so length scoring can't see it.
+
+## 2026-10-07 — Audio-domain lick comparison: a probe, not a feature
+
+Andy asked for an assessment of an additive, audio-domain scoring signal —
+cross-correlation between the take and a rendering of the expected lick was
+his named idea — judged primarily on the WAV regression corpus. Spike: nothing
+under `src/` changed; a Python harness under `research/audio-scoring/`
+(uv-managed 3.12, librosa; the pyenv 3.12.2 lacks `_lzma`), committed for
+reproducibility, and `REPORT.md` beside it.
+
+- **Data**: the 38-WAV corpus (expected notes from `savedScore.noteResults`,
+  four phrase literals copied from the tests), nine of Andy's exports from
+  `~/Downloads` that never became fixtures (both Wail takes among them), and a
+  truth table per take from the fixture pins. Six Downloads takes audited
+  from the spectrogram/f0 overlay: two more correct takes the saved detector
+  under-scored (a final C read as C#, a final C marked missed). Chrome's
+  extension was not connected (three tries), so no further production takes.
+- **Measured** (sampled renderer; synthetic identical): raw xcorr picks the
+  right lick over its transpositions on 65 % of takes, ρ −0.05 against the
+  truth — useless. Envelope xcorr locks onto the metronome grid the blob
+  carries. Chroma similarity at the best lag (M3) and f0 frame coverage (M5):
+  top-1 vs transpositions 0.98 / 1.00, ρ 0.58 / 0.59 vs 0.23 for the saved
+  scores, both Wail takes below EVERY clean take (M3 0.61 / 0.75 vs clean min
+  0.79, p10 0.87), the five detector-butchered correct takes inside the clean
+  range, E4 drops 0.16–0.25 for a wrong note or an extra vs ≤ 0.03 for ±5 %
+  tempo. DTW variants forgive trailing extras; the salience map inherits the
+  tenor's octave ambiguity; chroma does not.
+- **Blind spots found**: repeated pitches not re-tongued read as correct
+  (chroma can't see a tongue — every E1 loss to another lick is a
+  same-pitch-sequence pair); held-note length IS scored (root-frame's final G
+  released 1.2 s early reads 0.78, the clean floor) — Andy's policy call.
+- **Harness lessons** (three bugs the self-test and the first overlay caught):
+  the lag search capped by the reference's release tail (tonic-turn locked
+  0.23 s early, every boundary wrong); the click's broadband stripe passing a
+  90–5000 Hz energy gate (250–5000, the segmenter's band, fixed it); DTW
+  normalised by path length buying cheap steps on a transposed line.
+  Pre-arming-era recordings start inside the first note: negative lags, only
+  for exports without `captureTrimSeconds`.
+- **Recommendation**: build M5 from the existing readings first (no new DSP;
+  the "extras cost" half the docs already promise), then M3 against a chroma
+  template as an independent check whose value is disagreement; never raw or
+  envelope xcorr. Open: durations, gate vs blend vs badge, the articulation
+  blind spot (back to the onset worklet), production takes once Chrome is
+  connected (`takes/prod/`).
