@@ -82,6 +82,32 @@ const LEAD_AHEAD_PROGRESS = {
  * score's value.
  */
 test.describe('lick-practice session flow', () => {
+	test('Deep cycle retains the finished row above the next key and keeps its score off future rows', async ({ page, browserName }) => {
+		test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+			'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device');
+		test.setTimeout(60_000);
+		await seedOnboardedAnonymous(page);
+		await seedUserLicks(page);
+		await seedStorage(page, LEAD_AHEAD_PROGRESS);
+		await installAudioMock(page);
+		await stubCdnInstrumentSamples(page);
+		await page.goto('/licks/e2e-user-lick-bebop');
+		await page.getByRole('button', { name: 'Practice', exact: true }).click();
+		await expect(page.locator('.row.current[data-key="G"] .phase-tab[data-pass="3"]')).toBeVisible({ timeout: 30_000 });
+		await expect(page.locator('.row.current[data-key="C"]')).toBeVisible({ timeout: 15_000 });
+		const rows = await page.locator('.stack .row').evaluateAll((rows) => rows.map(row => ({
+			key: row.getAttribute('data-key'), current: row.classList.contains('current'),
+			score: row.querySelector('.score-flash')?.textContent?.trim() ?? null,
+			y: row.getBoundingClientRect().top
+		})));
+		expect(rows.map(row => row.key)).toEqual(['G', 'C', 'G']);
+		expect(rows[1].current).toBe(true);
+		expect(rows[1].y - rows[0].y).toBe(128);
+		expect(rows[0].score).not.toBeNull();
+		expect(rows[2].score).toBeNull();
+		await page.getByRole('button', { name: /end session/i }).click();
+	});
+
 	for (const isolatedLapse of [false, true]) {
 	test(`daily session reports ${isolatedLapse ? 'no extra drill for an isolated lapse' : 'a learning-key focus drill'}`, async ({
 		page,
@@ -277,7 +303,7 @@ test.describe('lick-practice session flow', () => {
 		});
 		expect(flow.showedSheet).toBe(true);
 		expect(flow.cues).not.toContain('listen');
-		expect(flow.entranceText).toMatch(/Play.*same key.*BPM/);
+		expect(flow.entranceText.trim()).toMatch(/^Play\s*[1-4]$/);
 		expect(flow.entranceText).not.toMatch(/\bRead\b|\bnext\b/i);
 		expect(flow.counts).toEqual(expect.arrayContaining(['4', '3', '2', '1']));
 		expect(flow.preparedForMs).toBeGreaterThan(4 * 60_000 / FAST_TEMPO);
@@ -293,6 +319,21 @@ test.describe('lick-practice session flow', () => {
 		}));
 		expect(deepSheet.height).toBe(128);
 		expect(deepSheet.noteWidth).toBeGreaterThan(11);
+		// The preparation cue stays a single line at the top-left on desktop,
+		// preserving the enlarged engraving and the existing row height.
+		const entrance = page.locator('.row.current .phase-tab[data-kind="play-in"]');
+		await expect(entrance).toBeVisible({ timeout: 15_000 });
+		const cueGeometry = await entrance.evaluate(tab => {
+			const cue = tab.getBoundingClientRect();
+			const chart = tab.closest('.chart-wrap')!.getBoundingClientRect();
+			return { height: cue.height, top: cue.top - chart.top, left: cue.left - chart.left,
+				overlap: [...tab.closest('.chart-wrap')!.querySelectorAll('.lead-sheet svg path, .lead-sheet svg text.abcjs-chord')].some(ink => {
+					const r = ink.getBoundingClientRect();
+					return r.left < cue.right && r.right > cue.left && r.top < cue.bottom && r.bottom > cue.top;
+				}) };
+		});
+		expect(cueGeometry).toMatchObject({ top: 0, left: 0, overlap: false });
+		expect(cueGeometry.height).toBeLessThan(28);
 		await expect(page.locator('.chart-wrap.recording')).toBeVisible({ timeout: 15_000 });
 		await page.getByRole('button', { name: /end session/i }).click();
 		await expect(page.getByText('Session Report', { exact: true })).toBeVisible();
@@ -551,6 +592,7 @@ test.describe('lick-practice session flow', () => {
 	test('daily sheet keeps its playhead when canvas measurement is unavailable', async ({ page, browserName }) => {
 		test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
 			'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device');
+		test.setTimeout(90_000);
 		await seedOnboardedAnonymous(page);
 		await seedUserLicks(page);
 		await seedStorage(page, {
@@ -572,6 +614,8 @@ test.describe('lick-practice session flow', () => {
 		await page.getByRole('button', { name: /start daily practice/i }).click();
 		const sheet = page.getByTestId('lead-sheet-row');
 		await expect(sheet.locator('.abcjs-notehead').first()).toBeVisible();
+		// Charts render before sample decoding completes; await audio readiness.
+		await expect(page.locator('.phase-tab[data-kind="listen"]')).toBeVisible({ timeout: 60_000 });
 		await expect(sheet.locator('.playhead-under-bar').first()).toBeVisible();
 	});
 
@@ -579,6 +623,7 @@ test.describe('lick-practice session flow', () => {
 		test(`daily sheet keeps ledger notes and its cue clear at pitch ${pitch}`, async ({ page, browserName }) => {
 			test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
 				'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device');
+			test.setTimeout(90_000);
 			await seedOnboardedAnonymous(page);
 			const lick = structuredClone(SAMPLE_USER_LICKS[0]) as { notes: { pitch: number }[] };
 			lick.notes.forEach((note, i) => { note.pitch = pitch + i; });
@@ -593,7 +638,8 @@ test.describe('lick-practice session flow', () => {
 			await page.getByRole('button', { name: /start daily practice/i }).click();
 			const sheet = page.getByTestId('lead-sheet-row');
 			await expect(sheet.locator('.abcjs-notehead').first()).toBeVisible();
-			await expect(page.locator('.phase-tab')).toBeVisible();
+			// The prebuilt sheet is visible while the audio is still loading.
+			await expect(page.locator('.phase-tab[data-kind="listen"]')).toBeVisible({ timeout: 60_000 });
 			for (const width of [1440, 768, 390]) {
 				await page.setViewportSize({ width, height: 900 });
 				const bounds = await sheet.evaluate((lead) => {

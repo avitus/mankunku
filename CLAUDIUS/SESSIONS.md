@@ -4633,3 +4633,26 @@ with no code changes. Three days later: "go ahead with step 1".
   week of real data; anchor lick practice's bleed grid at the bar line.
 - Verified: 5605 unit + integration, 40 expected fails (37 + 3 pins),
   svelte-check clean (the worktree needed `.env` copied, as before).
+
+## 2026-10-06 — Why the Wail takes scored 88% and 93%
+
+Andy exported two Deep Practice takes of "Fats Navarro - Wail" (Db, 50 BPM,
+tenor) that scored "great" although he fumbled the bar-2 ending, and asked
+for an explanation only — no code changes.
+
+- **Reproduced exactly** with the current `scoreAttempt` (0.877630 / 0.933917),
+  so both were scored after #264's two-pass aligner (+0.5 on take a).
+- **Ranked causes** (points of overall, one at a time): extras free (+16 / +9,
+  charging only his real extras — most detected extras were detector slivers);
+  an unplayed note paired with a nearby stray then given rhythm credit
+  (+5 / +2); the 50-BPM rhythm curve (+2.4 / +1.4 vs penalty 1.0, +14 / +9 vs
+  a 400 ms window); median correction absorbing drag (+1 / 0). Durations
+  never scored.
+- **Not causes:** octave blindness — every "Ab4" was an Ab3 the detector
+  misread (2nd harmonic 16–33 dB over the fundamental; odd partials prove
+  Ab3), so strict scoring would have cost him points for correct notes. The
+  detector heard every fumble.
+- **Docs contradict the code:** scoring-algorithm.md:81 says extras count as
+  zero in both accuracies. Code has never done that (8b646b94).
+- Open, Andy's call: whether to charge extras / stop crediting never-played
+  notes; the tenor Ab3→Ab4 misread is a separate detector bug.

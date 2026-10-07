@@ -328,11 +328,12 @@ describe('focus phase staircase', () => {
 		expect(getPlannedKeysForLick(0)[0].reveal).toBe(true);
 		clearRotation();
 		expect(lickPractice.ramp?.phase).toBe('handoff');
-		expect(getPlannedKeysForLick(0)[0].reveal).toBe(true);
+		expect(getPlannedKeysForLick(0)[0].reveal).toBe(false);
 		expect(getKeyPasses(0)).toEqual([1]);
 		expect(getKeyPauses(0)).toEqual([1]);
 		expect(getHandoffPreviewKey(0)?.key).toBe('C');
 		lickPractice.mode = 'standard';
+		lickPractice.plan[0].keys = [...lickPractice.plan[0].keys];
 		expect(getKeyPasses(0)).toEqual([3]);
 		expect(getHandoffPreviewKey(0)).toBeNull();
 	});

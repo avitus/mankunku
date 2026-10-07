@@ -24,6 +24,8 @@
 		plannedKeys: PlannedKey[];
 		/** Promised first key of the next cycle, visible during a handoff repeat. */
 		nextCycleKey?: PlannedKey | null;
+		/** Completed row retained above the first row of a Deep cycle. Never scheduled. */
+		precedingKey?: PlannedKey | null;
 		/**
 		 * Scroll position in ROW units: the integer part is the row being
 		 * played — or read: a lead-sheet row is current from the start of its
@@ -57,8 +59,8 @@
 		/**
 		 * Just-scored key result to flash as a tier-colored chip on that
 		 * key's row (single-lick continuous flow — feedback rides the scroll
-		 * instead of pausing it). Matched by key, so the chip follows its row
-		 * and survives the stack swap when the key stays in rotation. `at`
+		 * instead of pausing it). Matched to the latest current/completed row
+		 * for this key, never an upcoming occurrence of the same key. `at`
 		 * keys the fade animation so back-to-back flashes restart it.
 		 */
 		scoreFlash?: { key: PitchClass; score: number; at: number } | null;
@@ -70,6 +72,7 @@
 		deep = false,
 		plannedKeys,
 		nextCycleKey = null,
+		precedingKey = null,
 		scrollFraction,
 		currentBeat,
 		isPlaying,
@@ -126,19 +129,26 @@
 	//
 	// Daily and both Deep entry paths show eligible sheets from the outset,
 	// including the promised handoff row. Focused retains its later reveal.
-	const displayKeys = $derived(nextCycleKey ? [...plannedKeys, nextCycleKey] : plannedKeys);
+	const historyRows = $derived(precedingKey ? 1 : 0);
+	const displayKeys = $derived([
+		...(precedingKey ? [precedingKey] : []), ...plannedKeys,
+		...(nextCycleKey ? [nextCycleKey] : [])
+	]);
+	const displayFraction = $derived(historyRows + (nextCycleKey
+		? Math.min(scrollFraction, Math.max(0, plannedKeys.length - 0.0001)) : scrollFraction));
 	const rowHeights = $derived(displayKeys.map((pk) => (pk.reveal && !compact ? LEAD_ROW_HEIGHT : ROW_HEIGHT)));
 	// The viewport reserves the lead-sheet row plus a chord row whether or not
 	// this stack has a sheet: the ring under it must not move when the next
 	// cycle's stack (a key recovered above the floor) or the next lick's has
 	// no lead row — it used to shift 2 px between 315 and 317.
 	const layout = $derived(
-		keyStackLayout(rowHeights, nextCycleKey
-			? Math.min(scrollFraction, Math.max(0, plannedKeys.length - 0.0001))
-			: scrollFraction, ROW_HEIGHT, VISIBLE_ROWS, compact ? ROW_HEIGHT : LEAD_ROW_HEIGHT)
+		keyStackLayout(rowHeights, displayFraction, ROW_HEIGHT, VISIBLE_ROWS, compact ? ROW_HEIGHT : LEAD_ROW_HEIGHT)
 	);
 	const translateYpx = $derived(layout.translateY);
 	const visualCurrentRow = $derived(layout.currentRow);
+	const scoredRow = $derived(scoreFlash ? displayKeys.findLastIndex(
+		(pk, index) => index <= visualCurrentRow && pk.key === scoreFlash.key
+	) : -1);
 
 	// Lead sheets are built ONCE per stack (plannedKeys is set at lick/cycle
 	// start), so each revealed row hands NotationDisplay the same tune and
@@ -162,14 +172,14 @@
 	// Which pass of a multi-pass (revealed) row is playing: the row spans its
 	// passes as equal slots, so the fraction within the row says which one.
 	const activePass = $derived.by(() => {
-		const pk = plannedKeys[visualCurrentRow];
+		const pk = displayKeys[visualCurrentRow];
 		if (!pk || pk.passes <= 1) return null;
-		const frac = Math.max(0, scrollFraction) - visualCurrentRow;
+		const frac = Math.max(0, displayFraction) - visualCurrentRow;
 		return { index: Math.min(pk.passes, Math.floor(frac * pk.passes) + 1), total: pk.passes };
 	});
 	const tab = $derived.by(() => {
 		if (!cue) return null;
-		const cycleEntry = plannedKeys[visualCurrentRow]?.cycleEntry;
+		const cycleEntry = displayKeys[visualCurrentRow]?.cycleEntry;
 		const next = displayKeys[visualCurrentRow + 1];
 		const nextKeyLabel = next
 			? keyLabel(concertKeyToWritten(next.key, instrument), lickMode(next.phrase)) : undefined;
@@ -181,7 +191,7 @@
 			pass: activePass,
 			nextKeyLabel,
 			nextPrepares: !!next && (next.reveal || (next.cycleEntry?.prepareBars ?? 0) > 0),
-			hasNotation: plannedKeys[visualCurrentRow]?.reveal,
+			hasNotation: displayKeys[visualCurrentRow]?.reveal,
 			prepareNext: !!cycleEntry && !next
 		});
 	});
@@ -192,7 +202,7 @@
 	// identity when the bar changes — NotationDisplay redraws its playhead
 	// rects on identity, and a per-frame array would churn the DOM at 60 fps.
 	const activeBar = $derived.by(() => {
-		const pk = plannedKeys[visualCurrentRow];
+		const pk = displayKeys[visualCurrentRow];
 		const sheet = leadSheets[visualCurrentRow];
 		if (!pk || !sheet || !isPlaying || currentBeat < 0) return -1;
 		return Math.floor(currentBeat / pk.phrase.timeSignature[0]) - sheet.startBar;
@@ -218,8 +228,11 @@
 </span>
 
 <div class="viewport" class:compact style="height: {layout.viewportHeight}px;">
+	<!-- A rebuilt cycle carries its previous row explicitly. Do not animate
+	     from the old stack's unrelated transform offset. -->
+	{#key plannedKeys}
 	<div class="stack" style="transform: translateY({translateYpx}px);">
-		{#each displayKeys as pk, i (pk.lickId + ':' + pk.key)}
+		{#each displayKeys as pk, i (pk.lickId + ':' + pk.key + ':' + i)}
 			{@const isCurrent = i === visualCurrentRow}
 			{@const sheet = leadSheets[i]}
 			{@const isRevealed = !!sheet && (compact || i <= visualCurrentRow)}
@@ -295,7 +308,7 @@
 							{instrument}
 						/>
 					{/if}
-					{#if scoreFlash && scoreFlash.key === pk.key}
+					{#if scoreFlash && i === scoredRow}
 						{@const tier = accuracyTierInfo(scoreFlash.score)}
 						{#key scoreFlash.at}
 							<div
@@ -314,7 +327,6 @@
 					{#if isCurrent && tab && tab.kind !== 'hidden'}
 							<div
 								class="phase-tab"
-								class:result-cue={deep && (!!nextCycleKey || cue?.phase === 'read' || cue?.phase === 'transition')}
 								data-kind={tab.kind}
 								data-pass={tab.kind === 'play' && activePass ? activePass.index : undefined}
 								style="--arm: {tabArm};"
@@ -367,6 +379,7 @@
 			</div>
 		{/each}
 	</div>
+	{/key}
 </div>
 
 <style>
@@ -444,11 +457,6 @@
 		}
 		.compact .lead-sheet :global(svg) {
 			max-height: calc(var(--lead-staff-box) - 4px);
-		}
-		.compact .has-sheet .phase-tab.result-cue {
-			box-sizing: border-box;
-			max-width: 124px;
-			flex-wrap: wrap;
 		}
 	}
 	.lead-sheet.revealed {

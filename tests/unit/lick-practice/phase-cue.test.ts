@@ -27,7 +27,7 @@ const PPQ = 192;
 const TICKS_PER_BAR = 4 * PPQ;
 
 describe('specific next-action cues', () => {
-	it('uses Daily cues in Deep while retaining score-dependent preparation details', () => {
+	it('keeps Deep preparation concise even after a tempo and memory change', () => {
 		const deep = { deep: true, nextKeyLabel: 'F' };
 		expect(phaseTabView({ phase: 'count-in', next: 'listen', beatsUntilNext: 3, countdown: 3 }, 'G', deep))
 			.toEqual({ kind: 'listen', text: 'Listen', count: 0 });
@@ -38,7 +38,7 @@ describe('specific next-action cues', () => {
 		expect(phaseTabView({ phase: 'play', next: null, beatsUntilNext: null, countdown: 0 }, 'G', { ...deep, handoff: true }))
 			.toEqual({ kind: 'play', text: 'Play · once more', count: 0 });
 		expect(phaseTabView({ phase: 'read', next: 'play', beatsUntilNext: 4, countdown: 4 }, 'G', { ...deep, repeat: true, fromMemory: true, tempo: 83 }))
-			.toEqual({ kind: 'play-in', text: 'Play · same key · from memory · 83 BPM', count: 4 });
+			.toEqual({ kind: 'play-in', text: 'Play', count: 4 });
 	});
 
 	it('names the same key and memory change throughout its preparation bar', () => {

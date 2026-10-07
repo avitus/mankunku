@@ -112,6 +112,30 @@ beforeEach(() => {
 });
 
 describe('deep practice rescue for any unlocked key', () => {
+	it.each([false, true])('graduates a successful sheet turn despite older low scores (recommended=%s)', (recommended) => {
+		const lick = makeLick('Eb', 'graduate');
+		seedRolling(lick.id, { Eb: 0.1 });
+		startSingleLickSession(lick, recommended ? { focusKey: 'Eb' } : undefined);
+		lickPractice.currentTempo = 50;
+		expect(getKeyPasses(0)).toEqual([3]);
+		recordKeyAttempt(makeScore(0.95));
+		// Keep the sheet for this turn, including its final scored pass.
+		expect(getPlannedKeysForLick(0)[0].reveal).toBe(true);
+		advanceSingleLickRound();
+		expect(lickPractice.currentTempo).toBe(51);
+		expect(getPlannedKeysForLick(0)[0].reveal).toBe(false);
+		expect(getKeyPasses(0)).toEqual([1]);
+		expect(getDeepCycleEntry(0)?.fromMemory).toBe(true);
+		// Older poor scores must not immediately undo graduation on a minor lapse.
+		recordKeyAttempt(makeScore(0.8));
+		advanceSingleLickRound();
+		expect(getPlannedKeysForLick(0)[0].reveal).toBe(false);
+		// Fresh repeated difficulty restores support.
+		recordKeyAttempt(makeScore(0.4));
+		advanceSingleLickRound();
+		expect(getPlannedKeysForLick(0)[0].reveal).toBe(true);
+	});
+
 	it.each([2, 12])('reveals an older key with %i keys unlocked after a first poor attempt', (count) => {
 		setUnlockedCount('rescue', count);
 		seedRolling('rescue', { C: 0.9 });
@@ -222,10 +246,7 @@ describe('planned rows carry the reveal decision', () => {
 		advanceSingleLickRound();
 		expect(getPlannedKeysForLick(0)[0].reveal).toBe(true);
 		expect(lickPractice.demoNextCycle).toBe(true);
-		// One clean pass lifts 0.6 to 0.74 — still shown; a second clears it.
-		recordKeyAttempt(makeScore(0.95));
-		advanceSingleLickRound();
-		expect(getPlannedKeysForLick(0)[0].reveal).toBe(true);
+		// A successful final pass graduates immediately, even though EWMA is only 0.74.
 		recordKeyAttempt(makeScore(0.95));
 		advanceSingleLickRound();
 		expect(getPlannedKeysForLick(0)[0].reveal).toBe(false);
@@ -339,16 +360,16 @@ describe('planned rows carry the reveal decision', () => {
 		expect(getKeyPauses(0)).toEqual([0]);
 	});
 
-	it('uses the existing Deep turnaround without an extra sheet pause on refill', () => {
+	it('uses the existing Deep turnaround when a successful sheet turn graduates on refill', () => {
 		startSingleLickSession(makeLick('C', 'fresh-lick'));
 		recordKeyAttempt(makeScore(0.6)); // C: 0.6, under the floor → revealed
 		advanceSingleLickRound();
 		// C clears the whole (one-key) rotation, but its EWMA only reaches
-		// 0.4 × 0.95 + 0.6 × 0.6 = 0.74: still revealed, now with no demo.
+		// 0.4 × 0.95 + 0.6 × 0.6 = 0.74: success still earns memory, with no demo.
 		recordKeyAttempt(makeScore(0.95));
 		advanceSingleLickRound();
 		expect(lickPractice.demoNextCycle).toBe(false);
-		expect(getPlannedKeysForLick(0)[0].reveal).toBe(true);
+		expect(getPlannedKeysForLick(0)[0].reveal).toBe(false);
 		expect(getKeyPauses(0)).toEqual([0]);
 	});
 

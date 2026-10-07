@@ -1508,13 +1508,16 @@ function revealDecisionsFor(item: LickPracticePlanItem): Map<PitchClass, boolean
 	if (entryKey && lickPractice.mode === 'single-lick') {
 		const attempts = lickPractice.allAttempts.flat();
 		for (const key of keys) {
-			const recent = attempts
-				.filter((attempt) => attempt.key === key)
-				.slice(-2);
+			const keyAttempts = attempts.filter((attempt) => attempt.key === key);
+			// A successful final turn earns memory playing next time, even when
+			// older scores still depress the EWMA. Only fresh difficulty after
+			// that success may restore support; rehearsal scores never enter here.
+			const lastClear = keyAttempts.findLastIndex((attempt) => attempt.score >= MASTERY_THRESHOLD);
+			const recent = keyAttempts.slice(lastClear + 1).slice(-2);
 			const struggling = recent.length === 1
 				? recent[0].score < 0.5
 				: recent.length === 2 && (recent[0].score + recent[1].score) / 2 < 0.7;
-			if (struggling) decisions.set(key, true);
+			if (lastClear >= 0 || struggling) decisions.set(key, struggling);
 		}
 	}
 	revealDecisions.set(item.keys, decisions);

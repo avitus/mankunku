@@ -236,7 +236,7 @@ export interface PhaseTabContext {
  * Map a cue to the row tab pinned on the active chart.
  *
  * Daily and Deep use current-action cues without next-key names. Deep adds
- * resolved result details only during preparation and marks its handoff repeat.
+ * a preparation countdown and marks its handoff repeat.
  *
  * In the legacy presentation, a countdown into `play` from a
  * `transition` or `count-in` announces itself as "Straight in" with the entry
@@ -275,9 +275,7 @@ export function phaseTabView(cue: PhaseCue, keyLabel: string, context: PhaseTabC
 		if (context.deep && (cue.phase === 'read' || cue.phase === 'transition') && cue.next === 'play') {
 			// Only resolved changes need a preparation cue. The active row
 			// already identifies the key; never name an unrelated upcoming key.
-			const details = [context.handoff ? 'once more' : context.repeat ? 'same key' : '',
-				context.fromMemory ? 'from memory' : '',
-				context.tempo !== undefined ? `${context.tempo} BPM` : ''].filter(Boolean);
+			const details = context.handoff ? ['once more'] : [];
 			return { kind: cue.countdown > 0 ? 'play-in' : 'read',
 				text: [cue.countdown > 0 ? 'Play' : 'Get ready', ...details].join(' · '), count: cue.countdown };
 		}
