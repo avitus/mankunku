@@ -592,6 +592,7 @@ test.describe('lick-practice session flow', () => {
 	test('daily sheet keeps its playhead when canvas measurement is unavailable', async ({ page, browserName }) => {
 		test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
 			'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device');
+		test.setTimeout(90_000);
 		await seedOnboardedAnonymous(page);
 		await seedUserLicks(page);
 		await seedStorage(page, {
@@ -613,6 +614,8 @@ test.describe('lick-practice session flow', () => {
 		await page.getByRole('button', { name: /start daily practice/i }).click();
 		const sheet = page.getByTestId('lead-sheet-row');
 		await expect(sheet.locator('.abcjs-notehead').first()).toBeVisible();
+		// Charts render before sample decoding completes; await audio readiness.
+		await expect(page.locator('.phase-tab[data-kind="listen"]')).toBeVisible({ timeout: 60_000 });
 		await expect(sheet.locator('.playhead-under-bar').first()).toBeVisible();
 	});
 
@@ -620,6 +623,7 @@ test.describe('lick-practice session flow', () => {
 		test(`daily sheet keeps ledger notes and its cue clear at pitch ${pitch}`, async ({ page, browserName }) => {
 			test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
 				'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device');
+			test.setTimeout(90_000);
 			await seedOnboardedAnonymous(page);
 			const lick = structuredClone(SAMPLE_USER_LICKS[0]) as { notes: { pitch: number }[] };
 			lick.notes.forEach((note, i) => { note.pitch = pitch + i; });
@@ -634,7 +638,8 @@ test.describe('lick-practice session flow', () => {
 			await page.getByRole('button', { name: /start daily practice/i }).click();
 			const sheet = page.getByTestId('lead-sheet-row');
 			await expect(sheet.locator('.abcjs-notehead').first()).toBeVisible();
-			await expect(page.locator('.phase-tab')).toBeVisible();
+			// The prebuilt sheet is visible while the audio is still loading.
+			await expect(page.locator('.phase-tab[data-kind="listen"]')).toBeVisible({ timeout: 60_000 });
 			for (const width of [1440, 768, 390]) {
 				await page.setViewportSize({ width, height: 900 });
 				const bounds = await sheet.evaluate((lead) => {
