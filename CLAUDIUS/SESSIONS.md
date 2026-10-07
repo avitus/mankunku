@@ -4734,3 +4734,34 @@ flat held final note; audio 0.42–0.50, precision 0.07; the note scorer's
 rhythm credit on wrong pitches made the 0.62. Its held Ab3 was saved as a
 2.2 s Ab4 extra — the tenor Ab3→Ab4 misread's third take. Recommendation
 sharpened: gate on PRECISION (duration-blind), hold rule only for recall.
+
+### Addendum 2 — the Firefox profile (same day)
+
+Andy: "I feel as though we need more data. Can we extract them from my local
+firefox browser?" Firefox keeps IndexedDB as SQLite + a blob directory under
+the profile, and the record carries the full `RecordingMetadata` (phrase,
+source, key, tempo, swing, saved score with expected notes, detected notes,
+transport stamp, capture timing) — the lick-practice windows the cloud never
+sees. `harness/firefox_import.py` decodes a COPY of the profile's
+`storage/default/https+++mankunkujazz.com/idb/`: Snappy raw + SpiderMonkey
+structured clone (8-byte (data, tag) units; strings Latin-1 or UTF-16 by the
+high bit; the IDB Blob tag 0xFFFF8001 followed by a u64 size and a
+(length, 0)-prefixed LATIN-1 mime string — my first guess of UTF-16 misaligned
+everything after it, and a fallback that scanned for the `metadata` key
+masked the bug for a round). 400 records in two databases (the namespaced
+one: the newest 300, all October; the pre-namespacing one: 93 from July),
+378 scorable, 356 lick practice, 48 licks, 50–170 BPM, no backing band.
+WAVs (285 MB) gitignored; JSONs committed with captureTiming stripped.
+
+Two harness lessons before any number could be read: Deep Practice blobs can
+start ~3 s before the entry (a 16/16 take read 0.24 against silence under
+the ±0.6 s bar-line prior; whole-take search locks it at 3.11 s), and slow
+long licks drift off the grid in a way the app forgives — so the set gained a
+DTW-aligned precision/F1 (extras and wrong pitches along the warped path,
+timing absorbed). Results (lick practice, n=356): ρ vs saved 0.64–0.83;
+DTW F1 steps 0.40/0.54/0.80/0.90/0.96 through the grades; the 56-window Wail
+session ranks at 0.87 with the two inflated takes at 0.64/0.80. Remaining
+disagreements are the informative ones: fast licks ≥ 150 BPM at the 23 ms
+hop's limit; the ghosted-C lick (policy); and apple-jump-78e1fd, saved 3/9
+with 8/9 audible — the pairing cascade in production, caught by the audio
+side.

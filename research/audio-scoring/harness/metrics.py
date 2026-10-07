@@ -89,9 +89,13 @@ def lag_range(take: Take, ref_seconds: float) -> range:
     """
     T = int(take.duration / FRAME_SECONDS)
     if take.source == "lick-practice":
-        c = int(0.1 / FRAME_SECONDS)
-        w = int(0.6 / FRAME_SECONDS)
-        return range(max(0, c - w), c + w + 1)
+        # The bar line sits ~0.1 s into the blob on the corpus's three
+        # lick-practice takes, but the Firefox set (2026-10-07) holds Deep
+        # Practice windows whose blob starts up to ~3 s before the player's
+        # entry (2026-10-06 eric-alexander-chord-tone-lick-366cde: a 16/16
+        # take scored 0.24 against silence under a ±0.6 s prior). Search the
+        # whole take; the chroma lock is pitch-aware.
+        return range(0, T)
     if take.prearmed:
         return range(0, T)  # the recording began before the player did; nothing can precede it
     return range(-int(60.0 / take.tempo / FRAME_SECONDS), T)
@@ -198,7 +202,8 @@ def sim_at_lag(take_f: Features, ref_f: Features, feat: str, k: int, hold: bool 
     return float((s * w).sum() / max(w.sum(), 1.0))
 
 
-def dtw_similarity(take_f: Features, ref_f: Features, feat: str, k: int, band_seconds: float = 0.25) -> float:
+def dtw_similarity(take_f: Features, ref_f: Features, feat: str, k: int, band_seconds: float = 0.25,
+                   detail: bool = False):
     """Subsequence DTW of the reference against the take segment at lag k
     (plus one band of margin each side), Sakoe-Chiba band ±band_seconds,
     cost = 1 - frame similarity. Similarity = 1 - (path cost / reference
@@ -229,7 +234,24 @@ def dtw_similarity(take_f: Features, ref_f: Features, feat: str, k: int, band_se
                                  band_rad=max(0.05, (2 * b) / max(R, ts.shape[1])))
     path = wp[::-1]
     cost = C[path[:, 0], path[:, 1]].sum() / R
-    return float(np.clip(1.0 - cost, 0, 1))
+    sim = float(np.clip(1.0 - cost, 0, 1))
+    if not detail:
+        return sim
+    # Along the warped path: precision = sounding take frames whose aligned
+    # reference frame agrees (similarity >= 0.8); recall = required reference
+    # frames (not optional, not past the take) whose aligned take frame agrees.
+    # Timing drift is absorbed by the path, so this is content-only.
+    good = S[path[:, 0], path[:, 1]] >= 0.8
+    t_on = ton[path[:, 1]]
+    r_req = ref_f.required[rs:rs + R][path[:, 0]] & ~(ref_f.optional[rs:rs + R][path[:, 0]] & ~t_on)
+    r_on = ref_f.sounding[rs:rs + R][path[:, 0]]
+    take_frames = np.unique(path[t_on, 1])
+    agree_take = np.zeros(ts.shape[1], dtype=bool); agree_take[path[good & t_on, 1]] = True
+    precision = agree_take[take_frames].mean() if len(take_frames) else 0.0
+    ref_frames = np.unique(path[r_req & r_on, 0])
+    agree_ref = np.zeros(R, dtype=bool); agree_ref[path[good & r_req & r_on, 0]] = True
+    recall = agree_ref[ref_frames].mean() if len(ref_frames) else 0.0
+    return sim, float(precision), float(recall)
 
 
 # ----------------------------------------------------------------------------
@@ -304,7 +326,10 @@ def compare(take: Take, take_f: Features, expected: list[ExpectedNote], ref_y: n
     band = max(0.25, 0.5 * 60.0 / take.tempo)
     k3, s3 = best_lag(take_f, ref_f, "chroma", lags)
     out["m3_chroma"] = Result(s3, k3 * FRAME_SECONDS)
-    out["m3_chroma_dtw"] = Result(dtw_similarity(take_f, ref_f, "chroma", k3, band), k3 * FRAME_SECONDS)
+    sim3, prec3, rec3 = dtw_similarity(take_f, ref_f, "chroma", k3, band, detail=True)
+    out["m3_chroma_dtw"] = Result(sim3, k3 * FRAME_SECONDS, {"precision": prec3, "recall": rec3})
+    out["m3_dtw_precision"] = Result(prec3, k3 * FRAME_SECONDS)
+    out["m3_dtw_f1"] = Result(2 * prec3 * rec3 / max(1e-9, prec3 + rec3), k3 * FRAME_SECONDS)
     k4, s4 = best_lag(take_f, ref_f, "cqt", lags)
     out["m4_cqt"] = Result(s4, k4 * FRAME_SECONDS)
     out["m4_cqt_dtw"] = Result(dtw_similarity(take_f, ref_f, "cqt", k4, band), k4 * FRAME_SECONDS)
@@ -318,4 +343,4 @@ def compare(take: Take, take_f: Features, expected: list[ExpectedNote], ref_y: n
     return out
 
 
-METRIC_NAMES = ["m1_raw", "m2_env", "m2_env_at", "m3_chroma", "m3_chroma_hold", "m3_chroma_dtw", "m4_cqt", "m4_cqt_hold", "m4_cqt_dtw", "m5_cover", "m5_cover_hold", "m5_cover_strict"]
+METRIC_NAMES = ["m1_raw", "m2_env", "m2_env_at", "m3_chroma", "m3_chroma_hold", "m3_chroma_dtw", "m3_dtw_precision", "m3_dtw_f1", "m4_cqt", "m4_cqt_hold", "m4_cqt_dtw", "m5_cover", "m5_cover_hold", "m5_cover_strict"]

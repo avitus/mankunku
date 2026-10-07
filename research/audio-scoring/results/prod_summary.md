@@ -1,6 +1,6 @@
-# E5 — production spread (own lick only, sampled renderer)
+# E5 — prod spread (own lick only, sampled renderer)
 
-15 ear-training takes with a session_results row among the 300 stored blobs.
+15 takes: ear-training 15.
 
 ## Rank agreement with the saved score
 
@@ -12,6 +12,8 @@
 | m3_chroma | 0.182 | 0.433 |
 | m3_chroma_hold | 0.207 | 0.433 |
 | m3_chroma_dtw | 0.050 | 0.433 |
+| m3_dtw_precision | -0.006 | 0.447 |
+| m3_dtw_f1 | 0.065 | 0.447 |
 | m4_cqt | 0.125 | 0.433 |
 | m4_cqt_hold | 0.257 | 0.433 |
 | m4_cqt_dtw | 0.061 | 0.433 |

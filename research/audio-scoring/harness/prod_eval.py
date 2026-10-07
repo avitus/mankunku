@@ -1,8 +1,8 @@
-"""E5 — production spread: every imported production take scored against its
-OWN lick only (no candidate sweep), compared with the saved score.
+"""E5 — spread over an imported folder (prod, firefox): every take scored
+against its OWN lick only (no candidate sweep), compared with the saved score.
 
-Writes results/prod_own.csv and results/prod_summary.md.
-Run: uv run python -m harness.prod_eval
+Writes results/<folder>_own.csv and results/<folder>_summary.md.
+Run: uv run python -m harness.prod_eval [folder=prod]
 """
 from __future__ import annotations
 
@@ -21,9 +21,9 @@ RESULTS = ROOT / "results"
 GRADE_ORDER = ["try-again", "fair", "good", "great", "perfect"]
 
 
-def main():
-    takes = [t for t in load_all() if t.wav_path.parent.name == "prod"]
-    print(f"{len(takes)} production takes")
+def main(folder: str = "prod"):
+    takes = load_all(folders=[folder])
+    print(f"{len(takes)} {folder} takes")
     rows = []
     t0 = time.time()
     for i, t in enumerate(takes):
@@ -32,13 +32,15 @@ def main():
         res = compare(t, tf, t.expected, ry, rf)
         rows.append(row_from(res, take=t.id, renderer="sampled", candidate="own", kind="own", n_notes=len(t.expected),
                              saved=t.saved_overall, grade=t.saved_grade, notes_hit=t.saved_notes_hit,
-                             tempo=t.tempo, phrase=t.phrase_name, date=t.id[:10]))
+                             tempo=t.tempo, phrase=t.phrase_name, date=t.id[:10], source=t.source,
+                             backing=bool((t.raw.get("context") or {}).get("backingBleedOnsets")),
+                             octave_insensitive=t.octave_insensitive))
         if (i + 1) % 25 == 0:
             print(f"  {i+1}/{len(takes)} ({time.time()-t0:.0f}s)", flush=True)
     df = pd.DataFrame(rows)
-    df.to_csv(RESULTS / "prod_own.csv", index=False)
+    df.to_csv(RESULTS / f"{folder}_own.csv", index=False)
 
-    lines = ["# E5 — production spread (own lick only, sampled renderer)\n", f"{len(df)} ear-training takes with a session_results row among the 300 stored blobs.\n"]
+    lines = [f"# E5 — {folder} spread (own lick only, sampled renderer)\n", f"{len(df)} takes: " + ", ".join(f"{k} {v}" for k, v in df.source.value_counts().items()) + ".\n"]
     lines.append("## Rank agreement with the saved score\n")
     lines.append("| metric | Spearman vs saved | vs notes_hit/total |\n|---|---|---|")
     df["hit_frac"] = df.notes_hit / df.n_notes
@@ -68,9 +70,10 @@ def main():
     lines.append("| take | saved | grade | hit | m3 | m3 dtw | m5 | precision | recall |\n|---|---|---|---|---|---|---|---|---|")
     for _, r in lo_score_hi_audio.head(25).iterrows():
         lines.append(f"| {r['take']} | {r.saved:.2f} | {r.grade} | {int(r.notes_hit)}/{int(r.n_notes)} | {r.m3_chroma:.2f} | {r.m3_chroma_dtw:.2f} | {r.m5_cover:.2f} | {r.m5_precision:.2f} | {r.m5_recall:.2f} |")
-    (RESULTS / "prod_summary.md").write_text("\n".join(lines) + "\n")
+    (RESULTS / f"{folder}_summary.md").write_text("\n".join(lines) + "\n")
     print("\n".join(lines[:40]))
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    main(sys.argv[1] if len(sys.argv) > 1 else "prod")

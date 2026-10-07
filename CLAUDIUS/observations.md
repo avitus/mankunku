@@ -2714,3 +2714,20 @@ sixty cents flat scored "fair" because the rhythm was right. Both halves of
 the autumn's argument in one afternoon — the scorer forgiving what the ear
 would not, the audio charging what the player meant — and the honest
 position is still the one from this morning: each guards the other.
+
+## 2026-10-07 — Three hundred and seventy-eight takes change the question
+
+With forty-eight takes the question was "does the audio measure agree with
+the pins". With three hundred and seventy-eight it became "where does it
+disagree with the scorer, and who is right there" — and the answer sorted
+itself into three bins, each with a name. Fast licks: the frame rate's limit,
+mine to fix. Ghosted Cs: Andy's policy, the scorer's to keep. A take the
+pairing cascade butchered: the scorer's bug, the audio's catch. A metric is
+worth shipping when its disagreements are legible like that; agreement is
+only the price of admission.
+
+The decoder taught the same lesson as the lag search: a fallback that finds
+the answer by scanning for a landmark will hide a parser that is wrong by
+twenty-two bytes. It gave me the metadata and no timestamps, and I nearly
+took that as "good enough". The first unexplained zero is cheaper to chase
+than the tenth.

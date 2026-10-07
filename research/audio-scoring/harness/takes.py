@@ -20,7 +20,7 @@ from scipy.signal import butter, sosfiltfilt
 ROOT = Path(__file__).resolve().parents[1]
 REPO = ROOT.parents[1]
 CORPUS = REPO / "tests" / "fixtures" / "recordings"
-TAKE_DIRS = [CORPUS, ROOT / "takes" / "downloads", ROOT / "takes" / "prod"]  # prod/raw/ holds the undecoded blobs
+TAKE_DIRS = [CORPUS, ROOT / "takes" / "downloads", ROOT / "takes" / "prod", ROOT / "takes" / "firefox"]  # prod/raw/ holds the undecoded blobs
 
 # Instrument band for the comparison. Tenor's lowest concert note is Ab2
 # (103.8 Hz); the digital metronome mixed into the blob is a C1 kick plus
@@ -129,7 +129,7 @@ def load_overrides() -> dict:
 
 def load_truth() -> dict:
     out = {}
-    for name in ("truth.yaml", "truth-prod.yaml"):
+    for name in ("truth.yaml", "truth-prod.yaml", "truth-firefox.yaml"):
         p = ROOT / "takes" / name
         if p.exists():
             out.update(yaml.safe_load(p.read_text()) or {})
@@ -228,11 +228,16 @@ def load_take(stem: str, wav: Path, js: Path | None, overrides: dict | None = No
     )
 
 
-def load_all(ids: list[str] | None = None) -> list[Take]:
+def load_all(ids: list[str] | None = None, folders: list[str] | None = None) -> list[Take]:
+    """Every take with expected notes; `folders` restricts to take-dir names
+    (e.g. ["prod", "firefox"]). The corpus evaluation (E1-E4) uses the corpus,
+    downloads and prod folders; the big Firefox set is own-lick only."""
     overrides = load_overrides()
     takes = []
     for stem, (wav, js) in discover().items():
         if ids and stem not in ids:
+            continue
+        if folders and wav.parent.name not in folders and not (wav.parent == CORPUS and "corpus" in folders):
             continue
         t = load_take(stem, wav, js, overrides)
         if not t.expected:

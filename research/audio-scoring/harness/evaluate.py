@@ -52,7 +52,7 @@ def row_from(res: dict[str, Result], **meta) -> dict:
 
 def run(renderers: list[str], skip_e4: bool, only: list[str] | None, from_csv: bool = False):
     truth = load_truth()
-    takes = load_all(only)
+    takes = load_all(only, folders=["corpus", "downloads", "prod"])
     if from_csv:
         df = pd.read_csv(RESULTS / "metrics.csv")
         return postprocess(df, takes, truth, skip_e4)

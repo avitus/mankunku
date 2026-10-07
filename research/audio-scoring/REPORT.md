@@ -19,9 +19,14 @@ butchered inside the clean range, pick the right lick over every
 transposition on 97–98 % of takes, and drop for a wrong note or an extra
 four to thirty times more than for a 5 % tempo change. Their rank agreement
 with what was actually played is 0.58–0.59 (0.66–0.64 with the hold rule) against 0.23 for the saved scores.
-Neither needs the lick rendered as audio: a timbre-free synthetic reference
-performed the same as the app's own samples, so a chroma *template* is
-enough. Recommendation: build M5 from the detector's existing readings first
+On the **378 takes decoded from the Firefox profile** (356 lick-practice
+windows the cloud never sees, 48 licks, 50–170 BPM) the audio measures rank
+with the saved score at 0.64–0.83 and step cleanly through the five grades;
+the disagreements that remain are the informative ones (a 16/16 take the
+pairing cascade saved as 3/9, the ghosted-C lick, and fast licks at the
+frame rate's limit). Neither measure needs the lick rendered as audio: a
+timbre-free synthetic reference performed the same as the app's own samples,
+so a chroma *template* is enough. Recommendation: build M5 from the detector's existing readings first
 (no new DSP, it is the missing "precision" half of the score), then M3 as an
 independent audio-side check that flags detector/scorer disagreement. Do not
 build raw or envelope cross-correlation. Two policy questions are Andy's:
@@ -55,6 +60,15 @@ regenerates `results/`; `results/tables.md` holds every table.
   only in the browser's local session log (the cloud syncs a daily count), so
   they cannot be scored from production. All 1943 scored sessions since July
   are in the rows; only the newest 300 blobs survive the cap.
+- **Firefox** (`takes/firefox/`, `harness/firefox_import.py`): the browser
+  Andy practises in keeps every recording WITH its `RecordingMetadata`
+  (phrase, source, key, tempo, swing, the full saved score, detected notes,
+  transport stamp, capture timing) in IndexedDB. Decoded from a copy of the
+  profile's store: 400 records in two databases (the namespaced one holds the
+  newest 300, all from October 2026; the pre-namespacing one 93 from July),
+  **378 scorable: 356 lick-practice windows and 37 ear-training takes**, 48
+  distinct licks, 50–170 BPM, no backing band in any of them. This is the set
+  production could not give. WAVs are not committed (285 MB).
 - **Truth**: `hits / (total + real_extras)` per take, from the fixture test's
   own assertions (what was actually played), the 2026-10-06 Wail analysis, or
   the audio audit. 44 verified, timing-known takes enter E2/E3.
@@ -99,14 +113,16 @@ synthetic in brackets).
 
 | metric | top-1 vs transposed | MRR | margin | top-1 vs other licks | top-1 vs same-length licks |
 |---|---|---|---|---|---|
-| M1 raw | 0.59 (0.57) | 0.77 | 0.01 | 0.24 | 0.28 |
+| M1 raw | 0.57 (0.56) | 0.76 | 0.01 | 0.21 | 0.28 |
 | M2 env | 0.17 (0.02) | 0.36 | -0.06 | 0.02 | 0.03 |
 | M3 chroma | 0.97 (0.98) | 0.98 | 0.35 | 0.84 | 0.85 |
 | M3 chroma hold | 0.97 (0.98) | 0.98 | 0.33 | 0.89 | 0.89 |
-| M3 chroma-dtw | 0.98 (0.98) | 0.99 | 0.31 | 0.75 | 0.77 |
-| M4 cqt | 0.97 (0.98) | 0.98 | 0.26 | 0.83 | 0.89 |
+| M3 chroma-dtw | 0.98 (0.98) | 0.99 | 0.31 | 0.73 | 0.77 |
+| M3 dtw precision | 0.89 (0.94) | 0.94 | 0.34 | 0.59 | 0.67 |
+| M3 dtw F1 | 0.95 (0.98) | 0.97 | 0.45 | 0.70 | 0.74 |
+| M4 cqt | 0.97 (0.98) | 0.98 | 0.26 | 0.81 | 0.89 |
 | M5 cover | 0.98 (0.98) | 0.99 | 0.50 | 0.84 | 0.85 |
-| M5 cover hold | 0.97 (0.97) | 0.98 | 0.50 | 0.86 | 0.89 |
+| M5 cover hold | 0.97 (0.97) | 0.98 | 0.49 | 0.86 | 0.89 |
 
 Every M3 loss against another lick is to a lick with the **same pitch
 sequence** and a different rhythm (upper-neighbor-on-root C D C vs
@@ -124,11 +140,13 @@ Spearman against the truth over the 44 verified, timing-known takes.
 | signal | ρ vs truth | p |
 |---|---|---|
 | saved score (n = 43) | 0.23 | 0.14 |
-| M1 raw | -0.05 | 0.77 |
-| M2 env | 0.36 | 0.02 |
+| M1 raw | -0.05 | 0.74 |
+| M2 env | 0.32 | 0.03 |
 | M3 chroma | 0.58 | < 0.001 |
 | M3 chroma hold | 0.66 | < 0.001 |
 | M3 chroma-dtw | 0.51 | < 0.001 |
+| M3 dtw precision | 0.49 | < 0.001 |
+| M3 dtw F1 | 0.53 | < 0.001 |
 | M4 cqt | 0.50 | < 0.001 |
 | M5 cover | 0.59 | < 0.001 |
 | M5 cover hold | 0.64 | < 0.001 |
@@ -142,7 +160,7 @@ independent reading.
 ### E3 — the named cases
 
 Value of M3 chroma and M5 cover for each case, and its percentile among the
-clean verified takes (clean M3: min 0.79, p10 0.87, median 0.93; M3 hold: min 0.87, p10 0.90; clean M5: p10 0.85, median 0.92; M5 hold p10 0.87).
+clean verified takes (clean M3: min 0.79, p10 0.87, median 0.93; M3 hold: min 0.87, p10 0.90; DTW precision p10 0.90; clean M5: p10 0.85, median 0.92; M5 hold p10 0.87).
 
 | take | case | truth | saved | M3 | pct | M5 | pct | verdict |
 |---|---|---|---|---|---|---|---|---|
@@ -177,6 +195,8 @@ Mean drop (worst-take drop) per perturbation.
 | M3 chroma | 0.16 (0.04) | 0.16 (0.11) | 0.17 (0.14) | 0.19 (0.05) | 0.04 (0.01) | 0.00 (-0.02) | 0.03 (0.00) |
 | M3 chroma hold | 0.16 (0.04) | 0.16 (0.11) | 0.17 (0.14) | 0.17 (0.05) | 0.03 (0.01) | 0.01 (-0.02) | 0.03 (0.00) |
 | M3 chroma-dtw | 0.14 (0.03) | 0.15 (0.10) | 0.07 (-0.00) | 0.14 (0.01) | 0.01 (-0.01) | 0.00 (-0.01) | -0.00 (-0.01) |
+| M3 dtw precision | 0.30 (0.12) | 0.24 (0.12) | 0.10 (0.00) | 0.06 (0.00) | 0.01 (-0.05) | 0.01 (-0.04) | -0.01 (-0.09) |
+| M3 dtw F1 | 0.26 (0.07) | 0.16 (0.07) | 0.06 (0.00) | 0.13 (0.06) | 0.00 (-0.02) | 0.01 (-0.03) | -0.00 (-0.07) |
 | M4 cqt | 0.11 (0.03) | 0.15 (0.10) | 0.17 (0.14) | 0.17 (0.05) | 0.04 (0.01) | 0.01 (-0.02) | 0.03 (-0.03) |
 | M5 cover | 0.25 (0.09) | 0.19 (0.11) | 0.11 (0.09) | 0.14 (0.03) | 0.02 (0.01) | -0.00 (-0.03) | 0.02 (-0.01) |
 | M5 cover hold | 0.30 (0.10) | 0.21 (0.13) | 0.10 (0.08) | 0.19 (0.04) | 0.03 (0.01) | 0.00 (-0.04) | 0.03 (-0.00) |
@@ -212,6 +232,55 @@ pitches; the audio reads 0.42–0.50 and precision 0.07. Its held final Ab3
 was also saved as a 2.2 s "extra" Ab4 — the tenor Ab3→Ab4 detector misread,
 now seen on three takes (Wail a, Wail b, this one), with the WAV in
 `takes/prod/` for a fixture.
+
+### E5b — the Firefox set (378 takes, own lick only)
+
+`results/firefox_summary.md`, `results/firefox_own.csv`. Lick practice is
+scored octave-insensitively, as the app does. Two harness lessons came out
+of this set before any number could be read: Deep Practice blobs can start
+up to ~3 s before the player's entry (a 16/16 take read 0.24 against
+silence under the ±0.6 s bar-line prior; the lag is now searched over the
+whole take and locks at 3.11 s), and long licks at 50–62 BPM (Wail, Blue
+Monk, Dexter Gordon, Eric Alexander) drift off the grid in a way the app's
+slow-tempo rhythm curve forgives and the no-warp chroma does not. So the
+set gained a **DTW-aligned precision / F1**: along the warped chroma path,
+the share of sounding take frames whose aligned reference frame agrees, and
+of required reference frames the take covers. Timing drift is absorbed by
+the path; extras and wrong pitches are not.
+
+Lick practice, 356 windows, by saved grade (median, p10–p90):
+
+| grade | n | no-warp chroma (hold) | DTW chroma | DTW precision | DTW F1 | frame precision |
+|---|---|---|---|---|---|---|
+| try-again | 11 | 0.48 (0.34–0.76) | 0.57 (0.49–0.81) | 0.42 (0.32–0.69) | 0.40 (0.27–0.72) | 0.25 (0.21–0.59) |
+| fair | 16 | 0.55 (0.41–0.82) | 0.69 (0.56–0.93) | 0.56 (0.47–0.90) | 0.54 (0.46–0.87) | 0.33 (0.25–0.66) |
+| good | 30 | 0.71 (0.54–0.87) | 0.83 (0.68–0.92) | 0.80 (0.57–0.91) | 0.80 (0.59–0.92) | 0.57 (0.38–0.77) |
+| great | 66 | 0.82 (0.64–0.91) | 0.91 (0.82–0.96) | 0.88 (0.73–0.98) | 0.90 (0.72–0.98) | 0.69 (0.51–0.81) |
+| perfect | 233 | 0.90 (0.82–0.93) | 0.94 (0.89–0.97) | 0.95 (0.86–0.99) | 0.96 (0.89–0.99) | 0.83 (0.74–0.88) |
+
+Spearman against the saved score (lick practice): frame coverage hold 0.83,
+frame precision 0.79, DTW F1 0.64, no-warp chroma hold 0.64, DTW chroma 0.57.
+Ear training (22 takes): 0.58–0.62. The two measures agree with the note
+scorer on the bulk of takes and disagree where one of them is wrong:
+
+- **Saved ≥ 0.90 with DTW precision < 0.70: 4 of 264.** Three are fast
+  licks (Basis of Everything at 169–170 BPM, Wouldn't It Be Loverly at 150):
+  an eighth is 7–8 frames at the 23 ms hop and attack transients eat a third
+  of each note, so frame measures lose resolution above ~140 BPM — a
+  hop-size question, not a scoring one. The fourth is a July Honeysuckle
+  take whose f0 track is ambiguous at this zoom.
+- **Saved < 0.75 with DTW F1 ≥ 0.85: 4 of 32.** Three are the ghosted-C
+  lick (Sharp 9 Flat 9 Dom: Cs 60–70 ¢ sharp, chroma splits them between
+  bins — the strictness policy Andy set on 2026-09-16, which the note scorer
+  honours and chroma does not). The fourth, **apple-jump-78e1fd (saved 0.47,
+  3 of 9)**, is a mostly correct take: the f0 track follows the written line
+  through eight of nine notes while the saved pairing, thrown by a cracked
+  head (52, 63 before the first D), marked six notes wrong — the one-false-
+  note amplifier, in production, caught by the audio side (DTW F1 0.93).
+- **The Wail session** (56 windows at 50–63 BPM): DTW precision ranks with
+  the saved score at 0.87; every take saved ≥ 0.95 reads ≥ 0.90, the two
+  takes analysed on 2026-10-06 read 0.64 (saved 0.878) and 0.80 (0.934), and
+  the failed windows 0.28–0.55.
 
 ### Renderer
 
@@ -261,14 +330,20 @@ the need to render anything in the browser.
    Precision is the duration-blind half, so it needs no policy decision.
    This is the "extras count as zero" the docs already promise, delivered
    without touching the aligner.
-2. **Then chroma similarity (M3) against a template** as the independent
-   audio-side check: 12-bin chroma per frame from the analyser spectrum (or
-   the blob on rescore), a ±1 s lag search, mean cosine with silence
-   agreement over the notated span plus one beat. Threshold ≈ 0.85 (clean p10
-   0.87). Its value is disagreement: chroma high with score low means a
-   detector bug (the five butchered takes), chroma low with score high means
-   an inflated score (Wail). Both are worth a diagnostics badge before they
-   are worth a grade.
+2. **Then chroma against a template** as the independent audio-side
+   check: 12-bin chroma per frame from the analyser spectrum (or the blob on
+   rescore), a lag search over the whole window (Deep Practice blobs start
+   up to 3 s before the entry), and — for lick practice, where the app's
+   rhythm curve is lenient at slow tempos — a banded DTW along which
+   precision and recall are read (`m3_dtw_precision` / `m3_dtw_f1`; perfect
+   takes ≥ 0.86 at p10, the inflated Wail takes 0.64 / 0.80, failed windows
+   ≤ 0.55). The no-warp form stays the right one for ear training, where the
+   grid is the lesson. Its value is disagreement: audio high with score low
+   means a detector or pairing bug (five butchered corpus takes, and
+   apple-jump-78e1fd in production), audio low with score high means an
+   inflated score (Wail). Both are worth a diagnostics badge before they are
+   worth a grade. Above ~140 BPM the 23 ms hop runs out of frames per note;
+   a 10 ms hop or onset-aware frames would be needed there.
 3. **Do not build raw or envelope cross-correlation.**
 4. **Candidate fixtures**: pent-upper-neighbor-dotted-quart (final C read as
    C#) and pent-1-3-2-5-dotted-quarter-eigh (final C missed) are two more
@@ -281,8 +356,11 @@ grade, blend into `overall`, or badge only? (c) The articulation blind spot:
 accept it, or revisit the onset worklet. (d) Lick-practice takes are
 unscorable from the cloud: if production-side analysis of Deep/Daily takes
 matters, the window's lick id, key and tempo need to travel with the blob
-(a `lick_practice_results` row, or metadata on the storage object). (e) The
-tenor Ab3→Ab4 misread has three takes now.
+(a `lick_practice_results` row, or metadata on the storage object); the
+Firefox profile holds them meanwhile, 300 at a time. (e) The tenor Ab3→Ab4
+misread has three takes now. (f) apple-jump-78e1fd is a production take the
+pairing cascade butchered (3/9 saved, 8/9 audible) — a fixture candidate for
+the aligner, with the WAV re-derivable from the profile.
 
 ## Portability notes
 
