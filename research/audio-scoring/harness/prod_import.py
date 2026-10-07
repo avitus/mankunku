@@ -51,16 +51,18 @@ def norm01(v: float | None) -> float | None:
 
 def convert(raw_dir: Path, out_dir: Path, limit: int | None, since: dt.date | None) -> list[dict]:
     rows = json.loads((raw_dir / "session_results.json").read_text())
-    if isinstance(rows, dict) and "result" in rows:
-        rows = rows["result"]
+    if isinstance(rows, dict):  # `supabase db query -o json` wraps the rows
+        rows = rows.get("rows") or rows.get("result") or []
     settings_p = raw_dir / "user_settings.json"
     swing = DEFAULT_SWING
     if settings_p.exists():
         st = json.loads(settings_p.read_text())
+        if isinstance(st, dict) and "rows" in st:
+            st = st["rows"]
         if isinstance(st, list):
             st = st[0] if st else {}
         swing = float(st.get("swing", DEFAULT_SWING))
-    webms = {p.stem: p for p in raw_dir.glob("*.webm")}
+    webms = {p.stem: p for p in raw_dir.rglob("*.webm")}  # `storage cp -r` keeps the user folder
     rows = sorted(rows, key=lambda r: r["timestamp"], reverse=True)
     out_dir.mkdir(parents=True, exist_ok=True)
     truth_rows = {}

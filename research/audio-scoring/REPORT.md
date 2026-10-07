@@ -16,9 +16,9 @@ and **frame-level pitch coverage**, precision and recall of the pitch track
 against the expected piano roll (M5). Both rank the two inflated Wail takes
 below every clean take in the corpus, keep the five takes the old detector
 butchered inside the clean range, pick the right lick over every
-transposition on 98–100 % of takes, and drop for a wrong note or an extra
+transposition on 97–98 % of takes, and drop for a wrong note or an extra
 four to thirty times more than for a 5 % tempo change. Their rank agreement
-with what was actually played is 0.58–0.59 against 0.23 for the saved scores.
+with what was actually played is 0.58–0.59 (0.66–0.64 with the hold rule) against 0.23 for the saved scores.
 Neither needs the lick rendered as audio: a timbre-free synthetic reference
 performed the same as the app's own samples, so a chroma *template* is
 enough. Recommendation: build M5 from the detector's existing readings first
@@ -46,10 +46,15 @@ regenerates `results/`; `results/tables.md` holds every table.
   pent-1-3-2-5-dotted-quarter-eigh: the final C marked missed), one clean at
   0.99, and 09-12 four-to-five holds the C through the second C's slot (the
   saved "missed" stands, a re-tonguing cannot be settled by eye).
-- **Production `/diagnostics`**: not collected. Claude in Chrome reported
-  "not connected" on three attempts; the takes' metadata lives only in that
-  browser profile's IndexedDB (cloud copies carry `metadata: null`). New
-  exports dropped into `takes/prod/` are picked up by the harness as they are.
+- **Production** (`takes/prod/`, pulled 2026-10-07 with `harness/prod_import.py`
+  from the `recordings` bucket and `session_results` through the linked
+  Supabase CLI): the bucket holds the newest 300 blobs of Andy's account;
+  **15** are ear-training takes with a `session_results` row (expected notes,
+  score, tempo, key; swing from `user_settings` = 0.6) and were converted.
+  The other **285 are lick-practice windows**, whose lick, key and tempo exist
+  only in the browser's local session log (the cloud syncs a daily count), so
+  they cannot be scored from production. All 1943 scored sessions since July
+  are in the rows; only the newest 300 blobs survive the cap.
 - **Truth**: `hits / (total + real_extras)` per take, from the fixture test's
   own assertions (what was actually played), the 2026-10-06 Wail analysis, or
   the audio audit. 44 verified, timing-known takes enter E2/E3.
@@ -89,24 +94,27 @@ path length bought cheap steps by stacking frames.
 ### E1 — does the measure know which lick was played? (label-free)
 
 Own lick vs its transpositions ±1…±5 st, and vs every other lick in the set
-rendered at the take's tempo (sampled renderer; synthetic in brackets).
+rendered at the take's tempo (63 takes incl. production; sampled renderer;
+synthetic in brackets).
 
 | metric | top-1 vs transposed | MRR | margin | top-1 vs other licks | top-1 vs same-length licks |
 |---|---|---|---|---|---|
-| M1 raw | 0.65 (0.63) | 0.80 | 0.02 | 0.35 | 0.39 |
-| M2 env | 0.17 (0.00) | 0.36 | −0.06 | 0.02 | 0.04 |
-| M3 chroma | 0.98 (1.00) | 0.99 | 0.38 | 0.85 | 0.85 |
-| M3 chroma-dtw | 1.00 (1.00) | 1.00 | 0.32 | 0.79 | 0.80 |
-| M4 cqt | 0.98 (1.00) | 0.99 | 0.29 | 0.85 | 0.87 |
-| M5 cover | 1.00 (1.00) | 1.00 | 0.53 | 0.85 | 0.89 |
+| M1 raw | 0.59 (0.57) | 0.77 | 0.01 | 0.24 | 0.28 |
+| M2 env | 0.17 (0.02) | 0.36 | -0.06 | 0.02 | 0.03 |
+| M3 chroma | 0.97 (0.98) | 0.98 | 0.35 | 0.84 | 0.85 |
+| M3 chroma hold | 0.97 (0.98) | 0.98 | 0.33 | 0.89 | 0.89 |
+| M3 chroma-dtw | 0.98 (0.98) | 0.99 | 0.31 | 0.75 | 0.77 |
+| M4 cqt | 0.97 (0.98) | 0.98 | 0.26 | 0.83 | 0.89 |
+| M5 cover | 0.98 (0.98) | 0.99 | 0.50 | 0.84 | 0.85 |
+| M5 cover hold | 0.97 (0.97) | 0.98 | 0.50 | 0.86 | 0.89 |
 
 Every M3 loss against another lick is to a lick with the **same pitch
 sequence** and a different rhythm (upper-neighbor-on-root C D C vs
 pent-upper-neighbor C D C; fifth-sixth-step F G vs blue-note-step-up F F G;
 blue-note-climb C C D vs flat-seven-octave C D; 09-12 four-to-five C C D D vs
 flat-five-chromatic-up C C D), or the 07-08 take whose recording holds two of
-its four notes. The one M3 loss against a transposition is that same broken
-take. The margins are small for those pairs (0.005–0.06): chroma sees pitch
+its four notes. The M3 losses against a transposition are that broken take and one
+production take whose own margin is 0.01. The margins are small for those pairs (0.005–0.06): chroma sees pitch
 content, not articulation.
 
 ### E2 — rank agreement with what was played
@@ -116,13 +124,15 @@ Spearman against the truth over the 44 verified, timing-known takes.
 | signal | ρ vs truth | p |
 |---|---|---|
 | saved score (n = 43) | 0.23 | 0.14 |
-| M1 raw | −0.05 | 0.77 |
+| M1 raw | -0.05 | 0.77 |
 | M2 env | 0.36 | 0.02 |
 | M3 chroma | 0.58 | < 0.001 |
+| M3 chroma hold | 0.66 | < 0.001 |
 | M3 chroma-dtw | 0.51 | < 0.001 |
-| M4 cqt | 0.50 | 0.001 |
+| M4 cqt | 0.50 | < 0.001 |
 | M5 cover | 0.59 | < 0.001 |
-| min(M3, M5) | 0.60 | < 0.001 |
+| M5 cover hold | 0.64 | < 0.001 |
+| min(M3 hold, M5 hold) | 0.65 | < 0.001 |
 
 The saved scores correlate with nothing — expected, since the corpus is by
 construction the takes the old pipeline got wrong. The audio metrics have
@@ -132,8 +142,7 @@ independent reading.
 ### E3 — the named cases
 
 Value of M3 chroma and M5 cover for each case, and its percentile among the
-clean verified takes (clean M3: min 0.79, p10 0.87, median 0.93; clean M5:
-p10 0.85, median 0.92).
+clean verified takes (clean M3: min 0.79, p10 0.87, median 0.93; M3 hold: min 0.87, p10 0.90; clean M5: p10 0.85, median 0.92; M5 hold p10 0.87).
 
 | take | case | truth | saved | M3 | pct | M5 | pct | verdict |
 |---|---|---|---|---|---|---|---|---|
@@ -150,7 +159,7 @@ p10 0.85, median 0.92).
 | honeysuckle-rose | 4 of 5, saved 2/5 | 0.80 | 0.59 | 0.88 | 0.20 | 0.78 | 0.03 | ✓ (M5 sees the cracked attack) |
 | pent-upper-neighbor (audit) | correct, saved 0.62 | 1.00 | 0.62 | 0.84 | 0.07 | 0.88 | 0.23 | ✓ |
 | pent-1-3-2-5-dotted (audit) | correct, saved 0.74 | 1.00 | 0.74 | 0.91 | 0.33 | 0.88 | 0.20 | ✓ |
-| root-frame | correct, saved 0.45 | 1.00 | 0.45 | 0.78 | 0 | 0.79 | 0.03 | **final G released 1.2 s early** (see below) |
+| root-frame | correct, saved 0.45 | 1.00 | 0.45 | 0.78 | 0 | 0.79 | 0.03 | **final G released 1.2 s early**; hold-tolerant 0.93 / 0.94, in range |
 
 Wail-a's overlay (`results/figures/`) shows why it falls: pyin follows the
 written line for the first seven notes, reading Ab3 where the app's detector
@@ -163,17 +172,46 @@ Mean drop (worst-take drop) per perturbation.
 
 | metric | one note +1 st | extra inside | extra after | note dropped | note 150 ms late | stretch +5 % | stretch −5 % |
 |---|---|---|---|---|---|---|---|
-| M1 raw | 0.05 (−0.03) | 0.02 | 0.01 | 0.03 | −0.01 | 0.01 | 0.00 |
-| M2 env | 0.01 (−0.02) | 0.03 | 0.06 | −0.01 | 0.01 | 0.06 | 0.14 |
-| M3 chroma | 0.16 (0.04) | 0.16 (0.11) | 0.17 (0.15) | 0.19 (0.05) | 0.04 (0.01) | 0.01 (−0.02) | 0.03 (0.00) |
-| M3 chroma-dtw | 0.14 (0.03) | 0.15 (0.10) | 0.07 (0.00) | 0.14 (0.01) | 0.01 | 0.01 | 0.00 |
-| M4 cqt | 0.11 (0.03) | 0.15 (0.10) | 0.17 (0.14) | 0.17 (0.06) | 0.04 | 0.01 | 0.03 |
-| M5 cover | 0.25 (0.09) | 0.19 (0.11) | 0.11 (0.09) | 0.14 (0.03) | 0.02 (0.01) | 0.00 | 0.02 |
+| M1 raw | 0.05 (-0.03) | 0.02 (-0.03) | 0.01 (-0.00) | 0.03 (-0.05) | -0.01 (-0.08) | 0.01 (-0.03) | 0.00 (-0.04) |
+| M2 env | 0.01 (-0.02) | 0.03 (-0.07) | 0.06 (0.01) | -0.01 (-0.08) | 0.01 (-0.17) | 0.06 (0.01) | 0.14 (-0.05) |
+| M3 chroma | 0.16 (0.04) | 0.16 (0.11) | 0.17 (0.14) | 0.19 (0.05) | 0.04 (0.01) | 0.00 (-0.02) | 0.03 (0.00) |
+| M3 chroma hold | 0.16 (0.04) | 0.16 (0.11) | 0.17 (0.14) | 0.17 (0.05) | 0.03 (0.01) | 0.01 (-0.02) | 0.03 (0.00) |
+| M3 chroma-dtw | 0.14 (0.03) | 0.15 (0.10) | 0.07 (-0.00) | 0.14 (0.01) | 0.01 (-0.01) | 0.00 (-0.01) | -0.00 (-0.01) |
+| M4 cqt | 0.11 (0.03) | 0.15 (0.10) | 0.17 (0.14) | 0.17 (0.05) | 0.04 (0.01) | 0.01 (-0.02) | 0.03 (-0.03) |
+| M5 cover | 0.25 (0.09) | 0.19 (0.11) | 0.11 (0.09) | 0.14 (0.03) | 0.02 (0.01) | -0.00 (-0.03) | 0.02 (-0.01) |
+| M5 cover hold | 0.30 (0.10) | 0.21 (0.13) | 0.10 (0.08) | 0.19 (0.04) | 0.03 (0.01) | 0.00 (-0.04) | 0.03 (-0.00) |
 
 M3 and M5 pass the rule fixed before the run (wrong-note and extra drops
 larger than the stretch drops, on every take). The DTW variants forgive a
 trailing extra entirely on some takes (warping absorbs it); M1 and M2 do not
 respond to anything.
+
+### E5 — production spread (15 ear-training takes, own lick only)
+
+`results/prod_summary.md`. Saved grades: 11 perfect, 3 great, 1 fair. The
+first pass flagged three perfect takes at chroma 0.66–0.73 with precision
+0.88–0.96 and recall 0.56–0.66: correct notes, **held shorter than notated**
+(one lick notates a final note of five whole notes, which outruns the
+recording). That is the duration question of E3's root-frame, now in
+production, so the harness gained **hold-tolerant variants** (`_hold`: a note
+counts once half its length or one beat is held; reference frames past the
+recording's end are unknown, since the window closes on schedule):
+
+| grade | n | chroma | chroma hold | coverage | coverage hold | precision |
+|---|---|---|---|---|---|---|
+| perfect | 11 | 0.82 (0.68–0.94) | **0.91 (0.86–0.95)** | 0.82 (0.72–0.90) | **0.88 (0.84–0.91)** | 0.89 (0.79–0.93) |
+| great | 3 | 0.90 | 0.90 | 0.84 | 0.86 | 0.80 |
+| fair | 1 | 0.42 | 0.50 | 0.06 | 0.08 | 0.07 |
+
+Under hold tolerance every great/perfect take reads ≥ 0.85 on chroma (no
+disagreement in 14), matching the corpus's clean p10. The one fair take
+(blue-shake-d19422, saved 0.62) is the inverse case: the three A's were
+played ~60 ¢ flat (pyin reads them between G♯ and A), the final note was held
+flat for 2.5 s, and the note scorer still awarded rhythm 0.94 on the wrong
+pitches; the audio reads 0.42–0.50 and precision 0.07. Its held final Ab3
+was also saved as a 2.2 s "extra" Ab4 — the tenor Ab3→Ab4 detector misread,
+now seen on three takes (Wail a, Wail b, this one), with the WAV in
+`takes/prod/` for a fixture.
 
 ### Renderer
 
@@ -215,11 +253,14 @@ the need to render anything in the browser.
 1. **Build frame coverage (M5) from the existing readings first.** The live
    detector already produces one pitch reading per frame with clarity and
    RMS; a precision/recall of those readings against the expected piano roll
-   at the scorer's own lag, with the scorer's octave policy and a 120 ms
-   release tolerance, needs no synthesis, no FFT, no new DSP, and never pairs
-   notes. Report it beside the score and gate `great`/`perfect` on precision
-   (clean takes ≥ 0.86; Wail 0.52 / 0.74). This is the "extras count as
-   zero" the docs already promise, delivered without touching the aligner.
+   at the scorer's own lag, with the scorer's octave policy, a 120 ms release
+   tolerance and the hold rule for recall, needs no synthesis, no FFT, no new
+   DSP, and never pairs notes. Report it beside the score and gate
+   `great`/`perfect` on **precision** (corpus clean takes ≥ 0.86, production
+   perfect takes 0.79–0.93; Wail 0.52 / 0.74; the flat Blue Shake 0.07).
+   Precision is the duration-blind half, so it needs no policy decision.
+   This is the "extras count as zero" the docs already promise, delivered
+   without touching the aligner.
 2. **Then chroma similarity (M3) against a template** as the independent
    audio-side check: 12-bin chroma per frame from the analyser spectrum (or
    the blob on rescore), a ±1 s lag search, mean cosine with silence
@@ -237,9 +278,11 @@ the need to render anything in the browser.
 
 **Open for Andy.** (a) Should a held note released early cost? (b) Gate the
 grade, blend into `overall`, or badge only? (c) The articulation blind spot:
-accept it, or revisit the onset worklet. (d) Production takes: the harness
-reads any export dropped into `takes/prod/`; Chrome was not connected this
-session.
+accept it, or revisit the onset worklet. (d) Lick-practice takes are
+unscorable from the cloud: if production-side analysis of Deep/Daily takes
+matters, the window's lick id, key and tempo need to travel with the blob
+(a `lick_practice_results` row, or metadata on the storage object). (e) The
+tenor Ab3→Ab4 misread has three takes now.
 
 ## Portability notes
 

@@ -25,6 +25,8 @@ verdict and numbers are in [REPORT.md](REPORT.md).
   cross-correlation, M3 chroma similarity (no warp / banded DTW), M4 the same
   on the semitone map (register-aware), M5 frame-level pitch coverage
   (precision/recall/F1 of pyin frames against the expected piano roll).
+- `harness/prod_import.py` / `harness/prod_eval.py` — pull and score
+  production takes (E5).
 - `harness/evaluate.py` — E1 discrimination (own lick vs transpositions and
   other licks), E2 agreement with the per-take truth, E3 named cases,
   E4 controlled perturbations. Writes `results/`.

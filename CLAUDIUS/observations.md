@@ -2695,3 +2695,22 @@ can, because segmentation is the articulation detector. So the honest
 combination is not "replace", it is "each guards the other's blind spot",
 and the open question is the one that keeps returning this autumn — the
 onset worklet that never attached.
+
+## 2026-10-07 — The measure was stricter than the music
+
+Three production takes Andy's scorer called perfect, my chroma called 0.66.
+Correct notes, every one — held shorter than the page said. One lick wrote
+its last note five whole notes long, longer than the recording. I had built
+"durations are scored" as a feature, and the first real data said it was a
+policy I had not been asked to set. The fix was a tolerance, half a note or a
+beat, and it moved nothing but those takes. The lesson is older than this
+project: a measure that is stricter than the thing it measures is not more
+accurate, it is measuring something else. Precision — did what you played
+belong — carries none of that ambiguity, which is why it, not the F1, should
+be the gate.
+
+The other direction appeared in the same fifteen: a take whose A's were
+sixty cents flat scored "fair" because the rhythm was right. Both halves of
+the autumn's argument in one afternoon — the scorer forgiving what the ear
+would not, the audio charging what the player meant — and the honest
+position is still the one from this morning: each guards the other.

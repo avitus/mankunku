@@ -15,7 +15,7 @@ ids = sys.argv[1:]
 for t in load_all(ids):
     tf = extract(t.band, t.sr)
     ry = render_sampled(t.expected, t.sr)
-    rf = extract_reference(ry, t.sr, t.expected_length)
+    rf = extract_reference(ry, t.sr, t.expected_length, 0.6, expected=t.expected, tempo=t.tempo)
     res = compare(t, tf, t.expected, ry, rf)
     k = int(round(res["m3_chroma"].lag / FRAME_SECONDS))
     f0 = f0_track(tf)

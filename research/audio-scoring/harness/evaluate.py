@@ -32,7 +32,8 @@ def truth_score(tr: dict) -> float:
 def reference(take: Take, expected, renderer: str):
     ry = RENDERERS[renderer](expected, take.sr)
     notated = max(n.onset + n.duration for n in expected)
-    rf = extract_reference(ry, take.sr, notated, extension_seconds=EXTENSION_BEATS * 60.0 / take.tempo)
+    rf = extract_reference(ry, take.sr, notated, extension_seconds=EXTENSION_BEATS * 60.0 / take.tempo,
+                           expected=expected, tempo=take.tempo)
     return ry, rf
 
 
@@ -43,6 +44,7 @@ def row_from(res: dict[str, Result], **meta) -> dict:
         row[m + "_lag"] = res[m].lag
     row["m5_precision"] = res["m5_cover"].extra["precision"]
     row["m5_recall"] = res["m5_cover"].extra["recall"]
+    row["m5_recall_hold"] = res["m5_cover"].extra["recall_hold"]
     row["m2_take_peaks"] = res["m2_env"].extra["take_peaks"]
     row["m2_ref_peaks"] = res["m2_env"].extra["ref_peaks"]
     return row

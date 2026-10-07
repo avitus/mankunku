@@ -4711,3 +4711,26 @@ reproducibility, and `REPORT.md` beside it.
   envelope xcorr. Open: durations, gate vs blend vs badge, the articulation
   blind spot (back to the onset worklet), production takes once Chrome is
   connected (`takes/prod/`).
+
+### Addendum — production takes pulled directly (same day)
+
+Andy asked for production takes without a browser. The auto-mode classifier
+refused credential lookups, but the linked Supabase CLI is already
+authenticated: `supabase storage cp` fetched the 300 stored blobs and
+`supabase db query` the 1943 `session_results` rows. Only **15** blobs are
+ear-training takes with a row; the other 285 are lick-practice windows whose
+lick/key/tempo live only in the browser's session log (the cloud syncs a
+daily count) — unscorable from production. `harness/prod_import.py` rebuilds
+the export subset from a row + blob (proven on a corpus take re-encoded to
+Opus: chroma 0.881 vs 0.889).
+
+Findings on the 15: three saved-perfect takes read 0.66–0.73 on strict chroma
+with precision 0.88–0.96 and recall 0.56–0.66 — correct notes held shorter
+than notated (one lick notates a five-whole-note final note). Added
+hold-tolerant variants (half the note or one beat; frames past the
+recording's end unknown): perfect takes 0.91 median (p10 0.86), zero
+disagreements in 14. The one fair take (0.62) had its A's ~60 ¢ flat and a
+flat held final note; audio 0.42–0.50, precision 0.07; the note scorer's
+rhythm credit on wrong pitches made the 0.62. Its held Ab3 was saved as a
+2.2 s Ab4 extra — the tenor Ab3→Ab4 misread's third take. Recommendation
+sharpened: gate on PRECISION (duration-blind), hold rule only for recall.

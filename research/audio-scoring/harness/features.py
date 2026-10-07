@@ -37,6 +37,7 @@ class Features:
     onset_env: np.ndarray  # (T,)
     scored: np.ndarray | None = None  # (T,) reference-only: frames compared (notated span + extension)
     required: np.ndarray | None = None  # (T,) reference-only: notated span; missing from the take = missed
+    optional: np.ndarray | None = None  # (T,) reference-only: the back of a held note (hold-tolerant variants)
     f0_midi: np.ndarray | None = None  # (T,) nan where unvoiced (pyin), lazily computed
 
     @property
@@ -75,7 +76,11 @@ def extract(y: np.ndarray, sr: int) -> Features:
                     sounding=sounding, onset_env=onset_env, scored=scored)
 
 
-def extract_reference(y: np.ndarray, sr: int, notated_seconds: float, extension_seconds: float = 0.0) -> Features:
+HOLD_REQUIRED_FRACTION = 0.5  # hold-tolerant variants: a note counts once this much of it (or one beat) is held
+
+
+def extract_reference(y: np.ndarray, sr: int, notated_seconds: float, extension_seconds: float = 0.0,
+                      expected=None, tempo: float | None = None) -> Features:
     """A rendering's features with two masks: `required` = the notated span
     (+1 frame; a take that does not reach these frames missed them) and
     `scored` = required plus `extension_seconds` after the line, where the
@@ -92,6 +97,15 @@ def extract_reference(y: np.ndarray, sr: int, notated_seconds: float, extension_
     f.scored = np.zeros(f.frames, dtype=bool); f.scored[:m] = True
     # the padded tail is silent by construction; make sure the gate agrees
     f.sounding[n:] &= f.energy_db[n:] > SILENCE_DB
+    f.optional = np.zeros(f.frames, dtype=bool)
+    if expected is not None and tempo:
+        beat = 60.0 / tempo
+        for note in expected:
+            held = max(HOLD_REQUIRED_FRACTION * note.duration, min(note.duration, beat))
+            a = int(round((note.onset + held) / FRAME_SECONDS))
+            b = int(round((note.onset + note.duration) / FRAME_SECONDS))
+            if b > a:
+                f.optional[a:min(b, f.frames)] = True
     return f
 
 

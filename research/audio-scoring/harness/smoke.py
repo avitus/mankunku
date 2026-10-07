@@ -12,7 +12,7 @@ for t in load_all(ids):
     print(f"== {t.id} saved={t.saved_overall} sounding={tf.sounding.mean():.2f} frames={tf.frames} ({time.time()-t0:.1f}s features)")
     for name, render in RENDERERS.items():
         ry = render(t.expected, t.sr)
-        rf = extract_reference(ry, t.sr, t.expected_length)
+        rf = extract_reference(ry, t.sr, t.expected_length, 0.6, expected=t.expected, tempo=t.tempo)
         t1 = time.time()
         res = compare(t, tf, t.expected, ry, rf)
         print(f"  [{name:9s}] " + "  ".join(f"{m}={res[m].similarity:.3f}@{res[m].lag:.2f}" for m in METRIC_NAMES) + f"  ({time.time()-t1:.1f}s)")

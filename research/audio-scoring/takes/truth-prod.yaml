@@ -1,0 +1,91 @@
+# Production takes imported by harness/prod_import.py — hits copied from the saved score, unverified.
+2026-10-06-b3-fourth-fifth-5a4770:
+  hits: 3
+  note: 'prod import: saved 0.985 perfect, 3/3; swing from user_settings'
+  real_extras: 0
+  total: 3
+  verified: false
+2026-10-06-b3-fourth-fifth-ef1858:
+  hits: 3
+  note: 'prod import: saved 0.981 perfect, 3/3; swing from user_settings'
+  real_extras: 0
+  total: 3
+  verified: false
+2026-10-06-blue-note-to-fifth-31db04:
+  hits: 3
+  note: 'prod import: saved 0.989 perfect, 3/3; swing from user_settings'
+  real_extras: 0
+  total: 3
+  verified: false
+2026-10-06-flat-seven-neighbor-971934:
+  hits: 3
+  note: 'prod import: saved 0.960 perfect, 3/3; swing from user_settings'
+  real_extras: 0
+  total: 3
+  verified: false
+2026-10-06-flat-third-fifth-bfec50:
+  hits: 2
+  note: 'prod import: saved 0.941 great, 2/2; swing from user_settings'
+  real_extras: 0
+  total: 2
+  verified: false
+2026-10-06-fourth-fifth-21de62:
+  hits: 2
+  note: 'prod import: saved 0.940 great, 2/2; swing from user_settings'
+  real_extras: 0
+  total: 2
+  verified: false
+2026-10-06-full-pent-down-67f810:
+  hits: 5
+  note: 'prod import: saved 0.988 perfect, 5/5; swing from user_settings'
+  real_extras: 0
+  total: 5
+  verified: false
+2026-10-07-blue-shake-a55e5b:
+  hits: 5
+  note: 'prod import: saved 0.975 perfect, 5/5; swing from user_settings'
+  real_extras: 0
+  total: 5
+  verified: false
+2026-10-07-blue-shake-d19422:
+  hits: 2
+  note: 'prod import: saved 0.615 fair, 2/5; swing from user_settings'
+  real_extras: 0
+  total: 5
+  verified: false
+2026-10-07-climb-and-cry-d6ea28:
+  hits: 6
+  note: 'prod import: saved 0.992 perfect, 6/6; swing from user_settings'
+  real_extras: 0
+  total: 6
+  verified: false
+2026-10-07-four-to-five-3174e3:
+  hits: 4
+  note: 'prod import: saved 0.945 great, 4/4; swing from user_settings'
+  real_extras: 0
+  total: 4
+  verified: false
+2026-10-07-fourth-fifth-push-8c9d34:
+  hits: 2
+  note: 'prod import: saved 0.958 perfect, 2/2; swing from user_settings'
+  real_extras: 0
+  total: 2
+  verified: false
+2026-10-07-root-climb-057ad6:
+  hits: 5
+  note: 'prod import: saved 0.997 perfect, 5/5; swing from user_settings'
+  real_extras: 0
+  total: 5
+  verified: false
+2026-10-07-sixth-flavor-9f81a7:
+  hits: 5
+  note: 'prod import: saved 0.982 perfect, 5/5; swing from user_settings'
+  real_extras: 0
+  total: 5
+  verified: false
+2026-10-07-up-and-over-3a04cc:
+  hits: 6
+  note: 'prod import: saved 0.990 perfect, 6/6; swing from user_settings'
+  real_extras: 0
+  total: 6
+  verified: false

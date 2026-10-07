@@ -33,6 +33,15 @@ def frame_similarity(ref: np.ndarray, ref_on: np.ndarray, take: np.ndarray, take
     return np.where(both_silent, 1.0, np.where(one_silent, 0.0, cos))
 
 
+def frame_weights(ref_on: np.ndarray, take_on: np.ndarray, optional: np.ndarray | None) -> np.ndarray:
+    """1 for a scored frame, 0 where the reference holds a note past the
+    required length and the take has gone silent (hold-tolerant variants)."""
+    w = np.ones(len(ref_on))
+    if optional is not None:
+        w[optional & ref_on & ~take_on] = 0.0
+    return w
+
+
 def _spans(ref_f: Features) -> tuple[int, int]:
     """(required frames, scored frames) of a reference."""
     R = int(ref_f.required.sum()) if ref_f.required is not None else ref_f.frames
@@ -41,23 +50,26 @@ def _spans(ref_f: Features) -> tuple[int, int]:
 
 
 def sliding_similarity(ref_feat: np.ndarray, ref_on: np.ndarray, take_feat: np.ndarray, take_on: np.ndarray,
-                       lag_frames: range, spans: tuple[int, int] | None = None) -> tuple[np.ndarray, list[int]]:
+                       lag_frames: range, spans: tuple[int, int] | None = None,
+                       optional: np.ndarray | None = None, min_overlap: float = 0.5) -> tuple[np.ndarray, list[int]]:
     """Mean frame similarity of the reference's scored span at each lag (no
-    warping). The reference may overhang the take's end: notated frames the
-    take does not hold count as missed (0); extension frames past the end are
-    dropped from the denominator."""
+    warping). Reference frames the recording does not hold (before its start
+    or after its end — the window closes on schedule) are unknown and drop
+    out; a lag must still keep `min_overlap` of the required span inside the
+    take. With `optional`, a held note's back half that the take has released
+    is neutral."""
     R, S = (ref_feat.shape[1], ref_feat.shape[1]) if spans is None else spans
     T = take_feat.shape[1]
     lags = [k for k in lag_frames if -S < k < T]
-    sims = np.zeros(len(lags))
+    sims = np.full(len(lags), -1.0)
     for i, k in enumerate(lags):
         rs, ts, n = _overlap(k, S, T)
-        if n == 0:
+        req_inside = max(0, min(R, T - k) - rs)
+        if n == 0 or req_inside < min_overlap * R:
             continue
         s = frame_similarity(ref_feat[:, rs:rs + n], ref_on[rs:rs + n], take_feat[:, ts:ts + n], take_on[ts:ts + n])
-        # denominator: required frames from rs on (those before the recording are unknown), at least the overlap
-        denom = max(R - rs, n)
-        sims[i] = s.sum() / denom
+        w = frame_weights(ref_on[rs:rs + n], take_on[ts:ts + n], None if optional is None else optional[rs:rs + n])
+        sims[i] = (s * w).sum() / max(w.sum(), 1.0)
     return sims, lags
 
 
@@ -175,14 +187,15 @@ def best_lag(take_f: Features, ref_f: Features, feat: str, lags: range) -> tuple
     return ks[i], float(sims[i])
 
 
-def sim_at_lag(take_f: Features, ref_f: Features, feat: str, k: int) -> float:
+def sim_at_lag(take_f: Features, ref_f: Features, feat: str, k: int, hold: bool = False) -> float:
     rf, tf = getattr(ref_f, feat), getattr(take_f, feat)
     (R, S), T = _spans(ref_f), tf.shape[1]
     rs, ts, n = _overlap(k, S, T)
     if n == 0:
         return 0.0
     s = frame_similarity(rf[:, rs:rs + n], ref_f.sounding[rs:rs + n], tf[:, ts:ts + n], take_f.sounding[ts:ts + n])
-    return float(s.sum() / max(R - rs, n))
+    w = frame_weights(ref_f.sounding[rs:rs + n], take_f.sounding[ts:ts + n], ref_f.optional[rs:rs + n] if hold else None)
+    return float((s * w).sum() / max(w.sum(), 1.0))
 
 
 def dtw_similarity(take_f: Features, ref_f: Features, feat: str, k: int, band_seconds: float = 0.25) -> float:
@@ -238,14 +251,25 @@ def piano_roll(expected: list[ExpectedNote], frames: int, lag_frames: int, tail:
     return roll
 
 
+def required_roll(expected: list[ExpectedNote], frames: int, lag_frames: int, tempo: float) -> np.ndarray:
+    """Like piano_roll but each note only as long as it must be HELD: half its
+    length or one beat, whichever is longer (capped at the note)."""
+    beat = 60.0 / tempo
+    from .features import HOLD_REQUIRED_FRACTION
+    short = [ExpectedNote(n.midi, n.onset, max(HOLD_REQUIRED_FRACTION * n.duration, min(n.duration, beat)), n.offset_frac, n.duration_frac)
+             for n in expected]
+    return piano_roll(short, frames, lag_frames)
+
+
 def m5_frame_coverage(take_f: Features, expected: list[ExpectedNote], lag_frames: int,
-                      octave_insensitive: bool, tolerance_st: float = 0.5) -> Result:
+                      octave_insensitive: bool, tolerance_st: float = 0.5, tempo: float | None = None) -> Result:
     f0 = f0_track(take_f)
     T = take_f.frames
     roll = piano_roll(expected, T, lag_frames)
     roll_tail = piano_roll(expected, T, lag_frames, tail=RELEASE_TOLERANCE)
     sounded = ~np.isnan(f0) & take_f.sounding
     exp_on = ~np.isnan(roll)
+    req_on = ~np.isnan(required_roll(expected, T, lag_frames, tempo)) if tempo else exp_on
 
     def matches(r):
         d = f0 - r
@@ -257,10 +281,12 @@ def m5_frame_coverage(take_f: Features, expected: list[ExpectedNote], lag_frames
     match_or_release = matches(roll_tail)
     precision = match_or_release.sum() / max(1, sounded.sum())
     recall = match.sum() / max(1, exp_on.sum())
+    recall_hold = (match & req_on).sum() / max(1, req_on.sum())
     f1 = 2 * precision * recall / max(1e-9, precision + recall)
+    f1_hold = 2 * precision * recall_hold / max(1e-9, precision + recall_hold)
     return Result(float(f1), lag_frames * FRAME_SECONDS,
-                  {"precision": float(precision), "recall": float(recall),
-                   "sounded_frames": int(sounded.sum()), "expected_frames": int(exp_on.sum())})
+                  {"precision": float(precision), "recall": float(recall), "recall_hold": float(recall_hold),
+                   "f1_hold": float(f1_hold), "sounded_frames": int(sounded.sum()), "expected_frames": int(exp_on.sum())})
 
 
 # ----------------------------------------------------------------------------
@@ -283,9 +309,13 @@ def compare(take: Take, take_f: Features, expected: list[ExpectedNote], ref_y: n
     out["m4_cqt"] = Result(s4, k4 * FRAME_SECONDS)
     out["m4_cqt_dtw"] = Result(dtw_similarity(take_f, ref_f, "cqt", k4, band), k4 * FRAME_SECONDS)
     out["m2_env_at"] = m2_envelope_xcorr(take_f, ref_f, lags, at_lag=k3)
-    out["m5_cover"] = m5_frame_coverage(take_f, expected, k3, oi)
-    out["m5_cover_strict"] = m5_frame_coverage(take_f, expected, k3, False)
+    out["m3_chroma_hold"] = Result(sim_at_lag(take_f, ref_f, "chroma", k3, hold=True), k3 * FRAME_SECONDS)
+    out["m4_cqt_hold"] = Result(sim_at_lag(take_f, ref_f, "cqt", k4, hold=True), k4 * FRAME_SECONDS)
+    m5 = m5_frame_coverage(take_f, expected, k3, oi, tempo=take.tempo)
+    out["m5_cover"] = m5
+    out["m5_cover_hold"] = Result(m5.extra["f1_hold"], k3 * FRAME_SECONDS, dict(m5.extra))
+    out["m5_cover_strict"] = m5_frame_coverage(take_f, expected, k3, False, tempo=take.tempo)
     return out
 
 
-METRIC_NAMES = ["m1_raw", "m2_env", "m2_env_at", "m3_chroma", "m3_chroma_dtw", "m4_cqt", "m4_cqt_dtw", "m5_cover", "m5_cover_strict"]
+METRIC_NAMES = ["m1_raw", "m2_env", "m2_env_at", "m3_chroma", "m3_chroma_hold", "m3_chroma_dtw", "m4_cqt", "m4_cqt_hold", "m4_cqt_dtw", "m5_cover", "m5_cover_hold", "m5_cover_strict"]
