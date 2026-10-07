@@ -2633,3 +2633,23 @@ Three layers of test, each faithful to its own slice, none to the seam. The
 browser experiment that settled it was one JavaScript call against a running
 dev server. "Does this code run in production" is a question the tests
 cannot answer for you when the tests are the only thing that ever ran it.
+
+## 2026-10-06 — The score measures recall, and the docs describe precision too
+
+The Wail takes made something visible that the corpus work had hidden: the
+score is a RECALL measure. It asks whether each written note found a
+partner, never what else was played. Every detection fix this autumn has
+leaned on that — a phantom split, a click sliver, a cracked attack all
+become "extra, costs nothing" — so free extras turned into the detector's
+shock absorber without anyone deciding it. Six integration tests depend on
+it and none says so. Meanwhile the user-facing docs promise the opposite.
+
+The aligner then compounds it. With a miss + stray at 3.0 against a pair
+capped at 2.0, a written note is never missed while anything sounded near
+it, and the wrong partner gets rhythm credit. Fumbling around the right
+place earns more than leaving a rest: the scale rewards noise.
+
+My first draft blamed octave blindness and was wrong — the acoustic check
+showed the opposite (the allowance was covering a detector error). Worth
+remembering: in this codebase "the scorer is lenient" and "the detector is
+wrong" keep masking each other, and only the audio settles which is which.
