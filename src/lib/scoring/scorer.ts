@@ -11,6 +11,10 @@
  *   3. Per-note rhythm is scored against the corrected onsets.
  *
  * Composite: overall = pitchAccuracy * 0.6 + rhythmAccuracy * 0.4
+ *
+ * Both accuracies are averaged over the expected notes PLUS the extras
+ * that count (`extras.ts`, 2026-10-07): an extra the player plausibly made
+ * is a zero in both, a detector artefact stays free.
  */
 
 import type { Phrase, Note } from '$lib/types/music';
@@ -20,6 +24,7 @@ import { alignNotes } from './alignment';
 import { scorePitch, pitchMatches } from './pitch-scoring';
 import { scoreRhythm } from './rhythm-scoring';
 import { scoreToGrade } from './grades';
+import { chargeableExtras } from './extras';
 import { fractionToFloat } from '$lib/music/intervals';
 import { extractSoundingNotes, type SoundingNote } from '$lib/music/expression';
 
@@ -117,6 +122,16 @@ export function scoreAttempt(
 		onsetTime: d.onsetTime - latencyCorrection
 	}));
 
+	// Step 3b: which unpaired detected notes count against the score.
+	const pairedIdx = new Set<number>();
+	const extraIdx: number[] = [];
+	for (const pair of pairs) {
+		if (pair.detectedIndex === null) continue;
+		if (pair.expectedIndex !== null) pairedIdx.add(pair.detectedIndex);
+		else extraIdx.push(pair.detectedIndex);
+	}
+	const charged = new Set(chargeableExtras(corrected, extraIdx, pairedIdx, expected, tempo, swing));
+
 	const noteResults: NoteResult[] = [];
 	const perNoteOffsetMs: (number | null)[] = [];
 	const signedOffsets: number[] = [];
@@ -168,6 +183,11 @@ export function scoreAttempt(
 			});
 		} else if (pair.detectedIndex !== null) {
 			perNoteOffsetMs.push(null);
+			const isCharged = charged.has(pair.detectedIndex);
+			// A charged extra is a zero in both accuracies: it widens the
+			// denominators and adds nothing. A free one (a detector artefact)
+			// is reported but never scored.
+			if (isCharged) scoredCount++;
 
 			noteResults.push({
 				expected: expected[0],
@@ -175,7 +195,8 @@ export function scoreAttempt(
 				pitchScore: 0,
 				rhythmScore: 0,
 				missed: false,
-				extra: true
+				extra: true,
+				...(isCharged ? { charged: true as const } : {})
 			});
 		}
 	}
@@ -202,6 +223,7 @@ export function scoreAttempt(
 
 	return {
 		pitchAccuracy,
+		extrasCharged: charged.size,
 		rhythmAccuracy,
 		overall,
 		grade: scoreToGrade(overall),

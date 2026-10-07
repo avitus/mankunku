@@ -18,7 +18,7 @@ The old pitch/rhythm complexity lines and the derived "Level" midpoint no longer
 
 ### 1. Missed / extra notes zero both dimensions (biggest effect)
 
-In `scoreAttempt` (`src/lib/scoring/scorer.ts`), any note the DTW aligner marks as `missed` or `extra` produces:
+In `scoreAttempt` (`src/lib/scoring/scorer.ts`), any note the DTW aligner marks as `missed`, and any `extra` that `scoring/extras.ts` judges a note the player made (since 2026-10-07; detector artefacts — slivers, splits, the window-open click, scoops — stay free), produces:
 
 ```ts
 { pitchScore: 0, rhythmScore: 0 }

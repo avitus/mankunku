@@ -14,6 +14,13 @@ export interface NoteResult {
 	missed: boolean;
 	/** True if this is an extra note not in the phrase */
 	extra: boolean;
+	/**
+	 * True when an extra counted against the score (`scoring/extras.ts`):
+	 * a confident, full-length note inside the line that is neither a split
+	 * of its neighbour nor a short transition beside one. Absent on free
+	 * extras and on every result scored before 2026-10-07.
+	 */
+	charged?: true;
 }
 
 export interface TimingDiagnostics {
@@ -39,6 +46,11 @@ export interface Score {
 	notesHit: number;
 	/** Total expected notes */
 	notesTotal: number;
+	/**
+	 * Extras that counted as zeros in both accuracies (`scoring/extras.ts`).
+	 * Absent on scores saved before 2026-10-07, when every extra was free.
+	 */
+	extrasCharged?: number;
 	/** Timing diagnostics: bias, spread, and per-note offsets */
 	timing: TimingDiagnostics;
 }

@@ -25,7 +25,7 @@ Find the minimum-cost alignment between two note sequences.
 **Returns:** `AlignmentPair[]` where each pair is one of:
 - `{ expectedIndex, detectedIndex, cost }` — matched pair
 - `{ expectedIndex, detectedIndex: null, cost }` — missed note
-- `{ expectedIndex: null, detectedIndex, cost }` — extra note
+- `{ expectedIndex: null, detectedIndex, cost }` — extra note (charged against both accuracies only when `scoring/extras.ts` judges it a note the player made; `NoteResult.charged` marks those, `Score.extrasCharged` counts them)
 
 **Cost function:**
 
@@ -34,7 +34,7 @@ Find the minimum-cost alignment between two note sequences.
 | Same MIDI note (`pitchMatches`) | `0.0` pitch + rhythm distance |
 | 1 semitone off | `0.5` pitch |
 | 2+ semitones off | `1.0` pitch (capped) |
-| Skip (missed/extra) | `2.0` flat penalty |
+| Skip (missed/extra) | `1.5` flat penalty (`SKIP_COST`; the delay-reading first pass uses `2.0`) |
 | Rhythm | `\|expectedOnset - detectedOnset\| / beatDuration` (capped at 1.0) |
 
 ---
