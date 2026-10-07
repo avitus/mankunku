@@ -20,7 +20,7 @@ from scipy.signal import butter, sosfiltfilt
 ROOT = Path(__file__).resolve().parents[1]
 REPO = ROOT.parents[1]
 CORPUS = REPO / "tests" / "fixtures" / "recordings"
-TAKE_DIRS = [CORPUS, ROOT / "takes" / "downloads", ROOT / "takes" / "prod"]
+TAKE_DIRS = [CORPUS, ROOT / "takes" / "downloads", ROOT / "takes" / "prod"]  # prod/raw/ holds the undecoded blobs
 
 # Instrument band for the comparison. Tenor's lowest concert note is Ab2
 # (103.8 Hz); the digital metronome mixed into the blob is a C1 kick plus
@@ -128,8 +128,12 @@ def load_overrides() -> dict:
 
 
 def load_truth() -> dict:
-    p = ROOT / "takes" / "truth.yaml"
-    return yaml.safe_load(p.read_text()) if p.exists() else {}
+    out = {}
+    for name in ("truth.yaml", "truth-prod.yaml"):
+        p = ROOT / "takes" / name
+        if p.exists():
+            out.update(yaml.safe_load(p.read_text()) or {})
+    return out
 
 
 def discover() -> dict[str, tuple[Path, Path | None]]:
