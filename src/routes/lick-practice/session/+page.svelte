@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { precedingCycleRow } from '$lib/ui/key-stack-layout';
 	import { keyLabel } from '$lib/music/notation';
 	import { abcjsLoader } from '$lib/notation/abcjs-loader';
 	import { onMount, onDestroy } from 'svelte';
@@ -199,6 +200,7 @@
 	// transport.ticks via startBeatTracking().
 	let plannedKeysForLick = $state<PlannedKey[]>([]);
 	let nextCycleKey = $state<PlannedKey | null>(null);
+	let precedingKey = $state<PlannedKey | null>(null);
 	// Audio must be queued during lookahead, but the chart must retain the
 	// sounding cycle until its final beat has actually finished.
 	let pendingCycleDisplay: {
@@ -690,7 +692,10 @@
 		// new lick starts; the tick layout the scroll reads is installed with
 		// the windows (scheduleLickWindows), from the same plan.
 		if (boundaryTime === undefined) {
-			plannedKeysForLick = getPlannedKeysForLick(lickIdx);
+			const rows = getPlannedKeysForLick(lickIdx);
+			precedingKey = !isFirstLick && lickPractice.mode === 'single-lick' && currentItem?.kind !== 'trick'
+				? precedingCycleRow(plannedKeysForLick, rows, precedingKey) : null;
+			plannedKeysForLick = rows;
 			nextCycleKey = getHandoffPreviewKey(lickIdx);
 			rowOfKey = rowIndexByKey(plannedKeysForLick);
 			cycleLayout = null;
@@ -1121,6 +1126,8 @@
 					? transport.getTicksAtTime(toneModule.immediate())
 					: transport.ticks;
 				if (pendingCycleDisplay && ticks >= pendingCycleDisplay.startTick) {
+					precedingKey = currentItem?.kind !== 'trick'
+						? precedingCycleRow(plannedKeysForLick, pendingCycleDisplay.rows, precedingKey) : null;
 					plannedKeysForLick = pendingCycleDisplay.rows;
 					nextCycleKey = pendingCycleDisplay.preview;
 					rowOfKey = rowIndexByKey(plannedKeysForLick);
@@ -1728,6 +1735,7 @@
 	// field leaves the new session animating against the old session's ticks.
 	function resetPageLocalSessionState(): void {
 		plannedKeysForLick = [];
+		precedingKey = null;
 		scrollFraction = 0;
 		currentBeat = 0;
 		cycleLayout = null;
@@ -2146,6 +2154,7 @@
 					deep={lickPractice.mode === 'single-lick' && currentItem.kind !== 'trick'}
 					plannedKeys={plannedKeysForLick}
 					{nextCycleKey}
+					{precedingKey}
 					{scrollFraction}
 					{currentBeat}
 					isPlaying={isSessionRunning}

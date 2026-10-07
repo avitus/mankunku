@@ -27,7 +27,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { keyStackLayout } from '$lib/ui/key-stack-layout';
+import { keyStackLayout, precedingCycleRow } from '$lib/ui/key-stack-layout';
 
 const SLOT = 105;
 const VISIBLE = 3;
@@ -178,5 +178,30 @@ describe('keyStackLayout', () => {
 			currentRow: 0,
 			viewportHeight: SLOT * VISIBLE
 		});
+	});
+});
+
+
+describe('Deep cycle chart continuity', () => {
+	const eb = { lickId: 'wail', key: 'Eb' };
+	const bb = { lickId: 'wail', key: 'Bb' };
+	it('keeps the previewed Bb on line two after the Eb handoff', () => {
+		const preceding = precedingCycleRow([eb], [bb, eb], null);
+		expect(preceding).toBe(eb);
+		const before = keyStackLayout([128, 128], 0.99, 128, 3, 128);
+		const after = keyStackLayout([128, 128, 128], 1, 128, 3, 128);
+		expect(rowTop([128, 128], 1, before.translateY)).toBe(128);
+		expect(rowTop([128, 128, 128], after.currentRow, after.translateY)).toBe(128);
+	});
+	it('keeps a same-key retry in place without creating a duplicate row', () => {
+		expect(precedingCycleRow([bb, eb], [eb], null)).toBe(bb);
+		expect(precedingCycleRow([eb], [eb], bb)).toBe(bb);
+		expect(precedingCycleRow([eb], [eb], null)).toBeNull();
+	});
+	it('carries only the last finished row across ordinary Deep reorder and refill', () => {
+		expect(precedingCycleRow([eb, bb], [eb, bb], null)).toBe(bb);
+		expect(precedingCycleRow([eb, bb], [eb], eb)).toBe(bb);
+		expect(precedingCycleRow([], [eb], bb)).toBeNull();
+		expect(precedingCycleRow([eb], [], bb)).toBeNull();
 	});
 });

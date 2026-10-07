@@ -1,19 +1,21 @@
 # Daily, standalone Deep and recommended Deep Practice: state machines
 
-Code audit: 2026-10-06. Daily and both Deep entry paths share notation layout and current-action cues. Deep keeps preparation for score-dependent changes while removing sheet-only pauses. This document concerns lick practice, not tune practice or trick drills. Focused progression sessions retain their existing presentation and sheet preparation.
+Code audit: 2026-10-07. Daily and both Deep entry paths share notation layout and current-action cues. Deep keeps preparation for score-dependent changes while removing sheet-only pauses. This document concerns lick practice, not tune practice or trick drills. Focused progression sessions retain their existing presentation and sheet preparation.
 
 ## Deep transition audit: predictable next action
+
+The Eb/Bb report exposed two additional omissions: cycle replacement discarded the completed row, so a previewed key jumped to the top and its predecessor’s score followed a future occurrence; and notation depended on lagging scores without an explicit successful-turn exit. Both Deep paths now carry one completed row across cycle boundaries and let a final score of at least 95% earn chord-only playing. Preparation stays one bar, with a short cue at the chart’s top-left.
 
 The earlier diagrams exposed the reported bug: notation was reevaluated at a cycle boundary, while `Play → Play` explicitly included retries, tempo steps and handoffs with **zero preparation bars**. The handoff repeated the current key while a different key appeared underneath, but its cue only said “Play”. A sheet graduation at that boundary could therefore remove the sheet and demand another same-key attempt immediately. The strategy was internally consistent; the player-facing state machine was incomplete.
 
 | Boundary reviewed | Gap in the earlier diagrams | Current contract |
 | --- | --- | --- |
-| Sheet graduation, including later rows and returning keys | Support disappears on a playing downbeat | Active chart identifies the key; cue says “from memory” before recording opens, with at least one preparation bar |
+| Sheet graduation, including later rows and returning keys | Support disappears on a playing downbeat | Chord-only chart appears before recording opens, with at least one preparation bar and a plain Play countdown |
 | Earned handoff, including later admissions | Lower chart suggests advance, while current key repeats | One preparation bar saying “once more”; Play · once more during the repeat; promised chart visible underneath |
 | Focus retry, tempo step up/down, rebuild survivors, full rotation refill | Outcome depends on the just-finished score; no time to react | Keep Play through the final take; resolve result, activate its chart, announce the change and prepare for one bar |
 | Deep: three sheet passes with a different key below | Lower chart is not yet the immediate next action | Play · 1/3, 2/3, 3/3 marks the current pass; no next-key names or intervening countdowns |
-| Promised key after handoff | Already announced for an entire loop | Show its eligible sheet in the preview, then enter directly without a reading pause |
-| Ordinary Deep reorder/refill | Existing turnaround gives time, but does not explain a repeat or graduation | Reuse that bar and announce the repeat, memory change and changed BPM |
+| Promised key after handoff | Already announced for an entire loop | Keep the preview in sequence and the finished row above it; enter directly without a reading pause |
+| Ordinary Deep reorder/refill | Existing turnaround gives time, but does not explain a repeat or graduation | Reuse that bar with the resolved chart and a plain Play countdown |
 | Deep call and response | Per-key call already gives reaction time | Retain calls and turnaround; plain Listen, final-bar key-free Play countdown, steady Play through the full response |
 | Daily key/lick transitions | Upcoming sheets used to appear only at entry, requiring a reading pause | Show notation from the start in equal-height rows; continuous Play between keys, including all three sheet passes; retain two-bar inter-lick rest |
 
@@ -189,7 +191,7 @@ The old “up to speed” milestone also described the *next* BPM, rather than a
 
 ### Handoff: announce the repeat and show what follows
 
-`handoff` is an internal strategy state. After clearing the focus key at the actual target, give one unscored preparation bar, then repeat it once while the next key's chart is already visible below it, including notation when eligible. The entrance says “Play · once more”, including “from memory” if the sheet has just withdrawn; the play cue says “Play · once more”. The cue never adds another key name. Then start the promised key first in the rebuilt rotation. The final repeat cannot revoke admission or lower tempo. Its genuine score is still recorded.
+`handoff` is an internal strategy state. After clearing the focus key at the actual target, give one unscored preparation bar, then repeat it once while the next key's chart is already visible below it, including notation when eligible. The entrance and play cues both say “Play · once more”; memory and BPM prose are omitted. The cue never adds another key name. Then start the promised key first in the rebuilt rotation. The final repeat cannot revoke admission or lower tempo. Its genuine score is still recorded.
 
 Use the same one-loop handoff for later admissions: after clearing the remaining active keys, repeat the last-played key while showing the queued key. This prevents the same surprise when the rotation grows from two to three keys and beyond. Do not repeat an entire multi-key rotation just to provide notice. If there is no queued key, no handoff is needed.
 
@@ -230,15 +232,15 @@ stateDiagram-v2
 
 | Boundary | Next audio rotation | Tempo | Advance visibility |
 | --- | --- | --- | --- |
-| Focus below75% | Same focus | Subtract ceil(BPM × 3 × bump%); minimum50 | Preparation bar names same key and changed BPM |
-| Focus 75%–<95%, or missing score | Same focus | Hold | Preparation bar names same key |
-| Focus ≥95%, performed below target | Same focus | Add ceil(BPM × bump%), at least1; cap at target | Preparation bar names same key and changed BPM |
+| Focus below75% | Same focus | Subtract ceil(BPM × 3 × bump%); minimum50 | Plain Play countdown on the resolved chart |
+| Focus 75%–<95%, or missing score | Same focus | Hold | Plain Play countdown on the same chart |
+| Focus ≥95%, performed below target | Same focus | Add ceil(BPM × bump%), at least1; cap at target | Plain Play countdown on the resolved chart |
 | Focus ≥95%, performed at target | Repeat focus once; reserve queue head | Hold target | One preparation bar names repeat; reserved key appears underneath for the whole loop |
-| Handoff loop ends, any score or missing score | Reserved key **first**, then previously admitted keys worst first | Hold | The promised chart becomes active on the audible downbeat |
-| Rebuild has survivors | Survivors worst first | Hold target | Preparation names resolved head before playing |
+| Handoff loop ends, any score or missing score | Reserved key **first**, then previously admitted keys worst first | Hold | The promised chart becomes active on the audible downbeat, with the completed row and its score retained above |
+| Rebuild has survivors | Survivors worst first | Hold target | Resolved head chart plus plain Play countdown |
 | Rebuild clears | Repeat last-played key once; reserve queue head | Hold target | Preparation announces repeat; reserved chart below it |
-| All keys admitted, survivors | Survivors worst first | Hold | Preparation names resolved head before playing |
-| All keys admitted, full clear | Full currently unlocked circle worst first | Bump, maximum300 | Preparation names new head and BPM |
+| All keys admitted, survivors | Survivors worst first | Hold | Resolved head chart plus plain Play countdown |
+| All keys admitted, full clear | Full currently unlocked circle worst first | Bump, maximum300 | Resolved head chart plus plain Play countdown |
 
 Example with target83 and default1% bump:
 
@@ -248,7 +250,7 @@ sequenceDiagram
     participant U as Chart
     participant E as Engine
     P->>E: Pass focus at 82
-    E->>U: Play, same key, 83 BPM entrance cue
+    E->>U: Chord-only chart and PLAY entrance countdown
     Note over P,U: One unscored preparation bar
     E->>P: Play focus at 83
     P->>E: Pass focus at 83
@@ -259,31 +261,33 @@ sequenceDiagram
     Note over P,U: Full lick-length preview, including sheet when eligible
     P->>E: Finish repeat, even with a mistake
     E->>E: Persist actual result, honor reserved admission
-    E->>U: Activate previewed key on audible downbeat
+    E->>U: Activate previewed row on audible downbeat; keep prior row and score above
     E->>P: Continue with previewed key at 83
 ```
 
-If that newly admitted key needs notation, its preview shows the sheet immediately. It joins directly with three continuous sheet passes. Once the ramp completes, refill/reordering remains score-driven and gets the same one-bar preparation showing the resolved active chart, a same-key repeat, any sheet graduation and changed BPM. During the preceding take, Play stays steady; the outcome is announced only after scoring resolves it.
+If that newly admitted key needs notation, its preview shows the sheet immediately. It joins directly with three continuous sheet passes. Once the ramp completes, refill/reordering remains score-driven and gets the same one-bar preparation showing the resolved active chart and a plain Play countdown. During the preceding take, Play stays steady; the outcome is announced only after scoring resolves it.
 
 ## 5. Notation decision and learning substates
 
 ```mermaid
 flowchart TD
-    Build[Build next cycle] --> Legacy{Newest unlocked key AND fewer than 12 unlocked AND defined rolling below75?}
+    Build[Build next cycle] --> Deep{Deep Practice?}
+    Deep -->|No| Legacy{Newest unlocked key AND fewer than 12 unlocked AND rolling below75?}
     Legacy -->|Yes| Reveal[Show notation for this cycle]
-    Legacy -->|No| Deep{Deep Practice?}
-    Deep -->|No| Memory[Chord chart only]
-    Deep -->|Yes| One{Exactly one recorded attempt for key this session?}
-    One -->|Yes and score below50| Reveal
-    One -->|Yes and score at least50| Memory
-    One -->|No| Two{Last two recorded attempts average below70?}
-    Two -->|Yes| Reveal
-    Two -->|No or no attempts| Memory
+    Legacy -->|No| Memory[Chord chart only]
+    Deep -->|Yes| Clear{Any final score at least95 in this key this session?}
+    Clear -->|Yes| Fresh[Consider only attempts after latest success]
+    Clear -->|No| History[Consider all attempts in this key]
+    Fresh --> Rescue{First fresh attempt below50 OR latest two average below70?}
+    History --> Rescue
+    Rescue -->|Yes| Reveal
+    Rescue -->|No and a success exists| Memory
+    Rescue -->|No and no success yet| Legacy
     Reveal --> Freeze[Freeze decision for whole cycle]
     Memory --> Freeze
     Freeze --> Prep{Revealed key in continuous mode?}
     Prep -->|No| Entrance{Head of score-dependent Deep cycle, or later sheet graduation?}
-    Entrance -->|Yes| Ready[One preparation bar, active chart and any memory change]
+    Entrance -->|Yes| Ready[One preparation bar, resolved chart and Play countdown]
     Ready --> OnePass[One play window, C and R includes a call]
     Entrance -->|No| OnePass
     Prep -->|Yes| Shared{Daily or Deep session?}
@@ -306,10 +310,10 @@ Important boundaries:
 
 - 50% exactly does not trigger the first-attempt rescue; 70% exactly does not trigger the two-attempt rescue. These use final recorded attempts, not rehearsal scores or EWMA.
 - Rescue applies to any unlocked Deep key, including older keys and fully unlocked licks. Daily uses the legacy newest-key rule only.
-- Sheet graduation is reevaluated at the next cycle: no legacy reveal and no rescue condition means return to the chord chart with an explicit “from memory” entrance cue and preparation time. A slight memory mistake does not automatically start another Listen phase in a recommended drill.
+- A final score of at least 95% graduates that key to chord-only playing on its next appearance, even when older low scores still depress its EWMA. This session-local success also resets the rescue history: only attempts after the latest success may restore notation. Without a success, the existing rolling/rescue thresholds still apply. Decisions remain frozen through the entire three-pass turn. A sheet graduation retains its preparation time, with only Play and the countdown. A slight memory mistake does not automatically start another Listen phase in a recommended drill.
 - Daily and both Deep paths show upcoming notation immediately, including an eligible handoff preview, in equal-height 128 px rows. Sheet eligibility is frozen with the stack, so charts do not turn into sheets at their downbeat. Upcoming rows remain dimmed until active.
 - Focused retains its chord placeholder, later sheet reveal, taller sheet rows and two-bar reading pause.
-- A row remains current through any result preparation and every pass. Previous-row feedback stays visible above it where the stack has room. The same compact engraving and cue clearance apply to Daily and Deep.
+- A row remains current through any result preparation and every pass. One completed row and its feedback remain above the new cycle, including at handoffs and ordinary Deep reorders/refills. Same-key retries keep their existing position. Scores attach only to the latest current/completed occurrence, never a future duplicate. The retained row is display-only and adds no recording window. The same compact engraving and cue clearance apply to Daily and Deep.
 
 ## 6. Musical cues, boundaries, and clocks
 
@@ -333,7 +337,7 @@ stateDiagram-v2
     Idle --> [*]
 ```
 
-The phase timeline is derived from the very same window plan as recording. Consecutive play windows merge into one PLAY segment. Daily and Deep use plain Listen with no countdown, key-free Play over the final demo/call bar, Play with a pass number when relevant, and Rest. Neither uses a CHANGES label or sheet-only Read cue. Deep additionally announces resolved same-key repeats, sheet graduation and changed BPM during its one-bar preparation or existing turnaround, with a Play entrance count. The handoff play cue says once more. Regular key changes and sheet passes have no count or pause. Focused retains Read and its existing entrance labels.
+The phase timeline is derived from the very same window plan as recording. Consecutive play windows merge into one PLAY segment. Daily and Deep use plain Listen with no countdown, key-free Play over the final demo/call bar, Play with a pass number when relevant, and Rest. Neither uses a CHANGES label or sheet-only Read cue. Deep uses a plain Play entrance count during its one-bar preparation or existing turnaround. It omits same-key, from-memory and BPM prose; the active chart identifies the key and notation state, and the existing tempo display shows BPM. The short cue remains on one line at the top-left, without a wrapped block beside the staff. The handoff play cue says once more. Regular key changes and sheet passes have no count or pause. Focused retains Read and its existing entrance labels.
 
 | Session/mode | Opening | Between cycles/licks |
 | --- | --- | --- |
@@ -344,7 +348,7 @@ The phase timeline is derived from the very same window plan as recording. Conse
 | Deep call and response | One count-in bar; call before each response | Existing one-bar turnaround; calls remain intentional |
 | Actually late focused callback | Opening unchanged | Recover at a future safe bar; cannot schedule audio into the past |
 
-Scheduling and display must use different notions of “now.” Tone schedules sound ahead of the speaker's audible clock. **Audible timing rule for joined cycles:** prepare the next cycle's audio/windows during lookahead, but hold the current chart, key name, active row, beat position and cue until the new cycle's audible start tick. Commit all visual cycle data together. The recording ring also waits for the audible Play phase; arming capture during audio lookahead must not illuminate it during the last preparation beat. End Session clears any pending display so a scheduled handoff cannot reappear afterward.
+Scheduling and display must use different notions of “now.” Tone schedules sound ahead of the speaker's audible clock. **Audible timing rule for joined cycles:** prepare the next cycle's audio/windows during lookahead, but hold the current chart, key name, active row, beat position and cue until the new cycle's audible start tick. Commit all visual cycle data together, carrying the completed row above the new head. The recording ring also waits for the audible Play phase; arming capture during audio lookahead must not illuminate it during the last preparation beat. End Session clears any pending display so a scheduled handoff cannot reappear afterward.
 
 ```mermaid
 sequenceDiagram
@@ -358,6 +362,7 @@ sequenceDiagram
     R->>V: Audible tick still before boundary
     V-->>R: Keep prior display, including final beat
     R->>V: Audible tick reaches boundary
+    V->>R: Retain completed row above new head; score stays on completed occurrence
     V-->>R: Activate next display atomically
     Note over A,R: Preparation vamp belongs to new cycle; recording opens after it
 ```
@@ -391,4 +396,4 @@ Scoring/recording persistence failures are caught so one failed save cannot free
 | Transport, mic windows, cycle boundary, display and report | `src/routes/lick-practice/session/+page.svelte` |
 | Chart stack, notation visibility, compact cue and geometry | `src/lib/components/lick-practice/UpcomingKeysDisplay.svelte` |
 
-Regression obligations: 82→83 alone before actual target clear; full-loop preview after clear, with eligible sheet visible; low/missing final-repeat score cannot revoke the promised key or change tempo; promised key starts first despite rolling-score reordering; later admissions receive the same preview; single-key licks need no preview; preview creates no audio/recording window; one preparation bar before a continuous handoff, no new demo; sheet graduation explicitly announced; three sheet passes numbered; resolved retry/reorder/refill/tempo change gets preparation; promised admission adds no redundant gap; old chart survives lookahead through its final audible beat; End Session cancels staged display; Daily and both Deep paths show upcoming notation immediately in equal-height rows with readable notes and chord symbols; Listen has no count, demo/call final-bar Play counts have no key names; regular sheet entrances and passes have no Read segment or pause; Deep retains result preparation, rescue thresholds and saved-tempo behavior; Focused retains its existing sheet preparation.
+Regression obligations: 82→83 alone before actual target clear; full-loop preview after clear, with eligible sheet visible; low/missing final-repeat score cannot revoke the promised key or change tempo; promised key starts first despite rolling-score reordering; later admissions receive the same preview; single-key licks need no preview; preview creates no audio/recording window; one preparation bar before a continuous handoff, no new demo; successful sheet turn graduates despite older scores; graduation gets a preparation bar; completed row stays above the new head and its score never attaches to a future duplicate; three sheet passes numbered; resolved retry/reorder/refill/tempo change gets preparation; promised admission adds no redundant gap; old chart survives lookahead through its final audible beat; End Session cancels staged display; Daily and both Deep paths show upcoming notation immediately in equal-height rows with readable notes and chord symbols; Listen has no count, demo/call final-bar Play counts have no key names; regular sheet entrances and passes have no Read segment or pause; Deep retains result preparation, rescue thresholds and saved-tempo behavior; Focused retains its existing sheet preparation.

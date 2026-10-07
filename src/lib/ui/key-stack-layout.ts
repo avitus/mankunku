@@ -112,3 +112,13 @@ export function keyStackLayout(
 
 	return { translateY, currentRow, viewportHeight };
 }
+
+/** Keep one completed row above a new Deep cycle, without duplicating a same-key retry. */
+export function precedingCycleRow<T extends { key: string; lickId: string }>(
+	previous: readonly T[], next: readonly T[], preceding: T | null
+): T | null {
+	const last = previous.at(-1);
+	if (!last || !next.length) return null;
+	return last.key === next[0].key && last.lickId === next[0].lickId
+		? previous.at(-2) ?? preceding : last;
+}
