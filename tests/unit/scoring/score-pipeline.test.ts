@@ -411,3 +411,4 @@ describe('runScorePipeline', () => {
 		expect(result.bleedLog!.filteredNotes).toBe(filteredNotes);
 	});
 });
+

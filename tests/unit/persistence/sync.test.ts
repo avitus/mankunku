@@ -289,6 +289,25 @@ describe('syncProgressToCloud', () => {
 		);
 	});
 
+	it('carries the audio check to its own column, NULL when the session has none (2026-10-07)', async () => {
+		const mock = createMockSupabase();
+		const audioCheck = { precision: 0.91, recall: 0.88, soundedFrames: 120, expectedNotes: 4 };
+		const progress: UserProgress = {
+			...TEST_PROGRESS,
+			sessions: [{ ...TEST_SESSION, audioCheck }, { ...TEST_SESSION, id: 'session-002' }]
+		};
+
+		await syncProgressToCloud(mock as any, progress);
+
+		expect(mock._upsertFn).toHaveBeenCalledWith(
+			expect.arrayContaining([
+				expect.objectContaining({ id: 'session-001', audio_check: audioCheck }),
+				expect.objectContaining({ id: 'session-002', audio_check: null })
+			]),
+			expect.objectContaining({ onConflict: 'id' })
+		);
+	});
+
 	it('returns early when user is not authenticated', async () => {
 		const mock = createMockSupabase({ user: null });
 
@@ -578,6 +597,87 @@ describe('loadProgressFromCloud', () => {
 				expect(cKey.attemptsSinceChange).toBe(2);
 				expect(cKey.totalAttempts).toBe(15);
 			}
+		}
+	});
+
+	it('restores the audio check from its column (2026-10-07)', async () => {
+		const mock = createMockSupabase({
+			tableResults: {
+				user_progress: {
+					data: {
+						user_id: 'test-user-id',
+						adaptive_state: TEST_ADAPTIVE_STATE,
+						category_progress: TEST_PROGRESS.categoryProgress,
+						key_progress: TEST_PROGRESS.keyProgress,
+						total_practice_time: 3600,
+						streak_days: 5,
+						last_practice_date: '2024-01-15',
+						updated_at: '2024-01-15T12:00:00Z'
+					},
+					error: null
+				},
+				session_results: {
+					data: [
+						{
+							id: 'session-001',
+							user_id: 'test-user-id',
+							phrase_id: 'blues-001',
+							phrase_name: 'Blues Call',
+							category: 'blues',
+							key: 'C',
+							scale_type: null,
+							tempo: 120,
+							difficulty_level: 15,
+							pitch_accuracy: 0.85,
+							rhythm_accuracy: 0.78,
+							overall: 0.82,
+							grade: 'good',
+							notes_hit: 5,
+							notes_total: 6,
+							note_results: [],
+							timing: null,
+							audio_check: { precision: 0.91, recall: 0.88, soundedFrames: 120, expectedNotes: 4 },
+							timestamp: Date.now()
+						}
+					],
+					error: null
+				},
+				scale_proficiency: {
+					data: [
+						{
+							user_id: 'test-user-id',
+							scale_id: 'blues.minor',
+							level: 25,
+							recent_scores: [70, 75, 80],
+							attempts_at_level: 8,
+							attempts_since_change: 3,
+							total_attempts: 20
+						}
+					],
+					error: null
+				},
+				key_proficiency: {
+					data: [
+						{
+							user_id: 'test-user-id',
+							key: 'C',
+							level: 30,
+							recent_scores: [80, 85],
+							attempts_at_level: 6,
+							attempts_since_change: 2,
+							total_attempts: 15
+						}
+					],
+					error: null
+				}
+			}
+		});
+
+		const result = await loadProgressFromCloud(mock as any);
+
+		expect(result.status).toBe('ok');
+		if (result.status === 'ok') {
+			expect(result.data.sessions[0].audioCheck).toEqual({ precision: 0.91, recall: 0.88, soundedFrames: 120, expectedNotes: 4 });
 		}
 	});
 

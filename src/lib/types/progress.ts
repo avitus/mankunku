@@ -1,3 +1,4 @@
+import type { AudioCheck } from '$lib/scoring/frame-coverage';
 import type { Grade, NoteResult, TimingDiagnostics } from './scoring';
 import type { PhraseCategory, PitchClass } from './music';
 import type { ScaleType } from '$lib/tonality/tonality';
@@ -69,6 +70,12 @@ export interface SessionResult {
 	noteResults: NoteResult[];
 	/** Timing diagnostics (early/late bias, spread). Optional for backward compat. */
 	timing?: TimingDiagnostics;
+	/**
+	 * The audio check shown beside the score (`scoring/frame-coverage.ts`).
+	 * Optional: absent on sessions scored before 2026-10-07 and on paths that
+	 * did not hand the pipeline their readings.
+	 */
+	audioCheck?: AudioCheck;
 }
 
 export interface LickProgress {

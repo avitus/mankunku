@@ -1,3 +1,4 @@
+import type { AudioCheck } from '$lib/scoring/frame-coverage';
 import { readPracticeTime } from './practice-time';
 /**
  * Sync orchestrator module.
@@ -175,6 +176,7 @@ export async function syncProgressToCloud(
 			notes_total: s.notesTotal,
 			note_results: s.noteResults as unknown as Json,
 			timing: (s.timing ?? null) as unknown as Json,
+			audio_check: (s.audioCheck ?? null) as unknown as Json,
 			timestamp: s.timestamp,
 			source: (s.source as string) ?? null
 		}));
@@ -374,6 +376,9 @@ export async function loadProgressFromCloud(
 			noteResults: row.note_results as unknown as NoteResult[],
 			timing: row.timing != null
 				? (row.timing as unknown as TimingDiagnostics)
+				: undefined,
+			audioCheck: row.audio_check != null
+				? (row.audio_check as unknown as AudioCheck)
 				: undefined
 		}));
 

@@ -800,7 +800,8 @@
 				swing: effectiveSwing,
 				bleedFilterEnabled: knobs.bleedFilterEnabled,
 				bleedResult,
-				octaveInsensitive: knobs.octaveInsensitive
+				octaveInsensitive: knobs.octaveInsensitive,
+				readings: rebased
 			}).chosen;
 		};
 		// One take, every accepted answer: the best match is the window's result,

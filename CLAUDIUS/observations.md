@@ -2731,3 +2731,20 @@ the answer by scanning for a landmark will hide a parser that is wrong by
 twenty-two bytes. It gave me the metadata and no timestamps, and I nearly
 took that as "good enough". The first unexplained zero is cheaper to chase
 than the tenth.
+
+## 2026-10-07 — Measure the fix on the population before shipping it to the population
+
+The adjacent thread had validated its extras gate against the regression
+suite and found it clean. The suite is forty takes chosen because the
+detector once got them wrong; the population is two thousand sessions. On
+the population the same gate charged an artefact two times in three on the
+perfect takes it touched, for two reasons no fixture had ever shown: a click
+read as a pitch before the player entered, and a scoop cut into three notes.
+Two rules fixed it, and a third idea I liked — slivers never take a slot —
+cost fifty-three takes, because a sliver and a fast real note are the same
+thing to a duration threshold. I would have shipped that one on argument.
+
+The suite proves a change does not re-break what it once broke. Only the
+population says what it breaks next. Now that the population is one query
+and one script away, "measured on production" should be the bar for any
+scoring change, and the harness that does it is now part of the repo.

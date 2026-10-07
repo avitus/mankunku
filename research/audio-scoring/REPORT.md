@@ -371,3 +371,57 @@ the aligner, with the WAV re-derivable from the profile.
 | chroma template | none | expected MIDI per frame → unit vector over pitch classes with 1/h harmonic weights |
 | lag search | 43 fps × ±1 s × 12 bins | trivial |
 | rendering audio | not needed | (`backing-bounce.ts` shows smplr `renderOffline` works if ever wanted) |
+
+
+## Path forward — what shipped (2026-10-07, after Andy's approval)
+
+Andy fixed two policies: a sharp note keeps its rhythm credit (no F2), and a
+held note released early never lowers the score (no F4; the audio check is
+duration-blind in recall as well as precision).
+
+**Step 1 — measure before deciding** (`results/fix_impact.md`,
+`results/ts_variants.csv`, `harness/fix_impact.py`, `ts/variants.ts`). Every
+saved session is a function of its saved pairs, so the real TypeScript
+scorer was run over the 1943 production sessions and the 378 Firefox takes
+under each variant:
+
+| variant | production: sessions down a grade | perfect lost | Firefox LP: charged perfect takes that read ≥ 0.90 on DTW precision | Wail (a) | Wail (b) |
+|---|---|---|---|---|---|
+| charge every extra | 727 | 252 | — | 0.47 | 0.68 |
+| the adjacent thread's gate | 395 | 75 | 17 of 26 | 0.64 | 0.88 |
+| **gate v2** (shipped) | 255 | 39 | 7 of 11 | 0.64 | 0.93 |
+| gate v2 + audio corroboration | 255 | 39 | 7 of 9 | 0.64 | 0.93 |
+| rhythm penalty 1.0 at every tempo (F3, on hold) | 99 | 45 | — | 0.85 | 0.92 |
+
+The thread's gate charged a detector artefact on two thirds of the perfect
+takes it touched (the window-open click read as a 0.2 s low pitch before
+the entry; a scooped attack cut into three notes). Gate v2 adds two rules:
+nothing more than 0.1 s before the line's first note, and a transition
+under 0.25 s within two semitones of a paired neighbour is free. Its
+remaining charges on "clean" perfect takes are quarter-tone-flat notes the
+detector read as the neighbouring semitone — wrong by the 2026-09-16 rule,
+so they stand; corroborating each charge against the pitch frames inside
+its span changes nothing. A sliver-aware aligner (slivers never take a slot)
+was also measured and REJECTED: it lowered the hit count on 53 takes,
+because short real notes at fast tempos and ghosts fall under the same
+rule; the pairing cascade needs a smarter fix.
+
+**Step 2 — shipped**: `src/lib/scoring/extras.ts` (8680385e), the gate above,
+`NoteResult.charged` and `Score.extrasCharged`; full suite 5644 passed, the
+40 expected-fail pins unchanged; docs aligned.
+
+**Step 3 — shipped**: `src/lib/scoring/frame-coverage.ts`, the audio check
+(precision frame-level, recall weighted by notated length with a 3-frame
+cover rule so an early release costs nothing), attached by the pipeline
+whenever a caller passes its readings — ear training live and rescore, lick
+practice, tune practice all do — shown in the feedback panel with a
+"disagrees" mark at a quarter's difference from pitch accuracy, persisted
+locally and in a new `session_results.audio_check` column so production
+agreement can be measured before it ever gates a grade.
+
+**Step 4 — held**: the rhythm curve, measured above (99 sessions move), is
+Andy's call with that table in hand.
+
+**Step 5 — open**: the tenor Ab3→Ab4 misread (three takes) and the
+cracked-head pairing cascade (apple-jump-78e1fd; a naive sliver rule costs
+53 takes, see above) are detection work with the takes in hand.

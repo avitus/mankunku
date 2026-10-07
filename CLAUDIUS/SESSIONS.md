@@ -4765,3 +4765,37 @@ disagreements are the informative ones: fast licks ≥ 150 BPM at the 23 ms
 hop's limit; the ghosted-C lick (policy); and apple-jump-78e1fd, saved 3/9
 with 8/9 audible — the pairing cascade in production, caught by the audio
 side.
+
+### Addendum 3 — the path forward, implemented (same day)
+
+Andy approved the recommended path and fixed two policies: a sharp note keeps
+its rhythm credit, an early release never costs.
+
+- **Step 1, measured.** The real TypeScript scorer, forked into
+  `research/audio-scoring/ts/variants.ts`, rescored all 1943 production
+  sessions and 378 Firefox takes under each candidate. Charging every extra
+  moves 727 sessions down a grade; the adjacent thread's gate 395 (75 perfect
+  lost) and charges an artefact on 17 of the 26 perfect takes it touches —
+  the window-open click read as a 0.2 s low pitch before the entry, a scoop
+  cut in three. A v2 gate (nothing > 0.1 s before the line; a < 0.25 s
+  transition within 2 st of a paired note is free) moves 255 (39 perfect) and
+  its remaining "false" charges are quarter-tone-flat notes, wrong by the
+  2026-09-16 rule. Corroborating each charge against the pitch frames inside
+  its span changed nothing. A sliver-aware aligner (slivers never take a slot)
+  LOWERED hits on 53 takes — short real notes at 150 BPM and ghosts are
+  slivers too — rejected with the number.
+- **Step 2, shipped** (8680385e): `scoring/extras.ts`, the v2 gate;
+  `NoteResult.charged`, `Score.extrasCharged`; 5644 passed, 40 pins unchanged;
+  Wail (a) 0.878 → 0.638, (b) 0.934.
+- **Step 3, shipped**: `scoring/frame-coverage.ts`, precision frame-level and
+  recall length-weighted with a 3-frame cover rule (duration-blind by
+  decision), attached by `runScorePipeline` when readings are passed (all
+  four call sites do), a feedback-panel line with a "disagrees" mark at a
+  quarter's gap from pitch accuracy, `SessionResult.audioCheck` and a new
+  `session_results.audio_check` column (migration 20261007205856) so the
+  agreement can be read from production later. The pipeline's own test file
+  mocks the scorer, so the audio-check tests live in their own file.
+- **Step 4 held** (rhythm curve: 99 sessions move — Andy's call with the
+  table); **step 5 open** (Ab3→Ab4, the cracked-head cascade).
+- `npx supabase migration new` hung in the worktree; the file it created was
+  filled by hand (same timestamp name).

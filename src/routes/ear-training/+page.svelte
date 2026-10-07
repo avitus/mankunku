@@ -622,7 +622,8 @@
 			transportSeconds,
 			swing: effectiveSwing,
 			bleedFilterEnabled: settings.bleedFilterEnabled,
-			bleedResult
+			bleedResult,
+			readings
 		});
 
 		session.bleedFilterLog = result.bleedLog;
@@ -890,7 +891,8 @@
 			transportSeconds: trimmedTransportSeconds,
 			swing,
 			bleedFilterEnabled,
-			bleedResult
+			bleedResult,
+			readings: replay.readings
 		});
 
 		const authoritativeNotes = result.useFiltered ? result.filteredNotes : result.detected;

@@ -16,6 +16,9 @@ import type { Phrase } from '$lib/types/music';
 import type { DetectedNote } from '$lib/types/audio';
 import type { Score, BleedFilterLog } from '$lib/types/scoring';
 import { scoreAttempt } from './scorer';
+import { frameCoverage } from './frame-coverage';
+import { extractSoundingNotes } from '$lib/music/expression';
+import type { PitchReading } from '$lib/audio/pitch-frame';
 
 export interface ScorePipelineInputs {
 	detected: DetectedNote[];
@@ -33,6 +36,13 @@ export interface ScorePipelineInputs {
 	 * Defaults to false — ear-training and call-response both stay strict.
 	 */
 	octaveInsensitive?: boolean;
+	/**
+	 * The detector's confident readings on the same clock as `detected`.
+	 * When given, every score carries `audioCheck` (`frame-coverage.ts`): a
+	 * frame-level precision/recall against the line, placed on the phrase
+	 * clock through the score's own latency correction.
+	 */
+	readings?: PitchReading[];
 }
 
 export interface ScorePipelineResult {
@@ -64,17 +74,39 @@ export function runScorePipeline(inputs: ScorePipelineInputs): ScorePipelineResu
 		swing,
 		bleedFilterEnabled,
 		bleedResult,
-		octaveInsensitive = false
+		octaveInsensitive = false,
+		readings
 	} = inputs;
 
-	const unfilteredScore = scoreAttempt(
+	// The audio check reads the detector's own frames against the line on the
+	// phrase clock — placed there through the score's latency correction, the
+	// same constant the scorer removed from the detected onsets.
+	const withAudioCheck = (score: Score): Score => {
+		if (!readings) return score;
+		const sounding = extractSoundingNotes(phrase.notes).map((n) => ({
+			pitch: n.pitch,
+			offset: n.offset,
+			duration: n.duration
+		}));
+		const audioCheck = frameCoverage(
+			readings,
+			sounding,
+			tempo,
+			swing,
+			score.timing.latencyCorrectionMs / 1000,
+			octaveInsensitive
+		);
+		return { ...score, audioCheck };
+	};
+
+	const unfilteredScore = withAudioCheck(scoreAttempt(
 		phrase,
 		detected,
 		tempo,
 		transportSeconds,
 		swing,
 		octaveInsensitive
-	);
+	));
 
 	let filteredScore: Score | null = null;
 	let filteredNotes: DetectedNote[] = detected;
@@ -82,14 +114,14 @@ export function runScorePipeline(inputs: ScorePipelineInputs): ScorePipelineResu
 
 	if (bleedResult) {
 		filteredNotes = bleedResult.kept;
-		filteredScore = scoreAttempt(
+		filteredScore = withAudioCheck(scoreAttempt(
 			phrase,
 			filteredNotes,
 			tempo,
 			transportSeconds,
 			swing,
 			octaveInsensitive
-		);
+		));
 		bleedLog = {
 			totalNotes: detected.length,
 			keptNotes: bleedResult.kept.length,

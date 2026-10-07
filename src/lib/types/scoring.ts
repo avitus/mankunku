@@ -1,5 +1,6 @@
 import type { DetectedNote } from './audio';
 import type { Note } from './music';
+import type { AudioCheck } from '$lib/scoring/frame-coverage';
 
 export type Grade = 'perfect' | 'great' | 'good' | 'fair' | 'try-again';
 
@@ -53,6 +54,13 @@ export interface Score {
 	extrasCharged?: number;
 	/** Timing diagnostics: bias, spread, and per-note offsets */
 	timing: TimingDiagnostics;
+	/**
+	 * The audio check (`scoring/frame-coverage.ts`): precision and recall of
+	 * the detector's own pitch readings against the written line, read frame
+	 * by frame with no pairing. Shown beside the score as a second opinion;
+	 * present when the caller handed the pipeline its readings (2026-10-07).
+	 */
+	audioCheck?: AudioCheck;
 }
 
 export interface AlignmentPair {

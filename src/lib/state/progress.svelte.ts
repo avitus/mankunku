@@ -352,6 +352,7 @@ export function recordAttempt(
 		notesHit: score.notesHit,
 		notesTotal: score.notesTotal,
 		noteResults: score.noteResults,
+		audioCheck: score.audioCheck,
 		timing: score.timing
 	};
 
@@ -438,6 +439,7 @@ export function updateSessionScore(
 		notesHit: score.notesHit,
 		notesTotal: score.notesTotal,
 		noteResults: score.noteResults,
+		audioCheck: score.audioCheck,
 		timing: score.timing
 	};
 	progress.sessions[idx] = updated;
