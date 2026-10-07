@@ -4656,3 +4656,14 @@ for an explanation only — no code changes.
   zero in both accuracies. Code has never done that (8b646b94).
 - Open, Andy's call: whether to charge extras / stop crediting never-played
   notes; the tenor Ab3→Ab4 misread is a separate detector bug.
+- **Follow-up — would all four fixes break the regression tests?** Ran every
+  fix alone and combined on the full suite (nothing committed). Charging
+  every extra, as the docs promise, breaks 6 recorded-take tests and every
+  one is a detector artefact being charged — the free-extras rule has been
+  the corpus's shock absorber. Gated extras (≥ 150 ms, clarity ≥ 0.8, no
+  same-pitch-class neighbour, before the line's end) plus the other three,
+  with note length measured across same-pitch continuation: 12 of 5666 fail,
+  none charging an artefact; 11 pin old numbers. The real decision is F2: an
+  on-time but out-of-tune note (Sharp-9's ghosted Cs) would score like
+  silence. Wail (b) still grades great by 0.001 — its short final note was
+  stretched to 6.1 s by the segmenter, so length scoring can't see it.
