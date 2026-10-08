@@ -18,8 +18,8 @@ function takes(midi: number, cents: number[], count = cents.length): TuningSampl
 	return Array.from({ length: count }, (_, i) => ({ midi, cents: cents[i % cents.length] }));
 }
 
-/** Written names for the tests: plain sharps, octave included. */
 const NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+/** Written names for the tests: plain sharps, octave included. */
 const name = (midi: number) => `${NAMES[midi % 12]}${Math.floor(midi / 12) - 1}`;
 
 describe('clean tuning samples', () => {

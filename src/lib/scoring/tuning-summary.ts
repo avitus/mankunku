@@ -46,6 +46,11 @@ function quantile(sorted: number[], q: number): number {
 	return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
 }
 
+/**
+ * Group a run's clean notes by the exact note played (concert MIDI, so each
+ * octave stands alone), low to high, and read each one's median and middle
+ * half, plus the player's centre once enough notes are steady.
+ */
 export function summarizeTuning(samples: readonly TuningSample[]): TuningSummary {
 	const byMidi = new Map<number, number[]>();
 	for (const { midi, cents } of samples) {

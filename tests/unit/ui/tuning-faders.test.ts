@@ -4,6 +4,7 @@ import TuningFaders from '$lib/components/practice/TuningFaders.svelte';
 import { summarizeTuning } from '$lib/scoring/tuning-summary';
 import type { TuningSample } from '$lib/scoring/tuning';
 
+/** `count` identical takes of one note. */
 const takes = (midi: number, cents: number, count: number): TuningSample[] =>
 	Array.from({ length: count }, () => ({ midi, cents }));
 

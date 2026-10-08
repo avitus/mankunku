@@ -9,3 +9,6 @@ reviews:
     # 300-file cap on a PR.
     - "!CLAUDIUS/**"
     - "!MEMORY.md"
+    # Recorded takes (WAV + metadata JSON) the audio-scoring research reads:
+    # data, not code, and 448 files on their own. The harness stays reviewed.
+    - "!research/audio-scoring/takes/**"
