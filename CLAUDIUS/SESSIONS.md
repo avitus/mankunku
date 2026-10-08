@@ -4880,3 +4880,34 @@ an "A = 440 | Your centre" switch and a teacher's-note headline.
   The page wiring is three lines beside the monitor's own.
 - The panel reflows the centred page on pause (the button rises), a
   trade-off accepted rather than reserving ~330 px during practice.
+
+## 2026-10-07 — Dorian, Minor and Mixolydian colour tones; the repertoire only grows
+
+Andy: fix the other modes too, "write collections and focus on idiomatic jazz
+language … add phrases that contain the color notes but don't reduce the
+repertoire we have. It is already quite thin." Also: put a horizontal rule
+where the end-of-work report starts, and set any decision apart (memory).
+
+- **Measured my own Lydian fix against the code before it** (a detached
+  worktree at 8287eb09, every scale × levels 1-100): it had SHRUNK Dorian at
+  95 levels (551 → 443 at level 62), Melodic Minor at 87 (136 → 17) and
+  Lydian at 22 (410 → 375). Gating the combiner's single-bar phrases by scale
+  instead of category removed them from sessions; the Lydian ii-V-I removal
+  did the rest. I had not checked this before pushing it.
+- **Restored (faf18e2a):** compatibility by category again for those phrases
+  (they still adapt as single-chord phrases); Lydian's parent-key ii-V-Is
+  back. Degree mapping now reaches any 7-note target whose degrees are each
+  within a semitone (melodic minor, Lydian Dominant). `ADAPTED_SCALES`
+  (melodic minor, altered, lydian dominant) keep their adapted exercises and
+  natives join — the cliff that served Altered one phrase from 15 to 49 is
+  gone (task chip dismissed). Pinned: no scale's pool shrinks as level rises.
+- **Collections:** dorian.ts / aeolian.ts / mixolydian.ts, 40 lines each,
+  generated from a hand-written spec (scratchpad modal_specs.py) and rated as
+  C-major shapes by degree; category 'modal' (no tune-practice progression
+  registers it). The Lydian test became a table-driven test over all four.
+- **Result vs pre-Lydian baseline:** no scale smaller at any level. Colour
+  share at levels 1 / 5 / 30 — Dorian 12/21, 25/44, 76/287 (was 0/9, 0/19,
+  26/218); Minor 12/21, 25/44, 72/238 (was 0/9, 0/19, 3/169); Mixolydian
+  7/11, 13/22, 92/205 (was 1/5, 3/12, 46/170).
+- Verified: 5779 unit + integration, svelte-check clean, ear-training e2e on
+  Chromium.

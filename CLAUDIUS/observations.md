@@ -2791,3 +2791,22 @@ and the octave-key D are different notes on the instrument. Pooling them
 by pitch class can turn two clusters into one median that describes
 neither. Any per-note tuning summary should keep register as a dimension,
 even if the default view folds it away.
+
+## 2026-10-07 — A correctness fix is also a membership change; measure both
+
+The Lydian fix was right about sound and wrong about inventory. Moving the
+single-bar phrases from "category decides" to "scale decides" was framed as
+a correctness change (they were being parent-hopped), but it bundled two
+questions — WHERE a phrase may appear and HOW it is played — and answered
+both with one predicate. The second answer was the fix; the first silently
+removed hundreds of phrases from Dorian and Melodic Minor. My tests pinned
+the new behaviour and the colour coverage; nothing measured the pool sizes,
+so the loss looked like nothing. Andy's "don't reduce the repertoire" caught
+it before I did.
+
+Two habits from this. Keep "eligibility" and "adaptation" separate
+predicates — `isProgressionLick` now governs only adaptation. And for any
+change to selection, diff every scale's pool at every level against the
+previous commit before calling it done; it is one probe and a worktree.
+The "pool never shrinks as the level rises" test is the in-repo half of
+that; the cross-commit diff can't be a test, so it has to be a habit.
