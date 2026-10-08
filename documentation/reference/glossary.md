@@ -144,9 +144,9 @@ Jazz terminology, pitch terminology, and a few app-specific terms — defined in
 
 **Bleed filter** — A filter that drops detected notes that look like room bleed from the speakers — the app re-hearing its own playback through your microphone. Helps when you're not using headphones. It always runs, but whether its result becomes your score is decided for you — Tune Practice uses it at every strictness level, and nothing else does. There is no user-facing toggle.
 
-**Combinatorial lick** (or phrase) — A catalog phrase built by pairing a melodic shape (written as scale degrees) with a rhythm template, rather than written out by hand — about half the catalog: 471 of these, alongside 452 hand-written ones. Indistinguishable from a hand-written lick in use: same difficulty scale, same transposition, same scoring.
+**Combinatorial lick** (or phrase) — A catalog phrase built by pairing a melodic shape (written as scale degrees) with a rhythm template, rather than written out by hand — under half the catalog: 471 of these, alongside 652 hand-written ones. Indistinguishable from a hand-written lick in use: same difficulty scale, same transposition, same scoring.
 
-**Curated lick** — A hand-written lick that ships with the app: 452 of them, just under half the catalog. (Loosely, the whole shipped catalog is sometimes called curated, as opposed to your own licks.)
+**Curated lick** — A hand-written lick that ships with the app: 652 of them, more than half the catalog. (Loosely, the whole shipped catalog is sometimes called curated, as opposed to your own licks.)
 
 **Daily key (Daily tonality)** — The key + scale type Side A practises in. Chosen from the date and the tonalities you've unlocked, so it's the same on all your devices; it holds for two or three days while you have only a few unlocked, and changes every day once you have seven or more. Can be overridden on the Settings page, under Ear Training.
 

@@ -118,6 +118,6 @@ The player guides, plus a handful of the architecture and reference pages, are a
 | [Glossary](./reference/glossary.md) | Jazz, audio, and technical terminology |
 | [Algorithm Details](./reference/algorithm-details.md) | DTW math, latency correction, McLeod pitch method, HFC onset detection, the rhythm quantizer |
 | [Browser Compatibility](./reference/browser-compatibility.md) | Minimum versions, Web Audio APIs, installable-only (no service worker), mic processing, mobile caveats |
-| [Scale & Lick Catalog](./reference/scale-and-lick-catalog.md) | All 33 scales + the 923-lick catalog (452 curated + 471 combinatorial) with metadata |
+| [Scale & Lick Catalog](./reference/scale-and-lick-catalog.md) | All 33 scales + the 1123-lick catalog (652 curated + 471 combinatorial) with metadata |
 | [OMR subsystem](../docs/omr/README.md) | The Python `omr/` transcriber behind the hybrid PDF import; [LEGATO 2 status](../docs/omr/legato2.md) |
 | [WJazzD attribution](../docs/wjazzd-attribution.md) | License terms and rebuild steps for the lick-naming index |

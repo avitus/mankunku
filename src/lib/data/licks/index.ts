@@ -25,6 +25,7 @@ import { LYDIAN_LICKS } from './lydian';
 import { DORIAN_LICKS } from './dorian';
 import { AEOLIAN_LICKS } from './aeolian';
 import { MIXOLYDIAN_LICKS } from './mixolydian';
+import { PENTATONIC_FIRST_LINES } from './pentatonic-first-lines';
 import { COMBINED_LICKS } from '$lib/phrases/combiner';
 import type { Phrase } from '$lib/types/music';
 
@@ -53,7 +54,8 @@ export const ALL_CURATED_LICKS: Phrase[] = [
 	...LYDIAN_LICKS,
 	...DORIAN_LICKS,
 	...AEOLIAN_LICKS,
-	...MIXOLYDIAN_LICKS
+	...MIXOLYDIAN_LICKS,
+	...PENTATONIC_FIRST_LINES
 ];
 
 export {
@@ -80,5 +82,6 @@ export {
 	LYDIAN_LICKS,
 	DORIAN_LICKS,
 	AEOLIAN_LICKS,
-	MIXOLYDIAN_LICKS
+	MIXOLYDIAN_LICKS,
+	PENTATONIC_FIRST_LINES
 };

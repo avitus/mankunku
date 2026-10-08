@@ -6,7 +6,7 @@ Mankunku ships with a catalog of about 920 jazz phrases, spread across many harm
 
 There are three sources of musical content:
 
-- **Hand-written licks (452 of them).** Curated phrases, written for the app, organized by category — just under half of what Side A can play you.
+- **Hand-written licks (652 of them).** Curated phrases, written for the app, organized by category — more than half of what Side A can play you.
 - **Combinatorial licks (471).** Built by pairing a set of *scale patterns* (pitch sequences like "ascending pentatonic 5-note") with a set of *rhythm templates* (durations like "syncopated eighth-note run"). See [the combinatorial generator](#the-combinatorial-generator) below.
 - **Your own licks.** Anything you write in the editor (`/licks/editor`) or record (`/licks/record`) joins your book tagged as user content. They behave the same as curated licks — searchable, tag-able for Side B, transposable to any key.
 
@@ -21,7 +21,7 @@ The counts below are totals across the whole catalog, so they include the combin
 | Category | What it is | Approximate count |
 |---|---|---|
 | **Blues** | 12-bar blues vocabulary. Major-blues and minor-blues licks, blue notes (the b5), call-and-response shapes. | 257 |
-| **Pentatonic** | Pentatonic-based vocabulary that works over multiple harmonic contexts. | 160 |
+| **Pentatonic** | Pentatonic-based vocabulary that works over multiple harmonic contexts. | 200 |
 | **ii-V-I Major** | The signature jazz cadence (Dm7 → G7 → Cmaj7 in C). Different rhythmic shapes, different melodic strategies — chord-tone arpeggios, scale runs, enclosures. | 120 |
 | **ii-V-I Minor** *(minor)* | The minor counterpart (Dø7 → G7alt → C-7 in C minor; the Lick Practice backing plays the V as G7♭9). Altered-dominant lines, melodic-minor color. | 83 |
 | **Bebop Lines** | Long lines in the bebop vocabulary. Bebop scale runs, chromatic approaches, characteristic shapes from Bird, Dizzy, Bud Powell. | 79 |
@@ -39,9 +39,9 @@ The counts below are totals across the whole catalog, so they include the combin
 | **V-I Minor** *(minor)* | Dominant-to-tonic resolutions in minor. | 2 |
 | **Diminished Chord** | Single-chord diminished vocabulary over one dim7 chord. | 2 |
 
-Counts are as of this writing (1083 in all: 612 hand-written, 471 combinatorial) and will drift as licks are added. Minor vocabulary isn't confined to the marked categories: most of the Modal licks (the Dorian and Aeolian lines) and some Pentatonic ones sit over a minor chord and read as minor too.
+Counts are as of this writing (1123 in all: 652 hand-written, 471 combinatorial) and will drift as licks are added. Minor vocabulary isn't confined to the marked categories: most of the Modal licks (the Dorian and Aeolian lines) and some Pentatonic ones sit over a minor chord and read as minor too.
 
-The **beginner cells** aren't a category of their own. They're an on-ramp subset — 55 two- and three-note minimal cells for difficulty levels 1–5 (pentatonic intervals, blues fragments, neighbor-tone patterns) — filed under the existing **Pentatonic** (45) and **Blues** (10) categories, and already included in the totals above.
+The **beginner cells** aren't a category of their own. They're an on-ramp subset — 55 two- and three-note minimal cells for difficulty levels 1–5 (pentatonic intervals, blues fragments, neighbor-tone patterns) — filed under the existing **Pentatonic** (45) and **Blues** (10) categories, and already included in the totals above. The **Major Pentatonic first lines** (40, Pentatonic) widen the same on-ramp: two- to four-note lines in even half notes at levels 1–3, where Major Pentatonic, the scale every player starts in, used to serve four or five phrases.
 
 On top of the catalog there's your own content: a recorded lick starts out as *Uncategorized*, and one written in the editor is Uncategorized until you pick one of the categories above in its Details.
 

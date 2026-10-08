@@ -69,7 +69,7 @@ Indexes the curated lick library for fast querying.
 
 | Function | Signature | Description |
 |---|---|---|
-| `getAllLicks` | `() → Phrase[]` | All licks: ~923 curated (452 hand-written + ~470 combinatorial) plus the user's own and adopted-community licks. The user cache is deduped by id (first occurrence wins) because anonymous/offline clients never run the cloud Map-merge that collapses same-id rows |
+| `getAllLicks` | `() → Phrase[]` | All licks: ~1123 curated (652 hand-written + ~470 combinatorial) plus the user's own and adopted-community licks. The user cache is deduped by id (first occurrence wins) because anonymous/offline clients never run the cloud Map-merge that collapses same-id rows |
 | `isCuratedLickId` | `(id) → boolean` | Whether the id belongs to the built-in catalog (as opposed to a user-recorded or community-adopted lick); O(1) off the module-load index |
 | `getLickById` | `(id) → Phrase \| undefined` | O(1) curated lookup, then the user cache, then the adopted cache |
 | `baseLickId` | `(id) → string` | Strips a trailing `_<KEY>` transposition suffix (KEY one of the 12 pitch classes), which `transposeLick` / `transposeLickForTonality` append — same-lick variants dedupe on this |

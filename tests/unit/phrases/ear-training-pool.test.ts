@@ -130,6 +130,10 @@ describe('ear-training eligibility', () => {
  * pool was major-pentatonic cells (no 4th at all) and major-scale cells whose
  * F the adaptation snapped down to E; above it, single-bar phrases were moved
  * to G and ii-V-Is played in G major.
+ *
+ * The share was at least half until the Major Pentatonic first lines joined
+ * these pools by the subset rule; Andy chose that over keeping them out, and
+ * the floor became one in seven (lowest measured: 9 of 56 at level 3).
  */
 describe('C Lydian sessions sound the #4 (2026-10-07)', () => {
 	const served = (level: number): Phrase[] =>
@@ -139,10 +143,10 @@ describe('C Lydian sessions sound the #4 (2026-10-07)', () => {
 	const sounds = (phrase: Phrase, pc: number): boolean =>
 		phrase.notes.some(note => note.pitch !== null && note.pitch % 12 === pc);
 
-	it.each([1, 2, 3, 4, 5])('at level %i, at least half the phrases carry the F#', level => {
+	it.each([1, 2, 3, 4, 5])('at level %i, at least one phrase in seven carries the F#', level => {
 		const pool = served(level);
 		const withSharpFour = pool.filter(phrase => sounds(phrase, 6));
-		expect(withSharpFour.length * 2, `${withSharpFour.length} of ${pool.length}`).toBeGreaterThanOrEqual(pool.length);
+		expect(withSharpFour.length * 7, `${withSharpFour.length} of ${pool.length}`).toBeGreaterThanOrEqual(pool.length);
 	});
 
 	// Progression licks keep their own harmony and are never adapted note by
@@ -175,21 +179,24 @@ describe('C Lydian sessions sound the #4 (2026-10-07)', () => {
  * Mixolydian's b7 were just as absent — 0 of 19 Dorian and Minor phrases at
  * level 5 carried them — because each beginner pool was pentatonic or blues
  * cells. The colour-tone collections ADD to those pools; nothing is removed.
+ * Mixolydian's floor is one phrase in seven, not half, since the Major
+ * Pentatonic first lines joined it (as for Lydian above; lowest measured:
+ * 10 of 57 at level 4).
  */
 describe.each([
-	{ scaleType: 'dorian', colour: 9, scale: [0, 2, 3, 5, 7, 9, 10] },
-	{ scaleType: 'minor', colour: 8, scale: [0, 2, 3, 5, 7, 8, 10] },
-	{ scaleType: 'mixolydian', colour: 10, scale: [0, 2, 4, 5, 7, 9, 10] }
-] as const)('C $scaleType sessions sound their colour tone (2026-10-07)', ({ scaleType, colour, scale }) => {
+	{ scaleType: 'dorian', colour: 9, scale: [0, 2, 3, 5, 7, 9, 10], oneIn: 2 },
+	{ scaleType: 'minor', colour: 8, scale: [0, 2, 3, 5, 7, 8, 10], oneIn: 2 },
+	{ scaleType: 'mixolydian', colour: 10, scale: [0, 2, 4, 5, 7, 9, 10], oneIn: 7 }
+] as const)('C $scaleType sessions sound their colour tone (2026-10-07)', ({ scaleType, colour, scale, oneIn }) => {
 	const served = (level: number): Phrase[] =>
 		selectEarTrainingLicks(ALL_CURATED_LICKS, level, scaleType).map(lick =>
 			transposeEarTrainingLick(lick, 'C', scaleType, 46, 77)
 		);
 
-	it.each([1, 2, 3, 4, 5])('at level %i, at least half the phrases carry it', level => {
+	it.each([1, 2, 3, 4, 5])(`at level %i, at least one phrase in ${oneIn} carries it`, level => {
 		const pool = served(level);
 		const carrying = pool.filter(phrase => phrase.notes.some(note => note.pitch !== null && note.pitch % 12 === colour));
-		expect(carrying.length * 2, `${carrying.length} of ${pool.length}`).toBeGreaterThanOrEqual(pool.length);
+		expect(carrying.length * oneIn, `${carrying.length} of ${pool.length}`).toBeGreaterThanOrEqual(pool.length);
 	});
 
 	it('every single-chord phrase at every level stays inside the scale', () => {
@@ -202,6 +209,17 @@ describe.each([
 				}
 			}
 		}
+	});
+});
+
+/**
+ * 2026-10-07: Major Pentatonic, the one scale open from the start, served
+ * four phrases at level 1 and five at levels 2-3, all of them two-note cells,
+ * so a new player looped the same handful.
+ */
+describe('Major Pentatonic gives a new player more than a handful of phrases (2026-10-07)', () => {
+	it.each([[1, 12], [2, 24], [3, 36]])('at level %i, at least %i phrases', (level, floor) => {
+		expect(selectEarTrainingLicks(ALL_CURATED_LICKS, level, 'major-pentatonic').length).toBeGreaterThanOrEqual(floor);
 	});
 });
 
