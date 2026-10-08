@@ -95,24 +95,38 @@ test.describe('lick-practice session flow', () => {
 		await page.getByRole('button', { name: 'Practice', exact: true }).click();
 		await page.emulateMedia({ reducedMotion: 'no-preference' });
 		await expect(page.locator('.row.current[data-key="G"] .phase-tab[data-pass="3"]')).toBeVisible({ timeout: 30_000 });
-		// Observe the boundary in animation frames: the incoming C must move
-		// upward from the preview slot, not just appear at its final position.
-		const movement = await page.evaluate(() => new Promise<number[]>((resolve, reject) => {
-			const deadline = performance.now() + 15_000;
-			const positions: number[] = [];
-			let enteredAt: number | null = null;
-			function sample(now: number) {
+		// Inspect the real CSS animation at deterministic checkpoints. Under
+		// CI load, WebKit can miss its early frames in a requestAnimationFrame
+		// sampler even though the animation starts in the correct position.
+		const { movement, duration } = await page.evaluate(() => new Promise<{ movement: number[]; duration: number }>((resolve, reject) => {
+			const observer = new MutationObserver(sample);
+			const timeout = setTimeout(() => {
+				observer.disconnect();
+				reject(new Error('Next Deep cycle did not animate into C'));
+			}, 15_000);
+			function sample(): void {
 				const row = document.querySelector('.row.current[data-key="C"]');
-				if (row) {
-					enteredAt ??= now;
-					positions.push(row.getBoundingClientRect().top - row.closest('.viewport')!.getBoundingClientRect().top);
-					if (now - enteredAt >= 500) return resolve(positions);
-				}
-				if (now >= deadline) return reject(new Error('Next Deep cycle did not enter C'));
-				requestAnimationFrame(sample);
+				const animation = row?.closest('.stack')?.getAnimations().find(
+					(candidate: Animation): boolean => candidate instanceof CSSAnimation && candidate.animationName.endsWith('cycle-scroll')
+				);
+				if (!row || !animation) return;
+				observer.disconnect();
+				clearTimeout(timeout);
+				const duration = animation.effect?.getTiming().duration;
+				if (typeof duration !== 'number') return reject(new Error('Deep scroll has no finite duration'));
+				const offset = (): number => row.getBoundingClientRect().top - row.closest('.viewport')!.getBoundingClientRect().top;
+				animation.pause();
+				animation.currentTime = 0;
+				const start = offset();
+				animation.currentTime = duration / 2;
+				const middle = offset();
+				animation.finish();
+				resolve({ movement: [start, middle, offset()], duration });
 			}
-			requestAnimationFrame(sample);
+			observer.observe(document, { childList: true, subtree: true, attributes: true });
+			sample();
 		}));
+		expect(duration).toBe(420);
 		expect(Math.max(...movement)).toBeGreaterThan(64);
 		expect(movement.some(y => y > 2 && y < 100)).toBe(true);
 		expect(movement.at(-1)).toBeCloseTo(0, 0);
@@ -1178,5 +1192,7 @@ test.describe('lick-practice session flow', () => {
 		const order = await readOrder();
 		expect(order.leadRowAt).not.toBeNull();
 		expect(order.leadRowAt!).toBeLessThan(order.sampleFetchAt!);
+		// Drain chunk observers before Playwright disposes their fetched responses.
+		await page.unrouteAll({ behavior: 'wait' });
 	});
 });

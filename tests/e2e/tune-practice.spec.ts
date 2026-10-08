@@ -605,7 +605,7 @@ test.describe.serial('tune practice session follow-scroll', () => {
 		const labels = page.locator('svg text.range-marker-label');
 		await expect(labels.first()).toBeVisible();
 		const texts = await labels.allTextContents();
-		expect(texts.filter((t) => t === 'E2E Minor Lick · F#m').length).toBeGreaterThanOrEqual(3);
+		expect(texts.filter((t) => t === 'E2E Minor Lick · F#-').length).toBeGreaterThanOrEqual(3);
 		// The pick card, held back through the head, is up for the next window.
 		await expect(page.getByTestId('suggestion-pick-card')).toBeVisible();
 
