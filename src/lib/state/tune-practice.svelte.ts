@@ -14,16 +14,16 @@ import { detectProgressions } from '$lib/tunes/progression-detector';
 import { concertKeyToWritten } from '$lib/music/transposition';
 import {
 	buildLickMatcherDeps,
+	isInPlayersBook,
 	suggestLicksForProgression,
 	type LickSuggestion
 } from '$lib/tunes/lick-matcher';
 import { transposeTune } from '$lib/tunes/book-loader';
-import { getAllLicks, getBaseLickFromId, isCuratedLickId, transposeLick } from '$lib/phrases/library-loader';
+import { getAllLicks, getBaseLickFromId, transposeLick } from '$lib/phrases/library-loader';
 import { getTrickById } from '$lib/tricks';
 import { getInstrument, settings } from '$lib/state/settings.svelte';
 import {
 	getEffectivePracticeLickIds,
-	hasLickProgress,
 	loadLickPracticeProgress
 } from '$lib/persistence/lick-practice-store';
 import { buildBookIndex, type FreestyleBook } from '$lib/matching/book-index';
@@ -338,12 +338,15 @@ export function startTunePracticeSession(sheet: Tune, ppq: number): TunePractice
 		// window that has a lick and fills the rest shorter.
 		detect: (f) => detectProgressions(f, transposed),
 		match: (det) => {
-			// Suggest mode cycles the FULL eligible list, restricted to licks the
-			// user can deploy at this song's tempo and in this spot's key.
+			// Every mode offers only the player's own book: the session names a
+			// lick and shows no notation, so an unpracticed curated lick would be
+			// a title with nothing to play (2026-10-07). Suggest mode cycles the
+			// FULL eligible list, further restricted to licks the user can deploy
+			// at this song's tempo and in this spot's key.
 			const options =
 				mode === 'suggest'
-					? { playableKeysOnly: true, sessionTempo: tunePractice.config.tempo }
-					: {};
+					? { ownBookOnly: true, playableKeysOnly: true, sessionTempo: tunePractice.config.tempo }
+					: { ownBookOnly: true };
 			const result = suggestLicksForProgression(det, matcherDeps, options);
 			return { suggestions: result.suggestions, uncategorized: result.uncategorized };
 		},
@@ -484,12 +487,13 @@ export interface WindowCandidate {
  * UNRESTRICTED list is 260 suggestions at its worst across the curated tunes,
  * and scoring all 260 through `runScorePipeline` measures 0.6-2.2 ms (2026-09-11)
  * — orders below the segmentation that precedes it. Production lists are far
- * smaller anyway: suggest mode passes `playableKeysOnly` (the player's own
- * unlocked vocabulary) and points mode caps at `MAX_SUGGESTIONS`. The cap that
- * matters is therefore about MEANING, not speed — a best-of-N over the whole
- * 923-lick catalog would let some lick fluke a match against any take, which
- * is why the candidate pool stays the player's own book, as freestyle
- * recognition does with `buildFreestyleBook`.
+ * smaller anyway: every mode passes `ownBookOnly`, suggest mode adds
+ * `playableKeysOnly` (the player's own unlocked vocabulary) and points mode
+ * caps at `MAX_SUGGESTIONS`. The cap that matters is therefore about MEANING,
+ * not speed — a best-of-N over the whole curated catalog would let some lick
+ * fluke a match against any take, which is why the candidate pool stays the
+ * player's own book (`isInPlayersBook`), as freestyle recognition does with
+ * `buildFreestyleBook`.
  */
 export function candidatesForWindow(ip: InsertionPoint, cueLevel: CueLevel): WindowCandidate[] {
 	return windowCandidates(ip.suggestions, tunePractice.pickedSuggestion[ip.id], cueLevel).map(
@@ -576,9 +580,7 @@ export function buildFreestyleBook(ppq: number): FreestyleBook {
 	const licks = getAllLicks();
 	const practiceIds = getEffectivePracticeLickIds(licks);
 	const progress = loadLickPracticeProgress();
-	const known = licks.filter(
-		(l) => practiceIds.has(l.id) || hasLickProgress(progress, l.id) || !isCuratedLickId(l.id)
-	);
+	const known = licks.filter((l) => isInPlayersBook(l.id, practiceIds, progress));
 	return buildBookIndex(known, ppq);
 }
 

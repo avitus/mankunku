@@ -553,9 +553,9 @@ test.describe.serial('tune practice session follow-scroll', () => {
 
 		await seedOnboardedAnonymous(page);
 		await seedUserLicks(page, [minorLick]);
-		// Known in concert E (the tune's minor chord): Points mode admits the
-		// whole catalog, and a lick the player HAS in the key outranks a longer
-		// cadence lick they have never touched.
+		// Known in concert E (the tune's minor chord): the lick the player HAS
+		// in the key gets its windows. Points offers only the player's own book,
+		// so the cadences around them carry no curated lick (2026-10-07).
 		await seedStorage(page, {
 			'lick-practice-progress': {
 				'e2e-minor-lick': { E: { passCount: 1, currentTempo: 240, lastPracticedAt: 1 } }

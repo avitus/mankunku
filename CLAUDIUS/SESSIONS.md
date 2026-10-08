@@ -4911,3 +4911,22 @@ where the end-of-work report starts, and set any decision apart (memory).
   7/11, 13/22, 92/205 (was 1/5, 3/12, 46/170).
 - Verified: 5779 unit + integration, svelte-check clean, ear-training e2e on
   Chromium.
+
+## 2026-10-07 — Tune practice offers only the player's book
+
+Andy asked whether tune practice suggests only the user's own licks. Not in
+Points mode: it ranked the whole catalog, curated licks badged *New* behind
+the player's. The pick card shows a name, a key and a badge — no notation —
+so an unpracticed curated lick is a title with nothing to play. Andy: "I
+can't imagine any user would remember curated licks sufficiently to play
+them over tunes." → yes, restrict.
+
+- `isInPlayersBook` (lick-matcher.ts) = own/adopted licks + practice set +
+  practice history — the definition `buildFreestyleBook` already used, now
+  shared. `ownBookOnly` option; tune practice passes it in every mode.
+- The Autumn Leaves session test pinned "the long cadences carry catalog
+  cadence licks"; rewritten: they keep bare bands. New test: no curated lick
+  anywhere in a Points or Suggest plan. The pick card already hides itself
+  when the next window has no licks; the Autumn Leaves e2e still passes.
+- Verified: 5782 unit + integration, svelte-check, all 12 tune-practice e2e
+  on Chromium.

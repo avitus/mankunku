@@ -23,7 +23,7 @@ import { compareFractions, fractionToFloat } from '$lib/music/intervals';
 import { lickMode } from '$lib/music/mode';
 import { MINOR_TONIC_QUALITIES } from '$lib/data/progression-shapes';
 import { planUnlockedKeys } from '$lib/music/key-ordering';
-import { baseLickId, getAllLicks } from '$lib/phrases/library-loader';
+import { baseLickId, getAllLicks, isCuratedLickId } from '$lib/phrases/library-loader';
 import { getTrickById, trickEntryKey } from '$lib/tricks';
 import { getVariantByKey } from '$lib/tricks/mastery';
 import {
@@ -143,6 +143,26 @@ export interface SuggestLicksOptions {
 	sessionTempo?: number;
 	/** Keep only licks the user can already play in the target key (known/learning). */
 	playableKeysOnly?: boolean;
+	/**
+	 * Keep only the player's own book (`isInPlayersBook`). Tune practice names a
+	 * lick and shows no notation, so a curated lick the player has never
+	 * practiced is a title with nothing to play (Andy, 2026-10-07).
+	 */
+	ownBookOnly?: boolean;
+}
+
+/**
+ * The player's own book: licks they wrote, recorded or adopted, plus any lick
+ * in their practice set or with practice history — never the untouched curated
+ * catalog. Tune practice suggests from it in every mode, and freestyle
+ * recognition listens for it.
+ */
+export function isInPlayersBook(
+	lickId: string,
+	practiceLickIds: ReadonlySet<string>,
+	progress: LickPracticeProgress
+): boolean {
+	return !isCuratedLickId(lickId) || practiceLickIds.has(lickId) || hasLickProgress(progress, lickId);
 }
 
 const TIER_RANK: Record<MasteryTier, number> = { known: 0, learning: 1, unknown: 2 };
@@ -209,6 +229,7 @@ export function suggestLicksForProgression(
 	const uncategorized: Phrase[] = [];
 
 	for (const lick of deps.licks) {
+		if (options.ownBookOnly && !isInPlayersBook(lick.id, deps.practiceLickIds, deps.progress)) continue;
 		const progTags = deps.getProgressionTags(lick.id);
 		if (lick.category === 'user' && progTags.length === 0) {
 			uncategorized.push(lick);

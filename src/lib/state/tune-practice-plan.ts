@@ -177,9 +177,9 @@ function spanBars(w: CandidateWindow): number {
 /**
  * A window the player can actually fill: it holds a lick they HAVE in the
  * window's key — passed there, or unlocked there on Side B (`masteryTier`
- * known or learning). Points mode admits the whole catalog, so a long
- * cadence always holds *some* lick; without this a known 2-bar minor lick
- * lost its window to cadence material the player had never touched.
+ * known or learning). Points mode admits the player's whole book, so a long
+ * cadence may hold a lick of theirs they have never played in that key;
+ * without this a known 2-bar minor lick lost its window to such material.
  */
 function hasReadyLick(w: CandidateWindow): boolean {
 	return w.suggestions.some((s) => s.masteryTier !== 'unknown');

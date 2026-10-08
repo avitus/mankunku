@@ -77,8 +77,7 @@ describe('a saved Minor Chord lick reaches the session as its own window', () =>
 		localStorage.clear();
 		resetTunePractice();
 		saveUserLick(minorLick);
-		// Known in E: Points mode admits the whole catalog, and a lick the
-		// player HAS in the key outranks a longer one they have never touched.
+		// Known in E: the lick the player HAS in the key gets its windows.
 		saveLickPracticeProgress({
 			'e2e-minor-lick': { E: { passCount: 1, currentTempo: 240, lastPracticedAt: 1 } }
 		});
@@ -95,13 +94,21 @@ describe('a saved Minor Chord lick reaches the session as its own window', () =>
 		expect(minors.map((ip) => ip.keyCenter)).toEqual(['E', 'E', 'E', 'E']);
 		// Written for the default tenor: concert E- reads F#m.
 		expect(suggestionNameFor(minors[0])).toBe('E2E Minor Lick · F#m');
-		// The long cadences carry catalog cadence licks (Points admits new
-		// material), capped at the pick card's five — never the minor lick.
+		// The long cadences keep their progression bands but name no lick: the
+		// player has no cadence lick, and Points offers only their own book —
+		// never a curated lick they have never seen (2026-10-07).
 		const longs = tunePractice.plan.filter((ip) => ip.progressionType !== 'minor-vamp');
 		expect(longs.length).toBeGreaterThan(0);
-		for (const ip of longs) {
-			expect(ip.suggestions.length).toBeLessThanOrEqual(5);
-			expect(ip.suggestions.some((s) => s.lickId === 'e2e-minor-lick')).toBe(false);
+		for (const ip of longs) expect(ip.suggestions).toEqual([]);
+	});
+
+	it('offers no curated lick anywhere in the plan, in Points or Suggest', () => {
+		for (const mode of ['points', 'suggest'] as const) {
+			resetTunePractice();
+			tunePractice.config.mode = mode;
+			startTunePracticeSession(autumnLeaves, 480);
+			const offered = new Set(tunePractice.plan.flatMap((ip) => ip.suggestions.map((s) => s.lickId)));
+			expect([...offered], mode).toEqual(['e2e-minor-lick']);
 		}
 	});
 });

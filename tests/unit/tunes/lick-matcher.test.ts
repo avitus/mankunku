@@ -442,6 +442,33 @@ describe('buildLickMatcherDeps — live store assembly, strictly read-only', () 
 	});
 });
 
+/**
+ * 2026-10-07 (Andy): "I can't imagine any user would remember curated licks
+ * sufficiently to play them over tunes." Tune practice names a lick and shows
+ * no notation, so a curated lick the player never practiced is a title with
+ * nothing to play. With `ownBookOnly` the matcher offers the player's book:
+ * licks they wrote, recorded or adopted, and any lick in their practice set or
+ * with practice history.
+ */
+describe('ownBookOnly — tune practice offers only the player\'s book (2026-10-07)', () => {
+	const curated = getAllLicks().find((l) => l.id === 'short-ii-V-maj-001')!;
+	const own: Phrase = { ...curated, id: 'user-short-ii-V', name: 'My ii-V', source: 'user-entered' };
+	const offered = (deps: LickMatcherDeps, ownBookOnly: boolean): string[] =>
+		suggestLicksForProgression(detectShortInC(), deps, { ownBookOnly }).suggestions.map((s) => baseLickId(s.lickId));
+
+	it('drops a curated lick the player never touched, and keeps their own', () => {
+		const deps = makeDeps({ licks: [curated, own] });
+		expect(offered(deps, false)).toEqual(expect.arrayContaining([curated.id, own.id]));
+		expect(offered(deps, true)).toEqual([own.id]);
+	});
+
+	it('keeps a curated lick the player has made theirs — in the practice set, or with practice history', () => {
+		expect(offered(makeDeps({ licks: [curated], practiceLickIds: new Set([curated.id]) }), true)).toEqual([curated.id]);
+		const progress: LickPracticeProgress = { [curated.id]: { C: { currentTempo: 100, lastPracticedAt: 1, passCount: 0 } } };
+		expect(offered(makeDeps({ licks: [curated], progress }), true)).toEqual([curated.id]);
+	});
+});
+
 describe('suggestLicksForProgression — what the role-window planner needs (2026-09-17)', () => {
 	function unresolvedShortInD(): DetectedProgression {
 		const tune = sheet({
