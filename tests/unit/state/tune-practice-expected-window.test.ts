@@ -139,7 +139,7 @@ describe('picking a suggestion (suggest mode cycles picks per window)', () => {
 			mode: 'minor' as const
 		};
 		const point = { id: 'ip-0', startOffset: [0, 1], suggestions: [minor] } as InsertionPoint;
-		expect(suggestionNameFor(point)).toBe('Cry Me a River · F#m');
+		expect(suggestionNameFor(point)).toBe('Cry Me a River · F#-');
 	});
 
 	it('names nothing for a window with no suggestions', () => {

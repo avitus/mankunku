@@ -38,7 +38,7 @@
 	const progressionName = $derived(PROGRESSION_TEMPLATES[progressionType].shortName);
 	const progressionHue = $derived(progressionColor(progressionType));
 	const instrument = $derived(getInstrument());
-	// The label reads in the PROGRESSION's mode: a minor ii-V-i in D is "Dm".
+	// The label reads in the PROGRESSION's mode: a minor ii-V-i in D is "D-".
 	const writtenKey = $derived(
 		keyLabel(concertKeyToWritten(currentKey, instrument), progressionMode(progressionType))
 	);
