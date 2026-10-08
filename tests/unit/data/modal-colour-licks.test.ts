@@ -12,9 +12,12 @@ import { realizeScale } from '$lib/music/keys';
 import type { ScaleType } from '$lib/tonality/tonality';
 import type { ChordQuality, Fraction, Phrase } from '$lib/types/music';
 
+/** A `[numerator, denominator]` fraction as a number (whole notes, for offsets and durations). */
 const val = (f: Fraction): number => f[0] / f[1];
+/** Pitch classes (0-11, C = 0) of the lick's sounding notes in order, repeats kept, rests skipped. */
 const pcs = (lick: Phrase): number[] =>
 	lick.notes.filter((n) => n.pitch !== null).map((n) => n.pitch! % 12);
+/** The scale realized on C as pitch classes, i.e. its semitone offsets from the root; the scale id must exist. */
 const offsets = (scaleId: string): number[] => realizeScale('C', getScale(scaleId)!.intervals);
 const IONIAN = offsets('major.ionian');
 

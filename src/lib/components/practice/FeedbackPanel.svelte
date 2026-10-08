@@ -12,6 +12,7 @@
 
 	let { score, onrepeat, onnext }: Props = $props();
 
+	/** A 0–1 score as a whole percentage. */
 	const pct = (n: number) => Math.round(n * 100);
 
 	// The audio check (scoring/frame-coverage.ts): what the detector's own

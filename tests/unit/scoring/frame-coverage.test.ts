@@ -21,6 +21,7 @@ const line: Note[] = [
 	{ pitch: 64, offset: [1, 4], duration: [1, 4] }
 ];
 
+/** A pitch reading at `time` seconds of fractional MIDI `midiFloat`: nearest MIDI plus cents, its frequency (A4 = 440 Hz), clarity 0.95 by default and rms 0.1. */
 function reading(time: number, midiFloat: number, clarity = 0.95): PitchReading {
 	const midi = Math.round(midiFloat);
 	return { time, midiFloat, midi, cents: Math.round((midiFloat - midi) * 100), clarity, frequency: 440 * 2 ** ((midiFloat - 69) / 12), rms: 0.1 };

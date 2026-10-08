@@ -73,14 +73,18 @@ class Take:
 
     @property
     def expected_length(self) -> float:
+        """Seconds from phrase offset 0 to the end of the last-ending expected note; 0.0 with none."""
         return max(n.onset + n.duration for n in self.expected) if self.expected else 0.0
 
     @property
     def duration(self) -> float:
+        """Recording length in seconds."""
         return len(self.audio) / self.sr
 
 
 def bandpass(x: np.ndarray, sr: int) -> np.ndarray:
+    """Zero-phase (forward-backward) 4th-order Butterworth band-pass over
+    BAND_LOW_HZ-BAND_HIGH_HZ (90-5000 Hz); returns float32."""
     sos = butter(4, [BAND_LOW_HZ, BAND_HIGH_HZ], btype="band", fs=sr, output="sos")
     return sosfiltfilt(sos, x).astype(np.float32)
 
@@ -100,6 +104,9 @@ def swung_onset_beats(offset: Fraction, swing: float) -> float:
 
 
 def expected_from_note_results(note_results: list[dict], tempo: float, swing: float) -> list[ExpectedNote]:
+    """Expected notes of a saved score's noteResults at `tempo`/`swing`: extra
+    rows skipped, each row's expected pitch and whole-note offset/duration
+    converted by expected_note, sorted by onset."""
     out = []
     for nr in note_results:
         if nr.get("extra"):
@@ -113,6 +120,9 @@ def expected_from_note_results(note_results: list[dict], tempo: float, swing: fl
 
 
 def expected_note(midi: int, off: Fraction, dur: Fraction, tempo: float, swing: float) -> ExpectedNote:
+    """One expected note from whole-note fractions: onset in seconds with swing
+    applied, duration to the UN-swung end point (so a swung off-beat eighth is
+    shorter), floored at 0.05 s."""
     spb = 60.0 / tempo
     onset = swung_onset_beats(off, swing) * spb
     # Duration: notated fraction × 4 beats × seconds per beat. A swung
@@ -123,11 +133,16 @@ def expected_note(midi: int, off: Fraction, dur: Fraction, tempo: float, swing: 
 
 
 def load_overrides() -> dict:
+    """takes/expected-overrides.yaml keyed by take stem; {} when the file is
+    absent (None when it exists but is empty)."""
     p = ROOT / "takes" / "expected-overrides.yaml"
     return yaml.safe_load(p.read_text()) if p.exists() else {}
 
 
 def load_truth() -> dict:
+    """Per-take truth rows keyed by stem, merged from truth.yaml, truth-prod.yaml
+    and truth-firefox.yaml in that order (a later file wins on a repeated stem);
+    missing or empty files are skipped."""
     out = {}
     for name in ("truth.yaml", "truth-prod.yaml", "truth-firefox.yaml"):
         p = ROOT / "takes" / name
@@ -166,6 +181,12 @@ def discover() -> dict[str, tuple[Path, Path | None]]:
 
 
 def load_take(stem: str, wav: Path, js: Path | None, overrides: dict | None = None) -> Take:
+    """Load one take: the WAV's first channel at its native rate, context from
+    the export JSON with the override (then 100 BPM, swing 0.6, "unknown") as
+    fallback. Expected notes come from savedScore.noteResults, else from the
+    override's notes with `_tie_prev` chains merged, else none. Lick and tune
+    practice are octave-insensitive unless the override says otherwise; the take
+    is pre-armed iff the export's audio block has captureTrimSeconds."""
     overrides = overrides if overrides is not None else load_overrides()
     audio, sr = sf.read(wav, dtype="float32", always_2d=True)
     audio = audio[:, 0]

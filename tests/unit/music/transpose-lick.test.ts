@@ -263,6 +263,7 @@ describe('minor cadence licks under minor tonalities — tonic → tonality root
  * the same way.
  */
 describe('mode-to-mode adaptation keeps each scale degree', () => {
+	/** The phrase's MIDI pitches in note order, null for a rest. */
 	const pitches = (p: Phrase): (number | null)[] => p.notes.map((n) => n.pitch);
 
 	it('C Lydian raises an Ionian lick\'s 4th to F#, never down to E', () => {

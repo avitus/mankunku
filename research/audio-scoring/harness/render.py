@@ -42,6 +42,9 @@ def tune_corrections() -> dict[int, float]:
 
 @lru_cache(maxsize=None)
 def sample(midi: int, layer: str = "f") -> np.ndarray:
+    """Decoded tenor sample for `midi` in dynamic `layer`, read from
+    cache/tenor/<layer>_<midi>.f32 (raw mono float32 at 48 kHz, made by the
+    README's ffmpeg step); cached per (midi, layer)."""
     p = SAMPLE_CACHE / f"{layer}_{midi}.f32"
     return np.fromfile(p, dtype=np.float32)
 
@@ -55,6 +58,9 @@ def _pitch_shift_rate(x: np.ndarray, rate: float) -> np.ndarray:
 
 
 def _envelope(n: int, sr: int, attack: float, release: float) -> np.ndarray:
+    """Gain curve of `n` samples: linear 0 to 1 over `attack` s, 1 to 0 over the
+    last `release` s, 1 between; each ramp is clipped to `n`, and the release
+    overwrites the attack where they overlap."""
     env = np.ones(n, dtype=np.float32)
     a = min(n, int(attack * sr))
     if a > 0:
@@ -123,6 +129,7 @@ def retime(expected: list[ExpectedNote], tempo: float, swing: float) -> list[Exp
 
 
 def transpose(expected: list[ExpectedNote], semitones: int) -> list[ExpectedNote]:
+    """The same line shifted by `semitones`; timing and notated fractions unchanged."""
     return [ExpectedNote(n.midi + semitones, n.onset, n.duration, n.offset_frac, n.duration_frac) for n in expected]
 
 

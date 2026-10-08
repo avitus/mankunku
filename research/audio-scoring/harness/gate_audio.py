@@ -28,6 +28,9 @@ AUDIO_MATCH_FRACTION = 0.5
 
 
 def expected_roll_fn(note_results, tempo, swing):
+    """Return a lookup from phrase time (s) to the expected MIDI pitch, built
+    from the non-extra rows: onsets swung, each note ending at its un-swung end
+    point and widened 50 ms before its onset and 120 ms past its end."""
     spans = []
     for r in note_results:
         if r.get("extra"):
@@ -38,6 +41,8 @@ def expected_roll_fn(note_results, tempo, swing):
         end = float((off + dur) * 4) * 60.0 / tempo
         spans.append((on, end, e["pitch"]))
     def at(t):
+        """Expected MIDI pitch sounding at phrase time `t` (s), None in a rest;
+        where widened spans overlap, the first matching row wins."""
         for on, end, p in spans:
             if on - 0.05 <= t < end + 0.12:
                 return p
@@ -46,6 +51,13 @@ def expected_roll_fn(note_results, tempo, swing):
 
 
 def charged_extras(note_results, tempo, swing, oi, roll_at=None, f0=None, lag=0.0):
+    """Extras each gate charges, as indices into `note_results` under "thread",
+    "v2" and "audio", each a subset of the one before. "v2" adds the pre-entry
+    (0.1 s) and short-transition rules to the thread's gate; "audio", empty
+    unless `f0` (the take's per-frame MIDI) is given, frees a v2 charge when at
+    least half its voiced frames, shifted by `lag` s, match `roll_at` within
+    0.5 st (pitch class when `oi`). A voiced frame in a rest counts against the
+    match; a span with no voiced frame stays charged."""
     dets = sorted([(i, r["detected"]) for i, r in enumerate(note_results) if r.get("detected")], key=lambda x: x[1]["onsetTime"])
     order = [i for i, _ in dets]; pos = {i: k for k, i in enumerate(order)}
     paired = {i for i, r in enumerate(note_results) if r.get("detected") and not r.get("extra")}
@@ -92,6 +104,9 @@ def charged_extras(note_results, tempo, swing, oi, roll_at=None, f0=None, lag=0.
 
 
 def rescore_with(note_results, charged):
+    """Overall score with `charged` extras added as zero-score notes: pitch and
+    rhythm averaged over every non-extra row (paired or missed) plus `charged`,
+    then weighted 0.6 / 0.4."""
     pairs = [r for r in note_results if not r.get("extra")]
     denom = len(pairs) + charged
     pitch = sum(r["pitchScore"] for r in pairs) / denom; rhythm = sum(r["rhythmScore"] for r in pairs) / denom
@@ -99,6 +114,10 @@ def rescore_with(note_results, charged):
 
 
 def main():
+    """Re-run the three gates on every Firefox lick-practice take listed in
+    results/firefox_own.csv (octave-insensitive, at that CSV's chroma lag),
+    write results/gate_audio.csv and print grade movement per gate and the
+    disagreements. Expects both Wail takes (ids containing 6193df, a3d8e3)."""
     audio = pd.read_csv(ROOT / "results" / "firefox_own.csv").set_index("take")
     rows = []
     for p in sorted(glob.glob(str(ROOT / "takes" / "firefox" / "*.json"))):

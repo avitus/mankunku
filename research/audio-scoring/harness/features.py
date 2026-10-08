@@ -42,15 +42,22 @@ class Features:
 
     @property
     def frames(self) -> int:
+        """Number of frames (HOP samples at FEATURE_SR each)."""
         return self.chroma.shape[1]
 
 
 def _unit(m: np.ndarray) -> np.ndarray:
+    """Columns scaled to unit L2 norm; a column with norm <= 1e-9 becomes zeros."""
     n = np.linalg.norm(m, axis=0, keepdims=True)
     return np.where(n > 1e-9, m / np.maximum(n, 1e-9), 0.0)
 
 
 def extract(y: np.ndarray, sr: int) -> Features:
+    """Features of `y` at FEATURE_SR (resampled if needed). `y` is used as given
+    (every caller passes the 90-5000 Hz band); only the energy gate filters
+    again, to GATE_LOW_HZ-GATE_HIGH_HZ, in dB relative to its loudest frame.
+    Chroma and the semitone map are zeroed on frames not above SILENCE_DB;
+    `scored` starts all True for the caller to narrow."""
     if sr != FEATURE_SR:
         y = librosa.resample(y.astype(np.float32), orig_sr=sr, target_sr=FEATURE_SR)
     y = y.astype(np.float32)
@@ -110,6 +117,9 @@ def extract_reference(y: np.ndarray, sr: int, notated_seconds: float, extension_
 
 
 def f0_track(f: Features) -> np.ndarray:
+    """pyin f0 of `f.y` as fractional MIDI per frame (80-1200 Hz search), nan
+    where unvoiced, nan-padded or truncated to `f.frames`. Computed on first
+    call and cached in `f.f0_midi`."""
     if f.f0_midi is None:
         f0, voiced, prob = librosa.pyin(f.y, sr=FEATURE_SR, hop_length=HOP, fmin=80.0, fmax=1200.0,
                                         frame_length=2048)

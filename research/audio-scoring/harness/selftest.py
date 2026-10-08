@@ -13,12 +13,16 @@ ref_y = render_sampled(line, sr)
 notated = max(n.onset + n.duration for n in line)
 
 def take_from(y, source="ear-training"):
+    """Wrap signal `y` as an octave-strict Take at the module's sr, tempo and
+    swing, expecting `line`, with no files or saved score (pre-armed by the
+    dataclass default)."""
     return Take(id="self", wav_path=None, json_path=None, audio=y.astype(np.float32), sr=sr, tempo=tempo, swing=swing,
                 source=source, octave_insensitive=False, concert_key="C", phrase_id=None, phrase_name=None,
                 expected=line, saved_overall=None, saved_notes_hit=None, saved_grade=None)
 
 ok = True
 def check(name, cond, detail=""):
+    """Print PASS/FAIL for one invariant and fold it into the module-level `ok`."""
     global ok
     print(("PASS" if cond else "FAIL"), name, detail)
     ok &= bool(cond)

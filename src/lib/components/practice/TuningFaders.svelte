@@ -29,6 +29,7 @@
 	const centred = $derived(fromCentre && summary.centre !== null);
 	const shift = $derived(centred ? summary.centre! : 0);
 
+	/** A concert MIDI's written name with octave, spelled for the session key and scale. */
 	const writtenName = (midi: number) => midiToDisplayName(midi + transpositionSemitones, displayKey, scaleId);
 	const lines = $derived(tuningSummaryLines(summary, instrumentId, writtenName));
 	const total = $derived(summary.notes.reduce((n, note) => n + note.count, 0));
@@ -55,7 +56,9 @@
 
 	const H = 168;
 	const LIMIT = 35;
+	/** Pin an offset to the fader's ±LIMIT travel. */
 	const clamp = (c: number) => Math.max(-LIMIT, Math.min(LIMIT, c));
+	/** Pixel top within the slot for an offset in cents: sharp up, 0 at the centre detent. */
 	const y = (c: number) => H / 2 - (clamp(c) / LIMIT) * (H / 2 - 8);
 	const TICKS = [-30, -ALERT_CENTS, -IN_TUNE_CENTS, 0, IN_TUNE_CENTS, ALERT_CENTS, 30];
 	const SCALE = [30, ALERT_CENTS, 0, -ALERT_CENTS, -30];

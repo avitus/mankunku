@@ -10,6 +10,7 @@ const ROOT = join(process.cwd(), 'research/audio-scoring');
 
 interface Saved { noteResults: { expected: Note; detected: DetectedNote | null; extra: boolean; missed: boolean }[]; overall: number }
 
+/** Rebuild the scorer's inputs from a saved take: the expected line from every non-extra row, the detected notes from every row that has one (paired and extra), sorted by onset. */
 function fromNoteResults(s: Saved): { expected: Note[]; detected: DetectedNote[] } {
 	const expected = s.noteResults.filter((r) => !r.extra).map((r) => r.expected);
 	const detected = s.noteResults.filter((r) => r.detected).map((r) => r.detected!).sort((a, b) => a.onsetTime - b.onsetTime);
@@ -21,6 +22,12 @@ describe('scorer variants over every saved take', () => {
 		const rows: string[] = ['set,take,source,tempo,swing,oi,saved,' + Object.keys(VARIANTS).flatMap((v) => [`${v}_overall`, `${v}_charged`, `${v}_hits`, `${v}_wrong`]).join(',')];
 		const prod = JSON.parse(readFileSync(join(ROOT, 'takes/prod/raw/session_results.json'), 'utf8')).rows as any[];
 		let maxRepro = 0;
+		/**
+		 * Rescore one saved take under every variant and append its CSV row. A saved
+		 * overall above 1 is a percentage and is divided by 100; a take with no
+		 * expected notes is skipped. Tracks the `current` variant's worst deviation
+		 * from the saved overall in `maxRepro`.
+		 */
 		const add = (set: string, id: string, source: string, tempo: number, swing: number, oi: boolean, saved: Saved) => {
 			const { expected, detected } = fromNoteResults(saved);
 			if (expected.length === 0) return;

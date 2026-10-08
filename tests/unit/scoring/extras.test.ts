@@ -24,10 +24,12 @@ import type { DetectedNote } from '$lib/types/audio';
  * short chromatic turn beside a correct note, keeps 0.934.
  */
 
+/** A written note; offset and duration in whole-note fractions, duration an eighth by default. */
 function makeNote(pitch: number | null, offset: Fraction, duration: Fraction = [1, 8]): Note {
 	return { pitch, offset, duration };
 }
 
+/** A detected note at MIDI `midi`, 0 cents, onset and duration in seconds; duration 0.3 s and clarity 0.95 by default, `extra` overrides any field (e.g. `ghost`). */
 function det(midi: number, onsetTime: number, duration = 0.3, clarity = 0.95, extra: Partial<DetectedNote> = {}): DetectedNote {
 	return { midi, cents: 0, onsetTime, duration, clarity, ...extra };
 }
@@ -36,6 +38,7 @@ const harmony: HarmonicSegment[] = [
 	{ chord: { root: 'C', quality: 'maj7' }, scaleId: 'C-major', startOffset: [0, 1], duration: [2, 1] }
 ];
 
+/** A curated 4/4 phrase in C holding `notes` over the shared two-bar Cmaj7 harmony. */
 function makePhrase(notes: Note[]): Phrase {
 	return {
 		id: 'test', name: 'Test', timeSignature: [4, 4], key: 'C', notes, harmony,
@@ -53,6 +56,11 @@ describe('chargeableExtras — which extra notes count', () => {
 	const expected = line;
 	const paired = new Set([0, 1, 2, 3]);
 
+	/**
+	 * The chargeable extras when `extras` join the four correctly played notes:
+	 * all merged by onset, the played notes paired and the rest unpaired, scored
+	 * at 120 BPM straight. Returns indices into that merged, onset-sorted list.
+	 */
 	function charged(extras: DetectedNote[]): number[] {
 		const detected = [...played, ...extras].sort((a, b) => a.onsetTime - b.onsetTime);
 		const pairedIdx = new Set(detected.map((d, i) => (played.includes(d) ? i : -1)).filter((i) => i >= 0));

@@ -27,6 +27,9 @@ class Result:
 # both sounding → cosine of the (unit) feature columns.
 # ----------------------------------------------------------------------------
 def frame_similarity(ref: np.ndarray, ref_on: np.ndarray, take: np.ndarray, take_on: np.ndarray) -> np.ndarray:
+    """Per-frame similarity of two (bins, T) feature matrices: 1 where both are
+    silent, 0 where exactly one sounds, else the column dot product (the cosine,
+    since `extract` makes the columns unit-norm)."""
     cos = np.einsum("ij,ij->j", ref, take)
     both_silent = (~ref_on) & (~take_on)
     one_silent = ref_on ^ take_on
@@ -118,6 +121,11 @@ def _valid_lags(lags: range, required: int, T: int) -> list[int]:
 
 
 def m1_raw_xcorr(take_y: np.ndarray, ref_y: np.ndarray, sr: int, lags: range, required_seconds: float) -> Result:
+    """Normalised cross-correlation of the take and rendered waveforms (both at
+    `sr`), searched at sample resolution over `lags` (frames) narrowed to those
+    keeping half the notated span in the take (all of `lags` if none do).
+    Windows under 5 % of the peak window energy score 0. Returns the best |NCC|,
+    so an inverted waveform also matches, with its lag in seconds."""
     hop = int(FRAME_SECONDS * sr)
     T = len(take_y) // hop
     ks = _valid_lags(lags, int(required_seconds / FRAME_SECONDS), T)
@@ -185,6 +193,10 @@ def m2_envelope_xcorr(take_f: Features, ref_f: Features, lags: range, at_lag: in
 # M3 / M4: feature similarity at the best lag, no warping; and banded DTW
 # ----------------------------------------------------------------------------
 def best_lag(take_f: Features, ref_f: Features, feat: str, lags: range) -> tuple[int, float]:
+    """Lag (frames) where the reference's scored span best matches the take on
+    feature `feat` ("chroma" or "cqt") with no warping, and that mean frame
+    similarity. Lags failing the overlap rule score -1, so when none qualifies
+    the first candidate comes back with -1."""
     rf, tf = getattr(ref_f, feat), getattr(take_f, feat)
     sims, ks = sliding_similarity(rf, ref_f.sounding, tf, take_f.sounding, lags, spans=_spans(ref_f))
     i = int(np.argmax(sims))
@@ -192,6 +204,10 @@ def best_lag(take_f: Features, ref_f: Features, feat: str, lags: range) -> tuple
 
 
 def sim_at_lag(take_f: Features, ref_f: Features, feat: str, k: int, hold: bool = False) -> float:
+    """Mean frame similarity on `feat` at a fixed lag `k` (frames) over the
+    reference's scored frames the take holds; 0.0 when none overlap. With
+    `hold`, the back of a held note the take has released is weighted 0. No
+    minimum-overlap rule, unlike sliding_similarity."""
     rf, tf = getattr(ref_f, feat), getattr(take_f, feat)
     (R, S), T = _spans(ref_f), tf.shape[1]
     rs, ts, n = _overlap(k, S, T)
@@ -285,6 +301,12 @@ def required_roll(expected: list[ExpectedNote], frames: int, lag_frames: int, te
 
 def m5_frame_coverage(take_f: Features, expected: list[ExpectedNote], lag_frames: int,
                       octave_insensitive: bool, tolerance_st: float = 0.5, tempo: float | None = None) -> Result:
+    """Frame-level pitch coverage of the take's pyin f0 against the expected
+    piano roll placed at `lag_frames`. Precision: share of sounded (voiced,
+    gated-on) frames within `tolerance_st` of the roll with every note extended
+    by RELEASE_TOLERANCE; recall: share of expected frames matched; F1 of both.
+    With `tempo`, recall_hold counts only each note's required part (half its
+    length or one beat); without it, it equals recall."""
     f0 = f0_track(take_f)
     T = take_f.frames
     roll = piano_roll(expected, T, lag_frames)
@@ -294,6 +316,8 @@ def m5_frame_coverage(take_f: Features, expected: list[ExpectedNote], lag_frames
     req_on = ~np.isnan(required_roll(expected, T, lag_frames, tempo)) if tempo else exp_on
 
     def matches(r):
+        """Frames that sound and lie within `tolerance_st` of roll `r` (the
+        difference folded into ±6 st when octave-insensitive); False in rests."""
         d = f0 - r
         if octave_insensitive:
             d = (d + 6) % 12 - 6
@@ -316,6 +340,11 @@ def m5_frame_coverage(take_f: Features, expected: list[ExpectedNote], lag_frames
 # ----------------------------------------------------------------------------
 def compare(take: Take, take_f: Features, expected: list[ExpectedNote], ref_y: np.ndarray, ref_f: Features,
             octave_insensitive: bool | None = None) -> dict[str, Result]:
+    """Every metric in METRIC_NAMES for one take against one rendering (`ref_y`
+    at `take.sr`). Chroma's best lag anchors the chroma DTW (band max(0.25 s,
+    half a beat)), m2_env_at, m3_chroma_hold and every M5 variant; m4_cqt and
+    m4_cqt_hold use the CQT's own best lag. `octave_insensitive` overrides the
+    take's policy for m5_cover/m5_cover_hold; m5_cover_strict is always strict."""
     oi = take.octave_insensitive if octave_insensitive is None else octave_insensitive
     ref_seconds = len(ref_y) / take.sr
     lags = lag_range(take, ref_seconds)

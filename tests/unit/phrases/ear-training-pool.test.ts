@@ -136,10 +136,12 @@ describe('ear-training eligibility', () => {
  * the floor became one in seven (lowest measured: 9 of 56 at level 3).
  */
 describe('C Lydian sessions sound the #4 (2026-10-07)', () => {
+	/** The phrases a C Lydian session serves at `level`, each lick transposed into C Lydian within MIDI 46-77. */
 	const served = (level: number): Phrase[] =>
 		selectEarTrainingLicks(ALL_CURATED_LICKS, level, 'lydian').map(lick =>
 			transposeEarTrainingLick(lick, 'C', 'lydian', 46, 77)
 		);
+	/** Whether any pitched note of the phrase has pitch class `pc` (0-11, C = 0). */
 	const sounds = (phrase: Phrase, pc: number): boolean =>
 		phrase.notes.some(note => note.pitch !== null && note.pitch % 12 === pc);
 
@@ -188,6 +190,7 @@ describe.each([
 	{ scaleType: 'minor', colour: 8, scale: [0, 2, 3, 5, 7, 8, 10], oneIn: 2 },
 	{ scaleType: 'mixolydian', colour: 10, scale: [0, 2, 4, 5, 7, 9, 10], oneIn: 7 }
 ] as const)('C $scaleType sessions sound their colour tone (2026-10-07)', ({ scaleType, colour, scale, oneIn }) => {
+	/** The phrases a C `scaleType` session serves at `level`, each lick transposed into that scale on C within MIDI 46-77. */
 	const served = (level: number): Phrase[] =>
 		selectEarTrainingLicks(ALL_CURATED_LICKS, level, scaleType).map(lick =>
 			transposeEarTrainingLick(lick, 'C', scaleType, 46, 77)

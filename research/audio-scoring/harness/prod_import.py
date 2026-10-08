@@ -39,17 +39,28 @@ DEFAULT_SWING = 0.62
 
 
 def slug(s: str) -> str:
+    """Lower-case filename slug: each run of characters outside a-z0-9 becomes
+    one hyphen, the ends are trimmed, then the result is cut to 40 characters."""
     s = re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")
     return s[:40]
 
 
 def norm01(v: float | None) -> float | None:
+    """Score on a 0-1 scale: a value above 1 is read as a percentage and divided
+    by 100; None passes through."""
     if v is None:
         return None
     return v / 100.0 if v > 1.0 else v
 
 
 def convert(raw_dir: Path, out_dir: Path, limit: int | None, since: dt.date | None) -> list[dict]:
+    """Turn every session_results row with a matching .webm (newest first) into a
+    take in `out_dir`: a mono 48 kHz 16-bit WAV (ffmpeg, kept if it exists) and
+    a diagnostic-export-shaped JSON with scores normalised to 0-1, marked
+    pre-armed from 2026-08-11 on. Rows dated (UTC) before `since`, or with no
+    non-extra noteResult, are skipped; stops after `limit` takes. Merges an
+    unverified truth row per take into ROOT/takes/truth-prod.yaml whatever
+    `out_dir` is, and returns the stems written."""
     rows = json.loads((raw_dir / "session_results.json").read_text())
     if isinstance(rows, dict):  # `supabase db query -o json` wraps the rows
         rows = rows.get("rows") or rows.get("result") or []

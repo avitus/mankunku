@@ -107,6 +107,7 @@ describe('getCompatibleScaleTypes', () => {
 /** A progression-category lick whose harmony moves: first segment `scaleId`, then two more chords. */
 function makeProgression(overrides: { scaleId?: string; category: Phrase['category'] }): Phrase {
 	const lick = makeLick(overrides);
+	/** A one-bar `root` maj7 segment in major.ionian starting `at` whole notes in. */
 	const next = (root: 'G' | 'C', at: number): Phrase['harmony'][number] => ({
 		chord: { root, quality: 'maj7' }, scaleId: 'major.ionian', startOffset: [at, 1], duration: [1, 1]
 	});

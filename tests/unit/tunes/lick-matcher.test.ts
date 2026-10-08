@@ -453,6 +453,7 @@ describe('buildLickMatcherDeps — live store assembly, strictly read-only', () 
 describe('ownBookOnly — tune practice offers only the player\'s book (2026-10-07)', () => {
 	const curated = getAllLicks().find((l) => l.id === 'short-ii-V-maj-001')!;
 	const own: Phrase = { ...curated, id: 'user-short-ii-V', name: 'My ii-V', source: 'user-entered' };
+	/** Base ids (transposition suffix stripped) of the licks suggested for the short ii-V-I in C, with `ownBookOnly` as given. */
 	const offered = (deps: LickMatcherDeps, ownBookOnly: boolean): string[] =>
 		suggestLicksForProgression(detectShortInC(), deps, { ownBookOnly }).suggestions.map((s) => baseLickId(s.lickId));
 

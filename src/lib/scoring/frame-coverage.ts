@@ -59,6 +59,10 @@ interface Slot {
 	weight: number;
 }
 
+/**
+ * The line's pitched notes as time slots on the phrase clock (seconds, swing
+ * applied to onsets), each weighted by its written length. Rests are skipped.
+ */
 function slots(expected: Note[], tempo: number, swing: number): Slot[] {
 	const beat = 60 / tempo;
 	const out: Slot[] = [];
@@ -71,6 +75,11 @@ function slots(expected: Note[], tempo: number, swing: number): Slot[] {
 	return out;
 }
 
+/**
+ * Whether a fractional-MIDI reading is the slot's pitch: within
+ * AUDIO_CHECK_TOLERANCE_SEMITONES, after folding the difference into ±6
+ * semitones when the session ignores octaves.
+ */
 function pitchMatchesSlot(midiFloat: number, pitch: number, octaveInsensitive: boolean): boolean {
 	let diff = midiFloat - pitch;
 	if (octaveInsensitive) diff = ((((diff + 6) % 12) + 12) % 12) - 6;

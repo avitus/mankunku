@@ -78,9 +78,12 @@ export function runScorePipeline(inputs: ScorePipelineInputs): ScorePipelineResu
 		readings
 	} = inputs;
 
-	// The audio check reads the detector's own frames against the line on the
-	// phrase clock — placed there through the score's latency correction, the
-	// same constant the scorer removed from the detected onsets.
+	/**
+	 * Attach the audio check to a score. It reads the detector's own frames
+	 * against the line on the phrase clock, placed there through the score's
+	 * latency correction, the same constant the scorer removed from the
+	 * detected onsets. Without readings the score is returned unchanged.
+	 */
 	const withAudioCheck = (score: Score): Score => {
 		if (!readings) return score;
 		const sounding = extractSoundingNotes(phrase.notes).map((n) => ({

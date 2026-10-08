@@ -7,7 +7,9 @@ import { earTrainingNoteLimit } from '$lib/phrases/ear-training-pool';
 import { findDuplicateLick } from '$lib/phrases/duplicate-detection';
 import type { Fraction, Phrase } from '$lib/types/music';
 
+/** A `[numerator, denominator]` fraction as a number (whole notes, for offsets and durations). */
 const val = (f: Fraction): number => f[0] / f[1];
+/** The lick's notes that carry a pitch, in order, rests dropped. */
 const pitched = (lick: Phrase) => lick.notes.filter((n) => n.pitch !== null);
 /** The line as heard in concert C: pitches and rhythm over its chords, no other metadata. */
 const sounding = (lick: Phrase): string =>

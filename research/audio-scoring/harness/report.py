@@ -9,6 +9,8 @@ pd.set_option("display.width", 200)
 
 
 def md(df: pd.DataFrame, floatfmt="{:.3f}") -> str:
+    """Markdown table of `df`: floats through `floatfmt`, NaN as an empty cell,
+    everything else via str()."""
     cols = list(df.columns)
     out = ["| " + " | ".join(cols) + " |", "|" + "---|" * len(cols)]
     for _, r in df.iterrows():
@@ -24,6 +26,9 @@ def md(df: pd.DataFrame, floatfmt="{:.3f}") -> str:
 
 
 def main():
+    """Build results/tables.md from the E1-E3 CSVs in results/ plus E4's when
+    e4_summary.csv exists (the only one allowed to be missing), with "2026-"
+    dropped from take ids, and print it."""
     parts = []
     e1 = pd.read_csv(R / "e1_summary.csv")
     parts.append("## E1 — discrimination (own lick vs transpositions ±1…±5 st, vs other licks at the take's tempo)\n")

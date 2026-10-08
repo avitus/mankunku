@@ -48,6 +48,7 @@ verdict and numbers are in [REPORT.md](REPORT.md).
 ```sh
 cd research/audio-scoring
 uv sync                                   # uv-managed Python 3.12 (pyenv's lacks _lzma)
+mkdir -p cache/tenor                      # gitignored; ffmpeg won't create it
 for f in ../../static/samples/tenor-sax/*.ogg; do   # decode the Opus samples once
   ffmpeg -v error -y -i "$f" -ac 1 -ar 48000 -f f32le "cache/tenor/$(basename "$f" .ogg).f32"; done
 uv run python -m harness.selftest

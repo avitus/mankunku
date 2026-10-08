@@ -43,6 +43,7 @@ GATE_MIN_CLARITY = 0.8
 
 
 def grade(x: float) -> str:
+    """Grade of an overall score in 0..1: the first GRADES threshold it reaches, else "try-again"."""
     for g, m in GRADES:
         if x >= m:
             return g
@@ -50,6 +51,9 @@ def grade(x: float) -> str:
 
 
 def line_end_seconds(note_results, tempo, swing=0.6):
+    """End of the written line in seconds: the latest expected offset + duration
+    (whole-note fractions, 4 beats each, 60/tempo s per beat) over the non-extra
+    results; 0.0 when there are none. `swing` is accepted but not applied."""
     end = 0.0
     for r in note_results:
         if r.get("extra"):
@@ -86,6 +90,10 @@ def gated_extras(note_results, tempo):
 
 
 def rescore(note_results, tempo, f1="none", f3=False):
+    """Pitch, rhythm and overall (0.6/0.4) from the saved per-pair scores, with
+    `f1` ("none", "gated", "naive") choosing which extras join both denominators
+    as zeros and `f3` re-deriving each detected pair's rhythm score under a 1.0
+    penalty (module docstring). None when there are no non-extra results."""
     pairs = [r for r in note_results if not r.get("extra")]
     n_exp = len(pairs)
     if n_exp == 0:
@@ -119,6 +127,8 @@ VARIANTS = {"saved": dict(f1="none", f3=False), "F1 gated": dict(f1="gated", f3=
 
 
 def table(df, label):
+    """Markdown table, one row per VARIANTS entry: grade counts, mean overall, and
+    how many sessions it moves down or up a grade from `saved_grade`."""
     lines = [f"### {label} ({len(df)} sessions)\n", "| variant | perfect | great | good | fair | try-again | mean overall | sessions moved down a grade | moved up |", "|---|---|---|---|---|---|---|---|---|"]
     base = df["saved_grade"]
     for v in VARIANTS:
@@ -130,6 +140,10 @@ def table(df, label):
 
 
 def main():
+    """Rescore every production session_results row and every Firefox take with
+    audio metrics in results/firefox_own.csv under each variant, check that the
+    unfixed rescore reproduces each row's saved overall (percent rows scaled to
+    0..1), write both results files and print the report."""
     rows = json.load(open(ROOT / "takes" / "prod" / "raw" / "session_results.json"))["rows"]
     recs = []
     for r in rows:

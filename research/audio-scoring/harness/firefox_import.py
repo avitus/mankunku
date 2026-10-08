@@ -59,42 +59,55 @@ SCTAG_DOM_FILE_WITHOUT_LASTMODIFIEDDATE = 0xFFFF8003
 
 class Blob:
     def __init__(self, index, size, mime):
+        """A Blob/File reference: `index` is its clone tag's data word (its
+        position among the record's files), `size` in bytes, `mime` its type."""
         self.index, self.size, self.mime = index, size, mime
 
     def __repr__(self):
+        """Index, MIME type and byte size, for the --test listing."""
         return f"<Blob #{self.index} {self.mime} {self.size}B>"
 
 
 class Reader:
     def __init__(self, buf: bytes):
+        """Cursor at byte 0 of a decompressed clone; `objs` lists the objects
+        read so far, in order, for SCTAG_BACK_REFERENCE_OBJECT lookups."""
         self.b = buf
         self.p = 0
         self.objs: list = []
 
     def pair(self):
+        """Read one (data, tag) pair, two little-endian uint32s, and advance 8 bytes."""
         data, tag = struct.unpack_from("<II", self.b, self.p)
         self.p += 8
         return data, tag
 
     def peek_pair(self):
+        """The next (data, tag) pair, without advancing."""
         return struct.unpack_from("<II", self.b, self.p)
 
     def raw(self, n):
+        """The next `n` bytes; the cursor skips past them rounded up to a multiple of 8."""
         out = self.b[self.p:self.p + n]
         self.p += (n + 7) & ~7  # 8-byte alignment
         return out
 
     def u64(self):
+        """Read a little-endian uint64 and advance 8 bytes."""
         v = struct.unpack_from("<Q", self.b, self.p)[0]
         self.p += 8
         return v
 
     def f64(self):
+        """Read a little-endian float64 and advance 8 bytes."""
         v = struct.unpack_from("<d", self.b, self.p)[0]
         self.p += 8
         return v
 
     def string(self, data):
+        """The characters after a string tag whose data word is `data`: the high
+        bit set means Latin-1, else UTF-16LE; the low 31 bits are the length in
+        characters (so 2 bytes each for UTF-16)."""
         latin1 = bool(data & 0x80000000)
         n = data & 0x7FFFFFFF
         raw = self.raw(n if latin1 else 2 * n)
@@ -107,6 +120,11 @@ class Reader:
         return self.raw(n).decode("latin-1")
 
     def value(self):
+        """Read one value, recursing into arrays and objects. A tag below
+        SCTAG_FLOAT_MAX means the pair itself is a float64; a Date becomes
+        {"$date": ms}, a Blob/File a Blob, and ArrayBuffer/typed-array bytes are
+        skipped, sizes kept. Array elements with string keys are dropped; an
+        unhandled tag (Map, Set, ...) raises ValueError."""
         data, tag = self.pair()
         if tag < SCTAG_FLOAT_MAX:
             self.p -= 8
@@ -176,6 +194,10 @@ class Reader:
 
 
 def decode_record(blob: bytes) -> dict:
+    """Raw-Snappy-decompress one `object_data.data` value and parse it, skipping
+    the clone header pair if present. If the full parse fails, parse only the
+    values after the "metadata" and "sessionId" keys and return them with the
+    error under "_fallback" (no blob or timestamp); re-raise without "metadata"."""
     raw = bytes(cramjam.snappy.decompress_raw(blob))
     r = Reader(raw)
     d, t = r.peek_pair()
@@ -200,6 +222,9 @@ def decode_record(blob: bytes) -> dict:
 
 
 def load_records(idb_dir: Path):
+    """Every object_data row of every *.sqlite in `idb_dir`, opened read-only, as
+    {"db": database name, "file": `<db>.files/<first file id>` or None, "rec":
+    decoded record}. A row that fails to decode is printed and skipped."""
     out = []
     for db in sorted(idb_dir.glob("*.sqlite")):
         con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
@@ -218,6 +243,12 @@ def load_records(idb_dir: Path):
 
 
 def convert(idb_dir: Path, out_dir: Path, test: int | None):
+    """Write each scorable record to `out_dir` as a 48 kHz mono 16-bit WAV
+    (ffmpeg; an existing WAV is kept) plus a diagnostic-export JSON, always as
+    tenor sax, and rewrite the harness's takes/truth-firefox.yaml (whatever
+    `out_dir`) with the saved hits/total, unverified. Records lacking metadata,
+    a saved score with a non-extra note, or their blob file are skipped and
+    counted. With `test`, summarise the first `test` records and write nothing."""
     recs = load_records(idb_dir)
     print(f"{len(recs)} records decoded from {idb_dir}")
     if test:

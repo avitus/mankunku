@@ -22,6 +22,10 @@ GRADE_ORDER = ["try-again", "fair", "good", "great", "perfect"]
 
 
 def main(folder: str = "prod"):
+    """Score every take in takes/<folder> against its own lick (sampled
+    renderer), write results/<folder>_own.csv and results/<folder>_summary.md
+    (Spearman vs the saved score and vs notes-hit fraction, medians by saved
+    grade, disagreement tables), and print the summary's first 40 lines."""
     takes = load_all(folders=[folder])
     print(f"{len(takes)} {folder} takes")
     rows = []

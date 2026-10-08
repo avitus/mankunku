@@ -43,6 +43,7 @@ export interface VariantOptions {
 
 type PitchedNote = Note & { pitch: number };
 
+/** DTW pitch cost: 0 when `pitchMatches` accepts the pair, else 0.5 per semitone (cyclic pitch-class distance when octave-insensitive), capped at 1.0. */
 function pitchDistance(expected: PitchedNote, detected: DetectedNote, octaveInsensitive: boolean): number {
 	if (pitchMatches(expected.pitch, detected, octaveInsensitive)) return 0;
 	if (octaveInsensitive) {
@@ -54,11 +55,13 @@ function pitchDistance(expected: PitchedNote, detected: DetectedNote, octaveInse
 	return diff === 0 ? 0 : Math.min(1.0, diff * 0.5);
 }
 
+/** Where a written note starts on the phrase clock, in seconds, swing applied (offset in whole notes, 4 beats each). */
 function noteOnsetSeconds(note: Note, tempo: number, swing: number): number {
 	const rawBeats = fractionToFloat(note.offset) * 4;
 	return applySwingToBeats(rawBeats, swing) * (60 / tempo);
 }
 
+/** Median of `values` without mutating them (mean of the middle two for an even count); 0 for an empty list. */
 function median(values: number[]): number {
 	if (values.length === 0) return 0;
 	const s = [...values].sort((a, b) => a - b);
@@ -66,9 +69,15 @@ function median(values: number[]): number {
 	return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 }
 
+/**
+ * One DTW pass at `skipCost`, comparing each written onset with the detected
+ * onset minus `delay` (seconds). Returns the pairs in time order; an unpaired
+ * note is a pair with a null index on the other side, costing `skipCost`.
+ */
 function alignAt(exp: PitchedNote[], detected: DetectedNote[], tempo: number, swing: number, oi: boolean, skipCost: number, delay: number): AlignmentPair[] {
 	const N = exp.length, M = detected.length, beat = 60 / tempo;
 	const expOnsets = exp.map((n) => noteOnsetSeconds(n, tempo, swing));
+	/** Pitch distance plus onset error in beats (capped at 1) for expected `i` against detected `j`, with `delay` removed. */
 	const matchCost = (i: number, j: number) =>
 		pitchDistance(exp[i], detected[j], oi) + Math.min(1.0, Math.abs(expOnsets[i] - (detected[j].onsetTime - delay)) / beat);
 	const dp: number[][] = Array.from({ length: N + 1 }, () => new Array(M + 1).fill(0));
@@ -89,6 +98,14 @@ function alignAt(exp: PitchedNote[], detected: DetectedNote[], tempo: number, sw
 	return pairs.reverse();
 }
 
+/**
+ * The two-pass alignment of src/lib/scoring/alignment.ts: pass 1 at
+ * DELAY_PASS_SKIP_COST on the raw clock reads the delay as the median onset
+ * offset of its pitch-matched pairs, and pass 2 pairs again at SKIP_COST with
+ * that delay removed. With no pitch-matched pair, pass 1's pairing is kept
+ * with its skips re-costed at SKIP_COST. No detected notes: every expected
+ * note is missed.
+ */
 function alignNotes(exp: PitchedNote[], detected: DetectedNote[], tempo: number, swing: number, oi: boolean): AlignmentPair[] {
 	if (exp.length === 0) return [];
 	if (detected.length === 0) return exp.map((_, i) => ({ expectedIndex: i, detectedIndex: null, cost: SKIP_COST }));
@@ -99,6 +116,7 @@ function alignNotes(exp: PitchedNote[], detected: DetectedNote[], tempo: number,
 	return alignAt(exp, detected, tempo, swing, oi, SKIP_COST, delay);
 }
 
+/** A detected note shorter than SLIVER_MAX_SECONDS or under SLIVER_MIN_CLARITY; with `sliverPairing` off it never takes a DTW slot. */
 export const isSliver = (d: DetectedNote) => d.duration < SLIVER_MAX_SECONDS || d.clarity < SLIVER_MIN_CLARITY;
 
 export interface VariantScore {
@@ -106,6 +124,14 @@ export interface VariantScore {
 	notesHit: number; notesTotal: number; extras: number; charged: number; wrongPairs: number;
 }
 
+/**
+ * Score one take under `opts`: set slivers aside when `sliverPairing` is off,
+ * align, subtract the median paired onset offset as latency, then score
+ * pitch and rhythm per pair. A missed note counts as a zero in both
+ * accuracies; an extra does only when `extraGate` charges it. `overall` is
+ * 0.6 pitch + 0.4 rhythm; `extras` counts unpaired detected notes plus the
+ * slivers set aside. `oi` is octave-insensitive matching.
+ */
 export function scoreVariant(expected: Note[], detectedAll: DetectedNote[], tempo: number, swing: number, oi: boolean, opts: VariantOptions): VariantScore {
 	const exp = expected.filter((n): n is PitchedNote => n.pitch !== null);
 	const slivers = opts.sliverPairing ? [] : detectedAll.filter(isSliver);

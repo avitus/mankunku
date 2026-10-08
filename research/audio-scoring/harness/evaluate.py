@@ -26,10 +26,15 @@ PITCH_METRICS = ["m3_chroma", "m3_chroma_dtw", "m4_cqt", "m4_cqt_dtw", "m5_cover
 
 
 def truth_score(tr: dict) -> float:
+    """hits / (total + real_extras) for one truth.yaml entry: extras count as
+    zeros, pitch only; a missing `real_extras` counts as 0."""
     return tr["hits"] / (tr["total"] + tr.get("real_extras", 0))
 
 
 def reference(take: Take, expected, renderer: str):
+    """(audio, features) of `expected` rendered by `renderer` at the take's
+    sample rate. The features score the notated span plus EXTENSION_BEATS of
+    silence at the take's tempo, so anything the take sounds there is an extra."""
     ry = RENDERERS[renderer](expected, take.sr)
     notated = max(n.onset + n.duration for n in expected)
     rf = extract_reference(ry, take.sr, notated, extension_seconds=EXTENSION_BEATS * 60.0 / take.tempo,
@@ -38,6 +43,8 @@ def reference(take: Take, expected, renderer: str):
 
 
 def row_from(res: dict[str, Result], **meta) -> dict:
+    """One metrics.csv row: `meta`, then each metric's similarity and lag
+    (seconds), plus M5 precision/recall/recall_hold and M2's peak counts."""
     row = dict(meta)
     for m in METRIC_NAMES:
         row[m] = res[m].similarity
@@ -51,6 +58,10 @@ def row_from(res: dict[str, Result], **meta) -> dict:
 
 
 def run(renderers: list[str], skip_e4: bool, only: list[str] | None, from_csv: bool = False):
+    """Score every corpus/downloads/prod take (or the `only` ids), per renderer,
+    against its own line, the line transposed by each of TRANSPOSITIONS, and
+    every other distinct phrase retimed to the take's tempo and swing; write
+    results/metrics.csv, then post-process. `from_csv` reuses that CSV instead."""
     truth = load_truth()
     takes = load_all(only, folders=["corpus", "downloads", "prod"])
     if from_csv:
@@ -96,6 +107,10 @@ def run(renderers: list[str], skip_e4: bool, only: list[str] | None, from_csv: b
 
 
 def postprocess(df, takes, truth, skip_e4):
+    """E1-E3 from the metrics table, then E4 unless `skip_e4`. E1 ranks the own
+    line against transpositions, other licks and other licks within one note
+    of its length (ties rank against it); E2 and E3 use verified, timing-known
+    takes only. Writes the e1/e2/e3 CSVs under results/."""
     t_start = time.time()
     # ---------------- E1 discrimination ----------------
     e1 = []

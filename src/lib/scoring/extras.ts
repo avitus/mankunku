@@ -52,6 +52,7 @@ export const TRANSITION_MAX_SECONDS = 0.25;
 /** ...when it sits within this many semitones of that note. */
 export const TRANSITION_MAX_SEMITONES = 2;
 
+/** Where a written note starts on the phrase clock, in seconds, swing applied. */
 function onsetSeconds(note: Note, tempo: number, swing: number): number {
 	return applySwingToBeats(fractionToFloat(note.offset) * 4, swing) * (60 / tempo);
 }
