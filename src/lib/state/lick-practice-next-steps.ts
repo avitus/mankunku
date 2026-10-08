@@ -139,7 +139,7 @@ export function buildNextStep(input: NextStepInput): NextStep | null {
 	if (!weakest) return doneStep(report);
 
 	const { lick, key, learning, unlockedCount, scores, weakCount, typical } = weakest;
-	const progression = lick.progressionType ?? plan.find(item => item.phraseId === lick.lickId)?.progressionType;
+	const progression = lick.progressionType ?? plan.find((item: LickPracticePlanItem): boolean => item.phraseId === lick.lickId)?.progressionType;
 	const label = formatKey(key, progression ? progressionMode(progression) : 'major');
 	const stage = learning
 		? `Still learning: ${unlockedCount}/12 keys unlocked.`

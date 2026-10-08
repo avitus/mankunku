@@ -314,7 +314,7 @@ describe('getNextStep reads persisted learning state and history', () => {
 	});
 
 	it.each([['concert', 'C-'], ['tenor-sax', 'D-'], ['alto-sax', 'A-']])(
-		'labels a minor recommendation in %s as %s and keeps concert pitch in the action', (instrumentId, written) => {
+		'labels a minor recommendation in %s as %s and keeps concert pitch in the action', (instrumentId: string, written: string): void => {
 			settings.instrumentId = instrumentId;
 			const report = reportFor([0.69]);
 			report.licks[0].lickName = 'Sonny Stitt - Indiana';

@@ -101,7 +101,7 @@ test.describe('lick-practice session flow', () => {
 			const deadline = performance.now() + 15_000;
 			const positions: number[] = [];
 			let enteredAt: number | null = null;
-			function sample(now: number) {
+			function sample(now: number): void {
 				const row = document.querySelector('.row.current[data-key="C"]');
 				if (row) {
 					enteredAt ??= now;
