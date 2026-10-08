@@ -694,7 +694,7 @@
 		if (boundaryTime === undefined) {
 			const rows = getPlannedKeysForLick(lickIdx);
 			precedingKey = !isFirstLick && lickPractice.mode === 'single-lick' && currentItem?.kind !== 'trick'
-				? precedingCycleRow(plannedKeysForLick, rows, precedingKey) : null;
+				? precedingCycleRow(plannedKeysForLick, rows) : null;
 			plannedKeysForLick = rows;
 			nextCycleKey = getHandoffPreviewKey(lickIdx);
 			rowOfKey = rowIndexByKey(plannedKeysForLick);
@@ -1127,7 +1127,7 @@
 					: transport.ticks;
 				if (pendingCycleDisplay && ticks >= pendingCycleDisplay.startTick) {
 					precedingKey = currentItem?.kind !== 'trick'
-						? precedingCycleRow(plannedKeysForLick, pendingCycleDisplay.rows, precedingKey) : null;
+						? precedingCycleRow(plannedKeysForLick, pendingCycleDisplay.rows) : null;
 					plannedKeysForLick = pendingCycleDisplay.rows;
 					nextCycleKey = pendingCycleDisplay.preview;
 					rowOfKey = rowIndexByKey(plannedKeysForLick);

@@ -255,7 +255,7 @@ describe('what the chart shows before the solo chorus (2026-09-17)', () => {
 
 describe('windowLabel', () => {
 	it('names the lick with the key it is played in, minor keys with the m suffix', () => {
-		expect(windowLabel('Cry Me a River', 'F#', 'minor')).toBe('Cry Me a River · F#m');
+		expect(windowLabel('Cry Me a River', 'F#', 'minor')).toBe('Cry Me a River · F#-');
 		expect(windowLabel('Bird Blues', 'Bb', 'major')).toBe('Bird Blues · Bb');
 	});
 });

@@ -47,6 +47,7 @@
  */
 
 import { untrack } from 'svelte';
+import { keyLabel } from '$lib/music/notation';
 import type { PitchClass, Phrase, HarmonicSegment, Note, Fraction } from '$lib/types/music';
 import type {
 	ChordProgressionType,
@@ -509,7 +510,7 @@ export function getNextStep(report: SessionReport, currentSessionId: string): Ne
 		),
 		sessionLog: loadLickPracticeSessions(),
 		currentSessionId,
-		formatKey: (key) => concertKeyToWritten(key, instrument)
+		formatKey: (key, mode) => keyLabel(concertKeyToWritten(key, instrument), mode)
 	});
 }
 

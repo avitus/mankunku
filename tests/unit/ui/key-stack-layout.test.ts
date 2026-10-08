@@ -185,23 +185,33 @@ describe('keyStackLayout', () => {
 describe('Deep cycle chart continuity', () => {
 	const eb = { lickId: 'wail', key: 'Eb' };
 	const bb = { lickId: 'wail', key: 'Bb' };
-	it('keeps the previewed Bb on line two after the Eb handoff', () => {
-		const preceding = precedingCycleRow([eb], [bb, eb], null);
+	it('scrolls the completed Eb out while the previewed Bb becomes the top row', () => {
+		const preceding = precedingCycleRow([eb], [bb, eb]);
 		expect(preceding).toBe(eb);
 		const before = keyStackLayout([128, 128], 0.99, 128, 3, 128);
-		const after = keyStackLayout([128, 128, 128], 1, 128, 3, 128);
+		const after = keyStackLayout([128, 128, 128], 1, 128, 3, 128, false);
 		expect(rowTop([128, 128], 1, before.translateY)).toBe(128);
-		expect(rowTop([128, 128, 128], after.currentRow, after.translateY)).toBe(128);
+		expect(rowTop([128, 128, 128], after.currentRow, after.translateY)).toBe(0);
+		expect(rowTop([128, 128, 128], 0, after.translateY)).toBe(-128);
 	});
 	it('keeps a same-key retry in place without creating a duplicate row', () => {
-		expect(precedingCycleRow([bb, eb], [eb], null)).toBe(bb);
-		expect(precedingCycleRow([eb], [eb], bb)).toBe(bb);
-		expect(precedingCycleRow([eb], [eb], null)).toBeNull();
+		expect(precedingCycleRow([bb, eb], [eb])).toBeNull();
+		expect(precedingCycleRow([eb], [eb])).toBeNull();
+	});
+	it('clears each completed Deep row through rebuild and further keys without drifting within a turn', () => {
+		const heights = [128, 128, 128];
+		for (const fraction of [0, 0.9, 1, 1.3, 1.9, 2, 2.9]) {
+			const layout = keyStackLayout(heights, fraction, 128, 3, 128, false);
+			expect(rowTop(heights, layout.currentRow, layout.translateY)).toBe(0);
+			if (layout.currentRow > 0) {
+				expect(rowTop(heights, layout.currentRow - 1, layout.translateY) + 128).toBe(0);
+			}
+		}
 	});
 	it('carries only the last finished row across ordinary Deep reorder and refill', () => {
-		expect(precedingCycleRow([eb, bb], [eb, bb], null)).toBe(bb);
-		expect(precedingCycleRow([eb, bb], [eb], eb)).toBe(bb);
-		expect(precedingCycleRow([], [eb], bb)).toBeNull();
-		expect(precedingCycleRow([eb], [], bb)).toBeNull();
+		expect(precedingCycleRow([eb, bb], [eb, bb])).toBe(bb);
+		expect(precedingCycleRow([eb, bb], [eb])).toBe(bb);
+		expect(precedingCycleRow([], [eb])).toBeNull();
+		expect(precedingCycleRow([eb], [])).toBeNull();
 	});
 });
