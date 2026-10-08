@@ -313,6 +313,30 @@ describe('getNextStep reads persisted learning state and history', () => {
 		expect(getNextStep(report, 'current')?.kind).toBe('done');
 	});
 
+	it.each([['concert', 'C-'], ['tenor-sax', 'D-'], ['alto-sax', 'A-']])(
+		'labels a minor recommendation in %s as %s and keeps concert pitch in the action', (instrumentId, written) => {
+			settings.instrumentId = instrumentId;
+			const report = reportFor([0.69]);
+			report.licks[0].lickName = 'Sonny Stitt - Indiana';
+			report.licks[0].progressionType = 'ii-V-I-minor';
+			// The report's played progression owns the label even if another
+			// progression for the same lick appears earlier in the plan.
+			lickPractice.plan = planFor(report);
+			const step = getNextStep(report, 'current');
+			expect(step?.headline).toBe(`Drill ${written} on Sonny Stitt - Indiana.`);
+			expect(step?.reason).toContain(`${written} scored 69%`);
+			expect(step?.reason).toContain(`starts on ${written} alone`);
+			expect(step?.action?.focusKey).toBe('C');
+		}
+	);
+
+	it('uses the plan progression for older reports without one', () => {
+		settings.instrumentId = 'concert';
+		const report = reportFor([0.69]);
+		lickPractice.plan = planFor(report).map(item => ({ ...item, progressionType: 'ii-V-I-minor' }));
+		expect(getNextStep(report, 'current')?.headline).toBe('Drill C- on learning.');
+	});
+
 	it.each([['tenor-sax', 'D'], ['alto-sax', 'A'], ['concert', 'C']])(
 		'formats concert C as %s written %s without changing the focus key', (instrumentId, written) => {
 			settings.instrumentId = instrumentId;

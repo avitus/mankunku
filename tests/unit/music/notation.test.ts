@@ -765,12 +765,13 @@ describe('spellingContextAt — the chart\'s spelling frame for one note', () =>
 
 describe('minor keys — labels and signatures', () => {
 	it('labels the twelve minor tonics with conventional jazz spellings', () => {
-		expect(keyLabel('D', 'minor')).toBe('Dm');
-		expect(keyLabel('Bb', 'minor')).toBe('Bbm');
-		expect(keyLabel('Eb', 'minor')).toBe('Ebm'); // six flats, not D#m
-		expect(keyLabel('Ab', 'minor')).toBe('G#m'); // five sharps
-		expect(keyLabel('Db', 'minor')).toBe('C#m'); // four sharps
-		expect(keyLabel('F#', 'minor')).toBe('F#m');
+		expect(keyLabel('C', 'minor')).toBe('C-');
+		expect(keyLabel('D', 'minor')).toBe('D-');
+		expect(keyLabel('Bb', 'minor')).toBe('Bb-');
+		expect(keyLabel('Eb', 'minor')).toBe('Eb-'); // six flats, not D#-
+		expect(keyLabel('Ab', 'minor')).toBe('G#-'); // five sharps
+		expect(keyLabel('Db', 'minor')).toBe('C#-'); // four sharps
+		expect(keyLabel('F#', 'minor')).toBe('F#-');
 		expect(keyLabel('D')).toBe('D');
 		expect(keyLabel('D', 'major')).toBe('D');
 		expect(keyLabelLong('D', 'minor')).toBe('D minor');
@@ -787,7 +788,7 @@ describe('minor keys — labels and signatures', () => {
 		expect(keyChipLabel('D', 'major')).toBe('D');
 	});
 
-	it('abcKeyField matches the label (abcjs reads K:Dm, K:Ebm, K:G#m, K:C#m)', () => {
+	it('abcKeyField retains machine-readable minor syntax independently of display labels', () => {
 		expect(abcKeyField('D', 'minor')).toBe('Dm');
 		expect(abcKeyField('Eb', 'minor')).toBe('Ebm');
 		expect(abcKeyField('Ab', 'minor')).toBe('G#m');

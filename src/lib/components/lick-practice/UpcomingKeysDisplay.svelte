@@ -24,7 +24,7 @@
 		plannedKeys: PlannedKey[];
 		/** Promised first key of the next cycle, visible during a handoff repeat. */
 		nextCycleKey?: PlannedKey | null;
-		/** Completed row retained above the first row of a Deep cycle. Never scheduled. */
+		/** Outgoing row for a Deep cycle's scroll animation. Never scheduled. */
 		precedingKey?: PlannedKey | null;
 		/**
 		 * Scroll position in ROW units: the integer part is the row being
@@ -112,7 +112,8 @@
 	const VISIBLE_ROWS = 3;
 	const NO_MARKERS: RangeMarker[] = [];
 
-	// Row 0 parks at the TOP of the viewport; from row 1 on, the current key
+	// Deep clears completed rows, keeping the active row at the top.
+	// Daily/Focused: row 0 parks at the TOP of the viewport; from row 1 on, the current key
 	// HOLDS one slot below the top for its whole duration — the previous row
 	// (and its score flash) fully visible above it — and the stack steps one
 	// row at each key change after the first (row 0 is already where row 1's
@@ -142,7 +143,7 @@
 	// cycle's stack (a key recovered above the floor) or the next lick's has
 	// no lead row — it used to shift 2 px between 315 and 317.
 	const layout = $derived(
-		keyStackLayout(rowHeights, displayFraction, ROW_HEIGHT, VISIBLE_ROWS, compact ? ROW_HEIGHT : LEAD_ROW_HEIGHT)
+		keyStackLayout(rowHeights, displayFraction, ROW_HEIGHT, VISIBLE_ROWS, compact ? ROW_HEIGHT : LEAD_ROW_HEIGHT, !deep)
 	);
 	const translateYpx = $derived(layout.translateY);
 	const visualCurrentRow = $derived(layout.currentRow);
@@ -228,10 +229,11 @@
 </span>
 
 <div class="viewport" class:compact style="height: {layout.viewportHeight}px;">
-	<!-- A rebuilt cycle carries its previous row explicitly. Do not animate
-	     from the old stack's unrelated transform offset. -->
+	<!-- A rebuilt Deep cycle starts with its outgoing row, then scrolls it
+	     out just like an ordinary key boundary. Same-key retries stay still. -->
 	{#key plannedKeys}
-	<div class="stack" style="transform: translateY({translateYpx}px);">
+	<div class="stack" class:cycle-scroll={deep && !!precedingKey}
+		style="transform: translateY({translateYpx}px); --cycle-from: {translateYpx + (rowHeights[0] ?? 0)}px;">
 		{#each displayKeys as pk, i (pk.lickId + ':' + pk.key + ':' + i)}
 			{@const isCurrent = i === visualCurrentRow}
 			{@const sheet = leadSheets[i]}
@@ -396,6 +398,12 @@
 		/* One eased step per key change; the rest of the time the stack is
 		   perfectly still so the staff can be read. */
 		transition: transform 420ms cubic-bezier(0.2, 0.7, 0.2, 1);
+	}
+	.stack.cycle-scroll {
+		animation: cycle-scroll 420ms cubic-bezier(0.2, 0.7, 0.2, 1);
+	}
+	@keyframes cycle-scroll {
+		from { transform: translateY(var(--cycle-from)); }
 	}
 	.row {
 		position: relative;
@@ -621,6 +629,7 @@
 	}
 
 	@media (prefers-reduced-motion: reduce) {
+		.stack.cycle-scroll { animation: none; }
 		.stack,
 		.phase-tab,
 		.phase-tab::before,

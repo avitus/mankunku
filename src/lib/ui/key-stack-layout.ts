@@ -3,6 +3,9 @@
  * with rows of DIFFERENT heights — a struggling key's row grows into a
  * lead-sheet system while the others stay one chord-chart row tall.
  *
+ * Deep parks the active row at the top and scrolls completed rows out.
+ * The default Daily/Focused layout below retains the previous row.
+ *
  * The stack STEPS, it does not drift. Row 0 parks at the TOP of the
  * viewport; from row 1 on, the active row holds one slot below the top —
  * the previous row's height — for its whole duration (a revealed row's
@@ -68,13 +71,16 @@ export interface KeyStackLayout {
  *                       changed with the stack moved the ring under it by the 2 px
  *                       between three chord rows and a sheet plus one. A row taller
  *                       than the reserve still wins. 0 reserves only what the stack has.
+ * @param retainPreviousRow keep the prior row above the active row (Daily/Focused).
+ *                       Deep clears finished rows and parks the active row at the top.
  */
 export function keyStackLayout(
 	heights: readonly number[],
 	scrollFraction: number,
 	slotHeight: number,
 	visibleRows: number,
-	reserveRowHeight = 0
+	reserveRowHeight = 0,
+	retainPreviousRow = true
 ): KeyStackLayout {
 	const n = heights.length;
 	const s = Math.max(0, scrollFraction);
@@ -107,18 +113,18 @@ export function keyStackLayout(
 	// Row 0 at the top; every later row under the row before it. (Kept as a
 	// subtraction of two non-negative numbers: a `-prefix(...)` form would
 	// hand rows 0 and 1 a `-0`, which `Object.is` — and so vitest — tells apart.)
-	const activeTop = currentRow === 0 ? 0 : heights[currentRow - 1];
+	const activeTop = !retainPreviousRow || currentRow === 0 ? 0 : heights[currentRow - 1];
 	const translateY = activeTop - top;
 
 	return { translateY, currentRow, viewportHeight };
 }
 
-/** Keep one completed row above a new Deep cycle, without duplicating a same-key retry. */
+/** Outgoing row for a Deep cycle's upward scroll; same-key retries do not scroll. */
 export function precedingCycleRow<T extends { key: string; lickId: string }>(
-	previous: readonly T[], next: readonly T[], preceding: T | null
+	previous: readonly T[], next: readonly T[]
 ): T | null {
 	const last = previous.at(-1);
 	if (!last || !next.length) return null;
 	return last.key === next[0].key && last.lickId === next[0].lickId
-		? previous.at(-2) ?? preceding : last;
+		? null : last;
 }

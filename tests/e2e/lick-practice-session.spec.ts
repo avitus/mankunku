@@ -82,7 +82,7 @@ const LEAD_AHEAD_PROGRESS = {
  * score's value.
  */
 test.describe('lick-practice session flow', () => {
-	test('Deep cycle retains the finished row above the next key and keeps its score off future rows', async ({ page, browserName }) => {
+	test('Deep scrolls completed rows out through keys and cycle rebuilds without moving scores to future rows', async ({ page, browserName }) => {
 		test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
 			'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device');
 		test.setTimeout(60_000);
@@ -93,8 +93,30 @@ test.describe('lick-practice session flow', () => {
 		await stubCdnInstrumentSamples(page);
 		await page.goto('/licks/e2e-user-lick-bebop');
 		await page.getByRole('button', { name: 'Practice', exact: true }).click();
+		await page.emulateMedia({ reducedMotion: 'no-preference' });
 		await expect(page.locator('.row.current[data-key="G"] .phase-tab[data-pass="3"]')).toBeVisible({ timeout: 30_000 });
-		await expect(page.locator('.row.current[data-key="C"]')).toBeVisible({ timeout: 15_000 });
+		// Observe the boundary in animation frames: the incoming C must move
+		// upward from the preview slot, not just appear at its final position.
+		const movement = await page.evaluate(() => new Promise<number[]>((resolve, reject) => {
+			const deadline = performance.now() + 15_000;
+			const positions: number[] = [];
+			let enteredAt: number | null = null;
+			function sample(now: number) {
+				const row = document.querySelector('.row.current[data-key="C"]');
+				if (row) {
+					enteredAt ??= now;
+					positions.push(row.getBoundingClientRect().top - row.closest('.viewport')!.getBoundingClientRect().top);
+					if (now - enteredAt >= 500) return resolve(positions);
+				}
+				if (now >= deadline) return reject(new Error('Next Deep cycle did not enter C'));
+				requestAnimationFrame(sample);
+			}
+			requestAnimationFrame(sample);
+		}));
+		expect(Math.max(...movement)).toBeGreaterThan(64);
+		expect(movement.some(y => y > 2 && y < 100)).toBe(true);
+		expect(movement.at(-1)).toBeCloseTo(0, 0);
+		await expect(page.locator('.row.current[data-key="C"]')).toBeVisible();
 		const rows = await page.locator('.stack .row').evaluateAll((rows) => rows.map(row => ({
 			key: row.getAttribute('data-key'), current: row.classList.contains('current'),
 			score: row.querySelector('.score-flash')?.textContent?.trim() ?? null,
@@ -102,9 +124,49 @@ test.describe('lick-practice session flow', () => {
 		})));
 		expect(rows.map(row => row.key)).toEqual(['G', 'C', 'G']);
 		expect(rows[1].current).toBe(true);
-		expect(rows[1].y - rows[0].y).toBe(128);
+		expect(rows[1].y - rows[0].y).toBeCloseTo(128, 3);
+		const viewport = page.locator('.viewport').filter({ has: page.locator('.stack') });
+		// The old row may exist as an outgoing animation frame, but must
+		// leave the viewport. Assert painted geometry, not just row order.
+		const currentTop = () => page.locator('.row.current').evaluate(row =>
+			row.getBoundingClientRect().top - row.closest('.viewport')!.getBoundingClientRect().top);
+		await expect.poll(currentTop).toBeCloseTo(0, 0);
+		const finished = page.locator('.stack .row').first();
+		expect((await finished.boundingBox())!.y + (await finished.boundingBox())!.height)
+			.toBeLessThanOrEqual((await viewport.boundingBox())!.y + 1);
 		expect(rows[0].score).not.toBeNull();
 		expect(rows[2].score).toBeNull();
+		// The next key also moves to the top, rather than replacing the
+		// contents of a permanently active second slot.
+		await expect(page.locator('.row.current[data-key="G"]')).toBeVisible({ timeout: 15_000 });
+		await expect.poll(currentTop).toBeCloseTo(0, 0);
+		await page.getByRole('button', { name: /end session/i }).click();
+	});
+
+	test('minor key labels agree across Daily report, recommendation and recommended Deep', async ({ page, browserName }) => {
+		test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+			'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device');
+		test.setTimeout(90_000);
+		await seedOnboardedAnonymous(page);
+		await seedUserLicks(page, [{
+			...(SAMPLE_USER_LICKS[0] as object), name: 'Sonny Stitt - Indiana', mode: 'minor', category: 'minor-chord',
+			harmony: [{ chord: { root: 'C', quality: 'min7' }, scaleId: 'minor.dorian', startOffset: [0, 1], duration: [1, 1] }]
+		}]);
+		await seedStorage(page, {
+			'user-lick-tags': { 'e2e-user-lick-bebop': ['practice', 'prog:minor-vamp'] }, ...SEEDED_PROGRESS
+		});
+		await installAudioMock(page);
+		await stubCdnInstrumentSamples(page);
+		await page.goto('/lick-practice');
+		await page.getByRole('button', { name: /start daily practice/i }).click();
+		// Concert C minor is D minor for the seeded tenor player.
+		await expect(page.getByText('D-', { exact: true }).first()).toBeVisible();
+		await expect(page.getByRole('heading', { name: /session report/i })).toBeVisible({ timeout: 60_000 });
+		await expect(page.getByText('D-', { exact: true }).first()).toBeVisible();
+		await expect(page.getByText('Drill D- on Sonny Stitt - Indiana.', { exact: true })).toBeVisible();
+		await page.getByRole('button', { name: /start deep practice/i }).click();
+		await expect(page.getByTestId('focus-ramp')).toContainText('Focus · D- ·');
+		await expect(page.getByText('D-', { exact: true }).first()).toBeVisible();
 		await page.getByRole('button', { name: /end session/i }).click();
 	});
 

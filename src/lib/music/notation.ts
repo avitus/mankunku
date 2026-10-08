@@ -334,10 +334,9 @@ export function signatureFlatsFor(key: PitchClass, mode: Mode = 'major'): boolea
 	return FLAT_KEYS.includes(key);
 }
 
-/** Short key label for pills, chips and ABC: "D", "Dm", "Ebm", "G#m", "C#m". */
+/** Short display key label: "D", "D-", "Eb-", "G#-", "C#-". */
 export function keyLabel(writtenKey: PitchClass, mode: Mode = 'major'): string {
-	if (mode === 'minor') return `${MINOR_TONIC_RESPELL[writtenKey] ?? writtenKey}m`;
-	return writtenKey;
+	return keyChipLabel(writtenKey, mode);
 }
 
 /** Chord-symbol-style key chip: "D", "D-", "Eb-", "G#-" — minor takes the jazz "-" suffix. */
@@ -354,7 +353,8 @@ export function keyLabelLong(writtenKey: PitchClass, mode: Mode = 'major'): stri
 
 /** The ABC `K:` field — abcjs reads "Dm", "Ebm" (via Gb), "G#m", "C#m". */
 export function abcKeyField(writtenKey: PitchClass, mode: Mode = 'major'): string {
-	return keyLabel(writtenKey, mode);
+	if (mode === 'minor') return `${MINOR_TONIC_RESPELL[writtenKey] ?? writtenKey}m`;
+	return writtenKey;
 }
 
 /** Black-key pitch class → the letter each enharmonic spelling uses. */

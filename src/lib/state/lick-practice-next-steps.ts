@@ -10,7 +10,9 @@
  * Trick entries never enter a lick's deep-practice start path.
  */
 
-import type { PitchClass, Phrase } from '$lib/types/music';
+import type { PitchClass, Phrase, Mode } from '$lib/types/music';
+import { progressionMode } from '$lib/data/progressions';
+import { keyLabel } from '$lib/music/notation';
 import type { LickPracticePlanItem, LickReport, SessionReport } from '$lib/types/lick-practice';
 import { baseSessionId, type LickPracticeSessionLogEntry } from '$lib/persistence/lick-practice-sessions';
 import { KEY_FLOOR_THRESHOLD, KEY_PROFICIENT_THRESHOLD } from '$lib/persistence/lick-practice-store';
@@ -60,9 +62,9 @@ export interface NextStep {
 export interface NextStepInput {
 	report: SessionReport;
 	/**
-	 * The session plan, still intact on the report screen. Read for two things
-	 * only: which report entries are trick items, and the resolved Phrase to
-	 * hand to the start path.
+	 * The session plan, still intact on the report screen: identifies trick
+	 * entries, resolves the Phrase to start, and supplies the progression for
+	 * legacy report entries that did not record one.
 	 */
 	plan: readonly LickPracticePlanItem[];
 	/** Resolved persisted counts, including the legacy all-12-keys fallback. */
@@ -72,12 +74,12 @@ export interface NextStepInput {
 	currentSessionId: string;
 
 	/**
-	 * Concert pitch class → display label. Injected so the pure module stays
+	 * Concert pitch class and progression mode → display label. Injected so the pure module stays
 	 * instrument-agnostic while the copy matches the written-pitch key chips
 	 * beside it (a tenor player reading "Drill C" next to an "D" chip would be
 	 * a real bug). Defaults to concert spelling.
 	 */
-	formatKey?: (key: PitchClass) => string;
+	formatKey?: (key: PitchClass, mode: Mode) => string;
 }
 
 const pct = (value: number): number => Math.round(value * 100);
@@ -88,7 +90,7 @@ const pct = (value: number): number => Math.round(value * 100);
  */
 export function buildNextStep(input: NextStepInput): NextStep | null {
 	const { report, plan } = input;
-	const formatKey = input.formatKey ?? ((key: PitchClass) => key as string);
+	const formatKey = input.formatKey ?? keyLabel;
 
 	if (report.licks.length === 0) return null;
 
@@ -137,16 +139,18 @@ export function buildNextStep(input: NextStepInput): NextStep | null {
 	if (!weakest) return doneStep(report);
 
 	const { lick, key, learning, unlockedCount, scores, weakCount, typical } = weakest;
+	const progression = lick.progressionType ?? plan.find(item => item.phraseId === lick.lickId)?.progressionType;
+	const label = formatKey(key, progression ? progressionMode(progression) : 'major');
 	const stage = learning
 		? `Still learning: ${unlockedCount}/12 keys unlocked.`
 		: 'All 12 keys unlocked; this key is persistently weak.';
 	const evidence = scores.length === 1
-		? `${formatKey(key)} scored ${pct(typical)}% this session.`
-		: `${formatKey(key)} was below ${pct(KEY_PROFICIENT_THRESHOLD)}% in ${weakCount} of its last ${scores.length} sessions (typical score ${pct(typical)}%).`;
+		? `${label} scored ${pct(typical)}% this session.`
+		: `${label} was below ${pct(KEY_PROFICIENT_THRESHOLD)}% in ${weakCount} of its last ${scores.length} sessions (typical score ${pct(typical)}%).`;
 	return {
 		kind: 'drill-weak-key',
-		headline: `Drill ${formatKey(key)} on ${lick.lickName}.`,
-		reason: `${stage} ${evidence} Deep practice starts on ${formatKey(key)} alone and brings the other keys back once it's up to speed.`,
+		headline: `Drill ${label} on ${lick.lickName}.`,
+		reason: `${stage} ${evidence} Deep practice starts on ${label} alone and brings the other keys back once it's up to speed.`,
 		action: deepAction(lick.lickId, plan, key)
 	};
 }

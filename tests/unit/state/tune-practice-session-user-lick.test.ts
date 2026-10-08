@@ -92,8 +92,8 @@ describe('a saved Minor Chord lick reaches the session as its own window', () =>
 		expect(minors.map((ip) => fractionToFloat(ip.startOffset))).toEqual([7, 15, 19, 31]);
 		expect(minors.every((ip) => ip.suggestions[0]?.lickId === 'e2e-minor-lick')).toBe(true);
 		expect(minors.map((ip) => ip.keyCenter)).toEqual(['E', 'E', 'E', 'E']);
-		// Written for the default tenor: concert E- reads F#m.
-		expect(suggestionNameFor(minors[0])).toBe('E2E Minor Lick · F#m');
+		// Written for the default tenor: concert E- reads F#-.
+		expect(suggestionNameFor(minors[0])).toBe('E2E Minor Lick · F#-');
 		// The long cadences keep their progression bands but name no lick: the
 		// player has no cadence lick, and Points offers only their own book —
 		// never a curated lick they have never seen (2026-10-07).
