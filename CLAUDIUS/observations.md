@@ -2810,3 +2810,22 @@ change to selection, diff every scale's pool at every level against the
 previous commit before calling it done; it is one probe and a worktree.
 The "pool never shrinks as the level rises" test is the in-repo half of
 that; the cross-commit diff can't be a test, so it has to be a habit.
+
+## 2026-10-07 — At the bottom of the rubric, rhythm is fixed
+
+Writing level 1-3 material, I expected to choose rhythms. The rubric had
+already chosen: even half notes are the only rhythm that rates that low. One
+quarter note against a dotted half costs four levels, because variety and
+"fastest subdivision" both score from zero. So a level-3 player has heard
+nothing but halves, and quarters arrive all at once at level 8. That may be
+right for the ear (pitch first, then time), but it was never decided as a
+teaching ladder. It falls out of a formula tuned for the middle of the
+range. If Andy ever wants rhythm introduced gradually at the bottom, the
+change belongs in calculateDifficulty's low end, not in the data.
+
+Second: two teaching goals set on the same day collided by arithmetic.
+"Repertoire only grows" and "a mode's beginner pool is mostly its colour
+tone" can't both hold once subset-compatible material is added below the
+colour lines. Lydian level 1 had room for exactly one more phrase. The
+share test was what surfaced the conflict, and the share is now a choice
+(one in seven) rather than an accident.

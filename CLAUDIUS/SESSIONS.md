@@ -4930,3 +4930,40 @@ them over tunes." → yes, restrict.
   when the next window has no licks; the Autumn Leaves e2e still passes.
 - Verified: 5782 unit + integration, svelte-check, all 12 tune-practice e2e
   on Chromium.
+
+## 2026-10-07 — Major Pentatonic first lines (levels 1-3)
+
+Started on the ear-training pool collapse (Altered/Lydian Dominant served ONE
+phrase from level 14). Measured it and asked Andy for a floor policy, but the
+"C Lydian ear training focus" session had already fixed it on dev (faf18e2a,
+ADAPTED_SCALES, the option I'd listed second). Re-probed on that code: the
+only thin pool left was Major Pentatonic at the very start, 4 phrases at
+level 1 and 5 at levels 2-3, every one a two-note cell. Andy: add short
+pentatonic lines at levels 1-3.
+
+- `pentatonic-first-lines.ts`, 40 lines over Cmaj7, category `pentatonic`
+  (no tune-practice progression registers it): 10 two-note steps (level 1),
+  the major third + 13 three-note lines (level 2), 16 four-note turns within
+  a fourth (level 3). Rated exactly by calculateDifficulty.
+- **The rubric dictates the rhythm this low:** only even half notes rate 1-3.
+  Mixing durations puts a two-note cell at 5, quarters put a three-note line
+  at 8, a fifth's span puts four notes at 5. So these lines are all halves.
+- **Decision (Andy):** the lines follow the subset rule into Major, Lydian
+  and Mixolydian (and are adapted into the melodic-minor family) rather than
+  staying Major-Pentatonic-only, and the "at least half of a Lydian /
+  Mixolydian level 1-5 pool sounds the colour tone" test was loosened to one
+  in seven. Measured after: Lydian 6/21, 9/39, 9/56, 12/59, 14/64; Mixolydian
+  7/21, 9/39, 10/56, 10/57, 13/62. Dorian and Minor keep "half".
+- Pool sizes, levels 1/2/3: Major Pentatonic 4/5/5 → 14/29/45. Diffed every
+  scale × levels 1-100 against the catalog without the new lines: no scale
+  loses a phrase at any level.
+- The duplicate test caught pfl-005 (A→G halves) sounding exactly like
+  dor-001 in C; they sit over different chords and never share a session, so
+  "duplicate" now means same notes over the same chord.
+- Docs: catalog/glossary/phrase-system/data-model/api/README counts were
+  still 452/923 from before today's collections; all now 652 hand-written,
+  1123 in all.
+- Verified: 5789 unit + integration (40 expected fails), svelte-check clean
+  with placeholder PUBLIC_SUPABASE_* (this worktree has no `.env`; the 9
+  errors without them are all `$env/static/public`). E2E not run locally;
+  data-only change, CI runs it.
