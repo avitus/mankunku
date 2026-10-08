@@ -2748,3 +2748,29 @@ The suite proves a change does not re-break what it once broke. Only the
 population says what it breaks next. Now that the population is one query
 and one script away, "measured on production" should be the bar for any
 scoring change, and the harness that does it is now part of the repo.
+
+## 2026-10-07 — Compatibility is a subset relation; ear training is about the difference
+
+The scale-compatibility table answers "can this lick be played in this
+scale?" by subset: major pentatonic ⊂ Lydian, so pentatonic licks are
+Lydian licks. That is the right question for not mangling a lick and the
+wrong one for teaching a mode, because the note that makes Lydian Lydian is
+precisely the note a subset relation can never require. Draw a Lydian
+session by subset and you get mostly what Lydian shares with everything
+else. The colour tone has to be asked for explicitly — by content (the
+lydian.ts collection) or by selection.
+
+We had already learned this once, for Major: the July major-4-7 collection
+exists because Major's pool was pentatonic and carried no 4th or 7th. The
+fix was made for Major alone and nobody asked whether the modes had the same
+hole. They all do — Dorian's 6 and Minor's b6 are absent below level 20. A
+one-screen probe (colour-tone coverage per scale per level) showed it in
+seconds; it should probably become a standing test once Andy decides the
+policy, so the next mode can't ship hollow.
+
+The snap's tie-break ("prefer flats") looked like a neutral detail. Between
+modes it is a direction, and it was right only when the target lowers a
+degree — the three cases that raise one (Lydian's #4, Dorian's 6 from
+Aeolian, Major's 7 from Mixolydian) each lost exactly their colour note.
+A rule that is correct "most of the time" can be wrong in exactly the
+places that matter most, when what matters is the exception.

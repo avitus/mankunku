@@ -4799,3 +4799,47 @@ its rhythm credit, an early release never costs.
   table); **step 5 open** (Ab3→Ab4, the cracked-head cascade).
 - `npx supabase migration new` hung in the worktree; the file it created was
   filled by hand (same timestamp name).
+
+## 2026-10-07 — C Lydian played no F#
+
+Andy played the first three levels of C Lydian after it unlocked and never
+heard an F#, "the key sound of that scale to dial in".
+
+- **Measured first** (pool × adaptation, C Lydian): levels 1-5 served 0 phrases
+  with an F#; level 1 was four major-pentatonic 2-note cells and B–C.
+- **Four stacked causes, all fixed (27ae1e52 on dev):**
+  1. `snapLickToScale` snapped to the nearest tone, DOWN on a tie, so an
+     Ionian F became E ("F E" → "E E"). Now degree-for-degree between two
+     major modes (Ionian 4 → Lydian #4, Aeolian b6 → Dorian 6, Mixolydian b7
+     → major 7); chromatic notes and other scale pairs keep the nearest snap.
+  2. The combiner's single-bar phrases filed under ii-V-I categories took the
+     parent-key hop (C Lydian: C D E F → G A B C). `isProgressionLick` = a
+     progression category NOT declared over one chord; the hop and category
+     compatibility use it. All 227 single-segment progression-category
+     licks were combiner output.
+  3. Major ii-V-I / V-I licks were Lydian-compatible; the hop seats Dorian on
+     the ii, Mixolydian on the V, but Lydian is the IV — they played in G.
+     Removed from Lydian.
+  4. No native Lydian below level 23 → `data/licks/lydian.ts`, 40 lines, all
+     sound the #4, levels 1-39 (short ones 1-14), rated as their C-major
+     shapes (calculateDifficulty counts F# as chromatic; bc-051..055 are the
+     precedent).
+- **After:** F# in 6/11 phrases at level 1, 14/24 at level 5, 33/89 at 10,
+  56/185 at 30; no note outside C Lydian at any level (dated tests, each
+  verified failing on the old code).
+- **Same gap, not fixed (content — Andy's call):** Dorian's 6 is in 0/19
+  phrases at level 5 and 7/174 at 30; Minor's b6 0/19 and 3/169; Mixolydian's
+  b7 3/12 at level 5.
+- **Found, not fixed:** the pool-collapse cliff in `selectEarTrainingLicks` —
+  once one native lick passes the gates the adapted fallback vanishes:
+  Altered and Lydian Dominant go from 106 phrases at level 10 to ONE at 15,
+  Melodic Minor to two. Flagged as a separate task.
+- **Open for Andy:** should a modal session prefer phrases that carry its
+  colour tone? Pentatonic cells (compatible by subset) are still ~45% of
+  Lydian's beginner pool.
+- Test fixtures that stood in for progressions with ONE harmony segment were
+  given real ii-V-I harmony (transpose-lick, scale-compatibility, the
+  fallback test, the minor-cadence sweep) — they pinned the parent-key rule
+  through a shape the rule no longer covers.
+- Verified: 5686 unit + integration (40 expected fails), svelte-check clean
+  (worktree needed `.env` copied again), ear-training e2e on Chromium.
