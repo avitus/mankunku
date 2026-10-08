@@ -110,8 +110,12 @@ def postprocess(df, takes, truth, skip_e4):
     """E1-E3 from the metrics table, then E4 unless `skip_e4`. E1 ranks the own
     line against transpositions, other licks and other licks within one note
     of its length (ties rank against it); E2 and E3 use verified, timing-known
-    takes only. Writes the e1/e2/e3 CSVs under results/."""
+    takes only. Writes the e1/e2/e3 CSVs under results/. Skipping E4 removes
+    any earlier e4_summary.csv, which report.py would otherwise present as this
+    run's."""
     t_start = time.time()
+    if skip_e4:
+        (RESULTS / "e4_summary.csv").unlink(missing_ok=True)
     # ---------------- E1 discrimination ----------------
     e1 = []
     for (take_id, renderer), g in df.groupby(["take", "renderer"]):
