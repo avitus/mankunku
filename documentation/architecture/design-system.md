@@ -112,6 +112,10 @@ The aliases are defined once in `:root`, so each theme's brass / on-air values f
 
 `--color-error` and `--color-warning` are **fill** tokens (tuned for button/tint backgrounds, which carry white text). For feedback **text** — an error message, a warning label — use the text-safe variants `--color-error-text` / `--color-warning-text`, which lighten (error) or darken (warning) per theme so small text keeps ≥4.5:1 contrast on the page and card surfaces.
 
+### Intonation poles
+
+`--color-tune-sharp` (brass: `--color-brass-soft` dark, `--color-brass` light) and `--color-tune-flat` (blue: `#7aa7d9` dark, `#365f9e` light) colour the ear-training **Your tuning** fader bank (`TuningFaders`). They are never used raw: `tuningTone(cents)` (`src/lib/ui/tuning-tone.ts`) returns the text colour within ±5¢, steps to half strength the moment a note leaves that zone, and reaches the full pole at 15¢, the offset the sharp/flat reminder speaks at. Warm-high / cool-low is the reading; blue against orange stays apart under the common colour-vision deficiencies. The exact cents are always printed beside the colour.
+
 ### Difficulty & Mastery ramps
 
 Two 10-step ramps, both theme-aware (base in `:root`, re-stepped in `:root.light`), for the two things the app grades on a scale. **Never** hand-roll a green→red heatmap or hardcode these hues inline.

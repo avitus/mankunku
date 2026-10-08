@@ -67,6 +67,12 @@
 	   halo) and the red stop/record BUTTONS keep the palette tokens. */
 	--color-phase-play: var(--color-brass);
 	--color-phase-listen: var(--color-onair);
+	/* Intonation poles for the per-note tuning panel: warm brass as a note
+	   goes sharp, cool blue as it goes flat, the text colour in tune. Blue and
+	   orange stay apart under the common colour-vision deficiencies. Mixed by
+	   tuningTone() (ui/tuning-tone.ts), never used raw. */
+	--color-tune-sharp: var(--color-brass-soft);
+	--color-tune-flat: #7aa7d9;
 	/* Tonal Mastery ramp — a Blue Note teal→brass sequential scale used for
 	   proficiency/mastery surfaces (mastery meter, per-scale bars). "From the
 	   ear-training teal to the brass you're earning." Distinct from the
@@ -206,6 +212,9 @@
 	/* On-air red — darkened for readability on light bg */
 	--color-onair: #8a3328;
 	--color-onair-hover: #6a2418;
+	/* Tuning poles darkened for paper: brass-soft washes out as text here. */
+	--color-tune-sharp: var(--color-brass);
+	--color-tune-flat: #365f9e;
 	/* Mastery ramp re-stepped for light backgrounds: teal→deep-brass, kept
 	   mid-dark so every band stays legible on paper (contrast ≥ 3.6:1). */
 	--mastery-1: #388589;

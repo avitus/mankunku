@@ -15,8 +15,10 @@
 	import { decideNext, resolveBoundPhrase } from '$lib/state/ear-training-flow';
 	import { progress, recordAttempt, updateSessionScore, getUnlockContext } from '$lib/state/progress.svelte';
 	import { runScorePipeline } from '$lib/scoring/score-pipeline';
-	import { createTuningMonitor, type TuningAlert } from '$lib/scoring/tuning';
+	import { cleanTuningSamples, createTuningMonitor, type TuningAlert, type TuningSample } from '$lib/scoring/tuning';
+	import { summarizeTuning } from '$lib/scoring/tuning-summary';
 	import TuningNotice from '$lib/components/practice/TuningNotice.svelte';
+	import TuningFaders from '$lib/components/practice/TuningFaders.svelte';
 	import { resolveOnsets, segmentNotes, findReArticulations } from '$lib/audio/note-segmenter';
 	import { durationThroughLastReading, trimToPerformance } from '$lib/audio/capture-window';
 	import { resolveBleedEvidence } from '$lib/audio/bleed-evidence';
@@ -127,6 +129,13 @@
 	let persistentScore: Score | null = $state(null);
 	const tuningMonitor = createTuningMonitor();
 	let tuningAlert = $state<TuningAlert | null>(null);
+	/**
+	 * Every clean note of the current run, for the per-note panel shown on
+	 * pause. Unlike the monitor's five-take window this keeps the whole run;
+	 * both start fresh together on every Start and settings change.
+	 */
+	let tuningSamples = $state.raw<TuningSample[]>([]);
+	const tuningSummary = $derived(summarizeTuning(tuningSamples));
 	$effect(() => {
 		// Hydrated settings can change while the page is open. Evidence must
 		// belong to the current instrument, key and scale, including late replays.
@@ -137,6 +146,7 @@
 			++latestRescoreId;
 			tuningMonitor.reset();
 			tuningAlert = null;
+			tuningSamples = [];
 		});
 	});
 	/**
@@ -159,6 +169,7 @@
 	function revealScore(score: Score) {
 		persistentScore = score;
 		tuningAlert = tuningMonitor.record(score);
+		tuningSamples = [...tuningSamples, ...cleanTuningSamples(score.noteResults)];
 		if ((scoredAttemptCount - 1) % 10 === 0) {
 			bottomQuote = getGradeCaption(score.grade);
 		}
@@ -402,6 +413,7 @@
 		++latestRescoreId;
 		tuningMonitor.reset();
 		tuningAlert = null;
+		tuningSamples = [];
 		session.lastScore = null;
 		awaitingInput = false;
 		disposeArmedRecorder();
@@ -1098,6 +1110,19 @@
 			</span>
 		{/if}
 	</div>
+
+	<!-- Per-note tuning for the run just paused. A take whose rescore lands
+	     after the pause still joins it; Start clears it. -->
+	{#if !practising && tuningSummary.notes.length > 0}
+		<TuningFaders
+			summary={tuningSummary}
+			transpositionSemitones={instrument.transpositionSemitones}
+			displayKey={writtenKey}
+			{scaleId}
+			instrumentId={settings.instrumentId}
+			context="{instrument.name} · {writtenKey} {SCALE_TYPE_NAMES[activeTonality.scaleType]}"
+		/>
+	{/if}
 
 	<TourTrigger tourId="ear-training" steps={earTrainingTour} />
 

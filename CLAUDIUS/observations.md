@@ -2774,3 +2774,20 @@ degree — the three cases that raise one (Lydian's #4, Dorian's 6 from
 Aeolian, Major's 7 from Mixolydian) each lost exactly their colour note.
 A rule that is correct "most of the time" can be wrong in exactly the
 places that matter most, when what matters is the exception.
+
+## 2026-10-07 — A tuning number is two numbers
+
+Laying out a sax player's per-note tuning, the useful split was not sharp
+vs flat but GLOBAL vs LOCAL. A horn that reads +10¢ on every note has a
+mouthpiece problem, one adjustment. A horn whose F reads 21¢ low against the
+rest has a voicing or fingering problem on that note. Absolute cents mix
+the two, so the same session reads "everything a bit sharp" in one frame
+and "F is the problem" in the other. The existing cue measures only the
+global half. The per-note panel is worth building because of the local
+half, and that only shows once the centre is subtracted.
+
+The second thing a horn player knows and a pitch-class chart hides: low D
+and the octave-key D are different notes on the instrument. Pooling them
+by pitch class can turn two clusters into one median that describes
+neither. Any per-note tuning summary should keep register as a dimension,
+even if the default view folds it away.

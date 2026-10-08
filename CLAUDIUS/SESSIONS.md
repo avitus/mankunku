@@ -4843,3 +4843,40 @@ heard an F#, "the key sound of that scale to dial in".
   through a shape the rule no longer covers.
 - Verified: 5686 unit + integration (40 expected fails), svelte-check clean
   (worktree needed `.env` copied again), ear-training e2e on Chromium.
+
+## 2026-10-07 — Tuning-on-pause panel: five prototypes
+
+Andy asked for creative ways to show per-scale-note tuning when ear training
+is paused. Built an unlinked preview route, `/ear-training/tuning-preview`
+(uncommitted pending his pick), on mock data shaped like what
+`scoring/tuning.ts` already filters (clean, correctly pitched notes only):
+A strobe bench (animated, tap to hear the beating), B marked-up part (abcjs,
+cents pencilled in MuseJazzText), C tuning rose, D fader bank, E every-note
+dot strip (the only view showing spread and register). Shared across all:
+an "A = 440 | Your centre" switch and a teacher's-note headline.
+
+- The real page can't feed this yet: `createTuningMonitor` keeps only the
+  last 5 takes and resets on every Start. The panel needs a session-long
+  accumulator beside it (same sample filter, no thresholds).
+- Ran on port 5199 with `.env` symlinked from the main checkout (Andy's own
+  server holds 5173).
+- **Andy picked D, the fader bank**, and asked for lower and upper registers
+  shown separately, only for notes actually recorded. Built as
+  `TuningFaders` (one channel per concert MIDI, written names via
+  `midiToDisplayName(written, writtenKey, scaleId)` so they spell as the
+  note list does), fed by `tuning-summary.ts` over the run's
+  `cleanTuningSamples` (the cue's filter, now exported). Shown when not
+  practising and at least one clean note exists; cleared on Start and on
+  instrument/key/scale change, alongside the monitor. A note under 3 takes
+  gets an outlined cap and no spread band, and doesn't vote on the centre.
+  New tokens `--color-tune-sharp`/`--color-tune-flat`, mixed only through
+  `tuningTone`. Preview route deleted.
+- Caught in the browser, not by tests: the headline called a 5.0¢ centre
+  "sharp" while the faders coloured ±5 in tune (now one zone, pinned), and
+  ten channels scrolled on a phone, hiding the note the headline named
+  (min column 1.6rem, gap 0.5).
+- Not covered end to end: the e2e mic mock is a steady 440 Hz tone against
+  a daily-rotating phrase, so no spec can reliably produce matched notes.
+  The page wiring is three lines beside the monitor's own.
+- The panel reflows the centred page on pause (the button rises), a
+  trade-off accepted rather than reserving ~330 px during practice.
