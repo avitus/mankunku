@@ -10,7 +10,7 @@ Curated licks feed **ear training** — not the Licks page, which lists only the
 
 ## Step 1: Choose a File
 
-Existing files (492 licks):
+Existing files (612 licks):
 
 | File | `category` values | Count |
 |---|---|---|
@@ -20,6 +20,9 @@ Existing files (492 licks):
 | `major-4-7.ts` | `ii-V-I-major`, `bebop-lines`, `digital-patterns`, `major-chord` | 40 |
 | `major-4-7-vol2.ts` | `ii-V-I-major`, `bebop-lines`, `digital-patterns`, `major-chord` | 40 |
 | `lydian.ts` | `modal` | 40 |
+| `dorian.ts` | `modal` | 40 |
+| `aeolian.ts` | `modal` | 40 |
+| `mixolydian.ts` | `modal` | 40 |
 | `ii-V-I-major.ts` | `ii-V-I-major` | 24 |
 | `bebop-lines.ts` | `bebop-lines` | 20 |
 | `ii-V-I-minor.ts` | `ii-V-I-minor` | 15 |

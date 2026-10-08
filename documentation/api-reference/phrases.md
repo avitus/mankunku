@@ -74,11 +74,11 @@ Indexes the curated lick library for fast querying.
 | `getLickById` | `(id) → Phrase \| undefined` | O(1) curated lookup, then the user cache, then the adopted cache |
 | `baseLickId` | `(id) → string` | Strips a trailing `_<KEY>` transposition suffix (KEY one of the 12 pitch classes), which `transposeLick` / `transposeLickForTonality` append — same-lick variants dedupe on this |
 | `getBaseLickFromId` | `(id) → Phrase \| undefined` | Tries the id verbatim, then `baseLickId(id)` — stored session results carry suffixed ids, so direct lookup fails on them |
-| `PROGRESSION_CATEGORIES` | `ReadonlySet<PhraseCategory>` | The categories whose licks span multi-chord progressions — `ii-V-I-major/minor`, `short-ii-V-I-major/minor`, `V-I-major/minor`, `rhythm-changes`. `transposeLickForTonality` gives parent-key (or, when minor, tonic-keyed) transposition only to a lick in one of these that is also not declared over a single chord — `isProgressionLick` in `tonality/scale-compatibility.ts` — because the combiner files one-bar phrases under them |
+| `PROGRESSION_CATEGORIES` | `ReadonlySet<PhraseCategory>` | The categories whose licks span multi-chord progressions — `ii-V-I-major/minor`, `short-ii-V-I-major/minor`, `V-I-major/minor`, `rhythm-changes`. Compatibility goes by these categories, but `transposeLickForTonality` gives parent-key (or, when minor, tonic-keyed) transposition only to a lick in one of them that is also not declared over a single chord — `isProgressionLick` in `tonality/scale-compatibility.ts` — because the combiner files one-bar phrases under them |
 
 ### `snapLickToScale(lick, key, scaleId, rangeHigh?): Phrase`
 
-Adjust a transposed lick so every note lies in the given scale. When the lick declares one mode of the major scale over a single chord on `key` and the target is another mode, each note keeps its degree (an Ionian 4th becomes Lydian's #4, an Aeolian b6 Dorian's 6). Every other out-of-scale pitch snaps to the nearest scale tone, downward on a tie.
+Adjust a transposed lick so every note lies in the given scale. When the lick declares one mode of the major scale over a single chord on `key`, and the target is a seven-note scale whose every degree lies within a semitone of the lick's (another major mode, the melodic minor, Lydian Dominant), each note keeps its degree (an Ionian 4th becomes Lydian's #4, an Aeolian b6 Dorian's 6, an Aeolian b7 the melodic minor's 7). Every other out-of-scale pitch snaps to the nearest scale tone, downward on a tie.
 
 ### `transposeLick(lick, targetKey, rangeLow?, rangeHigh?): Phrase`
 

@@ -304,16 +304,17 @@ function isMajorMode(scale: ScaleDefinition | undefined): scale is ScaleDefiniti
 }
 
 /**
- * Between two modes of the major scale a note keeps its DEGREE: the target
- * mode's version of the same degree is at most a semitone away. Returns the
- * mapper, or null when the lick does not declare one major mode, on the
- * target key, over a single chord — and the mapper returns null for a note
- * that is no degree of the lick's scale (a chromatic passing tone).
+ * A lick written in a mode of the major scale keeps each note's DEGREE in a
+ * seven-note target whose every degree lies within a semitone of the lick's —
+ * another major mode, or the melodic minor (Aeolian with a raised 6 and 7).
+ * Returns the mapper, or null when the lick does not declare one major mode,
+ * on the target key, over a single chord — and the mapper returns null for a
+ * note that is no degree of the lick's scale (a chromatic passing tone).
  */
 function sameDegreeMapper(
 	lick: Phrase, key: PitchClass, target: ScaleDefinition, rangeHigh?: number
 ): ((midi: number) => number | null) | null {
-	if (!isMajorMode(target) || lick.harmony.length !== 1) return null;
+	if (target.intervals.length !== 7 || lick.harmony.length !== 1) return null;
 	const [segment] = lick.harmony;
 	const source = getScale(segment.scaleId);
 	if (!isMajorMode(source) || segment.chord.root !== key) return null;
@@ -321,6 +322,7 @@ function sameDegreeMapper(
 	// Semitones above the root, degree by degree (`intervals` holds the steps).
 	const from = realizeScale('C', source.intervals);
 	const to = realizeScale('C', target.intervals);
+	if (from.some((semitones, degree) => Math.abs(to[degree] - semitones) > 1)) return null;
 	return (midi) => {
 		const degree = from.indexOf((((midi - root) % 12) + 12) % 12);
 		if (degree < 0) return null;
@@ -332,13 +334,13 @@ function sameDegreeMapper(
 /**
  * Snap a transposed lick to fit a target scale.
  *
- * A lick declared in one mode of the major scale, adapted to another on the
- * same root, keeps each note's degree: an Ionian 4th becomes Lydian's #4, an
- * Aeolian b6 Dorian's 6. Nearest-tone snapping (downward on a tie) got those
- * wrong whenever the target RAISES a degree — C Lydian turned "F E" into
- * "E E" and never played its F# (2026-10-07). Every other note, and every
- * other pair of scales (blues, pentatonic, melodic minor, ...), snaps to the
- * nearest scale tone.
+ * A lick declared in one mode of the major scale, adapted on the same root to
+ * another mode or to the melodic minor, keeps each note's degree: an Ionian
+ * 4th becomes Lydian's #4, an Aeolian b6 Dorian's 6, an Aeolian b7 the melodic
+ * minor's 7. Nearest-tone snapping (downward on a tie) got those wrong
+ * whenever the target RAISES a degree — C Lydian turned "F E" into "E E" and
+ * never played its F# (2026-10-07). Every other note, and every other pair of
+ * scales (blues, pentatonic, bebop, ...), snaps to the nearest scale tone.
  */
 export function snapLickToScale(lick: Phrase, key: PitchClass, scaleId: string, rangeHigh?: number): Phrase {
 	const scaleDef = getScale(scaleId);

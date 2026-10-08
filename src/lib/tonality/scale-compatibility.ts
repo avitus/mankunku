@@ -39,16 +39,17 @@ const SCALE_ID_COMPATIBILITY: Record<string, ScaleType[]> = {
 // not offered: the ii and i bars would sit outside the advertised scale.
 // V-I licks are listed here so they use category compatibility rather than
 // their first segment's (altered/mixolydian) scaleId.
-// A major-mode session takes a major progression through the parent-key hop,
-// which seats the session root on one of its chords: Dorian is the ii,
-// Mixolydian the V. Lydian would be the IV, which no ii-V-I or V-I has — C
-// Lydian played them in G major (2026-10-07), so Lydian is not offered them.
+// Category decides even for a phrase declared over ONE chord (the combiner
+// files its single-bar phrases here): gating those by their scale instead
+// took them out of Dorian and Melodic Minor sessions (2026-10-07), and the
+// repertoire is thin. How such a phrase is ADAPTED is a separate question —
+// see `isProgressionLick` and transposeLickForTonality.
 const CATEGORY_COMPATIBILITY: Partial<Record<PhraseCategory, ScaleType[]>> = {
-	'ii-V-I-major': ['major', 'dorian', 'mixolydian'],
+	'ii-V-I-major': ['major', 'dorian', 'mixolydian', 'lydian'],
 	'ii-V-I-minor': ['minor', 'dorian', 'melodic-minor'],
-	'short-ii-V-I-major': ['major', 'dorian', 'mixolydian'],
+	'short-ii-V-I-major': ['major', 'dorian', 'mixolydian', 'lydian'],
 	'short-ii-V-I-minor': ['minor', 'dorian', 'melodic-minor'],
-	'V-I-major': ['major', 'mixolydian'],
+	'V-I-major': ['major', 'mixolydian', 'lydian'],
 	'V-I-minor': ['minor', 'dorian', 'melodic-minor'],
 	'rhythm-changes': ['major', 'mixolydian'],
 };
@@ -61,9 +62,10 @@ const PROGRESSION_CATEGORIES = new Set<PhraseCategory>(
  * Whether a lick moves through a progression: filed under a progression
  * category AND not declared over a single chord. The combiner files its
  * single-bar Cmaj7/Cm7 phrases under ii-V-I categories; with one chord there
- * are no chord relationships to keep, so they adapt to a session's scale like
- * any single-chord lick. Empty harmony (user licks) declares nothing, so there
- * the category still decides.
+ * are no chord relationships to keep, so they ADAPT to a session's scale like
+ * any single-chord lick (no parent-key hop) — while compatibility still goes
+ * by category. Empty harmony (user licks) declares nothing, so there the
+ * category decides both.
  */
 export function isProgressionLick(lick: Phrase): boolean {
 	return PROGRESSION_CATEGORIES.has(lick.category) && lick.harmony.length !== 1;
@@ -94,7 +96,7 @@ export function melodyFitsScale(lick: Phrase, scaleType: ScaleType): boolean {
  * melodyFitsScale for book licks instead: their melodies must fit unchanged.
  *
  * Resolution order:
- * 1. Progression licks (`isProgressionLick`) → category mapping
+ * 1. Progression categories (ii-V-I, turnarounds, etc.) → category mapping
  * 2. harmony[0].scaleId → scale-level mapping
  * 3. Fallback → all ScaleTypes (safe for unknown licks)
  *
@@ -104,8 +106,8 @@ export function melodyFitsScale(lick: Phrase, scaleType: ScaleType): boolean {
  * (a major ii-V-I must not be served — and bent — into a pentatonic session).
  */
 export function getCompatibleScaleTypes(lick: Phrase): ScaleType[] {
-	// Multi-chord progression categories use broader compatibility
-	if (isProgressionLick(lick)) {
+	// Progression categories use broader compatibility
+	if (PROGRESSION_CATEGORIES.has(lick.category)) {
 		return CATEGORY_COMPATIBILITY[lick.category] ?? ALL_SCALE_TYPES;
 	}
 

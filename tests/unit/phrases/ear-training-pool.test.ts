@@ -145,10 +145,14 @@ describe('C Lydian sessions sound the #4 (2026-10-07)', () => {
 		expect(withSharpFour.length * 2, `${withSharpFour.length} of ${pool.length}`).toBeGreaterThanOrEqual(pool.length);
 	});
 
-	it('serves no note outside C Lydian at any level — no F natural, no parent-key G major', () => {
+	// Progression licks keep their own harmony and are never adapted note by
+	// note, so above the chromatic tier (level 31) a ii-V-I may carry approach
+	// tones; every single-chord phrase is adapted into the scale at every level.
+	it('serves no note outside C Lydian: single-chord phrases at every level, everything through level 30', () => {
 		const lydian = new Set([0, 2, 4, 6, 7, 9, 11]);
 		for (let level = 1; level <= 100; level++) {
 			for (const phrase of served(level)) {
+				if (level > 30 && phrase.harmony.length !== 1) continue;
 				for (const note of phrase.notes) {
 					if (note.pitch === null) continue;
 					expect(lydian.has(note.pitch % 12), `level ${level}: ${phrase.id} plays pitch class ${note.pitch % 12}`).toBe(true);
@@ -157,11 +161,69 @@ describe('C Lydian sessions sound the #4 (2026-10-07)', () => {
 		}
 	});
 
-	it('keeps every phrase on the session root: each one has a chord on C', () => {
+	it('plays every single-chord phrase on the session root, never moved to the parent key', () => {
 		for (const level of [10, 30, 60, 100]) {
-			for (const phrase of served(level)) {
-				expect(phrase.harmony.some(h => h.chord.root === 'C'), `level ${level}: ${phrase.id}`).toBe(true);
+			for (const phrase of served(level).filter(p => p.harmony.length === 1)) {
+				expect(phrase.harmony[0].chord.root, `level ${level}: ${phrase.id}`).toBe('C');
 			}
 		}
+	});
+});
+
+/**
+ * 2026-10-07, after Lydian: Dorian's 6, the natural minor's b6 and
+ * Mixolydian's b7 were just as absent — 0 of 19 Dorian and Minor phrases at
+ * level 5 carried them — because each beginner pool was pentatonic or blues
+ * cells. The colour-tone collections ADD to those pools; nothing is removed.
+ */
+describe.each([
+	{ scaleType: 'dorian', colour: 9, scale: [0, 2, 3, 5, 7, 9, 10] },
+	{ scaleType: 'minor', colour: 8, scale: [0, 2, 3, 5, 7, 8, 10] },
+	{ scaleType: 'mixolydian', colour: 10, scale: [0, 2, 4, 5, 7, 9, 10] }
+] as const)('C $scaleType sessions sound their colour tone (2026-10-07)', ({ scaleType, colour, scale }) => {
+	const served = (level: number): Phrase[] =>
+		selectEarTrainingLicks(ALL_CURATED_LICKS, level, scaleType).map(lick =>
+			transposeEarTrainingLick(lick, 'C', scaleType, 46, 77)
+		);
+
+	it.each([1, 2, 3, 4, 5])('at level %i, at least half the phrases carry it', level => {
+		const pool = served(level);
+		const carrying = pool.filter(phrase => phrase.notes.some(note => note.pitch !== null && note.pitch % 12 === colour));
+		expect(carrying.length * 2, `${carrying.length} of ${pool.length}`).toBeGreaterThanOrEqual(pool.length);
+	});
+
+	it('every single-chord phrase at every level stays inside the scale', () => {
+		const allowed = new Set<number>(scale);
+		for (let level = 1; level <= 100; level++) {
+			for (const phrase of served(level).filter(p => p.harmony.length === 1)) {
+				for (const note of phrase.notes) {
+					if (note.pitch === null) continue;
+					expect(allowed.has(note.pitch % 12), `level ${level}: ${phrase.id} plays pitch class ${note.pitch % 12}`).toBe(true);
+				}
+			}
+		}
+	});
+});
+
+/**
+ * Selection must only ever ADD as a player levels up. Scales the catalog
+ * reaches mostly by adaptation (Melodic Minor, Altered, Lydian Dominant) used
+ * to swap their whole adapted pool for the first native lick that unlocked:
+ * Altered served 92 phrases at level 10 and ONE from level 15 to 49.
+ */
+describe('the pool never shrinks as the player levels up', () => {
+	it.each(SCALE_UNLOCK_ORDER)('%s', scaleType => {
+		let previous = 0;
+		for (let level = 1; level <= 100; level++) {
+			const size = selectEarTrainingLicks(ALL_CURATED_LICKS, level, scaleType).length;
+			expect(size, `level ${level} serves ${size}, level ${level - 1} served ${previous}`).toBeGreaterThanOrEqual(previous);
+			previous = size;
+		}
+	});
+
+	it('native licks join an adapted pool rather than replacing it', () => {
+		const native = ALL_CURATED_LICKS.find(lick => lick.harmony[0]?.scaleId === 'melodic-minor.altered')!;
+		const exercise = ALL_CURATED_LICKS.find(lick => lick.id === 'bc-001')!;
+		expect(selectEarTrainingLicks([native, exercise], 100, 'altered')).toEqual([native, exercise]);
 	});
 });

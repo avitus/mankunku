@@ -298,6 +298,13 @@ describe('mode-to-mode adaptation keeps each scale degree', () => {
 		expect(pitches(transposeLickForTonality(lick, 'C', 'major.lydian'))).toEqual([62, 64]);
 	});
 
+	it('C melodic minor raises an Aeolian lick\'s b6 and b7 to A and B, never down to G and A', () => {
+		// A seven-note scale whose every degree sits within a semitone of the
+		// lick's: the melodic minor is Aeolian with a raised 6 and 7.
+		const lick = makeModal([67, 68, 70, 72], 'major.aeolian', 'min7'); // G Ab Bb C
+		expect(pitches(transposeLickForTonality(lick, 'C', 'melodic-minor.melodic-minor'))).toEqual([67, 69, 71, 72]);
+	});
+
 	it('a source outside the major-scale modes keeps the nearest-tone snap (blues into Dorian)', () => {
 		// C blues' Gb is no degree of a seven-note mode; it snaps down to F.
 		const lick = makeModal([66, 67], 'blues.minor', '7');

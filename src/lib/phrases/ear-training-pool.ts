@@ -16,10 +16,19 @@ export function earTrainingNoteLimit(level: number): number {
 }
 
 /**
+ * Scales the curated catalog reaches mostly by adaptation: almost nothing is
+ * written in them, so their pool is curated single-chord exercises adapted
+ * into the scale, and native licks JOIN that pool as they unlock. Replacing it
+ * served Altered and Lydian Dominant one phrase from level 15 to 49 (2026-10-07).
+ */
+const ADAPTED_SCALES: ReadonlySet<ScaleType> = new Set<ScaleType>(['melodic-minor', 'altered', 'lydian-dominant']);
+
+/**
  * Keep rating, memory load and scale fit as independent gates. Small pools
  * repeat. An empty pool can use short curated single-chord exercises, which
- * the curated transposer adapts into the scale. Book melodies must already
- * fit in their stored concert key, regardless of source or metadata.
+ * the curated transposer adapts into the scale; the scales in ADAPTED_SCALES
+ * keep them at every level. Book melodies must already fit in their stored
+ * concert key, regardless of source or metadata.
  */
 export function selectEarTrainingLicks(
 	licks: readonly Phrase[], level: number, scaleType: ScaleType
@@ -32,11 +41,15 @@ export function selectEarTrainingLicks(
 	const matching = withinLevel.filter(lick =>
 		isCuratedLickId(lick.id) ? isLickCompatible(lick, scaleType) : melodyFitsScale(lick, scaleType)
 	);
-	if (matching.length > 0) return matching;
+	if (matching.length > 0 && !ADAPTED_SCALES.has(scaleType)) return matching;
 	// Newly unlocked scales start at level 1 and may have no native entries.
 	// Only curated single-chord exercises may be adapted; progression licks
 	// can bypass snapping and book licks must never have their melody rewritten.
-	return withinLevel.filter(lick => isCuratedLickId(lick.id) && !isProgressionLick(lick));
+	const native = new Set(matching);
+	const adapted = withinLevel.filter(lick =>
+		isCuratedLickId(lick.id) && !isProgressionLick(lick) && !native.has(lick)
+	);
+	return [...matching, ...adapted];
 }
 
 /**
