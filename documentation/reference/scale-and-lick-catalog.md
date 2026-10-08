@@ -118,7 +118,7 @@ The catalog holds 923 licks — 452 written by hand and 471 built by the combina
 | Short ii-V-I (Maj) | 6 | 60 | |
 | Short ii-V-I (Min) | 6 | 57 | ✓ |
 | Digital Patterns | 11 | 28 | |
-| Modal | 10 | 27 | most |
+| Modal | 50 | 67 | some |
 | Major Chord | 14 | 14 | |
 | Enclosures | — | 11 | |
 | Rhythm Changes | 7 | 7 | |
@@ -131,7 +131,7 @@ The catalog holds 923 licks — 452 written by hand and 471 built by the combina
 
 The **minor-key** categories are stored in C minor and labelled as minor keys (*Dm*, *Gm* …) wherever they appear; in Modal and Pentatonic the minor lines (Dorian, Aeolian, minor pentatonic) read as minor on their own. The sections below walk through the largest groupings; the rest are smaller chord- and pattern-focused collections that round out the catalog. Counts will drift as licks are added. (The category pills in the lick editor also offer **Triad Pairs** — the category the triad-pair trick belongs to; no catalog licks are filed there.)
 
-Three additional hand-written collections feed the categories above rather than standing on their own: **Major 4th & 7th** (40 licks) and its **volume 2** (40 more), which land mostly in ii-V-I (Maj) and Bebop with a few in Digital Patterns and Major Chord; and the blues **blue-note** collection (75 licks) in Blues.
+Four additional hand-written collections feed the categories above rather than standing on their own: **Major 4th & 7th** (40 licks) and its **volume 2** (40 more), which land mostly in ii-V-I (Maj) and Bebop with a few in Digital Patterns and Major Chord; the blues **blue-note** collection (75 licks) in Blues; and **Lydian #4** (40 licks) in Modal.
 
 Note that the **Enclosures** category here is a set of fixed figures, all built by the combinatorial generator. The device itself — enclosures as a formula you improvise with, alongside triad pairs — is drilled separately under [Tricks](../tricks.md), and doesn't live in this catalog at all.
 
@@ -189,9 +189,11 @@ Pentatonic vocabulary that works over multiple harmonic contexts — a major-pen
 - **Levels 8–20**: Basic major and minor pentatonic patterns, sequences.
 - **Levels 20–45**: McCoy Tyner-style fourths, Wes Montgomery shapes, Herbie Hancock-flavored funky patterns, pentatonic superimpositions.
 
-### Modal (10 hand-written, 27 in all)
+### Modal (50 hand-written, 67 in all)
 
 Sustained-mode vocabulary for static-harmony tunes. *So What* is one chord per eight bars; *Impressions* is the same; *Maiden Voyage* sustains modal harmony over long stretches. This is the territory.
+
+- **Levels 1–39 (Lydian #4)**: forty lines over Cmaj7 that all sound the raised 4th — the #4 against its neighbours, the tritone from the root, the whole-tone climb 1-2-3-#4, and the D triad over C that makes the chord a maj7#11. The short ones sit at levels 1–14, so a newly unlocked Lydian session sounds Lydian from its first phrase.
 
 - **Levels 15–35**: *So What* motif, the Dorian characteristic 6th, Coltrane-style Dorian patterns, Lydian floats.
 - **Levels 35–55**: Wayne Shorter angular lines, the *Impressions* motif, Phrygian color, Hancock-style Dorian vamps.

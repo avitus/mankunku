@@ -74,11 +74,11 @@ Indexes the curated lick library for fast querying.
 | `getLickById` | `(id) → Phrase \| undefined` | O(1) curated lookup, then the user cache, then the adopted cache |
 | `baseLickId` | `(id) → string` | Strips a trailing `_<KEY>` transposition suffix (KEY one of the 12 pitch classes), which `transposeLick` / `transposeLickForTonality` append — same-lick variants dedupe on this |
 | `getBaseLickFromId` | `(id) → Phrase \| undefined` | Tries the id verbatim, then `baseLickId(id)` — stored session results carry suffixed ids, so direct lookup fails on them |
-| `PROGRESSION_CATEGORIES` | `ReadonlySet<PhraseCategory>` | The categories whose licks span multi-chord progressions — `ii-V-I-major/minor`, `short-ii-V-I-major/minor`, `V-I-major/minor`, `rhythm-changes` — and so take parent-key (or, when minor, tonic-keyed) transposition in `transposeLickForTonality` |
+| `PROGRESSION_CATEGORIES` | `ReadonlySet<PhraseCategory>` | The categories whose licks span multi-chord progressions — `ii-V-I-major/minor`, `short-ii-V-I-major/minor`, `V-I-major/minor`, `rhythm-changes`. `transposeLickForTonality` gives parent-key (or, when minor, tonic-keyed) transposition only to a lick in one of these that is also not declared over a single chord — `isProgressionLick` in `tonality/scale-compatibility.ts` — because the combiner files one-bar phrases under them |
 
 ### `snapLickToScale(lick, key, scaleId, rangeHigh?): Phrase`
 
-Adjust a transposed lick so every note lies in the given scale. Out-of-scale pitches are snapped to the nearest scale degree (ties break up). Useful for reusing major-family licks against non-major tonalities.
+Adjust a transposed lick so every note lies in the given scale. When the lick declares one mode of the major scale over a single chord on `key` and the target is another mode, each note keeps its degree (an Ionian 4th becomes Lydian's #4, an Aeolian b6 Dorian's 6). Every other out-of-scale pitch snaps to the nearest scale tone, downward on a tie.
 
 ### `transposeLick(lick, targetKey, rangeLow?, rangeHigh?): Phrase`
 
@@ -94,7 +94,7 @@ Transpose a lick for a specific tonality (key + scale); the optional range bound
 
 0. **Minor cadence licks** (a progression category whose `lickMode` is minor — the curated ii-V-i, short ii-V and V-i minor files, keyed by their TONIC): transposes tonic → tonality root under any tonality, never snapped (the lick's own harmony is the context)
 1. **Major-family progressions** (ii-V-I, turnarounds, rhythm changes): Transposes to the parent major key to preserve chord relationships
-2. **Major-family single-chord licks**: Transposes to the modal root, snaps to scale
+2. **Major-family single-chord licks** (including a progression-category lick declared over one chord): Transposes to the modal root, then `snapLickToScale` — degree for degree between two modes of the major scale
 3. **Non-major scales** (blues, pentatonic, melodic minor): Transposes to key, snaps out-of-scale notes to nearest scale tone
 
 ---

@@ -5,9 +5,9 @@
  * Licks are stored in concert C and transposed at query time.
  */
 
-import type { Phrase, PhraseCategory, PitchClass } from '$lib/types/music';
+import type { Phrase, PhraseCategory, PitchClass, ScaleDefinition } from '$lib/types/music';
 import type { ScaleType } from '$lib/tonality/tonality';
-import { isLickCompatible } from '$lib/tonality/scale-compatibility';
+import { isLickCompatible, isProgressionLick } from '$lib/tonality/scale-compatibility';
 import { PITCH_CLASSES } from '$lib/types/music';
 import { ALL_CURATED_LICKS } from '$lib/data/licks/index';
 import { getUserLicksLocal } from '$lib/persistence/user-licks';
@@ -202,7 +202,7 @@ export const PROGRESSION_CATEGORIES: ReadonlySet<PhraseCategory> = new Set<Phras
 /**
  * Transpose a lick for a given tonality (key + scale).
  *
- * Minor cadence licks (a `PROGRESSION_CATEGORIES` lick whose `lickMode` is
+ * Minor cadence licks (a progression lick — `isProgressionLick` — whose `lickMode` is
  * minor) are keyed by their TONIC — curated ii-V-i licks are written in C
  * MINOR — so they transpose tonic → tonality root under any tonality and are
  * never snapped: the lick's own harmony is the context. (The parent-major
@@ -212,11 +212,14 @@ export const PROGRESSION_CATEGORIES: ReadonlySet<PhraseCategory> = new Set<Phras
  *
  * For major-family modes with multi-chord progressions (ii-V-I, V-I, rhythm
  * changes), transposes to the parent major key so chord relationships are
- * preserved. E.g. A Dorian ii-V-I → parent G major.
+ * preserved. E.g. A Dorian ii-V-I → parent G major. A phrase declared over one
+ * chord is not a progression, whatever its category (the combiner files such
+ * phrases under ii-V-I categories).
  *
  * For single-chord modal licks (pentatonic, blues category, etc.),
  * transposes directly to the modal root and snaps to the scale.
- * E.g. G Dorian root-second → G as root, notes snapped to G Dorian.
+ * E.g. G Dorian root-second → G as root, notes snapped to G Dorian; an Ionian
+ * lick's 4th becomes Lydian's #4 (see `snapLickToScale`).
  *
  * For non-major scales (blues, melodic minor, etc.), transposes to the key
  * then snaps out-of-scale notes to the nearest scale tone.
@@ -231,12 +234,12 @@ export function transposeLickForTonality(
 	const scaleDef = getScale(scaleId);
 	let result: Phrase;
 
-	if (PROGRESSION_CATEGORIES.has(lick.category) && lickMode(lick) === 'minor') {
+	if (isProgressionLick(lick) && lickMode(lick) === 'minor') {
 		// Tonic-keyed minor cadence: tonic → tonality root, no snap.
 		const transposed = transposeLick(lick, key, rangeLow, rangeHigh);
 		result = { ...transposed, id: `${lick.id}_${key}`, key };
 	} else if (scaleDef?.family === 'major' && scaleDef.mode !== null) {
-		if (PROGRESSION_CATEGORIES.has(lick.category)) {
+		if (isProgressionLick(lick)) {
 			// Multi-chord progressions: transpose to parent major key
 			const keyIdx = PITCH_CLASSES.indexOf(key);
 			const parentIdx = ((keyIdx - MAJOR_MODE_OFFSETS[scaleDef.mode - 1]) % 12 + 12) % 12;
@@ -295,11 +298,47 @@ function snapMidiToScale(midi: number, scalePCs: Set<number>, rangeHigh?: number
 	return midi;
 }
 
+/** Whether a scale is one of the seven modes of the major scale. */
+function isMajorMode(scale: ScaleDefinition | undefined): scale is ScaleDefinition {
+	return scale?.family === 'major' && scale.mode !== null && scale.intervals.length === 7;
+}
+
+/**
+ * Between two modes of the major scale a note keeps its DEGREE: the target
+ * mode's version of the same degree is at most a semitone away. Returns the
+ * mapper, or null when the lick does not declare one major mode, on the
+ * target key, over a single chord — and the mapper returns null for a note
+ * that is no degree of the lick's scale (a chromatic passing tone).
+ */
+function sameDegreeMapper(
+	lick: Phrase, key: PitchClass, target: ScaleDefinition, rangeHigh?: number
+): ((midi: number) => number | null) | null {
+	if (!isMajorMode(target) || lick.harmony.length !== 1) return null;
+	const [segment] = lick.harmony;
+	const source = getScale(segment.scaleId);
+	if (!isMajorMode(source) || segment.chord.root !== key) return null;
+	const root = PITCH_CLASSES.indexOf(key);
+	// Semitones above the root, degree by degree (`intervals` holds the steps).
+	const from = realizeScale('C', source.intervals);
+	const to = realizeScale('C', target.intervals);
+	return (midi) => {
+		const degree = from.indexOf((((midi - root) % 12) + 12) % 12);
+		if (degree < 0) return null;
+		const mapped = midi + to[degree] - from[degree];
+		return rangeHigh != null && mapped > rangeHigh ? mapped - 12 : mapped;
+	};
+}
+
 /**
  * Snap a transposed lick to fit a target scale.
  *
- * Used for non-major-family scales (blues, melodic minor, etc.) where the
- * pitch classes genuinely differ from any major mode.
+ * A lick declared in one mode of the major scale, adapted to another on the
+ * same root, keeps each note's degree: an Ionian 4th becomes Lydian's #4, an
+ * Aeolian b6 Dorian's 6. Nearest-tone snapping (downward on a tie) got those
+ * wrong whenever the target RAISES a degree — C Lydian turned "F E" into
+ * "E E" and never played its F# (2026-10-07). Every other note, and every
+ * other pair of scales (blues, pentatonic, melodic minor, ...), snaps to the
+ * nearest scale tone.
  */
 export function snapLickToScale(lick: Phrase, key: PitchClass, scaleId: string, rangeHigh?: number): Phrase {
 	const scaleDef = getScale(scaleId);
@@ -311,11 +350,14 @@ export function snapLickToScale(lick: Phrase, key: PitchClass, scaleId: string, 
 	const allInScale = pitchedNotes.every(n => scalePCs.has(n.pitch! % 12));
 	if (allInScale) return lick;
 
+	const sameDegree = sameDegreeMapper(lick, key, scaleDef, rangeHigh);
 	return {
 		...lick,
 		notes: lick.notes.map(n => ({
 			...n,
-			pitch: n.pitch !== null ? snapMidiToScale(n.pitch, scalePCs, rangeHigh) : null
+			pitch: n.pitch !== null
+				? sameDegree?.(n.pitch) ?? snapMidiToScale(n.pitch, scalePCs, rangeHigh)
+				: null
 		}))
 	};
 }

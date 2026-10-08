@@ -104,20 +104,52 @@ describe('getCompatibleScaleTypes', () => {
 	});
 });
 
+/** A progression-category lick whose harmony moves: first segment `scaleId`, then two more chords. */
+function makeProgression(overrides: { scaleId?: string; category: Phrase['category'] }): Phrase {
+	const lick = makeLick(overrides);
+	const next = (root: 'G' | 'C', at: number): Phrase['harmony'][number] => ({
+		chord: { root, quality: 'maj7' }, scaleId: 'major.ionian', startOffset: [at, 1], duration: [1, 1]
+	});
+	return { ...lick, harmony: [...lick.harmony, next('G', 1), next('C', 2)] };
+}
+
 describe('progression category compatibility', () => {
-	it('ii-V-I-major lick is compatible with major, dorian, mixolydian, lydian', () => {
-		const lick = makeLick({ scaleId: 'major.dorian', category: 'ii-V-I-major' });
+	it('ii-V-I-major lick is compatible with major, dorian, mixolydian', () => {
+		const lick = makeProgression({ scaleId: 'major.dorian', category: 'ii-V-I-major' });
 		const compat = getCompatibleScaleTypes(lick);
 		expect(compat).toContain('major');
 		expect(compat).toContain('dorian');
 		expect(compat).toContain('mixolydian');
-		expect(compat).toContain('lydian');
 		// Category overrides scaleId — so blues is not included
 		expect(compat).not.toContain('blues');
 	});
 
+	/**
+	 * 2026-10-07 (C Lydian played no F#): a progression lick reaches a modal
+	 * session through the parent-key hop, which puts the session root on one of
+	 * the progression's chords — Dorian is the ii, Mixolydian the V. Lydian is
+	 * the IV, and a ii-V-I or V-I has no IV: C Lydian's lick played Am7 D7 Gmaj7
+	 * in G major, and its only F# was G major's leading tone.
+	 */
+	it.each(['ii-V-I-major', 'short-ii-V-I-major', 'V-I-major'] as const)(
+		'a %s lick is not offered in Lydian, where no chord of it sits on the session root',
+		(category) => {
+			expect(getCompatibleScaleTypes(makeProgression({ category }))).not.toContain('lydian');
+		}
+	);
+
+	it('a lick filed under a progression category but declared over ONE chord follows its scale', () => {
+		// The combiner's single-bar Cmaj7 phrases filed under ii-V-I-major.
+		const ionian = makeLick({ scaleId: 'major.ionian', category: 'short-ii-V-I-major' });
+		expect(getCompatibleScaleTypes(ionian)).toEqual(['major', 'lydian', 'mixolydian', 'bebop-dominant']);
+		// And a single Cm7 bar filed under ii-V-I-minor: no melodic minor, whose
+		// natural 6 and 7 the aeolian line contradicts.
+		const aeolian = makeLick({ scaleId: 'major.aeolian', category: 'ii-V-I-minor' });
+		expect(getCompatibleScaleTypes(aeolian)).toEqual(['minor', 'dorian']);
+	});
+
 	it('ii-V-I-minor lick is compatible with minor, dorian, melodic-minor — not altered', () => {
-		const lick = makeLick({ scaleId: 'major.dorian', category: 'ii-V-I-minor' });
+		const lick = makeProgression({ scaleId: 'major.dorian', category: 'ii-V-I-minor' });
 		const compat = getCompatibleScaleTypes(lick);
 		expect(compat).toContain('minor');
 		expect(compat).toContain('dorian');
@@ -125,16 +157,16 @@ describe('progression category compatibility', () => {
 		// Altered is a dominant-only context: with no snapping, a ii-V-i's ii and
 		// i bars sit outside the advertised scale.
 		expect(compat).not.toContain('altered');
-		expect(getCompatibleScaleTypes(makeLick({ scaleId: 'major.dorian', category: 'short-ii-V-I-minor' }))).not.toContain('altered');
+		expect(getCompatibleScaleTypes(makeProgression({ scaleId: 'major.dorian', category: 'short-ii-V-I-minor' }))).not.toContain('altered');
 	});
 
 	it('V-I licks use category compatibility (not their altered first segment)', () => {
-		expect(getCompatibleScaleTypes(makeLick({ scaleId: 'melodic-minor.altered', category: 'V-I-minor' }))).toEqual(['minor', 'dorian', 'melodic-minor']);
-		expect(getCompatibleScaleTypes(makeLick({ scaleId: 'major.mixolydian', category: 'V-I-major' }))).toEqual(['major', 'mixolydian', 'lydian']);
+		expect(getCompatibleScaleTypes(makeProgression({ scaleId: 'melodic-minor.altered', category: 'V-I-minor' }))).toEqual(['minor', 'dorian', 'melodic-minor']);
+		expect(getCompatibleScaleTypes(makeProgression({ scaleId: 'major.mixolydian', category: 'V-I-major' }))).toEqual(['major', 'mixolydian']);
 	});
 
 	it('rhythm-changes lick is compatible with major and mixolydian', () => {
-		const lick = makeLick({ scaleId: 'major.ionian', category: 'rhythm-changes' });
+		const lick = makeProgression({ scaleId: 'major.ionian', category: 'rhythm-changes' });
 		const compat = getCompatibleScaleTypes(lick);
 		expect(compat).toEqual(['major', 'mixolydian']);
 	});
@@ -157,7 +189,7 @@ describe('user and unknown lick fallback', () => {
 			harmony: []
 		};
 		const compat = getCompatibleScaleTypes(lick);
-		expect(compat).toEqual(['major', 'dorian', 'mixolydian', 'lydian']);
+		expect(compat).toEqual(['major', 'dorian', 'mixolydian']);
 		expect(compat).not.toContain('major-pentatonic');
 	});
 

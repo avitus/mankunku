@@ -47,7 +47,9 @@ describe('ear-training eligibility', () => {
 		const exercise = ALL_CURATED_LICKS.find(lick => lick.id === 'bc-001')!;
 		const incompatibleBook = bookLick([60, 62]);
 		expect(selectEarTrainingLicks([exercise, incompatibleBook], 1, 'altered')).toEqual([exercise]);
-		const progression = ALL_CURATED_LICKS.find(lick => lick.category === 'ii-V-I-major')!;
+		// A real progression: the combiner's single-bar phrases filed under
+		// ii-V-I-major come first in the catalog and are single-chord exercises.
+		const progression = ALL_CURATED_LICKS.find(lick => lick.category === 'ii-V-I-major' && lick.harmony.length > 1)!;
 		expect(selectEarTrainingLicks([progression], 100, 'major-pentatonic')).toEqual([]);
 	});
 
@@ -119,5 +121,47 @@ describe('ear-training eligibility', () => {
 		expect(melodyFitsScale(prepared, 'major-pentatonic')).toBe(true);
 		const pitches = prepared.notes.map(note => note.pitch!);
 		expect(pitches.slice(1).map((pitch, i) => pitch - pitches[i])).toEqual([2, 2, 3, 2]);
+	});
+});
+
+/**
+ * 2026-10-07: C Lydian unlocked, three levels played, and not one phrase
+ * sounded the F# — the #4 that is the whole point of the scale. The beginner
+ * pool was major-pentatonic cells (no 4th at all) and major-scale cells whose
+ * F the adaptation snapped down to E; above it, single-bar phrases were moved
+ * to G and ii-V-Is played in G major.
+ */
+describe('C Lydian sessions sound the #4 (2026-10-07)', () => {
+	const served = (level: number): Phrase[] =>
+		selectEarTrainingLicks(ALL_CURATED_LICKS, level, 'lydian').map(lick =>
+			transposeEarTrainingLick(lick, 'C', 'lydian', 46, 77)
+		);
+	const sounds = (phrase: Phrase, pc: number): boolean =>
+		phrase.notes.some(note => note.pitch !== null && note.pitch % 12 === pc);
+
+	it.each([1, 2, 3, 4, 5])('at level %i, at least half the phrases carry the F#', level => {
+		const pool = served(level);
+		const withSharpFour = pool.filter(phrase => sounds(phrase, 6));
+		expect(withSharpFour.length * 2, `${withSharpFour.length} of ${pool.length}`).toBeGreaterThanOrEqual(pool.length);
+	});
+
+	it('serves no note outside C Lydian at any level — no F natural, no parent-key G major', () => {
+		const lydian = new Set([0, 2, 4, 6, 7, 9, 11]);
+		for (let level = 1; level <= 100; level++) {
+			for (const phrase of served(level)) {
+				for (const note of phrase.notes) {
+					if (note.pitch === null) continue;
+					expect(lydian.has(note.pitch % 12), `level ${level}: ${phrase.id} plays pitch class ${note.pitch % 12}`).toBe(true);
+				}
+			}
+		}
+	});
+
+	it('keeps every phrase on the session root: each one has a chord on C', () => {
+		for (const level of [10, 30, 60, 100]) {
+			for (const phrase of served(level)) {
+				expect(phrase.harmony.some(h => h.chord.root === 'C'), `level ${level}: ${phrase.id}`).toBe(true);
+			}
+		}
 	});
 });

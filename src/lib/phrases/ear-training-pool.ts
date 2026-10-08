@@ -3,8 +3,8 @@ import type { Phrase, PitchClass } from '$lib/types/music';
 import type { ScaleType } from '$lib/tonality/tonality';
 import { effectiveDifficultyLevel } from '$lib/difficulty/calculate';
 import { getProfileForLevel } from '$lib/difficulty/params';
-import { isLickCompatible, melodyFitsScale } from '$lib/tonality/scale-compatibility';
-import { isCuratedLickId, PROGRESSION_CATEGORIES, transposeLick, transposeLickForTonality } from './library-loader';
+import { isLickCompatible, isProgressionLick, melodyFitsScale } from '$lib/tonality/scale-compatibility';
+import { isCuratedLickId, transposeLick, transposeLickForTonality } from './library-loader';
 import { SCALE_TYPE_TO_SCALE_ID } from '$lib/tonality/tonality';
 
 /** Ear-memory ceilings by content tier, independent of generated trick figures. */
@@ -36,7 +36,7 @@ export function selectEarTrainingLicks(
 	// Newly unlocked scales start at level 1 and may have no native entries.
 	// Only curated single-chord exercises may be adapted; progression licks
 	// can bypass snapping and book licks must never have their melody rewritten.
-	return withinLevel.filter(lick => isCuratedLickId(lick.id) && !PROGRESSION_CATEGORIES.has(lick.category));
+	return withinLevel.filter(lick => isCuratedLickId(lick.id) && !isProgressionLick(lick));
 }
 
 /**
