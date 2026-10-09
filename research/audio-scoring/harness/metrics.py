@@ -277,15 +277,28 @@ RELEASE_TOLERANCE = 0.12  # s after a note's end where its own pitch still sound
 
 
 def piano_roll(expected: list[ExpectedNote], frames: int, lag_frames: int, tail: float = 0.0) -> np.ndarray:
-    """Expected MIDI per frame (nan = rest). With `tail`, each note is
-    extended by that many seconds where the next note does not already sound."""
+    """Expected MIDI per frame (nan = rest); a note owns its frames from its
+    own onset. With `tail`, each note is extended by that many seconds into
+    frames no note occupies, so a release never hides the start of the next
+    note; where two releases reach the same rest, the later note's wins.
+    (Until 2026-10-08 the notes were written in reverse onset order with the
+    tail, so each tail overwrote the first 0.12 s of the note after it.)"""
     roll = np.full(frames, np.nan)
-    for n in sorted(expected, key=lambda n: n.onset, reverse=True):
+    notes = sorted(expected, key=lambda n: n.onset)
+
+    def span(n: ExpectedNote, extra: float) -> slice:
+        """Frames from the note's onset to `extra` s past its notated end, clipped to the roll."""
         a = lag_frames + int(round(n.onset / FRAME_SECONDS))
-        b = lag_frames + int(round((n.onset + n.duration + tail) / FRAME_SECONDS))
-        a, b = max(0, a), min(frames, b)
-        if b > a:
-            roll[a:b] = n.midi
+        b = lag_frames + int(round((n.onset + n.duration + extra) / FRAME_SECONDS))
+        return slice(max(0, a), max(0, min(frames, b)))
+
+    for n in notes:
+        roll[span(n, 0.0)] = n.midi
+    if tail > 0:
+        occupied = ~np.isnan(roll)
+        for n in notes:
+            s = span(n, tail)
+            roll[s] = np.where(occupied[s], roll[s], n.midi)
     return roll
 
 
@@ -303,8 +316,9 @@ def m5_frame_coverage(take_f: Features, expected: list[ExpectedNote], lag_frames
                       octave_insensitive: bool, tolerance_st: float = 0.5, tempo: float | None = None) -> Result:
     """Frame-level pitch coverage of the take's pyin f0 against the expected
     piano roll placed at `lag_frames`. Precision: share of sounded (voiced,
-    gated-on) frames within `tolerance_st` of the roll with every note extended
-    by RELEASE_TOLERANCE; recall: share of expected frames matched; F1 of both.
+    gated-on) frames within `tolerance_st` of the roll with each note's
+    RELEASE_TOLERANCE filling the rest after it (piano_roll's tail); recall:
+    share of expected frames matched; F1 of both.
     With `tempo`, recall_hold counts only each note's required part (half its
     length or one beat); without it, it equals recall."""
     f0 = f0_track(take_f)

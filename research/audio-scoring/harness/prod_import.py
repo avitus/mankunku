@@ -53,14 +53,15 @@ def norm01(v: float | None) -> float | None:
     return v / 100.0 if v > 1.0 else v
 
 
-def convert(raw_dir: Path, out_dir: Path, limit: int | None, since: dt.date | None) -> list[dict]:
+def convert(raw_dir: Path, out_dir: Path, limit: int | None, since: dt.date | None) -> list[str]:
     """Turn every session_results row with a matching .webm (newest first) into a
     take in `out_dir`: a mono 48 kHz 16-bit WAV (ffmpeg, kept if it exists) and
     a diagnostic-export-shaped JSON with scores normalised to 0-1, marked
     pre-armed from 2026-08-11 on. Rows dated (UTC) before `since`, or with no
     non-extra noteResult, are skipped; stops after `limit` takes. Merges an
-    unverified truth row per take into ROOT/takes/truth-prod.yaml whatever
-    `out_dir` is, and returns the stems written."""
+    unverified truth row per take into truth-prod.yaml beside `out_dir` (the
+    harness's takes/truth-prod.yaml for the default --out), and returns the
+    stems written."""
     rows = json.loads((raw_dir / "session_results.json").read_text())
     if isinstance(rows, dict):  # `supabase db query -o json` wraps the rows
         rows = rows.get("rows") or rows.get("result") or []
@@ -128,7 +129,7 @@ def convert(raw_dir: Path, out_dir: Path, limit: int | None, since: dt.date | No
         done.append(base)
         if limit and len(done) >= limit:
             break
-    tp = ROOT / "takes" / "truth-prod.yaml"
+    tp = out_dir.parent / "truth-prod.yaml"
     existing = yaml.safe_load(tp.read_text()) if tp.exists() else {}
     existing = existing or {}
     existing.update(truth_rows)

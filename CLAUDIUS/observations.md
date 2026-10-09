@@ -2829,3 +2829,21 @@ tone" can't both hold once subset-compatible material is added below the
 colour lines. Lydian level 1 had room for exactly one more phrase. The
 share test was what surfaced the conflict, and the share is now a choice
 (one in seven) rather than an accident.
+
+## 2026-10-08 — A self-similarity test cannot see a bias the reference shares
+
+The harness selftest scored a rendering against itself and demanded ≥ 0.9 on
+every metric. M5's tail bug charged the first 120 ms of every note, the
+rendering's notes included, and the check still passed, because the bias
+costs a clean take a few points rather than a collapse. What caught it was a
+docstring read against its loop, and what pins it now is a two-note roll
+small enough to read by eye. Instrument tests need at least one case whose
+right answer is known frame by frame, not only "close to itself".
+
+The second lesson is about what the bug's direction told the report. Its
+low honeysuckle reading was explained as "M5 sees the cracked attack": a
+plausible story fitted to an artefact. A measurement that agrees with your
+prior about a take is not evidence about the instrument. And the numbers
+quoted in shipped code (`frame-coverage.ts`'s "0.52 / 0.74 against >= 0.86")
+were copied from the instrument, so they go stale with it; a pointer to the
+report would not have.

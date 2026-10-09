@@ -1,4 +1,5 @@
-"""E1-E4 over every take. Writes results/*.csv and results/*.md.
+"""E1-E4 over every take. Writes results/*.csv; `python -m harness.report`
+builds results/tables.md from them.
 
 Run:  uv run python -m harness.evaluate [--renderer sampled|synthetic|both] [--skip-e4]
 """

@@ -30,7 +30,8 @@ AUDIO_MATCH_FRACTION = 0.5
 def expected_roll_fn(note_results, tempo, swing):
     """Return a lookup from phrase time (s) to the expected MIDI pitch, built
     from the non-extra rows: onsets swung, each note ending at its un-swung end
-    point and widened 50 ms before its onset and 120 ms past its end."""
+    point and widened, into time no note occupies, 50 ms before its onset and
+    120 ms past its end."""
     spans = []
     for r in note_results:
         if r.get("extra"):
@@ -40,13 +41,18 @@ def expected_roll_fn(note_results, tempo, swing):
         on = swung_onset_beats(off, swing) * 60.0 / tempo
         end = float((off + dur) * 4) * 60.0 / tempo
         spans.append((on, end, e["pitch"]))
+    spans.sort(key=lambda s: s[0])
     def at(t):
-        """Expected MIDI pitch sounding at phrase time `t` (s), None in a rest;
-        where widened spans overlap, the first matching row wins."""
-        for on, end, p in spans:
-            if on - 0.05 <= t < end + 0.12:
-                return p
-        return None
+        """Expected MIDI pitch sounding at phrase time `t` (s), None in a rest.
+        A note owns its own span from its onset; the widening reaches only
+        time no note occupies, where the later-starting note wins. (Until
+        2026-10-08 the first widened row won, so the 120 ms after each note
+        hid the start of the next, as in metrics.piano_roll.)"""
+        body = [p for on, end, p in spans if on <= t < end]
+        if body:
+            return body[-1]
+        near = [p for on, end, p in spans if on - 0.05 <= t < end + 0.12]
+        return near[-1] if near else None
     return at
 
 

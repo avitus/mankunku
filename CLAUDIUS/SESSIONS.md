@@ -4996,3 +4996,38 @@ no word on where it could be tried. Saved as feedback.
   and is not affected. Offered as a separate task (re-run + report update).
 - Flagged for Andy, not acted on: the walkthrough's hardening proposal about
   committing account recordings (31 production takes) to a public repo.
+
+## 2026-10-08 — Audio-scoring harness: M5's release tail hid every note's start
+
+A docs-only pass had flagged `piano_roll` (research/audio-scoring/harness/
+metrics.py): notes written in reverse onset order WITH the 120 ms tail, so
+each tail overwrote the first 5 frames of the next note, against its own
+docstring. M5 precision reads that tailed roll.
+
+- Selftest invariants first (RED: the second of two back-to-back notes read
+  the first's pitch for 5 frames), then the fix: bodies in onset order, tails
+  fill only unoccupied frames, the later release wins a shared rest.
+- Same shape in `gate_audio.expected_roll_fn` ("first widened row wins");
+  fixed with its own invariant. Gate summary unchanged (two takes swap a
+  charge).
+- Re-ran evaluate (~7 min, not 20), prod_eval prod + firefox, fix_impact,
+  gate_audio. Every non-M5 column byte-identical; M5 recall untouched.
+  Corpus clean precision p10 0.87 → 0.90, Wail 0.52/0.74 → 0.53/0.77, prod
+  perfect 0.89 → 0.92, Firefox LP perfect 0.83 → 0.86. E3: honeysuckle-rose's
+  low M5 (0.78, read as "sees the cracked attack") was mostly the artefact;
+  now 0.85, in range.
+- The app's `frameCoverage` never had the bug (any slot whose
+  [start, end+0.12] holds the reading may match). Measured that union rule
+  in a scratch script at the same lags: clean p10 0.95, Wail 0.55/0.81, LP
+  perfect p10 0.87. The shipping conclusion holds; the shipped rule separates
+  Wail b better than either harness version, but ranks with the saved LP
+  score at 0.68 vs 0.80.
+- Nits: `line_end_seconds` now swings onsets like extras.ts (one prod session
+  moves in fix_impact.md; the REPORT gate table is ts/variants.ts output);
+  importers write truth beside `--out`; `load_overrides` → {} on empty;
+  `prod_import.convert` → list[str]; evaluate docstring.
+- REPORT's "four to thirty times" E4 claim did not reproduce even from the
+  old CSVs; restated as 3–8× against the worse stretch. Its "≥ 0.86 on
+  clean takes" was never exactly a min or a p10 either.
+- Not touched (Andy's instruction): `frame-coverage.ts` and its test header
+  still quote "0.52 / 0.74 against >= 0.86".

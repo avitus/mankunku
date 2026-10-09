@@ -134,9 +134,9 @@ def expected_note(midi: int, off: Fraction, dur: Fraction, tempo: float, swing: 
 
 def load_overrides() -> dict:
     """takes/expected-overrides.yaml keyed by take stem; {} when the file is
-    absent (None when it exists but is empty)."""
+    absent or empty."""
     p = ROOT / "takes" / "expected-overrides.yaml"
-    return yaml.safe_load(p.read_text()) if p.exists() else {}
+    return (yaml.safe_load(p.read_text()) or {}) if p.exists() else {}
 
 
 def load_truth() -> dict:

@@ -14,7 +14,7 @@ F2 (no rhythm credit for a wrong pitch) and F4 (note length) are off by Andy's d
 | F1 gated | 733 | 127 | 280 | 373 | 430 | 0.755 | 420 | 0 |
 | F1 naive | 557 | 87 | 330 | 412 | 557 | 0.701 | 727 | 0 |
 | F3 | 764 | 276 | 310 | 311 | 282 | 0.804 | 99 | 0 |
-| F1 gated + F3 | 702 | 146 | 279 | 369 | 447 | 0.749 | 478 | 0 |
+| F1 gated + F3 | 702 | 146 | 279 | 369 | 447 | 0.748 | 478 | 0 |
 
 ### Firefox, lick practice (356 sessions)
 
@@ -38,11 +38,11 @@ F2 (no rhythm credit for a wrong pitch) and F4 (note length) are off by Andy's d
 
 ### Extras in production
 
-Sessions with at least one extra: 895 of 1943; with a GATED extra: 549; mean extras per session 0.81, mean gated 0.40. Perfect sessions losing the grade under F1 gated: 76 of 809; under F1 naive: 252.
+Sessions with at least one extra: 895 of 1943; with a GATED extra: 550; mean extras per session 0.81, mean gated 0.40. Perfect sessions losing the grade under F1 gated: 76 of 809; under F1 naive: 252.
 
 ### Audio cross-check (Firefox lick practice)
 
-Takes F1 gated charges: 87 of 356 (mean drop 0.106). Their DTW precision median 0.81 vs 0.94 for uncharged takes; frame precision 0.58 vs 0.81.
+Takes F1 gated charges: 87 of 356 (mean drop 0.106). Their DTW precision median 0.81 vs 0.94 for uncharged takes; frame precision 0.62 vs 0.85.
 
 Spearman(drop under F1 gated, DTW precision) over charged takes: -0.04 (negative = bigger drops where the audio also reads lower).
 

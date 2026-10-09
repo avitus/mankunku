@@ -245,10 +245,11 @@ def load_records(idb_dir: Path):
 def convert(idb_dir: Path, out_dir: Path, test: int | None):
     """Write each scorable record to `out_dir` as a 48 kHz mono 16-bit WAV
     (ffmpeg; an existing WAV is kept) plus a diagnostic-export JSON, always as
-    tenor sax, and rewrite the harness's takes/truth-firefox.yaml (whatever
-    `out_dir`) with the saved hits/total, unverified. Records lacking metadata,
-    a saved score with a non-extra note, or their blob file are skipped and
-    counted. With `test`, summarise the first `test` records and write nothing."""
+    tenor sax, and rewrite truth-firefox.yaml beside `out_dir` (the harness's
+    takes/truth-firefox.yaml for the default --out) with the saved hits/total,
+    unverified. Records lacking metadata, a saved score with a non-extra
+    note, or their blob file are skipped and counted. With `test`,
+    summarise the first `test` records and write nothing."""
     recs = load_records(idb_dir)
     print(f"{len(recs)} records decoded from {idb_dir}")
     if test:
@@ -304,7 +305,7 @@ def convert(idb_dir: Path, out_dir: Path, test: int | None):
         truth_rows[base] = {"hits": sc.get("notesHit"), "total": sc.get("notesTotal"), "real_extras": 0, "verified": False,
                             "note": f"firefox import: {md.get('source')}, saved {sc.get('overall'):.3f} {sc.get('grade')}, {sc.get('notesHit')}/{sc.get('notesTotal')}"}
         done.append(base)
-    tp = ROOT / "takes" / "truth-firefox.yaml"
+    tp = out_dir.parent / "truth-firefox.yaml"
     tp.write_text("# Takes imported from the Firefox IndexedDB store by harness/firefox_import.py — hits copied from the saved score, unverified.\n"
                   + yaml.safe_dump(truth_rows, sort_keys=True, width=200))
     print(f"converted {len(done)}; skipped {skipped}")

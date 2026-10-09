@@ -34,7 +34,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import spearmanr
 
-from .takes import ROOT
+from .takes import ROOT, swung_onset_beats
 
 GRADES = [("perfect", 0.95), ("great", 0.85), ("good", 0.70), ("fair", 0.55)]
 ORDER = ["try-again", "fair", "good", "great", "perfect"]
@@ -51,26 +51,27 @@ def grade(x: float) -> str:
 
 
 def line_end_seconds(note_results, tempo, swing=0.6):
-    """End of the written line in seconds: the latest expected offset + duration
-    (whole-note fractions, 4 beats each, 60/tempo s per beat) over the non-extra
-    results; 0.0 when there are none. `swing` is accepted but not applied."""
+    """End of the written line in seconds, as src/lib/scoring/extras.ts reads
+    it: the latest swung onset plus notated length (whole-note fractions, 4
+    beats each, 60/tempo s per beat) over the non-extra results; 0.0 when
+    there are none."""
     end = 0.0
     for r in note_results:
         if r.get("extra"):
             continue
         e = r["expected"]
         off = Fraction(e["offset"][0], e["offset"][1]); dur = Fraction(e["duration"][0], e["duration"][1])
-        end = max(end, float((off + dur) * 4) * 60.0 / tempo)
+        end = max(end, (swung_onset_beats(off, swing) + float(dur * 4)) * 60.0 / tempo)
     return end
 
 
-def gated_extras(note_results, tempo):
+def gated_extras(note_results, tempo, swing=0.6):
     """Indices (into note_results) of the extras that count under the gate."""
     dets = [(i, r["detected"]) for i, r in enumerate(note_results) if r.get("detected")]
     dets.sort(key=lambda x: x[1]["onsetTime"])
     order = [i for i, _ in dets]
     pos = {i: k for k, i in enumerate(order)}
-    end = line_end_seconds(note_results, tempo)
+    end = line_end_seconds(note_results, tempo, swing)
     out = []
     for i, r in enumerate(note_results):
         if not r.get("extra"):
@@ -89,11 +90,12 @@ def gated_extras(note_results, tempo):
     return out
 
 
-def rescore(note_results, tempo, f1="none", f3=False):
+def rescore(note_results, tempo, f1="none", f3=False, swing=0.6):
     """Pitch, rhythm and overall (0.6/0.4) from the saved per-pair scores, with
     `f1` ("none", "gated", "naive") choosing which extras join both denominators
-    as zeros and `f3` re-deriving each detected pair's rhythm score under a 1.0
-    penalty (module docstring). None when there are no non-extra results."""
+    as zeros (the gate reads the line end at `swing`) and `f3` re-deriving each
+    detected pair's rhythm score under a 1.0 penalty (module docstring). None
+    when there are no non-extra results."""
     pairs = [r for r in note_results if not r.get("extra")]
     n_exp = len(pairs)
     if n_exp == 0:
@@ -113,7 +115,7 @@ def rescore(note_results, tempo, f1="none", f3=False):
     if f1 == "naive":
         charged = len(extras)
     elif f1 == "gated":
-        charged = len(gated_extras(note_results, tempo))
+        charged = len(gated_extras(note_results, tempo, swing))
     else:
         charged = 0
     denom = n_exp + charged
@@ -166,13 +168,14 @@ def main():
     for p in sorted(glob.glob(str(ROOT / "takes" / "firefox" / "*.json"))):
         d = json.load(open(p)); stem = p.split("/")[-1][:-5]
         nr = d["scoring"]["savedScore"]["noteResults"]; tempo = d["context"]["tempo"]
+        swing = 0.6 if d["context"].get("swing") is None else d["context"]["swing"]
         base = rescore(nr, tempo)
         if base is None or stem not in audio.index:
             continue
         a = audio.loc[stem]
         rec = {"take": stem, "source": d["context"]["source"], "tempo": tempo, "dtw_precision": a.m3_dtw_precision, "dtw_f1": a.m3_dtw_f1, "m5_precision": a.m5_precision, "m3_hold": a.m3_chroma_hold}
         for v, kw in VARIANTS.items():
-            s = rescore(nr, tempo, **kw); rec[f"{v}_overall"] = s["overall"]; rec[f"{v}_grade"] = grade(s["overall"]); rec[f"{v}_charged"] = s["charged"]
+            s = rescore(nr, tempo, swing=swing, **kw); rec[f"{v}_overall"] = s["overall"]; rec[f"{v}_grade"] = grade(s["overall"]); rec[f"{v}_charged"] = s["charged"]
         rec["extras"] = base["extras"]
         frecs.append(rec)
     ff = pd.DataFrame(frecs)

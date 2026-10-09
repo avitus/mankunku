@@ -4,7 +4,9 @@ from fractions import Fraction
 from .takes import ExpectedNote, Take, expected_note
 from .render import render_sampled, render_synthetic, transpose
 from .features import extract, extract_reference, FRAME_SECONDS
-from .metrics import compare, METRIC_NAMES
+from .metrics import compare, METRIC_NAMES, piano_roll, RELEASE_TOLERANCE
+from .gate_audio import expected_roll_fn
+from .fix_impact import line_end_seconds
 
 sr = 44100
 tempo, swing = 100.0, 0.6
@@ -73,4 +75,32 @@ check("extra after the line costs m3_chroma", res5["m3_chroma"].similarity < res
       f"{res5['m3_chroma'].similarity:.3f} vs {res['m3_chroma'].similarity:.3f}")
 check("extra after the line costs m5 precision", res5["m5_cover"].extra["precision"] < res["m5_cover"].extra["precision"] - 0.05,
       f"{res5['m5_cover'].extra['precision']:.3f} vs {res['m5_cover'].extra['precision']:.3f}")
+
+# 6. the release tail M5 reads precision against fills rests only: it never hides the start of the next note
+def frame(s):
+    """Frame index of `s` seconds, rounded as piano_roll rounds."""
+    return int(round(s / FRAME_SECONDS))
+
+def note(midi, onset, duration):
+    """An ExpectedNote at `onset` lasting `duration` seconds (fractions unused by the roll)."""
+    return ExpectedNote(midi, onset, duration, Fraction(0), Fraction(1, 8))
+
+roll6 = piano_roll([note(60, 0.0, 0.3), note(62, 0.3, 0.3)], 60, 0, tail=RELEASE_TOLERANCE)
+check("piano roll: a back-to-back note keeps its pitch from its own onset under the tail",
+      (roll6[frame(0.3):frame(0.6)] == 62).all(), f"{roll6[frame(0.3):frame(0.3) + 7]}")
+check("piano roll: the last note's tail still fills the rest after it",
+      (roll6[frame(0.6):frame(0.6 + RELEASE_TOLERANCE)] == 62).all() and np.isnan(roll6[frame(0.6 + RELEASE_TOLERANCE):]).all(),
+      f"{roll6[frame(0.6) - 1:frame(0.6 + RELEASE_TOLERANCE) + 2]}")
+roll6b = piano_roll([note(60, 0.0, 0.3), note(62, 0.3, 0.05)], 60, 0, tail=RELEASE_TOLERANCE)
+check("piano roll: after a note shorter than the tail, the rest is that note's release, not the one before",
+      (roll6b[frame(0.3):frame(0.35 + RELEASE_TOLERANCE)] == 62).all(), f"{roll6b[frame(0.3):frame(0.35 + RELEASE_TOLERANCE) + 1]}")
+
+# 7. the extras-gate helpers read the line as the shipped scorer does (src/lib/scoring/extras.ts)
+eighths = [{"expected": {"pitch": 60, "offset": [0, 1], "duration": [1, 8]}},
+           {"expected": {"pitch": 62, "offset": [1, 8], "duration": [1, 8]}}]  # at 100 BPM straight: 0-0.3 s, 0.3-0.6 s
+at = expected_roll_fn(eighths, 100.0, 0.5)
+check("gate roll: a back-to-back note is the expected pitch from its own onset",
+      [at(0.29), at(0.31), at(0.41), at(0.65)] == [60, 62, 62, 62], f"{[at(0.29), at(0.31), at(0.41), at(0.65)]}")
+check("gate line end: swing moves an off-beat last note's end, as extras.ts lineEnd does",
+      abs(line_end_seconds(eighths, 100.0, 0.6) - (0.6 + 0.5) * 0.6) < 1e-9, f"{line_end_seconds(eighths, 100.0, 0.6):.3f}")
 print("ALL PASS" if ok else "SOME FAILED")
