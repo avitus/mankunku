@@ -4784,7 +4784,7 @@ its rhythm credit, an early release never costs.
   its span changed nothing. A sliver-aware aligner (slivers never take a slot)
   LOWERED hits on 53 takes — short real notes at 150 BPM and ghosts are
   slivers too — rejected with the number.
-- **Step 2, shipped** (8680385e): `scoring/extras.ts`, the v2 gate;
+- **Step 2, shipped** (9a8c3617): `scoring/extras.ts`, the v2 gate;
   `NoteResult.charged`, `Score.extrasCharged`; 5644 passed, 40 pins unchanged;
   Wail (a) 0.878 → 0.638, (b) 0.934.
 - **Step 3, shipped**: `scoring/frame-coverage.ts`, precision frame-level and
@@ -4807,7 +4807,7 @@ heard an F#, "the key sound of that scale to dial in".
 
 - **Measured first** (pool × adaptation, C Lydian): levels 1-5 served 0 phrases
   with an F#; level 1 was four major-pentatonic 2-note cells and B–C.
-- **Four stacked causes, all fixed (27ae1e52 on dev):**
+- **Four stacked causes, all fixed (0780935b on dev):**
   1. `snapLickToScale` snapped to the nearest tone, DOWN on a tie, so an
      Ionian F became E ("F E" → "E E"). Now degree-for-degree between two
      major modes (Ionian 4 → Lydian #4, Aeolian b6 → Dorian 6, Mixolydian b7
@@ -4889,12 +4889,12 @@ repertoire we have. It is already quite thin." Also: put a horizontal rule
 where the end-of-work report starts, and set any decision apart (memory).
 
 - **Measured my own Lydian fix against the code before it** (a detached
-  worktree at 8287eb09, every scale × levels 1-100): it had SHRUNK Dorian at
+  worktree at af9efdf2, every scale × levels 1-100): it had SHRUNK Dorian at
   95 levels (551 → 443 at level 62), Melodic Minor at 87 (136 → 17) and
   Lydian at 22 (410 → 375). Gating the combiner's single-bar phrases by scale
   instead of category removed them from sessions; the Lydian ii-V-I removal
   did the rest. I had not checked this before pushing it.
-- **Restored (faf18e2a):** compatibility by category again for those phrases
+- **Restored (5667f611):** compatibility by category again for those phrases
   (they still adapt as single-chord phrases); Lydian's parent-key ii-V-Is
   back. Degree mapping now reaches any 7-note target whose degrees are each
   within a semitone (melodic minor, Lydian Dominant). `ADAPTED_SCALES`
@@ -4935,7 +4935,7 @@ them over tunes." → yes, restrict.
 
 Started on the ear-training pool collapse (Altered/Lydian Dominant served ONE
 phrase from level 14). Measured it and asked Andy for a floor policy, but the
-"C Lydian ear training focus" session had already fixed it on dev (faf18e2a,
+"C Lydian ear training focus" session had already fixed it on dev (5667f611,
 ADAPTED_SCALES, the option I'd listed second). Re-probed on that code: the
 only thin pool left was Major Pentatonic at the very start, 4 phrases at
 level 1 and 5 at levels 2-3, every one a two-note cell. Andy: add short
@@ -4979,7 +4979,7 @@ no word on where it could be tried. Saved as feedback.
 
 - Opened `dev` → `main` as #269 on request. `dev` and `main` had both landed
   the Deep-rows fix (PR #268 went straight to main), so merged main into dev
-  first (d5cc890a): main's typed callbacks and CSSAnimation e2e sampler,
+  first (80436184): main's typed callbacks and CSSAnimation e2e sampler,
   dev's own-book comment in the tune-practice test.
 - CodeRabbit skipped the PR at 514 files (cap 300): 448 were recorded takes
   under `research/audio-scoring/takes/`. Excluded via `path_filters`, the
@@ -5031,3 +5031,16 @@ docstring. M5 precision reads that tailed roll.
   clean takes" was never exactly a min or a p10 either.
 - Not touched (Andy's instruction): `frame-coverage.ts` and its test header
   still quote "0.52 / 0.74 against >= 0.86".
+- **Takes purged from history (2026-10-09, Andy's call).** The 444 files under
+  `research/audio-scoring/takes/{downloads,firefox,prod}` (recorded audio and
+  session data, public repo) were removed from the four research commits with
+  `git filter-branch --index-filter` over `main..dev` in a bare scratch clone,
+  then force-pushed with a lease on the old tip (3cae0253 → ed2e1ca2). Checked
+  before pushing: no object under those paths reachable from dev, the tree
+  diff was exactly the 444 deletions, and commit count, the merge, authors,
+  dates and messages were unchanged. Every dev commit since e93e0c0c has a new
+  SHA; the notes' references were updated. The folders are gitignored, and a
+  full local copy (1140 files with the never-committed Firefox WAVs) is in the
+  main checkout. Hazard left behind: a worktree still on the old history that
+  runs a plain `git rebase origin/dev` replays the research commits and
+  re-adds the takes; rebase with `--onto origin/dev <old tip>` instead.

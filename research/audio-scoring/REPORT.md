@@ -412,7 +412,7 @@ was also measured and REJECTED: it lowered the hit count on 53 takes,
 because short real notes at fast tempos and ghosts fall under the same
 rule; the pairing cascade needs a smarter fix.
 
-**Step 2 — shipped**: `src/lib/scoring/extras.ts` (8680385e), the gate above,
+**Step 2 — shipped**: `src/lib/scoring/extras.ts` (9a8c3617), the gate above,
 `NoteResult.charged` and `Score.extrasCharged`; full suite 5644 passed, the
 40 expected-fail pins unchanged; docs aligned.
 
