@@ -4967,3 +4967,32 @@ pentatonic lines at levels 1-3.
   with placeholder PUBLIC_SUPABASE_* (this worktree has no `.env`; the 9
   errors without them are all `$env/static/public`). E2E not run locally;
   data-only change, CI runs it.
+
+## 2026-10-08 — "No tuning display" was a deploy gap; release PR #269
+
+Andy ran ear training and saw no fader bank. Nothing was wrong with it:
+production runs `main` (2718b166) and his local 5173 server runs a main
+checkout 57 commits behind `origin/dev`; the panel was only on `origin/dev`.
+31 of 32 recorded ear-training takes carry at least one note through the
+clean filter, so any normal run fills it. My report had said "shipped" with
+no word on where it could be tried. Saved as feedback.
+
+- Opened `dev` → `main` as #269 on request. `dev` and `main` had both landed
+  the Deep-rows fix (PR #268 went straight to main), so merged main into dev
+  first (d5cc890a): main's typed callbacks and CSSAnimation e2e sampler,
+  dev's own-book comment in the tune-practice test.
+- CodeRabbit skipped the PR at 514 files (cap 300): 448 were recorded takes
+  under `research/audio-scoring/takes/`. Excluded via `path_filters`, the
+  same move `CLAUDIUS/**` already had.
+- Fixed: cramjam undeclared in the harness, README decode loop writing to a
+  missing gitignored dir, a stale `e4_summary.csv` surviving `--skip-e4`.
+- Docstring coverage 46% → 98.5%: a scan mapping every changed line of
+  `origin/main...HEAD` to its enclosing declaration found 92 undocumented;
+  three agents wrote the research/test ones from the bodies, verified as
+  comment-only (Python ASTs identical with docstrings stripped).
+- Found while documenting: the harness's `piano_roll` lets a note's release
+  tail overwrite the next note's onset, understating M5 precision in
+  REPORT.md. The shipped `frame-coverage.ts` checks every slot per reading
+  and is not affected. Offered as a separate task (re-run + report update).
+- Flagged for Andy, not acted on: the walkthrough's hardening proposal about
+  committing account recordings (31 production takes) to a public repo.
