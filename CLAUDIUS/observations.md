@@ -2653,3 +2653,197 @@ My first draft blamed octave blindness and was wrong — the acoustic check
 showed the opposite (the allowance was covering a detector error). Worth
 remembering: in this codebase "the scorer is lenient" and "the detector is
 wrong" keep masking each other, and only the audio settles which is which.
+
+## 2026-10-07 — The reference did not need to be audio
+
+I built two renderers because the brief said "generated audio", and the
+synthetic one — six sine partials, no samples — matched the app's own tenor
+samples on every metric to the second decimal. What the comparison needs from
+the reference is where each pitch class sits in time, and a template carries
+that with none of the rendering. The lesson generalises: when a method is
+named by its most concrete form ("cross-correlate the audio"), the useful
+part is often the representation it implies, not the operation. Raw
+cross-correlation was the operation; it scored a lick against its own
+transposition as a coin flip, because a player's waveform shares no phase
+with a sample's. The representation one step up (chroma per frame) did
+everything the operation was meant to do.
+
+Two of the three harness bugs were the same bug as the app's own history:
+a window that could not reach where the answer was. The lag search could not
+pass the reference's tail, so it settled 0.23 s early and called every note
+boundary wrong — tonic-turn, the take whose score the app once butchered to
+1/4, now butchered again by my own measurement in the same direction. I only
+saw it because I drew the overlay before trusting a number. "Correct take
+reads 0.61" was the signal; the self-test said everything passed. A self-test
+proves the measure on inputs I constructed; the first real take proves it on
+inputs I did not.
+
+The score the audio gives is a precision measure where the note score is a
+recall measure, and the corpus made that asymmetry concrete: every "extra"
+the note scorer forgives is a frame the chroma charges, and every re-pairing
+cascade the aligner produces is invisible to a measure that never pairs. The
+two disagree exactly where one of them is wrong — five butchered takes on one
+side, two Wail takes on the other — which is the strongest argument for
+shipping the second signal as a *check* before it is a *grade*. A second
+instrument that shares no arithmetic with the first is worth more as a
+disagreement detector than as a replacement; the grid-drift episode taught
+that about measurement, and this is the same thing about scoring.
+
+What it cannot see is also instructive. Chroma cannot hear a tongue: a
+repeated pitch held through its second slot reads as played. The note scorer
+can, because segmentation is the articulation detector. So the honest
+combination is not "replace", it is "each guards the other's blind spot",
+and the open question is the one that keeps returning this autumn — the
+onset worklet that never attached.
+
+## 2026-10-07 — The measure was stricter than the music
+
+Three production takes Andy's scorer called perfect, my chroma called 0.66.
+Correct notes, every one — held shorter than the page said. One lick wrote
+its last note five whole notes long, longer than the recording. I had built
+"durations are scored" as a feature, and the first real data said it was a
+policy I had not been asked to set. The fix was a tolerance, half a note or a
+beat, and it moved nothing but those takes. The lesson is older than this
+project: a measure that is stricter than the thing it measures is not more
+accurate, it is measuring something else. Precision — did what you played
+belong — carries none of that ambiguity, which is why it, not the F1, should
+be the gate.
+
+The other direction appeared in the same fifteen: a take whose A's were
+sixty cents flat scored "fair" because the rhythm was right. Both halves of
+the autumn's argument in one afternoon — the scorer forgiving what the ear
+would not, the audio charging what the player meant — and the honest
+position is still the one from this morning: each guards the other.
+
+## 2026-10-07 — Three hundred and seventy-eight takes change the question
+
+With forty-eight takes the question was "does the audio measure agree with
+the pins". With three hundred and seventy-eight it became "where does it
+disagree with the scorer, and who is right there" — and the answer sorted
+itself into three bins, each with a name. Fast licks: the frame rate's limit,
+mine to fix. Ghosted Cs: Andy's policy, the scorer's to keep. A take the
+pairing cascade butchered: the scorer's bug, the audio's catch. A metric is
+worth shipping when its disagreements are legible like that; agreement is
+only the price of admission.
+
+The decoder taught the same lesson as the lag search: a fallback that finds
+the answer by scanning for a landmark will hide a parser that is wrong by
+twenty-two bytes. It gave me the metadata and no timestamps, and I nearly
+took that as "good enough". The first unexplained zero is cheaper to chase
+than the tenth.
+
+## 2026-10-07 — Measure the fix on the population before shipping it to the population
+
+The adjacent thread had validated its extras gate against the regression
+suite and found it clean. The suite is forty takes chosen because the
+detector once got them wrong; the population is two thousand sessions. On
+the population the same gate charged an artefact two times in three on the
+perfect takes it touched, for two reasons no fixture had ever shown: a click
+read as a pitch before the player entered, and a scoop cut into three notes.
+Two rules fixed it, and a third idea I liked — slivers never take a slot —
+cost fifty-three takes, because a sliver and a fast real note are the same
+thing to a duration threshold. I would have shipped that one on argument.
+
+The suite proves a change does not re-break what it once broke. Only the
+population says what it breaks next. Now that the population is one query
+and one script away, "measured on production" should be the bar for any
+scoring change, and the harness that does it is now part of the repo.
+
+## 2026-10-07 — Compatibility is a subset relation; ear training is about the difference
+
+The scale-compatibility table answers "can this lick be played in this
+scale?" by subset: major pentatonic ⊂ Lydian, so pentatonic licks are
+Lydian licks. That is the right question for not mangling a lick and the
+wrong one for teaching a mode, because the note that makes Lydian Lydian is
+precisely the note a subset relation can never require. Draw a Lydian
+session by subset and you get mostly what Lydian shares with everything
+else. The colour tone has to be asked for explicitly — by content (the
+lydian.ts collection) or by selection.
+
+We had already learned this once, for Major: the July major-4-7 collection
+exists because Major's pool was pentatonic and carried no 4th or 7th. The
+fix was made for Major alone and nobody asked whether the modes had the same
+hole. They all do — Dorian's 6 and Minor's b6 are absent below level 20. A
+one-screen probe (colour-tone coverage per scale per level) showed it in
+seconds; it should probably become a standing test once Andy decides the
+policy, so the next mode can't ship hollow.
+
+The snap's tie-break ("prefer flats") looked like a neutral detail. Between
+modes it is a direction, and it was right only when the target lowers a
+degree — the three cases that raise one (Lydian's #4, Dorian's 6 from
+Aeolian, Major's 7 from Mixolydian) each lost exactly their colour note.
+A rule that is correct "most of the time" can be wrong in exactly the
+places that matter most, when what matters is the exception.
+
+## 2026-10-07 — A tuning number is two numbers
+
+Laying out a sax player's per-note tuning, the useful split was not sharp
+vs flat but GLOBAL vs LOCAL. A horn that reads +10¢ on every note has a
+mouthpiece problem, one adjustment. A horn whose F reads 21¢ low against the
+rest has a voicing or fingering problem on that note. Absolute cents mix
+the two, so the same session reads "everything a bit sharp" in one frame
+and "F is the problem" in the other. The existing cue measures only the
+global half. The per-note panel is worth building because of the local
+half, and that only shows once the centre is subtracted.
+
+The second thing a horn player knows and a pitch-class chart hides: low D
+and the octave-key D are different notes on the instrument. Pooling them
+by pitch class can turn two clusters into one median that describes
+neither. Any per-note tuning summary should keep register as a dimension,
+even if the default view folds it away.
+
+## 2026-10-07 — A correctness fix is also a membership change; measure both
+
+The Lydian fix was right about sound and wrong about inventory. Moving the
+single-bar phrases from "category decides" to "scale decides" was framed as
+a correctness change (they were being parent-hopped), but it bundled two
+questions — WHERE a phrase may appear and HOW it is played — and answered
+both with one predicate. The second answer was the fix; the first silently
+removed hundreds of phrases from Dorian and Melodic Minor. My tests pinned
+the new behaviour and the colour coverage; nothing measured the pool sizes,
+so the loss looked like nothing. Andy's "don't reduce the repertoire" caught
+it before I did.
+
+Two habits from this. Keep "eligibility" and "adaptation" separate
+predicates — `isProgressionLick` now governs only adaptation. And for any
+change to selection, diff every scale's pool at every level against the
+previous commit before calling it done; it is one probe and a worktree.
+The "pool never shrinks as the level rises" test is the in-repo half of
+that; the cross-commit diff can't be a test, so it has to be a habit.
+
+## 2026-10-07 — At the bottom of the rubric, rhythm is fixed
+
+Writing level 1-3 material, I expected to choose rhythms. The rubric had
+already chosen: even half notes are the only rhythm that rates that low. One
+quarter note against a dotted half costs four levels, because variety and
+"fastest subdivision" both score from zero. So a level-3 player has heard
+nothing but halves, and quarters arrive all at once at level 8. That may be
+right for the ear (pitch first, then time), but it was never decided as a
+teaching ladder. It falls out of a formula tuned for the middle of the
+range. If Andy ever wants rhythm introduced gradually at the bottom, the
+change belongs in calculateDifficulty's low end, not in the data.
+
+Second: two teaching goals set on the same day collided by arithmetic.
+"Repertoire only grows" and "a mode's beginner pool is mostly its colour
+tone" can't both hold once subset-compatible material is added below the
+colour lines. Lydian level 1 had room for exactly one more phrase. The
+share test was what surfaced the conflict, and the share is now a choice
+(one in seven) rather than an accident.
+
+## 2026-10-08 — A self-similarity test cannot see a bias the reference shares
+
+The harness selftest scored a rendering against itself and demanded ≥ 0.9 on
+every metric. M5's tail bug charged the first 120 ms of every note, the
+rendering's notes included, and the check still passed, because the bias
+costs a clean take a few points rather than a collapse. What caught it was a
+docstring read against its loop, and what pins it now is a two-note roll
+small enough to read by eye. Instrument tests need at least one case whose
+right answer is known frame by frame, not only "close to itself".
+
+The second lesson is about what the bug's direction told the report. Its
+low honeysuckle reading was explained as "M5 sees the cracked attack": a
+plausible story fitted to an artefact. A measurement that agrees with your
+prior about a take is not evidence about the instrument. And the numbers
+quoted in shipped code (`frame-coverage.ts`'s "0.52 / 0.74 against >= 0.86")
+were copied from the instrument, so they go stale with it; a pointer to the
+report would not have.

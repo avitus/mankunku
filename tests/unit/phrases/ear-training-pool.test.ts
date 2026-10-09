@@ -47,7 +47,9 @@ describe('ear-training eligibility', () => {
 		const exercise = ALL_CURATED_LICKS.find(lick => lick.id === 'bc-001')!;
 		const incompatibleBook = bookLick([60, 62]);
 		expect(selectEarTrainingLicks([exercise, incompatibleBook], 1, 'altered')).toEqual([exercise]);
-		const progression = ALL_CURATED_LICKS.find(lick => lick.category === 'ii-V-I-major')!;
+		// A real progression: the combiner's single-bar phrases filed under
+		// ii-V-I-major come first in the catalog and are single-chord exercises.
+		const progression = ALL_CURATED_LICKS.find(lick => lick.category === 'ii-V-I-major' && lick.harmony.length > 1)!;
 		expect(selectEarTrainingLicks([progression], 100, 'major-pentatonic')).toEqual([]);
 	});
 
@@ -119,5 +121,130 @@ describe('ear-training eligibility', () => {
 		expect(melodyFitsScale(prepared, 'major-pentatonic')).toBe(true);
 		const pitches = prepared.notes.map(note => note.pitch!);
 		expect(pitches.slice(1).map((pitch, i) => pitch - pitches[i])).toEqual([2, 2, 3, 2]);
+	});
+});
+
+/**
+ * 2026-10-07: C Lydian unlocked, three levels played, and not one phrase
+ * sounded the F# — the #4 that is the whole point of the scale. The beginner
+ * pool was major-pentatonic cells (no 4th at all) and major-scale cells whose
+ * F the adaptation snapped down to E; above it, single-bar phrases were moved
+ * to G and ii-V-Is played in G major.
+ *
+ * The share was at least half until the Major Pentatonic first lines joined
+ * these pools by the subset rule; Andy chose that over keeping them out, and
+ * the floor became one in seven (lowest measured: 9 of 56 at level 3).
+ */
+describe('C Lydian sessions sound the #4 (2026-10-07)', () => {
+	/** The phrases a C Lydian session serves at `level`, each lick transposed into C Lydian within MIDI 46-77. */
+	const served = (level: number): Phrase[] =>
+		selectEarTrainingLicks(ALL_CURATED_LICKS, level, 'lydian').map(lick =>
+			transposeEarTrainingLick(lick, 'C', 'lydian', 46, 77)
+		);
+	/** Whether any pitched note of the phrase has pitch class `pc` (0-11, C = 0). */
+	const sounds = (phrase: Phrase, pc: number): boolean =>
+		phrase.notes.some(note => note.pitch !== null && note.pitch % 12 === pc);
+
+	it.each([1, 2, 3, 4, 5])('at level %i, at least one phrase in seven carries the F#', level => {
+		const pool = served(level);
+		const withSharpFour = pool.filter(phrase => sounds(phrase, 6));
+		expect(withSharpFour.length * 7, `${withSharpFour.length} of ${pool.length}`).toBeGreaterThanOrEqual(pool.length);
+	});
+
+	// Progression licks keep their own harmony and are never adapted note by
+	// note, so above the chromatic tier (level 31) a ii-V-I may carry approach
+	// tones; every single-chord phrase is adapted into the scale at every level.
+	it('serves no note outside C Lydian: single-chord phrases at every level, everything through level 30', () => {
+		const lydian = new Set([0, 2, 4, 6, 7, 9, 11]);
+		for (let level = 1; level <= 100; level++) {
+			for (const phrase of served(level)) {
+				if (level > 30 && phrase.harmony.length !== 1) continue;
+				for (const note of phrase.notes) {
+					if (note.pitch === null) continue;
+					expect(lydian.has(note.pitch % 12), `level ${level}: ${phrase.id} plays pitch class ${note.pitch % 12}`).toBe(true);
+				}
+			}
+		}
+	});
+
+	it('plays every single-chord phrase on the session root, never moved to the parent key', () => {
+		for (const level of [10, 30, 60, 100]) {
+			for (const phrase of served(level).filter(p => p.harmony.length === 1)) {
+				expect(phrase.harmony[0].chord.root, `level ${level}: ${phrase.id}`).toBe('C');
+			}
+		}
+	});
+});
+
+/**
+ * 2026-10-07, after Lydian: Dorian's 6, the natural minor's b6 and
+ * Mixolydian's b7 were just as absent — 0 of 19 Dorian and Minor phrases at
+ * level 5 carried them — because each beginner pool was pentatonic or blues
+ * cells. The colour-tone collections ADD to those pools; nothing is removed.
+ * Mixolydian's floor is one phrase in seven, not half, since the Major
+ * Pentatonic first lines joined it (as for Lydian above; lowest measured:
+ * 10 of 57 at level 4).
+ */
+describe.each([
+	{ scaleType: 'dorian', colour: 9, scale: [0, 2, 3, 5, 7, 9, 10], oneIn: 2 },
+	{ scaleType: 'minor', colour: 8, scale: [0, 2, 3, 5, 7, 8, 10], oneIn: 2 },
+	{ scaleType: 'mixolydian', colour: 10, scale: [0, 2, 4, 5, 7, 9, 10], oneIn: 7 }
+] as const)('C $scaleType sessions sound their colour tone (2026-10-07)', ({ scaleType, colour, scale, oneIn }) => {
+	/** The phrases a C `scaleType` session serves at `level`, each lick transposed into that scale on C within MIDI 46-77. */
+	const served = (level: number): Phrase[] =>
+		selectEarTrainingLicks(ALL_CURATED_LICKS, level, scaleType).map(lick =>
+			transposeEarTrainingLick(lick, 'C', scaleType, 46, 77)
+		);
+
+	it.each([1, 2, 3, 4, 5])(`at level %i, at least one phrase in ${oneIn} carries it`, level => {
+		const pool = served(level);
+		const carrying = pool.filter(phrase => phrase.notes.some(note => note.pitch !== null && note.pitch % 12 === colour));
+		expect(carrying.length * oneIn, `${carrying.length} of ${pool.length}`).toBeGreaterThanOrEqual(pool.length);
+	});
+
+	it('every single-chord phrase at every level stays inside the scale', () => {
+		const allowed = new Set<number>(scale);
+		for (let level = 1; level <= 100; level++) {
+			for (const phrase of served(level).filter(p => p.harmony.length === 1)) {
+				for (const note of phrase.notes) {
+					if (note.pitch === null) continue;
+					expect(allowed.has(note.pitch % 12), `level ${level}: ${phrase.id} plays pitch class ${note.pitch % 12}`).toBe(true);
+				}
+			}
+		}
+	});
+});
+
+/**
+ * 2026-10-07: Major Pentatonic, the one scale open from the start, served
+ * four phrases at level 1 and five at levels 2-3, all of them two-note cells,
+ * so a new player looped the same handful.
+ */
+describe('Major Pentatonic gives a new player more than a handful of phrases (2026-10-07)', () => {
+	it.each([[1, 12], [2, 24], [3, 36]])('at level %i, at least %i phrases', (level, floor) => {
+		expect(selectEarTrainingLicks(ALL_CURATED_LICKS, level, 'major-pentatonic').length).toBeGreaterThanOrEqual(floor);
+	});
+});
+
+/**
+ * Selection must only ever ADD as a player levels up. Scales the catalog
+ * reaches mostly by adaptation (Melodic Minor, Altered, Lydian Dominant) used
+ * to swap their whole adapted pool for the first native lick that unlocked:
+ * Altered served 92 phrases at level 10 and ONE from level 15 to 49.
+ */
+describe('the pool never shrinks as the player levels up', () => {
+	it.each(SCALE_UNLOCK_ORDER)('%s', scaleType => {
+		let previous = 0;
+		for (let level = 1; level <= 100; level++) {
+			const size = selectEarTrainingLicks(ALL_CURATED_LICKS, level, scaleType).length;
+			expect(size, `level ${level} serves ${size}, level ${level - 1} served ${previous}`).toBeGreaterThanOrEqual(previous);
+			previous = size;
+		}
+	});
+
+	it('native licks join an adapted pool rather than replacing it', () => {
+		const native = ALL_CURATED_LICKS.find(lick => lick.harmony[0]?.scaleId === 'melodic-minor.altered')!;
+		const exercise = ALL_CURATED_LICKS.find(lick => lick.id === 'bc-001')!;
+		expect(selectEarTrainingLicks([native, exercise], 100, 'altered')).toEqual([native, exercise]);
 	});
 });

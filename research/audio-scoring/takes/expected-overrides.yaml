@@ -1,0 +1,49 @@
+# Expected phrases for takes whose export carries no savedScore.
+# Source: the Phrase literals / assertions in tests/integration/pitch-replay.test.ts.
+# Offsets and durations are whole-note fractions as in the app. `timing_assumed`
+# marks takes whose rhythm/tempo were never recorded (the three April WAV-only
+# takes): pitch-level results are meaningful, timing-level ones are not.
+2026-04-14-a4-c5-tenor-sax:
+  source: ear-training
+  tempo: 100
+  swing: 0.6
+  key: C
+  timing_assumed: true
+  notes:  # PR:44-70 — detected [57, 60]
+    - { pitch: 57, offset: [0, 1], duration: [1, 4] }
+    - { pitch: 60, offset: [1, 4], duration: [1, 4] }
+2026-04-14-a3-c4-tenor-noisefloor:
+  source: ear-training
+  tempo: 100
+  swing: 0.6
+  key: C
+  timing_assumed: true
+  notes:  # PR:175-202 — detected [57, 60], first onset > 1.0 s
+    - { pitch: 57, offset: [0, 1], duration: [1, 4] }
+    - { pitch: 60, offset: [1, 4], duration: [1, 4] }
+2026-04-19-upper-neighbor-on-root:
+  source: ear-training
+  tempo: 100
+  swing: 0.6
+  key: C
+  timing_assumed: true
+  notes:  # PR:219-264 — pitch classes [0, 2, 0], exact [60, 62, 60]
+    - { pitch: 60, offset: [0, 1], duration: [1, 4] }
+    - { pitch: 62, offset: [1, 4], duration: [1, 4] }
+    - { pitch: 60, offset: [1, 2], duration: [1, 4] }
+2026-07-23-blue-monk:
+  source: ear-training
+  tempo: 54
+  swing: 0.6
+  key: C
+  phrase_name: Blue Monk
+  notes:  # PR:1321-1415 — the tied E (7/8 + 1/1) is one sounding note of 5/8
+    - { pitch: 67, offset: [0, 1], duration: [1, 8] }
+    - { pitch: 69, offset: [1, 8], duration: [1, 8] }
+    - { pitch: 67, offset: [1, 4], duration: [1, 8] }
+    - { pitch: 66, offset: [3, 8], duration: [1, 8] }
+    - { pitch: 65, offset: [1, 2], duration: [1, 8] }
+    - { pitch: 55, offset: [5, 8], duration: [1, 8] }
+    - { pitch: 63, offset: [3, 4], duration: [1, 8] }
+    - { pitch: 64, offset: [7, 8], duration: [1, 8] }
+    - { pitch: 64, offset: [1, 1], duration: [1, 2], _tie_prev: true }

@@ -12,7 +12,17 @@
 
 	let { score, onrepeat, onnext }: Props = $props();
 
+	/** A 0–1 score as a whole percentage. */
 	const pct = (n: number) => Math.round(n * 100);
+
+	// The audio check (scoring/frame-coverage.ts): what the detector's own
+	// frames say about the take, with no pairing. A second opinion beside the
+	// score — it flags when the two disagree by a quarter, which is where one
+	// of them is wrong (an inflated score, or a pairing the detector threw).
+	const AUDIO_DISAGREEMENT = 0.25;
+	const audioDisagrees = $derived(
+		score.audioCheck !== undefined && Math.abs(score.audioCheck.precision - score.pitchAccuracy) >= AUDIO_DISAGREEMENT
+	);
 
 	// Pick a fresh caption whenever a new score arrives. Reading `score.overall`
 	// alongside `score.grade` ensures back-to-back attempts on the same grade
@@ -68,6 +78,25 @@
 			</div>
 		</div>
 	</div>
+
+	{#if score.audioCheck}
+		<!-- Audio check: frame-level precision beside the note score -->
+		<div
+			class="flex items-center justify-between rounded bg-[var(--color-bg-tertiary)] px-3 py-2 text-xs"
+			data-testid="audio-check"
+			data-disagrees={audioDisagrees}
+			title="What the pitch tracker's frames say, with no note pairing: the share of what sounded that was the written line, and of the line that sounded."
+		>
+			<span class="text-[var(--color-text-secondary)]">Audio check</span>
+			<span class="tabular-nums">
+				<span class="font-semibold">{pct(score.audioCheck.precision)}%</span> of what you played was the line ·
+				<span class="font-semibold">{pct(score.audioCheck.recall)}%</span> of the line sounded
+				{#if audioDisagrees}
+					<span class="ml-1 rounded bg-[var(--color-phase-listen)]/15 px-1.5 py-0.5 text-[var(--color-phase-listen)]" title="The audio and the note score disagree by a quarter or more — one of them has this take wrong.">disagrees</span>
+				{/if}
+			</span>
+		</div>
+	{/if}
 
 	<!-- Per-note comparison -->
 	<NoteComparison noteResults={score.noteResults} timing={score.timing} />

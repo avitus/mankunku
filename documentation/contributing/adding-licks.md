@@ -10,7 +10,7 @@ Curated licks feed **ear training** — not the Licks page, which lists only the
 
 ## Step 1: Choose a File
 
-Existing files (452 licks):
+Existing files (652 licks):
 
 | File | `category` values | Count |
 |---|---|---|
@@ -19,6 +19,11 @@ Existing files (452 licks):
 | `beginner-cells.ts` | `pentatonic` (45), `blues` (10) | 55 |
 | `major-4-7.ts` | `ii-V-I-major`, `bebop-lines`, `digital-patterns`, `major-chord` | 40 |
 | `major-4-7-vol2.ts` | `ii-V-I-major`, `bebop-lines`, `digital-patterns`, `major-chord` | 40 |
+| `lydian.ts` | `modal` | 40 |
+| `dorian.ts` | `modal` | 40 |
+| `aeolian.ts` | `modal` | 40 |
+| `mixolydian.ts` | `modal` | 40 |
+| `pentatonic-first-lines.ts` | `pentatonic` | 40 |
 | `ii-V-I-major.ts` | `ii-V-I-major` | 24 |
 | `bebop-lines.ts` | `bebop-lines` | 20 |
 | `ii-V-I-minor.ts` | `ii-V-I-minor` | 15 |
@@ -37,7 +42,7 @@ Existing files (452 licks):
 
 Add to an existing file for existing categories, or create a new file for a new category. A file may mix categories — `category` is per lick.
 
-The combiner (`src/lib/phrases/combiner.ts`) generates a further **471** licks at import time, in C, by pairing the scale patterns in `src/lib/data/patterns/scale-patterns.ts` with the rhythm templates in `rhythm-patterns.ts` — every exact note-count fit, plus a shape laid two or three times (repeated, or sequenced a step up or down) to fill a longer rhythm. They carry `source: 'combined'` and join `ALL_CURATED_LICKS`, so ear training draws on 923 catalog licks before the player's own and adopted ones (`getAllLicks`). Don't add licks there by hand; to widen a category, add a pattern (its `category` must have a `CATEGORY_CONTEXT` entry in `combiner.ts`). `tests/unit/phrases/combinatorial-coverage.test.ts` checks that the ear-training categories stay covered.
+The combiner (`src/lib/phrases/combiner.ts`) generates a further **471** licks at import time, in C, by pairing the scale patterns in `src/lib/data/patterns/scale-patterns.ts` with the rhythm templates in `rhythm-patterns.ts` — every exact note-count fit, plus a shape laid two or three times (repeated, or sequenced a step up or down) to fill a longer rhythm. They carry `source: 'combined'` and join `ALL_CURATED_LICKS`, so ear training draws on 1123 catalog licks before the player's own and adopted ones (`getAllLicks`). Don't add licks there by hand; to widen a category, add a pattern (its `category` must have a `CATEGORY_CONTEXT` entry in `combiner.ts`). `tests/unit/phrases/combinatorial-coverage.test.ts` checks that the ear-training categories stay covered.
 
 ## Step 2: Define the Lick
 

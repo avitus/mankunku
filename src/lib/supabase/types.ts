@@ -360,6 +360,8 @@ export type Database = {
           note_results: Json
           /** JSONB storing TimingDiagnostics — bias, spread, per-note offsets. Nullable for backward compat. */
           timing: Json | null
+          /** AudioCheck JSON beside the score (scoring/frame-coverage.ts); NULL before 2026-10-07 */
+          audio_check: Json | null
           /** Unix timestamp in milliseconds from original SessionResult.timestamp */
           timestamp: number
           /** Session origin: 'ear-training' | 'lick-practice'. Nullable — NULL reads as 'ear-training'. */
@@ -388,6 +390,7 @@ export type Database = {
           note_results: Json
           /** JSONB — optional, stores TimingDiagnostics */
           timing?: Json | null
+          audio_check?: Json | null
           timestamp: number
           /** Optional — 'ear-training' | 'lick-practice'; omitted reads as 'ear-training' */
           source?: string | null
@@ -410,6 +413,7 @@ export type Database = {
           notes_total?: number
           note_results?: Json
           timing?: Json | null
+          audio_check?: Json | null
           timestamp?: number
           source?: string | null
         }

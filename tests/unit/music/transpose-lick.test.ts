@@ -3,6 +3,26 @@ import { transposeLick, transposeLickForTonality, snapLickToScale } from '$lib/p
 import type { Phrase } from '$lib/types/music';
 import { ALL_CURATED_LICKS } from '$lib/data/licks';
 
+/** Dm7 → G7 → Cmaj7: the harmony a real progression lick declares. */
+const II_V_I: Phrase['harmony'] = [
+	{ chord: { root: 'D', quality: 'min7' }, scaleId: 'major.dorian', startOffset: [0, 1], duration: [1, 1] },
+	{ chord: { root: 'G', quality: '7' }, scaleId: 'major.mixolydian', startOffset: [1, 1], duration: [1, 1] },
+	{ chord: { root: 'C', quality: 'maj7' }, scaleId: 'major.ionian', startOffset: [2, 1], duration: [1, 1] }
+];
+
+/** A progression-category phrase whose harmony actually moves through the progression. */
+function makeProgression(pitches: (number | null)[], category: string): Phrase {
+	return { ...makePhrase(pitches, category), harmony: II_V_I };
+}
+
+/** A single-chord phrase declared over C`quality` in `scaleId`. */
+function makeModal(pitches: (number | null)[], scaleId: string, quality: 'maj7' | 'min7' | '7'): Phrase {
+	return {
+		...makePhrase(pitches),
+		harmony: [{ chord: { root: 'C', quality }, scaleId, startOffset: [0, 1], duration: [1, 1] }]
+	};
+}
+
 /** Helper: build a minimal phrase with given MIDI pitches */
 function makePhrase(pitches: (number | null)[], category: string = 'pentatonic'): Phrase {
 	return {
@@ -161,7 +181,7 @@ describe('transposeLickForTonality — progression licks use parent key', () => 
 	it('A Dorian ii-V-I: transposes to G major (parent key)', () => {
 		// ii-V-I lick in A Dorian → parent key is G major
 		// C4(60), E4(64) → transpose to G(+7) → G4(67), B4(71)
-		const phrase = makePhrase([60, 64], 'ii-V-I-major');
+		const phrase = makeProgression([60, 64], 'ii-V-I-major');
 		const result = transposeLickForTonality(phrase, 'A', 'major.dorian');
 		expect(result.notes.map(n => n.pitch)).toEqual([67, 71]);
 		expect(result.key).toBe('A');
@@ -169,7 +189,7 @@ describe('transposeLickForTonality — progression licks use parent key', () => 
 
 	it('D Dorian ii-V-I: transposes to C major (parent key)', () => {
 		// D Dorian = mode 2 of C major. Parent = C → no transposition.
-		const phrase = makePhrase([60, 64, 67], 'ii-V-I-major');
+		const phrase = makeProgression([60, 64, 67], 'ii-V-I-major');
 		const result = transposeLickForTonality(phrase, 'D', 'major.dorian');
 		expect(result.notes.map(n => n.pitch)).toEqual([60, 64, 67]);
 		expect(result.key).toBe('D');
@@ -178,7 +198,7 @@ describe('transposeLickForTonality — progression licks use parent key', () => 
 	it('A Dorian ii-V-I minor: a MINOR cadence lick is keyed by its tonic, so it transposes tonic → A', () => {
 		// The parent-major hop assumes lick.key is the parent major; a minor
 		// cadence lick's key is its tonic minor, so C minor → A minor (+9).
-		const phrase: Phrase = { ...makePhrase([60, 64], 'ii-V-I-minor'), mode: 'minor' };
+		const phrase: Phrase = { ...makeProgression([60, 64], 'ii-V-I-minor'), mode: 'minor' };
 		const result = transposeLickForTonality(phrase, 'A', 'major.dorian');
 		expect(result.notes.map(n => n.pitch)).toEqual([69, 73]);
 		expect(result.key).toBe('A');
@@ -186,14 +206,14 @@ describe('transposeLickForTonality — progression licks use parent key', () => 
 	});
 
 	it('a ii-V-I-minor-category lick that is NOT minor (legacy, relative-major keyed) keeps the parent-key rule', () => {
-		// makePhrase's harmony is Cmaj7 on the key root → lickMode major.
-		const phrase = makePhrase([60, 64], 'ii-V-I-minor');
+		// The progression resolves to Cmaj7 on the key root → lickMode major.
+		const phrase = makeProgression([60, 64], 'ii-V-I-minor');
 		const result = transposeLickForTonality(phrase, 'A', 'major.dorian');
 		expect(result.notes.map(n => n.pitch)).toEqual([67, 71]);
 	});
 
 	it('rhythm-changes lick uses parent key', () => {
-		const phrase = makePhrase([60, 64], 'rhythm-changes');
+		const phrase = makeProgression([60, 64], 'rhythm-changes');
 		const result = transposeLickForTonality(phrase, 'A', 'major.dorian');
 		expect(result.notes.map(n => n.pitch)).toEqual([67, 71]);
 		expect(result.key).toBe('A');
@@ -230,5 +250,94 @@ describe('minor cadence licks under minor tonalities — tonic → tonality root
 
 	it('short ii-V minor: F minor → G-7b5 C7', () => {
 		expect(roots(transposeLickForTonality(short, 'F', 'major.aeolian'))).toEqual(['G', 'C']);
+	});
+});
+
+/**
+ * 2026-10-07: three levels of C Lydian ear training never played an F#. A
+ * major-scale lick's F is out of Lydian, and the nearest-tone snap moved it
+ * DOWN to E ("F E" played as "E E"). Between two modes of the major scale a
+ * note keeps its degree: the 4th becomes Lydian's #4. Downward snapping was
+ * right only when the target mode lowers the degree, so Dorian (6 from
+ * Aeolian's b6) and Major (7 from Mixolydian's b7) lost their own colour notes
+ * the same way.
+ */
+describe('mode-to-mode adaptation keeps each scale degree', () => {
+	/** The phrase's MIDI pitches in note order, null for a rest. */
+	const pitches = (p: Phrase): (number | null)[] => p.notes.map((n) => n.pitch);
+
+	it('C Lydian raises an Ionian lick\'s 4th to F#, never down to E', () => {
+		const lick = makeModal([65, 64], 'major.ionian', 'maj7'); // F4 E4
+		expect(pitches(transposeLickForTonality(lick, 'C', 'major.lydian'))).toEqual([66, 64]);
+		const run = makeModal([67, 65, 64, 62], 'major.ionian', 'maj7'); // G F E D
+		expect(pitches(transposeLickForTonality(run, 'C', 'major.lydian'))).toEqual([67, 66, 64, 62]);
+	});
+
+	it('follows the session key: an Ionian 4th in D Lydian is G#', () => {
+		const lick = makeModal([65, 64], 'major.ionian', 'maj7');
+		expect(pitches(transposeLickForTonality(lick, 'D', 'major.lydian')).map((p) => p! % 12)).toEqual([8, 6]);
+	});
+
+	it('C Dorian raises an Aeolian lick\'s b6 to A, never down to G', () => {
+		const lick = makeModal([68, 67], 'major.aeolian', 'min7'); // Ab4 G4
+		expect(pitches(transposeLickForTonality(lick, 'C', 'major.dorian'))).toEqual([69, 67]);
+	});
+
+	it('C Major raises a Mixolydian lick\'s b7 to B, never down to A', () => {
+		const lick = makeModal([70, 72], 'major.mixolydian', '7'); // Bb4 C5
+		expect(pitches(transposeLickForTonality(lick, 'C', 'major.ionian'))).toEqual([71, 72]);
+	});
+
+	it('lowered degrees move as before: an Ionian 3rd and 7th become Mixolydian\'s b7 and Dorian\'s b3', () => {
+		expect(pitches(transposeLickForTonality(makeModal([71, 72], 'major.ionian', 'maj7'), 'C', 'major.mixolydian'))).toEqual([70, 72]);
+		expect(pitches(transposeLickForTonality(makeModal([64, 62], 'major.ionian', 'maj7'), 'C', 'major.dorian'))).toEqual([63, 62]);
+	});
+
+	it('a chromatic note (no degree of the lick\'s scale) still snaps to the nearest scale tone', () => {
+		// Eb is not in C Ionian; C Lydian has no Eb either → nearest, D.
+		const lick = makeModal([63, 64], 'major.ionian', 'maj7');
+		expect(pitches(transposeLickForTonality(lick, 'C', 'major.lydian'))).toEqual([62, 64]);
+	});
+
+	it('C melodic minor raises an Aeolian lick\'s b6 and b7 to A and B, never down to G and A', () => {
+		// A seven-note scale whose every degree sits within a semitone of the
+		// lick's: the melodic minor is Aeolian with a raised 6 and 7.
+		const lick = makeModal([67, 68, 70, 72], 'major.aeolian', 'min7'); // G Ab Bb C
+		expect(pitches(transposeLickForTonality(lick, 'C', 'melodic-minor.melodic-minor'))).toEqual([67, 69, 71, 72]);
+	});
+
+	it('a source outside the major-scale modes keeps the nearest-tone snap (blues into Dorian)', () => {
+		// C blues' Gb is no degree of a seven-note mode; it snaps down to F.
+		const lick = makeModal([66, 67], 'blues.minor', '7');
+		expect(pitches(transposeLickForTonality(lick, 'C', 'major.dorian'))).toEqual([65, 67]);
+	});
+});
+
+/**
+ * The combiner files single-chord phrases (one bar of Cmaj7 or Cm7) under
+ * ii-V-I categories. The parent-key hop exists to keep a progression's chord
+ * relationships, and one chord has none: in C Lydian it moved "C D E F" to
+ * G A B C, centred on G. Declared over one chord, a phrase adapts like any
+ * single-chord lick, whatever its category.
+ */
+describe('single-chord phrases filed under a progression category', () => {
+	it('stay on the session root and adapt to its mode (C Lydian: C D E F → C D E F#)', () => {
+		const phrase = makePhrase([60, 62, 64, 65], 'short-ii-V-I-major');
+		const result = transposeLickForTonality(phrase, 'C', 'major.lydian');
+		expect(result.notes.map((n) => n.pitch)).toEqual([60, 62, 64, 66]);
+		expect(result.harmony[0].chord.root).toBe('C');
+	});
+
+	it('a single-chord minor phrase in D Dorian lands on D and takes Dorian\'s natural 6', () => {
+		// C aeolian 5-b6-5 → D dorian 5-6-5 (A B A), not a C-minor phrase moved intact.
+		const phrase = { ...makeModal([67, 68, 67], 'major.aeolian', 'min7'), category: 'ii-V-I-minor' } as Phrase;
+		const result = transposeLickForTonality(phrase, 'D', 'major.dorian');
+		expect(result.notes.map((n) => n.pitch! % 12)).toEqual([9, 11, 9]);
+		expect(result.harmony[0].chord.root).toBe('D');
+	});
+
+	it('a real progression still takes the parent-key hop', () => {
+		const result = transposeLickForTonality(makeProgression([60, 64], 'ii-V-I-major'), 'A', 'major.dorian');
+		expect(result.harmony.map((h) => h.chord.root)).toEqual(['A', 'D', 'G']);
 	});
 });

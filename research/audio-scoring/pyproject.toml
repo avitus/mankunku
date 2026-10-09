@@ -1,0 +1,19 @@
+[project]
+name = "audio-scoring-research"
+version = "0.1.0"
+description = "Research spike (2026-10-07): audio-domain comparison of recorded lick takes against a rendering of the expected lick. Throwaway-grade; nothing in the app imports it."
+requires-python = ">=3.12"
+dependencies = [
+    "numpy>=1.26,<3",
+    "scipy>=1.13",
+    "librosa>=0.10.2",
+    "soundfile>=0.12",
+    "matplotlib>=3.9",
+    "pyyaml>=6",
+    "pandas>=2.2",
+    "cramjam>=2",
+]
+
+[tool.uv]
+package = false
+python-preference = "only-managed"

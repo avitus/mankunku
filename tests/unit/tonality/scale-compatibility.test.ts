@@ -104,9 +104,19 @@ describe('getCompatibleScaleTypes', () => {
 	});
 });
 
+/** A progression-category lick whose harmony moves: first segment `scaleId`, then two more chords. */
+function makeProgression(overrides: { scaleId?: string; category: Phrase['category'] }): Phrase {
+	const lick = makeLick(overrides);
+	/** A one-bar `root` maj7 segment in major.ionian starting `at` whole notes in. */
+	const next = (root: 'G' | 'C', at: number): Phrase['harmony'][number] => ({
+		chord: { root, quality: 'maj7' }, scaleId: 'major.ionian', startOffset: [at, 1], duration: [1, 1]
+	});
+	return { ...lick, harmony: [...lick.harmony, next('G', 1), next('C', 2)] };
+}
+
 describe('progression category compatibility', () => {
 	it('ii-V-I-major lick is compatible with major, dorian, mixolydian, lydian', () => {
-		const lick = makeLick({ scaleId: 'major.dorian', category: 'ii-V-I-major' });
+		const lick = makeProgression({ scaleId: 'major.dorian', category: 'ii-V-I-major' });
 		const compat = getCompatibleScaleTypes(lick);
 		expect(compat).toContain('major');
 		expect(compat).toContain('dorian');
@@ -116,8 +126,23 @@ describe('progression category compatibility', () => {
 		expect(compat).not.toContain('blues');
 	});
 
+	/**
+	 * 2026-10-07: gating the combiner's single-bar phrases by their scale
+	 * instead of their category took them out of every session the category
+	 * had offered them to — Dorian lost up to 108 phrases a level, Melodic
+	 * Minor up to 119. The repertoire is thin: a phrase over one chord is
+	 * offered by its category like any other, and only its ADAPTATION follows
+	 * the single-chord rule (see transpose-lick.test.ts).
+	 */
+	it('a lick filed under a progression category but declared over ONE chord is still offered by its category', () => {
+		const ionian = makeLick({ scaleId: 'major.ionian', category: 'short-ii-V-I-major' });
+		expect(getCompatibleScaleTypes(ionian)).toEqual(['major', 'dorian', 'mixolydian', 'lydian']);
+		const aeolian = makeLick({ scaleId: 'major.aeolian', category: 'ii-V-I-minor' });
+		expect(getCompatibleScaleTypes(aeolian)).toEqual(['minor', 'dorian', 'melodic-minor']);
+	});
+
 	it('ii-V-I-minor lick is compatible with minor, dorian, melodic-minor — not altered', () => {
-		const lick = makeLick({ scaleId: 'major.dorian', category: 'ii-V-I-minor' });
+		const lick = makeProgression({ scaleId: 'major.dorian', category: 'ii-V-I-minor' });
 		const compat = getCompatibleScaleTypes(lick);
 		expect(compat).toContain('minor');
 		expect(compat).toContain('dorian');
@@ -125,16 +150,16 @@ describe('progression category compatibility', () => {
 		// Altered is a dominant-only context: with no snapping, a ii-V-i's ii and
 		// i bars sit outside the advertised scale.
 		expect(compat).not.toContain('altered');
-		expect(getCompatibleScaleTypes(makeLick({ scaleId: 'major.dorian', category: 'short-ii-V-I-minor' }))).not.toContain('altered');
+		expect(getCompatibleScaleTypes(makeProgression({ scaleId: 'major.dorian', category: 'short-ii-V-I-minor' }))).not.toContain('altered');
 	});
 
 	it('V-I licks use category compatibility (not their altered first segment)', () => {
-		expect(getCompatibleScaleTypes(makeLick({ scaleId: 'melodic-minor.altered', category: 'V-I-minor' }))).toEqual(['minor', 'dorian', 'melodic-minor']);
-		expect(getCompatibleScaleTypes(makeLick({ scaleId: 'major.mixolydian', category: 'V-I-major' }))).toEqual(['major', 'mixolydian', 'lydian']);
+		expect(getCompatibleScaleTypes(makeProgression({ scaleId: 'melodic-minor.altered', category: 'V-I-minor' }))).toEqual(['minor', 'dorian', 'melodic-minor']);
+		expect(getCompatibleScaleTypes(makeProgression({ scaleId: 'major.mixolydian', category: 'V-I-major' }))).toEqual(['major', 'mixolydian', 'lydian']);
 	});
 
 	it('rhythm-changes lick is compatible with major and mixolydian', () => {
-		const lick = makeLick({ scaleId: 'major.ionian', category: 'rhythm-changes' });
+		const lick = makeProgression({ scaleId: 'major.ionian', category: 'rhythm-changes' });
 		const compat = getCompatibleScaleTypes(lick);
 		expect(compat).toEqual(['major', 'mixolydian']);
 	});

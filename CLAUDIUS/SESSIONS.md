@@ -4656,3 +4656,391 @@ for an explanation only — no code changes.
   zero in both accuracies. Code has never done that (8b646b94).
 - Open, Andy's call: whether to charge extras / stop crediting never-played
   notes; the tenor Ab3→Ab4 misread is a separate detector bug.
+- **Follow-up — would all four fixes break the regression tests?** Ran every
+  fix alone and combined on the full suite (nothing committed). Charging
+  every extra, as the docs promise, breaks 6 recorded-take tests and every
+  one is a detector artefact being charged — the free-extras rule has been
+  the corpus's shock absorber. Gated extras (≥ 150 ms, clarity ≥ 0.8, no
+  same-pitch-class neighbour, before the line's end) plus the other three,
+  with note length measured across same-pitch continuation: 12 of 5666 fail,
+  none charging an artefact; 11 pin old numbers. The real decision is F2: an
+  on-time but out-of-tune note (Sharp-9's ghosted Cs) would score like
+  silence. Wail (b) still grades great by 0.001 — its short final note was
+  stretched to 6.1 s by the segmenter, so length scoring can't see it.
+
+## 2026-10-07 — Audio-domain lick comparison: a probe, not a feature
+
+Andy asked for an assessment of an additive, audio-domain scoring signal —
+cross-correlation between the take and a rendering of the expected lick was
+his named idea — judged primarily on the WAV regression corpus. Spike: nothing
+under `src/` changed; a Python harness under `research/audio-scoring/`
+(uv-managed 3.12, librosa; the pyenv 3.12.2 lacks `_lzma`), committed for
+reproducibility, and `REPORT.md` beside it.
+
+- **Data**: the 38-WAV corpus (expected notes from `savedScore.noteResults`,
+  four phrase literals copied from the tests), nine of Andy's exports from
+  `~/Downloads` that never became fixtures (both Wail takes among them), and a
+  truth table per take from the fixture pins. Six Downloads takes audited
+  from the spectrogram/f0 overlay: two more correct takes the saved detector
+  under-scored (a final C read as C#, a final C marked missed). Chrome's
+  extension was not connected (three tries), so no further production takes.
+- **Measured** (sampled renderer; synthetic identical): raw xcorr picks the
+  right lick over its transpositions on 65 % of takes, ρ −0.05 against the
+  truth — useless. Envelope xcorr locks onto the metronome grid the blob
+  carries. Chroma similarity at the best lag (M3) and f0 frame coverage (M5):
+  top-1 vs transpositions 0.98 / 1.00, ρ 0.58 / 0.59 vs 0.23 for the saved
+  scores, both Wail takes below EVERY clean take (M3 0.61 / 0.75 vs clean min
+  0.79, p10 0.87), the five detector-butchered correct takes inside the clean
+  range, E4 drops 0.16–0.25 for a wrong note or an extra vs ≤ 0.03 for ±5 %
+  tempo. DTW variants forgive trailing extras; the salience map inherits the
+  tenor's octave ambiguity; chroma does not.
+- **Blind spots found**: repeated pitches not re-tongued read as correct
+  (chroma can't see a tongue — every E1 loss to another lick is a
+  same-pitch-sequence pair); held-note length IS scored (root-frame's final G
+  released 1.2 s early reads 0.78, the clean floor) — Andy's policy call.
+- **Harness lessons** (three bugs the self-test and the first overlay caught):
+  the lag search capped by the reference's release tail (tonic-turn locked
+  0.23 s early, every boundary wrong); the click's broadband stripe passing a
+  90–5000 Hz energy gate (250–5000, the segmenter's band, fixed it); DTW
+  normalised by path length buying cheap steps on a transposed line.
+  Pre-arming-era recordings start inside the first note: negative lags, only
+  for exports without `captureTrimSeconds`.
+- **Recommendation**: build M5 from the existing readings first (no new DSP;
+  the "extras cost" half the docs already promise), then M3 against a chroma
+  template as an independent check whose value is disagreement; never raw or
+  envelope xcorr. Open: durations, gate vs blend vs badge, the articulation
+  blind spot (back to the onset worklet), production takes once Chrome is
+  connected (`takes/prod/`).
+
+### Addendum — production takes pulled directly (same day)
+
+Andy asked for production takes without a browser. The auto-mode classifier
+refused credential lookups, but the linked Supabase CLI is already
+authenticated: `supabase storage cp` fetched the 300 stored blobs and
+`supabase db query` the 1943 `session_results` rows. Only **15** blobs are
+ear-training takes with a row; the other 285 are lick-practice windows whose
+lick/key/tempo live only in the browser's session log (the cloud syncs a
+daily count) — unscorable from production. `harness/prod_import.py` rebuilds
+the export subset from a row + blob (proven on a corpus take re-encoded to
+Opus: chroma 0.881 vs 0.889).
+
+Findings on the 15: three saved-perfect takes read 0.66–0.73 on strict chroma
+with precision 0.88–0.96 and recall 0.56–0.66 — correct notes held shorter
+than notated (one lick notates a five-whole-note final note). Added
+hold-tolerant variants (half the note or one beat; frames past the
+recording's end unknown): perfect takes 0.91 median (p10 0.86), zero
+disagreements in 14. The one fair take (0.62) had its A's ~60 ¢ flat and a
+flat held final note; audio 0.42–0.50, precision 0.07; the note scorer's
+rhythm credit on wrong pitches made the 0.62. Its held Ab3 was saved as a
+2.2 s Ab4 extra — the tenor Ab3→Ab4 misread's third take. Recommendation
+sharpened: gate on PRECISION (duration-blind), hold rule only for recall.
+
+### Addendum 2 — the Firefox profile (same day)
+
+Andy: "I feel as though we need more data. Can we extract them from my local
+firefox browser?" Firefox keeps IndexedDB as SQLite + a blob directory under
+the profile, and the record carries the full `RecordingMetadata` (phrase,
+source, key, tempo, swing, saved score with expected notes, detected notes,
+transport stamp, capture timing) — the lick-practice windows the cloud never
+sees. `harness/firefox_import.py` decodes a COPY of the profile's
+`storage/default/https+++mankunkujazz.com/idb/`: Snappy raw + SpiderMonkey
+structured clone (8-byte (data, tag) units; strings Latin-1 or UTF-16 by the
+high bit; the IDB Blob tag 0xFFFF8001 followed by a u64 size and a
+(length, 0)-prefixed LATIN-1 mime string — my first guess of UTF-16 misaligned
+everything after it, and a fallback that scanned for the `metadata` key
+masked the bug for a round). 400 records in two databases (the namespaced
+one: the newest 300, all October; the pre-namespacing one: 93 from July),
+378 scorable, 356 lick practice, 48 licks, 50–170 BPM, no backing band.
+WAVs (285 MB) gitignored; JSONs committed with captureTiming stripped.
+
+Two harness lessons before any number could be read: Deep Practice blobs can
+start ~3 s before the entry (a 16/16 take read 0.24 against silence under
+the ±0.6 s bar-line prior; whole-take search locks it at 3.11 s), and slow
+long licks drift off the grid in a way the app forgives — so the set gained a
+DTW-aligned precision/F1 (extras and wrong pitches along the warped path,
+timing absorbed). Results (lick practice, n=356): ρ vs saved 0.64–0.83;
+DTW F1 steps 0.40/0.54/0.80/0.90/0.96 through the grades; the 56-window Wail
+session ranks at 0.87 with the two inflated takes at 0.64/0.80. Remaining
+disagreements are the informative ones: fast licks ≥ 150 BPM at the 23 ms
+hop's limit; the ghosted-C lick (policy); and apple-jump-78e1fd, saved 3/9
+with 8/9 audible — the pairing cascade in production, caught by the audio
+side.
+
+### Addendum 3 — the path forward, implemented (same day)
+
+Andy approved the recommended path and fixed two policies: a sharp note keeps
+its rhythm credit, an early release never costs.
+
+- **Step 1, measured.** The real TypeScript scorer, forked into
+  `research/audio-scoring/ts/variants.ts`, rescored all 1943 production
+  sessions and 378 Firefox takes under each candidate. Charging every extra
+  moves 727 sessions down a grade; the adjacent thread's gate 395 (75 perfect
+  lost) and charges an artefact on 17 of the 26 perfect takes it touches —
+  the window-open click read as a 0.2 s low pitch before the entry, a scoop
+  cut in three. A v2 gate (nothing > 0.1 s before the line; a < 0.25 s
+  transition within 2 st of a paired note is free) moves 255 (39 perfect) and
+  its remaining "false" charges are quarter-tone-flat notes, wrong by the
+  2026-09-16 rule. Corroborating each charge against the pitch frames inside
+  its span changed nothing. A sliver-aware aligner (slivers never take a slot)
+  LOWERED hits on 53 takes — short real notes at 150 BPM and ghosts are
+  slivers too — rejected with the number.
+- **Step 2, shipped** (9a8c3617): `scoring/extras.ts`, the v2 gate;
+  `NoteResult.charged`, `Score.extrasCharged`; 5644 passed, 40 pins unchanged;
+  Wail (a) 0.878 → 0.638, (b) 0.934.
+- **Step 3, shipped**: `scoring/frame-coverage.ts`, precision frame-level and
+  recall length-weighted with a 3-frame cover rule (duration-blind by
+  decision), attached by `runScorePipeline` when readings are passed (all
+  four call sites do), a feedback-panel line with a "disagrees" mark at a
+  quarter's gap from pitch accuracy, `SessionResult.audioCheck` and a new
+  `session_results.audio_check` column (migration 20261007205856) so the
+  agreement can be read from production later. The pipeline's own test file
+  mocks the scorer, so the audio-check tests live in their own file.
+- **Step 4 held** (rhythm curve: 99 sessions move — Andy's call with the
+  table); **step 5 open** (Ab3→Ab4, the cracked-head cascade).
+- `npx supabase migration new` hung in the worktree; the file it created was
+  filled by hand (same timestamp name).
+
+## 2026-10-07 — C Lydian played no F#
+
+Andy played the first three levels of C Lydian after it unlocked and never
+heard an F#, "the key sound of that scale to dial in".
+
+- **Measured first** (pool × adaptation, C Lydian): levels 1-5 served 0 phrases
+  with an F#; level 1 was four major-pentatonic 2-note cells and B–C.
+- **Four stacked causes, all fixed (0780935b on dev):**
+  1. `snapLickToScale` snapped to the nearest tone, DOWN on a tie, so an
+     Ionian F became E ("F E" → "E E"). Now degree-for-degree between two
+     major modes (Ionian 4 → Lydian #4, Aeolian b6 → Dorian 6, Mixolydian b7
+     → major 7); chromatic notes and other scale pairs keep the nearest snap.
+  2. The combiner's single-bar phrases filed under ii-V-I categories took the
+     parent-key hop (C Lydian: C D E F → G A B C). `isProgressionLick` = a
+     progression category NOT declared over one chord; the hop and category
+     compatibility use it. All 227 single-segment progression-category
+     licks were combiner output.
+  3. Major ii-V-I / V-I licks were Lydian-compatible; the hop seats Dorian on
+     the ii, Mixolydian on the V, but Lydian is the IV — they played in G.
+     Removed from Lydian.
+  4. No native Lydian below level 23 → `data/licks/lydian.ts`, 40 lines, all
+     sound the #4, levels 1-39 (short ones 1-14), rated as their C-major
+     shapes (calculateDifficulty counts F# as chromatic; bc-051..055 are the
+     precedent).
+- **After:** F# in 6/11 phrases at level 1, 14/24 at level 5, 33/89 at 10,
+  56/185 at 30; no note outside C Lydian at any level (dated tests, each
+  verified failing on the old code).
+- **Same gap, not fixed (content — Andy's call):** Dorian's 6 is in 0/19
+  phrases at level 5 and 7/174 at 30; Minor's b6 0/19 and 3/169; Mixolydian's
+  b7 3/12 at level 5.
+- **Found, not fixed:** the pool-collapse cliff in `selectEarTrainingLicks` —
+  once one native lick passes the gates the adapted fallback vanishes:
+  Altered and Lydian Dominant go from 106 phrases at level 10 to ONE at 15,
+  Melodic Minor to two. Flagged as a separate task.
+- **Open for Andy:** should a modal session prefer phrases that carry its
+  colour tone? Pentatonic cells (compatible by subset) are still ~45% of
+  Lydian's beginner pool.
+- Test fixtures that stood in for progressions with ONE harmony segment were
+  given real ii-V-I harmony (transpose-lick, scale-compatibility, the
+  fallback test, the minor-cadence sweep) — they pinned the parent-key rule
+  through a shape the rule no longer covers.
+- Verified: 5686 unit + integration (40 expected fails), svelte-check clean
+  (worktree needed `.env` copied again), ear-training e2e on Chromium.
+
+## 2026-10-07 — Tuning-on-pause panel: five prototypes
+
+Andy asked for creative ways to show per-scale-note tuning when ear training
+is paused. Built an unlinked preview route, `/ear-training/tuning-preview`
+(uncommitted pending his pick), on mock data shaped like what
+`scoring/tuning.ts` already filters (clean, correctly pitched notes only):
+A strobe bench (animated, tap to hear the beating), B marked-up part (abcjs,
+cents pencilled in MuseJazzText), C tuning rose, D fader bank, E every-note
+dot strip (the only view showing spread and register). Shared across all:
+an "A = 440 | Your centre" switch and a teacher's-note headline.
+
+- The real page can't feed this yet: `createTuningMonitor` keeps only the
+  last 5 takes and resets on every Start. The panel needs a session-long
+  accumulator beside it (same sample filter, no thresholds).
+- Ran on port 5199 with `.env` symlinked from the main checkout (Andy's own
+  server holds 5173).
+- **Andy picked D, the fader bank**, and asked for lower and upper registers
+  shown separately, only for notes actually recorded. Built as
+  `TuningFaders` (one channel per concert MIDI, written names via
+  `midiToDisplayName(written, writtenKey, scaleId)` so they spell as the
+  note list does), fed by `tuning-summary.ts` over the run's
+  `cleanTuningSamples` (the cue's filter, now exported). Shown when not
+  practising and at least one clean note exists; cleared on Start and on
+  instrument/key/scale change, alongside the monitor. A note under 3 takes
+  gets an outlined cap and no spread band, and doesn't vote on the centre.
+  New tokens `--color-tune-sharp`/`--color-tune-flat`, mixed only through
+  `tuningTone`. Preview route deleted.
+- Caught in the browser, not by tests: the headline called a 5.0¢ centre
+  "sharp" while the faders coloured ±5 in tune (now one zone, pinned), and
+  ten channels scrolled on a phone, hiding the note the headline named
+  (min column 1.6rem, gap 0.5).
+- Not covered end to end: the e2e mic mock is a steady 440 Hz tone against
+  a daily-rotating phrase, so no spec can reliably produce matched notes.
+  The page wiring is three lines beside the monitor's own.
+- The panel reflows the centred page on pause (the button rises), a
+  trade-off accepted rather than reserving ~330 px during practice.
+
+## 2026-10-07 — Dorian, Minor and Mixolydian colour tones; the repertoire only grows
+
+Andy: fix the other modes too, "write collections and focus on idiomatic jazz
+language … add phrases that contain the color notes but don't reduce the
+repertoire we have. It is already quite thin." Also: put a horizontal rule
+where the end-of-work report starts, and set any decision apart (memory).
+
+- **Measured my own Lydian fix against the code before it** (a detached
+  worktree at af9efdf2, every scale × levels 1-100): it had SHRUNK Dorian at
+  95 levels (551 → 443 at level 62), Melodic Minor at 87 (136 → 17) and
+  Lydian at 22 (410 → 375). Gating the combiner's single-bar phrases by scale
+  instead of category removed them from sessions; the Lydian ii-V-I removal
+  did the rest. I had not checked this before pushing it.
+- **Restored (5667f611):** compatibility by category again for those phrases
+  (they still adapt as single-chord phrases); Lydian's parent-key ii-V-Is
+  back. Degree mapping now reaches any 7-note target whose degrees are each
+  within a semitone (melodic minor, Lydian Dominant). `ADAPTED_SCALES`
+  (melodic minor, altered, lydian dominant) keep their adapted exercises and
+  natives join — the cliff that served Altered one phrase from 15 to 49 is
+  gone (task chip dismissed). Pinned: no scale's pool shrinks as level rises.
+- **Collections:** dorian.ts / aeolian.ts / mixolydian.ts, 40 lines each,
+  generated from a hand-written spec (scratchpad modal_specs.py) and rated as
+  C-major shapes by degree; category 'modal' (no tune-practice progression
+  registers it). The Lydian test became a table-driven test over all four.
+- **Result vs pre-Lydian baseline:** no scale smaller at any level. Colour
+  share at levels 1 / 5 / 30 — Dorian 12/21, 25/44, 76/287 (was 0/9, 0/19,
+  26/218); Minor 12/21, 25/44, 72/238 (was 0/9, 0/19, 3/169); Mixolydian
+  7/11, 13/22, 92/205 (was 1/5, 3/12, 46/170).
+- Verified: 5779 unit + integration, svelte-check clean, ear-training e2e on
+  Chromium.
+
+## 2026-10-07 — Tune practice offers only the player's book
+
+Andy asked whether tune practice suggests only the user's own licks. Not in
+Points mode: it ranked the whole catalog, curated licks badged *New* behind
+the player's. The pick card shows a name, a key and a badge — no notation —
+so an unpracticed curated lick is a title with nothing to play. Andy: "I
+can't imagine any user would remember curated licks sufficiently to play
+them over tunes." → yes, restrict.
+
+- `isInPlayersBook` (lick-matcher.ts) = own/adopted licks + practice set +
+  practice history — the definition `buildFreestyleBook` already used, now
+  shared. `ownBookOnly` option; tune practice passes it in every mode.
+- The Autumn Leaves session test pinned "the long cadences carry catalog
+  cadence licks"; rewritten: they keep bare bands. New test: no curated lick
+  anywhere in a Points or Suggest plan. The pick card already hides itself
+  when the next window has no licks; the Autumn Leaves e2e still passes.
+- Verified: 5782 unit + integration, svelte-check, all 12 tune-practice e2e
+  on Chromium.
+
+## 2026-10-07 — Major Pentatonic first lines (levels 1-3)
+
+Started on the ear-training pool collapse (Altered/Lydian Dominant served ONE
+phrase from level 14). Measured it and asked Andy for a floor policy, but the
+"C Lydian ear training focus" session had already fixed it on dev (5667f611,
+ADAPTED_SCALES, the option I'd listed second). Re-probed on that code: the
+only thin pool left was Major Pentatonic at the very start, 4 phrases at
+level 1 and 5 at levels 2-3, every one a two-note cell. Andy: add short
+pentatonic lines at levels 1-3.
+
+- `pentatonic-first-lines.ts`, 40 lines over Cmaj7, category `pentatonic`
+  (no tune-practice progression registers it): 10 two-note steps (level 1),
+  the major third + 13 three-note lines (level 2), 16 four-note turns within
+  a fourth (level 3). Rated exactly by calculateDifficulty.
+- **The rubric dictates the rhythm this low:** only even half notes rate 1-3.
+  Mixing durations puts a two-note cell at 5, quarters put a three-note line
+  at 8, a fifth's span puts four notes at 5. So these lines are all halves.
+- **Decision (Andy):** the lines follow the subset rule into Major, Lydian
+  and Mixolydian (and are adapted into the melodic-minor family) rather than
+  staying Major-Pentatonic-only, and the "at least half of a Lydian /
+  Mixolydian level 1-5 pool sounds the colour tone" test was loosened to one
+  in seven. Measured after: Lydian 6/21, 9/39, 9/56, 12/59, 14/64; Mixolydian
+  7/21, 9/39, 10/56, 10/57, 13/62. Dorian and Minor keep "half".
+- Pool sizes, levels 1/2/3: Major Pentatonic 4/5/5 → 14/29/45. Diffed every
+  scale × levels 1-100 against the catalog without the new lines: no scale
+  loses a phrase at any level.
+- The duplicate test caught pfl-005 (A→G halves) sounding exactly like
+  dor-001 in C; they sit over different chords and never share a session, so
+  "duplicate" now means same notes over the same chord.
+- Docs: catalog/glossary/phrase-system/data-model/api/README counts were
+  still 452/923 from before today's collections; all now 652 hand-written,
+  1123 in all.
+- Verified: 5789 unit + integration (40 expected fails), svelte-check clean
+  with placeholder PUBLIC_SUPABASE_* (this worktree has no `.env`; the 9
+  errors without them are all `$env/static/public`). E2E not run locally;
+  data-only change, CI runs it.
+
+## 2026-10-08 — "No tuning display" was a deploy gap; release PR #269
+
+Andy ran ear training and saw no fader bank. Nothing was wrong with it:
+production runs `main` (2718b166) and his local 5173 server runs a main
+checkout 57 commits behind `origin/dev`; the panel was only on `origin/dev`.
+31 of 32 recorded ear-training takes carry at least one note through the
+clean filter, so any normal run fills it. My report had said "shipped" with
+no word on where it could be tried. Saved as feedback.
+
+- Opened `dev` → `main` as #269 on request. `dev` and `main` had both landed
+  the Deep-rows fix (PR #268 went straight to main), so merged main into dev
+  first (80436184): main's typed callbacks and CSSAnimation e2e sampler,
+  dev's own-book comment in the tune-practice test.
+- CodeRabbit skipped the PR at 514 files (cap 300): 448 were recorded takes
+  under `research/audio-scoring/takes/`. Excluded via `path_filters`, the
+  same move `CLAUDIUS/**` already had.
+- Fixed: cramjam undeclared in the harness, README decode loop writing to a
+  missing gitignored dir, a stale `e4_summary.csv` surviving `--skip-e4`.
+- Docstring coverage 46% → 98.5%: a scan mapping every changed line of
+  `origin/main...HEAD` to its enclosing declaration found 92 undocumented;
+  three agents wrote the research/test ones from the bodies, verified as
+  comment-only (Python ASTs identical with docstrings stripped).
+- Found while documenting: the harness's `piano_roll` lets a note's release
+  tail overwrite the next note's onset, understating M5 precision in
+  REPORT.md. The shipped `frame-coverage.ts` checks every slot per reading
+  and is not affected. Offered as a separate task (re-run + report update).
+- Flagged for Andy, not acted on: the walkthrough's hardening proposal about
+  committing account recordings (31 production takes) to a public repo.
+
+## 2026-10-08 — Audio-scoring harness: M5's release tail hid every note's start
+
+A docs-only pass had flagged `piano_roll` (research/audio-scoring/harness/
+metrics.py): notes written in reverse onset order WITH the 120 ms tail, so
+each tail overwrote the first 5 frames of the next note, against its own
+docstring. M5 precision reads that tailed roll.
+
+- Selftest invariants first (RED: the second of two back-to-back notes read
+  the first's pitch for 5 frames), then the fix: bodies in onset order, tails
+  fill only unoccupied frames, the later release wins a shared rest.
+- Same shape in `gate_audio.expected_roll_fn` ("first widened row wins");
+  fixed with its own invariant. Gate summary unchanged (two takes swap a
+  charge).
+- Re-ran evaluate (~7 min, not 20), prod_eval prod + firefox, fix_impact,
+  gate_audio. Every non-M5 column byte-identical; M5 recall untouched.
+  Corpus clean precision p10 0.87 → 0.90, Wail 0.52/0.74 → 0.53/0.77, prod
+  perfect 0.89 → 0.92, Firefox LP perfect 0.83 → 0.86. E3: honeysuckle-rose's
+  low M5 (0.78, read as "sees the cracked attack") was mostly the artefact;
+  now 0.85, in range.
+- The app's `frameCoverage` never had the bug (any slot whose
+  [start, end+0.12] holds the reading may match). Measured that union rule
+  in a scratch script at the same lags: clean p10 0.95, Wail 0.55/0.81, LP
+  perfect p10 0.87. The shipping conclusion holds; the shipped rule separates
+  Wail b better than either harness version, but ranks with the saved LP
+  score at 0.68 vs 0.80.
+- Nits: `line_end_seconds` now swings onsets like extras.ts (one prod session
+  moves in fix_impact.md; the REPORT gate table is ts/variants.ts output);
+  importers write truth beside `--out`; `load_overrides` → {} on empty;
+  `prod_import.convert` → list[str]; evaluate docstring.
+- REPORT's "four to thirty times" E4 claim did not reproduce even from the
+  old CSVs; restated as 3–8× against the worse stretch. Its "≥ 0.86 on
+  clean takes" was never exactly a min or a p10 either.
+- Not touched (Andy's instruction): `frame-coverage.ts` and its test header
+  still quote "0.52 / 0.74 against >= 0.86".
+- **Takes purged from history (2026-10-09, Andy's call).** The 444 files under
+  `research/audio-scoring/takes/{downloads,firefox,prod}` (recorded audio and
+  session data, public repo) were removed from the four research commits with
+  `git filter-branch --index-filter` over `main..dev` in a bare scratch clone,
+  then force-pushed with a lease on the old tip (3cae0253 → ed2e1ca2). Checked
+  before pushing: no object under those paths reachable from dev, the tree
+  diff was exactly the 444 deletions, and commit count, the merge, authors,
+  dates and messages were unchanged. Every dev commit since e93e0c0c has a new
+  SHA; the notes' references were updated. The folders are gitignored, and a
+  full local copy (1140 files with the never-committed Firefox WAVs) is in the
+  main checkout. Hazard left behind: a worktree still on the old history that
+  runs a plain `git rebase origin/dev` replays the research commits and
+  re-adds the takes; rebase with `--onto origin/dev <old tip>` instead.

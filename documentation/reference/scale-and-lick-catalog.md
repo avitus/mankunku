@@ -106,19 +106,19 @@ The trick: an eight-note scale played in eighths covers a whole bar of 4/4 with 
 
 ## Lick categories
 
-The catalog holds 923 licks — 452 written by hand and 471 built by the combinatorial generator (see the end of this page) — in eighteen harmonic categories (plus "Uncategorized" for your own licks), and it populates all eighteen. Each corresponds to a harmonic context.
+The catalog holds 1123 licks — 652 written by hand and 471 built by the combinatorial generator (see the end of this page) — in eighteen harmonic categories (plus "Uncategorized" for your own licks), and it populates all eighteen. Each corresponds to a harmonic context.
 
 | Category | Hand-written | With combinatorial | Minor-key |
 |---|---|---|---|
 | Blues | 205 | 257 | |
-| Pentatonic | 55 | 160 | some |
+| Pentatonic | 95 | 200 | some |
 | ii-V-I (Maj) | 66 | 120 | |
 | ii-V-I (Min) | 15 | 83 | ✓ |
 | Bebop | 37 | 79 | |
 | Short ii-V-I (Maj) | 6 | 60 | |
 | Short ii-V-I (Min) | 6 | 57 | ✓ |
 | Digital Patterns | 11 | 28 | |
-| Modal | 10 | 27 | most |
+| Modal | 170 | 187 | most |
 | Major Chord | 14 | 14 | |
 | Enclosures | — | 11 | |
 | Rhythm Changes | 7 | 7 | |
@@ -131,7 +131,7 @@ The catalog holds 923 licks — 452 written by hand and 471 built by the combina
 
 The **minor-key** categories are stored in C minor and labelled as minor keys (*Dm*, *Gm* …) wherever they appear; in Modal and Pentatonic the minor lines (Dorian, Aeolian, minor pentatonic) read as minor on their own. The sections below walk through the largest groupings; the rest are smaller chord- and pattern-focused collections that round out the catalog. Counts will drift as licks are added. (The category pills in the lick editor also offer **Triad Pairs** — the category the triad-pair trick belongs to; no catalog licks are filed there.)
 
-Three additional hand-written collections feed the categories above rather than standing on their own: **Major 4th & 7th** (40 licks) and its **volume 2** (40 more), which land mostly in ii-V-I (Maj) and Bebop with a few in Digital Patterns and Major Chord; and the blues **blue-note** collection (75 licks) in Blues.
+Eight additional hand-written collections feed the categories above rather than standing on their own: **Major 4th & 7th** (40 licks) and its **volume 2** (40 more), which land mostly in ii-V-I (Maj) and Bebop with a few in Digital Patterns and Major Chord; the blues **blue-note** collection (75 licks) in Blues; and four **colour-tone** collections in Modal — **Lydian #4**, **Dorian 6**, **Aeolian b6** and **Mixolydian b7**, 40 licks each; and the **Major Pentatonic first lines** (40 licks) in Pentatonic.
 
 Note that the **Enclosures** category here is a set of fixed figures, all built by the combinatorial generator. The device itself — enclosures as a formula you improvise with, alongside triad pairs — is drilled separately under [Tricks](../tricks.md), and doesn't live in this catalog at all.
 
@@ -182,16 +182,23 @@ The minor counterpart to ii-V-I (Maj). In C minor: Dø7 → G7alt → C-7 (the c
 - **Levels 40–55**: Altered-scale vocabulary.
 - **Levels 55–75**: Advanced lines in the spirit of Woody Shaw, Joe Henderson.
 
-### Pentatonic (55 hand-written, 160 in all)
+### Pentatonic (95 hand-written, 200 in all)
 
 Pentatonic vocabulary that works over multiple harmonic contexts — a major-pentatonic line works over Cmaj7, C7, and many other situations because the pentatonic notes are a subset of the major scale.
 
+- **Levels 1–3 (Major Pentatonic first lines)**: forty lines over Cmaj7 in even half notes, the only rhythm the difficulty rubric rates this low — two-note steps at level 1, the major third and three-note lines at level 2, four-note turns within a fourth at level 3. Major Pentatonic is the scale every player starts in, and before them its first three levels served four or five two-note cells. By the subset rule they also play in Major, Lydian and Mixolydian sessions (and, adapted like every single-chord exercise, in Melodic Minor, Altered and Lydian Dominant), which thins the colour tone in beginner Lydian and Mixolydian sessions from at least half the phrases to between one in six and one in three at levels 1–5 (Andy's call, 2026-10-07).
 - **Levels 8–20**: Basic major and minor pentatonic patterns, sequences.
 - **Levels 20–45**: McCoy Tyner-style fourths, Wes Montgomery shapes, Herbie Hancock-flavored funky patterns, pentatonic superimpositions.
 
-### Modal (10 hand-written, 27 in all)
+### Modal (170 hand-written, 187 in all)
 
 Sustained-mode vocabulary for static-harmony tunes. *So What* is one chord per eight bars; *Impressions* is the same; *Maiden Voyage* sustains modal harmony over long stretches. This is the territory.
+
+- **Levels 1–41 (colour tones)**: four collections of forty lines, each sounding the note that defines its mode, the short ones at levels 1–14 so a newly unlocked mode sounds like itself from its first phrase.
+  - **Lydian #4** over Cmaj7 — the #4 against its neighbours, the tritone from the root, the whole-tone climb 1-2-3-#4, the D triad over C that makes the chord a maj7#11.
+  - **Dorian 6** over Cm7 — the minor-six arpeggio and pentatonic, the major IV triad inside the minor key, the b3–6 tritone, the 9-11-13 upper structure, stacked fourths from the 6th.
+  - **Aeolian b6** over Cm7 — the b6–5 sigh, the b7-b6-5 lament, the Andalusian descent, the minor iv and bVI triads, Fm7 over the tonic.
+  - **Mixolydian b7** over C7 — the 3–b7 guide tones, the dominant shell, the dominant seventh and ninth arpeggios, 3-to-9, the bVII triad, the scale from the 3rd up to the root.
 
 - **Levels 15–35**: *So What* motif, the Dorian characteristic 6th, Coltrane-style Dorian patterns, Lydian floats.
 - **Levels 35–55**: Wayne Shorter angular lines, the *Impressions* motif, Phrygian color, Hancock-style Dorian vamps.

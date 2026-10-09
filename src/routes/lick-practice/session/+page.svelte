@@ -1393,7 +1393,8 @@
 				// Continuous mode: accept any octave of the right pitch class.
 				// Call-response stays strict so the user reproduces the demo
 				// register exactly, matching ear-training's contract.
-				octaveInsensitive: lickPractice.config.practiceMode === 'continuous'
+				octaveInsensitive: lickPractice.config.practiceMode === 'continuous',
+				readings: rebased
 			});
 
 			session.bleedFilterLog = result.bleedLog;

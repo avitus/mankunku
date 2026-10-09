@@ -42,7 +42,7 @@ type PhraseCategory =
   | 'user';
 ```
 
-Categories for organizing phrases: 19 curated/combinatorial categories plus `'user'` for user-recorded licks. The curated library holds 452 hand-written licks across these categories (plus the runtime-generated `COMBINED_LICKS` from `phrases/combiner.ts`, for 923 licks at import — 452 curated + 471 combined, measured 2026-09-10). `CATEGORY_LABELS` in `music.ts` provides the canonical display label for every value. `'enclosures'` and `'triad-pairs'` double as the categories the two melodic devices register under (see [Trick Scoring](./trick-scoring.md)).
+Categories for organizing phrases: 19 curated/combinatorial categories plus `'user'` for user-recorded licks. The curated library holds 652 hand-written licks across these categories (plus the runtime-generated `COMBINED_LICKS` from `phrases/combiner.ts`, for 1123 licks at import — 652 curated + 471 combined, measured 2026-10-07). `CATEGORY_LABELS` in `music.ts` provides the canonical display label for every value. `'enclosures'` and `'triad-pairs'` double as the categories the two melodic devices register under (see [Trick Scoring](./trick-scoring.md)).
 
 ### Fraction
 

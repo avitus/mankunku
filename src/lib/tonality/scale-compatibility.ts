@@ -39,6 +39,11 @@ const SCALE_ID_COMPATIBILITY: Record<string, ScaleType[]> = {
 // not offered: the ii and i bars would sit outside the advertised scale.
 // V-I licks are listed here so they use category compatibility rather than
 // their first segment's (altered/mixolydian) scaleId.
+// Category decides even for a phrase declared over ONE chord (the combiner
+// files its single-bar phrases here): gating those by their scale instead
+// took them out of Dorian and Melodic Minor sessions (2026-10-07), and the
+// repertoire is thin. How such a phrase is ADAPTED is a separate question —
+// see `isProgressionLick` and transposeLickForTonality.
 const CATEGORY_COMPATIBILITY: Partial<Record<PhraseCategory, ScaleType[]>> = {
 	'ii-V-I-major': ['major', 'dorian', 'mixolydian', 'lydian'],
 	'ii-V-I-minor': ['minor', 'dorian', 'melodic-minor'],
@@ -52,6 +57,19 @@ const CATEGORY_COMPATIBILITY: Partial<Record<PhraseCategory, ScaleType[]>> = {
 const PROGRESSION_CATEGORIES = new Set<PhraseCategory>(
 	Object.keys(CATEGORY_COMPATIBILITY) as PhraseCategory[]
 );
+
+/**
+ * Whether a lick moves through a progression: filed under a progression
+ * category AND not declared over a single chord. The combiner files its
+ * single-bar Cmaj7/Cm7 phrases under ii-V-I categories; with one chord there
+ * are no chord relationships to keep, so they ADAPT to a session's scale like
+ * any single-chord lick (no parent-key hop) — while compatibility still goes
+ * by category. Empty harmony (user licks) declares nothing, so there the
+ * category decides both.
+ */
+export function isProgressionLick(lick: Phrase): boolean {
+	return PROGRESSION_CATEGORIES.has(lick.category) && lick.harmony.length !== 1;
+}
 
 /** All known scale types for the broad curated-adaptation fallback. */
 const ALL_SCALE_TYPES: ScaleType[] = [...SCALE_UNLOCK_ORDER];
@@ -88,7 +106,7 @@ export function melodyFitsScale(lick: Phrase, scaleType: ScaleType): boolean {
  * (a major ii-V-I must not be served — and bent — into a pentatonic session).
  */
 export function getCompatibleScaleTypes(lick: Phrase): ScaleType[] {
-	// Multi-chord progression categories use broader compatibility
+	// Progression categories use broader compatibility
 	if (PROGRESSION_CATEGORIES.has(lick.category)) {
 		return CATEGORY_COMPATIBILITY[lick.category] ?? ALL_SCALE_TYPES;
 	}

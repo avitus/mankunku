@@ -6,7 +6,7 @@ Mankunku ships with a catalog of about 920 jazz phrases, spread across many harm
 
 There are three sources of musical content:
 
-- **Hand-written licks (452 of them).** Curated phrases, written for the app, organized by category — just under half of what Side A can play you.
+- **Hand-written licks (652 of them).** Curated phrases, written for the app, organized by category — more than half of what Side A can play you.
 - **Combinatorial licks (471).** Built by pairing a set of *scale patterns* (pitch sequences like "ascending pentatonic 5-note") with a set of *rhythm templates* (durations like "syncopated eighth-note run"). See [the combinatorial generator](#the-combinatorial-generator) below.
 - **Your own licks.** Anything you write in the editor (`/licks/editor`) or record (`/licks/record`) joins your book tagged as user content. They behave the same as curated licks — searchable, tag-able for Side B, transposable to any key.
 
@@ -21,14 +21,14 @@ The counts below are totals across the whole catalog, so they include the combin
 | Category | What it is | Approximate count |
 |---|---|---|
 | **Blues** | 12-bar blues vocabulary. Major-blues and minor-blues licks, blue notes (the b5), call-and-response shapes. | 257 |
-| **Pentatonic** | Pentatonic-based vocabulary that works over multiple harmonic contexts. | 160 |
+| **Pentatonic** | Pentatonic-based vocabulary that works over multiple harmonic contexts. | 200 |
 | **ii-V-I Major** | The signature jazz cadence (Dm7 → G7 → Cmaj7 in C). Different rhythmic shapes, different melodic strategies — chord-tone arpeggios, scale runs, enclosures. | 120 |
 | **ii-V-I Minor** *(minor)* | The minor counterpart (Dø7 → G7alt → C-7 in C minor; the Lick Practice backing plays the V as G7♭9). Altered-dominant lines, melodic-minor color. | 83 |
 | **Bebop Lines** | Long lines in the bebop vocabulary. Bebop scale runs, chromatic approaches, characteristic shapes from Bird, Dizzy, Bud Powell. | 79 |
 | **Short ii-V-I Major** | Compact two-bar ii-V-I major cells. | 60 |
 | **Short ii-V-I Minor** *(minor)* | Compact two-bar ii-V-I minor cells. | 57 |
 | **Digital Patterns** | Numbered-pattern vocabulary (1-2-3-5, etc.) that sequences through the changes. | 28 |
-| **Modal** | Sustained-mode vocabulary (Dorian, Mixolydian, Lydian) for static-harmony tunes — *So What*, *Impressions*, *Maiden Voyage* territory. | 27 |
+| **Modal** | Sustained-mode vocabulary (Dorian, Mixolydian, Lydian) for static-harmony tunes — *So What*, *Impressions*, *Maiden Voyage* territory — plus four colour-tone collections (Lydian #4, Dorian 6, Aeolian b6, Mixolydian b7) that make each mode sound like itself from level 1. | 187 |
 | **Major Chord** | Single-chord major vocabulary — arpeggios and scale color over one maj7 chord. | 14 |
 | **Enclosures** | Chromatic enclosure figures that wrap a target chord tone from above and below — fixed figures, all built by the combinatorial generator. To drill the *device* rather than a fixed figure, see [Tricks](../tricks.md). | 11 |
 | **Rhythm Changes** | The Gershwin "I Got Rhythm" cycle — I-vi-ii-V repeating. The bebop test for technical command at speed. | 7 |
@@ -39,9 +39,9 @@ The counts below are totals across the whole catalog, so they include the combin
 | **V-I Minor** *(minor)* | Dominant-to-tonic resolutions in minor. | 2 |
 | **Diminished Chord** | Single-chord diminished vocabulary over one dim7 chord. | 2 |
 
-Counts are as of this writing (923 in all: 452 hand-written, 471 combinatorial) and will drift as licks are added. Minor vocabulary isn't confined to the marked categories: most of the Modal licks (the Dorian and Aeolian lines) and some Pentatonic ones sit over a minor chord and read as minor too.
+Counts are as of this writing (1123 in all: 652 hand-written, 471 combinatorial) and will drift as licks are added. Minor vocabulary isn't confined to the marked categories: most of the Modal licks (the Dorian and Aeolian lines) and some Pentatonic ones sit over a minor chord and read as minor too.
 
-The **beginner cells** aren't a category of their own. They're an on-ramp subset — 55 two- and three-note minimal cells for difficulty levels 1–5 (pentatonic intervals, blues fragments, neighbor-tone patterns) — filed under the existing **Pentatonic** (45) and **Blues** (10) categories, and already included in the totals above.
+The **beginner cells** aren't a category of their own. They're an on-ramp subset — 55 two- and three-note minimal cells for difficulty levels 1–5 (pentatonic intervals, blues fragments, neighbor-tone patterns) — filed under the existing **Pentatonic** (45) and **Blues** (10) categories, and already included in the totals above. The **Major Pentatonic first lines** (40, Pentatonic) widen the same on-ramp: two- to four-note lines in even half notes at levels 1–3, where Major Pentatonic, the scale every player starts in, used to serve four or five phrases.
 
 On top of the catalog there's your own content: a recorded lick starts out as *Uncategorized*, and one written in the editor is Uncategorized until you pick one of the categories above in its Details.
 
@@ -76,9 +76,9 @@ Set **Highest** to the top note you actually play and the app respects it; lower
 
 For curated ear-training exercises, the transposition logic gets one more layer of nuance. Different scale types have different parent-key relationships:
 
-- **Major modes with multi-chord progressions** (ii-V-I, turnarounds, rhythm changes) transpose to the **parent major key**. So an A Dorian ii-V-I doesn't transpose so the lick literally starts on A — it transposes to G major, the parent of A Dorian, so the chord progression Am7 → D7 → Gmaj7 still works as a real ii-V-I.
+- **Major modes with multi-chord progressions** (ii-V-I, turnarounds, rhythm changes) transpose to the **parent major key**. So an A Dorian ii-V-I doesn't transpose so the lick literally starts on A — it transposes to G major, the parent of A Dorian, so the chord progression Am7 → D7 → Gmaj7 still works as a real ii-V-I. A phrase declared over a single chord is not a progression, whatever its category: the generator files one-bar Cmaj7 and Cm7 phrases under the ii-V-I categories, and they follow the single-chord rule below.
 - **Minor cadence licks** (the ii-V-i, short ii-V-i and V-i minor vocabulary) are written from their tonic, not the parent major, so they move **tonic → the session's root** under any minor-flavoured tonality (minor, Dorian, melodic minor) and are never snapped: the lick's own harmony is the context. A C-minor ii-V-i in a D minor session is played in D minor.
-- **Major modes with single-chord licks** transpose directly to the modal root, then snap any note that falls outside the mode to the nearest scale tone. A Dorian lick over Dm7 transposes so it starts on D.
+- **Major modes with single-chord licks** transpose directly to the modal root. A Dorian lick over Dm7 transposes so it starts on D. When the lick was written in a different mode of the major scale, each note keeps its **degree**: a major lick's 4th becomes Lydian's #4, a natural-minor lick's b6 becomes Dorian's 6, a Mixolydian lick's b7 becomes the major 7th. The same holds into any seven-note scale whose every degree is within a semitone — a natural-minor line in a melodic-minor session takes its raised 6 and 7, a Mixolydian line in Lydian Dominant its #4. (Snapping to the nearest scale tone, downward on a tie, turned C Lydian's F into E and never played its F#.) A chromatic passing tone, which is no degree of the lick's scale, still snaps to the nearest scale tone.
 - **Non-major scales** (blues, pentatonic, melodic minor, harmonic minor) transpose to the key, then **snap any out-of-scale notes to the nearest scale tone**, preferring flats when equidistant. This handles the case where a chromatic passing tone in the original would land on a sharp seventh in the new key — the snap nudges it to the actual scale member.
 
 Your own and adopted book licks follow a stricter rule in ear training: their actual notes must already fit the selected scale relative to their stored concert key. Accepted book licks transpose from their key to the session key as a whole, preserving the melody and rhythm, with whole-phrase octave centering. They are never snapped into a new scale or remapped through a parent major key. If the melody does not fit, it stays out of that session's pool.

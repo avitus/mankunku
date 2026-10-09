@@ -6,7 +6,13 @@ export interface TuningAlert {
 	cents: number;
 }
 
-interface TuningSample {
+/** One clean note: the concert MIDI it was played at and its signed cents. */
+export interface TuningSample {
+	midi: number;
+	cents: number;
+}
+
+interface PitchClassSample {
 	pitchClass: number;
 	cents: number;
 }
@@ -20,7 +26,8 @@ const MIN_NOTES_PER_TAKE = 2;
 const MIN_PITCH_CLASSES = 3;
 const MIN_CLARITY = 0.9;
 const MIN_DURATION = 0.12;
-const ALERT_CENTS = 15;
+/** The offset the sharp/flat cue speaks at; the per-note panel's full colour. */
+export const ALERT_CENTS = 15;
 const AGREEMENT_CENTS = 10;
 const MIN_AGREEMENT = 0.8;
 const MAX_MEDIAN_SPREAD = 10;
@@ -32,16 +39,25 @@ function median(values: number[]): number {
 	return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
-/** Use only confidently matched notes, never a wrong semitone's signed cents. */
-function samplesFor(results: NoteResult[]): TuningSample[] {
+/**
+ * Use only confidently matched notes, never a wrong semitone's signed cents.
+ * Shared by the sharp/flat cue and the per-note panel, so both read the same
+ * evidence.
+ */
+export function cleanTuningSamples(results: NoteResult[]): TuningSample[] {
 	return results.flatMap(({ expected, detected, missed, extra }) => {
 		if (missed || extra || !detected || expected.pitch === null || detected.ghost ||
 			detected.midi !== expected.pitch || !Number.isInteger(detected.midi) ||
 			!Number.isFinite(detected.cents) || Math.abs(detected.cents) > 50 ||
 			!Number.isFinite(detected.clarity) || detected.clarity < MIN_CLARITY ||
 			!Number.isFinite(detected.duration) || detected.duration < MIN_DURATION) return [];
-		return [{ pitchClass: ((detected.midi % 12) + 12) % 12, cents: detected.cents }];
+		return [{ midi: detected.midi, cents: detected.cents }];
 	});
+}
+
+/** The cue judges the scale, so octaves of one note share a vote. */
+function samplesFor(results: NoteResult[]): PitchClassSample[] {
+	return cleanTuningSamples(results).map(({ midi, cents }) => ({ pitchClass: ((midi % 12) + 12) % 12, cents }));
 }
 
 /** Find a directional offset, rejecting scattered intonation and isolated bends. */
@@ -64,7 +80,7 @@ export function createTuningMonitor(): {
 	record: (score: Pick<Score, 'noteResults'>) => TuningAlert | null;
 	reset: () => void;
 } {
-	let takes: TuningSample[][] = [];
+	let takes: PitchClassSample[][] = [];
 	return {
 		/** Discard evidence when a new practice run or tuning context begins. */
 		reset() { takes = []; },

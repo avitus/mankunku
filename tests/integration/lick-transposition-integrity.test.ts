@@ -260,7 +260,9 @@ describe('transposeLickForTonality', () => {
 
 describe('minor cadence licks × minor tonalities × 12 keys — tonic-keyed, never snapped', () => {
 	const MINOR_CADENCE_CATEGORIES = new Set(['ii-V-I-minor', 'short-ii-V-I-minor', 'V-I-minor']);
-	const licks = ALL_CURATED_LICKS.filter((l) => MINOR_CADENCE_CATEGORIES.has(l.category));
+	// Cadences only: the combiner files single-bar Cm7 phrases under these
+	// categories too, and a phrase over one chord adapts to the session's mode.
+	const licks = ALL_CURATED_LICKS.filter((l) => MINOR_CADENCE_CATEGORIES.has(l.category) && l.harmony.length > 1);
 	const scales = ['major.aeolian', 'major.dorian', 'melodic-minor.melodic-minor'];
 
 	it('has licks to sweep', () => {
