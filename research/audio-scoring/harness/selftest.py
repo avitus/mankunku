@@ -4,7 +4,7 @@ from fractions import Fraction
 from .takes import ExpectedNote, Take, expected_note
 from .render import render_sampled, render_synthetic, transpose
 from .features import extract, extract_reference, FRAME_SECONDS
-from .metrics import compare, METRIC_NAMES, piano_roll, RELEASE_TOLERANCE
+from .metrics import compare, METRIC_NAMES, piano_roll, precision_masks
 from .gate_audio import expected_roll_fn
 from .fix_impact import line_end_seconds
 
@@ -76,7 +76,9 @@ check("extra after the line costs m3_chroma", res5["m3_chroma"].similarity < res
 check("extra after the line costs m5 precision", res5["m5_cover"].extra["precision"] < res["m5_cover"].extra["precision"] - 0.05,
       f"{res5['m5_cover'].extra['precision']:.3f} vs {res['m5_cover'].extra['precision']:.3f}")
 
-# 6. the release tail M5 reads precision against fills rests only: it never hides the start of the next note
+# 6. M5 precision follows the app's rule (src/lib/scoring/frame-coverage.ts): a frame is precise when
+#    ANY note whose [start, end + RELEASE_TOLERANCE] holds it matches its pitch, and only frames from
+#    0.25 s before the line to one beat after it count
 def frame(s):
     """Frame index of `s` seconds, rounded as piano_roll rounds."""
     return int(round(s / FRAME_SECONDS))
@@ -85,15 +87,34 @@ def note(midi, onset, duration):
     """An ExpectedNote at `onset` lasting `duration` seconds (fractions unused by the roll)."""
     return ExpectedNote(midi, onset, duration, Fraction(0), Fraction(1, 8))
 
-roll6 = piano_roll([note(60, 0.0, 0.3), note(62, 0.3, 0.3)], 60, 0, tail=RELEASE_TOLERANCE)
-check("piano roll: a back-to-back note keeps its pitch from its own onset under the tail",
-      (roll6[frame(0.3):frame(0.6)] == 62).all(), f"{roll6[frame(0.3):frame(0.3) + 7]}")
-check("piano roll: the last note's tail still fills the rest after it",
-      (roll6[frame(0.6):frame(0.6 + RELEASE_TOLERANCE)] == 62).all() and np.isnan(roll6[frame(0.6 + RELEASE_TOLERANCE):]).all(),
-      f"{roll6[frame(0.6) - 1:frame(0.6 + RELEASE_TOLERANCE) + 2]}")
-roll6b = piano_roll([note(60, 0.0, 0.3), note(62, 0.3, 0.05)], 60, 0, tail=RELEASE_TOLERANCE)
-check("piano roll: after a note shorter than the tail, the rest is that note's release, not the one before",
-      (roll6b[frame(0.3):frame(0.35 + RELEASE_TOLERANCE)] == 62).all(), f"{roll6b[frame(0.3):frame(0.35 + RELEASE_TOLERANCE) + 1]}")
+roll6 = piano_roll([note(60, 0.0, 0.35), note(62, 0.3, 0.3)], 60, 0)
+check("piano roll: where two notes overlap, the later one owns its frames from its onset",
+      (roll6[frame(0.3):frame(0.6)] == 62).all(), f"{roll6[frame(0.3) - 1:frame(0.3) + 3]}")
+
+line6 = [expected_note(60, Fraction(0), Fraction(1, 8), 100.0, 0.5),
+         expected_note(62, Fraction(1, 8), Fraction(1, 8), 100.0, 0.5)]  # 0-0.3 s, 0.3-0.6 s; the window runs -0.25 to 1.2 s
+lag6 = frame(1.0)
+
+def precise_at(pitch, t0, t1):
+    """(precise, counted) frames for a take sounding `pitch` only from phrase time t0 to t1 s."""
+    f0 = np.full(frame(3.0), np.nan)
+    f0[lag6 + frame(t0):lag6 + frame(t1)] = pitch
+    p, c = precision_masks(f0, ~np.isnan(f0), line6, lag6, False, 100.0)
+    return int(p.sum()), int(c.sum())
+
+r = precise_at(62, 0.3, 0.42)
+check("M5 precision: the next note is precise from its own onset", r[0] == r[1] > 0, f"{r}")
+r = precise_at(60, 0.3, 0.41)
+check("M5 precision: the previous note still sounding in the next note's first 0.12 s is its release, not an extra",
+      r[0] == r[1] > 0, f"{r}")
+r, r2 = precise_at(62, 0.6, 0.71), precise_at(62, 0.75, 0.9)
+check("M5 precision: the last note's pitch is precise for 0.12 s after its end, and not after",
+      r[0] == r[1] > 0 and r2[0] == 0 < r2[1], f"{r} {r2}")
+r = precise_at(64, 0.8, 1.1)
+check("M5 precision: a wrong pitch inside the window counts against it", r[0] == 0 < r[1], f"{r}")
+r, r2 = precise_at(64, 1.25, 1.5), precise_at(64, -0.6, -0.3)
+check("M5 precision: frames more than one beat after the line or 0.25 s before it are not counted",
+      r[1] == 0 and r2[1] == 0, f"{r} {r2}")
 
 # 7. the extras-gate helpers read the line as the shipped scorer does (src/lib/scoring/extras.ts)
 eighths = [{"expected": {"pitch": 60, "offset": [0, 1], "duration": [1, 8]}},

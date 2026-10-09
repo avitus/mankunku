@@ -10,8 +10,9 @@ import type { PitchReading } from '$lib/audio/pitch-frame';
  * segmentation, no pairing. Assessed 2026-10-07 on the recorded-take corpus
  * and 378 Firefox takes (research/audio-scoring/REPORT.md): it ranks with
  * what was actually played at 0.6–0.8 and reads the inflated Wail takes at
- * 0.52 / 0.74 precision against >= 0.86 on clean takes. A badge beside the
- * score, never a grade: the two disagree exactly where one is wrong.
+ * 0.57 / 0.83 precision against a clean-take p10 of 0.95 (this rule,
+ * re-measured 2026-10-08). A badge beside the score, never a grade: the two
+ * disagree exactly where one is wrong.
  */
 
 const TEMPO = 120; // a beat is 0.5 s; an eighth 0.25 s

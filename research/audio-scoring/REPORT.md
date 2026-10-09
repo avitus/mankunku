@@ -18,7 +18,7 @@ below every clean take in the corpus, keep the five takes the old detector
 butchered inside the clean range, pick the right lick over every
 transposition on 97–98 % of takes, and drop for a wrong note or an extra
 three to eight times more than for a 5 % tempo change. Their rank agreement
-with what was actually played is 0.58 (0.66 / 0.64 with the hold rule) against 0.23 for the saved scores.
+with what was actually played is 0.58 (0.66 / 0.65 with the hold rule) against 0.23 for the saved scores.
 On the **378 takes decoded from the Firefox profile** (356 lick-practice
 windows the cloud never sees, 48 licks, 50–170 BPM) the audio measures rank
 with the saved score at 0.64–0.80 and step cleanly through the five grades;
@@ -91,13 +91,13 @@ was pre-armed, whose recordings start inside the first note).
 | M2 env-xcorr | the same on onset-strength envelopes; `_at` = at the chroma lag | blind |
 | M3 chroma | mean per-frame cosine of 12-bin chroma at the best lag, silence must agree; `_dtw` = banded subsequence DTW (±max(0.25 s, half a beat)) | blind |
 | M4 cqt | the same on a harmonic-salience semitone map (E2–C6) | strict |
-| M5 cover | pyin f0 vs the expected piano roll at the chroma lag: precision (sounded frames that match), recall (expected frames covered), F1; 120 ms release tolerance into the rest after a note | policy |
+| M5 cover | pyin f0 vs the expected line at the chroma lag: precision by the app's rule (of the sounded frames from 0.25 s before the line to one beat after it, those a note's slot or its 120 ms release matches), recall (expected frames covered), F1 | policy |
 
-Self-test (`harness/selftest.py`, 37 checks): a rendering against itself
+Self-test (`harness/selftest.py`, 40 checks): a rendering against itself
 scores ≥ 0.95 on every metric and recovers an embedded lag within one frame;
 a semitone transposition drops every pitch metric by > 0.3; an octave moves
-M4/M5-strict but not M3; a trailing extra costs; a release tail never hides
-the next note's onset. Four harness bugs were found and fixed by it and by
+M4/M5-strict but not M3; a trailing extra costs; M5 precision follows the
+app's rule (release credit, window). Four harness bugs were found and fixed by it and by
 the overlays (the fourth on 2026-10-08, see the correction at the end): the lag search could not
 reach past the reference's release tail (tonic-turn locked 0.23 s early and
 every boundary mismatched), the click's broadband stripe passed the
@@ -123,8 +123,8 @@ synthetic in brackets).
 | M3 dtw precision | 0.89 (0.94) | 0.94 | 0.34 | 0.59 | 0.67 |
 | M3 dtw F1 | 0.95 (0.98) | 0.97 | 0.45 | 0.70 | 0.74 |
 | M4 cqt | 0.97 (0.98) | 0.98 | 0.26 | 0.81 | 0.89 |
-| M5 cover | 0.97 (0.97) | 0.98 | 0.51 | 0.84 | 0.89 |
-| M5 cover hold | 0.97 (0.97) | 0.98 | 0.50 | 0.89 | 0.92 |
+| M5 cover | 0.97 (0.97) | 0.98 | 0.48 | 0.86 | 0.89 |
+| M5 cover hold | 0.97 (0.97) | 0.98 | 0.47 | 0.86 | 0.90 |
 
 Every M3 loss against another lick is to a lick with the **same pitch
 sequence** and a different rhythm (upper-neighbor-on-root C D C vs
@@ -134,8 +134,7 @@ flat-five-chromatic-up C C D), or the 07-08 take whose recording holds two of
 its four notes. The M3 losses against a transposition are that broken take and one
 production take whose own margin is 0.01. The margins are small for those pairs (0.005–0.06): chroma sees pitch
 content, not articulation. M5's two losses against a transposition are the
-flat Blue Shake (E5) and 04-14 a4-c5, an April take whose rhythm was never
-recorded, so its roll is a guess.
+flat Blue Shake (E5) and that broken 07-08 take (by 0.001).
 
 ### E2 — rank agreement with what was played
 
@@ -153,8 +152,8 @@ Spearman against the truth over the 44 verified, timing-known takes.
 | M3 dtw F1 | 0.53 | < 0.001 |
 | M4 cqt | 0.50 | < 0.001 |
 | M5 cover | 0.58 | < 0.001 |
-| M5 cover hold | 0.64 | < 0.001 |
-| min(M3 hold, M5 hold) | 0.65 | < 0.001 |
+| M5 cover hold | 0.65 | < 0.001 |
+| min(M3 hold, M5 hold) | 0.66 | < 0.001 |
 
 The saved scores correlate with nothing — expected, since the corpus is by
 construction the takes the old pipeline got wrong. The audio metrics have
@@ -164,24 +163,24 @@ independent reading.
 ### E3 — the named cases
 
 Value of M3 chroma and M5 cover for each case, and its percentile among the
-clean verified takes (clean M3: min 0.79, p10 0.87, median 0.93; M3 hold: min 0.87, p10 0.90; DTW precision p10 0.90; clean M5: p10 0.84, median 0.92; M5 hold p10 0.86).
+clean verified takes (clean M3: min 0.79, p10 0.87, median 0.93; M3 hold: min 0.87, p10 0.90; DTW precision p10 0.90; clean M5: p10 0.87, median 0.94; M5 hold p10 0.89).
 
 | take | case | truth | saved | M3 | pct | M5 | pct | verdict |
 |---|---|---|---|---|---|---|---|---|
-| wail-a | inflated | 0.61 | 0.88 | 0.61 | 0 | 0.52 | 0.03 | below every clean take ✓ |
-| wail-b | inflated | 0.79 | 0.93 | 0.75 | 0 | 0.71 | 0.03 | below every clean take ✓ |
-| locrian-descent | flawed (C dropped, F added) | 0.78 | 0.49 | 0.72 | 0 | 0.61 | 0.03 | ✓ |
-| 07-08 four-to-five | flawed (2 of 4 recorded) | 0.50 | 0.33 | 0.41 | 0 | 0.35 | 0.03 | ✓ |
-| sharp-9-flat-9-dom | flawed (two Cs +62/+70 ¢) | 0.78 | 0.74 | 0.85 | 0.07 | 0.75 | 0.03 | ✓ |
-| honeysuckle-rose-b | 3 of 5 played | 0.60 | 0.49 | 0.86 | 0.07 | 0.74 | 0.03 | ✓ |
-| 10-03 four-to-five | flawed (final A stopped early) | 0.75 | 0.49 | 0.85 | 0.07 | 0.88 | 0.20 | mild |
-| 08-10 pent run | flawed (first C never recorded) | 0.75 | 0.52 | 0.88 | 0.20 | 0.85 | 0.17 | uncharged: the C precedes the recording |
-| tonic-turn | correct, saved 1/4 | 1.00 | 0.42 | 0.89 | 0.20 | 0.86 | 0.20 | in range ✓ |
-| blue-note-drop | correct, saved 2/3 | 1.00 | 0.71 | 0.96 | 0.87 | 0.94 | 0.70 | ✓ |
-| honeysuckle-rose | 4 of 5, saved 2/5 | 0.80 | 0.59 | 0.88 | 0.20 | 0.85 | 0.17 | in range ✓ (read 0.78 before the 2026-10-08 tail fix, which this report took for the cracked attack) |
-| pent-upper-neighbor (audit) | correct, saved 0.62 | 1.00 | 0.62 | 0.84 | 0.07 | 0.87 | 0.20 | ✓ |
-| pent-1-3-2-5-dotted (audit) | correct, saved 0.74 | 1.00 | 0.74 | 0.91 | 0.33 | 0.90 | 0.27 | ✓ |
-| root-frame | correct, saved 0.45 | 1.00 | 0.45 | 0.78 | 0 | 0.79 | 0.03 | **final G released 1.2 s early**; hold-tolerant 0.93 / 0.93, in range |
+| wail-a | inflated | 0.61 | 0.88 | 0.61 | 0 | 0.53 | 0.03 | below every clean take ✓ |
+| wail-b | inflated | 0.79 | 0.93 | 0.75 | 0 | 0.73 | 0.03 | below every clean take ✓ |
+| locrian-descent | flawed (C dropped, F added) | 0.78 | 0.49 | 0.72 | 0 | 0.63 | 0.03 | ✓ |
+| 07-08 four-to-five | flawed (2 of 4 recorded) | 0.50 | 0.33 | 0.41 | 0 | 0.34 | 0.03 | ✓ |
+| sharp-9-flat-9-dom | flawed (two Cs +62/+70 ¢) | 0.78 | 0.74 | 0.85 | 0.07 | 0.79 | 0.03 | ✓ |
+| honeysuckle-rose-b | 3 of 5 played | 0.60 | 0.49 | 0.86 | 0.07 | 0.78 | 0.03 | ✓ |
+| 10-03 four-to-five | flawed (final A stopped early) | 0.75 | 0.49 | 0.85 | 0.07 | 0.89 | 0.20 | mild |
+| 08-10 pent run | flawed (first C never recorded) | 0.75 | 0.52 | 0.88 | 0.20 | 0.88 | 0.20 | uncharged: the C precedes the recording |
+| tonic-turn | correct, saved 1/4 | 1.00 | 0.42 | 0.89 | 0.20 | 0.89 | 0.20 | in range ✓ |
+| blue-note-drop | correct, saved 2/3 | 1.00 | 0.71 | 0.96 | 0.87 | 0.95 | 0.73 | ✓ |
+| honeysuckle-rose | 4 of 5, saved 2/5 | 0.80 | 0.59 | 0.88 | 0.20 | 0.86 | 0.07 | ✓ (just under the clean p10; it read 0.78 under the tail bug fixed 2026-10-08, which this report first took for the cracked attack) |
+| pent-upper-neighbor (audit) | correct, saved 0.62 | 1.00 | 0.62 | 0.84 | 0.07 | 0.88 | 0.20 | ✓ |
+| pent-1-3-2-5-dotted (audit) | correct, saved 0.74 | 1.00 | 0.74 | 0.91 | 0.33 | 0.92 | 0.27 | ✓ |
+| root-frame | correct, saved 0.45 | 1.00 | 0.45 | 0.78 | 0 | 0.79 | 0.03 | **final G released 1.2 s early**; hold-tolerant 0.93 / 0.94, in range |
 
 Wail-a's overlay (`results/figures/`) shows why it falls: pyin follows the
 written line for the first seven notes, reading Ab3 where the app's detector
@@ -202,13 +201,13 @@ Mean drop (worst-take drop) per perturbation.
 | M3 dtw precision | 0.30 (0.12) | 0.24 (0.12) | 0.10 (0.00) | 0.06 (0.00) | 0.01 (-0.05) | 0.01 (-0.04) | -0.01 (-0.09) |
 | M3 dtw F1 | 0.26 (0.07) | 0.16 (0.07) | 0.06 (0.00) | 0.13 (0.06) | 0.00 (-0.02) | 0.01 (-0.03) | -0.00 (-0.07) |
 | M4 cqt | 0.11 (0.03) | 0.15 (0.10) | 0.17 (0.14) | 0.17 (0.05) | 0.04 (0.01) | 0.01 (-0.02) | 0.03 (-0.03) |
-| M5 cover | 0.26 (0.09) | 0.19 (0.10) | 0.10 (0.06) | 0.15 (0.03) | 0.04 (0.01) | -0.01 (-0.05) | 0.03 (0.01) |
-| M5 cover hold | 0.30 (0.10) | 0.21 (0.13) | 0.08 (0.04) | 0.20 (0.04) | 0.05 (0.01) | -0.01 (-0.06) | 0.04 (-0.00) |
+| M5 cover | 0.26 (0.09) | 0.19 (0.12) | 0.10 (0.08) | 0.15 (0.03) | 0.03 (0.01) | -0.00 (-0.02) | 0.03 (0.00) |
+| M5 cover hold | 0.30 (0.10) | 0.22 (0.14) | 0.09 (0.06) | 0.20 (0.04) | 0.04 (0.02) | -0.00 (-0.03) | 0.04 (0.00) |
 
 M3 and M5 pass the rule fixed before the run (wrong-note and extra drops
 larger than the stretch drops, on every take; M5 hold misses it on one,
-third-fifth-rise, before and after the 2026-10-08 fix). Against the worse
-of the two stretches, a wrong note or an extra costs M3 5–6× and M5 3–8×.
+third-fifth-rise, under every M5 rule tried). Against the worse of the two
+stretches, a wrong note or an extra costs M3 5–6× and M5 4–10×.
 The DTW variants forgive a trailing extra entirely on some takes (warping
 absorbs it); M1 and M2 do not respond to anything.
 
@@ -216,7 +215,7 @@ absorbs it); M1 and M2 do not respond to anything.
 
 `results/prod_summary.md`. Saved grades: 11 perfect, 3 great, 1 fair. The
 first pass flagged three perfect takes at chroma 0.66–0.73 with precision
-0.90–0.94 and recall 0.56–0.66: correct notes, **held shorter than notated**
+0.97–0.99 and recall 0.56–0.66: correct notes, **held shorter than notated**
 (one lick notates a final note of five whole notes, which outruns the
 recording). That is the duration question of E3's root-frame, now in
 production, so the harness gained **hold-tolerant variants** (`_hold`: a note
@@ -225,16 +224,16 @@ recording's end are unknown, since the window closes on schedule):
 
 | grade | n | chroma | chroma hold | coverage | coverage hold | precision |
 |---|---|---|---|---|---|---|
-| perfect | 11 | 0.82 (0.68–0.94) | **0.91 (0.86–0.95)** | 0.82 (0.70–0.92) | **0.89 (0.81–0.93)** | 0.92 (0.80–0.96) |
+| perfect | 11 | 0.82 (0.68–0.94) | **0.91 (0.86–0.95)** | 0.86 (0.73–0.93) | **0.92 (0.87–0.94)** | 0.97 (0.84–1.00) |
 | great | 3 | 0.90 | 0.90 | 0.86 | 0.88 | 0.84 |
-| fair | 1 | 0.42 | 0.50 | 0.06 | 0.07 | 0.07 |
+| fair | 1 | 0.42 | 0.50 | 0.06 | 0.08 | 0.08 |
 
 Under hold tolerance every great/perfect take reads ≥ 0.85 on chroma (no
 disagreement in 14), matching the corpus's clean p10. The one fair take
 (blue-shake-d19422, saved 0.62) is the inverse case: the three A's were
 played ~60 ¢ flat (pyin reads them between G♯ and A), the final note was held
 flat for 2.5 s, and the note scorer still awarded rhythm 0.94 on the wrong
-pitches; the audio reads 0.42–0.50 and precision 0.07. Its held final Ab3
+pitches; the audio reads 0.42–0.50 and precision 0.08. Its held final Ab3
 was also saved as a 2.2 s "extra" Ab4 — the tenor Ab3→Ab4 detector misread,
 now seen on three takes (Wail a, Wail b, this one), with the WAV in
 `takes/prod/` for a fixture.
@@ -258,15 +257,15 @@ Lick practice, 356 windows, by saved grade (median, p10–p90):
 
 | grade | n | no-warp chroma (hold) | DTW chroma | DTW precision | DTW F1 | frame precision |
 |---|---|---|---|---|---|---|
-| try-again | 11 | 0.48 (0.34–0.76) | 0.57 (0.49–0.81) | 0.42 (0.32–0.69) | 0.40 (0.27–0.72) | 0.27 (0.21–0.61) |
-| fair | 16 | 0.55 (0.41–0.82) | 0.69 (0.56–0.93) | 0.56 (0.47–0.90) | 0.54 (0.46–0.87) | 0.34 (0.27–0.68) |
-| good | 30 | 0.71 (0.54–0.87) | 0.83 (0.68–0.92) | 0.80 (0.57–0.91) | 0.80 (0.59–0.92) | 0.57 (0.40–0.82) |
-| great | 66 | 0.82 (0.64–0.91) | 0.91 (0.82–0.96) | 0.88 (0.73–0.98) | 0.90 (0.72–0.98) | 0.74 (0.52–0.86) |
-| perfect | 233 | 0.90 (0.82–0.93) | 0.94 (0.89–0.97) | 0.95 (0.86–0.99) | 0.96 (0.89–0.99) | 0.86 (0.77–0.93) |
+| try-again | 11 | 0.48 (0.34–0.76) | 0.57 (0.49–0.81) | 0.42 (0.32–0.69) | 0.40 (0.27–0.72) | 0.36 (0.25–0.68) |
+| fair | 16 | 0.55 (0.41–0.82) | 0.69 (0.56–0.93) | 0.56 (0.47–0.90) | 0.54 (0.46–0.87) | 0.40 (0.29–0.77) |
+| good | 30 | 0.71 (0.54–0.87) | 0.83 (0.68–0.92) | 0.80 (0.57–0.91) | 0.80 (0.59–0.92) | 0.66 (0.47–0.93) |
+| great | 66 | 0.82 (0.64–0.91) | 0.91 (0.82–0.96) | 0.88 (0.73–0.98) | 0.90 (0.72–0.98) | 0.79 (0.60–0.95) |
+| perfect | 233 | 0.90 (0.82–0.93) | 0.94 (0.89–0.97) | 0.95 (0.86–0.99) | 0.96 (0.89–0.99) | 0.93 (0.88–0.97) |
 
 Spearman against the saved score (lick practice): frame coverage hold 0.80,
-frame precision 0.80, DTW F1 0.64, no-warp chroma hold 0.64, DTW chroma 0.57.
-Ear training (22 takes): 0.59–0.64. The two measures agree with the note
+frame precision 0.68, DTW F1 0.64, no-warp chroma hold 0.64, DTW chroma 0.57.
+Ear training (22 takes): 0.59–0.62. The two measures agree with the note
 scorer on the bulk of takes and disagree where one of them is wrong:
 
 - **Saved ≥ 0.90 with DTW precision < 0.70: 4 of 264.** Three are fast
@@ -299,7 +298,7 @@ the need to render anything in the browser.
 
 - **Extras cost.** The note score is recall-only; M3/M5 charge every sounded
   frame that is not the line. This is the whole Wail effect (M5 precision
-  0.53 / 0.77 against a clean-take p10 of 0.90).
+  0.57 / 0.83 against a clean-take p10 of 0.95).
 - **No pairing, no blast radius.** A 50 ms sliver costs 50 ms of frames, not
   three re-paired notes. The five takes the detector once butchered
   (tonic-turn, blue-note-drop, honeysuckle, and the two audited Downloads
@@ -331,8 +330,8 @@ the need to render anything in the browser.
    at the scorer's own lag, with the scorer's octave policy, a 120 ms release
    tolerance and the hold rule for recall, needs no synthesis, no FFT, no new
    DSP, and never pairs notes. Report it beside the score and gate
-   `great`/`perfect` on **precision** (corpus clean takes p10 0.90, production
-   perfect takes 0.80–0.96; Wail 0.53 / 0.77; the flat Blue Shake 0.07).
+   `great`/`perfect` on **precision** (corpus clean takes p10 0.95, production
+   perfect takes 0.84–1.00; Wail 0.57 / 0.83; the flat Blue Shake 0.08).
    Precision is the duration-blind half, so it needs no policy decision.
    This is the "extras count as zero" the docs already promise, delivered
    without touching the aligner.
@@ -432,51 +431,57 @@ Andy's call with that table in hand.
 cracked-head pairing cascade (apple-jump-78e1fd; a naive sliver rule costs
 53 takes, see above) are detection work with the takes in hand.
 
-## Correction (2026-10-08) — M5's release tail hid the start of every note
+## Correction (2026-10-08) — M5's release tail, and M5 now uses the app's rule
 
 `metrics.piano_roll` wrote the notes in reverse onset order with the 120 ms
 release tail, so each note's tail overwrote the first 0.12 s (5 frames) of
-the note after it, the opposite of its docstring. M5 precision is read
+the note after it, the opposite of its docstring. M5 precision was read
 against that tailed roll: a correctly timed transition was charged for the
 new note's first 120 ms and credited for the old pitch ringing there. Recall
 uses the untailed roll and was unaffected. The extras gate's audio
 corroboration (`gate_audio.expected_roll_fn`, "first widened row wins") had
 the same shape and was fixed with it; the corroborated gate's summary is
-unchanged (two takes swap one charge each). Fixed so a tail fills only frames
-no note occupies (where two releases share a rest, the later note's wins),
-pinned by self-test invariants (three on the roll, one on the gate's
-lookup). Re-running E1–E5: every M1–M4 figure is byte-identical, only M5
-moved, and the figures above are updated in place.
+unchanged (two takes swap one charge each).
 
-The fix is not monotone. An on-time transition gains its first 120 ms; a
-late one loses the frames where the old pitch was still sounding, which the
-bug credited (curl-to-the-floor 0.90 → 0.84, the two blues-curl-up takes
-0.95 → 0.90). The shipped `frameCoverage` (src/lib/scoring/frame-coverage.ts)
-never had the bug. It tests each reading against every note whose
-[start, end + 0.12 s] window holds it, so around a transition either pitch
-counts, and it counts only frames from 0.25 s before the line to one beat
-after it. Measured with that rule at the same lags (pyin, not Pitchy; the
-chroma lag, not the scorer's):
+The first fix followed the docstring (a tail fills only frames no note
+occupies), which still differed from the shipped `frameCoverage`
+(src/lib/scoring/frame-coverage.ts). That never had the bug: it tests each
+reading against every note whose [start, end + 0.12 s] window holds it, so
+around a note change either pitch counts; a slot runs the note's full
+notated length from its swung onset; and only frames from 0.25 s before the
+line to one beat after it count. Since these numbers are the case for the
+shipped check, M5 precision now uses that rule (`metrics.precision_masks`,
+pinned by self-test invariants), and every M5 figure above is the shipped
+rule's, read from pyin rather than Pitchy and at the chroma lag rather than
+the scorer's. Recall stays frame-based (the app's is per note: three frames
+inside the slot, weighted by notated length). Every M1–M4 figure is
+byte-identical through all three runs; only M5 moved.
 
-| M5 precision | old harness | fixed harness | shipped rule |
+| M5 precision | old harness | docstring fix | shipped rule (now M5) |
 |---|---|---|---|
 | corpus clean takes, p10 (median) | 0.87 (0.95) | 0.90 (0.94) | 0.95 (0.98) |
-| Wail a / Wail b | 0.52 / 0.74 | 0.53 / 0.77 | 0.55 / 0.81 |
-| Firefox lick-practice perfect, p10 | 0.74 | 0.77 | 0.87 |
+| Wail a / Wail b | 0.52 / 0.74 | 0.53 / 0.77 | 0.57 / 0.83 |
+| production perfect takes, median (p10–p90) | 0.89 (0.79–0.93) | 0.92 (0.80–0.96) | 0.97 (0.84–1.00) |
+| Firefox lick-practice perfect, p10 | 0.74 | 0.77 | 0.88 |
 | share of those perfect takes below Wail b | 9 % | 8 % | 4 % |
 | ρ vs the corpus truth (44 takes) | 0.55 | 0.59 | 0.57 |
 | ρ vs the saved score, Firefox lick practice | 0.79 | 0.80 | 0.68 |
 
+The docstring fix was not monotone: a late transition lost frames the bug
+had credited (curl-to-the-floor 0.90 → 0.84); the shipped rule credits both
+pitches there (0.95).
+
 **The conclusion behind shipping the audio check holds.** Wail b, the closer
-of the two inflated takes, sits 0.13 below the clean-take p10 under all
-three (Wail a 0.35–0.40 below), and the shipped rule separates Wail b from correct lick-practice takes better than
-either harness version. Two corrections to what was quoted: correct takes
-read higher than "≥ 0.86" suggests (clean p10 0.90 in the fixed harness,
-0.95 under the shipped rule; production perfect p10–p90 0.80–0.96); and crediting both
-pitches around a transition costs rank agreement with the saved lick-practice
-score (0.80 → 0.68), though not with the corpus truth. One E3 verdict changes:
-honeysuckle-rose (4 of 5 played) reads 0.85, inside the clean range; its
-0.78 was the tail artefact, not the cracked attack.
+of the two inflated takes, sits 0.12–0.14 below the clean-take p10 under all
+three rules (Wail a 0.35–0.38 below), and the shipped rule separates it from
+correct lick-practice takes best. What the quoted figures get wrong: correct
+takes read higher than "≥ 0.86" (clean p10 0.95, production perfect p10–p90
+0.84–1.00) and the inflated Wail takes read 0.57 / 0.83; and crediting both
+pitches around a note change costs precision's rank agreement with the saved
+lick-practice score (0.80 → 0.68; coverage hold stays at 0.80), though not
+with the corpus truth. In E3, honeysuckle-rose (4 of 5 played) now reads
+0.86, just under the clean p10: its old 0.78 was mostly the artefact, not
+the cracked attack.
 
 Also fixed on the same pass: `fix_impact.line_end_seconds` now swings each
 onset as `extras.ts` `lineEnd` does (one production session gains a gated
