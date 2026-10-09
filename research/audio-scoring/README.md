@@ -42,6 +42,11 @@ verdict and numbers are in [REPORT.md](REPORT.md).
 - `takes/truth.yaml` — what each take actually sounded, as pinned by its
   fixture test; `takes/downloads/` — Andy's diagnostic exports that never
   became fixtures; `takes/prod/` — further production takes.
+- **The take folders are not in git.** `takes/downloads/`, `takes/firefox/`
+  and `takes/prod/` hold recorded audio and session data from Andy's account,
+  so they are gitignored and were removed from the public history
+  (2026-10-08). They live only on Andy's machine; a fresh clone has the
+  truth and override YAML but cannot re-run the evaluation without them.
 
 ## Run
 

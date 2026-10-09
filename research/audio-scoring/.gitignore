@@ -2,3 +2,9 @@
 cache/
 __pycache__/
 *.pyc
+# Recorded takes are local only: they hold audio and session data from
+# Andy's account and the repository is public (removed from history
+# 2026-10-08). The truth/override YAML beside them stays tracked.
+takes/downloads/
+takes/firefox/
+takes/prod/
