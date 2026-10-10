@@ -93,6 +93,7 @@ function setupLick(opts: {
 		makeResult(r.key, r.score, opts.currentTempo)
 	);
 	lickPractice.allAttempts = [];
+	lickPractice.sessionUnlocks = {};
 	lickPractice.progress = {};
 	lickPractice.elapsedSeconds = 0;
 }
@@ -696,5 +697,61 @@ describe('startInterLickTransition — per-key floor (KEY_FLOOR_THRESHOLD = 0.75
 		};
 		startInterLickTransition();
 		expect(loadUnlockCounts()[LICK_ID]).toBe(2);
+	});
+});
+
+describe('getSessionReport — names the key an unlock session adds', () => {
+	// The unlock's 10% drop reads as a red tempo delta on the report — a
+	// penalty for a session that earned a key. The report carries the new key
+	// so the UI can say "Adding G next time" instead.
+	it('reports the newly unlocked key on the lick that earned it', () => {
+		setupLick({
+			currentTempo: 100,
+			results: [{ key: 'C', score: 0.93 }],
+			plannedKeys: ['C']
+		});
+		lickPractice.progress = {
+			[LICK_ID]: { C: { currentTempo: 100, lastPracticedAt: 0, passCount: 3 } }
+		};
+		startInterLickTransition();
+		const lick = getSessionReport().licks[0];
+		expect(lick.unlockedKey).toBe('G');
+		expect(lick.newTempo).toBe(90);
+	});
+
+	it('names the NEXT key on the ramp, not the entry key', () => {
+		// C, G, F unlocked → the fourth key on the ramp is D.
+		setupLick({
+			currentTempo: 100,
+			results: [
+				{ key: 'C', score: 0.95 },
+				{ key: 'G', score: 0.95 },
+				{ key: 'F', score: 0.95 }
+			],
+			plannedKeys: ['C', 'G', 'F']
+		});
+		lickPractice.progress = {
+			[LICK_ID]: {
+				C: { currentTempo: 100, lastPracticedAt: 0, passCount: 9 },
+				G: { currentTempo: 100, lastPracticedAt: 0, passCount: 6 },
+				F: { currentTempo: 100, lastPracticedAt: 0, passCount: 3 }
+			}
+		};
+		store['mankunku:lick-unlock-count'] = JSON.stringify({ [LICK_ID]: 3 });
+		startInterLickTransition();
+		expect(getSessionReport().licks[0].unlockedKey).toBe('D');
+	});
+
+	it('carries no unlocked key when the session stops short of the gate', () => {
+		setupLick({
+			currentTempo: 100,
+			results: [{ key: 'C', score: 0.93 }],
+			plannedKeys: ['C']
+		});
+		lickPractice.progress = {
+			[LICK_ID]: { C: { currentTempo: 100, lastPracticedAt: 0, passCount: 2 } }
+		};
+		startInterLickTransition();
+		expect(getSessionReport().licks[0].unlockedKey).toBeUndefined();
 	});
 });

@@ -283,6 +283,12 @@ export interface LickReport {
 	tempo: number;
 	/** Tempo after auto-adjust/increment (null if no change was applied) */
 	newTempo: number | null;
+	/**
+	 * The key this session unlocked for the lick, when it earned one. The
+	 * unlock trades the tempo bump for a 10% drop, so the report names the
+	 * new key instead of showing that drop as a penalty.
+	 */
+	unlockedKey?: PitchClass;
 	keys: {
 		key: PitchClass;
 		score: number;

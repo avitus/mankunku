@@ -1975,7 +1975,15 @@
 							</a>
 						{/if}
 						<span class="ml-2 text-xs text-[var(--color-text-secondary)]">
-							{#if lick.newTempo != null}
+							{#if lick.unlockedKey}
+								<!-- An unlock drops the tempo 10% to give the new key
+								     headroom; showing that as a red delta would read as a
+								     penalty for the session that earned the key. -->
+								{lick.newTempo ?? lick.tempo} BPM
+								<span class="text-[var(--color-success)]" data-testid="unlocked-key">
+									· Adding {keyLabel(concertKeyToWritten(lick.unlockedKey, instrument), progressionMode(lick.progressionType ?? currentProgressionType))} next time
+								</span>
+							{:else if lick.newTempo != null}
 								{@const delta = lick.newTempo - lick.tempo}
 								{lick.newTempo} BPM
 								<span class={delta > 0 ? 'text-[var(--color-success)]' : 'text-[var(--color-error-text)]'}>
