@@ -20,6 +20,13 @@ interface PitchClassSample {
 // Conservative feedback policy, independent of pitch grading. A short or
 // uncertain take cannot diagnose tuning; repeated notes cannot outweigh the
 // rest of the scale. Keep only recent takes so an adjustment can take effect.
+//
+// The verdict is read off the WINDOW's pooled evidence — one median per pitch
+// class, as the fader bank reads the run — never off each take alone. Take
+// medians scatter about ±5 ¢ around a player's centre, so a per-take gate at
+// the alert offset fails half the takes of a player centred exactly there;
+// replayed over 1943 production takes the old per-take rule fired once
+// (2026-10-10). Takes and the latest take only have to LEAN the same way.
 const WINDOW_TAKES = 5;
 const MIN_TAKES = 3;
 const MIN_NOTES_PER_TAKE = 2;
@@ -27,8 +34,9 @@ const MIN_PITCH_CLASSES = 3;
 const MIN_CLARITY = 0.9;
 const MIN_DURATION = 0.12;
 /** The offset the sharp/flat cue speaks at; the per-note panel's full colour. */
-export const ALERT_CENTS = 15;
-const AGREEMENT_CENTS = 10;
+export const ALERT_CENTS = 12;
+/** A take, or a pitch class, leans the cue's way when its median sits this far on that side. */
+const LEAN_CENTS = 5;
 const MIN_AGREEMENT = 0.8;
 const MAX_MEDIAN_SPREAD = 10;
 
@@ -60,15 +68,23 @@ function samplesFor(results: NoteResult[]): PitchClassSample[] {
 	return cleanTuningSamples(results).map(({ midi, cents }) => ({ pitchClass: ((midi % 12) + 12) % 12, cents }));
 }
 
-/** Find a directional offset, rejecting scattered intonation and isolated bends. */
+/**
+ * Find a directional offset in the pitch-class medians, rejecting scattered
+ * intonation (a 10/25/48 spread is not one tuning) and a lone bent note.
+ */
 function consistentOffset(cents: number[]): number | null {
 	if (cents.length === 0) return null;
 	const center = median(cents);
 	if (Math.abs(center) < ALERT_CENTS) return null;
 	const sign = Math.sign(center);
-	const agreement = cents.filter(c => c * sign >= AGREEMENT_CENTS).length / cents.length;
+	const agreement = cents.filter(c => c * sign >= LEAN_CENTS).length / cents.length;
 	const spread = median(cents.map(c => Math.abs(c - center)));
 	return agreement >= MIN_AGREEMENT && spread <= MAX_MEDIAN_SPREAD ? center : null;
+}
+
+/** A take's lean: its median offset, zero for a take too short to read. */
+function takeLean(take: PitchClassSample[]): number {
+	return take.length >= MIN_NOTES_PER_TAKE ? median(take.map(s => s.cents)) : 0;
 }
 
 /**
@@ -88,33 +104,27 @@ export function createTuningMonitor(): {
 		record(score) {
 			const current = samplesFor(score.noteResults);
 			takes = [...takes, current].slice(-WINDOW_TAKES);
-			// Clear immediately when the latest take no longer supports the cue,
-			// including silence/uncertain input, rather than showing stale advice.
-			if (current.length < MIN_NOTES_PER_TAKE) return null;
-			const latestOffset = consistentOffset(current.map(s => s.cents));
-			if (latestOffset === null) return null;
+			// Clear immediately when the latest take no longer leans the cue's
+			// way, including silence/uncertain input, rather than showing stale
+			// advice: a player who has just retuned sees it go.
+			const latest = takeLean(current);
+			if (Math.abs(latest) < LEAN_CENTS) return null;
+			const sign = Math.sign(latest);
 			const reliableTakes = takes.filter(t => t.length >= MIN_NOTES_PER_TAKE);
 			if (reliableTakes.length < MIN_TAKES) return null;
 			// Each take gets a vote too: a long phrase must not manufacture a
 			// pattern across several takes by outnumbering two short, in-tune ones.
-			const agreeingTakes = reliableTakes.filter(t => {
-				const offset = consistentOffset(t.map(s => s.cents));
-				return offset !== null && Math.sign(offset) === Math.sign(latestOffset);
-			}).length;
-			if (agreeingTakes < MIN_TAKES || agreeingTakes / reliableTakes.length < MIN_AGREEMENT) return null;
-			const samples = reliableTakes.flat();
+			const leaningTakes = reliableTakes.filter(t => takeLean(t) * sign >= LEAN_CENTS).length;
+			if (leaningTakes * 2 <= reliableTakes.length) return null;
 			const byPitch = new Map<number, number[]>();
-			for (const sample of samples) {
+			for (const sample of reliableTakes.flat()) {
 				const values = byPitch.get(sample.pitchClass) ?? [];
 				values.push(sample.cents);
 				byPitch.set(sample.pitchClass, values);
 			}
 			if (byPitch.size < MIN_PITCH_CLASSES) return null;
-			const noteOffset = consistentOffset(samples.map(s => s.cents));
 			const pitchOffset = consistentOffset([...byPitch.values()].map(median));
-			if (noteOffset === null || pitchOffset === null ||
-				Math.sign(noteOffset) !== Math.sign(latestOffset) ||
-				Math.sign(pitchOffset) !== Math.sign(latestOffset)) return null;
+			if (pitchOffset === null || Math.sign(pitchOffset) !== sign) return null;
 			return { direction: pitchOffset > 0 ? 'sharp' : 'flat', cents: Math.round(pitchOffset) };
 		}
 	};

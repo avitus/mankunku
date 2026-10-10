@@ -2847,3 +2847,17 @@ prior about a take is not evidence about the instrument. And the numbers
 quoted in shipped code (`frame-coverage.ts`'s "0.52 / 0.74 against >= 0.86")
 were copied from the instrument, so they go stale with it; a pointer to the
 report would not have.
+
+## 2026-10-10 — A threshold applied twice is a different threshold
+
+The tuning cue was specified as "a typical offset of at least 15 cents over
+three takes". The code applied 15 to every take's own median, then asked 80%
+of takes to clear it. Each half reads as the spec; together they are a rule
+about the 80th percentile of take medians, which for a player whose takes
+scatter ±5 around his centre is a 20-cent rule. Nothing in the unit tests
+could show that, because every test vector is a constant (22, 22, 22) with
+no scatter — a constant passes any percentile. The production replay found
+it in one run: 1943 takes, one cue. The fader bank, built a week later over
+the same clean samples with a single pooled median, agreed with the player's
+ear immediately. When a rule says "typical", compute one typical value and
+test it once; and when pinning a threshold, include a vector that scatters.
