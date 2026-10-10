@@ -15,6 +15,23 @@ function makeReading(midi: number, time: number, cents = 0, clarity = 0.95): Pit
 }
 
 describe('segmentNotes', () => {
+	/** A short D whose raw fundamental settles before its octave stabilizer. */
+	function shortD(confirmedLower = false): PitchReading[] {
+		return Array.from({ length: 8 }, (_, i) => ({
+			...makeReading(i < 6 ? 50 : 62, i / 60),
+			warmup: i < 3 && !confirmedLower,
+			frequency: i < 3 ? 146.83 : 293.66
+		}));
+	}
+
+	it('uses the settled raw octave when warmup and inertia outvote a short note', () => {
+		expect(segmentNotes(shortD(), [0], 0.2).map((n) => n.midi)).toEqual([62]);
+	});
+
+	it('retains a confirmed lower octave even when a brief upper tail has more raw frames', () => {
+		expect(segmentNotes(shortD(true), [0], 0.2).map((n) => n.midi)).toEqual([50]);
+	});
+
 	it('segments readings at onset boundaries', () => {
 		const readings: PitchReading[] = [
 			makeReading(60, 0.0),

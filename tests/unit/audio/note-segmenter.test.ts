@@ -23,6 +23,53 @@ function frames(specs: Array<{ midi: number; octaveUp?: boolean; warmup?: boolea
 	return specs.map((s, i) => reading(s.midi, 0.1 + i * 0.05, s));
 }
 
+describe('findReArticulations: instrument-band evidence at a baseline onset', () => {
+	const onset = 0.6;
+	/** Energy evidence survives an octave glitch and the following warmup. */
+	function bandStop(): PitchReading[] {
+		return Array.from({ length: 60 }, (_, i) => {
+			const time = i / 60;
+			const inStop = time >= 0.48 && time < onset;
+			return {
+				...reading(inStop ? 48 : 60, time),
+				frequency: inStop ? 130.81 : 261.63,
+				warmup: time >= onset && time < 0.7,
+				rmsMin: 0.095,
+				bandRmsMin: inStop ? 0.03 : 0.09
+			};
+		});
+	}
+
+	it('corroborates a baseline boundary even when the click rule would suppress it', () => {
+		expect(findReArticulations(bandStop(), [onset], [onset - 0.1])).toEqual([onset]);
+	});
+
+	it('does not create a boundary where there was no baseline onset', () => {
+		expect(findReArticulations(bandStop(), [], [onset - 0.1])).toEqual([]);
+	});
+
+	it('rejects a click on a held note with no instrument-band stop', () => {
+		const readings = bandStop().map((r) => ({ ...r, bandRmsMin: 0.09 }));
+		expect(findReArticulations(readings, [onset], [onset - 0.1])).toEqual([]);
+	});
+
+	it('rejects a falling note whose band floor never recovers', () => {
+		const readings = bandStop().map((r) => ({ ...r, bandRmsMin: r.time >= onset ? 0.04 : r.bandRmsMin }));
+		expect(findReArticulations(readings, [onset])).toEqual([]);
+	});
+
+	it('does not borrow recovery from a different pitch class', () => {
+		const readings = bandStop().map((r) => r.time >= onset ? { ...r, midi: 62, midiFloat: 62 } : r);
+		expect(findReArticulations(readings, [onset])).toEqual([]);
+	});
+
+	it('requires band measurements throughout the evidence window', () => {
+		const readings: PitchReading[] = bandStop();
+		delete readings[30].bandRmsMin;
+		expect(findReArticulations(readings, [onset])).toEqual([]);
+	});
+});
+
 describe('mergeWholeNoteOctaveUpLocks', () => {
 	it('drops a whole-note 2nd-harmonic lock an octave (majority of frames flagged)', () => {
 		const notes = [note(64, 0, 1)]; // detected E4, actually a locked E3
@@ -471,6 +518,29 @@ describe('findReArticulations: broken-entry short-gap path', () => {
 	it('does not split when energy falls through the hole — a release that broke shape', () => {
 		expect(findReArticulations(entryRun([0.06, 0.17], 0.08), [0.1])).toEqual([]);
 	});
+
+	/** Quiet partial reset with a modest band dip, too shallow for stop-and-hold. */
+	function quietEntry(): PitchReading[] {
+		const readings = entryRun([0.33, 0.65]);
+		for (let i = 28; i < 33; i++) readings[i].bandRmsMin = 0.073;
+		return readings;
+	}
+
+	it('keeps a quiet partial reed reset with a band dip and sustained energy', () => {
+		expect(findReArticulations(quietEntry(), [0.1])).toEqual([resume - 0.02]);
+	});
+
+	it('rejects the same partial reset when a broadband click supplies the disturbance', () => {
+		const readings = quietEntry();
+		for (let i = 28; i < 33; i++) readings[i].hfRms = 0.03;
+		expect(findReArticulations(readings, [0.1])).toEqual([]);
+	});
+
+	it('rejects a quiet partial reset on an already rough tone', () => {
+		const readings = quietEntry();
+		for (let i = 0; i < 28; i++) readings[i].shapeBreak = 0.9;
+		expect(findReArticulations(readings, [0.1])).toEqual([]);
+	});
 });
 
 /**
@@ -755,6 +825,12 @@ describe('findReArticulations: envelope dip-recover tier', () => {
 		// 2026-09-16 sharp-9-flat-9-dom: the D re-blooming after a ghost-note
 		// hole reads 0.842 across the same kind of dip.
 		expect(findReArticulations(dipRun({ dipShape: 0.842, rebloom: true }), [0.1])).toEqual([]);
+	});
+
+	it('credits a deep reset only with an independent instrument-band dip and recovery', () => {
+		const readings = dipRun({ dipShape: 0.81, rebloom: true });
+		for (const i of DIP) readings[i].bandRmsMin = 0.05;
+		expect(findReArticulations(readings, [0.1])).toEqual([recovery - 0.02]);
 	});
 
 	it('does not credit a shape break on a breathy tone — the shape signal is noise under SHAPE_CLEAN_BASELINE', () => {
