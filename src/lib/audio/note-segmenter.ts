@@ -1143,6 +1143,24 @@ function pickMidi(readings: PitchReading[], prevMidi: number | null): number {
 			}
 		}
 	}
+	// A short note can end before the stabilizer catches up with its raw
+	// fundamental (2026-10-10 Climb Through the Blue: D4 held as D3 for two
+	// inertia frames after warmup). Only reconsider an UNCONFIRMED octave,
+	// and only for an octave present in the readings with more raw support.
+	const confirmed = readings.filter(
+		(r) => !r.warmup && r.midi === bestMidi &&
+			Math.round(12 * Math.log2(r.frequency / 440) + 69) === bestMidi
+	).length;
+	if (confirmed < OCTAVE_CONFIRM_FRAMES) {
+		for (const midi of octaveWeights.keys()) {
+			if (Math.abs(midi - bestMidi) !== 12) continue;
+			const rawCount = rawMidiMatchCount(readings, midi);
+			if (rawCount >= OCTAVE_CONFIRM_FRAMES && rawCount > rawMidiMatchCount(readings, bestMidi)) {
+				bestMidi = midi;
+				break;
+			}
+		}
+	}
 	return bestMidi;
 }
 
@@ -1628,6 +1646,35 @@ const RE_ARTICULATION_GAP_SUSTAIN = 0.85;
 const RE_ARTICULATION_BROKEN_ENTRY_SHAPE = 0.25;
 
 /**
+ * A quieter tongue can partially break periodicity without increasing
+ * broadband noise (2026-10-10 Flat Five Chromatic Down: shape 0.33/0.65,
+ * no HF rise, a band-floor dip and sustained energy across an 83 ms hole).
+ * Partial breaks need all that extra evidence; shape alone still needs the
+ * deep broken-entry gate above. A click normally raises HF energy instead.
+ */
+const QUIET_ENTRY_MAX_SHAPE = 0.7;
+const QUIET_ENTRY_MAX_HF_RISE = 1.5;
+const QUIET_ENTRY_CONTEXT_FRAMES = 8;
+
+/** Partial reed break plus a quiet instrument-band dip at a short gap. */
+function hasQuietBrokenEntry(stable: PitchReading[], gapIndex: number): boolean {
+	const entry = stable.slice(gapIndex - 2, gapIndex);
+	if (entry.length !== 2 || entry.some((r) => r.shapeBreak == null || r.shapeBreak >= QUIET_ENTRY_MAX_SHAPE)) {
+		return false;
+	}
+	const pre = stable.slice(Math.max(0, gapIndex - QUIET_ENTRY_CONTEXT_FRAMES), gapIndex - 2);
+	const hf = median(pre.map((r) => r.hfRms ?? 0));
+	return (
+		pre.length >= 3 && hf > 0 &&
+		median(pre.map((r) => r.shapeBreak ?? 0)) >= SHAPE_CLEAN_BASELINE &&
+		stable.slice(gapIndex - 2, gapIndex + 3).every(
+			(r) => r.hfRms != null && r.hfRms < hf * QUIET_ENTRY_MAX_HF_RISE
+		) &&
+		bandFloorDips(stable, gapIndex - 2, Math.min(stable.length, gapIndex + 3))
+	);
+}
+
+/**
  * Stop-and-hold acceptance for the short-gap tier: the tongue that stops the
  * horn and restarts it a shade softer, ON a click.
  *
@@ -1899,8 +1946,11 @@ function feathersTongueShape(stable: PitchReading[], from: number, to: number): 
  * Whether the envelope-dip span [from, to) carries a reed reset: a waveform-
  * shape break judged by the shape tier's own gates. The run's shape baseline
  * must clear SHAPE_CLEAN_BASELINE, and the span's deepest break must stand
- * SHAPE_MIN_DROP below it without falling under SHAPE_MIN_PERIODICITY.
- * Periodicity that is destroyed rather than dented is contamination or a
+ * SHAPE_MIN_DROP below it. A shallow break retains SHAPE_MIN_PERIODICITY.
+ * A deeper break also needs an instrument-band floor dip AND recovery.
+ * Full-band recovery alone can come from a click during a fade; the band
+ * must independently restart (2026-10-10 Blue Note Step-Up).
+ * Without that evidence, destroyed periodicity is contamination or a
  * note's own attack settling (2026-09-16 sharp-9-flat-9-dom: the D
  * re-blooming after a ghost-note hole reads 0.842 across a dip of the same
  * depth). Every span frame must carry a measurable break, as in
@@ -1921,7 +1971,33 @@ function resetsReed(stable: PitchReading[], from: number, to: number): boolean {
 		if (s == null) return false;
 		if (s < minShape) minShape = s;
 	}
-	return minShape <= baseline - SHAPE_MIN_DROP && minShape >= SHAPE_MIN_PERIODICITY;
+	return (
+		minShape <= baseline - SHAPE_MIN_DROP &&
+		(minShape >= SHAPE_MIN_PERIODICITY ||
+			(bandFloorDips(stable, from, to) && bandFloorRecovers(stable, from, to)))
+	);
+}
+
+/**
+ * Require instrument-band recovery after a deep shape reset. The median over
+ * the envelope recovery window must rise from the dip by the same bloom ratio
+ * used for soft re-attacks. Three measured frames prevent a single click or a
+ * truncated tail from vouching for recovery; missing band data cannot prove it.
+ */
+function bandFloorRecovers(stable: PitchReading[], from: number, to: number): boolean {
+	let floor = Infinity;
+	for (let i = from; i < to; i++) {
+		const band = stable[i].bandRmsMin;
+		if (band == null) return false;
+		floor = Math.min(floor, band);
+	}
+	const post: number[] = [];
+	for (let i = to; i < stable.length && stable[i].time - stable[to - 1].time <= ENV_RECOVER_WINDOW; i++) {
+		const band = stable[i].bandRmsMin;
+		if (band == null) return false;
+		post.push(band);
+	}
+	return post.length >= 3 && median(post) > floor * RE_ARTICULATION_GAP_BLOOM_RISE;
 }
 
 /**
@@ -2133,6 +2209,9 @@ export function findReArticulations(
 
 	const onsets: number[] = [];
 	const runs = findSameMidiRuns(readings);
+	for (const onset of sortedBase) {
+		if (hasBandStopAtOnset(readings, onset)) onsets.push(onset);
+	}
 	for (const run of runs) {
 		// Pass the FULL reading stream so the gap pass can distinguish a true
 		// detector silence from a warmup-bridged hole (findSameMidiRuns drops
@@ -2155,7 +2234,35 @@ export function findReArticulations(
 	// ATTACK_DEDUP_WINDOW) don't create a new boundary, but we keep them in the
 	// output because the caller uses the list as attack evidence so the merge
 	// pass keeps the split — duplicates are harmless once sorted.
-	return onsets;
+	return onsets.sort((a, b) => a - b);
+}
+
+/**
+ * A baseline onset can coincide with a metronome click AND a real tongue.
+ * Climb Through the Blue (2026-10-10) loses its C repeat because the click
+ * rule erases the worklet boundary while an octave glitch and warmup split
+ * the same-MIDI run. Its instrument-band floor falls by over half and then
+ * recovers. Measure that evidence across octaves and warmup frames, which
+ * still contain valid energy measurements; require the same pitch class
+ * throughout, so a neighbouring note's attack cannot vouch for this one.
+ * This only corroborates an existing boundary; it invents no new times.
+ */
+function hasBandStopAtOnset(readings: PitchReading[], onset: number): boolean {
+	const pre = readings.filter((r) => r.time >= onset - 0.25 && r.time < onset - 0.15);
+	const stop = readings.filter((r) => r.time >= onset - 0.15 && r.time < onset);
+	const post = readings.filter((r) => r.time >= onset && r.time < onset + ENV_RECOVER_WINDOW);
+	if (pre.length < 3 || stop.length < 2 || post.length < 3) return false;
+	const pc = pre[0].midi % 12;
+	if ([...pre, ...stop, ...post].some((r) => r.midi % 12 !== pc || r.bandRmsMin == null)) return false;
+	const baseline = median(pre.map((r) => r.bandRmsMin!));
+	const floor = Math.min(...stop.map((r) => r.bandRmsMin!));
+	const recovered = median(post.map((r) => r.bandRmsMin!));
+	return (
+		baseline >= BAND_FLOOR_STOP_MIN_SUSTAIN &&
+		stop.filter((r) => r.bandRmsMin! < baseline * 0.5).length >= 2 &&
+		recovered >= baseline * RE_ARTICULATION_GAP_HOLD &&
+		recovered >= floor * 2
+	);
 }
 
 interface SameMidiRun {
@@ -2482,6 +2589,8 @@ function findReArticulationsInSegment(
 					s1 <= RE_ARTICULATION_BROKEN_ENTRY_SHAPE &&
 					s2 <= RE_ARTICULATION_BROKEN_ENTRY_SHAPE &&
 					postRms >= preRms * RE_ARTICULATION_GAP_SUSTAIN;
+				brokenEntry ||= hasQuietBrokenEntry(stable, g) &&
+					postRms >= preRms * RE_ARTICULATION_GAP_SUSTAIN;
 			}
 			// Stop-and-hold path: the horn audibly stopped across the hole and
 			// then held its level — see the RE_ARTICULATION_GAP_BAND_STOP block
@@ -2605,7 +2714,10 @@ function findReArticulationsInSegment(
 			// windows overlap the same physical dip, so a 20–30 ms dip shows
 			// up on several consecutive frames.
 			let j = e;
-			while (j < stable.length && (stable[j].rmsMin ?? Infinity) < local * ENV_DIP_RATIO) j++;
+			while (
+				j < stable.length && j - e <= ENV_MAX_SPAN_FRAMES &&
+				(stable[j].rmsMin ?? Infinity) < local * ENV_DIP_RATIO
+			) j++;
 
 			// Reading gaps in or around the span belong to the gap tiers —
 			// firing here too would bypass their warmup-bridge and energy
@@ -2618,7 +2730,15 @@ function findReArticulationsInSegment(
 					break;
 				}
 			}
-			if (hasGap || j - e > ENV_MAX_SPAN_FRAMES) {
+			if (j - e > ENV_MAX_SPAN_FRAMES) {
+				// Rebase the local level instead of skipping the entire fade: a
+				// real tongue can occur later inside a gradual decrescendo
+				// (2026-10-10 Blue Note Step-Up). The bounded scan above keeps
+				// this linear even for a long fading sustain.
+				e++;
+				continue;
+			}
+			if (hasGap) {
 				e = j + 1;
 				continue;
 			}

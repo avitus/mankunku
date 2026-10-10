@@ -5044,3 +5044,23 @@ docstring. M5 precision reads that tailed roll.
   main checkout. Hazard left behind: a worktree still on the old history that
   runs a plain `git rebase origin/dev` replays the research commits and
   re-adds the takes; rebase with `--onto origin/dev <old tip>` instead.
+
+## 2026-10-08 — Harness M5 precision now uses the app's rule
+
+Andy: yes to both follow-ups. (1) Harness M5 precision mirrors
+`frame-coverage.ts`: `metrics.precision_masks` — any note whose
+[start, end + 0.12 s] holds a frame may match it, slots run the full notated
+length from the swung onset, and only frames from 0.25 s before the line to
+one beat after it count. Refactor first (snapshot-identical), then RED on the
+two differences (release credit across a note change; the window), then
+GREEN; `piano_roll` lost its now-unused tail. Recall stays frame-based (the
+app's is per note) — said so in REPORT. (2) The app's comment and test header
+now quote 0.57 / 0.83 against a clean-take p10 of 0.95.
+
+- Re-ran everything: only M5 columns moved again. E4 rule still 10/10 for
+  M5; E2 M5 hold 0.65; honeysuckle-rose 0.86, just under the clean p10.
+- Mid-task, dev was force-pushed by another session to purge the take
+  folders (public repo). My 3cae0253 became ed2e1ca2; moved this commit with
+  `rebase --onto origin/dev 3cae0253`, backing up the take folders first,
+  because checking out the rewritten history deletes files that the old
+  base tracked.

@@ -18,11 +18,11 @@
  * score is a recall measure and pairs notes, so it is blind to extras and one
  * false note can re-pair its neighbours; a frame measure never pairs. On the
  * recorded-take corpus and 378 Firefox takes it ranked with what was actually
- * played at 0.6–0.8, read the two inflated Wail takes at 0.52 / 0.74
- * precision against >= 0.86 on clean takes, and caught a production take the
- * pairing cascade had saved as 3 of 9 with eight notes audible. The two
- * measures disagree exactly where one of them is wrong, which is the point
- * of showing both.
+ * played at 0.6–0.8, read the two inflated Wail takes at 0.57 / 0.83
+ * precision against a clean-take p10 of 0.95 (this rule, re-measured
+ * 2026-10-08), and caught a production take the pairing cascade had saved as
+ * 3 of 9 with eight notes audible. The two measures disagree exactly where
+ * one of them is wrong, which is the point of showing both.
  */
 
 import type { Note } from '$lib/types/music';

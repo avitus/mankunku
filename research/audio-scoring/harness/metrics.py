@@ -273,32 +273,24 @@ def dtw_similarity(take_f: Features, ref_f: Features, feat: str, k: int, band_se
 # ----------------------------------------------------------------------------
 # M5: frame-level pitch coverage (segmentation-free, no synthesis)
 # ----------------------------------------------------------------------------
+# The precision rule mirrors the app's audio check (src/lib/scoring/frame-coverage.ts) so these numbers
+# describe what shipped: AUDIO_CHECK_RELEASE_SECONDS, WINDOW_LEAD_SECONDS, WINDOW_TAIL_BEATS.
 RELEASE_TOLERANCE = 0.12  # s after a note's end where its own pitch still sounding is not an extra
+WINDOW_LEAD_SECONDS = 0.25  # frames this far before the first note still count (a slightly early entry)
+WINDOW_TAIL_BEATS = 1.0  # frames up to one beat after the line still count
 
 
-def piano_roll(expected: list[ExpectedNote], frames: int, lag_frames: int, tail: float = 0.0) -> np.ndarray:
-    """Expected MIDI per frame (nan = rest); a note owns its frames from its
-    own onset. With `tail`, each note is extended by that many seconds into
-    frames no note occupies, so a release never hides the start of the next
-    note; where two releases reach the same rest, the later note's wins.
-    (Until 2026-10-08 the notes were written in reverse onset order with the
-    tail, so each tail overwrote the first 0.12 s of the note after it.)"""
+def piano_roll(expected: list[ExpectedNote], frames: int, lag_frames: int) -> np.ndarray:
+    """Expected MIDI per frame (nan = rest); where notes overlap, the later
+    one owns its frames from its own onset. (Until 2026-10-08 this also drew
+    the release tail precision read, writing notes in reverse onset order, so
+    each tail overwrote the first 0.12 s of the note after it; precision now
+    uses precision_masks.)"""
     roll = np.full(frames, np.nan)
-    notes = sorted(expected, key=lambda n: n.onset)
-
-    def span(n: ExpectedNote, extra: float) -> slice:
-        """Frames from the note's onset to `extra` s past its notated end, clipped to the roll."""
+    for n in sorted(expected, key=lambda n: n.onset):
         a = lag_frames + int(round(n.onset / FRAME_SECONDS))
-        b = lag_frames + int(round((n.onset + n.duration + extra) / FRAME_SECONDS))
-        return slice(max(0, a), max(0, min(frames, b)))
-
-    for n in notes:
-        roll[span(n, 0.0)] = n.midi
-    if tail > 0:
-        occupied = ~np.isnan(roll)
-        for n in notes:
-            s = span(n, tail)
-            roll[s] = np.where(occupied[s], roll[s], n.midi)
+        b = lag_frames + int(round((n.onset + n.duration) / FRAME_SECONDS))
+        roll[max(0, a):max(0, min(frames, b))] = n.midi
     return roll
 
 
@@ -312,34 +304,57 @@ def required_roll(expected: list[ExpectedNote], frames: int, lag_frames: int, te
     return piano_roll(short, frames, lag_frames)
 
 
+def _pitch_matches(f0: np.ndarray, pitch, octave_insensitive: bool, tolerance_st: float) -> np.ndarray:
+    """Frames whose f0 lies within `tolerance_st` of `pitch` (a MIDI number or
+    a per-frame roll; the difference folded into ±6 st when octave-insensitive);
+    False where either is nan."""
+    with np.errstate(invalid="ignore"):
+        d = f0 - pitch
+        if octave_insensitive:
+            d = (d + 6) % 12 - 6
+        return np.abs(d) <= tolerance_st
+
+
+def precision_masks(f0: np.ndarray, sounded: np.ndarray, expected: list[ExpectedNote], lag_frames: int,
+                    octave_insensitive: bool, tempo: float, tolerance_st: float = 0.5) -> tuple[np.ndarray, np.ndarray]:
+    """(precise, counted) frame masks for M5 precision, by the rule the app
+    ships (frame-coverage.ts `frameCoverage`). Each note's slot runs from its
+    swung onset for its full notated length at `tempo`. Counted: sounded
+    frames from WINDOW_LEAD_SECONDS before the first slot to WINDOW_TAIL_BEATS
+    after the last. Precise: counted frames that ANY slot whose
+    [start, end + RELEASE_TOLERANCE] holds them matches within `tolerance_st`,
+    so around a note change both the note being released and the note
+    starting are precise."""
+    beat = 60.0 / tempo
+    t = (np.arange(len(f0)) - lag_frames) * FRAME_SECONDS  # phrase time of each frame
+    slots = [(n.onset, n.onset + float(n.duration_frac) * 4 * beat, n.midi) for n in expected]
+    counted = sounded & (t >= min(a for a, _, _ in slots) - WINDOW_LEAD_SECONDS) \
+        & (t <= max(b for _, b, _ in slots) + WINDOW_TAIL_BEATS * beat)
+    precise = np.zeros(len(f0), dtype=bool)
+    for a, b, midi in slots:
+        precise |= (t >= a) & (t <= b + RELEASE_TOLERANCE) & _pitch_matches(f0, midi, octave_insensitive, tolerance_st)
+    return precise & counted, counted
+
+
 def m5_frame_coverage(take_f: Features, expected: list[ExpectedNote], lag_frames: int,
-                      octave_insensitive: bool, tolerance_st: float = 0.5, tempo: float | None = None) -> Result:
+                      octave_insensitive: bool, tempo: float, tolerance_st: float = 0.5) -> Result:
     """Frame-level pitch coverage of the take's pyin f0 against the expected
-    piano roll placed at `lag_frames`. Precision: share of sounded (voiced,
-    gated-on) frames within `tolerance_st` of the roll with each note's
-    RELEASE_TOLERANCE filling the rest after it (piano_roll's tail); recall:
-    share of expected frames matched; F1 of both.
-    With `tempo`, recall_hold counts only each note's required part (half its
-    length or one beat); without it, it equals recall."""
+    line placed at `lag_frames`. Precision: the app's rule (precision_masks):
+    of the sounded (voiced, gated-on) frames inside the line's window, the
+    share some note's slot or release matches within `tolerance_st`. Recall:
+    share of the piano roll's frames matched (the app's recall is per note
+    instead); recall_hold counts only each note's required part (half its
+    length or one beat at `tempo`); F1 of precision with each."""
     f0 = f0_track(take_f)
     T = take_f.frames
     roll = piano_roll(expected, T, lag_frames)
-    roll_tail = piano_roll(expected, T, lag_frames, tail=RELEASE_TOLERANCE)
     sounded = ~np.isnan(f0) & take_f.sounding
     exp_on = ~np.isnan(roll)
-    req_on = ~np.isnan(required_roll(expected, T, lag_frames, tempo)) if tempo else exp_on
+    req_on = ~np.isnan(required_roll(expected, T, lag_frames, tempo))
 
-    def matches(r):
-        """Frames that sound and lie within `tolerance_st` of roll `r` (the
-        difference folded into ±6 st when octave-insensitive); False in rests."""
-        d = f0 - r
-        if octave_insensitive:
-            d = (d + 6) % 12 - 6
-        return sounded & ~np.isnan(r) & (np.abs(d) <= tolerance_st)
-
-    match = matches(roll)
-    match_or_release = matches(roll_tail)
-    precision = match_or_release.sum() / max(1, sounded.sum())
+    match = sounded & _pitch_matches(f0, roll, octave_insensitive, tolerance_st)
+    precise, counted = precision_masks(f0, sounded, expected, lag_frames, octave_insensitive, tempo, tolerance_st)
+    precision = precise.sum() / max(1, counted.sum())
     recall = match.sum() / max(1, exp_on.sum())
     recall_hold = (match & req_on).sum() / max(1, req_on.sum())
     f1 = 2 * precision * recall / max(1e-9, precision + recall)

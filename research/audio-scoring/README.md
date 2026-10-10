@@ -24,7 +24,8 @@ verdict and numbers are in [REPORT.md](REPORT.md).
 - `harness/metrics.py` — M1 raw cross-correlation, M2 onset-envelope
   cross-correlation, M3 chroma similarity (no warp / banded DTW), M4 the same
   on the semitone map (register-aware), M5 frame-level pitch coverage
-  (precision/recall/F1 of pyin frames against the expected piano roll).
+  (precision/recall/F1 of pyin frames against the expected line; precision
+  by the app's own rule in `src/lib/scoring/frame-coverage.ts`).
 - `harness/prod_import.py` / `harness/prod_eval.py <folder>` — pull and score
   production takes (E5); the evaluator runs own-lick scoring over any take
   folder (`prod`, `firefox`).
@@ -37,7 +38,8 @@ verdict and numbers are in [REPORT.md](REPORT.md).
   other licks), E2 agreement with the per-take truth, E3 named cases,
   E4 controlled perturbations. Writes `results/`.
 - `harness/selftest.py` — invariants every metric must hold (self-similarity,
-  lag recovery, semitone and octave sensitivity, cross-timbre, trailing extra).
+  lag recovery, semitone and octave sensitivity, cross-timbre, trailing extra,
+  M5 precision's release credit and window).
 - `harness/inspect_take.py <id>` — spectrogram + expected roll + f0 overlay.
 - `takes/truth.yaml` — what each take actually sounded, as pinned by its
   fixture test; `takes/downloads/` — Andy's diagnostic exports that never

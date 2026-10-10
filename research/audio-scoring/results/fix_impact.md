@@ -42,7 +42,7 @@ Sessions with at least one extra: 895 of 1943; with a GATED extra: 550; mean ext
 
 ### Audio cross-check (Firefox lick practice)
 
-Takes F1 gated charges: 87 of 356 (mean drop 0.106). Their DTW precision median 0.81 vs 0.94 for uncharged takes; frame precision 0.62 vs 0.85.
+Takes F1 gated charges: 87 of 356 (mean drop 0.106). Their DTW precision median 0.81 vs 0.94 for uncharged takes; frame precision 0.70 vs 0.93.
 
 Spearman(drop under F1 gated, DTW precision) over charged takes: -0.04 (negative = bigger drops where the audio also reads lower).
 
