@@ -1947,9 +1947,9 @@ function feathersTongueShape(stable: PitchReading[], from: number, to: number): 
  * shape break judged by the shape tier's own gates. The run's shape baseline
  * must clear SHAPE_CLEAN_BASELINE, and the span's deepest break must stand
  * SHAPE_MIN_DROP below it. A shallow break retains SHAPE_MIN_PERIODICITY.
- * A deeper break also needs an instrument-band floor dip: the envelope
- * pass has already required recovery, so this proves a stop and restart
- * rather than added click energy (2026-10-10 Blue Note Step-Up).
+ * A deeper break also needs an instrument-band floor dip AND recovery.
+ * Full-band recovery alone can come from a click during a fade; the band
+ * must independently restart (2026-10-10 Blue Note Step-Up).
  * Without that evidence, destroyed periodicity is contamination or a
  * note's own attack settling (2026-09-16 sharp-9-flat-9-dom: the D
  * re-blooming after a ghost-note hole reads 0.842 across a dip of the same
@@ -1973,8 +1973,31 @@ function resetsReed(stable: PitchReading[], from: number, to: number): boolean {
 	}
 	return (
 		minShape <= baseline - SHAPE_MIN_DROP &&
-		(minShape >= SHAPE_MIN_PERIODICITY || bandFloorDips(stable, from, to))
+		(minShape >= SHAPE_MIN_PERIODICITY ||
+			(bandFloorDips(stable, from, to) && bandFloorRecovers(stable, from, to)))
 	);
+}
+
+/**
+ * Require instrument-band recovery after a deep shape reset. The median over
+ * the envelope recovery window must rise from the dip by the same bloom ratio
+ * used for soft re-attacks. Three measured frames prevent a single click or a
+ * truncated tail from vouching for recovery; missing band data cannot prove it.
+ */
+function bandFloorRecovers(stable: PitchReading[], from: number, to: number): boolean {
+	let floor = Infinity;
+	for (let i = from; i < to; i++) {
+		const band = stable[i].bandRmsMin;
+		if (band == null) return false;
+		floor = Math.min(floor, band);
+	}
+	const post: number[] = [];
+	for (let i = to; i < stable.length && stable[i].time - stable[to - 1].time <= ENV_RECOVER_WINDOW; i++) {
+		const band = stable[i].bandRmsMin;
+		if (band == null) return false;
+		post.push(band);
+	}
+	return post.length >= 3 && median(post) > floor * RE_ARTICULATION_GAP_BLOOM_RISE;
 }
 
 /**

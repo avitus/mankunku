@@ -832,6 +832,22 @@ describe('findReArticulations: envelope dip-recover tier', () => {
 		for (const i of DIP) readings[i].bandRmsMin = 0.05;
 		expect(findReArticulations(readings, [0.1])).toEqual([recovery - 0.02]);
 	});
+	it.each(['flat', 'fading', 'one-frame bounce'] as const)(
+		'does not split a fading note when a click restores full-band energy but the instrument band is %s',
+		(after) => {
+			const readings = dipRun({ dipShape: 0.81, rebloom: true });
+			for (const i of DIP) readings[i].bandRmsMin = 0.05;
+			for (let i = 32; i < readings.length; i++) {
+				readings[i].bandRmsMin =
+					after === 'one-frame bounce' && i === 32
+						? 0.09
+						: after === 'fading'
+							? 0.05 * Math.pow(0.98, i - 31)
+							: 0.05;
+			}
+			expect(findReArticulations(readings, [0.1])).toEqual([]);
+		}
+	);
 
 	it('does not credit a shape break on a breathy tone — the shape signal is noise under SHAPE_CLEAN_BASELINE', () => {
 		expect(findReArticulations(dipRun({ baseShape: 0.96, dipShape: 0.93, rebloom: true }), [0.1])).toEqual([]);
