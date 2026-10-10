@@ -129,7 +129,7 @@ The catalog holds 1123 licks — 652 written by hand and 471 built by the combin
 | V-I (Min) | 2 | 2 | ✓ |
 | Diminished Chord | 2 | 2 | |
 
-The **minor-key** categories are stored in C minor and labelled as minor keys (*Dm*, *Gm* …) wherever they appear; in Modal and Pentatonic the minor lines (Dorian, Aeolian, minor pentatonic) read as minor on their own. The sections below walk through the largest groupings; the rest are smaller chord- and pattern-focused collections that round out the catalog. Counts will drift as licks are added. (The category pills in the lick editor also offer **Triad Pairs** — the category the triad-pair trick belongs to; no catalog licks are filed there.)
+The **minor-key** categories are stored in C minor and labelled as minor keys (*D-*, *G-* …) wherever they appear; in Modal and Pentatonic the minor lines (Dorian, Aeolian, minor pentatonic) read as minor on their own. The sections below walk through the largest groupings; the rest are smaller chord- and pattern-focused collections that round out the catalog. Counts will drift as licks are added. (The category pills in the lick editor also offer **Triad Pairs** — the category the triad-pair trick belongs to; no catalog licks are filed there.)
 
 Eight additional hand-written collections feed the categories above rather than standing on their own: **Major 4th & 7th** (40 licks) and its **volume 2** (40 more), which land mostly in ii-V-I (Maj) and Bebop with a few in Digital Patterns and Major Chord; the blues **blue-note** collection (75 licks) in Blues; and four **colour-tone** collections in Modal — **Lydian #4**, **Dorian 6**, **Aeolian b6** and **Mixolydian b7**, 40 licks each; and the **Major Pentatonic first lines** (40 licks) in Pentatonic.
 

@@ -276,7 +276,7 @@ export interface LickReport {
 	lickName: string;
 	/**
 	 * Progression this lick was drilled over — Daily Practice varies it per
-	 * lick, and the report's key chips read their mode from it ("Dm").
+	 * lick, and the report's key chips read their mode from it ("D-").
 	 * Optional for reports persisted before the field existed.
 	 */
 	progressionType?: ChordProgressionType;
