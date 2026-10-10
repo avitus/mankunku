@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { precedingCycleRow } from '$lib/ui/key-stack-layout';
-	import { keyLabel } from '$lib/music/notation';
+	import { keyChipLabel, keyLabel } from '$lib/music/notation';
 	import { abcjsLoader } from '$lib/notation/abcjs-loader';
 	import { onMount, onDestroy } from 'svelte';
 	import { goto } from '$app/navigation';
@@ -1981,7 +1981,7 @@
 								     penalty for the session that earned the key. -->
 								{lick.newTempo ?? lick.tempo} BPM
 								<span class="text-[var(--color-success)]" data-testid="unlocked-key">
-									· Adding {keyLabel(concertKeyToWritten(lick.unlockedKey, instrument), progressionMode(lick.progressionType ?? currentProgressionType))} next time
+									· Adding {keyChipLabel(concertKeyToWritten(lick.unlockedKey, instrument), progressionMode(lick.progressionType ?? currentProgressionType))} next time
 								</span>
 							{:else if lick.newTempo != null}
 								{@const delta = lick.newTempo - lick.tempo}
