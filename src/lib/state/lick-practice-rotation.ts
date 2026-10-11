@@ -61,7 +61,7 @@
  */
 
 import type { PitchClass } from '$lib/types/music';
-import type { FocusRamp } from '$lib/types/lick-practice';
+import type { FocusRamp, SingleLickRoundEntry } from '$lib/types/lick-practice';
 import { MAX_UNLOCKED_KEYS, planUnlockedKeys } from '$lib/music/key-ordering';
 import {
 	KEY_FLOOR_THRESHOLD,
@@ -559,4 +559,26 @@ export function cyclePositionAt(tick: number, args: CyclePositionArgs): CyclePos
 	}
 
 	return { segment: 'done', keyFraction: keyCount, beat: -1 };
+}
+
+/**
+ * The deep-practice report's per-key summary: the fastest tempo each key
+ * cleared at this session, `null` for a key played but never cleared.
+ * Played order first (it matches the score chips below it on the report),
+ * then any cleared key the played list doesn't name. Replaced the
+ * round-by-round list, which on a long session was mostly "no masteries".
+ */
+export function fastestClearByKey(
+	rounds: readonly SingleLickRoundEntry[],
+	playedKeys: readonly PitchClass[]
+): { key: PitchClass; tempo: number | null }[] {
+	const fastest = new Map<PitchClass, number | null>();
+	for (const key of playedKeys) if (!fastest.has(key)) fastest.set(key, null);
+	for (const { tempo, keys } of rounds) {
+		for (const key of keys) {
+			const best = fastest.get(key);
+			if (best == null || tempo > best) fastest.set(key, tempo);
+		}
+	}
+	return [...fastest].map(([key, tempo]) => ({ key, tempo }));
 }
