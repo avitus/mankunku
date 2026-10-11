@@ -16,7 +16,7 @@ Every phrase Side A plays comes from this catalog or your own book (licks you wr
 
 Each lick belongs to one harmonic category. Categories tell the app what context the lick *expects* — what chord or progression it's designed to fit over. They also tell you, the player, what kind of vocabulary you're drilling.
 
-The counts below are totals across the whole catalog, so they include the combinatorial licks, which carry the category of the melodic shape they were built from rather than a category of their own. Categories marked *(minor)* are minor-key vocabulary: those licks are stored in C minor and labelled as minor keys (*Dm*, *Gm* …) wherever they appear.
+The counts below are totals across the whole catalog, so they include the combinatorial licks, which carry the category of the melodic shape they were built from rather than a category of their own. Categories marked *(minor)* are minor-key vocabulary: those licks are stored in C minor and labelled as minor keys (*D-*, *G-* …) wherever they appear.
 
 | Category | What it is | Approximate count |
 |---|---|---|

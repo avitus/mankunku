@@ -775,7 +775,7 @@ export function getChordRootAtOffset(
  * Major or minor reading of a progression: templates are written in C, so
  * the tonic is the segment rooted on C; a minor-tonic quality (min7, min6,
  * minMaj7) makes the progression minor. Drives the session's key labels
- * ("Dm"), the super-phrase's `mode`, and the mode-matched transition cadence.
+ * ("D-"), the super-phrase's `mode`, and the mode-matched transition cadence.
  */
 export function progressionMode(progressionType: ChordProgressionType): Mode {
 	const tonic = PROGRESSION_TEMPLATES[progressionType]?.harmony.find(

@@ -122,9 +122,9 @@ test.describe('tricks', () => {
 		 */
 		const pill = (label: string) => signedInPage.getByRole('button', { name: label, exact: true });
 		await expect(pill('Major pair a whole step apart (C·D)')).toBeVisible();
-		await expect(pill('Major + minor a whole step apart (C·Dm)')).toHaveCount(0);
+		await expect(pill('Major + minor a whole step apart (C·D-)')).toHaveCount(0);
 		await expect(
-			signedInPage.getByText('🔒 Major + minor a whole step apart (C·Dm)', { exact: true })
+			signedInPage.getByText('🔒 Major + minor a whole step apart (C·D-)', { exact: true })
 		).toBeVisible();
 
 		// The second family waits on the first; nothing further down is "next".

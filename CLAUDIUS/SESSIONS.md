@@ -5064,3 +5064,52 @@ now quote 0.57 / 0.83 against a clean-take p10 of 0.95.
   `rebase --onto origin/dev 3cae0253`, backing up the take folders first,
   because checking out the rewritten history deletes files that the old
   base tracked.
+
+## 2026-10-10 — The sharp/flat cue never fires: a per-take gate, not a wiring bug
+
+Andy has never seen "Consistently sharp · check your tuning" although the
+fader bank on pause showed every pentatonic note sharp. Investigation only,
+no policy change (his call). Both tuning commits are on `origin/main`, so
+unlike 10-08 this is not a deploy gap.
+
+- Wiring is sound: `revealScore` records once per take with the final score,
+  `TuningNotice` is always in the DOM, the reset effect keys on instrument/
+  key/scale only. `cleanTuningSamples` passes 96.4% of matched notes (5880
+  matched; 2.5% under 0.9 clarity, 1.7% under 120 ms).
+- Replayed `createTuningMonitor` over all 1943 production takes (72 runs,
+  split on key change or a 10-minute gap): it fires on ONE take. The two
+  runs centred at exactly 15 ¢ got 1 take in 44.
+- Why: `consistentOffset` is applied to EACH take alone (median ≥ 15 ¢, 80%
+  of its notes ≥ 10 ¢ the same way, MAD ≤ 10), and then 80% of the window's
+  takes must pass it independently. In runs centred ≥ 10 ¢ only 60% of
+  notes sit ≥ 10 ¢ on the side, and take medians scatter ±5 around the run
+  centre, so a player centred at 15 fails half his takes by definition and
+  the 80% take vote finishes it. Effective threshold on the run centre:
+  about 20 ¢. The user guide promises "a typical offset of at least 15".
+- Andy's centres: 11 runs < 5 ¢, 36 at 5–10, 21 at 10–15, 2 at ≥ 15. The
+  faders colour "sharp" from 5 ¢; the cue's 15 is above where he usually
+  sits, so even a faithful 15-cent cue would be rare for him.
+- Proposed (measured, not shipped): judge the WINDOW's pitch-class medians
+  as the faders judge the run — centre ≥ ALERT, ≥ 80% of classes ≥ 5 ¢ on
+  that side, MAD ≤ 10 — with takes and the latest take only needing to
+  LEAN (median ≥ 5 ¢ same sign; a majority of takes), latest in-tune/
+  silent/1-note take still clears. All 17 existing test vectors keep their
+  verdicts. On production at 15 ¢: 11/23 runs centred ≥ 10 fire, 1/36 of
+  the 5–10 runs, 0/11 in-tune; the Oct 6 Eb run shows it on 60% of takes.
+  At 12 ¢: 21/23, 9/36, 0/11. At 10 ¢: 22/23, 19/36, 1 take in an in-tune
+  run. Hysteresis (enter 15 / hold 10) barely changes the counts.
+- Probes left uncommitted in `research/audio-scoring/ts/` (`tuning-replay`,
+  `tuning-proposal`), reading the main checkout's gitignored dump by
+  absolute path; tidy before committing with whichever threshold Andy picks.
+
+Andy: "let's start at 12 cents." Shipped test-first: RED on four vectors
+(the boundary at ±12, the 2026-10-06 Eb scatter, a sub-threshold take inside
+a sharp window), GREEN by reading the window's pitch-class medians with
+`consistentOffset` and asking takes only to LEAN ≥ 5 ¢ by majority.
+`ALERT_CENTS` stays the one constant the faders' ticks and `tuningTone`'s
+pole read, so the panel saturates where the cue speaks (the 6 ¢ tone test
+had baked in 51%, a number derived from 15; now asserts the step floor).
+`research/audio-scoring/ts/tuning-cue.test.ts` replays the real monitor over
+the dump → `results/tuning_cue.md`: 163 of 1943 takes, 21/23 sharp runs,
+9/36 mid, 0/11 in-tune; the Oct 6 Eb run shows the cue on 80% of takes.
+User guide and design-system doc updated to 12.

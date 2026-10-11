@@ -37,7 +37,7 @@ describe('ear-training tuning feedback', () => {
 
 	it.each([
 		['in tune', [0, -3, 4]],
-		['below the threshold', [14, 14, 14]],
+		['below the threshold', [11, 11, 11]],
 		['opposing deviations', [-25, 25, -20, 20]],
 		['one bent note', [0, 0, 35]],
 		['scattered sharp intonation', [10, 25, 48]]
@@ -46,11 +46,30 @@ describe('ear-training tuning feedback', () => {
 		for (let i = 0; i < 5; i++) expect(monitor.record(take(offsets as number[]))).toBeNull();
 	});
 
-	it.each([15, -15])('includes the alert boundary at %s cents', cents => {
+	it.each([12, -12])('includes the alert boundary at %s cents', cents => {
 		const monitor = createTuningMonitor();
 		monitor.record(take([cents, cents, cents]));
 		monitor.record(take([cents, cents, cents]));
 		expect(monitor.record(take([cents, cents, cents]))).toMatchObject({ cents });
+	});
+
+	it('2026-10-06 Eb run: takes that scatter around a sharp centre still earn the cue', () => {
+		// Every fader on pause read 14-25 ¢ sharp, yet no take alone cleared the
+		// old per-take gate: take medians sit ±5 ¢ around the run's centre, so a
+		// player centred at the threshold fails half his takes by definition.
+		const monitor = createTuningMonitor();
+		expect(monitor.record(take([18, 12, 9]))).toBeNull();
+		expect(monitor.record(take([14, 8, 16]))).toBeNull();
+		expect(monitor.record(take([11, 17, 13]))).toEqual({ direction: 'sharp', cents: 13 });
+	});
+
+	it('a take under the threshold does not veto a window centred above it', () => {
+		const monitor = createTuningMonitor();
+		monitor.record(take([16, 16, 16]));
+		monitor.record(take([9, 9, 9]));
+		monitor.record(take([16, 16, 16]));
+		monitor.record(take([9, 9, 9]));
+		expect(monitor.record(take([16, 16, 16]))).toEqual({ direction: 'sharp', cents: 16 });
 	});
 
 	it('does not mistake repetitions or octaves of one note for scale-wide tuning', () => {

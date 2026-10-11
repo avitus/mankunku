@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { precedingCycleRow } from '$lib/ui/key-stack-layout';
-	import { keyLabel } from '$lib/music/notation';
+	import { keyChipLabel, keyLabel } from '$lib/music/notation';
 	import { abcjsLoader } from '$lib/notation/abcjs-loader';
 	import { onMount, onDestroy } from 'svelte';
 	import { goto } from '$app/navigation';
@@ -52,6 +52,7 @@
 		resolveNextCycleStart,
 		planCycleWindows,
 		cyclePositionAt,
+		fastestClearByKey,
 		type CyclePositionArgs
 	} from '$lib/state/lick-practice-rotation';
 	import {
@@ -1932,25 +1933,22 @@
 						for daily practice.
 					</p>
 				{/if}
-				{#if sessionReport.keysMasteredByRound && sessionReport.keysMasteredByRound.length > 0}
-					<div class="space-y-1">
-						{#each sessionReport.keysMasteredByRound as r (r.round)}
-							<div class="flex items-center gap-2 text-xs">
-								<span class="w-20 shrink-0 text-[var(--color-text-secondary)]">
-									Round {r.round} · {r.tempo} BPM
-								</span>
-								<div class="flex flex-wrap gap-1">
-									{#if r.keys.length === 0}
-										<span class="italic text-[var(--color-text-secondary)]">no masteries</span>
-									{:else}
-										{#each r.keys as k}
-											<span class="rounded bg-[var(--color-success)]/20 px-1.5 py-0.5 text-[var(--color-success)]">
-												{keyLabel(concertKeyToWritten(k, instrument), progressionMode(currentProgressionType))}
-											</span>
-										{/each}
-									{/if}
-								</div>
-							</div>
+				{#if sessionReport.keysMasteredByRound && sessionReport.licks.length > 0}
+					{@const clears = fastestClearByKey(
+						sessionReport.keysMasteredByRound,
+						sessionReport.licks[0].keys.map((k) => k.key)
+					)}
+					<div class="flex flex-wrap items-center gap-1.5 text-xs">
+						<span class="mr-1 text-[var(--color-text-secondary)]">Fastest clear</span>
+						{#each clears as c (c.key)}
+							<span
+								class="rounded px-1.5 py-0.5 tabular-nums {c.tempo != null
+									? 'bg-[var(--color-success)]/20 text-[var(--color-success)]'
+									: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)]'}"
+							>
+								{keyLabel(concertKeyToWritten(c.key, instrument), progressionMode(currentProgressionType))}
+								{c.tempo ?? '—'}
+							</span>
 						{/each}
 					</div>
 				{/if}
@@ -1975,7 +1973,15 @@
 							</a>
 						{/if}
 						<span class="ml-2 text-xs text-[var(--color-text-secondary)]">
-							{#if lick.newTempo != null}
+							{#if lick.unlockedKey}
+								<!-- An unlock drops the tempo 10% to give the new key
+								     headroom; showing that as a red delta would read as a
+								     penalty for the session that earned the key. -->
+								{lick.newTempo ?? lick.tempo} BPM
+								<span class="text-[var(--color-success)]" data-testid="unlocked-key">
+									· Adding {keyChipLabel(concertKeyToWritten(lick.unlockedKey, instrument), progressionMode(lick.progressionType ?? currentProgressionType))} next time
+								</span>
+							{:else if lick.newTempo != null}
 								{@const delta = lick.newTempo - lick.tempo}
 								{lick.newTempo} BPM
 								<span class={delta > 0 ? 'text-[var(--color-success)]' : 'text-[var(--color-error-text)]'}>

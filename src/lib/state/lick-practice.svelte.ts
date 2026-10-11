@@ -259,6 +259,11 @@ export const lickPractice = $state<{
 	currentTempo: number;
 	keyResults: LickPracticeKeyResult[];
 	allAttempts: LickPracticeKeyResult[][];
+	/**
+	 * Standard sessions: the key each lick unlocked this session, indexed
+	 * like `allAttempts` (= plan index). Read by the report.
+	 */
+	sessionUnlocks: Partial<Record<number, PitchClass>>;
 	startTime: number;
 	elapsedSeconds: number;
 	progress: LickPracticeProgress;
@@ -321,6 +326,7 @@ export const lickPractice = $state<{
 	currentTempo: 100,
 	keyResults: [],
 	allAttempts: [],
+	sessionUnlocks: {},
 	startTime: 0,
 	elapsedSeconds: 0,
 	progress: {},
@@ -684,6 +690,7 @@ export function startSession(): void {
 	lickPractice.currentKeyIndex = 0;
 	lickPractice.keyResults = [];
 	lickPractice.allAttempts = [];
+	lickPractice.sessionUnlocks = {};
 	lickPractice.startTime = Date.now();
 	lickPractice.elapsedSeconds = 0;
 	lickPractice.roundNumber = 0;
@@ -838,6 +845,7 @@ export function startDailyPracticeSession(): void {
 	lickPractice.currentKeyIndex = 0;
 	lickPractice.keyResults = [];
 	lickPractice.allAttempts = [];
+	lickPractice.sessionUnlocks = {};
 	lickPractice.startTime = Date.now();
 	lickPractice.elapsedSeconds = 0;
 	lickPractice.roundNumber = 0;
@@ -990,6 +998,7 @@ export function startSingleLickSession(
 	lickPractice.currentKeyIndex = 0;
 	lickPractice.keyResults = [];
 	lickPractice.allAttempts = [];
+	lickPractice.sessionUnlocks = {};
 	lickPractice.startTime = Date.now();
 	lickPractice.elapsedSeconds = 0;
 	lickPractice.roundNumber = 1;
@@ -1132,6 +1141,7 @@ export function startTrickSession(): boolean {
 	lickPractice.currentKeyIndex = 0;
 	lickPractice.keyResults = [];
 	lickPractice.allAttempts = [];
+	lickPractice.sessionUnlocks = {};
 	lickPractice.startTime = Date.now();
 	lickPractice.elapsedSeconds = 0;
 	lickPractice.roundNumber = 1;
@@ -2061,6 +2071,9 @@ export function startInterLickTransition(): 'next-lick' | 'complete' {
 				shouldUnlockNextKey({ avgScore, newestKeyPassCount, unlockedCount });
 			if (unlocked) {
 				bumpUnlockedKeyCount(lickPractice.progress, item.phraseId);
+				// Both plan builders ramp from the entry key, so keys[0] is it.
+				const added = planUnlockedKeys(item.keys[0], unlockedCount + 1)[unlockedCount];
+				if (added) lickPractice.sessionUnlocks[lickPractice.allAttempts.length - 1] = added;
 			}
 
 			// An unlock trades the score-weighted bump for a 10% drop: the gate
@@ -2372,6 +2385,7 @@ export function resetSession(): void {
 	lickPractice.currentKeyIndex = 0;
 	lickPractice.keyResults = [];
 	lickPractice.allAttempts = [];
+	lickPractice.sessionUnlocks = {};
 	lickPractice.startTime = 0;
 	lickPractice.elapsedSeconds = 0;
 	lickPractice.mode = 'standard';
@@ -2441,6 +2455,7 @@ export function getSessionReport(): SessionReport {
 			progressionType: item.progressionType,
 			tempo,
 			newTempo,
+			unlockedKey: lickPractice.sessionUnlocks[i],
 			keys,
 			averageScore,
 			passedCount

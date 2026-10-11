@@ -8,7 +8,7 @@
  * Pair families (the `pair` parameter) follow the standard pedagogical
  * ladder: each family fixes two triads by (semitone offset from the chord
  * root, quality) — from stacked diatonic neighbours (C·D over C) through the
- * altered-dominant pairs (D♭m·E♭m over C7) to the whole-tone pair (C+·D+).
+ * altered-dominant pairs (D♭-·E♭- over C7) to the whole-tone pair (C+·D+).
  * Every family's two triads are disjoint pitch-class sets, so exact vs
  * in-pattern tiers never overlap. Each family also names the one-chord vamp
  * it sounds correct over (`bed`), surfaced through `practiceBed` so drill
@@ -115,8 +115,8 @@ export const TRIAD_PAIR_FAMILIES: readonly TriadPairFamily[] = [
 	},
 	{
 		value: 'major-minor',
-		label: 'Major + minor a whole step apart (C·Dm)',
-		description: 'a major and a minor triad a whole step apart (C and Dm over C)',
+		label: 'Major + minor a whole step apart (C·D-)',
+		description: 'a major and a minor triad a whole step apart (C and D- over C)',
 		application: 'the pure diatonic major sound',
 		low: { offset: 0, quality: 'major' },
 		high: { offset: 2, quality: 'minor' },
@@ -125,13 +125,13 @@ export const TRIAD_PAIR_FAMILIES: readonly TriadPairFamily[] = [
 	},
 	{
 		value: 'minor-whole',
-		label: 'Minor pair a whole step apart (Dm·Em)',
-		description: 'two minor triads a whole step apart, off the 2nd (Dm and Em over C)',
+		label: 'Minor pair a whole step apart (D-·E-)',
+		description: 'two minor triads a whole step apart, off the 2nd (D- and E- over C)',
 		application: 'the Dorian-minor / dominant-13 sound',
 		low: { offset: 2, quality: 'minor' },
 		high: { offset: 4, quality: 'minor' },
 		bed: 'major-vamp',
-		// Root-anchored, Em carries the major 7th — diatonic major only.
+		// Root-anchored, E- carries the major 7th — diatonic major only.
 		qualities: ['maj7', 'maj6']
 	},
 	{
@@ -147,8 +147,8 @@ export const TRIAD_PAIR_FAMILIES: readonly TriadPairFamily[] = [
 	},
 	{
 		value: 'minor-b9',
-		label: 'Minor pair from the ♭9 (D♭m·E♭m)',
-		description: 'two minor triads a whole step apart, beginning on the ♭9 (D♭m and E♭m over C7)',
+		label: 'Minor pair from the ♭9 (D♭-·E♭-)',
+		description: 'two minor triads a whole step apart, beginning on the ♭9 (D♭- and E♭- over C7)',
 		application: 'the altered-dominant sound',
 		low: { offset: 1, quality: 'minor' },
 		high: { offset: 3, quality: 'minor' },
@@ -168,7 +168,7 @@ export const TRIAD_PAIR_FAMILIES: readonly TriadPairFamily[] = [
 	{
 		value: 'aug-major',
 		label: 'Augmented + major (E♭+·F)',
-		description: 'an augmented and a major triad (E♭+ and F over Cm)',
+		description: 'an augmented and a major triad (E♭+ and F over C-)',
 		application: 'the tonic melodic-minor sound',
 		low: { offset: 3, quality: 'augmented' },
 		high: { offset: 5, quality: 'major' },

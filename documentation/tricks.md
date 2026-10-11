@@ -35,10 +35,10 @@ One control, labelled **Pair**, with eight families. Both triads are anchored to
 | Pair (over C) | The sound |
 |---|---|
 | **Major pair a whole step apart** (C·D) | Bright major / Lydian — also at home on dominant and Dorian chords |
-| **Major + minor a whole step apart** (C·Dm) | The pure diatonic major sound |
-| **Minor pair a whole step apart** (Dm·Em) | Dorian minor, or a dominant 13 |
+| **Major + minor a whole step apart** (C·D-) | The pure diatonic major sound |
+| **Minor pair a whole step apart** (D-·E-) | Dorian minor, or a dominant 13 |
 | **Major pair a tritone apart** (C·G♭) | The diminished-dominant sound |
-| **Minor pair from the ♭9** (D♭m·E♭m) | The altered-dominant sound |
+| **Minor pair from the ♭9** (D♭-·E♭-) | The altered-dominant sound |
 | **Major pair from the ♯11** (G♭·A♭) | An alternative altered colour |
 | **Augmented + major** (E♭+·F) | Tonic melodic minor |
 | **Augmented pair a whole step apart** (C+·D+) | Whole-tone dominant |

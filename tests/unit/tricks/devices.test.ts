@@ -59,7 +59,7 @@ const TRIAD_LADDER: [string, TrickParameters][] = [
 /**
  * Pinned triad pcs per family over a C root (triad a = lower-rooted, led
  * with; pcs in chord order root/third/fifth). Musical content of the table:
- * C·D, C·Dm, Dm·Em, C·G♭, D♭m·E♭m, G♭·A♭, E♭+·F, C+·D+.
+ * C·D, C·D-, D-·E-, C·G♭, D♭-·E♭-, G♭·A♭, E♭+·F, C+·D+.
  */
 const EXPECTED_TRIADS: Record<string, { a: number[]; b: number[] }> = {
 	'major-whole': { a: [0, 4, 7], b: [2, 6, 9] },
