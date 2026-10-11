@@ -5135,3 +5135,13 @@ words).
   costs M5 nothing (1.00), M3 still 0.78. M5 recall alone ranks with the
   corpus truth at 0.75 — the best single figure in E2, unsurprising since
   the truth is itself a per-note count.
+
+## 2026-10-11 — PR #271 (dev → main) reviewed, merged, deployed
+
+Andy: open the dev → main PR, handle review, make sure it deploys; then
+"merge it yourself once it's clean". Five commits (pooled 12 ¢ sharp/flat
+cue, unlock-key report line, minor D- spelling, fastest clear per key).
+CodeRabbit reviewed 24 files with no actionable comments and every
+pre-merge check passed (docstring coverage 87.5%). Merge 1513bf4f ran test →
+build → db-migrate, e2e, deploy all green; /api/health on
+mankunkujazz.com reports 1513bf4f, release 20261011-235211-1513bf4.
