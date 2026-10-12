@@ -446,3 +446,7 @@ opts into console styling without changing transposition, medians, spread bands,
 steadiness or A = 440 / personal-centre calculations. Prototype sample scores,
 quotes and state controls are never shipped. Dark mode remains the default, with
 existing semantic light-theme tokens respected.
+
+Tour anchors stay on the actual controls inside `EarTrainingConsole`. The tour
+registry test follows mounted, statically imported Svelte components, so extracting
+presentation does not break validation or require duplicate route-level anchors.
