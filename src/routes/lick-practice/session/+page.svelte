@@ -7,7 +7,7 @@
 	import KeyProgressRing from '$lib/components/lick-practice/KeyProgressRing.svelte';
 	import LickHeader from '$lib/components/lick-practice/LickHeader.svelte';
 	import SessionTimer from '$lib/components/lick-practice/SessionTimer.svelte';
-	import UpcomingKeysDisplay from '$lib/components/lick-practice/UpcomingKeysDisplay.svelte';
+	import UpcomingKeysDisplay, { KEY_STACK_MIN_HEIGHT } from '$lib/components/lick-practice/UpcomingKeysDisplay.svelte';
 	import LickBreatherCard from '$lib/components/lick-practice/LickBreatherCard.svelte';
 	import NextStepCard from '$lib/components/lick-practice/NextStepCard.svelte';
 	import {
@@ -2127,7 +2127,7 @@
 		/>
 
 		<div class="session-workspace">
-		<div class="session-music">
+		<div class="session-music" style="--key-stack-min-height: {KEY_STACK_MIN_HEIGHT}px;">
 		<!-- Stepped chord-block stack: the active row holds still for its key
 		     and the stack steps up one row at each key change (a struggling
 		     key's row is a lead-sheet system — chords over the staff,
@@ -2229,7 +2229,7 @@
 	.session-rail { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px; border-left: 1px solid color-mix(in srgb, var(--studio-border) 35%, transparent); padding-left: 16px; }
 	.session-rail button { min-height: 40px; border: 1px solid var(--studio-border); border-radius: 4px; background: transparent; color: var(--studio-muted); }
 	.session-rail button:hover { background: var(--studio-panel-highlight); color: var(--studio-text); }
-	.session-music [role='alert'] { min-height: 460.8px; display: flex; align-items: center; justify-content: center; padding: 24px; }
+	.session-music [role='alert'] { min-height: var(--key-stack-min-height); display: flex; align-items: center; justify-content: center; padding: 24px; }
 	@media (max-width: 1050px) {
 		.session-workspace { grid-template-columns: minmax(0, 1fr); gap: 16px; }
 		.session-rail { flex-direction: row; border-left: 0; border-top: 1px solid color-mix(in srgb, var(--studio-border) 35%, transparent); padding: 12px 0 0; gap: 24px; }

@@ -102,7 +102,9 @@
 		return intensityFill('--color-accent', count);
 	}
 
-	let tooltip = $state<{ text: string; x: number; y: number } | null>(null);
+	let tooltip = $state<{ text: string; x: number; y: number; flip: boolean } | null>(null);
+	/** The calendar's outer frame — the tooltip is positioned against it, not the scroller. */
+	let frame = $state<HTMLDivElement>();
 
 	/**
 	 * Build the hover tooltip for a practised day: the date, its session count
@@ -126,10 +128,16 @@
 		const breakdown = parts.length > 0 ? ` (${parts.join(', ')})` : '';
 		const minutes = availablePracticeMinutes(s);
 		const time = minutes === undefined ? '' : `, ${formatMinutes(minutes)}`;
+		// Frame coordinates, so the studio scroller can't clip the tooltip or grow
+		// its scroll width; past the midpoint it hangs to the cursor's left.
+		const box = frame?.getBoundingClientRect();
+		const x = box ? event.clientX - box.left : event.offsetX;
+		const width = box?.width ?? 0;
 		tooltip = {
 			text: `${date}: ${s.sessionCount} session${s.sessionCount !== 1 ? 's' : ''}${breakdown}, avg ${Math.round(s.avgOverall * 100)}%${time}`,
-			x: event.offsetX,
-			y: event.offsetY
+			x: width > 0 && x > width / 2 ? width - x : x,
+			y: box ? event.clientY - box.top : event.offsetY,
+			flip: width > 0 && x > width / 2
 		};
 	}
 
@@ -141,9 +149,9 @@
 	const svgHeight = HEADER_HEIGHT + DAYS * TOTAL;
 </script>
 
-<div>
+<div class="relative" bind:this={frame}>
 	<div class:calendar-viewport={studio}>
-	<div class="relative" class:calendar-grid={studio}>
+	<div class:calendar-grid={studio}>
 	<svg
 		viewBox="0 0 {svgWidth} {svgHeight}"
 		class="w-full"
@@ -215,19 +223,18 @@
 			{/if}
 		{/each}
 	</svg>
+	</div>
+	</div>
 
-	<!-- Tooltip -->
+	<!-- Tooltip: outside the studio scroller, which would clip it -->
 	{#if tooltip}
 		<div
-			class="pointer-events-none absolute rounded bg-[var(--color-bg)] px-2 py-1 text-xs shadow-lg border border-[var(--color-bg-tertiary)]"
-			style="left: {tooltip.x + 10}px; top: {tooltip.y - 30}px"
+			class="pointer-events-none absolute z-10 rounded bg-[var(--color-bg)] px-2 py-1 text-xs shadow-lg border border-[var(--color-bg-tertiary)]"
+			style="{tooltip.flip ? 'right' : 'left'}: {tooltip.x + 10}px; top: {tooltip.y - 30}px"
 		>
 			{tooltip.text}
 		</div>
 	{/if}
-
-	</div>
-	</div>
 	<!-- Static legend: two-tone split (top half = lick practice, bottom = ear training) -->
 	<div class="mt-2 flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-xs text-[var(--color-text-secondary)]">
 		<span class="flex items-center gap-1">

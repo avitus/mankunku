@@ -394,9 +394,10 @@ phase, mastery and accuracy tokens above; they do not replace their meanings.
 controls. Activity overrides are scoped to the owning panel. Settings is neutral;
 its tonality section is ear-training and its practice link is lick-practice.
 
-Home/landing, Sign in, Settings, Ear Training, Progress, Scales, Lick Practice setup, Licks and Tunes opt into the layout's
-1440px Studio Desk container. Nested detail, editor, import and session routes
-retain their existing width and presentation. The setup summary
+Home/landing, Sign in, Settings, Ear Training, Progress, Scales, Lick Practice setup,
+the running Lick Practice session (`/lick-practice/session`), Licks and Tunes opt into
+the layout's 1440px Studio Desk container. Other nested detail, editor, import and
+session routes retain their existing width and presentation. The setup summary
 moves below the controls on tablet/mobile; instrument and scale banks reflow
 using `--selector-columns`. Do not apply new chrome across all routes as a side
 effect of migrating a single page.

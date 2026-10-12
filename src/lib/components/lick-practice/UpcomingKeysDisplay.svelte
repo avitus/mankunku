@@ -1,3 +1,15 @@
+<script module lang="ts">
+	// Approved Studio Desk: chord rows remain 128px; notation gets 60%
+	// more height, with a separate cue lane and breathing room for ledger notes.
+	const ROW_HEIGHT = 128;
+	const LEAD_ROW_HEIGHT = ROW_HEIGHT * 1.6;
+	const LEAD_STAFF_BOX = 140.8;
+	const VISIBLE_ROWS = 3;
+	/** The stack's viewport floor: one lead-sheet row plus the other visible rows.
+	 *  A route standing something in for the stack (the mic-error banner) holds it too. */
+	export const KEY_STACK_MIN_HEIGHT = LEAD_ROW_HEIGHT + (VISIBLE_ROWS - 1) * ROW_HEIGHT;
+</script>
+
 <script lang="ts">
 	import ChordChart from './ChordChart.svelte';
 	import NotationDisplay, {
@@ -88,13 +100,7 @@
 	// audible play phase, so it cannot contradict the final preparation beat.
 	const recordingNow = $derived(isRecording && (!cue || cue.phase === 'play'));
 
-	// Approved Studio Desk: chord rows remain 128px; notation gets 60%
-	// more height, with a separate cue lane and breathing room for ledger notes.
-	const ROW_HEIGHT = 128;
-	const LEAD_ROW_HEIGHT = ROW_HEIGHT * 1.6;
-	const LEAD_STAFF_BOX = 140.8;
 	const LEAD_STAFF_WIDTH = 640;
-	const VISIBLE_ROWS = 3;
 	const NO_MARKERS: RangeMarker[] = [];
 
 	// Deep clears completed rows, keeping the active row at the top.
@@ -159,6 +165,9 @@
 	const alignmentIndex = $derived(leadSheets[visualCurrentRow] ? visualCurrentRow : leadSheets.findIndex(Boolean));
 	const alignmentSheet = $derived(leadSheets[alignmentIndex]);
 	const barEdges = $derived(alignmentSheet?.startBar === 0 ? sheetEdges[alignmentIndex] : undefined);
+	// The edges follow ONE lick's engraving; a handoff row (preceding or next
+	// cycle) can belong to another lick that happens to share the bar count.
+	const edgesLickId = $derived(displayKeys[alignmentIndex]?.lickId);
 
 	// The tab names the key of the row it sits on — that row is always the one
 	// about to be played (the turnaround has already swapped the stack).
@@ -226,7 +235,7 @@
 	{tab && tab.kind !== 'hidden' ? tab.text : ''}
 </span>
 
-<div class="viewport" class:compact style="height: {Math.max(460.8, layout.viewportHeight)}px;">
+<div class="viewport" class:compact style="height: {Math.max(KEY_STACK_MIN_HEIGHT, layout.viewportHeight)}px; --lead-staff-box: {LEAD_STAFF_BOX}px;">
 	<!-- A rebuilt Deep cycle starts with its outgoing row, then scrolls it
 	     out just like an ordinary key boundary. Same-key retries stay still. -->
 	{#key plannedKeys}
@@ -272,7 +281,6 @@
 								class="lead-sheet"
 								class:revealed={isRevealed}
 								data-testid="lead-sheet-row"
-								style="--lead-staff-box: {LEAD_STAFF_BOX}px;"
 							>
 								<NotationDisplay
 									tune={sheet.tune}
@@ -292,7 +300,7 @@
 									out:fade={{ duration: 400 }}
 								>
 									<ChordChart
-										{barEdges}
+										barEdges={pk.lickId === edgesLickId ? barEdges : undefined}
 										showLabel={false}
 										harmony={pk.harmony}
 										currentBeat={0}
@@ -306,7 +314,7 @@
 							{/if}
 					{:else}
 						<ChordChart
-							{barEdges}
+							barEdges={pk.lickId === edgesLickId ? barEdges : undefined}
 							showLabel={false}
 							harmony={pk.harmony}
 							currentBeat={isCurrent ? currentBeat : 0}
@@ -432,10 +440,10 @@
 		content: ''; position: absolute; inset: 28px 0 auto; height: 88px;
 		border: 1px solid transparent; border-radius: 2px; pointer-events: none;
 	}
-	.has-sheet .chart-wrap::after { height: 140.8px; }
+	.has-sheet .chart-wrap::after { height: var(--lead-staff-box); }
 	.chart-wrap.recording::after, .chart-wrap.listening::after { border-color: var(--practice-phase); }
 	.chart-wrap.arming::after { border: 1px dashed var(--color-phase-play); }
-	.notation-wash { position: absolute; top: 28px; height: 140.8px; background: color-mix(in srgb, var(--practice-phase) 9%, transparent); pointer-events: none; }
+	.notation-wash { position: absolute; top: 28px; height: var(--lead-staff-box); background: color-mix(in srgb, var(--practice-phase) 9%, transparent); pointer-events: none; }
 	.lead-sheet {
 		box-sizing: border-box; height: var(--lead-staff-box); padding: 10px 0;
 		overflow: hidden; visibility: hidden; opacity: 0; transition: opacity 400ms ease;

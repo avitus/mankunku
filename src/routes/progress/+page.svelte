@@ -372,7 +372,7 @@
 	</div>
 
 	<!-- Live totals remain visible in both views. -->
-	<div class="progress-summary" aria-label="Practice overview">
+	<div class="progress-summary" role="group" aria-label="Practice overview">
 		<div class="progress-readout">
 			<div class="font-display text-3xl font-bold tabular-nums text-[var(--color-brass)]">
 				{progress.streakDays}

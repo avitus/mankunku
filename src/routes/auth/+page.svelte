@@ -126,7 +126,7 @@
 							placeholder="Enter your password" minlength={isSignUp ? 6 : undefined}
 							aria-describedby={isSignUp ? 'password-hint' : undefined} disabled={loading} />
 						<button type="button" onclick={() => { showPassword = !showPassword; }}
-							aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword}
+							aria-label={showPassword ? 'Hide password' : 'Show password'}
 							disabled={loading}>{showPassword ? 'Hide' : 'Show'}</button>
 					</div>
 					{#if isSignUp}<small id="password-hint">At least 6 characters.</small>{/if}

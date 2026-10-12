@@ -49,7 +49,12 @@ test('overview survives keyboard view changes and cancelling reset preserves his
 	await expect(page.getByRole('tab', { name: 'Sessions', exact: true })).toBeFocused();
 	await expect(page.getByRole('tabpanel', { name: 'Sessions', exact: true })).toBeVisible();
 	await expect(total).toHaveText(/2h\s+Practice Time/);
-	expect(await total.boundingBox()).toEqual(position);
+	// The total holds still across tabs. Allow x to shift by half a classic
+	// scrollbar: the short Sessions tab can drop the page's vertical scrollbar
+	// (Firefox), recentring the 1440px container.
+	const moved = await total.boundingBox();
+	expect(Math.abs(moved!.y - position!.y)).toBeLessThanOrEqual(1);
+	expect(Math.abs(moved!.x - position!.x)).toBeLessThanOrEqual(9);
 	await page.getByRole('tab', { name: 'Ear Training', exact: true }).focus();
 	await page.keyboard.press('ArrowRight');
 	await expect(page.getByRole('tab', { name: 'Lick Practice', exact: true })).toBeFocused();

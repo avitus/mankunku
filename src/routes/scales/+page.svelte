@@ -40,8 +40,8 @@
 						<a href="#family-{family}">
 							<span class="family-index" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
 							<span>{familyLabel(family)}</span>
-							<small aria-label="{mvpScales.filter(scale => scale.family === family).length} scales">
-								{mvpScales.filter(scale => scale.family === family).length}
+							<small>
+								{mvpScales.filter(scale => scale.family === family).length}<span class="sr-only"> scales</span>
 							</small>
 						</a>
 					{/each}
