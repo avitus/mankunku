@@ -6,9 +6,9 @@
  * Both share the same AudioContext (via audio-context.ts).
  *
  * Jazz expression features:
- * - Custom tenor sax samples (MTG Solo Sax, CC-BY 4.0) with velocity layers
- * - Subtle vibrato via LFO-driven detune
- * - Warm low-pass filtering to tame harsh digital edges
+ * - Custom sax samples (MTG Solo Sax, CC-BY 4.0) with velocity layers
+ * - Per-instrument voice (instrument-voices.ts): sample source, bus warmth
+ *   lowpass, and a pitch vibrato that blooms on held notes only
  * - Per-note swing pre-shift on off-beat 8ths (triplets are immune)
  * - Humanized velocity and timing for authentic jazz phrasing
  * - Per-note tuning corrections from SFZ mappings
@@ -29,7 +29,13 @@ import {
 	disposeBackingTrack,
 	isBackingLoaded
 } from './backing-track';
-import { SAMPLE_MAPS, layerToBuffers, getTuneCorrection, type SampleMap } from './sample-maps';
+import { layerToBuffers, getTuneCorrection, type SampleMap } from './sample-maps';
+import {
+	instrumentVoice,
+	vibratoDelaySwingSeconds,
+	vibratoEnvelope,
+	type VibratoProfile
+} from './instrument-voices';
 import { extractSoundingNotes, computeExpression } from '$lib/music/expression';
 
 type ToneModule = typeof import('tone');
@@ -92,28 +98,33 @@ let currentLoadId = 0;
 
 /** Web Audio nodes for jazz expression effects */
 let vibratoLfo: OscillatorNode | null = null;
+/** LFO → delayTime depth; automated per note by `shapeVibrato`. */
 let vibratoGain: GainNode | null = null;
+/** Modulated delay line: the pitch vibrato. */
+let vibratoDelay: DelayNode | null = null;
 let warmthFilter: BiquadFilterNode | null = null;
+/** The loaded voice's vibrato, and its full-depth delay swing in seconds. */
+let activeVibrato: VibratoProfile | null = null;
+let vibratoSwingSeconds = 0;
+
+/**
+ * Resting delay of the vibrato line. Must exceed the largest swing any voice
+ * asks for (~0.23 ms for 12 cents at 4.8 Hz) so the delay never goes negative;
+ * 2 ms of constant latency on the demo is far below anything that is timed.
+ */
+const VIBRATO_BASE_DELAY_SECONDS = 0.002;
 
 async function getTone(): Promise<ToneModule> {
 	if (!tone) tone = await import('tone');
 	return tone;
 }
 
-/** GM instrument names for smplr */
-const GM_INSTRUMENT_NAMES: Record<string, string> = {
-	'soprano-sax': 'soprano_sax',
-	'tenor-sax': 'tenor_sax',
-	'alto-sax': 'alto_sax',
-	trumpet: 'trumpet'
-};
-
 /**
- * Set up jazz expression effects.
+ * Set up jazz expression effects for the loaded instrument's voice.
  *
- * Creates a subtle vibrato (LFO modulating detune) and a warmth filter
- * that rolls off harsh high frequencies, giving the samples a more
- * natural, breath-driven saxophone character.
+ * The chain is a modulated delay line (pitch vibrato, depth automated per
+ * note by `shapeVibrato`) into the voice's warmth lowpass, which rolls off
+ * the harsh top of the recordings.
  *
  * For custom samples: effects are inserted between the mix node and master gain.
  * For SoundFont: effects are added as inserts on the instrument's output channel.
@@ -124,50 +135,64 @@ function setupJazzExpression(audioCtx: AudioContext, instrumentId: string): void
 	const hasCustomSamples = mixNode !== null;
 	if (!hasCustomSamples && !instrument) return;
 
-	// Only apply saxophone-specific expression to sax instruments
-	const isSax = instrumentId.includes('sax');
+	const voice = instrumentVoice(instrumentId);
 
-	// --- Warmth filter ---
-	// Roll off harsh highs to simulate the natural warmth of a real horn.
-	// Tenor sax is darker; alto and trumpet get a slightly brighter cutoff.
 	warmthFilter = audioCtx.createBiquadFilter();
 	warmthFilter.type = 'lowpass';
-	warmthFilter.frequency.value = isSax ? 4500 : 6000;
+	warmthFilter.frequency.value = voice.warmthCutoffHz;
 	warmthFilter.Q.value = 0.7; // Gentle slope, no resonance peak
 
-	// --- Vibrato via LFO ---
-	// A slow, subtle pitch wobble (4.8 Hz, ~12 cents depth) emulates
-	// the natural vibrato a saxophonist produces with jaw/airstream.
-	// This is more restrained than classical vibrato — jazz players
-	// tend to use vibrato selectively, mainly on sustained notes.
+	vibratoDelay = audioCtx.createDelay(VIBRATO_BASE_DELAY_SECONDS * 2);
+	vibratoDelay.delayTime.value = VIBRATO_BASE_DELAY_SECONDS;
+	vibratoDelay.connect(warmthFilter);
+
 	vibratoLfo = audioCtx.createOscillator();
 	vibratoLfo.type = 'sine';
-	vibratoLfo.frequency.value = 4.8; // ~5 Hz, natural vibrato rate
+	vibratoLfo.frequency.value = voice.vibrato.rateHz;
 
+	// Depth starts at zero: every note opens straight and `shapeVibrato` blooms it.
 	vibratoGain = audioCtx.createGain();
-	// Depth in cents — 12 cents is subtle enough to add life without
-	// sounding like a pitch-bent synth. On trumpet, reduce further.
-	vibratoGain.gain.value = isSax ? 12 : 6;
-
+	vibratoGain.gain.value = 0;
 	vibratoLfo.connect(vibratoGain);
+	vibratoGain.connect(vibratoDelay.delayTime);
 	vibratoLfo.start();
+
+	activeVibrato = voice.vibrato;
+	vibratoSwingSeconds = Math.min(
+		vibratoDelaySwingSeconds(voice.vibrato.rateHz, voice.vibrato.depthCents),
+		VIBRATO_BASE_DELAY_SECONDS
+	);
 
 	if (hasCustomSamples) {
 		// Custom samples: insert effects between mix node and master gain.
 		// Both velocity-layer samplers route to mixNode, so one effect
 		// chain covers all notes regardless of which layer triggered.
 		mixNode!.disconnect();
-		mixNode!.connect(warmthFilter);
+		mixNode!.connect(vibratoDelay);
 		warmthFilter.connect(getMasterGain());
 	} else {
 		// SoundFont: add as insert on the instrument's output channel.
 		instrument!.output.addInsert({
-			input: warmthFilter,
+			input: vibratoDelay,
 			output: warmthFilter
 		});
 	}
+}
 
-	vibratoGain.connect(warmthFilter.detune);
+/**
+ * Automate the vibrato depth for one note. The line is monophonic, so the
+ * depth is a bus envelope restarted at every attack: straight on short notes,
+ * blooming after the voice's onset delay on held ones.
+ */
+function shapeVibrato(time: number, durationSeconds: number): void {
+	if (!vibratoGain || !activeVibrato) return;
+	const depth = vibratoGain.gain;
+	depth.cancelScheduledValues(time);
+	for (const point of vibratoEnvelope(activeVibrato, durationSeconds)) {
+		const value = point.depth * vibratoSwingSeconds;
+		if (point.ramp) depth.linearRampToValueAtTime(value, time + point.at);
+		else depth.setValueAtTime(value, time + point.at);
+	}
 }
 
 /**
@@ -183,6 +208,12 @@ function cleanupJazzExpression(): void {
 		vibratoGain.disconnect();
 		vibratoGain = null;
 	}
+	if (vibratoDelay) {
+		vibratoDelay.disconnect();
+		vibratoDelay = null;
+	}
+	activeVibrato = null;
+	vibratoSwingSeconds = 0;
 	if (warmthFilter) {
 		warmthFilter.disconnect();
 		warmthFilter = null;
@@ -286,10 +317,8 @@ async function loadSoundfont(audioCtx: AudioContext, instrumentId: string, loadI
 	const { Soundfont } = await import('smplr');
 	if (loadId !== currentLoadId) return;
 
-	const gmName = GM_INSTRUMENT_NAMES[instrumentId] ?? 'tenor_sax';
-
 	const newInstrument = new Soundfont(audioCtx, {
-		instrument: gmName,
+		instrument: instrumentVoice(instrumentId).soundfont,
 		kit: 'MusyngKite',
 		loadLoopData: true,
 		destination: getMasterGain()
@@ -307,8 +336,8 @@ async function loadSoundfont(audioCtx: AudioContext, instrumentId: string, loadI
 /**
  * Load an instrument with jazz expression processing.
  *
- * Uses custom multi-sampled recordings when available (tenor sax),
- * falling back to MusyngKite SoundFont for other instruments or on load error.
+ * Uses the voice's custom multi-sampled recordings when it has them (the
+ * saxes), falling back to its MusyngKite SoundFont otherwise or on load error.
  */
 export async function loadInstrument(
 	instrumentId: string = 'tenor-sax',
@@ -326,7 +355,7 @@ export async function loadInstrument(
 	cleanupInstruments();
 
 	// Try custom samples first, fall back to SoundFont
-	const sampleMap = SAMPLE_MAPS[instrumentId];
+	const sampleMap = instrumentVoice(instrumentId).samples;
 	if (sampleMap) {
 		const loaded = await loadCustomSamples(audioCtx, sampleMap, loadId);
 		if (loadId !== currentLoadId) return;
@@ -366,6 +395,7 @@ export function isInstrumentLoaded(): boolean {
  * and applies per-note tuning corrections from the SFZ mapping.
  */
 function startNote(event: Omit<PlaybackEvent, 'time'> & { time: number }): void {
+	shapeVibrato(event.time, event.duration);
 	if (activeSampleMap && samplerPiano && samplerForte) {
 		// Layer + tuning are chosen from the intended (un-humanized) velocity so
 		// timbre tracks musical intent and never flickers with gain jitter.

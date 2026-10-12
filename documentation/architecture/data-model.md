@@ -678,7 +678,7 @@ interface InstrumentConfig {
 | `voice` | Voice | C | 0 | 48–77 | 53 |
 | `concert` | Other C Instrument | C | 0 | 36–96 | 0 |
 
-The C instruments sit behind one **Concert Pitch** choice in onboarding and Settings, followed by "which instrument?" (`CONCERT_INSTRUMENT_IDS`, `isConcertInstrument`); `concert` is that question's "Other" answer and the id every pre-follow-up concert user keeps. They share transposition 0 and differ in range (which octave a lick is pitched in, and the Highest knob's default) and tuning advice. Their ranges stay inside the pitch detector's 80–1200 Hz window (MIDI 40–86), so the bass is clipped to its upper register. Not yet per-instrument: the clef (notation is treble for all), guitar/bass octave transposition, and the playback voice (every C instrument plays the sax demo sound, as `concert` always has).
+The C instruments sit behind one **Concert Pitch** choice in onboarding and Settings, followed by "which instrument?" (`CONCERT_INSTRUMENT_IDS`, `isConcertInstrument`); `concert` is that question's "Other" answer and the id every pre-follow-up concert user keeps. They share transposition 0 and differ in range (which octave a lick is pitched in, and the Highest knob's default) and tuning advice. Their ranges stay inside the pitch detector's 80–1200 Hz window (MIDI 40–86), so the bass is clipped to its upper register. Not yet per-instrument: the clef (notation is treble for all), guitar/bass octave transposition, and the playback voice (every C instrument shares `concert`'s entry in `INSTRUMENT_VOICES`, the GM tenor SoundFont).
 
 ## Combinatorial Types (`src/lib/types/combinatorial.ts`)
 

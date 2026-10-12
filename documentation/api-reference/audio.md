@@ -68,7 +68,7 @@ Phrase playback using Tone.js Transport plus either custom multi-sampled instrum
 
 ### `loadInstrument(instrumentId?, masterVolume?, backingInstrument?): Promise<void>`
 
-Load the user's instrument. Defaults to `'tenor-sax'`. Looks up a `SampleMap` in `sample-maps.ts` and loads custom multi-sampled recordings (soprano, alto, and tenor sax ship with sample maps); when no sample map is available **or** custom samples fail to decode, it falls back to the **MusyngKite** SoundFont via smplr (with `loadLoopData: true` for natural sustain). Every call tears down the previous instrument and loads again — the tune, lick and progress pages call it on each Play. Teardown disposes the instruments before the expression nodes: on a SoundFont the warmth filter is an insert that smplr's channel disconnects by destination, and Web Audio throws `InvalidAccessError` for a connection already cut (Sentry MANKUNKU-1T: every second trumpet Play failed). Pinned for both instrument paths by `tests/unit/audio/playback-soundfont-reload.test.ts`.
+Load the user's instrument. Defaults to `'tenor-sax'`. Everything instrument-specific comes from the instrument's voice, `instrumentVoice(id)` in `instrument-voices.ts`: it loads the voice's custom multi-sampled recordings when it has them (soprano, alto, and tenor sax do); when the voice has none **or** they fail to decode, it falls back to the voice's **MusyngKite** SoundFont via smplr (with `loadLoopData: true` for natural sustain). Every call tears down the previous instrument and loads again — the tune, lick and progress pages call it on each Play. Teardown disposes the instruments before the expression nodes: on a SoundFont the warmth filter is an insert that smplr's channel disconnects by destination, and Web Audio throws `InvalidAccessError` for a connection already cut (Sentry MANKUNKU-1T: every second trumpet Play failed). Pinned for both instrument paths by `tests/unit/audio/playback-soundfont-reload.test.ts`.
 
 | Parameter | Type | Description |
 |---|---|---|
@@ -76,9 +76,15 @@ Load the user's instrument. Defaults to `'tenor-sax'`. Looks up a `SampleMap` in
 | `masterVolume` | `number?` | When provided, applied via `setMasterVolume` during load |
 | `backingInstrument` | `BackingInstrument?` | If provided, backing-track samples are loaded in parallel (best-effort — failures are logged and non-blocking) |
 
-On load, sets up jazz expression effects:
-- **Warmth filter**: Low-pass `BiquadFilterNode` (4500 Hz sax / 6000 Hz trumpet)
-- **Vibrato LFO**: 4.8 Hz oscillator modulating filter detune (12 cents sax / 6 cents trumpet)
+On load, sets up jazz expression effects from the voice:
+- **Vibrato**: a delay line whose time an LFO modulates, which bends PITCH (`vibratoDelaySwingSeconds` turns the voice's rate + cents into the delay swing). The depth is automated per note (`vibratoEnvelope`): notes shorter than 0.6 s play straight, held notes bloom to full depth after 0.18 s and fade out by their end. Saxes 12 cents at 4.8 Hz, trumpet 6. Until 2026-10-11 the LFO drove the warmth filter's detune, so it wobbled tone colour rather than pitch.
+- **Warmth filter**: low-pass `BiquadFilterNode`, Q 0.7, with a per-voice ceiling that follows the sax register so each horn keeps the same number of harmonics: tenor 4500 Hz, alto 6000 Hz (a 4th higher), soprano 9000 Hz (an octave higher), trumpet and the C instruments 6000 Hz. The saxes used to share 4500 Hz, which dulled the soprano most.
+
+### `instrument-voices.ts`
+
+- **`INSTRUMENT_VOICES: Record<InstrumentId, InstrumentVoice>`**: one voice per instrument, holding `samples?` (a `SampleMap`), `soundfont` (the GM fallback name), `warmthCutoffHz` and `vibrato` (`VibratoProfile`: rate, depth, and the held-note envelope timings). Because the Record is keyed by `InstrumentId` (types/instruments.ts), a new instrument does not type-check until it has a voice. `playback.ts` has no per-instrument branches. The C instruments behind the Concert Pitch follow-up (piano, guitar, bass, trombone, flute, vibraphone, violin, voice) all share `concert`'s voice — the GM tenor SoundFont — until one gets its own.
+- **`instrumentVoice(id)`** returns the voice, or the tenor's for an unknown id.
+- **`vibratoDelaySwingSeconds(rateHz, depthCents)`** and **`vibratoEnvelope(profile, durationSeconds)`** are pure and pinned in `tests/unit/audio/instrument-voices.test.ts`.
 
 ### `isInstrumentLoaded(): boolean`
 
@@ -727,7 +733,7 @@ type DrumBufferName =
 - **`TENOR_SAX_SAMPLES: SampleMap`** — 33 chromatic samples (MIDI 44–76) × 2 velocity layers, sourced from the MTG Solo Sax library (CC-BY 4.0, Universitat Pompeu Fabra). Tuning corrections compensate for A=442 Hz recording pitch.
 - **`ALTO_SAX_SAMPLES: SampleMap`** — Alto sax multi-samples with per-note tuning corrections.
 - **`SOPRANO_SAX_SAMPLES: SampleMap`** — Soprano sax multi-samples with per-note tuning corrections.
-- **`SAMPLE_MAPS: Record<string, SampleMap>`** — Registry keyed by instrument id. Currently `'tenor-sax'`, `'alto-sax'`, and `'soprano-sax'` (mapping to `TENOR_SAX_SAMPLES`, `ALTO_SAX_SAMPLES`, and `SOPRANO_SAX_SAMPLES` respectively).
+- The per-instrument registry is `INSTRUMENT_VOICES` in `instrument-voices.ts` (its `samples` field), not this file.
 - **`DRUM_BUFFERS: Record<DrumBufferName, string>`** — Static drum sample URLs (Virtuosity Drums, CC0), one per velocity layer/articulation (kick, three ride layers + bell, hats + pedal, three snare layers, cross-stick, crash).
 - **`DRUM_ARTICULATIONS: Record<DrumVoice, DrumLayer[]>`** — velocity layers per semantic voice, `DrumLayer = { buffer, maxVelocity }` (inclusive upper bound, 0–1): ride `ride_soft` ≤ 0.38 / `ride` ≤ 0.72 / `ride_acc`; snare `snare_ghost` ≤ 0.3 / `snare_med` ≤ 0.62 / `snare_acc`; every other voice one layer. Layers exist only where a soft and a hard stroke differ in timbre, not just level — all buffers are peak-normalized to −3 dBFS, so velocity (times the mix trims) is the only level control. **`drumBufferForVelocity(voice, velocity)`** picks the buffer for a generated, pre-trim velocity (the top layer when nothing matches).
 - **`DRUM_FAMILY_BY_VOICE`** / **`DRUM_BUFFER_FAMILY`** — which sampler family (kick / snare / cymbals — see `DrumFamily` in backing-mix.ts) plays each semantic voice; the buffer-level table is derived from `DRUM_ARTICULATIONS` so a future velocity layer lands in its voice's family automatically.

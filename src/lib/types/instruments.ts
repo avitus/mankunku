@@ -3,6 +3,23 @@ export type Clef = 'treble' | 'bass';
 export type BackingInstrument = 'piano' | 'organ';
 export type BackingStyle = 'swing' | 'bossa-nova' | 'ballad' | 'straight';
 
+/** Every instrument the app knows. Adding one here requires an `INSTRUMENTS`
+ *  entry and an `INSTRUMENT_VOICES` entry (audio/instrument-voices.ts). */
+export type InstrumentId =
+	| 'concert'
+	| 'soprano-sax'
+	| 'tenor-sax'
+	| 'alto-sax'
+	| 'trumpet'
+	| 'piano'
+	| 'guitar'
+	| 'bass'
+	| 'trombone'
+	| 'flute'
+	| 'vibraphone'
+	| 'violin'
+	| 'voice';
+
 export interface InstrumentConfig {
 	name: string;
 	/** Transposing key of the instrument */
@@ -34,7 +51,7 @@ export interface InstrumentConfig {
  * `concert` predates the follow-up and keeps its wide range for the users
  * who already chose it.
  */
-export const INSTRUMENTS: Record<string, InstrumentConfig> = {
+export const INSTRUMENTS: Record<InstrumentId, InstrumentConfig> = {
 	concert: {
 		name: 'Other C Instrument',
 		key: 'C',
@@ -168,8 +185,18 @@ export const INSTRUMENTS: Record<string, InstrumentConfig> = {
 	}
 };
 
+/** Narrow a stored instrument id (settings, cloud rows) to a known one. */
+export function isInstrumentId(id: string): id is InstrumentId {
+	return Object.hasOwn(INSTRUMENTS, id);
+}
+
 /** The transposing instruments, picked directly, listed after "Concert Pitch". */
-export const TRANSPOSING_INSTRUMENT_IDS = ['soprano-sax', 'tenor-sax', 'alto-sax', 'trumpet'] as const;
+export const TRANSPOSING_INSTRUMENT_IDS = [
+	'soprano-sax',
+	'tenor-sax',
+	'alto-sax',
+	'trumpet'
+] as const satisfies readonly InstrumentId[];
 
 /** The answers to "which C instrument?", in the order the question lists them. */
 export const CONCERT_INSTRUMENT_IDS = [
@@ -182,7 +209,7 @@ export const CONCERT_INSTRUMENT_IDS = [
 	'violin',
 	'voice',
 	'concert'
-] as const;
+] as const satisfies readonly InstrumentId[];
 
 /** True for every instrument behind the "Concert Pitch" choice. */
 export function isConcertInstrument(id: string): boolean {
@@ -190,6 +217,6 @@ export function isConcertInstrument(id: string): boolean {
 }
 
 /** The follow-up question's button label — `concert` is its "Other" answer. */
-export function concertInstrumentLabel(id: string): string {
-	return id === 'concert' ? 'Other' : (INSTRUMENTS[id]?.name ?? id);
+export function concertInstrumentLabel(id: InstrumentId): string {
+	return id === 'concert' ? 'Other' : INSTRUMENTS[id].name;
 }
