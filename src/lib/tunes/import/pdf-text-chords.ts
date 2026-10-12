@@ -12,6 +12,7 @@
  *  - plain-font parts: one Unicode item per chord ("G♯-7♭5"), rehearsal
  *    marks in their own bold font, printed bar numbers in the left margin.
  */
+import { parseChordSymbol } from '$lib/music/chord-symbol';
 import type { SystemGeometry } from './pdf-geometry';
 
 /** A text item in page pixel space (same scale as the geometry analysis). */
@@ -35,7 +36,7 @@ export interface SystemTexts {
 	/** Rehearsal marks (single letters), in x order. */
 	marks: Array<{ x: number; text: string }>;
 	/** Volta ending labels ("1." → 1), in x order. */
-	endings: Array<{ x: number; n: number }>;
+	endings: Array<{ x: number; n: number; endX?: number }>;
 	/** Printed bar number at the system start, if any. */
 	barNumber: number | null;
 }
@@ -45,6 +46,8 @@ const PUA_MAP: Record<number, string> = {
 	0xe10c: '#',
 	0xe10d: 'b',
 	0xe18a: 'Δ',
+	0xe18e: '°',
+	0xe18f: 'ø',
 	0xe870: '(',
 	0xe871: ')',
 	0xe875: '(',
@@ -100,7 +103,18 @@ export function extractSystemTexts(
 
 	// Bold text is double-printed ~2px apart: collapse the pairs.
 	const placed: Placed[] = [];
-	for (const it of items) {
+	const expanded = items.flatMap((it) => {
+		const tokens = [...it.str.matchAll(/\S+/g)];
+		if (tokens.length < 2 || !tokens.every((t) => parseChordSymbol(normalize(t[0]) ?? '')))
+			return [it];
+		return tokens.map((t) => ({
+			...it,
+			str: t[0],
+			x: it.x + (it.w * t.index!) / it.str.length,
+			w: (it.w * t[0].length) / it.str.length
+		}));
+	});
+	for (const it of expanded) {
 		const text = normalize(it.str);
 		if (text === null || text === '') continue;
 		const twin = placed.find(
@@ -162,7 +176,7 @@ export function extractSystemTexts(
 				);
 				const ownFont = chordFonts.size > 0 && !chordFonts.has(p.font);
 				const floating = p.y < systems[i].band.top - 3.2 * systems[i].interline;
-				if (p.bold || ownFont || floating) {
+				if (p.bold || ((ownFont || floating) && p.h >= 0.85 * chordH)) {
 					out[i].marks.push({ x: p.x, text: p.text });
 					continue;
 				}
@@ -172,7 +186,7 @@ export function extractSystemTexts(
 			// Append superscript fragments: smaller, raised, x-adjacent, and
 			// alteration-shaped — analysis annotations above chords must not
 			// glue on.
-			const alteration = /^\(?[#bΔ]?\d{1,2}\)?$/;
+			const alteration = /^\(?([#bΔ]?\d{1,2}|[°ø])\)?$/;
 			let text = p.text;
 			let right = p.x + p.w;
 			for (const q of zone) {
@@ -180,13 +194,18 @@ export function extractSystemTexts(
 				const raised = q.y < p.y - 0.15 * p.h;
 				const smaller = q.h <= 0.85 * p.h;
 				const adjacent = q.x >= right - 6 && q.x <= right + 0.8 * p.h;
-				if (raised && smaller && adjacent && alteration.test(q.text)) {
+				const baselineSuffix =
+					/[°ø]$/.test(text) &&
+					/^\d{1,2}$/.test(q.text) &&
+					Math.abs(q.y - p.y) < 0.15 * p.h &&
+					Math.abs(q.h - p.h) < 0.15 * p.h;
+				if (adjacent && ((raised && smaller && alteration.test(q.text)) || baselineSuffix)) {
 					text += q.text;
 					right = q.x + q.w;
 					consumed.add(q);
 				}
 			}
-			out[i].chords.push({ x: p.x, text: text.replace(/[()]/g, '') });
+			if (parseChordSymbol(text)) out[i].chords.push({ x: p.x, text: text.replace(/[()]/g, '') });
 		}
 		out[i].chords.sort((a, b) => a.x - b.x);
 		out[i].marks.sort((a, b) => a.x - b.x);

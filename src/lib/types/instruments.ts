@@ -168,8 +168,8 @@ export const INSTRUMENTS: Record<string, InstrumentConfig> = {
 	}
 };
 
-/** The transposing instruments, picked directly. */
-export const TRANSPOSING_INSTRUMENT_IDS = ['soprano-sax', 'alto-sax', 'tenor-sax', 'trumpet'] as const;
+/** The transposing instruments, picked directly, listed after "Concert Pitch". */
+export const TRANSPOSING_INSTRUMENT_IDS = ['soprano-sax', 'tenor-sax', 'alto-sax', 'trumpet'] as const;
 
 /** The answers to "which C instrument?", in the order the question lists them. */
 export const CONCERT_INSTRUMENT_IDS = [

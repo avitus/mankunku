@@ -169,3 +169,18 @@ describe('extractSystemTexts', () => {
 		]);
 	});
 });
+
+it('joins a raised diminished symbol and baseline seventh without treating a lyric I as a rehearsal mark',()=>{
+ const systems=[{band:{top:200,bottom:280,lines:[200,220,240,260,280]},interline:20,firstBarLeft:70,barlines:[450],repeatDots:[]}];
+ const item=(str:string,x:number,y:number,h:number,w:number,font='chords')=>({str,x,y,h,w,font});
+ const result=extractSystemTexts([item('F',100,160,60,34),item('\ue18e',135,130,45,28),item('7',165,160,60,22),item('I',250,80,40,12,'lyrics')],systems);
+ expect(result[0].chords).toEqual([{x:100,text:'F°7'}]);
+ expect(result[0].marks).toEqual([]);
+});
+
+it('splits combined chord text and retains a half-diminished quality without treating Fine as a chord',()=>{
+ const g={band:{top:100,bottom:180,lines:[100,120,140,160,180]},interline:20,firstBarLeft:50,barlines:[500],repeatDots:[]};
+ const items=[{str:'D',x:100,y:50,w:25,h:30},{str:'\ue18f',x:125,y:40,w:12,h:20},{str:'7',x:137,y:50,w:15,h:30},{str:'C#7 C7',x:230,y:50,w:100,h:30},{str:'Fine',x:400,y:50,w:60,h:30}];
+ const result=extractSystemTexts(items,[g])[0];
+ expect(result.chords.map(c=>c.text)).toEqual(['Dø7','C#7','C7']);
+});

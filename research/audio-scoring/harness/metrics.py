@@ -273,11 +273,12 @@ def dtw_similarity(take_f: Features, ref_f: Features, feat: str, k: int, band_se
 # ----------------------------------------------------------------------------
 # M5: frame-level pitch coverage (segmentation-free, no synthesis)
 # ----------------------------------------------------------------------------
-# The precision rule mirrors the app's audio check (src/lib/scoring/frame-coverage.ts) so these numbers
-# describe what shipped: AUDIO_CHECK_RELEASE_SECONDS, WINDOW_LEAD_SECONDS, WINDOW_TAIL_BEATS.
+# M5 is the app's audio check (src/lib/scoring/frame-coverage.ts), read from pyin, so these numbers
+# describe what shipped: AUDIO_CHECK_RELEASE_SECONDS, WINDOW_LEAD_SECONDS, WINDOW_TAIL_BEATS, MIN_COVER_FRAMES.
 RELEASE_TOLERANCE = 0.12  # s after a note's end where its own pitch still sounding is not an extra
 WINDOW_LEAD_SECONDS = 0.25  # frames this far before the first note still count (a slightly early entry)
 WINDOW_TAIL_BEATS = 1.0  # frames up to one beat after the line still count
+MIN_COVER_FRAMES = 3  # a written note counts as heard once this many of its frames carried its pitch
 
 
 def piano_roll(expected: list[ExpectedNote], frames: int, lag_frames: int) -> np.ndarray:
@@ -294,16 +295,6 @@ def piano_roll(expected: list[ExpectedNote], frames: int, lag_frames: int) -> np
     return roll
 
 
-def required_roll(expected: list[ExpectedNote], frames: int, lag_frames: int, tempo: float) -> np.ndarray:
-    """Like piano_roll but each note only as long as it must be HELD: half its
-    length or one beat, whichever is longer (capped at the note)."""
-    beat = 60.0 / tempo
-    from .features import HOLD_REQUIRED_FRACTION
-    short = [ExpectedNote(n.midi, n.onset, max(HOLD_REQUIRED_FRACTION * n.duration, min(n.duration, beat)), n.offset_frac, n.duration_frac)
-             for n in expected]
-    return piano_roll(short, frames, lag_frames)
-
-
 def _pitch_matches(f0: np.ndarray, pitch, octave_insensitive: bool, tolerance_st: float) -> np.ndarray:
     """Frames whose f0 lies within `tolerance_st` of `pitch` (a MIDI number or
     a per-frame roll; the difference folded into ±6 st when octave-insensitive);
@@ -313,6 +304,17 @@ def _pitch_matches(f0: np.ndarray, pitch, octave_insensitive: bool, tolerance_st
         if octave_insensitive:
             d = (d + 6) % 12 - 6
         return np.abs(d) <= tolerance_st
+
+
+def _phrase_times(frames: int, lag_frames: int) -> np.ndarray:
+    """Phrase time (s) of each frame when phrase offset 0 sits at frame `lag_frames`."""
+    return (np.arange(frames) - lag_frames) * FRAME_SECONDS
+
+
+def _slots(expected: list[ExpectedNote], tempo: float) -> list[tuple[float, float, int]]:
+    """(start, end, midi) per written note as the app reads it: from the swung
+    onset for the full notated length at `tempo`."""
+    return [(n.onset, n.onset + float(n.duration_frac) * 4 * 60.0 / tempo, n.midi) for n in expected]
 
 
 def precision_masks(f0: np.ndarray, sounded: np.ndarray, expected: list[ExpectedNote], lag_frames: int,
@@ -326,8 +328,8 @@ def precision_masks(f0: np.ndarray, sounded: np.ndarray, expected: list[Expected
     so around a note change both the note being released and the note
     starting are precise."""
     beat = 60.0 / tempo
-    t = (np.arange(len(f0)) - lag_frames) * FRAME_SECONDS  # phrase time of each frame
-    slots = [(n.onset, n.onset + float(n.duration_frac) * 4 * beat, n.midi) for n in expected]
+    t = _phrase_times(len(f0), lag_frames)
+    slots = _slots(expected, tempo)
     counted = sounded & (t >= min(a for a, _, _ in slots) - WINDOW_LEAD_SECONDS) \
         & (t <= max(b for _, b, _ in slots) + WINDOW_TAIL_BEATS * beat)
     precise = np.zeros(len(f0), dtype=bool)
@@ -336,32 +338,38 @@ def precision_masks(f0: np.ndarray, sounded: np.ndarray, expected: list[Expected
     return precise & counted, counted
 
 
+def m5_recall(f0: np.ndarray, sounded: np.ndarray, expected: list[ExpectedNote], lag_frames: int,
+              octave_insensitive: bool, tempo: float, tolerance_st: float = 0.5) -> float:
+    """M5 recall by the app's rule (frame-coverage.ts): the written notes'
+    share of the line, weighted by notated length, counting a note as heard
+    once MIN_COVER_FRAMES sounded frames inside its slot [start, end] are
+    within `tolerance_st` of its pitch. How long it was held never costs."""
+    t = _phrase_times(len(f0), lag_frames)
+    heard = total = 0.0
+    for a, b, midi in _slots(expected, tempo):
+        total += b - a
+        covered = sounded & (t >= a) & (t <= b) & _pitch_matches(f0, midi, octave_insensitive, tolerance_st)
+        if covered.sum() >= MIN_COVER_FRAMES:
+            heard += b - a
+    return heard / total if total > 0 else 0.0
+
+
 def m5_frame_coverage(take_f: Features, expected: list[ExpectedNote], lag_frames: int,
                       octave_insensitive: bool, tempo: float, tolerance_st: float = 0.5) -> Result:
-    """Frame-level pitch coverage of the take's pyin f0 against the expected
-    line placed at `lag_frames`. Precision: the app's rule (precision_masks):
-    of the sounded (voiced, gated-on) frames inside the line's window, the
-    share some note's slot or release matches within `tolerance_st`. Recall:
-    share of the piano roll's frames matched (the app's recall is per note
-    instead); recall_hold counts only each note's required part (half its
-    length or one beat at `tempo`); F1 of precision with each."""
+    """The app's audio check on the take's pyin f0, the line placed at
+    `lag_frames`. Precision (precision_masks): of the sounded (voiced,
+    gated-on) frames inside the line's window, the share some note's slot or
+    release matches within `tolerance_st`. Recall (m5_recall): the written
+    line's length-weighted share heard. Similarity is their F1."""
     f0 = f0_track(take_f)
-    T = take_f.frames
-    roll = piano_roll(expected, T, lag_frames)
     sounded = ~np.isnan(f0) & take_f.sounding
-    exp_on = ~np.isnan(roll)
-    req_on = ~np.isnan(required_roll(expected, T, lag_frames, tempo))
-
-    match = sounded & _pitch_matches(f0, roll, octave_insensitive, tolerance_st)
     precise, counted = precision_masks(f0, sounded, expected, lag_frames, octave_insensitive, tempo, tolerance_st)
     precision = precise.sum() / max(1, counted.sum())
-    recall = match.sum() / max(1, exp_on.sum())
-    recall_hold = (match & req_on).sum() / max(1, req_on.sum())
+    recall = m5_recall(f0, sounded, expected, lag_frames, octave_insensitive, tempo, tolerance_st)
     f1 = 2 * precision * recall / max(1e-9, precision + recall)
-    f1_hold = 2 * precision * recall_hold / max(1e-9, precision + recall_hold)
     return Result(float(f1), lag_frames * FRAME_SECONDS,
-                  {"precision": float(precision), "recall": float(recall), "recall_hold": float(recall_hold),
-                   "f1_hold": float(f1_hold), "sounded_frames": int(sounded.sum()), "expected_frames": int(exp_on.sum())})
+                  {"precision": float(precision), "recall": float(recall), "sounded_frames": int(counted.sum()),
+                   "expected_notes": len(expected)})
 
 
 # ----------------------------------------------------------------------------
@@ -373,7 +381,7 @@ def compare(take: Take, take_f: Features, expected: list[ExpectedNote], ref_y: n
     at `take.sr`). Chroma's best lag anchors the chroma DTW (band max(0.25 s,
     half a beat)), m2_env_at, m3_chroma_hold and every M5 variant; m4_cqt and
     m4_cqt_hold use the CQT's own best lag. `octave_insensitive` overrides the
-    take's policy for m5_cover/m5_cover_hold; m5_cover_strict is always strict."""
+    take's policy for m5_cover; m5_cover_strict is always strict."""
     oi = take.octave_insensitive if octave_insensitive is None else octave_insensitive
     ref_seconds = len(ref_y) / take.sr
     lags = lag_range(take, ref_seconds)
@@ -396,9 +404,8 @@ def compare(take: Take, take_f: Features, expected: list[ExpectedNote], ref_y: n
     out["m4_cqt_hold"] = Result(sim_at_lag(take_f, ref_f, "cqt", k4, hold=True), k4 * FRAME_SECONDS)
     m5 = m5_frame_coverage(take_f, expected, k3, oi, tempo=take.tempo)
     out["m5_cover"] = m5
-    out["m5_cover_hold"] = Result(m5.extra["f1_hold"], k3 * FRAME_SECONDS, dict(m5.extra))
     out["m5_cover_strict"] = m5_frame_coverage(take_f, expected, k3, False, tempo=take.tempo)
     return out
 
 
-METRIC_NAMES = ["m1_raw", "m2_env", "m2_env_at", "m3_chroma", "m3_chroma_hold", "m3_chroma_dtw", "m3_dtw_precision", "m3_dtw_f1", "m4_cqt", "m4_cqt_hold", "m4_cqt_dtw", "m5_cover", "m5_cover_hold", "m5_cover_strict"]
+METRIC_NAMES = ["m1_raw", "m2_env", "m2_env_at", "m3_chroma", "m3_chroma_hold", "m3_chroma_dtw", "m3_dtw_precision", "m3_dtw_f1", "m4_cqt", "m4_cqt_hold", "m4_cqt_dtw", "m5_cover", "m5_cover_strict"]

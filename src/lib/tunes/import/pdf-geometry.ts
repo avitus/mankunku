@@ -1,3 +1,4 @@
+import { createRepeatDotReader } from './pdf-repeat-dots';
 /**
  * Deterministic geometry analysis of a rendered chart page — pure functions
  * over pixel/darkness profiles, no ML, no DOM. The browser renders the PDF
@@ -61,10 +62,7 @@ export interface ColumnProfile {
  * one interline outside the staff), the darkest five-window wins, since
  * real staff lines run the full system width.
  */
-export function findStaffBands(
-	rowDarkness: ArrayLike<number>,
-	minDarkness = 0.4
-): StaffBand[] {
+export function findStaffBands(rowDarkness: ArrayLike<number>, minDarkness = 0.4): StaffBand[] {
 	// Cluster adjacent dark rows (thick/anti-aliased lines) into centers,
 	// keeping each cluster's peak darkness for disambiguation.
 	const centers: number[] = [];
@@ -311,6 +309,8 @@ export interface SystemGeometry {
 	 * bars, which the header otherwise hides.
 	 */
 	firstBarLeft: number;
+	/** Repeat dots on a removed opening staff border, not an extra measure. */
+	initialRepeat?: boolean;
 }
 
 /**
@@ -402,76 +402,14 @@ export function analyzePageGeometry(page: PageImage, minRowDarkness = 0.3): Syst
 				offLine
 			});
 		}
-		const barlines = findBarlines(cols, il);
+		// A border at the staff origin closes no measure. Remove it BEFORE
+		// scanning the clef/key header, otherwise it also truncates that scan.
+		const staffLeft = cols.findIndex((c) => c.touchesTop && c.touchesBottom);
+		const candidates = findBarlines(cols, il);
+		const opening = candidates.filter((x) => x <= staffLeft + il);
+		const barlines = candidates.filter((x) => x > staffLeft + il);
 
-		// Repeat dots: two compact blobs centered in spaces 2 and 3 beside
-		// the barline, with white clearance around the middle line — a
-		// notehead straddling the line fills that clearance and is rejected.
-		const c2 = Math.round((band.lines[1] + band.lines[2]) / 2);
-		const c3 = Math.round((band.lines[2] + band.lines[3]) / 2);
-		const gapOff = Math.max(2, Math.round(0.2 * il));
-		const nearWin = Math.max(1, Math.round(0.1 * il));
-		// A dot is a SHORT blob: the dark run through each space center must
-		// stay under 0.6 il (noteheads run ~1 il, stems far more).
-		const maxDotRun = 0.6 * il;
-		const isDotColumn = (x: number): boolean => {
-			if (x < 0 || x >= W) return false;
-			const shortRunAt = (c: number): boolean => {
-				let hit = -1;
-				for (let y = c - nearWin; y <= c + nearWin; y++) {
-					if (dark(x, y)) {
-						hit = y;
-						break;
-					}
-				}
-				if (hit < 0) return false;
-				let top = hit;
-				while (top > 0 && dark(x, top - 1)) top--;
-				let bottom = hit;
-				while (bottom < H - 1 && dark(x, bottom + 1)) bottom++;
-				return bottom - top + 1 <= maxDotRun;
-			};
-			if (
-				!shortRunAt(c2) ||
-				!shortRunAt(c3) ||
-				dark(x, band.lines[2] - gapOff) ||
-				dark(x, band.lines[2] + gapOff)
-			) {
-				return false;
-			}
-			// Purity: a real dot column holds NOTHING but staff lines and the
-			// two dots. A hollow whole note on the middle line mimics the two
-			// short runs at its edge columns, but drags ties/arcs/ring ink
-			// elsewhere in the band.
-			const dotWin = Math.round(0.35 * il);
-			for (let y = band.top - 2; y <= band.bottom + 2; y++) {
-				if (!dark(x, y)) continue;
-				const onLine = band.lines.some((l) => Math.abs(y - l) <= 3);
-				const inDot = Math.abs(y - c2) <= dotWin || Math.abs(y - c3) <= dotWin;
-				if (!onLine && !inDot) return false;
-			}
-			return true;
-		};
-		// The window reaches 2.2 il: a winged repeat's accepted boundary
-		// center skews away from its dots. Dots are also NARROW — a hollow
-		// whole note straddling the middle line shows the same two-short-runs
-		// column pattern, but its arcs run 1.5+ il wide, so only a compact
-		// run of dot-columns (2px to 0.7 il) counts.
-		const dotsOnSide = (bx: number, side: -1 | 1): boolean => {
-			const from = Math.round(0.3 * il);
-			const to = Math.round(2.2 * il);
-			let run = 0;
-			let bestRun = 0;
-			for (let d = from; d <= to + 1; d++) {
-				if (d <= to && isDotColumn(bx + side * d)) {
-					run++;
-				} else {
-					if (run > bestRun) bestRun = run;
-					run = 0;
-				}
-			}
-			return bestRun >= 2 && bestRun <= 0.7 * il;
-		};
+		const dotsOnSide = createRepeatDotReader(dark, W, H, band, il);
 		const repeatDots = barlines.map((bx) => ({
 			left: dotsOnSide(bx, -1),
 			right: dotsOnSide(bx, 1)
@@ -482,13 +420,6 @@ export function analyzePageGeometry(page: PageImage, minRowDarkness = 0.3): Syst
 		// the header is the leading chain with gaps under 1.2 il. Note
 		// content (noteheads ~1 il, hairline stems) stays below the density
 		// bar, so the chain stops at the meter.
-		let staffLeft = 0;
-		for (let x = 0; x < W; x++) {
-			if (cols[x].touchesTop && cols[x].touchesBottom) {
-				staffLeft = x;
-				break;
-			}
-		}
 		const limit = barlines.length ? barlines[0] : W;
 		let firstBarLeft = staffLeft;
 		let blockStart = -1;
@@ -518,7 +449,14 @@ export function analyzePageGeometry(page: PageImage, minRowDarkness = 0.3): Syst
 		}
 		if (blockStart >= 0 && lastDark - blockStart >= 0.4 * il) firstBarLeft = lastDark;
 
-		systems.push({ band, interline: il, barlines, repeatDots, firstBarLeft });
+		systems.push({
+			band,
+			interline: il,
+			barlines,
+			repeatDots,
+			firstBarLeft,
+			initialRepeat: opening.some((x) => dotsOnSide(x, 1))
+		});
 	}
 	return systems;
 }

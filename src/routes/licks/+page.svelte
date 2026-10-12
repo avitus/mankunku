@@ -1,4 +1,9 @@
 <script lang="ts">
+	import StudioPage from '$lib/components/console/StudioPage.svelte';
+	import StudioPanel from '$lib/components/console/StudioPanel.svelte';
+	import LibraryPagination from '$lib/components/console/LibraryPagination.svelte';
+	import LibraryViewControls from '$lib/components/console/LibraryViewControls.svelte';
+
 	import { onDestroy } from 'svelte';
 	import SeoHead from '$lib/components/seo/SeoHead.svelte';
 	import LickCard from '$lib/components/licks/LickCard.svelte';
@@ -22,7 +27,11 @@
 		hydrateLickPracticeProgress,
 		getStrandedPracticeLicks
 	} from '$lib/state/lick-practice.svelte';
-	import { getStolenLicksLocal, getStolenAuthorsLocal, returnLick } from '$lib/persistence/community';
+	import {
+		getStolenLicksLocal,
+		getStolenAuthorsLocal,
+		returnLick
+	} from '$lib/persistence/community';
 	import TourTrigger from '$lib/components/ui/TourTrigger.svelte';
 	import { licksTour } from '$lib/tour/tours/licks';
 	import HelpLink from '$lib/components/ui/HelpLink.svelte';
@@ -89,10 +98,14 @@
 			getUserLicks(sb, sess.user?.id)
 				.then(assign)
 				.catch(() => {
-					getUserLicks().then(assign).catch(() => assign([]));
+					getUserLicks()
+						.then(assign)
+						.catch(() => assign([]));
 				});
 		} else {
-			getUserLicks().then(assign).catch(() => assign([]));
+			getUserLicks()
+				.then(assign)
+				.catch(() => assign([]));
 		}
 	});
 
@@ -109,9 +122,8 @@
 
 	/** Live view of adopted community licks (localStorage-cached). */
 	let stolenLicks: Phrase[] = $state(getStolenLicksLocal());
-	let stolenAuthors: Record<string, { authorName: string | null }> = $state(
-		getStolenAuthorsLocal()
-	);
+	let stolenAuthors: Record<string, { authorName: string | null }> =
+		$state(getStolenAuthorsLocal());
 	const stolenIds = $derived(new Set(stolenLicks.map((l) => l.id)));
 
 	function refreshStolen() {
@@ -139,9 +151,7 @@
 		const q = licks.searchQuery.trim().toLowerCase();
 		if (!q) return myLicks;
 		return myLicks.filter(
-			(l) =>
-				l.name.toLowerCase().includes(q) ||
-				l.tags.some((t) => t.toLowerCase().includes(q))
+			(l) => l.name.toLowerCase().includes(q) || l.tags.some((t) => t.toLowerCase().includes(q))
 		);
 	});
 
@@ -223,6 +233,42 @@
 	onDestroy(() => {
 		audition.dispose();
 	});
+
+	let collectionScope = $state('all');
+	let libraryView = $state<'compact' | 'cards'>('compact');
+	let pageSize = $state(20);
+	let pageNumber = $state(1);
+	const ordered = $derived([
+		...(collectionScope === 'all' || collectionScope === 'setup' ? needsSetup : []),
+		...(collectionScope === 'all' || collectionScope === 'practice' ? practiceSet : []),
+		...(collectionScope === 'all' || collectionScope === 'other' ? otherLicks : [])
+	]);
+	const currentPage = $derived(
+		Math.min(pageNumber, Math.max(1, Math.ceil(ordered.length / pageSize)))
+	);
+	const shownIds = $derived(
+		new Set(
+			ordered.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((lick) => lick.id)
+		)
+	);
+	const counts = $derived.by(() => {
+		void practiceVersion;
+		const setup = myLicks.filter((lick) => inPractice(lick) && strandedIds.has(lick.id)).length;
+		const practice = myLicks.filter((lick) => inPractice(lick) && !strandedIds.has(lick.id)).length;
+		return {
+			all: myLicks.length,
+			setup,
+			practice,
+			other: myLicks.length - setup - practice
+		};
+	});
+	$effect(() => {
+		licks.searchQuery;
+		licks.progressionFilter;
+		collectionScope;
+		pageSize;
+		pageNumber = 1;
+	});
 </script>
 
 <SeoHead
@@ -231,26 +277,32 @@
 />
 
 {#if audition.state.error}
-	<p role="alert" class="text-sm text-[var(--color-error-text)]">{audition.state.error}</p>
+	<p role="alert" class="text-sm text-[var(--color-error-text)]">
+		{audition.state.error}
+	</p>
 {/if}
 
 {#snippet lickGrid(licks: Phrase[], opts: { toggleLabel?: 'add' | 'remove' })}
-	<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-		{#each licks as lick (lick.id)}
+	<div class="library-records" class:library-cards={libraryView === 'cards'}>
+		{#each licks.filter((lick) => shownIds.has(lick.id)) as lick (lick.id)}
 			{@const isStolen = stolenIds.has(lick.id)}
-			<div class="relative">
+			<div class="library-entry">
 				<LickCard
+					compact={libraryView === 'compact'}
 					{lick}
 					onclick={() => handleLickClick(lick.id)}
 					onplay={() => handlePlay(lick)}
 					isPlaying={playingId === lick.id}
-					authorName={isStolen ? stolenAuthors[lick.id]?.authorName ?? null : null}
+					authorName={isStolen ? (stolenAuthors[lick.id]?.authorName ?? null) : null}
 					progress={lickPractice.progress}
 				/>
-				<div class="absolute bottom-2 right-2 flex gap-2">
+				<div class="library-entry-actions">
 					{#if opts.toggleLabel}
 						<button
-							onclick={(e) => { e.stopPropagation(); togglePractice(lick); }}
+							onclick={(e) => {
+								e.stopPropagation();
+								togglePractice(lick);
+							}}
 							class="rounded-full bg-[var(--color-bg-tertiary)] px-2 py-0.5 text-xs text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-bg)]"
 						>
 							{opts.toggleLabel === 'add' ? '+ Practice' : 'Remove'}
@@ -258,7 +310,10 @@
 					{/if}
 					{#if isStolen}
 						<button
-							onclick={(e) => { e.stopPropagation(); handleReturn(lick.id); }}
+							onclick={(e) => {
+								e.stopPropagation();
+								handleReturn(lick.id);
+							}}
 							class="rounded-full bg-[var(--color-bg-tertiary)] px-2 py-0.5 text-xs text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-bg)]"
 							aria-label="Return lick"
 						>
@@ -271,141 +326,192 @@
 	</div>
 {/snippet}
 
-<div class="space-y-8">
-	<div class="flex items-end justify-between gap-4 flex-wrap">
-		<div>
-			<div class="smallcaps text-[var(--color-brass)]">The Book</div>
-			<h1 class="font-display text-4xl font-bold tracking-tight">Your Licks</h1>
-			<p class="mt-1 text-sm text-[var(--color-text-secondary)]">
-				Short phrases — recorded, written, or stolen — for your book.
-			</p>
-			<div class="jazz-rule mt-2 max-w-[160px]"></div>
-		</div>
-		<div class="flex items-center gap-4">
-			<TourTrigger tourId="licks" steps={licksTour} label="How your book works" />
-			<a
-				href="/licks/community"
-				class="rounded-full bg-[var(--color-bg-tertiary)] px-4 py-1.5 text-sm font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-bg-secondary)]"
+<StudioPage
+	eyebrow="The Book / Your collection"
+	title="Your Licks"
+	description="Short phrases. Lasting vocabulary. Make them your own."
+>
+	{#snippet actions()}
+		<a href="/licks/community" class="studio-text-action">Browse Community ↗</a>
+		<a href="/licks/add" data-tour="add-lick" class="studio-action">+ Add a lick</a>
+	{/snippet}
+	<div class="studio-library-layout">
+		<div class="library-collection">
+			<StudioPanel
+				id="lick-collection"
+				number="01"
+				title="The collection"
+				description="Recorded, written, or adopted. All part of your book."
 			>
-				Browse Community
-			</a>
-			<a
-				href="/licks/add"
-				data-tour="add-lick"
-				class="rounded-full bg-[var(--color-accent)] px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)]"
-			>
-				+ Add a lick
-			</a>
-			<HelpLink href="/docs/user-guide#your-licks" label="Licks docs" />
-		</div>
-	</div>
-
-	{#if myLicks.length === 0 && !loaded}
-		<div
-			class="rounded-lg bg-[var(--color-bg-secondary)] p-10 text-center"
-			aria-busy="true"
-		>
-			<p class="font-display text-lg text-[var(--color-text-secondary)]">Loading your licks…</p>
-			<div class="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2" aria-hidden="true">
-				<div class="h-20 animate-pulse rounded-lg bg-[var(--color-bg-tertiary)]"></div>
-				<div class="h-20 animate-pulse rounded-lg bg-[var(--color-bg-tertiary)]"></div>
-			</div>
-		</div>
-	{:else if myLicks.length === 0}
-		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-10 text-center">
-			<p class="font-display text-lg">Your book is empty.</p>
-			<p class="mt-2 text-sm text-[var(--color-text-secondary)]">
-				Record a lick or write one in the editor, then tag it for practice to drill it
-				through all 12 keys in Lick Practice.
-			</p>
-			<a
-				href="/licks/add"
-				class="mt-4 inline-block rounded-full bg-[var(--color-accent)] px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)]"
-			>
-				+ Add your first lick
-			</a>
-		</div>
-	{:else}
-		<!-- Search + progression filter -->
-		<div class="flex flex-col gap-2 sm:flex-row">
-			<input
-				type="search"
-				placeholder="find a lick…"
-				bind:value={licks.searchQuery}
-				class="w-full rounded-lg bg-[var(--color-bg-secondary)] px-4 py-2 text-sm
+				{#if myLicks.length === 0 && !loaded}
+					<div class="rounded-lg bg-[var(--color-bg-secondary)] p-10 text-center" aria-busy="true">
+						<p class="font-display text-lg text-[var(--color-text-secondary)]">
+							Loading your licks…
+						</p>
+						<div class="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2" aria-hidden="true">
+							<div class="h-20 animate-pulse rounded-lg bg-[var(--color-bg-tertiary)]"></div>
+							<div class="h-20 animate-pulse rounded-lg bg-[var(--color-bg-tertiary)]"></div>
+						</div>
+					</div>
+				{:else if myLicks.length === 0}
+					<div class="rounded-lg bg-[var(--color-bg-secondary)] p-10 text-center">
+						<p class="font-display text-lg">Your book is empty.</p>
+						<p class="mt-2 text-sm text-[var(--color-text-secondary)]">
+							Record a lick or write one in the editor, then tag it for practice to drill it through
+							all 12 keys in Lick Practice.
+						</p>
+						<a
+							href="/licks/add"
+							class="mt-4 inline-block rounded-full bg-[var(--color-accent)] px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)]"
+						>
+							+ Add your first lick
+						</a>
+					</div>
+				{:else}
+					<!-- Search + progression filter -->
+					<div class="library-filter">
+						<label
+							><span class="studio-label">Find a phrase</span>
+							<input
+								type="search"
+								placeholder="Find a lick…"
+								aria-label="Search licks"
+								bind:value={licks.searchQuery}
+								class="w-full rounded-lg bg-[var(--color-bg-secondary)] px-4 py-2 text-sm
 					   placeholder:text-[var(--color-text-secondary)] focus:outline-none
 					   focus:ring-1 focus:ring-[var(--color-accent)]"
-			/>
-			<select
-				bind:value={licks.progressionFilter}
-				aria-label="Filter by progression"
-				class="rounded-lg bg-[var(--color-bg-secondary)] px-3 py-2 text-sm
+							/>
+						</label><label
+							><span class="studio-label">Progression</span>
+							<select
+								bind:value={licks.progressionFilter}
+								aria-label="Filter by progression"
+								class="rounded-lg bg-[var(--color-bg-secondary)] px-3 py-2 text-sm
 					   text-[var(--color-text)] focus:outline-none
 					   focus:ring-1 focus:ring-[var(--color-accent)] sm:w-56"
-			>
-				<option value={null}>All progressions</option>
-				{#each progressionOptions as opt}
-					<option value={opt.value}>{opt.label}</option>
-				{/each}
-			</select>
-		</div>
+							>
+								<option value={null}>All progressions</option>
+								{#each progressionOptions as opt}
+									<option value={opt.value}>{opt.label}</option>
+								{/each}
+							</select></label
+						>
+					</div>
+					<LibraryViewControls
+						total={ordered.length}
+						noun="Licks"
+						view={libraryView}
+						{pageSize}
+						onview={(view) => (libraryView = view)}
+						onsize={(size) => (pageSize = size)}
+					/>
+					<LibraryPagination
+						total={ordered.length}
+						{pageSize}
+						page={currentPage}
+						noun="licks"
+						position="Top"
+						onchange={(next) => (pageNumber = next)}
+					/>
 
-		{#if visible.length === 0}
-			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-8 text-center">
-				{#if licks.progressionFilter}
-					<p class="italic text-[var(--color-text-secondary)]">
-						No licks are tagged for {PROGRESSION_TEMPLATES[licks.progressionFilter].name}{licks.searchQuery.trim()
-							? ' that match your search'
-							: ''}.
-					</p>
-					<p class="mt-2 text-sm text-[var(--color-text-secondary)]">
-						Open a lick and add it to this progression to see it here.
-					</p>
-				{:else}
-					<p class="italic text-[var(--color-text-secondary)]">
-						No licks match your search.
-					</p>
+					{#if ordered.length === 0}
+						<div class="rounded-lg bg-[var(--color-bg-secondary)] p-8 text-center">
+							{#if licks.progressionFilter}
+								<p class="italic text-[var(--color-text-secondary)]">
+									No licks are tagged for {PROGRESSION_TEMPLATES[licks.progressionFilter]
+										.name}{licks.searchQuery.trim() ? ' that match your search' : ''}.
+								</p>
+								<p class="mt-2 text-sm text-[var(--color-text-secondary)]">
+									Open a lick and add it to this progression to see it here.
+								</p>
+							{:else}
+								<p class="italic text-[var(--color-text-secondary)]">No licks match your search.</p>
+							{/if}
+						</div>
+					{:else}
+						{#if needsSetup.some((lick) => shownIds.has(lick.id))}
+							<section class="space-y-3">
+								<div
+									class="rounded-lg border border-[var(--color-warning)]/40 bg-[var(--color-warning)]/10 p-3"
+								>
+									<div class="smallcaps text-[var(--color-warning-text)]">Needs setup</div>
+									<p class="mt-1 text-sm text-[var(--color-text-secondary)]">
+										These are tagged for practice but aren't assigned to a progression yet, so they
+										can't appear in a session. Open each one to choose where it's practiced.
+									</p>
+								</div>
+								{@render lickGrid(needsSetup, {})}
+							</section>
+						{/if}
+
+						{#if practiceSet.some((lick) => shownIds.has(lick.id))}
+							<section class="space-y-3" data-tour="practice-set">
+								<div class="mb-3 flex items-center gap-2">
+									<h2 class="smallcaps text-[var(--color-brass)]">Practice set</h2>
+									<div class="jazz-rule flex-1"></div>
+									<span class="text-sm text-[var(--color-text-secondary)]">
+										{practiceSet.length} lick{practiceSet.length !== 1 ? 's' : ''}
+									</span>
+								</div>
+								{@render lickGrid(practiceSet, { toggleLabel: 'remove' })}
+							</section>
+						{/if}
+
+						{#if otherLicks.some((lick) => shownIds.has(lick.id))}
+							<section class="space-y-3">
+								<div class="mb-3 flex items-center gap-2">
+									<h2 class="smallcaps text-[var(--color-brass)]">Other licks</h2>
+									<div class="jazz-rule flex-1"></div>
+									<span class="text-sm text-[var(--color-text-secondary)]">
+										{otherLicks.length} lick{otherLicks.length !== 1 ? 's' : ''}
+									</span>
+								</div>
+								{@render lickGrid(otherLicks, { toggleLabel: 'add' })}
+							</section>
+						{/if}
+					{/if}
 				{/if}
+				<LibraryPagination
+					total={ordered.length}
+					{pageSize}
+					page={currentPage}
+					noun="licks"
+					position="Bottom"
+					onchange={(next) => (pageNumber = next)}
+				/>
+			</StudioPanel>
+		</div>
+		<aside class="library-sidebar" aria-label="Your book overview">
+			<StudioPanel id="lick-book-overview" number="02" title="Your book">
+				<div class="library-total studio-well">
+					<strong>{myLicks.length}</strong><span>Phrases collected</span>
+				</div>
+				<div class="library-scope" role="group" aria-label="Collection filters">
+					{#each [{ value: 'all', label: 'All phrases', count: counts.all }, { value: 'practice', label: 'Practice set', count: counts.practice }, { value: 'setup', label: 'Needs setup', count: counts.setup }, { value: 'other', label: 'Other licks', count: counts.other }] as scope}
+						<button
+							aria-pressed={collectionScope === scope.value}
+							onclick={() => (collectionScope = scope.value)}
+							><span>{scope.label}</span><b>{scope.count}</b></button
+						>
+					{/each}
+				</div>
+			</StudioPanel>
+			<section
+				class="library-next"
+				data-domain="lick-practice"
+				aria-label="Practice your vocabulary"
+			>
+				<p class="studio-label">From book to bandstand</p>
+				<h2>Give your phrases a place to go.</h2>
+				<p>Choose your practice set, then take it through the keys.</p>
+				<a href="/lick-practice" class="studio-action">Lick Practice ↗</a>
+			</section>
+			<div class="library-help">
+				<TourTrigger tourId="licks" steps={licksTour} label="How your book works" /><HelpLink
+					href="/docs/user-guide#your-licks"
+					label="Licks docs"
+				/>
 			</div>
-		{:else}
-			{#if needsSetup.length > 0}
-				<section class="space-y-3">
-					<div class="rounded-lg border border-[var(--color-warning)]/40 bg-[var(--color-warning)]/10 p-3">
-						<div class="smallcaps text-[var(--color-warning-text)]">Needs setup</div>
-						<p class="mt-1 text-sm text-[var(--color-text-secondary)]">
-							These are tagged for practice but aren't assigned to a progression yet, so they
-							can't appear in a session. Open each one to choose where it's practiced.
-						</p>
-					</div>
-					{@render lickGrid(needsSetup, {})}
-				</section>
-			{/if}
-
-			{#if practiceSet.length > 0}
-				<section class="space-y-3" data-tour="practice-set">
-					<div class="mb-3 flex items-center gap-2">
-						<h2 class="smallcaps text-[var(--color-brass)]">Practice set</h2>
-						<div class="jazz-rule flex-1"></div>
-						<span class="text-sm text-[var(--color-text-secondary)]">
-							{practiceSet.length} lick{practiceSet.length !== 1 ? 's' : ''}
-						</span>
-					</div>
-					{@render lickGrid(practiceSet, { toggleLabel: 'remove' })}
-				</section>
-			{/if}
-
-			{#if otherLicks.length > 0}
-				<section class="space-y-3">
-					<div class="mb-3 flex items-center gap-2">
-						<h2 class="smallcaps text-[var(--color-brass)]">Other licks</h2>
-						<div class="jazz-rule flex-1"></div>
-						<span class="text-sm text-[var(--color-text-secondary)]">
-							{otherLicks.length} lick{otherLicks.length !== 1 ? 's' : ''}
-						</span>
-					</div>
-					{@render lickGrid(otherLicks, { toggleLabel: 'add' })}
-				</section>
-			{/if}
-		{/if}
-	{/if}
-</div>
+		</aside>
+	</div>
+</StudioPage>

@@ -7,13 +7,23 @@
 		concertInstrumentLabel,
 		type BackingInstrument
 	} from '$lib/types/instruments';
-	import { settings, saveSettings, applyTheme, getInstrument, getEffectiveHighestNote } from '$lib/state/settings.svelte';
+	import {
+		settings,
+		saveSettings,
+		applyTheme,
+		getInstrument
+	} from '$lib/state/settings.svelte';
 	import { setMasterVolume } from '$lib/audio/audio-context';
-	import { progress, resetProgress, getUnlockContext } from '$lib/state/progress.svelte';
-	import { concertKeyToWritten, concertToWritten } from '$lib/music/transposition';
+	import { getUnlockContext } from '$lib/state/progress.svelte';
+	import {
+		concertKeyToWritten,
+		concertToWritten
+	} from '$lib/music/transposition';
 	import { midiToDisplayName } from '$lib/music/notation';
 	import { STRAIGHT_SWING, MAX_SWING } from '$lib/music/swing';
 	import type { PitchClass } from '$lib/types/music';
+	import StudioPage from '$lib/components/console/StudioPage.svelte';
+	import StudioPanel from '$lib/components/console/StudioPanel.svelte';
 	import Knob from '$lib/components/console/Knob.svelte';
 	import RockerSwitch from '$lib/components/console/RockerSwitch.svelte';
 	import SelectorPad from '$lib/components/console/SelectorPad.svelte';
@@ -44,12 +54,12 @@
 	// nothing until that is answered.
 	const CONCERT_FAMILY = 'concert-family';
 	const familyOptions = [
+		{ value: CONCERT_FAMILY, label: 'Concert Pitch', sublabel: 'C instruments' },
 		...TRANSPOSING_INSTRUMENT_IDS.map((id) => ({
 			value: id as string,
 			label: INSTRUMENTS[id].name,
 			sublabel: `${INSTRUMENTS[id].key} transposition`
-		})),
-		{ value: CONCERT_FAMILY, label: 'Concert Pitch', sublabel: 'C instruments' }
+		}))
 	];
 	const concertOptions = CONCERT_INSTRUMENT_IDS.map((id) => ({
 		value: id as string,
@@ -60,7 +70,9 @@
 	const familyValue = $derived(onConcert || askingConcert ? CONCERT_FAMILY : settings.instrumentId);
 
 	// Highest-note knob: sort presets ascending so rotating clockwise raises pitch.
-	const highestPresets = $derived([...instrument.highNotePresets].sort((a, b) => a - b));
+	const highestPresets = $derived(
+		[...instrument.highNotePresets].sort((a, b) => a - b)
+	);
 	const standardHighest = $derived(instrument.concertRangeHigh - 1);
 	const effectiveHighest = $derived(settings.highestNote ?? standardHighest);
 	const highestIndex = $derived.by(() => {
@@ -94,14 +106,22 @@
 	const session = $derived(page.data?.session ?? null);
 	const user = $derived(page.data?.user ?? null);
 
+	/** Describe the proficiency prerequisites for a locked scale. */
 	function scaleUnlockTooltip(scaleType: ScaleType): string {
 		const reqs = getScaleUnlockRequirements(scaleType);
 		if (reqs.length === 0) return SCALE_TYPE_NAMES[scaleType];
-		return reqs.map(r => `Requires ${r.scales.map(s => SCALE_TYPE_NAMES[s]).join(' + ')} level ${r.level}`).join('; ');
+		return reqs
+			.map(
+				(r) =>
+					`Requires ${r.scales.map((s) => SCALE_TYPE_NAMES[s]).join(' + ')} level ${r.level}`
+			)
+			.join('; ');
 	}
 
+	/** Persist a concert-pitch key override without changing the scale. */
 	function selectKey(key: PitchClass) {
-		const currentScale = settings.tonalityOverride?.scaleType ?? dailyTonality.scaleType;
+		const currentScale =
+			settings.tonalityOverride?.scaleType ?? dailyTonality.scaleType;
 		settings.tonalityOverride = { key, scaleType: currentScale };
 		saveSettings(supabase);
 	}
@@ -203,6 +223,7 @@
 		})();
 	});
 
+	/** Save the public display name and surface the existing save status. */
 	async function handleSaveDisplayName() {
 		if (!supabase || !user || displayNameSaving) return;
 		displayNameSaving = true;
@@ -211,7 +232,10 @@
 			const trimmed = displayName.trim();
 			const { error } = await supabase
 				.from('user_profiles')
-				.update({ display_name: trimmed || null, updated_at: new Date().toISOString() })
+				.update({
+					display_name: trimmed || null,
+					updated_at: new Date().toISOString()
+				})
 				.eq('id', user.id);
 			displayNameStatus = error ? 'error' : 'saved';
 			if (error) console.warn('Failed to save display name:', error);
@@ -223,6 +247,7 @@
 		}
 	}
 
+	/** Send the existing account-recovery email to the password-update callback. */
 	async function handleChangePassword() {
 		if (!supabase || !user?.email) return;
 		try {
@@ -234,7 +259,9 @@
 				alert('Failed to send password reset email. Please try again.');
 			} else {
 				// PKCE: only this browser holds the verifier the link redeems against.
-				alert('Password reset email sent. Open the link in this browser to choose a new password.');
+				alert(
+					'Password reset email sent. Open the link in this browser to choose a new password.'
+				);
 			}
 		} catch (err) {
 			console.warn('Password reset error:', err);
@@ -272,94 +299,78 @@
 	}
 </script>
 
-<svelte:head>
-	<title>Settings — Mankunku</title>
-</svelte:head>
+<svelte:head><title>Settings — Mankunku</title></svelte:head>
 
-<div class="space-y-8">
-	<div>
-		<div class="smallcaps text-[var(--color-brass)]">Control Room</div>
-		<h1 class="font-display text-4xl font-bold tracking-tight">Settings</h1>
-		<div class="jazz-rule mt-2 max-w-[140px]"></div>
-	</div>
-
-	<!-- ── GENERAL ─────────────────────────────────────────────────── -->
-	<div class="space-y-4">
-		<!-- Section header -->
-		<div class="flex items-center gap-3">
-			<div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--color-bg-tertiary)]">
-				<!-- Sliders icon -->
-				<svg class="h-4 w-4 text-[var(--color-text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-					<line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/>
-					<circle cx="8" cy="6" r="2" fill="currentColor" stroke="none"/><circle cx="16" cy="12" r="2" fill="currentColor" stroke="none"/><circle cx="10" cy="18" r="2" fill="currentColor" stroke="none"/>
-				</svg>
-			</div>
-			<div>
-				<h2 class="font-display text-xl font-semibold">General</h2>
-				<p class="text-xs text-[var(--color-text-secondary)]">Instrument, appearance, and master volume</p>
-			</div>
-		</div>
-
-		<div class="rounded-xl border border-[var(--color-bg-tertiary)] bg-[var(--color-bg-secondary)] divide-y divide-[var(--color-bg-tertiary)]">
-
-			<!-- Instrument + Highest Note + Master -->
-			<div class="flex flex-wrap items-end justify-center gap-x-14 gap-y-6 p-5">
-				<div class="inline-flex flex-col items-center gap-1.5">
-					<div class="flex items-center justify-center" style:min-height="84px">
-						<SelectorPad
-							ariaLabel="Instrument"
-							value={familyValue}
-							options={familyOptions}
-							onChange={selectFamily}
-						/>
-					</div>
-					<span class="smallcaps console-engrave">Instrument</span>
+<StudioPage
+	eyebrow="The control room / Settings"
+	title="Settings"
+	description="Tune the room to the way you play."
+>
+	<div class="settings-desk-grid">
+		<div class="settings-main-bank">
+			<StudioPanel
+				id="settings-instrument"
+				number="01"
+				title="Your instrument"
+				description="Set the range. Make the room yours."
+			>
+				<div class="settings-instrument-bank">
+					<p class="studio-label">Instrument / written pitch</p>
+					<SelectorPad
+						columns={5}
+						ariaLabel="Instrument"
+						value={familyValue}
+						options={familyOptions}
+						onChange={selectFamily}
+					/>
+					{#if onConcert || askingConcert}
+						<div class="settings-concert-bank" data-testid="concert-instrument-picker">
+							<p class="studio-label">
+								{askingConcert ? 'Which C instrument do you play?' : 'C instrument'}
+							</p>
+							<SelectorPad
+								columns={5}
+								size="sm"
+								ariaLabel="C instrument"
+								value={onConcert ? settings.instrumentId : ''}
+								options={concertOptions}
+								onChange={selectInstrument}
+							/>
+						</div>
+					{/if}
+					<p class="studio-caption">
+						{instrument.name} · {instrument.key} transposition · Concert MIDI {instrument.concertRangeLow}–{instrument.concertRangeHigh}
+					</p>
 				</div>
-
-				{#if onConcert || askingConcert}
-					<div class="inline-flex flex-col items-center gap-1.5" data-testid="concert-instrument-picker">
-						{#if askingConcert}
-							<p class="text-xs text-[var(--color-text-secondary)]">Which C instrument do you play?</p>
-						{/if}
-						<SelectorPad
-							ariaLabel="C instrument"
-							size="sm"
-							columns={3}
-							value={onConcert ? settings.instrumentId : ''}
-							options={concertOptions}
-							onChange={selectInstrument}
-						/>
-						<span class="smallcaps console-engrave">C instrument</span>
-					</div>
-				{/if}
-
-				<Knob
-					label="Highest"
-					ariaLabel="Highest note"
-					helpText="Highest note you're comfortable playing. Lower for beginners, raise for altissimo."
-					value={highestIndex}
-					min={0}
-					max={highestPresets.length - 1}
-					step={1}
-					displayValue={highestReadout}
-					onInput={handleHighestNoteInput}
-					onCommit={syncSettingsToCloud}
-				/>
-
-				<Knob
-					label="Master"
-					ariaLabel="Master volume"
-					helpText="Overall output level. Affects playback, metronome, and backing track."
-					value={settings.masterVolume}
-					min={0}
-					max={1}
-					step={0.05}
-					onInput={handleMasterVolumeInput}
-					onCommit={syncSettingsToCloud}
-				/>
-
-				<div class="inline-flex flex-col items-center gap-1.5">
-					<div class="flex items-center justify-center" style:min-height="84px">
+				<div class="settings-general-controls">
+					<Knob
+						size="lg"
+						label="Highest"
+						ariaLabel="Highest note"
+						helpText="Highest note you're comfortable playing. Lower for beginners, raise for altissimo."
+						value={highestIndex}
+						min={0}
+						max={highestPresets.length - 1}
+						step={1}
+						displayValue={highestReadout}
+						onInput={handleHighestNoteInput}
+						onCommit={syncSettingsToCloud}
+					/>
+					<Knob
+						size="lg"
+						label="Master"
+						ariaLabel="Master volume"
+						helpText="Overall output level. Affects playback, metronome, and backing track."
+						value={settings.masterVolume}
+						min={0}
+						max={1}
+						step={0.05}
+						displayValue={`${Math.round(settings.masterVolume * 100)}%`}
+						onInput={handleMasterVolumeInput}
+						onCommit={syncSettingsToCloud}
+					/>
+					<div class="settings-appearance">
+						<p class="studio-label">Appearance</p>
 						<SelectorPad
 							ariaLabel="Theme"
 							value={settings.theme}
@@ -370,65 +381,31 @@
 							onChange={selectTheme}
 						/>
 					</div>
-					<span class="smallcaps console-engrave">Theme</span>
 				</div>
-			</div>
-
-		</div>
-	</div>
-
-	<!-- ── EAR TRAINING ────────────────────────────────────────────── -->
-	<!--
-		data-domain="ear-training" scopes --color-accent to teal within
-		this section (overrides the page-level "neutral" domain set by
-		the layout) so headers, toggles, and highlights pick up the
-		palette automatically. See app.css.
-	-->
-	<div data-domain="ear-training" class="space-y-4">
-		<!-- Section header — teal identity -->
-		<div class="flex items-center gap-3">
-			<div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--color-accent)]/15">
-				<!-- Ear icon -->
-				<svg class="h-4 w-4 text-[var(--color-accent)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-					<path d="M6 8.5a6.5 6.5 0 1 1 13 0c0 6-6 6-6 10a3.5 3.5 0 0 1-7 0"/>
-					<path d="M15 8.5a2.5 2.5 0 0 0-5 0v1a2 2 0 1 0 4 0"/>
-				</svg>
-			</div>
-			<div>
-				<h2 class="font-display text-xl font-semibold text-[var(--color-accent)]">Ear Training</h2>
-				<p class="text-xs text-[var(--color-text-secondary)]">Keys, scales, tempo, metronome, and backing track</p>
-			</div>
-		</div>
-
-		<div class="rounded-xl border border-[var(--color-accent)]/20 bg-[var(--color-bg-secondary)] divide-y divide-[var(--color-bg-tertiary)]">
-
-			<!-- Keys & Scales -->
-			<div class="p-4 space-y-4">
-				<p class="text-sm font-medium">Keys &amp; Scales</p>
-
-				<!-- Current tonality status bar -->
-				<div class="flex items-center justify-between rounded-lg bg-[var(--color-bg-tertiary)] px-3 py-2">
+			</StudioPanel>
+			<StudioPanel
+				id="settings-tonality"
+				number="02"
+				title="Ear Training"
+				description="Your key and scale."
+				domain="ear-training"
+			>
+				<div class="settings-tonality-readout studio-well">
 					<div>
-						<span class="text-sm font-semibold text-[var(--color-accent)]">
-							{concertKeyToWritten(activeTonality.key, instrument)} {SCALE_TYPE_NAMES[activeTonality.scaleType]}
-						</span>
-						<span class="ml-2 text-xs text-[var(--color-text-secondary)]">
-							{useOverride ? 'Custom override' : 'Daily tonality'}
-						</span>
+						<strong
+							>{concertKeyToWritten(activeTonality.key, instrument)}
+							{SCALE_TYPE_NAMES[activeTonality.scaleType]}</strong
+						><span>{useOverride ? 'Custom override' : 'Daily tonality'}</span>
 					</div>
-					{#if useOverride}
-						<button
-							onclick={resetToDaily}
-							class="text-xs text-[var(--color-accent)] hover:underline"
-						>
-							Reset to daily
-						</button>
-					{/if}
+					{#if useOverride}<button
+							type="button"
+							class="studio-text-action"
+							onclick={resetToDaily}>Reset to daily</button
+						>{/if}
 				</div>
-
-				<!-- Key selector -->
-				<div class="flex flex-col items-center gap-1.5">
-					<div class="flex items-center justify-center">
+				<div class="settings-tonal-banks">
+					<div class="settings-keys">
+						<p class="studio-label">Key center</p>
 						<SelectorPad
 							ariaLabel="Key center"
 							size="sm"
@@ -445,12 +422,8 @@
 							onChange={selectKey}
 						/>
 					</div>
-					<span class="smallcaps console-engrave">Key Center</span>
-				</div>
-
-				<!-- Scale type selector -->
-				<div class="flex flex-col items-center gap-1.5">
-					<div class="flex items-center justify-center">
+					<div class="settings-scales">
+						<p class="studio-label">Scale type</p>
 						<SelectorPad
 							ariaLabel="Scale type"
 							size="sm"
@@ -467,82 +440,112 @@
 							onChange={selectScale}
 						/>
 					</div>
-					<span class="smallcaps console-engrave">Scale Type</span>
 				</div>
-
-				<!-- Unlock progress -->
-				<p class="text-xs text-[var(--color-text-secondary)]">
-					{unlockedKeys.length} / {KEY_UNLOCK_ORDER.length} keys &middot;
-					{unlockedScaleTypes.length} / {SCALE_UNLOCK_ORDER.length} scales unlocked
+				<p class="studio-caption">
+					{unlockedKeys.length} / {KEY_UNLOCK_ORDER.length} keys · {unlockedScaleTypes.length}
+					/ {SCALE_UNLOCK_ORDER.length} scales unlocked. More unlock as your ear develops.
 				</p>
-			</div>
-
-			<!-- Tempo / Swing / Metronome row -->
-			<div class="flex flex-wrap items-end justify-center gap-x-14 gap-y-6 px-5 py-5">
-				<Knob
-					label="Tempo"
-					ariaLabel="Default tempo"
-					helpText="Starting tempo for new practice sessions, in BPM."
-					value={settings.defaultTempo}
-					min={60}
-					max={200}
-					step={5}
-					displayValue={String(settings.defaultTempo)}
-					onInput={(v) => (settings.defaultTempo = v)}
-					onCommit={syncSettingsToCloud}
-				/>
-				<Knob
-					label="Swing"
-					ariaLabel="Swing feel"
-					helpText="Eighth-note swing ratio for the Swing backing style. 0.50 is straight eighths, 0.80 is heavy swing. Bossa Nova, Ballad and Straight set their own feel and ignore this."
-					value={settings.swing}
-					min={STRAIGHT_SWING}
-					max={MAX_SWING}
-					step={0.05}
-					displayValue={settings.swing.toFixed(2)}
-					onInput={(v) => (settings.swing = v)}
-					onCommit={syncSettingsToCloud}
-				/>
-
-				<RockerSwitch
-					label="Metronome"
-					checked={settings.metronomeEnabled}
-					onChange={(v) => {
-						settings.metronomeEnabled = v;
-						saveSettings(supabase);
-					}}
-				/>
-				{#if settings.metronomeEnabled}
-					<Knob
-						label="Metro Vol"
-						ariaLabel="Metronome volume"
-						helpText="Metronome click level, relative to master."
-						value={settings.metronomeVolume}
-						min={0}
-						max={1}
-						step={0.05}
-						onInput={(v) => (settings.metronomeVolume = v)}
-						onCommit={syncSettingsToCloud}
-					/>
-				{/if}
-			</div>
-
-			<!-- Backing Track row -->
-			<div class="flex flex-wrap items-end justify-center gap-x-14 gap-y-6 px-5 py-5">
-				<RockerSwitch
-					label="Backing"
-					ariaLabel="Backing track"
-					checked={settings.backingTrackEnabled}
-					onChange={(v) => {
-						settings.backingTrackEnabled = v;
-						saveSettings(supabase);
-					}}
-				/>
-
-				{#if settings.backingTrackEnabled}
-					<div class="inline-flex flex-col items-center gap-1.5">
-						<div class="flex items-center justify-center" style:min-height="84px">
+			</StudioPanel>
+			<StudioPanel
+				id="settings-rhythm"
+				number="03"
+				title="Rhythm & band"
+				description="Set the pace. Bring in the accompaniment."
+			>
+				<div class="settings-rhythm-grid">
+					<div class="settings-rhythm-cell">
+						<Knob
+							size="lg"
+							label="Tempo"
+							ariaLabel="Default tempo"
+							helpText="Starting tempo for new ear-training sessions, in BPM."
+							value={settings.defaultTempo}
+							min={60}
+							max={200}
+							step={5}
+							displayValue={String(settings.defaultTempo)}
+							onInput={(v) => (settings.defaultTempo = v)}
+							onCommit={syncSettingsToCloud}
+						/>
+						<p class="studio-caption">Starting pace for<br />ear training.</p>
+					</div>
+					<div class="settings-rhythm-cell">
+						<Knob
+							size="lg"
+							label="Swing"
+							ariaLabel="Swing feel"
+							helpText="Eighth-note swing ratio for the Swing backing style. 50% is straight eighths, 80% is heavy swing. Bossa Nova, Ballad and Straight set their own feel and ignore this."
+							value={settings.swing}
+							min={STRAIGHT_SWING}
+							max={MAX_SWING}
+							step={0.01}
+							displayValue={`${Math.round(settings.swing * 100)}%`}
+							onInput={(v) => (settings.swing = v)}
+							onCommit={syncSettingsToCloud}
+						/>
+						<p class="studio-caption">
+							Straight to heavy swing.<br />Applies to Swing backing.
+						</p>
+					</div>
+					<div class="settings-rhythm-cell">
+						<div class="settings-accompaniment">
+							<RockerSwitch
+								label="Metronome"
+								checked={settings.metronomeEnabled}
+								onChange={(v) => {
+									settings.metronomeEnabled = v;
+									saveSettings(supabase);
+								}}
+							/>
+							<Knob
+								size="lg"
+								disabled={!settings.metronomeEnabled}
+								label="Metro Vol"
+								ariaLabel="Metronome volume"
+								helpText="Metronome click level, relative to master."
+								value={settings.metronomeVolume}
+								min={0}
+								max={1}
+								step={0.05}
+								displayValue={`${Math.round(settings.metronomeVolume * 100)}%`}
+								onInput={(v) => (settings.metronomeVolume = v)}
+								onCommit={syncSettingsToCloud}
+							/>
+						</div>
+					</div>
+					<div class="settings-rhythm-cell">
+						<div class="settings-accompaniment">
+							<RockerSwitch
+								label="Backing"
+								ariaLabel="Backing track"
+								checked={settings.backingTrackEnabled}
+								onChange={(v) => {
+									settings.backingTrackEnabled = v;
+									saveSettings(supabase);
+								}}
+							/>
+							<Knob
+								size="lg"
+								disabled={!settings.backingTrackEnabled}
+								label="Backing Vol"
+								ariaLabel="Backing track volume"
+								helpText="Backing track level, relative to master."
+								value={settings.backingTrackVolume}
+								min={0}
+								max={1}
+								step={0.05}
+								displayValue={`${Math.round(settings.backingTrackVolume * 100)}%`}
+								onInput={(v) => (settings.backingTrackVolume = v)}
+								onCommit={syncSettingsToCloud}
+							/>
+						</div>
+						<fieldset
+							disabled={!settings.backingTrackEnabled}
+							aria-label="Backing track settings"
+							class="settings-band-voice"
+						>
 							<SelectorPad
+								disabled={!settings.backingTrackEnabled}
 								ariaLabel="Backing instrument"
 								value={settings.backingInstrument}
 								options={[
@@ -551,85 +554,96 @@
 								]}
 								onChange={selectBackingInstrument}
 							/>
-						</div>
-						<span class="smallcaps console-engrave">Instrument</span>
+						</fieldset>
 					</div>
-					<Knob
-						label="Backing Vol"
-						ariaLabel="Backing track volume"
-						helpText="Backing track level, relative to master."
-						value={settings.backingTrackVolume}
-						min={0}
-						max={1}
-						step={0.05}
-						onInput={(v) => (settings.backingTrackVolume = v)}
-						onCommit={syncSettingsToCloud}
-					/>
-				{/if}
-			</div>
-
-		</div>
-	</div>
-
-	<!-- ── LICK PRACTICE ──────────────────────────────────────────── -->
-	<!-- data-domain scopes --color-accent to terracotta here. See app.css. -->
-	<div data-domain="lick-practice" class="space-y-4">
-		<!-- Section header — terracotta identity -->
-		<div class="flex items-center gap-3">
-			<div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--color-accent)]/15">
-				<!-- Music note icon -->
-				<svg class="h-4 w-4 text-[var(--color-accent)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-					<path d="M9 18V5l12-2v13"/>
-					<circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
-				</svg>
-			</div>
-			<div>
-				<h2 class="font-display text-xl font-semibold text-[var(--color-accent)]">Lick Practice</h2>
-				<p class="text-xs text-[var(--color-text-secondary)]">Configure sessions in the Lick Practice page</p>
-			</div>
-		</div>
-
-		<div class="rounded-xl border border-[var(--color-accent)]/20 bg-[var(--color-bg-secondary)] divide-y divide-[var(--color-accent)]/10">
-			<!-- Session config info -->
-			<div class="px-4 py-4 flex items-start justify-between gap-4">
-				<p class="text-sm text-[var(--color-text-secondary)] leading-relaxed">
-					Lick practice session settings — session type, chord progression, duration, backing style, and mode — are configured directly on the
-					<a href="/lick-practice" class="text-[var(--color-accent)] hover:underline font-medium">Lick Practice</a>
-					page before each session. They stay as you left them until the app is reloaded. There's no tempo to set: each lick keeps its own,
-					starting at 60 BPM and moving automatically with your scores.
+				</div>
+				<p class="studio-caption settings-footnote">
+					Tempo also sets library playback and the starting pace for tune practice. Backing applies to lick and tune practice; each lick keeps its own tempo.
 				</p>
-				<a
-					href="/lick-practice"
-					class="shrink-0 rounded-lg bg-[var(--color-accent)]/15 px-3 py-1.5 text-xs font-medium text-[var(--color-accent)] hover:bg-[var(--color-accent)]/25 transition-colors"
-				>
-					Go to Lick Practice
-				</a>
-			</div>
+			</StudioPanel>
 		</div>
-	</div>
-
-	<!-- ── ACCOUNT ────────────────────────────────────────────────── -->
-	{#if session && user}
-		<div class="space-y-4">
-			<div class="flex items-center gap-3">
-				<div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--color-bg-tertiary)]">
-					<!-- Person icon -->
-					<svg class="h-4 w-4 text-[var(--color-text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-						<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-						<circle cx="12" cy="7" r="4"/>
-					</svg>
+		<aside class="settings-summary studio-panel" aria-label="Your setup">
+			<p class="studio-label">Your setup</p>
+			<div class="settings-instrument-readout">
+				<span class="studio-label">Instrument</span>
+				<h2>{instrument.name}</h2>
+				<p>{instrument.key} · Up to {highestReadout} written</p>
+			</div>
+			<dl>
+				<div>
+					<dt>Master</dt>
+					<dd>{Math.round(settings.masterVolume * 100)}%</dd>
 				</div>
 				<div>
-					<h2 class="font-display text-xl font-semibold">Account</h2>
-					<p class="text-xs text-[var(--color-text-secondary)]">Cloud sync and account management</p>
+					<dt>Tonality</dt>
+					<dd>
+						{concertKeyToWritten(activeTonality.key, instrument)}
+						{SCALE_TYPE_NAMES[activeTonality.scaleType]}
+					</dd>
 				</div>
-			</div>
-
-			<div class="rounded-xl border border-[var(--color-bg-tertiary)] bg-[var(--color-bg-secondary)] divide-y divide-[var(--color-bg-tertiary)]">
+				<div>
+					<dt>Tempo</dt>
+					<dd>{settings.defaultTempo} BPM</dd>
+				</div>
+				<div>
+					<dt>Swing</dt>
+					<dd>{Math.round(settings.swing * 100)}%</dd>
+				</div>
+				<div>
+					<dt>Metronome</dt>
+					<dd>{settings.metronomeEnabled ? 'On' : 'Off'}</dd>
+				</div>
+				<div>
+					<dt>Backing</dt>
+					<dd>
+						{settings.backingTrackEnabled
+							? settings.backingInstrument === 'organ'
+								? 'Organ'
+								: 'Piano'
+							: 'Off'}
+					</dd>
+				</div>
+			</dl>
+			<p class="studio-caption settings-summary-note">
+				A familiar room.<br />A little more possibility.
+			</p>
+		</aside>
+	</div>
+	<!-- Session config info -->
+	<section
+		class="settings-practice"
+		data-domain="lick-practice"
+		aria-labelledby="settings-practice-title"
+	>
+		<div>
+			<p class="studio-label">Vocabulary / Lick Practice</p>
+			<h2 id="settings-practice-title">The session starts over there.</h2>
+			<p>
+				Choose your session, progression, duration, backing style, and mode on
+				the Lick Practice page. These choices stay as you left them until the
+				app reloads. Each new lick starts at 60 BPM; Daily and Focused practice
+				tempos adapt with your scores. Deep Practice works on a single lick with
+				session-local tempo changes.
+			</p>
+		</div>
+		<a href="/lick-practice" class="studio-action"
+			>Go to Lick Practice <span aria-hidden="true">↗</span></a
+		>
+	</section>
+	{#if session && user}
+		<StudioPanel
+			id="settings-account"
+			number="04"
+			title="Account"
+			description="Cloud sync and account management."
+		>
+			<div class="settings-account-content">
 				<!-- Email -->
 				<div class="flex items-center justify-between px-4 py-3">
 					<div>
-						<p class="text-xs text-[var(--color-text-secondary)]">Signed in as</p>
+						<p class="text-xs text-[var(--color-text-secondary)]">
+							Signed in as
+						</p>
 						<p class="text-sm font-medium">{user.email}</p>
 					</div>
 				</div>
@@ -637,8 +651,13 @@
 				<!-- Display Name -->
 				<div class="px-4 py-3 space-y-2">
 					<div>
-						<label for="display-name-input" class="text-sm font-medium">Display Name</label>
-						<p id="display-name-help" class="text-xs text-[var(--color-text-secondary)]">
+						<label for="display-name-input" class="text-sm font-medium"
+							>Display Name</label
+						>
+						<p
+							id="display-name-help"
+							class="text-xs text-[var(--color-text-secondary)]"
+						>
 							Shown on community licks you share. Leave blank to stay anonymous.
 						</p>
 					</div>
@@ -647,7 +666,9 @@
 							id="display-name-input"
 							type="text"
 							bind:value={displayName}
-							oninput={() => { displayNameStatus = 'idle'; }}
+							oninput={() => {
+								displayNameStatus = 'idle';
+							}}
 							aria-describedby="display-name-help"
 							placeholder="e.g. Dexter G."
 							maxlength="80"
@@ -664,7 +685,9 @@
 					{#if displayNameStatus === 'saved'}
 						<p class="text-xs text-[var(--color-text-secondary)]">Saved.</p>
 					{:else if displayNameStatus === 'error'}
-						<p class="text-xs text-[var(--color-error-text)]">Couldn't save. Try again.</p>
+						<p class="text-xs text-[var(--color-error-text)]">
+							Couldn't save. Try again.
+						</p>
 					{/if}
 				</div>
 
@@ -672,7 +695,9 @@
 				<div class="flex items-center justify-between px-4 py-3">
 					<div>
 						<p class="text-sm font-medium">Password</p>
-						<p class="text-xs text-[var(--color-text-secondary)]">Update your password via email</p>
+						<p class="text-xs text-[var(--color-text-secondary)]">
+							Update your password via email
+						</p>
 					</div>
 					<button
 						onclick={handleChangePassword}
@@ -687,7 +712,9 @@
 					{#if showDeleteConfirm}
 						<div use:scrollIntoView>
 							<p class="mb-3 text-sm text-[var(--color-error-text)]">
-								This will permanently delete your account and all associated data including progress, recordings, and settings. This action cannot be undone.
+								This will permanently delete your account and all associated
+								data including progress, recordings, and settings. This action
+								cannot be undone.
 							</p>
 							<div class="flex gap-2">
 								<button
@@ -697,7 +724,9 @@
 									Yes, Delete My Account
 								</button>
 								<button
-									onclick={() => { showDeleteConfirm = false; }}
+									onclick={() => {
+										showDeleteConfirm = false;
+									}}
 									class="rounded-lg bg-[var(--color-bg-tertiary)] px-4 py-1.5 text-sm hover:bg-[var(--color-bg)] transition-colors"
 								>
 									Cancel
@@ -706,7 +735,9 @@
 						</div>
 					{:else}
 						<button
-							onclick={() => { showDeleteConfirm = true; }}
+							onclick={() => {
+								showDeleteConfirm = true;
+							}}
 							class="text-sm text-[var(--color-error-text)] hover:underline"
 						>
 							Delete Account
@@ -714,30 +745,20 @@
 					{/if}
 				</div>
 			</div>
-		</div>
+		</StudioPanel>
 	{/if}
-
-	<!-- ── TOURS & HELP ──────────────────────────────────────────── -->
-	<div class="space-y-4">
-		<div class="flex items-center gap-3">
-			<div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--color-bg-tertiary)]">
-				<!-- Compass icon -->
-				<svg class="h-4 w-4 text-[var(--color-text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-					<circle cx="12" cy="12" r="10"/>
-					<polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>
-				</svg>
-			</div>
-			<div>
-				<h2 class="font-display text-xl font-semibold">Tours &amp; Help</h2>
-				<p class="text-xs text-[var(--color-text-secondary)]">Replay any guided tour</p>
-			</div>
-		</div>
-
-		<div class="rounded-xl border border-[var(--color-bg-tertiary)] bg-[var(--color-bg-secondary)] divide-y divide-[var(--color-bg-tertiary)]">
+	<details class="settings-help studio-panel" open>
+		<summary
+			><span class="studio-label">The reference shelf</span>
+			<h2>Tours, help & data</h2></summary
+		>
+		<div class="settings-help-content">
 			<div class="flex items-center justify-between px-4 py-3 gap-4">
 				<div class="min-w-0">
 					<p class="text-sm font-medium">Documentation</p>
-					<p class="text-xs text-[var(--color-text-secondary)]">User guide, architecture, glossary, API reference.</p>
+					<p class="text-xs text-[var(--color-text-secondary)]">
+						User guide, architecture, glossary, API reference.
+					</p>
 				</div>
 				<a
 					href="/docs"
@@ -751,7 +772,8 @@
 					<div class="min-w-0">
 						<p class="text-sm font-medium">{tour.title}</p>
 						<p class="text-xs text-[var(--color-text-secondary)]">
-							{hasSeen(tour.id) ? 'Already seen' : 'Not yet seen'} · starts at <code class="text-[var(--color-brass)]">{tour.startsAt}</code>
+							{hasSeen(tour.id) ? 'Already seen' : 'Not yet seen'} · starts at
+							<code class="text-[var(--color-brass)]">{tour.startsAt}</code>
 						</p>
 					</div>
 					<button
@@ -788,37 +810,23 @@
 					Reset
 				</button>
 			</div>
-		</div>
-	</div>
-
-	<!-- ── DATA ───────────────────────────────────────────────────── -->
-	<div class="space-y-4">
-		<div class="flex items-center gap-3">
-			<div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--color-bg-tertiary)]">
-				<!-- Database icon -->
-				<svg class="h-4 w-4 text-[var(--color-text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-					<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/>
-					<path d="M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3"/>
-				</svg>
-			</div>
-			<div>
-				<h2 class="font-display text-xl font-semibold">Data</h2>
-				<p class="text-xs text-[var(--color-text-secondary)]">Progress and session history</p>
-			</div>
-		</div>
-
-		<div class="rounded-xl border border-[var(--color-bg-tertiary)] bg-[var(--color-bg-secondary)]">
-			<div class="px-4 py-3">
+			<div class="settings-data">
+				<h3>Progress & session history</h3>
+				<p class="studio-caption">
+					Clear practice history and earned progress.
+				</p>
 				{#if showResetConfirm}
 					<div use:scrollIntoView>
 						<p class="mb-3 text-sm text-[var(--color-error-text)]">
-							This will erase all progress, scores, and session history. This cannot be undone.
+							This will erase all progress, scores, and session history. This
+							cannot be undone.
 						</p>
 						<div class="flex gap-2">
 							<button
 								onclick={async () => {
 									try {
-										const { resetAllPracticeData } = await import('$lib/state/reset');
+										const { resetAllPracticeData } =
+											await import('$lib/state/reset');
 										await resetAllPracticeData(supabase ?? undefined);
 									} catch (err) {
 										console.warn('Failed to fully reset progress:', err);
@@ -831,7 +839,9 @@
 								Yes, Reset Everything
 							</button>
 							<button
-								onclick={() => { showResetConfirm = false; }}
+								onclick={() => {
+									showResetConfirm = false;
+								}}
 								class="rounded-lg bg-[var(--color-bg-tertiary)] px-4 py-1.5 text-sm hover:bg-[var(--color-bg)] transition-colors"
 							>
 								Cancel
@@ -840,7 +850,9 @@
 					</div>
 				{:else}
 					<button
-						onclick={() => { showResetConfirm = true; }}
+						onclick={() => {
+							showResetConfirm = true;
+						}}
 						class="text-sm text-[var(--color-error-text)] hover:underline"
 					>
 						Reset All Progress
@@ -848,7 +860,307 @@
 				{/if}
 			</div>
 		</div>
-	</div>
+	</details>
+	<footer class="settings-footer">
+		<span>MANKUNKU · YAKHAL’ INKOMO</span><span>MAKE THE ROOM YOURS.</span>
+	</footer>
+</StudioPage>
 
-</div>
-
+<style>
+	.settings-desk-grid {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) 250px;
+		gap: var(--studio-gap);
+		align-items: start;
+	}
+	.settings-main-bank {
+		display: grid;
+		gap: var(--studio-gap);
+		min-width: 0;
+	}
+	.settings-instrument-bank > .studio-label {
+		margin-bottom: 12px;
+	}
+	.settings-instrument-bank > .studio-caption {
+		margin-top: 12px;
+	}
+	/* Sets its own column count so the instrument bank's breakpoints don't
+	   reach the nested follow-up through the inherited custom property. */
+	.settings-concert-bank {
+		--selector-columns: 5;
+		margin-top: 16px;
+	}
+	.settings-concert-bank > .studio-label {
+		margin-bottom: 10px;
+	}
+	.settings-general-controls {
+		display: grid;
+		grid-template-columns: 1fr 1fr 1fr;
+		align-items: center;
+		gap: 24px;
+		border-top: 1px solid var(--studio-border);
+		padding-top: 24px;
+		margin-top: 24px;
+	}
+	.settings-appearance {
+		max-width: 190px;
+		width: 100%;
+		justify-self: center;
+	}
+	.settings-appearance > p {
+		margin-bottom: 14px;
+		text-align: center;
+	}
+	.settings-tonality-readout {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		flex-wrap: wrap;
+		gap: 12px;
+	}
+	.settings-tonality-readout strong {
+		font: 24px var(--font-display);
+		color: var(--studio-accent-text);
+	}
+	.settings-tonality-readout span {
+		display: block;
+		font-size: 11px;
+		color: var(--studio-muted);
+		margin-top: 6px;
+	}
+	.settings-tonal-banks {
+		display: grid;
+		grid-template-columns: 0.8fr 1.2fr;
+		gap: 22px;
+		margin: 22px 0 16px;
+	}
+	.settings-tonal-banks .studio-label {
+		margin-bottom: 10px;
+	}
+	.settings-scales {
+		--selector-columns: 3;
+		min-width: 0;
+	}
+	.settings-keys {
+		min-width: 0;
+	}
+	.settings-rhythm-grid {
+		display: grid;
+		grid-template-columns: repeat(4, minmax(0, 1fr));
+	}
+	.settings-rhythm-cell {
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		text-align: center;
+		gap: 16px;
+		padding: 0 14px;
+		border-right: 1px solid var(--studio-border);
+	}
+	.settings-rhythm-cell:first-child {
+		padding-left: 0;
+	}
+	.settings-rhythm-cell:last-child {
+		border-right: 0;
+		padding-right: 0;
+	}
+	.settings-accompaniment {
+		display: grid;
+		gap: 20px;
+		justify-items: center;
+	}
+	.settings-band-voice {
+		min-width: 0;
+		width: 100%;
+		border: 0;
+		padding: 0;
+		margin: 0;
+	}
+	.settings-footnote {
+		border-top: 1px solid var(--studio-border);
+		padding-top: 18px;
+		margin-top: 24px;
+	}
+	.settings-summary {
+		border-top: 3px solid var(--color-brass);
+	}
+	.settings-instrument-readout {
+		margin-top: 40px;
+		margin-bottom: 28px;
+	}
+	.settings-instrument-readout h2 {
+		font: 30px/1.2 var(--font-display);
+		margin: 12px 0;
+	}
+	.settings-instrument-readout p {
+		color: var(--studio-muted);
+		font-size: 12px;
+	}
+	.settings-summary dl > div {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 14px;
+		padding: 16px 0;
+		border-top: 1px solid var(--studio-border);
+		font-size: 12px;
+	}
+	.settings-summary dt {
+		color: var(--studio-muted);
+	}
+	.settings-summary dd {
+		text-align: right;
+		max-width: 65%;
+		overflow-wrap: anywhere;
+	}
+	.settings-summary-note {
+		margin-top: 32px;
+	}
+	.settings-practice {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		gap: 28px;
+		padding: 32px 0;
+		margin: 12px 0;
+	}
+	.settings-practice h2 {
+		font: 28px/1.25 var(--font-display);
+		margin: 8px 0 12px;
+	}
+	.settings-practice p:not(.studio-label) {
+		color: var(--studio-muted);
+		font-size: 13px;
+		line-height: 1.8;
+		max-width: 730px;
+	}
+	.settings-practice a {
+		flex-shrink: 0;
+	}
+	.settings-help {
+		margin-top: 24px;
+	}
+	.settings-help summary {
+		cursor: pointer;
+		padding: 4px 0;
+	}
+	.settings-help h2 {
+		display: inline;
+		font: 25px/1.3 var(--font-display);
+	}
+	.settings-help summary .studio-label {
+		display: block;
+		margin-bottom: 7px;
+	}
+	.settings-help-content {
+		margin-top: 20px;
+	}
+	.settings-help-content > :global(div),
+	.settings-account-content > :global(div) {
+		border-top: 1px solid var(--studio-border);
+	}
+	.settings-account-content :global(input) {
+		min-width: 0;
+	}
+	.settings-data {
+		padding: 22px 16px 10px;
+	}
+	.settings-data h3 {
+		font: 20px var(--font-display);
+	}
+	.settings-data > p {
+		margin: 8px 0 16px;
+	}
+	.settings-footer {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: space-between;
+		gap: 16px;
+		color: var(--studio-muted);
+		font-size: 9px;
+		letter-spacing: 0.12em;
+		padding-top: 30px;
+	}
+	@media (max-width: 1200px) {
+		.settings-desk-grid {
+			grid-template-columns: minmax(0, 1fr) 220px;
+			gap: 20px;
+		}
+		.settings-tonal-banks {
+			grid-template-columns: 1fr;
+		}
+		.settings-scales {
+			--selector-columns: 4;
+		}
+		.settings-rhythm-grid {
+			grid-template-columns: 1fr 1fr;
+			row-gap: 28px;
+		}
+		.settings-rhythm-cell:nth-child(2) {
+			border: 0;
+		}
+		.settings-accompaniment {
+			display: flex;
+			align-items: center;
+			gap: 18px;
+		}
+	}
+	@media (max-width: 900px) {
+		.settings-desk-grid {
+			grid-template-columns: 1fr;
+		}
+		.settings-summary dl {
+			display: grid;
+			grid-template-columns: 1fr 1fr;
+			gap: 0 26px;
+		}
+		.settings-instrument-readout {
+			margin: 20px 0;
+		}
+		.settings-summary-note {
+			margin-top: 18px;
+		}
+		.settings-instrument-bank {
+			--selector-columns: 3;
+		}
+		.settings-concert-bank {
+			--selector-columns: 3;
+		}
+		.settings-practice {
+			align-items: start;
+			flex-direction: column;
+			gap: 18px;
+		}
+	}
+	@media (max-width: 600px) {
+		.settings-instrument-bank {
+			--selector-columns: 2;
+		}
+		.settings-general-controls {
+			grid-template-columns: 1fr 1fr;
+		}
+		.settings-appearance {
+			grid-column: 1 / -1;
+		}
+		.settings-scales {
+			--selector-columns: 2;
+		}
+		.settings-rhythm-cell {
+			padding: 0 10px;
+		}
+		.settings-accompaniment {
+			flex-direction: column;
+			gap: 16px;
+		}
+		.settings-summary dl {
+			grid-template-columns: 1fr;
+		}
+		.settings-tonality-readout strong {
+			font-size: 22px;
+		}
+		.settings-help-content > :global(div) {
+			flex-wrap: wrap;
+		}
+	}
+</style>

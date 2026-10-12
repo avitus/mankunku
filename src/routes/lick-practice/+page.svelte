@@ -1,7 +1,12 @@
 <script lang="ts">
+	import StudioPage from '$lib/components/console/StudioPage.svelte';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
-	import { loadEnclosureSetup, saveEnclosureSetup, wasEnclosureSetupActive } from '$lib/persistence/enclosure-setup';
+	import {
+		loadEnclosureSetup,
+		saveEnclosureSetup,
+		wasEnclosureSetupActive
+	} from '$lib/persistence/enclosure-setup';
 	import SeoHead from '$lib/components/seo/SeoHead.svelte';
 	import { page } from '$app/state';
 	import PracticeSetup from '$lib/components/lick-practice/PracticeSetup.svelte';
@@ -28,10 +33,18 @@
 		if (config.sessionType === 'trick' && config.trickId === 'enclosures') {
 			// In-memory parameters may be an explicit detail-page handoff. Keep
 			// that selection; only the shared rhythm/mode preferences are restored.
-			if (saved) Object.assign(config, { backingStyle: saved.backingStyle, practiceMode: saved.practiceMode });
+			if (saved)
+				Object.assign(config, {
+					backingStyle: saved.backingStyle,
+					practiceMode: saved.practiceMode
+				});
 		} else if (config.sessionType === 'daily' && !config.trickId && wasEnclosureSetupActive()) {
 			// A reload starts with the default config, so restore the full setup.
-			if (saved) Object.assign(config, saved, { sessionType: 'trick', trickId: 'enclosures' });
+			if (saved)
+				Object.assign(config, saved, {
+					sessionType: 'trick',
+					trickId: 'enclosures'
+				});
 		}
 		saveEnclosureSetup(config);
 		// Cloud-backed mode requires both the client and a session; the gate
@@ -115,27 +128,25 @@
 	description="Drill jazz licks through all twelve keys over a generated rhythm section — walking bass, comping, and drums — with tempo that adapts as you master each key."
 />
 
-<div class="space-y-5">
-	<div class="flex items-end justify-between flex-wrap gap-3">
-		<div>
-			<div class="smallcaps text-[var(--color-brass)]">Side B</div>
-			<h1 class="font-display text-4xl font-bold tracking-tight text-[var(--color-accent)]">
-				Lick Practice
-			</h1>
-			<div class="jazz-rule mt-2 max-w-[140px]"></div>
-		</div>
-		<div class="flex items-center gap-3">
-			<TourTrigger tourId="lick-practice" steps={lickPracticeTour} />
-			<HelpLink href="/docs/user-guide#side-b-lick-practice" label="Lick practice docs" />
-		</div>
-	</div>
+<StudioPage
+	eyebrow="Vocabulary / The practice room"
+	title="Lick Practice"
+	description="Your vocabulary. All twelve keys. A band behind you."
+>
+	{#snippet actions()}<TourTrigger tourId="lick-practice" steps={lickPracticeTour} /><HelpLink
+			href="/docs/user-guide#side-b-lick-practice"
+			label="Lick practice docs"
+		/>{/snippet}
 
 	{#if strandedLicks.length > 0}
-		<details class="rounded-lg border border-[var(--color-brass)]/30 bg-[var(--color-bg-secondary)] text-sm">
+		<details
+			class="rounded-lg border border-[var(--color-brass)]/30 bg-[var(--color-bg-secondary)] text-sm"
+		>
 			<summary class="cursor-pointer list-none px-3 py-2 text-[var(--color-text-secondary)]">
 				<span class="text-[var(--color-brass)]">⚠</span>
 				{strandedLicks.length}
-				lick{strandedLicks.length !== 1 ? 's' : ''} tagged for practice but missing a progression — won't appear in any session.
+				lick{strandedLicks.length !== 1 ? 's' : ''} tagged for practice but missing a progression — won't
+				appear in any session.
 			</summary>
 			<ul class="space-y-1 px-3 pb-3 pt-1 text-xs">
 				{#each strandedLicks as lick (lick.id)}
@@ -158,4 +169,4 @@
 		onstart={handleStart}
 		onupdate={handleUpdate}
 	/>
-</div>
+</StudioPage>

@@ -19,7 +19,11 @@ const KEY_OVERRIDE = { key: 'C', scaleType: 'major-pentatonic' };
 test.describe('written pitch follows the instrument setting', () => {
 	test.beforeEach(async ({ page }) => {
 		await seedStorage(page, {
-			settings: { ...SETTINGS_ONBOARDED, instrumentId: 'tenor-sax', tonalityOverride: KEY_OVERRIDE },
+			settings: {
+				...SETTINGS_ONBOARDED,
+				instrumentId: 'tenor-sax',
+				tonalityOverride: KEY_OVERRIDE
+			},
 			'tour-state': TOUR_DISMISSED
 		});
 		// /ear-training loads the instrument on mount; keep the samples local.
@@ -42,7 +46,17 @@ test.describe('written pitch follows the instrument setting', () => {
 		await page.goto('/settings');
 		const instrumentGroup = page.getByRole('radiogroup', { name: 'Instrument', exact: true });
 		await instrumentGroup.getByRole('radio', { name: /alto/i }).first().click();
-		await expect(page.getByText('A Major Pentatonic', { exact: true })).toBeVisible();
+		// Both the control panel and the read-only summary use written pitch.
+		await expect(
+			page
+				.getByRole('region', { name: 'Ear Training', exact: true })
+				.getByText('A Major Pentatonic', { exact: true })
+		).toBeVisible();
+		await expect(
+			page
+				.getByRole('complementary', { name: 'Your setup' })
+				.getByText('A Major Pentatonic', { exact: true })
+		).toBeVisible();
 		await expect(page.getByText('Custom override')).toBeVisible();
 
 		// Alto: concert C reads A.
@@ -56,7 +70,17 @@ test.describe('written pitch follows the instrument setting', () => {
 			.getByRole('radio', { name: /concert pitch/i })
 			.first()
 			.click();
-		await expect(page.getByText('C Major Pentatonic', { exact: true })).toBeVisible();
+		// Both the control panel and the read-only summary use written pitch.
+		await expect(
+			page
+				.getByRole('region', { name: 'Ear Training', exact: true })
+				.getByText('C Major Pentatonic', { exact: true })
+		).toBeVisible();
+		await expect(
+			page
+				.getByRole('complementary', { name: 'Your setup' })
+				.getByText('C Major Pentatonic', { exact: true })
+		).toBeVisible();
 		await page.goto('/ear-training');
 		await expect(todaysKey()).toContainText(/Today's key\s*C\s*Major Pentatonic/);
 	});
@@ -98,7 +122,10 @@ test.describe('written pitch follows the instrument setting', () => {
 
 		// Concert pitch: keys read as stored.
 		await page.goto('/settings');
-		await instrumentGroup().getByRole('radio', { name: /concert pitch/i }).first().click();
+		await instrumentGroup()
+			.getByRole('radio', { name: /concert pitch/i })
+			.first()
+			.click();
 		await expect(keyPad().getByRole('radio', { name: 'D', exact: true })).toHaveAttribute(
 			'title',
 			'Requires G proficiency level 10'

@@ -1,4 +1,15 @@
 <script lang="ts">
+	import {
+		embeddedHeader,
+		embeddedSystemResult,
+		recognizeExtractedSystem
+	} from '$lib/tunes/import/pdf-embedded';
+	import { selectOmrSystems } from '$lib/tunes/import/omr-quality';
+	import { runContextualTranscriptions } from '$lib/tunes/import/pdf-context-run';
+	import type {
+		RecognitionContext,
+		SystemRecognitionResult
+	} from '$lib/tunes/import/pdf-recognition';
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
@@ -9,21 +20,13 @@
 	import SourceTranspositionSelect from '$lib/components/tunes/SourceTranspositionSelect.svelte';
 	import TimeSignatureSelect from '$lib/components/tunes/TimeSignatureSelect.svelte';
 	import { extractPdfSystems, type ExtractedSystem } from '$lib/tunes/import/pdf-system-extract';
-	import {
-		assembleClaudeDoc,
-		importReviewNotes,
-		type ModelBar
-	} from '$lib/tunes/import/pdf-system-assemble';
+	import { assembleClaudeDoc, importReviewNotes } from '$lib/tunes/import/pdf-system-assemble';
 	import { setImportReview } from '$lib/state/tune-entry.svelte';
 	import { claudeJsonToTune } from '$lib/tunes/import/claude-pdf';
-	import {
-		runSystemTranscriptions,
-		type SystemProgress
-	} from '$lib/tunes/import/pdf-import-run';
+	import { type SystemProgress } from '$lib/tunes/import/pdf-import-run';
 	import { readNdjsonResult } from '$lib/tunes/import/ndjson-result';
 	import {
 		omrNormalized,
-		omrSystemResponses,
 		validateOmrTranscription,
 		type OmrNormalized
 	} from '$lib/tunes/import/omr-transcription';
@@ -48,14 +51,13 @@
 	 * whole run down with them.
 	 */
 	const SYSTEM_SILENCE_MS = 45_000;
-	/** Systems are independent; fanning out narrows the wait to the slowest
-	 * one rather than the slowest of ceil(n/3) waves. */
-	const SYSTEM_CONCURRENCY = 8;
 	const SYSTEM_ATTEMPTS = 2;
 
 	let configured = $state<boolean | null>(null);
 	let uploading = $state(false);
-	let phase = $state<'idle' | 'reading' | 'transcribing' | 'whole-pdf' | 'assembling'>('idle');
+	let phase = $state<'idle' | 'reading' | 'context' | 'transcribing' | 'whole-pdf' | 'assembling'>(
+		'idle'
+	);
 	let pageProgress = $state<{ page: number; total: number } | null>(null);
 	let systemStates = $state<SystemProgress[]>([]);
 	/** Server-reported time-in-flight per line, from its heartbeats. */
@@ -153,19 +155,17 @@
 		return `sheet-${Date.now()}-${rand}`;
 	}
 
-	interface SystemModeResponse {
-		keySignature: { fifths: number } | null;
-		timeSignature: [number, number] | null;
-		bars: ModelBar[];
-		warnings: string[];
-	}
+	type SystemModeResponse = SystemRecognitionResult;
 
 	async function transcribeSystem(
 		sys: ExtractedSystem,
 		timeSignature: [number, number],
 		index: number,
 		first: boolean,
-		signal: AbortSignal
+		signal: AbortSignal,
+		context: RecognitionContext,
+		harmonyOnly = false,
+		contextOnly = false
 	): Promise<SystemModeResponse> {
 		const res = await fetch('/api/tune-parse', {
 			method: 'POST',
@@ -179,11 +179,18 @@
 			signal,
 			body: JSON.stringify({
 				system: {
-					image: sys.image,
+					image: contextOnly ? sys.headerImage : sys.image,
 					barCount: sys.geometry.barlines.length,
 					timeSignature,
 					first,
-					barEvidence: sys.evidence
+					barEvidence: sys.evidence,
+					barImages: contextOnly || harmonyOnly ? undefined : sys.barImages,
+					harmonyImages: contextOnly ? undefined : sys.sourceBarImages,
+					context,
+					readHarmony: sys.texts.chords.length === 0,
+					readAccidentals: !contextOnly && !harmonyOnly,
+					harmonyOnly,
+					contextOnly
 				}
 			})
 		});
@@ -219,16 +226,25 @@
 		buffer: ArrayBuffer,
 		filename: string,
 		signal: AbortSignal
-	): Promise<{ sheet: Tune; warnings: string[]; suspectBars: number[] } | null> {
+	): Promise<{
+		sheet: Tune;
+		warnings: string[];
+		suspectBars: number[];
+		sourceBarImages?: string[];
+	} | null> {
 		phase = 'reading';
-		const extraction = await extractPdfSystems(buffer, (page, total) => {
-			pageProgress = { page, total };
-		});
+		const extraction = await extractPdfSystems(
+			buffer,
+			(page, total) => {
+				pageProgress = { page, total };
+			},
+			meter
+		);
 		if (!extraction) return null;
 		const { systems } = extraction;
 		if (systems.length === 0) return null;
 
-		phase = 'transcribing';
+		phase = 'context';
 		systemElapsed = new Array(systems.length).fill(0);
 		systemStates = systems.map((sys, index) => ({
 			index,
@@ -237,34 +253,73 @@
 			error: null
 		}));
 
-		// An attached OMR transcription supplies melody for the lines it covers
-		// — those resolve instantly and never touch the network. Lines it can't
-		// cover fall back to the AI reader (when configured).
+		// OMR may supply melody only after alignment and quality checks.
+		// Scanned harmony is recognized independently.
 		const fused = omrDoc
-			? omrSystemResponses(
+			? selectOmrSystems(
 					omrDoc,
 					systems.map((sys) => sys.geometry.barlines.length),
 					meter
 				)
 			: null;
 
-		// Every line goes out at once: the meter came from the user, so nothing
-		// has to wait on a transcription to learn it.
-		const run = await runSystemTranscriptions<SystemModeResponse>({
+		// Resolve cheap header observations in reading order before concurrent
+		// melody recognition; omitted signatures inherit instead of resetting.
+		const run = await runContextualTranscriptions({
 			count: systems.length,
-			concurrency: SYSTEM_CONCURRENCY,
+			initialContext: { fifths: null, clef: null, timeSignature: meter },
+			concurrency: 4,
+			readContext: (index, sig) => {
+				const local = embeddedSystemResult(systems[index]) ?? fused?.responses[index];
+				if (local) return Promise.resolve(local);
+				const header = embeddedHeader(systems[index]);
+				if (header) return Promise.resolve(header);
+				if (configured === false) return Promise.resolve(null);
+				return transcribeSystem(
+					systems[index],
+					meter,
+					index,
+					index === 0,
+					sig,
+					{ fifths: null, clef: null, timeSignature: meter },
+					false,
+					true
+				);
+			},
 			attempts: SYSTEM_ATTEMPTS,
 			signal,
 			onProgress: (states) => (systemStates = states),
-			transcribe: (index, _attempt, sig) => {
-				const fromOmr = fused?.responses[index];
-				if (fromOmr) return Promise.resolve(fromOmr);
-				if (configured === false) return Promise.resolve(null);
-				return transcribeSystem(systems[index], meter, index, index === 0, sig);
+			transcribe: async (index, context, sig) => {
+				phase = 'transcribing';
+				return recognizeExtractedSystem(
+					systems[index],
+					context,
+					configured === false
+						? undefined
+						: (harmonyOnly) =>
+								transcribeSystem(
+									systems[index],
+									meter,
+									index,
+									index === 0,
+									sig,
+									context,
+									harmonyOnly
+								),
+					fused?.responses[index],
+					sig
+				);
 			}
 		});
 		if (run.aborted) throw new Error('Import cancelled.');
-		if (run.failed.length === systems.length) return null;
+		if (run.failed.length === systems.length) {
+			if (configured === false && fused)
+				throw new Error(
+					fused.warnings.join(' ') ||
+						'The OMR transcription did not supply usable melody and the PDF reader is not configured.'
+				);
+			return null;
+		}
 
 		phase = 'assembling';
 		const responses = run.results;
@@ -274,10 +329,12 @@
 		const fusionNotes: string[] = [];
 		if (fused) {
 			const omrCount = fused.responses.filter(
-				(response, i) => response !== null && responses[i] !== null
+				(response, i) =>
+					response !== null && responses[i] !== null && !embeddedSystemResult(systems[i])
 			).length;
 			const aiCount = responses.filter(
-				(response, i) => response !== null && fused.responses[i] === null
+				(response, i) =>
+					response !== null && fused.responses[i] === null && !embeddedSystemResult(systems[i])
 			).length;
 			const emptyCount = responses.filter((response) => response === null).length;
 			fusionNotes.push(
@@ -293,7 +350,10 @@
 		// report one, so a wrong pick is caught rather than silently shaping
 		// every bar. Not fatal, and not a re-run — the draft is reviewed anyway,
 		// and re-importing with the right meter is one control away.
-		const printed = responses.find((r) => r?.timeSignature)?.timeSignature;
+		const printed = responses.find(
+			(r) =>
+				r?.timeSignature && (r.timeSignature[0] !== meter[0] || r.timeSignature[1] !== meter[1])
+		)?.timeSignature;
 		const meterMismatch =
 			printed && (printed[0] !== meter[0] || printed[1] !== meter[1])
 				? `the chart looks like it is in ${printed[0]}/${printed[1]}, but the import was ` +
@@ -322,6 +382,7 @@
 				geometry: sys.geometry,
 				texts: sys.texts,
 				noteEvents: sys.noteEvents,
+				harmony: responses[i]?.harmony,
 				model: {
 					fifths: responses[i]?.keySignature?.fifths ?? null,
 					bars: responses[i]?.bars ?? []
@@ -346,7 +407,8 @@
 				...warnings,
 				...converted.warnings
 			],
-			suspectBars
+			suspectBars,
+			sourceBarImages: systems.flatMap((s) => s.sourceBarImages ?? [])
 		};
 	}
 
@@ -404,7 +466,12 @@
 			// Deterministic per-system pipeline first; whole-PDF extraction is
 			// the fallback for scans the geometry can't read. A per-system run
 			// that PARTLY succeeded is kept — see importViaSystems.
-			let imported: { sheet: Tune; warnings: string[]; suspectBars?: number[] } | null = null;
+			let imported: {
+				sheet: Tune;
+				warnings: string[];
+				suspectBars?: number[];
+				sourceBarImages?: string[];
+			} | null = null;
 			let systemsFailure: string | null = null;
 			try {
 				imported = await importViaSystems(buffer, file.name, signal);
@@ -418,8 +485,7 @@
 				// rather than firing a whole-PDF call that cannot succeed.
 				errorMessage = [
 					systemsFailure,
-					'the attached OMR transcription did not match the page layout, and the ' +
-						'whole-chart fallback needs an AI key'
+					'This PDF has no complete embedded notation or usable attached transcription. The scan reader is not configured.'
 				]
 					.filter(Boolean)
 					.join(' — ');
@@ -487,7 +553,11 @@
 			// the stored PDF stays linked) opens in the editor; nothing is
 			// saved until the user hits Update there.
 			loadFromTune(concert, getInstrument());
-			setImportReview({ warnings, suspectBars: imported.suspectBars ?? [] });
+			setImportReview({
+				warnings,
+				suspectBars: imported.suspectBars ?? [],
+				sourceBarImages: imported.sourceBarImages
+			});
 			goto('/tunes/editor');
 		} catch (err) {
 			errorMessage = signal.aborted
@@ -525,9 +595,9 @@
 	</div>
 
 	<p class="text-sm text-[var(--color-text-secondary)]">
-		Upload a lead-sheet PDF and the AI reads the chords and melody into an editable draft.
-		Extraction is never perfect — the draft always opens in the editor for review and
-		correction before anything is saved.
+		Upload a lead-sheet PDF to read its chords and melody into an editable draft. Extraction is
+		never perfect — the draft always opens in the editor for review and correction before anything
+		is saved.
 	</p>
 
 	<SourceTranspositionSelect
@@ -543,11 +613,16 @@
 	/>
 
 	{#if configured === false}
-		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 text-sm text-[var(--color-text-secondary)]">
-			This server has no AI key, so the AI reader is unavailable. You can still
-			<a href="/tunes/editor" class="text-[var(--color-accent)] underline">enter the chart manually</a>
-			— or attach an OMR transcription below and import without the AI (lines it doesn't
-			cover are left blank for hand entry).
+		<div
+			class="rounded-lg bg-[var(--color-bg-secondary)] p-4 text-sm text-[var(--color-text-secondary)]"
+		>
+			The scan reader is unavailable. Exported PDFs with embedded music notation can still be read
+			directly. You can also
+			<a href="/tunes/editor" class="text-[var(--color-accent)] underline"
+				>enter the chart manually</a
+			>
+			— or attach an OMR transcription below and import without the AI (lines it doesn't cover are left
+			blank for hand entry).
 		</div>
 	{/if}
 	{#if configured !== null}
@@ -561,11 +636,11 @@
 				class="block w-full rounded-lg bg-[var(--color-bg-secondary)] px-4 py-3 text-sm outline-none ring-[var(--color-accent)] focus-visible:ring-2 file:mr-3 file:rounded file:border-0 file:bg-[var(--color-bg-tertiary)] file:px-3 file:py-1.5 file:text-sm file:font-medium disabled:opacity-50"
 			/>
 			<p class="text-xs text-[var(--color-text-secondary)]">
-				Optional: a <code>.omr.json</code> from <code>python -m omr transcribe</code> supplies
-				the melody for every line it covers — those lines skip the AI entirely.
+				Optional: a <code>.omr.json</code> from <code>python -m omr transcribe</code> supplies melody
+				when its measures align and pass quality checks. Scanned chords are read separately.
 			</p>
 			{#if omrFileName && !omrError}
-				<p class="text-xs text-[var(--color-accent)]">Using OMR melody from {omrFileName}.</p>
+				<p class="text-xs text-[var(--color-accent)]">Attached OMR transcription: {omrFileName}.</p>
 			{/if}
 			{#if omrError}
 				<p class="text-xs text-[var(--color-error,#c0392b)]">{omrError}</p>
@@ -574,7 +649,7 @@
 		<input
 			type="file"
 			accept=".pdf,application/pdf"
-			disabled={uploading || (configured === false && !omrDoc)}
+			disabled={uploading}
 			onchange={handleFile}
 			aria-label="Tune PDF"
 			class="block w-full rounded-lg bg-[var(--color-bg-secondary)] px-4 py-3 text-sm outline-none ring-[var(--color-accent)] focus-visible:ring-2 file:mr-3 file:rounded file:border-0 file:bg-[var(--color-accent)] file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white disabled:opacity-50"
@@ -592,6 +667,8 @@
 							Reading the page{pageProgress && pageProgress.total > 1
 								? ` — ${pageProgress.page} of ${pageProgress.total}`
 								: ''} — staves, barlines, chords, noteheads
+						{:else if phase === 'context'}
+							Reading key and clef for {settledCount} of {systemStates.length} lines
 						{:else if phase === 'transcribing'}
 							Transcribing {settledCount} of {systemStates.length} lines
 						{:else if phase === 'assembling'}
@@ -613,12 +690,12 @@
 				</div>
 
 				<p class="mt-1 text-xs text-[var(--color-text-secondary)]">
-					Transcription is slow by design — the AI reads each line of music closely, which can
-					take a couple of minutes for a dense chart. Lines it can't read are left blank for you
-					to fill in; nothing is lost.
+					Transcription is slow by design — the AI reads each line of music closely, which can take
+					a couple of minutes for a dense chart. Lines it can't read are left blank for you to fill
+					in; nothing is lost.
 				</p>
 
-				{#if phase === 'transcribing' && systemStates.length > 0}
+				{#if (phase === 'context' || phase === 'transcribing') && systemStates.length > 0}
 					<div class="mt-3 h-1.5 w-full overflow-hidden rounded bg-[var(--color-bg-tertiary)]">
 						<div
 							class="h-full rounded bg-[var(--color-accent)] transition-all"
@@ -670,7 +747,9 @@
 	{/if}
 
 	{#if importWarnings.length > 0}
-		<div class="rounded-lg bg-[var(--color-warning)]/10 p-3 text-xs text-[var(--color-text-secondary)]">
+		<div
+			class="rounded-lg bg-[var(--color-warning)]/10 p-3 text-xs text-[var(--color-text-secondary)]"
+		>
 			<div class="mb-1 font-medium text-[var(--color-warning-text)]">Extraction notes</div>
 			<ul class="list-inside list-disc space-y-0.5">
 				{#each importWarnings as w, i (i)}

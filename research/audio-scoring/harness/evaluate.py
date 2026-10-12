@@ -45,14 +45,13 @@ def reference(take: Take, expected, renderer: str):
 
 def row_from(res: dict[str, Result], **meta) -> dict:
     """One metrics.csv row: `meta`, then each metric's similarity and lag
-    (seconds), plus M5 precision/recall/recall_hold and M2's peak counts."""
+    (seconds), plus M5 precision/recall and M2's peak counts."""
     row = dict(meta)
     for m in METRIC_NAMES:
         row[m] = res[m].similarity
         row[m + "_lag"] = res[m].lag
     row["m5_precision"] = res["m5_cover"].extra["precision"]
     row["m5_recall"] = res["m5_cover"].extra["recall"]
-    row["m5_recall_hold"] = res["m5_cover"].extra["recall_hold"]
     row["m2_take_peaks"] = res["m2_env"].extra["take_peaks"]
     row["m2_ref_peaks"] = res["m2_env"].extra["ref_peaks"]
     return row

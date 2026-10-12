@@ -173,6 +173,16 @@
 			</div>
 
 			<div class="space-y-2">
+				<button
+					data-testid="onboarding-concert-pitch"
+					onclick={() => { step = 'concert-instrument'; }}
+					class="w-full rounded-lg bg-[var(--color-bg-secondary)] p-4 text-left transition-colors hover:bg-[var(--color-bg-tertiary)]"
+				>
+					<p class="text-lg font-medium">Concert Pitch</p>
+					<p class="text-xs text-[var(--color-text-secondary)]">
+						C instruments: piano, guitar, bass, trombone, flute, vibes, violin, voice
+					</p>
+				</button>
 				{#each TRANSPOSING_INSTRUMENT_IDS as id (id)}
 					<button
 						onclick={() => selectInstrument(id)}
@@ -184,16 +194,6 @@
 						</p>
 					</button>
 				{/each}
-				<button
-					data-testid="onboarding-concert-pitch"
-					onclick={() => { step = 'concert-instrument'; }}
-					class="w-full rounded-lg bg-[var(--color-bg-secondary)] p-4 text-left transition-colors hover:bg-[var(--color-bg-tertiary)]"
-				>
-					<p class="text-lg font-medium">Concert Pitch</p>
-					<p class="text-xs text-[var(--color-text-secondary)]">
-						C instruments: piano, guitar, bass, trombone, flute, vibes, violin, voice
-					</p>
-				</button>
 			</div>
 
 		{:else if step === 'concert-instrument'}

@@ -113,7 +113,7 @@ export const tuneEntry = $state({
 	 * starts at the bars the pipeline knows are uncertain. Not persisted;
 	 * cleared on any fresh load.
 	 */
-	importReview: null as { warnings: string[]; suspectBars: number[] } | null
+	importReview: null as { warnings: string[]; suspectBars: number[]; sourceBarImages?: string[] } | null
 });
 
 function makeSection(label: string, bars = 8): TuneSection {
@@ -327,9 +327,12 @@ export function loadFromTune(sheet: Tune, instrument: InstrumentConfig): void {
 
 /** Attach import review notes AFTER a load (loads always clear them). */
 export function setImportReview(
-	review: { warnings: string[]; suspectBars: number[] } | null
+	review: { warnings: string[]; suspectBars: number[]; sourceBarImages?: string[] } | null
 ): void {
-	tuneEntry.importReview = review && review.warnings.length > 0 ? review : null;
+	tuneEntry.importReview =
+		review && (review.warnings.length > 0 || !!review.sourceBarImages?.length)
+			? { ...review, warnings: [...new Set(review.warnings)] }
+			: null;
 }
 
 /**
