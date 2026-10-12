@@ -282,13 +282,22 @@ describe('analyzePageGeometry — repeat dots', () => {
 		blob(247, 95, 2);
 		blob(247, 105, 2);
 		const [sys] = analyzePageGeometry(page);
-		expect(sys.barlines).toEqual([40, 150, 260, 360]);
+		expect(sys.barlines).toEqual([150, 260, 360]);
 		expect(sys.repeatDots.map((d) => `${d.left ? 'L' : ''}${d.right ? 'R' : ''}`)).toEqual([
-			'',
 			'R',
 			'L',
 			''
 		]);
+	});
+
+	it('retains opening repeat dots without inventing an opening measure', () => {
+		const { page, hline, vline, blob } = makePage(400, 200);
+		for (const y of [80, 90, 100, 110, 120]) hline(y, 40, 360);
+		for (const x of [40, 150, 360]) vline(x, 80, 120);
+		blob(53, 95, 2); blob(53, 105, 2);
+		const [sys] = analyzePageGeometry(page);
+		expect(sys.barlines).toEqual([150, 360]);
+		expect(sys.initialRepeat).toBe(true);
 	});
 
 	it('does not read a notehead near the barline as repeat dots', () => {
@@ -299,8 +308,8 @@ describe('analyzePageGeometry — repeat dots', () => {
 		// covering both space centers WITHOUT the white split dots have.
 		blob(165, 100, 6);
 		const [sys] = analyzePageGeometry(page);
-		expect(sys.barlines).toEqual([40, 150, 360]);
-		expect(sys.repeatDots[1]).toEqual({ left: false, right: false });
+		expect(sys.barlines).toEqual([150, 360]);
+		expect(sys.repeatDots[0]).toEqual({ left: false, right: false });
 	});
 });
 
@@ -328,6 +337,16 @@ describe('analyzePageGeometry', () => {
 			}
 		};
 	}
+
+	it('does not count the left staff border as an empty pickup bar', () => {
+		const { page, hline, vline } = makePage(700, 300);
+		for (const y of [80, 100, 120, 140, 160]) hline(y, 40, 660);
+		for (const x of [40, 400, 660]) vline(x, 80, 160);
+		for (let x = 75; x <= 125; x++) vline(x, 75, 165);
+		const [sys] = analyzePageGeometry(page);
+		expect(sys.barlines).toEqual([400, 660]);
+		expect(sys.firstBarLeft).toBeGreaterThan(120);
+	});
 
 	it('locates the end of the clef/meter header as firstBarLeft', () => {
 		// Production-scale staff (interline 20 like a scale-4 render).
@@ -372,7 +391,7 @@ describe('analyzePageGeometry', () => {
 		expect(systems).toHaveLength(1);
 		expect(systems[0].band.top).toBe(80);
 		expect(systems[0].interline).toBe(10);
-		expect(systems[0].barlines).toEqual([40, 150, 260, 360]);
+		expect(systems[0].barlines).toEqual([150, 260, 360]);
 	});
 
 	it('ignores colored highlight boxes (only black ink counts)', () => {
@@ -390,6 +409,6 @@ describe('analyzePageGeometry', () => {
 		}
 		const systems = analyzePageGeometry(page);
 		expect(systems).toHaveLength(1);
-		expect(systems[0].barlines).toEqual([40, 150, 260, 360]);
+		expect(systems[0].barlines).toEqual([150, 260, 360]);
 	});
 });

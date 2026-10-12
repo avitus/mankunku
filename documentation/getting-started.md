@@ -29,7 +29,7 @@ Around those are the supporting rooms: a **Licks** page holding your personal bo
 
 The first time you open one of the rooms that listens — Ear Training, Lick Practice, Tricks, Record a lick, or a tune's practice session — the app asks two questions before it starts:
 
-1. **What do you play?** Pick your instrument — Concert Pitch (for C instruments like flute or piano), soprano sax, tenor sax, alto sax, or trumpet. This sets the transposition (your sheet music will read in the right key for your horn) and tells the app what range to expect.
+1. **What do you play?** Pick your instrument — soprano sax, tenor sax, alto sax, trumpet, or Concert Pitch, which then asks which C instrument you play (piano, guitar, bass, trombone, flute, vibes, violin, voice, or other). This sets the transposition (your sheet music will read in the right key for your horn) and tells the app what range to expect.
 2. **Can it use your microphone?** Tap *Allow Microphone*. You can skip and turn this on later in your browser, but without it nothing gets scored.
 
 (Signed in on a new device? If your account already holds practice data, the app first offers to restore it — *Restore My Progress* or *Start Fresh Instead*.)

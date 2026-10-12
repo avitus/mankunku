@@ -134,12 +134,12 @@ describe('validateOmrTranscription', () => {
 		expect(validateOmrTranscription(bare).valid).toBe(true);
 	});
 
-	it('accepts a bare normalized document with no CLI wrapper, and omrNormalized returns it as-is', () => {
+	it('accepts a bare normalized document with no CLI wrapper, and omrNormalized preserves it with quality metadata', () => {
 		const bare = payload([measure(1, [note('C4', [0, 1], [1, 4])])]).normalized;
 		expect(validateOmrTranscription(bare).valid).toBe(true);
-		expect(omrNormalized(bare)).toBe(bare);
-		// The wrapped form unwraps to the same object.
-		expect(omrNormalized({ normalized: bare })).toBe(bare);
+		expect(omrNormalized(bare)).toEqual({ ...bare, qualityWarnings: [] });
+		// The wrapped form preserves the same content.
+		expect(omrNormalized({ normalized: bare })).toEqual({ ...bare, qualityWarnings: [] });
 	});
 
 	it('names the measure with an invalid number and stops listing after 40 errors', () => {

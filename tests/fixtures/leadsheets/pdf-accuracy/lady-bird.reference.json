@@ -1,0 +1,5 @@
+{
+  "reviewed": true,
+  "referenceNote": "Existing verified MuseScore corpus fixture, in concert pitch. Evaluate the Bb tenor PDF with --source Bb.",
+  "tuneFile": "../pdf-vs-musescore/lady-bird.musescore-import.json"
+}

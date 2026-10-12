@@ -5113,3 +5113,35 @@ had baked in 51%, a number derived from 15; now asserts the step floor).
 the dump → `results/tuning_cue.md`: 163 of 1943 takes, 21/23 sharp runs,
 9/36 mid, 0/11 in-tune; the Oct 6 Eb run shows the cue on 80% of takes.
 User guide and design-system doc updated to 12.
+
+## 2026-10-11 — Harness M5 recall follows the app too
+
+I had put "should the harness's recall mirror the app's?" to Andy as a
+decision. He couldn't tell what I was asking ("What is your recommendation
+and why are you even asking me!"), and he was right: his 2026-10-07 rule
+(an early release never costs) already answered it, and the rest was
+tooling detail. Saved as feedback (decide settled details myself, in plain
+words).
+
+- `metrics.m5_recall` is the app's rule: written notes heard, weighted by
+  written length, a note heard once 3 of its frames carry its pitch. The M5
+  hold variant existed only to forgive short holds, so it is gone (METRIC
+  list, evaluate/prod_eval columns). Refactor snapshot-identical, RED on
+  early release + the 3-frame rule, GREEN; selftest 42.
+- Re-ran on the REPORT's 63 takes (`--only`): dev gained three 2026-10-10
+  fixtures with no truth rows, which would have moved E1 for an unrelated
+  reason; REPORT says so. Non-M5 columns and precision byte-identical.
+  Clean M5 p10 0.97, Wail 0.68 / 0.88; root-frame's early release now
+  costs M5 nothing (1.00), M3 still 0.78. M5 recall alone ranks with the
+  corpus truth at 0.75 — the best single figure in E2, unsurprising since
+  the truth is itself a per-note count.
+
+## 2026-10-11 — PR #271 (dev → main) reviewed, merged, deployed
+
+Andy: open the dev → main PR, handle review, make sure it deploys; then
+"merge it yourself once it's clean". Five commits (pooled 12 ¢ sharp/flat
+cue, unlock-key report line, minor D- spelling, fastest clear per key).
+CodeRabbit reviewed 24 files with no actionable comments and every
+pre-merge check passed (docstring coverage 87.5%). Merge 1513bf4f ran test →
+build → db-migrate, e2e, deploy all green; /api/health on
+mankunkujazz.com reports 1513bf4f, release 20261011-235211-1513bf4.

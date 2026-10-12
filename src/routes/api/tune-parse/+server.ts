@@ -11,7 +11,12 @@ import {
 	ANTHROPIC_TUNE_MAX_TOKENS
 } from '$lib/server/anthropic';
 import { claudeJsonToTune, extractionConsistencyScore } from '$lib/tunes/import/claude-pdf';
-import { barTilingIssues, isRestPitch } from '$lib/tunes/import/system-bar-validation';
+import type { SystemRecognitionInput } from '$lib/tunes/import/pdf-recognition';
+import { createAnthropicSystemRecognizer } from '$lib/server/pdf-import/anthropic-system';
+import {
+	sanitizeRecognitionContext,
+	sanitizeEvidence
+} from '$lib/tunes/import/pdf-recognition-screen';
 
 /**
  * POST /api/tune-parse — extract a lead sheet (chords + melody) from an
@@ -38,24 +43,7 @@ interface ParseRequestBody {
  * skeleton. Much cheaper than a whole-PDF call, and the known bar count
  * removes the model's main failure mode (miscounting).
  */
-interface SystemRequestBody {
-	system: {
-		/** Base64-encoded PNG crop of one system (optionally a data: URL). */
-		image: string;
-		/** Barlines counted by the client's geometry pass. */
-		barCount: number;
-		timeSignature: [number, number];
-		/** True for the chart's first system — prompts a pickup-bar check. */
-		first?: boolean;
-		/**
-		 * Per-bar notehead evidence from the client's geometry pass: counts
-		 * and treble letter names (no accidentals). Used as a SOFT
-		 * cross-check — the model is asked to re-read disagreeing bars but
-		 * may keep its answer.
-		 */
-		barEvidence?: Array<{ count: number; letters: string[] } | null>;
-	};
-}
+type SystemRequestBody = { system: SystemRecognitionInput };
 
 // In-memory rate limit (chat-route pattern; safe because PM2 runs a single
 // fork instance). Tighter than chat's 10/min: every whole-PDF call ships a
@@ -154,26 +142,8 @@ function refundPreReadTicket(limitKey: string, ts: number): void {
  */
 const MAX_PDF_REQUEST_BYTES = 15_000_000;
 
-/**
- * Wall-clock budgets. Measured 2026-08-09 against the live API: ONE
- * system-mode call on a 4-bar crop ran 15s at low effort and 109s / 180s /
- * 345s at high, on identical input — Fable spends 7k-23k adaptive thinking
- * tokens to produce a ~250-token answer, and the spread is the model's, not
- * the chart's. Stacking the QA re-read on top of an already-slow first pass
- * is what pushed a single request past the browser's abort and past nginx's
- * proxy_read_timeout, and a request that dies takes its transcription with
- * it.
- *
- * So the extra call is bought only when the first one came back quickly.
- * Past the budget the route returns the shaky transcription WITH a warning
- * naming the skip — the bars land in the editor flagged for review, which
- * beats losing the system.
- *
- * The model FALLBACK is deliberately not budgeted: it only runs when there
- * is no transcription at all, so the alternative to spending the time is
- * returning nothing.
- */
-const SYSTEM_RETRY_BUDGET_MS = 45_000;
+/** Whole-document fallback keeps its existing retry budget. System readers
+ * have separate bounded initial and quality calls in the provider adapter. */
 const WHOLE_PDF_RETRY_BUDGET_MS = 150_000;
 
 /**
@@ -359,39 +329,6 @@ const FABLE_THINKING = {
 	output_config: Anthropic.OutputConfig;
 };
 
-const SYSTEM_MODE_PROMPT = `You are a music COPYIST. The attached image is ONE SYSTEM (one printed line)
-of a lead sheet. The bar count is known and given — your only job is to transcribe what is printed
-inside each bar. You may recognize the tune; that knowledge is a trap — the ONLY authority is the ink.
-Return ONLY a JSON object — no prose, no markdown fences — with this exact shape:
-{
-  "keySignature": { "fifths": number }, // COUNT the sharps/flats printed at the clef: 2 sharps → 2, 3 flats → -3, none → 0
-  "timeSignature": [number, number] | null, // the printed meter, when this system shows one at its start
-  "bars": [
-    {
-      "startRepeat": boolean,   // |: printed at the START of this bar (winged or plain)
-      "endRepeat": boolean,     // :| printed at the END of this bar
-      "ending": 1 | 2 | null,   // this bar lies UNDER a printed 1st/2nd volta bracket
-      "pickup": boolean,        // partial pickup bar (fewer beats printed than the meter)
-      "melody": [ [beat, durationBeats, "pitch"], ... ]  // notes AND rests in reading order; a rest uses pitch "rest"; append true as a 4th element when a note TIES into the next
-    }
-  ]
-}
-Rules:
-- The bars array must contain EXACTLY the given number of entries, in reading order.
-- beat is 0-based within the bar in units of the meter denominator; fractional allowed (0.5 = eighth offset).
-- PITCH: scientific notation as PRINTED (middle C = C4), respecting key signature and accidentals.
-  NEVER transpose or shift octaves — the app handles instrument transposition.
-- RHYTHM: notes and rests fill each bar exactly; a note tied across a barline appears in BOTH bars,
-  the first part carrying the tie flag.
-- A pickup bar's notes sit at their real beats near the END of the bar (a one-beat pickup in 4/4
-  starts at beat 3).
-- IGNORE chord symbols, lyrics, colored highlighting, and text — melody notes and structural
-  markings only.
-- melody lists notes AND rests in reading order (pitch "rest" for rests). Each bar's notes and
-  rests must tile the meter EXACTLY — this is mechanically checked. A pickup bar may omit its
-  unprinted leading silence.
-- If a passage is truly illegible, omit its notes rather than inventing them.`;
-
 const SYSTEM_PROMPT = `You are a music COPYIST. Transcribe exactly what is PRINTED on the attached PDF chart.
 You may recognize the tune — that knowledge is a trap. Published charts appear in many keys and
 layouts; the ONLY authority is the ink on this page. Never "correct" anything toward the version
@@ -518,7 +455,7 @@ export const POST: RequestHandler = async ({ request, getClientAddress, locals }
 	// below (wrapped by the heartbeat when the caller asked for a stream).
 	const tick: WorkTick = { attempt: 0 };
 	const work = extractWholePdf({ data, client, clientSignal: request.signal, tick });
-	if (!wantsNdjson(request)) return json((await work) as Record<string, unknown>);
+	if (!wantsNdjson(request)) return json(await work);
 	return ndjsonResponse(work, tick);
 };
 
@@ -543,7 +480,12 @@ async function extractWholePdf({
 	tick
 }: ExtractWholePdfArgs): Promise<Record<string, unknown>> {
 	type Attempt =
-		| { ok: true; sheet: NonNullable<ReturnType<typeof claudeJsonToTune>['sheet']>; warnings: string[]; score: number }
+		| {
+				ok: true;
+				sheet: NonNullable<ReturnType<typeof claudeJsonToTune>['sheet']>;
+				warnings: string[];
+				score: number;
+		  }
 		| { ok: false; convErrors: string[] | null };
 
 	const startedAt = Date.now();
@@ -553,34 +495,36 @@ async function extractWholePdf({
 		try {
 			// Streamed: the SDK refuses non-streaming requests big enough to run
 			// long (bar-wise transcription needs the 16k output ceiling).
-			const response = await client.messages.stream(
-				{
-					model,
-					max_tokens: ANTHROPIC_TUNE_MAX_TOKENS,
-					...(model === ANTHROPIC_TUNE_MODEL ? FABLE_THINKING : {}),
-					system: SYSTEM_PROMPT,
-					messages: [
-						{
-							role: 'user',
-							content: [
-								{
-									type: 'document',
-									source: { type: 'base64', media_type: 'application/pdf', data }
-								},
-								{
-									type: 'text',
-									text: 'Extract this lead sheet as JSON per the schema. Return ONLY the JSON object.'
-								}
-							]
-						}
-					]
-				},
-				// Abandoned request → abandoned model call. Without this the
-				// browser's abort leaves the upstream stream running to
-				// completion on a single-fork server, billing for output
-				// nobody will read.
-				{ signal: clientSignal }
-			).finalMessage();
+			const response = await client.messages
+				.stream(
+					{
+						model,
+						max_tokens: ANTHROPIC_TUNE_MAX_TOKENS,
+						...(model === ANTHROPIC_TUNE_MODEL ? FABLE_THINKING : {}),
+						system: SYSTEM_PROMPT,
+						messages: [
+							{
+								role: 'user',
+								content: [
+									{
+										type: 'document',
+										source: { type: 'base64', media_type: 'application/pdf', data }
+									},
+									{
+										type: 'text',
+										text: 'Extract this lead sheet as JSON per the schema. Return ONLY the JSON object.'
+									}
+								]
+							}
+						]
+					},
+					// Abandoned request → abandoned model call. Without this the
+					// browser's abort leaves the upstream stream running to
+					// completion on a single-fork server, billing for output
+					// nobody will read.
+					{ signal: clientSignal }
+				)
+				.finalMessage();
 			responseText = response.content
 				.filter((block) => block.type === 'text')
 				.map((block) => (block as { text: string }).text)
@@ -635,86 +579,6 @@ async function extractWholePdf({
 	return { sheet: result.sheet, warnings: result.warnings };
 }
 
-/** One bar entry of a system-mode response, structurally screened. */
-interface SystemBar {
-	startRepeat: boolean;
-	endRepeat: boolean;
-	ending: number | null;
-	pickup: boolean;
-	melody: Array<[number, number, string] | [number, number, string, boolean]>;
-}
-
-/** Per-bar rhythm issues (exact tiling incl. rests) plus the global bar
- * count; index 0 of the result is the global issue list, then one list per
- * bar. */
-function systemBarIssues(
-	bars: SystemBar[],
-	barCount: number,
-	beats: number
-): { global: string[]; perBar: string[][] } {
-	const global: string[] = [];
-	if (bars.length !== barCount) {
-		global.push(`expected ${barCount} bars but the transcription returned ${bars.length}`);
-	}
-	const perBar = bars.map((bar, i) =>
-		barTilingIssues(bar.melody, i, beats, { allowLeadingGap: bar.pickup })
-	);
-	return { global, perBar };
-}
-
-/** Screen the raw model JSON into SystemBar[]; null when malformed. */
-function screenSystemBars(parsed: unknown): {
-	fifths: number | null;
-	timeSignature: [number, number] | null;
-	bars: SystemBar[];
-} | null {
-	if (!parsed || typeof parsed !== 'object') return null;
-	const obj = parsed as {
-		keySignature?: { fifths?: unknown };
-		timeSignature?: unknown;
-		bars?: unknown;
-	};
-	if (!Array.isArray(obj.bars)) return null;
-	const bars: SystemBar[] = [];
-	for (const raw of obj.bars) {
-		if (!raw || typeof raw !== 'object') return null;
-		const b = raw as Record<string, unknown>;
-		if (!Array.isArray(b.melody)) return null;
-		const melody: SystemBar['melody'] = [];
-		for (const note of b.melody) {
-			if (
-				!Array.isArray(note) ||
-				note.length < 3 ||
-				typeof note[0] !== 'number' ||
-				typeof note[1] !== 'number' ||
-				typeof note[2] !== 'string'
-			) {
-				return null;
-			}
-			melody.push(
-				note[3] === true
-					? [note[0], note[1], note[2], true]
-					: [note[0], note[1], note[2]]
-			);
-		}
-		bars.push({
-			startRepeat: b.startRepeat === true,
-			endRepeat: b.endRepeat === true,
-			ending: typeof b.ending === 'number' ? b.ending : null,
-			pickup: b.pickup === true,
-			melody
-		});
-	}
-	const fifths =
-		typeof obj.keySignature?.fifths === 'number' ? obj.keySignature.fifths : null;
-	const ts = obj.timeSignature;
-	const timeSignature =
-		Array.isArray(ts) && ts.length === 2 && typeof ts[0] === 'number' && typeof ts[1] === 'number'
-			? ([ts[0], ts[1]] as [number, number])
-			: null;
-	return { fifths, timeSignature, bars };
-}
-
 async function handleSystemMode(
 	system: SystemRequestBody['system'],
 	clientSignal: AbortSignal,
@@ -738,7 +602,6 @@ async function handleSystemMode(
 	const meterNum = (v: unknown, fallback: number): number =>
 		typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= 32 ? v : fallback;
 	const meter: [number, number] = [meterNum(rawMeter[0], 4), meterNum(rawMeter[1], 4)];
-	const beats = meter[0];
 	const data = system.image.replace(/^data:image\/png;base64,/, '').replace(/\s/g, '');
 	if (data.length === 0 || !/^[A-Za-z0-9+/]+=*$/.test(data)) {
 		throw error(400, '`system.image` must be base64-encoded PNG data.');
@@ -753,228 +616,43 @@ async function handleSystemMode(
 	// failures as HTTP status codes — once the NDJSON stream opens, 200 is
 	// already committed. The model work below it is what the heartbeat wraps.
 	const tick: WorkTick = { attempt: 0 };
-	const work = transcribeSystem({ system, data, meter, beats, client, clientSignal, tick });
-	if (!stream) return json((await work) as Record<string, unknown>);
+	const work = createAnthropicSystemRecognizer().recognize(
+		{
+			...system,
+			image: data,
+			timeSignature: meter,
+			context: sanitizeRecognitionContext(system.context),
+			barEvidence: sanitizeEvidence(system.barEvidence, system.barCount),
+			barImages: Array.isArray(system.barImages)
+				? system.barImages
+						.slice(0, system.barCount)
+						.map((image) =>
+							typeof image === 'string' && /^data:image\/png;base64,[A-Za-z0-9+/]+=*$/.test(image)
+								? image
+								: ''
+						)
+				: [],
+			harmonyImages: Array.isArray(system.harmonyImages)
+				? system.harmonyImages
+						.slice(0, system.barCount)
+						.map((image) =>
+							typeof image === 'string' && /^data:image\/png;base64,[A-Za-z0-9+/]+=*$/.test(image)
+								? image
+								: ''
+						)
+				: [],
+			readHarmony: system.readHarmony === true,
+			readAccidentals: system.readAccidentals === true,
+			contextOnly: system.contextOnly === true,
+			harmonyOnly: system.harmonyOnly === true
+		},
+		clientSignal,
+		() => {
+			tick.attempt += 1;
+		}
+	);
+	if (!stream) return json(await work);
 	return ndjsonResponse(work, tick);
-}
-
-interface TranscribeSystemArgs {
-	system: SystemRequestBody['system'];
-	/** Validated base64 PNG payload, data-URL prefix already stripped. */
-	data: string;
-	meter: [number, number];
-	beats: number;
-	client: NonNullable<ReturnType<typeof getAnthropicClient>>;
-	clientSignal: AbortSignal;
-	tick: WorkTick;
-}
-
-/**
- * The model half of system mode: ask, validate the rhythm, re-read the bars
- * that disagree (budget permitting), merge per bar. Throws a 502 only when
- * there is no transcription at all.
- */
-async function transcribeSystem({
-	system,
-	data,
-	meter,
-	beats,
-	client,
-	clientSignal,
-	tick
-}: TranscribeSystemArgs): Promise<Record<string, unknown>> {
-	let lastFailure = 'unknown';
-	const ask = async (
-		feedback: string | null,
-		model: string
-	): Promise<{
-		fifths: number | null;
-		timeSignature: [number, number] | null;
-		bars: SystemBar[];
-		issues: { global: string[]; perBar: string[][] };
-	} | null> => {
-		let responseText: string;
-		tick.attempt += 1;
-		try {
-			const response = await client.messages
-				.stream(
-					{
-						model,
-						max_tokens: ANTHROPIC_TUNE_MAX_TOKENS,
-						// Fable thinks adaptively; high effort buys transcription
-						// accuracy, and the 32k ceiling keeps dense-system JSON
-						// clear of truncation under the thinking tokens.
-						...(model === ANTHROPIC_TUNE_MODEL ? FABLE_THINKING : {}),
-						system: SYSTEM_MODE_PROMPT,
-						messages: [
-							{
-								role: 'user',
-								content: [
-									{
-										type: 'image',
-										source: { type: 'base64', media_type: 'image/png', data }
-									},
-									{
-										type: 'text',
-										text:
-											`This system contains exactly ${system.barCount} bars in ${beats}/${meter[1]} time. ` +
-											`Transcribe it as JSON per the schema.` +
-											(system.first === true
-												? ' This is the FIRST system of the chart: check carefully whether the notes before the first full bar form a partial PICKUP bar (pickup: true, notes at their real beats near the END of the bar).'
-												: '') +
-											(feedback ? ` Your previous attempt had problems — re-read the image carefully: ${feedback}` : '')
-									}
-								]
-							}
-						]
-					},
-					// See the whole-PDF path: an abandoned request must not leave
-					// a model call running behind it.
-					{ signal: clientSignal }
-				)
-				.finalMessage();
-			responseText = response.content
-				.filter((block) => block.type === 'text')
-				.map((block) => (block as { text: string }).text)
-				.join('');
-		} catch (err) {
-			console.error('[tune-parse] system-mode extraction failed:', err);
-			lastFailure = `api: ${err instanceof Error ? err.message.slice(0, 200) : 'unknown'}`;
-			return null;
-		}
-		const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```\s*$/.exec(responseText.trim());
-		let parsed: unknown;
-		try {
-			parsed = JSON.parse(fenced ? fenced[1] : responseText.trim());
-		} catch {
-			lastFailure = `non-json output (${responseText.length} chars): ${responseText.slice(0, 120)}`;
-			return null;
-		}
-		const screened = screenSystemBars(parsed);
-		if (!screened) {
-			lastFailure = 'malformed bars structure';
-			return null;
-		}
-		return { ...screened, issues: systemBarIssues(screened.bars, system.barCount, beats) };
-	};
-
-	const flatIssues = (a: { issues: { global: string[]; perBar: string[][] } }): string[] => [
-		...a.issues.global,
-		...a.issues.perBar.flat()
-	];
-
-	// Fable first for accuracy; its stricter output filter sometimes blocks
-	// transcription of well-known tunes — as an explicit API error OR as a
-	// silently EMPTY response — so any total first-attempt failure falls
-	// back to the baseline model. Failing bars then get ONE retry with
-	// their exact rhythm deltas fed back (the Audiveris rhythm-QA loop),
-	// and the answer is merged PER BAR so a clean first-attempt bar can
-	// never regress.
-	const startedAt = Date.now();
-	let model = ANTHROPIC_TUNE_MODEL;
-	let first = await ask(null, model);
-	if (!first && model !== ANTHROPIC_MODEL) {
-		model = ANTHROPIC_MODEL;
-		first = await ask(null, model);
-	}
-	const evidence = Array.isArray(system.barEvidence) ? system.barEvidence : [];
-	const evidenceDisagreements = (bars: SystemBar[]): string[] => {
-		const out: string[] = [];
-		bars.forEach((bar, i) => {
-			const ev = evidence[i];
-			if (!ev || typeof ev.count !== 'number') return;
-			const noteCount = bar.melody.filter((note) => !isRestPitch(note[2])).length;
-			if (noteCount !== ev.count) {
-				out.push(
-					`bar ${i + 1}: independent notehead detection reads ${ev.count} notehead(s)` +
-						(ev.letters?.length ? ` on lines/spaces ${ev.letters.join(' ')} (letters only — apply the key signature and accidentals yourself)` : '') +
-						` but your transcription has ${noteCount} — re-read that bar carefully and keep your reading only if the print clearly confirms it`
-				);
-			}
-		});
-		return out;
-	};
-
-	let result = first;
-	let bars = first?.bars ?? [];
-	let warnings = first ? flatIssues(first) : [];
-	const firstEvidenceIssues = first ? evidenceDisagreements(first.bars) : [];
-	const wantsReread = !first || warnings.length > 0 || firstEvidenceIssues.length > 0;
-	// The re-read is a quality bonus; the transcription in hand is the
-	// product. Buy the bonus only while there is budget for it.
-	const elapsed = Date.now() - startedAt;
-	const canAffordReread = !first || elapsed < SYSTEM_RETRY_BUDGET_MS;
-	if (wantsReread && !canAffordReread) {
-		warnings.push(
-			`this system was not re-read — the first pass took ${Math.round(elapsed / 1000)}s, ` +
-				`so the usual second look was skipped; check these bars against the print`
-		);
-	}
-	if (wantsReread && canAffordReread) {
-		const second = await ask(
-			first ? [...warnings, ...firstEvidenceIssues].join('; ') : null,
-			model
-		);
-		if (second && !first) {
-			result = second;
-			bars = second.bars;
-			warnings = flatIssues(second);
-		} else if (second && first) {
-			// Per-bar merge: prefer clean bars, and among clean bars prefer
-			// the one agreeing with the notehead evidence.
-			const agreesWithEvidence = (bar: SystemBar | undefined, i: number): boolean => {
-				const ev = evidence[i];
-				if (!bar || !ev || typeof ev.count !== 'number') return false;
-				return bar.melody.filter((note) => !isRestPitch(note[2])).length === ev.count;
-			};
-			const merged: SystemBar[] = [];
-			// The only global issue systemBarIssues emits is the bar-count
-			// line, and the merge can FIX the count — recompute it below
-			// instead of carrying the first attempt's stale copy.
-			const survivors: string[] = first.issues.global.filter(
-				(msg) => !/^expected \d+ bars/.test(msg)
-			);
-			const count = Math.max(first.bars.length, second.bars.length);
-			for (let i = 0; i < count; i++) {
-				const firstClean = first.bars[i] && (first.issues.perBar[i] ?? []).length === 0;
-				const secondClean = second.bars[i] && (second.issues.perBar[i] ?? []).length === 0;
-				if (firstClean && secondClean && !agreesWithEvidence(first.bars[i], i) && agreesWithEvidence(second.bars[i], i)) {
-					merged.push(second.bars[i]);
-				} else if (firstClean) {
-					merged.push(first.bars[i]);
-				} else if (secondClean) {
-					merged.push(second.bars[i]);
-				} else if (first.bars[i]) {
-					merged.push(first.bars[i]);
-					survivors.push(...(first.issues.perBar[i] ?? []));
-				} else if (second.bars[i]) {
-					merged.push(second.bars[i]);
-					survivors.push(...(second.issues.perBar[i] ?? []));
-				}
-			}
-			if (merged.length !== system.barCount) {
-				survivors.unshift(
-					`expected ${system.barCount} bars but the transcription returned ${merged.length}`
-				);
-			}
-			bars = merged;
-			warnings = survivors;
-		}
-	}
-	if (!result) {
-		throw error(502, `The system image could not be transcribed (${lastFailure}). Try again.`);
-	}
-	// Rests were only needed for validation — the importer works with notes.
-	const stripped = bars.map((bar) => ({
-		...bar,
-		melody: bar.melody.filter((note) => !isRestPitch(note[2]))
-	}));
-	return {
-		keySignature: result.fifths === null ? null : { fifths: result.fifths },
-		timeSignature: result.timeSignature,
-		bars: stripped,
-		warnings
-	};
 }
 
 /** Config probe so the upload page can render a not-configured state. */

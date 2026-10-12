@@ -50,7 +50,7 @@ for (const { slug, pdf } of CHARTS) {
 		const omrInput = page.getByLabel('OMR transcription (optional)');
 		await expect(omrInput).toBeEnabled();
 		await omrInput.setInputFiles(`tests/fixtures/leadsheets/omr/${slug}.omr.json`);
-		await expect(page.getByText(/Using OMR melody from/)).toBeVisible();
+		await expect(page.getByText(/Attached OMR transcription:/)).toBeVisible();
 
 		const fileInput = page.getByLabel('Tune PDF');
 		await expect(fileInput).toBeEnabled();

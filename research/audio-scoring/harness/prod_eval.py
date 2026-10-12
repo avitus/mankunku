@@ -52,24 +52,24 @@ def main(folder: str = "prod"):
         r1 = spearmanr(df[m], df.saved)[0]; r2 = spearmanr(df[m], df.hit_frac)[0]
         lines.append(f"| {m} | {r1:.3f} | {r2:.3f} |")
     lines.append("\n## Metric by saved grade (median, p10–p90)\n")
-    lines.append("| grade | n | m3 | m3 hold | m5 | m5 hold | precision | recall | recall hold |\n|---|---|---|---|---|---|---|---|---|")
+    lines.append("| grade | n | m3 | m3 hold | m5 | precision | recall |\n|---|---|---|---|---|---|---|")
     for g in GRADE_ORDER:
         d = df[df.grade == g]
         if not len(d):
             continue
-        cells = [f"{d[c].median():.2f} ({d[c].quantile(.1):.2f}–{d[c].quantile(.9):.2f})" for c in ["m3_chroma", "m3_chroma_hold", "m5_cover", "m5_cover_hold", "m5_precision", "m5_recall", "m5_recall_hold"]]
+        cells = [f"{d[c].median():.2f} ({d[c].quantile(.1):.2f}–{d[c].quantile(.9):.2f})" for c in ["m3_chroma", "m3_chroma_hold", "m5_cover", "m5_precision", "m5_recall"]]
         lines.append(f"| {g} | {len(d)} | " + " | ".join(cells) + " |")
     lines.append("\n## Disagreements\n")
     hi_score_lo_audio = df[(df.saved >= 0.85) & (df.m3_chroma_hold < 0.80)].sort_values("m3_chroma_hold")
     lo_score_hi_audio = df[(df.saved < 0.70) & (df.m3_chroma >= 0.90)].sort_values("saved")
     lines.append(f"Saved ≥ 0.85 (great/perfect) but hold-tolerant chroma < 0.80: **{len(hi_score_lo_audio)}** of {int((df.saved >= 0.85).sum())}\n")
-    lines.append("| take | saved | grade | hit | m3 | m3 hold | m3 dtw | m5 hold | precision | recall | recall hold |\n|---|---|---|---|---|---|---|---|---|---|---|")
+    lines.append("| take | saved | grade | hit | m3 | m3 hold | m3 dtw | m5 | precision | recall |\n|---|---|---|---|---|---|---|---|---|---|")
     for _, r in hi_score_lo_audio.head(25).iterrows():
-        lines.append(f"| {r['take']} | {r.saved:.2f} | {r.grade} | {int(r.notes_hit)}/{int(r.n_notes)} | {r.m3_chroma:.2f} | {r.m3_chroma_hold:.2f} | {r.m3_chroma_dtw:.2f} | {r.m5_cover_hold:.2f} | {r.m5_precision:.2f} | {r.m5_recall:.2f} | {r.m5_recall_hold:.2f} |")
+        lines.append(f"| {r['take']} | {r.saved:.2f} | {r.grade} | {int(r.notes_hit)}/{int(r.n_notes)} | {r.m3_chroma:.2f} | {r.m3_chroma_hold:.2f} | {r.m3_chroma_dtw:.2f} | {r.m5_cover:.2f} | {r.m5_precision:.2f} | {r.m5_recall:.2f} |")
     lines.append("\n## Every production take\n")
-    lines.append("| take | saved | grade | hit | m3 | m3 hold | m3 dtw | m5 | m5 hold | precision | recall hold |\n|---|---|---|---|---|---|---|---|---|---|---|")
+    lines.append("| take | saved | grade | hit | m3 | m3 hold | m3 dtw | m5 | precision | recall |\n|---|---|---|---|---|---|---|---|---|---|")
     for _, r in df.sort_values("saved").iterrows():
-        lines.append(f"| {r['take']} | {r.saved:.2f} | {r.grade} | {int(r.notes_hit)}/{int(r.n_notes)} | {r.m3_chroma:.2f} | {r.m3_chroma_hold:.2f} | {r.m3_chroma_dtw:.2f} | {r.m5_cover:.2f} | {r.m5_cover_hold:.2f} | {r.m5_precision:.2f} | {r.m5_recall_hold:.2f} |")
+        lines.append(f"| {r['take']} | {r.saved:.2f} | {r.grade} | {int(r.notes_hit)}/{int(r.n_notes)} | {r.m3_chroma:.2f} | {r.m3_chroma_hold:.2f} | {r.m3_chroma_dtw:.2f} | {r.m5_cover:.2f} | {r.m5_precision:.2f} | {r.m5_recall:.2f} |")
     lines.append(f"\nSaved < 0.70 (fair/try-again) but chroma ≥ 0.90: **{len(lo_score_hi_audio)}** of {int((df.saved < 0.70).sum())}\n")
     lines.append("| take | saved | grade | hit | m3 | m3 dtw | m5 | precision | recall |\n|---|---|---|---|---|---|---|---|---|")
     for _, r in lo_score_hi_audio.head(25).iterrows():

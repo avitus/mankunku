@@ -361,3 +361,92 @@ For each page confirm:
 5. The on-air red appears only on active practice/record buttons, the console rocker's ON legend and LED, and LISTEN-phase indicators (via `--color-phase-listen`); PLAY-phase indicators are brass (`--color-phase-play`)
 
 Check both light and dark modes.
+
+
+## Studio Desk migration
+
+The approved MagicPath pages are implemented natively in Svelte 5 (2026-10-11).
+
+| Page | Component | Approved revision |
+|---|---|---|
+| Home · Studio Desk | `460227723458142208` | `460231044206071808` |
+| Settings · Studio Desk | `459540987434397696` | `460225985468596224` |
+| Lick Practice · Studio Console | `459464126830383104` | `459511600479637504` |
+| Licks · Studio Library | `460234239577821184` | `460236188301803520` |
+| Tunes · Studio Library | `460237458806812672` | `460237458806812673` |
+| Ear Training · Studio Console | `459411700509200384` | `460504190599458816` |
+| Landing · Studio Desk | `460241787924140032` | `460242697312145408` |
+
+React prototype state and handlers are not shipped. `StudioPage` and `StudioPanel`
+provide reusable structure; existing `Knob`, `SelectorPad`, and `RockerSwitch`
+continue to control the real settings store and explicit saves.
+
+Adoption is opt-in with `.studio-desk`. The `--studio-*` palette in `app.css`
+provides slate panels, an inset well, restrained borders, readable text and
+neutral controls, with explicit light-theme counterparts. Fraunces uses the
+existing font asset. `.studio-action`, `.studio-label`, `.studio-caption`, and
+`.studio-well` are shared building blocks. These tokens supplement the domain,
+phase, mastery and accuracy tokens above; they do not replace their meanings.
+`--studio-accent-text` is for text and `--studio-button` is for white-on-colour
+controls. Activity overrides are scoped to the owning panel. Settings is neutral;
+its tonality section is ear-training and its practice link is lick-practice.
+
+Home/landing, Settings, Ear Training, Lick Practice setup, Licks and Tunes opt into the layout's
+1440px Studio Desk container. Nested detail, editor, import and session routes
+retain their existing width and presentation. The setup summary
+moves below the controls on tablet/mobile; instrument and scale banks reflow
+using `--selector-columns`. Do not apply new chrome across all routes as a side
+effect of migrating a single page.
+
+Compact dial faces use 20px system-sans numerals in the SVG view box (16.8px
+at the 84px dial size), with tabular figures and restrained tracking. Keep
+Fraunces for headings and larger readouts. The dial marker sits near the rim
+so it stays clear of four-character values such as `100%`. Swing is displayed
+as 50–80% in 1% increments while its stored ratio and audio behaviour remain unchanged.
+
+Backing and metronome controls stay mounted when switched off. Their dependent
+knobs and selector bank are disabled, their values remain saved, and Rhythm &
+band retains its dimensions. The summary is read-only. Account, tour, password
+recovery, and destructive-action confirmation flows retain their existing logic.
+
+Before adopting these components on another route, check both themes, desktop,
+tablet and phone widths, keyboard navigation, persisted values and the route's
+real workflows. The Settings E2E tests exercise that baseline, including the
+backing-off layout regression and instrument/tempo summary updates.
+The dial contract tests cover every volume, tempo and swing step, range limits,
+displayed values, and persistence. Highest-note tests cover written-pitch labels
+and saved concert pitches for all five instruments, including transposing horns.
+
+The libraries default to compact rows with 20 entries per page; 40 and All, plus
+an optional card view, support larger collections. Search, progression and
+collection filters run before paging. Lick groups retain their existing order,
+practice actions, audition and attribution; tunes retain written-key conversion
+and detail navigation. The sidebar uses actual collection counts.
+
+Home retains actual progress and practice-set data with aligned practice actions.
+The landing page explains Ear Training and Vocabulary (Licks and Tricks); its
+interactive previews are explicitly illustrative. Lick Practice keeps one duration
+dial and a read-only summary that distinguishes the time budget from the planned
+session length. Deep Practice and Tricks retain their original configuration logic.
+
+### Focus on sound
+
+Pages visible while playing prioritize listening over reading. Keep the musical
+context, a single Listen/Play cue, transport and exact scores. Move explanatory
+copy, tuning interpretation and attributed jazz quotes to paused moments or help.
+Avoid repeated instructions, decorative motion and layout changes between Listen
+and Play. Ear Training has no visible medal badge: its existing five accuracy
+colours are applied to the actual overall, pitch and rhythm percentages; the grade
+remains available to screen readers. The quote region is fixed in height, scrolls
+for long existing captions, and is empty during a live run.
+
+`EarTrainingConsole` is a presentation component: the route retains the audio,
+recording, rescore, automatic progression and persistence lifecycle. `TuningFaders`
+opts into console styling without changing transposition, medians, spread bands,
+steadiness or A = 440 / personal-centre calculations. Prototype sample scores,
+quotes and state controls are never shipped. Dark mode remains the default, with
+existing semantic light-theme tokens respected.
+
+Tour anchors stay on the actual controls inside `EarTrainingConsole`. The tour
+registry test follows mounted, statically imported Svelte components, so extracting
+presentation does not break validation or require duplicate route-level anchors.

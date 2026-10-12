@@ -4,7 +4,7 @@ from fractions import Fraction
 from .takes import ExpectedNote, Take, expected_note
 from .render import render_sampled, render_synthetic, transpose
 from .features import extract, extract_reference, FRAME_SECONDS
-from .metrics import compare, METRIC_NAMES, piano_roll, precision_masks
+from .metrics import compare, METRIC_NAMES, piano_roll, precision_masks, m5_recall
 from .gate_audio import expected_roll_fn
 from .fix_impact import line_end_seconds
 
@@ -115,6 +115,25 @@ check("M5 precision: a wrong pitch inside the window counts against it", r[0] ==
 r, r2 = precise_at(64, 1.25, 1.5), precise_at(64, -0.6, -0.3)
 check("M5 precision: frames more than one beat after the line or 0.25 s before it are not counted",
       r[1] == 0 and r2[1] == 0, f"{r} {r2}")
+
+# 6b. M5 recall follows the app's rule too: a written note counts, weighted by its written length, once
+#     3 frames inside its slot carry its pitch, so an early release never costs (Andy, 2026-10-07)
+line6r = [expected_note(60, Fraction(0), Fraction(1, 4), 100.0, 0.5),
+          expected_note(62, Fraction(1, 4), Fraction(1, 8), 100.0, 0.5)]  # 0-0.6 s (weight 2), 0.6-0.9 s (weight 1)
+
+def recall_for(*segments):
+    """M5 recall of line6r for a take sounding each (pitch, t0, t1) segment in phrase time, s."""
+    f0 = np.full(frame(3.0), np.nan)
+    for pitch, t0, t1 in segments:
+        f0[lag6 + frame(t0):lag6 + frame(t1)] = pitch
+    return m5_recall(f0, ~np.isnan(f0), line6r, lag6, False, 100.0)
+
+r = recall_for((60, 0.0, 0.15), (62, 0.6, 0.9))
+check("M5 recall: a note released early still counts in full", abs(r - 1.0) < 1e-9, f"{r:.3f}")
+r = recall_for((60, 0.0, 2 * FRAME_SECONDS), (62, 0.6, 0.9))
+check("M5 recall: a note needs 3 frames at its pitch inside its slot", abs(r - 1 / 3) < 1e-9, f"{r:.3f}")
+r = recall_for((60, 0.0, 0.6))
+check("M5 recall: a missed note costs its written length", abs(r - 2 / 3) < 1e-9, f"{r:.3f}")
 
 # 7. the extras-gate helpers read the line as the shipped scorer does (src/lib/scoring/extras.ts)
 eighths = [{"expected": {"pitch": 60, "offset": [0, 1], "duration": [1, 8]}},

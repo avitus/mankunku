@@ -21,7 +21,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { TOURS, getTour, type TourDefinition } from '$lib/tour/tours';
 
 const SRC = join(__dirname, '../../../src');
@@ -32,6 +32,21 @@ const DATA_TOUR_SELECTOR = /^\[data-tour="([a-z0-9]+(?:-[a-z0-9]+)*)"\]$/;
 /** The route page a tour's `startsAt` path renders. */
 function pageFor(tour: TourDefinition): string {
 	return join(SRC, 'routes', tour.startsAt, '+page.svelte');
+}
+
+/** Include statically imported Svelte children that the page actually mounts.
+ * Presentation components can own tour targets without moving the tour's route.
+ */
+function renderedSource(file: string, seen = new Set<string>()): string {
+	if (seen.has(file)) return '';
+	seen.add(file);
+	const source = readFileSync(file, 'utf8');
+	const children = [...source.matchAll(/import\s+(\w+)\s+from\s+['"]([^'"]+\.svelte)['"]/g)]
+		.filter(([, name]) => new RegExp(`<${name}(?=[\\s/>])`).test(source))
+		.map(([, , path]) => path.startsWith('$lib/')
+			? join(SRC, 'lib', path.slice(5))
+			: resolve(dirname(file), path));
+	return [source, ...children.map((child) => renderedSource(child, seen))].join('\n');
 }
 
 /** Every string `element` in a tour, with its step index for failure messages. */
@@ -81,7 +96,7 @@ describe('TOURS registry — step anchors', () => {
 
 	it("every string anchor is rendered on the tour's startsAt page", () => {
 		for (const tour of TOURS) {
-			const page = readFileSync(pageFor(tour), 'utf8');
+			const page = renderedSource(pageFor(tour));
 			for (const { step, selector } of stringAnchors(tour)) {
 				const name = DATA_TOUR_SELECTOR.exec(selector)?.[1];
 				expect(page, `${tour.id} step ${step}: ${selector} on ${tour.startsAt}`).toContain(

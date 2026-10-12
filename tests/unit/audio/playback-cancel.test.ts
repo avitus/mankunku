@@ -138,7 +138,8 @@ vi.mock('$lib/audio/audio-context', () => ({
 			stop() {},
 			disconnect() {}
 		}),
-		createGain: () => ({ gain: {}, connect() {}, disconnect() {} })
+		createGain: () => ({ gain: {}, connect() {}, disconnect() {} }),
+		createDelay: () => ({ delayTime: {}, connect() {}, disconnect() {} })
 	}),
 	getMasterGain: () => ({}),
 	setMasterVolume: vi.fn()

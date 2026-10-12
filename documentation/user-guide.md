@@ -6,7 +6,7 @@ This page walks through the practice flow as it actually feels in the room — w
 
 ## The dashboard
 
-When you open the app signed in, you land on the home page. It's the front cover of the LP. (Signed out, the same URL shows a descriptive landing page about the app instead — sign in and the dashboard below takes its place.) From here you can:
+When you open the app signed in, you land on the home page. It uses the Studio Desk layout, with two practice cards and a progress summary. (Signed out, the same URL shows a descriptive landing page about the app instead — sign in and the dashboard below takes its place.) From here you can:
 
 - Jump straight into **Side A** (Ear Training) or **Side B** (Lick Practice).
 - See your **streak** — consecutive days you've practiced. Skip a day and it resets to 1; the longest streak you've ever held is preserved separately.
@@ -15,7 +15,7 @@ When you open the app signed in, you land on the home page. It's the front cover
 
 If today is your first day, you won't have a streak or a mastery number yet. Hit Side A and start. Until you've taken it, a *Take a quick tour?* banner offers a one-minute walk round the app.
 
-Under the two cards is a small link row — **Licks**, **Tunes**, **Progress**, **Scales**, **Settings** — and everything is in the top nav: **Home**, **Ear Training**, **Lick Practice**, **Licks**, **Tricks**, **Tunes**, **Progress**, **Docs**, **Settings**, with **Sign In** (or your account menu, with Sign Out) at the end. (Tricks and Docs are nav-only.)
+Under the two cards is a library row — **Licks**, **Tricks**, **Tunes**, **Scales** — with links to **Settings** and **Docs** below. **Progress** is in the summary rail. Everything is also in the top nav: **Home**, **Ear Training**, **Lick Practice**, **Licks**, **Tricks**, **Tunes**, **Progress**, **Docs**, **Settings**, with **Sign In** (or your account menu, with Sign Out) at the end.
 
 ## Side A — Ear Training
 
@@ -45,7 +45,7 @@ Ear Training has no in-page settings panel — everything it uses comes from the
 |---|---|
 | **Key Center** and **Scale Type** | Override today's automatic pick with any *unlocked* key + scale combination. Locked ones are visible but disabled, with a tooltip naming the proficiency they require. A **Reset to daily** link appears once you've overridden, and a counter underneath shows how many keys and scales you've unlocked so far. |
 | **Tempo** | 60–200 BPM, in steps of 5 (100 out of the box). The tempo Ear Training plays at, and where the tune-practice Tempo knob starts. Lick Practice doesn't use it — every lick carries its own tempo. Most players start in the 80–110 range. |
-| **Swing** | 0.50 (straight eighths) to 0.80 (heavy). 0.67 is the usual triplet swing; the app ships at 0.62, a moderate jazz swing. At exactly 0.50 the band stops following the knob and swings by tempo instead — slower tunes lope harder, fast ones straighten out. |
+| **Swing** | 50% (straight eighths) to 80% (heavy), in 1% steps. 67% is the usual triplet swing; the app ships at 62%, a moderate jazz swing. At exactly 50% the band stops following the knob and swings by tempo instead — slower tunes lope harder, fast ones straighten out. |
 | **Metronome** | On/off, plus a level knob when it's on. The knob sets where the click sits in the mix — halfway by default — and the whole range is trimmed so the click sits under the music rather than beside it. |
 | **Backing** | On/off, the comping voice (Piano or Organ), and a level knob. Despite living in this section, these apply to the *backing track* — Lick Practice and Tune Practice — not to Ear Training, which never plays one. |
 
@@ -77,7 +77,7 @@ This is the 12-key drill. It picks a lick from your **tagged** collection and ru
 
 Before your first session, go to **Licks** and tap **+ Practice** on a few licks you want to drill (or *☆ Add to Practice* on a lick's own page). Tagged licks become your Side B practice book. Each tagged lick also needs at least one **progression tag** — the *Practice over* pills on its detail page, which say which backing tracks it plays cleanly over. A tag gets seeded for you the first time you set a lick's category, when that category maps cleanly onto a progression (a ii-V-I lick gets ii-V-I major). That is a one-time write, not an ongoing guess: the app never infers a missing tag later, so a lick with no tag stays out of Side B, and a tag you delete stays deleted.
 
-When you open Side B, the setup console has two panels — **Session Type** on top, **Backing & Flow** below — and a Start button. The Session Type picker has four choices, and the controls under it change with the type:
+When you open Side B, the setup console has two panels — **Choose your session** on top, **Set the band** below — and a Start button. The Session Type picker has four choices, and the controls under it change with the type:
 
 - **Daily Practice** (the default — the button reads *Start Daily Practice*) ignores the picked progression and rotates across every progression you've tagged licks for, fitting the session into the time budget. Each lick gets paired with whichever of its eligible progressions you've practiced least recently. Use it as your default daily warm-up so every line gets time on the clock.
 - **Focused Session** (*Start Session*) runs licks tagged for one progression you pick. It's the right choice when you want focused work on one harmonic context.
@@ -113,8 +113,8 @@ The rhythm section is generated, not looped: bass, comping (piano or organ, your
 
 Two things about **swing feel** are worth knowing:
 
-- The **Swing** knob in Settings applies to the **Swing** style only. Bossa Nova, Ballad and Straight each declare their own eighth-note feel — a bossa is straight whatever the knob says — and both you and the band are held to it, because a rhythm section can't be on a different grid from the soloist. So on those three styles the knob does nothing, and Ballad will lean very slightly (0.55) even with the knob at 0.50.
-- With the knob at 0.50, Swing chooses its own ratio *from the tempo*, the way players actually do: deep and loping at slow tempos (about 3.5:1 up to 132 BPM), relaxing toward an even triplet feel by 200, and nearly straight above 240. This applies to the band only — what the scorer expects from you never changes with tempo.
+- The **Swing** knob in Settings applies to the **Swing** style only. Bossa Nova, Ballad and Straight each declare their own eighth-note feel — a bossa is straight whatever the knob says — and both you and the band are held to it, because a rhythm section can't be on a different grid from the soloist. So on those three styles the knob does nothing, and Ballad will lean very slightly (55%) even with the knob at 50%.
+- With the knob at 50%, Swing chooses its own ratio *from the tempo*, the way players actually do: deep and loping at slow tempos (about 3.5:1 up to 132 BPM), relaxing toward an even triplet feel by 200, and nearly straight above 240. This applies to the band only — what the scorer expects from you never changes with tempo.
 
 **What the drummer does and doesn't do here.** In Lick Practice you'll hear the ride and snare conversation, the odd Philly Joe bomb (a lone accented kick off the grid) or a side-stick lean at four-bar boundaries, and the kick catching the piano's pushes. What you *won't* hear is the big stuff — crashes on section arrivals, setup fills, the long fill over a chorus turn. Those hang off a tune's form, so they only show up in [Tune Practice](./tune-practice.md), where the band also builds chorus over chorus.
 
@@ -224,6 +224,8 @@ The longer answer is in [The Daily Key](./architecture/tonality-system.md).
 
 The **Licks** page is your practice book. It shows the licks *you* are working with — the ones you’ve written in the editor, recorded, or stolen from the community. The hundreds of curated ear-training licks the app uses to feed Side A live behind the scenes; the Licks page is for your stuff. (An empty book says so, with a button to add your first lick.)
 
+The Studio Library opens in **Compact** view with **20** licks per page. Choose **Cards** for a roomier layout, or show **40** or **All**. Search and filters apply to the whole collection before paging; the sidebar can show just the practice set, needs-setup licks, or other licks.
+
 ### Three sections
 
 The page is organised into three groups, in this order:
@@ -269,6 +271,8 @@ Tap a lick to see:
 
 The **Tunes** page is the other half of your library: whole song forms rather than one- and two-bar lines. Charts you wrote by hand, charts you imported (iReal Pro links, Band-in-a-Box songs, MuseScore scores, or a PDF the app reads for you), and charts you adopted from the community all shelve under *Your book*; the ones that ship with the app shelve under *Curated*.
 
+The same **Compact/Cards** and **20/40/All** controls keep larger tune books manageable. Search the whole collection by title, composer, style or tag, or filter to your book or curated tunes. Keys remain in your instrument’s written pitch.
+
 Open a tune and you can read it in any written key, hear its melody, and — the part that matters — **practice licks over it**, with the rhythm section playing the form. The app reads the changes, finds the ii-Vs and turnarounds and vamps hiding in them, and hands you those spots to fill with licks from your book.
 
 Two pages cover this properly:
@@ -303,23 +307,25 @@ The global Settings page controls things that aren't specific to a single sessio
 
 | Setting | What it does |
 |---|---|
-| **Instrument** | Concert pitch (C), soprano sax, tenor sax, alto sax, or trumpet. Affects transposition (sheet music in your key), playback timbre, and the pitch range the detector expects. |
+| **Instrument** | Soprano sax, tenor sax, alto sax, trumpet, or Concert Pitch — choosing Concert Pitch asks which C instrument you play (piano, guitar, bass, trombone, flute, vibes, violin, voice, or other). Affects transposition (sheet music in your key), playback timbre, the range phrases are pitched in, and the tuning advice. |
 | **Highest** | Caps how high licks can transpose. Set this to your real high note so the app doesn't push phrases above your range. |
 | **Master** | Overall output level; playback, metronome, and backing track are all relative to it. |
 | **Theme** | Dark (default) or light. |
 | **Key Center** / **Scale Type** | Override the daily tonality, or leave it alone. Locked keys and scales are visible but disabled with their unlock requirement in a tooltip; a **Reset to daily** link appears once you've overridden. |
 | **Tempo** | 60–200 BPM. Ear Training's tempo, and where tune practice's Tempo knob starts. It's also the tempo the play buttons on your lick and tune pages use. |
-| **Swing** | 0.50 (straight) to 0.80 (heavy); 0.62 out of the box. 0.67 is the usual triplet swing. Applies to the **Swing** backing style — you and the band both play it. Bossa Nova, Ballad and Straight set their own feel and ignore this. |
+| **Swing** | 50% (straight) to 80% (heavy), in 1% steps; 62% out of the box. 67% is the usual triplet swing. Applies to the **Swing** backing style — you and the band both play it. Bossa Nova, Ballad and Straight set their own feel and ignore this. |
 | **Metronome** + **Metro Vol** | The click on or off, and where it sits in the mix (halfway by default, trimmed to sit under the music). |
-| **Backing** + **Instrument** + **Backing Vol** | The rhythm section on or off, piano or organ for the comping voice, and how loud it sits under you. These live under the Ear Training heading but apply to Lick Practice and Tune Practice — Ear Training never plays a backing track. |
+| **Backing** + **Instrument** + **Backing Vol** | The rhythm section on or off, piano or organ for the comping voice, and how loud it sits under you. These live in **Rhythm & band** and apply to Lick Practice and Tune Practice — Ear Training never plays a backing track. Switching backing off disables its voice and volume controls without moving them or discarding their settings. |
 | **Lick Practice** | Nothing to set here — a **Go to Lick Practice** link, because those settings live on the Lick Practice page. |
 | **Account** | Shown when you're signed in: who you're signed in as, a **Display Name** (shown on the licks and tunes you share; leave it blank to stay anonymous), a **Password** change (*Change* emails you a reset link), and **Delete Account**, which removes your cloud account and its data after a confirmation. |
-| **Tours & Help** | A **Browse docs** link, a *Take tour* / *Replay* button for each guided tour, and **Reset all tour history** so the first-run prompts and "Need help?" links come back. |
-| **Reset All Progress** | Under *Data*. Destructive — erases all progress, scores, and session history, with a confirmation step. |
+| **Tours, help & data** | A **Browse docs** link, a *Take tour* / *Replay* button for each guided tour, and **Reset all tour history** so the first-run prompts and "Need help?" links come back. |
+| **Reset All Progress** | Under *Tours, help & data*. Destructive — erases all progress, scores, and session history, with a confirmation step. |
 
 Session settings that belong to a *session* aren't here: session type, progression, backing style and practice mode are set on the Lick Practice page, and mode / strictness / head / key / tempo / backing style on the tune-practice setup screen.
 
-The settings page is laid out as a studio console — knobs, rocker switches, and selector pads rather than form fields. Every control has the same keyboard and screen-reader behaviour as the plain input it replaces.
+Settings uses the Studio Desk layout: **Your instrument**, **Ear Training** (keys and scales), and **Rhythm & band**, alongside a read-only **Your setup** summary. The summary moves below the controls on smaller screens. Account controls remain available when signed in. **Tours, help & data** can be collapsed. Both dark and light themes are supported.
+
+Drag a dial up or down, or use arrow keys, Home/End, and PageUp/PageDown. Arrow keys select the next available selector pad; Home/End select the first/last. Locked options are skipped. Switching backing or metronome off disables its volume without changing the panel size or forgetting your level.
 
 ## Scales
 
@@ -334,7 +340,7 @@ The **Scales** page (from the dashboard's link row, or `/scales`) is a reading r
 Two ways in.
 
 - **The editor** (`/licks/editor`) — note by note, like writing on staff paper. Pick a duration, pick a pitch (sharp, flat, or natural), and the cursor moves on. It all works from the keyboard too: `1`–`5` whole to sixteenth, `T` triplet, `.` dotted, `A`–`G` a note, `0` a rest, `[` / `]` flat / sharp, `=` / `-` octave up / down, `+` a tied note. Fumbled a note four beats back? Click its notehead — or step to it with ←/→ — to select it, then fix it in place: nudge the pitch with ↑/↓ (Shift for an octave), delete it with Backspace/Delete, or flip its spelling with `\`, all without retyping the rest. Rests are selectable and deletable the same way (MuseScore-style); pitch operations on a rest simply do nothing. A status line under the staff tells you the bar and beat you're on and how many beats are left. Type the lick's name on the staff itself; as you enter notes the app may offer **Name suggestions** — famous lines yours resembles — which you can click to use, but they're guesses, not verified attributions. The **Setup** row holds the key, the Major | Minor control and the bar count (1–4); the **Details** row holds the category pills, the *Practice* star, and (until you tap *Got it*) a note that saved licks are shared with the community. Play it back, then **Save**. If the lick is already in the library, the editor says so and the button becomes **Steal**: you adopt the existing one rather than making a duplicate.
-- **Record** (`/licks/record`) — play a phrase on your horn, the app transcribes the notes from the recording. Useful for capturing something you just figured out. Set the tempo first (the − / + buttons, 40–240 BPM in steps of 5; 100 to start), then press the red record button: you get a **two-bar count-in** of woodblock tocks with a cue pill counting you down (*Count in*, then *Play in 4…3…2…1*), and the metronome's drum-kit click — kick on the downbeat, ride on the other beats, hi-hat chick on 2 and 4 — takes over exactly where the tocks stop. That change of sound is your entrance, so **come in on that downbeat**; the kit keeps time under you for the whole take (headphones keep it out of the recording). The note you're playing shows big on screen while the tape rolls (*On tape…*). Play the lick, then stop with the button or just go quiet for a couple of seconds. The transcription understands jazz time: swung eighths come out written as straight eighths (the convention on every lead sheet), and a genuine triplet is still recognised beat by beat, so one bar can hold both. On the review screen you get the transcription on a staff with its difficulty and bar count, a **Name** box, **Play Back** (which re-applies your Swing setting — 0.62 out of the box — so the take sounds the way you played it, not the way it's spelled), **Re-record** if it isn't right, and **Save to Book**.
+- **Record** (`/licks/record`) — play a phrase on your horn, the app transcribes the notes from the recording. Useful for capturing something you just figured out. Set the tempo first (the − / + buttons, 40–240 BPM in steps of 5; 100 to start), then press the red record button: you get a **two-bar count-in** of woodblock tocks with a cue pill counting you down (*Count in*, then *Play in 4…3…2…1*), and the metronome's drum-kit click — kick on the downbeat, ride on the other beats, hi-hat chick on 2 and 4 — takes over exactly where the tocks stop. That change of sound is your entrance, so **come in on that downbeat**; the kit keeps time under you for the whole take (headphones keep it out of the recording). The note you're playing shows big on screen while the tape rolls (*On tape…*). Play the lick, then stop with the button or just go quiet for a couple of seconds. The transcription understands jazz time: swung eighths come out written as straight eighths (the convention on every lead sheet), and a genuine triplet is still recognised beat by beat, so one bar can hold both. On the review screen you get the transcription on a staff with its difficulty and bar count, a **Name** box, **Play Back** (which re-applies your Swing setting — 62% out of the box — so the take sounds the way you played it, not the way it's spelled), **Re-record** if it isn't right, and **Save to Book**.
 
 Either way, your lick joins your book alongside your other licks — ones you recorded, wrote, or adopted from the community — and behaves the same way: it can be tagged for Side B, transposed to any key, played back, and scored.
 

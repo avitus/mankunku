@@ -720,8 +720,9 @@ export function getDailyPracticeLicks(): Phrase[] {
 
 /**
  * Build a Daily Practice plan: pool every eligible lick across all tagged
- * progressions, sort least-recently-practiced first, assign each lick its
- * least-recently-practiced compatible progression, and greedily fill the
+ * progressions, prioritize learning licks (<12 unlocked keys), then sort
+ * least-recently-practiced within each group. Assign each lick its
+ * least-recently-practiced compatible progression and greedily fill the
  * duration budget. Mirrors `buildSessionPlan` but rotates progressions
  * across the lick set instead of pinning to a single one.
  *
@@ -735,6 +736,9 @@ export function computeDailyPracticePlan(): LickPracticePlanItem[] {
 	const sessionLog = loadLickPracticeSessions();
 
 	const sorted = [...licks].sort((a, b) => {
+		const aLearning = getUnlockedKeyCount(progress, a.id) < 12;
+		const bLearning = getUnlockedKeyCount(progress, b.id) < 12;
+		if (aLearning !== bLearning) return aLearning ? -1 : 1;
 		const aTime = getLickLastPracticed(progress, a.id);
 		const bTime = getLickLastPracticed(progress, b.id);
 		return aTime - bTime;

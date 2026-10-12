@@ -1,0 +1,9 @@
+{
+  "source": "Leadsheets/PDF/Lady Bird.pdf",
+  "sourceSha256": "504e01004ab77e5bf5b89e4115b2cd2f9ef667417c04bf9c452765e6c7a2a35f",
+  "rasterPdfSha256": "3bf289f3dc0403cc6e5392fee949fd5cfe460562d33ae0d82365a44dfa782b7b",
+  "method": "Poppler pdftoppm at 150 DPI, then Chromium prints the single page PNG at natural CSS dimensions with zero margins. Image-only synthetic scan; no simulated noise.",
+  "reference": "lady-bird.reference.json",
+  "sourceInstrument": "Bb",
+  "purpose": "Independent optical-path regression and release gate; shares the existing verified MuseScore reference, never model output."
+}

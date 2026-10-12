@@ -39,6 +39,8 @@ export interface OmrMeasure {
 }
 
 export interface OmrNormalized {
+	/** Fatal decoder/validator signals retained by the file adapter for quality selection. */
+	qualityWarnings?: string[];
 	title: string | null;
 	composer: string | null;
 	key_signature: string | null;
@@ -206,7 +208,15 @@ export function validateOmrTranscription(input: unknown): OmrValidation {
 /** Extract the normalized doc from a validated payload. */
 export function omrNormalized(input: unknown): OmrNormalized {
 	const root = input as Record<string, unknown>;
-	return (root.normalized ?? root) as unknown as OmrNormalized;
+	const normalized = (root.normalized ?? root) as Record<string, unknown>;
+	const result = root.result && typeof root.result === 'object' ? root.result as Record<string, unknown> : {};
+	const qualityWarnings = [root.validation_warnings, normalized.warnings, result.warnings].flatMap((value) =>
+		Array.isArray(value) ? value.slice(0, 512).flatMap((warning) => {
+			const code = warning && typeof warning === 'object' ? warning.code : null;
+			return typeof code === 'string' && /TRUNCAT|UNPARSEABLE|MULTI_VOICE/.test(code) ? [code.slice(0, 100)] : [];
+		}) : []
+	);
+	return { ...normalized, qualityWarnings } as unknown as OmrNormalized;
 }
 
 const MAJOR_FIFTHS: Record<string, number> = {

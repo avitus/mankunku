@@ -19,7 +19,11 @@ const KEY_OVERRIDE = { key: 'C', scaleType: 'major-pentatonic' };
 test.describe('written pitch follows the instrument setting', () => {
 	test.beforeEach(async ({ page }) => {
 		await seedStorage(page, {
-			settings: { ...SETTINGS_ONBOARDED, instrumentId: 'tenor-sax', tonalityOverride: KEY_OVERRIDE },
+			settings: {
+				...SETTINGS_ONBOARDED,
+				instrumentId: 'tenor-sax',
+				tonalityOverride: KEY_OVERRIDE
+			},
 			'tour-state': TOUR_DISMISSED
 		});
 		// /ear-training loads the instrument on mount; keep the samples local.
@@ -31,23 +35,33 @@ test.describe('written pitch follows the instrument setting', () => {
 		page,
 		consoleCollector: _consoleCollector
 	}) => {
-		/** The key block: caption, the written key, then the scale name. */
-		const todaysKey = () => page.getByText("Today's key", { exact: true }).locator('..');
+		/** The tonality well: the written key, then the scale name beside it. */
+		const todaysKey = () => page.getByText("Today's key", { exact: true }).locator('../..');
 
 		// Tenor: concert C reads D.
 		await page.goto('/ear-training');
-		await expect(todaysKey()).toContainText(/Today's key\s*D\s*Major Pentatonic/);
+		await expect(todaysKey()).toContainText(/Today's key\s*D\s*Your tonality\s*Major Pentatonic/);
 
 		// Switch to alto on the settings page; its own tonality line agrees.
 		await page.goto('/settings');
 		const instrumentGroup = page.getByRole('radiogroup', { name: 'Instrument', exact: true });
 		await instrumentGroup.getByRole('radio', { name: /alto/i }).first().click();
-		await expect(page.getByText('A Major Pentatonic', { exact: true })).toBeVisible();
+		// Both the control panel and the read-only summary use written pitch.
+		await expect(
+			page
+				.getByRole('region', { name: 'Ear Training', exact: true })
+				.getByText('A Major Pentatonic', { exact: true })
+		).toBeVisible();
+		await expect(
+			page
+				.getByRole('complementary', { name: 'Your setup' })
+				.getByText('A Major Pentatonic', { exact: true })
+		).toBeVisible();
 		await expect(page.getByText('Custom override')).toBeVisible();
 
 		// Alto: concert C reads A.
 		await page.goto('/ear-training');
-		await expect(todaysKey()).toContainText(/Today's key\s*A\s*Major Pentatonic/);
+		await expect(todaysKey()).toContainText(/Today's key\s*A\s*Your tonality\s*Major Pentatonic/);
 
 		// Concert pitch: the key is shown as stored.
 		await page.goto('/settings');
@@ -56,9 +70,25 @@ test.describe('written pitch follows the instrument setting', () => {
 			.getByRole('radio', { name: /concert pitch/i })
 			.first()
 			.click();
-		await expect(page.getByText('C Major Pentatonic', { exact: true })).toBeVisible();
+		// Concert Pitch only opens the "which C instrument" follow-up; "Other"
+		// is the legacy `concert` id.
+		await page
+			.getByRole('radiogroup', { name: 'C instrument', exact: true })
+			.getByRole('radio', { name: 'Other', exact: true })
+			.click();
+		// Both the control panel and the read-only summary use written pitch.
+		await expect(
+			page
+				.getByRole('region', { name: 'Ear Training', exact: true })
+				.getByText('C Major Pentatonic', { exact: true })
+		).toBeVisible();
+		await expect(
+			page
+				.getByRole('complementary', { name: 'Your setup' })
+				.getByText('C Major Pentatonic', { exact: true })
+		).toBeVisible();
 		await page.goto('/ear-training');
-		await expect(todaysKey()).toContainText(/Today's key\s*C\s*Major Pentatonic/);
+		await expect(todaysKey()).toContainText(/Today's key\s*C\s*Your tonality\s*Major Pentatonic/);
 	});
 
 	test('key-unlock hints on /progress and /settings name written keys', async ({
@@ -98,7 +128,14 @@ test.describe('written pitch follows the instrument setting', () => {
 
 		// Concert pitch: keys read as stored.
 		await page.goto('/settings');
-		await instrumentGroup().getByRole('radio', { name: /concert pitch/i }).first().click();
+		await instrumentGroup()
+			.getByRole('radio', { name: /concert pitch/i })
+			.first()
+			.click();
+		await page
+			.getByRole('radiogroup', { name: 'C instrument', exact: true })
+			.getByRole('radio', { name: 'Other', exact: true })
+			.click();
 		await expect(keyPad().getByRole('radio', { name: 'D', exact: true })).toHaveAttribute(
 			'title',
 			'Requires G proficiency level 10'

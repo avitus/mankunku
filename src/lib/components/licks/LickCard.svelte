@@ -1,14 +1,13 @@
 <script lang="ts">
 	import { CATEGORY_LABELS, type Phrase } from '$lib/types/music';
-	import {
-		getProgressionTags,
-		getLickDisplayTempo
-	} from '$lib/persistence/lick-practice-store';
+	import { getProgressionTags, getLickDisplayTempo } from '$lib/persistence/lick-practice-store';
 	import { progressionColor } from '$lib/music/progression-display';
 	import { PROGRESSION_TEMPLATES } from '$lib/data/progressions';
 	import type { LickPracticeProgress } from '$lib/types/lick-practice';
 
 	interface Props {
+		/** Dense library presentation; other callers retain the card. */
+		compact?: boolean;
 		lick: Phrase;
 		onclick?: () => void;
 		onplay?: () => void;
@@ -20,6 +19,7 @@
 	}
 
 	let {
+		compact = false,
 		lick,
 		onclick,
 		onplay,
@@ -44,7 +44,9 @@
 {#snippet cardBody()}
 	<div class="flex items-start justify-between gap-2">
 		<div class="min-w-0">
-			<h3 class="font-display text-lg font-semibold tracking-tight truncate">{lick.name}</h3>
+			<h3 class="font-display text-lg font-semibold tracking-tight truncate">
+				{lick.name}
+			</h3>
 			{#if authorName}
 				<p class="mt-0.5 text-xs italic text-[var(--color-text-secondary)] truncate">
 					by {authorName}
@@ -56,12 +58,16 @@
 					<span
 						class="smallcaps rounded border px-1.5 py-0.5"
 						style="background: color-mix(in srgb, {hue} 15%, transparent); color: {hue}; border-color: color-mix(in srgb, {hue} 34%, transparent);"
-						title="{CATEGORY_LABELS[lick.category] ?? lick.category} · practice over {PROGRESSION_TEMPLATES[primaryProg]?.shortName ?? primaryProg}"
+						title="{CATEGORY_LABELS[lick.category] ??
+							lick.category} · practice over {PROGRESSION_TEMPLATES[primaryProg]?.shortName ??
+							primaryProg}"
 					>
 						{CATEGORY_LABELS[lick.category] ?? lick.category}
 					</span>
 				{:else}
-					<span class="smallcaps rounded border border-[var(--color-brass)]/40 px-1.5 py-0.5 text-[var(--color-brass)]">
+					<span
+						class="smallcaps rounded border border-[var(--color-brass)]/40 px-1.5 py-0.5 text-[var(--color-brass)]"
+					>
 						{CATEGORY_LABELS[lick.category] ?? lick.category}
 					</span>
 				{/if}
@@ -87,11 +93,13 @@
 	</div>
 {/snippet}
 
-<div class="relative">
+<div class="relative library-lick-card" class:library-compact={compact}>
 	{#if onclick}
 		<button
 			{onclick}
-			class="w-full text-left rounded-lg bg-[var(--color-bg-secondary)] p-4 {onplay ? 'pr-14' : ''} transition-colors hover:bg-[var(--color-bg-tertiary)]"
+			class="w-full text-left rounded-lg bg-[var(--color-bg-secondary)] p-4 {onplay
+				? 'pr-14'
+				: ''} transition-colors hover:bg-[var(--color-bg-tertiary)]"
 		>
 			{@render cardBody()}
 		</button>
@@ -105,8 +113,8 @@
 			onclick={onplay}
 			class="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full transition-colors
 				   {isPlaying
-					? 'bg-[var(--color-onair)] hover:bg-[var(--color-onair-hover)]'
-					: 'bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)]'}"
+				? 'bg-[var(--color-onair)] hover:bg-[var(--color-onair-hover)]'
+				: 'bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)]'}"
 			aria-label={isPlaying ? 'Stop' : 'Play'}
 		>
 			{#if isPlaying}

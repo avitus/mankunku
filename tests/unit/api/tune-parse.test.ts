@@ -27,7 +27,11 @@ async function ndjsonLines(res: Response): Promise<Array<Record<string, unknown>
 		.map((l) => JSON.parse(l) as Record<string, unknown>);
 }
 
-function makeEvent(body: unknown, headers: Record<string, string> = {}, userId: string | null = null) {
+function makeEvent(
+	body: unknown,
+	headers: Record<string, string> = {},
+	userId: string | null = null
+) {
 	const request = new Request('http://localhost/api/tune-parse', {
 		method: 'POST',
 		headers: { 'content-type': 'application/json', ...headers },
@@ -47,7 +51,9 @@ function makeEvent(body: unknown, headers: Record<string, string> = {}, userId: 
  * model-agnostic; the fallback tests pass distinct ids to see which model a
  * given attempt was sent to.
  */
-async function loadRoute(models: { base: string; tune: string } = { base: 'claude-test-model', tune: 'claude-test-model' }) {
+async function loadRoute(
+	models: { base: string; tune: string } = { base: 'claude-test-model', tune: 'claude-test-model' }
+) {
 	vi.resetModules();
 	vi.doMock('$lib/server/anthropic', () => ({
 		isAnthropicConfigured: () => configured,
@@ -95,6 +101,241 @@ beforeEach(() => {
 });
 
 const TINY_PDF_B64 = Buffer.from('%PDF-1.4 tiny').toString('base64');
+
+it('repairs a cleanly tiled but wrong note count with two corroborated notation readings', async () => {
+	const { POST } = await loadRoute();
+	mockCreate.mockImplementation(async (request) => ({
+		content: [
+			{
+				type: 'text',
+				text: JSON.stringify(
+					request.system.startsWith('Read this ONE measure')
+						? {
+								events: [
+									[0, 1, 4, null, false],
+									[1, 1, 4, null, false],
+									[2, 2, 5, null, false]
+								]
+							}
+						: {
+								keySignature: { fifths: 0 },
+								clef: 'treble',
+								bars: [
+									{
+										melody: [
+											[0, 1, 'D4'],
+											[1, 1, 'E4'],
+											[2, 1, 'F4'],
+											[3, 1, 'A4']
+										]
+									}
+								]
+							}
+				)
+			}
+		]
+	}));
+	const response = await POST(
+		makeEvent({
+			system: {
+				image: 'cG5n',
+				barCount: 1,
+				timeSignature: [4, 4],
+				barImages: ['data:image/png;base64,cG5n'],
+				barEvidence: [{ count: 3, letters: ['B4', 'B4', 'C5'] }]
+			}
+		})
+	);
+	const result = await response.json();
+	expect(result.bars[0].melody).toEqual([
+		[0, 1, 'B4'],
+		[1, 1, 'B4'],
+		[2, 2, 'C5']
+	]);
+	expect(mockCreate).toHaveBeenCalledTimes(3);
+});
+
+it('flags matching printed accidental observations without letting same-model agreement rewrite pitches', async () => {
+	const { POST } = await loadRoute();
+	mockCreate.mockImplementation(async (request) => ({
+		content: [
+			{
+				type: 'text',
+				text: JSON.stringify(
+					request.system.startsWith('Identify only explicit accidental')
+						? { bars: [{ notes: 2, signs: [[1, 'sharp']] }] }
+						: {
+								keySignature: { fifths: 0 },
+								clef: 'treble',
+								bars: [
+									{
+										melody: [
+											[0, 2, 'A4'],
+											[2, 2, 'B4']
+										]
+									}
+								]
+							}
+				)
+			}
+		]
+	}));
+	const response = await POST(
+		makeEvent({
+			system: {
+				image: 'cG5n',
+				barCount: 1,
+				timeSignature: [4, 4],
+				readAccidentals: true,
+				barEvidence: [{ count: 2, letters: ['A4', 'B4'] }]
+			}
+		})
+	);
+	const result = await response.json();
+	expect(result.bars[0].melody).toEqual([
+		[0, 2, 'A4'],
+		[2, 2, 'B4']
+	]);
+	expect(result.warnings.join(' ')).toContain('accidental');
+	expect(mockCreate).toHaveBeenCalledTimes(3);
+});
+
+it('checks repeated pitches for missed ties using two agreeing full-measure readings', async () => {
+	const { POST } = await loadRoute();
+	mockCreate.mockImplementation(async (request) => ({
+		content: [
+			{
+				type: 'text',
+				text: JSON.stringify(
+					request.system.startsWith('Read this ONE measure')
+						? {
+								events: [
+									[0, 2, 3, null, true],
+									[2, 2, 3, null, false]
+								]
+							}
+						: {
+								keySignature: { fifths: 0 },
+								clef: 'treble',
+								bars: [
+									{
+										melody: [
+											[0, 2, 'A4'],
+											[2, 2, 'A4']
+										]
+									}
+								]
+							}
+				)
+			}
+		]
+	}));
+	const response = await POST(
+		makeEvent({
+			system: {
+				image: 'cG5n',
+				barCount: 1,
+				timeSignature: [4, 4],
+				barImages: ['data:image/png;base64,cG5n'],
+				barEvidence: [{ count: 2, letters: ['A4', 'A4'] }]
+			}
+		})
+	);
+	const result = await response.json();
+	expect(result.bars[0].melody).toEqual([
+		[0, 2, 'A4', true],
+		[2, 2, 'A4']
+	]);
+	expect(mockCreate).toHaveBeenCalledTimes(3);
+});
+
+it('corrects a rhythm that fills the bar but misreads a half note and quarter rest', async () => {
+	const { POST } = await loadRoute();
+	mockCreate.mockImplementation(async (request) => ({
+		content: [
+			{
+				type: 'text',
+				text: JSON.stringify(
+					request.system.startsWith('Read this ONE measure')
+						? {
+								events: [
+									[0, 2, 1, null, false],
+									[2, 1, null, null, false],
+									[3, 1, 1, null, false]
+								]
+							}
+						: {
+								keySignature: { fifths: 2 },
+								clef: 'treble',
+								bars: [
+									{
+										melody: [
+											[0, 3, 'F#4'],
+											[3, 0.5, 'rest'],
+											[3.5, 0.5, 'F#4']
+										]
+									}
+								]
+							}
+				)
+			}
+		]
+	}));
+	const response = await POST(
+		makeEvent({
+			system: {
+				image: 'cG5n',
+				barCount: 1,
+				timeSignature: [4, 4],
+				barImages: ['data:image/png;base64,cG5n'],
+				barEvidence: [{ count: 2, letters: ['F4', 'F4'] }]
+			}
+		})
+	);
+	const result = await response.json();
+	expect(result.bars[0].melody).toEqual([
+		[0, 2, 'F#4'],
+		[3, 1, 'F#4']
+	]);
+	expect(mockCreate).toHaveBeenCalledTimes(3);
+});
+
+it('recovers harmony per measure when the system reader omits the pickup', async () => {
+	const { POST } = await loadRoute();
+	mockCreate.mockImplementation(async (request) => {
+		const data = request.messages[0].content.find((b: { type: string }) => b.type === 'image')
+			.source.data;
+		const bars =
+			data === 'cG5n'
+				? [[[0, 'Dm7']], [[0, 'G7']]]
+				: data === 'QQ=='
+					? [[]]
+					: data === 'Qg=='
+						? [[[0, 'Dm7']]]
+						: [[[0, 'G7']]];
+		return { content: [{ type: 'text', text: JSON.stringify({ bars }) }] };
+	});
+	const response = await POST(
+		makeEvent({
+			system: {
+				image: 'cG5n',
+				barCount: 3,
+				timeSignature: [4, 4],
+				first: true,
+				harmonyOnly: true,
+				harmonyImages: [
+					'data:image/png;base64,QQ==',
+					'data:image/png;base64,Qg==',
+					'data:image/png;base64,Qw=='
+				]
+			}
+		})
+	);
+	const result = await response.json();
+	expect(result.harmony).toEqual([[], [[0, 'Dm7']], [[0, 'G7']]]);
+	expect(result.warnings).toEqual([]);
+	expect(mockCreate).toHaveBeenCalledTimes(4);
+});
 
 describe('POST /api/tune-parse — guards', () => {
 	it('503s when Anthropic is not configured', async () => {
@@ -165,11 +406,15 @@ describe('POST /api/tune-parse — guards', () => {
 
 		// The cap is inclusive: exactly 15 000 000 bytes gets past the reader
 		// (and fails as JSON), one byte more is refused as too large.
-		await expect(POST(makeStreamEvent(spaces(15_000_000).stream, 'cap-at'))).rejects.toMatchObject({ status: 400 });
-		await expect(POST(makeStreamEvent(spaces(15_000_001).stream, 'cap-over'))).rejects.toMatchObject({ status: 413 });
+		await expect(POST(makeStreamEvent(spaces(15_000_000).stream, 'cap-at'))).rejects.toMatchObject({
+			status: 400
+		});
+		await expect(
+			POST(makeStreamEvent(spaces(15_000_001).stream, 'cap-over'))
+		).rejects.toMatchObject({ status: 413 });
 	});
 
-	it('400s a body whose stream breaks mid-read, and passes the adapter\'s own 413 through', async () => {
+	it("400s a body whose stream breaks mid-read, and passes the adapter's own 413 through", async () => {
 		const { POST } = await loadRoute();
 		// A socket that dies mid-body is a malformed request, not a server fault.
 		const broken = new ReadableStream<Uint8Array>({
@@ -267,7 +512,7 @@ describe('POST /api/tune-parse — guards', () => {
 		}
 	});
 
-	it('never starves one mode with the other mode\'s traffic (pre-read ticket is refunded on classification)', async () => {
+	it("never starves one mode with the other mode's traffic (pre-read ticket is refunded on classification)", async () => {
 		const { POST } = await loadRoute();
 		mockCreate.mockResolvedValue({ content: [{ type: 'text', text: '{}' }] });
 		// Exhaust the PDF budget plus one over-budget attempt (the 6th 429s at
@@ -301,9 +546,7 @@ describe('POST /api/tune-parse — extraction path', () => {
 			title: 'Scanned',
 			key: 'C',
 			timeSignature: [4, 4],
-			sections: [
-				{ label: 'A', bars: 2, chords: [{ bar: 0, beat: 0, symbol: 'C6' }], melody: [] }
-			]
+			sections: [{ label: 'A', bars: 2, chords: [{ bar: 0, beat: 0, symbol: 'C6' }], melody: [] }]
 		};
 		mockCreate.mockResolvedValue({
 			content: [{ type: 'text', text: '```json\n' + JSON.stringify(doc) + '\n```' }]
@@ -319,9 +562,7 @@ describe('POST /api/tune-parse — extraction path', () => {
 		// The document block reached the SDK with the base64 payload.
 		const call = mockCreate.mock.calls[0][0];
 		expect(call.model).toBe('claude-test-model');
-		const docBlock = call.messages[0].content.find(
-			(b: { type: string }) => b.type === 'document'
-		);
+		const docBlock = call.messages[0].content.find((b: { type: string }) => b.type === 'document');
 		expect(docBlock.source.data).toBe(TINY_PDF_B64);
 	});
 
@@ -351,21 +592,19 @@ describe('POST /api/tune-parse — extraction path', () => {
 
 	it('retries a whole-PDF extraction that died outright on the baseline model, without the thinking config', async () => {
 		const { POST } = await loadRoute({ base: 'claude-base', tune: 'claude-tune' });
-		mockCreate
-			.mockRejectedValueOnce(new Error('output blocked'))
-			.mockResolvedValueOnce({
-				content: [
-					{
-						type: 'text',
-						text: JSON.stringify({
-							title: 'Recovered',
-							keySignature: { fifths: 0 },
-							timeSignature: [4, 4],
-							systems: [{ bars: [{ chords: [[0, 'C']], melody: [[0, 4, 'C4']] }] }]
-						})
-					}
-				]
-			});
+		mockCreate.mockRejectedValueOnce(new Error('output blocked')).mockResolvedValueOnce({
+			content: [
+				{
+					type: 'text',
+					text: JSON.stringify({
+						title: 'Recovered',
+						keySignature: { fifths: 0 },
+						timeSignature: [4, 4],
+						systems: [{ bars: [{ chords: [[0, 'C']], melody: [[0, 4, 'C4']] }] }]
+					})
+				}
+			]
+		});
 		const res = await POST(makeEvent({ pdf: TINY_PDF_B64 }));
 		expect(res.status).toBe(200);
 		expect((await res.json()).sheet.title).toBe('Recovered');
@@ -391,7 +630,15 @@ describe('POST /api/tune-parse — per-system mode', () => {
 	const PNG_B64 = Buffer.from('fake-png').toString('base64');
 	const goodBars = [
 		{ startRepeat: true, endRepeat: false, pickup: false, melody: [[0, 4, 'C4']] },
-		{ startRepeat: false, endRepeat: true, pickup: false, melody: [[0, 2, 'D4'], [2, 2, 'E4']] }
+		{
+			startRepeat: false,
+			endRepeat: true,
+			pickup: false,
+			melody: [
+				[0, 2, 'D4'],
+				[2, 2, 'E4']
+			]
+		}
 	];
 
 	it('transcribes one system into the fixed bar skeleton', async () => {
@@ -466,7 +713,7 @@ describe('POST /api/tune-parse — per-system mode', () => {
 			endRepeat: false,
 			ending: null,
 			pickup: false,
-			melody: [[0, 3, 'X4']]
+			melody: [[0, 3, 'F4']]
 		};
 		mockCreate
 			.mockResolvedValueOnce({
@@ -553,7 +800,9 @@ describe('POST /api/tune-parse — per-system mode', () => {
 
 	it('flags out-of-meter melody as a warning after retry', async () => {
 		const { POST } = await loadRoute();
-		const overfull = [{ startRepeat: false, endRepeat: false, pickup: false, melody: [[3, 4, 'C4']] }];
+		const overfull = [
+			{ startRepeat: false, endRepeat: false, pickup: false, melody: [[3, 4, 'C4']] }
+		];
 		mockCreate.mockResolvedValue({
 			content: [
 				{ type: 'text', text: JSON.stringify({ keySignature: { fifths: 0 }, bars: overfull }) }
@@ -612,16 +861,22 @@ describe('POST /api/tune-parse — per-system mode', () => {
 		expect(mockCreate).not.toHaveBeenCalled();
 	});
 
-	it('asks for the pickup check only on the chart\'s first system', async () => {
+	it("asks for the pickup check only on the chart's first system", async () => {
 		const { POST } = await loadRoute();
 		mockCreate.mockResolvedValue({
-			content: [{ type: 'text', text: JSON.stringify({ keySignature: { fifths: 0 }, bars: goodBars }) }]
+			content: [
+				{ type: 'text', text: JSON.stringify({ keySignature: { fifths: 0 }, bars: goodBars }) }
+			]
 		});
-		await POST(makeEvent({ system: { image: PNG_B64, barCount: 2, timeSignature: [4, 4], first: true } }));
+		await POST(
+			makeEvent({ system: { image: PNG_B64, barCount: 2, timeSignature: [4, 4], first: true } })
+		);
 		await POST(makeEvent({ system: { image: PNG_B64, barCount: 2, timeSignature: [4, 4] } }));
 		/** The text block of the user message on the `call`-th model request. */
 		const promptOf = (call: number): string =>
-			mockCreate.mock.calls[call][0].messages[0].content.find((b: { type: string }) => b.type === 'text').text;
+			mockCreate.mock.calls[call][0].messages[0].content.find(
+				(b: { type: string }) => b.type === 'text'
+			).text;
 		expect(promptOf(0)).toContain('PICKUP');
 		expect(promptOf(1)).not.toContain('PICKUP');
 	});
@@ -629,14 +884,23 @@ describe('POST /api/tune-parse — per-system mode', () => {
 	it('re-reads a bar whose note count disagrees with the notehead evidence, and merges per bar toward the evidence', async () => {
 		const { POST } = await loadRoute();
 		/** A bar filled by one four-beat note. */
-		const one = (pitch: string) => ({ startRepeat: false, endRepeat: false, ending: null, pickup: false, melody: [[0, 4, pitch]] });
+		const one = (pitch: string) => ({
+			startRepeat: false,
+			endRepeat: false,
+			ending: null,
+			pickup: false,
+			melody: [[0, 4, pitch]]
+		});
 		/** A bar of two two-beat notes. */
 		const two = (a: string, b: string) => ({
 			startRepeat: false,
 			endRepeat: false,
 			ending: null,
 			pickup: false,
-			melody: [[0, 2, a], [2, 2, b]]
+			melody: [
+				[0, 2, a],
+				[2, 2, b]
+			]
 		});
 		// Both attempts tile cleanly, so nothing but the evidence can decide.
 		// Bar 1: the first read has 1 note where the detector saw 2; the retry
@@ -644,10 +908,26 @@ describe('POST /api/tune-parse — per-system mode', () => {
 		// regresses to 1 — it must keep the first read.
 		mockCreate
 			.mockResolvedValueOnce({
-				content: [{ type: 'text', text: JSON.stringify({ keySignature: { fifths: 0 }, bars: [one('C4'), two('E4', 'G4')] }) }]
+				content: [
+					{
+						type: 'text',
+						text: JSON.stringify({
+							keySignature: { fifths: 0 },
+							bars: [one('C4'), two('E4', 'G4')]
+						})
+					}
+				]
 			})
 			.mockResolvedValueOnce({
-				content: [{ type: 'text', text: JSON.stringify({ keySignature: { fifths: 0 }, bars: [two('C4', 'D4'), one('E4')] }) }]
+				content: [
+					{
+						type: 'text',
+						text: JSON.stringify({
+							keySignature: { fifths: 0 },
+							bars: [two('C4', 'D4'), one('E4')]
+						})
+					}
+				]
 			});
 		const res = await POST(
 			makeEvent({
@@ -655,15 +935,24 @@ describe('POST /api/tune-parse — per-system mode', () => {
 					image: PNG_B64,
 					barCount: 2,
 					timeSignature: [4, 4],
-					barEvidence: [{ count: 2, letters: ['C4', 'D4'] }, { count: 2, letters: ['E4', 'G4'] }]
+					barEvidence: [
+						{ count: 2, letters: ['C4', 'D4'] },
+						{ count: 2, letters: ['E4', 'G4'] }
+					]
 				}
 			})
 		);
 		expect(res.status).toBe(200);
 		const payload = await res.json();
 		expect(mockCreate).toHaveBeenCalledTimes(2);
-		expect(payload.bars[0].melody).toEqual([[0, 2, 'C4'], [2, 2, 'D4']]);
-		expect(payload.bars[1].melody).toEqual([[0, 2, 'E4'], [2, 2, 'G4']]);
+		expect(payload.bars[0].melody).toEqual([
+			[0, 2, 'C4'],
+			[2, 2, 'D4']
+		]);
+		expect(payload.bars[1].melody).toEqual([
+			[0, 2, 'E4'],
+			[2, 2, 'G4']
+		]);
 		expect(payload.warnings).toEqual([]);
 		// The retry prompt names the disagreeing bar, the detector's count, and
 		// the line/space letters — with the caveat that they are letters only.
@@ -679,7 +968,9 @@ describe('POST /api/tune-parse — per-system mode', () => {
 	it('does not re-read when the transcription already agrees with the evidence', async () => {
 		const { POST } = await loadRoute();
 		mockCreate.mockResolvedValue({
-			content: [{ type: 'text', text: JSON.stringify({ keySignature: { fifths: 0 }, bars: goodBars }) }]
+			content: [
+				{ type: 'text', text: JSON.stringify({ keySignature: { fifths: 0 }, bars: goodBars }) }
+			]
 		});
 		const res = await POST(
 			makeEvent({
@@ -687,7 +978,10 @@ describe('POST /api/tune-parse — per-system mode', () => {
 					image: PNG_B64,
 					barCount: 2,
 					timeSignature: [4, 4],
-					barEvidence: [{ count: 1, letters: ['C4'] }, { count: 2, letters: ['D4', 'E4'] }]
+					barEvidence: [
+						{ count: 1, letters: ['C4'] },
+						{ count: 2, letters: ['D4', 'E4'] }
+					]
 				}
 			})
 		);
@@ -701,12 +995,14 @@ describe('POST /api/tune-parse — per-system mode', () => {
 		// and the thinking/effort fields are Fable-only — sending them to the
 		// baseline model is a 400 at the API.
 		const { POST } = await loadRoute({ base: 'claude-base', tune: 'claude-tune' });
-		mockCreate
-			.mockRejectedValueOnce(new Error('output blocked'))
-			.mockResolvedValueOnce({
-				content: [{ type: 'text', text: JSON.stringify({ keySignature: { fifths: 0 }, bars: goodBars }) }]
-			});
-		const res = await POST(makeEvent({ system: { image: PNG_B64, barCount: 2, timeSignature: [4, 4] } }));
+		mockCreate.mockRejectedValueOnce(new Error('output blocked')).mockResolvedValueOnce({
+			content: [
+				{ type: 'text', text: JSON.stringify({ keySignature: { fifths: 0 }, bars: goodBars }) }
+			]
+		});
+		const res = await POST(
+			makeEvent({ system: { image: PNG_B64, barCount: 2, timeSignature: [4, 4] } })
+		);
 		expect(res.status).toBe(200);
 		expect((await res.json()).bars).toHaveLength(2);
 		expect(mockCreate).toHaveBeenCalledTimes(2);
@@ -721,18 +1017,32 @@ describe('POST /api/tune-parse — per-system mode', () => {
 	it('429s the 61st system transcription in a minute from one user', async () => {
 		const { POST } = await loadRoute();
 		mockCreate.mockResolvedValue({
-			content: [{ type: 'text', text: JSON.stringify({ keySignature: { fifths: 0 }, bars: goodBars }) }]
+			content: [
+				{ type: 'text', text: JSON.stringify({ keySignature: { fifths: 0 }, bars: goodBars }) }
+			]
 		});
 		/** A fresh request each time — a Request body reads once — from the user being rate-limited. */
 		const event = () =>
-			makeEvent({ system: { image: PNG_B64, barCount: 2, timeSignature: [4, 4] } }, {}, 'user-sys-limit');
+			makeEvent(
+				{ system: { image: PNG_B64, barCount: 2, timeSignature: [4, 4] } },
+				{},
+				'user-sys-limit'
+			);
 		for (let i = 0; i < 60; i++) {
 			expect((await POST(event())).status, `request ${i + 1}`).toBe(200);
 		}
 		await expect(POST(event())).rejects.toMatchObject({ status: 429 });
 		// Another user's allowance is untouched.
 		expect(
-			(await POST(makeEvent({ system: { image: PNG_B64, barCount: 2, timeSignature: [4, 4] } }, {}, 'user-other'))).status
+			(
+				await POST(
+					makeEvent(
+						{ system: { image: PNG_B64, barCount: 2, timeSignature: [4, 4] } },
+						{},
+						'user-other'
+					)
+				)
+			).status
 		).toBe(200);
 	});
 });
@@ -763,10 +1073,11 @@ describe('POST /api/tune-parse — request duration', () => {
 		await POST(event);
 		// Without this the model call outlives the request that asked for it:
 		// the browser gives up at its timeout and the server keeps streaming.
-		expect(mockCreate.mock.calls[0][1]?.signal).toBe(event.request.signal);
+		expect(mockCreate.mock.calls[0][1]?.signal).toBeInstanceOf(AbortSignal);
+		expect(mockCreate.mock.calls[0][1]?.signal.aborted).toBe(false);
 	});
 
-	it('skips the QA retry when the first attempt already spent the budget', async () => {
+	it('reserves a bounded QA retry even when the first attempt was slow', async () => {
 		vi.useFakeTimers();
 		try {
 			const { POST } = await loadRoute();
@@ -778,13 +1089,14 @@ describe('POST /api/tune-parse — request duration', () => {
 				makeEvent({ system: { image: PNG_B64, barCount: 1, timeSignature: [4, 4] } })
 			);
 			expect(res.status).toBe(200);
-			expect(mockCreate).toHaveBeenCalledTimes(1);
+			expect(mockCreate).toHaveBeenCalledTimes(2);
 			// The user still gets the shaky transcription plus the reason it
 			// was not re-read — silently dropping the retry would look like a
 			// clean extraction.
 			const payload = await res.json();
 			expect(payload.warnings.join(' ')).toMatch(/bar 1/);
-			expect(payload.warnings.join(' ')).toMatch(/not re-read/i);
+			expect(payload.warnings.join(' ')).not.toMatch(/not re-read/i);
+			expect(mockCreate.mock.calls[1][1]).toMatchObject({ timeout: 120_000, maxRetries: 0 });
 		} finally {
 			vi.useRealTimers();
 		}
@@ -894,9 +1206,7 @@ describe('POST /api/tune-parse — request duration', () => {
 				}
 			]
 		});
-		const res = await POST(
-			makeEvent({ pdf: TINY_PDF_B64 }, { accept: 'application/x-ndjson' })
-		);
+		const res = await POST(makeEvent({ pdf: TINY_PDF_B64 }, { accept: 'application/x-ndjson' }));
 		expect(res.headers.get('content-type')).toContain('application/x-ndjson');
 		const lines = await ndjsonLines(res);
 		const terminal = lines[lines.length - 1];
@@ -975,3 +1285,291 @@ describe('POST /api/tune-parse — request duration', () => {
 		}
 	});
 });
+
+describe('PDF recognition accuracy regressions', () => {
+	const image = Buffer.from('png').toString('base64');
+	const bar = (pitch: string) => ({
+		startRepeat: false,
+		endRepeat: false,
+		ending: null,
+		pickup: false,
+		melody: [[0, 4, pitch]]
+	});
+	const reply = (bars: unknown[], extra = {}) => ({
+		content: [
+			{ type: 'text', text: JSON.stringify({ keySignature: { fifths: 2 }, bars, ...extra }) }
+		]
+	});
+	it('rereads a same-count pitch disagreement and keeps the confirmed pitch', async () => {
+		const { POST } = await loadRoute();
+		mockCreate.mockResolvedValueOnce(reply([bar('B4')])).mockResolvedValueOnce(reply([bar('F#4')]));
+		const response = await POST(
+			makeEvent({
+				system: {
+					image,
+					barCount: 1,
+					timeSignature: [4, 4],
+					barEvidence: [{ count: 1, letters: ['F4'] }]
+				}
+			})
+		);
+		expect((await response.json()).bars[0].melody).toEqual([[0, 4, 'F#4']]);
+		expect(mockCreate).toHaveBeenCalledTimes(2);
+	});
+	it('preserves unresolved pitch disagreement in review warnings', async () => {
+		const { POST } = await loadRoute();
+		mockCreate.mockResolvedValue(reply([bar('B4')]));
+		const response = await POST(
+			makeEvent({
+				system: {
+					image,
+					barCount: 1,
+					timeSignature: [4, 4],
+					barEvidence: [{ count: 1, letters: ['F4'] }]
+				}
+			})
+		);
+		expect((await response.json()).warnings.join(' ')).toMatch(/bar 1:.*F4.*B4/);
+	});
+	it('inherits key context without treating absent signs as C major', async () => {
+		const { POST } = await loadRoute();
+		mockCreate.mockResolvedValue(reply([bar('F#4')], { keySignature: null }));
+		const response = await POST(
+			makeEvent({
+				system: {
+					image,
+					barCount: 1,
+					timeSignature: [4, 4],
+					context: { fifths: 2, clef: 'treble' }
+				}
+			})
+		);
+		expect((await response.json()).keySignature).toEqual({ fifths: 2 });
+	});
+	it('reads scan harmony separately without adding it to the melody prompt', async () => {
+		const { POST } = await loadRoute();
+		mockCreate.mockImplementation(async (request) =>
+			request.system.includes('Copy only the chord')
+				? reply([
+						[
+							[0, 'B-'],
+							[2, 'F#7(b9)']
+						]
+					])
+				: reply([bar('F#4')])
+		);
+		const response = await POST(
+			makeEvent({ system: { image, barCount: 1, timeSignature: [4, 4], readHarmony: true } })
+		);
+		const result = await response.json();
+		expect(result.bars[0].melody).toEqual([[0, 4, 'F#4']]);
+		expect(result.harmony).toEqual([
+			[
+				[0, 'B-'],
+				[2, 'F#7(b9)']
+			]
+		]);
+		expect(mockCreate).toHaveBeenCalledTimes(2);
+	});
+	it('rejects truncated output even if the truncated response contains parseable JSON', async () => {
+		const { POST } = await loadRoute();
+		mockCreate.mockResolvedValue({ ...reply([bar('F#4')]), stop_reason: 'max_tokens' });
+		await expect(
+			POST(makeEvent({ system: { image, barCount: 1, timeSignature: [4, 4] } }))
+		).rejects.toMatchObject({ status: 502 });
+	});
+});
+
+describe('isolated measure pitch review', () => {
+	it('applies the key signature after reading a staff position and preserves explicit naturals', async () => {
+		for (const accidental of [null, 'natural']) {
+			const { POST } = await loadRoute();
+			mockCreate.mockReset().mockImplementation(async (request) => ({
+				content: [
+					{
+						type: 'text',
+						text: JSON.stringify(
+							request.system.includes('Read this ONE measure')
+								? { notes: [[1, accidental]] }
+								: {
+										keySignature: { fifths: 2 },
+										clef: 'treble',
+										bars: [{ melody: [[0, 4, 'B4']] }]
+									}
+						)
+					}
+				]
+			}));
+			const response = await POST(
+				makeEvent({
+					system: {
+						image: 'cG5n',
+						barCount: 1,
+						timeSignature: [4, 4],
+						barImages: ['data:image/png;base64,cG5n'],
+						barEvidence: [{ count: 1, letters: ['F4'] }]
+					}
+				})
+			);
+			expect((await response.json()).bars[0].melody).toEqual([[0, 4, accidental ? 'F4' : 'F#4']]);
+		}
+	});
+});
+
+it('retains a disputed accidental while accepting corroborated staff-coordinate corrections', async () => {
+	const { POST } = await loadRoute();
+	mockCreate.mockReset().mockImplementation(async (request) => ({
+		content: [
+			{
+				type: 'text',
+				text: JSON.stringify(
+					request.system.includes('Read this ONE measure')
+						? {
+								notes: [
+									[4, null],
+									[3, 'natural']
+								]
+							}
+						: {
+								keySignature: { fifths: 2 },
+								clef: 'treble',
+								bars: [
+									{
+										melody: [
+											[0, 2, 'C#5'],
+											[2, 2, 'A#4']
+										]
+									}
+								]
+							}
+				)
+			}
+		]
+	}));
+	const response = await POST(
+		makeEvent({
+			system: {
+				image: 'cG5n',
+				barCount: 1,
+				timeSignature: [4, 4],
+				barImages: ['data:image/png;base64,cG5n'],
+				barEvidence: [{ count: 2, letters: ['B4', 'A4'] }]
+			}
+		})
+	);
+	const result = await response.json();
+	expect(result.bars[0].melody).toEqual([
+		[0, 2, 'B4'],
+		[2, 2, 'A#4']
+	]);
+	expect(result.warnings.join(' ')).toMatch(/bar 1:.*A#4.*A4.*accidental/);
+});
+
+it('retains independently corroborated notes when one focused pitch remains unresolved', async () => {
+	const { POST } = await loadRoute();
+	mockCreate.mockReset().mockImplementation(async (request) => ({
+		content: [
+			{
+				type: 'text',
+				text:
+					'Review follows:\n```json\n' +
+					JSON.stringify(
+						request.system.includes('Read this ONE measure')
+							? {
+									// Dotted rhythm now requests full notation; retain the same
+									// disagreeing pitches, source timing and tie in that schema.
+									events: [
+										[0, 1.5, 4, null, false],
+										[1.5, 0.5, 1, null, false],
+										[2, 2, 0, null, true]
+									]
+								}
+							: {
+									keySignature: { fifths: 2 },
+									clef: 'treble',
+									bars: [
+										{
+											melody: [
+												[0, 1.5, 'E5'],
+												[1.5, 0.5, 'C#5'],
+												[2, 2, 'A4', true]
+											]
+										}
+									]
+								}
+					) +
+					'\n```'
+			}
+		]
+	}));
+	const response = await POST(
+		makeEvent({
+			system: {
+				image: 'cG5n',
+				barCount: 1,
+				timeSignature: [4, 4],
+				barImages: ['data:image/png;base64,cG5n'],
+				barEvidence: [{ count: 3, letters: ['B4', 'E4', 'E4'] }]
+			}
+		})
+	);
+	const result = await response.json();
+	expect(result.bars[0].melody).toEqual([
+		[0, 1.5, 'B4'],
+		[1.5, 0.5, 'C#5'],
+		[2, 2, 'E4', true]
+	]);
+	expect(result.warnings.join(' ')).toMatch(/bar 1:.*notehead/);
+});
+
+it.each([[], ['C5']])(
+	'does not certify changed pitches using incomplete staff evidence %j',
+	async (...letters) => {
+		const { POST } = await loadRoute();
+		mockCreate.mockReset().mockImplementation(async (request) => ({
+			content: [
+				{
+					type: 'text',
+					text: JSON.stringify(
+						request.system.includes('Read this ONE measure')
+							? {
+									notes: [
+										[5, null],
+										[5, null]
+									]
+								}
+							: {
+									keySignature: { fifths: 2 },
+									clef: 'treble',
+									bars: [
+										{
+											melody: [
+												[0, 2, 'C5'],
+												[2, 2, 'C5']
+											]
+										}
+									]
+								}
+					)
+				}
+			]
+		}));
+		const response = await POST(
+			makeEvent({
+				system: {
+					image: 'cG5n',
+					barCount: 1,
+					timeSignature: [4, 4],
+					barImages: ['data:image/png;base64,cG5n'],
+					barEvidence: [{ count: 2, letters }]
+				}
+			})
+		);
+		const result = await response.json();
+		expect(result.bars[0].melody).toEqual([
+			[0, 2, 'C5'],
+			[2, 2, 'C5']
+		]);
+		expect(result.warnings.join(' ')).toMatch(/printed accidental/);
+	}
+);

@@ -466,7 +466,7 @@ When all three auth props are provided, the component checks Supabase for existi
 
 **States:**
 1. **Restore** (Welcome Back) — shown only when cloud data is detected; offers "Restore My Progress" or "Start Fresh Instead"
-2. **Instrument** — Select from all `INSTRUMENTS` entries (Concert Pitch, Soprano Saxophone, Tenor Saxophone, Alto Saxophone, Trumpet)
+2. **Instrument** — The transposing horns (`TRANSPOSING_INSTRUMENT_IDS`: soprano, alto, tenor sax, trumpet) plus one **Concert Pitch** entry, which opens a follow-up "Which instrument?" grid of `CONCERT_INSTRUMENT_IDS` (piano, guitar, bass, trombone, flute, vibraphone, violin, voice, Other) with a Back button; the follow-up shares the instrument step's progress dot
 3. **Mic** — Request microphone permission (with "Skip for now" option)
 4. **Ready** — Welcome message with "Start Practicing" and "Go to Dashboard" links
 
@@ -712,6 +712,7 @@ The Settings page is styled as a studio console rather than a form — as are th
 | `helpText` | `string` | Tooltip hint text |
 | `size` | `'sm' \| 'md' \| 'lg'` | Default `'md'` |
 | `ariaLabel` | `string` | Accessible name |
+| `disabled` | `boolean` | Keeps the dial visible and read-only, ignoring pointer, keyboard, and wheel input |
 | `onInput` | `(v: number) => void` | Live change |
 | `onCommit` | `() => void` | Fires on release — persist here, not on every frame |
 
@@ -736,8 +737,60 @@ Multi-option pad (instrument, theme, backing style).
 | `value` | `T` | Current value |
 | `ariaLabel` | `string` | Accessible name |
 | `size` | `'sm' \| 'md'` | Default `'md'` |
-| `columns` | `number` | Optional grid column count |
+| `columns` | `number` | Optional grid column count; `--selector-columns` allows a responsive CSS override |
+| `disabled` | `boolean` | Disables the whole bank while retaining the selected value |
 | `onChange` | `(v: T) => void` | Change handler |
+
+
+Arrow keys select and focus the next enabled option; Home/End select the first/last enabled option. A bank whose current value is unavailable gives its first enabled option the tab stop without mutating stored state.
+
+### `StudioPage.svelte`
+
+Opt-in native Svelte Studio Desk shell. Uses the existing self-hosted Fraunces font and theme-aware `--studio-*` tokens from `app.css`; does not change unmigrated pages.
+
+| Prop | Type | Description |
+|---|---|---|
+| `eyebrow` / `title` / `description` | `string` | Page heading and introduction |
+| `children` | `Snippet` | Page content |
+| `actions` | `Snippet?` | Optional header actions, replacing the decorative nameplate |
+
+### `StudioPanel.svelte`
+
+Reusable labelled console section inside `StudioPage`.
+
+| Prop | Type | Description |
+|---|---|---|
+| `id` | `string` | Unique section ID, also used to associate its heading |
+| `number` | `string` | Decorative panel identifier |
+| `title` / `description` | `string` | Heading and optional supporting text |
+| `domain` | `'neutral' \| 'ear-training' \| 'lick-practice'` | Local activity identity; defaults to neutral |
+| `children` | `Snippet` | Real application controls and content |
+
+
+### `LibraryViewControls.svelte`
+
+Shared collection count, Compact/Cards buttons and 20/40/All page-size selector.
+Props: `total: number`, `noun: string`, `view: 'compact' | 'cards'`,
+`pageSize: number`, `onview: (view) => void`, `onsize: (size: number) => void`.
+All uses `Number.MAX_SAFE_INTEGER`; it does not cap the collection at 100.
+
+### `LibraryPagination.svelte`
+
+Shared labelled navigation for filtered collections. Props: `total: number`,
+`pageSize: number`, `page: number` (one-based), `noun: string`,
+`position: 'Top' | 'Bottom'`, `onchange: (page: number) => void`.
+The parent filters and slices data, resets the page when filters change and clamps
+it when records disappear. Navigation disables at either boundary.
+
+`LickCard` and `TuneCard` accept optional `compact: boolean` (default `false`).
+Their existing playback, detail, attribution and written-key behaviour is unchanged.
+
+### `StudioMeter.svelte`
+
+Read-only visual meter with `value: number`, `max?: number` (default 20, positive),
+and `label: string`. The needle clamps to the scale. An accessible label and
+adjacent exact readout retain the real value; it never edits session duration or
+invents progress. Used for Home's session count and the setup's time budget.
 
 ---
 

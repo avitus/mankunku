@@ -1,5 +1,8 @@
 # OMR subsystem (`omr/`)
 
+Exported PDFs now use a direct SMuFL/vector reader in the browser before optical recognition. A `.omr.json` is optional; it is most relevant to scans and unsupported notation. See [PDF recognition and accuracy](pdf-import-accuracy.md) for the architecture, nine-chart evaluation command, measured results, and remaining scan limitations.
+
+
 A standalone Python subsystem that reads lead-sheet PDFs/images into a
 symbolic transcription. It establishes **what is written** on the page;
 musical interpretation (harmonic analysis, style, practice suggestions)
@@ -9,9 +12,10 @@ read pixels itself.
 
 **Status**: standalone OMR subsystem with an optional SvelteKit hybrid
 import (shipped 2026-08-10): `/tunes/import/pdf` accepts a `.omr.json`
-produced by `python -m omr transcribe` and bypasses `/api/tune-parse` for the
-systems it covers (uncovered systems still fall back to Claude). Nothing else
-in the app calls this subsystem.
+produced by `python -m omr transcribe`. Systems that pass alignment and quality
+checks bypass melody recognition; scanned chords are still read separately.
+Rejected or uncovered systems fall back to the vision reader. Nothing else
+in the app calls the Python subsystem.
 The intended engine — **LEGATO 2 — is not publicly released** (re-checked
 2026-09-10; see [legato2.md](legato2.md)); a clearly-labeled LEGATO **v1**
 backend exists for experimentation, with a hard limitation: **it transcribes
@@ -200,17 +204,7 @@ cd omr && uv run python -m omr transcribe "../Leadsheets/PDF/Lady Bird.pdf"
 #   import page, then pick the PDF as usual
 ```
 
-Fusion rules (implemented in `src/lib/tunes/import/omr-transcription.ts`):
-the OMR transcription supplies **melody** for every line it covers (those
-lines never call the AI); the page's text layer keeps chord symbols, marks,
-and endings; page geometry keeps bar counts; notehead evidence still flags
-suspect bars for review. The file is validated as untrusted input, its flat
-measure list is sliced into systems by the geometry's bar counts, and its
-whole-note fractions are converted to beats of the meter the user declares
-on the page before uploading — a measure-count mismatch is warned and the
-systems past it fall back. Lines the transcription can't cover fall back to
-the AI reader — or stay blank for hand entry when no AI key is configured,
-so OMR-assisted import works with no AI key at all.
+Fusion first checks measure-count alignment and transcription quality. Missing/surplus measures, unparsed or empty content, broken rhythms and decoder warnings cause independent recognition instead of skipping it. Accepted systems feed the same printed-pitch bar interface used by the vision reader. PDF text supplies harmony where available; scans use a separate harmony pass, including when OMR supplies melody. See [PDF recognition and accuracy](pdf-import-accuracy.md) for the modular interfaces, detailed policy, and reproducible live evaluator.
 
 **Pickups** (2026-09-10) reach the chart exactly as a MuseScore import's do:
 `TuneSection.pickupLength`, engraved as a short partial bar. A short *first*

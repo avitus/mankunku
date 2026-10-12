@@ -2,8 +2,8 @@
  * Integration tests for Daily Practice plan construction.
  *
  * `buildDailyPracticePlan` pools practice-tagged licks across every progression
- * the user has opted into, sorts them by least-recently-practiced (lick-level),
- * and assigns each lick its own least-recently-practiced compatible
+ * the user has opted into, puts learning licks first with least-recently-practiced
+ * ordering within each group, and assigns each lick its own compatible
  * progression. This exercises that data flow against the real lick library
  * using a stubbed localStorage for the tag / progress / session stores.
  */
@@ -16,6 +16,7 @@ import {
 	getCurrentProgressionType
 } from '$lib/state/lick-practice.svelte';
 import {
+	bumpUnlockedKeyCount,
 	togglePracticeTag,
 	toggleProgressionTag
 } from '$lib/persistence/lick-practice-store';
@@ -138,7 +139,7 @@ describe('buildDailyPracticePlan', () => {
 		expect(byId.get(BLUES_LICK)?.progressionType).toBe('blues');
 	});
 
-	it('orders plan items by least-recently-practiced lick', () => {
+	it.each([1, 12])('orders licks with %i unlocked keys by least-recently-practiced', (unlockedCount) => {
 		togglePracticeTag(II_V_LICK);
 		toggleProgressionTag(II_V_LICK, 'ii-V-I-major-long');
 		togglePracticeTag(BLUES_LICK);
@@ -152,12 +153,57 @@ describe('buildDailyPracticePlan', () => {
 			...progressForLick(II_V_LICK, { C: 9000 }),
 			...progressForLick(BLUES_LICK, { C: 1000 })
 		};
+		for (const id of [II_V_LICK, BLUES_LICK, MINOR_LICK]) {
+			for (let count = 1; count < unlockedCount; count++) {
+				bumpUnlockedKeyCount(lickPractice.progress, id);
+			}
+		}
 
 		buildDailyPracticePlan();
 
 		const ids = lickPractice.plan.map((item) => item.phraseId);
 		expect(ids.indexOf(MINOR_LICK)).toBeLessThan(ids.indexOf(BLUES_LICK));
 		expect(ids.indexOf(BLUES_LICK)).toBeLessThan(ids.indexOf(II_V_LICK));
+	});
+
+	it('puts even an 11-key learning lick before an older fully unlocked lick', () => {
+		togglePracticeTag(II_V_LICK);
+		toggleProgressionTag(II_V_LICK, 'ii-V-I-major-long');
+		togglePracticeTag(BLUES_LICK);
+		toggleProgressionTag(BLUES_LICK, 'blues');
+		lickPractice.progress = {
+			...progressForLick(II_V_LICK, { C: 9000 }),
+			...progressForLick(BLUES_LICK, { C: 1000 })
+		};
+		for (let count = 1; count < 11; count++) {
+			bumpUnlockedKeyCount(lickPractice.progress, II_V_LICK);
+		}
+		for (let count = 1; count < 12; count++) {
+			bumpUnlockedKeyCount(lickPractice.progress, BLUES_LICK);
+		}
+
+		buildDailyPracticePlan();
+
+		expect(lickPractice.plan.map(item => item.phraseId)).toEqual([II_V_LICK, BLUES_LICK]);
+	});
+
+	it('spends a short time budget on learning before fully unlocked licks', () => {
+		togglePracticeTag(MINOR_LICK);
+		toggleProgressionTag(MINOR_LICK, 'minor-vamp');
+		togglePracticeTag(BLUES_LICK);
+		toggleProgressionTag(BLUES_LICK, 'blues');
+		lickPractice.progress = {
+			...progressForLick(MINOR_LICK, { C: 9000 }),
+			...progressForLick(BLUES_LICK, { C: 1000 })
+		};
+		for (let count = 1; count < 12; count++) {
+			bumpUnlockedKeyCount(lickPractice.progress, BLUES_LICK);
+		}
+		lickPractice.config.durationMinutes = 1;
+
+		buildDailyPracticePlan();
+
+		expect(lickPractice.plan.map(item => item.phraseId)).toEqual([MINOR_LICK]);
 	});
 
 	it("assigns each lick its least-recently-practiced compatible progression", () => {
