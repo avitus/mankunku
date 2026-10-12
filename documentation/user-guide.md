@@ -6,7 +6,7 @@ This page walks through the practice flow as it actually feels in the room — w
 
 ## The dashboard
 
-When you open the app signed in, you land on the home page. It's the front cover of the LP. (Signed out, the same URL shows a descriptive landing page about the app instead — sign in and the dashboard below takes its place.) From here you can:
+When you open the app signed in, you land on the home page. It uses the Studio Desk layout, with two practice cards and a progress summary. (Signed out, the same URL shows a descriptive landing page about the app instead — sign in and the dashboard below takes its place.) From here you can:
 
 - Jump straight into **Side A** (Ear Training) or **Side B** (Lick Practice).
 - See your **streak** — consecutive days you've practiced. Skip a day and it resets to 1; the longest streak you've ever held is preserved separately.
@@ -15,7 +15,7 @@ When you open the app signed in, you land on the home page. It's the front cover
 
 If today is your first day, you won't have a streak or a mastery number yet. Hit Side A and start. Until you've taken it, a *Take a quick tour?* banner offers a one-minute walk round the app.
 
-Under the two cards is a small link row — **Licks**, **Tunes**, **Progress**, **Scales**, **Settings** — and everything is in the top nav: **Home**, **Ear Training**, **Lick Practice**, **Licks**, **Tricks**, **Tunes**, **Progress**, **Docs**, **Settings**, with **Sign In** (or your account menu, with Sign Out) at the end. (Tricks and Docs are nav-only.)
+Under the two cards is a library row — **Licks**, **Tricks**, **Tunes**, **Scales** — with links to **Settings** and **Docs** below. **Progress** is in the summary rail. Everything is also in the top nav: **Home**, **Ear Training**, **Lick Practice**, **Licks**, **Tricks**, **Tunes**, **Progress**, **Docs**, **Settings**, with **Sign In** (or your account menu, with Sign Out) at the end.
 
 ## Side A — Ear Training
 
@@ -77,7 +77,7 @@ This is the 12-key drill. It picks a lick from your **tagged** collection and ru
 
 Before your first session, go to **Licks** and tap **+ Practice** on a few licks you want to drill (or *☆ Add to Practice* on a lick's own page). Tagged licks become your Side B practice book. Each tagged lick also needs at least one **progression tag** — the *Practice over* pills on its detail page, which say which backing tracks it plays cleanly over. A tag gets seeded for you the first time you set a lick's category, when that category maps cleanly onto a progression (a ii-V-I lick gets ii-V-I major). That is a one-time write, not an ongoing guess: the app never infers a missing tag later, so a lick with no tag stays out of Side B, and a tag you delete stays deleted.
 
-When you open Side B, the setup console has two panels — **Session Type** on top, **Backing & Flow** below — and a Start button. The Session Type picker has four choices, and the controls under it change with the type:
+When you open Side B, the setup console has two panels — **Choose your session** on top, **Set the band** below — and a Start button. The Session Type picker has four choices, and the controls under it change with the type:
 
 - **Daily Practice** (the default — the button reads *Start Daily Practice*) ignores the picked progression and rotates across every progression you've tagged licks for, fitting the session into the time budget. Each lick gets paired with whichever of its eligible progressions you've practiced least recently. Use it as your default daily warm-up so every line gets time on the clock.
 - **Focused Session** (*Start Session*) runs licks tagged for one progression you pick. It's the right choice when you want focused work on one harmonic context.
@@ -224,6 +224,8 @@ The longer answer is in [The Daily Key](./architecture/tonality-system.md).
 
 The **Licks** page is your practice book. It shows the licks *you* are working with — the ones you’ve written in the editor, recorded, or stolen from the community. The hundreds of curated ear-training licks the app uses to feed Side A live behind the scenes; the Licks page is for your stuff. (An empty book says so, with a button to add your first lick.)
 
+The Studio Library opens in **Compact** view with **20** licks per page. Choose **Cards** for a roomier layout, or show **40** or **All**. Search and filters apply to the whole collection before paging; the sidebar can show just the practice set, needs-setup licks, or other licks.
+
 ### Three sections
 
 The page is organised into three groups, in this order:
@@ -268,6 +270,8 @@ Tap a lick to see:
 ## Your tunes
 
 The **Tunes** page is the other half of your library: whole song forms rather than one- and two-bar lines. Charts you wrote by hand, charts you imported (iReal Pro links, Band-in-a-Box songs, MuseScore scores, or a PDF the app reads for you), and charts you adopted from the community all shelve under *Your book*; the ones that ship with the app shelve under *Curated*.
+
+The same **Compact/Cards** and **20/40/All** controls keep larger tune books manageable. Search the whole collection by title, composer, style or tag, or filter to your book or curated tunes. Keys remain in your instrument’s written pitch.
 
 Open a tune and you can read it in any written key, hear its melody, and — the part that matters — **practice licks over it**, with the rhythm section playing the form. The app reads the changes, finds the ii-Vs and turnarounds and vamps hiding in them, and hands you those spots to fill with licks from your book.
 

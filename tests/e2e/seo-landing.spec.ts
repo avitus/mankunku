@@ -21,7 +21,7 @@ anonTest.describe('anonymous visitor (crawler-equivalent)', () => {
 	}) => {
 		await page.goto('/');
 
-		await expect(page.getByRole('heading', { name: /jazz ear training that listens/i })).toBeVisible();
+		await expect(page.getByRole('heading', { name: /develop your ear/i })).toBeVisible();
 		await expect(page.getByTestId('onboarding-overlay')).not.toBeVisible();
 
 		// Exactly one title and one description — the shell (app.html) must not
@@ -38,7 +38,7 @@ anonTest.describe('anonymous visitor (crawler-equivalent)', () => {
 		// pass) reads.
 		const res = await page.request.get('/');
 		const html = await res.text();
-		expect(html).toContain('Jazz ear training that listens');
+		expect(html).toContain('Develop your ear.');
 		expect(html).not.toContain('onboarding-overlay');
 		expect(html).toContain('application/ld+json');
 	});
@@ -70,9 +70,9 @@ anonTest.describe('anonymous visitor (crawler-equivalent)', () => {
 authTest.describe('signed-in visitor', () => {
 	authTest('home still renders the dashboard, not the landing', async ({ signedInPage }) => {
 		await signedInPage.goto('/');
-		await expect(signedInPage.getByRole('heading', { name: /what'll it be/i })).toBeVisible();
+		await expect(signedInPage.getByRole('heading', { name: /Morning|Afternoon|Evening/i })).toBeVisible();
 		await expect(
-			signedInPage.getByRole('heading', { name: /jazz ear training that listens/i })
+			signedInPage.getByRole('heading', { name: /develop your ear/i })
 		).not.toBeVisible();
 	});
 });

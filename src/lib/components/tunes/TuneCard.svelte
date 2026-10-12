@@ -4,6 +4,8 @@
 	import { concertKeyToWritten } from '$lib/music/transposition';
 
 	interface Props {
+		/** Dense songbook row; other callers retain the card. */
+		compact?: boolean;
 		sheet: Tune;
 		/** Attribution line for adopted community sheets, null otherwise. */
 		authorName?: string | null;
@@ -12,7 +14,7 @@
 		onclick?: () => void;
 	}
 
-	let { sheet, authorName = null, badge = '', onclick }: Props = $props();
+	let { compact = false, sheet, authorName = null, badge = '', onclick }: Props = $props();
 
 	const totalBars = $derived(sheet.sections.reduce((sum, s) => sum + s.bars, 0));
 	const writtenKey = $derived(concertKeyToWritten(sheet.key, getInstrument()));
@@ -21,12 +23,15 @@
 <button
 	type="button"
 	{onclick}
-	class="w-full rounded-lg bg-[var(--color-bg-secondary)] p-4 text-left transition-colors hover:bg-[var(--color-bg-tertiary)]"
+	class:library-compact={compact}
+	class="library-tune-card w-full rounded-lg bg-[var(--color-bg-secondary)] p-4 text-left transition-colors hover:bg-[var(--color-bg-tertiary)]"
 	aria-label="Open {sheet.title}"
 >
-	<div class="flex items-start justify-between gap-3">
+	<div class="library-tune-name flex items-start justify-between gap-3">
 		<div class="min-w-0">
-			<h3 class="font-display text-lg font-semibold tracking-tight truncate">{sheet.title}</h3>
+			<h3 class="font-display text-lg font-semibold tracking-tight truncate">
+				{sheet.title}
+			</h3>
 			<div class="mt-0.5 truncate text-sm text-[var(--color-text-secondary)]">
 				{#if sheet.composer}{sheet.composer}{/if}
 				{#if sheet.composer && authorName}&middot;{/if}
@@ -34,12 +39,16 @@
 			</div>
 		</div>
 		{#if badge}
-			<span class="smallcaps shrink-0 border border-[var(--color-brass)]/40 px-1.5 py-0.5 text-[var(--color-brass)]">
+			<span
+				class="smallcaps shrink-0 border border-[var(--color-brass)]/40 px-1.5 py-0.5 text-[var(--color-brass)]"
+			>
 				{badge}
 			</span>
 		{/if}
 	</div>
-	<div class="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-[var(--color-text-secondary)]">
+	<div
+		class="library-tune-meta mt-2 flex flex-wrap items-center gap-1.5 text-xs text-[var(--color-text-secondary)]"
+	>
 		<span class="rounded bg-[var(--color-bg-tertiary)] px-1.5 py-0.5">Key of {writtenKey}</span>
 		<span class="rounded bg-[var(--color-bg-tertiary)] px-1.5 py-0.5">
 			{sheet.timeSignature[0]}/{sheet.timeSignature[1]}

@@ -89,11 +89,13 @@ for (const width of [1440, 768, 390]) {
 		await volume.press('ArrowUp');
 		await expect(volume).toHaveAttribute('aria-valuenow', '0.05');
 		const enabled = await section.boundingBox();
-		expect(enabled?.height).toBe(before?.height);
+		// Firefox's scrolled bounding boxes differ by ~0.00003px; keep the
+		// invariant at hundredth-pixel precision, well below a visible shift.
+		expect(enabled!.height).toBeCloseTo(before!.height, 2);
 		await backing.click();
 		await expect(volume).toBeDisabled();
 		await expect(organ).toBeDisabled();
-		expect((await section.boundingBox())?.height).toBe(before?.height);
+		expect((await section.boundingBox())!.height).toBeCloseTo(before!.height, 2);
 		await backing.click();
 		await expect(organ).toHaveAttribute('aria-checked', 'true');
 		await expect(volume).toHaveAttribute('aria-valuenow', '0.05');
@@ -113,7 +115,7 @@ for (const width of [1440, 768, 390]) {
 			).toBe(true);
 			const lit = await section.boundingBox();
 			await backing.click();
-			expect((await section.boundingBox())?.height).toBe(lit?.height);
+			expect((await section.boundingBox())!.height).toBeCloseTo(lit!.height, 2);
 			await backing.click();
 		}
 	});

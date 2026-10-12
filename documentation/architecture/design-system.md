@@ -365,8 +365,17 @@ Check both light and dark modes.
 
 ## Studio Desk migration
 
-The approved MagicPath Settings design (component `459540987434397696`, revision
-`460225985468596224`, approved 2026-10-11) is implemented natively in Svelte 5.
+The approved MagicPath pages are implemented natively in Svelte 5 (2026-10-11).
+
+| Page | Component | Approved revision |
+|---|---|---|
+| Home · Studio Desk | `460227723458142208` | `460231044206071808` |
+| Settings · Studio Desk | `459540987434397696` | `460225985468596224` |
+| Lick Practice · Studio Console | `459464126830383104` | `459511600479637504` |
+| Licks · Studio Library | `460234239577821184` | `460236188301803520` |
+| Tunes · Studio Library | `460237458806812672` | `460237458806812673` |
+| Landing · Studio Desk | `460241787924140032` | `460242697312145408` |
+
 React prototype state and handlers are not shipped. `StudioPage` and `StudioPanel`
 provide reusable structure; existing `Knob`, `SelectorPad`, and `RockerSwitch`
 continue to control the real settings store and explicit saves.
@@ -381,8 +390,9 @@ phase, mastery and accuracy tokens above; they do not replace their meanings.
 controls. Activity overrides are scoped to the owning panel. Settings is neutral;
 its tonality section is ear-training and its practice link is lick-practice.
 
-Settings alone opts into the layout's 1440px Studio Desk container. Other routes
-retain the existing width and presentation until migrated. The setup summary
+Home/landing, Settings, Lick Practice setup, Licks and Tunes opt into the layout's
+1440px Studio Desk container. Nested detail, editor, import and session routes
+retain their existing width and presentation. The setup summary
 moves below the controls on tablet/mobile; instrument and scale banks reflow
 using `--selector-columns`. Do not apply new chrome across all routes as a side
 effect of migrating a single page.
@@ -405,3 +415,15 @@ backing-off layout regression and instrument/tempo summary updates.
 The dial contract tests cover every volume, tempo and swing step, range limits,
 displayed values, and persistence. Highest-note tests cover written-pitch labels
 and saved concert pitches for all five instruments, including transposing horns.
+
+The libraries default to compact rows with 20 entries per page; 40 and All, plus
+an optional card view, support larger collections. Search, progression and
+collection filters run before paging. Lick groups retain their existing order,
+practice actions, audition and attribution; tunes retain written-key conversion
+and detail navigation. The sidebar uses actual collection counts.
+
+Home retains actual progress and practice-set data with aligned practice actions.
+The landing page explains Ear Training and Vocabulary (Licks and Tricks); its
+interactive previews are explicitly illustrative. Lick Practice keeps one duration
+dial and a read-only summary that distinguishes the time budget from the planned
+session length. Deep Practice and Tricks retain their original configuration logic.
