@@ -3,6 +3,10 @@ export type Clef = 'treble' | 'bass';
 export type BackingInstrument = 'piano' | 'organ';
 export type BackingStyle = 'swing' | 'bossa-nova' | 'ballad' | 'straight';
 
+/** Every instrument the app knows. Adding one here requires an `INSTRUMENTS`
+ *  entry and an `INSTRUMENT_VOICES` entry (audio/instrument-voices.ts). */
+export type InstrumentId = 'concert' | 'soprano-sax' | 'tenor-sax' | 'alto-sax' | 'trumpet';
+
 export interface InstrumentConfig {
 	name: string;
 	/** Transposing key of the instrument */
@@ -20,7 +24,7 @@ export interface InstrumentConfig {
 	highNotePresets: number[];
 }
 
-export const INSTRUMENTS: Record<string, InstrumentConfig> = {
+export const INSTRUMENTS: Record<InstrumentId, InstrumentConfig> = {
 	concert: {
 		name: 'Concert Pitch',
 		key: 'C',
@@ -73,3 +77,8 @@ export const INSTRUMENTS: Record<string, InstrumentConfig> = {
 		highNotePresets: [84, 83, 82, 81, 80, 77]
 	}
 };
+
+/** Narrow a stored instrument id (settings, cloud rows) to a known one. */
+export function isInstrumentId(id: string): id is InstrumentId {
+	return Object.hasOwn(INSTRUMENTS, id);
+}

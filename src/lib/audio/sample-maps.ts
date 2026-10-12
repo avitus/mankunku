@@ -266,13 +266,6 @@ export const SOPRANO_SAX_SAMPLES: SampleMap = {
 	}
 };
 
-/** Instruments that have custom sample maps available */
-export const SAMPLE_MAPS: Record<string, SampleMap> = {
-	'tenor-sax': TENOR_SAX_SAMPLES,
-	'alto-sax': ALTO_SAX_SAMPLES,
-	'soprano-sax': SOPRANO_SAX_SAMPLES
-};
-
 /**
  * Jazz drum kit samples for the backing track.
  *

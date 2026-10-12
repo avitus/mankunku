@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-	SAMPLE_MAPS,
 	DRUM_BUFFERS,
 	DRUM_ARTICULATIONS,
 	drumBufferForVelocity,
@@ -10,6 +9,14 @@ import {
 	getTuneCorrection,
 	type SampleMap
 } from '$lib/audio/sample-maps';
+import { INSTRUMENT_VOICES } from '$lib/audio/instrument-voices';
+
+/** Every instrument's custom sample map, keyed by instrument id. */
+const SAMPLE_MAPS: Record<string, SampleMap> = Object.fromEntries(
+	Object.entries(INSTRUMENT_VOICES).flatMap(([id, voice]) =>
+		voice.samples ? [[id, voice.samples]] : []
+	)
+);
 
 /**
  * Every shipped audio sample must be in a codec that EVERY browser we support

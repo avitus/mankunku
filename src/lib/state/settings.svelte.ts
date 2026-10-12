@@ -1,6 +1,6 @@
 import type { InstrumentConfig, BackingInstrument, BackingStyle } from '$lib/types/instruments';
 import type { Tonality } from '$lib/tonality/tonality';
-import { INSTRUMENTS } from '$lib/types/instruments';
+import { INSTRUMENTS, isInstrumentId } from '$lib/types/instruments';
 import { save, load } from '$lib/persistence/storage';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types';
@@ -147,7 +147,9 @@ export async function loadSettingsFromCloud(supabase: SupabaseClient<Database>):
 }
 
 export function getInstrument(): InstrumentConfig {
-	return INSTRUMENTS[settings.instrumentId] ?? INSTRUMENTS['tenor-sax'];
+	return isInstrumentId(settings.instrumentId)
+		? INSTRUMENTS[settings.instrumentId]
+		: INSTRUMENTS['tenor-sax'];
 }
 
 /**
