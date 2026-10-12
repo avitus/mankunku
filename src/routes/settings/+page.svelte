@@ -434,7 +434,7 @@
 							value={settings.swing}
 							min={STRAIGHT_SWING}
 							max={MAX_SWING}
-							step={0.05}
+							step={0.01}
 							displayValue={`${Math.round(settings.swing * 100)}%`}
 							onInput={(v) => (settings.swing = v)}
 							onCommit={syncSettingsToCloud}

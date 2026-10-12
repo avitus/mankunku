@@ -391,7 +391,7 @@ Compact dial faces use 20px system-sans numerals in the SVG view box (16.8px
 at the 84px dial size), with tabular figures and restrained tracking. Keep
 Fraunces for headings and larger readouts. The dial marker sits near the rim
 so it stays clear of four-character values such as `100%`. Swing is displayed
-as 50–80% while its stored ratio and audio behaviour remain unchanged.
+as 50–80% in 1% increments while its stored ratio and audio behaviour remain unchanged.
 
 Backing and metronome controls stay mounted when switched off. Their dependent
 knobs and selector bank are disabled, their values remain saved, and Rhythm &
@@ -402,3 +402,6 @@ Before adopting these components on another route, check both themes, desktop,
 tablet and phone widths, keyboard navigation, persisted values and the route's
 real workflows. The Settings E2E tests exercise that baseline, including the
 backing-off layout regression and instrument/tempo summary updates.
+The dial contract tests cover every volume, tempo and swing step, range limits,
+displayed values, and persistence. Highest-note tests cover written-pitch labels
+and saved concert pitches for all five instruments, including transposing horns.
