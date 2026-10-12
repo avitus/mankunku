@@ -361,3 +361,38 @@ For each page confirm:
 5. The on-air red appears only on active practice/record buttons, the console rocker's ON legend and LED, and LISTEN-phase indicators (via `--color-phase-listen`); PLAY-phase indicators are brass (`--color-phase-play`)
 
 Check both light and dark modes.
+
+
+## Studio Desk migration
+
+The approved MagicPath Settings design (component `459540987434397696`, revision
+`460225985468596224`, approved 2026-10-11) is implemented natively in Svelte 5.
+React prototype state and handlers are not shipped. `StudioPage` and `StudioPanel`
+provide reusable structure; existing `Knob`, `SelectorPad`, and `RockerSwitch`
+continue to control the real settings store and explicit saves.
+
+Adoption is opt-in with `.studio-desk`. The `--studio-*` palette in `app.css`
+provides slate panels, an inset well, restrained borders, readable text and
+neutral controls, with explicit light-theme counterparts. Fraunces uses the
+existing font asset. `.studio-action`, `.studio-label`, `.studio-caption`, and
+`.studio-well` are shared building blocks. These tokens supplement the domain,
+phase, mastery and accuracy tokens above; they do not replace their meanings.
+`--studio-accent-text` is for text and `--studio-button` is for white-on-colour
+controls. Activity overrides are scoped to the owning panel. Settings is neutral;
+its tonality section is ear-training and its practice link is lick-practice.
+
+Settings alone opts into the layout's 1440px Studio Desk container. Other routes
+retain the existing width and presentation until migrated. The setup summary
+moves below the controls on tablet/mobile; instrument and scale banks reflow
+using `--selector-columns`. Do not apply new chrome across all routes as a side
+effect of migrating a single page.
+
+Backing and metronome controls stay mounted when switched off. Their dependent
+knobs and selector bank are disabled, their values remain saved, and Rhythm &
+band retains its dimensions. The summary is read-only. Account, tour, password
+recovery, and destructive-action confirmation flows retain their existing logic.
+
+Before adopting these components on another route, check both themes, desktop,
+tablet and phone widths, keyboard navigation, persisted values and the route's
+real workflows. The Settings E2E tests exercise that baseline, including the
+backing-off layout regression and instrument/tempo summary updates.

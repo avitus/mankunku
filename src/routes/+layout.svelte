@@ -464,7 +464,7 @@
 		{/if}
 	</nav>
 
-	<main class="relative z-10 mx-auto max-w-5xl px-4 py-6">
+	<main class="relative z-10 mx-auto max-w-5xl px-4 py-6" class:studio-layout={page.url.pathname === '/settings'}>
 		{#if showWelcomeBanner}
 			<TourBanner
 				tourId="welcome"

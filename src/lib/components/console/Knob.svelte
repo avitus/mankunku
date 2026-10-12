@@ -11,6 +11,8 @@
 		helpText?: string;
 		size?: 'sm' | 'md' | 'lg';
 		ariaLabel?: string;
+		/** Keep dependent controls visible while preventing changes. */
+		disabled?: boolean;
 		onInput: (v: number) => void;
 		onCommit?: () => void;
 	}
@@ -25,6 +27,7 @@
 		helpText,
 		size = 'md',
 		ariaLabel,
+		disabled = false,
 		onInput,
 		onCommit
 	}: Props = $props();
@@ -73,7 +76,9 @@
 	let dragSensitivity = 200; // px for full range
 	let buttonEl: HTMLButtonElement | null = null;
 
+	/** Begin a drag only when the control is enabled. */
 	function onPointerDown(e: PointerEvent) {
+		if (disabled) return;
 		if (e.button !== 0 && e.pointerType === 'mouse') return;
 		dragging = true;
 		startY = e.clientY;
@@ -82,8 +87,9 @@
 		e.preventDefault();
 	}
 
+	/** Apply live, stepped values while an enabled dial is being dragged. */
 	function onPointerMove(e: PointerEvent) {
-		if (!dragging) return;
+		if (!dragging || disabled) return;
 		const dy = startY - e.clientY; // up = positive
 		const sensitivity = e.shiftKey ? dragSensitivity * 5 : dragSensitivity;
 		const delta = (dy / sensitivity) * (max - min);
@@ -91,8 +97,9 @@
 		if (next !== value) onInput(next);
 	}
 
+	/** Release the pointer and persist a completed drag. */
 	function onPointerUp(e: PointerEvent) {
-		if (!dragging) return;
+		if (!dragging || disabled) return;
 		dragging = false;
 		try {
 			(e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
@@ -102,7 +109,9 @@
 		onCommit?.();
 	}
 
+	/** Apply bounded keyboard increments and commit each change. */
 	function onKeyDown(e: KeyboardEvent) {
+		if (disabled) return;
 		let next = value;
 		const mult = e.shiftKey ? 10 : 1;
 		switch (e.key) {
@@ -136,7 +145,9 @@
 		}
 	}
 
+	/** Only an enabled, focused dial consumes wheel input. */
 	function onWheel(e: WheelEvent) {
+		if (disabled) return;
 		if (!focused && document.activeElement !== buttonEl) return;
 		e.preventDefault();
 		const direction = e.deltaY < 0 ? 1 : -1;
@@ -151,12 +162,13 @@
 	const readout = $derived(displayValue ?? value.toFixed(2));
 </script>
 
-<div class="inline-flex flex-col items-center gap-1.5 select-none">
+<div class="inline-flex flex-col items-center gap-1.5 select-none" class:knob-disabled={disabled}>
 	<div class="flex items-center justify-center" style:min-height="84px">
 	<button
 		bind:this={buttonEl}
 		type="button"
 		role="slider"
+		{disabled}
 		aria-label={ariaLabel ?? label}
 		aria-valuemin={min}
 		aria-valuemax={max}
@@ -294,6 +306,8 @@
 </div>
 
 <style>
+	.knob-disabled { opacity: 0.45; }
+	.knob-disabled button { cursor: not-allowed; }
 	.knob-readout {
 		font-family: var(--font-display), Georgia, serif;
 		font-size: 11px;

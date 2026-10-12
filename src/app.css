@@ -727,3 +727,287 @@ html {
 	border-radius: 0.5rem;
 	border: 1px solid var(--color-bg-tertiary);
 }
+
+/* Studio Desk, approved MagicPath baseline 2026-10-11. Opt-in during migration:
+   semantic music/phase tokens and all unmigrated routes retain their defaults. */
+.studio-desk {
+	--studio-panel: #202d3e;
+	--studio-panel-highlight: #2c3949;
+	--studio-well: #111b29;
+	--studio-border: #536174;
+	--studio-text: #f5f1e8;
+	--studio-muted: #b0bac7;
+	--studio-button: #53657a;
+	--studio-accent-text: #c1ccd9;
+	--studio-shadow: inset 0 1px #ffffff12, 0 7px 18px #0000001f;
+	--studio-gap: 24px;
+	--studio-radius: 7px;
+	color: var(--studio-text);
+	font-size: 14px;
+	line-height: 1.5;
+}
+:root.light .studio-desk {
+	--studio-panel: #e6ebf0;
+	--studio-panel-highlight: #f5f7fa;
+	--studio-well: #f8fafc;
+	--studio-border: #98a5b5;
+	--studio-text: #172334;
+	--studio-muted: #4b5c70;
+	--studio-accent-text: #40536a;
+	--studio-shadow: inset 0 1px #ffffffaa, 0 5px 15px #2433440d;
+}
+.studio-desk [data-domain='ear-training'] {
+	--studio-button: #2e7788;
+	--studio-accent-text: #83bdc8;
+}
+.studio-desk [data-domain='lick-practice'] {
+	--studio-button: #ab5732;
+	--studio-accent-text: #e09972;
+}
+:root.light .studio-desk [data-domain='ear-training'] {
+	--studio-accent-text: #15667a;
+}
+:root.light .studio-desk [data-domain='lick-practice'] {
+	--studio-accent-text: #974520;
+}
+.studio-layout {
+	max-width: 1440px;
+	padding: 40px;
+}
+.studio-page-heading {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 24px;
+	margin-bottom: 36px;
+}
+.studio-page-heading h1 {
+	font: 500 48px/1.1 var(--font-display);
+	letter-spacing: -0.04em;
+	margin: 14px 0;
+}
+.studio-page-heading h1 span {
+	color: var(--color-brass);
+}
+.studio-description,
+.studio-caption {
+	color: var(--studio-muted);
+}
+.studio-caption {
+	font-size: 12px;
+	line-height: 1.7;
+}
+.studio-label {
+	color: var(--color-brass-soft);
+	font-size: 10px;
+	letter-spacing: 0.13em;
+	text-transform: uppercase;
+	font-weight: 600;
+}
+:root.light .studio-desk .studio-label {
+	color: var(--color-brass);
+}
+.studio-heading-plate {
+	border-right: 2px solid var(--color-brass);
+	padding-right: 20px;
+	text-align: right;
+	display: grid;
+	gap: 9px;
+}
+.studio-heading-plate span {
+	font: 22px var(--font-display);
+	letter-spacing: 0.04em;
+}
+.studio-heading-plate strong {
+	font-size: 10px;
+	letter-spacing: 0.15em;
+	color: var(--color-brass-soft);
+}
+.studio-heading-plate small {
+	font-size: 9px;
+	color: var(--studio-muted);
+}
+.studio-panel {
+	position: relative;
+	min-width: 0;
+	border: 1px solid var(--studio-border);
+	border-radius: var(--studio-radius);
+	padding: 26px;
+	background: linear-gradient(
+		125deg,
+		var(--studio-panel-highlight),
+		var(--studio-panel) 65%
+	);
+	box-shadow: var(--studio-shadow);
+}
+.studio-panel::before,
+.studio-panel::after {
+	content: '';
+	position: absolute;
+	top: 10px;
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	background: linear-gradient(
+		140deg,
+		#728292,
+		#243242 43%,
+		#0b1420 48%,
+		#a0a4a6 56%,
+		#394653 65%
+	);
+	box-shadow: 0 1px 2px #0005;
+}
+.studio-panel::before {
+	left: 10px;
+}
+.studio-panel::after {
+	right: 10px;
+}
+.studio-panel-heading {
+	display: flex;
+	align-items: flex-start;
+	gap: 14px;
+	margin-bottom: 25px;
+}
+.studio-panel-heading h2 {
+	font: 500 25px/1.2 var(--font-display);
+}
+.studio-panel-heading p {
+	font-size: 12px;
+	color: var(--studio-muted);
+	margin-top: 7px;
+}
+.studio-panel-number {
+	min-width: 26px;
+	padding: 4px;
+	text-align: center;
+	background: var(--studio-well);
+	color: var(--color-brass-soft);
+	font: 10px/18px monospace;
+	border: 1px solid var(--studio-border);
+	border-radius: 3px;
+}
+:root.light .studio-desk .studio-panel-number {
+	color: var(--color-brass);
+}
+.studio-well {
+	background: var(--studio-well);
+	border: 1px solid var(--studio-border);
+	border-radius: 4px;
+	padding: 18px 20px;
+	box-shadow: inset 0 2px 4px #0002;
+}
+.studio-action {
+	display: inline-flex;
+	justify-content: center;
+	align-items: center;
+	gap: 16px;
+	min-height: 44px;
+	padding: 12px 18px;
+	border: 1px solid #ffffff25;
+	border-radius: 4px;
+	background: linear-gradient(#ffffff10, transparent), var(--studio-button);
+	color: white;
+	font-size: 12px;
+	font-weight: 600;
+	box-shadow:
+		inset 0 1px #ffffff20,
+		inset 0 -2px #0003;
+}
+.studio-action:hover {
+	filter: brightness(1.1);
+}
+.studio-text-action {
+	color: var(--studio-accent-text);
+	min-height: 44px;
+	font-size: 12px;
+	text-decoration: underline;
+	text-underline-offset: 3px;
+}
+.studio-desk :focus-visible {
+	outline: 2px solid var(--color-brass-soft);
+	outline-offset: 4px;
+}
+.studio-desk .console-engrave {
+	color: var(--color-brass-soft);
+}
+:root.light .studio-desk .console-engrave {
+	color: var(--color-brass);
+}
+/* Reuse native controls. Surface changes are scoped, interaction stays shared. */
+.studio-desk .studio-panel .pad-frame {
+	width: 100%;
+	gap: 4px;
+	padding: 5px;
+	background: var(--studio-well);
+	border-color: var(--studio-border);
+}
+.studio-desk .studio-panel .pad-frame-flex .pad-btn {
+	flex: 1;
+}
+.studio-desk .studio-panel .pad-btn {
+	min-height: 46px;
+	padding: 10px 12px;
+	color: var(--studio-text);
+	background: linear-gradient(#ffffff08, transparent), var(--color-bg-tertiary);
+	border-color: var(--studio-border);
+}
+.studio-desk .studio-panel .pad-btn.active {
+	background: linear-gradient(#ffffff14, transparent), var(--studio-button);
+	color: white;
+	box-shadow: inset 0 2px 4px #0005;
+	border-color: var(--studio-accent-text);
+}
+.studio-desk .studio-panel .pad-btn.active::after {
+	content: '';
+	position: absolute;
+	top: 5px;
+	right: 5px;
+	width: 4px;
+	height: 4px;
+	border-radius: 50%;
+	background: white;
+}
+.studio-desk .studio-panel .pad-label {
+	font-weight: 500;
+	line-height: 1.35;
+}
+.studio-desk .studio-panel .pad-sublabel {
+	margin-top: 5px;
+	line-height: 1.4;
+	opacity: 1;
+}
+.studio-desk .studio-panel .knob-readout,
+.studio-desk .studio-panel .knob-number {
+	font-size: 28px;
+	font-weight: 500;
+}
+@media (max-width: 1000px) {
+	.studio-layout {
+		padding: 28px 24px;
+	}
+}
+@media (max-width: 600px) {
+	.studio-layout {
+		padding: 24px 18px;
+	}
+	.studio-page-heading {
+		margin-bottom: 26px;
+	}
+	.studio-page-heading h1 {
+		font-size: 38px;
+	}
+	.studio-heading-plate {
+		display: none;
+	}
+	.studio-panel {
+		padding: 26px 18px 22px;
+	}
+	.studio-panel-heading h2 {
+		font-size: 23px;
+	}
+	.studio-desk .studio-panel .pad-btn {
+		padding: 10px 7px;
+	}
+}

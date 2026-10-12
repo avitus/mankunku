@@ -311,15 +311,17 @@ The global Settings page controls things that aren't specific to a single sessio
 | **Tempo** | 60–200 BPM. Ear Training's tempo, and where tune practice's Tempo knob starts. It's also the tempo the play buttons on your lick and tune pages use. |
 | **Swing** | 0.50 (straight) to 0.80 (heavy); 0.62 out of the box. 0.67 is the usual triplet swing. Applies to the **Swing** backing style — you and the band both play it. Bossa Nova, Ballad and Straight set their own feel and ignore this. |
 | **Metronome** + **Metro Vol** | The click on or off, and where it sits in the mix (halfway by default, trimmed to sit under the music). |
-| **Backing** + **Instrument** + **Backing Vol** | The rhythm section on or off, piano or organ for the comping voice, and how loud it sits under you. These live under the Ear Training heading but apply to Lick Practice and Tune Practice — Ear Training never plays a backing track. |
+| **Backing** + **Instrument** + **Backing Vol** | The rhythm section on or off, piano or organ for the comping voice, and how loud it sits under you. These live in **Rhythm & band** and apply to Lick Practice and Tune Practice — Ear Training never plays a backing track. Switching backing off disables its voice and volume controls without moving them or discarding their settings. |
 | **Lick Practice** | Nothing to set here — a **Go to Lick Practice** link, because those settings live on the Lick Practice page. |
 | **Account** | Shown when you're signed in: who you're signed in as, a **Display Name** (shown on the licks and tunes you share; leave it blank to stay anonymous), a **Password** change (*Change* emails you a reset link), and **Delete Account**, which removes your cloud account and its data after a confirmation. |
-| **Tours & Help** | A **Browse docs** link, a *Take tour* / *Replay* button for each guided tour, and **Reset all tour history** so the first-run prompts and "Need help?" links come back. |
-| **Reset All Progress** | Under *Data*. Destructive — erases all progress, scores, and session history, with a confirmation step. |
+| **Tours, help & data** | A **Browse docs** link, a *Take tour* / *Replay* button for each guided tour, and **Reset all tour history** so the first-run prompts and "Need help?" links come back. |
+| **Reset All Progress** | Under *Tours, help & data*. Destructive — erases all progress, scores, and session history, with a confirmation step. |
 
 Session settings that belong to a *session* aren't here: session type, progression, backing style and practice mode are set on the Lick Practice page, and mode / strictness / head / key / tempo / backing style on the tune-practice setup screen.
 
-The settings page is laid out as a studio console — knobs, rocker switches, and selector pads rather than form fields. Every control has the same keyboard and screen-reader behaviour as the plain input it replaces.
+Settings uses the Studio Desk layout: **Your instrument**, **Ear Training** (keys and scales), and **Rhythm & band**, alongside a read-only **Your setup** summary. The summary moves below the controls on smaller screens. Account controls remain available when signed in. **Tours, help & data** can be collapsed. Both dark and light themes are supported.
+
+Drag a dial up or down, or use arrow keys, Home/End, and PageUp/PageDown. Arrow keys select the next available selector pad; Home/End select the first/last. Locked options are skipped. Switching backing or metronome off disables its volume without changing the panel size or forgetting your level.
 
 ## Scales
 

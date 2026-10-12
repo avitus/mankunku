@@ -13,40 +13,74 @@
 		ariaLabel?: string;
 		size?: 'sm' | 'md';
 		columns?: number;
+		/** Disable the bank without unmounting or losing its selection. */
+		disabled?: boolean;
 		onChange: (v: T) => void;
 	}
 
-	let { options, value, ariaLabel, size = 'md', columns, onChange }: Props = $props();
+	let {
+		options,
+		value,
+		ariaLabel,
+		size = 'md',
+		columns,
+		disabled = false,
+		onChange
+	}: Props = $props();
 
 	const gridStyle = $derived(
-		columns ? `display: grid; grid-template-columns: repeat(${columns}, minmax(0, 1fr));` : ''
+		columns
+			? `display: grid; grid-template-columns: repeat(var(--selector-columns, ${columns}), minmax(0, 1fr));`
+			: ''
 	);
 
 	let buttons: HTMLButtonElement[] = $state([]);
 
-	function onKeyDown(e: KeyboardEvent, index: number) {
-		if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
-			e.preventDefault();
-			for (let i = 1; i <= options.length; i++) {
-				const next = (index + i) % options.length;
-				if (!options[next].disabled) {
-					buttons[next]?.focus();
-					break;
-				}
-			}
-		} else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
-			e.preventDefault();
-			for (let i = 1; i <= options.length; i++) {
-				const prev = (index - i + options.length) % options.length;
-				if (!options[prev].disabled) {
-					buttons[prev]?.focus();
-					break;
-				}
-			}
-		} else if (e.key === ' ' || e.key === 'Enter') {
-			e.preventDefault();
-			if (!options[index].disabled) onChange(options[index].value);
+	const tabStop = $derived.by(() => {
+		const selected = options.findIndex(
+			(option) => option.value === value && !option.disabled
+		);
+		return selected >= 0
+			? selected
+			: options.findIndex((option) => !option.disabled);
+	});
+
+	/** Radio-bank navigation selects and focuses the next enabled option. */
+	function onKeyDown(e: KeyboardEvent, index: number): void {
+		if (disabled) return;
+		const enabled = options
+			.map((option, i) => ({ option, i }))
+			.filter(({ option }) => !option.disabled);
+		if (!enabled.length) return;
+		const current = enabled.findIndex(({ i }) => i === index);
+		let next: number;
+		switch (e.key) {
+			case 'ArrowRight':
+			case 'ArrowDown':
+				next = (current + 1) % enabled.length;
+				break;
+			case 'ArrowLeft':
+			case 'ArrowUp':
+				next = (current - 1 + enabled.length) % enabled.length;
+				break;
+			case 'Home':
+				next = 0;
+				break;
+			case 'End':
+				next = enabled.length - 1;
+				break;
+			case ' ':
+			case 'Enter':
+				next = current;
+				break;
+			default:
+				return;
 		}
+		e.preventDefault();
+		const target = enabled[next];
+		if (!target) return;
+		onChange(target.option.value);
+		buttons[target.i]?.focus();
 	}
 </script>
 
@@ -65,16 +99,16 @@
 			type="button"
 			role="radio"
 			aria-checked={active}
-			disabled={opt.disabled}
+			disabled={disabled || opt.disabled}
 			title={opt.title ?? opt.label}
-			tabindex={active ? 0 : -1}
-			onclick={() => !opt.disabled && onChange(opt.value)}
+			tabindex={!disabled && i === tabStop ? 0 : -1}
+			onclick={() => !disabled && !opt.disabled && onChange(opt.value)}
 			onkeydown={(e) => onKeyDown(e, i)}
 			class="pad-btn relative flex flex-col items-center justify-center rounded-[3px] text-center transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brass-soft)]"
 			class:pad-btn-sm={size === 'sm'}
 			class:pad-btn-md={size === 'md'}
 			class:active
-			class:disabled={opt.disabled}
+			class:disabled={disabled || opt.disabled}
 		>
 			<span class="pad-label">{opt.label}</span>
 			{#if opt.sublabel}

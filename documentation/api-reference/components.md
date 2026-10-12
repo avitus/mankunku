@@ -712,6 +712,7 @@ The Settings page is styled as a studio console rather than a form — as are th
 | `helpText` | `string` | Tooltip hint text |
 | `size` | `'sm' \| 'md' \| 'lg'` | Default `'md'` |
 | `ariaLabel` | `string` | Accessible name |
+| `disabled` | `boolean` | Keeps the dial visible and read-only, ignoring pointer, keyboard, and wheel input |
 | `onInput` | `(v: number) => void` | Live change |
 | `onCommit` | `() => void` | Fires on release — persist here, not on every frame |
 
@@ -736,8 +737,33 @@ Multi-option pad (instrument, theme, backing style).
 | `value` | `T` | Current value |
 | `ariaLabel` | `string` | Accessible name |
 | `size` | `'sm' \| 'md'` | Default `'md'` |
-| `columns` | `number` | Optional grid column count |
+| `columns` | `number` | Optional grid column count; `--selector-columns` allows a responsive CSS override |
+| `disabled` | `boolean` | Disables the whole bank while retaining the selected value |
 | `onChange` | `(v: T) => void` | Change handler |
+
+
+Arrow keys select and focus the next enabled option; Home/End select the first/last enabled option. A bank whose current value is unavailable gives its first enabled option the tab stop without mutating stored state.
+
+### `StudioPage.svelte`
+
+Opt-in native Svelte Studio Desk shell. Uses the existing self-hosted Fraunces font and theme-aware `--studio-*` tokens from `app.css`; does not change unmigrated pages.
+
+| Prop | Type | Description |
+|---|---|---|
+| `eyebrow` / `title` / `description` | `string` | Page heading and introduction |
+| `children` | `Snippet` | Page content |
+
+### `StudioPanel.svelte`
+
+Reusable labelled console section inside `StudioPage`.
+
+| Prop | Type | Description |
+|---|---|---|
+| `id` | `string` | Unique section ID, also used to associate its heading |
+| `number` | `string` | Decorative panel identifier |
+| `title` / `description` | `string` | Heading and optional supporting text |
+| `domain` | `'neutral' \| 'ear-training' \| 'lick-practice'` | Local activity identity; defaults to neutral |
+| `children` | `Snippet` | Real application controls and content |
 
 ---
 
