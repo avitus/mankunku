@@ -1077,6 +1077,19 @@
 		</div>
 	</div>
 
+	<!-- Keep the paused run's tuning directly below its score, above the
+	     reserved live-feedback rows. Late rescores still join it; Start clears it. -->
+	{#if !practising && tuningSummary.notes.length > 0}
+		<TuningFaders
+			summary={tuningSummary}
+			transpositionSemitones={instrument.transpositionSemitones}
+			displayKey={writtenKey}
+			{scaleId}
+			instrumentId={settings.instrumentId}
+			context="{instrument.name} · {writtenKey} {SCALE_TYPE_NAMES[activeTonality.scaleType]}"
+		/>
+	{/if}
+
 	<TuningNotice alert={tuningAlert} />
 
 	<!-- Status text -->
@@ -1110,19 +1123,6 @@
 			</span>
 		{/if}
 	</div>
-
-	<!-- Per-note tuning for the run just paused. A take whose rescore lands
-	     after the pause still joins it; Start clears it. -->
-	{#if !practising && tuningSummary.notes.length > 0}
-		<TuningFaders
-			summary={tuningSummary}
-			transpositionSemitones={instrument.transpositionSemitones}
-			displayKey={writtenKey}
-			{scaleId}
-			instrumentId={settings.instrumentId}
-			context="{instrument.name} · {writtenKey} {SCALE_TYPE_NAMES[activeTonality.scaleType]}"
-		/>
-	{/if}
 
 	<TourTrigger tourId="ear-training" steps={earTrainingTour} />
 
