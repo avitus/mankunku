@@ -462,7 +462,11 @@
 						</p>
 						<button
 							type="button"
-							onclick={() => (tuneEntry.importReview = null)}
+							onclick={() => {
+								// Clear only the warnings: the source-measure crops live in the
+								// same object and exist nowhere else.
+								if (tuneEntry.importReview) tuneEntry.importReview.warnings = [];
+							}}
 							class="shrink-0 rounded-lg bg-[var(--color-bg-tertiary)] px-2 py-0.5 text-xs text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]"
 						>
 							Dismiss

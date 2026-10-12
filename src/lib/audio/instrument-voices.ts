@@ -12,7 +12,7 @@
  * Pure data + pure math: Node-testable, no Web Audio.
  */
 
-import type { InstrumentId } from '$lib/types/instruments';
+import { isInstrumentId, type InstrumentId } from '$lib/types/instruments';
 import {
 	ALTO_SAX_SAMPLES,
 	SOPRANO_SAX_SAMPLES,
@@ -111,10 +111,11 @@ export const INSTRUMENT_VOICES: Record<InstrumentId, InstrumentVoice> = {
 
 /** The voice for an instrument id; an unknown id (a stale setting) gets the tenor's. */
 export function instrumentVoice(instrumentId: string): InstrumentVoice {
-	return (
-		(INSTRUMENT_VOICES as Record<string, InstrumentVoice | undefined>)[instrumentId] ??
-		INSTRUMENT_VOICES['tenor-sax']
-	);
+	// The same own-key guard as getInstrument: a bare index would resolve
+	// `constructor` or `toString` to an inherited Object member.
+	return isInstrumentId(instrumentId)
+		? INSTRUMENT_VOICES[instrumentId]
+		: INSTRUMENT_VOICES['tenor-sax'];
 }
 
 /**

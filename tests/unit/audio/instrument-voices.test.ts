@@ -31,6 +31,9 @@ describe('instrument voices', () => {
 
 	it('falls back to the tenor voice for an unknown instrument id', () => {
 		expect(instrumentVoice('kazoo')).toBe(INSTRUMENT_VOICES['tenor-sax']);
+		// Inherited Object members are not instruments.
+		expect(instrumentVoice('constructor')).toBe(INSTRUMENT_VOICES['tenor-sax']);
+		expect(instrumentVoice('toString')).toBe(INSTRUMENT_VOICES['tenor-sax']);
 		expect(instrumentVoice('alto-sax')).toBe(INSTRUMENT_VOICES['alto-sax']);
 	});
 });

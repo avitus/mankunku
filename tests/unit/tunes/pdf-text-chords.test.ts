@@ -168,6 +168,18 @@ describe('extractSystemTexts', () => {
 			{ x: 830, text: 'A7' }
 		]);
 	});
+
+	it('keeps optional chords printed inside plain ASCII parentheses', () => {
+		// parseChordSymbol rejects a leading '(' — validate the stripped text.
+		const [sys] = extractSystemTexts(
+			[item('(E-7', 720, 450, 60), item('(A7)', 830, 450, 60)],
+			SYSTEMS
+		);
+		expect(sys.chords).toEqual([
+			{ x: 720, text: 'E-7' },
+			{ x: 830, text: 'A7' }
+		]);
+	});
 });
 
 it('joins a raised diminished symbol and baseline seventh without treating a lyric I as a rehearsal mark',()=>{

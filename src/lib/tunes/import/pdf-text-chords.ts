@@ -205,7 +205,10 @@ export function extractSystemTexts(
 					consumed.add(q);
 				}
 			}
-			if (parseChordSymbol(text)) out[i].chords.push({ x: p.x, text: text.replace(/[()]/g, '') });
+			// Validate what is emitted: CHORD_RE admits a wrapped `(Em7)`, which
+			// parseChordSymbol rejects until the parentheses are gone.
+			const chord = text.replace(/[()]/g, '');
+			if (parseChordSymbol(chord)) out[i].chords.push({ x: p.x, text: chord });
 		}
 		out[i].chords.sort((a, b) => a.x - b.x);
 		out[i].marks.sort((a, b) => a.x - b.x);

@@ -470,15 +470,15 @@
 							</section>
 						{/if}
 					{/if}
+					<LibraryPagination
+						total={ordered.length}
+						{pageSize}
+						page={currentPage}
+						noun="licks"
+						position="Bottom"
+						onchange={(next) => (pageNumber = next)}
+					/>
 				{/if}
-				<LibraryPagination
-					total={ordered.length}
-					{pageSize}
-					page={currentPage}
-					noun="licks"
-					position="Bottom"
-					onchange={(next) => (pageNumber = next)}
-				/>
 			</StudioPanel>
 		</div>
 		<aside class="library-sidebar" aria-label="Your book overview">
