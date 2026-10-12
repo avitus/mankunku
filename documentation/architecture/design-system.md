@@ -387,6 +387,12 @@ moves below the controls on tablet/mobile; instrument and scale banks reflow
 using `--selector-columns`. Do not apply new chrome across all routes as a side
 effect of migrating a single page.
 
+Compact dial faces use 20px system-sans numerals in the SVG view box (16.8px
+at the 84px dial size), with tabular figures and restrained tracking. Keep
+Fraunces for headings and larger readouts. The dial marker sits near the rim
+so it stays clear of four-character values such as `100%`. Swing is displayed
+as 50–80% while its stored ratio and audio behaviour remain unchanged.
+
 Backing and metronome controls stay mounted when switched off. Their dependent
 knobs and selector bank are disabled, their values remain saved, and Rhythm &
 band retains its dimensions. The summary is read-only. Account, tour, password

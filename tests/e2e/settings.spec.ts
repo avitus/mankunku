@@ -152,6 +152,18 @@ test('console keyboard controls update the real setup and persist', async ({
 	await expect(
 		page.getByRole('complementary', { name: 'Your setup' })
 	).toContainText('110 BPM');
+	const swing = page.getByRole('slider', { name: 'Swing feel' });
+	await swing.press('Home');
+	await expect(swing).toContainText('50%');
+	await expect(swing).toHaveAttribute('aria-valuetext', '50%');
+	await swing.press('End');
+	await expect(swing).toContainText('80%');
+	await swing.press('ArrowDown');
+	await expect(swing).toHaveAttribute('aria-valuenow', '0.75');
+	await expect(swing).toHaveAttribute('aria-valuetext', '75%');
+	await expect(
+		page.getByRole('complementary', { name: 'Your setup' })
+	).toContainText('75%');
 	const metro = page.getByRole('switch', { name: 'Metronome', exact: true });
 	const level = page.getByRole('slider', { name: 'Metronome volume' });
 	const rhythm = page.getByRole('region', { name: 'Rhythm & band' });
@@ -162,6 +174,8 @@ test('console keyboard controls update the real setup and persist', async ({
 	expect((await rhythm.boundingBox())?.height).toBe(before?.height);
 	await page.reload();
 	await expect(tempo).toHaveAttribute('aria-valuenow', '110');
+	await expect(swing).toHaveAttribute('aria-valuenow', '0.75');
+	await expect(swing).toHaveAttribute('aria-valuetext', '75%');
 	await expect(metro).toHaveAttribute('aria-checked', 'false');
 	await expect(
 		instruments.getByRole('radio', { name: /Concert Pitch/ })

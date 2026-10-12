@@ -248,6 +248,7 @@
 			<!-- Pointer (rotates with value) -->
 			<g transform="rotate({angle} {cx} {cy})">
 				<line
+					class="knob-pointer"
 					x1={cx}
 					y1={cy - rInner + 6}
 					x2={cx}

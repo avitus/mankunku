@@ -980,8 +980,19 @@ html {
 }
 .studio-desk .studio-panel .knob-readout,
 .studio-desk .studio-panel .knob-number {
-	font-size: 28px;
-	font-weight: 500;
+	font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+	font-size: 20px;
+	font-weight: 600;
+	font-variant-numeric: lining-nums tabular-nums;
+	letter-spacing: -0.02em;
+}
+.studio-desk .studio-panel .knob-unit {
+	font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+	font-size: 9px;
+	letter-spacing: 0.04em;
+}
+.studio-desk .studio-panel .knob-pointer {
+	transform: translateY(-10px);
 }
 @media (max-width: 1000px) {
 	.studio-layout {

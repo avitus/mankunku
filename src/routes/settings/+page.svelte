@@ -430,12 +430,12 @@
 							size="lg"
 							label="Swing"
 							ariaLabel="Swing feel"
-							helpText="Eighth-note swing ratio for the Swing backing style. 0.50 is straight eighths, 0.80 is heavy swing. Bossa Nova, Ballad and Straight set their own feel and ignore this."
+							helpText="Eighth-note swing ratio for the Swing backing style. 50% is straight eighths, 80% is heavy swing. Bossa Nova, Ballad and Straight set their own feel and ignore this."
 							value={settings.swing}
 							min={STRAIGHT_SWING}
 							max={MAX_SWING}
 							step={0.05}
-							displayValue={settings.swing.toFixed(2)}
+							displayValue={`${Math.round(settings.swing * 100)}%`}
 							onInput={(v) => (settings.swing = v)}
 							onCommit={syncSettingsToCloud}
 						/>
@@ -543,7 +543,7 @@
 				</div>
 				<div>
 					<dt>Swing</dt>
-					<dd>{settings.swing.toFixed(2)}</dd>
+					<dd>{Math.round(settings.swing * 100)}%</dd>
 				</div>
 				<div>
 					<dt>Metronome</dt>
