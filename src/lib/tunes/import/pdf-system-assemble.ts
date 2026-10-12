@@ -16,20 +16,8 @@ import type { SystemGeometry } from './pdf-geometry';
 import type { SystemTexts } from './pdf-text-chords';
 import { eventsByBar, type NoteEvent } from './pdf-noteheads';
 
-/** One bar as returned by the parse route's system mode. */
-export interface ModelBar {
-	startRepeat: boolean;
-	endRepeat: boolean;
-	ending: number | null;
-	pickup: boolean;
-	/**
-	 * Exact printed length of a pickup bar in declared-meter beats, when the
-	 * source knows it (the OMR bridge measures the short first measure);
-	 * absent, the converter derives it from the bar's first pitched beat.
-	 */
-	pickupBeats?: number;
-	melody: Array<[number, number, string] | [number, number, string, boolean]>;
-}
+import type { RecognizedBar, Harmony } from './pdf-recognition';
+export type ModelBar = RecognizedBar;
 
 export interface AssembleSystemInput {
 	geometry: SystemGeometry;
@@ -37,6 +25,8 @@ export interface AssembleSystemInput {
 	model: { fifths: number | null; bars: ModelBar[] };
 	/** Detected note events — chord beats anchor to the nearest notehead. */
 	noteEvents?: NoteEvent[];
+	/** Independent vision harmony is used only where PDF text supplied none. */
+	harmony?: Harmony;
 }
 
 export interface AssembleMeta {
@@ -70,19 +60,9 @@ export function systemBarBoundaries(geometry: SystemGeometry): number[] {
 export function assembleClaudeDoc(systems: AssembleSystemInput[], meta: AssembleMeta): unknown {
 	const [tsNum] = meta.timeSignature;
 
-	// Key signature: majority vote across the per-system readings.
-	const votes = new Map<number, number>();
-	for (const s of systems) {
-		if (s.model.fifths !== null) votes.set(s.model.fifths, (votes.get(s.model.fifths) ?? 0) + 1);
-	}
-	let fifths = 0;
-	let best = 0;
-	for (const [f, n] of votes) {
-		if (n > best) {
-			best = n;
-			fifths = f;
-		}
-	}
+	// The opening explicit signature defines the tune key. An omitted later
+	// signature is not a vote for C major. Printed changes remain in pitches.
+	const fifths = systems.find((s) => s.model.fifths !== null)?.model.fifths ?? 0;
 
 	const docSystems = systems.map((sys, sysIndex) => {
 		const boundaries = systemBarBoundaries(sys.geometry);
@@ -104,8 +84,8 @@ export function assembleClaudeDoc(systems: AssembleSystemInput[], meta: Assemble
 
 		// Chord beats from raw interpolation, then musical snapping: a bar's
 		// leading chord sits on the downbeat, and TWO chords in a 4/4 bar
-		// land on beats 1 and 3 unless the print position is decisively
-		// later (interpolation noise cannot distinguish 2.4 from 2.6, but
+		// usually land on beats 1 and 3 unless the print position is decisively
+		// earlier or later (interpolation noise cannot distinguish 2.4 from 2.6, but
 		// no jazz chart splits a bar 1/2.5).
 		const contentPad = 0.75 * sys.geometry.interline;
 		const rawByBar = new Map<number, Array<{ raw: number; x: number; text: string }>>();
@@ -156,10 +136,12 @@ export function assembleClaudeDoc(systems: AssembleSystemInput[], meta: Assemble
 		for (const [barIdx, list] of rawByBar) {
 			list.sort((a, b) => a.raw - b.raw);
 			const beats = list.map(({ raw, x }, k) => {
+				if (k === 0 && (barIdx === 0 || raw < 0.8) && !bars[barIdx]?.pickup) return 0;
 				const anchored = anchorBeat(barIdx, x);
 				if (anchored !== null && Number.isFinite(anchored)) return anchored;
 				if (k === 0 && (barIdx === 0 || raw < 0.8)) return 0;
-				if (tsNum === 4 && list.length === 2 && k === 1) return raw >= 3 ? 3 : 2;
+				if (tsNum === 4 && list.length === 2 && k === 1) return raw >= 3 ? 3 : raw < 1.5 ? 1 : 2;
+				if (tsNum === 4 && list.length === 3) return Math.min(Math.round(raw), 3);
 				return Math.min(Math.round(raw * 2) / 2, tsNum - 0.5);
 			});
 			chordsByBar.set(
@@ -184,11 +166,21 @@ export function assembleClaudeDoc(systems: AssembleSystemInput[], meta: Assemble
 							break;
 						}
 					}
-					return { bar: b, n: e.n as 1 | 2 };
+					return { bar: b, n: e.n as 1 | 2, endX: e.endX };
 				})
 				.sort((a, b) => a.bar - b.bar);
 			for (let i = 0; i < labeled.length; i++) {
-				const to = i + 1 < labeled.length ? labeled[i + 1].bar - 1 : barCount - 1;
+				const endX = labeled[i].endX;
+				const explicitEnd =
+					endX === undefined
+						? -1
+						: boundaries.slice(1).findIndex((x) => endX <= x + sys.geometry.interline);
+				const to =
+					explicitEnd >= 0
+						? explicitEnd
+						: i + 1 < labeled.length
+							? labeled[i + 1].bar - 1
+							: barCount - 1;
 				for (let b = labeled[i].bar; b <= to; b++) endingByBar.set(b, labeled[i].n);
 			}
 		}
@@ -212,7 +204,9 @@ export function assembleClaudeDoc(systems: AssembleSystemInput[], meta: Assemble
 		// flags never live on other ending bars — normalize the model's
 		// attribution, which drifts around the winged repeat barline.
 		let lastEnding1 = -1;
-		for (const [b, n] of endingByBar) if (n === 1 && b > lastEnding1) lastEnding1 = b;
+		if (!sys.texts.endings.some((e) => e.endX !== undefined)) {
+			for (const [b, n] of endingByBar) if (n === 1 && b > lastEnding1) lastEnding1 = b;
+		}
 
 		// Sheet-opening pickup decision, hoisted so the mark shift below can
 		// use it: the model's flag, the narrow-first-bar evidence (time
@@ -256,10 +250,13 @@ export function assembleClaudeDoc(systems: AssembleSystemInput[], meta: Assemble
 				// Repeat flags are the model's least reliable output; the
 				// printed dots beside a barline are the evidence. A |: needs
 				// dots RIGHT of the boundary starting the bar (bar 0 of a
-				// system has no start boundary — unverifiable, suppressed); a
+				// system may have dots on the removed opening border); a
 				// :| needs dots LEFT of the boundary ending it. Volta labels
 				// stay authoritative for the ending bars themselves.
-				const dotsConfirmStart = i > 0 && (sys.geometry.repeatDots[i - 1]?.right ?? false);
+				const dotsConfirmStart =
+					i === 0
+						? (sys.geometry.initialRepeat ?? false)
+						: (sys.geometry.repeatDots[i - 1]?.right ?? false);
 				const dotsConfirmEnd = sys.geometry.repeatDots[i]?.left ?? false;
 				return {
 					mark: markByBar.get(i) ?? null,
@@ -273,7 +270,7 @@ export function assembleClaudeDoc(systems: AssembleSystemInput[], meta: Assemble
 					ending,
 					pickup,
 					...(pickup && bar.pickupBeats !== undefined ? { pickupBeats: bar.pickupBeats } : {}),
-					chords: chordsByBar.get(i) ?? [],
+					chords: chordsByBar.get(i) ?? sys.harmony?.[i] ?? [],
 					melody: bar.melody
 				};
 			})
@@ -349,11 +346,7 @@ export function importReviewNotes(systems: SystemReviewInput[]): {
 		for (let i = 0; i < sys.barCount; i++) {
 			const model = sys.modelNoteCounts[i];
 			const evidence = sys.evidenceCounts[i];
-			if (
-				typeof model === 'number' &&
-				typeof evidence === 'number' &&
-				model !== evidence
-			) {
+			if (typeof model === 'number' && typeof evidence === 'number' && model !== evidence) {
 				const abs = offset + i + 1;
 				if (!suspects.has(abs)) {
 					warnings.push(

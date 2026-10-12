@@ -687,3 +687,12 @@ describe('pickup bar', () => {
 		]);
 	});
 });
+
+import { setImportReview } from '$lib/state/tune-entry.svelte';
+it('deduplicates repeated import warnings and retains source comparison for a clean import',()=>{
+ setImportReview({warnings:['Verify key','Verify key'],suspectBars:[],sourceBarImages:['data:image/png;base64,example']});
+ expect(tuneEntry.importReview?.warnings).toEqual(['Verify key']);
+ setImportReview({warnings:[],suspectBars:[],sourceBarImages:['data:image/png;base64,example']});
+ expect(tuneEntry.importReview?.sourceBarImages).toHaveLength(1);
+ initNewTune();expect(tuneEntry.importReview).toBeNull();
+});

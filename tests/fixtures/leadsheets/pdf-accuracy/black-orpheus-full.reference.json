@@ -1,0 +1,1373 @@
+{
+  "reviewed": false,
+  "referenceNote": "Assistant visual transcription of all 39 printed measures, extending the separately stored first-system reference. Not independently reviewed. Explicit sharp/natural shapes in measures 3, 19, 29, and 31 require independent inspection. Measure 33 (last bar before C) uses the printed HEAD harmony rather than the separate SOLOS alternative. Percent signs retain preceding harmony without inventing another chord change. Final second ending includes the following full-bar rest. Tuplet rests, ties, endings, harmony placement, and all pitches require independent review before release approval.",
+  "doc": {
+    "title": "Black Orpheus",
+    "keySignature": {
+      "fifths": 2
+    },
+    "timeSignature": [
+      4,
+      4
+    ],
+    "systems": [
+      {
+        "bars": [
+          {
+            "startRepeat": false,
+            "endRepeat": false,
+            "ending": null,
+            "pickup": true,
+            "melody": [
+              [
+                3,
+                1,
+                "F#4",
+                false
+              ]
+            ],
+            "chords": []
+          },
+          {
+            "startRepeat": false,
+            "endRepeat": false,
+            "ending": null,
+            "pickup": false,
+            "melody": [
+              [
+                0,
+                2,
+                "D5",
+                true
+              ],
+              [
+                2,
+                0.6666666666666666,
+                "D5",
+                false
+              ],
+              [
+                2.6666666666666665,
+                0.6666666666666666,
+                "C#5",
+                false
+              ],
+              [
+                3.3333333333333335,
+                0.6666666666666666,
+                "B4",
+                false
+              ]
+            ],
+            "chords": [
+              [
+                0,
+                "B-"
+              ]
+            ],
+            "mark": "A"
+          },
+          {
+            "startRepeat": false,
+            "endRepeat": false,
+            "ending": null,
+            "pickup": false,
+            "melody": [
+              [
+                0,
+                2,
+                "B4",
+                true
+              ],
+              [
+                2,
+                0.6666666666666666,
+                "B4",
+                false
+              ],
+              [
+                2.6666666666666665,
+                0.6666666666666666,
+                "A#4",
+                false
+              ],
+              [
+                3.3333333333333335,
+                0.6666666666666666,
+                "C#5",
+                false
+              ]
+            ],
+            "chords": [
+              [
+                0,
+                "C#-7(b5)"
+              ],
+              [
+                2,
+                "F#7(b9)"
+              ]
+            ]
+          },
+          {
+            "startRepeat": false,
+            "endRepeat": false,
+            "ending": null,
+            "pickup": false,
+            "melody": [
+              [
+                0,
+                4,
+                "F#4",
+                true
+              ]
+            ],
+            "chords": [
+              [
+                0,
+                "B-"
+              ]
+            ]
+          },
+          {
+            "startRepeat": false,
+            "endRepeat": false,
+            "ending": null,
+            "pickup": false,
+            "melody": [
+              [
+                0,
+                2,
+                "F#4",
+                false
+              ],
+              [
+                2,
+                1,
+                "rest",
+                false
+              ],
+              [
+                3,
+                1,
+                "F#4",
+                false
+              ]
+            ],
+            "chords": [
+              [
+                0,
+                "C#-7(b5)"
+              ],
+              [
+                2,
+                "F#7(b9)"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "bars": [
+          {
+            "startRepeat": false,
+            "endRepeat": false,
+            "ending": null,
+            "pickup": false,
+            "melody": [
+              [
+                0,
+                2,
+                "D5",
+                true
+              ],
+              [
+                2,
+                0.6666666666666666,
+                "D5",
+                false
+              ],
+              [
+                2.6666666666666665,
+                0.6666666666666666,
+                "C#5",
+                false
+              ],
+              [
+                3.333333333333333,
+                0.6666666666666666,
+                "B4",
+                false
+              ]
+            ],
+            "chords": [
+              [
+                0,
+                "B-"
+              ]
+            ]
+          },
+          {
+            "startRepeat": false,
+            "endRepeat": false,
+            "ending": null,
+            "pickup": false,
+            "melody": [
+              [
+                0,
+                2,
+                "B4",
+                true
+              ],
+              [
+                2,
+                0.6666666666666666,
+                "B4",
+                false
+              ],
+              [
+                2.6666666666666665,
+                0.6666666666666666,
+                "A4",
+                false
+              ],
+              [
+                3.333333333333333,
+                0.6666666666666666,
+                "C#5",
+                false
+              ]
+            ],
+            "chords": [
+              [
+                0,
+                "E-7"
+              ],
+              [
+                2,
+                "A7"
+              ]
+            ]
+          },
+          {
+            "startRepeat": false,
+            "endRepeat": false,
+            "ending": null,
+            "pickup": false,
+            "melody": [
+              [
+                0,
+                4,
+                "F#4",
+                true
+              ]
+            ],
+            "chords": [
+              [
+                0,
+                "Dmaj7"
+              ]
+            ]
+          },
+          {
+            "startRepeat": false,
+            "endRepeat": false,
+            "ending": null,
+            "pickup": false,
+            "melody": [
+              [
+                0,
+                1,
+                "F#4",
+                false
+              ],
+              [
+                1,
+                1,
+                "rest",
+                false
+              ],
+              [
+                2,
+                0.6666666666666666,
+                "F#4",
+                false
+              ],
+              [
+                2.6666666666666665,
+                0.6666666666666666,
+                "G4",
+                false
+              ],
+              [
+                3.333333333333333,
+                0.6666666666666666,
+                "A4",
+                false
+              ]
+            ],
+            "chords": [
+              [
+                0,
+                "B7(b9)"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "bars": [
+          {
+            "startRepeat": false,
+            "endRepeat": false,
+            "ending": null,
+            "pickup": false,
+            "melody": [
+              [
+                0,
+                1.5,
+                "B4",
+                false
+              ],
+              [
+                1.5,
+                0.5,
+                "E4",
+                false
+              ],
+              [
+                2.0,
+                2,
+                "E4",
+                true
+              ]
+            ],
+            "chords": [
+              [
+                0,
+                "E-7"
+              ],
+              [
+                2,
+                "A7"
+              ]
+            ]
+          },
+          {
+            "startRepeat": false,
+            "endRepeat": false,
+            "ending": null,
+            "pickup": false,
+            "melody": [
+              [
+                0,
+                2,
+                "E4",
+                false
+              ],
+              [
+                2,
+                0.6666666666666666,
+                "E4",
+                false
+              ],
+              [
+                2.6666666666666665,
+                0.6666666666666666,
+                "F#4",
+                false
+              ],
+              [
+                3.333333333333333,
+                0.6666666666666666,
+                "G4",
+                false
+              ]
+            ],
+            "chords": []
+          },
+          {
+            "startRepeat": false,
+            "endRepeat": false,
+            "ending": null,
+            "pickup": false,
+            "melody": [
+              [
+                0,
+                1.5,
+                "A4",
+                false
+              ],
+              [
+                1.5,
+                0.5,
+                "D4",
+                false
+              ],
+              [
+                2.0,
+                2,
+                "D4",
+                true
+              ]
+            ],
+            "chords": [
+              [
+                0,
+                "Dmaj7"
+              ]
+            ]
+          },
+          {
+            "startRepeat": false,
+            "endRepeat": false,
+            "ending": null,
+            "pickup": false,
+            "melody": [
+              [
+                0,
+                1,
+                "D4",
+                false
+              ],
+              [
+                1,
+                1,
+                "rest",
+                false
+              ],
+              [
+                2,
+                0.6666666666666666,
+                "D4",
+                false
+              ],
+              [
+                2.6666666666666665,
+                0.6666666666666666,
+                "E4",
+                false
+              ],
+              [
+                3.333333333333333,
+                0.6666666666666666,
+                "F#4",
+                false
+              ]
+            ],
+            "chords": [
+              [
+                0,
+                "Gmaj7"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "bars": [
+          {
+            "startRepeat": false,
+            "endRepeat": false,
+            "ending": null,
+            "pickup": false,
+            "melody": [
+              [
+                0,
+                1.5,
+                "G4",
+                false
+              ],
+              [
+                1.5,
+                0.5,
+                "C#4",
+                false
+              ],
+              [
+                2.0,
+                2,
+                "C#4",
+                true
+              ]
+            ],
+            "chords": [
+              [
+                0,
+                "C#-7(b5)"
+              ]
+            ]
+          },
+          {
+            "startRepeat": false,
+            "endRepeat": false,
+            "ending": null,
+            "pickup": false,
+            "melody": [
+              [
+                0,
+                2,
+                "C#4",
+                false
+              ],
+              [
+                2,
+                0.6666666666666666,
+                "C#4",
+                false
+              ],
+              [
+                2.6666666666666665,
+                0.6666666666666666,
+                "D4",
+                false
+              ],
+              [
+                3.333333333333333,
+                0.6666666666666666,
+                "E4",
+                false
+              ]
+            ],
+            "chords": [
+              [
+                0,
+                "F#7(b9)"
+              ]
+            ]
+          },
+          {
+            "startRepeat": false,
+            "endRepeat": false,
+            "ending": null,
+            "pickup": false,
+            "melody": [
+              [
+                0,
+                4,
+                "F#4",
+                true
+              ]
+            ],
+            "chords": [
+              [
+                0,
+                "B-"
+              ]
+            ]
+          },
+          {
+            "startRepeat": false,
+            "endRepeat": false,
+            "ending": null,
+            "pickup": false,
+            "melody": [
+              [
+                0,
+                2,
+                "F#4",
+                false
+              ],
+              [
+                2,
+                1,
+                "rest",
+                false
+              ],
+              [
+                3,
+                1,
+                "F#4",
+                false
+              ]
+            ],
+            "chords": [
+              [
+                0,
+                "C#-7(b5)"
+              ],
+              [
+                2,
+                "F#7(b9)"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "bars": [
+          {
+            "startRepeat": false,
+            "endRepeat": false,
+            "ending": null,
+            "pickup": false,
+            "melody": [
+              [
+                0,
+                2,
+                "D5",
+                true
+              ],
+              [
+                2,
+                0.6666666666666666,
+                "D5",
+                false
+              ],
+              [
+                2.6666666666666665,
+                0.6666666666666666,
+                "C#5",
+                false
+              ],
+              [
+                3.333333333333333,
+                0.6666666666666666,
+                "B4",
+                false
+              ]
+            ],
+            "chords": [
+              [
+                0,
+                "B-"
+              ]
+            ],
+            "mark": "B"
+          },
+          {
+            "startRepeat": false,
+            "endRepeat": false,
+            "ending": null,
+            "pickup": false,
+            "melody": [
+              [
+                0,
+                2,
+                "B4",
+                true
+              ],
+              [
+                2,
+                0.6666666666666666,
+                "B4",
+                false
+              ],
+              [
+                2.6666666666666665,
+                0.6666666666666666,
+                "A#4",
+                false
+              ],
+              [
+                3.333333333333333,
+                0.6666666666666666,
+                "C#5",
+                false
+              ]
+            ],
+            "chords": [
+              [
+                0,
+                "C#-7(b5)"
+              ],
+              [
+                2,
+                "F#7(b9)"
+              ]
+            ]
+          },
+          {
+            "startRepeat": false,
+            "endRepeat": false,
+            "ending": null,
+            "pickup": false,
+            "melody": [
+              [
+                0,
+                4,
+                "F#4",
+                true
+              ]
+            ],
+            "chords": [
+              [
+                0,
+                "B-"
+              ]
+            ]
+          },
+          {
+            "startRepeat": false,
+            "endRepeat": false,
+            "ending": null,
+            "pickup": false,
+            "melody": [
+              [
+                0,
+                2,
+                "F#4",
+                false
+              ],
+              [
+                2,
+                1,
+                "rest",
+                false
+              ],
+              [
+                3,
+                1,
+                "F#4",
+                false
+              ]
+            ],
+            "chords": []
+          }
+        ]
+      },
+      {
+        "bars": [
+          {
+            "startRepeat": false,
+            "endRepeat": false,
+            "ending": null,
+            "pickup": false,
+            "melody": [
+              [
+                0,
+                2,
+                "C5",
+                true
+              ],
+              [
+                2,
+                0.6666666666666666,
+                "C5",
+                false
+              ],
+              [
+                2.6666666666666665,
+                0.6666666666666666,
+                "B4",
+                false
+              ],
+              [
+                3.333333333333333,
+                0.6666666666666666,
+                "A4",
+                false
+              ]
+            ],
+            "chords": [
+              [
+                0,
+                "F#-7(b5)"
+              ]
+            ]
+          },
+          {
+            "startRepeat": false,
+            "endRepeat": false,
+            "ending": null,
+            "pickup": false,
+            "melody": [
+              [
+                0,
+                2,
+                "A4",
+                true
+              ],
+              [
+                2,
+                0.6666666666666666,
+                "A4",
+                false
+              ],
+              [
+                2.6666666666666665,
+                0.6666666666666666,
+                "G4",
+                false
+              ],
+              [
+                3.333333333333333,
+                0.6666666666666666,
+                "F#4",
+                false
+              ]
+            ],
+            "chords": [
+              [
+                0,
+                "B7(b9)"
+              ]
+            ]
+          },
+          {
+            "startRepeat": false,
+            "endRepeat": false,
+            "ending": null,
+            "pickup": false,
+            "melody": [
+              [
+                0,
+                4,
+                "B4",
+                true
+              ]
+            ],
+            "chords": [
+              [
+                0,
+                "E-"
+              ]
+            ]
+          },
+          {
+            "startRepeat": false,
+            "endRepeat": false,
+            "ending": null,
+            "pickup": false,
+            "melody": [
+              [
+                0,
+                2,
+                "B4",
+                false
+              ],
+              [
+                2,
+                1,
+                "rest",
+                false
+              ],
+              [
+                3,
+                1,
+                "E4",
+                false
+              ]
+            ],
+            "chords": []
+          }
+        ]
+      },
+      {
+        "bars": [
+          {
+            "startRepeat": false,
+            "endRepeat": false,
+            "ending": null,
+            "pickup": false,
+            "melody": [
+              [
+                0,
+                2,
+                "E4",
+                true
+              ],
+              [
+                2,
+                0.6666666666666666,
+                "E4",
+                false
+              ],
+              [
+                2.6666666666666665,
+                0.6666666666666666,
+                "F#4",
+                false
+              ],
+              [
+                3.333333333333333,
+                0.6666666666666666,
+                "G4",
+                false
+              ]
+            ],
+            "chords": [
+              [
+                0,
+                "E-"
+              ],
+              [
+                2,
+                "E-7/D"
+              ]
+            ]
+          },
+          {
+            "startRepeat": false,
+            "endRepeat": false,
+            "ending": null,
+            "pickup": false,
+            "melody": [
+              [
+                0,
+                4,
+                "C#5",
+                false
+              ]
+            ],
+            "chords": [
+              [
+                0,
+                "C#-7(b5)"
+              ],
+              [
+                2,
+                "F#7(b9)"
+              ]
+            ]
+          },
+          {
+            "startRepeat": false,
+            "endRepeat": false,
+            "ending": null,
+            "pickup": false,
+            "melody": [
+              [
+                0,
+                1,
+                "rest",
+                false
+              ],
+              [
+                1,
+                1,
+                "D4",
+                false
+              ],
+              [
+                2,
+                0.6666666666666666,
+                "D4",
+                false
+              ],
+              [
+                2.6666666666666665,
+                0.6666666666666666,
+                "E4",
+                false
+              ],
+              [
+                3.333333333333333,
+                0.6666666666666666,
+                "F#4",
+                false
+              ]
+            ],
+            "chords": [
+              [
+                0,
+                "B-"
+              ],
+              [
+                2,
+                "B-7/A"
+              ]
+            ]
+          },
+          {
+            "startRepeat": false,
+            "endRepeat": false,
+            "ending": null,
+            "pickup": false,
+            "melody": [
+              [
+                0,
+                3,
+                "B4",
+                false
+              ],
+              [
+                3,
+                1,
+                "A#4",
+                false
+              ]
+            ],
+            "chords": [
+              [
+                0,
+                "Gmaj7"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "bars": [
+          {
+            "startRepeat": false,
+            "endRepeat": false,
+            "ending": null,
+            "pickup": false,
+            "melody": [
+              [
+                0,
+                4,
+                "F#4",
+                true
+              ]
+            ],
+            "chords": [
+              [
+                0,
+                "C#-7(b5)"
+              ]
+            ]
+          },
+          {
+            "startRepeat": false,
+            "endRepeat": false,
+            "ending": null,
+            "pickup": false,
+            "melody": [
+              [
+                0,
+                1,
+                "F#4",
+                false
+              ],
+              [
+                1,
+                1,
+                "rest",
+                false
+              ],
+              [
+                2,
+                0.6666666666666666,
+                "F#4",
+                false
+              ],
+              [
+                2.6666666666666665,
+                0.6666666666666666,
+                "A#4",
+                false
+              ],
+              [
+                3.333333333333333,
+                0.6666666666666666,
+                "C#5",
+                false
+              ]
+            ],
+            "chords": [
+              [
+                0,
+                "F#7(b9)"
+              ]
+            ]
+          },
+          {
+            "startRepeat": false,
+            "endRepeat": false,
+            "ending": null,
+            "pickup": false,
+            "melody": [
+              [
+                0,
+                4,
+                "B4",
+                true
+              ]
+            ],
+            "chords": [
+              [
+                0,
+                "B-"
+              ]
+            ]
+          },
+          {
+            "startRepeat": false,
+            "endRepeat": false,
+            "ending": null,
+            "pickup": false,
+            "melody": [
+              [
+                0,
+                2,
+                "B4",
+                false
+              ],
+              [
+                2,
+                0.6666666666666666,
+                "rest",
+                false
+              ],
+              [
+                2.6666666666666665,
+                0.6666666666666666,
+                "B4",
+                false
+              ],
+              [
+                3.333333333333333,
+                0.6666666666666666,
+                "C#5",
+                false
+              ]
+            ],
+            "chords": [
+              [
+                0,
+                "B-"
+              ]
+            ]
+          }
+        ]
+      },
+      {
+        "bars": [
+          {
+            "startRepeat": true,
+            "endRepeat": false,
+            "ending": null,
+            "pickup": false,
+            "melody": [
+              [
+                0,
+                0.6666666666666666,
+                "D5",
+                false
+              ],
+              [
+                0.6666666666666666,
+                0.6666666666666666,
+                "E5",
+                false
+              ],
+              [
+                1.3333333333333333,
+                0.6666666666666666,
+                "D5",
+                false
+              ],
+              [
+                2.0,
+                0.6666666666666666,
+                "C#5",
+                false
+              ],
+              [
+                2.6666666666666665,
+                0.6666666666666666,
+                "B4",
+                false
+              ],
+              [
+                3.333333333333333,
+                0.6666666666666666,
+                "C#5",
+                false
+              ]
+            ],
+            "chords": [
+              [
+                0,
+                "E-7"
+              ],
+              [
+                2,
+                "B-7"
+              ]
+            ],
+            "mark": "C"
+          },
+          {
+            "startRepeat": false,
+            "endRepeat": false,
+            "ending": null,
+            "pickup": false,
+            "melody": [
+              [
+                0,
+                0.6666666666666666,
+                "D5",
+                false
+              ],
+              [
+                0.6666666666666666,
+                0.6666666666666666,
+                "E5",
+                false
+              ],
+              [
+                1.3333333333333333,
+                0.6666666666666666,
+                "D5",
+                false
+              ],
+              [
+                2.0,
+                0.6666666666666666,
+                "C#5",
+                false
+              ],
+              [
+                2.6666666666666665,
+                0.6666666666666666,
+                "B4",
+                false
+              ],
+              [
+                3.333333333333333,
+                0.6666666666666666,
+                "C#5",
+                false
+              ]
+            ],
+            "chords": [
+              [
+                0,
+                "E-7"
+              ],
+              [
+                2,
+                "B-7"
+              ]
+            ]
+          },
+          {
+            "startRepeat": false,
+            "endRepeat": false,
+            "ending": null,
+            "pickup": false,
+            "melody": [
+              [
+                0,
+                0.6666666666666666,
+                "D5",
+                false
+              ],
+              [
+                0.6666666666666666,
+                0.6666666666666666,
+                "E5",
+                false
+              ],
+              [
+                1.3333333333333333,
+                0.6666666666666666,
+                "D5",
+                false
+              ],
+              [
+                2.0,
+                0.6666666666666666,
+                "C#5",
+                false
+              ],
+              [
+                2.6666666666666665,
+                0.6666666666666666,
+                "B4",
+                false
+              ],
+              [
+                3.333333333333333,
+                0.6666666666666666,
+                "A4",
+                false
+              ]
+            ],
+            "chords": [
+              [
+                0,
+                "E-7"
+              ],
+              [
+                2,
+                "F#-7"
+              ]
+            ]
+          },
+          {
+            "startRepeat": false,
+            "endRepeat": true,
+            "ending": 1,
+            "pickup": false,
+            "melody": [
+              [
+                0,
+                2,
+                "B4",
+                false
+              ],
+              [
+                2,
+                0.6666666666666666,
+                "rest",
+                false
+              ],
+              [
+                2.6666666666666665,
+                0.6666666666666666,
+                "B4",
+                false
+              ],
+              [
+                3.333333333333333,
+                0.6666666666666666,
+                "C#5",
+                false
+              ]
+            ],
+            "chords": [
+              [
+                0,
+                "B-"
+              ]
+            ]
+          },
+          {
+            "startRepeat": false,
+            "endRepeat": false,
+            "ending": 2,
+            "pickup": false,
+            "melody": [
+              [
+                0,
+                4,
+                "B4",
+                false
+              ]
+            ],
+            "chords": [
+              [
+                0,
+                "B-"
+              ]
+            ]
+          },
+          {
+            "startRepeat": false,
+            "endRepeat": false,
+            "ending": null,
+            "pickup": false,
+            "melody": [
+              [
+                0,
+                4,
+                "rest",
+                false
+              ]
+            ],
+            "chords": [
+              [
+                0,
+                "F#7(b9)"
+              ]
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import PdfSourceReview from '$lib/components/tunes/PdfSourceReview.svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { tunePath } from '$lib/tunes/tune-slug';
@@ -450,7 +451,7 @@
 				{/snippet}
 			</NotationDisplay>
 
-			{#if tuneEntry.importReview}
+			{#if tuneEntry.importReview?.warnings.length}
 				<!-- Import review: the bars the pipeline knows are uncertain -->
 				<div class="rounded-lg border border-[var(--color-brass)]/40 bg-[var(--color-brass)]/10 p-3 text-sm">
 					<div class="flex items-start justify-between gap-2">
@@ -479,6 +480,23 @@
 						</ul>
 					</details>
 				</div>
+			{/if}
+
+			{#if tuneEntry.importReview?.sourceBarImages?.length}
+				<PdfSourceReview
+					images={tuneEntry.importReview.sourceBarImages}
+					suspectBars={tuneEntry.importReview.suspectBars}
+					onSelect={(absoluteBar) => {
+						let remaining = absoluteBar;
+						for (let i = 0; i < tuneEntry.sections.length; i++) {
+							if (remaining < tuneEntry.sections[i].bars) {
+								cursorToBar(i, remaining);
+								break;
+							}
+							remaining -= tuneEntry.sections[i].bars;
+						}
+					}}
+				/>
 			{/if}
 
 			<!-- Setup: title details, key, sections -->

@@ -21,7 +21,10 @@ import { seedOnboardedAnonymous } from './fixtures/storage';
  *    whole-PDF path — minutes of extra wait to arrive at an error.
  */
 
-const ROUTE_RESPONSE = readFileSync('tests/fixtures/leadsheets/fly-me-to-the-moon.parsed-sheet.json', 'utf8');
+const ROUTE_RESPONSE = readFileSync(
+	'tests/fixtures/leadsheets/fly-me-to-the-moon.parsed-sheet.json',
+	'utf8'
+);
 
 interface SystemRequest {
 	system?: { barCount?: number; first?: boolean; timeSignature?: [number, number] };
@@ -134,7 +137,12 @@ async function stubParseRoute(
  */
 async function openImportReview(page: Page): Promise<void> {
 	await expect(page.getByRole('img', { name: /^Sheet Music for/ })).toBeVisible();
-	await page.getByRole('group').filter({ hasText: /detail/ }).getByText(/detail/).first().click();
+	await page
+		.getByRole('group')
+		.filter({ hasText: /detail/ })
+		.getByText(/detail/)
+		.first()
+		.click();
 }
 
 test.beforeEach(async ({ page }) => {
@@ -159,7 +167,9 @@ test('a PDF chart lands in the editor for review and saves from there', async ({
 	// shifts it to concert C on import, and the editor re-displays it at the
 	// tenor's written pitch — so the opening chord reads B-7, exactly as
 	// printed on the source chart.
-	await expect(page.locator('.abcjs-container svg text').filter({ hasText: /^B-7$/ }).first()).toBeVisible();
+	await expect(
+		page.locator('.abcjs-container svg text').filter({ hasText: /^B-7$/ }).first()
+	).toBeVisible();
 	// The pre-assigned id keeps the flow in update mode so the stored PDF
 	// stays linked to the sheet the user saves.
 	await expect(page.getByRole('button', { name: 'Update' })).toBeVisible();
@@ -206,11 +216,11 @@ test('a PDF chart lands in the editor for review and saves from there', async ({
 	expect(pdfIds).toContain(sheets[0].id);
 });
 
-test('the declared time signature goes out with every line, with none waiting on another', async ({
+test('the declared time signature goes out with every line, including the context pass', async ({
 	page
 }) => {
-	// The meter used to be learned by transcribing line 1, which serialised
-	// the whole import behind that one call — 263s of it on a measured run.
+	// Header observations carry the declaration too; music recognition does
+	// not have to wait for an expensive first melody transcription.
 	const seenMeters: Array<[number, number]> = [];
 	await stubParseRoute(page, { printedMeter: [3, 4], seenMeters });
 	await page.goto('/tunes/import/pdf');
@@ -220,7 +230,7 @@ test('the declared time signature goes out with every line, with none waiting on
 	// changes the DOM value without reaching the rune behind it.
 	await expect(fileInput).toBeEnabled();
 	await page.getByLabel('Time signature').selectOption('3/4');
-	await fileInput.setInputFiles('tests/fixtures/leadsheets/fly-me-to-the-moon.pdf');
+	await fileInput.setInputFiles('tests/fixtures/leadsheets/pdf-accuracy/black-orpheus-scan.pdf');
 
 	await page.waitForURL('**/tunes/editor', { timeout: 60_000 });
 	expect(seenMeters.length).toBeGreaterThan(1);
@@ -236,7 +246,7 @@ test('a declared meter that contradicts the print is flagged, not silently appli
 	// Leave the 4/4 default while the chart reports 3/4.
 	const fileInput = page.getByLabel('Tune PDF');
 	await expect(fileInput).toBeEnabled();
-	await fileInput.setInputFiles('tests/fixtures/leadsheets/fly-me-to-the-moon.pdf');
+	await fileInput.setInputFiles('tests/fixtures/leadsheets/pdf-accuracy/black-orpheus-scan.pdf');
 
 	await page.waitForURL('**/tunes/editor', { timeout: 60_000 });
 	await openImportReview(page);
@@ -249,7 +259,7 @@ test('a line the AI cannot read is left blank instead of sinking the import', as
 
 	const fileInput = page.getByLabel('Tune PDF');
 	await expect(fileInput).toBeEnabled();
-	await fileInput.setInputFiles('tests/fixtures/leadsheets/fly-me-to-the-moon.pdf');
+	await fileInput.setInputFiles('tests/fixtures/leadsheets/pdf-accuracy/black-orpheus-scan.pdf');
 
 	// The draft still arrives — the lines that DID transcribe are kept, and
 	// the whole-PDF fallback is not used (it would have replaced the title
@@ -282,13 +292,15 @@ test('the import reports which line it is on, and can be cancelled', async ({ pa
 	await page.goto('/tunes/import/pdf');
 	const fileInput = page.getByLabel('Tune PDF');
 	await expect(fileInput).toBeEnabled();
-	await fileInput.setInputFiles('tests/fixtures/leadsheets/fly-me-to-the-moon.pdf');
+	await fileInput.setInputFiles('tests/fixtures/leadsheets/pdf-accuracy/black-orpheus-scan.pdf');
 
 	// Per-line state, not a bare spinner: the old UI showed one counter that
 	// only moved when a whole batch of three finished.
 	const panel = page.getByTestId('import-progress');
 	await expect(panel).toBeVisible();
-	await expect(panel.getByText(/Transcribing \d+ of \d+ lines/)).toBeVisible({ timeout: 60_000 });
+	await expect(
+		panel.getByText(/(?:Transcribing|Reading key and clef for) \d+ of \d+ lines/)
+	).toBeVisible({ timeout: 60_000 });
 	await expect(panel.getByText('Line 1')).toBeVisible();
 	await expect(panel.getByText(/reading/).first()).toBeVisible();
 
@@ -298,7 +310,9 @@ test('the import reports which line it is on, and can be cancelled', async ({ pa
 	await expect(fileInput).toBeEnabled();
 });
 
-test('cancelling an unsaved PDF draft returns to the book, not a dead detail page', async ({ page }) => {
+test('cancelling an unsaved PDF draft returns to the book, not a dead detail page', async ({
+	page
+}) => {
 	await page.goto('/tunes/import/pdf');
 	const fileInput = page.getByLabel('Tune PDF');
 	await expect(fileInput).toBeEnabled();
@@ -312,7 +326,9 @@ test('cancelling an unsaved PDF draft returns to the book, not a dead detail pag
 	await expect(page.getByRole('heading', { name: 'Tunes', exact: true })).toBeVisible();
 });
 
-test('an attached OMR transcription supplies the melody with zero AI calls', async ({ page }) => {
+test('embedded notation takes priority over an attached OMR transcription with zero AI calls', async ({
+	page
+}) => {
 	// The .omr.json is a REAL recorded LEGATO v1 transcription of this chart
 	// (deterministic; see docs/omr/). Lines it covers never touch the network.
 	const seenMeters: Array<[number, number]> = [];
@@ -323,7 +339,7 @@ test('an attached OMR transcription supplies the melody with zero AI calls', asy
 	const omrInput = page.getByLabel('OMR transcription (optional)');
 	await expect(omrInput).toBeEnabled();
 	await omrInput.setInputFiles('tests/fixtures/leadsheets/omr/lady-bird.omr.json');
-	await expect(page.getByText(/Using OMR melody from lady-bird\.omr\.json/)).toBeVisible();
+	await expect(page.getByText(/Attached OMR transcription: lady-bird\.omr\.json/)).toBeVisible();
 
 	const fileInput = page.getByLabel('Tune PDF');
 	await expect(fileInput).toBeEnabled();
@@ -358,3 +374,105 @@ test('a non-OMR JSON file is rejected inline and the import is not blocked', asy
 	await page.waitForURL('**/tunes/editor');
 	await expect(page.getByRole('textbox', { name: 'Tune title' })).toHaveValue('Fly Me to the Moon');
 });
+
+test('Black Orpheus scan has 39 measures and requests independent harmony with inherited context', async ({
+	page
+}) => {
+	const music: Array<{ barCount: number; readHarmony: boolean; context: { fifths: number } }> = [];
+	await page.route('**/api/tune-parse', async (route) => {
+		if (route.request().method() === 'GET')
+			return route.fulfill({ json: { configured: true, model: 'test' } });
+		const { system } = route.request().postDataJSON();
+		expect(system).toBeTruthy();
+		if (system.contextOnly)
+			return route.fulfill({
+				contentType: 'application/x-ndjson',
+				body: ndjson({
+					type: 'result',
+					keySignature: system.first ? { fifths: 2 } : null,
+					clef: 'treble',
+					timeSignature: null,
+					bars: [],
+					warnings: []
+				})
+			});
+		music.push(system);
+		expect(system.harmonyImages).toHaveLength(system.barCount);
+		expect(system.readAccidentals).toBe(true);
+		expect(
+			system.harmonyImages.every((image: string) => image.startsWith('data:image/png;base64,'))
+		).toBe(true);
+		return route.fulfill({
+			contentType: 'application/x-ndjson',
+			body: transcribedSystem(system.barCount)
+		});
+	});
+	await page.goto('/tunes/import/pdf');
+	await expect(page.getByLabel('Tune PDF')).toBeEnabled();
+	await page
+		.getByLabel('Tune PDF')
+		.setInputFiles('tests/fixtures/leadsheets/pdf-accuracy/black-orpheus-scan.pdf');
+	await page.waitForURL('**/tunes/editor', { timeout: 60_000 });
+	expect(music.map((s) => s.barCount)).toEqual([5, 4, 4, 4, 4, 4, 4, 4, 6]);
+	expect(music.every((s) => s.readHarmony && s.context.fifths === 2)).toBe(true);
+});
+
+test('an exported PDF imports offline and keeps the original measures available for correction', async ({
+	page
+}) => {
+	const posts: string[] = [];
+	await page.route('**/api/tune-parse', async (route) => {
+		if (route.request().method() === 'GET') return route.fulfill({ json: { configured: false } });
+		posts.push(route.request().postData() ?? '');
+		return route.fulfill({ status: 503, json: { message: 'No optical reader' } });
+	});
+	await page.goto('/tunes/import/pdf');
+	await expect(page.getByText('The scan reader is unavailable.', { exact: false })).toBeVisible();
+	await page.getByLabel('Tune PDF').setInputFiles('Leadsheets/PDF/Lady Bird.pdf');
+	await page.waitForURL('**/tunes/editor');
+	expect(posts).toEqual([]);
+	await expect(page.getByRole('textbox', { name: 'Tune title' })).toHaveValue(/Lady Bird/);
+	await page.getByText('Compare with original PDF', { exact: true }).click();
+	await expect(page.getByAltText('Original PDF measure 1')).toBeVisible();
+	await page.getByLabel('Source measure', { exact: true }).selectOption({ label: '3' });
+	await expect(page.getByAltText('Original PDF measure 3')).toBeVisible();
+	await page.getByRole('button', { name: 'Update', exact: true }).click();
+	await page.waitForURL(/\/tunes\/lady-bird$/);
+	const saved = await page.evaluate(
+		() => JSON.parse(localStorage.getItem('mankunku:user-tunes') ?? '[]')[0]
+	);
+	expect(
+		saved.sections.reduce(
+			(n: number, s: { notes: { pitch: number | null }[] }) =>
+				n + s.notes.filter((note) => note.pitch !== null).length,
+			0
+		)
+	).toBe(53);
+	expect(JSON.stringify(saved)).not.toContain('data:image');
+});
+
+for (const [name, measures] of [
+	['Donna Lee', 32],
+	['Do Nothing Till You Hear From Me', 33]
+] as const) {
+	test(`legacy-font ${name} imports without an optical reader`, async ({ page }) => {
+		const posts: string[] = [];
+		await page.route('**/api/tune-parse', async (route) => {
+			if (route.request().method() === 'GET') return route.fulfill({ json: { configured: false } });
+			posts.push(route.request().postData() ?? '');
+			return route.fulfill({ status: 503, json: { message: 'No optical reader' } });
+		});
+		await page.goto('/tunes/import/pdf');
+		await page.getByLabel('Tune PDF').setInputFiles(`Leadsheets/PDF/${name} - Bb.pdf`);
+		await page.waitForURL('**/tunes/editor');
+		expect(posts).toEqual([]);
+		await expect(page.getByRole('textbox', { name: 'Tune title' })).toHaveValue(
+			new RegExp(name.replace('Till', 'Till?'))
+		);
+		await page.getByText('Compare with original PDF', { exact: true }).click();
+		await page
+			.getByLabel('Source measure', { exact: true })
+			.selectOption({ label: String(measures) });
+		await expect(page.getByAltText(`Original PDF measure ${measures}`)).toBeVisible();
+	});
+}

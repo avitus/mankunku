@@ -1,0 +1,195 @@
+{
+  "reviewed": false,
+  "referenceNote": "Assistant visual transcription, rechecked against isolated staff-coordinate crops. Third printed measure positions are 4,4,3,5 (B4,B4,A#4,C#5); the earlier uncalibrated draft misread three of these pitches. Still requires independent human review, including chord placements. Not release-approved.",
+  "doc": {
+    "title": "Black Orpheus first system",
+    "keySignature": {
+      "fifths": 2
+    },
+    "timeSignature": [
+      4,
+      4
+    ],
+    "systems": [
+      {
+        "bars": [
+          {
+            "startRepeat": false,
+            "endRepeat": false,
+            "ending": null,
+            "pickup": true,
+            "melody": [
+              [
+                3,
+                1,
+                "F#4",
+                false
+              ]
+            ],
+            "chords": []
+          },
+          {
+            "startRepeat": false,
+            "endRepeat": false,
+            "ending": null,
+            "pickup": false,
+            "melody": [
+              [
+                0,
+                2,
+                "D5",
+                true
+              ],
+              [
+                2,
+                0.6666666666666666,
+                "D5",
+                false
+              ],
+              [
+                2.6666666666666665,
+                0.6666666666666666,
+                "C#5",
+                false
+              ],
+              [
+                3.3333333333333335,
+                0.6666666666666666,
+                "B4",
+                false
+              ]
+            ],
+            "chords": [
+              [
+                0,
+                "B-"
+              ]
+            ]
+          },
+          {
+            "startRepeat": false,
+            "endRepeat": false,
+            "ending": null,
+            "pickup": false,
+            "melody": [
+              [
+                0,
+                2,
+                "B4",
+                true
+              ],
+              [
+                2,
+                0.6666666666666666,
+                "B4",
+                false
+              ],
+              [
+                2.6666666666666665,
+                0.6666666666666666,
+                "A#4",
+                false
+              ],
+              [
+                3.3333333333333335,
+                0.6666666666666666,
+                "C#5",
+                false
+              ]
+            ],
+            "chords": [
+              [
+                0,
+                "C#-7(b5)"
+              ],
+              [
+                2,
+                "F#7(b9)"
+              ]
+            ]
+          },
+          {
+            "startRepeat": false,
+            "endRepeat": false,
+            "ending": null,
+            "pickup": false,
+            "melody": [
+              [
+                0,
+                4,
+                "F#4",
+                true
+              ]
+            ],
+            "chords": [
+              [
+                0,
+                "B-"
+              ]
+            ]
+          },
+          {
+            "startRepeat": false,
+            "endRepeat": false,
+            "ending": null,
+            "pickup": false,
+            "melody": [
+              [
+                0,
+                2,
+                "F#4",
+                false
+              ],
+              [
+                2,
+                1,
+                "rest",
+                false
+              ],
+              [
+                3,
+                1,
+                "F#4",
+                false
+              ]
+            ],
+            "chords": [
+              [
+                0,
+                "C#-7(b5)"
+              ],
+              [
+                2,
+                "F#7(b9)"
+              ]
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "staffPositions": [
+    [
+      1
+    ],
+    [
+      6,
+      6,
+      5,
+      4
+    ],
+    [
+      4,
+      4,
+      3,
+      5
+    ],
+    [
+      1
+    ],
+    [
+      1,
+      1
+    ]
+  ]
+}
