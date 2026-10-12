@@ -4,6 +4,8 @@
 	import { availablePracticeMinutes } from '$lib/persistence/practice-time';
 	import { formatMinutes } from '$lib/util/format-duration';
 
+	let { studio = false }: { studio?: boolean } = $props();
+
 	const CELL_SIZE = 11;
 	const GAP = 2;
 	const TOTAL = CELL_SIZE + GAP;
@@ -139,7 +141,9 @@
 	const svgHeight = HEADER_HEIGHT + DAYS * TOTAL;
 </script>
 
-<div class="relative">
+<div>
+	<div class:calendar-viewport={studio}>
+	<div class="relative" class:calendar-grid={studio}>
 	<svg
 		viewBox="0 0 {svgWidth} {svgHeight}"
 		class="w-full"
@@ -222,6 +226,8 @@
 		</div>
 	{/if}
 
+	</div>
+	</div>
 	<!-- Static legend: two-tone split (top half = lick practice, bottom = ear training) -->
 	<div class="mt-2 flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-xs text-[var(--color-text-secondary)]">
 		<span class="flex items-center gap-1">
@@ -268,3 +274,8 @@
 		</span>
 	</div>
 </div>
+
+<style>
+	.calendar-viewport { overflow-x: auto; padding-bottom: 8px; }
+	.calendar-grid { min-width: 680px; }
+</style>

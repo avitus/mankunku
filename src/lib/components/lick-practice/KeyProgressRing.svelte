@@ -29,6 +29,12 @@
 	}
 
 	const instrument = $derived(getInstrument());
+	/** Keep exact scores accessible without adding small text to the ring. */
+	function keyDescription(key: PitchClass): string {
+		const label = keyChipLabel(concertKeyToWritten(key, instrument), mode);
+		const result = keyResults.find(result => result.key === key);
+		return `${label}: ${result ? `${Math.round(result.score * 100)}%` : isCurrent(key) ? 'Current key' : 'Pending'}`;
+	}
 
 	const RING_RADIUS = 80;
 	const DOT_RADIUS = 18;
@@ -95,7 +101,7 @@
 </script>
 
 <div class="flex flex-col items-center">
-	<svg viewBox="0 0 220 220" class="w-56 h-56">
+	<svg viewBox="0 0 220 220" class="w-56 h-56" role="img" aria-label={`Key progress, ${tempo} BPM. ${keys.map(keyDescription).join('; ')}`}>
 		<!-- Medal lustre gradients: highlight top-left → metal → shadow. Stops
 		     read the theme-switched --medal-* tokens (soft sheen in dark, a
 		     polished coin in light), so one set of gradients serves both. -->
@@ -150,6 +156,7 @@
 			{@const displayKey = keyChipLabel(concertKeyToWritten(key, instrument), mode)}
 
 			<g>
+				<title>{keyDescription(key)}</title>
 				{#if visual.kind === 'current'}
 					<circle
 						cx={pos.x} cy={pos.y} r={DOT_RADIUS + 3}

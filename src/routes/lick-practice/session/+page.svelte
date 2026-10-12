@@ -1839,7 +1839,8 @@
 	<title>Practice Session — Mankunku</title>
 </svelte:head>
 
-<div class="space-y-4">
+<div class="studio-desk practice-desk">
+<div class="studio-panel space-y-4" data-domain="lick-practice">
 	{#if lickPractice.phase === 'complete' && sessionReport}
 		<!-- Session report -->
 		<div class="text-center">
@@ -2125,6 +2126,8 @@
 			statusLabel={rampStatusLabel}
 		/>
 
+		<div class="session-workspace">
+		<div class="session-music">
 		<!-- Stepped chord-block stack: the active row holds still for its key
 		     and the stack steps up one row at each key change (a struggling
 		     key's row is a lead-sheet system — chords over the staff,
@@ -2185,6 +2188,8 @@
 		</div>
 		{/if}
 
+		</div>
+		<aside class="session-rail" aria-label="Key progress and session controls">
 		<!-- Key progress ring -->
 		<div class="flex justify-center">
 			<KeyProgressRing
@@ -2206,9 +2211,33 @@
 				End Session
 			</button>
 		</div>
+		</aside>
+		</div>
 	{:else}
 		<div class="flex min-h-[70vh] items-center justify-center">
 			<p class="text-[var(--color-text-secondary)]">Loading session...</p>
 		</div>
 	{/if}
 </div>
+
+</div>
+
+<style>
+	.practice-desk { --studio-gap: 20px; }
+	.session-workspace { display: grid; grid-template-columns: minmax(0, 1fr) 220px; gap: 24px; padding-top: 12px; }
+	.session-music { min-width: 0; border: 1px solid color-mix(in srgb, var(--studio-border) 35%, transparent); border-radius: 4px; background: var(--studio-well); box-shadow: inset 0 2px 5px #0003; }
+	.session-rail { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px; border-left: 1px solid color-mix(in srgb, var(--studio-border) 35%, transparent); padding-left: 16px; }
+	.session-rail button { min-height: 40px; border: 1px solid var(--studio-border); border-radius: 4px; background: transparent; color: var(--studio-muted); }
+	.session-rail button:hover { background: var(--studio-panel-highlight); color: var(--studio-text); }
+	.session-music [role='alert'] { min-height: 460.8px; display: flex; align-items: center; justify-content: center; padding: 24px; }
+	@media (max-width: 1050px) {
+		.session-workspace { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+		.session-rail { flex-direction: row; border-left: 0; border-top: 1px solid color-mix(in srgb, var(--studio-border) 35%, transparent); padding: 12px 0 0; gap: 24px; }
+	}
+	@media (max-width: 520px) {
+		.practice-desk > .studio-panel { padding: 18px 10px; }
+		.session-rail { gap: 8px; }
+		.session-rail :global(svg) { width: 176px; height: 176px; }
+		.session-rail button { padding: 8px 12px; }
+	}
+</style>

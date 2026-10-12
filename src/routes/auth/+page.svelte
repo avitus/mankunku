@@ -12,6 +12,7 @@
 
 	/** Toggle between "Sign In" (false) and "Sign Up" (true) modes */
 	let isSignUp = $state(false);
+	let showPassword = $state(false);
 
 	/** Tracks form submission state for loading indicator */
 	let loading = $state(false);
@@ -78,176 +79,305 @@
 	<title>{isSignUp ? 'Create Account' : 'Sign In'} — Mankunku</title>
 </svelte:head>
 
-<div class="flex min-h-[70vh] items-center justify-center px-4">
-	<div class="w-full max-w-md space-y-6">
-		<!-- Header -->
-		<div class="text-center space-y-2">
-			<div class="font-display text-3xl font-bold tracking-tight text-[var(--color-text)]" style="letter-spacing: 0.02em;">
-				MANKUNKU
-			</div>
-			<div class="smallcaps text-[var(--color-brass)]">Yakhal' Inkomo &middot; Cry of the Bull</div>
-			<div class="jazz-rule mx-auto max-w-[120px]"></div>
-			<h1 class="font-display text-3xl font-semibold pt-2">
-				{isSignUp ? 'Create Account' : 'Welcome Back'}
-			</h1>
-			<p class="text-sm italic text-[var(--color-text-secondary)]">
-				{isSignUp
-					? 'Start your jazz ear training journey.'
-					: 'Sign in to sync your progress.'}
-			</p>
-		</div>
+<div class="studio-desk auth-main">
+	<div class="auth-stack">
+		<section class="studio-panel auth-panel" aria-labelledby="auth-title">
+			<header class="auth-heading">
+				<p class="studio-label">Your account</p>
+				<h1 id="auth-title">{isSignUp ? 'Create an account' : 'Welcome back'}<span aria-hidden="true">.</span></h1>
+				<p>{isSignUp ? 'Keep your practice and progress in sync.' : 'Sign in to sync your progress.'}</p>
+			</header>
 
-		<!-- Error display — shows both form action errors and callback errors -->
-		{#if form?.error || errorMessage}
-			<div
-				class="rounded-lg bg-[var(--color-error)]/10 px-4 py-3 text-sm text-[var(--color-error-text)]"
-				role="alert"
+			{#if form?.error || errorMessage}
+				<div class="auth-notice auth-error" role="alert">{form?.error ?? decodeErrorMessage(errorMessage)}</div>
+			{/if}
+			{#if notice}
+				<div class="auth-notice" role="status">{notice}</div>
+			{/if}
+
+			<form method="POST" action={isSignUp ? '?/register' : '?/login'} aria-busy={loading}
+				use:enhance={({ submitter }) => {
+					loading = true;
+					resending = submitter?.getAttribute('formaction') === '?/resend';
+					return async ({ result, update }) => {
+						loading = false;
+						resending = false;
+						// A new account waits on its emailed link; the next thing the
+						// user does here is sign in.
+						if (result.type === 'success' && result.data?.confirmationSent) {
+							isSignUp = false;
+						}
+						// No reset: a success that stays on this page (confirmation
+						// sent, link resent) keeps the email the resend button reads.
+						await update({ reset: false });
+					};
+				}}
 			>
-				{form?.error ?? decodeErrorMessage(errorMessage)}
-			</div>
-		{/if}
-
-		{#if notice}
-			<div
-				class="rounded-lg bg-[var(--color-success)]/10 px-4 py-3 text-sm text-[var(--color-text)]"
-				role="status"
-			>
-				{notice}
-			</div>
-		{/if}
-
-		<!-- Email / Password Form -->
-		<form
-			method="POST"
-			action={isSignUp ? '?/register' : '?/login'}
-			use:enhance={({ submitter }) => {
-				loading = true;
-				resending = submitter?.getAttribute('formaction') === '?/resend';
-				return async ({ result, update }) => {
-					loading = false;
-					resending = false;
-					// A new account waits on its emailed link; the next thing the
-					// user does here is sign in.
-					if (result.type === 'success' && result.data?.confirmationSent) {
-						isSignUp = false;
-					}
-					// No reset: a success that stays on this page (confirmation
-					// sent, link resent) keeps the email the resend button reads.
-					await update({ reset: false });
-				};
-			}}
-			class="space-y-4"
-		>
-			<!-- Email field -->
-			<div class="space-y-1.5">
-				<label for="email" class="block text-sm font-medium">Email</label>
-				<input
-					id="email"
-					name="email"
-					type="email"
-					required
-					autocomplete="email"
-					value={form?.email ?? ''}
-					placeholder="you@example.com"
-					class="w-full rounded-lg bg-[var(--color-bg-tertiary)] px-4 py-2.5 text-sm placeholder-[var(--color-text-secondary)]/50 outline-none ring-1 ring-transparent focus:ring-[var(--color-accent)] transition-shadow"
-				/>
-			</div>
-
-			<!-- Password field -->
-			<div class="space-y-1.5">
-				<label for="password" class="block text-sm font-medium">Password</label>
-				<input
-					id="password"
-					name="password"
-					type="password"
-					required
-					autocomplete={isSignUp ? 'new-password' : 'current-password'}
-					placeholder="••••••••"
-					minlength={isSignUp ? 6 : undefined}
-					class="w-full rounded-lg bg-[var(--color-bg-tertiary)] px-4 py-2.5 text-sm placeholder-[var(--color-text-secondary)]/50 outline-none ring-1 ring-transparent focus:ring-[var(--color-accent)] transition-shadow"
-				/>
-			</div>
-
-			<!-- Submit button -->
-			<button
-				type="submit"
-				disabled={loading}
-				class="w-full rounded-lg bg-[var(--color-accent)] py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-			>
-				{#if loading && !resending}
-					<span class="inline-flex items-center gap-2">
-						<svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-							<circle
-								cx="12"
-								cy="12"
-								r="10"
-								stroke="currentColor"
-								stroke-width="4"
-								class="opacity-25"
-							/>
-							<path
-								fill="currentColor"
-								d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-								class="opacity-75"
-							/>
-						</svg>
-						{isSignUp ? 'Creating Account...' : 'Signing In...'}
-					</span>
-				{:else}
-					{isSignUp ? 'Create Account' : 'Sign In'}
+				<div class="auth-field">
+					<label for="email">Email</label>
+					<input id="email" name="email" type="email" required autocomplete="email"
+						value={form?.email ?? ''} placeholder="you@example.com" disabled={loading} />
+				</div>
+				<div class="auth-field">
+					<label for="password">Password</label>
+					<div class="auth-password">
+						<input id="password" name="password" type={showPassword ? 'text' : 'password'} required
+							autocomplete={isSignUp ? 'new-password' : 'current-password'}
+							placeholder="Enter your password" minlength={isSignUp ? 6 : undefined}
+							aria-describedby={isSignUp ? 'password-hint' : undefined} disabled={loading} />
+						<button type="button" onclick={() => { showPassword = !showPassword; }}
+							aria-label={showPassword ? 'Hide password' : 'Show password'} aria-pressed={showPassword}
+							disabled={loading}>{showPassword ? 'Hide' : 'Show'}</button>
+					</div>
+					{#if isSignUp}<small id="password-hint">At least 6 characters.</small>{/if}
+				</div>
+				<button type="submit" disabled={loading} class="studio-action auth-submit">
+					{loading && !resending ? (isSignUp ? 'Creating account…' : 'Signing in…') : (isSignUp ? 'Create account' : 'Sign in')}
+					<span aria-hidden="true">{loading && !resending ? '…' : '→'}</span>
+				</button>
+				{#if offerResend}
+					<!-- Resend uses only the email; password validation must not block it. -->
+					<button type="submit" formaction="?/resend" formnovalidate disabled={loading} class="auth-resend">
+						{resending ? 'Sending…' : 'Email me a new confirmation link'}
+					</button>
 				{/if}
-			</button>
-
-			<!-- Resend confirmation — submits this form's email to ?/resend;
-			     formnovalidate because the password is not needed for it. -->
-			{#if offerResend}
-				<button
-					type="submit"
-					formaction="?/resend"
-					formnovalidate
-					disabled={loading}
-					class="w-full rounded-lg py-2 text-sm font-medium text-[var(--color-accent)] ring-1 ring-[var(--color-accent)]/40 transition-opacity hover:opacity-80 disabled:opacity-50"
-				>
-					{resending ? 'Sending…' : 'Email me a new confirmation link'}
+			</form>
+			<div class="auth-divider"></div>
+			<p class="auth-switch">
+				{isSignUp ? 'Already have an account?' : "Don't have an account?"}
+				<button type="button" disabled={loading} onclick={() => { isSignUp = !isSignUp; showPassword = false; }}>
+					{isSignUp ? 'Sign in' : 'Create account'}
 				</button>
-			{/if}
-		</form>
-
-		<!-- Toggle sign-in / sign-up mode -->
-		<p class="text-center text-sm text-[var(--color-text-secondary)]">
-			{#if isSignUp}
-				Already have an account?
-				<button
-					type="button"
-					onclick={() => {
-						isSignUp = false;
-					}}
-					class="font-medium text-[var(--color-accent)] hover:underline"
-				>
-					Sign In
-				</button>
-			{:else}
-				Don't have an account?
-				<button
-					type="button"
-					onclick={() => {
-						isSignUp = true;
-					}}
-					class="font-medium text-[var(--color-accent)] hover:underline"
-				>
-					Create Account
-				</button>
-			{/if}
-		</p>
-
-		<!-- Back to app link -->
-		<div class="text-center">
-			<a
-				href="/"
-				class="text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text)] transition-colors"
-			>
-				← Back to Mankunku
-			</a>
-		</div>
+			</p>
+		</section>
+		<a class="auth-back" href="/">← Back to Mankunku</a>
+		<p class="auth-signature">Yakhal’ Inkomo <span>·</span> Cry of the Bull</p>
 	</div>
 </div>
+
+<style>
+	.auth-main {
+		display: flex;
+		justify-content: center;
+		padding: 24px 0 0;
+	}
+	.auth-stack {
+		width: 100%;
+		max-width: 460px;
+	}
+	.auth-panel {
+		padding: 36px 34px 28px;
+	}
+	.auth-heading {
+		display: block;
+		margin: 0 0 30px;
+	}
+	.auth-heading .studio-label {
+		color: var(--color-brass);
+		font-size: 10px;
+	}
+	.auth-heading h1 {
+		font: 500 36px/1.15 var(--font-display);
+		letter-spacing: -.035em;
+		margin: 12px 0;
+	}
+	.auth-heading h1 span {
+		color: var(--color-brass);
+	}
+	.auth-heading p:not(.studio-label) {
+		color: var(--studio-muted);
+		font-size: 13px;
+		margin: 0;
+	}
+	.auth-field {
+		margin-bottom: 20px;
+	}
+	.auth-field label {
+		display: block;
+		font-size: 12px;
+		font-weight: 500;
+		color: var(--studio-text);
+		margin-bottom: 9px;
+	}
+	.auth-field input {
+		box-sizing: border-box;
+		display: block;
+		width: 100%;
+		height: 48px;
+		background: var(--studio-well);
+		border: 1px solid var(--studio-border);
+		border-radius: 4px;
+		color: var(--studio-text);
+		font: inherit;
+		font-size: 14px;
+		padding: 12px 14px;
+		box-shadow: inset 0 2px 4px #0003;
+		outline: none;
+	}
+	.auth-field input::placeholder {
+		color: var(--studio-muted);
+		opacity: .8;
+	}
+	.auth-field input:focus {
+		border-color: var(--color-brass);
+		outline: 2px solid color-mix(in srgb,var(--color-brass) 35%,transparent);
+		outline-offset: 2px;
+	}
+	.auth-field input:disabled {
+		opacity: .55;
+	}
+	.auth-password {
+		position: relative;
+	}
+	.auth-password input {
+		padding-right: 68px;
+	}
+	.auth-password button {
+		position: absolute;
+		top: 2px;
+		bottom: 2px;
+		right: 2px;
+		min-width: 56px;
+		padding: 0 10px;
+		color: var(--studio-muted);
+		font-size: 11px;
+		border: 0;
+		background: transparent;
+		border-radius: 3px;
+		cursor: pointer;
+	}
+	.auth-password button:hover {
+		color: var(--studio-text);
+	}
+	.auth-field small {
+		display: block;
+		margin-top: 8px;
+		font-size: 11px;
+		color: var(--studio-muted);
+	}
+	.auth-submit {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		width: 100%;
+		min-height: 48px;
+		margin-top: 26px;
+		padding: 13px 17px;
+		font-size: 13px;
+		background: var(--studio-button);
+		border-color: var(--studio-border);
+	}
+	.auth-submit>span {
+		font-size: 18px;
+		font-weight: 400;
+	}
+	.auth-divider {
+		height: 1px;
+		background: color-mix(in srgb, var(--studio-border) 45%, transparent);
+		margin: 26px 0 22px;
+	}
+	.auth-switch {
+		font-size: 12px;
+		color: var(--studio-muted);
+		text-align: center;
+		margin: 0;
+		line-height: 1.8;
+	}
+	.auth-switch button {
+		padding: 10px 2px;
+		min-height: 44px;
+		border: 0;
+		background: transparent;
+		color: var(--color-brass);
+		font: inherit;
+		font-weight: 500;
+		font-size: 12px;
+		cursor: pointer;
+	}
+	.auth-switch button:hover {
+		text-decoration: underline;
+		text-underline-offset: 3px;
+	}
+	.auth-back {
+		display: block;
+		width: fit-content;
+		margin: 24px auto 0;
+		color: var(--studio-muted);
+		font-size: 12px;
+		text-decoration: none;
+		padding: 8px;
+	}
+	.auth-back:hover {
+		color: var(--studio-text);
+	}
+	.auth-signature {
+		text-align: center;
+		margin: 26px 0 0;
+		font-size: 9px;
+		color: var(--studio-muted);
+		letter-spacing: .1em;
+		text-transform: uppercase;
+	}
+	.auth-signature span {
+		color: var(--color-brass);
+		margin: 0 5px;
+	}
+	button:focus-visible,.auth-back:focus-visible {
+		outline: 2px solid var(--color-brass);
+		outline-offset: 3px;
+	}
+	button:disabled {
+		cursor: default;
+		opacity: .55;
+	}
+	.auth-notice {
+		border: 1px solid var(--studio-border);
+		border-radius: 4px;
+		padding: 12px 14px;
+		background: var(--studio-well);
+		color: var(--studio-text);
+		font-size: 12px;
+		line-height: 1.6;
+		margin-bottom: 22px;
+		overflow-wrap: anywhere;
+	}
+	.auth-error {
+		color: var(--color-error-text);
+		border-color: color-mix(in srgb,var(--color-error-text) 45%,transparent);
+	}
+	.auth-resend {
+		width: 100%;
+		border: 1px solid var(--studio-border);
+		border-radius: 4px;
+		background: transparent;
+		color: var(--studio-text);
+		font-size: 12px;
+		padding: 12px;
+		margin-top: 12px;
+		min-height: 44px;
+		cursor: pointer;
+	}
+	@media(max-width:600px) {
+		.auth-main {
+			padding: 6px 0 0;
+		}
+		.auth-panel {
+			padding: 30px 22px 24px;
+		}
+		.auth-heading h1 {
+			font-size: 32px;
+		}
+		.auth-heading {
+			margin-bottom: 26px;
+		}
+		.auth-signature {
+			margin-top: 20px;
+		}
+	}
+	@media(prefers-reduced-motion:reduce) {
+		* {
+			transition: none!important;
+			animation: none!important;
+		}
+	}
+</style>

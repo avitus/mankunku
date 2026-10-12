@@ -16,7 +16,7 @@
 	import type { PlannedKey } from '$lib/state/lick-practice.svelte';
 
 	interface Props {
-		/** Daily presents sheets ahead in equal-height rows and uses current-action cues only. */
+		/** Daily presents sheets ahead in taller rows and uses current-action cues only. */
 		daily?: boolean;
 		/** Both Deep entry paths use Daily's chart layout and result-preparation cues. */
 		deep?: boolean;
@@ -88,27 +88,12 @@
 	// audible play phase, so it cannot contradict the final preparation beat.
 	const recordingNow = $derived(isRecording && (!cue || cue.phase === 'play'));
 
-	// Rows are fixed pixel heights so the scroll math is pure: one
-	// chord-chart row (also the Daily/Deep sheet height), or a taller Focused sheet row
-	// with chords above the staff and the current bar marked on it.
-	// Chord chart: label + margin (~21), cell (90), and row padding (12).
-	// Keep the complete bottom border and beat dots inside the row budget.
+	// Approved Studio Desk: chord rows remain 128px; notation gets 60%
+	// more height, with a separate cue lane and breathing room for ledger notes.
 	const ROW_HEIGHT = 128;
-	// Lead-sheet row budget: row padding 12 + the staff box. The box is the
-	// tab clearance (26) plus the engraving at full row width (measured:
-	// 976 × 171 px for a 664 × 116.5 viewBox at LEAD_STAFF_WIDTH below),
-	// clipped to its height so the row can never overflow into the next one.
-	// No caption: the engraving itself is the message, and a line of prose
-	// under it was clutter.
-	const LEAD_STAFF_BOX = 200;
-	const LEAD_ROW_HEIGHT = LEAD_STAFF_BOX + 12;
-	// abcjs staff width in SVG units. The SVG is sized by WIDTH, so this is
-	// the zoom: a 960 px row over a ~664-unit viewBox engraves at ~1.45× —
-	// readable from a music stand, where the old 1000-unit staff was not.
+	const LEAD_ROW_HEIGHT = ROW_HEIGHT * 1.6;
+	const LEAD_STAFF_BOX = 140.8;
 	const LEAD_STAFF_WIDTH = 640;
-	// Keep noteheads readable; compactStaff removes unused engraving margins
-	// before the fixed-height row scales the music to fit.
-	const COMPACT_STAFF_WIDTH = 700;
 	const VISIBLE_ROWS = 3;
 	const NO_MARKERS: RangeMarker[] = [];
 
@@ -137,13 +122,11 @@
 	]);
 	const displayFraction = $derived(historyRows + (nextCycleKey
 		? Math.min(scrollFraction, Math.max(0, plannedKeys.length - 0.0001)) : scrollFraction));
-	const rowHeights = $derived(displayKeys.map((pk) => (pk.reveal && !compact ? LEAD_ROW_HEIGHT : ROW_HEIGHT)));
-	// The viewport reserves the lead-sheet row plus a chord row whether or not
-	// this stack has a sheet: the ring under it must not move when the next
-	// cycle's stack (a key recovered above the floor) or the next lick's has
-	// no lead row — it used to shift 2 px between 315 and 317.
+	const rowHeights = $derived(displayKeys.map((pk) => (pk.reveal ? LEAD_ROW_HEIGHT : ROW_HEIGHT)));
+	// Reserve the same viewport between cycles, whether or not a recovered
+	// key still needs notation. Mixed-height scroll positions stay pure.
 	const layout = $derived(
-		keyStackLayout(rowHeights, displayFraction, ROW_HEIGHT, VISIBLE_ROWS, compact ? ROW_HEIGHT : LEAD_ROW_HEIGHT, !deep)
+		keyStackLayout(rowHeights, displayFraction, ROW_HEIGHT, VISIBLE_ROWS, LEAD_ROW_HEIGHT, !deep)
 	);
 	const translateYpx = $derived(layout.translateY);
 	const visualCurrentRow = $derived(layout.currentRow);
@@ -162,6 +145,21 @@
 			return { ...sheet, options: leadSheetAbcOptions(pk.phrase, sheet.bars) };
 		})
 	);
+	// Follow the active engraving's real bar geometry rather than stretching
+	// noteheads or accidentals to an artificial grid. Windowed sheets keep
+	// their own layout because their bars cover only part of the progression.
+	let sheetEdges = $state<Record<number, number[]>>({});
+	$effect(() => { void plannedKeys; sheetEdges = {}; });
+	/** Publish geometry only when it changes, avoiding reactive resize churn. */
+	function rememberEdges(index: number, edges: number[]): void {
+		if (JSON.stringify(sheetEdges[index]) !== JSON.stringify(edges)) {
+			sheetEdges = { ...sheetEdges, [index]: edges };
+		}
+	}
+	const alignmentIndex = $derived(leadSheets[visualCurrentRow] ? visualCurrentRow : leadSheets.findIndex(Boolean));
+	const alignmentSheet = $derived(leadSheets[alignmentIndex]);
+	const barEdges = $derived(alignmentSheet?.startBar === 0 ? sheetEdges[alignmentIndex] : undefined);
+
 	// The tab names the key of the row it sits on — that row is always the one
 	// about to be played (the turnaround has already swapped the stack).
 	const activeKeyLabel = $derived.by(() => {
@@ -228,7 +226,7 @@
 	{tab && tab.kind !== 'hidden' ? tab.text : ''}
 </span>
 
-<div class="viewport" class:compact style="height: {layout.viewportHeight}px;">
+<div class="viewport" class:compact style="height: {Math.max(460.8, layout.viewportHeight)}px;">
 	<!-- A rebuilt Deep cycle starts with its outgoing row, then scrolls it
 	     out just like an ordinary key boundary. Same-key retries stay still. -->
 	{#key plannedKeys}
@@ -254,7 +252,13 @@
 					class="chart-wrap"
 					class:recording={isCurrent && recordingNow}
 					class:arming={isCurrent && isArming && !recordingNow}
+					class:listening={isCurrent && (tab?.kind === 'listen' || tab?.kind === 'listen-in' || tab?.kind === 'read')}
+					style="--practice-phase: {isCurrent && (tab?.kind === 'listen' || tab?.kind === 'listen-in' || tab?.kind === 'read') ? 'var(--color-phase-listen)' : 'var(--color-phase-play)'};"
 				>
+						{#if sheet && isCurrent && activeBar >= 0 && sheetEdges[i]?.[activeBar + 1] !== undefined}
+							<div class="notation-wash" aria-hidden="true"
+								style="left: {sheetEdges[i][activeBar] * 100}%; width: {(sheetEdges[i][activeBar + 1] - sheetEdges[i][activeBar]) * 100}%;"></div>
+						{/if}
 						{#if sheet}
 							<!-- Lead-sheet row: the key being learned is under the floor, so
 							     the line is engraved against its changes — chords above the
@@ -268,15 +272,16 @@
 								class="lead-sheet"
 								class:revealed={isRevealed}
 								data-testid="lead-sheet-row"
-								style="--lead-staff-box: {compact ? ROW_HEIGHT - 12 : LEAD_STAFF_BOX}px;"
+								style="--lead-staff-box: {LEAD_STAFF_BOX}px;"
 							>
 								<NotationDisplay
 									tune={sheet.tune}
 									tuneOptions={sheet.options}
 									{instrument}
 									frameless
-									staffWidth={compact ? COMPACT_STAFF_WIDTH : LEAD_STAFF_WIDTH}
-									compactStaff={compact}
+									staffWidth={LEAD_STAFF_WIDTH}
+									onBarLayout={(edges) => rememberEdges(i, edges)}
+									compactStaff
 									rangeMarkers={isCurrent ? activeMarkers : NO_MARKERS}
 								/>
 							</div>
@@ -287,7 +292,8 @@
 									out:fade={{ duration: 400 }}
 								>
 									<ChordChart
-										showLabel={!compact}
+										{barEdges}
+										showLabel={false}
 										harmony={pk.harmony}
 										currentBeat={0}
 										timeSignature={[4, 4]}
@@ -300,7 +306,8 @@
 							{/if}
 					{:else}
 						<ChordChart
-							showLabel={!compact}
+							{barEdges}
+							showLabel={false}
 							harmony={pk.harmony}
 							currentBeat={isCurrent ? currentBeat : 0}
 							timeSignature={[4, 4]}
@@ -418,55 +425,23 @@
 		position: relative;
 		border-radius: 0.5rem;
 	}
-	/* Live mic — the play-phase colour (brass): it is the user's turn. */
-	.chart-wrap.recording {
-		box-shadow: 0 0 0 2px var(--color-phase-play);
+	/* The frame begins BELOW the cue. Its exact bounds also contain the
+	   chord-cell highlight, so Listen and Play share one stable geometry. */
+	.chart-wrap { padding-top: 28px; }
+	.chart-wrap::after {
+		content: ''; position: absolute; inset: 28px 0 auto; height: 88px;
+		border: 1px solid transparent; border-radius: 2px; pointer-events: none;
 	}
-	/* Lead-in: same ring, dashed and dimmed, so the row the user is about to
-	   play is already marked a bar before the switch. */
-	.chart-wrap.arming {
-		outline: 2px dashed color-mix(in srgb, var(--color-phase-play) 55%, transparent);
-		outline-offset: 0;
-	}
-	/* Lead-sheet row: the staff is sized by WIDTH like every other chart, so
-	   LEAD_STAFF_WIDTH is the zoom — and never taller than the box, so a
-	   phrase with ledger lines scales down (left-aligned, xMinYMin meet)
-	   rather than clipping. The box is a fixed height for the scroll math and
-	   clipped so nothing can spill into the next row. The top padding keeps
-	   the phase tab (pinned to the chart-wrap corner) off the clef and key
-	   signature. abcjs's responsive mode sets the SVG absolute inside an
-	   aspect-ratio padding box, all inline — hence the !important on every
-	   override. */
+	.has-sheet .chart-wrap::after { height: 140.8px; }
+	.chart-wrap.recording::after, .chart-wrap.listening::after { border-color: var(--practice-phase); }
+	.chart-wrap.arming::after { border: 1px dashed var(--color-phase-play); }
+	.notation-wash { position: absolute; top: 28px; height: 140.8px; background: color-mix(in srgb, var(--practice-phase) 9%, transparent); pointer-events: none; }
 	.lead-sheet {
-		box-sizing: border-box;
-		height: var(--lead-staff-box);
-		padding: 26px 0 0;
-		overflow: hidden;
-		/* Engraved ahead, shown at the reading pause: `visibility` (not just
-		   opacity) so the staff is genuinely absent from the page until then,
-		   then a fade in as the placeholder chart fades out over it. */
-		visibility: hidden;
-		opacity: 0;
-		transition: opacity 400ms ease;
+		box-sizing: border-box; height: var(--lead-staff-box); padding: 10px 0;
+		overflow: hidden; visibility: hidden; opacity: 0; transition: opacity 400ms ease;
+		display: flex; align-items: center;
 	}
-	.compact .lead-sheet {
-		/* Narrow rows keep the cue above the music. */
-		padding-top: 26px;
-	}
-	.compact .lead-sheet :global(svg) {
-		max-height: calc(var(--lead-staff-box) - 30px);
-	}
-	@container (min-width: 900px) {
-		.compact .lead-sheet {
-			/* Reserve a fixed cue column, so even a tall phrase that scales
-			   down cannot put its first chord underneath PLAY. Use the full
-			   row height for the music alongside it. */
-			padding: 0 0 0 128px;
-		}
-		.compact .lead-sheet :global(svg) {
-			max-height: calc(var(--lead-staff-box) - 4px);
-		}
-	}
+	.lead-sheet :global(.notation-container) { width: 100%; }
 	.lead-sheet.revealed {
 		visibility: visible;
 		opacity: 1;
@@ -476,7 +451,7 @@
 	   over the (hidden) staff box, top-aligned like a chord row's chart. */
 	.sheet-placeholder {
 		position: absolute;
-		inset: 0 0 auto 0;
+		inset: 28px 0 auto 0;
 		pointer-events: none;
 	}
 	.lead-sheet :global(.abcjs-container) {
@@ -489,8 +464,11 @@
 		display: block;
 		width: 100% !important;
 		height: auto !important;
-		max-height: calc(var(--lead-staff-box) - 26px);
+		max-height: calc(var(--lead-staff-box) - 20px);
 	}
+
+	.lead-sheet :global(svg .abcjs-staff path), .lead-sheet :global(svg .abcjs-staff line) { stroke: color-mix(in srgb, var(--color-text) 55%, transparent) !important; }
+	.lead-sheet :global(svg .playhead-under-bar) { fill: var(--practice-phase) !important; }
 
 	/* Transient per-key score chip: fades in over the just-scored row, holds,
 	   fades out — sized and placed to never obscure the chord boxes' text. */
@@ -540,7 +518,7 @@
 		gap: 0.4rem;
 		max-width: 100%;
 		padding: 0.18rem 0.55rem;
-		border-radius: 0.45rem;
+		border-radius: 2px;
 		border: 1px solid transparent;
 		background: var(--color-bg);
 		color: var(--color-text-secondary);

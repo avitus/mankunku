@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures/auth';
-import { seedOnboardedAnonymous } from './fixtures/storage';
+import { seedOnboardedAnonymous, seedStorage, SETTINGS_ONBOARDED, TOUR_DISMISSED } from './fixtures/storage';
 import type { Page } from '@playwright/test';
 
 /**
@@ -21,16 +21,31 @@ test.describe('auth — anonymous', () => {
 		await expect(page.locator('main')).toBeVisible();
 		// The credential fields are labelled, and the submit reads Sign In.
 		await expect(page.getByLabel('Email')).toBeVisible();
-		await expect(page.getByLabel('Password')).toBeVisible();
+		await expect(page.getByLabel('Password', { exact: true })).toBeVisible();
 		const submit = page.locator('button[type="submit"]');
-		await expect(submit).toHaveText('Sign In');
+		await expect(submit).toHaveAccessibleName('Sign in');
+
+		const password = page.getByLabel('Password', { exact: true });
+		await password.fill('preview-password');
+		await expect(password).toHaveAttribute('autocomplete', 'current-password');
+		await page.getByRole('button', { name: 'Show password', exact: true }).click();
+		await expect(password).toHaveAttribute('type', 'text');
+		await expect(password).toHaveValue('preview-password');
+		await page.getByRole('button', { name: 'Hide password', exact: true }).click();
+		await expect(password).toHaveAttribute('type', 'password');
 
 		// The mode toggle swaps the form into sign-up (the submit re-labels)
 		// and back again.
-		await page.getByRole('button', { name: 'Create Account', exact: true }).click();
-		await expect(submit).toHaveText('Create Account');
-		await page.getByRole('button', { name: 'Sign In', exact: true }).click();
-		await expect(submit).toHaveText('Sign In');
+		await page.getByRole('button', { name: 'Create account', exact: true }).click();
+		await expect(submit).toHaveAccessibleName('Create account');
+		await expect(page.locator('main form')).toHaveAttribute('action', '?/register');
+		await expect(password).toHaveAttribute('autocomplete', 'new-password');
+		await expect(password).toHaveAttribute('minlength', '6');
+		await expect(password).toHaveAccessibleDescription('At least 6 characters.');
+		await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+		await expect(submit).toHaveAccessibleName('Sign in');
+		await expect(page.locator('main form')).toHaveAttribute('action', '?/login');
+		await expect(password).not.toHaveAttribute('minlength');
 	});
 
 	// avitus+sop, 2026-10-05: a dead confirmation link used to land on
@@ -170,3 +185,24 @@ test.describe('password reset (authed)', () => {
 		await expect(password).toHaveCount(0);
 	});
 });
+
+for (const theme of ['dark', 'light']) {
+	test(`${theme} sign-in panel fits phones and desktops, including long notices`, async ({ page }, testInfo) => {
+		await seedStorage(page, { settings: { ...SETTINGS_ONBOARDED, theme }, 'tour-state': TOUR_DISMISSED });
+		await page.goto('/auth?error=link_expired');
+		const panel = page.getByRole('region', { name: 'Welcome back' });
+		for (const width of [1440, 900, 390, 320]) {
+			await page.setViewportSize({ width, height: 900 });
+			await expect(panel).toBeVisible();
+			expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+			for (const control of [page.getByLabel('Email'), page.getByLabel('Password', { exact: true }), panel.getByRole('button', { name: 'Sign in', exact: true }), panel.getByRole('button', { name: 'Email me a new confirmation link' })]) {
+				const bounds = await control.boundingBox();
+				expect(bounds).not.toBeNull();
+				expect(bounds!.x).toBeGreaterThanOrEqual(0);
+				expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
+				expect(bounds!.height).toBeGreaterThanOrEqual(44);
+			}
+			await page.screenshot({ path: testInfo.outputPath(`auth-${theme}-${width}.png`), fullPage: true });
+		}
+	});
+}

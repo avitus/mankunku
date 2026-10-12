@@ -3,6 +3,8 @@
 	import { comparePeriods, getWeekRanges, getMonthRanges } from '$lib/state/history.svelte';
 	import { formatMinutes } from '$lib/util/format-duration';
 
+	let { studio = false }: { studio?: boolean } = $props();
+
 	type Tab = 'week' | 'month';
 	let tab: Tab = $state('week');
 
@@ -91,17 +93,19 @@
 	const hasData = $derived(comparison.current.sessionCount > 0 || comparison.previous.sessionCount > 0);
 </script>
 
-<div>
+<div class:studio-period={studio}>
 	<!-- Tab selector -->
-	<div class="mb-3 flex gap-1">
+	<div class="period-selector mb-3 flex gap-1">
 		<button
 			onclick={() => { tab = 'week'; }}
+			aria-pressed={tab === 'week'}
 			class="rounded px-3 py-1 text-xs transition-colors {tab === 'week'
 				? 'bg-[var(--color-accent)] text-white'
 				: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg)]'}"
 		>Week</button>
 		<button
 			onclick={() => { tab = 'month'; }}
+			aria-pressed={tab === 'month'}
 			class="rounded px-3 py-1 text-xs transition-colors {tab === 'month'
 				? 'bg-[var(--color-accent)] text-white'
 				: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg)]'}"
@@ -110,7 +114,7 @@
 
 	{#if hasData}
 		<!-- Six metrics: two abreast on a phone, three on a tablet, one row wide. -->
-		<div class="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-3 lg:grid-cols-6">
+		<div class="period-metrics grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-3 lg:grid-cols-6">
 			{#each metrics as m}
 				<div class="text-center" data-metric={m.label}>
 					<div class="text-xs text-[var(--color-text-secondary)]">{m.label}</div>
@@ -130,3 +134,14 @@
 		</div>
 	{/if}
 </div>
+
+<style>
+	.studio-period .period-selector { width: fit-content; padding: 3px; gap: 3px; background: var(--studio-well); border: 1px solid var(--studio-border); border-radius: 4px; margin-bottom: 20px; }
+	.studio-period button { min-height: 32px; min-width: 64px; background: transparent; color: var(--studio-muted); }
+	.studio-period button[aria-pressed='true'] { background: var(--studio-panel-highlight); color: var(--studio-text); box-shadow: inset 0 0 0 1px var(--studio-border); }
+	.studio-period button:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+	.studio-period .period-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px 10px; }
+	.studio-period [data-metric] { text-align: left; }
+	.studio-period [data-metric] > :nth-child(2) { font: 500 26px/1.4 var(--font-display); margin: 3px 0; }
+	@media (max-width: 380px) { .studio-period .period-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+</style>
