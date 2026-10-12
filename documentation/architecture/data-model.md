@@ -664,11 +664,21 @@ interface InstrumentConfig {
 
 | ID | Name | Key | Transposition | Range (MIDI) | GM Program |
 |---|---|---|---|---|---|
-| `concert` | Concert Pitch | C | 0 | 36–96 | 0 |
 | `soprano-sax` | Soprano Saxophone | Bb | +2 | 56–88 | 64 |
 | `tenor-sax` | Tenor Saxophone | Bb | +14 | 44–76 | 66 |
 | `alto-sax` | Alto Saxophone | Eb | +9 | 49–80 | 65 |
 | `trumpet` | Trumpet | Bb | +2 | 52–82 | 56 |
+| `piano` | Piano | C | 0 | 48–85 | 0 |
+| `guitar` | Guitar | C | 0 | 40–77 | 26 |
+| `bass` | Bass | C | 0 | 40–68 | 32 |
+| `trombone` | Trombone | C | 0 | 40–75 | 57 |
+| `flute` | Flute | C | 0 | 60–87 | 73 |
+| `vibraphone` | Vibraphone | C | 0 | 53–87 | 11 |
+| `violin` | Violin | C | 0 | 55–87 | 40 |
+| `voice` | Voice | C | 0 | 48–77 | 53 |
+| `concert` | Other C Instrument | C | 0 | 36–96 | 0 |
+
+The C instruments sit behind one **Concert Pitch** choice in onboarding and Settings, followed by "which instrument?" (`CONCERT_INSTRUMENT_IDS`, `isConcertInstrument`); `concert` is that question's "Other" answer and the id every pre-follow-up concert user keeps. They share transposition 0 and differ in range (which octave a lick is pitched in, and the Highest knob's default) and tuning advice. Their ranges stay inside the pitch detector's 80–1200 Hz window (MIDI 40–86), so the bass is clipped to its upper register. Not yet per-instrument: the clef (notation is treble for all), guitar/bass octave transposition, and the playback voice (every C instrument plays the sax demo sound, as `concert` always has).
 
 ## Combinatorial Types (`src/lib/types/combinatorial.ts`)
 

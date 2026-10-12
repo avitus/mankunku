@@ -24,6 +24,14 @@
 
 	let buttons: HTMLButtonElement[] = $state([]);
 
+	// Roving tabindex: the active option is the tab stop. With no option active
+	// (a follow-up question not yet answered) the first enabled one is, or the
+	// group would be unreachable from the keyboard.
+	const tabStop = $derived.by(() => {
+		const active = options.findIndex((o) => o.value === value);
+		return active !== -1 ? active : options.findIndex((o) => !o.disabled);
+	});
+
 	function onKeyDown(e: KeyboardEvent, index: number) {
 		if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
 			e.preventDefault();
@@ -67,7 +75,7 @@
 			aria-checked={active}
 			disabled={opt.disabled}
 			title={opt.title ?? opt.label}
-			tabindex={active ? 0 : -1}
+			tabindex={i === tabStop ? 0 : -1}
 			onclick={() => !opt.disabled && onChange(opt.value)}
 			onkeydown={(e) => onKeyDown(e, i)}
 			class="pad-btn relative flex flex-col items-center justify-center rounded-[3px] text-center transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brass-soft)]"

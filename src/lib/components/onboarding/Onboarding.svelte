@@ -1,5 +1,10 @@
 <script lang="ts">
-	import { INSTRUMENTS } from '$lib/types/instruments';
+	import {
+		INSTRUMENTS,
+		TRANSPOSING_INSTRUMENT_IDS,
+		CONCERT_INSTRUMENT_IDS,
+		concertInstrumentLabel
+	} from '$lib/types/instruments';
 	import { settings, saveSettings } from '$lib/state/settings.svelte';
 	import { checkMicPermission, startMicCapture, stopMicCapture } from '$lib/audio/capture';
 	import type { SupabaseClient, Session, User } from '@supabase/supabase-js';
@@ -13,13 +18,14 @@
 		user?: User | null;
 	} = $props();
 
-	let step = $state<'restore' | 'instrument' | 'mic' | 'ready'>('instrument');
+	let step = $state<'restore' | 'instrument' | 'concert-instrument' | 'mic' | 'ready'>('instrument');
 	let micStatus = $state<'idle' | 'requesting' | 'granted' | 'denied'>('idle');
 	let hasCloudData = $state(false);
 	let checkingCloud = $state(false);
 	let cloudRestored = $state(false);
 
-	const instruments = Object.entries(INSTRUMENTS);
+	// The follow-up question shares the instrument step's progress dot.
+	const dotStep = $derived(step === 'concert-instrument' ? 'instrument' : step);
 
 	/**
 	 * Reactively detect cloud data when an authenticated user arrives.
@@ -120,7 +126,7 @@
 		<div class="flex justify-center gap-2">
 			{#each hasCloudData ? ['restore', 'instrument', 'mic', 'ready'] : ['instrument', 'mic', 'ready'] as s}
 				<div
-					class="h-2 w-2 rounded-full transition-colors {s === step
+					class="h-2 w-2 rounded-full transition-colors {s === dotStep
 						? 'bg-[var(--color-accent)]'
 						: 'bg-[var(--color-bg-tertiary)]'}"
 				></div>
@@ -167,18 +173,54 @@
 			</div>
 
 			<div class="space-y-2">
-				{#each instruments as [id, config]}
+				{#each TRANSPOSING_INSTRUMENT_IDS as id (id)}
 					<button
 						onclick={() => selectInstrument(id)}
 						class="w-full rounded-lg bg-[var(--color-bg-secondary)] p-4 text-left transition-colors hover:bg-[var(--color-bg-tertiary)]"
 					>
-						<p class="text-lg font-medium">{config.name}</p>
+						<p class="text-lg font-medium">{INSTRUMENTS[id].name}</p>
 						<p class="text-xs text-[var(--color-text-secondary)]">
-							{config.key} transposition
+							{INSTRUMENTS[id].key} transposition
 						</p>
 					</button>
 				{/each}
+				<button
+					data-testid="onboarding-concert-pitch"
+					onclick={() => { step = 'concert-instrument'; }}
+					class="w-full rounded-lg bg-[var(--color-bg-secondary)] p-4 text-left transition-colors hover:bg-[var(--color-bg-tertiary)]"
+				>
+					<p class="text-lg font-medium">Concert Pitch</p>
+					<p class="text-xs text-[var(--color-text-secondary)]">
+						C instruments: piano, guitar, bass, trombone, flute, vibes, violin, voice
+					</p>
+				</button>
 			</div>
+
+		{:else if step === 'concert-instrument'}
+			<div class="space-y-2 text-center">
+				<h1 class="text-2xl font-bold">Which instrument?</h1>
+				<p class="text-[var(--color-text-secondary)]">
+					Sets the range your phrases are pitched in.
+				</p>
+			</div>
+
+			<div class="grid grid-cols-3 gap-2" data-testid="onboarding-concert-instruments">
+				{#each CONCERT_INSTRUMENT_IDS as id (id)}
+					<button
+						onclick={() => selectInstrument(id)}
+						class="rounded-lg bg-[var(--color-bg-secondary)] px-2 py-4 text-center font-medium transition-colors hover:bg-[var(--color-bg-tertiary)]"
+					>
+						{concertInstrumentLabel(id)}
+					</button>
+				{/each}
+			</div>
+
+			<button
+				onclick={() => { step = 'instrument'; }}
+				class="w-full rounded-lg p-2 text-sm text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text)]"
+			>
+				Back
+			</button>
 
 		{:else if step === 'mic'}
 			<div class="space-y-4 text-center">

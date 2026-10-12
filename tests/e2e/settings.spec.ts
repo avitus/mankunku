@@ -51,4 +51,38 @@ test.describe('settings persistence', () => {
 			.first();
 		await expect(altoRadio).toHaveAttribute('aria-checked', 'true');
 	});
+
+	test('Concert Pitch asks which C instrument before changing anything', async ({
+		page,
+		consoleCollector: _consoleCollector
+	}) => {
+		await page.goto('/settings');
+
+		const instrumentGroup = page.getByRole('radiogroup', { name: 'Instrument', exact: true });
+		const concertGroup = page.getByRole('radiogroup', { name: 'C instrument', exact: true });
+		await expect(concertGroup).toHaveCount(0);
+
+		await instrumentGroup.getByRole('radio', { name: /Concert Pitch/ }).click();
+
+		// The follow-up is open and unanswered: no C instrument chosen, and the
+		// seeded tenor is still the saved instrument.
+		await expect(concertGroup).toBeVisible();
+		await expect(concertGroup.getByRole('radio', { checked: true })).toHaveCount(0);
+		await expect(concertGroup.getByRole('radio', { name: 'Piano' })).toHaveAttribute('tabindex', '0');
+		await page.reload();
+		await expect(
+			page.getByRole('radiogroup', { name: 'Instrument', exact: true }).getByRole('radio', { name: /Tenor/ })
+		).toHaveAttribute('aria-checked', 'true');
+
+		await page.getByRole('radiogroup', { name: 'Instrument', exact: true })
+			.getByRole('radio', { name: /Concert Pitch/ })
+			.click();
+		await concertGroup.getByRole('radio', { name: 'Guitar' }).click();
+		await page.reload();
+
+		await expect(
+			page.getByRole('radiogroup', { name: 'Instrument', exact: true }).getByRole('radio', { name: /Concert Pitch/ })
+		).toHaveAttribute('aria-checked', 'true');
+		await expect(concertGroup.getByRole('radio', { name: 'Guitar' })).toHaveAttribute('aria-checked', 'true');
+	});
 });

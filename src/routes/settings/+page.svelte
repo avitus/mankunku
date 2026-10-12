@@ -1,5 +1,12 @@
 <script lang="ts">
-	import { INSTRUMENTS, type BackingInstrument } from '$lib/types/instruments';
+	import {
+		INSTRUMENTS,
+		TRANSPOSING_INSTRUMENT_IDS,
+		CONCERT_INSTRUMENT_IDS,
+		isConcertInstrument,
+		concertInstrumentLabel,
+		type BackingInstrument
+	} from '$lib/types/instruments';
 	import { settings, saveSettings, applyTheme, getInstrument, getEffectiveHighestNote } from '$lib/state/settings.svelte';
 	import { setMasterVolume } from '$lib/audio/audio-context';
 	import { progress, resetProgress, getUnlockContext } from '$lib/state/progress.svelte';
@@ -30,8 +37,27 @@
 	import { goto } from '$app/navigation';
 	import { passwordRecoveryRedirect } from '$lib/supabase/password-recovery';
 
-	const instruments = Object.entries(INSTRUMENTS);
 	const instrument = $derived(getInstrument());
+
+	// The instrument pad lists the transposing horns plus ONE "Concert Pitch"
+	// entry; choosing it asks a follow-up — which C instrument — and changes
+	// nothing until that is answered.
+	const CONCERT_FAMILY = 'concert-family';
+	const familyOptions = [
+		...TRANSPOSING_INSTRUMENT_IDS.map((id) => ({
+			value: id as string,
+			label: INSTRUMENTS[id].name,
+			sublabel: `${INSTRUMENTS[id].key} transposition`
+		})),
+		{ value: CONCERT_FAMILY, label: 'Concert Pitch', sublabel: 'C instruments' }
+	];
+	const concertOptions = CONCERT_INSTRUMENT_IDS.map((id) => ({
+		value: id as string,
+		label: concertInstrumentLabel(id)
+	}));
+	let askingConcert = $state(false);
+	const onConcert = $derived(isConcertInstrument(settings.instrumentId));
+	const familyValue = $derived(onConcert || askingConcert ? CONCERT_FAMILY : settings.instrumentId);
 
 	// Highest-note knob: sort presets ascending so rotating clockwise raises pitch.
 	const highestPresets = $derived([...instrument.highNotePresets].sort((a, b) => a - b));
@@ -92,9 +118,16 @@
 	}
 
 	function selectInstrument(id: string) {
+		askingConcert = false;
+		if (id === settings.instrumentId) return;
 		settings.instrumentId = id;
 		settings.highestNote = null;
 		saveSettings(supabase);
+	}
+
+	function selectFamily(value: string) {
+		if (value === CONCERT_FAMILY) askingConcert = !onConcert;
+		else selectInstrument(value);
 	}
 
 	function selectTheme(theme: 'dark' | 'light') {
@@ -275,17 +308,30 @@
 					<div class="flex items-center justify-center" style:min-height="84px">
 						<SelectorPad
 							ariaLabel="Instrument"
-							value={settings.instrumentId}
-							options={instruments.map(([id, config]) => ({
-								value: id,
-								label: config.name,
-								sublabel: `${config.key} · ${config.concertRangeLow}–${config.concertRangeHigh}`
-							}))}
-							onChange={selectInstrument}
+							value={familyValue}
+							options={familyOptions}
+							onChange={selectFamily}
 						/>
 					</div>
 					<span class="smallcaps console-engrave">Instrument</span>
 				</div>
+
+				{#if onConcert || askingConcert}
+					<div class="inline-flex flex-col items-center gap-1.5" data-testid="concert-instrument-picker">
+						{#if askingConcert}
+							<p class="text-xs text-[var(--color-text-secondary)]">Which C instrument do you play?</p>
+						{/if}
+						<SelectorPad
+							ariaLabel="C instrument"
+							size="sm"
+							columns={3}
+							value={onConcert ? settings.instrumentId : ''}
+							options={concertOptions}
+							onChange={selectInstrument}
+						/>
+						<span class="smallcaps console-engrave">C instrument</span>
+					</div>
+				{/if}
 
 				<Knob
 					label="Highest"

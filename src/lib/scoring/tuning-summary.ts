@@ -82,7 +82,15 @@ const OVERALL_FIX: Record<string, string> = {
 	'soprano-sax': 'a mouthpiece adjustment',
 	'alto-sax': 'a mouthpiece adjustment',
 	'tenor-sax': 'a mouthpiece adjustment',
-	trumpet: 'a tuning-slide adjustment'
+	trumpet: 'a tuning-slide adjustment',
+	trombone: 'a tuning-slide adjustment',
+	flute: 'a headjoint adjustment',
+	guitar: 'retuning the strings',
+	bass: 'retuning the strings',
+	violin: 'retuning the strings',
+	// Fixed-pitch instruments: an overall offset is the instrument, not the player.
+	piano: "the piano's tuning",
+	vibraphone: "the vibraphone's tuning"
 };
 
 /**

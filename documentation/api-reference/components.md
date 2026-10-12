@@ -466,7 +466,7 @@ When all three auth props are provided, the component checks Supabase for existi
 
 **States:**
 1. **Restore** (Welcome Back) — shown only when cloud data is detected; offers "Restore My Progress" or "Start Fresh Instead"
-2. **Instrument** — Select from all `INSTRUMENTS` entries (Concert Pitch, Soprano Saxophone, Tenor Saxophone, Alto Saxophone, Trumpet)
+2. **Instrument** — The transposing horns (`TRANSPOSING_INSTRUMENT_IDS`: soprano, alto, tenor sax, trumpet) plus one **Concert Pitch** entry, which opens a follow-up "Which instrument?" grid of `CONCERT_INSTRUMENT_IDS` (piano, guitar, bass, trombone, flute, vibraphone, violin, voice, Other) with a Back button; the follow-up shares the instrument step's progress dot
 3. **Mic** — Request microphone permission (with "Skip for now" option)
 4. **Ready** — Welcome message with "Start Practicing" and "Go to Dashboard" links
 

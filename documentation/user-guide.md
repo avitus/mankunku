@@ -303,7 +303,7 @@ The global Settings page controls things that aren't specific to a single sessio
 
 | Setting | What it does |
 |---|---|
-| **Instrument** | Concert pitch (C), soprano sax, tenor sax, alto sax, or trumpet. Affects transposition (sheet music in your key), playback timbre, and the pitch range the detector expects. |
+| **Instrument** | Soprano sax, tenor sax, alto sax, trumpet, or Concert Pitch — choosing Concert Pitch asks which C instrument you play (piano, guitar, bass, trombone, flute, vibes, violin, voice, or other). Affects transposition (sheet music in your key), playback timbre, the range phrases are pitched in, and the tuning advice. |
 | **Highest** | Caps how high licks can transpose. Set this to your real high note so the app doesn't push phrases above your range. |
 | **Master** | Overall output level; playback, metronome, and backing track are all relative to it. |
 | **Theme** | Dark (default) or light. |

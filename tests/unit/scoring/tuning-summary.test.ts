@@ -92,6 +92,10 @@ describe('tuning summary lines', () => {
 	it.each([
 		['tenor-sax', "You're 10¢ sharp overall. That's a mouthpiece adjustment, not a note problem."],
 		['trumpet', "You're 10¢ sharp overall. That's a tuning-slide adjustment, not a note problem."],
+		['trombone', "You're 10¢ sharp overall. That's a tuning-slide adjustment, not a note problem."],
+		['guitar', "You're 10¢ sharp overall. That's retuning the strings, not a note problem."],
+		['piano', "You're 10¢ sharp overall. That's the piano's tuning, not a note problem."],
+		['voice', "You're 10¢ sharp overall. That's an overall tuning adjustment, not a note problem."],
 		['concert', "You're 10¢ sharp overall. That's an overall tuning adjustment, not a note problem."]
 	])('names an overall offset as the %s player would fix it', (instrumentId, line) => {
 		expect(tuningSummaryLines(session(8, 10, 12), instrumentId, name)[0]).toBe(line);
