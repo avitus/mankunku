@@ -374,6 +374,7 @@ The approved MagicPath pages are implemented natively in Svelte 5 (2026-10-11).
 | Lick Practice · Studio Console | `459464126830383104` | `459511600479637504` |
 | Licks · Studio Library | `460234239577821184` | `460236188301803520` |
 | Tunes · Studio Library | `460237458806812672` | `460237458806812673` |
+| Ear Training · Studio Console | `459411700509200384` | `460504190599458816` |
 | Landing · Studio Desk | `460241787924140032` | `460242697312145408` |
 
 React prototype state and handlers are not shipped. `StudioPage` and `StudioPanel`
@@ -390,7 +391,7 @@ phase, mastery and accuracy tokens above; they do not replace their meanings.
 controls. Activity overrides are scoped to the owning panel. Settings is neutral;
 its tonality section is ear-training and its practice link is lick-practice.
 
-Home/landing, Settings, Lick Practice setup, Licks and Tunes opt into the layout's
+Home/landing, Settings, Ear Training, Lick Practice setup, Licks and Tunes opt into the layout's
 1440px Studio Desk container. Nested detail, editor, import and session routes
 retain their existing width and presentation. The setup summary
 moves below the controls on tablet/mobile; instrument and scale banks reflow
@@ -427,3 +428,21 @@ The landing page explains Ear Training and Vocabulary (Licks and Tricks); its
 interactive previews are explicitly illustrative. Lick Practice keeps one duration
 dial and a read-only summary that distinguishes the time budget from the planned
 session length. Deep Practice and Tricks retain their original configuration logic.
+
+### Focus on sound
+
+Pages visible while playing prioritize listening over reading. Keep the musical
+context, a single Listen/Play cue, transport and exact scores. Move explanatory
+copy, tuning interpretation and attributed jazz quotes to paused moments or help.
+Avoid repeated instructions, decorative motion and layout changes between Listen
+and Play. Ear Training has no visible medal badge: its existing five accuracy
+colours are applied to the actual overall, pitch and rhythm percentages; the grade
+remains available to screen readers. The quote region is fixed in height, scrolls
+for long existing captions, and is empty during a live run.
+
+`EarTrainingConsole` is a presentation component: the route retains the audio,
+recording, rescore, automatic progression and persistence lifecycle. `TuningFaders`
+opts into console styling without changing transposition, medians, spread bands,
+steadiness or A = 440 / personal-centre calculations. Prototype sample scores,
+quotes and state controls are never shipped. Dark mode remains the default, with
+existing semantic light-theme tokens respected.

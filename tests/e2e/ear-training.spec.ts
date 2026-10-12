@@ -241,5 +241,36 @@ test.describe('ear-training: saved take', () => {
 		// The mocked mic's steady tone: the take started on it, so the live
 		// detector read it.
 		expect(t.liveReadings.length).toBeGreaterThan(0);
+
+		// A real take supplies the redesigned score and paused quote; no demo data.
+		const quote = page.getByTestId('practice-quote');
+		await expect(quote).toHaveText('');
+		await expect(page.getByRole('button', { name: 'Pause practice', exact: true })).toBeEnabled();
+		await page.getByRole('button', { name: 'Pause practice', exact: true }).click();
+		await expect(quote).not.toHaveText('');
+		await expect(page.locator('[data-tour="score-display"]')).toContainText('Last take');
+		const scoreBefore = await page.locator('[data-tour="score-display"]').textContent();
+		await page.getByRole('button', { name: 'Start practice', exact: true }).click();
+		await expect(quote).toHaveText('');
+		await expect(page.getByTestId('tuning-faders')).toHaveCount(0);
+		await expect(page.locator('[data-tour="score-display"]')).toHaveText(scoreBefore ?? '');
+
 	});
+});
+
+
+test('ear-training: console fits phone and tablet in both themes', async ({ page }) => {
+	await seedOnboardedAnonymous(page);
+	await installAudioMock(page);
+	await stubCdnInstrumentSamples(page);
+	await page.goto('/ear-training', { waitUntil: 'networkidle' });
+	for (const width of [390, 768]) {
+		await page.setViewportSize({ width, height: 900 });
+		for (const light of [false, true]) {
+			await page.evaluate((value) => document.documentElement.classList.toggle('light', value), light);
+			await expect(page.getByRole('heading', { name: 'Ear training', exact: false })).toBeVisible();
+			await expect(page.getByRole('button', { name: 'Start practice', exact: true })).toBeVisible();
+			expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+		}
+	}
 });

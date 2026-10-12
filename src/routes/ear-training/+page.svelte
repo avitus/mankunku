@@ -3,7 +3,7 @@
 	import { acquireScreenWakeLock, releaseScreenWakeLock } from '$lib/util/wake-lock';
 	import SeoHead from '$lib/components/seo/SeoHead.svelte';
 	import { getGradeCaption } from '$lib/scoring/grades';
-	import { GRADE_COLORS } from '$lib/ui/score-colors';
+	import EarTrainingConsole from '$lib/components/practice/EarTrainingConsole.svelte';
 	import { getAllLicks } from '$lib/phrases/library-loader';
 	import { selectEarTrainingLicks, transposeEarTrainingLick } from '$lib/phrases/ear-training-pool';
 	import { settings, getInstrument, getEffectiveHighestNote, saveSettings } from '$lib/state/settings.svelte';
@@ -25,7 +25,6 @@
 	import { filterBleed } from '$lib/audio/bleed-filter';
 	import { getTodaysTonality, isTonalityUnlocked, dateHash, SCALE_TYPE_NAMES, SCALE_TYPE_TO_SCALE_ID } from '$lib/tonality/tonality';
 	import { seededShuffle } from '$lib/util/seeded-shuffle';
-	import { formatDuration } from '$lib/util/format-duration';
 	import { getScale } from '$lib/music/scales';
 	import { createInitialScaleProficiency } from '$lib/difficulty/adaptive';
 	import { levelSignalDirection } from '$lib/difficulty/level-signal';
@@ -37,8 +36,6 @@
 	import type { MicCapture } from '$lib/audio/capture';
 	import type { OnsetDetectorHandle } from '$lib/audio/onset-detector';
 	import { page } from '$app/state';
-	import TooltipHint from '$lib/components/ui/TooltipHint.svelte';
-	import { tooltips } from '$lib/content/tooltips';
 	import TourTrigger from '$lib/components/ui/TourTrigger.svelte';
 	import { earTrainingTour } from '$lib/tour/tours/ear-training';
 	import HelpLink from '$lib/components/ui/HelpLink.svelte';
@@ -150,7 +147,7 @@
 		});
 	});
 	/**
-	 * Rotating quote rendered centered beneath the status text. Refreshed
+	 * Quote shown in the reserved region only while practice is paused. Refreshed
 	 * every 10 scored attempts (on attempts 1, 11, 21, …) rather than on
 	 * every attempt, so its variable length doesn't reflow the page on every
 	 * lick transition. Kept out of the score block so score-block height
@@ -196,8 +193,6 @@
 		session.engineState === 'recording' ||
 		session.engineState === 'loading'
 	);
-
-	const pct = (n: number) => Math.round(n * 100);
 
 	// ─── Practice-time counter ───────────────────────────────
 	/**
@@ -970,200 +965,36 @@
 	description="Call-and-response jazz ear training. Hear a phrase in the day's key, echo it on your instrument, and get pitch and rhythm scored note by note in real time."
 />
 
-<div class="flex min-h-[80vh] flex-col items-center justify-center gap-6 px-4">
-	<div class="absolute right-4 top-2">
-		<HelpLink href="/docs/user-guide#side-a-ear-training" label="Practice docs" />
-	</div>
-
-	<!-- Practice-time counter. Balances the help link in the opposite corner,
-	     and stays hidden until the first run so it isn't a nagging 0:00. -->
-	{#if practiceElapsedMs > 0}
-		<div
-			role="timer"
-			aria-label="Time practised this session"
-			class="absolute left-4 top-2 select-none text-xs tabular-nums
-				   text-[var(--color-text-secondary)] transition-opacity duration-500
-				   {practising ? 'opacity-60' : 'opacity-35'}"
-		>
-			{formatDuration(practiceElapsedMs / 1000)}
-		</div>
-	{/if}
-
-	<!-- Tonality + phrase info -->
-	<div class="text-center">
-		<div class="smallcaps text-[var(--color-brass)]">Today's key</div>
-		<div
-			class="font-display text-5xl font-bold text-[var(--color-accent)]"
-			style="letter-spacing: -0.02em;"
-		>
-			{writtenKey}
-		</div>
-		<div class="mx-auto mt-2 h-px w-16 bg-[var(--color-brass)] opacity-60"></div>
-		<div class="mt-2 font-display text-xl italic text-[var(--color-accent)] opacity-80">
-			{SCALE_TYPE_NAMES[activeTonality.scaleType]}
-		</div>
-		<div class="text-sm text-[var(--color-text-secondary)] opacity-60">
-			{scaleNoteCount} notes
-		</div>
-	</div>
-
-	<!-- Button + persistent score strip row -->
-	<div class="flex items-center justify-center gap-6">
-		<!-- Start/Stop button -->
-		<button
-			data-tour="play-button"
-			onclick={isActive ? handleStop : handlePlay}
-			disabled={session.isLoadingInstrument || starting || audioLoadFailed || (!isActive && !session.phrase)}
-			class="group relative flex h-28 w-28 shrink-0 items-center justify-center rounded-full
-				   transition-all duration-300 active:scale-95 ring-1 ring-[var(--color-brass)]/50
-				   {audioLoadFailed
-					? 'bg-[var(--color-bg-tertiary)] opacity-40 cursor-not-allowed'
-					: session.isLoadingInstrument
-					? 'bg-[var(--color-bg-tertiary)] cursor-wait'
-					: isActive
-						? 'bg-[var(--color-onair)] hover:bg-[var(--color-onair-hover)] shadow-lg'
-						: 'bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)] shadow-lg shadow-[var(--color-accent)]/20'}"
-		>
-			{#if session.isLoadingInstrument}
-				<svg class="h-10 w-10 animate-spin text-white" viewBox="0 0 24 24" fill="none">
-					<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" class="opacity-25"></circle>
-					<path d="M4 12a8 8 0 018-8" stroke="currentColor" stroke-width="3" stroke-linecap="round" class="opacity-75"></path>
-				</svg>
-			{:else if isActive}
-				<svg class="h-10 w-10 text-white" viewBox="0 0 24 24" fill="currentColor">
-					<rect x="6" y="5" width="4" height="14" rx="1" />
-					<rect x="14" y="5" width="4" height="14" rx="1" />
-				</svg>
-			{:else}
-				<svg class="h-10 w-10 ml-1 text-white" viewBox="0 0 24 24" fill="currentColor">
-					<path d="M8 5v14l11-7z" />
-				</svg>
-			{/if}
-
-			{#if session.isRecording}
-				<span class="absolute inset-0 animate-ping rounded-full bg-[var(--color-onair)] opacity-25"></span>
-			{/if}
-		</button>
-
-		<!-- Persistent score display (stays until replaced by next result).
-		     The rotating quote lives in a fixed band at the bottom of the
-		     viewport so its variable length doesn't reflow the score block
-		     on every lick transition. -->
-		<div data-tour="score-display" class="min-w-0">
-			{#if persistentScore}
-				<div class="flex items-baseline gap-1.5">
-					<div
-						class="font-display text-4xl font-bold tabular-nums"
-						style="color: {GRADE_COLORS[persistentScore.grade]}"
-					>
-						{pct(persistentScore.overall)}%
-					</div>
-					<TooltipHint
-						text={tooltips.practice.score.text}
-						learnMore={tooltips.practice.score.learnMore}
-						position="bottom"
-					/>
-				</div>
-				<div class="mt-1 flex gap-4 text-sm text-[var(--color-text-secondary)]">
-					<span>Pitch {pct(persistentScore.pitchAccuracy)}%</span>
-					<span>Rhythm {pct(persistentScore.rhythmAccuracy)}%</span>
-					<TooltipHint text={tooltips.practice.grades.text} position="bottom" />
-				</div>
-			{:else}
-				<div class="text-sm italic text-[var(--color-text-secondary)]">
-					Score appears after your first take.
-				</div>
-			{/if}
-		</div>
-	</div>
-
-	<!-- Keep the paused run's tuning directly below its score, above the
-	     reserved live-feedback rows. Late rescores still join it; Start clears it. -->
-	{#if !practising && tuningSummary.notes.length > 0}
-		<TuningFaders
-			summary={tuningSummary}
-			transpositionSemitones={instrument.transpositionSemitones}
-			displayKey={writtenKey}
-			{scaleId}
-			instrumentId={settings.instrumentId}
-			context="{instrument.name} · {writtenKey} {SCALE_TYPE_NAMES[activeTonality.scaleType]}"
-		/>
-	{/if}
-
-	<TuningNotice alert={tuningAlert} />
-
-	<!-- Status text -->
-	<div data-tour="status-text" class="h-6 text-center text-sm">
-		{#if session.isLoadingInstrument}
-			<span class="italic text-[var(--color-text-secondary)]">Tuning up&hellip;</span>
-		{:else if awaitingInput}
-			<span class="font-medium text-[var(--color-phase-play)]">Your turn — play!</span>
-		{:else if session.isRecording}
-			<span class="font-medium text-[var(--color-phase-play)]">Listening&hellip;</span>
-		{:else if session.engineState === 'playing'}
-			<span class="font-medium text-[var(--color-phase-listen)]">Listen&hellip;</span>
-		{:else if audioLoadFailed}
-			<span class="text-[var(--color-text-secondary)]">Couldn't load audio — reload to try again</span>
-		{:else if !session.phrase}
-			<span class="text-[var(--color-text-secondary)]">No phrases fit this scale at your current level.</span>
-		{:else if !isActive && session.micPermission !== 'granted'}
-			<span class="text-[var(--color-text-secondary)]">Tap to start — mic access required</span>
+<EarTrainingConsole
+	{writtenKey}
+	scaleName={SCALE_TYPE_NAMES[activeTonality.scaleType]}
+	{scaleNoteCount}
+	elapsedMs={practiceElapsedMs}
+	{practising}
+	phase={session.isLoadingInstrument ? 'loading' : audioLoadFailed || session.engineState === 'error' ? 'error' : awaitingInput || session.isRecording ? 'play' : session.engineState === 'playing' ? 'listen' : practising ? 'next' : persistentScore ? 'paused' : 'ready'}
+	disabled={session.isLoadingInstrument || starting || audioLoadFailed || (!practising && !session.phrase)}
+	onToggle={practising ? handleStop : handlePlay}
+	score={persistentScore}
+	quote={bottomQuote}
+	message={audioLoadFailed ? "Couldn't load audio — reload to try again" : session.engineState === 'error' ? 'Unable to start audio. Please try again.' : !session.phrase ? 'No phrases fit this scale at your current level.' : !practising && session.micPermission !== 'granted' ? 'Microphone access required' : ''}
+	{levelSignal}
+>
+	{#snippet help()}
+		<TourTrigger tourId="ear-training" steps={earTrainingTour} label="Practice tour" />
+		<HelpLink href="/docs/user-guide#side-a-ear-training" label="Practice docs" size={18} />
+	{/snippet}
+	{#snippet tuning()}
+		{#if tuningSummary.notes.length > 0}
+			<TuningFaders
+				studio
+				summary={tuningSummary}
+				transpositionSemitones={instrument.transpositionSemitones}
+				displayKey={writtenKey}
+				{scaleId}
+				instrumentId={settings.instrumentId}
+				context="{instrument.name} · {writtenKey} {SCALE_TYPE_NAMES[activeTonality.scaleType]}"
+			/>
 		{/if}
-	</div>
-
-	<!-- Level change signal (reserved height so it never shifts layout) -->
-	<div class="h-6 text-center" aria-live="polite">
-		{#if levelSignal}
-			<span
-				class="level-signal smallcaps text-sm"
-				class:is-up={levelSignal.dir === 'up'}
-				class:is-down={levelSignal.dir === 'down'}
-			>
-				{levelSignal.dir === 'up' ? '↑' : '↓'} {levelSignal.scaleName} · Lv {levelSignal.level}
-			</span>
-		{/if}
-	</div>
-
-	<TourTrigger tourId="ear-training" steps={earTrainingTour} />
-
-	{#if bottomQuote}
-		<div
-			class="max-w-md text-center text-sm italic text-[var(--color-text-secondary)]"
-		>
-			{bottomQuote}
-		</div>
-	{/if}
-</div>
-
-<style>
-	.level-signal {
-		display: inline-block;
-		animation: level-signal 2.2s ease-out forwards;
-	}
-	.level-signal.is-up {
-		color: var(--color-brass);
-	}
-	.level-signal.is-down {
-		color: var(--color-text-secondary);
-	}
-
-	@keyframes level-signal {
-		0% { opacity: 0; transform: translateY(3px); }
-		10% { opacity: 1; transform: translateY(0); }
-		75% { opacity: 1; transform: translateY(0); }
-		100% { opacity: 0; transform: translateY(0); }
-	}
-
-	@media (prefers-reduced-motion: reduce) {
-		.level-signal {
-			animation: level-signal-reduced 2.2s linear forwards;
-		}
-	}
-
-	@keyframes level-signal-reduced {
-		0% { opacity: 0; }
-		10% { opacity: 1; }
-		75% { opacity: 1; }
-		100% { opacity: 0; }
-	}
-</style>
+		<TuningNotice alert={tuningAlert} />
+	{/snippet}
+</EarTrainingConsole>

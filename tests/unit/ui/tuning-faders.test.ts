@@ -9,7 +9,7 @@ const takes = (midi: number, cents: number, count: number): TuningSample[] =>
 	Array.from({ length: count }, () => ({ midi, cents }));
 
 /** Tenor sax (written = concert + 14) in written D major. */
-function renderTenor(samples: TuningSample[], displayKey = 'D') {
+function renderTenor(samples: TuningSample[], displayKey = 'D', studio = false) {
 	return render(TuningFaders, {
 		props: {
 			summary: summarizeTuning(samples),
@@ -17,7 +17,8 @@ function renderTenor(samples: TuningSample[], displayKey = 'D') {
 			displayKey,
 			scaleId: 'major.ionian',
 			instrumentId: 'tenor-sax',
-			context: 'Tenor sax · D Major'
+			context: 'Tenor sax · D Major',
+			studio
 		}
 	}).body;
 }
@@ -26,6 +27,16 @@ function renderTenor(samples: TuningSample[], displayKey = 'D') {
 const channelNotes = (body: string) => [...body.matchAll(/data-note="([^"]+)"/g)].map(m => m[1]);
 
 describe('tuning faders', () => {
+	it('preserves written notes and tuning evidence in the Studio Console presentation', () => {
+		const samples = [...takes(60, 22, 4), ...takes(62, -11, 3)];
+		const studio = renderTenor(samples, 'D', true);
+		expect(channelNotes(studio)).toEqual(channelNotes(renderTenor(samples)));
+		expect(studio).toContain('aria-label="D5: 22 cents sharp, 4 takes"');
+		expect(studio).toContain('aria-label="E5: 11 cents flat, 3 takes"');
+		expect(studio).toContain('A = 440');
+		expect(studio).toContain('Your centre');
+	});
+
 	it('gives each played note its own channel, low to high, an octave apart included', () => {
 		const body = renderTenor([...takes(72, 24, 4), ...takes(60, 3, 4), ...takes(64, 8, 4)]);
 		// Concert C4, E4, C5 read as written D5, F#5, D6 on tenor.

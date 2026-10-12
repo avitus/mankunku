@@ -20,9 +20,11 @@
 		instrumentId: string;
 		/** Instrument, key and scale, e.g. "Tenor sax · G Mixolydian". */
 		context: string;
+		/** Opt into the approved Ear Training console without changing tuning calculations. */
+		studio?: boolean;
 	}
 
-	let { summary, transpositionSemitones, displayKey, scaleId, instrumentId, context }: Props = $props();
+	let { summary, transpositionSemitones, displayKey, scaleId, instrumentId, context, studio = false }: Props = $props();
 
 	/** Measure from A = 440, or from the player's own centre once there is one. */
 	let fromCentre = $state(false);
@@ -64,11 +66,12 @@
 	const SCALE = [30, ALERT_CENTS, 0, -ALERT_CENTS, -30];
 </script>
 
-<section data-testid="tuning-faders" class="panel w-full max-w-xl rounded-xl p-4 sm:p-5" aria-labelledby="tuning-faders-title">
-	<div class="flex flex-wrap items-center gap-x-3 gap-y-2">
-		<h2 id="tuning-faders-title" class="smallcaps text-[var(--color-brass)]">Your tuning</h2>
+<section data-testid="tuning-faders" class="panel w-full {studio ? 'studio-panel tuning-console' : 'max-w-xl rounded-xl p-4 sm:p-5'}" aria-labelledby="tuning-faders-title">
+	<div class="tuning-header flex flex-wrap items-center gap-x-3 gap-y-2">
+		{#if studio}<span class="studio-panel-number" aria-hidden="true">02</span>{/if}
+		<h2 id="tuning-faders-title" class={studio ? 'tuning-title' : 'smallcaps text-[var(--color-brass)]'}>Your tuning</h2>
 		<div class="jazz-rule min-w-6 flex-1"></div>
-		<div class="flex rounded-full bg-[var(--color-bg-tertiary)] p-0.5 text-[11px]">
+		<div class="reference-switch flex rounded-full bg-[var(--color-bg-tertiary)] p-0.5 text-[11px]">
 			{#each [{ centre: false, label: 'A = 440' }, { centre: true, label: 'Your centre' }] as o (o.label)}
 				<button
 					type="button"
@@ -92,7 +95,8 @@
 		{/if}
 	</p>
 
-	<div class="flex gap-1.5 sm:gap-2">
+	<div class:console-body={studio}>
+	<div class="fader-bank flex gap-1.5 sm:gap-2">
 		<div class="relative hidden w-7 shrink-0 sm:block" style="height: {H}px; margin-top: 22px" aria-hidden="true">
 			{#each SCALE as t (t)}
 				<span
@@ -174,12 +178,14 @@
 	</div>
 
 	<div
-		class="mt-4 space-y-0.5 border-t border-[var(--color-bg-tertiary)] pt-3 text-center font-display text-[15px] italic leading-snug"
+		class="tuning-advice mt-4 space-y-0.5 border-t border-[var(--color-bg-tertiary)] pt-3 text-center font-display text-[15px] italic leading-snug"
 	>
 		{#each lines as line, i (i)}
 			<p class={i === 0 ? 'text-[var(--color-text)]' : 'text-[var(--color-text-secondary)]'}>{line}</p>
 		{/each}
 	</div>
+	</div>
+	{#if studio}<p class="tuning-footer">Median cents per note · Read-only</p>{/if}
 </section>
 
 <style>
@@ -217,5 +223,22 @@
 		inset: 50% 18% auto;
 		height: 1px;
 		background: color-mix(in srgb, black 55%, transparent);
+	}
+	.panel.tuning-console { background: linear-gradient(125deg, var(--studio-panel-highlight), var(--studio-panel) 65%); box-shadow: var(--studio-shadow); }
+	.tuning-console .tuning-title { font: 500 24px/1.2 var(--font-display); }
+	.tuning-console .reference-switch { margin-left: auto; border-radius: 5px; padding: 4px; background: var(--studio-well); gap: 4px; }
+	.tuning-console .reference-switch button { border-radius: 3px; min-height: 40px; padding: 8px 14px; color: var(--studio-text); background: var(--studio-panel-highlight); border: 1px solid var(--studio-border); }
+	.tuning-console .reference-switch button[aria-pressed='true'] { color: white; background: var(--studio-button); box-shadow: inset 0 2px 3px #0005; }
+	.tuning-console .tuning-header + p { color: var(--studio-muted); margin-top: 10px; }
+	.console-body { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 32px; align-items: center; }
+	.fader-bank { min-width: 0; }
+	.tuning-console .channel { background: color-mix(in srgb, var(--studio-well) 55%, transparent); }
+	.tuning-console .tuning-advice { border-top: 0; border-left: 1px solid var(--studio-border); padding: 16px 0 16px 28px; margin: 0; text-align: left; font-size: 18px; line-height: 1.6; }
+	.tuning-footer { margin-top: 18px; border-top: 1px solid var(--studio-border); padding-top: 12px; font-size: 11px; color: var(--studio-muted); }
+	@media (max-width: 600px) {
+		.console-body { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+		.tuning-console .reference-switch { width: 100%; margin: 10px 0 0; }
+		.tuning-console .reference-switch button { flex: 1; }
+		.tuning-console .tuning-advice { border-left: 0; border-top: 1px solid var(--studio-border); padding: 18px 0 0; font-size: 17px; }
 	}
 </style>

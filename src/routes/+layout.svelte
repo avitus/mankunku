@@ -464,7 +464,7 @@
 		{/if}
 	</nav>
 
-	<main class="relative z-10 mx-auto max-w-5xl px-4 py-6" class:studio-layout={['/', '/settings', '/lick-practice', '/licks', '/tunes'].includes(page.url.pathname)}>
+	<main class="relative z-10 mx-auto max-w-5xl px-4 py-6" class:studio-layout={['/', '/settings', '/ear-training', '/lick-practice', '/licks', '/tunes'].includes(page.url.pathname)}>
 		{#if showWelcomeBanner}
 			<TourBanner
 				tourId="welcome"
