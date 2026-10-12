@@ -173,6 +173,14 @@ for (const instrument of highestNotes) {
 			.getByRole('radiogroup', { name: 'Instrument', exact: true })
 			.getByRole('radio', { name: new RegExp(`^${instrument.instrument} `) })
 			.click();
+		// Concert Pitch only opens the "which C instrument" follow-up; "Other"
+		// is the legacy `concert` id these presets belong to.
+		if (instrument.instrument === 'Concert Pitch') {
+			await page
+				.getByRole('radiogroup', { name: 'C instrument', exact: true })
+				.getByRole('radio', { name: 'Other', exact: true })
+				.click();
+		}
 		const highest = page.getByRole('slider', { name: 'Highest note' });
 		await highest.press('End');
 		await highest.press('Home');

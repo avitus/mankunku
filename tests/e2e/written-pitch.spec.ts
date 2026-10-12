@@ -35,12 +35,12 @@ test.describe('written pitch follows the instrument setting', () => {
 		page,
 		consoleCollector: _consoleCollector
 	}) => {
-		/** The key block: caption, the written key, then the scale name. */
-		const todaysKey = () => page.getByText("Today's key", { exact: true }).locator('..');
+		/** The tonality well: the written key, then the scale name beside it. */
+		const todaysKey = () => page.getByText("Today's key", { exact: true }).locator('../..');
 
 		// Tenor: concert C reads D.
 		await page.goto('/ear-training');
-		await expect(todaysKey()).toContainText(/Today's key\s*D\s*Major Pentatonic/);
+		await expect(todaysKey()).toContainText(/Today's key\s*D\s*Your tonality\s*Major Pentatonic/);
 
 		// Switch to alto on the settings page; its own tonality line agrees.
 		await page.goto('/settings');
@@ -61,7 +61,7 @@ test.describe('written pitch follows the instrument setting', () => {
 
 		// Alto: concert C reads A.
 		await page.goto('/ear-training');
-		await expect(todaysKey()).toContainText(/Today's key\s*A\s*Major Pentatonic/);
+		await expect(todaysKey()).toContainText(/Today's key\s*A\s*Your tonality\s*Major Pentatonic/);
 
 		// Concert pitch: the key is shown as stored.
 		await page.goto('/settings');
@@ -69,6 +69,12 @@ test.describe('written pitch follows the instrument setting', () => {
 			.getByRole('radiogroup', { name: 'Instrument', exact: true })
 			.getByRole('radio', { name: /concert pitch/i })
 			.first()
+			.click();
+		// Concert Pitch only opens the "which C instrument" follow-up; "Other"
+		// is the legacy `concert` id.
+		await page
+			.getByRole('radiogroup', { name: 'C instrument', exact: true })
+			.getByRole('radio', { name: 'Other', exact: true })
 			.click();
 		// Both the control panel and the read-only summary use written pitch.
 		await expect(
@@ -82,7 +88,7 @@ test.describe('written pitch follows the instrument setting', () => {
 				.getByText('C Major Pentatonic', { exact: true })
 		).toBeVisible();
 		await page.goto('/ear-training');
-		await expect(todaysKey()).toContainText(/Today's key\s*C\s*Major Pentatonic/);
+		await expect(todaysKey()).toContainText(/Today's key\s*C\s*Your tonality\s*Major Pentatonic/);
 	});
 
 	test('key-unlock hints on /progress and /settings name written keys', async ({
@@ -125,6 +131,10 @@ test.describe('written pitch follows the instrument setting', () => {
 		await instrumentGroup()
 			.getByRole('radio', { name: /concert pitch/i })
 			.first()
+			.click();
+		await page
+			.getByRole('radiogroup', { name: 'C instrument', exact: true })
+			.getByRole('radio', { name: 'Other', exact: true })
 			.click();
 		await expect(keyPad().getByRole('radio', { name: 'D', exact: true })).toHaveAttribute(
 			'title',
