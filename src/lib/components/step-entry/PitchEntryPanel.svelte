@@ -74,11 +74,11 @@
 	}
 </script>
 
-<div class="space-y-3">
+<div class="entry-pitches space-y-3">
 	<!-- Entry row: 7 notes + Rest. In a narrow named `entry` container
 	     (tune-editor rail/dock) the row tightens; below 18rem it becomes a
 	     4×2 grid (grid neuters the buttons' flex-1). -->
-	<div class="flex gap-1.5 @max-[28rem]/entry:gap-1 @max-[18rem]/entry:grid @max-[18rem]/entry:grid-cols-4">
+	<div class="entry-pitch-pads flex gap-1.5 @max-[28rem]/entry:gap-1 @max-[18rem]/entry:grid @max-[18rem]/entry:grid-cols-4">
 		{#each noteNames as name}
 			<button
 				onclick={() => handleNoteClick(name)}
@@ -107,10 +107,11 @@
 	</div>
 
 	<!-- Modifiers: all controls below the note pitches, in a subtly recessed zone -->
-	<div class="flex flex-wrap items-center gap-2 @max-[28rem]/entry:gap-1.5 rounded-md bg-[var(--color-bg)]/40 px-2.5 py-2">
+	<div class="entry-pitch-modifiers flex flex-wrap items-center gap-2 @max-[28rem]/entry:gap-1.5 rounded-md bg-[var(--color-bg)]/40 px-2.5 py-2">
 		<button
 			onclick={() => setAccidental('flat')}
 			aria-label="Flat"
+			aria-pressed={stepEntry.accidental === 'flat'}
 			class="rounded px-3 py-1.5 text-sm transition-colors
 				{stepEntry.accidental === 'flat'
 					? 'bg-[var(--color-accent)] text-white'
@@ -121,6 +122,7 @@
 		<button
 			onclick={() => setAccidental('sharp')}
 			aria-label="Sharp"
+			aria-pressed={stepEntry.accidental === 'sharp'}
 			class="rounded px-3 py-1.5 text-sm transition-colors
 				{stepEntry.accidental === 'sharp'
 					? 'bg-[var(--color-accent)] text-white'
@@ -164,7 +166,7 @@
 		</button>
 		<button
 			onclick={() => onDelete()}
-			aria-label="Delete last note"
+			aria-label="Delete selected or last note"
 			class="rounded bg-[var(--color-bg-tertiary)] px-3 py-1.5 text-sm hover:bg-[var(--color-bg-secondary)]"
 		>
 			&#9003; <span class="@max-[28rem]/entry:hidden">Delete <span class="text-[10px] opacity-50">⌫</span></span>

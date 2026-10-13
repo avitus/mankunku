@@ -1,6 +1,6 @@
 <script lang="ts">
-	import { keyLabelLong } from '$lib/music/notation';
-	import { onMount, onDestroy } from 'svelte';
+	import { keyLabelLong, midiToDisplayName } from '$lib/music/notation';
+	import { onMount, onDestroy, untrack } from 'svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { settings, getInstrument } from '$lib/state/settings.svelte';
@@ -28,6 +28,10 @@
 	import { findDuplicateLick } from '$lib/phrases/duplicate-detection';
 	import { CATEGORY_LABELS, type PhraseCategory } from '$lib/types/music';
 	import NotationDisplay from '$lib/components/notation/NotationDisplay.svelte';
+	import StudioPage from '$lib/components/console/StudioPage.svelte';
+	import EditorIcon from '$lib/components/step-entry/EditorIcon.svelte';
+	import { EditorHistory } from '$lib/step-entry/editor-history';
+	import '$lib/components/step-entry/lick-editor.css';
 	import PrivacyDisclosure from '$lib/components/community/PrivacyDisclosure.svelte';
 
 	const ENTRY_CATEGORIES = Object.entries(CATEGORY_LABELS).map(
@@ -49,7 +53,7 @@
 
 	const position = $derived(getCurrentBarAndBeat());
 	const remaining = $derived(getRemainingCapacity());
-	const remainingBeats = $derived(Math.round(fractionToFloat(remaining) * 4));
+	const remainingBeats = $derived(Math.max(0, fractionToFloat(remaining) * 4));
 	const isFull = $derived(remainingBeats <= 0);
 	const hasNotes = $derived(currentPhrase.notes.length > 0);
 	const isEditing = $derived(stepEntry.editingId !== null);
@@ -93,16 +97,94 @@
 		}
 	});
 
-	let playbackModule: typeof import('$lib/audio/playback') | null = null;
+	let playbackModule = $state<typeof import('$lib/audio/playback') | null>(null);
 	/** The playback module failed to import while the page was up — Play is disabled and says why. */
 	let playbackLoadFailed = $state(false);
 	let savedConfirmation = $state(false);
 	let isPlaying = $state(false);
 	let saveResetTimer: ReturnType<typeof setTimeout> | undefined;
 
-	let setupOpen = $state(false);
-	let saveDetailsOpen = $state(false);
 	let nameInput = $state<HTMLInputElement | undefined>(undefined);
+
+	let shortcutsDialog = $state<HTMLDialogElement>();
+	let clearDialog = $state<HTMLDialogElement>();
+	let previewTempo = $state<number | undefined>();
+	const tempo = $derived(previewTempo ?? settings.defaultTempo);
+	let loop = $state(false);
+	let playbackError = $state('');
+	let cursorIndex = $state<number | null>(null);
+	let playbackRun = 0;
+	const history = new EditorHistory();
+	let historyVersion = $state(0);
+	let historyScope: string | null | undefined;
+	const canUndo = $derived.by(() => { void historyVersion; return history.canUndo; });
+	const canRedo = $derived.by(() => { void historyVersion; return history.canRedo; });
+	type EditorSnapshot = Pick<typeof stepEntry, 'enteredNotes' | 'phraseName' | 'phraseKey' | 'phraseMode' | 'modeTouched' | 'barCount' | 'category' | 'practiceTag'>;
+
+	/** Keep existing controls on the shared store; capture only actual phrase edits. */
+	function contentSnapshot(): EditorSnapshot {
+		return {
+			enteredNotes: stepEntry.enteredNotes, phraseName: stepEntry.phraseName,
+			phraseKey: stepEntry.phraseKey, phraseMode: stepEntry.phraseMode,
+			modeTouched: stepEntry.modeTouched, barCount: stepEntry.barCount,
+			category: stepEntry.category, practiceTag: stepEntry.practiceTag
+		};
+	}
+
+	$effect(() => {
+		const snapshot = JSON.stringify(contentSnapshot());
+		const scope = stepEntry.editingId;
+		untrack(() => {
+			if (historyScope !== scope) { history.reset(); historyScope = scope; }
+			if (history.record(snapshot)) { historyVersion++; stopPreview(); }
+		});
+	});
+
+	/** Discard history after a successful save or leaving an edit target. */
+	function resetHistory(): void {
+		history.reset();
+		historyScope = stepEntry.editingId;
+		history.record(JSON.stringify(contentSnapshot()));
+		historyVersion++;
+	}
+
+	/** Undo/redo updates the same state consumed by notation, saving and key controls. */
+	function restoreHistory(direction: 'undo' | 'redo'): void {
+		const snapshot = history[direction]();
+		if (snapshot === null) return;
+		stopPreview();
+		Object.assign(stepEntry, JSON.parse(snapshot) as EditorSnapshot);
+		selectNote(null);
+		historyVersion++;
+	}
+
+	const selectedNote = $derived(stepEntry.selectedNoteIndex === null ? null : stepEntry.enteredNotes[stepEntry.selectedNoteIndex]);
+	const selectedName = $derived(selectedNote?.pitch == null ? 'Rest' : midiToDisplayName(
+		selectedNote.pitch + getInstrument().transpositionSemitones,
+		selectedNote.spelling ? selectedNote.spelling === 'flat' : stepEntry.phraseKey,
+		undefined, stepEntry.phraseMode
+	).replace('b', '♭').replace('#', '♯'));
+	const usedBeats = $derived(stepEntry.barCount * 4 - remainingBeats);
+	const selectedBeat = $derived(selectedNote ? fractionToFloat(selectedNote.offset) * 4 : 0);
+	const noteCount = $derived(stepEntry.enteredNotes.filter(n => n.pitch !== null).length);
+	const restCount = $derived(stepEntry.enteredNotes.length - noteCount);
+
+	/** Cancel sample loading, active audio and any pending loop continuation together. */
+	function stopPreview(): void {
+		playbackRun++;
+		playbackModule?.stopPlayback();
+		isPlaying = false;
+		cursorIndex = null;
+	}
+
+	/** Tempo is a local audition control, never a write to the user's global settings. */
+	function changeTempo(event: Event): void {
+		const field = event.currentTarget as HTMLInputElement;
+		const value = Number(field.value);
+		previewTempo = Number.isFinite(value) && field.value ? Math.max(40, Math.min(240, value)) : settings.defaultTempo;
+		field.value = String(previewTempo);
+		stopPreview();
+	}
 
 	// Guard against applying stale hydration results after the component has
 	// unmounted (or after the user navigated to a different `?edit=` id during
@@ -167,6 +249,7 @@
 		} else if (stepEntry.editingId !== null) {
 			reset();
 		}
+		resetHistory();
 	});
 
 	onDestroy(() => {
@@ -175,13 +258,20 @@
 			window.removeEventListener('keydown', handleKeydown);
 		}
 		clearTimeout(saveResetTimer);
-		playbackModule?.stopPlayback();
+		stopPreview();
 	});
 
 	function handleKeydown(e: KeyboardEvent) {
-		if (e.ctrlKey || e.metaKey || e.altKey) return;
 		const target = e.target as HTMLElement;
-		if (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA') return;
+		if (target.closest('input, select, textarea, [contenteditable=true], dialog') || shortcutsDialog?.open || clearDialog?.open) return;
+		if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+			e.preventDefault(); restoreHistory(e.shiftKey ? 'redo' : 'undo'); return;
+		}
+		if (e.ctrlKey && e.key.toLowerCase() === 'y') { e.preventDefault(); restoreHistory('redo'); return; }
+		if (e.ctrlKey || e.metaKey || e.altKey) return;
+		if (e.key === ' ' && !target.closest('button, a, summary, [role=button]')) {
+			e.preventDefault(); void handlePlayBack(); return;
+		}
 
 		const key = e.key;
 
@@ -242,29 +332,35 @@
 		}
 	}
 
-	async function handlePlayBack() {
-		if (!playbackModule || !hasNotes || isPlaying) return;
-
+	async function handlePlayBack(): Promise<void> {
+		if (isPlaying) { stopPreview(); return; }
+		if (!playbackModule || !hasNotes) return;
+		const run = ++playbackRun;
 		isPlaying = true;
+		playbackError = '';
 		try {
 			if (!playbackModule.isInstrumentLoaded()) {
 				await playbackModule.loadInstrument(settings.instrumentId, settings.masterVolume);
 			}
-			await playbackModule.playPhrase(
-				currentPhrase,
-				buildEntryPlaybackOptions({
-					tempo: settings.defaultTempo,
-					swing: settings.swing,
-					metronomeVolume: settings.metronomeVolume
-				})
-			);
+			if (run !== playbackRun) return;
+			do {
+				await playbackModule.playPhrase(currentPhrase, buildEntryPlaybackOptions({
+					tempo, swing: settings.swing, metronomeVolume: settings.metronomeVolume
+				}), false, { onNote: ({ sourceIndex }) => { if (run === playbackRun) cursorIndex = sourceIndex; } });
+			} while (loop && run === playbackRun && editHydrationActive);
+		} catch (err) {
+			if (run === playbackRun) {
+				console.warn('[lick-editor] playback unavailable', err);
+				playbackError = 'Could not play this phrase. Try again.';
+			}
 		} finally {
-			isPlaying = false;
+			if (run === playbackRun) { isPlaying = false; cursorIndex = null; }
 		}
 	}
 
 	function handleSave() {
 		if (!hasNotes) return;
+		stopPreview();
 
 		// Edit branch: update the existing lick in place. Skip the duplicate-
 		// detection / steal path entirely — the user is intentionally modifying
@@ -306,8 +402,7 @@
 			const destId = saved.id;
 			reset();
 			clearSuggestions();
-			setupOpen = false;
-			saveDetailsOpen = false;
+			resetHistory();
 			goto(`/licks/${destId}`);
 			return;
 		}
@@ -321,8 +416,7 @@
 			}
 			const matchId = duplicateMatch.id;
 			reset();
-			setupOpen = false;
-			saveDetailsOpen = false;
+			resetHistory();
 			goto(`/licks/${matchId}`);
 			return;
 		}
@@ -349,8 +443,7 @@
 
 		reset();
 		clearSuggestions();
-		setupOpen = false;
-		saveDetailsOpen = false;
+		resetHistory();
 
 		savedConfirmation = true;
 		clearTimeout(saveResetTimer);
@@ -361,22 +454,22 @@
 
 	function handleCancel() {
 		const editId = stepEntry.editingId;
-		playbackModule?.stopPlayback();
+		stopPreview();
 		reset();
 		clearSuggestions();
-		setupOpen = false;
-		saveDetailsOpen = false;
+		resetHistory();
 		if (editId) {
 			goto(`/licks/${editId}`);
 		}
 	}
 
-	function handleClear() {
-		playbackModule?.stopPlayback();
-		reset();
+	/** Clear only the phrase's notes; keep its title, setup and edit identity for undo/save. */
+	function handleClear(): void {
+		stopPreview();
+		stepEntry.enteredNotes = [];
+		selectNote(null);
 		clearSuggestions();
-		setupOpen = false;
-		saveDetailsOpen = false;
+		clearDialog?.close();
 	}
 
 	function handleTitleInputKeydown(e: KeyboardEvent): void {
@@ -391,233 +484,97 @@
 	<title>{isEditing ? 'Edit Lick' : 'Lick Editor'} — Mankunku</title>
 </svelte:head>
 
-<div class="mx-auto max-w-2xl space-y-4">
-	<!-- Header -->
-	<div>
-		<div class="smallcaps text-[var(--color-brass)]">{isEditing ? 'Fix a lick' : 'Write a lick'}</div>
-		<h1 class="font-display text-3xl font-bold tracking-tight">{isEditing ? 'Edit Lick' : 'Lick Editor'}</h1>
-		<div class="jazz-rule mt-2 max-w-[140px]"></div>
-	</div>
-
-	<!-- Notation preview (written pitch for the user's instrument) -->
-	<NotationDisplay
-		phrase={hasNotes ? currentPhrase : null}
-		instrument={getInstrument()}
-		selectedIndex={stepEntry.selectedNoteIndex}
-		onSelect={(i) => selectNote(i)}
-	>
-		{#snippet titleArea()}
-			<div class="space-y-0.5">
-				<input
-					type="text"
-					bind:this={nameInput}
-					bind:value={stepEntry.phraseName}
-					onkeydown={handleTitleInputKeydown}
-					placeholder={suggestions.fallbackName || 'Untitled lick'}
-					aria-label="Lick title"
-					class="mb-0 w-full bg-transparent text-center font-display text-xl font-semibold tracking-tight
-						border-b border-dashed border-[var(--color-bg-tertiary)] pb-0.5
-						focus:border-[var(--color-accent)] focus:outline-none
-						placeholder:italic placeholder:font-normal placeholder:text-[var(--color-text-secondary)]"
-				/>
-				{#if suggestions.pickedFromSuggestion}
-					<div class="text-center text-[10px] italic text-[var(--color-text-secondary)]">
-						Suggestion — not verified
-					</div>
-				{/if}
-			</div>
+<div class="lick-editor">
+	<a href="/licks" class="le-back"><EditorIcon name="back" size={14} /> Your licks</a>
+	<StudioPage eyebrow={isEditing ? 'Fix a lick' : 'Write a lick'} title="Lick editor" description="Shape a phrase, one note at a time.">
+		{#snippet actions()}
+			<button class="le-button le-quiet" onclick={() => shortcutsDialog?.showModal()}><EditorIcon name="keyboard" /> Shortcuts</button>
+			{#if isEditing}<button class="le-button le-quiet" onclick={handleCancel}>Cancel</button>{/if}
+			<button class="le-button le-save" onclick={handleSave} disabled={!hasNotes || savedConfirmation}>
+				<EditorIcon name={savedConfirmation ? 'check' : 'save'} size={17} />
+				{isEditing ? 'Update lick' : savedConfirmation ? 'Saved!' : duplicateMatch ? 'Steal lick' : 'Save lick'}
+			</button>
 		{/snippet}
-	</NotationDisplay>
 
-	<!-- Attribution suggestions (if any) -->
-	<SuggestionCard />
-
-	<!-- Status bar -->
-	{#if hasNotes}
-		<div class="flex items-center justify-between text-xs text-[var(--color-text-secondary)]">
-			{#if stepEntry.selectedNoteIndex !== null}
-				<span class="tabular-nums">
-					Note {stepEntry.selectedNoteIndex + 1} selected
-					<span class="opacity-70">· ←/→ to move · ↑/↓ to pitch · Esc to clear</span>
-				</span>
-			{:else}
-				<span class="tabular-nums">Bar {position.bar}, Beat {position.beat}</span>
-			{/if}
-			<span class={isFull ? 'font-medium text-[var(--color-error-text)]' : ''}>
-				{isFull ? 'Full' : `${remainingBeats} beat${remainingBeats !== 1 ? 's' : ''} left`}
-			</span>
-		</div>
-	{/if}
-
-	<!-- Duplicate match hint (create mode only) -->
-	{#if duplicateMatch && !isEditing}
-		<div class="rounded-lg border border-[var(--color-brass)]/40 bg-[var(--color-brass)]/10 px-3 py-2 text-xs text-[var(--color-text-secondary)]">
-			Already in the library as <span class="italic text-[var(--color-text)]">"{duplicateMatch.name}"</span>. Saving will steal it into your library instead of creating a duplicate.
-		</div>
-	{/if}
-
-	<!-- Setup chip (key + bars) -->
-	{#if setupOpen}
-		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-3 space-y-2">
-			<EntryConfig />
-			<div class="flex justify-end">
-				<button
-					onclick={() => { setupOpen = false; }}
-					class="text-xs text-[var(--color-text-secondary)] hover:text-[var(--color-text)]"
-				>Done</button>
-			</div>
-		</div>
-	{:else}
-		<button
-			onclick={() => { setupOpen = true; }}
-			class="flex w-full items-center justify-between rounded-lg bg-[var(--color-bg-secondary)] px-4 py-2 text-sm
-				hover:bg-[var(--color-bg-tertiary)] transition-colors"
-		>
-			<span class="flex items-center gap-3">
-				<span class="smallcaps text-[11px] text-[var(--color-text-secondary)]">Setup</span>
-				<span>Key {keyLabelLong(stepEntry.phraseKey, stepEntry.phraseMode)}</span>
-				<span class="text-[var(--color-text-secondary)]">·</span>
-				<span>{stepEntry.barCount} bar{stepEntry.barCount === 1 ? '' : 's'}</span>
-			</span>
-			<span class="text-xs text-[var(--color-text-secondary)]">Edit</span>
-		</button>
-	{/if}
-
-	<!-- Rhythm + pitch panel -->
-	<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 space-y-3">
-		<DurationSelector />
-
-		<div class="border-t border-[var(--color-bg-tertiary)]"></div>
-
-		<PitchEntryPanel />
-	</div>
-
-	<!-- Details disclosure (category, practice tag, privacy) -->
-	<div class="rounded-lg bg-[var(--color-bg-secondary)]">
-		<button
-			onclick={() => { saveDetailsOpen = !saveDetailsOpen; }}
-			aria-expanded={saveDetailsOpen}
-			class="flex w-full items-center justify-between px-4 py-2 text-sm hover:bg-[var(--color-bg-tertiary)]
-				rounded-lg transition-colors"
-		>
-			<span class="flex items-center gap-3">
-				<span class="smallcaps text-[11px] text-[var(--color-text-secondary)]">Details</span>
-				<span class="text-[var(--color-text-secondary)]">
-					{CATEGORY_LABELS[stepEntry.category]}{stepEntry.practiceTag ? ' · Practice' : ''}
-				</span>
-			</span>
-			<span class="text-xs text-[var(--color-text-secondary)]">{saveDetailsOpen ? 'Hide' : 'Edit'}</span>
-		</button>
-
-		{#if saveDetailsOpen}
-			<div class="space-y-3 px-4 pt-1 pb-4">
-				<div class="flex flex-wrap items-center gap-1.5">
-					{#each ENTRY_CATEGORIES as { value, label }}
-						<button
-							onclick={() => setCategory(value)}
-							class="rounded-full px-2.5 py-0.5 text-xs transition-colors
-								{stepEntry.category === value
-									? 'bg-[var(--color-accent)] text-white'
-									: 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-secondary)]'}"
-							aria-pressed={stepEntry.category === value}
-						>
-							{label}
+		<div class="le-layout">
+			<div class="le-workspace">
+				<section class="le-panel le-chart" aria-label="Lick score">
+					<header class="le-chart-heading">
+						<div>
+							<p class="studio-label">01 / Your phrase</p>
+							<input class="le-title" type="text" bind:this={nameInput} bind:value={stepEntry.phraseName} onkeydown={handleTitleInputKeydown} placeholder={suggestions.fallbackName || 'Untitled lick'} aria-label="Lick title" />
+							{#if suggestions.pickedFromSuggestion}<p class="le-suggestion-caption">Suggestion — not verified</p>{/if}
+							<div class="le-chart-meta"><span>{keyLabelLong(stepEntry.phraseKey, stepEntry.phraseMode)}</span><span>·</span><span>4/4</span><span>·</span><span>{stepEntry.barCount} bars</span><span class="le-badge">{isEditing ? 'Editing' : 'Draft'}</span></div>
+						</div>
+						<div class="le-history">
+							<button aria-label="Undo" title="Undo (Ctrl/⌘Z)" onclick={() => restoreHistory('undo')} disabled={!canUndo}><EditorIcon name="undo" /></button>
+							<button aria-label="Redo" title="Redo (Ctrl/⌘Shift Z)" onclick={() => restoreHistory('redo')} disabled={!canRedo}><EditorIcon name="redo" /></button>
+						</div>
+					</header>
+					<div class="le-score-well" aria-label="Editable musical score">
+						{#if hasNotes}
+							<NotationDisplay phrase={currentPhrase} instrument={getInstrument()} selectedIndex={stepEntry.selectedNoteIndex} {cursorIndex} onSelect={selectNote} frameless staffWidth={640} />
+						{:else}
+							<div class="le-empty-score">
+								<div class="le-empty-staff" aria-hidden="true"><span>4<br />4</span></div>
+								<p>Your next idea starts here.</p><span>Choose a duration, then enter a note below.</span>
+							</div>
+						{/if}
+					</div>
+					<div class="le-selection">
+						<span><i aria-hidden="true"></i>{#if selectedNote}<strong>{selectedName}</strong><span>Bar {Math.floor(selectedBeat / 4) + 1} · Beat {Number((selectedBeat % 4 + 1).toFixed(2))}</span>{:else}<strong>{isFull ? 'Phrase complete' : 'Ready to write'}</strong><span>Bar {Math.min(position.bar, stepEntry.barCount)} · {Number(remainingBeats.toFixed(2))} beats left</span>{/if}</span>
+						<button onclick={() => selectNote(null)}>Append notes <span aria-hidden="true">+</span></button>
+					</div>
+					<div class="le-transport">
+						<button class="le-button le-play" onclick={handlePlayBack} disabled={!hasNotes || !playbackModule || playbackLoadFailed} title={playbackLoadFailed ? "Couldn't load playback — reload to try again" : undefined}>
+							<EditorIcon name={isPlaying ? 'stop' : 'play'} size={16} />{isPlaying ? 'Stop' : 'Play phrase'}<kbd aria-hidden="true">space</kbd>
 						</button>
-					{/each}
-					<button
-						onclick={() => { stepEntry.practiceTag = !stepEntry.practiceTag; }}
-						class="ml-auto flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors
-							{stepEntry.practiceTag
-								? 'bg-[var(--color-accent)] text-white'
-								: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'}"
-						title={stepEntry.practiceTag ? 'Remove from practice queue' : 'Add to practice queue'}
-						aria-pressed={stepEntry.practiceTag}
-					>
-						<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill={stepEntry.practiceTag ? 'currentColor' : 'none'} stroke="currentColor" stroke-width="2">
-							<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-						</svg>
-						Practice
-					</button>
+						<div class="le-tempo"><label for="editor-tempo">Tempo</label><input id="editor-tempo" type="number" min="40" max="240" value={tempo} onchange={changeTempo} /><span>BPM</span></div>
+						<button class="le-loop" aria-pressed={loop} onclick={() => { loop = !loop; }}><EditorIcon name="loop" size={16} />Loop</button>
+						<div class="le-time">{(usedBeats * 60 / tempo).toFixed(1)}<small>seconds</small></div>
+					</div>
+				</section>
+
+				<section class="le-panel le-entry" aria-label="Note entry">
+					<header><h2 class="studio-label">02 / Note entry</h2><span>{selectedNote ? `${selectedName} selected` : 'Adding to your phrase'}</span></header>
+					<DurationSelector />
+					<PitchEntryPanel onDelete={deleteSelectedNote} />
+					<div class="le-entry-tip"><span>{selectedNote ? '↑ ↓ changes the selected pitch. A–G appends a new note.' : 'Choose a duration, then press A–G to enter notes. Use 0 for a rest.'}</span><button onclick={() => shortcutsDialog?.showModal()}>All shortcuts ↗</button></div>
+				</section>
+
+				<div class="le-status" role="status" aria-live="polite">
+					{#if playbackLoadFailed}Couldn't load playback — reload to try again.
+					{:else if playbackError}{playbackError}
+					{:else if savedConfirmation}<EditorIcon name="check" size={14} /> Lick saved to your library.
+					{:else if isFull}Phrase complete. Delete a note or add a bar to keep writing.
+					{:else}Notes follow the written key for your instrument.{/if}
 				</div>
-
-				<PrivacyDisclosure />
+				{#if duplicateMatch && !isEditing}<p class="le-duplicate">Already in the library as <strong>{duplicateMatch.name}</strong>. Saving will steal it into your library instead of creating a duplicate.</p>{/if}
+				<SuggestionCard />
 			</div>
-		{/if}
-	</div>
 
-	<!-- Actions -->
-	<div class="flex justify-center gap-3">
-		<button
-			onclick={handlePlayBack}
-			disabled={!hasNotes || isPlaying || playbackLoadFailed}
-			title={playbackLoadFailed ? "Couldn't load playback — reload to try again" : undefined}
-			class="flex items-center gap-1.5 rounded-lg bg-[var(--color-accent)] px-4 py-2 text-sm font-medium text-white
-				transition-colors hover:bg-[var(--color-accent-hover)] disabled:opacity-40"
-		>
-			<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
-				{#if isPlaying}
-					<rect x="6" y="5" width="4" height="14" rx="1" />
-					<rect x="14" y="5" width="4" height="14" rx="1" />
-				{:else}
-					<path d="M8 5v14l11-7z" />
-				{/if}
-			</svg>
-			{isPlaying ? 'Playing...' : 'Play'}
-		</button>
-		<button
-			onclick={handleSave}
-			disabled={!hasNotes || savedConfirmation}
-			class="rounded-lg bg-[var(--color-success)] px-4 py-2 text-sm font-medium text-white
-				hover:opacity-90 transition-opacity disabled:opacity-40"
-		>
-			{#if isEditing}
-				Update
-			{:else if savedConfirmation}
-				Saved!
-			{:else if duplicateMatch}
-				Steal
-			{:else}
-				Save
-			{/if}
-		</button>
-		{#if isEditing}
-			<button
-				onclick={handleCancel}
-				class="rounded-lg bg-[var(--color-bg-tertiary)] px-4 py-2 text-sm font-medium text-[var(--color-text-secondary)]
-					hover:bg-[var(--color-bg-secondary)] transition-colors"
-			>
-				Cancel
-			</button>
-		{:else}
-			<button
-				onclick={handleClear}
-				disabled={!hasNotes}
-				class="rounded-lg bg-[var(--color-bg-tertiary)] px-4 py-2 text-sm font-medium text-[var(--color-text-secondary)]
-					hover:bg-[var(--color-bg-secondary)] transition-colors disabled:opacity-40"
-			>
-				Clear
-			</button>
-		{/if}
-	</div>
-	{#if playbackLoadFailed}
-		<p class="text-center text-xs text-[var(--color-text-secondary)]">
-			Couldn't load playback — reload to try again
-		</p>
-	{/if}
-
-	<!-- Keyboard shortcuts -->
-	<details class="text-xs text-[var(--color-text-secondary)]">
-		<summary class="cursor-pointer hover:text-[var(--color-text)]">Keyboard shortcuts</summary>
-		<div class="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 pl-2">
-			<span><kbd>A</kbd>-<kbd>G</kbd> Enter note</span>
-			<span><kbd>0</kbd> Rest</span>
-			<span><kbd>1</kbd>-<kbd>5</kbd> Duration</span>
-			<span><kbd>T</kbd> Triplet &middot; <kbd>.</kbd> Dotted</span>
-			<span><kbd>[</kbd> Flat &middot; <kbd>]</kbd> Sharp &middot; <kbd>\</kbd> Flip</span>
-			<span><kbd>=</kbd>/<kbd>-</kbd> Octave &middot; <kbd>+</kbd> Tie</span>
-			<span><kbd>&uarr;</kbd>/<kbd>&darr;</kbd> Semitone &middot; <kbd>Shift</kbd>+<kbd>&uarr;</kbd>/<kbd>&darr;</kbd> Octave</span>
-			<span><kbd>&larr;</kbd>/<kbd>&rarr;</kbd> Select note/rest &middot; <kbd>Esc</kbd> Clear</span>
-			<span><kbd>Backspace</kbd>/<kbd>Delete</kbd> Delete selected</span>
+			<aside class="le-inspector" aria-label="Phrase settings">
+				<section class="le-setup" aria-labelledby="editor-setup"><p class="studio-label">Setup</p><h2 id="editor-setup">The musical context.</h2><EntryConfig /><p class="le-context-note">Key changes can move your notes or simply relabel them.</p></section>
+				<section class="le-details" aria-labelledby="editor-details">
+					<h2 class="studio-label" id="editor-details">Details</h2>
+					<label class="le-field-label" for="editor-category">Category</label>
+					<select id="editor-category" value={stepEntry.category} onchange={e => setCategory(e.currentTarget.value as PhraseCategory)}>{#each ENTRY_CATEGORIES as { value, label }}<option {value}>{label}</option>{/each}</select>
+					<button class="le-practice-tag" aria-pressed={stepEntry.practiceTag} onclick={() => { stepEntry.practiceTag = !stepEntry.practiceTag; }}><span aria-hidden="true">{stepEntry.practiceTag ? '★' : '☆'}</span>Practice queue<small>{stepEntry.practiceTag ? 'Added' : 'Add'}</small></button>
+					<PrivacyDisclosure />
+				</section>
+				<div class="le-capacity"><p class="studio-label">Phrase length</p><strong>{Number(usedBeats.toFixed(2))}<small> / {stepEntry.barCount * 4} beats</small></strong><progress aria-label="Phrase capacity" value={usedBeats} max={stepEntry.barCount * 4}></progress><p>{noteCount} notes · {restCount} rests</p></div>
+				<button class="le-clear" onclick={() => clearDialog?.showModal()} disabled={!hasNotes}><EditorIcon name="trash" size={15} />Clear phrase</button>
+			</aside>
 		</div>
-	</details>
+		<footer class="le-footer"><span>MANKUNKU <i>/</i> YOUR VOCABULARY, IN YOUR HANDS.</span><a href="/licks">Back to your licks ↗</a></footer>
+
+		<dialog bind:this={shortcutsDialog} class="le-dialog" aria-labelledby="editor-shortcuts-title">
+			<header><h2 id="editor-shortcuts-title">Keep your hands on the keys.</h2><button aria-label="Close shortcuts" onclick={() => shortcutsDialog?.close()}><EditorIcon name="close" /></button></header>
+			<p>Shortcuts work when you’re outside a text field.</p>
+			<dl class="le-shortcuts">{#each [['A–G', 'Append a note'], ['0', 'Append a rest'], ['1–5', 'Choose the next note duration'], ['T / .', 'Triplet / dotted'], ['[ / ]', 'Flat / sharp'], ['= / −', 'Entry octave'], ['← / →', 'Select previous / next note or rest'], ['↑ / ↓', 'Move selected pitch by a semitone'], ['Shift + ↑ / ↓', 'Move selected pitch by an octave'], ['\\', 'Flip enharmonic spelling'], ['+', 'Tie to a duplicate of the last note'], ['⌫ / Delete', 'Delete selected or last note'], ['Esc', 'Clear note selection'], ['Space', 'Play / stop (outside controls)'], ['Ctrl/⌘Z', 'Undo'], ['Ctrl/⌘Shift Z / Ctrl Y', 'Redo']] as [key, description]}<div><dt>{description}</dt><dd><kbd>{key}</kbd></dd></div>{/each}</dl>
+		</dialog>
+		<dialog bind:this={clearDialog} class="le-dialog le-clear-dialog" aria-labelledby="editor-clear-title">
+			<h2 id="editor-clear-title">Start with a clean staff?</h2><p>This clears the notes in your current phrase. You can undo it.</p><div class="le-dialog-actions"><button class="le-button le-quiet" onclick={() => clearDialog?.close()}>Keep editing</button><button class="le-button le-save" onclick={handleClear}>Clear phrase</button></div>
+		</dialog>
+	</StudioPage>
 </div>

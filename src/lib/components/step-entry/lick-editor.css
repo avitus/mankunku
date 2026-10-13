@@ -1,0 +1,179 @@
+/* Approved Lick Editor, MagicPath revision 460811927849934848.
+   Opt-in chrome only: the shared entry controls and abcjs remain the music engine. */
+.lick-editor { min-width: 0; }
+.lick-editor .le-back { display: inline-flex; align-items: center; gap: 9px; margin-bottom: 25px; min-height: 24px; color: var(--color-text-secondary); font-size: 12px; }
+.lick-editor button { cursor: pointer; }
+.lick-editor button:disabled { cursor: not-allowed; opacity: .4; }
+.lick-editor button, .lick-editor input, .lick-editor select { transition: background .15s, border-color .15s; }
+.lick-editor .studio-header-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+.lick-editor .le-button { min-height: 44px; border-radius: 4px; padding: 10px 17px; display: inline-flex; align-items: center; justify-content: center; gap: 9px; font-size: 12px; font-weight: 500; }
+.lick-editor .le-quiet { color: var(--studio-text); background: transparent; border: 1px solid var(--studio-border); }
+.lick-editor .le-save { color: #172334; border: 1px solid #d2ae73; background: linear-gradient(#e1b677, #c99b57); box-shadow: inset 0 1px #fff5, 0 2px 4px #0003; font-weight: 600; }
+.lick-editor .le-button:hover:not(:disabled) { filter: brightness(1.08); }
+.lick-editor .le-layout { display: grid; grid-template-columns: minmax(0, 1fr) 268px; gap: 24px; align-items: start; }
+.lick-editor .le-workspace { min-width: 0; }
+.lick-editor .le-panel { min-width: 0; border: 1px solid var(--studio-border); border-radius: 7px; background: linear-gradient(115deg, var(--studio-panel-highlight), var(--studio-panel) 72%); box-shadow: var(--studio-shadow); }
+.lick-editor .le-chart { padding: 25px; }
+.lick-editor .le-chart-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 24px; }
+.lick-editor .le-chart-heading > div:first-child { min-width: 0; flex: 1; }
+.lick-editor .le-title { display: block; width: 100%; background: transparent; border: 0; border-bottom: 1px solid transparent; padding: 0 0 4px; margin: 11px 0 7px; font: 500 28px/1.35 var(--font-display); letter-spacing: -.5px; color: var(--studio-text); }
+.lick-editor .le-title:hover, .lick-editor .le-title:focus { border-bottom-color: var(--studio-border); }
+.lick-editor .le-title::placeholder { color: var(--studio-muted); }
+.lick-editor .le-chart-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; color: var(--studio-muted); font-size: 11px; }
+.lick-editor .le-badge { font-size: 8px; text-transform: uppercase; letter-spacing: .1em; padding: 2px 6px; border: 1px solid var(--studio-border); border-radius: 3px; }
+.lick-editor .le-history { display: flex; gap: 6px; }
+.lick-editor .le-history button { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid var(--studio-border); border-radius: 4px; color: var(--studio-muted); }
+.lick-editor .le-score-well { overflow-x: auto; min-height: 225px; padding: 24px 16px 12px; background: var(--studio-well); border: 1px solid var(--studio-border); border-radius: 5px 5px 0 0; box-shadow: inset 0 2px 8px #0003; }
+.lick-editor .le-score-well .notation-container { background: transparent; min-width: 620px; }
+.lick-editor .le-score-well .abcjs-container { min-height: 182px; }
+.lick-editor .le-empty-score { min-height: 185px; display: grid; align-content: center; gap: 9px; text-align: center; color: var(--studio-muted); font-size: 12px; }
+.lick-editor .le-empty-score p { font: 500 20px var(--font-display); color: var(--studio-text); }
+.lick-editor .le-empty-score > span { font-size: 11px; }
+.lick-editor .le-empty-staff { height: 49px; margin: 0 12px 18px; background: repeating-linear-gradient(to bottom, var(--studio-border) 0px, var(--studio-border) 1px, transparent 1px, transparent 12px); opacity: .6; text-align: left; }
+.lick-editor .le-empty-staff span { display: block; padding-left: 20px; font: bold 26px/24px Georgia, serif; }
+.lick-editor .le-selection { padding: 11px 14px; background: var(--studio-well); border: 1px solid var(--studio-border); border-top: 0; border-radius: 0 0 5px 5px; display: flex; justify-content: space-between; align-items: center; gap: 12px; color: var(--studio-muted); font-size: 11px; }
+.lick-editor .le-selection > span { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.lick-editor .le-selection i { height: 5px; width: 5px; background: var(--color-brass); border-radius: 50%; }
+.lick-editor .le-selection strong { font-weight: 500; color: var(--studio-text); }
+.lick-editor .le-selection button { min-height: 30px; white-space: nowrap; padding: 4px; display: flex; gap: 10px; }
+.lick-editor .le-transport { display: flex; align-items: center; gap: 24px; margin-top: 20px; }
+.lick-editor .le-play { min-width: 145px; background: color-mix(in srgb, var(--color-brass) 20%, var(--studio-panel)); border: 1px solid color-mix(in srgb, var(--color-brass) 55%, var(--studio-border)); color: var(--studio-text); }
+.lick-editor kbd { font: 9px/1.3 ui-monospace, monospace; color: var(--studio-muted); }
+.lick-editor .le-play kbd { font-size: 8px; }
+.lick-editor .le-tempo { display: flex; align-items: baseline; gap: 7px; }
+.lick-editor .le-tempo label, .lick-editor .le-tempo span { color: var(--studio-muted); font-size: 9px; text-transform: uppercase; }
+.lick-editor .le-tempo input { width: 57px; border: 0; border-bottom: 1px solid var(--studio-border); background: transparent; color: var(--studio-text); text-align: center; padding: 5px 0; font-size: 18px; font-variant-numeric: tabular-nums; appearance: textfield; }
+.lick-editor .le-tempo input::-webkit-inner-spin-button { appearance: none; }
+.lick-editor .le-loop { display: flex; gap: 8px; align-items: center; min-height: 40px; padding: 7px; border: 1px solid transparent; border-radius: 3px; font-size: 11px; color: var(--studio-muted); }
+.lick-editor .le-loop[aria-pressed=true] { background: var(--studio-well); border-color: var(--studio-border); color: var(--studio-text); }
+.lick-editor .le-time { margin-left: auto; white-space: nowrap; font: 18px var(--font-display); }
+.lick-editor .le-time small { font: 10px system-ui, sans-serif; margin-left: 7px; color: var(--studio-muted); }
+.lick-editor .le-entry { margin-top: 24px; padding: 24px 25px 0; }
+.lick-editor .le-entry > header { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 21px; }
+.lick-editor .le-entry > header > span { font-size: 11px; color: var(--studio-muted); }
+.lick-editor .entry-duration { display: flex; align-items: stretch; gap: 14px; margin-bottom: 20px; }
+.lick-editor .entry-duration > * { margin-block: 0; }
+.lick-editor .entry-duration-pads { flex: 1; max-width: 365px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; padding: 5px; background: var(--studio-well); border-radius: 5px; box-shadow: inset 0 2px 5px #0003; }
+.lick-editor .entry-duration-pads button { min-width: 0; min-height: 56px; color: var(--studio-text); border: 1px solid var(--studio-border); background: linear-gradient(#ffffff0a, #0000000a), var(--studio-panel-highlight); box-shadow: inset 0 1px #ffffff15, inset 0 -2px #0003; }
+.lick-editor .entry-duration-pads [aria-pressed=true] { color: var(--studio-text); background: color-mix(in srgb, var(--color-brass) 35%, var(--studio-panel)); border-color: var(--color-brass); box-shadow: inset 0 2px 4px #0003; }
+.lick-editor .entry-duration-pads button > span:last-child { opacity: 1; color: var(--studio-muted); font-size: 9px; }
+.lick-editor .entry-rhythm-modifiers { flex: 1; display: grid; grid-template-columns: 90px 1fr; grid-template-rows: 1fr 1fr; gap: 6px 14px; }
+.lick-editor .entry-rhythm-modifiers button { grid-column: 1; min-height: 30px; padding: 3px 9px; display: flex; align-items: center; justify-content: space-between; border-color: var(--studio-border); border-radius: 3px; color: var(--studio-text); font-size: 11px; }
+.lick-editor .entry-rhythm-modifiers button[aria-pressed=true] { background: var(--studio-well); border-color: var(--color-brass); }
+.lick-editor .entry-duration-label { grid-column: 2; grid-row: 1/3; text-align: right; justify-self: end; align-self: center; font: 17px/1.4 var(--font-display); color: var(--studio-text); max-width: 160px; }
+.lick-editor .entry-pitch-pads { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 7px; }
+.lick-editor .entry-pitch-pads button { min-width: 0; min-height: 65px; padding: 10px 4px; font: 500 26px var(--font-display); background: linear-gradient(#ffffff0a, #0000000a), var(--studio-panel-highlight); border: 1px solid var(--studio-border); color: var(--studio-text); box-shadow: inset 0 1px #ffffff17, inset 0 -3px #0003, 0 2px 3px #0002; }
+.lick-editor .entry-pitch-pads button:last-child { display: grid; place-content: center; gap: 4px; font: 12px system-ui, sans-serif; background: var(--studio-panel); }
+.lick-editor .entry-pitch-modifiers { background: transparent; padding: 0; margin-top: 16px; gap: 8px; }
+.lick-editor .entry-pitch-modifiers button { display: flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--studio-border); min-height: 36px; border-radius: 3px; color: var(--studio-text); background: transparent; font-size: 11px; }
+.lick-editor .entry-pitch-modifiers [aria-pressed=true] { border-color: var(--color-brass); background: var(--studio-well); }
+.lick-editor .entry-pitch-modifiers > button:last-child { margin-left: auto; }
+.lick-editor .entry-pitch-modifiers > div { border: 1px solid var(--studio-border); border-radius: 3px; gap: 0; }
+.lick-editor .entry-pitch-modifiers > div button { border: 0; }
+.lick-editor .entry-pitch-modifiers > div > span { width: 65px; font-size: 11px; }
+.lick-editor .le-entry-tip { padding: 16px 0; margin-top: 21px; border-top: 1px solid var(--studio-border); display: flex; align-items: center; justify-content: space-between; gap: 15px; font-size: 11px; line-height: 1.6; color: var(--studio-muted); }
+.lick-editor .le-entry-tip button { white-space: nowrap; min-height: 28px; color: var(--studio-text); font-size: 10px; }
+.lick-editor .le-status { min-height: 40px; display: flex; gap: 8px; align-items: center; font-size: 11px; line-height: 1.6; color: var(--studio-muted); padding: 10px 2px; }
+.lick-editor .le-inspector { min-width: 0; border: 1px solid var(--studio-border); border-radius: 7px; padding: 24px 21px 0; background: var(--studio-panel); box-shadow: var(--studio-shadow); }
+.lick-editor .le-inspector h2:not(.studio-label) { font: 500 22px/1.25 var(--font-display); margin: 13px 0 24px; letter-spacing: -.4px; }
+.lick-editor .entry-config, .lick-editor .entry-key-fields { display: flex; flex-wrap: wrap; gap: 12px 8px; }
+.lick-editor .entry-key-fields > span:first-child { flex-basis: 100%; text-transform: none; letter-spacing: normal; color: var(--studio-muted); font-size: 11px; }
+.lick-editor .entry-key-fields > select { flex: 1; min-width: 70px; }
+.lick-editor .entry-key-fields > [role=group] { height: 40px; border-color: var(--studio-border); }
+.lick-editor .entry-key-fields [role=group] button { color: var(--studio-muted); background: var(--studio-well); }
+.lick-editor .entry-key-fields [role=group] [aria-pressed=true] { background: var(--studio-button); color: white; }
+.lick-editor .entry-key-fields > button { flex-basis: 100%; text-align: left; min-height: 28px; }
+.lick-editor .entry-bar-fields { margin-top: 10px; flex-wrap: wrap; gap: 8px; width: 100%; }
+.lick-editor .entry-bar-fields > span { flex-basis: 100%; font-size: 11px; text-transform: none; letter-spacing: normal; }
+.lick-editor .entry-bar-fields > div { width: 100%; }
+.lick-editor .entry-bar-fields button { flex: 1; height: 36px; border: 1px solid var(--studio-border); background: var(--studio-well); color: var(--studio-text); }
+.lick-editor .entry-bar-fields button[aria-pressed=true] { background: var(--studio-button); color: white; }
+.lick-editor .le-context-note, .lick-editor .le-suggestion-caption { font-size: 11px; line-height: 1.7; color: var(--studio-muted); margin-top: 12px; }
+.lick-editor .le-suggestion-caption { margin: 0 0 7px; }
+.lick-editor .le-inspector select { width: 100%; max-width: 100%; height: 40px; padding: 0 9px; color: var(--studio-text); background: var(--studio-well); border: 1px solid var(--studio-border); border-radius: 4px; font-size: 12px; }
+.lick-editor .le-details { margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--studio-border); }
+.lick-editor .le-field-label { display: block; font-size: 11px; color: var(--studio-muted); margin: 18px 0 8px; }
+.lick-editor .le-practice-tag { display: flex; gap: 9px; align-items: center; width: 100%; border: 1px solid var(--studio-border); padding: 9px 10px; border-radius: 4px; font-size: 12px; margin: 14px 0; color: var(--studio-text); }
+.lick-editor .le-practice-tag small { margin-left: auto; font-size: 10px; color: var(--studio-muted); }
+.lick-editor .le-practice-tag[aria-pressed=true] { background: var(--studio-well); border-color: var(--color-brass); }
+.lick-editor .le-capacity { margin-top: 24px; padding: 21px 0; border-top: 1px solid var(--studio-border); }
+.lick-editor .le-capacity > strong { display: block; font: 28px var(--font-display); margin: 12px 0; }
+.lick-editor .le-capacity small { font: 12px system-ui, sans-serif; color: var(--studio-muted); }
+.lick-editor .le-capacity progress { display: block; width: 100%; height: 4px; border: 0; border-radius: 3px; overflow: hidden; background: var(--studio-well); color: var(--color-brass); accent-color: var(--color-brass); }
+.lick-editor .le-capacity progress::-webkit-progress-bar { background: var(--studio-well); }
+.lick-editor .le-capacity progress::-webkit-progress-value { background: var(--color-brass); }
+.lick-editor .le-capacity progress::-moz-progress-bar { background: var(--color-brass); }
+.lick-editor .le-capacity > p:last-child { color: var(--studio-muted); font-size: 11px; margin-top: 10px; }
+.lick-editor .le-clear { display: flex; align-items: center; justify-content: center; gap: 8px; width: calc(100% + 42px); margin: 0 -21px; min-height: 45px; border-top: 1px solid var(--studio-border); color: var(--studio-muted); font-size: 11px; }
+.lick-editor .le-duplicate { border: 1px solid var(--color-brass); padding: 12px 16px; margin: 4px 0 15px; border-radius: 4px; font-size: 12px; color: var(--studio-muted); }
+.lick-editor .le-duplicate strong { color: var(--studio-text); }
+.lick-editor .le-footer { border-top: 1px solid var(--studio-border); margin-top: 26px; padding: 23px 0 0; display: flex; justify-content: space-between; gap: 15px; color: var(--studio-muted); font-size: 9px; letter-spacing: .08em; }
+.lick-editor .le-footer i { font-style: normal; margin: 0 9px; color: var(--color-brass); }
+.lick-editor .le-footer a { font-size: 11px; letter-spacing: normal; }
+.lick-editor .le-dialog { margin: auto; width: min(550px, calc(100vw - 32px)); max-height: 90dvh; overflow: auto; padding: 28px; color: var(--studio-text); background: var(--studio-panel); border: 1px solid var(--studio-border); border-radius: 8px; box-shadow: 0 20px 80px #0008; }
+.lick-editor .le-dialog::backdrop { background: #050b17b3; backdrop-filter: blur(4px); }
+.lick-editor .le-dialog header { display: flex; justify-content: space-between; align-items: start; gap: 15px; }
+.lick-editor .le-dialog h2 { font: 500 26px/1.25 var(--font-display); }
+.lick-editor .le-dialog header button { padding: 4px; }
+.lick-editor .le-dialog p { font-size: 12px; line-height: 1.7; color: var(--studio-muted); margin-top: 13px; }
+.lick-editor .le-shortcuts { margin-top: 23px; }
+.lick-editor .le-shortcuts > div { display: flex; justify-content: space-between; align-items: center; gap: 16px; border-bottom: 1px solid var(--studio-border); padding: 9px 0; font-size: 11px; }
+.lick-editor .le-shortcuts kbd { font-size: 10px; white-space: nowrap; padding: 3px 6px; background: var(--studio-well); border: 1px solid var(--studio-border); border-radius: 3px; }
+.lick-editor .le-clear-dialog { max-width: 430px; }
+.lick-editor .le-dialog-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 25px; }
+@media (max-width: 1150px) {
+	.lick-editor .le-layout { grid-template-columns: minmax(0, 1fr) 240px; gap: 18px; }
+	.lick-editor .le-chart, .lick-editor .le-entry { padding-left: 18px; padding-right: 18px; }
+	.lick-editor .entry-duration-label, .lick-editor .le-time { display: none; }
+	.lick-editor .entry-rhythm-modifiers { flex: initial; grid-template-columns: 90px; }
+	.lick-editor .entry-duration-pads { max-width: none; }
+	.lick-editor .le-transport { gap: 13px; }
+	.lick-editor .le-tempo label { display: none; }
+}
+@media (max-width: 900px) {
+	.lick-editor .le-layout { grid-template-columns: 1fr; }
+	.lick-editor .le-inspector { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; padding: 24px; }
+	.lick-editor .le-details { margin: 0; padding: 0; border: 0; }
+	.lick-editor .le-capacity { margin-top: 0; }
+	.lick-editor .le-clear { margin: 0; width: 100%; align-self: stretch; }
+}
+@media (max-width: 600px) {
+	.lick-editor .studio-page-heading h1 { font-size: 38px; }
+	.lick-editor .studio-header-actions { width: 100%; justify-content: space-between; gap: 8px; }
+	.lick-editor .le-chart { padding: 18px 12px; }
+	.lick-editor .le-chart-heading { padding: 0 4px; }
+	.lick-editor .le-title { font-size: 25px; }
+	.lick-editor .le-history { gap: 4px; }
+	.lick-editor .le-history button { width: 30px; height: 32px; }
+	.lick-editor .le-chart-meta { gap: 6px; font-size: 10px; }
+	.lick-editor .le-score-well { padding: 15px 10px; }
+	.lick-editor .le-selection { padding: 8px 10px; font-size: 10px; }
+	.lick-editor .le-selection > span { gap: 6px; }
+	.lick-editor .le-selection > span > span { flex-basis: 100%; margin-left: 11px; }
+	.lick-editor .le-transport { gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+	.lick-editor .le-play { min-width: 112px; padding: 9px; }
+	.lick-editor .le-play kbd { display: none; }
+	.lick-editor .le-tempo { margin-left: auto; }
+	.lick-editor .le-loop { padding: 5px; font-size: 10px; gap: 5px; }
+	.lick-editor .le-entry { margin-top: 18px; padding: 20px 13px 0; }
+	.lick-editor .entry-duration { gap: 8px; }
+	.lick-editor .entry-duration-pads { gap: 3px; padding: 4px; }
+	.lick-editor .entry-duration-pads button { min-height: 50px; padding: 5px; }
+	.lick-editor .entry-rhythm-modifiers { grid-template-columns: 79px; }
+	.lick-editor .entry-rhythm-modifiers button { font-size: 10px; padding: 2px 7px; }
+	.lick-editor .entry-pitch-pads { gap: 4px; }
+	.lick-editor .entry-pitch-pads button { min-height: 55px; font-size: 22px; }
+	.lick-editor .entry-pitch-pads button:last-child { font-size: 10px; }
+	.lick-editor .entry-pitch-modifiers { gap: 6px; }
+	.lick-editor .entry-pitch-modifiers > button:last-child { margin-left: 0; }
+	.lick-editor .entry-pitch-modifiers button { padding: 5px 8px; min-height: 38px; }
+	.lick-editor .entry-pitch-modifiers button span span { display: none; }
+	.lick-editor .le-entry-tip { display: block; font-size: 10px; }
+	.lick-editor .le-entry-tip button { display: block; margin-top: 8px; }
+	.lick-editor .le-inspector { grid-template-columns: 1fr; padding: 21px; }
+	.lick-editor .le-details { padding-top: 23px; border-top: 1px solid var(--studio-border); }
+	.lick-editor .le-footer { flex-wrap: wrap; font-size: 8px; line-height: 1.7; }
+	.lick-editor .le-dialog { padding: 22px; }
+	.lick-editor .le-shortcuts > div { font-size: 10px; }
+}
+@media (prefers-reduced-motion: reduce) { .lick-editor * { transition: none !important; } }

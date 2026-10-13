@@ -23,10 +23,10 @@
 
 <!-- In a narrow named `entry` container (tune-editor dock) glyphs + toggles
      merge onto one line; below 18rem (the rail) it stays stacked. -->
-<div class="space-y-2 @max-[28rem]/entry:flex @max-[28rem]/entry:items-stretch @max-[28rem]/entry:gap-2 @max-[28rem]/entry:space-y-0 @max-[18rem]/entry:block @max-[18rem]/entry:space-y-2">
+<div class="entry-duration space-y-2 @max-[28rem]/entry:flex @max-[28rem]/entry:items-stretch @max-[28rem]/entry:gap-2 @max-[28rem]/entry:space-y-0 @max-[18rem]/entry:block @max-[18rem]/entry:space-y-2">
 	<!-- gap-1.5/px-2 rather than gap-2/px-3: five glyphs have to fit the 16rem
 	     desktop rail, whose padded content box is ~232px. -->
-	<div class="flex gap-1.5 @max-[28rem]/entry:flex-1">
+	<div class="entry-duration-pads flex gap-1.5 @max-[28rem]/entry:flex-1">
 		{#each BASE_DURATION_IDS as id}
 			<button
 				onclick={() => setDuration(id)}
@@ -72,7 +72,7 @@
 		{/each}
 	</div>
 
-	<div class="flex flex-wrap items-center gap-3">
+	<div class="entry-rhythm-modifiers flex flex-wrap items-center gap-3">
 		<button
 			onclick={toggleTriplet}
 			disabled={!tripletApplies}
@@ -97,6 +97,6 @@
 		>
 			Dotted <span class="text-[10px] opacity-50">.</span>
 		</button>
-		<span class="text-sm text-[var(--color-text-secondary)] @max-[28rem]/entry:hidden">{resolvedName}</span>
+		<span class="entry-duration-label text-sm text-[var(--color-text-secondary)] @max-[28rem]/entry:hidden">{resolvedName}</span>
 	</div>
 </div>
