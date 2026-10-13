@@ -378,6 +378,7 @@ The approved MagicPath pages are implemented natively in Svelte 5 (migration sta
 | Scale reference · Studio Desk | `459518760068452352` | `460511901051424768` |
 | Progress · Studio Desk | `460507092273475584` | `460509079647965184` |
 | Sign in · Studio Desk | `459519014817902592` | `460514824175128576` |
+| Lick Editor · Studio Desk | `459517965835059200` | `460811927849934848` |
 | Landing · Studio Desk | `460241787924140032` | `460242697312145408` |
 
 React prototype state and handlers are not shipped. `StudioPage` and `StudioPanel`
@@ -395,7 +396,8 @@ controls. Activity overrides are scoped to the owning panel. Settings is neutral
 its tonality section is ear-training and its practice link is lick-practice.
 
 Home/landing, Sign in, Settings, Ear Training, Progress, Scales, Lick Practice setup,
-the running Lick Practice session (`/lick-practice/session`), Licks and Tunes opt into
+the running Lick Practice session (`/lick-practice/session`), Licks, the Lick Editor
+(`/licks/editor`) and Tunes opt into
 the layout's 1440px Studio Desk container. Other nested detail, editor, import and
 session routes retain their existing width and presentation. The setup summary
 moves below the controls on tablet/mobile; instrument and scale banks reflow
@@ -516,3 +518,28 @@ report actions and persistence remain owned by their existing state and audio
 modules. In particular, the original rule hides notation at twelve unlocked keys.
 Browser regression coverage includes the 11-key notation layout and 12-key ring,
 mobile/desktop geometry, ledger-note clearance and the existing session flows.
+
+
+### Lick Editor
+
+The editor uses the approved score-first Studio Desk layout: title and real abcjs
+notation above transport, the shared duration/pitch controls beneath, and a
+compact Setup/Details inspector. The inspector stacks below the workspace at
+900px; a narrow screen scrolls the score within its inset well. All surfaces
+use the shared dark/light tokens. The global navigation remains the app's own.
+
+The existing step-entry store owns pitches, rests, ties, duration choices,
+key/mode conversion, the 1–4 bar range and written/concert transposition. Entry
+still appends A–G/0; selection targets pitch/spelling changes and deletion.
+Saving, duplicate-to-Steal handling, attribution suggestions, community privacy,
+practice membership and edit identity retain the existing persistence paths.
+Prototype example data, draft storage and unsupported tags/progression fields
+are not shipped.
+
+Undo/redo snapshots phrase content and setup, excluding selection, playback and
+the saved lick's identity. History is bounded to 50 edits and resets on saves
+and target changes. Clear removes only notes after confirmation and is undoable.
+The preview tempo is local to this editor; it does not overwrite Settings. Loop
+uses the real phrase playback engine, with one cancellation generation covering
+sample loading and subsequent repeats. Per-note cursor events use that engine's
+audio clock. Dialogs use native modal focus handling and suppress editor shortcuts.

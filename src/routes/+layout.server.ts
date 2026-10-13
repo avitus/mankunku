@@ -10,7 +10,8 @@ import { recordBrowserDevice } from '$lib/server/record-browser-device';
  * to validate the JWT — not just `getSession()` — ensuring the returned session is
  * cryptographically verified on every request.
  *
- * The returned `session` and `user` objects become available to:
+ * The returned `session`, `user` and the profile's `isAdmin`/`displayName`
+ * become available to:
  * - `+layout.ts` via its `data` parameter
  * - All descendant routes via `$page.data`
  */
@@ -22,18 +23,23 @@ export const load: LayoutServerLoad = async (event) => {
 	// `degraded: true` verdict (or a stale null session) would stick for the
 	// lifetime of the tab even after the browser client refreshed fine.
 	depends('supabase:auth');
+	// Settings invalidates this after saving the display name, so the greeting
+	// and nav label pick it up without a reload.
+	depends('app:profile');
 
 	const { session, user, degraded } = await locals.safeGetSession();
 
 	const observation = recordBrowserDevice(event);
 	let isAdmin = false;
+	let displayName: string | null = null;
 	if (user) {
 		const { data } = await locals.supabase
 			.from('user_profiles')
-			.select('is_admin')
+			.select('is_admin, display_name')
 			.eq('id', user.id)
 			.single();
 		isAdmin = data?.is_admin ?? false;
+		displayName = data?.display_name ?? null;
 	}
 
 	await observation;
@@ -44,6 +50,9 @@ export const load: LayoutServerLoad = async (event) => {
 		// +layout.ts must skip user-scope reconciliation rather than wipe.
 		degraded,
 		isAdmin,
+		// The name the user chose in Settings — the home greeting and the nav
+		// label prefer it over the email's local part.
+		displayName,
 		cookies: cookies.getAll().filter(
 			(c) => c.name.startsWith('sb-') || c.name.startsWith('supabase-')
 		)

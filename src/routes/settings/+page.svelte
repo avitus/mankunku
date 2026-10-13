@@ -44,7 +44,7 @@
 	import { TOURS } from '$lib/tour/tours';
 	import { runTour } from '$lib/tour/driver-config';
 	import { hasSeen, resetTours } from '$lib/state/tour.svelte';
-	import { goto } from '$app/navigation';
+	import { goto, invalidate } from '$app/navigation';
 	import { passwordRecoveryRedirect } from '$lib/supabase/password-recovery';
 
 	const instrument = $derived(getInstrument());
@@ -239,6 +239,8 @@
 				.eq('id', user.id);
 			displayNameStatus = error ? 'error' : 'saved';
 			if (error) console.warn('Failed to save display name:', error);
+			// The home greeting and nav label read the name from the root layout.
+			else void invalidate('app:profile');
 		} catch (err) {
 			console.warn('Unexpected error saving display name:', err);
 			displayNameStatus = 'error';

@@ -8,7 +8,7 @@
  * Jazz expression features:
  * - Custom sax samples (MTG Solo Sax, CC-BY 4.0) with velocity layers
  * - Per-instrument voice (instrument-voices.ts): sample source, bus warmth
- *   lowpass, and a pitch vibrato that blooms on held notes only
+ *   lowpass, and four randomly selected held-note pitch vibrato shapes
  * - Per-note swing pre-shift on off-beat 8ths (triplets are immune)
  * - Humanized velocity and timing for authentic jazz phrasing
  * - Per-note tuning corrections from SFZ mappings
@@ -32,9 +32,11 @@ import {
 import { layerToBuffers, getTuneCorrection, type SampleMap } from './sample-maps';
 import {
 	instrumentVoice,
+	chooseVibratoStyle,
 	vibratoDelaySwingSeconds,
 	vibratoEnvelope,
-	type VibratoProfile
+	type VibratoProfile,
+	type VibratoBreakpoint
 } from './instrument-voices';
 import { extractSoundingNotes, computeExpression } from '$lib/music/expression';
 
@@ -106,6 +108,8 @@ let warmthFilter: BiquadFilterNode | null = null;
 /** The loaded voice's vibrato, and its full-depth delay swing in seconds. */
 let activeVibrato: VibratoProfile | null = null;
 let vibratoSwingSeconds = 0;
+/** Previous envelope in absolute audio time, for preserving an interrupted ramp. */
+let scheduledVibrato: VibratoBreakpoint[] = [];
 
 /**
  * Resting delay of the vibrato line. Must exceed the largest swing any voice
@@ -150,7 +154,7 @@ function setupJazzExpression(audioCtx: AudioContext, instrumentId: string): void
 	vibratoLfo.type = 'sine';
 	vibratoLfo.frequency.value = voice.vibrato.rateHz;
 
-	// Depth starts at zero: every note opens straight and `shapeVibrato` blooms it.
+	// Each note chooses its own shape; silence starts with no modulation.
 	vibratoGain = audioCtx.createGain();
 	vibratoGain.gain.value = 0;
 	vibratoLfo.connect(vibratoGain);
@@ -181,17 +185,29 @@ function setupJazzExpression(audioCtx: AudioContext, instrumentId: string): void
 
 /**
  * Automate the vibrato depth for one note. The line is monophonic, so the
- * depth is a bus envelope restarted at every attack: straight on short notes,
- * blooming after the voice's onset delay on held ones.
+ * depth is a bus envelope replaced at every attack. Draw once per sounding
+ * note (ties have already merged); the widening shape includes its release.
  */
-function shapeVibrato(time: number, durationSeconds: number): void {
+function shapeVibrato(time: number, durationSeconds: number, releaseSeconds: number): void {
 	if (!vibratoGain || !activeVibrato) return;
 	const depth = vibratoGain.gain;
 	depth.cancelScheduledValues(time);
-	for (const point of vibratoEnvelope(activeVibrato, durationSeconds)) {
+	// Cancelling a future ramp endpoint also erases its earlier, audible
+	// portion. Restore that portion up to this attack before replacing it.
+	const nextIndex = scheduledVibrato.findIndex((point) => point.at >= time);
+	if (nextIndex > 0 && scheduledVibrato[nextIndex].ramp) {
+		const previous = scheduledVibrato[nextIndex - 1];
+		const next = scheduledVibrato[nextIndex];
+		const progress = (time - previous.at) / (next.at - previous.at);
+		const heldDepth = previous.depth + progress * (next.depth - previous.depth);
+		depth.linearRampToValueAtTime(heldDepth * vibratoSwingSeconds, time);
+	}
+	scheduledVibrato = vibratoEnvelope(activeVibrato, durationSeconds, chooseVibratoStyle(), releaseSeconds)
+		.map((point) => ({ ...point, at: time + point.at }));
+	for (const point of scheduledVibrato) {
 		const value = point.depth * vibratoSwingSeconds;
-		if (point.ramp) depth.linearRampToValueAtTime(value, time + point.at);
-		else depth.setValueAtTime(value, time + point.at);
+		if (point.ramp) depth.linearRampToValueAtTime(value, point.at);
+		else depth.setValueAtTime(value, point.at);
 	}
 }
 
@@ -214,6 +230,7 @@ function cleanupJazzExpression(): void {
 	}
 	activeVibrato = null;
 	vibratoSwingSeconds = 0;
+	scheduledVibrato = [];
 	if (warmthFilter) {
 		warmthFilter.disconnect();
 		warmthFilter = null;
@@ -395,7 +412,7 @@ export function isInstrumentLoaded(): boolean {
  * and applies per-note tuning corrections from the SFZ mapping.
  */
 function startNote(event: Omit<PlaybackEvent, 'time'> & { time: number }): void {
-	shapeVibrato(event.time, event.duration);
+	shapeVibrato(event.time, event.duration, event.release);
 	if (activeSampleMap && samplerPiano && samplerForte) {
 		// Layer + tuning are chosen from the intended (un-humanized) velocity so
 		// timbre tracks musical intent and never flickers with gain jitter.

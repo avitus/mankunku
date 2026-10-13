@@ -15,6 +15,7 @@
 		setPendingNavTarget,
 		clearNavRecoveryLatch
 	} from '$lib/util/stale-chunk';
+	import { accountLabel } from '$lib/ui/user-name';
 
 	interface Props {
 		children: import('svelte').Snippet;
@@ -23,6 +24,7 @@
 			session: import('@supabase/supabase-js').Session | null;
 			user: import('@supabase/supabase-js').User | null;
 			isAdmin: boolean;
+			displayName?: string | null;
 		};
 	}
 
@@ -67,14 +69,11 @@
 	});
 
 	/**
-	 * Username portion of the email (before the @) — saves horizontal space in
-	 * the nav. Falls back to "Account" if the user has no email (e.g. a
-	 * non-email auth provider) or if the local part is empty, so both desktop
-	 * and mobile labels never render blank.
+	 * The account menu's label: the display name set in Settings, else the
+	 * email's local part, else "Account" — so both desktop and mobile labels
+	 * never render blank.
 	 */
-	const emailPrefix = $derived(
-		(user?.email && user.email.split('@')[0].trim()) || 'Account'
-	);
+	const accountName = $derived(accountLabel(data.displayName, user?.email));
 
 	/**
 	 * Explicit sign-out. Storage is per-user-namespaced, so the user's data
@@ -336,7 +335,7 @@
 								class="cursor-pointer list-none max-w-[120px] truncate text-xs text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text)]"
 								title={user.email ?? ''}
 							>
-								{emailPrefix} <span class="opacity-60 group-open:opacity-100">▾</span>
+								{accountName} <span class="opacity-60 group-open:opacity-100">▾</span>
 							</summary>
 							<div
 								class="absolute right-0 top-full z-20 mt-1 min-w-[120px] rounded-md border border-[var(--color-bg-tertiary)] bg-[var(--color-bg-secondary)] p-1 shadow-md"
@@ -424,7 +423,7 @@
 							class="truncate px-3 py-2 text-xs text-[var(--color-text-secondary)]"
 							title={user.email ?? ''}
 						>
-							{emailPrefix}
+							{accountName}
 						</div>
 						{#if isAdmin}
 							<a
@@ -464,7 +463,7 @@
 		{/if}
 	</nav>
 
-	<main class="relative z-10 mx-auto max-w-5xl px-4 py-6" class:studio-layout={['/', '/auth', '/settings', '/progress', '/scales', '/ear-training', '/lick-practice', '/lick-practice/session', '/licks', '/tunes'].includes(page.url.pathname)}>
+	<main class="relative z-10 mx-auto max-w-5xl px-4 py-6" class:studio-layout={['/', '/auth', '/settings', '/progress', '/scales', '/ear-training', '/lick-practice', '/lick-practice/session', '/licks', '/licks/editor', '/tunes'].includes(page.url.pathname)}>
 		{#if showWelcomeBanner}
 			<TourBanner
 				tourId="welcome"

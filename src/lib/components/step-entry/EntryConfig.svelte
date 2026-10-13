@@ -37,10 +37,11 @@
 	}
 </script>
 
-<div class="flex items-center justify-between gap-4">
-	<div class="flex items-center gap-2">
+<div class="entry-config flex items-center justify-between gap-4">
+	<div class="entry-key-fields flex items-center gap-2">
 		<span class="text-xs font-medium uppercase tracking-wider text-[var(--color-text-secondary)]">Key</span>
 		<select
+			aria-label="Key"
 			value={stepEntry.phraseKey}
 			onchange={handleKeyChange}
 			class="rounded bg-[var(--color-bg-tertiary)] px-2 py-1.5 text-sm
@@ -81,12 +82,14 @@
 		{/if}
 	</div>
 
-	<div class="flex items-center gap-2">
+	<div class="entry-bar-fields flex items-center gap-2">
 		<span class="text-xs font-medium uppercase tracking-wider text-[var(--color-text-secondary)]">Bars</span>
 		<div class="flex gap-1">
 			{#each [1, 2, 3, 4] as n}
 				<button
 					onclick={() => setBarCount(n)}
+					aria-label={`${n} ${n === 1 ? 'bar' : 'bars'}`}
+					aria-pressed={stepEntry.barCount === n}
 					class="h-7 w-7 rounded text-xs font-medium transition-colors
 						{stepEntry.barCount === n
 							? 'bg-[var(--color-accent)] text-white'

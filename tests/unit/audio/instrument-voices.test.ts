@@ -1,7 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { INSTRUMENTS } from '$lib/types/instruments';
 import {
 	INSTRUMENT_VOICES,
+	VIBRATO_STYLES,
+	chooseVibratoStyle,
 	instrumentVoice,
 	vibratoDelaySwingSeconds,
 	vibratoEnvelope,
@@ -74,37 +76,114 @@ describe('vibratoEnvelope', () => {
 		depthCents: 12,
 		minNoteSeconds: 0.6,
 		onsetDelaySeconds: 0.18,
-		bloomSeconds: 0.22,
-		fadeSeconds: 0.05
+		bloomSeconds: 0.22
 	};
 
 	it('plays a short note straight', () => {
-		expect(vibratoEnvelope(profile, 0.59)).toEqual([{ at: 0, depth: 0, ramp: false }]);
+		for (const style of VIBRATO_STYLES) {
+			expect(vibratoEnvelope(profile, 0.59, style)).toEqual([{ at: 0, depth: 0, ramp: false }]);
+		}
 	});
 
-	it('blooms a held note after the onset delay and fades it out by the end', () => {
-		expect(vibratoEnvelope(profile, 1)).toEqual([
+	it('uses the opening straight-tone delay before a gradual widening', () => {
+		const envelope = vibratoEnvelope(profile, 0.6, 'widening');
+		expect(envelope.slice(0, 2)).toEqual([
 			{ at: 0, depth: 0, ramp: false },
-			{ at: 0.18, depth: 0, ramp: false },
-			{ at: 0.4, depth: 1, ramp: true },
-			{ at: 0.95, depth: 1, ramp: false },
-			{ at: 1, depth: 0, ramp: true }
+			{ at: 0.18, depth: 0, ramp: false }
 		]);
+		expect(envelope.at(-1)?.ramp).toBe(true);
 	});
 
-	it('stays straight when the bloom would not finish before the fade', () => {
-		const late = { ...profile, minNoteSeconds: 0.1 };
-		expect(vibratoEnvelope(late, 0.44)).toEqual([{ at: 0, depth: 0, ramp: false }]);
+	it('stays straight when the widening onset would fall beyond the note and release', () => {
+		const late = { ...profile, onsetDelaySeconds: 2 };
+		expect(vibratoEnvelope(late, 1, 'widening', 0.2)).toEqual([{ at: 0, depth: 0, ramp: false }]);
 	});
 
 	it('stays straight on a voice with no depth', () => {
-		expect(vibratoEnvelope({ ...profile, depthCents: 0 }, 2)).toHaveLength(1);
+		for (const style of VIBRATO_STYLES) {
+			expect(vibratoEnvelope({ ...profile, depthCents: 0 }, 4, style)).toEqual([{ at: 0, depth: 0, ramp: false }]);
+			expect(vibratoEnvelope({ ...profile, rateHz: 0 }, 4, style)).toEqual([{ at: 0, depth: 0, ramp: false }]);
+		}
 	});
 
 	it('emits breakpoints in time order, so automation never schedules backwards', () => {
 		for (const duration of [0.6, 0.8, 1.5, 4]) {
-			const times = vibratoEnvelope(profile, duration).map((p) => p.at);
-			expect(times).toEqual([...times].sort((a, b) => a - b));
+			for (const style of VIBRATO_STYLES) {
+				const times = vibratoEnvelope(profile, duration, style).map((p) => p.at);
+				expect(times).toEqual([...times].sort((a, b) => a - b));
+			}
 		}
+	});
+
+	it('can leave a held note entirely straight', () => {
+		expect(vibratoEnvelope(profile, 4, 'straight', 0.25)).toEqual([
+			{ at: 0, depth: 0, ramp: false }
+		]);
+	});
+
+	it('waits two full seconds before introducing narrow vibrato', () => {
+		const envelope = vibratoEnvelope(profile, 4, 'delayed', 0.25);
+		expect(envelope.filter((point) => point.at <= 2).every((point) => point.depth === 0)).toBe(true);
+		expect(envelope).toContainEqual({ at: 2, depth: 0, ramp: false });
+		expect(Math.max(...envelope.map((point) => point.depth))).toBeCloseTo(0.4);
+		expect(vibratoEnvelope(profile, 2, 'delayed', 0.25)).toEqual([
+			{ at: 0, depth: 0, ramp: false }
+		]);
+	});
+
+	it('widens gradually through the amplitude release instead of flattening before it', () => {
+		const envelope = vibratoEnvelope(profile, 1, 'widening', 0.35);
+		expect(envelope[0]).toEqual({ at: 0, depth: 0, ramp: false });
+		expect(envelope.at(-1)?.at).toBeCloseTo(1.35);
+		expect(envelope.at(-1)?.depth).toBeGreaterThan(0.9);
+		for (let i = 1; i < envelope.length; i++) {
+			expect(envelope[i].depth).toBeGreaterThanOrEqual(envelope[i - 1].depth);
+		}
+	});
+
+	it('starts with narrower vibrato and leaves the final third straight', () => {
+		const envelope = vibratoEnvelope(profile, 1, 'opening', 0.35);
+		expect(envelope[0]).toEqual({ at: 0, depth: 0.5, ramp: false });
+		expect(envelope.at(-1)?.depth).toBe(0);
+		expect(envelope.at(-1)?.at).toBeLessThanOrEqual(2 / 3);
+		expect(Math.max(...envelope.map((point) => point.depth))).toBe(0.5);
+	});
+
+	it('does not rush a full delayed bloom into the last few milliseconds', () => {
+		const envelope = vibratoEnvelope(profile, 2.01, 'delayed');
+		expect(envelope.at(-1)?.at).toBe(2.01);
+		expect(envelope.at(-1)?.depth).toBeGreaterThan(0);
+		expect(envelope.at(-1)?.depth).toBeLessThan(0.02);
+	});
+
+	it('caps the pitch swing including the extra bend caused by ramping delay depth', () => {
+		for (const voice of Object.values(INSTRUMENT_VOICES)) {
+			for (const duration of [0.6, 1, 2.001, 2.1, 3, 8]) {
+				for (const style of VIBRATO_STYLES) {
+					const envelope = vibratoEnvelope(voice.vibrato, duration, style, 0.35);
+					for (let i = 0; i < envelope.length; i++) {
+						const point = envelope[i];
+						expect(point.depth).toBeGreaterThanOrEqual(0);
+						expect(point.depth).toBeLessThanOrEqual(1);
+						if (!point.ramp) continue;
+						const previous = envelope[i - 1];
+						const slope = (point.depth - previous.depth) / (point.at - previous.at);
+						const peak = Math.hypot(Math.max(point.depth, previous.depth), slope / (2 * Math.PI * voice.vibrato.rateHz));
+						expect(peak).toBeLessThanOrEqual(1 + 1e-12);
+					}
+				}
+			}
+		}
+	});
+});
+
+describe('vibrato selection', () => {
+	it.each([
+		[0, 'straight'], [0.2499, 'straight'], [0.25, 'delayed'], [0.4999, 'delayed'],
+		[0.5, 'widening'], [0.7499, 'widening'], [0.75, 'opening'], [0.9999, 'opening']
+	] as const)('maps random draw %s to %s with one draw and equal-sized ranges', (draw, style) => {
+		const random = vi.fn(() => draw);
+		expect(chooseVibratoStyle(random)).toBe(style);
+		expect(random).toHaveBeenCalledOnce();
 	});
 });
