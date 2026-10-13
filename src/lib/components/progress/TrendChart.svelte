@@ -8,8 +8,9 @@
 
 	interface Props {
 		summaries: DailySummary[];
+		studio?: boolean;
 	}
-	let { summaries }: Props = $props();
+	let { summaries, studio = false }: Props = $props();
 
 	// Period date ranges
 	function getStartDate(p: Period): string {
@@ -142,13 +143,14 @@
 	];
 </script>
 
-<div>
+<div class:studio-trend={studio}>
 	<!-- Period selector -->
-	<div class="mb-3 flex items-center justify-between">
-		<div class="flex gap-1">
+	<div class="trend-controls mb-3 flex items-center justify-between">
+		<div class="range-selector flex gap-1">
 			{#each periods as p}
 				<button
 					onclick={() => { period = p.value; }}
+					aria-pressed={period === p.value}
 					class="rounded px-2 py-0.5 text-xs transition-colors {period === p.value
 						? 'bg-[var(--color-accent)] text-white'
 						: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg)]'}"
@@ -203,3 +205,12 @@
 		</div>
 	{/if}
 </div>
+
+<style>
+	.studio-trend .trend-controls { flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
+	.studio-trend .range-selector { padding: 3px; gap: 3px; background: var(--studio-well); border: 1px solid var(--studio-border); border-radius: 4px; }
+	.studio-trend button { min-height: 32px; min-width: 36px; background: transparent; color: var(--studio-muted); }
+	.studio-trend button[aria-pressed='true'] { background: var(--studio-panel-highlight); color: var(--studio-text); box-shadow: inset 0 0 0 1px var(--studio-border); }
+	.studio-trend button:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+	.studio-trend > svg { min-height: 160px; }
+</style>

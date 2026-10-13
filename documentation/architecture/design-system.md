@@ -365,7 +365,7 @@ Check both light and dark modes.
 
 ## Studio Desk migration
 
-The approved MagicPath pages are implemented natively in Svelte 5 (2026-10-11).
+The approved MagicPath pages are implemented natively in Svelte 5 (migration started 2026-10-11).
 
 | Page | Component | Approved revision |
 |---|---|---|
@@ -375,6 +375,9 @@ The approved MagicPath pages are implemented natively in Svelte 5 (2026-10-11).
 | Licks · Studio Library | `460234239577821184` | `460236188301803520` |
 | Tunes · Studio Library | `460237458806812672` | `460237458806812673` |
 | Ear Training · Studio Console | `459411700509200384` | `460504190599458816` |
+| Scale reference · Studio Desk | `459518760068452352` | `460511901051424768` |
+| Progress · Studio Desk | `460507092273475584` | `460509079647965184` |
+| Sign in · Studio Desk | `459519014817902592` | `460514824175128576` |
 | Landing · Studio Desk | `460241787924140032` | `460242697312145408` |
 
 React prototype state and handlers are not shipped. `StudioPage` and `StudioPanel`
@@ -391,9 +394,10 @@ phase, mastery and accuracy tokens above; they do not replace their meanings.
 controls. Activity overrides are scoped to the owning panel. Settings is neutral;
 its tonality section is ear-training and its practice link is lick-practice.
 
-Home/landing, Settings, Ear Training, Lick Practice setup, Licks and Tunes opt into the layout's
-1440px Studio Desk container. Nested detail, editor, import and session routes
-retain their existing width and presentation. The setup summary
+Home/landing, Sign in, Settings, Ear Training, Progress, Scales, Lick Practice setup,
+the running Lick Practice session (`/lick-practice/session`), Licks and Tunes opt into
+the layout's 1440px Studio Desk container. Other nested detail, editor, import and
+session routes retain their existing width and presentation. The setup summary
 moves below the controls on tablet/mobile; instrument and scale banks reflow
 using `--selector-columns`. Do not apply new chrome across all routes as a side
 effect of migrating a single page.
@@ -450,3 +454,65 @@ existing semantic light-theme tokens respected.
 Tour anchors stay on the actual controls inside `EarTrainingConsole`. The tour
 registry test follows mounted, statically imported Svelte components, so extracting
 presentation does not break validation or require duplicate route-level anchors.
+
+
+### Progress overview
+
+Progress uses the approved Studio Desk hierarchy: persistent all-time readouts,
+a slim mastery meter, Tonal Mastery beside This Period, a full-width calendar,
+then Scale Proficiency beside Keys & Scales and By Key. The trend/comparison panels stack below 1100px and the lower panels below 850px; the year calendar scrolls horizontally at small widths so its
+daily cells remain legible. Both themes use the shared Studio Desk palette.
+
+The route retains live history, mastery and unlock calculations, written-pitch
+labels, expandable scale trends, session recordings and per-key note details.
+Practice time still excludes unknown historical durations. Empty panels show
+actual empty states, never the prototype's example data. Progress/Sessions tabs
+and their session subtabs retain keyboard navigation. Reset remains behind its
+existing confirmation. `TrendChart` and `PeriodCompare` opt into console styling
+through their `studio` prop without changing their calculations or other callers.
+
+
+### Scale reference
+
+The Scale reference is a compact reference panel with a family index, names and
+inset degree labels. Family links jump to their sections; the index wraps above
+the panel on smaller screens. Content and counts come from `getMvpScales()` and
+`SCALE_CATALOG`, preserving the existing selection and ordering. Flats and sharps
+use musical glyphs visually while each formula retains its original accessible
+label. It shares the ear-training domain and the existing dark/light tokens.
+
+
+### Sign in
+
+`/auth` uses one compact neutral Studio Desk panel, inset credential fields and a
+password visibility toggle. Sign-in and registration share the same form, with
+inline confirmation and error states and the existing resend action. The route
+keeps SvelteKit form actions, progressive enhancement, autocomplete, registration
+validation and non-enumerating confirmation copy. Both themes use shared tokens;
+prototype state controls and sample responses are not shipped.
+
+### Daily and Deep practice desk
+
+The approved taller Studio Desk session uses the existing Svelte session engine,
+with a recessed music area and a 220px key-progress rail on wide screens. Below
+1050px the ring and End Session move below the music. Chord rows remain 128px;
+notation rows are 204.8px (60% taller), with a 140.8px music frame, 10px inner
+vertical padding and a separate 28px cue lane. The viewport reserves 460.8px so
+notation appearing or disappearing between cycles does not move the controls.
+Listen and Play share frame geometry, using the existing red/brass phase tokens;
+the entrance frame stays dashed until recording is audible.
+
+Production notation stays in abcjs, preserving real notes, accidentals, written
+pitch and ledger lines. Adjacent chord rows follow the active staff's measured
+bar boundaries when both cover the same full progression. A windowed excerpt of
+a longer progression retains its own geometry. Resize measurements include the
+SVG's actual scale; playback updates move only the highlight, never re-engrave.
+The current bar has a restrained wash and thin underline. Ring keys retain tier
+colours and current/pending outlines; percentages are available in accessible
+key descriptions and session reports rather than tiny visible ring labels.
+
+Daily/Deep/Focused transitions, reveal policy, three-pass scoring, recordings,
+report actions and persistence remain owned by their existing state and audio
+modules. In particular, the original rule hides notation at twelve unlocked keys.
+Browser regression coverage includes the 11-key notation layout and 12-key ring,
+mobile/desktop geometry, ledger-note clearance and the existing session flows.

@@ -7,8 +7,10 @@
 	import { chordChartCells, chordChartSymbol } from '$lib/ui/chord-chart-layout';
 
 	interface Props {
-		/** Retain the label space while Daily shows only its action cue. */
+		/** Show the Changes label for standalone charts; sessions own their cue lane. */
 		showLabel?: boolean;
+		/** Actual one-system engraving boundaries; only used for a matching full cycle. */
+		barEdges?: number[];
 		harmony: HarmonicSegment[];
 		currentBeat: number;
 		timeSignature: [number, number];
@@ -27,6 +29,7 @@
 
 	let {
 		showLabel = true,
+		barEdges,
 		harmony,
 		currentBeat,
 		timeSignature,
@@ -43,6 +46,17 @@
 	}
 
 	const cells = $derived(chordChartCells(harmony, timeSignature));
+	const alignedWidths = $derived.by(() => {
+		const totalBeats = cells.at(-1) ? cells.at(-1)!.startBeat + cells.at(-1)!.durationBeats : 0;
+		if (!barEdges || Math.abs(totalBeats / timeSignature[0] - (barEdges.length - 1)) > 0.001) return null;
+		/** Interpolate sub-bar chord cells between the engraving’s full-bar edges. */
+		const edgeAt = (beat: number): number => {
+			const bar = beat / timeSignature[0];
+			const index = Math.min(Math.floor(bar), barEdges.length - 2);
+			return barEdges[index] + (bar - index) * (barEdges[index + 1] - barEdges[index]);
+		};
+		return cells.map(cell => edgeAt(cell.startBeat + cell.durationBeats) - edgeAt(cell.startBeat));
+	});
 
 	/** Slash bass respelled like the root, when the segment carries one. */
 	function displayBass(seg: HarmonicSegment): string | undefined {
@@ -85,26 +99,26 @@
 </script>
 
 <div class="chord-chart flex flex-col gap-0">
-	<div class="smallcaps mb-1 text-[var(--color-brass)]" class:label-spacer={!showLabel} aria-hidden={!showLabel}>{showLabel ? 'Changes' : ' '}</div>
+	{#if showLabel}<div class="smallcaps mb-1 text-[var(--color-brass)]">Changes</div>{/if}
 	<!-- One structural row, never wrapped: the host (UpcomingKeysDisplay)
 	     sizes each key row to exactly one chart row, so a second row could
 	     only overflow it and paint over the key below. Long windows get
 	     proportionally narrower cells instead. -->
-	<div class="flex">
+	<div class="chord-cells flex">
 		{#each cells as cell, cellIdx}
 			{@const isActive = cellIdx === currentCellIndex}
 			{@const isPast = currentCellIndex >= 0 && cellIdx < currentCellIndex}
 			{@const numBeats = Math.round(cell.durationBeats)}
 			{@const parts = cellParts(cell.segmentIndex)}
 			<div
-				class="relative flex flex-col items-center justify-center border border-[var(--color-bg-tertiary)] px-3 py-5
-					   {isActive ? 'bg-[var(--color-accent)]/10 border-[var(--color-accent)]' : ''}
+				class="chord-cell relative flex flex-col items-center justify-center
+					   {isActive ? 'active' : ''}
 					   {isPast ? 'opacity-40' : ''}"
-				style="flex: {cell.widthWeight}"
+				style="flex: {alignedWidths ? `0 0 ${alignedWidths[cellIdx] * 100}%` : `${cell.widthWeight} 1 0%`}"
 			>
 				<span
 					class="chord-symbol text-2xl tracking-tight transition-colors
-						   {isActive ? 'text-[var(--color-accent)]' : 'text-[var(--color-text)]'}"
+						   text-[var(--color-text)]"
 					title={cellSymbol(cell.segmentIndex)}
 					aria-label={cellSymbol(cell.segmentIndex)}
 				>
@@ -134,11 +148,11 @@
 					{#each Array(numBeats) as _, b}
 						{@const isBeatActive = isActive && b === beatInCell}
 						<div
-							class="h-2 w-2 rounded-full transition-all duration-100
+							class="h-1.5 w-1.5 rounded-full transition-all duration-100
 								   {isBeatActive
-									? 'bg-[var(--color-accent)] scale-125'
+									? 'bg-[var(--practice-phase,var(--color-phase-play))] scale-125'
 									: isActive && b < beatInCell
-										? 'bg-[var(--color-accent)]/40'
+										? 'bg-[var(--practice-phase,var(--color-phase-play))]/40'
 										: 'bg-[var(--color-bg-tertiary)]'}"
 						></div>
 					{/each}
@@ -146,7 +160,7 @@
 
 				<!-- Progress bar across cell bottom -->
 				{#if isActive && isPlaying}
-					<div class="absolute bottom-0 left-0 h-0.5 bg-[var(--color-accent)] transition-all duration-75"
+					<div class="absolute bottom-0 left-0 h-0.5 bg-[var(--practice-phase,var(--color-phase-play))] transition-all duration-75"
 						 style="width: {cellProgress * 100}%"></div>
 				{/if}
 			</div>
@@ -155,7 +169,11 @@
 </div>
 
 <style>
-	.label-spacer { visibility: hidden; }
+	.chord-cells { height: 88px; overflow: hidden; border-radius: 2px; }
+	.chord-cell { min-width: 0; padding: 4px; border-right: 1px solid color-mix(in srgb, var(--color-text) 5%, transparent); }
+	.chord-cell.active { background: color-mix(in srgb, var(--practice-phase, var(--color-phase-play)) 10%, transparent); }
+	.chord-symbol { font-size: clamp(19px, 2.3vw, 30px); }
+	@media (max-width: 520px) { .chord-symbol { font-size: 20px; } }
 	/* The app-wide chord voice (see --chord-font in app.css) with the
 	   superscript engraving the tune charts draw in SVG: root + "-" on the
 	   baseline, everything after raised at 0.58× — G⁷⁽♭⁹⁾, Dø⁷, C-⁷. */

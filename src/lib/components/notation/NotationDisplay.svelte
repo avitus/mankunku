@@ -182,6 +182,8 @@
 		staffWidth?: number;
 		/** One compact staff: remove outer engraving padding and enlarge its chord symbols. */
 		compactStaff?: boolean;
+		/** One-system bar edges in host-width fractions, for adjacent practice chord rows. */
+		onBarLayout?: (edges: number[]) => void;
 	}
 
 	let {
@@ -202,7 +204,8 @@
 		tuneOptions,
 		frameless = false,
 		staffWidth,
-		compactStaff = false
+		compactStaff = false,
+		onBarLayout
 	}: Props = $props();
 
 	/** Print charts show abcjs's own title/composer/style masthead. */
@@ -435,6 +438,30 @@
 		lastNoteAnchors = noteAnchors;
 		prevCursorEl = null;
 		untrack(() => (renderVersion += 1));
+	});
+
+	// Measure the actual SVG transform, including height-constrained letterboxing.
+	// Only layout/render changes publish geometry; transport frames never engrave.
+	$effect(() => {
+		void renderVersion;
+		const host = containerEl;
+		const publish = onBarLayout;
+		if (!host || !publish) return;
+		/** Convert engraved bar ends into host coordinates after responsive sizing. */
+		const measure = (): void => {
+			const svg = host.querySelector('svg');
+			const ctm = svg?.getScreenCTM();
+			const box = host.getBoundingClientRect();
+			if (!ctm || box.width <= 0 || systemBands.length !== 1 || !lastBarZones.length) return;
+			const zones = lastBarZones.filter(zone => zone.systemIdx === 0);
+			const edges = [0, ...zones.slice(0, -1).map(zone =>
+				Math.max(0, Math.min(1, (zone.x1 * ctm.a + ctm.e - box.left) / box.width))), 1];
+			untrack(() => publish(edges));
+		};
+		const observer = new ResizeObserver(measure);
+		observer.observe(host);
+		const frame = requestAnimationFrame(measure);
+		return () => { observer.disconnect(); cancelAnimationFrame(frame); };
 	});
 
 	// Playback cursor — a class swap on the stashed render, never a re-render.
@@ -876,7 +903,9 @@
 			return;
 		}
 		if (style === 'under-bar') {
-			add(rect(x0, band.staffBottom + sp * 0.35, w, sp * 1.3, sp * 0.35), 'playhead-solid');
+			const svg = wrapper.ownerSVGElement;
+			const bottom = compactStaff && svg ? svg.viewBox.baseVal.y + svg.viewBox.baseVal.height - 2 : band.staffBottom + sp * 0.35;
+			add(rect(x0, bottom, w, compactStaff ? 1.2 : sp * 1.3, compactStaff ? 0 : sp * 0.35), 'playhead-solid');
 			return;
 		}
 		if (style === 'underline-caret') {

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import StudioPanel from '$lib/components/console/StudioPanel.svelte';
 	import { lickMode } from '$lib/music/mode';
 	import { keyLabel } from '$lib/music/notation';
 	import { onMount, onDestroy } from 'svelte';
@@ -276,12 +277,6 @@
 		expandedScale = expandedScale === scaleType ? null : scaleType;
 	}
 
-	const keyEntries = $derived(
-		(Object.entries(progress.keyProgress) as [PitchClass, { attempts: number; averageScore: number }][])
-			.filter(([, v]) => v && v.attempts > 0)
-			.sort((a, b) => b[1].attempts - a[1].attempts)
-	);
-
 	function formatDate(timestamp: number): string {
 		return new Date(timestamp).toLocaleDateString(undefined, {
 			month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
@@ -337,26 +332,24 @@
 	<title>Progress — Mankunku</title>
 </svelte:head>
 
-<div class="space-y-6">
-	<div class="flex items-end justify-between gap-3">
+<div class="studio-desk progress-desk">
+	<div class="studio-page-heading">
 		<div>
-			<div class="smallcaps text-[var(--color-brass)]">Liner notes</div>
-			<h1 class="font-display text-4xl font-bold tracking-tight text-[var(--color-accent)]">
+			<div class="studio-label">Liner notes</div>
+			<h1 class="progress-title">
 				Progress
 			</h1>
-			<div class="jazz-rule mt-2 max-w-[140px]"></div>
 		</div>
 		<HelpLink href="/docs/user-guide#progress" label="Progress docs" />
 	</div>
 
 	<!-- Tab bar -->
-	<div class="flex gap-1 rounded-lg bg-[var(--color-bg-secondary)] p-1" role="tablist">
+	<div class="progress-tabs" role="tablist" aria-label="Progress views">
 		<button
 			id="tab-progress"
 			onclick={() => { tab = 'progress'; }}
 			onkeydown={handleTabKeydown}
-			class="flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors"
-			style={tab === 'progress' ? 'background-color: var(--color-accent); color: white' : ''}
+			class="progress-tab"
 			role="tab"
 			aria-selected={tab === 'progress'}
 			aria-controls="panel-progress"
@@ -368,8 +361,7 @@
 			id="tab-sessions"
 			onclick={() => { tab = 'sessions'; }}
 			onkeydown={handleTabKeydown}
-			class="flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors"
-			style={tab === 'sessions' ? 'background-color: var(--color-accent); color: white' : ''}
+			class="progress-tab"
 			role="tab"
 			aria-selected={tab === 'sessions'}
 			aria-controls="panel-sessions"
@@ -379,16 +371,69 @@
 		</button>
 	</div>
 
+	<!-- Live totals remain visible in both views. -->
+	<div class="progress-summary" role="group" aria-label="Practice overview">
+		<div class="progress-readout">
+			<div class="font-display text-3xl font-bold tabular-nums text-[var(--color-brass)]">
+				{progress.streakDays}
+			</div>
+			<div class="smallcaps text-[var(--color-text-secondary)]">Day Streak</div>
+		</div>
+		<!-- Show only recoverable practice time. -->
+		<div
+			data-testid="practice-time-total"
+			class="progress-readout"
+		>
+			<!-- Brass, like the streak beside it: both are showing-up numbers.
+			     Mastery keeps brass-soft as the achievement tone. -->
+			<div class="font-display text-3xl font-bold tabular-nums text-[var(--color-brass)]">
+				{practiceTimeCoverage.missingDays > 0 && practiceTimeCoverage.availableDays === 0 ? '—' : formatHours(practiceTimeCoverage.minutes)}
+			</div>
+			<div class="smallcaps text-[var(--color-text-secondary)]">Practice Time</div>
+		</div>
+		<div class="progress-readout">
+			<div class="font-display text-3xl font-bold tabular-nums" style="color: var(--color-brass-soft)">
+				{Math.round(mastery.overall)}%
+			</div>
+			<div class="smallcaps text-[var(--color-text-secondary)]">Tonal Mastery</div>
+			<div class="mt-0.5 text-xs text-[var(--color-text-secondary)]">
+				{mastery.scalesStarted}/12 scales · {mastery.keysStarted}/12 keys
+			</div>
+		</div>
+		<div class="progress-readout">
+			<div class="font-display text-3xl font-bold tabular-nums text-[var(--color-accent)]">
+				{progress.sessions.length + lickSessions.length}
+			</div>
+			<div class="smallcaps text-[var(--color-text-secondary)]">Recent Sessions</div>
+		</div>
+	</div>
+
+	<!-- Tonal Mastery meter — the teal→brass ramp filled to overall mastery -->
+	<div class="mastery-band">
+		<div class="mb-2 flex items-center justify-between text-xs">
+			<span class="smallcaps text-[var(--color-text-secondary)]">Beginner</span>
+			<span class="smallcaps text-[var(--color-brass-soft)]">Virtuoso</span>
+		</div>
+		<div class="h-1.5 overflow-hidden rounded-full bg-[var(--color-bg-tertiary)]">
+			<div
+				class="h-full rounded-full transition-[width] duration-500"
+				style="width: {mastery.overall}%; background: {masteryGradient}; background-size: {mastery.overall > 0
+					? (100 / mastery.overall) * 100
+					: 100}% 100%; background-repeat: no-repeat;"
+			></div>
+		</div>
+	</div>
+
 	{#if tab === 'sessions'}
 	<div id="panel-sessions" role="tabpanel" aria-labelledby="tab-sessions" class="space-y-4">
+		<StudioPanel id="recent-sessions" number="07" title="Recent Sessions" domain="ear-training">
 		<!-- Sessions sub-tabs -->
-		<div class="flex gap-1 rounded-lg bg-[var(--color-bg-secondary)] p-1" role="tablist">
+		<div class="progress-tabs session-tabs" role="tablist" aria-label="Session type">
 			<button
 				id="subtab-ear-training"
 				onclick={() => { sessionsSubtab = 'ear-training'; }}
 				onkeydown={handleSubtabKeydown}
-				class="flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
-				style={sessionsSubtab === 'ear-training' ? 'background-color: var(--color-accent); color: white' : ''}
+				class="progress-tab"
 				role="tab"
 				aria-selected={sessionsSubtab === 'ear-training'}
 				aria-controls="subpanel-ear-training"
@@ -400,8 +445,7 @@
 				id="subtab-lick-practice"
 				onclick={() => { sessionsSubtab = 'lick-practice'; }}
 				onkeydown={handleSubtabKeydown}
-				class="flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
-				style={sessionsSubtab === 'lick-practice' ? 'background-color: var(--color-accent); color: white' : ''}
+				class="progress-tab"
 				role="tab"
 				aria-selected={sessionsSubtab === 'lick-practice'}
 				aria-controls="subpanel-lick-practice"
@@ -415,16 +459,15 @@
 		<div id="subpanel-ear-training" role="tabpanel" aria-labelledby="subtab-ear-training" class="space-y-4">
 		<!-- Recent Sessions -->
 		{#if recentSessions.length > 0}
-			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4">
-				<h2 class="mb-3 text-lg font-semibold">Recent Sessions</h2>
+			<div>
 				<div class="space-y-2">
 					{#each recentSessions as s}
-						<div class="rounded bg-[var(--color-bg-tertiary)] overflow-hidden">
+						<div class="session-item">
 							<!-- Session row (clickable) -->
 							<button
 								onclick={() => toggleSession(s.id)}
 								aria-expanded={expandedSessionId === s.id}
-								class="flex w-full items-center gap-3 px-3 py-2 text-sm text-left hover:bg-[var(--color-bg-secondary)] transition-colors"
+								class="session-row"
 							>
 								<span
 									class="w-16 shrink-0 text-center font-bold"
@@ -432,7 +475,7 @@
 								>
 									{GRADE_LABELS[s.grade]}
 								</span>
-								<span class="flex-1 truncate text-[var(--color-text-secondary)]">
+								<span class="session-name">
 									{s.phraseName ?? (CATEGORY_LABELS[s.category] ?? s.category)} in {concertKeyToWritten(s.key as PitchClass, instrument)}{s.scaleType ? ` ${SCALE_TYPE_NAMES[s.scaleType]}` : ''}
 								</span>
 								<span class="tabular-nums">{pct(s.overall)}%</span>
@@ -448,7 +491,7 @@
 							{#if expandedSessionId === s.id}
 								{@const sessionPhrase = findPhraseForSession(s)}
 								{@const lickAvailable = !!sessionPhrase}
-								<div class="border-t border-[var(--color-bg-secondary)] px-3 py-3 space-y-3">
+								<div class="session-detail space-y-3">
 									<!-- Audio playback -->
 									{#if recordingIds.has(s.id) || lickAvailable}
 										<div class="flex flex-wrap gap-2">
@@ -561,21 +604,20 @@
 		{:else}
 		<div id="subpanel-lick-practice" role="tabpanel" aria-labelledby="subtab-lick-practice" class="space-y-4">
 			{#if lickSessions.length > 0}
-				<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4">
-					<h2 class="mb-3 text-lg font-semibold">Recent Sessions</h2>
+				<div>
 					<div class="space-y-2">
 						{#each lickSessions as ls}
 							{@const avgColor = GRADE_COLORS[scoreToGrade(ls.report.overallAverage)]}
-							<div class="rounded bg-[var(--color-bg-tertiary)] overflow-hidden">
+							<div class="session-item">
 								<button
 									onclick={() => toggleLickSession(ls.id)}
 									aria-expanded={expandedLickSessionId === ls.id}
-									class="flex w-full items-center gap-3 px-3 py-2 text-sm text-left hover:bg-[var(--color-bg-secondary)] transition-colors"
+									class="session-row"
 								>
 									<span class="w-16 shrink-0 text-center font-bold tabular-nums" style="color: {avgColor}">
 										{pct(ls.report.overallAverage)}%
 									</span>
-									<span class="flex-1 truncate text-[var(--color-text-secondary)]">
+									<span class="session-name">
 										{formatProgression(ls.progressionType)} · {PRACTICE_MODE_LABELS[ls.practiceMode] ?? ls.practiceMode}
 									</span>
 									<span class="tabular-nums text-xs text-[var(--color-text-secondary)]">
@@ -593,7 +635,7 @@
 								</button>
 
 								{#if expandedLickSessionId === ls.id}
-									<div class="border-t border-[var(--color-bg-secondary)] px-3 py-3 space-y-3">
+									<div class="session-detail space-y-3">
 										{#each ls.report.licks as lick}
 											<div class="rounded bg-[var(--color-bg-secondary)] p-3 space-y-2">
 												<div class="flex items-center justify-between text-sm">
@@ -665,107 +707,49 @@
 			{/if}
 		</div>
 		{/if}
+		</StudioPanel>
 	</div>
 	{:else}
-	<div id="panel-progress" role="tabpanel" aria-labelledby="tab-progress" class="space-y-4">
+	<div id="panel-progress" role="tabpanel" aria-labelledby="tab-progress" class="progress-panels">
 		<!-- Progress tab -->
 
-		<!-- Level / Streak summary cards. Four of them: two abreast on a phone,
-		     one row from `sm` up. -->
-		<div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 text-center">
-				<div class="font-display text-3xl font-bold tabular-nums text-[var(--color-brass)]">
-					{progress.streakDays}
-				</div>
-				<div class="smallcaps text-[var(--color-text-secondary)]">Day Streak</div>
+
+		<div class="progress-top-grid">
+			<div data-tour="trend-chart" class="panel-with-help">
+				<StudioPanel id="tonal-mastery" number="01" title="Tonal Mastery" domain="ear-training">
+					<div class="panel-help"><TooltipHint text={tooltips.progress.trend.text} position="left" /></div>
+					<TrendChart summaries={dailySummaries} studio />
+				</StudioPanel>
 			</div>
-			<!-- Show only recoverable practice time. -->
-			<div
-				data-testid="practice-time-total"
-				class="rounded-lg bg-[var(--color-bg-secondary)] p-4 text-center"
-			>
-				<!-- Brass, like the streak beside it: both are showing-up numbers.
-				     Mastery keeps brass-soft as the achievement tone. -->
-				<div class="font-display text-3xl font-bold tabular-nums text-[var(--color-brass)]">
-					{practiceTimeCoverage.missingDays > 0 && practiceTimeCoverage.availableDays === 0 ? '—' : formatHours(practiceTimeCoverage.minutes)}
-				</div>
-				<div class="smallcaps text-[var(--color-text-secondary)]">Practice Time</div>
-			</div>
-			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 text-center">
-				<div class="font-display text-3xl font-bold tabular-nums" style="color: var(--color-brass-soft)">
-					{Math.round(mastery.overall)}%
-				</div>
-				<div class="smallcaps text-[var(--color-text-secondary)]">Tonal Mastery</div>
-				<div class="mt-0.5 text-xs text-[var(--color-text-secondary)]">
-					{mastery.scalesStarted}/12 scales · {mastery.keysStarted}/12 keys
-				</div>
-			</div>
-			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 text-center">
-				<div class="font-display text-3xl font-bold tabular-nums text-[var(--color-accent)]">
-					{progress.sessions.length}
-				</div>
-				<div class="smallcaps text-[var(--color-text-secondary)]">Recent Sessions</div>
-			</div>
+			<StudioPanel id="this-period" number="02" title="This Period" domain="ear-training">
+				<PeriodCompare studio />
+			</StudioPanel>
 		</div>
 
-		<!-- Tonal Mastery meter — the teal→brass ramp filled to overall mastery -->
-		<div class="rounded-lg bg-[var(--color-bg-secondary)] px-4 py-3">
-			<div class="mb-2 flex items-center justify-between text-xs">
-				<span class="smallcaps text-[var(--color-text-secondary)]">Beginner</span>
-				<span class="smallcaps text-[var(--color-brass-soft)]">Virtuoso</span>
-			</div>
-			<div class="h-2.5 overflow-hidden rounded-full bg-[var(--color-bg-tertiary)]">
-				<div
-					class="h-full rounded-full transition-[width] duration-500"
-					style="width: {mastery.overall}%; background: {masteryGradient}; background-size: {mastery.overall > 0
-						? (100 / mastery.overall) * 100
-						: 100}% 100%; background-repeat: no-repeat;"
-				></div>
-			</div>
+		<div data-tour="calendar" class="panel-with-help">
+			<StudioPanel id="practice-calendar" number="03" title="Practice Calendar" domain="ear-training">
+				<div class="panel-help"><TooltipHint text={tooltips.progress.calendar.text} position="left" /></div>
+				<PracticeCalendar studio />
+			</StudioPanel>
 		</div>
-
-		{#if dailySummaries.length > 0}
-			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4">
-				<h2 class="mb-3 text-lg font-semibold">This Period</h2>
-				<PeriodCompare />
-			</div>
-
-			<div data-tour="trend-chart" class="rounded-lg bg-[var(--color-bg-secondary)] p-4">
-				<h2 class="mb-3 inline-flex items-center gap-1 text-lg font-semibold">
-					Trends
-					<TooltipHint text={tooltips.progress.trend.text} position="right" />
-				</h2>
-				<TrendChart summaries={dailySummaries} />
-			</div>
-		{/if}
-
-		<div data-tour="calendar" class="rounded-lg bg-[var(--color-bg-secondary)] p-4">
-			<h2 class="mb-3 inline-flex items-center gap-1 text-lg font-semibold">
-				Practice Calendar
-				<TooltipHint text={tooltips.progress.calendar.text} position="right" />
-			</h2>
-			<PracticeCalendar />
-		</div>
+		<div class="progress-bottom-grid">
 
 		<!-- Scale Proficiency breakdown -->
 		{#if scaleProfEntries.length > 0}
-			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4">
-				<h2 class="mb-3 inline-flex items-center gap-1 text-lg font-semibold">
-					Scale Proficiency
-					<TooltipHint
+			<StudioPanel id="scale-proficiency" number="04" title="Scale Proficiency" domain="ear-training">
+				<div class="panel-help"><TooltipHint
 						text={tooltips.progress.scaleProficiency.text}
 						learnMore={tooltips.progress.scaleProficiency.learnMore}
-						position="right"
-					/>
-				</h2>
-				<div class="space-y-3">
+						position="left"
+					/></div>
+				<div class="scale-list">
 					{#each scaleProfEntries as { scaleType, prof }}
 						{@const disp = masteryDisplay(prof.level)}
 						{@const open = expandedScale === scaleType}
 						<div>
 							<button
 								type="button"
-								class="block w-full cursor-pointer rounded text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)]"
+								class="scale-row block w-full cursor-pointer rounded text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)]"
 								aria-expanded={open}
 								aria-label="{SCALE_TYPE_NAMES[scaleType]} proficiency trend"
 								onclick={() => toggleScaleTrend(scaleType)}
@@ -806,19 +790,23 @@
 						</div>
 					{/each}
 				</div>
-			</div>
+			</StudioPanel>
+		{:else}
+			<StudioPanel id="scale-proficiency" number="04" title="Scale Proficiency" domain="ear-training">
+				<p class="progress-empty">Practice a scale in Ear Training to start tracking its proficiency.</p>
+				<a class="progress-start" href="/ear-training">Start Ear Training</a>
+			</StudioPanel>
 		{/if}
 
+		<div class="progress-stack">
+		<div data-tour="unlocks" class="panel-with-help">
 		<!-- Key & scale unlock progress -->
-		<div data-tour="unlocks" class="rounded-lg bg-[var(--color-bg-secondary)] p-4">
-			<h2 class="mb-3 inline-flex items-center gap-1 text-lg font-semibold">
-				Keys &amp; Scales
-				<TooltipHint
+		<StudioPanel id="key-scale-unlocks" number="05" title="Keys &amp; Scales" domain="ear-training">
+				<div class="panel-help"><TooltipHint
 					text={tooltips.progress.unlocks.text}
 					learnMore={tooltips.progress.unlocks.learnMore}
-					position="right"
-				/>
-			</h2>
+					position="left"
+				/></div>
 			<div class="grid grid-cols-2 gap-4 text-sm">
 				<div>
 					<div class="text-[var(--color-text-secondary)]">Keys</div>
@@ -861,16 +849,15 @@
 					</div>
 				</div>
 			</div>
-		</div>
+		</StudioPanel>
 
+		</div>
 		<!-- Key progress -->
-		{#if keyEntries.length > 0}
-			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4">
-				<h2 class="mb-3 text-lg font-semibold">By Key</h2>
-				<div class="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
+			<StudioPanel id="by-key" number="06" title="By Key" domain="ear-training">
+				<div class="key-bank">
 					{#each PITCH_CLASSES as pc}
 						{@const kp = progress.keyProgress[pc]}
-						<div class="rounded bg-[var(--color-bg-tertiary)] p-2 text-center text-sm">
+						<div class="key-readout">
 							<div class="font-medium">{concertKeyToWritten(pc, instrument)}</div>
 							{#if kp && kp.attempts > 0}
 								<div class="text-xs text-[var(--color-text-secondary)]">
@@ -885,11 +872,13 @@
 						</div>
 					{/each}
 				</div>
-			</div>
-		{/if}
+			</StudioPanel>
+
+		</div>
+		</div>
 
 		<!-- Reset -->
-		<div class="text-center">
+		<div class="progress-footer">
 			{#if showResetConfirm}
 				<p class="mb-2 text-sm text-[var(--color-error-text)]">
 					This will erase all progress. Are you sure?
@@ -934,3 +923,57 @@
 	</div>
 	{/if}
 </div>
+
+<style>
+	.progress-desk { --studio-gap: 20px; }
+	.studio-page-heading { margin-bottom: 20px; flex-direction: row; align-items: center; }
+	.studio-page-heading h1 { margin: 7px 0 9px; color: var(--color-accent); }
+	.progress-tabs { display: flex; width: min(100%, 340px); gap: 4px; padding: 4px; margin-bottom: 20px; border: 1px solid var(--studio-border); border-radius: 6px; background: var(--studio-well); box-shadow: inset 0 2px 4px #0002; }
+	.progress-tab { flex: 1; min-height: 40px; border: 1px solid transparent; border-radius: 4px; color: var(--studio-muted); font-size: 12px; cursor: pointer; }
+	.progress-tab[aria-selected='true'] { color: var(--studio-text); background: var(--studio-panel-highlight); border-color: var(--studio-border); box-shadow: inset 0 1px #ffffff12; }
+	.progress-tab[aria-selected='true']::before { content: ''; display: inline-block; width: 5px; height: 5px; margin-right: 8px; border-radius: 50%; background: var(--color-accent); }
+	.progress-tab:focus-visible, .session-row:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+	.progress-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+	.progress-readout { display: flex; flex-direction: column; min-height: 106px; padding: 16px 20px; border: 1px solid color-mix(in srgb, var(--studio-border) 65%, transparent); border-radius: 6px; background: var(--studio-well); box-shadow: inset 0 2px 4px #0002; }
+	.progress-readout > :global(.smallcaps) { order: -1; font-size: 10px; letter-spacing: .12em; }
+	.progress-readout > :global(.font-display) { font-size: 32px; font-weight: 500; line-height: 1.25; margin-top: 6px; }
+	.mastery-band { margin: 16px 4px 20px; }
+	.progress-panels { display: grid; gap: 20px; }
+	.progress-top-grid { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr); gap: 20px; }
+	.progress-top-grid > :global(.studio-panel), .progress-top-grid > div > :global(.studio-panel) { height: 100%; }
+	.progress-bottom-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; align-items: start; }
+	.progress-stack { display: grid; gap: 20px; min-width: 0; }
+	.panel-with-help { min-width: 0; }
+	.panel-help { position: absolute; top: 31px; right: 24px; }
+	.progress-desk :global(.studio-panel-heading) { padding-right: 16px; }
+	.scale-list > div + div { border-top: 1px solid color-mix(in srgb, var(--studio-border) 45%, transparent); }
+	.scale-row { padding: 14px 0; }
+	.scale-row:hover { background: color-mix(in srgb, var(--studio-text) 3%, transparent); }
+	.key-bank { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 7px; }
+	.key-readout { padding: 12px 4px; text-align: center; border: 1px solid color-mix(in srgb, var(--studio-border) 45%, transparent); border-radius: 4px; background: var(--studio-well); }
+	.key-readout > div:first-child { font: 500 24px/1.3 var(--font-display); margin-bottom: 5px; }
+	.progress-footer { border-top: 1px solid var(--studio-border); padding-top: 20px; margin-top: 4px; text-align: right; }
+	.progress-footer > div { justify-content: flex-end; }
+	.progress-empty { color: var(--studio-muted); padding: 12px 0; }
+	.progress-start { display: inline-block; color: var(--color-accent); text-decoration: underline; padding: 8px 0; }
+	.session-item { border-top: 1px solid color-mix(in srgb, var(--studio-border) 50%, transparent); }
+	.session-row { display: flex; align-items: center; gap: 16px; width: 100%; min-height: 70px; padding: 16px 8px; text-align: left; font-size: 13px; cursor: pointer; }
+	.session-row:hover, .session-row[aria-expanded='true'] { background: color-mix(in srgb, var(--color-accent) 7%, transparent); }
+	.session-name { flex: 1; min-width: 0; }
+	.session-detail { padding: 18px; border: 1px solid var(--studio-border); border-radius: 4px; background: var(--studio-well); margin-bottom: 12px; }
+	@media (max-width: 1100px) { .progress-top-grid { grid-template-columns: 1fr; } }
+	@media (max-width: 1000px) { .key-bank { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+	@media (max-width: 850px) { .progress-bottom-grid { grid-template-columns: 1fr; } .key-bank { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+	@media (max-width: 600px) {
+		.progress-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+		.progress-readout { padding: 15px 12px; }
+		.progress-readout > :global(.font-display) { font-size: 28px; }
+		.progress-tabs { width: 100%; }
+		.panel-help { top: 24px; right: 18px; }
+		.key-bank { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+		.session-row { flex-wrap: wrap; gap: 8px 12px; }
+		.session-name { flex-basis: calc(100% - 100px); }
+		.session-row > span:nth-last-child(2) { margin-left: auto; }
+		.session-detail { padding: 12px; }
+	}
+</style>

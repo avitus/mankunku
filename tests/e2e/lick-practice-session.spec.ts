@@ -138,7 +138,7 @@ test.describe('lick-practice session flow', () => {
 		})));
 		expect(rows.map(row => row.key)).toEqual(['G', 'C', 'G']);
 		expect(rows[1].current).toBe(true);
-		expect(rows[1].y - rows[0].y).toBeCloseTo(128, 3);
+		expect(rows[1].y - rows[0].y).toBeCloseTo(204.8, 1);
 		const viewport = page.locator('.viewport').filter({ has: page.locator('.stack') });
 		// The old row may exist as an outgoing animation frame, but must
 		// leave the viewport. Assert painted geometry, not just row order.
@@ -393,7 +393,7 @@ test.describe('lick-practice session flow', () => {
 			height: sheet.closest('.row')!.getBoundingClientRect().height,
 			noteWidth: sheet.querySelector('.abcjs-notehead')!.getBoundingClientRect().width
 		}));
-		expect(deepSheet.height).toBe(128);
+		expect(deepSheet.height).toBeCloseTo(204.8, 1);
 		expect(deepSheet.noteWidth).toBeGreaterThan(11);
 		// The preparation cue stays a single line at the top-left on desktop,
 		// preserving the enlarged engraving and the existing row height.
@@ -588,7 +588,7 @@ test.describe('lick-practice session flow', () => {
 
 	/** Daily and standalone Deep share the same read-ahead, sizing, and continuous sheet entrance. */
 	for (const practice of ['daily', 'deep'] as const) {
-	test(`${practice} sheet is visible ahead in an equal-height row and enters without a pause`, async ({ page, browserName }) => {
+	test(`${practice} sheet is visible ahead in a taller row and enters without a pause`, async ({ page, browserName }) => {
 		test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
 			'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device');
 		test.setTimeout(150_000);
@@ -611,6 +611,10 @@ test.describe('lick-practice session flow', () => {
 		await expect(listen).toBeVisible({ timeout: 60_000 });
 		await expect(listen).toHaveText('Listen');
 		await expect(listen.locator('.tab-count')).toHaveCount(0);
+		await expect.poll(async () => page.locator('.chord-cell.active .scale-125').evaluateAll(dots =>
+			dots.some(dot => !['transparent', 'rgba(0, 0, 0, 0)'].includes(getComputedStyle(dot).backgroundColor))
+		)).toBe(true);
+
 		await expect(page.locator('.phase-tab[data-kind="play-in"]')).toHaveText(/Play\s*[1-4]/);
 		const play = page.locator('.phase-tab[data-kind="play"]');
 		await expect(play).toHaveText('Play');
@@ -642,11 +646,22 @@ test.describe('lick-practice session flow', () => {
 				current: rows.findIndex((r) => r.classList.contains('current'))
 			};
 		});
-		expect(geometry).toMatchObject({ heights: [128, 128], inkInside: true, current: 0 });
+		expect(geometry).toMatchObject({ inkInside: true, current: 0 });
+		expect(geometry.heights[0]).toBe(128);
+		expect(geometry.heights[1]).toBeCloseTo(204.8, 1);
 		expect(geometry.chordFontPx).toBeGreaterThan(23);
 		// Measure painted notes too: the previous 1,100-unit staff made these
 		// only 8px wide even though its oversized chord font passed the check.
 		expect(geometry.noteheadWidth).toBeGreaterThan(11);
+		// The full bar boundary matches the adjacent chord-only row, even
+		// though abcjs reserves space for the clef and written key signature.
+		const barAlignment = await sheet.evaluate(lead => {
+			const chordCells = lead.closest('.stack')!.querySelector('.chord-cells')!.children;
+			const bar = lead.querySelector('.abcjs-bar')!.getBoundingClientRect();
+			return Math.abs(chordCells[1].getBoundingClientRect().right - bar.left);
+		});
+		expect(barAlignment).toBeLessThan(2);
+
 		await page.screenshot({ path: test.info().outputPath('daily-sheet-preview.png') });
 		await expect(play).toHaveAttribute('data-pass', '1', { timeout: 15_000 });
 		await expect(play).toHaveText('Play · 1/3');
@@ -729,7 +744,8 @@ test.describe('lick-practice session flow', () => {
 						cueClear: ink.every((r) => r.left >= cue.right || r.right <= cue.left || r.top >= cue.bottom || r.bottom <= cue.top)
 					};
 				});
-				expect(bounds, `viewport ${width}px`).toEqual({ rowHeight: 128, inside: true, cueClear: true });
+				expect(bounds, `viewport ${width}px`).toMatchObject({ inside: true, cueClear: true });
+			expect(bounds.rowHeight).toBeCloseTo(204.8, 1);
 			}
 		});
 	}

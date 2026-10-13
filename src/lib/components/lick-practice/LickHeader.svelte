@@ -50,7 +50,7 @@
 			<span class="text-sm font-medium text-[var(--color-text-secondary)]">
 				#{phraseNumber}
 			</span>
-			<h2 class="truncate text-lg font-bold">{phraseName}</h2>
+			<h2 class="lick-title">{phraseName}</h2>
 		</div>
 		<div class="mt-0.5 flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
 			<span
@@ -75,8 +75,13 @@
 		</div>
 	</div>
 	<div class="text-center">
-		<div class="text-4xl font-black tracking-tight text-[var(--color-accent)]">
+		<div class="lick-key">
 			{writtenKey}
 		</div>
 	</div>
 </div>
+
+<style>
+	.lick-title { font: 500 clamp(22px, 2.5vw, 30px)/1.25 var(--font-display); overflow-wrap: anywhere; }
+	.lick-key { font: 500 40px/1 var(--font-display); color: var(--studio-accent-text, var(--color-accent)); }
+</style>
