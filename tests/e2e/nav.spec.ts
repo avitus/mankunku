@@ -57,8 +57,8 @@ test.describe('global navigation', () => {
 		consoleCollector: _consoleCollector
 	}) => {
 		await page.goto('/');
-		// Layout shows "Sign in" for anonymous users (see +layout.svelte line 35-37
-		// emailPrefix derivation; sign-in link renders when user is null).
+		// Layout shows "Sign in" for anonymous users (the account-name label
+		// renders only when there is a user).
 		const signIn = page.getByRole('link', { name: /sign in/i }).first();
 		await expect(signIn).toBeVisible();
 		await signIn.click();

@@ -6,7 +6,7 @@ function event(signedIn: boolean) {
 	const user = signedIn ? { id: 'u1' } : null;
 	const query: Record<string, unknown> = {};
 	for (const name of ['select', 'eq']) query[name] = vi.fn(() => query);
-	query.single = vi.fn().mockResolvedValue({ data: { is_admin: false } });
+	query.single = vi.fn().mockResolvedValue({ data: { is_admin: false, display_name: 'Andy Vitus' } });
 	return {
 		request: new Request('https://example.com/'),
 		url: new URL('https://example.com/'),
@@ -35,6 +35,10 @@ describe('root layout device observation', () => {
 		const result = await load(e as never);
 		expect(e.locals.supabase.rpc).toHaveBeenCalledOnce();
 		expect(result).toMatchObject({ user: { id: 'u1' }, cookies: [{ name: 'sb-project-auth-token', value: 'session' }] });
+	});
+	it('hands the profile display name to the page (the home greeting reads it)', async () => {
+		expect(await load(event(true) as never)).toMatchObject({ displayName: 'Andy Vitus' });
+		expect(await load(event(false) as never)).toMatchObject({ displayName: null });
 	});
 	it('does not record anonymous visitors', async () => {
 		const e = event(false);

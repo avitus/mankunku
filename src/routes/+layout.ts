@@ -78,7 +78,7 @@ export const load: LayoutLoad = async ({ data, depends, fetch }) => {
 	 * No additional client-side validation is needed here; the server has already
 	 * confirmed these are legitimate, non-expired credentials.
 	 */
-	const { session, user, isAdmin } = data;
+	const { session, user, isAdmin, displayName } = data;
 
 	// Reconcile client-side storage with the currently-authenticated user.
 	// Storage is per-user-namespaced (namespace.ts), so this no longer WIPES —
@@ -111,7 +111,7 @@ export const load: LayoutLoad = async ({ data, depends, fetch }) => {
 		if (action === 'reload') {
 			// The loop guard declined the reload: skip hydration (it would run
 			// against in-memory state read from the previous namespace).
-			return { supabase, session, user, isAdmin };
+			return { supabase, session, user, isAdmin, displayName };
 		}
 	}
 
@@ -209,5 +209,5 @@ export const load: LayoutLoad = async ({ data, depends, fetch }) => {
 		runLocalTrickMigrations();
 	}
 
-	return { supabase, session, user, isAdmin };
+	return { supabase, session, user, isAdmin, displayName };
 };

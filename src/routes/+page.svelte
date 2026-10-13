@@ -21,6 +21,7 @@
 	import SeoHead from '$lib/components/seo/SeoHead.svelte';
 	import TooltipHint from '$lib/components/ui/TooltipHint.svelte';
 	import { tooltips } from '$lib/content/tooltips';
+	import { greetingName } from '$lib/ui/user-name';
 
 	// Make sure lick-practice progress is loaded — the /lick-practice page
 	// also calls this on its own mount, but the home page needs the data
@@ -42,14 +43,7 @@
 		return 'Evening';
 	}
 	const greeting = getGreeting();
-	const firstName = $derived.by(() => {
-		if (!user?.email) return '';
-		// Best-effort first name from the local part of the email,
-		// stripping any digits / dots / common separators.
-		const local = user.email.split('@')[0];
-		const word = local.split(/[._\-+0-9]/).filter(Boolean)[0] ?? local;
-		return word.charAt(0).toUpperCase() + word.slice(1);
-	});
+	const firstName = $derived(greetingName(page.data?.displayName, user?.email));
 
 	// ── Ear Training panel data ──────────────────────────────────────
 	const mastery = $derived(getTonalMastery());
