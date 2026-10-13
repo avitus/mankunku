@@ -5,14 +5,18 @@ import { seedStorage, SETTINGS_ONBOARDED, TOUR_DISMISSED } from './fixtures/stor
 // Freeze calendar dates only. Playwright’s clock also wraps idle callbacks,
 // which can conflict with Sentry Replay’s timeout cleanup on WebKit.
 const NOW = new Date('2026-07-19T12:00:00Z');
+/** Pin `Date` (constructor, call and `Date.now`) to {@link NOW} before any page script runs. */
 async function freezeCalendarDate(page: Page): Promise<void> {
 	await page.addInitScript((timestamp: number) => {
 		const NativeDate = Date;
 		globalThis.Date = new Proxy(NativeDate, {
+			/** `new Date()` with no arguments is the frozen instant; explicit dates pass through. */
 			construct(target, args, newTarget) {
 				return Reflect.construct(target, args.length ? args : [timestamp], newTarget);
 			},
+			/** `Date()` called as a function returns the frozen instant's string. */
 			apply() { return new NativeDate(timestamp).toString(); },
+			/** `Date.now` reads the frozen instant; every other static passes through. */
 			get(target, property, receiver) {
 				return property === 'now' ? () => timestamp : Reflect.get(target, property, receiver);
 			}
