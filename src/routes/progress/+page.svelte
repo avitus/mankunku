@@ -402,7 +402,7 @@
 		</div>
 		<div class="progress-readout">
 			<div class="font-display text-3xl font-bold tabular-nums text-[var(--color-accent)]">
-				{progress.sessions.length}
+				{progress.sessions.length + lickSessions.length}
 			</div>
 			<div class="smallcaps text-[var(--color-text-secondary)]">Recent Sessions</div>
 		</div>

@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures/test';
-import { seedOnboardedAnonymous, seedUserLicks, seedStorage, SETTINGS_ONBOARDED } from './fixtures/storage';
+import { seedUserLicks, seedStorage, SETTINGS_ONBOARDED, TOUR_DISMISSED } from './fixtures/storage';
 import { installAudioMock, stubCdnInstrumentSamples } from './fixtures/audio';
 
 // At twelve unlocked keys the established practice policy hides notation.
@@ -7,10 +7,12 @@ for (const theme of ['dark', 'light']) {
 for (const count of [11, 12]) {
 test(`Studio Desk ${theme} keeps the ${count}-key ring clear of music across screen widths`, async ({ page }) => {
 	await page.setViewportSize({ width: 1440, height: 1000 });
-	await seedOnboardedAnonymous(page);
 	await seedUserLicks(page);
+	// ONE settings seed: each seeder writes a key only when absent, and the
+	// order of separate init scripts is not defined.
 	await seedStorage(page, {
 		settings: { ...SETTINGS_ONBOARDED, theme },
+		'tour-state': TOUR_DISMISSED,
 		'lick-unlock-count': { 'e2e-user-lick-bebop': count },
 		'lick-practice-progress': {
 			'e2e-user-lick-bebop': Object.fromEntries(

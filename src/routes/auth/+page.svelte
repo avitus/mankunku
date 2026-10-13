@@ -105,7 +105,9 @@
 						// A new account waits on its emailed link; the next thing the
 						// user does here is sign in.
 						if (result.type === 'success' && result.data?.confirmationSent) {
+							// The kept password must not carry over into sign-in revealed.
 							isSignUp = false;
+							showPassword = false;
 						}
 						// No reset: a success that stays on this page (confirmation
 						// sent, link resent) keeps the email the resend button reads.
