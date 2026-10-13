@@ -32,10 +32,8 @@ export interface VibratoProfile {
 	minNoteSeconds: number;
 	/** Straight tone at the head of a held note before the vibrato starts. */
 	onsetDelaySeconds: number;
-	/** Time from the vibrato's start to full depth. */
+	/** Time for the delayed shape to reach its narrow depth. */
 	bloomSeconds: number;
-	/** Fade back to straight before the note ends, so the next attack starts clean. */
-	fadeSeconds: number;
 }
 
 export interface InstrumentVoice {
@@ -57,8 +55,7 @@ export interface InstrumentVoice {
 const HELD_NOTE_VIBRATO = {
 	minNoteSeconds: 0.6,
 	onsetDelaySeconds: 0.18,
-	bloomSeconds: 0.22,
-	fadeSeconds: 0.05
+	bloomSeconds: 0.22
 } as const;
 
 const SAX_VIBRATO: VibratoProfile = { ...HELD_NOTE_VIBRATO, rateHz: 4.8, depthCents: 12 };
@@ -138,28 +135,60 @@ export interface VibratoBreakpoint {
 	ramp: boolean;
 }
 
+/** The four note shapes, each with an equal chance at a sounding note's attack. */
+export const VIBRATO_STYLES = ['straight', 'delayed', 'widening', 'opening'] as const;
+export type VibratoStyle = (typeof VIBRATO_STYLES)[number];
+
+/** Draw once per sounding note; an injected random source makes selection testable. */
+export function chooseVibratoStyle(random: () => number = Math.random): VibratoStyle {
+	return VIBRATO_STYLES[Math.floor(random() * VIBRATO_STYLES.length)];
+}
+
 /**
- * The vibrato depth envelope for one note of `durationSeconds`. Always opens
- * with depth 0 at the attack; a note long enough blooms to full depth after
- * the onset delay, holds, and fades out by its end.
+ * Shape one note's vibrato without changing its amplitude or duration. Short
+ * notes stay straight. Delayed notes wait two seconds, then use 40% depth;
+ * opening notes use 50% immediately and finish straight. Widening notes grow
+ * through the sample's amplitude release, approaching the existing ceiling.
+ * The next attack replaces this envelope, including any unfinished release.
  */
 export function vibratoEnvelope(
 	profile: VibratoProfile,
-	durationSeconds: number
+	durationSeconds: number,
+	style: VibratoStyle,
+	releaseSeconds = 0
 ): VibratoBreakpoint[] {
 	const straight: VibratoBreakpoint[] = [{ at: 0, depth: 0, ramp: false }];
-	if (profile.depthCents <= 0 || durationSeconds < profile.minNoteSeconds) return straight;
+	if (
+		style === 'straight' || profile.depthCents <= 0 || profile.rateHz <= 0 ||
+		durationSeconds < profile.minNoteSeconds
+	) return straight;
 
-	const bloomStart = profile.onsetDelaySeconds;
-	const full = bloomStart + profile.bloomSeconds;
-	const fadeStart = durationSeconds - profile.fadeSeconds;
-	if (fadeStart <= full) return straight;
-
-	return [
-		...straight,
-		{ at: bloomStart, depth: 0, ramp: false },
-		{ at: full, depth: 1, ramp: true },
-		{ at: fadeStart, depth: 1, ramp: false },
-		{ at: durationSeconds, depth: 0, ramp: true }
-	];
+	switch (style) {
+		case 'delayed': {
+			if (durationSeconds <= 2) return straight;
+			const bloom = Math.min(profile.bloomSeconds, durationSeconds - 2);
+			return [
+				...straight,
+				{ at: 2, depth: 0, ramp: false },
+				{ at: 2 + bloom, depth: 0.4 * bloom / profile.bloomSeconds, ramp: true }
+			];
+		}
+		case 'widening': {
+			const start = Math.max(profile.onsetDelaySeconds, durationSeconds * 0.25);
+			const end = durationSeconds + Math.max(0, releaseSeconds);
+			if (end <= start) return straight;
+			// A modulated delay changes pitch through BOTH the LFO and the
+			// envelope's slope. Reserve that slope's contribution so even a
+			// rising envelope cannot exceed the old full-depth pitch swing.
+			const slopeRatio = 1 / (2 * Math.PI * profile.rateHz * (end - start));
+			const peak = 1 / Math.hypot(1, slopeRatio);
+			return [...straight, { at: start, depth: 0, ramp: false }, { at: end, depth: peak, ramp: true }];
+		}
+		case 'opening':
+			return [
+				{ at: 0, depth: 0.5, ramp: false },
+				{ at: Math.min(profile.bloomSeconds, durationSeconds * 0.2), depth: 0.5, ramp: false },
+				{ at: durationSeconds * 0.65, depth: 0, ramp: true }
+			];
+	}
 }
