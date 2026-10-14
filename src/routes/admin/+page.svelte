@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { enhance } from '$app/forms';
+	import AdminContent from '$lib/components/admin/AdminContent.svelte';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -11,6 +12,16 @@
 	let confirmTargetId = $state<string | null>(null);
 	let confirmText = $state('');
 	let deleting = $state(false);
+	let search = $state('');
+	let filter = $state('all');
+	let joinedBefore = $state('');
+	const visibleUsers = $derived(data.users.filter(row => {
+		const matchesSearch = `${row.email ?? ''} ${row.displayName ?? ''} ${row.id}`.toLowerCase().includes(search.trim().toLowerCase());
+		const lastSeen = row.lastVisitDate ?? row.lastSignInAt?.slice(0, 10) ?? row.createdAt?.slice(0, 10);
+		const inactive = !!lastSeen && Date.parse(lastSeen) < Date.now() - 30 * 86400000;
+		return matchesSearch && (!joinedBefore || (row.createdAt && row.createdAt.slice(0, 10) <= joinedBefore)) &&
+			(filter === 'all' || (filter === 'inactive' && inactive) || (filter === 'unconfirmed' && !row.emailConfirmedAt));
+	}));
 
 	/** Open account deletion confirmation for one user. */
 	function openConfirm(id: string) {
@@ -26,7 +37,7 @@
 
 	/** The string the owner must retype to arm the delete button. */
 	function confirmPhrase(row: { email: string | null; id: string }): string {
-		return row.email ?? row.id;
+		return row.email || row.id;
 	}
 
 	// ISO slicing keeps SSR and hydration output identical (no locale drift).
@@ -74,7 +85,7 @@
 		</div>
 	{:else if form?.success}
 		<div class="rounded-lg bg-[var(--color-bg-secondary)] px-4 py-3 text-sm" role="status">
-			User deleted.
+			{form.message ?? 'Action completed.'}
 		</div>
 	{/if}
 
@@ -97,7 +108,7 @@
 				<div class="font-display text-3xl font-bold tabular-nums text-[var(--color-accent)]">
 					{data.totals.activeThisWeek}
 				</div>
-				<div class="smallcaps text-[var(--color-text-secondary)]">Active This Week</div>
+				<div class="smallcaps text-[var(--color-text-secondary)]">Visited This Week</div>
 			</div>
 		</div>
 	{/if}
@@ -107,9 +118,16 @@
 		<div>
 			<h2 class="font-display text-xl font-semibold">Users</h2>
 			<p class="text-xs text-[var(--color-text-secondary)]">
-				Signups, activity, and content — newest first
+				Signups, visits, and content — newest first
 			</p>
 		</div>
+
+		<div class="flex flex-wrap items-end gap-3">
+			<label class="flex-1 text-xs">Find a user<input type="search" bind:value={search} placeholder="Email or name" class="mt-1 block w-full min-w-48 rounded-lg bg-[var(--color-bg-secondary)] px-3 py-2 text-sm" /></label>
+			<label class="text-xs">Show<select bind:value={filter} class="mt-1 block rounded-lg bg-[var(--color-bg-secondary)] px-3 py-2 text-sm"><option value="all">All users</option><option value="inactive">No visits in 30 days</option><option value="unconfirmed">Unconfirmed</option></select></label>
+			<label class="text-xs">Joined on or before<input type="date" bind:value={joinedBefore} class="mt-1 block rounded-lg bg-[var(--color-bg-secondary)] px-3 py-2 text-sm" /></label>
+		</div>
+		<p class="text-xs text-[var(--color-text-secondary)]">Days visited counts distinct UTC dates seen signed in, across all browsers. Earlier visit history may be incomplete.</p>
 
 		{#if data.unavailable}
 			<div class="rounded-xl border border-[var(--color-bg-tertiary)] bg-[var(--color-bg-secondary)] px-5 py-8 text-center text-sm text-[var(--color-text-secondary)]">
@@ -123,7 +141,7 @@
 				</div>
 			{/if}
 			<div class="rounded-xl border border-[var(--color-bg-tertiary)] bg-[var(--color-bg-secondary)] divide-y divide-[var(--color-bg-tertiary)]">
-				{#each data.users as row (row.id)}
+				{#each visibleUsers as row (row.id)}
 					<div class="space-y-3 p-5">
 						<div class="flex flex-wrap items-center gap-x-3 gap-y-1">
 							<span class="text-sm font-medium">{row.email ?? row.id}</span>
@@ -136,24 +154,19 @@
 							{#if !row.emailConfirmedAt}
 								<span class="rounded-full bg-[var(--color-bg-tertiary)] px-2 py-0.5 text-xs text-[var(--color-text-secondary)]">unconfirmed</span>
 							{/if}
-							{#if row.id !== data.user?.id}
-								<button
-									type="button"
-									class="ml-auto text-xs text-[var(--color-error-text)] opacity-70 transition-opacity hover:opacity-100"
-									onclick={() => (confirmTargetId === row.id ? closeConfirm() : openConfirm(row.id))}
-								>
-									{confirmTargetId === row.id ? 'Cancel' : 'Delete'}
-								</button>
-							{/if}
+							<form method="POST" action="?/inspectUser" class="ml-auto" use:enhance>
+								<input type="hidden" name="userId" value={row.id} />
+								<button class="text-xs text-[var(--color-brass)]">Inspect content</button>
+							</form>
 						</div>
 
 						<div class="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs text-[var(--color-text-secondary)] sm:grid-cols-4">
 							<div><span class="smallcaps">Joined</span> <span class="tabular-nums">{fmtDate(row.createdAt)}</span></div>
 							<div><span class="smallcaps">Last sign-in</span> <span class="tabular-nums">{fmtDate(row.lastSignInAt)}</span></div>
-							<div><span class="smallcaps">Last active</span> <span class="tabular-nums">{fmtDate(row.lastActiveDate)}</span></div>
+							<div><span class="smallcaps">Last visit</span> <span class="tabular-nums">{fmtDate(row.lastVisitDate)}</span></div>
 							<div><span class="smallcaps">Last sync</span> <span class="tabular-nums">{fmtDateTime(row.lastSyncAt)}</span></div>
-							<div><span class="smallcaps">Sessions</span> <span class="tabular-nums">{row.sessionCount}</span></div>
-							<div><span class="smallcaps">Minutes</span> <span class="tabular-nums">{row.practiceMinutes}</span></div>
+							<div><span class="smallcaps">Days visited</span> <span class="tabular-nums">{row.visitDayCount || '—'}</span></div>
+							<div><span class="smallcaps" title="Practice time, not time signed in. Ear-training attempts are estimated at 30 seconds each.">Practice minutes</span> <span class="tabular-nums">{row.practiceMinutes}</span></div>
 							<div><span class="smallcaps">Licks</span> <span class="tabular-nums">{row.lickCount}</span></div>
 							<div><span class="smallcaps">Tunes</span> <span class="tabular-nums">{row.tuneCount}</span></div>
 						</div>
@@ -171,7 +184,17 @@
 							{/each}
 						</details>
 
-						{#if confirmTargetId === row.id}
+						{#if data.audit.some(a => a.action === 'delete_user' && a.target_user_id === row.id && a.status === 'pending')}
+							<p class="text-sm text-[var(--color-error-text)]">Deletion incomplete. Inspect content and retry deletion to finish.</p>
+						{/if}
+						{#if form?.inspectedUserId === row.id && form.content}
+							<AdminContent content={form.content} userId={row.id} />
+							{#if row.id !== data.user?.id && form.content.affectedUsers === 0}
+								<button type="button" class="text-xs text-[var(--color-error-text)]" onclick={() => confirmTargetId === row.id ? closeConfirm() : openConfirm(row.id)}>{confirmTargetId === row.id ? 'Cancel account deletion' : 'Delete account…'}</button>
+							{/if}
+						{/if}
+
+						{#if confirmTargetId === row.id && form?.inspectedUserId === row.id && form.content?.affectedUsers === 0}
 							<form
 								method="POST"
 								action="?/deleteUser"
@@ -211,12 +234,27 @@
 					</div>
 				{:else}
 					<div class="px-5 py-8 text-center text-sm text-[var(--color-text-secondary)]">
-						No users yet.
+						No matching users.
 					</div>
 				{/each}
 			</div>
 		{/if}
 	</div>
+
+	{#if data.audit.length > 0}
+		<details class="rounded-xl border border-[var(--color-bg-tertiary)] p-4 text-sm">
+			<summary class="cursor-pointer font-medium">Recent admin actions</summary>
+			<ul class="mt-3 space-y-3 text-xs text-[var(--color-text-secondary)]">
+				{#each data.audit as action (action.id)}
+					<li>{fmtDateTime(action.created_at)} · {action.action === 'remove_lick' ? 'Lick removal' : 'Account deletion'} · {action.status === 'completed' ? 'Completed' : 'Incomplete'}<br />By {data.users.find(u => u.id === action.actor_id)?.email ?? action.actor_id}<br />Target: {action.target_id}
+						{#if action.status === 'pending'}
+							<form method="POST" action="?/checkDeletion" use:enhance class="mt-1"><input type="hidden" name="operationId" value={action.id} /><button class="text-[var(--color-brass)]">Check completion</button></form>
+						{/if}
+					</li>
+				{/each}
+			</ul>
+		</details>
+	{/if}
 
 	<!-- System health -->
 	<div class="space-y-4">

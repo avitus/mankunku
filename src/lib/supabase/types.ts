@@ -49,6 +49,30 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      user_visit_days: {
+        Row: {
+          user_id: string
+          date: string
+        }
+        Insert: { user_id: string; date: string }
+        Update: { user_id?: string; date?: string }
+        Relationships: [{ foreignKeyName: "user_visit_days_user_id_fkey"; columns: ["user_id"]; isOneToOne: false; referencedRelation: "users"; referencedColumns: ["id"] }]
+      }
+      admin_actions: {
+        Row: {
+          id: string
+          actor_id: string
+          target_user_id: string
+          target_id: string
+          action: string
+          status: string
+          created_at: string
+          completed_at: string | null
+        }
+        Insert: { id?: string; actor_id: string; target_user_id: string; target_id: string; action: string; status: string; created_at?: string; completed_at?: string | null }
+        Update: { id?: string; actor_id?: string; target_user_id?: string; target_id?: string; action?: string; status?: string; created_at?: string; completed_at?: string | null }
+        Relationships: []
+      }
       user_devices: {
         Row: {
           user_id: string
@@ -1154,6 +1178,18 @@ export type Database = {
       }
     }
     Functions: {
+      admin_begin_user_deletion: {
+        Args: { p_actor_id: string; p_user_id: string; p_confirm: string }
+        Returns: string
+      }
+      admin_finish_user_deletion: {
+        Args: { p_actor_id: string; p_operation_id: string }
+        Returns: undefined
+      }
+      admin_remove_lick: {
+        Args: { p_actor_id: string; p_user_id: string; p_lick_id: string; p_confirm: string }
+        Returns: undefined
+      }
       record_user_device: {
         Args: {
           p_device_id: string

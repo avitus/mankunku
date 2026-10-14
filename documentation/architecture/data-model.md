@@ -725,4 +725,47 @@ calls. Clients cannot insert, update or delete table rows directly; RLS limits r
 their own rows. The owner-only admin dashboard reads all devices using its existing
 server-side admin client. Account deletion cascades to device records. Observations
 start after deployment and the user's next signed-in page load; past devices cannot be
-reconstructed. Browser visits do not count as completed practice in the admin totals.
+reconstructed. Browser visits do not count as completed practice.
+
+### Admin visit days and content removal
+
+`user_visit_days` stores one `(user_id, date)` per UTC date observed signed in.
+`record_user_device` inserts the date before its hourly device-update throttle;
+multiple browsers or attempts on one date count once. The existing 32-device cap
+is preserved. The migration backfills only the known last sign-in and device
+first/last-seen dates, so historical counts are lower bounds. There is no heartbeat
+for an untouched tab and no inferred date between two observations. The admin page
+shows **Days visited**, **Last visit**, and **Visited This Week** from this table.
+`daily_summaries.session_count` still counts practice attempts, not visits or
+logins; scoring and practice statistics are unchanged. Admin practice minutes
+exclude rows marked `practice_time_unavailable`.
+
+The admin content inspector lists owned licks/tunes and adoption counts. Valid
+licks have notation and audio previews; malformed ones expose validation errors
+and remain removable. Account deletion is refused if any other user has adopted
+an owned lick or tune. Individual lick removal is refused if it has adopters.
+These are administrator safeguards; existing self-service account deletion and
+author deletion retain their live-reference semantics.
+
+The service-role-only moderation RPCs check the verified administrator again in
+the database. A per-author transaction lock serializes adoption/content writes
+with moderation checks. `admin_begin_user_deletion` creates a durable pending
+`admin_actions` row before Storage or Auth is touched. New content writes and
+adoptions of that author's work are then refused, including during retries.
+Admin deletion requires successful upload cleanup before calling the Auth API.
+Failures leave a pending operation; retrying deletion reuses it. If Auth's response
+is lost, `admin_finish_user_deletion` checks that the account really disappeared
+before completing the audit. **Check completion** can reconcile a pending audit
+whose target is already gone. A pending deletion is never automatically expired
+while an external deletion may still be in flight.
+
+`admin_remove_lick` writes a sync tombstone and completed audit in one transaction.
+The audit prevents an old browser from resurrecting that lick ID, even after a
+hard delete/reinsert. Audit rows retain IDs, action and timestamps, not email,
+content or uploaded files. They are server-only and survive target deletion.
+The admin page shows recent actions plus every pending account removal.
+
+Database regression checks live in `tests/database/admin-content-safety.sql`
+(transactional fixtures with rollback) and `admin-content-races.py` (both orderings
+of concurrent adoption/account deletion and adoption/lick removal). Run them only
+against an isolated local database with the repository migrations applied.

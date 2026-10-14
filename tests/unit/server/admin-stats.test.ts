@@ -28,6 +28,21 @@ function emptyInput(): AdminStatsInput {
 }
 
 describe('buildAdminUserRows', () => {
+	it('counts distinct recorded visit dates, not practice attempts or devices', () => {
+		const [row] = buildAdminUserRows({
+			...emptyInput(),
+			authUsers: [{ id: 'u1' }],
+			summaries: [{ user_id: 'u1', date: '2026-09-22', session_count: 25, practice_minutes: 13 }],
+			visitDays: [
+				{ user_id: 'u1', date: '2026-09-22' },
+				{ user_id: 'u1', date: '2026-09-22' },
+				{ user_id: 'u1', date: '2026-09-25' }
+			]
+		});
+		expect(row.visitDayCount).toBe(2);
+		expect(row.lastVisitDate).toBe('2026-09-25');
+	});
+
 	it('joins profile, summaries, content counts and settings by user id', () => {
 		const rows = buildAdminUserRows({
 			authUsers: [
@@ -60,6 +75,8 @@ describe('buildAdminUserRows', () => {
 				emailConfirmedAt: '2026-08-01T10:05:00Z',
 				lastActiveDate: '2026-08-14',
 				sessionCount: 5,
+				visitDayCount: 0,
+				lastVisitDate: null,
 				practiceMinutes: 35,
 				lickCount: 3,
 				tuneCount: 1,
@@ -86,6 +103,8 @@ describe('buildAdminUserRows', () => {
 				emailConfirmedAt: null,
 				lastActiveDate: null,
 				sessionCount: 0,
+				visitDayCount: 0,
+				lastVisitDate: null,
 				practiceMinutes: 0,
 				lickCount: 0,
 				tuneCount: 0,
@@ -177,7 +196,7 @@ describe('buildAdminTotals', () => {
 		expect(totals.signupsThisWeek).toBe(1);
 	});
 
-	it('counts a user as active this week iff their newest summary date reaches the cutoff', () => {
+	it('counts a user as active this week iff their newest recorded visit reaches the cutoff', () => {
 		const rows = buildAdminUserRows({
 			...emptyInput(),
 			authUsers: [
@@ -186,6 +205,7 @@ describe('buildAdminTotals', () => {
 				{ id: 'stale', created_at: '2026-01-01T00:00:00Z' },
 				{ id: 'never', created_at: '2026-01-01T00:00:00Z' }
 			],
+			visitDays: [{ user_id: 'active', date: '2026-08-17' }, { user_id: 'boundary', date: '2026-08-12' }, { user_id: 'stale', date: '2026-08-11' }],
 			summaries: [
 				{ user_id: 'active', date: '2026-08-17', session_count: 1, practice_minutes: 5 },
 				{ user_id: 'boundary', date: '2026-08-12', session_count: 1, practice_minutes: 5 },

@@ -99,3 +99,50 @@ adminTest.describe('admin — dashboard', () => {
 		await expect(signedInPage.locator('details[open]')).toHaveCount(0);
 	});
 });
+
+adminTest.describe('admin — content management', () => {
+	adminTest.beforeEach(async ({ signedInPage, baseURL }) => {
+		await seedOnboardedAnonymous(signedInPage);
+		await signedInPage.context().addCookies([{ name: 'e2e-admin-fixture', value: '1', url: baseURL! }]);
+		await signedInPage.goto('/admin');
+	});
+
+	adminTest('shows one visited day, filters users, and previews zero-impact deletion', async ({ signedInPage: page }) => {
+		await page.getByRole('searchbox', { name: 'Find a user' }).fill('inactive@');
+		await expect(page.getByText('author@example.test', { exact: true })).toHaveCount(0);
+		await expect(page.getByText('Days visited', { exact: true }).locator('..')).toHaveText('Days visited 1');
+		await expect(page.getByText('Sessions', { exact: true })).toHaveCount(0);
+		await page.getByRole('button', { name: 'Inspect content' }).click();
+		await expect(page.getByText(/0 other users affected/)).toBeVisible();
+		await page.getByText('Malformed lick', { exact: false }).first().click();
+		await expect(page.getByText('This lick cannot be previewed safely.')).toBeVisible();
+		await page.getByRole('button', { name: 'Remove lick…', exact: true }).click();
+		await expect(page.getByRole('button', { name: 'Remove lick', exact: true })).toBeDisabled();
+		await page.getByLabel(/Type “Malformed lick”/).fill('Malformed lick');
+		await expect(page.getByRole('button', { name: 'Remove lick', exact: true })).toBeEnabled();
+		await page.getByRole('button', { name: 'Delete account…', exact: true }).click();
+		await expect(page.getByRole('button', { name: 'Delete user', exact: true })).toBeDisabled();
+		await page.getByLabel(/This permanently deletes/).fill('inactive@example.test');
+		await expect(page.getByRole('button', { name: 'Delete user', exact: true })).toBeEnabled();
+	});
+
+	adminTest('renders notation for valid content and keeps the management panel readable', async ({ signedInPage: page }, testInfo) => {
+		await page.getByRole('searchbox', { name: 'Find a user' }).fill('inactive@');
+		await page.getByRole('button', { name: 'Inspect content' }).click();
+		const preview = page.locator('details').filter({ has: page.locator('summary', { hasText: 'Preview lick' }) });
+		await preview.locator('summary').click();
+		await expect(preview.locator('svg').first()).toBeVisible();
+		await expect(preview.getByRole('button', { name: 'Play preview' })).toBeVisible();
+		await page.screenshot({ path: testInfo.outputPath('admin-content.png'), fullPage: true });
+	});
+
+	adminTest('blocks both account and lick removal when someone has adopted the lick', async ({ signedInPage: page }) => {
+		await page.getByRole('searchbox', { name: 'Find a user' }).fill('author@');
+		await page.getByRole('button', { name: 'Inspect content' }).click();
+		await expect(page.getByText('Account deletion is blocked while other users have adopted this content.')).toBeVisible();
+		await expect(page.getByRole('button', { name: 'Delete account…', exact: true })).toHaveCount(0);
+		await page.getByText('Adopted lick', { exact: false }).first().click();
+		await expect(page.getByText(/Removal blocked: this lick/)).toBeVisible();
+		await expect(page.getByRole('button', { name: 'Remove lick…', exact: true })).toHaveCount(0);
+	});
+});
