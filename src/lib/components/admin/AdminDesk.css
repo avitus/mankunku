@@ -21,22 +21,22 @@
 .admin-list-meta p { padding-top:8px; line-height:1.7; }
 .admin-desk summary { cursor:pointer; }
 .admin-user-list { border-top:1px solid var(--studio-border); }
-.admin-user { padding:20px 0; }
+.admin-user { padding:10px 0; }
 .admin-user + .admin-user { border-top:1px solid color-mix(in srgb,var(--studio-border) 55%,transparent); }
 .admin-user.inspected { border-top-color:var(--color-brass); }
-.admin-identity { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:18px; }
+.admin-identity { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:8px; }
 .admin-avatar { width:30px; height:30px; border:1px solid var(--studio-border); border-radius:4px; display:grid; place-items:center; background:var(--studio-well); font:500 17px var(--font-display); color:var(--color-brass-soft); }
 .admin-user-name { font-size:13px; font-weight:600; overflow-wrap:anywhere; }
 .admin-identity form { margin-left:auto; }
 .admin-inspect { border:1px solid var(--studio-border); border-radius:4px; padding:8px 12px; color:var(--studio-text); background:var(--studio-well); font-size:11px; min-height:36px; cursor:pointer; }
 .admin-inspect span { color:var(--color-brass-soft); margin-left:10px; }
 .admin-inspect:hover { border-color:var(--color-brass); }
-.admin-user-facts { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px 12px; margin:0 0 16px 38px; }
-.admin-user-facts > div { display:flex; flex-direction:column; gap:4px; min-width:0; }
+.admin-user-facts { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:6px 16px; margin:0 0 4px 38px; }
+.admin-user-facts > div { display:flex; flex-wrap:wrap; align-items:baseline; gap:2px 6px; min-width:0; }
 .admin-user-facts .smallcaps { color:var(--studio-muted); font-size:9px; letter-spacing:.06em; }
 .admin-user-facts .tabular-nums { font-size:12px; color:var(--studio-text); overflow-wrap:anywhere; }
 .admin-devices { margin-left:38px; font-size:11px; color:var(--studio-muted); line-height:1.7; }
-.admin-devices summary { min-height:30px; }
+.admin-devices summary { min-height:24px; }
 .admin-health-facts { display:grid; gap:0; margin-top:18px; }
 .admin-health-facts > div { padding:12px 0; border-bottom:1px solid color-mix(in srgb,var(--studio-border) 45%,transparent); display:grid; gap:5px; }
 .admin-health-facts > div:last-child { border-bottom:0; padding-bottom:0; }

@@ -772,4 +772,6 @@ confirmations, pending actions, unavailable/partial data notices and current
 server actions intact. Never substitute sample values for live account data.
 The MagicPath reference uses explicitly fictional accounts and system data:
 Admin · Operations Desk, component `461211093453402112`, revision
-`461211093453402113`. The rail stacks below the user list at 900px.
+`461217195662393344`. The rail stacks below the user list at 900px.
+User rows use compact vertical spacing and inline label/value pairs, wrapping
+on narrow screens while retaining every account fact and inspection control.
