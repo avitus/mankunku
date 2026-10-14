@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { leadSheetTuneFor, leadSheetAbcOptions } from '$lib/music/lead-sheet';
 	import { onDestroy } from 'svelte';
 	import { enhance } from '$app/forms';
 	import type { AdminContent } from '$lib/server/admin-content';
@@ -13,8 +14,8 @@
 	onDestroy(() => audition.dispose());
 </script>
 
-<div class="space-y-4 border-t border-[var(--color-bg-tertiary)] pt-4">
-	<h3 class="smallcaps text-[var(--color-brass)]">Content</h3>
+<div class="admin-content">
+	<div class="admin-content-title"><h3>Content inspection</h3><span>{content.licks.length} licks · {content.tunes.length} tunes</span></div>
 	{#if audition.state.error}<p role="alert" class="text-sm text-[var(--color-error-text)]">{audition.state.error}</p>{/if}
 	{#each content.licks as lick (lick.id)}
 		<details class="rounded-lg border border-[var(--color-bg-tertiary)] p-3" ontoggle={(event) => { if (!event.currentTarget.open && audition.state.playingId === lick.id && lick.phrase) void audition.play(lick.phrase); }}>
@@ -23,7 +24,7 @@
 			</summary>
 			<div class="mt-3 space-y-3">
 				{#if lick.phrase}
-					<NotationDisplay phrase={lick.phrase} />
+					<div class="admin-score"><div class="admin-score-inner"><NotationDisplay tune={leadSheetTuneFor(lick.phrase, Number.POSITIVE_INFINITY).tune} tuneOptions={{ ...leadSheetAbcOptions(lick.phrase, 4), omitMasthead: true }} variant="practice" frameless staffWidth={750} /></div></div>
 					<button type="button" class="text-sm text-[var(--color-brass)]" onclick={() => lick.phrase && audition.play(lick.phrase)}>{audition.state.playingId === lick.id ? 'Stop preview' : 'Play preview'}</button>
 				{:else}
 					<p class="text-sm text-[var(--color-error-text)]">This lick cannot be previewed safely.</p>
@@ -54,7 +55,7 @@
 	{#each content.tunes as tune (tune.id)}
 		<p class="text-sm">Tune: {tune.title} <span class="text-[var(--color-text-secondary)]">· {tune.adoptionCount} {tune.adoptionCount === 1 ? 'adopter' : 'adopters'}</span></p>
 	{/each}
-	<p class="text-xs text-[var(--color-text-secondary)]">Account deletion would remove {content.licks.length} {content.licks.length === 1 ? 'lick' : 'licks'} and {content.tunes.length} {content.tunes.length === 1 ? 'tune' : 'tunes'}, plus the user's practice data and uploads. {content.affectedUsers} other {content.affectedUsers === 1 ? 'user affected' : 'users affected'}.</p>
+	<p class="admin-impact">Account deletion would remove {content.licks.length} {content.licks.length === 1 ? 'lick' : 'licks'} and {content.tunes.length} {content.tunes.length === 1 ? 'tune' : 'tunes'}, plus the user's practice data and uploads. {content.affectedUsers} other {content.affectedUsers === 1 ? 'user affected' : 'users affected'}.</p>
 	{#if content.affectedUsers > 0}
 		<p class="text-sm text-[var(--color-error-text)]">Account deletion is blocked while other users have adopted this content.</p>
 	{/if}

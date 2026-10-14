@@ -146,3 +146,24 @@ adminTest.describe('admin — content management', () => {
 		await expect(page.getByRole('button', { name: 'Remove lick…', exact: true })).toHaveCount(0);
 	});
 });
+
+for (const viewport of [
+	{ width: 1440, theme: 'dark' },
+	{ width: 900, theme: 'light' },
+	{ width: 390, theme: 'dark' }
+]) {
+	adminTest(`admin desk fits ${viewport.width}px in ${viewport.theme} mode`, async ({ signedInPage: page, baseURL }, testInfo) => {
+		const { seedStorage, SETTINGS_ONBOARDED, TOUR_DISMISSED } = await import('./fixtures/storage');
+		await seedStorage(page, { settings: { ...SETTINGS_ONBOARDED, theme: viewport.theme }, 'tour-state': TOUR_DISMISSED });
+		await page.context().addCookies([{ name: 'e2e-admin-fixture', value: '1', url: baseURL! }]);
+		await page.setViewportSize({ width: viewport.width, height: 1000 });
+		await page.goto('/admin');
+		await expect(page.getByRole('heading', { name: 'Users', exact: true })).toBeVisible();
+		await page.getByRole('searchbox', { name: 'Find a user' }).fill('inactive@');
+		await page.getByRole('button', { name: 'Inspect content' }).click();
+		await page.locator('summary').filter({ hasText: 'Preview lick' }).click();
+		await expect(page.locator('.admin-score svg').first()).toBeVisible();
+		expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+		await page.screenshot({ path: testInfo.outputPath(`admin-${viewport.width}-${viewport.theme}.png`), fullPage: true });
+	});
+}

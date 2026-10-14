@@ -463,7 +463,7 @@
 		{/if}
 	</nav>
 
-	<main class="relative z-10 mx-auto max-w-5xl px-4 py-6" class:studio-layout={['/', '/auth', '/settings', '/progress', '/scales', '/ear-training', '/lick-practice', '/lick-practice/session', '/licks', '/licks/community', '/licks/add', '/licks/editor', '/tunes'].includes(page.url.pathname) || page.route.id === '/licks/[id]'}>
+	<main class="relative z-10 mx-auto max-w-5xl px-4 py-6" class:studio-layout={['/', '/admin', '/auth', '/settings', '/progress', '/scales', '/ear-training', '/lick-practice', '/lick-practice/session', '/licks', '/licks/community', '/licks/add', '/licks/editor', '/tunes'].includes(page.url.pathname) || page.route.id === '/licks/[id]'}>
 		{#if showWelcomeBanner}
 			<TourBanner
 				tourId="welcome"

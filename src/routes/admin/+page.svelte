@@ -1,6 +1,9 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { enhance } from '$app/forms';
+	import StudioPage from '$lib/components/console/StudioPage.svelte';
+	import StudioPanel from '$lib/components/console/StudioPanel.svelte';
+	import '$lib/components/admin/AdminDesk.css';
 	import AdminContent from '$lib/components/admin/AdminContent.svelte';
 	import type { PageData } from './$types';
 
@@ -69,12 +72,9 @@
 	<meta name="robots" content="noindex" />
 </svelte:head>
 
-<div class="space-y-8">
-	<div>
-		<div class="smallcaps text-[var(--color-brass)]">Back Office</div>
-		<h1 class="font-display text-4xl font-bold tracking-tight">Admin</h1>
-		<div class="jazz-rule mt-2 max-w-[140px]"></div>
-	</div>
+<StudioPage eyebrow="Back office / Administration" title="Admin" description="People, libraries, and service health.">
+	{#snippet actions()}<div class="admin-owner"><span>ADMIN ACCESS</span><small>Account & content management</small></div>{/snippet}
+<div class="admin-desk">
 
 	{#if form?.error}
 		<div
@@ -89,45 +89,22 @@
 		</div>
 	{/if}
 
-	<!-- Totals -->
 	{#if data.totals}
-		<div class="grid grid-cols-3 gap-3">
-			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 text-center">
-				<div class="font-display text-3xl font-bold tabular-nums text-[var(--color-brass)]">
-					{data.totals.totalUsers}
-				</div>
-				<div class="smallcaps text-[var(--color-text-secondary)]">Total Users</div>
-			</div>
-			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 text-center">
-				<div class="font-display text-3xl font-bold tabular-nums" style="color: var(--color-brass-soft)">
-					{data.totals.signupsThisWeek}
-				</div>
-				<div class="smallcaps text-[var(--color-text-secondary)]">Signups This Week</div>
-			</div>
-			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 text-center">
-				<div class="font-display text-3xl font-bold tabular-nums text-[var(--color-accent)]">
-					{data.totals.activeThisWeek}
-				</div>
-				<div class="smallcaps text-[var(--color-text-secondary)]">Visited This Week</div>
-			</div>
+		<div class="admin-totals" aria-label="Community overview">
+			<div><span>Total users</span><strong>{data.totals.totalUsers}</strong><small>Registered accounts</small></div>
+			<div><span>Signups this week</span><strong>{data.totals.signupsThisWeek}</strong><small>New to Mankunku</small></div>
+			<div><span>Visited this week</span><strong>{data.totals.activeThisWeek}</strong><small>Signed-in visitors</small></div>
 		</div>
 	{/if}
-
-	<!-- Users -->
-	<div class="space-y-4">
-		<div>
-			<h2 class="font-display text-xl font-semibold">Users</h2>
-			<p class="text-xs text-[var(--color-text-secondary)]">
-				Signups, visits, and content — newest first
-			</p>
-		</div>
-
-		<div class="flex flex-wrap items-end gap-3">
-			<label class="flex-1 text-xs">Find a user<input type="search" bind:value={search} placeholder="Email or name" class="mt-1 block w-full min-w-48 rounded-lg bg-[var(--color-bg-secondary)] px-3 py-2 text-sm" /></label>
+	<div class="admin-layout">
+	<div class="admin-users">
+	<StudioPanel id="admin-users" number="01" title="Users" description="Signups, visits, and content — newest first">
+		<div class="admin-filters">
+			<label class="admin-search">Find a user<input type="search" bind:value={search} placeholder="Email or name" class="mt-1 block w-full min-w-48 rounded-lg bg-[var(--color-bg-secondary)] px-3 py-2 text-sm" /></label>
 			<label class="text-xs">Show<select bind:value={filter} class="mt-1 block rounded-lg bg-[var(--color-bg-secondary)] px-3 py-2 text-sm"><option value="all">All users</option><option value="inactive">No visits in 30 days</option><option value="unconfirmed">Unconfirmed</option></select></label>
 			<label class="text-xs">Joined on or before<input type="date" bind:value={joinedBefore} class="mt-1 block rounded-lg bg-[var(--color-bg-secondary)] px-3 py-2 text-sm" /></label>
 		</div>
-		<p class="text-xs text-[var(--color-text-secondary)]">Days visited counts distinct UTC dates seen signed in, across all browsers. Earlier visit history may be incomplete.</p>
+		<div class="admin-list-meta"><span>{visibleUsers.length} {visibleUsers.length === 1 ? 'user' : 'users'} shown</span><details><summary>About activity</summary><p>Days visited counts distinct UTC dates seen signed in, across all browsers. Earlier visit history may be incomplete. Practice minutes are not time signed in.</p></details></div>
 
 		{#if data.unavailable}
 			<div class="rounded-xl border border-[var(--color-bg-tertiary)] bg-[var(--color-bg-secondary)] px-5 py-8 text-center text-sm text-[var(--color-text-secondary)]">
@@ -140,11 +117,11 @@
 					totals tiles are withheld rather than reporting partial counts.
 				</div>
 			{/if}
-			<div class="rounded-xl border border-[var(--color-bg-tertiary)] bg-[var(--color-bg-secondary)] divide-y divide-[var(--color-bg-tertiary)]">
+			<div class="admin-user-list">
 				{#each visibleUsers as row (row.id)}
-					<div class="space-y-3 p-5">
-						<div class="flex flex-wrap items-center gap-x-3 gap-y-1">
-							<span class="text-sm font-medium">{row.email ?? row.id}</span>
+					<article class="admin-user" class:inspected={form?.inspectedUserId === row.id}>
+						<div class="admin-identity">
+							<span class="admin-avatar" aria-hidden="true">{(row.displayName || row.email || row.id).slice(0, 1).toUpperCase()}</span><span class="admin-user-name">{row.email ?? row.id}</span>
 							{#if row.displayName}
 								<span class="text-sm text-[var(--color-text-secondary)]">{row.displayName}</span>
 							{/if}
@@ -156,11 +133,11 @@
 							{/if}
 							<form method="POST" action="?/inspectUser" class="ml-auto" use:enhance>
 								<input type="hidden" name="userId" value={row.id} />
-								<button class="text-xs text-[var(--color-brass)]">Inspect content</button>
+								<button class="admin-inspect">Inspect content <span aria-hidden="true">↗</span></button>
 							</form>
 						</div>
 
-						<div class="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs text-[var(--color-text-secondary)] sm:grid-cols-4">
+						<div class="admin-user-facts">
 							<div><span class="smallcaps">Joined</span> <span class="tabular-nums">{fmtDate(row.createdAt)}</span></div>
 							<div><span class="smallcaps">Last sign-in</span> <span class="tabular-nums">{fmtDate(row.lastSignInAt)}</span></div>
 							<div><span class="smallcaps">Last visit</span> <span class="tabular-nums">{fmtDate(row.lastVisitDate)}</span></div>
@@ -171,7 +148,7 @@
 							<div><span class="smallcaps">Tunes</span> <span class="tabular-nums">{row.tuneCount}</span></div>
 						</div>
 
-						<details class="text-xs text-[var(--color-text-secondary)]">
+						<details class="admin-devices">
 							<summary class="cursor-pointer">Browsers and devices ({row.devices.length})</summary>
 							<p class="mt-2">Observed on signed-in page loads; last seen updates at most hourly unless browser details change. Device type is approximate.</p>
 							{#each row.devices as device (device.device_id)}
@@ -231,7 +208,7 @@
 								</button>
 							</form>
 						{/if}
-					</div>
+					</article>
 				{:else}
 					<div class="px-5 py-8 text-center text-sm text-[var(--color-text-secondary)]">
 						No matching users.
@@ -239,10 +216,29 @@
 				{/each}
 			</div>
 		{/if}
+	</StudioPanel>
 	</div>
+	<aside class="admin-rail" aria-label="Service and activity">
+	<!-- System health -->
+	<StudioPanel id="admin-health" number="02" title="System Health" description="Current process snapshot">
+		<div class="admin-health">
+			{#if data.health}
+				<div class="admin-health-facts">
+					<div><span class="smallcaps">Release</span> <span class="tabular-nums">{data.health.releaseId ?? '—'}</span></div>
+					<div><span class="smallcaps">Commit</span> <span class="tabular-nums">{data.health.version.slice(0, 7)}</span></div>
+					<div><span class="smallcaps">Node</span> <span class="tabular-nums">{data.health.node}</span></div>
+					<div><span class="smallcaps">Uptime</span> <span class="tabular-nums">{fmtUptime(data.health.uptimeSeconds)}</span></div>
+					<div><span class="smallcaps">Started</span> <span class="tabular-nums">{fmtDateTime(data.health.startedAt)}</span></div>
+				</div>
+			{:else}
+				<p class="text-sm text-[var(--color-text-secondary)]">Health snapshot unavailable.</p>
+			{/if}
+		</div>
+	</StudioPanel>
+
 
 	{#if data.audit.length > 0}
-		<details class="rounded-xl border border-[var(--color-bg-tertiary)] p-4 text-sm">
+		<details class="admin-audit">
 			<summary class="cursor-pointer font-medium">Recent admin actions</summary>
 			<ul class="mt-3 space-y-3 text-xs text-[var(--color-text-secondary)]">
 				{#each data.audit as action (action.id)}
@@ -254,26 +250,9 @@
 				{/each}
 			</ul>
 		</details>
-	{/if}
+	{:else}<section class="admin-audit"><h2>Recent admin actions</h2><p>No recent actions recorded.</p></section>{/if}
 
-	<!-- System health -->
-	<div class="space-y-4">
-		<div>
-			<h2 class="font-display text-xl font-semibold">System Health</h2>
-			<p class="text-xs text-[var(--color-text-secondary)]">Live process identity from /api/health</p>
-		</div>
-		<div class="rounded-xl border border-[var(--color-bg-tertiary)] bg-[var(--color-bg-secondary)] p-5">
-			{#if data.health}
-				<div class="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs text-[var(--color-text-secondary)] sm:grid-cols-5">
-					<div><span class="smallcaps">Release</span> <span class="tabular-nums">{data.health.releaseId ?? '—'}</span></div>
-					<div><span class="smallcaps">Commit</span> <span class="tabular-nums">{data.health.version.slice(0, 7)}</span></div>
-					<div><span class="smallcaps">Node</span> <span class="tabular-nums">{data.health.node}</span></div>
-					<div><span class="smallcaps">Uptime</span> <span class="tabular-nums">{fmtUptime(data.health.uptimeSeconds)}</span></div>
-					<div><span class="smallcaps">Started</span> <span class="tabular-nums">{fmtDateTime(data.health.startedAt)}</span></div>
-				</div>
-			{:else}
-				<p class="text-sm text-[var(--color-text-secondary)]">Health snapshot unavailable.</p>
-			{/if}
-		</div>
+	</aside>
 	</div>
 </div>
+</StudioPage>

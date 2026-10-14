@@ -759,3 +759,17 @@ Learning, Proficient and Expert require all twelve keys and follow tempo. Show
 explicit requirements in a fixed ordered guide beneath the chart, mark the
 current stage with text as well as color, and use numbered tempo gridlines.
 Keep the guide readable in two columns on phones.
+
+### Admin operations desk
+
+`/admin` uses the neutral Studio Desk shell with a compact totals strip, a
+searchable user list and a service/activity rail. Align account facts for
+comparison; keep browser details and activity definitions in disclosures.
+Content inspection stays with its user row in an inset well. Use the shared
+notation renderer with four-bar systems and horizontal scrolling inside the
+score well on phones. Keep admin-only access, adoption protection, typed
+confirmations, pending actions, unavailable/partial data notices and current
+server actions intact. Never substitute sample values for live account data.
+The MagicPath reference uses explicitly fictional accounts and system data:
+Admin · Operations Desk, component `461211093453402112`, revision
+`461211093453402113`. The rail stacks below the user list at 900px.
