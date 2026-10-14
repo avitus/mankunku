@@ -378,6 +378,7 @@ The approved MagicPath pages are implemented natively in Svelte 5 (migration sta
 | Scale reference · Studio Desk | `459518760068452352` | `460511901051424768` |
 | Progress · Studio Desk | `460507092273475584` | `460509079647965184` |
 | Sign in · Studio Desk | `459519014817902592` | `460514824175128576` |
+| Add Licks · Studio Desk | `459517917629935616` | `460936884772802560` |
 | Lick Editor · Studio Desk | `459517965835059200` | `460811927849934848` |
 | Landing · Studio Desk | `460241787924140032` | `460242697312145408` |
 
@@ -396,7 +397,7 @@ controls. Activity overrides are scoped to the owning panel. Settings is neutral
 its tonality section is ear-training and its practice link is lick-practice.
 
 Home/landing, Sign in, Settings, Ear Training, Progress, Scales, Lick Practice setup,
-the running Lick Practice session (`/lick-practice/session`), Licks, the Lick Editor
+the running Lick Practice session (`/lick-practice/session`), Licks, Add Licks (`/licks/add`), the Lick Editor
 (`/licks/editor`) and Tunes opt into
 the layout's 1440px Studio Desk container. Other nested detail, editor, import and
 session routes retain their existing width and presentation. The setup summary
@@ -543,3 +544,12 @@ The preview tempo is local to this editor; it does not overwrite Settings. Loop
 uses the real phrase playback engine, with one cancellation generation covering
 sample loading and subsequent repeats. Per-note cursor events use that engine's
 audio clock. Dialogs use native modal focus handling and suppress editor shortcuts.
+
+
+### Add Licks
+
+The entry uses a shared Studio Desk panel with Editor first and Record marked
+Experimental. The two linked bays retain `/licks/editor` and `/licks/record`,
+with the existing descriptions and decorative keyboard/microphone illustrations.
+They stack below 600px and use the shared dark/light surfaces, focus treatment
+and page shell. The global navigation and the editor/recorder behavior are unchanged.
