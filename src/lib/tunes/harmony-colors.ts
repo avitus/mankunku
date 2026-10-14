@@ -7,7 +7,7 @@ import type { RangeMarker } from '$lib/components/notation/NotationDisplay.svelt
 export function harmonyRole(segment: HarmonicSegment, key: Tune['key']): 'tonic' | 'subdominant' | 'dominant' | null {
 	const root = (PITCH_CLASSES.indexOf(segment.chord.root) - PITCH_CLASSES.indexOf(key) + 12) % 12;
 	const quality = segment.chord.quality;
-	if (quality.startsWith('7')) return 'dominant';
+	if (root === 7 && quality.startsWith('7')) return 'dominant';
 	if (root === 0 && ['maj6', 'maj7', 'min6', 'min7', 'minMaj7'].includes(quality)) return 'tonic';
 	if ((root === 5 && ['maj6', 'maj7', 'min6', 'min7'].includes(quality)) || (root === 2 && ['min7', 'min7b5'].includes(quality))) return 'subdominant';
 	return null;

@@ -3,7 +3,7 @@ import { rhythmFeedback } from '$lib/ui/rhythm-feedback';
 import type { NoteResult, TimingDiagnostics } from '$lib/types/scoring';
 
 /** Same matched line with independent timing evidence and arbitrary grades. */
-function take(offsets: Array<number | null>, tempo = 120) {
+function take(offsets: Array<number | null>, tempo: number = 120): { noteResults: NoteResult[]; timing: TimingDiagnostics; tempo: number } {
 	const noteResults: NoteResult[] = offsets.map((offset, i) => ({
 		expected: { pitch: 60 + i, offset: [i, 4], duration: [1, 4] },
 		detected: offset === null ? null : { midi: 60 + i, cents: 0, onsetTime: i * 60 / tempo + offset / 1000, duration: .3, clarity: .95 },
@@ -18,6 +18,16 @@ function feedback(t: ReturnType<typeof take>): string | null {
 }
 
 describe('musical timing feedback independent of grading', () => {
+	it('uses distinct-onset pairs when reliable notes share an onset', () => {
+		const t = take([100, 50, 50, 0, -50]);
+		for (const [i, beat] of [0, 1, 1, 2, 3].entries()) {
+			t.noteResults[i].expected.offset = [beat, 4];
+			t.noteResults[i].detected!.onsetTime = beat * .5 + t.timing.perNoteOffsetMs[i]! / 1000;
+		}
+		expect(feedback(t)).toMatch(/^Rushing\./);
+		for (const note of t.noteResults) note.expected.offset = [0, 1];
+		expect(feedback(t)).toBeNull();
+	});
 	it.each([
 		[[100, 60, 20, -20, -60, -100], 'Rushing.'],
 		[[-100, -60, -20, 20, 60, 100], 'Dragging.'],

@@ -604,7 +604,8 @@ inside its well on phones and the inspector stacks below the workspace.
 tempo and loop, instrument samples, swing, metronome and backing controls.
 Music edits, settings changes and navigation cancel pending or active preview.
 Harmony overlays use conservative chord-role matching relative to the tune key;
-unclassified harmony remains neutral, and the user can hide all colors.
+only fifth-degree dominant-quality chords receive the V tint. Unclassified
+harmony remains neutral, and the user can hide all colors.
 
 The editor retains click-to-enter notes, inline chord editing, sections, pickup
 bars, source-pitch conversion and imported-PDF review. Non-4/4 charts retain

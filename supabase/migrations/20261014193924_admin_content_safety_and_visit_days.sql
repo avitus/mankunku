@@ -123,6 +123,13 @@ BEGIN
     IF TG_OP = 'UPDATE' AND OLD.user_id <> NEW.user_id THEN
       RAISE EXCEPTION 'Content ownership cannot be reassigned';
     END IF;
+    -- Only nested favorite-trigger maintenance may pass the deletion fence.
+    -- Direct author writes, including counter-only writes, remain fenced.
+    IF TG_OP = 'UPDATE' AND pg_catalog.pg_trigger_depth() > 1
+      AND (to_jsonb(NEW) - 'favorite_count' - 'updated_at')
+        = (to_jsonb(OLD) - 'favorite_count' - 'updated_at') THEN
+      RETURN NEW;
+    END IF;
     PERFORM private.lock_content_owner(owner_id);
     IF TG_TABLE_NAME = 'user_licks' AND NEW.deleted_at IS NULL AND EXISTS (
       SELECT 1 FROM public.admin_actions WHERE action = 'remove_lick' AND status = 'completed' AND target_id = NEW.id

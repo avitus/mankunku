@@ -752,6 +752,8 @@ the database. A per-author transaction lock serializes adoption/content writes
 with moderation checks. `admin_begin_user_deletion` creates a durable pending
 `admin_actions` row before Storage or Auth is touched. New content writes and
 adoptions of that author's work are then refused, including during retries.
+Nested favorite-counter maintenance remains allowed, but direct author writes
+(including counter-only updates) still pass through the deletion fence.
 Admin deletion requires successful upload cleanup before calling the Auth API.
 Failures leave a pending operation; retrying deletion reuses it. If Auth's response
 is lost, `admin_finish_user_deletion` checks that the account really disappeared

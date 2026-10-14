@@ -3,7 +3,7 @@ import { render } from 'svelte/server';
 import NoteComparison from '$lib/components/practice/NoteComparison.svelte';
 import type { NoteResult, TimingDiagnostics } from '$lib/types/scoring';
 
-function note(rhythmScore = 1, index = 0): NoteResult {
+function note(rhythmScore: number = 1, index: number = 0): NoteResult {
 	return {
 		expected: { pitch: 60, offset: [index, 4], duration: [1, 4] },
 		detected: { midi: 60, cents: 0, onsetTime: 0, duration: 0.5, clarity: 1 },

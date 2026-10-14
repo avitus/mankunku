@@ -4,6 +4,9 @@ import type { Tune } from '$lib/types/tune';
 import type { HarmonicSegment } from '$lib/types/music';
 const segment = (root: HarmonicSegment['chord']['root'], quality: HarmonicSegment['chord']['quality']): HarmonicSegment => ({chord:{root,quality},scaleId:'major.ionian',startOffset:[0,1],duration:[1,1]});
 describe('tune harmony colors',()=>{
+ it.each(['C','F','A','D'] as const)('keeps non-V dominant-quality %s7 neutral in C', root=>{
+  expect(harmonyRole(segment(root,'7'),'C')).toBeNull();
+ });
  it('recognizes familiar relative roles without guessing unfamiliar changes',()=>{
   expect(harmonyRole(segment('D','maj6'),'D')).toBe('tonic');
   expect(harmonyRole(segment('E','min7'),'D')).toBe('subdominant');

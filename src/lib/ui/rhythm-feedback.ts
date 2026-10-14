@@ -61,7 +61,7 @@ export function rhythmFeedback(
 	for (let i = 0; i < samples.length; i++) {
 		for (let j = i + 1; j < samples.length; j++) {
 			const beats = samples[j].beat - samples[i].beat;
-			if (beats <= 0) return null;
+			if (beats <= 0) continue;
 			slopes.push((samples[j].offset - samples[i].offset) / beats);
 		}
 	}

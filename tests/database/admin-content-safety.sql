@@ -77,9 +77,53 @@ DO $$ BEGIN
   EXCEPTION WHEN foreign_key_violation THEN NULL; END;
 END $$;
 DELETE FROM public.tune_adoptions WHERE tune_id='admin-test-tune';
+INSERT INTO public.lick_favorites(user_id,lick_id) VALUES ('10000000-0000-4000-8000-000000000003','admin-test-lick');
+INSERT INTO public.tune_favorites(user_id,tune_id) VALUES ('10000000-0000-4000-8000-000000000003','admin-test-tune');
 -- Begin account removal and verify a late adoption/content write is refused.
 SELECT public.admin_begin_user_deletion('10000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000002','author@example.test');
 SELECT public.admin_begin_user_deletion('10000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000002','author@example.test');
+-- Favorite trigger maintenance must survive the fence in both directions.
+DELETE FROM public.lick_favorites WHERE lick_id='admin-test-lick';
+DELETE FROM public.tune_favorites WHERE tune_id='admin-test-tune';
+DO $$ BEGIN
+  IF (SELECT favorite_count FROM public.user_licks WHERE id='admin-test-lick') <> 0
+    OR (SELECT favorite_count FROM public.tunes WHERE id='admin-test-tune') <> 0 THEN
+    RAISE EXCEPTION 'Favorite decrements were not maintained';
+  END IF;
+END $$;
+INSERT INTO public.lick_favorites(user_id,lick_id) VALUES ('10000000-0000-4000-8000-000000000003','admin-test-lick');
+INSERT INTO public.tune_favorites(user_id,tune_id) VALUES ('10000000-0000-4000-8000-000000000003','admin-test-tune');
+DO $$ BEGIN
+  IF (SELECT favorite_count FROM public.user_licks WHERE id='admin-test-lick') <> 1
+    OR (SELECT favorite_count FROM public.tunes WHERE id='admin-test-tune') <> 1 THEN
+    RAISE EXCEPTION 'Favorite increments were not maintained';
+  END IF;
+END $$;
+-- A direct author write must not masquerade as trusted trigger maintenance.
+RESET ROLE;
+SELECT set_config('request.jwt.claim.sub','10000000-0000-4000-8000-000000000002',true);
+SELECT set_config('request.jwt.claim.role','authenticated',true);
+SET LOCAL ROLE authenticated;
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM public.user_licks WHERE id='admin-test-lick')
+    OR NOT EXISTS (SELECT 1 FROM public.tunes WHERE id='admin-test-tune') THEN
+    RAISE EXCEPTION 'Author fixture cannot see owned content';
+  END IF;
+  BEGIN
+    UPDATE public.user_licks SET favorite_count=favorite_count+1 WHERE id='admin-test-lick';
+    RAISE EXCEPTION 'Direct lick counter update bypassed deletion fence';
+  EXCEPTION WHEN raise_exception THEN
+    IF SQLERRM <> 'Account removal is in progress' THEN RAISE; END IF;
+  END;
+  BEGIN
+    UPDATE public.tunes SET favorite_count=favorite_count+1 WHERE id='admin-test-tune';
+    RAISE EXCEPTION 'Direct tune counter update bypassed deletion fence';
+  EXCEPTION WHEN raise_exception THEN
+    IF SQLERRM <> 'Account removal is in progress' THEN RAISE; END IF;
+  END;
+END $$;
+RESET ROLE;
+SET LOCAL ROLE service_role;
 DO $$ BEGIN
   IF (SELECT count(*) FROM public.admin_actions WHERE action='delete_user') <> 1 THEN RAISE EXCEPTION 'Retry duplicated operation'; END IF;
   BEGIN

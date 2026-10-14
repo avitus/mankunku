@@ -299,7 +299,9 @@ The Progress page is the back cover. It tells you what's been happening over tim
 - **By Key** — your average ear-training score and attempt count in each key, so you can see which keys still need work.
 - A small **Reset Progress** link at the foot — the same full reset as in Settings, with a confirmation.
 
-**Sessions** has two sub-tabs. *Ear Training* lists your recent takes with grade, phrase, key, score and date; expand one for the pitch and rhythm split, notes hit, tempo, and the note-by-note comparison — what was written, what you played, each note's pitch and rhythm score and how early or late it landed, spelled the way the chart spelled it (a written-C blues lists Eb, Gb and Bb, not D#, F# and A#) — and play the saved recording back, or the lick itself. *Lick Practice* lists your Side B and trick sessions with their average, progression, mode, keys passed and length; expand one for every lick's key chips, and tap a chip to see that key's note-by-note detail when its recording was kept.
+**Sessions** has two sub-tabs. *Ear Training* lists your recent takes with grade, phrase, key, score and date; expand one for the pitch and rhythm split, notes hit, tempo, and the note-by-note comparison — what was written, what you played, each note's pitch and rhythm score, spelled the way the chart spelled it (a written-C blues lists Eb, Gb and Bb, not D#, F# and A#) — and play the saved recording back, or the lick itself. *Lick Practice* lists your Side B and trick sessions with their average, progression, mode, keys passed and length; expand one for every lick's key chips, and tap a chip to see that key's note-by-note detail when its recording was kept.
+
+Numeric timing offsets are available on the [Diagnostics page](/diagnostics).
 
 Tricks and Side B sessions count toward your streak and the calendar, but the Progress page has no per-trick view — that lives on each trick's own page.
 

@@ -9,7 +9,7 @@ const phrase = {
  difficulty:{level:20,pitchComplexity:20,rhythmComplexity:20,lengthBars:4},category:'ii-V-I-major',tags:['bebop'],source:'user-entered'
 };
 for(const theme of ['dark','light']) for(const width of [1440,390]) {
- test(`detail desk preserves dense notation at ${width}px in ${theme}`,async({page})=>{
+ test(`detail desk preserves dense notation at ${width}px in ${theme}`,async({page},testInfo)=>{
   await seedStorage(page,{'settings':{...SETTINGS_ONBOARDED,theme}});
   await seedOnboardedAnonymous(page);await seedUserLicks(page,[phrase]);
   await page.setViewportSize({width,height:1000});await page.goto('/licks/'+phrase.id);
@@ -32,7 +32,7 @@ for(const theme of ['dark','light']) for(const width of [1440,390]) {
   await page.getByText('Phrase details',{exact:true}).click();
   await expect(page.getByLabel('Category',{exact:true})).toHaveValue('ii-V-I-major');
   await page.getByText('Phrase details',{exact:true}).click();
-  if(theme==='dark') await page.screenshot({path:`/Users/avitus/Documents/Codex/2026-10-10/i-x20/outputs/lick-detail-svelte-${width}.png`,fullPage:true});
+  if(theme==='dark') await page.screenshot({path:testInfo.outputPath(`lick-detail-svelte-${width}.png`),fullPage:true});
  });
 }
 
