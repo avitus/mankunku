@@ -192,7 +192,7 @@
 	);
 
 	const sheet = $derived(lick ? leadSheetTuneFor(lick, Number.POSITIVE_INFINITY) : null);
-	const scoreOptions = $derived(lick ? { ...leadSheetAbcOptions(lick, 2), omitMasthead: true } : undefined);
+	const scoreOptions = $derived(lick ? { ...leadSheetAbcOptions(lick, 4), omitMasthead: true } : undefined);
 
 	// A new route, written key or instrument must not leave the previous sound running.
 	$effect(() => {
@@ -363,7 +363,7 @@
 						<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 						<div class="ld-score" role="region" aria-label="Sheet music for {baseLick.name}" tabindex="0">
 							<div class="ld-notation">
-								<NotationDisplay tune={{ ...sheet.tune, title: baseLick.name }} tuneOptions={scoreOptions} instrument={getInstrument()} variant="practice" frameless staffWidth={680} />
+								<NotationDisplay tune={{ ...sheet.tune, title: baseLick.name }} tuneOptions={scoreOptions} instrument={getInstrument()} variant="practice" frameless staffWidth={750} />
 							</div>
 						</div>
 						<div class="ld-transport">

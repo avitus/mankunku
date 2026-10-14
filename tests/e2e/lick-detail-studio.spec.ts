@@ -15,6 +15,8 @@ for(const theme of ['dark','light']) for(const width of [1440,390]) {
   await page.setViewportSize({width,height:1000});await page.goto('/licks/'+phrase.id);
   await expect(page.getByRole('heading',{name:phrase.name,exact:true})).toBeVisible();
   await expect(page.locator('.abcjs-note')).toHaveCount(32);
+  await expect(page.locator('.abcjs-staff-wrapper')).toHaveCount(1);
+  await expect(page.locator('.abcjs-beam-elem')).toHaveCount(8);
   await expect(page.locator('.abcjs-title')).toHaveCount(0);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   const before=await page.locator('.ld-score').boundingBox();
@@ -23,6 +25,8 @@ for(const theme of ['dark','light']) for(const width of [1440,390]) {
   await expect(page.getByLabel('Play in')).toHaveValue('F');
   await expect.poll(()=>page.locator('.abcjs-container').innerHTML()).not.toBe(original);
   await expect(page.locator('.abcjs-note')).toHaveCount(32);
+  await expect(page.locator('.abcjs-staff-wrapper')).toHaveCount(1);
+  await expect(page.locator('.abcjs-beam-elem')).toHaveCount(8);
   expect((await page.locator('.ld-score').boundingBox())!.height).toBeCloseTo(before!.height,0);
   if(width===390)expect(await page.locator('.ld-score').evaluate(e=>e.scrollWidth>e.clientWidth)).toBe(true);
   await page.getByText('Phrase details',{exact:true}).click();

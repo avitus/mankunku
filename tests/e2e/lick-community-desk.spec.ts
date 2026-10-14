@@ -45,6 +45,8 @@ test('desk selection shows the complete phrase and keeps controls aligned', asyn
 	const desk = page.getByRole('region', { name: 'Selected lick', exact: true });
 	const list = page.getByRole('group', { name: 'Choose a lick' });
 	await expect(desk.locator('.abcjs-note')).toHaveCount(32);
+	await expect(desk.locator('.abcjs-staff-wrapper')).toHaveCount(1);
+	await expect(desk.locator('.abcjs-beam-elem')).toHaveCount(8);
 	await expect(desk.locator('[data-chart-variant="practice"]')).toBeVisible();
 	await page.screenshot({ path: testInfo.outputPath('listening-desk.png'), fullPage: true });
 	const before = await desk.getByRole('button', { name: /^Listen/ }).boundingBox();
@@ -103,6 +105,8 @@ for (const theme of ['dark', 'light']) {
 		await setup(page, baseURL!, theme);
 		const score = page.getByRole('region', { name: /^Sheet music/ });
 		await expect(score.locator('.abcjs-note')).toHaveCount(32);
+		await expect(score.locator('.abcjs-staff-wrapper')).toHaveCount(1);
+		await expect(score.locator('.abcjs-beam-elem')).toHaveCount(8);
 		expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 		expect((await page.locator('.dense-row').first().boundingBox())!.height).toBe(76);
 		await page.getByRole('button', { name: /^The blue hour by/ }).click();

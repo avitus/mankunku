@@ -582,7 +582,7 @@ phrases use their declared category because they do not yet have the reader's
 personal practice tags. Generic styles retain the neutral brass treatment.
 
 The full score uses the existing `NotationDisplay` and lead-sheet adapter, with
-two measures per staff and no phrase truncation. The desk reserves score space so
+four measures per staff and no phrase truncation. The desk reserves score space so
 switching between two- and four-measure phrases does not move the action row.
 On phones the index scrolls horizontally and dense notation scrolls within its
 own region. Key and length metadata and length filters are omitted. Search,
@@ -614,10 +614,10 @@ source-review data. Curated tunes open as unsaved personal copies; community
 adoption, attribution and existing library actions keep their original paths.
 
 
-## Shared musical interface contracts · Design System 1.2
+## Shared musical interface contracts · Design System 1.3
 
 The MagicPath reference is component `460231915702722560`, revision
-`461191156403949568`. Its reusable `MusicKit.tsx` / `MusicKit.css` extends
+`461202969724080128`. Its reusable `MusicKit.tsx` / `MusicKit.css` extends
 `ConsoleKit` with `PhaseCue`, `ScoreWell`, `DurationGlyph`, `DurationBank`,
 and a control-state transport example. The score is explicitly illustrative;
 production continues to use the actual notation and audio engines. Prototype
@@ -631,10 +631,17 @@ or its MagicPath skill does not update every existing page.
   pickup and repeat rules. Do not invent a second engraver in page components.
 - Use the inset Studio Desk well with theme-aware ink. Render metadata once
   in the page header; retain an accessible score name when omitting a masthead.
-- Render the complete phrase. For the Community listening desk, two measures
-  per system and reserved score height align short and long phrases. At phone
+- Render the complete phrase. Four-bar licks always occupy one system; reserve score height to align short
+  and long phrases. Longer phrases may continue on subsequent four-bar systems. At phone
   widths, scroll inside the score region; do not shrink dense notation into
   illegibility or let it create page-wide overflow.
+- Preserve the established engraving work: `c04600ea` groups straight eighths
+  4 + 4 in 4/4 (four in 2/4), with sixteenth-note spans grouped per beat;
+  `015b33eb` retains automatic pitch-based stem direction, including beam-group
+  direction, by declaring the invisible chord voice `V:H stem=down`. Keep
+  rhythmic spacing, shared chord typography and enharmonic spelling intact.
+  Prototype scores must use output from the real renderer, never hand-drawn
+  substitute noteheads, stems or beams.
 - Preserve ledger lines, accidentals, rests, ties, beams and meter. Validate a
   four-measure phrase with 32 eighth notes, pickups and long chord labels.
 - Keep selection, insertion position, playback cursor and review warnings
@@ -719,7 +726,7 @@ reference as proof of implementation or deployment.
 ### Individual lick detail · Studio Desk
 
 `/licks/[id]` uses MagicPath component `461192586053427200`, revision
-`461192586053427201`. The native Svelte page shares `StudioPage`, `StudioPanel`,
+`461202782066741248`. The native Svelte page shares `StudioPage`, `StudioPanel`,
 `CommunityProgression` and the existing notation renderer. Its score is primary,
 with a written-key selector and Listen transport directly beside it. Practice
 membership and fit-gated progression tags occupy the right inspector; details,
@@ -727,10 +734,12 @@ category editing and descriptive tags live in a disclosure. Personal progress
 and reset sit below the score. Ownership restrictions and delete/reset
 confirmation remain explicit, with cancellation.
 
-The complete phrase uses two measures per system with reserved score space;
+The complete phrase uses four measures per system with reserved score space;
 dense music scrolls within the well on phones. The inspector stacks below
 900px. No length badge is shown. Key selection is a functional transposition
 control, not redundant catalog metadata. Changing key, instrument or lick
 cancels the previous audition. Existing async loading/not-found fencing, real
-saved progress and Deep Practice handoff are retained. The prototype contains
-illustrative state; the Svelte page uses actual data and audio.
+saved progress and Deep Practice handoff are retained. The prototype uses static SVG specimens exported from the native renderer in all
+twelve written keys; its controls remain illustrative. The Svelte page uses actual
+data and audio. The reference kit and prototype must preserve engraving geometry
+when adapting color or surrounding controls.

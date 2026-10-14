@@ -17,7 +17,7 @@
 	let { lick, isPlaying, favoritePending, bookPending, onplay, onfavorite, onbook }: Props = $props();
 	// Keep the whole phrase, including longer imports; only the staff wraps.
 	const sheet = $derived(leadSheetTuneFor(lick.phrase, Number.POSITIVE_INFINITY));
-	const options = $derived(leadSheetAbcOptions(lick.phrase, 2));
+	const options = $derived(leadSheetAbcOptions(lick.phrase, 4));
 </script>
 
 <section class="listening-desk" aria-label="Selected lick">
@@ -43,7 +43,7 @@
 	<div class="score-space" role="region" aria-label="Sheet music for {lick.phrase.name}" tabindex="0">
 		<div class="score">
 			<NotationDisplay tune={sheet.tune} tuneOptions={options} instrument={getInstrument()}
-				variant="practice" frameless staffWidth={600} />
+				variant="practice" frameless staffWidth={750} />
 		</div>
 	</div>
 	<footer>
@@ -71,13 +71,13 @@
 	h3 { font: 500 clamp(24px, 2.4vw, 32px)/1.2 var(--font-display); letter-spacing: -.03em; overflow-wrap: anywhere; }
 	.identity p { margin-top: 8px; color: var(--studio-muted); font-size: 12px; }
 	.detail-meta { justify-content: flex-start; margin: 18px 0; font-size: 11px; color: var(--studio-muted); }
-	.score-space { min-height: 310px; aspect-ratio: 2 / 1; border-top: 1px solid color-mix(in srgb, var(--studio-border) 45%, transparent); padding: 24px 0; overflow-x: auto; scrollbar-width: thin; }
-	.score { min-width: 440px; }
+	.score-space { min-height: 240px; display: flex; align-items: center; border-top: 1px solid color-mix(in srgb, var(--studio-border) 45%, transparent); padding: 24px 0; overflow-x: auto; scrollbar-width: thin; }
+	.score { min-width: 680px; width: 100%; }
 	footer { border-top: 1px solid color-mix(in srgb, var(--studio-border) 45%, transparent); padding-top: 18px; }
 	.listen { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 10px 14px; border: 1px solid var(--studio-border); border-radius: 3px; font-size: 12px; }
 	.listen.playing { color: var(--studio-accent-text); border-color: currentColor; }
 	.added { background: var(--studio-well); color: var(--color-brass-soft); box-shadow: none; border-color: var(--studio-border); }
 	.detail-link { display: inline-flex; align-items: center; margin-top: 12px; }
 	button:disabled { opacity: .6; cursor: wait; }
-	@media (max-width: 600px) { .listening-desk { padding: 18px; } .score-space { min-height: 260px; aspect-ratio: auto; } footer { gap: 8px; } footer .studio-action { padding: 10px; } }
+	@media (max-width: 600px) { .listening-desk { padding: 18px; } .score-space { min-height: 240px; } footer { gap: 8px; } footer .studio-action { padding: 10px; } }
 </style>
