@@ -1,207 +1,69 @@
 import { test, expect } from './fixtures/test';
 import { seedOnboardedAnonymous, seedTunes } from './fixtures/storage';
-import type { Page } from '@playwright/test';
 
-/**
- * Tune-editor layout: sticky left entry rail on desktop, fixed bottom entry
- * dock on mobile. Both regions host the shared step-entry panels (which
- * mutate the same module-scoped state), the compact position status, and the
- * Play/Save/Cancel actions; non-4/4 sheets replace the panels with a notice.
- */
+test.beforeEach(async ({ page }) => { await seedOnboardedAnonymous(page); });
 
-const CHART_SVG = '.abcjs-container svg';
-
-/** A long empty 4/4 form (6 × 16-bar sections) so the page scrolls far. */
-const LONG_TUNE = [
-	{
-		id: 'e2e-long-tune',
-		title: 'Long Scroller',
-		key: 'C',
-		timeSignature: [4, 4],
-		tags: [],
-		sections: ['A', 'B', 'C', 'D', 'E', 'F'].map((label) => ({
-			label,
-			bars: 16,
-			notes: [],
-			harmony: []
-		})),
-		source: 'user'
-	}
-];
-
-/** A 3/4 sheet — melody editing is gated off outside 4/4. */
-const WALTZ_TUNE = [
-	{
-		id: 'e2e-waltz',
-		title: 'Test Waltz',
-		key: 'C',
-		timeSignature: [3, 4],
-		tags: [],
-		sections: [{ label: 'A', bars: 8, notes: [], harmony: [] }],
-		source: 'user'
-	}
-];
-
-test.beforeEach(async ({ page }) => {
-	await seedOnboardedAnonymous(page);
-});
-
-async function openEditor(page: Page, url = '/tunes/editor'): Promise<void> {
-	await page.goto(url);
-	await expect(page.locator(CHART_SVG).first()).toBeVisible();
+for (const width of [1280, 375]) {
+ test(`shared note workspace and score fit at ${width}px`, async ({ page }) => {
+  await page.setViewportSize({width, height:800});
+  await page.goto('/tunes/editor');
+  await expect(page.locator('.abcjs-container svg').first()).toBeVisible();
+  const entry=page.getByRole('region', {name:'Note entry'});
+  await expect(entry.getByRole('button',{name:'C',exact:true})).toHaveCount(1);
+  for (const name of ['Whole Note','Half Note','Quarter Note','Eighth Note','Sixteenth Note']) await expect(entry.getByRole('button',{name})).toBeVisible();
+  await entry.getByRole('button',{name:'C',exact:true}).click();
+  await expect(page.locator('.abcjs-note')).toHaveCount(1);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  const score=await page.locator('.td-score-well').boundingBox();
+  const controls=await entry.boundingBox();
+  expect(controls!.y).toBeGreaterThan(score!.y + score!.height);
+ });
 }
 
-test.describe('desktop', () => {
-	test('rail visible with status, dock hidden, rail C button enters a note', async ({ page }) => {
-		await openEditor(page);
-
-		const rail = page.getByTestId('entry-rail');
-		await expect(rail).toBeVisible();
-		await expect(page.getByTestId('entry-dock')).toBeHidden();
-		await expect(rail.getByText(/Section A · Bar 1, Beat 1/)).toBeVisible();
-
-		const notes = page.locator(`${CHART_SVG} .abcjs-note`);
-		await expect(notes).toHaveCount(0);
-		await rail.getByRole('button', { name: 'C', exact: true }).click();
-		await expect(notes).toHaveCount(1);
-	});
-
-	test('the rail inner sticks near the viewport top while the page scrolls', async ({ page }) => {
-		await seedTunes(page, LONG_TUNE);
-		await openEditor(page, '/tunes/editor?edit=e2e-long-tune');
-		await expect(page.getByRole('textbox', { name: 'Tune title' })).toHaveValue('Long Scroller');
-
-		await page.evaluate(() => window.scrollTo(0, 1500));
-		// The seeded 96-bar chart must actually scroll that far — otherwise the
-		// sticky assertion below would pass vacuously near the page top.
-		expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(800);
-
-		// Sticky lives on the INNER div (grid items stretch; sticky on the
-		// aside itself would never engage). top-6 = 24px.
-		const inner = page.getByTestId('entry-rail').locator('> div');
-		const box = await inner.boundingBox();
-		expect(box).not.toBeNull();
-		expect(Math.abs(box!.y - 24)).toBeLessThanOrEqual(4);
-	});
-
-	test('clicking the rail C button auto-advances across the page boundary like keyboard entry', async ({ page }) => {
-		await openEditor(page);
-
-		const rail = page.getByTestId('entry-rail');
-		await rail.getByRole('button', { name: 'Quarter Note' }).click();
-		const c = rail.getByRole('button', { name: 'C', exact: true });
-		for (let i = 0; i < 20; i++) {
-			await c.click();
-		}
-
-		// 20 quarters = 5 bars: 16 fill the first 4-bar page, the rest rolled
-		// onto bar 5 — identical to the keyboard-entry auto-advance path.
-		await expect(page.locator(`${CHART_SVG} .abcjs-note`)).toHaveCount(20);
-		await expect(rail.getByText(/Section A · Bar 6, Beat 1/)).toBeVisible();
-	});
-
-	test('all five duration glyphs fit the rail without horizontal overflow', async ({ page }) => {
-		await openEditor(page);
-
-		const rail = page.getByTestId('entry-rail');
-		for (const name of ['Whole Note', 'Half Note', 'Quarter Note', 'Eighth Note', 'Sixteenth Note']) {
-			await expect(rail.getByRole('button', { name })).toBeVisible();
-		}
-
-		// The 16rem rail leaves ~232px of content box. Flex items refuse to
-		// shrink below their content, so too much button padding overflows
-		// rather than wrapping — measure it instead of trusting the arithmetic.
-		const row = rail.getByRole('button', { name: 'Whole Note' }).locator('..');
-		const fits = await row.evaluate((el) => el.scrollWidth <= el.clientWidth);
-		expect(fits).toBe(true);
-	});
+test('non-4/4 preserves chord editing and section setup without melody entry', async ({page})=>{
+ await seedTunes(page,[{id:'e2e-waltz',title:'Test Waltz',key:'C',timeSignature:[3,4],tags:[],sections:[{label:'A',bars:8,notes:[],harmony:[]}],source:'user'}]);
+ await page.goto('/tunes/editor?edit=e2e-waltz');
+ await expect(page.getByRole('textbox',{name:'Tune title'})).toHaveValue('Test Waltz');
+ await expect(page.getByRole('region',{name:'Note entry'})).toContainText('melody entry supports 4/4 only');
+ await expect(page.getByRole('button',{name:'C',exact:true})).toHaveCount(0);
+ await expect(page.getByRole('button',{name:'Update tune',exact:true})).toBeVisible();
+ await expect(page.getByLabel('Section 1 label')).toBeVisible();
+ await page.locator('[data-chord-pos="0:0:0"]').click();
+ await page.getByTestId('chord-input').fill('G7');
+ await page.getByTestId('chord-input').press('Enter');
+ await expect(page.locator('.abcjs-container svg text').filter({hasText:'G7'}).first()).toBeVisible();
 });
 
-test.describe('mobile', () => {
-	test.use({ viewport: { width: 375, height: 667 } });
-
-	test('all five duration glyphs fit the dock without horizontal overflow', async ({ page }) => {
-		await openEditor(page);
-
-		// A tighter constraint than the desktop rail: at this width the dock
-		// container puts the glyph row and the modifier toggles on ONE line
-		// (@max-[28rem]/entry), so the five glyphs share the width with them.
-		const dock = page.getByTestId('entry-dock');
-		const row = dock.getByRole('button', { name: 'Whole Note' }).locator('..');
-		const fits = await row.evaluate((el) => el.scrollWidth <= el.clientWidth);
-		expect(fits).toBe(true);
-	});
-
-	test('dock pinned to the bottom, rail hidden, dock C enters a note', async ({ page }) => {
-		await openEditor(page);
-
-		await expect(page.getByTestId('entry-rail')).toBeHidden();
-		const dock = page.getByTestId('entry-dock');
-		await expect(dock).toBeVisible();
-		await expect(dock.getByText(/Section A · Bar 1, Beat 1/)).toBeVisible();
-
-		const box = await dock.boundingBox();
-		expect(box).not.toBeNull();
-		expect(Math.round(box!.y + box!.height)).toBe(667);
-
-		// Safe-area padding depends on viewport-fit=cover being declared.
-		await expect(page.locator('meta[name="viewport"]')).toHaveAttribute(
-			'content',
-			/viewport-fit=cover/
-		);
-
-		const notes = page.locator(`${CHART_SVG} .abcjs-note`);
-		await dock.getByRole('button', { name: 'C', exact: true }).click();
-		await expect(notes).toHaveCount(1);
-	});
-
-	test('the chevron collapses the entry rows and shrinks the dock', async ({ page }) => {
-		await openEditor(page);
-
-		const dock = page.getByTestId('entry-dock');
-		await expect(dock.getByRole('button', { name: 'C', exact: true })).toBeVisible();
-		const expanded = await dock.boundingBox();
-		expect(expanded).not.toBeNull();
-
-		await dock.getByRole('button', { name: 'Collapse entry controls' }).click();
-		await expect(dock.getByRole('button', { name: 'C', exact: true })).toBeHidden();
-
-		const collapsed = await dock.boundingBox();
-		expect(collapsed).not.toBeNull();
-		expect(collapsed!.height).toBeLessThan(expanded!.height);
-		// Still pinned to the bottom edge after collapsing.
-		expect(Math.round(collapsed!.y + collapsed!.height)).toBe(667);
-	});
-
-	test('scrolled to the end, the Setup card clears the dock (pb compensation)', async ({ page }) => {
-		await openEditor(page);
-
-		await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-		const setupCard = page.getByRole('button', { name: /Setup Key/ }).locator('..');
-		const setupBox = await setupCard.boundingBox();
-		const dockBox = await page.getByTestId('entry-dock').boundingBox();
-		expect(setupBox).not.toBeNull();
-		expect(dockBox).not.toBeNull();
-		expect(setupBox!.y + setupBox!.height).toBeLessThanOrEqual(dockBox!.y + 1);
-	});
+test('undo and redo preserve notes, composer and the original tune identity',async({page})=>{
+ await seedTunes(page);
+ await page.goto('/tunes/editor?edit=e2e-user-sheet-1');
+ await expect(page.getByRole('textbox',{name:'Tune title'})).toHaveValue('Test Session Tune');
+ const composer=page.getByRole('textbox',{name:'Composer'});
+ await expect(page.locator('.abcjs-note')).toHaveCount(4);
+ const notes=4;
+ await composer.fill('A new credit');
+ await page.getByRole('button',{name:'Undo',exact:true}).click();
+ await expect(composer).toHaveValue('E2E');
+ await page.getByRole('button',{name:'Redo',exact:true}).click();
+ await expect(composer).toHaveValue('A new credit');
+ await expect(page.locator('.abcjs-note')).toHaveCount(notes);
+ await page.getByRole('button',{name:'Update tune',exact:true}).click();
+ await page.waitForURL('**/tunes/test-session-tune');
+ const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('mankunku:user-tunes')||'[]'));
+ expect(saved).toHaveLength(1);expect(saved[0].id).toBe('e2e-user-sheet-1');expect(saved[0].composer).toBe('A new credit');
 });
 
-test.describe('non-4/4', () => {
-	test('a 3/4 sheet swaps the panels for a notice; actions stay', async ({ page }) => {
-		await seedTunes(page, WALTZ_TUNE);
-		await openEditor(page, '/tunes/editor?edit=e2e-waltz');
-		await expect(page.getByRole('textbox', { name: 'Tune title' })).toHaveValue('Test Waltz');
-
-		const rail = page.getByTestId('entry-rail');
-		await expect(rail.getByText(/This chart is in 3\/4/)).toBeVisible();
-		await expect(rail.getByText(/melody entry\s+supports 4\/4 only/)).toBeVisible();
-
-		// No pitch entry surface anywhere — rail or dock.
-		await expect(page.getByRole('button', { name: 'C', exact: true })).toHaveCount(0);
-		await expect(page.getByTestId('entry-dock').getByText(/4\/4 only/)).toHaveCount(1);
-
-		// Actions survive in the rail.
-		await expect(rail.getByRole('button', { name: 'Play', exact: true })).toBeVisible();
-		await expect(rail.getByRole('button', { name: 'Update', exact: true })).toBeVisible();
-	});
+test('editing a curated copy leaves the original intact and creates a new user tune',async({page})=>{
+ await page.goto('/tunes/ls-when-the-saints');
+ await expect(page.locator('.abcjs-container svg').first()).toBeVisible();
+ await page.getByRole('button',{name:'Edit a copy',exact:true}).click();
+ await expect(page.getByRole('textbox',{name:'Tune title'})).toHaveValue('When the Saints Go Marching In');
+ await page.getByRole('textbox',{name:'Tune title'}).fill('Saints arrangement');
+ await page.getByRole('button',{name:'Save tune',exact:true}).click();
+ await page.waitForURL('**/tunes/saints-arrangement');
+ const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('mankunku:user-tunes')||'[]'));
+ expect(saved).toHaveLength(1);expect(saved[0].id).not.toBe('ls-when-the-saints');
+ await page.goto('/tunes/ls-when-the-saints');
+ await expect(page.getByRole('heading',{name:'When the Saints Go Marching In',exact:true})).toBeVisible();
+ await expect(page.getByRole('button',{name:'Edit a copy',exact:true})).toBeVisible();
 });

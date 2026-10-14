@@ -572,3 +572,26 @@ own region. Key and length metadata and length filters are omitted. Search,
 style, author, difficulty, sorting, favorites and book membership use the existing
 community services. Selecting another phrase or changing filters cancels the
 current audition; the details link preserves access to the existing lick route.
+
+
+### Tune Detail and Tune Editor
+
+Tune Detail (`/tunes/[id]`) and Tune Editor (`/tunes/editor`) share the Lick
+Editor Studio Desk shell, inset score, grouped transport/accompaniment and
+right-hand Setup inspector. The approved reference is MagicPath component
+`459518519676121088`, revision `461185056698941440`. Page headings own metadata;
+`omitMasthead` avoids reserving duplicate engraving space. The score scrolls
+inside its well on phones and the inspector stacks below the workspace.
+
+`TuneTransport` uses production phrase playback with expanded repeats, local
+tempo and loop, instrument samples, swing, metronome and backing controls.
+Music edits, settings changes and navigation cancel pending or active preview.
+Harmony overlays use conservative chord-role matching relative to the tune key;
+unclassified harmony remains neutral, and the user can hide all colors.
+
+The editor retains click-to-enter notes, inline chord editing, sections, pickup
+bars, source-pitch conversion and imported-PDF review. Non-4/4 charts retain
+chord and section editing without enabling unsupported melody entry. Bounded
+undo/redo stores tune content and setup while preserving edit identity and
+source-review data. Curated tunes open as unsaved personal copies; community
+adoption, attribution and existing library actions keep their original paths.

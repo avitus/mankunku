@@ -94,7 +94,7 @@ test('invalid chord text flashes, stays open, and Escape closes without committi
 test('an existing chord prefills the input; clearing removes the symbol', async ({ page }) => {
 	await seedTunes(page);
 	await page.goto('/tunes/editor?edit=e2e-user-sheet-1');
-	await expect(page.getByRole('heading', { name: 'Edit Tune' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: /^Tune editor/i })).toBeVisible();
 	// Seeded tenor: concert Dm7 renders written as E-7.
 	await expect(
 		page.locator(`${CHART_SVG} text`).filter({ hasText: 'E-7' }).first()
@@ -119,7 +119,7 @@ test('an existing chord prefills the input; clearing removes the symbol', async 
 test('clicking rendered chord text (not the hit zone) opens the editor prefilled', async ({ page }) => {
 	await seedTunes(page);
 	await page.goto('/tunes/editor?edit=e2e-user-sheet-1');
-	await expect(page.getByRole('heading', { name: 'Edit Tune' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: /^Tune editor/i })).toBeVisible();
 
 	const chordText = page.locator(`${CHART_SVG} .abcjs-chord`).first();
 	await expect(chordText).toBeVisible();

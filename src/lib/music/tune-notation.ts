@@ -62,6 +62,8 @@ export { placeEndingSection } from './ending-layout';
  */
 
 export interface TuneAbcOptions {
+	/** Page UI owns the title, composer and style; omit their engraving space. */
+	omitMasthead?: boolean;
 	/** ABC L: default note length. */
 	defaultLength?: Fraction;
 	/** Bars per system before a line break. */
@@ -229,10 +231,10 @@ export function tuneToAbcWithMap(
 
 	const headerLines: string[] = [
 		`X:1`,
-		`T:${sheet.title}`,
-		...(sheet.composer ? [`C:${sheet.composer}`] : []),
+		...(options.omitMasthead ? [] : [`T:${sheet.title}`]),
+		...(!options.omitMasthead && sheet.composer ? [`C:${sheet.composer}`] : []),
 		// R: is abcjs's left-of-title "rhythm" field — style/feel on the masthead.
-		...(sheet.style ? [`R:${sheet.style}`] : []),
+		...(!options.omitMasthead && sheet.style ? [`R:${sheet.style}`] : []),
 		`M:${sheet.timeSignature[0]}/${sheet.timeSignature[1]}`,
 		`L:${defaultLength[0]}/${defaultLength[1]}`,
 		// Boxed rehearsal marks [A] [B] — standard lead-sheet / Real Book form

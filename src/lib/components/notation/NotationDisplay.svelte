@@ -317,6 +317,8 @@
 		// abcjs's width estimation; the painted face is the --chord-font CSS.
 		const [visualObj] = abcjs.renderAbc(containerEl, abc, {
 			responsive: 'resize',
+			// Keep the score named for assistive technology when the page owns its visual masthead.
+			...(tuneOptions?.omitMasthead && tune ? { ariaLabel: `Sheet Music for "${tune.title}"` } : {}),
 			staffwidth: staffWidth ?? CHART_STAFF_WIDTH,
 			paddingtop: compactStaff ? 0 : showEngravedMasthead ? 8 : 12,
 			paddingbottom: compactStaff ? 2 : 16,

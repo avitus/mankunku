@@ -3,7 +3,18 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { tunePath } from '$lib/tunes/tune-slug';
-	import { onDestroy, onMount } from 'svelte';
+	import { onDestroy, onMount, untrack } from 'svelte';
+	import StudioPage from '$lib/components/console/StudioPage.svelte';
+	import EditorIcon from '$lib/components/step-entry/EditorIcon.svelte';
+	import TuneTransport from '$lib/components/tunes/TuneTransport.svelte';
+	import TuneHarmonyGuide from '$lib/components/tunes/TuneHarmonyGuide.svelte';
+	import { tuneHarmonyMarkers } from '$lib/tunes/harmony-colors';
+	import { EditorHistory } from '$lib/step-entry/editor-history';
+	import { midiToDisplayName } from '$lib/music/notation';
+	import type { Tune } from '$lib/types/tune';
+	import type { SourceTransposition } from '$lib/tunes/source-transposition';
+	import '$lib/components/step-entry/lick-editor.css';
+	import '$lib/components/tunes/tune-desk.css';
 	import NotationDisplay from '$lib/components/notation/NotationDisplay.svelte';
 	import DurationSelector from '$lib/components/step-entry/DurationSelector.svelte';
 	import PitchEntryPanel from '$lib/components/step-entry/PitchEntryPanel.svelte';
@@ -13,6 +24,7 @@
 		tuneEntry,
 		initNewTune,
 		loadFromTune,
+		loadPage,
 		buildDraftTune,
 		commitBuffer,
 		suspendEntryBuffer,
@@ -51,13 +63,12 @@
 	import { keyToPitchClass } from '$lib/step-entry/pitch-input';
 	import { KEYBOARD_SHORTCUTS } from '$lib/step-entry/durations';
 	import { fractionToFloat } from '$lib/music/intervals';
-	import { settings, getInstrument } from '$lib/state/settings.svelte';
+	import { getInstrument } from '$lib/state/settings.svelte';
 	import { PITCH_CLASSES, type PitchClass } from '$lib/types/music';
 	import { saveUserTune, getUserTunesLocal, getUserTunes } from '$lib/persistence/user-tunes';
 	import { tuneToPhrase } from '$lib/tunes/to-phrase';
 	import { calculateDifficulty } from '$lib/difficulty/calculate';
 	import { awaitHydration } from '$lib/state/hydration';
-	import { buildEntryPlaybackOptions } from '$lib/step-entry/playback-options';
 
 	const supabase = $derived(page.data?.supabase ?? null);
 
@@ -130,21 +141,45 @@
 	}
 
 	let moveNotes = $state(true);
-	let setupOpen = $state(false);
-	/** Mobile dock: rows 2-4 (the entry panels) visible. */
-	let dockExpanded = $state(true);
-	let playbackModule: typeof import('$lib/audio/playback') | null = null;
-	/** The playback module failed to import while the page was up — Play is disabled and the status line says why. */
-	let playbackLoadFailed = $state(false);
-	let isPlaying = $state(false);
-	// Guards the async start path (instrument load): a second click during
-	// the await would otherwise start overlapping playback.
-	let starting = $state(false);
-	// Set by onDestroy: a navigation during the await above would otherwise
-	// let playback start AFTER teardown, with no Stop button left to end it
-	// (onDestroy's guard sees isPlaying still false at that point).
-	let destroyed = false;
+	let transport: TuneTransport | undefined = $state();
+	let shortcutsDialog: HTMLDialogElement | undefined = $state();
+	let harmonyColors = $state(true);
+	const harmonyMarkers = $derived(harmonyColors ? tuneHarmonyMarkers(draft) : []);
 	let editHydrationActive = true;
+	let historyReady = $state(false);
+	const history = new EditorHistory();
+	let historyVersion = $state(0);
+	const canUndo = $derived.by(() => { void historyVersion; return history.canUndo; });
+	const canRedo = $derived.by(() => { void historyVersion; return history.canRedo; });
+	type TuneSnapshot = { draft: Tune; title: string; composer: string; style: string; source: SourceTransposition };
+	const selectedNote = $derived(stepEntry.selectedNoteIndex === null ? null : stepEntry.enteredNotes[stepEntry.selectedNoteIndex]);
+	const selectedName = $derived(selectedNote ? selectedNote.pitch === null ? 'Rest' : midiToDisplayName(selectedNote.pitch + entryTranspositionSemitones(), selectedNote.spelling ? selectedNote.spelling === 'flat' : tuneEntry.writtenKey).replace('b', '♭').replace('#', '♯') : null);
+	$effect(() => {
+		if (!historyReady) return;
+		const snapshot = JSON.stringify({ draft, title: tuneEntry.title, composer: tuneEntry.composer, style: tuneEntry.style, source: tuneEntry.sourceTransposition });
+		untrack(() => { if (history.record(snapshot)) { historyVersion++; transport?.stop(); } });
+	});
+
+	/** Restore music without dropping an import's source images or changing the edit target. */
+	function restoreHistory(direction: 'undo' | 'redo'): void {
+		const serialized = history[direction]();
+		if (serialized === null) return;
+		transport?.stop();
+		const snapshot = JSON.parse(serialized) as TuneSnapshot;
+		const { currentSection, currentPage, editingId, importReview } = tuneEntry;
+		loadFromTune(snapshot.draft, getInstrument());
+		tuneEntry.editingId = editingId;
+		tuneEntry.importReview = importReview;
+		tuneEntry.reviewHandoff = false;
+		tuneEntry.title = snapshot.title;
+		tuneEntry.composer = snapshot.composer;
+		tuneEntry.style = snapshot.style;
+		setSourceTransposition(snapshot.source);
+		loadPage(Math.min(currentSection, tuneEntry.sections.length - 1), currentPage);
+		selectNote(null);
+		clearEntryCursor();
+		historyVersion++;
+	}
 
 	function handleKeyChange(event: Event): void {
 		const newKey = (event.currentTarget as HTMLSelectElement).value as PitchClass;
@@ -153,18 +188,6 @@
 
 	onMount(async () => {
 		window.addEventListener('keydown', handleKeydown);
-		try {
-			playbackModule = await import('$lib/audio/playback');
-		} catch (err) {
-			// Playback is only the preview: a failed import must not skip the
-			// setup below (edit hydration, an import's review handoff, clearing
-			// a stale draft). A navigation that cut the fetch off rejects it
-			// too; that is dropped with the page.
-			if (!destroyed) {
-				console.warn('[tune-editor] playback failed to load; Play is unavailable', err);
-				playbackLoadFailed = true;
-			}
-		}
 		if (!editHydrationActive) return;
 		const editId = page.url.searchParams.get('edit');
 		if (editId) {
@@ -196,22 +219,26 @@
 			// Returning mid-draft: the buffer was suspended on the way out.
 			resumeEntryBuffer();
 		}
+		history.reset();
+		historyReady = true;
 	});
 
 	onDestroy(() => {
-		destroyed = true;
 		editHydrationActive = false;
 		if (typeof window !== 'undefined') window.removeEventListener('keydown', handleKeydown);
-		if (playbackModule && isPlaying) playbackModule.stopPlayback();
+		transport?.stop();
 		// Park the draft so the lick entry page never sees lead-sheet content
 		// in the shared step-entry buffer.
 		suspendEntryBuffer();
 	});
 
 	function handleKeydown(e: KeyboardEvent): void {
-		if (e.ctrlKey || e.metaKey || e.altKey) return;
+		if (shortcutsDialog?.open) return;
 		const target = e.target as HTMLElement | null;
 		if (target && ['INPUT', 'SELECT', 'TEXTAREA'].includes(target.tagName)) return;
+		if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); restoreHistory(e.shiftKey ? 'redo' : 'undo'); return; }
+		if (e.ctrlKey || e.metaKey || e.altKey) return;
+		if (e.key === ' ' && !target?.closest('button,a,[role="button"]')) { e.preventDefault(); void transport?.togglePlay(); return; }
 
 		if (KEYBOARD_SHORTCUTS[e.key]) { setDuration(KEYBOARD_SHORTCUTS[e.key]); return; }
 		if (e.key === 't' || e.key === 'T') { toggleTriplet(); return; }
@@ -241,38 +268,9 @@
 		}
 	}
 
-	async function togglePlay(): Promise<void> {
-		if (!playbackModule || starting) return;
-		if (isPlaying) {
-			playbackModule.stopPlayback();
-			isPlaying = false;
-			return;
-		}
-		starting = true;
-		try {
-			if (!playbackModule.isInstrumentLoaded()) {
-				await playbackModule.loadInstrument(settings.instrumentId, settings.masterVolume);
-			}
-		} finally {
-			starting = false;
-		}
-		if (destroyed) return;
-		isPlaying = true;
-		try {
-			await playbackModule.playPhrase(
-				tuneToPhrase(draft, { expandRepeats: true }),
-				buildEntryPlaybackOptions({
-					tempo: settings.defaultTempo,
-					swing: settings.swing,
-					metronomeVolume: settings.metronomeVolume
-				})
-			);
-		} finally {
-			isPlaying = false;
-		}
-	}
 
 	function handleSave(): void {
+		transport?.stop();
 		commitBuffer();
 		const sheet = buildDraftTune();
 		const phrase = tuneToPhrase(sheet);
@@ -284,14 +282,15 @@
 
 	function handleCancel(): void {
 		const editId = tuneEntry.editingId;
-		if (playbackModule && isPlaying) playbackModule.stopPlayback();
+		transport?.stop();
 		initNewTune();
 		// An unsaved import draft carries an editingId with no stored sheet —
 		// its detail page would 404-shrug, so fall back to the book.
 		if (editId && getUserTunesLocal().some((s) => s.id === editId)) {
 			goto(`/tunes/${editId}`);
 		} else {
-			goto('/tunes');
+			const copyId = page.url.searchParams.get('copy');
+			goto(copyId ? `/tunes/${encodeURIComponent(copyId)}` : '/tunes');
 		}
 	}
 
@@ -307,151 +306,31 @@
 </svelte:head>
 
 {#snippet entryStatus()}
-	Section {currentSectionLabel}
-	{#if cursorPos}
-		· Bar {cursorPos.barInSection + 1}, Beat {Math.floor(cursorPos.beatInBar + 1e-9) + 1}
-	{/if}
-	{#if playbackLoadFailed}
-		· Couldn't load playback — reload to try again
-	{/if}
+	{`Section ${currentSectionLabel}${cursorPos ? ` · Bar ${cursorPos.barInSection + 1}, Beat ${Math.floor(cursorPos.beatInBar + 1e-9) + 1}` : ''}`}
 {/snippet}
 
-{#snippet meterNotice()}
-	This chart is in {tuneEntry.timeSignature[0]}/{tuneEntry.timeSignature[1]} — melody entry
-	supports 4/4 only. Tap a chord slot on the chart to edit chords; sections are editable in
-	Setup.
-{/snippet}
-
-<!-- Play / Save-or-Update / Cancel-or-Clear, sized by the hosting region.
-     Rendered bare (no wrapper) so the rail's grid and the dock's flex row
-     each lay the three buttons out themselves. -->
-{#snippet entryActions(sizing: string)}
-	<button
-		onclick={togglePlay}
-		disabled={playbackLoadFailed}
-		title={playbackLoadFailed ? "Couldn't load playback — reload to try again" : undefined}
-		class="flex items-center justify-center gap-1.5 rounded-lg text-sm font-medium text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40 {sizing}
-			{isPlaying
-				? 'bg-[var(--color-onair)] hover:bg-[var(--color-onair-hover)]'
-				: 'bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)]'}"
-	>
-		<svg class="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
-			{#if isPlaying}
-				<rect x="6" y="6" width="12" height="12" rx="1" />
-			{:else}
-				<path d="M8 5v14l11-7z" />
-			{/if}
-		</svg>
-		{isPlaying ? 'Stop' : 'Play'}
-	</button>
-	<button
-		onclick={handleSave}
-		class="rounded-lg bg-[var(--color-success)] text-sm font-medium text-white transition-opacity hover:opacity-90 {sizing}"
-	>
-		{isEditing ? 'Update' : 'Save'}
-	</button>
-	<button
-		onclick={handleCancel}
-		class="rounded-lg bg-[var(--color-bg-tertiary)] text-sm font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-bg-secondary)] {sizing}"
-	>
-		{isEditing ? 'Cancel' : 'Clear'}
-	</button>
-{/snippet}
-
-<div class="space-y-4 pb-64 md:pb-0">
-	<div>
-		<div class="smallcaps text-[var(--color-brass)]">{isEditing ? 'Fix a chart' : 'Chart a tune'}</div>
-		<h1 class="font-display text-3xl font-bold tracking-tight">
-			{isEditing ? 'Edit Tune' : 'Tune Editor'}
-		</h1>
-		<div class="jazz-rule mt-2 max-w-[140px]"></div>
-	</div>
-
-	<div class="md:grid md:grid-cols-[16rem_minmax(0,1fr)] md:gap-6">
-		<!-- Desktop entry rail. Sticky sits on the INNER div: grid items
-		     stretch to the row height, which would keep the aside itself from
-		     ever leaving the viewport top. -->
-		<aside data-testid="entry-rail" aria-label="Entry controls" class="hidden md:block">
-			<div class="md:sticky md:top-6 md:max-h-[calc(100vh-3rem)] md:overflow-y-auto space-y-3 @container/entry">
-				<div class="rounded-lg bg-[var(--color-bg-secondary)] p-3">
-					<!-- Status: where the next entered note lands -->
-					<div class="mb-3 text-xs tabular-nums text-[var(--color-text-secondary)]">{@render entryStatus()}</div>
-					{#if melodyEditingSupported()}
-						<DurationSelector />
-						<hr class="my-3 border-[var(--color-bg-tertiary)]" />
-						<PitchEntryPanel
-							onAddNote={tuneAddNote}
-							onAddRest={tuneAddRest}
-							onTie={tuneEnterTiedNote}
-							onDelete={handlePanelDelete}
-						/>
-					{:else}
-						<p class="text-sm text-[var(--color-text-secondary)]">{@render meterNotice()}</p>
-					{/if}
-				</div>
-
-				<div class="grid grid-cols-3 gap-2">
-					{@render entryActions('px-2 py-2')}
-				</div>
-
-				<details class="text-xs text-[var(--color-text-secondary)]">
-					<summary class="cursor-pointer hover:text-[var(--color-text)]">Keyboard shortcuts</summary>
-					<div class="mt-2 grid grid-cols-1 gap-y-1 pl-2">
-						<span><kbd>A</kbd>-<kbd>G</kbd> Enter note</span>
-						<span><kbd>0</kbd> Rest</span>
-						<span><kbd>1</kbd>-<kbd>5</kbd> Duration</span>
-						<span><kbd>T</kbd> Triplet &middot; <kbd>.</kbd> Dotted</span>
-						<span><kbd>[</kbd> Flat &middot; <kbd>]</kbd> Sharp &middot; <kbd>\</kbd> Flip</span>
-						<span><kbd>=</kbd>/<kbd>-</kbd> Octave &middot; <kbd>+</kbd> Tie</span>
-						<span><kbd>&uarr;</kbd>/<kbd>&darr;</kbd> Semitone &middot; <kbd>Shift</kbd>+<kbd>&uarr;</kbd>/<kbd>&darr;</kbd> Octave</span>
-						<span><kbd>&larr;</kbd>/<kbd>&rarr;</kbd> Select note/rest &middot; <kbd>Esc</kbd> Clear</span>
-						<span><kbd>Backspace</kbd>/<kbd>Delete</kbd> Delete selected</span>
-						<span><kbd>K</kbd> Edit chord</span>
-					</div>
-				</details>
-			</div>
-		</aside>
-
-		<div class="min-w-0 space-y-4">
-			<!-- Live chart preview -->
-			<NotationDisplay
-				bind:this={notationRef}
-				tune={draft}
-				instrument={previewInstrument}
-				selectedIndex={previewSelectedIndex}
-				onSelect={handlePreviewSelect}
-				onBarClick={(pos) => cursorToBar(pos.sectionIdx, pos.bar)}
-				{chordEditor}
-			>
-				{#snippet titleArea()}
-					<input
-						bind:value={tuneEntry.title}
-						placeholder="Untitled"
-						aria-label="Tune title"
-						class="w-full bg-transparent text-center font-display text-xl font-semibold tracking-tight
-							border-b border-dashed border-[var(--color-bg-tertiary)] pb-0.5
-							focus:border-[var(--color-accent)] focus:outline-none
-							placeholder:italic placeholder:font-normal placeholder:text-[var(--color-text-secondary)]"
-					/>
-					<!-- Composer under the title, as on a lead sheet. It carries the
-					     title's dashed rule so a sheet that ALREADY has a composer still
-					     reads as editable; narrow and centred, so it doesn't read as a
-					     second full-width masthead line. -->
-					<div class="mt-1 mb-2 flex justify-center">
-						<input
-							bind:value={tuneEntry.composer}
-							placeholder="Composer"
-							aria-label="Composer"
-							class="w-48 bg-transparent text-center text-sm text-[var(--color-text-secondary)]
-								border-b border-dashed border-[var(--color-bg-tertiary)] pb-0.5
-								focus:border-[var(--color-accent)] focus:outline-none
-								placeholder:italic"
-						/>
-					</div>
-				{/snippet}
-			</NotationDisplay>
-
-			{#if tuneEntry.importReview?.warnings.length}
+<div class="lick-editor tune-desk">
+	<a class="le-back" href="/tunes"><EditorIcon name="back" size={14} />Your tunes</a>
+	<StudioPage eyebrow={isEditing ? 'Shape your arrangement' : 'Chart a tune'} title="Tune editor" description="Shape a tune, one note at a time.">
+		{#snippet actions()}
+			<button class="le-button le-quiet" onclick={() => shortcutsDialog?.showModal()}><EditorIcon name="keyboard" />Shortcuts</button>
+			<button class="le-button le-quiet" onclick={handleCancel}>Cancel</button>
+			<button class="le-button le-save" onclick={handleSave} disabled={!historyReady}><EditorIcon name="save" size={17} />{isEditing ? 'Update tune' : 'Save tune'}</button>
+		{/snippet}
+		<div class="le-layout"><div class="le-workspace">
+			<section class="le-panel le-chart" aria-label="Tune chart">
+				<header class="td-chart-heading"><div><p class="studio-label">01 / Your chart <span class="le-badge">{isEditing ? 'Editing' : 'Draft'}</span></p><input class="le-title" bind:value={tuneEntry.title} placeholder="Untitled tune" aria-label="Tune title" /><input class="td-composer" bind:value={tuneEntry.composer} placeholder="Composer" aria-label="Composer" /></div><div class="le-history"><button aria-label="Undo" title="Undo (Ctrl/⌘Z)" disabled={!canUndo} onclick={() => restoreHistory('undo')}><EditorIcon name="undo" /></button><button aria-label="Redo" title="Redo (Ctrl/⌘Shift Z)" disabled={!canRedo} onclick={() => restoreHistory('redo')}><EditorIcon name="redo" /></button></div></header>
+				<div class="td-score-top"><span>Melody & changes</span><button aria-pressed={harmonyColors} onclick={() => harmonyColors = !harmonyColors}><i class="td-color-dot" aria-hidden="true"></i>Harmony colors <i class="td-switch" class:active={harmonyColors} aria-hidden="true"></i></button></div>
+				<div class="td-score-well"><NotationDisplay tuneOptions={{ omitMasthead: true }} bind:this={notationRef} tune={draft} instrument={previewInstrument} selectedIndex={previewSelectedIndex} onSelect={handlePreviewSelect} onBarClick={pos => cursorToBar(pos.sectionIdx, pos.bar)} {chordEditor} rangeMarkers={harmonyMarkers} frameless /></div>
+				<div class="td-status"><span><i aria-hidden="true"></i>{selectedName ?? 'Ready to write'} · {@render entryStatus()}</span><button onclick={() => { selectNote(null); clearEntryCursor(); }}>Clear selection</button></div>
+				<TuneTransport bind:this={transport} tune={draft} />
+			</section>
+			<section class="le-panel le-entry" aria-label="Note entry" data-testid="entry-rail"><header><h2 class="studio-label">02 / Note entry</h2><span class="td-entry-position">{@render entryStatus()}</span></header>
+				{#if melodyEditingSupported()}<DurationSelector /><PitchEntryPanel onAddNote={tuneAddNote} onAddRest={tuneAddRest} onTie={tuneEnterTiedNote} onDelete={handlePanelDelete} />
+				{:else}<p class="td-entry-position">This chart is in {tuneEntry.timeSignature.join('/')} — melody entry supports 4/4 only. Tap a chord slot on the chart to edit chords; sections are editable in Setup.</p>{/if}
+				<div class="le-entry-tip"><span>↑ ↓ changes the selected pitch. Click a bar to place the next note.</span><button onclick={() => shortcutsDialog?.showModal()}>All shortcuts ↗</button></div>
+			</section>
+			<div class="td-review">			{#if tuneEntry.importReview?.warnings.length}
 				<!-- Import review: the bars the pipeline knows are uncertain -->
 				<div class="rounded-lg border border-[var(--color-brass)]/40 bg-[var(--color-brass)]/10 p-3 text-sm">
 					<div class="flex items-start justify-between gap-2">
@@ -502,106 +381,18 @@
 					}}
 				/>
 			{/if}
-
-			<!-- Setup: title details, key, sections -->
-			<div class="rounded-lg bg-[var(--color-bg-secondary)]">
-				<button
-					type="button"
-					onclick={() => (setupOpen = !setupOpen)}
-					aria-expanded={setupOpen}
-					class="flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm
-						hover:bg-[var(--color-bg-tertiary)] transition-colors"
-				>
-					<span class="flex items-center gap-3">
-						<span class="smallcaps text-[11px] text-[var(--color-text-secondary)]">Setup</span>
-						<span>Key {tuneEntry.writtenKey}</span>
-						<span class="text-[var(--color-text-secondary)]">·</span>
-						<span>{tuneEntry.sections.length} section{tuneEntry.sections.length === 1 ? '' : 's'}</span>
-					</span>
-					<span class="text-xs text-[var(--color-text-secondary)]">{setupOpen ? 'Done' : 'Edit'}</span>
-				</button>
-				{#if setupOpen}
-					<div class="space-y-3 px-3 pt-1 pb-3">
-						<input
-							bind:value={tuneEntry.style}
-							placeholder="Style (e.g. Medium Swing)"
-							aria-label="Style"
-							class="w-full rounded bg-[var(--color-bg-tertiary)] px-3 py-1.5 text-sm outline-none ring-[var(--color-accent)] focus:ring-1 sm:max-w-xs"
-						/>
-						<SourceTranspositionSelect
-							value={tuneEntry.sourceTransposition}
-							onchange={setSourceTransposition}
-						/>
-						<div class="flex flex-wrap items-center gap-3">
-							<label class="flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
-								Key
-								<select
-									value={tuneEntry.writtenKey}
-									onchange={handleKeyChange}
-									class="rounded bg-[var(--color-bg-tertiary)] px-2 py-1 text-sm outline-none ring-[var(--color-accent)] focus:ring-1"
-								>
-									{#each PITCH_CLASSES as pc (pc)}
-										<option value={pc}>{pc}</option>
-									{/each}
-								</select>
-							</label>
-							{#if draft.sections.some((s) => s.notes.length > 0)}
-								<label class="flex items-center gap-1.5 text-xs text-[var(--color-text-secondary)]">
-									<input type="checkbox" bind:checked={moveNotes} class="accent-[var(--color-accent)]" />
-									Move notes with key
-								</label>
-							{/if}
-						</div>
-						<SectionConfigPanel />
-					</div>
-				{/if}
-			</div>
-		</div>
-	</div>
-
-	<!-- Mobile entry dock -->
-	<div
-		data-testid="entry-dock"
-		class="md:hidden fixed inset-x-0 bottom-0 z-30 @container/entry border-t border-[var(--color-bg-tertiary)] bg-[var(--color-bg-secondary)] px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]"
-	>
-		<div class="flex items-center gap-2">
-			<span class="min-w-0 flex-1 truncate text-xs tabular-nums text-[var(--color-text-secondary)]">
-				{@render entryStatus()}
-			</span>
-			{@render entryActions('min-h-11 shrink-0 px-3')}
-			<button
-				type="button"
-				onclick={() => (dockExpanded = !dockExpanded)}
-				aria-expanded={dockExpanded}
-				aria-label="{dockExpanded ? 'Collapse' : 'Expand'} entry controls"
-				class="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:text-[var(--color-text)]"
-			>
-				<svg
-					viewBox="0 0 16 16"
-					class="h-4 w-4 {dockExpanded ? '' : 'rotate-180'}"
-					fill="none"
-					stroke="currentColor"
-					stroke-width="1.5"
-					aria-hidden="true"
-				>
-					<path d="M4 6.5 8 10.5 12 6.5" stroke-linecap="round" stroke-linejoin="round" />
-				</svg>
-			</button>
-		</div>
-		{#if dockExpanded}
-			<div class="mt-2 space-y-2">
-				{#if melodyEditingSupported()}
-					<DurationSelector />
-					<PitchEntryPanel
-						onAddNote={tuneAddNote}
-						onAddRest={tuneAddRest}
-						onTie={tuneEnterTiedNote}
-						onDelete={handlePanelDelete}
-					/>
-				{:else}
-					<p class="text-xs text-[var(--color-text-secondary)]">{@render meterNotice()}</p>
-				{/if}
-			</div>
-		{/if}
-	</div>
+</div>
+		</div><aside class="le-inspector" aria-label="Tune settings">
+			<section class="le-setup td-editor-setup"><p class="studio-label">Setup</p><h2>The musical context.</h2>
+				<label for="editor-tune-key">Key</label><select id="editor-tune-key" value={tuneEntry.writtenKey} onchange={handleKeyChange}>{#each PITCH_CLASSES as pc (pc)}<option value={pc}>{pc}</option>{/each}</select>
+				{#if draft.sections.some(s => s.notes.length > 0)}<label class="td-move-notes"><input type="checkbox" bind:checked={moveNotes} />Move notes with key</label>{/if}
+				<div class="td-source-pitch"><SourceTranspositionSelect value={tuneEntry.sourceTransposition} onchange={setSourceTransposition} /></div>
+				<label for="editor-tune-style">Style</label><input id="editor-tune-style" bind:value={tuneEntry.style} placeholder="e.g. Medium Swing" />
+				<div class="td-section-setup"><p class="studio-label">Form & sections</p><SectionConfigPanel /></div>
+			</section>
+			<TuneHarmonyGuide />
+		</aside></div>
+		<footer class="le-footer"><span>MANKUNKU <i>/</i> YOUR REPERTOIRE, IN YOUR HANDS.</span><a href="/tunes">Back to your tunes ↗</a></footer>
+	</StudioPage>
+	<dialog bind:this={shortcutsDialog} class="le-dialog" aria-labelledby="tune-shortcuts-title"><header><h2 id="tune-shortcuts-title">Keep your hands on the keys.</h2><button aria-label="Close shortcuts" onclick={() => shortcutsDialog?.close()}><EditorIcon name="close" /></button></header><p>Shortcuts work when you’re outside a text field.</p><dl class="le-shortcuts">{#each [['A–G / 0', 'Enter a note / rest'], ['1–5', 'Note duration'], ['T / .', 'Triplet / dotted'], ['[ / ]', 'Flat / sharp'], ['= / −', 'Entry octave'], ['← / →', 'Select previous / next note'], ['↑ / ↓', 'Move pitch by a semitone'], ['Shift + ↑ / ↓', 'Move pitch by an octave'], ['\\', 'Flip enharmonic spelling'], ['+', 'Tie to a duplicate of the last note'], ['K', 'Edit chord at cursor'], ['⌫ / Delete', 'Delete selected note'], ['Space', 'Play / stop'], ['Ctrl/⌘Z', 'Undo'], ['Ctrl/⌘Shift Z', 'Redo']] as [key, description]}<div><dt>{description}</dt><dd><kbd>{key}</kbd></dd></div>{/each}</dl></dialog>
 </div>

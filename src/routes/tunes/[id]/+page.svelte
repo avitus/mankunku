@@ -2,10 +2,17 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { onDestroy } from 'svelte';
+	import StudioPage from '$lib/components/console/StudioPage.svelte';
+	import EditorIcon from '$lib/components/step-entry/EditorIcon.svelte';
+	import TuneTransport from '$lib/components/tunes/TuneTransport.svelte';
+	import TuneHarmonyGuide from '$lib/components/tunes/TuneHarmonyGuide.svelte';
+	import { tuneHarmonyMarkers } from '$lib/tunes/harmony-colors';
+	import { loadDraftForReview } from '$lib/state/tune-entry.svelte';
+	import '$lib/components/step-entry/lick-editor.css';
+	import '$lib/components/tunes/tune-desk.css';
 	import NotationDisplay from '$lib/components/notation/NotationDisplay.svelte';
 	import { isCuratedTuneId, transposeTune } from '$lib/tunes/book-loader';
 	import { resolveTuneRef, tunePracticePath } from '$lib/tunes/tune-slug';
-	import { tuneToPhrase } from '$lib/tunes/to-phrase';
 	import { getUserTunesLocal, deleteUserTune } from '$lib/persistence/user-tunes';
 	import {
 		getTuneAdoptionsLocal,
@@ -15,7 +22,7 @@
 		fetchCommunityTune,
 		type SharedTune
 	} from '$lib/persistence/tune-community';
-	import { settings, getInstrument, getEffectiveHighestNote } from '$lib/state/settings.svelte';
+	import { getInstrument, getEffectiveHighestNote } from '$lib/state/settings.svelte';
 	import { awaitHydration } from '$lib/state/hydration';
 	import { PITCH_CLASSES, type PitchClass } from '$lib/types/music';
 	import { concertKeyToWritten, writtenKeyToConcert } from '$lib/music/transposition';
@@ -113,49 +120,26 @@
 			: undefined
 	);
 
-	let playbackModule: typeof import('$lib/audio/playback') | null = null;
-	let isPlaying = $state(false);
-	// Guards the async start path (module import + instrument load): a second
-	// click during those awaits would otherwise start overlapping playback.
-	let starting = $state(false);
-	// Set by onDestroy: a navigation during the awaits above would otherwise
-	// let playback start AFTER teardown, with no Stop button left to end it
-	// (onDestroy's guard sees isPlaying still false at that point).
-	let destroyed = false;
+	let transport: TuneTransport | undefined = $state();
+	let harmonyColors = $state(true);
+	const markers = $derived(sheet && harmonyColors ? tuneHarmonyMarkers(sheet) : []);
 	let confirmingDelete = $state(false);
 	let confirmingReturn = $state(false);
 	let adopting = $state(false);
 
-	async function togglePlay() {
-		if (!sheet || starting) return;
-		if (isPlaying) {
-			// Playback running implies the module already loaded.
-			playbackModule?.stopPlayback();
-			isPlaying = false;
-			return;
-		}
-		starting = true;
-		try {
-			if (!playbackModule) {
-				playbackModule = await import('$lib/audio/playback');
-			}
-			await playbackModule.loadInstrument(settings.instrumentId, settings.masterVolume);
-		} finally {
-			starting = false;
-		}
-		if (destroyed) return;
-		isPlaying = true;
-		try {
-			await playbackModule.playPhrase(tuneToPhrase(sheet, { expandRepeats: true }), {
-				tempo: settings.defaultTempo,
-				swing: settings.swing,
-				countInBeats: 0,
-				metronomeEnabled: false,
-				metronomeVolume: 0
-			});
-		} finally {
-			isPlaying = false;
-		}
+	/** A curated tune opens as an unsaved personal copy, preserving the collection original. */
+	function handleCopy(): void {
+		if (!baseSheet || !isCurated) return;
+		transport?.stop();
+		loadDraftForReview({ ...baseSheet, id: '', source: 'user' }, getInstrument());
+		goto(`/tunes/editor?copy=${baseSheet.id}`);
+	}
+
+	function handleKeydown(event: KeyboardEvent): void {
+		if (event.key !== ' ' || event.ctrlKey || event.metaKey || event.altKey) return;
+		if (event.target instanceof HTMLElement && event.target.closest('input,select,textarea,button,a,[role="button"]')) return;
+		event.preventDefault();
+		void transport?.togglePlay();
 	}
 
 	function handleEdit() {
@@ -198,161 +182,43 @@
 		else confirmingReturn = false;
 	}
 
-	onDestroy(() => {
-		destroyed = true;
-		if (playbackModule && isPlaying) {
-			playbackModule.stopPlayback();
-		}
-	});
+	onDestroy(() => transport?.stop());
 </script>
 
 <svelte:head>
 	<title>{baseSheet?.title ?? 'Tune'} — Mankunku</title>
 </svelte:head>
 
-<div class="space-y-6">
-	<a
-		href="/tunes"
-		class="inline-flex items-center gap-1 text-sm text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text)]"
-	>
-		&larr; Tunes
-	</a>
+<svelte:window onkeydown={handleKeydown} />
 
-	{#if sheet && baseSheet}
-		<div class="flex flex-wrap items-start justify-between gap-4">
-			<div>
-				<h1 class="text-2xl font-bold">{baseSheet.title}</h1>
-				<div class="mt-1 flex flex-wrap items-center gap-2 text-sm text-[var(--color-text-secondary)]">
-					{#if baseSheet.composer}<span>{baseSheet.composer}</span>{/if}
-					{#if authorName}
-						<span>&middot;</span>
-						<span>shared by {authorName}</span>
-					{/if}
-					{#if baseSheet.style}
-						<span>&middot;</span>
-						<span>{baseSheet.style}</span>
-					{/if}
-					<span>&middot;</span>
-					<span>{baseSheet.timeSignature[0]}/{baseSheet.timeSignature[1]}</span>
-					{#if isCurated}
-						<span>&middot;</span>
-						<span class="smallcaps border border-[var(--color-brass)]/40 px-1.5 py-0.5 text-[var(--color-brass)]">Curated</span>
-					{/if}
-				</div>
-			</div>
-			<div class="flex shrink-0 flex-wrap gap-2">
-				<button
-					onclick={togglePlay}
-					class="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-colors
-						{isPlaying
-							? 'bg-[var(--color-onair)] hover:bg-[var(--color-onair-hover)]'
-							: 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-secondary)]'}"
-					aria-label={isPlaying ? 'Stop' : 'Play'}
-				>
-					{#if isPlaying}
-						<svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-							<rect x="6" y="5" width="4" height="14" rx="1" />
-							<rect x="14" y="5" width="4" height="14" rx="1" />
-						</svg>
-						Stop
-					{:else}
-						<svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-							<path d="M8 5v14l11-7z" />
-						</svg>
-						Play
-					{/if}
-				</button>
-				{#if bookSheet}
-					<button
-						onclick={() => goto(tunePracticePath(baseSheet))}
-						class="rounded-full bg-[var(--color-brass)]/15 px-3 py-1.5 text-sm font-medium text-[var(--color-brass)] transition-colors hover:bg-[var(--color-brass)]/25"
-					>
-						Practice licks
-					</button>
-				{/if}
-				{#if isOwnSheet}
-					<button
-						onclick={handleEdit}
-						class="rounded-full bg-[var(--color-bg-tertiary)] px-3 py-1.5 text-sm font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-bg-secondary)]"
-					>
-						Edit
-					</button>
-					<button
-						onclick={handleDelete}
-						class="rounded-full px-3 py-1.5 text-sm font-medium transition-colors
-							{confirmingDelete
-								? 'bg-[var(--color-error)] text-white hover:opacity-80'
-								: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'}"
-					>
-						{confirmingDelete ? 'Confirm Delete' : 'Delete'}
-					</button>
-				{:else if isAdopted && bookSheet}
-					<button
-						onclick={handleReturn}
-						class="rounded-full px-3 py-1.5 text-sm font-medium transition-colors
-							{confirmingReturn
-								? 'bg-[var(--color-warning)] text-black hover:opacity-80'
-								: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'}"
-					>
-						{confirmingReturn ? 'Confirm Return' : 'Return to community'}
-					</button>
-				{:else if sharedSheet}
-					<!-- Practice resolves tunes from the book, so a shared tune is
-					     added first — the community page's own rule. -->
-					<button
-						onclick={handleAdopt}
-						disabled={adopting}
-						class="rounded-full bg-[var(--color-accent)] px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)] disabled:opacity-50"
-					>
-						Add to my book
-					</button>
-				{/if}
-			</div>
-		</div>
-
-		<!-- Key selector — displayed in the user's WRITTEN pitch, matching the
-		     key signature on the notation below. -->
-		<div class="flex items-center gap-3">
-			<span class="text-sm text-[var(--color-text-secondary)]">Key:</span>
-			<div class="flex flex-wrap gap-1">
-				{#each PITCH_CLASSES as pc (pc)}
-					<button
-						onclick={() => { selectedWrittenKey = pc; }}
-						class="rounded-full px-2 py-0.5 text-xs transition-colors
-							{writtenKey === pc
-								? 'bg-[var(--color-accent)] text-white'
-								: 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-secondary)]'}"
-					>
-						{pc}
-					</button>
-				{/each}
-			</div>
-		</div>
-
-		<!-- Notation: print-style multi-system chart (Real Book masthead + jazz chords) -->
-		<NotationDisplay tune={sheet} instrument={getInstrument()} variant="print" />
-
-		{#if baseSheet.tags.filter((t) => t !== 'practice' && t !== 'user-entered').length > 0}
-			<div class="flex flex-wrap gap-2">
-				{#each baseSheet.tags.filter((t) => t !== 'practice' && t !== 'user-entered') as tag (tag)}
-					<span class="rounded-full bg-[var(--color-bg-tertiary)] px-3 py-1 text-xs text-[var(--color-text-secondary)]">
-						#{tag}
-					</span>
-				{/each}
-			</div>
-		{/if}
-	{:else if sharedLoading}
-		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-8 text-center">
-			<p class="italic text-[var(--color-text-secondary)]">Loading…</p>
-		</div>
-	{:else}
-		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-8 text-center">
-			<p class="text-[var(--color-text-secondary)]">
-				Tune not found: {page.params.id}
-			</p>
-			<a href="/tunes" class="mt-2 inline-block text-sm text-[var(--color-accent)]">
-				Back to Tunes
-			</a>
-		</div>
-	{/if}
+<div class="lick-editor tune-desk">
+	<a class="le-back" href="/tunes"><EditorIcon name="back" size={14} />Your tunes</a>
+	<StudioPage eyebrow="The book / Your repertoire" title="The tune desk" description="Listen to the melody. Find your way through the changes.">
+		{#snippet actions()}
+			{#if baseSheet}
+				{#if isOwnSheet}<button class="le-button le-quiet" onclick={handleEdit}>Edit tune</button>
+				{:else if isCurated}<button class="le-button le-quiet" onclick={handleCopy}>Edit a copy</button>{/if}
+				{#if bookSheet}<button class="le-button le-save" onclick={() => goto(tunePracticePath(baseSheet))}>Practice licks <span aria-hidden="true">→</span></button>
+				{:else if sharedSheet}<button class="le-button le-save" onclick={handleAdopt} disabled={adopting}>{adopting ? 'Adding…' : 'Add to my book'}</button>{/if}
+			{/if}
+		{/snippet}
+		{#if sheet && baseSheet}
+			<div class="le-layout"><div class="le-workspace">
+				<section class="le-panel le-chart" aria-label="Tune chart">
+					<header class="td-chart-heading"><div><p class="studio-label">01 / Your chart <span class="le-badge">{isCurated ? 'Curated' : isOwnSheet ? 'Your arrangement' : 'Community'}</span></p><h2 class="td-title">{baseSheet.title}</h2>{#if baseSheet.composer}<p class="td-composer">{baseSheet.composer}</p>{/if}{#if authorName}<p class="td-composer">Shared by {authorName}</p>{/if}</div></header>
+					<div class="td-score-top"><span>Melody & changes</span><button aria-pressed={harmonyColors} onclick={() => harmonyColors = !harmonyColors}><i class="td-color-dot" aria-hidden="true"></i>Harmony colors <i class="td-switch" class:active={harmonyColors} aria-hidden="true"></i></button></div>
+					<div class="td-score-well"><NotationDisplay tuneOptions={{ omitMasthead: true }} tune={sheet} instrument={getInstrument()} frameless rangeMarkers={markers} /></div>
+					<div class="td-status"><span><i aria-hidden="true"></i>Lead sheet · Written key {writtenKey.replace('b', '♭').replace('#', '♯')}</span><span>{sheet.timeSignature.join('/')} {#if sheet.style}· {sheet.style}{/if}</span></div>
+					<TuneTransport bind:this={transport} tune={sheet} />
+				</section>
+				{#if isCurated || isOwnSheet}<div class="td-read-note"><span class="studio-label">Make it yours</span><p>Change a melody. Try a different chord.</p><button onclick={isOwnSheet ? handleEdit : handleCopy}>{isOwnSheet ? 'Open tune editor' : 'Edit your own copy'} →</button></div>{/if}
+			</div><aside class="le-inspector" aria-label="Tune settings">
+				<section class="le-setup"><p class="studio-label">Setup</p><h2>The musical context.</h2><label for="tune-key">Key</label><select id="tune-key" value={writtenKey} onchange={e => { transport?.stop(); selectedWrittenKey = e.currentTarget.value as PitchClass; }}>{#each PITCH_CLASSES as pc (pc)}<option value={pc}>{pc.replace('b', '♭').replace('#', '♯')}</option>{/each}</select><p>The melody and chords move together.</p><div class="td-fields"><div><span class="td-field-label">Time</span><div class="td-static">{sheet.timeSignature.join(' / ')}</div></div><div><span class="td-field-label">Form</span><div class="td-static">{sheet.sections.map(s => s.label).filter(Boolean).join(' · ') || '—'}</div></div></div>{#if sheet.style}<span class="td-field-label">Style</span><div class="td-static">{sheet.style}</div>{/if}<p>Written for {getInstrument().name}.</p></section>
+				<TuneHarmonyGuide />
+				<section class="td-rail-section"><p class="studio-label">About this chart</p><div class="td-tags">{#each baseSheet.tags.filter(t => t !== 'practice' && t !== 'user-entered') as tag (tag)}<span>{tag}</span>{/each}</div><div class="td-library-actions">{#if isOwnSheet}<button onclick={handleDelete}>{confirmingDelete ? 'Confirm Delete' : 'Delete'}</button>{:else if isAdopted && bookSheet}<button onclick={handleReturn}>{confirmingReturn ? 'Confirm Return' : 'Return to community'}</button>{/if}</div></section>
+			</aside></div>
+		{:else if sharedLoading}<section class="le-panel le-chart"><p role="status">Loading tune…</p></section>
+		{:else}<section class="le-panel le-chart"><p>Tune not found: {page.params.id}</p><a href="/tunes">Back to Tunes</a></section>{/if}
+		<footer class="le-footer"><span>MANKUNKU <i>/</i> YOUR REPERTOIRE, IN YOUR HANDS.</span><a href="/tunes">Back to your tunes ↗</a></footer>
+	</StudioPage>
 </div>

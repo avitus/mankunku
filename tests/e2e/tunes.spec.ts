@@ -122,11 +122,11 @@ test('key selector re-transposes the chart', async ({ page, consoleCollector: _c
 	await page.goto('/tunes/e2e-user-sheet-1');
 
 	// Tenor default: concert C sheet shows written D as the active key.
-	await expect(page.getByRole('button', { name: 'D', exact: true })).toBeVisible();
+	await expect(page.getByLabel('Key', { exact: true })).toHaveValue('D');
 
 	// Transpose to written G: the opening ii chord displays as A-7 (ii of the
 	// WRITTEN key — chords on screen are always written pitch, never concert).
-	await page.getByRole('button', { name: 'G', exact: true }).click();
+	await page.getByLabel('Key', { exact: true }).selectOption('G');
 	await expect(page.locator('.abcjs-container svg text').filter({ hasText: 'A-7' }).first()).toBeVisible();
 });
 

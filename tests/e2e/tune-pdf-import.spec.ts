@@ -172,9 +172,9 @@ test('a PDF chart lands in the editor for review and saves from there', async ({
 	).toBeVisible();
 	// The pre-assigned id keeps the flow in update mode so the stored PDF
 	// stays linked to the sheet the user saves.
-	await expect(page.getByRole('button', { name: 'Update' })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Update tune' })).toBeVisible();
 
-	await page.getByRole('button', { name: 'Update' }).click();
+	await page.getByRole('button', { name: 'Update tune' }).click();
 	// The per-system pipeline (importViaSystems) assigns its own generated
 	// sheet id client-side — the route fixture's id only applies on the
 	// single-shot fallback path — so match the id shape, not a fixed value.
@@ -436,7 +436,7 @@ test('an exported PDF imports offline and keeps the original measures available 
 	await expect(page.getByAltText('Original PDF measure 1')).toBeVisible();
 	await page.getByLabel('Source measure', { exact: true }).selectOption({ label: '3' });
 	await expect(page.getByAltText('Original PDF measure 3')).toBeVisible();
-	await page.getByRole('button', { name: 'Update', exact: true }).click();
+	await page.getByRole('button', { name: 'Update tune', exact: true }).click();
 	await page.waitForURL(/\/tunes\/lady-bird$/);
 	const saved = await page.evaluate(
 		() => JSON.parse(localStorage.getItem('mankunku:user-tunes') ?? '[]')[0]
