@@ -743,3 +743,12 @@ saved progress and Deep Practice handoff are retained. The prototype uses static
 twelve written keys; its controls remain illustrative. The Svelte page uses actual
 data and audio. The reference kit and prototype must preserve engraving geometry
 when adapting color or surrounding controls.
+
+
+Lick-detail progress markers name the unlocked key in written pitch using the
+saved lick's entry key and the existing unlock order. The score's temporary
+"Play in" selection does not change historical key labels. Small brass note-name
+labels replace key-shaped icons; crowded events combine as `G+2`, with every
+name retained in the tooltip and chart's accessible description. Progress
+samples and expertise thresholds are unchanged. Shared trick charts without a
+known lick entry key retain their existing count-based markers.

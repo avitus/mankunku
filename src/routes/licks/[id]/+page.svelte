@@ -25,6 +25,7 @@
 	import { difficultyDisplay } from '$lib/difficulty/display';
 	import { concertKeyToWritten, writtenKeyToConcert } from '$lib/music/transposition';
 	import { keyLabel } from '$lib/music/notation';
+	import { planUnlockedKeys } from '$lib/music/key-ordering';
 	import { lickMode } from '$lib/music/mode';
 	import { getUserLicks, getUserLicksLocal, deleteUserLick, updateLickCategory } from '$lib/persistence/user-licks';
 	import {
@@ -318,6 +319,10 @@
 		void lickPractice.progress;
 		return getLickProgressHistory(page.params.id ?? '');
 	});
+	const progressKeyLabels = $derived(baseLick
+		? planUnlockedKeys(baseLick.key, 12).map((key) =>
+			keyLabel(concertKeyToWritten(key, getInstrument()), lickMode(baseLick)).replace(/b/g, '♭').replace(/#/g, '♯'))
+		: undefined);
 
 	function handleReset() {
 		if (!baseLick) return;
@@ -393,7 +398,7 @@
 							{#if hasProgress}<button class="studio-text-action" onclick={handleReset} title="Reset this lick's practice progress — tempo back to {NEW_LICK_DEFAULT_TEMPO} BPM, keys relocked">{confirmingResetId === baseLick.id ? 'Confirm Reset' : '↺ Reset Progress'}</button>{/if}
 						</div>
 						{#if confirmingResetId === baseLick.id}<div class="ld-confirm"><p>Reset tempo to {NEW_LICK_DEFAULT_TEMPO} BPM and relock this lick’s keys?</p><button onclick={() => { confirmingResetId = null; }}>Cancel reset</button></div>{/if}
-						<LickProgressChart points={progressHistory} />
+						<LickProgressChart points={progressHistory} keyLabels={progressKeyLabels} />
 					</section>
 				</div>
 				<aside class="ld-rail" aria-label="Practice and library">

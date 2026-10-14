@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { LickProgressPoint } from '$lib/types/lick-practice';
+	import { namedUnlockMarkers } from '$lib/ui/lick-progress-markers';
 	import {
 		ALL_KEYS,
 		allKeysUnlockedAt,
@@ -17,8 +18,10 @@
 	interface Props {
 		/** Per-lick progress samples (any order; sorted here). */
 		points: LickProgressPoint[];
+		/** Written-pitch names in the saved lick's unlock order, independent of score-preview transposition. */
+		keyLabels?: string[];
 	}
-	let { points }: Props = $props();
+	let { points, keyLabels }: Props = $props();
 
 	const sorted = $derived([...points].sort((a, b) => a.t - b.t));
 
@@ -143,11 +146,11 @@
 	);
 
 	// ── Key-unlock markers ──
-	// One glyph per unlock, sitting above the tempo line at the tempo it happened.
-	// Markers that would overlap collapse into one covering a range of keys.
+	// One marker per unlock, sitting above the tempo line at the tempo it happened.
+	// Named markers merge by label width; count-only consumers retain their glyphs.
 	const MARKER_GAP = 13;
 	const MARKER_LIFT = 9;
-	const markers = $derived.by(() => {
+	const rawMarkers = $derived.by(() => {
 		const raw: UnlockMarker[] = unlockEvents(sorted).map((e) => ({
 			x: xAt(e.t),
 			// Keep the glyph inside the panel when the line runs along the top edge.
@@ -155,8 +158,10 @@
 			from: e.from,
 			to: e.to
 		}));
-		return collapseUnlockMarkers(raw, MARKER_GAP);
+		return raw;
 	});
+	const markers = $derived(collapseUnlockMarkers(rawMarkers, MARKER_GAP));
+	const namedMarkers = $derived(keyLabels ? namedUnlockMarkers(rawMarkers, keyLabels, PAD_L, W - PAD_R) : []);
 
 	const latest = $derived(sorted[sorted.length - 1]);
 	const phase = $derived(currentLickPhase(sorted));
@@ -178,7 +183,10 @@
 		// self-contained rather than leaning on a guard in the template.
 		const keys = `${Math.min(latest?.keys ?? 0, ALL_KEYS)} of ${ALL_KEYS} keys unlocked`;
 		const unlocks = marked > 0 ? `, ${marked} of them marked on the line` : '';
-		return `Tempo over time, banded by phase of expertise. ${keys}${unlocks}.`;
+		const names = keyLabels && namedMarkers.length
+			? ` Written keys unlocked: ${namedMarkers.flatMap((m) => m.names).join(', ')}.`
+			: '';
+		return `Tempo over time, banded by phase of expertise. ${keys}${unlocks}.${names}`;
 	});
 </script>
 
@@ -309,12 +317,22 @@
 
 			<!-- Key unlocks. Keyed by index: a series that dips and re-climbs can
 			     produce two markers ending on the same key count. -->
+			{#if keyLabels}
+				{#each namedMarkers as m, i (i)}
+					<g class="unlock-key-label" transform="translate({m.left}, {m.y - 8})">
+						<title>{m.names.join(', ')} unlocked (written pitch)</title>
+						<rect width={m.width} height="12" rx="2" fill="var(--color-bg)" stroke="var(--color-brass)" stroke-opacity="0.35" stroke-width="0.5" />
+						<text x={m.width / 2} y="8.5" text-anchor="middle" font-family="monospace" font-size="8" font-weight="600" fill="var(--color-brass-soft)">{m.label}</text>
+					</g>
+				{/each}
+			{:else}
 			{#each markers as m, i (i)}
 				<g transform="translate({Math.min(Math.max(m.x - 4.9, PAD_L), W - PAD_R - 9.8)}, {m.y - 5}) scale(0.7)">
 					<title>{unlockMarkerLabel(m)}</title>
 					{@render keyGlyph('var(--color-brass)', 0.85)}
 				</g>
 			{/each}
+			{/if}
 		</svg>
 
 		<!-- X-axis: first / last session date, plus what the key glyph means -->
@@ -325,10 +343,14 @@
 			<span>{dateLabel(firstT)}</span>
 			{#if markers.length > 0}
 				<span class="flex items-center gap-1">
+					{#if keyLabels}
+						Keys unlocked · written pitch
+					{:else}
 					<svg viewBox="0 0 14 8" class="h-2.5 w-[1.1rem]" aria-hidden="true">
 						{@render keyGlyph('var(--color-brass)', 1)}
 					</svg>
 					key unlocked
+					{/if}
 				</span>
 			{/if}
 			<span>{dateLabel(lastT)}</span>
