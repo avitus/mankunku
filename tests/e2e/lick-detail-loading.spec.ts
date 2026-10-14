@@ -54,6 +54,8 @@ for (const entry of ['community', 'direct', 'missing'] as const) {
 			await expect(page.getByText(`Lick not found: ${row.id}`)).toBeVisible();
 		} else {
 			await expect(page.getByRole('heading', { name: row.name, exact: true })).toBeVisible();
+			await expect(page.getByRole('button', { name: /Edit lick|Delete lick/ })).toHaveCount(0);
+			await expect(page.getByText(/community copy you don’t own/)).toBeVisible();
 		}
 		await expect(page.getByText('Loading lick…', { exact: true })).toHaveCount(0);
 	});

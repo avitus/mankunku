@@ -1,4 +1,4 @@
-# Design System: Three-Domain Color Identity + Blue Note Chrome
+# Mankunku Design System: Studio Desk, Music and Editing
 
 ## Goals
 
@@ -11,6 +11,8 @@ This spec defines:
 3. The **surfaces** where the domain color appears
 4. A **single-variable implementation** that requires minimal changes to existing components
 5. The **typography, rules, and grain utilities** that carry the Blue Note mood
+6. Shared **notation, step-entry, playback and review contracts**
+7. The approved **library, listening desk, editor and import patterns**
 
 The guiding principle is **subtle but unmissable**. The domain color must be obvious at a glance, but never overwhelming. Real estate is reserved for music, not chrome.
 
@@ -86,7 +88,7 @@ Alongside the functional domain accent, a second palette drawing from Blue Note 
 
 ### On-air red
 
-A vintage recording-booth red used for the active / stop state of the practice and record buttons, and (through the alias below) for the LISTEN phase. Intentionally desaturated compared to `--color-error` so it reads as jazz-era rather than alert red.
+A vintage recording-booth red used for the active / stop state of the practice and record buttons, and the console rocker LED. The approved Listen design now uses orange instead; see the migration status below.
 
 | Token                 | Dark hex  | Light hex | Usage                                                          |
 | --------------------- | --------- | --------- | -------------------------------------------------------------- |
@@ -97,12 +99,26 @@ A vintage recording-booth red used for the active / stop state of the practice a
 
 Every listen/play indicator — the phase tab and its lamp on the lick-practice stack, the recording ring, the cue pill on record-a-lick, the ear-training status line, tune practice's head / your-turn captions and the open insertion window — reads two semantic aliases, never the palette tokens directly:
 
-| Token                  | Resolves to      | Meaning                                                                 |
-| ---------------------- | ---------------- | ----------------------------------------------------------------------- |
-| `--color-phase-listen` | `--color-onair`  | The app is playing; the user must not. Red reads as "stop" to most people. |
-| `--color-phase-play`   | `--color-brass`  | The user's turn: live mic, PLAY tab, count-in into the user's window.   |
+The approved design-system contract (2026-10-14) is **Listen = warm orange,
+Play = brass**. This replaces the older red Listen direction: the user found
+red too close to an error signal. Use separate phase aliases, even when their
+palette hue is borrowed from an activity color.
 
-The aliases are defined once in `:root`, so each theme's brass / on-air values flow through. A future swap is those two lines and nothing else; `tests/unit/ui/design-token-consistency.test.ts` pins the mapping and sweeps the phase surfaces for raw palette tokens. What stays on `--color-onair` directly: the stop / record **buttons** (transport bars, audition play/stop, the record page's stop control, the console rocker's ON legend and LED) — "press this to stop" is exactly the meaning red should keep.
+| Meaning | Prototype token | Dark value / text | Native status |
+| --- | --- | --- | --- |
+| App demonstrates / Listen | `--mk-phase-listen`, `--mk-phase-listen-text` | `#c96a3e` / `#e09972` | Pending migration of `--color-phase-listen` |
+| User's turn / Play | `--mk-phase-play` | brass / brass soft | Existing `--color-phase-play` |
+| Stop / recording button | `--mk-onair` | `#a8463a` | Existing `--color-onair` |
+
+**Implementation gap verified at `35eff0ec`:** `src/app.css` still maps
+`--color-phase-listen` to `--color-onair`, and the existing token contract test
+pins that legacy mapping. The design-system update changes the reference kit
+and guidance, not those runtime files. Migrate the native phase alias and its
+tests together, verifying text contrast and all phase surfaces in both themes;
+do not claim that the orange direction is already delivered in Svelte. Use a
+text-safe orange for small labels, not the lower-contrast fill hue. Keep stop /
+record buttons and rocker LEDs on their separate on-air token. Phase text and
+icons must remain understandable without color, with stable Listen/Play geometry.
 
 ### Feedback tokens
 
@@ -358,7 +374,7 @@ For each page confirm:
 2. Current-state highlights (selected pill or pad, active chord cell and beat)
 3. The peripheral accent stripe is present on ear-training and lick-practice pages, hidden on neutral
 4. Brass chrome (wordmark, jazz rules, the active-nav marker) is unchanged across domains
-5. The on-air red appears only on active practice/record buttons, the console rocker's ON legend and LED, and LISTEN-phase indicators (via `--color-phase-listen`); PLAY-phase indicators are brass (`--color-phase-play`)
+5. Target: Listen uses orange phase tokens; Play uses brass. On-air red remains on stop/record buttons and rocker LEDs. Track the native Listen migration gap above explicitly.
 
 Check both light and dark modes.
 
@@ -399,8 +415,9 @@ its tonality section is ear-training and its practice link is lick-practice.
 Home/landing, Sign in, Settings, Ear Training, Progress, Scales, Lick Practice setup,
 the running Lick Practice session (`/lick-practice/session`), Licks, Add Licks (`/licks/add`), the Lick Editor
 (`/licks/editor`), Community Licks (`/licks/community`) and Tunes opt into
-the layout's 1440px Studio Desk container. Other nested detail, editor, import and
-session routes retain their existing width and presentation. The setup summary
+the layout's 1440px Studio Desk container. Tune Detail (`/tunes/[id]`) and Tune Editor (`/tunes/editor`) also use the
+shared editor shell. Other nested import and session routes retain their
+existing width and presentation. The setup summary
 moves below the controls on tablet/mobile; instrument and scale banks reflow
 using `--selector-columns`. Do not apply new chrome across all routes as a side
 effect of migrating a single page.
@@ -502,7 +519,7 @@ with a recessed music area and a 220px key-progress rail on wide screens. Below
 notation rows are 204.8px (60% taller), with a 140.8px music frame, 10px inner
 vertical padding and a separate 28px cue lane. The viewport reserves 460.8px so
 notation appearing or disappearing between cycles does not move the controls.
-Listen and Play share frame geometry, using the existing red/brass phase tokens;
+Listen and Play share frame geometry, using semantic phase tokens (approved orange/brass; native orange migration pending);
 the entrance frame stays dashed until recording is audible.
 
 Production notation stays in abcjs, preserving real notes, accidentals, written
@@ -595,3 +612,125 @@ chord and section editing without enabling unsupported melody entry. Bounded
 undo/redo stores tune content and setup while preserving edit identity and
 source-review data. Curated tunes open as unsaved personal copies; community
 adoption, attribution and existing library actions keep their original paths.
+
+
+## Shared musical interface contracts · Design System 1.2
+
+The MagicPath reference is component `460231915702722560`, revision
+`461191156403949568`. Its reusable `MusicKit.tsx` / `MusicKit.css` extends
+`ConsoleKit` with `PhaseCue`, `ScoreWell`, `DurationGlyph`, `DurationBank`,
+and a control-state transport example. The score is explicitly illustrative;
+production continues to use the actual notation and audio engines. Prototype
+files are independent copies, not live dependencies. Updating this reference
+or its MagicPath skill does not update every existing page.
+
+### Notation and score surfaces
+
+- Reuse `NotationDisplay`, `ChordSymbolText`, `notation.ts` and
+  `tune-notation.ts`; preserve the shared chord, enharmonic, written-pitch,
+  pickup and repeat rules. Do not invent a second engraver in page components.
+- Use the inset Studio Desk well with theme-aware ink. Render metadata once
+  in the page header; retain an accessible score name when omitting a masthead.
+- Render the complete phrase. For the Community listening desk, two measures
+  per system and reserved score height align short and long phrases. At phone
+  widths, scroll inside the score region; do not shrink dense notation into
+  illegibility or let it create page-wide overflow.
+- Preserve ledger lines, accidentals, rests, ties, beams and meter. Validate a
+  four-measure phrase with 32 eighth notes, pickups and long chord labels.
+- Keep selection, insertion position, playback cursor and review warnings
+  distinct. Playback moves the highlight using the audio clock without
+  re-engraving the score. Color is supplementary to labels and geometry.
+
+### Shared editing controls
+
+Lick Editor and Tune Editor use the same `DurationSelector`,
+`PitchEntryPanel`, `EditorIcon` and step-entry store. Duration glyphs are SVG,
+not platform-dependent emoji. Base durations are whole, half, quarter,
+eighth and sixteenth. Dotted applies only to half/quarter/eighth; triplets
+apply to whole/half/quarter/eighth. Disable unsupported modifiers. Preserve
+existing shortcuts (1–5, A–G, 0 for rest), accidental, octave, tie and delete
+behavior; suspend shortcuts in text inputs and dialogs. Keep selected,
+focused and disabled states visibly distinct, with accessible control names.
+
+The shared layout order is score, transport, note entry, then setup/details;
+on wide screens the inspector sits at the right. The inspector stacks below
+900px. Tune-specific sections, inline harmony, pickups and PDF review extend
+that structure. Do not expose melody entry for unsupported meters. Undo/redo
+tracks musical content and setup, not selection/playback or saved identity;
+retain the bounded history and confirmation/undo behavior of Clear.
+
+### Playback and accompaniment
+
+Group tempo, swing, metronome and backing together with spacing between
+transport and accompaniment. Use one editable control per setting. Preview
+tempo is local to the editor. Keep dependent backing/metronome controls mounted
+and disabled when off, preserving both dimensions and chosen values. Reuse
+`TuneTransport` and the existing phrase audio lifecycle: pending sample loads,
+loops and active sound cancel on edits, settings changes and navigation.
+Visual Play/Stop and cursor state must reflect the real audio lifecycle.
+
+### Two distinct harmonic color systems
+
+| Signal | Source | Meaning |
+| --- | --- | --- |
+| Lick category identity | `progressionColor()` / `--prog-*` | Same progression hue in My Licks, Community and practice |
+| Tune chord role | `tuneHarmonyMarkers()` / `--tune-*` | Optional subtle tonic, subdominant or dominant tint |
+
+The complete progression palette remains in `app.css`, with dark/light pairs.
+Community uses the declared category, not the reader's personal tags. Generic
+or unknown categories retain a neutral treatment. Tune role colors are
+`#9ab1ce` / `#8ab7aa` / `#d8b67b` in dark mode and `#42658b` / `#3b7c6b` /
+`#966323` in light mode. Preserve conservative role matching; unclassified
+harmony stays neutral. Never substitute either system for phase, error,
+selection, difficulty or accuracy colors.
+
+### Recent page patterns and status
+
+| Pattern | Reference | Status |
+| --- | --- | --- |
+| Community Listening Desk | Component `461167035594973184` | Native Svelte; compact index, stable full score, no white cards, expansion, key or length labels/filters |
+| Lick Editor | `459517965835059200` / `460811927849934848` | Native Svelte; shared score/input/inspector hierarchy |
+| Tune Detail + Editor | `459518519676121088` / `461185056698941440` | Native Svelte; extends Lick Editor with tune operations |
+| Add Licks | `459517917629935616` / `460936884772802560` | Native Svelte; Editor first, Record Experimental |
+| PDF Import | `459518569684811776` / `461190228670046208` | Design prototype; Svelte conversion pending |
+
+PDF Import reuses the editing workspace language: file input/source preview,
+source-pitch and meter setup, optional OMR disclosure, cancellable recognition,
+then source-aware review in the editor. Distinguish empty, selected, loading,
+cancelled, error and review states. Uncertain notes remain visibly uncertain;
+marking a passage reviewed does not silently correct it. Demo recognition and
+sample music must remain labelled as examples until connected to real services.
+
+The existing Home, Settings, Practice, Progress, Scales and Sign in patterns
+above remain canonical. Retain real data, empty states, account actions and
+musical behavior when adopting the visual system.
+
+### Consistency review for every adoption
+
+Check desktop, tablet and phone widths; both native themes; keyboard focus
+and control semantics; empty/loading/error/review/disabled states; dense
+notation and ledger-line clearance; stable geometry across phrase and phase
+changes; persisted settings and playback cancellation. Keep the source,
+reference component, MagicPath skill and native component map aligned. Record
+prototype-only changes and native migration gaps instead of treating a visual
+reference as proof of implementation or deployment.
+
+
+### Individual lick detail · Studio Desk
+
+`/licks/[id]` uses MagicPath component `461192586053427200`, revision
+`461192586053427201`. The native Svelte page shares `StudioPage`, `StudioPanel`,
+`CommunityProgression` and the existing notation renderer. Its score is primary,
+with a written-key selector and Listen transport directly beside it. Practice
+membership and fit-gated progression tags occupy the right inspector; details,
+category editing and descriptive tags live in a disclosure. Personal progress
+and reset sit below the score. Ownership restrictions and delete/reset
+confirmation remain explicit, with cancellation.
+
+The complete phrase uses two measures per system with reserved score space;
+dense music scrolls within the well on phones. The inspector stacks below
+900px. No length badge is shown. Key selection is a functional transposition
+control, not redundant catalog metadata. Changing key, instrument or lick
+cancels the previous audition. Existing async loading/not-found fencing, real
+saved progress and Deep Practice handoff are retained. The prototype contains
+illustrative state; the Svelte page uses actual data and audio.

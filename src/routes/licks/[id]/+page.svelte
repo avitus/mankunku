@@ -1,7 +1,13 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
-	import { onDestroy, onMount } from 'svelte';
+	import { onDestroy, onMount, untrack } from 'svelte';
+	import StudioPage from '$lib/components/console/StudioPage.svelte';
+	import StudioPanel from '$lib/components/console/StudioPanel.svelte';
+	import CommunityProgression from '$lib/components/licks/CommunityProgression.svelte';
+	import { leadSheetTuneFor, leadSheetAbcOptions } from '$lib/music/lead-sheet';
+	import { progressionColor } from '$lib/music/progression-display';
+	import '$lib/components/licks/lick-detail.css';
 	import NotationDisplay from '$lib/components/notation/NotationDisplay.svelte';
 	import PhraseInfo from '$lib/components/practice/PhraseInfo.svelte';
 	import LickProgressChart from '$lib/components/licks/LickProgressChart.svelte';
@@ -138,24 +144,6 @@
 	let isPracticeTagged = $state(false);
 	let progressionTags = $state<ChordProgressionType[]>([]);
 	let currentCategory = $state<PhraseCategory | null>(null);
-	let categoryOpen = $state(false);
-	let categoryWrap: HTMLElement | undefined = $state();
-
-	$effect(() => {
-		if (!categoryOpen) return;
-		const onClick = (e: MouseEvent) => {
-			if (!categoryWrap?.contains(e.target as Node)) categoryOpen = false;
-		};
-		const onKey = (e: KeyboardEvent) => {
-			if (e.key === 'Escape') categoryOpen = false;
-		};
-		document.addEventListener('click', onClick);
-		document.addEventListener('keydown', onKey);
-		return () => {
-			document.removeEventListener('click', onClick);
-			document.removeEventListener('keydown', onKey);
-		};
-	});
 	const baseLick = $derived.by(() =>
 		getLickById(page.params.id ?? '') ?? (userLick?.id === page.params.id ? userLick : null)
 	);
@@ -203,6 +191,21 @@
 			: null
 	);
 
+	const sheet = $derived(lick ? leadSheetTuneFor(lick, Number.POSITIVE_INFINITY) : null);
+	const scoreOptions = $derived(lick ? { ...leadSheetAbcOptions(lick, 2), omitMasthead: true } : undefined);
+
+	// A new route, written key or instrument must not leave the previous sound running.
+	$effect(() => {
+		void lick;
+		void settings.instrumentId;
+		untrack(() => audition.stop());
+	});
+	$effect(() => {
+		void page.params.id;
+		confirmingDelete = false;
+		confirmingResetId = null;
+	});
+
 	const ALL_PROGRESSION_TYPES = Object.values(PROGRESSION_TEMPLATES);
 
 	function handleTogglePracticeTag() {
@@ -222,7 +225,6 @@
 	}
 
 	function handleSetCategory(c: PhraseCategory) {
-		categoryOpen = false;
 		if (!baseLick || currentCategory === c) return;
 		updateLickCategory(baseLick.id, c, supabase ?? undefined);
 		currentCategory = c;
@@ -336,232 +338,98 @@
 	<title>{lick?.name ?? 'Lick'} — Mankunku</title>
 </svelte:head>
 
-{#if audition.state.error}
-	<p role="alert" class="text-sm text-[var(--color-error-text)]">{audition.state.error}</p>
-{/if}
-
-<div class="space-y-6">
-	<!-- Back link -->
-	<a
-		href="/licks"
-		class="inline-flex items-center gap-1 text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text)] transition-colors"
-	>
-		&larr; Licks
-	</a>
-
-	{#if lick}
-		<div class="flex flex-wrap items-start justify-between gap-4">
-			<div>
-				<h1 class="text-2xl font-bold">{baseLick?.name}</h1>
-				<div class="mt-1 flex flex-wrap items-center gap-2 text-sm text-[var(--color-text-secondary)]">
-					{#if isOwnLick && currentCategory}
-						<span bind:this={categoryWrap} class="relative inline-block">
-							<button
-								type="button"
-								onclick={() => (categoryOpen = !categoryOpen)}
-								aria-haspopup="listbox"
-								aria-expanded={categoryOpen}
-								class="smallcaps cursor-pointer border border-[var(--color-brass)]/40 px-1.5 py-0.5 text-[var(--color-brass)] transition-colors
-									{categoryOpen ? 'border-[var(--color-brass)] bg-[var(--color-brass)]/15' : ''}"
-							>
-								{CATEGORY_LABELS[currentCategory]}
+<div class="lick-detail">
+	<a href="/licks" class="ld-back">← My Licks</a>
+	{#if lick && baseLick && sheet}
+		<StudioPage eyebrow="Your vocabulary / Lick detail" title={baseLick.name} description="A phrase for your next chorus.">
+			{#snippet actions()}
+				<div class="ld-identity">
+					<CommunityProgression phrase={{ ...baseLick, category: currentCategory ?? baseLick.category }} />
+					<span>{isOwnLick ? (baseLick.source === 'user-entered' ? 'Entered by you' : 'Recorded by you') : (baseLick.source === 'user-entered' || baseLick.source === 'user-recorded' ? 'Community lick' : 'From the library')}</span>
+				</div>
+			{/snippet}
+			<div class="ld-grid">
+				<div class="ld-work">
+					<StudioPanel id="lick-score" number="01" title="On the desk">
+						<div class="ld-score-heading">
+							<span class="studio-label">Written pitch</span>
+							<label for="lick-written-key">Play in
+								<select id="lick-written-key" value={writtenKey} onchange={(event) => { selectedWrittenKey = event.currentTarget.value as PitchClass; }}>
+									{#each PITCH_CLASSES as pc}<option value={pc}>{keyLabel(pc, lickMode(baseLick))}</option>{/each}
+								</select>
+							</label>
+						</div>
+						<!-- Dense music scrolls inside the well, including for keyboard users. -->
+						<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+						<div class="ld-score" role="region" aria-label="Sheet music for {baseLick.name}" tabindex="0">
+							<div class="ld-notation">
+								<NotationDisplay tune={{ ...sheet.tune, title: baseLick.name }} tuneOptions={scoreOptions} instrument={getInstrument()} variant="practice" frameless staffWidth={680} />
+							</div>
+						</div>
+						<div class="ld-transport">
+							<button class="studio-action ld-listen" class:playing={isPlaying} onclick={togglePlay} aria-label={isPlaying ? 'Stop' : 'Listen'}>
+								<svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">{#if isPlaying}<rect x="6" y="6" width="12" height="12" />{:else}<path d="M8 5v14l11-7z" />{/if}</svg>
+								{isPlaying ? 'Stop' : 'Listen'}
 							</button>
-							{#if categoryOpen}
-								<ul
-									role="listbox"
-									aria-label="Category"
-									class="absolute left-0 top-full z-20 mt-1 max-h-72 min-w-full overflow-y-auto whitespace-nowrap border border-[var(--color-brass)]/40 bg-[var(--color-bg-secondary)] py-1 shadow-lg"
-								>
-									{#each CATEGORY_ENTRIES as { value, label } (value)}
-										{@const isActive = currentCategory === value}
-										<li>
-											<button
-												type="button"
-												role="option"
-												aria-selected={isActive}
-												onclick={() => handleSetCategory(value)}
-												class="smallcaps block w-full px-2 py-1 text-left text-[var(--color-brass)] transition-colors hover:bg-[var(--color-brass)]/15
-													{isActive ? 'bg-[var(--color-brass)]/20' : ''}"
-											>
-												{label}
-											</button>
-										</li>
-									{/each}
-								</ul>
+							<span>{settings.defaultTempo} <small>BPM</small></span>
+							<span>Swing <small>{Math.round(settings.swing * 100)}%</small></span>
+							{#if canEdit}<button class="studio-text-action ld-edit" onclick={handleEdit}>Edit lick ↗</button>{/if}
+						</div>
+						{#if audition.state.error}<p role="alert" class="ld-error">{audition.state.error}</p>{/if}
+						<details class="ld-details">
+							<summary>Phrase details</summary>
+							<div class="ld-detail-body">
+								<p style="color: {difficultyDisplay(lick.difficulty.level).color}">{difficultyDisplay(lick.difficulty.level).name} ({lick.difficulty.level})</p>
+								<PhraseInfo phrase={lick} instrument={getInstrument()} />
+								{#if isOwnLick && currentCategory}
+									<div class="ld-category-field"><label for="lick-category">Category</label><select id="lick-category" value={currentCategory} onchange={(event) => handleSetCategory(event.currentTarget.value as PhraseCategory)}>{#each CATEGORY_ENTRIES as { value, label }}<option {value}>{label}</option>{/each}</select></div>
+								{/if}
+								<div class="ld-metadata-tags">{#each baseLick.tags.filter(t => t !== 'practice' && t !== 'user-entered') as tag}<span>#{tag}</span>{/each}</div>
+							</div>
+						</details>
+					</StudioPanel>
+					<section class="ld-progress" aria-labelledby="lick-progress-title">
+						<div class="ld-progress-heading"><h2 id="lick-progress-title">Your progress</h2>
+							{#if hasProgress}<button class="studio-text-action" onclick={handleReset} title="Reset this lick's practice progress — tempo back to {NEW_LICK_DEFAULT_TEMPO} BPM, keys relocked">{confirmingResetId === baseLick.id ? 'Confirm Reset' : '↺ Reset Progress'}</button>{/if}
+						</div>
+						{#if confirmingResetId === baseLick.id}<div class="ld-confirm"><p>Reset tempo to {NEW_LICK_DEFAULT_TEMPO} BPM and relock this lick’s keys?</p><button onclick={() => { confirmingResetId = null; }}>Cancel reset</button></div>{/if}
+						<LickProgressChart points={progressHistory} />
+					</section>
+				</div>
+				<aside class="ld-rail" aria-label="Practice and library">
+					<StudioPanel id="lick-practice-options" number="02" title="Practice">
+						<button class="studio-action ld-practice" disabled={lickPractice.progressLoading} onclick={practiceThis}>{lickPractice.progressLoading ? 'Loading progress…' : 'Practice'}</button>
+						<button class="ld-membership" aria-pressed={isPracticeTagged} onclick={handleTogglePracticeTag} title={isPracticeTagged ? 'Remove from lick practice' : 'Add to lick practice'}>{isPracticeTagged ? '✓ In Practice Set' : '+ Add to Practice'}</button>
+						<div class="ld-tags">
+							<h3 class="studio-label">Practice over</h3><p>Choose where this phrase belongs.</p>
+							{#each ALL_PROGRESSION_TYPES as prog (prog.type)}
+								{@const isTagged = progressionTags.includes(prog.type)}
+								{@const fit = progressionFitsLick(baseLick, prog.type)}
+								{@const unfitReason = fit.fits ? null : fitReasonLabel(fit.reason)}
+								<button onclick={() => handleToggleProgressionTag(prog.type)} disabled={unfitReason !== null && !isTagged} title={unfitReason ?? undefined} aria-pressed={isTagged} style:--progression-hue={progressionColor(prog.type)}>
+									{prog.shortName}<span aria-hidden="true">{unfitReason !== null && isTagged ? '!' : isTagged ? '✓' : '+'}</span>
+								</button>
+							{/each}
+						</div>
+						<p class="ld-footnote">Unavailable progressions don’t fit this phrase.</p>
+					</StudioPanel>
+					{#if canDelete || deleteBlockedReason}
+						<div class="ld-manage"><h2 class="studio-label">In your library</h2>
+							{#if deleteBlockedReason}<p>{deleteBlockedReason}</p>{/if}
+							{#if canDelete}
+								<p>Your original phrase.</p>
+								{#if confirmingDelete}<p>This removes your original lick.</p>{/if}
+								<button class:ld-destructive={confirmingDelete} onclick={handleDelete}>{confirmingDelete ? 'Confirm Delete' : 'Delete lick'}</button>
+								{#if confirmingDelete}<button onclick={() => { confirmingDelete = false; }}>Cancel delete</button>{/if}
 							{/if}
-						</span>
-						<span>&middot;</span>
+						</div>
 					{/if}
-					<span style="color: {difficultyDisplay(lick.difficulty.level).color}">{difficultyDisplay(lick.difficulty.level).name} ({lick.difficulty.level})</span>
-					<span>&middot;</span>
-					<span>{lick.difficulty.lengthBars} bar{lick.difficulty.lengthBars > 1 ? 's' : ''}</span>
-				</div>
+				</aside>
 			</div>
-			<div class="flex shrink-0 flex-wrap gap-2">
-				<button
-					onclick={togglePlay}
-					class="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition-colors
-						{isPlaying
-							? 'bg-[var(--color-onair)] hover:bg-[var(--color-onair-hover)]'
-							: 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-secondary)]'}"
-					aria-label={isPlaying ? 'Stop' : 'Play'}
-				>
-					{#if isPlaying}
-						<svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-							<rect x="6" y="5" width="4" height="14" rx="1" />
-							<rect x="14" y="5" width="4" height="14" rx="1" />
-						</svg>
-						Stop
-					{:else}
-						<svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
-							<path d="M8 5v14l11-7z" />
-						</svg>
-						Play
-					{/if}
-				</button>
-				<button
-					disabled={lickPractice.progressLoading}
-					onclick={practiceThis}
-					class="rounded-full bg-[var(--color-accent)] px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)] disabled:opacity-50"
-				>
-					{lickPractice.progressLoading ? 'Loading progress…' : 'Practice'}
-				</button>
-				<button
-					onclick={handleTogglePracticeTag}
-					class="rounded-full px-3 py-1.5 text-sm font-medium transition-colors
-						{isPracticeTagged
-							? 'bg-[var(--color-success)]/20 text-[var(--color-success)] hover:bg-[var(--color-success)]/30'
-							: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'}"
-					title={isPracticeTagged ? 'Remove from lick practice' : 'Add to lick practice'}
-				>
-					{isPracticeTagged ? '★ Practice Set' : '☆ Add to Practice'}
-				</button>
-				{#if hasProgress}
-					<button
-						onclick={handleReset}
-						class="rounded-full px-3 py-1.5 text-sm font-medium transition-colors
-							{confirmingResetId === baseLick?.id
-								? 'bg-[var(--color-warning)] text-black hover:opacity-80'
-								: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'}"
-						title="Reset this lick's practice progress — tempo back to {NEW_LICK_DEFAULT_TEMPO} BPM, keys relocked"
-					>
-						{confirmingResetId === baseLick?.id ? 'Confirm Reset' : '↺ Reset Progress'}
-					</button>
-				{/if}
-				{#if canEdit}
-					<button
-						onclick={handleEdit}
-						class="rounded-full bg-[var(--color-bg-tertiary)] px-3 py-1.5 text-sm font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-bg-secondary)]"
-					>
-						Edit
-					</button>
-				{/if}
-				{#if canDelete}
-					<button
-						onclick={handleDelete}
-						class="rounded-full px-3 py-1.5 text-sm font-medium transition-colors
-							{confirmingDelete
-								? 'bg-[var(--color-error)] text-white hover:opacity-80'
-								: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'}"
-					>
-						{confirmingDelete ? 'Confirm Delete' : 'Delete'}
-					</button>
-				{/if}
-			</div>
-		</div>
-
-		<!-- Key selector — displayed in the user's WRITTEN pitch (what they
-		     see on sheet music and finger on their horn). Matches the key
-		     signature shown on the notation below. -->
-		{#if deleteBlockedReason}
-			<p class="text-xs text-[var(--color-text-secondary)]">{deleteBlockedReason}</p>
-		{/if}
-
-		<div class="flex items-center gap-3">
-			<span class="text-sm text-[var(--color-text-secondary)]">Key:</span>
-			<div class="flex flex-wrap gap-1">
-				{#each PITCH_CLASSES as pc}
-					<button
-						onclick={() => { selectedWrittenKey = pc; }}
-						class="rounded-full px-2 py-0.5 text-xs transition-colors
-							{writtenKey === pc
-								? 'bg-[var(--color-accent)] text-white'
-								: 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-secondary)]'}"
-					>
-						<!-- Pills are TONICS: a minor lick reads Dm · Gm · … and the
-						     selected pill transposes the tonic (mode rides along). -->
-						{keyLabel(pc, baseLick ? lickMode(baseLick) : 'major')}
-					</button>
-				{/each}
-			</div>
-		</div>
-
-		<!-- Practice over: progression tags -->
-		<div>
-			<span class="text-sm text-[var(--color-text-secondary)]">Practice over:</span>
-			<div class="mt-1.5 flex flex-wrap gap-1.5">
-				{#each ALL_PROGRESSION_TYPES as prog (prog.type)}
-					{@const isTagged = progressionTags.includes(prog.type)}
-					{@const fit = baseLick ? progressionFitsLick(baseLick, prog.type) : { fits: true as const }}
-					{@const unfitReason = fit.fits ? null : fitReasonLabel(fit.reason)}
-					<!-- Pills the lick can't play over (wrong chord shape, too long,
-					     wrong chord role) are greyed with the reason; a tagged-but-unfit
-					     pill stays enabled so the stale tag can be removed. -->
-					<button
-						onclick={() => handleToggleProgressionTag(prog.type)}
-						disabled={unfitReason !== null && !isTagged}
-						title={unfitReason ?? undefined}
-						aria-disabled={unfitReason !== null && !isTagged}
-						class="rounded-full px-3 py-1 text-xs font-medium transition-colors
-							{isTagged
-								? 'bg-[var(--color-accent)] text-white'
-								: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'}
-							{unfitReason !== null && !isTagged ? 'cursor-not-allowed opacity-40 hover:bg-[var(--color-bg-tertiary)]' : ''}"
-					>
-						{prog.shortName}{#if unfitReason !== null && isTagged}<span class="ml-1" title="Doesn't fit this lick — remove it" aria-hidden="true">⚠</span>{/if}
-					</button>
-				{/each}
-			</div>
-		</div>
-
-		<!-- Notation -->
-		<NotationDisplay phrase={lick} instrument={getInstrument()} />
-
-		<!-- Phrase info -->
-		<PhraseInfo phrase={lick} instrument={getInstrument()} />
-
-		<!-- Progress over time -->
-		{#if progressHistory.length > 0}
-			<section class="space-y-3">
-				<h2 class="font-display text-lg font-semibold">Your progress</h2>
-				<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4">
-					<LickProgressChart points={progressHistory} />
-				</div>
-			</section>
-		{/if}
-
-		<!-- Tags -->
-		{#if baseLick && baseLick.tags.filter(t => t !== 'practice' && t !== 'user-entered').length > 0}
-			<div class="flex flex-wrap gap-2">
-				{#each baseLick.tags.filter(t => t !== 'practice' && t !== 'user-entered') as tag}
-					<span class="rounded-full bg-[var(--color-bg-tertiary)] px-3 py-1 text-xs text-[var(--color-text-secondary)]">
-						#{tag}
-					</span>
-				{/each}
-			</div>
-		{/if}
+		</StudioPage>
 	{:else if resolvedLickId !== page.params.id}
-		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-8 text-center">
-			<p role="status" class="text-[var(--color-text-secondary)]">Loading lick…</p>
-		</div>
+		<div class="studio-desk"><div class="studio-well ld-empty"><p role="status">Loading lick…</p></div></div>
 	{:else}
-		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-8 text-center">
-			<p class="text-[var(--color-text-secondary)]">
-				Lick not found: {page.params.id}
-			</p>
-			<a href="/licks" class="mt-2 inline-block text-sm text-[var(--color-accent)]">
-				Back to Licks
-			</a>
-		</div>
+		<div class="studio-desk"><div class="studio-well ld-empty"><p>Lick not found: {page.params.id}</p><a href="/licks" class="studio-text-action">Back to Licks</a></div></div>
 	{/if}
 </div>
