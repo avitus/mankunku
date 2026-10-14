@@ -1,11 +1,13 @@
 <script lang="ts">
-	import { onDestroy } from 'svelte';
-	import { goto } from '$app/navigation';
+	import { onDestroy, untrack } from 'svelte';
 	import SeoHead from '$lib/components/seo/SeoHead.svelte';
 	import { page } from '$app/state';
 	import { CATEGORY_LABELS, type Phrase, type PhraseCategory } from '$lib/types/music';
 	import { community } from '$lib/state/community.svelte';
-	import CommunityLickCard from '$lib/components/licks/CommunityLickCard.svelte';
+	import StudioPage from '$lib/components/console/StudioPage.svelte';
+	import StudioPanel from '$lib/components/console/StudioPanel.svelte';
+	import CommunityListeningDesk from '$lib/components/licks/CommunityListeningDesk.svelte';
+	import CommunityProgression from '$lib/components/licks/CommunityProgression.svelte';
 	import {
 		listCommunityLicks,
 		toggleFavorite,
@@ -21,6 +23,16 @@
 	const user = $derived(page.data?.user ?? null);
 
 	let licks: CommunityLick[] = $state([]);
+	let selectedId = $state<string | null>(null);
+	const selectedLick = $derived(licks.find((lick) => lick.phrase.id === selectedId) ?? licks[0]);
+	let showFilters = $state(false);
+	let searchInput = $state(community.searchQuery);
+	let authorInput = $state(community.authorQuery);
+	let pendingFavorites = $state<string[]>([]);
+	let pendingBook = $state<string[]>([]);
+	let actionError = $state('');
+	let reloadVersion = $state(0);
+	const hasFilters = $derived(!!(community.searchQuery.trim() || community.authorQuery.trim() || community.categoryFilter || community.difficultyFilter !== null));
 	let pageOffset = $state(0);
 	let hasMore = $state(true);
 	let loading = $state(false);
@@ -63,20 +75,25 @@
 	$effect(() => {
 		// Depend on filterKey explicitly and supabase availability.
 		void filterKey;
+		void reloadVersion;
+		const runId = ++effectRunId;
+		untrack(() => audition.stop());
 		const sb = supabase;
 		if (!sb || !session) {
 			licks = [];
+			loading = false;
 			hasMore = false;
 			return;
 		}
-		const runId = ++effectRunId;
 		loading = true;
+		licks = [];
 		pageOffset = 0;
 		loadError = null;
 		listCommunityLicks(sb, buildFilters(), 0)
 			.then((results) => {
 				if (runId !== effectRunId) return;
 				licks = results;
+				if (!results.some((lick) => lick.phrase.id === selectedId)) selectedId = results[0]?.phrase.id ?? null;
 				hasMore = results.length === COMMUNITY_PAGE_SIZE;
 				loading = false;
 			})
@@ -91,16 +108,20 @@
 	async function loadMore() {
 		if (!supabase || loading || !hasMore) return;
 		loading = true;
+		const runId = effectRunId;
+		loadError = null;
 		const nextOffset = pageOffset + COMMUNITY_PAGE_SIZE;
 		try {
 			const more = await listCommunityLicks(supabase, buildFilters(), nextOffset);
+			if (runId !== effectRunId) return;
 			licks = [...licks, ...more];
 			pageOffset = nextOffset;
 			hasMore = more.length === COMMUNITY_PAGE_SIZE;
 		} catch (err) {
 			console.warn('Failed to load more community licks:', err);
+			if (runId === effectRunId) loadError = 'Could not load more licks. Try again.';
 		} finally {
-			loading = false;
+			if (runId === effectRunId) loading = false;
 		}
 	}
 
@@ -118,60 +139,58 @@
 		}, 200);
 	}
 
-	async function handleFavorite(lick: CommunityLick) {
-		if (!supabase) return;
-		// Optimistic update
-		const idx = licks.findIndex((l) => l.phrase.id === lick.phrase.id);
-		if (idx === -1) return;
-		const wasFavorited = licks[idx].isFavoritedByMe;
-		const optimistic = {
-			...licks[idx],
-			isFavoritedByMe: !wasFavorited,
-			favoriteCount: licks[idx].favoriteCount + (wasFavorited ? -1 : 1)
-		};
-		licks = [...licks.slice(0, idx), optimistic, ...licks.slice(idx + 1)];
+	/** Replace by identity so a late write cannot splice into a different filtered list. */
+	function updateLick(id: string, patch: Partial<CommunityLick>): void {
+		licks = licks.map((lick) => lick.phrase.id === id ? { ...lick, ...patch } : lick);
+	}
 
-		const nowFavorited = await toggleFavorite(supabase, lick.phrase.id);
-		// Reconcile if server disagreed.
-		if (nowFavorited !== !wasFavorited) {
-			licks = [...licks.slice(0, idx), lick, ...licks.slice(idx + 1)];
+	async function handleFavorite(lick: CommunityLick): Promise<void> {
+		if (!supabase || pendingFavorites.includes(lick.phrase.id)) return;
+		const id = lick.phrase.id;
+		pendingFavorites = [...pendingFavorites, id];
+		actionError = '';
+		updateLick(id, { isFavoritedByMe: !lick.isFavoritedByMe, favoriteCount: lick.favoriteCount + (lick.isFavoritedByMe ? -1 : 1) });
+		try {
+			const favorited = await toggleFavorite(supabase, id);
+			updateLick(id, { isFavoritedByMe: favorited, favoriteCount: lick.favoriteCount + (Number(favorited) - Number(lick.isFavoritedByMe)) });
+			if (favorited === lick.isFavoritedByMe) actionError = 'Could not update the favorite. Please try again.';
+		} catch {
+			updateLick(id, { isFavoritedByMe: lick.isFavoritedByMe, favoriteCount: lick.favoriteCount });
+			actionError = 'Could not update the favorite. Please try again.';
+		} finally {
+			pendingFavorites = pendingFavorites.filter((pending) => pending !== id);
 		}
 	}
 
-	async function handleSteal(lick: CommunityLick) {
-		if (!supabase) return;
-		const idx = licks.findIndex((l) => l.phrase.id === lick.phrase.id);
-		if (idx === -1) return;
-		licks = [
-			...licks.slice(0, idx),
-			{ ...licks[idx], isStolenByMe: true },
-			...licks.slice(idx + 1)
-		];
-		const ok = await stealLick(supabase, lick.phrase.id);
-		if (!ok) {
-			// Revert optimistic update when the server rejected the steal.
-			licks = [...licks.slice(0, idx), lick, ...licks.slice(idx + 1)];
+	async function handleBook(lick: CommunityLick): Promise<void> {
+		if (!supabase || pendingBook.includes(lick.phrase.id)) return;
+		const id = lick.phrase.id;
+		pendingBook = [...pendingBook, id];
+		actionError = '';
+		updateLick(id, { isStolenByMe: !lick.isStolenByMe });
+		try {
+			const ok = await (lick.isStolenByMe ? returnLick(supabase, id) : stealLick(supabase, id));
+			if (!ok) throw new Error('Book update failed');
+		} catch {
+			updateLick(id, { isStolenByMe: lick.isStolenByMe });
+			actionError = 'Could not update My Licks. Please try again.';
+		} finally {
+			pendingBook = pendingBook.filter((pending) => pending !== id);
 		}
 	}
 
-	async function handleReturn(lick: CommunityLick) {
-		if (!supabase) return;
-		const idx = licks.findIndex((l) => l.phrase.id === lick.phrase.id);
-		if (idx === -1) return;
-		licks = [
-			...licks.slice(0, idx),
-			{ ...licks[idx], isStolenByMe: false },
-			...licks.slice(idx + 1)
-		];
-		const ok = await returnLick(supabase, lick.phrase.id);
-		if (!ok) {
-			// Revert optimistic update when the server rejected the return.
-			licks = [...licks.slice(0, idx), lick, ...licks.slice(idx + 1)];
-		}
+	function selectLick(lick: CommunityLick): void {
+		if (lick.phrase.id === selectedLick?.phrase.id) return;
+		audition.stop();
+		selectedId = lick.phrase.id;
 	}
 
-	function handleCardClick(lick: CommunityLick) {
-		goto(`/licks/${lick.phrase.id}`);
+	function resetFilters(): void {
+		if (searchDebounce) clearTimeout(searchDebounce);
+		if (authorDebounce) clearTimeout(authorDebounce);
+		searchInput = authorInput = community.searchQuery = community.authorQuery = '';
+		community.categoryFilter = null;
+		community.difficultyFilter = null;
 	}
 
 	/** Toggle a community lick through this page's cancellable audition. */
@@ -180,19 +199,21 @@
 	}
 
 	onDestroy(() => {
+		effectRunId++;
 		audition.dispose();
 		if (searchDebounce) clearTimeout(searchDebounce);
 		if (authorDebounce) clearTimeout(authorDebounce);
 	});
 
-	function selectCategory(c: PhraseCategory | null) {
-		community.categoryFilter = c;
-	}
-
 	const visibleCategories: PhraseCategory[] = [
 		'ii-V-I-major',
 		'ii-V-I-minor',
 		'blues',
+		'major-chord',
+		'minor-chord',
+		'dominant-chord',
+		'V-I-major',
+		'V-I-minor',
 		'bebop-lines',
 		'pentatonic',
 		'enclosures',
@@ -202,215 +223,95 @@
 	];
 </script>
 
-<SeoHead
-	title="Community Licks — Mankunku"
-	description="Browse jazz licks shared by other players and adopt the ones worth stealing into your own book."
-/>
 
-{#if audition.state.error}
-	<p role="alert" class="text-sm text-[var(--color-error-text)]">{audition.state.error}</p>
-{/if}
+<SeoHead title="Community Licks — Mankunku" description="Browse jazz licks shared by other players and add your favorites to your own book." />
+<svelte:head>{#if !session}<meta name="robots" content="noindex" />{/if}</svelte:head>
 
-<svelte:head>
-	<!-- Anonymous visitors see only a sign-in prompt here — keep that thin
-	     state out of the index. `session` is SSR-stable layout data. -->
-	{#if !session}
-		<meta name="robots" content="noindex" />
-	{/if}
-</svelte:head>
-
-<div class="space-y-6">
-	<a
-		href="/licks"
-		class="inline-block text-sm text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text)]"
-	>
-		&larr; Licks
-	</a>
-	<div class="flex items-end justify-between gap-4 flex-wrap">
-		<div>
-			<div class="smallcaps text-[var(--color-brass)]">The Jam</div>
-			<h1 class="font-display text-4xl font-bold tracking-tight">Community Licks</h1>
-			<div class="jazz-rule mt-2 max-w-[140px]"></div>
-		</div>
-		<span class="text-sm text-[var(--color-text-secondary)]">
-			{licks.length} lick{licks.length !== 1 ? 's' : ''}{hasMore ? '+' : ''}
-		</span>
-	</div>
-
-	{#if !session}
-		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-8 text-center">
-			<p class="italic text-[var(--color-text-secondary)]">
-				Sign in to browse community licks.
-			</p>
-			<a
-				href="/auth"
-				class="mt-3 inline-block rounded-full bg-[var(--color-accent)] px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)]"
-			>
-				Sign in
-			</a>
-		</div>
-	{:else}
-		<!-- Search -->
-		<label for="community-search" class="sr-only">Search licks</label>
-		<input
-			id="community-search"
-			type="search"
-			placeholder="find a lick…"
-			oninput={(e) => handleSearchInput((e.target as HTMLInputElement).value)}
-			class="w-full rounded-lg bg-[var(--color-bg-secondary)] px-4 py-2 text-sm
-				placeholder:text-[var(--color-text-secondary)] focus:outline-none
-				focus:ring-1 focus:ring-[var(--color-accent)]"
-		/>
-
-		<!-- Category chips -->
-		<div class="flex flex-wrap gap-2">
-			<button
-				onclick={() => selectCategory(null)}
-				class="rounded-full px-3 py-1 text-sm transition-colors
-					{community.categoryFilter === null
-						? 'bg-[var(--color-accent)] text-white'
-						: 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-secondary)]'}"
-			>
-				All
-			</button>
-			{#each visibleCategories as c}
-				<button
-					onclick={() => selectCategory(c)}
-					class="rounded-full px-3 py-1 text-sm transition-colors
-						{community.categoryFilter === c
-							? 'bg-[var(--color-accent)] text-white'
-							: 'bg-[var(--color-bg-tertiary)] hover:bg-[var(--color-bg-secondary)]'}"
-				>
-					{CATEGORY_LABELS[c]}
-				</button>
-			{/each}
-		</div>
-
-		<!-- Filter row -->
-		<div class="flex flex-wrap items-center gap-4">
-			<!-- Author search -->
-			<div class="flex items-center gap-2">
-				<label
-					for="author-search"
-					class="text-sm text-[var(--color-text-secondary)]"
-				>
-					Author:
-				</label>
-				<input
-					id="author-search"
-					type="text"
-					placeholder="any"
-					oninput={(e) => handleAuthorInput((e.target as HTMLInputElement).value)}
-					class="w-40 rounded bg-[var(--color-bg-tertiary)] px-2 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
-				/>
+<StudioPage eyebrow="The Book / Community" title="Community Licks" description="Fresh phrases from other players. Find something worth making your own.">
+	{#snippet actions()}<a href="/licks" class="studio-text-action">← My Licks</a>{/snippet}
+	<StudioPanel id="community-collection" number="01" title="The community collection" description="Choose a phrase. Listen closely. Add it to your book.">
+		{#if !session}
+			<div class="empty-state"><p>Sign in to browse community licks.</p><a href="/auth" class="studio-action">Sign in</a></div>
+		{:else}
+			<div class="searchbar">
+				<label><span class="studio-label">Find a phrase</span><input type="search" aria-label="Search licks" placeholder="find a lick…" bind:value={searchInput} oninput={(e) => handleSearchInput(e.currentTarget.value)} /></label>
+				<label><span class="studio-label">Progression / style</span><select aria-label="Progression or style" bind:value={community.categoryFilter}>
+					<option value={null}>All styles</option>{#each visibleCategories as category}<option value={category}>{CATEGORY_LABELS[category]}</option>{/each}
+				</select></label>
 			</div>
-
-			<!-- Difficulty -->
-			<div class="flex items-center gap-2">
-				<span class="text-sm text-[var(--color-text-secondary)]">Max difficulty:</span>
-				<div class="flex flex-wrap gap-1">
-					{#each [null, 20, 40, 60, 80, 100] as level}
-						<button
-							onclick={() => {
-								community.difficultyFilter = level;
-							}}
-							class="rounded-full px-3 py-1 text-xs font-medium transition-colors
-								{community.difficultyFilter === level
-									? 'bg-[var(--color-accent)] text-white'
-									: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'}"
-						>
-							{level === null ? 'All' : `1-${level}`}
-						</button>
-					{/each}
-				</div>
+			<div class="toolbar">
+				<span role="status">{loading && !licks.length ? 'Finding licks…' : `${licks.length}${hasMore ? '+' : ''} matching lick${licks.length === 1 ? '' : 's'}`}</span>
+				<select aria-label="Sort licks" bind:value={community.sort}><option value="popular">Popular</option><option value="newest">Newest</option></select>
+				<button class="filter-button" aria-expanded={showFilters} aria-controls="community-filters" onclick={() => showFilters = !showFilters}>Filters{community.authorQuery || community.difficultyFilter !== null ? ' •' : ''}</button>
 			</div>
-
-			<!-- Sort -->
-			<div class="flex items-center gap-2">
-				<span class="text-sm text-[var(--color-text-secondary)]">Sort:</span>
-				<div class="flex gap-1">
-					{#each [{ id: 'popular', label: 'Popular' }, { id: 'newest', label: 'Newest' }] as opt}
-						<button
-							onclick={() => {
-								community.sort = opt.id as 'popular' | 'newest';
-							}}
-							class="rounded-full px-3 py-1 text-xs font-medium transition-colors
-								{community.sort === opt.id
-									? 'bg-[var(--color-accent)] text-white'
-									: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'}"
-						>
-							{opt.label}
-						</button>
-					{/each}
-				</div>
-			</div>
-		</div>
-
-		<!-- Lick grid -->
-		{#if loadError}
-			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-8 text-center">
-				<p class="italic text-[var(--color-error-text)]">{loadError}</p>
-			</div>
-		{:else if licks.length > 0}
-			<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-				{#each licks as clk (clk.phrase.id)}
-					<CommunityLickCard
-						lick={clk}
-						isOwnLick={clk.authorId === user?.id}
-						onclick={() => handleCardClick(clk)}
-						onplay={() => handlePlay(clk.phrase)}
-						onfavorite={() => handleFavorite(clk)}
-						onsteal={() => handleSteal(clk)}
-						onreturn={() => handleReturn(clk)}
-						isPlaying={playingId === clk.phrase.id}
-					/>
-				{/each}
-			</div>
-
-			{#if hasMore}
-				<div class="flex justify-center pt-2">
-					<button
-						onclick={loadMore}
-						disabled={loading}
-						class="rounded-full bg-[var(--color-bg-tertiary)] px-4 py-1.5 text-sm hover:bg-[var(--color-bg-secondary)] transition-colors disabled:opacity-50"
-					>
-						{loading ? 'Loading…' : 'Load more'}
-					</button>
+			{#if showFilters}
+				<div class="advanced" id="community-filters">
+					<label><span class="studio-label">Author</span><input type="search" placeholder="any author" bind:value={authorInput} oninput={(e) => handleAuthorInput(e.currentTarget.value)} /></label>
+					<label><span class="studio-label">Max difficulty</span><select bind:value={community.difficultyFilter}><option value={null}>Any difficulty</option>{#each [20, 40, 60, 80, 100] as level}<option value={level}>1–{level}</option>{/each}</select></label>
+					<button class="reset" onclick={resetFilters}>Reset filters</button>
 				</div>
 			{/if}
-		{:else if loading}
-			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-8 text-center">
-				<p class="italic text-[var(--color-text-secondary)]">Loading…</p>
-			</div>
-		{:else if community.searchQuery.trim() || community.authorQuery.trim() || community.categoryFilter !== null || community.difficultyFilter !== null}
-			<!-- No-results state (search/filter miss) -->
-			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-8 text-center">
-				<p class="italic text-[var(--color-text-secondary)]">No licks match your search or filters.</p>
-			</div>
-		{:else}
-			<!-- Empty state -->
-			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-8 text-center space-y-3">
-				<p class="italic text-[var(--color-text-secondary)]">
-					The Community library is just getting started.
-				</p>
-				<p class="text-sm text-[var(--color-text-secondary)]">
-					Record or write a lick of your own to kick things off — other players will be able to steal it from here.
-				</p>
-				<div class="flex justify-center gap-2 pt-2">
-					<a
-						href="/licks/record"
-						class="rounded-full bg-[var(--color-accent)] px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)]"
-					>
-						Record a lick
-					</a>
-					<a
-						href="/licks/editor"
-						class="rounded-full border border-[var(--color-accent)] px-4 py-1.5 text-sm font-medium text-[var(--color-accent)] hover:bg-[var(--color-accent)] hover:text-white transition-colors"
-					>
-						Write a lick
-					</a>
+			{#if audition.state.error || actionError}<p class="error" role="alert">{audition.state.error || actionError}</p>{/if}
+			{#if licks.length && selectedLick}
+				<div class="community-desk">
+					<div class="index">
+						<div class="dense-list" role="group" aria-label="Choose a lick">
+							{#each licks as lick, i (lick.phrase.id)}
+								<button class="dense-row" class:selected={lick.phrase.id === selectedLick.phrase.id}
+									aria-pressed={lick.phrase.id === selectedLick.phrase.id} onclick={() => selectLick(lick)}
+									aria-label="{lick.phrase.name} by {lick.authorName ?? 'anonymous'}">
+									<span class="row-index" aria-hidden="true">{String(i + 1).padStart(2, '0')}</span>
+									<span class="row-copy"><span class="row-title" title={lick.phrase.name}>{lick.phrase.name}</span><span class="row-subline"><span class="author" title={lick.authorName ?? 'anonymous'}>by {lick.authorName ?? 'anonymous'}</span><CommunityProgression phrase={lick.phrase} /></span></span>
+									<span class="chevron" aria-hidden="true">›</span>
+								</button>
+							{/each}
+						</div>
+						{#if hasMore}<button class="load-more" onclick={loadMore} disabled={loading}>{loading ? 'Loading…' : 'Load more'}</button>{/if}
+					</div>
+					<CommunityListeningDesk lick={selectedLick} isPlaying={playingId === selectedLick.phrase.id}
+						favoritePending={pendingFavorites.includes(selectedLick.phrase.id)} bookPending={pendingBook.includes(selectedLick.phrase.id)}
+						onplay={() => handlePlay(selectedLick.phrase)} onfavorite={() => handleFavorite(selectedLick)} onbook={() => handleBook(selectedLick)} />
 				</div>
-			</div>
+			{:else if loading}
+				<div class="empty-state" aria-busy="true"><p>Loading the collection…</p></div>
+			{:else if !loadError && hasFilters}
+				<div class="empty-state"><p>No licks match your search or filters.</p><button class="studio-action" onclick={resetFilters}>Reset filters</button></div>
+			{:else if !loadError}
+				<div class="empty-state"><p>The Community library is just getting started.</p><p>Share a phrase of your own to kick things off.</p><a class="studio-action" href="/licks/add">+ Add a lick</a></div>
+			{/if}
+			{#if loadError}<div class="empty-state"><p class="error" role="alert">{loadError}</p><button class="studio-action" onclick={() => licks.length ? loadMore() : reloadVersion++}>Try again</button></div>{/if}
 		{/if}
-	{/if}
-</div>
+	</StudioPanel>
+</StudioPage>
+
+<style>
+	.searchbar { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 16px; }
+	label { display: grid; gap: 8px; min-width: 0; }
+	input, select { width: 100%; min-height: 42px; padding: 9px 12px; border: 1px solid var(--studio-border); border-radius: 3px; background: var(--studio-well); color: var(--studio-text); font-size: 12px; box-shadow: inset 0 1px 3px #0002; }
+	input::placeholder { color: var(--studio-muted); }
+	.toolbar { display: flex; align-items: center; gap: 16px; padding: 12px 0 18px; border-bottom: 1px solid color-mix(in srgb, var(--studio-border) 45%, transparent); color: var(--studio-muted); font-size: 12px; }
+	.toolbar select { margin-left: auto; width: auto; min-height: 36px; }
+	.filter-button, .reset { min-height: 44px; padding: 8px; font-size: 12px; }
+	.advanced { display: flex; align-items: end; flex-wrap: wrap; gap: 16px; padding: 18px 0; border-bottom: 1px solid var(--studio-border); }
+	.advanced label { flex: 1; min-width: 140px; }
+	.community-desk { display: grid; grid-template-columns: 350px minmax(0, 1fr); align-items: start; gap: 24px; padding-top: 24px; }
+	.index { min-width: 0; }
+	.dense-list { max-height: 608px; overflow-y: auto; scrollbar-width: thin; border: 1px solid color-mix(in srgb, var(--studio-border) 50%, transparent); border-radius: 4px; }
+	.dense-row { display: flex; align-items: center; gap: 12px; width: 100%; height: 76px; padding: 14px 12px; text-align: left; border-bottom: 1px solid color-mix(in srgb, var(--studio-border) 30%, transparent); background: color-mix(in srgb, var(--studio-well) 18%, transparent); }
+	.dense-row:last-child { border-bottom: 0; }
+	.dense-row:hover { background: color-mix(in srgb, var(--studio-button) 20%, transparent); }
+	.dense-row.selected { background: color-mix(in srgb, var(--studio-button) 28%, transparent); box-shadow: inset 3px 0 var(--color-brass-soft); }
+	.row-index { color: var(--studio-muted); font: 9px monospace; }
+	.row-copy { flex: 1; min-width: 0; }
+	.row-title { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font: 500 15px/1.3 var(--font-display); }
+	.row-subline { display: flex; align-items: center; gap: 8px; min-width: 0; margin-top: 7px; }
+	.author { font-size: 10px; color: var(--studio-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 48%; }
+	.row-subline :global(.progression) { font-size: 9px; }
+	.chevron { color: var(--color-brass-soft); }
+	.load-more { display: block; min-height: 44px; margin: 14px auto 0; font-size: 12px; color: var(--studio-accent-text); }
+	.empty-state { display: grid; justify-items: center; align-content: center; gap: 18px; padding: 50px 20px; min-height: 260px; text-align: center; color: var(--studio-muted); }
+	.error { margin-top: 16px; color: var(--color-error-text); }
+	@media (max-width: 1200px) { .community-desk { grid-template-columns: 300px minmax(0, 1fr); gap: 18px; } }
+	@media (max-width: 850px) { .community-desk { grid-template-columns: 1fr; } .dense-list { display: flex; overflow-x: auto; } .dense-row { flex: 0 0 290px; border-bottom: 0; border-right: 1px solid var(--studio-border); } .row-index { display: none; } }
+	@media (max-width: 600px) { .searchbar { grid-template-columns: 1fr; } .toolbar { gap: 10px; font-size: 11px; } }
+</style>

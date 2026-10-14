@@ -398,7 +398,7 @@ its tonality section is ear-training and its practice link is lick-practice.
 
 Home/landing, Sign in, Settings, Ear Training, Progress, Scales, Lick Practice setup,
 the running Lick Practice session (`/lick-practice/session`), Licks, Add Licks (`/licks/add`), the Lick Editor
-(`/licks/editor`) and Tunes opt into
+(`/licks/editor`), Community Licks (`/licks/community`) and Tunes opt into
 the layout's 1440px Studio Desk container. Other nested detail, editor, import and
 session routes retain their existing width and presentation. The setup summary
 moves below the controls on tablet/mobile; instrument and scale banks reflow
@@ -553,3 +553,22 @@ Experimental. The two linked bays retain `/licks/editor` and `/licks/record`,
 with the existing descriptions and decorative keyboard/microphone illustrations.
 They stack below 600px and use the shared dark/light surfaces, focus treatment
 and page shell. The global navigation and the editor/recorder behavior are unchanged.
+
+
+### Community Licks listening desk
+
+`/licks/community` shares the My Licks `StudioPage` and numbered `StudioPanel`.
+Its compact index selects one phrase for a stable, dark reading desk rather than
+expanding cards. Each 76px row shows a title, author and subtly tinted harmonic
+category. `CommunityProgression` uses the shared progression palette; community
+phrases use their declared category because they do not yet have the reader's
+personal practice tags. Generic styles retain the neutral brass treatment.
+
+The full score uses the existing `NotationDisplay` and lead-sheet adapter, with
+two measures per staff and no phrase truncation. The desk reserves score space so
+switching between two- and four-measure phrases does not move the action row.
+On phones the index scrolls horizontally and dense notation scrolls within its
+own region. Key and length metadata and length filters are omitted. Search,
+style, author, difficulty, sorting, favorites and book membership use the existing
+community services. Selecting another phrase or changing filters cancels the
+current audition; the details link preserves access to the existing lick route.

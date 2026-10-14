@@ -80,6 +80,24 @@ describe('lick preview lifetime (MANKUNKU-1W)', () => {
 		expect(mocks.playPhrase).not.toHaveBeenCalled();
 	});
 
+	it('stopping for a new desk selection cancels setup and still permits another audition', async () => {
+		const loaded = deferred();
+		const entered = deferred();
+		mocks.loadInstrument.mockImplementationOnce(() => { entered.resolve(); return loaded.promise; });
+		const { createLickAudition } = await import('$lib/state/lick-audition.svelte');
+		const audition = createLickAudition();
+		const pending = audition.play(firstLick);
+		await entered.promise;
+		audition.stop();
+		loaded.resolve();
+		await pending;
+		expect(audition.state.playingId).toBeNull();
+		expect(mocks.playPhrase).not.toHaveBeenCalled();
+		await audition.play(secondLick);
+		expect(mocks.playPhrase).toHaveBeenCalledOnce();
+		expect(mocks.playPhrase.mock.calls[0][0]).toBe(secondLick);
+	});
+
 	it('a second click on the loading lick cancels instead of starting another load', async () => {
 		const loaded = deferred();
 		const entered = deferred();

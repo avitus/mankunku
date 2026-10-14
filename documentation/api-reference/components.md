@@ -217,11 +217,24 @@ Shows: name, optional author attribution, the category pill tinted in the identi
 
 > **Related color helpers.** `difficultyColor()`/`masteryDisplay()` (`src/lib/difficulty/display.ts`) return theme-aware `var(--difficulty-N)` / `var(--mastery-N)` tokens for *how hard* / *how mastered*. For **performance scores** (poor → perfect) use `accuracyTier(score01)` (`src/lib/ui/score-colors.ts`), which returns the discrete medal tier (`var(--accuracy-*)`) — used by grade readouts, the lick key ring, per-key report chips, and per-note pitch/rhythm. See the Accuracy medal scale in `documentation/architecture/design-system.md`.
 
+### `CommunityListeningDesk.svelte`
+
+**Path:** `src/lib/components/licks/CommunityListeningDesk.svelte`
+
+Selected community phrase, author, favorite count, dark complete score and
+Listen / Add to My Licks actions. Uses `NotationDisplay` with the user's written
+instrument pitch and a two-measure staff layout. `lick`, `isPlaying`,
+`favoritePending`, `bookPending`, `onplay`, `onfavorite`, and `onbook` are owned by
+the browse route. A details link opens the existing `/licks/[id]` page.
+
+`CommunityProgression.svelte` accepts a `phrase` and shares the My Licks progression
+color tokens, using the public phrase category instead of personal practice tags.
+
 ### `CommunityLickCard.svelte`
 
 **Path:** `src/lib/components/licks/CommunityLickCard.svelte`
 
-Browse card for `/licks/community`.
+Legacy community browse card. The `/licks/community` route now uses `CommunityListeningDesk` with a compact selection index.
 
 | Prop | Type | Description |
 |---|---|---|

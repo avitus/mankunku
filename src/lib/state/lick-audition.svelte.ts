@@ -49,14 +49,19 @@ export function createLickAudition() {
 		}
 	}
 
-	/** Invalidate unfinished work before the next route can take over the player. */
-	function dispose(): void {
-		disposed = true;
+	/** Cancel the current preview while leaving the page ready for another selection. */
+	function stop(): void {
 		generation++;
 		const active = state.playingId !== null;
 		state.playingId = null;
 		if (active && player) void player.stopPlayback().catch(captureException);
 	}
 
-	return { state, play, dispose };
+	/** Invalidate unfinished work before the next route can take over the player. */
+	function dispose(): void {
+		disposed = true;
+		stop();
+	}
+
+	return { state, play, stop, dispose };
 }

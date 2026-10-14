@@ -34,12 +34,9 @@ test.describe('community — authed browse', () => {
 	}) => {
 		await signedInPage.goto('/licks/community');
 
-		// The session-gated branch unlocks: search input, Popular/Newest sort,
-		// "All" category chip. The anonymous "Sign in" gate should be gone.
-		await expect(signedInPage.getByPlaceholder(/find a lick/i)).toBeVisible();
-		await expect(signedInPage.getByRole('button', { name: /^popular$/i })).toBeVisible();
-		await expect(signedInPage.getByRole('button', { name: /^newest$/i })).toBeVisible();
-		await expect(signedInPage.getByRole('button', { name: /^all$/i }).first()).toBeVisible();
+		await expect(signedInPage.getByRole('searchbox', { name: 'Search licks' })).toBeVisible();
+		await expect(signedInPage.getByRole('combobox', { name: 'Sort licks' })).toHaveValue('popular');
+		await expect(signedInPage.getByRole('combobox', { name: 'Progression or style' })).toBeVisible();
 		await expect(signedInPage.getByRole('link', { name: /sign in/i })).toHaveCount(0);
 
 		// The stubbed empty cloud resolves to the library's empty state — not a

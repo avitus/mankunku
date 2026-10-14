@@ -5145,3 +5145,12 @@ CodeRabbit reviewed 24 files with no actionable comments and every
 pre-merge check passed (docstring coverage 87.5%). Merge 1513bf4f ran test →
 build → db-migrate, e2e, deploy all green; /api/health on
 mankunkujazz.com reports 1513bf4f, release 20261011-235211-1513bf4.
+
+## 2026-10-14 — Community Licks listening desk
+
+- Ported the selected MagicPath Listening Desk (component `461167035594973184`, revision `461169064212062208`) to native Svelte on `/licks/community`, using the My Licks StudioPage/StudioPanel shell and shared progression palette.
+- Added a compact 76px selection index and one dark, complete notation panel. Removed key/length metadata; wrapped full phrases at two measures per staff with stable action alignment, including 32 eighth notes. Phone layouts scroll the index and notation within their own regions.
+- Preserved corpus search/category/author/difficulty/sort, favorites, book add/remove, attribution, auth gating and detail navigation. Selection/filter changes cancel the current audition. Late load-more results cannot reinsert a prior filter's rows; async mutations reconcile by lick ID.
+- Integrated advancing dev commit `16b81f88` (new steals ready for practice) before final validation.
+- Validation: `npm run check` has zero errors/warnings; 90 focused unit/integration tests pass; 42 Playwright tests pass across Chromium, Firefox and WebKit, including phone dark/light, dense notation, book persistence, filters and a delayed-pagination race. The production build passes with the existing chunk-size warning. A deliberate stop-generation mutation made its regression test fail before restoration.
+- Final validation timings: check + unit/integration run 12.50s, production build + browser suite 27.80s, run concurrently. Direct `origin/dev` delivery only; no PR or production deployment.

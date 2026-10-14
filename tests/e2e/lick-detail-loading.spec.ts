@@ -37,7 +37,7 @@ for (const entry of ['community', 'direct', 'missing'] as const) {
 		try {
 			if (entry === 'community') {
 				await page.goto('/licks/community');
-				await page.getByRole('button', { name: new RegExp(`^${row.name} by`) }).click();
+				await page.getByRole('link', { name: 'View lick details' }).click();
 			} else {
 				const response = await page.goto(`/licks/${row.id}`);
 				// The server cannot resolve user licks: its initial HTML must wait too.
