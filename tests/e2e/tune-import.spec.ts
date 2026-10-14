@@ -54,12 +54,12 @@ test('iReal review flow opens the imported form in the editor', async ({ page })
 	// Draft mode (create, not update) with the imported content hydrated.
 	await expect(page.getByRole('heading', { name: 'Tune Editor' })).toBeVisible();
 	await expect(page.getByRole('textbox', { name: 'Tune title' })).toHaveValue('Imported Blues');
-	await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Save tune', exact: true })).toBeVisible();
 	// The imported changes render in the preview (written pitch: F7 → G7).
 	await expect(page.locator('.abcjs-container svg text').filter({ hasText: 'G7' }).first()).toBeVisible();
 
 	// Saving lands on a fresh sheet detail.
-	await page.getByRole('button', { name: 'Save', exact: true }).click();
+	await page.getByRole('button', { name: 'Save tune', exact: true }).click();
 	await page.waitForURL('**/tunes/imported-blues');
 	await expect(page.getByRole('heading', { name: 'Imported Blues' })).toBeVisible();
 });

@@ -260,7 +260,7 @@ test('the editor bar hit rect for the stacked [2] bar sits under its music, not 
 	page
 }) => {
 	await page.goto(`/tunes/editor?edit=${A_TRAIN_ID}`);
-	await expect(page.getByRole('heading', { name: 'Edit Tune' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Tune editor', exact: true })).toBeVisible();
 	// A(7) + [1](1) + [2](1) + B + A: the second ending is section 2.
 	await expect(page.locator('rect.bar-hit[data-bar-pos="2:0"]')).toBeVisible();
 	await expect.poll(async () => page.locator('g.abcjs-ending-align').count()).toBeGreaterThan(0);
