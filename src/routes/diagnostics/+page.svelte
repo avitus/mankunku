@@ -21,6 +21,7 @@
 	import type { DetectedNote } from '$lib/types/audio';
 	import type { PitchClass } from '$lib/types/music';
 	import { page } from '$app/state';
+	import NoteComparison from '$lib/components/practice/NoteComparison.svelte';
 
 	const supabase = $derived(page.data?.supabase ?? null);
 	const user = $derived(page.data?.user ?? null);
@@ -712,6 +713,14 @@
 
 							{#if downloadError}
 								<p class="text-xs text-[var(--color-error-text)]">Download failed: {downloadError}</p>
+							{/if}
+
+							{#if md?.score?.timing}
+								<section aria-label="Saved timing diagnostics" class="space-y-2">
+									<h3 class="text-sm font-semibold">Saved timing diagnostics</h3>
+									<p class="text-xs text-[var(--color-text-secondary)]">From the original score; note names are concert pitch. Offsets and bias are measured after the median correction; positive is late, negative is early. The correction includes reaction and detection delay, not just microphone latency.</p>
+									<NoteComparison noteResults={md.score.noteResults} timing={md.score.timing} diagnostic />
+								</section>
 							{/if}
 
 							<!-- Replay panel -->

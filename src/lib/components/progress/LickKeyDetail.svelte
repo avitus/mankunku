@@ -23,6 +23,7 @@
 
 	let loading = $state(true);
 	let score: Score | null = $state(null);
+	let tempo: number | undefined = $state(undefined);
 
 	const pct = (n: number): number => Math.round(n * 100);
 
@@ -45,13 +46,17 @@
 		let cancelled = false;
 		loading = true;
 		score = null;
+		tempo = undefined;
 		void (async (): Promise<void> => {
 			try {
 				const { getRecordingFull } = await import('$lib/persistence/audio-store');
 				const record = await getRecordingFull(recordingId);
 				if (cancelled) return;
 				const persisted = record?.metadata?.score ?? null;
-				if (persisted) score = persisted;
+				if (persisted) {
+					score = persisted;
+					tempo = record?.metadata?.tempo;
+				}
 				else onmissing?.();
 			} catch {
 				if (!cancelled) onmissing?.();
@@ -120,6 +125,7 @@
 			{harmony}
 			{displayMode}
 			timing={score.timing}
+			{tempo}
 		/>
 	{:else}
 		<div class="text-center text-xs italic text-[var(--color-text-secondary)]">

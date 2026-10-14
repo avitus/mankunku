@@ -158,7 +158,7 @@ Post-attempt scoring feedback with grade display and action buttons.
 2. A liner-note caption (`getGradeCaption`), re-rolled on every new score even when the grade repeats
 3. Overall percentage and notes hit (e.g. "6/8 notes hit")
 4. Pitch/Rhythm breakdown with progress bars
-5. `NoteComparison` grid (with the score's timing diagnostics)
+5. `NoteComparison` grid (musical timing feedback is available when the original take tempo is supplied)
 6. "Try Again" and "Next Phrase" buttons
 
 ### `NoteComparison.svelte`
@@ -175,9 +175,11 @@ Per-note comparison grid showing expected vs played notes.
 | `harmony` | `HarmonicSegment[]?` | The phrase's harmony (concert pitch) so each note is spelled against the chord that governed it — exactly what the chart showed. The progress page re-resolves it (`findPhraseForSession` for ear-training rows, the lick transposed to the key for lick-practice rows). |
 | `displayScaleId` | `string?` | Fallback frame when no chord governs a note: the session's scale (e.g. `'blues.minor'`) rooted at `displayKey`. Without either, a key with no signature spells every black key sharp — a written-C blues listed its b7 as A#. |
 | `displayMode` | `Mode?` | Major/minor reading of `displayKey` (the progression's mode for lick-practice rows, the re-resolved phrase's `lickMode` for ear-training rows); a minor session's notes are spelled against its relative major's signature. Default `'major'`. |
-| `timing` | `TimingDiagnostics?` | Timing diagnostics from the scorer; drives the Offset column and footer |
+| `timing` | `TimingDiagnostics?` | Original timing measurements; numbers appear only in diagnostic mode |
+| `tempo` | `number?` | Original take tempo for independent timing feedback; absent tempo or timing yields no verdict |
+| `diagnostic` | `boolean?` | Defaults to `false`. `/diagnostics` opts in to the numeric Offset column and timing footer. |
 
-Filters out extra notes (only shows matched and missed). Columns: index, expected note name, played note name (colored by accuracy), pitch %, rhythm %, and per-note timing offset in ms (colored by lateness/earliness). Names go through the shared enharmonic policy (`spellingContextAt` + `resolveUseFlats` in `music/notation.ts`); a played note is read against the chord of the expected note it answered. When `timing` is present, a footer below the grid also shows overall bias, spread, and latency correction.
+Filters out extra notes (only shows matched and missed). Default columns: index, expected note name, played note name (colored by accuracy), pitch %, and rhythm %. Musical feedback reads the change in saved per-note timing, independently of grades and percentages. A robust trend identifies Rushing or Dragging; inconsistent timing reads Uneven time; consistent spacing reads Steady pulse. It requires at least four reliable pitch-matched notes spanning two beats and 75% of the line. A direction requires 75% pairwise agreement and at least 0.2 beats (and 60 ms) of drift. Feedback thresholds do not affect scoring. Missing or unreliable evidence yields no verdict. Constant offsets cannot establish placement against the audible beat, so Laying back and Pushing the beat are withheld until an independent calibrated reference exists. Names go through the shared enharmonic policy (`spellingContextAt` + `resolveUseFlats` in `music/notation.ts`); a played note is read against the chord of the expected note it answered. In diagnostic mode, the grid adds per-note offsets and a footer with bias, spread, and latency correction. Offsets retain their original result indices when extras are hidden. `/diagnostics` shows this original saved score separately from the current detector replay; scoring, persistence, and the JSON export remain unchanged.
 
 ### `ScoreStrip.svelte`
 

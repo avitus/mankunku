@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { test, expect } from './fixtures/test';
-import { seedOnboardedAnonymous } from './fixtures/storage';
+import { seedOnboardedAnonymous, seedStorage, SETTINGS_ONBOARDED, TOUR_DISMISSED } from './fixtures/storage';
 
 /** Length of the synthesized take the replay test seeds. */
 const BLOB_SECONDS = 3.5;
@@ -329,4 +329,87 @@ test.describe('diagnostics', () => {
 		expect(a.gridError!.seconds).toBeCloseTo(0.1 - a.blobStart!.blobStartOffset, 9);
 		expect(a.gridError!.modBeat).toBeCloseTo(0.334, 1);
 	});
+});
+
+test('shows musical rhythm feedback in progress and keeps saved timing in diagnostics', async ({ page, browserName }, testInfo) => {
+	test.skip(browserName === 'webkit', 'WebKit cannot store a Blob in ephemeral IndexedDB');
+	const timing = { meanOffsetMs: 12, medianOffsetMs: 0, stdDevMs: 30, latencyCorrectionMs: 250, perNoteOffsetMs: [0, 12, -12, 48] };
+	const noteResults = Array.from({ length: 4 }, (_, i) => ({
+		expected: { pitch: 60, offset: [i, 4], duration: [1, 4] },
+		detected: { midi: 60, cents: 0, onsetTime: i * .5, duration: .5, clarity: 1 },
+		pitchScore: 1, rhythmScore: 1, missed: false, extra: false
+	}));
+	const score = { overall: 1, pitchAccuracy: 1, rhythmAccuracy: 1, grade: 'perfect', notesHit: 4, notesTotal: 4, noteResults, timing };
+	const saved = { id: 'rhythm-feedback', timestamp: Date.now(), phraseId: 'timing-fixture', phraseName: 'Timing test line', category: 'scale', key: 'C', scaleType: 'major', source: 'ear-training', tempo: 120, difficultyLevel: 1, ...score };
+	await seedStorage(page, {
+		settings: SETTINGS_ONBOARDED, 'tour-state': TOUR_DISMISSED,
+		progress: { sessions: [saved,
+			{ ...saved, id: 'rushing', phraseName: 'Rushing test line', timing: { ...timing, perNoteOffsetMs: [150, 50, -50, -150] } },
+			{ ...saved, id: 'dragging', phraseName: 'Dragging test line', timing: { ...timing, perNoteOffsetMs: [-150, -50, 50, 150] } },
+			{ ...saved, id: 'legacy', phraseName: 'Legacy test line', timing: undefined }
+		], scaleProficiency: {} }
+	});
+	await page.goto('/progress');
+	await page.getByRole('tab', { name: 'Sessions', exact: true }).click();
+	await page.getByRole('button', { name: /Timing test line/ }).click();
+	await expect(page.getByText('Steady pulse.')).toBeVisible();
+	await expect(page.getByText('Offset', { exact: true })).toHaveCount(0);
+	await expect(page.getByText(/Latency correction:/)).toHaveCount(0);
+	for (const width of [1280, 390]) {
+		await page.setViewportSize({ width, height: 1000 });
+		await expect(page.getByText('Steady pulse.')).toBeVisible();
+		expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+		await page.screenshot({ path: testInfo.outputPath(`rhythm-feedback-${width}.png`), fullPage: true });
+	}
+
+	for (const [name, cue] of [['Rushing test line', 'Rushing. Leave more space between the notes.'], ['Dragging test line', 'Dragging. Keep the line moving.'], ['Legacy test line', null]] as const) {
+		await page.getByRole('button', { name: new RegExp(name) }).click();
+		const feedback = page.getByTestId('musical-timing-feedback');
+		if (cue) await expect(feedback).toHaveText(cue);
+		else await expect(feedback).toHaveCount(0);
+	}
+	const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('mankunku:progress')!).sessions);
+	for (const result of stored) {
+		expect(result.overall).toBe(1);
+		expect(result.rhythmAccuracy).toBe(1);
+		expect(result.grade).toBe('perfect');
+	}
+
+	await page.goto('/diagnostics');
+	await expect(page.getByText('showing 0 recordings')).toBeVisible();
+	await page.evaluate(async ({ score, wav }) => {
+		const db = await new Promise<IDBDatabase>((resolve, reject) => {
+			const req = indexedDB.open('mankunku-audio:anon', 1);
+			req.onupgradeneeded = () => req.result.createObjectStore('recordings', { keyPath: 'sessionId' });
+			req.onsuccess = () => resolve(req.result);
+			req.onerror = () => reject(req.error);
+		});
+		try {
+			const tx = db.transaction('recordings', 'readwrite');
+			tx.objectStore('recordings').put({
+				sessionId: 'rhythm-feedback', timestamp: Date.now(),
+				blob: new Blob([Uint8Array.from(atob(wav), (c) => c.charCodeAt(0))], { type: 'audio/wav' }),
+				metadata: { phraseId: 'timing-fixture', phraseName: 'Timing test line', source: 'ear-training', tempo: 120, key: 'C', swing: .5, score, detectedNotes: [], backingTrackLog: null, bleedFilterLog: null }
+			});
+			await new Promise<void>((resolve, reject) => {
+				tx.oncomplete = () => resolve();
+				tx.onerror = () => reject(tx.error);
+			});
+		} finally { db.close(); }
+	}, { score, wav: wavBase64([[261.63, 2]]) });
+	await page.getByRole('button', { name: 'Refresh' }).click();
+	await page.getByRole('button', { name: /Timing test line/ }).click();
+	const diagnostics = page.getByRole('region', { name: 'Saved timing diagnostics' });
+	await expect(diagnostics).toContainText('Bias: +12ms');
+	await expect(diagnostics).toContainText('Spread: 30ms');
+	await expect(diagnostics).toContainText('Latency correction: +250ms');
+	await expect(diagnostics.getByText('Offset', { exact: true })).toBeVisible();
+	await expect(diagnostics.getByText('+48ms', { exact: true })).toBeVisible();
+	await expect(diagnostics).not.toContainText('Steady pulse.');
+	const [download] = await Promise.all([
+		page.waitForEvent('download'),
+		page.getByRole('button', { name: 'Download diagnostics' }).click()
+	]);
+	const exported = JSON.parse(readFileSync(await download.path(), 'utf8'));
+	expect(exported.scoring.savedScore).toEqual(score);
 });
