@@ -63,6 +63,8 @@ The screen is intentionally almost empty:
 
 There's no pitch meter or input-level meter on this page — or anywhere else in the practice rooms. If you want to see what the detector heard on a take — the notes it segmented, their clarity, the onsets — the diagnostics page (`/diagnostics`, not linked from the nav) replays your saved recordings through the current detector.
 
+Session details under **Progress → Sessions** include separate musical timing feedback when there is enough evidence: **Rushing** when you gain time through the phrase, **Dragging** when you lose time, **Uneven time** when note placement varies, or **Steady pulse** when the spacing stays consistent. This feedback does not change your score. A steady pulse can still sit ahead of or behind the beat; the saved timing cannot distinguish that placement from device delay, so **Laying back** and **Pushing the beat** are not yet assigned. Timing measurements (per-note offsets, bias, spread, and latency correction) remain available with saved recordings on `/diagnostics` and in its JSON download. These describe the original score; the detector replay is separate.
+
 ### Scale-aware filtering
 
 Not every lick fits every scale. A 7-note major lick squashed into a 5-note pentatonic session would lose two of its notes and stop sounding like itself, so the app filters: in a pentatonic session you only hear pentatonic licks; in a Lydian session, Lydian-compatible ones; and so on (the full table is in [The Daily Key](./architecture/tonality-system.md#scale-aware-lick-filtering)). The note count for the active scale shows up in the header (e.g. "5 notes" for pentatonic, "7 notes" for major) so you know what palette you're drawing from.
@@ -297,7 +299,9 @@ The Progress page is the back cover. It tells you what's been happening over tim
 - **By Key** — your average ear-training score and attempt count in each key, so you can see which keys still need work.
 - A small **Reset Progress** link at the foot — the same full reset as in Settings, with a confirmation.
 
-**Sessions** has two sub-tabs. *Ear Training* lists your recent takes with grade, phrase, key, score and date; expand one for the pitch and rhythm split, notes hit, tempo, and the note-by-note comparison — what was written, what you played, each note's pitch and rhythm score and how early or late it landed, spelled the way the chart spelled it (a written-C blues lists Eb, Gb and Bb, not D#, F# and A#) — and play the saved recording back, or the lick itself. *Lick Practice* lists your Side B and trick sessions with their average, progression, mode, keys passed and length; expand one for every lick's key chips, and tap a chip to see that key's note-by-note detail when its recording was kept.
+**Sessions** has two sub-tabs. *Ear Training* lists your recent takes with grade, phrase, key, score and date; expand one for the pitch and rhythm split, notes hit, tempo, and the note-by-note comparison — what was written, what you played, each note's pitch and rhythm score, spelled the way the chart spelled it (a written-C blues lists Eb, Gb and Bb, not D#, F# and A#) — and play the saved recording back, or the lick itself. *Lick Practice* lists your Side B and trick sessions with their average, progression, mode, keys passed and length; expand one for every lick's key chips, and tap a chip to see that key's note-by-note detail when its recording was kept.
+
+Numeric timing offsets are available on the [Diagnostics page](/diagnostics).
 
 Tricks and Side B sessions count toward your streak and the calendar, but the Progress page has no per-trick view — that lives on each trick's own page.
 

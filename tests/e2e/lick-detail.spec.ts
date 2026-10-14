@@ -51,11 +51,12 @@ test.describe('lick detail page', () => {
 	}) => {
 		await page.goto(`/licks/${LICK_ID}`);
 		await expect(page.getByRole('heading', { name: 'Test Major Chord Line' })).toBeVisible();
-		await expect(page.getByText('Major Chord', { exact: true })).toBeVisible();
-		await expect(page.getByText('1 bar', { exact: true })).toBeVisible();
+		await expect(page.getByText('Major', { exact: true }).first()).toBeVisible();
+		await expect(page.getByText('1 bar', { exact: true })).toHaveCount(0);
 
 		// abcjs engraves the phrase (noteheads in the SVG), in written pitch.
 		await expect(page.locator('.abcjs-container svg .abcjs-notehead').first()).toBeVisible();
+		await expect(page.getByLabel('Play in')).toHaveValue('D');
 		await expect
 			.poll(() => page.locator('.abcjs-container svg .abcjs-notehead').count())
 			.toBeGreaterThanOrEqual(4);

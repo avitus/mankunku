@@ -60,6 +60,12 @@ const {
 const { createCloudState, mockSupabaseFromCloud, seed, peek } = await import(
 	'../helpers/cloud-sync-mocks'
 );
+const {
+	loadUserLickTags, getProgressionTags, getEffectivePracticeLickIds,
+	setPracticeTag, toggleProgressionTag, flushLickMetadataToCloud
+} = await import('$lib/persistence/lick-practice-store');
+const { PROGRESSION_TEMPLATES } = await import('$lib/data/progressions');
+const { pickProgressionForLick } = await import('$lib/state/lick-practice-picker');
 
 // ─── Fixture builder for user_licks rows ─────────────────────────────
 
@@ -96,6 +102,109 @@ function authorRow(id: string, name: string): Record<string, unknown> {
 // ---------------------------------------------------------------------------
 // Round-trip: steal → return
 // ---------------------------------------------------------------------------
+
+describe('new steals are ready for practice', () => {
+	it.each([
+		['major-chord', 'major-vamp'],
+		['minor-chord', 'minor-vamp'],
+		['dominant-chord', 'dominant-vamp'],
+		['blues', 'blues'],
+		['ii-V-I-major', 'ii-V-I-major']
+	])('selects %s for practice over only %s', async (category, expected) => {
+		const cloud = createCloudState();
+		seed(cloud, 'user_licks', [validLickRow({ category, tags: [] })]);
+		const sb = mockSupabaseFromCloud(cloud, { auth: { userId: 'me' } });
+		expect(await stealLick(sb as never, 'lick-1')).toBe(true);
+		const licks = getStolenLicksLocal();
+		expect(getEffectivePracticeLickIds(licks).has('lick-1')).toBe(true);
+		expect(getProgressionTags('lick-1')).toEqual([expected]);
+		expect(pickProgressionForLick({
+			lickId: 'lick-1', lick: licks[0],
+			progressionTags: getProgressionTags('lick-1'), sessionLog: []
+		})).toBe(expected);
+		// Practice preferences belong to the adopter, never the author's payload.
+		expect(licks[0].tags).toEqual([]);
+		expect(peek(cloud, 'user_licks')[0].tags).toEqual([]);
+		expect(JSON.parse(store['mankunku:outbox']).lickMeta).toBeDefined();
+		await flushLickMetadataToCloud(sb as never);
+		expect(peek(cloud, 'user_lick_metadata')[0].lick_tags).toEqual(loadUserLickTags());
+	});
+
+	it('chooses the long cadence when the actual harmony needs it', async () => {
+		const cloud = createCloudState();
+		seed(cloud, 'user_licks', [validLickRow({
+			category: 'ii-V-I-minor', tags: [],
+			notes: [{ pitch: 60, duration: [4, 1], offset: [0, 1] }],
+			harmony: PROGRESSION_TEMPLATES['ii-V-I-minor-long'].harmony,
+			difficulty: { level: 20, pitchComplexity: 20, rhythmComplexity: 20, lengthBars: 4 }
+		})]);
+		const sb = mockSupabaseFromCloud(cloud, { auth: { userId: 'me' } });
+		await stealLick(sb as never, 'lick-1');
+		expect(getProgressionTags('lick-1')).toEqual(['ii-V-I-minor-long']);
+	});
+
+	it('preserves prior choices, including deliberately cleared progressions', async () => {
+		const cloud = createCloudState();
+		seed(cloud, 'user_licks', [validLickRow({ tags: [] })]);
+		const sb = mockSupabaseFromCloud(cloud, { auth: { userId: 'me' } });
+		setPracticeTag('lick-1', false);
+		toggleProgressionTag('lick-1', 'ii-V-I-major-long');
+		const before = loadUserLickTags();
+		await stealLick(sb as never, 'lick-1');
+		expect(loadUserLickTags()).toEqual(before);
+		toggleProgressionTag('lick-1', 'ii-V-I-major-long');
+		await stealLick(sb as never, 'lick-1');
+		expect(loadUserLickTags()['lick-1']).toEqual(['practice:removed']);
+		await returnLick(sb as never, 'lick-1');
+		await stealLick(sb as never, 'lick-1');
+		expect(loadUserLickTags()['lick-1']).toEqual(['practice:removed']);
+	});
+
+	it('leaves an existing server adoption alone before its preferences hydrate', async () => {
+		const cloud = createCloudState();
+		seed(cloud, 'user_licks', [validLickRow({ tags: [] })]);
+		const sb = mockSupabaseFromCloud(cloud, {
+			auth: { userId: 'me' },
+			failures: (op) => op.kind === 'insert' && op.table === 'lick_adoptions'
+				? { message: 'duplicate adoption', code: '23505' } : null
+		});
+		expect(await stealLick(sb as never, 'lick-1')).toBe(true);
+		expect(loadUserLickTags()).toEqual({});
+	});
+
+	it('does not seed malformed payloads', async () => {
+		const cloud = createCloudState();
+		seed(cloud, 'user_licks', [validLickRow({ notes: [] })]);
+		const sb = mockSupabaseFromCloud(cloud, { auth: { userId: 'me' } });
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+		await stealLick(sb as never, 'lick-1');
+		warn.mockRestore();
+		expect(loadUserLickTags()).toEqual({});
+	});
+
+	it('does not seed into another account when scope changes during payload fetch', async () => {
+		const cloud = createCloudState();
+		seed(cloud, 'user_licks', [validLickRow({ tags: [] })]);
+		const sb = mockSupabaseFromCloud(cloud, {
+			auth: { userId: 'me' },
+			failures: (op) => {
+				if (op.kind === 'select' && op.table === 'user_licks') mockedScopeGeneration++;
+				return null;
+			}
+		});
+		expect(await stealLick(sb as never, 'lick-1')).toBe(false);
+		expect(loadUserLickTags()).toEqual({});
+		expect(getStolenLicksLocal()).toEqual([]);
+	});
+
+	it('does not guess a progression when no category-compatible template fits', async () => {
+		const cloud = createCloudState();
+		seed(cloud, 'user_licks', [validLickRow({ category: 'user', tags: [] })]);
+		const sb = mockSupabaseFromCloud(cloud, { auth: { userId: 'me' } });
+		await stealLick(sb as never, 'lick-1');
+		expect(loadUserLickTags()['lick-1']).toEqual(['practice']);
+	});
+});
 
 describe('steal → return round trip', () => {
 	it('steal populates all three local caches', async () => {

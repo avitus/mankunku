@@ -61,6 +61,16 @@ Without this split, a chord-quality `major-chord` lick with `pickupBars: 1` on l
 
 ## Fit: which progressions a lick may be played over
 
+New community steals are selected for practice automatically. For an adopter
+with no existing tag entry, `seedStolenLickPracticeDefaults` also selects one
+“Practice over” progression: the first category-compatible template that fits
+the lick's harmony and length. This prefers a matching chord vamp or the
+shortest fitting cadence. Defaults use the existing synced user metadata and
+leave the author's payload unchanged. Existing choices (including empty tag
+entries and explicit practice removal) survive repeat steals; hydration does
+not reapply defaults. If no compatible template exists, practice membership
+is still enabled but progression selection remains manual.
+
 Alignment says *where* a lick lands in a template; fit says *whether* it belongs there at all. `progressionFitsLick(lick, type)` (`data/progressions.ts`) is one pure rule applied in five places — the detail-page pills (greyed with `fitReasonLabel`; a tagged-but-unfit pill stays removable), `pickProgressionForLick` (skips unfit tags when given the lick), `getPracticeLicks` (read-time safety net), `updateLickCategory` seeding (`getProgressionsForLick` = the category's templates filtered by fit), and `pruneIncompatibleProgressionTags` on every successful hydrate — so a lick is never served over changes that don't resemble its own:
 
 - **Cadence categories with harmony** (ii-V-I / short ii-V / V-I, major and minor): every lick segment, re-rooted to C, must land on a template segment at the alignment offset with the same root and chord family; inner segments match duration exactly, the last may be shorter (or sit on the template's final segment, which the engine tail-extends). A 1|1|1-bar ii-V-i fits the long template only — on the short one the ½-bar ii and V are over by beat 4 while the lick is still on its ii; a ½|½|1 lick fits the short template (and the iii-VI-ii-V-I's second bar); nothing cadential fits a vamp or a blues.

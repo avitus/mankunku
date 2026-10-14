@@ -22,6 +22,13 @@ function repeatsSheet(): Tune {
 }
 
 describe('tuneToAbc — headers', () => {
+ it('can omit masthead layout without changing anchored music', () => {
+  const tune = { ...simpleSheet(), composer: 'Trad.', style: 'Swing' };
+  const ordinary = tuneToAbcWithMap(tune);
+  const desk = tuneToAbcWithMap(tune, undefined, { omitMasthead: true });
+  expect(desk.abc).not.toMatch(/^[TCR]:/m);
+  expect(desk.noteAnchors.map(a => desk.abc.slice(a.startChar, a.endChar))).toEqual(ordinary.noteAnchors.map(a => ordinary.abc.slice(a.startChar, a.endChar)));
+ });
 	it('emits a composer line when present', () => {
 		const abc = tuneToAbc({ ...simpleSheet(), composer: 'Trad.' });
 		expect(abc).toMatch(/^C:Trad\.$/m);

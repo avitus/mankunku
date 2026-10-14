@@ -20,7 +20,7 @@ const mockAdminAuth = {
 	}
 };
 const mockAdminStorage = { from: vi.fn() };
-const mockAdmin = { auth: mockAdminAuth, storage: mockAdminStorage, from: vi.fn() };
+const mockAdmin = { auth: mockAdminAuth, storage: mockAdminStorage, from: vi.fn(), rpc: vi.fn() };
 
 vi.mock('$lib/supabase/admin', () => ({
 	createAdminClient: () => mockAdmin
@@ -34,6 +34,7 @@ const TARGET_EMAIL = 'target@example.com';
 
 beforeEach(() => {
 	vi.clearAllMocks();
+	mockAdmin.rpc.mockResolvedValue({ data: "operation-1", error: null });
 	mockAdminStorage.from.mockReturnValue({
 		list: vi.fn().mockResolvedValue({ data: [], error: null }),
 		remove: vi.fn().mockResolvedValue({ error: null })
@@ -100,6 +101,27 @@ describe('/admin deleteUser action', () => {
 		expect(mockAdminAuth.admin.deleteUser).not.toHaveBeenCalled();
 	});
 
+	it('blocks adopted content before removing any uploads or the auth account', async () => {
+		mockAdmin.rpc.mockResolvedValue({ data: null, error: { code: '23503' } });
+		expect(await runDelete({ userId: TARGET_ID, confirm: TARGET_EMAIL })).toMatchObject({ status: 409 });
+		expect(mockAdminStorage.from).not.toHaveBeenCalled();
+		expect(mockAdminAuth.admin.deleteUser).not.toHaveBeenCalled();
+	});
+
+	it('fails closed when the safety check is unavailable', async () => {
+		mockAdmin.rpc.mockResolvedValue({ data: null, error: { code: 'PGRST202' } });
+		expect(await runDelete({ userId: TARGET_ID, confirm: TARGET_EMAIL })).toMatchObject({ status: 409 });
+		expect(mockAdminAuth.admin.deleteUser).not.toHaveBeenCalled();
+	});
+
+	it('keeps the account when upload cleanup fails', async () => {
+		mockAdminStorage.from.mockReturnValue({ list: vi.fn().mockResolvedValue({ data: null, error: { message: 'offline' } }) });
+		mockAdmin.rpc.mockImplementation(async (name: string) => name === 'admin_begin_user_deletion' ? { data: 'operation-1', error: null } : { error: { message: 'Account exists' } });
+		expect(await runDelete({ userId: TARGET_ID, confirm: TARGET_EMAIL })).toMatchObject({ status: 500 });
+		expect(mockAdminAuth.admin.deleteUser).not.toHaveBeenCalled();
+		expect(mockAdmin.rpc).toHaveBeenCalledWith('admin_finish_user_deletion', expect.anything());
+	});
+
 	it('rejects a wrong confirmation phrase server-side', async () => {
 		const result = await runDelete({ userId: TARGET_ID, confirm: 'not-the-email' });
 		expect(result).toMatchObject({ status: 400 });
@@ -121,7 +143,13 @@ describe('/admin deleteUser action', () => {
 
 		expect(mockAdminAuth.admin.getUserById).toHaveBeenCalledWith(TARGET_ID);
 		expect(mockAdminAuth.admin.deleteUser).toHaveBeenCalledWith(TARGET_ID);
-		expect(result).toEqual({ success: true, deletedUserId: TARGET_ID });
+		expect(result).toMatchObject({ success: true, deletedUserId: TARGET_ID });
+	});
+
+	it('reconciles a lost Auth response when the database confirms deletion completed', async () => {
+		mockAdminAuth.admin.deleteUser.mockRejectedValue(new Error('Connection lost'));
+		expect(await runDelete({ userId: TARGET_ID, confirm: TARGET_EMAIL })).toMatchObject({ success: true });
+		expect(mockAdmin.rpc).toHaveBeenCalledWith('admin_finish_user_deletion', { p_actor_id: ADMIN_ID, p_operation_id: 'operation-1' });
 	});
 
 	it('falls back to the user id as the phrase when the target has no email', async () => {
@@ -134,11 +162,12 @@ describe('/admin deleteUser action', () => {
 		expect(rejected).toMatchObject({ status: 400 });
 
 		const result = await runDelete({ userId: TARGET_ID, confirm: TARGET_ID });
-		expect(result).toEqual({ success: true, deletedUserId: TARGET_ID });
+		expect(result).toMatchObject({ success: true, deletedUserId: TARGET_ID });
 	});
 
 	it('fails 500 when the deletion itself fails', async () => {
 		mockAdminAuth.admin.deleteUser.mockResolvedValue({ error: { message: 'nope' } });
+		mockAdmin.rpc.mockImplementation(async (name: string) => name === 'admin_begin_user_deletion' ? { data: 'operation-1', error: null } : { error: { message: 'Account exists' } });
 		const result = await runDelete({ userId: TARGET_ID, confirm: TARGET_EMAIL });
 		expect(result).toMatchObject({ status: 500 });
 	});
@@ -151,7 +180,7 @@ const PER_PAGE = 1000;
 /** Thenable query-builder stub: select/is/order/range chain, resolves rows. */
 function makeQueryMock(rows: unknown[]): Record<string, unknown> {
 	const builder: Record<string, unknown> = {};
-	for (const method of ['select', 'is', 'order', 'range']) {
+	for (const method of ['select', 'is', 'order', 'range', 'limit', 'eq']) {
 		builder[method] = vi.fn().mockReturnValue(builder);
 	}
 	builder.then = (resolve: (value: { data: unknown[]; error: null }) => unknown) =>
@@ -239,5 +268,24 @@ describe('/admin load', () => {
 		expect(result.unavailable).toBe(true);
 		expect(result.users).toHaveLength(0);
 		expect(result.totals).toBeNull();
+	});
+});
+
+
+describe('/admin removeLick action', () => {
+	it('refuses non-admins before creating a privileged operation', async () => {
+		await expect(actions.removeLick({ locals: makeLocals(false), request: makeRequest({}) } as never)).rejects.toMatchObject({ status: 404 });
+		expect(mockAdmin.rpc).not.toHaveBeenCalled();
+	});
+	it('uses verified actor and database confirmation, never a posted actor', async () => {
+		const fields = { userId: TARGET_ID, lickId: 'lick-1', confirm: 'Bad lick', actorId: 'forged' };
+		const result = await actions.removeLick({ locals: makeLocals(true), request: makeRequest(fields) } as never);
+		expect(result).toMatchObject({ success: true });
+		expect(mockAdmin.rpc).toHaveBeenCalledWith('admin_remove_lick', { p_actor_id: ADMIN_ID, p_user_id: TARGET_ID, p_lick_id: 'lick-1', p_confirm: 'Bad lick' });
+	});
+	it('reports a concurrent adoption without declaring removal successful', async () => {
+		mockAdmin.rpc.mockResolvedValue({ error: { code: '23503' } });
+		const result = await actions.removeLick({ locals: makeLocals(true), request: makeRequest({ userId: TARGET_ID, lickId: 'lick-1', confirm: 'Bad lick' }) } as never);
+		expect(result).toMatchObject({ status: 409 });
 	});
 });

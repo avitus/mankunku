@@ -4,6 +4,7 @@
 	import { midiToDisplayName, resolveUseFlats, spellingContextAt } from '$lib/music/notation';
 	import { fractionToFloat } from '$lib/music/intervals';
 	import { accuracyTier } from '$lib/ui/score-colors';
+	import { rhythmFeedback } from '$lib/ui/rhythm-feedback';
 
 	interface Props {
 		noteResults: NoteResult[];
@@ -29,6 +30,10 @@
 		displayMode?: Mode;
 		/** Timing diagnostics from scorer */
 		timing?: TimingDiagnostics;
+		/** Original take tempo, used only for independent musical timing feedback. */
+		tempo?: number;
+		/** Technical measurements are opt-in, for the diagnostics page only. */
+		diagnostic?: boolean;
 	}
 
 	let {
@@ -38,7 +43,9 @@
 		harmony = null,
 		displayScaleId,
 		displayMode = 'major',
-		timing
+		timing,
+		tempo,
+		diagnostic = false
 	}: Props = $props();
 
 	/**
@@ -61,7 +68,10 @@
 	}
 
 	// Filter to only show matched and missed notes (not extras)
-	const displayResults = $derived(noteResults.filter((r) => !r.extra));
+	// Keep the original index: timing offsets include extras even though the
+	// comparison grid does not. Filtering first would shift later offsets.
+	const displayResults = $derived(noteResults.map((result, index) => ({ result, index })).filter(({ result }) => !result.extra));
+	const feedback = $derived(diagnostic ? null : rhythmFeedback(noteResults, timing, tempo));
 
 	// Per-note pitch/rhythm accuracy on the shared medal scale (a missed note
 	// reads as the lowest tier). Timing offset below keeps the success/warning/
@@ -89,14 +99,6 @@
 		return 'var(--color-error)';
 	}
 
-	const timingBiasLabel = $derived.by(() => {
-		if (!timing) return null;
-		const ms = timing.meanOffsetMs;
-		const abs = Math.abs(ms);
-		if (abs < 10) return 'On time';
-		return ms > 0 ? 'Consistently late' : 'Consistently early';
-	});
-
 	const timingBiasColor = $derived.by(() => {
 		if (!timing) return 'var(--color-text-secondary)';
 		const abs = Math.abs(timing.meanOffsetMs);
@@ -109,17 +111,17 @@
 {#if displayResults.length > 0}
 	<div class="space-y-1">
 		<div class="text-xs font-medium text-[var(--color-text-secondary)]">Note Comparison</div>
-		<div class="grid grid-cols-[auto_1fr_1fr_auto_auto_auto] gap-x-3 gap-y-0.5 text-xs">
+		<div class="grid gap-x-3 gap-y-0.5 text-xs" class:grid-cols-[auto_1fr_1fr_auto_auto_auto]={diagnostic} class:grid-cols-[auto_1fr_1fr_auto_auto]={!diagnostic}>
 			<!-- Header -->
 			<span class="text-[var(--color-text-secondary)]">#</span>
 			<span class="text-[var(--color-text-secondary)]">Expected</span>
 			<span class="text-[var(--color-text-secondary)]">Played</span>
 			<span class="text-right text-[var(--color-text-secondary)]">Pitch</span>
 			<span class="text-right text-[var(--color-text-secondary)]">Rhythm</span>
-			<span class="text-right text-[var(--color-text-secondary)]">Offset</span>
+			{#if diagnostic}<span class="text-right text-[var(--color-text-secondary)]">Offset</span>{/if}
 
-			{#each displayResults as result, i}
-				{@const offsetMs = timing?.perNoteOffsetMs[i] ?? null}
+			{#each displayResults as { result, index }, i}
+				{@const offsetMs = timing?.perNoteOffsetMs[index] ?? null}
 				<span class="tabular-nums text-[var(--color-text-secondary)]">{i + 1}</span>
 				<span class="font-mono">
 					{result.expected.pitch !== null ? displayNote(result.expected.pitch, result.expected.offset) : 'rest'}
@@ -140,21 +142,24 @@
 				>
 					{result.missed ? '0' : Math.round(result.rhythmScore * 100)}%
 				</span>
-				<span class="text-right tabular-nums font-mono" style="color: {offsetColor(offsetMs)}">
-					{result.missed ? '--' : formatOffset(offsetMs)}
-				</span>
+				{#if diagnostic}
+					<span class="text-right tabular-nums font-mono" style="color: {offsetColor(offsetMs)}">
+						{result.missed ? '--' : formatOffset(offsetMs)}
+					</span>
+				{/if}
 			{/each}
 		</div>
 
-		{#if timing}
+		{#if diagnostic && timing}
 			<div class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--color-text-secondary)] border-t border-[var(--color-bg-tertiary)] pt-2">
 				<span>
 					Bias: <span class="font-mono" style="color: {timingBiasColor}">{formatOffset(timing.meanOffsetMs)}</span>
-					<span style="color: {timingBiasColor}">{timingBiasLabel}</span>
 				</span>
 				<span>Spread: <span class="font-mono">{Math.round(timing.stdDevMs)}ms</span></span>
 				<span>Latency correction: <span class="font-mono">{formatOffset(timing.latencyCorrectionMs)}</span></span>
 			</div>
+		{:else if feedback}
+			<p data-testid="musical-timing-feedback" class="mt-2 border-t border-[var(--color-bg-tertiary)] pt-2 text-xs text-[var(--color-text-secondary)]">{feedback}</p>
 		{/if}
 	</div>
 {/if}

@@ -188,6 +188,9 @@ const PASS_THRESHOLD = KEY_PROFICIENT_THRESHOLD;
  */
 const MASTERY_THRESHOLD = 0.95;
 
+/** Every completed below-gold turn moves a Deep key closer to sheet support. */
+const DEEP_RESCUE_ATTEMPTS = 3;
+
 /** A key within the plan (may cross lick boundaries when looking ahead). */
 export interface PlannedKey {
 	/** Frozen preparation details for this key's next entrance in Deep Practice. */
@@ -1528,10 +1531,13 @@ function revealDecisionsFor(item: LickPracticePlanItem): Map<PitchClass, boolean
 			// older scores still depress the EWMA. Only fresh difficulty after
 			// that success may restore support; rehearsal scores never enter here.
 			const lastClear = keyAttempts.findLastIndex((attempt) => attempt.score >= MASTERY_THRESHOLD);
-			const recent = keyAttempts.slice(lastClear + 1).slice(-2);
-			const struggling = recent.length === 1
-				? recent[0].score < 0.5
-				: recent.length === 2 && (recent[0].score + recent[1].score) / 2 < 0.7;
+			const recent = keyAttempts.slice(lastClear + 1);
+			const latestTwo = recent.slice(-2);
+			// Bound memory retries even when scores plateau above the early
+			// rescue thresholds. Once reached, support lasts until a gold turn.
+			const struggling = recent.length >= DEEP_RESCUE_ATTEMPTS || (latestTwo.length === 1
+				? latestTwo[0].score < 0.5
+				: latestTwo.length === 2 && (latestTwo[0].score + latestTwo[1].score) / 2 < 0.7);
 			if (lastClear >= 0 || struggling) decisions.set(key, struggling);
 		}
 	}

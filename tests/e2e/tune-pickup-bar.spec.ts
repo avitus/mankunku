@@ -75,7 +75,6 @@ test('the editor adds a pickup that fills no column and seats the letter over th
 	const fullBars = before.length;
 
 	// The section list lives in the collapsed Setup card.
-	await page.getByRole('button', { name: /Setup Key/ }).click();
 	await page.getByLabel('Pickup bar length').selectOption('1/4');
 	// The pickup is a new unlabeled section 0; the form's A section is now index 1.
 	await expect(page.locator(`[data-bar-pos="1:${fullBars - 1}"]`)).toBeVisible();

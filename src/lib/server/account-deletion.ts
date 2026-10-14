@@ -9,7 +9,8 @@
  *     key_proficiency, user_settings, user_licks, user_lick_metadata,
  *     daily_summaries, tunes, user_devices, and user_profiles.
  *
- * Storage deletion is best-effort (logged but non-blocking). The auth user
+ * Storage deletion is best-effort for self-service; admin deletion requests
+ * strict cleanup before removing Auth. The auth user
  * deletion is the critical step — its error is returned to the caller.
  */
 
@@ -34,7 +35,8 @@ export const USER_STORAGE_BUCKETS = ['recordings', 'tunes'] as const;
 export async function clearUserStorage(
 	admin: AdminClient,
 	bucket: string,
-	userId: string
+	userId: string,
+	strict = false
 ): Promise<void> {
 	try {
 		const PAGE_SIZE = 100;
@@ -45,19 +47,24 @@ export async function clearUserStorage(
 				.list(userId, { limit: PAGE_SIZE, offset: 0 });
 
 			if (listError) {
+				if (strict) throw new Error(`Could not list ${bucket} uploads.`);
 				console.warn(`Failed to list ${bucket} for deletion:`, listError);
 				break;
 			}
-			if (!files || files.length === 0) break;
+			if (!files && strict) throw new Error(`Could not verify ${bucket} uploads.`);
+			if (!files || files.length === 0) return;
 
 			const paths = files.map((f) => `${userId}/${f.name}`);
 			const { error: removeError } = await admin.storage.from(bucket).remove(paths);
 			if (removeError) {
+				if (strict) throw new Error(`Could not remove ${bucket} uploads.`);
 				console.warn(`Failed to remove ${bucket} objects from storage:`, removeError);
 				break;
 			}
 		}
+		if (strict) throw new Error(`Storage cleanup did not finish for ${bucket}.`);
 	} catch (err) {
+		if (strict) throw err;
 		console.warn(`Storage cleanup error (${bucket}) during account deletion:`, err);
 	}
 }
@@ -65,16 +72,20 @@ export async function clearUserStorage(
 /**
  * Permanently delete a user: storage cleanup across all user buckets, then
  * the auth user (which cascades to all DB rows). Returns the deleteUser error
- * (null on success); storage failures never block the deletion.
+ * (null on success). strictStorage makes upload failures block Auth deletion.
  */
 export async function deleteUserAccount(
 	admin: AdminClient,
-	userId: string
+	userId: string,
+	options: { strictStorage?: boolean } = {}
 ): Promise<{ error: { message: string } | null }> {
-	for (const bucket of USER_STORAGE_BUCKETS) {
-		await clearUserStorage(admin, bucket, userId);
+	try {
+		for (const bucket of USER_STORAGE_BUCKETS) {
+			await clearUserStorage(admin, bucket, userId, options.strictStorage ?? false);
+		}
+		const { error } = await admin.auth.admin.deleteUser(userId);
+		return { error: error ? { message: error.message } : null };
+	} catch {
+		return { error: { message: 'Account cleanup did not complete.' } };
 	}
-
-	const { error } = await admin.auth.admin.deleteUser(userId);
-	return { error: error ? { message: error.message } : null };
 }

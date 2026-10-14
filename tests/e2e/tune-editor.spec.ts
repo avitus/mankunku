@@ -15,7 +15,7 @@ test.beforeEach(async ({ page }) => {
 test('creates a tune with melody and chords', async ({ page }) => {
 	await page.goto('/tunes/editor');
 
-	await expect(page.getByRole('heading', { name: 'Tune Editor' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: /^Tune editor/i })).toBeVisible();
 	// Hydration barrier: the chart SVG only renders after mount, so its
 	// presence proves the button handlers are attached (clicks on the
 	// server-rendered buttons before hydration are silent no-ops).
@@ -38,7 +38,7 @@ test('creates a tune with melody and chords', async ({ page }) => {
 
 	// Title + save.
 	await page.getByRole('textbox', { name: 'Tune title' }).fill('My First Chart');
-	await page.getByRole('button', { name: 'Save', exact: true }).click();
+	await page.getByRole('button', { name: 'Save tune', exact: true }).click();
 
 	// The book links a tune by its title slug; the minted `sheet-…` id keeps resolving too.
 	await page.waitForURL('**/tunes/my-first-chart');
@@ -51,12 +51,12 @@ test('edits an existing sheet via ?edit= and updates in place', async ({ page })
 	await seedTunes(page);
 	await page.goto('/tunes/editor?edit=e2e-user-sheet-1');
 
-	await expect(page.getByRole('heading', { name: 'Edit Tune' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: /^Tune editor/i })).toBeVisible();
 	const title = page.getByRole('textbox', { name: 'Tune title' });
 	await expect(title).toHaveValue('Test Session Tune');
 
 	await title.fill('Test Session Tune v2');
-	await page.getByRole('button', { name: 'Update' }).click();
+	await page.getByRole('button', { name: 'Update tune', exact: true }).click();
 
 	// A renamed title moves the slug; the stored id below is untouched.
 	await page.waitForURL('**/tunes/test-session-tune-v2');
@@ -74,7 +74,6 @@ test('the source-pitch selector defaults to the instrument and re-labels the key
 	await page.goto('/tunes/editor');
 	await expect(page.locator('.abcjs-container svg').first()).toBeVisible(); // hydration barrier
 
-	await page.getByRole('button', { name: /Setup Key/ }).click();
 	// Seeded tenor → the chart-written-for selector defaults to Bb.
 	const select = page.getByLabel('Chart written for');
 	await expect(select).toHaveValue('Bb');
@@ -83,7 +82,7 @@ test('the source-pitch selector defaults to the instrument and re-labels the key
 	// written key: written C for a Bb chart is concert Bb, which a concert
 	// chart labels Bb.
 	await select.selectOption('C');
-	await expect(page.getByRole('button', { name: /Setup Key Bb/ })).toBeVisible();
+	await expect(page.getByLabel('Key', { exact: true })).toHaveValue('Bb');
 });
 
 test('adds a section with a repeat and sees it in the preview', async ({ page }) => {
@@ -91,7 +90,6 @@ test('adds a section with a repeat and sees it in the preview', async ({ page })
 	await expect(page.locator('.abcjs-container svg').first()).toBeVisible(); // hydration barrier
 
 	// Open setup, add a B section, and mark the A section repeated.
-	await page.getByRole('button', { name: /Setup Key/ }).click();
 	await page.getByRole('button', { name: '+ Add section' }).click();
 	await expect(page.getByRole('textbox', { name: 'Section 2 label' })).toHaveValue('B');
 	await page.locator('label').filter({ hasText: '|: repeat' }).first().locator('input').check();
@@ -112,7 +110,7 @@ test('the composer is editable on the masthead, without opening Setup', async ({
 	await seedTunes(page);
 	await page.goto('/tunes/editor?edit=e2e-user-sheet-1');
 
-	await expect(page.getByRole('heading', { name: 'Edit Tune' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: /^Tune editor/i })).toBeVisible();
 
 	// Under the title, as on a lead sheet — NOT inside the collapsed Setup
 	// card, whose summary advertises only the key and section count, so a
@@ -122,7 +120,7 @@ test('the composer is editable on the masthead, without opening Setup', async ({
 	await expect(composer).toHaveValue('E2E');
 
 	await composer.fill('Bart Howard');
-	await page.getByRole('button', { name: 'Update' }).click();
+	await page.getByRole('button', { name: 'Update tune', exact: true }).click();
 
 	// Title untouched, so the slug is unchanged; the detail page shows the credit.
 	// Scoped to the page header — the print chart engraves the composer too,

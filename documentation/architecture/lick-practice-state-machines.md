@@ -291,7 +291,7 @@ flowchart TD
     Deep -->|Yes| Clear{Any final score at least95 in this key this session?}
     Clear -->|Yes| Fresh[Consider only attempts after latest success]
     Clear -->|No| History[Consider all attempts in this key]
-    Fresh --> Rescue{First fresh attempt below50 OR latest two average below70?}
+    Fresh --> Rescue{Three attempts below95 since latest success OR first fresh attempt below50 OR latest two average below70?}
     History --> Rescue
     Rescue -->|Yes| Reveal
     Rescue -->|No and a success exists| Memory
@@ -322,8 +322,9 @@ The **handoff repeat** is a special case: one preparation bar announcing the ext
 Important boundaries:
 
 - 50% exactly does not trigger the first-attempt rescue; 70% exactly does not trigger the two-attempt rescue. These use final recorded attempts, not rehearsal scores or EWMA.
+- Every final attempt below gold (95%) counts toward sheet support for that key. After three consecutive below-gold turns, notation appears on the next cycle, including for repeated 75–80% scores or near-gold scores. It then stays until a gold result; improving below gold cannot reset this count. Earlier low-score rescue still applies.
 - Rescue applies to any unlocked Deep key, including older keys and fully unlocked licks. Daily uses the legacy newest-key rule only.
-- A final score of at least 95% graduates that key to chord-only playing on its next appearance, even when older low scores still depress its EWMA. This session-local success also resets the rescue history: only attempts after the latest success may restore notation. Without a success, the existing rolling/rescue thresholds still apply. Decisions remain frozen through the entire three-pass turn. A sheet graduation retains its preparation time, with only Play and the countdown. A slight memory mistake does not automatically start another Listen phase in a recommended drill.
+- A final score of at least 95% graduates that key to chord-only playing on its next appearance, even when older low scores still depress its EWMA. This session-local success also resets the rescue history: only attempts after the latest success may restore notation. Without a success, the existing rolling thresholds may provide support sooner, and the three-attempt limit still applies. Decisions remain frozen through the entire three-pass turn. A sheet graduation retains its preparation time, with only Play and the countdown. A slight memory mistake does not automatically start another Listen phase in a recommended drill.
 - Daily and both Deep paths show upcoming notation immediately, including an eligible handoff preview, in equal-height 128 px rows. Sheet eligibility is frozen with the stack, so charts do not turn into sheets at their downbeat. Upcoming rows remain dimmed until active.
 - Focused retains its chord placeholder, later sheet reveal, taller sheet rows and two-bar reading pause.
 - A row remains current through any result preparation and every pass. In both Deep paths the active row holds at the top. At each key change, including handoffs and ordinary reorders/refills, the outgoing row and its feedback scroll out over the existing 420 ms transition. A cycle rebuild carries only that outgoing row for the animation, not a permanent history slot. Same-key retries stay at the top without a scroll. Scores attach only to the latest current/completed occurrence, never a future duplicate. The outgoing row is display-only and adds no recording window. Daily and Focused keep their existing previous-row layout. The same compact engraving and cue clearance apply to Daily and Deep.

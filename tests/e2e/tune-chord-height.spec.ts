@@ -83,7 +83,8 @@ interface MeasuredChord {
 /** Measure every chord of every system, normalized to staff spaces. */
 async function measureChords(page: import('@playwright/test').Page): Promise<MeasuredChord[][]> {
 	return page.evaluate(() => {
-		const EXCLUDE = '.abcjs-chord, .abcjs-ending, .abcjs-part, .abcjs-tempo, .abcjs-rest, .hit-zone';
+		// Harmony bands are background overlays, not notation ink that pushes chords up.
+		const EXCLUDE = '.abcjs-chord, .abcjs-ending, .abcjs-part, .abcjs-tempo, .abcjs-rest, .hit-zone, .range-marker';
 		const systems: MeasuredChord[][] = [];
 		const svg = document.querySelector('.abcjs-container svg');
 		if (!svg) return systems;

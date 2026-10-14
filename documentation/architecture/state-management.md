@@ -257,6 +257,8 @@ The user enters notes in their instrument's **written** pitch (what they see on 
 
 Filter and sort state for the `/licks/community` browse view. **Not persisted.**
 
+The `/licks/[id]` detail page shows `Loading lick…` while resolving an uncached lick, including in the initial server-rendered HTML. It shows `Lick not found` only after the local/cloud lookup and community fallback finish without a match. Resolution is scoped to the current lick and effect run so an older request cannot finish a newer lookup.
+
 ```typescript
 export const community = $state<{
   searchQuery: string;

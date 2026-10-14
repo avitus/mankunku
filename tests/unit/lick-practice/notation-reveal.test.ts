@@ -9,7 +9,8 @@
  * scrolls); the same rule in both directions, so the sheet withdraws once
  * the EWMA recovers; a never attempted key never reveals (first pass by
  * ear). Deep practice also rescues any key after one first attempt below 50%
- * or two consecutive attempts averaging below 70%; trick rows never.
+ * or two consecutive attempts averaging below 70%, and always after three
+ * below-gold turns since the last gold result; trick rows never.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -109,9 +110,48 @@ beforeEach(() => {
 	store.clear();
 	resetSession();
 	lickPractice.progress = {};
+	lickPractice.config.practiceMode = 'continuous';
 });
 
 describe('deep practice rescue for any unlocked key', () => {
+	it.each([
+		[false, 'continuous', 0.75],
+		[true, 'continuous', 0.8],
+		[false, 'call-response', 0.949999],
+		[true, 'call-response', 0.78]
+	] as const)('reveals after three below-gold attempts (recommended=%s, mode=%s, score=%s)', (recommended, mode, score) => {
+		const lick = makeLick('C', 'below-gold');
+		setUnlockedCount(lick.id, 12);
+		seedRolling(lick.id, { C: 0.98 });
+		lickPractice.config.practiceMode = mode;
+		startSingleLickSession(lick, recommended ? { focusKey: 'C' } : undefined);
+		for (let attempt = 1; attempt <= 3; attempt++) {
+			lickPractice.currentKeyIndex = lickPractice.plan[0].keys.indexOf('C');
+			expect(getPlannedKey(0)?.reveal).toBe(false);
+			recordKeyAttempt(makeScore(score));
+			// The current chart stays fixed until the next cycle.
+			expect(getPlannedKey(0)?.reveal).toBe(false);
+			advanceSingleLickRound();
+			expect(getPlannedKeysForLick(0).find(row => row.key === 'C')?.reveal).toBe(attempt === 3);
+		}
+		expect(getPlannedKeysForLick(0).find(row => row.key === 'C')?.passes)
+			.toBe(mode === 'continuous' ? LEAD_SHEET_PASSES : 1);
+	});
+
+	it('counts misses afresh after an exact gold result', () => {
+		const lick = makeLick('C', 'gold-reset');
+		setUnlockedCount(lick.id, 12);
+		startSingleLickSession(lick, { focusKey: 'C' });
+		for (const [score, reveal] of [
+			[0.8, false], [0.8, false], [0.95, false],
+			[0.8, false], [0.9, false], [0.94, true], [0.94, true], [0.95, false]
+		] as const) {
+			recordKeyAttempt(makeScore(score));
+			advanceSingleLickRound();
+			expect(getPlannedKeysForLick(0)[0].reveal).toBe(reveal);
+		}
+	});
+
 	it.each([false, true])('graduates a successful sheet turn despite older low scores (recommended=%s)', (recommended) => {
 		const lick = makeLick('Eb', 'graduate');
 		seedRolling(lick.id, { Eb: 0.1 });
@@ -185,7 +225,7 @@ describe('deep practice rescue for any unlocked key', () => {
 		expect(getPlannedKeysForLick(0).every((row) => !row.reveal)).toBe(true);
 	});
 
-	it('uses the latest two attempts and clears session history on restart', () => {
+	it('keeps rescue after repeated below-gold turns and clears session history on restart', () => {
 		setUnlockedCount('rescue', 12);
 		startSingleLickSession(makeLick('C', 'rescue'), { focusKey: 'C' });
 		for (const score of [0.35, 0.35, 0.9]) {
@@ -195,7 +235,7 @@ describe('deep practice rescue for any unlocked key', () => {
 		}
 		recordKeyAttempt(makeScore(0.9));
 		advanceSingleLickRound();
-		expect(getPlannedKeysForLick(0)[0].reveal).toBe(false);
+		expect(getPlannedKeysForLick(0)[0].reveal).toBe(true);
 		startSingleLickSession(makeLick('C', 'rescue'), { focusKey: 'C' });
 		expect(getPlannedKeysForLick(0)[0].reveal).toBe(false);
 	});

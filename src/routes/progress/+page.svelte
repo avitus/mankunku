@@ -579,6 +579,7 @@
 											displayMode={sessionPhrase ? lickMode(sessionPhrase) : 'major'}
 											displayScaleId={s.scaleType ? SCALE_TYPE_TO_SCALE_ID[s.scaleType] : undefined}
 											timing={s.timing}
+											tempo={s.tempo}
 										/>
 									{/if}
 								</div>

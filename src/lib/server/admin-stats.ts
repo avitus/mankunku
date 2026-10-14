@@ -25,8 +25,9 @@ export interface AdminAuthUser {
 export interface AdminStatsInput {
 	authUsers: AdminAuthUser[];
 	devices?: AdminDevice[];
+	visitDays?: { user_id: string; date: string }[];
 	profiles: { id: string; display_name: string | null; is_admin: boolean }[];
-	summaries: { user_id: string; date: string; session_count: number; practice_minutes: number }[];
+	summaries: { user_id: string; date: string; session_count: number; practice_minutes: number; practice_time_unavailable?: boolean }[];
 	/** One entry per live (deleted_at IS NULL) lick row — the query does the filtering. */
 	lickOwners: string[];
 	/** One entry per live tune row. */
@@ -45,6 +46,8 @@ export interface AdminUserRow {
 	/** Newest daily_summaries.date (user-local YYYY-MM-DD) — the truthful activity signal. */
 	lastActiveDate: string | null;
 	sessionCount: number;
+	visitDayCount: number;
+	lastVisitDate: string | null;
 	practiceMinutes: number;
 	lickCount: number;
 	tuneCount: number;
@@ -86,6 +89,13 @@ export function buildAdminUserRows(input: AdminStatsInput): AdminUserRow[] {
 	const lickCounts = countByOwner(input.lickOwners);
 	const tuneCounts = countByOwner(input.tuneOwners);
 
+	const visits = new Map<string, Set<string>>();
+	for (const visit of input.visitDays ?? []) {
+		const dates = visits.get(visit.user_id) ?? new Set<string>();
+		dates.add(visit.date);
+		visits.set(visit.user_id, dates);
+	}
+
 	const activity = new Map<
 		string,
 		{ lastActiveDate: string; sessionCount: number; practiceMinutes: number }
@@ -96,13 +106,13 @@ export function buildAdminUserRows(input: AdminStatsInput): AdminUserRow[] {
 			activity.set(s.user_id, {
 				lastActiveDate: s.date,
 				sessionCount: s.session_count,
-				practiceMinutes: s.practice_minutes
+				practiceMinutes: s.practice_time_unavailable ? 0 : s.practice_minutes
 			});
 		} else {
 			// Lexicographic max is chronological max on YYYY-MM-DD strings.
 			if (s.date > entry.lastActiveDate) entry.lastActiveDate = s.date;
 			entry.sessionCount += s.session_count;
-			entry.practiceMinutes += s.practice_minutes;
+			entry.practiceMinutes += s.practice_time_unavailable ? 0 : s.practice_minutes;
 		}
 	}
 
@@ -119,6 +129,8 @@ export function buildAdminUserRows(input: AdminStatsInput): AdminUserRow[] {
 			emailConfirmedAt: u.email_confirmed_at ?? null,
 			lastActiveDate: act?.lastActiveDate ?? null,
 			sessionCount: act?.sessionCount ?? 0,
+			visitDayCount: visits.get(u.id)?.size ?? 0,
+			lastVisitDate: [...(visits.get(u.id) ?? [])].sort().at(-1) ?? null,
 			practiceMinutes: act?.practiceMinutes ?? 0,
 			lickCount: lickCounts.get(u.id) ?? 0,
 			tuneCount: tuneCounts.get(u.id) ?? 0,
@@ -146,7 +158,7 @@ export function buildAdminTotals(rows: AdminUserRow[], now: Date): AdminTotals {
 	let activeThisWeek = 0;
 	for (const row of rows) {
 		if (row.createdAt && row.createdAt.slice(0, 10) >= cutoff) signupsThisWeek++;
-		if (row.lastActiveDate && row.lastActiveDate >= cutoff) activeThisWeek++;
+		if (row.lastVisitDate && row.lastVisitDate >= cutoff) activeThisWeek++;
 	}
 
 	return { totalUsers: rows.length, signupsThisWeek, activeThisWeek };
