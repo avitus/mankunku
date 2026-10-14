@@ -107,10 +107,20 @@ adminTest.describe('admin — content management', () => {
 		await signedInPage.goto('/admin');
 	});
 
-	adminTest('shows one visited day, filters users, and previews zero-impact deletion', async ({ signedInPage: page }) => {
+	adminTest('includes historical practice and keeps recently practicing users out of the inactive filter', async ({ signedInPage: page }) => {
+		await page.getByRole('searchbox', { name: 'Find a user' }).fill('author@');
+		await expect(page.getByText('Days active', { exact: true }).locator('..')).toHaveText('Days active 3');
+		await expect(page.getByText('Last active', { exact: true }).locator('..')).not.toHaveText('Last active —');
+		await page.getByText('About activity', { exact: true }).click();
+		await expect(page.getByText(/including historical practice/)).toBeVisible();
+		await page.getByRole('combobox', { name: 'Show', exact: true }).selectOption('inactive');
+		await expect(page.getByText('author@example.test', { exact: true })).toHaveCount(0);
+	});
+
+	adminTest('shows one active day, filters users, and previews zero-impact deletion', async ({ signedInPage: page }) => {
 		await page.getByRole('searchbox', { name: 'Find a user' }).fill('inactive@');
 		await expect(page.getByText('author@example.test', { exact: true })).toHaveCount(0);
-		await expect(page.getByText('Days visited', { exact: true }).locator('..')).toHaveText('Days visited 1');
+		await expect(page.getByText('Days active', { exact: true }).locator('..')).toHaveText('Days active 1');
 		await expect(page.getByText('Sessions', { exact: true })).toHaveCount(0);
 		await page.getByRole('button', { name: 'Inspect content' }).click();
 		await expect(page.getByText(/0 other users affected/)).toBeVisible();

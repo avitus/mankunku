@@ -10,7 +10,9 @@ export type AdminDevice = Database['public']['Tables']['user_devices']['Row'];
  *
  * Timezone note: daily_summaries.date is a YYYY-MM-DD string in the USER'S
  * LOCAL timezone (written client-side), compared here against a UTC cutoff —
- * up to ±1 day of skew at timezone extremes, acceptable for a dashboard.
+ * visit dates are UTC. Active days unions the stored date labels, not exact
+ * sign-in events: midnight activity may span two labels and older visit-only
+ * days may be missing. No timezone is available to normalize historical days.
  */
 
 /** Minimal shape of a Supabase auth user — kept local so this module stays dependency-free. */
@@ -43,9 +45,11 @@ export interface AdminUserRow {
 	createdAt: string | null;
 	lastSignInAt: string | null;
 	emailConfirmedAt: string | null;
-	/** Newest daily_summaries.date (user-local YYYY-MM-DD) — the truthful activity signal. */
+	/** Newest recorded practice or signed-in visit date. */
 	lastActiveDate: string | null;
 	sessionCount: number;
+	/** Distinct known practice/visit date labels; not a lifetime login count. */
+	activeDayCount: number;
 	visitDayCount: number;
 	lastVisitDate: string | null;
 	practiceMinutes: number;
@@ -96,21 +100,26 @@ export function buildAdminUserRows(input: AdminStatsInput): AdminUserRow[] {
 		visits.set(visit.user_id, dates);
 	}
 
+	const activeDates = new Map([...visits].map(([id, dates]) => [id, new Set(dates)]));
 	const activity = new Map<
 		string,
-		{ lastActiveDate: string; sessionCount: number; practiceMinutes: number }
+		{ sessionCount: number; practiceMinutes: number }
 	>();
 	for (const s of input.summaries) {
+		// A summary with no attempts is not evidence of practice. Historical
+		// days still count when their practice duration is unavailable.
+		if (s.session_count > 0) {
+			const dates = activeDates.get(s.user_id) ?? new Set<string>();
+			dates.add(s.date);
+			activeDates.set(s.user_id, dates);
+		}
 		const entry = activity.get(s.user_id);
 		if (!entry) {
 			activity.set(s.user_id, {
-				lastActiveDate: s.date,
 				sessionCount: s.session_count,
 				practiceMinutes: s.practice_time_unavailable ? 0 : s.practice_minutes
 			});
 		} else {
-			// Lexicographic max is chronological max on YYYY-MM-DD strings.
-			if (s.date > entry.lastActiveDate) entry.lastActiveDate = s.date;
 			entry.sessionCount += s.session_count;
 			entry.practiceMinutes += s.practice_time_unavailable ? 0 : s.practice_minutes;
 		}
@@ -127,7 +136,8 @@ export function buildAdminUserRows(input: AdminStatsInput): AdminUserRow[] {
 			createdAt: u.created_at ?? null,
 			lastSignInAt: u.last_sign_in_at ?? null,
 			emailConfirmedAt: u.email_confirmed_at ?? null,
-			lastActiveDate: act?.lastActiveDate ?? null,
+			lastActiveDate: [...(activeDates.get(u.id) ?? [])].sort().at(-1) ?? null,
+			activeDayCount: activeDates.get(u.id)?.size ?? 0,
 			sessionCount: act?.sessionCount ?? 0,
 			visitDayCount: visits.get(u.id)?.size ?? 0,
 			lastVisitDate: [...(visits.get(u.id) ?? [])].sort().at(-1) ?? null,
@@ -149,16 +159,15 @@ export function buildAdminUserRows(input: AdminStatsInput): AdminUserRow[] {
 
 /** Count total accounts, recent signups and recently active users in one UTC window. */
 export function buildAdminTotals(rows: AdminUserRow[], now: Date): AdminTotals {
-	// Both "this week" counts share the same 7-calendar-day UTC window so the
-	// two tiles answer the same question. (Supabase timestamps are UTC ISO
-	// strings, so slicing the date prefix yields the UTC calendar day.)
+	// Compare both counts to the same 7-calendar-day UTC cutoff. Historical
+	// practice uses local dates (see the timezone note above).
 	const cutoff = weekCutoffDateStr(now);
 
 	let signupsThisWeek = 0;
 	let activeThisWeek = 0;
 	for (const row of rows) {
 		if (row.createdAt && row.createdAt.slice(0, 10) >= cutoff) signupsThisWeek++;
-		if (row.lastVisitDate && row.lastVisitDate >= cutoff) activeThisWeek++;
+		if (row.lastActiveDate && row.lastActiveDate >= cutoff) activeThisWeek++;
 	}
 
 	return { totalUsers: rows.length, signupsThisWeek, activeThisWeek };

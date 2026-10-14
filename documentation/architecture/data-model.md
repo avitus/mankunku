@@ -735,7 +735,15 @@ multiple browsers or attempts on one date count once. The existing 32-device cap
 is preserved. The migration backfills only the known last sign-in and device
 first/last-seen dates, so historical counts are lower bounds. There is no heartbeat
 for an untouched tab and no inferred date between two observations. The admin page
-shows **Days visited**, **Last visit**, and **Visited This Week** from this table.
+shows **Days active**, **Last active**, and **Active this week** from the union of
+these visit dates and `daily_summaries.date` with `session_count > 0`. Matching date
+labels count once; historical practice still counts when its duration is
+unavailable. Empty summary rows do not count. The inactivity filter uses the same
+activity evidence. This is a count of known activity dates, not historical logins:
+older visit-only days remain unknown, and local practice dates cannot be normalized
+to UTC without historical timezone information. Activity around midnight can span
+two date labels, so the UI explains that totals are approximate. The union is
+computed on read; practice records and the visit tracker remain unchanged.
 `daily_summaries.session_count` still counts practice attempts, not visits or
 logins; scoring and practice statistics are unchanged. Admin practice minutes
 exclude rows marked `practice_time_unavailable`.
