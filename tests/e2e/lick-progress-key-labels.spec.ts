@@ -23,6 +23,8 @@ for (const example of [
 		});
 		await page.setViewportSize({ width: example.width, height: 1000 });
 		await page.goto('/licks/' + phrase.id);
+		await expect(page.getByRole('region', { name: 'Practice stages' }).locator('[aria-current=step]')).toContainText('new');
+		await expect(page.getByText('Unlock all 12 keys, then build tempo.', { exact: true })).toBeVisible();
 		const labels = page.locator('.unlock-key-label text');
 		await expect(labels).toHaveText(example.names);
 		await expect(page.getByRole('img', { name: /Tempo over time/ })).toHaveAttribute('aria-label', new RegExp('Written keys unlocked: ' + example.names.join(', ')));

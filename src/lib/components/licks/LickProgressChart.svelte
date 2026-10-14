@@ -3,9 +3,9 @@
 	import { namedUnlockMarkers } from '$lib/ui/lick-progress-markers';
 	import {
 		ALL_KEYS,
-		allKeysUnlockedAt,
+		PROFICIENT_BPM,
+		EXPERT_BPM,
 		bpmAxisRange,
-		bpmBandSlices,
 		collapseUnlockMarkers,
 		currentLickPhase,
 		lickPhase,
@@ -55,95 +55,15 @@
 	}
 	const bpmLine = $derived(sorted.map((p) => `${xAt(p.t)},${bpmY(p.bpm)}`).join(' '));
 
-	// ── Phase bands ──
-	// The "new" phase is decided by key coverage, not tempo, so it's a *vertical*
-	// wash over the era before the 12th key: during it the lick is new whatever
-	// the tempo says. The tempo bands are clipped to start where that era ends.
-	const fullKeysT = $derived(allKeysUnlockedAt(sorted));
-	const newEndX = $derived(fullKeysT == null ? PAD_L + chartW : xAt(fullKeysT));
-	const newWidth = $derived(newEndX - PAD_L);
-	const newPhase = phaseDisplay('new');
-
-	const bandLeft = $derived(Math.max(PAD_L, newEndX));
-
-	// ── Band labels ──
-	// Set inside the band, but the tempo line runs through the same space. Each
-	// label picks the end of its band where the line is farthest away, so the
-	// data crosses the wash, not the words.
-	const MIN_LABEL_H = 11;
-	const LABEL_FONT = 7.5;
-	/** Width per uppercase char at LABEL_FONT, including the 0.6 letter-spacing. */
-	const LABEL_CHAR_W = 5.2;
-
-	/** Tempo-line y at an x — the series is time-sorted, so x is monotonic. */
-	function lineYAt(x: number): number {
-		if (sorted.length === 0) return PAD_T + chartH;
-		for (let i = 1; i < sorted.length; i++) {
-			const x0 = xAt(sorted[i - 1].t);
-			const x1 = xAt(sorted[i].t);
-			if (x <= x1) {
-				const span = x1 - x0;
-				const f = span > 0 ? Math.min(1, Math.max(0, (x - x0) / span)) : 0;
-				return bpmY(sorted[i - 1].bpm) + f * (bpmY(sorted[i].bpm) - bpmY(sorted[i - 1].bpm));
-			}
-		}
-		return bpmY(sorted[sorted.length - 1].bpm);
-	}
-
-	/** How far the tempo line stays from a label box spanning [x0, x1] at `midY`. */
-	function lineClearance(x0: number, x1: number, midY: number): number {
-		let worst = Infinity;
-		for (let i = 0; i <= 4; i++) {
-			worst = Math.min(worst, Math.abs(lineYAt(x0 + ((x1 - x0) * i) / 4) - midY));
-		}
-		return worst;
-	}
-
-	interface PlacedLabel {
-		text: string;
-		x: number;
-		y: number;
-		anchor: 'start' | 'end';
-	}
-
-	/**
-	 * Place a label inside [regionLo, regionHi] at baseline `y`, flush left or
-	 * right — whichever end the tempo line clears by more. Null when the region
-	 * is too narrow for the text.
-	 */
-	function placeLabel(text: string, regionLo: number, regionHi: number, y: number): PlacedLabel | null {
-		const width = text.length * LABEL_CHAR_W;
-		if (regionHi - regionLo < width + 8) return null;
-		const midY = y - LABEL_FONT / 2 + 1;
-		const leftClear = lineClearance(regionLo + 3, regionLo + 3 + width, midY);
-		const rightClear = lineClearance(regionHi - 3 - width, regionHi - 3, midY);
-		return rightClear > leftClear
-			? { text, x: regionHi - 3, y, anchor: 'end' }
-			: { text, x: regionLo + 3, y, anchor: 'start' };
-	}
-
-	const tempoBands = $derived(
-		bpmBandSlices(axis.lo, axis.hi).map((slice) => {
-			const yTop = bpmY(slice.to);
-			const height = bpmY(slice.from) - yTop;
-			const display = phaseDisplay(slice.phase);
-			return {
-				...display,
-				y: yTop,
-				height,
-				// Set just inside the band's ceiling — but only when the band has
-				// the vertical room for it.
-				placed:
-					height >= MIN_LABEL_H
-						? placeLabel(display.label, bandLeft, W - PAD_R, yTop + 8.5)
-						: null
-			};
-		})
-	);
-
-	const newLabel = $derived(
-		newWidth > 0 ? placeLabel(newPhase.label, PAD_L, newEndX, PAD_T + 8.5) : null
-	);
+	// Keep stage definitions outside the plot: key coverage and tempo are different measures.
+	const stages = [
+		{ ...phaseDisplay('new'), requirement: `Fewer than ${ALL_KEYS} keys` },
+		{ ...phaseDisplay('learning'), requirement: `Under ${PROFICIENT_BPM} BPM` },
+		{ ...phaseDisplay('proficient'), requirement: `${PROFICIENT_BPM}–${EXPERT_BPM - 1} BPM` },
+		{ ...phaseDisplay('expert'), requirement: `${EXPERT_BPM}+ BPM` }
+	];
+	const axisTicks = $derived([axis.lo, PROFICIENT_BPM, EXPERT_BPM, axis.hi]
+		.filter((v, i, all) => v >= axis.lo && v <= axis.hi && all.indexOf(v) === i));
 
 	// ── Key-unlock markers ──
 	// One marker per unlock, sitting above the tempo line at the tempo it happened.
@@ -186,7 +106,7 @@
 		const names = keyLabels && namedMarkers.length
 			? ` Written keys unlocked: ${namedMarkers.flatMap((m) => m.names).join(', ')}.`
 			: '';
-		return `Tempo over time, banded by phase of expertise. ${keys}${unlocks}.${names}`;
+		return `Tempo over time. ${keys}${unlocks}.${names}`;
 	});
 </script>
 
@@ -218,7 +138,7 @@
 {:else}
 	<div class="space-y-2">
 		<div class="flex items-center justify-between text-xs">
-			<span class="smallcaps text-[var(--color-text-secondary)]">Tempo</span>
+			<span class="smallcaps text-[var(--color-text-secondary)]">Tempo history</span>
 			<span class="tabular-nums text-[var(--color-text-secondary)]">
 				{#if phaseInfo}
 					<span class="smallcaps" style="color: {phaseInfo.color}">{phaseInfo.label}</span> ·
@@ -233,77 +153,11 @@
 			role="img"
 			aria-label={chartAriaLabel}
 		>
-			<!-- Tempo phase bands, clipped to after the lick left the "new" phase -->
-			{#each tempoBands as band (band.phase)}
-				<rect
-					x={bandLeft}
-					y={band.y}
-					width={Math.max(0, W - PAD_R - bandLeft)}
-					height={band.height}
-					fill="color-mix(in srgb, {band.color} 14%, transparent)"
-				/>
-				{#if band.placed}
-					<text
-						x={band.placed.x}
-						y={band.placed.y}
-						text-anchor={band.placed.anchor}
-						font-size={LABEL_FONT}
-						letter-spacing="0.6"
-						fill={band.color}
-						opacity="0.9">{band.placed.text.toUpperCase()}</text
-					>
-				{/if}
-			{/each}
-
-			<!-- The "new" era: before all 12 keys were unlocked -->
-			{#if newWidth > 0}
-				<rect
-					x={PAD_L}
-					y={PAD_T}
-					width={newWidth}
-					height={chartH}
-					fill="color-mix(in srgb, {newPhase.color} 20%, transparent)"
-				/>
-				{#if fullKeysT != null}
-					<line
-						x1={newEndX}
-						y1={PAD_T}
-						x2={newEndX}
-						y2={PAD_T + chartH}
-						stroke={newPhase.color}
-						stroke-width="0.75"
-						opacity="0.55"
-					/>
-				{/if}
-				{#if newLabel}
-					<text
-						x={newLabel.x}
-						y={newLabel.y}
-						text-anchor={newLabel.anchor}
-						font-size={LABEL_FONT}
-						letter-spacing="0.6"
-						fill={newPhase.color}
-						opacity="0.9">{newLabel.text.toUpperCase()}</text
-					>
-				{/if}
-			{/if}
-
-			<!-- Axis rules: panel bounds plus any phase threshold inside them -->
-			{#each [axis.lo, axis.hi] as v}
+			<!-- Numeric guides describe tempo only; stage requirements live below the graph. -->
+			{#each axisTicks as v}
 				{@const y = bpmY(v)}
-				<line x1={PAD_L} y1={y} x2={W - PAD_R} y2={y} stroke="var(--color-bg-tertiary)" stroke-width="0.5" />
+				<line x1={PAD_L} y1={y} x2={W - PAD_R} y2={y} stroke="var(--color-bg-tertiary)" stroke-width="0.5" stroke-dasharray={v === axis.lo || v === axis.hi ? undefined : '2 3'} />
 				<text x={PAD_L - 3} y={y + 3} text-anchor="end" font-size="8" class="fill-[var(--color-text-secondary)]">{v}</text>
-			{/each}
-			{#each tempoBands.slice(1) as band (band.phase)}
-				<line
-					x1={PAD_L}
-					y1={band.y + band.height}
-					x2={W - PAD_R}
-					y2={band.y + band.height}
-					stroke={band.color}
-					stroke-width="0.5"
-					opacity="0.5"
-				/>
 			{/each}
 
 			<polyline
@@ -357,3 +211,33 @@
 		</div>
 	</div>
 {/if}
+
+{#if phaseInfo}
+	<section class="progress-stages" aria-label="Practice stages">
+		<div class="stage-heading"><span>Practice stages</span><span>Unlock all {ALL_KEYS} keys, then build tempo.</span></div>
+		<ol>
+			{#each stages as stage}
+				<li aria-current={phase === stage.phase ? 'step' : undefined} style="--stage-color: {stage.color}">
+					<div class="stage-name"><strong>{stage.label}</strong>{#if phase === stage.phase}<span class="stage-current">Current</span>{/if}</div>
+					<p>{stage.requirement}</p>
+					{#if stage.phase !== 'new'}<small>All {ALL_KEYS} keys unlocked</small>{/if}
+				</li>
+			{/each}
+		</ol>
+	</section>
+{/if}
+
+<style>
+	.progress-stages { margin-top: 1.5rem; }
+	.stage-heading { display:flex; justify-content:space-between; gap: .5rem 1rem; flex-wrap:wrap; color:var(--color-text-secondary); font-size:.75rem; margin-bottom:.75rem; }
+	.stage-heading > span:first-child { text-transform:uppercase; letter-spacing:.1em; font-size:.65rem; }
+	ol { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:.75rem; list-style:none; padding:0; margin:0; }
+	li { border-top:2px solid color-mix(in srgb,var(--stage-color) 45%,transparent); padding:.65rem .5rem; min-width:0; }
+	li[aria-current] { border-color:var(--stage-color); background:color-mix(in srgb,var(--stage-color) 9%,transparent); }
+	.stage-name { display:flex; align-items:center; flex-wrap:wrap; gap:.25rem .5rem; }
+	strong { text-transform:capitalize; font-size:.8rem; font-weight:600; color:var(--color-text); }
+	.stage-current { font-size:.6rem; color:var(--stage-color); text-transform:uppercase; letter-spacing:.05em; }
+	p { font-size:.75rem; color:var(--color-text-secondary); margin:.4rem 0 0; }
+	small { display:block; font-size:.65rem; color:var(--color-text-secondary); margin-top:.2rem; }
+	@media(max-width:640px) { ol { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+</style>

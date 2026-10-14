@@ -752,3 +752,10 @@ labels replace key-shaped icons; crowded events combine as `G+2`, with every
 name retained in the tooltip and chart's accessible description. Progress
 samples and expertise thresholds are unchanged. Shared trick charts without a
 known lick entry key retain their existing count-based markers.
+
+Lick progress graphs separate the tempo plot from the practice-stage guide.
+Do not float stage names inside plot regions: New measures key coverage, while
+Learning, Proficient and Expert require all twelve keys and follow tempo. Show
+explicit requirements in a fixed ordered guide beneath the chart, mark the
+current stage with text as well as color, and use numbered tempo gridlines.
+Keep the guide readable in two columns on phones.
