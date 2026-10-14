@@ -39,6 +39,8 @@
 	const authSession = $derived(page.data?.session ?? null);
 	// Async state for user-recorded lick resolution (fallback when curated lookup fails)
 	let userLick: Phrase | null = $state(null);
+	// Null also covers SSR, before the client-only lookup has started.
+	let resolvedLickId: string | null = $state(null);
 	let effectRunId = 0;
 
 	$effect(() => {
@@ -47,7 +49,11 @@
 		const sess = authSession;
 
 		userLick = null;
+		resolvedLickId = null;
 		const runId = ++effectRunId;
+		const finish = () => {
+			if (runId === effectRunId) resolvedLickId = id;
+		};
 
 		// Only search user licks if the curated lookup fails
 		if (!getLickById(id)) {
@@ -92,12 +98,16 @@
 						}
 					})
 					.catch(() => {
-						getUserLicks().then(assign);
-					});
+						return getUserLicks().then(assign);
+					})
+					.finally(finish);
 			} else {
-				getUserLicks().then(assign);
+				getUserLicks().then(assign).finally(finish);
 			}
 		}
+		// Navigation or an auth change invalidates every pending assignment,
+		// including completion of an older request.
+		return () => { ++effectRunId; };
 	});
 
 	// Hydrate lick-practice progress so the per-lick "Reset progress" button can
@@ -146,7 +156,9 @@
 			document.removeEventListener('keydown', onKey);
 		};
 	});
-	const baseLick = $derived(getLickById(page.params.id ?? '') ?? userLick);
+	const baseLick = $derived.by(() =>
+		getLickById(page.params.id ?? '') ?? (userLick?.id === page.params.id ? userLick : null)
+	);
 
 	$effect(() => {
 		if (!baseLick) {
@@ -538,6 +550,10 @@
 				{/each}
 			</div>
 		{/if}
+	{:else if resolvedLickId !== page.params.id}
+		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-8 text-center">
+			<p role="status" class="text-[var(--color-text-secondary)]">Loading lick…</p>
+		</div>
 	{:else}
 		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-8 text-center">
 			<p class="text-[var(--color-text-secondary)]">
