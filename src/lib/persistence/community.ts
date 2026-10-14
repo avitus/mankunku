@@ -37,6 +37,7 @@ import { validateAdoptedPhrase } from '$lib/phrases/adopted-phrase-validator';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '$lib/supabase/types';
 import { getUserCoalesced } from '$lib/supabase/get-user';
+import { seedStolenLickPracticeDefaults } from './lick-practice-store';
 
 /**
  * localStorage key holding the set of lick IDs the current user has favorited.
@@ -350,7 +351,8 @@ export async function toggleFavorite(
 /**
  * Steal a lick. Inserts an adoption row (underlying `lick_adoptions` table;
  * terminology only — "steal" is the user-facing verb) and caches the lick's
- * payload locally so it renders in the library offline.
+ * payload locally so it renders in the library offline. A new steal also
+ * seeds practice membership and one fitting progression in user metadata.
  *
  * @returns `true` if the steal is recorded on the server (or was already),
  *          `false` if the server write failed or no auth session is available.
@@ -360,10 +362,12 @@ export async function stealLick(
 	supabase: SupabaseClient<Database>,
 	lickId: string
 ): Promise<boolean> {
+	const gen = getScopeGeneration();
 	const steals = getStealsLocal();
 	if (steals.has(lickId)) return true;
 
 	const { data: { user } } = await getUserCoalesced(supabase);
+	if (gen !== getScopeGeneration()) return false;
 	if (!user) {
 		console.warn('Cannot steal lick without auth session');
 		return false;
@@ -372,6 +376,7 @@ export async function stealLick(
 	const { error: insertError } = await supabase
 		.from('lick_adoptions')
 		.insert({ user_id: user.id, lick_id: lickId });
+	if (gen !== getScopeGeneration()) return false;
 	// Postgres 23505 (unique-violation) means the server already has this
 	// steal row — treat as success, matching the "was already" clause in
 	// the function's documented contract. Every other error is a real failure.
@@ -386,6 +391,7 @@ export async function stealLick(
 		.select('*')
 		.eq('id', lickId)
 		.single();
+	if (gen !== getScopeGeneration()) return false;
 
 	if (lickError || !lickRow) {
 		console.warn('Stole lick but failed to fetch payload:', lickError);
@@ -408,6 +414,9 @@ export async function stealLick(
 				payloads.push(phrase);
 				saveStolenPayloadsLocal(payloads);
 			}
+			// A duplicate server row is an existing adoption, whose preferences
+			// may still be hydrating on this device. Only seed a new steal.
+			if (!insertError) seedStolenLickPracticeDefaults(phrase);
 
 			// Cache author attribution for the library's "by <author>" badge.
 			const { data: author } = await supabase
@@ -415,6 +424,7 @@ export async function stealLick(
 				.select('id, display_name, avatar_url')
 				.eq('id', lickRow.user_id)
 				.single();
+			if (gen !== getScopeGeneration()) return false;
 
 			const authors = getStolenAuthorsLocal();
 			authors[lickId] = {

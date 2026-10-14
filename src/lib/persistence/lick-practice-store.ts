@@ -18,7 +18,7 @@ import { getLickTagOverrides } from './user-licks';
 import { loadLickPracticeSessions } from './lick-practice-sessions';
 import { MAX_HISTORY_POINTS } from './limits';
 import { MAX_UNLOCKED_KEYS } from '$lib/music/key-ordering';
-import { PROGRESSION_TEMPLATES } from '$lib/data/progressions';
+import { PROGRESSION_TEMPLATES, getProgressionsForLick } from '$lib/data/progressions';
 import type { Phrase } from '$lib/types/music';
 
 const STORAGE_KEY = 'lick-practice-progress';
@@ -643,6 +643,23 @@ export function saveUserLickTags(tags: Record<string, string[]>): void {
 	save(TAGS_KEY, tags);
 }
 
+/**
+ * Make a newly stolen lick practice-ready with one natural progression.
+ * The category/fit order prefers the matching vamp or shortest fitting
+ * cadence. Existing entries, even empty ones, represent user choices and
+ * must survive a return/re-steal. Keep defaults in the adopter's synced
+ * metadata, never in the author's phrase payload.
+ */
+export function seedStolenLickPracticeDefaults(lick: Phrase): void {
+	const tags = loadUserLickTags();
+	if (Object.hasOwn(tags, lick.id)) return;
+	const progression = getProgressionsForLick(lick)[0];
+	tags[lick.id] = progression ? ['practice', progTag(progression)] : ['practice'];
+	saveUserLickTags(tags);
+	stampMergeMeta('tags', lick.id);
+	syncLickTagsToCloud();
+}
+
 export function togglePracticeTag(phraseId: string): boolean {
 	const tags = loadUserLickTags();
 	const current = tags[phraseId] ?? [];
@@ -921,4 +938,3 @@ export function ensureProgressionTag(phraseId: string, type: ChordProgressionTyp
 export function stampCategoryOverrideMtime(id: string): void {
 	stampMergeMeta('catOverrides', id);
 }
-
