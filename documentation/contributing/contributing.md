@@ -209,14 +209,25 @@ CircleCI, two config files: `.circleci/config.yml` is a setup workflow whose
 path filter sets `nginx-changed` / `omr-changed`, and
 `.circleci/continue-config.yml` holds the jobs.
 
+The exact `musicality` branch skips the setup workflow, including its
+path-filtering job, so none of the continuation jobs run. CircleCI may still
+show a skipped pipeline record. `dev`, `main` and other branches retain their
+usual CI, including branches with names such as `musicality/example`.
+
+Keep ongoing musicality work on `musicality` and validate it on a Chunk sidecar
+or locally: use the relevant Vitest and Playwright suites, plus `npm run check`
+and `npm run build` for completed milestones. Moving the work to `dev` or
+`main` is a separate, explicitly approved release decision. To restore hosted
+CI on `musicality`, deliberately remove the setup workflow's `unless` guard.
+
 | Job | Runs on | What it does |
 |---|---|---|
-| `test` | every push | `npx vitest run`, then `npm run test:deploy` |
-| `e2e` | every push, in parallel with `test` | Playwright on all three engines, sharded 6 ways; the config's `webServer` builds the app itself |
+| `test` | every eligible push | `npx vitest run`, then `npm run test:deploy` |
+| `e2e` | every eligible push, in parallel with `test` | Playwright on all three engines, sharded 6 ways; the config's `webServer` builds the app itself |
 | `build` | `main`, after `test` | `npm run build` |
 | `db-migrate` | `main`, after `build` | `supabase db push --linked` against production |
 | `deploy` | `main`, after `build` + `db-migrate` + `e2e` | Atomic release on the server, then verifies the public `/api/health` reports this commit |
-| `omr-test` | any branch, only when `omr/**` or `.circleci/**` changed | `uv sync --frozen`, `ruff check`, hermetic `pytest` |
+| `omr-test` | any eligible branch, only when `omr/**` or `.circleci/**` changed | `uv sync --frozen`, `ruff check`, hermetic `pytest` |
 | `nginx-deploy` | `main`, only when `nginx/**`, `deploy/nginx/**` or `.circleci/**` changed | Installs and reloads the nginx config (see the root README) |
 
 A failed Firefox/WebKit spec blocks the deploy just like a unit test does.

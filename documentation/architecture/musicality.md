@@ -11,6 +11,7 @@ The current foundation provides:
 3. A pure ensemble planner before instrument generation. It assigns phrase intention, piano attack limits, drum commentary limits, bass ornament restraint, response ownership, intentional silence and selective setup/arrival pairs. The existing players realize those instructions with their established vocabulary.
 4. Restorable planner memory and correlated phrase timing. Planning can resume at a contiguous bar boundary from a versioned JSON checkpoint; the three players share bounded phrase motion with their own placement and smaller event residuals.
 5. Scoped bass and piano development. Selected piano phrases reuse and transform an existing rhythm; eligible two-bar bass passages aim at the root of a known following chorus. Event exports include the device decisions and reasons for withholding them.
+6. Drummer phrasing within the current kit. Two-to-four-bar ride cells and selected commentary motifs develop through repetition, displacement and orchestration. A previous bar of emitted piano attacks can supply a drum answer; the accepted kit strokes are included in the trace.
 
 Coordinated generation currently applies to **swing in 4/4**, selected in the [listening lab](/diagnostics/backing-mixer). Ordinary practice keeps the original orchestration mode until the comparison has received listening acceptance. Both modes consume corrected explicit form metadata where available. The lab supports original/coordinated comparison, variation seeds, WAV bounce and event/decision export.
 
@@ -32,7 +33,7 @@ The foundation preserves instrument-specific musical knowledge and inserts an ex
 | Observation adapter — planned | Causal solo activity, density, phrase-end/rest confidence, register and freshness | Scoring, musical decisions or interpreting unavailable input as silence |
 | Ensemble planner | Shared phrase intention, energy, density, tension, response owner, silence reasons, setup/arrival reservations | Audio APIs or arbitrary deletion of already rendered notes |
 | Instrument planners | Eligible figures, voicings, bass targets and paths, ride phrases and commentary within the ensemble plan | Competing for a response already assigned to another player |
-| Resolver/validator — partly implemented | Shared arrival timing, attack budgets, reserved silence, event legality | Repairing a bad arrangement only by thinning random notes |
+| Resolver/validator — partly implemented | Shared arrival timing, attack budgets, reserved silence, simultaneous drum-limb occupancy, event legality | Repairing a bad arrangement only by thinning random notes |
 | Scheduler/renderer | Commit generated events and publish the exact accompaniment evidence used by detection | Inventing new musical decisions inside an audio callback |
 | Evaluation | Replays, invariants, scenario metrics and human comparisons | Automatically declaring a musical requirement accepted |
 
@@ -58,9 +59,9 @@ Each bar specifies:
 - Response ownership, including `nobody`, with a cooldown and space after a response.
 - Optional preceding setup and target arrival carrying the same accent identity.
 
-Whole piano figures are filtered by the budgets of every bar they occupy. A developing motif admits each later cell whole against that bar's roles and budget; future solo evidence does not rewrite its earlier statement. Preceding piano notes release at a reserved silent boundary or an accepted motif gap, and an early player offset cannot enter that rest from the other side. Natural sample and room decay can continue after note release. Drum timekeeping is separate from commentary; whole commentary gestures must fit the allowance. A zero commentary allowance does not mute the ride or foot hi-hat. Reserved bass/drum arrivals share a tick instead of receiving unrelated timing jitter. Broader limb, register and harmonic conflict resolution remains future work.
+Whole piano figures are filtered by the budgets of every bar they occupy. A developing motif admits each later cell whole against that bar's roles and budget; future solo evidence does not rewrite its earlier statement. Preceding piano notes release at a reserved silent boundary or an accepted motif gap, and an early player offset cannot enter that rest from the other side. Natural sample and room decay can continue after note release. Drum timekeeping is separate from commentary; whole commentary gestures must fit the allowance. A zero commentary allowance does not mute the ride or foot hi-hat. Reserved bass/drum arrivals share a tick instead of receiving unrelated timing jitter. Broader limb transitions, register and harmonic conflict resolution remain future work.
 
-An ownership assignment is an opportunity, not a guarantee of an audible lick: existing vocabulary may still choose restraint. Future motif response realization should provide explicit response devices and traces for rejection reasons.
+An ownership assignment is an opportunity, not a guarantee of an audible lick: vocabulary may still choose restraint. The drum phrase trace now records short piano-derived answers and reasons for withholding cells. More reciprocal motif responses remain to build.
 
 ### Memory and phrase timing
 
@@ -76,7 +77,15 @@ The first piano development policy uses selected complete four-bar phrases. It c
 
 The bass launch planner addresses B59 at an explicitly declared following chorus. It requires the preceding two bars already to be walking, a compatible role at the launch and suitable harmonic segment boundaries. It plans eight quarter-note pitches and the next chorus's root arrival as one bounded directional path, using the actual harmonies. The target keeps the existing register arc's root octave, preserving the register used to plan the next phrase. The realized arrival must be that exact target; independent pitched pickups and triplets cannot compete with the path. Unsupported harmony, two-feel, or space/response reservations at the launch leave the existing line in place with a reason in the trace. Later observations do not rewrite its committed quarter-note path. A terminal ending without a declared following chorus does not invent a wraparound target.
 
-These policies run only in the coordinated swing 4/4 lab mode. Their separate piano-motif and bass-turnaround traces describe accepted cells/paths and skipped opportunities, and cached exports preserve their immutability. The ensemble checkpoint still carries planner memory, not instrument realization state. Generating the form again or looping playback does not continue a motif or bass path beyond that form. General long-wave bass writing, cross-instrument motif dialogue and deliberate guide-tone/common-tone/top-note lines remain later work; human listening acceptance is pending.
+These policies run only in the coordinated swing 4/4 lab mode. Their separate piano-motif and bass-turnaround traces describe accepted cells/paths and skipped opportunities, and cached exports preserve their immutability. The ensemble checkpoint still carries planner memory, not instrument realization state. Generating the form again or looping playback does not continue a motif or bass path beyond that form. General long-wave bass writing, reciprocal motif dialogue and deliberate guide-tone/common-tone/top-note lines remain later work; human listening acceptance is pending.
+
+### Drummer phrasing
+
+`backing-drum-phrases.ts` retains a ride cell through a two-to-four-bar group within the declared phrase, section and chorus. A repeated opening can lead to a skip-note variation and a quieter release. The quarter-note cymbal pulse and pedal hi-hat on beats 2 and 4 stay protected; an agreed arrival or cymbal-colored commentary may replace a coincident ride stroke. Short groups and partial harmony have bounded fallback behavior, without inventing a following bar.
+
+Commentary begins from a short vocabulary cell or one or two beat/eighth-grid piano attacks from the previous bar's emitted onset map. It can repeat, displace or change orchestration while retaining its source identity. Each later cell must fit the current bar's allowance, response ownership, fill reservation and actual harmony extent. A withheld motif cell leaves reasoned space. This uses generated piano evidence, not microphone listening or a model of the soloist's phrase endings.
+
+The current kit uses a fixed assignment: ride, bell, crash and stick hi-hat share the right hand; snare and cross-stick share the left hand; kick and pedal hi-hat use separate feet. Complete accepted gestures replace conflicting ostinato strokes at the same offset. The immutable drum trace includes the accepted bar and commentary source, transformation and withholding reason; integration checks compare it with emitted events after collision resolution. This is a simultaneous-occupancy model, not a general biomechanical simulation: stick travel, recovery times, flexible sticking, toms and note-length/choke articulation remain incomplete. Drum motif state remains within a generated phrase and is not part of the restorable ensemble checkpoint. Original practice output and scoring remain unchanged; human listening acceptance is pending.
 
 ### Solo evidence contract
 
@@ -104,6 +113,8 @@ The commit horizon must be measured against Tone lookahead, renderer scheduling 
 
 Every increment stays on `musicality`, updates the ledger in the same change and preserves an original/reference comparison. Small focused commits allow fixes on `dev` to proceed independently; integrate advancing `dev` deliberately and rerun the relevant regressions before a later merge.
 
+The exact `musicality` branch has a hosted CircleCI setup-workflow guard, so ongoing pushes do not allocate its path-filtering or continuation jobs. CircleCI may still show a skipped pipeline record. Validate milestones on a Chunk sidecar or locally using the [contribution guide](/docs/contributing/contributing#ci); `dev`, `main` and other branches retain their existing CI. A skipped pipeline is not verification evidence, and moving this work to a release branch remains a separate decision.
+
 | Milestone | Deliverable and acceptance | Current state |
 | --- | --- | --- |
 | 1. Living evidence | Preserve original text; enumerate every requirement; direct links; separate source, test and listening claims | Implemented |
@@ -111,7 +122,7 @@ Every increment stays on `musicality`, updates the ledger in the same change and
 | 3. Shared intention and space | Phrase plans, complementary piano/drum budgets, silence, response cooldown, setup/arrival ownership; actual generated-event invariants | Implemented foundation in lab preview; listening pending |
 | 4. Phrase memory and timing | Checkpointable short/medium/performance memory; response and fill history across loops; phrase timing with player offsets and coordinated exceptions | Planner checkpoints and shared phrase timing implemented; cross-loop audio state and listening acceptance pending |
 | 5. Bass and piano development | Multi-bar bass targets/turnarounds, melodic restraint, rhythmic motifs and transformations, then explicit guide/common/top-note objectives | Scoped following-chorus bass launches and within-phrase piano motifs implemented in the lab; broader melodic objectives and listening acceptance pending |
-| 6. Drummer phrasing | 2–4-bar ride phrases, commentary motifs, shared setups, credible limb allocations, expanded kit articulation when needed | Pedal hi-hat and coordinated commentary started; broader phrasing planned |
+| 6. Drummer phrasing | 2–4-bar ride phrases, commentary motifs, shared setups, credible limb allocations, expanded kit articulation when needed | Ride/commentary phrasing, recent-piano answers and simultaneous limb occupancy implemented in the lab; broader physical/articulation models and listening acceptance pending |
 | 7. Live listening | Independent activity/rest/register features, confidence and bleed handling, rolling atomic scheduling, safe reset/replay | Input contract only; adapter and scheduler planned |
 | 8. Structural development and styles | Non-monotonic build/peak/release across choruses; head/solo arrangements; traditional/bebop/post-bop profiles and complexity separate from density | Local phrase movement started; full arc/styles planned |
 | 9. Musical acceptance and rollout | Recorded A/B reviews at multiple tempos/seeds/forms; maintain evidence in ledger; enable ordinary practice only after acceptance | Lab ready; human acceptance pending |

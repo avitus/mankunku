@@ -121,6 +121,13 @@ test('scripted scenarios export the actual coordinated plan and retain an origin
 	expect(dense.ensembleTiming?.at(-1)?.endBarExclusive).toBe(96);
 	expect(dense.ensembleDevelopment?.pianoMotifs).toHaveLength(96);
 	expect(dense.ensembleDevelopment?.bassTurnarounds.length).toBeGreaterThan(0);
+	expect(dense.ensembleDevelopment?.drumPhrases).toHaveLength(96);
+	for (const bar of dense.ensembleDevelopment!.drumPhrases) {
+		expect(bar.commentary.hits).toHaveLength(0);
+		expect(bar.hits.map((hit) => [hit.drum, bar.barIndex * 4 + hit.beatOffset, hit.velocity, hit.role])
+		.sort()).toEqual(dense.drumEvents.filter((event) => Math.floor(event.absBeat / 4) === bar.barIndex)
+		.map((event) => [event.drum, event.absBeat, event.velocity, event.role]).sort());
+	}
 	expect(dense.ensemblePlan?.trace.every((bar) => bar.soloEvidence === 'active')).toBe(true);
 	expect(dense.drumEvents.filter((event) => event.role === 'commentary')).toHaveLength(0);
 	await page.getByTestId('lab-orchestration').selectOption('original');

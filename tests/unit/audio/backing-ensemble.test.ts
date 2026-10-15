@@ -95,11 +95,14 @@ describe('coordinated swing generation', () => {
 		expect(first.ensembleDevelopment!.version).toBe(1);
 		expect(first.ensembleDevelopment!.pianoMotifs.length).toBeGreaterThan(0);
 		expect(first.ensembleDevelopment!.bassTurnarounds.length).toBeGreaterThan(0);
+		expect(first.ensembleDevelopment!.drumPhrases).toHaveLength(preset.bars);
 		expect(replay).toEqual(first);
 		expect(replay.ensembleDevelopment).not.toBe(first.ensembleDevelopment);
 		expect(Object.isFrozen(replay.ensembleDevelopment)).toBe(true);
 		expect(Object.isFrozen(replay.ensembleDevelopment!.pianoMotifs)).toBe(true);
 		expect(Object.isFrozen(replay.ensembleDevelopment!.bassTurnarounds)).toBe(true);
+		expect(Object.isFrozen(replay.ensembleDevelopment!.drumPhrases)).toBe(true);
+		expect(Object.isFrozen(replay.ensembleDevelopment!.drumPhrases[0].hits)).toBe(true);
 		expect(generateBacking(preset.phrase.harmony, BACKING_STYLES.swing, base).ensembleDevelopment).toBeUndefined();
 	});
 
@@ -108,6 +111,61 @@ describe('coordinated swing generation', () => {
 		const generated = generateBacking(shortened, BACKING_STYLES.swing, { ...base, ensemble: {} });
 		expect(generated.ensemblePlan!.bars).toHaveLength(32);
 		expect(generated.ensembleDevelopment!.bassTurnarounds).toEqual([]);
+	});
+
+	it('exports the actual emitted drum phrases and develops them across the listening-lab form', () => {
+		const realized = new Set<string>();
+		let pianoReplies = 0;
+		for (const tempo of [90, 160, 240]) for (let seed = 0; seed < 12; seed++) {
+			const generated = generateBacking(preset.phrase.harmony, BACKING_STYLES.swing, {
+				...base, tempo, phraseId: `${base.phraseId}#drum${seed}`, ensemble: {}
+			});
+			for (const bar of generated.ensembleDevelopment!.drumPhrases) {
+				const actual = generated.drumEvents.filter((event) => Math.floor(event.absBeat / 4) === bar.barIndex);
+				expect(bar.hits.map((hit) => [hit.drum, bar.barIndex * 4 + hit.beatOffset, hit.velocity, hit.role]).sort())
+					.toEqual(actual.map((event) => [event.drum, event.absBeat, event.velocity, event.role]).sort());
+				expect(bar.commentary.hits.map((hit) => [hit.drum, bar.barIndex * 4 + hit.beatOffset]).sort())
+					.toEqual(actual.filter((event) => event.role === 'commentary')
+						.map((event) => [event.drum, event.absBeat]).sort());
+				if (bar.commentary.hits.length > 0) realized.add(bar.commentary.transform);
+				if (bar.commentary.source === 'piano' && bar.commentary.transform === 'answer' && bar.commentary.hits.length > 0) {
+					pianoReplies++;
+					expect(bar.commentary.sourceBar).toBe(bar.barIndex - 1);
+					expect(bar.commentary.sourceOffsets).toEqual(generated.compEvents
+						.filter((event) => Math.floor(event.absBeat / 4) === bar.commentary.sourceBar)
+						.map((event) => event.absBeat % 4).sort((a, b) => a - b));
+					expect(bar.commentary.hits.map((hit) => hit.beatOffset)).toEqual(bar.commentary.sourceOffsets);
+				}
+			}
+		}
+		for (const transform of ['statement', 'repeat', 'displace', 'orchestrate']) expect(realized.has(transform)).toBe(true);
+		expect(pianoReplies).toBeGreaterThan(0);
+	});
+
+	it('keeps the emitted drum trace inside a partial final bar', () => {
+		const harmony = [{ ...preset.phrase.harmony[0], startOffset: [0, 1] as [number, number], duration: [9, 8] as [number, number] }];
+		const generated = generateBacking(harmony, BACKING_STYLES.swing, { ...base, ensemble: {} });
+		expect(generated.ensembleDevelopment!.drumPhrases).toHaveLength(2);
+		expect(generated.drumEvents.some((event) => event.absBeat === 4)).toBe(true);
+		expect(generated.drumEvents.every((event) => event.absBeat < 4.5)).toBe(true);
+		const final = generated.ensembleDevelopment!.drumPhrases[1];
+		expect(final.hits.every((hit) => hit.beatOffset < 0.5)).toBe(true);
+		expect(final.commentary.motifId).toBeNull();
+	});
+
+	it('admits fractional-ending drum gestures against their swung scheduled onsets', () => {
+		const harmony = [{ ...preset.phrase.harmony[0], startOffset: [0, 1] as [number, number], duration: [17, 12] as [number, number] }];
+		const endBeat = 17 / 3;
+		for (let seed = 0; seed < 12; seed++) {
+			const generated = generateBacking(harmony, BACKING_STYLES.swing, {
+				...base, phraseId: `fractional-drums-${seed}`, swing: 0.78, ensemble: {}
+			});
+			expect(generated.drumEvents.some((event) => event.absBeat === 5)).toBe(true);
+			for (const event of generated.drumEvents) expect(parseInt(event.time, 10)).toBeLessThan(endBeat * base.ppq);
+			expect(generated.ensembleDevelopment!.drumPhrases.flatMap((bar) => bar.hits
+				.map((hit) => [hit.drum, bar.barIndex * 4 + hit.beatOffset])).sort())
+				.toEqual(generated.drumEvents.map((event) => [event.drum, event.absBeat]).sort());
+		}
 	});
 
 	it('realizes both development devices in the unmodified listening-lab form', () => {

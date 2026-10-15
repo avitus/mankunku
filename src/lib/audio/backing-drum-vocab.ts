@@ -47,7 +47,9 @@ export function rideBar(
 	mode: RideMode,
 	barIndex: number,
 	beatsPerBar: number,
-	rng: SeededRng
+	rng: SeededRng,
+	/** Coordinated phrase planning may supply one complete skip cell. */
+	skipOffsets?: readonly number[]
 ): DrumHitSpec[] {
 	const hits: DrumHitSpec[] = [];
 	for (let b = 0; b < beatsPerBar; b++) {
@@ -58,6 +60,12 @@ export function rideBar(
 			beatOffset: b,
 			velocity: (backbeat ? 0.42 : 0.36) + rng.float() * 0.06 + shade
 		});
+	}
+	if (skipOffsets !== undefined) {
+		for (const offset of skipOffsets) {
+			if (offset >= 0 && offset < beatsPerBar) hits.push({ drum: 'ride', beatOffset: offset, velocity: 0.26 + rng.float() * 0.1 });
+		}
+		return hits;
 	}
 	if (mode === 'quarters-only') return hits;
 

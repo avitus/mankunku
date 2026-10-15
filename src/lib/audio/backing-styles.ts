@@ -57,6 +57,8 @@ export type DrumVoice =
 export interface GenerationContext {
 	/** Shared role assignment, present only for coordinated swing. */
 	ensemble?: import('./ensemble-plan').EnsembleBarPlan;
+	/** Whole coordinated drummer bar, already admitted against roles and kit limbs. */
+	plannedDrums?: import('./backing-drum-phrases').DrumPhraseBarPlan;
 	/** 0-based bar index on the phrase timeline. */
 	barIndex: number;
 	beatsPerBar: number;
@@ -230,6 +232,7 @@ function swingVocabularyBar(ctx: GenerationContext, extraColor: DrumHitSpec[] = 
  * A fill belongs to an agreed arrival, never to every section automatically.
  */
 function coordinatedSwingBar(ctx: GenerationContext): DrumHitSpec[] {
+	if (ctx.plannedDrums) return ctx.plannedDrums.hits.map((hit) => ({ ...hit }));
 	const plan = ctx.ensemble!;
 	const { rng, beatsPerBar } = ctx;
 	const mode = chooseRideMode(rng, ctx.intensity);

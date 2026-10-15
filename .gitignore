@@ -43,6 +43,7 @@ supabase/.temp/
 # chunk active sidecar tracking
 .chunk/sidecar.json
 .chunk/sidecar.*.json
+.chunk/validate-pool*.json
 .prod-backup.*
 
 # Python (omr/ subsystem)

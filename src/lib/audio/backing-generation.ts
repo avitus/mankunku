@@ -70,6 +70,7 @@ import {
 } from './voicings';
 import { planCompFigures, hitsForPlannedBar, headFigureFor, compMotifTrace, freezeCompMotifTrace, type CompMotifDecision } from './backing-comp-figures';
 import { freezeBassTurnaroundTrace, type BassTurnaroundTrace } from './backing-bass-turnaround';
+import { planDrumPhrases, freezeDrumPhraseTrace, type DrumPhraseBarPlan, type DrumPhraseDecision } from './backing-drum-phrases';
 import type { StyleDefinition, GenerationContext, DrumVoice } from './backing-styles';
 import { generateBassLine as generateBassLine2, generateBossaBass } from './backing-bass';
 
@@ -123,11 +124,13 @@ export interface EnsembleDevelopment {
 	readonly version: 1;
 	readonly pianoMotifs: readonly CompMotifDecision[];
 	readonly bassTurnarounds: readonly BassTurnaroundTrace[];
+	readonly drumPhrases: readonly DrumPhraseDecision[];
 }
 
 function freezeEnsembleDevelopment(trace: EnsembleDevelopment): EnsembleDevelopment {
 	freezeCompMotifTrace(trace.pianoMotifs);
 	freezeBassTurnaroundTrace(trace.bassTurnarounds);
+	freezeDrumPhraseTrace(trace.drumPhrases);
 	return Object.freeze(trace);
 }
 
@@ -541,7 +544,8 @@ export function generateDrums(
 	params: InstrumentGenerationParams,
 	barInfos: BarInfo[],
 	compOnsetsByBar: Map<number, number[]>,
-	bassOnsetsByBar?: Map<number, number[]>
+	bassOnsetsByBar?: Map<number, number[]>,
+	plannedDrums?: readonly DrumPhraseBarPlan[]
 ): DrumEvent[] {
 	const { phraseId, tempo, swing } = params;
 	const events: DrumEvent[] = [];
@@ -558,6 +562,7 @@ export function generateDrums(
 			rng,
 			compOnsets: compOnsetsByBar.get(bar),
 			bassOnsets: bassOnsetsByBar?.get(bar),
+			plannedDrums: plannedDrums?.[bar],
 			fillRng: createRng(seedFrom(phraseId, tempo, 'drum-fill', bar)),
 			clavePhase,
 			...barInfos[bar]
@@ -674,7 +679,19 @@ export function generateBacking(
 					barInfos,
 					style.bass === 'two' ? 'two' : undefined
 				);
-	const drumEvents = generateDrums(beatsPerBar, style, timedParams, barInfos, onsetsByBar, bassOnsetsByBar);
+	const drumPhrases = ensemblePlan ? planDrumPhrases({
+		phraseId: params.phraseId, tempo: params.tempo, beatsPerBar: 4, bars: barInfos,
+		compOnsetsByBar: onsetsByBar, bassOnsetsByBar, harmonyEndBeat: harmonyBeats,
+		// Swing and phrase placement can move an otherwise valid final-bar
+		// onset past the ending. Admit whole gestures before freezing the trace.
+		acceptsOnset: (absBeat, hit) => {
+			const bar = Math.floor(absBeat / 4);
+			const arrival = hit.role === 'accent' && absBeat % 4 === 0 && ensemblePlan.bars[bar]?.coordinatedAccent;
+			const tick = arrival ? ensembleTiming!.arrivalTick(bar) : ensembleTiming!.place(absBeat, hit.drum);
+			return tick < harmonyBeats * params.ppq;
+		}
+	}) : undefined;
+	const drumEvents = generateDrums(beatsPerBar, style, timedParams, barInfos, onsetsByBar, bassOnsetsByBar, drumPhrases?.bars);
 
 	// A planned arrival shares one onset. Ordinary timekeeping keeps the
 	// phrase placement; intentional unisons share the phrase motion without a player residual.
@@ -693,7 +710,8 @@ export function generateBacking(
 		ensemblePlan: ensembleWindow.plan, ensembleMemory: ensembleWindow.memory,
 		ensembleTiming: ensembleTiming!.trace,
 		ensembleDevelopment: freezeEnsembleDevelopment({
-			version: 1, pianoMotifs: motifTrace ?? [], bassTurnarounds: turnaroundTrace ?? []
+			version: 1, pianoMotifs: motifTrace ?? [], bassTurnarounds: turnaroundTrace ?? [],
+			drumPhrases: drumPhrases?.trace ?? []
 		})
 	} : {}) };
 }
