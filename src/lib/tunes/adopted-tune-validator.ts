@@ -13,6 +13,7 @@
 
 import { PITCH_CLASSES } from '$lib/types/music';
 import { CHORD_DEFINITIONS } from '$lib/music/chords';
+import { isSupportedMeter } from './meter';
 
 export interface AdoptedTuneValidation {
 	valid: boolean;
@@ -28,14 +29,6 @@ export const MAX_BARS_PER_SECTION = 256;
 export const MAX_ADOPTED_TITLE_LENGTH = 200;
 export const MAX_ADOPTED_TAG_LENGTH = 80;
 export const MAX_ADOPTED_SYMBOL_LENGTH = 32;
-/**
- * DoS cap: the meter's numerator. The community preview draws one beat mark
- * per numerator in every preview bar, so an author's [100000000, 4] was 10^8
- * elements per bar; 32 clears every real meter (12/8, 15/8, 7/4).
- */
-export const MAX_ADOPTED_METER_NUMERATOR = 32;
-/** Note values a meter's denominator may name: whole through sixty-fourth. */
-const METER_DENOMINATORS = [1, 2, 4, 8, 16, 32, 64];
 
 /**
  * Script-content heuristic — defense-in-depth on top of Svelte's automatic
@@ -54,16 +47,6 @@ function isFraction(v: unknown, allowZeroNumerator: boolean): v is [number, numb
 		Number.isFinite(v[1]) &&
 		v[1] > 0 &&
 		(allowZeroNumerator ? v[0] >= 0 : v[0] > 0)
-	);
-}
-
-/** A meter of whole beats: integer numerator 1–32 over a power-of-two note value. */
-function isMeter(v: unknown): v is [number, number] {
-	return (
-		isFraction(v, false) &&
-		Number.isInteger(v[0]) &&
-		v[0] <= MAX_ADOPTED_METER_NUMERATOR &&
-		METER_DENOMINATORS.includes(v[1])
 	);
 }
 
@@ -91,7 +74,8 @@ export function validateAdoptedTune(input: unknown): AdoptedTuneValidation {
 		errors.push('unsafe style');
 	}
 	if (!PITCH_CLASSES.includes(sheet.key as never)) errors.push(`invalid key: ${String(sheet.key)}`);
-	if (!isMeter(sheet.timeSignature)) errors.push('invalid timeSignature');
+	// DoS cap too: the community preview draws one beat mark per numerator.
+	if (!isSupportedMeter(sheet.timeSignature)) errors.push('invalid timeSignature');
 
 	if (!Array.isArray(sheet.tags)) {
 		errors.push('tags is not an array');

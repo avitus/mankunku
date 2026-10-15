@@ -3,9 +3,9 @@ import type { Tune } from '$lib/types/tune';
 import {
 	validateAdoptedTune,
 	MAX_NOTES_PER_ADOPTED_TUNE,
-	MAX_SECTIONS_PER_ADOPTED_TUNE,
-	MAX_ADOPTED_METER_NUMERATOR
+	MAX_SECTIONS_PER_ADOPTED_TUNE
 } from '$lib/tunes/adopted-tune-validator';
+import { MAX_METER_NUMERATOR } from '$lib/tunes/meter';
 
 function validSheet(overrides: Partial<Tune> = {}): Tune {
 	return {
@@ -60,11 +60,11 @@ describe('validateAdoptedTune', () => {
 		// [100000000, 4] passed as a finite positive fraction and became 10^8
 		// beat marks per preview bar; 4.5 threw at Array(4.5).
 		expect(validateAdoptedTune(validSheet({ timeSignature: [100_000_000, 4] })).valid).toBe(false);
-		expect(validateAdoptedTune(validSheet({ timeSignature: [MAX_ADOPTED_METER_NUMERATOR + 1, 8] })).valid).toBe(false);
+		expect(validateAdoptedTune(validSheet({ timeSignature: [MAX_METER_NUMERATOR + 1, 8] })).valid).toBe(false);
 		expect(validateAdoptedTune(validSheet({ timeSignature: [4.5, 4] })).valid).toBe(false);
 		expect(validateAdoptedTune(validSheet({ timeSignature: [4, 3] })).valid).toBe(false);
 		expect(validateAdoptedTune(validSheet({ timeSignature: [4, 128] })).valid).toBe(false);
-		for (const meter of [[4, 4], [3, 4], [2, 2], [6, 8], [5, 4], [7, 8], [12, 8], [MAX_ADOPTED_METER_NUMERATOR, 16]] as [number, number][]) {
+		for (const meter of [[4, 4], [3, 4], [2, 2], [6, 8], [5, 4], [7, 8], [12, 8], [MAX_METER_NUMERATOR, 16]] as [number, number][]) {
 			expect(validateAdoptedTune(validSheet({ timeSignature: meter })).errors).toEqual([]);
 		}
 	});
