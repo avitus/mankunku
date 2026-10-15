@@ -34,7 +34,7 @@ import { createRng, seedFrom, type SeededRng } from './generation-rng';
 import { lerp } from './backing-intensity';
 import { pitchClassToNumber } from './voicings';
 import { createTimingStreams, placeEventTicks, SWING_TIMING } from './backing-timing';
-import type { BassEvent, BackingGenerationParams, BarInfo } from './backing-generation';
+import type { BassEvent, InstrumentGenerationParams, BarInfo } from './backing-generation';
 
 /**
  * Chord-tone intervals the bass outlines, read from CHORD_DEFINITIONS so
@@ -318,7 +318,7 @@ function devicePitches(
 export function generateBassLine(
 	harmony: HarmonicSegment[],
 	beatsPerBar: number,
-	params: BackingGenerationParams,
+	params: InstrumentGenerationParams,
 	barInfos: BarInfo[],
 	feelOverride?: 'two'
 ): BassLineResult {
@@ -370,7 +370,7 @@ export function generateBassLine(
 	const push = (absBeat: number, midi: number, duration: number, velocity: number): void => {
 		const bar = Math.floor(absBeat / beatsPerBar);
 		events.push({
-			time: `${placeEventTicks(absBeat, swing, ppq, tempo, timing.bass, streams.for('bass', bar))}i`,
+			time: `${params.ensembleTiming?.place(absBeat, 'bass') ?? placeEventTicks(absBeat, swing, ppq, tempo, timing.bass, streams.for('bass', bar))}i`,
 			midi: Math.max(BASS_LOW, Math.min(BASS_HIGH, midi)),
 			duration,
 			velocity,
@@ -678,7 +678,7 @@ export function generateBassLine(
 export function generateBossaBass(
 	harmony: HarmonicSegment[],
 	beatsPerBar: number,
-	params: BackingGenerationParams,
+	params: InstrumentGenerationParams,
 	barInfos: BarInfo[]
 ): BassLineResult {
 	const { phraseId, tempo, ppq, swing } = params;
@@ -695,7 +695,7 @@ export function generateBossaBass(
 	const push = (absBeat: number, midi: number, duration: number, velocity: number): void => {
 		const bar = Math.floor(absBeat / beatsPerBar);
 		events.push({
-			time: `${placeEventTicks(absBeat, swing, ppq, tempo, timing.bass, streams.for('bass', bar))}i`,
+			time: `${params.ensembleTiming?.place(absBeat, 'bass') ?? placeEventTicks(absBeat, swing, ppq, tempo, timing.bass, streams.for('bass', bar))}i`,
 			midi: Math.max(BASS_LOW, Math.min(BASS_HIGH, midi)),
 			duration,
 			velocity,

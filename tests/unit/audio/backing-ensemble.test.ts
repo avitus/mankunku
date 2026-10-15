@@ -5,6 +5,7 @@ import { BACKING_LAB_PRESETS } from '$lib/audio/backing-lab-presets';
 import { buildPerformanceForm } from '$lib/audio/performance-form';
 import { generateForBounce } from '$lib/audio/backing-bounce';
 import { DEFAULT_BACKING_MIX } from '$lib/audio/backing-mix';
+import { createEnsembleTiming } from '$lib/audio/ensemble-timing';
 
 const preset = BACKING_LAB_PRESETS.find((p) => p.id === 'lab-aaba-c')!;
 const base = {
@@ -69,6 +70,23 @@ describe('coordinated swing generation', () => {
 		expect(generateBackingCached(preset.phrase.harmony, BACKING_STYLES.swing, base).ensemblePlan).toBeUndefined();
 	});
 
+	it('exports a restorable planner checkpoint and phrase timing with independent frozen cache copies', () => {
+		const params = { ...base, ensemble: {} };
+		const first = generateBackingCached(preset.phrase.harmony, BACKING_STYLES.swing, params);
+		const second = generateBackingCached(preset.phrase.harmony, BACKING_STYLES.swing, params);
+		expect(first.ensembleMemory).toBeDefined();
+		expect(first.ensembleMemory!.nextBar).toBe(preset.bars);
+		expect(first.ensembleTiming!.length).toBeGreaterThan(0);
+		expect(second).toEqual(first);
+		expect(second.ensembleMemory).not.toBe(first.ensembleMemory);
+		expect(second.ensembleTiming).not.toBe(first.ensembleTiming);
+		expect(Object.isFrozen(second.ensembleMemory!.recentBars)).toBe(true);
+		expect(Object.isFrozen(second.ensembleTiming![0])).toBe(true);
+		const original = generateBackingCached(preset.phrase.harmony, BACKING_STYLES.swing, base);
+		expect(original.ensembleMemory).toBeUndefined();
+		expect(original.ensembleTiming).toBeUndefined();
+	});
+
 	it('resolves explicit internal repeats as one chorus before instrument generation', () => {
 		const sectionMap = [{ sourceSection: 0, barOffset: 0 }, { sourceSection: 0, barOffset: 8 },
 			{ sourceSection: 1, barOffset: 16 }, { sourceSection: 0, barOffset: 24 }];
@@ -113,6 +131,32 @@ describe('coordinated swing generation', () => {
 			}
 		}
 		expect(arrivals).toBeGreaterThan(0);
+	});
+
+	it('applies the shared phrase timing to all three realized players', () => {
+		for (const tempo of [90, 160, 240]) {
+			const generated = generateBacking(preset.phrase.harmony, BACKING_STYLES.swing, {
+				...base, tempo, ensemble: {}
+			});
+			const plan = generated.ensemblePlan!;
+			const timing = createEnsembleTiming({ ...base, tempo, plan, timingProfiles: BACKING_STYLES.swing.timing });
+			for (const event of generated.bassEvents) {
+				const barIndex = Math.floor(event.absBeat / 4);
+				const arrival = plan.bars[barIndex]?.coordinatedAccent && event.absBeat % 4 === 0;
+				expect(event.time).toBe(`${arrival ? timing.arrivalTick(barIndex) : timing.place(event.absBeat, 'bass')}i`);
+			}
+			for (const event of generated.drumEvents) {
+				const barIndex = Math.floor(event.absBeat / 4);
+				const arrival = plan.bars[barIndex]?.coordinatedAccent && event.role === 'accent' && event.absBeat % 4 === 0;
+				expect(event.time).toBe(`${arrival ? timing.arrivalTick(barIndex) : timing.place(event.absBeat, event.drum)}i`);
+			}
+			for (const event of generated.compEvents) {
+				const barIndex = Math.floor(event.absBeat / 4);
+				const tick = timing.place(event.absBeat, 'comp');
+				const afterRest = barIndex > 0 && plan.bars[barIndex - 1].piano.maxAttacks === 0;
+				expect(event.time).toBe(`${afterRest ? Math.max(tick, barIndex * 4 * base.ppq) : tick}i`);
+			}
+		}
 	});
 
 	it('reduces actual commentary under dense observed activity without losing timekeeping', () => {

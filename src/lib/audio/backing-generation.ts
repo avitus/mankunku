@@ -30,17 +30,18 @@
  *   ensemble-*  | phrase/bar  | intention, lead, response and fill reservation
  *   <role>-time  | barIndex    | timing jitter (backing-timing.ts)
  *
- * Timing: beat offsets are laid out on a straight grid, then placed by
- * backing-timing.ts — swing at the beat→tick conversion, plus per-role
- * ensemble offsets (bass/ride on top, comp behind) and triangular jitter
- * from dedicated `<role>-time` streams. Jitter layers over swing, never
- * replaces it; musical draws and timing never share a stream.
+ * Timing: beat offsets are laid out on a straight grid, then swung at the
+ * beat→tick conversion. Original mode uses backing-timing.ts role offsets
+ * and dedicated jitter streams. Coordinated mode uses ensemble-timing.ts
+ * shared phrase motion, player placement and event-keyed residuals.
+ * Musical choices and timing never share a random stream.
  */
 
 import type { HarmonicSegment, ChordQuality } from '$lib/types/music';
 import type { PerformanceForm } from '$lib/types/performance-form';
 import { performanceBarContext } from './performance-form';
-import { freezeEnsemblePlan, planEnsemble, type EnsemblePlan, type EnsembleBarPlan, type SoloFeature } from './ensemble-plan';
+import { freezeEnsemblePlan, freezeEnsembleMemory, planEnsembleWindow, type EnsembleMemory, type EnsemblePlan, type EnsembleBarPlan, type SoloFeature } from './ensemble-plan';
+import { createEnsembleTiming, freezeEnsembleTimingTrace, type EnsemblePhraseTimingTrace } from './ensemble-timing';
 import { fractionToFloat } from '$lib/music/intervals';
 import { swingForTempo, STRAIGHT_SWING } from '$lib/music/swing';
 import {
@@ -107,6 +108,10 @@ export interface GeneratedBacking {
 	drumEvents: DrumEvent[];
 	/** Decisions behind this performance; absent for the original generator. */
 	ensemblePlan?: EnsemblePlan;
+	/** Final planning checkpoint, ready for a future rolling scheduler. */
+	ensembleMemory?: EnsembleMemory;
+	/** Serializable phrase timing decisions for listening/replay diagnostics. */
+	ensembleTiming?: readonly EnsemblePhraseTimingTrace[];
 }
 
 export type SectionMapEntry = { sourceSection: number; barOffset: number };
@@ -125,6 +130,11 @@ export interface BackingGenerationParams {
 	ensemble?: { soloFeatures?: readonly SoloFeature[] };
 	/** Per-role microtiming profiles (style.timing); SWING_TIMING when absent. */
 	timing?: Record<TimingRole, TimingProfile>;
+}
+
+/** Runtime-only placement, created after the public generation cache key. */
+export interface InstrumentGenerationParams extends BackingGenerationParams {
+	readonly ensembleTiming?: ReturnType<typeof createEnsembleTiming>;
 }
 
 /**
@@ -264,9 +274,8 @@ export function buildBarInfos(totalBars: number, sectionMap?: SectionMapEntry[],
 }
 
 // ── Timing ───────────────────────────────────────────────────
-// Placement lives in backing-timing.ts: swung grid + per-role ensemble
-// offset + triangular jitter from dedicated `<role>-time` streams, so
-// musical draws and timing never share a stream.
+// The coordinated placer is runtime-only. Its absence retains the original
+// swung grid + role offset + dedicated timing-stream jitter byte for byte.
 
 function timingTableOf(params: BackingGenerationParams): Record<TimingRole, TimingProfile> {
 	return params.timing ?? SWING_TIMING;
@@ -275,11 +284,11 @@ function timingTableOf(params: BackingGenerationParams): Record<TimingRole, Timi
 function place(
 	absBeat: number,
 	role: TimingRole,
-	params: BackingGenerationParams,
+	params: InstrumentGenerationParams,
 	streams: TimingStreams,
 	beatsPerBar: number
 ): string {
-	const ticks = placeEventTicks(
+	const ticks = params.ensembleTiming?.place(absBeat, role) ?? placeEventTicks(
 		absBeat,
 		params.swing,
 		params.ppq,
@@ -342,7 +351,7 @@ export function generateComping(
 	harmony: HarmonicSegment[],
 	beatsPerBar: number,
 	style: StyleDefinition,
-	params: BackingGenerationParams,
+	params: InstrumentGenerationParams,
 	barInfos: BarInfo[]
 ): { events: CompEvent[]; onsetsByBar: Map<number, number[]> } {
 	const { phraseId, tempo, swing } = params;
@@ -504,7 +513,7 @@ export function clavePhaseFor(phraseId: string, tempo: number): '32' | '23' {
 export function generateDrums(
 	beatsPerBar: number,
 	style: StyleDefinition,
-	params: BackingGenerationParams,
+	params: InstrumentGenerationParams,
 	barInfos: BarInfo[],
 	compOnsetsByBar: Map<number, number[]>,
 	bassOnsetsByBar?: Map<number, number[]>
@@ -602,8 +611,8 @@ export function generateBacking(
 	}
 	// Start with the existing vocabulary. The planner reserves space and
 	// assigns commentary before any instrument chooses its notes or hits.
-	const ensemblePlan = params.ensemble && style.name === 'Swing' && beatsPerBar === 4
-		? planEnsemble({
+	const ensembleWindow = params.ensemble && style.name === 'Swing' && beatsPerBar === 4
+		? planEnsembleWindow({
 			phraseId: params.phraseId,
 			tempo: params.tempo,
 			bars: barInfos.map((info, barIndex) => ({
@@ -613,13 +622,19 @@ export function generateBacking(
 			})),
 			soloFeatures: params.ensemble.soloFeatures
 		}) : undefined;
+	const ensemblePlan = ensembleWindow?.plan;
 	if (ensemblePlan) {
 		barInfos = barInfos.map((info, barIndex) => ({
 			...info, ensemble: ensemblePlan.bars[barIndex], intensity: ensemblePlan.bars[barIndex].energy
 		}));
 	}
 
-	const timedParams: BackingGenerationParams = { ...params, timing: params.timing ?? style.timing };
+	const timing = params.timing ?? style.timing;
+	const ensembleTiming = ensemblePlan ? createEnsembleTiming({
+		phraseId: params.phraseId, tempo: params.tempo, ppq: params.ppq,
+		swing: params.swing, plan: ensemblePlan, timingProfiles: timing
+	}) : undefined;
+	const timedParams: InstrumentGenerationParams = { ...params, timing, ensembleTiming };
 	const { events: compEvents, onsetsByBar } = generateComping(harmony, beatsPerBar, style, timedParams, barInfos);
 	// Bass engine dispatch: the bossa root–fifth pattern is a 4/4 statement;
 	// 'two' pins the walking planner to permanent two-feel (ballad); other
@@ -637,19 +652,22 @@ export function generateBacking(
 	const drumEvents = generateDrums(beatsPerBar, style, timedParams, barInfos, onsetsByBar, bassOnsetsByBar);
 
 	// A planned arrival shares one onset. Ordinary timekeeping keeps the
-	// existing player placement; intentional unisons are not independently jittered.
+	// phrase placement; intentional unisons share the phrase motion without a player residual.
 	for (const bar of ensemblePlan?.bars ?? []) {
 		const accent = bar.coordinatedAccent;
 		if (!accent) continue;
 		const absBeat = bar.barIndex * beatsPerBar;
-		const time = `${Math.round(absBeat * params.ppq)}i`;
+		const time = `${ensembleTiming!.arrivalTick(bar.barIndex)}i`;
 		if (accent.participants.includes('bass')) {
 			const bass = bassEvents.find((event) => event.absBeat === absBeat);
 			if (bass) { bass.time = time; bass.velocity = Math.min(110, bass.velocity + 5); }
 		}
 		for (const hit of drumEvents.filter((event) => event.absBeat === absBeat && event.role === 'accent')) hit.time = time;
 	}
-	return { bassEvents, compEvents, drumEvents, ...(ensemblePlan ? { ensemblePlan } : {}) };
+	return { bassEvents, compEvents, drumEvents, ...(ensembleWindow ? {
+		ensemblePlan: ensembleWindow.plan, ensembleMemory: ensembleWindow.memory,
+		ensembleTiming: ensembleTiming!.trace
+	} : {}) };
 }
 
 // ── Memoized entry point ─────────────────────────────────────
@@ -680,6 +698,8 @@ export function generateBackingCached(
 		generationCache.set(key, hit);
 		const generated = JSON.parse(hit) as GeneratedBacking;
 		if (generated.ensemblePlan) freezeEnsemblePlan(generated.ensemblePlan);
+		if (generated.ensembleMemory) freezeEnsembleMemory(generated.ensembleMemory);
+		if (generated.ensembleTiming) freezeEnsembleTimingTrace(generated.ensembleTiming);
 		return generated;
 	}
 	const generated = generateBacking(harmony, style, params);

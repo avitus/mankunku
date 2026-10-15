@@ -67,7 +67,7 @@
 	<section class="audit-note" aria-labelledby="audit-title">
 		<div>
 			<h2 id="audit-title">Where we are</h2>
-			<p>The instruments already have a useful vocabulary. The first shared planning foundation is now available for comparison in the listening lab.</p>
+			<p>The instruments already have a useful vocabulary. Shared planning, phrase memory and timing are now available for comparison in the listening lab.</p>
 		</div>
 		<div class="audit-detail">
 			<p><strong>Implementation is separate from musical acceptance.</strong> “Implemented” means the core device is reachable. “Partial” identifies a missing behavior or selection condition. Test references are evidence to inspect, not a claim that this audit ran them. Listening acceptance of this specification is still pending.</p>
@@ -75,8 +75,8 @@
 		</div>
 	</section>
 	<aside class="foundation-note" aria-labelledby="foundation-title">
-		<h2 id="foundation-title">First ensemble foundation · listening review pending</h2>
-		<p>This build adds explicit performance-form metadata and a coordinated swing 4/4 mode in the listening lab: phrase roles, commentary budgets, reasoned silence, response ownership and a replayable decision trace. Dense and sparse scripted solo observations exercise the planner without generating solo audio or listening to a microphone. Live listening and rolling scheduling are still to come. Practice uses the original mode while the new mode awaits listening acceptance.</p>
+		<h2 id="foundation-title">Ensemble foundation · listening review pending</h2>
+		<p>This build adds explicit performance-form metadata and a coordinated swing 4/4 mode in the listening lab: phrase roles, commentary budgets, reasoned silence, response ownership, restorable planner checkpoints and shared phrase timing. Event exports include the checkpoint and timing trace. Dense and sparse scripted solo observations exercise the planner without generating solo audio or listening to a microphone. Live listening and rolling scheduling are still to come. Practice uses the original mode while the new mode awaits listening acceptance.</p>
 		<div class="foundation-links"><a href="/diagnostics/backing-mixer">Compare Original and Coordinated in the lab →</a><a href="/docs/architecture/musicality">Read the staged roadmap →</a></div>
 	</aside>
 
@@ -99,7 +99,7 @@
 					<summary><span class="entry-id">{entry.id}</span><span class="entry-title"><strong>{entry.title}</strong><small>{entry.kind === 'section' ? 'Specification section' : `${INSTRUMENT_LABELS[entry.instrument]} · ${entry.sectionTitle}`}</small></span><span class="status-label" data-status={entry.status}>{STATUS_LABELS[entry.status]}</span><span class="disclosure" aria-hidden="true">+</span></summary>
 					{#if expanded.has(entry.id)}
 						<div class="entry-body">
-							<div class="assessment"><div><h3>Current behavior</h3><p>{entry.assessment}</p>{#if entry.remaining}<h3>{entry.status === 'reference' ? 'How to use this' : 'What remains'}</h3><p>{entry.remaining}</p>{/if}<p class="scope"><strong>Scope:</strong> {entry.scope}</p></div><aside aria-label={`${entry.id} evidence`}><h3>Evidence & validation</h3><p class="validation">Source inspected · listening not assessed</p><ul>{#each entry.evidence as evidence, index (`${evidence.kind}-${evidence.path}-${index}`)}<li><span>{evidence.kind === 'test' ? 'Test reference' : evidence.kind === 'listening' ? 'Historical listening' : 'Source'}{evidence.revision ? ` · ${evidence.revision} branch` : ' · baseline'}</span><a href={musicalityEvidenceUrl(evidence)} target="_blank" rel="noopener noreferrer">{evidence.label ?? evidence.path.split('/').at(-1)}{evidence.line ? `:${evidence.line}` : ''}</a></li>{/each}</ul><a class="permalink" href={`#${entry.id}`}>Link to {entry.id} <span aria-hidden="true">↗</span></a></aside></div>
+							<div class="assessment"><div><h3>Current behavior</h3><p>{entry.assessment}</p>{#if entry.remaining}<h3>{entry.status === 'reference' ? 'How to use this' : 'What remains'}</h3><p>{entry.remaining}</p>{/if}<p class="scope"><strong>Scope:</strong> {entry.scope}</p></div><aside aria-label={`${entry.id} evidence`}><h3>Evidence & validation</h3><p class="validation">Source inspected · listening not assessed</p><ul>{#each entry.evidence as evidence, index (`${evidence.kind}-${evidence.path}-${index}`)}<li><span>{evidence.kind === 'test' ? 'Test reference' : evidence.kind === 'listening' ? 'Historical listening' : 'Source'}{evidence.revision ? (/^[a-f0-9]{40}$/.test(evidence.revision) ? ` · commit ${evidence.revision.slice(0, 8)}` : ` · ${evidence.revision} branch`) : ' · baseline'}</span><a href={musicalityEvidenceUrl(evidence)} target="_blank" rel="noopener noreferrer">{evidence.label ?? evidence.path.split('/').at(-1)}{evidence.line ? `:${evidence.line}` : ''}</a></li>{/each}</ul><a class="permalink" href={`#${entry.id}`}>Link to {entry.id} <span aria-hidden="true">↗</span></a></aside></div>
 							<div class="original-excerpt"><span class="eyebrow">From the original specification</span><MarkdownRenderer markdown={entry.markdown} slug="musicality/spec" /></div>
 						</div>
 					{/if}

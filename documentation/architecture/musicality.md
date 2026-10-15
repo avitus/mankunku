@@ -4,11 +4,12 @@ The `musicality` branch develops the accompaniment as an ensemble. The target is
 
 ## Current foundation
 
-The first increment adds three pieces:
+The current foundation provides:
 
 1. A living specification with all 50 sections and 202 named devices, separate implementation and listening status, source/test evidence, search, filters and permanent requirement links.
 2. An explicit performed form. The owner of a playback session supplies head/solo passes, section occurrences and chorus boundaries. An internal repeated A section is no longer mistaken for another chorus when this metadata is present.
 3. A pure ensemble planner before instrument generation. It assigns phrase intention, piano attack limits, drum commentary limits, bass ornament restraint, response ownership, intentional silence and selective setup/arrival pairs. The existing players realize those instructions with their established vocabulary.
+4. Restorable planner memory and correlated phrase timing. Planning can resume at a contiguous bar boundary from a versioned JSON checkpoint; the three players share bounded phrase motion with their own placement and smaller event residuals.
 
 Coordinated generation currently applies to **swing in 4/4**, selected in the [listening lab](/diagnostics/backing-mixer). Ordinary practice keeps the original orchestration mode until the comparison has received listening acceptance. Both modes consume corrected explicit form metadata where available. The lab supports original/coordinated comparison, variation seeds, WAV bounce and event/decision export.
 
@@ -46,7 +47,7 @@ The generator fits the final explicit section/pass to the emitted harmony extent
 
 ### Ensemble contract
 
-`planEnsemble` returns a deeply frozen, versioned plan and decision trace. A phrase choice persists for its phrase; named seeded streams make replay deterministic and independent of instrument draw order. This first planner exposes support, space, build, release, answer and form-marking intentions.
+`planEnsemble` returns a deeply frozen, versioned plan and decision trace. `planEnsembleWindow` additionally returns a serializable `EnsembleMemory` checkpoint. A phrase choice persists for its phrase; named seeded streams make replay deterministic and independent of instrument draw order. This first planner exposes support, space, build, release, answer and form-marking intentions.
 
 Each bar specifies:
 
@@ -59,6 +60,14 @@ Each bar specifies:
 Whole piano figures are filtered by the budgets of every bar they occupy. Preceding piano notes release at a reserved silent boundary, and an early player offset cannot enter that rest from the other side. Natural sample and room decay can continue after note release. Drum timekeeping is separate from commentary; whole commentary gestures must fit the allowance. A zero commentary allowance does not mute the ride or foot hi-hat. Reserved bass/drum arrivals share a tick instead of receiving unrelated timing jitter. Broader limb, register and harmonic conflict resolution remains future work.
 
 An ownership assignment is an opportunity, not a guarantee of an audible lick: existing vocabulary may still choose restraint. Future motif response realization should provide explicit response devices and traces for rejection reasons.
+
+### Memory and phrase timing
+
+`planEnsembleWindow` receives the full declared form and a contiguous planning range. Its checkpoint binds the phrase identity, tempo and form fingerprint; a mismatched form, skipped/repeated range or foreign checkpoint is rejected. It retains the active phrase choice, response/fill cooldowns, a pending setup arrival, the last two bar summaries, the last four phrase summaries and bounded performance aggregates. JSON save/restore across a mid-phrase or setup boundary produces the same decisions as a single full-form call. Future observations can change only future windows. This is planner continuity, not a rolling audio scheduler: playback still generates the complete form once and repeats it on a loop.
+
+`ensemble-timing.ts` places coordinated swing events on the existing swing grid with three additions: smooth common phrase motion, a stable placement for each player and a smaller event residual. Drum limbs share one drummer placement. Named seeds keyed by phrase and exact event position keep timing independent of event order and draw counts. Motion returns to zero at phrase edges rather than accumulating tempo error. Declared bass/drum arrivals omit player residuals and share a tick; reserved piano silence still constrains attack and release.
+
+The timing bounds are conservative engineering parameters for listening comparison, not an empirically accepted model of professional playing. Build/release intentions bias the common motion modestly, and strong closing boundaries damp it. Richer context-aware placement, live timing adaptation and long-term motif development remain future work. Lab event exports now include the final memory checkpoint and per-phrase timing trace. Cached exports restore deep immutability as well as value equality.
 
 ### Solo evidence contract
 
@@ -88,10 +97,10 @@ Every increment stays on `musicality`, updates the ledger in the same change and
 
 | Milestone | Deliverable and acceptance | Current state |
 | --- | --- | --- |
-| 1. Living evidence | Preserve original text; enumerate every requirement; direct links; separate source, test and listening claims | Implemented in this increment |
+| 1. Living evidence | Preserve original text; enumerate every requirement; direct links; separate source, test and listening claims | Implemented |
 | 2. Performed form | Explicit chorus/head/solo context survives expansion and repeats; generators receive the performed structure | Implemented foundation; audio support remains scoped |
 | 3. Shared intention and space | Phrase plans, complementary piano/drum budgets, silence, response cooldown, setup/arrival ownership; actual generated-event invariants | Implemented foundation in lab preview; listening pending |
-| 4. Phrase memory and timing | Checkpointable short/medium/performance memory; response and fill history across loops; phrase timing with player offsets and coordinated exceptions | Planned |
+| 4. Phrase memory and timing | Checkpointable short/medium/performance memory; response and fill history across loops; phrase timing with player offsets and coordinated exceptions | Planner checkpoints and shared phrase timing implemented; cross-loop audio state and listening acceptance pending |
 | 5. Bass and piano development | Multi-bar bass targets/turnarounds, melodic restraint, rhythmic motifs and transformations, then explicit guide/common/top-note objectives | Existing vocabulary retained; new development planned |
 | 6. Drummer phrasing | 2–4-bar ride phrases, commentary motifs, shared setups, credible limb allocations, expanded kit articulation when needed | Pedal hi-hat and coordinated commentary started; broader phrasing planned |
 | 7. Live listening | Independent activity/rest/register features, confidence and bleed handling, rolling atomic scheduling, safe reset/replay | Input contract only; adapter and scheduler planned |
@@ -116,8 +125,8 @@ An automated result can promote verification evidence; it cannot promote listeni
 
 ### Browser audio verification boundary — 15 October 2026
 
-The first foundation passes deterministic event and scheduler tests, including the exact pitch/transient evidence published for bleed detection. Chromium produces non-silent full-mix and isolated-bass WAV output. The existing WebKit render test also produces non-silent full-mix output, but that alone is insufficient: its isolated bass diagnostic is silent.
+The initial full-mix WebKit test concealed a silent bass stem: `smplr` 1.0.0 selected M4A from browser hints, then resolved loading even when every sample decode failed. Independent fixed-note probes showed that the same OGG samples decoded in both Chromium and WebKit. The repaired shared loader now tests actual decoding, tries alternate encodings, preserves sharp signs/spaces in sample URLs and requires every referenced sample before reporting bass/piano readiness. Both live loading and offline bounce use this policy. Failed instruments disconnect, and disposal invalidates outstanding pitched loads.
 
-A separate fixed-note probe, independent of form and orchestration, traced this to the existing `smplr` 1.0.0 loader. In the bundled Playwright WebKit engine, all 181 Smolken M4A sample requests succeeded with HTTP 200, but decoding failed and no voices started. Chromium decoded 181/181 OGG samples and sounded all five probe notes. The same CDN M4A decoded in Chromium but failed in WebKit; the same OGG decoded in both engines, in live and offline contexts. The loader skips OGG for Safari, then resolves loading even when sample decoding emitted warnings and produced no usable buffers.
+Four automated browser audio tests now pass across Chromium and WebKit. A fixed six-note phrase rendered isolated bass and piano with audible signal on every note: bass peaks were approximately 0.50–0.69 and piano 0.81–0.89 in both engines. Full-mix and golden-reference renders also retained signal throughout their measured durations. Unit regressions cover codec fallback, partial-bank failure/retry, encoded sample names and disposal during bass/piano loading. These checks establish actual offline WAV output and readiness behavior; they do not establish musical quality or hardware Safari behavior.
 
-This is a pre-existing dependency/browser compatibility issue, not an ensemble-planning regression. The renderer was not changed to work around it in this increment. Full-mix test success must not be presented as proof that every WebKit stem works, and actual Safari behavior remains unverified. Codec-capability selection and explicit loaded-instrument readiness need their own focused regression and repair before cross-browser musical acceptance. Reproduce the existing stem diagnostic with `tests/e2e/backing-render-audio.spec.ts`; its full-mix assertions currently do not assert the isolated-stem profiles.
+The full unit suite passes 6,240 tests with 40 existing expected failures. The tracker and lab pass 18 browser checks across Chromium, Firefox and WebKit; type checking is clean. Original-mode golden events and the previous full-form planner decisions are preserved. An independent split-window probe also matched 200 varied forms, including 150 setup/arrival pairs. Human A/B listening acceptance remains pending.

@@ -162,25 +162,36 @@ const baselineAudit: MusicalityAudit[] = [
 	...deviceRows('D', 85, drumsImplemented, drumsPartial)
 ];
 
+const FOUNDATION_REVISION = 'dfa5421a6f198152595a094a11b7414e3d8d9d7c';
 const foundationEvidence: MusicalityEvidence[] = [
+	{ ...source('ensemble-plan'), revision: FOUNDATION_REVISION },
+	{ ...source('backing-generation'), revision: FOUNDATION_REVISION },
+	{ ...test('ensemble-plan'), revision: FOUNDATION_REVISION },
+	{ ...test('backing-ensemble'), revision: FOUNDATION_REVISION }
+];
+const checkpointEvidence: MusicalityEvidence[] = [
 	{ ...source('ensemble-plan'), revision: 'musicality' },
-	{ ...source('backing-generation'), revision: 'musicality' },
 	{ ...test('ensemble-plan'), revision: 'musicality' },
 	{ ...test('backing-ensemble'), revision: 'musicality' }
 ];
+const phraseTimingEvidence: MusicalityEvidence[] = [
+	{ ...source('ensemble-timing'), revision: 'musicality' },
+	{ ...test('ensemble-timing'), revision: 'musicality' }
+];
 const formEvidence: MusicalityEvidence[] = [
-	{ ...source('performance-form'), revision: 'musicality' },
-	{ ...test('performance-form'), revision: 'musicality' }
+	{ ...source('performance-form'), revision: FOUNDATION_REVISION },
+	{ ...test('performance-form'), revision: FOUNDATION_REVISION }
 ];
 const scriptedEvidence: MusicalityEvidence[] = [
-	{ ...source('backing-lab-scenarios'), revision: 'musicality' },
-	{ ...test('backing-lab-scenarios'), revision: 'musicality' }
+	{ ...source('backing-lab-scenarios'), revision: FOUNDATION_REVISION },
+	{ ...test('backing-lab-scenarios'), revision: FOUNDATION_REVISION }
 ];
 
 /** Foundations delivered after the baseline audit; these do not imply listening acceptance. */
 const foundationAssessments: Record<string, string> = {
 	S1: 'Coordinated mode now plans phrase intention and player roles before generating notes.',
 	S2: 'Explicit performance sections, choruses and head/solo roles feed a shared immutable ensemble plan with energy, density and tension.',
+	S4: 'Coordinated mode layers bounded shared phrase motion, stable player placement and small event residuals over the existing tempo-aware swing grid.',
 	S3: 'Coordinated mode adds commentary budgets, turn-taking, reasoned silence and fill cooldowns to seeded weighted generation.',
 	S10: 'The piano now follows shared role and attack budgets; scripted solo rests can reserve a response window.',
 	S16: 'Bass ornament activity now follows the ensemble plan while its pulse remains protected.',
@@ -193,10 +204,10 @@ const foundationAssessments: Record<string, string> = {
 	S27: 'A solo-feature input contract now feeds the planner. Dense and sparse scripted scenarios supply confidence, activity and rest observations in the lab; no solo audio is generated or analyzed.',
 	S28: 'Fresh, confident scripted density/rest observations can shape responses; unavailable input is not treated as silence.',
 	S31: 'The planner now assigns multi-bar phrase intentions and instrument roles before devices are realized.',
-	S32: 'Declared bass/drum arrivals now share one tick rather than independent jitter. Ordinary notes retain the existing swing grid and player timing profiles.',
+	S32: 'Coordinated notes share smooth phrase motion, player placement and smaller independent residuals. Bass/drum arrivals share an exact tick, and the lab exports phrase timing decisions.',
 	S33: 'Build and release intentions now add modest phrase energy contours that feed existing dynamic and density weighting.',
 	S37: 'Shared budgets and response/fill cooldowns now address simultaneous busyness and repeated reactions.',
-	S38: 'The planner now remembers recent phrase intention, lead player, response owner and fill timing within a performance.',
+	S38: 'Versioned JSON checkpoints retain phrase choice, response/fill cooldowns, pending arrivals, recent bar/phrase summaries and performance counters. Resuming a contiguous planning window reproduces a single-pass plan.',
 	S40: 'The plan represents reasoned piano/commentary silence. Scheduled piano sustain ends at a reserved silent bar, and early timing offsets cannot resume inside that bar; bass and drum timekeeping continue.',
 	S41: 'Coordinated generation now inserts a pure ensemble plan before device generation and returns a replayable decision trace.',
 	S42: 'Pre-generation budgets and response/arrival reservations now prevent some ensemble conflicts before note generation.',
@@ -204,7 +215,8 @@ const foundationAssessments: Record<string, string> = {
 	S46: 'New deterministic planner and integration tests exercise scripted dense/resting solo evidence, turn-taking, form and coordinated arrivals.'
 };
 const foundationRemaining: Record<string, string> = {
-	S2: 'Live solo observations, richer motif/register memory and a rolling performance state remain to build.',
+	S2: 'Live solo observations, richer motif/register memory and a rolling audio scheduler remain to build. Planner checkpoints are available; audio still renders a precomputed form.',
+	S4: 'Listening acceptance and explicit musical intent controls for timing remain incomplete; the original mode retains independent event jitter.',
 	S10: 'No live microphone adapter, motif imitation, solo-register avoidance or deliberate piano answer to a drum motif.',
 	S16: 'Live soloist listening and planned two-bar turnaround trajectories are still absent.',
 	S17: 'Multi-bar ride development, live solo listening and advanced drum devices remain incomplete.',
@@ -214,9 +226,9 @@ const foundationRemaining: Record<string, string> = {
 	S25: 'Reciprocal motif dialogue, live solo listening and deliberate whole-kit dropout remain incomplete.',
 	S27: 'A live microphone/MIDI observer, moving-window feature extraction, phrase detection, register/dynamic/motif analysis and bleed protection remain to build. Scripted input is not live listening.',
 	S28: 'Scripted observations are not a live soloist model; register avoidance, dynamics and motif features remain absent.',
-	S32: 'Shared phrase drift and intent-aware placement outside declared arrival hits remain absent.',
+	S32: 'Live timing adaptation and richer context-aware placement remain incomplete. The modest build/release timing bias and other bounds still need listening acceptance.',
 	S33: 'Soloist-relative dynamics, long-term peak/release development and richer timbral trajectories remain incomplete.',
-	S38: 'This memory is local to a precomputed form; long-term peak/device-family history and state across rolling windows remain absent.',
+	S38: 'Checkpoints resume only within the same declared form and tempo. Audio loops still repeat the precomputed timeline; rolling scheduling, cross-loop state and motif/device-family development remain incomplete.',
 	S40: 'General duration-aware silence across every role and live phrase responses remain incomplete. Scheduled note release does not guarantee that sample and room-reverb tails are acoustically silent.',
 	S42: 'There is still no general post-generation register, harmonic-substitution or ensemble collision resolver.',
 	S44: 'The full ensemble/phrase metric suite and a fresh human listening acceptance pass remain to do.',
@@ -244,6 +256,8 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 		evidence: [
 			...entry.evidence, ...foundationEvidence,
 			...(['S2', 'S24', 'S44', 'S46'].includes(entry.id) ? formEvidence : []),
+			...(['S4', 'S32', 'S44'].includes(entry.id) ? phraseTimingEvidence : []),
+			...(['S2', 'S38', 'S41', 'S44', 'S46'].includes(entry.id) ? checkpointEvidence : []),
 			...(['S27', 'S28', 'S44', 'S46'].includes(entry.id) ? scriptedEvidence : []),
 			...(entry.id === 'S40' ? [{ ...test('backing-ensemble-release'), revision: 'musicality' }] : [])
 		]

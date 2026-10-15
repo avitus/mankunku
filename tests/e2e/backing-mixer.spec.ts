@@ -115,12 +115,18 @@ test('scripted scenarios export the actual coordinated plan and retain an origin
 	expect(dense.soloScenario).toBe('dense');
 	expect(dense.buildVersion).toBeTruthy();
 	expect(dense.ensemblePlan?.bars).toHaveLength(96);
+	expect(dense.ensembleMemory?.nextBar).toBe(96);
+	expect(dense.ensembleMemory?.version).toBe(1);
+	expect(dense.ensembleTiming?.[0].phraseStartBar).toBe(0);
+	expect(dense.ensembleTiming?.at(-1)?.endBarExclusive).toBe(96);
 	expect(dense.ensemblePlan?.trace.every((bar) => bar.soloEvidence === 'active')).toBe(true);
 	expect(dense.drumEvents.filter((event) => event.role === 'commentary')).toHaveLength(0);
 	await page.getByTestId('lab-orchestration').selectOption('original');
 	await expect(page.getByTestId('lab-solo-scenario')).toBeDisabled();
 	const original = await exportEvents();
 	expect(original.ensemblePlan).toBeUndefined();
+	expect(original.ensembleMemory).toBeUndefined();
+	expect(original.ensembleTiming).toBeUndefined();
 	expect(original.compEvents.length).toBeGreaterThan(dense.compEvents.length);
 	await expect(page.getByRole('link', { name: 'Musicality specification & progress' })).toHaveAttribute('href', '/musicality');
 });

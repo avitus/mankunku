@@ -3,8 +3,8 @@
  *
  * This planner chooses roles and budgets before instruments generate notes. It
  * never deletes arbitrary rendered notes, changes the bass pulse, or treats an
- * unavailable microphone as a silent soloist. Musical state belongs to this
- * invocation; named RNG streams keep planning independent of instrument draws.
+ * unavailable microphone as a silent soloist. Musical state is explicit and
+ * resumable; named RNG streams keep planning independent of instrument draws.
  */
 import { createRng, seedFrom } from './generation-rng';
 
@@ -124,6 +124,94 @@ export interface EnsemblePlanInput {
 	readonly soloFeatures?: readonly SoloFeature[];
 }
 
+export interface EnsemblePhraseMemory {
+	readonly startBar: number;
+	readonly endBarExclusive: number;
+	readonly intent: EnsembleIntent;
+	readonly lead: 'piano' | 'drums' | 'nobody';
+	readonly barsPlanned: number;
+	readonly energyTotal: number;
+	readonly responseCount: number;
+	readonly fillCount: number;
+}
+
+/** A bounded, JSON-safe checkpoint for one explicitly identified full form. */
+export interface EnsembleMemory {
+	readonly version: 1;
+	readonly phraseId: string;
+	readonly tempo: number;
+	readonly formFingerprint: string;
+	readonly totalBars: number;
+	readonly nextBar: number;
+	readonly activePhrase: {
+		readonly startBar: number;
+		readonly intent: EnsembleIntent;
+		readonly lead: 'piano' | 'drums' | 'nobody';
+	} | null;
+	readonly previousIntent: EnsembleIntent | null;
+	readonly previousLead: 'piano' | 'drums' | 'nobody';
+	readonly lastResponseBar: number | null;
+	readonly lastResponseOwner: ResponseOwner;
+	readonly lastFillBar: number | null;
+	readonly pendingArrival: CoordinatedAccent | null;
+	/** Short-term memory: the last two planning decisions. */
+	readonly recentBars: readonly {
+		readonly barIndex: number;
+		readonly phraseStartBar: number;
+		readonly intent: EnsembleIntent;
+		readonly responseOwner: ResponseOwner;
+		readonly pianoAttackBudget: number;
+		readonly drumCommentaryBudget: number;
+		readonly energy: number;
+		readonly density: number;
+		readonly tension: number;
+		readonly fill: boolean;
+		readonly setupTargetBar: number | null;
+	}[];
+	/** Medium-term memory: up to four phrase summaries, including the active phrase. */
+	readonly recentPhrases: readonly EnsemblePhraseMemory[];
+	readonly performance: {
+		readonly barsPlanned: number;
+		readonly phrasesPlanned: number;
+		readonly responseCount: number;
+		readonly fillCount: number;
+		readonly arrivalCount: number;
+		readonly peakEnergy: number;
+		readonly peakDensity: number;
+		readonly intentCounts: Readonly<Record<EnsembleIntent, number>>;
+		readonly responseCounts: Readonly<Record<ResponseOwner, number>>;
+	};
+}
+
+export interface EnsembleWindowInput extends EnsemblePlanInput {
+	/** Every call receives the full known form, not a sliced list of bars. */
+	readonly startBar?: number;
+	readonly endBarExclusive?: number;
+	readonly memory?: EnsembleMemory;
+}
+
+export interface EnsembleWindowResult {
+	readonly plan: EnsemblePlan;
+	readonly memory: EnsembleMemory;
+}
+
+/** Restore checkpoint immutability after JSON persistence or cache replay. */
+export function freezeEnsembleMemory(memory: EnsembleMemory): EnsembleMemory {
+	if (memory.activePhrase) Object.freeze(memory.activePhrase);
+	if (memory.pendingArrival) {
+		Object.freeze(memory.pendingArrival.participants);
+		Object.freeze(memory.pendingArrival);
+	}
+	for (const bar of memory.recentBars) Object.freeze(bar);
+	for (const phrase of memory.recentPhrases) Object.freeze(phrase);
+	Object.freeze(memory.recentBars);
+	Object.freeze(memory.recentPhrases);
+	Object.freeze(memory.performance.intentCounts);
+	Object.freeze(memory.performance.responseCounts);
+	Object.freeze(memory.performance);
+	return Object.freeze(memory);
+}
+
 /** Restore the immutable plan contract after a serialized cache or event replay. */
 export function freezeEnsemblePlan(plan: EnsemblePlan): EnsemblePlan {
 	for (const bar of plan.bars) {
@@ -150,6 +238,142 @@ const clamp = (value: number, min = 0, max = 1): number => Math.min(max, Math.ma
 type PhraseChoice = { intent: EnsembleIntent; lead: 'piano' | 'drums' | 'nobody' };
 type Draft = { -readonly [K in keyof EnsembleBarPlan]: EnsembleBarPlan[K] };
 
+const INTENTS: readonly EnsembleIntent[] = ['support', 'leave_space', 'build', 'release', 'answer', 'mark_form'];
+const OWNERS: readonly ResponseOwner[] = ['piano', 'drums', 'bass', 'nobody'];
+const isIntent = (value: unknown): value is EnsembleIntent => INTENTS.includes(value as EnsembleIntent);
+const isOwner = (value: unknown): value is ResponseOwner => OWNERS.includes(value as ResponseOwner);
+const isLead = (value: unknown): value is PhraseChoice['lead'] => value === 'piano' || value === 'drums' || value === 'nobody';
+const count = (value: unknown, max: number): value is number =>
+	typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 && value <= max;
+const unit = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1;
+const keysAre = (value: object, keys: readonly string[]): boolean =>
+	Object.keys(value).length === keys.length && keys.every((key) => Object.hasOwn(value, key));
+
+/** Hash only the semantic full-form fields; this identity is not a security signature. */
+function formFingerprint(bars: readonly EnsembleBarContext[]): string {
+	const canonical = JSON.stringify(bars.map((bar) => [
+		bar.barIndex, bar.intensity, bar.isSectionFirstBar, bar.isSectionFinalBar,
+		bar.isChorusFirstBar ?? false, bar.isChorusFinalBar ?? false, bar.isFinalBar,
+		bar.boundaryStrength ?? null, bar.role ?? null,
+		bar.phrase4 ? [bar.phrase4.index, bar.phrase4.barIndex, bar.phrase4.lengthBars,
+			bar.phrase4.position, bar.phrase4.barsRemaining, bar.phrase4.isFinalBar] : null
+	]));
+	return `form-v1:${bars.length}:${seedFrom('ensemble-form', canonical).toString(16)}`;
+}
+
+function initialMemory(input: EnsemblePlanInput, fingerprint: string): EnsembleMemory {
+	return {
+		version: 1, phraseId: input.phraseId, tempo: input.tempo,
+		formFingerprint: fingerprint, totalBars: input.bars.length, nextBar: 0,
+		activePhrase: null, previousIntent: null, previousLead: 'nobody',
+		lastResponseBar: null, lastResponseOwner: 'nobody', lastFillBar: null, pendingArrival: null,
+		recentBars: [], recentPhrases: [],
+		performance: {
+			barsPlanned: 0, phrasesPlanned: 0, responseCount: 0, fillCount: 0, arrivalCount: 0,
+			peakEnergy: 0, peakDensity: 0,
+			intentCounts: { support: 0, leave_space: 0, build: 0, release: 0, answer: 0, mark_form: 0 },
+			responseCounts: { piano: 0, drums: 0, bass: 0, nobody: 0 }
+		}
+	};
+}
+
+/** Validate persisted state before cloning or consuming any musical memory. */
+function validateMemory(memory: EnsembleMemory, input: EnsemblePlanInput, fingerprint: string): void {
+	const invalid = (): never => { throw new Error('Invalid ensemble memory checkpoint'); };
+	if (!memory || memory.version !== 1) throw new Error('Unsupported ensemble memory checkpoint version');
+	if (!keysAre(memory, ['version', 'phraseId', 'tempo', 'formFingerprint', 'totalBars', 'nextBar',
+		'activePhrase', 'previousIntent', 'previousLead', 'lastResponseBar', 'lastResponseOwner', 'lastFillBar',
+		'pendingArrival', 'recentBars', 'recentPhrases', 'performance'])) invalid();
+	if (memory.phraseId !== input.phraseId || memory.tempo !== input.tempo) {
+		throw new Error('Ensemble memory belongs to another phrase or tempo');
+	}
+	if (memory.totalBars !== input.bars.length || memory.formFingerprint !== fingerprint) {
+		throw new Error('Ensemble memory requires the same explicit full form timeline');
+	}
+	const next = memory.nextBar;
+	if (!count(next, input.bars.length)) invalid();
+	// Memory is deliberately bounded; reject malformed arrays before traversing them.
+	if (!Array.isArray(memory.recentBars) || memory.recentBars.length !== Math.min(2, next) ||
+		!Array.isArray(memory.recentPhrases) || memory.recentPhrases.length > 4) invalid();
+	const performance = memory.performance;
+	if (!performance || performance.barsPlanned !== next || !count(performance.phrasesPlanned, next) ||
+		!count(performance.responseCount, next) || !count(performance.fillCount, next) ||
+		!count(performance.arrivalCount, performance.fillCount) || !unit(performance.peakEnergy) ||
+		!unit(performance.peakDensity) || !performance.intentCounts || !performance.responseCounts) invalid();
+	if (!keysAre(performance, ['barsPlanned', 'phrasesPlanned', 'responseCount', 'fillCount', 'arrivalCount',
+		'peakEnergy', 'peakDensity', 'intentCounts', 'responseCounts'])) invalid();
+	if (Object.keys(performance.intentCounts).length !== INTENTS.length ||
+		Object.keys(performance.responseCounts).length !== OWNERS.length ||
+		INTENTS.some((intent) => !count(performance.intentCounts[intent], next)) ||
+		OWNERS.some((owner) => !count(performance.responseCounts[owner], next)) ||
+		INTENTS.reduce((sum, intent) => sum + performance.intentCounts[intent], 0) !== performance.phrasesPlanned ||
+		OWNERS.reduce((sum, owner) => sum + performance.responseCounts[owner], 0) !== next ||
+		performance.responseCount !== next - performance.responseCounts.nobody ||
+		memory.recentPhrases.length !== Math.min(4, performance.phrasesPlanned)) invalid();
+	for (const index of [memory.lastResponseBar, memory.lastFillBar]) {
+		if (index !== null && !count(index, next - 1)) invalid();
+	}
+	if (!isOwner(memory.lastResponseOwner) || !isLead(memory.previousLead) ||
+		(memory.lastResponseBar === null) !== (performance.responseCount === 0) ||
+		(memory.lastFillBar === null) !== (performance.fillCount === 0) ||
+		(memory.lastResponseBar === null) !== (memory.lastResponseOwner === 'nobody')) invalid();
+	if (next === 0) {
+		if (memory.activePhrase !== null || memory.previousIntent !== null || memory.previousLead !== 'nobody') invalid();
+	} else {
+		const active = memory.activePhrase;
+		if (!active) return invalid();
+		if (!keysAre(active, ['startBar', 'intent', 'lead']) ||
+			!count(active.startBar, next - 1) || !isIntent(active.intent) || !isLead(active.lead) ||
+			memory.previousIntent !== active.intent || memory.previousLead !== active.lead) invalid();
+		const lastBar = input.bars[next - 1];
+		let sectionStart = next - 1;
+		while (sectionStart > 0 && !input.bars[sectionStart].isSectionFirstBar) sectionStart--;
+		const expectedStart = lastBar.phrase4 ? next - 1 - lastBar.phrase4.barIndex
+			: sectionStart + Math.floor((next - 1 - sectionStart) / 4) * 4;
+		if (active.startBar !== expectedStart) invalid();
+	}
+	for (const [index, bar] of memory.recentBars.entries()) {
+		if (!bar || !keysAre(bar, ['barIndex', 'phraseStartBar', 'intent', 'responseOwner', 'pianoAttackBudget',
+			'drumCommentaryBudget', 'energy', 'density', 'tension', 'fill', 'setupTargetBar']) ||
+			bar.barIndex !== next - memory.recentBars.length + index ||
+			!count(bar.phraseStartBar, bar.barIndex) || !isIntent(bar.intent) || !isOwner(bar.responseOwner) ||
+			!count(bar.pianoAttackBudget, 2) || !count(bar.drumCommentaryBudget, 3) || !unit(bar.energy) ||
+			!unit(bar.density) || !unit(bar.tension) || typeof bar.fill !== 'boolean' ||
+			(bar.setupTargetBar !== null && (!bar.fill || bar.setupTargetBar !== bar.barIndex + 1 ||
+				bar.setupTargetBar >= input.bars.length))) invalid();
+	}
+	const recentResponse = memory.recentBars.slice().reverse().find((bar) => bar.responseOwner !== 'nobody');
+	const recentFill = memory.recentBars.slice().reverse().find((bar) => bar.fill);
+	if ((recentResponse && (memory.lastResponseBar !== recentResponse.barIndex ||
+		memory.lastResponseOwner !== recentResponse.responseOwner)) ||
+		(!recentResponse && memory.lastResponseBar !== null && memory.lastResponseBar >= next - memory.recentBars.length) ||
+		(recentFill && memory.lastFillBar !== recentFill.barIndex) ||
+		(!recentFill && memory.lastFillBar !== null && memory.lastFillBar >= next - memory.recentBars.length)) invalid();
+	for (const [index, phrase] of memory.recentPhrases.entries()) {
+		if (!phrase || !keysAre(phrase, ['startBar', 'endBarExclusive', 'intent', 'lead', 'barsPlanned',
+			'energyTotal', 'responseCount', 'fillCount']) ||
+			!count(phrase.startBar, next - 1) || !count(phrase.endBarExclusive, next) ||
+			phrase.endBarExclusive <= phrase.startBar || !isIntent(phrase.intent) || !isLead(phrase.lead) ||
+			phrase.barsPlanned !== phrase.endBarExclusive - phrase.startBar ||
+			!count(phrase.responseCount, phrase.barsPlanned) || !count(phrase.fillCount, phrase.barsPlanned) ||
+			!Number.isFinite(phrase.energyTotal) || phrase.energyTotal < 0 || phrase.energyTotal > phrase.barsPlanned ||
+			(index > 0 && memory.recentPhrases[index - 1].endBarExclusive !== phrase.startBar)) invalid();
+	}
+	const latestPhrase = memory.recentPhrases.at(-1);
+	if (next > 0 && (!latestPhrase || latestPhrase.startBar !== memory.activePhrase!.startBar ||
+		latestPhrase.endBarExclusive !== next || latestPhrase.intent !== memory.activePhrase!.intent ||
+		latestPhrase.lead !== memory.activePhrase!.lead)) invalid();
+	const arrival = memory.pendingArrival;
+	if ((memory.recentBars.at(-1)?.setupTargetBar ?? null) !== (arrival?.targetBarIndex ?? null)) invalid();
+	if (arrival !== null && (!arrival || next === 0 || next >= input.bars.length || arrival.targetBarIndex !== next ||
+		!keysAre(arrival, ['id', 'targetBarIndex', 'beatOffset', 'strength', 'participants']) ||
+		arrival.id !== `arrival:${next}` || arrival.beatOffset !== 0 || !unit(arrival.strength) ||
+		!Array.isArray(arrival.participants) || arrival.participants.length === 0 || arrival.participants.length > 3 ||
+		new Set(arrival.participants).size !== arrival.participants.length ||
+		arrival.participants.some((role) => role !== 'bass' && role !== 'piano' && role !== 'drums') ||
+		memory.lastFillBar !== next - 1 || !memory.recentBars.at(-1)?.fill)) invalid();
+}
+
 function roleWeight(previous: ResponseOwner, role: ResponseOwner, ordinary: number, repeated: number): number {
 	return previous === role ? repeated : ordinary;
 }
@@ -170,22 +394,63 @@ function soloEvidence(feature: SoloFeature | undefined, barIndex: number): SoloE
 
 /** Plan the whole known timeline; replaying it never consumes external memory. */
 export function planEnsemble(input: EnsemblePlanInput): EnsemblePlan {
+	return planEnsembleWindow({
+		phraseId: input.phraseId, tempo: input.tempo, bars: input.bars, soloFeatures: input.soloFeatures
+	}).plan;
+}
+
+/**
+ * Plan one consecutive window against the same complete form on every call.
+ * A checkpoint commits the prefix: only observations for newly planned bars are
+ * consumed. The caller owns scheduling and decides when to advance the window.
+ */
+export function planEnsembleWindow(input: EnsembleWindowInput): EnsembleWindowResult {
+	if (typeof input.phraseId !== 'string') throw new Error('Ensemble phrase identity must be a string');
 	if (!Number.isFinite(input.tempo) || input.tempo <= 0) throw new Error('Ensemble tempo must be positive');
 	for (const [index, bar] of input.bars.entries()) {
 		if (bar.barIndex !== index || !Number.isFinite(bar.intensity)) {
 			throw new Error('Ensemble bars must be contiguous from zero with finite intensity');
 		}
+		if ((bar.boundaryStrength !== undefined && !unit(bar.boundaryStrength)) ||
+			(bar.phrase4 && (!count(bar.phrase4.index, input.bars.length) ||
+				!count(bar.phrase4.lengthBars, 4) || bar.phrase4.lengthBars < 1 ||
+				!count(bar.phrase4.barIndex, Math.min(index, bar.phrase4.lengthBars - 1)) ||
+				!unit(bar.phrase4.position) || bar.phrase4.barsRemaining !== bar.phrase4.lengthBars - bar.phrase4.barIndex))) {
+			throw new Error('Ensemble form context must contain finite valid phrase positions and boundaries');
+		}
+	}
+	const fingerprint = formFingerprint(input.bars);
+	if (input.memory) validateMemory(input.memory, input, fingerprint);
+	const checkpoint = input.memory ?? initialMemory(input, fingerprint);
+	const startBar = input.startBar ?? checkpoint.nextBar;
+	const endBarExclusive = input.endBarExclusive ?? input.bars.length;
+	if (!count(startBar, input.bars.length) || !count(endBarExclusive, input.bars.length) || endBarExclusive < startBar) {
+		throw new Error('Ensemble window must be an ordered range within the full form timeline');
+	}
+	if (startBar !== checkpoint.nextBar) {
+		throw new Error('Ensemble windows must be consecutive from the checkpoint next bar, or zero without memory');
 	}
 	const features = new Map(input.soloFeatures?.map((feature) => [feature.barIndex, feature]));
 	const plans: Draft[] = [];
 	const trace: EnsembleDecision[] = [];
-	const phrases = new Map<number, PhraseChoice>();
-	let previousIntent: EnsembleIntent | undefined;
-	let previousLead: PhraseChoice['lead'] = 'nobody';
-	let lastResponseBar = -Infinity;
-	let lastResponseOwner: ResponseOwner = 'nobody';
-	let lastFillBar = -Infinity;
+	let activePhrase = checkpoint.activePhrase ? { ...checkpoint.activePhrase } : null;
+	let previousIntent = checkpoint.previousIntent;
+	let previousLead = checkpoint.previousLead;
+	let lastResponseBar = checkpoint.lastResponseBar ?? -Infinity;
+	let lastResponseOwner = checkpoint.lastResponseOwner;
+	let lastFillBar = checkpoint.lastFillBar ?? -Infinity;
+	let pendingArrival = checkpoint.pendingArrival ? {
+		...checkpoint.pendingArrival, participants: [...checkpoint.pendingArrival.participants]
+	} as CoordinatedAccent : null;
+	const recentBars = checkpoint.recentBars.map((bar) => ({ ...bar }));
+	const recentPhrases = checkpoint.recentPhrases.map((phrase) => ({ ...phrase }));
+	const performance = {
+		...checkpoint.performance,
+		intentCounts: { ...checkpoint.performance.intentCounts },
+		responseCounts: { ...checkpoint.performance.responseCounts }
+	};
 	let sectionStart = 0;
+	for (let i = 0; i < startBar; i++) if (input.bars[i].isSectionFirstBar) sectionStart = i;
 	const sectionEnds: number[] = [];
 	let end = input.bars.length;
 	for (let i = input.bars.length - 1; i >= 0; i--) {
@@ -193,7 +458,7 @@ export function planEnsemble(input: EnsemblePlanInput): EnsemblePlan {
 		if (input.bars[i].isSectionFirstBar) end = i;
 	}
 
-	for (const bar of input.bars) {
+	for (const bar of input.bars.slice(startBar, endBarExclusive)) {
 		const i = bar.barIndex;
 		if (bar.isSectionFirstBar) sectionStart = i;
 		const phraseStartBar = bar.phrase4
@@ -205,7 +470,7 @@ export function planEnsemble(input: EnsemblePlanInput): EnsemblePlan {
 		const boundaryStrength = clamp(bar.boundaryStrength ?? (
 			bar.isChorusFinalBar ? 1 : bar.isSectionFinalBar ? 0.85 : phraseFinal ? 0.5 : 0
 		));
-		let phrase = phrases.get(phraseStartBar);
+		let phrase: PhraseChoice | null = activePhrase?.startBar === phraseStartBar ? activePhrase : null;
 		if (!phrase) {
 			const rng = createRng(seedFrom(input.phraseId, input.tempo, 'ensemble-intent', phraseStartBar));
 			const weights: Array<{ value: EnsembleIntent; weight: number }> = [
@@ -225,7 +490,7 @@ export function planEnsemble(input: EnsemblePlanInput): EnsemblePlan {
 				{ value: 'nobody' as const, weight: 1 }
 			]);
 			phrase = { intent, lead };
-			phrases.set(phraseStartBar, phrase);
+			activePhrase = { startBar: phraseStartBar, intent, lead };
 			previousIntent = intent;
 			previousLead = lead;
 		}
@@ -234,7 +499,7 @@ export function planEnsemble(input: EnsemblePlanInput): EnsemblePlan {
 		// A preceding setup has already committed this arrival. Reserve the
 		// response slot before considering fresh solo evidence, rather than
 		// attaching a formal accent to an independently planned answer later.
-		const incomingAccent = plans[i - 1]?.setupFor;
+		const incomingAccent = pendingArrival;
 		const feature = features.get(i);
 		const evidence = soloEvidence(feature, i);
 		const reliable = evidence === 'active' || evidence === 'resting';
@@ -351,6 +616,7 @@ export function planEnsemble(input: EnsemblePlanInput): EnsemblePlan {
 			});
 		}
 		if (incomingAccent) plan.coordinatedAccent = incomingAccent;
+		pendingArrival = plan.setupFor ?? null;
 		plans.push(plan);
 		trace.push(Object.freeze({
 			barIndex: i, phraseStartBar, phraseIntent: phrase.intent, lead: phrase.lead,
@@ -358,6 +624,48 @@ export function planEnsemble(input: EnsemblePlanInput): EnsemblePlan {
 			responseSuppressedByCooldown: responseWindow !== 'none' && cooldown,
 			fillReserved: allowFill, reasons: Object.freeze(reasons)
 		}));
+
+		// Bounded evidence for diagnostics and subsequent planning. Aggregation
+		// happens once per committed bar, independent of window boundaries.
+		recentBars.push({
+			barIndex: i, phraseStartBar, intent: plan.intent, responseOwner: owner,
+			pianoAttackBudget: piano, drumCommentaryBudget: commentary, energy,
+			density: plan.density, tension: plan.tension, fill: allowFill,
+			setupTargetBar: plan.setupFor?.targetBarIndex ?? null
+		});
+		if (recentBars.length > 2) recentBars.shift();
+		if (recentPhrases.at(-1)?.startBar !== phraseStartBar) {
+			recentPhrases.push({
+				startBar: phraseStartBar, endBarExclusive: i, intent: phrase.intent, lead: phrase.lead,
+				barsPlanned: 0, energyTotal: 0, responseCount: 0, fillCount: 0
+			});
+			if (recentPhrases.length > 4) recentPhrases.shift();
+			performance.phrasesPlanned++;
+			performance.intentCounts[phrase.intent]++;
+		}
+		const summary = recentPhrases[recentPhrases.length - 1];
+		summary.endBarExclusive = i + 1;
+		summary.barsPlanned++;
+		summary.energyTotal += energy;
+		summary.responseCount += Number(owner !== 'nobody');
+		summary.fillCount += Number(allowFill);
+		performance.barsPlanned++;
+		performance.responseCount += Number(owner !== 'nobody');
+		performance.fillCount += Number(allowFill);
+		performance.arrivalCount += Number(Boolean(incomingAccent));
+		performance.responseCounts[owner]++;
+		performance.peakEnergy = Math.max(performance.peakEnergy, energy);
+		performance.peakDensity = Math.max(performance.peakDensity, plan.density);
 	}
-	return freezeEnsemblePlan({ version: 1, bars: plans, trace });
+	return Object.freeze({
+		plan: freezeEnsemblePlan({ version: 1, bars: plans, trace }),
+		memory: freezeEnsembleMemory({
+			version: 1, phraseId: input.phraseId, tempo: input.tempo,
+			formFingerprint: fingerprint, totalBars: input.bars.length, nextBar: endBarExclusive,
+			activePhrase, previousIntent, previousLead,
+			lastResponseBar: Number.isFinite(lastResponseBar) ? lastResponseBar : null,
+			lastResponseOwner, lastFillBar: Number.isFinite(lastFillBar) ? lastFillBar : null,
+			pendingArrival, recentBars, recentPhrases, performance
+		})
+	});
 }
