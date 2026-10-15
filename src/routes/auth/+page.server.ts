@@ -27,7 +27,7 @@ import type { Actions, PageServerLoad } from './$types';
 /**
  * Guard: an already-authenticated browser must never see the login form.
  *
- * Without this, a successful login lands the user back on /auth and forces a
+ * Historically, a successful login landed the user back on /auth and forced a
  * SECOND sign-in. The mechanism: the login action sets the session cookie and
  * returns redirect(303, '/'); use:enhance turns that into a client-side
  * goto('/', { invalidateAll: true }), which re-runs the root +layout.ts while
@@ -41,6 +41,8 @@ import type { Actions, PageServerLoad } from './$types';
  * Bouncing a verified session to '/' means that post-login reload lands home
  * after a SINGLE login: the reloaded /auth immediately 303s to '/', where
  * reconcile finds the namespace already matches and does not reload again.
+ * Successful enhanced sign-in now loads its destination as a fresh document,
+ * avoiding that detour entirely. Keep this guard for direct visits to /auth.
  *
  * `degraded` (auth server unreachable) yields user === null, so the form still
  * renders during an outage rather than bouncing on an unverified verdict — the
