@@ -23,6 +23,7 @@ export interface PreviewBar {
 export function communityPreviewBars(tune: Tune, writtenKey: PitchClass): PreviewBar[] {
 	const barLength = tune.timeSignature[0] / tune.timeSignature[1];
 	const shift = pitchClassInterval(tune.key, writtenKey);
+	/** Chord text for a segment in the written key: its transposed raw symbol, else one rebuilt from the transposed root, quality and bass, spelled for that key. */
 	const symbolFor = (segment: HarmonicSegment): string => {
 		const root = transposePitchClass(segment.chord.root, shift);
 		const bass = segment.chord.bass ? transposePitchClass(segment.chord.bass, shift) : null;

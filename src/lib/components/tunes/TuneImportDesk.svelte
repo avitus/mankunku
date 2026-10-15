@@ -44,10 +44,19 @@
 	onMount(() => { mounted = true; if (kind === 'musescore') source = defaultSourceTransposition(getInstrument()); });
 	onDestroy(() => { run += 1; });
 
+	/**
+	 * Returns the desk to the choose phase: invalidates any pending read, clears the file, link text,
+	 * results, warnings, error, notice and declared transposition, and empties the file input.
+	 * The chosen source transposition is left as it is.
+	 */
 	function reset(): void {
 		run += 1; phase = 'choose'; file = null; input = ''; rawSheets = []; warnings = []; error = ''; notice = ''; declaredTransposition = 0;
 		if (fileInput) fileInput.value = '';
 	}
+	/**
+	 * Takes a picked or dropped file. Ignored before mount or while a read is running; rejected with an
+	 * error unless its extension is one this import method accepts; otherwise resets the desk and selects it.
+	 */
 	function chooseFile(next: File): void {
 		if (!mounted || busy) return;
 		const extension = '.' + next.name.toLowerCase().split('.').pop();
@@ -57,21 +66,33 @@
 		}
 		reset(); file = next;
 	}
+	/** Routes the file chosen in the input to `chooseFile`, then clears the input so re-picking the same file still fires change. */
 	function pickFile(event: Event): void {
 		const target = event.currentTarget as HTMLInputElement;
 		if (target.files?.[0]) chooseFile(target.files[0]);
 		// Re-picking the same file must still fire change after re-exporting it.
 		target.value = '';
 	}
+	/** Suppresses the browser's default drop, clears the drag highlight, and routes the first dropped file to `chooseFile`. */
 	function dropFile(event: DragEvent): void {
 		event.preventDefault(); dragging = false;
 		if (event.dataTransfer?.files[0]) chooseFile(event.dataTransfer.files[0]);
 	}
+	/** Abandons a read in progress: invalidates it so its result is discarded, returns to the choose phase with the selection kept, and says so in a notice. */
 	function cancel(): void {
 		run += 1; phase = 'choose'; notice = 'Reading cancelled. Your selection is still here.';
 	}
+	/** Sets the source transposition and marks it user-chosen, so a later MuseScore read no longer overrides it with a default. */
 	function changeSource(value: SourceTransposition): void { source = value; sourceTouched = true; }
 
+	/**
+	 * Reads the pasted link or chosen file with the importer for this method (loaded on demand) into
+	 * `rawSheets` and `warnings`. Each await re-checks this call's run token, so a read that was cancelled,
+	 * replaced or unmounted drops its result; a read error becomes a warning instead of throwing, and the
+	 * desk always ends in the results phase unless superseded. For MuseScore it records the part's declared
+	 * transposition and, unless the user already chose a source, defaults to concert pitch for a declared
+	 * transposing part and to the instrument's default otherwise.
+	 */
 	async function read(): Promise<void> {
 		if (!canRead) return;
 		const activeRun = ++run;
@@ -114,7 +135,9 @@
 			if (activeRun === run) phase = 'results';
 		}
 	}
+	/** Loads a sheet into the tune editor as an unsaved draft for review and navigates there. */
 	function review(sheet: Tune): void { loadDraftForReview(sheet, getInstrument()); void goto('/tunes/editor'); }
+	/** Saves a sheet straight to the user's tune book with its difficulty computed from the tune's phrase; returns the saved tune's id. */
 	function add(sheet: Tune): string { return saveUserTune({ ...sheet, difficulty: calculateDifficulty(tuneToPhrase(sheet)) }).id; }
 </script>
 

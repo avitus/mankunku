@@ -8,6 +8,7 @@
 			`${section.title} ${p.title} ${p.slug} ${p.blurb ?? ''}`.toLowerCase().includes(q)
 		)})).filter(section => section.pages.length > 0);
 	});
+	/** Clears the search box and tells the parent a guide link was followed. */
 	function navigate(): void { query = ''; onnavigate?.(); }
 </script>
 

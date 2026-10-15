@@ -123,6 +123,11 @@ export function getPaddedNotes(): Note[] {
 	return notes;
 }
 
+/**
+ * Build the Phrase the editor would save from the current entry state. The id is
+ * blank (assigned on save), the mode is always stated, and the source and tags
+ * follow whether a user-recorded lick is being edited.
+ */
 export function getCurrentPhrase(): Phrase {
 	// stepEntry.phraseKey is what the user selected in the dropdown — the WRITTEN
 	// key for the entry surface. The rest of the app (notation, playback,

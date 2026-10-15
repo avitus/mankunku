@@ -70,7 +70,9 @@ function makeSupabaseMock(response: {
 			const chain = {
 				select() { return chain; },
 				eq(col: string, val: unknown) { q.filters.push({ op: 'eq', args: [col, val] }); return chain; },
+				/** Record an `ilike` pattern filter. */
 				ilike(col: string, val: unknown) { q.filters.push({ op: 'ilike', args: [col, val] }); return chain; },
+				/** Record a negated filter (column, operator, value). */
 				not(col: string, op: string, val: unknown) { q.filters.push({ op: 'not', args: [col, op, val] }); return chain; },
 				neq(col: string, val: unknown) { q.filters.push({ op: 'neq', args: [col, val] }); return chain; },
 				is(col: string, val: unknown) { q.filters.push({ op: 'is', args: [col, val] }); return chain; },

@@ -13,6 +13,11 @@ const DOC_FILES = import.meta.glob<string>('/documentation/**/*.md', {
 	eager: true
 });
 
+/**
+ * Serves one documentation page: 404s when the slug is absent from the docs
+ * tree (`DOC_TREE`) or its bundled markdown file is missing, otherwise returns
+ * the page metadata, the raw markdown, the rendered HTML and the breadcrumbs.
+ */
 export const load: PageServerLoad = async ({ params }) => {
 	const slug = params.slug;
 	const meta = getPage(slug);

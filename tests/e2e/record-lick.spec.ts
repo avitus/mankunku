@@ -3,6 +3,7 @@ import { test, expect } from './fixtures/test';
 import { seedOnboardedAnonymous } from './fixtures/storage';
 import { installAudioMock } from './fixtures/audio';
 
+/** Seed an onboarded anonymous visitor, install the mic mock and open the recorder once "Start count-in" is enabled. */
 async function openRecorder(page: Page): Promise<void> {
 	await seedOnboardedAnonymous(page);
 	await installAudioMock(page, { countGetUserMediaCalls: true });

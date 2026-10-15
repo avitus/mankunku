@@ -28,6 +28,7 @@
 	const hasMelody = $derived(
 		item.sheet.sections.some((section) => section.notes.some((note) => note.pitch !== null))
 	);
+	/** Swaps the ASCII accidental in a key name for its real flat or sharp glyph. */
 	const keyLabel = (key: string) => key.replace('b', '♭').replace('#', '♯');
 </script>
 

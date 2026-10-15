@@ -325,6 +325,7 @@ test.describe('community studio desk', () => {
 		}]
 	}));
 
+	/** Seed the stub cloud with the community rows and author, serve the paginated tunes listing, open /tunes/community and return the cloud. */
 	async function desk(page: Page, baseURL: string) {
 		const cloud = createStubCloud();
 		for (const row of rows) cloud.seedRow('tunes', row);

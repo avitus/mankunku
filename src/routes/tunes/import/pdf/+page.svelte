@@ -417,6 +417,12 @@
 		};
 	}
 
+	/**
+	 * Read an attached `.omr.json` transcription. An oversize, non-JSON or invalid
+	 * file is rejected with an inline error; otherwise the normalized document is
+	 * kept for the import. The input is always cleared so the same file can be
+	 * attached again.
+	 */
 	async function handleOmrFile(event: Event): Promise<void> {
 		const inputEl = event.currentTarget as HTMLInputElement;
 		const file = inputEl.files?.[0];
@@ -454,6 +460,7 @@
 		}
 	}
 
+	/** Accept a picked or dropped file only if it is a PDF under the size cap, otherwise clear the selection and say why. Ignored while an upload runs. */
 	function chooseFile(file: File | null): void {
 		if (uploading) return;
 		errorMessage = null;
@@ -470,6 +477,16 @@
 		selectedFile = file;
 	}
 
+	/**
+	 * Read the chosen PDF into a draft tune and open it in the editor for review.
+	 * Tries the per-system pipeline first and falls back to whole-PDF extraction
+	 * (skipped with a message when no scan reader is configured), cross-checks the
+	 * read meter against the declared one, shifts the chart to concert pitch, keeps
+	 * the original file (local cache, plus the private bucket when signed in) and
+	 * hands the draft to the editor. Nothing is saved until the user confirms there.
+	 * Cancellation and failures surface as `errorMessage`; the busy state is always
+	 * reset.
+	 */
 	async function prepareDraft(): Promise<void> {
 		if (!selectedFile || uploading || omrLoading || configured === null) return;
 		const file = selectedFile;

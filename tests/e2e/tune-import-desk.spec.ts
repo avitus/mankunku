@@ -41,6 +41,7 @@ test('MuseScore waits for Read score, preserves a manual source choice and engra
 });
 
 test('playlist filtering keeps added state attached to the original tune and reset starts a fresh import', async ({ page }) => {
+	/** A minimal iReal Pro song record (a four-bar C7 F7 C7 G7 chart) with the given title. */
 	const song = (title: string): string => `${title}=Trad=Swing=C=n={*AT44C7 |F7 |C7 |G7 Z`;
 	const link = 'irealbook://' + encodeURIComponent(song('First Blues') + '===' + song('Second Blues'));
 	await page.goto('/tunes/import/ireal');

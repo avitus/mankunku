@@ -125,6 +125,11 @@
 		cleanup();
 	});
 
+	/**
+	 * Tears down every audio resource the page holds: silence timer, cue loop, both
+	 * detectors, metronome, playback and the microphone, and clears the live pitch.
+	 * Every step is null-safe, so it is harmless to call twice or before setup finished.
+	 */
 	function cleanup() {
 		if (silenceTimeout) clearTimeout(silenceTimeout);
 
@@ -140,6 +145,12 @@
 		currentPitchMidi = null;
 	}
 
+	/**
+	 * Opens the microphone (reusing an open one) and the onset detector, resolving
+	 * false if audio did not load, the mic is refused (the user-facing error is set
+	 * only while `isCurrent`), or the caller was superseded mid-await, in which case
+	 * what it just opened is released. A missing onset detector is not fatal.
+	 */
 	async function ensureMicCapture(isCurrent: () => boolean): Promise<boolean> {
 		if (!captureModule) return false;
 		if (micCapture) return true;
@@ -179,9 +190,18 @@
 
 	// ─── Count-in + Recording ───────────────────────────────
 
+	/**
+	 * Starts a take: opens the mic, resets Tone's transport to 4/4 at `tempo`,
+	 * schedules the woodblock count-in and the jazz-kit metronome from the entrance
+	 * tick, starts the pitch detector for the whole session (so an attack on the
+	 * downbeat is not lost to warmup) and schedules `beginActiveRecording` for the
+	 * bar-3 downbeat. Every await re-checks `isCurrent`, so a cancel or unmount
+	 * mid-setup abandons it silently; a real failure cleans up and shows an error.
+	 */
 	async function startRecording() {
 		if (recordState !== 'idle' || !audioReady || setupPending || !playbackModule || !pitchModule) return;
 		const thisRun = ++run;
+		/** True while the page is mounted and no later start, cancel or stop has bumped `run` since this call began. */
 		const isCurrent = () => !destroyed && run === thisRun;
 		setupPending = true;
 		recordingError = '';
@@ -283,7 +303,13 @@
 		silenceTimeout = setTimeout(stopRecording, 2000);
 	}
 
+	/** Starts the animation-frame loop that keeps `beatIndex` in step with the transport for the count-in and recording cues. */
 	function startCueTracking() {
+		/**
+		 * One animation frame: ends the loop outside count-in/recording, otherwise
+		 * converts the transport position at `immediate()` (the audio clock without
+		 * Tone's look-ahead) to a beat index, assigning it only on change, and re-arms.
+		 */
 		function frame() {
 			if (recordState !== 'counting-in' && recordState !== 'recording') return;
 			if (toneModule) {
@@ -297,6 +323,7 @@
 		cueAnimFrame = requestAnimationFrame(frame);
 	}
 
+	/** Cancels the cue animation loop and resets the beat index and transport start time to "not started". */
 	function stopCueTracking() {
 		if (cueAnimFrame !== null) {
 			cancelAnimationFrame(cueAnimFrame);
@@ -306,12 +333,20 @@
 		transportStartTime = Infinity;
 	}
 
+	/** Aborts a take in progress: bumping `run` voids any setup still awaiting, then audio is torn down and the page returns to idle. */
 	function cancelCountIn(): void {
 		run++;
 		cleanup();
 		recordState = 'idle';
 	}
 
+	/**
+	 * Ends the take (silence timeout or the Stop button; ignored unless recording). Snapshots the
+	 * readings, worklet onsets and anchor offset BEFORE `cleanup` tears the audio
+	 * graph down, drops out if the page was left or a new run began meanwhile, then
+	 * hands the capture to `transcribeTake`. No notes found: error and back to idle;
+	 * otherwise the numbered default name is set and the review opens.
+	 */
 	async function stopRecording() {
 		if (recordState !== 'recording') return;
 		recordState = 'processing';
@@ -368,6 +403,11 @@
 		});
 	}
 
+	/**
+	 * Saves the reviewed take under the typed name (falling back to its own), local
+	 * first with cloud sync when signed in, shows the confirmation and returns to
+	 * idle after 1.5 s. Ignored with no take or while the confirmation is showing.
+	 */
 	function handleSave() {
 		if (!reviewPhrase || savedConfirmation) return;
 		void playbackModule?.stopPlayback();
@@ -384,12 +424,14 @@
 		}, 1500);
 	}
 
+	/** Sends the reviewed take, under the typed name, to the lick editor as a draft. Does nothing without a take or when it runs past 4 bars. */
 	function handleEdit(): void {
 		if (!reviewPhrase || reviewPhrase.difficulty.lengthBars > 4) return;
 		loadRecordingDraft({ ...reviewPhrase, name: lickName || reviewPhrase.name }, instrument);
 		void goto('/licks/editor');
 	}
 
+	/** Discards the reviewed take and returns to idle, cancelling a pending post-save reset and any review playback. */
 	function handleReRecord() {
 		clearTimeout(saveTimer);
 		playbackModule?.stopPlayback();

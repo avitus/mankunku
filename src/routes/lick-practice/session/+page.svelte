@@ -1793,6 +1793,11 @@
 		}
 	}
 
+	/**
+	 * Restarts in place as a focused session pinned to the chosen progression
+	 * (the report's progression buttons). Drops the recommendation context
+	 * first, so the new session is not chained onto earlier report advice.
+	 */
 	async function handleStartProgression(progressionType: ChordProgressionType) {
 		if (isRestarting) return;
 		recommendationContext = undefined;
@@ -1806,11 +1811,13 @@
 		});
 	}
 
-	// Tee up the report's single recommendation. A weak-key step carries the
-	// key as a focus key, so the drill opens on it ALONE and works it back up
-	// to speed before the other keys return (the focus ramp). The plan item's resolved
-	// Phrase is preferred over the bare id because `getLickById` misses for
-	// user/community licks. The tempo-bump knob applies through config.
+	/**
+	 * Tee up the report's single recommendation. A weak-key step carries the
+	 * key as a focus key, so the drill opens on it ALONE and works it back up
+	 * to speed before the other keys return (the focus ramp). The plan item's resolved
+	 * Phrase is preferred over the bare id because `getLickById` misses for
+	 * user/community licks. The tempo-bump knob applies through config.
+	 */
 	async function handleStartNextStep(action: NextStepAction) {
 		if (isRestarting || !sessionReport) return;
 		if (isDailyPractice() || recommendationContext) {

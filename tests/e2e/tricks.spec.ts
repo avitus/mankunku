@@ -117,6 +117,7 @@ test.describe('tricks', () => {
 		await expect(signedInPage.getByRole('heading', { name: 'Triad Pairs', exact: true })).toBeVisible();
 
 		// The same accessible radio bank is used here and in drill setup.
+		/** The radio for a pair variant, found by its exact accessible label. */
 		const pair = (label: string) => signedInPage.getByRole('radio', { name: label, exact: true });
 		await expect(pair('Major pair a whole step apart (C·D)')).toBeChecked();
 		await expect(pair('Major + minor a whole step apart (C·D-)')).toBeDisabled();

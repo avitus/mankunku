@@ -95,6 +95,7 @@
 
 	let searchTimer: ReturnType<typeof setTimeout> | undefined;
 	let authorTimer: ReturnType<typeof setTimeout> | undefined;
+	/** Debounce (200 ms) a search box into the filter state: the author box when `author` is set, else the title box. */
 	function search(event: Event, author = false) {
 		const value = (event.currentTarget as HTMLInputElement).value;
 		if (author) {
@@ -105,6 +106,7 @@
 			searchTimer = setTimeout(() => (tuneCommunity.searchQuery = value), 200);
 		}
 	}
+	/** Cancel any pending debounced input and reset the title, author and scope filters. */
 	function clearFilters() {
 		clearTimeout(searchTimer);
 		clearTimeout(authorTimer);
@@ -118,6 +120,13 @@
 		clearTimeout(authorTimer);
 	});
 
+	/**
+	 * Run a card action: toggle the favorite, adopt the tune into the book, or return it.
+	 * A favorite is applied optimistically and rolled back if the write fails or is
+	 * refused. A result that lands after the page, filters or user changed
+	 * (`effectRunId`) is dropped, and a non-"all" scope re-fetches so the list
+	 * membership follows the change.
+	 */
 	async function act(item: CommunityTune, kind: 'favorite' | 'adopt' | 'return') {
 		if (!supabase || pending) return;
 		const runId = effectRunId;
@@ -125,6 +134,7 @@
 		pending = kind;
 		pendingId = item.sheet.id;
 		actionError = '';
+		/** Patch this tune's card in the local list, leaving every other card untouched. */
 		const update = (patch: Partial<CommunityTune>) => {
 			sheets = sheets.map((current) =>
 				current.sheet.id === item.sheet.id ? { ...current, ...patch } : current

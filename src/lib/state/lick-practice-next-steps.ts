@@ -244,6 +244,7 @@ function recentKeyScores(input: NextStepInput, lickId: string, key: PitchClass):
 		.map((scores) => scores.reduce((sum, score) => sum + score, 0) / scores.length);
 }
 
+/** The closing "nothing left to prioritize" step, worded differently once the recommended follow-ups have been worked through. */
 function doneStep(report: SessionReport, followedUp = false): NextStep {
 	return {
 		kind: 'done',
