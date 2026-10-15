@@ -58,7 +58,7 @@
 			sort: tuneCommunity.sort,
 			scope: tuneCommunity.scope,
 			excludeUserId: user?.id,
-			limit: PAGE_SIZE + 1
+			limit: PAGE_SIZE
 		};
 		sheets = [];
 		hasMore = false;
@@ -73,14 +73,14 @@
 		awaitHydration()
 			.then(async () => {
 				if (runId !== effectRunId) return;
-				const results = await listCommunityTunes(sb, filters, offset);
+				const page = await listCommunityTunes(sb, filters, offset);
 				if (runId !== effectRunId) return;
-				if (!results.length && offset > 0) {
+				if (!page.rowCount && offset > 0) {
 					pageNumber--;
 					return;
 				}
-				sheets = results.slice(0, PAGE_SIZE);
-				hasMore = results.length > PAGE_SIZE;
+				sheets = page.tunes;
+				hasMore = page.hasMore;
 			})
 			.catch(() => {
 				if (runId === effectRunId) loadError = true;
