@@ -2118,7 +2118,6 @@
 		<LickHeader
 			phraseNumber={currentItem.phraseNumber}
 			phraseName={currentItem.phraseName}
-			{currentKey}
 			progressionType={currentProgressionType}
 			keyIndex={lickPractice.currentKeyIndex}
 			totalKeys={currentItem.keys.length}

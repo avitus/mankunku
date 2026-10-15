@@ -514,8 +514,10 @@ prototype state controls and sample responses are not shipped.
 ### Daily and Deep practice desk
 
 The approved taller Studio Desk session uses the existing Svelte session engine,
-with a recessed music area and a 220px key-progress rail on wide screens. Below
-1050px the ring and End Session move below the music. Chord rows remain 128px;
+with a recessed music area and a 220px key-progress rail on wide screens. The
+current key is identified in the progress ring; omit the duplicate large
+accent-coloured key readout from the upper-right header in every session mode.
+Below 1050px the ring and End Session move below the music. Chord rows remain 128px;
 notation rows are 204.8px (60% taller), with a 140.8px music frame, 10px inner
 vertical padding and a separate 28px cue lane. The viewport reserves 460.8px so
 notation appearing or disappearing between cycles does not move the controls.
