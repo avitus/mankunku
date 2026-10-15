@@ -2861,3 +2861,21 @@ it in one run: 1943 takes, one cue. The fader bank, built a week later over
 the same clean samples with a single pooled median, agreed with the player's
 ear immediately. When a rule says "typical", compute one typical value and
 test it once; and when pinning a threshold, include a vector that scatters.
+
+## 2026-10-15 — A gate is a contract with every producer upstream of it
+
+PR #277's review ran four rounds, and each finding was caused by fixing the
+one before it. The community listing let unvalidated rows reach an
+auto-preview, so I added the adoption validator there. Dropping rows then
+moved the page boundary. The validator's meter check was too loose to stop
+a DoS, so I tightened it. The tightened check then rejected meters that three
+importers happily saved. None of the fixes was wrong. But a validator is a
+statement about what the whole system may produce, and I had edited it as if
+it were local to its call site. The question to ask when tightening any gate:
+which code writes what this gate reads, and do they agree today? Here the
+answer was a shared predicate (`tunes/meter.ts`) that the writers and the gate
+both call. A gate that the producers do not share means data that exists but
+never appears. The PR #277 case shows how quietly that happens: a 4/128 tune
+imports cleanly and then never shows up in the community, with no error.
+The paging bug has the same shape at a smaller scale: filtering after a page
+boundary is a gate placed downstream of the counter that depends on it.

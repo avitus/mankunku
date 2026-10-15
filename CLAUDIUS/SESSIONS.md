@@ -5154,3 +5154,41 @@ mankunkujazz.com reports 1513bf4f, release 20261011-235211-1513bf4.
 - Integrated advancing dev commit `16b81f88` (new steals ready for practice) before final validation.
 - Validation: `npm run check` has zero errors/warnings; 90 focused unit/integration tests pass; 42 Playwright tests pass across Chromium, Firefox and WebKit, including phone dark/light, dense notation, book persistence, filters and a delayed-pagination race. The production build passes with the existing chunk-size warning. A deliberate stop-generation mutation made its regression test fail before restoration.
 - Final validation timings: check + unit/integration run 12.50s, production build + browser suite 27.80s, run concurrently. Direct `origin/dev` delivery only; no PR or production deployment.
+
+## 2026-10-15 — PR #277 (dev → main) reviewed, merged
+
+Andy: open the dev → main PR, address all review comments, merge when done.
+Twelve dev commits (Studio Desk community tunes, imports, recorder, docs
+guidebook, tricks pages; Daily follow-up refresh; admin active days).
+
+- **Before opening:** dev's head was red — e2e failed on all three engines
+  because 03060dfe hid the lick search box for books of ≤ 5 licks and missed
+  `licks-authed.spec.ts`. Fixed the spec (progression filter as the loaded
+  marker, pin the hidden search) and documented the 49 functions the diff
+  touched (docstring scan 23.4% → 100%; three parallel agents, comment-only
+  diff verified). Opened #277 as a draft, asked `rate limit`, then marked it
+  ready — first time using the draft as a free pre-trigger window.
+- **Round 1:** admin inactivity filter took the first non-null date, not the
+  newest (extracted `ui/admin-user-filter.ts`, red on the old rule);
+  failed-sign-in e2e clicked before hydration (shared
+  `waitForAuthFormHydration`). Declined two nitpicks with reasons: ID lists
+  in the community URL (prod has 2 tune authors, 0 favorites/adoptions;
+  server-side membership would change the local-first design) and annotating
+  2 of 151 Playwright callbacks.
+- **Walkthrough security (no thread):** community rows reached the
+  auto-selected preview unvalidated — a numeric chord `symbol` threw at
+  `trim()` (confirmed with a probe). The listing now runs
+  `validateAdoptedTune`.
+- **Round 2–3:** inactivity cutoff compared as a calendar day; dropping rows
+  broke paging (hid Next, and `slice(0, 6)` could pull the look-ahead row
+  into page 1 that page 2 showed again) → `listCommunityTunes` returns
+  `{ tunes, rowCount, hasMore }` decided on rows. Security: the meter
+  numerator was unbounded (10^8 beat marks per preview bar; 4.5 threw at
+  `Array`) → bounded.
+- **Round 4:** importers still saved meters the gate rejected (BIAB 4/128) →
+  one rule in `tunes/meter.ts`, used by the validator and the BIAB
+  MusicXML, MuseScore and PDF importers. Prod: all 5 tunes 4/4, 0 adoptions.
+- Round 5 clean; security "No architecture-level concerns". CodeRabbit rate
+  limited once (5 min). Merged ce4154c1: test → build → db-migrate, e2e,
+  deploy all green; /api/health on mankunkujazz.com reports ce4154c1,
+  release 20261015-233810-ce4154c.

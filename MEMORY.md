@@ -427,3 +427,12 @@ The approved Phrase canvas is shared between `/tricks/enclosures` and `/lick-pra
 - **Replay over all 1943 production takes (72 runs): the cue fires once.** `consistentOffset` (median ≥ 15 ¢, 80% of notes ≥ 10 ¢, MAD ≤ 10) is applied to EACH take, then 80% of the five-take window must pass it alone. Take medians scatter ±5 ¢ around a run's centre and only 60% of notes sit ≥ 10 ¢ on the side in runs centred ≥ 10, so the effective rule is ~20 ¢ against a documented "typical offset of at least 15". The unit tests never caught it: every vector is a constant, and a constant passes any percentile.
 - **Andy's centres:** 11 runs < 5 ¢, 36 at 5–10, 21 at 10–15, 2 at 15. The faders say "sharp" from 5 ¢; 15 is above where he usually plays.
 - **Proposed policy** (window pitch-class medians judged as the faders judge the run; takes and the latest take only LEAN ≥ 5 ¢): keeps all 17 test verdicts. At 15 ¢: 11/23 sharp runs, 1/36 mid, 0/11 in-tune. At 12: 21/23, 9/36, 0/11. At 10: 22/23, 19/36, 1 take in-tune. Shipped the 12 ¢ variant: `record` now reads the window's pitch-class medians through `consistentOffset` and asks takes only to LEAN ≥ 5 ¢ by majority. `ALERT_CENTS` is still the single constant behind the cue, the faders' ticks and `tuningTone`'s pole. Population check: `research/audio-scoring/ts/tuning-cue.test.ts` → `results/tuning_cue.md` (PROD_ROWS points at the main checkout's dump from a worktree).
+
+## Release PR procedure (dev → main, 2026-10-15)
+
+- **Check the dev head's CI before opening.** PR #277's dev head had a red e2e job on all three engines (03060dfe hid the lick search box on small books and missed `licks-authed.spec.ts`). Fix and push to dev while no PR exists — no CodeRabbit review is spent.
+- **Pre-document:** `node scripts/docstring-coverage.mjs` before opening (23.4% → 100% on #277).
+- **Open as a draft**, post `@coderabbitai rate limit`, then `gh pr ready` — the ready event is the review trigger. The allowance ran out mid-loop on #277 (5-minute wait).
+- **Read the walkthrough's "Security Architecture Review" every round.** Its Retained concerns have no thread and the checker's DONE doesn't see them; two Medium ones on #277 lived only there.
+- **A tightened gate is a contract with every producer.** Bounding the adopted-tune meter left three importers saving meters the gate then hid; the rule moved to `tunes/meter.ts` and all four use it.
+- Merge with `gh pr merge N --merge --match-head-commit <sha>`, never `--delete-branch`; session log to dev afterwards, alone, `[skip ci]`.
