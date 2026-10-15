@@ -59,6 +59,34 @@ export interface NextStep {
 	action: NextStepAction | null;
 }
 
+/** Original report and completed follow-ups, retained while restarting in place. */
+export interface RecommendationContext {
+	report: SessionReport;
+	plan: readonly LickPracticePlanItem[];
+	sessionId: string;
+	/** Capture time is a fallback if the Daily log write was unavailable. */
+	timestamp: number;
+	completedLickIds: readonly string[];
+}
+
+/** Capture the source before reset, or record the follow-up that just ended. */
+export function continueRecommendations(
+	report: SessionReport,
+	plan: readonly LickPracticePlanItem[],
+	sessionId: string,
+	previous?: RecommendationContext
+): RecommendationContext {
+	if (!previous) return { report, plan: [...plan], sessionId, timestamp: Date.now(), completedLickIds: [] };
+	if (sessionId === previous.sessionId) return previous;
+	return {
+		...previous,
+		completedLickIds: [...new Set([
+			...previous.completedLickIds,
+			...report.licks.filter(lick => lick.keys.length > 0).map(lick => lick.lickId)
+		])]
+	};
+}
+
 export interface NextStepInput {
 	report: SessionReport;
 	/**
@@ -72,6 +100,8 @@ export interface NextStepInput {
 	/** Includes incremental writes of this session; those are replaced by report. */
 	sessionLog: readonly LickPracticeSessionLogEntry[];
 	currentSessionId: string;
+	/** Candidates stay anchored to the original Daily report across follow-ups. */
+	recommendationContext?: RecommendationContext;
 
 	/**
 	 * Concert pitch class and progression mode → display label. Injected so the pure module stays
@@ -89,7 +119,10 @@ const pct = (value: number): number => Math.round(value * 100);
  * report on at all (no attempts recorded).
  */
 export function buildNextStep(input: NextStepInput): NextStep | null {
-	const { report, plan } = input;
+	const { report, recommendationContext } = input;
+	const plan = recommendationContext?.plan ?? input.plan;
+	const candidateReport = recommendationContext?.report ?? report;
+	const completed = new Set(recommendationContext?.completedLickIds);
 	const formatKey = input.formatKey ?? keyLabel;
 
 	if (report.licks.length === 0) return null;
@@ -108,8 +141,8 @@ export function buildNextStep(input: NextStepInput): NextStep | null {
 	const trickIds = new Set(
 		plan.filter((item) => item.kind === 'trick').map((item) => item.phraseId)
 	);
-	const lickReports = report.licks.filter((l) => !trickIds.has(l.lickId));
-	if (lickReports.length === 0) return doneStep(report);
+	const lickReports = candidateReport.licks.filter((l) => !trickIds.has(l.lickId) && !completed.has(l.lickId));
+	if (lickReports.length === 0) return doneStep(report, completed.size > 0);
 
 	// Learning licks always rank before fully unlocked licks. A session's
 	// worst individual score is never the ranking signal: use typical recent
@@ -136,7 +169,7 @@ export function buildNextStep(input: NextStepInput): NextStep | null {
 		a.lick.lickId.localeCompare(b.lick.lickId) || a.key.localeCompare(b.key)
 	);
 	const weakest = candidates[0];
-	if (!weakest) return doneStep(report);
+	if (!weakest) return doneStep(report, completed.size > 0);
 
 	const { lick, key, learning, unlockedCount, scores, weakCount, typical } = weakest;
 	const progression = lick.progressionType ?? plan.find((item: LickPracticePlanItem): boolean => item.phraseId === lick.lickId)?.progressionType;
@@ -145,7 +178,7 @@ export function buildNextStep(input: NextStepInput): NextStep | null {
 		? `Still learning: ${unlockedCount}/12 keys unlocked.`
 		: 'All 12 keys unlocked; this key is persistently weak.';
 	const evidence = scores.length === 1
-		? `${label} scored ${pct(typical)}% this session.`
+		? `${label} scored ${pct(typical)}% ${recommendationContext ? 'in daily practice' : 'this session'}.`
 		: `${label} was below ${pct(KEY_PROFICIENT_THRESHOLD)}% in ${weakCount} of its last ${scores.length} sessions (typical score ${pct(typical)}%).`;
 	return {
 		kind: 'drill-weak-key',
@@ -195,6 +228,14 @@ function recentKeyScores(input: NextStepInput, lickId: string, key: PitchClass):
 			scores: [...(previous?.scores ?? []), ...scores]
 		});
 	}
+	// Replace all persisted source slices with its retained full report. This
+	// keeps Daily evidence available even if its final persistence write failed.
+	const source = input.recommendationContext;
+	if (source && source.sessionId !== input.currentSessionId) {
+		const timestamp = sessions.get(source.sessionId)?.timestamp ?? source.timestamp;
+		const scores = keyScores(source.report, lickId, key);
+		if (scores.length > 0) sessions.set(source.sessionId, { timestamp, scores });
+	}
 	const current = keyScores(input.report, lickId, key);
 	const prior = [...sessions.values()].sort((a, b) => b.timestamp - a.timestamp);
 	return [current, ...prior.map((session) => session.scores)]
@@ -203,11 +244,13 @@ function recentKeyScores(input: NextStepInput, lickId: string, key: PitchClass):
 		.map((scores) => scores.reduce((sum, score) => sum + score, 0) / scores.length);
 }
 
-function doneStep(report: SessionReport): NextStep {
+function doneStep(report: SessionReport, followedUp = false): NextStep {
 	return {
 		kind: 'done',
 		headline: "That's the session.",
-		reason: `${pct(report.overallAverage)}% average over ${report.totalAttempts} keys. No clear learning gap or persistent weakness to prioritize today.`,
+		reason: followedUp
+			? "You've covered the recommended follow-ups. No further daily-practice targets to prioritize today."
+			: `${pct(report.overallAverage)}% average over ${report.totalAttempts} keys. No clear learning gap or persistent weakness to prioritize today.`,
 		action: null
 	};
 }

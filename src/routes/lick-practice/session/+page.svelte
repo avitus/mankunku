@@ -10,6 +10,7 @@
 	import UpcomingKeysDisplay, { KEY_STACK_MIN_HEIGHT } from '$lib/components/lick-practice/UpcomingKeysDisplay.svelte';
 	import LickBreatherCard from '$lib/components/lick-practice/LickBreatherCard.svelte';
 	import NextStepCard from '$lib/components/lick-practice/NextStepCard.svelte';
+	import { continueRecommendations, type RecommendationContext } from '$lib/state/lick-practice-next-steps';
 	import {
 		lickPractice,
 		isDailyPractice,
@@ -267,6 +268,11 @@
 	// (one per progressionType in the plan) so a browser crash mid-session
 	// keeps each progression's activity on disk.
 	let lickPracticeSessionLogId = $state('');
+	// Survives recommended restarts; the active plan becomes a single Deep lick.
+	let recommendationContext = $state<RecommendationContext>();
+	const completedRecommendationContext = $derived(sessionReport && recommendationContext
+		? continueRecommendations(sessionReport, lickPractice.plan, lickPracticeSessionLogId, recommendationContext)
+		: undefined);
 	let lickPracticeSessionStartTs = 0;
 
 	// Inter-lick rest (STANDARD mode only): INTER_LICK_REST_BARS of
@@ -1788,6 +1794,8 @@
 	}
 
 	async function handleStartProgression(progressionType: ChordProgressionType) {
+		if (isRestarting) return;
+		recommendationContext = undefined;
 		await restartInPlace(() => {
 			lickPractice.config.sessionType = 'focused';
 			lickPractice.config.progressionType = progressionType;
@@ -1804,6 +1812,12 @@
 	// Phrase is preferred over the bare id because `getLickById` misses for
 	// user/community licks. The tempo-bump knob applies through config.
 	async function handleStartNextStep(action: NextStepAction) {
+		if (isRestarting || !sessionReport) return;
+		if (isDailyPractice() || recommendationContext) {
+			recommendationContext = continueRecommendations(
+				sessionReport, lickPractice.plan, lickPracticeSessionLogId, recommendationContext
+			);
+		}
 		await restartInPlace(() =>
 			startSingleLickSession(action.phrase ?? action.lickId, { focusKey: action.focusKey })
 		);
@@ -2054,7 +2068,7 @@
 
 		<!-- One recommendation, grounded in recent practice and startable in a
 		     tap. Null only when the session recorded nothing at all. -->
-		{@const nextStep = getNextStep(sessionReport, lickPracticeSessionLogId)}
+		{@const nextStep = getNextStep(sessionReport, lickPracticeSessionLogId, completedRecommendationContext)}
 		{#if nextStep}
 			<NextStepCard step={nextStep} onstart={handleStartNextStep} />
 		{/if}
