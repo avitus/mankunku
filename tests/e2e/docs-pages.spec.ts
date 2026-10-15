@@ -58,6 +58,13 @@ test.describe('docs pages', () => {
 				'href',
 				`/docs/${doc.slug}`
 			);
+			await expect(sidebar.getByRole('link', { name: doc.title, exact: true })).toHaveAttribute('aria-current', 'page');
+			await expect(page.locator('.docs-article')).toBeVisible();
+			await page.setViewportSize({ width: 390, height: 844 });
+			await expect(page.getByRole('button', { name: 'Browse guides' })).toBeVisible();
+			await expect(page.locator('.docs-mobile-contents summary')).toBeVisible();
+			expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+
 		});
 	}
 

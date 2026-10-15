@@ -37,7 +37,7 @@
 				configured = !!data.configured;
 				if (!configured) {
 					configError =
-						'AI assistant unavailable. Set ANTHROPIC_API_KEY in the server environment to enable.';
+						'The assistant is unavailable right now. You can still browse all of the guides.';
 				}
 			} else {
 				configError = `Could not reach assistant (HTTP ${res.status}).`;
@@ -199,6 +199,7 @@
 			bind:value={input}
 			onkeydown={handleKeydown}
 			disabled={isStreaming || !configured}
+			aria-label="Ask the assistant"
 			placeholder={configured ? 'Ask the assistant…' : 'Assistant unavailable'}
 			rows="1"
 			class="chat-input"

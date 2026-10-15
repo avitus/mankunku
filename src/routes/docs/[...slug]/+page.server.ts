@@ -1,3 +1,4 @@
+import { renderMarkdown } from '$lib/docs/markdown';
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { getPage, getBreadcrumbs } from '$lib/docs/structure';
@@ -28,6 +29,7 @@ export const load: PageServerLoad = async ({ params }) => {
 		slug,
 		page: meta,
 		markdown,
+		rendered: renderMarkdown(markdown, slug),
 		breadcrumbs: getBreadcrumbs(slug)
 	};
 };

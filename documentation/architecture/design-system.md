@@ -836,3 +836,29 @@ the take. Cancellation is available throughout preparation and count-in.
 Review keeps live notation, playback and direct saving; “Review in editor”
 hands an unsaved take of up to four bars to the existing editor, preserving
 concert pitch and recording provenance. Longer takes retain direct saving.
+
+### Documentation · Liner Notes
+
+`/docs` and every published guide use the shared Studio Desk slate surfaces,
+Fraunces headings, brass accents and compact divided rows. The index has one
+paired “Start here” panel and a topic directory. A searchable guidebook stays
+visible on desktop; on phones “Browse guides” reveals it and closes after
+navigation. The same shell covers all thirteen guides in `DOC_TREE`.
+
+Article pages pair a bounded reading panel with a quiet “On this page” rail.
+At narrower widths the contents become an inline disclosure. Retain heading
+anchors, breadcrumbs, previous/next guide links, readable tables and contained
+horizontal scrolling. All content still comes from the bundled documentation
+and existing sanitized Markdown renderer; unlisted slugs remain 404s.
+
+“Ask AI” opens a native modal drawer with contained keyboard focus, Escape
+dismissal and focus returned to the trigger. Keep conversations mounted across
+docs navigation and send the current guide slug to the existing streaming API.
+Unavailable service guidance must leave the guidebook fully usable. Both native
+themes share the same hierarchy and controls.
+
+MagicPath references: index `459518917551996928`, revision
+`461350580233842688`; shared reader `459518965987827712`, revision
+`461350588391759872`. Both previews contain all thirteen guides. The native
+implementation uses `DocsSidebar`, `DocContents` and `docs-desk.css` with the
+existing `ChatInterface`; simulated prototype assistance is not shipped.
