@@ -2,6 +2,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Phrase, HarmonicSegment, Note } from '$lib/types/music';
 import type { PlaybackOptions } from '$lib/types/audio';
 import { drumBufferForVelocity } from '$lib/audio/sample-maps';
+import { BACKING_LAB_PRESETS } from '$lib/audio/backing-lab-presets';
+import { scriptedSoloFeatures } from '$lib/audio/backing-lab-scenarios';
+import { generateBacking, resolveBackingSwing } from '$lib/audio/backing-generation';
+import { BACKING_STYLES } from '$lib/audio/backing-styles';
+import { buildSchedule } from '$lib/audio/backing-track-schedule';
+import { buildPerformanceForm } from '$lib/audio/performance-form';
 
 /**
  * The backing track must cover the whole phrase.
@@ -19,6 +25,8 @@ interface Recorded {
 	kind: 'part' | 'sequence';
 	events: unknown[];
 	started: boolean;
+	startedAt?: unknown;
+	disposed: boolean;
 	/** The fake Part itself, so the loop settings the SUT assigns are visible. */
 	part?: { loop: boolean; loopStart: unknown; loopEnd: unknown };
 }
@@ -31,17 +39,19 @@ const recorded: Recorded[] = [];
  * the SUT assigns can be asserted on.
  */
 function record(kind: 'part' | 'sequence', events: unknown[]) {
-	const r: Recorded = { kind, events, started: false };
+	const r: Recorded = { kind, events, started: false, disposed: false };
 	recorded.push(r);
 	const part = {
-		start() {
+		start(when?: unknown) {
 			r.started = true;
+			r.startedAt = when;
 			return this;
 		},
 		stop() {
 			return this;
 		},
 		dispose() {
+			r.disposed = true;
 			return this;
 		},
 		loop: false,
@@ -275,6 +285,101 @@ describe('backing track loop mode', () => {
 
 		for (const p of recorded.filter((r) => r.kind === 'part')) expect(p.part!.loop).toBe(false);
 		expect(mod.getActiveSchedule()!.loopSeconds).toBeNull();
+	});
+});
+
+describe('coordinated backing schedule evidence', () => {
+	const preset = BACKING_LAB_PRESETS.find((item) => item.id === 'lab-aaba-c')!;
+	const phrase = preset.phrase;
+	const style = BACKING_STYLES.swing;
+	const features = scriptedSoloFeatures('dense', preset.bars)!;
+	const tickOffset = PPQ * BEATS_PER_BAR;
+	const params = {
+		phraseId: phrase.id, tempo: OPTIONS.tempo, ppq: PPQ, beatsPerBar: BEATS_PER_BAR,
+		swing: resolveBackingSwing(OPTIONS.swing, style, OPTIONS.tempo),
+		sectionMap: phrase.sectionMap, performanceForm: phrase.performanceForm
+	};
+
+	beforeEach(() => {
+		vi.resetModules();
+		recorded.length = 0;
+		instruments.length = 0;
+	});
+
+	it('publishes exactly the coordinated dense events as pitched and transient evidence, including loop offsets', async () => {
+		const mod = await import('$lib/audio/backing-track');
+		await mod.loadBackingInstruments('piano');
+		await mod.scheduleBackingTrack(phrase, {
+			...OPTIONS, backingOrchestration: 'coordinated', backingSoloFeatures: features
+		}, tickOffset, true);
+		const generated = generateBacking(phrase.harmony, style, { ...params, ensemble: { soloFeatures: features } });
+		const parts = recorded.filter((part) => part.kind === 'part');
+		expect(parts.map((part) => part.events)).toEqual([
+			generated.bassEvents, generated.compEvents, generated.drumEvents
+		]);
+		const loopTicks = preset.bars * BEATS_PER_BAR * PPQ;
+		for (const part of parts) {
+			expect(part.startedAt).toBe(`${tickOffset}i`);
+			expect(part.part).toMatchObject({ loop: true, loopStart: 0, loopEnd: `${loopTicks}i` });
+		}
+		const expected = buildSchedule(
+			generated.bassEvents, generated.compEvents, generated.drumEvents,
+			tickOffset, PPQ, OPTIONS.tempo, loopTicks
+		);
+		const schedule = mod.getActiveSchedule()!;
+		expect(schedule.notes).toEqual(expected.notes);
+		expect(schedule.transientOnsets).toEqual(expected.transientOnsets);
+		expect(schedule.notes).toHaveLength(generated.bassEvents.length + generated.compEvents.reduce((n, event) => n + event.notes.length, 0));
+		expect(schedule.loopSeconds).toBe(expected.loopSeconds);
+		const offsetSeconds = tickOffset / PPQ * 60 / OPTIONS.tempo;
+		expect(schedule.activeMidiAt(offsetSeconds / 2, 0)).toEqual([]);
+		const probe = schedule.notes[0].startSeconds + schedule.notes[0].durationSeconds / 2;
+		expect(schedule.activeMidiAt(probe + 2 * schedule.loopSeconds!, 0)).toEqual(schedule.activeMidiAt(probe, 0));
+		const round = (values: number[]) => values.map((value) => Number(value.toFixed(8)));
+		expect(round(schedule.bleedEventsIn(offsetSeconds + 1 + 2 * schedule.loopSeconds!, 1)))
+			.toEqual(round(schedule.bleedEventsIn(offsetSeconds + 1, 1)));
+
+		mod.disposeBackingParts();
+		expect(mod.getActiveSchedule()).toBeNull();
+		expect(parts.every((part) => part.disposed)).toBe(true);
+	});
+
+	it('resets coordinated evidence when rescheduled with the default original mode, ignoring solo fixtures', async () => {
+		const mod = await import('$lib/audio/backing-track');
+		await mod.loadBackingInstruments('piano');
+		await mod.scheduleBackingTrack(phrase, {
+			...OPTIONS, backingOrchestration: 'coordinated', backingSoloFeatures: features
+		}, tickOffset, true);
+		const previous = [...recorded];
+		const previousSchedule = mod.getActiveSchedule();
+		await mod.scheduleBackingTrack(phrase, { ...OPTIONS, backingSoloFeatures: features }, tickOffset, false);
+		const generated = generateBacking(phrase.harmony, style, params);
+		expect(recorded.slice(previous.length).map((part) => part.events)).toEqual([
+			generated.bassEvents, generated.compEvents, generated.drumEvents
+		]);
+		expect(previous.every((part) => part.disposed)).toBe(true);
+		expect(mod.getActiveSchedule()).not.toBe(previousSchedule);
+		expect(mod.getActiveSchedule()!.loopSeconds).toBeNull();
+		expect(generated.ensemblePlan).toBeUndefined();
+	});
+
+	it('falls back to original generation without quarter-note form metadata in denominator-based meters', async () => {
+		const mod = await import('$lib/audio/backing-track');
+		await mod.loadBackingInstruments('piano');
+		const performanceForm = buildPerformanceForm({
+			totalBars: preset.bars, sectionMap: phrase.sectionMap ?? [],
+			choruses: [{ role: 'head', startBar: 0, endBarExclusive: preset.bars }]
+		});
+		const eighthMeter: Phrase = { ...phrase, timeSignature: [4, 8], performanceForm };
+		await mod.scheduleBackingTrack(eighthMeter, {
+			...OPTIONS, backingOrchestration: 'coordinated', backingSoloFeatures: features
+		}, tickOffset, false);
+		const expected = generateBacking(phrase.harmony, style, { ...params, performanceForm: undefined });
+		const misapplied = generateBacking(phrase.harmony, style, { ...params, performanceForm });
+		expect(expected).not.toEqual(misapplied);
+		expect(recorded.map((part) => part.events)).toEqual([
+			expected.bassEvents, expected.compEvents, expected.drumEvents
+		]);
 	});
 });
 

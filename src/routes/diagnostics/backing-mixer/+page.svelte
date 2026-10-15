@@ -33,6 +33,8 @@
 	import BlindAbPlayer from '$lib/components/diagnostics/BlindAbPlayer.svelte';
 	import ListeningChecklist from '$lib/components/diagnostics/ListeningChecklist.svelte';
 	import { settings } from '$lib/state/settings.svelte';
+	import { LAB_SOLO_SCENARIOS, scriptedSoloFeatures, type LabSoloScenario } from '$lib/audio/backing-lab-scenarios';
+	import { version } from '$app/environment';
 
 	const GAIN_SLIDERS: Array<{ key: keyof BackingMixLevels; label: string; hint: string }> = [
 		{ key: 'bass', label: 'Bass', hint: 'Upright bass level' },
@@ -43,18 +45,20 @@
 	const VOICE_SLIDERS: Array<{ key: keyof BackingMixLevels; label: string; hint: string }> = [
 		{ key: 'kick', label: 'Kick', hint: 'Feathered quarters — 100% is the ear-tuned baseline' },
 		{ key: 'ride', label: 'Ride', hint: 'Spang-a-lang voice (3 velocity layers)' },
-		{ key: 'hihat', label: 'Hi-hat', hint: 'Foot on 2 and 4' },
-		{ key: 'snare', label: 'Snare', hint: 'Section setups now; comping ghosts later (3 layers)' },
+		{ key: 'hihat', label: 'Hi-hat', hint: 'Stick-hat voice and original-mode backbeat' },
+		{ key: 'snare', label: 'Snare', hint: 'Commentary and section setups (3 layers)' },
 		{ key: 'crash', label: 'Crash', hint: 'Section-boundary punctuation (vocabulary increment)' },
 		{ key: 'crossstick', label: 'Cross-stick', hint: 'Bossa clave / sparse color (vocabulary increment)' },
 		{ key: 'ride-bell', label: 'Ride bell', hint: 'Accent color (vocabulary increment)' },
-		{ key: 'hihat-pedal', label: 'Hi-hat pedal', hint: 'Foot chick alternative (vocabulary increment)' }
+		{ key: 'hihat-pedal', label: 'Hi-hat pedal', hint: 'Foot on 2 and 4 in coordinated swing' }
 	];
 
 	let mix = $state<BackingMixLevels>(getBackingMix());
 	let volume = $state(settings.backingTrackVolume);
 	let tempo = $state(140);
 	let style = $state<BackingStyle>(settings.backingStyle);
+	let orchestration = $state<'original' | 'coordinated'>('coordinated');
+	let soloScenario = $state<LabSoloScenario>('unavailable');
 	let instrument = $state<BackingInstrument>(settings.backingInstrument);
 	let presetId = $state(BACKING_LAB_PRESETS[0].id);
 	let seed = $state(0);
@@ -71,6 +75,7 @@
 	// A cleared/dragged number input can yield null or out-of-range values.
 	const safeSeed = $derived(Math.min(99, Math.max(0, Math.trunc(Number(seed) || 0))));
 	const phrase = $derived(labPhraseWithSeed(preset, safeSeed));
+	const soloFeatures = $derived(scriptedSoloFeatures(soloScenario, preset.bars));
 
 	let toneModule: typeof import('tone') | null = null;
 
@@ -103,7 +108,9 @@
 					backingTrackEnabled: true,
 					backingInstrument: instrument,
 					backingTrackVolume: volume,
-					backingStyle: style
+					backingStyle: style,
+					backingOrchestration: orchestration,
+					backingSoloFeatures: soloFeatures
 				},
 				0,
 				true,
@@ -176,7 +183,7 @@
 	}
 
 	function bounceParams() {
-		return { phrase, style, tempo, swing: settings.swing, instrument, volume, mix };
+		return { phrase, style, tempo, swing: settings.swing, instrument, volume, mix, orchestration, soloFeatures };
 	}
 
 	async function bounce(): Promise<void> {
@@ -191,7 +198,7 @@
 			if (id !== bounceRequest) return; // superseded by a param change or newer bounce
 			if (bounceUrl) URL.revokeObjectURL(bounceUrl);
 			bounceUrl = URL.createObjectURL(result.blob);
-			bounceName = result.filename;
+			bounceName = result.filename.replace('.wav', `-${orchestration}-${soloScenario}.wav`);
 		} catch (err) {
 			if (id === bounceRequest) bounceError = err instanceof Error ? err.message : String(err);
 		} finally {
@@ -252,8 +259,10 @@
 	function exportGoldenJson(): void {
 		const generated = generateForBounce(bounceParams());
 		downloadBlob(
-			JSON.stringify({ phraseId: phrase.id, style, tempo, ...generated }, null, 1),
-			`golden-${phrase.id.replace(/[^a-zA-Z0-9-]/g, '_')}-${tempo}.json`
+			JSON.stringify({ buildVersion: version, phraseId: phrase.id, style, tempo, swing: settings.swing,
+				instrument, mix, orchestration, soloScenario, soloFeatures,
+				performanceForm: phrase.performanceForm, ...generated }, null, 1),
+			`events-${phrase.id.replace(/[^a-zA-Z0-9-]/g, '_')}-${tempo}-${orchestration}-${soloScenario}.json`
 		);
 	}
 
@@ -278,6 +287,7 @@
 				listening passes. Mix levels apply live, persist on this device, and shape every
 				practice session's backing.
 			</p>
+			<a href="/musicality" class="mt-2 inline-block text-sm text-[var(--color-brass)] underline underline-offset-4">Musicality specification & progress</a>
 		</div>
 		<a
 			href="/diagnostics"
@@ -326,6 +336,26 @@
 			</label>
 
 			<label class="text-sm">
+				<span class="block text-[var(--color-text-secondary)] mb-1">Ensemble</span>
+				<select bind:value={orchestration} onchange={onRenderParamsChanged} data-testid="lab-orchestration"
+					class="rounded bg-[var(--color-bg-tertiary)] px-2 py-1.5">
+					<option value="coordinated">Coordinated swing · preview</option>
+					<option value="original">Original</option>
+				</select>
+			</label>
+
+			<label class="text-sm">
+				<span class="block text-[var(--color-text-secondary)] mb-1">Soloist scenario</span>
+				<select bind:value={soloScenario} onchange={onRenderParamsChanged} data-testid="lab-solo-scenario"
+					disabled={orchestration !== 'coordinated' || style !== 'swing'}
+					class="rounded bg-[var(--color-bg-tertiary)] px-2 py-1.5 max-w-64 disabled:opacity-50">
+					{#each LAB_SOLO_SCENARIOS as scenario (scenario.id)}
+						<option value={scenario.id}>{scenario.label}</option>
+					{/each}
+				</select>
+			</label>
+
+			<label class="text-sm">
 				<span class="block text-[var(--color-text-secondary)] mb-1">Instrument</span>
 				<select
 					bind:value={instrument}
@@ -351,6 +381,13 @@
 			</label>
 		</div>
 
+		<p class="text-xs text-[var(--color-text-secondary)]" data-testid="lab-ensemble-scope">
+			{#if orchestration === 'coordinated' && style === 'swing'}
+				Coordinated swing is a listening preview. {LAB_SOLO_SCENARIOS.find((scenario) => scenario.id === soloScenario)?.hint}
+			{:else}
+				Original accompaniment. Coordinated planning and scripted observations apply to swing 4/4 only.
+			{/if}
+		</p>
 		<div class="flex flex-wrap items-end gap-4">
 			<div class="text-sm">
 				<span class="block text-[var(--color-text-secondary)] mb-1">Tempo: {tempo} BPM</span>
@@ -456,7 +493,9 @@
 	<!-- ── Listening checklist ────────────────────────────── -->
 	<section class="rounded-lg bg-[var(--color-bg-secondary)] p-4 space-y-4">
 		<h2 class="text-sm font-semibold text-[var(--color-text-secondary)]">Listening checklist</h2>
-		<ListeningChecklist presetLabel={preset.label} style={style} {tempo} seed={safeSeed} />
+		{#key `${preset.id}-${style}-${tempo}-${safeSeed}-${orchestration}-${soloScenario}`}
+			<ListeningChecklist presetLabel={preset.label} style={style} {tempo} seed={safeSeed} {orchestration} {soloScenario} buildVersion={version} />
+		{/key}
 	</section>
 
 	<!-- ── Instrument levels ──────────────────────────────── -->

@@ -12,6 +12,8 @@
 export interface DocPage {
 	slug: string;
 	title: string;
+	/** A dedicated app page may present the same bundled source with richer navigation. */
+	href?: string;
 	/** One-sentence blurb shown in section landing cards. */
 	blurb?: string;
 }
@@ -69,6 +71,11 @@ export const DOC_TREE: DocSection[] = [
 		title: 'How It Works',
 		pages: [
 			{
+				slug: 'architecture/musicality',
+				title: 'Building a Musical Rhythm Section',
+				blurb: 'The architecture, current foundations and staged roadmap for musicians that listen to one another.'
+			},
+			{
 				slug: 'architecture/overview',
 				title: 'The Practice Modes',
 				blurb:
@@ -106,6 +113,12 @@ export const DOC_TREE: DocSection[] = [
 	{
 		title: 'Reference',
 		pages: [
+			{
+				slug: 'musicality/spec',
+				href: '/musicality',
+				title: 'Rhythm Section Musicality',
+				blurb: 'The complete musicality specification, implementation status, and evidence for piano, bass, drums and ensemble interaction.'
+			},
 			{
 				slug: 'reference/scale-and-lick-catalog',
 				title: 'Scales & Lick Categories',

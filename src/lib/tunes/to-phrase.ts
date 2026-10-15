@@ -1,6 +1,7 @@
 import type { Phrase } from '$lib/types/music';
 import type { Tune } from '$lib/types/tune';
 import { flattenTune, type FlattenedTune, type FlattenOptions } from './flatten';
+import { buildPerformanceForm } from '$lib/audio/performance-form';
 
 /**
  * Bridge a tune into the app's `Phrase` shape so the existing playback
@@ -32,7 +33,11 @@ export function tuneToPhraseWithFlat(
 			category: 'user',
 			tags: sheet.tags,
 			source: 'tune',
-			sectionMap: flat.sectionMap
+			sectionMap: flat.sectionMap,
+			// Ordinary tune playback plays the melody throughout. Chart repeats
+			// are section occurrences, not separately invented solo choruses.
+			performanceForm: buildPerformanceForm({ totalBars: flat.totalBars, sectionMap: flat.sectionMap,
+				choruses: flat.totalBars > 0 ? [{ role: 'head', startBar: 0, endBarExclusive: flat.totalBars }] : [] })
 		},
 		flat
 	};

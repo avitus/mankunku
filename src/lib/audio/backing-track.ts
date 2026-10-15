@@ -978,7 +978,12 @@ export async function scheduleBackingTrack(
 		ppq,
 		beatsPerBar,
 		swing,
-		sectionMap: phrase.sectionMap
+		sectionMap: phrase.sectionMap,
+		// Form coordinates are bars; the legacy generator counts numerator beats.
+		// Do not misapply bar metadata in denominator-based meters until that path is migrated.
+		performanceForm: phrase.timeSignature[1] === 4 ? phrase.performanceForm : undefined,
+		ensemble: options.backingOrchestration === 'coordinated' && phrase.timeSignature[1] === 4
+			? { soloFeatures: options.backingSoloFeatures } : undefined
 	});
 
 	const harmonyDurationBeats = getHarmonyDurationBeats(harmony);

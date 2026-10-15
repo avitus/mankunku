@@ -16,6 +16,7 @@ import { PROGRESSION_TEMPLATES, isChordQualityCategory } from '$lib/data/progres
 import { keyLabel } from '$lib/music/notation';
 import { scoreToGrade } from '$lib/scoring/grades';
 import { KEY_PROFICIENT_THRESHOLD } from '$lib/persistence/lick-practice-store';
+import { buildPerformanceForm, type PerformanceForm, type PerformanceChorus } from '$lib/audio/performance-form';
 
 /**
  * Pure planning + accumulation logic for the tune-practice session
@@ -580,7 +581,10 @@ export function buildSessionPhrase(args: {
 	timeSignature: [number, number];
 	playHead: boolean;
 	choruses?: number;
-}): ReturnType<typeof buildSingleChorusPhrase> {
+}): ReturnType<typeof buildSingleChorusPhrase> & {
+	sectionMap: FlattenedTune['sectionMap'];
+	performanceForm: PerformanceForm;
+} {
 	const built = buildSingleChorusPhrase(args);
 	const chorusBars = built.phraseBars - built.headBars;
 	const count = normalizeChoruses(args.choruses);
@@ -601,7 +605,31 @@ export function buildSessionPhrase(args: {
 			startOffset: addFractions(h.startOffset, shift)
 		})));
 	}
-	return { ...built, phraseBars: built.headBars + chorusBars * count };
+	const phraseBars = built.headBars + chorusBars * count;
+	const { headBars: sourceHeadBars, formRepeats } = headBarsForFlat(args.flat);
+	const practiceStart = formRepeats ? sourceHeadBars : 0;
+	const sectionMap: FlattenedTune['sectionMap'] = [];
+	const choruses: Omit<PerformanceChorus, 'index'>[] = [];
+	if (built.headBars > 0) {
+		sectionMap.push(...sectionMapForRange(args.flat, 0, built.headBars, 0));
+		choruses.push({ role: 'head', startBar: 0, endBarExclusive: built.headBars });
+	}
+	for (let chorus = 0; chorus < count && chorusBars > 0; chorus++) {
+		const startBar = built.headBars + chorus * chorusBars;
+		sectionMap.push(...sectionMapForRange(args.flat, practiceStart, args.flat.totalBars, startBar));
+		choruses.push({ role: 'solo', startBar, endBarExclusive: startBar + chorusBars });
+	}
+	return { ...built, phraseBars, sectionMap,
+		performanceForm: buildPerformanceForm({ totalBars: phraseBars, sectionMap, choruses }) };
+}
+
+/** Rebase each intersecting source-section span, including a clipped first span. */
+function sectionMapForRange(flat: FlattenedTune, start: number, end: number, targetStart: number): FlattenedTune['sectionMap'] {
+	return flat.sectionMap.flatMap((entry, index) => {
+		const sectionEnd = flat.sectionMap[index + 1]?.barOffset ?? flat.totalBars;
+		if (entry.barOffset >= end || sectionEnd <= start) return [];
+		return [{ sourceSection: entry.sourceSection, barOffset: targetStart + Math.max(start, entry.barOffset) - start }];
+	});
 }
 
 /**

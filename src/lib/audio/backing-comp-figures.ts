@@ -138,18 +138,22 @@ export function planCompFigures(
 			barInfos[bar + 1].isSectionFinalBar &&
 			!barInfos[bar + 1].isFinalBar;
 		const weighted = COMP_FIGURES.filter((f) => {
+			// Select complete figures that fit every reserved bar, rather than
+			// deleting arbitrary notes after a motif has been composed.
+			if (f.hits.some((hits, offset) => hits.length > (barInfos[bar + offset]?.ensemble?.piano.maxAttacks ?? Infinity))) return false;
 			if (f.bars === 2 && !sameSectionNext) return false;
 			// A 2-bar figure's tail would swallow the cadence bar and bypass
 			// its push weighting — only push-tagged figures may land there.
 			if (f.bars === 2 && nextIsCadence && !f.tags.includes('push')) return false;
-			if (isBarZero && !f.tags.includes('early')) return false;
+			if (isBarZero && info.ensemble?.piano.maxAttacks !== 0 && !f.tags.includes('early')) return false;
 			// The phrase's last bar resolves; a rest there sounds like the band
 			// stopped early (space belongs mid-phrase).
-			if (info.isFinalBar && f.id === 'rest') return false;
+			if (info.isFinalBar && info.ensemble?.piano.maxAttacks !== 0 && f.id === 'rest') return false;
 			return true;
 		}).map((f) => {
 			const isCadenceBar = info.isSectionFinalBar && !info.isFinalBar;
 			let weight = f.weight * (figureBias?.[f.id] ?? 1);
+			if (info.ensemble && f.busy > 0) weight *= info.ensemble.piano.densityScale;
 			// Anti-repetition on the figure's MEMORY key (repeatKey lets
 			// sound-alike figures share one identity): same as previous
 			// ×0.25; twice in the last three ×0.5; a third consecutive
@@ -205,6 +209,7 @@ export function hitsForPlannedBar(
 	info: BarInfo,
 	beatsPerBar: number
 ): CompFigureHit[] {
+	if (info.ensemble?.piano.maxAttacks === 0) return [];
 	const figure = headFigureFor(plan, barIndex);
 	const hits = (planned.figureId === 'cont' ? figure?.hits[1] : figure?.hits[0]) ?? [];
 	if (info.isFinalBar) {

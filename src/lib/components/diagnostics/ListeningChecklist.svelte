@@ -11,11 +11,14 @@
 		type ChecklistSection
 	} from '$lib/audio/backing-listening-checklist';
 
-	let { presetLabel, style, tempo, seed }: {
+	let { presetLabel, style, tempo, seed, orchestration, soloScenario, buildVersion }: {
 		presetLabel: string;
 		style: string;
 		tempo: number;
 		seed: number;
+		orchestration?: string;
+		soloScenario?: string;
+		buildVersion?: string;
 	} = $props();
 
 	let verdicts = $state<Partial<Record<string, ChecklistVerdict>>>({});
@@ -39,7 +42,7 @@
 	}
 
 	async function copyReport(): Promise<void> {
-		const report = buildListeningReport({ presetLabel, style, tempo, seed, notes }, verdicts);
+		const report = buildListeningReport({ presetLabel, style, tempo, seed, orchestration, soloScenario, buildVersion, notes }, verdicts);
 		try {
 			await navigator.clipboard.writeText(report);
 			copied = true;

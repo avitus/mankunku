@@ -154,6 +154,9 @@ export interface ListeningReportMeta {
 	style: string;
 	tempo: number;
 	seed: number;
+	orchestration?: string;
+	soloScenario?: string;
+	buildVersion?: string;
 	notes?: string;
 }
 
@@ -171,6 +174,8 @@ export function buildListeningReport(
 	const lines: string[] = [
 		`### Listening report — ${meta.presetLabel}`,
 		`Style: ${meta.style} · Tempo: ${meta.tempo} BPM · Seed: ${meta.seed}`,
+		...(meta.orchestration ? [`Ensemble: ${meta.orchestration} · Soloist: ${meta.soloScenario ?? 'unavailable'}`] : []),
+		...(meta.buildVersion ? [`Build: ${meta.buildVersion}`] : []),
 		''
 	];
 	const sections = [...new Set(LISTENING_CHECKLIST.map((i) => i.section))];

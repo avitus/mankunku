@@ -360,6 +360,8 @@ export function startTunePracticeSession(sheet: Tune, ppq: number): TunePractice
 		...phrase,
 		notes: built.notes,
 		harmony: built.harmony,
+		sectionMap: built.sectionMap,
+		performanceForm: built.performanceForm,
 		difficulty: { ...phrase.difficulty, lengthBars: built.phraseBars }
 	};
 	const changesSheet = changesSheetFor(transposed);

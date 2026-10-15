@@ -605,6 +605,46 @@ describe('indexResultsByInsertion', () => {
 
 
 describe('multiple practice choruses', () => {
+	it('copies every section occurrence into each actual practice chorus', () => {
+		const flat = mkFlat({ totalBars: 16, sectionMap: [
+			{ sourceSection: 0, barOffset: 0 }, { sourceSection: 0, barOffset: 4 },
+			{ sourceSection: 1, barOffset: 8 }, { sourceSection: 0, barOffset: 12 }
+		], harmony: [seg('C', 'maj7', [0, 1], [16, 1])] });
+		const built = buildSessionPhrase({ flat, timeSignature: [4, 4], playHead: true, choruses: 2 });
+		expect(built.sectionMap.map((s) => s.barOffset)).toEqual([0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44]);
+		expect(built.performanceForm.choruses.map((c) => [c.role, c.startBar, c.endBarExclusive])).toEqual([
+			['head', 0, 16], ['solo', 16, 32], ['solo', 32, 48]
+		]);
+		expect(built.performanceForm.sections.map((s) => s.chorusIndex)).toEqual([0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2]);
+		expect(flat.sectionMap.map((s) => s.barOffset)).toEqual([0, 4, 8, 12]);
+	});
+
+	it.each([false, true])('preserves alternate endings and rebases head removal (head=%s)', (playHead) => {
+		const flat = mkFlat({ totalBars: 8, sectionMap: [
+			{ sourceSection: 0, barOffset: 0 }, { sourceSection: 1, barOffset: 3 },
+			{ sourceSection: 0, barOffset: 4 }, { sourceSection: 2, barOffset: 7 }
+		], harmony: [seg('C', 'maj7', [0, 1], [8, 1])] });
+		const built = buildSessionPhrase({ flat, timeSignature: [4, 4], playHead, choruses: 2 });
+		expect(built.sectionMap).toEqual(playHead ? [
+			{ sourceSection: 0, barOffset: 0 }, { sourceSection: 1, barOffset: 3 },
+			{ sourceSection: 0, barOffset: 4 }, { sourceSection: 2, barOffset: 7 },
+			{ sourceSection: 0, barOffset: 8 }, { sourceSection: 2, barOffset: 11 }
+		] : [
+			{ sourceSection: 0, barOffset: 0 }, { sourceSection: 2, barOffset: 3 },
+			{ sourceSection: 0, barOffset: 4 }, { sourceSection: 2, barOffset: 7 }
+		]);
+		expect(built.performanceForm.choruses.map((c) => c.role)).toEqual(playHead ? ['head', 'solo', 'solo'] : ['solo', 'solo']);
+	});
+
+	it.each([[3, 4], [6, 8]] as [number, number][])('keeps form bars aligned with harmony in %s/%s', (n, d) => {
+		const flat = mkFlat({ totalBars: 2, harmony: [seg('C', 'maj7', [0, 1], [n * 2, d])],
+			sectionMap: [{ sourceSection: 0, barOffset: 0 }, { sourceSection: 1, barOffset: 1 }] });
+		const built = buildSessionPhrase({ flat, timeSignature: [n, d], playHead: true, choruses: 2 });
+		expect(built.sectionMap.map((s) => s.barOffset)).toEqual([0, 1, 2, 3, 4, 5]);
+		expect(built.performanceForm.choruses.map((c) => c.startBar)).toEqual([0, 2, 4]);
+		expect(built.harmony.map((h) => h.startOffset[0] / h.startOffset[1])).toEqual([0, 2 * n / d, 4 * n / d]);
+	});
+
 	it.each([1, 2, 12])('plays the head once and %i practice choruses', (choruses) => {
 		const flat = mkFlat({ totalBars: 2, notes: [{ pitch: 60, offset: [0, 1], duration: [1, 4] }],
 			harmony: [seg('C', 'maj7', [0, 1], [2, 1])] });

@@ -76,6 +76,10 @@ export interface BounceParams {
 	instrument: BackingInstrument;
 	volume: number;
 	mix: BackingMixLevels;
+	/** Same generation policy as live playback; original is an A/B reference. */
+	orchestration?: 'original' | 'coordinated';
+	/** Scripted observation trace for the lab, shared with live preview generation. */
+	soloFeatures?: readonly import('./ensemble-plan').SoloFeature[];
 }
 
 export interface BounceResult {
@@ -109,7 +113,10 @@ export function generateForBounce(params: BounceParams): GeneratedBacking {
 		ppq: BOUNCE_PPQ,
 		beatsPerBar: phrase.timeSignature[0],
 		swing: resolveBackingSwing(params.swing, style, tempo),
-		sectionMap: phrase.sectionMap
+		sectionMap: phrase.sectionMap,
+		performanceForm: phrase.timeSignature[1] === 4 ? phrase.performanceForm : undefined,
+		ensemble: params.orchestration === 'coordinated' && phrase.timeSignature[1] === 4
+			? { soloFeatures: params.soloFeatures } : undefined
 	});
 }
 

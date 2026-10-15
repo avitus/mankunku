@@ -43,4 +43,8 @@ export interface PlaybackOptions {
 	backingTrackVolume?: number;
 	/** Backing track musical style */
 	backingStyle?: BackingStyle;
+	/** Coordinated swing is opt-in while its listening acceptance is pending. */
+	backingOrchestration?: 'original' | 'coordinated';
+	/** Explicit lab observations; no live microphone adapter is connected yet. */
+	backingSoloFeatures?: readonly import('../audio/ensemble-plan').SoloFeature[];
 }

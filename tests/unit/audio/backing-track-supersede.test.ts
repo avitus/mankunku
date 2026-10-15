@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Phrase } from '$lib/types/music';
 import type { PlaybackOptions } from '$lib/types/audio';
+import { scriptedSoloFeatures } from '$lib/audio/backing-lab-scenarios';
 
 /**
  * Supersession safety for `scheduleBackingTrack`.
@@ -208,6 +209,24 @@ describe('scheduleBackingTrack supersession', () => {
 		// The bailout must be atomic: a superseded schedule leaves nothing
 		// audible running. Bass + comp playing over no drums is the bug.
 		expect(parts.filter((p) => p.started && !p.disposed)).toEqual([]);
+	});
+
+	it('preserves the current audible parts and bleed evidence when a coordinated replacement is superseded', async () => {
+		const mod = await import('$lib/audio/backing-track');
+		await mod.loadBackingInstruments('piano');
+		await mod.scheduleBackingTrack(PHRASE, OPTIONS, 480, true, () => true);
+		const currentParts = [...parts];
+		const currentSchedule = mod.getActiveSchedule();
+		expect(currentParts).toHaveLength(3);
+		expect(currentSchedule).not.toBeNull();
+		await mod.scheduleBackingTrack(PHRASE, {
+			...OPTIONS,
+			backingOrchestration: 'coordinated',
+			backingSoloFeatures: scriptedSoloFeatures('dense', 1)
+		}, 960, false, supersedeAtCheck(2));
+		expect(parts).toEqual(currentParts);
+		expect(currentParts.every((part) => part.started && !part.disposed)).toBe(true);
+		expect(mod.getActiveSchedule()).toBe(currentSchedule);
 	});
 
 	it('starts NOTHING when superseded at the kit checkpoint on a cold kit', async () => {

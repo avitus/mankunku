@@ -20,12 +20,14 @@
  *   bass-appr    | segment     | approach device
  *   bass         | segment     | interior fill, spice, velocity
  *                | barIndex    | (bossa pattern engine: pickups, drops, approach)
+ *   bass-ornament| kind + beat | coordinated ornament admission
  *   clave        | 0           | bossa clave phase (one draw per phrase)
  *   voicing      | chord index | comp voicing choice
  *   comp-figure  | barIndex    | figure planning (weights only)
  *   comp         | barIndex    | comp realization
  *   drums        | barIndex    | ride mode, feather, snare, coupling
  *   drum-fill    | barIndex    | fills, setups, crash
+ *   ensemble-*  | phrase/bar  | intention, lead, response and fill reservation
  *   <role>-time  | barIndex    | timing jitter (backing-timing.ts)
  *
  * Timing: beat offsets are laid out on a straight grid, then placed by
@@ -36,6 +38,9 @@
  */
 
 import type { HarmonicSegment, ChordQuality } from '$lib/types/music';
+import type { PerformanceForm } from '$lib/types/performance-form';
+import { performanceBarContext } from './performance-form';
+import { freezeEnsemblePlan, planEnsemble, type EnsemblePlan, type EnsembleBarPlan, type SoloFeature } from './ensemble-plan';
 import { fractionToFloat } from '$lib/music/intervals';
 import { swingForTempo, STRAIGHT_SWING } from '$lib/music/swing';
 import {
@@ -92,12 +97,16 @@ export interface DrumEvent {
 	/** Normalized velocity 0–1 (converted to MIDI at trigger time). */
 	velocity: number;
 	absBeat: number;
+	/** Musical function, retained for coordinated-generation diagnostics. */
+	role?: 'timekeeping' | 'commentary' | 'accent';
 }
 
 export interface GeneratedBacking {
 	bassEvents: BassEvent[];
 	compEvents: CompEvent[];
 	drumEvents: DrumEvent[];
+	/** Decisions behind this performance; absent for the original generator. */
+	ensemblePlan?: EnsemblePlan;
 }
 
 export type SectionMapEntry = { sourceSection: number; barOffset: number };
@@ -110,6 +119,10 @@ export interface BackingGenerationParams {
 	/** Effective swing ratio (see `resolveBackingSwing`). */
 	swing: number;
 	sectionMap?: SectionMapEntry[];
+	/** Authoritative performed form; repeats alone do not imply new choruses. */
+	performanceForm?: PerformanceForm;
+	/** Opt into phrase-level coordination. Missing preserves original reference outputs. */
+	ensemble?: { soloFeatures?: readonly SoloFeature[] };
 	/** Per-role microtiming profiles (style.timing); SWING_TIMING when absent. */
 	timing?: Record<TimingRole, TimingProfile>;
 }
@@ -158,17 +171,51 @@ export interface BarInfo {
 	isFinalBar: boolean;
 	/** Ensemble intensity for this bar (backing-intensity.ts), in [0.2, 0.9]. */
 	intensity: number;
+	/** Optional shared role assignment; consumed before instrument realization. */
+	ensemble?: EnsembleBarPlan;
+}
+
+/** Fit only the final span to emitted harmony, retaining explicit pass identity. */
+function formForHarmony(form: PerformanceForm | undefined, totalBars: number): PerformanceForm | undefined {
+	if (!form || form.totalBars === 0) return undefined;
+	if (form.totalBars === totalBars) return form;
+	const choruses = form.choruses.filter((span) => span.startBar < totalBars)
+		.map((span) => ({ ...span, endBarExclusive: Math.min(span.endBarExclusive, totalBars) }));
+	const sections = form.sections.filter((span) => span.startBar < totalBars)
+		.map((span) => ({ ...span, endBarExclusive: Math.min(span.endBarExclusive, totalBars) }));
+	if (!choruses.length || !sections.length) throw new Error('Performance form has no covered bars');
+	choruses[choruses.length - 1].endBarExclusive = totalBars;
+	sections[sections.length - 1].endBarExclusive = totalBars;
+	return { ...form, totalBars, choruses, sections };
 }
 
 /**
- * Per-bar section/chorus positions from a tune's sectionMap. A new chorus
+ * Explicit performed form takes precedence. Legacy sectionMap callers infer
+ * per-bar section/chorus positions as before: a new chorus
  * starts wherever the emitted sourceSection sequence restarts (does not
  * increase) — e.g. body, ending 1, body, ending 2. Bars past the last
  * entry (harmony tail extension) belong to the last section. Without a
  * sectionMap, bars are position-free: only the final bar is flagged.
  */
-export function buildBarInfos(totalBars: number, sectionMap?: SectionMapEntry[]): BarInfo[] {
+export function buildBarInfos(totalBars: number, sectionMap?: SectionMapEntry[], performanceForm?: PerformanceForm): BarInfo[] {
 	const infos: BarInfo[] = [];
+	const form = formForHarmony(performanceForm, totalBars);
+	if (form) {
+		return Array.from({ length: totalBars }, (_, barIndex) => {
+			const context = performanceBarContext(form, barIndex);
+			if (!context) throw new Error(`Performance form has no context for bar ${barIndex}`);
+			return {
+				sectionIndex: context.sectionIndex,
+				chorusIndex: context.chorusIndex,
+				isSectionFirstBar: context.isSectionFirstBar,
+				isSectionFinalBar: context.isSectionFinalBar,
+				isChorusFirstBar: context.isChorusFirstBar,
+				isChorusFinalBar: context.isChorusFinalBar && barIndex < totalBars - 1,
+				isFinalBar: barIndex === totalBars - 1,
+				intensity: barIntensity({ chorusIndex: context.chorusIndex, isSectionFinalBar: context.isSectionFinalBar, barIndex, totalBars })
+			};
+		});
+	}
 	if (!sectionMap || sectionMap.length === 0) {
 		for (let b = 0; b < totalBars; b++) {
 			infos.push({
@@ -360,6 +407,15 @@ export function generateComping(
 
 	const harmonyEnd = segments.reduce((max, s) => Math.max(max, s.startBeats + s.totalBeats), 0);
 	const totalBars = barInfos.length;
+	// A rest reserves sounding space, including the tail of a preceding
+	// anticipation. Store the next silent boundary on the transport grid;
+	// duration clipping below uses the actual swung/microtimed attack.
+	const nextSilenceTicks = new Array<number>(totalBars);
+	let silenceTick = Infinity;
+	for (let bar = totalBars - 1; bar >= 0; bar--) {
+		nextSilenceTicks[bar] = silenceTick;
+		if (barInfos[bar].ensemble?.piano.maxAttacks === 0) silenceTick = bar * beatsPerBar * params.ppq;
+	}
 
 	const clavePhase = clavePhaseFor(phraseId, tempo);
 	for (let bar = 0; bar < totalBars; bar++) {
@@ -401,10 +457,20 @@ export function generateComping(
 				: voicings[segIdx];
 			if (!voicing || voicing.length === 0) continue;
 
+			let time = place(absBeat, 'comp', params, streams, beatsPerBar);
+			let startTick = parseInt(time, 10);
+			// An on-top profile must not resume early inside the preceding rest.
+			if (bar > 0 && barInfos[bar - 1].ensemble?.piano.maxAttacks === 0) {
+				startTick = Math.max(startTick, bar * beatsPerBar * params.ppq);
+				time = `${startTick}i`;
+			}
+			const duration = Math.min(beatDuration * hit.durationBeats,
+				(nextSilenceTicks[bar] - startTick) * beatDuration / params.ppq);
+			if (duration <= 0) continue;
 			events.push({
-				time: place(absBeat, 'comp', params, streams, beatsPerBar),
+				time,
 				notes: voicing,
-				duration: beatDuration * hit.durationBeats,
+				duration,
 				velocity: hit.velocity,
 				absBeat
 			});
@@ -447,7 +513,7 @@ export function generateDrums(
 	const events: DrumEvent[] = [];
 	const streams = createTimingStreams(phraseId, tempo);
 	const clavePhase = clavePhaseFor(phraseId, tempo);
-	const byAbsBeat = new Map<string, { drum: DrumVoice; velocity: number; absBeat: number }>();
+	const byAbsBeat = new Map<string, { drum: DrumVoice; velocity: number; absBeat: number; role?: DrumEvent['role'] }>();
 
 	for (let bar = 0; bar < barInfos.length; bar++) {
 		const rng = createRng(seedFrom(phraseId, tempo, 'drums', bar));
@@ -474,7 +540,7 @@ export function generateDrums(
 			const key = `${hit.drum}:${absBeat}`;
 			const prev = byAbsBeat.get(key);
 			if (!prev || hit.velocity > prev.velocity) {
-				byAbsBeat.set(key, { drum: hit.drum, velocity: hit.velocity, absBeat });
+					byAbsBeat.set(key, { drum: hit.drum, velocity: hit.velocity, absBeat, ...(hit.role ? { role: hit.role } : {}) });
 			}
 		}
 	}
@@ -493,12 +559,13 @@ export function generateDrums(
 		byAbsBeat.delete(`hihat:${absBeat}`);
 	}
 
-	for (const { drum, velocity, absBeat } of byAbsBeat.values()) {
+	for (const { drum, velocity, absBeat, role } of byAbsBeat.values()) {
 		events.push({
 			time: place(absBeat, drum, params, streams, beatsPerBar),
 			drum,
 			velocity,
-			absBeat
+			absBeat,
+			...(role ? { role } : {})
 		});
 	}
 
@@ -524,13 +591,32 @@ export function generateBacking(
 		0
 	);
 	const totalBars = Math.max(1, Math.ceil(harmonyBeats / beatsPerBar));
-	let barInfos = buildBarInfos(totalBars, params.sectionMap);
+	const performanceForm = formForHarmony(params.performanceForm, totalBars);
+	let barInfos = buildBarInfos(totalBars, params.sectionMap, performanceForm);
 	// A style may cap the ensemble arc (ballad: never dig in past 0.6);
 	// applied to the whole timeline so every generator reads the same
 	// ceiling.
 	if (style.intensityCap !== undefined) {
 		const cap = style.intensityCap;
 		barInfos = barInfos.map((info) => ({ ...info, intensity: Math.min(info.intensity, cap) }));
+	}
+	// Start with the existing vocabulary. The planner reserves space and
+	// assigns commentary before any instrument chooses its notes or hits.
+	const ensemblePlan = params.ensemble && style.name === 'Swing' && beatsPerBar === 4
+		? planEnsemble({
+			phraseId: params.phraseId,
+			tempo: params.tempo,
+			bars: barInfos.map((info, barIndex) => ({
+				...info,
+				barIndex,
+				...(performanceForm ? performanceBarContext(performanceForm, barIndex) : {})
+			})),
+			soloFeatures: params.ensemble.soloFeatures
+		}) : undefined;
+	if (ensemblePlan) {
+		barInfos = barInfos.map((info, barIndex) => ({
+			...info, ensemble: ensemblePlan.bars[barIndex], intensity: ensemblePlan.bars[barIndex].energy
+		}));
 	}
 
 	const timedParams: BackingGenerationParams = { ...params, timing: params.timing ?? style.timing };
@@ -550,7 +636,20 @@ export function generateBacking(
 				);
 	const drumEvents = generateDrums(beatsPerBar, style, timedParams, barInfos, onsetsByBar, bassOnsetsByBar);
 
-	return { bassEvents, compEvents, drumEvents };
+	// A planned arrival shares one onset. Ordinary timekeeping keeps the
+	// existing player placement; intentional unisons are not independently jittered.
+	for (const bar of ensemblePlan?.bars ?? []) {
+		const accent = bar.coordinatedAccent;
+		if (!accent) continue;
+		const absBeat = bar.barIndex * beatsPerBar;
+		const time = `${Math.round(absBeat * params.ppq)}i`;
+		if (accent.participants.includes('bass')) {
+			const bass = bassEvents.find((event) => event.absBeat === absBeat);
+			if (bass) { bass.time = time; bass.velocity = Math.min(110, bass.velocity + 5); }
+		}
+		for (const hit of drumEvents.filter((event) => event.absBeat === absBeat && event.role === 'accent')) hit.time = time;
+	}
+	return { bassEvents, compEvents, drumEvents, ...(ensemblePlan ? { ensemblePlan } : {}) };
 }
 
 // ── Memoized entry point ─────────────────────────────────────
@@ -579,7 +678,9 @@ export function generateBackingCached(
 		// Refresh recency (Map preserves insertion order).
 		generationCache.delete(key);
 		generationCache.set(key, hit);
-		return JSON.parse(hit) as GeneratedBacking;
+		const generated = JSON.parse(hit) as GeneratedBacking;
+		if (generated.ensemblePlan) freezeEnsemblePlan(generated.ensemblePlan);
+		return generated;
 	}
 	const generated = generateBacking(harmony, style, params);
 	const serialized = JSON.stringify(generated);

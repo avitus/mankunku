@@ -19,7 +19,7 @@
 		<section class="docs-nav-group">
 			<h2>{section.title}</h2>
 			{#each section.pages as doc (doc.slug)}
-				<a class="docs-nav-link" class:active={currentSlug === doc.slug} aria-current={currentSlug === doc.slug ? 'page' : undefined} href={`/docs/${doc.slug}`} onclick={navigate}>{doc.title}</a>
+				<a class="docs-nav-link" class:active={currentSlug === doc.slug} aria-current={currentSlug === doc.slug ? 'page' : undefined} href={doc.href ?? `/docs/${doc.slug}`} onclick={navigate}>{doc.title}</a>
 			{/each}
 		</section>
 	{/each}

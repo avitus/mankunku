@@ -55,6 +55,8 @@ export type DrumVoice =
  * undefined and patterns fall back to position-free choices.
  */
 export interface GenerationContext {
+	/** Shared role assignment, present only for coordinated swing. */
+	ensemble?: import('./ensemble-plan').EnsembleBarPlan;
 	/** 0-based bar index on the phrase timeline. */
 	barIndex: number;
 	beatsPerBar: number;
@@ -112,6 +114,8 @@ export interface CompHitSpec {
 }
 
 export interface DrumHitSpec {
+	/** Retained in the event ledger for ensemble metrics and replay evidence. */
+	role?: 'timekeeping' | 'commentary' | 'accent';
 	drum: DrumVoice;
 	/** Offset within the bar in beats; x.5 offsets are eighth off-beats (swung late). */
 	beatOffset: number;
@@ -196,6 +200,7 @@ export interface StyleDefinition {
  * form-marking fills, coupling kicks, or the snare's chatter.
  */
 function swingVocabularyBar(ctx: GenerationContext, extraColor: DrumHitSpec[] = []): DrumHitSpec[] {
+	if (ctx.ensemble) return coordinatedSwingBar(ctx);
 	const { rng, beatsPerBar } = ctx;
 	const mode = chooseRideMode(rng, ctx.intensity);
 	const ride = rideBar(mode, ctx.barIndex, beatsPerBar, rng);
@@ -217,6 +222,46 @@ function swingVocabularyBar(ctx: GenerationContext, extraColor: DrumHitSpec[] = 
 	const snare = snareBar(ctx, rng);
 	const coupling = couplingBar(ctx, rng);
 	return capAdditionsPerOffset(ostinato, [...fills, ...coupling, ...snare, ...extraColor]);
+}
+
+/**
+ * Realize one drummer's assigned role. Timekeeping has its own protected
+ * layer; complete commentary figures compete for the shared bar allowance.
+ * A fill belongs to an agreed arrival, never to every section automatically.
+ */
+function coordinatedSwingBar(ctx: GenerationContext): DrumHitSpec[] {
+	const plan = ctx.ensemble!;
+	const { rng, beatsPerBar } = ctx;
+	const mode = chooseRideMode(rng, ctx.intensity);
+	const arrival = plan.coordinatedAccent?.participants.includes('drums');
+	const ostinato: DrumHitSpec[] = [
+		...rideBar(mode, ctx.barIndex, beatsPerBar, rng).filter((hit) => !arrival || hit.beatOffset !== 0),
+		// Swing time is played with the foot while the hands remain available.
+		...hihatBar(beatsPerBar, rng).map((hit) => ({ ...hit, drum: 'hihat-pedal' as const })),
+		...featherBar(beatsPerBar, rng, ctx.intensity)
+	].map((hit) => ({ ...hit, role: 'timekeeping' }));
+	const accents: DrumHitSpec[] = arrival
+		? [
+			{ drum: 'crash', beatOffset: 0, velocity: 0.42 + 0.12 * plan.coordinatedAccent!.strength, role: 'accent' },
+			{ drum: 'kick', beatOffset: 0, velocity: 0.32, role: 'accent' }
+		] : [];
+	if (plan.drums.maxCommentaryHits === 0) return [...ostinato, ...accents];
+
+	const fill = plan.drums.allowFill
+		? fillBar({ ...ctx, isSectionFirstBar: false, isSectionFinalBar: true, isChorusFinalBar: false }, ctx.fillRng ?? rng).hits
+		: [];
+	const groups = [fill, snareBar(ctx, rng), couplingBar(ctx, rng)];
+	const commentary: DrumHitSpec[] = [];
+	const occupied = new Set<number>();
+	for (const group of groups) {
+		if (group.length === 0 || group.length + commentary.length > plan.drums.maxCommentaryHits) continue;
+		if (group.some((hit) => occupied.has(hit.beatOffset))) continue;
+		for (const hit of group) {
+			occupied.add(hit.beatOffset);
+			commentary.push({ ...hit, role: 'commentary' });
+		}
+	}
+	return [...ostinato, ...accents, ...commentary];
 }
 
 const swing: StyleDefinition = {

@@ -29,7 +29,7 @@
 		<section class="docs-directory-group" id={section.title.toLowerCase().replace(/\s+/g, '-')}>
 			<div><span class="docs-kicker">0{i + 2}</span><h2>{section.title}</h2></div>
 			<div>{#each section.pages as doc (doc.slug)}
-				<a class="docs-directory-row" href={`/docs/${doc.slug}`}><span><strong>{doc.title}</strong><small>{doc.blurb}</small></span><b aria-hidden="true">↗</b></a>
+				<a class="docs-directory-row" href={doc.href ?? `/docs/${doc.slug}`}><span><strong>{doc.title}</strong><small>{doc.blurb}</small></span><b aria-hidden="true">↗</b></a>
 			{/each}</div>
 		</section>
 	{/each}

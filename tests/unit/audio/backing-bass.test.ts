@@ -11,6 +11,7 @@ import { BACKING_LAB_PRESETS } from '$lib/audio/backing-lab-presets';
 import { getScale } from '$lib/music/scales';
 import { realizeScale } from '$lib/music/keys';
 import { pitchClassToNumber } from '$lib/audio/voicings';
+import { planEnsemble } from '$lib/audio/ensemble-plan';
 
 const PPQ = 192;
 
@@ -230,5 +231,41 @@ describe('stream isolation', () => {
 		};
 		const stubbedOut = generateBacking(blues.phrase.harmony, stubbed, p);
 		expect(JSON.stringify(stubbedOut.bassEvents)).toBe(JSON.stringify(real.bassEvents));
+	});
+});
+
+describe('bass reservations across held harmony', () => {
+	const harmony: HarmonicSegment[] = [
+		{ chord: { root: 'C', quality: 'maj7' }, scaleId: 'major.ionian', startOffset: [0, 1], duration: [2, 1] },
+		{ chord: { root: 'F', quality: 'maj7' }, scaleId: 'major.ionian', startOffset: [2, 1], duration: [1, 1] }
+	];
+	const infos = buildBarInfos(3);
+	const roles = planEnsemble({ phraseId: 'bass-reservations', tempo: 140,
+		bars: infos.map((info, barIndex) => ({ ...info, barIndex })) }).bars;
+	const allowed = infos.map((info, bar) => ({ ...info,
+		ensemble: { ...roles[bar], bass: { ...roles[bar].bass, ornamentScale: 1 } } }));
+	const reserved = allowed.map((info, bar) => bar === 1 ? { ...info,
+		ensemble: { ...info.ensemble, bass: { ...info.ensemble.bass, ornamentScale: 0 } } } : info);
+
+	it('uses the ornament destination bar, preserving every walking quarter', () => {
+		let allowedOrnaments = 0;
+		for (let seed = 0; seed < 40; seed++) {
+			const p = params({ phraseId: `review-held-${seed}` });
+			const ordinary = generateBassLine(harmony, 4, p, allowed).events;
+			const quiet = generateBassLine(harmony, 4, p, reserved).events;
+			allowedOrnaments += ordinary.filter((e) => e.absBeat >= 4 && e.absBeat < 8 && e.absBeat % 1 !== 0).length;
+			expect(quiet.filter((e) => e.absBeat >= 4 && e.absBeat < 8 && e.absBeat % 1 !== 0)).toEqual([]);
+			expect(quiet.filter((e) => e.absBeat % 1 === 0).map((e) => e.absBeat)).toEqual(
+				Array.from({ length: 12 }, (_, beat) => beat)
+			);
+		}
+		expect(allowedOrnaments).toBeGreaterThan(0);
+	});
+
+	it('a permissive reservation preserves the original bass output exactly', () => {
+		for (let seed = 0; seed < 12; seed++) {
+			const p = params({ phraseId: `bass-unreserved-${seed}` });
+			expect(generateBassLine(harmony, 4, p, allowed)).toEqual(generateBassLine(harmony, 4, p, infos));
+		}
 	});
 });

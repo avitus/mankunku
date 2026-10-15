@@ -341,6 +341,14 @@ export function generateBassLine(
 		centers[Math.min(Math.floor(absBeat / beatsPerBar), centers.length - 1)] ?? ARC_CENTER_BASE;
 	const infoAt = (absBeat: number): BarInfo =>
 		barInfos[Math.min(Math.floor(absBeat / beatsPerBar), barInfos.length - 1)];
+	// A held chord may span several different ensemble roles. Admit each
+	// proposed ornament against the bar where it will sound, on an isolated
+	// stream; the original candidate draws and uncoordinated output stay intact.
+	const admitOrnament = (kind: string, absBeat: number): boolean => {
+		const scale = infoAt(absBeat).ensemble?.bass.ornamentScale;
+		if (scale === undefined || scale >= 1) return true;
+		return createRng(seedFrom(phraseId, tempo, 'bass-ornament', kind, absBeat)).chance(Math.max(0, scale));
+	};
 	const feelAt = (absBeat: number): 'two' | 'four' => {
 		if (feelOverride) return feelOverride;
 		const fs = feels as Array<'two' | 'four'>;
@@ -459,15 +467,20 @@ export function generateBassLine(
 		// probabilities scale with the segment's bar intensity — the line
 		// stays plain early and talks more as the band digs in.
 		const spice = lerp(0.6, 1.4, infoAt(seg.startBeats).intensity);
-		const ghostBeat =
+		const proposedGhostBeat =
 			seg.totalBeats >= 3 && rng.chance(0.1 * spice) ? rng.int(1, Math.max(1, L - 1)) : -1;
+		const ghostBeat = proposedGhostBeat >= 0 && admitOrnament('ghost', seg.startBeats + proposedGhostBeat + 0.5)
+			? proposedGhostBeat : -1;
 		// The pickup only sounds in a walking-four bar — resolve that ONCE so
 		// the final note's duration and the emission agree (a two-feel bar was
 		// shortening its last note for a pickup that never sounded).
 		const pickupActive =
-			hasNext && rng.chance(0.12 * spice) && feelAt(seg.startBeats + L) === 'four';
-		const octaveSkipBeat =
+			hasNext && rng.chance(0.12 * spice) && feelAt(seg.startBeats + L) === 'four' &&
+			admitOrnament('pickup', seg.startBeats + seg.totalBeats - 0.5);
+		const proposedOctaveSkipBeat =
 			deviceStart >= 3 && rng.chance(0.06 * spice) ? rng.int(1, deviceStart - 2) : -1;
+		const octaveSkipBeat = proposedOctaveSkipBeat >= 0 && admitOrnament('octave', seg.startBeats + proposedOctaveSkipBeat)
+			? proposedOctaveSkipBeat : -1;
 
 		// Interior walk toward the device start (or the settle note).
 		const goal = notes[deviceStart] ?? notes[L] ?? nextTarget;
@@ -627,7 +640,7 @@ export function generateBassLine(
 			lastInfo.isSectionFinalBar &&
 			!lastInfo.isFinalBar &&
 			Math.round(seg.startBeats + L) % beatsPerBar === beatsPerBar - 1 &&
-			rng.chance(0.22 * lerp(0.6, 1.4, lastInfo.intensity))
+			rng.chance(0.22 * lerp(0.6, 1.4, lastInfo.intensity) * (lastInfo.ensemble?.bass.ornamentScale ?? 1))
 		) {
 			const base = notes[L] ?? prevMidi ?? downbeat;
 			push(seg.startBeats + L + 1 / 3, base + (rng.chance(0.5) ? 1 : -1), beatDuration * 0.18, 58);

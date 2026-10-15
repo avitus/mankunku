@@ -111,4 +111,16 @@ describe('a saved Minor Chord lick reaches the session as its own window', () =>
 			expect([...offered], mode).toEqual(['e2e-minor-lick']);
 		}
 	});
+
+	it('passes the full performed form to audio after the head and repeated solo choruses', () => {
+		tunePractice.config.choruses = 2;
+		const { playedPhrase, leadBars } = startTunePracticeSession(autumnLeaves, 480);
+		const form = playedPhrase.performanceForm!;
+		expect(form.choruses.map((c) => c.role)).toEqual(['head', 'solo', 'solo']);
+		expect(form.choruses[1].startBar).toBe(leadBars);
+		expect(form.totalBars).toBe(playedPhrase.difficulty.lengthBars);
+		expect(form.choruses.at(-1)?.endBarExclusive).toBe(form.totalBars);
+		expect(playedPhrase.sectionMap?.at(-1)?.barOffset).toBe(form.sections.at(-1)?.startBar);
+		expect(playedPhrase.sectionMap!.some((s) => s.barOffset >= form.choruses[2].startBar)).toBe(true);
+	});
 });
