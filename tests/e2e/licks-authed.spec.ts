@@ -36,7 +36,9 @@ test.describe('licks — authed', () => {
 	}) => {
 		await signedInPage.goto('/licks');
 		await expect(signedInPage.getByRole('heading', { name: /your licks/i })).toBeVisible();
-		await expect(signedInPage.getByPlaceholder(/find a lick/i)).toBeVisible();
+		// The progression filter renders whenever the book has licks, whatever
+		// its size, so it marks the loaded collection.
+		await expect(signedInPage.getByLabel('Filter by progression')).toBeVisible();
 
 		// The user's seeded licks should render — counted via the level-3 card
 		// headings (a semantic locator that survives styling refactors). Use a
@@ -47,6 +49,10 @@ test.describe('licks — authed', () => {
 
 		// With licks present, the "empty" copy must never be the rendered state.
 		await expect(signedInPage.getByText('Your book is empty.')).toHaveCount(0);
+
+		// A book of five or fewer licks is easy to scan, so it gets no search box
+		// (licks.spec.ts seeds six to exercise the search).
+		await expect(signedInPage.getByPlaceholder(/find a lick/i)).toHaveCount(0);
 	});
 
 	test('server-rendered HTML shows a loading state, never the empty copy', async ({
