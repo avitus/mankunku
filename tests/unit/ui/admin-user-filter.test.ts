@@ -53,6 +53,19 @@ describe('isInactive', () => {
 		expect(isInactive(row, NOW)).toBe(true);
 	});
 
+	it('compares calendar days: the cutoff day itself still counts as active (CodeRabbit on #277)', () => {
+		// Thirty days before 2026-10-15T12:00Z is 2026-09-15. Dates are kept as
+		// days, so a sign-in late on that day must not read as before the cutoff.
+		const onCutoffDay = {
+			lastActiveDate: '2026-08-01',
+			lastSignInAt: '2026-09-15T23:59:00Z',
+			createdAt: '2026-01-02T10:00:00Z'
+		};
+		expect(isInactive(onCutoffDay, NOW)).toBe(false);
+		const dayBefore = { ...onCutoffDay, lastSignInAt: '2026-09-14T23:59:00Z' };
+		expect(isInactive(dayBefore, NOW)).toBe(true);
+	});
+
 	it('never lists a row with no dates', () => {
 		expect(isInactive({ lastActiveDate: null, lastSignInAt: null, createdAt: null }, NOW)).toBe(
 			false

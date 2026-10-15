@@ -26,8 +26,14 @@ export function lastSeenDate(row: AdminSeenDates): string | null {
 	return days.length ? days.sort().at(-1)! : null;
 }
 
-/** True when the row's newest date is more than 30 days before `nowMs`; a row with no dates is never inactive. */
+/**
+ * True when the row's newest date falls on a calendar day earlier than the
+ * day 30 days before `nowMs` (UTC). Days compare as days: the dates are kept to
+ * the day, so a sign-in late on the cutoff day is still within the window.
+ * A row with no dates is never inactive.
+ */
 export function isInactive(row: AdminSeenDates, nowMs: number): boolean {
 	const seen = lastSeenDate(row);
-	return !!seen && Date.parse(seen) < nowMs - INACTIVE_DAYS * 86_400_000;
+	const cutoff = new Date(nowMs - INACTIVE_DAYS * 86_400_000).toISOString().slice(0, 10);
+	return !!seen && seen < cutoff;
 }
