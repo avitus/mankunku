@@ -610,6 +610,21 @@ community services. Selecting another phrase or changing filters cancels the
 current audition; the details link preserves access to the existing lick route.
 
 
+### Community Tunes
+
+`/tunes/community` extends the My Tunes Studio Library shell with a compact,
+paginated index and one stable changes preview. Reuse `StudioPage`, `StudioPanel`,
+the shared surface tokens and the native `ChordSymbolText` formatter. Complex
+alterations use its stacked chart variant. The preview shows at most eight bars
+in notation order, respects the declared meter and split-bar changes, and uses
+written pitch. Full melody engraving remains in the existing tune detail page.
+
+Harmony role tints follow the same restrained tonic, subdominant and dominant
+colors as Tune Detail. Selection uses a brass edge; favorites and book membership
+are separate actions. Filters apply before pagination, requests have loading and
+retry states, and mobile stacks the bounded list above the preview. Light mode
+uses the shared Studio surface tokens.
+
 ### Tune Detail and Tune Editor
 
 Tune Detail (`/tunes/[id]`) and Tune Editor (`/tunes/editor`) share the Lick
@@ -715,6 +730,7 @@ selection, difficulty or accuracy colors.
 
 | Pattern | Reference | Status |
 | --- | --- | --- |
+| Community Tunes | Component `459518619592830976` | Native Svelte; compact library, eight-bar changes preview, written-key control, shared chord engraving, favorites and book actions |
 | Community Listening Desk | Component `461167035594973184` | Native Svelte; compact index, stable full score, no white cards, expansion, key or length labels/filters |
 | Lick Editor | `459517965835059200` / `460811927849934848` | Native Svelte; shared score/input/inspector hierarchy |
 | Tune Detail + Editor | `459518519676121088` / `461185056698941440` | Native Svelte; extends Lick Editor with tune operations |

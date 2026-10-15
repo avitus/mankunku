@@ -54,6 +54,9 @@ export interface TuneCommunityFilters {
 	sort?: 'popular' | 'newest';
 	/** Omit sheets authored by this user (their own live under /tunes). */
 	excludeUserId?: string;
+	scope?: 'all' | 'favorites' | 'in-book' | 'not-in-book';
+	/** Includes any look-ahead row requested by the caller. */
+	limit?: number;
 }
 
 export interface CommunityTune {
@@ -114,18 +117,39 @@ function stripForeignAssets(sheet: Tune): Tune {
 // ─── Listing ────────────────────────────────────────────────────────────
 
 /**
- * Live paginated community listing. Two round trips: (1) tunes
- * filtered/sorted server-side, (2) author display names from
- * `public_tune_authors`. Author-name filtering is client-side after
- * the author fetch, so it is approximate w.r.t. pagination. Errors return
- * `[]` — listing never throws.
+ * Live paginated community listing. Every filter applies before the page
+ * boundary. Membership uses the hydrated local cache; callers await hydration.
+ * Query errors propagate so the UI can distinguish failure from an empty book.
  */
 export async function listCommunityTunes(
 	supabase: SupabaseClient<Database>,
 	filters: TuneCommunityFilters = {},
 	offset = 0
 ): Promise<CommunityTune[]> {
+	const favorites = getTuneFavoritesLocal();
+	const adoptions = getTuneAdoptionsLocal();
+	const included = filters.scope === 'favorites' ? favorites : filters.scope === 'in-book' ? adoptions : null;
+	if (included?.size === 0) return [];
+	let authorIds: string[] | null = null;
+	if (filters.authorSearch?.trim()) {
+		authorIds = [];
+		const term = filters.authorSearch.trim().replace(/[%_]/g, ' ');
+		// A matching contributor may be beyond the first page of tunes.
+		for (let start = 0; ; start += 1000) {
+			const { data, error } = await supabase.from('public_tune_authors').select('id')
+				.ilike('display_name', `%${term}%`).order('id').range(start, start + 999);
+			if (error) throw error;
+			authorIds.push(...(data ?? []).map(author => author.id));
+			if (!data || data.length < 1000) break;
+		}
+		if (authorIds.length === 0) return [];
+	}
 	let query = supabase.from('tunes').select('*').is('deleted_at', null);
+	if (authorIds) query = query.in('user_id', authorIds);
+	if (included) query = query.in('id', [...included]);
+	if (filters.scope === 'not-in-book' && adoptions.size) {
+		query = query.not('id', 'in', `(${[...adoptions].map(id => JSON.stringify(id)).join(',')})`);
+	}
 
 	if (filters.excludeUserId) {
 		query = query.neq('user_id', filters.excludeUserId);
@@ -139,7 +163,7 @@ export async function listCommunityTunes(
 			// ({}, ", \) and newlines. Search is UX-casual, not a power-user query.
 			const safe = term.replace(/[%_,(){}"\\\n\r]/g, ' ').trim();
 			if (safe) {
-				query = query.or(`title.ilike.%${safe}%,composer.ilike.%${safe}%,tags.cs.{${safe}}`);
+				query = query.or(`title.ilike.%${safe}%,composer.ilike.%${safe}%,style.ilike.%${safe}%,tags.cs.{${safe}}`);
 			}
 		}
 	}
@@ -152,12 +176,12 @@ export async function listCommunityTunes(
 			.order('created_at', { ascending: false });
 	}
 
-	query = query.range(offset, offset + TUNE_PAGE_SIZE - 1);
+	query = query.order('id').range(offset, offset + (filters.limit ?? TUNE_PAGE_SIZE) - 1);
 
 	const { data, error } = await query;
 	if (error) {
 		console.warn('Failed to list community lead sheets:', error);
-		return [];
+		throw error;
 	}
 	const rows = data ?? [];
 	if (rows.length === 0) return [];
@@ -172,10 +196,7 @@ export async function listCommunityTunes(
 	}
 	const authorById = new Map((authors ?? []).map((a) => [a.id, a]));
 
-	const favorites = getTuneFavoritesLocal();
-	const adoptions = getTuneAdoptionsLocal();
-
-	let results: CommunityTune[] = rows.map((row) => {
+	return rows.map((row) => {
 		const author = authorById.get(row.user_id);
 		return {
 			sheet: cloudRowToTune(row),
@@ -187,13 +208,6 @@ export async function listCommunityTunes(
 			isAdoptedByMe: adoptions.has(row.id)
 		};
 	});
-
-	if (filters.authorSearch) {
-		const q = filters.authorSearch.toLowerCase();
-		results = results.filter((r) => (r.authorName ?? '').toLowerCase().includes(q));
-	}
-
-	return results;
 }
 
 /** A shared tune fetched for viewing, with its author's display name. */

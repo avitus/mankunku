@@ -70,6 +70,8 @@ function makeSupabaseMock(response: {
 			const chain = {
 				select() { return chain; },
 				eq(col: string, val: unknown) { q.filters.push({ op: 'eq', args: [col, val] }); return chain; },
+				ilike(col: string, val: unknown) { q.filters.push({ op: 'ilike', args: [col, val] }); return chain; },
+				not(col: string, op: string, val: unknown) { q.filters.push({ op: 'not', args: [col, op, val] }); return chain; },
 				neq(col: string, val: unknown) { q.filters.push({ op: 'neq', args: [col, val] }); return chain; },
 				is(col: string, val: unknown) { q.filters.push({ op: 'is', args: [col, val] }); return chain; },
 				in(col: string, vals: unknown[]) { q.filters.push({ op: 'in', args: [col, vals] }); return chain; },
@@ -223,9 +225,41 @@ describe('listCommunityTunes', () => {
 		expect(tagsClause![1]).not.toMatch(/[{}"%,\\]/u);
 	});
 
-	it('returns [] on a query error instead of throwing', async () => {
+	it('surfaces a query error so failure is not shown as an empty collection', async () => {
 		const sb = makeSupabaseMock({ user: ME, errors: { tunes: { message: 'boom' } } });
-		await expect(listCommunityTunes(sb as never)).resolves.toEqual([]);
+		await expect(listCommunityTunes(sb as never)).rejects.toEqual({ message: 'boom' });
+	});
+});
+
+describe('community desk filters', () => {
+	it('resolves contributors before paginating tunes and preserves the look-ahead limit', async () => {
+		const queries: QueryState[] = [];
+		const sb = makeSupabaseMock({ data: { public_tune_authors: [{ id: 'author-beyond-page', display_name: 'Dizzy' }] }, captureQueries: queries });
+		await listCommunityTunes(sb as never, { authorSearch: 'Dizzy', limit: 7 }, 6);
+		expect(queries[0].from).toBe('public_tune_authors');
+		expect(queries[0].filters).toContainEqual({ op: 'ilike', args: ['display_name', '%Dizzy%'] });
+		const query = queries.find(q => q.from === 'tunes')!;
+		expect(query.filters).toContainEqual({ op: 'in', args: ['user_id', ['author-beyond-page']] });
+		expect(query.range).toEqual([6, 12]);
+		expect(query.orderings.at(-1)).toEqual({ col: 'id', asc: true });
+	});
+	it('applies membership before pagination and short-circuits empty favorites', async () => {
+		const queries: QueryState[] = [];
+		const sb = makeSupabaseMock({ user: ME, captureQueries: queries });
+		expect(await listCommunityTunes(sb as never, { scope: 'favorites' })).toEqual([]);
+		expect(queries).toHaveLength(0);
+		await toggleTuneFavorite(sb as never, 'sheet-outside-first-page');
+		queries.length = 0;
+		await listCommunityTunes(sb as never, { scope: 'favorites' });
+		expect(queries[0].filters).toContainEqual({ op: 'in', args: ['id', ['sheet-outside-first-page']] });
+	});
+	it('includes style in search and throws if contributor lookup fails', async () => {
+		const queries: QueryState[] = [];
+		const sb = makeSupabaseMock({ captureQueries: queries });
+		await listCommunityTunes(sb as never, { search: 'Bossa' });
+		expect(queries[0].filters.find(f => f.op === 'or')?.args[0]).toContain('style.ilike.%Bossa%');
+		const failed = makeSupabaseMock({ errors: { public_tune_authors: { message: 'offline' } } });
+		await expect(listCommunityTunes(failed as never, { authorSearch: 'Dizzy' })).rejects.toEqual({ message: 'offline' });
 	});
 });
 

@@ -1,329 +1,366 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { goto } from '$app/navigation';
-	import { onDestroy } from 'svelte';
+	import { onDestroy, untrack } from 'svelte';
 	import SeoHead from '$lib/components/seo/SeoHead.svelte';
-	import CommunityTuneCard from '$lib/components/tunes/CommunityTuneCard.svelte';
+	import StudioPage from '$lib/components/console/StudioPage.svelte';
+	import StudioPanel from '$lib/components/console/StudioPanel.svelte';
+	import CommunityTunePreview from '$lib/components/tunes/CommunityTunePreview.svelte';
 	import {
 		listCommunityTunes,
 		toggleTuneFavorite,
 		adoptTune,
 		returnTune,
-		TUNE_PAGE_SIZE,
 		type CommunityTune
 	} from '$lib/persistence/tune-community';
-	import { tuneCommunity, type TuneCommunitySort } from '$lib/state/tune-community.svelte';
+	import { tuneCommunity } from '$lib/state/tune-community.svelte';
+	import { awaitHydration } from '$lib/state/hydration';
+	import '$lib/components/tunes/community-desk.css';
 
+	const PAGE_SIZE = 6;
 	const supabase = $derived(page.data?.supabase ?? null);
 	const session = $derived(page.data?.session ?? null);
 	const user = $derived(page.data?.user ?? null);
-
 	let sheets: CommunityTune[] = $state([]);
-	let pageOffset = $state(0);
+	let pageNumber = $state(1);
 	let hasMore = $state(false);
-	let loading = $state(false);
-	let loadError: string | null = $state(null);
-
-	/** Reactive filter snapshot — re-query the corpus when it changes. */
-	const filterKey = $derived(
-		JSON.stringify({
-			s: tuneCommunity.searchQuery,
-			a: tuneCommunity.authorQuery,
-			sort: tuneCommunity.sort
-		})
+	let loading = $state(true);
+	let loadError = $state(false);
+	let actionError = $state('');
+	let refresh = $state(0);
+	let selectedId: string | null = $state(null);
+	let filtersOpen = $state(
+		untrack(() => !!tuneCommunity.authorQuery || tuneCommunity.scope !== 'all')
 	);
-
+	let pending: 'favorite' | 'adopt' | 'return' | null = $state(null);
+	let pendingId: string | null = $state(null);
 	let effectRunId = 0;
-
-	function buildFilters() {
-		return {
-			search: tuneCommunity.searchQuery.trim() || undefined,
-			authorSearch: tuneCommunity.authorQuery.trim() || undefined,
-			sort: tuneCommunity.sort,
-			excludeUserId: user?.id
-		};
-	}
+	const selected = $derived(sheets.find((item) => item.sheet.id === selectedId) ?? sheets[0]);
+	const filterKey = $derived(JSON.stringify(tuneCommunity));
+	const filtersActive = $derived(
+		!!tuneCommunity.searchQuery.trim() ||
+			!!tuneCommunity.authorQuery.trim() ||
+			tuneCommunity.scope !== 'all'
+	);
 
 	$effect(() => {
 		void filterKey;
+		pageNumber = 1;
+	});
+	$effect(() => {
+		void filterKey;
+		void refresh;
 		const sb = supabase;
+		const offset = (pageNumber - 1) * PAGE_SIZE;
+		const runId = ++effectRunId;
+		const filters = {
+			search: tuneCommunity.searchQuery.trim(),
+			authorSearch: tuneCommunity.authorQuery.trim(),
+			sort: tuneCommunity.sort,
+			scope: tuneCommunity.scope,
+			excludeUserId: user?.id,
+			limit: PAGE_SIZE + 1
+		};
+		sheets = [];
+		hasMore = false;
+		loadError = false;
+		actionError = '';
 		if (!sb || !session) {
-			sheets = [];
-			hasMore = false;
+			loading = false;
 			return;
 		}
-		const runId = ++effectRunId;
 		loading = true;
-		pageOffset = 0;
-		loadError = null;
-		listCommunityTunes(sb, buildFilters(), 0)
-			.then((results) => {
+		// Membership flags and filters must wait for the current user's cache.
+		awaitHydration()
+			.then(async () => {
 				if (runId !== effectRunId) return;
-				sheets = results;
-				hasMore = results.length === TUNE_PAGE_SIZE;
-				loading = false;
+				const results = await listCommunityTunes(sb, filters, offset);
+				if (runId !== effectRunId) return;
+				if (!results.length && offset > 0) {
+					pageNumber--;
+					return;
+				}
+				sheets = results.slice(0, PAGE_SIZE);
+				hasMore = results.length > PAGE_SIZE;
 			})
-			.catch((err) => {
-				if (runId !== effectRunId) return;
-				loadError = String(err);
-				loading = false;
+			.catch(() => {
+				if (runId === effectRunId) loadError = true;
+			})
+			.finally(() => {
+				if (runId === effectRunId) loading = false;
 			});
-	});
-
-	async function loadMore() {
-		if (!supabase || loading) return;
-		const runId = effectRunId;
-		loading = true;
-		loadError = null;
-		const nextOffset = pageOffset + TUNE_PAGE_SIZE;
-		try {
-			const more = await listCommunityTunes(supabase, buildFilters(), nextOffset);
-			if (runId !== effectRunId) return;
-			sheets = [...sheets, ...more];
-			pageOffset = nextOffset;
-			hasMore = more.length === TUNE_PAGE_SIZE;
-		} catch (err) {
-			// A failed page must surface and re-enable the button, not leave
-			// it disabled on a permanently-stuck `loading` flag.
-			if (runId !== effectRunId) return;
-			loadError = String(err);
-		} finally {
-			if (runId === effectRunId) loading = false;
-		}
-	}
-
-	// 200ms debounce so the rune (and the re-query effect) only fires when
-	// typing pauses. Inputs are uncontrolled on purpose.
-	let searchTimer: ReturnType<typeof setTimeout> | null = null;
-	let authorTimer: ReturnType<typeof setTimeout> | null = null;
-
-	function onSearchInput(e: Event) {
-		const value = (e.target as HTMLInputElement).value;
-		if (searchTimer) clearTimeout(searchTimer);
-		searchTimer = setTimeout(() => (tuneCommunity.searchQuery = value), 200);
-	}
-
-	function onAuthorInput(e: Event) {
-		const value = (e.target as HTMLInputElement).value;
-		if (authorTimer) clearTimeout(authorTimer);
-		authorTimer = setTimeout(() => (tuneCommunity.authorQuery = value), 200);
-	}
-
-	onDestroy(() => {
-		if (searchTimer) clearTimeout(searchTimer);
-		if (authorTimer) clearTimeout(authorTimer);
-	});
-
-	async function handleFavorite(item: CommunityTune) {
-		if (!supabase) return;
-		// Staleness guard (matching loadMore): a filter/sort change or sign-out
-		// mid-flight replaces `sheets`, and a rollback splice would insert a
-		// stale card into the new result set.
-		const runId = effectRunId;
-		const idx = sheets.findIndex((s) => s.sheet.id === item.sheet.id);
-		if (idx < 0) return;
-		const wasFavorited = item.isFavoritedByMe;
-		const optimistic: CommunityTune = {
-			...item,
-			isFavoritedByMe: !wasFavorited,
-			favoriteCount: item.favoriteCount + (wasFavorited ? -1 : 1)
+		return () => {
+			effectRunId++;
 		};
-		sheets = [...sheets.slice(0, idx), optimistic, ...sheets.slice(idx + 1)];
-		// A rejection must roll the optimistic card back just like a mismatched
-		// result — never surface as an unhandled rejection with the card stuck.
-		let nowFavorited = wasFavorited;
-		try {
-			nowFavorited = await toggleTuneFavorite(supabase, item.sheet.id);
-		} catch (err) {
-			console.warn('Failed to toggle tune favorite:', err);
-		}
-		if (runId !== effectRunId) return;
-		if (nowFavorited !== !wasFavorited) {
-			sheets = [...sheets.slice(0, idx), item, ...sheets.slice(idx + 1)];
+	});
+
+	let searchTimer: ReturnType<typeof setTimeout> | undefined;
+	let authorTimer: ReturnType<typeof setTimeout> | undefined;
+	function search(event: Event, author = false) {
+		const value = (event.currentTarget as HTMLInputElement).value;
+		if (author) {
+			clearTimeout(authorTimer);
+			authorTimer = setTimeout(() => (tuneCommunity.authorQuery = value), 200);
+		} else {
+			clearTimeout(searchTimer);
+			searchTimer = setTimeout(() => (tuneCommunity.searchQuery = value), 200);
 		}
 	}
+	function clearFilters() {
+		clearTimeout(searchTimer);
+		clearTimeout(authorTimer);
+		tuneCommunity.searchQuery = '';
+		tuneCommunity.authorQuery = '';
+		tuneCommunity.scope = 'all';
+	}
+	onDestroy(() => {
+		effectRunId++;
+		clearTimeout(searchTimer);
+		clearTimeout(authorTimer);
+	});
 
-	async function handleAdopt(item: CommunityTune) {
-		if (!supabase) return;
+	async function act(item: CommunityTune, kind: 'favorite' | 'adopt' | 'return') {
+		if (!supabase || pending) return;
 		const runId = effectRunId;
-		const idx = sheets.findIndex((s) => s.sheet.id === item.sheet.id);
-		if (idx < 0) return;
-		sheets = [...sheets.slice(0, idx), { ...item, isAdoptedByMe: true }, ...sheets.slice(idx + 1)];
-		let ok = false;
+		const actingUserId = user?.id;
+		pending = kind;
+		pendingId = item.sheet.id;
+		actionError = '';
+		const update = (patch: Partial<CommunityTune>) => {
+			sheets = sheets.map((current) =>
+				current.sheet.id === item.sheet.id ? { ...current, ...patch } : current
+			);
+		};
+		if (kind === 'favorite')
+			update({
+				isFavoritedByMe: !item.isFavoritedByMe,
+				favoriteCount: Math.max(0, item.favoriteCount + (item.isFavoritedByMe ? -1 : 1))
+			});
 		try {
-			ok = await adoptTune(supabase, item.sheet.id);
-		} catch (err) {
-			console.warn('Failed to adopt tune:', err);
-		}
-		if (runId !== effectRunId) return;
-		if (!ok) {
-			sheets = [...sheets.slice(0, idx), item, ...sheets.slice(idx + 1)];
+			const result =
+				kind === 'favorite'
+					? await toggleTuneFavorite(supabase, item.sheet.id)
+					: kind === 'adopt'
+						? await adoptTune(supabase, item.sheet.id, item)
+						: await returnTune(supabase, item.sheet.id);
+			if (runId !== effectRunId) return;
+			if (kind === 'favorite' ? result === item.isFavoritedByMe : !result)
+				throw new Error('Action failed');
+			if (kind !== 'favorite') update({ isAdoptedByMe: kind === 'adopt' });
+			if (tuneCommunity.scope !== 'all') refresh++;
+		} catch {
+			if (runId !== effectRunId) return;
+			if (kind === 'favorite')
+				update({ isFavoritedByMe: item.isFavoritedByMe, favoriteCount: item.favoriteCount });
+			actionError =
+				kind === 'favorite'
+					? 'Could not save your favorite. Please try again.'
+					: kind === 'adopt'
+						? 'Could not add this tune to your book. Please try again.'
+						: 'Could not return this tune. Please try again.';
+		} finally {
+			pending = null;
+			pendingId = null;
+			// A filter change may have read the optimistic local favorite while
+			// this write was pending. Reconcile that new page after success/failure.
+			if (runId !== effectRunId && session && user?.id === actingUserId) refresh++;
 		}
 	}
-
-	async function handleReturn(item: CommunityTune) {
-		if (!supabase) return;
-		const runId = effectRunId;
-		const idx = sheets.findIndex((s) => s.sheet.id === item.sheet.id);
-		if (idx < 0) return;
-		sheets = [...sheets.slice(0, idx), { ...item, isAdoptedByMe: false }, ...sheets.slice(idx + 1)];
-		let ok = false;
-		try {
-			ok = await returnTune(supabase, item.sheet.id);
-		} catch (err) {
-			console.warn('Failed to return tune:', err);
-		}
-		if (runId !== effectRunId) return;
-		if (!ok) {
-			sheets = [...sheets.slice(0, idx), item, ...sheets.slice(idx + 1)];
-		}
-	}
-
-	const sortOptions: { id: TuneCommunitySort; label: string }[] = [
-		{ id: 'popular', label: 'Popular' },
-		{ id: 'newest', label: 'Newest' }
-	];
 </script>
 
 <SeoHead
 	title="Community Tunes — Mankunku"
 	description="Browse full jazz song forms shared by other players — melody and changes — and adopt them into your own tune book."
 />
+<svelte:head
+	>{#if !session}<meta name="robots" content="noindex" />{/if}</svelte:head
+>
 
-<svelte:head>
-	<!-- Anonymous visitors see only a sign-in prompt here — keep that thin
-	     state out of the index. `session` is SSR-stable layout data. -->
-	{#if !session}
-		<meta name="robots" content="noindex" />
-	{/if}
-</svelte:head>
-
-<div class="space-y-6">
-	<a
-		href="/tunes"
-		class="inline-flex items-center gap-1 text-sm text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text)]"
+<div class="community-desk">
+	<StudioPage
+		eyebrow="The Songbook / The community"
+		title="Community Tunes"
+		description="A shared repertoire. Find your next tune, then make it part of your book."
 	>
-		&larr; Tunes
-	</a>
-
-	<div class="flex items-end justify-between gap-4 flex-wrap">
-		<div>
-			<div class="smallcaps text-[var(--color-brass)]">The Session</div>
-			<h1 class="font-display text-4xl font-bold tracking-tight">Community Tunes</h1>
-			<div class="jazz-rule mt-2 max-w-[140px]"></div>
-			<p class="mt-1 text-sm text-[var(--color-text-secondary)]">
-				Tunes shared by other players. Add one to your book to practice it.
-			</p>
-		</div>
-		{#if session}
-			<span class="text-sm text-[var(--color-text-secondary)]">
-				{sheets.length} sheet{sheets.length === 1 ? '' : 's'}{hasMore ? '+' : ''}
-			</span>
-		{/if}
-	</div>
-
-	{#if !session}
-		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-6 text-center">
-			<p class="text-sm text-[var(--color-text-secondary)]">Sign in to browse community tunes.</p>
-			<a
-				href="/auth"
-				class="mt-4 inline-block rounded-full bg-[var(--color-accent)] px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)]"
+		{#snippet actions()}<a href="/tunes" class="studio-text-action">← My Tunes</a>{/snippet}
+		<StudioPanel
+			id="community-collection"
+			number="01"
+			title="The collection"
+			description="Charts shared by other players. A little inspiration for your next session."
+		>
+			{#if !session}
+				<div class="ct-state">
+					<h3>A shared repertoire.</h3>
+					<p>Sign in to browse community tunes.</p>
+					<a href="/auth" class="studio-action">Sign in</a>
+				</div>
+			{:else}
+				<div class="ct-search-row">
+					<label class="ct-search"
+						><span class="studio-label">Find a tune</span><input
+							type="search"
+							aria-label="Search community tunes"
+							placeholder="Search by title, composer, style, or tag…"
+							value={tuneCommunity.searchQuery}
+							oninput={search}
+						/></label
+					>
+					<label class="ct-sort"
+						><span class="studio-label">Sort by</span><select
+							aria-label="Sort community tunes"
+							bind:value={tuneCommunity.sort}
+							><option value="popular">Most popular</option><option value="newest"
+								>Newest first</option
+							></select
+						></label
+					>
+					<button
+						class="ct-filter"
+						aria-expanded={filtersOpen}
+						aria-controls="community-filters"
+						onclick={() => (filtersOpen = !filtersOpen)}
+						>☷ Filters{tuneCommunity.authorQuery || tuneCommunity.scope !== 'all'
+							? ' •'
+							: ''}</button
+					>
+				</div>
+				{#if filtersOpen}<div class="ct-filters" id="community-filters">
+						<label
+							><span class="studio-label">Shared by</span><input
+								type="search"
+								aria-label="Filter by contributor"
+								placeholder="Any contributor"
+								value={tuneCommunity.authorQuery}
+								oninput={(event) => search(event, true)}
+							/></label
+						>
+						<label
+							><span class="studio-label">Show</span><select
+								aria-label="Filter collection"
+								bind:value={tuneCommunity.scope}
+								><option value="all">All community tunes</option><option value="favorites"
+									>My favorites</option
+								><option value="not-in-book">Not in my book</option><option value="in-book"
+									>In my book</option
+								></select
+							></label
+						>
+						{#if filtersActive}<button class="studio-text-action" onclick={clearFilters}
+								>Clear filters</button
+							>{/if}
+					</div>{/if}
+				<div class="ct-results-line">
+					<span role="status"
+						>{loading
+							? 'Finding tunes…'
+							: loadError
+								? 'Collection unavailable'
+								: sheets.length
+									? `${(pageNumber - 1) * PAGE_SIZE + 1}–${(pageNumber - 1) * PAGE_SIZE + sheets.length}${hasMore ? '' : ` of ${(pageNumber - 1) * PAGE_SIZE + sheets.length}`} shared tunes`
+									: '0 shared tunes'}</span
+					><span>Choose a tune to explore its changes ↘</span>
+				</div>
+				{#if loading}
+					<div class="ct-loading" aria-label="Loading community tunes">
+						<div>
+							{#each Array(6) as _}<div class="ct-skeleton"></div>{/each}
+						</div>
+						<div class="ct-skeleton ct-skeleton-chart"></div>
+					</div>
+				{:else if loadError}
+					<div class="ct-state" role="alert">
+						<h3>The collection couldn’t load.</h3>
+						<p>Please try again in a moment.</p>
+						<button class="studio-action" onclick={() => refresh++}>Try again</button>
+					</div>
+				{:else if !sheets.length}
+					<div class="ct-state">
+						<h3>{filtersActive ? 'No tunes match just yet.' : 'No shared tunes yet.'}</h3>
+						<p>
+							{filtersActive
+								? 'Try another search or clear your filters.'
+								: 'Be the first — add a tune and share it with the community.'}
+						</p>
+						{#if filtersActive}<button class="studio-action" onclick={clearFilters}
+								>Clear filters</button
+							>{:else}<a href="/tunes/add" class="studio-action">+ Add a tune</a>{/if}
+					</div>
+				{:else}
+					<div class="ct-desk">
+						<div class="ct-list-column">
+							<div class="ct-list-heading">
+								<span>Tune / contributor</span><span aria-label="Favorites">♡</span>
+							</div>
+							<div class="ct-list" aria-label="Community tune list">
+								{#each sheets as item (item.sheet.id)}
+									<button
+										class="ct-tune-row"
+										class:selected={selected?.sheet.id === item.sheet.id}
+										aria-pressed={selected?.sheet.id === item.sheet.id}
+										aria-label="Preview {item.sheet.title}"
+										onclick={() => {
+											selectedId = item.sheet.id;
+											actionError = '';
+										}}
+									>
+										<span class="ct-row-copy"
+											><strong
+												>{item.sheet.title}{#if item.isAdoptedByMe}<span
+														class="ct-in-book"
+														aria-label="In your book">✓</span
+													>{/if}</strong
+											>{#if item.sheet.composer}<span class="ct-composer"
+													>{item.sheet.composer}</span
+												>{/if}<small
+												>by {item.authorName ?? 'Anonymous'}{#if item.sheet.style}<span
+														class="ct-separator"
+														aria-hidden="true">·</span
+													>{item.sheet.style}{/if}</small
+											></span
+										><span class="ct-row-count"
+											>{item.favoriteCount}<span aria-hidden="true"> ›</span></span
+										>
+									</button>
+								{/each}
+							</div>
+							{#if pageNumber > 1 || hasMore}<nav
+									class="ct-pagination"
+									aria-label="Community tune pages"
+								>
+									<span>Page {pageNumber}</span>
+									<div>
+										<button
+											aria-label="Previous page"
+											disabled={pageNumber === 1}
+											onclick={() => pageNumber--}>←</button
+										><button aria-label="Next page" disabled={!hasMore} onclick={() => pageNumber++}
+											>→</button
+										>
+									</div>
+								</nav>{/if}
+							<p class="ct-list-note">✓ Already in your book</p>
+						</div>
+						<div class="ct-preview-column">
+							{#if selected}{#key selected.sheet.id}<CommunityTunePreview
+										item={selected}
+										pending={pendingId === selected.sheet.id ? pending : null}
+										busy={pending !== null}
+										onfavorite={() => act(selected, 'favorite')}
+										onadopt={() => act(selected, 'adopt')}
+										onreturn={() => act(selected, 'return')}
+									/>{/key}{/if}{#if actionError}<p class="ct-action-error" role="alert">
+									{actionError}
+								</p>{/if}
+						</div>
+					</div>
+				{/if}
+			{/if}
+		</StudioPanel>
+		<footer class="ct-page-footer">
+			<span>Your next session starts with a good tune.</span><a
+				href="/tunes"
+				class="studio-text-action">Back to your songbook ↗</a
 			>
-				Sign in
-			</a>
-		</div>
-	{:else}
-		<input
-			type="search"
-			placeholder="search by title, composer, or tag…"
-			value={tuneCommunity.searchQuery}
-			oninput={onSearchInput}
-			class="w-full rounded-lg bg-[var(--color-bg-secondary)] px-4 py-2 text-sm placeholder:text-[var(--color-text-secondary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
-		/>
-
-		<div class="flex flex-wrap items-center gap-3">
-			<div class="flex items-center gap-2">
-				<label for="author-search" class="text-sm text-[var(--color-text-secondary)]">
-					Author:
-				</label>
-				<input
-					id="author-search"
-					type="text"
-					placeholder="any"
-					value={tuneCommunity.authorQuery}
-					oninput={onAuthorInput}
-					class="w-40 rounded bg-[var(--color-bg-tertiary)] px-2 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
-				/>
-			</div>
-			<div class="flex gap-1">
-				{#each sortOptions as { id, label } (id)}
-					<button
-						onclick={() => (tuneCommunity.sort = id)}
-						class="rounded-full px-3 py-1 text-xs font-medium transition-colors
-							{tuneCommunity.sort === id
-								? 'bg-[var(--color-accent)] text-white'
-								: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]'}"
-					>
-						{label}
-					</button>
-				{/each}
-			</div>
-		</div>
-
-		{#if loadError && sheets.length === 0}
-			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-8 text-center">
-				<p class="italic text-[var(--color-error-text)]">Failed to load community tunes.</p>
-			</div>
-		{:else if sheets.length > 0}
-			{#if loadError}
-				<p class="text-center text-sm italic text-[var(--color-error-text)]">Failed to load more tunes.</p>
-			{/if}
-			<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-				{#each sheets as item (item.sheet.id)}
-					<CommunityTuneCard
-						{item}
-						isOwnSheet={item.authorId === user?.id}
-						onclick={() => goto(`/tunes/${item.sheet.id}`)}
-						onfavorite={() => handleFavorite(item)}
-						onadopt={() => handleAdopt(item)}
-						onreturn={() => handleReturn(item)}
-					/>
-				{/each}
-			</div>
-			{#if hasMore}
-				<div class="text-center">
-					<button
-						onclick={loadMore}
-						disabled={loading}
-						class="rounded-full bg-[var(--color-bg-tertiary)] px-4 py-1.5 text-sm font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-bg-secondary)] disabled:opacity-50"
-					>
-						{loading ? 'Loading…' : 'Load more'}
-					</button>
-				</div>
-			{/if}
-		{:else if loading}
-			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-8 text-center">
-				<p class="italic text-[var(--color-text-secondary)]">Loading…</p>
-			</div>
-		{:else if tuneCommunity.searchQuery.trim() || tuneCommunity.authorQuery.trim()}
-			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-8 text-center">
-				<p class="italic text-[var(--color-text-secondary)]">No shared tunes matching that search.</p>
-			</div>
-		{:else}
-			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-8 text-center space-y-3">
-				<p class="italic text-[var(--color-text-secondary)]">No shared tunes yet.</p>
-				<p class="text-sm text-[var(--color-text-secondary)]">
-					Be the first — enter a tune and it becomes shareable.
-				</p>
-				<div class="flex justify-center gap-2 pt-2">
-					<a
-						href="/tunes/add"
-						class="rounded-full bg-[var(--color-accent)] px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)]"
-					>
-						Add a tune
-					</a>
-				</div>
-			</div>
-		{/if}
-	{/if}
+		</footer>
+	</StudioPage>
 </div>
