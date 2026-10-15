@@ -87,6 +87,54 @@ describe('coordinated swing generation', () => {
 		expect(original.ensembleTiming).toBeUndefined();
 	});
 
+	it('exports musical-development decisions with independent immutable cache copies', () => {
+		const params = { ...base, ensemble: {} };
+		const first = generateBackingCached(preset.phrase.harmony, BACKING_STYLES.swing, params);
+		const replay = generateBackingCached(preset.phrase.harmony, BACKING_STYLES.swing, params);
+		expect(first.ensembleDevelopment).toBeDefined();
+		expect(first.ensembleDevelopment!.version).toBe(1);
+		expect(first.ensembleDevelopment!.pianoMotifs.length).toBeGreaterThan(0);
+		expect(first.ensembleDevelopment!.bassTurnarounds.length).toBeGreaterThan(0);
+		expect(replay).toEqual(first);
+		expect(replay.ensembleDevelopment).not.toBe(first.ensembleDevelopment);
+		expect(Object.isFrozen(replay.ensembleDevelopment)).toBe(true);
+		expect(Object.isFrozen(replay.ensembleDevelopment!.pianoMotifs)).toBe(true);
+		expect(Object.isFrozen(replay.ensembleDevelopment!.bassTurnarounds)).toBe(true);
+		expect(generateBacking(preset.phrase.harmony, BACKING_STYLES.swing, base).ensembleDevelopment).toBeUndefined();
+	});
+
+	it('does not propose launches into choruses removed when fitting form to actual harmony', () => {
+		const shortened = preset.phrase.harmony.filter((segment) => segment.startOffset[0] / segment.startOffset[1] < 32);
+		const generated = generateBacking(shortened, BACKING_STYLES.swing, { ...base, ensemble: {} });
+		expect(generated.ensemblePlan!.bars).toHaveLength(32);
+		expect(generated.ensembleDevelopment!.bassTurnarounds).toEqual([]);
+	});
+
+	it('realizes both development devices in the unmodified listening-lab form', () => {
+		let launches = 0;
+		let reprises = 0;
+		for (const tempo of [90, 160, 240]) for (let seed = 0; seed < 12; seed++) {
+			const generated = generateBacking(preset.phrase.harmony, BACKING_STYLES.swing, {
+				...base, tempo, phraseId: `${base.phraseId}#v${seed}`, ensemble: {}
+			});
+			for (const launch of generated.ensembleDevelopment!.bassTurnarounds) {
+				if (launch.status !== 'planned') continue;
+				launches++;
+				for (const note of launch.notes) {
+					expect(generated.bassEvents.find((event) => event.absBeat === note.absBeat)?.midi).toBe(note.midi);
+				}
+			}
+			for (const reprise of generated.ensembleDevelopment!.pianoMotifs) {
+				if (reprise.transform !== 'displace') continue;
+				reprises++;
+				expect(generated.compEvents.filter((event) => Math.floor(event.absBeat / 4) === reprise.barIndex)
+					.map((event) => event.absBeat - reprise.barIndex * 4)).toEqual(reprise.hits.map((hit) => hit.b));
+			}
+		}
+		expect(launches).toBeGreaterThan(0);
+		expect(reprises).toBeGreaterThan(0);
+	});
+
 	it('resolves explicit internal repeats as one chorus before instrument generation', () => {
 		const sectionMap = [{ sourceSection: 0, barOffset: 0 }, { sourceSection: 0, barOffset: 8 },
 			{ sourceSection: 1, barOffset: 16 }, { sourceSection: 0, barOffset: 24 }];
@@ -153,7 +201,8 @@ describe('coordinated swing generation', () => {
 			for (const event of generated.compEvents) {
 				const barIndex = Math.floor(event.absBeat / 4);
 				const tick = timing.place(event.absBeat, 'comp');
-				const afterRest = barIndex > 0 && plan.bars[barIndex - 1].piano.maxAttacks === 0;
+				const afterRest = barIndex > 0 && (plan.bars[barIndex - 1].piano.maxAttacks === 0 ||
+					generated.ensembleDevelopment!.pianoMotifs[barIndex - 1].transform === 'space');
 				expect(event.time).toBe(`${afterRest ? Math.max(tick, barIndex * 4 * base.ppq) : tick}i`);
 			}
 		}

@@ -22,6 +22,21 @@ const style: StyleDefinition = { ...BACKING_STYLES.swing, compPlanning: false,
 		: ctx.barIndex === 2 ? [{ beatOffset: 0, durationBeats: 1, velocity: 65 }] : [] };
 
 describe('scheduled piano silence', () => {
+	it('reports only emitted piano attacks to coordinated drums on a partial final bar', () => {
+		const partial: HarmonicSegment[] = [{ ...harmony[0], duration: [5, 8] }];
+		const partialStyle: StyleDefinition = { ...BACKING_STYLES.swing, compPlanning: false,
+			compPattern: () => [
+				{ beatOffset: 0, durationBeats: 0, velocity: 70 },
+				{ beatOffset: 1.5, durationBeats: 0.5, velocity: 70 },
+				{ beatOffset: 3.5, durationBeats: 1, velocity: 70 }
+			] };
+		const result = generateComping(partial, 4, partialStyle, {
+			phraseId: 'partial-onsets', tempo: 140, ppq: 192, beatsPerBar: 4, swing: 0.67, ensemble: {}
+		}, reserved.slice(0, 1));
+		expect(result.events.map((event) => event.absBeat)).toEqual([1.5]);
+		expect(result.onsetsByBar.get(0)).toEqual([1.5]);
+	});
+
 	it('reserves sounding space in the real AABA performance, not only zero new attacks', () => {
 		const preset = BACKING_LAB_PRESETS.find((p) => p.id === 'lab-aaba-c')!;
 		const tempo = 140;

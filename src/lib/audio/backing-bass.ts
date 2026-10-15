@@ -34,6 +34,8 @@ import { createRng, seedFrom, type SeededRng } from './generation-rng';
 import { lerp } from './backing-intensity';
 import { pitchClassToNumber } from './voicings';
 import { createTimingStreams, placeEventTicks, SWING_TIMING } from './backing-timing';
+import { planBassTurnaround, skippedBassTurnaround, freezeBassTurnaroundTrace,
+	type BassTurnaroundBeat, type BassTurnaroundTrace, type BassTurnaroundReason } from './backing-bass-turnaround';
 import type { BassEvent, InstrumentGenerationParams, BarInfo } from './backing-generation';
 
 /**
@@ -68,6 +70,8 @@ export interface BassLineResult {
 	events: BassEvent[];
 	/** Beat offsets (within-bar) of every audible bass onset, per bar. */
 	onsetsByBar: Map<number, number[]>;
+	/** Explicit following-chorus opportunities and the exact accepted pitch paths. */
+	turnaroundTrace?: readonly BassTurnaroundTrace[];
 }
 
 // ── Segment analysis ─────────────────────────────────────────
@@ -367,6 +371,65 @@ export function generateBassLine(
 		return 'four';
 	};
 
+	const turnaroundNotes = new Map<number, number>();
+	const turnaroundBeats = new Set<number>();
+	const turnaroundTrace = new Map<number, BassTurnaroundTrace>();
+	const opportunities = new Map<number, { startBar: number; arrivalBar: number; targetMidi: number; beats: BassTurnaroundBeat[] }>();
+	// Only an explicit subsequent chorus supplies a destination. Section repeats
+	// and the final performance edge do not imply another pass or a loop.
+	if (params.performanceForm && barInfos.some((info) => info.ensemble)) {
+		const choruses = params.performanceForm.choruses;
+		for (let index = 1; index < choruses.length; index++) {
+			const arrivalBar = choruses[index].startBar;
+			const startBar = Math.max(choruses[index - 1].startBar, arrivalBar - 2);
+			const skip = (reason: BassTurnaroundReason) => turnaroundTrace.set(arrivalBar, skippedBassTurnaround(startBar, arrivalBar, reason));
+			if (beatsPerBar !== 4) { skip('unsupported_meter'); continue; }
+			if (arrivalBar - startBar !== 2) { skip('short_chorus'); continue; }
+			if (arrivalBar >= barInfos.length || !barInfos[startBar]?.ensemble || !barInfos[startBar + 1]?.ensemble) {
+				skip('unsupported_harmony'); continue;
+			}
+			const role = barInfos[startBar].ensemble!;
+			// Admit from evidence available at the launch only. Later solo
+			// observations cannot rewrite an already committed primary pulse.
+			if (role.bass.ornamentScale < 0.75 || role.phraseIntent === 'leave_space' || role.phraseIntent === 'release') {
+				skip('reserved_space'); continue;
+			}
+			if (role.responseOwner !== 'nobody') { skip('response_reserved'); continue; }
+			if (role.coordinatedAccent || (role.setupFor && role.setupFor.targetBarIndex < arrivalBar)) {
+				skip('arrival_reserved'); continue;
+			}
+			if (Array.from({ length: 8 }, (_, i) => startBar * 4 + i).some((beat) => feelAt(beat) !== 'four')) {
+				skip('non_walking'); continue;
+			}
+			const startSegment = segments.findIndex((segment) => segment.startBeats === startBar * 4);
+			const arrivalSegment = segments.findIndex((segment) => segment.startBeats === arrivalBar * 4);
+			if (startSegment < 0) { skip('missing_start_anchor'); continue; }
+			if (arrivalSegment < 0) { skip('missing_arrival_anchor'); continue; }
+			// The ordinary engine rounds segment lengths; this device cannot
+			// claim an exact quarter-note path across a rounded gap or overlap.
+			const raw = harmony.map((segment) => ({ start: fractionToFloat(segment.startOffset) * 4,
+				length: fractionToFloat(segment.duration) * 4 }));
+			const covered = raw.filter((segment) => segment.start <= arrivalBar * 4 && segment.start + segment.length > startBar * 4);
+			if (!covered.length || covered[0].start !== startBar * 4 ||
+				covered.at(-1)!.start !== arrivalBar * 4 || covered.some((segment, i) =>
+					!Number.isInteger(segment.start) || !Number.isInteger(segment.length) || segment.length <= 0 ||
+					(i > 0 && covered[i - 1].start + covered[i - 1].length !== segment.start))) {
+				skip('unsupported_harmony'); continue;
+			}
+			const beats: BassTurnaroundBeat[] = [];
+			for (let offset = 0; offset < 8; offset++) {
+				const absBeat = startBar * 4 + offset;
+				const segment = segments.findLast((candidate) => candidate.startBeats <= absBeat);
+				if (!segment || absBeat >= segment.startBeats + segment.totalBeats || !Number.isInteger(segment.startBeats) || !Number.isInteger(segment.totalBeats)) break;
+				beats.push({ absBeat, chordPcs: segment.chordPcs, scalePcs: segment.scalePcs, harmonicChange: absBeat === segment.startBeats });
+			}
+			if (beats.length !== 8) { skip('unsupported_harmony'); continue; }
+			opportunities.set(startSegment, { startBar, arrivalBar,
+				targetMidi: nearestPc(segments[arrivalSegment].rootPc, centerAt(arrivalBar * 4)), beats });
+			skip('no_entry'); // Replaced only when actual preceding notes reach the opportunity.
+		}
+	}
+
 	const push = (absBeat: number, midi: number, duration: number, velocity: number): void => {
 		const bar = Math.floor(absBeat / beatsPerBar);
 		events.push({
@@ -398,15 +461,16 @@ export function generateBassLine(
 		// to be. A > 7-semitone leap from the previous note gets nudged an
 		// octave toward it when that stays near the arc.
 		const center = centerAt(seg.startBeats);
-		let downbeat = nearestPc((seg.rootPc + plan.downbeatOffset) % 12, center);
+		const committedDownbeat = turnaroundNotes.get(seg.startBeats);
+		let downbeat = committedDownbeat ?? nearestPc((seg.rootPc + plan.downbeatOffset) % 12, center);
 		// A 3rd/5th-colored downbeat that lands exactly on the note just
 		// played reads as a stutter, not color — fall back to the root (the
 		// root is never the previous segment's approach target's repeat in a
 		// progression that actually moves).
-		if (prevMidi !== null && downbeat === prevMidi && plan.downbeatOffset !== 0) {
+		if (committedDownbeat === undefined && prevMidi !== null && downbeat === prevMidi && plan.downbeatOffset !== 0) {
 			downbeat = nearestPc(seg.rootPc, center);
 		}
-		if (prevMidi !== null && Math.abs(downbeat - prevMidi) > 7) {
+		if (committedDownbeat === undefined && prevMidi !== null && Math.abs(downbeat - prevMidi) > 7) {
 			const nudged = downbeat + (prevMidi > downbeat ? 12 : -12);
 			// The nudge tames leaps but must not fold ONTO the previous note —
 			// trading an octave displacement (clean, idiomatic) for a stutter.
@@ -423,6 +487,17 @@ export function generateBassLine(
 				while (prevMidi - downbeat > 12 && downbeat + 12 <= BASS_HIGH) downbeat += 12;
 			}
 		}
+		const opportunity = opportunities.get(segIdx);
+		if (opportunity && prevMidi !== null) {
+			const launch = planBassTurnaround({ ...opportunity, phraseId, tempo, entryMidi: prevMidi, startMidi: downbeat });
+			turnaroundTrace.set(opportunity.arrivalBar, launch);
+			if (launch.status === 'planned') {
+				for (const note of launch.notes) {
+					turnaroundNotes.set(note.absBeat, note.midi);
+					if (note.absBeat < launch.arrivalBar * 4) turnaroundBeats.add(note.absBeat);
+				}
+			}
+		}
 
 		const notes: Array<number | null> = new Array(seg.totalBeats).fill(null);
 		notes[0] = downbeat;
@@ -432,7 +507,7 @@ export function generateBassLine(
 		// planner colors a downbeat with the 3rd or 5th, the device leads
 		// there, not to a root that never arrives.
 		const nextTarget: number = hasNext
-			? nearestPc(downbeatPc(segIdx + 1), centerAt(next.startBeats))
+			? turnaroundNotes.get(next.startBeats) ?? nearestPc(downbeatPc(segIdx + 1), centerAt(next.startBeats))
 			: nearestPc((seg.rootPc + (L % 2 === 1 ? chordToneIntervalsForBass(seg.quality).fifth : 0)) % 12, downbeat);
 		let deviceStart = seg.totalBeats; // exclusive of device beats by default
 		if (hasNext && L >= 1 && feelAt(seg.startBeats + L) === 'four') {
@@ -460,6 +535,10 @@ export function generateBassLine(
 			// candidate weights guard against everywhere else).
 			notes[L] = nextTarget;
 		}
+		for (let beat = 0; beat < seg.totalBeats; beat++) {
+			const committed = turnaroundNotes.get(seg.startBeats + beat);
+			if (committed !== undefined) notes[beat] = committed;
+		}
 
 		// Spice draws (fixed order for determinism), BEFORE the walk so the
 		// line can respond to them: an octave skip applied after the walk was
@@ -477,9 +556,11 @@ export function generateBassLine(
 		const pickupActive =
 			hasNext && rng.chance(0.12 * spice) && feelAt(seg.startBeats + L) === 'four' &&
 			admitOrnament('pickup', seg.startBeats + seg.totalBeats - 0.5);
+		const pickupWillSound = pickupActive && !turnaroundBeats.has(seg.startBeats + L);
 		const proposedOctaveSkipBeat =
 			deviceStart >= 3 && rng.chance(0.06 * spice) ? rng.int(1, deviceStart - 2) : -1;
-		const octaveSkipBeat = proposedOctaveSkipBeat >= 0 && admitOrnament('octave', seg.startBeats + proposedOctaveSkipBeat)
+		const octaveSkipBeat = proposedOctaveSkipBeat >= 0 &&
+			admitOrnament('octave', seg.startBeats + proposedOctaveSkipBeat)
 			? proposedOctaveSkipBeat : -1;
 
 		// Interior walk toward the device start (or the settle note).
@@ -492,7 +573,7 @@ export function generateBassLine(
 			// being left; the following beats chase the goal back down.
 			if (beat === octaveSkipBeat) {
 				const jumped = prev + (prev + 12 <= BASS_HIGH ? 12 : -12);
-				notes[beat] = jumped;
+				notes[beat] = turnaroundNotes.get(absBeat) ?? jumped;
 				continue;
 			}
 			const beatInBar = Math.round(absBeat) % beatsPerBar;
@@ -545,6 +626,9 @@ export function generateBassLine(
 					: isHandoff
 						? nearestPc(seg.rootPc, goal)
 						: nearestPc(seg.rootPc, prev);
+			// Keep the ordinary draw, then realize the joint score. Subsequent
+			// interior decisions and prevMidi hear the actual committed pitch.
+			notes[beat] = turnaroundNotes.get(absBeat) ?? notes[beat];
 		}
 
 		// Emit.
@@ -603,7 +687,7 @@ export function generateBassLine(
 			push(
 				absBeat,
 				midi,
-				beatDuration * (isTwoFeelHalf ? 1.7 : beat === L && pickupActive ? 0.45 : 0.85),
+				beatDuration * (isTwoFeelHalf ? 1.7 : beat === L && pickupWillSound ? 0.45 : 0.85),
 				velocity
 			);
 
@@ -619,12 +703,9 @@ export function generateBassLine(
 		// Swung-eighth pickup into the next downbeat.
 		if (pickupActive) {
 			const absBeat = seg.startBeats + seg.totalBeats - 0.5;
-			push(
-				absBeat,
-				rng.pick([prevMidi ?? downbeat, nextTarget - 1, nextTarget + 1]),
-				beatDuration * 0.3,
-				rng.int(52, 60)
-			);
+			const midi = rng.pick([prevMidi ?? downbeat, nextTarget - 1, nextTarget + 1]);
+			const velocity = rng.int(52, 60);
+			if (pickupWillSound) push(absBeat, midi, beatDuration * 0.3, velocity);
 		}
 
 		// Section-final triplet fill on the last beat — a small "here we go"
@@ -643,12 +724,17 @@ export function generateBassLine(
 			rng.chance(0.22 * lerp(0.6, 1.4, lastInfo.intensity) * (lastInfo.ensemble?.bass.ornamentScale ?? 1))
 		) {
 			const base = notes[L] ?? prevMidi ?? downbeat;
-			push(seg.startBeats + L + 1 / 3, base + (rng.chance(0.5) ? 1 : -1), beatDuration * 0.18, 58);
-			push(seg.startBeats + L + 2 / 3, nextTarget - 1, beatDuration * 0.18, 66);
+			const firstPitch = base + (rng.chance(0.5) ? 1 : -1);
+			if (!turnaroundBeats.has(seg.startBeats + L)) {
+				push(seg.startBeats + L + 1 / 3, firstPitch, beatDuration * 0.18, 58);
+				push(seg.startBeats + L + 2 / 3, nextTarget - 1, beatDuration * 0.18, 66);
+			}
 		}
 	}
 
-	return { events, onsetsByBar };
+	return { events, onsetsByBar, ...(turnaroundTrace.size ? {
+		turnaroundTrace: freezeBassTurnaroundTrace([...turnaroundTrace.values()])
+	} : {}) };
 }
 
 // ── Bossa pattern bass ───────────────────────────────────────

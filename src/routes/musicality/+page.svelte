@@ -67,7 +67,7 @@
 	<section class="audit-note" aria-labelledby="audit-title">
 		<div>
 			<h2 id="audit-title">Where we are</h2>
-			<p>The instruments already have a useful vocabulary. Shared planning, phrase memory and timing are now available for comparison in the listening lab.</p>
+			<p>Shared planning, phrase memory and timing now support developing piano rhythms and bass launches into the next chorus. Compare the scoped behavior in the listening lab.</p>
 		</div>
 		<div class="audit-detail">
 			<p><strong>Implementation is separate from musical acceptance.</strong> “Implemented” means the core device is reachable. “Partial” identifies a missing behavior or selection condition. Test references are evidence to inspect, not a claim that this audit ran them. Listening acceptance of this specification is still pending.</p>
@@ -75,8 +75,9 @@
 		</div>
 	</section>
 	<aside class="foundation-note" aria-labelledby="foundation-title">
-		<h2 id="foundation-title">Ensemble foundation · listening review pending</h2>
-		<p>This build adds explicit performance-form metadata and a coordinated swing 4/4 mode in the listening lab: phrase roles, commentary budgets, reasoned silence, response ownership, restorable planner checkpoints and shared phrase timing. Event exports include the checkpoint and timing trace. Dense and sparse scripted solo observations exercise the planner without generating solo audio or listening to a microphone. Live listening and rolling scheduling are still to come. Practice uses the original mode while the new mode awaits listening acceptance.</p>
+		<h2 id="foundation-title">Bass and piano development · listening review pending</h2>
+		<p>Coordinated swing 4/4 now develops selected piano rhythms across a four-bar phrase and plans eligible two-bar walking bass launches into an actual following chorus. Piano reprises respect each bar’s available space; bass launches preserve the pulse and aim at the next chorus’s root. Event exports explain the choices and withheld opportunities.</p>
+		<p>The foundation includes phrase roles, response ownership, reasoned silence, restorable planner checkpoints and shared timing. Dense and sparse solo observations are scripted inputs. Live listening, rolling scheduling and instrument memory across playback loops remain to build. Practice uses the original mode while the new mode awaits listening acceptance.</p>
 		<div class="foundation-links"><a href="/diagnostics/backing-mixer">Compare Original and Coordinated in the lab →</a><a href="/docs/architecture/musicality">Read the staged roadmap →</a></div>
 	</aside>
 

@@ -119,6 +119,8 @@ test('scripted scenarios export the actual coordinated plan and retain an origin
 	expect(dense.ensembleMemory?.version).toBe(1);
 	expect(dense.ensembleTiming?.[0].phraseStartBar).toBe(0);
 	expect(dense.ensembleTiming?.at(-1)?.endBarExclusive).toBe(96);
+	expect(dense.ensembleDevelopment?.pianoMotifs).toHaveLength(96);
+	expect(dense.ensembleDevelopment?.bassTurnarounds.length).toBeGreaterThan(0);
 	expect(dense.ensemblePlan?.trace.every((bar) => bar.soloEvidence === 'active')).toBe(true);
 	expect(dense.drumEvents.filter((event) => event.role === 'commentary')).toHaveLength(0);
 	await page.getByTestId('lab-orchestration').selectOption('original');
@@ -127,6 +129,7 @@ test('scripted scenarios export the actual coordinated plan and retain an origin
 	expect(original.ensemblePlan).toBeUndefined();
 	expect(original.ensembleMemory).toBeUndefined();
 	expect(original.ensembleTiming).toBeUndefined();
+	expect(original.ensembleDevelopment).toBeUndefined();
 	expect(original.compEvents.length).toBeGreaterThan(dense.compEvents.length);
 	await expect(page.getByRole('link', { name: 'Musicality specification & progress' })).toHaveAttribute('href', '/musicality');
 });

@@ -12,7 +12,7 @@ import { join } from 'node:path';
  * render is invisible to every unit test we have.
  */
 
-test('bounce and golden-JSON render produce non-silent WAVs', async ({ page, browserName }) => {
+test('coordinated bounce and golden-JSON render produce non-silent WAVs', async ({ page, browserName }) => {
 	test.skip(!!process.env.CI, 'needs CDN instrument fetches — local diagnostic only');
 	test.skip(browserName === 'firefox', 'Tone-less render path — verify on Chromium and WebKit, the engines with divergent audio stacks');
 	test.setTimeout(300_000);
@@ -28,6 +28,7 @@ test('bounce and golden-JSON render produce non-silent WAVs', async ({ page, bro
 		}) as typeof URL.createObjectURL;
 	});
 	await page.goto('/diagnostics/backing-mixer');
+	await page.getByTestId('lab-orchestration').selectOption('coordinated');
 
 	/**
 	 * Peak + coverage profile of the last rendered WAV. Coverage is the

@@ -21,9 +21,11 @@
  *   bass         | segment     | interior fill, spice, velocity
  *                | barIndex    | (bossa pattern engine: pickups, drops, approach)
  *   bass-ornament| kind + beat | coordinated ornament admission
+ *   bass-turnaround | arrival bar | two-bar launch admission
  *   clave        | 0           | bossa clave phase (one draw per phrase)
  *   voicing      | chord index | comp voicing choice
  *   comp-figure  | barIndex    | figure planning (weights only)
+ *   comp-motif / comp-motif-development | phrase start | source and transforms
  *   comp         | barIndex    | comp realization
  *   drums        | barIndex    | ride mode, feather, snare, coupling
  *   drum-fill    | barIndex    | fills, setups, crash
@@ -66,7 +68,8 @@ import {
 	voiceLead,
 	type VoicingFn
 } from './voicings';
-import { planCompFigures, hitsForPlannedBar, headFigureFor } from './backing-comp-figures';
+import { planCompFigures, hitsForPlannedBar, headFigureFor, compMotifTrace, freezeCompMotifTrace, type CompMotifDecision } from './backing-comp-figures';
+import { freezeBassTurnaroundTrace, type BassTurnaroundTrace } from './backing-bass-turnaround';
 import type { StyleDefinition, GenerationContext, DrumVoice } from './backing-styles';
 import { generateBassLine as generateBassLine2, generateBossaBass } from './backing-bass';
 
@@ -112,6 +115,20 @@ export interface GeneratedBacking {
 	ensembleMemory?: EnsembleMemory;
 	/** Serializable phrase timing decisions for listening/replay diagnostics. */
 	ensembleTiming?: readonly EnsemblePhraseTimingTrace[];
+	/** Instrument decisions within this generated performance, not a rolling checkpoint. */
+	ensembleDevelopment?: EnsembleDevelopment;
+}
+
+export interface EnsembleDevelopment {
+	readonly version: 1;
+	readonly pianoMotifs: readonly CompMotifDecision[];
+	readonly bassTurnarounds: readonly BassTurnaroundTrace[];
+}
+
+function freezeEnsembleDevelopment(trace: EnsembleDevelopment): EnsembleDevelopment {
+	freezeCompMotifTrace(trace.pianoMotifs);
+	freezeBassTurnaroundTrace(trace.bassTurnarounds);
+	return Object.freeze(trace);
 }
 
 export type SectionMapEntry = { sourceSection: number; barOffset: number };
@@ -353,7 +370,7 @@ export function generateComping(
 	style: StyleDefinition,
 	params: InstrumentGenerationParams,
 	barInfos: BarInfo[]
-): { events: CompEvent[]; onsetsByBar: Map<number, number[]> } {
+): { events: CompEvent[]; onsetsByBar: Map<number, number[]>; motifTrace?: readonly CompMotifDecision[] } {
 	const { phraseId, tempo, swing } = params;
 	const segments = toSegmentInfos(harmony);
 	const beatDuration = 60 / tempo;
@@ -409,13 +426,18 @@ export function generateComping(
 	// phrase with anti-repetition memory; each bar's plan resolves to
 	// concrete hits here so the style's pattern function only realizes
 	// velocity/articulation.
+	const harmonyEnd = segments.reduce((max, s) => Math.max(max, s.startBeats + s.totalBeats), 0);
+	const motifMode = !!params.ensemble && style.name === 'Swing' && beatsPerBar === 4 &&
+		barInfos.length > 0 && barInfos.every((info) => info.ensemble);
 	const compPlan =
 		style.compPlanning && beatsPerBar === 4
-			? planCompFigures(barInfos, beatsPerBar, phraseId, tempo, style.compFigureBias)
+			? planCompFigures(barInfos, beatsPerBar, phraseId, tempo, style.compFigureBias,
+				motifMode ? { motifs: true, harmonyEndBeat: harmonyEnd } : undefined)
 			: null;
 
-	const harmonyEnd = segments.reduce((max, s) => Math.max(max, s.startBeats + s.totalBeats), 0);
 	const totalBars = barInfos.length;
+	const pianoSilentAt = (bar: number) => barInfos[bar].ensemble?.piano.maxAttacks === 0 ||
+		compPlan?.[bar].motif?.transform === 'space';
 	// A rest reserves sounding space, including the tail of a preceding
 	// anticipation. Store the next silent boundary on the transport grid;
 	// duration clipping below uses the actual swung/microtimed attack.
@@ -423,7 +445,7 @@ export function generateComping(
 	let silenceTick = Infinity;
 	for (let bar = totalBars - 1; bar >= 0; bar--) {
 		nextSilenceTicks[bar] = silenceTick;
-		if (barInfos[bar].ensemble?.piano.maxAttacks === 0) silenceTick = bar * beatsPerBar * params.ppq;
+		if (pianoSilentAt(bar)) silenceTick = bar * beatsPerBar * params.ppq;
 	}
 
 	const clavePhase = clavePhaseFor(phraseId, tempo);
@@ -448,7 +470,9 @@ export function generateComping(
 					: undefined
 		};
 		const hits = style.compPattern(ctx);
-		onsetsByBar.set(bar, hits.map((h) => h.beatOffset));
+		// Coordinated drums hear emitted attacks, including partial-harmony
+		// filtering, rather than reacting to notes that never sounded.
+		onsetsByBar.set(bar, motifMode ? [] : hits.map((h) => h.beatOffset));
 
 		for (const hit of hits) {
 			const absBeat = bar * beatsPerBar + hit.beatOffset;
@@ -469,7 +493,7 @@ export function generateComping(
 			let time = place(absBeat, 'comp', params, streams, beatsPerBar);
 			let startTick = parseInt(time, 10);
 			// An on-top profile must not resume early inside the preceding rest.
-			if (bar > 0 && barInfos[bar - 1].ensemble?.piano.maxAttacks === 0) {
+			if (bar > 0 && pianoSilentAt(bar - 1)) {
 				startTick = Math.max(startTick, bar * beatsPerBar * params.ppq);
 				time = `${startTick}i`;
 			}
@@ -483,10 +507,11 @@ export function generateComping(
 				velocity: hit.velocity,
 				absBeat
 			});
+			if (motifMode) onsetsByBar.get(bar)!.push(hit.beatOffset);
 		}
 	}
 
-	return { events, onsetsByBar };
+	return { events, onsetsByBar, ...(motifMode ? { motifTrace: compMotifTrace(compPlan ?? []) } : {}) };
 }
 
 /**
@@ -634,12 +659,12 @@ export function generateBacking(
 		phraseId: params.phraseId, tempo: params.tempo, ppq: params.ppq,
 		swing: params.swing, plan: ensemblePlan, timingProfiles: timing
 	}) : undefined;
-	const timedParams: InstrumentGenerationParams = { ...params, timing, ensembleTiming };
-	const { events: compEvents, onsetsByBar } = generateComping(harmony, beatsPerBar, style, timedParams, barInfos);
+	const timedParams: InstrumentGenerationParams = { ...params, performanceForm, timing, ensembleTiming };
+	const { events: compEvents, onsetsByBar, motifTrace } = generateComping(harmony, beatsPerBar, style, timedParams, barInfos);
 	// Bass engine dispatch: the bossa root–fifth pattern is a 4/4 statement;
 	// 'two' pins the walking planner to permanent two-feel (ballad); other
 	// meters (and every 'auto' style) take the plain walking planner.
-	const { events: bassEvents, onsetsByBar: bassOnsetsByBar } =
+	const { events: bassEvents, onsetsByBar: bassOnsetsByBar, turnaroundTrace } =
 		style.bass === 'pattern' && beatsPerBar === 4
 			? generateBossaBass(harmony, beatsPerBar, timedParams, barInfos)
 			: generateBassLine2(
@@ -666,7 +691,10 @@ export function generateBacking(
 	}
 	return { bassEvents, compEvents, drumEvents, ...(ensembleWindow ? {
 		ensemblePlan: ensembleWindow.plan, ensembleMemory: ensembleWindow.memory,
-		ensembleTiming: ensembleTiming!.trace
+		ensembleTiming: ensembleTiming!.trace,
+		ensembleDevelopment: freezeEnsembleDevelopment({
+			version: 1, pianoMotifs: motifTrace ?? [], bassTurnarounds: turnaroundTrace ?? []
+		})
 	} : {}) };
 }
 
@@ -700,6 +728,7 @@ export function generateBackingCached(
 		if (generated.ensemblePlan) freezeEnsemblePlan(generated.ensemblePlan);
 		if (generated.ensembleMemory) freezeEnsembleMemory(generated.ensembleMemory);
 		if (generated.ensembleTiming) freezeEnsembleTimingTrace(generated.ensembleTiming);
+		if (generated.ensembleDevelopment) freezeEnsembleDevelopment(generated.ensembleDevelopment);
 		return generated;
 	}
 	const generated = generateBacking(harmony, style, params);
