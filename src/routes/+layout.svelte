@@ -463,7 +463,7 @@
 		{/if}
 	</nav>
 
-	<main class="relative z-10 mx-auto max-w-5xl px-4 py-6" class:studio-layout={['/', '/admin', '/auth', '/settings', '/progress', '/scales', '/ear-training', '/lick-practice', '/lick-practice/session', '/licks', '/licks/community', '/licks/add', '/licks/editor', '/licks/record', '/tunes', '/tunes/add', '/tunes/import/pdf', '/tunes/import/ireal', '/tunes/import/biab', '/tunes/import/musescore'].includes(page.url.pathname) || page.route.id === '/licks/[id]' || page.url.pathname === '/docs' || page.url.pathname.startsWith('/docs/')}>
+	<main class="relative z-10 mx-auto max-w-5xl px-4 py-6" class:studio-layout={['/', '/admin', '/auth', '/settings', '/progress', '/scales', '/ear-training', '/lick-practice', '/lick-practice/session', '/licks', '/licks/community', '/licks/add', '/licks/editor', '/licks/record', '/tunes', '/tunes/add', '/tunes/import/pdf', '/tunes/import/ireal', '/tunes/import/biab', '/tunes/import/musescore'].includes(page.url.pathname) || page.route.id === '/licks/[id]' || page.url.pathname === '/tricks' || page.url.pathname.startsWith('/tricks/') || page.url.pathname === '/docs' || page.url.pathname.startsWith('/docs/')}>
 		{#if showWelcomeBanner}
 			<TourBanner
 				tourId="welcome"

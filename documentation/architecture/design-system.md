@@ -862,3 +862,37 @@ MagicPath references: index `459518917551996928`, revision
 `461350588391759872`. Both previews contain all thirteen guides. The native
 implementation uses `DocsSidebar`, `DocContents` and `docs-desk.css` with the
 existing `ChatInterface`; simulated prototype assistance is not shipped.
+
+
+### Tricks and device detail · Studio Desk
+
+`/tricks`, `/tricks/triad-pairs` and `/tricks/enclosures` share the numbered
+`StudioPanel` shell, inset music well, brass section labels and orange Lick
+Practice controls. The catalog uses two parallel device panels with abstract
+pitch contours, a concise musical purpose and actual unlocked-variant counts.
+Contours are navigation illustrations, never substitutes for engraved notation.
+
+Detail pages place the musical workspace first and a compact **Your practice**
+summary alongside it. Below 1100px, the summary moves between the workspace and
+mastery path so the practice action stays close to the selected phrase. The
+summary distinguishes ready, locked-preview and exploration states; a locked or
+uncatalogued enclosure remains explorable without granting practice credit.
+
+- `TrickPairSelector` is shared with Lick Practice setup: four columns on desktop,
+  two on narrow screens, full family labels, disabled locked choices and the
+  existing accessible radio-keyboard behavior.
+- `EnclosurePhraseCanvas` remains the same live editor in detail and setup. Its
+  Studio Desk well and approach-count controls share tokens; note targets, beat
+  alignment, progression choices and popup focus behavior retain their existing
+  implementation. The real branching mastery map remains intact.
+- Triad examples use `NotationDisplay` with `frameless` chrome inside the inset
+  well. Keep ABC engraving, beaming and written-pitch conversion. The compact
+  preview-key select affects only the example. `createTrickAudition` handles Hear,
+  stop, stale-load cancellation and disposal on navigation.
+- Progress uses the existing `LickProgressChart` and real per-variant history.
+  An empty history has a short explanation, never synthetic points or passes.
+
+Canvas references: catalog `459518182248550400`, triad detail
+`459518232861229056`, enclosure detail `461351673714057216`. The native Svelte
+components are the functional source of truth for unlocks, persistence, audio
+and drill handoff.

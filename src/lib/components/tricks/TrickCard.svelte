@@ -1,65 +1,40 @@
 <script lang="ts">
-	import { CATEGORY_LABELS } from '$lib/types/music';
+	import { onMount } from 'svelte';
+	import StudioPanel from '$lib/components/console/StudioPanel.svelte';
 	import type { Trick } from '$lib/types/tricks';
-	import {
-		getVariantsForTrick,
-		getUnlockedVariants,
-		loadTrickUnlockContext
-	} from '$lib/tricks/mastery';
-
-	interface Props {
-		trick: Trick;
-		onclick?: () => void;
-	}
-
-	let { trick, onclick }: Props = $props();
-
+	import { getVariantsForTrick, getUnlockedVariants, loadTrickUnlockContext } from '$lib/tricks/mastery';
+	let { trick, number }: { trick: Trick; number: string } = $props();
+	let version = $state(0);
 	const totalVariants = $derived(getVariantsForTrick(trick.id).length);
-	/**
-	 * Unlocked-variant count for the progress line. `loadTrickUnlockContext`
-	 * reads localStorage through `storage.load`, which returns null on the
-	 * server — so SSR renders the empty-progress state (base variants only)
-	 * and the client re-derives on hydration.
-	 */
-	const unlockedVariants = $derived(
-		getUnlockedVariants(trick.id, loadTrickUnlockContext()).length
-	);
+	const unlockedVariants = $derived.by(() => { void version; return getUnlockedVariants(trick.id, loadTrickUnlockContext()).length; });
+	const isTriad = $derived(trick.id === 'triad-pairs');
+	onMount(() => { version++; });
 </script>
 
-{#snippet cardBody()}
-	<div class="flex items-start justify-between gap-2">
-		<div class="min-w-0">
-			<h3 class="font-display text-lg font-semibold tracking-tight truncate">{trick.name}</h3>
-			<div class="mt-1 flex min-h-[1.375rem] items-center gap-x-2 text-xs">
-				<span
-					class="smallcaps rounded border border-[var(--color-brass)]/40 px-1.5 py-0.5 text-[var(--color-brass)]"
-				>
-					{CATEGORY_LABELS[trick.category] ?? trick.category}
-				</span>
-			</div>
-			{#if trick.tags.length > 0}
-				<div class="mt-1 flex items-center gap-x-1.5 overflow-hidden whitespace-nowrap text-xs">
-					{#each trick.tags as tag}
-						<span class="italic text-[var(--color-text-secondary)]">{tag}</span>
-					{/each}
-				</div>
-			{/if}
-			<p class="mt-1 text-xs tabular-nums text-[var(--color-text-secondary)]">
-				{unlockedVariants} of {totalVariants} variants unlocked
-			</p>
-		</div>
+<StudioPanel id="device-{trick.id}" {number} title={trick.name} description={isTriad ? 'Alternate two shapes' : 'Aim for a chord tone'} domain="lick-practice">
+	<div class="device-motif" aria-hidden="true">
+		<svg viewBox="0 0 350 95">
+			<path d={isTriad ? 'M45 65 L85 45 L125 25 M205 55 L245 35 L285 15' : 'M70 25 L145 65 L225 45 L290 45'} />
+			{#each (isTriad ? [[45,65],[85,45],[125,25],[205,55],[245,35],[285,15]] : [[70,25],[145,65],[225,45],[290,45]]) as [x,y], index}
+				<circle cx={x} cy={y} r="7" class:accent={isTriad ? index >= 3 : index >= 2} />
+			{/each}
+		</svg>
 	</div>
-{/snippet}
+	<p class="device-description">{isTriad ? 'Move between two triads to build angular lines, from diatonic neighbours to altered colours.' : 'Surround a chord tone with neighbouring notes, then land with purpose.'}</p>
+	<p class="device-caption">{isTriad ? '8 pair families · One connected mastery path' : 'Major, minor & dominant · A mastery path for each'}</p>
+	<footer><span>{unlockedVariants} of {totalVariants} variants unlocked</span><a class="studio-action" href="/tricks/{trick.id}">Explore {isTriad ? 'triad pairs' : 'enclosures'} →</a></footer>
+</StudioPanel>
 
-{#if onclick}
-	<button
-		{onclick}
-		class="w-full text-left rounded-lg bg-[var(--color-bg-secondary)] p-4 transition-colors hover:bg-[var(--color-bg-tertiary)]"
-	>
-		{@render cardBody()}
-	</button>
-{:else}
-	<div class="w-full rounded-lg bg-[var(--color-bg-secondary)] p-4">
-		{@render cardBody()}
-	</div>
-{/if}
+<style>
+	.device-motif { height: 140px; background: var(--studio-well); border: 1px solid var(--studio-border); border-radius: 4px; margin-bottom: 22px; display: grid; place-items: center; }
+	svg { height: 95px; width: 100%; max-width: 350px; }
+	path { fill: none; stroke: var(--studio-muted); stroke-width: 1; }
+	circle { fill: var(--studio-muted); }
+	circle.accent { fill: var(--studio-accent-text); }
+	.device-description { font-size: 16px; line-height: 1.7; max-width: 460px; }
+	.device-caption { font-size: 12px; color: var(--studio-muted); margin-top: 16px; line-height: 1.7; }
+	footer { border-top: 1px solid var(--studio-border); margin-top: 26px; padding-top: 20px; display: flex; justify-content: space-between; gap: 16px; align-items: center; }
+	footer span { font-size: 12px; color: var(--studio-muted); }
+	footer a { text-decoration: none; white-space: nowrap; }
+	@media (max-width: 850px) { footer { align-items: flex-start; flex-direction: column; } }
+</style>

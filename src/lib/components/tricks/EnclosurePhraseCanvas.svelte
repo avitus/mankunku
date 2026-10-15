@@ -191,7 +191,7 @@
 
 <svelte:window onclick={onWindowClick} onkeydown={onWindowKey} />
 
-<section class="enclosure-editor" aria-label="Enclosure phrase canvas">
+<section data-domain="lick-practice" class="enclosure-editor" aria-label="Enclosure phrase canvas">
 	<div class="editor-heading">
 		<div class="chord-heading">
 			<h2><ChordSymbolText symbol={activeChordSymbol} /></h2>
@@ -306,7 +306,7 @@
 </section>
 
 <style>
-	.enclosure-editor { position: relative; min-width: 0; border: 1px solid var(--color-bg-tertiary); border-radius: 14px; background: var(--color-bg-secondary); color: var(--color-text); }
+	.enclosure-editor { position: relative; min-width: 0; border: 1px solid var(--studio-border, var(--color-bg-tertiary)); border-radius: 4px; background: var(--studio-well, var(--color-bg-secondary)); color: var(--color-text); }
 	.editor-heading { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 19px 22px 0; }
 	.chord-heading { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; min-width: 0; }
 	h2 { margin: 0; font-size: 28px; line-height: 1.3; font-weight: 400; }
@@ -325,7 +325,7 @@
 	.count-field { border: 0; padding: 0; margin: 0; min-width: 0; }
 	.count-buttons { display: flex; gap: 3px; border: 1px solid var(--color-bg-tertiary); border-radius: 8px; padding: 3px; background: var(--color-bg); }
 	.count-buttons button { min-width: 34px; min-height: 34px; border: 0; border-radius: 5px; background: transparent; color: var(--color-text-secondary); font-size: 12px; }
-	.count-buttons button[aria-pressed='true'] { background: var(--color-bg-secondary); color: var(--color-text); box-shadow: 0 1px 3px color-mix(in srgb, var(--color-text) 8%, transparent); }
+	.count-buttons button[aria-pressed='true'] { background: var(--studio-button, var(--color-bg-secondary)); color: var(--studio-button-text, white); box-shadow: 0 1px 3px color-mix(in srgb, var(--color-text) 8%, transparent); }
 	.chord-strip { display: grid; gap: 6px; margin: 15px 22px 0; min-width: 0; }
 	.chord-strip button { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; padding: 10px 12px; border: 1px solid var(--color-bg-tertiary); border-radius: 7px; background: transparent; color: var(--color-text-secondary); text-align: left; }
 	.chord-strip button[aria-pressed='true'] { border-color: var(--color-accent); background: color-mix(in srgb, var(--color-accent) 12%, var(--color-bg-secondary)); color: var(--color-text); }

@@ -127,13 +127,13 @@
 <style>
 	.mastery-map { position: relative; padding: 0 8px; }
 	.connectors { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
-	.connectors path { fill: none; stroke: var(--color-bg-tertiary); stroke-width: 1.5; }
+	.connectors path { fill: none; stroke: var(--studio-border, var(--color-bg-tertiary)); stroke-width: 1.5; }
 	.connectors path.complete { stroke: var(--color-accent); }
 	.foundation { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 30px; margin: 0 8% 40px; }
 	.branches { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-bottom: 50px; }
 	.destination { display: flex; justify-content: center; }
 	.destination :global(.mastery-node) { max-width: 250px; }
-	.mastery-node { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 59px; gap: 6px; padding: 13px; width: 100%; min-width: 0; min-height: 126px; background: var(--color-bg-secondary); border: 1px solid var(--color-bg-tertiary); border-radius: 10px; text-align: left; cursor: pointer; }
+	.mastery-node { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 59px; gap: 6px; padding: 13px; width: 100%; min-width: 0; min-height: 126px; background: var(--studio-well, var(--color-bg-secondary)); border: 1px solid var(--studio-border, var(--color-bg-tertiary)); border-radius: 4px; text-align: left; cursor: pointer; }
 	.mastery-node:hover { background: color-mix(in srgb, var(--color-accent) 7%, var(--color-bg-secondary)); }
 	.mastery-node.selected { background: color-mix(in srgb, var(--color-accent) 12%, var(--color-bg-secondary)); border-color: var(--color-accent); box-shadow: 0 0 0 1px var(--color-accent); }
 	.step { font-size: 11px; color: var(--color-text-secondary); }
@@ -148,7 +148,7 @@
 	.dots { display: inline-flex; gap: 4px; }
 	.dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--color-bg-tertiary); }
 	.dots i.complete { background: var(--color-success); }
-	.merge-label { position: absolute; transform: translate(-50%, -50%); font-size: 11px; color: var(--color-text-secondary); padding: 3px 7px; background: var(--color-bg); white-space: nowrap; text-transform: uppercase; letter-spacing: .04em; }
+	.merge-label { position: absolute; transform: translate(-50%, -50%); font-size: 11px; color: var(--color-text-secondary); padding: 3px 7px; background: var(--studio-panel, var(--color-bg)); white-space: nowrap; text-transform: uppercase; letter-spacing: .04em; }
 	.legend { color: var(--color-text-secondary); font-size: 12px; margin-top: 18px; }
 	@media (max-width: 640px) {
 		.foundation { grid-template-columns: 1fr; margin: 0 24px 36px; gap: 24px; }

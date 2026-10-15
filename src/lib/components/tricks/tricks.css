@@ -1,0 +1,34 @@
+.tricks-desk .trick-layout { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 22px; align-items: start; }
+.tricks-desk .trick-main { min-width: 0; display: grid; gap: 22px; }
+.tricks-desk .trick-back { color: var(--studio-muted); font-size: 13px; display: inline-flex; align-items: center; min-height: 44px; }
+.tricks-desk .trick-back:hover { color: var(--studio-text); }
+.tricks-desk .trick-formula { color: var(--studio-text); font-size: 14px; line-height: 1.7; margin: 18px 0; }
+.tricks-desk .trick-score { padding: 18px; }
+.tricks-desk .trick-toolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 14px; margin-bottom: 15px; }
+.tricks-desk .trick-toolbar > div { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.tricks-desk .trick-key { font-size: 11px; color: var(--studio-muted); display: flex; align-items: center; gap: 8px; }
+.tricks-desk .trick-key select { background: var(--studio-panel); color: var(--studio-text); border: 1px solid var(--studio-border); border-radius: 3px; padding: 8px; min-height: 44px; }
+.tricks-desk .trick-ways { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; padding: 0; list-style: none; }
+.tricks-desk .trick-ways li { border: 1px solid var(--studio-border); padding: 6px 10px; border-radius: 3px; font-size: 11px; color: var(--studio-muted); }
+.tricks-desk .trick-hint { color: var(--studio-muted); font-size: 12px; line-height: 1.7; margin-top: 10px; }
+.tricks-desk .trick-summary { position: relative; min-width: 0; }
+.tricks-desk .trick-summary .studio-panel { padding: 25px 22px; }
+.tricks-desk .trick-summary .studio-panel-heading { margin-bottom: 18px; }
+.tricks-desk .trick-status { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--studio-muted); margin-bottom: 16px; }
+.tricks-desk .trick-status::before { content: ''; width: 6px; height: 6px; background: currentColor; border-radius: 50%; flex-shrink: 0; }
+.tricks-desk .trick-status[data-ready='true'] { color: var(--color-success); }
+.tricks-desk .trick-selection { font-size: 14px; font-weight: 500; line-height: 1.6; }
+.tricks-desk .trick-passes { border-block: 1px solid var(--studio-border); padding: 15px 0; margin: 20px 0; display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 12px; color: var(--studio-muted); }
+.tricks-desk .trick-passes strong { font-family: var(--font-display); font-size: 27px; font-weight: 500; color: var(--studio-text); }
+.tricks-desk .trick-summary .studio-action { width: 100%; margin-top: 18px; }
+.tricks-desk .trick-suggestion { min-height: 44px; width: 100%; font-size: 12px; color: var(--studio-muted); cursor: pointer; margin-top: 6px; }
+.tricks-desk .trick-suggestion[aria-pressed='true'] { color: var(--color-success); }
+.tricks-desk .trick-progress { border-top: 1px solid var(--studio-border); margin-top: 24px; padding-top: 22px; }
+.tricks-desk .trick-progress h3 { font-family: var(--font-display); font-size: 21px; font-weight: 500; margin-bottom: 12px; }
+.tricks-desk .trick-progress p { font-size: 12px; color: var(--studio-muted); line-height: 1.7; }
+.tricks-desk .trick-audio-error { margin-top: 12px; font-size: 13px; color: var(--color-error-text); }
+.tricks-desk .trick-catalog { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.tricks-desk .trick-flow { display: flex; gap: 25px; color: var(--studio-muted); font-size: 12px; line-height: 1.7; margin-top: 28px; list-style: none; padding: 0; }
+.tricks-desk .trick-flow span { color: var(--color-brass); font: 11px monospace; margin-right: 8px; }
+@media (max-width: 1100px) { .tricks-desk .trick-layout { grid-template-columns: minmax(0, 1fr); } .tricks-desk .trick-main { display: contents; } .tricks-desk .trick-summary { grid-row: 2; } .tricks-desk .trick-summary .studio-action { max-width: 380px; } .tricks-desk .trick-suggestion { display: block; width: auto; } }
+@media (max-width: 650px) { .tricks-desk .trick-catalog { grid-template-columns: minmax(0, 1fr); } .tricks-desk .trick-flow { flex-direction: column; gap: 10px; } .tricks-desk .trick-score { padding: 12px; } }
