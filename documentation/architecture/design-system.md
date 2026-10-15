@@ -818,3 +818,21 @@ Admin · Operations Desk, component `461211093453402112`, revision
 `461217195662393344`. The rail stacks below the user list at 900px.
 User rows use compact vertical spacing and inline label/value pairs, wrapping
 on narrow screens while retaining every account fact and inspection control.
+
+### Record a lick
+
+`/licks/record` follows the Studio Desk editor and import family (approved
+MagicPath revision `461320126810185728`). A large four-beat panel shows both
+complete count-in bars: “Find the pulse”, then “Get ready to play”. Orange
+means count-in; brass “Play now” marks the bar-three entrance. Text and active
+beat borders carry the meaning independently of color. The cue reads the
+current audio time, without the scheduler's look-ahead, and shares the existing
+eight-beat count-in constant with transcription. Never replace the native
+clicks, pitch detector, transcription, or engraving with prototype simulations.
+
+The setup rail holds tempo, count-in and instrument context. Lock setup while
+recording; on phones bring the beat panel into view and hide the rail during
+the take. Cancellation is available throughout preparation and count-in.
+Review keeps live notation, playback and direct saving; “Review in editor”
+hands an unsaved take of up to four bars to the existing editor, preserving
+concert pitch and recording provenance. Longer takes retain direct saving.

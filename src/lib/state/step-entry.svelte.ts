@@ -139,8 +139,8 @@ export function getCurrentPhrase(): Phrase {
 		harmony: [],
 		difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: stepEntry.barCount },
 		category: stepEntry.category,
-		tags: stepEntry.practiceTag ? ['user-entered', 'practice'] : ['user-entered'],
-		source: 'user-entered'
+		tags: [...(stepEntry.editingSource === 'user-recorded' ? ['user-recorded'] : ['user-entered']), ...(stepEntry.practiceTag ? ['practice'] : [])],
+		source: stepEntry.editingSource === 'user-recorded' ? 'user-recorded' : 'user-entered'
 	};
 }
 
@@ -456,6 +456,12 @@ export function loadFromPhrase(lick: Phrase, instrument: InstrumentConfig): void
 	stepEntry.editingSource = lick.source;
 	stepEntry.editingTags = [...lick.tags];
 	stepEntry.editingCategory = lick.category;
+}
+
+/** Open an unsaved recording in create mode; no library write until Save. */
+export function loadRecordingDraft(phrase: Phrase, instrument: InstrumentConfig): void {
+	loadFromPhrase(phrase, instrument);
+	stepEntry.editingId = null;
 }
 
 /**

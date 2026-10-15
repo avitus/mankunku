@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
 	stepEntry,
 	loadFromPhrase,
+	loadRecordingDraft,
 	reset,
 	getCurrentPhrase
 } from '$lib/state/step-entry.svelte';
@@ -130,5 +131,19 @@ describe('loadFromPhrase', () => {
 		expect(stepEntry.editingCategory).toBeNull();
 		expect(stepEntry.enteredNotes).toEqual([]);
 		expect(stepEntry.phraseName).toBe('');
+	});
+});
+
+
+describe('unsaved recording handoff', () => {
+	it('preserves concert notes and recording provenance in create mode, then clears on reset', () => {
+		settings.instrumentId = 'tenor-sax';
+		const phrase = makePhrase({ id: '', source: 'user-recorded', tags: ['user-recorded'] });
+		loadRecordingDraft(phrase, INSTRUMENTS['tenor-sax']);
+		expect(stepEntry.editingId).toBeNull();
+		expect(getCurrentPhrase()).toMatchObject({ id: '', source: 'user-recorded', tags: ['user-recorded'], key: 'F', notes: phrase.notes });
+		expect(stepEntry.phraseName).toBe(phrase.name);
+		reset();
+		expect(getCurrentPhrase().source).toBe('user-entered');
 	});
 });

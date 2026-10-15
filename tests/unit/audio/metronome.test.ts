@@ -303,3 +303,14 @@ describe('setMetronomeVolume', () => {
 		expect(gains[0].gain.value).toBeCloseTo(0.8 * 0.6, 10);
 	});
 });
+
+
+it('a canceled count-in cannot create a sequence or replace the current count-in', async () => {
+	const { scheduleCountInClicks } = await import('$lib/audio/metronome');
+	await scheduleCountInClicks(4, 2);
+	const current = sequences.at(-1)!;
+	const count = sequences.length;
+	await scheduleCountInClicks(4, 2, () => false);
+	expect(sequences).toHaveLength(count);
+	expect(current.disposed).toBe(false);
+});
