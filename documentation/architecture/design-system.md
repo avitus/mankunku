@@ -537,6 +537,17 @@ modules. In particular, the original rule hides notation at twelve unlocked keys
 Browser regression coverage includes the 11-key notation layout and 12-key ring,
 mobile/desktop geometry, ledger-note clearance and the existing session flows.
 
+Practice chart structure uses `--color-practice-divider`: slate `#627287` in
+dark mode and `#8391a3` in light mode. Use 1px horizontal progression separators
+and vertical chord-cell boundaries, with no extra trailing cell rule. These
+lines retain their contrast from initial load through Listen, Play and key
+changes. Dim inactive/past chord text and beat dots instead of the whole row
+or cell. `UpcomingKeysDisplay` and `ChordChart` share this rule across Daily,
+Deep and Focused Practice; preserve row heights, bar alignment, phase frames and
+the existing musical engraving. The MagicPath kit mirrors the dark token as
+`--mk-practice-divider`; independent future Deep Practice prototypes must reuse
+this rule rather than fading their structural frames.
+
 
 ### Lick Editor
 

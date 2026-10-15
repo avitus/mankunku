@@ -113,7 +113,7 @@
 			<div
 				class="chord-cell relative flex flex-col items-center justify-center
 					   {isActive ? 'active' : ''}
-					   {isPast ? 'opacity-40' : ''}"
+					   {isPast ? 'past' : ''}"
 				style="flex: {alignedWidths ? `0 0 ${alignedWidths[cellIdx] * 100}%` : `${cell.widthWeight} 1 0%`}"
 			>
 				<span
@@ -144,7 +144,7 @@
 				</span>
 
 				<!-- Beat dots — one per actual beat in this cell -->
-				<div class="mt-2 flex gap-1.5">
+				<div class="beat-dots mt-2 flex gap-1.5">
 					{#each Array(numBeats) as _, b}
 						{@const isBeatActive = isActive && b === beatInCell}
 						<div
@@ -170,7 +170,14 @@
 
 <style>
 	.chord-cells { height: 88px; overflow: hidden; border-radius: 2px; }
-	.chord-cell { min-width: 0; padding: 4px; border-right: 1px solid color-mix(in srgb, var(--color-text) 5%, transparent); }
+	.chord-cell { min-width: 0; padding: 4px; border-right: 1px solid var(--color-practice-divider); }
+	.chord-cell:last-child { border-right: 0; }
+	/* Fade the played chords, never the bar boundaries. */
+	.chord-cell.past { --chord-content-opacity: 0.4; }
+	.chord-symbol, .beat-dots {
+		opacity: calc(var(--practice-content-opacity, 1) * var(--chord-content-opacity, 1));
+		transition: opacity 250ms ease;
+	}
 	.chord-cell.active { background: color-mix(in srgb, var(--practice-phase, var(--color-phase-play)) 10%, transparent); }
 	.chord-symbol { font-size: clamp(19px, 2.3vw, 30px); }
 	@media (max-width: 520px) { .chord-symbol { font-size: 20px; } }

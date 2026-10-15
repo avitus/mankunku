@@ -421,13 +421,21 @@
 		from { transform: translateY(var(--cycle-from)); }
 	}
 	.row {
+		--practice-content-opacity: 0.35;
 		position: relative;
 		padding: 0.25rem 0.5rem 0.5rem;
-		opacity: 0.35;
-		transition: opacity 250ms ease;
 	}
 	.row.current {
-		opacity: 1;
+		--practice-content-opacity: 1;
+	}
+	/* Separate progressions without changing the measured row heights. */
+	.row::after {
+		content: '';
+		position: absolute;
+		inset: auto 0.5rem 0;
+		height: 1px;
+		background: var(--color-practice-divider);
+		pointer-events: none;
 	}
 	.chart-wrap {
 		position: relative;
@@ -449,7 +457,11 @@
 		overflow: hidden; visibility: hidden; opacity: 0; transition: opacity 400ms ease;
 		display: flex; align-items: center;
 	}
-	.lead-sheet :global(.notation-container) { width: 100%; }
+	.lead-sheet :global(.notation-container) {
+		width: 100%;
+		opacity: var(--practice-content-opacity);
+		transition: opacity 250ms ease;
+	}
 	.lead-sheet.revealed {
 		visibility: visible;
 		opacity: 1;
