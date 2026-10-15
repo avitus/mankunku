@@ -6,7 +6,15 @@ test.describe('licks', () => {
 		await seedOnboardedAnonymous(page);
 		// The library lists only the user's own licks, so seed a personal
 		// collection — otherwise the page renders its empty state.
-		await seedUserLicks(page);
+		await seedUserLicks(page, [
+			...SAMPLE_USER_LICKS,
+			...Array.from({ length: 6 - SAMPLE_USER_LICKS.length }, (_, index) => ({
+				...(SAMPLE_USER_LICKS[0] as Record<string, unknown>),
+				id: `extra-${index}`,
+				name: `Extra phrase ${index}`,
+				tags: []
+			}))
+		]);
 	});
 
 	test('header links route to the community browse and the add chooser', async ({
@@ -51,7 +59,7 @@ test.describe('licks', () => {
 		// styling refactors. (Section titles are h2, so this targets only cards.)
 		// User licks load asynchronously, so the count is a retrying assertion.
 		const cards = page.locator('main').getByRole('heading', { level: 3 });
-		await expect(cards).toHaveCount(SAMPLE_USER_LICKS.length);
+		await expect(cards).toHaveCount(6);
 
 		const search = page.getByPlaceholder(/find a lick/i);
 

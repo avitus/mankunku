@@ -46,7 +46,8 @@ for (const count of [40, 100]) {
 			.getByLabel('Search licks')
 			.fill(`Studio Phrase ${String(count - 1).padStart(3, '0')}`);
 		await expect(titles).toHaveCount(1);
-		await expect(paging).toContainText('Page 1 of 1');
+		await expect(paging).toHaveCount(0);
+		await expect(page.getByLabel('Licks per page')).toHaveCount(0);
 		await page.getByLabel('Search licks').fill('');
 		await page.getByLabel('Licks per page').selectOption('40');
 		await expect(titles).toHaveCount(40);
