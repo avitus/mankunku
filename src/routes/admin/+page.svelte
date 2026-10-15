@@ -5,6 +5,7 @@
 	import StudioPanel from '$lib/components/console/StudioPanel.svelte';
 	import '$lib/components/admin/AdminDesk.css';
 	import AdminContent from '$lib/components/admin/AdminContent.svelte';
+	import { isInactive } from '$lib/ui/admin-user-filter';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -20,10 +21,8 @@
 	let joinedBefore = $state('');
 	const visibleUsers = $derived(data.users.filter(row => {
 		const matchesSearch = `${row.email ?? ''} ${row.displayName ?? ''} ${row.id}`.toLowerCase().includes(search.trim().toLowerCase());
-		const lastSeen = row.lastActiveDate ?? row.lastSignInAt?.slice(0, 10) ?? row.createdAt?.slice(0, 10);
-		const inactive = !!lastSeen && Date.parse(lastSeen) < Date.now() - 30 * 86400000;
 		return matchesSearch && (!joinedBefore || (row.createdAt && row.createdAt.slice(0, 10) <= joinedBefore)) &&
-			(filter === 'all' || (filter === 'inactive' && inactive) || (filter === 'unconfirmed' && !row.emailConfirmedAt));
+			(filter === 'all' || (filter === 'inactive' && isInactive(row, Date.now())) || (filter === 'unconfirmed' && !row.emailConfirmedAt));
 	}));
 
 	/** Open account deletion confirmation for one user. */

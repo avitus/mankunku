@@ -103,6 +103,19 @@ test.describe('auth — anonymous', () => {
 	});
 });
 
+/**
+ * Wait until the sign-in form is hydrated, using the password toggle as the
+ * probe: it only works once client code runs. A submit clicked before
+ * `use:enhance` attaches posts the form natively, and a mocked action
+ * response then replaces the page instead of updating the form.
+ */
+async function waitForAuthFormHydration(page: Page): Promise<void> {
+	await expect(async () => {
+		await page.getByRole('button', { name: 'Show password', exact: true }).click();
+		await expect(page.getByLabel('Password', { exact: true })).toHaveAttribute('type', 'text');
+	}).toPass();
+}
+
 test('account switching keeps sign-in feedback visible until the destination loads', async ({
 	signedInPage: page,
 	baseURL
@@ -114,11 +127,7 @@ test('account switching keeps sign-in feedback visible until the destination loa
 	await page.getByRole('button', { name: 'Sign Out', exact: true }).click();
 	await expect(page).toHaveURL(/\/auth$/);
 	// Sign-out re-homes storage with a reload before hydrating the form.
-	// Wait for a working client control before entering the next credentials.
-	await expect(async () => {
-		await page.getByRole('button', { name: 'Show password', exact: true }).click();
-		await expect(page.getByLabel('Password', { exact: true })).toHaveAttribute('type', 'text');
-	}).toPass();
+	await waitForAuthFormHydration(page);
 
 	let releaseLogin!: () => void;
 	const loginGate = new Promise<void>((resolve) => { releaseLogin = resolve; });
@@ -175,6 +184,7 @@ test('failed sign-in restores the form for retry', async ({ page }) => {
 			})
 		});
 	});
+	await waitForAuthFormHydration(page);
 	await page.getByLabel('Email').fill('second-user@example.com');
 	await page.getByLabel('Password', { exact: true }).fill('test-password');
 	await page.getByRole('button', { name: 'Sign in', exact: true }).click();
