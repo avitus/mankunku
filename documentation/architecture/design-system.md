@@ -416,7 +416,8 @@ Home/landing, Sign in, Settings, Ear Training, Progress, Scales, Lick Practice s
 the running Lick Practice session (`/lick-practice/session`), Licks, Add Licks (`/licks/add`), the Lick Editor
 (`/licks/editor`), Community Licks (`/licks/community`) and Tunes opt into
 the layout's 1440px Studio Desk container. Tune Detail (`/tunes/[id]`) and Tune Editor (`/tunes/editor`) also use the
-shared editor shell. Other nested import and session routes retain their
+shared editor shell. PDF Import (`/tunes/import/pdf`) uses the 1440px Studio Desk
+container and `PdfImportDesk`. Other nested import and session routes retain their
 existing width and presentation. The setup summary
 moves below the controls on tablet/mobile; instrument and scale banks reflow
 using `--selector-columns`. Do not apply new chrome across all routes as a side
@@ -717,7 +718,7 @@ selection, difficulty or accuracy colors.
 | Lick Editor | `459517965835059200` / `460811927849934848` | Native Svelte; shared score/input/inspector hierarchy |
 | Tune Detail + Editor | `459518519676121088` / `461185056698941440` | Native Svelte; extends Lick Editor with tune operations |
 | Add Licks | `459517917629935616` / `460936884772802560` | Native Svelte; Editor first, Record Experimental |
-| PDF Import | `459518569684811776` / `461190228670046208` | Design prototype; Svelte conversion pending |
+| PDF Import | `459518569684811776` / `461190228670046208` | Native Svelte; explicit preparation, chart inspector, real cancellable recognition and editor review |
 
 PDF Import reuses the editing workspace language: file input/source preview,
 source-pitch and meter setup, optional OMR disclosure, cancellable recognition,
@@ -725,6 +726,16 @@ then source-aware review in the editor. Distinguish empty, selected, loading,
 cancelled, error and review states. Uncertain notes remain visibly uncertain;
 marking a passage reviewed does not silently correct it. Demo recognition and
 sample music must remain labelled as examples until connected to real services.
+
+`PdfImportDesk.svelte` owns the PDF presentation and uses the shared Studio
+Desk tokens in both themes. File selection and drag/drop stage a validated
+file; **Prepare draft** explicitly starts the existing recognition pipeline.
+The source-pitch and meter controls are locked during recognition. Optional
+OMR validation finishes before preparation is enabled. Cancellation retains
+the selected file for retry, and leaving the route aborts outstanding work.
+Successful recognition opens the existing Tune Editor with source crops,
+uncertainty notes and PDF linkage intact; only the editor saves the tune.
+The design-only example and simulated recognition are not shipped.
 
 The existing Home, Settings, Practice, Progress, Scales and Sign in patterns
 above remain canonical. Retain real data, empty states, account actions and

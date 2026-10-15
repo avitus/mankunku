@@ -159,6 +159,11 @@ test('a PDF chart lands in the editor for review and saves from there', async ({
 	const fileInput = page.getByLabel('Tune PDF');
 	await expect(fileInput).toBeEnabled(); // config probe resolved + hydrated
 	await fileInput.setInputFiles('tests/fixtures/leadsheets/fly-me-to-the-moon.pdf');
+	// Selecting a chart leaves time to check the printed pitch and meter.
+	await expect(page.getByText('Ready when you are.')).toBeVisible();
+	await expect(page).toHaveURL(/\/tunes\/import\/pdf$/);
+	await expect(page.getByTestId('import-progress')).toHaveCount(0);
+	await page.getByRole('button', { name: 'Prepare draft', exact: true }).click();
 
 	// The draft opens in the editor with the extracted content intact.
 	await page.waitForURL('**/tunes/editor');
@@ -231,6 +236,7 @@ test('the declared time signature goes out with every line, including the contex
 	await expect(fileInput).toBeEnabled();
 	await page.getByLabel('Time signature').selectOption('3/4');
 	await fileInput.setInputFiles('tests/fixtures/leadsheets/pdf-accuracy/black-orpheus-scan.pdf');
+	await page.getByRole('button', { name: 'Prepare draft', exact: true }).click();
 
 	await page.waitForURL('**/tunes/editor', { timeout: 60_000 });
 	expect(seenMeters.length).toBeGreaterThan(1);
@@ -247,6 +253,7 @@ test('a declared meter that contradicts the print is flagged, not silently appli
 	const fileInput = page.getByLabel('Tune PDF');
 	await expect(fileInput).toBeEnabled();
 	await fileInput.setInputFiles('tests/fixtures/leadsheets/pdf-accuracy/black-orpheus-scan.pdf');
+	await page.getByRole('button', { name: 'Prepare draft', exact: true }).click();
 
 	await page.waitForURL('**/tunes/editor', { timeout: 60_000 });
 	await openImportReview(page);
@@ -260,6 +267,7 @@ test('a line the AI cannot read is left blank instead of sinking the import', as
 	const fileInput = page.getByLabel('Tune PDF');
 	await expect(fileInput).toBeEnabled();
 	await fileInput.setInputFiles('tests/fixtures/leadsheets/pdf-accuracy/black-orpheus-scan.pdf');
+	await page.getByRole('button', { name: 'Prepare draft', exact: true }).click();
 
 	// The draft still arrives — the lines that DID transcribe are kept, and
 	// the whole-PDF fallback is not used (it would have replaced the title
@@ -293,6 +301,7 @@ test('the import reports which line it is on, and can be cancelled', async ({ pa
 	const fileInput = page.getByLabel('Tune PDF');
 	await expect(fileInput).toBeEnabled();
 	await fileInput.setInputFiles('tests/fixtures/leadsheets/pdf-accuracy/black-orpheus-scan.pdf');
+	await page.getByRole('button', { name: 'Prepare draft', exact: true }).click();
 
 	// Per-line state, not a bare spinner: the old UI showed one counter that
 	// only moved when a whole batch of three finished.
@@ -303,11 +312,53 @@ test('the import reports which line it is on, and can be cancelled', async ({ pa
 	).toBeVisible({ timeout: 60_000 });
 	await expect(panel.getByText('Line 1')).toBeVisible();
 	await expect(panel.getByText(/reading/).first()).toBeVisible();
+	await expect(page.getByLabel('Chart written for')).toBeDisabled();
+	await expect(page.getByLabel('Time signature')).toBeDisabled();
 
 	await panel.getByRole('button', { name: 'Cancel import' }).click();
 	await expect(page.getByText('Import cancelled.')).toBeVisible();
 	// The file input is released, so a second attempt is possible.
 	await expect(fileInput).toBeEnabled();
+	await expect(page.getByText('black-orpheus-scan.pdf', { exact: true })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Prepare draft', exact: true })).toBeEnabled();
+	await expect(page.getByLabel('Chart written for')).toBeEnabled();
+});
+
+test('staged PDFs can be removed and reselected; invalid files do not start recognition', async ({ page }) => {
+	await page.goto('/tunes/import/pdf');
+	const input = page.getByLabel('Tune PDF');
+	const prepare = page.getByRole('button', { name: 'Prepare draft', exact: true });
+	await expect(input).toBeEnabled();
+	await input.setInputFiles({ name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('not a PDF') });
+	await expect(page.getByRole('alert')).toHaveText('Choose a PDF file.');
+	await expect(prepare).toBeDisabled();
+	await input.setInputFiles({ name: 'large.pdf', mimeType: 'application/pdf', buffer: Buffer.alloc(10 * 1024 * 1024 + 1) });
+	await expect(page.getByRole('alert')).toContainText('PDF too large');
+	await expect(prepare).toBeDisabled();
+	await input.setInputFiles('tests/fixtures/leadsheets/fly-me-to-the-moon.pdf');
+	await expect(page.getByRole('alert')).toHaveCount(0);
+	await expect(prepare).toBeEnabled();
+	await page.getByRole('button', { name: 'Remove PDF' }).click();
+	await expect(prepare).toBeDisabled();
+	await expect(page.getByRole('button', { name: 'Choose a PDF' })).toBeVisible();
+	await input.setInputFiles('tests/fixtures/leadsheets/fly-me-to-the-moon.pdf');
+	await expect(prepare).toBeEnabled();
+	await expect(page.getByText('Ready when you are.')).toBeVisible();
+});
+
+test('dropping a chart stages it without bypassing preparation', async ({ page }) => {
+	await page.goto('/tunes/import/pdf');
+	await expect(page.getByLabel('Tune PDF')).toBeEnabled();
+	const transfer = await page.evaluateHandle(() => {
+		const data = new DataTransfer();
+		data.items.add(new File(['%PDF-1.4'], 'dropped-chart.pdf', { type: 'application/pdf' }));
+		return data;
+	});
+	await page.getByRole('region', { name: 'Drop a PDF chart' }).dispatchEvent('drop', { dataTransfer: transfer });
+	await expect(page.getByText('dropped-chart.pdf', { exact: true })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Prepare draft', exact: true })).toBeEnabled();
+	await expect(page.getByTestId('import-progress')).toHaveCount(0);
+	await transfer.dispose();
 });
 
 test('cancelling an unsaved PDF draft returns to the book, not a dead detail page', async ({
@@ -317,6 +368,7 @@ test('cancelling an unsaved PDF draft returns to the book, not a dead detail pag
 	const fileInput = page.getByLabel('Tune PDF');
 	await expect(fileInput).toBeEnabled();
 	await fileInput.setInputFiles('tests/fixtures/leadsheets/fly-me-to-the-moon.pdf');
+	await page.getByRole('button', { name: 'Prepare draft', exact: true }).click();
 
 	await page.waitForURL('**/tunes/editor');
 	await expect(page.getByRole('textbox', { name: 'Tune title' })).toHaveValue('Fly Me to the Moon');
@@ -336,6 +388,7 @@ test('embedded notation takes priority over an attached OMR transcription with z
 	await stubParseRoute(page, { seenMeters, posts });
 	await page.goto('/tunes/import/pdf');
 
+	await page.locator('summary').filter({ hasText: 'Have a transcription?' }).click();
 	const omrInput = page.getByLabel('OMR transcription (optional)');
 	await expect(omrInput).toBeEnabled();
 	await omrInput.setInputFiles('tests/fixtures/leadsheets/omr/lady-bird.omr.json');
@@ -344,6 +397,7 @@ test('embedded notation takes priority over an attached OMR transcription with z
 	const fileInput = page.getByLabel('Tune PDF');
 	await expect(fileInput).toBeEnabled();
 	await fileInput.setInputFiles('Leadsheets/PDF/Lady Bird.pdf');
+	await page.getByRole('button', { name: 'Prepare draft', exact: true }).click();
 
 	await page.waitForURL('**/tunes/editor', { timeout: 60_000 });
 	await expect(page.getByRole('textbox', { name: 'Tune title' })).toHaveValue(/Lady Bird/);
@@ -358,6 +412,7 @@ test('embedded notation takes priority over an attached OMR transcription with z
 test('a non-OMR JSON file is rejected inline and the import is not blocked', async ({ page }) => {
 	await page.goto('/tunes/import/pdf');
 
+	await page.locator('summary').filter({ hasText: 'Have a transcription?' }).click();
 	const omrInput = page.getByLabel('OMR transcription (optional)');
 	await expect(omrInput).toBeEnabled();
 	await omrInput.setInputFiles({
@@ -371,6 +426,7 @@ test('a non-OMR JSON file is rejected inline and the import is not blocked', asy
 	const fileInput = page.getByLabel('Tune PDF');
 	await expect(fileInput).toBeEnabled();
 	await fileInput.setInputFiles('tests/fixtures/leadsheets/fly-me-to-the-moon.pdf');
+	await page.getByRole('button', { name: 'Prepare draft', exact: true }).click();
 	await page.waitForURL('**/tunes/editor');
 	await expect(page.getByRole('textbox', { name: 'Tune title' })).toHaveValue('Fly Me to the Moon');
 });
@@ -412,6 +468,7 @@ test('Black Orpheus scan has 39 measures and requests independent harmony with i
 	await page
 		.getByLabel('Tune PDF')
 		.setInputFiles('tests/fixtures/leadsheets/pdf-accuracy/black-orpheus-scan.pdf');
+	await page.getByRole('button', { name: 'Prepare draft', exact: true }).click();
 	await page.waitForURL('**/tunes/editor', { timeout: 60_000 });
 	expect(music.map((s) => s.barCount)).toEqual([5, 4, 4, 4, 4, 4, 4, 4, 6]);
 	expect(music.every((s) => s.readHarmony && s.context.fifths === 2)).toBe(true);
@@ -429,6 +486,7 @@ test('an exported PDF imports offline and keeps the original measures available 
 	await page.goto('/tunes/import/pdf');
 	await expect(page.getByText('The scan reader is unavailable.', { exact: false })).toBeVisible();
 	await page.getByLabel('Tune PDF').setInputFiles('Leadsheets/PDF/Lady Bird.pdf');
+	await page.getByRole('button', { name: 'Prepare draft', exact: true }).click();
 	await page.waitForURL('**/tunes/editor');
 	expect(posts).toEqual([]);
 	await expect(page.getByRole('textbox', { name: 'Tune title' })).toHaveValue(/Lady Bird/);
@@ -464,6 +522,7 @@ for (const [name, measures] of [
 		});
 		await page.goto('/tunes/import/pdf');
 		await page.getByLabel('Tune PDF').setInputFiles(`Leadsheets/PDF/${name} - Bb.pdf`);
+		await page.getByRole('button', { name: 'Prepare draft', exact: true }).click();
 		await page.waitForURL('**/tunes/editor');
 		expect(posts).toEqual([]);
 		await expect(page.getByRole('textbox', { name: 'Tune title' })).toHaveValue(

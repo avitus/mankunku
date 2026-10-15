@@ -202,13 +202,7 @@ test('a corrupt MuseScore file surfaces its warning and re-arms the input', asyn
 
 test('the PDF import page renders a usable state', async ({ page }) => {
 	await page.goto('/tunes/import/pdf');
-	await expect(page.getByRole('heading', { name: 'Import a PDF Chart' })).toBeVisible();
-	// Either the upload control (key configured) or the manual-entry fallback
-	// (keyless environment) — never a blank page.
-	await expect(
-		page
-			.getByLabel('Tune PDF')
-			.or(page.getByText(/isn't available on this server/))
-			.first()
-	).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Import a PDF', exact: true })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Choose a PDF' })).toBeEnabled();
+	await expect(page.getByRole('button', { name: 'Prepare draft', exact: true })).toBeDisabled();
 });

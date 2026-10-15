@@ -47,6 +47,7 @@ for (const { slug, pdf } of CHARTS) {
 	test(`record ${slug}`, async ({ page }) => {
 		await page.goto('/tunes/import/pdf');
 
+		await page.locator('summary').filter({ hasText: 'Have a transcription?' }).click();
 		const omrInput = page.getByLabel('OMR transcription (optional)');
 		await expect(omrInput).toBeEnabled();
 		await omrInput.setInputFiles(`tests/fixtures/leadsheets/omr/${slug}.omr.json`);
@@ -55,6 +56,7 @@ for (const { slug, pdf } of CHARTS) {
 		const fileInput = page.getByLabel('Tune PDF');
 		await expect(fileInput).toBeEnabled();
 		await fileInput.setInputFiles(pdf);
+		await page.getByRole('button', { name: 'Prepare draft', exact: true }).click();
 
 		await page.waitForURL('**/tunes/editor', { timeout: 60_000 });
 		await page.getByRole('button', { name: 'Update' }).click();

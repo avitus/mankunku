@@ -1,0 +1,108 @@
+/* PDF preparation extends the native Studio Desk; recognition and review stay in their owners. */
+.pdf-import-desk { min-width: 0; }
+.pdf-import-desk .pi-back { display: inline-flex; align-items: center; gap: 8px; margin-bottom: 28px; font-size: 12px; color: var(--color-text-secondary); }
+.pdf-import-desk h2, .pdf-import-desk h3 { font-family: var(--font-display); font-weight: 500; letter-spacing: -.025em; }
+.pdf-import-desk .pi-stepper { display: flex; gap: 25px; list-style: none; padding: 0; margin: 0; }
+.pdf-import-desk .pi-stepper li { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--studio-muted); white-space: nowrap; }
+.pdf-import-desk .pi-stepper li > span { display: grid; place-items: center; width: 24px; height: 24px; border: 1px solid var(--studio-border); border-radius: 50%; font-size: 10px; }
+.pdf-import-desk .pi-stepper .current { color: var(--color-brass-soft); }
+:root.light .pdf-import-desk .pi-stepper .current { color: var(--color-brass); }
+.pdf-import-desk .pi-stepper .current > span { border-color: currentColor; background: color-mix(in srgb, var(--color-brass) 9%, transparent); }
+.pdf-import-desk .pi-stepper .done { color: var(--color-success); }
+.pdf-import-desk .pi-layout { display: grid; grid-template-columns: minmax(0, 1fr) 292px; gap: 24px; align-items: start; }
+.pdf-import-desk .pi-workspace { min-width: 0; }
+.pdf-import-desk .pi-panel { border: 1px solid var(--studio-border); border-radius: var(--studio-radius); background: linear-gradient(115deg, var(--studio-panel-highlight), var(--studio-panel) 80%); box-shadow: var(--studio-shadow); }
+.pdf-import-desk .pi-upload { padding: 24px 25px 0; overflow: hidden; }
+.pdf-import-desk .pi-panel-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+.pdf-import-desk .pi-badge { padding: 3px 7px; border: 1px solid var(--studio-border); border-radius: 3px; color: var(--studio-muted); font-size: 9px; letter-spacing: .08em; }
+.pdf-import-desk .pi-dropzone { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 380px; padding: 35px 20px 28px; margin-bottom: 24px; text-align: center; background: var(--studio-well); border: 1px dashed var(--studio-border); border-radius: 5px; transition: background .15s, border-color .15s; }
+.pdf-import-desk .pi-dropzone.dragging { border-color: var(--color-brass); background: color-mix(in srgb, var(--color-brass) 12%, var(--studio-well)); }
+.pdf-import-desk .pi-document { position: relative; display: grid; place-items: center; width: 106px; height: 122px; padding: 12px; margin-bottom: 32px; border: 1px solid var(--studio-border); border-radius: 3px; background: var(--studio-panel-highlight); color: var(--studio-muted); box-shadow: 8px 7px 0 -1px var(--studio-panel), 8px 7px 0 0 var(--studio-border); transform: rotate(-6deg); }
+.pdf-import-desk .pi-document > span { font: 9px var(--font-display); }
+.pdf-import-desk .pi-document > i { position: absolute; bottom: -12px; right: -15px; display: grid; place-items: center; width: 36px; height: 36px; border: 1px solid var(--color-brass); border-radius: 50%; background: var(--studio-panel); color: var(--color-brass-soft); transform: rotate(6deg); }
+.pdf-import-desk .pi-dropzone h2, .pdf-import-desk .pi-selected-preview h2 { font-size: 28px; margin-bottom: 8px; }
+.pdf-import-desk .pi-dropzone > p { color: var(--studio-muted); font-size: 12px; margin-bottom: 20px; }
+.pdf-import-desk .pi-dropzone > small { margin-top: 12px; color: var(--studio-muted); font-size: 10px; }
+.pdf-import-desk .pi-button { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 44px; padding: 10px 17px; border: 1px solid var(--studio-border); border-radius: 4px; font-size: 12px; font-weight: 500; cursor: pointer; }
+.pdf-import-desk .pi-brass { border-color: var(--color-brass-soft); background: linear-gradient(var(--color-brass-soft), var(--color-brass)); color: #172334; box-shadow: inset 0 1px #ffffff55, 0 2px 4px #0003; }
+.pdf-import-desk .pi-quiet { background: var(--studio-well); width: 100%; }
+.pdf-import-desk button:disabled, .pdf-import-desk select:disabled { opacity: .45; cursor: not-allowed; }
+.pdf-import-desk button:hover:not(:disabled) { filter: brightness(1.1); }
+.pdf-import-desk .pi-icon-button { display: grid; place-items: center; min-width: 36px; min-height: 36px; color: var(--studio-muted); flex-shrink: 0; }
+.pdf-import-desk .pi-file-input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.pdf-import-desk .pi-upload-footer { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 18px 0; border-top: 1px solid var(--studio-border); }
+.pdf-import-desk .pi-upload-footer > span { display: flex; align-items: center; gap: 8px; color: var(--studio-muted); font-size: 11px; }
+.pdf-import-desk .pi-upload-footer i { width: 5px; height: 5px; flex-shrink: 0; border-radius: 50%; background: var(--color-brass); }
+.pdf-import-desk .pi-file-row { display: flex; align-items: center; gap: 12px; padding: 0 0 20px; }
+.pdf-import-desk .pi-file-icon { display: grid; place-items: center; width: 42px; height: 48px; flex-shrink: 0; background: var(--studio-well); border: 1px solid var(--studio-border); border-radius: 4px; color: var(--color-brass-soft); }
+.pdf-import-desk .pi-file-row > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.pdf-import-desk .pi-file-row strong { overflow-wrap: anywhere; font-size: 13px; font-weight: 500; }
+.pdf-import-desk .pi-file-row > div > span { font-size: 10px; color: var(--studio-muted); }
+.pdf-import-desk .pi-file-row > button { margin-left: auto; }
+.pdf-import-desk .pi-selected-preview { display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 15px; min-height: 300px; background: var(--studio-well); border: 1px solid var(--studio-border); border-radius: 5px; margin-bottom: 24px; padding: 30px 20px; text-align: center; }
+.pdf-import-desk .pi-selected-preview > svg { color: var(--color-brass-soft); }
+.pdf-import-desk .pi-selected-preview p { font-size: 12px; color: var(--studio-muted); }
+.pdf-import-desk .pi-selected-preview small { margin-top: 16px; font-size: 10px; color: var(--studio-muted); }
+.pdf-import-desk .pi-progress { margin-bottom: 24px; }
+.pdf-import-desk .pi-progress > div { background: var(--studio-well); padding: 28px; border: 1px solid var(--studio-border); min-height: 300px; }
+.pdf-import-desk .pi-setup { padding: 25px 24px 20px; }
+.pdf-import-desk .pi-setup h2 { font-size: 26px; margin: 15px 0 12px; line-height: 1.2; }
+.pdf-import-desk .pi-setup > p:not(.studio-label) { font-size: 12px; line-height: 1.75; color: var(--studio-muted); }
+.pdf-import-desk .pi-setup fieldset { border: 0; padding: 0; margin: 20px 0 0; min-width: 0; }
+.pdf-import-desk .pi-setup fieldset > div { margin-top: 16px; }
+.pdf-import-desk .pi-setup label { display: flex; flex-direction: column; align-items: stretch; width: 100%; gap: 8px; font-size: 11px; }
+.pdf-import-desk .pi-setup select { width: 100%; min-height: 42px; border: 1px solid var(--studio-border); border-radius: 4px; background: var(--studio-well); color: var(--studio-text); font-size: 12px; padding: 10px 12px; }
+.pdf-import-desk .pi-setup .pi-setup-hint { font-size: 11px; margin: 16px 0 22px; }
+.pdf-import-desk .pi-advanced { border-top: 1px solid var(--studio-border); padding-top: 17px; }
+.pdf-import-desk .pi-advanced summary { display: flex; justify-content: space-between; align-items: center; cursor: pointer; list-style: none; font-size: 12px; padding: 5px 0; }
+.pdf-import-desk .pi-advanced summary::-webkit-details-marker { display: none; }
+.pdf-import-desk .pi-advanced[open] summary > span { transform: rotate(180deg); }
+.pdf-import-desk .pi-advanced p { font-size: 11px; line-height: 1.7; margin: 14px 0; color: var(--studio-muted); }
+.pdf-import-desk .pi-advanced small { display: block; font-size: 10px; line-height: 1.7; margin-top: 13px; color: var(--studio-muted); }
+.pdf-import-desk .pi-attachment { display: flex; align-items: center; justify-content: space-between; gap: 5px; margin-top: 10px; overflow-wrap: anywhere; font-size: 10px; color: var(--color-success); }
+.pdf-import-desk .pi-guidance { padding: 27px 5px 0; }
+.pdf-import-desk .pi-guidance h3 { font-size: 24px; margin: 13px 0 12px; }
+.pdf-import-desk .pi-guidance > p:not(.studio-label) { font-size: 12px; line-height: 1.8; color: var(--studio-muted); }
+.pdf-import-desk .pi-guidance ul { list-style: none; padding: 0; margin: 18px 0 0; }
+.pdf-import-desk .pi-guidance li { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid color-mix(in srgb, var(--studio-border) 45%, transparent); font-size: 11px; color: var(--studio-muted); }
+.pdf-import-desk .pi-guidance li svg { color: var(--color-success); flex-shrink: 0; }
+.pdf-import-desk .pi-how { display: grid; grid-template-columns: repeat(3, 1fr); gap: 26px; margin-top: 29px; padding-top: 22px; border-top: 1px solid var(--studio-border); }
+.pdf-import-desk .pi-how > div > span { font-size: 10px; color: var(--color-brass-soft); }
+.pdf-import-desk .pi-how h3 { font-size: 20px; margin: 9px 0 7px; }
+.pdf-import-desk .pi-how p { font-size: 11px; line-height: 1.8; color: var(--studio-muted); max-width: 230px; }
+.pdf-import-desk .pi-notice { font-size: 12px; line-height: 1.8; color: var(--studio-muted); padding: 16px 0; }
+.pdf-import-desk .pi-offline { grid-column: 1/-1; padding: 16px 20px; border: 1px solid var(--studio-border); border-radius: 5px; }
+.pdf-import-desk .pi-offline a { color: var(--studio-accent-text); text-decoration: underline; }
+.pdf-import-desk .pi-error { color: var(--color-error-text); font-size: 12px; line-height: 1.7; margin: 14px 0; }
+.pdf-import-desk .pi-footer { display: flex; justify-content: space-between; align-items: center; gap: 20px; border-top: 1px solid var(--studio-border); margin-top: 40px; padding-top: 20px; font-size: 9px; letter-spacing: .1em; color: var(--studio-muted); }
+.pdf-import-desk .pi-footer i { font-style: normal; color: var(--color-brass); padding: 0 9px; }
+@media (max-width: 1100px) {
+	.pdf-import-desk .studio-page-heading { align-items: flex-start; flex-direction: column; }
+}
+@media (max-width: 900px) {
+	.pdf-import-desk .pi-layout { grid-template-columns: 1fr; }
+	.pdf-import-desk .pi-workspace { display: contents; }
+	.pdf-import-desk .pi-inspector { grid-row: 2; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+	.pdf-import-desk .pi-how { grid-row: 3; margin-top: 0; }
+	.pdf-import-desk .pi-guidance { padding: 20px 5px; }
+}
+@media (max-width: 600px) {
+	.pdf-import-desk .pi-stepper { gap: 14px; flex-wrap: wrap; }
+	.pdf-import-desk .pi-stepper li { gap: 6px; font-size: 10px; }
+	.pdf-import-desk .pi-stepper li > span { width: 20px; height: 20px; }
+	.pdf-import-desk .pi-upload { padding: 20px 14px 0; }
+	.pdf-import-desk .pi-dropzone { padding: 30px 12px 25px; min-height: 350px; }
+	.pdf-import-desk .pi-dropzone h2 { font-size: 25px; }
+	.pdf-import-desk .pi-upload-footer { flex-direction: column; align-items: stretch; gap: 14px; }
+	.pdf-import-desk .pi-upload-footer > span { font-size: 10px; justify-content: center; }
+	.pdf-import-desk .pi-inspector { display: block; }
+	.pdf-import-desk .pi-how { gap: 14px; }
+	.pdf-import-desk .pi-how h3 { font-size: 18px; }
+	.pdf-import-desk .pi-how p { font-size: 10px; }
+	.pdf-import-desk .pi-footer { align-items: flex-start; font-size: 8px; line-height: 1.8; }
+	.pdf-import-desk .pi-footer > span:last-child { max-width: 95px; text-align: right; }
+	.pdf-import-desk .pi-progress > div { padding: 20px 14px; }
+}
+@media (prefers-reduced-motion: reduce) {
+	.pdf-import-desk *, .pdf-import-desk *::before, .pdf-import-desk *::after { animation: none !important; transition: none !important; }
+}
