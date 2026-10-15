@@ -510,6 +510,10 @@ inline confirmation and error states and the existing resend action. The route
 keeps SvelteKit form actions, progressive enhancement, autocomplete, registration
 validation and non-enumerating confirmation copy. Both themes use shared tokens;
 prototype state controls and sample responses are not shipped.
+Sign-in and registration keep their progress label and an inline spinner visible,
+with the form disabled, until the result is applied or the destination replaces it.
+Account-switch reloads retain that feedback; failures restore the form for retry.
+The spinner respects reduced-motion preferences.
 
 ### Daily and Deep practice desk
 

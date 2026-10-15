@@ -100,8 +100,6 @@
 					loading = true;
 					resending = submitter?.getAttribute('formaction') === '?/resend';
 					return async ({ result, update }) => {
-						loading = false;
-						resending = false;
 						// A new account waits on its emailed link; the next thing the
 						// user does here is sign in.
 						if (result.type === 'success' && result.data?.confirmationSent) {
@@ -111,7 +109,16 @@
 						}
 						// No reset: a success that stays on this page (confirmation
 						// sent, link resent) keeps the email the resend button reads.
-						await update({ reset: false });
+						try {
+							await update({ reset: false });
+						} finally {
+							// A redirect can hand off to a full-page account reload.
+							// Keep feedback visible until this form leaves the screen.
+							if (result.type !== 'redirect') {
+								loading = false;
+								resending = false;
+							}
+						}
 					};
 				}}
 			>
@@ -135,7 +142,7 @@
 				</div>
 				<button type="submit" disabled={loading} class="studio-action auth-submit">
 					{loading && !resending ? (isSignUp ? 'Creating account…' : 'Signing in…') : (isSignUp ? 'Create account' : 'Sign in')}
-					<span aria-hidden="true">{loading && !resending ? '…' : '→'}</span>
+					<span aria-hidden="true" class:auth-spinner={loading && !resending}>{loading && !resending ? '' : '→'}</span>
 				</button>
 				{#if offerResend}
 					<!-- Resend uses only the email; password validation must not block it. -->
@@ -272,6 +279,17 @@
 	.auth-submit>span {
 		font-size: 18px;
 		font-weight: 400;
+	}
+	.auth-spinner {
+		width: 14px;
+		height: 14px;
+		border: 2px solid currentColor;
+		border-right-color: transparent;
+		border-radius: 50%;
+		animation: auth-spin .8s linear infinite;
+	}
+	@keyframes auth-spin {
+		to { transform: rotate(360deg); }
 	}
 	.auth-divider {
 		height: 1px;
