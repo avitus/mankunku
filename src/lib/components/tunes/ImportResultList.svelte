@@ -3,6 +3,7 @@
 	import { getInstrument } from '$lib/state/settings.svelte';
 	import { concertKeyToWritten } from '$lib/music/transposition';
 	import { resolveTuneRef, tunePath } from '$lib/tunes/tune-slug';
+	import TuneSourceIcon from './TuneSourceIcon.svelte';
 
 	interface Props {
 		sheets: Tune[];
@@ -11,84 +12,42 @@
 		onreview: (sheet: Tune) => void;
 		/** Saves the sheet directly; returns the saved id. Omit to force review. */
 		onadd?: (sheet: Tune) => string;
+		searchable?: boolean;
 	}
-
-	let { sheets, warnings, onreview, onadd }: Props = $props();
-
+	let { sheets, warnings, onreview, onadd, searchable = false }: Props = $props();
 	let addedIds = $state<Record<string, string>>({});
-
-	function keyOf(sheet: Tune, index: number): string {
-		return `${index}:${sheet.title}`;
-	}
-
+	let query = $state('');
+	let saveError = $state('');
+	// Keep original indexes while filtering: added state must stay with its tune.
+	const visible = $derived(sheets.map((sheet, index) => ({ sheet, index })).filter(({ sheet }) =>
+		`${sheet.title} ${sheet.composer ?? ''}`.toLowerCase().includes(query.trim().toLowerCase())));
+	function keyOf(sheet: Tune, index: number): string { return `${index}:${sheet.id}`; }
 	function handleAdd(sheet: Tune, index: number): void {
-		if (!onadd) return;
-		const savedId = onadd(sheet);
-		addedIds = { ...addedIds, [keyOf(sheet, index)]: savedId };
+		if (!onadd || addedIds[keyOf(sheet, index)]) return;
+		saveError = '';
+		try { addedIds = { ...addedIds, [keyOf(sheet, index)]: onadd(sheet) }; }
+		catch (err) { saveError = `Could not save that tune (${err instanceof Error ? err.message : 'unknown error'}). Try again.`; }
 	}
-
-	/** The saved tune's slug link; the id is a valid route too, should the book read lag. */
-	function addedHref(id: string): string {
-		const saved = resolveTuneRef(id);
-		return saved ? tunePath(saved) : `/tunes/${id}`;
-	}
+	/** The saved slug link, with the stable id as fallback while the book read catches up. */
+	function addedHref(id: string): string { const saved = resolveTuneRef(id); return saved ? tunePath(saved) : `/tunes/${id}`; }
 </script>
 
-{#if warnings.length > 0}
-	<div class="rounded-lg bg-[var(--color-warning)]/10 p-3 text-xs text-[var(--color-text-secondary)]">
-		<div class="mb-1 font-medium text-[var(--color-warning-text)]">Import notes</div>
-		<ul class="list-inside list-disc space-y-0.5">
-			{#each warnings as w, i (i)}
-				<li>{w}</li>
-			{/each}
-		</ul>
-	</div>
+{#if warnings.length}
+	<div class="ti-warning" role="status"><strong>Import notes</strong><ul>{#each warnings as warning, i (i)}<li>{warning}</li>{/each}</ul></div>
 {/if}
-
-{#if sheets.length > 0}
-	<div class="space-y-2">
-		{#each sheets as sheet, i (keyOf(sheet, i))}
-			{@const totalBars = sheet.sections.reduce((sum, s) => sum + s.bars, 0)}
-			{@const added = addedIds[keyOf(sheet, i)]}
-			<div class="flex flex-wrap items-center gap-3 rounded-lg bg-[var(--color-bg-secondary)] p-3">
-				<div class="min-w-0 flex-1">
-					<div class="truncate font-semibold">{sheet.title}</div>
-					<div class="truncate text-xs text-[var(--color-text-secondary)]">
-						{#if sheet.composer}{sheet.composer} &middot;{/if}
-						Key of {concertKeyToWritten(sheet.key, getInstrument())} &middot;
-						{sheet.timeSignature[0]}/{sheet.timeSignature[1]} &middot;
-						{totalBars} bars
-						{#if sheet.style}&middot; {sheet.style}{/if}
-					</div>
-				</div>
-				{#if added}
-					<a
-						href={addedHref(added)}
-						class="rounded-full bg-[var(--color-success)]/20 px-3 py-1.5 text-xs font-medium text-[var(--color-success)]"
-					>
-						&#10003; Added — view
-					</a>
-				{:else}
-					<div class="flex shrink-0 gap-2">
-						<button
-							type="button"
-							onclick={() => onreview(sheet)}
-							class="rounded-full bg-[var(--color-accent)] px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)]"
-						>
-							Review &amp; edit
-						</button>
-						{#if onadd}
-							<button
-								type="button"
-								onclick={() => handleAdd(sheet, i)}
-								class="rounded-full bg-[var(--color-bg-tertiary)] px-4 py-1.5 text-sm font-medium text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-bg)]"
-							>
-								Add to book
-							</button>
-						{/if}
-					</div>
-				{/if}
-			</div>
+{#if sheets.length}
+	{#if searchable && sheets.length > 1}<label class="ti-search"><span class="sr-only">Find a tune in this import</span><input type="search" bind:value={query} placeholder="Find a tune in this import…" /></label>{/if}
+	<div class="ti-results">
+		{#each visible as { sheet, index } (keyOf(sheet, index))}
+			{@const totalBars = sheet.sections.reduce((sum, section) => sum + section.bars, 0)}
+			{@const added = addedIds[keyOf(sheet, index)]}
+			<article class="ti-result-row" aria-label={sheet.title}>
+				<span class="ti-row-number" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
+				<div class="ti-tune-info"><h3>{sheet.title}</h3><p>{#if sheet.composer}{sheet.composer} · {/if}Key of {concertKeyToWritten(sheet.key, getInstrument())} · {sheet.timeSignature[0]}/{sheet.timeSignature[1]} · {totalBars} bars{#if sheet.style} · {sheet.style}{/if}</p></div>
+				{#if added}<a href={addedHref(added)} class="ti-added"><TuneSourceIcon name="check" size={14} />Added — view</a>{:else}<div class="ti-row-actions"><button class="ti-button ti-quiet" onclick={() => onreview(sheet)}><TuneSourceIcon name="editor" size={14} />Review &amp; edit</button>{#if onadd}<button class="ti-text-button" onclick={() => handleAdd(sheet, index)}>Add to book</button>{/if}</div>{/if}
+			</article>
 		{/each}
 	</div>
+	{#if !visible.length}<p class="ti-empty" role="status">No tunes match “{query}”. <button class="ti-text-button" onclick={() => query = ''}>Clear search</button></p>{/if}
 {/if}
+{#if saveError}<p class="ti-error" role="alert">{saveError}</p>{/if}

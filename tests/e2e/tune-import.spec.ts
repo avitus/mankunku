@@ -19,9 +19,9 @@ const IREAL_URL =
 
 test('the add-tunes chooser links all five methods', async ({ page }) => {
 	await page.goto('/tunes/add');
-	await expect(page.getByRole('heading', { name: 'Add Tunes' })).toBeVisible();
-	await expect(page.getByRole('link', { name: /Editor/ })).toHaveAttribute('href', '/tunes/editor');
-	await expect(page.getByRole('link', { name: /PDF Upload/ })).toHaveAttribute('href', '/tunes/import/pdf');
+	await expect(page.getByRole('heading', { name: 'Add tunes' })).toBeVisible();
+	await expect(page.getByRole('link', { name: /Open the editor/ })).toHaveAttribute('href', '/tunes/editor');
+	await expect(page.getByRole('link', { name: /Import a PDF/ })).toHaveAttribute('href', '/tunes/import/pdf');
 	await expect(page.getByRole('link', { name: /iReal Pro/ })).toHaveAttribute('href', '/tunes/import/ireal');
 	await expect(page.getByRole('link', { name: /Band-in-a-Box/ })).toHaveAttribute('href', '/tunes/import/biab');
 	await expect(page.getByRole('link', { name: /MuseScore/ })).toHaveAttribute('href', '/tunes/import/musescore');
@@ -96,6 +96,7 @@ test('a real Band-in-a-Box file imports with sections and a chorus repeat', asyn
 	const fileInput = page.getByLabel('Band-in-a-Box file');
 	await expect(fileInput).toBeEnabled();
 	await fileInput.setInputFiles('tests/fixtures/leadsheets/fly-me-to-the-moon.sgu');
+	await page.getByRole('button', { name: 'Read file', exact: true }).click();
 
 	await expect(page.getByText('02. Fly Me to the Moon')).toBeVisible();
 	await page.getByRole('button', { name: 'Add to book' }).click();
@@ -122,6 +123,7 @@ test('a real MuseScore file imports melody and changes at concert pitch', async 
 	const fileInput = page.getByLabel('MuseScore file');
 	await expect(fileInput).toBeEnabled();
 	await fileInput.setInputFiles('tests/fixtures/leadsheets/fly-me-to-the-moon.mscz');
+	await page.getByRole('button', { name: 'Read score', exact: true }).click();
 
 	await expect(page.getByText('Fly me to the moon')).toBeVisible();
 	// …but this file DECLARES a tenor part, which the parser already converts
@@ -146,6 +148,7 @@ test('a MuseScore file that CLAIMS concert defaults to the user instrument', asy
 	const fileInput = page.getByLabel('MuseScore file');
 	await expect(fileInput).toBeEnabled();
 	await fileInput.setInputFiles('tests/fixtures/leadsheets/written-pitch-tenor-chart.mscx');
+	await page.getByRole('button', { name: 'Read score', exact: true }).click();
 
 	await expect(page.getByText('Written Pitch Chart')).toBeVisible();
 	// A non-transposing part's "concert" claim is as ambiguous as paper —
@@ -172,6 +175,7 @@ test('a corrupt Band-in-a-Box file surfaces its warning and re-arms the input', 
 		mimeType: 'application/octet-stream',
 		buffer: Buffer.from('not a band-in-a-box song at all')
 	});
+	await page.getByRole('button', { name: 'Read file', exact: true }).click();
 
 	// The failure surfaces instead of dying silently…
 	await expect(page.getByText(/Unrecognized Band-in-a-Box file version/)).toBeVisible();
@@ -191,6 +195,7 @@ test('a corrupt MuseScore file surfaces its warning and re-arms the input', asyn
 		mimeType: 'application/octet-stream',
 		buffer: Buffer.from('not a zip archive at all')
 	});
+	await page.getByRole('button', { name: 'Read score', exact: true }).click();
 
 	// The failure surfaces instead of dying silently…
 	await expect(page.getByText(/Failed to read the \.mscz archive/)).toBeVisible();
