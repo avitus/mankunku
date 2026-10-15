@@ -16,6 +16,7 @@ import {
 	MAX_BARS_PER_SECTION,
 	MAX_NOTES_PER_ADOPTED_TUNE
 } from '$lib/tunes/adopted-tune-validator';
+import { isSupportedMeter } from '$lib/tunes/meter';
 
 /**
  * Structural-shakiness score of a conversion: the count of warnings that
@@ -97,13 +98,7 @@ export function claudeJsonToTune(data: unknown): ClaudePdfConversion {
 	}
 
 	const ts = doc.timeSignature;
-	const validTs =
-		Array.isArray(ts) &&
-		ts.length === 2 &&
-		Number.isInteger(ts[0]) &&
-		Number.isInteger(ts[1]) &&
-		(ts[0] as number) > 0 &&
-		(ts[1] as number) > 0;
+	const validTs = isSupportedMeter(ts);
 	if (!validTs) errors.push('invalid timeSignature');
 
 	const barwise = Array.isArray(doc.systems);

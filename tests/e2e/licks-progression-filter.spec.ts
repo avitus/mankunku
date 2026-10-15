@@ -43,7 +43,9 @@ test.describe('licks progression filter', () => {
 			lick('filt-blues', 'Filter Blues Lick', 'blues'),
 			lick('filt-major', 'Filter Major Lick', 'ii-V-I-major'),
 			lick('filt-both', 'Filter Both Lick', 'bebop-lines'),
-			lick('filt-untagged', 'Filter Untagged Lick', 'bebop-lines')
+			lick('filt-untagged', 'Filter Untagged Lick', 'bebop-lines'),
+			lick('filt-extra-1', 'Extra Lick One', 'bebop-lines'),
+			lick('filt-extra-2', 'Extra Lick Two', 'bebop-lines')
 		]);
 		// Explicit prog:* tags. `filt-untagged` deliberately gets none — it must
 		// disappear under any progression filter even though its *category*
@@ -65,7 +67,7 @@ test.describe('licks progression filter', () => {
 		await page.goto('/licks');
 		const cards = page.locator('main').getByRole('heading', { level: 3 });
 		await expect(cards.first()).toBeVisible();
-		await expect(cards).toHaveCount(4);
+		await expect(cards).toHaveCount(6);
 
 		const filter = page.getByLabel('Filter by progression');
 
@@ -88,7 +90,7 @@ test.describe('licks progression filter', () => {
 
 		// Back to unfiltered.
 		await filter.selectOption({ label: 'All progressions' });
-		await expect(cards).toHaveCount(4);
+		await expect(cards).toHaveCount(6);
 	});
 
 	test('explains the empty state when nothing is tagged for the progression', async ({

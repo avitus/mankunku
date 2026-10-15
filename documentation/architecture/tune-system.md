@@ -134,7 +134,7 @@ bar.
 
 `source-transposition.ts` handles a question every add-path has to ask: the chart in front of the user may be a written-pitch part (a Bb book page, an Eb alto edition). Every add method lets the user declare the source pitch, and this module shifts to concert on the way in.
 
-`adopted-tune-validator.ts` structurally validates foreign payloads (community adoptions, PDF conversions) against caps — `MAX_SECTIONS_PER_ADOPTED_TUNE`, `MAX_BARS_PER_SECTION`, `MAX_NOTES_PER_ADOPTED_TUNE`.
+`adopted-tune-validator.ts` structurally validates foreign payloads (community adoptions, the community listing and detail page, PDF conversions) against caps — `MAX_SECTIONS_PER_ADOPTED_TUNE`, `MAX_BARS_PER_SECTION`, `MAX_NOTES_PER_ADOPTED_TUNE`, and the meter rule in `tunes/meter.ts` (`isSupportedMeter`: a whole-beat numerator up to 32 over a power-of-two note value up to 64), because the community preview draws one beat mark per numerator and the engravers split notes at every barline. That rule is shared: the Band-in-a-Box MusicXML, MuseScore and PDF importers refuse a meter outside it, so an import never saves a tune that sharing would hide. The listing validates every row before the desk can auto-preview it, and decides its page boundary on the rows fetched, so a dropped row never hides the next page.
 
 ## Engraving
 

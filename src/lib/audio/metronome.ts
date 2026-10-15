@@ -217,9 +217,12 @@ export async function scheduleMetronome(
  * Must be called before Transport.start(). Clicks stay on the same quarter
  * grid as the kit, so `getMetronomeBleedOnsets` needs no special casing.
  */
-export async function scheduleCountInClicks(beatsPerBar: number, bars: number): Promise<void> {
+export async function scheduleCountInClicks(
+	beatsPerBar: number, bars: number, isStillCurrent: () => boolean = () => true
+): Promise<void> {
 	await ensureSynths();
 	const Tone = await getTone();
+	if (!isStillCurrent()) return;
 
 	if (countInSequence) {
 		countInSequence.dispose();

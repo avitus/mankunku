@@ -1,16 +1,11 @@
 <script lang="ts">
-	import { keyLabel } from '$lib/music/notation';
-	import type { PitchClass } from '$lib/types/music';
 	import type { ChordProgressionType } from '$lib/types/lick-practice';
-	import { PROGRESSION_TEMPLATES, progressionMode } from '$lib/data/progressions';
+	import { PROGRESSION_TEMPLATES } from '$lib/data/progressions';
 	import { progressionColor } from '$lib/music/progression-display';
-	import { concertKeyToWritten } from '$lib/music/transposition';
-	import { getInstrument } from '$lib/state/settings.svelte';
 
 	interface Props {
 		phraseNumber: number;
 		phraseName: string;
-		currentKey: PitchClass;
 		progressionType: ChordProgressionType;
 		keyIndex: number;
 		totalKeys: number;
@@ -27,7 +22,6 @@
 	let {
 		phraseNumber,
 		phraseName,
-		currentKey,
 		progressionType,
 		keyIndex,
 		totalKeys,
@@ -37,11 +31,6 @@
 
 	const progressionName = $derived(PROGRESSION_TEMPLATES[progressionType].shortName);
 	const progressionHue = $derived(progressionColor(progressionType));
-	const instrument = $derived(getInstrument());
-	// The label reads in the PROGRESSION's mode: a minor ii-V-i in D is "D-".
-	const writtenKey = $derived(
-		keyLabel(concertKeyToWritten(currentKey, instrument), progressionMode(progressionType))
-	);
 </script>
 
 <div class="flex items-center justify-between gap-4">
@@ -74,14 +63,8 @@
 			{/if}
 		</div>
 	</div>
-	<div class="text-center">
-		<div class="lick-key">
-			{writtenKey}
-		</div>
-	</div>
 </div>
 
 <style>
 	.lick-title { font: 500 clamp(22px, 2.5vw, 30px)/1.25 var(--font-display); overflow-wrap: anywhere; }
-	.lick-key { font: 500 40px/1 var(--font-display); color: var(--studio-accent-text, var(--color-accent)); }
 </style>

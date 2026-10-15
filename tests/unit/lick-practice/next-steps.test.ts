@@ -1,6 +1,6 @@
 /** Recent session evidence, learning priority, and the report-to-focus-ramp boundary. */
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
-import { buildNextStep, type NextStepInput } from '$lib/state/lick-practice-next-steps';
+import { buildNextStep, continueRecommendations, type NextStepInput } from '$lib/state/lick-practice-next-steps';
 import { getNextStep, lickPractice } from '$lib/state/lick-practice.svelte';
 import { settings } from '$lib/state/settings.svelte';
 import { saveLickPracticeSessions, type LickPracticeSessionLogEntry } from '$lib/persistence/lick-practice-sessions';
@@ -347,4 +347,80 @@ describe('getNextStep reads persisted learning state and history', () => {
 			expect(step?.action?.focusKey).toBe('C');
 		}
 	);
+});
+
+
+describe('recommendations after Daily follow-up practice', () => {
+	const daily = reportFor([0.6, 0.7, 0.8], ['first', 'second', 'third']);
+	const context = {
+		report: daily, plan: planFor(daily), sessionId: 'daily', timestamp: 100, completedLickIds: ['first']
+	};
+
+	afterEach(() => { lickPractice.plan = []; });
+
+	it('retains the original report and tracks actual follow-ups without consuming an empty restart', () => {
+		const plan = planFor(daily);
+		const initial = continueRecommendations(daily, plan, 'daily');
+		const empty = continueRecommendations(makeReport([]), [], 'deep-empty', initial);
+		expect(empty.completedLickIds).toEqual([]);
+		const deep = reportFor([0.5], ['first']);
+		const next = continueRecommendations(deep, planFor(deep), 'deep-first', empty);
+		const repeated = continueRecommendations(deep, planFor(deep), 'deep-first', next);
+		expect(repeated.completedLickIds).toEqual(['first']);
+		expect(repeated.report).toBe(daily);
+		expect(repeated.plan).toEqual(plan);
+		expect(plan).toHaveLength(3);
+	});
+
+	it('reranks the remaining Daily candidates using newly available session history', () => {
+		const deep = reportFor([0.5], ['first']);
+		const healthy = reportFor([0.98], ['second']);
+		expect(buildNextStep(inputFor(deep, {
+			unlockedKeyCounts: { first: 4, second: 4, third: 4 },
+			recommendationContext: context,
+			sessionLog: [entry('healthy-one', healthy, 101), entry('healthy-two', healthy, 102)]
+		}))?.action?.lickId).toBe('third');
+	});
+
+	it('chooses another Daily lick after Deep replaces the active plan', () => {
+		const deep = reportFor([0.5], ['first']);
+		lickPractice.plan = planFor(deep);
+		expect(getNextStep(deep, 'deep-first', context)?.action?.lickId).toBe('second');
+	});
+
+	it('keeps the Daily candidates across multiple follow-ups without cycling back', () => {
+		const deep = reportFor([0.5], ['second']);
+		expect(buildNextStep(inputFor(deep, {
+			unlockedKeyCounts: { first: 4, second: 4, third: 4 },
+			recommendationContext: { ...context, completedLickIds: ['first', 'second'] }
+		}))?.action?.lickId).toBe('third');
+	});
+
+	it('finishes when every eligible Daily lick has had follow-up practice', () => {
+		const deep = reportFor([0.5], ['third']);
+		expect(buildNextStep(inputFor(deep, {
+			unlockedKeyCounts: { first: 4, second: 4, third: 4 },
+			recommendationContext: { ...context, completedLickIds: ['first', 'second', 'third'] }
+		}))?.kind).toBe('done');
+	});
+
+	it('still offers rest based on the latest Deep session', () => {
+		const deep = reportFor([0.5], ['first']);
+		deep.totalAttempts = 8;
+		expect(buildNextStep(inputFor(deep, { recommendationContext: context }))?.kind).toBe('rest');
+	});
+
+	it('counts the retained Daily report once and preserves its resolved phrases', () => {
+		const phrase = { id: 'second' } as Phrase;
+		const deep = reportFor([0.5], ['first']);
+		const step = buildNextStep(inputFor(deep, {
+			unlockedKeyCounts: { first: 4, second: 4, third: 4 },
+			sessionLog: [entry('daily-ii-V-I-major', daily)],
+			recommendationContext: { ...context, plan: context.plan.map(item =>
+				item.phraseId === 'second' ? { ...item, phrase } : item) }
+		}));
+		expect(step?.action?.phrase).toBe(phrase);
+		expect(step?.reason).toContain('70%');
+		expect(step?.reason).not.toContain('2 sessions');
+	});
 });

@@ -28,6 +28,40 @@ function emptyInput(): AdminStatsInput {
 }
 
 describe('buildAdminUserRows', () => {
+	it('includes historical practice instead of reporting only four recent visit days', () => {
+		const summaries = Array.from({ length: 133 }, (_, index) => ({
+			user_id: 'longtime',
+			date: new Date(Date.UTC(2026, 9, 13 - index)).toISOString().slice(0, 10),
+			session_count: 25,
+			practice_minutes: 13,
+			practice_time_unavailable: true
+		}));
+		const [row] = buildAdminUserRows({
+			...emptyInput(), authUsers: [{ id: 'longtime' }], summaries,
+			visitDays: ['2026-10-01', '2026-10-12', '2026-10-13', '2026-10-14', '2026-10-14']
+				.map(date => ({ user_id: 'longtime', date }))
+		});
+		expect(row.activeDayCount).toBe(134);
+		expect(row.visitDayCount).toBe(4);
+		expect(row.lastActiveDate).toBe('2026-10-14');
+		expect(row.practiceMinutes).toBe(0);
+	});
+
+	it('ignores empty summaries and keeps different users activity separate', () => {
+		const [row] = buildAdminUserRows({
+			...emptyInput(), authUsers: [{ id: 'u1' }],
+			summaries: [
+				{ user_id: 'u1', date: '2026-08-01', session_count: 1, practice_minutes: 0 },
+				{ user_id: 'u1', date: '2026-08-18', session_count: 0, practice_minutes: 0 },
+				{ user_id: 'other', date: '2026-08-19', session_count: 25, practice_minutes: 13 }
+			],
+			visitDays: [{ user_id: 'other', date: '2026-08-20' }]
+		});
+		expect(row.activeDayCount).toBe(1);
+		expect(row.lastActiveDate).toBe('2026-08-01');
+		expect(buildAdminTotals([row], NOW).activeThisWeek).toBe(0);
+	});
+
 	it('counts distinct recorded visit dates, not practice attempts or devices', () => {
 		const [row] = buildAdminUserRows({
 			...emptyInput(),
@@ -40,6 +74,7 @@ describe('buildAdminUserRows', () => {
 			]
 		});
 		expect(row.visitDayCount).toBe(2);
+		expect(row.activeDayCount).toBe(2);
 		expect(row.lastVisitDate).toBe('2026-09-25');
 	});
 
@@ -75,6 +110,7 @@ describe('buildAdminUserRows', () => {
 				emailConfirmedAt: '2026-08-01T10:05:00Z',
 				lastActiveDate: '2026-08-14',
 				sessionCount: 5,
+				activeDayCount: 2,
 				visitDayCount: 0,
 				lastVisitDate: null,
 				practiceMinutes: 35,
@@ -103,6 +139,7 @@ describe('buildAdminUserRows', () => {
 				emailConfirmedAt: null,
 				lastActiveDate: null,
 				sessionCount: 0,
+				activeDayCount: 0,
 				visitDayCount: 0,
 				lastVisitDate: null,
 				practiceMinutes: 0,
@@ -196,7 +233,7 @@ describe('buildAdminTotals', () => {
 		expect(totals.signupsThisWeek).toBe(1);
 	});
 
-	it('counts a user as active this week iff their newest recorded visit reaches the cutoff', () => {
+	it('counts a user as active this week iff their newest practice or visit date reaches the cutoff', () => {
 		const rows = buildAdminUserRows({
 			...emptyInput(),
 			authUsers: [
@@ -205,10 +242,9 @@ describe('buildAdminTotals', () => {
 				{ id: 'stale', created_at: '2026-01-01T00:00:00Z' },
 				{ id: 'never', created_at: '2026-01-01T00:00:00Z' }
 			],
-			visitDays: [{ user_id: 'active', date: '2026-08-17' }, { user_id: 'boundary', date: '2026-08-12' }, { user_id: 'stale', date: '2026-08-11' }],
+			visitDays: [{ user_id: 'boundary', date: '2026-08-12' }, { user_id: 'stale', date: '2026-08-11' }],
 			summaries: [
 				{ user_id: 'active', date: '2026-08-17', session_count: 1, practice_minutes: 5 },
-				{ user_id: 'boundary', date: '2026-08-12', session_count: 1, practice_minutes: 5 },
 				{ user_id: 'stale', date: '2026-08-11', session_count: 1, practice_minutes: 5 }
 			]
 		});

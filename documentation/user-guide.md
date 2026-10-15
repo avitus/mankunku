@@ -226,7 +226,7 @@ The longer answer is in [The Daily Key](./architecture/tonality-system.md).
 
 The **Licks** page is your practice book. It shows the licks *you* are working with — the ones you’ve written in the editor, recorded, or stolen from the community. The hundreds of curated ear-training licks the app uses to feed Side A live behind the scenes; the Licks page is for your stuff. (An empty book says so, with a button to add your first lick.)
 
-The Studio Library opens in **Compact** view with **20** licks per page. Choose **Cards** for a roomier layout, or show **40** or **All**. Search and filters apply to the whole collection before paging; the sidebar can show just the practice set, needs-setup licks, or other licks.
+The Studio Library opens in **Compact** view with **20** licks per page. Choose **Cards** for a roomier layout. Page-size choices (**20**, **40**, or **All**) appear only when more than 20 licks match; page navigation appears only when those results span multiple pages. Search and filters apply to the whole collection before paging; the sidebar can show just the practice set, needs-setup licks, or other licks.
 
 ### Three sections
 
@@ -249,7 +249,7 @@ The cards are compact on purpose — the point is to scan a book, not read one c
 
 ### Search and filter
 
-The search box filters across all three groups by name or tag. A **progression filter** narrows to licks carrying a given progression tag — the fast way to answer "what have I got for turnarounds?" The category and difficulty browse filters that used to live on this page have been retired; they belonged to the old "browse the whole catalog" page, and now that your book is the focus, search plus progression is enough.
+The search box appears once your book has six licks and filters across all three groups by name or tag. It stays visible while a query is active so you can always clear it. A **progression filter** narrows to licks carrying a given progression tag — the fast way to answer "what have I got for turnarounds?" The category and difficulty browse filters that used to live on this page have been retired; they belonged to the old "browse the whole catalog" page, and now that your book is the focus, search plus progression is enough.
 
 Two buttons sit at the top right. **+ Add a lick** opens a chooser with the two ways in — **Record** a line from your horn or write one in the **Editor** (see [Adding your own licks](#adding-your-own-licks)). **Browse Community** opens the licks other players have shared: search by name, narrow by category, author or a maximum difficulty, sort by *Popular* or *Newest*, play any of them, and **Steal** one to adopt it into your book (or *Favorite* it to come back later). An adopted lick lands under *Other licks* with the author's name on it, ready to tag; **Return** (on its card here, or on the community page) hands it back. Community browsing needs you to be signed in.
 

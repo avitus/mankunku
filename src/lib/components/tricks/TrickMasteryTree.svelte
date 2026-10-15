@@ -51,42 +51,39 @@
 	}
 </script>
 
-<!-- Continuous left border reads as the mastery path connecting the rows. -->
-<div class="ml-1.5 space-y-2 border-l border-[var(--color-bg-tertiary)] pl-4">
-	{#each variants as variant (variant.key)}
+<div class="mastery-list">
+	{#each variants as variant, index (variant.key)}
 		{@const isUnlocked = unlockedKeys.has(variant.key)}
 		{@const isNext = nextKeys.has(variant.key)}
 		{@const passCount = passes(variant)}
-		{@const rowClass = `flex w-full items-baseline gap-2 rounded-lg p-2 text-left text-sm ${
-			isNext ? 'border border-[var(--color-accent)]/60' : 'border border-transparent'
-		} ${selectedKey === variant.key ? 'bg-[var(--color-bg-tertiary)]' : ''}`}
 		{#if isUnlocked}
-			<button
-				type="button"
-				onclick={() => onSelect?.(variant.key)}
-				class="{rowClass} transition-colors hover:bg-[var(--color-bg-tertiary)]"
-			>
-				<span aria-hidden="true" class="shrink-0 {passCount > 0 ? 'text-[var(--color-success)]' : 'text-[var(--color-text-secondary)]'}">
-					{passCount > 0 ? '✓' : '○'}
-				</span>
-				<span class="min-w-0 truncate">{variant.label}</span>
-				<span class="ml-auto shrink-0 tabular-nums text-xs text-[var(--color-text-secondary)]">
-					{passCount} pass{passCount !== 1 ? 'es' : ''}
-				</span>
+			<button type="button" class="mastery-row" aria-pressed={selectedKey === variant.key} onclick={() => onSelect?.(variant.key)}>
+				<span class="step-number">{String(index + 1).padStart(2, '0')}</span>
+				<span class="step-label">{variant.label}</span>
+				<span class="step-status">{passCount} pass{passCount !== 1 ? 'es' : ''}</span>
 			</button>
 		{:else}
-			<div class="{rowClass} {isNext ? '' : 'opacity-60'}">
-				<span aria-hidden="true" class="shrink-0 text-xs">🔒</span>
-				<span class="min-w-0">
-					<span class="block truncate text-[var(--color-text-secondary)]">{variant.label}</span>
-					<span class="block truncate text-xs text-[var(--color-text-secondary)]">
-						{prereqSummary(variant)}
-					</span>
-				</span>
-				{#if isNext}
-					<span class="smallcaps ml-auto shrink-0 text-xs text-[var(--color-accent)]">next up</span>
-				{/if}
+			<div class="mastery-row locked" class:next={isNext}>
+				<span class="step-number">{String(index + 1).padStart(2, '0')}</span>
+				<span class="step-label">{variant.label}<small>{prereqSummary(variant)}</small></span>
+				<span class="step-status">{isNext ? 'next up' : 'Locked'}</span>
 			</div>
 		{/if}
 	{/each}
 </div>
+
+<style>
+	.mastery-list { display: grid; gap: 3px; }
+	.mastery-row { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; align-items: center; gap: 12px; width: 100%; padding: 13px 12px; border: 1px solid transparent; border-bottom-color: var(--studio-border); border-radius: 3px; text-align: left; font-size: 13px; line-height: 1.5; }
+	button { cursor: pointer; }
+	button:hover { background: var(--studio-well); }
+	button[aria-pressed='true'] { background: var(--studio-well); box-shadow: inset 2px 0 var(--studio-accent-text); }
+	.step-number { font: 11px monospace; color: var(--color-brass); }
+	.step-label { min-width: 0; }
+	.step-label small { display: block; font-size: 11px; color: var(--studio-muted); margin-top: 4px; }
+	.step-status { font-size: 10px; color: var(--studio-muted); white-space: nowrap; }
+	.locked { color: var(--studio-muted); }
+	.next { border-color: var(--studio-border); }
+	.next .step-status { color: var(--studio-accent-text); }
+	@media (max-width: 480px) { .mastery-row { gap: 8px; padding: 12px 6px; font-size: 12px; } .step-status { white-space: normal; max-width: 36px; } }
+</style>

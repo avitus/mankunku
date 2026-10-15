@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures/auth';
+import { test, expect, setE2EAuthCookie } from './fixtures/auth';
 import { seedOnboardedAnonymous, seedStorage, SETTINGS_ONBOARDED, TOUR_DISMISSED } from './fixtures/storage';
 import type { Page } from '@playwright/test';
 
@@ -101,6 +101,97 @@ test.describe('auth — anonymous', () => {
 			page.locator('main').getByRole('link', { name: 'Sign in', exact: true })
 		).toBeVisible();
 	});
+});
+
+/**
+ * Wait until the sign-in form is hydrated, using the password toggle as the
+ * probe: it only works once client code runs. A submit clicked before
+ * `use:enhance` attaches posts the form natively, and a mocked action
+ * response then replaces the page instead of updating the form.
+ */
+async function waitForAuthFormHydration(page: Page): Promise<void> {
+	await expect(async () => {
+		await page.getByRole('button', { name: 'Show password', exact: true }).click();
+		await expect(page.getByLabel('Password', { exact: true })).toHaveAttribute('type', 'text');
+	}).toPass();
+}
+
+test('account switching keeps sign-in feedback visible until the destination loads', async ({
+	signedInPage: page,
+	baseURL
+}) => {
+	await seedOnboardedAnonymous(page);
+	await stubRest(page);
+	await page.goto('/settings');
+	await page.locator('nav details summary').click();
+	await page.getByRole('button', { name: 'Sign Out', exact: true }).click();
+	await expect(page).toHaveURL(/\/auth$/);
+	// Sign-out re-homes storage with a reload before hydrating the form.
+	await waitForAuthFormHydration(page);
+
+	let releaseLogin!: () => void;
+	const loginGate = new Promise<void>((resolve) => { releaseLogin = resolve; });
+	let releaseNavigation!: () => void;
+	const navigationGate = new Promise<void>((resolve) => { releaseNavigation = resolve; });
+	let navigationStarted!: () => void;
+	const navigating = new Promise<void>((resolve) => { navigationStarted = resolve; });
+	await page.route('**/auth?/login', async (route) => {
+		await loginGate;
+		await setE2EAuthCookie(page, {
+			id: '00000000-0000-0000-0000-000000000002',
+			email: 'second-user@example.com'
+		}, baseURL);
+		await route.fulfill({
+			contentType: 'application/json',
+			body: JSON.stringify({ type: 'redirect', status: 303, location: '/' })
+		});
+	});
+	await page.route((url) => url.pathname === '/' || url.pathname === '/__data.json', async (route) => {
+		navigationStarted();
+		await navigationGate;
+		await route.continue();
+	});
+	await page.getByLabel('Email').fill('second-user@example.com');
+	await page.getByLabel('Password', { exact: true }).fill('test-password');
+	await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+	const submit = page.locator('main button[type="submit"]').first();
+	try {
+		await expect(submit).toHaveAccessibleName('Signing in…');
+		await expect(submit).toBeDisabled();
+		releaseLogin();
+		await navigating;
+		// The auth response has arrived, but the next page is still loading.
+		await expect(submit).toHaveAccessibleName('Signing in…');
+		await expect(submit).toBeDisabled();
+		await expect(page.locator('main form')).toHaveAttribute('aria-busy', 'true');
+		await expect(page.getByLabel('Email')).toBeDisabled();
+	} finally {
+		releaseLogin();
+		releaseNavigation();
+	}
+	await expect(page).toHaveURL(new URL('/', baseURL!).href);
+});
+
+test('failed sign-in restores the form for retry', async ({ page }) => {
+	await seedOnboardedAnonymous(page);
+	await page.goto('/auth');
+	await page.route('**/auth?/login', async (route) => {
+		await route.fulfill({
+			contentType: 'application/json',
+			body: JSON.stringify({
+				type: 'failure', status: 400,
+				data: '[{"error":1,"email":2},"Invalid login credentials","second-user@example.com"]'
+			})
+		});
+	});
+	await waitForAuthFormHydration(page);
+	await page.getByLabel('Email').fill('second-user@example.com');
+	await page.getByLabel('Password', { exact: true }).fill('test-password');
+	await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+	await expect(page.locator('main').getByRole('alert')).toHaveText('Invalid login credentials');
+	await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeEnabled();
+	await expect(page.locator('main form')).toHaveAttribute('aria-busy', 'false');
+	await expect(page.getByLabel('Email')).toBeEnabled();
 });
 
 /**

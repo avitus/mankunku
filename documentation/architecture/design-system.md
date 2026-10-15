@@ -416,8 +416,10 @@ Home/landing, Sign in, Settings, Ear Training, Progress, Scales, Lick Practice s
 the running Lick Practice session (`/lick-practice/session`), Licks, Add Licks (`/licks/add`), the Lick Editor
 (`/licks/editor`), Community Licks (`/licks/community`) and Tunes opt into
 the layout's 1440px Studio Desk container. Tune Detail (`/tunes/[id]`) and Tune Editor (`/tunes/editor`) also use the
-shared editor shell. Other nested import and session routes retain their
-existing width and presentation. The setup summary
+shared editor shell. PDF Import (`/tunes/import/pdf`) uses the 1440px Studio Desk
+container and `PdfImportDesk`. Add Tunes and the iReal Pro, Band-in-a-Box and
+MuseScore import routes also use the shared 1440px container. Other session routes
+retain their existing width and presentation. The setup summary
 moves below the controls on tablet/mobile; instrument and scale banks reflow
 using `--selector-columns`. Do not apply new chrome across all routes as a side
 effect of migrating a single page.
@@ -510,12 +512,18 @@ inline confirmation and error states and the existing resend action. The route
 keeps SvelteKit form actions, progressive enhancement, autocomplete, registration
 validation and non-enumerating confirmation copy. Both themes use shared tokens;
 prototype state controls and sample responses are not shipped.
+Sign-in and registration keep their progress label and an inline spinner visible,
+with the form disabled, until the result is applied or the destination replaces it.
+Account-switch reloads retain that feedback; failures restore the form for retry.
+The spinner respects reduced-motion preferences.
 
 ### Daily and Deep practice desk
 
 The approved taller Studio Desk session uses the existing Svelte session engine,
-with a recessed music area and a 220px key-progress rail on wide screens. Below
-1050px the ring and End Session move below the music. Chord rows remain 128px;
+with a recessed music area and a 220px key-progress rail on wide screens. The
+current key is identified in the progress ring; omit the duplicate large
+accent-coloured key readout from the upper-right header in every session mode.
+Below 1050px the ring and End Session move below the music. Chord rows remain 128px;
 notation rows are 204.8px (60% taller), with a 140.8px music frame, 10px inner
 vertical padding and a separate 28px cue lane. The viewport reserves 460.8px so
 notation appearing or disappearing between cycles does not move the controls.
@@ -536,6 +544,17 @@ report actions and persistence remain owned by their existing state and audio
 modules. In particular, the original rule hides notation at twelve unlocked keys.
 Browser regression coverage includes the 11-key notation layout and 12-key ring,
 mobile/desktop geometry, ledger-note clearance and the existing session flows.
+
+Practice chart structure uses `--color-practice-divider`: slate `#627287` in
+dark mode and `#8391a3` in light mode. Use 1px horizontal progression separators
+and vertical chord-cell boundaries, with no extra trailing cell rule. These
+lines retain their contrast from initial load through Listen, Play and key
+changes. Dim inactive/past chord text and beat dots instead of the whole row
+or cell. `UpcomingKeysDisplay` and `ChordChart` share this rule across Daily,
+Deep and Focused Practice; preserve row heights, bar alignment, phase frames and
+the existing musical engraving. The MagicPath kit mirrors the dark token as
+`--mk-practice-divider`; independent future Deep Practice prototypes must reuse
+this rule rather than fading their structural frames.
 
 
 ### Lick Editor
@@ -590,6 +609,21 @@ style, author, difficulty, sorting, favorites and book membership use the existi
 community services. Selecting another phrase or changing filters cancels the
 current audition; the details link preserves access to the existing lick route.
 
+
+### Community Tunes
+
+`/tunes/community` extends the My Tunes Studio Library shell with a compact,
+paginated index and one stable changes preview. Reuse `StudioPage`, `StudioPanel`,
+the shared surface tokens and the native `ChordSymbolText` formatter. Complex
+alterations use its stacked chart variant. The preview shows at most eight bars
+in notation order, respects the declared meter and split-bar changes, and uses
+written pitch. Full melody engraving remains in the existing tune detail page.
+
+Harmony role tints follow the same restrained tonic, subdominant and dominant
+colors as Tune Detail. Selection uses a brass edge; favorites and book membership
+are separate actions. Filters apply before pagination, requests have loading and
+retry states, and mobile stacks the bounded list above the preview. Light mode
+uses the shared Studio surface tokens.
 
 ### Tune Detail and Tune Editor
 
@@ -696,11 +730,14 @@ selection, difficulty or accuracy colors.
 
 | Pattern | Reference | Status |
 | --- | --- | --- |
+| Community Tunes | Component `459518619592830976` | Native Svelte; compact library, eight-bar changes preview, written-key control, shared chord engraving, favorites and book actions |
 | Community Listening Desk | Component `461167035594973184` | Native Svelte; compact index, stable full score, no white cards, expansion, key or length labels/filters |
 | Lick Editor | `459517965835059200` / `460811927849934848` | Native Svelte; shared score/input/inspector hierarchy |
 | Tune Detail + Editor | `459518519676121088` / `461185056698941440` | Native Svelte; extends Lick Editor with tune operations |
 | Add Licks | `459517917629935616` / `460936884772802560` | Native Svelte; Editor first, Record Experimental |
-| PDF Import | `459518569684811776` / `461190228670046208` | Design prototype; Svelte conversion pending |
+| Add Tunes | `461306005251313664` / `461313167444815872` | Native Svelte; Editor and MuseScore primary, most reliable import label, three compact alternatives |
+| App imports | iReal `461305194613989376`, BIAB `461305580301221888`, MuseScore `461305586596864000` | Native Svelte; shared import workspace and source inspector, explicit read, compact results |
+| PDF Import | `459518569684811776` / `461190228670046208` | Native Svelte; explicit preparation, chart inspector, real cancellable recognition and editor review |
 
 PDF Import reuses the editing workspace language: file input/source preview,
 source-pitch and meter setup, optional OMR disclosure, cancellable recognition,
@@ -708,6 +745,27 @@ then source-aware review in the editor. Distinguish empty, selected, loading,
 cancelled, error and review states. Uncertain notes remain visibly uncertain;
 marking a passage reviewed does not silently correct it. Demo recognition and
 sample music must remain labelled as examples until connected to real services.
+
+`PdfImportDesk.svelte` owns the PDF presentation and uses the shared Studio
+Desk tokens in both themes. File selection and drag/drop stage a validated
+file; **Prepare draft** explicitly starts the existing recognition pipeline.
+The source-pitch and meter controls are locked during recognition. Optional
+OMR validation finishes before preparation is enabled. Cancellation retains
+the selected file for retry, and leaving the route aborts outstanding work.
+Successful recognition opens the existing Tune Editor with source crops,
+uncertainty notes and PDF linkage intact; only the editor saves the tune.
+The design-only example and simulated recognition are not shipped.
+
+`TuneImportDesk.svelte` shares one native workspace across iReal Pro, Band-in-a-Box
+and MuseScore. File selection stages a file; Read starts the real parser. Cancel,
+replacement and navigation invalidate pending reads. The source selector stays
+locked during reading. iReal and BIAB default to Concert; MuseScore preserves its
+file-aware default and any manual override. Parser warnings remain visible.
+Playlist search retains each tune's original identity and added state. Review
+opens the existing Tune Editor; Add to book retains difficulty calculation and
+saved-slug navigation. MuseScore preview reuses `NotationDisplay` and shared
+harmony-role colors, with dense scores scrolling inside their well. Prototype
+sample actions, fake recognition and example tune data are not shipped.
 
 The existing Home, Settings, Practice, Progress, Scales and Sign in patterns
 above remain canonical. Retain real data, empty states, account actions and
@@ -776,3 +834,81 @@ Admin · Operations Desk, component `461211093453402112`, revision
 `461217195662393344`. The rail stacks below the user list at 900px.
 User rows use compact vertical spacing and inline label/value pairs, wrapping
 on narrow screens while retaining every account fact and inspection control.
+
+### Record a lick
+
+`/licks/record` follows the Studio Desk editor and import family (approved
+MagicPath revision `461320126810185728`). A large four-beat panel shows both
+complete count-in bars: “Find the pulse”, then “Get ready to play”. Orange
+means count-in; brass “Play now” marks the bar-three entrance. Text and active
+beat borders carry the meaning independently of color. The cue reads the
+current audio time, without the scheduler's look-ahead, and shares the existing
+eight-beat count-in constant with transcription. Never replace the native
+clicks, pitch detector, transcription, or engraving with prototype simulations.
+
+The setup rail holds tempo, count-in and instrument context. Lock setup while
+recording; on phones bring the beat panel into view and hide the rail during
+the take. Cancellation is available throughout preparation and count-in.
+Review keeps live notation, playback and direct saving; “Review in editor”
+hands an unsaved take of up to four bars to the existing editor, preserving
+concert pitch and recording provenance. Longer takes retain direct saving.
+
+### Documentation · Liner Notes
+
+`/docs` and every published guide use the shared Studio Desk slate surfaces,
+Fraunces headings, brass accents and compact divided rows. The index has one
+paired “Start here” panel and a topic directory. A searchable guidebook stays
+visible on desktop; on phones “Browse guides” reveals it and closes after
+navigation. The same shell covers all thirteen guides in `DOC_TREE`.
+
+Article pages pair a bounded reading panel with a quiet “On this page” rail.
+At narrower widths the contents become an inline disclosure. Retain heading
+anchors, breadcrumbs, previous/next guide links, readable tables and contained
+horizontal scrolling. All content still comes from the bundled documentation
+and existing sanitized Markdown renderer; unlisted slugs remain 404s.
+
+“Ask AI” opens a native modal drawer with contained keyboard focus, Escape
+dismissal and focus returned to the trigger. Keep conversations mounted across
+docs navigation and send the current guide slug to the existing streaming API.
+Unavailable service guidance must leave the guidebook fully usable. Both native
+themes share the same hierarchy and controls.
+
+MagicPath references: index `459518917551996928`, revision
+`461350580233842688`; shared reader `459518965987827712`, revision
+`461350588391759872`. Both previews contain all thirteen guides. The native
+implementation uses `DocsSidebar`, `DocContents` and `docs-desk.css` with the
+existing `ChatInterface`; simulated prototype assistance is not shipped.
+
+
+### Tricks and device detail · Studio Desk
+
+`/tricks`, `/tricks/triad-pairs` and `/tricks/enclosures` share the numbered
+`StudioPanel` shell, inset music well, brass section labels and orange Lick
+Practice controls. The catalog uses two parallel device panels with abstract
+pitch contours, a concise musical purpose and actual unlocked-variant counts.
+Contours are navigation illustrations, never substitutes for engraved notation.
+
+Detail pages place the musical workspace first and a compact **Your practice**
+summary alongside it. Below 1100px, the summary moves between the workspace and
+mastery path so the practice action stays close to the selected phrase. The
+summary distinguishes ready, locked-preview and exploration states; a locked or
+uncatalogued enclosure remains explorable without granting practice credit.
+
+- `TrickPairSelector` is shared with Lick Practice setup: four columns on desktop,
+  two on narrow screens, full family labels, disabled locked choices and the
+  existing accessible radio-keyboard behavior.
+- `EnclosurePhraseCanvas` remains the same live editor in detail and setup. Its
+  Studio Desk well and approach-count controls share tokens; note targets, beat
+  alignment, progression choices and popup focus behavior retain their existing
+  implementation. The real branching mastery map remains intact.
+- Triad examples use `NotationDisplay` with `frameless` chrome inside the inset
+  well. Keep ABC engraving, beaming and written-pitch conversion. The compact
+  preview-key select affects only the example. `createTrickAudition` handles Hear,
+  stop, stale-load cancellation and disposal on navigation.
+- Progress uses the existing `LickProgressChart` and real per-variant history.
+  An empty history has a short explanation, never synthetic points or passes.
+
+Canvas references: catalog `459518182248550400`, triad detail
+`459518232861229056`, enclosure detail `461351673714057216`. The native Svelte
+components are the functional source of truth for unlocks, persistence, audio
+and drill handoff.

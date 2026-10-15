@@ -3,7 +3,10 @@
 	import { goto } from '$app/navigation';
 	import EnclosurePhraseCanvas from './EnclosurePhraseCanvas.svelte';
 	import EnclosureMasteryMap from './EnclosureMasteryMap.svelte';
-	import LickProgressChart from '$lib/components/licks/LickProgressChart.svelte';
+	import StudioPage from '$lib/components/console/StudioPage.svelte';
+	import StudioPanel from '$lib/components/console/StudioPanel.svelte';
+	import TrickProgress from './TrickProgress.svelte';
+	import './tricks.css';
 	import { getTrickById, trickContextFor, trickPracticeBed, trickEntryKey } from '$lib/tricks';
 	import { getVariantsForTrick, getVariantByKey, getUnlockedVariants, loadTrickUnlockContext, totalVariantPasses } from '$lib/tricks/mastery';
 	import { trickVariantKey, type TrickParameters } from '$lib/types/tricks';
@@ -66,46 +69,33 @@
 	onDestroy(audition.dispose);
 </script>
 
-<div class="enclosure-detail">
-	<h1>Enclosures</h1>
-	<EnclosurePhraseCanvas {parameters} onchange={updateParameters} {context} progressionType={bed}
-		{status} statusKind={selected ? ready ? 'ready' : 'locked' : 'exploration'}
-		onhear={phrase => audition.play(phrase, context.tempo)} hearing={audition.state.playing}
-		onpreviewchange={() => { void audition.stop(); }} />
-	{#if audition.state.error}<p class="audio-error" role="alert">{audition.state.error}</p>{/if}
-	<div class="selection">
-		<div>
-			<strong>{selected ? `${String(familyVariants.findIndex(v => v.key === key) + 1).padStart(2, '0')} · ${selected.label.replace(/ — (major|minor|dominant)$/, '')}` : 'Explore this enclosure'}</strong>
-			<p>{selected ? ready ? `${totalVariantPasses(unlockContext.progress, key)} passes` : `${prerequisites} required` : 'Choose a mastery step to practice this chord family.'}</p>
+<div class="tricks-desk">
+	<StudioPage eyebrow="Vocabulary / Melodic devices" title="Enclosures" description="Shape the approach. Hear the tension resolve. Make every chord tone an arrival.">
+		{#snippet actions()}<a class="trick-back" href="/tricks">← All tricks</a>{/snippet}
+		<div class="trick-layout">
+			<div class="trick-main">
+				<StudioPanel id="enclosure-shape" number="01" title="Shape the approach" description="Change the approach, target and landing directly in the phrase." domain="lick-practice">
+					<EnclosurePhraseCanvas {parameters} onchange={updateParameters} {context} progressionType={bed}
+						{status} statusKind={selected ? ready ? 'ready' : 'locked' : 'exploration'}
+						onhear={phrase => audition.play(phrase, context.tempo)} hearing={audition.state.playing}
+						onpreviewchange={() => { void audition.stop(); }} />
+					{#if audition.state.error}<p class="trick-audio-error" role="alert">{audition.state.error}</p>{/if}
+				</StudioPanel>
+				<StudioPanel id="enclosure-mastery" number="02" title="Mastery path" description="Each chord family has its own path. Complete three passes to unlock the connected steps." domain="lick-practice">
+					<EnclosureMasteryMap family={parameters.type} {context} selectedKey={selected?.key} onselect={selectVariant} {version} />
+					{#if selected}<TrickProgress points={history} />{/if}
+				</StudioPanel>
+			</div>
+			<aside class="trick-summary" aria-label="Your practice">
+				<StudioPanel id="enclosure-practice" number="→" title="Your practice" description="Next session" domain="lick-practice">
+					<p class="trick-status" data-ready={ready}>{status}</p>
+					<p class="trick-selection">{selected ? `${String(familyVariants.findIndex(v => v.key === key) + 1).padStart(2, '0')} · ${selected.label.replace(/ — (major|minor|dominant)$/, '')}` : 'Explore this enclosure'}</p>
+					{#if selected}<div class="trick-passes"><span>Total passes</span><strong>{totalVariantPasses(unlockContext.progress, key)}</strong></div>{/if}
+					<p class="trick-hint">{selected ? ready ? 'Choose your band, tempo and practice mode in Lick Practice.' : `${prerequisites} required to unlock this step.` : 'Choose a mastery step to practice this chord family.'}</p>
+					<button type="button" class="studio-action" disabled={!ready} onclick={practice}>Practice this enclosure →</button>
+					{#if ready}<button class="trick-suggestion" type="button" aria-pressed={isVariantSelected(key)} onclick={toggleSuggestion}>{isVariantSelected(key) ? '★ Suggest in tunes' : '☆ Suggest in tunes'}</button>{/if}
+				</StudioPanel>
+			</aside>
 		</div>
-		<button type="button" class="practice" disabled={!ready} onclick={practice}>Practice this enclosure →</button>
-	</div>
-	<section class="mastery" aria-labelledby="enclosure-mastery-heading">
-		<div class="section-heading"><h2 id="enclosure-mastery-heading">Mastery path</h2>
-			{#if ready}<button class="suggestion" type="button" aria-pressed={isVariantSelected(key)} onclick={toggleSuggestion}>{isVariantSelected(key) ? '★ Suggest in tunes' : '☆ Suggest in tunes'}</button>{/if}
-		</div>
-		<EnclosureMasteryMap family={parameters.type} {context} selectedKey={selected?.key} onselect={selectVariant} {version} />
-	</section>
-	{#if history.length > 0}
-		<section class="history"><h2>Your progress</h2><LickProgressChart points={history} /></section>
-	{/if}
+	</StudioPage>
 </div>
-
-<style>
-	.enclosure-detail { display: grid; gap: 22px; }
-	h1 { font-family: var(--font-display); font-size: clamp(32px, 4vw, 42px); font-weight: 500; letter-spacing: -.025em; line-height: 1.15; }
-	h2 { font-family: var(--font-display); font-size: 25px; font-weight: 500; }
-	.selection { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 14px; }
-	.selection strong { font-size: 14px; font-weight: 500; }
-	.selection p { font-size: 12px; color: var(--color-text-secondary); margin-top: 4px; }
-	.practice { background: var(--color-accent); color: white; border-radius: 7px; padding: 11px 16px; font-size: 13px; font-weight: 500; min-height: 44px; cursor: pointer; }
-	.practice:disabled { background: var(--color-bg-tertiary); color: var(--color-text-secondary); cursor: default; }
-	.mastery { border-top: 1px solid var(--color-bg-tertiary); padding-top: 24px; margin-top: 6px; }
-	.section-heading { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-bottom: 20px; flex-wrap: wrap; }
-	.suggestion { font-size: 12px; color: var(--color-text-secondary); min-height: 44px; cursor: pointer; }
-	.suggestion[aria-pressed='true'] { color: var(--color-success); }
-	.history { border-top: 1px solid var(--color-bg-tertiary); padding-top: 20px; }
-	.history h2 { margin-bottom: 12px; }
-	.audio-error { font-size: 13px; color: var(--color-error-text); }
-	@media (max-width: 430px) { .practice { width: 100%; } }
-</style>

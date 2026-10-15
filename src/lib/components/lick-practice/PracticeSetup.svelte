@@ -38,6 +38,7 @@
 	} from '$lib/state/lick-practice.svelte';
 	import { getTrickTempo, loadTrickPracticeProgress } from '$lib/persistence/trick-practice-store';
 	import { createTrickAudition } from '$lib/state/trick-audition.svelte';
+	import TrickPairSelector from '$lib/components/tricks/TrickPairSelector.svelte';
 	import EnclosurePhraseCanvas from '$lib/components/tricks/EnclosurePhraseCanvas.svelte';
 	import { DEFAULT_TEMPO_BUMP_PERCENT } from '$lib/state/lick-practice-rotation';
 	import { getInstrument } from '$lib/state/settings.svelte';
@@ -542,26 +543,30 @@
 
 						{#if selectedTrick && config.trickParameters && !isEnclosure}
 							{@const params = config.trickParameters}
-							<div class="flex flex-wrap items-end justify-center gap-x-8 gap-y-3">
-								{#each selectedTrick.parameters as def (def.name)}
-									{@const allowed = allowedTrickValues(def.name)}
-									<div class="flex flex-col items-center gap-1.5">
-										<SelectorPad
-											ariaLabel={def.label}
-											size="sm"
-											value={params[def.name] ?? ''}
-											options={def.values.map((v) => ({
-												value: v,
-												label: def.valueLabels?.[v] ?? v,
-												disabled: !allowed.has(v),
-												title: allowed.has(v) ? undefined : 'Locked — earn it on the mastery ladder'
-											}))}
-											onChange={(v) => handleTrickParamChange(def.name, v)}
-										/>
-										<span class="smallcaps console-engrave">{def.label}</span>
-									</div>
-								{/each}
-							</div>
+							{#if selectedTrick.id === 'triad-pairs'}
+								<TrickPairSelector value={params.pair ?? ''} unlockedValues={[...allowedTrickValues('pair')]} onchange={value => handleTrickParamChange('pair', value)} />
+							{:else}
+								<div class="flex flex-wrap items-end justify-center gap-x-8 gap-y-3">
+									{#each selectedTrick.parameters as def (def.name)}
+										{@const allowed = allowedTrickValues(def.name)}
+										<div class="flex flex-col items-center gap-1.5">
+											<SelectorPad
+												ariaLabel={def.label}
+												size="sm"
+												value={params[def.name] ?? ''}
+												options={def.values.map((v) => ({
+													value: v,
+													label: def.valueLabels?.[v] ?? v,
+													disabled: !allowed.has(v),
+													title: allowed.has(v) ? undefined : 'Locked — earn it on the mastery ladder'
+												}))}
+												onChange={(v) => handleTrickParamChange(def.name, v)}
+											/>
+											<span class="smallcaps console-engrave">{def.label}</span>
+										</div>
+									{/each}
+								</div>
+							{/if}
 
 							{#if frontierHint}
 								<p class="truncate text-center text-xs text-[var(--color-text-secondary)]">

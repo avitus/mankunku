@@ -117,19 +117,18 @@ test.describe('tune community — authed browse', () => {
 
 		// The session-gated browse UI.
 		await expect(signedInPage.getByPlaceholder(/search by title/i)).toBeVisible();
-		await expect(signedInPage.getByRole('button', { name: /^popular$/i })).toBeVisible();
-		await expect(signedInPage.getByRole('button', { name: /^newest$/i })).toBeVisible();
+		await expect(signedInPage.getByRole('combobox', { name: 'Sort community tunes' })).toHaveValue('popular');
 		await expect(signedInPage.getByText('Sign in to browse community tunes.')).toHaveCount(0);
 
 		// One card, counted in the header, opening the sheet.
-		await expect(signedInPage.getByText('1 sheet', { exact: true })).toBeVisible();
-		const card = signedInPage.getByRole('button', { name: 'Open Community Test Tune' });
+		await expect(signedInPage.getByText('1–1 of 1 shared tunes', { exact: true })).toBeVisible();
+		const card = signedInPage.getByRole('button', { name: 'Preview Community Test Tune' });
 		await expect(card).toBeVisible();
 		await expect(card).toContainText('E2E Composer');
 		await expect(card).toContainText('by Test Author');
 		// Concert C on the seeded tenor reads D — keys are never shown concert.
-		await expect(card).toContainText('Key of D');
-		await expect(card).toContainText('4 bars');
+		await expect(signedInPage.getByRole('combobox', { name: 'Preview written key' })).toHaveValue('D');
+		await expect(signedInPage.locator('.ct-preview')).toContainText('4 bars');
 		await expect(card).toContainText('Medium Swing');
 
 		// Another player's sheet: favourite count and the adopt action, no
@@ -154,7 +153,7 @@ test.describe('tune community — authed browse', () => {
 		await signedInPage.goto('/tunes/community');
 
 		// The app's own click — a client-side navigation, not a reload.
-		await signedInPage.getByRole('button', { name: 'Open Community Test Tune' }).click();
+		await signedInPage.getByRole('link', { name: 'View full chart' }).click();
 		await expect(signedInPage).toHaveURL(/\/tunes\/e2e-community-tune-1$/);
 
 		await expect(signedInPage.getByRole('heading', { name: 'Community Test Tune' })).toBeVisible();
@@ -198,7 +197,7 @@ test.describe('tune community — authed browse', () => {
 		await signedInPage.goto('/tunes/community');
 
 		await expect(signedInPage.getByText('No shared tunes yet.')).toBeVisible();
-		await expect(signedInPage.getByText('0 sheets', { exact: true })).toBeVisible();
+		await expect(signedInPage.getByText('0 shared tunes', { exact: true })).toBeVisible();
 		await expect(signedInPage.locator('main').getByRole('link', { name: /add a tune/i })).toHaveAttribute(
 			'href',
 			'/tunes/add'
@@ -307,5 +306,143 @@ test.describe('tune community — add from the detail page', () => {
 		expect(cloud.rows('tune_adoptions')).toEqual([
 			expect.objectContaining({ user_id: ADOPTER.id, tune_id: 'e2e-community-tune-1' })
 		]);
+	});
+});
+
+test.describe('community studio desk', () => {
+	const READER: E2ETestUser = { id: 'aaaaaaaa-0000-4000-8000-0000000ad098', email: 'reader@e2e.dev' };
+	const rows = Array.from({ length: 8 }, (_, index) => ({
+		...COMMUNITY_TUNE_ROW,
+		id: `community-desk-${index}`,
+		title: index === 0 ? 'Autumn Study' : `Community Tune ${index + 1}`,
+		favorite_count: 20 - index,
+		sections: [{ ...COMMUNITY_TUNE_ROW.sections[0], bars: 32,
+			harmony: [
+				{ chord: { root: 'D', quality: 'min7' }, startOffset: [0, 1], duration: [1, 1], scaleId: 'major.dorian' },
+				{ chord: { root: 'G', quality: '7' }, symbol: 'G7(b9,#11)/B', startOffset: [1, 1], duration: [1, 1], scaleId: 'major.mixolydian' },
+				{ chord: { root: 'C', quality: 'maj7' }, startOffset: [2, 1], duration: [30, 1], scaleId: 'major.ionian' }
+			]
+		}]
+	}));
+
+	/** Seed the stub cloud with the community rows and author, serve the paginated tunes listing, open /tunes/community and return the cloud. */
+	async function desk(page: Page, baseURL: string) {
+		const cloud = createStubCloud();
+		for (const row of rows) cloud.seedRow('tunes', row);
+		cloud.seedRow('public_tune_authors', COMMUNITY_AUTHOR_ROW);
+		await installStubCloud(page.context(), cloud, READER, baseURL);
+		await seedStorage(page, { settings: SETTINGS_ONBOARDED, 'tour-state': TOUR_DISMISSED });
+		await page.route('**/rest/v1/tunes?*', async route => {
+			if (route.request().method() !== 'GET') return route.fallback();
+			const params = new URL(route.request().url()).searchParams;
+			// The shared stub only supports eq/neq and no offset. This listing
+			// fixture honors the actual page and global membership query.
+			if (params.get('user_id') !== `neq.${READER.id}`) return route.fallback();
+			let result = [...rows];
+			const ids = params.get('id');
+			if (ids?.startsWith('in.')) result = result.filter(row => ids.includes(row.id));
+			if (ids?.startsWith('not.in.')) result = result.filter(row => !ids.includes(row.id));
+			if (params.get('or')?.includes('zz-unmatched')) result = [];
+			const offset = Number(params.get('offset') ?? 0);
+			const limit = Number(params.get('limit') ?? 50);
+			await jsonRoute(result.slice(offset, offset + limit))(route);
+		});
+		await page.goto('/tunes/community');
+		await expect(page.getByRole('heading', { name: 'Autumn Study', exact: true })).toBeVisible();
+		return cloud;
+	}
+
+	test('browses pages, retains eight bars, and transposes rich chords in written pitch', async ({ page, baseURL }) => {
+		await desk(page, baseURL!);
+		await expect(page.locator('.ct-tune-row')).toHaveCount(6);
+		await expect(page.locator('.ct-bar')).toHaveCount(8);
+		await expect(page.getByRole('combobox', { name: 'Preview written key' })).toHaveValue('D');
+		await expect(page.locator('.ct-chord-cell').nth(1)).toContainText('A7(b9,#11)/C#');
+		await page.getByRole('combobox', { name: 'Preview written key' }).selectOption('F');
+		await expect(page.locator('.ct-chord-cell').nth(1)).toContainText('C7(b9,#11)/E');
+		await page.getByRole('button', { name: 'Preview Community Tune 2', exact: true }).click();
+		await expect(page.getByRole('heading', { name: 'Community Tune 2', exact: true })).toBeVisible();
+		await expect(page.getByRole('combobox', { name: 'Preview written key' })).toHaveValue('D');
+		await page.getByRole('button', { name: 'Next page' }).click();
+		await expect(page.locator('.ct-tune-row')).toHaveCount(2);
+		await expect(page.getByRole('button', { name: 'Preview Community Tune 7', exact: true })).toHaveAttribute('aria-pressed', 'true');
+		await expect(page.getByRole('button', { name: 'Next page' })).toBeDisabled();
+		await page.getByRole('button', { name: 'Previous page' }).click();
+		await expect(page.locator('.ct-tune-row')).toHaveCount(6);
+	});
+
+	test('favorites, adds and returns through real persistence actions', async ({ page, baseURL }) => {
+		const cloud = await desk(page, baseURL!);
+		await page.getByRole('button', { name: 'Favorite Autumn Study', exact: true }).click();
+		await expect(page.getByRole('button', { name: 'Unfavorite Autumn Study', exact: true })).toBeEnabled();
+		expect(cloud.rows('tune_favorites')).toHaveLength(1);
+		await page.getByRole('button', { name: 'Add Autumn Study to my book' }).click();
+		await expect(page.getByRole('link', { name: 'In my book' })).toBeVisible();
+		expect(cloud.rows('tune_adoptions')).toHaveLength(1);
+		await page.getByRole('button', { name: 'Return to community' }).click();
+		await expect(page.getByRole('button', { name: 'Add Autumn Study to my book' })).toBeEnabled();
+		expect(cloud.rows('tune_adoptions')).toHaveLength(0);
+		await page.getByRole('button', { name: /Filters/ }).click();
+		await page.getByRole('combobox', { name: 'Filter collection' }).selectOption('favorites');
+		await expect(page.locator('.ct-tune-row')).toHaveCount(1);
+		await page.getByRole('button', { name: 'Unfavorite Autumn Study', exact: true }).click();
+		await expect(page.getByRole('heading', { name: 'No tunes match just yet.' })).toBeVisible();
+		await page.locator('.ct-state').getByRole('button', { name: 'Clear filters' }).click();
+		await expect(page.locator('.ct-tune-row')).toHaveCount(6);
+	});
+
+	test('rolls back failed actions and offers a retry for failed collection loads', async ({ page, baseURL }) => {
+		await desk(page, baseURL!);
+		await page.route('**/rest/v1/tune_favorites*', route => route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ message: 'Test rejection' }) }));
+		await page.getByRole('button', { name: 'Favorite Autumn Study', exact: true }).click();
+		await expect(page.getByRole('alert')).toHaveText('Could not save your favorite. Please try again.');
+		await expect(page.getByRole('button', { name: 'Favorite Autumn Study', exact: true })).toContainText('20');
+		await page.route('**/rest/v1/tunes?*', async route => {
+			await route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ message: 'Test unavailable' }) });
+		}, { times: 1 });
+		await page.getByRole('combobox', { name: 'Sort community tunes' }).selectOption('newest');
+		await expect(page.getByRole('heading', { name: 'The collection couldn’t load.' })).toBeVisible();
+		await page.getByRole('button', { name: 'Try again' }).click();
+		await expect(page.locator('.ct-tune-row')).toHaveCount(6);
+		await page.getByRole('searchbox', { name: 'Search community tunes' }).fill('zz-unmatched');
+		await expect(page.getByRole('heading', { name: 'No tunes match just yet.' })).toBeVisible();
+	});
+
+	test('reconciles a filtered page when an in-flight favorite is rejected', async ({ page, baseURL }) => {
+		await desk(page, baseURL!);
+		let release!: () => void;
+		const responseGate = new Promise<void>(resolve => { release = resolve; });
+		await page.route('**/rest/v1/tune_favorites*', async route => {
+			await responseGate;
+			await route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ message: 'Delayed rejection' }) });
+		});
+		await page.getByRole('button', { name: 'Favorite Autumn Study', exact: true }).click();
+		await page.getByRole('button', { name: /Filters/ }).click();
+		await page.getByRole('combobox', { name: 'Filter collection' }).selectOption('favorites');
+		await expect(page.locator('.ct-tune-row')).toHaveCount(1);
+		release();
+		await expect(page.getByRole('heading', { name: 'No tunes match just yet.' })).toBeVisible();
+	});
+
+	test('fits a compact mobile screen and the light theme', async ({ page, baseURL }, testInfo) => {
+		await page.setViewportSize({ width: 390, height: 844 });
+		await desk(page, baseURL!);
+		await expect(page.locator('.ct-bar')).toHaveCount(8);
+		expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+		await page.getByRole('button', { name: 'Preview Community Tune 2', exact: true }).click();
+		await expect(page.getByRole('heading', { name: 'Community Tune 2', exact: true })).toBeVisible();
+		await page.evaluate(() => document.documentElement.classList.add('light'));
+		await page.screenshot({ path: testInfo.outputPath('mobile-light.png'), fullPage: true });
+		await page.setViewportSize({ width: 320, height: 844 });
+		expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+		// A page can fit while long alterations still overlap adjacent bars.
+		expect(await page.locator('.ct-chord-cell .chord-symbol').evaluateAll(symbols => symbols.every(symbol => {
+			const ink = symbol.getBoundingClientRect();
+			const cell = symbol.closest('.ct-chord-cell')!.getBoundingClientRect();
+			return ink.left >= cell.left - 1 && ink.right <= cell.right + 1;
+		}))).toBe(true);
+		await page.setViewportSize({ width: 1440, height: 1100 });
+		await page.evaluate(() => document.documentElement.classList.remove('light'));
+		await page.screenshot({ path: testInfo.outputPath('desktop.png'), fullPage: true });
 	});
 });

@@ -61,6 +61,14 @@ describe('claudeJsonToTune', () => {
 		expect(a.notes[1]).toMatchObject({ pitch: 74, duration: [3, 8], offset: [1, 2] });
 	});
 
+	it('rejects a meter the community gate would reject (CodeRabbit on #277)', () => {
+		const doc = validDoc();
+		doc.timeSignature = [4, 128];
+		const { sheet, errors } = claudeJsonToTune(doc);
+		expect(sheet).toBeNull();
+		expect(errors).toContain('invalid timeSignature');
+	});
+
 	it('respects non-4/4 time signatures in offset math', () => {
 		const doc = validDoc();
 		doc.timeSignature = [3, 4];

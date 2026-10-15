@@ -1,135 +1,47 @@
-<svelte:head>
-	<title>Add Tunes — Mankunku</title>
-</svelte:head>
+<script lang="ts">
+	import StudioPage from '$lib/components/console/StudioPage.svelte';
+	import TuneSourceIcon from '$lib/components/tunes/TuneSourceIcon.svelte';
+	import '$lib/components/tunes/tune-add-desk.css';
+	const primary = [
+		{ id: 'editor', name: 'Editor', label: 'From an idea', detail: 'Enter the melody, shape the changes, and build the form. One note at a time.', cta: 'Open the editor', href: '/tunes/editor' },
+		{ id: 'musescore', name: 'MuseScore', label: 'From your score', detail: 'Import a score with its melody, changes, and form. Check the matched part and written pitch.', cta: 'Import from MuseScore', href: '/tunes/import/musescore' }
+	] as const;
+	const secondary = [
+		{ id: 'pdf', name: 'PDF Upload', formats: 'PDF · Up to 10 MB', detail: 'Turn a lead sheet into a draft, then review it.', cta: 'Import a PDF', href: '/tunes/import/pdf' },
+		{ id: 'ireal', name: 'iReal Pro', formats: 'irealb:// share link', detail: 'A song or playlist link. Chords and form.', cta: 'Import from iReal Pro', href: '/tunes/import/ireal' },
+		{ id: 'biab', name: 'Band-in-a-Box', formats: 'SGU / MGU · MusicXML', detail: 'Your song’s changes and form. Check import notes.', cta: 'Import from Band-in-a-Box', href: '/tunes/import/biab' }
+	] as const;
+</script>
 
-<div class="space-y-6">
-	<div>
-		<div class="smallcaps text-[var(--color-brass)]">Build your book</div>
-		<h1 class="font-display text-4xl font-bold tracking-tight">Add Tunes</h1>
-		<div class="jazz-rule mt-2 max-w-[140px]"></div>
-	</div>
+<svelte:head><title>Add Tunes — Mankunku</title></svelte:head>
 
-	<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-		<a
-			href="/tunes/editor"
-			class="group rounded-lg bg-[var(--color-bg-secondary)] p-6 transition-colors hover:bg-[var(--color-bg-tertiary)]"
-		>
-			<!-- Brass staff-and-pen glyph -->
-			<svg
-				class="mb-3 h-8 w-8 text-[var(--color-brass)]"
-				viewBox="0 0 24 24"
-				fill="none"
-				stroke="currentColor"
-				stroke-width="1.6"
-				aria-hidden="true"
-			>
-				<path d="M3 6h18 M3 10h18 M3 14h11 M3 18h8" />
-				<path d="M16.5 21l5-5-2.5-2.5-5 5V21z" fill="currentColor" stroke="none" />
-			</svg>
-			<h2 class="font-display text-xl font-semibold group-hover:text-[var(--color-accent)]">
-				Editor
-			</h2>
-			<p class="mt-1 text-sm italic text-[var(--color-text-secondary)]">
-				Chart a tune by hand — sections, melody, and changes.
-			</p>
-		</a>
-
-		<a
-			href="/tunes/import/pdf"
-			class="group rounded-lg bg-[var(--color-bg-secondary)] p-6 transition-colors hover:bg-[var(--color-bg-tertiary)]"
-		>
-			<!-- Brass document glyph -->
-			<svg
-				class="mb-3 h-8 w-8 text-[var(--color-brass)]"
-				viewBox="0 0 24 24"
-				fill="none"
-				stroke="currentColor"
-				stroke-width="1.6"
-				aria-hidden="true"
-			>
-				<path d="M6 2h9l5 5v15H6z" />
-				<path d="M15 2v5h5" />
-				<path d="M9 13h6 M9 17h6" />
-			</svg>
-			<h2 class="font-display text-xl font-semibold group-hover:text-[var(--color-accent)]">
-				PDF Upload
-			</h2>
-			<p class="mt-1 text-sm italic text-[var(--color-text-secondary)]">
-				Let the AI read a scanned chart, then review and correct it.
-			</p>
-		</a>
-
-		<a
-			href="/tunes/import/ireal"
-			class="group rounded-lg bg-[var(--color-bg-secondary)] p-6 transition-colors hover:bg-[var(--color-bg-tertiary)]"
-		>
-			<!-- Brass link glyph -->
-			<svg
-				class="mb-3 h-8 w-8 text-[var(--color-brass)]"
-				viewBox="0 0 24 24"
-				fill="none"
-				stroke="currentColor"
-				stroke-width="1.6"
-				aria-hidden="true"
-			>
-				<path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1.5 1.5" />
-				<path d="M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1.5-1.5" />
-			</svg>
-			<h2 class="font-display text-xl font-semibold group-hover:text-[var(--color-accent)]">
-				iReal Pro
-			</h2>
-			<p class="mt-1 text-sm italic text-[var(--color-text-secondary)]">
-				Paste an iReal Pro share link — single tunes or whole playlists.
-			</p>
-		</a>
-
-		<a
-			href="/tunes/import/biab"
-			class="group rounded-lg bg-[var(--color-bg-secondary)] p-6 transition-colors hover:bg-[var(--color-bg-tertiary)]"
-		>
-			<!-- Brass box glyph -->
-			<svg
-				class="mb-3 h-8 w-8 text-[var(--color-brass)]"
-				viewBox="0 0 24 24"
-				fill="none"
-				stroke="currentColor"
-				stroke-width="1.6"
-				aria-hidden="true"
-			>
-				<path d="M3 7l9-4 9 4v10l-9 4-9-4z" />
-				<path d="M3 7l9 4 9-4 M12 11v10" />
-			</svg>
-			<h2 class="font-display text-xl font-semibold group-hover:text-[var(--color-accent)]">
-				Band-in-a-Box
-			</h2>
-			<p class="mt-1 text-sm italic text-[var(--color-text-secondary)]">
-				Import .SGU/.MGU songs or a BIAB MusicXML export.
-			</p>
-		</a>
-
-		<a
-			href="/tunes/import/musescore"
-			class="group rounded-lg bg-[var(--color-bg-secondary)] p-6 transition-colors hover:bg-[var(--color-bg-tertiary)]"
-		>
-			<!-- Brass quarter-note glyph -->
-			<svg
-				class="mb-3 h-8 w-8 text-[var(--color-brass)]"
-				viewBox="0 0 24 24"
-				fill="none"
-				stroke="currentColor"
-				stroke-width="1.6"
-				aria-hidden="true"
-			>
-				<path d="M9 18V4l10-2v14" />
-				<circle cx="6.5" cy="18" r="2.5" fill="currentColor" stroke="none" />
-				<circle cx="16.5" cy="16" r="2.5" fill="currentColor" stroke="none" />
-			</svg>
-			<h2 class="font-display text-xl font-semibold group-hover:text-[var(--color-accent)]">
-				MuseScore
-			</h2>
-			<p class="mt-1 text-sm italic text-[var(--color-text-secondary)]">
-				Import a .mscz/.mscx score — melody, changes, and form.
-			</p>
-		</a>
-	</div>
+<div class="tune-add-desk">
+	<a class="ta-back" href="/tunes"><TuneSourceIcon name="back" size={14} />Your tunes</a>
+	<StudioPage eyebrow="Build your book" title="Add tunes" description="Start with an idea. Bring a score. Make it yours.">
+		{#snippet actions()}{/snippet}
+		<section class="ta-panel ta-primary" aria-label="Create in Editor or import from MuseScore">
+			{#each primary as method, i (method.id)}
+				<article class="ta-bay">
+					<div class="ta-bay-heading"><span class="studio-label">0{i + 1} / {method.label}</span>{#if method.id === 'musescore'}<span class="ta-recommended">Most reliable import</span>{:else}<TuneSourceIcon name={method.id} size={21} />{/if}</div>
+					{#if method.id === 'editor'}
+						<div class="ta-art ta-editor" aria-hidden="true"><div class="ta-mini-heading"><span>YOUR CHART</span><TuneSourceIcon name="editor" size={17} /></div><div class="ta-untitled">Untitled tune<span>▏</span></div><div class="ta-entry-banks"><span>Melody</span><span>Changes</span><span>Form</span></div><div class="ta-chart-rule"><i></i><i></i><i></i><i></i></div></div>
+					{:else}
+						<div class="ta-art ta-score" aria-hidden="true"><div class="ta-paper"><span>A score worth keeping.</span><TuneSourceIcon name="musescore" size={44} /><small>SCORE</small></div><span>MSCZ · MSCX</span></div>
+					{/if}
+					<div class="ta-copy"><h2>{method.name}<span aria-hidden="true">.</span></h2><p>{method.detail}</p></div>
+					<a class="ta-action" href={method.href}>{method.cta}<TuneSourceIcon name="arrow" size={16} /></a>
+				</article>
+			{/each}
+		</section>
+		<section class="ta-more" aria-label="More ways to add a tune">
+			<header><span class="studio-label">More ways to add a tune</span><span>PDFs, links, and song files.</span></header>
+			<div class="ta-panel ta-secondary">
+				{#each secondary as method (method.id)}
+					<article><span class="ta-method-icon"><TuneSourceIcon name={method.id} size={23} /></span><div><h3>{method.name}</h3><span class="ta-format">{method.formats}</span></div><p>{method.detail}</p><a class="ta-action ta-quiet" href={method.href}>{method.cta}<TuneSourceIcon name="arrow" size={16} /></a></article>
+				{/each}
+			</div>
+		</section>
+		<div class="ta-closing"><TuneSourceIcon name="book" size={19} /><p>However it starts, it ends up in your book.<span>Review, edit, and practice with the same familiar tools.</span></p></div>
+		<footer class="ta-footer"><span>MANKUNKU <b>/</b> Your repertoire, in your hands.</span><span>From an idea to your next session.</span></footer>
+	</StudioPage>
 </div>

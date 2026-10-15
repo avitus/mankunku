@@ -4,13 +4,16 @@
  */
 
 export type TuneCommunitySort = 'popular' | 'newest';
+export type TuneCommunityScope = 'all' | 'favorites' | 'in-book' | 'not-in-book';
 
 export const tuneCommunity = $state<{
 	searchQuery: string;
 	authorQuery: string;
 	sort: TuneCommunitySort;
+	scope: TuneCommunityScope;
 }>({
 	searchQuery: '',
 	authorQuery: '',
-	sort: 'popular'
+	sort: 'popular',
+	scope: 'all'
 });

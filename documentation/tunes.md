@@ -65,7 +65,9 @@ Manual melody entry is **4/4 only**. Imported charts in other meters keep their 
 
 ## Sharing and adopting
 
-**Browse Community** (you'll need to be signed in) shows charts other players have shared. Search by title, composer or tag, narrow by author, sort by *Popular* or *Newest*, and tap the heart to favourite one. **+ Add to my book** adopts it: it lands in your book with an *Adopted* badge and the original author's name — you can read it, transpose it, and practice over it, but it's still theirs. The card then reads *✓ In my book*; tapping that, or **Return to community** on the tune's page, removes your copy. Your own shared charts show as *My sheet*.
+**Browse Community** (you'll need to be signed in) opens a compact library beside a changes preview. Select a tune to see its opening eight bars, contributor, style, form, and whether it includes a melody. The written-key selector transposes the preview for your instrument; **View full chart** opens the complete engraved sheet.
+
+Search by title, composer, style or tag, sort by popularity or newest first, and open **Filters** to narrow by contributor, favorites, or book membership. All filters apply across the collection before pagination. Tap the heart to favorite a tune. **+ Add to my book** adopts it with the original author's attribution so you can read, transpose and practice it. **In my book** opens the tune; the separate **Return to community** action removes your copy. Your own charts remain under My Tunes.
 
 There is **no publish button**, and this is worth knowing before you chart anything you'd rather keep to yourself: if you're signed in, every tune you save syncs to your account and appears in other players' Browse Community list under your display name. Sharing is the default, not a step. (The same is true of licks you write or record — the lick editor says so the first time.)
 

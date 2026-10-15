@@ -146,6 +146,9 @@
 	/** The user's personal collection: own licks + adopted community licks. */
 	const myLicks = $derived([...userLicks, ...stolenLicks]);
 
+	/** Small books are easy to scan; keep an active query available to clear. */
+	const showSearch = $derived(myLicks.length > 5 || licks.searchQuery.length > 0);
+
 	/** Apply the search box (name + tags) to the collection. */
 	const searched = $derived.by(() => {
 		const q = licks.searchQuery.trim().toLowerCase();
@@ -370,18 +373,21 @@
 				{:else}
 					<!-- Search + progression filter -->
 					<div class="library-filter">
+						{#if showSearch}
+							<label
+								><span class="studio-label">Find a phrase</span>
+								<input
+									type="search"
+									placeholder="Find a lick…"
+									aria-label="Search licks"
+									bind:value={licks.searchQuery}
+									class="w-full rounded-lg bg-[var(--color-bg-secondary)] px-4 py-2 text-sm
+						   placeholder:text-[var(--color-text-secondary)] focus:outline-none
+						   focus:ring-1 focus:ring-[var(--color-accent)]"
+								/>
+							</label>
+						{/if}
 						<label
-							><span class="studio-label">Find a phrase</span>
-							<input
-								type="search"
-								placeholder="Find a lick…"
-								aria-label="Search licks"
-								bind:value={licks.searchQuery}
-								class="w-full rounded-lg bg-[var(--color-bg-secondary)] px-4 py-2 text-sm
-					   placeholder:text-[var(--color-text-secondary)] focus:outline-none
-					   focus:ring-1 focus:ring-[var(--color-accent)]"
-							/>
-						</label><label
 							><span class="studio-label">Progression</span>
 							<select
 								bind:value={licks.progressionFilter}
@@ -401,18 +407,21 @@
 						total={ordered.length}
 						noun="Licks"
 						view={libraryView}
+						showPageSize={ordered.length > 20}
 						{pageSize}
 						onview={(view) => (libraryView = view)}
 						onsize={(size) => (pageSize = size)}
 					/>
-					<LibraryPagination
-						total={ordered.length}
-						{pageSize}
-						page={currentPage}
-						noun="licks"
-						position="Top"
-						onchange={(next) => (pageNumber = next)}
-					/>
+					{#if ordered.length > pageSize}
+						<LibraryPagination
+							total={ordered.length}
+							{pageSize}
+							page={currentPage}
+							noun="licks"
+							position="Top"
+							onchange={(next) => (pageNumber = next)}
+						/>
+					{/if}
 
 					{#if ordered.length === 0}
 						<div class="rounded-lg bg-[var(--color-bg-secondary)] p-8 text-center">
@@ -470,14 +479,16 @@
 							</section>
 						{/if}
 					{/if}
-					<LibraryPagination
-						total={ordered.length}
-						{pageSize}
-						page={currentPage}
-						noun="licks"
-						position="Bottom"
-						onchange={(next) => (pageNumber = next)}
-					/>
+					{#if ordered.length > pageSize}
+						<LibraryPagination
+							total={ordered.length}
+							{pageSize}
+							page={currentPage}
+							noun="licks"
+							position="Bottom"
+							onchange={(next) => (pageNumber = next)}
+						/>
+					{/if}
 				{/if}
 			</StudioPanel>
 		</div>

@@ -5,6 +5,7 @@
 	import StudioPanel from '$lib/components/console/StudioPanel.svelte';
 	import '$lib/components/admin/AdminDesk.css';
 	import AdminContent from '$lib/components/admin/AdminContent.svelte';
+	import { isInactive } from '$lib/ui/admin-user-filter';
 	import type { PageData } from './$types';
 
 	let { data }: { data: PageData } = $props();
@@ -20,10 +21,8 @@
 	let joinedBefore = $state('');
 	const visibleUsers = $derived(data.users.filter(row => {
 		const matchesSearch = `${row.email ?? ''} ${row.displayName ?? ''} ${row.id}`.toLowerCase().includes(search.trim().toLowerCase());
-		const lastSeen = row.lastVisitDate ?? row.lastSignInAt?.slice(0, 10) ?? row.createdAt?.slice(0, 10);
-		const inactive = !!lastSeen && Date.parse(lastSeen) < Date.now() - 30 * 86400000;
 		return matchesSearch && (!joinedBefore || (row.createdAt && row.createdAt.slice(0, 10) <= joinedBefore)) &&
-			(filter === 'all' || (filter === 'inactive' && inactive) || (filter === 'unconfirmed' && !row.emailConfirmedAt));
+			(filter === 'all' || (filter === 'inactive' && isInactive(row, Date.now())) || (filter === 'unconfirmed' && !row.emailConfirmedAt));
 	}));
 
 	/** Open account deletion confirmation for one user. */
@@ -93,18 +92,18 @@
 		<div class="admin-totals" aria-label="Community overview">
 			<div><span>Total users</span><strong>{data.totals.totalUsers}</strong><small>Registered accounts</small></div>
 			<div><span>Signups this week</span><strong>{data.totals.signupsThisWeek}</strong><small>New to Mankunku</small></div>
-			<div><span>Visited this week</span><strong>{data.totals.activeThisWeek}</strong><small>Signed-in visitors</small></div>
+			<div><span>Active this week</span><strong>{data.totals.activeThisWeek}</strong><small>Practiced or visited</small></div>
 		</div>
 	{/if}
 	<div class="admin-layout">
 	<div class="admin-users">
-	<StudioPanel id="admin-users" number="01" title="Users" description="Signups, visits, and content — newest first">
+	<StudioPanel id="admin-users" number="01" title="Users" description="Signups, activity, and content — newest first">
 		<div class="admin-filters">
 			<label class="admin-search">Find a user<input type="search" bind:value={search} placeholder="Email or name" class="mt-1 block w-full min-w-48 rounded-lg bg-[var(--color-bg-secondary)] px-3 py-2 text-sm" /></label>
-			<label class="text-xs">Show<select bind:value={filter} class="mt-1 block rounded-lg bg-[var(--color-bg-secondary)] px-3 py-2 text-sm"><option value="all">All users</option><option value="inactive">No visits in 30 days</option><option value="unconfirmed">Unconfirmed</option></select></label>
+			<label class="text-xs">Show<select bind:value={filter} class="mt-1 block rounded-lg bg-[var(--color-bg-secondary)] px-3 py-2 text-sm"><option value="all">All users</option><option value="inactive">No activity in 30 days</option><option value="unconfirmed">Unconfirmed</option></select></label>
 			<label class="text-xs">Joined on or before<input type="date" bind:value={joinedBefore} class="mt-1 block rounded-lg bg-[var(--color-bg-secondary)] px-3 py-2 text-sm" /></label>
 		</div>
-		<div class="admin-list-meta"><span>{visibleUsers.length} {visibleUsers.length === 1 ? 'user' : 'users'} shown</span><details><summary>About activity</summary><p>Days visited counts distinct UTC dates seen signed in, across all browsers. Earlier visit history may be incomplete. Practice minutes are not time signed in.</p></details></div>
+		<div class="admin-list-meta"><span>{visibleUsers.length} {visibleUsers.length === 1 ? 'user' : 'users'} shown</span><details><summary>About activity</summary><p>Days active counts distinct recorded dates with practice or a signed-in visit, including historical practice. Older visit-only days may be missing. Practice dates use local time and visit dates use UTC, so totals are approximate around midnight. Practice minutes are not time signed in.</p></details></div>
 
 		{#if data.unavailable}
 			<div class="rounded-xl border border-[var(--color-bg-tertiary)] bg-[var(--color-bg-secondary)] px-5 py-8 text-center text-sm text-[var(--color-text-secondary)]">
@@ -140,9 +139,9 @@
 						<div class="admin-user-facts">
 							<div><span class="smallcaps">Joined</span> <span class="tabular-nums">{fmtDate(row.createdAt)}</span></div>
 							<div><span class="smallcaps">Last sign-in</span> <span class="tabular-nums">{fmtDate(row.lastSignInAt)}</span></div>
-							<div><span class="smallcaps">Last visit</span> <span class="tabular-nums">{fmtDate(row.lastVisitDate)}</span></div>
+							<div><span class="smallcaps">Last active</span> <span class="tabular-nums">{fmtDate(row.lastActiveDate)}</span></div>
 							<div><span class="smallcaps">Last sync</span> <span class="tabular-nums">{fmtDateTime(row.lastSyncAt)}</span></div>
-							<div><span class="smallcaps">Days visited</span> <span class="tabular-nums">{row.visitDayCount || '—'}</span></div>
+							<div><span class="smallcaps">Days active</span> <span class="tabular-nums">{row.activeDayCount || '—'}</span></div>
 							<div><span class="smallcaps" title="Practice time, not time signed in. Ear-training attempts are estimated at 30 seconds each.">Practice minutes</span> <span class="tabular-nums">{row.practiceMinutes}</span></div>
 							<div><span class="smallcaps">Licks</span> <span class="tabular-nums">{row.lickCount}</span></div>
 							<div><span class="smallcaps">Tunes</span> <span class="tabular-nums">{row.tuneCount}</span></div>

@@ -165,7 +165,7 @@ import {
 	DEFAULT_PROGRESSION,
 	type UpcomingLickEntry
 } from './lick-practice-picker';
-import { buildNextStep, type NextStep } from './lick-practice-next-steps';
+import { buildNextStep, type RecommendationContext, type NextStep } from './lick-practice-next-steps';
 import { concertKeyToWritten } from '$lib/music/transposition';
 
 export type { UpcomingLickEntry };
@@ -496,24 +496,24 @@ export function getUpcomingLicks(): UpcomingLickEntry[] {
 }
 
 /**
- * Resolve the session-complete screen's single next-step recommendation —
- * runes wrapper that supplies the still-intact plan (the source of truth for
- * which report entries are trick items), persisted unlock counts and session
- * history, and the user's written-pitch spelling,
- * then delegates to the pure `buildNextStep`.
- *
- * Takes the report the caller already built rather than calling
- * `getSessionReport()` again, so the card can never disagree with the numbers
- * rendered beside it. The base session id excludes its incremental log slices
- * from the historical evidence, so this sitting contributes exactly once.
+ * Resolve the report's next step using current unlock counts and session history.
+ * Recommended Deep follow-ups retain the original Daily plan and candidates;
+ * the latest displayed report still supplies current evidence and the rest veto.
+ * The base session id prevents incremental log slices counting this sitting twice.
  */
-export function getNextStep(report: SessionReport, currentSessionId: string): NextStep | null {
+export function getNextStep(
+	report: SessionReport,
+	currentSessionId: string,
+	recommendationContext?: RecommendationContext
+): NextStep | null {
 	const instrument = getInstrument();
+	const plan = recommendationContext?.plan ?? lickPractice.plan;
 	return buildNextStep({
 		report,
-		plan: lickPractice.plan,
+		plan,
+		recommendationContext,
 		unlockedKeyCounts: Object.fromEntries(
-			lickPractice.plan.filter((item) => item.kind !== 'trick').map((item) => [
+			plan.filter((item) => item.kind !== 'trick').map((item) => [
 				item.phraseId, getUnlockedKeyCount(lickPractice.progress, item.phraseId)
 			])
 		),

@@ -10,15 +10,14 @@
 		RecognitionContext,
 		SystemRecognitionResult
 	} from '$lib/tunes/import/pdf-recognition';
-	import { onMount } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import type { Tune } from '$lib/types/tune';
 	import { loadFromTune } from '$lib/state/tune-entry.svelte';
 	import { saveTunePdf } from '$lib/persistence/tune-pdf-store';
 	import { getInstrument } from '$lib/state/settings.svelte';
-	import SourceTranspositionSelect from '$lib/components/tunes/SourceTranspositionSelect.svelte';
-	import TimeSignatureSelect from '$lib/components/tunes/TimeSignatureSelect.svelte';
+	import PdfImportDesk from '$lib/components/tunes/PdfImportDesk.svelte';
 	import { extractPdfSystems, type ExtractedSystem } from '$lib/tunes/import/pdf-system-extract';
 	import { assembleClaudeDoc, importReviewNotes } from '$lib/tunes/import/pdf-system-assemble';
 	import { setImportReview } from '$lib/state/tune-entry.svelte';
@@ -55,6 +54,8 @@
 
 	let configured = $state<boolean | null>(null);
 	let uploading = $state(false);
+	let selectedFile = $state.raw<File | null>(null);
+	let omrLoading = $state(false);
 	let phase = $state<'idle' | 'reading' | 'context' | 'transcribing' | 'whole-pdf' | 'assembling'>(
 		'idle'
 	);
@@ -73,7 +74,6 @@
 	let omrDoc = $state<OmrNormalized | null>(null);
 	let omrFileName = $state<string | null>(null);
 	let omrError = $state<string | null>(null);
-	let importWarnings = $state<string[]>([]);
 
 	const doneCount = $derived(systemStates.filter((s) => s.status === 'done').length);
 	const failedCount = $derived(systemStates.filter((s) => s.status === 'failed').length);
@@ -134,6 +134,11 @@
 		} catch {
 			configured = false;
 		}
+	});
+
+	onDestroy(() => {
+		cancelController?.abort();
+		stopClock();
 	});
 
 	function toBase64(buffer: ArrayBuffer): string {
@@ -412,49 +417,83 @@
 		};
 	}
 
+	/**
+	 * Read an attached `.omr.json` transcription. An oversize, non-JSON or invalid
+	 * file is rejected with an inline error; otherwise the normalized document is
+	 * kept for the import. The input is always cleared so the same file can be
+	 * attached again.
+	 */
 	async function handleOmrFile(event: Event): Promise<void> {
 		const inputEl = event.currentTarget as HTMLInputElement;
 		const file = inputEl.files?.[0];
+		if (uploading || omrLoading) return;
 		omrError = null;
 		omrDoc = null;
 		omrFileName = null;
 		if (!file) return;
-
-		if (file.size > MAX_OMR_BYTES) {
-			omrError = 'OMR transcription too large — expected a small .omr.json file.';
-			inputEl.value = '';
-			return;
-		}
-		let parsed: unknown;
+		omrLoading = true;
 		try {
-			parsed = JSON.parse(await file.text());
-		} catch {
-			omrError = 'Not valid JSON — attach the .omr.json written by `python -m omr transcribe`.';
+			if (file.size > MAX_OMR_BYTES) {
+				omrError = 'OMR transcription too large — expected a small .omr.json file.';
+				inputEl.value = '';
+				return;
+			}
+			let parsed: unknown;
+			try {
+				parsed = JSON.parse(await file.text());
+			} catch {
+				omrError = 'Not valid JSON — attach the .omr.json written by `python -m omr transcribe`.';
+				inputEl.value = '';
+				return;
+			}
+			const validation = validateOmrTranscription(parsed);
+			if (!validation.valid) {
+				omrError = `Not a usable OMR transcription: ${validation.errors[0]}`;
+				inputEl.value = '';
+				return;
+			}
+			omrDoc = omrNormalized(parsed);
+			omrFileName = file.name;
+		} finally {
+			omrLoading = false;
 			inputEl.value = '';
-			return;
 		}
-		const validation = validateOmrTranscription(parsed);
-		if (!validation.valid) {
-			omrError = `Not a usable OMR transcription: ${validation.errors[0]}`;
-			inputEl.value = '';
-			return;
-		}
-		omrDoc = omrNormalized(parsed);
-		omrFileName = file.name;
 	}
 
-	async function handleFile(event: Event): Promise<void> {
-		const inputEl = event.currentTarget as HTMLInputElement;
-		const file = inputEl.files?.[0];
-		if (!file) return;
+	/** Accept a picked or dropped file only if it is a PDF under the size cap, otherwise clear the selection and say why. Ignored while an upload runs. */
+	function chooseFile(file: File | null): void {
+		if (uploading) return;
 		errorMessage = null;
-		importWarnings = [];
-
-		if (file.size > MAX_PDF_BYTES) {
-			errorMessage = 'PDF too large — keep uploads under 10 MB.';
-			inputEl.value = '';
+		selectedFile = null;
+		if (!file) return;
+		if (file.type !== 'application/pdf' && !/\.pdf$/i.test(file.name)) {
+			errorMessage = 'Choose a PDF file.';
 			return;
 		}
+		if (file.size > MAX_PDF_BYTES) {
+			errorMessage = 'PDF too large — keep uploads under 10 MB.';
+			return;
+		}
+		selectedFile = file;
+	}
+
+	/**
+	 * Read the chosen PDF into a draft tune and open it in the editor for review.
+	 * Tries the per-system pipeline first and falls back to whole-PDF extraction
+	 * (skipped with a message when no scan reader is configured), cross-checks the
+	 * read meter against the declared one, shifts the chart to concert pitch, keeps
+	 * the original file (local cache, plus the private bucket when signed in) and
+	 * hands the draft to the editor. Nothing is saved until the user confirms there.
+	 * Cancellation and failures surface as `errorMessage`; the busy state is always
+	 * reset.
+	 */
+	async function prepareDraft(): Promise<void> {
+		if (!selectedFile || uploading || omrLoading || configured === null) return;
+		const file = selectedFile;
+		errorMessage = null;
+		systemStates = [];
+		systemElapsed = [];
+		wholePdfElapsedMs = 0;
 
 		uploading = true;
 		cancelController = new AbortController();
@@ -462,6 +501,7 @@
 		startClock();
 		try {
 			const buffer = await file.arrayBuffer();
+			signal.throwIfAborted();
 
 			// Deterministic per-system pipeline first; whole-PDF extraction is
 			// the fallback for scans the geometry can't read. A per-system run
@@ -532,10 +572,10 @@
 						`import was told ${meter[0]}/${meter[1]} — check the bar lengths`
 				);
 			}
-			importWarnings = warnings;
 
 			// The route returns the chart as PRINTED; shift it to concert per
 			// the selected source pitch (the id is preserved).
+			signal.throwIfAborted();
 			const concert = writtenSheetToConcert(sheet, source, getInstrument());
 
 			// Keep the original file: local IndexedDB cache always; private
@@ -552,6 +592,7 @@
 			// Mandatory human review: the draft (with its pre-assigned id, so
 			// the stored PDF stays linked) opens in the editor; nothing is
 			// saved until the user hits Update there.
+			signal.throwIfAborted();
 			loadFromTune(concert, getInstrument());
 			setImportReview({
 				warnings,
@@ -571,7 +612,6 @@
 			phase = 'idle';
 			pageProgress = null;
 			cancelController = null;
-			inputEl.value = '';
 		}
 	}
 </script>
@@ -580,81 +620,24 @@
 	<title>Import a PDF Chart — Mankunku</title>
 </svelte:head>
 
-<div class="mx-auto max-w-3xl space-y-4">
-	<a
-		href="/tunes/add"
-		class="inline-flex items-center gap-1 text-sm text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text)]"
-	>
-		&larr; Add Tunes
-	</a>
-
-	<div>
-		<div class="smallcaps text-[var(--color-brass)]">From paper</div>
-		<h1 class="font-display text-3xl font-bold tracking-tight">Import a PDF Chart</h1>
-		<div class="jazz-rule mt-2 max-w-[140px]"></div>
-	</div>
-
-	<p class="text-sm text-[var(--color-text-secondary)]">
-		Upload a lead-sheet PDF to read its chords and melody into an editable draft. Extraction is
-		never perfect — the draft always opens in the editor for review and correction before anything
-		is saved.
-	</p>
-
-	<SourceTranspositionSelect
-		value={source}
-		onchange={(v) => (source = v)}
-		hint="Pick before uploading — the chart is converted to concert on import."
-	/>
-
-	<TimeSignatureSelect
-		value={meter}
-		onchange={(v) => (meter = v)}
-		hint="Read it off the chart — this lets every line be read at once."
-	/>
-
-	{#if configured === false}
-		<div
-			class="rounded-lg bg-[var(--color-bg-secondary)] p-4 text-sm text-[var(--color-text-secondary)]"
-		>
-			The scan reader is unavailable. Exported PDFs with embedded music notation can still be read
-			directly. You can also
-			<a href="/tunes/editor" class="text-[var(--color-accent)] underline"
-				>enter the chart manually</a
-			>
-			— or attach an OMR transcription below and import without the AI (lines it doesn't cover are left
-			blank for hand entry).
-		</div>
-	{/if}
-	{#if configured !== null}
-		<div class="space-y-1">
-			<input
-				type="file"
-				accept=".json,application/json"
-				disabled={uploading}
-				onchange={handleOmrFile}
-				aria-label="OMR transcription (optional)"
-				class="block w-full rounded-lg bg-[var(--color-bg-secondary)] px-4 py-3 text-sm outline-none ring-[var(--color-accent)] focus-visible:ring-2 file:mr-3 file:rounded file:border-0 file:bg-[var(--color-bg-tertiary)] file:px-3 file:py-1.5 file:text-sm file:font-medium disabled:opacity-50"
-			/>
-			<p class="text-xs text-[var(--color-text-secondary)]">
-				Optional: a <code>.omr.json</code> from <code>python -m omr transcribe</code> supplies melody
-				when its measures align and pass quality checks. Scanned chords are read separately.
-			</p>
-			{#if omrFileName && !omrError}
-				<p class="text-xs text-[var(--color-accent)]">Attached OMR transcription: {omrFileName}.</p>
-			{/if}
-			{#if omrError}
-				<p class="text-xs text-[var(--color-error,#c0392b)]">{omrError}</p>
-			{/if}
-		</div>
-		<input
-			type="file"
-			accept=".pdf,application/pdf"
-			disabled={uploading}
-			onchange={handleFile}
-			aria-label="Tune PDF"
-			class="block w-full rounded-lg bg-[var(--color-bg-secondary)] px-4 py-3 text-sm outline-none ring-[var(--color-accent)] focus-visible:ring-2 file:mr-3 file:rounded file:border-0 file:bg-[var(--color-accent)] file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white disabled:opacity-50"
-		/>
-		{#if uploading}
+<PdfImportDesk
+	file={selectedFile}
+	{configured}
+	busy={uploading}
+	{source}
+	{meter}
+	error={errorMessage}
+	{omrFileName}
+	{omrError}
+	{omrLoading}
+	onfile={chooseFile}
+	onprepare={prepareDraft}
+	onsource={(value) => (source = value)}
+	onmeter={(value) => (meter = value)}
+	onomr={handleOmrFile}
+	onclearomr={() => { omrDoc = null; omrFileName = null; omrError = null; }}
+>
+	{#snippet progress()}
 			<!-- The live region is the PHASE SENTENCE only. It used to wrap the
 			     whole panel, which includes a clock ticking every 500ms and a
 			     per-line list that changes as systems settle — a screen reader
@@ -690,9 +673,8 @@
 				</div>
 
 				<p class="mt-1 text-xs text-[var(--color-text-secondary)]">
-					Transcription is slow by design — the AI reads each line of music closely, which can take
-					a couple of minutes for a dense chart. Lines it can't read are left blank for you to fill
-					in; nothing is lost.
+					Dense charts can take a few minutes. Anything unclear is left for you to review
+					alongside the original.
 				</p>
 
 				{#if (phase === 'context' || phase === 'transcribing') && systemStates.length > 0}
@@ -737,25 +719,5 @@
 					Cancel import
 				</button>
 			</div>
-		{/if}
-	{/if}
-
-	{#if errorMessage}
-		<div class="rounded-lg bg-[var(--color-error)]/10 p-3 text-sm text-[var(--color-error-text)]">
-			{errorMessage}
-		</div>
-	{/if}
-
-	{#if importWarnings.length > 0}
-		<div
-			class="rounded-lg bg-[var(--color-warning)]/10 p-3 text-xs text-[var(--color-text-secondary)]"
-		>
-			<div class="mb-1 font-medium text-[var(--color-warning-text)]">Extraction notes</div>
-			<ul class="list-inside list-disc space-y-0.5">
-				{#each importWarnings as w, i (i)}
-					<li>{w}</li>
-				{/each}
-			</ul>
-		</div>
-	{/if}
-</div>
+	{/snippet}
+</PdfImportDesk>

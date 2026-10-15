@@ -1,3 +1,4 @@
+import { renderMarkdown } from '$lib/docs/markdown';
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { getPage, getBreadcrumbs } from '$lib/docs/structure';
@@ -12,6 +13,11 @@ const DOC_FILES = import.meta.glob<string>('/documentation/**/*.md', {
 	eager: true
 });
 
+/**
+ * Serves one documentation page: 404s when the slug is absent from the docs
+ * tree (`DOC_TREE`) or its bundled markdown file is missing, otherwise returns
+ * the page metadata, the raw markdown, the rendered HTML and the breadcrumbs.
+ */
 export const load: PageServerLoad = async ({ params }) => {
 	const slug = params.slug;
 	const meta = getPage(slug);
@@ -28,6 +34,7 @@ export const load: PageServerLoad = async ({ params }) => {
 		slug,
 		page: meta,
 		markdown,
+		rendered: renderMarkdown(markdown, slug),
 		breadcrumbs: getBreadcrumbs(slug)
 	};
 };

@@ -49,12 +49,12 @@ test.describe('tricks', () => {
 		await expect(signedInPage.getByRole('heading', { name: 'Tricks', exact: true })).toBeVisible();
 
 		// Three enclosure chains × one open first rung; one triad-pair chain.
-		const enclosures = signedInPage.getByRole('button', { name: /Enclosures/ });
+		const enclosures = signedInPage.getByRole('region', { name: 'Enclosures', exact: true });
 		await expect(enclosures).toContainText('3 of 24 variants unlocked');
-		const triadPairs = signedInPage.getByRole('button', { name: /Triad Pairs/ });
+		const triadPairs = signedInPage.getByRole('region', { name: 'Triad Pairs', exact: true });
 		await expect(triadPairs).toContainText('1 of 8 variants unlocked');
 
-		await enclosures.click();
+		await enclosures.getByRole('link', { name: /Explore enclosures/ }).click();
 		await expect(signedInPage).toHaveURL(/\/tricks\/enclosures$/);
 		await expect(signedInPage.getByRole('heading', { name: 'Enclosures', exact: true })).toBeVisible();
 	});
@@ -104,7 +104,7 @@ test.describe('tricks', () => {
 
 		// The catalog card counts the unlock too.
 		await signedInPage.goto('/tricks');
-		await expect(signedInPage.getByRole('button', { name: /Enclosures/ })).toContainText(
+		await expect(signedInPage.getByRole('region', { name: 'Enclosures', exact: true })).toContainText(
 			'4 of 24 variants unlocked'
 		);
 	});
@@ -116,16 +116,11 @@ test.describe('tricks', () => {
 		await signedInPage.goto('/tricks/triad-pairs');
 		await expect(signedInPage.getByRole('heading', { name: 'Triad Pairs', exact: true })).toBeVisible();
 
-		/**
-		 * A variant pill by its exact label — `exact` keeps it apart from the
-		 * mastery-tree row of the same label; a locked rung has no button.
-		 */
-		const pill = (label: string) => signedInPage.getByRole('button', { name: label, exact: true });
-		await expect(pill('Major pair a whole step apart (C·D)')).toBeVisible();
-		await expect(pill('Major + minor a whole step apart (C·D-)')).toHaveCount(0);
-		await expect(
-			signedInPage.getByText('🔒 Major + minor a whole step apart (C·D-)', { exact: true })
-		).toBeVisible();
+		// The same accessible radio bank is used here and in drill setup.
+		/** The radio for a pair variant, found by its exact accessible label. */
+		const pair = (label: string) => signedInPage.getByRole('radio', { name: label, exact: true });
+		await expect(pair('Major pair a whole step apart (C·D)')).toBeChecked();
+		await expect(pair('Major + minor a whole step apart (C·D-)')).toBeDisabled();
 
 		// The second family waits on the first; nothing further down is "next".
 		await expect(
@@ -137,6 +132,79 @@ test.describe('tricks', () => {
 		await expect(
 			signedInPage.locator('.abcjs-container svg .abcjs-notehead').first()
 		).toBeVisible();
+	});
+
+	test('triad selection, preview pitch and tune suggestion survive the handoff to setup', async ({ signedInPage }) => {
+		await seedStorage(signedInPage, {
+			'trick-practice-progress': {
+				'triad-pairs:pair=major-whole': { C: { currentTempo: 60, lastPracticedAt: 1754000000000, passCount: 3 } }
+			}
+		});
+		await signedInPage.goto('/tricks/triad-pairs');
+		const second = signedInPage.getByRole('radio', { name: 'Major + minor a whole step apart (C·D-)', exact: true });
+		await expect(second).toBeEnabled();
+		await signedInPage.getByRole('radio', { name: 'Major pair a whole step apart (C·D)', exact: true }).press('ArrowRight');
+		await expect(second).toBeChecked();
+		await expect(second).toBeFocused();
+		const notes = signedInPage.locator('.abcjs-notehead');
+		await expect(notes).toHaveCount(8);
+		const original = await notes.first().getAttribute('d');
+		await signedInPage.getByRole('combobox', { name: 'Preview key', exact: true }).selectOption('F#');
+		await expect.poll(() => notes.first().getAttribute('d')).not.toBe(original);
+		await signedInPage.getByRole('button', { name: /suggest in tunes/i }).click();
+		await expect.poll(() => signedInPage.evaluate(key => JSON.parse(localStorage.getItem(key) ?? '[]'), `mankunku:u:${E2E_UID}:trick-selected-variants`)).toEqual(['triad-pairs:pair=major-minor']);
+		await signedInPage.getByRole('button', { name: /practice this variant/i }).click();
+		await expect(signedInPage).toHaveURL(/\/lick-practice$/);
+		await expect(signedInPage.getByRole('radio', { name: 'Triad Pairs', exact: true })).toBeChecked();
+		await expect(second).toBeChecked();
+		await expect(signedInPage.getByRole('button', { name: /start trick drill/i })).toBeEnabled();
+	});
+
+	test('triad audition stops when preview pitch changes and progress remains variant-specific', async ({ signedInPage }) => {
+		await installAudioMock(signedInPage);
+		await stubCdnInstrumentSamples(signedInPage);
+		await seedStorage(signedInPage, {
+			'trick-progress-history': {
+				'triad-pairs:pair=major-whole': [
+					{ t: 1754000000000, bpm: 60, keys: 1 },
+					{ t: 1754086400000, bpm: 72, keys: 2 }
+				]
+			}
+		});
+		await signedInPage.goto('/tricks/triad-pairs');
+		await expect(signedInPage.getByRole('img', { name: /Tempo over time.*2 of 12 keys unlocked/ })).toBeVisible();
+		await signedInPage.getByRole('button', { name: '▷ Hear', exact: true }).click();
+		await expect(signedInPage.getByRole('button', { name: 'Stop', exact: true })).toBeVisible();
+		await signedInPage.getByRole('combobox', { name: 'Preview key', exact: true }).selectOption('F');
+		await expect(signedInPage.getByRole('button', { name: '▷ Hear', exact: true })).toBeVisible();
+		await signedInPage.getByRole('link', { name: '← All tricks', exact: true }).click();
+		await signedInPage.getByRole('link', { name: /Explore enclosures/ }).click();
+		await expect(signedInPage.getByText('Complete a practice session to start a tempo and key history for this variant.')).toBeVisible();
+		await expect(signedInPage.getByRole('img', { name: /Tempo over time/ })).toHaveCount(0);
+	});
+
+	test('all three Studio Desk pages fit phone, tablet and desktop in both themes', async ({ signedInPage }) => {
+		await signedInPage.goto('/tricks');
+		for (const theme of ['dark', 'light']) {
+			await signedInPage.evaluate(({key, theme}) => {
+				const settings = JSON.parse(localStorage.getItem(key) ?? '{}');
+				localStorage.setItem(key, JSON.stringify({ ...settings, theme }));
+			}, {key: `mankunku:u:${E2E_UID}:settings`, theme});
+			for (const route of ['/tricks', '/tricks/triad-pairs', '/tricks/enclosures']) {
+				await signedInPage.goto(route);
+				await expect(signedInPage.locator('html')).toHaveClass(theme === 'light' ? /light/ : /^(?!.*light).*$/);
+				await expect(signedInPage.locator('h1')).toBeVisible();
+				for (const width of [360, 768, 1440]) {
+					await signedInPage.setViewportSize({ width, height: 1000 });
+					await expect.poll(() => signedInPage.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+					if (route !== '/tricks' && width < 1100) {
+						const summary = await signedInPage.locator('.trick-summary').boundingBox();
+						const mastery = await signedInPage.locator('[id$="-mastery"]').boundingBox();
+						expect(summary!.y + summary!.height).toBeLessThanOrEqual(mastery!.y);
+					}
+				}
+			}
+		}
 	});
 
 	test('starring a variant for tune practice persists across a reload', async ({

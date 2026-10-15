@@ -32,6 +32,8 @@
 	--color-bg-tertiary: #334155;
 	--color-text: #f8fafc;
 	--color-text-secondary: #94a3b8;
+	/* Structural practice-chart lines stay visible while musical content dims. */
+	--color-practice-divider: #627287;
 	/* Ear Training (default) — Blue Note peacock teal */
 	--color-accent: #2e8b9e;
 	--color-accent-hover: #1f6b7a;
@@ -195,6 +197,7 @@
 	--color-bg-tertiary: #cbd5e1;
 	--color-text: #0f172a;
 	--color-text-secondary: #475569;
+	--color-practice-divider: #8391a3;
 	/* Ear Training (default) — deeper teal for contrast on light backgrounds */
 	--color-accent: #15667a;
 	--color-accent-hover: #0f4e5c;

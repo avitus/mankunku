@@ -1,21 +1,19 @@
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
+	import { onMount, onDestroy, tick } from 'svelte';
 	import { acquireScreenWakeLock, releaseScreenWakeLock } from '$lib/util/wake-lock';
 	import { page } from '$app/state';
+	import { goto } from '$app/navigation';
+	import StudioPage from '$lib/components/console/StudioPage.svelte';
+	import { loadRecordingDraft } from '$lib/state/step-entry.svelte';
+	import { recordingBeatAt } from '$lib/audio/recording-cue';
+	import '$lib/components/record/record-lick.css';
 	import { midiToNoteName } from '$lib/music/intervals';
 	import type { Phrase } from '$lib/types/music';
 	import { transcribeTake, RECORD_COUNT_IN_BEATS } from '$lib/audio/record-transcription';
-	import {
-		buildOpenEndedTimeline,
-		phaseCueAt,
-		type PhaseCue,
-		type PhaseSegment
-	} from '$lib/state/lick-practice-phase';
 	import { saveUserLick, getUserLicksLocal } from '$lib/persistence/user-licks';
 	import { settings, getInstrument } from '$lib/state/settings.svelte';
 	import { setMasterVolume } from '$lib/audio/audio-context';
 	import NotationDisplay from '$lib/components/notation/NotationDisplay.svelte';
-	import PhaseCueBar from '$lib/components/lick-practice/PhaseCueBar.svelte';
 	import PrivacyDisclosure from '$lib/components/community/PrivacyDisclosure.svelte';
 
 	const instrument = $derived(getInstrument());
@@ -30,7 +28,7 @@
 	let onsetModule: typeof import('$lib/audio/onset-detector') | null = null;
 
 	// State machine
-	type RecordState = 'idle' | 'counting-in' | 'recording' | 'processing' | 'review';
+	type RecordState = 'idle' | 'starting' | 'counting-in' | 'recording' | 'processing' | 'review';
 	let recordState: RecordState = $state('idle');
 
 	// Settings
@@ -40,11 +38,11 @@
 	let micCapture: MicCapture | null = null;
 	let pitchDetector: PitchDetectorHandle | null = null;
 	let onsetDetector: OnsetDetectorHandle | null = null;
-	let levelInterval: ReturnType<typeof setInterval> | null = null;
+	let metronomeModule: typeof import('$lib/audio/metronome') | null = null;
 
 	// Real-time display
 	let currentPitchMidi: number | null = $state(null);
-	let currentClarity = $state(0);
+
 
 	// Recording. Both detectors share one epoch (captured at pitch-detector
 	// start, during the count-in); the anchor is the context time of the
@@ -53,27 +51,28 @@
 	let pitchStartContextTime = 0;
 	let anchorContextTime = 0;
 
-	// Listen/play cue, driven off transport ticks so the countdown and the
-	// count-in→play flip land on the audible beat, not the (lookAhead-early)
-	// schedule callback.
-	const IDLE_CUE: PhaseCue = { phase: 'idle', next: null, beatsUntilNext: null, countdown: 0 };
-	let phaseCue = $state<PhaseCue>(IDLE_CUE);
-	let phaseTimeline: PhaseSegment[] = [];
+	// Read the audio clock without Tone's scheduler look-ahead. The early
+	// capture callback must never tell the player to enter before the downbeat.
+	let beatIndex = $state(-1);
 	let cueAnimFrame: number | null = null;
 	let toneModule: typeof import('tone') | null = null;
-	const isArming = $derived(phaseCue.countdown > 0 && phaseCue.next === 'play');
-	// Setup (Tone import, tone.start(), detector creation) runs for a moment
-	// after the state flips to counting-in but before the transport — and thus
-	// the cue tracker — starts. Show "Count in" instead of an empty pill.
-	const PRE_TRANSPORT_CUE: PhaseCue = {
-		phase: 'count-in',
-		next: 'play',
-		beatsUntilNext: null,
-		countdown: 0
-	};
-	const displayCue = $derived.by(() =>
-		recordState === 'counting-in' && phaseCue.phase === 'idle' ? PRE_TRANSPORT_CUE : phaseCue
-	);
+	let transportStartTime = Infinity;
+	let setupPending = $state(false);
+	let audioReady = $state(false);
+	let recordingError = $state('');
+	let run = 0;
+	let saveTimer: ReturnType<typeof setTimeout> | undefined;
+	let recordingDesk: HTMLElement;
+	const countInBars = RECORD_COUNT_IN_BEATS / 4;
+	const active = $derived(['starting', 'counting-in', 'recording'].includes(recordState));
+	const playing = $derived(active && beatIndex >= RECORD_COUNT_IN_BEATS);
+	const counting = $derived(active && beatIndex >= 0 && !playing);
+	const beat = $derived(beatIndex < 0 ? -1 : beatIndex % 4);
+	const countBar = $derived(Math.floor(Math.max(0, beatIndex) / 4) + 1);
+	const playBar = $derived(Math.floor((beatIndex - RECORD_COUNT_IN_BEATS) / 4) + 1);
+	const heading = $derived.by(() => recordState === 'review' ? 'Make it your own.' : recordState === 'processing' ? 'Finding your notes.' : playing ? 'Play now.' : counting ? countBar === 1 ? 'Find the pulse.' : 'Get ready to play.' : active ? 'A moment to settle in.' : 'Count in first. Then play.');
+	const cueLabel = $derived.by(() => recordState === 'review' ? 'Review your take' : recordState === 'processing' ? 'Transcribing' : playing ? 'Recording' : counting ? `Count-in · bar ${countBar} of ${countInBars}` : active ? 'Getting ready' : 'Ready when you are');
+	const cueDescription = $derived.by(() => recordState === 'review' ? 'Listen back and check the notes before saving.' : recordState === 'processing' ? 'Turning your playing into notation.' : playing ? 'Your phrase starts here. Keep going until you’re done.' : counting ? countBar === 1 ? 'One more count-in bar before your entrance.' : 'Start on the next 1, when you see “Play now”.' : active ? 'The count-in will begin on beat 1.' : 'Two bars of clicks. Start on the next 1.');
 
 	// Review
 	let reviewPhrase: Phrase | null = $state(null);
@@ -108,6 +107,7 @@
 			captureModule = capture;
 			pitchModule = pitch;
 			onsetModule = onset;
+			audioReady = true;
 		} catch (err) {
 			// A navigation that cuts the fetch off rejects the import too; once
 			// the page is gone that is nobody's error.
@@ -119,29 +119,44 @@
 
 	onDestroy(() => {
 		destroyed = true;
+		run++;
+		clearTimeout(saveTimer);
 		releaseScreenWakeLock();
 		cleanup();
 	});
 
+	/**
+	 * Tears down every audio resource the page holds: silence timer, cue loop, both
+	 * detectors, metronome, playback and the microphone, and clears the live pitch.
+	 * Every step is null-safe, so it is harmless to call twice or before setup finished.
+	 */
 	function cleanup() {
 		if (silenceTimeout) clearTimeout(silenceTimeout);
-		if (levelInterval) { clearInterval(levelInterval); levelInterval = null; }
+
 		stopCueTracking();
 		pitchDetector?.stop();
 		onsetDetector?.dispose();
 		onsetDetector = null;
 		pitchDetector = null;
-		playbackModule?.stopPlayback();
+		metronomeModule?.disposeMetronome();
+		void playbackModule?.stopPlayback();
+		captureModule?.stopMicCapture();
+		micCapture = null;
+		currentPitchMidi = null;
 	}
 
-	async function ensureMicCapture(): Promise<boolean> {
+	/**
+	 * Opens the microphone (reusing an open one) and the onset detector, resolving
+	 * false if audio did not load, the mic is refused (the user-facing error is set
+	 * only while `isCurrent`), or the caller was superseded mid-await, in which case
+	 * what it just opened is released. A missing onset detector is not fatal.
+	 */
+	async function ensureMicCapture(isCurrent: () => boolean): Promise<boolean> {
 		if (!captureModule) return false;
 		if (micCapture) return true;
 		try {
 			micCapture = await captureModule.startMicCapture();
-			levelInterval = setInterval(() => {
-				// Keep level polling alive
-			}, 50);
+			if (!isCurrent()) { captureModule.stopMicCapture(); micCapture = null; return false; }
 			if (onsetModule && !onsetDetector) {
 				try {
 					onsetDetector = await onsetModule.createOnsetDetector(
@@ -164,85 +179,115 @@
 					console.warn('Onset detector unavailable:', err);
 				}
 			}
+			if (!isCurrent()) { onsetDetector?.dispose(); onsetDetector = null; return false; }
 			return true;
 		} catch (err) {
-			console.error('Mic error:', err);
+			if (isCurrent()) recordingError = 'Microphone access is unavailable. Allow microphone access in your browser, then try again.';
+			console.warn('[record-lick] microphone unavailable', err);
 			return false;
 		}
 	}
 
 	// ─── Count-in + Recording ───────────────────────────────
 
+	/**
+	 * Starts a take: opens the mic, resets Tone's transport to 4/4 at `tempo`,
+	 * schedules the woodblock count-in and the jazz-kit metronome from the entrance
+	 * tick, starts the pitch detector for the whole session (so an attack on the
+	 * downbeat is not lost to warmup) and schedules `beginActiveRecording` for the
+	 * bar-3 downbeat. Every await re-checks `isCurrent`, so a cancel or unmount
+	 * mid-setup abandons it silently; a real failure cleans up and shows an error.
+	 */
 	async function startRecording() {
-		if (recordState !== 'idle') return;
-		if (!(await ensureMicCapture())) return;
-		if (!playbackModule || !pitchModule) return;
-
-		// Load instrument if needed for playback later
-		if (!playbackModule.isInstrumentLoaded()) {
-			await playbackModule.loadInstrument(settings.instrumentId, settings.masterVolume);
-		}
-		setMasterVolume(settings.masterVolume);
-
-		recordState = 'counting-in';
-
-		const tone = await import('tone');
-		toneModule = tone;
-		const transport = tone.getTransport();
-		await tone.start();
-		transport.stop();
-		transport.position = 0;
-		transport.cancel();
-		transport.bpm.value = tempo;
-		// The transport timeSignature is sticky global state (a prior 3/4 tune
-		// playback leaves it at 3) and everything below assumes 4/4 — pin it.
-		transport.timeSignature = 4;
-
-		// Schedule metronome AFTER transport reset so it isn't cancelled.
-		// Count-in bars get their own woodblock voice; the jazz kit enters at
-		// bar 3 — the texture change is the audible entrance cue. The start
-		// offset is in TICKS so it can't drift from the schedule callback,
-		// phase timeline and bleed grid, which are all tick/beat-based —
-		// everything derives from RECORD_COUNT_IN_BEATS, which also drives
-		// the bleed grid inside transcribeTake, so the two can't desync.
-		const countInBars = RECORD_COUNT_IN_BEATS / 4;
-		const entranceTick = RECORD_COUNT_IN_BEATS * transport.PPQ;
-		const { scheduleMetronome, scheduleCountInClicks } = await import('$lib/audio/metronome');
-		await scheduleCountInClicks(4, countInBars);
-		await scheduleMetronome(4, null, `${entranceTick}i`);
-
-		// Start the pitch detector for the whole session — it must already be
-		// running at the entrance, or an on-the-downbeat attack loses its
-		// first analyser window to warmup.
-		pitchDetector = await pitchModule.createPitchDetector(
-			micCapture!.analyser,
-			(reading, rawClarity) => {
-				if (reading) {
-					currentPitchMidi = reading.midi;
-				} else {
-					currentPitchMidi = null;
-				}
-				currentClarity = rawClarity;
+		if (recordState !== 'idle' || !audioReady || setupPending || !playbackModule || !pitchModule) return;
+		const thisRun = ++run;
+		/** True while the page is mounted and no later start, cancel or stop has bumped `run` since this call began. */
+		const isCurrent = () => !destroyed && run === thisRun;
+		setupPending = true;
+		recordingError = '';
+		recordState = 'starting';
+		try {
+			await tick();
+			if (!isCurrent()) return;
+			if (window.matchMedia('(max-width: 850px)').matches) recordingDesk?.scrollIntoView({ block: 'center', behavior: 'instant' });
+			if (!(await ensureMicCapture(isCurrent))) {
+				if (isCurrent()) { cleanup(); recordState = 'idle'; }
+				return;
 			}
-		);
-		pitchDetector.start();
-		// Shared epoch for both detector streams, captured adjacent to start().
-		pitchStartContextTime = micCapture!.context.currentTime;
-		onsetDetector?.reset(pitchStartContextTime);
 
-		phaseTimeline = buildOpenEndedTimeline({
-			audioStartTick: entranceTick,
-			ticksPerBar: 4 * transport.PPQ,
-			countInBars
-		});
+			// Load instrument if needed for playback later
+			if (!playbackModule.isInstrumentLoaded()) {
+				await playbackModule.loadInstrument(settings.instrumentId, settings.masterVolume);
+			}
+			if (!isCurrent()) return;
+			setMasterVolume(settings.masterVolume);
 
-		// 2-bar count-in, then transition to recording on bar 3
-		transport.schedule((time) => {
-			beginActiveRecording(time);
-		}, `${entranceTick}i`);
 
-		transport.start('+0.1');
-		startCueTracking();
+			const tone = await import('tone');
+			if (!isCurrent()) return;
+			toneModule = tone;
+			const transport = tone.getTransport();
+			await tone.start();
+			if (!isCurrent()) return;
+			transport.stop();
+			transport.position = 0;
+			transport.cancel();
+			transport.bpm.value = tempo;
+			// The transport timeSignature is sticky global state (a prior 3/4 tune
+			// playback leaves it at 3) and everything below assumes 4/4 — pin it.
+			transport.timeSignature = 4;
+
+			// Schedule metronome AFTER transport reset so it isn't cancelled.
+			// Count-in bars get their own woodblock voice; the jazz kit enters at
+			// bar 3 — the texture change is the audible entrance cue. The start
+			// offset is in TICKS so it can't drift from the schedule callback,
+			// visual cue and bleed grid, which are all tick/beat-based —
+			// everything derives from RECORD_COUNT_IN_BEATS, which also drives
+			// the bleed grid inside transcribeTake, so the two can't desync.
+			const entranceTick = RECORD_COUNT_IN_BEATS * transport.PPQ;
+			metronomeModule = await import('$lib/audio/metronome');
+			if (!isCurrent()) return;
+			await metronomeModule.scheduleCountInClicks(4, countInBars, isCurrent);
+			if (!isCurrent()) return;
+			await metronomeModule.scheduleMetronome(4, null, `${entranceTick}i`, isCurrent);
+			if (!isCurrent()) return;
+
+			// Start the pitch detector for the whole session — it must already be
+			// running at the entrance, or an on-the-downbeat attack loses its
+			// first analyser window to warmup.
+			pitchDetector = await pitchModule.createPitchDetector(
+				micCapture!.analyser,
+				(reading) => {
+					if (reading) {
+						currentPitchMidi = reading.midi;
+					} else {
+						currentPitchMidi = null;
+					}
+				}
+			);
+			if (!isCurrent()) { pitchDetector.stop(); pitchDetector = null; return; }
+			pitchDetector.start();
+			// Shared epoch for both detector streams, captured adjacent to start().
+			pitchStartContextTime = micCapture!.context.currentTime;
+			onsetDetector?.reset(pitchStartContextTime);
+
+			// 2-bar count-in, then transition to recording on bar 3
+			transport.schedule((time) => {
+				if (isCurrent()) beginActiveRecording(time);
+			}, `${entranceTick}i`);
+
+			transportStartTime = tone.now() + 0.1;
+			transport.start(transportStartTime);
+			recordState = 'counting-in';
+			startCueTracking();
+		} catch (err) {
+			if (isCurrent()) {
+				console.warn('[record-lick] could not start', err);
+				recordingError = 'Could not start recording. Please try again.';
+				cleanup();
+				recordState = 'idle';
+			}
+		} finally { setupPending = false; }
 	}
 
 	function beginActiveRecording(time: number) {
@@ -258,39 +303,54 @@
 		silenceTimeout = setTimeout(stopRecording, 2000);
 	}
 
+	/** Starts the animation-frame loop that keeps `beatIndex` in step with the transport for the count-in and recording cues. */
 	function startCueTracking() {
+		/**
+		 * One animation frame: ends the loop outside count-in/recording, otherwise
+		 * converts the transport position at `immediate()` (the audio clock without
+		 * Tone's look-ahead) to a beat index, assigning it only on change, and re-arms.
+		 */
 		function frame() {
 			if (recordState !== 'counting-in' && recordState !== 'recording') return;
 			if (toneModule) {
 				const transport = toneModule.getTransport();
-				const nextCue = phaseCueAt(transport.ticks, phaseTimeline, transport.PPQ);
-				// Re-read every frame so the countdown lands on the beat, but
-				// only commit when a rendered field moves — a fresh object each
-				// frame would re-render the cue bar at 60fps.
-				if (
-					nextCue.phase !== phaseCue.phase ||
-					nextCue.next !== phaseCue.next ||
-					nextCue.countdown !== phaseCue.countdown
-				) {
-					phaseCue = nextCue;
-				}
+				const now = toneModule.immediate();
+				const nextBeat = recordingBeatAt(transport.getTicksAtTime(now), transport.PPQ, now >= transportStartTime);
+				if (beatIndex !== nextBeat) beatIndex = nextBeat;
 			}
 			cueAnimFrame = requestAnimationFrame(frame);
 		}
 		cueAnimFrame = requestAnimationFrame(frame);
 	}
 
+	/** Cancels the cue animation loop and resets the beat index and transport start time to "not started". */
 	function stopCueTracking() {
 		if (cueAnimFrame !== null) {
 			cancelAnimationFrame(cueAnimFrame);
 			cueAnimFrame = null;
 		}
-		phaseCue = IDLE_CUE;
+		beatIndex = -1;
+		transportStartTime = Infinity;
 	}
 
+	/** Aborts a take in progress: bumping `run` voids any setup still awaiting, then audio is torn down and the page returns to idle. */
+	function cancelCountIn(): void {
+		run++;
+		cleanup();
+		recordState = 'idle';
+	}
+
+	/**
+	 * Ends the take (silence timeout or the Stop button; ignored unless recording). Snapshots the
+	 * readings, worklet onsets and anchor offset BEFORE `cleanup` tears the audio
+	 * graph down, drops out if the page was left or a new run began meanwhile, then
+	 * hands the capture to `transcribeTake`. No notes found: error and back to idle;
+	 * otherwise the numbered default name is set and the review opens.
+	 */
 	async function stopRecording() {
 		if (recordState !== 'recording') return;
 		recordState = 'processing';
+		const thisRun = run;
 
 		if (silenceTimeout) { clearTimeout(silenceTimeout); silenceTimeout = null; }
 		stopCueTracking();
@@ -300,17 +360,8 @@
 		const rawWorkletOnsets = onsetDetector?.getOnsets() ?? [];
 		const anchorOffset = anchorContextTime - pitchStartContextTime;
 
-		// Stop transport + metronome
-		const tone = await import('tone');
-		const transport = tone.getTransport();
-		transport.stop();
-		transport.position = 0;
-		transport.cancel();
-
-		const { disposeMetronome } = await import('$lib/audio/metronome');
-		disposeMetronome();
-
-		pitchDetector?.stop();
+		cleanup();
+		if (destroyed || thisRun !== run) return;
 
 		// Rebase onto the bar-3 downbeat and run the shared segmentation →
 		// quantize → concert-C pipeline (record-transcription.ts).
@@ -322,6 +373,7 @@
 		});
 
 		if (!phrase) {
+			recordingError = 'No clear notes were detected. Try again, starting when you see “Play now”.';
 			recordState = 'idle';
 			return;
 		}
@@ -351,22 +403,37 @@
 		});
 	}
 
+	/**
+	 * Saves the reviewed take under the typed name (falling back to its own), local
+	 * first with cloud sync when signed in, shows the confirmation and returns to
+	 * idle after 1.5 s. Ignored with no take or while the confirmation is showing.
+	 */
 	function handleSave() {
-		if (!reviewPhrase) return;
+		if (!reviewPhrase || savedConfirmation) return;
+		void playbackModule?.stopPlayback();
 		reviewPhrase.name = lickName || reviewPhrase.name;
 
 		// Local-first: save lick to localStorage, with optional cloud sync for authenticated users
 		saveUserLick(reviewPhrase, supabase ?? undefined);
 
 		savedConfirmation = true;
-		setTimeout(() => {
+		saveTimer = setTimeout(() => {
 			recordState = 'idle';
 			reviewPhrase = null;
 			savedConfirmation = false;
 		}, 1500);
 	}
 
+	/** Sends the reviewed take, under the typed name, to the lick editor as a draft. Does nothing without a take or when it runs past 4 bars. */
+	function handleEdit(): void {
+		if (!reviewPhrase || reviewPhrase.difficulty.lengthBars > 4) return;
+		loadRecordingDraft({ ...reviewPhrase, name: lickName || reviewPhrase.name }, instrument);
+		void goto('/licks/editor');
+	}
+
+	/** Discards the reviewed take and returns to idle, cancelling a pending post-save reset and any review playback. */
 	function handleReRecord() {
+		clearTimeout(saveTimer);
 		playbackModule?.stopPlayback();
 		reviewPhrase = null;
 		recordState = 'idle';
@@ -380,199 +447,57 @@
 		}
 	});
 </script>
+<svelte:head><title>Record Lick — Mankunku</title></svelte:head>
 
-<svelte:head>
-	<title>Record Lick — Mankunku</title>
-</svelte:head>
-
-{#if recordState === 'review' && reviewPhrase}
-	<!-- Review: standard document shell, matching the tunes import pages -->
-	<div class="mx-auto max-w-3xl space-y-4">
-		<a
-			href="/licks/add"
-			class="inline-flex items-center gap-1 text-sm text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text)]"
-		>
-			&larr; Add Licks
-		</a>
-
-		<h1 class="font-display text-2xl font-bold">Review Your Lick</h1>
-
-		<!-- Sheet music -->
-		<NotationDisplay phrase={reviewPhrase} {instrument} />
-
-		<!-- Difficulty badge -->
-		<div class="text-sm text-[var(--color-text-secondary)]">
-			Difficulty {reviewPhrase.difficulty.level}
-			&middot; {reviewPhrase.difficulty.lengthBars} bar{reviewPhrase.difficulty.lengthBars > 1 ? 's' : ''}
-		</div>
-
-		<!-- Name input -->
-		<div class="flex items-center gap-2">
-			<label for="lick-name" class="text-sm shrink-0">Name</label>
-			<input
-				id="lick-name"
-				type="text"
-				bind:value={lickName}
-				class="flex-1 rounded-lg bg-[var(--color-bg-secondary)] px-4 py-3 text-sm outline-none ring-[var(--color-accent)] focus:ring-2"
-			/>
-		</div>
-
-		<PrivacyDisclosure />
-
-		<!-- Action buttons -->
-		<div class="flex gap-3">
-			<button
-				onclick={handlePlayBack}
-				class="rounded bg-[var(--color-accent)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-accent-hover)]"
-			>
-				Play Back
-			</button>
-			<button
-				onclick={handleSave}
-				disabled={savedConfirmation}
-				class="rounded px-4 py-2 text-sm font-medium text-white transition-colors disabled:opacity-50
-					{savedConfirmation
-						? 'bg-[var(--color-success)]'
-						: 'bg-[var(--color-accent)] hover:bg-[var(--color-accent-hover)]'}"
-			>
-				{savedConfirmation ? 'Saved!' : 'Save to Book'}
-			</button>
-			<button
-				onclick={handleReRecord}
-				class="rounded bg-[var(--color-bg-tertiary)] px-4 py-2 text-sm font-medium transition-colors hover:bg-[var(--color-bg-secondary)]"
-			>
-				Re-record
-			</button>
-		</div>
-	</div>
-{:else}
-	<a
-		href="/licks/add"
-		class="inline-flex items-center gap-1 text-sm text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text)]"
-	>
-		&larr; Add Licks
-	</a>
-
-	<div class="mt-4 flex min-h-[75vh] flex-col items-center justify-center gap-6 px-4">
-		{#if recordState === 'idle'}
-			<!-- Idle: record button + tempo -->
-			<div class="text-center">
-				<div class="smallcaps text-[var(--color-brass)]">Put it on tape</div>
-				<h1 class="font-display text-3xl font-bold tracking-tight">
-					Record a Lick
-				</h1>
-				<div class="jazz-rule mx-auto mt-2 max-w-[140px]"></div>
-				<p class="mt-3 text-sm italic text-[var(--color-text-secondary)]">
-					Play a phrase into your mic and we'll notate it.
-				</p>
-			</div>
-
-			<button
-				onclick={startRecording}
-				disabled={audioLoadFailed}
-				aria-label="Start recording"
-				class="group relative flex h-28 w-28 items-center justify-center rounded-full
-					   bg-[var(--color-onair)] hover:bg-[var(--color-onair-hover)] shadow-lg ring-1 ring-[var(--color-brass)]/50
-					   transition-all duration-300 hover:bg-[var(--color-onair-hover)] active:scale-95
-					   disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-[var(--color-onair)]"
-			>
-				<svg class="h-10 w-10 text-white" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-					<circle cx="12" cy="12" r="6" />
-				</svg>
-			</button>
-
-			<!-- Tempo control -->
-			<div class="flex items-center gap-3">
-				<label for="tempo" class="text-sm text-[var(--color-text-secondary)]">Tempo</label>
-				<button
-					onclick={() => { tempo = Math.max(40, tempo - 5); }}
-					class="rounded bg-[var(--color-bg-tertiary)] px-2 py-1 text-sm hover:bg-[var(--color-bg-secondary)]"
-				>-</button>
-				<span class="w-16 text-center text-lg font-bold tabular-nums">{tempo}</span>
-				<button
-					onclick={() => { tempo = Math.min(240, tempo + 5); }}
-					class="rounded bg-[var(--color-bg-tertiary)] px-2 py-1 text-sm hover:bg-[var(--color-bg-secondary)]"
-				>+</button>
-				<span class="text-sm text-[var(--color-text-secondary)]">BPM</span>
-			</div>
-
-			<!-- The idle status line: a failed audio import replaces the hint,
-			     since Record does nothing without the modules. -->
-			<p class="text-xs text-[var(--color-text-secondary)]">
-				{#if audioLoadFailed}
-					Couldn't load audio — reload to try again
+<div class="record-lick">
+	<a href="/licks/add" class="rl-back">← Add licks</a>
+	<StudioPage eyebrow="From your playing to your vocabulary" title="Record a lick" description="Play a phrase. Keep the idea.">
+		{#snippet actions()}<span class="rl-experimental">Experimental</span>{/snippet}
+		<div class="rl-layout">
+			<section bind:this={recordingDesk} class="rl-console" class:rl-count-in={counting} class:rl-starting={active && !counting && !playing} class:rl-play={playing} class:rl-ready={recordState === 'idle'} aria-label="Recording desk">
+				<div class="rl-console-top"><span class="studio-label">01 / Recording desk</span><span class="rl-meter">4/4 <i></i> {tempo} BPM</span></div>
+				<div class="rl-cue" role="status" aria-live="polite" aria-atomic="true">
+					<span class="rl-state"><i></i>{cueLabel}</span>
+					<h2>{heading}</h2><p>{cueDescription}</p>
+				</div>
+				{#if recordState === 'review' && reviewPhrase}
+					<div class="rl-review-head"><label for="lick-name">Lick name</label></div>
+					<input id="lick-name" class="rl-name" bind:value={lickName} disabled={savedConfirmation} />
+					<div class="rl-score"><NotationDisplay phrase={reviewPhrase} {instrument} frameless /></div>
+					<p class="rl-review-note">A first draft of your playing. Check the rhythm and pitches.</p>
+					<div class="rl-playback"><button class="rl-button rl-quiet" onclick={handlePlayBack} disabled={savedConfirmation}>Play back</button><button class="rl-button rl-quiet" onclick={handleSave} disabled={savedConfirmation}>{savedConfirmation ? 'Saved!' : 'Save to Book'}</button></div>
+					<PrivacyDisclosure />
+					{#if reviewPhrase.difficulty.lengthBars > 4}<p class="rl-review-note">The editor supports up to four bars. You can save this complete take to your book.</p>{/if}
+					<div class="rl-review-actions"><button class="rl-button rl-quiet" onclick={handleReRecord}>Record again</button><button class="rl-button rl-brass" onclick={handleEdit} disabled={savedConfirmation || reviewPhrase.difficulty.lengthBars > 4}>Review in editor <span aria-hidden="true">→</span></button></div>
+				{:else if recordState === 'processing'}
+					<p class="rl-processing">Preparing your take…</p>
 				{:else}
-					Headphones recommended to avoid metronome bleed
-				{/if}
-			</p>
-
-		{:else if recordState === 'counting-in' || recordState === 'recording'}
-			<!-- Count-in + take: one continuous view. The cue bar carries the
-			     timing — Count in, then Play in 4…1, then on-air Play. -->
-			<div class="w-64 max-w-full">
-				<PhaseCueBar cue={displayCue} />
-			</div>
-
-			<div class="text-center">
-				{#if pitchName}
-					<div
-						class="font-display text-5xl font-bold
-							{phaseCue.phase === 'play' ? 'text-[var(--color-phase-play)]' : 'text-[var(--color-text)]'}"
-					>
-						{pitchName}
+					<div class="rl-beat-heading"><span>{playing ? 'Stay with the pulse' : 'Your count-in'}</span><span>{playing ? `Playing · bar ${playBar}` : counting ? `Bar ${countBar} / ${countInBars}` : `${countInBars} bars · ${RECORD_COUNT_IN_BEATS} beats`}</span></div>
+					<div class="rl-beats" role="img" aria-label={beat >= 0 ? `${playing ? 'Playing' : 'Count-in'}, bar ${playing ? playBar : countBar}, beat ${beat + 1}` : 'Four beats in each count-in bar'}>
+						{#each [0, 1, 2, 3] as i}<div class="rl-beat" class:current={beat === i} class:passed={beat > i}><span>{i + 1}</span><i></i></div>{/each}
 					</div>
-				{:else}
-					<div class="font-display text-5xl font-bold text-[var(--color-text-secondary)]">
-						---
+					<div class="rl-entrance" aria-label="Count-in followed by playing">
+						{#each [1, 2] as bar}<div class="rl-bar-stage" class:current={counting && countBar === bar} class:done={playing || counting && countBar > bar}><span><b>{playing || counting && countBar > bar ? '✓' : bar}</b><strong>{bar === 1 ? 'Find the pulse' : 'Get ready'}</strong></span><div><i style:width={(playing || counting && countBar > bar ? 100 : counting && countBar === bar ? (beat + 1) * 25 : 0) + '%'}></i></div></div>{/each}
+						<div class="rl-go-stage" class:current={playing}><span aria-hidden="true">→</span><span>{playing ? 'On tape' : 'Then'}<strong>{playing ? 'Your phrase' : 'play on 1'}</strong></span></div>
+					</div>
+					<div class="rl-transport">
+						<div class="rl-transport-note"><p>{playing ? 'Recording your phrase' : active ? 'Listen to the clicks' : 'Headphones recommended'}<span>{playing ? 'Stop, or pause for 2 seconds.' : active ? 'Your entrance is coming.' : 'Keep the click out of your take.'}</span></p>{#if playing && pitchName}<span class="rl-pitch">{pitchName}</span>{/if}</div>
+						{#if playing}<button class="rl-button rl-brass" onclick={stopRecording}>■ Stop recording</button>
+						{:else if active}<button class="rl-button rl-quiet" onclick={cancelCountIn}>Cancel count-in</button>
+						{:else}<button class="rl-button rl-brass" onclick={startRecording} disabled={!audioReady || setupPending}>{audioLoadFailed ? 'Audio unavailable' : !audioReady || setupPending ? 'Preparing audio…' : 'Start count-in'} <span aria-hidden="true">→</span></button>{/if}
 					</div>
 				{/if}
-				{#if phaseCue.phase === 'play'}
-					<p class="mt-2 text-sm italic text-[var(--color-phase-play)]">On tape&hellip;</p>
-				{:else}
-					<p class="mt-2 text-sm italic text-[var(--color-text-secondary)]">
-						Two-bar count-in &mdash; come in on the downbeat
-					</p>
-				{/if}
-			</div>
-
-			<button
-				onclick={() => { if (recordState === 'recording') stopRecording(); }}
-				aria-label="Stop recording"
-				disabled={recordState !== 'recording'}
-				class="group relative flex h-28 w-28 items-center justify-center rounded-full
-					   bg-[var(--color-onair)] shadow-lg ring-1 ring-[var(--color-brass)]/50
-					   transition-all duration-300
-					   {recordState === 'recording'
-							? 'hover:bg-[var(--color-onair-hover)] active:scale-95'
-							: 'opacity-60'}"
-				class:arming={isArming}
-			>
-				<svg class="h-10 w-10 text-white" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-					<rect x="6" y="6" width="12" height="12" rx="1" />
-				</svg>
-				{#if phaseCue.phase === 'play'}
-					<span class="absolute inset-0 animate-ping rounded-full bg-[var(--color-onair)] opacity-20"></span>
-				{/if}
-			</button>
-
-		{:else if recordState === 'processing'}
-			<!-- Processing -->
-			<div class="text-center">
-				<svg class="mx-auto h-10 w-10 animate-spin text-[var(--color-accent)]" viewBox="0 0 24 24" fill="none">
-					<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" class="opacity-25"></circle>
-					<path d="M4 12a8 8 0 018-8" stroke="currentColor" stroke-width="3" stroke-linecap="round" class="opacity-75"></path>
-				</svg>
-				<p class="mt-4 text-sm italic text-[var(--color-text-secondary)]">Rolling the tape back&hellip;</p>
-			</div>
-		{/if}
-	</div>
-{/if}
-
-<style>
-	/* Lead-in: same ring the live take gets, dashed and dimmed — the stop
-	   button is marked as the arming target through the countdown bar. */
-	button.arming {
-		outline: 2px dashed color-mix(in srgb, var(--color-phase-play) 55%, transparent);
-		outline-offset: 4px;
-	}
-</style>
+				{#if audioLoadFailed || recordingError}<p class="rl-error" role="alert">{audioLoadFailed ? 'Audio could not load. Refresh the page to try again.' : recordingError}</p>{/if}
+			</section>
+			<aside class="rl-side" class:is-running={active} aria-label={recordState === 'review' ? 'Take details' : 'Recording setup'}>
+				<section class="rl-setup">
+					<span class="studio-label">{recordState === 'review' ? 'Your take' : 'Session setup'}</span><h2>{recordState === 'review' ? 'The idea is here.' : 'Set your pace.'}</h2><p>{recordState === 'review' ? 'Fine-tune it in the editor.' : 'A tempo you can settle into.'}</p>
+					{#if recordState === 'review'}<div class="rl-fixed-row"><span>Recorded at</span><strong>{tempo} BPM</strong></div>
+					{:else}<label class="rl-field-label" for="record-tempo">Tempo</label><div class="rl-tempo"><button disabled={recordState !== 'idle' || tempo <= 40} aria-label="Decrease tempo" onclick={() => tempo = Math.max(40, tempo - 5)}>−</button><div><input id="record-tempo" type="number" min="40" max="240" step="5" disabled={recordState !== 'idle'} value={tempo} onchange={(event) => tempo = Math.max(40, Math.min(240, Number(event.currentTarget.value) || 100))} /><span>BPM</span></div><button disabled={recordState !== 'idle' || tempo >= 240} aria-label="Increase tempo" onclick={() => tempo = Math.min(240, tempo + 5)}>+</button></div><div class="rl-fixed-row"><span>Count-in</span><strong>{countInBars} bars <small>· {RECORD_COUNT_IN_BEATS} beats</small></strong></div>{/if}
+					<div class="rl-fixed-row"><span>Time</span><strong>4/4</strong></div><div class="rl-instrument"><span class="rl-field-label">Your instrument</span><strong>{instrument.name}</strong><p>Notation in your written pitch.</p></div>
+				</section>
+				<div class="rl-side-note"><span class="studio-label">{recordState === 'review' ? 'Before you keep it' : 'Your entrance'}</span><h3>{recordState === 'review' ? 'Check what you hear.' : 'Wait for “Play now”.'}</h3><p>{recordState === 'review' ? 'Review the rhythm and pitches in the editor, then save the phrase to your book.' : 'The count-in stays orange. On the next downbeat, the cue turns gold and your take begins.'}</p>{#if recordState !== 'review'}<span class="rl-legend"><i></i> Count in <b>→</b><i></i> Play</span>{/if}</div>
+			</aside>
+		</div>
+	</StudioPage>
+</div>

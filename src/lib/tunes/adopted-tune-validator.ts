@@ -13,6 +13,7 @@
 
 import { PITCH_CLASSES } from '$lib/types/music';
 import { CHORD_DEFINITIONS } from '$lib/music/chords';
+import { isSupportedMeter } from './meter';
 
 export interface AdoptedTuneValidation {
 	valid: boolean;
@@ -73,7 +74,8 @@ export function validateAdoptedTune(input: unknown): AdoptedTuneValidation {
 		errors.push('unsafe style');
 	}
 	if (!PITCH_CLASSES.includes(sheet.key as never)) errors.push(`invalid key: ${String(sheet.key)}`);
-	if (!isFraction(sheet.timeSignature, false)) errors.push('invalid timeSignature');
+	// DoS cap too: the community preview draws one beat mark per numerator.
+	if (!isSupportedMeter(sheet.timeSignature)) errors.push('invalid timeSignature');
 
 	if (!Array.isArray(sheet.tags)) {
 		errors.push('tags is not an array');

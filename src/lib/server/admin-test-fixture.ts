@@ -12,7 +12,12 @@ export function adminTestData() {
 			{ id: ADMIN_TEST_TARGET, email: 'inactive@example.test', created_at: '2026-09-22T12:00:00Z', last_sign_in_at: '2026-09-22T12:00:00Z', email_confirmed_at: '2026-09-22T12:00:00Z' },
 			{ id: ADMIN_TEST_ADOPTED, email: 'author@example.test', created_at: '2026-09-20T12:00:00Z' }
 		],
-		profiles: [], summaries: [{ user_id: ADMIN_TEST_TARGET, date: '2026-09-22', session_count: 25, practice_minutes: 13 }],
+		profiles: [], summaries: [
+			{ user_id: ADMIN_TEST_TARGET, date: '2026-09-22', session_count: 25, practice_minutes: 13 },
+			{ user_id: ADMIN_TEST_ADOPTED, date: '2026-03-26', session_count: 25, practice_minutes: 0, practice_time_unavailable: true },
+			{ user_id: ADMIN_TEST_ADOPTED, date: '2026-08-01', session_count: 10, practice_minutes: 0, practice_time_unavailable: true },
+			{ user_id: ADMIN_TEST_ADOPTED, date: new Date().toISOString().slice(0, 10), session_count: 1, practice_minutes: 1 }
+		],
 		visitDays: [{ user_id: ADMIN_TEST_TARGET, date: '2026-09-22' }], lickOwners: [ADMIN_TEST_TARGET, ADMIN_TEST_TARGET, ADMIN_TEST_ADOPTED], tuneOwners: [], settings: []
 	});
 	return { unavailable: false, truncated: false, users, audit: [], totals: buildAdminTotals(users, new Date()) };
