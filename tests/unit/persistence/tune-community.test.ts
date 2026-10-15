@@ -227,6 +227,36 @@ describe('listCommunityTunes', () => {
 		expect(tagsClause![1]).not.toMatch(/[{}"%,\\]/u);
 	});
 
+	it('drops a row that fails adopted-tune validation before the desk can preview it (CodeRabbit on #277)', async () => {
+		// The desk previews its first row automatically, and the preview
+		// transposes each chord `symbol`; a truthy non-string one threw at the
+		// tokenizer's trim(). The detail page already validated; the list did not.
+		const malformed = makeSheetRow({
+			id: 'sheet-malformed',
+			sections: [{
+				label: 'A',
+				bars: 1,
+				notes: [],
+				harmony: [{
+					chord: { root: 'C', quality: 'maj7' },
+					scaleId: 'major.ionian',
+					startOffset: [0, 1],
+					duration: [1, 1],
+					symbol: 7
+				}]
+			}]
+		});
+		const sb = makeSupabaseMock({
+			user: ME,
+			data: {
+				tunes: [malformed, makeSheetRow()],
+				public_tune_authors: [{ id: 'author-1', display_name: 'Dizzy', avatar_url: null }]
+			}
+		});
+		const results = await listCommunityTunes(sb as never, {}, 0);
+		expect(results.map((r) => r.sheet.id)).toEqual(['sheet-9-wxyz']);
+	});
+
 	it('surfaces a query error so failure is not shown as an empty collection', async () => {
 		const sb = makeSupabaseMock({ user: ME, errors: { tunes: { message: 'boom' } } });
 		await expect(listCommunityTunes(sb as never)).rejects.toEqual({ message: 'boom' });

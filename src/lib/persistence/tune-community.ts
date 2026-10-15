@@ -120,6 +120,9 @@ function stripForeignAssets(sheet: Tune): Tune {
  * Live paginated community listing. Every filter applies before the page
  * boundary. Membership uses the hydrated local cache; callers await hydration.
  * Query errors propagate so the UI can distinguish failure from an empty book.
+ * Each row is validated like an adopted payload and dropped if it fails: the
+ * desk previews its first row unasked, and that preview parses the chord
+ * symbols. A dropped row shortens its page; it never shifts the next one.
  */
 export async function listCommunityTunes(
 	supabase: SupabaseClient<Database>,
@@ -183,7 +186,11 @@ export async function listCommunityTunes(
 		console.warn('Failed to list community lead sheets:', error);
 		throw error;
 	}
-	const rows = data ?? [];
+	const rows = (data ?? []).filter((row) => {
+		const validation = validateAdoptedTune(stripForeignAssets(cloudRowToTune(row)));
+		if (!validation.valid) console.warn(`Shared tune ${row.id} failed validation:`, validation.errors);
+		return validation.valid;
+	});
 	if (rows.length === 0) return [];
 
 	const userIds = Array.from(new Set(rows.map((r) => r.user_id)));
