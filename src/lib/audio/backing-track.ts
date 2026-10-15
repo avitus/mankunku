@@ -50,6 +50,7 @@ import {
 	type DrumFamily
 } from './backing-mix';
 import { extendHarmonyTail } from '$lib/data/progressions';
+import { createBackingSampleLoader } from './backing-sample-loader';
 
 // ── Diagnostics log ──────────────────────────────────────────
 
@@ -583,15 +584,18 @@ export async function loadBackingInstruments(
 					};
 				})()
 			: undefined;
+	const loader = createBackingSampleLoader(audioCtx, storage);
 
 	// Load bass if not already loaded — pizzicato upright bass samples
 	if (!bassInstrument) {
 		const bass = new Smolken(audioCtx, {
 			instrument: 'Pizzicato',
 			destination: bassGain as GainNode,
-			storage
+			storage,
+			loader
 		});
-		await bass.load;
+		try { await bass.load; }
+		catch (error) { bass.disconnect(); throw error; }
 		if (loadId !== currentLoadId) {
 			bass.disconnect();
 			return;
@@ -602,14 +606,15 @@ export async function loadBackingInstruments(
 	// Reload comp instrument only when type changes
 	if (!compInstrument || currentInstrumentType !== instrumentType) {
 		const newComp: CompInstrument = instrumentType === 'piano'
-			? new SplendidGrandPiano(audioCtx, { destination: compGain as GainNode, storage })
+			? new SplendidGrandPiano(audioCtx, { destination: compGain as GainNode, storage, loader })
 			: new Soundfont(audioCtx, {
 				instrument: 'drawbar_organ',
 				kit: 'MusyngKite',
 				destination: compGain as GainNode,
 				storage
 			});
-		await newComp.load;
+		try { await newComp.load; }
+		catch (error) { newComp.disconnect(); throw error; }
 		if (loadId !== currentLoadId) {
 			newComp.disconnect();
 			return;
@@ -1116,6 +1121,9 @@ export function disposeBackingTrack(): void {
 	// Invalidate in-flight async loads (kit, IR) so they tear their local
 	// nodes down instead of promoting onto the disposed graph.
 	graphEpoch++;
+	// Pitched loads use a separate token from the kit/room graph flights.
+	// A completed decode must not publish a bass/piano onto this dead graph.
+	currentLoadId++;
 	drumLoadPromise = null;
 	disposeBackingParts();
 	if (bassInstrument) {

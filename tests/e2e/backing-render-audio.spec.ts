@@ -7,7 +7,7 @@ import { join } from 'node:path';
  * End-to-end audio verification of the listening lab's offline renders:
  * the bounce and the golden-JSON reference render must produce a WAV with
  * actual signal, not a silent file. Decodes the produced blob in-page and
- * measures peak amplitude. Chromium-only and network-dependent (CDN
+ * measures peak amplitude. Chromium/WebKit and network-dependent (CDN
  * instrument samples), so CI runs skip it — it exists because a silent
  * render is invisible to every unit test we have.
  */
@@ -128,4 +128,55 @@ test('bounce and golden-JSON render produce non-silent WAVs', async ({ page, bro
 	// most — not all — buckets carry energy.
 	expect(bounce.coverage, 'bounce dies early — audio must span the full loop').toBeGreaterThan(0.7);
 	expect(golden.coverage, 'golden render dies early — audio must span the form').toBeGreaterThan(0.7);
+});
+
+test('isolated bass and piano both render audible samples throughout a fixed phrase', async ({ page, browserName }) => {
+	test.skip(!!process.env.CI, 'needs CDN instrument fetches — local diagnostic only');
+	test.skip(browserName === 'firefox', 'compare Chromium and WebKit sample decoding');
+	test.setTimeout(300_000);
+	await seedOnboardedAnonymous(page);
+	await page.addInitScript(() => {
+		const original = URL.createObjectURL.bind(URL);
+		(window as unknown as { __stemBlobs: Blob[] }).__stemBlobs = [];
+		URL.createObjectURL = ((blob: Blob) => {
+			if (blob.type === 'audio/wav') (window as unknown as { __stemBlobs: Blob[] }).__stemBlobs.push(blob);
+			return original(blob);
+		}) as typeof URL.createObjectURL;
+	});
+	await page.goto('/diagnostics/backing-mixer');
+	await page.getByRole('combobox', { name: 'Instrument', exact: true }).selectOption('piano');
+	await page.getByTestId('mix-drums').fill('0');
+	await page.getByTestId('mix-room').fill('0');
+	// Fixed events avoid a generator's legitimate rest or device choice hiding
+	// a missing sample bank. Both stems use the exact public JSON render path.
+	const events = {
+		phraseId: 'pitched-readiness', tempo: 120,
+		bassEvents: Array.from({ length: 6 }, (_, i) => ({ time: `${i * 384}i`, midi: 43 + i % 3, velocity: 85, duration: 0.8, absBeat: i * 2 })),
+		compEvents: Array.from({ length: 6 }, (_, i) => ({ time: `${i * 384}i`, notes: [60, 64, 67], velocity: 80, duration: 0.8 })),
+		drumEvents: []
+	};
+	for (const [index, stem] of ['bass', 'piano'].entries()) {
+		await page.getByTestId('mix-bass').fill(stem === 'bass' ? '1' : '0');
+		await page.getByTestId('mix-comp').fill(stem === 'piano' ? '1' : '0');
+		await page.locator('input[aria-label="Render WAV from events JSON"]').setInputFiles({
+			name: `${stem}.json`, mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(events))
+		});
+		await expect.poll(() => page.evaluate(() => (window as unknown as { __stemBlobs: Blob[] }).__stemBlobs.length), { timeout: 240_000 }).toBe(index + 1);
+		const signal = await page.evaluate(async () => {
+			const blobs = (window as unknown as { __stemBlobs: Blob[] }).__stemBlobs;
+			const context = new AudioContext();
+			try {
+				const buffer = await context.decodeAudioData(await blobs[blobs.length - 1].arrayBuffer());
+				const samples = buffer.getChannelData(0);
+				const peaks = Array.from({ length: 6 }, (_, second) => {
+					let peak = 0;
+					for (let i = second * buffer.sampleRate; i < (second + 0.8) * buffer.sampleRate; i++) peak = Math.max(peak, Math.abs(samples[i]));
+					return peak;
+				});
+				return { peaks };
+			} finally { await context.close(); }
+		});
+		console.log(`${stem} isolated sample peaks: ${signal.peaks.map((peak) => peak.toFixed(4)).join(', ')}`);
+		for (const [note, peak] of signal.peaks.entries()) expect(peak, `${stem} note ${note + 1} is silent`).toBeGreaterThan(0.005);
+	}
 });

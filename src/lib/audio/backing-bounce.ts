@@ -16,6 +16,7 @@ import type { Phrase } from '$lib/types/music';
 import type { BackingInstrument, BackingStyle } from '$lib/types/instruments';
 import { fractionToFloat } from '$lib/music/intervals';
 import { BACKING_STYLES } from './backing-styles';
+import { createBackingSampleLoader } from './backing-sample-loader';
 import {
 	generateBacking,
 	resolveBackingSwing,
@@ -254,6 +255,7 @@ export async function renderEventsToWav(
 			const scheduler = new Scheduler(context, {
 				lookaheadMs: (durationSeconds + 10) * 1000
 			});
+			const loader = createBackingSampleLoader(context);
 			// Partition the kit into its family samplers, mirroring ensureDrums.
 			const byFamily: Record<DrumFamily, Record<string, AudioBuffer>> = {
 				kick: {},
@@ -275,9 +277,9 @@ export async function renderEventsToWav(
 					scheduler
 				}).load;
 			const [bass, comp, kickSampler, snareSampler, cymbalSampler] = await Promise.all([
-				new Smolken(context, { instrument: 'Pizzicato', destination: bassGain, scheduler }).load,
+				new Smolken(context, { instrument: 'Pizzicato', destination: bassGain, scheduler, loader }).load,
 				opts.instrument === 'piano'
-					? new SplendidGrandPiano(context, { destination: compGain, scheduler }).load
+					? new SplendidGrandPiano(context, { destination: compGain, scheduler, loader }).load
 					: new Soundfont(context, {
 							instrument: 'drawbar_organ',
 							kit: 'MusyngKite',
