@@ -5456,3 +5456,13 @@ contradictions before approval, all folded in.
   select what they wrote. Ranges never cross pages in the tune editor.
 - The chart highlights every element between the two ends
   (`selectedEndIndex`); the status lines read "n selected".
+- **All five phases are on `origin/dev`** (6a362d06 docs → bf9ce106 → d9f6d1d4 →
+  229dfd90 → c72df253), each pushed as a fast-forward after a rebase where
+  dev had moved (one rebase conflicted in the tune editor route, where dev
+  had restructured the rail that afternoon — my hooks were re-seated in the
+  new markup). Verified per phase: `npm run check` 0 errors, the full unit
+  suite (6311 + 40 expected fails at the end), the editor e2e specs on
+  Chromium (62) and both editor specs on Firefox + WebKit (33). Not on
+  production: no dev → main PR was opened (Andy's call), and nothing was
+  checked by hand in the browser pane — the e2e runs drove the real app in
+  three engines instead.
