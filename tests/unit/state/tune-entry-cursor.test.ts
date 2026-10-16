@@ -37,7 +37,11 @@ import {
 	tuneAddRest,
 	tuneEnterTiedNote,
 	clearEntryCursor,
-	entryCursorPosition
+	entryCursorPosition,
+	tuneDeleteSelected,
+	tuneRemoveSelectedTime,
+	setTunePickup,
+	setChord
 } from '$lib/state/tune-entry.svelte';
 
 // ─── Mock localStorage (settings persist on write) ────────────────────
@@ -1041,5 +1045,136 @@ describe('cursor-layer invariants', () => {
 		expect(tuneAddNote(0, 8, 'natural')).toBe(false);
 		expect(tuneEntry.currentPage).toBe(0);
 		expect(stepEntry.enteredNotes).toHaveLength(4); // no head was pushed
+	});
+});
+
+// ─── Group 9: tune-level delete (2026-10-15) ──────────────────────────
+
+describe('tuneDeleteSelected / tuneRemoveSelectedTime', () => {
+	/** A: C D E G in bar 1, F on bar 5 (page 1), A on bar 6; a chord on bar 6. */
+	function twoPageSheet(withRest = false): void {
+		loadFromTune(sheet([{
+			label: 'A',
+			bars: 8,
+			notes: [
+				{ pitch: 60, duration: [1, 4], offset: [0, 1] },
+				{ pitch: withRest ? null : 62, duration: [1, 4], offset: [1, 4] },
+				{ pitch: 64, duration: [1, 4], offset: [1, 2] },
+				{ pitch: 67, duration: [1, 4], offset: [3, 4] },
+				{ pitch: 65, duration: [1, 4], offset: [4, 1] },
+				{ pitch: 69, duration: [1, 4], offset: [5, 1] }
+			],
+			harmony: []
+		}]), INSTRUMENTS['concert']);
+		expect(setChord(0, 5, 0, 'C7')).toBe(true);
+	}
+
+	function storedRows(): string[] {
+		return tuneEntry.sections[0].notes.map(
+			(n) => `${n.pitch ?? 'z'} @${n.offset[0]}/${n.offset[1]} ×${n.duration[0]}/${n.duration[1]}`
+		);
+	}
+
+	it('turns a note before the section end into a rest; nothing on this or a later page moves', () => {
+		twoPageSheet();
+		expect(cursorToFlattened(1)).toBe(true); // D
+		expect(tuneDeleteSelected()).toBe('rested');
+		expect(stepEntry.enteredNotes.map((n) => n.pitch)).toEqual([60, null, 64, 67]);
+		expect(stepEntry.enteredNotes[1].offset).toEqual([1, 4]);
+		expect(stepEntry.enteredNotes[1].duration).toEqual([1, 4]);
+		expect(stepEntry.selectedNoteIndex).toBe(1);
+		// The cursor sits on the rest, so typing fills it (phase-1 correction loop).
+		expect(tuneEntry.entryCursor).toEqual([1, 4]);
+		commitBuffer();
+		expect(storedRows()).toEqual([
+			'60 @0/1 ×1/4', 'z @1/4 ×1/4', '64 @1/2 ×1/4', '67 @3/4 ×1/4', '65 @4/1 ×1/4', '69 @5/1 ×1/4'
+		]);
+	});
+
+	it('typing after Delete→rest replaces the rest, not the end of the page', () => {
+		twoPageSheet();
+		cursorToFlattened(1);
+		tuneDeleteSelected();
+		setDuration('quarter');
+		expect(tuneAddNote(9, 4, 'natural')).toBe(true); // A
+		expect(stepEntry.enteredNotes.map((n) => n.pitch)).toEqual([60, 69, 64, 67]);
+		expect(stepEntry.enteredNotes[1].offset).toEqual([1, 4]);
+	});
+
+	it('removes a rest\'s time across the page boundary, leaving the section tail silent and the chords in place', () => {
+		twoPageSheet(true);
+		expect(cursorToFlattened(1)).toBe(true); // the stored rest
+		expect(tuneDeleteSelected()).toBe('removed');
+		expect(storedRows()).toEqual([
+			'60 @0/1 ×1/4', '64 @1/4 ×1/4', '67 @1/2 ×1/4', '65 @15/4 ×1/4', '69 @19/4 ×1/4'
+		]);
+		expect(tuneEntry.sections[0].harmony[0].startOffset).toEqual([5, 1]);
+		expect(tuneEntry.sections[0].bars).toBe(8);
+		// Reloaded page 0: the previous element (C) is selected, no cursor.
+		expect(tuneEntry.currentPage).toBe(0);
+		expect(stepEntry.selectedNoteIndex).toBe(0);
+		expect(stepEntry.enteredNotes[0].pitch).toBe(60);
+		expect(tuneEntry.entryCursor).toBeNull();
+	});
+
+	it('removes a selected note\'s time on Ctrl/⌘+Backspace, section-wide', () => {
+		twoPageSheet();
+		cursorToFlattened(1); // D
+		expect(tuneRemoveSelectedTime()).toBe('removed');
+		expect(storedRows()).toEqual([
+			'60 @0/1 ×1/4', '64 @1/4 ×1/4', '67 @1/2 ×1/4', '65 @15/4 ×1/4', '69 @19/4 ×1/4'
+		]);
+	});
+
+	it('removes the section\'s last element outright — the entry flow\'s Backspace', () => {
+		setDuration('quarter');
+		tuneAddNote(0, 4, 'natural');
+		tuneAddNote(2, 4, 'natural');
+		expect(tuneDeleteSelected()).toBe('removed');
+		expect(stepEntry.enteredNotes.map((n) => n.pitch)).toEqual([60]);
+		expect(stepEntry.selectedNoteIndex).toBeNull();
+		expect(tuneEntry.entryCursor).toBeNull();
+	});
+
+	it('refuses a no-selection Backspace on a page that is not the section\'s end', () => {
+		twoPageSheet();
+		cursorToFlattened(0);
+		selectNote(null);
+		expect(tuneDeleteSelected()).toBe('no-selection');
+		expect(stepEntry.enteredNotes).toHaveLength(4);
+		expect(storedRows()).toHaveLength(6);
+	});
+
+	it('refuses to remove the pickup lead-in rest', () => {
+		setTunePickup([1, 4]); // a one-bar pickup section with a 3/4 lead-in rest
+		loadPage(0, 0);
+		expect(stepEntry.enteredNotes[0].pitch).toBeNull();
+		selectNote(0);
+		expect(tuneDeleteSelected()).toBe('lead-in');
+		expect(tuneRemoveSelectedTime()).toBe('lead-in');
+		expect(stepEntry.enteredNotes[0].duration).toEqual([3, 4]);
+		expect(tuneEntry.sections[0].pickupLength).toEqual([1, 4]);
+	});
+
+	it('deleting the only note of a bar clears the selection and parks the cursor at the bar (slash bars have no anchor)', () => {
+		loadFromTune(sheet([{
+			label: 'A',
+			bars: 8,
+			notes: [
+				{ pitch: 60, duration: [1, 4], offset: [0, 1] },
+				{ pitch: 64, duration: [1, 4], offset: [1, 1] },
+				{ pitch: 65, duration: [1, 4], offset: [4, 1] }
+			],
+			harmony: []
+		}]), INSTRUMENTS['concert']);
+		// The first page load stores its synthesized gap rest on commit, so E is
+		// found by pitch rather than by a fixed flattened index.
+		commitBuffer();
+		cursorToFlattened(tuneEntry.sections[0].notes.findIndex((n) => n.pitch === 64)); // E, alone in bar 2
+		expect(tuneDeleteSelected()).toBe('rested');
+		expect(stepEntry.selectedNoteIndex).toBeNull();
+		expect(tuneEntry.entryCursor).toEqual([1, 1]);
+		const rest = stepEntry.enteredNotes.find((n) => compareFractions(n.offset, [1, 1]) === 0)!;
+		expect(rest.pitch).toBeNull();
 	});
 });

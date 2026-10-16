@@ -43,6 +43,9 @@
 		selectPrevAcrossPages,
 		clearEntryCursor,
 		entryCursorPosition,
+		tuneDeleteSelected,
+		tuneRemoveSelectedTime,
+		type TuneDeleteResult,
 		setChord,
 		removeChord,
 		chordTextAt,
@@ -57,7 +60,6 @@
 		adjustOctave,
 		selectNote,
 		adjustSelectedNotePitch,
-		deleteSelectedNote,
 		flipSelectedNoteSpelling
 	} from '$lib/state/step-entry.svelte';
 	import { keyToPitchClass } from '$lib/step-entry/pitch-input';
@@ -142,6 +144,21 @@
 
 	let moveNotes = $state(true);
 	let transport: TuneTransport | undefined = $state();
+
+	/** A transient line in the entry rail: why a delete was refused. */
+	let entryHint = $state('');
+	let entryHintTimer: ReturnType<typeof setTimeout> | undefined;
+	const DELETE_HINTS: Partial<Record<TuneDeleteResult, string>> = {
+		'no-selection': 'Select a note or rest to delete — only the last note of a section goes without one.',
+		'lead-in': 'The lead-in is set by the Pickup control in Setup.'
+	};
+
+	/** Voice a refused delete; a successful one clears any earlier hint. */
+	function reportDelete(result: TuneDeleteResult): void {
+		clearTimeout(entryHintTimer);
+		entryHint = DELETE_HINTS[result] ?? '';
+		if (entryHint) entryHintTimer = setTimeout(() => { entryHint = ''; }, 5000);
+	}
 	let shortcutsDialog: HTMLDialogElement | undefined = $state();
 	let settingsDialog: HTMLDialogElement | undefined = $state();
 	let formDialog: HTMLDialogElement | undefined = $state();
@@ -224,8 +241,15 @@
 			// it (this is the mandatory-review handoff, not stale state).
 			tuneEntry.reviewHandoff = false;
 			resumeEntryBuffer();
-		} else if (tuneEntry.editingId !== null || tuneEntry.sections.length === 0) {
-			// Fresh visit (or stale edit state from a prior nav) — start clean.
+		} else if (
+			tuneEntry.sections.length === 0 ||
+			(tuneEntry.editingId !== null && getUserTunesLocal().some((s) => s.id === tuneEntry.editingId))
+		) {
+			// Fresh visit, or stale edit state for a SAVED tune — start clean. An
+			// unsaved import draft carries a pre-assigned id with no stored sheet
+			// (the PDF flow's, so its stored PDF stays linked); the user left by a
+			// link and came back by Back, and the draft is kept (2026-10-15 —
+			// it used to read as stale state and be wiped, review crops and all).
 			initNewTune();
 		} else {
 			// Returning mid-draft: the buffer was suspended on the way out.
@@ -249,6 +273,8 @@
 		const target = e.target as HTMLElement | null;
 		if (target && ['INPUT', 'SELECT', 'TEXTAREA'].includes(target.tagName)) return;
 		if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); restoreHistory(e.shiftKey ? 'redo' : 'undo'); return; }
+		// MuseScore's Ctrl+Del: the selected element AND its time go, section-wide.
+		if ((e.ctrlKey || e.metaKey) && (e.key === 'Backspace' || e.key === 'Delete')) { e.preventDefault(); reportDelete(tuneRemoveSelectedTime()); return; }
 		if (e.ctrlKey || e.metaKey || e.altKey) return;
 		if (e.key === ' ' && !target?.closest('button,a,[role="button"]')) { e.preventDefault(); void transport?.togglePlay(); return; }
 
@@ -272,10 +298,7 @@
 		if (e.key === 'ArrowDown') { e.preventDefault(); adjustSelectedNotePitch(e.shiftKey ? -12 : -1); return; }
 		if (e.key === 'Backspace' || e.key === 'Delete') {
 			e.preventDefault();
-			deleteSelectedNote();
-			// The delete shifted every later offset — a live entry cursor would
-			// now point at a stale timeline position.
-			clearEntryCursor();
+			reportDelete(tuneDeleteSelected());
 			return;
 		}
 	}
@@ -306,10 +329,14 @@
 		}
 	}
 
-	/** Panel delete: the shift invalidates any armed entry-cursor position. */
+	/** Panel Delete: a note becomes a rest, a rest (or the section's last element) gives up its time. */
 	function handlePanelDelete(): void {
-		deleteSelectedNote();
-		clearEntryCursor();
+		reportDelete(tuneDeleteSelected());
+	}
+
+	/** Panel Remove time: the selected element and its time go, section-wide. */
+	function handlePanelRemoveTime(): void {
+		reportDelete(tuneRemoveSelectedTime());
 	}
 </script>
 
@@ -397,10 +424,11 @@
                 <div class="te-cursor"><span class="te-cursor-dot"></span><strong>{@render entryStatus()}</strong><small>{selectedName ? `${selectedName} selected` : 'Click a bar to place the next note'}</small></div>
                 {#if melodyEditingSupported()}
                     <div class="te-input-group"><p class="te-label">Duration <small>1–5</small></p><DurationSelector /></div>
-                    <div class="te-input-group"><p class="te-label">Pitch <small>A–G · 0 for rest</small></p><PitchEntryPanel onAddNote={tuneAddNote} onAddRest={tuneAddRest} onTie={tuneEnterTiedNote} onDelete={handlePanelDelete} /></div>
+                    <div class="te-input-group"><p class="te-label">Pitch <small>A–G · 0 for rest</small></p><PitchEntryPanel onAddNote={tuneAddNote} onAddRest={tuneAddRest} onTie={tuneEnterTiedNote} onDelete={handlePanelDelete} onRemoveTime={handlePanelRemoveTime} /></div>
                 {:else}<p class="te-hint">This chart is in {tuneEntry.timeSignature.join('/')} — melody entry supports 4/4 only. Tap a chord slot to edit chords; use Edit form for sections.</p>{/if}
                 <div class="te-chord-action"><button disabled={!melodyEditingSupported()} onclick={openChordEditorAtCursor}>Edit chord at cursor <kbd>K</kbd></button></div>
                 <div class="te-rail-footer"><p>Click a note, then use ↑ ↓ to change its pitch.</p><button onclick={() => shortcutsDialog?.showModal()}>Keyboard shortcuts ↗</button></div>
+                <div class="le-status" role="status" aria-live="polite" data-testid="entry-hint">{entryHint || (selectedNote ? 'Delete turns a note into a rest; Ctrl/⌘ ⌫ removes its time.' : 'Click a note to edit it in place, or a bar to place the next one.')}</div>
             </div>
         </section></div>
 		<footer class="le-footer"><span>MANKUNKU <i>/</i> YOUR REPERTOIRE, IN YOUR HANDS.</span><a href="/tunes">Back to your tunes ↗</a></footer>
@@ -413,5 +441,5 @@
     </section></div><div class="le-dialog-actions"><button class="le-button le-save" onclick={() => settingsDialog?.close()}>Done</button></div></dialog>
     <dialog bind:this={formDialog} class="le-dialog te-form-dialog" aria-labelledby="form-heading"><header><div><p class="studio-label">Tune structure</p><h2 id="form-heading">Form & sections.</h2></div><button aria-label="Close form" onclick={() => formDialog?.close()}>×</button></header><div class="te-form-content"><SectionConfigPanel /></div><div class="le-dialog-actions"><button class="le-button le-save" onclick={() => formDialog?.close()}>Done</button></div></dialog>
 
-	<dialog bind:this={shortcutsDialog} class="le-dialog" aria-labelledby="tune-shortcuts-title"><header><h2 id="tune-shortcuts-title">Keep your hands on the keys.</h2><button aria-label="Close shortcuts" onclick={() => shortcutsDialog?.close()}><EditorIcon name="close" /></button></header><p>Shortcuts work when you’re outside a text field.</p><dl class="le-shortcuts">{#each [['A–G / 0', 'Enter a note / rest'], ['1–5', 'Note duration'], ['T / .', 'Triplet / dotted'], ['[ / ]', 'Flat / sharp'], ['= / −', 'Entry octave'], ['← / →', 'Select previous / next note'], ['↑ / ↓', 'Move pitch by a semitone'], ['Shift + ↑ / ↓', 'Move pitch by an octave'], ['\\', 'Flip enharmonic spelling'], ['+', 'Tie to a duplicate of the last note'], ['K', 'Edit chord at cursor'], ['⌫ / Delete', 'Delete selected note'], ['Space', 'Play / stop'], ['Ctrl/⌘Z', 'Undo'], ['Ctrl/⌘Shift Z', 'Redo']] as [key, description]}<div><dt>{description}</dt><dd><kbd>{key}</kbd></dd></div>{/each}</dl></dialog>
+	<dialog bind:this={shortcutsDialog} class="le-dialog" aria-labelledby="tune-shortcuts-title"><header><h2 id="tune-shortcuts-title">Keep your hands on the keys.</h2><button aria-label="Close shortcuts" onclick={() => shortcutsDialog?.close()}><EditorIcon name="close" /></button></header><p>Shortcuts work when you’re outside a text field.</p><dl class="le-shortcuts">{#each [['A–G / 0', 'Enter a note / rest'], ['1–5', 'Note duration'], ['T / .', 'Triplet / dotted'], ['[ / ]', 'Flat / sharp'], ['= / −', 'Entry octave'], ['← / →', 'Select previous / next note'], ['↑ / ↓', 'Move pitch by a semitone'], ['Shift + ↑ / ↓', 'Move pitch by an octave'], ['\\', 'Flip enharmonic spelling'], ['+', 'Tie to a duplicate of the last note'], ['K', 'Edit chord at cursor'], ['⌫ / Delete', 'Delete: a note becomes a rest; a rest or the last note gives up its time'], ['Ctrl/⌘ ⌫', 'Remove the selected note or rest and its time'], ['Space', 'Play / stop'], ['Ctrl/⌘Z', 'Undo'], ['Ctrl/⌘Shift Z', 'Redo']] as [key, description]}<div><dt>{description}</dt><dd><kbd>{key}</kbd></dd></div>{/each}</dl></dialog>
 </div>

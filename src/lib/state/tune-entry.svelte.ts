@@ -41,12 +41,15 @@ import {
 	addNote as stepAddNote,
 	addRest as stepAddRest,
 	enterTiedNote as stepEnterTiedNote,
+	deleteSelectedNote,
+	removeSelectedTime,
 	canAddDuration,
 	getCurrentCursorOffset,
 	getRemainingCapacity,
 	resolveEntryPitch
 } from '$lib/state/step-entry.svelte';
 import { getDurationFraction } from '$lib/step-entry/durations';
+import { coalesceRests, removeTime, replaceWithRest } from '$lib/step-entry/buffer-ops';
 import { transposeTune } from '$lib/tunes/book-loader';
 import { isPickupOnlySection, pickupPrefix, resolvePickupLength } from '$lib/music/pickup';
 import {
@@ -928,6 +931,175 @@ export function tuneEnterTiedNote(): boolean {
 /** Escape hatch: drop cursor mode, returning to append-at-end entry. */
 export function clearEntryCursor(): void {
 	tuneEntry.entryCursor = null;
+}
+
+// ─── Delete (2026-10-15) ─────────────────────────────────────────────────
+
+/**
+ * Outcome of a tune-level delete, for the editor's status line: `rested`
+ * (a note became a rest), `removed` (an element and its time went),
+ * `no-selection` (refused: nothing selected on a page that is not the
+ * section's end), `lead-in` (refused: the pickup's lead-in rest), `empty`.
+ */
+export type TuneDeleteResult = 'rested' | 'removed' | 'empty' | 'no-selection' | 'lead-in';
+
+/** True when the current section stores nothing beyond the current page window. */
+function bufferEndIsSectionEnd(): boolean {
+	const sec = tuneEntry.sections[tuneEntry.currentSection];
+	if (!sec) return true;
+	const endF = fractionToFloat(pageStartFraction(tuneEntry.currentPage)) + currentWindowBars();
+	return sec.notes.every((n) => fractionToFloat(n.offset) < endF - 1e-9);
+}
+
+/** The pickup sheet shape the resolver reads. */
+function currentSheet(): { timeSignature: [number, number]; sections: TuneSection[] } {
+	return { timeSignature: tuneEntry.timeSignature, sections: tuneEntry.sections };
+}
+
+/**
+ * True when buffer element `bufferIdx` is (or has absorbed) the pickup's
+ * lead-in rest: a rest at offset 0 on page 0 of a section whose first bar
+ * is an anacrusis. The Pickup control owns that silence — removing its time
+ * would pull the pickup onto beat 1 and invalidate `pickupLength`.
+ */
+function isLeadInRest(bufferIdx: number): boolean {
+	const el = stepEntry.enteredNotes[bufferIdx];
+	if (!el || el.pitch !== null || tuneEntry.currentPage !== 0) return false;
+	if (compareFractions(el.offset, [0, 1]) !== 0) return false;
+	return resolvePickupLength(currentSheet(), tuneEntry.currentSection) !== null;
+}
+
+/**
+ * Remove buffer element `bufferIdx` AND its time from the SECTION, not the
+ * page: commit, drop the stored element, pull every later note in the
+ * section earlier by its duration — across page boundaries, so the hidden
+ * pager never shows through as a hole at the page's end — leave the
+ * section's tail silent, keep the harmony where it is (chords belong to the
+ * form), repair ties, reload the page. Selection lands on the element that
+ * ends where the removed one began (the previous element), else the one
+ * now starting there; the cursor is cleared like any edit selection.
+ */
+function removeTimeInSection(bufferIdx: number): void {
+	const el = stepEntry.enteredNotes[bufferIdx];
+	if (!el) return;
+	const local = el.offset;
+	const absOffset = addFractions(pageStartFraction(tuneEntry.currentPage), local);
+	const { pitch, duration } = el;
+	commitBuffer();
+	const sec = tuneEntry.sections[tuneEntry.currentSection];
+	if (!sec) return;
+	const idx = sec.notes.findIndex(
+		(n) =>
+			n.pitch === pitch &&
+			compareFractions(n.offset, absOffset) === 0 &&
+			compareFractions(n.duration, duration) === 0
+	);
+	if (idx >= 0) {
+		sec.notes = removeTime(sec.notes, idx);
+		sanitizeTies();
+	}
+	loadBuffer(tuneEntry.currentSection, tuneEntry.currentPage);
+	const notes = stepEntry.enteredNotes;
+	let sel = notes.findIndex((n) => compareFractions(addFractions(n.offset, n.duration), local) === 0);
+	if (sel < 0) sel = notes.findIndex((n) => compareFractions(n.offset, local) === 0);
+	stepEntry.selectedNoteIndex = sel >= 0 ? sel : null;
+}
+
+/**
+ * Turn buffer element `target` into a rest in place (MuseScore's Del),
+ * merged with any rest neighbours in its bar. The rest stays selected with
+ * the entry cursor armed on it, so the next typed note fills it — unless the
+ * bar now holds no pitched note at all: such a bar engraves as slashes,
+ * which carry no click anchor, so a selection there would be invisible; the
+ * selection clears and the cursor parks at the bar's first entry beat (past
+ * the lead-in on a pickup bar) instead.
+ */
+function restInPlace(target: number): void {
+	const { notes: merged, indexMap } = coalesceRests(replaceWithRest(stepEntry.enteredNotes, target));
+	stepEntry.enteredNotes = merged;
+	const restIdx = indexMap[target];
+	const rest = merged[restIdx];
+	const bar = Math.floor(fractionToFloat(rest.offset) + 1e-9);
+	const barStartAbs = addFractions(pageStartFraction(tuneEntry.currentPage), [bar, 1]);
+	const barHasPitch = spanHasPitchedCollision(
+		tuneEntry.currentSection,
+		barStartAbs,
+		addFractions(barStartAbs, [1, 1])
+	);
+	if (barHasPitch) {
+		stepEntry.selectedNoteIndex = restIdx;
+		tuneEntry.entryCursor = rest.offset;
+		return;
+	}
+	let cursor: Fraction = [bar, 1];
+	if (bar === 0 && tuneEntry.currentPage === 0) {
+		const pickup = resolvePickupLength(currentSheet(), tuneEntry.currentSection);
+		if (pickup !== null) cursor = pickupPrefix(pickup, tuneEntry.timeSignature);
+	}
+	stepEntry.selectedNoteIndex = null;
+	tuneEntry.entryCursor = cursor;
+}
+
+/**
+ * The tune editor's Backspace/Delete. A NOTE before the section's end
+ * becomes a rest (`restInPlace`); a REST removes its time section-wide
+ * (`removeTimeInSection`); the section's LAST element is removed outright —
+ * nothing follows it, so this is the entry flow's "remove what I just
+ * typed". With no selection, the same fallback applies only where the page
+ * end is the section's end; elsewhere the delete is refused rather than
+ * guessing. The pickup lead-in rest is always refused.
+ */
+export function tuneDeleteSelected(): TuneDeleteResult {
+	if (!melodyEditingSupported()) return 'empty';
+	const notes = stepEntry.enteredNotes;
+	if (notes.length === 0) return 'empty';
+	const sel = stepEntry.selectedNoteIndex;
+	const target = sel !== null && sel >= 0 && sel < notes.length ? sel : null;
+	const sectionEnd = bufferEndIsSectionEnd();
+	if (target === null) {
+		if (!sectionEnd) return 'no-selection';
+		if (isLeadInRest(notes.length - 1)) return 'lead-in';
+		deleteSelectedNote();
+		tuneEntry.entryCursor = null;
+		return 'removed';
+	}
+	const el = notes[target];
+	const isLast = target === notes.length - 1 && sectionEnd;
+	if (el.pitch !== null && !isLast) {
+		restInPlace(target);
+		return 'rested';
+	}
+	if (isLeadInRest(target)) return 'lead-in';
+	if (isLast) {
+		deleteSelectedNote();
+		tuneEntry.entryCursor = null;
+		return 'removed';
+	}
+	removeTimeInSection(target);
+	return 'removed';
+}
+
+/**
+ * The explicit remove-time gesture (Ctrl/⌘ + Backspace): the selected
+ * element — note or rest — and its time go, section-wide. Same no-selection
+ * and lead-in refusals as `tuneDeleteSelected`.
+ */
+export function tuneRemoveSelectedTime(): TuneDeleteResult {
+	if (!melodyEditingSupported()) return 'empty';
+	const notes = stepEntry.enteredNotes;
+	if (notes.length === 0) return 'empty';
+	const sel = stepEntry.selectedNoteIndex;
+	const target = sel !== null && sel >= 0 && sel < notes.length ? sel : null;
+	if (target === null) {
+		if (!bufferEndIsSectionEnd()) return 'no-selection';
+		if (isLeadInRest(notes.length - 1)) return 'lead-in';
+		removeSelectedTime();
+		tuneEntry.entryCursor = null;
+		return 'removed';
+	}
+	if (isLeadInRest(target)) return 'lead-in';
+	removeTimeInSection(target);
+	return 'removed';
 }
 
 /** All stored notes in flattened (section) order. Trustworthy post-commit. */

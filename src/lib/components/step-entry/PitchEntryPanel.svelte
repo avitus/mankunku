@@ -1,6 +1,6 @@
 <script lang="ts">
 	import {
-		stepEntry, addNote, addRest, deleteLastNote,
+		stepEntry, addNote, addRest, deleteLastNote, removeSelectedTime,
 		setAccidental, adjustOctave, flipLastNoteSpelling, enterTiedNote
 	} from '$lib/state/step-entry.svelte';
 	import { keyToPitchClass } from '$lib/step-entry/pitch-input';
@@ -18,14 +18,18 @@
 		) => boolean;
 		onAddRest?: () => boolean;
 		onTie?: () => boolean;
+		/** Delete: a note becomes a rest; a rest, or the last element, gives up its time. */
 		onDelete?: () => void;
+		/** Remove the selected element AND its time (Ctrl/⌘ ⌫), whatever its kind. */
+		onRemoveTime?: () => void;
 	}
 
 	let {
 		onAddNote = addNote,
 		onAddRest = addRest,
 		onTie = enterTiedNote,
-		onDelete = deleteLastNote
+		onDelete = deleteLastNote,
+		onRemoveTime = removeSelectedTime
 	}: Props = $props();
 
 	const noteNames = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
@@ -167,9 +171,18 @@
 		<button
 			onclick={() => onDelete()}
 			aria-label="Delete selected or last note"
+			title="Delete: a note becomes a rest; a rest, or the last note, gives up its time (⌫)"
 			class="rounded bg-[var(--color-bg-tertiary)] px-3 py-1.5 text-sm hover:bg-[var(--color-bg-secondary)]"
 		>
 			&#9003; <span class="@max-[28rem]/entry:hidden">Delete <span class="text-[10px] opacity-50">⌫</span></span>
+		</button>
+		<button
+			onclick={() => onRemoveTime()}
+			aria-label="Remove selected note or rest and its time"
+			title="Remove time: the element goes and everything after it moves earlier (Ctrl/⌘ ⌫)"
+			class="rounded bg-[var(--color-bg-tertiary)] px-3 py-1.5 text-sm hover:bg-[var(--color-bg-secondary)]"
+		>
+			&#8998; <span class="@max-[28rem]/entry:hidden">Remove time <span class="text-[10px] opacity-50">⌃⌫</span></span>
 		</button>
 	</div>
 </div>

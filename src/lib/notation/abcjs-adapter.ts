@@ -294,10 +294,12 @@ export type ChartClickTarget =
 	| { kind: 'bar'; pos: { sectionIdx: number; bar: number } };
 
 /**
- * Resolve a clicked abcjs element's `startChar` in priority order: pitched
- * melody note (exact start, then charspan containment) → chord-voice slot →
- * melody bar span. Rests carry no note anchor, so clicking one falls through
- * to its bar — a click anywhere in a bar can move the cursor there.
+ * Resolve a clicked abcjs element's `startChar` in priority order: melody
+ * note or anchored rest (exact start, then charspan containment) →
+ * chord-voice slot → melody bar span. A STORED rest carries an anchor since
+ * 2026-08-11 (`NoteAnchor.rest`); a pure gap rest and a slash bar's rests do
+ * not, so clicking those falls through to the bar — a click anywhere in a
+ * bar can move the cursor there.
  */
 export function resolveChartClick(
 	startChar: number,

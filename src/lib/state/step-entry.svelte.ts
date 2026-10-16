@@ -4,6 +4,7 @@ import type { BaseDurationId } from '$lib/step-entry/durations';
 import { DOTTED_BASES, TRIPLET_BASES, getDurationFraction } from '$lib/step-entry/durations';
 import { addFractions, compareFractions, subtractFractions, fractionToFloat, pitchClassToMidi } from '$lib/music/intervals';
 import { applyAccidental } from '$lib/step-entry/pitch-input';
+import { coalesceRests, removeTime, replaceWithRest, stripTrailingRests } from '$lib/step-entry/buffer-ops';
 import { concertKeyToWritten, transposePitchClass } from '$lib/music/transposition';
 import { relativeMajor, relativeMinor } from '$lib/music/keys';
 import { signatureAccidentalsFor, signatureFlatsFor } from '$lib/music/notation';
@@ -318,45 +319,55 @@ export function selectNext(): void {
 }
 
 /**
- * Remove the selected element — note or rest — (or the last element if no
- * explicit selection). Shifts subsequent offsets left by the deleted duration,
- * repairs any tie that straddled the deletion, and advances selection to a
- * neighboring element unless the deletion was from the end (in which case
- * selection clears so the append-cursor flow resumes).
+ * Delete the selected element (or the last element with no selection). Two
+ * meanings, MuseScore's, since 2026-10-15 (Andy's call): a NOTE before the
+ * end becomes a rest of the same span, so a complete score stays on its
+ * beats, and the selection stays on that rest — merged with any rest
+ * neighbours in its bar, so one engraved rest is one element; a REST removes
+ * its time (`removeTime`), and so does the LAST element of either kind,
+ * because nothing follows it: that is the append flow, where Backspace
+ * removes what was typed last. `removeSelectedTime` is the explicit
+ * remove-time gesture (Ctrl/⌘ + Backspace) for any element.
  */
 export function deleteSelectedNote(): void {
 	const notes = stepEntry.enteredNotes;
 	const target = resolveDeleteTargetIndex();
 	if (target === null) return;
+	if (target === notes.length - 1 || notes[target].pitch === null) {
+		removeElementTime(target);
+		return;
+	}
+	const { notes: merged, indexMap } = coalesceRests(replaceWithRest(notes, target));
+	stepEntry.enteredNotes = merged;
+	stepEntry.selectedNoteIndex = indexMap[target];
+}
 
+/**
+ * Remove element `target` and its time (later offsets move earlier, a tie
+ * into it is repaired). Selection: cleared when the end was removed so the
+ * append-cursor flow resumes; else the previous element, else the one that
+ * slid into the slot.
+ */
+function removeElementTime(target: number): void {
+	const notes = stepEntry.enteredNotes;
 	const wasAtEnd = target === notes.length - 1;
-	const deletedDuration = notes[target].duration;
-
-	for (let i = target + 1; i < notes.length; i++) {
-		notes[i].offset = subtractFractions(notes[i].offset, deletedDuration);
-	}
-	notes.splice(target, 1);
-
-	// Repair any tie that pointed into the deleted note.
-	if (target > 0) {
-		const prev = notes[target - 1];
-		if (prev.tied) {
-			const newNext = notes[target];
-			if (!newNext || newNext.pitch !== prev.pitch) {
-				prev.tied = false;
-			}
-		}
-	}
-
+	stepEntry.enteredNotes = removeTime(notes, target);
 	if (wasAtEnd) {
 		stepEntry.selectedNoteIndex = null;
 		return;
 	}
-
-	// Re-select the nearest surviving element of any kind: previous first,
-	// else the one that slid into the deleted slot (non-end deletion, so the
-	// list is never empty here).
 	stepEntry.selectedNoteIndex = target > 0 ? target - 1 : 0;
+}
+
+/**
+ * Remove the selected element — note or rest — AND its time, whatever its
+ * kind or position (MuseScore's Ctrl+Del). Falls back to the last element
+ * with no selection, like `deleteSelectedNote`.
+ */
+export function removeSelectedTime(): void {
+	const target = resolveDeleteTargetIndex();
+	if (target === null) return;
+	removeElementTime(target);
 }
 
 /** Backward-compat alias — delegates to `deleteSelectedNote`. */
@@ -448,7 +459,11 @@ export function reset(): void {
  */
 export function loadFromPhrase(lick: Phrase, instrument: InstrumentConfig): void {
 	reset();
-	stepEntry.enteredNotes = lick.notes.map((n) => ({ ...n }));
+	// Save writes a trailing pad rest to the end of the bars; drop it (and
+	// any trailing rest — trailing silence is implied, save re-pads) so the
+	// re-opened buffer has a fresh buffer's shape: the last real note is the
+	// entry edge, and typing continues without a Backspace first.
+	stepEntry.enteredNotes = stripTrailingRests(lick.notes);
 	stepEntry.phraseKey = concertKeyToWritten(lick.key, instrument);
 	// An explicitly stored mode survives later category changes; an inferred
 	// one keeps following the category until the user touches the control.

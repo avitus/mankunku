@@ -196,3 +196,49 @@ test('Triplet is inert on a sixteenth, from both the button and the keyboard', a
 	for (let i = 0; i < 2; i++) await page.keyboard.press('c');
 	await expect(rail.getByText(/Section A · Bar 1, Beat 2/)).toBeVisible();
 });
+
+test('deleting a note mid-score leaves a rest and nothing moves; deleting the rest closes the gap across the page', async ({ page }) => {
+	await openEditor(page);
+	await page.keyboard.press('3'); // quarter notes
+	// A (second space on the tenor's written staff): no staff or ledger line crosses the notehead, so clicks land on it.
+	for (let i = 0; i < 20; i++) await page.keyboard.press('a');
+	const notes = page.locator(`${CHART_SVG} .abcjs-note`);
+	const rail = page.getByTestId('entry-rail');
+	// Click the notehead ellipse: a note group's centre can be empty space over the bar hit zone.
+	const noteheads = page.locator(`${CHART_SVG} .abcjs-note .abcjs-notehead`);
+	await expect(notes).toHaveCount(20);
+	await expect(rail.getByText(/Section A · Bar 6, Beat 1/)).toBeVisible();
+
+	// Delete the second note (2026-10-15, MuseScore's Del): a rest takes its
+	// beat and the cursor parks on it — the rail reads the rest's position,
+	// not the page's end — so the right note can be typed straight in.
+	await noteheads.nth(1).click();
+	await page.keyboard.press('Backspace');
+	await expect(notes).toHaveCount(19);
+	await expect(page.locator(`${CHART_SVG} .abcjs-rest.selected-note`)).toHaveCount(1);
+	await expect(rail.getByText(/Section A · Bar 1, Beat 2/)).toBeVisible();
+	await page.keyboard.press('b');
+	await expect(notes).toHaveCount(20);
+	await expect(rail.getByText(/Section A · Bar 1, Beat 3/)).toBeVisible();
+
+	// Delete it again, then delete the REST: its time goes and the 18 notes
+	// behind it pull a beat earlier, across the four-bar page boundary.
+	await noteheads.nth(1).click();
+	await page.keyboard.press('Backspace');
+	await expect(page.locator(`${CHART_SVG} .abcjs-rest.selected-note`)).toHaveCount(1);
+	await page.keyboard.press('Backspace');
+	await expect(notes).toHaveCount(19);
+
+	// Saved, the melody is 19 contiguous quarters from beat 1 — the note that
+	// sat on bar 5 beat 1 now sits on bar 4 beat 4.
+	await page.getByRole('textbox', { name: 'Tune title' }).fill('Nineteen');
+	await page.getByRole('button', { name: 'Save tune' }).click();
+	await page.waitForURL(/\/tunes\/nineteen$/);
+	const stored = await page.evaluate(() => window.localStorage.getItem('mankunku:user-tunes'));
+	const sheets = JSON.parse(stored ?? '[]') as Array<{
+		sections: Array<{ notes: Array<{ pitch: number | null; offset: [number, number] }> }>;
+	}>;
+	const pitched = sheets[0].sections[0].notes.filter((n) => n.pitch !== null);
+	expect(pitched).toHaveLength(19);
+	expect(pitched.map((n) => n.offset[0] / n.offset[1])).toEqual(pitched.map((_, i) => i / 4));
+});

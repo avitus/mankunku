@@ -5304,3 +5304,56 @@ and furthest from the extreme ranges of the instrument."
 - The worktree's `ls` is aliased to long format: `files=$(ls …)` fed
   Playwright an `ls -l` listing and it ran nothing, exit 0. Pass globs
   straight to the command.
+
+## 2026-10-15 — Score editing: delete leaves a rest (phase 1 of the editing plan)
+
+Andy: deleting a note in a complete score moved every later note earlier;
+make it leave a rest (MuseScore), perhaps keep the shift for rests, and
+propose a comprehensive plan for editing in general — entry from scratch
+works, correcting an imported score does not. Planned in plan mode (the
+approved plan is `docs/superpowers/specs/2026-10-15-score-editing-design.md`
++ `docs/superpowers/plans/2026-10-15-score-editing.md`), five phases, each
+shippable; a builder-check agent found seven questions and five code
+contradictions before approval, all folded in.
+
+- **Root cause:** one `deleteSelectedNote` for both editors spliced the
+  element out and pulled every later offset back; in the tune editor the
+  pull stopped at the hidden 4-bar page (a hole at the page's end). MuseScore
+  4 (handbook, verified): Del → rest; rests undeletable; Ctrl+Del removes
+  time; note input replaces what sits at the cursor; the toolbar duration
+  follows the selection.
+- **Shipped (phase 1):** `step-entry/buffer-ops.ts` (pure: `replaceWithRest`,
+  `removeTime`, `coalesceRests` — rests merge when their STARTS share a bar,
+  `stripTrailingRests`); `deleteSelectedNote` dispatches — a note before the
+  end → rest in place, selected; a rest, or the LAST element of either kind
+  (the append flow's "undo my keystroke"), → remove time; `removeSelectedTime`
+  = Ctrl/⌘ ⌫ for any element. Tune editor: `tuneDeleteSelected` /
+  `tuneRemoveSelectedTime` — rest-in-place arms the cursor on the rest so
+  the right note types straight in; a whole-bar result (slash bar, no anchor)
+  clears the selection and parks the cursor at the bar; remove-time runs at
+  the SECTION level across pages (`removeTimeInSection`), harmony untouched;
+  a no-selection Backspace mid-section and the pickup lead-in rest are
+  refused with a rail hint (`TuneDeleteResult`). `loadFromPhrase` strips the
+  trailing pad rest (save re-pads) so a re-opened lick has a fresh buffer's
+  shape. Panel "Remove time" button; both shortcut dialogs; docs on four
+  surfaces; the stale `resolveChartClick` comment.
+- **Found and fixed on the way:** leaving `/tunes/editor` and returning
+  without `?edit=` ran `initNewTune()` over an unsaved PDF draft (its
+  pre-assigned id read as stale edit state). The mount now resets only when
+  the id names a STORED sheet — the same test `handleCancel` already made.
+  E2E reproduced it first (title empty after Back).
+- **Tests:** `entry-flow-characterization.test.ts` pinned the from-scratch
+  flow (13 inline snapshots) BEFORE any change and stayed byte-identical
+  through it — broken once on purpose to prove it bites. Rewrote the three
+  note-delete pins; kept every rest-delete pin, the tie pins and the
+  cursor-null pins (phase 2 rewrites those by name). 8 tune-level tests,
+  19 buffer-ops tests, 2 load-strip tests; e2e in both editors + the PDF
+  round trip. 6221 unit/integration green.
+- **Test-construction trap:** the first page load stores its synthesized
+  gap rest on commit, so a flattened index computed from the sheet's notes
+  is off by one after the first commit — find the element by pitch.
+  Playwright clicks on a `.abcjs-note` group land on the staff line or the
+  bar hit zone under its empty centre; click `.abcjs-notehead`, and type a
+  pitch that sits in a space (a written C on the tenor needs a ledger line).
+- Worktree reset onto `origin/dev` (it had started on main's tip); `.env`
+  copied from the main checkout for the build (gitignored).

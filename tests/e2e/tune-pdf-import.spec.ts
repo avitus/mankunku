@@ -535,3 +535,24 @@ for (const [name, measures] of [
 		await expect(page.getByAltText(`Original PDF measure ${measures}`)).toBeVisible();
 	});
 }
+
+test('an unsaved PDF draft survives leaving the editor and coming back', async ({ page }) => {
+	await page.goto('/tunes/import/pdf');
+	const fileInput = page.getByLabel('Tune PDF');
+	await expect(fileInput).toBeEnabled();
+	await fileInput.setInputFiles('tests/fixtures/leadsheets/fly-me-to-the-moon.pdf');
+	await page.getByRole('button', { name: 'Prepare draft', exact: true }).click();
+	await page.waitForURL('**/tunes/editor');
+	await expect(page.getByRole('textbox', { name: 'Tune title' })).toHaveValue('Fly Me to the Moon');
+
+	// Leave by the app's own link and come back with the browser's Back: a
+	// client-side round trip, nothing reloads. The draft has a pre-assigned
+	// id and no stored sheet yet; before 2026-10-15 the editor's mount read
+	// that as stale edit state and started a fresh tune over it.
+	await page.getByRole('link', { name: 'Your tunes', exact: true }).click();
+	await page.waitForURL(/\/tunes$/);
+	await page.goBack();
+	await page.waitForURL('**/tunes/editor');
+	await expect(page.getByRole('textbox', { name: 'Tune title' })).toHaveValue('Fly Me to the Moon');
+	await expect(page.getByRole('button', { name: 'Update tune' })).toBeVisible();
+});

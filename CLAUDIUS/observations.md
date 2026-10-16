@@ -2952,3 +2952,25 @@ that a policy function's callers each hold an unstated assumption about
 its answer, and a rule change is the cheapest probe of those assumptions
 there is — so run the whole suite and read every failure as a caller's
 belief, not as noise to re-green.
+## 2026-10-15 — The right axis for "delete" was position, not kind
+
+The request framed delete as note-vs-rest: a note becomes a rest, a rest
+gives up its time. Written that way, the from-scratch flow breaks at once —
+the just-typed note is selected, so Backspace would leave a rest behind every
+slip instead of undoing the keystroke. MuseScore has two modes for this
+(note input vs normal); we have none, and adding one would have been the
+wrong tax on the common case. What reconciled them was a second axis:
+whether anything FOLLOWS the element. Before the end you edit in place; at
+the end you are entering. The kind rule then only has to govern the middle
+of the score. The characterization pin of the entry flow, written before a
+line changed, is what made that visible: it went red the moment I tried the
+kind-only rule in my head, and green under the positional one. A pin of an
+invisible flow is cheaper than a mode.
+
+The same session produced a smaller version of the lesson: the lick editor's
+saved pad rest. With it in the buffer the "last element" is always a rest,
+so the positional rule would have made Delete on the last real note mean
+"rest" in a re-opened lick and "remove" in a fresh one. Dropping the pad on
+load (save re-pads; trailing silence is implied) made both flows the same
+shape. When a rule depends on "the end", make sure the end means the same
+thing on every path that reaches it.
