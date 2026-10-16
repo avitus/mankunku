@@ -29,6 +29,8 @@ Internal data is concert pitch. The saxophone physically produces concert freque
 
 Mistake to avoid: assuming "Bb instrument" always means "major 2nd transposition." It does for clarinet, trumpet, and soprano sax; it does NOT for tenor sax (major 9th) or bass clarinet (major 9th).
 
+Corollary (2026-10-15): tenor and soprano write the SAME concert note an octave apart (+14 vs +2). So "this lick shows an octave too low" from a soprano user looking at a tenor player's lick is not a transposition bug — the written pitch is arithmetically right — it is a REGISTER problem: a shared phrase is stored in its author's register and must be re-octaved into the viewer's range (`fitLickToRange`, same key, id kept), never re-transposed.
+
 ---
 
 ## Working agreements (lessons distilled from past sessions)

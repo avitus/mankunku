@@ -2906,3 +2906,27 @@ run-level counts ("barely changes"), but what a player experiences is the
 per-take share, and a reminder on 35% of takes reads as noise rather than
 advice. If it is to feel like a steady light, the rule needs an enter/hold
 pair judged by share, not by runs. That is Andy's threshold to move.
+
+## 2026-10-15 — "An octave too low" was correct arithmetic in the wrong register
+
+Two things. First, the report's words point at transposition, and the
+transposition was right: a Bb soprano and a Bb tenor write the same concert
+note an octave apart, so a tenor's lick rendered for a soprano IS an octave
+lower on the page than the tenor saw it. The defect was that a shared phrase
+carries its author's register, and register belongs to the viewer, not the
+data. The fix is an octave fit, never a change to `transpositionSemitones` —
+that instinct would have broken every soprano display that was right. When
+a horn player says "octave", ask whose register the data is in before asking
+whose transposition is wrong.
+
+Second, my first "already in range stays untouched" fixture went red for a
+reason I had not predicted: `bestOctaveShift` prefers, among octaves that
+hold EVERY note, the one whose average is nearest the range midpoint.
+[62, 64, 66, 69] on a soprano (56–87, mid 71.5) moved up to 74–81. That rule
+has governed the detail page's view of a player's OWN narrow lick all along:
+a lick that fits whole in two octaves is shown in the midpoint-nearest one,
+not necessarily the one it was entered in. Nobody has reported it; a fixture
+noticed. It is a teaching-policy question — "stay where the author wrote it
+when it fits" against "centre it on the horn" — and Andy's, not mine. Logged,
+not changed; the fix inherits the rule deliberately so the desk and the
+detail page can never disagree about a lick's octave.

@@ -5227,3 +5227,35 @@ note sharp: shouldn't the tuning warning have spoken during the session?
   6143 passed / 40 expected fails; svelte-check 0 errors (a worktree has no
   `.env`, so without `PUBLIC_SUPABASE_*` it reports nine env-import errors
   that are not code); ear-training e2e on Chromium green.
+
+## 2026-10-15 — Community licks an octave under a soprano
+
+Andy, signed in as a soprano player: every community lick displays an octave
+too low, out of the horn's range.
+
+- Root cause: the listening desk (2026-10-14) engraved and auditioned
+  `lick.phrase` as stored — the AUTHOR's register. Tenor and soprano write
+  one concert note an octave apart (+14 vs +2), so a tenor's concert C3–C4
+  line is written D3–D4 on soprano, under its Bb3. Not a transposition bug:
+  the arithmetic was right, the register was someone else's. The detail
+  page had always fitted through `transposeLick(lick, key, concertRangeLow,
+  getEffectiveHighestNote())`; the old community card showed no notation,
+  so the desk introduced the gap rather than regressing it.
+- Fix: `fitLickToRange` (library-loader) — `transposeLick` same-key with
+  the id kept, because the desk keys selection, favorites, the book and the
+  detail link on it. The desk engraves the fitted phrase and hands it to
+  `onplay`, so Listen plays what the staff shows; the book's Listen fits a
+  stolen lick the same way. One register on every surface.
+- Tests first: four unit tests on the helper (RED on the missing import;
+  one fixture then went red for a reason worth its own observation), and
+  an e2e that signs in a soprano player, seeds a tenor-register row and
+  reads the engraved staff steps off abcjs's `abcjs-p<N>` note classes
+  (N = staff steps from written middle C): every note inside Bb3 (−1) …
+  F#6 (17), the line seven steps up, the detail link still the stored id.
+  Red check: with the desk's fit disabled the e2e fails at −6.
+- Verification: `npm run check` 0 errors; full unit suite 383 files /
+  6178 passed; desk spec 21/21 on Chromium, Firefox, WebKit.
+- The worktree had no `.env` (check and the e2e build both died on
+  `$env/static/public`); copied the main checkout's gitignored one, as every
+  other worktree here already has.
+- Delivered on origin/dev directly (replayed onto 19a165aa); no PR.
