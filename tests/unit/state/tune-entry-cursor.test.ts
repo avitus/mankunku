@@ -41,7 +41,10 @@ import {
 	tuneDeleteSelected,
 	tuneRemoveSelectedTime,
 	setTunePickup,
-	setChord
+	setChord,
+	selectBarAcrossPages,
+	selectFirstInSection,
+	selectLastInSection
 } from '$lib/state/tune-entry.svelte';
 
 // ─── Mock localStorage (settings persist on write) ────────────────────
@@ -389,7 +392,11 @@ describe('cursor-mode entry', () => {
 		assertPrefixSum(notes);
 	});
 
-	it('blocks on a pitched collision with zero mutation', () => {
+	// 2026-10-15 (phase 2 of the score-editing plan): ONE write policy — note
+	// input overwrites what sits at the cursor, pitched notes included
+	// (MuseScore). These two pins replaced "blocks on a pitched collision" and
+	// "blocks on a straddling imported note", the 2026-07-26 refusals.
+	it('overwrites a pitched note the new span covers', () => {
 		loadFromTune(sheet([{
 			label: 'A',
 			bars: 8,
@@ -400,15 +407,18 @@ describe('cursor-mode entry', () => {
 			harmony: []
 		}]), INSTRUMENTS['concert']);
 		cursorToBar(0, 1, 3); // cursor at 1.75
-		setDuration('half'); // [1.75, 2.25) overlaps E4 at [2, 2.25)
-		const before = JSON.parse(JSON.stringify(stepEntry.enteredNotes));
-		expect(tuneAddNote(0, 4, 'natural')).toBe(false);
-		expect(JSON.parse(JSON.stringify(stepEntry.enteredNotes))).toEqual(before);
-		expect(fractionToFloat(tuneEntry.entryCursor!)).toBeCloseTo(1.75, 9);
-		expect(stepEntry.selectedNoteIndex).toBeNull();
+		setDuration('half'); // [1.75, 2.25) covers E4 at [2, 2.25)
+		expect(tuneAddNote(0, 4, 'natural')).toBe(true);
+		const notes = stepEntry.enteredNotes;
+		expect(notes.map((n) => n.pitch)).toEqual([null, 60]);
+		expect(compareFractions(notes[0].duration, [7, 4])).toBe(0);
+		expect(compareFractions(notes[1].offset, [7, 4])).toBe(0);
+		expect(fractionToFloat(tuneEntry.entryCursor!)).toBeCloseTo(2.25, 9);
+		expect(stepEntry.selectedNoteIndex).toBe(1);
+		assertPrefixSum(notes);
 	});
 
-	it('blocks on a straddling imported note at section level', () => {
+	it('trims a note straddling in from the previous page when one is written under it', () => {
 		loadFromTune(sheet([{
 			label: 'A',
 			bars: 8,
@@ -418,11 +428,17 @@ describe('cursor-mode entry', () => {
 		}]), INSTRUMENTS['concert']);
 		cursorToBar(0, 4, 0); // page 1, cursor 0 — under the overhang
 		expect(tuneEntry.currentPage).toBe(1);
-		expect(stepEntry.enteredNotes).toHaveLength(0); // straddler lives on page 0
 		setDuration('quarter');
-		expect(tuneAddNote(0, 4, 'natural')).toBe(false);
-		expect(stepEntry.enteredNotes).toHaveLength(0);
-		expect(fractionToFloat(tuneEntry.entryCursor!)).toBeCloseTo(0, 9);
+		expect(tuneAddNote(0, 4, 'natural')).toBe(true);
+		expect(stepEntry.enteredNotes.map((n) => n.pitch)).toEqual([60]);
+		// The draft (what the chart shows) and the committed section agree: the
+		// straddler ends where the new note begins.
+		// (Page 0's leading gap rest was stored when the bar click committed it;
+		// only the pitched notes are compared.)
+		const shape = (notes: Note[]) => notes.filter((n) => n.pitch !== null).map((n) => [n.pitch, fractionToFloat(n.offset), fractionToFloat(n.duration)]);
+		expect(shape(buildDraftTune().sections[0].notes)).toEqual([[62, 3.5, 0.5], [60, 4, 0.25]]);
+		commitBuffer();
+		expect(shape(tuneEntry.sections[0].notes)).toEqual([[62, 3.5, 0.5], [60, 4, 0.25]]);
 	});
 
 	it('advances the cursor without mutation on tuneAddRest', () => {
@@ -601,7 +617,7 @@ describe('append-mode auto-advance', () => {
 		assertPrefixSum(notes);
 	});
 
-	it('blocks the roll when the target start is occupied by a pitched note', () => {
+	it('the roll overwrites a pitched note at the target start (2026-10-15, one write policy)', () => {
 		loadFromTune(sheet([{
 			label: 'A',
 			bars: 8,
@@ -609,12 +625,12 @@ describe('append-mode auto-advance', () => {
 			harmony: []
 		}]), INSTRUMENTS['concert']);
 		fillPageWithWholeNotes(4);
-		expect(tuneAddNote(0, 4, 'natural')).toBe(false);
-		// Navigation happened (spec: delegate to cursor-mode insertion there)…
+		expect(tuneAddNote(0, 4, 'natural')).toBe(true);
 		expect(tuneEntry.currentPage).toBe(1);
-		// …but nothing was inserted over the pitched note.
-		expect(stepEntry.enteredNotes.filter((n) => n.pitch !== null)).toHaveLength(1);
-		expect(fractionToFloat(tuneEntry.entryCursor!)).toBeCloseTo(0, 9);
+		// The whole note covers the quarter E4 at beat 0: the E is gone.
+		expect(stepEntry.enteredNotes.map((n) => n.pitch)).toEqual([60]);
+		expect(compareFractions(stepEntry.enteredNotes[0].duration, [1, 1])).toBe(0);
+		expect(fractionToFloat(tuneEntry.entryCursor!)).toBeCloseTo(1, 9);
 	});
 
 	it('rolls across a section boundary', () => {
@@ -738,7 +754,7 @@ describe('split-with-tie on page overflow', () => {
 		expect(tuneEntry.sections[0].notes).toHaveLength(0); // nothing committed
 	});
 
-	it('blocks a split whose tail would land on a pitched note, pre-navigation', () => {
+	it('a split tail overwrites the pitched note it lands on (2026-10-15, one write policy)', () => {
 		loadFromTune(sheet([{
 			label: 'A',
 			bars: 8,
@@ -747,10 +763,15 @@ describe('split-with-tie on page overflow', () => {
 		}]), INSTRUMENTS['concert']);
 		fillPageToThreeAndAHalfBars();
 		setDuration('whole');
-		const before = JSON.parse(JSON.stringify(stepEntry.enteredNotes));
-		expect(tuneAddNote(2, 4, 'natural')).toBe(false);
-		expect(tuneEntry.currentPage).toBe(0); // no navigation
-		expect(JSON.parse(JSON.stringify(stepEntry.enteredNotes))).toEqual(before);
+		expect(tuneAddNote(2, 4, 'natural')).toBe(true);
+		expect(tuneEntry.currentPage).toBe(1);
+		// The half-note tail covers the quarter E4 at beat 0: the E is gone and
+		// the head on page 0 is tied into the tail.
+		expect(stepEntry.enteredNotes.map((n) => n.pitch)).toEqual([62]);
+		expect(compareFractions(stepEntry.enteredNotes[0].duration, [1, 2])).toBe(0);
+		const head = tuneEntry.sections[0].notes.find((n) => compareFractions(n.offset, [7, 2]) === 0)!;
+		expect(head.pitch).toBe(62);
+		expect(head.tied).toBe(true);
 	});
 
 	it('rolls tuneEnterTiedNote across the boundary as head + tail', () => {
@@ -1083,8 +1104,9 @@ describe('tuneDeleteSelected / tuneRemoveSelectedTime', () => {
 		expect(stepEntry.enteredNotes[1].offset).toEqual([1, 4]);
 		expect(stepEntry.enteredNotes[1].duration).toEqual([1, 4]);
 		expect(stepEntry.selectedNoteIndex).toBe(1);
-		// The cursor sits on the rest, so typing fills it (phase-1 correction loop).
-		expect(tuneEntry.entryCursor).toEqual([1, 4]);
+		expect(stepEntry.selectionMode).toBe('edit');
+		// The selected rest IS the position: the rail reads it and typing fills it.
+		expect(entryCursorPosition()).toEqual({ sectionIdx: 0, barInSection: 0, beatInBar: 1 });
 		commitBuffer();
 		expect(storedRows()).toEqual([
 			'60 @0/1 ×1/4', 'z @1/4 ×1/4', '64 @1/2 ×1/4', '67 @3/4 ×1/4', '65 @4/1 ×1/4', '69 @5/1 ×1/4'
@@ -1110,10 +1132,10 @@ describe('tuneDeleteSelected / tuneRemoveSelectedTime', () => {
 		]);
 		expect(tuneEntry.sections[0].harmony[0].startOffset).toEqual([5, 1]);
 		expect(tuneEntry.sections[0].bars).toBe(8);
-		// Reloaded page 0: the previous element (C) is selected, no cursor.
+		// Reloaded page 0: the E that slid into the slot is selected, no bar cursor.
 		expect(tuneEntry.currentPage).toBe(0);
-		expect(stepEntry.selectedNoteIndex).toBe(0);
-		expect(stepEntry.enteredNotes[0].pitch).toBe(60);
+		expect(stepEntry.selectedNoteIndex).toBe(1);
+		expect(stepEntry.enteredNotes[1].pitch).toBe(64);
 		expect(tuneEntry.entryCursor).toBeNull();
 	});
 
@@ -1176,5 +1198,141 @@ describe('tuneDeleteSelected / tuneRemoveSelectedTime', () => {
 		expect(tuneEntry.entryCursor).toEqual([1, 1]);
 		const rest = stepEntry.enteredNotes.find((n) => compareFractions(n.offset, [1, 1]) === 0)!;
 		expect(rest.pitch).toBeNull();
+	});
+});
+
+// ─── Group 10: edit selection in the tune editor (2026-10-15, phase 2) ────
+
+describe('edit selection: position, re-pitch, resize', () => {
+	function fourQuartersAndMore(): void {
+		loadFromTune(sheet([{
+			label: 'A',
+			bars: 8,
+			notes: [
+				{ pitch: 60, duration: [1, 4], offset: [0, 1] },
+				{ pitch: 62, duration: [1, 4], offset: [1, 4] },
+				{ pitch: 64, duration: [1, 4], offset: [1, 2] },
+				{ pitch: 67, duration: [1, 4], offset: [3, 4] },
+				{ pitch: 65, duration: [1, 4], offset: [4, 1] }
+			],
+			harmony: []
+		}]), INSTRUMENTS['concert']);
+	}
+
+	it('a clicked note is the position the rail reads, and its duration becomes current', () => {
+		fourQuartersAndMore();
+		setDuration('whole');
+		expect(cursorToFlattened(2)).toBe(true); // E at beat 3
+		expect(stepEntry.selectionMode).toBe('edit');
+		expect(entryCursorPosition()).toEqual({ sectionIdx: 0, barInSection: 0, beatInBar: 2 });
+		expect(stepEntry.currentDuration).toBe('quarter');
+		// Esc: back to the bar cursor / append edge.
+		selectNote(null);
+		expect(entryCursorPosition()).toEqual({ sectionIdx: 0, barInSection: 1, beatInBar: 0 });
+	});
+
+	it('a letter on a clicked note replaces it in place and the selection moves on', () => {
+		fourQuartersAndMore();
+		cursorToFlattened(1); // D
+		expect(tuneAddNote(5, 4, 'natural')).toBe(true); // F
+		expect(stepEntry.enteredNotes.map((n) => n.pitch)).toEqual([60, 65, 64, 67]);
+		expect(compareFractions(stepEntry.enteredNotes[2].offset, [1, 2])).toBe(0);
+		expect(stepEntry.selectedNoteIndex).toBe(2);
+		expect(stepEntry.selectionMode).toBe('edit');
+		expect(entryCursorPosition()).toEqual({ sectionIdx: 0, barInSection: 0, beatInBar: 2 });
+		// The later page is untouched.
+		commitBuffer();
+		expect(tuneEntry.sections[0].notes.at(-1)).toMatchObject({ pitch: 65, offset: [4, 1] });
+	});
+
+	it('a duration key on a clicked note resizes it in place', () => {
+		fourQuartersAndMore();
+		cursorToFlattened(0); // C
+		expect(setDuration('half')).toBe(true);
+		expect(stepEntry.enteredNotes.map((n) => n.pitch)).toEqual([60, 64, 67]);
+		expect(compareFractions(stepEntry.enteredNotes[0].duration, [1, 2])).toBe(0);
+		expect(stepEntry.selectedNoteIndex).toBe(0);
+	});
+
+	it('0 on a clicked note rests it; + on a clicked note ties it into what follows', () => {
+		fourQuartersAndMore();
+		cursorToFlattened(2); // E
+		expect(tuneAddRest()).toBe(true);
+		expect(stepEntry.enteredNotes.map((n) => n.pitch)).toEqual([60, 62, null, 67]);
+		cursorToFlattened(1); // D (the flattened index is stable: the rest is stored)
+		expect(tuneEnterTiedNote()).toBe(true);
+		expect(stepEntry.enteredNotes.map((n) => n.pitch)).toEqual([60, 62, 62, 67]);
+		expect(stepEntry.enteredNotes[1].tied).toBe(true);
+	});
+
+	it('replacing the clicked last note of a page hands over to the append edge', () => {
+		setDuration('quarter');
+		tuneAddNote(0, 4, 'natural');
+		tuneAddNote(2, 4, 'natural');
+		commitBuffer();
+		cursorToFlattened(1);
+		expect(tuneAddNote(4, 4, 'natural')).toBe(true);
+		expect(stepEntry.enteredNotes.map((n) => n.pitch)).toEqual([60, 64]);
+		expect(stepEntry.selectedNoteIndex).toBeNull();
+		expect(entryCursorPosition()).toEqual({ sectionIdx: 0, barInSection: 0, beatInBar: 2 });
+	});
+});
+
+// ─── Group 11: bar-wise and whole-section navigation (phase 3) ────────────
+
+describe('selectBarAcrossPages / selectFirstInSection / selectLastInSection', () => {
+	function twoPages(): void {
+		loadFromTune(sheet([{
+			label: 'A',
+			bars: 8,
+			notes: [
+				{ pitch: 60, duration: [1, 4], offset: [0, 1] },
+				{ pitch: 62, duration: [1, 4], offset: [1, 4] },
+				{ pitch: 64, duration: [1, 4], offset: [3, 1] },
+				{ pitch: 65, duration: [1, 4], offset: [4, 1] },
+				{ pitch: 67, duration: [1, 4], offset: [6, 1] }
+			],
+			harmony: []
+		}]), INSTRUMENTS['concert']);
+	}
+
+	/** Select a stored note by pitch: the first commit stores page 0's gap rest, so fixed flattened indices drift. */
+	function selectPitch(pitch: number): void {
+		commitBuffer();
+		cursorToFlattened(tuneEntry.sections[0].notes.findIndex((n) => n.pitch === pitch));
+	}
+
+	it('Ctrl/⌘+→ crosses the page boundary to the next bar\'s first element', () => {
+		twoPages();
+		selectPitch(64); // E, bar 4 (page 0)
+		selectBarAcrossPages(1);
+		expect(tuneEntry.currentPage).toBe(1);
+		expect(stepEntry.enteredNotes[stepEntry.selectedNoteIndex!].pitch).toBe(65); // F, bar 5
+		selectBarAcrossPages(-1);
+		expect(tuneEntry.currentPage).toBe(0);
+		expect(stepEntry.enteredNotes[stepEntry.selectedNoteIndex!].pitch).toBe(64);
+	});
+
+	it('an empty bar arms the bar cursor there instead of selecting', () => {
+		twoPages();
+		cursorToFlattened(1); // D, bar 1
+		selectBarAcrossPages(1); // bar 2 is silent
+		expect(stepEntry.selectedNoteIndex).toBeNull();
+		expect(entryCursorPosition()).toEqual({ sectionIdx: 0, barInSection: 1, beatInBar: 0 });
+		selectBarAcrossPages(1); // bar 3, silent too
+		expect(entryCursorPosition()).toEqual({ sectionIdx: 0, barInSection: 2, beatInBar: 0 });
+		selectBarAcrossPages(1); // bar 4: E
+		expect(stepEntry.enteredNotes[stepEntry.selectedNoteIndex!].pitch).toBe(64);
+	});
+
+	it('Home and End reach the section\'s first and last element across pages', () => {
+		twoPages();
+		selectPitch(65); // F on page 1
+		selectFirstInSection();
+		expect(tuneEntry.currentPage).toBe(0);
+		expect(stepEntry.enteredNotes[stepEntry.selectedNoteIndex!].pitch).toBe(60);
+		selectLastInSection();
+		expect(tuneEntry.currentPage).toBe(1);
+		expect(stepEntry.enteredNotes[stepEntry.selectedNoteIndex!].pitch).toBe(67);
 	});
 });

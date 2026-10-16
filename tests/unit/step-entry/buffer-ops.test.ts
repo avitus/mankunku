@@ -4,7 +4,9 @@ import {
 	coalesceRests,
 	removeTime,
 	replaceWithRest,
-	stripTrailingRests
+	spliceElement,
+	stripTrailingRests,
+	trimOverlappingNotes
 } from '$lib/step-entry/buffer-ops';
 
 /**
@@ -148,5 +150,73 @@ describe('stripTrailingRests', () => {
 	it('empties an all-rest buffer and passes an empty one through', () => {
 		expect(stripTrailingRests([n(null, [0, 1], [1, 1])])).toEqual([]);
 		expect(stripTrailingRests([])).toEqual([]);
+	});
+});
+
+describe('spliceElement (overwrite)', () => {
+	// The one write policy since 2026-10-15 (MuseScore's note input: "notes
+	// entered this way will replace any rests or notes that were already
+	// present at the cursor location"). Rests were always overwritten; pitched
+	// notes now are too — covered ones go, a partly covered one is trimmed.
+	it('appends past the content end, bridging the gap with one rest', () => {
+		const notes = [n(60, [0, 1], [1, 4])];
+		const { notes: out, index } = spliceElement(notes, n(62, [1, 2], [1, 4]));
+		expect(rows(out)).toEqual(['60 @0/1 ×1/4', 'z @1/4 ×1/4', '62 @1/2 ×1/4']);
+		expect(index).toBe(2);
+	});
+
+	it('carves a note out of a rest, keeping both remainders and every later offset', () => {
+		const notes = [n(null, [0, 1], [1, 1]), n(64, [1, 1], [1, 4])];
+		const { notes: out, index } = spliceElement(notes, n(60, [1, 4], [1, 4]));
+		expect(rows(out)).toEqual(['z @0/1 ×1/4', '60 @1/4 ×1/4', 'z @1/2 ×1/2', '64 @1/1 ×1/4']);
+		expect(index).toBe(1);
+	});
+
+	it('replaces a note of the same span in place', () => {
+		const notes = [n(60, [0, 1], [1, 4]), n(62, [1, 4], [1, 4], { spelling: 'flat' }), n(64, [1, 2], [1, 4])];
+		const { notes: out, index } = spliceElement(notes, n(65, [1, 4], [1, 4]));
+		expect(rows(out)).toEqual(['60 @0/1 ×1/4', '65 @1/4 ×1/4', '64 @1/2 ×1/4']);
+		expect(out[1].spelling).toBeUndefined();
+		expect(index).toBe(1);
+	});
+
+	it('drops the notes a longer element covers and truncates one it only reaches into', () => {
+		const notes = [n(60, [0, 1], [1, 4]), n(62, [1, 4], [1, 4]), n(64, [1, 2], [1, 4]), n(67, [3, 4], [1, 2])];
+		const { notes: out } = spliceElement(notes, n(65, [1, 4], [3, 4]));
+		// D and E are covered; G loses its first quarter but keeps its pitch.
+		expect(rows(out)).toEqual(['60 @0/1 ×1/4', '65 @1/4 ×3/4', '67 @1/1 ×1/4']);
+	});
+
+	it('trims a note it starts inside and clears that note\'s tie', () => {
+		const notes = [n(60, [0, 1], [1, 2], { tied: true }), n(60, [1, 2], [1, 4])];
+		const { notes: out } = spliceElement(notes, n(62, [1, 4], [1, 4]));
+		expect(rows(out)).toEqual(['60 @0/1 ×1/4', '62 @1/4 ×1/4', '60 @1/2 ×1/4']);
+		expect(out[0].tied).toBe(false);
+	});
+
+	it('keeps the spliced element\'s own tie and never mutates its input', () => {
+		const notes = [n(60, [0, 1], [1, 4]), n(null, [1, 4], [1, 4])];
+		const { notes: out } = spliceElement(notes, n(60, [1, 4], [1, 4], { tied: true }));
+		expect(out[1].tied).toBe(true);
+		expect(rows(notes)).toEqual(['60 @0/1 ×1/4', 'z @1/4 ×1/4']);
+	});
+});
+
+describe('trimOverlappingNotes', () => {
+	it('shortens a note that runs into the next one and clears its tie', () => {
+		const notes = [n(60, [0, 1], [1, 1], { tied: true }), n(62, [1, 2], [1, 4])];
+		const out = trimOverlappingNotes(notes);
+		expect(rows(out)).toEqual(['60 @0/1 ×1/2', '62 @1/2 ×1/4']);
+		expect(out[0].tied).toBe(false);
+	});
+
+	it('drops a note another starts on top of', () => {
+		const notes = [n(60, [1, 4], [1, 2]), n(62, [1, 4], [1, 4])];
+		expect(rows(trimOverlappingNotes(notes))).toEqual(['62 @1/4 ×1/4']);
+	});
+
+	it('leaves a contiguous or gapped line alone', () => {
+		const notes = [n(60, [0, 1], [1, 4]), n(62, [1, 4], [1, 4]), n(64, [1, 1], [1, 4])];
+		expect(rows(trimOverlappingNotes(notes))).toEqual(rows(notes));
 	});
 });

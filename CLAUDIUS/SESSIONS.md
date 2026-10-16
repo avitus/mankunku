@@ -5357,3 +5357,55 @@ contradictions before approval, all folded in.
   pitch that sits in a space (a written C on the tenor needs a ledger line).
 - Worktree reset onto `origin/dev` (it had started on main's tip); `.env`
   copied from the main checkout for the build (gitignored).
+
+## 2026-10-15 — Score editing phase 2: editing in place
+
+- `stepEntry.selectionMode`: `entry` (the just-entered element — letters,
+  `0`, `+`, 1–5 keep their entry meaning) vs `edit` (a click or arrow landed
+  here — `selectNote` syncs the duration controls to the element, and the
+  same keys act ON it). Letters re-pitch in place through `spliceElement`
+  (buffer-ops), the ONE write policy: whatever the span covers is
+  overwritten, pitched notes included — a partly covered note keeps its head
+  or tail and its pitch, a tie into the span is cleared. `0` rests the
+  element, 1–5/T/. resize it (shorter → rest remainder; longer → overwrite;
+  refused past the bars with the duration unchanged), `+` toggles a tie to a
+  same-pitch successor or writes a tied continuation. After a replace the
+  FOLLOWING element is selected in edit intent, so a run of letters
+  re-pitches a misread line and keeps its rhythm; the new pitch lands in the
+  octave nearest the note it replaces (the test that expected an ascending
+  A-B-C got A4 B3 C4 — the rule, not the test, was right).
+- Tune editor: `tuneAddNote`/`tuneAddRest`/`tuneEnterTiedNote` delegate to
+  step-entry when an edit selection exists; the 2026-07-26 "block on pitched
+  collision" refusals are gone on cursor entry AND the roll/split onto an
+  occupied page (four pins rewritten by name); `mergeWindow` runs
+  `trimOverlappingNotes` so a straddler from the previous page is shortened
+  where the new note begins, in the draft and on commit.
+- **Simplification over the plan:** decision 9 said every edit selection
+  "arms the cursor". Implemented instead as position = edit selection ??
+  bar cursor ?? page end (`entryCursorPosition`), with the entry functions
+  branching on `isEditSelection()`. Same observable behaviour (the rail reads
+  the selection, letters replace it), and the three cursor-null pins
+  (:144, :162, :863-872) stayed as they were. Phase 1's "cursor armed on the
+  rest" became "the rest is selected in edit intent".
+- E2E: the stored-rest click now reads the rest's beat, and Backspace on it
+  leaves the previous note selected (rail "Beat 1"); new fix-in-place specs
+  in both editors (click, letter, duration key, saved offsets checked).
+
+## 2026-10-15 — Score editing phase 3: navigation and nudges; a reselection fix
+
+- Alt+↑/↓ `adjustSelectedNoteDiatonic`: the next pitch whose WRITTEN letter
+  carries the drawn signature's accidental (F major and D minor both step A
+  to Bb; a chromatic note lands on the key's next letter; spelling cleared).
+  Ctrl/⌘+←/→ `selectBar` / `selectBarAcrossPages`: the next bar's first
+  element — from inside a bar, ← goes to that bar's first first; the tune
+  version loads the page and parks the bar cursor on a silent bar. Home/End
+  `selectFirst`/`selectLast` and the section variants. preventDefault on
+  ⌘← keeps Chrome's Back away.
+- The phase-2 e2e run caught a wart: after a rest's time went, the PREVIOUS
+  element stayed selected in edit intent, so the next `0` rested that note
+  instead of appending. Remove-time now selects the element that slid into
+  the slot (both editors); the 2026-08-11 "previous element" pins were
+  updated to say why, and the old lick-editor rest spec presses Esc before
+  typing on — under the new rules a key on a selected note acts on it.
+- Test trap again: a stored sheet's flattened index drifts by one once the
+  first commit stores page 0's gap rest; `selectPitch()` finds the note.

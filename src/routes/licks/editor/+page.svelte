@@ -5,7 +5,7 @@
 	import { goto } from '$app/navigation';
 	import { settings, getInstrument } from '$lib/state/settings.svelte';
 	import {
-		stepEntry, addNote, addRest, deleteSelectedNote, removeSelectedTime, reset, loadFromPhrase,
+		stepEntry, addNote, addRest, deleteSelectedNote, removeSelectedTime, adjustSelectedNoteDiatonic, selectBar, selectFirst, selectLast, reset, loadFromPhrase,
 		setDuration, toggleTriplet, toggleDotted, setAccidental, adjustOctave,
 		adjustSelectedNotePitch, flipSelectedNoteSpelling, enterTiedNote, getCurrentPhrase,
 		getPaddedNotes, getCurrentBarAndBeat, getRemainingCapacity,
@@ -270,7 +270,12 @@
 		if (e.ctrlKey && e.key.toLowerCase() === 'y') { e.preventDefault(); restoreHistory('redo'); return; }
 		// MuseScore's Ctrl+Del: the selected element AND its time go, whatever its kind.
 		if ((e.ctrlKey || e.metaKey) && (e.key === 'Backspace' || e.key === 'Delete')) { e.preventDefault(); removeSelectedTime(); return; }
+		// MuseScore navigation: Ctrl/⌘+←/→ a bar at a time (preventDefault keeps ⌘← off the browser's Back), Alt+↑/↓ a step of the key.
+		if ((e.ctrlKey || e.metaKey) && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { e.preventDefault(); selectBar(e.key === 'ArrowRight' ? 1 : -1); return; }
+		if (e.altKey && !e.ctrlKey && !e.metaKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) { e.preventDefault(); adjustSelectedNoteDiatonic(e.key === 'ArrowUp' ? 1 : -1); return; }
 		if (e.ctrlKey || e.metaKey || e.altKey) return;
+		if (e.key === 'Home') { e.preventDefault(); selectFirst(); return; }
+		if (e.key === 'End') { e.preventDefault(); selectLast(); return; }
 		if (e.key === ' ' && !target.closest('button, a, summary, [role=button]')) {
 			e.preventDefault(); void handlePlayBack(); return;
 		}
@@ -541,7 +546,7 @@
 					<header><h2 class="studio-label">02 / Note entry</h2><span>{selectedNote ? `${selectedName} selected` : 'Adding to your phrase'}</span></header>
 					<DurationSelector />
 					<PitchEntryPanel onDelete={deleteSelectedNote} onRemoveTime={removeSelectedTime} />
-					<div class="le-entry-tip"><span>{selectedNote ? '↑ ↓ changes the selected pitch. Delete turns a note into a rest; Ctrl/⌘ ⌫ removes its time. A–G appends a new note.' : 'Choose a duration, then press A–G to enter notes. Use 0 for a rest.'}</span><button onclick={() => shortcutsDialog?.showModal()}>All shortcuts ↗</button></div>
+					<div class="le-entry-tip"><span>{selectedNote && stepEntry.selectionMode === 'edit' ? 'Editing this note: A–G re-pitches it, 1–5 resize it, 0 rests it, Delete turns it into a rest; Ctrl/⌘ ⌫ removes its time. Esc to keep writing at the end.' : selectedNote ? '↑ ↓ changes the pitch; Backspace removes what you just entered. Click or ← to edit an earlier note in place.' : 'Choose a duration, then press A–G to enter notes. Use 0 for a rest.'}</span><button onclick={() => shortcutsDialog?.showModal()}>All shortcuts ↗</button></div>
 				</section>
 
 				<div class="le-status" role="status" aria-live="polite">
@@ -573,7 +578,7 @@
 		<dialog bind:this={shortcutsDialog} class="le-dialog" aria-labelledby="editor-shortcuts-title">
 			<header><h2 id="editor-shortcuts-title">Keep your hands on the keys.</h2><button aria-label="Close shortcuts" onclick={() => shortcutsDialog?.close()}><EditorIcon name="close" /></button></header>
 			<p>Shortcuts work when you’re outside a text field.</p>
-			<dl class="le-shortcuts">{#each [['A–G', 'Append a note'], ['0', 'Append a rest'], ['1–5', 'Choose the next note duration'], ['T / .', 'Triplet / dotted'], ['[ / ]', 'Flat / sharp'], ['= / −', 'Entry octave'], ['← / →', 'Select previous / next note or rest'], ['↑ / ↓', 'Move selected pitch by a semitone'], ['Shift + ↑ / ↓', 'Move selected pitch by an octave'], ['\\', 'Flip enharmonic spelling'], ['+', 'Tie to a duplicate of the last note'], ['⌫ / Delete', 'Delete: a note becomes a rest; a rest or the last note gives up its time'], ['Ctrl/⌘ ⌫', 'Remove the selected note or rest and its time'], ['Esc', 'Clear note selection'], ['Space', 'Play / stop (outside controls)'], ['Ctrl/⌘Z', 'Undo'], ['Ctrl/⌘Shift Z / Ctrl Y', 'Redo']] as [key, description]}<div><dt>{description}</dt><dd><kbd>{key}</kbd></dd></div>{/each}</dl>
+			<dl class="le-shortcuts">{#each [['A–G', 'Enter a note — or re-pitch the selected note in place'], ['0', 'Enter a rest — or rest the selected note'], ['1–5', 'Next note duration — or resize the selected note'], ['T / .', 'Triplet / dotted (resizes a selected note)'], ['[ / ]', 'Flat / sharp'], ['= / −', 'Entry octave'], ['← / →', 'Select previous / next note or rest'], ['↑ / ↓', 'Move selected pitch by a semitone'], ['Shift + ↑ / ↓', 'Move selected pitch by an octave'], ['Alt + ↑ / ↓', 'Move selected pitch by a step of the key'], ['Ctrl/⌘ + ← / →', 'Select the previous / next bar'], ['Home / End', 'Select the first / last note'], ['\\', 'Flip enharmonic spelling'], ['+', 'Tie into a duplicate of the last note — or tie the selected note to the next'], ['⌫ / Delete', 'Delete: a note becomes a rest; a rest or the last note gives up its time'], ['Ctrl/⌘ ⌫', 'Remove the selected note or rest and its time'], ['Esc', 'Stop editing, write at the end again'], ['Space', 'Play / stop (outside controls)'], ['Ctrl/⌘Z', 'Undo'], ['Ctrl/⌘Shift Z / Ctrl Y', 'Redo']] as [key, description]}<div><dt>{description}</dt><dd><kbd>{key}</kbd></dd></div>{/each}</dl>
 		</dialog>
 		<dialog bind:this={clearDialog} class="le-dialog le-clear-dialog" aria-labelledby="editor-clear-title">
 			<h2 id="editor-clear-title">Start with a clean staff?</h2><p>This clears the notes in your current phrase. You can undo it.</p><div class="le-dialog-actions"><button class="le-button le-quiet" onclick={() => clearDialog?.close()}>Keep editing</button><button class="le-button le-save" onclick={handleClear}>Clear phrase</button></div>

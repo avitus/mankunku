@@ -109,3 +109,100 @@ export function stripTrailingRests(notes: readonly Note[]): Note[] {
 	while (end > 0 && notes[end - 1].pitch === null) end--;
 	return cloneAll(notes.slice(0, end));
 }
+
+/** Where the dense buffer ends: the last element's end, 0 when empty. */
+function contentEnd(notes: readonly Note[]): Fraction {
+	const last = notes.at(-1);
+	return last ? addFractions(last.offset, last.duration) : [0, 1];
+}
+
+/**
+ * Write `element` into the buffer at its own offset, OVERWRITING whatever
+ * its span covers — the one write policy since 2026-10-15 (MuseScore's note
+ * input: "notes entered this way will replace any rests or notes that were
+ * already present at the cursor location"). Durations are conserved and no
+ * later element's offset moves: an element the span starts inside keeps its
+ * head (a note keeps its pitch, loses its tie — the new element follows it
+ * now), fully covered elements go, an element the span ends inside keeps its
+ * tail (a rest stays a rest, a note keeps its pitch and its own tie). Past
+ * the content end, one gap rest bridges the silence first. The element's
+ * own `tied` is kept as given. Returns the new list and the element's index.
+ */
+export function spliceElement(
+	notes: readonly Note[],
+	element: Note
+): { notes: Note[]; index: number } {
+	const start = element.offset;
+	const end = addFractions(start, element.duration);
+	const inserted: Note = { ...element };
+	const tail = contentEnd(notes);
+	if (compareFractions(start, tail) >= 0) {
+		const out = cloneAll(notes);
+		const gap = subtractFractions(start, tail);
+		if (gap[0] > 0) out.push({ pitch: null, duration: gap, offset: tail });
+		out.push(inserted);
+		return { notes: out, index: out.length - 1 };
+	}
+	const out: Note[] = [];
+	let index = -1;
+	for (const el of notes) {
+		const elEnd = addFractions(el.offset, el.duration);
+		if (compareFractions(elEnd, start) <= 0) {
+			out.push({ ...el });
+			continue;
+		}
+		if (compareFractions(el.offset, end) >= 0) {
+			if (index === -1) {
+				index = out.length;
+				out.push(inserted);
+			}
+			out.push({ ...el });
+			continue;
+		}
+		// Overlapping element.
+		if (compareFractions(el.offset, start) < 0) {
+			const head: Note = { ...el, duration: subtractFractions(start, el.offset) };
+			if (head.tied) head.tied = false;
+			out.push(head);
+		}
+		if (index === -1) {
+			index = out.length;
+			out.push(inserted);
+		}
+		if (compareFractions(elEnd, end) > 0) {
+			const remainder = subtractFractions(elEnd, end);
+			out.push(
+				el.pitch === null
+					? { pitch: null, duration: remainder, offset: end }
+					: { ...el, offset: end, duration: remainder }
+			);
+		}
+	}
+	if (index === -1) {
+		index = out.length;
+		out.push(inserted);
+	}
+	return { notes: out, index };
+}
+
+/**
+ * Make a section's notes monophonic again after an overwrite reached past a
+ * page window: an element that runs into the next one is shortened to end
+ * where the next begins (a note keeps its pitch, loses its tie); an element
+ * another starts ON TOP of is dropped. Sorted by offset on the way out.
+ */
+export function trimOverlappingNotes(notes: readonly Note[]): Note[] {
+	const sorted = cloneAll(notes).sort((a, b) => compareFractions(a.offset, b.offset));
+	const out: Note[] = [];
+	for (let i = 0; i < sorted.length; i++) {
+		const cur = sorted[i];
+		const next = sorted[i + 1];
+		if (next && compareFractions(addFractions(cur.offset, cur.duration), next.offset) > 0) {
+			if (compareFractions(next.offset, cur.offset) <= 0) continue;
+			cur.duration = subtractFractions(next.offset, cur.offset);
+			if (cur.tied) cur.tied = false;
+		}
+		out.push(cur);
+	}
+	return out;
+}

@@ -44,13 +44,18 @@ test('rests are selectable and deletable in the lick editor', async ({ page }) =
 	await rests.first().click();
 	await expect(selectedRest).toHaveCount(1);
 
-	// Backspace removes exactly the selected rest — both notes survive.
+	// Backspace removes exactly the selected rest — both notes survive, and the
+	// note that slid into its place is selected for editing.
 	await page.keyboard.press('Backspace');
 	await expect(rests).toHaveCount(0);
 	await expect(notes).toHaveCount(2);
+	await expect(page.locator(`${CHART_SVG} .abcjs-note.selected-note`)).toHaveCount(1);
 
-	// Entering a rest auto-selects it; ArrowLeft steps to the note, ArrowRight
-	// steps back onto the rest (arrows stop on rests), Backspace removes it.
+	// Esc leaves editing (2026-10-15: `0` on a selected note would rest it);
+	// entering a rest then auto-selects it; ArrowLeft steps to the note,
+	// ArrowRight steps back onto the rest (arrows stop on rests), Backspace
+	// removes it.
+	await page.keyboard.press('Escape');
 	await page.keyboard.press('0');
 	await expect(selectedRest).toHaveCount(1);
 	await page.keyboard.press('ArrowLeft');
@@ -101,4 +106,40 @@ test('deleting a note in a full lick leaves a rest in its place; Ctrl/⌘+Backsp
 	await expect(notes).toHaveCount(3);
 	await noteheads.nth(1).click();
 	await expect(selection).toContainText('Bar 1 · Beat 2');
+});
+
+test('a selected note is re-pitched by a letter and resized by a duration key, in place', async ({ page }) => {
+	await page.goto('/licks/editor');
+	const quarter = page.getByRole('button', { name: 'Quarter Note' });
+	await expect(async () => {
+		await quarter.click();
+		await expect(quarter).toHaveAttribute('aria-pressed', 'true', { timeout: 250 });
+	}).toPass({ timeout: 10_000 });
+
+	const notes = page.locator(`${CHART_SVG} .abcjs-note`);
+	const noteheads = page.locator(`${CHART_SVG} .abcjs-note .abcjs-notehead`);
+	const selection = page.locator('.le-selection');
+	for (const key of ['c', 'd', 'e', 'g']) await page.keyboard.press(key);
+	await expect(notes).toHaveCount(4);
+
+	// Click the D and type F: re-pitched in place, the E behind it still on
+	// beat 3 and now selected for the next letter.
+	await noteheads.nth(1).click();
+	await expect(selection).toContainText('Bar 1 · Beat 2');
+	await page.keyboard.press('f');
+	await expect(notes).toHaveCount(4);
+	await expect(selection).toContainText('Bar 1 · Beat 3');
+
+	// '2' resizes the selected E to a half: it swallows the G.
+	await page.keyboard.press('2');
+	await expect(notes).toHaveCount(3);
+	await expect(page.getByRole('button', { name: 'Half Note' })).toHaveAttribute('aria-pressed', 'true');
+	await expect(selection).toContainText('Bar 1 · Beat 3');
+
+	// Esc, then type on: the new note appends after the half (bar 2).
+	await page.keyboard.press('Escape');
+	await page.keyboard.press('3');
+	await page.keyboard.press('a');
+	await expect(notes).toHaveCount(4);
+	await expect(selection).toContainText('Bar 2 · Beat 1');
 });

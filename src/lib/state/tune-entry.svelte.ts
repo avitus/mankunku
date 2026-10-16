@@ -43,13 +43,15 @@ import {
 	enterTiedNote as stepEnterTiedNote,
 	deleteSelectedNote,
 	removeSelectedTime,
+	isEditSelection,
+	markEntered,
 	canAddDuration,
 	getCurrentCursorOffset,
 	getRemainingCapacity,
 	resolveEntryPitch
 } from '$lib/state/step-entry.svelte';
 import { getDurationFraction } from '$lib/step-entry/durations';
-import { coalesceRests, removeTime, replaceWithRest } from '$lib/step-entry/buffer-ops';
+import { coalesceRests, removeTime, replaceWithRest, spliceElement, trimOverlappingNotes } from '$lib/step-entry/buffer-ops';
 import { transposeTune } from '$lib/tunes/book-loader';
 import { isPickupOnlySection, pickupPrefix, resolvePickupLength } from '$lib/music/pickup';
 import {
@@ -164,7 +166,9 @@ function mergeWindow(
 		return o < startF - 1e-9 || o >= endF - 1e-9;
 	});
 	const shifted = buffer.map((n) => ({ ...n, offset: addFractions(n.offset, pageStart) }));
-	return [...outside, ...shifted].sort((a, b) => compareFractions(a.offset, b.offset));
+	// An overwrite at a page's start may have reached under a note straddling
+	// in from the previous page: keep the section monophonic (2026-10-15).
+	return trimOverlappingNotes([...outside, ...shifted]);
 }
 
 /**
@@ -617,13 +621,10 @@ function cursorModeReference(cursor: Fraction): number | null {
 }
 
 /**
- * Insert a resolved note into the buffer at page-local offset `cursor`,
- * overwriting rest coverage: the partially-covered leading rest is trimmed,
- * fully-covered rests dropped, and the trailing remainder re-inserted, so
- * durations are conserved and no later element's offset moves (prefix-sum
- * invariant). Past the content end, one gap rest is materialized first.
- * Caller must have cleared the span of pitched collisions.
- * Returns the inserted note's index.
+ * Write a resolved note into the buffer at page-local offset `cursor`
+ * through `spliceElement`: rests and pitched notes under its span are
+ * overwritten alike (the one write policy since 2026-10-15), durations are
+ * conserved and no later element's offset moves. Returns the note's index.
  */
 function spliceNoteIntoBuffer(
 	concert: number,
@@ -632,54 +633,12 @@ function spliceNoteIntoBuffer(
 	spelling?: 'sharp' | 'flat',
 	tied?: boolean
 ): number {
-	const notes = stepEntry.enteredNotes;
-	const end = addFractions(cursor, duration);
 	const newNote: Note = { pitch: concert, duration, offset: cursor };
 	if (spelling) newNote.spelling = spelling;
 	if (tied) newNote.tied = true;
-
-	const contentEnd = getCurrentCursorOffset();
-	if (compareFractions(cursor, contentEnd) >= 0) {
-		const gap = subtractFractions(cursor, contentEnd);
-		if (gap[0] > 0) notes.push({ pitch: null, duration: gap, offset: contentEnd });
-		notes.push(newNote);
-		return notes.length - 1;
-	}
-
-	const result: Note[] = [];
-	let inserted = -1;
-	for (const el of notes) {
-		const elEnd = addFractions(el.offset, el.duration);
-		if (compareFractions(elEnd, cursor) <= 0) {
-			result.push(el);
-			continue;
-		}
-		if (compareFractions(el.offset, end) >= 0) {
-			if (inserted === -1) {
-				inserted = result.length;
-				result.push(newNote);
-			}
-			result.push(el);
-			continue;
-		}
-		// Overlapping element — a rest (pitched collisions were pre-checked).
-		if (compareFractions(el.offset, cursor) < 0) {
-			result.push({ ...el, duration: subtractFractions(cursor, el.offset) });
-		}
-		if (inserted === -1) {
-			inserted = result.length;
-			result.push(newNote);
-		}
-		if (compareFractions(elEnd, end) > 0) {
-			result.push({ pitch: null, duration: subtractFractions(elEnd, end), offset: end });
-		}
-	}
-	if (inserted === -1) {
-		inserted = result.length;
-		result.push(newNote);
-	}
-	stepEntry.enteredNotes = result;
-	return inserted;
+	const { notes, index } = spliceElement(stepEntry.enteredNotes, newNote);
+	stepEntry.enteredNotes = notes;
+	return index;
 }
 
 /** Bars covered by the current page's window. */
@@ -727,6 +686,9 @@ export function tuneAddNote(
 	accidental: 'sharp' | 'flat' | 'natural'
 ): boolean {
 	if (!melodyEditingSupported()) return false;
+	// A clicked or arrowed element is replaced in place by step-entry's own
+	// edit path (bounded by the page window, which is the buffer's capacity).
+	if (isEditSelection()) return stepAddNote(pitchClass, octave, accidental);
 	const duration = currentDurationFraction();
 
 	if (tuneEntry.entryCursor !== null) {
@@ -742,14 +704,9 @@ export function tuneAddNote(
 		if (compareFractions(addFractions(cursor, duration), [currentWindowBars(), 1]) > 0) {
 			return false;
 		}
-		const pageStart = pageStartFraction(tuneEntry.currentPage);
-		const spanStart = addFractions(pageStart, cursor);
-		if (spanHasPitchedCollision(tuneEntry.currentSection, spanStart, addFractions(spanStart, duration))) {
-			return false;
-		}
 		const concert = resolveEntryPitch(pitchClass, octave, accidental, cursorModeReference(cursor));
 		if (concert === null) return false;
-		stepEntry.selectedNoteIndex = spliceNoteIntoBuffer(concert, duration, cursor);
+		markEntered(spliceNoteIntoBuffer(concert, duration, cursor));
 		stepEntry.accidental = 'natural';
 		tuneEntry.entryCursor = addFractions(cursor, duration);
 		return true;
@@ -766,22 +723,12 @@ export function tuneAddNote(
 		const concert = resolveEntryPitch(pitchClass, octave, accidental, lastPitchedInBuffer());
 		if (concert === null) return false; // range reject, no navigation
 		const tailDuration = subtractFractions(duration, remaining);
-		const targetPageStart = pageStartFraction(target.pageIdx);
-		if (
-			spanHasPitchedCollision(
-				target.sectionIdx,
-				targetPageStart,
-				addFractions(targetPageStart, tailDuration)
-			)
-		) {
-			return false; // target span occupied: zero mutation
-		}
 		const headOffset = getCurrentCursorOffset();
 		const headAbsOffset = addFractions(pageStartFraction(tuneEntry.currentPage), headOffset);
 		const headSectionIdx = tuneEntry.currentSection;
 		stepEntry.enteredNotes.push({ pitch: concert, duration: remaining, offset: headOffset, tied: true });
 		loadPage(target.sectionIdx, target.pageIdx); // commits the head
-		stepEntry.selectedNoteIndex = spliceNoteIntoBuffer(concert, tailDuration, [0, 1]);
+		markEntered(spliceNoteIntoBuffer(concert, tailDuration, [0, 1]));
 		stepEntry.accidental = 'natural';
 		tuneEntry.entryCursor = addFractions([0, 1], tailDuration);
 		// The commit's tie sweep cleared the head's tie (its tail did not exist
@@ -815,7 +762,7 @@ function restoreTie(sectionIdx: number, absOffset: Fraction, pitch: number): voi
  */
 export function tuneAddRest(): boolean {
 	if (!melodyEditingSupported()) return false;
-	if (tuneEntry.entryCursor === null) return stepAddRest();
+	if (isEditSelection() || tuneEntry.entryCursor === null) return stepAddRest();
 	const cursor = tuneEntry.entryCursor;
 	const windowEnd: Fraction = [currentWindowBars(), 1];
 	if (compareFractions(cursor, windowEnd) >= 0) return hopCursorToNextPage(cursor);
@@ -833,6 +780,7 @@ export function tuneAddRest(): boolean {
  */
 export function tuneEnterTiedNote(): boolean {
 	if (!melodyEditingSupported()) return false;
+	if (isEditSelection()) return stepEnterTiedNote();
 	const duration = currentDurationFraction();
 
 	if (tuneEntry.entryCursor !== null) {
@@ -846,22 +794,12 @@ export function tuneEnterTiedNote(): boolean {
 			// Tie across the page boundary: pre-flight the tail span, hop, splice.
 			const target = nextPagePosition(tuneEntry.currentSection, tuneEntry.currentPage);
 			if (!target) return false;
-			const targetPageStart = pageStartFraction(target.pageIdx);
-			if (
-				spanHasPitchedCollision(
-					target.sectionIdx,
-					targetPageStart,
-					addFractions(targetPageStart, duration)
-				)
-			) {
-				return false;
-			}
 			const pitch = prev.pitch;
 			const spelling = prev.spelling;
 			const prevAbsOffset = addFractions(pageStartFraction(tuneEntry.currentPage), prev.offset);
 			const prevSectionIdx = tuneEntry.currentSection;
 			loadPage(target.sectionIdx, target.pageIdx);
-			stepEntry.selectedNoteIndex = spliceNoteIntoBuffer(pitch, duration, [0, 1], spelling);
+			markEntered(spliceNoteIntoBuffer(pitch, duration, [0, 1], spelling));
 			tuneEntry.entryCursor = addFractions([0, 1], duration);
 			restoreTie(prevSectionIdx, prevAbsOffset, pitch);
 			return true;
@@ -871,13 +809,11 @@ export function tuneEnterTiedNote(): boolean {
 		if (compareFractions(addFractions(cursor, duration), [currentWindowBars(), 1]) > 0) {
 			return false;
 		}
-		const pageStart = pageStartFraction(tuneEntry.currentPage);
-		const spanStart = addFractions(pageStart, cursor);
-		if (spanHasPitchedCollision(tuneEntry.currentSection, spanStart, addFractions(spanStart, duration))) {
-			return false;
-		}
-		stepEntry.selectedNoteIndex = spliceNoteIntoBuffer(prev.pitch, duration, cursor, prev.spelling);
-		prev.tied = true;
+		const prevOffset = prev.offset;
+		markEntered(spliceNoteIntoBuffer(prev.pitch, duration, cursor, prev.spelling));
+		// The splice rebuilt the buffer: re-find the head by offset to tie it.
+		const head = stepEntry.enteredNotes.find((n) => compareFractions(n.offset, prevOffset) === 0);
+		if (head) head.tied = true;
 		tuneEntry.entryCursor = addFractions(cursor, duration);
 		return true;
 	}
@@ -890,16 +826,6 @@ export function tuneEnterTiedNote(): boolean {
 	const target = nextPagePosition(tuneEntry.currentSection, tuneEntry.currentPage);
 	if (target === null) return false;
 	const tailDuration = subtractFractions(duration, remaining);
-	const targetPageStart = pageStartFraction(target.pageIdx);
-	if (
-		spanHasPitchedCollision(
-			target.sectionIdx,
-			targetPageStart,
-			addFractions(targetPageStart, tailDuration)
-		)
-	) {
-		return false; // target span occupied: zero mutation
-	}
 	const pitch = last.pitch;
 	const spelling = last.spelling;
 	const lastSectionIdx = tuneEntry.currentSection;
@@ -913,7 +839,7 @@ export function tuneEnterTiedNote(): boolean {
 		if (spelling) head.spelling = spelling;
 		stepEntry.enteredNotes.push(head);
 		loadPage(target.sectionIdx, target.pageIdx); // commits prev + head
-		stepEntry.selectedNoteIndex = spliceNoteIntoBuffer(pitch, tailDuration, [0, 1], spelling);
+		markEntered(spliceNoteIntoBuffer(pitch, tailDuration, [0, 1], spelling));
 		tuneEntry.entryCursor = addFractions([0, 1], tailDuration);
 		restoreTie(lastSectionIdx, headAbsOffset, pitch);
 		return true;
@@ -922,7 +848,7 @@ export function tuneEnterTiedNote(): boolean {
 	// Page exactly full: tie the committed last note straight to the tail.
 	const lastAbsOffset = addFractions(pageStartFraction(tuneEntry.currentPage), last.offset);
 	loadPage(target.sectionIdx, target.pageIdx);
-	stepEntry.selectedNoteIndex = spliceNoteIntoBuffer(pitch, tailDuration, [0, 1], spelling);
+	markEntered(spliceNoteIntoBuffer(pitch, tailDuration, [0, 1], spelling));
 	tuneEntry.entryCursor = addFractions([0, 1], tailDuration);
 	restoreTie(lastSectionIdx, lastAbsOffset, pitch);
 	return true;
@@ -975,9 +901,10 @@ function isLeadInRest(bufferIdx: number): boolean {
  * section earlier by its duration — across page boundaries, so the hidden
  * pager never shows through as a hole at the page's end — leave the
  * section's tail silent, keep the harmony where it is (chords belong to the
- * form), repair ties, reload the page. Selection lands on the element that
- * ends where the removed one began (the previous element), else the one
- * now starting there; the cursor is cleared like any edit selection.
+ * form), repair ties, reload the page. Selection lands on the element that slid
+ * into the removed one's place (edit intent — the keys act on the
+ * selection, and the note before would be the wrong one), else the one
+ * ending there; the bar cursor is cleared like any edit selection.
  */
 function removeTimeInSection(bufferIdx: number): void {
 	const el = stepEntry.enteredNotes[bufferIdx];
@@ -1000,15 +927,15 @@ function removeTimeInSection(bufferIdx: number): void {
 	}
 	loadBuffer(tuneEntry.currentSection, tuneEntry.currentPage);
 	const notes = stepEntry.enteredNotes;
-	let sel = notes.findIndex((n) => compareFractions(addFractions(n.offset, n.duration), local) === 0);
-	if (sel < 0) sel = notes.findIndex((n) => compareFractions(n.offset, local) === 0);
-	stepEntry.selectedNoteIndex = sel >= 0 ? sel : null;
+	let sel = notes.findIndex((n) => compareFractions(n.offset, local) === 0);
+	if (sel < 0) sel = notes.findIndex((n) => compareFractions(addFractions(n.offset, n.duration), local) === 0);
+	selectNote(sel >= 0 ? sel : null, 'edit');
 }
 
 /**
  * Turn buffer element `target` into a rest in place (MuseScore's Del),
- * merged with any rest neighbours in its bar. The rest stays selected with
- * the entry cursor armed on it, so the next typed note fills it — unless the
+ * merged with any rest neighbours in its bar. The rest stays selected (edit
+ * intent), so the rail reads it and the next typed note fills it — unless the
  * bar now holds no pitched note at all: such a bar engraves as slashes,
  * which carry no click anchor, so a selection there would be invisible; the
  * selection clears and the cursor parks at the bar's first entry beat (past
@@ -1027,8 +954,9 @@ function restInPlace(target: number): void {
 		addFractions(barStartAbs, [1, 1])
 	);
 	if (barHasPitch) {
-		stepEntry.selectedNoteIndex = restIdx;
-		tuneEntry.entryCursor = rest.offset;
+		// The selected rest is the position: the rail reads it, letters fill it.
+		selectNote(restIdx, 'edit');
+		tuneEntry.entryCursor = null;
 		return;
 	}
 	let cursor: Fraction = [bar, 1];
@@ -1159,6 +1087,71 @@ export function selectPrevAcrossPages(): void {
 	}
 }
 
+/** Flattened (all-sections) index of stored note `noteIdx` of section `sectionIdx`. */
+function flattenedIndexOfStored(sectionIdx: number, noteIdx: number): number {
+	let base = 0;
+	for (let i = 0; i < sectionIdx; i++) base += tuneEntry.sections[i]?.notes.length ?? 0;
+	return base + noteIdx;
+}
+
+/** Absolute bar (4/4 whole notes) of a stored note's offset. */
+function storedBarOf(note: Note): number {
+	return Math.floor(fractionToFloat(note.offset) + 1e-9);
+}
+
+/**
+ * MuseScore's Ctrl+←/→ across pages: select the first stored element of the
+ * next bar (or of the previous one — from inside a bar, ← goes to that
+ * bar's first element first), loading its page. A bar with nothing stored
+ * in it arms the bar cursor there instead, so the step never stalls on
+ * silence; a step past the section's ends changes nothing.
+ */
+export function selectBarAcrossPages(direction: 1 | -1): void {
+	if (!melodyEditingSupported()) return;
+	const sec = tuneEntry.sections[tuneEntry.currentSection];
+	const pos = entryCursorPosition();
+	if (!sec || !pos) return;
+	let targetBar = pos.barInSection + direction;
+	const sel = stepEntry.selectedNoteIndex;
+	if (sel !== null && direction < 0) {
+		const notes = stepEntry.enteredNotes;
+		const localBar = Math.floor(fractionToFloat(notes[sel].offset) + 1e-9);
+		const firstOfBar = notes.findIndex((n) => Math.floor(fractionToFloat(n.offset) + 1e-9) === localBar);
+		if (firstOfBar !== sel) targetBar = pos.barInSection;
+	}
+	if (targetBar < 0 || targetBar >= sec.bars) return;
+	commitBuffer();
+	const sorted = [...sec.notes].sort((a, b) => compareFractions(a.offset, b.offset));
+	const noteIdx = sorted.findIndex((n) => storedBarOf(n) === targetBar);
+	if (noteIdx >= 0) {
+		cursorToFlattened(flattenedIndexOfStored(tuneEntry.currentSection, noteIdx));
+	} else {
+		cursorToBar(tuneEntry.currentSection, targetBar, 0);
+	}
+}
+
+/** Home: select the current section's first stored element (its page loads); an empty section arms the cursor at bar 1. */
+export function selectFirstInSection(): void {
+	if (!melodyEditingSupported()) return;
+	commitBuffer();
+	const sec = tuneEntry.sections[tuneEntry.currentSection];
+	if (!sec) return;
+	if (sec.notes.length === 0) {
+		cursorToBar(tuneEntry.currentSection, 0, 0);
+		return;
+	}
+	cursorToFlattened(flattenedIndexOfStored(tuneEntry.currentSection, 0));
+}
+
+/** End: select the current section's last stored element (its page loads). */
+export function selectLastInSection(): void {
+	if (!melodyEditingSupported()) return;
+	commitBuffer();
+	const sec = tuneEntry.sections[tuneEntry.currentSection];
+	if (!sec || sec.notes.length === 0) return;
+	cursorToFlattened(flattenedIndexOfStored(tuneEntry.currentSection, sec.notes.length - 1));
+}
+
 /**
  * Where the next entered note will land: section, bar and beat (quarters).
  * Falls back to the append cursor when no entry cursor is armed. Null when
@@ -1170,7 +1163,10 @@ export function entryCursorPosition(): {
 	beatInBar: number;
 } | null {
 	if (!melodyEditingSupported()) return null;
-	const local = tuneEntry.entryCursor ?? getCurrentCursorOffset();
+	// A clicked or arrowed element IS the position (letters replace it there);
+	// else the bar-click cursor; else the page's append edge.
+	const selected = isEditSelection() ? stepEntry.enteredNotes[stepEntry.selectedNoteIndex as number] : null;
+	const local = selected?.offset ?? tuneEntry.entryCursor ?? getCurrentCursorOffset();
 	const abs = fractionToFloat(local) + tuneEntry.currentPage * PAGE_BARS;
 	const barInSection = Math.floor(abs + 1e-9);
 	const beatInBar = Math.max(0, (abs - barInSection) * 4);

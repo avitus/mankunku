@@ -186,7 +186,7 @@ After any `git push` to a PR branch — including the autofix commits themselves
 - abcjs facts that shaped the design: clickListener only fires within 12 SVG units of a glyph (empty-space clicks need the hit rects); responsive mode is viewBox-based so SVG-appended rects rescale for free; hit rects must swallow mouse AND touch events (abcjs binds touchstart/touchend to the same proximity dispatch).
 - `tuneToAbcWithMap` returns `{ abc, noteAnchors, barAnchors, chordSlotAnchors }` — golden tests pin the ABC byte-identical; `phraseToAbc` untouched (hard rule). Geometry math lives in pure `src/lib/notation/chart-geometry.ts`; abcjs adaptation in `src/lib/notation/abcjs-adapter.ts`.
 - The shared panels reflow via Tailwind 4 container queries under named `@container/entry` wrappers — inert in the lick editor (no named container ancestor). Panel action props (`onAddNote` etc.) default to raw step-entry; only the tune editor passes wrappers.
-- Cursor-mode entry: overwrite rests, block on pitched collision, section-level occupancy, window-fit guard (the section-end overhang fix — final review's one blocker).
+- Cursor-mode entry: overwrite rests, block on pitched collision, section-level occupancy, window-fit guard (the section-end overhang fix — final review's one blocker). **The collision block was lifted 2026-10-15** (score-editing phase 2, Andy's MuseScore reference): cursor entry and the roll/split overwrite pitched notes too, `spliceElement` is the one write, `mergeWindow` trims a straddler; the window-fit guard stays.
 
 ### Tune chart chord symbols: MuseScore-height drop pass (2026-07-28)
 

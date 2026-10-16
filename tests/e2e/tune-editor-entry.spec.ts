@@ -111,17 +111,18 @@ test('clicking an entered rest selects it; Backspace deletes it in place', async
 	await expect(rail.getByText(/Section A · Bar 1, Beat 4/)).toBeVisible();
 
 	// The ENTERED rest is a stored element with a note anchor: clicking it
-	// selects it — the entry cursor does not jump (contrast the gap-rest
-	// test above).
+	// selects it, and the selected element IS the position the rail reads
+	// (2026-10-15 — a letter typed now fills the rest; contrast the gap-rest
+	// test above, where the click falls through to the bar).
 	await rests.first().click();
 	await expect(page.locator(`${CHART_SVG} .abcjs-rest.selected-note`)).toHaveCount(1);
-	await expect(rail.getByText(/Section A · Bar 1, Beat 4/)).toBeVisible();
+	await expect(rail.getByText(/Section A · Bar 1, Beat 2/)).toBeVisible();
 
-	// Backspace removes just the rest — both notes survive, the second pulls
-	// onto beat 2, and the append cursor lands on beat 3.
+	// Backspace removes just the rest and its time — both notes survive, the
+	// second pulls onto beat 2 and is selected there, so the rail reads beat 2.
 	await page.keyboard.press('Backspace');
 	await expect(notes).toHaveCount(2);
-	await expect(rail.getByText(/Section A · Bar 1, Beat 3/)).toBeVisible();
+	await expect(rail.getByText(/Section A · Bar 1, Beat 2/)).toBeVisible();
 });
 
 test('arrow keys cross the page boundary', async ({ page }) => {
@@ -241,4 +242,42 @@ test('deleting a note mid-score leaves a rest and nothing moves; deleting the re
 	const pitched = sheets[0].sections[0].notes.filter((n) => n.pitch !== null);
 	expect(pitched).toHaveLength(19);
 	expect(pitched.map((n) => n.offset[0] / n.offset[1])).toEqual(pitched.map((_, i) => i / 4));
+});
+
+test('a wrong note is fixed in place: click it, type the letter; a duration key resizes it', async ({ page }) => {
+	await openEditor(page);
+	await page.keyboard.press('3'); // quarter notes
+	for (const key of ['a', 'a', 'a', 'a']) await page.keyboard.press(key);
+	const notes = page.locator(`${CHART_SVG} .abcjs-note`);
+	const noteheads = page.locator(`${CHART_SVG} .abcjs-note .abcjs-notehead`);
+	const rail = page.getByTestId('entry-rail');
+	await expect(notes).toHaveCount(4);
+
+	// Click the second note and type B: it is re-pitched in place (same beat,
+	// same length), the count is unchanged, and the selection moves on to the
+	// third note — the rail reads beat 3 — ready for the next letter.
+	await noteheads.nth(1).click();
+	await expect(rail.getByText(/Section A · Bar 1, Beat 2/)).toBeVisible();
+	await page.keyboard.press('b');
+	await expect(notes).toHaveCount(4);
+	await expect(rail.getByText(/Section A · Bar 1, Beat 3/)).toBeVisible();
+	await expect(page.locator(`${CHART_SVG} .abcjs-note.selected-note`)).toHaveCount(1);
+
+	// A duration key on the selected (third) note resizes it: a half note
+	// swallows the fourth quarter, MuseScore-style.
+	await page.keyboard.press('2');
+	await expect(notes).toHaveCount(3);
+	await expect(page.getByRole('button', { name: 'Half Note' })).toHaveAttribute('aria-pressed', 'true');
+
+	// Saved: B on beat 2, a half on beat 3, nothing shifted.
+	await page.getByRole('textbox', { name: 'Tune title' }).fill('Fixed');
+	await page.getByRole('button', { name: 'Save tune' }).click();
+	await page.waitForURL(/\/tunes\/fixed$/);
+	const stored = await page.evaluate(() => window.localStorage.getItem('mankunku:user-tunes'));
+	const sheets = JSON.parse(stored ?? '[]') as Array<{
+		sections: Array<{ notes: Array<{ pitch: number | null; offset: [number, number]; duration: [number, number] }> }>;
+	}>;
+	const pitched = sheets[0].sections[0].notes.filter((n) => n.pitch !== null);
+	expect(pitched.map((n) => [n.offset[0] / n.offset[1], n.duration[0] / n.duration[1]])).toEqual([[0, 0.25], [0.25, 0.25], [0.5, 0.5]]);
+	expect(pitched[1].pitch).toBe(pitched[0].pitch! + 2); // A → B, a whole step up
 });

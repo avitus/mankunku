@@ -45,6 +45,9 @@
 		entryCursorPosition,
 		tuneDeleteSelected,
 		tuneRemoveSelectedTime,
+		selectBarAcrossPages,
+		selectFirstInSection,
+		selectLastInSection,
 		type TuneDeleteResult,
 		setChord,
 		removeChord,
@@ -60,6 +63,7 @@
 		adjustOctave,
 		selectNote,
 		adjustSelectedNotePitch,
+		adjustSelectedNoteDiatonic,
 		flipSelectedNoteSpelling
 	} from '$lib/state/step-entry.svelte';
 	import { keyToPitchClass } from '$lib/step-entry/pitch-input';
@@ -275,7 +279,12 @@
 		if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); restoreHistory(e.shiftKey ? 'redo' : 'undo'); return; }
 		// MuseScore's Ctrl+Del: the selected element AND its time go, section-wide.
 		if ((e.ctrlKey || e.metaKey) && (e.key === 'Backspace' || e.key === 'Delete')) { e.preventDefault(); reportDelete(tuneRemoveSelectedTime()); return; }
+		// MuseScore navigation: Ctrl/⌘+←/→ a bar at a time (preventDefault keeps ⌘← off the browser's Back), Alt+↑/↓ a step of the key.
+		if ((e.ctrlKey || e.metaKey) && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { e.preventDefault(); selectBarAcrossPages(e.key === 'ArrowRight' ? 1 : -1); return; }
+		if (e.altKey && !e.ctrlKey && !e.metaKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) { e.preventDefault(); adjustSelectedNoteDiatonic(e.key === 'ArrowUp' ? 1 : -1); return; }
 		if (e.ctrlKey || e.metaKey || e.altKey) return;
+		if (e.key === 'Home') { e.preventDefault(); selectFirstInSection(); return; }
+		if (e.key === 'End') { e.preventDefault(); selectLastInSection(); return; }
 		if (e.key === ' ' && !target?.closest('button,a,[role="button"]')) { e.preventDefault(); void transport?.togglePlay(); return; }
 
 		if (KEYBOARD_SHORTCUTS[e.key]) { setDuration(KEYBOARD_SHORTCUTS[e.key]); return; }
@@ -428,7 +437,7 @@
                 {:else}<p class="te-hint">This chart is in {tuneEntry.timeSignature.join('/')} — melody entry supports 4/4 only. Tap a chord slot to edit chords; use Edit form for sections.</p>{/if}
                 <div class="te-chord-action"><button disabled={!melodyEditingSupported()} onclick={openChordEditorAtCursor}>Edit chord at cursor <kbd>K</kbd></button></div>
                 <div class="te-rail-footer"><p>Click a note, then use ↑ ↓ to change its pitch.</p><button onclick={() => shortcutsDialog?.showModal()}>Keyboard shortcuts ↗</button></div>
-                <div class="le-status" role="status" aria-live="polite" data-testid="entry-hint">{entryHint || (selectedNote ? 'Delete turns a note into a rest; Ctrl/⌘ ⌫ removes its time.' : 'Click a note to edit it in place, or a bar to place the next one.')}</div>
+                <div class="le-status" role="status" aria-live="polite" data-testid="entry-hint">{entryHint || (selectedNote && stepEntry.selectionMode === 'edit' ? 'Editing this note: A–G re-pitches it, 1–5 resize it, 0 rests it, Delete turns it into a rest; Ctrl/⌘ ⌫ removes its time.' : selectedNote ? 'Backspace removes what you just entered. Click a note to edit it in place, or a bar to place the next one.' : 'Click a note to edit it in place, or a bar to place the next one.')}</div>
             </div>
         </section></div>
 		<footer class="le-footer"><span>MANKUNKU <i>/</i> YOUR REPERTOIRE, IN YOUR HANDS.</span><a href="/tunes">Back to your tunes ↗</a></footer>
@@ -441,5 +450,5 @@
     </section></div><div class="le-dialog-actions"><button class="le-button le-save" onclick={() => settingsDialog?.close()}>Done</button></div></dialog>
     <dialog bind:this={formDialog} class="le-dialog te-form-dialog" aria-labelledby="form-heading"><header><div><p class="studio-label">Tune structure</p><h2 id="form-heading">Form & sections.</h2></div><button aria-label="Close form" onclick={() => formDialog?.close()}>×</button></header><div class="te-form-content"><SectionConfigPanel /></div><div class="le-dialog-actions"><button class="le-button le-save" onclick={() => formDialog?.close()}>Done</button></div></dialog>
 
-	<dialog bind:this={shortcutsDialog} class="le-dialog" aria-labelledby="tune-shortcuts-title"><header><h2 id="tune-shortcuts-title">Keep your hands on the keys.</h2><button aria-label="Close shortcuts" onclick={() => shortcutsDialog?.close()}><EditorIcon name="close" /></button></header><p>Shortcuts work when you’re outside a text field.</p><dl class="le-shortcuts">{#each [['A–G / 0', 'Enter a note / rest'], ['1–5', 'Note duration'], ['T / .', 'Triplet / dotted'], ['[ / ]', 'Flat / sharp'], ['= / −', 'Entry octave'], ['← / →', 'Select previous / next note'], ['↑ / ↓', 'Move pitch by a semitone'], ['Shift + ↑ / ↓', 'Move pitch by an octave'], ['\\', 'Flip enharmonic spelling'], ['+', 'Tie to a duplicate of the last note'], ['K', 'Edit chord at cursor'], ['⌫ / Delete', 'Delete: a note becomes a rest; a rest or the last note gives up its time'], ['Ctrl/⌘ ⌫', 'Remove the selected note or rest and its time'], ['Space', 'Play / stop'], ['Ctrl/⌘Z', 'Undo'], ['Ctrl/⌘Shift Z', 'Redo']] as [key, description]}<div><dt>{description}</dt><dd><kbd>{key}</kbd></dd></div>{/each}</dl></dialog>
+	<dialog bind:this={shortcutsDialog} class="le-dialog" aria-labelledby="tune-shortcuts-title"><header><h2 id="tune-shortcuts-title">Keep your hands on the keys.</h2><button aria-label="Close shortcuts" onclick={() => shortcutsDialog?.close()}><EditorIcon name="close" /></button></header><p>Shortcuts work when you’re outside a text field.</p><dl class="le-shortcuts">{#each [['A–G / 0', 'Enter a note / rest — or replace the selected one in place'], ['1–5', 'Note duration — or resize the selected note'], ['T / .', 'Triplet / dotted (resizes a selected note)'], ['[ / ]', 'Flat / sharp'], ['= / −', 'Entry octave'], ['← / →', 'Select previous / next note'], ['↑ / ↓', 'Move pitch by a semitone'], ['Shift + ↑ / ↓', 'Move pitch by an octave'], ['Alt + ↑ / ↓', 'Move pitch by a step of the key'], ['Ctrl/⌘ + ← / →', 'Select the previous / next bar'], ['Home / End', 'First / last note of the section'], ['\\', 'Flip enharmonic spelling'], ['+', 'Tie into a duplicate of the last note — or tie the selected note to the next'], ['K', 'Edit chord at cursor'], ['Esc', 'Stop editing, back to the bar cursor'], ['⌫ / Delete', 'Delete: a note becomes a rest; a rest or the last note gives up its time'], ['Ctrl/⌘ ⌫', 'Remove the selected note or rest and its time'], ['Space', 'Play / stop'], ['Ctrl/⌘Z', 'Undo'], ['Ctrl/⌘Shift Z', 'Redo']] as [key, description]}<div><dt>{description}</dt><dd><kbd>{key}</kbd></dd></div>{/each}</dl></dialog>
 </div>

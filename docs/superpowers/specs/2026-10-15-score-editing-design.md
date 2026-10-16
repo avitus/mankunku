@@ -1,7 +1,7 @@
 # Score Editing: Delete-to-Rest and In-Place Correction — Design
 
 **Date:** 2026-10-15
-**Status:** Approved (Andy, 2026-10-15, via plan review; MuseScore 4 named as the reference)
+**Status:** Approved (Andy, 2026-10-15, via plan review; MuseScore 4 named as the reference) — phases 1–2 shipped 2026-10-15
 
 ## Goal
 
@@ -28,7 +28,7 @@ From the handbook (`handbook.musescore.org`, basics/editing-notes-and-rests, bas
 6. **Duration keys on an edit selection resize it in place** and set the current duration; selecting an element syncs the current duration to it when nameable. Click the first wrong note and type letters = MuseScore's Re-pitch; press a duration first to change the rhythm.
 7. **Adjacent rests coalesce in the data** after an in-place edit: contiguous non-triplet rests whose starts fall in the same bar merge. One engraved rest ≈ one selectable element.
 8. **A re-opened lick loads without its trailing pad rest.** Save always re-pads, so trailing silence is implied; the re-opened buffer has the shape of a fresh one and typing continues at once.
-9. **Selection and cursor (tune editor).** Phase 1 keeps "an edit selection nulls the cursor", with one addition: after Delete→rest the rest is selected AND the cursor is armed on it. Phase 2 makes every edit selection arm the cursor at its element; after a replace the following element is selected in edit mode, so successive letters re-pitch successive notes.
+9. **Selection and cursor (tune editor).** An edit selection IS the position: `entryCursorPosition` reads it before the bar-click cursor and the page's append edge, and `tuneAddNote`/`tuneAddRest`/`tuneEnterTiedNote` hand an edit selection to step-entry's in-place paths. (Built this way in phase 2 rather than arming `entryCursor` on every selection, as first written: same observable behaviour, and the cursor-null pins stayed.) After a replace the following element is selected in edit intent, so successive letters re-pitch successive notes.
 
 ## Changes by module
 

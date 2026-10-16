@@ -2974,3 +2974,26 @@ so the positional rule would have made Delete on the last real note mean
 load (save re-pads; trailing silence is implied) made both flows the same
 shape. When a rule depends on "the end", make sure the end means the same
 thing on every path that reaches it.
+
+## 2026-10-15 — Once keys act on the selection, every selection is a decision
+
+Phase 1 could leave "which element is selected afterwards" to habit, because
+the keys ignored the selection: the previous element after a removed rest
+was as good as any. Phase 2 made letters, `0` and the duration keys act ON
+the selected element, and the e2e suite found the habit at once — after
+deleting a rest, `0` rested the note before it. Nothing in the unit tests
+saw it, because each unit test asked one question; the e2e asked two in a
+row. The general shape: when an operation gains a target, every place that
+SETS the target inherits a product decision it never had to make, and the
+old answers are now wrong in exactly the places they used to be harmless.
+Grep for every assignment to the selection when you give the selection
+teeth.
+
+The second thing: the plan said "arm the cursor on every edit selection",
+and the implementation says "the position is the selection, else the
+cursor". Same behaviour, three pins untouched, one less piece of state to
+keep in step. The plan was written in the vocabulary of the existing code
+(the cursor was the only position the tune editor knew); the better design
+only appeared when the code for the first version was on the screen. Worth
+leaving room in a plan for that — say what the user sees, not which field
+holds it.

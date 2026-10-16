@@ -1,10 +1,10 @@
 import type { Note, Fraction, PitchClass, Phrase, PhraseCategory, Mode } from '$lib/types/music';
 import type { InstrumentConfig } from '$lib/types/instruments';
-import type { BaseDurationId } from '$lib/step-entry/durations';
-import { DOTTED_BASES, TRIPLET_BASES, getDurationFraction } from '$lib/step-entry/durations';
+import type { BaseDurationId, DurationId } from '$lib/step-entry/durations';
+import { DOTTED_BASES, DURATIONS, TRIPLET_BASES, getDurationFraction } from '$lib/step-entry/durations';
 import { addFractions, compareFractions, subtractFractions, fractionToFloat, pitchClassToMidi } from '$lib/music/intervals';
 import { applyAccidental } from '$lib/step-entry/pitch-input';
-import { coalesceRests, removeTime, replaceWithRest, stripTrailingRests } from '$lib/step-entry/buffer-ops';
+import { coalesceRests, removeTime, replaceWithRest, spliceElement, stripTrailingRests } from '$lib/step-entry/buffer-ops';
 import { concertKeyToWritten, transposePitchClass } from '$lib/music/transposition';
 import { relativeMajor, relativeMinor } from '$lib/music/keys';
 import { signatureAccidentalsFor, signatureFlatsFor } from '$lib/music/notation';
@@ -69,6 +69,12 @@ export const stepEntry = $state({
 	// delete then falls back to the last element, pitch ops to the last
 	// pitched note (the historical last-note behavior).
 	selectedNoteIndex: null as number | null,
+	// What the selection MEANS (2026-10-15): `entry` — the just-entered
+	// element, where letters, `0`, `+` and the duration keys keep their entry
+	// meaning; `edit` — a click or arrow landed here, and those keys act ON
+	// the element (re-pitch, rest, resize, tie). Esc and any entry return to
+	// `entry`. Selecting in `edit` syncs the current duration to the element.
+	selectionMode: 'entry' as 'entry' | 'edit',
 	// When non-null, the page is editing an existing lick rather than creating
 	// a new one. The save path replaces the lick at this id and preserves the
 	// snapshot of source/tags/category captured when the lick was loaded.
@@ -210,7 +216,8 @@ export function addNote(
 	pitchClass: number, octave: number,
 	accidental: 'sharp' | 'flat' | 'natural'
 ): boolean {
-	const duration = getDurationFraction(stepEntry.currentDuration, stepEntry.tripletMode, stepEntry.dottedMode);
+	if (isEditSelection()) return replaceSelectedWithNote(pitchClass, octave, accidental);
+	const duration = currentDurationFraction();
 	if (!canAddDuration(duration)) return false;
 
 	// Find the last pitched note as the octave-placement reference.
@@ -223,8 +230,68 @@ export function addNote(
 		duration,
 		offset
 	});
-	stepEntry.selectedNoteIndex = stepEntry.enteredNotes.length - 1;
+	markEntered(stepEntry.enteredNotes.length - 1);
 	stepEntry.accidental = 'natural';
+	return true;
+}
+
+/** The duration armed on the entry surface, modifiers resolved. */
+function currentDurationFraction(): Fraction {
+	return getDurationFraction(stepEntry.currentDuration, stepEntry.tripletMode, stepEntry.dottedMode);
+}
+
+/** True when a click or arrow selected the element (edit intent) and it still exists. */
+export function isEditSelection(): boolean {
+	const sel = stepEntry.selectedNoteIndex;
+	return stepEntry.selectionMode === 'edit' && sel !== null && sel >= 0 && sel < stepEntry.enteredNotes.length;
+}
+
+/** Select a just-entered element: the entry edge, where keys keep their entry meaning. */
+export function markEntered(index: number): void {
+	stepEntry.selectedNoteIndex = index;
+	stepEntry.selectionMode = 'entry';
+}
+
+/** Select the element after `index` for the next in-place edit, or clear the selection past the end. */
+function selectFollowing(index: number): void {
+	if (index + 1 < stepEntry.enteredNotes.length) selectNote(index + 1, 'edit');
+	else selectNote(null);
+}
+
+/** The nearest pitched element before `index`, as an octave reference. */
+function previousPitched(index: number): number | null {
+	for (let i = index - 1; i >= 0; i--) {
+		const pitch = stepEntry.enteredNotes[i].pitch;
+		if (pitch !== null) return pitch;
+	}
+	return null;
+}
+
+/**
+ * Letters on an edit selection re-pitch in place: the selected element is
+ * replaced by a note of the current duration at its own offset, the new
+ * pitch placed in the octave nearest the note it replaces (else the nearest
+ * pitched note before it), and the selection moves to the following element
+ * so a chain of letters re-pitches a line and keeps its rhythm. Refused,
+ * with nothing changed, when the note would run past the end of the bars.
+ */
+function replaceSelectedWithNote(
+	pitchClass: number,
+	octave: number,
+	accidental: 'sharp' | 'flat' | 'natural'
+): boolean {
+	const notes = stepEntry.enteredNotes;
+	const index = stepEntry.selectedNoteIndex as number;
+	const target = notes[index];
+	const duration = currentDurationFraction();
+	if (compareFractions(addFractions(target.offset, duration), getMaxCapacity()) > 0) return false;
+	const reference = target.pitch ?? previousPitched(index);
+	const concert = resolveEntryPitch(pitchClass, octave, accidental, reference);
+	if (concert === null) return false;
+	const { notes: out, index: at } = spliceElement(notes, { pitch: concert, duration, offset: target.offset });
+	stepEntry.enteredNotes = out;
+	stepEntry.accidental = 'natural';
+	selectFollowing(at);
 	return true;
 }
 
@@ -238,7 +305,8 @@ function findLastPitchedNote(): number | null {
 }
 
 export function addRest(): boolean {
-	const duration = getDurationFraction(stepEntry.currentDuration, stepEntry.tripletMode, stepEntry.dottedMode);
+	if (isEditSelection()) return replaceSelectedWithRest();
+	const duration = currentDurationFraction();
 	if (!canAddDuration(duration)) return false;
 
 	const offset = getCurrentCursorOffset();
@@ -247,7 +315,25 @@ export function addRest(): boolean {
 		duration,
 		offset
 	});
-	stepEntry.selectedNoteIndex = stepEntry.enteredNotes.length - 1;
+	markEntered(stepEntry.enteredNotes.length - 1);
+	return true;
+}
+
+/**
+ * `0` on an edit selection rests the element: a rest of the current duration
+ * replaces it at its own offset (merged with rest neighbours in the bar) and
+ * the selection moves on. Refused past the end of the bars.
+ */
+function replaceSelectedWithRest(): boolean {
+	const notes = stepEntry.enteredNotes;
+	const index = stepEntry.selectedNoteIndex as number;
+	const target = notes[index];
+	const duration = currentDurationFraction();
+	if (compareFractions(addFractions(target.offset, duration), getMaxCapacity()) > 0) return false;
+	const spliced = spliceElement(notes, { pitch: null, duration, offset: target.offset });
+	const { notes: merged, indexMap } = coalesceRests(spliced.notes);
+	stepEntry.enteredNotes = merged;
+	selectFollowing(indexMap[spliced.index]);
 	return true;
 }
 
@@ -285,15 +371,41 @@ function resolvePitchedTargetIndex(): number | null {
 	return null;
 }
 
-/** Set the selected element — note or rest. Pass `null` to clear; out-of-range indices are ignored. */
-export function selectNote(index: number | null): void {
+/**
+ * Set the selected element — note or rest. Pass `null` to clear (back to
+ * entry); out-of-range indices are ignored. The default intent is `edit` (a
+ * click or arrow landed here), which also syncs the current duration to the
+ * element — MuseScore's toolbar follows the selection — so the next typed
+ * letter keeps its length. `markEntered` is the entry-edge counterpart.
+ */
+export function selectNote(index: number | null, mode: 'edit' | 'entry' = 'edit'): void {
 	if (index === null) {
 		stepEntry.selectedNoteIndex = null;
+		stepEntry.selectionMode = 'entry';
 		return;
 	}
 	const notes = stepEntry.enteredNotes;
 	if (index < 0 || index >= notes.length) return;
 	stepEntry.selectedNoteIndex = index;
+	stepEntry.selectionMode = mode;
+	if (mode === 'edit') syncDurationTo(notes[index]);
+}
+
+/**
+ * Point the duration controls at an element's length when the vocabulary
+ * names it (whole … sixteenth, their triplet and dotted variants); an
+ * unnameable length — an imported 5/16, a merged rest — leaves them alone.
+ */
+function syncDurationTo(element: Note): void {
+	const [num, den] = element.duration;
+	for (const [id, [n, d]] of Object.entries(DURATIONS) as [DurationId, Fraction][]) {
+		if (num * d !== n * den) continue;
+		const [base, modifier] = id.split('-') as [BaseDurationId, string | undefined];
+		stepEntry.currentDuration = base;
+		stepEntry.tripletMode = modifier === 'triplet';
+		stepEntry.dottedMode = modifier === 'dotted';
+		return;
+	}
 }
 
 /** Step selection to the previous element (MuseScore-style: stops on rests). No-op at the start. */
@@ -302,9 +414,7 @@ export function selectPrev(): void {
 	const target = stepEntry.selectedNoteIndex !== null
 		? stepEntry.selectedNoteIndex - 1
 		: notes.length - 1;
-	if (target >= 0 && target < notes.length) {
-		stepEntry.selectedNoteIndex = target;
-	}
+	if (target >= 0 && target < notes.length) selectNote(target, 'edit');
 }
 
 /** Step selection to the next element (MuseScore-style: stops on rests). No-op at the end. */
@@ -313,9 +423,7 @@ export function selectNext(): void {
 	const target = stepEntry.selectedNoteIndex !== null
 		? stepEntry.selectedNoteIndex + 1
 		: 0;
-	if (target >= 0 && target < notes.length) {
-		stepEntry.selectedNoteIndex = target;
-	}
+	if (target >= 0 && target < notes.length) selectNote(target, 'edit');
 }
 
 /**
@@ -345,18 +453,19 @@ export function deleteSelectedNote(): void {
 /**
  * Remove element `target` and its time (later offsets move earlier, a tie
  * into it is repaired). Selection: cleared when the end was removed so the
- * append-cursor flow resumes; else the previous element, else the one that
- * slid into the slot.
+ * append-cursor flow resumes; else the element that slid into the slot, in
+ * edit intent — the keys act on the selection now, and acting on the note
+ * BEFORE the removed one would be the wrong note.
  */
 function removeElementTime(target: number): void {
 	const notes = stepEntry.enteredNotes;
 	const wasAtEnd = target === notes.length - 1;
 	stepEntry.enteredNotes = removeTime(notes, target);
 	if (wasAtEnd) {
-		stepEntry.selectedNoteIndex = null;
+		selectNote(null);
 		return;
 	}
-	stepEntry.selectedNoteIndex = target > 0 ? target - 1 : 0;
+	selectNote(target, 'edit');
 }
 
 /**
@@ -379,10 +488,11 @@ export const deleteLastNote = deleteSelectedNote;
  * note is missing or is a rest.
  */
 export function enterTiedNote(): boolean {
+	if (isEditSelection()) return tieSelected();
 	const lastNote = stepEntry.enteredNotes.at(-1);
 	if (!lastNote || lastNote.pitch === null) return false;
 
-	const duration = getDurationFraction(stepEntry.currentDuration, stepEntry.tripletMode, stepEntry.dottedMode);
+	const duration = currentDurationFraction();
 	if (!canAddDuration(duration)) return false;
 
 	lastNote.tied = true;
@@ -392,7 +502,36 @@ export function enterTiedNote(): boolean {
 		offset: getCurrentCursorOffset(),
 		spelling: lastNote.spelling
 	});
-	stepEntry.selectedNoteIndex = stepEntry.enteredNotes.length - 1;
+	markEntered(stepEntry.enteredNotes.length - 1);
+	return true;
+}
+
+/**
+ * `+` on an edit selection: when a same-pitch note starts where the selected
+ * note ends, toggle the tie between them (MuseScore's T); otherwise write a
+ * tied continuation of the current duration over whatever follows and move
+ * the selection on. A selected rest is a hard no-op. Refused past the end of
+ * the bars.
+ */
+function tieSelected(): boolean {
+	const notes = stepEntry.enteredNotes;
+	const index = stepEntry.selectedNoteIndex as number;
+	const target = notes[index];
+	if (target.pitch === null) return false;
+	const targetEnd = addFractions(target.offset, target.duration);
+	const next = notes[index + 1];
+	if (next && next.pitch === target.pitch && compareFractions(next.offset, targetEnd) === 0) {
+		target.tied = !target.tied;
+		return true;
+	}
+	const duration = currentDurationFraction();
+	if (compareFractions(addFractions(targetEnd, duration), getMaxCapacity()) > 0) return false;
+	const continuation: Note = { pitch: target.pitch, duration, offset: targetEnd };
+	if (target.spelling) continuation.spelling = target.spelling;
+	const { notes: out, index: at } = spliceElement(notes, continuation);
+	out[at - 1].tied = true;
+	stepEntry.enteredNotes = out;
+	selectFollowing(at);
 	return true;
 }
 
@@ -440,6 +579,7 @@ export function reset(): void {
 	stepEntry.modeTouched = false;
 	stepEntry.practiceTag = false;
 	stepEntry.selectedNoteIndex = null;
+	stepEntry.selectionMode = 'entry';
 	stepEntry.editingId = null;
 	stepEntry.editingSource = null;
 	stepEntry.editingTags = null;
@@ -516,6 +656,79 @@ export function adjustSelectedNotePitch(semitones: number): void {
 /** Backward-compat alias — delegates to `adjustSelectedNotePitch`. */
 export const adjustLastNotePitch = adjustSelectedNotePitch;
 
+/** Written pitch classes of the drawn key signature's seven letters. */
+function diatonicWrittenPitchClasses(): Set<number> {
+	const set = new Set<number>();
+	for (const pc of Object.keys(PC_TO_LETTER)) {
+		set.add(applyKeySig(Number(pc), stepEntry.phraseKey, stepEntry.phraseMode));
+	}
+	return set;
+}
+
+/**
+ * Move the selected note (or the last pitched note) one step of the DRAWN
+ * key — MuseScore's Alt+Shift+↑/↓: the next higher or lower pitch whose
+ * written letter carries the signature's accidental (F major and D minor
+ * both step A to Bb), so a chromatic note lands on the key's next letter.
+ * Range-checked in written space; a tie the move breaks is cleared; an
+ * explicit spelling is dropped, the signature spells the new note.
+ */
+export function adjustSelectedNoteDiatonic(direction: 1 | -1): void {
+	const notes = stepEntry.enteredNotes;
+	const target = resolvePitchedTargetIndex();
+	if (target === null) return;
+	const note = notes[target];
+	if (note.pitch === null) return;
+	const trans = entryTransposition();
+	const scale = diatonicWrittenPitchClasses();
+	let written = note.pitch + trans;
+	for (let step = 0; step < 12; step++) {
+		written += direction;
+		if (scale.has(((written % 12) + 12) % 12)) break;
+	}
+	if (!isInEntryRange(written)) return;
+	adjustSelectedNotePitch(written - trans - note.pitch);
+	delete note.spelling;
+}
+
+/** Bar (whole-note) index of an element's offset. */
+function barOf(note: Note): number {
+	return Math.floor(fractionToFloat(note.offset) + 1e-9);
+}
+
+/**
+ * MuseScore's Ctrl+←/→: select the first element of the next bar, or of the
+ * previous one — from inside a bar, ← goes to that bar's first element
+ * first. With no selection, → starts at the first element and ← at the last
+ * bar's first. A step past either end changes nothing.
+ */
+export function selectBar(direction: 1 | -1): void {
+	const notes = stepEntry.enteredNotes;
+	if (notes.length === 0) return;
+	const sel = stepEntry.selectedNoteIndex;
+	let targetBar: number;
+	if (sel === null) {
+		targetBar = barOf(direction > 0 ? notes[0] : notes[notes.length - 1]);
+	} else {
+		const currentBar = barOf(notes[sel]);
+		const firstOfBar = notes.findIndex((n) => barOf(n) === currentBar);
+		targetBar = direction < 0 && firstOfBar !== sel ? currentBar : currentBar + direction;
+	}
+	const index = notes.findIndex((n) => barOf(n) === targetBar);
+	if (index >= 0) selectNote(index, 'edit');
+}
+
+/** Home: select the first element (edit intent). */
+export function selectFirst(): void {
+	if (stepEntry.enteredNotes.length > 0) selectNote(0, 'edit');
+}
+
+/** End: select the last element (edit intent). */
+export function selectLast(): void {
+	const n = stepEntry.enteredNotes.length;
+	if (n > 0) selectNote(n - 1, 'edit');
+}
+
 export function setBarCount(n: number): void {
 	stepEntry.barCount = Math.max(1, Math.min(4, n));
 	const maxCapacity = getMaxCapacity();
@@ -531,12 +744,69 @@ export function setBarCount(n: number): void {
 		stepEntry.selectedNoteIndex !== null &&
 		stepEntry.selectedNoteIndex >= stepEntry.enteredNotes.length
 	) {
-		stepEntry.selectedNoteIndex = null;
+		selectNote(null);
 	}
 }
 
-export function setDuration(id: BaseDurationId): void {
+/**
+ * Choose the duration for the next entered note — or, on an edit selection,
+ * RESIZE the selected element to it (MuseScore: a duration key acts on the
+ * selected note). Returns false, with nothing changed, when the resize would
+ * run past the end of the bars.
+ */
+export function setDuration(id: BaseDurationId): boolean {
+	if (isEditSelection()) return resizeSelected(id, stepEntry.tripletMode, stepEntry.dottedMode);
 	stepEntry.currentDuration = id;
+	return true;
+}
+
+/**
+ * Resize the selected element to (base, triplet, dotted): shorter leaves a
+ * rest for the remainder; longer overwrites what follows, MuseScore-style
+ * (`spliceElement`); a tie the new length no longer meets is cleared. The
+ * duration controls take the new value and the element stays selected.
+ * Refused, with nothing changed, past the end of the bars.
+ */
+function resizeSelected(base: BaseDurationId, triplet: boolean, dotted: boolean): boolean {
+	const notes = stepEntry.enteredNotes;
+	const index = stepEntry.selectedNoteIndex as number;
+	const target = notes[index];
+	const duration = getDurationFraction(base, triplet, dotted);
+	if (compareFractions(addFractions(target.offset, duration), getMaxCapacity()) > 0) return false;
+	const change = compareFractions(duration, target.duration);
+	let out: Note[];
+	let at = index;
+	if (change < 0) {
+		const resized: Note = { ...target, duration };
+		const remainder: Note = {
+			pitch: null,
+			duration: subtractFractions(target.duration, duration),
+			offset: addFractions(target.offset, duration)
+		};
+		out = [...notes.slice(0, index).map((n) => ({ ...n })), resized, remainder, ...notes.slice(index + 1).map((n) => ({ ...n }))];
+	} else if (change > 0) {
+		({ notes: out, index: at } = spliceElement(notes, { ...target, duration }));
+	} else {
+		out = notes.map((n) => ({ ...n }));
+	}
+	const resized = out[at];
+	if (resized.tied) {
+		const next = out[at + 1];
+		const resizedEnd = addFractions(resized.offset, resized.duration);
+		if (!next || next.pitch !== resized.pitch || compareFractions(next.offset, resizedEnd) !== 0) resized.tied = false;
+	}
+	if (resized.pitch === null) {
+		const merged = coalesceRests(out);
+		out = merged.notes;
+		at = merged.indexMap[at];
+	}
+	stepEntry.enteredNotes = out;
+	stepEntry.currentDuration = base;
+	stepEntry.tripletMode = triplet;
+	stepEntry.dottedMode = dotted;
+	stepEntry.selectedNoteIndex = at;
+	stepEntry.selectionMode = 'edit';
+	return true;
 }
 
 /**
@@ -548,14 +818,26 @@ export function setDuration(id: BaseDurationId): void {
  */
 export function toggleTriplet(): void {
 	if (!stepEntry.tripletMode && !TRIPLET_BASES.has(stepEntry.currentDuration)) return;
-	stepEntry.tripletMode = !stepEntry.tripletMode;
-	if (stepEntry.tripletMode) stepEntry.dottedMode = false;
+	const triplet = !stepEntry.tripletMode;
+	const dotted = triplet ? false : stepEntry.dottedMode;
+	if (isEditSelection()) {
+		resizeSelected(stepEntry.currentDuration, triplet, dotted);
+		return;
+	}
+	stepEntry.tripletMode = triplet;
+	stepEntry.dottedMode = dotted;
 }
 
 export function toggleDotted(): void {
 	if (!stepEntry.dottedMode && !DOTTED_BASES.has(stepEntry.currentDuration)) return;
-	stepEntry.dottedMode = !stepEntry.dottedMode;
-	if (stepEntry.dottedMode) stepEntry.tripletMode = false;
+	const dotted = !stepEntry.dottedMode;
+	const triplet = dotted ? false : stepEntry.tripletMode;
+	if (isEditSelection()) {
+		resizeSelected(stepEntry.currentDuration, triplet, dotted);
+		return;
+	}
+	stepEntry.dottedMode = dotted;
+	stepEntry.tripletMode = triplet;
 }
 
 export function setAccidental(acc: 'sharp' | 'flat' | 'natural'): void {

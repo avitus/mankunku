@@ -282,7 +282,7 @@ describe('removeSelectedTime (Ctrl/⌘ + Backspace)', () => {
 		removeSelectedTime();
 		expect(stepEntry.enteredNotes.map((n) => n.pitch)).toEqual([60, 64, 67]);
 		expect(stepEntry.enteredNotes.map((n) => n.offset)).toEqual([[0, 1], [1, 4], [1, 2]]);
-		expect(stepEntry.selectedNoteIndex).toBe(0); // the previous element, as a rest delete does
+		expect(stepEntry.selectedNoteIndex).toBe(1); // the E that slid in, as a rest delete does
 	});
 
 	it('falls back to the last element with no selection', () => {
@@ -320,7 +320,10 @@ describe('rest selection and deletion', () => {
 		expect(stepEntry.enteredNotes[0].offset).toEqual([0, 1]);
 		expect(stepEntry.enteredNotes[1].offset).toEqual([1, 4]);
 		expect(stepEntry.enteredNotes[2].offset).toEqual([1, 2]);
-		expect(stepEntry.selectedNoteIndex).toBe(0); // previous element
+		// The E that slid into the slot is selected (2026-10-15: the keys act on
+		// the selection, so the note BEFORE the removed rest would be the wrong
+		// target; it used to be the previous element).
+		expect(stepEntry.selectedNoteIndex).toBe(1);
 	});
 
 	it('post-delete reselection can land on a neighboring rest', () => {
