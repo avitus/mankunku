@@ -1512,3 +1512,86 @@ describe('ranges in the tune editor', () => {
 		expect(pitched).toEqual([[60, 0], [65, 3.25]]); // F pulled from bar 5 onto bar 4, beat 2
 	});
 });
+
+// ─── Group 14: CodeRabbit round 1 on PR #278 ─────────────────────────────
+
+describe('CodeRabbit round 1 (PR #278)', () => {
+	it('navigating onto a page and back never shortens a note straddling into it', () => {
+		loadFromTune(sheet([{
+			label: 'A',
+			bars: 8,
+			notes: [
+				{ pitch: 62, duration: [1, 1], offset: [7, 2], tied: true }, // D from bar 4 beat 3 into bar 5
+				{ pitch: 62, duration: [1, 4], offset: [9, 2] },
+				{ pitch: 64, duration: [1, 4], offset: [5, 1] }
+			],
+			harmony: []
+		}]), INSTRUMENTS['concert']);
+		loadPage(0, 1);
+		loadPage(0, 0);
+		commitBuffer();
+		const d = tuneEntry.sections[0].notes.find((n) => compareFractions(n.offset, [7, 2]) === 0)!;
+		expect(compareFractions(d.duration, [1, 1])).toBe(0);
+		expect(d.tied).toBe(true);
+		// The draft agrees — nothing under the straddler but its own tail.
+		const drafted = buildDraftTune().sections[0].notes.find((n) => compareFractions(n.offset, [7, 2]) === 0)!;
+		expect(compareFractions(drafted.duration, [1, 1])).toBe(0);
+	});
+
+	it('a pitched note written under a straddler still trims it (the overwrite rule holds)', () => {
+		loadFromTune(sheet([{
+			label: 'A',
+			bars: 8,
+			notes: [{ pitch: 62, duration: [1, 1], offset: [7, 2] }],
+			harmony: []
+		}]), INSTRUMENTS['concert']);
+		cursorToBar(0, 4, 0);
+		setDuration('quarter');
+		expect(tuneAddNote(0, 4, 'natural')).toBe(true);
+		commitBuffer();
+		const d = tuneEntry.sections[0].notes.find((n) => compareFractions(n.offset, [7, 2]) === 0)!;
+		expect(compareFractions(d.duration, [1, 2])).toBe(0);
+	});
+
+	it('insert mode keeps the chosen duration across inserts in the tune editor', () => {
+		loadFromTune(sheet([{
+			label: 'A',
+			bars: 8,
+			notes: [
+				{ pitch: 60, duration: [1, 4], offset: [0, 1] },
+				{ pitch: 62, duration: [1, 4], offset: [1, 4] }
+			],
+			harmony: []
+		}]), INSTRUMENTS['concert']);
+		commitBuffer();
+		cursorToFlattened(1); // D
+		toggleInsertMode();
+		setDuration('eighth');
+		expect(tuneAddNote(4, 4, 'natural')).toBe(true);
+		expect(tuneAddNote(5, 4, 'natural')).toBe(true);
+		expect(stepEntry.enteredNotes.map((n) => [n.pitch, fractionToFloat(n.duration)])).toEqual([[60, 0.25], [64, 0.125], [65, 0.125], [62, 0.25]]);
+		expect(stepEntry.currentDuration).toBe('eighth');
+	});
+
+	it('a refused insert\'s reason does not outlive the next entry attempt', () => {
+		loadFromTune(sheet([{
+			label: 'A',
+			bars: 1,
+			notes: [
+				{ pitch: 60, duration: [1, 2], offset: [0, 1] },
+				{ pitch: 62, duration: [1, 2], offset: [1, 2] }
+			],
+			harmony: []
+		}]), INSTRUMENTS['concert']);
+		commitBuffer();
+		cursorToFlattened(1);
+		toggleInsertMode();
+		setDuration('quarter');
+		expect(tuneAddNote(4, 4, 'natural')).toBe(false);
+		expect(tuneEntry.lastRefusal).toBe('insert-no-room');
+		toggleInsertMode();
+		selectNote(null);
+		expect(tuneAddNote(4, 4, 'natural')).toBe(false); // the form is full: an unrelated refusal
+		expect(tuneEntry.lastRefusal).toBeNull();
+	});
+});

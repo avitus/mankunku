@@ -90,3 +90,17 @@ describe('insert mode', () => {
 		expect(stepEntry.selectionMode).toBe('entry');
 	});
 });
+
+describe('insert mode keeps the chosen duration (CodeRabbit, PR #278)', () => {
+	it('a run of letters inserts every note at the armed length, not at the pushed note\'s', () => {
+		addNote(0, 4, 'natural');
+		addNote(2, 4, 'natural');
+		selectNote(1); // D, a quarter
+		toggleInsertMode();
+		setDuration('eighth');
+		expect(addNote(4, 4, 'natural')).toBe(true);
+		expect(addNote(5, 4, 'natural')).toBe(true);
+		expect(rows(stepEntry.enteredNotes)).toEqual(['60 @0/1 ×1/4', '64 @1/4 ×1/8', '65 @3/8 ×1/8', '62 @1/2 ×1/4']);
+		expect(stepEntry.currentDuration).toBe('eighth');
+	});
+});

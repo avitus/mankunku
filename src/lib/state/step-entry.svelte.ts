@@ -454,7 +454,10 @@ export function selectNote(index: number | null, mode: 'edit' | 'entry' = 'edit'
 	if (index < 0 || index >= notes.length) return;
 	stepEntry.selectedNoteIndex = index;
 	stepEntry.selectionMode = mode;
-	if (mode === 'edit') syncDurationTo(notes[index]);
+	// Insert mode is note input: the armed duration is the user's choice for
+	// the NEXT note, so landing on the pushed element must not overwrite it
+	// (CodeRabbit on PR #278 — a run of inserts took the pushed note's length).
+	if (mode === 'edit' && !stepEntry.insertMode) syncDurationTo(notes[index]);
 }
 
 /** The inclusive range the selection covers, sorted; null for a single (or no) selection. */
@@ -815,17 +818,39 @@ function diatonicWrittenPitchClasses(): Set<number> {
  */
 export function adjustSelectedNoteDiatonic(direction: 1 | -1): void {
 	const notes = stepEntry.enteredNotes;
+	const trans = entryTransposition();
+	const scale = diatonicWrittenPitchClasses();
+	/** The next written pitch in `direction` whose letter is in the key. */
+	const stepped = (concert: number): number => {
+		let written = concert + trans;
+		for (let step = 0; step < 12; step++) {
+			written += direction;
+			if (scale.has(((written % 12) + 12) % 12)) break;
+		}
+		return written;
+	};
+	const range = rangeBounds();
+	if (range) {
+		// Each note takes its OWN step of the key (E→F is a semitone, D→E a
+		// tone); refused whole if any would leave the written range. Ties
+		// between moved notes survive, others are repaired.
+		const pitched = notes.slice(range.start, range.end + 1).filter((n) => n.pitch !== null);
+		const moves = pitched.map((n) => ({ note: n, written: stepped(n.pitch as number) }));
+		if (moves.some((m) => !isInEntryRange(m.written))) return;
+		for (const m of moves) {
+			m.note.pitch = m.written - trans;
+			delete m.note.spelling;
+		}
+		for (let i = 0; i < notes.length - 1; i++) {
+			if (notes[i].tied && notes[i].pitch !== notes[i + 1].pitch) notes[i].tied = false;
+		}
+		return;
+	}
 	const target = resolvePitchedTargetIndex();
 	if (target === null) return;
 	const note = notes[target];
 	if (note.pitch === null) return;
-	const trans = entryTransposition();
-	const scale = diatonicWrittenPitchClasses();
-	let written = note.pitch + trans;
-	for (let step = 0; step < 12; step++) {
-		written += direction;
-		if (scale.has(((written % 12) + 12) % 12)) break;
-	}
+	const written = stepped(note.pitch);
 	if (!isInEntryRange(written)) return;
 	adjustSelectedNotePitch(written - trans - note.pitch);
 	delete note.spelling;

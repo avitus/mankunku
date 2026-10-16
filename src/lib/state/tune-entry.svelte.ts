@@ -169,9 +169,26 @@ function mergeWindow(
 		const o = fractionToFloat(n.offset);
 		return o < startF - 1e-9 || o >= endF - 1e-9;
 	});
-	const shifted = buffer.map((n) => ({ ...n, offset: addFractions(n.offset, pageStart) }));
-	// An overwrite at a page's start may have reached under a note straddling
-	// in from the previous page: keep the section monophonic (2026-10-15).
+	let shifted = buffer.map((n) => ({ ...n, offset: addFractions(n.offset, pageStart) }));
+	// A note straddling in from the previous page owns its tail: the gap rest
+	// `extractWindow` synthesizes under it yields (clipped to start where the
+	// straddler ends, dropped when fully covered), so merely visiting the page
+	// never shortens the note (CodeRabbit on PR #278). A PITCHED note written
+	// under it still trims it — the one overwrite policy (2026-10-15).
+	const straddlers = outside.filter((n) => {
+		const o = fractionToFloat(n.offset);
+		return o < startF - 1e-9 && o + fractionToFloat(n.duration) > startF + 1e-9;
+	});
+	for (const s of straddlers) {
+		const sEnd = addFractions(s.offset, s.duration);
+		shifted = shifted.flatMap((n) => {
+			if (n.pitch !== null) return [n];
+			const nEnd = addFractions(n.offset, n.duration);
+			if (compareFractions(n.offset, sEnd) >= 0 || compareFractions(nEnd, s.offset) <= 0) return [n];
+			if (compareFractions(nEnd, sEnd) <= 0) return [];
+			return [{ ...n, offset: sEnd, duration: subtractFractions(nEnd, sEnd) }];
+		});
+	}
 	return trimOverlappingNotes([...outside, ...shifted]);
 }
 
@@ -690,6 +707,7 @@ export function tuneAddNote(
 	octave: number,
 	accidental: 'sharp' | 'flat' | 'natural'
 ): boolean {
+	tuneEntry.lastRefusal = null; // a reason never outlives the next attempt
 	if (!melodyEditingSupported()) return false;
 	const duration = currentDurationFraction();
 	// Insert mode (phase 4): a note goes in front of the selection or the
@@ -788,6 +806,7 @@ function restoreTie(sectionIdx: number, absOffset: Fraction, pitch: number): voi
  * form).
  */
 export function tuneAddRest(): boolean {
+	tuneEntry.lastRefusal = null;
 	if (!melodyEditingSupported()) return false;
 	if (stepEntry.insertMode && (isEditSelection() || tuneEntry.entryCursor !== null)) {
 		const local = isEditSelection()
@@ -812,6 +831,7 @@ export function tuneAddRest(): boolean {
  * Cursor mode ties only off a pitched element ending exactly at the cursor.
  */
 export function tuneEnterTiedNote(): boolean {
+	tuneEntry.lastRefusal = null;
 	if (!melodyEditingSupported()) return false;
 	if (isEditSelection()) return stepEnterTiedNote();
 	const duration = currentDurationFraction();

@@ -6,6 +6,7 @@ import {
 	addRest,
 	adjustSelectedNoteDiatonic,
 	enterTiedNote,
+	extendSelection,
 	reset,
 	selectBar,
 	selectFirst,
@@ -151,5 +152,33 @@ describe('selectBar / selectFirst / selectLast', () => {
 		selectLast();
 		expect(stepEntry.selectedNoteIndex).toBe(5);
 		expect(stepEntry.selectionMode).toBe('edit');
+	});
+});
+
+describe('adjustSelectedNoteDiatonic on a range (CodeRabbit, PR #278)', () => {
+	it('steps every pitched note of the range in the key, each by its own step', () => {
+		addNote(0, 4, 'natural'); // C
+		addNote(2, 4, 'natural'); // D
+		addNote(4, 4, 'natural'); // E
+		addRest();
+		selectNote(0);
+		extendSelection(1);
+		extendSelection(1);
+		extendSelection(1);
+		adjustSelectedNoteDiatonic(1);
+		expect(stepEntry.enteredNotes.map((n) => n.pitch)).toEqual([62, 64, 65, null]); // D E F — not D E F♯
+		adjustSelectedNoteDiatonic(-1);
+		expect(stepEntry.enteredNotes.map((n) => n.pitch)).toEqual([60, 62, 64, null]);
+	});
+
+	it('refuses the whole range when one note would leave the written range', () => {
+		stepEntry.enteredNotes = [
+			{ pitch: 60, duration: [1, 4], offset: [0, 1] },
+			{ pitch: 89, duration: [1, 4], offset: [1, 4] } // F6, the ceiling
+		];
+		selectNote(0);
+		extendSelection(1);
+		adjustSelectedNoteDiatonic(1);
+		expect(stepEntry.enteredNotes.map((n) => n.pitch)).toEqual([60, 89]);
 	});
 });
