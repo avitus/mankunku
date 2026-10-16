@@ -9,6 +9,8 @@
 	import LickCard from '$lib/components/licks/LickCard.svelte';
 	import { licks } from '$lib/state/licks.svelte';
 	import { createLickAudition } from '$lib/state/lick-audition.svelte';
+	import { fitLickToRange } from '$lib/phrases/library-loader';
+	import { getEffectiveHighestNote, getInstrument } from '$lib/state/settings.svelte';
 	import type { Phrase } from '$lib/types/music';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
@@ -228,9 +230,13 @@
 		goto(`/licks/${id}`);
 	}
 
-	/** Toggle the selected book lick through this page's cancellable audition. */
+	/**
+	 * Toggle the selected book lick through this page's cancellable audition,
+	 * in the player's register: a stolen lick is stored in its AUTHOR's, and the
+	 * detail page already fits it the same way (2026-10-15).
+	 */
 	async function handlePlay(lick: Phrase) {
-		await audition.play(lick);
+		await audition.play(fitLickToRange(lick, getInstrument(), getEffectiveHighestNote()));
 	}
 
 	onDestroy(() => {

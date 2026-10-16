@@ -3,16 +3,22 @@
 	let {
 		images,
 		suspectBars,
+		currentBar,
 		onSelect
 	}: {
 		images: string[];
+		/** 1-based absolute bar numbers the import flagged. */
 		suspectBars: number[];
+		/** The editor's current 0-based absolute bar: the panel follows it (phase 4, 2026-10-16). */
+		currentBar?: number;
 		onSelect: (absoluteBar: number) => void;
 	} = $props();
-	let index = $state(0);
+	let internal = $state(0);
+	const index = $derived(Math.max(0, Math.min(images.length - 1, currentBar ?? internal)));
+/** Show source measure `value` and hand the editor that bar to move to. */
 	function select(value: number): void {
-		index = Math.max(0, Math.min(images.length - 1, value));
-		onSelect(index);
+		internal = Math.max(0, Math.min(images.length - 1, value));
+		onSelect(internal);
 	}
 </script>
 

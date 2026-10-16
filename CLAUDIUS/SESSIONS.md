@@ -5154,3 +5154,315 @@ mankunkujazz.com reports 1513bf4f, release 20261011-235211-1513bf4.
 - Integrated advancing dev commit `16b81f88` (new steals ready for practice) before final validation.
 - Validation: `npm run check` has zero errors/warnings; 90 focused unit/integration tests pass; 42 Playwright tests pass across Chromium, Firefox and WebKit, including phone dark/light, dense notation, book persistence, filters and a delayed-pagination race. The production build passes with the existing chunk-size warning. A deliberate stop-generation mutation made its regression test fail before restoration.
 - Final validation timings: check + unit/integration run 12.50s, production build + browser suite 27.80s, run concurrently. Direct `origin/dev` delivery only; no PR or production deployment.
+
+## 2026-10-15 — PR #277 (dev → main) reviewed, merged
+
+Andy: open the dev → main PR, address all review comments, merge when done.
+Twelve dev commits (Studio Desk community tunes, imports, recorder, docs
+guidebook, tricks pages; Daily follow-up refresh; admin active days).
+
+- **Before opening:** dev's head was red — e2e failed on all three engines
+  because 03060dfe hid the lick search box for books of ≤ 5 licks and missed
+  `licks-authed.spec.ts`. Fixed the spec (progression filter as the loaded
+  marker, pin the hidden search) and documented the 49 functions the diff
+  touched (docstring scan 23.4% → 100%; three parallel agents, comment-only
+  diff verified). Opened #277 as a draft, asked `rate limit`, then marked it
+  ready — first time using the draft as a free pre-trigger window.
+- **Round 1:** admin inactivity filter took the first non-null date, not the
+  newest (extracted `ui/admin-user-filter.ts`, red on the old rule);
+  failed-sign-in e2e clicked before hydration (shared
+  `waitForAuthFormHydration`). Declined two nitpicks with reasons: ID lists
+  in the community URL (prod has 2 tune authors, 0 favorites/adoptions;
+  server-side membership would change the local-first design) and annotating
+  2 of 151 Playwright callbacks.
+- **Walkthrough security (no thread):** community rows reached the
+  auto-selected preview unvalidated — a numeric chord `symbol` threw at
+  `trim()` (confirmed with a probe). The listing now runs
+  `validateAdoptedTune`.
+- **Round 2–3:** inactivity cutoff compared as a calendar day; dropping rows
+  broke paging (hid Next, and `slice(0, 6)` could pull the look-ahead row
+  into page 1 that page 2 showed again) → `listCommunityTunes` returns
+  `{ tunes, rowCount, hasMore }` decided on rows. Security: the meter
+  numerator was unbounded (10^8 beat marks per preview bar; 4.5 threw at
+  `Array`) → bounded.
+- **Round 4:** importers still saved meters the gate rejected (BIAB 4/128) →
+  one rule in `tunes/meter.ts`, used by the validator and the BIAB
+  MusicXML, MuseScore and PDF importers. Prod: all 5 tunes 4/4, 0 adoptions.
+- Round 5 clean; security "No architecture-level concerns". CodeRabbit rate
+  limited once (5 min). Merged ce4154c1: test → build → db-migrate, e2e,
+  deploy all green; /api/health on mankunkujazz.com reports ce4154c1,
+  release 20261015-233810-ce4154c.
+## 2026-10-15 — The sharp/flat cue fired on 18 takes and nobody saw it
+
+Andy, after an ear-training run whose fader bank read 14 ¢ sharp with every
+note sharp: shouldn't the tuning warning have spoken during the session?
+
+- Pulled the run from production (read-only `supabase db query --linked`):
+  52 takes, F Lydian, 16:43–16:54 PDT, two minutes after the PR #277 deploy
+  (`/api/health` ce4154c1, which carries the 12 ¢ window-pooled rule from
+  2026-10-10). Replayed through the real `createTuningMonitor`: the cue was
+  ON for 18 of 52 takes, including the last five (sharp 13 after the final
+  take); the faders' centre is 14 with seven steady notes at 5–25 ¢; 113
+  matched notes, none rejected for clarity, six for duration.
+- So the rule, the wiring and the deploy were fine. The cue was invisible:
+  `5e30a0d9` (2026-10-12, Ear Training into the Studio Console) put
+  `<TuningNotice>` inside the `tuning` snippet, which `EarTrainingConsole`
+  renders `{#if !practising}` — the fader bank's own rule, applied to the one
+  line meant for live play. Three days on production; the console's tests
+  pinned "no faders while playing" and said nothing about the cue.
+- Fix, RED first (five vectors in `ear-training-console.test.ts`: the cue in
+  listen/play/next, the reserved line when clear, the verdict on pause):
+  `tuningAlert` is a prop of the console, `<TuningNotice>` renders inside the
+  panel under the feedback row on every phase; the snippet keeps the faders.
+  `data-testid="tuning-cue"` on the reserved line, pinned by the saved-take
+  e2e beside the faders' `toHaveCount(0)`. design-system "Focus on sound" and
+  the CLAUDE.md scoring clause now say which tuning line is live and which
+  waits for a pause.
+- Left alone, raised in the report: at a 14 ¢ centre the 12 ¢ rule flickers
+  (window centres 9.3–18 over the run, the cue on 35% of takes; eight takes
+  with ONE clean note clear it outright through the "insufficient" rule).
+  Andy chose 12 five days ago and the production table already said 25%
+  share for runs ≥ 10, so that is his call, not a bug.
+- Verification: console/notice/faders tests 34 green; full suite 379 files /
+  6143 passed / 40 expected fails; svelte-check 0 errors (a worktree has no
+  `.env`, so without `PUBLIC_SUPABASE_*` it reports nine env-import errors
+  that are not code); ear-training e2e on Chromium green.
+
+## 2026-10-15 — Community licks an octave under a soprano
+
+Andy, signed in as a soprano player: every community lick displays an octave
+too low, out of the horn's range.
+
+- Root cause: the listening desk (2026-10-14) engraved and auditioned
+  `lick.phrase` as stored — the AUTHOR's register. Tenor and soprano write
+  one concert note an octave apart (+14 vs +2), so a tenor's concert C3–C4
+  line is written D3–D4 on soprano, under its Bb3. Not a transposition bug:
+  the arithmetic was right, the register was someone else's. The detail
+  page had always fitted through `transposeLick(lick, key, concertRangeLow,
+  getEffectiveHighestNote())`; the old community card showed no notation,
+  so the desk introduced the gap rather than regressing it.
+- Fix: `fitLickToRange` (library-loader) — `transposeLick` same-key with
+  the id kept, because the desk keys selection, favorites, the book and the
+  detail link on it. The desk engraves the fitted phrase and hands it to
+  `onplay`, so Listen plays what the staff shows; the book's Listen fits a
+  stolen lick the same way. One register on every surface.
+- Tests first: four unit tests on the helper (RED on the missing import;
+  one fixture then went red for a reason worth its own observation), and
+  an e2e that signs in a soprano player, seeds a tenor-register row and
+  reads the engraved staff steps off abcjs's `abcjs-p<N>` note classes
+  (N = staff steps from written middle C): every note inside Bb3 (−1) …
+  F#6 (17), the line seven steps up, the detail link still the stored id.
+  Red check: with the desk's fit disabled the e2e fails at −6.
+- Verification: `npm run check` 0 errors; full unit suite 383 files /
+  6178 passed; desk spec 21/21 on Chromium, Firefox, WebKit.
+- The worktree had no `.env` (check and the e2e build both died on
+  `$env/static/public`); copied the main checkout's gitignored one, as every
+  other worktree here already has.
+- Delivered on origin/dev directly (replayed onto 19a165aa); no PR.
+- Andy, on the closing question about which in-range octave a lick should
+  take: "I think you are over-complicating this. When I browse licks in the
+  community, show them as I would play them, which is in the range of my
+  instrument." That is the whole rule and it is what shipped; the octave
+  question is withdrawn. Lesson filed under deciding settled details.
+
+## 2026-10-15 — The convenient range: in range, then on the stave
+
+Andy's second rule, same evening: "have it in the most convenient range of
+the instrument, which is usually when the notes are mostly within the stave
+and furthest from the extreme ranges of the instrument."
+
+- `bestOctaveShift` now ranks candidate octaves: most notes in range › most
+  notes on the written stave (E4–F5; needs the instrument's transposition,
+  passed by every caller that already passes a range — detail page, lick
+  practice, ear training, progress, the community desk and the book's
+  Listen) › mean nearest the range midpoint. Without the transposition the
+  older rule stands, so range-less callers and tune charts are untouched.
+  `fitLickToRange(lick, instrument, rangeHigh)` takes the instrument.
+- The editor's key change passes NO transposition on purpose: the player
+  placed those notes; a key change moves them by the interval and
+  re-octaves only to stay on the horn. `key-change-transpose.test.ts`
+  caught the stave rule dropping a written D5–F#5 figure an octave, and
+  now pins the exception.
+- The stave rule exposed a latent bug: the detail page's Practice button
+  started the deep session with the DISPLAYED phrase. A transposed or
+  octave-shifted display carries a suffixed id, so the session keyed its
+  unlock count, rolling scores and tempo off an id with no progress — one
+  key, no sheet. Three deep-practice e2e tests failed on every engine the
+  moment the fixture lick moved an octave; anyone who changed the key
+  selector before pressing Practice had hit it already. Practice now starts
+  from the stored lick; a new e2e practices from a transposed view and
+  expects "Key 1/2" and the sheet.
+- Tests first: `octave-placement.test.ts` (stave decides, range first,
+  stave tie falls to the midpoint, pass-through of the transposition,
+  fitLickToRange on both horns); my first pass-through vector was a
+  written-C scale snapped to C ionian — written C on tenor is concert Bb.
+- Verification: check 0 errors; unit suite 384 files / 6191 passed; the
+  lick, ear-training and progress e2e specs 200/200 on Chromium, Firefox
+  and WebKit (one skipped by design). Red checks: the desk e2e failed at
+  −6 with the fit disabled; the transposed-view e2e fails with the
+  displayed lick handed to the session.
+- The worktree's `ls` is aliased to long format: `files=$(ls …)` fed
+  Playwright an `ls -l` listing and it ran nothing, exit 0. Pass globs
+  straight to the command.
+
+## 2026-10-15 — Score editing: delete leaves a rest (phase 1 of the editing plan)
+
+Andy: deleting a note in a complete score moved every later note earlier;
+make it leave a rest (MuseScore), perhaps keep the shift for rests, and
+propose a comprehensive plan for editing in general — entry from scratch
+works, correcting an imported score does not. Planned in plan mode (the
+approved plan is `docs/superpowers/specs/2026-10-15-score-editing-design.md`
++ `docs/superpowers/plans/2026-10-15-score-editing.md`), five phases, each
+shippable; a builder-check agent found seven questions and five code
+contradictions before approval, all folded in.
+
+- **Root cause:** one `deleteSelectedNote` for both editors spliced the
+  element out and pulled every later offset back; in the tune editor the
+  pull stopped at the hidden 4-bar page (a hole at the page's end). MuseScore
+  4 (handbook, verified): Del → rest; rests undeletable; Ctrl+Del removes
+  time; note input replaces what sits at the cursor; the toolbar duration
+  follows the selection.
+- **Shipped (phase 1):** `step-entry/buffer-ops.ts` (pure: `replaceWithRest`,
+  `removeTime`, `coalesceRests` — rests merge when their STARTS share a bar,
+  `stripTrailingRests`); `deleteSelectedNote` dispatches — a note before the
+  end → rest in place, selected; a rest, or the LAST element of either kind
+  (the append flow's "undo my keystroke"), → remove time; `removeSelectedTime`
+  = Ctrl/⌘ ⌫ for any element. Tune editor: `tuneDeleteSelected` /
+  `tuneRemoveSelectedTime` — rest-in-place arms the cursor on the rest so
+  the right note types straight in; a whole-bar result (slash bar, no anchor)
+  clears the selection and parks the cursor at the bar; remove-time runs at
+  the SECTION level across pages (`removeTimeInSection`), harmony untouched;
+  a no-selection Backspace mid-section and the pickup lead-in rest are
+  refused with a rail hint (`TuneDeleteResult`). `loadFromPhrase` strips the
+  trailing pad rest (save re-pads) so a re-opened lick has a fresh buffer's
+  shape. Panel "Remove time" button; both shortcut dialogs; docs on four
+  surfaces; the stale `resolveChartClick` comment.
+- **Found and fixed on the way:** leaving `/tunes/editor` and returning
+  without `?edit=` ran `initNewTune()` over an unsaved PDF draft (its
+  pre-assigned id read as stale edit state). The mount now resets only when
+  the id names a STORED sheet — the same test `handleCancel` already made.
+  E2E reproduced it first (title empty after Back).
+- **Tests:** `entry-flow-characterization.test.ts` pinned the from-scratch
+  flow (13 inline snapshots) BEFORE any change and stayed byte-identical
+  through it — broken once on purpose to prove it bites. Rewrote the three
+  note-delete pins; kept every rest-delete pin, the tie pins and the
+  cursor-null pins (phase 2 rewrites those by name). 8 tune-level tests,
+  19 buffer-ops tests, 2 load-strip tests; e2e in both editors + the PDF
+  round trip. 6221 unit/integration green.
+- **Test-construction trap:** the first page load stores its synthesized
+  gap rest on commit, so a flattened index computed from the sheet's notes
+  is off by one after the first commit — find the element by pitch.
+  Playwright clicks on a `.abcjs-note` group land on the staff line or the
+  bar hit zone under its empty centre; click `.abcjs-notehead`, and type a
+  pitch that sits in a space (a written C on the tenor needs a ledger line).
+- Worktree reset onto `origin/dev` (it had started on main's tip); `.env`
+  copied from the main checkout for the build (gitignored).
+
+## 2026-10-15 — Score editing phase 2: editing in place
+
+- `stepEntry.selectionMode`: `entry` (the just-entered element — letters,
+  `0`, `+`, 1–5 keep their entry meaning) vs `edit` (a click or arrow landed
+  here — `selectNote` syncs the duration controls to the element, and the
+  same keys act ON it). Letters re-pitch in place through `spliceElement`
+  (buffer-ops), the ONE write policy: whatever the span covers is
+  overwritten, pitched notes included — a partly covered note keeps its head
+  or tail and its pitch, a tie into the span is cleared. `0` rests the
+  element, 1–5/T/. resize it (shorter → rest remainder; longer → overwrite;
+  refused past the bars with the duration unchanged), `+` toggles a tie to a
+  same-pitch successor or writes a tied continuation. After a replace the
+  FOLLOWING element is selected in edit intent, so a run of letters
+  re-pitches a misread line and keeps its rhythm; the new pitch lands in the
+  octave nearest the note it replaces (the test that expected an ascending
+  A-B-C got A4 B3 C4 — the rule, not the test, was right).
+- Tune editor: `tuneAddNote`/`tuneAddRest`/`tuneEnterTiedNote` delegate to
+  step-entry when an edit selection exists; the 2026-07-26 "block on pitched
+  collision" refusals are gone on cursor entry AND the roll/split onto an
+  occupied page (four pins rewritten by name); `mergeWindow` runs
+  `trimOverlappingNotes` so a straddler from the previous page is shortened
+  where the new note begins, in the draft and on commit.
+- **Simplification over the plan:** decision 9 said every edit selection
+  "arms the cursor". Implemented instead as position = edit selection ??
+  bar cursor ?? page end (`entryCursorPosition`), with the entry functions
+  branching on `isEditSelection()`. Same observable behaviour (the rail reads
+  the selection, letters replace it), and the three cursor-null pins
+  (:144, :162, :863-872) stayed as they were. Phase 1's "cursor armed on the
+  rest" became "the rest is selected in edit intent".
+- E2E: the stored-rest click now reads the rest's beat, and Backspace on it
+  leaves the previous note selected (rail "Beat 1"); new fix-in-place specs
+  in both editors (click, letter, duration key, saved offsets checked).
+
+## 2026-10-15 — Score editing phase 3: navigation and nudges; a reselection fix
+
+- Alt+↑/↓ `adjustSelectedNoteDiatonic`: the next pitch whose WRITTEN letter
+  carries the drawn signature's accidental (F major and D minor both step A
+  to Bb; a chromatic note lands on the key's next letter; spelling cleared).
+  Ctrl/⌘+←/→ `selectBar` / `selectBarAcrossPages`: the next bar's first
+  element — from inside a bar, ← goes to that bar's first first; the tune
+  version loads the page and parks the bar cursor on a silent bar. Home/End
+  `selectFirst`/`selectLast` and the section variants. preventDefault on
+  ⌘← keeps Chrome's Back away.
+- The phase-2 e2e run caught a wart: after a rest's time went, the PREVIOUS
+  element stayed selected in edit intent, so the next `0` rested that note
+  instead of appending. Remove-time now selects the element that slid into
+  the slot (both editors); the 2026-08-11 "previous element" pins were
+  updated to say why, and the old lick-editor rest spec presses Esc before
+  typing on — under the new rules a key on a selected note acts on it.
+- Test trap again: a stored sheet's flattened index drifts by one once the
+  first commit stores page 0's gap rest; `selectPitch()` finds the note.
+
+## 2026-10-16 — Score editing phase 4: insert with push, bar ops, the review loop
+
+- Insert mode (`I`, `stepEntry.insertMode`, an Insert badge in both editors):
+  letters/`0` at an edit selection go in FRONT of it and push the rest later
+  (`insertElement`; the pushed element stays selected so a passage inserts
+  in order); the duration keys choose the NEXT length in insert mode — my
+  first tune test "armed" a half with `setDuration` and resized the selected
+  note instead, which is exactly the trap a user would hit. Tune editor:
+  `insertInSection` pushes the whole SECTION across pages, chords stay,
+  refused (`lastRefusal` 'insert-no-room', rail hint) when a pitched note
+  would leave the section. Bug found on the way: reloading with `loadPage`
+  after a section-level edit COMMITS the stale buffer over it — reload with
+  `loadBuffer`. (`removeTimeInSection` had it right.)
+- Cursor-mode entry overhanging the page window now splits with a tie like
+  append mode (the "no room on the page's last beat" refusal is gone).
+- `insertBar` / `deleteBar` (rail buttons, on the current bar): notes and
+  chords move a bar; the chord in force extends across a new bar; a section
+  keeps ≥ 1 bar.
+- Review loop: `tunes/review-bars.ts` (pure); suspect bars drawn as brass
+  `rangeMarkers` labelled "review"; `N` jumps to the next; a bar clears
+  from the list in the history effect once its note signature changed;
+  `PdfSourceReview` is controlled by the current absolute bar. The chosen
+  key `N` is free in both editors (`k` is the chord editor).
+- `tours/tune-editor.ts` registered (`data-tour` anchors: tune-chart,
+  tune-entry-rail, tune-save); Settings picks it up.
+
+## 2026-10-16 — Score editing phase 5: ranges and the clipboard
+
+- `selectionEnd` beside the anchor; Shift+←/→ (`extendSelection`, clamped,
+  may run past the anchor), Shift+click (`selectRangeTo`; abcjs's
+  clickListener hands the MouseEvent as its 6th argument, so
+  `NotationDisplay.onSelect` now carries `shiftKey`), `rangeBounds()` sorted.
+  Delete on a range → rests, coalesced; Ctrl/⌘⌫ → remove the span (tune:
+  `removeSpanInSection`, which the single-element path now calls too);
+  ↑/↓ transpose the range as one (refused whole if any note would leave
+  the written range; ties between moved notes survive); letters on a range
+  act on the anchor and drop the range.
+- Clipboard: module state shared by both editors and outliving `reset`,
+  so a passage copied from one lick pastes into another or into a tune
+  (`clearClipboard` exists for tests; the first paste test failed because
+  a previous test's copy was still there). Paste overwrites from the
+  selection's start — or appends with no edit selection — leaving out what
+  won't fit; R repeats all-or-nothing right after the selection; both
+  select what they wrote. Ranges never cross pages in the tune editor.
+- The chart highlights every element between the two ends
+  (`selectedEndIndex`); the status lines read "n selected".
+- **All five phases are on `origin/dev`** (6a362d06 docs → bf9ce106 → d9f6d1d4 →
+  229dfd90 → c72df253), each pushed as a fast-forward after a rebase where
+  dev had moved (one rebase conflicted in the tune editor route, where dev
+  had restructured the rail that afternoon — my hooks were re-seated in the
+  new markup). Verified per phase: `npm run check` 0 errors, the full unit
+  suite (6311 + 40 expected fails at the end), the editor e2e specs on
+  Chromium (62) and both editor specs on Firefox + WebKit (33). Not on
+  production: no dev → main PR was opened (Andy's call), and nothing was
+  checked by hand in the browser pane — the e2e runs drove the real app in
+  three engines instead.

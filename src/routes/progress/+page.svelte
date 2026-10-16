@@ -165,10 +165,10 @@
 		if (s.scaleType) {
 			const scaleId = SCALE_TYPE_TO_SCALE_ID[s.scaleType];
 			if (scaleId) {
-				return transposeLickForTonality(base, sessionKey, scaleId, inst.concertRangeLow, rangeHigh);
+				return transposeLickForTonality(base, sessionKey, scaleId, inst.concertRangeLow, rangeHigh, inst.transpositionSemitones);
 			}
 		}
-		return transposeLick(base, sessionKey, inst.concertRangeLow, rangeHigh);
+		return transposeLick(base, sessionKey, inst.concertRangeLow, rangeHigh, inst.transpositionSemitones);
 	}
 
 	/**

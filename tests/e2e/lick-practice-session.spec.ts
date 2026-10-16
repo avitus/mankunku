@@ -567,6 +567,28 @@ test.describe('lick-practice session flow', () => {
 		await expect(page.getByRole('button', { name: /end session/i })).toBeVisible();
 	});
 
+	/**
+	 * The detail page shows the lick transposed to the selector's key and fitted
+	 * to the horn, and a transposed phrase carries a suffixed id. Practice must
+	 * start from the STORED lick, or the session keys its unlock count and
+	 * rolling scores off an id with no progress: one key, no sheet (2026-10-15,
+	 * surfaced when the stave rule moved the fixture lick an octave).
+	 */
+	test('Practice from a transposed view keeps the lick\'s unlocked keys and sheet', async ({ page }) => {
+		await seedOnboardedAnonymous(page);
+		await seedUserLicks(page);
+		await seedStorage(page, LEAD_AHEAD_PROGRESS);
+		await installAudioMock(page);
+		await stubCdnInstrumentSamples(page);
+		await page.goto('/licks/e2e-user-lick-bebop');
+		await page.getByLabel('Play in').selectOption('F');
+		await expect(page.getByLabel('Play in')).toHaveValue('F');
+		await page.getByRole('button', { name: /^practice$/i }).click();
+		await expect(page.getByText('Key 1/2', { exact: true })).toBeVisible({ timeout: 20_000 });
+		await expect(page.getByTestId('lead-sheet-row')).toBeVisible();
+		await expect(page.locator('.row[data-key="G"]')).toHaveCount(1);
+	});
+
 	test('deep practice keeps the chord box and beat dots below a sheet fully visible', async ({ page }) => {
 		await seedOnboardedAnonymous(page);
 		await seedUserLicks(page);

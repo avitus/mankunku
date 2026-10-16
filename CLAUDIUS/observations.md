@@ -2861,3 +2861,159 @@ it in one run: 1943 takes, one cue. The fader bank, built a week later over
 the same clean samples with a single pooled median, agreed with the player's
 ear immediately. When a rule says "typical", compute one typical value and
 test it once; and when pinning a threshold, include a vector that scatters.
+
+## 2026-10-15 — A gate is a contract with every producer upstream of it
+
+PR #277's review ran four rounds, and each finding was caused by fixing the
+one before it. The community listing let unvalidated rows reach an
+auto-preview, so I added the adoption validator there. Dropping rows then
+moved the page boundary. The validator's meter check was too loose to stop
+a DoS, so I tightened it. The tightened check then rejected meters that three
+importers happily saved. None of the fixes was wrong. But a validator is a
+statement about what the whole system may produce, and I had edited it as if
+it were local to its call site. The question to ask when tightening any gate:
+which code writes what this gate reads, and do they agree today? Here the
+answer was a shared predicate (`tunes/meter.ts`) that the writers and the gate
+both call. A gate that the producers do not share means data that exists but
+never appears. The PR #277 case shows how quietly that happens: a 4/128 tune
+imports cleanly and then never shows up in the community, with no error.
+The paging bug has the same shape at a smaller scale: filtering after a page
+boundary is a gate placed downstream of the counter that depends on it.
+## 2026-10-15 — A region's gate quietly becomes every component's gate
+
+The Studio Console commit grouped two components under one snippet and gated
+the snippet on pause. The fader bank had always been pause-only; the one-line
+sharp/flat cue had never been. The `{#if !practising}` read as the faders'
+rule and was accepted as such — the console's tests pinned "no faders while
+playing" and nothing about the cue, and the cue's own tests covered its text
+and its empty slot but not WHEN it is on screen, the one property that
+mattered. When a refactor groups elements under one condition, each element's
+prior visibility rule needs a pin of its own, or the group's rule becomes
+everyone's without anyone deciding it.
+
+The second thing worth keeping: the same complaint, "the cue never fired", had
+a true cause five days ago (a 15 ¢ threshold applied twice) and a different
+true cause today (hidden). Reaching for the previous fix would have been
+wrong twice over — the rule was already fixed, and tightening or loosening it
+changes nothing a player cannot see. One replay of the actual 52 takes
+separated the two in a single step: "fired 18 times" rules out the rule and
+points at the screen. Measure the specific run before trusting the last
+diagnosis.
+
+Independent note on the rule itself, not acted on: at Andy's centre (12–15 ¢)
+a 12 ¢ gate is a coin flip per take. The 10-10 study judged hysteresis by
+run-level counts ("barely changes"), but what a player experiences is the
+per-take share, and a reminder on 35% of takes reads as noise rather than
+advice. If it is to feel like a steady light, the rule needs an enter/hold
+pair judged by share, not by runs. That is Andy's threshold to move.
+
+## 2026-10-15 — "An octave too low" was correct arithmetic in the wrong register
+
+Two things. First, the report's words point at transposition, and the
+transposition was right: a Bb soprano and a Bb tenor write the same concert
+note an octave apart, so a tenor's lick rendered for a soprano IS an octave
+lower on the page than the tenor saw it. The defect was that a shared phrase
+carries its author's register, and register belongs to the viewer, not the
+data. The fix is an octave fit, never a change to `transpositionSemitones` —
+that instinct would have broken every soprano display that was right. When
+a horn player says "octave", ask whose register the data is in before asking
+whose transposition is wrong.
+
+Second, my first "already in range stays untouched" fixture went red for a
+reason I had not predicted: `bestOctaveShift` prefers, among octaves that
+hold EVERY note, the one whose average is nearest the range midpoint.
+[62, 64, 66, 69] on a soprano (56–87, mid 71.5) moved up to 74–81. That rule
+has governed the detail page's view of a player's OWN narrow lick all along:
+a lick that fits whole in two octaves is shown in the midpoint-nearest one,
+not necessarily the one it was entered in. Nobody has reported it; a fixture
+noticed. It is a teaching-policy question — "stay where the author wrote it
+when it fits" against "centre it on the horn" — and Andy's, not mine. Logged,
+not changed; the fix inherits the rule deliberately so the desk and the
+detail page can never disagree about a lick's octave.
+
+Postscript, same day: Andy declined the question — "show them as I would play
+them, which is in the range of my instrument." The rule I was weighing lived
+inside his sentence already. A fix that satisfies the stated rule does not
+need a policy question appended to it; the appended question is what read as
+over-complication.
+
+## 2026-10-15 — A rule change is a probe of every caller's assumptions
+
+Changing which octave `bestOctaveShift` prefers did not break the function;
+it broke two callers that had been leaning on the old answer without
+knowing it. The editor's key change assumed "same octave unless out of
+range" and had never said so — the midpoint rule happened to agree for the
+test's figure. The detail page passed its displayed phrase into deep
+practice, and that was only ever correct while the display's octave shift
+was zero for the lick in question, because a shifted phrase carries a
+suffixed id. Both were invisible under the old rule and both failed on the
+first run under the new one. The lesson is not "don't change rules"; it is
+that a policy function's callers each hold an unstated assumption about
+its answer, and a rule change is the cheapest probe of those assumptions
+there is — so run the whole suite and read every failure as a caller's
+belief, not as noise to re-green.
+## 2026-10-15 — The right axis for "delete" was position, not kind
+
+The request framed delete as note-vs-rest: a note becomes a rest, a rest
+gives up its time. Written that way, the from-scratch flow breaks at once —
+the just-typed note is selected, so Backspace would leave a rest behind every
+slip instead of undoing the keystroke. MuseScore has two modes for this
+(note input vs normal); we have none, and adding one would have been the
+wrong tax on the common case. What reconciled them was a second axis:
+whether anything FOLLOWS the element. Before the end you edit in place; at
+the end you are entering. The kind rule then only has to govern the middle
+of the score. The characterization pin of the entry flow, written before a
+line changed, is what made that visible: it went red the moment I tried the
+kind-only rule in my head, and green under the positional one. A pin of an
+invisible flow is cheaper than a mode.
+
+The same session produced a smaller version of the lesson: the lick editor's
+saved pad rest. With it in the buffer the "last element" is always a rest,
+so the positional rule would have made Delete on the last real note mean
+"rest" in a re-opened lick and "remove" in a fresh one. Dropping the pad on
+load (save re-pads; trailing silence is implied) made both flows the same
+shape. When a rule depends on "the end", make sure the end means the same
+thing on every path that reaches it.
+
+## 2026-10-15 — Once keys act on the selection, every selection is a decision
+
+Phase 1 could leave "which element is selected afterwards" to habit, because
+the keys ignored the selection: the previous element after a removed rest
+was as good as any. Phase 2 made letters, `0` and the duration keys act ON
+the selected element, and the e2e suite found the habit at once — after
+deleting a rest, `0` rested the note before it. Nothing in the unit tests
+saw it, because each unit test asked one question; the e2e asked two in a
+row. The general shape: when an operation gains a target, every place that
+SETS the target inherits a product decision it never had to make, and the
+old answers are now wrong in exactly the places they used to be harmless.
+Grep for every assignment to the selection when you give the selection
+teeth.
+
+The second thing: the plan said "arm the cursor on every edit selection",
+and the implementation says "the position is the selection, else the
+cursor". Same behaviour, three pins untouched, one less piece of state to
+keep in step. The plan was written in the vocabulary of the existing code
+(the cursor was the only position the tune editor knew); the better design
+only appeared when the code for the first version was on the screen. Worth
+leaving room in a plan for that — say what the user sees, not which field
+holds it.
+
+## 2026-10-16 — A plan is a vocabulary; the code gets the last word on nouns
+
+Five phases of editing landed in two days, and the plan held on every
+WHAT. Where it bent was the nouns: "arm the cursor on every edit selection"
+became "the position is the selection"; "a rest delete reselects the
+previous element" became "the element that slid in"; "insert mode uses the
+duration keys like entry" was only visible as a rule once a test tried to
+arm a half note and resized the wrong thing. None of these were mistakes in
+the plan so much as sentences written in the vocabulary the old code had.
+The habit that paid: pin the user-visible behaviour, implement, and let the
+field names fall where the implementation puts them — then rewrite the
+plan's noun, not its promise.
+
+The other recurring shape across the phases: every time an operation gains
+a target, every existing assignment of that target becomes a decision
+(the remove-time reselection, the review panel following the append edge,
+a flattened index drifting after a page's first commit). The e2e suite
+caught two of the three, the unit tests none — because a unit test asks
+one question and these were all about the SECOND keystroke.

@@ -188,7 +188,7 @@
 
 	const lick = $derived(
 		baseLick
-			? transposeLick(baseLick, concertKey, getInstrument().concertRangeLow, getEffectiveHighestNote())
+			? transposeLick(baseLick, concertKey, getInstrument().concertRangeLow, getEffectiveHighestNote(), getInstrument().transpositionSemitones)
 			: null
 	);
 
@@ -231,10 +231,16 @@
 		currentCategory = c;
 	}
 
+/** Deep Practice on this lick, started from the STORED lick so its progress keys match. */
 	function practiceThis() {
-		if (!lick) return;
+		if (!baseLick) return;
+		// The STORED lick, never the displayed one: the view is transposed to the
+		// selector's key and octave-fitted to the horn, and a transposed phrase
+		// carries a suffixed id — the session keys its unlock count, rolling
+		// scores and tempo off the id, and found none (2026-10-15). The session
+		// fits every key to the instrument itself.
 		// The setup page's tempo-bump knob applies through config; no knob here.
-		if (startSingleLickSession(lick))
+		if (startSingleLickSession(baseLick))
 			goto('/lick-practice/session');
 	}
 

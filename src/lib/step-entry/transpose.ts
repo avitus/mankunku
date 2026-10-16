@@ -46,6 +46,10 @@ export function transposeNotesForKeyChange(
 		source: 'user-entered'
 	};
 
+	// Range only, no stave preference: the player placed these notes by hand, so
+	// a key change moves them by the interval and re-octaves only to keep them
+	// on the horn. The stave rule (`bestOctaveShift` with a transposition) is for
+	// surfaces where the app chooses a lick's register for the player.
 	const transposed = transposeLick(phrase, newConcertKey, instrument.concertRangeLow, rangeHigh);
 	return transposed.notes.map((n) => ({ ...n }));
 }

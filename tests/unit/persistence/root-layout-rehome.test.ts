@@ -1,7 +1,7 @@
 /**
  * The root layout load's re-home branch (src/routes/+layout.ts), for the
- * client-side RE-RUNS that hooks.client.ts `init` never sees — a login through
- * use:enhance (goto with invalidateAll) and `invalidate('supabase:auth')`.
+ * client-side RE-RUNS that hooks.client.ts `init` never sees, such as
+ * `invalidate('supabase:auth')`. Sign-in now loads a fresh document.
  *
  * On a page load `init` has already reconciled, so this branch is a no-op
  * there. On a re-run that re-homes, the realm is about to be torn down, and

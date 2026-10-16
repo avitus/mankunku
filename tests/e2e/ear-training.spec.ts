@@ -253,6 +253,11 @@ test.describe('ear-training: saved take', () => {
 		await page.getByRole('button', { name: 'Start practice', exact: true }).click();
 		await expect(quote).toHaveText('');
 		await expect(page.getByTestId('tuning-faders')).toHaveCount(0);
+		// The sharp/flat reminder's line stays in the live panel (its text needs
+		// three sharp takes the steady mock tone never supplies); the fader bank
+		// above is what waits for a pause. 2026-10-15: the console had carried both
+		// into the paused-only region, and an 18-take-long cue went unseen.
+		await expect(page.getByTestId('tuning-cue')).toHaveCount(1);
 		await expect(page.locator('[data-tour="score-display"]')).toHaveText(scoreBefore ?? '');
 
 	});

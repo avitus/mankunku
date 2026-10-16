@@ -135,6 +135,15 @@ test('account switching keeps sign-in feedback visible until the destination loa
 	const navigationGate = new Promise<void>((resolve) => { releaseNavigation = resolve; });
 	let navigationStarted!: () => void;
 	const navigating = new Promise<void>((resolve) => { navigationStarted = resolve; });
+	const intermediateRequests: string[] = [];
+	page.on('request', (request) => {
+		const url = new URL(request.url());
+		if (request.method() === 'GET' &&
+			(url.pathname === '/auth' || url.pathname.endsWith('/__data.json'))) {
+			intermediateRequests.push(url.pathname);
+			if (request.isNavigationRequest()) navigationStarted();
+		}
+	});
 	await page.route('**/auth?/login', async (route) => {
 		await loginGate;
 		await setE2EAuthCookie(page, {
@@ -146,7 +155,9 @@ test('account switching keeps sign-in feedback visible until the destination loa
 			body: JSON.stringify({ type: 'redirect', status: 303, location: '/' })
 		});
 	});
-	await page.route((url) => url.pathname === '/' || url.pathname === '/__data.json', async (route) => {
+	// Let route-data loads and any /auth reload run. Hold only the destination
+	// document: pausing __data.json hid the later account-switch reload bug.
+	await page.route((url) => url.pathname === '/', async (route) => {
 		navigationStarted();
 		await navigationGate;
 		await route.continue();
@@ -158,13 +169,36 @@ test('account switching keeps sign-in feedback visible until the destination loa
 	try {
 		await expect(submit).toHaveAccessibleName('Signing in…');
 		await expect(submit).toBeDisabled();
+		const formStates: string[] = [];
+		await page.exposeFunction('recordSignInState', (state: string) => { formStates.push(state); });
+		await page.evaluate(() => {
+			const form = document.querySelector('main form')!;
+/** Snapshot the sign-in form's state into the page's recorder on every mutation. */
+			const record = (): void => {
+				void (window as typeof window & { recordSignInState: (state: string) => Promise<void> })
+					.recordSignInState(JSON.stringify({
+						label: form.querySelector<HTMLButtonElement>('button[type="submit"]')!.textContent!.trim(),
+						disabled: form.querySelector<HTMLButtonElement>('button[type="submit"]')!.disabled,
+						busy: form.getAttribute('aria-busy'),
+						emailDisabled: form.querySelector<HTMLInputElement>('[name="email"]')!.disabled
+					}));
+			};
+			new MutationObserver(record).observe(form, { subtree: true, attributes: true, childList: true, characterData: true });
+			window.addEventListener('beforeunload', record);
+			record();
+		});
+		await expect.poll(() => formStates.length).toBeGreaterThan(0);
 		releaseLogin();
 		await navigating;
-		// The auth response has arrived, but the next page is still loading.
-		await expect(submit).toHaveAccessibleName('Signing in…');
-		await expect(submit).toBeDisabled();
-		await expect(page.locator('main form')).toHaveAttribute('aria-busy', 'true');
-		await expect(page.getByLabel('Email')).toBeDisabled();
+		// A successful sign-in must go straight to the destination document,
+		// without a client route load that reloads the still-current /auth URL.
+		expect(intermediateRequests).toEqual([]);
+		// Chromium suspends evaluation in a document navigating away. Record
+		// changes and beforeunload from inside it instead of querying it here.
+		await expect.poll(() => formStates.length).toBeGreaterThan(1);
+		for (const state of formStates) {
+			expect(JSON.parse(state)).toEqual({ label: 'Signing in…', disabled: true, busy: 'true', emailDisabled: true });
+		}
 	} finally {
 		releaseLogin();
 		releaseNavigation();

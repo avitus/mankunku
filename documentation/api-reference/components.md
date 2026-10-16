@@ -223,9 +223,15 @@ Shows: name, optional author attribution, the category pill tinted in the identi
 
 Selected community phrase, author, favorite count, dark complete score and
 Listen / Add to My Licks actions. Uses `NotationDisplay` with the user's written
-instrument pitch and a two-measure staff layout. `lick`, `isPlaying`,
-`favoritePending`, `bookPending`, `onplay`, `onfavorite`, and `onbook` are owned by
-the browse route. A details link opens the existing `/licks/[id]` page.
+instrument pitch and a two-measure staff layout. A community lick is stored in its
+AUTHOR's register, so the desk first fits it onto the player's instrument
+(`fitLickToRange`, `src/lib/phrases/library-loader.ts` — the same-key octave fit the
+detail page applies, id kept: in the instrument's range first, then the octave with
+most notes on the written stave, then the one furthest from the range's extremes —
+Andy, 2026-10-15): a tenor player's line otherwise reads an octave under a soprano.
+`onplay` receives that fitted phrase, so Listen plays what the staff shows. `lick`, `isPlaying`, `favoritePending`, `bookPending`,
+`onplay`, `onfavorite`, and `onbook` are owned by the browse route. A details link
+opens the existing `/licks/[id]` page.
 
 `CommunityProgression.svelte` accepts a `phrase` and shares the My Licks progression
 color tokens, using the public phrase category instead of personal practice tags.

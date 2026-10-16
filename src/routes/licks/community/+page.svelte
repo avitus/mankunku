@@ -193,7 +193,7 @@
 		community.difficultyFilter = null;
 	}
 
-	/** Toggle a community lick through this page's cancellable audition. */
+	/** Toggle a community lick through this page's cancellable audition — the desk hands over the phrase it shows. */
 	async function handlePlay(lick: Phrase) {
 		await audition.play(lick);
 	}
@@ -270,7 +270,7 @@
 					</div>
 					<CommunityListeningDesk lick={selectedLick} isPlaying={playingId === selectedLick.phrase.id}
 						favoritePending={pendingFavorites.includes(selectedLick.phrase.id)} bookPending={pendingBook.includes(selectedLick.phrase.id)}
-						onplay={() => handlePlay(selectedLick.phrase)} onfavorite={() => handleFavorite(selectedLick)} onbook={() => handleBook(selectedLick)} />
+						onplay={handlePlay} onfavorite={() => handleFavorite(selectedLick)} onbook={() => handleBook(selectedLick)} />
 				</div>
 			{:else if loading}
 				<div class="empty-state" aria-busy="true"><p>Loading the collection…</p></div>

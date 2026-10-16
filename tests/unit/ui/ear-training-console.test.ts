@@ -29,6 +29,28 @@ describe('Ear Training console', () => {
 		expect(body).toContain('89<');
 	});
 
+	it.each(['listen', 'play', 'next'] as const)('keeps the sharp/flat cue on screen through the live %s phase', (phase) => {
+		// 2026-10-15: a 52-take F Lydian run centred 14 ¢ sharp earned the cue on
+		// 18 takes, five of them the last five, and the player saw none of it. The
+		// Studio Console (2026-10-12) had carried the one-line reminder into the
+		// paused-only tuning region beside the fader bank, so it rendered only on
+		// pause. The reminder is the tuning feedback meant for live play; only the
+		// fader bank's interpretation waits for a pause.
+		const { body } = render(EarTrainingConsole, {props: {...base, practising: true, phase, tuningAlert: {direction: 'sharp', cents: 13}}});
+		expect(body).toContain('Consistently sharp · check your tuning');
+	});
+
+	it('reserves the cue line while the run is in tune, so the controls never move', () => {
+		const { body } = render(EarTrainingConsole, {props: {...base, practising: true, phase: 'play', tuningAlert: null}});
+		expect(body).toContain('data-testid="tuning-cue"');
+		expect(body).not.toContain('check your tuning');
+	});
+
+	it('keeps the latest verdict on the paused screen', () => {
+		const { body } = render(EarTrainingConsole, {props: {...base, tuningAlert: {direction: 'flat', cents: -14}}});
+		expect(body).toContain('Consistently flat · check your tuning');
+	});
+
 	it('restores the existing caption and separates its final attribution when paused', () => {
 		const { body } = render(EarTrainingConsole, {props: base});
 		expect(body).toContain('“What we play is life.”');

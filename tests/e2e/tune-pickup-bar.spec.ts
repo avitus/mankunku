@@ -69,13 +69,14 @@ test('the editor adds a pickup that fills no column and seats the letter over th
 				.sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left)
 				.map((r) => r.getAttribute('data-bar-pos'));
 		});
-	// The density auto-pick decides how many full bars share the first line
-	// (six for an empty sheet); the pickup must not displace any of them.
+	// Four full bars share the line; the pickup must not displace any of them.
 	const before = await firstSystemBars();
 	const fullBars = before.length;
 
-	// The section list lives in the collapsed Setup card.
+	// Pickup setup is in the form dialog.
+	await page.getByRole('button', { name: 'Edit form' }).click();
 	await page.getByLabel('Pickup bar length').selectOption('1/4');
+	await page.getByRole('button', { name: 'Done', exact: true }).click();
 	// The pickup is a new unlabeled section 0; the form's A section is now index 1.
 	await expect(page.locator(`[data-bar-pos="1:${fullBars - 1}"]`)).toBeVisible();
 

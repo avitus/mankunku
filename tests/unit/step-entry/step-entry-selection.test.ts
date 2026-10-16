@@ -6,6 +6,7 @@ import {
 	adjustOctave,
 	adjustSelectedNotePitch,
 	deleteSelectedNote,
+	removeSelectedTime,
 	flipSelectedNoteSpelling,
 	enterTiedNote,
 	getCurrentBarAndBeat,
@@ -175,23 +176,67 @@ describe('deleteSelectedNote', () => {
 		addNote(7, 4, 'natural'); // 3: G4
 	});
 
-	it('mid-list delete shifts subsequent offsets left and re-selects the previous note', () => {
+	// 2026-10-15 (Andy): deleting a note in a complete score used to pull
+	// every later note earlier. MuseScore's Del leaves a rest in its place, so
+	// the score stays on its beats; only a REST delete (or Ctrl+Delete) removes
+	// time. These three pins replaced the shifting ones of the same names.
+	it('turns a mid-list note into a rest of the same span and moves nothing else', () => {
 		selectNote(1); // D4
 		deleteSelectedNote();
-		expect(stepEntry.enteredNotes.map((n) => n.pitch)).toEqual([60, 64, 67]);
-		// Offsets must collapse so the phrase remains contiguous from 0.
-		// addFractions / subtractFractions return reduced form.
-		expect(stepEntry.enteredNotes[0].offset).toEqual([0, 1]);
-		expect(stepEntry.enteredNotes[1].offset).toEqual([1, 4]);
-		expect(stepEntry.enteredNotes[2].offset).toEqual([1, 2]);
-		expect(stepEntry.selectedNoteIndex).toBe(0); // re-selected previous pitched note
+		expect(stepEntry.enteredNotes.map((n) => n.pitch)).toEqual([60, null, 64, 67]);
+		expect(stepEntry.enteredNotes.map((n) => n.offset)).toEqual([[0, 1], [1, 4], [1, 2], [3, 4]]);
+		expect(stepEntry.enteredNotes[1].duration).toEqual([1, 4]);
+		expect(stepEntry.selectedNoteIndex).toBe(1); // the new rest stays selected
 	});
 
-	it('deleting index 0 falls forward to the new first pitched note', () => {
+	it('turns the first note into a rest and keeps the selection on it', () => {
 		selectNote(0);
 		deleteSelectedNote();
-		expect(stepEntry.enteredNotes.map((n) => n.pitch)).toEqual([62, 64, 67]);
-		expect(stepEntry.selectedNoteIndex).toBe(0); // new first pitched note
+		expect(stepEntry.enteredNotes.map((n) => n.pitch)).toEqual([null, 62, 64, 67]);
+		expect(stepEntry.enteredNotes[1].offset).toEqual([1, 4]);
+		expect(stepEntry.selectedNoteIndex).toBe(0);
+	});
+
+	it('merges the new rest with its rest neighbours in the same bar and selects the merged element', () => {
+		reset();
+		stepEntry.barCount = 4;
+		setDuration('quarter');
+		addNote(0, 4, 'natural'); // 0: C4
+		addRest();                 // 1: rest
+		addNote(2, 4, 'natural'); // 2: D4
+		addRest();                 // 3: rest
+		addNote(4, 4, 'natural'); // 4: E4 (bar 2)
+		selectNote(2);
+		deleteSelectedNote();
+		expect(stepEntry.enteredNotes.map((n) => n.pitch)).toEqual([60, null, 64]);
+		expect(stepEntry.enteredNotes[1].offset).toEqual([1, 4]);
+		expect(stepEntry.enteredNotes[1].duration).toEqual([3, 4]);
+		expect(stepEntry.enteredNotes[2].offset).toEqual([1, 1]);
+		expect(stepEntry.selectedNoteIndex).toBe(1);
+	});
+
+	it('does not merge the new rest across a barline', () => {
+		addRest(); // 4: rest on bar 2, beat 1
+		selectNote(3); // G4 on bar 1, beat 4
+		deleteSelectedNote();
+		expect(stepEntry.enteredNotes.map((n) => n.pitch)).toEqual([60, 62, 64, null, null]);
+		expect(stepEntry.enteredNotes[3].duration).toEqual([1, 4]);
+		expect(stepEntry.enteredNotes[4].offset).toEqual([1, 1]);
+		expect(stepEntry.selectedNoteIndex).toBe(3);
+	});
+
+	it('a tied head that becomes a rest leaves its tail as a plain note', () => {
+		reset();
+		stepEntry.barCount = 4;
+		setDuration('quarter');
+		addNote(0, 4, 'natural'); // 0: C4
+		enterTiedNote();           // 1: C4 tied-from 0
+		addNote(2, 4, 'natural'); // 2: D4
+		selectNote(0);
+		deleteSelectedNote();
+		expect(stepEntry.enteredNotes.map((n) => n.pitch)).toEqual([null, 60, 62]);
+		expect(stepEntry.enteredNotes[0].tied).toBeUndefined();
+		expect(stepEntry.enteredNotes[1].tied).toBeFalsy();
 	});
 
 	it('deletion from the end clears selection so append-cursor resumes', () => {
@@ -208,19 +253,43 @@ describe('deleteSelectedNote', () => {
 		expect(stepEntry.selectedNoteIndex).toBe(null);
 	});
 
-	it('clears a dangling tie when the deletion straddles a tie', () => {
+	it('clears the tie into a tail that becomes a rest', () => {
 		reset();
 		stepEntry.barCount = 4;
 		setDuration('quarter');
 		addNote(0, 4, 'natural'); // 0: C4
 		enterTiedNote();           // 1: C4 tied-from 0
 		addNote(2, 4, 'natural'); // 2: D4
-		// Deleting the tied duplicate (index 1) leaves [C4 tied → D4] — pitches
-		// disagree, so the tie should clear.
+		// The tail (index 1) becomes a rest; a tie into a rest is meaningless.
 		selectNote(1);
 		deleteSelectedNote();
-		expect(stepEntry.enteredNotes).toHaveLength(2);
+		expect(stepEntry.enteredNotes.map((n) => n.pitch)).toEqual([60, null, 62]);
 		expect(stepEntry.enteredNotes[0].tied).toBe(false);
+	});
+});
+
+describe('removeSelectedTime (Ctrl/⌘ + Backspace)', () => {
+	beforeEach(() => {
+		setDuration('quarter');
+		addNote(0, 4, 'natural'); // 0: C4
+		addNote(2, 4, 'natural'); // 1: D4
+		addNote(4, 4, 'natural'); // 2: E4
+		addNote(7, 4, 'natural'); // 3: G4
+	});
+
+	it('removes a mid-list note and its time, pulling later notes earlier', () => {
+		selectNote(1);
+		removeSelectedTime();
+		expect(stepEntry.enteredNotes.map((n) => n.pitch)).toEqual([60, 64, 67]);
+		expect(stepEntry.enteredNotes.map((n) => n.offset)).toEqual([[0, 1], [1, 4], [1, 2]]);
+		expect(stepEntry.selectedNoteIndex).toBe(1); // the E that slid in, as a rest delete does
+	});
+
+	it('falls back to the last element with no selection', () => {
+		selectNote(null);
+		removeSelectedTime();
+		expect(stepEntry.enteredNotes).toHaveLength(3);
+		expect(stepEntry.selectedNoteIndex).toBe(null);
 	});
 });
 
@@ -251,7 +320,10 @@ describe('rest selection and deletion', () => {
 		expect(stepEntry.enteredNotes[0].offset).toEqual([0, 1]);
 		expect(stepEntry.enteredNotes[1].offset).toEqual([1, 4]);
 		expect(stepEntry.enteredNotes[2].offset).toEqual([1, 2]);
-		expect(stepEntry.selectedNoteIndex).toBe(0); // previous element
+		// The E that slid into the slot is selected (2026-10-15: the keys act on
+		// the selection, so the note BEFORE the removed rest would be the wrong
+		// target; it used to be the previous element).
+		expect(stepEntry.selectedNoteIndex).toBe(1);
 	});
 
 	it('post-delete reselection can land on a neighboring rest', () => {
