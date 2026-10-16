@@ -1,6 +1,6 @@
 import { beforeEach, expect, it } from 'vitest';
 import { settings } from '$lib/state/settings.svelte';
-import { stepEntry, reset, selectNote, setDuration, enterTiedNote } from '$lib/state/step-entry.svelte';
+import { stepEntry, reset, selectNote, setDuration, enterTiedNote, addRest } from '$lib/state/step-entry.svelte';
 
 beforeEach(() => { settings.instrumentId = 'concert'; reset(); });
 
@@ -32,4 +32,14 @@ it('Black Orpheus: tying a half note into an existing quarter triplet preserves 
 	expect(stepEntry.enteredNotes.map(n => [n.offset, n.duration])).toEqual(rhythm);
 	expect(enterTiedNote()).toBe(true);
 	expect(stepEntry.enteredNotes[0].tied).toBe(false);
+});
+
+
+it('confirming a resized rest with 0 preserves the split and selects its remainder', () => {
+	stepEntry.enteredNotes = [{ pitch: null, offset: [0, 1], duration: [1, 2] }];
+	selectNote(0);
+	setDuration('quarter');
+	expect(addRest()).toBe(true);
+	expect(stepEntry.enteredNotes.map(n => n.duration)).toEqual([[1, 4], [1, 4]]);
+	expect(stepEntry.selectedNoteIndex).toBe(1);
 });

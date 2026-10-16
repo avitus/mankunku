@@ -215,6 +215,8 @@ test('shortening a half rest keeps two selectable quarter rests in the lick edit
 	await page.getByRole('button', { name: 'Quarter Note', exact: true }).click();
 	const rests = page.locator(`${CHART_SVG} .abcjs-rest`);
 	await expect(rests).toHaveCount(2);
+	await page.getByRole('button', { name: 'Insert rest', exact: true }).click();
+	await expect(rests).toHaveCount(2);
 	await rests.last().click();
 	await expect(page.locator(`${CHART_SVG} .abcjs-rest.selected-note`)).toHaveCount(1);
 	await page.getByRole('button', { name: 'B', exact: true }).click();
