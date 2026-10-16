@@ -5259,3 +5259,8 @@ too low, out of the horn's range.
   `$env/static/public`); copied the main checkout's gitignored one, as every
   other worktree here already has.
 - Delivered on origin/dev directly (replayed onto 19a165aa); no PR.
+- Andy, on the closing question about which in-range octave a lick should
+  take: "I think you are over-complicating this. When I browse licks in the
+  community, show them as I would play them, which is in the range of my
+  instrument." That is the whole rule and it is what shipped; the octave
+  question is withdrawn. Lesson filed under deciding settled details.

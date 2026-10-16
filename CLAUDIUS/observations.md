@@ -2930,3 +2930,9 @@ noticed. It is a teaching-policy question — "stay where the author wrote it
 when it fits" against "centre it on the horn" — and Andy's, not mine. Logged,
 not changed; the fix inherits the rule deliberately so the desk and the
 detail page can never disagree about a lick's octave.
+
+Postscript, same day: Andy declined the question — "show them as I would play
+them, which is in the range of my instrument." The rule I was weighing lived
+inside his sentence already. A fix that satisfies the stated rule does not
+need a policy question appended to it; the appended question is what read as
+over-complication.
