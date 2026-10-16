@@ -608,7 +608,7 @@ function isCompoundMeter(ts: [number, number]): boolean {
 export function mergeConsecutiveRests(
 	notes: readonly Note[],
 	timeSignature: [number, number],
-	preserveRestBoundaries = false
+	preserveRestBoundaries: boolean = false
 ): { display: Note[]; sourceMap: (number | null)[]; sourceEndMap: (number | null)[] } {
 	const barDur = timeSignature[0] / timeSignature[1];
 	const compound = isCompoundMeter(timeSignature);
@@ -780,7 +780,7 @@ export function phraseToAbcWithMap(
 	phrase: Phrase,
 	instrument?: InstrumentConfig,
 	defaultLength: [number, number] = [1, 8],
-	preserveRestBoundaries = false
+	preserveRestBoundaries: boolean = false
 ): { abc: string; noteAnchors: NoteAnchor[] } {
 	const displayKey = instrument
 		? concertKeyToWritten(phrase.key, instrument)

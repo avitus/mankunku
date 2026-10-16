@@ -345,7 +345,14 @@ test('common keyboard edits: transpose a range, copy, paste, repeat, undo, redo 
 	await openEditor(page);
 	await page.keyboard.press('3');
 	for (const key of ['a', 'b', 'c', 'd']) await page.keyboard.press(key);
+	await page.getByRole('textbox', { name: 'Tune title' }).fill('Keyboard edits');
+	await page.getByRole('button', { name: 'Save tune' }).click();
+	await page.waitForURL('**/tunes/keyboard-edits');
+	const original = await page.evaluate(() => JSON.parse(localStorage.getItem('mankunku:user-tunes')!)[0]);
+	const originalPitches = original.sections[0].notes.slice(0, 2).map((n: { pitch: number }) => n.pitch);
+	await page.goto(`/tunes/editor?edit=${original.id}`);
 	const heads = page.locator(`${CHART_SVG} .abcjs-note .abcjs-notehead`);
+	await expect(heads).toHaveCount(4);
 	await heads.first().click();
 	await page.keyboard.press('Shift+ArrowRight');
 	await expect(page.locator(`${CHART_SVG} .selected-note`)).toHaveCount(2);
@@ -362,11 +369,11 @@ test('common keyboard edits: transpose a range, copy, paste, repeat, undo, redo 
 	await expect(heads).toHaveCount(6);
 	await page.keyboard.press('Escape');
 	await expect(page.locator(`${CHART_SVG} .selection-outline`)).toHaveCount(0);
-	await page.getByRole('textbox', { name: 'Tune title' }).fill('Keyboard edits');
-	await page.getByRole('button', { name: 'Save tune' }).click();
+	await page.getByRole('button', { name: 'Update tune' }).click();
 	await page.waitForURL('**/tunes/keyboard-edits');
 	const sheets = await page.evaluate(() => JSON.parse(localStorage.getItem('mankunku:user-tunes')!));
 	const notes = sheets[0].sections[0].notes.filter((n: { pitch: number | null }) => n.pitch !== null);
+	expect(notes.slice(0, 2).map((n: { pitch: number }) => n.pitch)).toEqual(originalPitches.map((pitch: number) => pitch + 1));
 	expect(notes.map((n: { pitch: number }) => n.pitch)).toEqual([notes[0].pitch, notes[0].pitch + 2, notes[0].pitch, notes[0].pitch + 2, notes[0].pitch, notes[0].pitch + 2]);
 	expect(notes.map((n: { offset: number[] }) => n.offset[0] / n.offset[1])).toEqual([0, 0.25, 0.5, 0.75, 1, 1.25]);
 });
