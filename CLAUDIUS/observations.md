@@ -2936,3 +2936,19 @@ them, which is in the range of my instrument." The rule I was weighing lived
 inside his sentence already. A fix that satisfies the stated rule does not
 need a policy question appended to it; the appended question is what read as
 over-complication.
+
+## 2026-10-15 — A rule change is a probe of every caller's assumptions
+
+Changing which octave `bestOctaveShift` prefers did not break the function;
+it broke two callers that had been leaning on the old answer without
+knowing it. The editor's key change assumed "same octave unless out of
+range" and had never said so — the midpoint rule happened to agree for the
+test's figure. The detail page passed its displayed phrase into deep
+practice, and that was only ever correct while the display's octave shift
+was zero for the lick in question, because a shifted phrase carries a
+suffixed id. Both were invisible under the old rule and both failed on the
+first run under the new one. The lesson is not "don't change rules"; it is
+that a policy function's callers each hold an unstated assumption about
+its answer, and a rule change is the cheapest probe of those assumptions
+there is — so run the whole suite and read every failure as a caller's
+belief, not as noise to re-green.

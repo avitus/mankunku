@@ -5264,3 +5264,43 @@ too low, out of the horn's range.
   community, show them as I would play them, which is in the range of my
   instrument." That is the whole rule and it is what shipped; the octave
   question is withdrawn. Lesson filed under deciding settled details.
+
+## 2026-10-15 — The convenient range: in range, then on the stave
+
+Andy's second rule, same evening: "have it in the most convenient range of
+the instrument, which is usually when the notes are mostly within the stave
+and furthest from the extreme ranges of the instrument."
+
+- `bestOctaveShift` now ranks candidate octaves: most notes in range › most
+  notes on the written stave (E4–F5; needs the instrument's transposition,
+  passed by every caller that already passes a range — detail page, lick
+  practice, ear training, progress, the community desk and the book's
+  Listen) › mean nearest the range midpoint. Without the transposition the
+  older rule stands, so range-less callers and tune charts are untouched.
+  `fitLickToRange(lick, instrument, rangeHigh)` takes the instrument.
+- The editor's key change passes NO transposition on purpose: the player
+  placed those notes; a key change moves them by the interval and
+  re-octaves only to stay on the horn. `key-change-transpose.test.ts`
+  caught the stave rule dropping a written D5–F#5 figure an octave, and
+  now pins the exception.
+- The stave rule exposed a latent bug: the detail page's Practice button
+  started the deep session with the DISPLAYED phrase. A transposed or
+  octave-shifted display carries a suffixed id, so the session keyed its
+  unlock count, rolling scores and tempo off an id with no progress — one
+  key, no sheet. Three deep-practice e2e tests failed on every engine the
+  moment the fixture lick moved an octave; anyone who changed the key
+  selector before pressing Practice had hit it already. Practice now starts
+  from the stored lick; a new e2e practices from a transposed view and
+  expects "Key 1/2" and the sheet.
+- Tests first: `octave-placement.test.ts` (stave decides, range first,
+  stave tie falls to the midpoint, pass-through of the transposition,
+  fitLickToRange on both horns); my first pass-through vector was a
+  written-C scale snapped to C ionian — written C on tenor is concert Bb.
+- Verification: check 0 errors; unit suite 384 files / 6191 passed; the
+  lick, ear-training and progress e2e specs 200/200 on Chromium, Firefox
+  and WebKit (one skipped by design). Red checks: the desk e2e failed at
+  −6 with the fit disabled; the transposed-view e2e fails with the
+  displayed lick handed to the session.
+- The worktree's `ls` is aliased to long format: `files=$(ls …)` fed
+  Playwright an `ls -l` listing and it ran nothing, exit 0. Pass globs
+  straight to the command.
