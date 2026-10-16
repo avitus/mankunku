@@ -135,6 +135,8 @@ async function stubParseRoute(
  * slot — the summary's spot in the unengraved layout. `Sheet Music for …` is
  * abcjs's own label on the engraved SVG.
  */
+const CHART_SVG = '.abcjs-container svg';
+
 async function openImportReview(page: Page): Promise<void> {
 	await expect(page.getByRole('img', { name: /^Sheet Music for/ })).toBeVisible();
 	await page
@@ -277,9 +279,23 @@ test('a line the AI cannot read is left blank instead of sinking the import', as
 
 	// The failed line is not silently blank: the review banner names its bars
 	// up front, and the detail says why they are empty.
-	await expect(page.getByText(/Review bars .* — the import wasn't certain there/)).toBeVisible();
+	const banner = page.getByText(/Review bars .* — the import wasn't certain there/);
+	await expect(banner).toBeVisible();
 	await openImportReview(page);
 	await expect(page.getByText(/could not be transcribed/i).first()).toBeVisible();
+
+	// The flagged bars carry a brass "review" band on the chart (phase 4,
+	// 2026-10-16); N jumps to the next one, and typing a note there clears
+	// that bar's band while the others stay.
+	const flagged = ((await banner.textContent()) ?? '').match(/\d+/g)!.map(Number);
+	const markers = page.locator(`${CHART_SVG} rect[data-marker-id^="review-"]`);
+	await expect(markers).toHaveCount(flagged.length);
+	const target = flagged.find((b) => b > 1) ?? flagged[0];
+	await page.keyboard.press('n');
+	await page.keyboard.press('3');
+	await page.keyboard.press('a');
+	await expect(page.locator(`${CHART_SVG} rect[data-marker-id="review-${target}"]`)).toHaveCount(0);
+	await expect(markers).toHaveCount(flagged.length - 1);
 });
 
 test('the import reports which line it is on, and can be cancelled', async ({ page }) => {

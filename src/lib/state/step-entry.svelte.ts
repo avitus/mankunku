@@ -4,7 +4,7 @@ import type { BaseDurationId, DurationId } from '$lib/step-entry/durations';
 import { DOTTED_BASES, DURATIONS, TRIPLET_BASES, getDurationFraction } from '$lib/step-entry/durations';
 import { addFractions, compareFractions, subtractFractions, fractionToFloat, pitchClassToMidi } from '$lib/music/intervals';
 import { applyAccidental } from '$lib/step-entry/pitch-input';
-import { coalesceRests, removeTime, replaceWithRest, spliceElement, stripTrailingRests } from '$lib/step-entry/buffer-ops';
+import { coalesceRests, insertElement, removeTime, replaceWithRest, spliceElement, stripTrailingRests } from '$lib/step-entry/buffer-ops';
 import { concertKeyToWritten, transposePitchClass } from '$lib/music/transposition';
 import { relativeMajor, relativeMinor } from '$lib/music/keys';
 import { signatureAccidentalsFor, signatureFlatsFor } from '$lib/music/notation';
@@ -75,6 +75,11 @@ export const stepEntry = $state({
 	// the element (re-pitch, rest, resize, tie). Esc and any entry return to
 	// `entry`. Selecting in `edit` syncs the current duration to the element.
 	selectionMode: 'entry' as 'entry' | 'edit',
+	// MuseScore's Insert note input (phase 4, 2026-10-16): while on, a letter
+	// or `0` at an edit selection goes IN FRONT of the selected element and
+	// pushes everything from there on later, instead of replacing it. `I`
+	// toggles it; `reset` turns it off.
+	insertMode: false,
 	// When non-null, the page is editing an existing lick rather than creating
 	// a new one. The save path replaces the lick at this id and preserves the
 	// snapshot of source/tags/category captured when the lick was loaded.
@@ -216,7 +221,11 @@ export function addNote(
 	pitchClass: number, octave: number,
 	accidental: 'sharp' | 'flat' | 'natural'
 ): boolean {
-	if (isEditSelection()) return replaceSelectedWithNote(pitchClass, octave, accidental);
+	if (isEditSelection()) {
+		return stepEntry.insertMode
+			? insertBeforeSelected(pitchClass, octave, accidental)
+			: replaceSelectedWithNote(pitchClass, octave, accidental);
+	}
 	const duration = currentDurationFraction();
 	if (!canAddDuration(duration)) return false;
 
@@ -238,6 +247,49 @@ export function addNote(
 /** The duration armed on the entry surface, modifiers resolved. */
 function currentDurationFraction(): Fraction {
 	return getDurationFraction(stepEntry.currentDuration, stepEntry.tripletMode, stepEntry.dottedMode);
+}
+
+/** MuseScore's Insert toggle (`I`): letters and `0` at an edit selection insert and push instead of replacing. */
+export function toggleInsertMode(): void {
+	stepEntry.insertMode = !stepEntry.insertMode;
+}
+
+/**
+ * Insert mode: a note of the current duration goes in front of the selected
+ * element and everything from there on moves later (`insertElement`); the
+ * pushed element stays selected, so a run of letters inserts a passage in
+ * order. Octave placement follows the nearest pitched note before the
+ * insertion point. Refused, with nothing changed, when the push would run
+ * past the end of the bars.
+ */
+function insertBeforeSelected(
+	pitchClass: number,
+	octave: number,
+	accidental: 'sharp' | 'flat' | 'natural'
+): boolean {
+	const notes = stepEntry.enteredNotes;
+	const index = stepEntry.selectedNoteIndex as number;
+	const duration = currentDurationFraction();
+	if (!canAddDuration(duration)) return false;
+	const concert = resolveEntryPitch(pitchClass, octave, accidental, previousPitched(index) ?? notes[index].pitch);
+	if (concert === null) return false;
+	const { notes: out, index: at } = insertElement(notes, { pitch: concert, duration, offset: notes[index].offset });
+	stepEntry.enteredNotes = out;
+	stepEntry.accidental = 'natural';
+	selectNote(at + 1, 'edit');
+	return true;
+}
+
+/** Insert mode's `0`: a rest of the current duration in front of the selected element, the rest pushed later. */
+function insertRestBeforeSelected(): boolean {
+	const notes = stepEntry.enteredNotes;
+	const index = stepEntry.selectedNoteIndex as number;
+	const duration = currentDurationFraction();
+	if (!canAddDuration(duration)) return false;
+	const { notes: out, index: at } = insertElement(notes, { pitch: null, duration, offset: notes[index].offset });
+	stepEntry.enteredNotes = out;
+	selectNote(at + 1, 'edit');
+	return true;
 }
 
 /** True when a click or arrow selected the element (edit intent) and it still exists. */
@@ -305,7 +357,7 @@ function findLastPitchedNote(): number | null {
 }
 
 export function addRest(): boolean {
-	if (isEditSelection()) return replaceSelectedWithRest();
+	if (isEditSelection()) return stepEntry.insertMode ? insertRestBeforeSelected() : replaceSelectedWithRest();
 	const duration = currentDurationFraction();
 	if (!canAddDuration(duration)) return false;
 
@@ -580,6 +632,7 @@ export function reset(): void {
 	stepEntry.practiceTag = false;
 	stepEntry.selectedNoteIndex = null;
 	stepEntry.selectionMode = 'entry';
+	stepEntry.insertMode = false;
 	stepEntry.editingId = null;
 	stepEntry.editingSource = null;
 	stepEntry.editingTags = null;
@@ -755,7 +808,8 @@ export function setBarCount(n: number): void {
  * run past the end of the bars.
  */
 export function setDuration(id: BaseDurationId): boolean {
-	if (isEditSelection()) return resizeSelected(id, stepEntry.tripletMode, stepEntry.dottedMode);
+	// Insert mode is note input: the keys choose the NEXT note's length.
+	if (isEditSelection() && !stepEntry.insertMode) return resizeSelected(id, stepEntry.tripletMode, stepEntry.dottedMode);
 	stepEntry.currentDuration = id;
 	return true;
 }
@@ -820,7 +874,7 @@ export function toggleTriplet(): void {
 	if (!stepEntry.tripletMode && !TRIPLET_BASES.has(stepEntry.currentDuration)) return;
 	const triplet = !stepEntry.tripletMode;
 	const dotted = triplet ? false : stepEntry.dottedMode;
-	if (isEditSelection()) {
+	if (isEditSelection() && !stepEntry.insertMode) {
 		resizeSelected(stepEntry.currentDuration, triplet, dotted);
 		return;
 	}
@@ -832,7 +886,7 @@ export function toggleDotted(): void {
 	if (!stepEntry.dottedMode && !DOTTED_BASES.has(stepEntry.currentDuration)) return;
 	const dotted = !stepEntry.dottedMode;
 	const triplet = dotted ? false : stepEntry.tripletMode;
-	if (isEditSelection()) {
+	if (isEditSelection() && !stepEntry.insertMode) {
 		resizeSelected(stepEntry.currentDuration, triplet, dotted);
 		return;
 	}

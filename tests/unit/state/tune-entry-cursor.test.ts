@@ -10,7 +10,8 @@ import {
 	selectNote,
 	deleteSelectedNote,
 	setDuration,
-	toggleTriplet
+	toggleTriplet,
+	toggleInsertMode
 } from '$lib/state/step-entry.svelte';
 import {
 	PAGE_BARS,
@@ -44,7 +45,9 @@ import {
 	setChord,
 	selectBarAcrossPages,
 	selectFirstInSection,
-	selectLastInSection
+	selectLastInSection,
+	insertBar,
+	deleteBar
 } from '$lib/state/tune-entry.svelte';
 
 // ─── Mock localStorage (settings persist on write) ────────────────────
@@ -1334,5 +1337,122 @@ describe('selectBarAcrossPages / selectFirstInSection / selectLastInSection', ()
 		selectLastInSection();
 		expect(tuneEntry.currentPage).toBe(1);
 		expect(stepEntry.enteredNotes[stepEntry.selectedNoteIndex!].pitch).toBe(67);
+	});
+});
+
+// ─── Group 12: phase 4 — insert with push, cursor split, bar operations ───
+
+describe('insert mode in the tune editor', () => {
+	function twoPageLine(): void {
+		loadFromTune(sheet([{
+			label: 'A',
+			bars: 8,
+			notes: [
+				{ pitch: 60, duration: [1, 4], offset: [0, 1] },
+				{ pitch: 62, duration: [1, 4], offset: [1, 4] },
+				{ pitch: 64, duration: [1, 4], offset: [1, 2] },
+				{ pitch: 65, duration: [1, 4], offset: [4, 1] },
+				{ pitch: 67, duration: [1, 4], offset: [31, 4] } // the section's last beat
+			],
+			harmony: []
+		}]), INSTRUMENTS['concert']);
+		expect(setChord(0, 4, 0, 'F7')).toBe(true);
+	}
+
+	function stored(): [number | null, number][] {
+		return tuneEntry.sections[0].notes.filter((n) => n.pitch !== null).map((n) => [n.pitch, fractionToFloat(n.offset)]);
+	}
+
+	it('a letter at a clicked note inserts before it and pushes the SECTION later, across pages; chords stay', () => {
+		twoPageLine();
+		// Make room first: the line ends on the last beat.
+		commitBuffer();
+		cursorToFlattened(tuneEntry.sections[0].notes.findIndex((n) => n.pitch === 67));
+		tuneDeleteSelected(); // G → rest (not the section end? it IS the last element → removed)
+		cursorToFlattened(tuneEntry.sections[0].notes.findIndex((n) => n.pitch === 62)); // D
+		toggleInsertMode();
+		setDuration('quarter');
+		expect(tuneAddNote(9, 4, 'natural')).toBe(true); // A before D
+		commitBuffer();
+		expect(stored()).toEqual([[60, 0], [69, 0.25], [62, 0.5], [64, 0.75], [65, 4.25]]);
+		expect(tuneEntry.sections[0].harmony[0].startOffset).toEqual([4, 1]);
+		expect(tuneEntry.sections[0].bars).toBe(8);
+	});
+
+	it('refuses an insert that would push a pitched note past the section end', () => {
+		twoPageLine();
+		commitBuffer();
+		cursorToFlattened(tuneEntry.sections[0].notes.findIndex((n) => n.pitch === 62));
+		toggleInsertMode();
+		setDuration('half');
+		expect(tuneAddNote(9, 4, 'natural')).toBe(false);
+		expect(tuneEntry.lastRefusal).toBe('insert-no-room');
+		commitBuffer();
+		expect(stored()).toEqual([[60, 0], [62, 0.25], [64, 0.5], [65, 4], [67, 7.75]]);
+	});
+});
+
+describe('cursor-mode entry splits across the page boundary with a tie', () => {
+	it('a long note at the page\'s last beats puts its head here, tied, and its tail on the next page', () => {
+		setDuration('whole');
+		cursorToBar(0, 3, 2); // page 0, bar 4, beat 3 → cursor 3.5
+		expect(tuneAddNote(2, 4, 'natural')).toBe(true);
+		expect(tuneEntry.currentPage).toBe(1);
+		expect(stepEntry.enteredNotes.map((n) => [n.pitch, fractionToFloat(n.offset), fractionToFloat(n.duration)])).toEqual([[62, 0, 0.5]]);
+		const head = tuneEntry.sections[0].notes.find((n) => compareFractions(n.offset, [7, 2]) === 0)!;
+		expect(head.pitch).toBe(62);
+		expect(head.tied).toBe(true);
+		expect(compareFractions(head.duration, [1, 2])).toBe(0);
+		expect(fractionToFloat(tuneEntry.entryCursor!)).toBeCloseTo(0.5, 9);
+	});
+});
+
+describe('insertBar / deleteBar', () => {
+	function form(): void {
+		loadFromTune(sheet([{
+			label: 'A',
+			bars: 4,
+			notes: [
+				{ pitch: 60, duration: [1, 1], offset: [0, 1] },
+				{ pitch: 62, duration: [1, 1], offset: [1, 1] },
+				{ pitch: 64, duration: [1, 1], offset: [2, 1] }
+			],
+			harmony: []
+		}]), INSTRUMENTS['concert']);
+		expect(setChord(0, 0, 0, 'C7')).toBe(true);
+		expect(setChord(0, 1, 0, 'D7')).toBe(true);
+		expect(setChord(0, 2, 0, 'E7')).toBe(true);
+	}
+	const shape = () => ({
+		bars: tuneEntry.sections[0].bars,
+		notes: tuneEntry.sections[0].notes.filter((n) => n.pitch !== null).map((n) => [n.pitch, fractionToFloat(n.offset)]),
+		chords: tuneEntry.sections[0].harmony.map((h) => [h.symbol, fractionToFloat(h.startOffset), fractionToFloat(h.duration)])
+	});
+
+	it('inserts an empty bar before a bar, moving later notes and chords a bar later', () => {
+		form();
+		insertBar(0, 1);
+		expect(shape()).toEqual({
+			bars: 5,
+			notes: [[60, 0], [62, 2], [64, 3]],
+			chords: [['C7', 0, 2], ['D7', 2, 1], ['E7', 3, 2]]
+		});
+	});
+
+	it('deletes a bar with its notes and chords, pulling the rest a bar earlier', () => {
+		form();
+		deleteBar(0, 1);
+		expect(shape()).toEqual({
+			bars: 3,
+			notes: [[60, 0], [64, 1]],
+			chords: [['C7', 0, 1], ['E7', 1, 2]]
+		});
+	});
+
+	it('never deletes the last bar of a section', () => {
+		form();
+		setSectionBars(0, 1);
+		deleteBar(0, 0);
+		expect(tuneEntry.sections[0].bars).toBe(1);
 	});
 });

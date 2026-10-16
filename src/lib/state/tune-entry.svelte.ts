@@ -118,7 +118,9 @@ export const tuneEntry = $state({
 	 * starts at the bars the pipeline knows are uncertain. Not persisted;
 	 * cleared on any fresh load.
 	 */
-	importReview: null as { warnings: string[]; suspectBars: number[]; sourceBarImages?: string[] } | null
+	importReview: null as { warnings: string[]; suspectBars: number[]; sourceBarImages?: string[] } | null,
+	/** Why the last entry was refused, for the rail's status line; cleared by the next success. */
+	lastRefusal: null as null | 'insert-no-room'
 });
 
 function makeSection(label: string, bars = 8): TuneSection {
@@ -304,6 +306,7 @@ export function initNewTune(): void {
 	tuneEntry.reviewHandoff = false;
 	loadBuffer(0, 0);
 	tuneEntry.importReview = null;
+	tuneEntry.lastRefusal = null;
 }
 
 export const resetTuneEntry = initNewTune;
@@ -686,26 +689,48 @@ export function tuneAddNote(
 	accidental: 'sharp' | 'flat' | 'natural'
 ): boolean {
 	if (!melodyEditingSupported()) return false;
+	const duration = currentDurationFraction();
+	// Insert mode (phase 4): a note goes in front of the selection or the
+	// cursor and pushes the SECTION later, across pages.
+	if (stepEntry.insertMode && (isEditSelection() || tuneEntry.entryCursor !== null)) {
+		const local = isEditSelection()
+			? stepEntry.enteredNotes[stepEntry.selectedNoteIndex as number].offset
+			: (tuneEntry.entryCursor as Fraction);
+		const concert = resolveEntryPitch(pitchClass, octave, accidental, cursorModeReference(local));
+		if (concert === null) return false;
+		return insertInSection(local, { pitch: concert, duration });
+	}
 	// A clicked or arrowed element is replaced in place by step-entry's own
 	// edit path (bounded by the page window, which is the buffer's capacity).
 	if (isEditSelection()) return stepAddNote(pitchClass, octave, accidental);
-	const duration = currentDurationFraction();
 
 	if (tuneEntry.entryCursor !== null) {
 		const cursor = tuneEntry.entryCursor;
+		const windowEnd: Fraction = [currentWindowBars(), 1];
 		// At (or past) the page window end: hop first, then insert there.
-		if (compareFractions(cursor, [currentWindowBars(), 1]) >= 0) {
+		if (compareFractions(cursor, windowEnd) >= 0) {
 			if (!hopCursorToNextPage(cursor)) return false;
 			return tuneAddNote(pitchClass, octave, accidental);
 		}
-		// The note must FIT the window: a mid-window cursor plus a long
-		// duration would otherwise splice a note overhanging the window end —
-		// past the section end on a section's last (possibly short) window.
-		if (compareFractions(addFractions(cursor, duration), [currentWindowBars(), 1]) > 0) {
-			return false;
-		}
 		const concert = resolveEntryPitch(pitchClass, octave, accidental, cursorModeReference(cursor));
 		if (concert === null) return false;
+		if (compareFractions(addFractions(cursor, duration), windowEnd) > 0) {
+			// Overhanging the window: split with a tie across the page boundary,
+			// as append mode does (phase 4 — this used to be refused).
+			const target = nextPagePosition(tuneEntry.currentSection, tuneEntry.currentPage);
+			if (!target) return false;
+			const headDuration = subtractFractions(windowEnd, cursor);
+			const tailDuration = subtractFractions(duration, headDuration);
+			const headAbsOffset = addFractions(pageStartFraction(tuneEntry.currentPage), cursor);
+			const headSectionIdx = tuneEntry.currentSection;
+			spliceNoteIntoBuffer(concert, headDuration, cursor, undefined, true);
+			loadPage(target.sectionIdx, target.pageIdx); // commits the head
+			markEntered(spliceNoteIntoBuffer(concert, tailDuration, [0, 1]));
+			stepEntry.accidental = 'natural';
+			tuneEntry.entryCursor = tailDuration;
+			restoreTie(headSectionIdx, headAbsOffset, concert);
+			return true;
+		}
 		markEntered(spliceNoteIntoBuffer(concert, duration, cursor));
 		stepEntry.accidental = 'natural';
 		tuneEntry.entryCursor = addFractions(cursor, duration);
@@ -762,6 +787,12 @@ function restoreTie(sectionIdx: number, absOffset: Fraction, pitch: number): voi
  */
 export function tuneAddRest(): boolean {
 	if (!melodyEditingSupported()) return false;
+	if (stepEntry.insertMode && (isEditSelection() || tuneEntry.entryCursor !== null)) {
+		const local = isEditSelection()
+			? stepEntry.enteredNotes[stepEntry.selectedNoteIndex as number].offset
+			: (tuneEntry.entryCursor as Fraction);
+		return insertInSection(local, { pitch: null, duration: currentDurationFraction() });
+	}
 	if (isEditSelection() || tuneEntry.entryCursor === null) return stepAddRest();
 	const cursor = tuneEntry.entryCursor;
 	const windowEnd: Fraction = [currentWindowBars(), 1];
@@ -857,6 +888,148 @@ export function tuneEnterTiedNote(): boolean {
 /** Escape hatch: drop cursor mode, returning to append-at-end entry. */
 export function clearEntryCursor(): void {
 	tuneEntry.entryCursor = null;
+}
+
+// ─── Insert with push (phase 4, 2026-10-16) ─────────────────────────────
+
+/**
+ * MuseScore's Insert at the SECTION level: `element` goes in front of
+ * whatever starts at page-local `local` (an offset inside an element snaps
+ * to that element's start) and every later note in the section moves later
+ * by its length, across page boundaries; chords stay with the form. Refused
+ * — `lastRefusal` 'insert-no-room', nothing changed — when a pitched note
+ * would be pushed past the section's end; a rest pushed past it is trimmed.
+ * Afterwards the page holding the insertion reloads: with an edit selection
+ * the pushed element stays selected (a run of letters inserts in order),
+ * in cursor mode the inserted note is the entry edge and the cursor sits
+ * after it.
+ */
+function insertInSection(local: Fraction, element: { pitch: number | null; duration: Fraction }): boolean {
+	const wasEdit = isEditSelection();
+	const pageStart = pageStartFraction(tuneEntry.currentPage);
+	const absOffset = addFractions(pageStart, local);
+	commitBuffer();
+	const sec = tuneEntry.sections[tuneEntry.currentSection];
+	if (!sec) return false;
+	const [tsNum, tsDen] = tuneEntry.timeSignature;
+	const sectionEnd: Fraction = [sec.bars * tsNum, tsDen];
+	const sorted = [...sec.notes].sort((a, b) => compareFractions(a.offset, b.offset));
+	const containing = sorted.find(
+		(n) => compareFractions(n.offset, absOffset) < 0 && compareFractions(addFractions(n.offset, n.duration), absOffset) > 0
+	);
+	const at = containing ? containing.offset : absOffset;
+	if (compareFractions(addFractions(at, element.duration), sectionEnd) > 0) {
+		tuneEntry.lastRefusal = 'insert-no-room';
+		return false;
+	}
+	const shifted = sorted.map((n) =>
+		compareFractions(n.offset, at) >= 0 ? { ...n, offset: addFractions(n.offset, element.duration) } : { ...n }
+	);
+	const overflow = shifted.some(
+		(n) => n.pitch !== null && compareFractions(addFractions(n.offset, n.duration), sectionEnd) > 0
+	);
+	if (overflow) {
+		tuneEntry.lastRefusal = 'insert-no-room';
+		return false;
+	}
+	const kept = shifted
+		.filter((n) => compareFractions(n.offset, sectionEnd) < 0)
+		.map((n) =>
+			compareFractions(addFractions(n.offset, n.duration), sectionEnd) > 0
+				? { ...n, duration: subtractFractions(sectionEnd, n.offset) }
+				: n
+		);
+	sec.notes = [...kept, { ...element, offset: at }].sort((a, b) => compareFractions(a.offset, b.offset));
+	sanitizeTies();
+	tuneEntry.lastRefusal = null;
+	// Reload WITHOUT committing: the buffer still holds the page as it was
+	// before the section-level edit, and a commit would write it back over it.
+	const bar = Math.floor(fractionToFloat(at) + 1e-9);
+	tuneEntry.currentPage = Math.floor(bar / PAGE_BARS);
+	loadBuffer(tuneEntry.currentSection, tuneEntry.currentPage);
+	const localAt = subtractFractions(at, pageStartFraction(tuneEntry.currentPage));
+	const insertedIdx = stepEntry.enteredNotes.findIndex(
+		(n) => n.pitch === element.pitch && compareFractions(n.offset, localAt) === 0
+	);
+	if (insertedIdx < 0) return true;
+	if (wasEdit) {
+		const pushed = insertedIdx + 1;
+		if (pushed < stepEntry.enteredNotes.length) selectNote(pushed, 'edit');
+		else selectNote(null);
+	} else {
+		markEntered(insertedIdx);
+		tuneEntry.entryCursor = addFractions(localAt, element.duration);
+	}
+	stepEntry.accidental = 'natural';
+	return true;
+}
+
+// ─── Bar operations (phase 4, 2026-10-16) ───────────────────────────────
+
+/**
+ * Insert an empty bar in front of bar `barInSection` of a section (at
+ * `sec.bars`, append one): the section grows by a bar and every note and
+ * chord from that bar on moves a bar later; the chord in force extends
+ * across the new bar. A note straddling the insertion point stays put.
+ */
+export function insertBar(index: number, barInSection: number): void {
+	const sec = tuneEntry.sections[index];
+	if (!sec || sec.bars >= MAX_SECTION_BARS) return;
+	if (index === tuneEntry.currentSection) commitBuffer();
+	const [tsNum, tsDen] = tuneEntry.timeSignature;
+	const barLen: Fraction = [tsNum, tsDen];
+	const bar = Math.max(0, Math.min(sec.bars, Math.floor(barInSection)));
+	const at: Fraction = [bar * tsNum, tsDen];
+	sec.bars += 1;
+	sec.notes = sec.notes.map((n) =>
+		compareFractions(n.offset, at) >= 0 ? { ...n, offset: addFractions(n.offset, barLen) } : n
+	);
+	sec.harmony = sec.harmony.map((h) =>
+		compareFractions(h.startOffset, at) >= 0 ? { ...h, startOffset: addFractions(h.startOffset, barLen) } : h
+	);
+	recomputeHarmonyDurations(sec);
+	if (index === tuneEntry.currentSection) loadBuffer(index, Math.min(tuneEntry.currentPage, Math.ceil(sec.bars / PAGE_BARS) - 1));
+}
+
+/**
+ * Delete bar `barInSection` of a section with everything in it: its notes
+ * and the chords that start in it go, a note running into it from before is
+ * trimmed at its start, and every later note and chord moves a bar earlier;
+ * the chord in force before it extends over the join. A section always keeps
+ * at least one bar.
+ */
+export function deleteBar(index: number, barInSection: number): void {
+	const sec = tuneEntry.sections[index];
+	if (!sec || sec.bars <= 1) return;
+	if (index === tuneEntry.currentSection) commitBuffer();
+	const [tsNum, tsDen] = tuneEntry.timeSignature;
+	const barLen: Fraction = [tsNum, tsDen];
+	const bar = Math.max(0, Math.min(sec.bars - 1, Math.floor(barInSection)));
+	const start: Fraction = [bar * tsNum, tsDen];
+	const end = addFractions(start, barLen);
+	const notes: Note[] = [];
+	for (const n of sec.notes) {
+		const nEnd = addFractions(n.offset, n.duration);
+		if (compareFractions(n.offset, start) < 0) {
+			notes.push(compareFractions(nEnd, start) > 0 ? { ...n, duration: subtractFractions(start, n.offset), tied: false } : n);
+		} else if (compareFractions(n.offset, end) >= 0) {
+			notes.push({ ...n, offset: subtractFractions(n.offset, barLen) });
+		}
+	}
+	sec.notes = notes;
+	sec.harmony = sec.harmony
+		.filter((h) => compareFractions(h.startOffset, start) < 0 || compareFractions(h.startOffset, end) >= 0)
+		.map((h) =>
+			compareFractions(h.startOffset, end) >= 0 ? { ...h, startOffset: subtractFractions(h.startOffset, barLen) } : h
+		);
+	sec.bars -= 1;
+	recomputeHarmonyDurations(sec);
+	sanitizeTies();
+	if (index === tuneEntry.currentSection) {
+		const maxPage = Math.max(0, Math.ceil(sec.bars / PAGE_BARS) - 1);
+		loadBuffer(index, Math.min(tuneEntry.currentPage, maxPage));
+		tuneEntry.currentPage = Math.min(tuneEntry.currentPage, maxPage);
+	}
 }
 
 // ─── Delete (2026-10-15) ─────────────────────────────────────────────────

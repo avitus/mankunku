@@ -5409,3 +5409,29 @@ contradictions before approval, all folded in.
   typing on — under the new rules a key on a selected note acts on it.
 - Test trap again: a stored sheet's flattened index drifts by one once the
   first commit stores page 0's gap rest; `selectPitch()` finds the note.
+
+## 2026-10-16 — Score editing phase 4: insert with push, bar ops, the review loop
+
+- Insert mode (`I`, `stepEntry.insertMode`, an Insert badge in both editors):
+  letters/`0` at an edit selection go in FRONT of it and push the rest later
+  (`insertElement`; the pushed element stays selected so a passage inserts
+  in order); the duration keys choose the NEXT length in insert mode — my
+  first tune test "armed" a half with `setDuration` and resized the selected
+  note instead, which is exactly the trap a user would hit. Tune editor:
+  `insertInSection` pushes the whole SECTION across pages, chords stay,
+  refused (`lastRefusal` 'insert-no-room', rail hint) when a pitched note
+  would leave the section. Bug found on the way: reloading with `loadPage`
+  after a section-level edit COMMITS the stale buffer over it — reload with
+  `loadBuffer`. (`removeTimeInSection` had it right.)
+- Cursor-mode entry overhanging the page window now splits with a tie like
+  append mode (the "no room on the page's last beat" refusal is gone).
+- `insertBar` / `deleteBar` (rail buttons, on the current bar): notes and
+  chords move a bar; the chord in force extends across a new bar; a section
+  keeps ≥ 1 bar.
+- Review loop: `tunes/review-bars.ts` (pure); suspect bars drawn as brass
+  `rangeMarkers` labelled "review"; `N` jumps to the next; a bar clears
+  from the list in the history effect once its note signature changed;
+  `PdfSourceReview` is controlled by the current absolute bar. The chosen
+  key `N` is free in both editors (`k` is the chord editor).
+- `tours/tune-editor.ts` registered (`data-tour` anchors: tune-chart,
+  tune-entry-rail, tune-save); Settings picks it up.

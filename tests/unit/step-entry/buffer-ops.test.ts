@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { Note } from '$lib/types/music';
 import {
 	coalesceRests,
+	insertElement,
 	removeTime,
 	replaceWithRest,
 	spliceElement,
@@ -218,5 +219,36 @@ describe('trimOverlappingNotes', () => {
 	it('leaves a contiguous or gapped line alone', () => {
 		const notes = [n(60, [0, 1], [1, 4]), n(62, [1, 4], [1, 4]), n(64, [1, 1], [1, 4])];
 		expect(rows(trimOverlappingNotes(notes))).toEqual(rows(notes));
+	});
+});
+
+describe('insertElement (push)', () => {
+	// MuseScore's Insert mode: the new element takes its place and everything
+	// from there on moves later by its length.
+	it('inserts before the element at its offset and pushes the rest later', () => {
+		const notes = [n(60, [0, 1], [1, 4]), n(62, [1, 4], [1, 4]), n(64, [1, 2], [1, 4])];
+		const { notes: out, index } = insertElement(notes, n(65, [1, 4], [1, 8]));
+		expect(rows(out)).toEqual(['60 @0/1 ×1/4', '65 @1/4 ×1/8', '62 @3/8 ×1/4', '64 @5/8 ×1/4']);
+		expect(index).toBe(1);
+	});
+
+	it('appends when the offset is the content end', () => {
+		const notes = [n(60, [0, 1], [1, 4])];
+		const { notes: out, index } = insertElement(notes, n(62, [1, 4], [1, 4]));
+		expect(rows(out)).toEqual(['60 @0/1 ×1/4', '62 @1/4 ×1/4']);
+		expect(index).toBe(1);
+	});
+
+	it('snaps an offset inside an element to that element\'s start', () => {
+		const notes = [n(60, [0, 1], [1, 2]), n(62, [1, 2], [1, 4])];
+		const { notes: out, index } = insertElement(notes, n(64, [1, 4], [1, 4]));
+		expect(rows(out)).toEqual(['64 @0/1 ×1/4', '60 @1/4 ×1/2', '62 @3/4 ×1/4']);
+		expect(index).toBe(0);
+	});
+
+	it('never mutates its input', () => {
+		const notes = [n(60, [0, 1], [1, 4]), n(62, [1, 4], [1, 4])];
+		insertElement(notes, n(64, [1, 4], [1, 4]));
+		expect(rows(notes)).toEqual(['60 @0/1 ×1/4', '62 @1/4 ×1/4']);
 	});
 });

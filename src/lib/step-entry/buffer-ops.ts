@@ -186,6 +186,32 @@ export function spliceElement(
 }
 
 /**
+ * MuseScore's Insert: put `element` IN FRONT of whatever sits at its offset
+ * and move that element and everything after it later by the new length.
+ * An offset inside an element snaps to that element's start; the content end
+ * appends. Returns the new list and the element's index.
+ */
+export function insertElement(
+	notes: readonly Note[],
+	element: Note
+): { notes: Note[]; index: number } {
+	const out = cloneAll(notes);
+	let at = element.offset;
+	let index = out.findIndex((n) => compareFractions(n.offset, at) >= 0);
+	const containing = out.findIndex(
+		(n) => compareFractions(n.offset, at) < 0 && compareFractions(addFractions(n.offset, n.duration), at) > 0
+	);
+	if (containing >= 0) {
+		index = containing;
+		at = out[containing].offset;
+	}
+	if (index < 0) index = out.length;
+	for (let i = index; i < out.length; i++) out[i].offset = addFractions(out[i].offset, element.duration);
+	out.splice(index, 0, { ...element, offset: at });
+	return { notes: out, index };
+}
+
+/**
  * Make a section's notes monophonic again after an overwrite reached past a
  * page window: an element that runs into the next one is shortened to end
  * where the next begins (a note keeps its pitch, loses its tie); an element

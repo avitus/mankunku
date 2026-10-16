@@ -48,6 +48,8 @@
 		selectBarAcrossPages,
 		selectFirstInSection,
 		selectLastInSection,
+		insertBar,
+		deleteBar,
 		type TuneDeleteResult,
 		setChord,
 		removeChord,
@@ -64,8 +66,10 @@
 		selectNote,
 		adjustSelectedNotePitch,
 		adjustSelectedNoteDiatonic,
-		flipSelectedNoteSpelling
+		flipSelectedNoteSpelling,
+		toggleInsertMode
 	} from '$lib/state/step-entry.svelte';
+	import { absoluteBarToSection, clearEditedSuspectBars, nextSuspectBar } from '$lib/tunes/review-bars';
 	import { keyToPitchClass } from '$lib/step-entry/pitch-input';
 	import { KEYBOARD_SHORTCUTS } from '$lib/step-entry/durations';
 	import { fractionToFloat } from '$lib/music/intervals';
@@ -88,6 +92,38 @@
 	});
 	/** Where the next entered note lands (null on non-4/4 sheets). */
 	const cursorPos = $derived(entryCursorPosition());
+	/** The position's 0-based absolute bar (notation order), for the review panel and `N`. */
+	const currentAbsoluteBar = $derived.by(() => {
+		if (!cursorPos) return 0;
+		let base = 0;
+		for (let i = 0; i < cursorPos.sectionIdx; i++) base += tuneEntry.sections[i]?.bars ?? 0;
+		return base + cursorPos.barInSection;
+	});
+	/** The user has pointed somewhere (a selected element or a bar cursor); the append edge is not a place they chose. */
+	const hasExplicitPosition = $derived((stepEntry.selectionMode === 'edit' && stepEntry.selectedNoteIndex !== null) || tuneEntry.entryCursor !== null);
+	/** Brass bands under the bars the PDF import flagged; a band clears once its bar is edited. */
+	const reviewMarkers = $derived(
+		(tuneEntry.importReview?.suspectBars ?? []).map((bar) => ({
+			id: `review-${bar}`,
+			startBar: bar - 1,
+			endBarExclusive: bar,
+			status: 'upcoming' as const,
+			label: 'review',
+			color: 'var(--color-brass)'
+		}))
+	);
+
+	/** Move the entry cursor to a 0-based absolute bar (the review panel's and `N`'s target). */
+	function jumpToAbsoluteBar(absBar: number): void {
+		const pos = absoluteBarToSection(tuneEntry, absBar);
+		if (pos) cursorToBar(pos.sectionIdx, pos.barInSection);
+	}
+
+	/** `N`: the next bar the import flagged, wrapping round. */
+	function jumpToNextSuspectBar(): void {
+		const next = nextSuspectBar(tuneEntry.importReview?.suspectBars ?? [], currentAbsoluteBar + 1);
+		if (next !== null) jumpToAbsoluteBar(next - 1);
+	}
 	const currentSectionLabel = $derived(
 		tuneEntry.sections[tuneEntry.currentSection]?.label ?? 'A'
 	);
@@ -157,11 +193,36 @@
 		'lead-in': 'The lead-in is set by the Pickup control in Setup.'
 	};
 
+	/** Show a transient hint in the rail (empty clears it). */
+	function showHint(text: string): void {
+		clearTimeout(entryHintTimer);
+		entryHint = text;
+		if (entryHint) entryHintTimer = setTimeout(() => { entryHint = ''; }, 5000);
+	}
+
 	/** Voice a refused delete; a successful one clears any earlier hint. */
 	function reportDelete(result: TuneDeleteResult): void {
-		clearTimeout(entryHintTimer);
-		entryHint = DELETE_HINTS[result] ?? '';
-		if (entryHint) entryHintTimer = setTimeout(() => { entryHint = ''; }, 5000);
+		showHint(DELETE_HINTS[result] ?? '');
+	}
+
+	/** Voice a refused entry (insert mode pushing a note past the section's end). */
+	function reportEntry(ok: boolean): boolean {
+		if (!ok && tuneEntry.lastRefusal === 'insert-no-room') {
+			showHint('No room: a note would be pushed past the end of the section — delete something first or insert a bar.');
+		} else if (ok) {
+			showHint('');
+		}
+		return ok;
+	}
+
+	/** Panel pitch pad: entry with the rail hint on refusal. */
+	function handlePanelAddNote(pitchClass: number, octave: number, accidental: 'sharp' | 'flat' | 'natural'): boolean {
+		return reportEntry(tuneAddNote(pitchClass, octave, accidental));
+	}
+
+	/** Panel rest: entry with the rail hint on refusal. */
+	function handlePanelAddRest(): boolean {
+		return reportEntry(tuneAddRest());
 	}
 	let shortcutsDialog: HTMLDialogElement | undefined = $state();
 	let settingsDialog: HTMLDialogElement | undefined = $state();
@@ -187,10 +248,20 @@
 	type TuneSnapshot = { draft: Tune; title: string; composer: string; style: string; source: SourceTransposition };
 	const selectedNote = $derived(stepEntry.selectedNoteIndex === null ? null : stepEntry.enteredNotes[stepEntry.selectedNoteIndex]);
 	const selectedName = $derived(selectedNote ? selectedNote.pitch === null ? 'Rest' : midiToDisplayName(selectedNote.pitch + entryTranspositionSemitones(), selectedNote.spelling ? selectedNote.spelling === 'flat' : tuneEntry.writtenKey).replace('b', '♭').replace('#', '♯') : null);
+	let lastDraftForReview: Tune | null = null;
 	$effect(() => {
 		if (!historyReady) return;
 		const snapshot = JSON.stringify({ draft, title: tuneEntry.title, composer: tuneEntry.composer, style: tuneEntry.style, source: tuneEntry.sourceTransposition });
-		untrack(() => { if (history.record(snapshot)) { historyVersion++; transport?.stop(); } });
+		untrack(() => {
+			if (history.record(snapshot)) { historyVersion++; transport?.stop(); }
+			// A flagged bar has been reviewed once its melody changes.
+			const review = tuneEntry.importReview;
+			if (review && lastDraftForReview && review.suspectBars.length > 0) {
+				const kept = clearEditedSuspectBars(lastDraftForReview, draft, review.suspectBars);
+				if (kept.length !== review.suspectBars.length) review.suspectBars = kept;
+			}
+			lastDraftForReview = draft;
+		});
 	});
 
 	/** Restore music without dropping an import's source images or changing the edit target. */
@@ -291,8 +362,10 @@
 		if (e.key === 't' || e.key === 'T') { toggleTriplet(); return; }
 		if (e.key === '.') { toggleDotted(); return; }
 		const pc = keyToPitchClass(e.key);
-		if (pc !== null) { tuneAddNote(pc, stepEntry.selectedOctave, stepEntry.accidental); return; }
-		if (e.key === '0') { tuneAddRest(); return; }
+		if (pc !== null) { reportEntry(tuneAddNote(pc, stepEntry.selectedOctave, stepEntry.accidental)); return; }
+		if (e.key === '0') { reportEntry(tuneAddRest()); return; }
+		if (e.key === 'i' || e.key === 'I') { toggleInsertMode(); return; }
+		if (e.key === 'n' || e.key === 'N') { jumpToNextSuspectBar(); return; }
 		if (e.key === ']') { setAccidental('sharp'); return; }
 		if (e.key === '[') { setAccidental('flat'); return; }
 		if (e.key === '\\') { flipSelectedNoteSpelling(); return; }
@@ -364,7 +437,7 @@
 			<button class="le-button le-quiet" onclick={() => shortcutsDialog?.showModal()}><EditorIcon name="keyboard" />Shortcuts</button>
 			<button class="le-button le-quiet" onclick={() => settingsDialog?.showModal()}>Tune settings</button>
 			<button class="le-button le-quiet" onclick={handleCancel}>Cancel</button>
-			<button class="le-button le-save" onclick={handleSave} disabled={!historyReady}><EditorIcon name="save" size={17} />{isEditing ? 'Update tune' : 'Save tune'}</button>
+			<button class="le-button le-save" data-tour="tune-save" onclick={handleSave} disabled={!historyReady}><EditorIcon name="save" size={17} />{isEditing ? 'Update tune' : 'Save tune'}</button>
 		{/snippet}
 		<div class="le-layout"><div class="le-workspace">
 			<section class="le-panel le-chart" aria-label="Tune chart">
@@ -372,7 +445,7 @@
 				<nav class="te-sections" aria-label="Sections"><span class="studio-label">Form</span>{#each tuneEntry.sections as section, index}<button class:current={index === tuneEntry.currentSection} aria-pressed={index === tuneEntry.currentSection} onclick={() => jumpToSection(index)}><strong>{section.label || 'Pickup'}</strong><span>{section.bars} bars</span></button>{/each}<button class="te-form-button" onclick={() => formDialog?.showModal()}>Edit form ↗</button></nav>
                 <div class="te-listen"><TuneTransport bind:this={transport} tune={draft} /></div>
                 <div class="td-score-top"><span>Click a note to edit · click a bar to write</span><button aria-pressed={harmonyColors} onclick={() => harmonyColors = !harmonyColors}><i class="td-color-dot" aria-hidden="true"></i>Harmony colors <i class="td-switch" class:active={harmonyColors} aria-hidden="true"></i></button></div>
-				<div class="td-score-well" bind:this={scoreRoot}><NotationDisplay tuneOptions={{ omitMasthead: true, barsPerLine: 4 }} bind:this={notationRef} tune={draft} instrument={previewInstrument} selectedIndex={previewSelectedIndex} onSelect={handlePreviewSelect} onBarClick={pos => cursorToBar(pos.sectionIdx, pos.bar)} {chordEditor} rangeMarkers={harmonyMarkers} frameless /></div>
+				<div class="td-score-well" bind:this={scoreRoot} data-tour="tune-chart"><NotationDisplay tuneOptions={{ omitMasthead: true, barsPerLine: 4 }} bind:this={notationRef} tune={draft} instrument={previewInstrument} selectedIndex={previewSelectedIndex} onSelect={handlePreviewSelect} onBarClick={pos => cursorToBar(pos.sectionIdx, pos.bar)} {chordEditor} rangeMarkers={[...harmonyMarkers, ...reviewMarkers]} frameless /></div>
 				<div class="td-status"><span><i aria-hidden="true"></i>{selectedName ?? 'Ready to write'} · {@render entryStatus()}</span><button onclick={() => { selectNote(null); clearEntryCursor(); }}>Clear selection</button></div>
 			</section>
 			<div class="td-review">			{#if tuneEntry.importReview?.warnings.length}
@@ -414,26 +487,19 @@
 				<PdfSourceReview
 					images={tuneEntry.importReview.sourceBarImages}
 					suspectBars={tuneEntry.importReview.suspectBars}
-					onSelect={(absoluteBar) => {
-						let remaining = absoluteBar;
-						for (let i = 0; i < tuneEntry.sections.length; i++) {
-							if (remaining < tuneEntry.sections[i].bars) {
-								cursorToBar(i, remaining);
-								break;
-							}
-							remaining -= tuneEntry.sections[i].bars;
-						}
-					}}
+					currentBar={hasExplicitPosition ? currentAbsoluteBar : undefined}
+					onSelect={jumpToAbsoluteBar}
 				/>
 			{/if}
 </div>
-		</div><section class="te-entry-rail" aria-label="Note entry" data-testid="entry-rail">
-            <header class="te-rail-heading"><div><p class="studio-label">Write the melody</p><h2>Note entry<span>.</span></h2></div><button class="te-mobile-toggle" aria-controls="tune-note-controls" aria-label={mobileEntryOpen ? 'Close note entry' : 'Open note entry'} aria-expanded={mobileEntryOpen} onclick={() => mobileEntryOpen = !mobileEntryOpen}>{mobileEntryOpen ? 'Close ⌄' : 'Open ⌃'}</button></header>
+		</div><section class="te-entry-rail" aria-label="Note entry" data-testid="entry-rail" data-tour="tune-entry-rail">
+            <header class="te-rail-heading"><div><p class="studio-label">Write the melody{#if stepEntry.insertMode} <span class="le-badge" data-testid="insert-badge" title="Insert mode (I): new notes push the music along">Insert</span>{/if}</p><h2>Note entry<span>.</span></h2></div><button class="te-mobile-toggle" aria-controls="tune-note-controls" aria-label={mobileEntryOpen ? 'Close note entry' : 'Open note entry'} aria-expanded={mobileEntryOpen} onclick={() => mobileEntryOpen = !mobileEntryOpen}>{mobileEntryOpen ? 'Close ⌄' : 'Open ⌃'}</button></header>
             <div id="tune-note-controls" class="te-rail-body" class:mobile-open={mobileEntryOpen}>
                 <div class="te-cursor"><span class="te-cursor-dot"></span><strong>{@render entryStatus()}</strong><small>{selectedName ? `${selectedName} selected` : 'Click a bar to place the next note'}</small></div>
                 {#if melodyEditingSupported()}
                     <div class="te-input-group"><p class="te-label">Duration <small>1–5</small></p><DurationSelector /></div>
-                    <div class="te-input-group"><p class="te-label">Pitch <small>A–G · 0 for rest</small></p><PitchEntryPanel onAddNote={tuneAddNote} onAddRest={tuneAddRest} onTie={tuneEnterTiedNote} onDelete={handlePanelDelete} onRemoveTime={handlePanelRemoveTime} /></div>
+                    <div class="te-input-group"><p class="te-label">Pitch <small>A–G · 0 for rest</small></p><PitchEntryPanel onAddNote={handlePanelAddNote} onAddRest={handlePanelAddRest} onTie={tuneEnterTiedNote} onDelete={handlePanelDelete} onRemoveTime={handlePanelRemoveTime} /></div>
+                    <div class="te-input-group"><p class="te-label">Bar <small>{cursorPos ? cursorPos.barInSection + 1 : ''}</small></p><div class="te-chord-action te-bar-ops"><button disabled={!cursorPos} onclick={() => { if (cursorPos) insertBar(cursorPos.sectionIdx, cursorPos.barInSection); }} title="Insert an empty bar before this one; the rest of the section moves a bar later">Insert bar</button><button disabled={!cursorPos || (tuneEntry.sections[tuneEntry.currentSection]?.bars ?? 1) <= 1} onclick={() => { if (cursorPos) deleteBar(cursorPos.sectionIdx, cursorPos.barInSection); }} title="Delete this bar with its notes and chords; the rest of the section moves a bar earlier">Delete bar</button></div></div>
                 {:else}<p class="te-hint">This chart is in {tuneEntry.timeSignature.join('/')} — melody entry supports 4/4 only. Tap a chord slot to edit chords; use Edit form for sections.</p>{/if}
                 <div class="te-chord-action"><button disabled={!melodyEditingSupported()} onclick={openChordEditorAtCursor}>Edit chord at cursor <kbd>K</kbd></button></div>
                 <div class="te-rail-footer"><p>Click a note, then use ↑ ↓ to change its pitch.</p><button onclick={() => shortcutsDialog?.showModal()}>Keyboard shortcuts ↗</button></div>
@@ -450,5 +516,5 @@
     </section></div><div class="le-dialog-actions"><button class="le-button le-save" onclick={() => settingsDialog?.close()}>Done</button></div></dialog>
     <dialog bind:this={formDialog} class="le-dialog te-form-dialog" aria-labelledby="form-heading"><header><div><p class="studio-label">Tune structure</p><h2 id="form-heading">Form & sections.</h2></div><button aria-label="Close form" onclick={() => formDialog?.close()}>×</button></header><div class="te-form-content"><SectionConfigPanel /></div><div class="le-dialog-actions"><button class="le-button le-save" onclick={() => formDialog?.close()}>Done</button></div></dialog>
 
-	<dialog bind:this={shortcutsDialog} class="le-dialog" aria-labelledby="tune-shortcuts-title"><header><h2 id="tune-shortcuts-title">Keep your hands on the keys.</h2><button aria-label="Close shortcuts" onclick={() => shortcutsDialog?.close()}><EditorIcon name="close" /></button></header><p>Shortcuts work when you’re outside a text field.</p><dl class="le-shortcuts">{#each [['A–G / 0', 'Enter a note / rest — or replace the selected one in place'], ['1–5', 'Note duration — or resize the selected note'], ['T / .', 'Triplet / dotted (resizes a selected note)'], ['[ / ]', 'Flat / sharp'], ['= / −', 'Entry octave'], ['← / →', 'Select previous / next note'], ['↑ / ↓', 'Move pitch by a semitone'], ['Shift + ↑ / ↓', 'Move pitch by an octave'], ['Alt + ↑ / ↓', 'Move pitch by a step of the key'], ['Ctrl/⌘ + ← / →', 'Select the previous / next bar'], ['Home / End', 'First / last note of the section'], ['\\', 'Flip enharmonic spelling'], ['+', 'Tie into a duplicate of the last note — or tie the selected note to the next'], ['K', 'Edit chord at cursor'], ['Esc', 'Stop editing, back to the bar cursor'], ['⌫ / Delete', 'Delete: a note becomes a rest; a rest or the last note gives up its time'], ['Ctrl/⌘ ⌫', 'Remove the selected note or rest and its time'], ['Space', 'Play / stop'], ['Ctrl/⌘Z', 'Undo'], ['Ctrl/⌘Shift Z', 'Redo']] as [key, description]}<div><dt>{description}</dt><dd><kbd>{key}</kbd></dd></div>{/each}</dl></dialog>
+	<dialog bind:this={shortcutsDialog} class="le-dialog" aria-labelledby="tune-shortcuts-title"><header><h2 id="tune-shortcuts-title">Keep your hands on the keys.</h2><button aria-label="Close shortcuts" onclick={() => shortcutsDialog?.close()}><EditorIcon name="close" /></button></header><p>Shortcuts work when you’re outside a text field.</p><dl class="le-shortcuts">{#each [['A–G / 0', 'Enter a note / rest — or replace the selected one in place'], ['1–5', 'Note duration — or resize the selected note'], ['T / .', 'Triplet / dotted (resizes a selected note)'], ['[ / ]', 'Flat / sharp'], ['= / −', 'Entry octave'], ['← / →', 'Select previous / next note'], ['↑ / ↓', 'Move pitch by a semitone'], ['Shift + ↑ / ↓', 'Move pitch by an octave'], ['Alt + ↑ / ↓', 'Move pitch by a step of the key'], ['Ctrl/⌘ + ← / →', 'Select the previous / next bar'], ['Home / End', 'First / last note of the section'], ['\\', 'Flip enharmonic spelling'], ['+', 'Tie into a duplicate of the last note — or tie the selected note to the next'], ['K', 'Edit chord at cursor'], ['I', 'Insert mode: new notes push the music along instead of replacing'], ['N', 'Next flagged bar after a PDF import'], ['Esc', 'Stop editing, back to the bar cursor'], ['⌫ / Delete', 'Delete: a note becomes a rest; a rest or the last note gives up its time'], ['Ctrl/⌘ ⌫', 'Remove the selected note or rest and its time'], ['Space', 'Play / stop'], ['Ctrl/⌘Z', 'Undo'], ['Ctrl/⌘Shift Z', 'Redo']] as [key, description]}<div><dt>{description}</dt><dd><kbd>{key}</kbd></dd></div>{/each}</dl></dialog>
 </div>

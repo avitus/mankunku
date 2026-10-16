@@ -5,7 +5,7 @@
 	import { goto } from '$app/navigation';
 	import { settings, getInstrument } from '$lib/state/settings.svelte';
 	import {
-		stepEntry, addNote, addRest, deleteSelectedNote, removeSelectedTime, adjustSelectedNoteDiatonic, selectBar, selectFirst, selectLast, reset, loadFromPhrase,
+		stepEntry, addNote, addRest, deleteSelectedNote, removeSelectedTime, adjustSelectedNoteDiatonic, selectBar, selectFirst, selectLast, toggleInsertMode, reset, loadFromPhrase,
 		setDuration, toggleTriplet, toggleDotted, setAccidental, adjustOctave,
 		adjustSelectedNotePitch, flipSelectedNoteSpelling, enterTiedNote, getCurrentPhrase,
 		getPaddedNotes, getCurrentBarAndBeat, getRemainingCapacity,
@@ -302,6 +302,7 @@
 			return;
 		}
 		if (key === '0') { addRest(); return; }
+		if (key === 'i' || key === 'I') { toggleInsertMode(); return; }
 		if (key === ']') { setAccidental('sharp'); return; }
 		if (key === '[') { setAccidental('flat'); return; }
 		if (key === '\\') { flipSelectedNoteSpelling(); return; }
@@ -529,7 +530,7 @@
 						{/if}
 					</div>
 					<div class="le-selection">
-						<span><i aria-hidden="true"></i>{#if selectedNote}<strong>{selectedName}</strong><span>Bar {Math.floor(selectedBeat / 4) + 1} · Beat {Number((selectedBeat % 4 + 1).toFixed(2))}</span>{:else}<strong>{isFull ? 'Phrase complete' : 'Ready to write'}</strong><span>Bar {Math.min(position.bar, stepEntry.barCount)} · {Number(remainingBeats.toFixed(2))} beats left</span>{/if}</span>
+						<span><i aria-hidden="true"></i>{#if stepEntry.insertMode}<em class="le-badge" data-testid="insert-badge" title="Insert mode (I): new notes push the rest later">Insert</em>{/if}{#if selectedNote}<strong>{selectedName}</strong><span>Bar {Math.floor(selectedBeat / 4) + 1} · Beat {Number((selectedBeat % 4 + 1).toFixed(2))}</span>{:else}<strong>{isFull ? 'Phrase complete' : 'Ready to write'}</strong><span>Bar {Math.min(position.bar, stepEntry.barCount)} · {Number(remainingBeats.toFixed(2))} beats left</span>{/if}</span>
 						<button onclick={() => selectNote(null)}>Append notes <span aria-hidden="true">+</span></button>
 					</div>
 					<div class="le-transport">
@@ -546,7 +547,7 @@
 					<header><h2 class="studio-label">02 / Note entry</h2><span>{selectedNote ? `${selectedName} selected` : 'Adding to your phrase'}</span></header>
 					<DurationSelector />
 					<PitchEntryPanel onDelete={deleteSelectedNote} onRemoveTime={removeSelectedTime} />
-					<div class="le-entry-tip"><span>{selectedNote && stepEntry.selectionMode === 'edit' ? 'Editing this note: A–G re-pitches it, 1–5 resize it, 0 rests it, Delete turns it into a rest; Ctrl/⌘ ⌫ removes its time. Esc to keep writing at the end.' : selectedNote ? '↑ ↓ changes the pitch; Backspace removes what you just entered. Click or ← to edit an earlier note in place.' : 'Choose a duration, then press A–G to enter notes. Use 0 for a rest.'}</span><button onclick={() => shortcutsDialog?.showModal()}>All shortcuts ↗</button></div>
+					<div class="le-entry-tip"><span>{selectedNote && stepEntry.selectionMode === 'edit' && stepEntry.insertMode ? 'Insert mode: A–G and 0 go in front of this note and push the rest later; 1–5 choose their length. I turns it off.' : selectedNote && stepEntry.selectionMode === 'edit' ? 'Editing this note: A–G re-pitches it, 1–5 resize it, 0 rests it, Delete turns it into a rest; Ctrl/⌘ ⌫ removes its time. Esc to keep writing at the end.' : selectedNote ? '↑ ↓ changes the pitch; Backspace removes what you just entered. Click or ← to edit an earlier note in place.' : 'Choose a duration, then press A–G to enter notes. Use 0 for a rest.'}</span><button onclick={() => shortcutsDialog?.showModal()}>All shortcuts ↗</button></div>
 				</section>
 
 				<div class="le-status" role="status" aria-live="polite">
@@ -578,7 +579,7 @@
 		<dialog bind:this={shortcutsDialog} class="le-dialog" aria-labelledby="editor-shortcuts-title">
 			<header><h2 id="editor-shortcuts-title">Keep your hands on the keys.</h2><button aria-label="Close shortcuts" onclick={() => shortcutsDialog?.close()}><EditorIcon name="close" /></button></header>
 			<p>Shortcuts work when you’re outside a text field.</p>
-			<dl class="le-shortcuts">{#each [['A–G', 'Enter a note — or re-pitch the selected note in place'], ['0', 'Enter a rest — or rest the selected note'], ['1–5', 'Next note duration — or resize the selected note'], ['T / .', 'Triplet / dotted (resizes a selected note)'], ['[ / ]', 'Flat / sharp'], ['= / −', 'Entry octave'], ['← / →', 'Select previous / next note or rest'], ['↑ / ↓', 'Move selected pitch by a semitone'], ['Shift + ↑ / ↓', 'Move selected pitch by an octave'], ['Alt + ↑ / ↓', 'Move selected pitch by a step of the key'], ['Ctrl/⌘ + ← / →', 'Select the previous / next bar'], ['Home / End', 'Select the first / last note'], ['\\', 'Flip enharmonic spelling'], ['+', 'Tie into a duplicate of the last note — or tie the selected note to the next'], ['⌫ / Delete', 'Delete: a note becomes a rest; a rest or the last note gives up its time'], ['Ctrl/⌘ ⌫', 'Remove the selected note or rest and its time'], ['Esc', 'Stop editing, write at the end again'], ['Space', 'Play / stop (outside controls)'], ['Ctrl/⌘Z', 'Undo'], ['Ctrl/⌘Shift Z / Ctrl Y', 'Redo']] as [key, description]}<div><dt>{description}</dt><dd><kbd>{key}</kbd></dd></div>{/each}</dl>
+			<dl class="le-shortcuts">{#each [['A–G', 'Enter a note — or re-pitch the selected note in place'], ['0', 'Enter a rest — or rest the selected note'], ['1–5', 'Next note duration — or resize the selected note'], ['T / .', 'Triplet / dotted (resizes a selected note)'], ['[ / ]', 'Flat / sharp'], ['= / −', 'Entry octave'], ['← / →', 'Select previous / next note or rest'], ['↑ / ↓', 'Move selected pitch by a semitone'], ['Shift + ↑ / ↓', 'Move selected pitch by an octave'], ['Alt + ↑ / ↓', 'Move selected pitch by a step of the key'], ['Ctrl/⌘ + ← / →', 'Select the previous / next bar'], ['Home / End', 'Select the first / last note'], ['\\', 'Flip enharmonic spelling'], ['+', 'Tie into a duplicate of the last note — or tie the selected note to the next'], ['⌫ / Delete', 'Delete: a note becomes a rest; a rest or the last note gives up its time'], ['Ctrl/⌘ ⌫', 'Remove the selected note or rest and its time'], ['I', 'Insert mode: new notes push the rest later instead of replacing'], ['Esc', 'Stop editing, write at the end again'], ['Space', 'Play / stop (outside controls)'], ['Ctrl/⌘Z', 'Undo'], ['Ctrl/⌘Shift Z / Ctrl Y', 'Redo']] as [key, description]}<div><dt>{description}</dt><dd><kbd>{key}</kbd></dd></div>{/each}</dl>
 		</dialog>
 		<dialog bind:this={clearDialog} class="le-dialog le-clear-dialog" aria-labelledby="editor-clear-title">
 			<h2 id="editor-clear-title">Start with a clean staff?</h2><p>This clears the notes in your current phrase. You can undo it.</p><div class="le-dialog-actions"><button class="le-button le-quiet" onclick={() => clearDialog?.close()}>Keep editing</button><button class="le-button le-save" onclick={handleClear}>Clear phrase</button></div>

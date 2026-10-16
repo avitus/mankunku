@@ -281,3 +281,37 @@ test('a wrong note is fixed in place: click it, type the letter; a duration key 
 	expect(pitched.map((n) => [n.offset[0] / n.offset[1], n.duration[0] / n.duration[1]])).toEqual([[0, 0.25], [0.25, 0.25], [0.5, 0.5]]);
 	expect(pitched[1].pitch).toBe(pitched[0].pitch! + 2); // A → B, a whole step up
 });
+
+test('insert mode puts a note in front of the selection and pushes the rest later; Insert bar and Delete bar resize the section', async ({ page }) => {
+	await openEditor(page);
+	await page.keyboard.press('3'); // quarter notes
+	for (const key of ['a', 'a', 'a', 'a']) await page.keyboard.press(key);
+	const notes = page.locator(`${CHART_SVG} .abcjs-note`);
+	const noteheads = page.locator(`${CHART_SVG} .abcjs-note .abcjs-notehead`);
+	const rail = page.getByTestId('entry-rail');
+	await expect(notes).toHaveCount(4);
+
+	// I turns insert mode on: B goes in front of the second note and the rest
+	// moves a beat later; the pushed note stays selected, now on beat 3.
+	await noteheads.nth(1).click();
+	await expect(rail.getByText(/Section A · Bar 1, Beat 2/)).toBeVisible();
+	await page.keyboard.press('i');
+	await expect(page.getByTestId('insert-badge')).toBeVisible();
+	await page.keyboard.press('b');
+	await expect(notes).toHaveCount(5);
+	await expect(rail.getByText(/Section A · Bar 1, Beat 3/)).toBeVisible();
+	await page.keyboard.press('i');
+	await expect(page.getByTestId('insert-badge')).toHaveCount(0);
+
+	// Insert bar before bar 1: the section grows to 9 bars and every note
+	// moves a bar later; Delete bar on the (now empty) first bar undoes it.
+	await page.getByRole('button', { name: 'Insert bar' }).click();
+	await expect(page.getByRole('button', { name: /^A\s*9 bars$/ })).toBeVisible();
+	await expect(notes).toHaveCount(5);
+	await clickBarZone(page, '0:0');
+	await page.getByRole('button', { name: 'Delete bar' }).click();
+	await expect(page.getByRole('button', { name: /^A\s*8 bars$/ })).toBeVisible();
+	await expect(notes).toHaveCount(5);
+	await clickBarZone(page, '0:0');
+	await expect(rail.getByText(/Section A · Bar 1, Beat 1/)).toBeVisible();
+});

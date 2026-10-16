@@ -4,6 +4,7 @@ import { earTrainingTour } from './ear-training';
 import { lickPracticeTour } from './lick-practice';
 import { licksTour } from './licks';
 import { tunesTour } from './tunes';
+import { tuneEditorTour } from './tune-editor';
 import { tunePracticeTour } from './tune-practice';
 
 export interface TourDefinition {
@@ -20,6 +21,7 @@ export const TOURS: TourDefinition[] = [
 	{ id: 'lick-practice', title: 'Lick Practice', startsAt: '/lick-practice', steps: lickPracticeTour },
 	{ id: 'licks', title: 'Your Licks', startsAt: '/licks', steps: licksTour },
 	{ id: 'tunes', title: 'Your Tunes', startsAt: '/tunes', steps: tunesTour },
+	{ id: 'tune-editor', title: 'The Tune Editor', startsAt: '/tunes/editor', steps: tuneEditorTour },
 	// The scored session lives at /tunes/<id>/practice — no static path to
 	// navigate to, so this tour starts where you reach it from and its steps
 	// are element-free (see tune-practice.ts).
@@ -36,5 +38,6 @@ export {
 	lickPracticeTour,
 	licksTour,
 	tunesTour,
+	tuneEditorTour,
 	tunePracticeTour
 };

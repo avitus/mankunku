@@ -143,3 +143,28 @@ test('a selected note is re-pitched by a letter and resized by a duration key, i
 	await expect(notes).toHaveCount(4);
 	await expect(selection).toContainText('Bar 2 · Beat 1');
 });
+
+test('insert mode puts a note in front of the selected one and pushes the rest later', async ({ page }) => {
+	await page.goto('/licks/editor');
+	const quarter = page.getByRole('button', { name: 'Quarter Note' });
+	await expect(async () => {
+		await quarter.click();
+		await expect(quarter).toHaveAttribute('aria-pressed', 'true', { timeout: 250 });
+	}).toPass({ timeout: 10_000 });
+	const notes = page.locator(`${CHART_SVG} .abcjs-note`);
+	const noteheads = page.locator(`${CHART_SVG} .abcjs-note .abcjs-notehead`);
+	const selection = page.locator('.le-selection');
+	for (const key of ['c', 'd', 'e', 'g']) await page.keyboard.press(key);
+	await expect(notes).toHaveCount(4);
+
+	await noteheads.nth(1).click(); // D
+	await page.keyboard.press('i');
+	await expect(page.getByTestId('insert-badge')).toBeVisible();
+	await page.keyboard.press('f');
+	await expect(notes).toHaveCount(5);
+	// The pushed D is still selected, a beat later.
+	await expect(selection).toContainText('D');
+	await expect(selection).toContainText('Bar 1 · Beat 3');
+	await page.keyboard.press('i');
+	await expect(page.getByTestId('insert-badge')).toHaveCount(0);
+});
