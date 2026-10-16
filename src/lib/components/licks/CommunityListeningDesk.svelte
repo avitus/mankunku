@@ -3,21 +3,30 @@
 	import CommunityProgression from './CommunityProgression.svelte';
 	import NotationDisplay from '$lib/components/notation/NotationDisplay.svelte';
 	import { leadSheetTuneFor, leadSheetAbcOptions } from '$lib/music/lead-sheet';
-	import { getInstrument, settings } from '$lib/state/settings.svelte';
+	import { fitLickToRange } from '$lib/phrases/library-loader';
+	import { getEffectiveHighestNote, getInstrument, settings } from '$lib/state/settings.svelte';
+	import type { Phrase } from '$lib/types/music';
 
 	interface Props {
 		lick: CommunityLick;
 		isPlaying: boolean;
 		favoritePending: boolean;
 		bookPending: boolean;
-		onplay: () => void;
+		/** Listen plays the phrase the staff shows — the lick fitted to the player's range. */
+		onplay: (phrase: Phrase) => void;
 		onfavorite: () => void;
 		onbook: () => void;
 	}
 	let { lick, isPlaying, favoritePending, bookPending, onplay, onfavorite, onbook }: Props = $props();
+	// The phrase is stored in its AUTHOR's register. Engrave and audition it in
+	// the player's own: a tenor player's line reads an octave under a soprano
+	// (2026-10-15). Same-key fit, id kept, the detail page's rule.
+	const phrase = $derived(
+		fitLickToRange(lick.phrase, getInstrument().concertRangeLow, getEffectiveHighestNote())
+	);
 	// Keep the whole phrase, including longer imports; only the staff wraps.
-	const sheet = $derived(leadSheetTuneFor(lick.phrase, Number.POSITIVE_INFINITY));
-	const options = $derived(leadSheetAbcOptions(lick.phrase, 4));
+	const sheet = $derived(leadSheetTuneFor(phrase, Number.POSITIVE_INFINITY));
+	const options = $derived(leadSheetAbcOptions(phrase, 4));
 </script>
 
 <section class="listening-desk" aria-label="Selected lick">
@@ -47,7 +56,7 @@
 		</div>
 	</div>
 	<footer>
-		<button data-domain={isPlaying ? 'lick-practice' : 'neutral'} class="listen" class:playing={isPlaying} onclick={onplay} aria-label={isPlaying ? 'Stop' : `Listen to ${lick.phrase.name}`}>
+		<button data-domain={isPlaying ? 'lick-practice' : 'neutral'} class="listen" class:playing={isPlaying} onclick={() => onplay(phrase)} aria-label={isPlaying ? 'Stop' : `Listen to ${lick.phrase.name}`}>
 			<svg aria-hidden="true" viewBox="0 0 24 24" fill={isPlaying ? 'currentColor' : 'none'} stroke="currentColor" stroke-width="1.6">
 				{#if isPlaying}<rect x="6" y="6" width="12" height="12" rx="1" />{:else}<path d="m8 5 11 7-11 7z" />{/if}
 			</svg>

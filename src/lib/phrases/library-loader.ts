@@ -187,6 +187,24 @@ export function transposeLick(
 }
 
 /**
+ * Fit a lick into a player's range without changing its key.
+ *
+ * A community or stolen lick is stored in its AUTHOR's register: a tenor
+ * player's line sits around concert C3–C4, which a soprano (written = concert
+ * + 2, lowest written Bb3) cannot play — written for the soprano it reads an
+ * octave under the horn. This is the same-key octave fit the lick detail page
+ * already applies through `transposeLick`, so the community desk's staff, its
+ * Listen, the book's Listen and the detail page all put a lick in ONE
+ * register. The id is kept: the fit changes nothing the lick is referred to
+ * by (selection, favorites, the book, the detail link). A lick already in
+ * range comes back as the same object.
+ */
+export function fitLickToRange(lick: Phrase, rangeLow: number, rangeHigh: number): Phrase {
+	const fitted = transposeLick(lick, lick.key, rangeLow, rangeHigh);
+	return fitted === lick ? lick : { ...fitted, id: lick.id };
+}
+
+/**
  * Cumulative semitone offsets for each mode of the major scale.
  * Mode 1 (Ionian) = 0, Mode 2 (Dorian) = 2, etc.
  * Used to find the parent major key: parentKey = modalRoot - offset.
