@@ -15,7 +15,8 @@
 		getBackingMix,
 		setBackingMix,
 		getDecodedDrumBuffersForBounce,
-		getDecodedRoomIrForBounce
+		getDecodedRoomIrForBounce,
+		getActiveSchedule
 	} from '$lib/audio/backing-track';
 	import { DEFAULT_BACKING_MIX, type BackingMixLevels } from '$lib/audio/backing-mix';
 	import { BACKING_STYLE_NAMES } from '$lib/audio/backing-styles';
@@ -35,6 +36,22 @@
 	import { settings } from '$lib/state/settings.svelte';
 	import { LAB_SOLO_SCENARIOS, scriptedSoloFeatures, type LabSoloScenario } from '$lib/audio/backing-lab-scenarios';
 	import { version } from '$app/environment';
+	import { createSoloListener, type SoloListener } from '$lib/audio/solo-listener';
+	import type { SoloObservationWindow } from '$lib/audio/solo-observer';
+
+	interface ObservationTrace {
+		version: 1;
+		sessionId: string;
+		phraseId: string;
+		tempo: number;
+		swing: number;
+		style: BackingStyle;
+		instrument: BackingInstrument;
+		volume: number;
+		mix: BackingMixLevels;
+		totalBars: number;
+		windows: readonly SoloObservationWindow[];
+	}
 
 	const GAIN_SLIDERS: Array<{ key: keyof BackingMixLevels; label: string; hint: string }> = [
 		{ key: 'bass', label: 'Bass', hint: 'Upright bass level' },
@@ -65,6 +82,12 @@
 	let playing = $state(false);
 	let loading = $state(false);
 	let copied = $state(false);
+	let playError = $state<string | null>(null);
+	let listening = $state(false);
+	let observationStatus = $state('No captured observations');
+	let observationTrace = $state<ObservationTrace | null>(null);
+	let replayingObservations = $state(false);
+	let soloListener: SoloListener | null = null;
 
 	let bouncing = $state(false);
 	let bounceError = $state<string | null>(null);
@@ -75,7 +98,10 @@
 	// A cleared/dragged number input can yield null or out-of-range values.
 	const safeSeed = $derived(Math.min(99, Math.max(0, Math.trunc(Number(seed) || 0))));
 	const phrase = $derived(labPhraseWithSeed(preset, safeSeed));
-	const soloFeatures = $derived(scriptedSoloFeatures(soloScenario, preset.bars));
+	const recordedFeatures = $derived(observationTrace?.windows.flatMap((window) => window.feature ? [window.feature] : []) ?? []);
+	const effectiveScenario = $derived(replayingObservations ? 'microphone-replay' : soloScenario);
+	const soloFeatures = $derived(replayingObservations ? recordedFeatures : scriptedSoloFeatures(soloScenario, preset.bars));
+	const latestObservation = $derived(observationTrace?.windows.at(-1));
 
 	let toneModule: typeof import('tone') | null = null;
 
@@ -85,12 +111,40 @@
 	// page's replayRequestId).
 	let playRequest = 0;
 
-	async function start(): Promise<void> {
+	async function start(observe = false): Promise<void> {
 		const id = ++playRequest;
 		loading = true;
+		playError = null;
 		try {
 			await initAudio();
+			if (id !== playRequest) return;
 			toneModule = await import('tone');
+			if (id !== playRequest) return;
+			let startAudioTime = Infinity;
+			if (observe) {
+				const sessionId = crypto.randomUUID();
+				observationTrace = { version: 1, sessionId, phraseId: phrase.id, tempo,
+					swing: settings.swing, style, instrument, volume, mix: { ...mix }, totalBars: preset.bars, windows: [] };
+				soloListener = createSoloListener({
+					sessionId, tempo, beatsPerBar: 4, totalBars: preset.bars,
+					getPositionSeconds: (time) => id === playRequest && playing && time >= startAudioTime
+						? toneModule!.getTransport().getSecondsAtTime(time) : null,
+					getBackingSchedule: getActiveSchedule,
+					onWindow: (window) => {
+						if (id !== playRequest || !observationTrace) return;
+						observationTrace = { ...observationTrace, windows: [...observationTrace.windows, window] };
+					},
+					onComplete: (windows) => {
+						if (id !== playRequest || !observationTrace) return;
+						observationTrace = { ...observationTrace, windows };
+						stop();
+						observationStatus = 'Pass complete';
+					}
+				});
+				await soloListener.start();
+				if (id !== playRequest) return;
+			}
+
 			await loadBackingInstruments(instrument);
 			if (id !== playRequest) return;
 			const transport = toneModule.getTransport();
@@ -113,19 +167,33 @@
 					backingSoloFeatures: soloFeatures
 				},
 				0,
-				true,
+				!observe,
 				() => id === playRequest
 			);
 			if (id !== playRequest) return;
-			transport.start('+0.05');
+			startAudioTime = toneModule.now() + 0.05;
+			transport.start(startAudioTime);
 			playing = true;
+			if (observe) observationStatus = 'Listening to one pass';
+		} catch (error) {
+			if (id !== playRequest) return;
+			stop();
+			playError = error instanceof Error ? error.message : String(error);
 		} finally {
 			if (id === playRequest) loading = false;
 		}
 	}
 
 	function stop(): void {
-		playRequest++; // cancel any in-flight start
+		if (soloListener) {
+			const windows = soloListener.stop();
+			if (observationTrace) observationTrace = { ...observationTrace, windows };
+			soloListener = null;
+		}
+		playRequest++; // Capture reads the final audio-clock position before invalidation.
+		if (listening) observationStatus = observationTrace?.windows.length ? 'Take stopped' : 'No captured observations';
+		listening = false;
+		loading = false;
 		disposeBackingParts();
 		toneModule?.getTransport().stop();
 		playing = false;
@@ -153,21 +221,59 @@
 
 	/** Render parameters changed: the last bounce no longer represents them. */
 	async function onRenderParamsChanged(): Promise<void> {
+		const wasListening = listening;
+		if (wasListening) stop();
+		observationTrace = null;
+		replayingObservations = false;
+		observationStatus = 'No captured observations';
 		clearBounce();
-		await restartIfPlaying();
+		if (!wasListening) await restartIfPlaying();
+	}
+
+	async function listenToPass(): Promise<void> {
+		if (listening) { stop(); return; }
+		stop();
+		clearBounce();
+		replayingObservations = false;
+		observationTrace = null;
+		soloScenario = 'unavailable';
+		listening = true;
+		observationStatus = 'Waiting for microphone';
+		await start(true);
+	}
+
+	async function replayObservations(): Promise<void> {
+		if (listening || recordedFeatures.length === 0) return;
+		stop();
+		clearBounce();
+		replayingObservations = true;
+		await start();
+	}
+
+	function cancelCaptureForMixChange(): void {
+		// The schedule reference belongs to one fixed audible take.
+		if (listening) {
+			stop();
+			observationTrace = null;
+			observationStatus = 'No captured observations';
+		}
+		clearBounce();
 	}
 
 	function updateMix(key: keyof BackingMixLevels, value: number): void {
+		cancelCaptureForMixChange();
 		mix = { ...mix, [key]: value };
 		setBackingMix({ [key]: value });
 	}
 
 	function resetMix(): void {
+		cancelCaptureForMixChange();
 		mix = { ...DEFAULT_BACKING_MIX };
 		setBackingMix(mix);
 	}
 
 	function updateVolume(value: number): void {
+		cancelCaptureForMixChange();
 		volume = value;
 		setBackingTrackVolume(value);
 	}
@@ -198,7 +304,7 @@
 			if (id !== bounceRequest) return; // superseded by a param change or newer bounce
 			if (bounceUrl) URL.revokeObjectURL(bounceUrl);
 			bounceUrl = URL.createObjectURL(result.blob);
-			bounceName = result.filename.replace('.wav', `-${orchestration}-${soloScenario}.wav`);
+			bounceName = result.filename.replace('.wav', `-${orchestration}-${effectiveScenario}.wav`);
 		} catch (err) {
 			if (id === bounceRequest) bounceError = err instanceof Error ? err.message : String(err);
 		} finally {
@@ -260,17 +366,18 @@
 		const generated = generateForBounce(bounceParams());
 		downloadBlob(
 			JSON.stringify({ buildVersion: version, phraseId: phrase.id, style, tempo, swing: settings.swing,
-				instrument, mix, orchestration, soloScenario, soloFeatures,
+				instrument, mix, orchestration, soloScenario: effectiveScenario, soloFeatures,
+				soloObservationTrace: observationTrace,
 				performanceForm: phrase.performanceForm, ...generated }, null, 1),
-			`events-${phrase.id.replace(/[^a-zA-Z0-9-]/g, '_')}-${tempo}-${orchestration}-${soloScenario}.json`
+			`events-${phrase.id.replace(/[^a-zA-Z0-9-]/g, '_')}-${tempo}-${orchestration}-${effectiveScenario}.json`
 		);
 	}
 
 	const pct = (v: number) => `${Math.round(v * 100)}%`;
 
 	onDestroy(() => {
-		if (playing) stop();
-		if (bounceUrl) URL.revokeObjectURL(bounceUrl);
+		stop(); // Also invalidate a start awaiting samples or microphone permission.
+		clearBounce();
 	});
 </script>
 
@@ -301,11 +408,11 @@
 	<section class="rounded-lg bg-[var(--color-bg-secondary)] p-4 space-y-4">
 		<div class="flex flex-wrap items-end gap-4">
 			<button
-				onclick={() => (playing ? stop() : start())}
-				disabled={loading}
+				onclick={() => (playing || loading ? stop() : start())}
+				disabled={listening}
 				class="rounded-full bg-[var(--color-accent)] text-white px-6 py-2 font-semibold hover:bg-[var(--color-accent-hover)] transition-colors disabled:opacity-50"
 			>
-				{loading ? 'Loading…' : playing ? 'Stop' : 'Play loop'}
+				{loading ? 'Cancel loading' : playing ? 'Stop' : 'Play loop'}
 			</button>
 
 			<label class="text-sm">
@@ -347,7 +454,7 @@
 			<label class="text-sm">
 				<span class="block text-[var(--color-text-secondary)] mb-1">Soloist scenario</span>
 				<select bind:value={soloScenario} onchange={onRenderParamsChanged} data-testid="lab-solo-scenario"
-					disabled={orchestration !== 'coordinated' || style !== 'swing'}
+					disabled={listening || orchestration !== 'coordinated' || style !== 'swing'}
 					class="rounded bg-[var(--color-bg-tertiary)] px-2 py-1.5 max-w-64 disabled:opacity-50">
 					{#each LAB_SOLO_SCENARIOS as scenario (scenario.id)}
 						<option value={scenario.id}>{scenario.label}</option>
@@ -382,7 +489,11 @@
 		</div>
 
 		<p class="text-xs text-[var(--color-text-secondary)]" data-testid="lab-ensemble-scope">
-			{#if orchestration === 'coordinated' && style === 'swing'}
+			{#if replayingObservations}
+				Recorded microphone observations drive this coordinated replay. The captured take was not adapted live.
+			{:else if listening}
+				The band plays its fixed plan while the microphone measures completed bars. Replay becomes available after the take.
+			{:else if orchestration === 'coordinated' && style === 'swing'}
 				Coordinated swing is a listening preview. {LAB_SOLO_SCENARIOS.find((scenario) => scenario.id === soloScenario)?.hint}
 			{:else}
 				Original accompaniment. Coordinated planning and scripted observations apply to swing 4/4 only.
@@ -433,6 +544,37 @@
 				/>
 			</label>
 		</div>
+	</section>
+
+	<section class="rounded-lg bg-[var(--color-bg-secondary)] p-4 space-y-3">
+		<h2 class="text-sm font-semibold">Listen to a solo · capture &amp; replay</h2>
+		<p class="text-xs text-[var(--color-text-secondary)]">
+			Use headphones and a quiet room. Capture one pass to measure activity and rests from your microphone;
+			only feature summaries stay in this page, with no audio recording or upload. Uncertain input is marked unknown.
+			The band can respond on replay; it does not adapt during this take.
+		</p>
+		<div class="flex flex-wrap gap-3">
+			<button data-testid="lab-listen" onclick={listenToPass}
+				disabled={!listening && (orchestration !== 'coordinated' || style !== 'swing')}
+				class="rounded-full bg-[var(--color-accent)] text-white px-4 py-1.5 text-sm font-semibold disabled:opacity-50">
+				{listening ? (loading ? 'Cancel microphone request' : 'Stop listening') : 'Listen to one pass'}
+			</button>
+			<button data-testid="lab-replay-observations" onclick={replayObservations}
+				disabled={listening || recordedFeatures.length === 0}
+				class="rounded-full bg-[var(--color-bg-tertiary)] px-4 py-1.5 text-sm disabled:opacity-50">
+				Replay observations
+			</button>
+		</div>
+		<p data-testid="lab-observation-status" role="status" class="text-sm">
+			{observationStatus}{observationTrace?.windows.length ? ` · ${observationTrace.windows.length}/${observationTrace.totalBars} bars observed · ${recordedFeatures.length} usable for replay` : ''}
+		</p>
+		{#if latestObservation}
+			<p class="text-xs text-[var(--color-text-secondary)]">
+				Bar {latestObservation.barIndex + 1}: {latestObservation.status} · {latestObservation.reason}.
+				{Math.round(latestObservation.coverage * 100)}% frame coverage.
+			</p>
+		{/if}
+		{#if playError}<p role="alert" class="text-sm text-red-500">{playError}</p>{/if}
 	</section>
 
 	<!-- ── Bounce + A/B ───────────────────────────────────── -->
@@ -493,8 +635,8 @@
 	<!-- ── Listening checklist ────────────────────────────── -->
 	<section class="rounded-lg bg-[var(--color-bg-secondary)] p-4 space-y-4">
 		<h2 class="text-sm font-semibold text-[var(--color-text-secondary)]">Listening checklist</h2>
-		{#key `${preset.id}-${style}-${tempo}-${safeSeed}-${orchestration}-${soloScenario}`}
-			<ListeningChecklist presetLabel={preset.label} style={style} {tempo} seed={safeSeed} {orchestration} {soloScenario} buildVersion={version} />
+		{#key `${preset.id}-${style}-${tempo}-${safeSeed}-${orchestration}-${effectiveScenario}-${observationTrace?.sessionId ?? 'none'}`}
+			<ListeningChecklist presetLabel={preset.label} style={style} {tempo} seed={safeSeed} {orchestration} soloScenario={effectiveScenario} buildVersion={version} />
 		{/key}
 	</section>
 

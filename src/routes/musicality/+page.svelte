@@ -67,7 +67,7 @@
 	<section class="audit-note" aria-labelledby="audit-title">
 		<div>
 			<h2 id="audit-title">Where we are</h2>
-			<p>The rhythm section now develops piano and drum motifs, bass launches and shared phrasing. Compare the scoped behavior in the listening lab.</p>
+			<p>Live microphone observation now records qualified density and rest evidence for an accompaniment replay after the take. Compare the scoped behavior in the listening lab.</p>
 		</div>
 		<div class="audit-detail">
 			<p><strong>Implementation is separate from musical acceptance.</strong> “Implemented” means the core device is reachable. “Partial” identifies a missing behavior or selection condition. Test references are evidence to inspect, not a claim that this audit ran them. Listening acceptance of this specification is still pending.</p>
@@ -75,9 +75,9 @@
 		</div>
 	</section>
 	<aside class="foundation-note" aria-labelledby="foundation-title">
-		<h2 id="foundation-title">Drummer phrasing · listening review pending</h2>
-		<p>Coordinated swing 4/4 now carries ride rhythms across two to four bars and develops selected drum commentary through repetition, displacement and changes of sound. A recent piano rhythm can become a drum answer. Whole gestures respect available space and hand/foot occupancy; event exports explain accepted and withheld choices.</p>
-		<p>This builds on piano motifs, bass launches, response ownership and shared timing. Solo observations remain scripted inputs. Live listening, rolling scheduling and instrument memory across playback loops remain to build. Practice uses the original mode while the new mode awaits listening acceptance.</p>
+		<h2 id="foundation-title">Live observations and replay · listening review pending</h2>
+		<p>The lab can capture one microphone take, show qualified activity and rests, and use the recorded evidence in a new coordinated swing 4/4 replay. The accompaniment stays fixed during the take. An exportable feature trace explains which observations were accepted or left unknown.</p>
+		<p>Capture assumes headphones; its input thresholds depend on microphone gain. Uncertain input is not silence. Register and dynamics are diagnostic only. Rolling adaptation and instrument memory across playback loops remain to build. Practice uses the original mode while the new mode awaits listening acceptance.</p>
 		<div class="foundation-links"><a href="/diagnostics/backing-mixer">Compare Original and Coordinated in the lab →</a><a href="/docs/architecture/musicality">Read the staged roadmap →</a></div>
 	</aside>
 

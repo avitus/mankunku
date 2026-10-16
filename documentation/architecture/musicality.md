@@ -12,10 +12,11 @@ The current foundation provides:
 4. Restorable planner memory and correlated phrase timing. Planning can resume at a contiguous bar boundary from a versioned JSON checkpoint; the three players share bounded phrase motion with their own placement and smaller event residuals.
 5. Scoped bass and piano development. Selected piano phrases reuse and transform an existing rhythm; eligible two-bar bass passages aim at the root of a known following chorus. Event exports include the device decisions and reasons for withholding them.
 6. Drummer phrasing within the current kit. Two-to-four-bar ride cells and selected commentary motifs develop through repetition, displacement and orchestration. A previous bar of emitted piano attacks can supply a drum answer; the accepted kit strokes are included in the trace.
+7. Live observation and recorded-feature replay in the lab. A finite microphone take produces qualified density/rest evidence and an inspectable trace; a coordinated replay generated after the take can use that evidence.
 
 Coordinated generation currently applies to **swing in 4/4**, selected in the [listening lab](/diagnostics/backing-mixer). Ordinary practice keeps the original orchestration mode until the comparison has received listening acceptance. Both modes consume corrected explicit form metadata where available. The lab supports original/coordinated comparison, variation seeds, WAV bounce and event/decision export.
 
-Optional solo observations are an input contract and can be scripted for tests. They are **not a live microphone connection**. The complete timeline is still generated before playback; looping repeats that timeline. Neither the real-time adaptation milestone nor the complete vocabulary specification is finished.
+The lab supports scripted observations and bounded live microphone capture. **The accompaniment does not change during the captured take.** Qualified observations can drive a newly generated replay afterward. Each performance is still generated before playback; looping repeats that timeline. Rolling adaptation and the complete vocabulary specification remain unfinished.
 
 ## What the existing architecture provides
 
@@ -30,7 +31,7 @@ The foundation preserves instrument-specific musical knowledge and inserts an ex
 | Stage | Owns | Must not own |
 | --- | --- | --- |
 | Performance form | Performed head/solo passes, section occurrences, source provenance, 2/4/8-bar position, boundary strength | Guessing a chorus from a repeated section ID |
-| Observation adapter — planned | Causal solo activity, density, phrase-end/rest confidence, register and freshness | Scoring, musical decisions or interpreting unavailable input as silence |
+| Observation adapter — partly implemented | Bounded microphone evidence, activity/density/rest qualification, coverage and freshness; diagnostic register/dynamics | Scoring, musical decisions, claiming phrase recognition or interpreting unavailable input as silence |
 | Ensemble planner | Shared phrase intention, energy, density, tension, response owner, silence reasons, setup/arrival reservations | Audio APIs or arbitrary deletion of already rendered notes |
 | Instrument planners | Eligible figures, voicings, bass targets and paths, ride phrases and commentary within the ensemble plan | Competing for a response already assigned to another player |
 | Resolver/validator — partly implemented | Shared arrival timing, attack budgets, reserved silence, simultaneous drum-limb occupancy, event legality | Repairing a bad arrangement only by thinning random notes |
@@ -91,7 +92,11 @@ The current kit uses a fixed assignment: ride, bell, crash and stick hi-hat shar
 
 `SoloFeature` includes decision bar, observation bar, source, confidence, note density and rest duration. Only finite, sufficiently confident, fresh evidence can affect the plan. Missing, invalid, stale or future evidence falls back to accompaniment-led form decisions. Future features cannot change earlier decisions.
 
-This narrow contract deliberately starts with density and rests. The optional `phraseEnded` field is carried but does not yet influence decisions. Pitch/register, contour and rhythmic motifs need separate validated features. Microphone input is particularly vulnerable to hearing the generated backing itself; its adapter must use the committed accompaniment timeline and independently qualified confidence before making the band respond.
+The first live-observation stage uses `solo-observer.ts` for bounded feature accumulation and `solo-listener.ts` for the lab's microphone lifecycle. Capture accompanies one finite pass. Completed bars can qualify as active or resting, or remain unknown because of insufficient coverage, input loss or ambiguous backing matches. The trace retains the evidence behind each result, and only qualified completed evidence is eligible for a later decision bar. Only feature summaries stay in the page; raw audio is neither recorded nor uploaded. The lab can export that bounded trace and generate a coordinated replay from its density/rest features after the take. The replay uses the captured evidence; it does not claim to react to new playing during playback.
+
+Headphones are an operating assumption, and the observer uses fixed engineering thresholds that depend on microphone gain and device characteristics. It does not calibrate the room or separate sound sources. A rest requires healthy frame coverage below the quiet threshold. The committed accompaniment schedule helps identify suspicious nonquiet matches, but uncertainty remains unknown rather than becoming a soloist rest. Fast or busy backing can leave too little independently supported activity for a usable observation. A held note is activity without necessarily being a dense run; a missing pitch estimate alone cannot establish silence.
+
+Register and dynamics are diagnostic observations in this stage and do not steer the accompaniment. The optional `phraseEnded` field still does not establish phrase recognition. MIDI input, reliable solo phrase-end detection, register avoidance, contour and rhythmic imitation remain separate work. Capturing live input is implemented here; changing the accompaniment during that same take is not.
 
 ### Scheduling and scoring boundary
 
@@ -109,6 +114,8 @@ Real-time listening will require a rolling planner with explicit checkpoints:
 
 The commit horizon must be measured against Tone lookahead, renderer scheduling and microphone latency on supported browsers. A fixed number chosen without those measurements would be premature. No LLM or network request belongs in the audio scheduling deadline.
 
+An ensemble checkpoint alone cannot support this transition. Instrument checkpoints must retain piano figure/motif and voicing state, sounding releases, bass pitch history and committed launches, drum phrase state and the previous committed piano onsets. Phrase timing coefficients must remain fixed against the complete known form. Regenerating the full performance and splicing a suffix is insufficient: legacy piano figures consult future budgets, and future silence can affect earlier note durations. The scheduler must distinguish committed attacks, releases and gesture continuations before admitting new observations.
+
 ## Delivery sequence
 
 Every increment stays on `musicality`, updates the ledger in the same change and preserves an original/reference comparison. Small focused commits allow fixes on `dev` to proceed independently; integrate advancing `dev` deliberately and rerun the relevant regressions before a later merge.
@@ -123,7 +130,7 @@ The exact `musicality` branch has a hosted CircleCI setup-workflow guard, so ong
 | 4. Phrase memory and timing | Checkpointable short/medium/performance memory; response and fill history across loops; phrase timing with player offsets and coordinated exceptions | Planner checkpoints and shared phrase timing implemented; cross-loop audio state and listening acceptance pending |
 | 5. Bass and piano development | Multi-bar bass targets/turnarounds, melodic restraint, rhythmic motifs and transformations, then explicit guide/common/top-note objectives | Scoped following-chorus bass launches and within-phrase piano motifs implemented in the lab; broader melodic objectives and listening acceptance pending |
 | 6. Drummer phrasing | 2–4-bar ride phrases, commentary motifs, shared setups, credible limb allocations, expanded kit articulation when needed | Ride/commentary phrasing, recent-piano answers and simultaneous limb occupancy implemented in the lab; broader physical/articulation models and listening acceptance pending |
-| 7. Live listening | Independent activity/rest/register features, confidence and bleed handling, rolling atomic scheduling, safe reset/replay | Input contract only; adapter and scheduler planned |
+| 7. Live listening | Independent activity/rest/register features, confidence and bleed handling, rolling atomic scheduling, safe reset/replay | Partially implemented: 7a live observation and causal recorded-feature replay in the lab; mid-take adaptation, instrument checkpoints and rolling scheduling pending |
 | 8. Structural development and styles | Non-monotonic build/peak/release across choruses; head/solo arrangements; traditional/bebop/post-bop profiles and complexity separate from density | Local phrase movement started; full arc/styles planned |
 | 9. Musical acceptance and rollout | Recorded A/B reviews at multiple tempos/seeds/forms; maintain evidence in ledger; enable ordinary practice only after acceptance | Lab ready; human acceptance pending |
 
