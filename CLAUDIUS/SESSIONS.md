@@ -5435,3 +5435,24 @@ contradictions before approval, all folded in.
   key `N` is free in both editors (`k` is the chord editor).
 - `tours/tune-editor.ts` registered (`data-tour` anchors: tune-chart,
   tune-entry-rail, tune-save); Settings picks it up.
+
+## 2026-10-16 — Score editing phase 5: ranges and the clipboard
+
+- `selectionEnd` beside the anchor; Shift+←/→ (`extendSelection`, clamped,
+  may run past the anchor), Shift+click (`selectRangeTo`; abcjs's
+  clickListener hands the MouseEvent as its 6th argument, so
+  `NotationDisplay.onSelect` now carries `shiftKey`), `rangeBounds()` sorted.
+  Delete on a range → rests, coalesced; Ctrl/⌘⌫ → remove the span (tune:
+  `removeSpanInSection`, which the single-element path now calls too);
+  ↑/↓ transpose the range as one (refused whole if any note would leave
+  the written range; ties between moved notes survive); letters on a range
+  act on the anchor and drop the range.
+- Clipboard: module state shared by both editors and outliving `reset`,
+  so a passage copied from one lick pastes into another or into a tune
+  (`clearClipboard` exists for tests; the first paste test failed because
+  a previous test's copy was still there). Paste overwrites from the
+  selection's start — or appends with no edit selection — leaving out what
+  won't fit; R repeats all-or-nothing right after the selection; both
+  select what they wrote. Ranges never cross pages in the tune editor.
+- The chart highlights every element between the two ends
+  (`selectedEndIndex`); the status lines read "n selected".

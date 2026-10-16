@@ -11,7 +11,9 @@ import {
 	deleteSelectedNote,
 	setDuration,
 	toggleTriplet,
-	toggleInsertMode
+	toggleInsertMode,
+	extendSelection,
+	rangeBounds
 } from '$lib/state/step-entry.svelte';
 import {
 	PAGE_BARS,
@@ -47,7 +49,8 @@ import {
 	selectFirstInSection,
 	selectLastInSection,
 	insertBar,
-	deleteBar
+	deleteBar,
+	selectRangeToFlattened
 } from '$lib/state/tune-entry.svelte';
 
 // ─── Mock localStorage (settings persist on write) ────────────────────
@@ -1454,5 +1457,49 @@ describe('insertBar / deleteBar', () => {
 		setSectionBars(0, 1);
 		deleteBar(0, 0);
 		expect(tuneEntry.sections[0].bars).toBe(1);
+	});
+});
+
+// ─── Group 13: phase 5 — ranges in the tune editor ───────────────────────
+
+describe('ranges in the tune editor', () => {
+	function line(): void {
+		loadFromTune(sheet([{
+			label: 'A',
+			bars: 8,
+			notes: [
+				{ pitch: 60, duration: [1, 4], offset: [0, 1] },
+				{ pitch: 62, duration: [1, 4], offset: [1, 4] },
+				{ pitch: 64, duration: [1, 4], offset: [1, 2] },
+				{ pitch: 67, duration: [1, 4], offset: [3, 4] },
+				{ pitch: 65, duration: [1, 4], offset: [4, 1] }
+			],
+			harmony: []
+		}]), INSTRUMENTS['concert']);
+	}
+
+	it('Shift+click within the page extends the range; on another page it is a plain select', () => {
+		line();
+		cursorToFlattened(1); // D
+		selectRangeToFlattened(3); // G, same page
+		expect(rangeBounds()).toEqual({ start: 1, end: 3 });
+		selectRangeToFlattened(4); // F on page 1: plain select there
+		expect(tuneEntry.currentPage).toBe(1);
+		expect(rangeBounds()).toBeNull();
+		expect(stepEntry.enteredNotes[stepEntry.selectedNoteIndex!].pitch).toBe(65);
+	});
+
+	it('Delete on a range rests the passage in place; Ctrl/⌘+Backspace removes its time section-wide', () => {
+		line();
+		cursorToFlattened(1);
+		extendSelection(1); // D E
+		expect(tuneDeleteSelected()).toBe('rested');
+		expect(stepEntry.enteredNotes.map((n) => n.pitch)).toEqual([60, null, 67]);
+		expect(compareFractions(stepEntry.enteredNotes[1].duration, [1, 2])).toBe(0);
+		cursorToFlattened(1); // the rest
+		extendSelection(1); // rest + G
+		expect(tuneRemoveSelectedTime()).toBe('removed');
+		const pitched = tuneEntry.sections[0].notes.filter((n) => n.pitch !== null).map((n) => [n.pitch, fractionToFloat(n.offset)]);
+		expect(pitched).toEqual([[60, 0], [65, 3.25]]); // F pulled from bar 5 onto bar 4, beat 2
 	});
 });

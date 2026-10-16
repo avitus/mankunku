@@ -80,6 +80,12 @@ export const stepEntry = $state({
 	// pushes everything from there on later, instead of replacing it. `I`
 	// toggles it; `reset` turns it off.
 	insertMode: false,
+	// Range selection (phase 5, 2026-10-16): when non-null, the selection runs
+	// from the anchor `selectedNoteIndex` to this index inclusive, either way
+	// round (Shift+←/→, Shift+click). Any single select clears it.
+	selectionEnd: null as number | null,
+	/** Something has been copied (Ctrl/⌘+C or R), so paste is live. */
+	hasClipboard: false,
 	// When non-null, the page is editing an existing lick rather than creating
 	// a new one. The save path replaces the lick at this id and preserves the
 	// snapshot of source/tags/category captured when the lick was loaded.
@@ -302,6 +308,7 @@ export function isEditSelection(): boolean {
 export function markEntered(index: number): void {
 	stepEntry.selectedNoteIndex = index;
 	stepEntry.selectionMode = 'entry';
+	stepEntry.selectionEnd = null;
 }
 
 /** Select the element after `index` for the next in-place edit, or clear the selection past the end. */
@@ -431,6 +438,7 @@ function resolvePitchedTargetIndex(): number | null {
  * letter keeps its length. `markEntered` is the entry-edge counterpart.
  */
 export function selectNote(index: number | null, mode: 'edit' | 'entry' = 'edit'): void {
+	stepEntry.selectionEnd = null;
 	if (index === null) {
 		stepEntry.selectedNoteIndex = null;
 		stepEntry.selectionMode = 'entry';
@@ -441,6 +449,43 @@ export function selectNote(index: number | null, mode: 'edit' | 'entry' = 'edit'
 	stepEntry.selectedNoteIndex = index;
 	stepEntry.selectionMode = mode;
 	if (mode === 'edit') syncDurationTo(notes[index]);
+}
+
+/** The inclusive range the selection covers, sorted; null for a single (or no) selection. */
+export function rangeBounds(): { start: number; end: number } | null {
+	const anchor = stepEntry.selectedNoteIndex;
+	const end = stepEntry.selectionEnd;
+	if (anchor === null || end === null || end === anchor) return null;
+	return { start: Math.min(anchor, end), end: Math.max(anchor, end) };
+}
+
+/**
+ * Shift+←/→: grow (or shrink, past the anchor) the range one element at a
+ * time, clamped to the buffer. With no selection, start one at the first or
+ * last element. Always edit intent.
+ */
+export function extendSelection(direction: 1 | -1): void {
+	const notes = stepEntry.enteredNotes;
+	if (notes.length === 0) return;
+	if (stepEntry.selectedNoteIndex === null) {
+		selectNote(direction > 0 ? 0 : notes.length - 1, 'edit');
+	}
+	const anchor = stepEntry.selectedNoteIndex as number;
+	const current = stepEntry.selectionEnd ?? anchor;
+	stepEntry.selectionEnd = Math.max(0, Math.min(notes.length - 1, current + direction));
+	stepEntry.selectionMode = 'edit';
+}
+
+/** Shift+click: run the range from the anchor to `index`; with no anchor, a plain select. */
+export function selectRangeTo(index: number): void {
+	const notes = stepEntry.enteredNotes;
+	if (index < 0 || index >= notes.length) return;
+	if (stepEntry.selectedNoteIndex === null) {
+		selectNote(index, 'edit');
+		return;
+	}
+	stepEntry.selectionEnd = index;
+	stepEntry.selectionMode = 'edit';
 }
 
 /**
@@ -490,6 +535,19 @@ export function selectNext(): void {
  * remove-time gesture (Ctrl/⌘ + Backspace) for any element.
  */
 export function deleteSelectedNote(): void {
+	const range = rangeBounds();
+	if (range) {
+		// MuseScore: Del on a range replaces the passage with rests, which the
+		// engraving regroups by the meter.
+		let out = stepEntry.enteredNotes;
+		for (let i = range.start; i <= range.end; i++) {
+			if (out[i].pitch !== null) out = replaceWithRest(out, i);
+		}
+		const { notes: merged, indexMap } = coalesceRests(out);
+		stepEntry.enteredNotes = merged;
+		selectNote(indexMap[range.start], 'edit');
+		return;
+	}
 	const notes = stepEntry.enteredNotes;
 	const target = resolveDeleteTargetIndex();
 	if (target === null) return;
@@ -526,6 +584,14 @@ function removeElementTime(target: number): void {
  * with no selection, like `deleteSelectedNote`.
  */
 export function removeSelectedTime(): void {
+	const range = rangeBounds();
+	if (range) {
+		let out = stepEntry.enteredNotes;
+		for (let i = range.end; i >= range.start; i--) out = removeTime(out, i);
+		stepEntry.enteredNotes = out;
+		selectNote(range.start < out.length ? range.start : null, 'edit');
+		return;
+	}
 	const target = resolveDeleteTargetIndex();
 	if (target === null) return;
 	removeElementTime(target);
@@ -631,6 +697,7 @@ export function reset(): void {
 	stepEntry.modeTouched = false;
 	stepEntry.practiceTag = false;
 	stepEntry.selectedNoteIndex = null;
+	stepEntry.selectionEnd = null;
 	stepEntry.selectionMode = 'entry';
 	stepEntry.insertMode = false;
 	stepEntry.editingId = null;
@@ -684,6 +751,19 @@ export function loadRecordingDraft(phrase: Phrase, instrument: InstrumentConfig)
  */
 export function adjustSelectedNotePitch(semitones: number): void {
 	const notes = stepEntry.enteredNotes;
+	const range = rangeBounds();
+	if (range) {
+		// Transpose the passage as one: refused whole if any note would leave
+		// the written range; ties between moved notes survive.
+		const trans = entryTransposition();
+		const pitched = notes.slice(range.start, range.end + 1).filter((n) => n.pitch !== null);
+		if (pitched.some((n) => !isInEntryRange((n.pitch as number) + semitones + trans))) return;
+		for (const n of pitched) n.pitch = (n.pitch as number) + semitones;
+		for (let i = 0; i < notes.length - 1; i++) {
+			if (notes[i].tied && notes[i].pitch !== notes[i + 1].pitch) notes[i].tied = false;
+		}
+		return;
+	}
 	const target = resolvePitchedTargetIndex();
 	if (target === null) return;
 	const note = notes[target];
@@ -780,6 +860,93 @@ export function selectFirst(): void {
 export function selectLast(): void {
 	const n = stepEntry.enteredNotes.length;
 	if (n > 0) selectNote(n - 1, 'edit');
+}
+
+// ─── Clipboard (phase 5, 2026-10-16) ─────────────────────────────────────
+
+/** The copied passage, offsets relative to its first element. Module state: both editors share it. */
+let clipboard: Note[] | null = null;
+
+/** The selection as an inclusive index range — the range, or the single selected element. */
+function selectionSpan(): { start: number; end: number } | null {
+	const range = rangeBounds();
+	if (range) return range;
+	const sel = stepEntry.selectedNoteIndex;
+	return sel !== null && sel < stepEntry.enteredNotes.length ? { start: sel, end: sel } : null;
+}
+
+/** Elements `start..end` with offsets made relative to the first. */
+function clipOf(start: number, end: number): Note[] {
+	const notes = stepEntry.enteredNotes;
+	const base = notes[start].offset;
+	return notes.slice(start, end + 1).map((n) => ({ ...n, offset: subtractFractions(n.offset, base) }));
+}
+
+/**
+ * Write a clip at `target`, each element overwriting what its span covers
+ * (`spliceElement`). Elements that would run past the end of the bars are
+ * left out — or, `allOrNothing`, the whole write is refused. Ties into what
+ * follows are repaired. The written range is selected. Returns the count
+ * written.
+ */
+function writeClip(clip: Note[], target: Fraction, allOrNothing: boolean): number {
+	const capacity = getMaxCapacity();
+	const fits = clip.filter((el) => compareFractions(addFractions(addFractions(target, el.offset), el.duration), capacity) <= 0);
+	if (fits.length === 0 || (allOrNothing && fits.length < clip.length)) return 0;
+	let out = stepEntry.enteredNotes;
+	let first = -1;
+	let last = -1;
+	for (const el of fits) {
+		const written = spliceElement(out, { ...el, offset: addFractions(target, el.offset) });
+		out = written.notes;
+		if (first < 0) first = written.index;
+		last = written.index;
+	}
+	for (let i = 0; i < out.length - 1; i++) {
+		if (out[i].tied && (out[i + 1].pitch !== out[i].pitch || compareFractions(out[i + 1].offset, addFractions(out[i].offset, out[i].duration)) !== 0)) out[i].tied = false;
+	}
+	if (out.length > 0 && out[out.length - 1].tied) out[out.length - 1].tied = false;
+	stepEntry.enteredNotes = out;
+	stepEntry.selectedNoteIndex = first;
+	stepEntry.selectionEnd = last > first ? last : null;
+	stepEntry.selectionMode = 'edit';
+	return fits.length;
+}
+
+/** Forget the copied passage (tests; the clipboard otherwise outlives `reset`, so a lick can be pasted into another, or into a tune). */
+export function clearClipboard(): void {
+	clipboard = null;
+	stepEntry.hasClipboard = false;
+}
+
+/** Ctrl/⌘+C: copy the selected passage (the range, or the one selected element). */
+export function copySelection(): boolean {
+	const span = selectionSpan();
+	if (!span) return false;
+	clipboard = clipOf(span.start, span.end);
+	stepEntry.hasClipboard = true;
+	return true;
+}
+
+/**
+ * Ctrl/⌘+V: paste the copied passage from the selection's start (overwriting,
+ * MuseScore-style), or at the end with no edit selection; what would run
+ * past the bars is left out. The pasted passage is selected.
+ */
+export function pasteClipboard(): boolean {
+	if (!clipboard || clipboard.length === 0) return false;
+	const span = isEditSelection() ? selectionSpan() : null;
+	const target = span ? stepEntry.enteredNotes[span.start].offset : getCurrentCursorOffset();
+	return writeClip(clipboard, target, false) > 0;
+}
+
+/** R: repeat the selected passage right after itself (all of it, or nothing); the copy is selected. */
+export function repeatSelection(): boolean {
+	const span = selectionSpan();
+	if (!span) return false;
+	const last = stepEntry.enteredNotes[span.end];
+	const target = addFractions(last.offset, last.duration);
+	return writeClip(clipOf(span.start, span.end), target, true) > 0;
 }
 
 export function setBarCount(n: number): void {

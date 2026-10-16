@@ -45,6 +45,8 @@ import {
 	removeSelectedTime,
 	isEditSelection,
 	markEntered,
+	rangeBounds,
+	selectRangeTo,
 	canAddDuration,
 	getCurrentCursorOffset,
 	getRemainingCapacity,
@@ -1082,22 +1084,44 @@ function isLeadInRest(bufferIdx: number): boolean {
 function removeTimeInSection(bufferIdx: number): void {
 	const el = stepEntry.enteredNotes[bufferIdx];
 	if (!el) return;
-	const local = el.offset;
-	const absOffset = addFractions(pageStartFraction(tuneEntry.currentPage), local);
-	const { pitch, duration } = el;
+	removeSpanInSection(el.offset, addFractions(el.offset, el.duration));
+}
+
+/**
+ * Remove the page-local span [localStart, localEnd) from the SECTION with
+ * everything in it: stored elements inside it go, one running in from before
+ * is trimmed at its start, one running out past its end keeps its tail, and
+ * every later note moves earlier by the span's length, across pages. Harmony
+ * never moves. The page reloads with the element now at the span's start
+ * selected (edit intent), else the one ending there.
+ */
+function removeSpanInSection(localStart: Fraction, localEnd: Fraction): void {
+	const local = localStart;
+	const pageStart = pageStartFraction(tuneEntry.currentPage);
+	const absStart = addFractions(pageStart, localStart);
+	const absEnd = addFractions(pageStart, localEnd);
+	const span = subtractFractions(absEnd, absStart);
 	commitBuffer();
 	const sec = tuneEntry.sections[tuneEntry.currentSection];
 	if (!sec) return;
-	const idx = sec.notes.findIndex(
-		(n) =>
-			n.pitch === pitch &&
-			compareFractions(n.offset, absOffset) === 0 &&
-			compareFractions(n.duration, duration) === 0
-	);
-	if (idx >= 0) {
-		sec.notes = removeTime(sec.notes, idx);
-		sanitizeTies();
+	const kept: Note[] = [];
+	for (const n of sec.notes) {
+		const nEnd = addFractions(n.offset, n.duration);
+		if (compareFractions(nEnd, absStart) <= 0) {
+			kept.push(n);
+		} else if (compareFractions(n.offset, absEnd) >= 0) {
+			kept.push({ ...n, offset: subtractFractions(n.offset, span) });
+		} else if (compareFractions(n.offset, absStart) < 0) {
+			const head: Note = { ...n, duration: subtractFractions(absStart, n.offset) };
+			if (head.tied) head.tied = false;
+			kept.push(head);
+			if (compareFractions(nEnd, absEnd) > 0) kept.push({ ...n, offset: absStart, duration: subtractFractions(nEnd, absEnd) });
+		} else if (compareFractions(nEnd, absEnd) > 0) {
+			kept.push({ ...n, offset: absStart, duration: subtractFractions(nEnd, absEnd) });
+		}
 	}
+	sec.notes = kept.sort((a, b) => compareFractions(a.offset, b.offset));
+	sanitizeTies();
 	loadBuffer(tuneEntry.currentSection, tuneEntry.currentPage);
 	const notes = stepEntry.enteredNotes;
 	let sel = notes.findIndex((n) => compareFractions(n.offset, local) === 0);
@@ -1154,6 +1178,12 @@ export function tuneDeleteSelected(): TuneDeleteResult {
 	if (!melodyEditingSupported()) return 'empty';
 	const notes = stepEntry.enteredNotes;
 	if (notes.length === 0) return 'empty';
+	if (rangeBounds()) {
+		// A range rests the whole passage in place (MuseScore's Del on a range).
+		deleteSelectedNote();
+		tuneEntry.entryCursor = null;
+		return 'rested';
+	}
 	const sel = stepEntry.selectedNoteIndex;
 	const target = sel !== null && sel >= 0 && sel < notes.length ? sel : null;
 	const sectionEnd = bufferEndIsSectionEnd();
@@ -1189,6 +1219,13 @@ export function tuneRemoveSelectedTime(): TuneDeleteResult {
 	if (!melodyEditingSupported()) return 'empty';
 	const notes = stepEntry.enteredNotes;
 	if (notes.length === 0) return 'empty';
+	const range = rangeBounds();
+	if (range) {
+		if (isLeadInRest(range.start)) return 'lead-in';
+		const last = notes[range.end];
+		removeSpanInSection(notes[range.start].offset, addFractions(last.offset, last.duration));
+		return 'removed';
+	}
 	const sel = stepEntry.selectedNoteIndex;
 	const target = sel !== null && sel >= 0 && sel < notes.length ? sel : null;
 	if (target === null) {
@@ -1201,6 +1238,22 @@ export function tuneRemoveSelectedTime(): TuneDeleteResult {
 	if (isLeadInRest(target)) return 'lead-in';
 	removeTimeInSection(target);
 	return 'removed';
+}
+
+/**
+ * Shift+click on the chart: extend the range to the clicked element when it
+ * lies in the current page's buffer (ranges never cross pages); otherwise a
+ * plain select there (`cursorToFlattened`).
+ */
+export function selectRangeToFlattened(flatIdx: number): boolean {
+	if (!melodyEditingSupported()) return cursorToFlattened(flatIdx);
+	const base = flattenedBufferBase();
+	const local = flatIdx - base;
+	if (stepEntry.selectedNoteIndex !== null && local >= 0 && local < stepEntry.enteredNotes.length) {
+		selectRangeTo(local);
+		return true;
+	}
+	return cursorToFlattened(flatIdx);
 }
 
 /** All stored notes in flattened (section) order. Trustworthy post-commit. */

@@ -168,3 +168,36 @@ test('insert mode puts a note in front of the selected one and pushes the rest l
 	await page.keyboard.press('i');
 	await expect(page.getByTestId('insert-badge')).toHaveCount(0);
 });
+
+test('Shift+click selects a range; Delete rests the whole passage and R repeats it', async ({ page }) => {
+	await page.goto('/licks/editor');
+	const quarter = page.getByRole('button', { name: 'Quarter Note' });
+	await expect(async () => {
+		await quarter.click();
+		await expect(quarter).toHaveAttribute('aria-pressed', 'true', { timeout: 250 });
+	}).toPass({ timeout: 10_000 });
+	const notes = page.locator(`${CHART_SVG} .abcjs-note`);
+	const noteheads = page.locator(`${CHART_SVG} .abcjs-note .abcjs-notehead`);
+	const rests = page.locator(`${CHART_SVG} .abcjs-rest`);
+	for (const key of ['c', 'd', 'e', 'g']) await page.keyboard.press(key);
+	await expect(notes).toHaveCount(4);
+
+	// Click D, Shift+click E: two selected (both highlighted).
+	await noteheads.nth(1).click();
+	await noteheads.nth(2).click({ modifiers: ['Shift'] });
+	await expect(page.getByTestId('range-count')).toHaveText('2 selected');
+	await expect(page.locator(`${CHART_SVG} .abcjs-note.selected-note`)).toHaveCount(2);
+
+	// R repeats the pair right after itself, overwriting what was there (as
+	// paste does): C D E D E — the G on beat 4 is gone under the copied D.
+	await page.keyboard.press('r');
+	await expect(notes).toHaveCount(5);
+	await expect(page.getByTestId('range-count')).toHaveText('2 selected');
+
+	// Delete turns the selected copy into rests — one on beat 4 and one in
+	// bar 2 (rests never merge across a barline) — and selects the first.
+	await page.keyboard.press('Backspace');
+	await expect(notes).toHaveCount(3);
+	await expect(rests).toHaveCount(2);
+	await expect(page.locator(`${CHART_SVG} .abcjs-rest.selected-note`)).toHaveCount(1);
+});

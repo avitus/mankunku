@@ -50,6 +50,7 @@
 		selectLastInSection,
 		insertBar,
 		deleteBar,
+		selectRangeToFlattened,
 		type TuneDeleteResult,
 		setChord,
 		removeChord,
@@ -67,7 +68,12 @@
 		adjustSelectedNotePitch,
 		adjustSelectedNoteDiatonic,
 		flipSelectedNoteSpelling,
-		toggleInsertMode
+		toggleInsertMode,
+		extendSelection,
+		rangeBounds,
+		copySelection,
+		pasteClipboard,
+		repeatSelection
 	} from '$lib/state/step-entry.svelte';
 	import { absoluteBarToSection, clearEditedSuspectBars, nextSuspectBar } from '$lib/tunes/review-bars';
 	import { keyToPitchClass } from '$lib/step-entry/pitch-input';
@@ -133,9 +139,16 @@
 		stepEntry.selectedNoteIndex === null ? null : flattenedBufferBase() + stepEntry.selectedNoteIndex
 	);
 
-	function handlePreviewSelect(flatIndex: number): void {
-		cursorToFlattened(flatIndex);
+	function handlePreviewSelect(flatIndex: number, modifiers?: { shiftKey: boolean }): void {
+		if (modifiers?.shiftKey) selectRangeToFlattened(flatIndex);
+		else cursorToFlattened(flatIndex);
 	}
+
+	/** The other end of a range selection in the chart's flattened indices. */
+	const previewSelectedEndIndex = $derived(
+		stepEntry.selectionEnd === null ? null : flattenedBufferBase() + stepEntry.selectionEnd
+	);
+	const selectedRange = $derived.by(() => { void stepEntry.selectionEnd; void stepEntry.selectedNoteIndex; return rangeBounds(); });
 
 	type BeatPos = { sectionIdx: number; bar: number; beat: number };
 
@@ -352,6 +365,9 @@
 		if ((e.ctrlKey || e.metaKey) && (e.key === 'Backspace' || e.key === 'Delete')) { e.preventDefault(); reportDelete(tuneRemoveSelectedTime()); return; }
 		// MuseScore navigation: Ctrl/⌘+←/→ a bar at a time (preventDefault keeps ⌘← off the browser's Back), Alt+↑/↓ a step of the key.
 		if ((e.ctrlKey || e.metaKey) && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { e.preventDefault(); selectBarAcrossPages(e.key === 'ArrowRight' ? 1 : -1); return; }
+		// Range selection and the clipboard (phase 5): Shift+←/→ extend within the page, Ctrl/⌘ C/V copy and paste.
+		if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') { e.preventDefault(); copySelection(); return; }
+		if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') { e.preventDefault(); pasteClipboard(); return; }
 		if (e.altKey && !e.ctrlKey && !e.metaKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) { e.preventDefault(); adjustSelectedNoteDiatonic(e.key === 'ArrowUp' ? 1 : -1); return; }
 		if (e.ctrlKey || e.metaKey || e.altKey) return;
 		if (e.key === 'Home') { e.preventDefault(); selectFirstInSection(); return; }
@@ -373,8 +389,9 @@
 		if (e.key === '-') { adjustOctave(-1); return; }
 		if (e.key === '+') { tuneEnterTiedNote(); return; }
 		if (e.key === 'k' || e.key === 'K') { openChordEditorAtCursor(); return; }
-		if (e.key === 'ArrowLeft') { e.preventDefault(); selectPrevAcrossPages(); return; }
-		if (e.key === 'ArrowRight') { e.preventDefault(); selectNextAcrossPages(); return; }
+		if (e.key === 'ArrowLeft') { e.preventDefault(); if (e.shiftKey) extendSelection(-1); else selectPrevAcrossPages(); return; }
+		if (e.key === 'ArrowRight') { e.preventDefault(); if (e.shiftKey) extendSelection(1); else selectNextAcrossPages(); return; }
+		if (e.key === 'r' || e.key === 'R') { repeatSelection(); return; }
 		if (e.key === 'Escape') { selectNote(null); clearEntryCursor(); return; }
 		if (e.key === 'ArrowUp') { e.preventDefault(); adjustSelectedNotePitch(e.shiftKey ? 12 : 1); return; }
 		if (e.key === 'ArrowDown') { e.preventDefault(); adjustSelectedNotePitch(e.shiftKey ? -12 : -1); return; }
@@ -445,8 +462,8 @@
 				<nav class="te-sections" aria-label="Sections"><span class="studio-label">Form</span>{#each tuneEntry.sections as section, index}<button class:current={index === tuneEntry.currentSection} aria-pressed={index === tuneEntry.currentSection} onclick={() => jumpToSection(index)}><strong>{section.label || 'Pickup'}</strong><span>{section.bars} bars</span></button>{/each}<button class="te-form-button" onclick={() => formDialog?.showModal()}>Edit form ↗</button></nav>
                 <div class="te-listen"><TuneTransport bind:this={transport} tune={draft} /></div>
                 <div class="td-score-top"><span>Click a note to edit · click a bar to write</span><button aria-pressed={harmonyColors} onclick={() => harmonyColors = !harmonyColors}><i class="td-color-dot" aria-hidden="true"></i>Harmony colors <i class="td-switch" class:active={harmonyColors} aria-hidden="true"></i></button></div>
-				<div class="td-score-well" bind:this={scoreRoot} data-tour="tune-chart"><NotationDisplay tuneOptions={{ omitMasthead: true, barsPerLine: 4 }} bind:this={notationRef} tune={draft} instrument={previewInstrument} selectedIndex={previewSelectedIndex} onSelect={handlePreviewSelect} onBarClick={pos => cursorToBar(pos.sectionIdx, pos.bar)} {chordEditor} rangeMarkers={[...harmonyMarkers, ...reviewMarkers]} frameless /></div>
-				<div class="td-status"><span><i aria-hidden="true"></i>{selectedName ?? 'Ready to write'} · {@render entryStatus()}</span><button onclick={() => { selectNote(null); clearEntryCursor(); }}>Clear selection</button></div>
+				<div class="td-score-well" bind:this={scoreRoot} data-tour="tune-chart"><NotationDisplay tuneOptions={{ omitMasthead: true, barsPerLine: 4 }} bind:this={notationRef} tune={draft} instrument={previewInstrument} selectedIndex={previewSelectedIndex} selectedEndIndex={previewSelectedEndIndex} onSelect={handlePreviewSelect} onBarClick={pos => cursorToBar(pos.sectionIdx, pos.bar)} {chordEditor} rangeMarkers={[...harmonyMarkers, ...reviewMarkers]} frameless /></div>
+				<div class="td-status"><span><i aria-hidden="true"></i>{selectedRange ? `${selectedRange.end - selectedRange.start + 1} selected` : (selectedName ?? 'Ready to write')} · {@render entryStatus()}</span><button onclick={() => { selectNote(null); clearEntryCursor(); }}>Clear selection</button></div>
 			</section>
 			<div class="td-review">			{#if tuneEntry.importReview?.warnings.length}
 				<!-- Import review: the bars the pipeline knows are uncertain -->
@@ -516,5 +533,5 @@
     </section></div><div class="le-dialog-actions"><button class="le-button le-save" onclick={() => settingsDialog?.close()}>Done</button></div></dialog>
     <dialog bind:this={formDialog} class="le-dialog te-form-dialog" aria-labelledby="form-heading"><header><div><p class="studio-label">Tune structure</p><h2 id="form-heading">Form & sections.</h2></div><button aria-label="Close form" onclick={() => formDialog?.close()}>×</button></header><div class="te-form-content"><SectionConfigPanel /></div><div class="le-dialog-actions"><button class="le-button le-save" onclick={() => formDialog?.close()}>Done</button></div></dialog>
 
-	<dialog bind:this={shortcutsDialog} class="le-dialog" aria-labelledby="tune-shortcuts-title"><header><h2 id="tune-shortcuts-title">Keep your hands on the keys.</h2><button aria-label="Close shortcuts" onclick={() => shortcutsDialog?.close()}><EditorIcon name="close" /></button></header><p>Shortcuts work when you’re outside a text field.</p><dl class="le-shortcuts">{#each [['A–G / 0', 'Enter a note / rest — or replace the selected one in place'], ['1–5', 'Note duration — or resize the selected note'], ['T / .', 'Triplet / dotted (resizes a selected note)'], ['[ / ]', 'Flat / sharp'], ['= / −', 'Entry octave'], ['← / →', 'Select previous / next note'], ['↑ / ↓', 'Move pitch by a semitone'], ['Shift + ↑ / ↓', 'Move pitch by an octave'], ['Alt + ↑ / ↓', 'Move pitch by a step of the key'], ['Ctrl/⌘ + ← / →', 'Select the previous / next bar'], ['Home / End', 'First / last note of the section'], ['\\', 'Flip enharmonic spelling'], ['+', 'Tie into a duplicate of the last note — or tie the selected note to the next'], ['K', 'Edit chord at cursor'], ['I', 'Insert mode: new notes push the music along instead of replacing'], ['N', 'Next flagged bar after a PDF import'], ['Esc', 'Stop editing, back to the bar cursor'], ['⌫ / Delete', 'Delete: a note becomes a rest; a rest or the last note gives up its time'], ['Ctrl/⌘ ⌫', 'Remove the selected note or rest and its time'], ['Space', 'Play / stop'], ['Ctrl/⌘Z', 'Undo'], ['Ctrl/⌘Shift Z', 'Redo']] as [key, description]}<div><dt>{description}</dt><dd><kbd>{key}</kbd></dd></div>{/each}</dl></dialog>
+	<dialog bind:this={shortcutsDialog} class="le-dialog" aria-labelledby="tune-shortcuts-title"><header><h2 id="tune-shortcuts-title">Keep your hands on the keys.</h2><button aria-label="Close shortcuts" onclick={() => shortcutsDialog?.close()}><EditorIcon name="close" /></button></header><p>Shortcuts work when you’re outside a text field.</p><dl class="le-shortcuts">{#each [['A–G / 0', 'Enter a note / rest — or replace the selected one in place'], ['1–5', 'Note duration — or resize the selected note'], ['T / .', 'Triplet / dotted (resizes a selected note)'], ['[ / ]', 'Flat / sharp'], ['= / −', 'Entry octave'], ['← / →', 'Select previous / next note'], ['↑ / ↓', 'Move pitch by a semitone'], ['Shift + ↑ / ↓', 'Move pitch by an octave'], ['Alt + ↑ / ↓', 'Move pitch by a step of the key'], ['Ctrl/⌘ + ← / →', 'Select the previous / next bar'], ['Home / End', 'First / last note of the section'], ['Shift + ← / → · Shift + click', 'Extend the selection to a range (within the page)'], ['Ctrl/⌘ C / V', 'Copy / paste the selection (pasting overwrites from the selected note)'], ['R', 'Repeat the selection right after itself'], ['\\', 'Flip enharmonic spelling'], ['+', 'Tie into a duplicate of the last note — or tie the selected note to the next'], ['K', 'Edit chord at cursor'], ['I', 'Insert mode: new notes push the music along instead of replacing'], ['N', 'Next flagged bar after a PDF import'], ['Esc', 'Stop editing, back to the bar cursor'], ['⌫ / Delete', 'Delete: a note becomes a rest; a rest or the last note gives up its time'], ['Ctrl/⌘ ⌫', 'Remove the selected note or rest and its time'], ['Space', 'Play / stop'], ['Ctrl/⌘Z', 'Undo'], ['Ctrl/⌘Shift Z', 'Redo']] as [key, description]}<div><dt>{description}</dt><dd><kbd>{key}</kbd></dd></div>{/each}</dl></dialog>
 </div>

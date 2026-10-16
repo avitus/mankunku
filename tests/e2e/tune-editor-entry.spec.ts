@@ -315,3 +315,28 @@ test('insert mode puts a note in front of the selection and pushes the rest late
 	await clickBarZone(page, '0:0');
 	await expect(rail.getByText(/Section A · Bar 1, Beat 1/)).toBeVisible();
 });
+
+test('Shift+click selects a range on the chart; Ctrl/⌘+Backspace removes its time across the section', async ({ page }) => {
+	await openEditor(page);
+	await page.keyboard.press('3');
+	for (let i = 0; i < 6; i++) await page.keyboard.press('a');
+	const notes = page.locator(`${CHART_SVG} .abcjs-note`);
+	const noteheads = page.locator(`${CHART_SVG} .abcjs-note .abcjs-notehead`);
+	await expect(notes).toHaveCount(6);
+
+	await noteheads.nth(1).click();
+	await noteheads.nth(3).click({ modifiers: ['Shift'] });
+	await expect(page.locator(`${CHART_SVG} .abcjs-note.selected-note`)).toHaveCount(3);
+	await expect(page.locator('.td-status')).toContainText('3 selected');
+
+	await page.keyboard.press('ControlOrMeta+Backspace');
+	await expect(notes).toHaveCount(3);
+	// Saved: the three survivors are contiguous quarters from beat 1.
+	await page.getByRole('textbox', { name: 'Tune title' }).fill('Trimmed');
+	await page.getByRole('button', { name: 'Save tune' }).click();
+	await page.waitForURL(/\/tunes\/trimmed$/);
+	const stored = await page.evaluate(() => window.localStorage.getItem('mankunku:user-tunes'));
+	const sheets = JSON.parse(stored ?? '[]') as Array<{ sections: Array<{ notes: Array<{ pitch: number | null; offset: [number, number] }> }> }>;
+	const pitched = sheets[0].sections[0].notes.filter((n) => n.pitch !== null);
+	expect(pitched.map((n) => n.offset[0] / n.offset[1])).toEqual([0, 0.25, 0.5]);
+});

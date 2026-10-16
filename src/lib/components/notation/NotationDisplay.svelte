@@ -112,6 +112,8 @@
 		variant?: ChartVariant;
 		/** Source-array index of the note to highlight, or `null` for no highlight. */
 		selectedIndex?: number | null;
+		/** Other end of a range selection (inclusive, either side of `selectedIndex`); every element between is highlighted. */
+		selectedEndIndex?: number | null;
 		/**
 		 * Playback cursor (notation-order note index), styled distinctly from
 		 * `selectedIndex`. Unlike `selectedIndex`, changing it never re-renders
@@ -141,8 +143,8 @@
 		 * playhead range marker instead.
 		 */
 		playheadBarFraction?: number | null;
-		/** Fires when the user clicks a note or an anchored rest. Receives the source-array index. */
-		onSelect?: (sourceIndex: number) => void;
+		/** Fires when the user clicks a note or an anchored rest. Receives the source-array index and whether Shift was held (range selection). */
+		onSelect?: (sourceIndex: number, modifiers?: { shiftKey: boolean }) => void;
 		/**
 		 * Fires when the user clicks a bar's empty space, an UNANCHORED rest
 		 * (slash bar or pure melody gap), or a chord symbol on a tune chart.
@@ -192,6 +194,7 @@
 		instrument,
 		variant = 'practice',
 		selectedIndex = null,
+		selectedEndIndex = null,
 		cursorIndex = null,
 		rangeMarkers,
 		playheadStyle = 'under-bar',
@@ -368,13 +371,17 @@
 					decoration: 'none'
 				}
 			},
-			clickListener: (abcElem, _tuneNumber, _classes, analysis) => {
+			clickListener: function (abcElem, _tuneNumber, _classes, analysis) {
 				if (!abcElem) return;
 				const startChar = (abcElem as { startChar?: number }).startChar;
 				if (typeof startChar !== 'number') return;
+				// abcjs hands the originating MouseEvent as a 6th argument (since 6.0)
+				// that its typings leave out; Shift there means "extend the range".
+				// eslint-disable-next-line prefer-rest-params
+				const mouseEvent = arguments[5] as MouseEvent | undefined;
 				const target = resolveChartClick(startChar, noteAnchors, chordSlotAnchors, barAnchors);
 				if (target?.kind === 'note') {
-					onSelect?.(target.sourceIndex);
+					onSelect?.(target.sourceIndex, { shiftKey: !!mouseEvent?.shiftKey });
 					return;
 				}
 				if (target?.kind !== 'bar') return;
@@ -410,7 +417,7 @@
 		// follow the moved glyphs, or bands and hit rects draw beside the music.
 		const endingAlignments = alignStackedEndingsInContainer(containerEl);
 		drawGlissandi(vo, noteAnchors);
-		applySelectionHighlight(vo, noteAnchors, selectedIndex);
+		applySelectionHighlight(vo, noteAnchors, selectedIndex, selectedEndIndex);
 		if (compactStaff) {
 			// Chord positioning can leave blank space in abcjs's original canvas.
 			// Fit that canvas to the ink before the host applies its height limit;
@@ -1341,9 +1348,17 @@
 	function applySelectionHighlight(
 		visualObj: AdapterVisualObj,
 		anchors: NoteAnchor[],
-		index: number | null
+		index: number | null,
+		endIndex: number | null = null
 	): void {
 		if (index === null) return;
+		if (endIndex !== null && endIndex !== index) {
+			// A range: every element between the two ends, inclusive.
+			for (let i = Math.min(index, endIndex); i <= Math.max(index, endIndex); i++) {
+				applySelectionHighlight(visualObj, anchors, i);
+			}
+			return;
+		}
 		// A fanned-out source rest owns several display segments — highlight all
 		// of them. A source rest swallowed by a merged display rest has no exact
 		// anchor; fall back to the rest anchor whose source range contains it.

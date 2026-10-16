@@ -1,7 +1,7 @@
 # Score Editing: Delete-to-Rest and In-Place Correction — Design
 
 **Date:** 2026-10-15
-**Status:** Approved (Andy, 2026-10-15, via plan review; MuseScore 4 named as the reference) — phases 1–3 shipped 2026-10-15, phase 4 2026-10-16
+**Status:** Approved (Andy, 2026-10-15, via plan review; MuseScore 4 named as the reference) — phases 1–3 shipped 2026-10-15, phases 4–5 2026-10-16
 
 ## Goal
 

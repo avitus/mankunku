@@ -2997,3 +2997,23 @@ keep in step. The plan was written in the vocabulary of the existing code
 only appeared when the code for the first version was on the screen. Worth
 leaving room in a plan for that — say what the user sees, not which field
 holds it.
+
+## 2026-10-16 — A plan is a vocabulary; the code gets the last word on nouns
+
+Five phases of editing landed in two days, and the plan held on every
+WHAT. Where it bent was the nouns: "arm the cursor on every edit selection"
+became "the position is the selection"; "a rest delete reselects the
+previous element" became "the element that slid in"; "insert mode uses the
+duration keys like entry" was only visible as a rule once a test tried to
+arm a half note and resized the wrong thing. None of these were mistakes in
+the plan so much as sentences written in the vocabulary the old code had.
+The habit that paid: pin the user-visible behaviour, implement, and let the
+field names fall where the implementation puts them — then rewrite the
+plan's noun, not its promise.
+
+The other recurring shape across the phases: every time an operation gains
+a target, every existing assignment of that target becomes a decision
+(the remove-time reselection, the review panel following the append edge,
+a flattened index drifting after a page's first commit). The e2e suite
+caught two of the three, the unit tests none — because a unit test asks
+one question and these were all about the SECOND keystroke.
