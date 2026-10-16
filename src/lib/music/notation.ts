@@ -591,6 +591,7 @@ function isCompoundMeter(ts: [number, number]): boolean {
  * Merge consecutive non-triplet rests into standard notation groupings.
  *
  * Rules:
+ *  - Editors can preserve source rest boundaries so each remains selectable
  *  - Rests never cross barlines
  *  - A rest spanning an entire bar becomes a single whole-bar rest
  *  - Duple meters: rests don't cross the bar midpoint (beat 3 in 4/4)
@@ -606,7 +607,8 @@ function isCompoundMeter(ts: [number, number]): boolean {
  */
 export function mergeConsecutiveRests(
 	notes: readonly Note[],
-	timeSignature: [number, number]
+	timeSignature: [number, number],
+	preserveRestBoundaries: boolean = false
 ): { display: Note[]; sourceMap: (number | null)[]; sourceEndMap: (number | null)[] } {
 	const barDur = timeSignature[0] / timeSignature[1];
 	const compound = isCompoundMeter(timeSignature);
@@ -645,7 +647,7 @@ export function mergeConsecutiveRests(
 		// Collect contiguous non-triplet rests
 		let spanEnd = fractionToFloat(notes[i].offset) + fractionToFloat(notes[i].duration);
 		let j = i + 1;
-		while (j < notes.length && notes[j].pitch === null && getTripletBase(notes[j].duration) === null) {
+		while (!preserveRestBoundaries && j < notes.length && notes[j].pitch === null && getTripletBase(notes[j].duration) === null) {
 			const nextStart = fractionToFloat(notes[j].offset);
 			if (Math.abs(spanEnd - nextStart) > 1e-9) break;
 			spanEnd = nextStart + fractionToFloat(notes[j].duration);
@@ -777,7 +779,8 @@ export interface NoteAnchor {
 export function phraseToAbcWithMap(
 	phrase: Phrase,
 	instrument?: InstrumentConfig,
-	defaultLength: [number, number] = [1, 8]
+	defaultLength: [number, number] = [1, 8],
+	preserveRestBoundaries: boolean = false
 ): { abc: string; noteAnchors: NoteAnchor[] } {
 	const displayKey = instrument
 		? concertKeyToWritten(phrase.key, instrument)
@@ -795,7 +798,7 @@ export function phraseToAbcWithMap(
 	// Preprocess: merge consecutive rests into standard groupings.
 	// `sourceMap[k]` maps display index k back to the original `phrase.notes`
 	// index — for merged rest segments, the first overlapping source rest.
-	const { display: displayNotes, sourceMap, sourceEndMap } = mergeConsecutiveRests(phrase.notes, phrase.timeSignature);
+	const { display: displayNotes, sourceMap, sourceEndMap } = mergeConsecutiveRests(phrase.notes, phrase.timeSignature, preserveRestBoundaries);
 
 	// Per-bar accidental state — reset when crossing a barline below
 	let barState: BarAccidentalState = initBarState(keySigAccidentals);

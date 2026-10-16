@@ -62,6 +62,8 @@ export { placeEndingSection } from './ending-layout';
  */
 
 export interface TuneAbcOptions {
+	/** Keep adjacent source rests separately selectable in an editor. */
+	preserveRestBoundaries?: boolean;
 	/** Page UI owns the title, composer and style; omit their engraving space. */
 	omitMasthead?: boolean;
 	/** ABC L: default note length. */
@@ -633,7 +635,7 @@ export function tuneToAbcWithMap(
 		}
 		flattenedNoteBase += sec.notes.length;
 
-		const { display, sourceMap, sourceEndMap } = mergeConsecutiveRests(inputNotes, sheet.timeSignature);
+		const { display, sourceMap, sourceEndMap } = mergeConsecutiveRests(inputNotes, sheet.timeSignature, options.preserveRestBoundaries);
 		const elements: DisplayElement[] = display.map((note: Note, k: number): DisplayElement => {
 			// A merged display rest can cover several input elements — gaps
 			// (inputSources null) and stored rests interleaved. Anchor it to

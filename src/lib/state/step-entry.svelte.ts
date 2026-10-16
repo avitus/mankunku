@@ -386,7 +386,7 @@ export function addRest(): boolean {
 
 /**
  * `0` on an edit selection rests the element: a rest of the current duration
- * replaces it at its own offset (merged with rest neighbours in the bar) and
+ * replaces it at its own offset, preserving its boundary with adjacent rests, and
  * the selection moves on. Refused past the end of the bars.
  */
 function replaceSelectedWithRest(): boolean {
@@ -396,9 +396,8 @@ function replaceSelectedWithRest(): boolean {
 	const duration = currentDurationFraction();
 	if (compareFractions(addFractions(target.offset, duration), getMaxCapacity()) > 0) return false;
 	const spliced = spliceElement(notes, { pitch: null, duration, offset: target.offset });
-	const { notes: merged, indexMap } = coalesceRests(spliced.notes);
-	stepEntry.enteredNotes = merged;
-	selectFollowing(indexMap[spliced.index]);
+	stepEntry.enteredNotes = spliced.notes;
+	selectFollowing(spliced.index);
 	return true;
 }
 
@@ -1049,11 +1048,8 @@ function resizeSelected(base: BaseDurationId, triplet: boolean, dotted: boolean)
 		const resizedEnd = addFractions(resized.offset, resized.duration);
 		if (!next || next.pitch !== resized.pitch || compareFractions(next.offset, resizedEnd) !== 0) resized.tied = false;
 	}
-	if (resized.pitch === null) {
-		const merged = coalesceRests(out);
-		out = merged.notes;
-		at = merged.indexMap[at];
-	}
+	// Keep the requested rest and its remainder separate: coalescing here
+	// would undo a rest resize and make the remainder impossible to select.
 	stepEntry.enteredNotes = out;
 	stepEntry.currentDuration = base;
 	stepEntry.tripletMode = triplet;
