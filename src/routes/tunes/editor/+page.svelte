@@ -3,11 +3,10 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { tunePath } from '$lib/tunes/tune-slug';
-	import { onDestroy, onMount, untrack } from 'svelte';
+	import { onDestroy, onMount, untrack, tick } from 'svelte';
 	import StudioPage from '$lib/components/console/StudioPage.svelte';
 	import EditorIcon from '$lib/components/step-entry/EditorIcon.svelte';
 	import TuneTransport from '$lib/components/tunes/TuneTransport.svelte';
-	import TuneHarmonyGuide from '$lib/components/tunes/TuneHarmonyGuide.svelte';
 	import { tuneHarmonyMarkers } from '$lib/tunes/harmony-colors';
 	import { EditorHistory } from '$lib/step-entry/editor-history';
 	import { midiToDisplayName } from '$lib/music/notation';
@@ -15,6 +14,7 @@
 	import type { SourceTransposition } from '$lib/tunes/source-transposition';
 	import '$lib/components/step-entry/lick-editor.css';
 	import '$lib/components/tunes/tune-desk.css';
+	import '$lib/components/tunes/tune-editor.css';
 	import NotationDisplay from '$lib/components/notation/NotationDisplay.svelte';
 	import DurationSelector from '$lib/components/step-entry/DurationSelector.svelte';
 	import PitchEntryPanel from '$lib/components/step-entry/PitchEntryPanel.svelte';
@@ -143,6 +143,18 @@
 	let moveNotes = $state(true);
 	let transport: TuneTransport | undefined = $state();
 	let shortcutsDialog: HTMLDialogElement | undefined = $state();
+	let settingsDialog: HTMLDialogElement | undefined = $state();
+	let formDialog: HTMLDialogElement | undefined = $state();
+	let mobileEntryOpen = $state(false);
+	let scoreRoot: HTMLDivElement | undefined = $state();
+
+	/** Keep section navigation on the full score, using the existing entry cursor. */
+	async function jumpToSection(index: number): Promise<void> {
+		cursorToBar(index, 0);
+		await tick();
+		scoreRoot?.querySelector(`[data-bar-pos="${index}:0"]`)?.scrollIntoView({ block: 'center' });
+	}
+
 	let harmonyColors = $state(true);
 	const harmonyMarkers = $derived(harmonyColors ? tuneHarmonyMarkers(draft) : []);
 	let editHydrationActive = true;
@@ -233,7 +245,7 @@
 	});
 
 	function handleKeydown(e: KeyboardEvent): void {
-		if (shortcutsDialog?.open) return;
+		if (shortcutsDialog?.open || settingsDialog?.open || formDialog?.open) return;
 		const target = e.target as HTMLElement | null;
 		if (target && ['INPUT', 'SELECT', 'TEXTAREA'].includes(target.tagName)) return;
 		if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); restoreHistory(e.shiftKey ? 'redo' : 'undo'); return; }
@@ -309,26 +321,23 @@
 	{`Section ${currentSectionLabel}${cursorPos ? ` · Bar ${cursorPos.barInSection + 1}, Beat ${Math.floor(cursorPos.beatInBar + 1e-9) + 1}` : ''}`}
 {/snippet}
 
-<div class="lick-editor tune-desk">
+<div class="lick-editor tune-desk te-flow studio-desk">
 	<a class="le-back" href="/tunes"><EditorIcon name="back" size={14} />Your tunes</a>
-	<StudioPage eyebrow={isEditing ? 'Shape your arrangement' : 'Chart a tune'} title="Tune editor" description="Shape a tune, one note at a time.">
+	<StudioPage eyebrow={isEditing ? 'Shape your arrangement' : 'Chart a tune'} title="Tune editor" description="Write, hear, refine.">
 		{#snippet actions()}
 			<button class="le-button le-quiet" onclick={() => shortcutsDialog?.showModal()}><EditorIcon name="keyboard" />Shortcuts</button>
+			<button class="le-button le-quiet" onclick={() => settingsDialog?.showModal()}>Tune settings</button>
 			<button class="le-button le-quiet" onclick={handleCancel}>Cancel</button>
 			<button class="le-button le-save" onclick={handleSave} disabled={!historyReady}><EditorIcon name="save" size={17} />{isEditing ? 'Update tune' : 'Save tune'}</button>
 		{/snippet}
 		<div class="le-layout"><div class="le-workspace">
 			<section class="le-panel le-chart" aria-label="Tune chart">
-				<header class="td-chart-heading"><div><p class="studio-label">01 / Your chart <span class="le-badge">{isEditing ? 'Editing' : 'Draft'}</span></p><input class="le-title" bind:value={tuneEntry.title} placeholder="Untitled tune" aria-label="Tune title" /><input class="td-composer" bind:value={tuneEntry.composer} placeholder="Composer" aria-label="Composer" /></div><div class="le-history"><button aria-label="Undo" title="Undo (Ctrl/⌘Z)" disabled={!canUndo} onclick={() => restoreHistory('undo')}><EditorIcon name="undo" /></button><button aria-label="Redo" title="Redo (Ctrl/⌘Shift Z)" disabled={!canRedo} onclick={() => restoreHistory('redo')}><EditorIcon name="redo" /></button></div></header>
-				<div class="td-score-top"><span>Melody & changes</span><button aria-pressed={harmonyColors} onclick={() => harmonyColors = !harmonyColors}><i class="td-color-dot" aria-hidden="true"></i>Harmony colors <i class="td-switch" class:active={harmonyColors} aria-hidden="true"></i></button></div>
-				<div class="td-score-well"><NotationDisplay tuneOptions={{ omitMasthead: true }} bind:this={notationRef} tune={draft} instrument={previewInstrument} selectedIndex={previewSelectedIndex} onSelect={handlePreviewSelect} onBarClick={pos => cursorToBar(pos.sectionIdx, pos.bar)} {chordEditor} rangeMarkers={harmonyMarkers} frameless /></div>
+				<header class="td-chart-heading"><div><p class="studio-label">Your chart <span class="le-badge">{tuneEntry.writtenKey} · {tuneEntry.timeSignature.join('/')} · {tuneEntry.style || 'No style'}</span></p><input class="le-title" bind:value={tuneEntry.title} placeholder="Untitled tune" aria-label="Tune title" /><input class="td-composer" bind:value={tuneEntry.composer} placeholder="Composer" aria-label="Composer" /></div><div class="le-history"><button aria-label="Undo" title="Undo (Ctrl/⌘Z)" disabled={!canUndo} onclick={() => restoreHistory('undo')}><EditorIcon name="undo" /></button><button aria-label="Redo" title="Redo (Ctrl/⌘Shift Z)" disabled={!canRedo} onclick={() => restoreHistory('redo')}><EditorIcon name="redo" /></button></div></header>
+				<nav class="te-sections" aria-label="Sections"><span class="studio-label">Form</span>{#each tuneEntry.sections as section, index}<button class:current={index === tuneEntry.currentSection} aria-pressed={index === tuneEntry.currentSection} onclick={() => jumpToSection(index)}><strong>{section.label || 'Pickup'}</strong><span>{section.bars} bars</span></button>{/each}<button class="te-form-button" onclick={() => formDialog?.showModal()}>Edit form ↗</button></nav>
+                <div class="te-listen"><TuneTransport bind:this={transport} tune={draft} /></div>
+                <div class="td-score-top"><span>Click a note to edit · click a bar to write</span><button aria-pressed={harmonyColors} onclick={() => harmonyColors = !harmonyColors}><i class="td-color-dot" aria-hidden="true"></i>Harmony colors <i class="td-switch" class:active={harmonyColors} aria-hidden="true"></i></button></div>
+				<div class="td-score-well" bind:this={scoreRoot}><NotationDisplay tuneOptions={{ omitMasthead: true, barsPerLine: 4 }} bind:this={notationRef} tune={draft} instrument={previewInstrument} selectedIndex={previewSelectedIndex} onSelect={handlePreviewSelect} onBarClick={pos => cursorToBar(pos.sectionIdx, pos.bar)} {chordEditor} rangeMarkers={harmonyMarkers} frameless /></div>
 				<div class="td-status"><span><i aria-hidden="true"></i>{selectedName ?? 'Ready to write'} · {@render entryStatus()}</span><button onclick={() => { selectNote(null); clearEntryCursor(); }}>Clear selection</button></div>
-				<TuneTransport bind:this={transport} tune={draft} />
-			</section>
-			<section class="le-panel le-entry" aria-label="Note entry" data-testid="entry-rail"><header><h2 class="studio-label">02 / Note entry</h2><span class="td-entry-position">{@render entryStatus()}</span></header>
-				{#if melodyEditingSupported()}<DurationSelector /><PitchEntryPanel onAddNote={tuneAddNote} onAddRest={tuneAddRest} onTie={tuneEnterTiedNote} onDelete={handlePanelDelete} />
-				{:else}<p class="td-entry-position">This chart is in {tuneEntry.timeSignature.join('/')} — melody entry supports 4/4 only. Tap a chord slot on the chart to edit chords; sections are editable in Setup.</p>{/if}
-				<div class="le-entry-tip"><span>↑ ↓ changes the selected pitch. Click a bar to place the next note.</span><button onclick={() => shortcutsDialog?.showModal()}>All shortcuts ↗</button></div>
 			</section>
 			<div class="td-review">			{#if tuneEntry.importReview?.warnings.length}
 				<!-- Import review: the bars the pipeline knows are uncertain -->
@@ -382,17 +391,27 @@
 				/>
 			{/if}
 </div>
-		</div><aside class="le-inspector" aria-label="Tune settings">
-			<section class="le-setup td-editor-setup"><p class="studio-label">Setup</p><h2>The musical context.</h2>
-				<label for="editor-tune-key">Key</label><select id="editor-tune-key" value={tuneEntry.writtenKey} onchange={handleKeyChange}>{#each PITCH_CLASSES as pc (pc)}<option value={pc}>{pc}</option>{/each}</select>
-				{#if draft.sections.some(s => s.notes.length > 0)}<label class="td-move-notes"><input type="checkbox" bind:checked={moveNotes} />Move notes with key</label>{/if}
-				<div class="td-source-pitch"><SourceTranspositionSelect value={tuneEntry.sourceTransposition} onchange={setSourceTransposition} /></div>
-				<label for="editor-tune-style">Style</label><input id="editor-tune-style" bind:value={tuneEntry.style} placeholder="e.g. Medium Swing" />
-				<div class="td-section-setup"><p class="studio-label">Form & sections</p><SectionConfigPanel /></div>
-			</section>
-			<TuneHarmonyGuide />
-		</aside></div>
+		</div><section class="te-entry-rail" aria-label="Note entry" data-testid="entry-rail">
+            <header class="te-rail-heading"><div><p class="studio-label">Write the melody</p><h2>Note entry<span>.</span></h2></div><button class="te-mobile-toggle" aria-controls="tune-note-controls" aria-label={mobileEntryOpen ? 'Close note entry' : 'Open note entry'} aria-expanded={mobileEntryOpen} onclick={() => mobileEntryOpen = !mobileEntryOpen}>{mobileEntryOpen ? 'Close ⌄' : 'Open ⌃'}</button></header>
+            <div id="tune-note-controls" class="te-rail-body" class:mobile-open={mobileEntryOpen}>
+                <div class="te-cursor"><span class="te-cursor-dot"></span><strong>{@render entryStatus()}</strong><small>{selectedName ? `${selectedName} selected` : 'Click a bar to place the next note'}</small></div>
+                {#if melodyEditingSupported()}
+                    <div class="te-input-group"><p class="te-label">Duration <small>1–5</small></p><DurationSelector /></div>
+                    <div class="te-input-group"><p class="te-label">Pitch <small>A–G · 0 for rest</small></p><PitchEntryPanel onAddNote={tuneAddNote} onAddRest={tuneAddRest} onTie={tuneEnterTiedNote} onDelete={handlePanelDelete} /></div>
+                {:else}<p class="te-hint">This chart is in {tuneEntry.timeSignature.join('/')} — melody entry supports 4/4 only. Tap a chord slot to edit chords; use Edit form for sections.</p>{/if}
+                <div class="te-chord-action"><button disabled={!melodyEditingSupported()} onclick={openChordEditorAtCursor}>Edit chord at cursor <kbd>K</kbd></button></div>
+                <div class="te-rail-footer"><p>Click a note, then use ↑ ↓ to change its pitch.</p><button onclick={() => shortcutsDialog?.showModal()}>Keyboard shortcuts ↗</button></div>
+            </div>
+        </section></div>
 		<footer class="le-footer"><span>MANKUNKU <i>/</i> YOUR REPERTOIRE, IN YOUR HANDS.</span><a href="/tunes">Back to your tunes ↗</a></footer>
 	</StudioPage>
+    <dialog bind:this={settingsDialog} class="le-dialog te-settings-dialog" aria-labelledby="settings-heading"><header><div><p class="studio-label">Tune settings</p><h2 id="settings-heading">The musical context.</h2></div><button aria-label="Close tune settings" onclick={() => settingsDialog?.close()}>×</button></header><div class="le-inspector"><section class="td-editor-setup">
+        <label for="editor-tune-key">Key</label><select id="editor-tune-key" value={tuneEntry.writtenKey} onchange={handleKeyChange}>{#each PITCH_CLASSES as pc (pc)}<option value={pc}>{pc}</option>{/each}</select>
+        {#if draft.sections.some(s => s.notes.length > 0)}<label class="td-move-notes"><input type="checkbox" bind:checked={moveNotes} />Move notes with key</label>{/if}
+        <div class="td-source-pitch"><SourceTranspositionSelect value={tuneEntry.sourceTransposition} onchange={setSourceTransposition} /></div>
+        <label for="editor-tune-style">Style</label><input id="editor-tune-style" bind:value={tuneEntry.style} placeholder="e.g. Medium Swing" />
+    </section></div><div class="le-dialog-actions"><button class="le-button le-save" onclick={() => settingsDialog?.close()}>Done</button></div></dialog>
+    <dialog bind:this={formDialog} class="le-dialog te-form-dialog" aria-labelledby="form-heading"><header><div><p class="studio-label">Tune structure</p><h2 id="form-heading">Form & sections.</h2></div><button aria-label="Close form" onclick={() => formDialog?.close()}>×</button></header><div class="te-form-content"><SectionConfigPanel /></div><div class="le-dialog-actions"><button class="le-button le-save" onclick={() => formDialog?.close()}>Done</button></div></dialog>
+
 	<dialog bind:this={shortcutsDialog} class="le-dialog" aria-labelledby="tune-shortcuts-title"><header><h2 id="tune-shortcuts-title">Keep your hands on the keys.</h2><button aria-label="Close shortcuts" onclick={() => shortcutsDialog?.close()}><EditorIcon name="close" /></button></header><p>Shortcuts work when you’re outside a text field.</p><dl class="le-shortcuts">{#each [['A–G / 0', 'Enter a note / rest'], ['1–5', 'Note duration'], ['T / .', 'Triplet / dotted'], ['[ / ]', 'Flat / sharp'], ['= / −', 'Entry octave'], ['← / →', 'Select previous / next note'], ['↑ / ↓', 'Move pitch by a semitone'], ['Shift + ↑ / ↓', 'Move pitch by an octave'], ['\\', 'Flip enharmonic spelling'], ['+', 'Tie to a duplicate of the last note'], ['K', 'Edit chord at cursor'], ['⌫ / Delete', 'Delete selected note'], ['Space', 'Play / stop'], ['Ctrl/⌘Z', 'Undo'], ['Ctrl/⌘Shift Z', 'Redo']] as [key, description]}<div><dt>{description}</dt><dd><kbd>{key}</kbd></dd></div>{/each}</dl></dialog>
 </div>
