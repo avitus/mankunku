@@ -80,6 +80,62 @@ function commonMotionMs(phrase: EnsemblePhraseTimingTrace | undefined, absBeat: 
 	return phrase.commonAmplitudeMs * Math.sin(Math.PI * position) ** 2;
 }
 
+/** Place already committed phrase coefficients without planning other bars. */
+export function restoreEnsembleTiming(input: Omit<EnsembleTimingInput, 'plan'> & {
+	trace: readonly EnsemblePhraseTimingTrace[];
+}): EnsembleTiming {
+	const { phraseId, tempo, ppq, swing, trace } = input;
+	const beatMs = 60_000 / tempo;
+	const msPerTick = beatMs / ppq;
+	const phraseAt = (bar: number) => trace.find((entry) => entry.phraseStartBar <= bar && bar < entry.endBarExclusive);
+	return Object.freeze({
+		trace: freezeEnsembleTimingTrace(trace),
+		place(absBeat: number, role: TimingRole): number {
+			if (!Number.isFinite(absBeat) || absBeat < 0) throw new Error('Ensemble event beat must be nonnegative');
+			const phrase = phraseAt(Math.floor(absBeat / BEATS_PER_BAR));
+			const profile = input.timingProfiles?.[role] ?? SWING_TIMING[role];
+			const offset = phrase?.roleOffsetMs[role] ?? clamp(profile.offsetMs, -0.04 * beatMs, 0.04 * beatMs);
+			const residualLimit = phrase?.residualLimitMs[role] ?? Math.min(profile.jitterMs / 4, 2, beatMs * 0.005);
+			const residual = triangular(phraseId, tempo, 'ensemble-timing-event', phrase?.phraseStartBar ?? 'outside', role, absBeat) * residualLimit;
+			const placement = phrase?.playerPlacementMs[playerOf(role)] ?? 0;
+			return Math.max(0, Math.round(applySwingToBeats(absBeat, swing) * ppq +
+				(offset + commonMotionMs(phrase, absBeat) + placement + residual) / msPerTick));
+		},
+		arrivalTick(barIndex: number): number {
+			if (!Number.isInteger(barIndex) || barIndex < 0) throw new Error('Ensemble arrival bar must be nonnegative');
+			const absBeat = barIndex * BEATS_PER_BAR;
+			return Math.max(0, Math.round(absBeat * ppq + commonMotionMs(phraseAt(barIndex), absBeat) / msPerTick));
+		}
+	});
+}
+
+/** Latch one phrase from current intent and known form, without future evidence. */
+export function describeEnsemblePhraseTiming(input: Omit<EnsembleTimingInput, 'plan'> & {
+	phraseStartBar: number; endBarExclusive: number; intent: EnsembleIntent; boundaryStrength: number;
+}): EnsemblePhraseTimingTrace {
+	const { phraseId, tempo, phraseStartBar, endBarExclusive, intent } = input;
+	const beatMs = 60_000 / tempo;
+	const commonLimitMs = Math.min(6, beatMs * 0.015);
+	const playerLimitMs = Math.min(2, beatMs * 0.0075);
+	const boundaryStrength = clamp(input.boundaryStrength, 0, 1);
+	const roleOffsetMs = {} as Record<TimingRole, number>;
+	const residualLimitMs = {} as Record<TimingRole, number>;
+	for (const role of Object.keys(SWING_TIMING) as TimingRole[]) {
+		const profile = input.timingProfiles?.[role] ?? SWING_TIMING[role];
+		if (!Number.isFinite(profile.offsetMs) || !Number.isFinite(profile.jitterMs) || profile.jitterMs < 0) throw new Error(`Invalid ensemble timing profile for ${role}`);
+		roleOffsetMs[role] = clamp(profile.offsetMs, -0.04 * beatMs, 0.04 * beatMs);
+		residualLimitMs[role] = Math.min(profile.jitterMs / 4, 2, beatMs * 0.005);
+	}
+	const intentBias = intent === 'build' ? -1 : intent === 'release' ? 1 : 0;
+	const amplitude = triangular(phraseId, tempo, 'ensemble-timing-common', phraseStartBar) * 0.75 + intentBias * 0.25;
+	const playerPlacementMs = {} as Record<EnsembleTimingPlayer, number>;
+	for (const player of ['bass', 'comp', 'drums'] as const) {
+		playerPlacementMs[player] = triangular(phraseId, tempo, 'ensemble-timing-player', phraseStartBar, player) * playerLimitMs;
+	}
+	return freezeEnsembleTimingTrace([{ version: 1, phraseStartBar, endBarExclusive, intent, boundaryStrength,
+		commonAmplitudeMs: amplitude * commonLimitMs * (1 - 0.2 * boundaryStrength), playerPlacementMs, roleOffsetMs, residualLimitMs }])[0];
+}
+
 /**
  * Build a stateless placer. Named seeds include the exact event role/beat, so
  * adding a chord tone, drum limb or ghost note cannot move an existing event.

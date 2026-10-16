@@ -16,10 +16,11 @@
 		setBackingMix,
 		getDecodedDrumBuffersForBounce,
 		getDecodedRoomIrForBounce,
-		getActiveSchedule
+		getActiveSchedule,
+		createRollingBackingPlayback
 	} from '$lib/audio/backing-track';
 	import { DEFAULT_BACKING_MIX, type BackingMixLevels } from '$lib/audio/backing-mix';
-	import { BACKING_STYLE_NAMES } from '$lib/audio/backing-styles';
+	import { BACKING_STYLES, BACKING_STYLE_NAMES } from '$lib/audio/backing-styles';
 	import {
 		BACKING_LAB_PRESETS,
 		LAB_TEMPO_PRESETS,
@@ -29,6 +30,7 @@
 		bounceBacking,
 		generateForBounce,
 		renderGoldenJsonToWav,
+		renderEventsToWav,
 		BOUNCE_SAMPLE_RATE
 	} from '$lib/audio/backing-bounce';
 	import BlindAbPlayer from '$lib/components/diagnostics/BlindAbPlayer.svelte';
@@ -39,6 +41,17 @@
 	import { createSoloListener, type SoloListener } from '$lib/audio/solo-listener';
 	import type { SoloObservationWindow } from '$lib/audio/solo-observer';
 
+	import { createRollingBacking, advanceRollingBacking } from '$lib/audio/backing-rolling';
+	import { createRollingSession, type RollingSession, type RollingSessionSnapshot } from '$lib/audio/backing-rolling-session';
+	import type { RollingBackingRenderer } from '$lib/audio/backing-rolling-renderer';
+	import { resolveBackingSwing, type GeneratedBacking } from '$lib/audio/backing-generation';
+
+	interface RollingTake {
+		version: 1;
+		startAudioTime: number;
+		session: RollingSessionSnapshot;
+		playback: ReturnType<RollingBackingRenderer['snapshot']>;
+	}
 	interface ObservationTrace {
 		version: 1;
 		sessionId: string;
@@ -88,6 +101,13 @@
 	let observationTrace = $state<ObservationTrace | null>(null);
 	let replayingObservations = $state(false);
 	let soloListener: SoloListener | null = null;
+	let adapting = $state(false);
+	let rollingTake = $state<RollingTake | null>(null);
+	let rollingCommitted = $state(0);
+	let rollingSession: RollingSession | null = null;
+	let rollingPlayback: RollingBackingRenderer | null = null;
+	let rollingTimer: ReturnType<typeof setInterval> | null = null;
+	let rollingStartAudioTime = 0;
 
 	let bouncing = $state(false);
 	let bounceError = $state<string | null>(null);
@@ -99,7 +119,7 @@
 	const safeSeed = $derived(Math.min(99, Math.max(0, Math.trunc(Number(seed) || 0))));
 	const phrase = $derived(labPhraseWithSeed(preset, safeSeed));
 	const recordedFeatures = $derived(observationTrace?.windows.flatMap((window) => window.feature ? [window.feature] : []) ?? []);
-	const effectiveScenario = $derived(replayingObservations ? 'microphone-replay' : soloScenario);
+	const effectiveScenario = $derived(adapting || rollingTake ? 'microphone-rolling' : replayingObservations ? 'microphone-replay' : soloScenario);
 	const soloFeatures = $derived(replayingObservations ? recordedFeatures : scriptedSoloFeatures(soloScenario, preset.bars));
 	const latestObservation = $derived(observationTrace?.windows.at(-1));
 
@@ -111,7 +131,8 @@
 	// page's replayRequestId).
 	let playRequest = 0;
 
-	async function start(observe = false): Promise<void> {
+	async function start(observe = false, adapt = false): Promise<void> {
+		if (!observe) { rollingTake = null; adapting = false; }
 		const id = ++playRequest;
 		loading = true;
 		playError = null;
@@ -121,6 +142,11 @@
 			toneModule = await import('tone');
 			if (id !== playRequest) return;
 			let startAudioTime = Infinity;
+			const definition = adapt ? createRollingBacking(phrase.harmony, BACKING_STYLES[style], {
+				phraseId: phrase.id, tempo, ppq: toneModule.getTransport().PPQ, beatsPerBar: 4,
+				swing: resolveBackingSwing(settings.swing, BACKING_STYLES[style], tempo),
+				sectionMap: phrase.sectionMap, performanceForm: phrase.performanceForm, ensemble: {}
+			}) : null;
 			if (observe) {
 				const sessionId = crypto.randomUUID();
 				observationTrace = { version: 1, sessionId, phraseId: phrase.id, tempo,
@@ -133,12 +159,12 @@
 					onWindow: (window) => {
 						if (id !== playRequest || !observationTrace) return;
 						observationTrace = { ...observationTrace, windows: [...observationTrace.windows, window] };
+						rollingSession?.observe(window);
 					},
 					onComplete: (windows) => {
 						if (id !== playRequest || !observationTrace) return;
 						observationTrace = { ...observationTrace, windows };
-						stop();
-						observationStatus = 'Pass complete';
+						if (!adapt) { stop(); observationStatus = 'Pass complete'; }
 					}
 				});
 				await soloListener.start();
@@ -151,6 +177,32 @@
 			transport.stop();
 			transport.position = 0;
 			transport.bpm.value = tempo;
+			if (definition) {
+				setBackingTrackVolume(volume);
+				const playback = await createRollingBackingPlayback({
+					sessionId: definition.sessionId, tempo, ppq: definition.ppq, totalBars: definition.totalBars,
+					isCurrent: () => id === playRequest,
+					onUnderrun: () => { if (id === playRequest) { stop(); playError = 'Audio scheduling fell behind. Start a new adaptive pass.'; } }
+				});
+				if (id !== playRequest) { playback.stop(); return; }
+				rollingPlayback = playback;
+				startAudioTime = playback.startAudioTime;
+				rollingStartAudioTime = startAudioTime;
+				rollingSession = createRollingSession({
+					definition, renderer: playback, startAudioTime, observationSessionId: observationTrace!.sessionId,
+					generate: advanceRollingBacking, measureNow: () => performance.now() / 1000,
+					onCommit: (bar) => { if (id === playRequest) rollingCommitted = bar.toBarExclusive; },
+					onError: (reason) => { if (id === playRequest) { stop(); playError = `Adaptive pass stopped: ${reason}. Start a new pass.`; } },
+					onComplete: () => { if (id === playRequest) { stop(); observationStatus = 'Adaptive pass complete'; } }
+				});
+				rollingSession.start();
+				if (id !== playRequest) return;
+				transport.start(startAudioTime);
+				playing = true;
+				rollingTimer = setInterval(() => rollingSession?.pump(), 25);
+				observationStatus = 'Listening and adapting';
+				return;
+			}
 			await scheduleBackingTrack(
 				phrase,
 				{
@@ -190,6 +242,13 @@
 			if (observationTrace) observationTrace = { ...observationTrace, windows };
 			soloListener = null;
 		}
+		if (rollingTimer !== null) { clearInterval(rollingTimer); rollingTimer = null; }
+		if (rollingSession && rollingPlayback) {
+			rollingSession.stop();
+			rollingTake = { version: 1, startAudioTime: rollingStartAudioTime,
+				session: rollingSession.snapshot(), playback: rollingPlayback.snapshot() };
+		}
+		rollingSession = null; rollingPlayback = null; adapting = false;
 		playRequest++; // Capture reads the final audio-clock position before invalidation.
 		if (listening) observationStatus = observationTrace?.windows.length ? 'Take stopped' : 'No captured observations';
 		listening = false;
@@ -224,22 +283,24 @@
 		const wasListening = listening;
 		if (wasListening) stop();
 		observationTrace = null;
+		rollingTake = null;
 		replayingObservations = false;
 		observationStatus = 'No captured observations';
 		clearBounce();
 		if (!wasListening) await restartIfPlaying();
 	}
 
-	async function listenToPass(): Promise<void> {
+	async function listenToPass(adapt = false): Promise<void> {
 		if (listening) { stop(); return; }
 		stop();
 		clearBounce();
 		replayingObservations = false;
 		observationTrace = null;
 		soloScenario = 'unavailable';
+		rollingTake = null; rollingCommitted = 0; adapting = adapt;
 		listening = true;
 		observationStatus = 'Waiting for microphone';
-		await start(true);
+		await start(true, adapt);
 	}
 
 	async function replayObservations(): Promise<void> {
@@ -255,6 +316,7 @@
 		if (listening) {
 			stop();
 			observationTrace = null;
+			rollingTake = null;
 			observationStatus = 'No captured observations';
 		}
 		clearBounce();
@@ -292,6 +354,13 @@
 		return { phrase, style, tempo, swing: settings.swing, instrument, volume, mix, orchestration, soloFeatures };
 	}
 
+	/** Actual committed event data; never regenerate an adaptive take from its final observations. */
+	function generatedTake(take: RollingTake): GeneratedBacking {
+		return {
+			bassEvents: [...take.playback.generated.bassEvents], compEvents: [...take.playback.generated.compEvents], drumEvents: [...take.playback.generated.drumEvents],
+			ensemblePlan: { version: 1, bars: take.playback.windows.flatMap((bar) => bar.ensemblePlan.bars), trace: take.playback.windows.flatMap((bar) => bar.ensemblePlan.trace) }
+		};
+	}
 	async function bounce(): Promise<void> {
 		const id = ++bounceRequest;
 		bouncing = true;
@@ -300,7 +369,10 @@
 			await initAudio();
 			const drumBuffers = await getDecodedDrumBuffersForBounce();
 			const roomIr = await getDecodedRoomIrForBounce(BOUNCE_SAMPLE_RATE);
-			const result = await bounceBacking(bounceParams(), drumBuffers, roomIr);
+			const result = rollingTake ? {
+				blob: await renderEventsToWav(generatedTake(rollingTake), drumBuffers, { tempo, instrument, volume, mix,
+					durationSeconds: preset.bars * 240 / tempo + 2.5, roomIr }), filename: `${phrase.id}-${tempo}.wav`
+			} : await bounceBacking(bounceParams(), drumBuffers, roomIr);
 			if (id !== bounceRequest) return; // superseded by a param change or newer bounce
 			if (bounceUrl) URL.revokeObjectURL(bounceUrl);
 			bounceUrl = URL.createObjectURL(result.blob);
@@ -363,11 +435,11 @@
 	}
 
 	function exportGoldenJson(): void {
-		const generated = generateForBounce(bounceParams());
+		const generated = rollingTake ? generatedTake(rollingTake) : generateForBounce(bounceParams());
 		downloadBlob(
 			JSON.stringify({ buildVersion: version, phraseId: phrase.id, style, tempo, swing: settings.swing,
 				instrument, mix, orchestration, soloScenario: effectiveScenario, soloFeatures,
-				soloObservationTrace: observationTrace,
+				soloObservationTrace: observationTrace, rollingTake,
 				performanceForm: phrase.performanceForm, ...generated }, null, 1),
 			`events-${phrase.id.replace(/[^a-zA-Z0-9-]/g, '_')}-${tempo}-${orchestration}-${effectiveScenario}.json`
 		);
@@ -489,7 +561,9 @@
 		</div>
 
 		<p class="text-xs text-[var(--color-text-secondary)]" data-testid="lab-ensemble-scope">
-			{#if replayingObservations}
+			{#if adapting || rollingTake}
+				Rolling swing uses completed microphone evidence for upcoming bars. Already committed notes stay fixed.
+			{:else if replayingObservations}
 				Recorded microphone observations drive this coordinated replay. The captured take was not adapted live.
 			{:else if listening}
 				The band plays its fixed plan while the microphone measures completed bars. Replay becomes available after the take.
@@ -547,17 +621,22 @@
 	</section>
 
 	<section class="rounded-lg bg-[var(--color-bg-secondary)] p-4 space-y-3">
-		<h2 class="text-sm font-semibold">Listen to a solo · capture &amp; replay</h2>
+		<h2 class="text-sm font-semibold">Listen to a solo · capture, adapt &amp; replay</h2>
 		<p class="text-xs text-[var(--color-text-secondary)]">
 			Use headphones and a quiet room. Capture one pass to measure activity and rests from your microphone;
 			only feature summaries stay in this page, with no audio recording or upload. Uncertain input is marked unknown.
-			The band can respond on replay; it does not adapt during this take.
+			Choose a fixed take for replay, or let the band adapt upcoming bars during one pass.
 		</p>
 		<div class="flex flex-wrap gap-3">
-			<button data-testid="lab-listen" onclick={listenToPass}
-				disabled={!listening && (orchestration !== 'coordinated' || style !== 'swing')}
+			<button data-testid="lab-listen" onclick={() => listenToPass()}
+				disabled={adapting || (!listening && (orchestration !== 'coordinated' || style !== 'swing'))}
 				class="rounded-full bg-[var(--color-accent)] text-white px-4 py-1.5 text-sm font-semibold disabled:opacity-50">
 				{listening ? (loading ? 'Cancel microphone request' : 'Stop listening') : 'Listen to one pass'}
+			</button>
+			<button data-testid="lab-adapt" onclick={() => listenToPass(true)}
+				disabled={(listening && !adapting) || orchestration !== 'coordinated' || style !== 'swing'}
+				class="rounded-full bg-[var(--color-accent)] text-white px-4 py-1.5 text-sm font-semibold disabled:opacity-50">
+				{adapting ? (loading ? 'Cancel adaptive request' : 'Stop adaptive pass') : 'Adapt during one pass'}
 			</button>
 			<button data-testid="lab-replay-observations" onclick={replayObservations}
 				disabled={listening || recordedFeatures.length === 0}
@@ -566,8 +645,11 @@
 			</button>
 		</div>
 		<p data-testid="lab-observation-status" role="status" class="text-sm">
-			{observationStatus}{observationTrace?.windows.length ? ` · ${observationTrace.windows.length}/${observationTrace.totalBars} bars observed · ${recordedFeatures.length} usable for replay` : ''}
+			{observationStatus}{adapting ? ` · ${rollingCommitted}/${preset.bars} bars committed` : ''}{observationTrace?.windows.length ? ` · ${observationTrace.windows.length}/${observationTrace.totalBars} bars observed · ${recordedFeatures.length} usable for replay` : ''}
 		</p>
+		{#if rollingTake && rollingTake.session.status !== 'complete'}
+			<p class="text-xs text-[var(--color-text-secondary)]">Partial adaptive take. Export includes the committed plan and dispatch record; cancelled future notes were not heard. Complete a pass to bounce it.</p>
+		{/if}
 		{#if latestObservation}
 			<p class="text-xs text-[var(--color-text-secondary)]">
 				Bar {latestObservation.barIndex + 1}: {latestObservation.status} · {latestObservation.reason}.
@@ -583,7 +665,7 @@
 		<div class="flex flex-wrap items-center gap-3">
 			<button
 				onclick={bounce}
-				disabled={bouncing}
+				disabled={bouncing || listening || (rollingTake !== null && rollingTake.session.status !== 'complete')}
 				data-testid="lab-bounce"
 				class="rounded-full bg-[var(--color-accent)] text-white px-4 py-1.5 text-sm font-semibold disabled:opacity-50"
 			>
@@ -600,6 +682,7 @@
 			{/if}
 			<button
 				onclick={exportGoldenJson}
+				disabled={listening}
 				class="rounded-full bg-[var(--color-bg-tertiary)] px-4 py-1.5 text-sm hover:bg-[var(--color-bg-secondary)] transition-colors"
 			>
 				Export events JSON

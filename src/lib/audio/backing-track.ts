@@ -51,6 +51,9 @@ import {
 } from './backing-mix';
 import { extendHarmonyTail } from '$lib/data/progressions';
 import { createBackingSampleLoader } from './backing-sample-loader';
+import {
+	createRollingBackingRenderer, type RollingBackingRenderer, type RollingBackingRendererOptions
+} from './backing-rolling-renderer';
 
 // ── Diagnostics log ──────────────────────────────────────────
 
@@ -311,6 +314,8 @@ let bassPart: import('tone').Part<BassEvent> | null = null;
 let compPart: import('tone').Part<CompEvent> | null = null;
 let drumPart: import('tone').Part<DrumEvent> | null = null;
 let activeSchedule: BackingTrackSchedule | null = null;
+let activeRollingPlayback: RollingBackingRenderer | null = null;
+let rollingPlaybackId = 0;
 
 /** Monotonically increasing ID for cancelling stale loads. */
 let currentLoadId = 0;
@@ -827,6 +832,9 @@ function captureLog(
 
 /** Dispose only the scheduled parts (not the instruments). */
 export function disposeBackingParts(): void {
+	const rolling = activeRollingPlayback;
+	activeRollingPlayback = null;
+	rolling?.stop();
 	if (bassPart) {
 		bassPart.dispose();
 		bassPart = null;
@@ -885,41 +893,107 @@ export function playTransitionChords(
  * trim mapping (drumBufferForVelocity, BACKING_BASE_TRIMS, mixLevels) is
  * module-private — this mirrors the backing Parts' trigger callbacks.
  */
-export function playBackingHitsNow(hits: BackingHit[], time: number): void {
-	for (const hit of hits) {
+export function playBackingHitsNow(hits: readonly BackingHit[], time: number, ownershipPrefix?: string): () => void {
+	const stops: (() => void)[] = [];
+	let stopped = false;
+	let voiceIndex = 0;
+	const ownership = () => ownershipPrefix === undefined ? {} : { stopId: `${ownershipPrefix}:${voiceIndex++}` };
+	const keep = (stop: (() => void) | undefined) => { if (stop) stops.push(stop); };
+	const release = () => {
+		if (stopped) return;
+		stopped = true;
+		for (const stop of stops) { try { stop(); } catch { /* Release remaining owned voices. */ } }
+	};
+	try { for (const hit of hits) {
 		switch (hit.kind) {
 			case 'bass':
-				bassInstrument?.start({
+				keep(bassInstrument?.start({
 					note: hit.midi,
 					velocity: hit.velocity,
 					duration: hit.duration,
-					time
-				});
+					time, ...ownership()
+				}));
 				break;
 			case 'comp':
 				for (const note of hit.notes) {
-					compInstrument?.start({
+					keep(compInstrument?.start({
 						note,
 						velocity: hit.velocity,
 						duration: hit.duration,
-						time
-					});
+						time, ...ownership()
+					}));
 				}
 				break;
 			case 'drum':
 				// Mirrors the drum Part callback: buffer picked by generated
 				// velocity, level shaped through velocity, hit routed to its
 				// family's sampler (kick / snare / cymbals).
-				drumSamplers?.[DRUM_FAMILY_BY_VOICE[hit.drum]].start({
+				keep(drumSamplers?.[DRUM_FAMILY_BY_VOICE[hit.drum]].start({
 					note: drumBufferForVelocity(hit.drum, hit.velocity),
 					velocity: Math.round(
 						voiceVelocity(hit.velocity * BACKING_BASE_TRIMS[hit.drum], mixLevels[hit.drum]) * 127
 					),
-					time
-				});
+					time, ...ownership()
+				}));
 				break;
 		}
-	}
+	} } catch (error) { release(); throw error; }
+	return release;
+}
+
+export interface RollingBackingPlaybackOptions extends Omit<RollingBackingRendererOptions, 'startAudioTime'> {
+	/** Omit to anchor after all asynchronous sample readiness checks. */
+	startAudioTime?: number;
+	isCurrent(): boolean;
+}
+
+/**
+ * Claim the backing output once, then append complete rolling bars. Existing
+ * playback remains untouched on stale async setup; normal bar commits neither
+ * dispose Parts nor stop ringing voices. Stop handles use unique run/voice IDs.
+ */
+export async function createRollingBackingPlayback(options: RollingBackingPlaybackOptions): Promise<RollingBackingRenderer> {
+	const Tone = await getTone();
+	const assertCurrent = () => {
+		if (!options.isCurrent()) throw new DOMException('Rolling playback was cancelled.', 'AbortError');
+	};
+	assertCurrent();
+	if (!isBackingLoaded()) throw new Error('Load backing instruments before rolling playback.');
+	await ensureDrums();
+	assertCurrent();
+	const context = Tone.getContext();
+	const transport = Tone.getTransport();
+	if (transport.PPQ !== options.ppq) throw new Error('Rolling playback PPQ must match the transport.');
+	const updateInterval = () => {
+		if (!('updateInterval' in context) || typeof context.updateInterval !== 'number' ||
+			!Number.isFinite(context.updateInterval) || context.updateInterval < 0) {
+			throw new Error('Rolling playback requires the audio scheduler update interval.');
+		}
+		return context.updateInterval;
+	};
+	const audioNow = () => {
+		if (context.rawContext.state !== 'running') throw new Error('Rolling playback requires a running audio context.');
+		return context.rawContext.currentTime;
+	};
+	const readyAt = audioNow();
+	const startAudioTime = options.startAudioTime ?? readyAt + context.lookAhead + updateInterval() + 0.2;
+	const epoch = graphEpoch;
+	const playbackId = ++rollingPlaybackId;
+	let renderer: RollingBackingRenderer;
+	const ownsOutput = () => activeRollingPlayback === renderer && epoch === graphEpoch && options.isCurrent();
+	// Validate configuration before replacing the previous session.
+	renderer = createRollingBackingRenderer({ ...options, startAudioTime }, {
+		audioNow, lookAhead: () => context.lookAhead, updateInterval,
+		isCurrent: ownsOutput,
+		scheduleOnce: (callback, ticks) => transport.scheduleOnce(callback, ticks),
+		clear: (id) => { transport.clear(id); },
+		play: (hits, time, eventKey) => playBackingHitsNow(hits, time, `rolling:${playbackId}:${eventKey}`),
+		publishSchedule: (schedule) => { if (ownsOutput()) activeSchedule = schedule; }
+	});
+	if (startAudioTime <= renderer.horizon().renderSafeFrom) throw new Error('Rolling playback start is inside the scheduling horizon.');
+	disposeBackingParts();
+	activeRollingPlayback = renderer;
+	return renderer;
 }
 
 /**

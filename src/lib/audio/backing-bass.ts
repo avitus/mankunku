@@ -219,6 +219,11 @@ type ApproachDevice =
 	| 'double-chromatic'
 	| 'octave-drop';
 
+// The rolling lab reuses the same known-form register and approach vocabulary.
+// These helpers have no observation, playback or mutable instrument state.
+export { planArc as planBassRegisterArc, devicePitches as bassApproachPitches };
+export type { ApproachDevice as BassApproachDevice };
+
 const APPROACH_WEIGHTS: Array<{ value: ApproachDevice; weight: number; beats: 1 | 2 }> = [
 	{ value: 'chromatic-below', weight: 28, beats: 1 },
 	{ value: 'chromatic-above', weight: 16, beats: 1 },

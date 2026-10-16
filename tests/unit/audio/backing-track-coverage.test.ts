@@ -8,6 +8,7 @@ import { generateBacking, resolveBackingSwing } from '$lib/audio/backing-generat
 import { BACKING_STYLES } from '$lib/audio/backing-styles';
 import { buildSchedule } from '$lib/audio/backing-track-schedule';
 import { buildPerformanceForm } from '$lib/audio/performance-form';
+import type { RollingBackingBar } from '$lib/audio/backing-rolling';
 
 /**
  * The backing track must cover the whole phrase.
@@ -32,6 +33,14 @@ interface Recorded {
 }
 
 const recorded: Recorded[] = [];
+const rollingCallbacks = new Map<number, (time: number) => void>();
+let rollingEventId = 0;
+const rollingClock = { currentTime: 10, state: 'running' };
+const rollingTransport = {
+	PPQ: 480,
+	scheduleOnce: vi.fn((callback: (time: number) => void) => { const id = ++rollingEventId; rollingCallbacks.set(id, callback); return id; }),
+	clear: vi.fn((id: number) => { rollingCallbacks.delete(id); })
+};
 
 /**
  * Stand-in for a Tone Part/Sequence constructor: logs the events and whether
@@ -73,7 +82,8 @@ vi.mock('tone', () => ({
 			return record('sequence', events) as unknown as never;
 		}
 	},
-	getTransport: () => ({ PPQ: 480 })
+	getTransport: () => rollingTransport,
+	getContext: () => ({ rawContext: rollingClock, lookAhead: 0.1, updateInterval: 0.025 })
 }));
 
 /** Every fake smplr instrument built, by class, with its constructor options. */
@@ -431,5 +441,67 @@ describe('playBackingHitsNow', () => {
 			expect.objectContaining({ note: drumBufferForVelocity('kick', 0.3), time: 12.5 })
 		);
 		expect(drumAt(-0.1).start).not.toHaveBeenCalled();
+	});
+
+	it('owns unique note stop handles across sessions, including queued notes and partial trigger failure', async () => {
+		const mod = await import('$lib/audio/backing-track');
+		await mod.loadBackingInstruments('piano');
+		const bass = instruments.find((item) => item.kind === 'Smolken')!.inst;
+		const stops = [vi.fn(), vi.fn(), vi.fn()];
+		bass.start.mockReturnValueOnce(stops[0]).mockReturnValueOnce(stops[1]).mockReturnValueOnce(stops[2]);
+		const hit = { kind: 'bass' as const, midi: 48, velocity: 80, duration: 0.4 };
+		const stopOld = mod.playBackingHitsNow([hit], 12, 'old:batch');
+		mod.playBackingHitsNow([hit], 12, 'new:batch');
+		stopOld(); stopOld();
+		expect(stops[0]).toHaveBeenCalledOnce();
+		expect(stops[1]).not.toHaveBeenCalled();
+		expect(bass.start.mock.calls[0][0].stopId).not.toBe(bass.start.mock.calls[1][0].stopId);
+		const comp = instruments.find((item) => item.kind === 'SplendidGrandPiano')!.inst;
+		comp.start.mockImplementationOnce(() => { throw new Error('voice failure'); });
+		expect(() => mod.playBackingHitsNow([hit, { kind: 'comp', notes: [60], velocity: 60, duration: 0.2 }], 12, 'failed')).toThrow('voice failure');
+		expect(stops[2]).toHaveBeenCalledOnce();
+	});
+});
+
+describe('rolling playback browser wrapper', () => {
+	beforeEach(() => {
+		vi.resetModules(); recorded.length = 0; instruments.length = 0; rollingCallbacks.clear(); rollingClock.currentTime = 10;
+	});
+
+	function openingBar(): RollingBackingBar {
+		return { version: 1, sessionId: 'rolling-probe', fromBar: 0, toBarExclusive: 1, startTick: 0, earliestTick: 0,
+			committedThroughTick: 1920, previousCheckpointId: null,
+			checkpoint: { version: 1, sessionId: 'rolling-probe', fingerprint: 'score', checkpointId: 'one', nextBar: 1 },
+			bassEvents: [{ time: '0i', midi: 48, velocity: 80, duration: 0.4, absBeat: 0 }],
+			compEvents: [], drumEvents: [], ensemblePlan: [], ensembleTiming: [],
+			ensembleDevelopment: { version: 1, pianoMotifs: [], bassTurnarounds: [], drumPhrases: [] }
+		} as unknown as RollingBackingBar;
+	}
+
+	it('anchors after readiness and publishes/clears the actual schedule while cancelling already dispatched voices', async () => {
+		const mod = await import('$lib/audio/backing-track');
+		await mod.loadBackingInstruments('piano');
+		const release = vi.fn();
+		instruments.find((item) => item.kind === 'Smolken')!.inst.start.mockReturnValue(release);
+		const playback = await mod.createRollingBackingPlayback({ sessionId: 'rolling-probe', tempo: 120, ppq: 480, totalBars: 4, isCurrent: () => true });
+		expect(playback.startAudioTime).toBeCloseTo(10.325, 8);
+		expect(playback.commit(openingBar()).accepted).toBe(true);
+		expect(mod.getActiveSchedule()).toBe(playback.snapshot().schedule);
+		expect(recorded).toHaveLength(0);
+		const callback = [...rollingCallbacks.values()][0]; callback(playback.startAudioTime);
+		mod.disposeBackingParts(); callback(playback.startAudioTime);
+		expect(release).toHaveBeenCalledOnce();
+		expect(mod.getActiveSchedule()).toBeNull();
+		expect(playback.snapshot().status).toBe('stopped');
+	});
+
+	it('does not let a superseded setup clear an existing schedule', async () => {
+		const mod = await import('$lib/audio/backing-track');
+		await mod.loadBackingInstruments('piano');
+		const first = await mod.createRollingBackingPlayback({ sessionId: 'rolling-probe', tempo: 120, ppq: 480, totalBars: 4, isCurrent: () => true });
+		first.commit(openingBar()); const schedule = mod.getActiveSchedule();
+		await expect(mod.createRollingBackingPlayback({ sessionId: 'old', tempo: 120, ppq: 480, totalBars: 4, isCurrent: () => false })).rejects.toMatchObject({ name: 'AbortError' });
+		expect(mod.getActiveSchedule()).toBe(schedule);
+		first.stop();
 	});
 });

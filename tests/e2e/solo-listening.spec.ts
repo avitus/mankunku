@@ -106,3 +106,90 @@ test('navigation releases microphone permission that resolves after teardown', a
 	await page.evaluate(() => (window as unknown as { __soloMic: { release(): void } }).__soloMic.release());
 	await expect.poll(async () => (await micState(page)).stopped).toBe(1);
 });
+
+test('rolling microphone take changes later decisions and exports the committed playback', async ({ page }) => {
+	await setup(page);
+	await page.getByTestId('lab-preset').selectOption('lab-blues-f');
+	await page.getByTestId('lab-adapt').click({ timeout: 5000 });
+	await expect(page.getByTestId('lab-ensemble-scope')).toContainText('upcoming bars');
+	await expect(page.getByTestId('lab-observation-status')).toContainText('Adaptive pass complete', { timeout: 30_000 });
+	expect(await micState(page)).toEqual({ calls: 1, stopped: 1 });
+	const pending = page.waitForEvent('download');
+	await page.getByRole('button', { name: 'Export events JSON' }).click();
+	const file = await pending;
+	const data = JSON.parse(await readFile((await file.path())!, 'utf8'));
+	expect(data.soloScenario).toBe('microphone-rolling');
+	expect(data.rollingTake.session.status).toBe('complete');
+	expect(data.rollingTake.playback.windows).toHaveLength(12);
+	expect(data.rollingTake.session.receipts.length).toBeGreaterThan(0);
+	expect(data.ensemblePlan.trace.slice(0, 2).every((bar: { soloEvidence: string }) => bar.soloEvidence === 'unavailable')).toBe(true);
+	expect(data.ensemblePlan.trace.slice(2).some((bar: { soloEvidence: string }) => bar.soloEvidence === 'resting')).toBe(true);
+	expect(data.bassEvents).toEqual(data.rollingTake.playback.generated.bassEvents);
+	expect(data.compEvents).toEqual(data.rollingTake.playback.generated.compEvents);
+	expect(data.drumEvents).toEqual(data.rollingTake.playback.generated.drumEvents);
+	for (const receipt of data.rollingTake.session.receipts) {
+		expect(receipt.receivedAtSeconds).toBeGreaterThanOrEqual(receipt.availableAtSeconds - 0.01);
+		expect(receipt.nextBarAtReceipt).toBeGreaterThan(receipt.windowBar);
+	}
+	await page.getByTestId('lab-seed').fill('4'); await page.getByTestId('lab-seed').blur();
+	await expect(page.getByTestId('lab-observation-status')).toContainText('No captured observations');
+});
+
+test('cancelled rolling permission cannot resume after a new loop starts', async ({ page }) => {
+	await setup(page, true);
+	await page.getByTestId('lab-adapt').click();
+	await expect.poll(async () => (await micState(page)).calls).toBe(1);
+	await page.getByTestId('lab-adapt').click();
+	await page.getByRole('button', { name: 'Play loop', exact: true }).click();
+	await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeVisible();
+	await page.evaluate(() => (window as unknown as { __soloMic: { release(): void } }).__soloMic.release());
+	await expect.poll(async () => (await micState(page)).stopped).toBe(1);
+	await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeVisible();
+	await expect(page.getByTestId('lab-replay-observations')).toBeDisabled();
+});
+
+test('rolling adaptive playback produces live audio throughout its committed form', async ({ page, browserName }) => {
+	test.skip(!!process.env.CI || browserName === 'firefox', 'local Chromium/WebKit diagnostic with real CDN samples');
+	test.setTimeout(180_000);
+	await seedOnboardedAnonymous(page);
+	await microphone(page);
+	await page.addInitScript(() => {
+		const readings: { time: number; rms: number }[] = [];
+		const taps: { context: BaseAudioContext; analyser: AnalyserNode; buffer: Float32Array<ArrayBuffer> }[] = [];
+		Object.assign(window, { __rollingAudio: { readings, taps } });
+		const connect = AudioNode.prototype.connect;
+		AudioNode.prototype.connect = function (this: AudioNode, destination: AudioNode | AudioParam, output?: number, input?: number) {
+			if (destination instanceof AudioDestinationNode) {
+				const analyser = this.context.createAnalyser(); analyser.fftSize = 1024;
+				Reflect.apply(connect, this, [analyser, 0, 0]);
+				taps.push({ context: this.context, analyser, buffer: new Float32Array(1024) });
+			}
+			if (destination instanceof AudioParam) return Reflect.apply(connect, this, [destination, output ?? 0]);
+			return Reflect.apply(connect, this, [destination, output ?? 0, input ?? 0]);
+		} as typeof AudioNode.prototype.connect;
+		setInterval(() => {
+			for (const { context, analyser, buffer } of taps) {
+				analyser.getFloatTimeDomainData(buffer);
+				readings.push({ time: context.currentTime, rms: Math.sqrt(buffer.reduce((sum, value) => sum + value * value, 0) / buffer.length) });
+			}
+		}, 40);
+	});
+	await page.goto('/diagnostics/backing-mixer');
+	await page.getByRole('combobox', { name: 'Style', exact: true }).selectOption('swing');
+	await page.getByRole('button', { name: '160', exact: true }).click();
+	await page.getByTestId('lab-adapt').click();
+	await expect(page.getByTestId('lab-observation-status')).toContainText('Adaptive pass complete', { timeout: 120_000 });
+	const pending = page.waitForEvent('download');
+	await page.getByRole('button', { name: 'Export events JSON' }).click();
+	const file = await pending;
+	const data = JSON.parse(await readFile((await file.path())!, 'utf8'));
+	const signal = await page.evaluate(({ start, duration }) => {
+		const readings = (window as unknown as { __rollingAudio: { readings: { time: number; rms: number }[] } }).__rollingAudio.readings;
+		return Array.from({ length: Math.floor(duration / 0.5) }, (_, bucket) => Math.max(0, ...readings
+			.filter((item) => item.time >= start + bucket * 0.5 && item.time < start + (bucket + 1) * 0.5).map((item) => item.rms)));
+	}, { start: data.rollingTake.startAudioTime, duration: 6 });
+	expect(data.rollingTake.playback.dispatches.every((entry: { status: string }) => entry.status === 'played')).toBe(true);
+	expect(signal.filter((rms) => rms > 0.001).length / signal.length, `live output RMS buckets: ${signal}`).toBeGreaterThan(0.8);
+	expect(signal.slice(-3).every((rms) => rms > 0.001)).toBe(true);
+	console.log(`${browserName} rolling live RMS: ${signal.map((rms) => rms.toFixed(4)).join(', ')}`);
+});

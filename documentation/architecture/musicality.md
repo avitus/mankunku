@@ -16,7 +16,7 @@ The current foundation provides:
 
 Coordinated generation currently applies to **swing in 4/4**, selected in the [listening lab](/diagnostics/backing-mixer). Ordinary practice keeps the original orchestration mode until the comparison has received listening acceptance. Both modes consume corrected explicit form metadata where available. The lab supports original/coordinated comparison, variation seeds, WAV bounce and event/decision export.
 
-The lab supports scripted observations and bounded live microphone capture. **The accompaniment does not change during the captured take.** Qualified observations can drive a newly generated replay afterward. Each performance is still generated before playback; looping repeats that timeline. Rolling adaptation and the complete vocabulary specification remain unfinished.
+The lab supports scripted observations, fixed microphone capture/replay, and a finite **rolling adaptive take**. In rolling mode, qualified completed microphone evidence changes upcoming uncommitted bars while the instruments retain phrase state. Scheduled attacks and releases remain fixed. Ordinary loops still repeat a precomputed timeline; cross-loop adaptation and the complete vocabulary specification remain unfinished.
 
 ## What the existing architecture provides
 
@@ -66,7 +66,7 @@ An ownership assignment is an opportunity, not a guarantee of an audible lick: v
 
 ### Memory and phrase timing
 
-`planEnsembleWindow` receives the full declared form and a contiguous planning range. Its checkpoint binds the phrase identity, tempo and form fingerprint; a mismatched form, skipped/repeated range or foreign checkpoint is rejected. It retains the active phrase choice, response/fill cooldowns, a pending setup arrival, the last two bar summaries, the last four phrase summaries and bounded performance aggregates. JSON save/restore across a mid-phrase or setup boundary produces the same decisions as a single full-form call. Future observations can change only future windows. This is planner continuity, not a rolling audio scheduler: playback still generates the complete form once and repeats it on a loop.
+`planEnsembleWindow` receives the full declared form and a contiguous planning range. Its checkpoint binds the phrase identity, tempo and form fingerprint; a mismatched form, skipped/repeated range or foreign checkpoint is rejected. It retains the active phrase choice, response/fill cooldowns, a pending setup arrival, the last two bar summaries, the last four phrase summaries and bounded performance aggregates. JSON save/restore across a mid-phrase or setup boundary produces the same decisions as a single full-form call. Future observations can change only future windows. The ordinary loop still generates the complete form once. The rolling lab path now composes this planner checkpoint with explicit instrument memory and additive audio scheduling.
 
 `ensemble-timing.ts` places coordinated swing events on the existing swing grid with three additions: smooth common phrase motion, a stable placement for each player and a smaller event residual. Drum limbs share one drummer placement. Named seeds keyed by phrase and exact event position keep timing independent of event order and draw counts. Motion returns to zero at phrase edges rather than accumulating tempo error. Declared bass/drum arrivals omit player residuals and share a tick; reserved piano silence still constrains attack and release.
 
@@ -96,25 +96,27 @@ The first live-observation stage uses `solo-observer.ts` for bounded feature acc
 
 Headphones are an operating assumption, and the observer uses fixed engineering thresholds that depend on microphone gain and device characteristics. It does not calibrate the room or separate sound sources. A rest requires healthy frame coverage below the quiet threshold. The committed accompaniment schedule helps identify suspicious nonquiet matches, but uncertainty remains unknown rather than becoming a soloist rest. Fast or busy backing can leave too little independently supported activity for a usable observation. A held note is activity without necessarily being a dense run; a missing pitch estimate alone cannot establish silence.
 
-Register and dynamics are diagnostic observations in this stage and do not steer the accompaniment. The optional `phraseEnded` field still does not establish phrase recognition. MIDI input, reliable solo phrase-end detection, register avoidance, contour and rhythmic imitation remain separate work. Capturing live input is implemented here; changing the accompaniment during that same take is not.
+Register and dynamics are diagnostic observations in this stage and do not steer the accompaniment. The optional `phraseEnded` field still does not establish phrase recognition. MIDI input, reliable solo phrase-end detection, register avoidance, contour and rhythmic imitation remain separate work. The rolling lab mode now uses qualified density/rest evidence during the same take. The fixed capture/replay option remains available for comparison.
 
 ### Scheduling and scoring boundary
 
 `BackingTrackSchedule` feeds pitch bleed filtering and onset handling as well as playback. The current coordinated mode generates one coherent event set; live playback and offline bounce use the same generation policy. Scoring algorithms, pass thresholds and practice progress are unchanged.
 
-Real-time listening will require a rolling planner with explicit checkpoints:
+### Rolling orchestration decision — 15 October 2026
 
-1. Observe only completed audio/MIDI evidence, accounting for capture and analysis latency.
-2. Keep a short immutable committed horizon; plan farther ahead on a musical grid.
-3. Replan only uncommitted bars, retaining pending motifs, setups, responses and random-stream state.
-4. Validate the whole candidate window before commitment.
-5. Publish scheduled events **and** detection/bleed evidence together under one generation token.
-6. Cancel obsolete future events on stop, restart, tempo/key changes and navigation; reject stale asynchronous work.
-7. If observations are absent or delayed, continue a complete accompaniment plan without changing score interpretation.
+The additive path is `backing-rolling.ts` → `backing-rolling-session.ts` → `backing-rolling-renderer.ts`, with browser instrument ownership in `backing-track.ts`. It is limited to finite, complete coordinated swing 4/4 forms of at most 128 bars in the listening lab. The original generator and ordinary practice/scoring policy stay unchanged.
 
-The commit horizon must be measured against Tone lookahead, renderer scheduling and microphone latency on supported browsers. A fixed number chosen without those measurements would be premature. No LLM or network request belongs in the audio scheduling deadline.
+- Static preparation knows the complete harmony and form, but does not generate a full performance and splice future suffixes. Each call realizes exactly one new absolute bar from a versioned, score-bound checkpoint.
+- Piano retains motif, figure and sounded voicing history. Bass uses forward pitch/velocity/ornament streams and retains actual pitch history, harmonic targets and accepted following-chorus launches. Drums retain ride/commentary phrase state and the previous emitted piano attacks. Ensemble cooldowns and accepted setup/arrival reservations survive later observations. Timing coefficients latch at phrase entry against its known form extent.
+- Rolling v1 owns each bar's attacks and pitched releases. Early microtiming cannot precede that bar; sustained bass/piano releases end by its boundary. Unreserved two-bar piano fallback figures are excluded; selected motif cells continue through retained state and current-bar admission. This deliberately limits vocabulary parity and cross-bar sustain, rather than letting a later silence decision rewrite a sounding note. Sample envelopes and room tails may remain audible after scheduled release.
+- The renderer derives its dispatch horizon from actual audio time, Tone lookahead/update interval and a small safety allowance. A separate measured computation budget determines when rendering must start. Two initial bars are primed; a 25 ms coordinator pump approaches the next deadline with a 75 ms timer margin. Each batch is revalidated after computation. A missed deadline or suspended audio stops the take; it never emits a burst of overdue notes.
+- Completed microphone windows carry original availability timestamps. Receipt time and the next uncommitted bar are recorded separately. Future, duplicate and foreign observations are rejected; older evidence is never made fresh by changing its observation timestamp. Qualified evidence can affect only a later eligible decision. Missing or ambiguous input leaves a complete form-led band.
+- Every accepted window appends audio callbacks and the exact corresponding pitch/transient bleed reference as one synchronous transaction. Rejected registration rolls back the candidate callbacks and does not advance musical memory. Unique voice ownership and transport IDs protect a new take from late callbacks or cleanup belonging to an old one.
+- Stop, navigation and parameter changes invalidate pending permission/sample work, cancel callbacks and stop owned voices. A completed adaptive export and bounce use the committed event ledger, not a regeneration from the final observations. Partial exports retain dispatch evidence and explicitly identify cancelled future notes; only complete takes can be bounced.
 
-An ensemble checkpoint alone cannot support this transition. Instrument checkpoints must retain piano figure/motif and voicing state, sounding releases, bass pitch history and committed launches, drum phrase state and the previous committed piano onsets. Phrase timing coefficients must remain fixed against the complete known form. Regenerating the full performance and splicing a suffix is insufficient: legacy piano figures consult future budgets, and future silence can affect earlier note durations. The scheduler must distinguish committed attacks, releases and gesture continuations before admitting new observations.
+An ensemble checkpoint alone was insufficient: legacy piano figures consult future budgets, future silence can change earlier durations, and full-segment bass random draws can depend on later ornaments. The separate forward path avoids those dependencies while reusing existing harmonic, motif, turnaround and drum vocabulary. No LLM or network request belongs in the scheduling deadline.
+
+This is bounded bar-level adaptation, not instantaneous call-and-response or acoustic source separation. The observer still assumes headphones and gain-dependent thresholds. Long main-thread stalls terminate the take. Human listening must assess the shorter rolling sustain policy, forward bass phrasing and musical reaction delay before enabling this in practice.
 
 ## Delivery sequence
 
@@ -130,7 +132,7 @@ The exact `musicality` branch has a hosted CircleCI setup-workflow guard, so ong
 | 4. Phrase memory and timing | Checkpointable short/medium/performance memory; response and fill history across loops; phrase timing with player offsets and coordinated exceptions | Planner checkpoints and shared phrase timing implemented; cross-loop audio state and listening acceptance pending |
 | 5. Bass and piano development | Multi-bar bass targets/turnarounds, melodic restraint, rhythmic motifs and transformations, then explicit guide/common/top-note objectives | Scoped following-chorus bass launches and within-phrase piano motifs implemented in the lab; broader melodic objectives and listening acceptance pending |
 | 6. Drummer phrasing | 2–4-bar ride phrases, commentary motifs, shared setups, credible limb allocations, expanded kit articulation when needed | Ride/commentary phrasing, recent-piano answers and simultaneous limb occupancy implemented in the lab; broader physical/articulation models and listening acceptance pending |
-| 7. Live listening | Independent activity/rest/register features, confidence and bleed handling, rolling atomic scheduling, safe reset/replay | Partially implemented: 7a live observation and causal recorded-feature replay in the lab; mid-take adaptation, instrument checkpoints and rolling scheduling pending |
+| 7. Live listening | Independent activity/rest/register features, confidence and bleed handling, rolling atomic scheduling, safe reset/replay | 7a capture/replay and 7b finite rolling adaptation implemented in the lab; richer solo understanding, acoustic validation, cross-loop continuity and listening acceptance pending |
 | 8. Structural development and styles | Non-monotonic build/peak/release across choruses; head/solo arrangements; traditional/bebop/post-bop profiles and complexity separate from density | Local phrase movement started; full arc/styles planned |
 | 9. Musical acceptance and rollout | Recorded A/B reviews at multiple tempos/seeds/forms; maintain evidence in ledger; enable ordinary practice only after acceptance | Lab ready; human acceptance pending |
 
