@@ -1,6 +1,8 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import StudioPanel from '$lib/components/console/StudioPanel.svelte';
+	import TuningNotice from '$lib/components/practice/TuningNotice.svelte';
+	import type { TuningAlert } from '$lib/scoring/tuning';
 	import { GRADE_LABELS } from '$lib/scoring/grades';
 	import { GRADE_COLORS, accuracyTier } from '$lib/ui/score-colors';
 	import { formatDuration } from '$lib/util/format-duration';
@@ -20,11 +22,17 @@
 		quote: string;
 		message?: string;
 		levelSignal?: { dir: 'up' | 'down'; scaleName: string; level: number } | null;
+		/**
+		 * The sharp/flat reminder. Shown through Listen and Play as well as on
+		 * pause: it is the one piece of tuning feedback meant for live play. The
+		 * `tuning` snippet (the fader bank's interpretation) waits for a pause.
+		 */
+		tuningAlert?: TuningAlert | null;
 		help?: Snippet;
 		tuning?: Snippet;
 	}
 	let { writtenKey, scaleName, scaleNoteCount, elapsedMs, practising, phase, disabled,
-		onToggle, score, quote, message = '', levelSignal = null, help, tuning }: Props = $props();
+		onToggle, score, quote, message = '', levelSignal = null, tuningAlert = null, help, tuning }: Props = $props();
 	const pct = (n: number): number => Math.round(n * 100);
 	const attributionAt = $derived(quote.lastIndexOf(' — '));
 	const quoteText = $derived(attributionAt < 0 ? quote : quote.slice(0, attributionAt));
@@ -83,9 +91,15 @@
 				{#if message}<p>{message}</p>{/if}
 				{#if levelSignal}<span class="level-signal" class:is-up={levelSignal.dir === 'up'}>{levelSignal.dir === 'up' ? '↑' : '↓'} {levelSignal.scaleName} · Lv {levelSignal.level}</span>{/if}
 			</div>
+			<!-- The one-line sharp/flat reminder stays up while playing (2026-10-15: a
+			     run centred 14 ¢ sharp earned it on 18 of 52 takes and the player saw
+			     none, because it sat in the paused-only region below). Its line is
+			     reserved when clear, so Listen and Play keep one layout. -->
+			<TuningNotice alert={tuningAlert} />
 		</StudioPanel>
 		<!-- Fixed region: even the longest existing caption cannot move the controls.
-		     Quotes are only rendered while paused, never changed under a playing user. -->
+		     Quotes and the fader bank are only rendered while paused, never changed
+		     under a playing user. -->
 		<div class="quote-slot" data-testid="practice-quote">
 			{#if !practising && quote}
 				<figure><blockquote>{quoteText}</blockquote>{#if quoteAuthor}<figcaption>— {quoteAuthor}</figcaption>{/if}</figure>

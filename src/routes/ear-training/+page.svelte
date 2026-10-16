@@ -17,7 +17,6 @@
 	import { runScorePipeline } from '$lib/scoring/score-pipeline';
 	import { cleanTuningSamples, createTuningMonitor, type TuningAlert, type TuningSample } from '$lib/scoring/tuning';
 	import { summarizeTuning } from '$lib/scoring/tuning-summary';
-	import TuningNotice from '$lib/components/practice/TuningNotice.svelte';
 	import TuningFaders from '$lib/components/practice/TuningFaders.svelte';
 	import { resolveOnsets, segmentNotes, findReArticulations } from '$lib/audio/note-segmenter';
 	import { durationThroughLastReading, trimToPerformance } from '$lib/audio/capture-window';
@@ -978,6 +977,7 @@
 	quote={bottomQuote}
 	message={audioLoadFailed ? "Couldn't load audio — reload to try again" : session.engineState === 'error' ? 'Unable to start audio. Please try again.' : !session.phrase ? 'No phrases fit this scale at your current level.' : !practising && session.micPermission !== 'granted' ? 'Microphone access required' : ''}
 	{levelSignal}
+	{tuningAlert}
 >
 	{#snippet help()}
 		<TourTrigger tourId="ear-training" steps={earTrainingTour} label="Practice tour" />
@@ -995,6 +995,5 @@
 				context="{instrument.name} · {writtenKey} {SCALE_TYPE_NAMES[activeTonality.scaleType]}"
 			/>
 		{/if}
-		<TuningNotice alert={tuningAlert} />
 	{/snippet}
 </EarTrainingConsole>

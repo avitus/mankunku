@@ -460,6 +460,12 @@ session length. Deep Practice and Tricks retain their original configuration log
 Pages visible while playing prioritize listening over reading. Keep the musical
 context, a single Listen/Play cue, transport and exact scores. Move explanatory
 copy, tuning interpretation and attributed jazz quotes to paused moments or help.
+The one-line sharp/flat reminder (`TuningNotice`) is not interpretation: it is the
+tuning feedback meant for live play, so `EarTrainingConsole` renders it through
+Listen and Play as well as on pause, with its line reserved when clear. Only the
+fader bank waits for a pause (2026-10-15: the console had carried the reminder
+into the paused-only region, and a 52-take run centred 14 ¢ sharp earned it on 18
+takes nobody saw).
 Avoid repeated instructions, decorative motion and layout changes between Listen
 and Play. Ear Training has no visible medal badge: its existing five accuracy
 colours are applied to the actual overall, pitch and rhythm percentages; the grade

@@ -2879,3 +2879,30 @@ never appears. The PR #277 case shows how quietly that happens: a 4/128 tune
 imports cleanly and then never shows up in the community, with no error.
 The paging bug has the same shape at a smaller scale: filtering after a page
 boundary is a gate placed downstream of the counter that depends on it.
+## 2026-10-15 — A region's gate quietly becomes every component's gate
+
+The Studio Console commit grouped two components under one snippet and gated
+the snippet on pause. The fader bank had always been pause-only; the one-line
+sharp/flat cue had never been. The `{#if !practising}` read as the faders'
+rule and was accepted as such — the console's tests pinned "no faders while
+playing" and nothing about the cue, and the cue's own tests covered its text
+and its empty slot but not WHEN it is on screen, the one property that
+mattered. When a refactor groups elements under one condition, each element's
+prior visibility rule needs a pin of its own, or the group's rule becomes
+everyone's without anyone deciding it.
+
+The second thing worth keeping: the same complaint, "the cue never fired", had
+a true cause five days ago (a 15 ¢ threshold applied twice) and a different
+true cause today (hidden). Reaching for the previous fix would have been
+wrong twice over — the rule was already fixed, and tightening or loosening it
+changes nothing a player cannot see. One replay of the actual 52 takes
+separated the two in a single step: "fired 18 times" rules out the rule and
+points at the screen. Measure the specific run before trusting the last
+diagnosis.
+
+Independent note on the rule itself, not acted on: at Andy's centre (12–15 ¢)
+a 12 ¢ gate is a coin flip per take. The 10-10 study judged hysteresis by
+run-level counts ("barely changes"), but what a player experiences is the
+per-take share, and a reminder on 35% of takes reads as noise rather than
+advice. If it is to feel like a steady light, the rule needs an enter/hold
+pair judged by share, not by runs. That is Andy's threshold to move.

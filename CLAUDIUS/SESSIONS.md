@@ -5192,3 +5192,38 @@ guidebook, tricks pages; Daily follow-up refresh; admin active days).
   limited once (5 min). Merged ce4154c1: test → build → db-migrate, e2e,
   deploy all green; /api/health on mankunkujazz.com reports ce4154c1,
   release 20261015-233810-ce4154c.
+## 2026-10-15 — The sharp/flat cue fired on 18 takes and nobody saw it
+
+Andy, after an ear-training run whose fader bank read 14 ¢ sharp with every
+note sharp: shouldn't the tuning warning have spoken during the session?
+
+- Pulled the run from production (read-only `supabase db query --linked`):
+  52 takes, F Lydian, 16:43–16:54 PDT, two minutes after the PR #277 deploy
+  (`/api/health` ce4154c1, which carries the 12 ¢ window-pooled rule from
+  2026-10-10). Replayed through the real `createTuningMonitor`: the cue was
+  ON for 18 of 52 takes, including the last five (sharp 13 after the final
+  take); the faders' centre is 14 with seven steady notes at 5–25 ¢; 113
+  matched notes, none rejected for clarity, six for duration.
+- So the rule, the wiring and the deploy were fine. The cue was invisible:
+  `5e30a0d9` (2026-10-12, Ear Training into the Studio Console) put
+  `<TuningNotice>` inside the `tuning` snippet, which `EarTrainingConsole`
+  renders `{#if !practising}` — the fader bank's own rule, applied to the one
+  line meant for live play. Three days on production; the console's tests
+  pinned "no faders while playing" and said nothing about the cue.
+- Fix, RED first (five vectors in `ear-training-console.test.ts`: the cue in
+  listen/play/next, the reserved line when clear, the verdict on pause):
+  `tuningAlert` is a prop of the console, `<TuningNotice>` renders inside the
+  panel under the feedback row on every phase; the snippet keeps the faders.
+  `data-testid="tuning-cue"` on the reserved line, pinned by the saved-take
+  e2e beside the faders' `toHaveCount(0)`. design-system "Focus on sound" and
+  the CLAUDE.md scoring clause now say which tuning line is live and which
+  waits for a pause.
+- Left alone, raised in the report: at a 14 ¢ centre the 12 ¢ rule flickers
+  (window centres 9.3–18 over the run, the cue on 35% of takes; eight takes
+  with ONE clean note clear it outright through the "insufficient" rule).
+  Andy chose 12 five days ago and the production table already said 25%
+  share for runs ≥ 10, so that is his call, not a bug.
+- Verification: console/notice/faders tests 34 green; full suite 379 files /
+  6143 passed / 40 expected fails; svelte-check 0 errors (a worktree has no
+  `.env`, so without `PUBLIC_SUPABASE_*` it reports nine env-import errors
+  that are not code); ear-training e2e on Chromium green.
