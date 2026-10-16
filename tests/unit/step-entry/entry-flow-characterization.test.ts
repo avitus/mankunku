@@ -44,16 +44,19 @@ Object.defineProperty(globalThis, 'localStorage', {
 		setItem: vi.fn((key: string, value: string) => { store[key] = value; }),
 		removeItem: vi.fn((key: string) => { delete store[key]; }),
 		clear: vi.fn(() => { for (const key of Object.keys(store)) delete store[key]; }),
+/** The mock store's entry count. */
 		get length() { return Object.keys(store).length; },
 		key: vi.fn((i: number) => Object.keys(store)[i] ?? null)
 	},
 	writable: true
 });
 
+/** One element as `pitch @offset ×duration [~]`. */
 function row(n: Note): string {
 	return `${n.pitch ?? 'z'} @${n.offset[0]}/${n.offset[1]} ×${n.duration[0]}/${n.duration[1]}${n.tied ? ' ~' : ''}`;
 }
 
+/** The buffer's rows plus the selection. */
 function state(): { notes: string[]; selected: number | null } {
 	return { notes: stepEntry.enteredNotes.map(row), selected: stepEntry.selectedNoteIndex };
 }
@@ -227,6 +230,7 @@ describe('tune editor entry flow (tune-entry wrappers)', () => {
 		return `${c[0]}/${c[1]}`;
 	}
 
+/** The buffer, the page, where the next note lands, and section 0's stored notes. */
 	function tuneState() {
 		return {
 			...state(),

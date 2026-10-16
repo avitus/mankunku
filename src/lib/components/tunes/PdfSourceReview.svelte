@@ -15,6 +15,7 @@
 	} = $props();
 	let internal = $state(0);
 	const index = $derived(Math.max(0, Math.min(images.length - 1, currentBar ?? internal)));
+/** Show source measure `value` and hand the editor that bar to move to. */
 	function select(value: number): void {
 		internal = Math.max(0, Math.min(images.length - 1, value));
 		onSelect(internal);

@@ -139,6 +139,7 @@
 		stepEntry.selectedNoteIndex === null ? null : flattenedBufferBase() + stepEntry.selectedNoteIndex
 	);
 
+/** A click on a chart element: select it (Shift extends the range within the page). */
 	function handlePreviewSelect(flatIndex: number, modifiers?: { shiftKey: boolean }): void {
 		if (modifiers?.shiftKey) selectRangeToFlattened(flatIndex);
 		else cursorToFlattened(flatIndex);
@@ -356,6 +357,7 @@
 		suspendEntryBuffer();
 	});
 
+/** The editor's keyboard — durations, pitches, selection, delete, insert mode, bar-wise navigation and the clipboard — when focus is outside a text field. */
 	function handleKeydown(e: KeyboardEvent): void {
 		if (shortcutsDialog?.open || settingsDialog?.open || formDialog?.open) return;
 		const target = e.target as HTMLElement | null;

@@ -81,6 +81,7 @@ export function coalesceRests(
 	const out: Note[] = [];
 	const indexMap: number[] = [];
 	const bar = fractionToFloat(barLength);
+/** Bar index of an offset under this bar length. */
 	const barOf = (f: Fraction): number => Math.floor(fractionToFloat(f) / bar + 1e-9);
 	for (const n of notes) {
 		const prev = out.at(-1);

@@ -173,6 +173,7 @@ test('account switching keeps sign-in feedback visible until the destination loa
 		await page.exposeFunction('recordSignInState', (state: string) => { formStates.push(state); });
 		await page.evaluate(() => {
 			const form = document.querySelector('main form')!;
+/** Snapshot the sign-in form's state into the page's recorder on every mutation. */
 			const record = (): void => {
 				void (window as typeof window & { recordSignInState: (state: string) => Promise<void> })
 					.recordSignInState(JSON.stringify({

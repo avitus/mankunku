@@ -441,6 +441,7 @@ describe('cursor-mode entry', () => {
 		// straddler ends where the new note begins.
 		// (Page 0's leading gap rest was stored when the bar click committed it;
 		// only the pitched notes are compared.)
+/** Pitched notes as [pitch, offset, duration] floats. */
 		const shape = (notes: Note[]) => notes.filter((n) => n.pitch !== null).map((n) => [n.pitch, fractionToFloat(n.offset), fractionToFloat(n.duration)]);
 		expect(shape(buildDraftTune().sections[0].notes)).toEqual([[62, 3.5, 0.5], [60, 4, 0.25]]);
 		commitBuffer();
@@ -1096,6 +1097,7 @@ describe('tuneDeleteSelected / tuneRemoveSelectedTime', () => {
 		expect(setChord(0, 5, 0, 'C7')).toBe(true);
 	}
 
+/** Section 0's stored notes as `pitch @offset ×duration` rows. */
 	function storedRows(): string[] {
 		return tuneEntry.sections[0].notes.map(
 			(n) => `${n.pitch ?? 'z'} @${n.offset[0]}/${n.offset[1]} ×${n.duration[0]}/${n.duration[1]}`
@@ -1210,6 +1212,7 @@ describe('tuneDeleteSelected / tuneRemoveSelectedTime', () => {
 // ─── Group 10: edit selection in the tune editor (2026-10-15, phase 2) ────
 
 describe('edit selection: position, re-pitch, resize', () => {
+/** C D E G in bar 1 and an F on bar 5 (page 1). */
 	function fourQuartersAndMore(): void {
 		loadFromTune(sheet([{
 			label: 'A',
@@ -1287,6 +1290,7 @@ describe('edit selection: position, re-pitch, resize', () => {
 // ─── Group 11: bar-wise and whole-section navigation (phase 3) ────────────
 
 describe('selectBarAcrossPages / selectFirstInSection / selectLastInSection', () => {
+/** Notes in bars 1, 4, 5 and 7 of an 8-bar section, with silent bars between. */
 	function twoPages(): void {
 		loadFromTune(sheet([{
 			label: 'A',
@@ -1346,6 +1350,7 @@ describe('selectBarAcrossPages / selectFirstInSection / selectLastInSection', ()
 // ─── Group 12: phase 4 — insert with push, cursor split, bar operations ───
 
 describe('insert mode in the tune editor', () => {
+/** C D E in bar 1, F on bar 5, G on the section's last beat, a chord on bar 5. */
 	function twoPageLine(): void {
 		loadFromTune(sheet([{
 			label: 'A',
@@ -1362,6 +1367,7 @@ describe('insert mode in the tune editor', () => {
 		expect(setChord(0, 4, 0, 'F7')).toBe(true);
 	}
 
+/** Section 0's pitched notes as [pitch, offset]. */
 	function stored(): [number | null, number][] {
 		return tuneEntry.sections[0].notes.filter((n) => n.pitch !== null).map((n) => [n.pitch, fractionToFloat(n.offset)]);
 	}
@@ -1411,6 +1417,7 @@ describe('cursor-mode entry splits across the page boundary with a tie', () => {
 });
 
 describe('insertBar / deleteBar', () => {
+/** A 4-bar section of whole notes C D E with a chord on each. */
 	function form(): void {
 		loadFromTune(sheet([{
 			label: 'A',
@@ -1426,6 +1433,7 @@ describe('insertBar / deleteBar', () => {
 		expect(setChord(0, 1, 0, 'D7')).toBe(true);
 		expect(setChord(0, 2, 0, 'E7')).toBe(true);
 	}
+/** The section's bar count, pitched notes and chords, for one-shot comparison. */
 	const shape = () => ({
 		bars: tuneEntry.sections[0].bars,
 		notes: tuneEntry.sections[0].notes.filter((n) => n.pitch !== null).map((n) => [n.pitch, fractionToFloat(n.offset)]),
@@ -1463,6 +1471,7 @@ describe('insertBar / deleteBar', () => {
 // ─── Group 13: phase 5 — ranges in the tune editor ───────────────────────
 
 describe('ranges in the tune editor', () => {
+/** C D E G in bar 1 and an F on bar 5 (page 1). */
 	function line(): void {
 		loadFromTune(sheet([{
 			label: 'A',

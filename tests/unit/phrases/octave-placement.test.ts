@@ -28,6 +28,7 @@ function concertOf(written: number[], transposition: number): number[] {
 	return written.map((w) => w - transposition);
 }
 
+/** A one-bar phrase of eighths at the given concert pitches (null = rest). */
 function makePhrase(pitches: (number | null)[], category = 'pentatonic'): Phrase {
 	return {
 		id: 'placement-001',

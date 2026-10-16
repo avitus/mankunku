@@ -262,6 +262,7 @@
 		stopPreview();
 	});
 
+/** The editor's keyboard — durations, pitches, selection, delete, insert mode and the clipboard — when focus is outside a text field or dialog. */
 	function handleKeydown(e: KeyboardEvent) {
 		const target = e.target as HTMLElement;
 		if (target.closest('input, select, textarea, [contenteditable=true], dialog') || shortcutsDialog?.open || clearDialog?.open) return;

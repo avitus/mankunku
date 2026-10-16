@@ -28,6 +28,7 @@ interface SetupOptions {
 	rows?: Row[];
 }
 
+/** Seed a stub cloud with community licks, sign in and open the community desk in the given theme. */
 async function setup(page: import('@playwright/test').Page, baseURL: string, theme = 'dark', options: SetupOptions = {}) {
 	const cloud = createStubCloud();
 	cloud.seedRow('user_licks', long);

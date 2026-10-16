@@ -223,6 +223,11 @@ export function resolveEntryPitch(
 	return writtenMidi - trans;
 }
 
+/**
+ * Enter a note of the current duration: appended at the entry edge — or, on an
+ * edit selection, replacing the selected element (in insert mode, written in
+ * front of it). False when it would not fit or the pitch is out of range.
+ */
 export function addNote(
 	pitchClass: number, octave: number,
 	accidental: 'sharp' | 'flat' | 'natural'
@@ -363,6 +368,7 @@ function findLastPitchedNote(): number | null {
 	return null;
 }
 
+/** Enter a rest of the current duration: appended, or on an edit selection replacing (insert mode: written in front of) the selected element. */
 export function addRest(): boolean {
 	if (isEditSelection()) return stepEntry.insertMode ? insertRestBeforeSelected() : replaceSelectedWithRest();
 	const duration = currentDurationFraction();
@@ -688,6 +694,7 @@ export function switchToRelativeKey(): void {
 	stepEntry.modeTouched = true;
 }
 
+/** Clear the buffer and every editing field back to a fresh lick — selection, range and insert mode included. */
 export function reset(): void {
 	stepEntry.enteredNotes = [];
 	stepEntry.phraseName = '';
@@ -949,6 +956,7 @@ export function repeatSelection(): boolean {
 	return writeClip(clipOf(span.start, span.end), target, true) > 0;
 }
 
+/** Resize the canvas to 1–4 bars, dropping any element that no longer fits and a selection that pointed past the end. */
 export function setBarCount(n: number): void {
 	stepEntry.barCount = Math.max(1, Math.min(4, n));
 	const maxCapacity = getMaxCapacity();
@@ -1049,6 +1057,7 @@ export function toggleTriplet(): void {
 	stepEntry.dottedMode = dotted;
 }
 
+/** Toggle the dotted modifier for the next note — or, on an edit selection outside insert mode, resize the selected element. */
 export function toggleDotted(): void {
 	if (!stepEntry.dottedMode && !DOTTED_BASES.has(stepEntry.currentDuration)) return;
 	const dotted = !stepEntry.dottedMode;

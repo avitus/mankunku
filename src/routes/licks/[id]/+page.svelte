@@ -231,6 +231,7 @@
 		currentCategory = c;
 	}
 
+/** Deep Practice on this lick, started from the STORED lick so its progress keys match. */
 	function practiceThis() {
 		if (!baseLick) return;
 		// The STORED lick, never the displayed one: the view is transposed to the
