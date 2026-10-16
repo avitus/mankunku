@@ -67,7 +67,7 @@
 	<section class="audit-note" aria-labelledby="audit-title">
 		<div>
 			<h2 id="audit-title">Where we are</h2>
-			<p>The listening lab now adapts upcoming accompaniment bars during a microphone take, using qualified density and rest evidence. Scheduled notes stay fixed; the exported trace shows what changed.</p>
+			<p>The listening lab now adapts across selected playback loops, using qualified microphone density and rest evidence. The band carries its musical memory across each repeat, scheduled notes stay fixed, and exports identify each loop and source bar.</p>
 		</div>
 		<div class="audit-detail">
 			<p><strong>Implementation is separate from musical acceptance.</strong> “Implemented” means the core device is reachable. “Partial” identifies a missing behavior or selection condition. Test references are evidence to inspect, not a claim that this audit ran them. Listening acceptance of this specification is still pending.</p>
@@ -75,9 +75,9 @@
 		</div>
 	</section>
 	<aside class="foundation-note" aria-labelledby="foundation-title">
-		<h2 id="foundation-title">Rolling orchestration · listening review pending</h2>
-		<p>Choose “Adapt during one pass” in the lab to hear coordinated swing 4/4 respond during the take. Piano, bass and drums retain phrase state as upcoming bars are committed. Exports contain the committed events, musical decisions and observation receipts; the fixed capture and replay comparison remains available.</p>
-		<p>Capture assumes headphones; its input thresholds depend on microphone gain. Uncertain input is not silence. Register and dynamics are diagnostic only. This first rolling mode uses finite takes, a scoped forward bass policy and piano releases within each bar. Cross-loop continuity and broader listening remain to build. Practice uses the original mode while the new mode awaits listening acceptance.</p>
+		<h2 id="foundation-title">Cross-loop adaptation · listening review pending</h2>
+		<p>Choose “Adapt across loops” and a loop count in the lab to hear coordinated swing 4/4 respond throughout the take. Piano, bass and drums retain history across repeats as upcoming bars are committed. Exports contain the committed events, musical decisions and observation receipts; the fixed capture and replay comparison remains available.</p>
+		<p>Capture assumes headphones; its input thresholds depend on microphone gain. Uncertain input is not silence. Register and dynamics are diagnostic only. Adaptive takes can span up to eight selected loops within 512 bars, with a scoped forward bass policy and piano releases within each bar. Indefinite looping, changing the form during a take, and broader listening remain to build. Practice uses the original mode while the new mode awaits listening acceptance.</p>
 		<div class="foundation-links"><a href="/diagnostics/backing-mixer">Compare Original and Coordinated in the lab →</a><a href="/docs/architecture/musicality">Read the staged roadmap →</a></div>
 	</aside>
 

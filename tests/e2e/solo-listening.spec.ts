@@ -135,11 +135,77 @@ test('rolling microphone take changes later decisions and exports the committed 
 	await expect(page.getByTestId('lab-observation-status')).toContainText('No captured observations');
 });
 
-test('cancelled rolling permission cannot resume after a new loop starts', async ({ page }) => {
+test('cross-loop adaptation keeps the microphone, chronology, replay and full bounce across three loops', async ({ page }) => {
+	test.setTimeout(60_000);
+	await setup(page);
+	await page.getByTestId('lab-adaptive-loops').selectOption('3', { timeout: 3000 });
+	await page.getByTestId('lab-adapt-loops').click();
+	await expect(page.getByTestId('lab-observation-status')).toContainText('Loop 2 of 3', { timeout: 15_000 });
+	expect(await micState(page)).toEqual({ calls: 1, stopped: 0 });
+	await expect(page.getByTestId('lab-observation-status')).toContainText('Adaptive loops complete', { timeout: 20_000 });
+	expect(await micState(page)).toEqual({ calls: 1, stopped: 1 });
+	const exported = async () => {
+		const pending = page.waitForEvent('download');
+		await page.getByRole('button', { name: 'Export events JSON' }).click();
+		return JSON.parse(await readFile((await (await pending).path())!, 'utf8'));
+	};
+	const data = await exported();
+	expect(data.soloScenario).toBe('microphone-rolling-loops');
+	expect(data.rollingTake.definition.loopCount).toBe(3);
+	expect(data.performanceForm.totalBars).toBe(12);
+	expect(data.soloObservationTrace.windows).toHaveLength(12);
+	expect(data.rollingTake.playback.windows).toHaveLength(12);
+	for (let bar = 0; bar < 12; bar++) {
+		const window = data.rollingTake.playback.windows[bar];
+		expect(window.fromBar).toBe(bar);
+		expect(window.loopIndex).toBe(Math.floor(bar / 4));
+		expect(window.sourceBarIndex).toBe(bar % 4);
+		if (bar) expect(window.previousCheckpointId).toBe(data.rollingTake.playback.windows[bar - 1].checkpoint.checkpointId);
+	}
+	expect(data.ensemblePlan.trace.slice(4).some((bar: { soloEvidence: string }) => bar.soloEvidence === 'resting')).toBe(true);
+	expect(data.rollingTake.playback.dispatches.every((entry: { status: string }) => entry.status === 'played')).toBe(true);
+	expect(data.bassEvents).toEqual(data.rollingTake.playback.generated.bassEvents);
+	await page.getByTestId('lab-bounce').click();
+	const wav = page.getByRole('link', { name: /^Download .*\.wav$/ });
+	await expect(wav).toBeVisible({ timeout: 20_000 });
+	const duration = await wav.evaluate(async (link: HTMLAnchorElement) => {
+		const bytes = new DataView(await (await fetch(link.href)).arrayBuffer());
+		return bytes.getUint32(40, true) / bytes.getUint32(28, true);
+	});
+	expect(duration).toBeCloseTo(14.5, 1); // all twelve one-second bars plus the room tail
+	await page.getByTestId('lab-replay-observations').click();
+	const replay = await exported();
+	expect(replay.soloScenario).toBe('microphone-replay');
+	expect(replay.performanceForm.totalBars).toBe(12);
+	expect(replay.ensemblePlan.bars).toHaveLength(12);
+	expect(replay.bassEvents.some((event: { absBeat: number }) => event.absBeat >= 32)).toBe(true);
+	expect(await micState(page)).toEqual({ calls: 1, stopped: 1 });
+});
+
+test('stopping in the second adaptive loop releases input and retains an honest partial export', async ({ page }) => {
+	await setup(page);
+	await page.getByTestId('lab-adapt-loops').click();
+	await expect(page.getByTestId('lab-observation-status')).toContainText('Loop 2 of 2', { timeout: 15_000 });
+	await page.getByTestId('lab-adapt-loops').click();
+	expect(await micState(page)).toEqual({ calls: 1, stopped: 1 });
+	await expect(page.getByTestId('lab-bounce')).toBeDisabled();
+	const pending = page.waitForEvent('download');
+	await page.getByRole('button', { name: 'Export events JSON' }).click();
+	const data = JSON.parse(await readFile((await (await pending).path())!, 'utf8'));
+	expect(data.rollingTake.session.status).toBe('stopped');
+	expect(data.rollingTake.session.nextBar).toBeGreaterThan(4);
+	expect(data.rollingTake.session.nextBar).toBeLessThan(8);
+	await page.getByRole('button', { name: 'Play loop', exact: true }).click();
+	await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeVisible();
+	expect(await micState(page)).toEqual({ calls: 1, stopped: 1 });
+});
+
+for (const loopCount of [1, 2]) test(`cancelled rolling permission (${loopCount} loops) cannot resume after a new loop starts`, async ({ page }) => {
 	await setup(page, true);
-	await page.getByTestId('lab-adapt').click();
+	const button = page.getByTestId(loopCount === 1 ? 'lab-adapt' : 'lab-adapt-loops');
+	await button.click();
 	await expect.poll(async () => (await micState(page)).calls).toBe(1);
-	await page.getByTestId('lab-adapt').click();
+	await button.click();
 	await page.getByRole('button', { name: 'Play loop', exact: true }).click();
 	await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeVisible();
 	await page.evaluate(() => (window as unknown as { __soloMic: { release(): void } }).__soloMic.release());
@@ -148,7 +214,7 @@ test('cancelled rolling permission cannot resume after a new loop starts', async
 	await expect(page.getByTestId('lab-replay-observations')).toBeDisabled();
 });
 
-test('rolling adaptive playback produces live audio throughout its committed form', async ({ page, browserName }) => {
+for (const loopCount of [1, 3]) test(`rolling adaptive playback (${loopCount} loops) produces live audio throughout its committed form`, async ({ page, browserName }) => {
 	test.skip(!!process.env.CI || browserName === 'firefox', 'local Chromium/WebKit diagnostic with real CDN samples');
 	test.setTimeout(180_000);
 	await seedOnboardedAnonymous(page);
@@ -177,8 +243,9 @@ test('rolling adaptive playback produces live audio throughout its committed for
 	await page.goto('/diagnostics/backing-mixer');
 	await page.getByRole('combobox', { name: 'Style', exact: true }).selectOption('swing');
 	await page.getByRole('button', { name: '160', exact: true }).click();
-	await page.getByTestId('lab-adapt').click();
-	await expect(page.getByTestId('lab-observation-status')).toContainText('Adaptive pass complete', { timeout: 120_000 });
+	if (loopCount > 1) await page.getByTestId('lab-adaptive-loops').selectOption(String(loopCount));
+	await page.getByTestId(loopCount === 1 ? 'lab-adapt' : 'lab-adapt-loops').click();
+	await expect(page.getByTestId('lab-observation-status')).toContainText(loopCount === 1 ? 'Adaptive pass complete' : 'Adaptive loops complete', { timeout: 120_000 });
 	const pending = page.waitForEvent('download');
 	await page.getByRole('button', { name: 'Export events JSON' }).click();
 	const file = await pending;
@@ -187,9 +254,12 @@ test('rolling adaptive playback produces live audio throughout its committed for
 		const readings = (window as unknown as { __rollingAudio: { readings: { time: number; rms: number }[] } }).__rollingAudio.readings;
 		return Array.from({ length: Math.floor(duration / 0.5) }, (_, bucket) => Math.max(0, ...readings
 			.filter((item) => item.time >= start + bucket * 0.5 && item.time < start + (bucket + 1) * 0.5).map((item) => item.rms)));
-	}, { start: data.rollingTake.startAudioTime, duration: 6 });
+	}, { start: data.rollingTake.startAudioTime, duration: 6 * loopCount });
 	expect(data.rollingTake.playback.dispatches.every((entry: { status: string }) => entry.status === 'played')).toBe(true);
 	expect(signal.filter((rms) => rms > 0.001).length / signal.length, `live output RMS buckets: ${signal}`).toBeGreaterThan(0.8);
 	expect(signal.slice(-3).every((rms) => rms > 0.001)).toBe(true);
-	console.log(`${browserName} rolling live RMS: ${signal.map((rms) => rms.toFixed(4)).join(', ')}`);
+	for (let loop = 1; loop < loopCount; loop++) {
+		expect(signal.slice(loop * 12 - 1, loop * 12 + 2).every((rms) => rms > 0.001), `audio around loop seam ${loop}`).toBe(true);
+	}
+	console.log(`${browserName} rolling live RMS (${loopCount} loops): ${signal.map((rms) => rms.toFixed(4)).join(', ')}`);
 });

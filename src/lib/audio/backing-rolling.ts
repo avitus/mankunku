@@ -13,6 +13,27 @@ import { realizeRollingPiano, type RollingPianoMemory } from './backing-rolling-
 import { realizeRollingBass, type RollingBassMemory } from './backing-rolling-bass';
 import { planDrumPhraseBar, type DrumPhraseMemory } from './backing-drum-phrases';
 import type { TimingProfile, TimingRole } from './backing-timing';
+import { MAX_ADAPTIVE_BARS, MAX_ADAPTIVE_LOOPS } from './backing-performance-limits';
+
+export interface RollingBackingOptions {
+	/** Explicit finite repetitions of the source form; never an open-ended loop. */
+	readonly loopCount?: number;
+}
+
+export interface RollingLoopSpan {
+	readonly loopIndex: number;
+	readonly startBar: number;
+	readonly endBarExclusive: number;
+}
+
+/** Source provenance; generation and observation coordinates remain absolute. */
+export interface RollingBarIdentity {
+	readonly loopIndex: number;
+	readonly sourceBarIndex: number;
+	readonly sourceChorusIndex: number;
+	/** Section occurrence within the source form, distinct from authored sourceSection. */
+	readonly sourceSectionIndex: number;
+}
 
 export interface RollingBackingDefinition {
 	readonly version: 1;
@@ -20,13 +41,16 @@ export interface RollingBackingDefinition {
 	readonly fingerprint: string;
 	readonly phraseId: string;
 	readonly totalBars: number;
+	readonly sourceBars: number;
+	readonly loopCount: number;
+	readonly loops: readonly RollingLoopSpan[];
 	readonly tempo: number;
 	readonly ppq: number;
 	readonly beatsPerBar: 4;
 	readonly swing: number;
 	readonly performanceForm: PerformanceForm;
 	readonly harmony: readonly HarmonicSegment[];
-	readonly bars: readonly (EnsembleBarContext & BarInfo & PerformanceBarContext)[];
+	readonly bars: readonly (EnsembleBarContext & BarInfo & PerformanceBarContext & RollingBarIdentity)[];
 	readonly timingProfiles?: Readonly<Record<TimingRole, TimingProfile>>;
 }
 
@@ -43,7 +67,7 @@ export interface RollingBackingCheckpoint {
 	readonly timing: EnsemblePhraseTimingTrace;
 }
 
-export interface RollingBackingBar {
+export interface RollingBackingBar extends RollingBarIdentity {
 	readonly version: 1;
 	readonly sessionId: string;
 	readonly fromBar: number;
@@ -70,10 +94,13 @@ function freeze<T>(value: T): T {
 }
 
 /** Prepare known score/form data only; no future accompaniment is generated. */
-export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDefinition, params: BackingGenerationParams): RollingBackingDefinition {
+export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDefinition, params: BackingGenerationParams,
+	options: RollingBackingOptions = {}): RollingBackingDefinition {
 	if (style.name !== 'Swing' || params.beatsPerBar !== 4 || !params.ensemble) throw new Error('Rolling backing requires coordinated swing 4/4');
 	if (!Number.isFinite(params.tempo) || params.tempo < 30 || params.tempo > 320 || !Number.isSafeInteger(params.ppq) || params.ppq <= 0 || !Number.isFinite(params.swing) || params.swing < 0.5 || params.swing > 0.8) throw new Error('Invalid rolling backing tempo, PPQ or swing');
-	const copied: HarmonicSegment[] = JSON.parse(JSON.stringify(harmony));
+	const loopCount = options.loopCount ?? 1;
+	if (!Number.isInteger(loopCount) || loopCount < 1 || loopCount > MAX_ADAPTIVE_LOOPS) throw new Error(`Rolling loop count must be 1–${MAX_ADAPTIVE_LOOPS}`);
+	let copied: HarmonicSegment[] = JSON.parse(JSON.stringify(harmony));
 	let end = 0;
 	for (const segment of copied) {
 		const start = fractionToFloat(segment.startOffset) * 4;
@@ -81,25 +108,60 @@ export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDef
 		if (start !== end || !Number.isInteger(length) || length <= 0) throw new Error('Rolling harmony must cover complete contiguous quarter beats');
 		end += length;
 	}
-	const totalBars = end / 4;
-	if (!Number.isInteger(totalBars) || totalBars < 1 || totalBars > 128) throw new Error('Rolling backing requires 1–128 complete bars');
-	const form: PerformanceForm = params.performanceForm ? JSON.parse(JSON.stringify(params.performanceForm)) : buildPerformanceForm({ totalBars,
-		sectionMap: params.sectionMap ?? [], choruses: [{ role: 'solo', startBar: 0, endBarExclusive: totalBars }] });
-	if (form.totalBars !== totalBars) throw new Error('Rolling performance form must match complete harmony');
+	const sourceBars = end / 4;
+	if (!Number.isInteger(sourceBars) || sourceBars < 1 || sourceBars > 128) throw new Error('Rolling source requires 1–128 complete bars');
+	const totalBars = sourceBars * loopCount;
+	if (totalBars > MAX_ADAPTIVE_BARS) throw new Error(`Rolling performance exceeds the ${MAX_ADAPTIVE_BARS}-bar limit`);
+	let form: PerformanceForm = params.performanceForm ? JSON.parse(JSON.stringify(params.performanceForm)) : buildPerformanceForm({ totalBars: sourceBars,
+		sectionMap: params.sectionMap ?? [], choruses: [{ role: 'solo', startBar: 0, endBarExclusive: sourceBars }] });
+	if (form.totalBars !== sourceBars) throw new Error('Rolling performance form must match complete harmony');
 	if (form.version !== 1 || !form.choruses.length || !form.sections.length) throw new Error('Invalid rolling performance form');
 	for (const spans of [form.choruses, form.sections]) {
 		let next = 0;
 		for (const [index, span] of spans.entries()) {
-			if (span.index !== index || span.startBar !== next || !Number.isInteger(span.endBarExclusive) || span.endBarExclusive <= next || span.endBarExclusive > totalBars) throw new Error('Rolling performance form must cover complete contiguous bars');
+			if (span.index !== index || span.startBar !== next || !Number.isInteger(span.endBarExclusive) || span.endBarExclusive <= next || span.endBarExclusive > sourceBars) throw new Error('Rolling performance form must cover complete contiguous bars');
 			next = span.endBarExclusive;
 		}
-		if (next !== totalBars) throw new Error('Rolling performance form must cover complete contiguous bars');
+		if (next !== sourceBars) throw new Error('Rolling performance form must cover complete contiguous bars');
 	}
-	const bars = buildBarInfos(totalBars, undefined, form).map((info, barIndex) => ({ ...info, ...performanceBarContext(form, barIndex)!, barIndex }));
+	const sourceForm = form;
+	const loops = Array.from({ length: loopCount }, (_, loopIndex) => ({ loopIndex, startBar: loopIndex * sourceBars, endBarExclusive: (loopIndex + 1) * sourceBars }));
+	if (loopCount > 1) {
+		// Repeat declared score data only. Instrument decisions remain causal
+		// one-bar steps on the single absolute performance timeline.
+		copied = loops.flatMap(({ startBar }) => copied.map((segment) => ({ ...segment,
+			startOffset: [segment.startOffset[0] + startBar * segment.startOffset[1], segment.startOffset[1]] as [number, number] })));
+		const occurrences = new Map<number | null, number>();
+		for (const section of sourceForm.sections) occurrences.set(section.sourceSection, (occurrences.get(section.sourceSection) ?? 0) + 1);
+		form = { version: 1, totalBars,
+			choruses: loops.flatMap(({ loopIndex, startBar }) => sourceForm.choruses.map((chorus) => ({ ...chorus,
+				index: loopIndex * sourceForm.choruses.length + chorus.index, startBar: startBar + chorus.startBar, endBarExclusive: startBar + chorus.endBarExclusive }))),
+			sections: loops.flatMap(({ loopIndex, startBar }) => sourceForm.sections.map((section) => ({ ...section,
+				index: loopIndex * sourceForm.sections.length + section.index,
+				chorusIndex: loopIndex * sourceForm.choruses.length + section.chorusIndex,
+				occurrenceIndex: section.occurrenceIndex + loopIndex * occurrences.get(section.sourceSection)!,
+				startBar: startBar + section.startBar, endBarExclusive: startBar + section.endBarExclusive }))) };
+	}
+	const bars = buildBarInfos(totalBars, undefined, form).map((info, barIndex) => {
+		const sourceBarIndex = barIndex % sourceBars;
+		const sourceContext = performanceBarContext(sourceForm, sourceBarIndex)!;
+		return { ...info, ...performanceBarContext(form, barIndex)!, barIndex, loopIndex: Math.floor(barIndex / sourceBars),
+			sourceBarIndex, sourceChorusIndex: sourceContext.chorusIndex, sourceSectionIndex: sourceContext.sectionIndex };
+	});
 	const timingProfiles = params.timing ?? style.timing;
-	const fingerprint = JSON.stringify([1, params.phraseId, params.tempo, params.ppq, params.swing, copied, form, timingProfiles]);
+	// Preserve the one-pass binding. An explicit repeat is a distinct declared
+	// performance even when its flattened score matches some other source.
+	const serialized = JSON.stringify([1, params.phraseId, params.tempo, params.ppq, params.swing, copied, form, timingProfiles,
+		...(loopCount > 1 ? [{ sourceBars, loopCount }] : [])]);
+	// The definition retains the complete immutable score once. Repeating its
+	// raw JSON in every retained bar would make the export grow quadratically.
+	// This deterministic binding detects accidental mismatches; it is not an
+	// authentication token for accepting untrusted checkpoints.
+	const fingerprint = loopCount > 1
+		? `rolling-repeat-v1:${serialized.length}:${seedFrom('score-a', serialized).toString(16)}:${seedFrom('score-b', serialized).toString(16)}`
+		: serialized;
 	return freeze({ version: 1, sessionId: `rolling:${seedFrom(fingerprint).toString(16)}`, fingerprint,
-		phraseId: params.phraseId, totalBars, tempo: params.tempo, ppq: params.ppq, beatsPerBar: 4, swing: params.swing,
+		phraseId: params.phraseId, totalBars, sourceBars, loopCount, loops, tempo: params.tempo, ppq: params.ppq, beatsPerBar: 4, swing: params.swing,
 		performanceForm: form, harmony: copied, bars,
 		...(timingProfiles ? { timingProfiles: JSON.parse(JSON.stringify(timingProfiles)) } : {}) });
 }
@@ -171,6 +233,8 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 		nextBar: bar + 1, ensemble: window.memory, piano: piano.memory, bass: bass.memory, drums: drums.memory, timing: timingTrace };
 	const ticks = [...bass.events, ...piano.events, ...drumEvents].map((event) => parseInt(event.time, 10));
 	return freeze({ version: 1, sessionId: definition.sessionId, fromBar: bar, toBarExclusive: bar + 1,
+		loopIndex: definition.bars[bar].loopIndex, sourceBarIndex: definition.bars[bar].sourceBarIndex,
+		sourceChorusIndex: definition.bars[bar].sourceChorusIndex, sourceSectionIndex: definition.bars[bar].sourceSectionIndex,
 		startTick, earliestTick: ticks.length ? Math.min(...ticks) : startTick, committedThroughTick: endTick,
 		previousCheckpointId: checkpoint?.checkpointId ?? null,
 		checkpoint: { ...contents, checkpointId: checkpointId(contents) },

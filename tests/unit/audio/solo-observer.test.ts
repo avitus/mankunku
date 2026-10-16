@@ -200,13 +200,13 @@ describe('causal solo observation windows', () => {
 			if (window.feature) expect(Object.isFrozen(window.feature)).toBe(true);
 			for (const value of Object.values(window)) if (typeof value === 'number') expect(Number.isFinite(value)).toBe(true);
 		}
-		const bounded = createSoloObserver({ ...config, totalBars: 128 });
+		const bounded = createSoloObserver({ ...config, totalBars: 512 });
 		bounded.finish(1e12);
-		expect(bounded.snapshot()).toHaveLength(128);
+		expect(bounded.snapshot()).toHaveLength(512);
 	});
 
 	it('rejects invalid or reordered input atomically, including observations from the future', () => {
-		for (const change of [{ totalBars: 129 }, { totalBars: 0 }, { totalBars: 2.5 }, { tempo: NaN }, { tempo: 29 }, { tempo: 321 }, { sessionId: '' }]) {
+		for (const change of [{ totalBars: 513 }, { totalBars: 0 }, { totalBars: 2.5 }, { tempo: NaN }, { tempo: 29 }, { tempo: 321 }, { sessionId: '' }]) {
 			expect(() => createSoloObserver({ ...config, ...change })).toThrow(/requires/);
 		}
 		for (const extra of [{ timeSeconds: NaN }, { availableAtSeconds: -1 }, { timeSeconds: 2, availableAtSeconds: 1 },

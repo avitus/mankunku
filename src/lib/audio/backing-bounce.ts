@@ -51,6 +51,9 @@ export const BOUNCE_PPQ = 192;
  *  buffers, which resample freely. */
 export const BOUNCE_SAMPLE_RATE = 44100;
 
+/** Bound browser offline audio allocation, including the requested release tail. */
+export const MAX_BOUNCE_SECONDS = 600;
+
 /** Seconds of tail after the last bar so releases and the room ring out. */
 const BOUNCE_TAIL_SECONDS = 2.5;
 
@@ -174,6 +177,9 @@ export async function renderEventsToWav(
 	drumBuffers: Partial<Record<DrumBufferName, AudioBuffer>>,
 	opts: RenderOpts
 ): Promise<Blob> {
+	if (!Number.isFinite(opts.durationSeconds) || opts.durationSeconds <= 0 || opts.durationSeconds > MAX_BOUNCE_SECONDS) {
+		throw new RangeError('Browser WAV bounce is limited to 10 minutes. Export events JSON or use a shorter take.');
+	}
 	const { renderOffline, Smolken, SplendidGrandPiano, Soundfont, Sampler, Scheduler } =
 		await import('smplr');
 	const { tempo, volume, mix, durationSeconds } = opts;

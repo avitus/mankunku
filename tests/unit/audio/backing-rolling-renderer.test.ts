@@ -45,6 +45,14 @@ function harness() {
 }
 
 describe('append-only rolling audio renderer', () => {
+	it('accepts the bounded repeated-form extent and rejects an unbounded session', () => {
+		const h = harness();
+		expect(() => createRollingBackingRenderer({ sessionId: 'long-take', tempo: 120, ppq: 192,
+			totalBars: 512, startAudioTime: 11 }, h.runtime)).not.toThrow();
+		expect(() => createRollingBackingRenderer({ sessionId: 'too-long', tempo: 120, ppq: 192,
+			totalBars: 513, startAudioTime: 11 }, h.runtime)).toThrow(/configuration/);
+	});
+
 	it('derives preparation and dispatch horizons from the live audio clock settings', () => {
 		const h = harness();
 		expect(h.renderer.horizon()).toEqual({ audioNow: 10, dispatchThrough: 10.135, renderSafeFrom: 10.16 });

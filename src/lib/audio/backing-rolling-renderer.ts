@@ -4,6 +4,7 @@ import type { RollingBackingBar } from './backing-rolling';
 import { buildSchedule, type BackingTrackSchedule } from './backing-track-schedule';
 import type { BackingHit } from './turnaround-bar';
 import { DRUM_FAMILY_BY_VOICE } from './sample-maps';
+import { MAX_ADAPTIVE_BARS } from './backing-performance-limits';
 
 export interface RollingBackingRendererOptions {
 	sessionId: string;
@@ -75,7 +76,7 @@ export function createRollingBackingRenderer(
 	const safety = options.safetySeconds ?? 0.01;
 	if (!options.sessionId || !Number.isFinite(options.tempo) || options.tempo < 30 || options.tempo > 320 ||
 		!Number.isSafeInteger(options.ppq) || options.ppq <= 0 ||
-		!Number.isInteger(options.totalBars) || options.totalBars < 1 || options.totalBars > 128 ||
+		!Number.isInteger(options.totalBars) || options.totalBars < 1 || options.totalBars > MAX_ADAPTIVE_BARS ||
 		!Number.isFinite(options.startAudioTime) || options.startAudioTime < 0 ||
 		!Number.isFinite(maxCompute) || maxCompute <= 0 || maxCompute > 0.1 ||
 		!Number.isFinite(safety) || safety < 0 || safety > 0.1) throw new RangeError('Invalid rolling renderer configuration');

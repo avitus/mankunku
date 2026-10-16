@@ -1,5 +1,6 @@
 /** Independent causal microphone observations for the backing listening lab. */
 import type { SoloFeature } from './ensemble-plan';
+import { MAX_ADAPTIVE_BARS } from './backing-performance-limits';
 
 export interface SoloObserverConfig {
 	readonly sessionId: string;
@@ -53,7 +54,7 @@ export interface SoloObserver {
  * a rest even while the band plays. A nonquiet ambiguous frame cannot do so.
  */
 export const SOLO_OBSERVER_POLICY = Object.freeze({
-	maxBars: 128, minTempo: 30, maxTempo: 320,
+	maxBars: MAX_ADAPTIVE_BARS, minTempo: 30, maxTempo: 320,
 	quietRms: 0.003, activeRms: 0.01, pitchClarity: 0.9,
 	maxFrameGapSeconds: 0.1, pitchHoldSeconds: 0.06, reattackRestSeconds: 0.12,
 	activityContinuationSeconds: 0.15, minTrustedShare: 0.5,
@@ -108,7 +109,7 @@ function validateConfig(config: SoloObserverConfig): void {
 	if (typeof config.sessionId !== 'string' || config.sessionId.trim().length === 0 || config.sessionId.length > 128 ||
 		!Number.isFinite(config.tempo) || config.tempo < SOLO_OBSERVER_POLICY.minTempo || config.tempo > SOLO_OBSERVER_POLICY.maxTempo ||
 		config.beatsPerBar !== 4 || !Number.isSafeInteger(config.totalBars) || config.totalBars < 1 || config.totalBars > SOLO_OBSERVER_POLICY.maxBars) {
-		throw new RangeError('Solo observer requires a session id, tempo 30–320, four beats and 1–128 bars');
+		throw new RangeError(`Solo observer requires a session id, tempo 30–320, four beats and 1–${SOLO_OBSERVER_POLICY.maxBars} bars`);
 	}
 }
 
@@ -138,7 +139,7 @@ function percentile(weights: readonly number[], total: number, fraction: number)
  * One deterministic session; no browser/audio state or scoring dependencies.
  * Frames only support time after their observation, for at most 100 ms. A
  * later frame can close a window but cannot rewrite its evidence. Storage is
- * one scalar bar accumulator, one 128-bin register histogram, and ≤128 windows.
+ * one scalar bar accumulator, one 128-bin register histogram, and ≤512 windows.
  */
 export function createSoloObserver(input: SoloObserverConfig): SoloObserver {
 	validateConfig(input);
