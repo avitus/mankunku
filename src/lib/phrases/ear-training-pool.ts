@@ -58,9 +58,9 @@ export function selectEarTrainingLicks(
  * licks, without parent-major remapping or snapping individual pitches.
  */
 export function transposeEarTrainingLick(
-	lick: Phrase, key: PitchClass, scaleType: ScaleType, rangeLow: number, rangeHigh: number
+	lick: Phrase, key: PitchClass, scaleType: ScaleType, rangeLow: number, rangeHigh: number, transposition?: number
 ): Phrase {
 	return isCuratedLickId(lick.id)
-		? transposeLickForTonality(lick, key, SCALE_TYPE_TO_SCALE_ID[scaleType], rangeLow, rangeHigh)
-		: transposeLick(lick, key, rangeLow, rangeHigh);
+		? transposeLickForTonality(lick, key, SCALE_TYPE_TO_SCALE_ID[scaleType], rangeLow, rangeHigh, transposition)
+		: transposeLick(lick, key, rangeLow, rangeHigh, transposition);
 }

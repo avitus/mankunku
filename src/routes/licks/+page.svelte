@@ -236,7 +236,7 @@
 	 * detail page already fits it the same way (2026-10-15).
 	 */
 	async function handlePlay(lick: Phrase) {
-		await audition.play(fitLickToRange(lick, getInstrument().concertRangeLow, getEffectiveHighestNote()));
+		await audition.play(fitLickToRange(lick, getInstrument(), getEffectiveHighestNote()));
 	}
 
 	onDestroy(() => {

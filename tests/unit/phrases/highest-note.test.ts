@@ -7,6 +7,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { fitLickToRange, transposeLick, transposeLickForTonality } from '$lib/phrases/library-loader';
+import { INSTRUMENTS } from '$lib/types/instruments';
 import type { Phrase } from '$lib/types/music';
 
 /** Helper: build a minimal phrase with given MIDI pitches */
@@ -170,7 +171,7 @@ describe('transposeLickForTonality — rangeHigh safety clamp', () => {
 
 describe('fitLickToRange — a lick stored in another player\'s register', () => {
 	// Soprano saxophone: concert Ab3–E6 (56–88), effective ceiling one under the top.
-	const SOPRANO_LOW = 56;
+	const SOPRANO = INSTRUMENTS['soprano-sax'];
 	const SOPRANO_HIGH = 87;
 
 	it('lifts a tenor-register community lick one octave into the soprano\'s range (2026-10-15)', () => {
@@ -178,7 +179,7 @@ describe('fitLickToRange — a lick stored in another player\'s register', () =>
 		// soprano (written = concert + 2) that is written D3–D4, below the horn's
 		// Bb3: the community desk engraved and auditioned it there.
 		const tenorLine = makePhrase([48, 50, 52, 53, 55, 57, 59, 60]);
-		const fitted = fitLickToRange(tenorLine, SOPRANO_LOW, SOPRANO_HIGH);
+		const fitted = fitLickToRange(tenorLine, SOPRANO, SOPRANO_HIGH);
 
 		expect(fitted.notes.map((n) => n.pitch)).toEqual([60, 62, 64, 65, 67, 69, 71, 72]);
 		// Same lick, same key, same chart: only the octave moves.
@@ -191,19 +192,21 @@ describe('fitLickToRange — a lick stored in another player\'s register', () =>
 		// Spans the soprano's middle: no other octave holds every note, so the
 		// fit is a no-op and the SAME object comes back (the desk keys on it).
 		const inRange = makePhrase([64, 67, 71, 76]);
-		expect(fitLickToRange(inRange, SOPRANO_LOW, SOPRANO_HIGH)).toBe(inRange);
+		expect(fitLickToRange(inRange, SOPRANO, SOPRANO_HIGH)).toBe(inRange);
 	});
 
 	it('shares the octave policy of the detail page\'s same-key transposeLick', () => {
 		const tenorLine = makePhrase([48, 50, 52, 53, 55, 57, 59, 60]);
-		const viaTranspose = transposeLick(tenorLine, tenorLine.key, SOPRANO_LOW, SOPRANO_HIGH);
-		const viaFit = fitLickToRange(tenorLine, SOPRANO_LOW, SOPRANO_HIGH);
+		const viaTranspose = transposeLick(
+			tenorLine, tenorLine.key, SOPRANO.concertRangeLow, SOPRANO_HIGH, SOPRANO.transpositionSemitones
+		);
+		const viaFit = fitLickToRange(tenorLine, SOPRANO, SOPRANO_HIGH);
 		expect(viaFit.notes.map((n) => n.pitch)).toEqual(viaTranspose.notes.map((n) => n.pitch));
 	});
 
 	it('keeps rests as rests', () => {
 		const withRest = makePhrase([48, null, 55, 60]);
-		const fitted = fitLickToRange(withRest, SOPRANO_LOW, SOPRANO_HIGH);
+		const fitted = fitLickToRange(withRest, SOPRANO, SOPRANO_HIGH);
 		expect(fitted.notes.map((n) => n.pitch)).toEqual([60, null, 67, 72]);
 	});
 });

@@ -6,6 +6,7 @@
  */
 
 import type { Phrase, PhraseCategory, PitchClass, ScaleDefinition } from '$lib/types/music';
+import type { InstrumentConfig } from '$lib/types/instruments';
 import type { ScaleType } from '$lib/tonality/tonality';
 import { isLickCompatible, isProgressionLick } from '$lib/tonality/scale-compatibility';
 import { PITCH_CLASSES } from '$lib/types/music';
@@ -93,36 +94,59 @@ const FALLBACK_RANGE_LOW = 60;
 /** Fallback high range — tenor sax concert Eb5 (written F6) */
 const FALLBACK_RANGE_HIGH = 75;
 
+/** The written treble stave, first line E4 to top line F5: where a line reads most easily. */
+const STAVE_WRITTEN_LOW = 64;
+const STAVE_WRITTEN_HIGH = 77;
+
 /**
- * Find the octave shift that places the most notes within the instrument's
- * playable range. When two shifts tie, prefer the one whose average pitch is
- * closest to the midpoint of the range.
+ * Find the octave shift that places a line best on the player's instrument
+ * (Andy, 2026-10-15: "in the range of my instrument", then "the most
+ * convenient range … usually when the notes are mostly within the stave and
+ * furthest from the extreme ranges"). Candidates are ranked by notes within
+ * the range first; among those, by notes on the written stave — the stave
+ * needs `transposition` (concert → written), and a call without it skips this
+ * tier, so range-only callers keep the older rule; then by the mean's
+ * distance from the range midpoint, furthest from the extremes. A full tie
+ * keeps the lower shift.
  */
-export function bestOctaveShift(midiNotes: number[], rangeLow: number, rangeHigh: number): number {
+export function bestOctaveShift(
+	midiNotes: number[],
+	rangeLow: number,
+	rangeHigh: number,
+	transposition?: number
+): number {
 	if (midiNotes.length === 0) return 0;
 
 	const mid = (rangeLow + rangeHigh) / 2;
+	const staveLow = transposition == null ? null : STAVE_WRITTEN_LOW - transposition;
+	const staveHigh = transposition == null ? null : STAVE_WRITTEN_HIGH - transposition;
 	let bestShift = 0;
 	let bestInRange = -1;
+	let bestOnStave = -1;
 	let bestDistance = Infinity;
 
 	// Check shifts from -3 to +3 octaves — more than enough for any instrument
 	for (let shift = -3; shift <= 3; shift++) {
 		const offset = shift * 12;
 		let inRange = 0;
+		let onStave = 0;
 		let sum = 0;
 		for (const note of midiNotes) {
 			const shifted = note + offset;
-			if (shifted >= rangeLow && shifted <= rangeHigh) {
-				inRange++;
-			}
+			if (shifted >= rangeLow && shifted <= rangeHigh) inRange++;
+			if (staveLow !== null && staveHigh !== null && shifted >= staveLow && shifted <= staveHigh) onStave++;
 			sum += shifted;
 		}
 		const dist = Math.abs(sum / midiNotes.length - mid);
 
-		if (inRange > bestInRange || (inRange === bestInRange && dist < bestDistance)) {
+		const better =
+			inRange > bestInRange ||
+			(inRange === bestInRange && onStave > bestOnStave) ||
+			(inRange === bestInRange && onStave === bestOnStave && dist < bestDistance);
+		if (better) {
 			bestShift = shift;
 			bestInRange = inRange;
+			bestOnStave = onStave;
 			bestDistance = dist;
 		}
 	}
@@ -135,13 +159,16 @@ export function bestOctaveShift(midiNotes: number[], rangeLow: number, rangeHigh
  *
  * Computes the interval from the lick's current key to the target key
  * and shifts every pitched note and harmony root by that interval,
- * then applies an octave adjustment to keep notes within instrument range.
+ * then applies an octave adjustment to keep notes within instrument range —
+ * and, given the instrument's `transposition` (concert → written), on its
+ * stave (`bestOctaveShift`).
  */
 export function transposeLick(
 	lick: Phrase,
 	targetKey: PitchClass,
 	rangeLow?: number,
-	rangeHigh?: number
+	rangeHigh?: number,
+	transposition?: number
 ): Phrase {
 	const sourceIdx = PITCH_CLASSES.indexOf(lick.key);
 	const targetIdx = PITCH_CLASSES.indexOf(targetKey);
@@ -158,7 +185,7 @@ export function transposeLick(
 
 	const low = rangeLow ?? FALLBACK_RANGE_LOW;
 	const high = rangeHigh ?? FALLBACK_RANGE_HIGH;
-	const octaveShift = bestOctaveShift(pitchedNotes, low, high);
+	const octaveShift = bestOctaveShift(pitchedNotes, low, high, transposition);
 	const totalShift = semitones + octaveShift * 12;
 
 	// No pitch change needed
@@ -187,20 +214,24 @@ export function transposeLick(
 }
 
 /**
- * Fit a lick into a player's range without changing its key.
+ * Fit a lick onto a player's instrument without changing its key.
  *
  * A community or stolen lick is stored in its AUTHOR's register: a tenor
  * player's line sits around concert C3–C4, which a soprano (written = concert
  * + 2, lowest written Bb3) cannot play — written for the soprano it reads an
  * octave under the horn. This is the same-key octave fit the lick detail page
- * already applies through `transposeLick`, so the community desk's staff, its
- * Listen, the book's Listen and the detail page all put a lick in ONE
- * register. The id is kept: the fit changes nothing the lick is referred to
- * by (selection, favorites, the book, the detail link). A lick already in
- * range comes back as the same object.
+ * already applies through `transposeLick` — in range, then on the stave, then
+ * away from the extremes (`bestOctaveShift`) — so the community desk's staff,
+ * its Listen, the book's Listen and the detail page all put a lick in ONE
+ * register. `rangeHigh` is the player's effective highest note, a setting
+ * beside the instrument. The id is kept: the fit changes nothing the lick is
+ * referred to by (selection, favorites, the book, the detail link). A lick
+ * already placed comes back as the same object.
  */
-export function fitLickToRange(lick: Phrase, rangeLow: number, rangeHigh: number): Phrase {
-	const fitted = transposeLick(lick, lick.key, rangeLow, rangeHigh);
+export function fitLickToRange(lick: Phrase, instrument: InstrumentConfig, rangeHigh: number): Phrase {
+	const fitted = transposeLick(
+		lick, lick.key, instrument.concertRangeLow, rangeHigh, instrument.transpositionSemitones
+	);
 	return fitted === lick ? lick : { ...fitted, id: lick.id };
 }
 
@@ -247,14 +278,15 @@ export function transposeLickForTonality(
 	key: PitchClass,
 	scaleId: string,
 	rangeLow?: number,
-	rangeHigh?: number
+	rangeHigh?: number,
+	transposition?: number
 ): Phrase {
 	const scaleDef = getScale(scaleId);
 	let result: Phrase;
 
 	if (isProgressionLick(lick) && lickMode(lick) === 'minor') {
 		// Tonic-keyed minor cadence: tonic → tonality root, no snap.
-		const transposed = transposeLick(lick, key, rangeLow, rangeHigh);
+		const transposed = transposeLick(lick, key, rangeLow, rangeHigh, transposition);
 		result = { ...transposed, id: `${lick.id}_${key}`, key };
 	} else if (scaleDef?.family === 'major' && scaleDef.mode !== null) {
 		if (isProgressionLick(lick)) {
@@ -262,16 +294,16 @@ export function transposeLickForTonality(
 			const keyIdx = PITCH_CLASSES.indexOf(key);
 			const parentIdx = ((keyIdx - MAJOR_MODE_OFFSETS[scaleDef.mode - 1]) % 12 + 12) % 12;
 			const parentKey = PITCH_CLASSES[parentIdx];
-			const transposed = transposeLick(lick, parentKey, rangeLow, rangeHigh);
+			const transposed = transposeLick(lick, parentKey, rangeLow, rangeHigh, transposition);
 			result = { ...transposed, id: `${lick.id}_${key}`, key };
 		} else {
 			// Single-chord modal licks: transpose to modal root, snap to scale
-			const transposed = transposeLick(lick, key, rangeLow, rangeHigh);
+			const transposed = transposeLick(lick, key, rangeLow, rangeHigh, transposition);
 			result = snapLickToScale(transposed, key, scaleId, rangeHigh);
 		}
 	} else {
 		// Non-major scales: transpose to key, then snap to scale
-		const transposed = transposeLick(lick, key, rangeLow, rangeHigh);
+		const transposed = transposeLick(lick, key, rangeLow, rangeHigh, transposition);
 		result = snapLickToScale(transposed, key, scaleId, rangeHigh);
 	}
 

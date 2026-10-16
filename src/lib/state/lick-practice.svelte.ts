@@ -1285,7 +1285,7 @@ function buildPhraseFor(item: LickPracticePlanItem, key: PitchClass): Phrase | n
 		// This is a complete ii–V–I figure, not a chord-quality lick that
 		// should be moved to just one compatible chord of the template.
 		return {
-			...transposeLick(baseLick, key, instrument.concertRangeLow, getEffectiveHighestNote()),
+			...transposeLick(baseLick, key, instrument.concertRangeLow, getEffectiveHighestNote(), instrument.transpositionSemitones),
 			key,
 			mode: progressionMode(progressionType),
 			// transposeLick preserves literal chord symbols. Rebuild those
@@ -1325,7 +1325,8 @@ function buildPhraseFor(item: LickPracticePlanItem, key: PitchClass): Phrase | n
 		baseLick,
 		transposeTarget,
 		instrument.concertRangeLow,
-		getEffectiveHighestNote()
+		getEffectiveHighestNote(),
+		instrument.transpositionSemitones
 	);
 
 	const progressionHarmony = harmonyForLick(baseLick, key, progressionType, enableSubstitutions);

@@ -22,7 +22,7 @@
 	// the player's own: a tenor player's line reads an octave under a soprano
 	// (2026-10-15). Same-key fit, id kept, the detail page's rule.
 	const phrase = $derived(
-		fitLickToRange(lick.phrase, getInstrument().concertRangeLow, getEffectiveHighestNote())
+		fitLickToRange(lick.phrase, getInstrument(), getEffectiveHighestNote())
 	);
 	// Keep the whole phrase, including longer imports; only the staff wraps.
 	const sheet = $derived(leadSheetTuneFor(phrase, Number.POSITIVE_INFINITY));
