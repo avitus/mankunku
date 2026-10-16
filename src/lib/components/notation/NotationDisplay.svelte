@@ -306,9 +306,9 @@
 			barAnchors: BarAnchor[];
 			chordSlotAnchors: ChordSlotAnchor[];
 		} = tune
-			? tuneToAbcWithMap(tune, instrument, tuneOptions)
+			? tuneToAbcWithMap(tune, instrument, { ...tuneOptions, preserveRestBoundaries: !!onSelect })
 			: {
-					...phraseToAbcWithMap(phrase!, instrument),
+					...phraseToAbcWithMap(phrase!, instrument, [1, 8], !!onSelect),
 					barAnchors: [],
 					chordSlotAnchors: []
 				};
@@ -441,6 +441,7 @@
 			}
 		}
 		buildHitZones(containerEl, vo, rendered, endingAlignments);
+		if (onSelect) addElementHitTargets(vo, noteAnchors);
 		// Stash for the cursor/marker effects. The cursor element belonged to
 		// the SVG this render just replaced, so forget it.
 		lastVisualObj = vo;
@@ -854,7 +855,10 @@
 					e.stopPropagation();
 					openChordEditorAt(pos);
 				});
-				band.wrapper.appendChild(rect);
+				// Chord cells sit above empty bar targets but below the music:
+				// high notes can extend into this band and must remain clickable.
+				const firstGlyph = Array.from(band.wrapper.children).find(child => !child.classList.contains('hit-zone'));
+				band.wrapper.insertBefore(rect, firstGlyph ?? null);
 			}
 		}
 	}
@@ -1344,6 +1348,36 @@
 		});
 	}
 
+	/** Put small, exact selection targets above chord cells and ledger/rehearsal ink. */
+	function addElementHitTargets(visualObj: AdapterVisualObj, anchors: NoteAnchor[]): void {
+		const seen = new Set<SVGGraphicsElement>();
+		for (const anchor of anchors) {
+			const element = elementForAnchor(visualObj, anchor);
+			if (!element || seen.has(element)) continue;
+			seen.add(element);
+			const glyph = (element.querySelector('.abcjs-notehead') ?? element) as SVGGraphicsElement;
+			const box = glyph.getBBox();
+			const rect = makeHitRect({ x: box.x - 2, y: box.y - 2, w: box.width + 4, h: box.height + 4 }, 'element-hit');
+			rect.setAttribute('data-note-index', String(anchor.sourceIndex));
+			rect.setAttribute('aria-hidden', 'true');
+			// Route glyph clicks exactly as well as the padded target. abcjs's
+			// proximity resolver can choose a bar/other voice for a tied note.
+			for (const type of ['mousedown', 'mouseup', 'touchstart', 'touchend']) {
+				element.addEventListener(type, event => event.stopPropagation());
+			}
+			element.addEventListener('click', (event) => {
+				event.stopPropagation();
+				onSelect?.(anchor.sourceIndex, { shiftKey: (event as MouseEvent).shiftKey });
+			});
+			element.prepend(rect);
+		}
+		// Keep document-order navigation intact, including unanchored gap rests.
+		// Raising the groups lets their own notehead/rest targets win overlaps.
+		for (const element of containerEl?.querySelectorAll('.abcjs-note, .abcjs-rest') ?? []) {
+			element.parentElement?.append(element);
+		}
+	}
+
 	/** Colour the selected element's group(s), resolved from anchor charspans. */
 	function applySelectionHighlight(
 		visualObj: AdapterVisualObj,
@@ -1373,7 +1407,19 @@
 			);
 		}
 		for (const anchor of targets) {
-			elementForAnchor(visualObj, anchor)?.classList.add('selected-note');
+			const element = elementForAnchor(visualObj, anchor);
+			if (!element || element.classList.contains('selected-note')) continue;
+			element.classList.add('selected-note');
+			const box = element.getBBox();
+			const outline = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+			outline.setAttribute('class', 'selection-outline');
+			outline.setAttribute('x', String(box.x - 4));
+			outline.setAttribute('y', String(box.y - 4));
+			outline.setAttribute('width', String(box.width + 8));
+			outline.setAttribute('height', String(box.height + 8));
+			outline.setAttribute('rx', '4');
+			outline.setAttribute('aria-hidden', 'true');
+			element.prepend(outline);
 		}
 	}
 </script>
@@ -1381,6 +1427,7 @@
 <div
 	class="notation-container {frameless ? 'frameless' : 'rounded-lg p-4'}"
 	class:chart-practice={variant === 'practice'}
+	class:editable={!!onSelect}
 	class:chart-print={variant === 'print'}
 	class:has-custom-title={!!titleArea || variant === 'practice'}
 	class:has-engraved-masthead={showEngravedMasthead}
@@ -1685,6 +1732,21 @@
 	.notation-container :global(.abcjs-rest) {
 		cursor: pointer;
 	}
+	.editable :global(.abcjs-ledger),
+	.editable :global(.abcjs-staff) {
+		pointer-events: none;
+	}
+	.editable :global(.element-hit) {
+		fill: transparent !important;
+		stroke: none !important;
+		pointer-events: all;
+	}
+	.notation-container {
+		--notation-selection-color: #4bbbd5;
+	}
+	:global(:root.light) .notation-container {
+		--notation-selection-color: #006b85;
+	}
 	/* User-selected element — colored notehead + stem (or rest glyph) so it
 	   stands out on the staff. Includes the group itself in case abcjs renders
 	   the glyph directly on that element rather than on a child path/ellipse/
@@ -1695,11 +1757,28 @@
 	.notation-container :global(.abcjs-note.selected-note circle),
 	.notation-container :global(.abcjs-rest.selected-note),
 	.notation-container :global(.abcjs-rest.selected-note path) {
-		fill: var(--color-accent) !important;
-		stroke: var(--color-accent) !important;
+		fill: var(--notation-selection-color) !important;
+		stroke: var(--notation-selection-color) !important;
 	}
 	.notation-container :global(.abcjs-note.selected-note line) {
-		stroke: var(--color-accent) !important;
+		stroke: var(--notation-selection-color) !important;
+	}
+	.notation-container :global(.selection-outline) {
+		fill: color-mix(in srgb, var(--notation-selection-color) 15%, transparent);
+		stroke: var(--notation-selection-color);
+		stroke-width: 1.5px;
+		vector-effect: non-scaling-stroke;
+		pointer-events: none;
+	}
+	/* Light print styling must not mask the editor's selected glyph. */
+	:global(:root.light) .notation-container :global(svg .selected-note path),
+	:global(:root.light) .notation-container :global(svg .selected-note ellipse),
+	:global(:root.light) .notation-container :global(svg .selected-note circle) {
+		fill: var(--notation-selection-color) !important;
+		stroke: var(--notation-selection-color) !important;
+	}
+	:global(:root.light) .notation-container :global(svg .selected-note line) {
+		stroke: var(--notation-selection-color) !important;
 	}
 	/* Playback cursor — brass to contrast the accent-colored selection.
 	   Declared after selected-note so the cursor wins if both land on one note. */

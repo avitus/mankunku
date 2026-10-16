@@ -340,3 +340,33 @@ test('Shift+click selects a range on the chart; Ctrl/⌘+Backspace removes its t
 	const pitched = sheets[0].sections[0].notes.filter((n) => n.pitch !== null);
 	expect(pitched.map((n) => n.offset[0] / n.offset[1])).toEqual([0, 0.25, 0.5]);
 });
+
+test('common keyboard edits: transpose a range, copy, paste, repeat, undo, redo and clear selection', async ({ page }) => {
+	await openEditor(page);
+	await page.keyboard.press('3');
+	for (const key of ['a', 'b', 'c', 'd']) await page.keyboard.press(key);
+	const heads = page.locator(`${CHART_SVG} .abcjs-note .abcjs-notehead`);
+	await heads.first().click();
+	await page.keyboard.press('Shift+ArrowRight');
+	await expect(page.locator(`${CHART_SVG} .selected-note`)).toHaveCount(2);
+	await page.keyboard.press('ArrowUp');
+	await page.keyboard.press('ControlOrMeta+c');
+	await heads.nth(2).click();
+	await page.keyboard.press('ControlOrMeta+v');
+	await expect(heads).toHaveCount(4);
+	await page.keyboard.press('r');
+	await expect(heads).toHaveCount(6);
+	await page.keyboard.press('ControlOrMeta+z');
+	await expect(heads).toHaveCount(4);
+	await page.keyboard.press('ControlOrMeta+Shift+z');
+	await expect(heads).toHaveCount(6);
+	await page.keyboard.press('Escape');
+	await expect(page.locator(`${CHART_SVG} .selection-outline`)).toHaveCount(0);
+	await page.getByRole('textbox', { name: 'Tune title' }).fill('Keyboard edits');
+	await page.getByRole('button', { name: 'Save tune' }).click();
+	await page.waitForURL('**/tunes/keyboard-edits');
+	const sheets = await page.evaluate(() => JSON.parse(localStorage.getItem('mankunku:user-tunes')!));
+	const notes = sheets[0].sections[0].notes.filter((n: { pitch: number | null }) => n.pitch !== null);
+	expect(notes.map((n: { pitch: number }) => n.pitch)).toEqual([notes[0].pitch, notes[0].pitch + 2, notes[0].pitch, notes[0].pitch + 2, notes[0].pitch, notes[0].pitch + 2]);
+	expect(notes.map((n: { offset: number[] }) => n.offset[0] / n.offset[1])).toEqual([0, 0.25, 0.5, 0.75, 1, 1.25]);
+});

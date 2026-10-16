@@ -376,6 +376,7 @@ that gets blindly refreshed defeats the entire mechanism. See
 | Persistence, namespacing, cloud merge, outbox | Vitest unit + integration against `tests/helpers/cloud-sync-mocks.ts` |
 | Importers (iReal, Band-in-a-Box, MuseScore, PDF, OMR) | Vitest unit + the lead-sheet corpus in `tests/fixtures/leadsheets/` |
 | Svelte components, routes, navigation, hydration, storage isolation | Playwright |
+| Score editing: note/rest entry, pitch/accidentals, duration/dots/triplets, ties, deletion/remove-time, insertion, navigation, ranges, clipboard/repeat, undo/redo, chords/form, save/reopen | `tests/unit/step-entry/`, `tests/unit/state/tune-entry*.test.ts`, and the tune/lick editor Playwright specs (Chromium, Firefox, WebKit) |
 | `release.sh` | the deploy suite |
 | OMR parsing and validation | pytest |
 

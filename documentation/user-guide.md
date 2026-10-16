@@ -348,6 +348,8 @@ Two ways in.
 
 Either way, your lick joins your book alongside your other licks — ones you recorded, wrote, or adopted from the community — and behaves the same way: it can be tagged for Side B, transposed to any key, played back, and scored.
 
+Selected notes and rests have a colored outline as well as a colored glyph. In either score editor, select a half rest and choose **Quarter Note** to leave two separately selectable quarter rests; select the second one to enter the next rhythm. To tie an existing half note into a quarter-note triplet, select the half note and click **Tie** (or press `+`). When the following note has the same pitch, this toggles the tie without changing either duration. The Tie button indicates whether the selected note is tied. High notes remain selectable even when they extend into the chord-entry area.
+
 ### Minor licks in the editor
 
 The Setup row has a **Major | Minor** toggle beside the key. Pick *D* and *Minor* and the staff draws one flat, typing **B** gives B♭ and typing **C** stays natural — no more entering a D-minor line "in F". The mode follows the category you choose (a ii-V-I minor lick turns minor on its own) until you set it yourself, and it's saved with the lick, so the detail page, the practice session and the progress page all read it as *D minor*. A lick you entered in the relative major before this existed: open it and tap **Read as D minor** — the key relabels and the notes stay exactly where they are (changing the key with *Move notes* on would transpose them a third).

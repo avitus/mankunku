@@ -1049,11 +1049,8 @@ function resizeSelected(base: BaseDurationId, triplet: boolean, dotted: boolean)
 		const resizedEnd = addFractions(resized.offset, resized.duration);
 		if (!next || next.pitch !== resized.pitch || compareFractions(next.offset, resizedEnd) !== 0) resized.tied = false;
 	}
-	if (resized.pitch === null) {
-		const merged = coalesceRests(out);
-		out = merged.notes;
-		at = merged.indexMap[at];
-	}
+	// Keep the requested rest and its remainder separate: coalescing here
+	// would undo a rest resize and make the remainder impossible to select.
 	stepEntry.enteredNotes = out;
 	stepEntry.currentDuration = base;
 	stepEntry.tripletMode = triplet;

@@ -201,3 +201,23 @@ test('Shift+click selects a range; Delete rests the whole passage and R repeats 
 	await expect(rests).toHaveCount(2);
 	await expect(page.locator(`${CHART_SVG} .abcjs-rest.selected-note`)).toHaveCount(1);
 });
+
+test('shortening a half rest keeps two selectable quarter rests in the lick editor', async ({ page }) => {
+	await page.goto('/licks/editor');
+	const half = page.getByRole('button', { name: 'Half Note', exact: true });
+	await expect(async () => {
+		await half.click();
+		await expect(half).toHaveAttribute('aria-pressed', 'true', { timeout: 250 });
+	}).toPass({ timeout: 10_000 });
+	await page.getByRole('button', { name: 'A', exact: true }).click();
+	await page.getByRole('button', { name: 'Insert rest', exact: true }).click();
+	await page.locator(`${CHART_SVG} .abcjs-rest`).first().click();
+	await page.getByRole('button', { name: 'Quarter Note', exact: true }).click();
+	const rests = page.locator(`${CHART_SVG} .abcjs-rest`);
+	await expect(rests).toHaveCount(2);
+	await rests.last().click();
+	await expect(page.locator(`${CHART_SVG} .abcjs-rest.selected-note`)).toHaveCount(1);
+	await page.getByRole('button', { name: 'B', exact: true }).click();
+	await expect(rests).toHaveCount(1);
+	await expect(page.locator(`${CHART_SVG} .abcjs-note`)).toHaveCount(2);
+});
