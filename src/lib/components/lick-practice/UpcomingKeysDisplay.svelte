@@ -151,9 +151,8 @@
 			return { ...sheet, options: leadSheetAbcOptions(pk.phrase, sheet.bars) };
 		})
 	);
-	// Follow the active engraving's real bar geometry rather than stretching
-	// noteheads or accidentals to an artificial grid. Windowed sheets keep
-	// their own layout because their bars cover only part of the progression.
+	// The notation wash follows each sheet's actual engraved bars. Chord-only
+	// rows size their cells by beats independently of the engraving density.
 	let sheetEdges = $state<Record<number, number[]>>({});
 	$effect(() => { void plannedKeys; sheetEdges = {}; });
 	/** Publish geometry only when it changes, avoiding reactive resize churn. */
@@ -162,12 +161,6 @@
 			sheetEdges = { ...sheetEdges, [index]: edges };
 		}
 	}
-	const alignmentIndex = $derived(leadSheets[visualCurrentRow] ? visualCurrentRow : leadSheets.findIndex(Boolean));
-	const alignmentSheet = $derived(leadSheets[alignmentIndex]);
-	const barEdges = $derived(alignmentSheet?.startBar === 0 ? sheetEdges[alignmentIndex] : undefined);
-	// The edges follow ONE lick's engraving; a handoff row (preceding or next
-	// cycle) can belong to another lick that happens to share the bar count.
-	const edgesLickId = $derived(displayKeys[alignmentIndex]?.lickId);
 
 	// The tab names the key of the row it sits on — that row is always the one
 	// about to be played (the turnaround has already swapped the stack).
@@ -300,7 +293,6 @@
 									out:fade={{ duration: 400 }}
 								>
 									<ChordChart
-										barEdges={pk.lickId === edgesLickId ? barEdges : undefined}
 										showLabel={false}
 										harmony={pk.harmony}
 										currentBeat={0}
@@ -314,7 +306,6 @@
 							{/if}
 					{:else}
 						<ChordChart
-							barEdges={pk.lickId === edgesLickId ? barEdges : undefined}
 							showLabel={false}
 							harmony={pk.harmony}
 							currentBeat={isCurrent ? currentBeat : 0}
