@@ -212,7 +212,7 @@ Phases are a mirror, not a gate. Nothing about them changes what Side B schedule
 
 ### Why gradual unlocks
 
-The 12-key cycle is the goal, not the start. A brand-new lick starts with just **one** key — its home key — and earns each next key in easiest-to-hardest order by accidental count, alternating sharps and flats from home. From C, that's: C, G (1♯), F (1♭), D (2♯), Bb (2♭), A (3♯), Eb (3♭), E (4♯), Ab (4♭), B (5♯), Db (5♭), F♯/G♭ (6). For other home keys, the same principle applies relative to the entry key.
+The 12-key cycle is the goal, not the start. A brand-new lick starts with just **one** key — its home key — and then earns the remaining keys easiest-to-hardest by key signature: the next key is always the one with the fewest sharps or flats as you read it, and when a sharp key and a flat key tie, the sharp key comes first. From C major, that's: C, G (1♯), F (1♭), D (2♯), Bb (2♭), A (3♯), Eb (3♭), E (4♯), Ab (4♭), B (5♯), Db (5♭), F♯/G♭ (6). The home key only decides the first slot — a G major lick continues with C, then F. A minor lick counts its relative major's signature, so a G minor lick runs G, A, E, D, B, F♯, C, C♯, F, G♯, Bb, Eb minor. On a transposing instrument the count is taken in your written key, the one on the page.
 
 This means new vocabulary stays musical from day one: you're consolidating the shapes that matter most before the rotation grows, and by the time you reach the trickiest keys you've already heard the line in every easier one.
 

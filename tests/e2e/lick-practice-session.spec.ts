@@ -42,16 +42,18 @@ const SUB_FLOOR_PROGRESS = {
 };
 
 /**
- * Two unlocked keys — C (the entry key) and G (the newest, `planUnlockedKeys`
- * order) — with G under the floor, so the Daily stack is a chord row over a
- * lead-sheet row: `[C, G]`, G revealed. The unlock count is a separate store
- * (`lick-unlock-count`), so C's pass count is decorative.
+ * Two unlocked keys — C (the entry key) and Bb (the newest: the e2e player
+ * is a tenor, and concert Bb is their written C, the easiest signature on
+ * the `planUnlockedKeys` ramp) — with Bb under the floor, so the Daily stack
+ * is a chord row over a lead-sheet row: `[C, Bb]`, Bb revealed. The unlock
+ * count is a separate store (`lick-unlock-count`), so C's pass count is
+ * decorative.
  */
 const LEAD_AHEAD_PROGRESS = {
 	'lick-practice-progress': {
 		'e2e-user-lick-bebop': {
 			C: { currentTempo: FAST_TEMPO, lastPracticedAt: 1754000000000, passCount: 3 },
-			G: {
+			Bb: {
 				currentTempo: FAST_TEMPO,
 				lastPracticedAt: 1754000000000,
 				passCount: 0,
@@ -94,7 +96,7 @@ test.describe('lick-practice session flow', () => {
 		await page.goto('/licks/e2e-user-lick-bebop');
 		await page.getByRole('button', { name: 'Practice', exact: true }).click();
 		await page.emulateMedia({ reducedMotion: 'no-preference' });
-		await expect(page.locator('.row.current[data-key="G"] .phase-tab[data-pass="3"]')).toBeVisible({ timeout: 30_000 });
+		await expect(page.locator('.row.current[data-key="Bb"] .phase-tab[data-pass="3"]')).toBeVisible({ timeout: 30_000 });
 		// Inspect the real CSS animation at deterministic checkpoints. Under
 		// CI load, WebKit can miss its early frames in a requestAnimationFrame
 		// sampler even though the animation starts in the correct position.
@@ -136,7 +138,7 @@ test.describe('lick-practice session flow', () => {
 			score: row.querySelector('.score-flash')?.textContent?.trim() ?? null,
 			y: row.getBoundingClientRect().top
 		})));
-		expect(rows.map(row => row.key)).toEqual(['G', 'C', 'G']);
+		expect(rows.map(row => row.key)).toEqual(['Bb', 'C', 'Bb']);
 		expect(rows[1].current).toBe(true);
 		expect(rows[1].y - rows[0].y).toBeCloseTo(204.8, 1);
 		const viewport = page.locator('.viewport').filter({ has: page.locator('.stack') });
@@ -152,7 +154,7 @@ test.describe('lick-practice session flow', () => {
 		expect(rows[2].score).toBeNull();
 		// The next key also moves to the top, rather than replacing the
 		// contents of a permanently active second slot.
-		await expect(page.locator('.row.current[data-key="G"]')).toBeVisible({ timeout: 15_000 });
+		await expect(page.locator('.row.current[data-key="Bb"]')).toBeVisible({ timeout: 15_000 });
 		await expect.poll(currentTop).toBeCloseTo(0, 0);
 		await page.getByRole('button', { name: /end session/i }).click();
 	});
@@ -586,7 +588,7 @@ test.describe('lick-practice session flow', () => {
 		await page.getByRole('button', { name: /^practice$/i }).click();
 		await expect(page.getByText('Key 1/2', { exact: true })).toBeVisible({ timeout: 20_000 });
 		await expect(page.getByTestId('lead-sheet-row')).toBeVisible();
-		await expect(page.locator('.row[data-key="G"]')).toHaveCount(1);
+		await expect(page.locator('.row[data-key="Bb"]')).toHaveCount(1);
 	});
 
 	test('deep practice keeps the chord box and beat dots below a sheet fully visible', async ({ page }) => {
@@ -597,7 +599,7 @@ test.describe('lick-practice session flow', () => {
 			'lick-practice-progress': {
 				'e2e-user-lick-bebop': {
 					C: { currentTempo: FAST_TEMPO, rollingScore: 0.9, passCount: 3 },
-					G: { currentTempo: FAST_TEMPO, rollingScore: 0.5, passCount: 0 }
+					Bb: { currentTempo: FAST_TEMPO, rollingScore: 0.5, passCount: 0 }
 				}
 			}
 		});
@@ -681,14 +683,15 @@ test.describe('lick-practice session flow', () => {
 		const play = page.locator('.phase-tab[data-kind="play"]');
 		await expect(play).toHaveText('Play');
 
-		// Observe every rendered frame across C -> G, so a brief READ/countdown cannot escape a poll.
+		// Observe every rendered frame across C -> Bb, so a brief READ/countdown cannot escape a poll.
 		await page.evaluate(() => {
 			const samples: string[] = [];
 			(window as unknown as { dailyCues: string[] }).dailyCues = samples;
+			/** Record the cue tab on every frame until the Bb row's first pass is live. */
 			const sample = () => {
 				const tab = document.querySelector('.phase-tab');
 				samples.push(`${tab?.getAttribute('data-kind')}:${tab?.textContent?.trim()}`);
-				if (!document.querySelector('.row[data-key="G"].current .phase-tab[data-pass="1"]')) requestAnimationFrame(sample);
+				if (!document.querySelector('.row[data-key="Bb"].current .phase-tab[data-pass="1"]')) requestAnimationFrame(sample);
 			};
 			sample();
 		});
@@ -734,7 +737,7 @@ test.describe('lick-practice session flow', () => {
 			return marker.top >= row.top && marker.bottom <= row.bottom;
 		});
 		expect(markerInside).toBe(true);
-		await expect(page.locator('.row[data-key="G"] .chart-wrap.recording')).toBeVisible();
+		await expect(page.locator('.row[data-key="Bb"] .chart-wrap.recording')).toBeVisible();
 		const cues = await page.evaluate(() => (window as unknown as { dailyCues: string[] }).dailyCues);
 		expect(cues.length).toBeGreaterThan(1);
 		expect(cues.every((cue) => /^play:Play(?: · 1\/3)?$/.test(cue))).toBe(true);

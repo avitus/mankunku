@@ -9,13 +9,20 @@ const phrase = {
 };
 const history = [1, 2, 3, 4].map((keys, i) => ({ t: Date.UTC(2026, 8, 1 + i), bpm: 60 + i * 5, keys }));
 
+// The markers name the second, third and fourth keys of the lick's unlock
+// ramp in WRITTEN pitch: the ramp climbs the written key signatures, so a
+// concert F major lick goes C, G, D; on tenor the same lick is written G
+// major and goes written C, F, D; read as minor it is written G minor
+// (two flats) and goes A-, E-, D-.
 for (const example of [
-	{ instrumentId: 'concert', mode: 'major', names: ['C', 'B♭', 'G'], width: 1440, theme: 'dark' },
-	{ instrumentId: 'tenor-sax', mode: 'major', names: ['D', 'C', 'A'], width: 390, theme: 'dark' },
-	{ instrumentId: 'tenor-sax', mode: 'minor', names: ['D-', 'C-', 'A-'], width: 390, theme: 'light' },
-	// No stated mode: the labels borrow the chart's progression — a minor-chord
-	// line's home is the minor vamp — where the lick's chords (none) say nothing.
-	{ instrumentId: 'tenor-sax', mode: undefined, category: 'minor-chord', names: ['D-', 'C-', 'A-'], width: 390, theme: 'dark' }
+	{ instrumentId: 'concert', mode: 'major', names: ['C', 'G', 'D'], width: 1440, theme: 'dark' },
+	{ instrumentId: 'tenor-sax', mode: 'major', names: ['C', 'F', 'D'], width: 390, theme: 'dark' },
+	{ instrumentId: 'tenor-sax', mode: 'minor', names: ['A-', 'E-', 'D-'], width: 390, theme: 'light' },
+	// No stated mode: the label SUFFIX borrows the chart's progression — a
+	// minor-chord line's home is the minor vamp — where the lick's chords
+	// (none) say nothing. The key sequence is still the session's ramp, which
+	// reads an unstated mode with no chords as major: written C, F, D.
+	{ instrumentId: 'tenor-sax', mode: undefined, category: 'minor-chord', names: ['C-', 'F-', 'D-'], width: 390, theme: 'dark' }
 ]) {
 	test(`unlock labels use the saved entry key in ${example.instrumentId} ${example.mode ?? 'unstated mode'}`, async ({ page }) => {
 		await seedUserLicks(page, [{ ...phrase, mode: example.mode, category: example.category ?? phrase.category }]);

@@ -103,8 +103,9 @@ the Listen bars piled up (2026-08-22).
 Tricks have no stored home key. `trickEntryKey(instrument)` anchors a drill's
 unlock ramp and circle-of-4ths rotation at the player's **written C** in concert
 pitch (concert Bb on a Bb horn) — exactly like a lick entered in written C — and
-the tune-practice mastery-tier mirror resolves the anchor through the same
-function. Examples generate in a concert-C context and transpose per key.
+`trickUnlockRamp(instrument)` packages that anchor, read as major, with the
+instrument for `planUnlockedKeys`; the tune-practice mastery-tier mirror
+resolves the anchor through the same functions. Examples generate in a concert-C context and transpose per key.
 
 `trickPracticeBed(trick, params)` owns the default bed. For enclosure practice,
 `resolveTrickPracticeBed(trick, params, requested)` also accepts choices from

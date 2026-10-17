@@ -15,7 +15,8 @@ import {
 	type MasteryTier
 } from '$lib/tunes/lick-matcher';
 import { baseLickId } from '$lib/phrases/library-loader';
-import { getTrickById } from '$lib/tricks';
+import { getTrickById, trickEntryKey } from '$lib/tricks';
+import { INSTRUMENTS, type InstrumentConfig } from '$lib/types/instruments';
 import { getVariantsForTrick } from '$lib/tricks/mastery';
 import { makePhrase } from '../../helpers/lick-builders';
 
@@ -63,6 +64,7 @@ function trickSuggestions(result: ReturnType<typeof suggestLicksForProgression>)
 	return result.suggestions.filter((s) => s.lickId.startsWith(TRICK_PREFIX));
 }
 
+/** Matcher deps with everything optional — a case passes only what it exercises. */
 function makeDeps(
 	args: {
 		licks?: Phrase[];
@@ -71,6 +73,7 @@ function makeDeps(
 		practiceLickIds?: Set<string>;
 		getTrickUnlockedKeyCount?: (variantKey: string) => number;
 		trickEntryKey?: PitchClass;
+		instrument?: InstrumentConfig;
 	} = {}
 ): LickMatcherDeps {
 	return {
@@ -83,7 +86,8 @@ function makeDeps(
 		trickProgress: args.trickProgress,
 		selectedTrickVariants: args.selectedTrickVariants,
 		getTrickUnlockedKeyCount: args.getTrickUnlockedKeyCount,
-		trickEntryKey: args.trickEntryKey
+		trickEntryKey: args.trickEntryKey,
+		instrument: args.instrument
 	};
 }
 
@@ -345,23 +349,27 @@ describe('suggestLicksForProgression — trick suggestions', () => {
 
 	it('anchors the unlock ramp at deps.trickEntryKey (transposing instruments)', () => {
 		// A tenor player's drills anchor at concert Bb (their written C). With
-		// two unlocks the ramp is Bb, F — so F reads "learning" from Bb-anchored
-		// progress, while the concert-C default ramp (C, G) would call it unknown.
+		// two unlocks the ramp is Bb, F (written C, G) — so F reads "learning"
+		// from Bb-anchored progress, while the concert-C default ramp (C, G)
+		// would call it unknown. The ramp counts accidentals in written pitch,
+		// so the deps carry the instrument the anchor was resolved for.
 		const progress: TrickPracticeProgress = {
 			[E1.key]: { Bb: { currentTempo: 80, lastPracticedAt: 1, passCount: 2 } }
 		};
-		const tierInF = (trickEntryKey?: PitchClass): MasteryTier =>
+		/** The variant's mastery tier in F, with the drill anchored for `instrument` (absent = concert C). */
+		const tierInF = (instrument?: InstrumentConfig): MasteryTier =>
 			suggestLicksForProgression(
 				vampDetection('major-vamp', 'F'),
 				makeDeps({
 					selectedTrickVariants: new Set([E1.key]),
 					trickProgress: progress,
 					getTrickUnlockedKeyCount: () => 2,
-					trickEntryKey
+					trickEntryKey: instrument && trickEntryKey(instrument),
+					instrument
 				})
 			).suggestions[0].masteryTier;
 
-		expect(tierInF('Bb')).toBe('learning');
+		expect(tierInF(INSTRUMENTS['tenor-sax'])).toBe('learning');
 		expect(tierInF(undefined)).toBe('unknown');
 	});
 
@@ -379,7 +387,7 @@ describe('suggestLicksForProgression — trick suggestions', () => {
 				})
 			).suggestions[0].masteryTier;
 
-		// Db is the 11th key on the alternating circle-of-fifths ramp from C.
+		// Db is the 11th key on the key-signature ramp from C (five flats).
 		expect(tierInDb(1)).toBe('unknown');
 		expect(tierInDb(10)).toBe('unknown');
 		expect(tierInDb(11)).toBe('learning');

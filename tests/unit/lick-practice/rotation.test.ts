@@ -28,6 +28,8 @@ import {
 	FOCUS_STEP_DOWN_MULTIPLIER
 } from '$lib/state/lick-practice-rotation';
 import type { PitchClass } from '$lib/types/music';
+import type { UnlockRamp } from '$lib/music/key-ordering';
+import { INSTRUMENTS } from '$lib/types/instruments';
 import type { FocusRamp } from '$lib/types/lick-practice';
 
 const rollingFrom =
@@ -90,27 +92,30 @@ describe('shouldDemoHeadKey', () => {
 	});
 });
 
+/** A C major lick on a concert instrument: the ramp runs C, G, F, D, Bb, … */
+const cMajor: UnlockRamp = { entryKey: 'C', mode: 'major', instrument: INSTRUMENTS.concert };
+
 describe('newestUnlockedKey', () => {
 	it('is the entry key itself while only one key is unlocked', () => {
-		expect(newestUnlockedKey('C', 1)).toBe('C');
+		expect(newestUnlockedKey(cMajor, 1)).toBe('C');
 	});
 
-	it('walks the alternating circle-of-fifths ramp: C → G, F, D, Bb …', () => {
-		expect(newestUnlockedKey('C', 2)).toBe('G');
-		expect(newestUnlockedKey('C', 3)).toBe('F');
-		expect(newestUnlockedKey('C', 4)).toBe('D');
-		expect(newestUnlockedKey('C', 5)).toBe('Bb');
+	it('walks the key-signature ramp: C → G, F, D, Bb …', () => {
+		expect(newestUnlockedKey(cMajor, 2)).toBe('G');
+		expect(newestUnlockedKey(cMajor, 3)).toBe('F');
+		expect(newestUnlockedKey(cMajor, 4)).toBe('D');
+		expect(newestUnlockedKey(cMajor, 5)).toBe('Bb');
 	});
 
 	it('is null once every key is unlocked — nothing is "newest" any more', () => {
-		expect(newestUnlockedKey('C', 12)).toBeNull();
-		expect(newestUnlockedKey('C', 13)).toBeNull();
+		expect(newestUnlockedKey(cMajor, 12)).toBeNull();
+		expect(newestUnlockedKey(cMajor, 13)).toBeNull();
 	});
 });
 
 describe('shouldRevealNotation', () => {
 	// Three keys unlocked from C: C, G, F — F is the one being learned.
-	const learning = { entryKey: 'C' as const, unlockedCount: 3 };
+	const learning = { ramp: cMajor, unlockedCount: 3 };
 
 	it('reveals the newest unlocked key while it is under the floor', () => {
 		expect(shouldRevealNotation({ ...learning, key: 'F', rolling: 0.74 })).toBe(true);
@@ -132,13 +137,13 @@ describe('shouldRevealNotation', () => {
 
 	it('reveals the entry key while it is the only key unlocked', () => {
 		expect(
-			shouldRevealNotation({ entryKey: 'C', unlockedCount: 1, key: 'C', rolling: 0.5 })
+			shouldRevealNotation({ ramp: cMajor, unlockedCount: 1, key: 'C', rolling: 0.5 })
 		).toBe(true);
 	});
 
 	it('never reveals once all twelve keys are unlocked', () => {
 		expect(
-			shouldRevealNotation({ entryKey: 'C', unlockedCount: 12, key: 'F#', rolling: 0.1 })
+			shouldRevealNotation({ ramp: cMajor, unlockedCount: 12, key: 'F#', rolling: 0.1 })
 		).toBe(false);
 	});
 

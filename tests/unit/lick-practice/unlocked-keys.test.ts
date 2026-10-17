@@ -33,6 +33,7 @@ import {
 import { nextCycleTempo } from '$lib/state/lick-practice-rotation';
 import type { PitchClass, Phrase } from '$lib/types/music';
 import type { Score } from '$lib/types/scoring';
+import { settings } from '$lib/state/settings.svelte';
 
 /** A Score whose every accuracy is `overall`; only the overall drives the rotation. */
 function makeScore(overall: number): Score {
@@ -95,6 +96,9 @@ function setUnlockedCount(phraseId: string, target: number): void {
 }
 
 beforeEach(() => {
+	// These fixtures spell the unlock ramp in concert pitch (C, G, F, …);
+	// the ramp counts accidentals in WRITTEN pitch, so pin a C instrument.
+	settings.instrumentId = 'concert';
 	store.clear();
 	resetSession();
 	lickPractice.progress = {};
@@ -113,12 +117,12 @@ describe('startSingleLickSession unlocked-key filter', () => {
 	});
 
 	it('preserves circle-of-4ths order within the per-lick unlocked set', () => {
-		// Three unlocks for an F lick → planUnlockedKeys gives {F, C, Bb}
-		// (entry, +1 fifth, -1 fifth). Circle-of-4ths from F passes through
-		// F → Bb → ... → C, so the rotation is F → Bb → C.
+		// Three unlocks for an F major lick → planUnlockedKeys gives {F, C, G}
+		// (entry, then no accidentals, then one sharp). Circle-of-4ths from F
+		// passes through F → Bb → … → G → C, so the rotation is F → G → C.
 		setUnlockedCount('lick-f', 3);
 		startSingleLickSession(makeLick('F', 'lick-f'));
-		expect(lickPractice.plan[0].keys).toEqual(['F', 'Bb', 'C']);
+		expect(lickPractice.plan[0].keys).toEqual(['F', 'G', 'C']);
 	});
 
 	it('returns the full circle when the per-lick count reaches 12', () => {

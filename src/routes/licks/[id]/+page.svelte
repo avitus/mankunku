@@ -25,7 +25,7 @@
 	import { difficultyDisplay } from '$lib/difficulty/display';
 	import { concertKeyToWritten, writtenKeyToConcert } from '$lib/music/transposition';
 	import { keyLabel } from '$lib/music/notation';
-	import { planUnlockedKeys } from '$lib/music/key-ordering';
+	import { lickUnlockRamp, planUnlockedKeys } from '$lib/music/key-ordering';
 	import { lickMode } from '$lib/music/mode';
 	import { getUserLicks, getUserLicksLocal, deleteUserLick, updateLickCategory } from '$lib/persistence/user-licks';
 	import {
@@ -365,8 +365,11 @@
 		void lickPractice.progress;
 		return getLickProgressHistory(page.params.id ?? '');
 	});
+	// The key sequence is the session's own ramp (`lickUnlockRamp`, mode from
+	// `lickMode`), so the markers name the keys a drill will actually unlock;
+	// only the label suffix follows `displayMode`.
 	const progressKeyLabels = $derived(baseLick
-		? planUnlockedKeys(baseLick.key, 12).map((key) =>
+		? planUnlockedKeys(lickUnlockRamp(baseLick, getInstrument()), 12).map((key) =>
 			keyLabel(concertKeyToWritten(key, getInstrument()), displayMode).replace(/b/g, '♭').replace(/#/g, '♯'))
 		: undefined);
 
