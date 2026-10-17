@@ -5506,3 +5506,28 @@ contradictions before approval, all folded in.
 - Worktree gotcha: `.env` is gitignored and absent from a fresh worktree —
   `npm run check` reports 9 `$env/static/public` errors and the Playwright
   build fails outright. Copied the main checkout's `.env` in (ignored).
+
+## 2026-10-16 — The half rest Andy could not select was a gap, not a rest
+
+Andy, after #278 (and Codex's #279, which was already in production): the
+note selection and ties work, but he still could not select a half rest and
+replace it with two quarter rests. #279 had fixed exactly that for a STORED
+rest (its Black Orpheus fixture stores one at bar 32). A PDF import stores no
+rests at all; every rest on its chart is a gap the engraver fills in, with no
+element behind it and no anchor, so a click fell through to the bar and set
+the cursor on beat 1. Two changes:
+
+- **Gap anchors.** `tuneToAbcWithMap` now emits a `GapAnchor` per engraved
+  gap segment (slash bars excepted — they stay bar clicks), with the
+  section-local offset and length; `resolveChartClick` returns `kind: 'gap'`;
+  `NotationDisplay.onGapClick` fires (with exact hit targets like #279's
+  element targets); `tuneSelectGap` loads the page, selects a buffer rest
+  already there or materializes the segment as a rest element — bridging the
+  silence before it, clipped to the page window — and selects it in edit
+  intent. Then Andy's flow works: `3` splits it into two quarter rests, the
+  second is clickable (or →), the letter lands on beat 4.
+- **No more rest merging in the data.** Phase 1's `coalesceRests` fought
+  #279's "draw rests as they are" and the split itself; delete-to-rest and
+  range delete now leave one rest per note. `coalesceRests` is gone.
+- The regression spec gained Andy's exact flow on a PDF-shaped sheet (notes
+  only); the engraver's ABC is byte-identical (pinned).

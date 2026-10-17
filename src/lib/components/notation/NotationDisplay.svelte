@@ -13,6 +13,7 @@
 		type ChordSlotAnchor,
 		type TuneAbcOptions
 	} from '$lib/music/tune-notation';
+	import type { GapAnchor } from '$lib/music/tune-notation';
 	import {
 		alignStackedEndingsInContainer,
 		type AppliedEndingAlignment
@@ -152,6 +153,14 @@
 		 */
 		onBarClick?: (pos: { sectionIdx: number; bar: number }) => void;
 		/**
+		 * Fires when the user clicks a GAP rest — silence the section never
+		 * stored (every rest of a PDF import). Receives the section, the
+		 * section-local whole-note offset and the length of the engraved
+		 * segment, for the editor to materialize and select. Without a
+		 * handler such a click falls through to `onBarClick`.
+		 */
+		onGapClick?: (gap: { sectionIdx: number; offset: number; duration: number }) => void;
+		/**
 		 * Inline on-chart chord editing. Enables per-beat hit rects above the
 		 * staff; clicking one opens a positioned input prefilled via `textAt`.
 		 * `commit` returns false for unparseable text (input flashes and stays
@@ -202,6 +211,7 @@
 		playheadBarFraction = null,
 		onSelect,
 		onBarClick,
+		onGapClick,
 		chordEditor,
 		titleArea,
 		tuneOptions,
@@ -305,14 +315,17 @@
 			noteAnchors: NoteAnchor[];
 			barAnchors: BarAnchor[];
 			chordSlotAnchors: ChordSlotAnchor[];
+			gapAnchors: GapAnchor[];
 		} = tune
 			? tuneToAbcWithMap(tune, instrument, { ...tuneOptions, preserveRestBoundaries: !!onSelect })
 			: {
 					...phraseToAbcWithMap(phrase!, instrument, [1, 8], !!onSelect),
 					barAnchors: [],
-					chordSlotAnchors: []
+					chordSlotAnchors: [],
+					gapAnchors: []
 				};
-		const { abc, noteAnchors, barAnchors, chordSlotAnchors } = rendered;
+		const { abc, noteAnchors, barAnchors, chordSlotAnchors, gapAnchors } = rendered;
+		const barDurationWholeNotes = tune ? tune.timeSignature[0] / tune.timeSignature[1] : 1;
 		// Engraving house style: wider staff, the app chord face, Real Book
 		// masthead fonts. jazzchords is intentionally OFF — its superscript
 		// markers mis-parse ASCII flats ("Bb7" → B + b7); structureChordSymbols
@@ -379,9 +392,14 @@
 				// that its typings leave out; Shift there means "extend the range".
 				// eslint-disable-next-line prefer-rest-params
 				const mouseEvent = arguments[5] as MouseEvent | undefined;
-				const target = resolveChartClick(startChar, noteAnchors, chordSlotAnchors, barAnchors);
+				const target = resolveChartClick(startChar, noteAnchors, chordSlotAnchors, barAnchors, gapAnchors);
 				if (target?.kind === 'note') {
 					onSelect?.(target.sourceIndex, { shiftKey: !!mouseEvent?.shiftKey });
+					return;
+				}
+				if (target?.kind === 'gap') {
+					if (onGapClick) onGapClick(target.gap);
+					else onBarClick?.({ sectionIdx: target.gap.sectionIdx, bar: Math.floor(target.gap.offset / barDurationWholeNotes + 1e-9) });
 					return;
 				}
 				if (target?.kind !== 'bar') return;
@@ -442,6 +460,7 @@
 		}
 		buildHitZones(containerEl, vo, rendered, endingAlignments);
 		if (onSelect) addElementHitTargets(vo, noteAnchors);
+		if (onGapClick) addGapHitTargets(vo, gapAnchors);
 		// Stash for the cursor/marker effects. The cursor element belonged to
 		// the SVG this render just replaced, so forget it.
 		lastVisualObj = vo;
@@ -1346,6 +1365,30 @@
 			path.setAttribute('class', 'abcjs-glissando');
 			svg.appendChild(path);
 		});
+	}
+
+	/**
+	 * The same exact targets for GAP rests (2026-10-16): a click on one goes
+	 * straight to `onGapClick` instead of abcjs's proximity resolver.
+	 */
+	function addGapHitTargets(visualObj: AdapterVisualObj, anchors: GapAnchor[]): void {
+		for (const anchor of anchors) {
+			const el = findVoiceItem(visualObj, anchor.startChar)?.abselem?.elemset?.[0];
+			if (!(el instanceof SVGGraphicsElement)) continue;
+			const box = el.getBBox();
+			const rect = makeHitRect({ x: box.x - 2, y: box.y - 2, w: box.width + 4, h: box.height + 4 }, 'element-hit');
+			rect.setAttribute('data-gap-offset', String(anchor.offset));
+			rect.setAttribute('aria-hidden', 'true');
+			for (const type of ['mousedown', 'mouseup', 'touchstart', 'touchend']) {
+				el.addEventListener(type, (event) => event.stopPropagation());
+			}
+			const gap = { sectionIdx: anchor.sectionIdx, offset: anchor.offset, duration: anchor.duration };
+			el.addEventListener('click', (event) => {
+				event.stopPropagation();
+				onGapClick?.(gap);
+			});
+			el.prepend(rect);
+		}
 	}
 
 	/** Put small, exact selection targets above chord cells and ledger/rehearsal ink. */

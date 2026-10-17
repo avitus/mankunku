@@ -90,13 +90,13 @@ describe('extending the selection', () => {
 });
 
 describe('Delete and Ctrl/⌘+Backspace on a range', () => {
-	it('Delete turns the passage into rests, merged within the bar, and selects the rest', () => {
+	it('Delete turns the passage into rests, one per note so each stays selectable, and selects the first', () => {
 		sixQuarters();
 		selectNote(1);
 		extendSelection(1);
 		extendSelection(1); // D E G
 		deleteSelectedNote();
-		expect(rows(stepEntry.enteredNotes)).toEqual(['60 @0/1 ×1/4', 'z @1/4 ×3/4', '69 @1/1 ×1/4', '71 @5/4 ×1/4']);
+		expect(rows(stepEntry.enteredNotes)).toEqual(['60 @0/1 ×1/4', 'z @1/4 ×1/4', 'z @1/2 ×1/4', 'z @3/4 ×1/4', '69 @1/1 ×1/4', '71 @5/4 ×1/4']);
 		expect(stepEntry.selectedNoteIndex).toBe(1);
 		expect(rangeBounds()).toBeNull();
 	});
@@ -106,7 +106,7 @@ describe('Delete and Ctrl/⌘+Backspace on a range', () => {
 		selectNote(4);
 		extendSelection(1); // A B
 		deleteSelectedNote();
-		expect(rows(stepEntry.enteredNotes)).toEqual(['60 @0/1 ×1/4', '62 @1/4 ×1/4', '64 @1/2 ×1/4', '67 @3/4 ×1/4', 'z @1/1 ×1/2']);
+		expect(rows(stepEntry.enteredNotes)).toEqual(['60 @0/1 ×1/4', '62 @1/4 ×1/4', '64 @1/2 ×1/4', '67 @3/4 ×1/4', 'z @1/1 ×1/4', 'z @5/4 ×1/4']);
 	});
 
 	it('Ctrl/⌘+Backspace removes the passage and its time; what follows slides in and is selected', () => {

@@ -51,6 +51,7 @@
 		insertBar,
 		deleteBar,
 		selectRangeToFlattened,
+		tuneSelectGap,
 		type TuneDeleteResult,
 		setChord,
 		removeChord,
@@ -464,7 +465,7 @@
 				<nav class="te-sections" aria-label="Sections"><span class="studio-label">Form</span>{#each tuneEntry.sections as section, index}<button class:current={index === tuneEntry.currentSection} aria-pressed={index === tuneEntry.currentSection} onclick={() => jumpToSection(index)}><strong>{section.label || 'Pickup'}</strong><span>{section.bars} bars</span></button>{/each}<button class="te-form-button" onclick={() => formDialog?.showModal()}>Edit form ↗</button></nav>
                 <div class="te-listen"><TuneTransport bind:this={transport} tune={draft} /></div>
                 <div class="td-score-top"><span>Click a note to edit · click a bar to write</span><button aria-pressed={harmonyColors} onclick={() => harmonyColors = !harmonyColors}><i class="td-color-dot" aria-hidden="true"></i>Harmony colors <i class="td-switch" class:active={harmonyColors} aria-hidden="true"></i></button></div>
-				<div class="td-score-well" bind:this={scoreRoot} data-tour="tune-chart"><NotationDisplay tuneOptions={{ omitMasthead: true, barsPerLine: 4 }} bind:this={notationRef} tune={draft} instrument={previewInstrument} selectedIndex={previewSelectedIndex} selectedEndIndex={previewSelectedEndIndex} onSelect={handlePreviewSelect} onBarClick={pos => cursorToBar(pos.sectionIdx, pos.bar)} {chordEditor} rangeMarkers={[...harmonyMarkers, ...reviewMarkers]} frameless /></div>
+				<div class="td-score-well" bind:this={scoreRoot} data-tour="tune-chart"><NotationDisplay tuneOptions={{ omitMasthead: true, barsPerLine: 4 }} bind:this={notationRef} tune={draft} instrument={previewInstrument} selectedIndex={previewSelectedIndex} selectedEndIndex={previewSelectedEndIndex} onSelect={handlePreviewSelect} onBarClick={pos => cursorToBar(pos.sectionIdx, pos.bar)} onGapClick={gap => tuneSelectGap(gap.sectionIdx, gap.offset, gap.duration)} {chordEditor} rangeMarkers={[...harmonyMarkers, ...reviewMarkers]} frameless /></div>
 				<div class="td-status"><span><i aria-hidden="true"></i>{selectedRange ? `${selectedRange.end - selectedRange.start + 1} selected` : (selectedName ?? 'Ready to write')} · {@render entryStatus()}</span><button onclick={() => { selectNote(null); clearEntryCursor(); }}>Clear selection</button></div>
 			</section>
 			<div class="td-review">			{#if tuneEntry.importReview?.warnings.length}

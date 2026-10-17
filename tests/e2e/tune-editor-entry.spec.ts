@@ -74,7 +74,7 @@ test('entry auto-advances across the page boundary without manual paging', async
 	await expect(page.getByTestId('entry-rail').getByText(/Section A · Bar 6, Beat 1/)).toBeVisible();
 });
 
-test('clicking a gap rest jumps the entry cursor to that bar', async ({ page }) => {
+test('clicking a gap rest selects it as a rest to edit', async ({ page }) => {
 	await openEditor(page);
 
 	// Half-fill bar 1, then park the cursor elsewhere.
@@ -85,12 +85,18 @@ test('clicking a gap rest jumps the entry cursor to that bar', async ({ page }) 
 	await expect(page.getByTestId('entry-rail').getByText(/Section A · Bar 4, Beat 1/)).toBeVisible();
 
 	// The trailing rest in partly-filled bar 1 is a pure GAP — no stored
-	// element behind it, so it carries no note anchor and the click falls
-	// through to the bar: the cursor jumps back to that bar (and no chord
-	// editor opens — only chord TEXT clicks mean "edit the chord").
+	// element behind it. Since 2026-10-16 a click materializes it as a half
+	// rest on beats 3–4 and selects it (it used to fall through to the bar and
+	// park the cursor on beat 1); no chord editor opens — only chord TEXT
+	// clicks mean "edit the chord". A letter then fills it from beat 3.
 	await page.locator(`${CHART_SVG} .abcjs-rest`).first().click();
-	await expect(page.getByTestId('entry-rail').getByText(/Section A · Bar 1, Beat 1/)).toBeVisible();
+	await expect(page.locator(`${CHART_SVG} .abcjs-rest.selected-note`)).toHaveCount(1);
+	await expect(page.getByTestId('entry-rail').getByText(/Section A · Bar 1, Beat 3/)).toBeVisible();
 	await expect(page.getByTestId('chord-input')).toHaveCount(0);
+	await page.keyboard.press('3');
+	await page.keyboard.press('e');
+	await expect(page.locator(`${CHART_SVG} .abcjs-note`)).toHaveCount(3);
+	await expect(page.getByTestId('entry-rail').getByText(/Section A · Bar 1, Beat 4/)).toBeVisible();
 });
 
 test('clicking an entered rest selects it; Backspace deletes it in place', async ({ page }) => {

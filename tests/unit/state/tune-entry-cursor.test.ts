@@ -10,6 +10,7 @@ import {
 	selectNote,
 	deleteSelectedNote,
 	setDuration,
+	selectNext,
 	toggleTriplet,
 	toggleInsertMode,
 	extendSelection,
@@ -50,7 +51,8 @@ import {
 	selectLastInSection,
 	insertBar,
 	deleteBar,
-	selectRangeToFlattened
+	selectRangeToFlattened,
+	tuneSelectGap
 } from '$lib/state/tune-entry.svelte';
 
 // ─── Mock localStorage (settings persist on write) ────────────────────
@@ -1503,10 +1505,12 @@ describe('ranges in the tune editor', () => {
 		cursorToFlattened(1);
 		extendSelection(1); // D E
 		expect(tuneDeleteSelected()).toBe('rested');
-		expect(stepEntry.enteredNotes.map((n) => n.pitch)).toEqual([60, null, 67]);
-		expect(compareFractions(stepEntry.enteredNotes[1].duration, [1, 2])).toBe(0);
-		cursorToFlattened(1); // the rest
-		extendSelection(1); // rest + G
+		// One rest per note — they are never merged, so each stays selectable.
+		expect(stepEntry.enteredNotes.map((n) => n.pitch)).toEqual([60, null, null, 67]);
+		expect(compareFractions(stepEntry.enteredNotes[1].duration, [1, 4])).toBe(0);
+		cursorToFlattened(1); // the first rest
+		extendSelection(1);
+		extendSelection(1); // rest + rest + G
 		expect(tuneRemoveSelectedTime()).toBe('removed');
 		const pitched = tuneEntry.sections[0].notes.filter((n) => n.pitch !== null).map((n) => [n.pitch, fractionToFloat(n.offset)]);
 		expect(pitched).toEqual([[60, 0], [65, 3.25]]); // F pulled from bar 5 onto bar 4, beat 2
@@ -1593,5 +1597,64 @@ describe('CodeRabbit round 1 (PR #278)', () => {
 		selectNote(null);
 		expect(tuneAddNote(4, 4, 'natural')).toBe(false); // the form is full: an unrelated refusal
 		expect(tuneEntry.lastRefusal).toBeNull();
+	});
+});
+
+// ─── Group 15: clicking a gap rest (2026-10-16) ───────────────────────────
+
+describe('tuneSelectGap — a rest the section never stored becomes a selectable element', () => {
+	/** Black Orpheus's shape after a PDF import: notes only, every rest a gap. */
+	function pdfShaped(): void {
+		loadFromTune(sheet([{
+			label: 'A',
+			bars: 8,
+			notes: [
+				{ pitch: 62, duration: [1, 2], offset: [0, 1] }, // D, then a half-bar gap
+				{ pitch: 64, duration: [1, 4], offset: [1, 1] }, // E in bar 2, a 3/4 gap after it
+				{ pitch: 65, duration: [1, 2], offset: [4, 1] } // F on page 1, a half gap after it
+			],
+			harmony: []
+		}]), INSTRUMENTS['concert']);
+	}
+
+	it('the trailing half gap of the current page becomes a half rest, selected, its length armed; splitting and filling it works', () => {
+		pdfShaped();
+		commitBuffer(); // bar 1's gap between D and E is now a stored rest, the tail of the page is not
+		loadPage(0, 0);
+		// After E there is nothing on the page; the chart draws bar 2's tail as
+		// a quarter rest (beat 2) and a half rest (beats 3–4). Click the half.
+		expect(tuneSelectGap(0, 1.5, 0.5)).toBe(true);
+		const sel = stepEntry.selectedNoteIndex!;
+		expect(stepEntry.enteredNotes[sel]).toMatchObject({ pitch: null, offset: [3, 2], duration: [1, 2] });
+		expect(stepEntry.enteredNotes[sel - 1]).toMatchObject({ pitch: null, offset: [5, 4], duration: [1, 4] }); // the silence before it, bridged
+		expect(stepEntry.selectionMode).toBe('edit');
+		expect(stepEntry.currentDuration).toBe('half');
+		expect(tuneEntry.entryCursor).toBeNull();
+		// Andy's flow: shorten it to a quarter — two rests — step onto the remainder and type the note.
+		expect(setDuration('quarter')).toBe(true);
+		expect(stepEntry.enteredNotes.slice(sel, sel + 2).map((n) => fractionToFloat(n.duration))).toEqual([0.25, 0.25]);
+		selectNext();
+		expect(tuneAddNote(7, 4, 'natural')).toBe(true);
+		commitBuffer();
+		const bar2 = tuneEntry.sections[0].notes.filter((n) => { const o = fractionToFloat(n.offset); return o >= 1 && o < 2; });
+		expect(bar2.map((n) => [n.pitch, fractionToFloat(n.offset), fractionToFloat(n.duration)])).toEqual([[64, 1, 0.25], [null, 1.25, 0.25], [null, 1.5, 0.25], [67, 1.75, 0.25]]);
+	});
+
+	it('a gap on another page loads that page first', () => {
+		pdfShaped();
+		expect(tuneEntry.currentPage).toBe(0);
+		expect(tuneSelectGap(0, 4.5, 0.5)).toBe(true); // the half rest after F, bar 5 beats 3–4
+		expect(tuneEntry.currentPage).toBe(1);
+		const sel = stepEntry.selectedNoteIndex!;
+		expect(stepEntry.enteredNotes[sel]).toMatchObject({ pitch: null, offset: [1, 2], duration: [1, 2] });
+	});
+
+	it('a gap that is already a buffer rest is selected, not duplicated', () => {
+		pdfShaped();
+		const before = stepEntry.enteredNotes.length; // D, gap rest, E
+		expect(tuneSelectGap(0, 0.5, 0.5)).toBe(true);
+		expect(stepEntry.enteredNotes).toHaveLength(before);
+		expect(stepEntry.enteredNotes[stepEntry.selectedNoteIndex!]).toMatchObject({ pitch: null, offset: [1, 2], duration: [1, 2] });
+		expect(stepEntry.currentDuration).toBe('half');
 	});
 });

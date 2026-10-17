@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { barZones, chordZones, type LayoutItem, type SystemLayout } from '$lib/notation/chart-geometry';
 import { endingAlignTransform } from '$lib/music/ending-layout';
-import type { BarAnchor, ChordSlotAnchor } from '$lib/music/tune-notation';
+import type { BarAnchor, ChordSlotAnchor, GapAnchor } from '$lib/music/tune-notation';
 import type { NoteAnchor } from '$lib/music/notation';
 import {
 	systemsFromVisualObj,
@@ -745,5 +745,25 @@ describe('alignSystemLayouts — stacked [2] zones follow the aligned glyphs', (
 		expect(aligned[0]).toEqual(systems[0]);
 		expect(aligned[1]).not.toEqual(systems[1]);
 		expect(JSON.stringify(systems)).toBe(snapshot);
+	});
+});
+
+describe('resolveChartClick — gap rests (2026-10-16)', () => {
+	const noteAnchors: NoteAnchor[] = [{ startChar: 100, endChar: 103, sourceIndex: 7 }];
+	const barAnchors: BarAnchor[] = [{ startChar: 96, endChar: 110, sectionIdx: 0, bar: 3 }];
+	const gapAnchors: GapAnchor[] = [{ startChar: 103, endChar: 106, sectionIdx: 0, offset: 3.5, duration: 0.5 }];
+
+	it('resolves a click on a gap rest to the gap, before the bar fallback', () => {
+		expect(resolveChartClick(104, noteAnchors, [], barAnchors, gapAnchors)).toEqual({
+			kind: 'gap',
+			gap: { sectionIdx: 0, offset: 3.5, duration: 0.5 }
+		});
+	});
+
+	it('still falls through to the bar where no gap anchor covers the click', () => {
+		expect(resolveChartClick(108, noteAnchors, [], barAnchors, gapAnchors)).toEqual({
+			kind: 'bar',
+			pos: { sectionIdx: 0, bar: 3 }
+		});
 	});
 });

@@ -98,6 +98,23 @@ export interface BarAnchor {
 }
 
 /**
+ * Maps one engraved GAP rest — silence a section stores no element for — back
+ * to its position (2026-10-16). A PDF import stores no rests at all, so
+ * without this a click on such a rest had nothing to select and fell through
+ * to the bar; the editor materializes the gap as a rest element and selects
+ * it. Slash bars (whole-bar silence) stay bar clicks and get no gap anchor.
+ */
+export interface GapAnchor {
+	startChar: number;
+	endChar: number;
+	sectionIdx: number;
+	/** Section-local whole-note offset of the rest, as a float. */
+	offset: number;
+	/** Length in whole notes, as a float. */
+	duration: number;
+}
+
+/**
  * Maps one chord-voice (voice H) segment token — including its quoted
  * `"chord"` prefix — back to its position. Segments are cut at chord events,
  * sound-span boundaries and bar edges, so a bar can hold several slots.
@@ -217,6 +234,7 @@ export function tuneToAbcWithMap(
 	noteAnchors: NoteAnchor[];
 	barAnchors: BarAnchor[];
 	chordSlotAnchors: ChordSlotAnchor[];
+	gapAnchors: GapAnchor[];
 } {
 	const defaultLength = options.defaultLength ?? [1, 8];
 	const barsPerLine = options.barsPerLine ?? suggestBarsPerLine(sheet);
@@ -263,6 +281,9 @@ export function tuneToAbcWithMap(
 	];
 
 	const tokens: string[] = [];
+	/** Gap rests awaiting their char positions (see `GapAnchor`). */
+	const pendingGapAnchors: { tokenIndex: number; sectionIdx: number; offset: number; duration: number }[] = [];
+	let currentSectionIdx = 0;
 	const pendingAnchors: Array<{
 		tokenIndex: number;
 		sourceIndex: number;
@@ -355,7 +376,18 @@ export function tuneToAbcWithMap(
 		return `${art}${pitch}${durationToAbc(duration, defaultLength)}${tieSuffix}`;
 	}
 
+/** Push one engraved element's token, recording its note anchor (stored elements) or gap anchor (gap rests) first. */
 	function emitElement(el: DisplayElement, duration: Fraction, barState: ReturnType<typeof initBarState>): void {
+		if (el.sourceIndex === null && el.note.pitch === null && !isSlashBarRest(el.note, duration)) {
+			// A gap rest: no stored element behind it, but a place the editor
+			// can materialize and select (one anchor per engraved segment).
+			pendingGapAnchors.push({
+				tokenIndex: tokens.length,
+				sectionIdx: currentSectionIdx,
+				offset: fractionToFloat(el.note.offset),
+				duration: fractionToFloat(duration)
+			});
+		}
 		if (el.sourceIndex !== null && !isSlashBarRest(el.note, duration)) {
 			pendingAnchors.push({
 				tokenIndex: tokens.length,
@@ -548,6 +580,7 @@ export function tuneToAbcWithMap(
 
 	for (let secIdx = 0; secIdx < sheet.sections.length; secIdx++) {
 		const sec = sheet.sections[secIdx];
+		currentSectionIdx = secIdx;
 		const sectionEnd = sec.bars * barDuration;
 		const prevSec = secIdx > 0 ? sheet.sections[secIdx - 1] : null;
 		const pickup = sectionPickup[secIdx];
@@ -796,6 +829,11 @@ export function tuneToAbcWithMap(
 		endChar: bodyStart + tokenStarts[tokenIndex] + tokens[tokenIndex].length,
 		...fields
 	}));
+	const gapAnchors: GapAnchor[] = pendingGapAnchors.map(({ tokenIndex, ...fields }): GapAnchor => ({
+		startChar: bodyStart + tokenStarts[tokenIndex],
+		endChar: bodyStart + tokenStarts[tokenIndex] + tokens[tokenIndex].length,
+		...fields
+	}));
 	const barAnchors: BarAnchor[] = pendingBarAnchors.map(
 		({ startTokenIndex, barlineTokenIndex, sectionIdx, bar }) => ({
 			startChar: bodyStart + tokenStarts[startTokenIndex],
@@ -819,7 +857,8 @@ export function tuneToAbcWithMap(
 		abc: headerStr + '\n' + tokens.join(''),
 		noteAnchors,
 		barAnchors,
-		chordSlotAnchors
+		chordSlotAnchors,
+		gapAnchors
 	};
 }
 

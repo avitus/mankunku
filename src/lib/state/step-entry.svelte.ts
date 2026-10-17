@@ -4,7 +4,7 @@ import type { BaseDurationId, DurationId } from '$lib/step-entry/durations';
 import { DOTTED_BASES, DURATIONS, TRIPLET_BASES, getDurationFraction } from '$lib/step-entry/durations';
 import { addFractions, compareFractions, subtractFractions, fractionToFloat, pitchClassToMidi } from '$lib/music/intervals';
 import { applyAccidental } from '$lib/step-entry/pitch-input';
-import { coalesceRests, insertElement, removeTime, replaceWithRest, spliceElement, stripTrailingRests } from '$lib/step-entry/buffer-ops';
+import { insertElement, removeTime, replaceWithRest, spliceElement, stripTrailingRests } from '$lib/step-entry/buffer-ops';
 import { concertKeyToWritten, transposePitchClass } from '$lib/music/transposition';
 import { relativeMajor, relativeMinor } from '$lib/music/keys';
 import { signatureAccidentalsFor, signatureFlatsFor } from '$lib/music/notation';
@@ -535,8 +535,8 @@ export function selectNext(): void {
  * Delete the selected element (or the last element with no selection). Two
  * meanings, MuseScore's, since 2026-10-15 (Andy's call): a NOTE before the
  * end becomes a rest of the same span, so a complete score stays on its
- * beats, and the selection stays on that rest — merged with any rest
- * neighbours in its bar, so one engraved rest is one element; a REST removes
+ * beats, and the selection stays on that rest (rest neighbours are never
+ * merged: each stays its own selectable element); a REST removes
  * its time (`removeTime`), and so does the LAST element of either kind,
  * because nothing follows it: that is the append flow, where Backspace
  * removes what was typed last. `removeSelectedTime` is the explicit
@@ -551,9 +551,8 @@ export function deleteSelectedNote(): void {
 		for (let i = range.start; i <= range.end; i++) {
 			if (out[i].pitch !== null) out = replaceWithRest(out, i);
 		}
-		const { notes: merged, indexMap } = coalesceRests(out);
-		stepEntry.enteredNotes = merged;
-		selectNote(indexMap[range.start], 'edit');
+		stepEntry.enteredNotes = out;
+		selectNote(range.start, 'edit');
 		return;
 	}
 	const notes = stepEntry.enteredNotes;
@@ -563,9 +562,10 @@ export function deleteSelectedNote(): void {
 		removeElementTime(target);
 		return;
 	}
-	const { notes: merged, indexMap } = coalesceRests(replaceWithRest(notes, target));
-	stepEntry.enteredNotes = merged;
-	stepEntry.selectedNoteIndex = indexMap[target];
+	// Rests stay separate elements (no merging, 2026-10-16): the editor
+	// draws them as they are and each one remains selectable on its own.
+	stepEntry.enteredNotes = replaceWithRest(notes, target);
+	stepEntry.selectedNoteIndex = target;
 }
 
 /**

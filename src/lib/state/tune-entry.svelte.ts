@@ -53,7 +53,8 @@ import {
 	resolveEntryPitch
 } from '$lib/state/step-entry.svelte';
 import { getDurationFraction } from '$lib/step-entry/durations';
-import { coalesceRests, removeTime, replaceWithRest, spliceElement, trimOverlappingNotes } from '$lib/step-entry/buffer-ops';
+import { removeTime, replaceWithRest, spliceElement, trimOverlappingNotes } from '$lib/step-entry/buffer-ops';
+import { approxToFraction } from '$lib/music/notation';
 import { transposeTune } from '$lib/tunes/book-loader';
 import { isPickupOnlySection, pickupPrefix, resolvePickupLength } from '$lib/music/pickup';
 import {
@@ -1159,10 +1160,10 @@ function removeSpanInSection(localStart: Fraction, localEnd: Fraction): void {
  * the lead-in on a pickup bar) instead.
  */
 function restInPlace(target: number): void {
-	const { notes: merged, indexMap } = coalesceRests(replaceWithRest(stepEntry.enteredNotes, target));
-	stepEntry.enteredNotes = merged;
-	const restIdx = indexMap[target];
-	const rest = merged[restIdx];
+	const out = replaceWithRest(stepEntry.enteredNotes, target);
+	stepEntry.enteredNotes = out;
+	const restIdx = target;
+	const rest = out[restIdx];
 	const bar = Math.floor(fractionToFloat(rest.offset) + 1e-9);
 	const barStartAbs = addFractions(pageStartFraction(tuneEntry.currentPage), [bar, 1]);
 	const barHasPitch = spanHasPitchedCollision(
@@ -1258,6 +1259,54 @@ export function tuneRemoveSelectedTime(): TuneDeleteResult {
 	if (isLeadInRest(target)) return 'lead-in';
 	removeTimeInSection(target);
 	return 'removed';
+}
+
+/**
+ * A click on a GAP rest — silence the section never stored, which is every
+ * rest of a PDF import (2026-10-16, Andy: "unable to select the half note
+ * rest"). The gap's page loads; a buffer rest already at that offset (a
+ * gap between notes, synthesized on load) is simply selected; otherwise the
+ * engraved segment is materialized as a rest element — clipped to the page
+ * window, any silence before it bridged — and selected in edit intent, so
+ * its length arms the duration controls and the usual edits apply: shorten
+ * it to split it, step onto the remainder, type the note. Non-4/4 sheets
+ * just move to the bar. `offset` and `duration` are section-local whole
+ * notes, as the chart's `GapAnchor` carries them.
+ */
+export function tuneSelectGap(sectionIdx: number, offset: number, duration: number): boolean {
+	const [tsNum, tsDen] = tuneEntry.timeSignature;
+	const barDur = tsNum / tsDen;
+	const bar = Math.floor(offset / barDur + 1e-9);
+	if (!melodyEditingSupported()) {
+		cursorToBar(sectionIdx, bar);
+		return false;
+	}
+	const pageIdx = Math.floor(bar / PAGE_BARS);
+	loadPage(sectionIdx, pageIdx);
+	const local = approxToFraction(offset - pageIdx * PAGE_BARS);
+	const notes = stepEntry.enteredNotes;
+	const existing = notes.findIndex((n) => n.pitch === null && compareFractions(n.offset, local) === 0);
+	if (existing >= 0) {
+		selectNote(existing, 'edit');
+		tuneEntry.entryCursor = null;
+		return true;
+	}
+	const inside = notes.findIndex(
+		(n) => compareFractions(n.offset, local) <= 0 && compareFractions(addFractions(n.offset, n.duration), local) > 0
+	);
+	if (inside >= 0) {
+		selectNote(inside, 'edit');
+		tuneEntry.entryCursor = null;
+		return true;
+	}
+	const endWhole = Math.min(fractionToFloat(local) + duration, currentWindowBars());
+	const length = approxToFraction(endWhole - fractionToFloat(local));
+	if (length[0] <= 0) return false;
+	const { notes: out, index } = spliceElement(notes, { pitch: null, duration: length, offset: local });
+	stepEntry.enteredNotes = out;
+	selectNote(index, 'edit');
+	tuneEntry.entryCursor = null;
+	return true;
 }
 
 /**

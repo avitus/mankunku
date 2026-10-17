@@ -8,7 +8,7 @@ import {
 	type SystemLayout
 } from '$lib/notation/chart-geometry';
 import type { NoteAnchor } from '$lib/music/notation';
-import type { BarAnchor, ChordSlotAnchor } from '$lib/music/tune-notation';
+import type { BarAnchor, ChordSlotAnchor, GapAnchor } from '$lib/music/tune-notation';
 import type { TuneSection } from '$lib/types/tune';
 import { pickupFirstBeat, resolvePickupLength } from '$lib/music/pickup';
 import { endingGlyphTranslateDx } from '$lib/music/ending-layout';
@@ -291,6 +291,7 @@ export function chordKeyAction(
 /** What a chart click at some charspan position should do. */
 export type ChartClickTarget =
 	| { kind: 'note'; sourceIndex: number }
+	| { kind: 'gap'; gap: { sectionIdx: number; offset: number; duration: number } }
 	| { kind: 'bar'; pos: { sectionIdx: number; bar: number } };
 
 /**
@@ -305,12 +306,17 @@ export function resolveChartClick(
 	startChar: number,
 	noteAnchors: NoteAnchor[],
 	chordSlotAnchors: ChordSlotAnchor[],
-	barAnchors: BarAnchor[]
+	barAnchors: BarAnchor[],
+	gapAnchors: GapAnchor[] = []
 ): ChartClickTarget | null {
 	const note =
 		noteAnchors.find((a) => a.startChar === startChar) ??
 		noteAnchors.find((a) => startChar >= a.startChar && startChar < a.endChar);
 	if (note) return { kind: 'note', sourceIndex: note.sourceIndex };
+	// A gap rest (2026-10-16): silence the section never stored, which the
+	// editor can materialize and select rather than falling through to the bar.
+	const gap = gapAnchors.find((a) => startChar >= a.startChar && startChar < a.endChar);
+	if (gap) return { kind: 'gap', gap: { sectionIdx: gap.sectionIdx, offset: gap.offset, duration: gap.duration } };
 	const slot = chordSlotAnchors.find((a) => startChar >= a.startChar && startChar < a.endChar);
 	if (slot) return { kind: 'bar', pos: { sectionIdx: slot.sectionIdx, bar: slot.bar } };
 	const bar = barAnchors.find((a) => startChar >= a.startChar && startChar < a.endChar);
