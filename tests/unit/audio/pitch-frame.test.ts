@@ -9,6 +9,7 @@ import {
 	DEFAULT_MAX_FREQUENCY,
 	WEAK_CLARITY_FLOOR,
 	measureShapeBreak,
+	isTwelfthUpLock,
 } from '$lib/audio/pitch-frame';
 
 type MockDetector = { findPitch: () => [number, number] };
@@ -586,5 +587,83 @@ describe('detectFrame weak readings', () => {
 		const processSpy = vi.spyOn(stabilizer, 'process');
 		detectFrame(buffer, 0, makeMockDetector(269, 0.65) as any, stabilizer, baseOpts);
 		expect(processSpy).not.toHaveBeenCalled();
+	});
+});
+
+describe('isTwelfthUpLock / detectFrame twelfth-up flag', () => {
+	const sampleRate = 44100;
+
+	/** A sum of sines at the given [frequency, amplitude] partials. */
+	function partials(list: Array<[number, number]>, n = 4096): Float32Array {
+		const out = new Float32Array(n);
+		for (let i = 0; i < n; i++) {
+			let s = 0;
+			for (const [f, a] of list) s += a * Math.sin((2 * Math.PI * f * i) / sampleRate);
+			out[i] = s;
+		}
+		return out;
+	}
+
+	// The 2026-10-17 Third Walks Back to Root lock as measured: a D3 whose
+	// 440 Hz 3rd harmonic carries ~10× its 147 Hz fundamental and ~8× its 2nd
+	// harmonic, with the 4th and 5th partials present — and nothing between them.
+	const lockedD3 = () =>
+		partials([[146.83, 0.1], [293.66, 0.12], [440.5, 1.0], [587.3, 0.17], [734.2, 0.06], [881, 0.02]]);
+	// A genuine A4: nothing at the thirds of 440.
+	const realA4 = () => partials([[440, 1.0], [880, 0.3], [1320, 0.1]]);
+	// A weak A4 partial under broadband energy — an attack transient. Every bin
+	// is lifted alike, the thirds of 440 and the bins between them both.
+	function attackA4(): Float32Array {
+		const out = partials([[440, 0.1]]);
+		let seed = 12345;
+		for (let i = 0; i < out.length; i++) {
+			seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+			out[i] += seed / 0x7fffffff - 0.5;
+		}
+		return out;
+	}
+
+	it('flags the measured lock: 440 Hz reported over the harmonic series of D3', () => {
+		expect(isTwelfthUpLock(lockedD3(), 440.5, sampleRate)).toBe(true);
+	});
+
+	it('does not flag a real A4', () => {
+		expect(isTwelfthUpLock(realA4(), 440, sampleRate)).toBe(false);
+	});
+
+	it('does not flag broadband energy under a weak partial — the series and the bins between it rise together', () => {
+		expect(isTwelfthUpLock(attackA4(), 440, sampleRate)).toBe(false);
+	});
+
+	it('is bounded to the register whose partials can lock', () => {
+		// The same series on g = 220 (reported 660) and on g = 70 (reported 210).
+		const high = partials([[220, 0.1], [440, 0.12], [660, 1.0], [880, 0.17], [1100, 0.06]]);
+		expect(isTwelfthUpLock(high, 660, sampleRate)).toBe(false);
+		const low = partials([[70, 0.1], [140, 0.12], [210, 1.0], [280, 0.17], [350, 0.06]]);
+		expect(isTwelfthUpLock(low, 210, sampleRate)).toBe(false);
+	});
+
+	it('detectFrame flags the lock frame and leaves the fundamental frame alone', () => {
+		const buf = lockedD3();
+		const lock = detectFrame(buf, 0, makeMockDetector(440.5, 0.9) as any, null, { sampleRate });
+		expect(lock.reading!.midi).toBe(69);
+		expect(lock.reading!.twelfthUp).toBe(true);
+		const fundamental = detectFrame(buf, 0, makeMockDetector(146.83, 0.95) as any, null, { sampleRate });
+		expect(fundamental.reading!.midi).toBe(50);
+		expect(fundamental.reading!.twelfthUp).toBeUndefined();
+	});
+
+	it('does NOT flag a frame the stabilizer is holding in another octave', () => {
+		// Mirror of the octave-up guard: a flag only means "fold a twelfth down
+		// from the pitch this frame REPORTS". A frame the stabilizer has moved
+		// reports something else, so the fold would land in the wrong place.
+		const stab = createOctaveStabilizer();
+		// Seed a stable A3 (57) on a real A3 so the subharmonic pass leaves it be.
+		const a3 = partials([[220, 1.0], [440, 0.3], [660, 0.1]]);
+		for (let i = 0; i < WARMUP_FRAMES; i++) detectFrame(a3, i * 0.016, makeMockDetector(220, 0.95) as any, stab, { sampleRate });
+		// A lock frame arrives: the raw pick is A4 (69) but the stabilizer holds A3.
+		const held = detectFrame(lockedD3(), 1.0, makeMockDetector(440.5, 0.9) as any, stab, { sampleRate });
+		expect(held.reading!.midi).toBe(57); // the octave jump is still unconfirmed
+		expect(held.reading!.twelfthUp).toBeUndefined();
 	});
 });

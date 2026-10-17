@@ -1533,3 +1533,42 @@ describe('segmentNotes — an attack that cracks into the neighbouring octave', 
 		expect(notes.map((n) => n.midi)).toEqual([50, 62]);
 	});
 });
+
+describe('segmentNotes: third-harmonic (twelfth-up) locks', () => {
+	const hz = (midi: number) => 440 * Math.pow(2, (midi - 69) / 12);
+	/** `count` frames at 60 fps from `from`, all on `midi`. */
+	function run(midi: number, from: number, count: number, opts: { twelfthUp?: boolean } = {}): PitchReading[] {
+		return Array.from({ length: count }, (_, i) => ({
+			...makeReading(midi, from + i / 60),
+			frequency: hz(midi),
+			...(opts.twelfthUp ? { twelfthUp: true } : {})
+		}));
+	}
+	/** A held D3 (one attack) whose middle third of a second reads as A4, its 3rd harmonic. */
+	function heldD(lock: PitchReading[]): PitchReading[] {
+		return [...run(50, 0, 10), ...lock, ...run(50, 0.5, 30)];
+	}
+	const segment = (readings: PitchReading[]) =>
+		segmentNotes(readings, [0], readings[readings.length - 1].time + 1 / 60, undefined, undefined, undefined, [0]);
+
+	it('folds a stretch flagged on every frame back into the held note', () => {
+		const notes = segment(heldD(run(69, 10 / 60, 20, { twelfthUp: true })));
+		expect(notes.map((n) => n.midi)).toEqual([50]);
+		expect(notes[0].onsetTime).toBe(0);
+		expect(notes[0].duration).toBeCloseTo(1, 2);
+	});
+
+	it('keeps an unflagged leap as the three notes it reads', () => {
+		expect(segment(heldD(run(69, 10 / 60, 20))).map((n) => n.midi)).toEqual([50, 69, 50]);
+	});
+
+	it('needs a strong majority of the stretch: half its frames flagged is not a lock', () => {
+		const lock = [...run(69, 10 / 60, 10, { twelfthUp: true }), ...run(69, 20 / 60, 10)];
+		expect(segment(heldD(lock)).map((n) => n.midi)).toEqual([50, 69, 50]);
+	});
+
+	it('folds a whole note that locked from attack to release', () => {
+		const notes = segment(run(69, 0, 30, { twelfthUp: true }));
+		expect(notes.map((n) => n.midi)).toEqual([50]);
+	});
+});
