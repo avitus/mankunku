@@ -3037,3 +3037,25 @@ even though Practice rotates. And the broken e2e was a good break: it said
 that an explicit `mode` outranks any inference, including the progression's —
 the player's statement about their own lick beats what we derive from
 where it is filed.
+
+## 2026-10-16 — The rule you wrote inside the segment has a twin where the segments are born
+
+The third-harmonic fold was correct and tested, and the live path still
+split the note — because the test handed the segmenter one onset and the
+app hands it none. With no worklet, `extractOnsetsFromReadings` is a second
+segmenter in disguise: it decides boundaries from MIDI changes, upstream of
+every pass that knows about locks, octaves or attacks. Any rule that says
+"this MIDI change is not a note change" has to be applied there as well as
+in `splitByPitchChange`, or it only works in the harness. The general form:
+when a pipeline has two places that create boundaries, a merge rule written
+for one leaves the other's boundaries standing, and the no-evidence early
+return means nothing downstream repairs them. The question to ask of every
+segmenter change: does the live path reach this code with the onsets the
+test passes? Here the answer was no, and the fold tests' helper (`[0]`
+onsets, `[0]` worklet onsets) is exactly what hid it.
+
+Smaller: the gap-click fix created its own next case. Once a page commits,
+a gap IS a stored rest, so "materialize the segment" became "split the rest
+that already covers it" — the same gesture from the user's seat, a different
+operation in the data. Reviewing a fix against the state it leaves behind
+after ONE more action is where this round's finding sat.

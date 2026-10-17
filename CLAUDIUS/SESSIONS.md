@@ -5531,3 +5531,18 @@ the cursor on beat 1. Two changes:
   range delete now leave one rest per note. `coalesceRests` is gone.
 - The regression spec gained Andy's exact flow on a PDF-shaped sheet (notes
   only); the engraver's ABC is byte-identical (pinned).
+- **Release PR #280, CodeRabbit round 1** — three findings, all fixed in
+  9baa9b8c, each test-first. (1) A buffer rest that already COVERED the
+  clicked gap was selected whole: after a page's first commit the gap is a
+  stored rest, so a half-note gap drawn as two quarters selected the half;
+  `tuneSelectGap` now splits the covering rest into [head?, segment, tail?]
+  and selects the segment. (2) The other session's third-harmonic fold
+  (3eb05e36, Third Walks Back to Root) never reached the live path: with no
+  worklet onsets `extractOnsetsFromReadings` cut the held note at both edges
+  of the lock before `foldTwelfthUpLocks` could run, and the no-evidence
+  early return meant nothing rejoined the pieces. `foldTwelfthUpLockRuns`
+  folds lock runs on the stream before the extractor reads it (same gate);
+  a control pins that an unflagged leap still earns its onsets; the corpus
+  is unchanged. (3) `melodyWindow` had no upper bound — a trailing rest
+  padded the Listen preview. Docstring gate 100 %. The merge is Andy's (the
+  auto-mode gate blocks `gh pr merge` here).
