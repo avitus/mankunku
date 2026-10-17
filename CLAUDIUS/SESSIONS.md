@@ -5558,3 +5558,7 @@ the cursor on beat 1. Two changes:
   red in exactly the two cases the rule changes; and the trick ramp in
   `lick-matcher` is built by `trickUnlockRamp` from the instrument, so the
   anchor and the signatures it counts cannot drift.
+- **Merged and live.** Andy merged #280 as 6036b9c0 (2026-10-17 19:20 UTC);
+  production's health reported it at 2026-10-17T19:35:03.160Z (release
+  20261017-193155-6036b9c): the gap-rest selection and split, both review rounds
+  and the lick-detail selector fix are live on mankunkujazz.com.
