@@ -35,6 +35,7 @@ import {
 	melodyWindow
 } from '$lib/state/lick-practice-phrase';
 import { primaryProgressionForLick } from '$lib/state/lick-practice-picker';
+import { fractionToFloat } from '$lib/music/intervals';
 import { lickPractice, startSingleLickSession, getPhraseFor } from '$lib/state/lick-practice.svelte';
 import { getInstrument, getEffectiveHighestNote } from '$lib/state/settings.svelte';
 import { getLickById } from '$lib/phrases/library-loader';
@@ -160,6 +161,20 @@ describe('melodyWindow — what Listen plays', () => {
 	it('cuts a two-bar vamp down to the one bar the line fills', () => {
 		const placed = placeLickInProgression(userLick({ category: 'major-chord' }), 'C', 'major-vamp');
 		expect(chords(melodyWindow(placed).harmony)).toEqual(['Cmaj7@0/1x1/1']);
+	});
+
+	it('drops a trailing rest past the window, which would otherwise pad the preview with silence (CodeRabbit, PR #280)', () => {
+		const lick = userLick({
+			category: 'major-chord',
+			notes: [
+				{ pitch: 60, duration: [1, 4], offset: [0, 1] },
+				{ pitch: null, duration: [1, 4], offset: [1, 1] }
+			]
+		});
+		const window = melodyWindow(placeLickInProgression(lick, 'C', 'major-vamp'));
+		expect(window.notes.map((n) => [n.pitch === null ? 'rest' : 'note', fractionToFloat(n.offset)])).toEqual([
+			['note', 0]
+		]);
 	});
 });
 

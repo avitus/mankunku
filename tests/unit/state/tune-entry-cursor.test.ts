@@ -1658,3 +1658,35 @@ describe('tuneSelectGap — a rest the section never stored becomes a selectable
 		expect(stepEntry.currentDuration).toBe('half');
 	});
 });
+
+describe('tuneSelectGap splits a spanning buffer rest at the clicked segment (CodeRabbit, PR #280)', () => {
+	/** D, a 3/4 gap (engraved as a quarter on beat 2 and a half on beats 3–4), E on bar 2. */
+	function gapBetweenNotes(): void {
+		loadFromTune(sheet([{
+			label: 'A',
+			bars: 4,
+			notes: [
+				{ pitch: 62, duration: [1, 4], offset: [0, 1] },
+				{ pitch: 64, duration: [1, 4], offset: [1, 1] }
+			],
+			harmony: []
+		}]), INSTRUMENTS['concert']);
+		expect(stepEntry.enteredNotes.map((n) => [n.pitch, fractionToFloat(n.offset), fractionToFloat(n.duration)])).toEqual([[62, 0, 0.25], [null, 0.25, 0.75], [64, 1, 0.25]]);
+	}
+
+	it('clicking the half segment selects a half rest on beats 3–4, leaving the quarter before it', () => {
+		gapBetweenNotes();
+		expect(tuneSelectGap(0, 0.5, 0.5)).toBe(true);
+		expect(stepEntry.enteredNotes.map((n) => [n.pitch, fractionToFloat(n.offset), fractionToFloat(n.duration)])).toEqual([[62, 0, 0.25], [null, 0.25, 0.25], [null, 0.5, 0.5], [64, 1, 0.25]]);
+		expect(stepEntry.selectedNoteIndex).toBe(2);
+		expect(stepEntry.currentDuration).toBe('half');
+	});
+
+	it('clicking the quarter segment selects a quarter rest on beat 2, leaving the half after it', () => {
+		gapBetweenNotes();
+		expect(tuneSelectGap(0, 0.25, 0.25)).toBe(true);
+		expect(stepEntry.enteredNotes.map((n) => [n.pitch, fractionToFloat(n.offset), fractionToFloat(n.duration)])).toEqual([[62, 0, 0.25], [null, 0.25, 0.25], [null, 0.5, 0.5], [64, 1, 0.25]]);
+		expect(stepEntry.selectedNoteIndex).toBe(1);
+		expect(stepEntry.currentDuration).toBe('quarter');
+	});
+});

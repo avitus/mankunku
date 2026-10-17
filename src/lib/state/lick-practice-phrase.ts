@@ -173,8 +173,13 @@ export function melodyWindow(phrase: Phrase): Phrase {
 	);
 	if (firstBar === 0 && !harmonyRunsPast) return phrase;
 
+	// Bounded on BOTH sides: a trailing rest the editor saved past the last
+	// sounding bar would otherwise ride along and pad the preview with the
+	// silence this window exists to cut (CodeRabbit on PR #280).
 	const notes = phrase.notes
-		.filter((n) => compareFractions(n.offset, windowStart) >= 0)
+		.filter(
+			(n) => compareFractions(n.offset, windowStart) >= 0 && compareFractions(n.offset, windowEnd) < 0
+		)
 		.map((n) => ({ ...n, offset: subtractFractions(n.offset, windowStart) }));
 	const harmony = phrase.harmony.flatMap((h) => {
 		const segEnd = endOf(h.startOffset, h.duration);

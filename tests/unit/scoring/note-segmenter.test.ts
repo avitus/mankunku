@@ -1573,4 +1573,20 @@ describe('segmentNotes: third-harmonic (twelfth-up) locks', () => {
 		const notes = segment(run(69, 0, 30, { twelfthUp: true }));
 		expect(notes.map((n) => n.midi)).toEqual([50]);
 	});
+
+	// CodeRabbit on PR #280: live ear training has no worklet onsets, so
+	// resolveOnsets derives them from the readings, and a MIDI change at the
+	// lock's edges cut the held note into three segments before the fold ran.
+	it('folds the lock when the onsets come from the readings themselves (the live path)', () => {
+		const readings = heldD(run(69, 10 / 60, 20, { twelfthUp: true }));
+		const onsets = resolveOnsets([], readings);
+		expect(onsets).toHaveLength(1);
+		const notes = segmentNotes(readings, onsets, readings[readings.length - 1].time + 1 / 60);
+		expect(notes.map((n) => n.midi)).toEqual([50]);
+		expect(notes[0].duration).toBeCloseTo(1, 2);
+	});
+
+	it('an unflagged leap still earns its own onsets from the readings', () => {
+		expect(resolveOnsets([], heldD(run(69, 10 / 60, 20)))).toHaveLength(3);
+	});
 });

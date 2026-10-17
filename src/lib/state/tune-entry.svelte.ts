@@ -1267,7 +1267,10 @@ export function tuneRemoveSelectedTime(): TuneDeleteResult {
  * rest"). The gap's page loads; a buffer rest already at that offset (a
  * gap between notes, synthesized on load) is simply selected; otherwise the
  * engraved segment is materialized as a rest element — clipped to the page
- * window, any silence before it bridged — and selected in edit intent, so
+ * window, any silence before it bridged — and selected in edit intent; a
+ * buffer rest that already spans the click is split around the clicked
+ * segment so exactly that segment is selected. Either way the rest's length
+ * arms the duration controls and the usual edits apply, so
  * its length arms the duration controls and the usual edits apply: shorten
  * it to split it, step onto the remainder, type the note. Non-4/4 sheets
  * just move to the bar. `offset` and `duration` are section-local whole
@@ -1285,21 +1288,35 @@ export function tuneSelectGap(sectionIdx: number, offset: number, duration: numb
 	loadPage(sectionIdx, pageIdx);
 	const local = approxToFraction(offset - pageIdx * PAGE_BARS);
 	const notes = stepEntry.enteredNotes;
-	const existing = notes.findIndex((n) => n.pitch === null && compareFractions(n.offset, local) === 0);
-	if (existing >= 0) {
-		selectNote(existing, 'edit');
-		tuneEntry.entryCursor = null;
-		return true;
-	}
-	const inside = notes.findIndex(
+	const windowBars = currentWindowBars();
+	const segmentEnd = approxToFraction(Math.min(fractionToFloat(local) + duration, windowBars));
+	// A buffer rest already covers the click (a gap between notes becomes one
+	// rest on load, which the engraver may draw as several segments): select
+	// the clicked SEGMENT, splitting the rest around it so a resize or a
+	// typed note changes that beat and no other (CodeRabbit on #280).
+	const covering = notes.findIndex(
 		(n) => compareFractions(n.offset, local) <= 0 && compareFractions(addFractions(n.offset, n.duration), local) > 0
 	);
-	if (inside >= 0) {
-		selectNote(inside, 'edit');
+	if (covering >= 0) {
+		const host = notes[covering];
+		if (host.pitch !== null) {
+			selectNote(covering, 'edit');
+			tuneEntry.entryCursor = null;
+			return true;
+		}
+		const hostEnd = addFractions(host.offset, host.duration);
+		const segEnd = compareFractions(segmentEnd, hostEnd) < 0 ? segmentEnd : hostEnd;
+		const pieces: Note[] = [];
+		if (compareFractions(host.offset, local) < 0) pieces.push({ pitch: null, offset: host.offset, duration: subtractFractions(local, host.offset) });
+		const segmentIdx = covering + pieces.length;
+		pieces.push({ pitch: null, offset: local, duration: subtractFractions(segEnd, local) });
+		if (compareFractions(hostEnd, segEnd) > 0) pieces.push({ pitch: null, offset: segEnd, duration: subtractFractions(hostEnd, segEnd) });
+		stepEntry.enteredNotes = [...notes.slice(0, covering), ...pieces, ...notes.slice(covering + 1)];
+		selectNote(segmentIdx, 'edit');
 		tuneEntry.entryCursor = null;
 		return true;
 	}
-	const endWhole = Math.min(fractionToFloat(local) + duration, currentWindowBars());
+	const endWhole = Math.min(fractionToFloat(local) + duration, windowBars);
 	const length = approxToFraction(endWhole - fractionToFloat(local));
 	if (length[0] <= 0) return false;
 	const { notes: out, index } = spliceElement(notes, { pitch: null, duration: length, offset: local });

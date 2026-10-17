@@ -857,6 +857,46 @@ function foldTwelfthUpLocks(subs: SubSegment[]): SubSegment[] {
 }
 
 /**
+ * Fold every 3rd-harmonic lock RUN of a reading stream a twelfth down — the
+ * same gate as `foldTwelfthUpLocks`, over consecutive frames on one MIDI
+ * (warmup frames ride along uncounted) — for `extractOnsetsFromReadings`.
+ *
+ * Live ear training has no worklet onsets (the worklet never attaches), so
+ * that extractor derives them from the readings and cuts a note at every
+ * MIDI change: the lock's two edges became two attacks, and nothing after
+ * could question them — `foldTwelfthUpLocks` reunites the subs of ONE
+ * segment, and with no attack evidence `mergeSamePitchWithoutAttack` never
+ * runs (CodeRabbit on PR #280). Folded here, the stream reads D3 · D3 · D3
+ * and no onset is born at the lock; the segment then folds its own sub as
+ * before. A genuine leap of a twelfth trips the per-frame flag on an attack
+ * frame or two at most and keeps its onset; a gap still earns one.
+ */
+export function foldTwelfthUpLockRuns(readings: PitchReading[]): PitchReading[] {
+	const out = readings.slice();
+	let i = 0;
+	while (i < out.length) {
+		const midi = out[i].midi;
+		let j = i;
+		let confident = 0;
+		let flagged = 0;
+		while (j < out.length && out[j].midi === midi) {
+			if (!out[j].warmup) {
+				confident++;
+				if (out[j].twelfthUp) flagged++;
+			}
+			j++;
+		}
+		if (confident >= TWELFTH_UP_LOCK_MIN_FRAMES && flagged / confident >= TWELFTH_UP_LOCK_MIN_FRACTION) {
+			for (let k = i; k < j; k++) {
+				out[k] = { ...out[k], midi: midi - TWELFTH, midiFloat: out[k].midiFloat - TWELFTH };
+			}
+		}
+		i = j;
+	}
+	return out;
+}
+
+/**
  * Fraction of readings whose RAW (pre-stabilization) MIDI matches the given
  * target. Computed from `frequency` because `midiFloat` carries the
  * stabilizer's octave correction. The McLeod subharmonic glitch is
@@ -1230,7 +1270,8 @@ function pickMidi(readings: PitchReading[], prevMidi: number | null): number {
  * (metronome-only recordings, permission races, etc.). Inferred from
  * gaps and pitch changes in the readings themselves.
  */
-export function extractOnsetsFromReadings(readings: PitchReading[]): number[] {
+export function extractOnsetsFromReadings(rawReadings: PitchReading[]): number[] {
+	const readings = foldTwelfthUpLockRuns(rawReadings);
 	if (readings.length === 0) return [];
 	const onsets: number[] = [readings[0].time];
 	const GAP_THRESHOLD = 0.1;
