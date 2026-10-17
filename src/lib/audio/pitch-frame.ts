@@ -93,6 +93,28 @@ export interface PitchReading {
 	 */
 	shapeBreakAt?: number;
 	/**
+	 * The window's BRIGHTNESS in dB: the share of the harmonic energy under
+	 * TIMBRE_BAND_TOP that the partials from TIMBRE_UPPER_FROM up carry. See
+	 * `measureTimbre`. Omitted where the band holds no partial on one side of
+	 * the split (notes from ~600 Hz up), and on readings restored from
+	 * pre-2026-10-17 diagnostic JSON.
+	 */
+	brightness?: number;
+	/**
+	 * The largest rise in brightness (dB) across TIMBRE_LIFT_SPAN inside the
+	 * window, over the spans whose harmonic level dips below where it began —
+	 * a reed damped by the tongue and restarting brighter. See `measureTimbre`.
+	 * Omitted when no span of the window dips.
+	 */
+	brightnessLift?: number;
+	/**
+	 * Offset from this reading's `time` to the midpoint of the
+	 * `brightnessLift` span, in the caller's time base like `shapeBreakAt`
+	 * (negative under the live path's window-end anchor). Omitted with
+	 * `brightnessLift`.
+	 */
+	brightnessLiftAt?: number;
+	/**
 	 * True when this reading was captured during the octave-stabilizer
 	 * warmup window (first few frames after a reset). Aggregation should
 	 * down-weight these because the raw MIDI passes through unstabilized
@@ -283,6 +305,213 @@ const SHAPE_MIN_POSITIONS = 6;
 let shapeEnergyScratch = new Float64Array(0);
 let shapeCrossScratch = new Float64Array(0);
 let shapeBestScratch = new Float64Array(0);
+
+/**
+ * `measureTimbre` geometry and band (see that function).
+ *
+ * The band is the harmonic series up to TIMBRE_BAND_TOP, split at
+ * TIMBRE_UPPER_FROM. 2 kHz stays two octaves under the metronome's ride and
+ * hi-hat corners (8 and 6 kHz), so a click cannot brighten the tone; 600 Hz
+ * puts a low tenor note's 5th partial and up on the bright side, which is
+ * where the 2026-10-17 Blue Note Step-Up tongue moved (h5–h9 +6 to +10 dB).
+ *
+ * Sub-windows of TIMBRE_SUB_WINDOW samples (~23 ms, three periods of the
+ * 80 Hz floor) hop by TIMBRE_SUB_HOP (~5.8 ms); a lift is measured across
+ * TIMBRE_LIFT_SPAN hops (~41 ms, the length of that tongue's switch), and a
+ * span counts only when its level falls TIMBRE_LIFT_DIP_DB below where it
+ * began — the notch of a reed the tongue damped. That tongue's notch is
+ * 0.85 dB; a held tone's harmonic level wanders well under it between
+ * neighbouring sub-windows.
+ */
+const TIMBRE_BAND_TOP = 2000;
+const TIMBRE_UPPER_FROM = 600;
+const TIMBRE_SUB_WINDOW = 1024;
+const TIMBRE_SUB_HOP = 256;
+const TIMBRE_LIFT_SPAN = 7;
+const TIMBRE_LIFT_DIP_DB = 0.5;
+
+/** Hann tables by length, shared by every `measureTimbre` call (two lengths in practice). */
+const timbreHann = new Map<number, Float64Array>();
+/**
+ * Scratch reused across frames like the shape scratch, so the 60 fps live
+ * path allocates nothing: the windowed samples of the span being measured,
+ * each sub-window's brightness and level, and `harmonicSplit`'s result
+ * ([upper, total]). Fully rewritten before read.
+ */
+let timbreWindowedScratch = new Float64Array(0);
+let timbreBrightScratch = new Float64Array(0);
+let timbreLevelScratch = new Float64Array(0);
+const timbreSplit = new Float64Array(2);
+
+function hannTable(n: number): Float64Array {
+	let table = timbreHann.get(n);
+	if (!table) {
+		table = new Float64Array(n);
+		for (let i = 0; i < n; i++) table[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (n - 1));
+		timbreHann.set(n, table);
+	}
+	return table;
+}
+
+/** Goertzel power from the recurrence's last two states and its coefficient. */
+function goertzelPower(s1: number, s2: number, coeff: number): number {
+	return Math.max(0, s1 * s1 + s2 * s2 - coeff * s1 * s2);
+}
+
+/**
+ * Harmonic energy of buffer[start, start + length) split at
+ * TIMBRE_UPPER_FROM: Hann-windowed Goertzel power at each of the first
+ * `count` partials of `frequency`, written to `timbreSplit` as
+ * [upper, total].
+ *
+ * The span is windowed once into scratch and the Goertzel recurrences run four
+ * partials per pass over it — at the 80 Hz floor that is 25 partials over 13
+ * overlapping sub-windows per frame, and re-windowing per partial, one partial
+ * per pass, cost three times the shape scan. A slot past `count` runs with a
+ * zero coefficient and is not counted.
+ */
+function harmonicSplit(
+	buffer: Float32Array,
+	start: number,
+	length: number,
+	frequency: number,
+	count: number,
+	sampleRate: number
+): void {
+	const hann = hannTable(length);
+	if (timbreWindowedScratch.length < length) timbreWindowedScratch = new Float64Array(length);
+	const x = timbreWindowedScratch;
+	for (let i = 0; i < length; i++) x[i] = buffer[start + i] * hann[i];
+	const omega = (2 * Math.PI * frequency) / sampleRate;
+	let upper = 0;
+	let total = 0;
+	for (let k = 1; k <= count; k += 4) {
+		const ca = 2 * Math.cos(omega * k);
+		const cb = k + 1 <= count ? 2 * Math.cos(omega * (k + 1)) : 0;
+		const cc = k + 2 <= count ? 2 * Math.cos(omega * (k + 2)) : 0;
+		const cd = k + 3 <= count ? 2 * Math.cos(omega * (k + 3)) : 0;
+		let a1 = 0, a2 = 0, b1 = 0, b2 = 0, c1 = 0, c2 = 0, d1 = 0, d2 = 0;
+		for (let i = 0; i < length; i++) {
+			const v = x[i];
+			const a = v + ca * a1 - a2;
+			a2 = a1;
+			a1 = a;
+			const b = v + cb * b1 - b2;
+			b2 = b1;
+			b1 = b;
+			const c = v + cc * c1 - c2;
+			c2 = c1;
+			c1 = c;
+			const d = v + cd * d1 - d2;
+			d2 = d1;
+			d1 = d;
+		}
+		for (let j = 0; j < 4 && k + j <= count; j++) {
+			const p =
+				j === 0 ? goertzelPower(a1, a2, ca)
+				: j === 1 ? goertzelPower(b1, b2, cb)
+				: j === 2 ? goertzelPower(c1, c2, cc)
+				: goertzelPower(d1, d2, cd);
+			total += p;
+			if (frequency * (k + j) >= TIMBRE_UPPER_FROM) upper += p;
+		}
+	}
+	timbreSplit[0] = upper;
+	timbreSplit[1] = total;
+}
+
+/** One `measureTimbre` result: see the PitchReading fields it fills. */
+export interface TimbreMeasure {
+	/** Window brightness in dB (≤ 0). */
+	brightness: number;
+	/** Largest brightness rise across a dipping span, dB; null when no span dips. */
+	lift: number | null;
+	/** Seconds from the window start to that span's midpoint; null with `lift`. */
+	liftOffsetSeconds: number | null;
+}
+
+/**
+ * Brightness of the window and the sharpest brightening inside it that rides
+ * a level notch — "did the reed restart brighter?" measured in the spectrum.
+ *
+ * The 2026-10-17 Blue Note Step-Up take is the reason: a D3 tongued twice
+ * with no gap, no tongue noise, a 6-cent pitch sag and a 15% / 20 ms notch —
+ * under every energy tier — and a reset spread over three cycles, so
+ * cycle-to-cycle similarity (`shapeBreak`) never moved off 0.99. What did move
+ * is the timbre: the 5th–9th partials came back 6–10 dB stronger and stayed,
+ * a new, brighter tone that set in across the notch within ~40 ms. Brightness
+ * alone does not tell that from a held note: a swell brightens as it gets
+ * louder, and a breathy tone's brightness wanders by several dB. The notch
+ * does — a swell's level rises through its brightening, and a wandering
+ * tone's does not dip with it.
+ *
+ * So the window is cut into TIMBRE_SUB_WINDOW sub-windows; each gets a level
+ * (the harmonic energy, dB) and a brightness (the upper share, dB). `lift` is
+ * the largest brightness rise across TIMBRE_LIFT_SPAN sub-windows among the
+ * spans whose level falls at least TIMBRE_LIFT_DIP_DB below its starting
+ * level somewhere inside. Whether the new timbre persists, and whether the
+ * note held its energy, are the segmenter's to judge across readings
+ * (`findReArticulations`, the timbre-switch tier).
+ *
+ * Returns null without a fundamental, on silence, or when the band has no
+ * partial on one side of the split (from ~600 Hz up).
+ */
+export function measureTimbre(
+	buffer: Float32Array,
+	frequency: number,
+	sampleRate: number
+): TimbreMeasure | null {
+	if (!(frequency > 0)) return null;
+	const count = Math.floor(Math.min(TIMBRE_BAND_TOP, sampleRate / 2 - 1) / frequency);
+	if (count < 2 || frequency >= TIMBRE_UPPER_FROM || frequency * count < TIMBRE_UPPER_FROM) return null;
+
+	harmonicSplit(buffer, 0, buffer.length, frequency, count, sampleRate);
+	const windowUpper = timbreSplit[0];
+	const windowTotal = timbreSplit[1];
+	if (!(windowTotal > 0) || !(windowUpper > 0)) return null;
+	const brightness = 10 * Math.log10(windowUpper / windowTotal);
+
+	const positions =
+		buffer.length >= TIMBRE_SUB_WINDOW ? Math.floor((buffer.length - TIMBRE_SUB_WINDOW) / TIMBRE_SUB_HOP) + 1 : 0;
+	if (positions <= TIMBRE_LIFT_SPAN) return { brightness, lift: null, liftOffsetSeconds: null };
+	if (timbreBrightScratch.length < positions) {
+		timbreBrightScratch = new Float64Array(positions);
+		timbreLevelScratch = new Float64Array(positions);
+	}
+	const bright = timbreBrightScratch;
+	const level = timbreLevelScratch;
+	for (let p = 0; p < positions; p++) {
+		harmonicSplit(buffer, p * TIMBRE_SUB_HOP, TIMBRE_SUB_WINDOW, frequency, count, sampleRate);
+		const upper = timbreSplit[0];
+		const total = timbreSplit[1];
+		// A silent sub-window has no timbre; it can neither start nor end a lift.
+		if (!(total > 0) || !(upper > 0)) {
+			bright[p] = NaN;
+			level[p] = -Infinity;
+			continue;
+		}
+		bright[p] = 10 * Math.log10(upper / total);
+		level[p] = 10 * Math.log10(total);
+	}
+
+	let lift: number | null = null;
+	let liftStart = 0;
+	for (let a = 0; a + TIMBRE_LIFT_SPAN < positions; a++) {
+		const b = a + TIMBRE_LIFT_SPAN;
+		const rise = bright[b] - bright[a];
+		if (!Number.isFinite(rise)) continue;
+		let lowest = Infinity;
+		for (let p = a; p <= b; p++) if (level[p] < lowest) lowest = level[p];
+		if (lowest > level[a] - TIMBRE_LIFT_DIP_DB) continue;
+		if (lift === null || rise > lift) {
+			lift = rise;
+			liftStart = a;
+		}
+	}
+	if (lift === null) return { brightness, lift: null, liftOffsetSeconds: null };
+	const midpoint = (liftStart + TIMBRE_LIFT_SPAN / 2) * TIMBRE_SUB_HOP + TIMBRE_SUB_WINDOW / 2;
+	return { brightness, lift, liftOffsetSeconds: midpoint / sampleRate };
+}
 
 /** Default clarity floor for accepting a reading */
 export const DEFAULT_CLARITY_THRESHOLD = 0.80;
@@ -953,6 +1182,20 @@ export function detectFrame(
 			opts.windowAnchor === 'end'
 				? shape.offsetSeconds - buffer.length / opts.sampleRate
 				: shape.offsetSeconds;
+	}
+	// Measured on the partials of the pitch this frame REPORTS, after the
+	// stabilizer: a frame it holds an octave away would otherwise read the
+	// wrong series.
+	const timbre = measureTimbre(buffer, frequency * Math.pow(2, octaveCorrection / 12), opts.sampleRate);
+	if (timbre) {
+		reading.brightness = timbre.brightness;
+		if (timbre.lift !== null && timbre.liftOffsetSeconds !== null) {
+			reading.brightnessLift = timbre.lift;
+			reading.brightnessLiftAt =
+				opts.windowAnchor === 'end'
+					? timbre.liftOffsetSeconds - buffer.length / opts.sampleRate
+					: timbre.liftOffsetSeconds;
+		}
 	}
 	if (stab.warmup) reading.warmup = true;
 	if (octaveUp) reading.octaveUp = true;

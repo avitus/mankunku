@@ -919,3 +919,112 @@ describe('findReArticulations: envelope dip-recover tier', () => {
 		expect(findReArticulations(softReattackRun({ after: () => 0.88, frames: 45 }), [0.1])).toEqual([]);
 	});
 });
+
+/**
+ * The timbre-switch tier: a tongue that leaves only a NEW, brighter tone
+ * behind a small level notch (2026-10-17 Blue Note Step-Up). Each reading
+ * carries the window's `brightness` and, on the frames whose window holds the
+ * switch, a `brightnessLift` pointing at it.
+ */
+describe('findReArticulations: timbre-switch tier', () => {
+	const WINDOW = 4096 / 44100;
+
+	/**
+	 * A clean D3 run at 60 fps; at `switchAt` (seconds) the tone turns
+	 * `persist` dB brighter and `sustain`× as loud. `anchor` 'end' stamps each
+	 * window by its end, as the live detector does.
+	 */
+	function timbreRun(opts: {
+		switchAt?: number;
+		lift?: number;
+		persist?: number;
+		sustain?: number;
+		shape?: number;
+		frames?: number;
+		anchor?: 'start' | 'end';
+		strip?: boolean;
+	} = {}): PitchReading[] {
+		const switchAt = opts.switchAt ?? 0.65;
+		const frames = opts.frames ?? 45;
+		const anchorShift = opts.anchor === 'end' ? WINDOW : 0;
+		const out: PitchReading[] = [];
+		for (let i = 0; i < frames; i++) {
+			const start = 0.1 + i / 60; // window start in audio time
+			const end = start + WINDOW;
+			// Share of the window after the switch: 0 before it, 1 once past it.
+			const after = Math.min(1, Math.max(0, (end - switchAt) / WINDOW));
+			const r: PitchReading = {
+				midiFloat: 50,
+				midi: 50,
+				cents: 0,
+				clarity: 0.99,
+				time: start + anchorShift,
+				frequency: 146.83,
+				rms: 0.18 * (1 + after * ((opts.sustain ?? 1.11) - 1)),
+				hfRms: 0.013,
+				rmsMin: 0.16,
+				shapeBreak: opts.shape ?? 0.991
+			};
+			if (!opts.strip) {
+				r.brightness = -16 + after * (opts.persist ?? 4.7);
+				if (switchAt > start && switchAt < end) {
+					r.brightnessLift = opts.lift ?? 5.4;
+					r.brightnessLiftAt = switchAt - start - anchorShift;
+				}
+			}
+			out.push(r);
+		}
+		return out;
+	}
+
+	it('splits where the tone switches to a brighter one across the notch', () => {
+		const onsets = findReArticulations(timbreRun(), []);
+		expect(onsets).toHaveLength(1);
+		expect(onsets[0]).toBeCloseTo(0.65, 3);
+	});
+
+	it('splits the same switch under the live window-end anchor', () => {
+		const onsets = findReArticulations(timbreRun({ anchor: 'end' }), []);
+		expect(onsets).toHaveLength(1);
+		expect(onsets[0]).toBeCloseTo(0.65, 3);
+	});
+
+	it('does NOT split a lift under the floor — a held tone wanders that much', () => {
+		expect(findReArticulations(timbreRun({ lift: 3.1 }), [])).toEqual([]);
+	});
+
+	it('does NOT split when the brighter tone does not last', () => {
+		expect(findReArticulations(timbreRun({ persist: 2.4 }), [])).toEqual([]);
+	});
+
+	it('does NOT split a swell — the tone brightened because it got louder', () => {
+		expect(findReArticulations(timbreRun({ sustain: 1.5 }), [])).toEqual([]);
+	});
+
+	it('does NOT split a release — a re-attack holds its energy', () => {
+		expect(findReArticulations(timbreRun({ sustain: 0.7 }), [])).toEqual([]);
+	});
+
+	it('does NOT split a breathy run, whose timbre measures noise', () => {
+		expect(findReArticulations(timbreRun({ shape: 0.9 }), [])).toEqual([]);
+	});
+
+	it('does NOT split while the note is still blooming after its attack', () => {
+		expect(findReArticulations(timbreRun({ switchAt: 0.25 }), [])).toEqual([]);
+	});
+
+	it('defers to an onset the baseline already put there — one articulation, one onset', () => {
+		// A baseline onset is returned only as band-stop corroboration, so a
+		// deferring tier leaves the result empty either side of the switch.
+		expect(findReArticulations(timbreRun(), [0.55])).toEqual([]);
+		expect(findReArticulations(timbreRun(), [0.75])).toEqual([]);
+	});
+
+	it('does NOT split at the run exit, where no tone after the switch can be measured', () => {
+		expect(findReArticulations(timbreRun({ switchAt: 0.1 + 44 / 60 + 0.02 }), [])).toEqual([]);
+	});
+
+	it('ignores readings with no brightness (pre-2026-10-17 diagnostic JSON)', () => {
+		expect(findReArticulations(timbreRun({ strip: true }), [])).toEqual([]);
+	});
+});

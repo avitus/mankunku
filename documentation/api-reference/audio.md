@@ -312,6 +312,9 @@ interface PitchReading {
   bandRmsMin?: number;   // rmsMin on a 250-5000 Hz band-passed copy — the INSTRUMENT band
   shapeBreak?: number;   // Lowest short-time period-to-period waveform similarity (0-1)
   shapeBreakAt?: number; // Offset from `time` to the shapeBreak minimum (~3 ms precision)
+  brightness?: number;   // dB share of the harmonic energy under 2 kHz carried from 600 Hz up
+  brightnessLift?: number;   // Largest brightness rise (dB) across ~40 ms over a span whose level dips
+  brightnessLiftAt?: number; // Offset from `time` to that span's midpoint
   warmup?: boolean;      // Captured during the octave-stabilizer warmup window
   octaveUp?: boolean;    // Frame's spectrum looks like a 2nd-harmonic (octave-up) lock
   twelfthUp?: boolean;   // Frame's spectrum looks like a 3rd-harmonic (twelfth-up) lock
@@ -323,9 +326,9 @@ interface PitchReading {
 
 A **weak** reading is a frame whose clarity sits in [`WEAK_CLARITY_FLOOR` (0.5), threshold). Detectors never mix them into the confident stream: they come back on a side channel (`getWeakReadings()`, `ReplayResult.weakReadings`) whose only consumer is the ghost-note pass (`findGhostNotes`). A weak reading bypasses the octave stabilizer — `midi`/`midiFloat` are the raw pick after subharmonic correction — and carries only `rms`, `hfRms` and `rmsMin` of the optional fields.
 
-Every optional field is optional **for replay compatibility**: readings restored from diagnostic JSON written before the field existed simply skip the segmenter pass that consumes it (`hfRms` pre-2026-06-25, `rmsMin` pre-2026-07-25, `shapeBreak`/`shapeBreakAt` pre-2026-07-30, `bandRmsMin` pre-2026-08-01). Never make one required without a migration.
+Every optional field is optional **for replay compatibility**: readings restored from diagnostic JSON written before the field existed simply skip the segmenter pass that consumes it (`hfRms` pre-2026-06-25, `rmsMin` pre-2026-07-25, `shapeBreak`/`shapeBreakAt` pre-2026-07-30, `bandRmsMin` pre-2026-08-01, `brightness`/`brightnessLift`/`brightnessLiftAt` pre-2026-10-17). Never make one required without a migration.
 
-The four envelope/timbre fields exist because the re-articulation tiers each need a *different* kind of evidence — see [note-segmenter.ts](#note-segmenterts) below:
+The envelope/timbre fields exist because the re-articulation tiers each need a *different* kind of evidence — see [note-segmenter.ts](#note-segmenterts) below:
 
 | Field | Measures | Sees |
 |---|---|---|
@@ -334,8 +337,9 @@ The four envelope/timbre fields exist because the re-articulation tiers each nee
 | `bandRmsMin` | Same, on 250–5000 Hz only | An envelope dip a metronome click would otherwise fill in — the ride is high-passed at 8 kHz, the hi-hat at 6 kHz, and the kick's body sits under 250 Hz, so a bare cymbal measures ~25 dB down against a horn |
 | `hfRms` | First-difference high-pass | A brightness burst from a light tongue that never dips the envelope |
 | `shapeBreak` | Period-to-period waveform similarity | A legato tongue that produces *no* energy evidence at all — only a reed reset |
+| `brightness` / `brightnessLift` | The harmonic series under 2 kHz split at 600 Hz, on the whole window and on ~23 ms sub-windows | A legato tongue whose reset is too gradual for period-to-period shape: the tone comes back brighter across a small level notch and stays brighter |
 
-`FrameOptions.windowAnchor` (`'start' | 'end'`, default `'start'`) exists for `shapeBreakAt`: replay timestamps a reading at its window start, the live rAF path at its end, and `shapeBreakAt` is emitted such that `time + shapeBreakAt` is the discontinuity in either path's own time base.
+`FrameOptions.windowAnchor` (`'start' | 'end'`, default `'start'`) exists for the in-window offsets `shapeBreakAt` and `brightnessLiftAt`: replay timestamps a reading at its window start, the live rAF path at its end, and both are emitted such that `time + offset` is the event in either path's own time base (negative under the end anchor).
 
 ### `PitchDetectorHandle` interface
 
@@ -379,13 +383,13 @@ The per-frame pitch math, shared by the live rAF loop (`pitch-detector.ts`) and 
 
 ### `detectFrame(buffer, time, detector, stabilizer, opts: FrameOptions): FrameResult`
 
-One analyser window → `{ reading: PitchReading | null, rawClarity, weakReading? }` (`rawClarity` is always present, for UI meters; `reading` is null below the clarity threshold or out of range; `weakReading` is set, without touching the stabilizer, when an in-range frame's clarity is at least `WEAK_CLARITY_FLOOR` (0.5) but under the threshold — the 2026-09-16 ghosted Cs read 0.54–0.76, the same take's click bursts and breath noise 0.35–0.49). Runs Pitchy, lifts an octave-down subharmonic pick with `correctSubharmonic` before the frequency enters the MIDI stream, measures the envelope/timbre fields (`rms`, `rmsMin`, `bandRmsMin`, `hfRms`, `shapeBreak`), applies the octave stabilizer (pass `null` to skip it), and flags `octaveUp` and `twelfthUp` only on a frame neither the subharmonic correction nor the stabilizer moved. `FrameOptions` is `{ sampleRate, clarityThreshold?, minFrequency?, maxFrequency?, windowAnchor? }`; the thresholds default to `DEFAULT_CLARITY_THRESHOLD` (0.80), `DEFAULT_MIN_FREQUENCY` (80) and `DEFAULT_MAX_FREQUENCY` (1200).
+One analyser window → `{ reading: PitchReading | null, rawClarity, weakReading? }` (`rawClarity` is always present, for UI meters; `reading` is null below the clarity threshold or out of range; `weakReading` is set, without touching the stabilizer, when an in-range frame's clarity is at least `WEAK_CLARITY_FLOOR` (0.5) but under the threshold — the 2026-09-16 ghosted Cs read 0.54–0.76, the same take's click bursts and breath noise 0.35–0.49). Runs Pitchy, lifts an octave-down subharmonic pick with `correctSubharmonic` before the frequency enters the MIDI stream, measures the envelope/timbre fields (`rms`, `rmsMin`, `bandRmsMin`, `hfRms`, `shapeBreak`), applies the octave stabilizer, measures `brightness`/`brightnessLift` on the partials of the pitch the frame reports after it (pass `null` to skip it), and flags `octaveUp` and `twelfthUp` only on a frame neither the subharmonic correction nor the stabilizer moved. `FrameOptions` is `{ sampleRate, clarityThreshold?, minFrequency?, maxFrequency?, windowAnchor? }`; the thresholds default to `DEFAULT_CLARITY_THRESHOLD` (0.80), `DEFAULT_MIN_FREQUENCY` (80) and `DEFAULT_MAX_FREQUENCY` (1200).
 
 ### `createOctaveStabilizer(confirmFrames?, warmupFrames?): OctaveStabilizer`
 
 Suppresses McLeod subharmonic glitches. **Warmup:** the first `warmupFrames` (`WARMUP_FRAMES`, 5 — ~80 ms) confident readings pass through raw, flagged `warmup`, and the clarity-weighted mode (ties → most recent) seeds the stable MIDI — the old first-frame lock latched onto the inharmonic partials of a reed attack. **Steady state:** an octave-only jump (±12/±24) must persist `confirmFrames` (`OCTAVE_CONFIRM_FRAMES`, 3) frames before it is accepted; any other change is accepted at once. `OctaveStabilizer` is `{ process(rawMidi, clarity): StabilizerResult; reset() }`, with `StabilizerResult = { midi, warmup }`. The confirm inertia means a reported octave change lands a frame or two late — the segmenter's octave-respell rule accounts for it.
 
-### Spectral predicates — `goertzelMagnitude`, `correctSubharmonic`, `isOctaveUpLock`, `isTwelfthUpLock`, `measureShapeBreak`
+### Spectral predicates — `goertzelMagnitude`, `correctSubharmonic`, `isOctaveUpLock`, `isTwelfthUpLock`, `measureShapeBreak`, `measureTimbre`
 
 | Function | Purpose |
 |---|---|
@@ -394,6 +398,7 @@ Suppresses McLeod subharmonic glitches. **Warmup:** the first `warmupFrames` (`W
 | `isOctaveUpLock(buffer, frequency, sampleRate)` | Whether the frame looks like a 2nd-harmonic lock (energy at the odd half-multiples 1.5f / 2.5f, i.e. the 3rd/5th harmonics of f/2), for 160–370 Hz only. A **predicate, not a correction** — an attack transient can fake it for a frame, so the decision is deferred to `mergeWholeNoteOctaveUpLocks`, which acts only on a strong majority of a note's frames |
 | `isTwelfthUpLock(buffer, frequency, sampleRate)` | Whether the frame looks like a 3rd-harmonic lock of a fundamental g = f/3, for 240–600 Hz only: g's other partials (g, 2g, 4g, 5g — non-harmonic bins for a real note at f) carry ≥ 0.2 of the f + 2f energy, AND at least 5× the half-series bins between them (1.5g … 4.5g), which no harmonic of g reaches — so broadband attack energy, which lifts both sets alike, cannot fake it. Measured on the 2026-10-17 Third Walks Back to Root lock (0.35–0.47 and 11–37×) against every corpus frame over the first ratio (≤ 3.2×). A predicate like `isOctaveUpLock`; the segmenter's `foldTwelfthUpLocks` acts on a strong majority of a sub-segment's frames |
 | `measureShapeBreak(buffer, frequency, sampleRate)` | `{ value, offsetSeconds } \| null` — the lowest period-to-period waveform similarity inside the window ("did the reed restart?"), best lag searched within a tolerance so bends and vibrato can't fake a break. ~0.99 on a steady tone. `null` when the pitch is too low for enough scan positions |
+| `measureTimbre(buffer, frequency, sampleRate)` | `{ brightness, lift, liftOffsetSeconds } \| null` — "did the reed restart brighter?": the window's `brightness` (dB share of the harmonic energy up to 2 kHz carried by the partials from 600 Hz, Hann-windowed Goertzel per partial), and `lift`, the largest brightness rise across 7 hops (~41 ms) of 1024-sample sub-windows among the spans whose harmonic level falls ≥ 0.5 dB below where it began (`null` when none does). `null` overall without a pitch, on silence, or from ~600 Hz up, where no partial sits on the lower side. Allocation-free; ~0.3 ms per frame at D3, ~0.5 ms at the 80 Hz floor — the cost of the shape scan |
 
 ---
 
@@ -523,7 +528,7 @@ Fallback onset extractor for when the worklet produced nothing useful: the first
 
 ### `findReArticulations(readings, baseOnsets, bleedOnsets?): number[]`
 
-The counterpart to the merge passes — it *splits* a same-MIDI run where the player re-attacked but the worklet's amplitude-weighted HFC threshold missed it. Scans contiguous same-MIDI runs of the READINGS (not the baseline segments, because a re-articulation can straddle a boundary the merge pass would collapse), and returns extra onset times the caller merges into the onset list AND passes to `segmentNotes` as `articulationOnsets`, so the merge passes keep the new boundaries. `baseOnsets` (the `resolveOnsets` output) lets the shape tier treat an attack the baseline already found as the start of a settle window; `bleedOnsets` carries the scheduled click times. Five tiers run in this order, each rejecting an impostor the others let through, and each run's onsets are sorted and deduped within 60 ms:
+The counterpart to the merge passes — it *splits* a same-MIDI run where the player re-attacked but the worklet's amplitude-weighted HFC threshold missed it. Scans contiguous same-MIDI runs of the READINGS (not the baseline segments, because a re-articulation can straddle a boundary the merge pass would collapse), and returns extra onset times the caller merges into the onset list AND passes to `segmentNotes` as `articulationOnsets`, so the merge passes keep the new boundaries. `baseOnsets` (the `resolveOnsets` output) lets the shape tier treat an attack the baseline already found as the start of a settle window; `bleedOnsets` carries the scheduled click times. Six tiers run in this order, each rejecting an impostor the others let through, and each run's onsets are sorted and deduped within 60 ms:
 
 | Tier | Trigger | Key constants |
 |---|---|---|
@@ -531,7 +536,8 @@ The counterpart to the merge passes — it *splits* a same-MIDI run where the pl
 | High-frequency spike | `hfRms` spikes ≥ 3× the run median with the fundamental perturbed ≥ 0.1 st against its local neighbours and the envelope sustained | `HF_RE_ARTICULATION_SPIKE_RATIO`, `HF_RE_ARTICULATION_MIN_PITCH_PERTURB`, `HF_RE_ARTICULATION_MIN_RMS_SUSTAIN`, `HF_BLEED_SUPPRESS_BEFORE` / `_AFTER` |
 | Envelope dip | `rmsMin` dips and recovers with no dropout | `ENV_DIP_RATIO`, `ENV_RECOVER_RATIO`, `ENV_HF_CORROBORATION` |
 | Clarity dip | Clarity drop paired with an RMS dip and recovery | `RE_ARTICULATION_CLARITY_DROP`, `RE_ARTICULATION_RMS_DROP_RATIO`, `RE_ARTICULATION_RMS_RECOVERY_RATIO` |
-| Waveform shape | `shapeBreak` dips — the legato-tongue last resort; runs last so its settle gate sees every onset the tiers above emitted | `SHAPE_CLEAN_BASELINE`, `SHAPE_MIN_DROP`, `SHAPE_MIN_PERIODICITY`, `SHAPE_SETTLE_TIME`, `SHAPE_MIN_SUSTAIN` |
+| Waveform shape | `shapeBreak` dips — the legato-tongue last resort; its settle gate sees every onset the tiers above emitted | `SHAPE_CLEAN_BASELINE`, `SHAPE_MIN_DROP`, `SHAPE_MIN_PERIODICITY`, `SHAPE_SETTLE_TIME`, `SHAPE_MIN_SUSTAIN` |
+| Timbre switch | A `brightnessLift` ≥ 4.25 dB whose brighter tone lasts (the two readings wholly after it ≥ 3.6 dB over the two wholly before) on a note that held its energy without swelling (RMS ×1.0–1.3), on a clean, settled run; defers to any onset within the settle time either side. For a legato tongue whose reed reset spreads over several cycles, so shape never breaks (2026-10-17 Blue Note Step-Up) | `TIMBRE_LIFT_MIN`, `TIMBRE_PERSIST_MIN`, `TIMBRE_PERSIST_FRAMES`, `TIMBRE_MAX_SWELL`, plus the shape tier's clean, settle, trailing and sustain gates |
 
 Each tier is gated on its field being present, so readings restored from older diagnostic JSON skip the tiers they cannot feed.
 
@@ -545,6 +551,8 @@ Two non-obvious rules govern the HF and shape tiers, and both are load-bearing:
 
 - **`SHAPE_MIN_PERIODICITY` is a floor, not a ceiling.** The tier fires on a *shallow* similarity dip and rejects deep ones. A genuine legato tongue only reshapes an oscillation that never stops, so similarity barely moves (0.957, 0.961 against ~0.99 baselines); an impulsive contaminant — a metronome click, a key click, a thump — *adds* an uncorrelated signal and drives similarity toward zero (0.33, 0.54, 0.86 in the fixture corpus). Anything that destroys periodicity belongs to another tier or to nothing at all. Inverting this gate reintroduces every click false-positive.
 - **The click-schedule veto is conditional, not unconditional.** A click's broadband burst clears every HF gate, so a spike inside a click's window (`HF_BLEED_SUPPRESS_BEFORE` 0.10 s / `_AFTER` 0.28 s) is discarded — but the beat is exactly where notes start, so the veto has three rescues, one per tongue signature a click can't fake: an in-span dip of the 250–5000 Hz instrument-band floor and a pre-spike stop-and-recover (both `bandFloorDips` — a click can only *add* energy), and the **feather tongue** (`feathersTongueShape`, 2026-08-13 repeated-Eb pair): no energy evidence at all, but a multi-frame `shapeBreak` dip in the shallow 0.80–0.92 band on a clean-baseline run, which also stands in for the pitch-perturbation corroborator and accepts the 0.85 re-attack sustain floor. Measured clicks null `shapeBreak` or drive it ≤ 0.60; the corpus's shallow non-events are single-frame or ≥ 0.956. The band-floor rescue is only ever consulted at cymbal clicks — kicks cannot reach the HF tier's 3× requirement in the first place.
+
+**The timbre switch needs all three of its tests.** Brightness wanders on a held tone, rises with loudness and collapses on a release, so each test rejects a different neighbour in the fixture corpus: the abrupt lift rejects Blue Monk's held A (lift 3.06, though it stays brighter by 4.96 dB), persistence rejects Third Walks Back to Root's D3 flicker (lift 4.22, gone again — 2.47 dB), and the swell bound rejects the same D3's crescendo (lift 4.46, persists 5.45, but 1.5× louder). The tongue they were set against reads 5.44 / 4.74 / ×1.13, and across the 43 takes no other run segments differently with the tier on. No click suppression: the band stops two octaves under the ride and hi-hat corners.
 
 `SHAPE_SETTLE_TIME` (and `RE_ARTICULATION_READING_GAP`) are **physical, not beat-relative**. They admit the swung-eighth pair the tier was built for (0.34 s at 105 BPM) but not straight sixteenths at fast tempos — intended conservatism for last-resort tiers, since a re-articulation that fast disturbs the envelope enough for the tiers above to catch it.
 

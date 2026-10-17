@@ -2264,14 +2264,16 @@ async function replayEarTrainingTake(
 	const wav = loadWavFixture(file);
 	const raw = await replayFromAudioBuffer(makeFakeAudioBuffer(wav.channel, wav.sampleRate));
 	// `live` moves each frame from its window start to its window end, as the
-	// live detector stamps it, carrying `shapeBreakAt` with it.
+	// live detector stamps it, carrying `shapeBreakAt` and `brightnessLiftAt`
+	// with it.
 	const window = 4096 / 44100;
 	const restamp = (r: PitchReading): PitchReading =>
 		opts.live
 			? {
 					...r,
 					time: r.time + window,
-					...(r.shapeBreakAt !== undefined ? { shapeBreakAt: r.shapeBreakAt - window } : {})
+					...(r.shapeBreakAt !== undefined ? { shapeBreakAt: r.shapeBreakAt - window } : {}),
+					...(r.brightnessLiftAt !== undefined ? { brightnessLiftAt: r.brightnessLiftAt - window } : {})
 				}
 			: r;
 	const trimmed = trimToPerformance(
@@ -3108,13 +3110,16 @@ describe('pitch replay regression: Sharp 9 Flat 9 Dom — ghosted Cs in Deep Pra
 		const { weak = true, live = false, strict = false } = opts;
 		const wav = loadWavFixture(FIXTURE);
 		const raw = await replayFromAudioBuffer(makeFakeAudioBuffer(wav.channel, wav.sampleRate));
-		/** Move a replay frame from its window start to its window end, `shapeBreakAt` with it. */
+		/** Move a replay frame from its window start to its window end, the in-window offsets with it. */
 		const restamp = (r: PitchReading): PitchReading =>
 			live
 				? {
 						...r,
 						time: r.time + ANALYSER_WINDOW,
-						...(r.shapeBreakAt !== undefined ? { shapeBreakAt: r.shapeBreakAt - ANALYSER_WINDOW } : {})
+						...(r.shapeBreakAt !== undefined ? { shapeBreakAt: r.shapeBreakAt - ANALYSER_WINDOW } : {}),
+						...(r.brightnessLiftAt !== undefined
+							? { brightnessLiftAt: r.brightnessLiftAt - ANALYSER_WINDOW }
+							: {})
 					}
 				: r;
 		const readings = raw.readings.map(restamp);
@@ -3743,7 +3748,8 @@ describe('pitch replay regression: Honeysuckle Rose — a cracked attack shifted
 		const restamp = (r: PitchReading): PitchReading => ({
 			...r,
 			time: r.time + ANALYSER_WINDOW,
-			...(r.shapeBreakAt !== undefined ? { shapeBreakAt: r.shapeBreakAt - ANALYSER_WINDOW } : {})
+			...(r.shapeBreakAt !== undefined ? { shapeBreakAt: r.shapeBreakAt - ANALYSER_WINDOW } : {}),
+			...(r.brightnessLiftAt !== undefined ? { brightnessLiftAt: r.brightnessLiftAt - ANALYSER_WINDOW } : {})
 		});
 		const readings = raw.readings.map(restamp);
 		const weakReadings = raw.weakReadings.map(restamp);
@@ -3947,5 +3953,144 @@ describe('pitch replay regression: Third Walks Back to Root — the final D spea
 	it('folds the lock the same way in the live detector time base', async () => {
 		const { detected } = await replayPipeline({ live: true });
 		expect(detected.map((n) => n.midi)).toEqual([50, 54, 52, 50]);
+	});
+});
+
+/**
+ * 2026-10-17 "Blue Note Step-Up" — bbn-009 in concert A on Bb tenor (the
+ * blue note snapped to the scale: D3, D3, E3 as quarter, quarter, half),
+ * 100 BPM, swing 0.6, metronome on. The player tongued the second D lightly
+ * and the app saved ONE 1.2 s D3: the second D missed, 2 of 3, 0.667 "fair".
+ *
+ * The tongue sits at ~1.0 s on the trimmed clock, a beat after the first D,
+ * and it leaves almost nothing the five tiers measure: no reading gap, no
+ * tongue noise (hfRms flat), a 6-cent sag, and a 15% / 20 ms level notch
+ * inside a swell, so window RMS never dips at all. The reed reset spreads
+ * over three cycles, so cycle-to-cycle similarity stays at its 0.99 baseline.
+ * What changes is the tone: across the notch the 5th–9th partials come back
+ * 6–10 dB stronger and stay — brightness (the share of the harmonic energy
+ * under 2 kHz carried from 600 Hz up) lifts 5.4 dB inside ~40 ms while the
+ * level dips, the tone after it is 4.7 dB brighter than the tone before, and
+ * it is no louder than a held note gets (×1.13). `measureTimbre` stamps each
+ * reading with that brightness and lift; the timbre-switch tier in
+ * `findReArticulations` splits on lift, persistence and held-not-swelling
+ * energy together. Across the 43 fixture takes nothing else passes all three
+ * (see the TIMBRE_* constants), and no other take segments differently.
+ *
+ * The export's readings predate the brightness fields, so the fix shows on
+ * the WAV only.
+ */
+describe('pitch replay regression: Blue Note Step-Up — a tongue that only changes the tone (concert A, 2026-10-17)', () => {
+	const TRANSPORT_SECONDS = 325.037052154195;
+	const TEMPO = 100;
+	const SWING = 0.6;
+	const FIXTURE = 'recordings/2026-10-17-blue-note-step-up';
+	const WINDOW = 4096 / 44100;
+
+	const expectedPhrase: Phrase = {
+		id: 'bbn-009_A',
+		name: 'Blue Note Step-Up',
+		timeSignature: [4, 4],
+		key: 'A',
+		notes: [
+			{ pitch: 50, duration: [1, 4], offset: [0, 1] }, // D3
+			{ pitch: 50, duration: [1, 4], offset: [1, 4] }, // D3
+			{ pitch: 52, duration: [1, 2], offset: [1, 2] } // E3
+		],
+		harmony: [],
+		difficulty: { level: 3, pitchComplexity: 7, rhythmComplexity: 1, lengthBars: 1 },
+		category: 'blues',
+		tags: [],
+		source: 'curated'
+	};
+
+	const replayPipeline = (opts: { live?: boolean } = {}) =>
+		replayEarTrainingTake(`${FIXTURE}.wav`, TRANSPORT_SECONDS, TEMPO, opts);
+
+	const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+
+	it('the app saved one 1.2 s D3 and missed the second D (2 of 3, 0.667)', () => {
+		// Documents the evidence from the diagnostic export saved with the take.
+		const json = JSON.parse(
+			readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '..', 'fixtures', `${FIXTURE}.json`), 'utf8')
+		);
+		const saved: DetectedNote[] = json.scoring.savedDetectedNotes;
+		expect(saved.map((n) => n.midi)).toEqual([50, 52]);
+		expect(saved[0].duration).toBeCloseTo(1.2, 1);
+		expect(json.scoring.savedScore.notesHit).toBe(2);
+		expect(json.scoring.savedScore.noteResults[1].missed).toBe(true);
+		expect(json.scoring.savedScore.overall).toBeCloseTo(0.667, 2);
+		// Recorded before `measureTimbre`: no reading carries the timbre fields.
+		const readings: PitchReading[] = json.detection.readings;
+		expect(readings.some((r) => r.brightness !== undefined)).toBe(false);
+	});
+
+	it('trims the pre-armed lead-in back to the performance', async () => {
+		const { trimmed } = await replayPipeline();
+		expect(trimmed.offset).toBeCloseTo(0.267, 2);
+	});
+
+	it('the tongue leaves the energy and shape signals where a held note has them', async () => {
+		const { trimmed } = await replayPipeline();
+		const d = trimmed.readings.filter((r) => r.midi === 50 && r.time > 0.5 && r.time < 1.4);
+		// No reading gap anywhere in the D.
+		for (let k = 1; k < d.length; k++) expect(d[k].time - d[k - 1].time).toBeLessThan(0.02);
+		// Every window holding the tongue: no RMS dip (the note is swelling), no
+		// tongue noise, cycle-to-cycle shape at its baseline.
+		const across = d.filter((r) => r.time <= 1.0 && r.time + WINDOW >= 1.0);
+		expect(across.length).toBeGreaterThan(4);
+		for (const r of across) {
+			expect(r.rms).toBeGreaterThan(0.18);
+			expect(r.hfRms!).toBeLessThan(0.0155);
+			expect(r.shapeBreak!).toBeGreaterThan(0.985);
+		}
+	});
+
+	it('the tone switches brighter across the notch, stays brighter, and is no louder', async () => {
+		const { trimmed } = await replayPipeline();
+		const d = trimmed.readings.filter((r) => r.midi === 50 && !r.warmup);
+		const lifted = d.reduce((a, b) => ((b.brightnessLift ?? -Infinity) > (a.brightnessLift ?? -Infinity) ? b : a));
+		const t = lifted.time + lifted.brightnessLiftAt!;
+		expect(lifted.brightnessLift!).toBeGreaterThan(5.2);
+		expect(t).toBeGreaterThan(0.97);
+		expect(t).toBeLessThan(1.01);
+		const before = d.filter((r) => r.time + WINDOW <= t - 0.01).slice(-2);
+		const after = d.filter((r) => r.time >= t + 0.01).slice(0, 2);
+		const persist = mean(after.map((r) => r.brightness!)) - mean(before.map((r) => r.brightness!));
+		expect(persist).toBeGreaterThan(4.5);
+		expect(persist).toBeLessThan(5);
+		const sustain = mean(after.map((r) => r.rms)) / mean(before.map((r) => r.rms));
+		expect(sustain).toBeGreaterThan(1.05);
+		expect(sustain).toBeLessThan(1.2);
+	});
+
+	it('replayed: D3, D3, E3, the second D at the switch (saved: D3, E3)', async () => {
+		const { detected, articulationOnsets } = await replayPipeline();
+		expect(detected.map((n) => n.midi)).toEqual([50, 50, 52]);
+		expect(articulationOnsets).toHaveLength(1);
+		expect(detected[1].onsetTime).toBeGreaterThan(0.97);
+		expect(detected[1].onsetTime).toBeLessThan(1.01);
+	});
+
+	it('scores three of three with no extras (saved: 2 of 3, 0.667)', async () => {
+		const { detected } = await replayPipeline();
+		const result = runScorePipeline({
+			detected,
+			phrase: expectedPhrase,
+			tempo: TEMPO,
+			transportSeconds: TRANSPORT_SECONDS,
+			swing: SWING,
+			bleedFilterEnabled: false
+		});
+		expect(result.chosen.notesHit).toBe(3);
+		expect(result.chosen.extrasCharged).toBe(0);
+		expect(result.chosen.pitchAccuracy).toBe(1);
+		expect(result.chosen.noteResults.some((nr) => nr.missed || nr.extra)).toBe(false);
+		expect(result.chosen.overall).toBeGreaterThan(0.9);
+	});
+
+	it('splits the pair the same way in the live detector time base', async () => {
+		const { detected } = await replayPipeline({ live: true });
+		expect(detected.map((n) => n.midi)).toEqual([50, 50, 52]);
 	});
 });

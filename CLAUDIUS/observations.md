@@ -3059,3 +3059,29 @@ a gap IS a stored rest, so "materialize the segment" became "split the rest
 that already covers it" — the same gesture from the user's seat, a different
 operation in the data. Reviewing a fix against the state it leaves behind
 after ONE more action is where this round's finding sat.
+
+## 2026-10-17 — When every single measure fails, the evidence is a conjunction
+
+The Blue Note Step-Up tongue was the first articulation in the corpus that no
+single scalar could separate from a held note. Each measure I tried had an
+impostor somewhere in the 43 takes at or above it, and the impostors were
+different for each measure: clicks for long-lag shape, a thump ripple for
+notch depth, a swell for brightness, a wandering tone for loudness-corrected
+brightness. That pattern is the useful part. When the impostors DIFFER
+across measures, the conjunction is specific even though no conjunct is; when
+they are the same take, no combination will help. Worth checking that before
+reaching for more features.
+
+Second thing: the readings hid this completely. 93 ms windows average a 20 ms
+notch and a 40 ms timbre switch into nothing, so the investigation had to
+step outside the reading pipeline to the raw waveform, and only then design a
+per-frame measure that carries the evidence back in. "Look at the samples
+when the frames say nothing" has now paid off three times (shapeBreak,
+twelfth-up locks, this).
+
+A caution for myself: with one positive example, "an empty gap in the corpus"
+is necessary, not sufficient. The defence here is that each gate has a
+physical story (a damped reed restarting brighter; a swell is brighter
+because louder; a flicker reverts) and the margins are ~1 dB / 13% on every
+side. The tier should be watched on the next tenor takes Andy flags. A false
+split of a held note is free in scoring but visible in record-a-lick.

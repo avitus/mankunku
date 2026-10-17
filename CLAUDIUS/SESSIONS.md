@@ -5562,3 +5562,39 @@ the cursor on beat 1. Two changes:
   production's health reported it at 2026-10-17T19:35:03.160Z (release
   20261017-193155-6036b9c): the gap-rest selection and split, both review rounds
   and the lick-detail selector fix are live on mankunkujazz.com.
+
+## 2026-10-17 — Blue Note Step-Up: a tongue that only changes the tone
+
+Andy's report: a Blue Note Step-Up take (bbn-009, concert A: D3 D3 E3) scored
+2 of 3 — "the articulation between the first two notes is subtle but, I
+believe, audible and detectable."
+
+- Reproduced exactly both ways (saved readings and the WAV): one 1.2 s D3,
+  0.667. Every tier was blind: no reading gap, hfRms flat, a 6-cent sag, a
+  15% / 20 ms notch inside a swell so window RMS never dipped, and
+  `shapeBreak` at its 0.991 baseline because the reed reset spread over
+  three cycles.
+- Locating it took the waveform, not the readings. The beat-4 click at
+  0.857 brightens the tone too, so there were two candidates; cycle
+  correlation against reference cycles put the timbre change at 0.98–1.01
+  (r 0.99 → 0.957, nothing at the click), and per-harmonic magnitudes showed
+  h5–h9 coming back 6–10 dB stronger and staying — at the beat the rhythm
+  predicts.
+- Then a long corpus survey of candidate measures, each rejected because a
+  non-tongue elsewhere matched it: long-lag shape similarity (clicks deeper),
+  notch depth and rise (Blue Monk, down-to-the-third deeper), whole-window
+  brightness jumps (Third Walks' D3 swell 4.66 vs 5.41), loudness-corrected
+  brightness (blues-curl-up 3.53 vs 3.55). Only the conjunction separated:
+  an abrupt lift across a level dip (inside the window) + a brighter tone
+  that persists (across readings) + held energy that did not swell.
+- Shipped: `measureTimbre` + `brightness`/`brightnessLift`/`brightnessLiftAt`
+  on every reading, and a sixth tier (timbre switch). Thresholds midway
+  between the tongue and the nearest impostor on each test. Corpus diff:
+  1 of 43 takes changes in each time base, this one. Unit tests red-first
+  (10 detector, 11 tier), a regression block of 7 (3 go red with the tier
+  off). Cost cut from 1.6 ms to 0.5 ms per frame at the 80 Hz floor
+  (window once, four Goertzel partials per pass) — the shape scan's cost.
+- Fixed a latent test gap on the way: the three live-restamp helpers now
+  carry the new in-window offset.
+- Docs: api-reference/audio.md (fields, predicate, tier, the three-test
+  rule), audio-pipeline.md (a sixth plain-language step), CLAUDE.md.

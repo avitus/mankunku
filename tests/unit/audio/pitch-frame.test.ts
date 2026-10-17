@@ -9,6 +9,7 @@ import {
 	DEFAULT_MAX_FREQUENCY,
 	WEAK_CLARITY_FLOOR,
 	measureShapeBreak,
+	measureTimbre,
 	isTwelfthUpLock,
 } from '$lib/audio/pitch-frame';
 
@@ -668,5 +669,114 @@ describe('isTwelfthUpLock / detectFrame twelfth-up flag', () => {
 		const held = detectFrame(lockedD3(), 1.0, makeMockDetector(440.5, 0.9) as any, stab, { sampleRate });
 		expect(held.reading!.midi).toBe(57); // the octave jump is still unconfirmed
 		expect(held.reading!.twelfthUp).toBeUndefined();
+	});
+});
+
+describe('measureTimbre', () => {
+	const sampleRate = 44100;
+	const f0 = 146.83; // D3 — the 2026-10-17 Blue Note Step-Up pitch
+
+	// The take's partial balance before its tongue (h1–h9, 3rd dominant), then
+	// h10–h13 rolling off under the 2 kHz band top.
+	const BALANCE = [0.1, 0.13, 1.0, 0.17, 0.07, 0.04, 0.02, 0.045, 0.04, 0.03, 0.02, 0.015, 0.01];
+
+	/**
+	 * A continuous D3 (no phase restart, so only the timbre can move).
+	 * `brightAt` multiplies every partial from 600 Hz up by `brightGain` from
+	 * that sample on; `levelAt` scales the whole tone sample by sample.
+	 */
+	function d3(opts: { brightAt?: number; brightGain?: number; levelAt?: (i: number) => number } = {}): Float32Array {
+		const buf = new Float32Array(4096);
+		for (let i = 0; i < buf.length; i++) {
+			const t = i / sampleRate;
+			let s = 0;
+			BALANCE.forEach((a, k) => {
+				const f = f0 * (k + 1);
+				const lifted = opts.brightAt != null && i >= opts.brightAt && f >= 600;
+				s += (lifted ? a * (opts.brightGain ?? 2.5) : a) * Math.sin(2 * Math.PI * f * t);
+			});
+			buf[i] = 0.2 * s * (opts.levelAt?.(i) ?? 1);
+		}
+		return buf;
+	}
+
+	/** A 15% level notch about 20 ms wide centred on `at` — the tongue touching the reed. */
+	const notch = (at: number) => (i: number) => (Math.abs(i - at) < 450 ? 0.85 : 1);
+
+	it('reads a steady tone as one brightness with no lift', () => {
+		const result = measureTimbre(d3(), f0, sampleRate);
+		expect(result).not.toBeNull();
+		expect(Number.isFinite(result!.brightness)).toBe(true);
+		// No span of a steady tone dips in level, so nothing qualifies.
+		expect(result!.lift).toBeNull();
+		expect(result!.liftOffsetSeconds).toBeNull();
+	});
+
+	it('lifts where the upper partials step up across a level notch, and locates it', () => {
+		const at = 2000;
+		const result = measureTimbre(d3({ brightAt: at, levelAt: notch(at) }), f0, sampleRate);
+		expect(result!.lift).toBeGreaterThan(5);
+		expect(result!.liftOffsetSeconds!).toBeGreaterThan(at / sampleRate - 0.02);
+		expect(result!.liftOffsetSeconds!).toBeLessThan(at / sampleRate + 0.02);
+	});
+
+	it('does not lift on the same brightening with no notch — the reed was never damped', () => {
+		expect(measureTimbre(d3({ brightAt: 2000 }), f0, sampleRate)!.lift).toBeNull();
+	});
+
+	it('does not lift through a fade — the level falls but the timbre holds', () => {
+		const fade = measureTimbre(d3({ levelAt: (i) => 1 - 0.5 * (i / 4096) }), f0, sampleRate);
+		expect(fade!.lift ?? 0).toBeLessThan(1);
+	});
+
+	it('does not lift on a swell — the tone brightens as it gets louder, so its level never dips', () => {
+		const swell = measureTimbre(
+			d3({ brightAt: 2000, levelAt: (i) => 0.6 + 0.4 * (i / 4096) }),
+			f0,
+			sampleRate
+		);
+		expect(swell!.lift).toBeNull();
+	});
+
+	it('measures a brighter tone as brighter', () => {
+		const dark = measureTimbre(d3(), f0, sampleRate)!.brightness;
+		const bright = measureTimbre(d3({ brightAt: 0 }), f0, sampleRate)!.brightness;
+		expect(bright - dark).toBeGreaterThan(6);
+	});
+
+	it('returns null where the band holds no partial on one side of 600 Hz, or no pitch', () => {
+		// Every partial of a 700 Hz note sits above the split; a 1.1 kHz note
+		// has only its fundamental under the 2 kHz band top.
+		expect(measureTimbre(d3(), 700, sampleRate)).toBeNull();
+		expect(measureTimbre(d3(), 1100, sampleRate)).toBeNull();
+		expect(measureTimbre(d3(), 0, sampleRate)).toBeNull();
+	});
+
+	it('returns null on silence', () => {
+		expect(measureTimbre(new Float32Array(4096), f0, sampleRate)).toBeNull();
+	});
+
+	it('detectFrame stamps the fields and points at the same instant under either window anchor', () => {
+		const at = 2000;
+		const buf = d3({ brightAt: at, levelAt: notch(at) });
+		const det = makeMockDetector(f0, 0.95);
+		const windowSeconds = buf.length / sampleRate;
+		const fromStart = detectFrame(buf, 1.0, det as any, null, { sampleRate }).reading!;
+		const fromEnd = detectFrame(buf, 1.0 + windowSeconds, det as any, null, {
+			sampleRate,
+			windowAnchor: 'end'
+		}).reading!;
+		expect(fromStart.brightness).toBeCloseTo(fromEnd.brightness!, 10);
+		expect(fromStart.brightnessLift!).toBeGreaterThan(5);
+		expect(fromStart.brightnessLiftAt!).toBeGreaterThan(0);
+		expect(fromEnd.brightnessLiftAt!).toBeLessThan(0);
+		expect(fromEnd.time + fromEnd.brightnessLiftAt!).toBeCloseTo(fromStart.time + fromStart.brightnessLiftAt!, 10);
+	});
+
+	it('detectFrame omits the lift on a steady tone but keeps the brightness', () => {
+		const r = detectFrame(d3(), 0, makeMockDetector(f0, 0.95) as any, null, { sampleRate }).reading!;
+		expect(r.brightness).toBeDefined();
+		expect(r.brightnessLift).toBeUndefined();
+		expect(r.brightnessLiftAt).toBeUndefined();
 	});
 });
