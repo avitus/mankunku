@@ -701,6 +701,7 @@ export function isTwelfthUpLock(buffer: Float32Array, frequency: number, sampleR
 		return false;
 	}
 	const g = frequency / 3;
+/** Goertzel magnitude of the k-th harmonic of the candidate fundamental. */
 	const mag = (k: number) => goertzelMagnitude(buffer, g * k, sampleRate);
 	// The reported pitch and its own 2nd harmonic: 3g and 6g.
 	const reported = mag(3) + mag(6);

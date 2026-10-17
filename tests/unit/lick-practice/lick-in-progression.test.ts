@@ -22,6 +22,7 @@ vi.stubGlobal('localStorage', {
 	setItem: vi.fn((key: string, val: string) => store.set(key, val)),
 	removeItem: vi.fn((key: string) => store.delete(key)),
 	key: vi.fn((i: number) => [...store.keys()][i] ?? null),
+/** The mock store's entry count. */
 	get length() {
 		return store.size;
 	},
@@ -42,6 +43,7 @@ import type { HarmonicSegment, Note, Phrase, PhraseCategory } from '$lib/types/m
 /** One bar of ascending eighths from C4 — the shape the editor saves, `harmony: []`. */
 const ONE_BAR: Note[] = [60, 64, 67, 71].map((pitch, i) => ({ pitch, duration: [1, 8], offset: [i, 8] }));
 
+/** A user-entered lick with sensible defaults, overridden per test. */
 function userLick(over: Partial<Phrase> & { category: PhraseCategory }): Phrase {
 	return {
 		id: 'user-line',
@@ -64,7 +66,9 @@ function chords(h: HarmonicSegment[]): string[] {
 	);
 }
 
+/** The phrase's pitch classes in order (null for a rest). */
 const pitchClasses = (p: Phrase) => p.notes.map((n) => (n.pitch === null ? null : n.pitch % 12));
+/** The phrase's offsets in order. */
 const offsets = (p: Phrase) => p.notes.map((n) => n.offset);
 
 describe('placeLickInProgression — a lick as the session plays it', () => {

@@ -607,12 +607,15 @@ describe('isTwelfthUpLock / detectFrame twelfth-up flag', () => {
 	// The 2026-10-17 Third Walks Back to Root lock as measured: a D3 whose
 	// 440 Hz 3rd harmonic carries ~10× its 147 Hz fundamental and ~8× its 2nd
 	// harmonic, with the 4th and 5th partials present — and nothing between them.
+/** A D3 whose tracker locked onto the third harmonic (the A4 partial dominates). */
 	const lockedD3 = () =>
 		partials([[146.83, 0.1], [293.66, 0.12], [440.5, 1.0], [587.3, 0.17], [734.2, 0.06], [881, 0.02]]);
 	// A genuine A4: nothing at the thirds of 440.
+/** A genuine A4 with a normal partial roll-off. */
 	const realA4 = () => partials([[440, 1.0], [880, 0.3], [1320, 0.1]]);
 	// A weak A4 partial under broadband energy — an attack transient. Every bin
 	// is lifted alike, the thirds of 440 and the bins between them both.
+/** An A4 attack transient: harmonics still settling, fundamental not yet dominant. */
 	function attackA4(): Float32Array {
 		const out = partials([[440, 0.1]]);
 		let seed = 12345;

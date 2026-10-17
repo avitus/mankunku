@@ -3888,6 +3888,7 @@ describe('pitch replay regression: Third Walks Back to Root — the final D spea
 		source: 'curated'
 	};
 
+/** Run the take through the full segmentation pipeline, trimmed or live-stamped. */
 	const replayPipeline = (opts: { live?: boolean } = {}) =>
 		replayEarTrainingTake(`${FIXTURE}.wav`, TRANSPORT_SECONDS, TEMPO, opts);
 

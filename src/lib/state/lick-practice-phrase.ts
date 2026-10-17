@@ -166,6 +166,7 @@ export function melodyWindow(phrase: Phrase): Phrase {
 	const windowStart: Fraction = [firstBar * beatsPerBar, beatUnit];
 	const windowEnd: Fraction = [(lastBar + 1) * beatsPerBar, beatUnit];
 
+/** Where an element that starts at `start` and lasts `duration` ends. */
 	const endOf = (start: Fraction, duration: Fraction): Fraction => addFractions(start, duration);
 	const harmonyRunsPast = phrase.harmony.some(
 		(h) => compareFractions(endOf(h.startOffset, h.duration), windowEnd) > 0

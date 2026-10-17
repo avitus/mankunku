@@ -1535,6 +1535,7 @@ describe('segmentNotes — an attack that cracks into the neighbouring octave', 
 });
 
 describe('segmentNotes: third-harmonic (twelfth-up) locks', () => {
+/** Frequency of a MIDI note in Hz (A4 = 440). */
 	const hz = (midi: number) => 440 * Math.pow(2, (midi - 69) / 12);
 	/** `count` frames at 60 fps from `from`, all on `midi`. */
 	function run(midi: number, from: number, count: number, opts: { twelfthUp?: boolean } = {}): PitchReading[] {
@@ -1548,6 +1549,7 @@ describe('segmentNotes: third-harmonic (twelfth-up) locks', () => {
 	function heldD(lock: PitchReading[]): PitchReading[] {
 		return [...run(50, 0, 10), ...lock, ...run(50, 0.5, 30)];
 	}
+/** Segment readings with no onsets, bleed or weak readings. */
 	const segment = (readings: PitchReading[]) =>
 		segmentNotes(readings, [0], readings[readings.length - 1].time + 1 / 60, undefined, undefined, undefined, [0]);
 
