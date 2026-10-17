@@ -234,6 +234,8 @@ The gate `trimToPerformance` applies first. "Confident" is not "performance": Mc
 
 The frame /diagnostics replays a saved recording in — the one its own scoring path segmented. `source` is the recording's `metadata.source`; `raw` is a `ReplayResult`.
 
+`lib/diagnostics/recording-export.ts` is the one builder of the corpus pair every investigation starts from: `replayRecording(full, ctx?)` (replay in this frame, bleed-matched as the take was scored, `RecordingReplay`), `buildDiagnosticsPayload(rec, replay, { instrument, phrase?, flag? })` (the JSON — `phrase` is the Phrase the session played and `flag` the admin's `{ note, flaggedAt }`, both null from /diagnostics), `decodeToWav(blob)` + `encodeWavMono16` (the untrimmed 16-bit mono WAV), `fixtureBaseName(timestamp, phraseName)` (`<date>-<slug>`) and `triggerDownload`. /diagnostics' two download buttons and /progress' admin **Flag Scoring Error** button both call it.
+
 | `source` | Trim + gate | Duration | Why |
 |---|---|---|---|
 | `'ear-training'` | `trimToPerformance`, weak readings included | the blob's, less the trim | what the authoritative blob rescore segments |
