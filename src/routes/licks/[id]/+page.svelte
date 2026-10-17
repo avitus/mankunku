@@ -38,7 +38,9 @@
 		getLickProgressHistory,
 		NEW_LICK_DEFAULT_TEMPO
 	} from '$lib/persistence/lick-practice-store';
-	import { PROGRESSION_TEMPLATES, progressionFitsLick, fitReasonLabel } from '$lib/data/progressions';
+	import { PROGRESSION_TEMPLATES, progressionFitsLick, fitReasonLabel, progressionMode } from '$lib/data/progressions';
+	import { placeLickInProgression, melodyWindow } from '$lib/state/lick-practice-phrase';
+	import { primaryProgressionForLick } from '$lib/state/lick-practice-picker';
 	import type { ChordProgressionType } from '$lib/types/lick-practice';
 
 	// Derived auth data from the layout load chain (+layout.server.ts → +layout.ts → +layout.svelte)
@@ -186,11 +188,44 @@
 	// Concert key passed to transposeLick
 	const concertKey = $derived(writtenKeyToConcert(writtenKey, getInstrument()));
 
-	const lick = $derived(
-		baseLick
-			? transposeLick(baseLick, concertKey, getInstrument().concertRangeLow, getEffectiveHighestNote(), getInstrument().transpositionSemitones)
-			: null
+	/**
+	 * The chart's progression — the lick's PRIMARY one: the first "Practice
+	 * over" pill it is tagged with and fits, else its category's home
+	 * (`primaryProgressionForLick`); null for a lick with none, whose chart
+	 * shows the chords it stores. Reads `progressionTags`, so toggling a pill
+	 * re-engraves the chart over the new primary.
+	 */
+	const primaryProgression = $derived(baseLick ? primaryProgressionForLick(baseLick, progressionTags) : null);
+	const primaryTemplate = $derived(primaryProgression ? PROGRESSION_TEMPLATES[primaryProgression] : null);
+	/**
+	 * Keys are labelled in the lick's own STATED mode; one it never stated
+	 * borrows the shown progression's reading (a legacy harmony-less lick
+	 * on the minor vamp labels "D-", where `lickMode` alone would say major),
+	 * else `lickMode`'s inference from its chords.
+	 */
+	const displayMode = $derived(
+		baseLick?.mode ??
+			(primaryProgression ? progressionMode(primaryProgression) : baseLick ? lickMode(baseLick) : 'major')
 	);
+
+	// The lick as Deep Practice plays it in the selected key: placed in its
+	// primary progression with that progression's chords above the staff
+	// (`placeLickInProgression`, the session's own builder, so the page and
+	// the drill cannot disagree) — or, with no progression, transposed with
+	// the chords it stores. User licks store none (the editor and record-a-
+	// lick both save `harmony: []`), so before 2026-10-16 their chart was bare.
+	const lick = $derived.by(() => {
+		if (!baseLick) return null;
+		const instrument = getInstrument();
+		const fit = {
+			rangeLow: instrument.concertRangeLow,
+			rangeHigh: getEffectiveHighestNote(),
+			transposition: instrument.transpositionSemitones
+		};
+		return primaryProgression
+			? placeLickInProgression(baseLick, concertKey, primaryProgression, fit)
+			: transposeLick(baseLick, concertKey, fit.rangeLow, fit.rangeHigh, fit.transposition);
+	});
 
 	const sheet = $derived(lick ? leadSheetTuneFor(lick, Number.POSITIVE_INFINITY) : null);
 	const scoreOptions = $derived(lick ? { ...leadSheetAbcOptions(lick, 4), omitMasthead: true } : undefined);
@@ -244,9 +279,14 @@
 			goto('/lick-practice/session');
 	}
 
-	/** Toggle the displayed lick's preview when its transposed phrase is available. */
+	/**
+	 * Toggle the displayed lick's preview: the bars its melody fills, from its
+	 * first sounding bar (`melodyWindow`) — a line placed two bars into the
+	 * long ii-V-I must not open with two silent bars, nor run on through the
+	 * four-bar harmony `playPhrase` would otherwise size the preview by.
+	 */
 	async function togglePlay() {
-		if (lick) await audition.play(lick);
+		if (lick) await audition.play(melodyWindow(lick));
 	}
 
 	/**
@@ -327,7 +367,7 @@
 	});
 	const progressKeyLabels = $derived(baseLick
 		? planUnlockedKeys(baseLick.key, 12).map((key) =>
-			keyLabel(concertKeyToWritten(key, getInstrument()), lickMode(baseLick)).replace(/b/g, '♭').replace(/#/g, '♯'))
+			keyLabel(concertKeyToWritten(key, getInstrument()), displayMode).replace(/b/g, '♭').replace(/#/g, '♯'))
 		: undefined);
 
 	function handleReset() {
@@ -363,10 +403,10 @@
 				<div class="ld-work">
 					<StudioPanel id="lick-score" number="01" title="On the desk">
 						<div class="ld-score-heading">
-							<span class="studio-label">Written pitch</span>
+							<span class="studio-label">Written pitch{#if primaryTemplate}<span class="ld-over" data-testid="lick-progression"> · over {primaryTemplate.name}</span>{/if}</span>
 							<label for="lick-written-key">Play in
 								<select id="lick-written-key" value={writtenKey} onchange={(event) => { selectedWrittenKey = event.currentTarget.value as PitchClass; }}>
-									{#each PITCH_CLASSES as pc}<option value={pc}>{keyLabel(pc, lickMode(baseLick))}</option>{/each}
+									{#each PITCH_CLASSES as pc}<option value={pc}>{keyLabel(pc, displayMode)}</option>{/each}
 								</select>
 							</label>
 						</div>

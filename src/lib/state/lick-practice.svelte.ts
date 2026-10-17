@@ -143,12 +143,7 @@ import {
 	PROGRESSION_TEMPLATES,
 	getProgressionsForCategory,
 	getSubstitutionCategories,
-	resolveLickAlignmentOffset,
-	resolveTransposeTarget,
 	transposeProgression,
-	applyPickupBarShift,
-	detectPickupBars,
-	extendHarmonyTail,
 	progressionMode,
 	progressionFitsLick,
 	getProgressionsForLick
@@ -166,6 +161,7 @@ import {
 	type UpcomingLickEntry
 } from './lick-practice-picker';
 import { buildNextStep, type RecommendationContext, type NextStep } from './lick-practice-next-steps';
+import { placeLickInProgression, lickBarsInProgression, progressionHarmonyForLick } from './lick-practice-phrase';
 import { concertKeyToWritten } from '$lib/music/transposition';
 
 export type { UpcomingLickEntry };
@@ -1294,61 +1290,19 @@ function buildPhraseFor(item: LickPracticePlanItem, key: PitchClass): Phrase | n
 		};
 	}
 
-	const enableSubstitutions = lickPractice.config.enableSubstitutions ?? false;
-	// Two alignment offsets, both needed:
-	// - `alignmentOffset` (pickup-shifted) places the melody's notes inside the
-	//   progression cycle so the pickup falls on V where applicable.
-	// - `bodyAlignment` (un-shifted) is what `resolveTransposeTarget` reads to
-	//   pick the lick's body chord — using the shifted version here would
-	//   transpose the lick to the pickup chord (e.g. G7) instead of its
-	//   intended target (e.g. Cmaj7).
-	const alignmentOffset = resolveAlignedLickOffset(baseLick, progressionType, enableSubstitutions);
-	const bodyAlignment = resolveLickAlignmentOffset(progressionType, baseLick.category, enableSubstitutions);
-
-	// Chord-quality licks (e.g. a 1-bar `minor-chord` lick) are rooted on a
-	// single chord. They must transpose to the ROOT of the target chord in
-	// the progression, not the session key — otherwise a Cm7 lick placed at
-	// the ii of an F ii-V-I would play in Fm7 instead of Gm7.
-	//
-	// When a substitution rule applies (e.g. minor-over-dominant), the target
-	// root is then shifted by the rule's semitone offset — a Cm7 lick played
-	// over G7 transposes to Ab, producing Abm7 over G7 for altered sonority.
-	const transposeTarget = resolveTransposeTarget(
-		key,
-		baseLick.category,
-		progressionType,
-		bodyAlignment,
-		enableSubstitutions
-	);
-
-	const transposed = transposeLick(
-		baseLick,
-		transposeTarget,
-		instrument.concertRangeLow,
-		getEffectiveHighestNote(),
-		instrument.transpositionSemitones
-	);
-
-	const progressionHarmony = harmonyForLick(baseLick, key, progressionType, enableSubstitutions);
-
-	const alignedNotes = alignmentOffset[0] === 0
-		? transposed.notes
-		: transposed.notes.map(n => ({
-			...n,
-			offset: addFractions(n.offset, alignmentOffset)
-		}));
-
-	// The session's "key" is driven by the progression, not the chord-quality
-	// lick's transposition target, so restore it on the returned phrase — and
-	// read it in the PROGRESSION's mode (a D-minor ii-V-i prints K:Dm even
-	// for a major lick drilled over it).
-	return {
-		...transposed,
-		key,
-		mode: progressionMode(progressionType),
-		notes: alignedNotes,
-		harmony: progressionHarmony
-	};
+	// The ONE placement rule, shared with the lick detail page's chart
+	// (`lick-practice-phrase.ts`): a chord-quality lick is rooted on its slot
+	// chord (a Cm7 lick on the ii of an F ii-V-I plays in G, not F), the
+	// melody is aligned into the cycle with its pickup pulled back, the
+	// template's chords replace the lick's own, and the phrase reads in the
+	// PROGRESSION's key and mode (a D-minor ii-V-i prints K:Dm even for a
+	// major lick drilled over it).
+	return placeLickInProgression(baseLick, key, progressionType, {
+		enableSubstitutions: lickPractice.config.enableSubstitutions ?? false,
+		rangeLow: instrument.concertRangeLow,
+		rangeHigh: getEffectiveHighestNote(),
+		transposition: instrument.transpositionSemitones
+	});
 }
 
 /**
@@ -1786,25 +1740,6 @@ export function buildLickSuperPhrase(lickIdx: number): Phrase | null {
 }
 
 /**
- * Resolve the per-lick alignment offset, including the `pickupBars` shift.
- * Returns the category's base alignment shifted left by the lick's pickup
- * bars (clamped at the start of the progression).
- *
- * Falls back to inferring pickupBars from note positions when the field is
- * absent — this keeps user/community licks authored before the field
- * existed working correctly without forcing a re-save.
- */
-function resolveAlignedLickOffset(
-	lick: Phrase,
-	progressionType: ChordProgressionType,
-	enableSubstitutions: boolean
-): Fraction {
-	const base = resolveLickAlignmentOffset(progressionType, lick.category, enableSubstitutions);
-	const pickupBars = lick.difficulty.pickupBars ?? detectPickupBars(lick.notes);
-	return applyPickupBarShift(base, pickupBars);
-}
-
-/**
  * Number of bars one cycle of this lick occupies in the current progression.
  * Equals `progressionBars` for licks that fit inside the cycle, otherwise
  * extends to `alignmentBars + lengthBars` so the lick's resolution note fits.
@@ -1818,11 +1753,7 @@ export function getLickBars(
 	progressionType: ChordProgressionType,
 	enableSubstitutions: boolean
 ): number {
-	const template = PROGRESSION_TEMPLATES[progressionType];
-	const alignment = resolveAlignedLickOffset(lick, progressionType, enableSubstitutions);
-	const alignmentBars = Math.ceil(alignment[0] / alignment[1]);
-	const required = alignmentBars + lick.difficulty.lengthBars;
-	return Math.max(template.bars, required);
+	return lickBarsInProgression(lick, progressionType, enableSubstitutions);
 }
 
 /** lickBars for the lick currently at the head of the plan, or progressionBars
@@ -1848,10 +1779,7 @@ function harmonyForLick(
 	progressionType: ChordProgressionType,
 	enableSubstitutions: boolean
 ): HarmonicSegment[] {
-	const template = PROGRESSION_TEMPLATES[progressionType];
-	const lickBars = getLickBars(lick, progressionType, enableSubstitutions);
-	const extended = extendHarmonyTail(template.harmony, lickBars - template.bars);
-	return transposeProgression(extended, key);
+	return progressionHarmonyForLick(lick, key, progressionType, enableSubstitutions);
 }
 
 /**

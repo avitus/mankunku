@@ -3017,3 +3017,23 @@ a target, every existing assignment of that target becomes a decision
 a flattened index drifting after a page's first commit). The e2e suite
 caught two of the three, the unit tests none — because a unit test asks
 one question and these were all about the SECOND keystroke.
+
+## 2026-10-16 — "Show me what you'll ask me to play" is a sharing problem, not a drawing problem
+
+The detail page was never short of a chart; it was short of the SESSION's
+chart. The request looked like "add chords to the page", but every piece
+of the answer already existed inside `buildPhraseFor` — alignment, slot
+root, tail extension, mode — as private session logic. The fix worth
+making was the extraction, so the page and the drill cannot disagree, and
+the parity test is the real deliverable: it turns "shows what Practice
+plays" from a promise into a pin. Pattern to remember: when a surface
+wants to preview what another surface will do, look for the builder the
+other surface already has and lift it out, rather than approximating it.
+
+Two smaller things. "Primary" was my word for Andy's intent and the code
+had three candidate meanings (first tag added, least-recently-practiced,
+first pill in row order); the stable one is right for a page you reread,
+even though Practice rotates. And the broken e2e was a good break: it said
+that an explicit `mode` outranks any inference, including the progression's —
+the player's statement about their own lick beats what we derive from
+where it is filed.

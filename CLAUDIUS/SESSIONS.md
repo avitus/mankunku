@@ -5466,3 +5466,43 @@ contradictions before approval, all folded in.
   production: no dev → main PR was opened (Andy's call), and nothing was
   checked by hand in the browser pane — the e2e runs drove the real app in
   three engines instead.
+
+## 2026-10-16 — The lick detail chart is the session's phrase
+
+- Andy's ask: on `/licks/user-…` see the lick in the SELECTED key with the
+  chords of its PRIMARY progression. The page already transposed to the
+  selector's key; the chart drew only the lick's own stored harmony — and
+  both user-lick writers (the editor, record-a-lick) save `harmony: []`, so a
+  user lick's chart was bare whatever its "Practice over" pills said.
+- Extracted the session's lick branch of `buildPhraseFor` into
+  `state/lick-practice-phrase.ts` — `placeLickInProgression` (slot-root
+  transposition, pickup-pulled alignment, template chords tail-extended,
+  progression key + mode), plus `lickBarsInProgression`,
+  `progressionHarmonyForLick`, `alignedLickOffset`. The state module's
+  `getLickBars` / `harmonyForLick` / `buildPhraseFor` delegate; the private
+  `resolveAlignedLickOffset` is gone. Parity pinned: a Deep Practice
+  session's `getPhraseFor(0,0)` `toEqual` the page's call.
+- "Primary progression" = `primaryProgressionForLick` (picker module): the
+  first fitting tagged pill in TEMPLATE order (what the pill row reads),
+  else the category's first home (`getProgressionsForLick`), else null and
+  the chart shows the stored chords. Pill order rather than the session
+  log on purpose: the page should read the same on every visit, while
+  `resolveSingleLickProgression` rotates Practice by recency.
+- Key labels: the lick's STATED mode first; unstated borrows the shown
+  progression's reading; else `lickMode`. The progression-first rule I
+  wrote first broke `lick-progress-key-labels.spec.ts` (explicit minor on
+  a major-chord line pins "D-"), which is the right pin — `Phrase.mode` is
+  the player's own statement. Added the unstated case (minor-chord, no
+  mode → "D-").
+- Listen plays `melodyWindow(lick)`: re-origined on the first sounding bar,
+  chords clipped to the line's bars — `playPhrase` sizes a preview by the
+  HARMONY extent, so a major-chord line on the I of the long ii-V-I would
+  have opened with two silent bars and run four.
+- Tests: `tests/unit/lick-practice/lick-in-progression.test.ts` (14);
+  e2e: `lick-detail.spec.ts` gains the tagged short ii-V-I case (E-7 A7 |
+  DΔ7 on tenor, G-7 C7 | FΔ7 after "Play in F", untag → the major vamp's
+  lone FΔ7); the key-labels spec gains the unstated-mode example. Docs:
+  user guide "Lick detail", CLAUDE.md lick-practice paragraph.
+- Worktree gotcha: `.env` is gitignored and absent from a fresh worktree —
+  `npm run check` reports 9 `$env/static/public` errors and the Playwright
+  build fails outright. Copied the main checkout's `.env` in (ignored).

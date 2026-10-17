@@ -12,10 +12,13 @@ const history = [1, 2, 3, 4].map((keys, i) => ({ t: Date.UTC(2026, 8, 1 + i), bp
 for (const example of [
 	{ instrumentId: 'concert', mode: 'major', names: ['C', 'B♭', 'G'], width: 1440, theme: 'dark' },
 	{ instrumentId: 'tenor-sax', mode: 'major', names: ['D', 'C', 'A'], width: 390, theme: 'dark' },
-	{ instrumentId: 'tenor-sax', mode: 'minor', names: ['D-', 'C-', 'A-'], width: 390, theme: 'light' }
+	{ instrumentId: 'tenor-sax', mode: 'minor', names: ['D-', 'C-', 'A-'], width: 390, theme: 'light' },
+	// No stated mode: the labels borrow the chart's progression — a minor-chord
+	// line's home is the minor vamp — where the lick's chords (none) say nothing.
+	{ instrumentId: 'tenor-sax', mode: undefined, category: 'minor-chord', names: ['D-', 'C-', 'A-'], width: 390, theme: 'dark' }
 ]) {
-	test(`unlock labels use the saved entry key in ${example.instrumentId} ${example.mode}`, async ({ page }) => {
-		await seedUserLicks(page, [{ ...phrase, mode: example.mode }]);
+	test(`unlock labels use the saved entry key in ${example.instrumentId} ${example.mode ?? 'unstated mode'}`, async ({ page }) => {
+		await seedUserLicks(page, [{ ...phrase, mode: example.mode, category: example.category ?? phrase.category }]);
 		await seedStorage(page, {
 			'tour-state': TOUR_DISMISSED,
 			settings: { ...SETTINGS_ONBOARDED, instrumentId: example.instrumentId, theme: example.theme },
