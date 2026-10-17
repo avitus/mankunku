@@ -24,7 +24,7 @@ import { lickMode } from '$lib/music/mode';
 import { MINOR_TONIC_QUALITIES } from '$lib/data/progression-shapes';
 import { lickUnlockRamp, planUnlockedKeys, type UnlockRamp } from '$lib/music/key-ordering';
 import { baseLickId, getAllLicks, isCuratedLickId } from '$lib/phrases/library-loader';
-import { getTrickById, trickEntryKey } from '$lib/tricks';
+import { getTrickById, trickEntryKey, trickUnlockRamp } from '$lib/tricks';
 import { getVariantByKey } from '$lib/tricks/mastery';
 import {
 	getEffectivePracticeLickIds,
@@ -392,7 +392,12 @@ export function suggestLicksForProgression(
 				: perKey &&
 					  Object.keys(perKey).length > 0 &&
 					  planUnlockedKeys(
-							{ entryKey: deps.trickEntryKey ?? 'C', mode: 'major', instrument: deps.instrument ?? INSTRUMENTS.concert },
+							// The instrument resolves BOTH the anchor and the signatures it
+							// counts (`trickUnlockRamp`), so the two cannot drift apart; the
+							// literal stands in only for instrument-less deps.
+							deps.instrument
+								? trickUnlockRamp(deps.instrument)
+								: { entryKey: deps.trickEntryKey ?? 'C', mode: 'major', instrument: INSTRUMENTS.concert },
 							unlockedCount
 					  ).includes(targetKey)
 					? 'learning'

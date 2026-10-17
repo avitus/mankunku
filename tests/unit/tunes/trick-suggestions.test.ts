@@ -373,6 +373,24 @@ describe('suggestLicksForProgression — trick suggestions', () => {
 		expect(tierInF(undefined)).toBe('unknown');
 	});
 
+	it('with the instrument given, the ramp anchors at ITS written C even when deps.trickEntryKey is absent (CodeRabbit on PR #280)', () => {
+		// One key unlocked: the tenor ramp is [Bb] alone, so C is not reached;
+		// an inline ramp built from a missing anchor ('C') called C "learning".
+		const progress: TrickPracticeProgress = {
+			[E1.key]: { Bb: { currentTempo: 80, lastPracticedAt: 1, passCount: 2 } }
+		};
+		const tier = suggestLicksForProgression(
+			vampDetection('major-vamp', 'C'),
+			makeDeps({
+				selectedTrickVariants: new Set([E1.key]),
+				trickProgress: progress,
+				getTrickUnlockedKeyCount: () => 1,
+				instrument: INSTRUMENTS['tenor-sax']
+			})
+		).suggestions[0].masteryTier;
+		expect(tier).toBe('unknown');
+	});
+
 	it('a variant practiced only in C is unknown in Db until the unlock ramp reaches it', () => {
 		const progress: TrickPracticeProgress = {
 			[E1.key]: { C: { currentTempo: 80, lastPracticedAt: 1, passCount: 2 } }

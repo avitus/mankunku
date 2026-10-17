@@ -34,7 +34,7 @@ import {
 	lickBarsInProgression,
 	melodyWindow
 } from '$lib/state/lick-practice-phrase';
-import { primaryProgressionForLick } from '$lib/state/lick-practice-picker';
+import { primaryProgressionForLick, chartModeForLick, lickLabelMode } from '$lib/state/lick-practice-picker';
 import { fractionToFloat } from '$lib/music/intervals';
 import { lickPractice, startSingleLickSession, getPhraseFor } from '$lib/state/lick-practice.svelte';
 import { getInstrument, getEffectiveHighestNote } from '$lib/state/settings.svelte';
@@ -237,5 +237,28 @@ describe('parity with the session', () => {
 			transposition: instrument.transpositionSemitones
 		});
 		expect(placed).toEqual(getPhraseFor(0, 0));
+	});
+});
+
+describe('detail-page modes (CodeRabbit on PR #280): the key selector labels the CHART, the progress labels the LICK', () => {
+	const statedMajor = userLick({ category: 'dominant-chord', mode: 'major' });
+	const statedMinor = userLick({ category: 'major-chord', mode: 'minor' });
+	const unstated = userLick({ category: 'minor-chord', mode: undefined });
+
+	it('the chart over a minor progression is minor whatever the lick states — "Play in D-" names what is drawn', () => {
+		expect(chartModeForLick(statedMajor, 'minor-vamp')).toBe('minor');
+		expect(chartModeForLick(statedMinor, 'major-vamp')).toBe('major');
+	});
+
+	it("without a progression the chart is the lick's own: its stated mode, else its chords' reading", () => {
+		expect(chartModeForLick(statedMinor, null)).toBe('minor');
+		expect(chartModeForLick(unstated, null)).toBe('major');
+	});
+
+	it("the progress labels keep the player's stated mode over the progression's, and borrow it only when unstated", () => {
+		expect(lickLabelMode(statedMajor, 'minor-vamp')).toBe('major');
+		expect(lickLabelMode(statedMinor, 'major-vamp')).toBe('minor');
+		expect(lickLabelMode(unstated, 'minor-vamp')).toBe('minor');
+		expect(lickLabelMode(unstated, null)).toBe('major');
 	});
 });

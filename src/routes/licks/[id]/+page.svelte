@@ -26,7 +26,6 @@
 	import { concertKeyToWritten, writtenKeyToConcert } from '$lib/music/transposition';
 	import { keyLabel } from '$lib/music/notation';
 	import { lickUnlockRamp, planUnlockedKeys } from '$lib/music/key-ordering';
-	import { lickMode } from '$lib/music/mode';
 	import { getUserLicks, getUserLicksLocal, deleteUserLick, updateLickCategory } from '$lib/persistence/user-licks';
 	import {
 		isInPracticeSet,
@@ -38,9 +37,9 @@
 		getLickProgressHistory,
 		NEW_LICK_DEFAULT_TEMPO
 	} from '$lib/persistence/lick-practice-store';
-	import { PROGRESSION_TEMPLATES, progressionFitsLick, fitReasonLabel, progressionMode } from '$lib/data/progressions';
+	import { PROGRESSION_TEMPLATES, progressionFitsLick, fitReasonLabel } from '$lib/data/progressions';
 	import { placeLickInProgression, melodyWindow } from '$lib/state/lick-practice-phrase';
-	import { primaryProgressionForLick } from '$lib/state/lick-practice-picker';
+	import { primaryProgressionForLick, chartModeForLick, lickLabelMode } from '$lib/state/lick-practice-picker';
 	import type { ChordProgressionType } from '$lib/types/lick-practice';
 
 	// Derived auth data from the layout load chain (+layout.server.ts → +layout.ts → +layout.svelte)
@@ -198,15 +197,18 @@
 	const primaryProgression = $derived(baseLick ? primaryProgressionForLick(baseLick, progressionTags) : null);
 	const primaryTemplate = $derived(primaryProgression ? PROGRESSION_TEMPLATES[primaryProgression] : null);
 	/**
-	 * Keys are labelled in the lick's own STATED mode; one it never stated
-	 * borrows the shown progression's reading (a legacy harmony-less lick
-	 * on the minor vamp labels "D-", where `lickMode` alone would say major),
-	 * else `lickMode`'s inference from its chords.
+	 * Two modes, two readers (`lick-practice-picker`). The unlock-progress
+	 * markers read `displayMode`, the LICK's: its own STATED mode, else the
+	 * shown progression's reading (a legacy harmony-less lick on the minor
+	 * vamp labels "D-", where `lickMode` alone would say major), else
+	 * `lickMode`'s inference from its chords. The "Play in" selector reads
+	 * `chartMode`, the CHART's: over a primary progression the chart is
+	 * engraved in that progression's mode whatever the lick states, so the
+	 * option names what is drawn — a major line over the minor cadence sits
+	 * under Eø7 · A7♭9 · D-7 and is "Play in D-" (CodeRabbit on PR #280).
 	 */
-	const displayMode = $derived(
-		baseLick?.mode ??
-			(primaryProgression ? progressionMode(primaryProgression) : baseLick ? lickMode(baseLick) : 'major')
-	);
+	const displayMode = $derived(baseLick ? lickLabelMode(baseLick, primaryProgression) : 'major');
+	const chartMode = $derived(baseLick ? chartModeForLick(baseLick, primaryProgression) : 'major');
 
 	// The lick as Deep Practice plays it in the selected key: placed in its
 	// primary progression with that progression's chords above the staff
@@ -409,7 +411,7 @@
 							<span class="studio-label">Written pitch{#if primaryTemplate}<span class="ld-over" data-testid="lick-progression"> · over {primaryTemplate.name}</span>{/if}</span>
 							<label for="lick-written-key">Play in
 								<select id="lick-written-key" value={writtenKey} onchange={(event) => { selectedWrittenKey = event.currentTarget.value as PitchClass; }}>
-									{#each PITCH_CLASSES as pc}<option value={pc}>{keyLabel(pc, displayMode)}</option>{/each}
+									{#each PITCH_CLASSES as pc}<option value={pc}>{keyLabel(pc, chartMode)}</option>{/each}
 								</select>
 							</label>
 						</div>

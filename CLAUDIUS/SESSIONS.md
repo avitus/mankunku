@@ -5546,3 +5546,15 @@ the cursor on beat 1. Two changes:
   is unchanged. (3) `melodyWindow` had no upper bound — a trailing rest
   padded the Listen preview. Docstring gate 100 %. The merge is Andy's (the
   auto-mode gate blocks `gh pr merge` here).
+- **#280 round 2** — dev moved under the PR (another session's
+  `feat(lick-practice): unlock keys in key-signature order`, ed3554c2, with a
+  Co-Authored-By trailer again) and CodeRabbit raised three items on that
+  code, all fixed here test-first: the user guide's G-minor unlock example
+  named C♯/G♯ where `planUnlockedKeys` returns Db/Ab; the detail page's
+  "Play in" selector labelled a chart drawn in the progression's mode with
+  the lick's stated mode — now `chartModeForLick` (the chart's) feeds the
+  selector and `lickLabelMode` (the lick's: stated › progression › inferred)
+  the unlock markers, pinned by unit tests and the key-labels e2e, which went
+  red in exactly the two cases the rule changes; and the trick ramp in
+  `lick-matcher` is built by `trickUnlockRamp` from the instrument, so the
+  anchor and the signatures it counts cannot drift.
