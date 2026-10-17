@@ -1649,6 +1649,19 @@ describe('tuneSelectGap — a rest the section never stored becomes a selectable
 		expect(stepEntry.enteredNotes[sel]).toMatchObject({ pitch: null, offset: [1, 2], duration: [1, 2] });
 	});
 
+	// CodeRabbit's security review on PR #280 (observed, no thread): `loadPage`
+	// returns on an absent section, but `tuneSelectGap` carried on and spliced
+	// a rest into whatever page was loaded. A stale anchor must change nothing.
+	it('an anchor for a section that no longer exists is refused and the loaded page is untouched', () => {
+		pdfShaped();
+		const notesBefore = JSON.stringify(stepEntry.enteredNotes);
+		const selectionBefore = stepEntry.selectedNoteIndex;
+		expect(tuneSelectGap(3, 1.5, 0.5)).toBe(false);
+		expect(JSON.stringify(stepEntry.enteredNotes)).toBe(notesBefore);
+		expect(stepEntry.selectedNoteIndex).toBe(selectionBefore);
+		expect(tuneEntry.currentSection).toBe(0);
+	});
+
 	it('a gap that is already a buffer rest is selected, not duplicated', () => {
 		pdfShaped();
 		const before = stepEntry.enteredNotes.length; // D, gap rest, E

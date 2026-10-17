@@ -1277,6 +1277,10 @@ export function tuneRemoveSelectedTime(): TuneDeleteResult {
  * notes, as the chart's `GapAnchor` carries them.
  */
 export function tuneSelectGap(sectionIdx: number, offset: number, duration: number): boolean {
+	// A stale anchor (a section removed under a chart not yet re-engraved) must
+	// not write into whichever page is loaded: `loadPage` returns on an absent
+	// section, and everything after it here would otherwise still run.
+	if (!tuneEntry.sections[sectionIdx]) return false;
 	const [tsNum, tsDen] = tuneEntry.timeSignature;
 	const barDur = tsNum / tsDen;
 	const bar = Math.floor(offset / barDur + 1e-9);
