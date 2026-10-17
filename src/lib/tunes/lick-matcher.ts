@@ -5,7 +5,7 @@ import type {
 	LickPracticeProgress
 } from '$lib/types/lick-practice';
 import type { TrickContext, TrickParameters, TrickPracticeProgress } from '$lib/types/tricks';
-import type { InstrumentConfig } from '$lib/types/instruments';
+import { INSTRUMENTS, type InstrumentConfig } from '$lib/types/instruments';
 import type { Tune } from '$lib/types/tune';
 import type { DetectedProgression, DetectedSlot } from './progression-detector';
 import { trickVariantKey } from '$lib/types/tricks';
@@ -22,9 +22,9 @@ import {
 import { compareFractions, fractionToFloat } from '$lib/music/intervals';
 import { lickMode } from '$lib/music/mode';
 import { MINOR_TONIC_QUALITIES } from '$lib/data/progression-shapes';
-import { planUnlockedKeys } from '$lib/music/key-ordering';
+import { lickUnlockRamp, planUnlockedKeys, type UnlockRamp } from '$lib/music/key-ordering';
 import { baseLickId, getAllLicks, isCuratedLickId } from '$lib/phrases/library-loader';
-import { getTrickById, trickEntryKey } from '$lib/tricks';
+import { getTrickById, trickEntryKey, trickUnlockRamp } from '$lib/tricks';
 import { getVariantByKey } from '$lib/tricks/mastery';
 import {
 	getEffectivePracticeLickIds,
@@ -130,6 +130,12 @@ export interface LickMatcherDeps {
 	 * mastery tiers here claim keys the drill never rotated through.
 	 */
 	trickEntryKey?: PitchClass;
+	/**
+	 * The player's instrument — the unlock ramps count accidentals in written
+	 * pitch; absent = concert pitch. Must be the instrument `trickEntryKey`
+	 * was resolved for.
+	 */
+	instrument?: InstrumentConfig;
 }
 
 export interface SuggestLicksOptions {
@@ -183,16 +189,16 @@ const EPSILON = 1e-9;
 export function classifyMasteryTier(args: {
 	progress: LickPracticeProgress;
 	lickId: string;
-	entryKey: PitchClass;
+	ramp: UnlockRamp;
 	targetKey: PitchClass;
 	unlockedCount: number;
 }): MasteryTier {
-	const { progress, lickId, entryKey, targetKey, unlockedCount } = args;
+	const { progress, lickId, ramp, targetKey, unlockedCount } = args;
 	const atKey = progress[lickId]?.[targetKey];
 	if (atKey) return atKey.passCount >= 1 ? 'known' : 'learning';
 	if (
 		hasLickProgress(progress, lickId) &&
-		planUnlockedKeys(entryKey, unlockedCount).includes(targetKey)
+		planUnlockedKeys(ramp, unlockedCount).includes(targetKey)
 	) {
 		return 'learning';
 	}
@@ -215,6 +221,12 @@ function categorySpecificity(type: ChordProgressionType, category: PhraseCategor
 	return idx === -1 ? entries.length : idx;
 }
 
+/**
+ * Rank the licks (and selected trick variants) that fit one detected
+ * progression: every eligibility path that applies, the key and bar each
+ * would be played in, and a mastery tier read from the lick's unlock ramp and
+ * practice history. Pure over `deps`; nothing here touches storage.
+ */
 export function suggestLicksForProgression(
 	detected: DetectedProgression,
 	deps: LickMatcherDeps,
@@ -275,7 +287,7 @@ export function suggestLicksForProgression(
 			masteryTier: classifyMasteryTier({
 				progress: deps.progress,
 				lickId: lick.id,
-				entryKey: lick.key,
+				ramp: lickUnlockRamp(lick, deps.instrument ?? INSTRUMENTS.concert),
 				targetKey,
 				unlockedCount: deps.getUnlockedKeyCount(deps.progress, lick.id)
 			}),
@@ -379,7 +391,15 @@ export function suggestLicksForProgression(
 					: 'learning'
 				: perKey &&
 					  Object.keys(perKey).length > 0 &&
-					  planUnlockedKeys(deps.trickEntryKey ?? 'C', unlockedCount).includes(targetKey)
+					  planUnlockedKeys(
+							// The instrument resolves BOTH the anchor and the signatures it
+							// counts (`trickUnlockRamp`), so the two cannot drift apart; the
+							// literal stands in only for instrument-less deps.
+							deps.instrument
+								? trickUnlockRamp(deps.instrument)
+								: { entryKey: deps.trickEntryKey ?? 'C', mode: 'major', instrument: INSTRUMENTS.concert },
+							unlockedCount
+					  ).includes(targetKey)
 					? 'learning'
 					: 'unknown';
 
@@ -482,6 +502,7 @@ export function buildLickMatcherDeps(
 		trickProgress: loadTrickPracticeProgress(),
 		selectedTrickVariants: new Set(loadSelectedTrickVariants()),
 		getTrickUnlockedKeyCount,
-		trickEntryKey: trickEntryKey(instrument)
+		trickEntryKey: trickEntryKey(instrument),
+		instrument
 	};
 }

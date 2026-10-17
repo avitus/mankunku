@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { Note } from '$lib/types/music';
 import {
-	coalesceRests,
 	insertElement,
 	removeTime,
 	replaceWithRest,
@@ -13,9 +12,8 @@ import {
 /**
  * Pure edits on the step-entry buffer (a dense prefix-sum of notes and
  * rests). Delete-to-rest and remove-time are the two meanings of "delete"
- * in the editors since 2026-10-15; coalescing keeps one engraved rest ≈ one
- * selectable element; stripping trailing rests is how a saved lick's pad
- * rest leaves the buffer on load.
+ * in the editors since 2026-10-15; stripping trailing rests is how a saved
+ * lick's pad rest leaves the buffer on load.
  */
 
 function n(pitch: number | null, offset: [number, number], duration: [number, number], extra: Partial<Note> = {}): Note {
@@ -93,47 +91,6 @@ describe('removeTime', () => {
 		expect(rows(removeTime(notes, 2))).toEqual(rows(notes));
 		removeTime(notes, 0);
 		expect(rows(notes)).toEqual(['60 @0/1 ×1/4', '62 @1/4 ×1/4']);
-	});
-});
-
-describe('coalesceRests', () => {
-	it('merges contiguous rests that start in the same bar and maps old indices onto the merged element', () => {
-		const notes = [n(60, [0, 1], [1, 4]), n(null, [1, 4], [1, 4]), n(null, [1, 2], [1, 4]), n(64, [3, 4], [1, 4])];
-		const { notes: out, indexMap } = coalesceRests(notes);
-		expect(rows(out)).toEqual(['60 @0/1 ×1/4', 'z @1/4 ×1/2', '64 @3/4 ×1/4']);
-		expect(indexMap).toEqual([0, 1, 1, 2]);
-	});
-
-	it('never merges across a barline', () => {
-		const notes = [n(60, [0, 1], [3, 4]), n(null, [3, 4], [1, 4]), n(null, [1, 1], [1, 4]), n(64, [5, 4], [1, 4])];
-		const { notes: out, indexMap } = coalesceRests(notes);
-		expect(rows(out)).toEqual(rows(notes));
-		expect(indexMap).toEqual([0, 1, 2, 3]);
-	});
-
-	it('merges a rest that already spans a barline with one starting in its own bar', () => {
-		// A saved lick's pad rest can run to the end of the canvas; a rest left
-		// in front of it by a delete joins it (both start in bar 1).
-		const notes = [n(60, [0, 1], [1, 4]), n(null, [1, 4], [1, 4]), n(null, [1, 2], [3, 2])];
-		const { notes: out } = coalesceRests(notes);
-		expect(rows(out)).toEqual(['60 @0/1 ×1/4', 'z @1/4 ×7/4']);
-	});
-
-	it('leaves triplet rests alone', () => {
-		const notes = [n(null, [0, 1], [1, 12]), n(null, [1, 12], [1, 12]), n(60, [1, 6], [1, 12])];
-		expect(rows(coalesceRests(notes).notes)).toEqual(rows(notes));
-	});
-
-	it('does not merge rests separated by a note or by a gap', () => {
-		const notes = [n(null, [0, 1], [1, 4]), n(60, [1, 4], [1, 4]), n(null, [1, 2], [1, 4]), n(null, [1, 1], [1, 4])];
-		expect(rows(coalesceRests(notes).notes)).toEqual(rows(notes));
-	});
-
-	it('honours a different bar length', () => {
-		// 3/4 bars: the rests at 1/2 and 3/4 sit in different bars.
-		const notes = [n(null, [1, 4], [1, 4]), n(null, [1, 2], [1, 4]), n(null, [3, 4], [1, 4])];
-		const { notes: out } = coalesceRests(notes, [3, 4]);
-		expect(rows(out)).toEqual(['z @1/4 ×1/2', 'z @3/4 ×1/4']);
 	});
 });
 

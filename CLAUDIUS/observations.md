@@ -3017,3 +3017,45 @@ a target, every existing assignment of that target becomes a decision
 a flattened index drifting after a page's first commit). The e2e suite
 caught two of the three, the unit tests none — because a unit test asks
 one question and these were all about the SECOND keystroke.
+
+## 2026-10-16 — "Show me what you'll ask me to play" is a sharing problem, not a drawing problem
+
+The detail page was never short of a chart; it was short of the SESSION's
+chart. The request looked like "add chords to the page", but every piece
+of the answer already existed inside `buildPhraseFor` — alignment, slot
+root, tail extension, mode — as private session logic. The fix worth
+making was the extraction, so the page and the drill cannot disagree, and
+the parity test is the real deliverable: it turns "shows what Practice
+plays" from a promise into a pin. Pattern to remember: when a surface
+wants to preview what another surface will do, look for the builder the
+other surface already has and lift it out, rather than approximating it.
+
+Two smaller things. "Primary" was my word for Andy's intent and the code
+had three candidate meanings (first tag added, least-recently-practiced,
+first pill in row order); the stable one is right for a page you reread,
+even though Practice rotates. And the broken e2e was a good break: it said
+that an explicit `mode` outranks any inference, including the progression's —
+the player's statement about their own lick beats what we derive from
+where it is filed.
+
+## 2026-10-16 — The rule you wrote inside the segment has a twin where the segments are born
+
+The third-harmonic fold was correct and tested, and the live path still
+split the note — because the test handed the segmenter one onset and the
+app hands it none. With no worklet, `extractOnsetsFromReadings` is a second
+segmenter in disguise: it decides boundaries from MIDI changes, upstream of
+every pass that knows about locks, octaves or attacks. Any rule that says
+"this MIDI change is not a note change" has to be applied there as well as
+in `splitByPitchChange`, or it only works in the harness. The general form:
+when a pipeline has two places that create boundaries, a merge rule written
+for one leaves the other's boundaries standing, and the no-evidence early
+return means nothing downstream repairs them. The question to ask of every
+segmenter change: does the live path reach this code with the onsets the
+test passes? Here the answer was no, and the fold tests' helper (`[0]`
+onsets, `[0]` worklet onsets) is exactly what hid it.
+
+Smaller: the gap-click fix created its own next case. Once a page commits,
+a gap IS a stored rest, so "materialize the segment" became "split the rest
+that already covers it" — the same gesture from the user's seat, a different
+operation in the data. Reviewing a fix against the state it leaves behind
+after ONE more action is where this round's finding sat.

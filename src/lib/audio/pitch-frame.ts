@@ -111,6 +111,16 @@ export interface PitchReading {
 	 */
 	octaveUp?: boolean;
 	/**
+	 * True when the frame's spectrum looks like a 3rd-harmonic (twelfth-up)
+	 * lock — under the reported pitch sits the harmonic series of a real
+	 * fundamental a twelfth below, with the bins between its partials empty
+	 * (see `isTwelfthUpLock`). Recorded per frame, acted on per sub-segment:
+	 * the segmenter folds one a twelfth down when a strong majority of its
+	 * frames are flagged (`foldTwelfthUpLocks`), so a stray attack frame on a
+	 * genuine note is harmless. Omitted when not flagged.
+	 */
+	twelfthUp?: boolean;
+	/**
 	 * True on a SUB-threshold frame (clarity in [WEAK_CLARITY_FLOOR,
 	 * threshold)). These never enter the confident reading stream: detectors
 	 * return them as `FrameResult.weakReading` and collect them on a side
@@ -388,6 +398,45 @@ const OCTAVE_UP_MAX_FREQUENCY = 370;
 const OCTAVE_UP_ODD_HARMONIC_RATIO = 0.12;
 
 /**
+ * Twelfth-up (3rd-harmonic) lock — the next partial up from the octave case.
+ *
+ * On a low tenor note the 3rd harmonic can outweigh the fundamental AND the
+ * 2nd harmonic. The 2026-10-17 Third Walks Back to Root fixture's final D3
+ * blooms with its 440 Hz partial at ~10× the 147 Hz fundamental and ~8× the
+ * 293 Hz 2nd harmonic, and McLeod reports A4 for 19 frames at clarity 0.9.
+ * The octave stabilizer only questions ±12/±24 jumps, so a 19-semitone one
+ * passes straight through, and the held D came out as D3 · A4 · D3 — two
+ * charged extras, 0.657 "fair".
+ *
+ * Two Goertzel ratios tell the lock from a real note at the reported `f`,
+ * with g = f/3 the fundamental it would be a lock OF:
+ *   1. The harmonic series of g is present under f —
+ *        (mag(g) + mag(2g) + mag(4g) + mag(5g)) / (mag(3g) + mag(6g))
+ *      ≥ TWELFTH_UP_SERIES_RATIO. For a genuine note at f those four bins
+ *      are non-harmonic and empty. The fixture's lock frames measure
+ *      0.35–0.47.
+ *   2. It is a SERIES, not broadband energy — the same sum against the
+ *      half-series bins between those partials, 1.5g, 2.5g, 3.5g, 4.5g,
+ *      which no harmonic of g reaches:
+ *        series / halfSeries ≥ TWELFTH_UP_SERIES_RANK.
+ *      An attack transient or a slur glide lifts every bin alike. Measured
+ *      over every in-band frame of the corpus that reaches ratio 1 (0.2 and
+ *      up, 21 frames: attacks, cracks, glides), ratio 1 runs to 0.84 but
+ *      ratio 2 stays at or under 3.2; the lock frames sit at 11–37.
+ *
+ * Like `isOctaveUpLock` this is a predicate, not a correction: the segmenter
+ * folds a sub-segment a twelfth down only when a strong majority of its
+ * frames carry the flag (`foldTwelfthUpLocks` in note-segmenter.ts).
+ * Bounded to reported frequencies whose third is a supported pitch (3 × the
+ * 80 Hz minimum) up to G3's 3rd harmonic (~590 Hz) — the fundamental-weak
+ * low register where a partial can win the pick.
+ */
+const TWELFTH_UP_MIN_FREQUENCY = 240;
+const TWELFTH_UP_MAX_FREQUENCY = 600;
+const TWELFTH_UP_SERIES_RATIO = 0.2;
+const TWELFTH_UP_SERIES_RANK = 5;
+
+/**
  * Number of consecutive frames an octave-only jump (±12 or ±24 semitones)
  * must persist before it is accepted. At ~60fps this is ~50 ms — long enough
  * to filter subharmonic glitches, short enough for genuine octave changes.
@@ -642,6 +691,31 @@ export function isOctaveUpLock(buffer: Float32Array, frequency: number, sampleRa
 }
 
 /**
+ * Whether the detected frequency looks like a 3rd-harmonic (twelfth-up) lock
+ * of a true fundamental a twelfth below. See the `TWELFTH_UP_*` constants for
+ * the two-ratio discriminator; like `isOctaveUpLock` this is a predicate the
+ * segmenter acts on only over a majority of a sub-segment's frames.
+ */
+export function isTwelfthUpLock(buffer: Float32Array, frequency: number, sampleRate: number): boolean {
+	if (frequency < TWELFTH_UP_MIN_FREQUENCY || frequency > TWELFTH_UP_MAX_FREQUENCY) {
+		return false;
+	}
+	const g = frequency / 3;
+/** Goertzel magnitude of the k-th harmonic of the candidate fundamental. */
+	const mag = (k: number) => goertzelMagnitude(buffer, g * k, sampleRate);
+	// The reported pitch and its own 2nd harmonic: 3g and 6g.
+	const reported = mag(3) + mag(6);
+	if (reported <= 0) return false;
+	// The fundamental's other partials — empty for a genuine note at 3g.
+	const series = mag(1) + mag(2) + mag(4) + mag(5);
+	if (series / reported < TWELFTH_UP_SERIES_RATIO) return false;
+	// The bins between them, which no harmonic of g reaches: broadband energy
+	// lifts these as much as the series, a real fundamental leaves them empty.
+	const halfSeries = mag(1.5) + mag(2.5) + mag(3.5) + mag(4.5);
+	return series >= halfSeries * TWELFTH_UP_SERIES_RANK;
+}
+
+/**
  * Lowest short-time waveform self-similarity inside the analysis window —
  * "did the reed restart?" measured in the time domain.
  *
@@ -861,6 +935,13 @@ export function detectFrame(
 		frequency === rawFrequency &&
 		octaveCorrection === 0 &&
 		isOctaveUpLock(buffer, frequency, opts.sampleRate);
+	// Same guards for the 3rd-harmonic flag: it means "fold a twelfth down from
+	// the pitch this frame REPORTS", so a frame the subharmonic pass or the
+	// stabilizer has already moved must not carry it.
+	const twelfthUp =
+		frequency === rawFrequency &&
+		octaveCorrection === 0 &&
+		isTwelfthUpLock(buffer, frequency, opts.sampleRate);
 
 	const reading: PitchReading = { midiFloat, midi, cents, clarity, time, frequency, rms, hfRms, rmsMin };
 	const bandRmsMin = measureBandRmsMin(buffer, opts.sampleRate);
@@ -875,6 +956,7 @@ export function detectFrame(
 	}
 	if (stab.warmup) reading.warmup = true;
 	if (octaveUp) reading.octaveUp = true;
+	if (twelfthUp) reading.twelfthUp = true;
 
 	return { reading, rawClarity: clarity };
 }

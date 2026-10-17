@@ -21,6 +21,7 @@ import {
 } from '$lib/persistence/lick-practice-store';
 import type { PitchClass, Phrase } from '$lib/types/music';
 import type { Score } from '$lib/types/scoring';
+import { settings } from '$lib/state/settings.svelte';
 
 const store = new Map<string, string>();
 vi.stubGlobal('localStorage', {
@@ -69,6 +70,9 @@ function setUnlockedCount(phraseId: string, target: number): void {
 }
 
 beforeEach(() => {
+	// These fixtures spell the unlock ramp in concert pitch (C, G, F, …);
+	// the ramp counts accidentals in WRITTEN pitch, so pin a C instrument.
+	settings.instrumentId = 'concert';
 	store.clear();
 	resetSession();
 	lickPractice.progress = {};
@@ -108,10 +112,10 @@ describe('latestKeyResults', () => {
 
 describe('sessionKeys', () => {
 	it('holds the full unlocked circle in stable circle order even when the rotation is sorted', () => {
-		setUnlockedCount('lick-f', 3); // circle from F → {F, Bb, C}
+		setUnlockedCount('lick-f', 3); // ramp from F major → {F, C, G}; circle-of-4ths order F, G, C
 		for (const [key, rollingScore] of [
 			['F', 0.95],
-			['Bb', 0.6],
+			['G', 0.6],
 			['C', 0.8]
 		] as Array<[PitchClass, number]>) {
 			lickPractice.progress = updateKeyProgress(lickPractice.progress, 'lick-f', key, {
@@ -121,8 +125,8 @@ describe('sessionKeys', () => {
 		}
 		startSingleLickSession(makeLick('F', 'lick-f'));
 
-		expect(lickPractice.plan[0].keys).toEqual(['Bb', 'C', 'F']); // sorted worst-first
-		expect(lickPractice.sessionKeys).toEqual(['F', 'Bb', 'C']); // stable circle order
+		expect(lickPractice.plan[0].keys).toEqual(['G', 'C', 'F']); // sorted worst-first
+		expect(lickPractice.sessionKeys).toEqual(['F', 'G', 'C']); // stable circle order
 	});
 
 	it('is unaffected by keys mastering out of the rotation', () => {
@@ -133,7 +137,7 @@ describe('sessionKeys', () => {
 		advanceSingleLickRound();
 
 		expect(lickPractice.plan[0].keys).not.toContain('F');
-		expect(lickPractice.sessionKeys).toEqual(['F', 'Bb', 'C']);
+		expect(lickPractice.sessionKeys).toEqual(['F', 'G', 'C']);
 	});
 
 	it('grows when a refill picks up a newly unlocked key', () => {

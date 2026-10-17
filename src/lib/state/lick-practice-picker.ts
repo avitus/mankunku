@@ -5,13 +5,14 @@
  * full state machine.
  */
 
-import type { Phrase } from '$lib/types/music';
+import type { Mode, Phrase } from '$lib/types/music';
 import type {
 	ChordProgressionType,
 	LickPracticeProgress
 } from '$lib/types/lick-practice';
 import type { LickPracticeSessionLogEntry } from '$lib/persistence/lick-practice-sessions';
-import { PROGRESSION_TEMPLATES, progressionFitsLick } from '$lib/data/progressions';
+import { PROGRESSION_TEMPLATES, getProgressionsForLick, progressionFitsLick, progressionMode } from '$lib/data/progressions';
+import { lickMode } from '$lib/music/mode';
 import { getLickLastPracticed } from '$lib/persistence/lick-practice-store';
 
 export interface UpcomingLickEntry {
@@ -100,6 +101,28 @@ export function pickProgressionForLick(args: {
 		}
 	}
 	return pick;
+}
+
+/**
+ * The progression a lick is SHOWN over on its detail page — its primary
+ * progression: the first "Practice over" pill (template order, as the row
+ * reads) the lick is tagged with AND fits, else the first template its
+ * category is at home in (`getProgressionsForLick`), else null for a lick
+ * with no progression of its own (an untagged `user` or `bebop-lines` line),
+ * whose chart then shows only the chords it stores. The tie-break is the
+ * pill order, never the session log: the page is a stable reading of the
+ * lick, while `resolveSingleLickProgression` rotates by recency, so a
+ * Practice press may open on another of its pills.
+ */
+export function primaryProgressionForLick(
+	lick: Phrase,
+	progressionTags: ChordProgressionType[]
+): ChordProgressionType | null {
+	return (
+		pickProgressionForLick({ lickId: lick.id, lick, progressionTags, sessionLog: [] }) ??
+		getProgressionsForLick(lick)[0] ??
+		null
+	);
 }
 
 /**
@@ -205,4 +228,28 @@ export function findStrandedLicks(args: {
 }): Phrase[] {
 	const { candidates, getProgressionTags } = args;
 	return candidates.filter((c) => !hasFittingProgression(c, getProgressionTags));
+}
+
+/**
+ * The mode the detail page's key SELECTOR labels — the CHART's. Over a
+ * primary progression the chart is engraved in that progression's mode
+ * (`placeLickInProgression` stamps it) whatever the lick states: a major
+ * dominant line shown over the minor cadence sits under Eø7 · A7♭9 · D-7, so
+ * "Play in D-" names what is drawn (CodeRabbit on PR #280). With no
+ * progression the chart is the lick's own: its stated mode, else `lickMode`.
+ */
+export function chartModeForLick(lick: Phrase, primary: ChordProgressionType | null): Mode {
+	if (primary) return progressionMode(primary);
+	return lick.mode ?? lickMode(lick);
+}
+
+/**
+ * The mode the LICK's own key labels read in — the unlock-progress markers:
+ * the player's STATED mode first (their statement about their lick beats
+ * where it is filed), else the shown progression's reading (a legacy
+ * harmony-less line on the minor vamp labels "D-", where `lickMode` alone
+ * would say major), else `lickMode`'s inference from its chords.
+ */
+export function lickLabelMode(lick: Phrase, primary: ChordProgressionType | null): Mode {
+	return lick.mode ?? (primary ? progressionMode(primary) : lickMode(lick));
 }

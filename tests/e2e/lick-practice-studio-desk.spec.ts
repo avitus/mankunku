@@ -14,10 +14,14 @@ test(`Studio Desk ${theme} keeps the ${count}-key ring clear of music across scr
 		settings: { ...SETTINGS_ONBOARDED, theme },
 		'tour-state': TOUR_DISMISSED,
 		'lick-unlock-count': { 'e2e-user-lick-bebop': count },
+		// The e2e player is a tenor: the ramp from concert C (written D) climbs
+		// the WRITTEN signatures, so its eleventh key is concert B (written Db,
+		// five flats) — the one being learned at 11 keys, seeded under the floor
+		// so its row reveals.
 		'lick-practice-progress': {
 			'e2e-user-lick-bebop': Object.fromEntries(
 				['C', 'G', 'D', 'A', 'E', 'B', 'F#', 'Db', 'Ab', 'Eb', 'Bb', 'F'].map((key) =>
-					[key, { currentTempo: 60, rollingScore: key === 'Db' ? 0.1 : 0.9, passCount: 0 }])
+					[key, { currentTempo: 60, rollingScore: key === 'B' ? 0.1 : 0.9, passCount: 0 }])
 			)
 		}
 	});

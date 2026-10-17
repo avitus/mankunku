@@ -3841,3 +3841,111 @@ describe('pitch replay regression: Honeysuckle Rose — a cracked attack shifted
 		expect(rowFor(score, 55).missed).toBe(true);
 	});
 });
+
+/**
+ * 2026-10-17 "Third Walks Back to Root" — pfl-035 in concert D on Bb tenor,
+ * 100 BPM, swing 0.6, metronome on, no backing track: D3, F#3, E3, D3 as even
+ * half notes. The player held the final D cleanly to the end of the capture;
+ * the app saved it as THREE notes — a 67 ms D3, a 333 ms "A4" and a 2.17 s
+ * D3 — charged the A4 and the second D3 as extras, and scored 0.657 "fair"
+ * (pitch 4 of 6).
+ *
+ * The A4 is D3's third harmonic. As the D blooms (window RMS 0.06 → 0.15)
+ * its 440 Hz partial carries ~10× the energy of the 147 Hz fundamental and
+ * ~8× the 2nd harmonic, McLeod reports 440 for 19 frames at clarity 0.9, and
+ * the octave stabilizer waves it through — a 19-semitone jump is not an
+ * octave. The spectrum tells the lock from a real A4: the bins at thirds of
+ * 440 (147, 293, 587, 733 — D3's 1st, 2nd, 4th and 5th harmonics) carry
+ * 0.35–0.47 of the 440 + 880 energy, while the half-series bins between
+ * them (220, 367, 513, 660) are empty, 11–37× down. On every other in-band
+ * frame of the corpus that reaches the first ratio (attack transients, slur
+ * glides) the half-series bins are lifted just as much — at most 3.2× apart.
+ * `isTwelfthUpLock` flags such a frame; the segmenter folds a sub-segment
+ * flagged on a strong majority of its frames a twelfth down, where the
+ * same-pitch merge reunites it with the D on either side.
+ */
+describe('pitch replay regression: Third Walks Back to Root — the final D speaks on its third harmonic (concert D, 2026-10-17)', () => {
+	const TRANSPORT_SECONDS = 398.21891156462584;
+	const TEMPO = 100;
+	const SWING = 0.6;
+	const FIXTURE = 'recordings/2026-10-17-third-walks-back-to-root';
+
+	const expectedPhrase: Phrase = {
+		id: 'pfl-035_D',
+		name: 'Third Walks Back to Root',
+		timeSignature: [4, 4],
+		key: 'D',
+		notes: [
+			{ pitch: 50, duration: [1, 2], offset: [0, 1] }, // D3
+			{ pitch: 54, duration: [1, 2], offset: [1, 2] }, // F#3
+			{ pitch: 52, duration: [1, 2], offset: [1, 1] }, // E3
+			{ pitch: 50, duration: [1, 2], offset: [3, 2] }  // D3
+		],
+		harmony: [],
+		difficulty: { level: 3, pitchComplexity: 6, rhythmComplexity: 1, lengthBars: 2 },
+		category: 'pentatonic',
+		tags: [],
+		source: 'curated'
+	};
+
+/** Run the take through the full segmentation pipeline, trimmed or live-stamped. */
+	const replayPipeline = (opts: { live?: boolean } = {}) =>
+		replayEarTrainingTake(`${FIXTURE}.wav`, TRANSPORT_SECONDS, TEMPO, opts);
+
+	it('the live path saved the held D as D, A4, D and charged both as extras', () => {
+		// Documents the evidence from the diagnostic export saved with the take.
+		const json = JSON.parse(
+			readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '..', 'fixtures', `${FIXTURE}.json`), 'utf8')
+		);
+		const saved: DetectedNote[] = json.scoring.savedDetectedNotes;
+		expect(saved.map((n) => n.midi)).toEqual([50, 54, 52, 50, 69, 50]);
+		expect(saved[4].duration).toBeCloseTo(0.333, 2);
+		expect(saved[4].onsetTime - saved[3].onsetTime).toBeCloseTo(0.067, 2);
+		expect(json.scoring.savedScore.extrasCharged).toBe(2);
+		expect(json.scoring.savedScore.overall).toBeCloseTo(0.657, 2);
+	});
+
+	it('trims the pre-armed lead-in back to the performance', async () => {
+		const { trimmed } = await replayPipeline();
+		expect(trimmed.offset).toBeCloseTo(1.467, 2);
+	});
+
+	it('flags every frame of the 440 Hz stretch as a twelfth-up lock and none of the D itself', async () => {
+		const { trimmed } = await replayPipeline();
+		const lock = trimmed.readings.filter((r) => r.time > 3.97 && r.time < 4.31 && r.midi === 69);
+		expect(lock.length).toBeGreaterThanOrEqual(15);
+		expect(lock.every((r) => r.twelfthUp)).toBe(true);
+		const d = trimmed.readings.filter((r) => r.midi === 50);
+		expect(d.length).toBeGreaterThan(100);
+		expect(d.some((r) => r.twelfthUp)).toBe(false);
+	});
+
+	it('replayed: the held D is one note from its attack to the end of the capture (saved: D, A4, D)', async () => {
+		const { trimmed, detected } = await replayPipeline();
+		expect(detected.map((n) => n.midi)).toEqual([50, 54, 52, 50]);
+		expect(detected[3].onsetTime).toBeCloseTo(3.917, 2);
+		expect(detected[3].onsetTime + detected[3].duration).toBeCloseTo(trimmed.duration, 1);
+	});
+
+	it('scores four of four with no extras (saved: 0.657 "fair", two charged)', async () => {
+		const { detected } = await replayPipeline();
+		const result = runScorePipeline({
+			detected,
+			phrase: expectedPhrase,
+			tempo: TEMPO,
+			transportSeconds: TRANSPORT_SECONDS,
+			swing: SWING,
+			bleedFilterEnabled: false
+		});
+		expect(result.chosen.notesHit).toBe(4);
+		expect(result.chosen.extrasCharged).toBe(0);
+		expect(result.chosen.pitchAccuracy).toBe(1);
+		expect(result.chosen.noteResults.some((nr) => nr.missed || nr.extra)).toBe(false);
+		expect(result.chosen.overall).toBeGreaterThan(0.9);
+	});
+
+	it('folds the lock the same way in the live detector time base', async () => {
+		const { detected } = await replayPipeline({ live: true });
+		expect(detected.map((n) => n.midi)).toEqual([50, 54, 52, 50]);
+	});
+});

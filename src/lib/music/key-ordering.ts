@@ -2,11 +2,12 @@
  * Staged key ordering for lick practice sessions. Two phases:
  *
  * 1. **Ramp-up** — `planUnlockedKeys` is used while a lick has fewer than 12
- *    keys earned. It returns the first N keys of an alternating sharp/flat
- *    ramp from the entry key (entry, +1 fifth, -1 fifth, +2 fifths, ...),
- *    so each unlock adds the next-easiest key by accidental count. The
- *    unlock cadence itself (when N grows) lives in `lick-practice-store`
- *    via `shouldUnlockNextKey`.
+ *    keys earned. It returns the first N keys of a ramp that climbs the key
+ *    signatures: the entry key first, then every other key by how many
+ *    sharps or flats the player reads in it — fewest first, the sharp key
+ *    before the flat key with the same count — so each unlock adds the
+ *    easiest key left. The unlock cadence itself (when N grows) lives in
+ *    `lick-practice-store` via `shouldUnlockNextKey`.
  *
  * 2. **Staged variety** — `planLickKeys` runs once the lick has earned all
  *    12 keys. The ordering is chosen based on the lick's current tempo:
@@ -20,11 +21,12 @@
  * the lick has earned the full set, after which callers switch to
  * `planLickKeys`.
  */
-import type { PitchClass } from '$lib/types/music';
+import type { Mode, Phrase, PitchClass } from '$lib/types/music';
 import type { InstrumentConfig } from '$lib/types/instruments';
 import { PITCH_CLASSES } from '$lib/types/music';
-import { circleOfFifths, circleOfFourths } from '$lib/music/keys';
-import { writtenKeyToConcert } from '$lib/music/transposition';
+import { circleOfFifths, circleOfFourths, keySignatureAccidentals, relativeMajor } from '$lib/music/keys';
+import { lickMode } from '$lib/music/mode';
+import { concertKeyToWritten, writtenKeyToConcert } from '$lib/music/transposition';
 
 /** Rotate `arr` so that `start` sits at index 0. Returns a new array. */
 function rotateTo<T>(arr: readonly T[], start: T): T[] {
@@ -118,27 +120,57 @@ export interface PlanLickKeysArgs {
 export const MAX_UNLOCKED_KEYS = 12;
 
 /**
- * Build the gradually-unlocked key set for a lick that hasn't reached its
- * full 12-key range yet. Adds keys easiest-to-hardest by accidental count,
- * alternating sharp- and flat-side neighbours of `entryKey` on the circle
- * of fifths: entry, +1 fifth, -1 fifth, +2 fifths, -2 fifths, ..., ±6
- * (tritone). For an entry key of C this yields C, G, F, D, Bb, A, Eb, E,
- * Ab, B, Db, F#. Once `unlockedCount` reaches 12, callers should fall back
- * to `planLickKeys` for staged variety.
+ * Where a lick's unlock ramp starts and how its keys are read. The ramp is a
+ * pure function of these three: the entry key opens it, the mode decides
+ * whether a tonic carries its own signature or its relative major's, and the
+ * instrument decides which signature the player actually reads.
  */
-export function planUnlockedKeys(
-	entryKey: PitchClass,
-	unlockedCount: number
-): PitchClass[] {
+export interface UnlockRamp {
+	/** Concert-pitch tonic the lick was entered in — always the first key unlocked. */
+	entryKey: PitchClass;
+	/** How the tonic reads: a minor key carries its relative major's signature. */
+	mode: Mode;
+	/** The player's instrument: accidentals are counted in written pitch, the key on the page. */
+	instrument: InstrumentConfig;
+}
+
+/** A lick's unlock ramp: its tonic, its mode as the rest of the app resolves it, and the player's instrument. */
+export function lickUnlockRamp(
+	phrase: Pick<Phrase, 'key' | 'harmony' | 'mode'>,
+	instrument: InstrumentConfig
+): UnlockRamp {
+	return { entryKey: phrase.key, mode: lickMode(phrase), instrument };
+}
+
+/**
+ * The key signature the player reads for a concert tonic: sharps positive,
+ * flats negative. A minor tonic is read through its relative major (G minor
+ * → Bb → two flats); a transposing instrument reads its written key (concert
+ * F minor on tenor is written G minor).
+ */
+export function writtenSignature(key: PitchClass, mode: Mode, instrument: InstrumentConfig): number {
+	const written = concertKeyToWritten(key, instrument);
+	return keySignatureAccidentals(mode === 'minor' ? relativeMajor(written) : written);
+}
+
+/**
+ * Build the gradually-unlocked key set for a lick that hasn't reached its
+ * full 12-key range yet. The entry key comes first; every other key follows
+ * in order of the signature the player reads (`writtenSignature`), fewest
+ * accidentals first, and the sharp key ahead of the flat key with the same
+ * count. A C major lick on a concert instrument yields C, G, F, D, Bb, A,
+ * Eb, E, Ab, B, Db, F#; a G minor lick yields G, A, E, D, B, F#, C, Db, F,
+ * Ab, Bb, Eb. Once `unlockedCount` reaches 12, callers should fall back to
+ * `planLickKeys` for staged variety.
+ */
+export function planUnlockedKeys(ramp: UnlockRamp, unlockedCount: number): PitchClass[] {
 	const clamped = Math.min(MAX_UNLOCKED_KEYS, Math.max(1, unlockedCount));
-	const fifths = circleOfFifthsFrom(entryKey);
-	// fifths[k] is +k fifths from entry; fifths[12-k] is -k fifths from entry.
-	const order: PitchClass[] = [fifths[0]];
-	for (let step = 1; step <= 6 && order.length < 12; step++) {
-		order.push(fifths[step]);
-		if (step < 6 && order.length < 12) order.push(fifths[12 - step]);
-	}
-	return order.slice(0, clamped);
+	const rest = PITCH_CLASSES.filter((key) => key !== ramp.entryKey)
+		.map((key) => ({ key, signature: writtenSignature(key, ramp.mode, ramp.instrument) }))
+		// Fewest accidentals first; at a tie the positive (sharp) signature wins.
+		.sort((a, b) => Math.abs(a.signature) - Math.abs(b.signature) || b.signature - a.signature)
+		.map((entry) => entry.key);
+	return [ramp.entryKey, ...rest].slice(0, clamped);
 }
 
 /**

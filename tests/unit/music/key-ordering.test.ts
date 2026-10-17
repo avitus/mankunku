@@ -7,11 +7,16 @@ import {
 	unlockedStages,
 	planLickKeys,
 	planUnlockedKeys,
-	type KeyOrderingStage
+	lickUnlockRamp,
+	writtenSignature,
+	type KeyOrderingStage,
+	type UnlockRamp
 } from '$lib/music/key-ordering';
 import { circleOfFifths } from '$lib/music/keys';
-import { PITCH_CLASSES, type PitchClass } from '$lib/types/music';
+import { concertKeyToWritten } from '$lib/music/transposition';
+import { PITCH_CLASSES, type Mode, type PitchClass } from '$lib/types/music';
 import { INSTRUMENTS } from '$lib/types/instruments';
+import { makePhrase } from '../../helpers/lick-builders';
 
 /** Every ordering must visit each of the 12 pitch classes exactly once. */
 function assertPermutation(keys: PitchClass[]): void {
@@ -245,51 +250,107 @@ describe('planLickKeys — stage dispatch via deterministic RNG', () => {
 	});
 });
 
-describe('planUnlockedKeys', () => {
-	/** Build the expected alternating ±fifths sequence from `start`. */
-	function alternatingFromEntry(start: PitchClass): PitchClass[] {
-		const fifths = circleOfFifthsFrom(start);
-		const order: PitchClass[] = [fifths[0]];
-		for (let step = 1; step <= 6 && order.length < 12; step++) {
-			order.push(fifths[step]);
-			if (step < 6 && order.length < 12) order.push(fifths[12 - step]);
-		}
-		return order;
-	}
+/** A ramp on a concert-pitch instrument, where written and concert keys agree. */
+function concert(entryKey: PitchClass, mode: Mode = 'major'): UnlockRamp {
+	return { entryKey, mode, instrument: INSTRUMENTS.concert };
+}
 
-	it('returns just the entry key when count is 1', () => {
-		expect(planUnlockedKeys('F', 1)).toEqual(['F']);
+describe('writtenSignature', () => {
+	it('reads a major tonic as its own key signature: sharps positive, flats negative', () => {
+		expect(writtenSignature('G', 'major', INSTRUMENTS.concert)).toBe(1);
+		expect(writtenSignature('F', 'major', INSTRUMENTS.concert)).toBe(-1);
+		expect(writtenSignature('C', 'major', INSTRUMENTS.concert)).toBe(0);
 	});
 
-	it('produces the documented sequence from C: C, G, F, D, Bb, A, Eb, E, Ab, B, Db, F#', () => {
-		expect(planUnlockedKeys('C', 12)).toEqual<PitchClass[]>([
+	it('reads a minor tonic through its relative major: G minor has two flats', () => {
+		expect(writtenSignature('G', 'minor', INSTRUMENTS.concert)).toBe(-2);
+		expect(writtenSignature('A', 'minor', INSTRUMENTS.concert)).toBe(0);
+		// Ab minor is spelled G# minor (five sharps), never seven flats.
+		expect(writtenSignature('Ab', 'minor', INSTRUMENTS.concert)).toBe(5);
+	});
+
+	it('counts the signature the player reads: concert F minor is written G minor on tenor', () => {
+		expect(writtenSignature('F', 'minor', INSTRUMENTS['tenor-sax'])).toBe(-2);
+		expect(writtenSignature('F', 'minor', INSTRUMENTS.concert)).toBe(-4);
+	});
+});
+
+describe('planUnlockedKeys', () => {
+	it('returns just the entry key when count is 1', () => {
+		expect(planUnlockedKeys(concert('F'), 1)).toEqual(['F']);
+	});
+
+	it('from C major climbs the key signatures, sharp key before flat key at each count', () => {
+		expect(planUnlockedKeys(concert('C'), 12)).toEqual<PitchClass[]>([
 			'C', 'G', 'F', 'D', 'Bb', 'A', 'Eb', 'E', 'Ab', 'B', 'Db', 'F#'
 		]);
 	});
 
-	it('alternates sharp- and flat-side neighbours of entryKey by N fifths', () => {
-		for (const start of PITCH_CLASSES) {
-			const expected = alternatingFromEntry(start);
-			for (let n = 1; n <= 12; n++) {
-				expect(planUnlockedKeys(start, n)).toEqual(expected.slice(0, n));
+	it('from G minor the next key is always the one with the fewest sharps or flats', () => {
+		// Minor keys carry their relative major's signature: A minor (none),
+		// E minor (1#), D minor (1b), B minor (2#), F# minor (3#), C minor
+		// (3b), C# minor (4#), F minor (4b), G# minor (5#), Bb minor (5b),
+		// Eb minor (6b). The entry key itself (2b) is never re-slotted.
+		expect(planUnlockedKeys(concert('G', 'minor'), 12)).toEqual<PitchClass[]>([
+			'G', 'A', 'E', 'D', 'B', 'F#', 'C', 'Db', 'F', 'Ab', 'Bb', 'Eb'
+		]);
+	});
+
+	it('the entry key only decides the first slot: a G major lick continues with C', () => {
+		expect(planUnlockedKeys(concert('G'), 12)).toEqual<PitchClass[]>([
+			'G', 'C', 'F', 'D', 'Bb', 'A', 'Eb', 'E', 'Ab', 'B', 'Db', 'F#'
+		]);
+	});
+
+	it('mode changes the ramp of the same tonic', () => {
+		expect(planUnlockedKeys(concert('G', 'major'), 2)).toEqual(['G', 'C']);
+		expect(planUnlockedKeys(concert('G', 'minor'), 2)).toEqual(['G', 'A']);
+	});
+
+	it('counts accidentals in written pitch: a tenor player reads the same ramp from written G minor', () => {
+		const tenor = INSTRUMENTS['tenor-sax'];
+		// Written G minor on tenor is concert F minor.
+		const ramp = planUnlockedKeys({ entryKey: 'F', mode: 'minor', instrument: tenor }, 12);
+		expect(ramp[0]).toBe('F');
+		expect(ramp.map((k) => concertKeyToWritten(k, tenor))).toEqual<PitchClass[]>([
+			'G', 'A', 'E', 'D', 'B', 'F#', 'C', 'Db', 'F', 'Ab', 'Bb', 'Eb'
+		]);
+	});
+
+	it('every prefix is the head of the full ramp, for any entry key and mode', () => {
+		for (const mode of ['major', 'minor'] as const) {
+			for (const start of PITCH_CLASSES) {
+				const full = planUnlockedKeys(concert(start, mode), 12);
+				assertPermutation(full);
+				expect(full[0]).toBe(start);
+				for (let n = 1; n <= 12; n++) {
+					expect(planUnlockedKeys(concert(start, mode), n)).toEqual(full.slice(0, n));
+				}
 			}
 		}
 	});
 
-	it('full unlock is a permutation of all 12 pitch classes for any entry key', () => {
-		for (const start of PITCH_CLASSES) assertPermutation(planUnlockedKeys(start, 12));
-	});
-
 	it('clamps counts above 12 to 12', () => {
-		expect(planUnlockedKeys('C', 99)).toEqual<PitchClass[]>([
+		expect(planUnlockedKeys(concert('C'), 99)).toEqual<PitchClass[]>([
 			'C', 'G', 'F', 'D', 'Bb', 'A', 'Eb', 'E', 'Ab', 'B', 'Db', 'F#'
 		]);
-		expect(planUnlockedKeys('C', 13).length).toBe(12);
+		expect(planUnlockedKeys(concert('C'), 13).length).toBe(12);
 	});
 
 	it('clamps counts at or below 0 to 1', () => {
-		expect(planUnlockedKeys('D', 0)).toEqual(['D']);
-		expect(planUnlockedKeys('D', -5)).toEqual(['D']);
+		expect(planUnlockedKeys(concert('D'), 0)).toEqual(['D']);
+		expect(planUnlockedKeys(concert('D'), -5)).toEqual(['D']);
+	});
+});
+
+describe('lickUnlockRamp', () => {
+	it('takes the tonic and the stated mode', () => {
+		const ramp = lickUnlockRamp({ ...makePhrase({ key: 'G' }), mode: 'minor' }, INSTRUMENTS['alto-sax']);
+		expect(ramp).toEqual({ entryKey: 'G', mode: 'minor', instrument: INSTRUMENTS['alto-sax'] });
+	});
+
+	it('resolves an unstated mode the way the rest of the app does (harmony, then major)', () => {
+		expect(lickUnlockRamp(makePhrase({ key: 'C' }), INSTRUMENTS.concert).mode).toBe('major');
 	});
 });
 

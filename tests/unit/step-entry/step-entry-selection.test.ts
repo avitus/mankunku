@@ -197,7 +197,7 @@ describe('deleteSelectedNote', () => {
 		expect(stepEntry.selectedNoteIndex).toBe(0);
 	});
 
-	it('merges the new rest with its rest neighbours in the same bar and selects the merged element', () => {
+	it('leaves the new rest beside its rest neighbours, each still selectable (no merging — 2026-10-16, after PR #279 kept rest boundaries in the editor)', () => {
 		reset();
 		stepEntry.barCount = 4;
 		setDuration('quarter');
@@ -208,11 +208,9 @@ describe('deleteSelectedNote', () => {
 		addNote(4, 4, 'natural'); // 4: E4 (bar 2)
 		selectNote(2);
 		deleteSelectedNote();
-		expect(stepEntry.enteredNotes.map((n) => n.pitch)).toEqual([60, null, 64]);
-		expect(stepEntry.enteredNotes[1].offset).toEqual([1, 4]);
-		expect(stepEntry.enteredNotes[1].duration).toEqual([3, 4]);
-		expect(stepEntry.enteredNotes[2].offset).toEqual([1, 1]);
-		expect(stepEntry.selectedNoteIndex).toBe(1);
+		expect(stepEntry.enteredNotes.map((n) => n.pitch)).toEqual([60, null, null, null, 64]);
+		expect(stepEntry.enteredNotes[2]).toMatchObject({ offset: [1, 2], duration: [1, 4] });
+		expect(stepEntry.selectedNoteIndex).toBe(2);
 	});
 
 	it('does not merge the new rest across a barline', () => {
@@ -326,15 +324,15 @@ describe('rest selection and deletion', () => {
 		expect(stepEntry.selectedNoteIndex).toBe(1);
 	});
 
-	it('post-delete reselection can land on a neighboring rest', () => {
+	it('a deleted note next to a rest becomes its own rest, selected', () => {
 		addNote(0, 4, 'natural'); // 0: C4
 		addRest();                 // 1: rest
 		addNote(4, 4, 'natural'); // 2: E4
 		addNote(7, 4, 'natural'); // 3: G4
-		selectNote(2); // E4 — not at the end, so reselection runs
+		selectNote(2); // E4 — not at the end
 		deleteSelectedNote();
-		expect(stepEntry.enteredNotes.map((n) => n.pitch)).toEqual([60, null, 67]);
-		expect(stepEntry.selectedNoteIndex).toBe(1); // the rest, not C4
+		expect(stepEntry.enteredNotes.map((n) => n.pitch)).toEqual([60, null, null, 67]);
+		expect(stepEntry.selectedNoteIndex).toBe(2); // the new rest, not its neighbour
 	});
 
 	it('deleting a rest after a tied pair leaves the tie intact', () => {

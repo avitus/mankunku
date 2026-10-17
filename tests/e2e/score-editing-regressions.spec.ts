@@ -92,3 +92,37 @@ test('bar 32: shorten the half rest, select its remainder and replace it with th
 	expect(bar.map((n: { duration: number[] }) => n.duration)).toEqual([[1, 2], [1, 4], [1, 12], [1, 12], [1, 12]]);
 	expect(bar[1].pitch).toBeNull();
 });
+
+test('a rest the import never stored can be clicked, split into two quarters and filled (2026-10-16)', async ({ page }) => {
+	// A PDF-shaped sheet: notes only, so every rest on the chart is a gap.
+	const pdfShaped: Tune = {
+		id: 'gap-rest-editing', title: 'Gap rest editing', key: 'C', timeSignature: [4, 4], tags: [], source: 'user',
+		sections: [{ label: 'A', bars: 2, harmony: [], notes: [
+			{ pitch: 62, offset: [0, 1], duration: [1, 2] },
+			{ pitch: 64, offset: [1, 1], duration: [1, 4] }
+		] }]
+	};
+	// seedStorage only fills an EMPTY key; the beforeEach already stored its
+	// sheet, so replace the book outright before the next load.
+	await page.evaluate((s) => window.localStorage.setItem('mankunku:user-tunes', JSON.stringify([s])), pdfShaped);
+	await page.goto('/tunes/editor?edit=gap-rest-editing');
+	await expect(page.locator(`${chart} .abcjs-note`)).toHaveCount(2);
+	const rests = page.locator(`${chart} .abcjs-rest`);
+	// Bar 1's second half is a half rest the section never stored: click it.
+	await rests.first().locator('path').click();
+	await expect(page.locator(`${chart} .abcjs-rest.selected-note`)).toHaveCount(1);
+	await expect(page.getByRole('button', { name: 'Half Note', exact: true })).toHaveAttribute('aria-pressed', 'true');
+	const before = await rests.count();
+	// Quarter: the half rest becomes two quarter rests; select the second and type the note.
+	await page.getByRole('button', { name: 'Quarter Note', exact: true }).click();
+	await expect(rests).toHaveCount(before + 1);
+	await rests.nth(1).locator('path').click();
+	await expect(page.getByTestId('entry-rail').getByText(/Section A · Bar 1, Beat 4/)).toBeVisible();
+	await page.getByRole('button', { name: 'G', exact: true }).click();
+	await expect(page.locator(`${chart} .abcjs-note`)).toHaveCount(3);
+	await page.getByRole('button', { name: 'Update tune' }).click();
+	await page.waitForURL('**/tunes/gap-rest-editing');
+	const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('mankunku:user-tunes')!));
+	const bar1 = stored[0].sections[0].notes.filter((n: { offset: number[] }) => n.offset[0] / n.offset[1] < 1);
+	expect(bar1.map((n: { pitch: number | null; offset: number[]; duration: number[] }) => [n.pitch, n.offset[0] / n.offset[1], n.duration[0] / n.duration[1]])).toEqual([[62, 0, 0.5], [null, 0.5, 0.25], [expect.any(Number), 0.75, 0.25]]);
+});

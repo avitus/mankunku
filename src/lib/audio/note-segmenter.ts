@@ -751,7 +751,7 @@ function splitByPitchChange(
 ): SubSegment[] {
 	if (segReadings.length < PITCH_CHANGE_MIN_HOLD * 2) {
 		const primaryMidi = segReadings[0]?.midi ?? 0;
-		return [{ start: segStart, end: segEnd, readings: segReadings, primaryMidi }];
+		return foldTwelfthUpLocks([{ start: segStart, end: segEnd, readings: segReadings, primaryMidi }]);
 	}
 
 	const subs: SubSegment[] = [];
@@ -796,7 +796,104 @@ function splitByPitchChange(
 		primaryMidi: stableMidi ?? segReadings[0].midi
 	});
 
-	return splitOnReadingGaps(mergeConsecutiveSameMidi(collapseOctaveArtifacts(subs)));
+	return splitOnReadingGaps(mergeConsecutiveSameMidi(collapseOctaveArtifacts(foldTwelfthUpLocks(subs))));
+}
+
+/**
+ * A sub-segment is a 3rd-harmonic (twelfth-up) lock when at least this
+ * fraction of its confident (non-warmup) frames carry the `twelfthUp` flag —
+ * the same gate as the whole-note octave-up drop: a genuine note trips the
+ * per-frame test on an attack frame or two at most, a lock on nearly all.
+ */
+const TWELFTH_UP_LOCK_MIN_FRACTION = 0.6;
+/** Don't judge a lock on scant evidence — at least this many confident frames. */
+const TWELFTH_UP_LOCK_MIN_FRAMES = 3;
+/** Semitones from a fundamental to its 3rd harmonic: an octave and a fifth. */
+const TWELFTH = 19;
+
+/**
+ * Fold a sub-segment that is a 3rd-harmonic lock a twelfth down onto the
+ * fundamental it was sounding (see `isTwelfthUpLock` in pitch-frame.ts).
+ *
+ * The 2026-10-17 "Third Walks Back to Root" final D3: as the note swells its
+ * 440 Hz partial takes the pick for 19 frames, a 19-semitone jump the octave
+ * stabilizer does not question, and `splitByPitchChange` cuts the held note
+ * into D3 · A4 · D3. No octave pass can reach it (the neighbours are not ±12),
+ * and the sandwich rule would have to accept a slurred leap of a twelfth and
+ * back on no evidence. The spectrum IS evidence: every frame of the stretch
+ * carries D3's harmonic series with nothing between the partials.
+ *
+ * Acting on the SUB-segment — before the octave collapse and the same-MIDI
+ * merge of the segment's subs — is what reunites a mid-note lock with the
+ * note around it: once folded it reads the neighbours' pitch and
+ * `mergeConsecutiveSameMidi` joins the three, so the note keeps its own
+ * attack and runs to its own release. A note that locked from attack to
+ * release is one sub and folds the same way. Only the frames on the locked
+ * pitch move (a stray fundamental frame inside the stretch already reads
+ * right); their raw `frequency` is kept, so the raw-pick checks downstream
+ * still see what McLeod reported. Cents is the deviation from the nearest
+ * semitone and a 3:1 ratio is 2 cents off a twelfth, so it carries over.
+ */
+function foldTwelfthUpLocks(subs: SubSegment[]): SubSegment[] {
+	return subs.map((sub) => {
+		let confident = 0;
+		let flagged = 0;
+		for (const r of sub.readings) {
+			if (r.warmup) continue;
+			confident++;
+			if (r.twelfthUp && r.midi === sub.primaryMidi) flagged++;
+		}
+		if (confident < TWELFTH_UP_LOCK_MIN_FRAMES) return sub;
+		if (flagged / confident < TWELFTH_UP_LOCK_MIN_FRACTION) return sub;
+		const locked = sub.primaryMidi;
+		return {
+			...sub,
+			primaryMidi: locked - TWELFTH,
+			readings: sub.readings.map((r) =>
+				r.midi === locked ? { ...r, midi: r.midi - TWELFTH, midiFloat: r.midiFloat - TWELFTH } : r
+			)
+		};
+	});
+}
+
+/**
+ * Fold every 3rd-harmonic lock RUN of a reading stream a twelfth down — the
+ * same gate as `foldTwelfthUpLocks`, over consecutive frames on one MIDI
+ * (warmup frames ride along uncounted) — for `extractOnsetsFromReadings`.
+ *
+ * Live ear training has no worklet onsets (the worklet never attaches), so
+ * that extractor derives them from the readings and cuts a note at every
+ * MIDI change: the lock's two edges became two attacks, and nothing after
+ * could question them — `foldTwelfthUpLocks` reunites the subs of ONE
+ * segment, and with no attack evidence `mergeSamePitchWithoutAttack` never
+ * runs (CodeRabbit on PR #280). Folded here, the stream reads D3 · D3 · D3
+ * and no onset is born at the lock; the segment then folds its own sub as
+ * before. A genuine leap of a twelfth trips the per-frame flag on an attack
+ * frame or two at most and keeps its onset; a gap still earns one.
+ */
+export function foldTwelfthUpLockRuns(readings: PitchReading[]): PitchReading[] {
+	const out = readings.slice();
+	let i = 0;
+	while (i < out.length) {
+		const midi = out[i].midi;
+		let j = i;
+		let confident = 0;
+		let flagged = 0;
+		while (j < out.length && out[j].midi === midi) {
+			if (!out[j].warmup) {
+				confident++;
+				if (out[j].twelfthUp) flagged++;
+			}
+			j++;
+		}
+		if (confident >= TWELFTH_UP_LOCK_MIN_FRAMES && flagged / confident >= TWELFTH_UP_LOCK_MIN_FRACTION) {
+			for (let k = i; k < j; k++) {
+				out[k] = { ...out[k], midi: midi - TWELFTH, midiFloat: out[k].midiFloat - TWELFTH };
+			}
+		}
+		i = j;
+	}
+	return out;
 }
 
 /**
@@ -1173,7 +1270,8 @@ function pickMidi(readings: PitchReading[], prevMidi: number | null): number {
  * (metronome-only recordings, permission races, etc.). Inferred from
  * gaps and pitch changes in the readings themselves.
  */
-export function extractOnsetsFromReadings(readings: PitchReading[]): number[] {
+export function extractOnsetsFromReadings(rawReadings: PitchReading[]): number[] {
+	const readings = foldTwelfthUpLockRuns(rawReadings);
 	if (readings.length === 0) return [];
 	const onsets: number[] = [readings[0].time];
 	const GAP_THRESHOLD = 0.1;

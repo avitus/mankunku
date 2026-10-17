@@ -34,6 +34,7 @@ import {
 	updateKeyProgress
 } from '$lib/persistence/lick-practice-store';
 import type { PitchClass, Phrase } from '$lib/types/music';
+import { settings } from '$lib/state/settings.svelte';
 
 const store = new Map<string, string>();
 vi.stubGlobal('localStorage', {
@@ -82,6 +83,9 @@ function seedRolling(phraseId: string, scores: Partial<Record<PitchClass, number
 }
 
 beforeEach(() => {
+	// These fixtures spell the unlock ramp in concert pitch (C, G, F, …);
+	// the ramp counts accidentals in WRITTEN pitch, so pin a C instrument.
+	settings.instrumentId = 'concert';
 	store.clear();
 	resetSession();
 	lickPractice.progress = {};
@@ -90,21 +94,21 @@ beforeEach(() => {
 
 describe('startSingleLickSession worst-first ordering', () => {
 	it('orders the rotation worst-first from persisted rolling scores', () => {
-		setUnlockedCount('lick-f', 3); // circle from F → {F, Bb, C}
-		seedRolling('lick-f', { F: 0.95, Bb: 0.6, C: 0.8 });
+		setUnlockedCount('lick-f', 3); // ramp from F major → {F, C, G}; circle-of-4ths order F, G, C
+		seedRolling('lick-f', { F: 0.95, G: 0.6, C: 0.8 });
 		startSingleLickSession(makeLick('F', 'lick-f'));
-		expect(lickPractice.plan[0].keys).toEqual(['Bb', 'C', 'F']);
+		expect(lickPractice.plan[0].keys).toEqual(['G', 'C', 'F']);
 	});
 
 	it('keeps circle order when no rolling data exists', () => {
 		setUnlockedCount('lick-f', 3);
 		startSingleLickSession(makeLick('F', 'lick-f'));
-		expect(lickPractice.plan[0].keys).toEqual(['F', 'Bb', 'C']);
+		expect(lickPractice.plan[0].keys).toEqual(['F', 'G', 'C']);
 	});
 
 	it('always demos the first cycle of a session', () => {
 		setUnlockedCount('lick-f', 3);
-		seedRolling('lick-f', { F: 0.99, Bb: 0.98, C: 0.97 }); // all proficient
+		seedRolling('lick-f', { F: 0.99, G: 0.98, C: 0.97 }); // all proficient
 		startSingleLickSession(makeLick('F', 'lick-f'));
 		expect(lickPractice.demoNextCycle).toBe(true);
 	});
@@ -114,8 +118,8 @@ describe('advanceSingleLickRound rotation + demo decision', () => {
 	it('sorts survivors worst-first and demos while the head key is weak', () => {
 		setUnlockedCount('lick-f', 3);
 		startSingleLickSession(makeLick('F', 'lick-f'));
-		seedRolling('lick-f', { F: 0.92, Bb: 0.96, C: 0.85 });
-		lickPractice.masteredThisRound = ['Bb'];
+		seedRolling('lick-f', { F: 0.92, G: 0.96, C: 0.85 });
+		lickPractice.masteredThisRound = ['G'];
 
 		advanceSingleLickRound();
 
@@ -126,8 +130,8 @@ describe('advanceSingleLickRound rotation + demo decision', () => {
 	it('skips the demo once every surviving key is proficient', () => {
 		setUnlockedCount('lick-f', 3);
 		startSingleLickSession(makeLick('F', 'lick-f'));
-		seedRolling('lick-f', { F: 0.95, Bb: 0.96, C: 0.93 });
-		lickPractice.masteredThisRound = ['Bb'];
+		seedRolling('lick-f', { F: 0.95, G: 0.96, C: 0.93 });
+		lickPractice.masteredThisRound = ['G'];
 
 		advanceSingleLickRound();
 
@@ -138,12 +142,12 @@ describe('advanceSingleLickRound rotation + demo decision', () => {
 	it('sorts the refilled circle worst-first after a full clear', () => {
 		setUnlockedCount('lick-f', 3);
 		startSingleLickSession(makeLick('F', 'lick-f'));
-		seedRolling('lick-f', { F: 0.99, Bb: 0.98, C: 0.91 });
+		seedRolling('lick-f', { F: 0.99, G: 0.98, C: 0.91 });
 		lickPractice.masteredThisRound = [...lickPractice.plan[0].keys];
 
 		advanceSingleLickRound();
 
-		expect(lickPractice.plan[0].keys).toEqual(['C', 'Bb', 'F']);
+		expect(lickPractice.plan[0].keys).toEqual(['C', 'G', 'F']);
 		expect(lickPractice.demoNextCycle).toBe(false); // a refill never demos
 	});
 
@@ -153,20 +157,20 @@ describe('advanceSingleLickRound rotation + demo decision', () => {
 		// Every key cleared this cycle, but C's EWMA still lags the clear: a
 		// 0.95 from a 0.7 history lands at 0.8. The old rule demoed C here —
 		// "it plays even at tempo bumps" — for a key the user just cleared.
-		seedRolling('lick-f', { F: 0.99, Bb: 0.98, C: 0.8 });
+		seedRolling('lick-f', { F: 0.99, G: 0.98, C: 0.8 });
 		lickPractice.masteredThisRound = [...lickPractice.plan[0].keys];
 
 		advanceSingleLickRound();
 
-		expect(lickPractice.plan[0].keys).toEqual(['C', 'Bb', 'F']);
+		expect(lickPractice.plan[0].keys).toEqual(['C', 'G', 'F']);
 		expect(lickPractice.demoNextCycle).toBe(false);
 	});
 
 	it('still demos a weak head key when the rotation was not cleared in full', () => {
 		setUnlockedCount('lick-f', 3);
 		startSingleLickSession(makeLick('F', 'lick-f'));
-		seedRolling('lick-f', { F: 0.99, Bb: 0.98, C: 0.8 });
-		lickPractice.masteredThisRound = ['F', 'Bb']; // C survives
+		seedRolling('lick-f', { F: 0.99, G: 0.98, C: 0.8 });
+		lickPractice.masteredThisRound = ['F', 'G']; // C survives
 
 		advanceSingleLickRound();
 
@@ -177,7 +181,7 @@ describe('advanceSingleLickRound rotation + demo decision', () => {
 	it('ranks a never-practiced key worst so it gets the demo', () => {
 		setUnlockedCount('lick-f', 3);
 		startSingleLickSession(makeLick('F', 'lick-f'));
-		seedRolling('lick-f', { F: 0.95, Bb: 0.92 }); // C unknown
+		seedRolling('lick-f', { F: 0.95, G: 0.92 }); // C unknown
 		lickPractice.masteredThisRound = [];
 
 		advanceSingleLickRound();
@@ -190,7 +194,7 @@ describe('advanceSingleLickRound rotation + demo decision', () => {
 		setUnlockedCount('lick-f', 3);
 		startSingleLickSession(makeLick('F', 'lick-f'));
 		lickPractice.config.practiceMode = 'call-response';
-		seedRolling('lick-f', { F: 0.5, Bb: 0.5, C: 0.5 });
+		seedRolling('lick-f', { F: 0.5, G: 0.5, C: 0.5 });
 		lickPractice.masteredThisRound = [];
 
 		advanceSingleLickRound();

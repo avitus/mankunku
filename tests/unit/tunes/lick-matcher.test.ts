@@ -12,6 +12,7 @@ import {
 } from '$lib/tunes/lick-matcher';
 import { baseLickId, getAllLicks } from '$lib/phrases/library-loader';
 import { INSTRUMENTS } from '$lib/types/instruments';
+import type { UnlockRamp } from '$lib/music/key-ordering';
 import {
 	saveLickPracticeProgress,
 	saveUserLickTags,
@@ -79,6 +80,8 @@ function mankunkuDetections(): DetectedProgression[] {
 }
 
 describe('classifyMasteryTier', () => {
+	/** A C major lick on a concert instrument: planUnlockedKeys(cMajor, 3) = [C, G, F]. */
+	const cMajor: UnlockRamp = { entryKey: 'C', mode: 'major', instrument: INSTRUMENTS.concert };
 	const keyProgress = (passCount: number) => ({
 		currentTempo: 100,
 		lastPracticedAt: 1000,
@@ -88,14 +91,14 @@ describe('classifyMasteryTier', () => {
 	it('is known when the target key has at least one pass', () => {
 		const progress: LickPracticeProgress = { l1: { G: keyProgress(1) } };
 		expect(
-			classifyMasteryTier({ progress, lickId: 'l1', entryKey: 'C', targetKey: 'G', unlockedCount: 2 })
+			classifyMasteryTier({ progress, lickId: 'l1', ramp: cMajor, targetKey: 'G', unlockedCount: 2 })
 		).toBe('known');
 	});
 
 	it('is learning when the target key was attempted but never passed', () => {
 		const progress: LickPracticeProgress = { l1: { G: keyProgress(0) } };
 		expect(
-			classifyMasteryTier({ progress, lickId: 'l1', entryKey: 'C', targetKey: 'G', unlockedCount: 2 })
+			classifyMasteryTier({ progress, lickId: 'l1', ramp: cMajor, targetKey: 'G', unlockedCount: 2 })
 		).toBe('learning');
 	});
 
@@ -103,20 +106,20 @@ describe('classifyMasteryTier', () => {
 		// planUnlockedKeys(C, 3) = [C, G, F]
 		const progress: LickPracticeProgress = { l1: { C: keyProgress(2) } };
 		expect(
-			classifyMasteryTier({ progress, lickId: 'l1', entryKey: 'C', targetKey: 'F', unlockedCount: 3 })
+			classifyMasteryTier({ progress, lickId: 'l1', ramp: cMajor, targetKey: 'F', unlockedCount: 3 })
 		).toBe('learning');
 	});
 
 	it('is unknown for a key outside the unlock ramp even when the lick was started', () => {
 		const progress: LickPracticeProgress = { l1: { C: keyProgress(2) } };
 		expect(
-			classifyMasteryTier({ progress, lickId: 'l1', entryKey: 'C', targetKey: 'D', unlockedCount: 3 })
+			classifyMasteryTier({ progress, lickId: 'l1', ramp: cMajor, targetKey: 'D', unlockedCount: 3 })
 		).toBe('unknown');
 	});
 
 	it('is unknown for a never-practiced lick, even at its own entry key', () => {
 		expect(
-			classifyMasteryTier({ progress: {}, lickId: 'l1', entryKey: 'C', targetKey: 'C', unlockedCount: 1 })
+			classifyMasteryTier({ progress: {}, lickId: 'l1', ramp: cMajor, targetKey: 'C', unlockedCount: 1 })
 		).toBe('unknown');
 	});
 
@@ -127,10 +130,10 @@ describe('classifyMasteryTier', () => {
 		}
 		const progress: LickPracticeProgress = { l1: allKeys };
 		expect(
-			classifyMasteryTier({ progress, lickId: 'l1', entryKey: 'C', targetKey: 'B', unlockedCount: 12 })
+			classifyMasteryTier({ progress, lickId: 'l1', ramp: cMajor, targetKey: 'B', unlockedCount: 12 })
 		).toBe('learning');
 		expect(
-			classifyMasteryTier({ progress, lickId: 'l1', entryKey: 'C', targetKey: 'Eb', unlockedCount: 12 })
+			classifyMasteryTier({ progress, lickId: 'l1', ramp: cMajor, targetKey: 'Eb', unlockedCount: 12 })
 		).toBe('known');
 	});
 });

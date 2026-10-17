@@ -57,12 +57,12 @@
  * back hands over to the ordinary clear → bump → refill rule. One rule per
  * phase: focus earns tempo, rebuild earns keys, a full rotation earns tempo
  * again. It is the unlock ladder in miniature, with expertise standing in
- * for circle-of-fifths adjacency as the admission order.
+ * for key-signature order as the admission order.
  */
 
 import type { PitchClass } from '$lib/types/music';
 import type { FocusRamp, SingleLickRoundEntry } from '$lib/types/lick-practice';
-import { MAX_UNLOCKED_KEYS, planUnlockedKeys } from '$lib/music/key-ordering';
+import { MAX_UNLOCKED_KEYS, planUnlockedKeys, type UnlockRamp } from '$lib/music/key-ordering';
 import {
 	KEY_FLOOR_THRESHOLD,
 	KEY_PROFICIENT_THRESHOLD,
@@ -123,20 +123,20 @@ export const LEAD_SHEET_PAUSE_BARS = 2;
  * The key a lick's player is currently learning: the most recently unlocked
  * one. Derivable with no timestamp because the unlock state is a single
  * per-lick count and the ramp (`planUnlockedKeys`) is a pure function of the
- * entry key — the newest key is simply the ramp's last entry. Null once every
- * key is unlocked: nothing is "newest" any more.
+ * lick's `UnlockRamp` — the newest key is simply the ramp's last entry. Null
+ * once every key is unlocked: nothing is "newest" any more.
  */
-export function newestUnlockedKey(entryKey: PitchClass, unlockedCount: number): PitchClass | null {
+export function newestUnlockedKey(ramp: UnlockRamp, unlockedCount: number): PitchClass | null {
 	if (unlockedCount >= MAX_UNLOCKED_KEYS) return null;
-	const ramp = planUnlockedKeys(entryKey, unlockedCount);
-	return ramp[ramp.length - 1] ?? null;
+	const keys = planUnlockedKeys(ramp, unlockedCount);
+	return keys[keys.length - 1] ?? null;
 }
 
 export interface NotationRevealInput {
 	/** The key of the row being decided. */
 	key: PitchClass;
-	/** The lick's own key — the origin of its unlock ramp. */
-	entryKey: PitchClass;
+	/** The lick's unlock ramp — its entry key, mode and the player's instrument. */
+	ramp: UnlockRamp;
 	/** Keys unlocked for the lick so far (1–12). */
 	unlockedCount: number;
 	/** The key's persisted rolling score; undefined = never attempted here. */
@@ -158,7 +158,7 @@ export function shouldRevealNotation(
 	input: NotationRevealInput,
 	floor: number = KEY_FLOOR_THRESHOLD
 ): boolean {
-	if (input.key !== newestUnlockedKey(input.entryKey, input.unlockedCount)) return false;
+	if (input.key !== newestUnlockedKey(input.ramp, input.unlockedCount)) return false;
 	return input.rolling !== undefined && input.rolling < floor;
 }
 

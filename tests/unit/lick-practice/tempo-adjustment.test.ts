@@ -27,6 +27,7 @@ import type {
 	LickPracticeProgress
 } from '$lib/types/lick-practice';
 import type { PitchClass } from '$lib/types/music';
+import { settings } from '$lib/state/settings.svelte';
 
 // Minimal localStorage mock so saveLickPracticeProgress doesn't warn.
 const store: Record<string, string> = {};
@@ -99,6 +100,9 @@ function setupLick(opts: {
 }
 
 beforeEach(() => {
+	// These fixtures spell the unlock ramp in concert pitch (C, G, F, …);
+	// the ramp counts accidentals in WRITTEN pitch, so pin a C instrument.
+	settings.instrumentId = 'concert';
 	for (const k of Object.keys(store)) delete store[k];
 });
 

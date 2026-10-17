@@ -14,7 +14,6 @@
 
 import type { Fraction, Note } from '$lib/types/music';
 import { addFractions, compareFractions, fractionToFloat, subtractFractions } from '$lib/music/intervals';
-import { getTripletBase } from '$lib/music/notation';
 
 /** Shallow-copy every element so callers can hand the result to a rune. */
 function cloneAll(notes: readonly Note[]): Note[] {
@@ -64,44 +63,6 @@ export function removeTime(notes: readonly Note[], index: number): Note[] {
 		}
 	}
 	return out;
-}
-
-/**
- * Merge contiguous non-triplet rests whose STARTS fall in the same bar into
- * one element (a rest may already run past the barline — a saved lick's pad
- * does — so the end is not the test). Triplet rests belong to their group and
- * are never merged, matching `mergeConsecutiveRests` on the display side.
- * `indexMap[old]` gives the index of the element that now holds old element
- * `old`, so a caller can re-aim its selection.
- */
-export function coalesceRests(
-	notes: readonly Note[],
-	barLength: Fraction = [1, 1]
-): { notes: Note[]; indexMap: number[] } {
-	const out: Note[] = [];
-	const indexMap: number[] = [];
-	const bar = fractionToFloat(barLength);
-/** Bar index of an offset under this bar length. */
-	const barOf = (f: Fraction): number => Math.floor(fractionToFloat(f) / bar + 1e-9);
-	for (const n of notes) {
-		const prev = out.at(-1);
-		const mergeable =
-			n.pitch === null &&
-			prev !== undefined &&
-			prev.pitch === null &&
-			getTripletBase(n.duration) === null &&
-			getTripletBase(prev.duration) === null &&
-			compareFractions(addFractions(prev.offset, prev.duration), n.offset) === 0 &&
-			barOf(prev.offset) === barOf(n.offset);
-		if (mergeable) {
-			prev.duration = addFractions(prev.duration, n.duration);
-			indexMap.push(out.length - 1);
-			continue;
-		}
-		out.push({ ...n });
-		indexMap.push(out.length - 1);
-	}
-	return { notes: out, indexMap };
 }
 
 /** Drop every rest at the end of the buffer; trailing silence is implied. */

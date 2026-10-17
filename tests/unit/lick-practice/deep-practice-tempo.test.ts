@@ -47,6 +47,7 @@ import {
 } from '$lib/state/lick-practice-rotation';
 import type { PitchClass, Phrase } from '$lib/types/music';
 import type { Score } from '$lib/types/scoring';
+import { settings } from '$lib/state/settings.svelte';
 
 const store = new Map<string, string>();
 vi.stubGlobal('localStorage', {
@@ -123,6 +124,9 @@ function playEveryKeyInRotation(): void {
 }
 
 beforeEach(() => {
+	// These fixtures spell the unlock ramp in concert pitch (C, G, F, …);
+	// the ramp counts accidentals in WRITTEN pitch, so pin a C instrument.
+	settings.instrumentId = 'concert';
 	store.clear();
 	resetSession();
 	lickPractice.progress = {};
