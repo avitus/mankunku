@@ -2,7 +2,10 @@
 # in .circleci/continue-config.yml. A test atom is one test FILE, so a
 # parallel job is split by file using the timings of previous runs.
 name: unit tests
-discover: npx vitest list --filesOnly
+# The same files as vite.config.ts's test.include. Not `vitest list`: on
+# CircleCI its output failed to parse ("cannot mix newline and space
+# separators", 0 atoms) while it read clean in the same image outside CI.
+discover: find tests/unit tests/integration -name '*.test.ts' | sort
 run: npx vitest run --reporter=default --reporter=junit --outputFile.junit="<< outputs.junit >>" << test.atoms >>
 options:
   store-test-results: true
