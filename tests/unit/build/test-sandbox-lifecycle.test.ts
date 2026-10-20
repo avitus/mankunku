@@ -25,6 +25,8 @@ function fixture(exitCode: number, { copyFailure = false, junit = false, missing
 	spawnSync('git', ['add', '.'], { cwd: root });
 	rmSync(path.join(root, 'deleted.txt'));
 	writeFileSync(path.join(root, 'uncommitted.txt'), 'Current worktree');
+	mkdirSync(path.join(root, 'tests/unit/build'), { recursive: true });
+	writeFileSync(path.join(root, 'tests/unit/build/source.test.ts'), 'Source, not generated output');
 	writeFileSync(path.join(root, 'bin/docker'), `#!${process.execPath}
 const fs = require('node:fs');
 let args = process.argv.slice(2);
@@ -34,7 +36,7 @@ switch (args[0]) {
   case 'info': ${missingEngine ? 'process.exit(1);' : "console.log('linux');"} break;
   case 'build': {
     const snapshot = args.at(-1);
-    if (!fs.existsSync(snapshot + '/uncommitted.txt') || fs.existsSync(snapshot + '/deleted.txt') ||
+    if (!fs.existsSync(snapshot + '/uncommitted.txt') || !fs.existsSync(snapshot + '/tests/unit/build/source.test.ts') || fs.existsSync(snapshot + '/deleted.txt') ||
         fs.existsSync(snapshot + '/.env.test') || fs.readFileSync(snapshot + '/.npmrc', 'utf8').includes('never-copy')) process.exit(99);
     fs.writeFileSync(args[args.indexOf('--iidfile') + 1], 'sha256:fixture');
     break;

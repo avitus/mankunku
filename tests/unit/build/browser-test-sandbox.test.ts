@@ -19,11 +19,13 @@ describe('Browser isolation boundary', () => {
 describe('Test sandbox snapshot and invocation', () => {
 	it.each(['.env', '.env.test', '.env.sentry-build-plugin', 'nested/.env.local', '.git/config',
 		'.claude/worktrees/another/src/main.ts', '.chunk/config.json', 'node_modules/vitest/run.js',
-		'tests/e2e/.auth/user.json', 'supabase/.temp/password', 'test-results/report.json', 'private.pem'])
+		'tests/e2e/.auth/user.json', 'supabase/.temp/password', 'test-results/report.json',
+		'build/index.js', '.svelte-kit/output/server.js', 'playwright-report/index.html', 'private.pem'])
 	('excludes host state even if Git tracks %s', (file) => {
 		expect(includeInSnapshot(file)).toBe(false);
 	});
-	it.each(['.env.example', 'src/app.html', 'tests/e2e/smoke.spec.ts', '.circleci/test-suites.yml'])
+	it.each(['.env.example', 'src/app.html', 'tests/e2e/smoke.spec.ts', '.circleci/test-suites.yml',
+		'tests/unit/build/browser-test-sandbox.test.ts'])
 	('copies source %s', (file) => {
 		expect(includeInSnapshot(file)).toBe(true);
 	});

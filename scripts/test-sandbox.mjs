@@ -12,9 +12,11 @@ const root = fileURLToPath(new URL('../', import.meta.url));
  * @param {string} file
  */
 export function includeInSnapshot(file) {
+	// Generated root output is distinct from source such as tests/unit/build/.
+	if (['.svelte-kit', 'build', 'test-results', 'playwright-report'].includes(file.split('/')[0])) return false;
 	return !file.split('/').some((part) =>
-		['.git', '.claude', '.codex', '.chunk', '.npmrc', 'node_modules', '.svelte-kit', 'build',
-			'test-results', 'playwright-report', '.venv', '__pycache__', '.auth', '.temp'].includes(part) ||
+		['.git', '.claude', '.codex', '.chunk', '.npmrc', 'node_modules',
+			'.venv', '__pycache__', '.auth', '.temp'].includes(part) ||
 		(part.startsWith('.env') && part !== '.env.example') ||
 		/\.(pem|key|p12|pfx)$/.test(part));
 }
