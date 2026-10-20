@@ -385,7 +385,7 @@ export function tuneToAbcWithMap(
 				tokenIndex: tokens.length,
 				sectionIdx: currentSectionIdx,
 				offset: fractionToFloat(el.note.offset),
-				duration: fractionToFloat(duration)
+				duration: fractionToFloat(el.note.duration)
 			});
 		}
 		if (el.sourceIndex !== null && !isSlashBarRest(el.note, duration)) {
@@ -735,22 +735,22 @@ export function tuneToAbcWithMap(
 				}
 			}
 
-			// Complete triplet group: 3 consecutive same-duration pitched triplet
-			// notes with contiguous offsets.
+			// Complete triplet group: 3 consecutive same-duration triplet notes
+			// or rests with contiguous offsets.
 			const tripBase = getTripletBase(el.note.duration);
 			if (tripBase !== null && i + 2 < elements.length &&
 				sameDuration(elements[i + 1].note.duration, el.note.duration) &&
-				sameDuration(elements[i + 2].note.duration, el.note.duration) &&
-				elements[i].note.pitch !== null &&
-				elements[i + 1].note.pitch !== null &&
-				elements[i + 2].note.pitch !== null) {
+				sameDuration(elements[i + 2].note.duration, el.note.duration)) {
 
 				const tripDur = fractionToFloat(el.note.duration);
 				const off0 = fractionToFloat(elements[i].note.offset);
 				const off1 = fractionToFloat(elements[i + 1].note.offset);
 				const off2 = fractionToFloat(elements[i + 2].note.offset);
 
-				if (Math.abs(off1 - off0 - tripDur) < 1e-9 && Math.abs(off2 - off1 - tripDur) < 1e-9) {
+				// A group never crosses a barline: the third member must start in
+				// the first one's bar, or its barline and bar anchor are lost.
+				if (Math.abs(off1 - off0 - tripDur) < 1e-9 && Math.abs(off2 - off1 - tripDur) < 1e-9 &&
+					Math.floor(off2 / barDuration + 1e-9) === bar) {
 					tokens.push('(3');
 					for (let j = 0; j < 3; j++) emitElement(elements[i + j], tripBase, barState);
 					prevBar = Math.floor(off2 / barDuration + 1e-9);

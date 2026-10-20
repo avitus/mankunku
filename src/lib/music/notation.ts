@@ -907,23 +907,23 @@ export function phraseToAbcWithMap(
 			}
 		}
 
-		// Check for a complete triplet group (3 consecutive same-duration pitched triplet notes
+		// Check for a complete triplet group (3 consecutive same-duration notes or rests
 		// with rhythmically contiguous offsets)
 		const tripBase = getTripletBase(note.duration);
 		if (tripBase !== null && i + 2 < displayNotes.length &&
 			sameDuration(displayNotes[i + 1].duration, note.duration) &&
-			sameDuration(displayNotes[i + 2].duration, note.duration) &&
-			displayNotes[i].pitch !== null &&
-			displayNotes[i + 1].pitch !== null &&
-			displayNotes[i + 2].pitch !== null) {
+			sameDuration(displayNotes[i + 2].duration, note.duration)) {
 
 			const tripDur = fractionToFloat(note.duration);
 			const off0 = fractionToFloat(displayNotes[i].offset);
 			const off1 = fractionToFloat(displayNotes[i + 1].offset);
 			const off2 = fractionToFloat(displayNotes[i + 2].offset);
 
+			// A group never crosses a barline: the third member must start in the
+			// first one's bar, or the barline between them is never emitted.
 			if (Math.abs(off1 - off0 - tripDur) < 1e-9 &&
-				Math.abs(off2 - off1 - tripDur) < 1e-9) {
+				Math.abs(off2 - off1 - tripDur) < 1e-9 &&
+				Math.floor(off2 / barDuration + 1e-9) === bar) {
 
 				tokens.push('(3');
 				for (let j = 0; j < 3; j++) {

@@ -130,7 +130,7 @@ icons must remain understandable without color, with stable Listen/Play geometry
 
 ### Intonation poles
 
-`--color-tune-sharp` (brass: `--color-brass-soft` dark, `--color-brass` light) and `--color-tune-flat` (blue: `#7aa7d9` dark, `#365f9e` light) colour the ear-training **Your tuning** fader bank (`TuningFaders`). They are never used raw: `tuningTone(cents)` (`src/lib/ui/tuning-tone.ts`) returns the text colour within ±5¢, steps to half strength the moment a note leaves that zone, and reaches the full pole at 12¢ (`ALERT_CENTS`), the offset the sharp/flat reminder speaks at. Warm-high / cool-low is the reading; blue against orange stays apart under the common colour-vision deficiencies. The exact cents are always printed beside the colour.
+`--color-tune-sharp` (brass: `--color-brass-soft` dark, `--color-brass` light) and `--color-tune-flat` (blue: `#7aa7d9` dark, `#365f9e` light) colour the ear-training **Your tuning** fader bank (`TuningFaders`). They are never used raw: `tuningTone(cents)` (`src/lib/ui/tuning-tone.ts`) returns the text colour within ±5¢, steps to half strength the moment a note leaves that zone, and reaches the full pole at 12¢ (`ALERT_CENTS`), the offset the sharp/flat reminder speaks at. The reminder then holds down to 8¢ (`HOLD_CENTS`, 2026-10-20); that switch-off offset never moves the faders' ticks or this pole, which stay on `ALERT_CENTS`. Warm-high / cool-low is the reading; blue against orange stays apart under the common colour-vision deficiencies. The exact cents are always printed beside the colour.
 
 ### Difficulty & Mastery ramps
 
