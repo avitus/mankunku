@@ -35,6 +35,7 @@ test.describe('lick-practice session flow', () => {
 				observer.disconnect();
 				reject(new Error('Next Deep cycle did not animate into C'));
 			}, 15_000);
+			/** Once the cycle-scroll animation exists, pauses it and measures the current row at its start, middle and end. */
 			function sample(): void {
 				const row = document.querySelector('.row.current[data-key="C"]');
 				const animation = row?.closest('.stack')?.getAnimations().find(
@@ -45,6 +46,7 @@ test.describe('lick-practice session flow', () => {
 				clearTimeout(timeout);
 				const duration = animation.effect?.getTiming().duration;
 				if (typeof duration !== 'number') return reject(new Error('Deep scroll has no finite duration'));
+				/** The row's distance below the top of its viewport. */
 				const offset = (): number => row.getBoundingClientRect().top - row.closest('.viewport')!.getBoundingClientRect().top;
 				animation.pause();
 				animation.currentTime = 0;
@@ -73,6 +75,7 @@ test.describe('lick-practice session flow', () => {
 		const viewport = page.locator('.viewport').filter({ has: page.locator('.stack') });
 		// The old row may exist as an outgoing animation frame, but must
 		// leave the viewport. Assert painted geometry, not just row order.
+		/** The current row's distance below the top of its viewport, as painted. */
 		const currentTop = () => page.locator('.row.current').evaluate(row =>
 			row.getBoundingClientRect().top - row.closest('.viewport')!.getBoundingClientRect().top);
 		await expect.poll(currentTop).toBeCloseTo(0, 0);
