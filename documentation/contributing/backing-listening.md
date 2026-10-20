@@ -90,6 +90,74 @@ item that a previous milestone flipped to ✅ has regressed to ❌.
 
 <!-- Paste listening reports below, newest first. -->
 
+### Sample timing audit — 2026-10-20
+
+The listener confirmed the pedal hi-hat correction with “That sounds much better.”
+This accepts that specific timing improvement, not the complete musicality specification.
+
+The follow-up measured actual recordings and isolated WAV output, separately from
+the musical offsets in `backing-timing.ts`. Bass uses the Smolken Pizzicato bank;
+piano uses Splendid Grand Piano with PPP/PP/MP/MF/FF bands (PPP filters the PP
+recordings), not the previously documented 16-layer Salamander bank.
+
+| Recording audit | Scope | Measured attack before correction |
+| --- | --- | --- |
+| Bass | All 91 samples mapped to MIDI 28–55 | 0–4 ms; median 1 ms |
+| Piano | All 226 unique loaded recordings, source anchors MIDI 23–108 | 0–39 ms; median 1 ms |
+
+These measurements use 1 ms stereo RMS windows and the first crossing of 10% of
+the early peak (first 300 ms for bass, 250 ms for piano). They identify recorded
+lead-in; a later body peak or 50% crossing is not by itself unwanted latency.
+Native isolated bass rendering also starts promptly, within 0–5 ms, so no bass
+trim or global timing advance was applied.
+
+The source piano SFZ specifies start offsets for ten recordings that the player
+omits. Their original 44.1 kHz frame counts are now restored by
+`backing-piano-samples.ts`, with a short fade at each new sample edge based on the
+source's 0.5 ms attack setting. Offsets are converted through seconds, not applied as frame counts to the
+48 kHz decoded OGGs. The remaining natural attack is retained: the soft D sample
+still has about 15 ms of buildup after its declared 23.72 ms offset. Other piano
+recordings, bass, musical timestamps, and mix gains are unchanged.
+
+The calibrated raw piano bank now measures 0–16 ms across all 226 recordings,
+and 0–15 ms for the 128 source anchors in MIDI 36–84, using the same 250 ms
+measurement window. The declared offsets come from the pinned source
+[PP mapping](https://github.com/sfzinstruments/SplendidGrandPiano/blob/1c595d827b7fd7f0be3134aaed0f90b3662a09cf/Data/PP.txt),
+[MP mapping](https://github.com/sfzinstruments/SplendidGrandPiano/blob/1c595d827b7fd7f0be3134aaed0f90b3662a09cf/Data/MP.txt),
+[FF mapping](https://github.com/sfzinstruments/SplendidGrandPiano/blob/1c595d827b7fd7f0be3134aaed0f90b3662a09cf/Data/FF.txt),
+and [global attack setting](https://github.com/sfzinstruments/SplendidGrandPiano/blob/1c595d827b7fd7f0be3134aaed0f90b3662a09cf/Splendid%20Grand%20Piano.sfz#L45).
+The converted library's mappings at revision
+`009793ebf849aee57f9a213aeaf8f2d1e2178f4f` match those source definitions.
+
+`tests/e2e/backing-pitched-timing.spec.ts` exercises the public events-JSON WAV
+renderer with real CDN samples, a dry mix, and isolated notes: bass MIDI
+28/36/43/48/55 at three velocities and piano MIDI 35/38/48/60/72 across all five
+velocity bands. It measures 10%/50%/peak timing in the first 150 ms, checks that
+the lead-in stays below 1% of the attack's peak, and guards against delayed
+attacks. Each note gets its own WAV render because a combined render retained
+residual audio in Firefox; a fresh graph prevents earlier notes from influencing
+another note's measurement. The exact cause of that residual audio remains
+unresolved. The test fetches each real recording once and reuses its downloaded
+bytes across renders, avoiding repeated full-bank CDN requests. Before the fix,
+soft piano MIDI 35 and 38 attacked at 28 ms and 45 ms respectively, including the
+shared mixer delay, and failed the 25 ms onset guard. This is a local diagnostic
+with real network samples; it skips hosted CI. Human listening of the piano
+correction remains pending.
+
+The final independent renders passed in Chromium, Firefox and WebKit: all 40
+notes per engine had silent lead-ins, bass attacks measured 6–11 ms, and the
+corrected soft low piano notes measured 14–21 ms through the mixer. The broader
+local checks passed 6,387 unit tests (40 expected failures), type checking,
+the production build and 24 focused browser checks including this diagnostic,
+the drum timing regression, mixer controls and `/musicality`. No hosted CI ran.
+
+**Separate bass follow-up:** the installed Smolken preset conversion drops
+one-sided velocity limits and region-level round-robin lengths. Native rendering
+confirmed 7–12 sample voices per note where the source preset selects one.
+This does not introduce a common timing delay, but changes level and timbre.
+Correcting selection needs its own implementation, balance calibration and
+listening review; the timing repair does not change bass selection or trims.
+
 ### Milestone B — 2026-08-06 — verdict: NEW preferred at all three tempi
 
 Blind pairs (increment-4 engine vs increments 5–8, 3-chorus AABA at 90/160/240,

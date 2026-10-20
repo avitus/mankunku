@@ -6,7 +6,7 @@
  *
  * Instruments:
  * - Upright bass (Smolken "Pizzicato" double-bass sample library)
- * - Piano (Salamander Grand Piano via smplr.SplendidGrandPiano) or
+ * - Piano (Splendid Grand Piano via smplr.SplendidGrandPiano) or
  *   organ (drawbar_organ GM SoundFont, MusyngKite kit)
  * - Drums: sampled kick, ride, hi-hat (Virtuosity Drums, CC0)
  */
@@ -133,7 +133,7 @@ type BassInstrument = SmplrSmolken;
 let tone: ToneModule | null = null;
 
 // Pitched instruments (loaded lazily via smplr).  Piano uses the
-// Salamander-sampled SplendidGrandPiano; organ uses the GM SoundFont;
+// Splendid Grand Piano sample library; organ uses the GM SoundFont;
 // bass uses the Smolken pizzicato double-bass library.
 let compInstrument: CompInstrument | null = null;
 let bassInstrument: BassInstrument | null = null;
@@ -558,7 +558,7 @@ async function ensureDrums(): Promise<void> {
  * Idempotent for the same chord instrument type.
  *
  * Bass: Smolken "Pizzicato" double-bass (loaded once, reused across types).
- * Piano: SplendidGrandPiano (Salamander, 16 velocity layers).
+ * Piano: SplendidGrandPiano (five velocity bands; PPP reuses filtered PP samples).
  * Organ: SoundFont drawbar_organ (MusyngKite kit — no better smplr option).
  */
 export async function loadBackingInstruments(

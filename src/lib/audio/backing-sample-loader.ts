@@ -1,4 +1,5 @@
 import type { SampleLoader, SampleLoaderLoadOptions, SmplrPreset, Storage } from 'smplr';
+import { prepareBackingPianoSample } from './backing-piano-samples';
 
 /**
  * smplr 1.0's default loader selects codecs from media/UA hints and silently
@@ -40,7 +41,7 @@ export function createBackingSampleLoader(context: BaseAudioContext, storage?: S
 			const result = new Map<string, AudioBuffer>();
 			for (const name of names) {
 				const buffer = buffers?.get(name);
-				if (buffer?.length && buffer.numberOfChannels) result.set(name, buffer);
+				if (buffer?.length && buffer.numberOfChannels) result.set(name, prepareBackingPianoSample(context, preset, name, buffer));
 			}
 			const missing = names.filter((name) => !result.has(name));
 			const base = preset.samples.baseUrl.replace(/\/$/, '');
@@ -48,7 +49,7 @@ export function createBackingSampleLoader(context: BaseAudioContext, storage?: S
 			const loadSample = async (name: string, candidates: readonly string[]) => {
 				const path = preset.samples.map?.[name] ?? name;
 				for (const format of candidates) {
-					try { return { format, buffer: await decode(`${base}/${path}.${format}`) }; }
+					try { return { format, buffer: prepareBackingPianoSample(context, preset, name, await decode(`${base}/${path}.${format}`)) }; }
 					catch { /* Try the next encoding of this same sample. */ }
 				}
 				throw new Error(`No playable sample for ${preset.meta?.name ?? 'backing instrument'}: ${name} (${candidates.join(', ') || 'no encodings'})`);

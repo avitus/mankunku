@@ -1009,7 +1009,7 @@ Backing-track scheduler: loads the instruments, calls `backing-generation.ts` fo
 
 **Instruments:**
 - **Upright bass** — Smolken "Pizzicato" double-bass sample library
-- **Comp** — `SplendidGrandPiano` (Salamander) for piano, or `Soundfont('drawbar_organ', kit: 'MusyngKite')` for organ
+- **Comp** — `SplendidGrandPiano` (Splendid library: PPP, PP, MP, MF and FF velocity bands, with filtered PP samples reused for PPP) for piano, or `Soundfont('drawbar_organ', kit: 'MusyngKite')` for organ
 - **Drums** — three `smplr.Sampler`s (kick / snare-family / cymbals, partitioned by `DRUM_BUFFER_FAMILY`) driving the `DRUM_BUFFERS` (Virtuosity Drums, CC0)
 
 The CDN libraries (bass, piano, organ) load through smplr's `CacheStorage` (versioned cache `mankunku-samples-v1`) when the Cache API is available, so revisits skip the network and the instruments work offline after a first load.

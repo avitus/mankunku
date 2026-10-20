@@ -238,7 +238,7 @@ const crossLoopEvidence: MusicalityEvidence[] = [
 const foundationAssessments: Record<string, string> = {
 	S1: 'Coordinated mode now plans phrase intention and player roles before generating notes.',
 	S2: "Explicit form and head/solo context feed ensemble roles, energy, density and tension. A rolling take retains instrument and ensemble checkpoints across declared playback loops while accepting completed microphone evidence.",
-	S4: 'Coordinated mode layers bounded shared phrase motion, stable player placement and small event residuals over the existing tempo-aware swing grid.',
+	S4: 'Coordinated mode layers bounded shared phrase motion, stable player placement and small event residuals over the existing tempo-aware swing grid. Sample-attack calibration separately removes the pedal lead-in and restores ten documented piano sample start offsets; the bass recordings need no timing trim.',
 	S3: 'Coordinated mode adds commentary budgets, turn-taking, reasoned silence and fill cooldowns to seeded weighted generation.',
 	S10: "Qualified microphone density and rests can change upcoming piano attack budgets and selective response ownership during a rolling lab take.",
 	S16: 'Bass ornament activity follows the ensemble plan while its pulse remains protected. Eligible two-bar walking passages now plan a directional path into the root of an actual following chorus.',
@@ -281,7 +281,7 @@ const foundationRemaining: Record<string, string> = {
 	S27: "Capture assumes headphones and fixed gain-dependent thresholds. Ambiguous or poorly covered input stays unknown. Acoustic calibration, source separation, MIDI and phrase/motif recognition remain incomplete.",
 	S28: "Register and dynamics remain diagnostic observations. Solo-register avoidance, motif following and broad acoustic validation remain incomplete.",
 	S32: 'Live timing adaptation and richer context-aware placement remain incomplete. The modest build/release timing bias and other bounds still need listening acceptance.',
-	S33: 'Soloist-relative dynamics, long-term peak/release development and richer timbral trajectories remain incomplete.',
+	S33: 'Soloist-relative dynamics, long-term peak/release development and richer timbral trajectories remain incomplete. The bass adapter also needs corrected velocity/round-robin selection, followed by balance calibration and listening review.',
 	S38: "Checkpoints bind the same declared finite form, tempo and generation policy. Indefinite continuation, longer development and checkpoint migration across engine versions remain incomplete.",
 	S39: 'Development stays within selected piano/drum phrases using the existing kit. Piano-to-drum rhythm reuse is one-way; cross-phrase dialogue and live solo imitation remain incomplete. Declared loops retain instrument history without extending motifs beyond their phrase.',
 	S40: "Rolling mode owns attacks and pitched releases within each bar and excludes unreserved two-bar piano fallback figures. Sample and room tails can remain audible after release. General full-ensemble silence and phrase recognition remain incomplete.",
@@ -366,6 +366,12 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 			...entry.evidence, ...foundationEvidence,
 			...(['S2', 'S24', 'S44', 'S46'].includes(entry.id) ? formEvidence : []),
 			...(['S4', 'S32', 'S44'].includes(entry.id) ? phraseTimingEvidence : []),
+			...(['S4', 'S32', 'S44'].includes(entry.id) ? [
+				{ ...source('backing-piano-samples'), revision: 'musicality' },
+				{ ...test('backing-piano-samples'), revision: 'musicality' },
+				{ kind: 'test' as const, path: 'tests/e2e/backing-pitched-timing.spec.ts', revision: 'musicality' }
+			] : []),
+			...(entry.id === 'S33' ? [{ kind: 'source' as const, path: 'documentation/contributing/backing-listening.md', revision: 'musicality' }] : []),
 			...(['S2', 'S38', 'S41', 'S44', 'S46'].includes(entry.id) ? checkpointEvidence : []),
 			...(['S27', 'S28', 'S44', 'S46'].includes(entry.id) ? scriptedEvidence : []),
 			...(entry.id === 'S16' ? bassDevelopmentEvidence : []),
