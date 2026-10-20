@@ -5709,3 +5709,23 @@ monitor whether it results in faster CI times."
   The new floor is ONE spec: lick-practice-session.spec.ts, 11 min of
   JUnit time = 5.7 min on its node while the other seven finished in
   2.4–3.6. Unit time is the always-run corpus (~1 min on CI).
+
+## 2026-10-20 (cont.) — Split the e2e floor; the page.clock flake
+
+- Split `lick-practice-session.spec.ts` (54 tests, 11 min JUnit, 5.7 min
+  on one node) into five subject files + `fixtures/lick-practice-seeds.ts`;
+  bodies moved verbatim (1129 lines as a multiset), `--list` identical.
+  First full run after it: 8.4 min — WORSE — node 0's first batch held
+  tune-pdf-import + tune-practice, the four new files having no timing
+  history yet. Second full run: 5.2 min on 10 nodes, all within 3.2–4.2.
+  Full-run e2e so far: ~11.3 → 7.4 (free) → 5.2 (paid + split).
+- Andy asked for the progress-trend-chart flake here. Stack trace from a
+  probe spec (6/60 locally) pointed at Sentry Replay's debounce:
+  page.clock fakes every timer → Sentry's isNativeFunction rejects
+  setTimeout → it takes one from a sandbox iframe, which Playwright gives
+  its own fake clock → timers set there, cleared through the page's clock,
+  both counters starting at 1e12 → a cleared id can be the page's idle
+  callback (web-vitals INP). Harness-only. `fixtures/date.ts` freezeDate
+  replaces Date alone; `freeze-date.spec.ts` fails under setFixedTime and
+  passes under freezeDate; the flaky test is 60/60.
+- Reseeded e2e impact data after the push (39 atoms analysed).

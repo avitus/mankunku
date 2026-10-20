@@ -3132,3 +3132,18 @@ Second, about my own process: three rounds of "seed, then edit config"
 cost ~40 minutes before I saw that the seeded hashes include the full-run
 paths. Any cache keyed on file content wants the same discipline as a
 lockfile — finish the edits, then generate.
+
+## 2026-10-20 — A spec comment stated the intent; the API did something else
+
+progress-trend-chart said "Freeze calendar dates only. Keep native timers
+for Sentry Replay and UI events" directly above `page.clock.setFixedTime`
+— which fakes every timer. The author knew exactly what they needed and
+believed the call delivered it; the name ("fixed time") invites the
+reading. The flake then needed THREE pieces to line up — a timer check
+that judges by `toString`, a sandbox iframe that inherits init scripts,
+and two id counters with the same origin — and none of them is wrong on
+its own. Reading the comment against the call would have found it in a
+minute; reading the stack trace took the rest. Also: the first full run
+after adding test files is a cold-start measurement for any timing-based
+splitter, not a verdict; I nearly reported 8.4 min as "dynamic splitting
+is worse".
