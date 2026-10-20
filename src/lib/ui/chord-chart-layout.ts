@@ -25,7 +25,7 @@ export interface ChordChartCell {
  * proportional cell, multi-bar segments split into one cell per bar so the
  * beat dots and highlight advance bar by bar.
  *
- * The component renders ALL cells on one flex row, proportional widths —
+ * The component renders ALL cells on one grid row, proportional widths —
  * never wrapped. The host sizes every key row to exactly one chart row
  * (UpcomingKeysDisplay's fixed ROW_HEIGHT), so a wrapped second row can
  * only ever overflow the row box and paint over the key below it — it

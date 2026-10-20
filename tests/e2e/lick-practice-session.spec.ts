@@ -718,14 +718,13 @@ test.describe('lick-practice session flow', () => {
 		// Measure painted notes too: the previous 1,100-unit staff made these
 		// only 8px wide even though its oversized chord font passed the check.
 		expect(geometry.noteheadWidth).toBeGreaterThan(11);
-		// The full bar boundary matches the adjacent chord-only row, even
-		// though abcjs reserves space for the clef and written key signature.
-		const barAlignment = await sheet.evaluate(lead => {
-			const chordCells = lead.closest('.stack')!.querySelector('.chord-cells')!.children;
-			const bar = lead.querySelector('.abcjs-bar')!.getBoundingClientRect();
-			return Math.abs(chordCells[1].getBoundingClientRect().right - bar.left);
-		});
-		expect(barAlignment).toBeLessThan(2);
+		// Chord-only cells represent time, independently of the sheet's
+		// engraving: two 2-beat chords followed by one 4-beat chord.
+		const widths = await page.locator('.chord-cells').first().locator('.chord-cell')
+			.evaluateAll(cells => cells.map(cell => cell.getBoundingClientRect().width));
+		expect(widths).toHaveLength(3);
+		expect(Math.abs(widths[0] - widths[1])).toBeLessThan(0.1);
+		expect(Math.abs(widths[2] - 2 * widths[0])).toBeLessThan(0.1);
 
 		await page.screenshot({ path: test.info().outputPath('daily-sheet-preview.png') });
 		await expect(play).toHaveAttribute('data-pass', '1', { timeout: 15_000 });

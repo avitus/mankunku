@@ -9,8 +9,6 @@
 	interface Props {
 		/** Show the Changes label for standalone charts; sessions own their cue lane. */
 		showLabel?: boolean;
-		/** Actual one-system engraving boundaries; only used for a matching full cycle. */
-		barEdges?: number[];
 		harmony: HarmonicSegment[];
 		currentBeat: number;
 		timeSignature: [number, number];
@@ -29,7 +27,6 @@
 
 	let {
 		showLabel = true,
-		barEdges,
 		harmony,
 		currentBeat,
 		timeSignature,
@@ -46,17 +43,6 @@
 	}
 
 	const cells = $derived(chordChartCells(harmony, timeSignature));
-	const alignedWidths = $derived.by(() => {
-		const totalBeats = cells.at(-1) ? cells.at(-1)!.startBeat + cells.at(-1)!.durationBeats : 0;
-		if (!barEdges || Math.abs(totalBeats / timeSignature[0] - (barEdges.length - 1)) > 0.001) return null;
-		/** Interpolate sub-bar chord cells between the engraving’s full-bar edges. */
-		const edgeAt = (beat: number): number => {
-			const bar = beat / timeSignature[0];
-			const index = Math.min(Math.floor(bar), barEdges.length - 2);
-			return barEdges[index] + (bar - index) * (barEdges[index + 1] - barEdges[index]);
-		};
-		return cells.map(cell => edgeAt(cell.startBeat + cell.durationBeats) - edgeAt(cell.startBeat));
-	});
 
 	/** Slash bass respelled like the root, when the segment carries one. */
 	function displayBass(seg: HarmonicSegment): string | undefined {
@@ -104,7 +90,9 @@
 	     sizes each key row to exactly one chart row, so a second row could
 	     only overflow it and paint over the key below. Long windows get
 	     proportionally narrower cells instead. -->
-	<div class="chord-cells flex">
+	<!-- Grid tracks include padding and borders in each beat-proportional share. -->
+	<div class="chord-cells grid"
+		style:grid-template-columns={cells.map(cell => `minmax(0, ${cell.widthWeight}fr)`).join(' ')}>
 		{#each cells as cell, cellIdx}
 			{@const isActive = cellIdx === currentCellIndex}
 			{@const isPast = currentCellIndex >= 0 && cellIdx < currentCellIndex}
@@ -114,7 +102,6 @@
 				class="chord-cell relative flex flex-col items-center justify-center
 					   {isActive ? 'active' : ''}
 					   {isPast ? 'past' : ''}"
-				style="flex: {alignedWidths ? `0 0 ${alignedWidths[cellIdx] * 100}%` : `${cell.widthWeight} 1 0%`}"
 			>
 				<span
 					class="chord-symbol text-2xl tracking-tight transition-colors

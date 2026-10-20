@@ -41,7 +41,7 @@ describe('chordChartCells', () => {
 	// the host sizes every key row to exactly one chart row, so the lone
 	// wrapped 5th cell overflowed the row box and painted a stray
 	// full-width chord symbol over the key below. The component now renders
-	// every cell on one structural flex row; this pins the cell math that
+	// every cell on one structural grid row; this pins the cell math that
 	// row consumes — equal-width bar cells covering the whole window.
 	test('a 5-bar drill window yields 5 equal single-row cells', () => {
 		const cells = chordChartCells([segment(0, 5)], FOUR_FOUR);

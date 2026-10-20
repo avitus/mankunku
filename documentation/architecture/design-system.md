@@ -537,9 +537,9 @@ Listen and Play share frame geometry, using semantic phase tokens (approved oran
 the entrance frame stays dashed until recording is audible.
 
 Production notation stays in abcjs, preserving real notes, accidentals, written
-pitch and ledger lines. Adjacent chord rows follow the active staff's measured
-bar boundaries when both cover the same full progression. A windowed excerpt of
-a longer progression retains its own geometry. Resize measurements include the
+pitch and ledger lines. Chord-only rows use beat-proportional widths independently
+of the staff's engraving density. The notation wash follows the staff's measured
+bar boundaries, and a windowed excerpt retains its own geometry. Resize measurements include the
 SVG's actual scale; playback updates move only the highlight, never re-engrave.
 The current bar has a restrained wash and thin underline. Ring keys retain tier
 colours and current/pending outlines; percentages are available in accessible
@@ -557,8 +557,9 @@ and vertical chord-cell boundaries, with no extra trailing cell rule. These
 lines retain their contrast from initial load through Listen, Play and key
 changes. Dim inactive/past chord text and beat dots instead of the whole row
 or cell. `UpcomingKeysDisplay` and `ChordChart` share this rule across Daily,
-Deep and Focused Practice; preserve row heights, bar alignment, phase frames and
-the existing musical engraving. The MagicPath kit mirrors the dark token as
+Deep and Focused Practice; preserve row heights, phase frames and the existing
+musical engraving. Chord-only sections use beat-proportional widths, including
+half-bar chords; their boundaries are independent of sheet engraving density. The MagicPath kit mirrors the dark token as
 `--mk-practice-divider`; independent future Deep Practice prototypes must reuse
 this rule rather than fading their structural frames.
 
