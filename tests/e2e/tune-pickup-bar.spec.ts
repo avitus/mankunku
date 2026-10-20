@@ -6,7 +6,7 @@ import { seedOnboardedAnonymous, seedTunes } from './fixtures/storage';
  * one-bar section every importer writes for a pickup must engrave that bar
  * SHORT, hanging off the front of the form's first system — not as a full
  * bar justified across a system of its own — with the printed bar numbers
- * excluding it and the boxed section letter seated over the first full bar.
+ * excluding it and the boxed section letter seated before the first full bar.
  */
 
 /** The import shape BEFORE the `pickupLength` field existed: legacy rows must render right too. */
@@ -49,6 +49,15 @@ test('a legacy imported pickup shares the first system and bar numbers skip it',
 			barNumber: (w.querySelector('.abcjs-bar-number, text.abcjs-bar-number')?.textContent ?? '').trim()
 		}));
 	});
+	const clearance = await page.evaluate(() => {
+		const wrapper = document.querySelector('.abcjs-container svg g.abcjs-staff-wrapper')!;
+		const part = (wrapper.querySelector('g.abcjs-part') ?? wrapper.querySelector('text.abcjs-part'))!.getBoundingClientRect();
+		const chord = wrapper.querySelector('.abcjs-chord')!.getBoundingClientRect();
+		const barline = wrapper.querySelector('g.abcjs-bar')!.getBoundingClientRect();
+		return { partRight: part.right, chordLeft: chord.left, barlineLeft: barline.left };
+	});
+	expect(clearance.partRight).toBeLessThan(clearance.barlineLeft);
+	expect(clearance.partRight).toBeLessThan(clearance.chordLeft);
 	// Pickup + A1–A4, then A5–A8: two systems, not three.
 	expect(report).toHaveLength(2);
 	// System 1 holds the pickup's barline plus four full bars' barlines.
@@ -57,7 +66,7 @@ test('a legacy imported pickup shares the first system and bar numbers skip it',
 	expect(report[1].barNumber).toBe('5');
 });
 
-test('the editor adds a pickup that fills no column and seats the letter over the first full bar', async ({ page }) => {
+test('the editor adds a pickup that fills no column and seats the letter before the first full bar', async ({ page }) => {
 	await page.goto('/tunes/editor');
 	await expect(page.locator('[data-bar-pos="0:0"]')).toBeVisible();
 
@@ -92,12 +101,12 @@ test('the editor adds a pickup that fills no column and seats the letter over th
 		const firstFull = wrapper.querySelector('rect.bar-hit[data-bar-pos="1:0"]')?.getBoundingClientRect();
 		const part = (wrapper.querySelector('g.abcjs-part') ?? wrapper.querySelector('text.abcjs-part'))?.getBoundingClientRect();
 		return pickup && firstFull && part
-			? { pickupWidth: pickup.width, firstFullWidth: firstFull.width, firstFullLeft: firstFull.left, partLeft: part.left }
+			? { pickupWidth: pickup.width, firstFullWidth: firstFull.width, firstFullLeft: firstFull.left, partRight: part.right }
 			: null;
 	});
 	expect(geometry).not.toBeNull();
 	// The one-beat pickup engraves narrower than a full bar…
 	expect(geometry!.pickupWidth).toBeLessThan(geometry!.firstFullWidth * 0.75);
-	// …and the boxed A sits over the first FULL bar, not over the pickup.
-	expect(geometry!.partLeft).toBeGreaterThanOrEqual(geometry!.firstFullLeft - 1);
+	// …and the entire boxed A clears the opening barline of the first full bar.
+	expect(geometry!.partRight).toBeLessThan(geometry!.firstFullLeft);
 });
