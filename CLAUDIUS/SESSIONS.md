@@ -5598,3 +5598,31 @@ believe, audible and detectable."
   carry the new in-window offset.
 - Docs: api-reference/audio.md (fields, predicate, tier, the three-test
   rule), audio-pipeline.md (a sixth plain-language step), CLAUDE.md.
+
+## 2026-10-17 / 2026-10-20 — The sharp/flat cue gets hysteresis (on 12, hold 8, carry short takes)
+
+Side session started from the 2026-10-15 cue-visibility session. Andy's
+52-take F Lydian run (fader centre 14 ¢) had the cue on for 18 takes in
+flickers.
+
+- Pulled every ear-training row since the 2026-10-07 dump, read-only (424
+  rows, a second player among them); runs now also cut at a user change.
+- `research/audio-scoring/ts/tuning-cue-variants.ts`: a parameterised copy of
+  the monitor (enter, hold, carry). Its config for the shipped rule is
+  asserted equal to `createTuningMonitor` take for take over 2,367 takes.
+- Per-take share of the cue being on, by run centre, in
+  `results/tuning_cue_hysteresis.md`. In 10–15 ¢ runs: 23% today, 35% with
+  hold 8 + carry; switches per run 5.2 → 3.0; Andy's run 18 → 25 of 52.
+  In-tune runs unchanged at 1% under every variant (the second player's two
+  flat-starting C runs; they fire under the old rule too).
+- Gate tally of the 70 switch-offs in 10–15 ¢ runs: centre under 12 (26),
+  one-note take (26), latest take leaning < 5 ¢ (15). Relaxing the last one
+  raised in-tune runs to 2%, so it was not offered.
+- Andy picked enter 12, hold 8, carry. Shipped TDD: scattered vectors (rise,
+  drift centred 10 whose every prefix stays under 12, a hold-floor clear at
+  7 ¢, direction-only hold, carry through silent and one-note takes, a short
+  take never turns the cue on). Two old verdicts reversed by his pick
+  (silent and one-note takes used to clear the cue).
+- `HOLD_CENTS` moves only the switch-off; the faders' ticks and `tuningTone`
+  stay on `ALERT_CENTS`. Docs: user guide, design system, CLAUDE.md,
+  results notes.

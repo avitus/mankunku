@@ -116,12 +116,71 @@ describe('ear-training tuning feedback', () => {
 	it.each([
 		['in-tune', take([0, 2, -2])],
 		['opposite direction', take([-22, -22, -22])],
-		['silent', { noteResults: [] }],
-		['insufficient', take([22])]
 	])('clears stale advice on the next %s take', (_label, score) => {
 		const monitor = createTuningMonitor();
 		for (let i = 0; i < 3; i++) monitor.record(take([22, 22, 22]));
 		expect(monitor.record(score)).toBeNull();
+	});
+
+	// 2026-10-20 (Andy's pick): a take with fewer than two clean notes says
+	// nothing about tuning, so it keeps the cue as it was. On 2026-10-15 eight
+	// one-note takes switched the cue off in a run centred 14 ¢ sharp.
+	it.each([
+		['silent', { noteResults: [] }],
+		['one-note', take([2])]
+	])('carries the cue through a %s take', (_label, score) => {
+		const monitor = createTuningMonitor();
+		monitor.record(take([14, 18, 12]));
+		monitor.record(take([16, 11, 19]));
+		const on = monitor.record(take([13, 17, 15]));
+		expect(on).toEqual({ direction: 'sharp', cents: 15 });
+		expect(monitor.record(score)).toEqual(on);
+		expect(monitor.record(score)).toEqual(on);
+	});
+
+	it('a short take never turns the cue on', () => {
+		const monitor = createTuningMonitor();
+		monitor.record(take([14, 18, 12]));
+		monitor.record(take([16, 11, 19]));
+		expect(monitor.record(take([1, 0, -2]))).toBeNull();
+		expect(monitor.record(take([30]))).toBeNull();
+		expect(monitor.record({ noteResults: [] })).toBeNull();
+	});
+
+	describe('hysteresis: on at ALERT_CENTS, held down to HOLD_CENTS (2026-10-20)', () => {
+		// Scattered on purpose: take medians wander around the centre, as on
+		// Andy's 2026-10-15 run (window centre 9.3-18 ¢ with the faders at 14).
+		const rise = [[14, 18, 12], [16, 11, 19], [13, 17, 15]];
+		const drift = [[9, 11, 10], [12, 10, 8], [10, 9, 12], [11, 12, 9], [10, 11, 11]];
+
+		it('stays on while the window centre drifts under the alert offset', () => {
+			const monitor = createTuningMonitor();
+			const verdicts = [...rise, ...drift].map(t => monitor.record(take(t)));
+			expect(verdicts.slice(0, 2)).toEqual([null, null]);
+			expect(verdicts[2]).toEqual({ direction: 'sharp', cents: 15 });
+			// The window now holds only the drift, centred 10 ¢.
+			expect(verdicts.at(-1)).toEqual({ direction: 'sharp', cents: 10 });
+		});
+
+		it('the same takes do not turn the cue ON', () => {
+			const monitor = createTuningMonitor();
+			for (const t of drift) expect(monitor.record(take(t))).toBeNull();
+		});
+
+		it('clears once the window centre falls under the hold offset', () => {
+			const monitor = createTuningMonitor();
+			for (const t of [...rise, ...drift, [7, 9, 6]]) monitor.record(take(t));
+			expect(monitor.record(take([6, 8, 5]))).toEqual({ direction: 'sharp', cents: 9 });
+			// Centre 7 ¢ while every take still leans sharp: the hold floor clears it.
+			expect(monitor.record(take([5, 7, 6]))).toBeNull();
+		});
+
+		it('holds only in the direction the cue was on', () => {
+			const monitor = createTuningMonitor();
+			for (const t of rise) monitor.record(take(t));
+			for (let i = 0; i < 4; i++) monitor.record(take([-9, -11, -10]));
+			expect(monitor.record(take([-11, -9, -10]))).toBeNull();
+		});
 	});
 
 	it('ages out earlier tuning and can detect an offset in the opposite direction', () => {

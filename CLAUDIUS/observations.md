@@ -3085,3 +3085,21 @@ physical story (a damped reed restarting brighter; a swell is brighter
 because louder; a flicker reverts) and the margins are ~1 dB / 13% on every
 side. The tier should be watched on the next tenor takes Andy flags. A false
 split of a held note is free in scoring but visible in record-a-lick.
+
+## 2026-10-20 — A hysteresis band is only as wide as the gates in front of it
+
+The brief asked for hysteresis on the window centre. The measurement said
+the centre was responsible for only about a third of the switch-offs; the
+rest came from gates checked BEFORE the centre is ever read (a one-note
+take, the latest take's own lean). Widening the band on the one gate moved
+the per-take share from 23% to 28%; adding carry got it to 35%. A cue with
+several conjunctive gates flickers on whichever is narrowest, so the place
+to start is a tally of which gate said no on each on→off transition, not
+the threshold everyone is talking about.
+
+The measure mattered as much: by run counts (10-10's view) none of these
+variants changes anything, since 26 of 28 runs fire either way. Per-take
+share and switches per run are what a player sees. And "in-tune runs must
+stay at 0" was already false on the new data (1%), for a reason unrelated
+to the change — worth saying plainly rather than letting the bar silently
+move.

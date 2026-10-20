@@ -27,6 +27,13 @@ interface PitchClassSample {
 // the alert offset fails half the takes of a player centred exactly there;
 // replayed over 1943 production takes the old per-take rule fired once
 // (2026-10-10). Takes and the latest take only have to LEAN the same way.
+//
+// Once on, the cue is HELD: it stays while the window centre is at least
+// HOLD_CENTS, and a take too short to read (fewer than MIN_NOTES_PER_TAKE
+// clean notes) keeps the verdict as it was. With one gate for on and off, a
+// run centred 14 ¢ sharp (2026-10-15) switched the cue 5 times per run on
+// average, eight of its switch-offs by one-note takes (Andy's pick,
+// 2026-10-20: on at 12, held to 8, carried through short takes).
 const WINDOW_TAKES = 5;
 const MIN_TAKES = 3;
 const MIN_NOTES_PER_TAKE = 2;
@@ -35,6 +42,11 @@ const MIN_CLARITY = 0.9;
 const MIN_DURATION = 0.12;
 /** The offset the sharp/flat cue speaks at; the per-note panel's full colour. */
 export const ALERT_CENTS = 12;
+/**
+ * Once the cue is on, the window centre it stays on at. Only the cue's
+ * switch-off moves; the faders' ticks and `tuningTone` stay on ALERT_CENTS.
+ */
+export const HOLD_CENTS = 8;
 /** A take, or a pitch class, leans the cue's way when its median sits this far on that side. */
 const LEAN_CENTS = 5;
 const MIN_AGREEMENT = 0.8;
@@ -72,10 +84,10 @@ function samplesFor(results: NoteResult[]): PitchClassSample[] {
  * Find a directional offset in the pitch-class medians, rejecting scattered
  * intonation (a 10/25/48 spread is not one tuning) and a lone bent note.
  */
-function consistentOffset(cents: number[]): number | null {
+function consistentOffset(cents: number[], threshold: number): number | null {
 	if (cents.length === 0) return null;
 	const center = median(cents);
-	if (Math.abs(center) < ALERT_CENTS) return null;
+	if (Math.abs(center) < threshold) return null;
 	const sign = Math.sign(center);
 	const agreement = cents.filter(c => c * sign >= LEAN_CENTS).length / cents.length;
 	const spread = median(cents.map(c => Math.abs(c - center)));
@@ -97,35 +109,45 @@ export function createTuningMonitor(): {
 	reset: () => void;
 } {
 	let takes: PitchClassSample[][] = [];
+	let alert: TuningAlert | null = null;
+	/** The verdict over the window, read with the hold offset while the cue is on that way. */
+	function judge(current: PitchClassSample[]): TuningAlert | null {
+		// Clear immediately when the latest take no longer leans the cue's
+		// way rather than showing stale advice: a player who has just
+		// retuned sees it go.
+		const latest = takeLean(current);
+		if (Math.abs(latest) < LEAN_CENTS) return null;
+		const sign = Math.sign(latest);
+		const reliableTakes = takes.filter(t => t.length >= MIN_NOTES_PER_TAKE);
+		if (reliableTakes.length < MIN_TAKES) return null;
+		// Each take gets a vote too: a long phrase must not manufacture a
+		// pattern across several takes by outnumbering two short, in-tune ones.
+		const leaningTakes = reliableTakes.filter(t => takeLean(t) * sign >= LEAN_CENTS).length;
+		if (leaningTakes * 2 <= reliableTakes.length) return null;
+		const byPitch = new Map<number, number[]>();
+		for (const sample of reliableTakes.flat()) {
+			const values = byPitch.get(sample.pitchClass) ?? [];
+			values.push(sample.cents);
+			byPitch.set(sample.pitchClass, values);
+		}
+		if (byPitch.size < MIN_PITCH_CLASSES) return null;
+		const holding = alert !== null && (alert.direction === 'sharp' ? 1 : -1) === sign;
+		const pitchOffset = consistentOffset([...byPitch.values()].map(median), holding ? HOLD_CENTS : ALERT_CENTS);
+		if (pitchOffset === null || Math.sign(pitchOffset) !== sign) return null;
+		return { direction: pitchOffset > 0 ? 'sharp' : 'flat', cents: Math.round(pitchOffset) };
+	}
 	return {
 		/** Discard evidence when a new practice run or tuning context begins. */
-		reset() { takes = []; },
+		reset() { takes = []; alert = null; },
 		/** Add one final take and return a cue only while recent evidence agrees. */
 		record(score) {
 			const current = samplesFor(score.noteResults);
 			takes = [...takes, current].slice(-WINDOW_TAKES);
-			// Clear immediately when the latest take no longer leans the cue's
-			// way, including silence/uncertain input, rather than showing stale
-			// advice: a player who has just retuned sees it go.
-			const latest = takeLean(current);
-			if (Math.abs(latest) < LEAN_CENTS) return null;
-			const sign = Math.sign(latest);
-			const reliableTakes = takes.filter(t => t.length >= MIN_NOTES_PER_TAKE);
-			if (reliableTakes.length < MIN_TAKES) return null;
-			// Each take gets a vote too: a long phrase must not manufacture a
-			// pattern across several takes by outnumbering two short, in-tune ones.
-			const leaningTakes = reliableTakes.filter(t => takeLean(t) * sign >= LEAN_CENTS).length;
-			if (leaningTakes * 2 <= reliableTakes.length) return null;
-			const byPitch = new Map<number, number[]>();
-			for (const sample of reliableTakes.flat()) {
-				const values = byPitch.get(sample.pitchClass) ?? [];
-				values.push(sample.cents);
-				byPitch.set(sample.pitchClass, values);
-			}
-			if (byPitch.size < MIN_PITCH_CLASSES) return null;
-			const pitchOffset = consistentOffset([...byPitch.values()].map(median));
-			if (pitchOffset === null || Math.sign(pitchOffset) !== sign) return null;
-			return { direction: pitchOffset > 0 ? 'sharp' : 'flat', cents: Math.round(pitchOffset) };
+			// A silent or one-note take cannot read tuning either way: keep
+			// whatever the window said before it.
+			if (current.length < MIN_NOTES_PER_TAKE) return alert;
+			alert = judge(current);
+			return alert;
 		}
 	};
 }
