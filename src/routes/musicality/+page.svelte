@@ -77,6 +77,7 @@
 	<aside class="foundation-note" aria-labelledby="foundation-title">
 		<h2 id="foundation-title">Cross-loop adaptation · listening review pending</h2>
 		<p>Choose “Adapt across loops” and a loop count in the lab to hear coordinated swing 4/4 respond throughout the take. Piano, bass and drums retain history across repeats as upcoming bars are committed. Exports contain the committed events, musical decisions and observation receipts; the fixed capture and replay comparison remains available.</p>
+		<p>Latest timing refinement: the foot hi-hat’s chick on beats 2 and 4 now starts 40 ms earlier within its recording, aligning its attack with the ride while preserving the band’s swing and timing decisions.</p>
 		<p>Capture assumes headphones; its input thresholds depend on microphone gain. Uncertain input is not silence. Register and dynamics are diagnostic only. Adaptive takes can span up to eight selected loops within 512 bars, with a scoped forward bass policy and piano releases within each bar. Indefinite looping, changing the form during a take, and broader listening remain to build. Practice uses the original mode while the new mode awaits listening acceptance.</p>
 		<div class="foundation-links"><a href="/diagnostics/backing-mixer">Compare Original and Coordinated in the lab →</a><a href="/docs/architecture/musicality">Read the staged roadmap →</a></div>
 	</aside>

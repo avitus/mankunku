@@ -244,7 +244,7 @@ const foundationAssessments: Record<string, string> = {
 	S16: 'Bass ornament activity follows the ensemble plan while its pulse remains protected. Eligible two-bar walking passages now plan a directional path into the root of an actual following chorus.',
 	S17: 'The coordinated drummer develops ride cells across two to four bars and selected commentary motifs within shared budgets. It can answer the previous bar of emitted piano attacks while preserving timekeeping and agreed arrivals.',
 	S18: 'Coordinated ride phrases retain a skip-note cell, then repeat, vary or release it with modest velocity shaping while preserving quarter-note pulse.',
-	S19: 'Coordinated mode uses a foot hi-hat on beats 2 and 4; the original mode retains its stick-hat pattern and existing offbeat accents.',
+	S19: 'Coordinated mode uses a foot hi-hat on beats 2 and 4. Its decoded sample removes 40 ms of pedal-mechanism lead-in so the chick aligns with the cymbal pulse; the original mode retains its stick-hat pattern and existing offbeat accents.',
 	S20: 'Selected snare cells now repeat, displace or change orchestration over a phrase. A recent emitted piano rhythm can supply the source for a drum answer.',
 	S22: 'A remembered commentary rhythm can change between existing snare, cross-stick, kick and ride-bell voices; accepted gestures have explicit limb occupancy.',
 	S23: 'Coordinated bars resolve coincident strokes by a fixed hand/foot assignment. Commentary and agreed accents replace conflicting ostinato strokes before the complete bar is exported.',
@@ -345,9 +345,11 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 	};
 	if (entry.id === 'D15') return {
 		...entry, status: 'implemented',
-		assessment: 'Coordinated mode uses the foot hi-hat sample on beats 2 and 4.',
-		remaining: '', scope: 'Coordinated swing 4/4 listening-lab preview. Original mode retains its stick-hat voice.',
-		evidence: [...entry.evidence, { ...source('backing-styles'), revision: FOUNDATION_REVISION }, { ...test('backing-ensemble'), revision: FOUNDATION_REVISION }]
+		assessment: 'Coordinated mode uses the foot hi-hat sample on beats 2 and 4. Live playback and WAV bounce remove 40 ms of recorded pedal-mechanism lead-in before the chick, preserving the scheduled musical timing.',
+		remaining: 'Human listening acceptance remains pending.', scope: 'Coordinated swing 4/4 listening-lab preview. Original mode retains its stick-hat voice.',
+		evidence: [...entry.evidence, { ...source('backing-styles'), revision: FOUNDATION_REVISION }, { ...test('backing-ensemble'), revision: FOUNDATION_REVISION },
+			{ ...source('backing-track'), revision: 'musicality' }, { ...test('backing-drum-samples'), revision: 'musicality' },
+			{ kind: 'test', path: 'tests/e2e/backing-drum-timing.spec.ts', revision: 'musicality' }]
 	};
 	if (entry.id === 'D64') return {
 		...entry,

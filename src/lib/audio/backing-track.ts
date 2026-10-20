@@ -330,6 +330,27 @@ async function getTone(): Promise<ToneModule> {
 /** Per-sample ceiling on the drum fetch, so one stalled request can't hang the kit. */
 const DRUM_FETCH_TIMEOUT_MS = 15_000;
 
+/** Known pedal pre-attack content; the remaining chick starts near 4 ms, like the ride. */
+const DRUM_SAMPLE_START_SECONDS: Partial<Record<DrumBufferName, number>> = {
+	hihat_pedal: 0.04
+};
+
+/** Remove declared recorded pre-attack sound while preserving the remaining channel samples. */
+function alignDrumSampleAttack(audioCtx: AudioContext, name: DrumBufferName, buffer: AudioBuffer): AudioBuffer {
+	const trimSeconds = DRUM_SAMPLE_START_SECONDS[name];
+	if (!trimSeconds) return buffer;
+	const frames = Math.round(trimSeconds * buffer.sampleRate);
+	// An unexpectedly short or malformed replacement must not become an
+	// empty buffer or prevent the remaining kit from loading.
+	if (!Number.isSafeInteger(frames) || frames <= 0 || !Number.isSafeInteger(buffer.length) || frames >= buffer.length ||
+		!Number.isInteger(buffer.numberOfChannels) || buffer.numberOfChannels < 1) return buffer;
+	const trimmed = audioCtx.createBuffer(buffer.numberOfChannels, buffer.length - frames, buffer.sampleRate);
+	for (let channel = 0; channel < buffer.numberOfChannels; channel++) {
+		trimmed.copyToChannel(buffer.getChannelData(channel).subarray(frames), channel);
+	}
+	return trimmed;
+}
+
 /**
  * Fetch + decode each drum sample, returning only the ones this browser can
  * actually decode. A failed fetch or an unsupported codec drops that drum
@@ -354,7 +375,8 @@ async function decodeDrumBuffers(
 					if (!response.ok) return null;
 					// decodeAudioData detaches the ArrayBuffer, so each sample needs
 					// its own — never share one across drums.
-					return [name, await audioCtx.decodeAudioData(await response.arrayBuffer())] as const;
+					const decoded = await audioCtx.decodeAudioData(await response.arrayBuffer());
+					return [name, alignDrumSampleAttack(audioCtx, name, decoded)] as const;
 				} catch {
 					// Undecodable codec or a network failure.
 					return null;
