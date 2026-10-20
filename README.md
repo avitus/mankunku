@@ -177,7 +177,7 @@ See the full [Contributing Guide](documentation/contributing/contributing.md) fo
 ```sh
 npm test              # Unit + integration tests (Vitest)
 npm run test:watch    # Watch mode
-npm run test:e2e      # Playwright E2E tests (Chromium, Firefox, WebKit)
+npm run test:e2e      # Sandboxed Playwright tests (Docker required; see tests/e2e/README.md)
 npm run test:deploy   # The server-side release script (bash, stubbed npm/pm2/curl)
 npm run check         # TypeScript + svelte-check
 cd omr && uv run pytest   # The Python OMR subsystem (hermetic)

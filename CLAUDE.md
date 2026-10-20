@@ -12,11 +12,20 @@ npm run check          # TypeScript + svelte-check
 npm run check:watch    # Type checking in watch mode
 npm test               # Unit + integration tests (Vitest)
 npm run test:watch     # Vitest watch mode
-npm run test:e2e       # Playwright E2E tests
+npm run test:e2e       # Playwright E2E tests in a Linux sandbox (never host browsers)
 npx vitest run tests/unit/music/scales.test.ts   # Run a single test file
 cd omr && uv run pytest                          # OMR subsystem tests (Python, hermetic)
 cd omr && uv run pytest -m omr_integration       # OMR real-model tests (downloads 429MB, needs HF auth)
 ```
+
+**Browser automation must stay off the user's desktop.** Use `npm run test:e2e`
+(or `test:e2e:ui` for a manually opened web inspector). The runner snapshots this
+worktree into a disposable Linux Docker container, backed by a headless VM on
+macOS. Direct host Playwright runs are blocked. Never bypass the boundary or
+launch ad-hoc host browsers for automated verification. Missing Docker means
+set up the engine, not fall back locally. See `tests/e2e/README.md` for Colima
+setup, limits, reports, and Linux Firefox audio coverage limitations. Node-only
+unit tests remain safe locally; `npm run test:sandbox -- unit` also isolates them.
 
 `svelte.config.js` wraps adapter-node in `withoutEmptyChunkWarnings` (`scripts/quiet-empty-chunks.js`, tested in `tests/unit/build/`). The "Generated an empty chunk" lines were never Vite's: adapter-node re-bundles the server output with Rollup, keeps every Vite server file as its own chunk, and Rollup warns for each browser-only module it tree-shook to nothing (wake lock, IndexedDB recordings, SvelteKit's own env stub). True and unactionable, and the adapter takes no Rollup options — so that ONE message is dropped for the adapter step only. Don't "fix" one by restructuring app imports.
 
@@ -126,7 +135,7 @@ ear-training/ (call-and-response practice, also reachable via `practice/` 308-re
 ### Tests
 
 - **Vitest** (`tests/unit/`, `tests/integration/`) — unit + integration tests for pure logic (audio algorithms, scoring, music theory, persistence, planning) and the recorded-take corpus (`tests/integration/pitch-replay.test.ts` replays real WAVs through the real detector). Runs in Node, no browser. Mocks Supabase via `tests/helpers/cloud-sync-mocks.ts`. Every audio test mocks Tone except where the CLOCK is the subject: `tests/helpers/headless-tone.ts` runs Tone's real Transport/Clock/TickSource over a stub AudioContext the test advances one render quantum at a time. CI: `npx vitest run`.
-- **Playwright E2E** (`tests/e2e/`) — real-browser tests for user flows on Chromium, Firefox, and WebKit. Mocks `getUserMedia` (on `MediaDevices.prototype`) + `MediaRecorder` via `fixtures/audio.ts` and synthesizes auth via the `e2e-test-user` cookie + the `PLAYWRIGHT=1` env-gated branch in `src/hooks.server.ts`. The console guard is AUTOMATIC (`consoleCollector` is an auto fixture): any unexpected `console.error`/`pageerror` fails the test; a spec about a 404 page opts in with `test.use({ allowDocument404: true })`. Beside another checkout, run with `PLAYWRIGHT_PORT=<free port>` — locally Playwright reuses whatever holds the port. CI: `npx playwright test`, sharded six ways. See `tests/e2e/README.md`.
+- **Playwright E2E** (`tests/e2e/`) — real-browser tests for user flows on Chromium, Firefox, and WebKit. Mocks `getUserMedia` (on `MediaDevices.prototype`) + `MediaRecorder` via `fixtures/audio.ts` and synthesizes auth via the `e2e-test-user` cookie + the `PLAYWRIGHT=1` env-gated branch in `src/hooks.server.ts`. The console guard is AUTOMATIC (`consoleCollector` is an auto fixture): any unexpected `console.error`/`pageerror` fails the test; a spec about a 404 page opts in with `test.use({ allowDocument404: true })`. Local runs use `npm run test:e2e`: each sandbox owns its server, ports and artifacts, so parallel worktrees cannot collide. CI: `npx playwright test`, sharded six ways. See `tests/e2e/README.md`.
 - **Deploy** (`npm run test:deploy`) and **OMR** (`cd omr && uv run pytest`, plus `ruff`) — see their sections.
 - Rules (`documentation/contributing/testing-guide.md`): a new test must be able to fail — break the rule it names once and watch it go red; tests named after a date/incident/take and `it.fails` pins are never removed as redundant; a boundary value or a different engine/instrument is not a duplicate.
 

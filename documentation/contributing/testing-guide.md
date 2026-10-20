@@ -14,7 +14,20 @@ There are five distinct suites, and they are not interchangeable:
 
 CI runs four of them. The `test` job runs `npx vitest run` **and** `npm run test:deploy`; the `e2e` job runs `npx playwright test` in parallel with it, sharded six ways across all three engines; the `omr-test` job runs `ruff` and the hermetic `pytest` whenever `omr/` changes. The OMR suite's real-model tests (`uv run pytest -m omr_integration`) download a 429 MB checkpoint and need Hugging Face access to two gated repositories, so they never run in CI.
 
-There is deliberately **no coverage tooling installed** — `@vitest/coverage-v8` is not a dependency, so `--coverage` will not work without installing it first.
+CircleCI Smarter Testing collects impact coverage through the configured Vitest and Playwright reporters. See `.circleci/test-suites.yml`.
+
+## Desktop isolation
+
+`npm run test:e2e` runs browsers in disposable Linux Docker containers, backed by
+a headless VM on macOS. Direct host Playwright runs are blocked. Use
+`npm run test:e2e:ui` for interactive debugging through a manually opened localhost
+URL. See `tests/e2e/README.md` for Docker/
+Colima setup, per-run reports, resource limits, and existing Linux Firefox audio
+skips. Never bypass the boundary to launch browsers on the user's desktop.
+
+Node-only tests remain local by default. `npm run test:sandbox -- unit`,
+`npm run test:sandbox -- check` and `npm run test:sandbox -- deploy` run those
+checks in the same isolated environment when desired.
 
 ## Setup
 

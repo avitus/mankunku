@@ -46,13 +46,13 @@ options:
 # path, and a bare `smoke.spec.ts` would also run stub-cloud-smoke.spec.ts.
 name: e2e tests
 discover: find tests/e2e -name '*.spec.ts' | sed 's|^tests/e2e/||' | sort
-run: PLAYWRIGHT_BATCH=$$ PLAYWRIGHT_JUNIT_OUTPUT_FILE="<< outputs.junit >>" npx playwright test $(printf 'tests/e2e/%s ' << test.atoms >>)
+run: PLAYWRIGHT_BATCH=$$ PLAYWRIGHT_JUNIT_OUTPUT_FILE="<< outputs.junit >>" npm run test:e2e -- $(printf 'tests/e2e/%s ' << test.atoms >>)
 # The atoms are testDir-relative, so tell Smarter Testing which file each is.
 file-mapper: printf 'tests/e2e/%s\n' << test.atoms >>
 # Chromium JS coverage per test, mapped to sources through a sourcemapped
 # build (tests/e2e/fixtures/circleci-coverage.ts). Locally Playwright builds
 # that itself; the CI analysis job builds it with E2E_SOURCEMAPS=1 up front.
-analysis: CIRCLECI_COVERAGE="<< outputs.circleci-coverage >>" E2E_SOURCEMAPS=1 npx playwright test --project=chromium $(printf 'tests/e2e/%s ' << test.atoms >>)
+analysis: CIRCLECI_COVERAGE="<< outputs.circleci-coverage >>" E2E_SOURCEMAPS=1 npm run test:e2e -- --project=chromium $(printf 'tests/e2e/%s ' << test.atoms >>)
 options:
   store-test-results: true
   test-impact-analysis: true
@@ -64,6 +64,9 @@ options:
     - package.json
     - package-lock.json
     - playwright.config.ts
+    - scripts/browser-test-boundary.js
+    - scripts/test-sandbox.mjs
+    - scripts/test-sandbox/**
     - vite.config.ts
     - svelte.config.js
     - tsconfig.json

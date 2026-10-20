@@ -1,8 +1,10 @@
 import { defineConfig, devices, type ReporterDescription } from '@playwright/test';
+import { assertBrowserTestIsolation } from './scripts/browser-test-boundary.js';
 
-// Overridable so a second checkout (a parallel worktree) can run the suite
-// beside a preview already holding 4173 — `reuseExistingServer` below would
-// otherwise attach to that other checkout's build and test the wrong code.
+assertBrowserTestIsolation();
+
+// Local sandboxes each own their network and server. Custom isolated executors
+// can override the port; CI's shared build/serve step uses 4173.
 const PORT = Number(process.env.PLAYWRIGHT_PORT ?? 4173);
 const BASE_URL = `http://localhost:${PORT}`;
 
