@@ -5654,3 +5654,12 @@ Andy asked to set up CircleCI Smarter Testing (the testsuite skill).
 - Held the push while release PR #282 (dev → main) was open — Andy: push to
   dev only once PRs are merged. After it merged (18:32Z) the code commit
   (90efa510) was pushed alone so CI runs on it, then this [skip ci] log.
+- Released as #282 (dev → main, merge fbdc9405), live on mankunkujazz.com
+  2026-10-20 18:47 UTC with every main job green. CodeRabbit round 1 found
+  two real issues, both fixed red-first in a167900b: a triplet group could
+  cross a barline in both chart converters (from the triplet-rest commit
+  riding the same release), and my direction-hold test could not fail.
+  Round 2 clean.
+- Two of my own background pollers failed silently (a quoting error in an
+  inline f-string; a health check read on the wrong field, `version` not
+  `commit`). Each stalled the loop until a check by hand.
