@@ -25,18 +25,26 @@ interface PcSample { pitchClass: number; cents: number }
 const WINDOW_TAKES = 5, MIN_TAKES = 3, MIN_NOTES_PER_TAKE = 2, MIN_PITCH_CLASSES = 3;
 const LEAN_CENTS = 5, MIN_AGREEMENT = 0.8, MAX_MEDIAN_SPREAD = 10;
 
+/** Median without mutating the input. Requires a nonempty list. */
 function median(values: number[]): number {
 	const s = [...values].sort((a, b) => a - b);
 	const m = Math.floor(s.length / 2);
 	return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 }
+/** A take's median offset, zero for a take too short to read (as the app). */
 const takeLean = (t: PcSample[]): number => (t.length >= MIN_NOTES_PER_TAKE ? median(t.map(s => s.cents)) : 0);
 
+/**
+ * A tuning monitor under one variant's on/off rule. `record` returns the
+ * signed window centre while the cue is on; `windowCentre` and `reason` say
+ * what the last judged take read and which gate, if any, refused it.
+ */
 export function createVariantMonitor(v: CueVariant): { record: (notes: NoteResult[]) => number | null; windowCentre: () => number | null; reason: () => string } {
 	let takes: PcSample[][] = [];
 	let on: number | null = null;
 	let lastCentre: number | null = null;
 	let lastReason = '';
+	/** Judge the window after a readable take, with the hold offset while on in that direction. */
 	function verdict(current: PcSample[]): number | null {
 		lastCentre = null;
 		lastReason = 'on';
@@ -65,6 +73,7 @@ export function createVariantMonitor(v: CueVariant): { record: (notes: NoteResul
 		return centre;
 	}
 	return {
+		/** Add a take; a short take keeps the previous verdict under `carryShort`. */
 		record(notes) {
 			const current = cleanTuningSamples(notes).map(({ midi, cents }) => ({ pitchClass: ((midi % 12) + 12) % 12, cents }));
 			takes = [...takes, current].slice(-WINDOW_TAKES);

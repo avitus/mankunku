@@ -98,6 +98,7 @@ const VARIANTS: CueVariant[] = [
 	{ label: 'hold 8 + carry + latest take need only lean ≥ 0 ¢ while on', enter: 12, hold: 8, carryShort: true, latestHold: 0 }
 ];
 const BUCKETS = ['under 5 ¢', '5 to 10 ¢', '10 to 15 ¢', '15 ¢ and over'];
+/** The run-centre bucket a fader-bank centre falls in, by size either way. */
 const bucketOf = (c: number): string => { const a = Math.abs(c); return a < 5 ? BUCKETS[0] : a < 10 ? BUCKETS[1] : a < 15 ? BUCKETS[2] : BUCKETS[3]; };
 
 describe('sharp/flat cue hysteresis variants', () => {
