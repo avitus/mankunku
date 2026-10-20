@@ -1,4 +1,4 @@
-import { defineConfig, devices } from '@playwright/test';
+import { defineConfig, devices, type ReporterDescription } from '@playwright/test';
 
 // Overridable so a second checkout (a parallel worktree) can run the suite
 // beside a preview already holding 4173 — `reuseExistingServer` below would
@@ -8,13 +8,18 @@ const BASE_URL = `http://localhost:${PORT}`;
 
 const isCI = !!process.env.CI;
 
+// `circleci testsuite run "e2e tests"` (.circleci/test-suites.yml) sets the
+// JUnit path it reads results from; the junit reporter picks the file up from
+// this same variable. Unset, nothing changes.
+const junit: ReporterDescription[] = process.env.PLAYWRIGHT_JUNIT_OUTPUT_FILE ? [['junit']] : [];
+
 export default defineConfig({
 	testDir: 'tests/e2e',
 	fullyParallel: true,
 	forbidOnly: isCI,
 	retries: isCI ? 2 : 0,
 	workers: isCI ? 2 : undefined,
-	reporter: isCI ? [['html', { open: 'never' }], ['github']] : 'list',
+	reporter: isCI ? [['html', { open: 'never' }], ['github'], ...junit] : [['list'], ...junit],
 	timeout: 30_000,
 	// 10s, up from the 5s Playwright default: with ~75 specs × 3 engines fully
 	// parallel on one machine (plus abcjs SVG re-renders on every lead-sheet

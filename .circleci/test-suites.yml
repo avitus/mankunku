@@ -1,0 +1,29 @@
+# CircleCI Smarter Testing suites, run by `circleci testsuite run "<name>"`
+# in .circleci/continue-config.yml. A test atom is one test FILE, so a
+# parallel job is split by file using the timings of previous runs.
+name: unit tests
+discover: npx vitest list --filesOnly
+run: npx vitest run --reporter=default --reporter=junit --outputFile.junit="<< outputs.junit >>" << test.atoms >>
+options:
+  store-test-results: true
+---
+# Atoms are spec paths relative to Playwright's testDir, because that is how
+# its JUnit reporter names a file (classname="smoke.spec.ts", no file
+# attribute) and results are matched to atoms by name. `run` puts the
+# directory back: Playwright reads each argument as a regex over the full
+# path, and a bare `smoke.spec.ts` would also run stub-cloud-smoke.spec.ts.
+name: e2e tests
+discover: find tests/e2e -name '*.spec.ts' | sed 's|^tests/e2e/||' | sort
+run: PLAYWRIGHT_JUNIT_OUTPUT_FILE="<< outputs.junit >>" npx playwright test $(printf 'tests/e2e/%s ' << test.atoms >>)
+options:
+  store-test-results: true
+---
+# Run from omr/ (`cd omr && circleci testsuite run "omr tests"`), so atoms are
+# paths under omr/. Discovery asks pytest rather than globbing tests/: the
+# omr_integration files are deselected by pyproject's addopts and would
+# report no results. xunit1 is the JUnit family that carries `file`.
+name: omr tests
+discover: uv run pytest --collect-only -q | grep '::' | sed 's/::.*//' | sort -u
+run: uv run pytest -o junit_family=xunit1 --junit-xml="<< outputs.junit >>" << test.atoms >>
+options:
+  store-test-results: true

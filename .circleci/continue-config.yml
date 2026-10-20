@@ -30,7 +30,9 @@ jobs:
             - node_modules
       - run:
           name: Run unit and integration tests
-          command: npx vitest run
+          # Smarter Testing suite (.circleci/test-suites.yml): vitest with a
+          # JUnit report, uploaded by the suite's store-test-results option.
+          command: circleci testsuite run "unit tests"
       - run:
           name: Test the atomic-release deploy script
           command: npm run test:deploy
@@ -62,7 +64,8 @@ jobs:
           command: cd omr && uv run ruff check src tests
       - run:
           name: Run hermetic OMR tests
-          command: cd omr && uv run pytest
+          # Run from omr/: the suite's atoms are paths under it.
+          command: cd omr && circleci testsuite run "omr tests"
 
   build:
     docker:
@@ -85,6 +88,11 @@ jobs:
           command: npm run build
       - persist_to_workspace:
           root: .
+          # NOTE: ecosystem.config.cjs is NOT persisted here. The deploy job
+          # ships it straight from its own checkout to avoid a mystery where
+          # /tmp/workspace/ecosystem.config.cjs arrived on the server with
+          # pre-atomic-release content (cwd: '/home/deploy/mankunku' without
+          # /current/) even though the committed file was the new version.
           paths:
             - build
             - package.json
@@ -118,11 +126,14 @@ jobs:
       # the same immutable key and lose to first-write-wins. The non-parallel
       # `test` job (which runs on every push) owns the dependency cache.
       - run:
-          name: Run Playwright E2E (all browsers, sharded)
+          name: Run Playwright E2E (all browsers, split by file)
           # The Playwright config's webServer block runs `npm run build &&
           # npm run preview` itself — no need to start it here separately.
-          # CIRCLE_NODE_INDEX is 0-based; Playwright shards are 1-based.
-          command: npx playwright test --shard=$((CIRCLE_NODE_INDEX + 1))/${CIRCLE_NODE_TOTAL}
+          # The Smarter Testing suite splits spec FILES across the nodes by
+          # the timings of previous runs (by name until it has some), and
+          # uploads the JUnit results itself (store-test-results), so this
+          # job has no store_test_results step.
+          command: circleci testsuite run "e2e tests"
       - store_artifacts:
           # Surface the HTML report and any captured traces/videos/screenshots
           # — the Firefox console-error capture is the whole point of this job.
@@ -131,13 +142,6 @@ jobs:
       - store_artifacts:
           path: test-results
           destination: test-results
-      - store_test_results:
-          path: test-results
-          # NOTE: ecosystem.config.cjs is NOT persisted here. The deploy job
-          # ships it straight from its own checkout to avoid a mystery where
-          # /tmp/workspace/ecosystem.config.cjs arrived on the server with
-          # pre-atomic-release content (cwd: '/home/deploy/mankunku' without
-          # /current/) even though the committed file was the new version.
 
   db-migrate:
     docker:
