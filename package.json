@@ -31,6 +31,7 @@
 		"docstrings:check": "node scripts/docstring-coverage.mjs"
 	},
 	"devDependencies": {
+		"@circleci/vitest-circleci-coverage": "^0.3.707",
 		"@playwright/test": "^1.58.2",
 		"@sveltejs/adapter-node": "^5.2.0",
 		"@sveltejs/kit": "^2.50.2",
@@ -39,6 +40,7 @@
 		"@testing-library/svelte": "^5.3.1",
 		"@types/node": "^26.1.2",
 		"@types/sanitize-html": "^2.16.0",
+		"@vitest/coverage-v8": "^4.1.10",
 		"fake-indexeddb": "^6.2.5",
 		"playwright": "^1.58.2",
 		"svelte": "^5.51.0",

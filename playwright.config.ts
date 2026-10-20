@@ -12,14 +12,30 @@ const isCI = !!process.env.CI;
 // JUnit path it reads results from; the junit reporter picks the file up from
 // this same variable. Unset, nothing changes.
 const junit: ReporterDescription[] = process.env.PLAYWRIGHT_JUNIT_OUTPUT_FILE ? [['junit']] : [];
+// Its impact analysis sets CIRCLECI_COVERAGE (tests/e2e/fixtures/circleci-coverage.ts).
+const coverage: ReporterDescription[] = process.env.CIRCLECI_COVERAGE
+	? [['./tests/e2e/reporters/circleci-coverage.ts']]
+	: [];
+// Dynamic test splitting runs the suite once per batch of spec files. Each
+// batch keeps its own HTML report and traces; sharing the defaults, every
+// batch would wipe the traces of the failures before it.
+const batch = process.env.PLAYWRIGHT_BATCH;
 
 export default defineConfig({
 	testDir: 'tests/e2e',
+	outputDir: batch ? `test-results/${batch}` : 'test-results',
 	fullyParallel: true,
 	forbidOnly: isCI,
 	retries: isCI ? 2 : 0,
 	workers: isCI ? 2 : undefined,
-	reporter: isCI ? [['html', { open: 'never' }], ['github'], ...junit] : [['list'], ...junit],
+	reporter: isCI
+		? [
+				['html', { open: 'never', outputFolder: batch ? `playwright-report/${batch}` : 'playwright-report' }],
+				['github'],
+				...junit,
+				...coverage
+			]
+		: [['list'], ...junit, ...coverage],
 	timeout: 30_000,
 	// 10s, up from the 5s Playwright default: with ~75 specs × 3 engines fully
 	// parallel on one machine (plus abcjs SVG re-renders on every lead-sheet
@@ -102,7 +118,10 @@ export default defineConfig({
 		// reuse Vite's build cache.
 		command: 'npm run build && npm run preview -- --port ' + PORT,
 		url: BASE_URL,
-		reuseExistingServer: !isCI,
+		// The CI e2e job builds once and serves the app before the suite starts,
+		// because dynamic test splitting runs Playwright once per batch and a
+		// build per batch would cost ~90s each (PLAYWRIGHT_REUSE_SERVER=1).
+		reuseExistingServer: !isCI || process.env.PLAYWRIGHT_REUSE_SERVER === '1',
 		timeout: 180_000,
 		stdout: 'ignore',
 		stderr: 'pipe',

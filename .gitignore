@@ -40,6 +40,10 @@ supabase/.temp/
 # into src/lib/matching/data/wjazzd-index.json. Not redistributed.
 /data/raw/
 
+# CircleCI Smarter Testing local impact data (doctor / --local runs)
+.circleci/impact-*.json
+.circleci/state-*/
+
 # chunk active sidecar tracking
 .chunk/sidecar.json
 .chunk/sidecar.*.json
@@ -50,6 +54,7 @@ __pycache__/
 *.py[cod]
 omr/.venv/
 .pytest_cache/
+.coverage
 .ruff_cache/
 omr/debug_runs/
 omr/benchmark_results/

@@ -1,4 +1,7 @@
-import { test as base, type ConsoleMessage, type Page, type Response } from '@playwright/test';
+import type { ConsoleMessage, Page, Response } from '@playwright/test';
+// Every spec's test comes through here, so the impact-analysis coverage
+// fixture (inert unless CIRCLECI_COVERAGE is set) rides along with the guard.
+import { test as base } from './circleci-coverage';
 
 /**
  * Patterns we choose to ignore in the console-error fixture.
@@ -31,6 +34,13 @@ const IGNORED_PATTERNS: IgnoreRule[] = [
 	// still fails the test.
 	(text, url) =>
 		/net::ERR_CONNECTION_RESET/.test(text) && /\/api\/monitoring(?:[/?#]|$)/.test(url),
+	// WebKit's console.error for that same lost envelope, from the same spec:
+	// "Failed to load resource: The network connection was lost." on the
+	// tunnel POST, 1 run in 3 of backing-render-audio on webkit alone
+	// (2026-10-20). Pinned to that wording AND the /api/monitoring path, as
+	// the Chromium rule above is.
+	(text, url) =>
+		/The network connection was lost/.test(text) && /\/api\/monitoring(?:[/?#]|$)/.test(url),
 	// Firefox-only Playwright artifact: when a pointer action's hit-target
 	// check races DOM that mounts/unmounts under the cursor (click-expanded
 	// panels; hover-revealed popovers before them), the harness's own injected

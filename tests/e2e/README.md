@@ -28,7 +28,7 @@ lsof -nP -iTCP:4273 -sTCP:LISTEN
 PLAYWRIGHT_PORT=4273 npx playwright test --project=chromium
 ```
 
-CI always starts a fresh server and runs all three engines, sharded.
+CI runs all three engines through CircleCI Smarter Testing (`.circleci/test-suites.yml`, suite `e2e tests`). Each node builds and serves the app once, then Playwright runs once per batch of spec files handed out by dynamic test splitting, against that server (`PLAYWRIGHT_REUSE_SERVER=1`). Each batch writes its own `playwright-report/<batch>/` and `test-results/<batch>/` (`PLAYWRIGHT_BATCH`), so a later batch can't wipe an earlier failure's traces. On branches only the spec files a change reaches run (test impact analysis).
 
 ## What's covered, what's not
 
@@ -52,9 +52,14 @@ tests/e2e/
 │   ├── auth.ts            ← signedInPage / testUser via the e2e-test-user cookie
 │   ├── storage.ts         ← seed localStorage before load; pre-stamps the namespace pointer
 │   ├── audio.ts           ← getUserMedia + MediaRecorder mocks, stubCdnInstrumentSamples
-│   └── stub-cloud.ts      ← shared in-memory Supabase, bridged by route interception
+│   ├── stub-cloud.ts      ← shared in-memory Supabase, bridged by route interception
+│   └── circleci-coverage.ts ← per-test Chromium coverage for impact analysis (inert by default)
+├── reporters/
+│   └── circleci-coverage.ts ← writes that coverage as CircleCI's coverage JSON
 └── *.spec.ts              ← per-feature flows
 ```
+
+- **`circleci-coverage.ts`** is the base of the console guard's `test`, so it reaches every spec, and it does nothing unless `CIRCLECI_COVERAGE` is set. That happens only in the `e2e tests` suite's `analysis` command (the CI `e2e-analysis` job on main, or a local `circleci testsuite run "e2e tests" --analyze-tests=…`). Coverage is by chunk: a test covers every source file in the sourcemap of every app script its page loaded, so the build needs `E2E_SOURCEMAPS=1` (hidden maps). Server-only code never reaches the browser, so the suite lists those paths under `full-test-run-paths` instead.
 
 - **`auth.ts`** provides `signedInPage` and `testUser`. It sets the cookie only; it registers no Supabase mocks, so a signed-in spec stubs its own `**/rest/v1/**` routes (or uses `stub-cloud.ts`).
 - **`storage.ts`** seeds keys before the first script runs and pre-stamps the per-user namespace pointer. A signed-in spec must seed **after** the cookie is set, or the root layout re-homes the page with a reload — unless that reload is what the spec tests.

@@ -22,6 +22,8 @@ legato = [
 [dependency-groups]
 dev = [
     "pytest>=8.3",
+    "pytest-circleci-coverage==0.2.546",
+    "pytest-cov>=7.1.0",
     "ruff>=0.9",
 ]
 
