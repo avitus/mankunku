@@ -93,6 +93,70 @@ test('bar 32: shorten the half rest, select its remainder and replace it with th
 	expect(bar[1].pitch).toBeNull();
 });
 
+for (const input of ['button', 'keyboard after deleting imported notes'] as const) {
+	test(`bar 32: convert the half rest to quarter triplets (${input}), edit, undo and reopen`, async ({ page }) => {
+		if (input !== 'button') {
+			const imported = structuredClone(sheet);
+			imported.sections[1].notes.splice(-1, 1,
+				{ pitch: 64, offset: [63, 2], duration: [1, 4] },
+				{ pitch: 65, offset: [127, 4], duration: [1, 4] });
+			await page.evaluate(s => localStorage.setItem('mankunku:user-tunes', JSON.stringify([s])), imported);
+			await page.reload();
+			await expect(page.locator(`${chart} .abcjs-note`)).toHaveCount(8);
+			await page.mouse.move(500, 600);
+			await page.mouse.wheel(0, 1800);
+			for (const remaining of [7, 6]) {
+				await page.locator(`${chart} .abcjs-note`).last().locator('.abcjs-notehead').click();
+				await page.keyboard.press('Delete');
+				await expect(page.locator(`${chart} .abcjs-note`)).toHaveCount(remaining);
+			}
+		}
+		await page.mouse.move(500, 600);
+		await page.mouse.wheel(0, 1800);
+		const rests = page.locator(`${chart} .abcjs-rest`);
+		await rests.last().locator('path').click();
+		await expect(page.getByRole('button', { name: 'Half Note', exact: true })).toHaveAttribute('aria-pressed', 'true');
+		const originalCount = await rests.count();
+		if (input === 'button') await page.getByRole('button', { name: /Triplet/ }).click();
+		else await page.keyboard.press('t');
+		await expect(rests).toHaveCount(originalCount + 2);
+		await expect(page.getByRole('button', { name: 'Quarter Note', exact: true })).toHaveAttribute('aria-pressed', 'true');
+		await expect(page.getByRole('button', { name: /Triplet/ })).toHaveAttribute('aria-pressed', 'true');
+		const bracket = page.locator(`${chart} .abcjs-triplet`).last();
+		await expect(bracket).toHaveText('3');
+		await expect(bracket.locator('[data-name="triplet-bracket"]')).toBeVisible();
+		await page.screenshot({ path: test.info().outputPath('bar-32-triplet-rests.png') });
+
+		// Every member is independently selectable; replacing the middle rest
+		// must preserve both remaining rests and the triplet bracket.
+		await rests.nth(originalCount).locator('path').click();
+		await page.getByRole('button', { name: 'E', exact: true }).click();
+		await expect(rests).toHaveCount(originalCount + 1);
+		await expect(bracket).toHaveText('3');
+		await page.getByRole('button', { name: 'Undo', exact: true }).click();
+		await expect(rests).toHaveCount(originalCount + 2);
+		await page.getByRole('button', { name: 'Undo', exact: true }).click();
+		await expect(rests).toHaveCount(originalCount);
+		for (const count of [originalCount + 2, originalCount + 1]) {
+			await page.getByRole('button', { name: 'Redo', exact: true }).click();
+			await expect(rests).toHaveCount(count);
+		}
+		await page.getByRole('button', { name: 'Update tune' }).click();
+		await page.waitForURL('**/tunes/black-orpheus-editing');
+		const stored: Tune[] = await page.evaluate(() => JSON.parse(localStorage.getItem('mankunku:user-tunes')!));
+		const bar = stored[0].sections[1].notes.filter(n => n.offset[0] / n.offset[1] >= 31);
+		// The onboarded fixture plays tenor sax: written E5 stores concert D5.
+		expect(bar.map(n => [n.pitch, n.offset, n.duration])).toEqual([
+			[74, [31, 1], [1, 2]], [null, [63, 2], [1, 6]],
+			[74, [95, 3], [1, 6]], [null, [191, 6], [1, 6]]
+		]);
+		await page.goto('/tunes/editor?edit=black-orpheus-editing');
+		await expect(page.locator(`${chart} .abcjs-note`)).toHaveCount(7);
+		await expect(rests).toHaveCount(originalCount + 1);
+		await expect(bracket).toHaveText('3');
+	});
+}
+
 test('a rest the import never stored can be clicked, split into two quarters and filled (2026-10-16)', async ({ page }) => {
 	// A PDF-shaped sheet: notes only, so every rest on the chart is a gap.
 	const pdfShaped: Tune = {

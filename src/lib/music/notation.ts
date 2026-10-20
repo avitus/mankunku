@@ -907,15 +907,12 @@ export function phraseToAbcWithMap(
 			}
 		}
 
-		// Check for a complete triplet group (3 consecutive same-duration pitched triplet notes
+		// Check for a complete triplet group (3 consecutive same-duration notes or rests
 		// with rhythmically contiguous offsets)
 		const tripBase = getTripletBase(note.duration);
 		if (tripBase !== null && i + 2 < displayNotes.length &&
 			sameDuration(displayNotes[i + 1].duration, note.duration) &&
-			sameDuration(displayNotes[i + 2].duration, note.duration) &&
-			displayNotes[i].pitch !== null &&
-			displayNotes[i + 1].pitch !== null &&
-			displayNotes[i + 2].pitch !== null) {
+			sameDuration(displayNotes[i + 2].duration, note.duration)) {
 
 			const tripDur = fractionToFloat(note.duration);
 			const off0 = fractionToFloat(displayNotes[i].offset);

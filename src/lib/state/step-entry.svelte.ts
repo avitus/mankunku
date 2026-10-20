@@ -1060,6 +1060,33 @@ function resizeSelected(base: BaseDurationId, triplet: boolean, dotted: boolean)
 }
 
 /**
+ * Divide a selected whole, half or quarter rest into three equal triplet
+ * rests, preserving its span. The first member stays selected so letters
+ * can fill the group without resizing it or moving the following music.
+ * Other lengths retain the ordinary duration-modifier behavior.
+ */
+function subdivideSelectedRestIntoTriplet(): boolean {
+	const index = stepEntry.selectedNoteIndex as number;
+	const target = stepEntry.enteredNotes[index];
+	if (target.pitch !== null) return false;
+	const base = (['half', 'quarter', 'eighth'] as const).find(id =>
+		compareFractions(addFractions(DURATIONS[id], DURATIONS[id]), target.duration) === 0
+	);
+	if (!base) return false;
+	const duration = getDurationFraction(base, true);
+	const rests: Note[] = [0, 1, 2].map(member => ({
+		pitch: null,
+		duration,
+		offset: addFractions(target.offset, [member * duration[0], duration[1]])
+	}));
+	stepEntry.enteredNotes = [
+		...stepEntry.enteredNotes.slice(0, index), ...rests, ...stepEntry.enteredNotes.slice(index + 1)
+	];
+	selectNote(index);
+	return true;
+}
+
+/**
  * Turning a modifier ON is refused when the current base has no such variant
  * (no sixteenth triplet, no dotted whole note) — otherwise the keyboard would
  * set a flag the disabled button forbids, and it would silently take effect on
@@ -1071,6 +1098,7 @@ export function toggleTriplet(): void {
 	const triplet = !stepEntry.tripletMode;
 	const dotted = triplet ? false : stepEntry.dottedMode;
 	if (isEditSelection() && !stepEntry.insertMode) {
+		if (triplet && subdivideSelectedRestIntoTriplet()) return;
 		resizeSelected(stepEntry.currentDuration, triplet, dotted);
 		return;
 	}

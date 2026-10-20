@@ -385,7 +385,7 @@ export function tuneToAbcWithMap(
 				tokenIndex: tokens.length,
 				sectionIdx: currentSectionIdx,
 				offset: fractionToFloat(el.note.offset),
-				duration: fractionToFloat(duration)
+				duration: fractionToFloat(el.note.duration)
 			});
 		}
 		if (el.sourceIndex !== null && !isSlashBarRest(el.note, duration)) {
@@ -735,15 +735,12 @@ export function tuneToAbcWithMap(
 				}
 			}
 
-			// Complete triplet group: 3 consecutive same-duration pitched triplet
-			// notes with contiguous offsets.
+			// Complete triplet group: 3 consecutive same-duration triplet notes
+			// or rests with contiguous offsets.
 			const tripBase = getTripletBase(el.note.duration);
 			if (tripBase !== null && i + 2 < elements.length &&
 				sameDuration(elements[i + 1].note.duration, el.note.duration) &&
-				sameDuration(elements[i + 2].note.duration, el.note.duration) &&
-				elements[i].note.pitch !== null &&
-				elements[i + 1].note.pitch !== null &&
-				elements[i + 2].note.pitch !== null) {
+				sameDuration(elements[i + 2].note.duration, el.note.duration)) {
 
 				const tripDur = fractionToFloat(el.note.duration);
 				const off0 = fractionToFloat(elements[i].note.offset);
