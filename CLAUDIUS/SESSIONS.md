@@ -5663,3 +5663,49 @@ Andy asked to set up CircleCI Smarter Testing (the testsuite skill).
 - Two of my own background pollers failed silently (a quoting error in an
   inline f-string; a health check read on the wrong field, `version` not
   `commit`). Each stalled the loop until a check by hand.
+
+## 2026-10-20 (cont.) — Every credit-charged Smarter Testing feature, measured
+
+Andy, after the onboarding: "turn on all the credit-charged features and
+monitor whether it results in faster CI times."
+
+- First, the free-feature baseline broke dev's `test` job: `vitest list`
+  discovered 0 atoms on CircleCI ("cannot mix newline and space
+  separators") while it read clean locally and in cimg/node:26.5.1 with
+  CircleCI's env vars. Switched discovery to `find` (same 396 files) and
+  pushed that alone (3e189496); green next run.
+- Enabled TIA, dynamic splitting, auto-rerun on all suites (omr: no split,
+  one node) and dynamic parallelism via list-unit-tests / list-e2e-tests +
+  the experimental stanza. Analysis on main moved to non-blocking
+  unit-analysis / e2e-analysis jobs. Pushed as 6d17e508.
+- Things the docs didn't say, each found by running it:
+  - CircleCI's Vitest coverage reporter emits Vite ids with queries
+    (`...md?raw`) and the CLI then fails the whole analysis; wrapped
+    the reporter (tests/helpers/circleci-coverage-reporter.ts, TDD).
+  - Per-test V8 coverage made pitch-replay.test.ts take >10 min (32 s
+    plain) and blow the 5 s timeout; it's excluded from analysis and
+    always runs. Full analysis 12.5 min → 44 s.
+  - `max-auto-rerun` reruns a failing ANALYSIS too — three 12.5-min
+    passes before I saw it.
+  - pytest-circleci-coverage 0.3.870 (published that morning) is
+    3.14-only syntax despite >=3.10; pinned 0.2.546.
+  - No Playwright plugin exists: wrote a Chromium chunk-level coverage
+    fixture + reporter; e2e needs a file-mapper because its atoms are
+    testDir-relative.
+  - Local `list-tests` rejects `--key`; CI's accepted it.
+  - Seeded impact data hashes files, and `.circleci/*.yml` are full-run
+    paths: reseed only after the LAST edit or CI runs everything.
+- Found in passing: WebKit's "The network connection was lost" face of the
+  /api/monitoring beacon race (added beside the Chromium rule), and a
+  requestIdleCallback/clearTimeout pageerror under page.clock in
+  progress-trend-chart (1 in ~76) — proposed as its own session.
+- Results (e2e is the critical path):
+  | run | e2e | test |
+  |---|---|---|
+  | before Smarter Testing (6 shards by count) | ~11.3 min | ~1.6 min |
+  | free: static split, first by name | 9.7 | failed (discover) |
+  | free: static split by timing | 7.4 | 1.7 |
+  | all paid, 6d17e508 | 6.5 (8 nodes, 36/75 specs) | 1.83 (6/397 files) |
+  The new floor is ONE spec: lick-practice-session.spec.ts, 11 min of
+  JUnit time = 5.7 min on its node while the other seven finished in
+  2.4–3.6. Unit time is the always-run corpus (~1 min on CI).

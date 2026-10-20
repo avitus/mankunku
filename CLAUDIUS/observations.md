@@ -3115,3 +3115,20 @@ The worth of Smarter Testing here is less "smart" than "measured": splitting by
 last run's timings is the first time the split uses the cost it is trying to
 balance. Worth checking the first few runs: the floor is now the slowest single
 FILE plus the per-node build, and lick-practice-session is the one to watch.
+
+## 2026-10-20 — Paid test selection mostly bought measurement
+
+With every Smarter Testing feature on, the e2e job went 7.4 → 6.5 min, and
+almost none of that came from what was paid for in the obvious sense: TIA
+still chose 36 of 75 specs, because one NotationDisplay fix is loaded by
+half the app. A component library that every page renders makes
+chunk-level impact coarse by construction — and correctly so. What the
+features DID deliver is a number per file: the floor is one 54-test spec
+that runs 5.7 minutes on its own node. That's an authoring decision about
+how a spec file is cut, invisible until splitting went file-by-file and
+the timings were per file. The fastest next win is free: split the file.
+
+Second, about my own process: three rounds of "seed, then edit config"
+cost ~40 minutes before I saw that the seeded hashes include the full-run
+paths. Any cache keyed on file content wants the same discipline as a
+lockfile — finish the edits, then generate.
