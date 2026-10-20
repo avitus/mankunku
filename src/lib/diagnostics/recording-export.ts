@@ -130,6 +130,7 @@ export function encodeWavMono16(samples: Float32Array, sampleRate: number): Arra
 	const buffer = new ArrayBuffer(44 + dataSize);
 	const view = new DataView(buffer);
 
+	/** Write a RIFF chunk identifier into the WAV header. */
 	const writeAscii = (offset: number, s: string) => {
 		for (let i = 0; i < s.length; i++) view.setUint8(offset + i, s.charCodeAt(i));
 	};

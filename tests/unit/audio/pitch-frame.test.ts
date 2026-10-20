@@ -216,6 +216,14 @@ describe('detectFrame', () => {
 	const buffer = new Float32Array(2048);
 	const baseOpts = { sampleRate };
 
+	it.each([44100, 48000])('preserves the actual analysis-window duration at %i Hz', (rate) => {
+		const detector = makeMockDetector(440, 0.95);
+		for (const size of [2048, 4096]) {
+			const result = detectFrame(new Float32Array(size), 1, detector as any, null, { sampleRate: rate });
+			expect(result.reading!.analysisWindowSeconds).toBeCloseTo(size / rate, 10);
+		}
+	});
+
 	it('returns null reading when clarity is below threshold', () => {
 		const detector = makeMockDetector(440, 0.5);
 		const result = detectFrame(buffer, 0, detector as any, null, baseOpts);

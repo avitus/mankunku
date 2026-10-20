@@ -162,10 +162,12 @@
 
 	// ── WAV encode & download ───────────────────────────────
 
+	/** Name a WAV with the corpus's recording-date and phrase-slug convention. */
 	function fixtureName(rec: RecordingSummary): string {
 		return `${fixtureBaseName(rec.timestamp, rec.metadata?.phraseName)}.wav`;
 	}
 
+	/** Download a saved recording as mono PCM, exposing failures in the page. */
 	async function downloadAsWav(rec: RecordingSummary) {
 		downloading = true;
 		downloadError = null;

@@ -927,8 +927,6 @@ describe('findReArticulations: envelope dip-recover tier', () => {
  * switch, a `brightnessLift` pointing at it.
  */
 describe('findReArticulations: timbre-switch tier', () => {
-	const WINDOW = 4096 / 44100;
-
 	/**
 	 * A clean D3 run at 60 fps; at `switchAt` (seconds) the tone turns
 	 * `persist` dB brighter and `sustain`× as loud. `anchor` 'end' stamps each
@@ -942,17 +940,19 @@ describe('findReArticulations: timbre-switch tier', () => {
 		shape?: number;
 		frames?: number;
 		anchor?: 'start' | 'end';
+		sampleRate?: number;
 		strip?: boolean;
 	} = {}): PitchReading[] {
 		const switchAt = opts.switchAt ?? 0.65;
 		const frames = opts.frames ?? 45;
-		const anchorShift = opts.anchor === 'end' ? WINDOW : 0;
+		const windowSeconds = 4096 / (opts.sampleRate ?? 44100);
+		const anchorShift = opts.anchor === 'end' ? windowSeconds : 0;
 		const out: PitchReading[] = [];
 		for (let i = 0; i < frames; i++) {
 			const start = 0.1 + i / 60; // window start in audio time
-			const end = start + WINDOW;
+			const end = start + windowSeconds;
 			// Share of the window after the switch: 0 before it, 1 once past it.
-			const after = Math.min(1, Math.max(0, (end - switchAt) / WINDOW));
+			const after = Math.min(1, Math.max(0, (end - switchAt) / windowSeconds));
 			const r: PitchReading = {
 				midiFloat: 50,
 				midi: 50,
@@ -965,6 +965,8 @@ describe('findReArticulations: timbre-switch tier', () => {
 				rmsMin: 0.16,
 				shapeBreak: opts.shape ?? 0.991
 			};
+			// Omit the duration by default to retain legacy-export coverage.
+			if (opts.sampleRate != null) r.analysisWindowSeconds = windowSeconds;
 			if (!opts.strip) {
 				r.brightness = -16 + after * (opts.persist ?? 4.7);
 				if (switchAt > start && switchAt < end) {
@@ -985,6 +987,24 @@ describe('findReArticulations: timbre-switch tier', () => {
 
 	it('splits the same switch under the live window-end anchor', () => {
 		const onsets = findReArticulations(timbreRun({ anchor: 'end' }), []);
+		expect(onsets).toHaveLength(1);
+		expect(onsets[0]).toBeCloseTo(0.65, 3);
+	});
+
+	it('keeps both pre-switch windows at 48 kHz when replay has only two brightness readings before the switch', () => {
+		const readings = timbreRun({ sampleRate: 48000 });
+		// The windows starting at 0.5333 and 0.55 end before the 0.64 guard.
+		// Assuming 44.1 kHz wrongly excludes the latter.
+		for (const r of readings) if (r.time < 0.53) delete r.brightness;
+		const onsets = findReArticulations(readings, []);
+		expect(onsets).toHaveLength(1);
+		expect(onsets[0]).toBeCloseTo(0.65, 3);
+	});
+
+	it('keeps both post-switch windows at 48 kHz when a live run ends just after the switch', () => {
+		// Only the last two windows start after the 0.66 guard; subtracting a
+		// 44.1 kHz duration from their end stamps wrongly excludes the first.
+		const onsets = findReArticulations(timbreRun({ sampleRate: 48000, anchor: 'end', frames: 36 }), []);
 		expect(onsets).toHaveLength(1);
 		expect(onsets[0]).toBeCloseTo(0.65, 3);
 	});

@@ -12,6 +12,7 @@ import type { Phrase } from '$lib/types/music';
 const TS = Date.UTC(2026, 9, 17, 0, 45, 32);
 
 describe('encodeWavMono16', () => {
+	/** Read a chunk identifier directly from the exported WAV bytes. */
 	const ascii = (bytes: ArrayBuffer, at: number, n: number) =>
 		String.fromCharCode(...new Uint8Array(bytes, at, n));
 
@@ -37,6 +38,7 @@ describe('encodeWavMono16', () => {
 	it('scales samples to 16-bit and clamps anything past full scale', () => {
 		const bytes = encodeWavMono16(new Float32Array([0, 0.5, -0.5, 1.5, -1.5]), 44100);
 		const view = new DataView(bytes);
+		/** Read a signed PCM sample after the fixed 44-byte WAV header. */
 		const sample = (i: number) => view.getInt16(44 + i * 2, true);
 		expect(sample(0)).toBe(0);
 		expect(sample(1)).toBe(16383);
@@ -68,6 +70,7 @@ describe('fixtureBaseName', () => {
 describe('buildDiagnosticsPayload', () => {
 	const INSTRUMENT = { id: 'tenor-sax', name: 'Tenor Saxophone', key: 'Bb' };
 
+	/** Build ear-training metadata with a transport anchor for trim checks. */
 	function metadata(): RecordingMetadata {
 		return {
 			phraseId: 'pfl-035_D',
@@ -85,10 +88,12 @@ describe('buildDiagnosticsPayload', () => {
 		};
 	}
 
+	/** Wrap optional metadata in the saved-recording summary passed to exports. */
 	function summary(md: RecordingMetadata | null = metadata()): RecordingSummary {
 		return { sessionId: 'sess-1', timestamp: TS, metadata: md };
 	}
 
+	/** Build a trimmed replay with overrides for export compatibility cases. */
 	function replay(over: Partial<RecordingReplay> = {}): RecordingReplay {
 		return {
 			readings: [{ midiFloat: 50, midi: 50, cents: 0, clarity: 0.95, time: 0.3, frequency: 146.83, rms: 0.1 }],

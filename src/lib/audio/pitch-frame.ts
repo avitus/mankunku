@@ -20,6 +20,12 @@ export interface PitchReading {
 	clarity: number;
 	/** Timestamp relative to recording start (seconds) */
 	time: number;
+	/**
+	 * Duration of this frame's analysis window, from buffer length / sample
+	 * rate. Optional for saved readings that predate this field; their timbre
+	 * persistence check retains the legacy 4096 / 44100 second fallback.
+	 */
+	analysisWindowSeconds?: number;
 	/** Raw frequency in Hz */
 	frequency: number;
 	/**
@@ -343,6 +349,7 @@ let timbreBrightScratch = new Float64Array(0);
 let timbreLevelScratch = new Float64Array(0);
 const timbreSplit = new Float64Array(2);
 
+/** Reuse the Hann weights for a window length across detector frames. */
 function hannTable(n: number): Float64Array {
 	let table = timbreHann.get(n);
 	if (!table) {
@@ -1131,6 +1138,7 @@ export function detectFrame(
 				cents: weakCents,
 				clarity,
 				time,
+				analysisWindowSeconds: buffer.length / opts.sampleRate,
 				frequency,
 				rms,
 				hfRms,
@@ -1173,6 +1181,7 @@ export function detectFrame(
 		isTwelfthUpLock(buffer, frequency, opts.sampleRate);
 
 	const reading: PitchReading = { midiFloat, midi, cents, clarity, time, frequency, rms, hfRms, rmsMin };
+	reading.analysisWindowSeconds = buffer.length / opts.sampleRate;
 	const bandRmsMin = measureBandRmsMin(buffer, opts.sampleRate);
 	if (bandRmsMin !== null) reading.bandRmsMin = bandRmsMin;
 	const shape = measureShapeBreak(buffer, frequency, opts.sampleRate);

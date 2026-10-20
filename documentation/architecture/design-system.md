@@ -537,9 +537,9 @@ Listen and Play share frame geometry, using semantic phase tokens (approved oran
 the entrance frame stays dashed until recording is audible.
 
 Production notation stays in abcjs, preserving real notes, accidentals, written
-pitch and ledger lines. Adjacent chord rows follow the active staff's measured
-bar boundaries when both cover the same full progression. A windowed excerpt of
-a longer progression retains its own geometry. Resize measurements include the
+pitch and ledger lines. Chord-only rows use beat-proportional widths independently
+of the staff's engraving density. The notation wash follows the staff's measured
+bar boundaries, and a windowed excerpt retains its own geometry. Resize measurements include the
 SVG's actual scale; playback updates move only the highlight, never re-engrave.
 The current bar has a restrained wash and thin underline. Ring keys retain tier
 colours and current/pending outlines; percentages are available in accessible

@@ -3219,6 +3219,7 @@ function findReArticulationsInSegment(
 		const shapes = stable.map((r) => r.shapeBreak).filter((s): s is number => s != null);
 		if (shapes.length >= RE_ARTICULATION_PRE_CONTEXT_FRAMES && median(shapes) >= SHAPE_CLEAN_BASELINE) {
 			const found = [...onsets, ...sortedBaseOnsets];
+			/** Missing lift evidence cannot qualify as a timbre switch. */
 			const lift = (r: PitchReading): number => r.brightnessLift ?? -Infinity;
 			let c = 0;
 			while (c < stable.length) {
@@ -3245,16 +3246,22 @@ function findReArticulationsInSegment(
 				// The tone before and after: readings whose windows lie wholly on
 				// one side of the switch. The offset is negative only under the
 				// live path's window-end anchor (FrameOptions.windowAnchor), which
-				// fixes where every window of this stream starts.
+				// fixes where every window of this stream starts. New readings
+				// carry their actual duration; old exports retain the legacy value.
+				/** Read the measured window duration, preserving old diagnostic exports. */
+				const windowDuration = (r: PitchReading): number =>
+					r.analysisWindowSeconds ?? ANALYSER_WINDOW_SECONDS;
+				/** Convert either timestamp anchor to the window's start in audio time. */
 				const windowStart = (r: PitchReading): number =>
-					at < 0 ? r.time - ANALYSER_WINDOW_SECONDS : r.time;
+					at < 0 ? r.time - windowDuration(r) : r.time;
 				const before = stable
-					.filter((r) => r.brightness != null && windowStart(r) + ANALYSER_WINDOW_SECONDS <= t - TIMBRE_PERSIST_GUARD)
+					.filter((r) => r.brightness != null && windowStart(r) + windowDuration(r) <= t - TIMBRE_PERSIST_GUARD)
 					.slice(-TIMBRE_PERSIST_FRAMES);
 				const after = stable
 					.filter((r) => r.brightness != null && windowStart(r) >= t + TIMBRE_PERSIST_GUARD)
 					.slice(0, TIMBRE_PERSIST_FRAMES);
 				if (before.length < TIMBRE_PERSIST_FRAMES || after.length < TIMBRE_PERSIST_FRAMES) continue;
+				/** Average evidence across a nonempty persistence context. */
 				const mean = (xs: number[]): number => xs.reduce((s, x) => s + x, 0) / xs.length;
 				const persist = mean(after.map((r) => r.brightness!)) - mean(before.map((r) => r.brightness!));
 				if (persist < TIMBRE_PERSIST_MIN) continue;

@@ -315,6 +315,7 @@ interface PitchReading {
   brightness?: number;   // dB share of the harmonic energy under 2 kHz carried from 600 Hz up
   brightnessLift?: number;   // Largest brightness rise (dB) across ~40 ms over a span whose level dips
   brightnessLiftAt?: number; // Offset from `time` to that span's midpoint
+  analysisWindowSeconds?: number; // Actual buffer length / sample rate; legacy exports omit it
   warmup?: boolean;      // Captured during the octave-stabilizer warmup window
   octaveUp?: boolean;    // Frame's spectrum looks like a 2nd-harmonic (octave-up) lock
   twelfthUp?: boolean;   // Frame's spectrum looks like a 3rd-harmonic (twelfth-up) lock
@@ -340,6 +341,8 @@ The envelope/timbre fields exist because the re-articulation tiers each need a *
 | `brightness` / `brightnessLift` | The harmonic series under 2 kHz split at 600 Hz, on the whole window and on ~23 ms sub-windows | A legato tongue whose reset is too gradual for period-to-period shape: the tone comes back brighter across a small level notch and stays brighter |
 
 `FrameOptions.windowAnchor` (`'start' | 'end'`, default `'start'`) exists for the in-window offsets `shapeBreakAt` and `brightnessLiftAt`: replay timestamps a reading at its window start, the live rAF path at its end, and both are emitted such that `time + offset` is the event in either path's own time base (negative under the end anchor).
+
+`detectFrame` also records `analysisWindowSeconds` from the buffer length and sample rate. The timbre persistence gate uses that duration to select windows wholly before and after a switch in either time base, including 48 kHz captures. Saved readings without it retain the legacy `4096 / 44100` second fallback.
 
 ### `PitchDetectorHandle` interface
 
