@@ -1,5 +1,6 @@
 import { test, expect } from './fixtures/test';
 import { seedStorage, SETTINGS_ONBOARDED, TOUR_DISMISSED } from './fixtures/storage';
+import { freezeDate } from './fixtures/date';
 
 /**
  * Trend chart — Tonal Mastery is the only series.
@@ -38,11 +39,11 @@ function summary(date: string, mastery: number | undefined) {
  * these fixed seed dates — so the clock has to be pinned or the spec quietly
  * starts failing once wall-clock time walks past the seeded range.
  */
-// Freeze calendar dates only. Keep native timers for Sentry Replay and UI events.
+// Calendar dates only: freezeDate leaves the timers native (see fixtures/date.ts).
 const NOW = new Date('2026-07-19T12:00:00Z');
 
 test('trend chart renders mastery only', async ({ page, consoleCollector: _c }) => {
-	await page.clock.setFixedTime(NOW);
+	await freezeDate(page, NOW);
 
 	const summaries = [
 		// Two pre-feature days with complexity but no mastery — must NOT plot.
@@ -101,7 +102,7 @@ test('scale proficiency rows expand a level-over-time chart below the row', asyn
 	page,
 	consoleCollector: _c
 }) => {
-	await page.clock.setFixedTime(NOW);
+	await freezeDate(page, NOW);
 
 	await seedStorage(page, {
 		settings: SETTINGS_ONBOARDED,

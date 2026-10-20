@@ -53,12 +53,15 @@ tests/e2e/
 │   ├── storage.ts         ← seed localStorage before load; pre-stamps the namespace pointer
 │   ├── audio.ts           ← getUserMedia + MediaRecorder mocks, stubCdnInstrumentSamples
 │   ├── stub-cloud.ts      ← shared in-memory Supabase, bridged by route interception
+│   ├── date.ts            ← freezeDate: a fixed "today" with native timers
+│   ├── lick-practice-seeds.ts ← progress seeds shared by the lick-practice session specs
 │   └── circleci-coverage.ts ← per-test Chromium coverage for impact analysis (inert by default)
 ├── reporters/
 │   └── circleci-coverage.ts ← writes that coverage as CircleCI's coverage JSON
 └── *.spec.ts              ← per-feature flows
 ```
 
+- **`date.ts`** pins "now" for a spec that needs a fixed calendar. Use it instead of `page.clock.setFixedTime`, which fakes every timer as well: Sentry then takes `setTimeout` from a sandbox iframe with its own fake clock, Replay's debounce clears that timer through the page's clock, and the colliding ids made progress-trend-chart throw 1 run in 10.
 - **`circleci-coverage.ts`** is the base of the console guard's `test`, so it reaches every spec, and it does nothing unless `CIRCLECI_COVERAGE` is set. That happens only in the `e2e tests` suite's `analysis` command (the CI `e2e-analysis` job on main, or a local `circleci testsuite run "e2e tests" --analyze-tests=…`). Coverage is by chunk: a test covers every source file in the sourcemap of every app script its page loaded, so the build needs `E2E_SOURCEMAPS=1` (hidden maps). Server-only code never reaches the browser, so the suite lists those paths under `full-test-run-paths` instead.
 
 - **`auth.ts`** provides `signedInPage` and `testUser`. It sets the cookie only; it registers no Supabase mocks, so a signed-in spec stubs its own `**/rest/v1/**` routes (or uses `stub-cloud.ts`).
