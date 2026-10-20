@@ -747,7 +747,10 @@ export function tuneToAbcWithMap(
 				const off1 = fractionToFloat(elements[i + 1].note.offset);
 				const off2 = fractionToFloat(elements[i + 2].note.offset);
 
-				if (Math.abs(off1 - off0 - tripDur) < 1e-9 && Math.abs(off2 - off1 - tripDur) < 1e-9) {
+				// A group never crosses a barline: the third member must start in
+				// the first one's bar, or its barline and bar anchor are lost.
+				if (Math.abs(off1 - off0 - tripDur) < 1e-9 && Math.abs(off2 - off1 - tripDur) < 1e-9 &&
+					Math.floor(off2 / barDuration + 1e-9) === bar) {
 					tokens.push('(3');
 					for (let j = 0; j < 3; j++) emitElement(elements[i + j], tripBase, barState);
 					prevBar = Math.floor(off2 / barDuration + 1e-9);

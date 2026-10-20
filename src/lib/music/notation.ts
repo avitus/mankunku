@@ -919,8 +919,11 @@ export function phraseToAbcWithMap(
 			const off1 = fractionToFloat(displayNotes[i + 1].offset);
 			const off2 = fractionToFloat(displayNotes[i + 2].offset);
 
+			// A group never crosses a barline: the third member must start in the
+			// first one's bar, or the barline between them is never emitted.
 			if (Math.abs(off1 - off0 - tripDur) < 1e-9 &&
-				Math.abs(off2 - off1 - tripDur) < 1e-9) {
+				Math.abs(off2 - off1 - tripDur) < 1e-9 &&
+				Math.floor(off2 / barDuration + 1e-9) === bar) {
 
 				tokens.push('(3');
 				for (let j = 0; j < 3; j++) {

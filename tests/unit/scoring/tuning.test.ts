@@ -176,10 +176,16 @@ describe('ear-training tuning feedback', () => {
 		});
 
 		it('holds only in the direction the cue was on', () => {
+			// CodeRabbit on #282: the window flips direction while the sharp
+			// cue is still on, so a hold that ignored direction would read the
+			// flat -10 against HOLD_CENTS and turn the cue flat.
 			const monitor = createTuningMonitor();
-			for (const t of rise) monitor.record(take(t));
-			for (let i = 0; i < 4; i++) monitor.record(take([-9, -11, -10]));
-			expect(monitor.record(take([-11, -9, -10]))).toBeNull();
+			const sharp = [14, 14, 14], flat = [-10, -10, -10];
+			for (const t of [sharp, flat, sharp, flat]) monitor.record(take(t));
+			// Window 3 sharp / 2 flat, centre 14: the sharp cue is on.
+			expect(monitor.record(take(sharp))).toEqual({ direction: 'sharp', cents: 14 });
+			// Window 3 flat / 2 sharp, centre -10: past the hold, short of the alert.
+			expect(monitor.record(take(flat))).toBeNull();
 		});
 	});
 

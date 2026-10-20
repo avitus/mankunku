@@ -43,3 +43,32 @@ it('keeps an inferred triplet rest gap anchored to its actual duration', () => {
 	expect(abc).toContain('(3D2z2F2');
 	expect(gapAnchors).toEqual([expect.objectContaining({ offset: 2 / 3, duration: 1 / 6 })]);
 });
+
+// CodeRabbit on #282: a half rest selected at beat 4 divides into three 1/6
+// rests whose third starts in the next bar. Grouping them as one triplet
+// swallowed the barline (and its bar anchor) between the second and third.
+describe.each([false, true])('a triplet run across a barline, preserveRestBoundaries=%s', preserveRestBoundaries => {
+	it.each([[null, null, null], [62, 64, 65]])('keeps the barline between %j, %j, %j', (a, b, c) => {
+		const notes: Note[] = [
+			{ pitch: 60, offset: [0, 1], duration: [3, 4] },
+			{ pitch: a, offset: [3, 4], duration: [1, 6] },
+			{ pitch: b, offset: [11, 12], duration: [1, 6] },
+			{ pitch: c, offset: [13, 12], duration: [1, 6] },
+			{ pitch: 67, offset: [5, 4], duration: [3, 4] }
+		];
+		const phrase: Phrase = {
+			id: 'triplet-across-bar', name: 'Across the bar', key: 'C', timeSignature: [4, 4], notes,
+			harmony: [], difficulty: { level: 1, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 2 },
+			category: 'user', tags: [], source: 'user-entered'
+		};
+		const results = [
+			phraseToAbcWithMap(phrase, undefined, [1, 8], preserveRestBoundaries),
+			tuneToAbcWithMap(sheet({ sections: [section({ bars: 2, notes })] }), undefined, { preserveRestBoundaries })
+		];
+		for (const { abc, noteAnchors } of results) {
+			const second = noteAnchors.find(anchor => anchor.sourceIndex === 2)!;
+			const third = noteAnchors.find(anchor => anchor.sourceIndex === 3)!;
+			expect(abc.slice(second.endChar, third.startChar)).toContain('|');
+		}
+	});
+});
