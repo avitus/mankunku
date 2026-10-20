@@ -3103,3 +3103,15 @@ share and switches per run are what a player sees. And "in-tune runs must
 stay at 0" was already false on the new data (1%), for a reason unrelated
 to the change — worth saying plainly rather than letting the bar silently
 move.
+
+## 2026-10-20 — The e2e job was never short of parallelism, only of balance
+
+Six e2e shards, ~11 minutes of wall clock, and four of the six nodes finished
+in under five. Playwright's `--shard` with `fullyParallel` cuts the test list
+into equal COUNTS in file order, so the slow transport-driven specs, which sit
+together in the alphabet, landed on the last two nodes. Nobody saw it because
+the job's duration was the only number anyone looked at, and it was steady.
+The worth of Smarter Testing here is less "smart" than "measured": splitting by
+last run's timings is the first time the split uses the cost it is trying to
+balance. Worth checking the first few runs: the floor is now the slowest single
+FILE plus the per-node build, and lick-practice-session is the one to watch.

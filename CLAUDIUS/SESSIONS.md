@@ -5626,3 +5626,31 @@ flickers.
 - `HOLD_CENTS` moves only the switch-off; the faders' ticks and `tuningTone`
   stay on `ALERT_CENTS`. Docs: user guide, design system, CLAUDE.md,
   results notes.
+
+## 2026-10-20 — CircleCI Smarter Testing onboarding
+
+Andy asked to set up CircleCI Smarter Testing (the testsuite skill).
+
+- `.circleci/test-suites.yml` with three suites, one atom per test file, each
+  uploading JUnit via `store-test-results`: `unit tests` (vitest, 395 atoms),
+  `e2e tests` (Playwright, 75), `omr tests` (pytest from omr/, 21). The test,
+  e2e and omr-test jobs call `circleci testsuite run`; e2e keeps parallelism
+  6. `circleci testsuite doctor` is clean on all three.
+- Two runner quirks set the shape. Playwright's JUnit reporter names a file
+  relative to testDir with no `file` attribute, so the e2e atoms are
+  testDir-relative and `run` restores `tests/e2e/` (a bare `smoke.spec.ts`
+  regex also matches stub-cloud-smoke.spec.ts). The junit reporter joins only
+  when `PLAYWRIGHT_JUNIT_OUTPUT_FILE` is set. OMR discovery asks pytest, since
+  the omr_integration files are deselected and would report nothing.
+- Balance check before switching e2e from `--shard` to file splitting:
+  lick-practice-session.spec.ts alone is 5.8 min locally at 2 workers, but
+  build 4012's shards ran 4.7 / 4.6 / 3.1 / 4.6 / 10.0 / 11.0 min — 38
+  node-minutes behind an 11-minute wall — so timing-based file splitting
+  should beat the count-based shard even with that file on one node.
+- The old e2e `store_test_results` uploaded test-results/ (traces, never
+  JUnit), so the e2e Tests tab was empty until now; removed in favour of the
+  suite's upload.
+- No credit-charged feature enabled; asked Andy.
+- Held the push while release PR #282 (dev → main) was open — Andy: push to
+  dev only once PRs are merged. After it merged (18:32Z) the code commit
+  (90efa510) was pushed alone so CI runs on it, then this [skip ci] log.
