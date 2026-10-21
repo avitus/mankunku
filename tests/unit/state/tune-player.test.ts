@@ -4,7 +4,8 @@ import { settings } from '$lib/state/settings.svelte';
 import { TunePlayer } from '$lib/state/tune-player.svelte';
 
 const audio = vi.hoisted(() => ({
-	loadInstrument: vi.fn(), playPhrase: vi.fn(), stopPlayback: vi.fn(), getAudibleTransportSeconds: vi.fn(() => 0)
+	loadInstrument: vi.fn(), playPhrase: vi.fn(), stopPlayback: vi.fn(), getAudibleTransportSeconds: vi.fn(() => 0),
+	PHRASE_LEAD_IN_BARS: 1
 }));
 vi.mock('$lib/audio/playback', () => audio);
 const tune: Tune = {
@@ -78,6 +79,61 @@ describe('tune desk playback', () => {
 		await started;
 		expect(audio.playPhrase).not.toHaveBeenCalled();
 		expect(player.busy).toBe(false);
+	});
+	// 2026-10-21, Black Orpheus: the gold bar ran one bar ahead of the melody.
+	// playPhrase starts the form one bar into the transport, and the marker
+	// read the raw transport bar. Not the pickup: it maps to chart bar 0.
+	it('marks the bar the melody is in, not the transport bar', async () => {
+		const pickupTune: Tune = {
+			...tune,
+			sections: [
+				{ label: '', bars: 1, pickupLength: [1, 4], notes: [{ pitch: 64, offset: [3, 4], duration: [1, 4] }], harmony: [] },
+				{ label: 'A', bars: 2, notes: [{ pitch: 60, offset: [0, 1], duration: [1, 1] }], harmony: [] }
+			]
+		};
+		let finish!: () => void;
+		audio.playPhrase.mockImplementation(() => new Promise<void>(resolve => finish = resolve));
+		player.setTempo(120); // one 4/4 bar = 2 s
+		const started = player.toggle(pickupTune, 'swing');
+		await vi.waitFor(() => expect(audio.playPhrase).toHaveBeenCalled());
+		const callbacks = audio.playPhrase.mock.calls[0][3];
+		/** The chart bar the marker shows when the audible transport reads `seconds`. */
+		const at = (seconds: number): number | null => {
+			audio.getAudibleTransportSeconds.mockReturnValue(seconds);
+			callbacks.onStarted();
+			return player.chartBar;
+		};
+		expect(at(1)).toBeNull(); // the engine's silent lead-in bar
+		expect(at(3.6)).toBeCloseTo(0.8); // the pickup note, beat 4 of the pickup bar
+		expect(at(4.2)).toBeCloseTo(1.1); // the first full bar's downbeat
+		expect(at(6.2)).toBeCloseTo(2.1); // A's second bar
+		finish();
+		await started;
+	});
+	// playPhrase's lead-in is timeSignature[0] QUARTER notes: in 6/8 that is
+	// two printed bars, not one (CodeRabbit on #284).
+	it('waits out the whole lead-in in compound meter', async () => {
+		const sixEight: Tune = {
+			...tune, timeSignature: [6, 8],
+			sections: [{ label: 'A', bars: 2, notes: [{ pitch: 60, offset: [0, 1], duration: [3, 8] }], harmony: [] }]
+		};
+		let finish!: () => void;
+		audio.playPhrase.mockImplementation(() => new Promise<void>(resolve => finish = resolve));
+		player.setTempo(120); // lead-in = 6 quarters = 3 s; a 6/8 bar = 1.5 s
+		const started = player.toggle(sixEight, 'swing');
+		await vi.waitFor(() => expect(audio.playPhrase).toHaveBeenCalled());
+		const callbacks = audio.playPhrase.mock.calls[0][3];
+		/** The chart bar the marker shows when the audible transport reads `seconds`. */
+		const at = (seconds: number): number | null => {
+			audio.getAudibleTransportSeconds.mockReturnValue(seconds);
+			callbacks.onStarted();
+			return player.chartBar;
+		};
+		expect(at(2.5)).toBeNull();
+		expect(at(3.3)).toBeCloseTo(0.2);
+		expect(at(4.6)).toBeCloseTo(1.0667, 3);
+		finish();
+		await started;
 	});
 	it('maps repeated notes to the printed chart and ignores callbacks after stop', async () => {
 		let finish!: () => void;
