@@ -78,8 +78,11 @@ export class TunePlayer {
 							const playback = this.playback;
 							if (!playback) return;
 							const seconds = playback.getAudibleTransportSeconds();
-							// The form starts after the engine's lead-in bar, not at transport 0.
-							const bar = seconds * tempo / 60 / (tune.timeSignature[0] * 4 / tune.timeSignature[1]) - playback.PHRASE_LEAD_IN_BARS;
+							// The form starts after the engine's lead-in, not at transport 0. The
+							// engine's bar is timeSignature[0] quarter notes (two printed bars of 6/8).
+							const leadInQuarters = playback.PHRASE_LEAD_IN_BARS * tune.timeSignature[0];
+							const printedBarQuarters = tune.timeSignature[0] * 4 / tune.timeSignature[1];
+							const bar = (seconds * tempo / 60 - leadInQuarters) / printedBarQuarters;
 							this.chartBar = notationBarForPlaybackBar(flat.sectionMap, tune.sections, bar);
 						};
 						update();

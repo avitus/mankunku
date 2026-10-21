@@ -664,6 +664,8 @@ export interface PhrasePlaybackOpts {
  * Bars of transport `playPhrase` runs before the phrase's first bar (the
  * count-in bar, silent when no click is asked for). A chart cursor reading
  * the transport clock subtracts it, or it marks the bar after the music.
+ * The engine's bar is `timeSignature[0]` QUARTER notes, so in 6/8 the
+ * lead-in spans two printed bars.
  */
 export const PHRASE_LEAD_IN_BARS = 1;
 
