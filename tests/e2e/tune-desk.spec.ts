@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures/test';
+import type { PlaywrightTestArgs, PlaywrightWorkerOptions } from '@playwright/test';
 import { seedOnboardedAnonymous, seedTunes } from './fixtures/storage';
 import { stubCdnInstrumentSamples } from './fixtures/audio';
 
@@ -102,7 +103,9 @@ test('editor style changes update its preview and survive saving the tune', asyn
 	await expect(page.getByRole('heading', { name: 'Ballad', exact: true })).toBeVisible();
 });
 
-test('transposing a tune and editing a preview note stop the previous playback', async ({ page, browserName }) => {
+test('transposing a tune and editing a preview note stop the previous playback', async (
+	{ page, browserName }: Pick<PlaywrightTestArgs & PlaywrightWorkerOptions, 'page' | 'browserName'>
+): Promise<void> => {
 	test.skip(browserName === 'firefox' && process.platform === 'linux', 'Headless Linux Firefox audio cannot start');
 	test.setTimeout(60_000);
 	await stubCdnInstrumentSamples(page);

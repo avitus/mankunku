@@ -18,7 +18,7 @@ export function includeInSnapshot(file) {
 		['.git', '.claude', '.codex', '.chunk', '.npmrc', 'node_modules',
 			'.venv', '__pycache__', '.auth', '.temp'].includes(part) ||
 		(part.startsWith('.env') && part !== '.env.example') ||
-		/\.(pem|key|p12|pfx)$/.test(part));
+		/\.(pem|key|p12|pfx)$/i.test(part));
 }
 
 /** Resolve browser binaries from the lockfile, never the semver range.

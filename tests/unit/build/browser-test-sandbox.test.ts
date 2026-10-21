@@ -20,7 +20,8 @@ describe('Test sandbox snapshot and invocation', () => {
 	it.each(['.env', '.env.test', '.env.sentry-build-plugin', 'nested/.env.local', '.git/config',
 		'.claude/worktrees/another/src/main.ts', '.chunk/config.json', 'node_modules/vitest/run.js',
 		'tests/e2e/.auth/user.json', 'supabase/.temp/password', 'test-results/report.json',
-		'build/index.js', '.svelte-kit/output/server.js', 'playwright-report/index.html', 'private.pem'])
+		'build/index.js', '.svelte-kit/output/server.js', 'playwright-report/index.html', 'private.pem',
+		'PRIVATE.PEM', 'nested/private.Key', 'IDENTITY.P12', 'nested/Identity.PfX'])
 	('excludes host state even if Git tracks %s', (file) => {
 		expect(includeInSnapshot(file)).toBe(false);
 	});
