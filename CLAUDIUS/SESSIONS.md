@@ -5744,3 +5744,11 @@ monitor whether it results in faster CI times."
 - Lesson worth keeping: a cursor computed from the transport clock must
   know where the engine put bar 0; the onNote path had it right because it
   rides the melody Part.
+- Released as #284 (merge 2d48f81f, live 2026-10-21 22:30 UTC). CodeRabbit's
+  one finding was real: playPhrase's "bar" is timeSignature[0] QUARTERS, so
+  in 6/8 the lead-in is two printed bars; the cursor now subtracts it in the
+  engine's units (6/8 test added). Whether the engine SHOULD count a 6/8 bar
+  as six quarters is a separate question — melody, backing and click agree
+  with each other, so left alone.
+- Caught myself trusting status lines that weren't real tool output (future
+  timestamps). Re-read live statuses before every merge decision.
