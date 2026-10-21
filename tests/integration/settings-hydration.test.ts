@@ -258,3 +258,19 @@ describe('instrument lookups', () => {
 		expect(settingsModule.getEffectiveHighestNote()).toBe(70);
 	});
 });
+
+describe('personal tune backing choices', () => {
+	it('hydrates valid styles from another device and drops unsupported values', async () => {
+		mockFetchSettings.mockResolvedValue({ backingStyle: 'straight', tuneBackingStyles: { song: 'bossa-nova', corrupt: 'unknown' } });
+		await settingsModule.loadSettingsFromCloud(mockSupabase() as any);
+		expect(settingsModule.settings.tuneBackingStyles).toEqual({ song: 'bossa-nova' });
+		expect(settingsModule.settings.backingStyle).toBe('straight');
+	});
+	it('retains an unsynced local tune choice when a stale cloud hydration arrives', async () => {
+		settingsModule.settings.tuneBackingStyles = { song: 'ballad' };
+		settingsModule.saveSettings();
+		mockFetchSettings.mockResolvedValue({ tuneBackingStyles: { song: 'swing' } });
+		await settingsModule.loadSettingsFromCloud(mockSupabase() as any);
+		expect(settingsModule.settings.tuneBackingStyles).toEqual({ song: 'ballad' });
+	});
+});

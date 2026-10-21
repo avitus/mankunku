@@ -85,6 +85,7 @@ export const SETTINGS_ONBOARDED = {
 	backingInstrument: 'piano',
 	backingTrackVolume: 0.6,
 	backingStyle: 'swing',
+	tuneBackingStyles: {},
 	swing: 0.62,
 	theme: 'dark',
 	onboardingComplete: true,

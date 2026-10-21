@@ -64,6 +64,7 @@ export type CloudLoad<T> = { status: 'ok'; data: T } | { status: 'empty' } | { s
 
 /** Minimal typed interface for settings passed to syncSettingsToCloud. */
 interface SyncableSettings {
+	tuneBackingStyles?: Record<string, string>;
 	instrumentId: string;
 	defaultTempo: number;
 	masterVolume: number;
@@ -671,6 +672,7 @@ export async function syncSettingsToCloud(
 				tonality_override: (settings.tonalityOverride ?? null) as Json,
 				highest_note: settings.highestNote ?? null,
 				backing_style: settings.backingStyle,
+				tune_backing_styles: settings.tuneBackingStyles ?? {},
 				bleed_filter_enabled: settings.bleedFilterEnabled,
 				updated_at: new Date().toISOString()
 			},
@@ -731,6 +733,7 @@ export async function loadSettingsFromCloud(
 				tonalityOverride: isValidTonality(data.tonality_override) ? data.tonality_override : null,
 				highestNote: data.highest_note ?? null,
 				backingStyle: data.backing_style ?? 'swing',
+				tuneBackingStyles: data.tune_backing_styles ?? {},
 				bleedFilterEnabled: data.bleed_filter_enabled ?? false
 			}
 		};

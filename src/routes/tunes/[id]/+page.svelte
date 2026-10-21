@@ -1,8 +1,14 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
-	import { onDestroy } from 'svelte';
-	import StudioPage from '$lib/components/console/StudioPage.svelte';
+	import { onDestroy, tick } from 'svelte';
+	import TuneBandControls from '$lib/components/tunes/TuneBandControls.svelte';
+	import { TunePlayer } from '$lib/state/tune-player.svelte';
+	import { tuneDeskView } from '$lib/state/tune-desk-view.svelte';
+	import { tuneBackingStyle } from '$lib/tunes/backing-style';
+	import type { BackingStyle } from '$lib/types/instruments';
+	import { settings, saveSettings } from '$lib/state/settings.svelte';
+	import type { RangeMarker } from '$lib/components/notation/NotationDisplay.svelte';
 	import EditorIcon from '$lib/components/step-entry/EditorIcon.svelte';
 	import TuneTransport from '$lib/components/tunes/TuneTransport.svelte';
 	import TuneHarmonyGuide from '$lib/components/tunes/TuneHarmonyGuide.svelte';
@@ -10,10 +16,11 @@
 	import { loadDraftForReview } from '$lib/state/tune-entry.svelte';
 	import '$lib/components/step-entry/lick-editor.css';
 	import '$lib/components/tunes/tune-desk.css';
+	import '$lib/components/tunes/tune-detail.css';
 	import NotationDisplay from '$lib/components/notation/NotationDisplay.svelte';
 	import { isCuratedTuneId, transposeTune } from '$lib/tunes/book-loader';
 	import { resolveTuneRef, tunePracticePath } from '$lib/tunes/tune-slug';
-	import { getUserTunesLocal, deleteUserTune } from '$lib/persistence/user-tunes';
+	import { getUserTunesLocal, deleteUserTune, saveUserTune } from '$lib/persistence/user-tunes';
 	import {
 		getTuneAdoptionsLocal,
 		getAdoptedTuneAuthorsLocal,
@@ -105,10 +112,11 @@
 	 */
 	let selectedWrittenKey: PitchClass | null = $state(null);
 
+	const baseKey = $derived(baseSheet?.key);
+	const baseId = $derived(baseSheet?.id);
 	$effect(() => {
-		if (baseSheet) {
-			selectedWrittenKey = concertKeyToWritten(baseSheet.key, getInstrument());
-		}
+		void baseId;
+		if (baseKey) selectedWrittenKey = concertKeyToWritten(baseKey, getInstrument());
 	});
 
 	const writtenKey = $derived(selectedWrittenKey ?? 'C');
@@ -121,8 +129,38 @@
 	);
 
 	let transport: TuneTransport | undefined = $state();
+	const player = new TunePlayer();
+	let settingsDialog = $state<HTMLDialogElement>();
+	let chartWidth = $state(800);
+	let viewportWidth = $state(1280);
+	let drawerOpen = $state(false);
+	/** Render controls before opening the native modal, which owns focus and Escape. */
+	async function openSettings(): Promise<void> {
+		drawerOpen = true;
+		await tick();
+		settingsDialog?.showModal();
+	}
+	const backingStyle = $derived(baseSheet ? tuneBackingStyle(baseSheet, isOwnSheet ? {} : settings.tuneBackingStyles) : 'swing');
+	const totalBars = $derived(sheet?.sections.reduce((sum, section) => sum + section.bars, 0) ?? 0);
 	let harmonyColors = $state(true);
-	const markers = $derived(sheet && harmonyColors ? tuneHarmonyMarkers(sheet) : []);
+	const markers: RangeMarker[] = $derived([
+		...(sheet && harmonyColors ? tuneHarmonyMarkers(sheet) : []),
+		...(player.chartBar === null ? [] : [{ id: 'tune-playhead', startBar: Math.floor(player.chartBar), endBarExclusive: Math.floor(player.chartBar) + 1, status: 'playhead' as const }])
+	]);
+
+	/** Own tunes carry their style; shared/curated charts keep a personal account preference. */
+	function saveBackingStyle(style: BackingStyle): void {
+		if (!baseSheet || player.busy) return;
+		if (isOwnSheet) {
+			saveUserTune({ ...baseSheet, backingStyle: style });
+			cacheVersion++;
+		} else {
+			settings.tuneBackingStyles = { ...settings.tuneBackingStyles, [baseSheet.id]: style };
+			saveSettings(supabase ?? undefined);
+		}
+	}
+
+	$effect(() => { page.params.id; settingsDialog?.close(); });
 	let confirmingDelete = $state(false);
 	let confirmingReturn = $state(false);
 	let adopting = $state(false);
@@ -131,11 +169,14 @@
 	function handleCopy(): void {
 		if (!baseSheet || !isCurated) return;
 		transport?.stop();
-		loadDraftForReview({ ...baseSheet, id: '', source: 'user' }, getInstrument());
+		loadDraftForReview({ ...baseSheet, backingStyle, id: '', source: 'user' }, getInstrument());
 		goto(`/tunes/editor?copy=${baseSheet.id}`);
 	}
 
 	function handleKeydown(event: KeyboardEvent): void {
+		if (document.querySelector('dialog[open]')) return;
+		if (event.key === 'Escape') { tuneDeskView.focus = false; return; }
+		if (event.repeat) return;
 		if (event.key !== ' ' || event.ctrlKey || event.metaKey || event.altKey) return;
 		if (event.target instanceof HTMLElement && event.target.closest('input,select,textarea,button,a,[role="button"]')) return;
 		event.preventDefault();
@@ -182,43 +223,57 @@
 		else confirmingReturn = false;
 	}
 
-	onDestroy(() => transport?.stop());
+	onDestroy(() => { player.dispose(); tuneDeskView.focus = false; });
 </script>
 
 <svelte:head>
 	<title>{baseSheet?.title ?? 'Tune'} — Mankunku</title>
 </svelte:head>
 
-<svelte:window onkeydown={handleKeydown} />
+<svelte:window onkeydown={handleKeydown} bind:innerWidth={viewportWidth} />
 
-<div class="lick-editor tune-desk">
-	<a class="le-back" href="/tunes"><EditorIcon name="back" size={14} />Your tunes</a>
-	<StudioPage eyebrow="The book / Your repertoire" title="The tune desk" description="Listen to the melody. Find your way through the changes.">
-		{#snippet actions()}
-			{#if baseSheet}
+<div class="lick-editor tune-desk tune-detail studio-desk" class:td-focus={tuneDeskView.focus}>
+	{#if !tuneDeskView.focus}
+		<a class="le-back" href="/tunes"><EditorIcon name="back" size={14} />Your tunes</a>
+		<header class="td-detail-heading">
+			<div><p class="studio-label">Your tune book</p><h1>{baseSheet?.title ?? 'Tune'}</h1><p class="td-heading-meta">{baseSheet?.composer ?? 'Your arrangement'} <span>·</span> {totalBars} bars <span>·</span> <span class="le-badge">{isCurated ? 'Curated' : isOwnSheet ? 'Your arrangement' : 'Community'}</span></p>{#if authorName}<p class="td-composer">Shared by {authorName}</p>{/if}</div>
+			<div class="td-detail-actions">{#if baseSheet}
 				{#if isOwnSheet}<button class="le-button le-quiet" onclick={handleEdit}>Edit tune</button>
 				{:else if isCurated}<button class="le-button le-quiet" onclick={handleCopy}>Edit a copy</button>{/if}
-				{#if bookSheet}<button class="le-button le-save" onclick={() => goto(tunePracticePath(baseSheet))}>Practice licks <span aria-hidden="true">→</span></button>
+				{#if bookSheet}<button class="td-practice-link" onclick={() => goto(tunePracticePath(baseSheet))}>Practice licks <span aria-hidden="true">→</span></button>
 				{:else if sharedSheet}<button class="le-button le-save" onclick={handleAdopt} disabled={adopting}>{adopting ? 'Adding…' : 'Add to my book'}</button>{/if}
-			{/if}
-		{/snippet}
-		{#if sheet && baseSheet}
-			<div class="le-layout"><div class="le-workspace">
-				<section class="le-panel le-chart" aria-label="Tune chart">
-					<header class="td-chart-heading"><div><p class="studio-label">01 / Your chart <span class="le-badge">{isCurated ? 'Curated' : isOwnSheet ? 'Your arrangement' : 'Community'}</span></p><h2 class="td-title">{baseSheet.title}</h2>{#if baseSheet.composer}<p class="td-composer">{baseSheet.composer}</p>{/if}{#if authorName}<p class="td-composer">Shared by {authorName}</p>{/if}</div></header>
-					<div class="td-score-top"><span>Melody & changes</span><button aria-pressed={harmonyColors} onclick={() => harmonyColors = !harmonyColors}><i class="td-color-dot" aria-hidden="true"></i>Harmony colors <i class="td-switch" class:active={harmonyColors} aria-hidden="true"></i></button></div>
-					<div class="td-score-well"><NotationDisplay tuneOptions={{ omitMasthead: true }} tune={sheet} instrument={getInstrument()} frameless rangeMarkers={markers} /></div>
-					<div class="td-status"><span><i aria-hidden="true"></i>Lead sheet · Written key {writtenKey.replace('b', '♭').replace('#', '♯')}</span><span>{sheet.timeSignature.join('/')} {#if sheet.style}· {sheet.style}{/if}</span></div>
-					<TuneTransport bind:this={transport} tune={sheet} />
+			{/if}</div>
+		</header>
+	{/if}
+	{#if sheet && baseSheet}
+		<div class="td-detail-layout">
+			<div class="td-workspace">
+				<section class="le-panel td-detail-chart" aria-label="Tune chart">
+					<div class="td-score-top">
+						<div class="td-chart-context">{#if tuneDeskView.focus}<h1>{baseSheet.title}</h1>{:else}<strong>{sheet.sections[0]?.label || '♪'}</strong><span>Full tune <i>/</i> {totalBars} bars</span>{/if}</div>
+						<div class="td-chart-tools"><button aria-pressed={harmonyColors} onclick={() => harmonyColors = !harmonyColors}><i class="td-color-dot" aria-hidden="true"></i><span>Harmony colors</span><i class="td-switch" class:active={harmonyColors} aria-hidden="true"></i></button><button class="td-focus-button" aria-pressed={tuneDeskView.focus} onclick={() => tuneDeskView.focus = !tuneDeskView.focus}>{tuneDeskView.focus ? 'Exit focus' : '⛶ Focus'}</button></div>
+					</div>
+					<div class="td-score-well" bind:clientWidth={chartWidth}><NotationDisplay tuneOptions={{ omitMasthead: true, barsPerLine: chartWidth < 550 ? 2 : 4 }} tune={sheet} instrument={getInstrument()} frameless rangeMarkers={markers} cursorIndex={player.cursorIndex} playheadStyle="under-bar" autoScrollPlayhead={player.playing} playheadBarFraction={player.chartBar} /></div>
+					<div class="td-status"><span><i aria-hidden="true"></i><strong>{player.starting ? 'Loading…' : player.playing ? `Playing · Bar ${Math.floor(player.chartBar ?? 0) + 1}` : 'Ready to play'}</strong> Written in {writtenKey.replace('b', '♭').replace('#', '♯')}</span><span>{sheet.timeSignature.join('/')} · {totalBars} bars</span></div>
+					<TuneTransport bind:this={transport} tune={sheet} {player} style={backingStyle} onsettings={tuneDeskView.focus || viewportWidth <= 800 ? openSettings : undefined} />
 				</section>
-				{#if isCurated || isOwnSheet}<div class="td-read-note"><span class="studio-label">Make it yours</span><p>Change a melody. Try a different chord.</p><button onclick={isOwnSheet ? handleEdit : handleCopy}>{isOwnSheet ? 'Open tune editor' : 'Edit your own copy'} →</button></div>{/if}
-			</div><aside class="le-inspector" aria-label="Tune settings">
-				<section class="le-setup"><p class="studio-label">Setup</p><h2>The musical context.</h2><label for="tune-key">Key</label><select id="tune-key" value={writtenKey} onchange={e => { transport?.stop(); selectedWrittenKey = e.currentTarget.value as PitchClass; }}>{#each PITCH_CLASSES as pc (pc)}<option value={pc}>{pc.replace('b', '♭').replace('#', '♯')}</option>{/each}</select><p>The melody and chords move together.</p><div class="td-fields"><div><span class="td-field-label">Time</span><div class="td-static">{sheet.timeSignature.join(' / ')}</div></div><div><span class="td-field-label">Form</span><div class="td-static">{sheet.sections.map(s => s.label).filter(Boolean).join(' · ') || '—'}</div></div></div>{#if sheet.style}<span class="td-field-label">Style</span><div class="td-static">{sheet.style}</div>{/if}<p>Written for {getInstrument().name}.</p></section>
-				<TuneHarmonyGuide />
-				<section class="td-rail-section"><p class="studio-label">About this chart</p><div class="td-tags">{#each baseSheet.tags.filter(t => t !== 'practice' && t !== 'user-entered') as tag (tag)}<span>{tag}</span>{/each}</div><div class="td-library-actions">{#if isOwnSheet}<button onclick={handleDelete}>{confirmingDelete ? 'Confirm Delete' : 'Delete'}</button>{:else if isAdopted && bookSheet}<button onclick={handleReturn}>{confirmingReturn ? 'Confirm Return' : 'Return to community'}</button>{/if}</div></section>
-			</aside></div>
-		{:else if sharedLoading}<section class="le-panel le-chart"><p role="status">Loading tune…</p></section>
-		{:else}<section class="le-panel le-chart"><p>Tune not found: {page.params.id}</p><a href="/tunes">Back to Tunes</a></section>{/if}
-		<footer class="le-footer"><span>MANKUNKU <i>/</i> YOUR REPERTOIRE, IN YOUR HANDS.</span><a href="/tunes">Back to your tunes ↗</a></footer>
-	</StudioPage>
+				<div class="td-reading-footer"><span>Space to play or stop</span><em>Listen. Find the changes. Make them yours.</em></div>
+			</div>
+			{#if !tuneDeskView.focus && viewportWidth > 800 && !drawerOpen}<aside class="td-detail-rail" aria-label="Tune settings">
+				<TuneBandControls {player} style={backingStyle} tuneId={baseSheet.id} personal={!isOwnSheet} onsave={saveBackingStyle} />
+				{@render chartSettings('rail')}
+			</aside>{/if}
+		</div>
+		<dialog bind:this={settingsDialog} class="le-dialog td-settings-drawer" aria-labelledby="desk-settings-title" onclose={() => drawerOpen = false}>{#if drawerOpen}<header><h2 id="desk-settings-title">Tune settings</h2><button aria-label="Close tune settings" onclick={() => settingsDialog?.close()}>×</button></header><TuneBandControls {player} style={backingStyle} tuneId={baseSheet.id} personal={!isOwnSheet} idPrefix="drawer" onsave={saveBackingStyle} />{@render chartSettings('drawer')}{/if}</dialog>
+	{:else if sharedLoading}<section class="le-panel le-chart"><p role="status">Loading tune…</p></section>
+	{:else}<section class="le-panel le-chart"><p>Tune not found: {page.params.id}</p><a href="/tunes">Back to Tunes</a></section>{/if}
+	{#if !tuneDeskView.focus}<footer class="le-footer"><span>MANKUNKU <i>/</i> YOUR REPERTOIRE, IN YOUR HANDS.</span><a href="/tunes">Back to your tunes ↗</a></footer>{/if}
 </div>
+
+{#snippet chartSettings(prefix: string)}
+	{#if sheet && baseSheet}
+		<section class="td-chart-settings"><p class="studio-label td-rule-label">The chart</p><div class="td-key-row"><label for={`${prefix}-tune-key`}>Key</label><select id={`${prefix}-tune-key`} value={writtenKey} onchange={e => { player.stop(); selectedWrittenKey = e.currentTarget.value as PitchClass; }}>{#each PITCH_CLASSES as pc (pc)}<option value={pc}>{pc.replace('b', '♭').replace('#', '♯')}</option>{/each}</select></div><p class="td-written-for">Written for {getInstrument().name}.</p><dl class="td-chart-facts"><div><dt>Time</dt><dd>{sheet.timeSignature.join('/')}</dd></div><div><dt>Form</dt><dd>{sheet.sections.map(s => s.label).filter(Boolean).join(' · ') || '—'}</dd></div><div><dt>Chart marking</dt><dd>{sheet.style || '—'}</dd></div></dl></section>
+		<details class="td-chart-details"><summary>Chart details & harmony guide</summary><TuneHarmonyGuide /><div class="td-tags">{#each baseSheet.tags.filter(t => t !== 'practice' && t !== 'user-entered') as tag (tag)}<span>{tag}</span>{/each}</div></details>
+		<div class="td-library-actions">{#if isOwnSheet}<button onclick={handleDelete}>{confirmingDelete ? 'Confirm Delete' : 'Delete'}</button>{:else if isAdopted && bookSheet}<button onclick={handleReturn}>{confirmingReturn ? 'Confirm Return' : 'Return to community'}</button>{/if}</div>
+	{/if}
+{/snippet}

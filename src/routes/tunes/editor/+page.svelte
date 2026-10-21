@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { BACKING_STYLE_IDS, BACKING_STYLE_NAMES } from '$lib/audio/backing-styles';
+	import { tuneBackingStyle } from '$lib/tunes/backing-style';
 	import PdfSourceReview from '$lib/components/tunes/PdfSourceReview.svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
@@ -463,7 +465,7 @@
 			<section class="le-panel le-chart" aria-label="Tune chart">
 				<header class="td-chart-heading"><div><p class="studio-label">Your chart <span class="le-badge">{tuneEntry.writtenKey} · {tuneEntry.timeSignature.join('/')} · {tuneEntry.style || 'No style'}</span></p><input class="le-title" bind:value={tuneEntry.title} placeholder="Untitled tune" aria-label="Tune title" /><input class="td-composer" bind:value={tuneEntry.composer} placeholder="Composer" aria-label="Composer" /></div><div class="le-history"><button aria-label="Undo" title="Undo (Ctrl/⌘Z)" disabled={!canUndo} onclick={() => restoreHistory('undo')}><EditorIcon name="undo" /></button><button aria-label="Redo" title="Redo (Ctrl/⌘Shift Z)" disabled={!canRedo} onclick={() => restoreHistory('redo')}><EditorIcon name="redo" /></button></div></header>
 				<nav class="te-sections" aria-label="Sections"><span class="studio-label">Form</span>{#each tuneEntry.sections as section, index}<button class:current={index === tuneEntry.currentSection} aria-pressed={index === tuneEntry.currentSection} onclick={() => jumpToSection(index)}><strong>{section.label || 'Pickup'}</strong><span>{section.bars} bars</span></button>{/each}<button class="te-form-button" onclick={() => formDialog?.showModal()}>Edit form ↗</button></nav>
-                <div class="te-listen"><TuneTransport bind:this={transport} tune={draft} /></div>
+                <div class="te-listen"><TuneTransport bind:this={transport} tune={draft} compact /></div>
                 <div class="td-score-top"><span>Click a note to edit · click a bar to write</span><button aria-pressed={harmonyColors} onclick={() => harmonyColors = !harmonyColors}><i class="td-color-dot" aria-hidden="true"></i>Harmony colors <i class="td-switch" class:active={harmonyColors} aria-hidden="true"></i></button></div>
 				<div class="td-score-well" bind:this={scoreRoot} data-tour="tune-chart"><NotationDisplay tuneOptions={{ omitMasthead: true, barsPerLine: 4 }} bind:this={notationRef} tune={draft} instrument={previewInstrument} selectedIndex={previewSelectedIndex} selectedEndIndex={previewSelectedEndIndex} onSelect={handlePreviewSelect} onBarClick={pos => cursorToBar(pos.sectionIdx, pos.bar)} onGapClick={gap => tuneSelectGap(gap.sectionIdx, gap.offset, gap.duration)} {chordEditor} rangeMarkers={[...harmonyMarkers, ...reviewMarkers]} frameless /></div>
 				<div class="td-status"><span><i aria-hidden="true"></i>{selectedRange ? `${selectedRange.end - selectedRange.start + 1} selected` : (selectedName ?? 'Ready to write')} · {@render entryStatus()}</span><button onclick={() => { selectNote(null); clearEntryCursor(); }}>Clear selection</button></div>
@@ -532,7 +534,8 @@
         <label for="editor-tune-key">Key</label><select id="editor-tune-key" value={tuneEntry.writtenKey} onchange={handleKeyChange}>{#each PITCH_CLASSES as pc (pc)}<option value={pc}>{pc}</option>{/each}</select>
         {#if draft.sections.some(s => s.notes.length > 0)}<label class="td-move-notes"><input type="checkbox" bind:checked={moveNotes} />Move notes with key</label>{/if}
         <div class="td-source-pitch"><SourceTranspositionSelect value={tuneEntry.sourceTransposition} onchange={setSourceTransposition} /></div>
-        <label for="editor-tune-style">Style</label><input id="editor-tune-style" bind:value={tuneEntry.style} placeholder="e.g. Medium Swing" />
+        <label for="editor-tune-style">Chart marking</label><input id="editor-tune-style" bind:value={tuneEntry.style} placeholder="e.g. Medium Swing" />
+        <label for="editor-backing-style">Backing style</label><select id="editor-backing-style" bind:value={tuneEntry.backingStyle}><option value={null}>From chart marking ({BACKING_STYLE_NAMES[tuneBackingStyle({ style: tuneEntry.style })]})</option>{#each BACKING_STYLE_IDS as style}<option value={style}>{BACKING_STYLE_NAMES[style]}</option>{/each}</select>
     </section></div><div class="le-dialog-actions"><button class="le-button le-save" onclick={() => settingsDialog?.close()}>Done</button></div></dialog>
     <dialog bind:this={formDialog} class="le-dialog te-form-dialog" aria-labelledby="form-heading"><header><div><p class="studio-label">Tune structure</p><h2 id="form-heading">Form & sections.</h2></div><button aria-label="Close form" onclick={() => formDialog?.close()}>×</button></header><div class="te-form-content"><SectionConfigPanel /></div><div class="le-dialog-actions"><button class="le-button le-save" onclick={() => formDialog?.close()}>Done</button></div></dialog>
 

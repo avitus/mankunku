@@ -18,7 +18,7 @@
  */
 
 import type { Fraction, HarmonicSegment, Note, PitchClass } from '$lib/types/music';
-import type { InstrumentConfig } from '$lib/types/instruments';
+import type { InstrumentConfig, BackingStyle } from '$lib/types/instruments';
 import type { Tune, TuneSection } from '$lib/types/tune';
 import {
 	addFractions,
@@ -77,6 +77,7 @@ export const tuneEntry = $state({
 	title: '',
 	composer: '',
 	style: '',
+	backingStyle: null as BackingStyle | null,
 	/** WRITTEN key shown in the key selector (at the SOURCE's pitch). */
 	writtenKey: 'C' as PitchClass,
 	/**
@@ -313,6 +314,7 @@ export function initNewTune(): void {
 	tuneEntry.title = '';
 	tuneEntry.composer = '';
 	tuneEntry.style = '';
+	tuneEntry.backingStyle = null;
 	tuneEntry.sourceTransposition = defaultSourceTransposition(getInstrument());
 	tuneEntry.writtenKey = 'C';
 	tuneEntry.timeSignature = [4, 4];
@@ -337,6 +339,7 @@ export function loadFromTune(sheet: Tune, instrument: InstrumentConfig): void {
 	tuneEntry.title = sheet.title;
 	tuneEntry.composer = sheet.composer ?? '';
 	tuneEntry.style = sheet.style ?? '';
+	tuneEntry.backingStyle = sheet.backingStyle ?? null;
 	tuneEntry.sourceTransposition = defaultSourceTransposition(instrument);
 	tuneEntry.writtenKey = transposePitchClass(
 		sheet.key,
@@ -410,6 +413,7 @@ export function buildDraftTune(): Tune {
 	};
 	if (tuneEntry.composer.trim()) draft.composer = tuneEntry.composer.trim();
 	if (tuneEntry.style.trim()) draft.style = tuneEntry.style.trim();
+	if (tuneEntry.backingStyle) draft.backingStyle = tuneEntry.backingStyle;
 	if (tuneEntry.editingPdfUrl) draft.pdfUrl = tuneEntry.editingPdfUrl;
 	return draft;
 }

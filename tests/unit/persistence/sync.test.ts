@@ -1874,3 +1874,15 @@ describe('deleteDailySummariesFromCloud', () => {
 		expect(fromFn).not.toHaveBeenCalled();
 	});
 });
+
+describe('personal tune styles sync with settings', () => {
+	it('pushes and pulls the ID-keyed choices independently of the global style', async () => {
+		const styles = { 'ls-amazing-grace': 'ballad' };
+		const write = createMockSupabase();
+		await syncSettingsToCloud(write as any, { ...TEST_SETTINGS, tuneBackingStyles: styles });
+		expect(write._upsertFn).toHaveBeenCalledWith(expect.objectContaining({ tune_backing_styles: styles }), expect.any(Object));
+		const read = createMockSupabase({ tableResults: { user_settings: { data: { tune_backing_styles: styles, backing_style: 'straight' }, error: null } } });
+		const result = await loadSettingsFromCloud(read as any);
+		expect(result).toMatchObject({ status: 'ok', data: { tuneBackingStyles: styles, backingStyle: 'straight' } });
+	});
+});

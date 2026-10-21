@@ -1,3 +1,4 @@
+import type { BackingStyle } from './instruments';
 import type { DifficultyMetadata, Fraction, HarmonicSegment, Note, PitchClass } from './music';
 
 /**
@@ -59,6 +60,8 @@ export interface Tune {
 	timeSignature: [number, number];
 	/** Feel/style label, e.g. 'Medium Swing', 'Ballad'. */
 	style?: string;
+	/** Saved accompaniment style; legacy charts derive it from the marking. */
+	backingStyle?: BackingStyle;
 	tags: string[];
 	sections: TuneSection[];
 	source: TuneSource;

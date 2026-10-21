@@ -202,6 +202,7 @@ export type Database = {
           /** Guided tour completion state: { completed: string[], dismissed: string[] } */
           tour_state: Json
           /** Backing-track feel: swing|bossa-nova|ballad|straight. NULL = 'swing'. */
+          tune_backing_styles: Json
           backing_style: string | null
           /** A/B toggle: use bleed-filtered notes as primary score. NULL = false. */
           bleed_filter_enabled: boolean | null
@@ -241,6 +242,7 @@ export type Database = {
           /** Defaults to {} in database */
           tour_state?: Json
           /** NULL = 'swing' */
+          tune_backing_styles?: Json
           backing_style?: string | null
           /** NULL = false */
           bleed_filter_enabled?: boolean | null
@@ -264,6 +266,7 @@ export type Database = {
           tonality_override?: Json | null
           highest_note?: number | null
           tour_state?: Json
+          tune_backing_styles?: Json
           backing_style?: string | null
           bleed_filter_enabled?: boolean | null
           trick_state?: Json
@@ -955,6 +958,7 @@ export type Database = {
           /** PostgreSQL INTEGER[2] storing time signature tuple (e.g. [4, 4]) */
           time_signature: number[]
           /** Feel/style label (e.g. 'Medium Swing'), nullable */
+          backing_style: string | null
           style: string | null
           /** PostgreSQL text[] array of descriptive tags */
           tags: string[]
@@ -987,6 +991,7 @@ export type Database = {
           key: string
           /** PostgreSQL INTEGER[2] — required, stores time signature tuple */
           time_signature: number[]
+          backing_style?: string | null
           style?: string | null
           /** Defaults to empty array in database */
           tags?: string[]
@@ -1012,6 +1017,7 @@ export type Database = {
           composer?: string | null
           key?: string
           time_signature?: number[]
+          backing_style?: string | null
           style?: string | null
           tags?: string[]
           sections?: Json

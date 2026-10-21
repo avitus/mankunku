@@ -8,6 +8,7 @@ import { syncSettingsToCloud, loadSettingsFromCloud as fetchSettingsFromCloud } 
 import { getScopeGeneration } from '$lib/persistence/user-scope';
 import { enqueue } from '$lib/persistence/outbox';
 import { BACKING_STYLE_IDS } from '$lib/audio/backing-styles';
+import { cleanTuneBackingStyles } from '$lib/tunes/backing-style';
 import { STRAIGHT_SWING, MAX_SWING } from '$lib/music/swing';
 
 const STORAGE_KEY = 'settings';
@@ -21,6 +22,7 @@ function loadSettings() {
 	if (!VALID_BACKING_STYLES.has(result.backingStyle)) {
 		result.backingStyle = 'swing';
 	}
+	result.tuneBackingStyles = cleanTuneBackingStyles(result.tuneBackingStyles);
 	return result;
 }
 
@@ -34,6 +36,8 @@ const defaultSettings = {
 	backingInstrument: 'piano' as BackingInstrument,
 	backingTrackVolume: 0.6,
 	backingStyle: 'swing' as BackingStyle,
+	/** Personal accompaniment choices for curated and adopted tunes, keyed by stable tune id. */
+	tuneBackingStyles: {} as Record<string, BackingStyle>,
 	// Default to a moderate jazz swing rather than straight: melody demos and
 	// the expected scoring grid should swing out of the box. Note 0.5 is also
 	// resolveBackingSwing's "let the band follow the tempo curve" sentinel, so
@@ -132,6 +136,8 @@ export async function loadSettingsFromCloud(supabase: SupabaseClient<Database>):
 		if (!VALID_BACKING_STYLES.has(merged.backingStyle as string)) {
 			merged.backingStyle = 'swing';
 		}
+
+		merged.tuneBackingStyles = cleanTuneBackingStyles(merged.tuneBackingStyles);
 
 		// Update the reactive state in place (preserves Svelte 5 $state reactivity)
 		Object.assign(settings, merged);
