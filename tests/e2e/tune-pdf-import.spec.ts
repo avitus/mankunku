@@ -147,6 +147,27 @@ async function openImportReview(page: Page): Promise<void> {
 		.click();
 }
 
+/** Track encoded raster buffers without changing their content or forcing GC. */
+async function trackEncodedCanvases(page: Page): Promise<void> {
+	await page.addInitScript(() => {
+		const encoded: HTMLCanvasElement[] = [];
+		(window as unknown as { encodedCanvases: HTMLCanvasElement[] }).encodedCanvases = encoded;
+		const original = HTMLCanvasElement.prototype.toDataURL;
+		HTMLCanvasElement.prototype.toDataURL = function (...args) {
+			if (!encoded.includes(this)) encoded.push(this);
+			return original.apply(this, args);
+		};
+	});
+}
+
+async function expectRasterBuffersReleased(page: Page): Promise<void> {
+	const sizes = await page.evaluate(() =>
+		(window as unknown as { encodedCanvases: HTMLCanvasElement[] }).encodedCanvases
+			.map(canvas => canvas.width * canvas.height));
+	expect(sizes.length).toBeGreaterThan(1);
+	expect(sizes.every(size => size === 0)).toBe(true);
+}
+
 test.beforeEach(async ({ page }) => {
 	await seedOnboardedAnonymous(page);
 	await stubParseRoute(page);
@@ -249,6 +270,7 @@ test('the declared time signature goes out with every line, including the contex
 test('a declared meter that contradicts the print is flagged, not silently applied', async ({
 	page
 }) => {
+	await trackEncodedCanvases(page);
 	await stubParseRoute(page, { printedMeter: [3, 4] });
 	await page.goto('/tunes/import/pdf');
 	// Leave the 4/4 default while the chart reports 3/4.
@@ -258,11 +280,13 @@ test('a declared meter that contradicts the print is flagged, not silently appli
 	await page.getByRole('button', { name: 'Prepare draft', exact: true }).click();
 
 	await page.waitForURL('**/tunes/editor', { timeout: 60_000 });
+	await expectRasterBuffersReleased(page);
 	await openImportReview(page);
 	await expect(page.getByText(/looks like it is in 3\/4/).first()).toBeVisible();
 });
 
 test('a line the AI cannot read is left blank instead of sinking the import', async ({ page }) => {
+	await trackEncodedCanvases(page);
 	await stubParseRoute(page, { failFirstSystem: true });
 	await page.goto('/tunes/import/pdf');
 
@@ -275,6 +299,7 @@ test('a line the AI cannot read is left blank instead of sinking the import', as
 	// the whole-PDF fallback is not used (it would have replaced the title
 	// with the fixture's and taken minutes).
 	await page.waitForURL('**/tunes/editor', { timeout: 60_000 });
+	await expectRasterBuffersReleased(page);
 	await expect(page.getByRole('textbox', { name: 'Tune title' })).toBeVisible();
 
 	// The failed line is not silently blank: the review banner names its bars

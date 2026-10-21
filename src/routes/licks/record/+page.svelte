@@ -260,6 +260,12 @@
 				(reading) => {
 					if (reading) {
 						currentPitchMidi = reading.midi;
+						// A held note produces the same MIDI value on every frame:
+						// reset from pitch evidence, not a reactive value change.
+						if (recordState === 'recording') {
+							if (silenceTimeout) clearTimeout(silenceTimeout);
+							silenceTimeout = setTimeout(stopRecording, 2000);
+						}
 					} else {
 						currentPitchMidi = null;
 					}
@@ -439,13 +445,6 @@
 		recordState = 'idle';
 	}
 
-	// Reset silence timer on pitch detection during recording
-	$effect(() => {
-		if (recordState === 'recording' && currentPitchMidi !== null) {
-			if (silenceTimeout) clearTimeout(silenceTimeout);
-			silenceTimeout = setTimeout(stopRecording, 2000);
-		}
-	});
 </script>
 <svelte:head><title>Record Lick — Mankunku</title></svelte:head>
 

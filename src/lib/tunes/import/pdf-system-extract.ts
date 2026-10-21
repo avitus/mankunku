@@ -1,3 +1,4 @@
+import { canvasToPng, releaseCanvas } from './pdf-canvas';
 import { appendPitchPanels, measureSourceLeft } from './pdf-review-image';
 /**
  * Browser-side deterministic pass of the PDF import: render each page with
@@ -103,6 +104,7 @@ export async function extractPdfSystems(
 
 	const loading = pdfjs.getDocument({ data: buffer.slice(0), disableFontFace: true });
 	const doc = await loading.promise;
+	const pageCanvases: HTMLCanvasElement[] = [];
 	try {
 		const systems: ExtractedSystem[] = [];
 		const farItems: Array<PageTextItem & { page: number }> = [];
@@ -113,6 +115,7 @@ export async function extractPdfSystems(
 			const pg = await doc.getPage(p);
 			const vp = pg.getViewport({ scale: SCALE });
 			const canvas = document.createElement('canvas');
+			pageCanvases.push(canvas);
 			canvas.width = Math.ceil(vp.width);
 			canvas.height = Math.ceil(vp.height);
 			const ctx = canvas.getContext('2d', { willReadFrequently: true });
@@ -198,6 +201,8 @@ export async function extractPdfSystems(
 				header.width = Math.min(crop.width, Math.ceil(pageSystems[i].barlines[0]));
 				header.height = crop.height;
 				header.getContext('2d')?.drawImage(crop, 0, 0);
+				const image = canvasToPng(crop);
+				const headerImage = canvasToPng(header);
 				const boundaries = systemBarBoundaries(pageSystems[i]);
 				const { band, interline } = pageSystems[i];
 				const barTop = Math.max(0, Math.floor(band.top - 3 * interline));
@@ -229,7 +234,7 @@ export async function extractPdfSystems(
 					original
 						.getContext('2d')
 						?.drawImage(canvas, left, y0, right - left, y1 - y0, 0, 0, right - left, y1 - y0);
-					sourceBarImages.push(original.toDataURL('image/png'));
+					sourceBarImages.push(canvasToPng(original));
 					c.fillStyle = '#2452a1';
 					c.font = `${Math.max(8, interline * 0.48)}px sans-serif`;
 					c.textAlign = 'right';
@@ -238,14 +243,13 @@ export async function extractPdfSystems(
 						const y = band.bottom - barTop - (position * interline) / 2;
 						c.fillText(String(position), 36, y);
 					}
-					return appendPitchPanels(
-						canvas,
-						measure,
-						pageSystems[i],
-						detected,
-						left,
-						right
-					).toDataURL('image/png');
+					try {
+						return canvasToPng(appendPitchPanels(
+							canvas, measure, pageSystems[i], detected, left, right
+						));
+					} finally {
+						releaseCanvas(measure);
+					}
 				});
 				const glyphs = extractGlyphNotation(notationItems, pageSystems[i], systems.length === 0);
 				if (glyphs)
@@ -284,12 +288,14 @@ export async function extractPdfSystems(
 					texts: texts[i],
 					evidence: barEvidence(noteEvents, pageSystems[i]),
 					noteEvents,
-					image: crop.toDataURL('image/png'),
-					headerImage: header.toDataURL('image/png'),
+					image,
+					headerImage,
 					barImages,
 					sourceBarImages
 				});
 			}
+			releaseCanvas(canvas);
+			pg.cleanup();
 		}
 
 		if (systems.length === 0 || systems.some((s) => s.geometry.barlines.length === 0)) {
@@ -313,6 +319,7 @@ export async function extractPdfSystems(
 		connectGlyphTies(systems);
 		return { systems, title, composer };
 	} finally {
+		for (const canvas of pageCanvases) releaseCanvas(canvas);
 		await loading.destroy();
 	}
 }
