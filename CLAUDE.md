@@ -12,15 +12,36 @@ npm run check          # TypeScript + svelte-check
 npm run check:watch    # Type checking in watch mode
 npm test               # Unit + integration tests (Vitest)
 npm run test:watch     # Vitest watch mode
-npm run test:e2e       # Playwright E2E tests
+npm run test:e2e       # Playwright E2E tests in a Linux sandbox (never host browsers)
 npx vitest run tests/unit/music/scales.test.ts   # Run a single test file
 cd omr && uv run pytest                          # OMR subsystem tests (Python, hermetic)
 cd omr && uv run pytest -m omr_integration       # OMR real-model tests (downloads 429MB, needs HF auth)
 ```
 
+**Browser automation must stay off the user's desktop.** Use `npm run test:e2e`
+(or `test:e2e:ui` for a manually opened web inspector). The runner snapshots this
+worktree into a disposable Linux Docker container, backed by a headless VM on
+macOS. Direct host Playwright runs are blocked. Never bypass the boundary or
+launch ad-hoc host browsers for automated verification. Missing Docker means
+set up the engine, not fall back locally. See `tests/e2e/README.md` for Colima
+setup, limits, reports, and Linux Firefox audio coverage limitations. Node-only
+unit tests remain safe locally; `npm run test:sandbox -- unit` also isolates them.
+
 `svelte.config.js` wraps adapter-node in `withoutEmptyChunkWarnings` (`scripts/quiet-empty-chunks.js`, tested in `tests/unit/build/`). The "Generated an empty chunk" lines were never Vite's: adapter-node re-bundles the server output with Rollup, keeps every Vite server file as its own chunk, and Rollup warns for each browser-only module it tree-shook to nothing (wake lock, IndexedDB recordings, SvelteKit's own env stub). True and unactionable, and the adapter takes no Rollup options — so that ONE message is dropped for the adapter step only. Don't "fix" one by restructuring app imports.
 
-CI pipeline (CircleCI): `test` and `e2e` run in parallel on every branch; on `main` only, `build` follows `test`, `db-migrate` follows `build`, and `deploy` waits for `build`, `db-migrate` AND `e2e` (the path-filtered `omr-test` and `nginx-deploy` pipelines run beside it). Deploy rsyncs to a Digital Ocean server and restarts via PM2; db-migrate runs `supabase link` + `supabase db push --linked` against the production database, authenticated via the `SUPABASE_ACCESS_TOKEN` env var (no DB password needed). The deploy target is the CircleCI project environment variable `DEPLOY_HOST`, managed in the CircleCI project settings and nowhere in this repo — a server move is finished only once it is updated there. Incident context, not configuration: production moved to a new 4GB droplet on 2026-09-08 (64.23.176.115 at the time of writing), and PR #247's merge deploy landed on the retired droplet until the job's public verify step caught it.
+CI pipeline (CircleCI): `test` and `e2e` run in parallel on every branch, each after its `list-*-tests` job; on `main` only, `build` follows `test`, `db-migrate` follows `build`, and `deploy` waits for `build`, `db-migrate` AND `e2e` (the path-filtered `omr-test` and `nginx-deploy` pipelines run beside it). Deploy rsyncs to a Digital Ocean server and restarts via PM2; db-migrate runs `supabase link` + `supabase db push --linked` against the production database, authenticated via the `SUPABASE_ACCESS_TOKEN` env var (no DB password needed). The deploy target is the CircleCI project environment variable `DEPLOY_HOST`, managed in the CircleCI project settings and nowhere in this repo — a server move is finished only once it is updated there. Incident context, not configuration: production moved to a new 4GB droplet on 2026-09-08 (64.23.176.115 at the time of writing), and PR #247's merge deploy landed on the retired droplet until the job's public verify step caught it.
+
+Tests run through **CircleCI Smarter Testing** (`.circleci/test-suites.yml`: suites `unit tests`, `e2e tests`, `omr tests`, one atom per test FILE; `circleci testsuite doctor "<suite>"` validates one). Every credit-charged feature has been on since 2026-10-20, at Andy's request, while CI times are measured:
+- **Test impact analysis.** On branches only the files a change reaches run. The impact data is refreshed on main by the non-blocking `unit-analysis` and `e2e-analysis` jobs; omr analyses inline. Unit analysis collects V8 coverage after every test, single-threaded (12.5 min locally for the full suite), which is why it is off the deploy path.
+- **Dynamic parallelism.** `list-unit-tests` and `list-e2e-tests` size `test` and `e2e` through the experimental stanza at the bottom of continue-config.
+- **Dynamic test splitting** and **auto-rerun** of failed atoms.
+
+Three non-obvious shapes:
+- Unit discovery is `find`, not `vitest list`, whose output failed to parse on CircleCI.
+- E2E atoms are testDir-relative (`smoke.spec.ts`), because Playwright's JUnit names files that way; `run` restores the prefix, since a bare `smoke.spec.ts` regex also matches stub-cloud-smoke.
+- E2E builds once per node, because dynamic splitting runs Playwright once per batch. Impact data for e2e is Chromium JS coverage BY CHUNK (`tests/e2e/fixtures/circleci-coverage.ts` + its reporter, over an `E2E_SOURCEMAPS=1` build), so server-only paths are listed as full-run paths.
+
+The local runs `doctor` makes leave `.circleci/impact-*.json` and `.circleci/state-*/` behind, both gitignored.
 
 `deploy/app/release.sh` runs **on the server** and is covered by `npm run test:deploy` (`deploy/app/release.test.sh`, wired into the `test` job — it stubs npm/pm2/curl onto PATH, so it runs anywhere; the deploy-lock tests need `flock` and skip on macOS). Four invariants it exists to protect, all learned from incidents:
 - **Dependencies are shared, not per-release.** `npm ci` peaks near 500MB installing 378MB/22k files on the 961MB droplet of the time (4GB since the 2026-09-08 move; the sharing stays, most deploys ship code, not dependencies) — it was OOM-killed on 2026-08-07/08 while the lockfile was byte-identical across all three deploys. Deps now install once into `shared/deps` and symlink into each release, keyed on **both** the lockfile and the Node version (`.installed-package-lock.json` + `.installed-node-version`, written only after a successful install so a killed one can't look satisfied). Node is part of the key because native bindings compile against an ABI the lockfile says nothing about — without it, a Node upgrade would silently reuse a tree built for the old runtime. Tradeoff: rolling `current` back gives that release the newer deps.
@@ -114,7 +135,7 @@ ear-training/ (call-and-response practice, also reachable via `practice/` 308-re
 ### Tests
 
 - **Vitest** (`tests/unit/`, `tests/integration/`) — unit + integration tests for pure logic (audio algorithms, scoring, music theory, persistence, planning) and the recorded-take corpus (`tests/integration/pitch-replay.test.ts` replays real WAVs through the real detector). Runs in Node, no browser. Mocks Supabase via `tests/helpers/cloud-sync-mocks.ts`. Every audio test mocks Tone except where the CLOCK is the subject: `tests/helpers/headless-tone.ts` runs Tone's real Transport/Clock/TickSource over a stub AudioContext the test advances one render quantum at a time. CI: `npx vitest run`.
-- **Playwright E2E** (`tests/e2e/`) — real-browser tests for user flows on Chromium, Firefox, and WebKit. Mocks `getUserMedia` (on `MediaDevices.prototype`) + `MediaRecorder` via `fixtures/audio.ts` and synthesizes auth via the `e2e-test-user` cookie + the `PLAYWRIGHT=1` env-gated branch in `src/hooks.server.ts`. The console guard is AUTOMATIC (`consoleCollector` is an auto fixture): any unexpected `console.error`/`pageerror` fails the test; a spec about a 404 page opts in with `test.use({ allowDocument404: true })`. Beside another checkout, run with `PLAYWRIGHT_PORT=<free port>` — locally Playwright reuses whatever holds the port. CI: `npx playwright test`, sharded six ways. See `tests/e2e/README.md`.
+- **Playwright E2E** (`tests/e2e/`) — real-browser tests for user flows on Chromium, Firefox, and WebKit. Mocks `getUserMedia` (on `MediaDevices.prototype`) + `MediaRecorder` via `fixtures/audio.ts` and synthesizes auth via the `e2e-test-user` cookie + the `PLAYWRIGHT=1` env-gated branch in `src/hooks.server.ts`. The console guard is AUTOMATIC (`consoleCollector` is an auto fixture): any unexpected `console.error`/`pageerror` fails the test; a spec about a 404 page opts in with `test.use({ allowDocument404: true })`. Local runs use `npm run test:e2e`: each sandbox owns its server, ports and artifacts, so parallel worktrees cannot collide. A spec that needs a fixed "today" uses `fixtures/date.ts` `freezeDate`, never `page.clock.setFixedTime`: the clock fakes every timer, Sentry then takes `setTimeout` from a sandbox iframe with a fake clock of its own, and Replay's debounce clearing it through the page's clock threw on colliding idle-callback ids (progress-trend-chart, 1 run in 10, 2026-10-20; `freeze-date.spec.ts` pins native timers). CI: `npx playwright test`, sharded six ways. See `tests/e2e/README.md`.
 - **Deploy** (`npm run test:deploy`) and **OMR** (`cd omr && uv run pytest`, plus `ruff`) — see their sections.
 - Rules (`documentation/contributing/testing-guide.md`): a new test must be able to fail — break the rule it names once and watch it go red; tests named after a date/incident/take and `it.fails` pins are never removed as redundant; a boundary value or a different engine/instrument is not a duplicate.
 

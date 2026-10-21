@@ -473,11 +473,11 @@ export function partLabelDelta(
 }
 
 /**
- * Horizontal shift seating a boxed part letter over the first FULL bar of a
+ * Horizontal shift seating a boxed part letter just left of the first FULL bar of a
  * system that opens with a partial pickup bar. abcjs can only draw a part
  * label at the line start, so the ABC hands the pickup line the label of the
- * section it leads into and NotationDisplay moves it past the pickup, the way
- * MuseScore and the Real Book print it. Never moves a label left.
+ * section it leads into. Keep the entire box before the opening barline so
+ * it cannot overlap the first chord inside the full bar.
  *
  * @param partBox — the label's CURRENT box (prior translate applied)
  * @param firstFullBarX0 — left edge of the first full bar's zone (its opening barline)
@@ -485,9 +485,8 @@ export function partLabelDelta(
  */
 export function pickupPartLabelDx(partBox: Box, firstFullBarX0: number, spacing: number): number {
 	if (!Number.isFinite(spacing) || spacing <= 0 || !Number.isFinite(firstFullBarX0)) return 0;
-	const targetLeft = firstFullBarX0 + PART_CLEF_INSET_SPACINGS * spacing;
-	const dx = targetLeft - partBox.x;
-	return dx > 0 ? dx : 0;
+	const targetRight = firstFullBarX0 - PART_CLEF_INSET_SPACINGS * spacing;
+	return targetRight - (partBox.x + partBox.width);
 }
 
 /**

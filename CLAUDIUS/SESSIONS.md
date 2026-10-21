@@ -5626,3 +5626,106 @@ flickers.
 - `HOLD_CENTS` moves only the switch-off; the faders' ticks and `tuningTone`
   stay on `ALERT_CENTS`. Docs: user guide, design system, CLAUDE.md,
   results notes.
+
+## 2026-10-20 — CircleCI Smarter Testing onboarding
+
+Andy asked to set up CircleCI Smarter Testing (the testsuite skill).
+
+- `.circleci/test-suites.yml` with three suites, one atom per test file, each
+  uploading JUnit via `store-test-results`: `unit tests` (vitest, 395 atoms),
+  `e2e tests` (Playwright, 75), `omr tests` (pytest from omr/, 21). The test,
+  e2e and omr-test jobs call `circleci testsuite run`; e2e keeps parallelism
+  6. `circleci testsuite doctor` is clean on all three.
+- Two runner quirks set the shape. Playwright's JUnit reporter names a file
+  relative to testDir with no `file` attribute, so the e2e atoms are
+  testDir-relative and `run` restores `tests/e2e/` (a bare `smoke.spec.ts`
+  regex also matches stub-cloud-smoke.spec.ts). The junit reporter joins only
+  when `PLAYWRIGHT_JUNIT_OUTPUT_FILE` is set. OMR discovery asks pytest, since
+  the omr_integration files are deselected and would report nothing.
+- Balance check before switching e2e from `--shard` to file splitting:
+  lick-practice-session.spec.ts alone is 5.8 min locally at 2 workers, but
+  build 4012's shards ran 4.7 / 4.6 / 3.1 / 4.6 / 10.0 / 11.0 min — 38
+  node-minutes behind an 11-minute wall — so timing-based file splitting
+  should beat the count-based shard even with that file on one node.
+- The old e2e `store_test_results` uploaded test-results/ (traces, never
+  JUnit), so the e2e Tests tab was empty until now; removed in favour of the
+  suite's upload.
+- No credit-charged feature enabled; asked Andy.
+- Held the push while release PR #282 (dev → main) was open — Andy: push to
+  dev only once PRs are merged. After it merged (18:32Z) the code commit
+  (90efa510) was pushed alone so CI runs on it, then this [skip ci] log.
+- Released as #282 (dev → main, merge fbdc9405), live on mankunkujazz.com
+  2026-10-20 18:47 UTC with every main job green. CodeRabbit round 1 found
+  two real issues, both fixed red-first in a167900b: a triplet group could
+  cross a barline in both chart converters (from the triplet-rest commit
+  riding the same release), and my direction-hold test could not fail.
+  Round 2 clean.
+- Two of my own background pollers failed silently (a quoting error in an
+  inline f-string; a health check read on the wrong field, `version` not
+  `commit`). Each stalled the loop until a check by hand.
+
+## 2026-10-20 (cont.) — Every credit-charged Smarter Testing feature, measured
+
+Andy, after the onboarding: "turn on all the credit-charged features and
+monitor whether it results in faster CI times."
+
+- First, the free-feature baseline broke dev's `test` job: `vitest list`
+  discovered 0 atoms on CircleCI ("cannot mix newline and space
+  separators") while it read clean locally and in cimg/node:26.5.1 with
+  CircleCI's env vars. Switched discovery to `find` (same 396 files) and
+  pushed that alone (3e189496); green next run.
+- Enabled TIA, dynamic splitting, auto-rerun on all suites (omr: no split,
+  one node) and dynamic parallelism via list-unit-tests / list-e2e-tests +
+  the experimental stanza. Analysis on main moved to non-blocking
+  unit-analysis / e2e-analysis jobs. Pushed as 6d17e508.
+- Things the docs didn't say, each found by running it:
+  - CircleCI's Vitest coverage reporter emits Vite ids with queries
+    (`...md?raw`) and the CLI then fails the whole analysis; wrapped
+    the reporter (tests/helpers/circleci-coverage-reporter.ts, TDD).
+  - Per-test V8 coverage made pitch-replay.test.ts take >10 min (32 s
+    plain) and blow the 5 s timeout; it's excluded from analysis and
+    always runs. Full analysis 12.5 min → 44 s.
+  - `max-auto-rerun` reruns a failing ANALYSIS too — three 12.5-min
+    passes before I saw it.
+  - pytest-circleci-coverage 0.3.870 (published that morning) is
+    3.14-only syntax despite >=3.10; pinned 0.2.546.
+  - No Playwright plugin exists: wrote a Chromium chunk-level coverage
+    fixture + reporter; e2e needs a file-mapper because its atoms are
+    testDir-relative.
+  - Local `list-tests` rejects `--key`; CI's accepted it.
+  - Seeded impact data hashes files, and `.circleci/*.yml` are full-run
+    paths: reseed only after the LAST edit or CI runs everything.
+- Found in passing: WebKit's "The network connection was lost" face of the
+  /api/monitoring beacon race (added beside the Chromium rule), and a
+  requestIdleCallback/clearTimeout pageerror under page.clock in
+  progress-trend-chart (1 in ~76) — proposed as its own session.
+- Results (e2e is the critical path):
+  | run | e2e | test |
+  |---|---|---|
+  | before Smarter Testing (6 shards by count) | ~11.3 min | ~1.6 min |
+  | free: static split, first by name | 9.7 | failed (discover) |
+  | free: static split by timing | 7.4 | 1.7 |
+  | all paid, 6d17e508 | 6.5 (8 nodes, 36/75 specs) | 1.83 (6/397 files) |
+  The new floor is ONE spec: lick-practice-session.spec.ts, 11 min of
+  JUnit time = 5.7 min on its node while the other seven finished in
+  2.4–3.6. Unit time is the always-run corpus (~1 min on CI).
+
+## 2026-10-20 (cont.) — Split the e2e floor; the page.clock flake
+
+- Split `lick-practice-session.spec.ts` (54 tests, 11 min JUnit, 5.7 min
+  on one node) into five subject files + `fixtures/lick-practice-seeds.ts`;
+  bodies moved verbatim (1129 lines as a multiset), `--list` identical.
+  First full run after it: 8.4 min — WORSE — node 0's first batch held
+  tune-pdf-import + tune-practice, the four new files having no timing
+  history yet. Second full run: 5.2 min on 10 nodes, all within 3.2–4.2.
+  Full-run e2e so far: ~11.3 → 7.4 (free) → 5.2 (paid + split).
+- Andy asked for the progress-trend-chart flake here. Stack trace from a
+  probe spec (6/60 locally) pointed at Sentry Replay's debounce:
+  page.clock fakes every timer → Sentry's isNativeFunction rejects
+  setTimeout → it takes one from a sandbox iframe, which Playwright gives
+  its own fake clock → timers set there, cleared through the page's clock,
+  both counters starting at 1e12 → a cleared id can be the page's idle
+  callback (web-vitals INP). Harness-only. `fixtures/date.ts` freezeDate
+  replaces Date alone; `freeze-date.spec.ts` fails under setFixedTime and
+  passes under freezeDate; the flaky test is 60/60.
+- Reseeded e2e impact data after the push (39 atoms analysed).

@@ -14,7 +14,20 @@ There are five distinct suites, and they are not interchangeable:
 
 CI runs four of them. The `test` job runs `npx vitest run` **and** `npm run test:deploy`; the `e2e` job runs `npx playwright test` in parallel with it, sharded six ways across all three engines; the `omr-test` job runs `ruff` and the hermetic `pytest` whenever `omr/` changes. The OMR suite's real-model tests (`uv run pytest -m omr_integration`) download a 429 MB checkpoint and need Hugging Face access to two gated repositories, so they never run in CI.
 
-There is deliberately **no coverage tooling installed** — `@vitest/coverage-v8` is not a dependency, so `--coverage` will not work without installing it first.
+CircleCI Smarter Testing collects impact coverage through the configured Vitest and Playwright reporters. See `.circleci/test-suites.yml`.
+
+## Desktop isolation
+
+`npm run test:e2e` runs browsers in disposable Linux Docker containers, backed by
+a headless VM on macOS. Direct host Playwright runs are blocked. Use
+`npm run test:e2e:ui` for interactive debugging through a manually opened localhost
+URL. See `tests/e2e/README.md` for Docker/
+Colima setup, per-run reports, resource limits, and existing Linux Firefox audio
+skips. Never bypass the boundary to launch browsers on the user's desktop.
+
+Node-only tests remain local by default. `npm run test:sandbox -- unit`,
+`npm run test:sandbox -- check` and `npm run test:sandbox -- deploy` run those
+checks in the same isolated environment when desired.
 
 ## Setup
 
@@ -247,22 +260,22 @@ it('rejects phrases with intervals too large for the level', () => {
 Everything a Node test cannot reach: navigation, hydration, real DOM, persistence
 round-trips through a real browser. Config is `playwright.config.ts` — `testDir:
 'tests/e2e'`, three projects (`chromium`, `firefox`, `webkit`), `fullyParallel`,
-2 retries and 2 workers in CI, 0 retries locally. The `webServer` block runs
+2 retries and 2 workers in CI and the local Linux sandbox. The `webServer` block runs
 `npm run build && npm run preview -- --port 4173` with `PLAYWRIGHT=1` in its env,
 which is what activates the `e2e-test-user` cookie branch in `src/hooks.server.ts`.
 
 ```bash
 npm run test:e2e                    # all three browsers
-npm run test:e2e:ui                 # interactive runner
-npm run test:e2e:debug              # inspector
-npm run test:e2e:report             # open the last HTML report
-npx playwright test tests/e2e/lick-practice-session.spec.ts --project=chromium
+npm run test:e2e:ui                 # prints a localhost UI address to open manually
+npm run test:e2e:debug              # alias for the sandbox UI
+npm run test:e2e:report -- test-results/sandbox/<run-id>/playwright-report
+npm run test:e2e -- tests/e2e/lick-practice-session.spec.ts --project=chromium
 ```
 
-Running beside another checkout, set `PLAYWRIGHT_PORT` (for example
-`PLAYWRIGHT_PORT=4273 npx playwright test`): locally Playwright reuses whatever
-server already holds the port, so a worktree run can otherwise test another
-checkout's build without any error.
+Each local run snapshots its checkout and builds and serves it in a separate
+Linux container, with its own network and internal port 4173. Parallel worktrees
+cannot reuse each other's preview servers or reports. No host port override is
+needed. See [sandbox setup and isolation](../../tests/e2e/README.md).
 
 Two rules the suite enforces on itself:
 

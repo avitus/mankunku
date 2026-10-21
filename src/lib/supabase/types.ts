@@ -201,6 +201,8 @@ export type Database = {
           highest_note: number | null
           /** Guided tour completion state: { completed: string[], dismissed: string[] } */
           tour_state: Json
+          /** Personal backing style overrides keyed by tune ID. Defaults to {}. */
+          tune_backing_styles: Json
           /** Backing-track feel: swing|bossa-nova|ballad|straight. NULL = 'swing'. */
           backing_style: string | null
           /** A/B toggle: use bleed-filtered notes as primary score. NULL = false. */
@@ -240,6 +242,8 @@ export type Database = {
           highest_note?: number | null
           /** Defaults to {} in database */
           tour_state?: Json
+          /** Personal backing style overrides keyed by tune ID. Defaults to {}. */
+          tune_backing_styles?: Json
           /** NULL = 'swing' */
           backing_style?: string | null
           /** NULL = false */
@@ -264,6 +268,7 @@ export type Database = {
           tonality_override?: Json | null
           highest_note?: number | null
           tour_state?: Json
+          tune_backing_styles?: Json
           backing_style?: string | null
           bleed_filter_enabled?: boolean | null
           trick_state?: Json
@@ -954,6 +959,8 @@ export type Database = {
           key: string
           /** PostgreSQL INTEGER[2] storing time signature tuple (e.g. [4, 4]) */
           time_signature: number[]
+          /** Saved accompaniment style: swing|bossa-nova|ballad|straight, nullable */
+          backing_style: string | null
           /** Feel/style label (e.g. 'Medium Swing'), nullable */
           style: string | null
           /** PostgreSQL text[] array of descriptive tags */
@@ -987,6 +994,7 @@ export type Database = {
           key: string
           /** PostgreSQL INTEGER[2] — required, stores time signature tuple */
           time_signature: number[]
+          backing_style?: string | null
           style?: string | null
           /** Defaults to empty array in database */
           tags?: string[]
@@ -1012,6 +1020,7 @@ export type Database = {
           composer?: string | null
           key?: string
           time_signature?: number[]
+          backing_style?: string | null
           style?: string | null
           tags?: string[]
           sections?: Json

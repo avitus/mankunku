@@ -653,15 +653,15 @@ describe('formShape / bar stepping — partial pickup bars', () => {
 	});
 });
 
-describe('pickupPartLabelDx — seat the boxed letter over the first FULL bar', () => {
-	it('moves a label parked over the pickup right to the first full bar (MuseScore convention)', () => {
+describe('pickupPartLabelDx — seat the boxed letter before the first FULL bar', () => {
+	it('leaves a gap between the entire marker and the first full bar', () => {
 		const part = { x: 23.5, y: 10, width: 22, height: 22 };
-		// First full bar opens at x = 80: target left = 80 + 0.35 * spacing.
-		expect(pickupPartLabelDx(part, 80, 10)).toBeCloseTo(80 + 3.5 - 23.5, 6);
+		// The marker’s right edge stays 0.35 staff spaces before the barline.
+		expect(pickupPartLabelDx(part, 80, 10)).toBeCloseTo(80 - 3.5 - 22 - 23.5, 6);
 	});
 
-	it('never moves a label left', () => {
-		expect(pickupPartLabelDx({ x: 120, y: 10, width: 22, height: 22 }, 80, 10)).toBe(0);
+	it('moves an overlapping label left out of the chord area', () => {
+		expect(pickupPartLabelDx({ x: 120, y: 10, width: 22, height: 22 }, 80, 10)).toBe(-65.5);
 	});
 });
 

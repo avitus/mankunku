@@ -14,6 +14,7 @@ interface Tune {
   key: PitchClass;              // CONCERT — unlike curated licks, which are all stored in C (C minor for minor licks)
   timeSignature: [number, number];
   style?: string;               // 'Medium Swing', 'Ballad', …
+  backingStyle?: BackingStyle;  // saved accompaniment style; see "Tune desk accompaniment"
   tags: string[];
   sections: TuneSection[];
   source: TuneSource;           // 'curated' | 'user' | 'imported-ireal' | 'imported-biab' | 'imported-pdf' | …
@@ -254,3 +255,28 @@ The Pickup control (`setTunePickup`) keeps the pickup as its own unlabeled one-b
 - [Data Model](./data-model.md) — full type reference.
 - [The Practice Modes](./overview.md) — how tune practice relates to Side A and Side B.
 - [Your Tunes](../tunes.md) / [Playing Over Tunes](../tune-practice.md) — the player-facing view of all this.
+
+### Tune desk accompaniment
+
+`Tune.backingStyle` stores a supported engine style (`swing`, `bossa-nova`,
+`ballad`, or `straight`) separately from the free-text chart marking `style`.
+`tuneBackingStyle` resolves an explicit choice first, then a legacy chart marking,
+then Swing; it never falls back to the last global practice style. `saveUserTune`
+assigns the choice on creation, and both cloud mappers preserve `tunes.backing_style`.
+The editor retains it across chart edits and lets the author choose it in Tune settings.
+
+On `/tunes/[id]`, personal tune changes update that tune. Curated/adopted/shared
+charts use `settings.tuneBackingStyles[baseTuneId]`, synced through the existing
+owner-scoped settings outbox and `user_settings.tune_backing_styles`. Transposition
+and title slugs never change the persistence key. Editing a curated copy inherits
+the personal choice. The migration adds nullable tune styles for legacy compatibility
+and an empty personal map by default; existing RLS policies continue to apply.
+
+`TunePlayer` owns the desk's local tempo, backing/melody/metronome switches and
+looping. Backing remains off by default on the listening desk. Its production
+`playPhrase` call uses the resolved style for both the band and melody feel.
+Repeat-expanded playback maps notes and the audible transport position back to
+the printed chart. Stop/navigation cancels late loads, audio and cursor updates.
+Style changes require stopped playback. Focus hides navigation and the right rail;
+mobile/focus settings use native modal dialogs for focus containment and Escape.
+This listening flow does not change practice scoring or session overrides.

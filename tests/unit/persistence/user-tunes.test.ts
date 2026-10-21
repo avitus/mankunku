@@ -437,3 +437,20 @@ describe('failure conventions', () => {
 		expect(localStorageMock.getItem(nsFull('user-tunes-meta'))).toBe(metaBefore);
 	});
 });
+
+describe('saved backing style', () => {
+	it('assigns a supported style at creation without overwriting an explicit choice', () => {
+		expect(saveUserTune(makeSheet({ style: 'Bossa Nova' })).backingStyle).toBe('bossa-nova');
+		expect(saveUserTune(makeSheet({ style: 'Medium Swing', backingStyle: 'ballad' })).backingStyle).toBe('ballad');
+	});
+	it('round-trips the style through cloud pull and a later full-row update', async () => {
+		const { client } = createMockSupabase([makeCloudRow({ backing_style: 'bossa-nova' })]);
+		await getUserTunes(client);
+		const loaded = getUserTunesLocal()[0];
+		expect(loaded.backingStyle).toBe('bossa-nova');
+		saveUserTune({ ...loaded, title: 'Renamed' });
+		const next = createMockSupabase([makeCloudRow({ backing_style: 'bossa-nova' })]);
+		await flushTunesToCloud(next.client);
+		expect(next.upsertedRows[0]).toMatchObject({ title: 'Renamed', backing_style: 'bossa-nova' });
+	});
+});

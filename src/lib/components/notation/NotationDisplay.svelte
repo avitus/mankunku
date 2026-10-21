@@ -1183,9 +1183,9 @@
 
 	/**
 	 * Seat the boxed letter of a system that opens with a partial pickup bar
-	 * over the first FULL bar (MuseScore / Real Book). The ABC hands the
+	 * just left of the first FULL bar’s opening barline. The ABC hands the
 	 * pickup line the label of the section it leads into, since abcjs draws
-	 * part labels only at a line start; this pass moves it past the pickup.
+	 * part labels only at a line start; this pass seats it before the first full bar.
 	 * Runs once the bar zones are known, composing with the translate that
 	 * repositionPartLabels already set.
 	 */
@@ -1220,7 +1220,7 @@
 					firstFull.x0,
 					spacing
 				);
-				if (dx < 0.01) continue;
+				if (Math.abs(dx) < 0.01) continue;
 				part.setAttribute('transform', `translate(${(dx0 + dx).toFixed(2)}, ${dy0.toFixed(2)})`);
 			}
 		}

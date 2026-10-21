@@ -26,6 +26,21 @@ const uploadSourceMaps =
 // with SvelteKit's own `<outDir>/!(generated)` entry rather than replacing it.
 const claudeWorktrees = fileURLToPath(new URL('.claude/worktrees/**', import.meta.url));
 
+// CircleCI test impact analysis (.circleci/test-suites.yml, "unit tests")
+// sets CIRCLECI_COVERAGE to the file it reads: per-test V8 coverage, written
+// in CircleCI's coverage format. Unset, the runner and reporters are Vitest's
+// own, so `npm test` is untouched. Collecting coverage after every test slows
+// the heavy ones far past the 5 s default timeout, hence the longer one.
+const circleciCoverage = process.env.CIRCLECI_COVERAGE
+	? {
+			runner: '@circleci/vitest-circleci-coverage/runner',
+			// CircleCI's reporter, minus Vite query ids the CLI rejects.
+			reporters: ['dot', './tests/helpers/circleci-coverage-reporter.ts'],
+			testTimeout: 60_000,
+			hookTimeout: 60_000
+		}
+	: {};
+
 export default defineConfig({
 	// No PWA/service-worker plugin — removed 2026-07-25. The generated worker
 	// was never registered by SSR pages (the registerSW <script> injection
@@ -43,9 +58,14 @@ export default defineConfig({
         autoUploadSourceMaps: uploadSourceMaps
     }), tailwindcss(), sveltekit()],
 	server: { watch: { ignored: [claudeWorktrees] } },
+	// The e2e impact-analysis build (tests/e2e/fixtures/circleci-coverage.ts)
+	// maps each chunk the browser loaded back to its sources through these
+	// maps. Hidden: written to disk, never referenced from the served code.
+	...(process.env.E2E_SOURCEMAPS === '1' ? { build: { sourcemap: 'hidden' as const } } : {}),
 	test: {
 		include: ['tests/unit/**/*.test.ts', 'tests/integration/**/*.test.ts'],
 		environment: 'node',
-		setupFiles: ['./vitest.setup.ts']
+		setupFiles: ['./vitest.setup.ts'],
+		...circleciCoverage
 	}
 });

@@ -3103,3 +3103,47 @@ share and switches per run are what a player sees. And "in-tune runs must
 stay at 0" was already false on the new data (1%), for a reason unrelated
 to the change — worth saying plainly rather than letting the bar silently
 move.
+
+## 2026-10-20 — The e2e job was never short of parallelism, only of balance
+
+Six e2e shards, ~11 minutes of wall clock, and four of the six nodes finished
+in under five. Playwright's `--shard` with `fullyParallel` cuts the test list
+into equal COUNTS in file order, so the slow transport-driven specs, which sit
+together in the alphabet, landed on the last two nodes. Nobody saw it because
+the job's duration was the only number anyone looked at, and it was steady.
+The worth of Smarter Testing here is less "smart" than "measured": splitting by
+last run's timings is the first time the split uses the cost it is trying to
+balance. Worth checking the first few runs: the floor is now the slowest single
+FILE plus the per-node build, and lick-practice-session is the one to watch.
+
+## 2026-10-20 — Paid test selection mostly bought measurement
+
+With every Smarter Testing feature on, the e2e job went 7.4 → 6.5 min, and
+almost none of that came from what was paid for in the obvious sense: TIA
+still chose 36 of 75 specs, because one NotationDisplay fix is loaded by
+half the app. A component library that every page renders makes
+chunk-level impact coarse by construction — and correctly so. What the
+features DID deliver is a number per file: the floor is one 54-test spec
+that runs 5.7 minutes on its own node. That's an authoring decision about
+how a spec file is cut, invisible until splitting went file-by-file and
+the timings were per file. The fastest next win is free: split the file.
+
+Second, about my own process: three rounds of "seed, then edit config"
+cost ~40 minutes before I saw that the seeded hashes include the full-run
+paths. Any cache keyed on file content wants the same discipline as a
+lockfile — finish the edits, then generate.
+
+## 2026-10-20 — A spec comment stated the intent; the API did something else
+
+progress-trend-chart said "Freeze calendar dates only. Keep native timers
+for Sentry Replay and UI events" directly above `page.clock.setFixedTime`
+— which fakes every timer. The author knew exactly what they needed and
+believed the call delivered it; the name ("fixed time") invites the
+reading. The flake then needed THREE pieces to line up — a timer check
+that judges by `toString`, a sandbox iframe that inherits init scripts,
+and two id counters with the same origin — and none of them is wrong on
+its own. Reading the comment against the call would have found it in a
+minute; reading the stack trace took the rest. Also: the first full run
+after adding test files is a cold-start measurement for any timing-based
+splitter, not a verdict; I nearly reported 8.4 min as "dynamic splitting
+is worse".

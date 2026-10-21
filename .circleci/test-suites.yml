@@ -1,0 +1,111 @@
+# CircleCI Smarter Testing suites, run by `circleci testsuite run "<name>"`
+# in .circleci/continue-config.yml. A test atom is one test FILE. Every
+# credit-charged feature is on (2026-10-20): test impact analysis (branches
+# run only the files their changes reach; the impact data is refreshed on
+# main), dynamic test splitting, auto-rerun, and dynamic parallelism (the
+# `experimental` stanza in continue-config.yml).
+name: unit tests
+# The same files as vite.config.ts's test.include. Not `vitest list`: on
+# CircleCI its output failed to parse ("cannot mix newline and space
+# separators", 0 atoms) while it read clean in the same image outside CI.
+discover: find tests/unit tests/integration -name '*.test.ts' | sort
+run: npx vitest run --reporter=default --reporter=junit --outputFile.junit="<< outputs.junit >>" << test.atoms >>
+# Single pass over every atom: vite.config.ts swaps in CircleCI's coverage
+# runner/reporter when CIRCLECI_COVERAGE is set. The recorded-take corpus is
+# left out: it replays real WAVs through the detector, 32 s plain but over
+# 10 min with coverage collected after each of its 192 tests, and nearly every
+# audio change reaches it anyway. With no impact data it is always selected,
+# which the always-run rule below makes explicit.
+analysis: CIRCLECI_COVERAGE="<< outputs.circleci-coverage >>" npx vitest run --silent=true --passWithNoTests --exclude tests/integration/pitch-replay.test.ts << test.atoms >>
+options:
+  store-test-results: true
+  test-impact-analysis: true
+  impact-key: unit-tests
+  # Coverage sees modules that RUN, not files read with fs: the recorded-take
+  # corpus and other fixtures are read from disk, so a change there (or to
+  # the toolchain) runs the whole suite.
+  full-test-run-paths:
+    - package.json
+    - package-lock.json
+    - vite.config.ts
+    - vitest.setup.ts
+    - svelte.config.js
+    - tsconfig.json
+    - .circleci/*.yml
+    - tests/fixtures/**
+  test-selection-rules:
+    - test-atom: tests/integration/pitch-replay.test.ts
+      include: true
+  dynamic-test-splitting: true
+  max-auto-rerun: 2
+---
+# Atoms are spec paths relative to Playwright's testDir, because that is how
+# its JUnit reporter names a file (classname="smoke.spec.ts", no file
+# attribute) and results are matched to atoms by name. `run` puts the
+# directory back: Playwright reads each argument as a regex over the full
+# path, and a bare `smoke.spec.ts` would also run stub-cloud-smoke.spec.ts.
+name: e2e tests
+discover: find tests/e2e -name '*.spec.ts' | sed 's|^tests/e2e/||' | sort
+run: PLAYWRIGHT_BATCH=$$ PLAYWRIGHT_JUNIT_OUTPUT_FILE="<< outputs.junit >>" npm run test:e2e -- $(printf 'tests/e2e/%s ' << test.atoms >>)
+# The atoms are testDir-relative, so tell Smarter Testing which file each is.
+file-mapper: printf 'tests/e2e/%s\n' << test.atoms >>
+# Chromium JS coverage per test, mapped to sources through a sourcemapped
+# build (tests/e2e/fixtures/circleci-coverage.ts). Locally Playwright builds
+# that itself; the CI analysis job builds it with E2E_SOURCEMAPS=1 up front.
+analysis: CIRCLECI_COVERAGE="<< outputs.circleci-coverage >>" E2E_SOURCEMAPS=1 npm run test:e2e -- --project=chromium $(printf 'tests/e2e/%s ' << test.atoms >>)
+options:
+  store-test-results: true
+  test-impact-analysis: true
+  impact-key: e2e-tests
+  # The browser never sees server-only code, the stylesheet, the HTML shell,
+  # static assets or the harness itself, so a change to any of them runs every
+  # spec. Paths a coverage map would miss stay on the safe side here.
+  full-test-run-paths:
+    - package.json
+    - package-lock.json
+    - playwright.config.ts
+    - scripts/browser-test-boundary.js
+    - scripts/test-sandbox.mjs
+    - scripts/test-sandbox/**
+    - vite.config.ts
+    - svelte.config.js
+    - tsconfig.json
+    - .circleci/*.yml
+    - tests/e2e/fixtures/**
+    - tests/e2e/reporters/**
+    - static/**
+    - src/app.html
+    - src/app.css
+    - src/hooks.server.ts
+    - src/instrumentation.server.ts
+    - src/lib/server/**
+    - src/lib/supabase/**
+    - src/routes/**/+server.ts
+    - src/routes/**/+page.server.ts
+    - src/routes/**/+layout.server.ts
+  dynamic-test-splitting: true
+  # Playwright already retries a failed test twice in CI; one more run of
+  # the spec file is the most a real failure should cost.
+  max-auto-rerun: 1
+---
+# Run from omr/ (`cd omr && circleci testsuite run "omr tests"`), so atoms are
+# paths under omr/. Discovery asks pytest rather than globbing tests/: the
+# omr_integration files are deselected by pyproject's addopts and would
+# report no results. xunit1 is the JUnit family that carries `file`.
+name: omr tests
+discover: uv run pytest --collect-only -q | grep '::' | sed 's/::.*//' | sort -u
+run: uv run pytest -o junit_family=xunit1 --junit-xml="<< outputs.junit >>" << test.atoms >>
+analysis: uv run pytest --cov --cov-context=test --circleci-coverage="<< outputs.circleci-coverage >>" << test.atoms >>
+# The omr-test job runs on one node and takes seconds, so this suite has no
+# dynamic splitting or dynamic parallelism: they need parallelism > 1.
+options:
+  store-test-results: true
+  test-impact-analysis: true
+  impact-key: omr-tests
+  # Ground truth and benchmark fixtures are read from disk, not imported.
+  full-test-run-paths:
+    - pyproject.toml
+    - uv.lock
+    - tests/conftest.py
+    - tests/benchmark/**
+  max-auto-rerun: 2

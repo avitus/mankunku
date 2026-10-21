@@ -1015,6 +1015,12 @@ export function getTransportSeconds(): number {
 	return tone.getTransport().seconds;
 }
 
+/** Current audible position for chart cursors, without the scheduler's lookahead. */
+export function getAudibleTransportSeconds(): number {
+	if (!tone) return 0;
+	return tone.getTransport().getSecondsAtTime(tone.getContext().rawContext.currentTime);
+}
+
 /**
  * The transport position AT audio-clock time `contextTime`, and Tone's
  * lookahead. `getTransportSeconds()` reads the position at `now()`, which is

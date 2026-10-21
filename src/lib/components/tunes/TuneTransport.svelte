@@ -1,71 +1,41 @@
 <script lang="ts">
 	import { onDestroy, untrack } from 'svelte';
 	import type { Tune } from '$lib/types/tune';
+	import type { BackingStyle } from '$lib/types/instruments';
 	import EditorIcon from '$lib/components/step-entry/EditorIcon.svelte';
-	import { settings } from '$lib/state/settings.svelte';
-	import { tuneToPhrase } from '$lib/tunes/to-phrase';
-	import { melodySwingForStyle } from '$lib/audio/backing-styles';
-	let { tune }: { tune: Tune } = $props();
-	let previewTempo = $state<number | null>(null);
-	const tempo = $derived(previewTempo ?? settings.defaultTempo);
-	let swingEnabled = $state(true);
-	let metronome = $state(false);
-	let backing = $state(false);
-	let loop = $state(false);
-	let playing = $state(false);
-	let starting = $state(false);
-	let error = $state('');
-	let playback: typeof import('$lib/audio/playback') | null = null;
-	let run = 0;
-	let disposed = false;
-	/** Cancel both scheduled playback and any pending instrument load. */
-	export function stop(): void {
-		run++;
-		if (playing) playback?.stopPlayback();
-		playing = false;
-		starting = false;
-	}
-	/** Preview through the production engine; loop and tempo stay local to this desk. */
-	export async function togglePlay(): Promise<void> {
-		if (playing || starting) { stop(); return; }
-		const generation = ++run;
-		starting = true;
-		error = '';
-		try {
-			playback ??= await import('$lib/audio/playback');
-			if (disposed || generation !== run) return;
-			await playback.loadInstrument(settings.instrumentId, settings.masterVolume, backing ? settings.backingInstrument : undefined);
-			if (disposed || generation !== run) return;
-			starting = false;
-			playing = true;
-			do {
-				await playback.playPhrase(tuneToPhrase(tune, { expandRepeats: true }), {
-					tempo,
-					swing: backing ? melodySwingForStyle(swingEnabled ? settings.swing : 0.5, settings.backingStyle) : swingEnabled ? settings.swing : 0.5,
-					countInBeats: 0, metronomeEnabled: metronome, metronomeVolume: settings.metronomeVolume,
-					backingTrackEnabled: backing, backingInstrument: settings.backingInstrument,
-					backingTrackVolume: settings.backingTrackVolume, backingStyle: settings.backingStyle
-				});
-			} while (loop && generation === run && !disposed);
-		} catch {
-			if (!disposed && generation === run) error = 'Playback could not start. Please try again.';
-		} finally {
-			if (generation === run) { playing = false; starting = false; }
-		}
-	}
-	$effect(() => { JSON.stringify(tune); untrack(stop); });
-	onDestroy(() => { disposed = true; stop(); });
+	import { TunePlayer } from '$lib/state/tune-player.svelte';
+	import { tuneBackingStyle } from '$lib/tunes/backing-style';
+	import { BACKING_STYLE_NAMES } from '$lib/audio/backing-styles';
+	const localPlayer = new TunePlayer();
+	let { tune, player = localPlayer, style, compact = false, onsettings }: {
+		tune: Tune; player?: TunePlayer; style?: BackingStyle; compact?: boolean; onsettings?: () => void;
+	} = $props();
+	const effectiveStyle = $derived(style ?? tuneBackingStyle(tune));
+	/** Stop both queued and active playback from the parent’s keyboard/navigation handlers. */
+	export function stop(): void { player.stop(); }
+	/** Use the same production engine for buttons and the space shortcut. */
+	export async function togglePlay(): Promise<void> { await player.toggle(tune, effectiveStyle); }
+	// Both callers derive a new tune on edits/transposition; track that reference.
+	$effect(() => { tune; effectiveStyle; untrack(() => player.stop()); });
+	onDestroy(() => { player.stop(); localPlayer.dispose(); });
 </script>
 
-<div class="td-transport" aria-label="Tune playback">
-	<button class="le-button le-play" class:td-playing={playing} onclick={togglePlay} aria-label={starting ? 'Cancel loading playback' : playing ? 'Stop' : 'Play tune'}><EditorIcon name={playing || starting ? 'stop' : 'play'} size={16} />{starting ? 'Loading…' : playing ? 'Stop' : 'Play tune'}<kbd>space</kbd></button>
-	<div class="le-tempo"><label for="tune-preview-tempo">Tempo</label><input id="tune-preview-tempo" type="number" min="40" max="240" value={tempo} onchange={e => { stop(); previewTempo = Math.max(40, Math.min(240, Number(e.currentTarget.value) || 40)); }} /><span>BPM</span></div>
-	<button class="le-loop" aria-pressed={loop} onclick={() => { loop = !loop; }}><EditorIcon name="loop" size={16} />Loop</button>
+<div class="td-transport" class:td-desk-transport={!compact} aria-label="Tune playback">
+	<button class="le-button le-play" class:td-playing={player.playing} onclick={togglePlay} aria-label={player.starting ? 'Cancel loading playback' : player.playing ? 'Stop' : 'Play tune'}><EditorIcon name={player.busy ? 'stop' : 'play'} size={16} />{player.starting ? 'Loading…' : player.playing ? 'Stop' : 'Play tune'}<kbd>space</kbd></button>
+	<button class="le-loop" aria-pressed={player.loop} onclick={() => { player.loop = !player.loop; }}><EditorIcon name="loop" size={16} />Loop</button>
+	{#if compact}
+		<div class="le-tempo"><label for="tune-preview-tempo">Tempo</label><input id="tune-preview-tempo" type="number" min="40" max="240" value={player.tempo} onchange={e => player.setTempo(Number(e.currentTarget.value))} /><span>BPM</span></div>
+	{:else}
+		<div class="td-play-summary"><strong>{player.backing ? `${BACKING_STYLE_NAMES[effectiveStyle]} backing` : 'Backing off'}</strong><span>{player.tempo} BPM · Melody {player.melody ? 'on' : 'off'}</span></div>
+		{#if onsettings}<button class="td-open-settings le-button le-quiet" onclick={onsettings}>Settings</button>{/if}
+	{/if}
 </div>
-<div class="td-band" aria-label="Accompaniment">
-	<span class="studio-label">Accompaniment</span>
-	<button aria-pressed={swingEnabled} onclick={() => { stop(); swingEnabled = !swingEnabled; }}>Swing <i class:active={swingEnabled}></i></button>
-	<button aria-pressed={metronome} onclick={() => { stop(); metronome = !metronome; }}>Metronome <i class:active={metronome}></i></button>
-	<button aria-pressed={backing} onclick={() => { stop(); backing = !backing; }}>Backing track <i class:active={backing}></i></button>
-</div>
-{#if error}<p class="td-playback-error" role="status">{error}</p>{/if}
+{#if compact}
+	<div class="td-band" aria-label="Accompaniment">
+		<span class="studio-label">{BACKING_STYLE_NAMES[effectiveStyle]}</span>
+		<button aria-pressed={player.melody} onclick={() => { player.stop(); player.melody = !player.melody; }}>Melody <i class:active={player.melody}></i></button>
+		<button aria-pressed={player.metronome} onclick={() => { player.stop(); player.metronome = !player.metronome; }}>Metronome <i class:active={player.metronome}></i></button>
+		<button aria-pressed={player.backing} onclick={() => { player.stop(); player.backing = !player.backing; }}>Backing track <i class:active={player.backing}></i></button>
+	</div>
+{/if}
+{#if player.error}<p class="td-playback-error" role="status">{player.error}</p>{/if}
