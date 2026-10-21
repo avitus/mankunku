@@ -15,7 +15,8 @@
 	export function stop(): void { player.stop(); }
 	/** Use the same production engine for buttons and the space shortcut. */
 	export async function togglePlay(): Promise<void> { await player.toggle(tune, effectiveStyle); }
-	$effect(() => { JSON.stringify(tune); effectiveStyle; untrack(() => player.stop()); });
+	// Both callers derive a new tune on edits/transposition; track that reference.
+	$effect(() => { tune; effectiveStyle; untrack(() => player.stop()); });
 	onDestroy(() => { player.stop(); localPlayer.dispose(); });
 </script>
 

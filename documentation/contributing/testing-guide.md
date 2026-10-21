@@ -260,22 +260,22 @@ it('rejects phrases with intervals too large for the level', () => {
 Everything a Node test cannot reach: navigation, hydration, real DOM, persistence
 round-trips through a real browser. Config is `playwright.config.ts` — `testDir:
 'tests/e2e'`, three projects (`chromium`, `firefox`, `webkit`), `fullyParallel`,
-2 retries and 2 workers in CI, 0 retries locally. The `webServer` block runs
+2 retries and 2 workers in CI and the local Linux sandbox. The `webServer` block runs
 `npm run build && npm run preview -- --port 4173` with `PLAYWRIGHT=1` in its env,
 which is what activates the `e2e-test-user` cookie branch in `src/hooks.server.ts`.
 
 ```bash
 npm run test:e2e                    # all three browsers
-npm run test:e2e:ui                 # interactive runner
-npm run test:e2e:debug              # inspector
-npm run test:e2e:report             # open the last HTML report
-npx playwright test tests/e2e/lick-practice-session.spec.ts --project=chromium
+npm run test:e2e:ui                 # prints a localhost UI address to open manually
+npm run test:e2e:debug              # alias for the sandbox UI
+npm run test:e2e:report -- test-results/sandbox/<run-id>/playwright-report
+npm run test:e2e -- tests/e2e/lick-practice-session.spec.ts --project=chromium
 ```
 
-Running beside another checkout, set `PLAYWRIGHT_PORT` (for example
-`PLAYWRIGHT_PORT=4273 npx playwright test`): locally Playwright reuses whatever
-server already holds the port, so a worktree run can otherwise test another
-checkout's build without any error.
+Each local run snapshots its checkout and builds and serves it in a separate
+Linux container, with its own network and internal port 4173. Parallel worktrees
+cannot reuse each other's preview servers or reports. No host port override is
+needed. See [sandbox setup and isolation](../../tests/e2e/README.md).
 
 Two rules the suite enforces on itself:
 

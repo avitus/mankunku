@@ -64,6 +64,8 @@ describe('Sandbox lifecycle', () => {
 		const create = calls.find((args) => args[0] === 'create')!;
 		expect(create).toContain('--memory=4g');
 		expect(create).toContain('--cpus=2');
+		expect(create).toContain('--cap-drop=ALL');
+		expect(create).toContain('--security-opt=no-new-privileges');
 		expect(create).not.toContain('--volume');
 		expect(create).not.toContain('--network=host');
 		expect(create).not.toContain('--publish');

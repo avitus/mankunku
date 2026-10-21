@@ -61,6 +61,7 @@ export class TunePlayer {
 			this.starting = false;
 			this.playing = true;
 			do {
+				const startedAt = performance.now();
 				await this.playback.playPhrase(phrase, {
 					tempo, swing: melodySwingForStyle(settings.swing, style),
 					countInBeats: 0, metronomeEnabled: this.metronome, metronomeVolume: settings.metronomeVolume,
@@ -84,6 +85,8 @@ export class TunePlayer {
 						if (generation === this.run) this.cursorIndex = flat.noteSourceIndices[sourceIndex] ?? null;
 					}
 				});
+				// An engine-side early return must not spin an endless microtask loop.
+				if (performance.now() - startedAt < 50) break;
 			} while (this.loop && generation === this.run && !this.disposed);
 		} catch {
 			if (!this.disposed && generation === this.run) this.error = 'Playback could not start. Please try again.';

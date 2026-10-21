@@ -183,7 +183,7 @@ npm run check         # TypeScript + svelte-check
 cd omr && uv run pytest   # The Python OMR subsystem (hermetic)
 ```
 
-Playwright builds and previews the app on port 4173 and locally reuses whatever already holds that port — beside another checkout, set `PLAYWRIGHT_PORT` to a free port or you will test the other checkout's build.
+Each sandbox builds and previews its own checkout on internal port 4173. Separate container networks prevent parallel runs from sharing another checkout's server; no host port override is needed.
 
 See the [Testing Guide](documentation/contributing/testing-guide.md) for patterns, audio mocking strategies, and conventions.
 

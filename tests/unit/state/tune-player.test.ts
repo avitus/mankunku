@@ -20,9 +20,35 @@ beforeEach(() => {
 	settings.swing = 0.62;
 	player = new TunePlayer();
 });
-afterEach(() => player.dispose());
+afterEach(() => { player.dispose(); vi.restoreAllMocks(); });
 
 describe('tune desk playback', () => {
+	it('ends a loop when the engine returns without playing', async () => {
+		vi.spyOn(performance, 'now').mockReturnValue(0);
+		// Bound the regression: an unguarded second pass must fail, not hang Vitest.
+		audio.playPhrase.mockResolvedValueOnce(undefined).mockRejectedValue(new Error('Unexpected repeat'));
+		player.loop = true;
+		await player.toggle(tune, 'swing');
+		expect(audio.playPhrase).toHaveBeenCalledTimes(1);
+		expect(player.busy).toBe(false);
+		expect(player.error).toBe('');
+	});
+	it('repeats completed passes and stops without starting another pass', async () => {
+		let elapsed = 0;
+		vi.spyOn(performance, 'now').mockImplementation(() => elapsed);
+		let finish!: () => void;
+		audio.playPhrase.mockImplementationOnce(async () => { elapsed += 4_000; })
+			.mockImplementation(() => new Promise<void>(resolve => finish = resolve));
+		player.loop = true;
+		const started = player.toggle(tune, 'swing');
+		await vi.waitFor(() => expect(audio.playPhrase).toHaveBeenCalledTimes(2));
+		player.stop();
+		elapsed += 4_000;
+		finish();
+		await started;
+		expect(audio.playPhrase).toHaveBeenCalledTimes(2);
+		expect(player.busy).toBe(false);
+	});
 	it.each([['bossa-nova', 0.5], ['ballad', 0.55], ['straight', 0.5], ['swing', 0.62]] as const)(
 		'passes saved %s to the production engine with matching melody feel', async (style, swing) => {
 			player.backing = true;

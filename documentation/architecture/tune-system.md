@@ -14,6 +14,7 @@ interface Tune {
   key: PitchClass;              // CONCERT — unlike curated licks, which are all stored in C (C minor for minor licks)
   timeSignature: [number, number];
   style?: string;               // 'Medium Swing', 'Ballad', …
+  backingStyle?: BackingStyle;  // saved accompaniment style; see "Tune desk accompaniment"
   tags: string[];
   sections: TuneSection[];
   source: TuneSource;           // 'curated' | 'user' | 'imported-ireal' | 'imported-biab' | 'imported-pdf' | …

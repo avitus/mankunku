@@ -24,6 +24,8 @@ test('saves a tune style without changing global style or the selected written k
 });
 
 test('curated choice survives reload, cancel preserves it, and edit-a-copy inherits it', async ({ page }) => {
+	// Several chart loads plus editor startup can exceed 30s in the two-CPU sandbox.
+	test.setTimeout(60_000);
 	await page.goto('/tunes/when-the-saints-go-marching-in');
 	await page.getByRole('button', { name: 'Change backing style' }).click();
 	await page.getByRole('radio', { name: /^Straight/ }).check();
@@ -98,4 +100,22 @@ test('editor style changes update its preview and survive saving the tune', asyn
 	await expect(page.locator('.te-listen .td-band .studio-label')).toHaveText('Ballad');
 	await page.getByRole('button', { name: 'Update tune', exact: true }).click();
 	await expect(page.getByRole('heading', { name: 'Ballad', exact: true })).toBeVisible();
+});
+
+test('transposing a tune and editing a preview note stop the previous playback', async ({ page, browserName }) => {
+	test.skip(browserName === 'firefox' && process.platform === 'linux', 'Headless Linux Firefox audio cannot start');
+	test.setTimeout(60_000);
+	await stubCdnInstrumentSamples(page);
+	await page.goto('/tunes/test-session-tune');
+	await page.getByRole('button', { name: 'Play tune', exact: true }).click();
+	await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeVisible({ timeout: 20000 });
+	await page.getByLabel('Key', { exact: true }).selectOption('G');
+	await expect(page.getByRole('button', { name: 'Play tune', exact: true })).toBeVisible();
+	await page.getByRole('button', { name: 'Edit tune', exact: true }).click();
+	await page.locator('.element-hit[data-note-index="0"]').click();
+	await expect(page.locator('.selected-note')).toHaveCount(1);
+	await page.getByRole('button', { name: 'Play tune', exact: true }).click();
+	await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeVisible({ timeout: 20000 });
+	await page.keyboard.press('ArrowUp');
+	await expect(page.getByRole('button', { name: 'Play tune', exact: true })).toBeVisible();
 });

@@ -66,6 +66,26 @@ test('a legacy imported pickup shares the first system and bar numbers skip it',
 	expect(report[1].barNumber).toBe('5');
 });
 
+test('the section letter clears late pickup harmony and the first full-bar chord', async ({ page }) => {
+	const tune = structuredClone(LEGACY_PICKUP_TUNE[0]);
+	tune.sections[0].harmony = [{
+		chord: { root: 'G', quality: '7' }, scaleId: 'major.mixolydian',
+		startOffset: [3, 4], duration: [1, 4], symbol: 'G7'
+	}];
+	await seedTunes(page, [tune]);
+	await page.goto('/tunes/e2e-pickup-tune');
+	const wrapper = page.locator('.abcjs-container svg g.abcjs-staff-wrapper').first();
+	await expect(wrapper.locator('.abcjs-chord')).toHaveCount(2);
+	const clearance = await wrapper.evaluate(w => {
+		const part = (w.querySelector('g.abcjs-part') ?? w.querySelector('text.abcjs-part'))!.getBoundingClientRect();
+		return [...w.querySelectorAll('.abcjs-chord')].map(chord => {
+			const box = chord.getBoundingClientRect();
+			return { chord: chord.textContent, clears: part.right < box.left || part.left > box.right || part.bottom < box.top || part.top > box.bottom };
+		});
+	});
+	for (const { chord, clears } of clearance) expect(clears, `Part box overlaps ${chord}`).toBe(true);
+});
+
 test('the editor adds a pickup that fills no column and seats the letter before the first full bar', async ({ page }) => {
 	await page.goto('/tunes/editor');
 	await expect(page.locator('[data-bar-pos="0:0"]')).toBeVisible();

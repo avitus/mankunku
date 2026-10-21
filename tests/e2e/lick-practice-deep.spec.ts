@@ -16,7 +16,7 @@ test.describe('lick-practice session flow', () => {
 	test('Deep scrolls completed rows out through keys and cycle rebuilds without moving scores to future rows', async ({ page, browserName }) => {
 		test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
 			'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device');
-		test.setTimeout(60_000);
+		test.setTimeout(90_000);
 		await seedOnboardedAnonymous(page);
 		await seedUserLicks(page);
 		await seedStorage(page, LEAD_AHEAD_PROGRESS);
@@ -25,6 +25,9 @@ test.describe('lick-practice session flow', () => {
 		await page.goto('/licks/e2e-user-lick-bebop');
 		await page.getByRole('button', { name: 'Practice', exact: true }).click();
 		await page.emulateMedia({ reducedMotion: 'no-preference' });
+		// WebKit sample decoding can consume much of a cycle's timeout. Wait
+		// for audible playback before timing the following three-pass keys.
+		await expect(page.locator('.row.current[data-key="C"] .phase-tab[data-kind="play"]')).toBeVisible({ timeout: 30_000 });
 		await expect(page.locator('.row.current[data-key="Bb"] .phase-tab[data-pass="3"]')).toBeVisible({ timeout: 30_000 });
 		// Inspect the real CSS animation at deterministic checkpoints. Under
 		// CI load, WebKit can miss its early frames in a requestAnimationFrame
@@ -86,7 +89,7 @@ test.describe('lick-practice session flow', () => {
 		expect(rows[2].score).toBeNull();
 		// The next key also moves to the top, rather than replacing the
 		// contents of a permanently active second slot.
-		await expect(page.locator('.row.current[data-key="Bb"]')).toBeVisible({ timeout: 15_000 });
+		await expect(page.locator('.row.current[data-key="Bb"]')).toBeVisible({ timeout: 30_000 });
 		await expect.poll(currentTop).toBeCloseTo(0, 0);
 		await page.getByRole('button', { name: /end session/i }).click();
 	});
@@ -208,7 +211,9 @@ test.describe('lick-practice session flow', () => {
 	 * rolling scores off an id with no progress: one key, no sheet (2026-10-15,
 	 * surfaced when the stave rule moved the fixture lick an octave).
 	 */
-	test('Practice from a transposed view keeps the lick\'s unlocked keys and sheet', async ({ page }) => {
+	test('Practice from a transposed view keeps the lick\'s unlocked keys and sheet', async ({ page, browserName }) => {
+		test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+			'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device');
 		await seedOnboardedAnonymous(page);
 		await seedUserLicks(page);
 		await seedStorage(page, LEAD_AHEAD_PROGRESS);
@@ -223,7 +228,9 @@ test.describe('lick-practice session flow', () => {
 		await expect(page.locator('.row[data-key="Bb"]')).toHaveCount(1);
 	});
 
-	test('deep practice keeps the chord box and beat dots below a sheet fully visible', async ({ page }) => {
+	test('deep practice keeps the chord box and beat dots below a sheet fully visible', async ({ page, browserName }) => {
+		test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+			'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device');
 		await seedOnboardedAnonymous(page);
 		await seedUserLicks(page);
 		await seedStorage(page, {

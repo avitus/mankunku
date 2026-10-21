@@ -141,7 +141,8 @@ async function main() {
 		const environment = outputs.flatMap(([variable, file]) => ['--env', `${variable}=/workspace/test-results/${file}`]);
 		if (process.env.E2E_SOURCEMAPS === '1') environment.push('--env', 'E2E_SOURCEMAPS=1');
 		if (await docker('create', '--name', name, '--init', '--cpus=2', '--memory=4g',
-			'--memory-swap=4g', '--shm-size=1g', '--pids-limit=512', ...ports, ...environment, image, ...command)) {
+			'--memory-swap=4g', '--shm-size=1g', '--pids-limit=512', '--cap-drop=ALL',
+			'--security-opt=no-new-privileges', ...ports, ...environment, image, ...command)) {
 			throw new Error('Could not create the test container.');
 		}
 		created = true;
