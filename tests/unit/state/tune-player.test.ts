@@ -4,7 +4,8 @@ import { settings } from '$lib/state/settings.svelte';
 import { TunePlayer } from '$lib/state/tune-player.svelte';
 
 const audio = vi.hoisted(() => ({
-	loadInstrument: vi.fn(), playPhrase: vi.fn(), stopPlayback: vi.fn(), getAudibleTransportSeconds: vi.fn(() => 0)
+	loadInstrument: vi.fn(), playPhrase: vi.fn(), stopPlayback: vi.fn(), getAudibleTransportSeconds: vi.fn(() => 0),
+	PHRASE_LEAD_IN_BARS: 1
 }));
 vi.mock('$lib/audio/playback', () => audio);
 const tune: Tune = {
@@ -78,6 +79,35 @@ describe('tune desk playback', () => {
 		await started;
 		expect(audio.playPhrase).not.toHaveBeenCalled();
 		expect(player.busy).toBe(false);
+	});
+	// 2026-10-21, Black Orpheus: the gold bar ran one bar ahead of the melody.
+	// playPhrase starts the form one bar into the transport, and the marker
+	// read the raw transport bar. Not the pickup: it maps to chart bar 0.
+	it('marks the bar the melody is in, not the transport bar', async () => {
+		const pickupTune: Tune = {
+			...tune,
+			sections: [
+				{ label: '', bars: 1, pickupLength: [1, 4], notes: [{ pitch: 64, offset: [3, 4], duration: [1, 4] }], harmony: [] },
+				{ label: 'A', bars: 2, notes: [{ pitch: 60, offset: [0, 1], duration: [1, 1] }], harmony: [] }
+			]
+		};
+		let finish!: () => void;
+		audio.playPhrase.mockImplementation(() => new Promise<void>(resolve => finish = resolve));
+		player.setTempo(120); // one 4/4 bar = 2 s
+		const started = player.toggle(pickupTune, 'swing');
+		await vi.waitFor(() => expect(audio.playPhrase).toHaveBeenCalled());
+		const callbacks = audio.playPhrase.mock.calls[0][3];
+		const at = (seconds: number): number | null => {
+			audio.getAudibleTransportSeconds.mockReturnValue(seconds);
+			callbacks.onStarted();
+			return player.chartBar;
+		};
+		expect(at(1)).toBeNull(); // the engine's silent lead-in bar
+		expect(at(3.6)).toBeCloseTo(0.8); // the pickup note, beat 4 of the pickup bar
+		expect(at(4.2)).toBeCloseTo(1.1); // the first full bar's downbeat
+		expect(at(6.2)).toBeCloseTo(2.1); // A's second bar
+		finish();
+		await started;
 	});
 	it('maps repeated notes to the printed chart and ignores callbacks after stop', async () => {
 		let finish!: () => void;

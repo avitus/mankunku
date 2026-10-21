@@ -74,8 +74,11 @@ export class TunePlayer {
 						clearInterval(this.ticker);
 						const update = (): void => {
 							if (generation !== this.run) return;
-							const seconds = this.playback?.getAudibleTransportSeconds() ?? 0;
-							const bar = seconds * tempo / 60 / (tune.timeSignature[0] * 4 / tune.timeSignature[1]);
+							const playback = this.playback;
+							if (!playback) return;
+							const seconds = playback.getAudibleTransportSeconds();
+							// The form starts after the engine's lead-in bar, not at transport 0.
+							const bar = seconds * tempo / 60 / (tune.timeSignature[0] * 4 / tune.timeSignature[1]) - playback.PHRASE_LEAD_IN_BARS;
 							this.chartBar = notationBarForPlaybackBar(flat.sectionMap, tune.sections, bar);
 						};
 						update();

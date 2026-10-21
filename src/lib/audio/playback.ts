@@ -661,6 +661,13 @@ export interface PhrasePlaybackOpts {
 }
 
 /**
+ * Bars of transport `playPhrase` runs before the phrase's first bar (the
+ * count-in bar, silent when no click is asked for). A chart cursor reading
+ * the transport clock subtracts it, or it marks the bar after the music.
+ */
+export const PHRASE_LEAD_IN_BARS = 1;
+
+/**
  * Play a phrase through the loaded instrument.
  * Returns a promise that resolves when phrase playback finishes.
  *
@@ -717,6 +724,7 @@ export async function playPhrase(
 	const barTicks = beatsPerBar * ppq;
 	const skipMelody = opts.skipMelody ?? false;
 	const loopBacking = opts.loopBacking ?? keepMetronome;
+	const formStartTicks = PHRASE_LEAD_IN_BARS * barTicks;
 
 	// Schedule phrase notes with jazz expression.
 	// Offset by 1 bar so the metronome plays a count-in first — this lets
@@ -739,7 +747,7 @@ export async function playPhrase(
 				}, time);
 			}
 		}, events);
-		currentPart.start(`${barTicks}i`);
+		currentPart.start(`${formStartTicks}i`);
 	}
 
 	// Schedule metronome if enabled. When the backing track plays, the
@@ -766,14 +774,14 @@ export async function playPhrase(
 
 	// Schedule backing track if enabled
 	if (options.backingTrackEnabled && isBackingLoaded()) {
-		await scheduleBackingTrack(phrase, options, barTicks, loopBacking, isStillCurrent);
+		await scheduleBackingTrack(phrase, options, formStartTicks, loopBacking, isStillCurrent);
 		if (scheduleId !== currentScheduleId) return;
 	}
 
 	// Schedule end-of-phrase notification — see getPhraseEndTicks for the
 	// whole-bar vs melody-end semantics.
 	const resolveAtMelodyEnd = (opts.resolveAtMelodyEnd ?? false) && !skipMelody;
-	const endTick = barTicks + getPhraseEndTicks(phrase, ppq, resolveAtMelodyEnd);
+	const endTick = formStartTicks + getPhraseEndTicks(phrase, ppq, resolveAtMelodyEnd);
 
 	return new Promise<void>((resolve) => {
 		if (scheduleId !== currentScheduleId) {

@@ -5729,3 +5729,18 @@ monitor whether it results in faster CI times."
   replaces Date alone; `freeze-date.spec.ts` fails under setFixedTime and
   passes under freezeDate; the flaky test is 60/60.
 - Reseeded e2e impact data after the push (39 atoms analysed).
+
+## 2026-10-21 — tune desk gold bar one bar ahead (Black Orpheus)
+
+- Andy suspected the one-note pickup. It wasn't: the pickup is a full bar
+  on the timeline and maps to chart bar 0. `playPhrase` starts the form
+  one bar into the transport (`currentPart.start(barTicks)`, the count-in
+  bar, silent at countInBeats 0) and `TunePlayer` read the raw transport
+  bar — so EVERY tune ran one bar ahead, pickup or not.
+- `PHRASE_LEAD_IN_BARS` now names that bar in playback.ts (melody, backing
+  and end tick read it) and the tune desk subtracts it. Regression in
+  tune-player.test.ts walks a pickup tune: lead-in → no marker, pickup
+  note → bar 0, first downbeat → bar 1.
+- Lesson worth keeping: a cursor computed from the transport clock must
+  know where the engine put bar 0; the onNote path had it right because it
+  rides the melody Part.
