@@ -72,6 +72,7 @@ export class TunePlayer {
 					onStarted: () => {
 						if (generation !== this.run) return;
 						clearInterval(this.ticker);
+						/** Move the chart's bar marker to the bar the audible music is in. */
 						const update = (): void => {
 							if (generation !== this.run) return;
 							const playback = this.playback;

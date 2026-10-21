@@ -97,6 +97,7 @@ describe('tune desk playback', () => {
 		const started = player.toggle(pickupTune, 'swing');
 		await vi.waitFor(() => expect(audio.playPhrase).toHaveBeenCalled());
 		const callbacks = audio.playPhrase.mock.calls[0][3];
+		/** The chart bar the marker shows when the audible transport reads `seconds`. */
 		const at = (seconds: number): number | null => {
 			audio.getAudibleTransportSeconds.mockReturnValue(seconds);
 			callbacks.onStarted();
