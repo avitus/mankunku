@@ -119,6 +119,7 @@ export async function flushSettingsToCloud(supabase: SupabaseClient<Database>): 
  */
 export async function loadSettingsFromCloud(supabase: SupabaseClient<Database>): Promise<void> {
 	const gen = getScopeGeneration();
+	const readLocalRev = localRev;
 	try {
 		const result = await fetchSettingsFromCloud(supabase);
 		if (result.status === 'error') return; // keep local — do not clobber, stay un-hydrated
@@ -134,7 +135,9 @@ export async function loadSettingsFromCloud(supabase: SupabaseClient<Database>):
 		}
 		// Unsynced local edits outrank a whole-blob cloud read: keep local and let
 		// the pending outbox flush push it, rather than reverting the user's edit.
-		if (localRev > syncedRev) {
+		// An edit made while the read was in flight outranks it too, even once
+		// pushed: the read predates it, and syncedRev alone can't tell.
+		if (localRev > syncedRev || localRev !== readLocalRev) {
 			enqueue('settings');
 			return;
 		}
