@@ -474,7 +474,11 @@
 
 	// A fresh tune (or a return visit) always begins at setup.
 	$effect(() => {
-		if (baseSheet && tunePractice.tuneId !== baseSheet.id) initTunePractice(baseSheet);
+		if (baseSheet && tunePractice.tuneId !== baseSheet.id) {
+			// A new tune starts from its saved tempo, whatever moved the knob before.
+			tempoChosenFor = null;
+			initTunePractice(baseSheet);
+		}
 	});
 
 	// Setup shows the tempo last chosen for the tune here or on the tune desk.
