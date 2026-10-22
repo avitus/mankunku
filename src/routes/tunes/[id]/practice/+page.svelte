@@ -460,13 +460,14 @@
 
 	const TEMPO_KNOB_MIN = 50;
 
-	// Set once the knob moves on this visit; a saved tempo arriving later (cloud
-	// hydration, another tab) must not snap it back under the user.
-	let tempoChosenHere = false;
+	// The tune whose knob moved on this visit; a saved tempo arriving later
+	// (cloud hydration, another tab) must not snap it back under the user. Keyed
+	// by tune because the route component is reused across a tune change.
+	let tempoChosenFor: string | null = null;
 
 	/** A tempo set up here is the tune's tempo next time, on this page and the desk. */
 	function setPracticeTempo(tempo: number): void {
-		tempoChosenHere = true;
+		if (baseSheet) tempoChosenFor = baseSheet.id;
 		tunePractice.config.tempo = tempo;
 		if (baseSheet) saveTuneTempo(baseSheet.id, tempo, supabase ?? undefined);
 	}
@@ -482,7 +483,7 @@
 	// return from the desk reaches setup for the SAME tune, and settings can
 	// hydrate after mount.
 	$effect(() => {
-		if (!baseSheet || tunePractice.phase !== 'setup' || tempoChosenHere) return;
+		if (!baseSheet || tunePractice.phase !== 'setup' || tempoChosenFor === baseSheet.id) return;
 		const saved = savedTuneTempo(settings.tuneTempos, baseSheet.id);
 		tunePractice.config.tempo = saved === undefined ? settings.defaultTempo : Math.max(TEMPO_KNOB_MIN, saved);
 	});
