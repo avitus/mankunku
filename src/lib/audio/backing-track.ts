@@ -1041,6 +1041,11 @@ export async function prepareBackingSection(
  *   await.  Returning false short-circuits setup so a superseded
  *   invocation can't install stale `activeSchedule` / Tone.Parts over
  *   a newer phrase's backing.
+ * @param boundaryTime - Audio time of an already-dispatched downbeat;
+ *   non-looping continuations only.
+ * @param loopTicks - Exact loop length when looping. Defaults to the harmony
+ *   rounded up to whole `numerator`-beat bars, which overshoots a compound-meter
+ *   form of odd bars; a looping tune form passes the melody's own length.
  */
 export async function scheduleBackingTrack(
 	phrase: Phrase,
@@ -1048,8 +1053,8 @@ export async function scheduleBackingTrack(
 	tickOffset: number,
 	loop: boolean = false,
 	isStillCurrent: () => boolean = () => true,
-	/** Audio time of an already-dispatched downbeat; non-looping continuations only. */
-	boundaryTime?: number
+	boundaryTime?: number,
+	loopTicks?: number
 ): Promise<void> {
 	if (!isBackingLoaded()) return;
 
@@ -1077,7 +1082,7 @@ export async function scheduleBackingTrack(
 	const { harmony, bassEvents, compEvents, drumEvents } = generateFor(phrase, options, ppq);
 
 	const harmonyDurationBeats = getHarmonyDurationBeats(harmony);
-	const harmonyTicks = Math.ceil(harmonyDurationBeats / beatsPerBar) * beatsPerBar * ppq;
+	const harmonyTicks = loopTicks ?? Math.ceil(harmonyDurationBeats / beatsPerBar) * beatsPerBar * ppq;
 
 	// ── Capture diagnostics log ─────────────────────────────
 	captureLog(phrase, harmony, bassEvents, compEvents, drumEvents, options.tempo);

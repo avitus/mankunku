@@ -840,7 +840,8 @@ export async function playPhrase(
 		// A looping form's band enters on bar 1 and loops on the form alone —
 		// the pickup is the melody's, played once over the count.
 		await (loop
-			? scheduleBackingTrack(loopBodyPhrase(phrase, loop), options, loopStartTicks, true, isStillCurrent)
+			? scheduleBackingTrack(loopBodyPhrase(phrase, loop), options, loopStartTicks, true, isStillCurrent, undefined,
+				(loop.endBar - loop.startBar) * printedBarTicks(phrase.timeSignature, ppq))
 			: scheduleBackingTrack(phrase, options, formStartTicks, loopBacking, isStillCurrent));
 		if (scheduleId !== currentScheduleId) return;
 		// The way out is decided inside Tone's tick dispatch, where an await

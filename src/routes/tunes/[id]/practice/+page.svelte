@@ -460,20 +460,31 @@
 
 	const TEMPO_KNOB_MIN = 50;
 
+	// Set once the knob moves on this visit; a saved tempo arriving later (cloud
+	// hydration, another tab) must not snap it back under the user.
+	let tempoChosenHere = false;
+
 	/** A tempo set up here is the tune's tempo next time, on this page and the desk. */
 	function setPracticeTempo(tempo: number): void {
+		tempoChosenHere = true;
 		tunePractice.config.tempo = tempo;
 		if (baseSheet) saveTuneTempo(baseSheet.id, tempo, supabase ?? undefined);
 	}
 
 	// A fresh tune (or a return visit) always begins at setup.
 	$effect(() => {
-		if (baseSheet && tunePractice.tuneId !== baseSheet.id) {
-			initTunePractice(baseSheet);
-			// The tune opens at the tempo last chosen for it here or on the tune desk.
-			const saved = savedTuneTempo(settings.tuneTempos, baseSheet.id);
-			tunePractice.config.tempo = saved === undefined ? settings.defaultTempo : Math.max(TEMPO_KNOB_MIN, saved);
-		}
+		if (baseSheet && tunePractice.tuneId !== baseSheet.id) initTunePractice(baseSheet);
+	});
+
+	// Setup shows the tempo last chosen for the tune here or on the tune desk.
+	// Read on every arrival and whenever the saved value changes, not only when
+	// the tune is new: the practice state outlives the route, so a client-side
+	// return from the desk reaches setup for the SAME tune, and settings can
+	// hydrate after mount.
+	$effect(() => {
+		if (!baseSheet || tunePractice.phase !== 'setup' || tempoChosenHere) return;
+		const saved = savedTuneTempo(settings.tuneTempos, baseSheet.id);
+		tunePractice.config.tempo = saved === undefined ? settings.defaultTempo : Math.max(TEMPO_KNOB_MIN, saved);
 	});
 
 	// The state module outlives the route, but the audio plan does not: a

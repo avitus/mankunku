@@ -142,6 +142,19 @@ describe('playPhrase with a looping form', () => {
 		await playing;
 	});
 
+	it('hands the band the melody\'s exact form length in a compound meter', async () => {
+		const { playPhrase, stopPlayback } = await import('$lib/audio/playback');
+		const { scheduleBackingTrack } = await import('$lib/audio/backing-track');
+		// Three bars of 6/8: the form is 9 quarters, not three six-beat bars.
+		const sixEight: Phrase = { ...phrase, timeSignature: [6, 8], notes: [{ pitch: 60, offset: [0, 1], duration: [3, 8] }],
+			harmony: [{ ...phrase.harmony[0], startOffset: [0, 1], duration: [9, 8] }] };
+		const playing = playPhrase(sixEight, options, false, { loop: { startBar: 0, endBar: 3, shouldContinue: () => true } });
+		await vi.waitFor(() => expect(mocks.transport.start).toHaveBeenCalled());
+		expect(vi.mocked(scheduleBackingTrack).mock.calls[0][6]).toBe(9 * PPQ);
+		await stopPlayback();
+		await playing;
+	});
+
 	it('keeps the click going past the first pass when there is no band', async () => {
 		const { playPhrase, stopPlayback } = await import('$lib/audio/playback');
 		const playing = playPhrase(phrase, { ...options, backingTrackEnabled: false }, false, {
