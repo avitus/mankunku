@@ -3164,3 +3164,17 @@ Second: Tone's looping Part silently CANCELS events outside
 so a loop over our own events must classify by written offset and clamp —
 otherwise bar 1's first note vanishes from every pass and nobody would know
 why the form "sounds late".
+
+The release review spent two rounds on one variable. `tempoChosenHere`
+was a boolean standing in for "the user chose a tempo for THIS tune on
+THIS visit", and each review round found one more axis the boolean
+couldn't carry: which tune, then which arrival. A guard flag is a claim
+about identity; when the thing it guards can change under a reused
+component, the flag has to name it. Same lesson as `localRev > syncedRev`
+in the same review: a counter comparison answers "is anything unsynced",
+not "did anything happen since I asked" — the second question needs its
+own snapshot.
+
+The WebKit flake was a good reminder that "stable" in Playwright is a
+statement about animation frames, and a starved browser stops producing
+them. Slow and stalled look identical from the test's side.
