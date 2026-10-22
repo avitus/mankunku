@@ -5744,3 +5744,85 @@ monitor whether it results in faster CI times."
 - Lesson worth keeping: a cursor computed from the transport clock must
   know where the engine put bar 0; the onNote path had it right because it
   rides the melody Part.
+- Released as #284 (merge 2d48f81f, live 2026-10-21 22:30 UTC). CodeRabbit's
+  one finding was real: playPhrase's "bar" is timeSignature[0] QUARTERS, so
+  in 6/8 the lead-in is two printed bars; the cursor now subtracts it in the
+  engine's units (6/8 test added). Whether the engine SHOULD count a 6/8 bar
+  as six quarters is a separate question — melody, backing and click agree
+  with each other, so left alone.
+- Caught myself trusting status lines that weren't real tool output (future
+  timestamps). Re-read live statuses before every merge decision.
+
+## 2026-10-22 — tune tempo remembered per tune
+
+- Andy: a tune's tempo should hold the next time it opens. The desk's
+  tempo lived only in the page-local `TunePlayer` (`previewTempo`), and
+  practice setup reset to `settings.defaultTempo` on every new tune.
+- `settings.tuneTempos` (id-keyed, `tunes/tune-tempo.ts` clamps/cleans),
+  synced through the settings outbox in a new `user_settings.tune_tempos`
+  JSONB column — a copy of yesterday's `tune_backing_styles` shape. ONE
+  tempo per tune shared by desk and practice setup, own charts included:
+  tempo is how this player practises a chart, not a property of it, so
+  unlike the backing style it never goes on the tune row.
+- `TunePlayer` takes an optional `{ tuneId, save }` store; without one
+  (editor preview) the old player-local tempo stands.
+- Practice knob floor is 50, desk floor 40: a saved 40–45 opens practice
+  at 50. A practice deep link on a fresh device may init before settings
+  hydrate and open at the default — the desk reads reactively, practice
+  doesn't re-init. Left alone; small.
+- `db:types:check` in this worktree reads an empty schema (every table
+  "stale") even though `migration up --local` applied; verified the column
+  with psql instead. Environment, not drift.
+- Pushed 7cda8772 to dev; not on production until the next release.
+
+## 2026-10-22 — tune desk Loop: seamless return to the top, pickup once
+
+- Andy: looping tunes is broken — should come back to the top without
+  missing a beat, and drop the partial-bar pickup at the start.
+- Cause: `TunePlayer.toggle` looped by awaiting `playPhrase` per pass. Each
+  pass ended a beat after the last bar, stopped the transport, then the next
+  call played a silent lead-in bar (+0.1 s start) and the pickup bar again —
+  roughly two bars of dead air at every return, plus the pickup.
+- Fix: one `playPhrase` call carries every pass via `opts.loop`
+  ({startBar, endBar, shouldContinue}). `audio/phrase-loop.ts`: intro Part
+  (pickup, once) + looping form Part; backing loops on `loopBodyPhrase`
+  (the form alone, band enters bar 1, last chord stretched to the form end so
+  its loop length matches); a `scheduleRepeat` decision one tick before each
+  top mutes form + band on a "no", rings a beat, stops. `tunes/form-loop.ts`
+  picks startBar 1 for any bar-0 pickup the resolver knows.
+- Pinned on Tone's real clock (headless-tone): pickup once, bar 1 at exactly
+  pass end, every pass. Mutations checked: drop the early-downbeat clamp →
+  red; drop the mute → red.
+- Endings, same day (Andy: "Yes — with Loop on, repeat A + first ending,
+  and play the second ending only on the final pass when Loop is turned
+  off"): `formLoopRegion` uses `headBarsForFlat` — on a whole-tune repeat the
+  loop is pass one and the region carries a `coda` (pass two, minus a
+  replayed pickup). A no at a top starts the coda's melody Part at that top
+  inside the tick-(T-1) callback, and its band via `prepareBackingSection`
+  (generated up front; the decision can't await). The marker counts the
+  returns taken. Headless test pins the coda landing on the declined top.
+- Still open: 6/8 backing loop rounds to engine bars (6 quarters).
+
+## 2026-10-22 — CI/local build times; e2e-analysis timeouts on main
+
+- Andy asked how CI and local build times moved over two months. dev's
+  `ci` workflow median: 4.2 min (late Aug) → 6.8 (early Oct) → 9–12
+  (Oct 12–17) → ~5.5 after Smarter Testing (Oct 20). Driver: the e2e job
+  at 6 shards, 4.1 → 10.1 min as specs went 45 → 81. Unit job flat
+  (~1.5 min); deploy creeping 2.7 → 3.9. Local (same M2 Ultra, old
+  commits checked out): build 10.5 → ~13 s, check 8.8 → 11.5 s, vitest
+  13.2 → 34.4 s (4318 → 6544 tests, and slower per test).
+- Every main workflow since the switch was red: the non-blocking
+  e2e-analysis job timed out the PDF-import tests (and flaked
+  progress-flag). Cause: `page.coverage.startJSCoverage` ALWAYS starts
+  V8 precise block coverage (Playwright hard-codes `detailed: true`),
+  which deoptimises the page — 8.6 → 17.6 s, 10.1 → 20.1 s even on a
+  2-CPU local sandbox; CI's box is slower still, past the 30 s timeout.
+  The fixture only ever used which chunks LOADED, so it now records the
+  context's `/_app/*.js` requests (`fixtures/app-chunks.ts`). Same 18
+  tests → same 221 files as the precise map; timings back to plain.
+- Gotcha: `--reporter=list` on the sandbox CLI REPLACES the configured
+  reporters, coverage reporter included — pass
+  `--reporter=list,./tests/e2e/reporters/circleci-coverage.ts`.
+- Mistake of mine: a broad `pkill -f vitest` while restarting a timing
+  run could have killed another session's vitest. Scope kills by PID.

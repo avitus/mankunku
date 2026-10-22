@@ -16,7 +16,8 @@
 	import { transposeTune } from '$lib/tunes/book-loader';
 	import { resolveTuneRef, tunePath } from '$lib/tunes/tune-slug';
 	import { awaitHydration } from '$lib/state/hydration';
-	import { settings, getInstrument } from '$lib/state/settings.svelte';
+	import { settings, getInstrument, saveTuneTempo } from '$lib/state/settings.svelte';
+	import { savedTuneTempo } from '$lib/tunes/tune-tempo';
 	import { BACKING_STYLE_IDS, BACKING_STYLE_NAMES, melodySwingForStyle } from '$lib/audio/backing-styles';
 	import { setMasterVolume } from '$lib/audio/audio-context';
 	import {
@@ -79,6 +80,7 @@
 	import type { BackingTrackSchedule } from '$lib/audio/backing-track-schedule';
 
 	const session = $derived(page.data?.session ?? null);
+	const supabase = $derived(page.data?.supabase ?? null);
 	/**
 	 * The grid the soloist plays on. Fixed-grid styles (straight, bossa,
 	 * ballad) pin it; only the swing style defers to the user's knob. Used
@@ -456,12 +458,38 @@
 		timerInterval = setInterval(() => updateElapsedTime(), 1000);
 	});
 
+	const TEMPO_KNOB_MIN = 50;
+
+	// The tune whose knob moved on this visit; a saved tempo arriving later
+	// (cloud hydration, another tab) must not snap it back under the user. Keyed
+	// by tune because the route component is reused across a tune change.
+	let tempoChosenFor: string | null = null;
+
+	/** A tempo set up here is the tune's tempo next time, on this page and the desk. */
+	function setPracticeTempo(tempo: number): void {
+		if (baseSheet) tempoChosenFor = baseSheet.id;
+		tunePractice.config.tempo = tempo;
+		if (baseSheet) saveTuneTempo(baseSheet.id, tempo, supabase ?? undefined);
+	}
+
 	// A fresh tune (or a return visit) always begins at setup.
 	$effect(() => {
 		if (baseSheet && tunePractice.tuneId !== baseSheet.id) {
+			// A new tune starts from its saved tempo, whatever moved the knob before.
+			tempoChosenFor = null;
 			initTunePractice(baseSheet);
-			tunePractice.config.tempo = settings.defaultTempo;
 		}
+	});
+
+	// Setup shows the tempo last chosen for the tune here or on the tune desk.
+	// Read on every arrival and whenever the saved value changes, not only when
+	// the tune is new: the practice state outlives the route, so a client-side
+	// return from the desk reaches setup for the SAME tune, and settings can
+	// hydrate after mount.
+	$effect(() => {
+		if (!baseSheet || tunePractice.phase !== 'setup' || tempoChosenFor === baseSheet.id) return;
+		const saved = savedTuneTempo(settings.tuneTempos, baseSheet.id);
+		tunePractice.config.tempo = saved === undefined ? settings.defaultTempo : Math.max(TEMPO_KNOB_MIN, saved);
 	});
 
 	// The state module outlives the route, but the audio plan does not: a
@@ -1049,11 +1077,11 @@
 						ariaLabel="Tempo"
 						helpText={tooltips.tunePractice.tempo.text}
 						value={tunePractice.config.tempo}
-						min={50}
+						min={TEMPO_KNOB_MIN}
 						max={240}
 						step={5}
 						displayValue={`${tunePractice.config.tempo} BPM`}
-						onInput={(v) => (tunePractice.config.tempo = v)}
+						onInput={setPracticeTempo}
 					/>
 				</div>
 

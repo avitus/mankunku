@@ -309,6 +309,8 @@ let graphEpoch = 0;
 let bassPart: import('tone').Part<BassEvent> | null = null;
 let compPart: import('tone').Part<CompEvent> | null = null;
 let drumPart: import('tone').Part<DrumEvent> | null = null;
+/** A section started later on a running transport (prepareBackingSection); never looped. */
+let sectionParts: import('tone').Part<BassEvent | CompEvent | DrumEvent>[] = [];
 let activeSchedule: BackingTrackSchedule | null = null;
 
 /** Monotonically increasing ID for cancelling stale loads. */
@@ -834,12 +836,25 @@ export function disposeBackingParts(): void {
 		drumPart.dispose();
 		drumPart = null;
 	}
+	for (const part of sectionParts) part.dispose();
+	sectionParts = [];
 	bassInstrument?.stop();
 	compInstrument?.stop();
 	if (drumSamplers) {
 		for (const sampler of Object.values(drumSamplers)) sampler.stop();
 	}
 	activeSchedule = null;
+}
+
+/**
+ * Silence the scheduled (main) parts from now on without cutting what is
+ * already sounding — a looping form handing over to its last pass. A
+ * section started after it (prepareBackingSection) keeps playing.
+ */
+export function muteBackingParts(): void {
+	for (const part of [bassPart, compPart, drumPart]) {
+		if (part) part.mute = true;
+	}
 }
 
 /** Return the backing track schedule built during the last scheduleBackingTrack() call. */
@@ -917,6 +932,104 @@ export function playBackingHitsNow(hits: BackingHit[], time: number): void {
 	}
 }
 
+/** Trigger one bass hit at its audio-clock time, including a joined downbeat. */
+function playBass(time: number, event: BassEvent): void {
+	bassInstrument?.start({
+		note: event.midi,
+		velocity: event.velocity,
+		duration: event.duration,
+		time
+	});
+}
+
+/** Trigger every voice in a comping hit on the same audio-clock time. */
+function playComp(time: number, event: CompEvent): void {
+	for (const midi of event.notes) {
+		compInstrument?.start({
+			note: midi,
+			velocity: event.velocity,
+			duration: event.duration,
+			time
+		});
+	}
+}
+
+/** Play the selected drum sample with the current voice and mix trims. */
+function playDrum(time: number, event: DrumEvent): void {
+	// Style velocities are 0-1; smplr Sampler takes MIDI 0-127. The
+	// per-voice base trim and mix trim apply here because voice balance
+	// within a family sampler can only be shaped through velocity. The
+	// buffer is picked from the voice's velocity layers by the GENERATED
+	// velocity (musical intent), before trims touch the level, and the
+	// hit routes to its family's sampler (kick / snare / cymbals — each
+	// with its own pan). A buffer the browser failed to decode makes the
+	// start a silent no-op, exactly like the old single-buffer path.
+	drumSamplers?.[DRUM_FAMILY_BY_VOICE[event.drum]].start({
+		note: drumBufferForVelocity(event.drum, event.velocity),
+		velocity: Math.round(
+			voiceVelocity(event.velocity * BACKING_BASE_TRIMS[event.drum], mixLevels[event.drum]) * 127
+		),
+		time
+	});
+}
+
+/** The harmony a phrase's backing follows and the bass, comp and drum events over it. */
+function generateFor(phrase: Phrase, options: PlaybackOptions, ppq: number) {
+	const beatsPerBar = phrase.timeSignature[0];
+	const baseHarmony = phrase.harmony.length > 0 ? phrase.harmony : inferTonicChord(phrase);
+	// Every backing length is derived from the harmony, so it has to reach the
+	// end of the melody or the phrase's last bar plays dry.
+	const harmony = extendHarmonyToCoverMelody(baseHarmony, phrase.notes, beatsPerBar);
+	const style = BACKING_STYLES[options.backingStyle ?? 'swing'];
+	const swing = resolveBackingSwing(options.swing, style, options.tempo);
+	// Cached: lick-practice loops and per-key restarts reschedule the same
+	// (phrase, tempo, style) many times — the LRU returns the identical
+	// events without re-running the planners.
+	return {
+		harmony,
+		...generateBackingCached(harmony, style, {
+			phraseId: phrase.id,
+			tempo: options.tempo,
+			ppq,
+			beatsPerBar,
+			swing,
+			sectionMap: phrase.sectionMap
+		})
+	};
+}
+
+/**
+ * Get a backing section ready to start LATER, synchronously, beside the
+ * backing already playing — a looping form's out-chorus, whose start is only
+ * decided one tick before its downbeat, inside Tone's tick dispatch, where an
+ * await would land after the downbeat had gone by. Every await happens here;
+ * the returned starter only creates and starts (non-looping) Parts.
+ * Null without a loaded backing, or when the setup was superseded.
+ */
+export async function prepareBackingSection(
+	phrase: Phrase,
+	options: PlaybackOptions,
+	isStillCurrent: () => boolean = () => true
+): Promise<((tickOffset: number) => void) | null> {
+	if (!isBackingLoaded()) return null;
+	const Tone = await getTone();
+	if (!isStillCurrent()) return null;
+	await ensureDrums();
+	if (!isStillCurrent()) return null;
+	const { bassEvents, compEvents, drumEvents } = generateFor(phrase, options, Tone.getTransport().PPQ);
+	return (tickOffset) => {
+		const parts = [
+			new Tone.Part(playBass, bassEvents),
+			new Tone.Part(playComp, compEvents),
+			new Tone.Part(playDrum, drumEvents)
+		];
+		for (const part of parts) {
+			part.start(`${tickOffset}i`);
+			sectionParts.push(part as import('tone').Part<BassEvent | CompEvent | DrumEvent>);
+		}
+	};
+}
+
 /**
  * Schedule the backing track on the Tone.js Transport.
  *
@@ -928,6 +1041,11 @@ export function playBackingHitsNow(hits: BackingHit[], time: number): void {
  *   await.  Returning false short-circuits setup so a superseded
  *   invocation can't install stale `activeSchedule` / Tone.Parts over
  *   a newer phrase's backing.
+ * @param boundaryTime - Audio time of an already-dispatched downbeat;
+ *   non-looping continuations only.
+ * @param loopTicks - Exact loop length when looping. Defaults to the harmony
+ *   rounded up to whole `numerator`-beat bars, which overshoots a compound-meter
+ *   form of odd bars; a looping tune form passes the melody's own length.
  */
 export async function scheduleBackingTrack(
 	phrase: Phrase,
@@ -935,8 +1053,8 @@ export async function scheduleBackingTrack(
 	tickOffset: number,
 	loop: boolean = false,
 	isStillCurrent: () => boolean = () => true,
-	/** Audio time of an already-dispatched downbeat; non-looping continuations only. */
-	boundaryTime?: number
+	boundaryTime?: number,
+	loopTicks?: number
 ): Promise<void> {
 	if (!isBackingLoaded()) return;
 
@@ -945,12 +1063,6 @@ export async function scheduleBackingTrack(
 	const transport = Tone.getTransport();
 	const ppq = transport.PPQ;
 	const beatsPerBar = phrase.timeSignature[0];
-
-	const baseHarmony = phrase.harmony.length > 0 ? phrase.harmony : inferTonicChord(phrase);
-	// Every backing length is derived from the harmony, so it has to reach the
-	// end of the melody or the phrase's last bar plays dry.
-	const harmony = extendHarmonyToCoverMelody(baseHarmony, phrase.notes, beatsPerBar);
-	const style = BACKING_STYLES[options.backingStyle ?? 'swing'];
 
 	// Load the kit BEFORE touching any state. This is the last await in the
 	// function, so every bailout happens while nothing has been disposed and
@@ -967,22 +1079,10 @@ export async function scheduleBackingTrack(
 
 	disposeBackingParts();
 
-	// ── Generate bass + comp + drum events ──────────────────
-	const swing = resolveBackingSwing(options.swing, style, options.tempo);
-	// Cached: lick-practice loops and per-key restarts reschedule the same
-	// (phrase, tempo, style) many times — the LRU returns the identical
-	// events without re-running the planners.
-	const { bassEvents, compEvents, drumEvents } = generateBackingCached(harmony, style, {
-		phraseId: phrase.id,
-		tempo: options.tempo,
-		ppq,
-		beatsPerBar,
-		swing,
-		sectionMap: phrase.sectionMap
-	});
+	const { harmony, bassEvents, compEvents, drumEvents } = generateFor(phrase, options, ppq);
 
 	const harmonyDurationBeats = getHarmonyDurationBeats(harmony);
-	const harmonyTicks = Math.ceil(harmonyDurationBeats / beatsPerBar) * beatsPerBar * ppq;
+	const harmonyTicks = loopTicks ?? Math.ceil(harmonyDurationBeats / beatsPerBar) * beatsPerBar * ppq;
 
 	// ── Capture diagnostics log ─────────────────────────────
 	captureLog(phrase, harmony, bassEvents, compEvents, drumEvents, options.tempo);
@@ -1013,15 +1113,6 @@ export async function scheduleBackingTrack(
 	// This matches the melody Part pattern (start at offset, events
 	// relative) and avoids the fragile start(0)-with-absolute-events
 	// pattern on a running transport.
-	/** Trigger one bass hit at its audio-clock time, including a joined downbeat. */
-	const playBass = (time: number, event: BassEvent) => {
-		bassInstrument?.start({
-			note: event.midi,
-			velocity: event.velocity,
-			duration: event.duration,
-			time
-		});
-	};
 	bassPart = new Tone.Part(playBass, scheduleBoundaryEvents(bassEvents, playBass, boundary));
 	bassPart.start(`${tickOffset}i`);
 	bassPart.loop = loop;
@@ -1031,17 +1122,6 @@ export async function scheduleBackingTrack(
 	}
 
 	// Schedule comp — same pattern as bass: relative events, start at offset
-	/** Trigger every voice in a comping hit on the same audio-clock time. */
-	const playComp = (time: number, event: CompEvent) => {
-		for (const midi of event.notes) {
-			compInstrument?.start({
-				note: midi,
-				velocity: event.velocity,
-				duration: event.duration,
-				time
-			});
-		}
-	};
 	compPart = new Tone.Part(playComp, scheduleBoundaryEvents(compEvents, playComp, boundary));
 	compPart.start(`${tickOffset}i`);
 	compPart.loop = loop;
@@ -1058,24 +1138,6 @@ export async function scheduleBackingTrack(
 	// generated up front so the whole kit shares the swing grid.
 	setBackingTrackVolume(options.backingTrackVolume ?? 0.5);
 
-	/** Play the selected drum sample with the current voice and mix trims. */
-	const playDrum = (time: number, event: DrumEvent) => {
-		// Style velocities are 0-1; smplr Sampler takes MIDI 0-127. The
-		// per-voice base trim and mix trim apply here because voice balance
-		// within a family sampler can only be shaped through velocity. The
-		// buffer is picked from the voice's velocity layers by the GENERATED
-		// velocity (musical intent), before trims touch the level, and the
-		// hit routes to its family's sampler (kick / snare / cymbals — each
-		// with its own pan). A buffer the browser failed to decode makes the
-		// start a silent no-op, exactly like the old single-buffer path.
-		drumSamplers?.[DRUM_FAMILY_BY_VOICE[event.drum]].start({
-			note: drumBufferForVelocity(event.drum, event.velocity),
-			velocity: Math.round(
-				voiceVelocity(event.velocity * BACKING_BASE_TRIMS[event.drum], mixLevels[event.drum]) * 127
-			),
-			time
-		});
-	};
 	drumPart = new Tone.Part(playDrum, scheduleBoundaryEvents(drumEvents, playDrum, boundary));
 	drumPart.start(`${tickOffset}i`);
 	drumPart.loop = loop;

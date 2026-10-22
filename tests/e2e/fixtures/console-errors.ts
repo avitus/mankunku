@@ -52,7 +52,19 @@ const IGNORED_PATTERNS: IgnoreRule[] = [
 	// source — a real app NS_ERROR (which carries an app file URL) still fails.
 	(text, url) =>
 		/NS_ERROR_NOT_INITIALIZED.*debugger eval code/.test(text) &&
-		(url === '' || /debugger eval code/.test(url))
+		(url === '' || /debugger eval code/.test(url)),
+	// Firefox-only Playwright artifact: Juggler, Playwright's own Firefox
+	// driver, logs an aborted request from its worker script when a reload or
+	// navigation cancels it — `NS_BINDING_ABORTED` in
+	// chrome://juggler/content/content/WorkerMain.js, once in the tune-desk
+	// tempo spec's reload (2026-10-22), passing on retry. chrome:// is the
+	// browser's own code; no app script can run there. Pinned to that error and
+	// that source on BOTH ends, as the rule above is, so any other Juggler error
+	// still fails.
+	(text, url) =>
+		/NS_BINDING_ABORTED/.test(text) &&
+		/chrome:\/\/juggler\//.test(text) &&
+		(url === '' || url.startsWith('chrome://juggler/'))
 ];
 
 /**

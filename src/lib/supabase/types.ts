@@ -203,6 +203,8 @@ export type Database = {
           tour_state: Json
           /** Personal backing style overrides keyed by tune ID. Defaults to {}. */
           tune_backing_styles: Json
+          /** Personal tempos keyed by tune ID. Defaults to {}. */
+          tune_tempos: Json
           /** Backing-track feel: swing|bossa-nova|ballad|straight. NULL = 'swing'. */
           backing_style: string | null
           /** A/B toggle: use bleed-filtered notes as primary score. NULL = false. */
@@ -244,6 +246,8 @@ export type Database = {
           tour_state?: Json
           /** Personal backing style overrides keyed by tune ID. Defaults to {}. */
           tune_backing_styles?: Json
+          /** Personal tempos keyed by tune ID. Defaults to {}. */
+          tune_tempos?: Json
           /** NULL = 'swing' */
           backing_style?: string | null
           /** NULL = false */
@@ -269,6 +273,7 @@ export type Database = {
           highest_note?: number | null
           tour_state?: Json
           tune_backing_styles?: Json
+          tune_tempos?: Json
           backing_style?: string | null
           bleed_filter_enabled?: boolean | null
           trick_state?: Json

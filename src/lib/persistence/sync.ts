@@ -65,6 +65,7 @@ export type CloudLoad<T> = { status: 'ok'; data: T } | { status: 'empty' } | { s
 /** Minimal typed interface for settings passed to syncSettingsToCloud. */
 interface SyncableSettings {
 	tuneBackingStyles?: Record<string, string>;
+	tuneTempos?: Record<string, number>;
 	instrumentId: string;
 	defaultTempo: number;
 	masterVolume: number;
@@ -673,6 +674,7 @@ export async function syncSettingsToCloud(
 				highest_note: settings.highestNote ?? null,
 				backing_style: settings.backingStyle,
 				tune_backing_styles: settings.tuneBackingStyles ?? {},
+				tune_tempos: settings.tuneTempos ?? {},
 				bleed_filter_enabled: settings.bleedFilterEnabled,
 				updated_at: new Date().toISOString()
 			},
@@ -734,6 +736,7 @@ export async function loadSettingsFromCloud(
 				highestNote: data.highest_note ?? null,
 				backingStyle: data.backing_style ?? 'swing',
 				tuneBackingStyles: data.tune_backing_styles ?? {},
+				tuneTempos: data.tune_tempos ?? {},
 				bleedFilterEnabled: data.bleed_filter_enabled ?? false
 			}
 		};

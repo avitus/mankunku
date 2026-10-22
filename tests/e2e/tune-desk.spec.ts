@@ -42,6 +42,50 @@ test('curated choice survives reload, cancel preserves it, and edit-a-copy inher
 	await expect(page.getByLabel('Backing style', { exact: true })).toHaveValue('straight');
 });
 
+test('a tune reopens at the tempo last chosen for it, on the desk and in practice setup', async ({ page }) => {
+	test.setTimeout(60_000);
+	await page.goto('/tunes/ls-when-the-saints');
+	const tempo = page.getByLabel('Tempo', { exact: true });
+	await expect(tempo).toHaveValue('100');
+	// Visible is not hydrated: retry the click until Svelte's handler has run.
+	await expect(async () => {
+		await page.getByRole('button', { name: 'Increase tempo' }).click();
+		await expect(tempo).not.toHaveValue('100', { timeout: 1_000 });
+	}).toPass({ timeout: 15_000 });
+	await tempo.fill('132');
+	await tempo.press('Enter');
+	await expect(tempo).toHaveValue('132');
+	await page.reload();
+	await expect(page.getByLabel('Tempo', { exact: true })).toHaveValue('132');
+	// Another tune keeps the default.
+	await page.goto('/tunes/ls-mankunku-blues');
+	await expect(page.getByLabel('Tempo', { exact: true })).toHaveValue('100');
+	await page.goto('/tunes/ls-when-the-saints/practice');
+	await expect(page.getByRole('slider', { name: /^tempo$/i })).toHaveAttribute('aria-valuenow', '132');
+});
+
+test('practice setup picks up a tempo changed on the desk during a client-side round trip', async ({ page }) => {
+	test.setTimeout(60_000);
+	await page.goto('/tunes/ls-when-the-saints/practice');
+	const slider = page.getByRole('slider', { name: /^tempo$/i });
+	await expect(slider).toHaveAttribute('aria-valuenow', '100');
+	// The practice state outlives the route, so the return below re-enters
+	// setup for the SAME tune without re-initialising it.
+	await page.evaluate(() => { (window as unknown as { roundTrip: boolean }).roundTrip = true; });
+	await page.getByRole('link', { name: /When the Saints/ }).click();
+	await expect(page).toHaveURL(/\/tunes\/[^/]+$/);
+	const tempo = page.getByLabel('Tempo', { exact: true });
+	await expect(tempo).toHaveValue('100');
+	await tempo.fill('132');
+	await tempo.press('Enter');
+	await expect(tempo).toHaveValue('132');
+	await page.getByRole('button', { name: /Practice licks/ }).click();
+	await expect(page).toHaveURL(/\/tunes\/[^/]+\/practice$/);
+	await expect(page.getByRole('slider', { name: /^tempo$/i })).toHaveAttribute('aria-valuenow', '132');
+	// No full load happened, so this is the path that keeps the practice state.
+	expect(await page.evaluate(() => (window as unknown as { roundTrip?: boolean }).roundTrip)).toBe(true);
+});
+
 test('focus keeps the chart and transport available and restores navigation on Escape', async ({ page }, testInfo) => {
 	await page.goto('/tunes/ls-when-the-saints');
 	await expect(page.locator('.abcjs-container svg').first()).toBeVisible();

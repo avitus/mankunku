@@ -39,7 +39,7 @@ Tests run through **CircleCI Smarter Testing** (`.circleci/test-suites.yml`: sui
 Three non-obvious shapes:
 - Unit discovery is `find`, not `vitest list`, whose output failed to parse on CircleCI.
 - E2E atoms are testDir-relative (`smoke.spec.ts`), because Playwright's JUnit names files that way; `run` restores the prefix, since a bare `smoke.spec.ts` regex also matches stub-cloud-smoke.
-- E2E builds once per node, because dynamic splitting runs Playwright once per batch. Impact data for e2e is Chromium JS coverage BY CHUNK (`tests/e2e/fixtures/circleci-coverage.ts` + its reporter, over an `E2E_SOURCEMAPS=1` build), so server-only paths are listed as full-run paths.
+- E2E builds once per node, because dynamic splitting runs Playwright once per batch. Impact data for e2e is the app chunks each test's Chromium context REQUESTED, mapped to sources BY CHUNK (`tests/e2e/fixtures/circleci-coverage.ts` + `app-chunks.ts` + its reporter, over an `E2E_SOURCEMAPS=1` build), so server-only paths are listed as full-run paths. Never `page.coverage`: Playwright's `startJSCoverage` always starts V8's precise block coverage, which ran the PDF-import tests 2–2.5× slower and timed them out on the 2-vCPU analysis box (every main workflow red, 2026-10-21); the request set yields the identical map.
 
 The local runs `doctor` makes leave `.circleci/impact-*.json` and `.circleci/state-*/` behind, both gitignored.
 
