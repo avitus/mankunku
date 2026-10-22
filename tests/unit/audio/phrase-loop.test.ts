@@ -3,6 +3,7 @@ import type { Phrase } from '$lib/types/music';
 import { createHeadlessTransport } from '../../helpers/headless-tone';
 import { guardTickRedelivery } from '$lib/audio/tick-redelivery';
 import {
+	codaPhrase,
 	loopBodyPhrase,
 	loopPlaybackBar,
 	scheduleFormLoop,
@@ -73,6 +74,18 @@ describe('splitLoopEvents', () => {
 		const { body } = splitLoopEvents([ev(2, 4 * PPQ)], sixEight, { startBar: 1, endBar: 4 }, PPQ);
 		expect(body[0].ticks).toBe(PPQ);
 	});
+
+	// The final pass is a different stretch of the timeline (A + second
+	// ending); a skipped pickup between the passes is played by neither.
+	it('rebases the out-chorus onto its own first bar', () => {
+		const { intro, body, coda } = splitLoopEvents(
+			[ev(1, 3 * PPQ), ev(2, BAR), ev(3, BAR + 6 * PPQ)],
+			pickupPhrase(), { startBar: 1, endBar: 2, coda: { startBar: 2, endBar: 3 } }, PPQ
+		);
+		expect(intro.map((e) => e.sourceIndex)).toEqual([1]);
+		expect(body.map((e) => [e.sourceIndex, e.ticks])).toEqual([[2, 0]]);
+		expect(coda.map((e) => [e.sourceIndex, e.ticks])).toEqual([[3, 2 * PPQ]]);
+	});
 });
 
 describe('loopBodyPhrase', () => {
@@ -82,6 +95,13 @@ describe('loopBodyPhrase', () => {
 		expect(body.notes.map((n) => [n.pitch, n.offset])).toEqual([[60, [0, 1]], [62, [3, 2]]]);
 		expect(body.harmony.map((h) => [h.chord.root, h.startOffset])).toEqual([['C', [0, 1]], ['G', [1, 1]]]);
 		expect(body.sectionMap).toEqual([{ sourceSection: 1, barOffset: 0 }]);
+	});
+
+	it('cuts the out-chorus as its own phrase', () => {
+		const coda = codaPhrase(pickupPhrase(), { startBar: 1, endBar: 2, coda: { startBar: 2, endBar: 3 } });
+		expect(coda?.notes.map((n) => [n.pitch, n.offset])).toEqual([[62, [1, 2]]]);
+		expect(coda?.harmony.map((h) => [h.chord.root, h.startOffset, h.duration])).toEqual([['G', [0, 1], [1, 1]]]);
+		expect(codaPhrase(pickupPhrase(), { startBar: 1, endBar: 3 })).toBeNull();
 	});
 
 	// The backing loops on its harmony's length, so harmony that stops short
@@ -103,10 +123,18 @@ describe('loopBodyPhrase', () => {
 
 describe('loopPlaybackBar', () => {
 	it('wraps past the last bar to the first bar of the form, skipping the pickup', () => {
-		expect(loopPlaybackBar(0.5, { startBar: 1, endBar: 3 })).toBe(0.5);
-		expect(loopPlaybackBar(2.5, { startBar: 1, endBar: 3 })).toBe(2.5);
-		expect(loopPlaybackBar(3.25, { startBar: 1, endBar: 3 })).toBe(1.25);
-		expect(loopPlaybackBar(5.5, { startBar: 1, endBar: 3 })).toBe(1.5);
+		const region = { startBar: 1, endBar: 3 };
+		expect(loopPlaybackBar(0.5, region, 2)).toBe(0.5);
+		expect(loopPlaybackBar(2.5, region, 2)).toBe(2.5);
+		expect(loopPlaybackBar(3.25, region, 2)).toBe(1.25);
+		expect(loopPlaybackBar(5.5, region, 2)).toBe(1.5);
+	});
+
+	it('follows the out-chorus once the returns are used up', () => {
+		const region = { startBar: 1, endBar: 3, coda: { startBar: 4, endBar: 6 } };
+		expect(loopPlaybackBar(3.5, region, 1)).toBe(1.5); // the one return
+		expect(loopPlaybackBar(5.5, region, 1)).toBe(4.5); // then the last pass
+		expect(loopPlaybackBar(3.5, region, 0)).toBe(4.5); // or straight into it
 	});
 });
 
@@ -114,12 +142,12 @@ describe('scheduleFormLoop (real Tone clock)', () => {
 	const BPM = 240;
 
 	/** Run a looped form until `passes` passes have been allowed, recording every delivery. */
-	async function runLoop(passes: number) {
+	async function runLoop(passes: number, coda: LoopEvent[] = []) {
 		const h = await createHeadlessTransport({ sampleRate: 48000, bpm: BPM, startQuantum: 1 });
 		guardTickRedelivery(h.transport);
 		const heard: [number, number][] = [];
 		let decisions = 0;
-		let lastPassEnd: number | null = null;
+		let lastPass: { codaStartTick: number; endTick: number } | null = null;
 		const leadIn = BAR;
 		scheduleFormLoop({
 			Tone: h.Tone,
@@ -127,20 +155,22 @@ describe('scheduleFormLoop (real Tone clock)', () => {
 			transport: h.transport,
 			intro: [ev(1, 3 * PPQ)],
 			body: [ev(2, 0), ev(3, 6 * PPQ)],
+			coda,
 			introStartTick: leadIn,
 			bodyStartTick: leadIn + BAR,
 			loopTicks: 2 * BAR,
+			codaTicks: coda.length > 0 ? BAR : 0,
 			play: (time, event) => heard.push([event.sourceIndex, Math.round(h.transport.getTicksAtTime(time))]),
 			shouldContinue: () => ++decisions < passes,
-			onLastPass: (endTick) => { lastPassEnd = endTick; }
+			onLastPass: (pass) => { lastPass = pass; }
 		});
 		h.transport.start(h.context.now());
 		h.run(((1 + 1 + 2 * (passes + 1)) * 4 * 60) / BPM);
-		return { heard, lastPassEnd, decisions };
+		return { heard, lastPass, decisions };
 	}
 
 	it('returns to bar 1 on the beat after the last bar, every pass, with the pickup played once', async () => {
-		const { heard, lastPassEnd, decisions } = await runLoop(3);
+		const { heard, lastPass, decisions } = await runLoop(3);
 		const body = BAR + BAR;
 		expect(heard).toEqual([
 			[1, BAR + 3 * PPQ],
@@ -149,12 +179,19 @@ describe('scheduleFormLoop (real Tone clock)', () => {
 			[2, body + 4 * BAR], [3, body + 4 * BAR + 6 * PPQ]
 		]);
 		expect(decisions).toBe(3);
-		expect(lastPassEnd).toBe(body + 6 * BAR);
+		expect(lastPass).toEqual({ codaStartTick: body + 6 * BAR, endTick: body + 6 * BAR });
 	});
 
 	it('plays the form once when looping is off', async () => {
-		const { heard, lastPassEnd } = await runLoop(1);
+		const { heard, lastPass } = await runLoop(1);
 		expect(heard.map(([i]) => i)).toEqual([1, 2, 3]);
-		expect(lastPassEnd).toBe(4 * BAR);
+		expect(lastPass).toEqual({ codaStartTick: 4 * BAR, endTick: 4 * BAR });
+	});
+
+	it('takes the out-chorus at the top it declines, on the beat', async () => {
+		const { heard, lastPass } = await runLoop(2, [ev(4, 0), ev(5, 2 * PPQ)]);
+		const top = BAR + BAR + 4 * BAR;
+		expect(heard.slice(-4)).toEqual([[2, top - 2 * BAR], [3, top - 2 * BAR + 6 * PPQ], [4, top], [5, top + 2 * PPQ]]);
+		expect(lastPass).toEqual({ codaStartTick: top, endTick: top + BAR });
 	});
 });

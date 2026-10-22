@@ -285,7 +285,13 @@ knows. `audio/phrase-loop.ts` plays the pickup once as an intro Part, loops the
 form on a Tone Part, and loops the backing on the form alone, so the band comes
 in on bar 1. One tick before each return to the top, `shouldContinue` (the Loop
 switch, live) is asked; a no mutes the form and the band from the top on, lets
-the last notes ring a beat, and stops. The first version re-ran `playPhrase` per
+the last notes ring a beat, and stops. A repeat around the whole tune outlines
+the form (`headBarsForFlat`), so there the loop goes round A + first ending and
+the region carries a `coda`, A + second ending (a pickup the repeat replays left
+out): a no starts the coda's melody Part AT that top, and its band, generated in
+advance by `prepareBackingSection` because the decision runs inside Tone's tick
+dispatch where an await would miss the downbeat. The marker counts the returns
+taken (`loopPlaybackBar`) to find the coda's bars. The first version re-ran `playPhrase` per
 pass, which put a stop, a silent lead-in bar and a trailing beat between passes
 and replayed the pickup bar. Melody events join the form by WRITTEN offset and
 are clamped inside the loop, because humanized timing can put bar 1's downbeat

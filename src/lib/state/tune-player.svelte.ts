@@ -66,6 +66,7 @@ export class TunePlayer {
 	 * Play the expanded form with the saved style; no global settings are
 	 * changed. ONE engine call carries every pass: with Loop on, bar 1 follows
 	 * the last bar on the next beat and a pickup is played only on the way in;
+	 * a whole-tune repeat goes round its first ending and out on its second.
 	 * Loop may be toggled mid-pass, and the engine asks before each return.
 	 */
 	async toggle(tune: Tune, style: BackingStyle): Promise<void> {
@@ -85,6 +86,14 @@ export class TunePlayer {
 			this.starting = false;
 			this.playing = true;
 			const region = formLoopRegion(tune, flat);
+			/** Returns to the top the engine has taken — where the marker is after each pass. */
+			let returns = 0;
+			/** The engine's question one tick before each top: round again, or out. */
+			const shouldContinue = (): boolean => {
+				const again = this.loop && generation === this.run && !this.disposed;
+				if (again) returns++;
+				return again;
+			};
 			await this.playback.playPhrase(phrase, {
 				tempo, swing: melodySwingForStyle(settings.swing, style),
 				countInBeats: 0, metronomeEnabled: this.metronome, metronomeVolume: settings.metronomeVolume,
@@ -92,7 +101,7 @@ export class TunePlayer {
 				backingTrackVolume: settings.backingTrackVolume, backingStyle: style
 			}, false, {
 				skipMelody: !melody,
-				loop: { ...region, shouldContinue: () => this.loop && generation === this.run && !this.disposed },
+				loop: { ...region, shouldContinue },
 				onStarted: () => {
 					if (generation !== this.run) return;
 					clearInterval(this.ticker);
@@ -107,8 +116,9 @@ export class TunePlayer {
 						const leadInQuarters = playback.PHRASE_LEAD_IN_BARS * tune.timeSignature[0];
 						const printedBarQuarters = tune.timeSignature[0] * 4 / tune.timeSignature[1];
 						const bar = (seconds * tempo / 60 - leadInQuarters) / printedBarQuarters;
-						// Past the last bar a looping form is back at its first, never the pickup.
-						this.chartBar = notationBarForPlaybackBar(flat.sectionMap, tune.sections, this.loop ? loopPlaybackBar(bar, region) : bar);
+						// Past the last bar a looping form is back at its first (never the
+						// pickup) for every return taken, then on its way-out pass.
+						this.chartBar = notationBarForPlaybackBar(flat.sectionMap, tune.sections, loopPlaybackBar(bar, region, returns));
 					};
 					update();
 					this.ticker = setInterval(update, 50);

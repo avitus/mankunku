@@ -5793,6 +5793,12 @@ monitor whether it results in faster CI times."
 - Pinned on Tone's real clock (headless-tone): pickup once, bar 1 at exactly
   pass end, every pass. Mutations checked: drop the early-downbeat clamp →
   red; drop the mute → red.
-- Left open, for Andy: whole-form repeats with endings loop the expanded
-  A[1]A[2] (the out-ending mid-loop); the jazz reading would loop A[1] and
-  take [2] only on the way out. Also 6/8 backing loop rounds to engine bars.
+- Endings, same day (Andy: "Yes — with Loop on, repeat A + first ending,
+  and play the second ending only on the final pass when Loop is turned
+  off"): `formLoopRegion` uses `headBarsForFlat` — on a whole-tune repeat the
+  loop is pass one and the region carries a `coda` (pass two, minus a
+  replayed pickup). A no at a top starts the coda's melody Part at that top
+  inside the tick-(T-1) callback, and its band via `prepareBackingSection`
+  (generated up front; the decision can't await). The marker counts the
+  returns taken. Headless test pins the coda landing on the declined top.
+- Still open: 6/8 backing loop rounds to engine bars (6 quarters).

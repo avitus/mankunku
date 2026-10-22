@@ -28,7 +28,8 @@ const mocks = vi.hoisted(() => {
 		scheduleRepeat: vi.fn((callback: (time: number) => void, interval: string, start: string) =>
 			repeats.push({ callback, interval, start }))
 	};
-	return { transport, repeats, onces, scheduleMetronome: vi.fn(async () => {}) };
+	const startCoda = vi.fn();
+	return { transport, repeats, onces, startCoda, scheduleMetronome: vi.fn(async () => {}) };
 });
 
 vi.mock('tone', () => {
@@ -83,6 +84,7 @@ vi.mock('$lib/audio/backing-track', () => ({
 	disposeBackingTrack: vi.fn(),
 	disposeBackingParts: vi.fn(),
 	muteBackingParts: vi.fn(),
+	prepareBackingSection: vi.fn(async () => mocks.startCoda),
 	isBackingLoaded: () => true,
 	scheduleBackingTrack: vi.fn(async () => {})
 }));
@@ -157,9 +159,31 @@ describe('playPhrase with a looping form', () => {
 		more = false;
 		decision.callback(0);
 		expect(muteBackingParts).toHaveBeenCalled();
-		const [end] = mocks.onces;
-		expect(end.at).toBe(`${BAR + BAR + 4 * BAR + PPQ}i`); // after the second pass, plus a beat
-		end.callback(0);
+		const end = mocks.onces.find((o) => o.at === `${BAR + BAR + 4 * BAR + PPQ}i`); // after the second pass, plus a beat
+		expect(end).toBeDefined();
+		end!.callback(0);
+		await playing;
+	});
+
+	// 2026-10-22, Andy: with Loop off at a top, the tune goes out on its second
+	// ending — the band switches to it on that downbeat, not after an await.
+	it('hands the band to the out-chorus at the top Loop is declined', async () => {
+		const { playPhrase } = await import('$lib/audio/playback');
+		const { muteBackingParts, prepareBackingSection } = await import('$lib/audio/backing-track');
+		const playing = playPhrase(phrase, options, false, {
+			loop: { startBar: 1, endBar: 2, coda: { startBar: 2, endBar: 3 }, shouldContinue: () => false }
+		});
+		await vi.waitFor(() => expect(mocks.transport.start).toHaveBeenCalled());
+		const [coda] = vi.mocked(prepareBackingSection).mock.calls[0];
+		expect(coda.harmony.map((h) => [h.startOffset, h.duration])).toEqual([[[0, 1], [1, 1]]]);
+		expect(mocks.startCoda).not.toHaveBeenCalled();
+		const top = BAR + BAR + BAR;
+		mocks.repeats[0].callback(0);
+		expect(muteBackingParts).toHaveBeenCalled();
+		expect(mocks.startCoda).toHaveBeenCalledWith(top);
+		const end = mocks.onces.find((o) => o.at === `${top + BAR + PPQ}i`);
+		expect(end).toBeDefined();
+		end!.callback(0);
 		await playing;
 	});
 });

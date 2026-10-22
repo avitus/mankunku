@@ -112,8 +112,46 @@ describe('tune desk playback', () => {
 			return player.chartBar;
 		};
 		expect(at(7.8)).toBeCloseTo(2.9); // the form's last bar
+		callbacks.loop.shouldContinue(); // the engine takes the return
 		expect(at(8.2)).toBeCloseTo(1.1); // straight back to its first, never the pickup
+		callbacks.loop.shouldContinue();
 		expect(at(12.2)).toBeCloseTo(1.1); // and again
+		finish();
+		await started;
+	});
+	// 2026-10-22, Andy: a whole-tune repeat loops A + first ending; with Loop
+	// off at a top, the tune goes out on A + second ending.
+	it('loops the first ending and marks the second on the way out', async () => {
+		const endings: Tune = {
+			...tune,
+			sections: [
+				{ label: 'A', bars: 2, repeatStart: true, notes: [{ pitch: 60, offset: [0, 1], duration: [1, 1] }], harmony: [] },
+				{ label: '', bars: 1, ending: 1, repeatEnd: true, notes: [], harmony: [] },
+				{ label: '', bars: 1, ending: 2, notes: [], harmony: [] }
+			]
+		};
+		let finish!: () => void;
+		audio.playPhrase.mockImplementation(() => new Promise<void>(resolve => finish = resolve));
+		player.setTempo(120); // one 4/4 bar = 2 s; the form starts after a 2 s lead-in
+		player.loop = true;
+		const started = player.toggle(endings, 'swing');
+		await vi.waitFor(() => expect(audio.playPhrase).toHaveBeenCalled());
+		const callbacks = audio.playPhrase.mock.calls[0][3];
+		expect(callbacks.loop).toMatchObject({ startBar: 0, endBar: 3, coda: { startBar: 3, endBar: 6 } });
+		/** The chart bar the marker shows when the audible transport reads `seconds`. */
+		const at = (seconds: number): number | null => {
+			audio.getAudibleTransportSeconds.mockReturnValue(seconds);
+			callbacks.onStarted();
+			return player.chartBar;
+		};
+		expect(at(6.2)).toBeCloseTo(2.1); // first ending
+		expect(callbacks.loop.shouldContinue()).toBe(true);
+		expect(at(8.2)).toBeCloseTo(0.1); // back to A
+		expect(at(12.2)).toBeCloseTo(2.1); // first ending again
+		player.loop = false;
+		expect(callbacks.loop.shouldContinue()).toBe(false);
+		expect(at(14.2)).toBeCloseTo(0.1); // A, on the way out
+		expect(at(18.2)).toBeCloseTo(3.1); // the second ending
 		finish();
 		await started;
 	});
