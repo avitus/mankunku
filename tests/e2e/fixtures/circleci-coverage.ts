@@ -1,14 +1,16 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
 import { test as base } from '@playwright/test';
+import { recordAppChunks } from './app-chunks';
 
 /**
  * Per-test coverage for CircleCI test impact analysis — the `analysis`
  * command of the "e2e tests" suite in .circleci/test-suites.yml.
  *
  * Off unless CIRCLECI_COVERAGE names the output file, and Chromium only (the
- * one engine with a coverage API; the atom is the spec FILE, so one engine's
- * view of it is enough). Coverage is by CHUNK: every script the page loaded
+ * analysis runs that project alone; the atom is the spec FILE, so one engine's
+ * view of it is enough). Coverage is by CHUNK: every app script the context
+ * requested (app-chunks.ts — never page.coverage, which slows the page)
  * counts, and stands for every source file its sourcemap lists. A bundled
  * module's top level runs when its chunk loads, so loaded is used — and
  * erring towards more files only ever selects more tests. Server-only code
@@ -28,13 +30,6 @@ const enabled = process.env.CIRCLECI_COVERAGE !== undefined;
 const CLIENT_OUTPUT = resolve('.svelte-kit/output/client');
 
 const sourcesByPath = new Map<string, string[] | null>();
-
-/** The app chunk a script URL names, as a path under the client output (null for anything else). */
-function appChunk(scriptUrl: string): string | null {
-	if (!URL.canParse(scriptUrl)) return null;
-	const { pathname } = new URL(scriptUrl);
-	return pathname.startsWith('/_app/') && pathname.endsWith('.js') ? pathname : null;
-}
 
 /**
  * Repo-relative source files behind an app chunk, or null when it has no map:
@@ -65,18 +60,16 @@ function sourcesOf(chunk: string): string[] | null {
 
 export const test = base.extend<{ circleciCoverage: void }>({
 	circleciCoverage: [
-		async ({ page, browserName }, use, testInfo): Promise<void> => {
+		async ({ context, browserName }, use, testInfo): Promise<void> => {
 			if (!enabled || browserName !== 'chromium') return use();
 
-			await page.coverage.startJSCoverage({ resetOnNavigation: false });
+			const recorder = recordAppChunks(context);
 			await use();
 
 			const files = new Set([relative(process.cwd(), testInfo.file)]);
 			let chunks = 0;
 			let mapped = 0;
-			for (const { url } of await page.coverage.stopJSCoverage()) {
-				const chunk = appChunk(url);
-				if (!chunk) continue;
+			for (const chunk of recorder.stop()) {
 				chunks++;
 				const sources = sourcesOf(chunk);
 				if (!sources) continue;

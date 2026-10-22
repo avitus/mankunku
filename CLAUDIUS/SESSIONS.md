@@ -5802,3 +5802,27 @@ monitor whether it results in faster CI times."
   (generated up front; the decision can't await). The marker counts the
   returns taken. Headless test pins the coda landing on the declined top.
 - Still open: 6/8 backing loop rounds to engine bars (6 quarters).
+
+## 2026-10-22 — CI/local build times; e2e-analysis timeouts on main
+
+- Andy asked how CI and local build times moved over two months. dev's
+  `ci` workflow median: 4.2 min (late Aug) → 6.8 (early Oct) → 9–12
+  (Oct 12–17) → ~5.5 after Smarter Testing (Oct 20). Driver: the e2e job
+  at 6 shards, 4.1 → 10.1 min as specs went 45 → 81. Unit job flat
+  (~1.5 min); deploy creeping 2.7 → 3.9. Local (same M2 Ultra, old
+  commits checked out): build 10.5 → ~13 s, check 8.8 → 11.5 s, vitest
+  13.2 → 34.4 s (4318 → 6544 tests, and slower per test).
+- Every main workflow since the switch was red: the non-blocking
+  e2e-analysis job timed out the PDF-import tests (and flaked
+  progress-flag). Cause: `page.coverage.startJSCoverage` ALWAYS starts
+  V8 precise block coverage (Playwright hard-codes `detailed: true`),
+  which deoptimises the page — 8.6 → 17.6 s, 10.1 → 20.1 s even on a
+  2-CPU local sandbox; CI's box is slower still, past the 30 s timeout.
+  The fixture only ever used which chunks LOADED, so it now records the
+  context's `/_app/*.js` requests (`fixtures/app-chunks.ts`). Same 18
+  tests → same 221 files as the precise map; timings back to plain.
+- Gotcha: `--reporter=list` on the sandbox CLI REPLACES the configured
+  reporters, coverage reporter included — pass
+  `--reporter=list,./tests/e2e/reporters/circleci-coverage.ts`.
+- Mistake of mine: a broad `pkill -f vitest` while restarting a timing
+  run could have killed another session's vitest. Scope kills by PID.
