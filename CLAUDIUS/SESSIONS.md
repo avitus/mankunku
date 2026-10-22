@@ -5774,3 +5774,25 @@ monitor whether it results in faster CI times."
   "stale") even though `migration up --local` applied; verified the column
   with psql instead. Environment, not drift.
 - Pushed 7cda8772 to dev; not on production until the next release.
+
+## 2026-10-22 — tune desk Loop: seamless return to the top, pickup once
+
+- Andy: looping tunes is broken — should come back to the top without
+  missing a beat, and drop the partial-bar pickup at the start.
+- Cause: `TunePlayer.toggle` looped by awaiting `playPhrase` per pass. Each
+  pass ended a beat after the last bar, stopped the transport, then the next
+  call played a silent lead-in bar (+0.1 s start) and the pickup bar again —
+  roughly two bars of dead air at every return, plus the pickup.
+- Fix: one `playPhrase` call carries every pass via `opts.loop`
+  ({startBar, endBar, shouldContinue}). `audio/phrase-loop.ts`: intro Part
+  (pickup, once) + looping form Part; backing loops on `loopBodyPhrase`
+  (the form alone, band enters bar 1, last chord stretched to the form end so
+  its loop length matches); a `scheduleRepeat` decision one tick before each
+  top mutes form + band on a "no", rings a beat, stops. `tunes/form-loop.ts`
+  picks startBar 1 for any bar-0 pickup the resolver knows.
+- Pinned on Tone's real clock (headless-tone): pickup once, bar 1 at exactly
+  pass end, every pass. Mutations checked: drop the early-downbeat clamp →
+  red; drop the mute → red.
+- Left open, for Andy: whole-form repeats with endings loop the expanded
+  A[1]A[2] (the out-ending mid-loop); the jazz reading would loop A[1] and
+  take [2] only on the way out. Also 6/8 backing loop rounds to engine bars.

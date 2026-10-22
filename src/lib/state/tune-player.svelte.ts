@@ -5,6 +5,8 @@ import { melodySwingForStyle } from '$lib/audio/backing-styles';
 import { tuneToPhraseWithFlat } from '$lib/tunes/to-phrase';
 import { notationBarForPlaybackBar } from './tune-practice-plan';
 import { clampTuneTempo, savedTuneTempo } from '$lib/tunes/tune-tempo';
+import { formLoopRegion } from '$lib/tunes/form-loop';
+import { loopPlaybackBar } from '$lib/audio/phrase-loop';
 
 /** Where a desk player keeps its tempo: the open tune's id and how to save a choice for it. */
 export interface TuneTempoStore {
@@ -60,7 +62,12 @@ export class TunePlayer {
 		this.cursorIndex = null;
 	}
 
-	/** Play the expanded form with the saved style; no global settings are changed. */
+	/**
+	 * Play the expanded form with the saved style; no global settings are
+	 * changed. ONE engine call carries every pass: with Loop on, bar 1 follows
+	 * the last bar on the next beat and a pickup is played only on the way in;
+	 * Loop may be toggled mid-pass, and the engine asks before each return.
+	 */
 	async toggle(tune: Tune, style: BackingStyle): Promise<void> {
 		if (this.busy) { this.stop(); return; }
 		const generation = ++this.run;
@@ -77,41 +84,39 @@ export class TunePlayer {
 			if (this.disposed || generation !== this.run) return;
 			this.starting = false;
 			this.playing = true;
-			do {
-				const startedAt = performance.now();
-				await this.playback.playPhrase(phrase, {
-					tempo, swing: melodySwingForStyle(settings.swing, style),
-					countInBeats: 0, metronomeEnabled: this.metronome, metronomeVolume: settings.metronomeVolume,
-					backingTrackEnabled: backing, backingInstrument: settings.backingInstrument,
-					backingTrackVolume: settings.backingTrackVolume, backingStyle: style
-				}, false, {
-					skipMelody: !melody,
-					onStarted: () => {
+			const region = formLoopRegion(tune, flat);
+			await this.playback.playPhrase(phrase, {
+				tempo, swing: melodySwingForStyle(settings.swing, style),
+				countInBeats: 0, metronomeEnabled: this.metronome, metronomeVolume: settings.metronomeVolume,
+				backingTrackEnabled: backing, backingInstrument: settings.backingInstrument,
+				backingTrackVolume: settings.backingTrackVolume, backingStyle: style
+			}, false, {
+				skipMelody: !melody,
+				loop: { ...region, shouldContinue: () => this.loop && generation === this.run && !this.disposed },
+				onStarted: () => {
+					if (generation !== this.run) return;
+					clearInterval(this.ticker);
+					/** Move the chart's bar marker to the bar the audible music is in. */
+					const update = (): void => {
 						if (generation !== this.run) return;
-						clearInterval(this.ticker);
-						/** Move the chart's bar marker to the bar the audible music is in. */
-						const update = (): void => {
-							if (generation !== this.run) return;
-							const playback = this.playback;
-							if (!playback) return;
-							const seconds = playback.getAudibleTransportSeconds();
-							// The form starts after the engine's lead-in, not at transport 0. The
-							// engine's bar is timeSignature[0] quarter notes (two printed bars of 6/8).
-							const leadInQuarters = playback.PHRASE_LEAD_IN_BARS * tune.timeSignature[0];
-							const printedBarQuarters = tune.timeSignature[0] * 4 / tune.timeSignature[1];
-							const bar = (seconds * tempo / 60 - leadInQuarters) / printedBarQuarters;
-							this.chartBar = notationBarForPlaybackBar(flat.sectionMap, tune.sections, bar);
-						};
-						update();
-						this.ticker = setInterval(update, 50);
-					},
-					onNote: ({ sourceIndex }) => {
-						if (generation === this.run) this.cursorIndex = flat.noteSourceIndices[sourceIndex] ?? null;
-					}
-				});
-				// An engine-side early return must not spin an endless microtask loop.
-				if (performance.now() - startedAt < 50) break;
-			} while (this.loop && generation === this.run && !this.disposed);
+						const playback = this.playback;
+						if (!playback) return;
+						const seconds = playback.getAudibleTransportSeconds();
+						// The form starts after the engine's lead-in, not at transport 0. The
+						// engine's bar is timeSignature[0] quarter notes (two printed bars of 6/8).
+						const leadInQuarters = playback.PHRASE_LEAD_IN_BARS * tune.timeSignature[0];
+						const printedBarQuarters = tune.timeSignature[0] * 4 / tune.timeSignature[1];
+						const bar = (seconds * tempo / 60 - leadInQuarters) / printedBarQuarters;
+						// Past the last bar a looping form is back at its first, never the pickup.
+						this.chartBar = notationBarForPlaybackBar(flat.sectionMap, tune.sections, this.loop ? loopPlaybackBar(bar, region) : bar);
+					};
+					update();
+					this.ticker = setInterval(update, 50);
+				},
+				onNote: ({ sourceIndex }) => {
+					if (generation === this.run) this.cursorIndex = flat.noteSourceIndices[sourceIndex] ?? null;
+				}
+			});
 		} catch {
 			if (!this.disposed && generation === this.run) this.error = 'Playback could not start. Please try again.';
 		} finally {

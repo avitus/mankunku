@@ -842,6 +842,16 @@ export function disposeBackingParts(): void {
 	activeSchedule = null;
 }
 
+/**
+ * Silence the scheduled parts from now on without cutting what is already
+ * sounding — a looping form's last pass, whose final notes ring out.
+ */
+export function muteBackingParts(): void {
+	for (const part of [bassPart, compPart, drumPart]) {
+		if (part) part.mute = true;
+	}
+}
+
 /** Return the backing track schedule built during the last scheduleBackingTrack() call. */
 export function getActiveSchedule(): BackingTrackSchedule | null {
 	return activeSchedule;

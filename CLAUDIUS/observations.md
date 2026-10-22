@@ -3147,3 +3147,20 @@ minute; reading the stack trace took the rest. Also: the first full run
 after adding test files is a cold-start measurement for any timing-based
 splitter, not a verdict; I nearly reported 8.4 min as "dynamic splitting
 is worse".
+
+## 2026-10-22 — "Loop" is a transport property, not a caller's while-loop
+
+The first tune-desk Loop was a `do { await playPhrase() } while (loop)` —
+the obvious code, and musically wrong by construction: every await is a
+full stop/start of the transport, and the engine's start carries a lead-in
+bar the caller can't see. Time in this app has exactly one owner, the
+transport; anything that must be seamless has to be scheduled on it ahead
+of the beat, never sequenced after a promise resolves. The same lesson the
+lick-practice cycle boundary learnt (close event → schedule one bar out),
+arrived at from the other side.
+
+Second: Tone's looping Part silently CANCELS events outside
+[loopStart, loopEnd). Humanized timing moves downbeats a few ticks early,
+so a loop over our own events must classify by written offset and clamp —
+otherwise bar 1's first note vanishes from every pass and nobody would know
+why the form "sounds late".

@@ -277,6 +277,19 @@ looping. Backing remains off by default on the listening desk. Its production
 `playPhrase` call uses the resolved style for both the band and melody feel.
 Repeat-expanded playback maps notes and the audible transport position back to
 the printed chart. Stop/navigation cancels late loads, audio and cursor updates.
+
+Every play is ONE `playPhrase` call with a `loop` region (2026-10-22), whether
+Loop is on or not. `formLoopRegion` (`tunes/form-loop.ts`) names the form: the
+whole expanded timeline, minus a bar-0 pickup in any shape `resolvePickupLength`
+knows. `audio/phrase-loop.ts` plays the pickup once as an intro Part, loops the
+form on a Tone Part, and loops the backing on the form alone, so the band comes
+in on bar 1. One tick before each return to the top, `shouldContinue` (the Loop
+switch, live) is asked; a no mutes the form and the band from the top on, lets
+the last notes ring a beat, and stops. The first version re-ran `playPhrase` per
+pass, which put a stop, a silent lead-in bar and a trailing beat between passes
+and replayed the pickup bar. Melody events join the form by WRITTEN offset and
+are clamped inside the loop, because humanized timing can put bar 1's downbeat
+a few ticks early and Tone's looping Part cancels anything before `loopStart`.
 Style changes require stopped playback. Focus hides navigation and the right rail;
 mobile/focus settings use native modal dialogs for focus containment and Escape.
 This listening flow does not change practice scoring or session overrides.

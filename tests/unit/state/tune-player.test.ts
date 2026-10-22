@@ -54,31 +54,68 @@ describe('tune desk tempo', () => {
 });
 
 describe('tune desk playback', () => {
-	it('ends a loop when the engine returns without playing', async () => {
-		vi.spyOn(performance, 'now').mockReturnValue(0);
-		// Bound the regression: an unguarded second pass must fail, not hang Vitest.
-		audio.playPhrase.mockResolvedValueOnce(undefined).mockRejectedValue(new Error('Unexpected repeat'));
-		player.loop = true;
-		await player.toggle(tune, 'swing');
-		expect(audio.playPhrase).toHaveBeenCalledTimes(1);
-		expect(player.busy).toBe(false);
-		expect(player.error).toBe('');
-	});
-	it('repeats completed passes and stops without starting another pass', async () => {
-		let elapsed = 0;
-		vi.spyOn(performance, 'now').mockImplementation(() => elapsed);
+	// 2026-10-22: Loop re-ran the phrase per pass, so every return to the top
+	// stopped the transport, sat through a fresh lead-in bar and a trailing
+	// beat, and replayed the pickup bar. The engine now loops the form on one
+	// transport; the player hands it the region once and answers each pass.
+	it('hands the engine one looping form that skips the pickup on the way round', async () => {
+		const pickupTune: Tune = {
+			...tune,
+			sections: [
+				{ label: '', bars: 1, pickupLength: [1, 4], notes: [{ pitch: 64, offset: [3, 4], duration: [1, 4] }], harmony: [] },
+				{ label: 'A', bars: 2, notes: [{ pitch: 60, offset: [0, 1], duration: [1, 1] }], harmony: [] }
+			]
+		};
 		let finish!: () => void;
-		audio.playPhrase.mockImplementationOnce(async () => { elapsed += 4_000; })
-			.mockImplementation(() => new Promise<void>(resolve => finish = resolve));
+		audio.playPhrase.mockImplementation(() => new Promise<void>(resolve => finish = resolve));
 		player.loop = true;
-		const started = player.toggle(tune, 'swing');
-		await vi.waitFor(() => expect(audio.playPhrase).toHaveBeenCalledTimes(2));
+		const started = player.toggle(pickupTune, 'swing');
+		await vi.waitFor(() => expect(audio.playPhrase).toHaveBeenCalled());
+		const { loop } = audio.playPhrase.mock.calls[0][3];
+		expect(loop).toMatchObject({ startBar: 1, endBar: 3 });
+		expect(loop.shouldContinue()).toBe(true);
+		player.loop = false; // turning Loop off mid-pass ends at this pass's last bar
+		expect(loop.shouldContinue()).toBe(false);
+		player.loop = true;
 		player.stop();
-		elapsed += 4_000;
+		expect(loop.shouldContinue()).toBe(false);
 		finish();
 		await started;
-		expect(audio.playPhrase).toHaveBeenCalledTimes(2);
+		expect(audio.playPhrase).toHaveBeenCalledTimes(1);
 		expect(player.busy).toBe(false);
+	});
+	it('plays once and ends when Loop is off', async () => {
+		await player.toggle(tune, 'swing');
+		expect(audio.playPhrase).toHaveBeenCalledTimes(1);
+		expect(audio.playPhrase.mock.calls[0][3].loop.shouldContinue()).toBe(false);
+		expect(player.busy).toBe(false);
+	});
+	it('marks the top of the form, not the pickup, after looping round', async () => {
+		const pickupTune: Tune = {
+			...tune,
+			sections: [
+				{ label: '', bars: 1, pickupLength: [1, 4], notes: [{ pitch: 64, offset: [3, 4], duration: [1, 4] }], harmony: [] },
+				{ label: 'A', bars: 2, notes: [{ pitch: 60, offset: [0, 1], duration: [1, 1] }], harmony: [] }
+			]
+		};
+		let finish!: () => void;
+		audio.playPhrase.mockImplementation(() => new Promise<void>(resolve => finish = resolve));
+		player.setTempo(120); // one 4/4 bar = 2 s; the form starts after a 2 s lead-in
+		player.loop = true;
+		const started = player.toggle(pickupTune, 'swing');
+		await vi.waitFor(() => expect(audio.playPhrase).toHaveBeenCalled());
+		const callbacks = audio.playPhrase.mock.calls[0][3];
+		/** The chart bar the marker shows when the audible transport reads `seconds`. */
+		const at = (seconds: number): number | null => {
+			audio.getAudibleTransportSeconds.mockReturnValue(seconds);
+			callbacks.onStarted();
+			return player.chartBar;
+		};
+		expect(at(7.8)).toBeCloseTo(2.9); // the form's last bar
+		expect(at(8.2)).toBeCloseTo(1.1); // straight back to its first, never the pickup
+		expect(at(12.2)).toBeCloseTo(1.1); // and again
+		finish();
+		await started;
 	});
 	it.each([['bossa-nova', 0.5], ['ballad', 0.55], ['straight', 0.5], ['swing', 0.62]] as const)(
 		'passes saved %s to the production engine with matching melody feel', async (style, swing) => {
