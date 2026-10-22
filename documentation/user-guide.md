@@ -44,7 +44,7 @@ Ear Training has no in-page settings panel — everything it uses comes from the
 | Setting | What it does |
 |---|---|
 | **Key Center** and **Scale Type** | Override today's automatic pick with any *unlocked* key + scale combination. Locked ones are visible but disabled, with a tooltip naming the proficiency they require. A **Reset to daily** link appears once you've overridden, and a counter underneath shows how many keys and scales you've unlocked so far. |
-| **Tempo** | 60–200 BPM, in steps of 5 (100 out of the box). The tempo Ear Training plays at, and where the tune-practice Tempo knob starts. Lick Practice doesn't use it — every lick carries its own tempo. Most players start in the 80–110 range. |
+| **Tempo** | 60–200 BPM, in steps of 5 (100 out of the box). The tempo Ear Training plays at, and where a tune starts until you pick a tempo for it (each tune then remembers its own). Lick Practice doesn't use it — every lick carries its own tempo. Most players start in the 80–110 range. |
 | **Swing** | 50% (straight eighths) to 80% (heavy), in 1% steps. 67% is the usual triplet swing; the app ships at 62%, a moderate jazz swing. At exactly 50% the band stops following the knob and swings by tempo instead — slower tunes lope harder, fast ones straighten out. |
 | **Metronome** | On/off, plus a level knob when it's on. The knob sets where the click sits in the mix — halfway by default — and the whole range is trimmed so the click sits under the music rather than beside it. |
 | **Backing** | On/off, the comping voice (Piano or Organ), and a level knob. Despite living in this section, these apply to the *backing track* — Lick Practice and Tune Practice — not to Ear Training, which never plays one. |

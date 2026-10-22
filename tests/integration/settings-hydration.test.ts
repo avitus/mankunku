@@ -274,3 +274,25 @@ describe('personal tune backing choices', () => {
 		expect(settingsModule.settings.tuneBackingStyles).toEqual({ song: 'ballad' });
 	});
 });
+
+describe('personal tune tempos', () => {
+	it('hydrates valid tempos from another device and drops corrupt values', async () => {
+		mockFetchSettings.mockResolvedValue({ tuneTempos: { song: 168, corrupt: 'fast' } });
+		await settingsModule.loadSettingsFromCloud(mockSupabase() as any);
+		expect(settingsModule.settings.tuneTempos).toEqual({ song: 168 });
+	});
+	it('saveTuneTempo survives a reload and leaves other tunes alone', async () => {
+		settingsModule.saveTuneTempo('song', 144);
+		settingsModule.saveTuneTempo('other', 300);
+		vi.resetModules();
+		const reloaded = await import('$lib/state/settings.svelte');
+		expect(reloaded.settings.tuneTempos).toEqual({ song: 144, other: 240 });
+		expect(reloaded.settings.defaultTempo).toBe(100);
+	});
+	it('retains an unsynced local tempo when a stale cloud hydration arrives', async () => {
+		settingsModule.saveTuneTempo('song', 144);
+		mockFetchSettings.mockResolvedValue({ tuneTempos: { song: 100 } });
+		await settingsModule.loadSettingsFromCloud(mockSupabase() as any);
+		expect(settingsModule.settings.tuneTempos).toEqual({ song: 144 });
+	});
+});

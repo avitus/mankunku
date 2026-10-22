@@ -1885,4 +1885,14 @@ describe('personal tune styles sync with settings', () => {
 		const result = await loadSettingsFromCloud(read as any);
 		expect(result).toMatchObject({ status: 'ok', data: { tuneBackingStyles: styles, backingStyle: 'straight' } });
 	});
+	it('pushes and pulls the ID-keyed tempos', async () => {
+		const tempos = { 'ls-amazing-grace': 72 };
+		const write = createMockSupabase();
+		await syncSettingsToCloud(write as any, { ...TEST_SETTINGS, tuneTempos: tempos });
+		expect(write._upsertFn).toHaveBeenCalledWith(expect.objectContaining({ tune_tempos: tempos }), expect.any(Object));
+		const read = createMockSupabase({ tableResults: { user_settings: { data: { tune_tempos: tempos }, error: null } } });
+		expect(await loadSettingsFromCloud(read as any)).toMatchObject({ status: 'ok', data: { tuneTempos: tempos } });
+		const legacy = createMockSupabase({ tableResults: { user_settings: { data: {}, error: null } } });
+		expect(await loadSettingsFromCloud(legacy as any)).toMatchObject({ status: 'ok', data: { tuneTempos: {} } });
+	});
 });

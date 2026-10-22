@@ -19,9 +19,39 @@ beforeEach(() => {
 	audio.playPhrase.mockResolvedValue(undefined);
 	settings.backingStyle = 'swing';
 	settings.swing = 0.62;
+	settings.tuneTempos = {};
 	player = new TunePlayer();
 });
 afterEach(() => { player.dispose(); vi.restoreAllMocks(); });
+
+describe('tune desk tempo', () => {
+	it('opens a tune at the tempo last chosen for it', async () => {
+		settings.tuneTempos = { song: 176 };
+		const saves: Array<[string, number]> = [];
+		let id = 'song';
+		const desk = new TunePlayer({ tuneId: () => id, save: (tuneId, tempo) => {
+			saves.push([tuneId, tempo]);
+			settings.tuneTempos = { ...settings.tuneTempos, [tuneId]: tempo };
+		} });
+		expect(desk.tempo).toBe(176);
+		desk.setTempo(181);
+		expect(saves).toEqual([['song', 181]]);
+		// Reopening the tune (a fresh player) reads the saved choice back.
+		expect(new TunePlayer({ tuneId: () => 'song', save: () => {} }).tempo).toBe(181);
+		// Another tune does not inherit it.
+		id = 'other';
+		expect(desk.tempo).toBe(settings.defaultTempo);
+		await desk.toggle(tune, 'swing');
+		expect(audio.playPhrase.mock.calls[0][1]).toMatchObject({ tempo: settings.defaultTempo });
+		desk.dispose();
+		settings.tuneTempos = {};
+	});
+	it('keeps an unsaved preview tempo for the editor preview', () => {
+		player.setTempo(150);
+		expect(player.tempo).toBe(150);
+		expect(settings.tuneTempos).toEqual({});
+	});
+});
 
 describe('tune desk playback', () => {
 	it('ends a loop when the engine returns without playing', async () => {

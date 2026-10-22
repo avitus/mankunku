@@ -7,7 +7,7 @@
 	import { tuneDeskView } from '$lib/state/tune-desk-view.svelte';
 	import { tuneBackingStyle } from '$lib/tunes/backing-style';
 	import type { BackingStyle } from '$lib/types/instruments';
-	import { settings, saveSettings } from '$lib/state/settings.svelte';
+	import { settings, saveSettings, saveTuneTempo } from '$lib/state/settings.svelte';
 	import type { RangeMarker } from '$lib/components/notation/NotationDisplay.svelte';
 	import EditorIcon from '$lib/components/step-entry/EditorIcon.svelte';
 	import TuneTransport from '$lib/components/tunes/TuneTransport.svelte';
@@ -129,7 +129,11 @@
 	);
 
 	let transport: TuneTransport | undefined = $state();
-	const player = new TunePlayer();
+	// The tempo is remembered per tune, so the next visit opens at the last choice.
+	const player = new TunePlayer({
+		tuneId: () => baseSheet?.id,
+		save: (tuneId, tempo) => saveTuneTempo(tuneId, tempo, supabase ?? undefined)
+	});
 	let settingsDialog = $state<HTMLDialogElement>();
 	let chartWidth = $state(800);
 	let viewportWidth = $state(1280);

@@ -46,7 +46,7 @@ Tap any tune to open it. Its address is readable — `/tunes/autumn-leaves`, and
 - The **title, composer, style, and time signature** across the top (plus *shared by* on an adopted chart and a **Curated** badge on the ones that ship with the app).
 - A **Key** selector in *your written pitch* — the same key you'd read off the page on your horn. Tap a key and the chart re-engraves there. (Under the hood the app converts to concert pitch; you never have to do that arithmetic.)
 - The **chart itself**, engraved Real Book style: masthead title block, jazz chord symbols above the staff at the height MuseScore puts them, section letters, repeat barlines, stacked first/second endings, and a pickup bar drawn short at the front of the first line (bar numbers count from the first full bar, and the section letter sits over it). The tune's tags sit underneath.
-- **Play** — hear the melody, repeats taken, at your Settings tempo and swing. It's the tune on its own, no band — the rhythm section comes in when you practice. (A changes-only chart has nothing to play here.)
+- **Play** — hear the melody, repeats taken, at the tune's tempo and your Settings swing, with the backing track if you switch it on. The **Tempo** control is remembered per tune: change it once and the tune opens at that speed next time, here and in practice setup (a tune you've never set starts at your Settings tempo). (A changes-only chart has no melody to play.)
 - **Practice licks** — drop into a practice session over the form, with the rhythm section. See [Playing Over Tunes](./tune-practice.md).
 - **Edit** and **Delete** on charts you own (Delete asks you to confirm); **Return to community** on charts you adopted.
 

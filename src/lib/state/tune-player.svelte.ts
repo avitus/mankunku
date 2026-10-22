@@ -4,6 +4,13 @@ import { settings } from './settings.svelte';
 import { melodySwingForStyle } from '$lib/audio/backing-styles';
 import { tuneToPhraseWithFlat } from '$lib/tunes/to-phrase';
 import { notationBarForPlaybackBar } from './tune-practice-plan';
+import { clampTuneTempo, savedTuneTempo } from '$lib/tunes/tune-tempo';
+
+/** Where a desk player keeps its tempo: the open tune's id and how to save a choice for it. */
+export interface TuneTempoStore {
+	tuneId: () => string | undefined;
+	save: (tuneId: string, tempo: number) => void;
+}
 
 /** Local listening controls shared by the tune desk and its compact editor preview. */
 export class TunePlayer {
@@ -22,13 +29,23 @@ export class TunePlayer {
 	private disposed = false;
 	private ticker: ReturnType<typeof setInterval> | undefined;
 
-	get tempo(): number { return this.previewTempo ?? settings.defaultTempo; }
+	/** Without a store (the editor preview) a tempo change lasts only as long as the player. */
+	constructor(private readonly tempoStore?: TuneTempoStore) {}
+
+	get tempo(): number {
+		const id = this.tempoStore?.tuneId();
+		const saved = id === undefined ? undefined : savedTuneTempo(settings.tuneTempos, id);
+		return this.previewTempo ?? saved ?? settings.defaultTempo;
+	}
 	get busy(): boolean { return this.playing || this.starting; }
 
-	/** Tempo changes stop the current pass before updating its timing. */
+	/** Tempo changes stop the current pass before updating its timing; the desk saves them per tune. */
 	setTempo(value: number): void {
 		this.stop();
-		this.previewTempo = Math.max(40, Math.min(240, Math.round(Number.isFinite(value) ? value : 100)));
+		const tempo = clampTuneTempo(value);
+		if (!this.tempoStore) { this.previewTempo = tempo; return; }
+		const id = this.tempoStore.tuneId();
+		if (id !== undefined) this.tempoStore.save(id, tempo);
 	}
 
 	/** Cancel scheduled audio, late instrument loads and visual callbacks together. */

@@ -16,7 +16,8 @@
 	import { transposeTune } from '$lib/tunes/book-loader';
 	import { resolveTuneRef, tunePath } from '$lib/tunes/tune-slug';
 	import { awaitHydration } from '$lib/state/hydration';
-	import { settings, getInstrument } from '$lib/state/settings.svelte';
+	import { settings, getInstrument, saveTuneTempo } from '$lib/state/settings.svelte';
+	import { savedTuneTempo } from '$lib/tunes/tune-tempo';
 	import { BACKING_STYLE_IDS, BACKING_STYLE_NAMES, melodySwingForStyle } from '$lib/audio/backing-styles';
 	import { setMasterVolume } from '$lib/audio/audio-context';
 	import {
@@ -79,6 +80,7 @@
 	import type { BackingTrackSchedule } from '$lib/audio/backing-track-schedule';
 
 	const session = $derived(page.data?.session ?? null);
+	const supabase = $derived(page.data?.supabase ?? null);
 	/**
 	 * The grid the soloist plays on. Fixed-grid styles (straight, bossa,
 	 * ballad) pin it; only the swing style defers to the user's knob. Used
@@ -456,11 +458,21 @@
 		timerInterval = setInterval(() => updateElapsedTime(), 1000);
 	});
 
+	const TEMPO_KNOB_MIN = 50;
+
+	/** A tempo set up here is the tune's tempo next time, on this page and the desk. */
+	function setPracticeTempo(tempo: number): void {
+		tunePractice.config.tempo = tempo;
+		if (baseSheet) saveTuneTempo(baseSheet.id, tempo, supabase ?? undefined);
+	}
+
 	// A fresh tune (or a return visit) always begins at setup.
 	$effect(() => {
 		if (baseSheet && tunePractice.tuneId !== baseSheet.id) {
 			initTunePractice(baseSheet);
-			tunePractice.config.tempo = settings.defaultTempo;
+			// The tune opens at the tempo last chosen for it here or on the tune desk.
+			const saved = savedTuneTempo(settings.tuneTempos, baseSheet.id);
+			tunePractice.config.tempo = saved === undefined ? settings.defaultTempo : Math.max(TEMPO_KNOB_MIN, saved);
 		}
 	});
 
@@ -1049,11 +1061,11 @@
 						ariaLabel="Tempo"
 						helpText={tooltips.tunePractice.tempo.text}
 						value={tunePractice.config.tempo}
-						min={50}
+						min={TEMPO_KNOB_MIN}
 						max={240}
 						step={5}
 						displayValue={`${tunePractice.config.tempo} BPM`}
-						onInput={(v) => (tunePractice.config.tempo = v)}
+						onInput={setPracticeTempo}
 					/>
 				</div>
 

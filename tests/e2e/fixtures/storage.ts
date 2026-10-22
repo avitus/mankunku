@@ -86,6 +86,7 @@ export const SETTINGS_ONBOARDED = {
 	backingTrackVolume: 0.6,
 	backingStyle: 'swing',
 	tuneBackingStyles: {},
+	tuneTempos: {},
 	swing: 0.62,
 	theme: 'dark',
 	onboardingComplete: true,

@@ -9,6 +9,7 @@ import { getScopeGeneration } from '$lib/persistence/user-scope';
 import { enqueue } from '$lib/persistence/outbox';
 import { BACKING_STYLE_IDS } from '$lib/audio/backing-styles';
 import { cleanTuneBackingStyles } from '$lib/tunes/backing-style';
+import { cleanTuneTempos, clampTuneTempo } from '$lib/tunes/tune-tempo';
 import { STRAIGHT_SWING, MAX_SWING } from '$lib/music/swing';
 
 const STORAGE_KEY = 'settings';
@@ -23,6 +24,7 @@ function loadSettings() {
 		result.backingStyle = 'swing';
 	}
 	result.tuneBackingStyles = cleanTuneBackingStyles(result.tuneBackingStyles);
+	result.tuneTempos = cleanTuneTempos(result.tuneTempos);
 	return result;
 }
 
@@ -38,6 +40,8 @@ const defaultSettings = {
 	backingStyle: 'swing' as BackingStyle,
 	/** Personal accompaniment choices for curated and adopted tunes, keyed by stable tune id. */
 	tuneBackingStyles: {} as Record<string, BackingStyle>,
+	/** The tempo last chosen for each tune (desk or practice setup), keyed by stable tune id. */
+	tuneTempos: {} as Record<string, number>,
 	// Default to a moderate jazz swing rather than straight: melody demos and
 	// the expected scoring grid should swing out of the box. Note 0.5 is also
 	// resolveBackingSwing's "let the band follow the tempo curve" sentinel, so
@@ -86,6 +90,12 @@ export function saveSettings(supabase?: SupabaseClient<Database>): void {
 
 	// Queue a durable cloud sync for authenticated users.
 	if (supabase) enqueue('settings');
+}
+
+/** Remember a tune's tempo so the next visit opens at it. */
+export function saveTuneTempo(tuneId: string, tempo: number, supabase?: SupabaseClient<Database>): void {
+	settings.tuneTempos = { ...settings.tuneTempos, [tuneId]: clampTuneTempo(tempo) };
+	saveSettings(supabase);
 }
 
 /** Outbox flush handler: push current settings. Throws on failure so it retries. */
@@ -138,6 +148,7 @@ export async function loadSettingsFromCloud(supabase: SupabaseClient<Database>):
 		}
 
 		merged.tuneBackingStyles = cleanTuneBackingStyles(merged.tuneBackingStyles);
+		merged.tuneTempos = cleanTuneTempos(merged.tuneTempos);
 
 		// Update the reactive state in place (preserves Svelte 5 $state reactivity)
 		Object.assign(settings, merged);
