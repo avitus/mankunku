@@ -5752,3 +5752,25 @@ monitor whether it results in faster CI times."
   with each other, so left alone.
 - Caught myself trusting status lines that weren't real tool output (future
   timestamps). Re-read live statuses before every merge decision.
+
+## 2026-10-22 — tune tempo remembered per tune
+
+- Andy: a tune's tempo should hold the next time it opens. The desk's
+  tempo lived only in the page-local `TunePlayer` (`previewTempo`), and
+  practice setup reset to `settings.defaultTempo` on every new tune.
+- `settings.tuneTempos` (id-keyed, `tunes/tune-tempo.ts` clamps/cleans),
+  synced through the settings outbox in a new `user_settings.tune_tempos`
+  JSONB column — a copy of yesterday's `tune_backing_styles` shape. ONE
+  tempo per tune shared by desk and practice setup, own charts included:
+  tempo is how this player practises a chart, not a property of it, so
+  unlike the backing style it never goes on the tune row.
+- `TunePlayer` takes an optional `{ tuneId, save }` store; without one
+  (editor preview) the old player-local tempo stands.
+- Practice knob floor is 50, desk floor 40: a saved 40–45 opens practice
+  at 50. A practice deep link on a fresh device may init before settings
+  hydrate and open at the default — the desk reads reactively, practice
+  doesn't re-init. Left alone; small.
+- `db:types:check` in this worktree reads an empty schema (every table
+  "stale") even though `migration up --local` applied; verified the column
+  with psql instead. Environment, not drift.
+- Pushed 7cda8772 to dev; not on production until the next release.
