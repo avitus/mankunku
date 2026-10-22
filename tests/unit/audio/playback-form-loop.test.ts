@@ -10,6 +10,10 @@ import type { PlaybackOptions } from '$lib/types/audio';
  * Tone's real clock; this file pins what playPhrase hands the helpers.
  */
 
+const { noop } = vi.hoisted(() => ({
+	/** A stub method for the audio nodes the mocks hand out. */
+	noop: (): void => {}
+}));
 const mocks = vi.hoisted(() => {
 	const repeats: { callback: (time: number) => void; interval: string; start: string }[] = [];
 	const onces: { callback: (time: number) => void; at: string }[] = [];
@@ -38,17 +42,21 @@ vi.mock('tone', () => {
 		mute = false;
 		loopStart: unknown = 0;
 		loopEnd: unknown = 0;
+		/** Chains like Tone's. */
 		start() { return this; }
+		/** Chains like Tone's. */
 		dispose() { return this; }
 	}
 	class AudioNode {
+		/** Chains like Tone's. */
 		connect() { return this; }
+		/** Chains like Tone's. */
 		disconnect() { return this; }
 	}
 	return {
 		start: async () => {},
 		getTransport: () => mocks.transport,
-		getDraw: () => ({ schedule() {} }),
+		getDraw: () => ({ schedule: noop }),
 		Part,
 		Gain: class extends AudioNode { gain = { value: 0 }; },
 		Filter: AudioNode
@@ -57,17 +65,17 @@ vi.mock('tone', () => {
 vi.mock('smplr', () => ({
 	Soundfont: class {
 		load = Promise.resolve();
-		output = { addInsert() {} };
-		stop() {}
-		disconnect() {}
+		output = { addInsert: noop };
+		stop = noop;
+		disconnect = noop;
 	}
 }));
 vi.mock('$lib/audio/audio-context', () => ({
 	initAudio: async () => ({
-		createBiquadFilter: () => ({ frequency: {}, Q: {}, detune: {}, connect() {}, disconnect() {} }),
-		createOscillator: () => ({ frequency: {}, connect() {}, start() {}, stop() {}, disconnect() {} }),
-		createGain: () => ({ gain: {}, connect() {}, disconnect() {} }),
-		createDelay: () => ({ delayTime: {}, connect() {}, disconnect() {} })
+		createBiquadFilter: () => ({ frequency: {}, Q: {}, detune: {}, connect: noop, disconnect: noop }),
+		createOscillator: () => ({ frequency: {}, connect: noop, start: noop, stop: noop, disconnect: noop }),
+		createGain: () => ({ gain: {}, connect: noop, disconnect: noop }),
+		createDelay: () => ({ delayTime: {}, connect: noop, disconnect: noop })
 	}),
 	getMasterGain: () => ({}),
 	setMasterVolume: vi.fn()

@@ -15,6 +15,7 @@ import { STRAIGHT_SWING, MAX_SWING } from '$lib/music/swing';
 const STORAGE_KEY = 'settings';
 const VALID_BACKING_STYLES = new Set<string>(BACKING_STYLE_IDS);
 
+/** Saved settings over the defaults, with out-of-range or unknown values cleaned. */
 function loadSettings() {
 	const saved = load<typeof defaultSettings>(STORAGE_KEY);
 	const result = saved ? { ...defaultSettings, ...saved } : { ...defaultSettings };

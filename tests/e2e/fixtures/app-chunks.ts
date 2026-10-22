@@ -27,12 +27,14 @@ export interface RequestSource {
 /** Starts recording the app chunks `context` requests; `stop()` returns them in first-request order. */
 export function recordAppChunks(context: RequestSource): { stop(): string[] } {
 	const chunks = new Set<string>();
+	/** Adds the request's app chunk, if it names one. */
 	const listener = (request: { url(): string }): void => {
 		const chunk = appChunk(request.url());
 		if (chunk) chunks.add(chunk);
 	};
 	context.on('request', listener);
 	return {
+		/** Stops listening and returns the chunks seen so far. */
 		stop(): string[] {
 			context.off('request', listener);
 			return [...chunks];

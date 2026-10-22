@@ -79,6 +79,7 @@ export function splitLoopEvents<E extends LoopEvent>(
 	for (const event of events) {
 		const note = phrase.notes[event.sourceIndex];
 		const writtenBar = note ? fractionToFloat(note.offset) / bar : event.ticks / barTicks;
+		/** Whether this event's written bar lies before bar `b`. */
 		const before = (b: number): boolean => writtenBar < b - 1e-9;
 		if (before(region.startBar)) intro.push(event);
 		else if (before(region.endBar)) body.push(rebase(event, startTick, loopTicks));
@@ -112,6 +113,7 @@ function phraseSection(phrase: Phrase, startBar: number, endBar: number): Phrase
 	const barLength = barWholeNotes(phrase);
 	const start = multiplyFraction(barLength, region.startBar);
 	const end = multiplyFraction(barLength, region.endBar);
+	/** Whether an offset falls inside the section, start inclusive, end exclusive. */
 	const inForm = (offset: Fraction): boolean =>
 		compareFractions(offset, start) >= 0 && compareFractions(offset, end) < 0;
 

@@ -4,6 +4,7 @@ import { appChunk, recordAppChunks } from '../../e2e/fixtures/app-chunks';
 
 /** A stand-in for a Playwright BrowserContext: it only emits 'request'. */
 class FakeContext extends EventEmitter {
+	/** Emits a request for `url`, as Playwright would. */
 	request(url: string): void {
 		this.emit('request', { url: () => url });
 	}

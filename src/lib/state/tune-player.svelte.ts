@@ -34,6 +34,7 @@ export class TunePlayer {
 	/** Without a store (the editor preview) a tempo change lasts only as long as the player. */
 	constructor(private readonly tempoStore?: TuneTempoStore) {}
 
+	/** The preview tempo while one is set, else this tune's saved tempo, else the default. */
 	get tempo(): number {
 		const id = this.tempoStore?.tuneId();
 		const saved = id === undefined ? undefined : savedTuneTempo(settings.tuneTempos, id);
