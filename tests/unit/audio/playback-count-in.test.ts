@@ -36,7 +36,8 @@ const mocks = vi.hoisted(() => {
 		transport, repeats, onces, startCoda,
 		scheduleMetronome: vi.fn(async () => {}),
 		playBackingHitsNow: vi.fn(),
-		backingLoaded: { value: true }
+		backingLoaded: { value: true },
+		kitLoaded: { value: true }
 	};
 });
 
@@ -98,6 +99,7 @@ vi.mock('$lib/audio/backing-track', () => ({
 	muteBackingParts: vi.fn(),
 	prepareBackingSection: vi.fn(async () => mocks.startCoda),
 	isBackingLoaded: () => mocks.backingLoaded.value,
+	isDrumKitLoaded: () => mocks.kitLoaded.value,
 	playBackingHitsNow: mocks.playBackingHitsNow,
 	scheduleBackingTrack: vi.fn(async () => {})
 }));
@@ -138,6 +140,7 @@ describe('playPhrase drum count-in', () => {
 		mocks.repeats.length = 0;
 		mocks.onces.length = 0;
 		mocks.backingLoaded.value = true;
+		mocks.kitLoaded.value = true;
 	});
 
 	it('keeps one silent lead-in bar when no count-in is asked for', async () => {
@@ -207,6 +210,20 @@ describe('playPhrase drum count-in', () => {
 			countIn: { bars: 2, drums: true }
 		});
 		await vi.waitFor(() => expect(mocks.transport.start).toHaveBeenCalled());
+		expect(countInEvents(2 * BAR)).toEqual([]);
+		await stopPlayback();
+		await playing;
+	});
+
+	it('keeps the click\'s count when the kit failed to preload', async () => {
+		// Bass and comp survive a kit preload failure, so the band is still
+		// "loaded"; dropping the click for a count the kit can't play left the
+		// tune counted in by nothing (CodeRabbit on #286).
+		const { playPhrase, stopPlayback } = await import('$lib/audio/playback');
+		mocks.kitLoaded.value = false;
+		const playing = playPhrase(phrase, options, false, { countIn: { bars: 2, drums: true } });
+		await vi.waitFor(() => expect(mocks.transport.start).toHaveBeenCalled());
+		expect(mocks.scheduleMetronome).toHaveBeenCalledWith(4, 2, 0, expect.any(Function));
 		expect(countInEvents(2 * BAR)).toEqual([]);
 		await stopPlayback();
 		await playing;

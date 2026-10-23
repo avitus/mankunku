@@ -28,6 +28,7 @@ import {
 	disposeBackingParts,
 	disposeBackingTrack,
 	isBackingLoaded,
+	isDrumKitLoaded,
 	muteBackingParts,
 	playBackingHitsNow,
 	prepareBackingSection
@@ -831,7 +832,9 @@ export async function playPhrase(
 	// The segmenter's bleed evidence follows the same rule (see
 	// bleed-evidence.ts): backing onsets replace the click grid, which
 	// would otherwise claim clicks on beats where none sounded.
-	const drumsCountIn = (opts.countIn?.drums ?? false) && isBackingLoaded();
+	// The count-off triggers the kit near-now, so a kit that failed to preload
+	// counts in silence; the click keeps the count then.
+	const drumsCountIn = (opts.countIn?.drums ?? false) && isBackingLoaded() && isDrumKitLoaded();
 	const backingWillPlay = (options.backingTrackEnabled ?? false) && isBackingLoaded();
 	if (options.metronomeEnabled && !(backingWillPlay && drumsCountIn)) {
 		await setMetronomeVolume(options.metronomeVolume);

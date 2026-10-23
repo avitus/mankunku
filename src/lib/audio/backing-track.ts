@@ -645,6 +645,15 @@ export function isBackingLoaded(): boolean {
 	return bassInstrument !== null && compInstrument !== null;
 }
 
+/**
+ * Check if the drum kit is loaded. Not part of `isBackingLoaded`: a kit
+ * preload failure leaves bass and comp usable and `scheduleBackingTrack`
+ * retries the kit, but a drum count-in can only sound on a kit already here.
+ */
+export function isDrumKitLoaded(): boolean {
+	return drumSamplers !== null;
+}
+
 // ── Harmony fallback ─────────────────────────────────────────
 
 /**
