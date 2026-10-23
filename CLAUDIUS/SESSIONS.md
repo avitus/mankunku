@@ -5826,3 +5826,43 @@ monitor whether it results in faster CI times."
   `--reporter=list,./tests/e2e/reporters/circleci-coverage.ts`.
 - Mistake of mine: a broad `pkill -f vitest` while restarting a timing
   run could have killed another session's vitest. Scope kills by PID.
+
+## 2026-10-22 — #285 release (per-tune tempo, form loop, endings)
+
+- Dev's head had one red e2e: WebKit `tricks.spec.ts` "phrase canvas…"
+  hit 30 s on all three tries (11 s on main). The CI re-run passed at
+  11.4 s. Local sandbox repro (3×) failed or flaked the same two tricks
+  tests in 6 of 6 runs. Probe: WebKit's `requestAnimationFrame` stops
+  delivering (3 s timeout) as soon as workers outnumber CPUs — on /docs
+  too, so it is not the page; 1 worker never stalls. Playwright's
+  "stable" check rides rAF, so the longest click-heavy WebKit specs time
+  out. Left for its own task; not a regression of this release.
+- Pre-documented 25 functions (64% → 100% on the local scan; CodeRabbit
+  read 97.5%). The test-file Tone/smplr stubs went to one hoisted `noop`
+  instead of 14 docstrings.
+- Four CodeRabbit rounds, all fixed: the 6/8 backing loop (the session's
+  own "still open" note above — the band now loops on the melody's exact
+  form length via `scheduleBackingTrack`'s `loopTicks`), the practice
+  page re-reading the saved tempo at setup (client-side return from the
+  desk kept the old one; new e2e asserts no full reload happened), the
+  guard keyed by tune and cleared on a tune change (two rounds — B→A→B),
+  the Juggler console rule pinned to NS_BINDING_ABORTED, the user guide's
+  Settings tempo row, and a settings-hydration race: an edit PUSHED while
+  a read was in flight was overwritten, because `localRev > syncedRev`
+  can't see it — the read now snapshots `localRev`.
+- Merged as c897ac36.
+
+## 2026-10-22 — drummer count-in for tunes
+
+- Andy: no audible signal before a tune starts; wants a one-bar drummer
+  count-in, two bars above 150 BPM, standard jazz convention — and,
+  mid-task, "I don't want a spoken count" (it never was: cross-stick
+  hits only; my status text spelled the rhythm as "one… two…").
+- `audio/drum-count-in.ts` + `playPhrase`'s `countIn: { bars, drums }`.
+  The real work was the tick math: the one-bar lead-in was hard-coded in
+  five places (plan windows, route playhead, band clearing, freestyle
+  bar, desk chart bar). All now read `countInBarsForTempo`.
+- The desk only loads the kit with Backing on, so a melody-only desk
+  play still counts in silence — deliberate: no band, no drummer.
+- Fresh worktree needed `.env` and `npm ci` (the circleci coverage
+  reporter package was missing from the stale node_modules).

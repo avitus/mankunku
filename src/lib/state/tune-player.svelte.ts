@@ -7,6 +7,7 @@ import { notationBarForPlaybackBar } from './tune-practice-plan';
 import { clampTuneTempo, savedTuneTempo } from '$lib/tunes/tune-tempo';
 import { formLoopRegion } from '$lib/tunes/form-loop';
 import { loopPlaybackBar } from '$lib/audio/phrase-loop';
+import { countInBarsForTempo } from '$lib/audio/drum-count-in';
 
 /** Where a desk player keeps its tempo: the open tune's id and how to save a choice for it. */
 export interface TuneTempoStore {
@@ -78,6 +79,7 @@ export class TunePlayer {
 		const tempo = this.tempo;
 		const backing = this.backing;
 		const melody = this.melody;
+		const countInBars = countInBarsForTempo(tempo);
 		try {
 			const { phrase, flat } = tuneToPhraseWithFlat(tune, { expandRepeats: true });
 			this.playback ??= await import('$lib/audio/playback');
@@ -102,6 +104,8 @@ export class TunePlayer {
 				backingTrackVolume: settings.backingTrackVolume, backingStyle: style
 			}, false, {
 				skipMelody: !melody,
+				// The drummer counts the tune in whenever the band's kit is loaded.
+				countIn: { bars: countInBars, drums: true },
 				loop: { ...region, shouldContinue },
 				onStarted: () => {
 					if (generation !== this.run) return;
@@ -112,9 +116,9 @@ export class TunePlayer {
 						const playback = this.playback;
 						if (!playback) return;
 						const seconds = playback.getAudibleTransportSeconds();
-						// The form starts after the engine's lead-in, not at transport 0. The
-						// engine's bar is timeSignature[0] quarter notes (two printed bars of 6/8).
-						const leadInQuarters = playback.PHRASE_LEAD_IN_BARS * tune.timeSignature[0];
+						// The form starts after the count-in, not at transport 0. The engine's
+						// bar is timeSignature[0] quarter notes (two printed bars of 6/8).
+						const leadInQuarters = countInBars * tune.timeSignature[0];
 						const printedBarQuarters = tune.timeSignature[0] * 4 / tune.timeSignature[1];
 						const bar = (seconds * tempo / 60 - leadInQuarters) / printedBarQuarters;
 						// Past the last bar a looping form is back at its first (never the

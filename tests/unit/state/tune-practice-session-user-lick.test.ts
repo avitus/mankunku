@@ -112,3 +112,32 @@ describe('a saved Minor Chord lick reaches the session as its own window', () =>
 		}
 	});
 });
+
+// 2026-10-22: the drummer counts the tune in — one bar, two above 150 BPM —
+// and the session's windows sit behind that count on the transport.
+describe('the session counts in by tempo', () => {
+	beforeEach(() => {
+		localStorage.clear();
+		resetTunePractice();
+		saveUserLick(minorLick);
+		saveLickPracticeProgress({
+			'e2e-minor-lick': { E: { passCount: 1, currentTempo: 240, lastPracticedAt: 1 } }
+		});
+		initTunePractice(autumnLeaves);
+		tunePractice.config.mode = 'points';
+	});
+
+	it('counts one bar at 150 BPM and two above, moving every window a bar later', () => {
+		tunePractice.config.tempo = 150;
+		const slow = startTunePracticeSession(autumnLeaves, 480);
+		const slowOpens = tunePractice.plan.map((ip) => ip.openTick);
+		expect(slow.countInBars).toBe(1);
+
+		resetTunePractice();
+		tunePractice.config.tempo = 151;
+		const fast = startTunePracticeSession(autumnLeaves, 480);
+		expect(fast.countInBars).toBe(2);
+		const barTicks = autumnLeaves.timeSignature[0] * 480;
+		expect(tunePractice.plan.map((ip) => ip.openTick)).toEqual(slowOpens.map((t) => t + barTicks));
+	});
+});

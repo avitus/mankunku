@@ -18,7 +18,7 @@ import { fractionToFloat } from '$lib/music/intervals';
 import { initAudio, getMasterGain, getAudioContext } from './audio-context';
 import { chordSymbol } from '$lib/music/chords';
 import { buildSchedule, type BackingTrackSchedule } from './backing-track-schedule';
-import { BACKING_STYLES } from './backing-styles';
+import { BACKING_STYLES, type DrumVoice } from './backing-styles';
 import {
 	generateBackingCached,
 	resolveBackingSwing,
@@ -27,6 +27,7 @@ import {
 	type DrumEvent
 } from './backing-generation';
 import {
+	DRUM_ARTICULATIONS,
 	DRUM_BUFFERS,
 	DRUM_BUFFER_FAMILY,
 	DRUM_FAMILY_BY_VOICE,
@@ -296,6 +297,8 @@ export function setBackingMix(partial: Partial<BackingMixLevels>): void {
 // snare-family / cymbals — each behind its own StereoPanner into the
 // shared drum bus, so the kit spreads across the image like a kit.
 let drumSamplers: Record<DrumFamily, SmplrSampler> | null = null;
+/** The buffers the loaded kit decoded; a sample the browser can't read is missing. */
+let drumBuffersDecoded: ReadonlySet<DrumBufferName> = new Set();
 let drumPans: Record<DrumFamily, StereoPannerNode> | null = null;
 let drumBus: GainNode | null = null;
 /** Shared in-flight load promise so concurrent callers don't race and
@@ -507,6 +510,7 @@ async function ensureDrums(): Promise<void> {
 			drumBus = bus;
 			drumPans = pans;
 			drumSamplers = samplers;
+			drumBuffersDecoded = new Set(Object.keys(decoded) as DrumBufferName[]);
 			// The kit's pans now exist — give them their room sends if the IR
 			// beat the kit here (otherwise the IR's own decode completion will).
 			buildRoomGraph(audioCtx);
@@ -643,6 +647,18 @@ export async function loadBackingInstruments(
 /** Check if backing instruments are loaded and ready. */
 export function isBackingLoaded(): boolean {
 	return bassInstrument !== null && compInstrument !== null;
+}
+
+/**
+ * Check if the loaded kit can sound `voice`: every buffer of the voice
+ * decoded. Not part of `isBackingLoaded`: a kit preload failure leaves bass
+ * and comp usable and `scheduleBackingTrack` retries the kit, and a kit
+ * missing a sample still plays the rest — but a drum count-in sounds on one
+ * voice alone, from a kit already here.
+ */
+export function canPlayDrum(voice: DrumVoice): boolean {
+	return drumSamplers !== null
+		&& DRUM_ARTICULATIONS[voice].every((layer) => drumBuffersDecoded.has(layer.buffer));
 }
 
 // ── Harmony fallback ─────────────────────────────────────────
@@ -1187,6 +1203,7 @@ export function disposeBackingTrack(): void {
 	if (drumSamplers) {
 		for (const sampler of Object.values(drumSamplers)) sampler.disconnect();
 		drumSamplers = null;
+		drumBuffersDecoded = new Set();
 	}
 	if (drumPans) {
 		for (const pan of Object.values(drumPans)) pan.disconnect();

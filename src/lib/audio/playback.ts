@@ -28,9 +28,12 @@ import {
 	disposeBackingParts,
 	disposeBackingTrack,
 	isBackingLoaded,
+	canPlayDrum,
 	muteBackingParts,
+	playBackingHitsNow,
 	prepareBackingSection
 } from './backing-track';
+import { COUNT_IN_VOICE, drumCountInHits } from './drum-count-in';
 import {
 	codaPhrase,
 	loopBodyPhrase,
@@ -679,12 +682,22 @@ export interface PhrasePlaybackOpts {
 	 * a beat and playback stops. `resolveAtMelodyEnd` does not apply.
 	 */
 	loop?: LoopRegion & { shouldContinue: () => boolean };
+	/**
+	 * The lead-in (playPhrase only): `bars` of transport before the phrase's
+	 * first bar in place of the default PHRASE_LEAD_IN_BARS, and with `drums`
+	 * the drummer counts them off (drum-count-in.ts) whenever the kit is
+	 * loaded — the click then gives up its count-in-only bars when a band
+	 * plays, since the kit already counts them.
+	 */
+	countIn?: { bars: number; drums: boolean };
 }
 
 /**
- * Bars of transport `playPhrase` runs before the phrase's first bar (the
- * count-in bar, silent when no click is asked for). A chart cursor reading
- * the transport clock subtracts it, or it marks the bar after the music.
+ * Bars of transport `playPhrase` runs before the phrase's first bar unless
+ * the caller asks for its own count-in (`PhrasePlaybackOpts.countIn` — tunes
+ * count in by tempo, drum-count-in.ts); silent when no click or drummer is
+ * asked for. A chart cursor reading the transport clock subtracts the
+ * lead-in, or it marks the bar after the music.
  * The engine's bar is `timeSignature[0]` QUARTER notes, so in 6/8 the
  * lead-in spans two printed bars.
  */
@@ -747,7 +760,8 @@ export async function playPhrase(
 	const barTicks = beatsPerBar * ppq;
 	const skipMelody = opts.skipMelody ?? false;
 	const loopBacking = opts.loopBacking ?? keepMetronome;
-	const formStartTicks = PHRASE_LEAD_IN_BARS * barTicks;
+	const leadInBars = opts.countIn?.bars ?? PHRASE_LEAD_IN_BARS;
+	const formStartTicks = leadInBars * barTicks;
 	const loop = opts.loop && opts.loop.endBar > opts.loop.startBar ? opts.loop : undefined;
 	const loopStartTicks = loop ? formStartTicks + loop.startBar * printedBarTicks(phrase.timeSignature, ppq) : 0;
 	/** Starts the way-out pass's band at a top (set once the backing is ready). */
@@ -818,18 +832,23 @@ export async function playPhrase(
 	// The segmenter's bleed evidence follows the same rule (see
 	// bleed-evidence.ts): backing onsets replace the click grid, which
 	// would otherwise claim clicks on beats where none sounded.
-	if (options.metronomeEnabled) {
+	// The count-off triggers the kit near-now, so a kit that failed to preload,
+	// or could not decode the count's voice, counts in silence; the click keeps
+	// the count then.
+	const drumsCountIn = (opts.countIn?.drums ?? false) && isBackingLoaded()
+		&& canPlayDrum(COUNT_IN_VOICE);
+	const backingWillPlay = (options.backingTrackEnabled ?? false) && isBackingLoaded();
+	if (options.metronomeEnabled && !(backingWillPlay && drumsCountIn)) {
 		await setMetronomeVolume(options.metronomeVolume);
 		if (scheduleId !== currentScheduleId) return;
-		const backingWillPlay = (options.backingTrackEnabled ?? false) && isBackingLoaded();
 		if (backingWillPlay) {
-			await scheduleMetronome(beatsPerBar, 1, 0, isStillCurrent); // count-in bar only
+			await scheduleMetronome(beatsPerBar, leadInBars, 0, isStillCurrent); // count-in bars only
 		} else if (keepMetronome || loop) {
 			// Loop indefinitely — will keep playing during recording, or until
 			// a looping form's last pass disposes it
 			await scheduleMetronome(beatsPerBar, null, 0, isStillCurrent);
 		} else {
-			const bars = getPhraseBars(phrase) + 1; // +1 for count-in bar
+			const bars = getPhraseBars(phrase) + leadInBars;
 			await scheduleMetronome(beatsPerBar, bars, 0, isStillCurrent);
 		}
 		if (scheduleId !== currentScheduleId) return;
@@ -850,6 +869,18 @@ export async function playPhrase(
 		if (way) {
 			startCodaBacking = await prepareBackingSection(way, options, isStillCurrent);
 			if (scheduleId !== currentScheduleId) return;
+		}
+	}
+
+	// The drummer's count-off: each hit a transport event that triggers the
+	// kit near-now (playBackingHitsNow's contract), so a stop cancels the
+	// rest of the count with the transport.
+	if (drumsCountIn) {
+		for (const hit of drumCountInHits(leadInBars, beatsPerBar, ppq)) {
+			transport.scheduleOnce((time) => {
+				if (scheduleId !== currentScheduleId) return;
+				playBackingHitsNow([{ kind: 'drum', drum: hit.drum, velocity: hit.velocity }], time);
+			}, `${hit.tick}i`);
 		}
 	}
 

@@ -105,6 +105,13 @@ export default defineConfig({
 		},
 		{
 			name: 'webkit',
+			// One WebKit at a time. On the 2-CPU boxes (CI, the sandbox) WebKit
+			// stops delivering requestAnimationFrame for seconds when a second
+			// WebKit shares the CPUs, and every click waits two frames for
+			// "stable": tricks.spec.ts timed out on every attempt at two WebKit
+			// workers and never at one (2026-10-22). The other worker keeps
+			// running Chromium and Firefox beside it.
+			workers: 1,
 			use: {
 				...devices['Desktop Safari']
 				// WebKit ignores fake-media browser flags. Audio-dependent specs
