@@ -299,6 +299,20 @@ describe('storage format: bytes, never a Blob (WebKit)', () => {
 		expect(full!.metadata?.phraseId).toBe('test-phrase-1');
 	});
 
+	it('still serves the metadata of a record that carries no audio', async () => {
+		const db = await openAnonDb();
+		await new Promise<void>((resolve, reject) => {
+			const tx = db.transaction('recordings', 'readwrite');
+			tx.objectStore('recordings').put({ sessionId: 'meta-only', timestamp: 5, metadata: makeMetadata() });
+			tx.oncomplete = () => resolve();
+			tx.onerror = () => reject(tx.error);
+		});
+		db.close();
+		const full = await getRecordingFull('meta-only');
+		expect(full!.metadata?.phraseId).toBe('test-phrase-1');
+		expect(full!.blob.size).toBe(0);
+	});
+
 	it('keeps an old Blob record playable after its metadata is rescored', async () => {
 		await seedBlobRecording('old-rescored', makeBlob(64), null);
 		await updateRecordingMetadata('old-rescored', makeMetadata({ tempo: 90 }));

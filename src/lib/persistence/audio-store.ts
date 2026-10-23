@@ -404,11 +404,11 @@ export async function getRecordingFull(sessionId: string): Promise<RecordingReco
 	try {
 		const store = db.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME);
 		const result = await idbReq<StoredRecording | undefined>(store.get(sessionId));
-		const blob = toBlob(result);
-		if (!result || !blob) return null;
+		if (!result) return null;
 		return {
 			sessionId: result.sessionId,
-			blob,
+			// A metadata-only record (no audio) still serves its metadata.
+			blob: toBlob(result) ?? new Blob([]),
 			timestamp: result.timestamp,
 			metadata: result.metadata ?? null
 		};
