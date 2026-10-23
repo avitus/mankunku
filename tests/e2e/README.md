@@ -128,7 +128,8 @@ tests/e2e/
 │   ├── stub-cloud.ts      ← shared in-memory Supabase, bridged by route interception
 │   ├── date.ts            ← freezeDate: a fixed "today" with native timers
 │   ├── lick-practice-seeds.ts ← progress seeds shared by the lick-practice session specs
-│   └── circleci-coverage.ts ← per-test Chromium coverage for impact analysis (inert by default)
+│   ├── circleci-coverage.ts ← per-test impact data for CircleCI's analysis (inert by default)
+│   └── app-chunks.ts      ← maps the app chunks a page requested to their source files
 ├── reporters/
 │   └── circleci-coverage.ts ← writes that coverage as CircleCI's coverage JSON
 └── *.spec.ts              ← per-feature flows

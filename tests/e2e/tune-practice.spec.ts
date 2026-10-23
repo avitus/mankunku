@@ -340,6 +340,37 @@ test.describe('tune practice setup', () => {
 		await expect(page.getByRole('heading', { name: /practice licks/i })).toBeVisible();
 		await expect(backing).toHaveAttribute('aria-checked', 'false');
 	});
+
+	/**
+	 * A refused microphone must stop the session at setup with a reason, and
+	 * leave Start usable for a second try — not spin on "Setting up…", and not
+	 * play the tune into a session that can never score.
+	 */
+	test('a refused microphone keeps setup on screen with a banner and Start usable', async ({
+		page,
+		browserName
+	}) => {
+		// Mic capture initialises the AudioContext before getUserMedia.
+		test.skip(
+			browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+			'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device'
+		);
+		await page.addInitScript(() => {
+			MediaDevices.prototype.getUserMedia = () =>
+				Promise.reject(new DOMException('Permission denied', 'NotAllowedError'));
+		});
+		await page.goto('/tunes/ls-when-the-saints/practice');
+		const start = page.getByRole('button', { name: /^start$/i });
+		await expect(start).toBeEnabled();
+		await start.click();
+
+		await expect(page.getByText('Microphone unavailable — check permissions and try again.')).toBeVisible({
+			timeout: 20_000
+		});
+		await expect(start).toBeEnabled();
+		await expect(page.getByRole('button', { name: /^end$/i })).toHaveCount(0);
+		await expect(page.locator('[data-testid="chart-scroll-viewport"].following')).toHaveCount(0);
+	});
 });
 
 /**

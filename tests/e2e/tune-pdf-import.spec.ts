@@ -369,7 +369,11 @@ test('staged PDFs can be removed and reselected; invalid files do not start reco
 	await page.goto('/tunes/import/pdf');
 	const input = page.getByLabel('Tune PDF');
 	const prepare = page.getByRole('button', { name: 'Prepare draft', exact: true });
+	await expect(page.getByRole('heading', { name: 'Import a PDF', exact: true })).toBeVisible();
 	await expect(input).toBeEnabled();
+	await expect(page.getByRole('button', { name: 'Choose a PDF' })).toBeEnabled();
+	// Nothing staged: nothing to prepare.
+	await expect(prepare).toBeDisabled();
 	await input.setInputFiles({ name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('not a PDF') });
 	await expect(page.getByRole('alert')).toHaveText('Choose a PDF file.');
 	await expect(prepare).toBeDisabled();
