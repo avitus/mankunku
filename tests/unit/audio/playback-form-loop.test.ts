@@ -94,7 +94,7 @@ vi.mock('$lib/audio/backing-track', () => ({
 	muteBackingParts: vi.fn(),
 	prepareBackingSection: vi.fn(async () => mocks.startCoda),
 	isBackingLoaded: () => true,
-	isDrumKitLoaded: () => true,
+	canPlayDrum: () => true,
 	scheduleBackingTrack: vi.fn(async () => {})
 }));
 

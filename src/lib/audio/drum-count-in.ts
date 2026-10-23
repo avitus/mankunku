@@ -18,7 +18,8 @@ import type { DrumVoice } from './backing-styles';
 /** Tempos above this count in for two bars. */
 export const TWO_BAR_COUNT_IN_ABOVE_BPM = 150;
 
-const COUNT_IN_VOICE: DrumVoice = 'crossstick';
+/** The kit voice the count-off is played on. */
+export const COUNT_IN_VOICE: DrumVoice = 'crossstick';
 /** The counted pulse of the opening bar leans a little harder than the quarters. */
 const PULSE_VELOCITY = 0.7;
 const QUARTER_VELOCITY = 0.6;

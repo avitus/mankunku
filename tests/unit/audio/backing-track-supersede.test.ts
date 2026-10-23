@@ -117,10 +117,20 @@ function fakeGain() {
 	return { gain: { value: 0 }, connect: vi.fn(), disconnect: vi.fn() };
 }
 
+/** Which sample URLs decode; null keeps the stub's decode-nothing default. */
+const decoding = vi.hoisted(() => ({ accepts: null as ((url: string) => boolean) | null }));
+
 vi.mock('$lib/audio/audio-context', async () => {
 	const { fakeAudioContext } = await import('../../helpers/fake-audio-context');
 	return {
-		initAudio: async () => fakeAudioContext(),
+		initAudio: async () => ({
+			...fakeAudioContext(),
+			// The fetch stub hands back its URL as the "array buffer".
+			decodeAudioData: async (data: { url?: string }) => {
+				if (decoding.accepts?.(data.url ?? '')) return {} as AudioBuffer;
+				throw new Error('undecodable');
+			}
+		}),
 		getAudioContext: () => fakeAudioContext(),
 		getMasterGain: () => fakeGain()
 	};
@@ -165,6 +175,8 @@ describe('scheduleBackingTrack supersession', () => {
 		instrumentHits.length = 0;
 		drumKitLoads = 0;
 		failDrumLoad = false;
+		decoding.accepts = null;
+		vi.unstubAllGlobals();
 	});
 
 	it('keeps opening backing hits on the downbeat when the transport has dispatched it already', async () => {
@@ -234,6 +246,29 @@ describe('scheduleBackingTrack supersession', () => {
 
 		await mod.scheduleBackingTrack(PHRASE, OPTIONS, 480, false, () => true);
 		expect(drumKitLoads).toBe(3); // scheduling reused the kit, no second load
+	});
+
+	it('reports a voice playable only once its samples decoded, until disposal', async () => {
+		// Playwright's WebKit fetches the kit's OGGs and decodes none of them;
+		// the kit still loads, as empty samplers, so "loaded" can't stand in for
+		// "can sound the count-in" (CodeRabbit on #286).
+		vi.stubGlobal('fetch', async (url: string) => ({ ok: true, arrayBuffer: async () => ({ url }) }));
+		decoding.accepts = (url) => url.startsWith('/samples/drums/') && !url.includes('crossstick');
+		const mod = await import('$lib/audio/backing-track');
+		await mod.loadBackingInstruments('piano');
+		expect(mod.canPlayDrum('kick')).toBe(true);
+		expect(mod.canPlayDrum('ride')).toBe(true);
+		expect(mod.canPlayDrum('crossstick')).toBe(false);
+
+		mod.disposeBackingTrack();
+		expect(mod.canPlayDrum('kick')).toBe(false);
+	});
+
+	it('reports no voice playable from a kit that decoded nothing', async () => {
+		const mod = await import('$lib/audio/backing-track');
+		await mod.loadBackingInstruments('piano');
+		expect(drumKitLoads).toBe(3);
+		expect(mod.canPlayDrum('crossstick')).toBe(false);
 	});
 
 	it('survives a drum kit preload failure without blocking bass and comp', async () => {

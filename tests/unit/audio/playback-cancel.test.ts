@@ -160,7 +160,7 @@ vi.mock('$lib/audio/backing-track', () => ({
 	startBackingTrack: vi.fn(),
 	disposeBackingTrack: vi.fn(),
 	isBackingLoaded: () => true,
-	isDrumKitLoaded: () => true,
+	canPlayDrum: () => true,
 	disposeBackingParts: vi.fn(() => {
 		for (const part of mocks.backingParts) part.disposed = true;
 		mocks.backingParts.length = 0;
