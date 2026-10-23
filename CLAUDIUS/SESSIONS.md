@@ -5851,3 +5851,18 @@ monitor whether it results in faster CI times."
   a read was in flight was overwritten, because `localRev > syncedRev`
   can't see it — the read now snapshots `localRev`.
 - Merged as c897ac36.
+
+## 2026-10-22 — drummer count-in for tunes
+
+- Andy: no audible signal before a tune starts; wants a one-bar drummer
+  count-in, two bars above 150 BPM, standard jazz convention — and,
+  mid-task, "I don't want a spoken count" (it never was: cross-stick
+  hits only; my status text spelled the rhythm as "one… two…").
+- `audio/drum-count-in.ts` + `playPhrase`'s `countIn: { bars, drums }`.
+  The real work was the tick math: the one-bar lead-in was hard-coded in
+  five places (plan windows, route playhead, band clearing, freestyle
+  bar, desk chart bar). All now read `countInBarsForTempo`.
+- The desk only loads the kit with Backing on, so a melody-only desk
+  play still counts in silence — deliberate: no band, no drummer.
+- Fresh worktree needed `.env` and `npm ci` (the circleci coverage
+  reporter package was missing from the stale node_modules).
