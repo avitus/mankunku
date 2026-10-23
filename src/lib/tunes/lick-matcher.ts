@@ -470,17 +470,6 @@ export function suggestLicksForProgression(
 	};
 }
 
-export function suggestLicksForTune(
-	detections: readonly DetectedProgression[],
-	deps: LickMatcherDeps,
-	options: SuggestLicksOptions = {}
-): Array<{ detection: DetectedProgression; result: LickSuggestionResult }> {
-	return detections.map((detection) => ({
-		detection,
-		result: suggestLicksForProgression(detection, deps, options)
-	}));
-}
-
 /**
  * Live deps assembler — reads the lick pool and practice stores once. Strictly
  * read-only: loaders only, never setters (setters enqueue cloud pushes). The

@@ -38,6 +38,7 @@ import { PITCH_CLASSES } from '$lib/types/music';
 import { fractionToFloat, midiToPitchClass } from '$lib/music/intervals';
 import { applySwingToBeats } from '$lib/music/swing';
 import { scoreRhythm } from './rhythm-scoring';
+import { median } from '$lib/util/median';
 
 /** Weight of the conformance patternScore in the overall fluency score. */
 export const FLUENCY_PATTERN_WEIGHT = 0.7;
@@ -75,14 +76,6 @@ export function scoreToFluencyGrade(overall: number): Grade {
 function expectedOnsetSeconds(note: Note, tempo: number, swing: number): number {
 	const beats = fractionToFloat(note.offset) * 4;
 	return applySwingToBeats(beats, swing) * (60 / tempo);
-}
-
-/** Median of an array of numbers (cloned from scorer.ts, which keeps it private). */
-function median(values: number[]): number {
-	if (values.length === 0) return 0;
-	const sorted = [...values].sort((a, b) => a - b);
-	const mid = Math.floor(sorted.length / 2);
-	return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
 /** Nearest MIDI instance of a pitch class to middle C (ties resolve upward ≤ +6). */

@@ -735,18 +735,6 @@ export function getYearHeatmap(): Map<string, { sessionCount: number; avgOverall
 	return result;
 }
 
-export function getLast30Days(): Map<string, boolean> {
-	const result = new Map<string, boolean>();
-	const now = new Date();
-	for (let i = 0; i < 30; i++) {
-		const d = new Date(now);
-		d.setDate(d.getDate() - i);
-		const dk = localDateStr(d);
-		result.set(dk, summaryMap.has(dk));
-	}
-	return result;
-}
-
 // ── Date helpers ─────────────────────────────────────────────────
 
 function getWeekStart(date: Date): Date {

@@ -1,4 +1,5 @@
 import type { NoteResult, Score } from '$lib/types/scoring';
+import { median } from '$lib/util/median';
 
 export interface TuningAlert {
 	direction: 'sharp' | 'flat';
@@ -51,13 +52,6 @@ export const HOLD_CENTS = 8;
 const LEAN_CENTS = 5;
 const MIN_AGREEMENT = 0.8;
 const MAX_MEDIAN_SPREAD = 10;
-
-/** Median without mutating the caller's observations. Requires a nonempty list. */
-function median(values: number[]): number {
-	const sorted = [...values].sort((a, b) => a - b);
-	const mid = Math.floor(sorted.length / 2);
-	return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
-}
 
 /**
  * Use only confidently matched notes, never a wrong semitone's signed cents.

@@ -1369,19 +1369,6 @@ export function getPlannedKey(offset: number): PlannedKey | null {
 	return null;
 }
 
-/** Current, next, and after-next planned keys for the 3-row preview. */
-export function getUpcomingKeys(): {
-	current: PlannedKey | null;
-	next: PlannedKey | null;
-	afterNext: PlannedKey | null;
-} {
-	return {
-		current: getPlannedKey(0),
-		next: getPlannedKey(1),
-		afterNext: getPlannedKey(2)
-	};
-}
-
 /**
  * Return all planned keys for a given lick — used by the continuous-scroll
  * preview to render the entire lick's chord charts as a tall stack that

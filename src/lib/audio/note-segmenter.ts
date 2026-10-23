@@ -22,6 +22,7 @@ const BLEED_LATENCY_MAX = 0.200;
 import type { DetectedNote } from '$lib/types/audio';
 import type { PitchReading } from './pitch-detector';
 import { OCTAVE_CONFIRM_FRAMES, WARMUP_FRAMES } from './pitch-frame';
+import { median } from '$lib/util/median';
 
 /**
  * Warmup frames (emitted during the octave stabilizer's warmup window) are
@@ -2260,14 +2261,6 @@ const TIMBRE_PERSIST_MIN = 3.6;
 const TIMBRE_PERSIST_FRAMES = 2;
 const TIMBRE_PERSIST_GUARD = 0.01;
 const TIMBRE_MAX_SWELL = 1.3;
-
-/** Median of a numeric array; 0 if empty. Non-mutating. */
-function median(xs: number[]): number {
-	if (xs.length === 0) return 0;
-	const s = [...xs].sort((a, b) => a - b);
-	const mid = Math.floor(s.length / 2);
-	return s.length % 2 === 1 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
-}
 
 /** Mean RMS over readings[from, to), clamped to bounds; 0 if the range is empty. */
 function meanRms(readings: PitchReading[], from: number, to: number): number {

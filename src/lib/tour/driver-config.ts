@@ -7,7 +7,7 @@ import './driver-styles.css';
 /**
  * Build a driver.js config matching the Mankunku design system.
  *
- * The popover class `mankunku-tour` is styled in `Tour.svelte` via global
+ * The popover class `mankunku-tour` is styled in `driver-styles.css` via
  * selectors against driver's DOM, so colors and typography draw from the
  * `--color-*` custom properties defined in `app.css`.
  */

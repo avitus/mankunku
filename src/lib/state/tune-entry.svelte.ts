@@ -331,8 +331,6 @@ export function initNewTune(): void {
 	tuneEntry.lastRefusal = null;
 }
 
-export const resetTuneEntry = initNewTune;
-
 /** Hydrate the editor from an existing sheet (edit mode). */
 export function loadFromTune(sheet: Tune, instrument: InstrumentConfig): void {
 	resetStepEntry();

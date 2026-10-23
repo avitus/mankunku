@@ -12,32 +12,11 @@
 import {
 	createOctaveStabilizer,
 	detectFrame,
-	DEFAULT_CLARITY_THRESHOLD,
-	DEFAULT_MAX_FREQUENCY,
-	DEFAULT_MIN_FREQUENCY,
-	OCTAVE_CONFIRM_FRAMES as OCTAVE_CONFIRM_FRAMES_DEFAULT,
 	type OctaveStabilizer,
 	type PitchReading
 } from './pitch-frame';
 
 export type { PitchReading } from './pitch-frame';
-
-/** Minimum clarity to accept a pitch reading (lower for responsive real-time display) */
-export const CLARITY_THRESHOLD = DEFAULT_CLARITY_THRESHOLD;
-
-/** Minimum frequency to consider (below tenor sax range) */
-export const MIN_FREQUENCY = DEFAULT_MIN_FREQUENCY;
-
-/** Maximum frequency to consider (above tenor sax range) */
-export const MAX_FREQUENCY = DEFAULT_MAX_FREQUENCY;
-
-/**
- * Number of consecutive frames an octave-only jump (±12 or ±24 semitones)
- * must persist before it is accepted as a genuine pitch change.
- * At ~60fps this equals ~50ms — long enough to filter subharmonic glitches
- * from the McLeod Pitch Method, short enough for genuine octave changes.
- */
-export const OCTAVE_CONFIRM_FRAMES = OCTAVE_CONFIRM_FRAMES_DEFAULT;
 
 type PitchyModule = typeof import('pitchy');
 

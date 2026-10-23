@@ -36,7 +36,6 @@ import {
 	buildSessionPhrase,
 	buildSessionPlan,
 	normalizeChoruses,
-	emptyResultTally,
 	headBarsForFlat,
 	resolvePickedSuggestion,
 	windowCandidates,
@@ -637,7 +636,6 @@ export function resetTunePractice(): void {
 
 // Re-exported so route-level consumers import session vocabulary from one place.
 export {
-	emptyResultTally,
 	type InsertionPoint,
 	type InsertionResult,
 	type TunePracticeMode,

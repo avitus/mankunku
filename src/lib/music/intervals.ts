@@ -111,3 +111,10 @@ export function gcd(a: number, b: number): number {
 	while (b) { [a, b] = [b, a % b]; }
 	return a;
 }
+
+/** `num/den` in lowest terms; zero is always `[0, 1]`. */
+export function reduceFraction(num: number, den: number): [number, number] {
+	if (num === 0) return [0, 1];
+	const g = gcd(num, den);
+	return [num / g, den / g];
+}

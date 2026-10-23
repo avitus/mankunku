@@ -1156,8 +1156,8 @@ export async function upsertLickMetadataRow(
 
 /**
  * Result of a cloud lick-metadata load. The three states matter because
- * consumers gate destructive maintenance (orphan reconciliation, the
- * one-time progression-tag backfill) on hydration health:
+ * consumers gate destructive maintenance (the legacy practice-tag migration,
+ * progression-tag pruning) on hydration health:
  *
  *  - `ok`    — a cloud row exists and was read successfully.
  *  - `empty` — the read succeeded and there is affirmatively no row

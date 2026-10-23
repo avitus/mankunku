@@ -7,7 +7,6 @@ import {
 	buildLickMatcherDeps,
 	classifyMasteryTier,
 	suggestLicksForProgression,
-	suggestLicksForTune,
 	type LickMatcherDeps
 } from '$lib/tunes/lick-matcher';
 import { baseLickId, getAllLicks } from '$lib/phrases/library-loader';
@@ -394,17 +393,6 @@ describe('suggestLicksForProgression — song requirements (tempo + key)', () =>
 			{ playableKeysOnly: true, sessionTempo: 120 }
 		);
 		expect(result.suggestions.map((s) => s.lickId)).toEqual(['ramped']);
-	});
-});
-
-describe('suggestLicksForTune', () => {
-	it('pairs each detection with its ranked result', () => {
-		const licks = [makePhrase({ id: 'l-251', name: 'Major 251', category: 'ii-V-I-major' })];
-		const short = detectShortInC();
-		const paired = suggestLicksForTune([short], makeDeps({ licks }));
-		expect(paired).toHaveLength(1);
-		expect(paired[0].detection).toBe(short);
-		expect(paired[0].result.suggestions.map((s) => s.lickId)).toEqual(['l-251']);
 	});
 });
 

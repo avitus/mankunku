@@ -44,7 +44,7 @@ import type {
 	TrickParameters,
 	TrickSlotSpec
 } from '$lib/types/tricks';
-import { gcd } from '$lib/music/intervals';
+import { reduceFraction } from '$lib/music/intervals';
 import { scoreConformanceAgainstSpecs } from '../conformance';
 import { realizeTrickExample } from '../example-generator';
 
@@ -214,12 +214,6 @@ function pick<T extends string>(
 /** Family for a parameter selection (invalid or missing `pair` → stage 1). */
 function familyFor(params: TrickParameters): TriadPairFamily {
 	return FAMILY_BY_VALUE.get(pick(params, 'pair', PAIRS, 'major-whole'))!;
-}
-
-function reduceFraction(num: number, den: number): Fraction {
-	if (num === 0) return [0, 1];
-	const g = gcd(num, den);
-	return [num / g, den / g];
 }
 
 /** The triad's pcs in chord order (root, third, fifth) above the chord root. */
