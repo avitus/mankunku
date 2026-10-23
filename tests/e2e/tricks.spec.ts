@@ -26,7 +26,14 @@ const ENCLOSURE_E1 = (type: 'major' | 'minor' | 'dominant') =>
 	`enclosures:beatPlacement=downbeat,noteCount=1,shape=chromatic-below,targetTone=root,type=${type}`;
 
 test.describe('tricks', () => {
-	test.beforeEach(async ({ signedInPage }) => {
+	// Headroom for WebKit, which runs one worker at a time (playwright.config.ts)
+	// because two WebKits on two CPUs starve requestAnimationFrame. Even alone,
+	// the setup-restore and phrase-canvas tests click enough to take 17–22 s on
+	// WebKit in the sandbox against a 30 s budget (2026-10-22). In beforeEach,
+	// not a describe-level callback: one that reads only worker fixtures runs
+	// as a beforeAll and triples that hook's timeout alone.
+	test.beforeEach(async ({ signedInPage, browserName }) => {
+		test.slow(browserName === 'webkit', 'WebKit clicks wait two animation frames each');
 		await seedOnboardedAnonymous(signedInPage);
 		// The signed-in layout hydrates trick state from the cloud; answer every
 		// REST call with an empty set so nothing reaches a real backend (same

@@ -166,3 +166,4 @@ The guard is automatic: every test that uses the fixture `test` fails on any une
 - Host secrets and arbitrary environment variables are not forwarded to tests; add diagnostic settings explicitly inside the sandbox when needed.
 - A hang at a count-in on macOS usually means the host process is waiting on an OS permission dialog; Chromium runs with `--disable-audio-output` so output devices are irrelevant.
 - CI's WebKit flakes reproduce under a one-core throttle: `docker run --cpus=1` on the Playwright image.
+- WebKit runs one worker at a time (`workers: 1` on the `webkit` project). Two WebKits on two CPUs stop delivering `requestAnimationFrame` for seconds, and every click waits two frames for "stable": `tricks.spec.ts` timed out on every attempt at two WebKit workers, on `/docs` as much as the enclosure canvas. A click stuck at "waiting for element to be visible, enabled and stable" on WebKit is CPU starvation before it is the component.
