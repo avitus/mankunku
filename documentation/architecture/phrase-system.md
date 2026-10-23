@@ -1,6 +1,6 @@
 # The Lick Catalog
 
-Mankunku ships with a catalog of about 920 jazz phrases, spread across many harmonic categories. This page covers what's in the catalog, where each piece comes from, what the categories mean musically, and how the catalog handles transposition so a lick stays on your horn no matter what key the day is in.
+Mankunku ships with a catalog of about 1,100 jazz phrases, spread across many harmonic categories. This page covers what's in the catalog, where each piece comes from, what the categories mean musically, and how the catalog handles transposition so a lick stays on your horn no matter what key the day is in.
 
 ## What's in the catalog
 

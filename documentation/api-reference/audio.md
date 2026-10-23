@@ -368,15 +368,15 @@ Create a pitch detector bound to an `AnalyserNode`.
 
 **Detection parameters:**
 - Runs at ~60fps via `requestAnimationFrame`; the per-frame math is `detectFrame` in `pitch-frame.ts` (below), shared with the offline replay path
-- Clarity threshold: `CLARITY_THRESHOLD = 0.80`; frames from `WEAK_CLARITY_FLOOR` (0.5) up to it are kept as weak readings
-- Frequency range: `MIN_FREQUENCY`–`MAX_FREQUENCY`, `80–1200 Hz`
+- Clarity threshold: `DEFAULT_CLARITY_THRESHOLD = 0.80`; frames from `WEAK_CLARITY_FLOOR` (0.5) up to it are kept as weak readings
+- Frequency range: `DEFAULT_MIN_FREQUENCY`–`DEFAULT_MAX_FREQUENCY`, `80–1200 Hz`
 - MIDI conversion: `12 * log2(freq / 440) + 69`
 
-`CLARITY_THRESHOLD`, `MIN_FREQUENCY`, `MAX_FREQUENCY` and `OCTAVE_CONFIRM_FRAMES` are re-exports of the `DEFAULT_*` constants in `pitch-frame.ts`.
+These constants live in `pitch-frame.ts`; `pitch-detector.ts` no longer re-exports them, so import them from there.
 
 ### `OCTAVE_CONFIRM_FRAMES: 3`
 
-Exported constant: number of consecutive frames required before the detector commits to an octave change. Prevents flicker when the pitch is midway between octaves.
+Exported from `pitch-frame.ts`: number of consecutive frames required before the detector commits to an octave change. Prevents flicker when the pitch is midway between octaves.
 
 ---
 
@@ -563,7 +563,7 @@ Two non-obvious rules govern the HF and shape tiers, and both are load-bearing:
 
 Computes click times rather than reading them from a log: the metronome plays every beat from Transport 0, so click times are integer multiples of `60/tempo`, converted to recording time by subtracting `recordingTransportSeconds`, with a 250 ms pre-recording lookback so a click that fired just before capture but arrived inside it is still represented. Onsets landing inside the 50–200 ms speaker→mic window (`BLEED_LATENCY_MIN` / `BLEED_LATENCY_MAX`) after a computed click aren't counted as attack evidence.
 
-**OPEN (measured 2026-09-08): on every pre-armed ear-training take this grid lands 0.25–0.40 s off the real clicks** (direct-mix click impulses in eight fixtures vs the grid at `transportSeconds + trim`). The one pre-arming fixture measures +0.098 s, which is Tone's 0.1 s `lookAhead` — `Transport.seconds` reads `currentTime + lookAhead`. So `isLikelyBleed`'s window, the HF suppression window and the in-gap click rule do not see the real clicks in production ear training; the corpus passes on the stored stamps. The fix is a re-baseline (stamp, fixture constants and bleed windows together), not a stamp tweak.
+**Settled (2026-10-03): the grid runs one Tone lookahead early, and that is all.** `Transport.seconds` reads `currentTime + lookAhead`, so the stamped grid predicts each click ~0.1 s before it sounds (0.077–0.101 s across every metronome fixture) — inside `isLikelyBleed`'s 50–200 ms window and the HF suppression window, which were built around a "latency" of that size. The "0.25–0.40 s drift" recorded on 2026-09-08 was a measurement error: the diagnostic export's `context.transportSeconds` already includes the capture trim, and the survey (and the test helper `replayEarTrainingTake`) added it again. Hand an exported stamp to this function as it is; add the trim only to the RAW `RecordingMetadata.transportSeconds`. `pitch-replay.test.ts` pins the lag per fixture.
 
 ---
 

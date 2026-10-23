@@ -139,10 +139,6 @@ Fetch cloud progress for an authenticated user and merge with local. The read is
 
 Returns the most recent `count` sessions (default 10), newest first.
 
-### `getCategoryStats(): CategoryProgress[]`
-
-Returns category progress sorted by attempt count (descending).
-
 ### `updateSessionScore(sessionId, score, supabase?): void`
 
 Overwrite the score fields of a recorded session with the authoritative post-hoc rescore (ear training records the provisional live score first, then rescores the saved blob ~200–500 ms later). Re-derives that session's day, because the summary is derive-on-write; proficiency and category aggregates deliberately keep their provisional inputs.
@@ -246,10 +242,6 @@ Returns `{ current, previous, delta }` — aggregate `PeriodStats` for each rang
 ### `getYearHeatmap(): Map<string, { sessionCount: number; avgOverall: number }>`
 
 Last 365 days of practice data for calendar heatmap rendering.
-
-### `getLast30Days(): Map<string, boolean>`
-
-For each of the last 30 local dates, whether a practice session occurred.
 
 ### `getWeekRanges(): { currentStart; currentEnd; previousStart; previousEnd }`
 
@@ -368,8 +360,7 @@ export interface PlannedKey {
 - `getCurrentHarmony(): HarmonicSegment[]` — A progression trick's own generated harmony when the item carries one; otherwise the progression template transposed to the current key, aligned for the lick and carrying the per-lick tail extension when the lick stretches the cycle.
 - `getPhraseFor(lickIdx, keyIdx): Phrase | null` — Pure variant for scoring keys that have already advanced.
 - `getPlannedKey(offset): PlannedKey | null` — Lookahead across lick boundaries.
-- `getUpcomingKeys(): { current; next; afterNext }` — Three-row preview helper.
-- `getPlannedKeysForLick(lickIdx): PlannedKey[]` — Every planned key for a lick (used by the continuous-scroll preview). Each `PlannedKey` carries `reveal` — the key is the most recently unlocked one and its persisted rolling score is defined and under `KEY_FLOOR_THRESHOLD` (`shouldRevealNotation`; unknown → false; never at 12/12; never for trick items) — and `passes`, decided when the stack is built so a row's height never changes mid-scroll — the stack engraves a revealed row as a lead sheet and holds it for its passes.
+- `getPlannedKeysForLick(lickIdx): PlannedKey[]` — Every planned key for a lick (used by the continuous-scroll preview). Each `PlannedKey` carries `reveal` — the key is the most recently unlocked one and its persisted rolling score is defined and under `KEY_FLOOR_THRESHOLD` (`shouldRevealNotation`; unknown → false; never at 12/12; never for trick items), overridden in single-lick Deep Practice by the session-local rescue in `revealDecisionsFor` (gold ≥ 0.95 graduates a key; after it, a first attempt < 0.5, a last-two average < 0.7 or three below-gold turns restore the sheet, for any unlocked key) — and `passes`, decided when the stack is built so a row's height never changes mid-scroll — the stack engraves a revealed row as a lead sheet and holds it for its passes.
 - `getKeyPasses(lickIdx): number[]` — Play windows per rotation slot (indexed like `item.keys`, not like the planned rows, which skip a key whose phrase fails to build): `LEAD_SHEET_PASSES` for a revealed key in continuous mode, else 1 (call-response windows already replay the app's half). The single source `buildLickSuperPhrase` and the session page's window scheduler share, as `getDemoBars` is for the demo block. Only a key's **final** pass is the attempt of record — `recordKeyAttempt`, the session-log upsert, `advance()` and the standard score hold run on it alone; a rehearsal pass is scored and flashed on the row and keeps no recording.
 - `isDailyPractice(): boolean` — True only for standard mode with Daily configuration; recommended Deep sessions do not inherit Daily presentation.
 - `getKeyPauses(lickIdx): number[]` — Preparation bars before each rotation slot's first window. Always zero for Daily and call-and-response. Other continuous sessions use `LEAD_SHEET_PAUSE_BARS` for a revealed key unless its opening demo supplies preparation; Deep can also require one bar for an entrance or sheet graduation. The larger applicable pause wins. `buildLickSuperPhrase` fills the pause with turnaround harmony; the scheduler uses the same list in `planCycleWindows`, and `buildPhaseTimeline` maps it to `read`.
@@ -622,7 +613,7 @@ export const tuneEntry = $state({
 
 ### Key functions
 
-- `initNewTune()` / `resetTuneEntry()` — Fresh single-section draft seeded from the user's instrument.
+- `initNewTune()` — Fresh single-section draft seeded from the user's instrument.
 - `loadFromTune(sheet, instrument)` — Hydrate for edit mode (concert storage → written-pitch editing surface); the PDF flow reuses it with a pre-assigned id so the stored PDF stays linked.
 - `loadDraftForReview(sheet, instrument)` / `setImportReview(...)` — Hydrate an unsaved import draft in create mode with review warnings/suspect bars.
 - `buildDraftTune(): Tune` — Assemble the concert-pitch `Tune` for save/preview.
@@ -739,6 +730,24 @@ Pure planning + accumulation logic behind the runes wrapper above. Plain module 
 Types: `TunePracticeMode` (`'suggest' | 'points' | 'freestyle'`), `TunePracticeStrictness` (`'guided' | 'standard' | 'solo'`), `CueLevel` (`'lick' | 'progression' | 'none'`), `TunePracticePhase`, `InsertionPoint`, `InsertionResult`, `StrictnessKnobs`, `CandidateResult`, `ResultTally`.
 
 See [Tune System](../architecture/tune-system.md#session-planning) for the design rationale behind each.
+
+---
+
+## tune-player.svelte.ts
+
+The tune desk's listening controls (`/tunes/[id]`, and a compact preview in the tune editor). Not a session — nothing is scored or persisted except the tempo choice.
+
+**Source:** `src/lib/state/tune-player.svelte.ts` (with `tune-desk-view.svelte.ts`, the route-owned `tuneDeskView.focus` flag the layout reads to hide navigation)
+
+| Member | Purpose |
+|---|---|
+| `new TunePlayer(tempoStore?)` | With a `TuneTempoStore` (`tuneId()`, `save(id, tempo)`) a tempo change is saved per tune into `settings.tuneTempos`; without one (the editor preview) it lasts only as long as the player |
+| `tempo` | The preview tempo, else this tune's saved tempo (`savedTuneTempo`), else `settings.defaultTempo` |
+| `backing` / `melody` / `metronome` / `loop` | The desk switches (`$state`); backing starts off. `loop` may change mid-pass — the engine asks before each return to the top |
+| `toggle(tune, style)` | Play or stop. ONE `playPhrase` call with a `formLoopRegion` loop: the pickup plays once, a whole-tune repeat goes round its first ending and out on its second, the drummer counts in (`countInBarsForTempo`), `chartBar`/`cursorIndex` follow the audible bar and note |
+| `setTempo(value)` / `stop()` / `dispose()` | Tempo changes stop the pass first; `stop` cancels late loads, audio and cursor updates together |
+
+See [Tune System](../architecture/tune-system.md#tune-desk-accompaniment) for the backing-style resolution and the form loop.
 
 ---
 

@@ -46,6 +46,8 @@ const defaultSettings = {
   backingInstrument: 'piano' as BackingInstrument,
   backingTrackVolume: 0.6,
   backingStyle: 'swing' as BackingStyle,
+  tuneBackingStyles: {} as Record<string, BackingStyle>, // per-tune band style (curated/adopted tunes)
+  tuneTempos: {} as Record<string, number>,             // per-tune tempo, desk + practice setup
   swing: 0.62,               // moderate jazz swing out of the box; exactly 0.50 doubles as
                              // resolveBackingSwing's "band follows the tempo curve" sentinel
   theme: 'dark' as 'dark' | 'light',
@@ -65,7 +67,7 @@ export const settings = $state(loadSettings());
 - `getEffectiveHighestNote()` — `settings.highestNote`, else the instrument's `concertRangeHigh − 1`
 - `applyTheme()` — Toggles the `.light` class on `<html>` based on `settings.theme`
 
-Settings are loaded on module initialization with a merge strategy: saved values override defaults, new default keys are preserved for forward compatibility, `swing` is clamped to `[STRAIGHT_SWING, MAX_SWING]` (0.5–0.8) and an unknown `backingStyle` falls back to `'swing'`.
+Settings are loaded on module initialization with a merge strategy: saved values override defaults, new default keys are preserved for forward compatibility, `swing` is clamped to `[STRAIGHT_SWING, MAX_SWING]` (0.5–0.8) and an unknown `backingStyle` falls back to `'swing'`, and `tuneBackingStyles` / `tuneTempos` are cleaned of invalid entries. Both per-tune maps sync through the settings outbox (`user_settings.tune_backing_styles`, `user_settings.tune_tempos`).
 
 ### Progress State (`src/lib/state/progress.svelte.ts`)
 
@@ -80,7 +82,7 @@ export const progress = $state<UserProgress>(loadProgress());
 - `updateSessionScore(...)` — Replaces a session's score after the authoritative blob rescore; recomputes the day's summary WITHOUT a snapshot, so the stored one is preserved.
 - `bumpStreakForToday(supabase?)`, `getUnlockContext()`, `getTonalMastery()` — Streak and proficiency readers used by tonality unlocking and the Tonal Mastery meter.
 - `initFromCloud(supabase)` / `flushProgressToCloud(supabase)` — Hydration and the outbox handler, gated by `progressHydrationOk`. The merge unions sessions by id (local wins a same-id collision, newest `MAX_SESSIONS` kept); per scale / per key, the proficiency with more `totalAttempts` wins (a tie goes to the higher level); per-category and per-key stats keep the side with more attempts but fold in the other side's better `bestScore` and later `lastAttempt`; totals and the streak take the max, `lastPracticeDate` the later; and the frozen `adaptive` blob comes whole from whichever device practiced most recently.
-- `getRecentSessions(count)`, `getCategoryStats()`, `resetProgress(supabase?)`.
+- `getRecentSessions(count)`, `resetProgress(supabase?)`.
 
 Session history is bounded to 100 entries (`MAX_SESSIONS`, `persistence/limits.ts`; oldest trimmed on insert). `progress.adaptive` is **frozen**: its ratchet (`processAttempt`) was retired 2026-08-31, but the field still round-trips hydrate, the cloud merge and the `adaptive_state` column, and `recordAttempt` still reads its (static) pitch/rhythm values into the daily snapshot for row compatibility — see [Data Model](./data-model.md#adaptivestate).
 
@@ -126,7 +128,6 @@ The exception to "pure derivation" is the **`ComplexitySnapshot`** (`pitch`, `rh
 - `getSummariesInRange(start, end)` — Inclusive date range query for charts.
 - `comparePeriods(currentStart, currentEnd, previousStart, previousEnd)` — Returns `{ current, previous, delta }` for week-over-week / month-over-month comparisons.
 - `getYearHeatmap()` — `Map<date, { sessionCount, avgOverall }>` sized to the last 365 days for the calendar heatmap.
-- `getLast30Days()` — `Map<date, hasPractice>` for streak displays.
 - `getWeekRanges()`, `getMonthRanges()` — Convenience date-range builders.
 - `clearHistory()` — Destructive reset (called from `resetProgress()`).
 
@@ -196,7 +197,7 @@ A practice-tagged lick is only eligible for a session if it also carries an expl
 - `startSession()`, `startDailyPracticeSession()`, `startSingleLickSession(lickOrId: string | Phrase, options: SingleLickSessionOptions = {}): boolean` (options: `{ tempoBumpPercent?: number; focusKey?: PitchClass }`), `startTrickSession()` — The four entry points; all converge on the same playback engine. **Three tempo rules, one per start path:** standard and Daily sessions open at the lick's stored tempo and move it once per lick per session by the score-weighted delta (or the unlock drop) in `startInterLickTransition`; single-lick Deep Practice cycles only the lick's currently-unlocked keys and runs a **session-local tempo ramp that is never persisted** — opens at `deepPracticeStartTempo` (2% under the stored tempo, `Math.min(t − 1, …)` so rounding can't make the ease-in a no-op), climbs by `nextCycleTempo` per cleared rotation (`config.tempoBumpPercent` of the *current* tempo, 1% by default, 0.5–5% from the setup knob, rounded UP because 1% below 100 BPM would floor to zero; an omitted `tempoBumpPercent` keeps the knob rather than resetting it), with `focusKey` runs the focus ramp described above, and **derives its progression from the chosen lick's own `prog:*` tags** (least-recently-practiced fitting tag, as Daily does; else the first template the lick fits, `getProgressionsForLick`; else `DEFAULT_PROGRESSION`) rather than `config.progressionType` — fixes the case where a major lick gets stuck over a minor vamp because the setup screen was set that way. `startTrickSession` rides the same round loop with a single `kind: 'trick'` plan item whose phrase is regenerated every round; see [Trick Scoring](./trick-scoring.md).
 - `getCurrentPlanItem()`, `getCurrentKey()`, `getCurrentPhrase()`, `getCurrentHarmony()`, `getCurrentProgressionType()` — Cursor accessors for the active lick/key.
 - `getPhraseFor(lickIdx, keyIdx)` — Pure variant used when scoring a key that has just finished.
-- `getPlannedKey(offset)`, `getUpcomingKeys()`, `getPlannedKeysForLick(lickIdx)` — Lookahead accessors for the key stack; the stack for the first lick is built at the top of the route's `initializeSession`, before any audio loads (see the lead-sheet paragraph above), and a refused microphone clears the prebuilt rows and shows the microphone banner in their place (`micError`, `data-testid="mic-error"`) rather than leaving a populated, silent stack.
+- `getPlannedKey(offset)`, `getPlannedKeysForLick(lickIdx)` — Lookahead accessors for the key stack; the stack for the first lick is built at the top of the route's `initializeSession`, before any audio loads (see the lead-sheet paragraph above), and a refused microphone clears the prebuilt rows and shows the microphone banner in their place (`micError`, `data-testid="mic-error"`) rather than leaving a populated, silent stack.
 - `buildLickSuperPhrase(lickIdx)` — Concatenates the plan item's keys (plus an optional demo in continuous mode, extra passes for a revealed key, and reading pauses outside Daily) into one phrase so the whole lick can be scheduled in a single Tone.js pass. `getDemoBars(lickIdx)`, `getKeyPasses(lickIdx)` and `getKeyPauses(lickIdx)` are the single sources for the demo's length and the per-key passes/pauses, read by both this layout and the route's window scheduling, so a skipped demo shortens the audio and the recording windows together. `getLickBars` / `getKeyBars` / `getProgressionBars` give the per-lick cycle length (see [Lick Alignment](./lick-alignment.md)).
 - `recordKeyAttempt(score, sessionId?)` — Appends a `LickPracticeKeyResult` and **persists key progress on every attempt** (`rollingScore` must see failures; recency counts an attempt as practice), incrementing `passCount` only on green attempts (≥ `KEY_PROFICIENT_THRESHOLD` = 0.90). `currentTempo` is written explicitly because `updateKeyProgress` merges over `getKeyProgress`'s 100-BPM default — and in single-lick mode it writes the key's **baseline** (`prev?.currentTempo ?? resolveLickTempo(...)`), never the ramped session tempo, so deep practice can't ratchet the stored tempo. Trick items go to the trick store instead, only on a pass.
 - `resetLick(phraseId)` — Wipes one lick's per-key scores, `passCount`, and unlock count (tempo back to `NEW_LICK_DEFAULT_TEMPO` = 60, one unlocked key) via `resetLickPersistence`, which also stamps a reset tombstone in the merge meta so a stale device's older practice can't resurrect it. Tags (`practice`, `prog:*`) are preserved. Surfaced from the post-session report (gated on try-again-band score) and the book detail page (gated on `hasLickProgress`).
@@ -325,7 +326,7 @@ The fallback name is computed locally from the entered phrase (`fallback-name.ts
 
 Long-form tune entry, built **on top of** the shared `stepEntry` buffer rather than beside it. The section list is authoritative; melody is edited one ≤4-bar *page* (`PAGE_BARS`) at a time through step-entry, so `PitchEntryPanel` / `DurationSelector` / keyboard entry all work unmodified. The buffer commits on page and section navigation (`commitBuffer`), and is suspended (committed + emptied) on route exit (`suspendEntryBuffer` / `resumeEntryBuffer`) so `/licks/editor` never sees tune content. **Not persisted.**
 
-Exports the `tuneEntry` rune plus `initNewTune` / `resetTuneEntry`, `loadFromTune`, `buildDraftTune`, `loadDraftForReview` (hydrating an unsaved import draft in create mode; the PDF flow uses `loadFromTune` with a pre-assigned id so the stored PDF stays linked) and `setImportReview` (the warnings panel). Section editing: `addSection` / `removeSection` / `updateSectionMeta` / `setSectionBars`; chords: `setChord` / `removeChord` / `chordTextAt`; key and source pitch: `setSheetWrittenKey(newKey, moveNotes)`, `setSourceTransposition`.
+Exports the `tuneEntry` rune plus `initNewTune`, `loadFromTune`, `buildDraftTune`, `loadDraftForReview` (hydrating an unsaved import draft in create mode; the PDF flow uses `loadFromTune` with a pre-assigned id so the stored PDF stays linked) and `setImportReview` (the warnings panel). Section editing: `addSection` / `removeSection` / `updateSectionMeta` / `setSectionBars`; chords: `setChord` / `removeChord` / `chordTextAt`; key and source pitch: `setSheetWrittenKey(newKey, moveNotes)`, `setSourceTransposition`.
 
 **Pickup bars** (`setTunePickup(length | null)`, `tunePickupLength()`, `hasPickupSection()`): a NEW pickup becomes its own unlabeled one-bar section in front of the form — so the user's sections keep their bar counts — with the silent lead-in stored as a rest, which is what makes step entry land the first typed note on the pickup's beat. An EXISTING pickup (its own section, or embedded in a labelled section an importer wrote) is resized in place, never doubled; clearing removes a pickup-only section, while an embedded pickup just loses the field. All three read the same resolver the chart does (`music/pickup.ts`, `resolvePickupLength` / `isPickupOnlySection`).
 
@@ -366,6 +367,10 @@ export const tuneCommunity = $state<{
   sort: TuneCommunitySort;             // 'popular' | 'newest'
 }>( /* defaults */ );
 ```
+
+### Tune Player (`src/lib/state/tune-player.svelte.ts`)
+
+`TunePlayer`, a class rather than a module rune: one instance per tune desk (`/tunes/[id]`) or editor preview, holding the backing/melody/metronome/loop switches, the playing/cursor state, and the tempo — saved per tune into `settings.tuneTempos` when constructed with a `TuneTempoStore`, player-local without one. **Not persisted** beyond that tempo. See [Tune System](./tune-system.md#tune-desk-accompaniment) and [API Reference: State](../api-reference/state.md#tune-playersveltets).
 
 ## Persistence Layer (`src/lib/persistence/storage.ts`)
 

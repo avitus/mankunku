@@ -127,11 +127,16 @@ Mankunku is a **local-first installable web app** with optional cloud sync:
 
 CI (CircleCI) is a dynamic setup pipeline: `.circleci/config.yml` path-filters into
 `.circleci/continue-config.yml`. The job graph is `test` → `build` → `db-migrate`,
-with `deploy` requiring `build`, `db-migrate` **and** `e2e`; `e2e` itself has no
-requirements, so it runs in parallel with `test` rather than after it. Only
-`build`, `db-migrate` and `deploy` are branch-filtered to `main` — `test` and
-`e2e` run on every push to every branch (`test` also runs `npm run test:deploy`,
-the release-script suite). Two path-filtered workflows sit beside it: `nginx-deploy`
+with `deploy` requiring `build`, `db-migrate` **and** `e2e`; `e2e` waits only on
+its `list-e2e-tests` job, so it runs in parallel with `test` rather than after it.
+Only `build`, `db-migrate`, `deploy` and the non-blocking `unit-analysis` /
+`e2e-analysis` jobs are branch-filtered to `main` — `test` and `e2e` run on every
+push to every branch (`test` also runs `npm run test:deploy`, the release-script
+suite). Both run through CircleCI Smarter Testing (`.circleci/test-suites.yml`):
+the `list-*-tests` jobs pick the test files (only those a change reaches, on
+branches) and size the next job by dynamic parallelism, files are split
+dynamically, and failed files re-run automatically; the two analysis jobs
+refresh the impact data on `main`. Two path-filtered workflows sit beside it: `nginx-deploy`
 fires only on `main` and only when a change lands under `nginx/`, `deploy/nginx/` or
 `.circleci/` (deliberately *not* `deploy/app/`), and `omr` runs the hermetic Python suite
 (`omr-test`: `uv sync --frozen`, ruff, pytest — no model downloads) when `omr/` or
