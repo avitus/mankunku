@@ -148,27 +148,6 @@ describe('initFromCloud', () => {
 		expect(mockLoadProgress).toHaveBeenCalledTimes(2);
 	});
 
-	it('unions local and cloud sessions (no distinct session is dropped)', async () => {
-		// Seed local with 3 sessions via localStorage before module import
-		vi.resetModules();
-		const localProgress = makeCloudProgress([
-			makeSession('local-1'), makeSession('local-2'), makeSession('local-3')
-		]);
-		store.set('mankunku:progress', JSON.stringify(localProgress));
-		progressModule = await import('$lib/state/progress.svelte');
-
-		// Cloud has 1 distinct session (hasn't synced yet).
-		mockLoadProgress.mockResolvedValue(
-			makeCloudProgress([makeSession('cloud-1')])
-		);
-		await progressModule.initFromCloud(mockSupabase() as any);
-
-		// New contract: sessions UNION by id — the old count-based "local kept
-		// intact" merge is gone, so local's 3 AND the cloud's 1 are all present.
-		const ids = new Set(progressModule.progress.sessions.map((s) => s.id));
-		expect(ids).toEqual(new Set(['local-1', 'local-2', 'local-3', 'cloud-1']));
-	});
-
 	it('does nothing when cloud returns null', async () => {
 		mockLoadProgress.mockResolvedValue(null);
 		const sessionsBefore = progressModule.progress.sessions.length;

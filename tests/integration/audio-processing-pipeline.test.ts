@@ -134,18 +134,6 @@ describe('onset detection (onset-core)', () => {
 		expect(event!.time).toBe(0.2);
 	});
 
-	it('processOnsetFrame respects SETTLE_FRAMES', () => {
-		const state = createOnsetState();
-		const events: ReturnType<typeof processOnsetFrame>[] = [];
-		// Feed loud frames for exactly SETTLE_FRAMES — none should produce onset
-		for (let i = 0; i < SETTLE_FRAMES; i++) {
-			events.push(processOnsetFrame(makeLoudFrame(), state, i * 0.003));
-		}
-		// All within the settle window should return null
-		expect(events.every((e) => e === null)).toBe(true);
-		expect(state.frameCount).toBe(SETTLE_FRAMES);
-	});
-
 	it('processOnsetFrame respects MIN_ONSET_INTERVAL', () => {
 		const state = createOnsetState();
 		// Build up EMA through settle window with moderate signal

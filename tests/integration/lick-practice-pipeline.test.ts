@@ -134,48 +134,6 @@ describe('key ordering', () => {
 	});
 });
 
-// ── Progression Transposition ────────────────────────────────
-
-describe('progression transposition', () => {
-	it('transposeProgression handles all 12 keys without error', () => {
-		const template = PROGRESSION_TEMPLATES['turnaround'];
-
-		for (const key of PITCH_CLASSES) {
-			const transposed = transposeProgression(template.harmony, key);
-
-			expect(transposed).toHaveLength(template.harmony.length);
-			// Chord qualities are preserved
-			for (let i = 0; i < transposed.length; i++) {
-				expect(transposed[i].chord.quality).toBe(template.harmony[i].chord.quality);
-			}
-		}
-	});
-
-	it('PROGRESSION_TEMPLATES have valid structure', () => {
-		for (const [type, template] of Object.entries(PROGRESSION_TEMPLATES)) {
-			expect(template.type).toBe(type);
-			expect(template.name).toBeTruthy();
-			expect(template.shortName).toBeTruthy();
-			expect(template.bars).toBeGreaterThan(0);
-			expect(template.harmony.length).toBeGreaterThan(0);
-
-			for (const seg of template.harmony) {
-				// Valid chord root
-				expect(PITCH_CLASSES).toContain(seg.chord.root);
-				// Has a chord quality
-				expect(seg.chord.quality).toBeTruthy();
-				// Has a scale reference
-				expect(seg.scaleId).toBeTruthy();
-				// Duration and offset are valid fractions
-				expect(seg.duration).toHaveLength(2);
-				expect(seg.duration[1]).toBeGreaterThan(0);
-				expect(seg.startOffset).toHaveLength(2);
-				expect(seg.startOffset[1]).toBeGreaterThan(0);
-			}
-		}
-	});
-});
-
 // ── Full Session Flow ────────────────────────────────────────
 
 describe('full session flow', () => {

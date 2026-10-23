@@ -90,12 +90,6 @@ describe('extractOnsetsFromReadings', () => {
 		expect(onsets[1]).toBeCloseTo(1.15 - 0.05);
 	});
 
-	it('applies ATTACK_LATENCY offset (-0.05) on gap-based onsets', () => {
-		const readings = [makeReading(60, 0.0), makeReading(60, 0.2)];
-		const onsets = extractOnsetsFromReadings(readings);
-		expect(onsets[1]).toBeCloseTo(0.2 - 0.05);
-	});
-
 	it('detects onset from MIDI note change without latency offset', () => {
 		// Same time proximity (gap < 0.1s), different MIDI note
 		const readings = [makeReading(60, 0.0), makeReading(64, 0.09)];

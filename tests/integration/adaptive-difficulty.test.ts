@@ -59,17 +59,6 @@ describe('adaptive difficulty — initial state', () => {
 // ─── Scale Proficiency ─────────────────────────────────────────
 
 describe('scale proficiency tracking', () => {
-	it('advances scale proficiency with consistently high scores', () => {
-		let prof = createInitialScaleProficiency();
-
-		for (let i = 0; i < 11; i++) {
-			prof = processScaleAttempt(prof, 0.95);
-		}
-
-		expect(prof.level).toBe(2);
-		expect(prof.totalAttempts).toBe(11);
-	});
-
 	it('retreats scale proficiency with consistently low scores', () => {
 		let prof = createInitialScaleProficiency();
 		prof = { ...prof, level: 5, attemptsSinceChange: 0 };

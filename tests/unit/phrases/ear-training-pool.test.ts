@@ -202,6 +202,7 @@ describe.each([
 		expect(carrying.length * oneIn, `${carrying.length} of ${pool.length}`).toBeGreaterThanOrEqual(pool.length);
 	});
 
+	// A 100-level sweep: ~2.6 s alone, past the 5 s default on a loaded 2-vCPU box.
 	it('every single-chord phrase at every level stays inside the scale', () => {
 		const allowed = new Set<number>(scale);
 		for (let level = 1; level <= 100; level++) {
@@ -212,7 +213,7 @@ describe.each([
 				}
 			}
 		}
-	});
+	}, 30_000);
 });
 
 /**
@@ -240,7 +241,7 @@ describe('the pool never shrinks as the player levels up', () => {
 			expect(size, `level ${level} serves ${size}, level ${level - 1} served ${previous}`).toBeGreaterThanOrEqual(previous);
 			previous = size;
 		}
-	});
+	}, 30_000);
 
 	it('native licks join an adapted pool rather than replacing it', () => {
 		const native = ALL_CURATED_LICKS.find(lick => lick.harmony[0]?.scaleId === 'melodic-minor.altered')!;

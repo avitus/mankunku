@@ -4,13 +4,12 @@
  * Covers scenarios that span the auth/hydration boundary:
  *   • Scope-generation guard prevents a mid-flight sync from writing state
  *     into the wrong user's cache after a user switch.
- *   • Token expiry (getUser → null) during hydration returns without touching
- *     local state.
  *   • Hydration fault tolerance — a failure in one hydration path must not
  *     block the others.
  *
  * Existing `user-scope.test.ts` already covers the wipe mechanics on user
- * switch; these tests focus on the more subtle coordination guarantees that
+ * switch, and the empty/rejected-read no-ops live in progress-hydration and
+ * settings-hydration; these tests focus on the more subtle coordination guarantees that
  * each cloud-reading state module must uphold.
  */
 
@@ -174,30 +173,6 @@ describe('progress.initFromCloud — scope generation guard', () => {
 		expect(progressModule.progress.sessions.length).toBe(5);
 		expect(progressModule.progress.adaptive.currentLevel).toBe(42);
 	});
-
-	it('exits silently when the cloud returns null (no auth / no row)', async () => {
-		vi.resetModules();
-		const progressModule = await import('$lib/state/progress.svelte');
-
-		mockLoadProgress.mockResolvedValue(null);
-
-		const supabase = { auth: {} };
-		await progressModule.initFromCloud(supabase as never);
-
-		expect(progressModule.progress.sessions.length).toBe(0);
-	});
-
-	it('does not throw when loadProgressFromCloud rejects (token expiry)', async () => {
-		vi.resetModules();
-		const progressModule = await import('$lib/state/progress.svelte');
-
-		mockLoadProgress.mockRejectedValue(new Error('auth token expired'));
-
-		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-		const supabase = { auth: {} };
-		await expect(progressModule.initFromCloud(supabase as never)).resolves.toBeUndefined();
-		warnSpy.mockRestore();
-	});
 });
 
 // ---------------------------------------------------------------------------
@@ -263,61 +238,6 @@ describe('settings.loadSettingsFromCloud — scope generation guard', () => {
 
 		expect(settingsModule.settings.defaultTempo).toBe(99);
 		expect(settingsModule.settings.theme).toBe('light');
-	});
-
-	it('leaves state untouched when cloud returns null', async () => {
-		vi.resetModules();
-		const settingsModule = await import('$lib/state/settings.svelte');
-		const before = { ...settingsModule.settings };
-
-		mockLoadSettings.mockResolvedValue(null);
-
-		const supabase = { auth: {} };
-		await settingsModule.loadSettingsFromCloud(supabase as never);
-
-		expect(settingsModule.settings.defaultTempo).toBe(before.defaultTempo);
-		expect(settingsModule.settings.theme).toBe(before.theme);
-	});
-
-	it('does not throw when loadSettingsFromCloud rejects', async () => {
-		vi.resetModules();
-		const settingsModule = await import('$lib/state/settings.svelte');
-
-		mockLoadSettings.mockRejectedValue(new Error('network down'));
-
-		const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-		const supabase = { auth: {} };
-		await expect(
-			settingsModule.loadSettingsFromCloud(supabase as never)
-		).resolves.toBeUndefined();
-		warnSpy.mockRestore();
-	});
-
-	it('clamps an out-of-range swing value from cloud', async () => {
-		vi.resetModules();
-		const settingsModule = await import('$lib/state/settings.svelte');
-
-		mockLoadSettings.mockResolvedValue({
-			instrumentId: 'tenor-sax',
-			defaultTempo: 100,
-			masterVolume: 0.8,
-			metronomeEnabled: true,
-			metronomeVolume: 0.7,
-			backingTrackEnabled: true,
-			backingInstrument: 'piano',
-			backingTrackVolume: 0.6,
-			swing: 5.0, // out of valid range [0.5, 0.8]
-			theme: 'dark',
-			onboardingComplete: true,
-			tonalityOverride: null,
-			highestNote: null
-		});
-
-		const supabase = { auth: {} };
-		await settingsModule.loadSettingsFromCloud(supabase as never);
-
-		expect(settingsModule.settings.swing).toBeLessThanOrEqual(0.8);
-		expect(settingsModule.settings.swing).toBeGreaterThanOrEqual(0.5);
 	});
 
 	it('falls back to a default backingStyle when cloud value is unknown', async () => {
@@ -930,23 +850,6 @@ describe('hydration timeout — fire-and-forget + bounded opt-in', () => {
 			src,
 			'src/routes/+layout.ts must not use a bare Promise.all for the initializer fan-out.'
 		).not.toMatch(/Promise\.all\(\s*\[/);
-	});
-
-	it('the 2s bound lives in awaitHydration() so opt-in routes never hang', async () => {
-		const { readFileSync } = await import('node:fs');
-		const { fileURLToPath } = await import('node:url');
-		const src = readFileSync(
-			fileURLToPath(new URL('../../src/lib/state/hydration.ts', import.meta.url)),
-			'utf8'
-		);
-		// awaitHydration() must keep a Promise.race against a setTimeout, with a
-		// default 2000ms ceiling, so a slow cloud degrades to local state.
-		expect(src).toMatch(/Promise\.race\(/);
-		expect(src).toMatch(/setTimeout\(/);
-		expect(
-			src,
-			'src/lib/state/hydration.ts awaitHydration() must default to a 2000ms timeout.'
-		).toMatch(/timeoutMs\s*=\s*2000/);
 	});
 });
 

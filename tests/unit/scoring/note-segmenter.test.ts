@@ -5,7 +5,8 @@ import {
 	mergeSamePitchWithoutAttack,
 	mergeOctaveBoundariesWithoutAttack,
 	getMetronomeBleedOnsets,
-	validateOnsets
+	validateOnsets,
+	foldTwelfthUpLockRuns
 } from '$lib/audio/note-segmenter';
 import type { PitchReading } from '$lib/audio/pitch-detector';
 import type { DetectedNote } from '$lib/types/audio';
@@ -1588,5 +1589,31 @@ describe('segmentNotes: third-harmonic (twelfth-up) locks', () => {
 
 	it('an unflagged leap still earns its own onsets from the readings', () => {
 		expect(resolveOnsets([], heldD(run(69, 10 / 60, 20)))).toHaveLength(3);
+	});
+
+	describe('foldTwelfthUpLockRuns (the stream-level fold the onset extractor reads)', () => {
+		it('folds a run of three confident flagged frames a twelfth down, keeping the raw frequency', () => {
+			const lock = run(69, 0, 3, { twelfthUp: true });
+			const folded = foldTwelfthUpLockRuns(lock);
+			expect(folded.map((r) => r.midi)).toEqual([50, 50, 50]);
+			expect(folded.map((r) => r.midiFloat)).toEqual([50, 50, 50]);
+			expect(folded.map((r) => r.frequency)).toEqual(lock.map((r) => r.frequency));
+		});
+
+		it('does not judge a run shorter than three confident frames', () => {
+			expect(foldTwelfthUpLockRuns(run(69, 0, 2, { twelfthUp: true })).map((r) => r.midi)).toEqual([69, 69]);
+		});
+
+		it('counts no warmup frame toward the run, flagged or not', () => {
+			const lock = run(69, 0, 5, { twelfthUp: true }).map((r, i) => ({ ...r, warmup: i < 3 }));
+			expect(foldTwelfthUpLockRuns(lock).map((r) => r.midi)).toEqual([69, 69, 69, 69, 69]);
+		});
+
+		it('returns a new stream and leaves the caller\'s readings alone', () => {
+			const lock = run(69, 0, 3, { twelfthUp: true });
+			const folded = foldTwelfthUpLockRuns(lock);
+			expect(folded).not.toBe(lock);
+			expect(lock.map((r) => r.midi)).toEqual([69, 69, 69]);
+		});
 	});
 });

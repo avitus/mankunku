@@ -192,6 +192,23 @@ describe('leadSheetTuneFor', () => {
 		expect(tune.sections[0].notes[1].duration).toEqual([1, 1]);
 	});
 
+	it('clips a chord held across either window edge to the window', () => {
+		// 12-bar cycle of two-bar chords alternating C7 / F7: F7 holds 0-based
+		// bars 6–7 and C7 bars 8–9. A lick on bars 7–8 windows to those two
+		// bars, so each chord keeps only its half inside the row.
+		const twoBarChords: HarmonicSegment[] = Array.from({ length: 6 }, (_, i) =>
+			seg(i % 2 === 0 ? 'C' : 'F', '7', [i * 2, 1], [2, 1])
+		);
+		const p = phrase({ notes: [note(60, 56, 8), note(65, 64, 8)], harmony: twoBarChords });
+		const { startBar, bars, tune } = leadSheetTuneFor(p);
+		expect(startBar).toBe(7);
+		expect(bars).toBe(2);
+		expect(tune.sections[0].harmony.map((h) => [h.chord.root, h.startOffset, h.duration])).toEqual([
+			['F', [0, 1], [1, 1]],
+			['C', [1, 1], [1, 1]]
+		]);
+	});
+
 	it('produces the row options: minor mode from the phrase, one system, stretched, unnumbered', () => {
 		const p = phrase({ key: 'D', mode: 'minor', harmony: SHORT_II_V_I });
 		expect(leadSheetAbcOptions(p, 2)).toEqual({

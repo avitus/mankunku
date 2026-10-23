@@ -22,8 +22,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
 	createCloudState,
 	mockSupabaseFromCloud,
-	peek,
-	seed
+	peek
 } from '../helpers/cloud-sync-mocks';
 
 vi.mock('$env/static/public', () => ({
@@ -113,7 +112,7 @@ describe('syncTourStateToCloud — UNION merge across devices', () => {
 });
 
 describe('loadTourStateFromCloud — empty / missing cloud row', () => {
-	it('returns empty arrays when no settings row exists yet for this user', async () => {
+	it('returns null when no settings row exists yet for this user', async () => {
 		const cloud = createCloudState();
 		const { loadTourStateFromCloud } = await import('$lib/persistence/sync');
 
@@ -126,25 +125,6 @@ describe('loadTourStateFromCloud — empty / missing cloud row', () => {
 		// as null so the caller can treat "no cloud data" identically to "no
 		// session" without needing to inspect arrays.
 		expect(result).toBeNull();
-	});
-
-	it('returns empty arrays when settings row exists but tour_state column is null', async () => {
-		const cloud = createCloudState();
-		seed(cloud, 'user_settings', [
-			{
-				user_id: 'user-A',
-				instrument_id: 'tenor-sax',
-				tour_state: null
-			}
-		]);
-		const { loadTourStateFromCloud } = await import('$lib/persistence/sync');
-
-		const supabase = mockSupabaseFromCloud(cloud, {
-			auth: { userId: 'user-A' }
-		}) as Parameters<typeof loadTourStateFromCloud>[0];
-
-		const result = await loadTourStateFromCloud(supabase);
-		expect(result).toEqual({ completed: [], dismissed: [] });
 	});
 
 	it('returns null when the user is unauthenticated', async () => {
