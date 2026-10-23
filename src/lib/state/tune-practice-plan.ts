@@ -117,6 +117,8 @@ export interface BuildPlanDeps {
 	};
 	/** Cap on suggestions per window, applied after the window is chosen. Absent = unlimited. */
 	suggestionLimit?: number;
+	/** Bars of drum count-in before the tune (drum-count-in.ts); absent = 1. */
+	countInBars?: number;
 }
 
 const EPSILON = 1e-9;
@@ -288,8 +290,8 @@ function roleWindowsFor(
  * `selectNonOverlapping` decides it, so an already-selected set plans
  * identically and wrapped detections stay safe.
  *
- * Tick math matches playback.ts exactly: one bar of count-in (`barTicks`
- * offset, the hard-coded playPhrase lead-in) and `wholeNotes * 4 * ppq` per
+ * Tick math matches playback.ts exactly: `countInBars` bars of count-in (the
+ * lead-in the route hands playPhrase) and `wholeNotes * 4 * ppq` per
  * offset. No lead-in — the scorer's DTW + median-latency correction absorb
  * early entries; a 1-beat lead-out captures the resolution's tail, clamped so
  * a window never overlaps the next open or runs past the end of the form.
@@ -299,11 +301,11 @@ export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
 	const barTicks = timeSignature[0] * ppq;
 	const barWholeNotes = timeSignature[0] / timeSignature[1];
 	const head = deps.head;
-	// Ticks before the practice timeline's own zero: the 1-bar count-in, plus
+	// Ticks before the practice timeline's own zero: the count-in, plus
 	// the head chorus when it is an appended-duplicate ('shift') head. A
 	// 'filter' head lives INSIDE the detection timeline, so only the count-in
 	// shifts.
-	const leadTicks = barTicks + (head?.mode === 'shift' ? head.bars * barTicks :
+	const leadTicks = (deps.countInBars ?? 1) * barTicks + (head?.mode === 'shift' ? head.bars * barTicks :
 		head?.mode === 'skip' ? -head.bars * barTicks : 0);
 	const formEndTick = leadTicks + flat.totalBars * barTicks;
 	const ticksOf = (f: Fraction) => Math.round(fractionToFloat(f) * 4 * ppq);
@@ -859,8 +861,8 @@ export function indexResultsByInsertion(
  * Whether a played insertion's chart band has aged out — cleared shortly after
  * its scoring window passes so the chart behind the playhead stays clean.
  *
- * `closeTick`/`barTicks` are absolute session ticks (they share the one-bar
- * count-in offset), so `closeBar` and `currentBar` land in the same real-bar
+ * `closeTick` is an absolute session tick behind `countInTicks` of count-in
+ * (default one bar), so `closeBar` and `currentBar` land in the same real-bar
  * space. Unplayed points never clear; a later repeat pass of the same chart
  * position re-annotates through its own (still-upcoming) occurrence.
  */
@@ -870,8 +872,10 @@ export function insertionMarkerCleared(args: {
 	barTicks: number;
 	currentBar: number;
 	clearAfterBars: number;
+	countInTicks?: number;
 }): boolean {
 	if (!args.played || args.barTicks <= 0) return false;
-	const closeBar = Math.floor((args.closeTick - args.barTicks) / args.barTicks);
+	const countInTicks = args.countInTicks ?? args.barTicks;
+	const closeBar = Math.floor((args.closeTick - countInTicks) / args.barTicks);
 	return args.currentBar - closeBar >= args.clearAfterBars;
 }

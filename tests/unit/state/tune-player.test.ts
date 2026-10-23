@@ -4,8 +4,7 @@ import { settings } from '$lib/state/settings.svelte';
 import { TunePlayer } from '$lib/state/tune-player.svelte';
 
 const audio = vi.hoisted(() => ({
-	loadInstrument: vi.fn(), playPhrase: vi.fn(), stopPlayback: vi.fn(), getAudibleTransportSeconds: vi.fn(() => 0),
-	PHRASE_LEAD_IN_BARS: 1
+	loadInstrument: vi.fn(), playPhrase: vi.fn(), stopPlayback: vi.fn(), getAudibleTransportSeconds: vi.fn(() => 0)
 }));
 vi.mock('$lib/audio/playback', () => audio);
 const tune: Tune = {
@@ -237,6 +236,34 @@ describe('tune desk playback', () => {
 		expect(at(2.5)).toBeNull();
 		expect(at(3.3)).toBeCloseTo(0.2);
 		expect(at(4.6)).toBeCloseTo(1.0667, 3);
+		finish();
+		await started;
+	});
+	// 2026-10-22: the drummer counts the tune in — one bar, two above 150 BPM —
+	// and the marker waits out whichever count the engine was handed.
+	it('asks the drummer for a count-in by tempo and waits it out', async () => {
+		let finish!: () => void;
+		audio.playPhrase.mockImplementation(() => new Promise<void>(resolve => finish = resolve));
+		player.setTempo(150);
+		void player.toggle(tune, 'swing');
+		await vi.waitFor(() => expect(audio.playPhrase).toHaveBeenCalled());
+		expect(audio.playPhrase.mock.calls[0][3].countIn).toEqual({ bars: 1, drums: true });
+		finish();
+		await vi.waitFor(() => expect(player.busy).toBe(false));
+
+		player.setTempo(180); // one 4/4 bar = 4/3 s; a two-bar count = 8/3 s
+		const started = player.toggle(tune, 'swing');
+		await vi.waitFor(() => expect(audio.playPhrase).toHaveBeenCalledTimes(2));
+		const callbacks = audio.playPhrase.mock.calls[1][3];
+		expect(callbacks.countIn).toEqual({ bars: 2, drums: true });
+		/** The chart bar the marker shows when the audible transport reads `seconds`. */
+		const at = (seconds: number): number | null => {
+			audio.getAudibleTransportSeconds.mockReturnValue(seconds);
+			callbacks.onStarted();
+			return player.chartBar;
+		};
+		expect(at(2.5)).toBeNull(); // still in the second count bar
+		expect(at(8 / 3 + 0.4)).toBeCloseTo(0.3); // the form's first bar
 		finish();
 		await started;
 	});

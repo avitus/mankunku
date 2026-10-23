@@ -29,6 +29,7 @@ import {
 import { buildBookIndex, type FreestyleBook } from '$lib/matching/book-index';
 import type { FreestyleMatch } from '$lib/matching/freestyle';
 import { addFractions, compareFractions, subtractFractions } from '$lib/music/intervals';
+import { countInBarsForTempo } from '$lib/audio/drum-count-in';
 import {
 	applyInsertionResult,
 	assignSuggestRotation,
@@ -101,6 +102,11 @@ export interface TunePracticeAudioPlan {
 	notationFlat: FlattenedTune;
 	/** Bars before the practice material starts (0 without a head). */
 	leadBars: number;
+	/**
+	 * Bars of drum count-in ahead of the tune, from the session tempo — the
+	 * lead-in the route hands playPhrase and every transport tick sits behind.
+	 */
+	countInBars: number;
 	/** Start of the solo pass within the original expanded chart. */
 	practiceStartBar: number;
 	/**
@@ -325,7 +331,9 @@ export function startTunePracticeSession(sheet: Tune, ppq: number): TunePractice
 	const { headBars, formRepeats } = headBarsForFlat(flat);
 	const choruses = tunePractice.config.choruses;
 	const built = buildSessionPhrase({ flat, timeSignature: transposed.timeSignature, playHead, choruses });
+	const countInBars = countInBarsForTempo(tunePractice.config.tempo);
 	const plan = buildSessionPlan({
+		countInBars,
 		flat,
 		notationFlat,
 		timeSignature: transposed.timeSignature,
@@ -390,6 +398,7 @@ export function startTunePracticeSession(sheet: Tune, ppq: number): TunePractice
 		flat,
 		notationFlat,
 		leadBars: built.headBars,
+		countInBars,
 		practiceStartBar: formRepeats ? headBars : 0,
 		duplicatedForm: built.duplicatedForm,
 		playHead

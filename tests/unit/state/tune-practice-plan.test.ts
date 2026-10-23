@@ -116,6 +116,18 @@ describe('buildSessionPlan — window tick math', () => {
 		expect(plan[0].playbackBarRange).toEqual({ start: 1, endExclusive: 3 });
 	});
 
+	// 2026-10-22: above 150 BPM the drummer counts two bars, so the form —
+	// and every window on it — starts a bar later than the one-bar count.
+	it('offsets every window by the count-in it is given', () => {
+		const det = mkDet({ startOffset: [1, 1], duration: [2, 1], segmentIndices: [0] });
+		const flat = mkFlat({ harmony: [seg('D', 'min7', [1, 1], [2, 1])], segmentSourceIndices: [0] });
+		const plan = buildSessionPlan(
+			planDeps({ flat, notationFlat: flat, detect: () => [det], countInBars: 2 })
+		);
+		expect(plan[0].openTick).toBe(2 * 1920 + 1920);
+		expect(plan[0].closeTick).toBe(2 * 1920 + 5760 + 480);
+	});
+
 	it('computes bar-correct ticks in 3/4', () => {
 		const det = mkDet({ startOffset: [3, 4], duration: [3, 2], segmentIndices: [0] });
 		const flat = mkFlat({
@@ -568,6 +580,13 @@ describe('insertionMarkerCleared', () => {
 		const lag2 = { ...base, clearAfterBars: 2, played: true };
 		expect(insertionMarkerCleared({ ...lag2, currentBar: 2 })).toBe(false);
 		expect(insertionMarkerCleared({ ...lag2, currentBar: 3 })).toBe(true);
+	});
+
+	it('reads the close bar behind a two-bar count-in', () => {
+		// closeBar = floor((3 * BAR - 2 * BAR) / BAR) = 1.
+		const twoBar = { ...base, closeTick: 3 * BAR, countInTicks: 2 * BAR, played: true };
+		expect(insertionMarkerCleared({ ...twoBar, currentBar: 1 })).toBe(false);
+		expect(insertionMarkerCleared({ ...twoBar, currentBar: 2 })).toBe(true);
 	});
 
 	it('never clears when bar length is unknown (avoids a divide-by-zero flash)', () => {

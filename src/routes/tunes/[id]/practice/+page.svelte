@@ -148,6 +148,8 @@
 	// because the freestyle report derives bar numbers from it; ppq stays a
 	// plain let (audio-path only).
 	let barTicksNR = $state(0);
+	/** Transport ticks of the drum count-in ahead of the tune (one or two bars). */
+	let countInTicksNR = $state(0);
 	let ppqNR = 0;
 
 	// Freestyle recognition (created per session; torn down in stopAll).
@@ -307,6 +309,7 @@
 					played: !!result,
 					closeTick: ip.closeTick,
 					barTicks: barTicksNR,
+					countInTicks: countInTicksNR,
 					currentBar,
 					clearAfterBars: CLEAR_AFTER_PLAYED_BARS
 				})
@@ -604,6 +607,7 @@
 		const plan = startTunePracticeSession(baseSheet, ppqNR);
 		audioPlan = plan;
 		barTicksNR = plan.sheet.timeSignature[0] * ppqNR;
+		countInTicksNR = plan.countInBars * barTicksNR;
 		currentBar = -1;
 		playheadBarF = -1;
 		cursorIndex = null;
@@ -635,6 +639,7 @@
 			await playback.playPhrase(plan.playedPhrase, getPlaybackOptions(), false, {
 				skipMelody,
 				loopBacking: false,
+				countIn: { bars: plan.countInBars, drums: true },
 				onStarted: scheduleInsertionWindows,
 				onNote: handlePlaybackNote
 			});
@@ -650,11 +655,11 @@
 		if (!toneModule || !audioPlan) return;
 		const transport = toneModule.getTransport();
 		const leadBars = audioPlan.leadBars;
-		const practiceStartTick = barTicksNR + leadBars * barTicksNR;
+		const practiceStartTick = countInTicksNR + leadBars * barTicksNR;
 		if (leadBars > 0) {
 			transport.scheduleOnce(() => {
 				if (isSessionRunning) markHead();
-			}, `${barTicksNR}i`);
+			}, `${countInTicksNR}i`);
 		}
 		transport.scheduleOnce(() => {
 			if (!isSessionRunning) return;
@@ -851,7 +856,7 @@
 				// Fractional bar from ticks (tempo-independent) — same discipline
 				// as lick-practice scrollFraction. Integer floor feeds markers;
 				// the fraction feeds continuous chart follow-scroll.
-				const formBarF = (toneModule.getTransport().ticks - barTicksNR) / barTicksNR;
+				const formBarF = (toneModule.getTransport().ticks - countInTicksNR) / barTicksNR;
 				playheadBarF = formBarF;
 				const bar = Math.floor(formBarF);
 				if (bar !== currentBar) currentBar = bar;
@@ -908,7 +913,7 @@
 	/** Chart bar (1-based) for a freestyle match's transport tick. */
 	function freestyleDisplayBar(atTick: number): number {
 		if (!audioPlan || barTicksNR <= 0) return 1;
-		const playBar = Math.floor((atTick - barTicksNR) / barTicksNR);
+		const playBar = Math.floor((atTick - countInTicksNR) / barTicksNR);
 		const formBar =
 			playbackBarForSessionBar(playBar, audioPlan.flat.totalBars, audioPlan.leadBars, audioPlan.practiceStartBar);
 		const chartBar = notationBarForPlaybackBar(
