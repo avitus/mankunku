@@ -4,7 +4,7 @@ Mankunku is a jazz ear training web app built around **call and response**: the 
 
 Named after [Winston "Mankunku" Ngozi's](https://en.wikipedia.org/wiki/Winston_Mankunku_Ngozi) iconic 1968 album *Yakhal' Inkomo*, this app targets jazz musicians practicing ear training, transcription, and improvisation vocabulary.
 
-The player guides, plus a handful of the architecture and reference pages, are also served in the app at `/docs`, beside an AI docs assistant that answers from a core subset of them (`CORE_DOC_SLUGS` in `src/lib/docs/context.ts`) — `src/lib/docs/structure.ts` decides which pages are served, and one absent from that tree 404s there. [`CLAUDE.md`](../CLAUDE.md) at the repo root is the densest current architecture reference.
+The player guides, plus a handful of the architecture and reference pages, are also served in the app at `/docs`, beside an AI docs assistant that answers from a core subset of them (`CORE_DOC_SLUGS` in `src/lib/docs/context.ts`) — `src/lib/docs/structure.ts` decides which pages are served, and one absent from that tree 404s there. [`AGENTS.md`](../AGENTS.md) at the repo root is the densest current architecture reference.
 
 > **2026-10-16** — **keys unlock by key signature.** A lick's next key is now the one with the fewest sharps or flats as you read it — the sharp key before the flat key on a tie — instead of the nearest key on the circle of fifths. A minor lick counts its relative major's signature, so a G minor lick goes to A minor next, not D minor; a G major lick goes to C. Licks keep their unlock count and re-derive their rotation under the new order.
 >

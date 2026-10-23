@@ -157,7 +157,7 @@ docs/               OMR docs, WJazzD attribution
 
 **Tunes bridge into the Phrase pipeline** — Tunes were added without forking playback, scoring, or notation. `flattenTune` collapses a tune's sections into one continuous timeline (in notation order or repeat-expanded playback order, with index maps between them), and `tuneToPhrase` wraps that in a `Phrase` so the existing engines consume a song form with no new orchestration. See [Tune System](documentation/architecture/tune-system.md).
 
-See [Architecture Overview](documentation/architecture/overview.md) for detailed system design documentation, and [`CLAUDE.md`](CLAUDE.md) for the densest current reference.
+See [Architecture Overview](documentation/architecture/overview.md) for detailed system design documentation, and [`AGENTS.md`](AGENTS.md) for the densest current reference.
 
 ## Contributing
 

@@ -3196,7 +3196,7 @@ function findReArticulationsInSegment(
 				// loud held Db read 0.947 and 0.928. The energy-sustain gate
 				// refused both, because the note was falling each time, so on a
 				// held or swelling note the schedule is the guard left — and
-				// ear-training's click grid is still off (CLAUDE.md, the OPEN
+				// ear-training's click grid is still off (AGENTS.md, the OPEN
 				// click-grid note).
 				if (
 					sortedBleed.some(

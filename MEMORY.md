@@ -367,7 +367,7 @@ Andy's report: deleting a note in a complete score pulled every later note earli
 - **All architecture docs**: `documentation/architecture/` (audio-pipeline, data-model, scoring-algorithm, state-management, tech-stack, tonality-system, adaptive-difficulty, phrase-system, tune-system, lick-alignment, pitch-rhythm-coupling, design-system)
 - **Player guides**: `documentation/getting-started.md`, `user-guide.md`, `tunes.md`, `tune-practice.md`
 - **PRD**: `PRD.md`
-- **Project conventions**: `CLAUDE.md`
+- **Project conventions**: `AGENTS.md`
 - **Testing rules and suites**: `documentation/contributing/testing-guide.md`; e2e harness: `tests/e2e/README.md`
 - **Independent observations**: `CLAUDIUS/observations.md`
 - **Sessions log**: `CLAUDIUS/SESSIONS.md`

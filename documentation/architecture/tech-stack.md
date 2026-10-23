@@ -44,7 +44,7 @@
 | [driver.js](https://driverjs.com) | ^1.4 | Guided tours (`src/lib/tour/`) |
 | [marked](https://marked.js.org) + [sanitize-html](https://github.com/apostrophecms/sanitize-html) | ^18 / ^2.17 | In-app docs rendering (`src/lib/docs/`) |
 
-**Node.** `.nvmrc` pins **26.5.1** (what the production server runs); `package.json` `engines` allows `>=22.12.0`. The `omr/` subsystem is a separate uv-managed **Python 3.12** project (its own `pyproject.toml` / `uv.lock` / `.venv`) that nothing in the app calls yet — see the OMR section of [CLAUDE.md](../../CLAUDE.md) and `docs/omr/README.md`.
+**Node.** `.nvmrc` pins **26.5.1** (what the production server runs); `package.json` `engines` allows `>=22.12.0`. The `omr/` subsystem is a separate uv-managed **Python 3.12** project (its own `pyproject.toml` / `uv.lock` / `.venv`) that nothing in the app calls yet — see the OMR section of [AGENTS.md](../../AGENTS.md) and `docs/omr/README.md`.
 
 ## Installable web app (no service worker)
 

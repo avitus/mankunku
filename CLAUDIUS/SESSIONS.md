@@ -5866,3 +5866,15 @@ monitor whether it results in faster CI times."
   play still counts in silence — deliberate: no band, no drummer.
 - Fresh worktree needed `.env` and `npm ci` (the circleci coverage
   reporter package was missing from the stale node_modules).
+
+## 2026-10-23 — AGENTS.md is the agent guide
+
+- Local main wouldn't fast-forward: an untracked root `AGENTS.md` (a
+  2026-09 Claude→Codex find-and-replace copy of CLAUDE.md) collided with
+  the tracked Codex testing-rules file added in 672449e0. Moved aside to
+  `.codex/AGENTS.local-2026-09-13.md` (untracked), then fast-forwarded.
+- With both files at the root, Claude Code read only CLAUDE.md and Codex
+  only the short testing file. AGENTS.md (the cross-agent standard) now
+  holds the full guide plus the testing rules; CLAUDE.md is a single
+  `@AGENTS.md` import. Live doc links and three source comments
+  repointed; dated session logs and specs left as written.
