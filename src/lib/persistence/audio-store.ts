@@ -11,7 +11,8 @@
  * upload (`pruneCloudRecordings`). Downloads fall back to the cloud when a
  * recording is missing from the local IndexedDB store.
  *
- * Each record is `{ sessionId, blob, timestamp, metadata | null }`.
+ * Each record is `{ sessionId, bytes, type, timestamp, metadata | null }` —
+ * the audio's BYTES plus its MIME type, never a Blob (see `StoredRecording`).
  * Metadata is a self-contained snapshot of the practice context at save
  * time (phrase, score, detected notes, backing-track log, bleed-filter
  * log). It is optional so cloud-restored recordings and legacy records
@@ -124,6 +125,39 @@ export interface RecordingRecord {
 	metadata: RecordingMetadata | null;
 }
 
+/**
+ * The stored shape: the take's BYTES plus its MIME type, never a Blob.
+ * Playwright's WebKit aborts every IndexedDB put whose value holds a Blob
+ * while an ArrayBuffer stores fine (the tune-PDF store hit it first,
+ * 2026-09-16), and `saveRecording` swallows the local failure by design, so
+ * Safari kept no local copy of any take: no Play Recording, no /diagnostics,
+ * no Flag Scoring Error. Reads still accept the Blob-valued records earlier
+ * builds wrote.
+ */
+interface ByteRecording {
+	sessionId: string;
+	bytes: ArrayBuffer;
+	type: string;
+	timestamp: number;
+	metadata: RecordingMetadata | null;
+}
+
+interface BlobRecording {
+	sessionId: string;
+	blob: Blob;
+	timestamp: number;
+	metadata: RecordingMetadata | null;
+}
+
+type StoredRecording = ByteRecording | BlobRecording;
+
+function toBlob(record: StoredRecording | undefined): Blob | null {
+	if (!record) return null;
+	if ('bytes' in record && record.bytes) return new Blob([record.bytes], { type: record.type });
+	if ('blob' in record && record.blob) return record.blob;
+	return null;
+}
+
 export interface RecordingSummary {
 	sessionId: string;
 	timestamp: number;
@@ -179,6 +213,9 @@ export async function saveRecording(
 	// private-mode failure should neither lose the take (the cloud upload below
 	// still runs) nor short-circuit the caller's authoritative post-hoc rescore.
 	try {
+		// Read the bytes before the transaction opens: an await on anything but
+		// an IDB request inside it lets the transaction auto-commit.
+		const bytes = await blob.arrayBuffer();
 		const db = await openDb();
 		try {
 			const transaction = db.transaction(STORE_NAME, 'readwrite');
@@ -186,12 +223,14 @@ export async function saveRecording(
 			// JSON round-trip strips Svelte 5 $state proxies that structuredClone
 			// (used internally by IndexedDB) cannot handle.
 			const plainMetadata = metadata ? JSON.parse(JSON.stringify(metadata)) : null;
-			store.put({
+			const record: ByteRecording = {
 				sessionId,
-				blob,
+				bytes,
+				type: blob.type,
 				timestamp: Date.now(),
 				metadata: plainMetadata
-			});
+			};
+			store.put(record);
 
 			const all = await idbReq(store.getAll());
 			if (all.length > MAX_RECORDINGS) {
@@ -320,8 +359,7 @@ export async function getRecording(
 	try {
 		db = await openDb();
 		const store = db.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME);
-		const result = await idbReq(store.get(sessionId));
-		localResult = result?.blob ?? null;
+		localResult = toBlob(await idbReq<StoredRecording | undefined>(store.get(sessionId)));
 	} catch (err) {
 		console.warn('Failed to read recording from local storage:', err);
 		localResult = null;
@@ -365,11 +403,12 @@ export async function getRecordingFull(sessionId: string): Promise<RecordingReco
 	const db = await openDb();
 	try {
 		const store = db.transaction(STORE_NAME, 'readonly').objectStore(STORE_NAME);
-		const result = await idbReq(store.get(sessionId));
-		if (!result) return null;
+		const result = await idbReq<StoredRecording | undefined>(store.get(sessionId));
+		const blob = toBlob(result);
+		if (!result || !blob) return null;
 		return {
 			sessionId: result.sessionId,
-			blob: result.blob,
+			blob,
 			timestamp: result.timestamp,
 			metadata: result.metadata ?? null
 		};

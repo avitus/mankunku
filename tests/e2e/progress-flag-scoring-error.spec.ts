@@ -104,7 +104,6 @@ async function seedRecording(page: Page, uid: string) {
 			for (let i = Math.round(1.5 * rate); i < Math.round(2.5 * rate); i++) {
 				wav.setInt16(44 + i * 2, Math.round(0.5 * 0x7fff * Math.sin((2 * Math.PI * 146.83 * i) / rate)), true);
 			}
-			const blob = new Blob([wav.buffer], { type: 'audio/wav' });
 			const db = await new Promise<IDBDatabase>((resolve, reject) => {
 				const req = indexedDB.open(`mankunku-audio:${uid}`, 1);
 				req.onupgradeneeded = () => {
@@ -119,7 +118,9 @@ async function seedRecording(page: Page, uid: string) {
 				const tx = db.transaction('recordings', 'readwrite');
 				tx.objectStore('recordings').put({
 					sessionId,
-					blob,
+					// The store's own shape: bytes + MIME type, never a Blob.
+					bytes: wav.buffer,
+					type: 'audio/wav',
 					timestamp,
 					metadata: {
 						phraseId: 'pfl-035_D',
@@ -156,10 +157,7 @@ async function expandSession(page: Page) {
 }
 
 adminTest.describe('progress — Flag Scoring Error', () => {
-	adminTest.beforeEach(async ({ signedInPage, browserName }) => {
-		// WebKit cannot store a Blob in Playwright's ephemeral IndexedDB (the
-		// put's transaction aborts), so there is no recording to flag.
-		adminTest.skip(browserName === 'webkit', 'WebKit cannot store a Blob in ephemeral IndexedDB');
+	adminTest.beforeEach(async ({ signedInPage }) => {
 		await seedSession(signedInPage);
 		await signedInPage.goto('/progress');
 		await seedRecording(signedInPage, ADMIN.id);
@@ -221,8 +219,7 @@ adminTest.describe('progress — Flag Scoring Error', () => {
 });
 
 test.describe('progress — Flag Scoring Error is admin-only', () => {
-	test('a player sees the playback buttons and no flag', async ({ signedInPage: page, browserName, testUser }) => {
-		test.skip(browserName === 'webkit', 'WebKit cannot store a Blob in ephemeral IndexedDB');
+	test('a player sees the playback buttons and no flag', async ({ signedInPage: page, testUser }) => {
 		await seedSession(page);
 		await page.goto('/progress');
 		await seedRecording(page, testUser.id);

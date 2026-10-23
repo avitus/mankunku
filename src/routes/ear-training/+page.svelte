@@ -337,7 +337,10 @@
 			}
 			return true;
 		} catch (err) {
-			console.error('Mic error:', err);
+			// A refusal (or no input device) is the player's call, not a fault:
+			// the page falls back to listen-only and says so.
+			const refused = err instanceof DOMException && ['NotAllowedError', 'NotFoundError', 'SecurityError'].includes(err.name);
+			(refused ? console.warn : console.error)('Mic error:', err);
 			session.micPermission = 'denied';
 			return false;
 		}

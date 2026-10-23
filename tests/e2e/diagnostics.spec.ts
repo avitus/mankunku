@@ -96,13 +96,8 @@ test.describe('diagnostics', () => {
 	});
 
 	test('replays each recording in its own scoring frame — trim and duration per source', async ({
-		page,
-		browserName
+		page
 	}) => {
-		// Same limit lick-practice-session.spec.ts records: WebKit cannot store a
-		// Blob in IndexedDB in Playwright's ephemeral context (the put's
-		// transaction aborts), so there is no recording to seed.
-		test.skip(browserName === 'webkit', 'WebKit cannot store a Blob in ephemeral IndexedDB');
 		await page.goto('/diagnostics');
 		await expect(page.getByText('showing 0 recordings')).toBeVisible();
 
@@ -134,7 +129,9 @@ test.describe('diagnostics', () => {
 			for (let i = Math.round(1.5 * rate); i < Math.round(2.5 * rate); i++) {
 				wav.setInt16(44 + i * 2, Math.round(0.5 * 0x7fff * Math.sin((2 * Math.PI * 261.63 * i) / rate)), true);
 			}
-			const blob = new Blob([wav.buffer], { type: 'audio/wav' });
+			// The store's own shape: bytes + MIME type, never a Blob (WebKit
+			// aborts a Blob-valued put; audio-store.ts).
+			const audio = { bytes: wav.buffer, type: 'audio/wav' };
 
 			const db = await new Promise<IDBDatabase>((resolve, reject) => {
 				const req = indexedDB.open('mankunku-audio:anon', 1);
@@ -148,7 +145,7 @@ test.describe('diagnostics', () => {
 			});
 			const record = (sessionId: string, source: string, timestamp: number) => ({
 				sessionId,
-				blob,
+				...audio,
 				timestamp,
 				metadata: {
 					phraseId: 'late-entry',
@@ -218,8 +215,7 @@ test.describe('diagnostics', () => {
 	 * began 366 ms after its arm instant would produce, and a stamp 100 ms ahead
 	 * of the transport (Tone's lookahead).
 	 */
-	test('measures where a recording starts from its saved capture timing', async ({ page, browserName }) => {
-		test.skip(browserName === 'webkit', 'WebKit cannot store a Blob in ephemeral IndexedDB');
+	test('measures where a recording starts from its saved capture timing', async ({ page }) => {
 		await page.goto('/diagnostics');
 		await expect(page.getByText('showing 0 recordings')).toBeVisible();
 
@@ -232,8 +228,7 @@ test.describe('diagnostics', () => {
 		]);
 		await page.evaluate(
 			async ({ wav, offset }) => {
-				const bytes = Uint8Array.from(atob(wav), (c) => c.charCodeAt(0));
-				const blob = new Blob([bytes], { type: 'audio/wav' });
+				const bytes = Uint8Array.from(atob(wav), (c) => c.charCodeAt(0)).buffer;
 				// The live detector's frames over the two notes: window centres every
 				// 1/60 s, stamped at window END in seconds from the arm instant.
 				const liveWindow = 4096 / 48000;
@@ -277,7 +272,8 @@ test.describe('diagnostics', () => {
 					const tx = db.transaction('recordings', 'readwrite');
 					tx.objectStore('recordings').put({
 						sessionId: 'timed-take',
-						blob,
+						bytes,
+						type: 'audio/wav',
 						timestamp: Date.now(),
 						metadata: {
 							phraseId: 'timed',
@@ -331,8 +327,7 @@ test.describe('diagnostics', () => {
 	});
 });
 
-test('shows musical rhythm feedback in progress and keeps saved timing in diagnostics', async ({ page, browserName }, testInfo) => {
-	test.skip(browserName === 'webkit', 'WebKit cannot store a Blob in ephemeral IndexedDB');
+test('shows musical rhythm feedback in progress and keeps saved timing in diagnostics', async ({ page }, testInfo) => {
 	const timing = { meanOffsetMs: 12, medianOffsetMs: 0, stdDevMs: 30, latencyCorrectionMs: 250, perNoteOffsetMs: [0, 12, -12, 48] };
 	const noteResults = Array.from({ length: 4 }, (_, i) => ({
 		expected: { pitch: 60, offset: [i, 4], duration: [1, 4] },
@@ -388,7 +383,7 @@ test('shows musical rhythm feedback in progress and keeps saved timing in diagno
 			const tx = db.transaction('recordings', 'readwrite');
 			tx.objectStore('recordings').put({
 				sessionId: 'rhythm-feedback', timestamp: Date.now(),
-				blob: new Blob([Uint8Array.from(atob(wav), (c) => c.charCodeAt(0))], { type: 'audio/wav' }),
+				bytes: Uint8Array.from(atob(wav), (c) => c.charCodeAt(0)).buffer, type: 'audio/wav',
 				metadata: { phraseId: 'timing-fixture', phraseName: 'Timing test line', source: 'ear-training', tempo: 120, key: 'C', swing: .5, score, detectedNotes: [], backingTrackLog: null, bleedFilterLog: null }
 			});
 			await new Promise<void>((resolve, reject) => {
