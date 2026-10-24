@@ -3178,3 +3178,21 @@ own snapshot.
 The WebKit flake was a good reminder that "stable" in Playwright is a
 statement about animation frames, and a starved browser stops producing
 them. Slow and stalled look identical from the test's side.
+
+## 2026-10-23 — A later repair erased the evidence of an earlier miss
+
+The twelfth-up fold was built on the sub-segment, after the tiers, and it
+did its job so well on this take that the saved note was a single clean
+D3 — nothing in the export said the note had been in four pieces while
+the articulation tiers looked at it. The export's per-frame flags were
+the only trace, and only because the take was recent enough to carry
+them. Two generalisations. First, the CLAUDE.md rule "a MIDI-change
+correction must live wherever MIDI changes are read" was stated for two
+consumers and was already true for three; the honest form is "for every
+consumer", and a grep for `findSameMidiRuns`-style grouping is the audit.
+Second, when a pipeline stage corrects the stream and a later stage
+re-derives something from the corrected stream, the output can look
+right while an intermediate stage worked on the wrong stream. A clean
+output is not evidence that every stage saw clean input — which is why
+the corpus tests pin the intermediate (`articulationOnsets`) and not just
+the notes.

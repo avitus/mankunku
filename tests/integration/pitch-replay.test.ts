@@ -4094,3 +4094,159 @@ describe('pitch replay regression: Blue Note Step-Up — a tongue that only chan
 		expect(detected.map((n) => n.midi)).toEqual([50, 50, 52]);
 	});
 });
+
+describe('pitch replay regression: Up to the Seventh — a tongued D3 pair under a third-harmonic lock (concert A, 2026-10-24)', () => {
+	// Flagged from /progress ("Missed articulation between first two notes").
+	// Ear training, tenor, 100 BPM, metronome only. The line is D3 · D3 · E3 ·
+	// G3, a quarter each; the player tongued the second D on beat 2 and the
+	// app saved ONE 1.22 s D3 — 3 of 4, 0.747 "good".
+	//
+	// Two things met. The D3's third harmonic (A4, 440 Hz) took the pick for
+	// most of both notes — 46 of the 63 confident frames inside the saved D
+	// read MIDI 69, every one flagged `twelfthUp` — and the tongue at 0.92 s
+	// left ordinary evidence: the envelope floor falls 0.195 → 0.113 and the
+	// instrument-band floor 0.175 → 0.101 across it, tongue noise doubles
+	// (hfRms 0.015 → 0.032), the four frames at the trough read D3 at 0.98
+	// shape and the lock resumes once the note re-blooms. But the tiers scan
+	// contiguous same-MIDI runs, and the lock chopped the D into runs of 6,
+	// 18, 4 and 16 frames with the dip's edges in different runs. The
+	// segmenter folds the lock later (`foldTwelfthUpLocks`, on the
+	// sub-segment), which is why the saved note is a single D3 and not
+	// D3 · A4 · D3 — the fold reunited the note AFTER the tiers had already
+	// run on the fragments. `findReArticulations` now folds lock RUNS on its
+	// stream first (`foldTwelfthUpLockRuns`, the live onset extractor's
+	// fold), so the tiers see one D3 run and the envelope tier takes the dip.
+	const TRANSPORT_SECONDS = 448.58598639455784;
+	const TEMPO = 100;
+	const SWING = 0.6;
+	const FIXTURE = 'recordings/2026-10-24-up-to-the-seventh';
+	const WINDOW = 4096 / 44100;
+
+	const expectedPhrase: Phrase = {
+		id: 'bbn-006_A',
+		name: 'Up to the Seventh',
+		timeSignature: [4, 4],
+		key: 'A',
+		notes: [
+			{ pitch: 50, duration: [1, 4], offset: [0, 1] }, // D3
+			{ pitch: 50, duration: [1, 4], offset: [1, 4] }, // D3
+			{ pitch: 52, duration: [1, 4], offset: [1, 2] }, // E3
+			{ pitch: 55, duration: [1, 4], offset: [3, 4] } // G3
+		],
+		harmony: [
+			{ chord: { root: 'A', quality: '7' }, scaleId: 'blues.minor', startOffset: [0, 1], duration: [1, 1] }
+		],
+		difficulty: { level: 2, pitchComplexity: 6, rhythmComplexity: 1, lengthBars: 1 },
+		category: 'blues',
+		tags: ['blue-note', 'ascending', 'passing-up', 'reach-b7'],
+		source: 'curated'
+	};
+
+	const replayPipeline = (opts: { live?: boolean } = {}) =>
+		replayEarTrainingTake(`${FIXTURE}.wav`, TRANSPORT_SECONDS, TEMPO, opts);
+
+	const readJson = () =>
+		JSON.parse(
+			readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '..', 'fixtures', `${FIXTURE}.json`), 'utf8')
+		);
+
+	it('the app saved one 1.22 s D3 and missed the second D (3 of 4, 0.747)', () => {
+		const json = readJson();
+		expect(json.flag.note).toMatch(/articulation/i);
+		const saved: DetectedNote[] = json.scoring.savedDetectedNotes;
+		expect(saved.map((n) => n.midi)).toEqual([50, 52, 55]);
+		expect(saved[0].duration).toBeCloseTo(1.22, 2);
+		expect(json.scoring.savedScore.notesHit).toBe(3);
+		expect(json.scoring.savedScore.noteResults[1].missed).toBe(true);
+		expect(json.scoring.savedScore.overall).toBeCloseTo(0.747, 3);
+	});
+
+	it('the saved readings reproduce the saved score through the pipeline as it was', () => {
+		// The export carries every per-frame flag the detector has, so the
+		// saved-readings path shows the fix as well as the WAV does.
+		const json = readJson();
+		const readings: PitchReading[] = json.detection.readings;
+		const duration: number = json.audio.duration;
+		const bleed = getMetronomeBleedOnsets(TRANSPORT_SECONDS, TEMPO, duration);
+		const base = resolveOnsets(json.detection.rawWorkletOnsets, readings);
+		expect(base).toEqual([json.detection.rawWorkletOnsets[0]]);
+		const articulation = findReArticulations(readings, base, bleed);
+		const detected = segmentNotes(
+			readings,
+			[...base, ...articulation].sort((a, b) => a - b),
+			duration,
+			undefined,
+			undefined,
+			undefined,
+			json.detection.rawWorkletOnsets,
+			bleed,
+			articulation,
+			json.detection.weakReadings
+		);
+		expect(detected.map((n) => n.midi)).toEqual([50, 50, 52, 55]);
+		expect(articulation).toHaveLength(1);
+		expect(articulation[0]).toBeGreaterThan(0.88);
+		expect(articulation[0]).toBeLessThan(1.0);
+	});
+
+	it('trims the pre-armed lead-in back to the performance', async () => {
+		const { trimmed } = await replayPipeline();
+		expect(trimmed.offset).toBeCloseTo(1.4, 2);
+	});
+
+	it('the third harmonic carries most of the D, flagged, and the tongue dips the floors between the locked runs', async () => {
+		const { trimmed } = await replayPipeline();
+		const inD = trimmed.readings.filter((r) => !r.warmup && r.time >= 0.295 && r.time < 1.45);
+		const locked = inD.filter((r) => r.midi === 69);
+		expect(locked.length).toBeGreaterThan(inD.length * 0.6);
+		expect(locked.every((r) => r.twelfthUp)).toBe(true);
+		expect(inD.filter((r) => r.midi === 50).every((r) => !r.twelfthUp)).toBe(true);
+		// The dip: floors before (0.80–0.87, locked) against the trough
+		// (0.93–0.99, read as D3), tongue noise doubled on the way down.
+		const before = inD.filter((r) => r.time >= 0.8 && r.time < 0.875);
+		const trough = inD.filter((r) => r.time >= 0.93 && r.time < 0.99);
+		expect(before.every((r) => r.midi === 69)).toBe(true);
+		expect(trough.every((r) => r.midi === 50)).toBe(true);
+		const med = (xs: number[]) => xs.sort((a, b) => a - b)[Math.floor(xs.length / 2)];
+		expect(med(trough.map((r) => r.rmsMin!)) / med(before.map((r) => r.rmsMin!))).toBeLessThan(0.65);
+		expect(med(trough.map((r) => r.bandRmsMin!)) / med(before.map((r) => r.bandRmsMin!))).toBeLessThan(0.65);
+		const noise = inD.filter((r) => r.time >= 0.84 && r.time < 0.93).map((r) => r.hfRms!);
+		expect(Math.min(...noise)).toBeGreaterThan(0.028);
+		expect(med(before.slice(0, 2).map((r) => r.hfRms!))).toBeLessThan(0.016);
+		// Bleed grid: the beat-2 click (0.814) sits a lookahead before its sound
+		// and well clear of the tongue.
+		const bleed = getMetronomeBleedOnsets(TRANSPORT_SECONDS, TEMPO, trimmed.duration);
+		expect(bleed[1]).toBeCloseTo(0.814, 2);
+		expect(trimmed.readings.some((r) => r.time > bleed[1] && r.time < bleed[1] + WINDOW)).toBe(true);
+	});
+
+	it('replayed: D3, D3, E3, G3 with the second D at the tongue (saved: D3, E3, G3)', async () => {
+		const { detected, articulationOnsets } = await replayPipeline();
+		expect(detected.map((n) => n.midi)).toEqual([50, 50, 52, 55]);
+		expect(articulationOnsets).toHaveLength(1);
+		expect(detected[1].onsetTime).toBeGreaterThan(0.88);
+		expect(detected[1].onsetTime).toBeLessThan(1.0);
+	});
+
+	it('scores four of four with no extras (saved: 3 of 4, 0.747)', async () => {
+		const { detected } = await replayPipeline();
+		const result = runScorePipeline({
+			detected,
+			phrase: expectedPhrase,
+			tempo: TEMPO,
+			transportSeconds: TRANSPORT_SECONDS,
+			swing: SWING,
+			bleedFilterEnabled: false
+		});
+		expect(result.chosen.notesHit).toBe(4);
+		expect(result.chosen.extrasCharged).toBe(0);
+		expect(result.chosen.pitchAccuracy).toBe(1);
+		expect(result.chosen.noteResults.some((nr) => nr.missed || nr.extra)).toBe(false);
+		expect(result.chosen.overall).toBeGreaterThan(0.9);
+	});
+
+	it('splits the pair the same way in the live detector time base', async () => {
+		const { detected } = await replayPipeline({ live: true });
+		expect(detected.map((n) => n.midi)).toEqual([50, 50, 52, 55]);
+	});
+});

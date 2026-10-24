@@ -5878,3 +5878,26 @@ monitor whether it results in faster CI times."
   holds the full guide plus the testing rules; CLAUDE.md is a single
   `@AGENTS.md` import. Live doc links and three source comments
   repointed; dated session logs and specs left as written.
+
+## 2026-10-23 — Up to the Seventh: a tongue hidden inside a third-harmonic lock
+
+- Andy flagged a take from /progress ("Missed articulation between first
+  two notes"): D3 · D3 · E3 · G3 on tenor at 100, the second D tongued on
+  beat 2, saved as ONE 1.22 s D3 — 3 of 4, 0.747.
+- Reproduced both ways (saved readings exact; WAV identical). The D's
+  third harmonic took the pick on 46 of 63 frames, all flagged
+  `twelfthUp`, in runs of 6 · 18 · 4 · 16. The tongue at 0.92 s had plain
+  evidence — floor 0.195 → 0.113, band floor 0.175 → 0.101, hfRms
+  doubled — but `findReArticulations` scans contiguous same-MIDI runs,
+  and the dip's edges sat in different runs. The segmenter's sub-segment
+  fold then reunited the fragments AFTER the tiers had run, which is why
+  the saved note was a clean D3 and gave no hint of the fragmentation.
+- Fix: `findReArticulations` folds lock runs on its stream first
+  (`foldTwelfthUpLockRuns`, the live extractor's fold). The envelope tier
+  then takes the dip (HF-corroborated) and anchors at the re-bloom,
+  0.997. Saved readings and WAV, both time bases: 4 of 4, 0.984 / 0.971.
+  Whole corpus unchanged (full suite green; the one red file was the
+  stale worktree's missing coverage-reporter package, fixed by `npm ci`).
+- Unit pin: a flagged lock before a true hole is one run and the gap
+  tier splits it; the same shape unflagged is a leap and splits nothing.
+- Docs: pipeline bullet, API row, CLAUDE.md paragraph ("a third place").

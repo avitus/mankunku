@@ -2340,11 +2340,25 @@ function hasReadingInOpenInterval(readings: PitchReading[], from: number, to: nu
  * suppression in tiers 2 and 5 — dropping them at a call site restores phantoms.
  */
 export function findReArticulations(
-	readings: PitchReading[],
+	rawReadings: PitchReading[],
 	baseOnsets: number[],
 	bleedOnsets?: number[]
 ): number[] {
-	if (readings.length === 0) return [];
+	if (rawReadings.length === 0) return [];
+
+	// Fold 3rd-harmonic lock RUNS a twelfth down before anything reads MIDI
+	// here (`foldTwelfthUpLockRuns`, the live onset extractor's fold). The
+	// tiers scan contiguous same-MIDI runs, so a lock inside a held note
+	// chops it into fragments and a tongue whose dip straddles a lock edge
+	// is never seen whole: the 2026-10-24 Up to the Seventh D3 pair read A4
+	// on 46 of 63 frames (runs of 6, 18, 4 and 16), and its envelope floor
+	// fell 0.195 → 0.113 with tongue noise doubled across a run boundary —
+	// the segmenter's own sub-segment fold then reunited the pieces into
+	// ONE 1.22 s note, after the tiers had run. Only `midi`/`midiFloat`
+	// move; every energy, shape and timbre field the tiers measure is
+	// untouched, and an unflagged leap keeps its own runs. The corpus
+	// segments byte-identically with the fold in place.
+	const readings = foldTwelfthUpLockRuns(rawReadings);
 
 	const sortedBleed =
 		bleedOnsets && bleedOnsets.length > 0 ? [...bleedOnsets].sort((a, b) => a - b) : [];
