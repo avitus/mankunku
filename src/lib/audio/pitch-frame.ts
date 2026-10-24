@@ -628,10 +628,30 @@ const SUBHARMONIC_ODD_HARMONIC_RATIO = 0.12;
  * `g = f/2` at or above the supported minimum pitch. The max stops below G3's 2nd
  * harmonic (~392 Hz): notes from ~G3 up detect their own strong fundamental and
  * never mislock, so nothing above the band needs pulling down.
+ *
+ * A lock can also leave the 3rd and 5th partials too weak for that rank: the
+ * 2026-10-24 Slow Climb to the Third E3 carried them strongly for a stretch
+ * mid-note and barely at all elsewhere, so 10 of its 63 frames reached 0.12
+ * and the whole-note vote never formed. Its fundamental held throughout, at
+ * 0.034–0.088 of the 330 Hz partial. The second test reads the lower note's
+ * whole odd series, fundamental included, in the twelfth-up lock's two-ratio
+ * form (with g = f/2):
+ *   1. (mag(g) + mag(3g) + mag(5g)) / (mag(2g) + mag(4g))
+ *      ≥ OCTAVE_UP_SERIES_RATIO. Lock frames: 0.056–0.25.
+ *   2. The mean of those three bins is ≥ OCTAVE_UP_SERIES_RANK × the mean of
+ *      the half-series bins between them, 1.5g, 2.5g, 3.5g, 4.5g, which no
+ *      partial of either note reaches — a series, not room rumble or an
+ *      attack's broadband energy. Lock frames: 3.9–20.
+ * It passes 51 of the take's 52 lock frames and all 84 of the Sixth–Octave
+ * Lift's. On the rest of the corpus it passes 31 of 4498 in-band frames of
+ * genuine notes (noise-floor and attack frames) and never more than 26% of
+ * one note's — under the 60% vote; the two locks reach 81% and 87%.
  */
 const OCTAVE_UP_MIN_FREQUENCY = 160;
 const OCTAVE_UP_MAX_FREQUENCY = 370;
 const OCTAVE_UP_ODD_HARMONIC_RATIO = 0.12;
+const OCTAVE_UP_SERIES_RATIO = 0.05;
+const OCTAVE_UP_SERIES_RANK = 4;
 
 /**
  * Twelfth-up (3rd-harmonic) lock — the next partial up from the octave case.
@@ -923,7 +943,14 @@ export function isOctaveUpLock(buffer: Float32Array, frequency: number, sampleRa
 	const fifth = goertzelMagnitude(buffer, frequency * 2.5, sampleRate); // 5g
 	const even = second + fourth;
 	if (even <= 0) return false;
-	return (third + fifth) / even >= OCTAVE_UP_ODD_HARMONIC_RATIO;
+	if ((third + fifth) / even >= OCTAVE_UP_ODD_HARMONIC_RATIO) return true;
+	// The odd partials can fade while the fundamental holds: read g's whole odd
+	// series, and only as a series — the bins between its partials stay empty.
+	const series = goertzelMagnitude(buffer, frequency / 2, sampleRate) + third + fifth;
+	if (series / even < OCTAVE_UP_SERIES_RATIO) return false;
+	let halfSeries = 0;
+	for (const k of [0.75, 1.25, 1.75, 2.25]) halfSeries += goertzelMagnitude(buffer, frequency * k, sampleRate);
+	return series / 3 >= (halfSeries / 4) * OCTAVE_UP_SERIES_RANK;
 }
 
 /**
@@ -1159,21 +1186,22 @@ export function detectFrame(
 
 	// Octave-UP (2nd-harmonic) locks are only FLAGGED here, not rewritten — the
 	// segmenter drops the note an octave when a majority of its frames carry the
-	// flag (see `isOctaveUpLock`). Two guards keep the flag from ever stacking a
-	// second octave correction on top of an existing one:
-	//   • `frequency === rawFrequency` — the subharmonic pass didn't already move
-	//     the pick (a doubled subharmonic sits an octave up by construction).
-	//   • `octaveCorrection === 0` — the stabilizer didn't already hold this frame
-	//     an octave down from its raw pick. Without this, a lock frame the
-	//     stabilizer has already pulled to the true fundamental (midi = rawMidi −
-	//     12) would still be flagged off its raw E4 spectrum, and the note-level
-	//     drop would take it a SECOND octave down (E3 → E2).
+	// flag (see `isOctaveUpLock`). `octaveCorrection === 0` keeps the flag from
+	// stacking a second octave correction on top of the stabilizer's: a lock
+	// frame it has already pulled to the true fundamental (midi = rawMidi − 12)
+	// would still be flagged off its raw E4 spectrum, and the note-level drop
+	// would take it a SECOND octave down (E3 → E2).
+	//
+	// A pick the subharmonic pass DOUBLED may carry the flag. That pass doubles
+	// when the 3rd and 5th partials of the low pick are weak — the very bins the
+	// first octave-up test reads at the doubled frequency, so that test cannot
+	// fire here. The series test can, and when it does the doubling was wrong:
+	// the 2026-10-24 Slow Climb to the Third E3 was picked at 164.5 Hz on 12 of
+	// its frames and doubled to E4 on every one.
 	const octaveUp =
-		frequency === rawFrequency &&
-		octaveCorrection === 0 &&
-		isOctaveUpLock(buffer, frequency, opts.sampleRate);
-	// Same guards for the 3rd-harmonic flag: it means "fold a twelfth down from
-	// the pitch this frame REPORTS", so a frame the subharmonic pass or the
+		octaveCorrection === 0 && isOctaveUpLock(buffer, frequency, opts.sampleRate);
+	// The 3rd-harmonic flag keeps both guards: it means "fold a twelfth down
+	// from the pitch this frame REPORTS", so a frame the subharmonic pass or the
 	// stabilizer has already moved must not carry it.
 	const twelfthUp =
 		frequency === rawFrequency &&

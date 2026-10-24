@@ -5901,3 +5901,34 @@ monitor whether it results in faster CI times."
 - Unit pin: a flagged lock before a true hole is one run and the gap
   tier splits it; the same shape unflagged is a leap and splits nothing.
 - Docs: pipeline bullet, API row, CLAUDE.md paragraph ("a third place").
+
+## 2026-10-24 — Slow Climb to the Third: an E3 scored as E4
+
+- Andy flagged a take ("Second note was scored in octave above"): D3 · E3 ·
+  F#3 half notes on tenor at 100, saved as D3 · E4 · F#3 — 2 of 3, 0.775.
+  Reproduced exactly from the saved readings and from the WAV.
+- The E3's 330 Hz partial carried ~20× its fundamental; McLeod reported E4
+  on 52 of 63 confident frames. `isOctaveUpLock` reads only g's 3rd and
+  5th partials (≥ 0.12 of f + 2f); on this E3 they surged mid-note and
+  were nearly gone elsewhere, so 10 frames were flagged and the whole-note
+  60% vote never formed. The fundamental held on every frame (0.034–0.088).
+- Survey over every in-band frame of the 45 takes: a second acceptance in
+  the twelfth-up form — g + 3g + 5g ≥ 0.05 of f + 2f AND mean ≥ 4× the
+  half-series bins 1.5g … 4.5g. 51/52 lock frames here, 84/84 Sixth–Octave
+  Lift; 31/4498 genuine frames, never more than 26% of one note.
+- First run of the fix: the vote reached only 40/63 (0.635, barely over
+  0.6). Twelve frames were McLeod picking the E3 itself, doubled to E4 by
+  `correctSubharmonic` (stage 2 = the same 3rd/5th test, from below) — and
+  the flag skipped doubled frames. My survey had included them, which is
+  why it promised 0.81. Dropped the `frequency === rawFrequency` guard for
+  `octaveUp` only (rule 1 reads the very bins stage 2 found empty, so it
+  can never fire on a doubled frame); the stabilizer guard stays. 51/63.
+- Corpus diff before/after, 45 takes × trimmed/untrimmed × replay/live:
+  only this take's notes change. Full suite green, check clean.
+- Tests: unit predicate (weak-odd E3 flagged, own fundamental / genuine E4 /
+  faint trace / broadband not; doubled pick flagged, doubled subharmonic of
+  a real E4 not), each gate mutation-checked red; corpus block in
+  pitch-replay (saved evidence, saved path still shows the miss — old
+  flags, trim, flag fraction, 3 of 3, live time base).
+- Worktree housekeeping: fast-forwarded to origin/dev first (8 behind),
+  `npm ci` for the coverage-reporter package, copied `.env` for `check`.

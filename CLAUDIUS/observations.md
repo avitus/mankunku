@@ -3196,3 +3196,30 @@ right while an intermediate stage worked on the wrong stream. A clean
 output is not evidence that every stage saw clean input — which is why
 the corpus tests pin the intermediate (`articulationOnsets`) and not just
 the notes.
+
+## 2026-10-24 — A guard that defers to an earlier stage inherits its evidence
+
+`correctSubharmonic`'s stage 2 and `isOctaveUpLock` ask the same question
+of the same bins from opposite sides: is there an odd series under the
+octave? The flag's `frequency === rawFrequency` guard said "the subharmonic
+pass already handled this frame" — true when both used the same test, and
+harmless, since rule 1 could never fire on a doubled frame anyway. The
+moment the octave-up side learned a stronger test, the guard silently
+became "trust the weaker test over the stronger one" on exactly the frames
+where McLeod had been RIGHT. Generalisation: when you strengthen a later
+stage, re-read every guard that defers to an earlier stage; a deferral is
+a claim that the earlier evidence was at least as good.
+
+Second, method: my survey recomputed the measure from the readings'
+frequencies and skipped the production guard, so it promised a 0.81 vote
+where the app produced 0.635 — still passing, by a hair, and I would have
+shipped a fix with 3% margin believing it had 21%. The regression test
+caught it only because it asserted the INTERMEDIATE quantity (the flagged
+fraction) rather than just the final notes. Survey through the production
+predicate path, and pin the margin, not just the outcome.
+
+The low tenor register keeps producing these (Sixth–Octave Lift E3,
+Climb to Five G3, Third Walks D3, Up to the Seventh D3, now this E3). Each
+fix is a partial-specific predicate. If a fifth kind shows up, the better
+frame may be one note-level question — "which fundamental best explains
+this note's averaged spectrum?" — instead of one flag per partial.
