@@ -7,6 +7,66 @@ import type { BackingStyle } from '$lib/types/instruments';
 import type { GeneratedBacking } from '$lib/audio/backing-generation';
 
 const context = { barIndex: 0, ppq: 192, beatsPerBar: 4, style: 'swing' as const, orchestration: 'coordinated' as const };
+describe('explicit terminal arrangement evidence', () => {
+ function score() {
+  const bass = { time: '2304i', absBeat: 12, midi: 36, duration: 6 / 7, velocity: 70 };
+  const piano = { time: '2304i', absBeat: 12, notes: [52, 57, 60, 67], duration: 6 / 7, velocity: 62 };
+  const drums = [{ time: '2304i', absBeat: 12, drum: 'ride', velocity: .32, role: 'accent' }, { time: '2304i', absBeat: 12, drum: 'kick', velocity: .15, role: 'accent' }];
+  const reservation = { version: 1, id: 'terminal-test', barIndex: 3, absBeat: 12, releaseBeat: 14, holdBeats: 2, participants: ['bass', 'piano', 'drums'], chord: { root: 'C', quality: 'maj6' } };
+  return { bassEvents: [bass], compEvents: [piano], drumEvents: drums,
+   ensemblePlan: { version: 1, trace: [], bars: [{ barIndex: 3, phraseIntent: 'release', energy: .4, responseOwner: 'nobody',
+    performanceEnergy: { phase: 'ending', chorusIndex: 2, targetEnergy: .4 },
+    piano: { role: 'mark_form', maxAttacks: 1 }, drums: { role: 'mark_form', keepTime: false }, bass: { role: 'time', keepPulse: false }, terminalArrangement: reservation }] },
+   ensembleDevelopment: { version: 1, pianoMotifs: [], drumPhrases: [], bassTurnarounds: [], terminalArrangements: [{ version: 1, reservationId: reservation.id, barIndex: 3, status: 'accepted', bass: structuredClone(bass), piano: structuredClone(piano), drums: structuredClone(drums) }] }
+  };
+ }
+ const cards = (value: ReturnType<typeof score>, overrides = {}) => describeMusicianDecisions(value as unknown as GeneratedBacking, { ...context, barIndex: 3, ...overrides });
+ it.each(['swing', 'straight'] as const)('describes a complete exactly scheduled %s closing chord', style => {
+  const result = cards(score(), { style });
+  expect(result.map(card => card.action)).toEqual(['Hold the final chord', 'Hold the final chord', 'Catch the final chord']);
+  expect(result.map(card => card.role)).toEqual(['Mark the form', 'Mark the form', 'Mark the form']);
+  expect(result.every(card => card.evidence.includes('Scheduled ending: shared final chord, then space'))).toBe(true);
+ });
+ it('keeps a silent planned ending distinct from a played closing chord', () => {
+  const generated = score(); generated.bassEvents = []; generated.compEvents = []; generated.drumEvents = [];
+  const result = cards(generated);
+  expect(result.every(card => card.evidence.includes('Planned ending: hold and release together'))).toBe(true);
+  expect(result.every(card => card.eventCount === 0)).toBe(true);
+  expect(result.flatMap(card => card.evidence)).not.toContain('Scheduled ending: shared final chord, then space');
+  expect(result.map(card => card.action).join(' ')).not.toContain('final chord');
+ });
+ it('explains an explicitly withheld ending without claiming the ordinary attacks caught it', () => {
+  const generated = score();
+  const withheld = { ...generated, ensembleDevelopment: { ...generated.ensembleDevelopment, terminalArrangements: [{ version: 1, reservationId: 'terminal-test', barIndex: 3, status: 'withheld', reason: 'preceding_release' }] } };
+  const result = cards(withheld as unknown as ReturnType<typeof score>);
+  expect(result[0].role).toBe('Keep time');
+  expect(result.every(card => card.evidence.includes('Ending not applied: an earlier note is still sustaining'))).toBe(true);
+  expect(result.flatMap(card => card.evidence)).not.toContain('Scheduled ending: shared final chord, then space');
+ });
+ it.each(['bass-pitch', 'piano-pitch', 'drum-voice', 'time', 'duration', 'velocity', 'reservation', 'extra-bass', 'extra-piano', 'extra-drum', 'pulse-kept'] as const)('does not claim an accepted ensemble ending from %s mismatches', change => {
+  const generated = score();
+  if (change === 'bass-pitch') generated.bassEvents[0].midi++;
+  if (change === 'piano-pitch') generated.compEvents[0].notes[0]++;
+  if (change === 'drum-voice') generated.drumEvents[0].drum = 'snare';
+  if (change === 'time') generated.bassEvents[0].time = '2305i';
+  if (change === 'duration') generated.compEvents[0].duration = .1;
+  if (change === 'velocity') generated.drumEvents[0].velocity = .8;
+  if (change === 'reservation') generated.ensembleDevelopment.terminalArrangements[0].reservationId = 'another';
+  if (change === 'extra-bass') generated.bassEvents.push({ ...generated.bassEvents[0], absBeat: 14, time: '2688i' });
+  if (change === 'extra-piano') generated.compEvents.push({ ...generated.compEvents[0], absBeat: 14, time: '2688i' });
+  if (change === 'extra-drum') generated.drumEvents.push({ ...generated.drumEvents[0], absBeat: 14, time: '2688i' });
+  if (change === 'pulse-kept') generated.ensemblePlan.bars[0].bass.keepPulse = true;
+  expect(cards(generated).flatMap(card => card.evidence)).not.toContain('Scheduled ending: shared final chord, then space');
+ });
+ it.each([{ orchestration: 'original' }, { style: 'bossa-nova' }, { style: 'ballad' }, { barIndex: 2 }])('keeps terminal claims out of unsupported or earlier review context %j', overrides => {
+  expect(cards(score(), overrides).flatMap(card => card.evidence).join(' ')).not.toContain('ending:');
+ });
+ it('does not turn legacy ending energy into an arranged closing chord', () => {
+  const generated = score(); delete (generated.ensemblePlan.bars[0] as Partial<typeof generated.ensemblePlan.bars[0]>).terminalArrangement;
+  expect(cards(generated)[0].role).toBe('Keep time');
+  expect(cards(generated).flatMap(card => card.evidence).join(' ')).not.toContain('ending:');
+ });
+});
 describe('musician decisions from the actual score', () => {
 	it('counts actual onset ticks in the sounding bar without inventing decisions for original mode', () => {
 		const generated: GeneratedBacking = { bassEvents: [

@@ -11,6 +11,8 @@
  import { awaitHydration } from '$lib/state/hydration';
  import type { Tune } from '$lib/types/tune';
  import { getBackingMix } from '$lib/audio/backing-track';
+ import { BACKING_STYLES } from '$lib/audio/backing-styles';
+ import { assessTerminalArrangement } from '$lib/audio/backing-terminal';
  import { settings } from '$lib/state/settings.svelte';
  import { PITCH_CLASSES, type PitchClass } from '$lib/types/music';
  import type { BackingStyle } from '$lib/types/instruments';
@@ -22,6 +24,8 @@
  let tempo = $state(140);
  let solos = $state(2);
  let mode = $state<'original' | 'coordinated'>('coordinated');
+ let ending = $state<'continue' | 'hold-release'>('continue');
+ const endingSupported = $derived(mode === 'coordinated' && (style === 'swing' || style === 'straight'));
  const styles: {value:BackingStyle;label:string;character:string}[] = [
   {value:'swing',label:'Swing',character:'Walking bass, swung phrasing and ride-led time.'},
   {value:'straight',label:'Straight',character:'Even eighths with a clear bass pulse.'},
@@ -42,6 +46,13 @@
   ? {ok:true as const,session:buildListeningTuneSession({tuneId,key,soloChoruses:solos})}
   : assessListeningTune(selectedBookEntry?.tune,{key,soloChoruses:solos}));
  const session = $derived(admission.ok ? admission.session : null);
+ const endingAssessment = $derived(endingSupported && ending === 'hold-release' && session
+  ? assessTerminalArrangement(session.phrase.harmony, BACKING_STYLES[style], {
+   phraseId: session.phrase.id, tempo, ppq: 192, beatsPerBar: 4, swing: settings.swing,
+   sectionMap: session.phrase.sectionMap, performanceForm: session.phrase.performanceForm, ensemble: {},
+   terminalArrangement: { ending: 'hold-release', melody: session.phrase.notes }
+  }) : null);
+ const endingUnavailable = $derived(endingAssessment?.available === false ? endingAssessment.reason : null);
  let snapshot = $state<ListeningSnapshot>({status:'idle',generated:null,params:null,ppq:192,startAudioTime:null,audioTime:null,elapsedBeats:0,durationBeats:0,barIndex:null,ending:false,error:null});
  const player = createListeningPlayer({onChange: next => snapshot = next});
  let takeSession = $state<ListeningTuneSession | null>(null);
@@ -73,6 +84,7 @@
  const position = $derived(bar ? `${passName(bar.context.chorusIndex)} · ${bar.sectionLabel} · Bar ${bar.context.barInChorus+1} of ${bar.context.barsInChorus}` : 'Ready to listen');
  function passName(index:number):string { return index === 0 ? 'Head in' : index === (shownSession?.phrase.performanceForm.choruses.length ?? 0)-1 ? 'Head out' : `Solo ${index}`; }
  function clearTake() { reviewBarIndex=null;player.stop();snapshot={...player.snapshot(),status:'idle',generated:null,params:null,barIndex:null,startAudioTime:null,provenance:undefined};takeSession=null;takeSource=null;marks=[];note=''; }
+ function changeArrangement() { ending='continue';clearTake(); }
  function changeTune() {
   const source = isCuratedTuneId(tuneId) ? LISTENING_TUNES.find(t=>t.id===tuneId) : selectedBookEntry?.tune as Partial<Tune> | undefined;
   key=source?.key && PITCH_CLASSES.includes(source.key) ? source.key : 'C';
@@ -99,10 +111,10 @@
   untrack(()=>book.refresh(accountId));
  });
  async function play() {
-  if(!session || !Number.isFinite(tempo) || tempo < 40 || tempo > 240) return;
+  if(!session || endingUnavailable || !Number.isFinite(tempo) || tempo < 40 || tempo > 240) return;
   const captured=structuredClone(session);reviewBarIndex=null;takeSession=captured;marks=[];note='';
   takeSource=isCuratedTuneId(tuneId) ? null : {id:tuneId,title:captured.tune.title,composer:captured.tune.composer,source:captured.tune.source};
-  await player.start({phrase:captured.phrase,style,tempo,swing:settings.swing,instrument:'piano',volume:settings.backingTrackVolume,mix:{...getBackingMix()},orchestration:mode});
+  await player.start({phrase:captured.phrase,style,tempo,swing:settings.swing,instrument:'piano',volume:settings.backingTrackVolume,mix:{...getBackingMix()},orchestration:mode,...(endingSupported && ending === 'hold-release' ? {ending} : {})});
  }
  function mark() { if(selectedReviewBar === null && snapshot.barIndex !== null) {marks=[...marks,{barIndex:snapshot.barIndex,elapsedBeats:snapshot.elapsedBeats,note:note.trim()}];note='';} }
  function reviewBar(requested: number, focus = false) {
@@ -120,19 +132,23 @@
 
 <section class="setup" aria-label="Listening setup">
  <label class="tune">Tune<select data-testid="listening-tune" bind:value={tuneId} onchange={changeTune} disabled={busy}><optgroup label="Built-in">{#each LISTENING_TUNES as tune}<option value={tune.id}>{tune.title}</option>{/each}</optgroup>{#if shownBookEntries.length}<optgroup label="Your tune book">{#each shownBookEntries as tune}<option value={tune.id}>{takeSource?.id===tune.id ? takeSource.title : tune.title}</option>{/each}</optgroup>{/if}</select></label>
- <label>Style<select data-testid="listening-style" bind:value={style} onchange={clearTake} disabled={busy}>{#each styles as item}<option value={item.value}>{item.label}</option>{/each}</select></label>
+ <label>Style<select data-testid="listening-style" bind:value={style} onchange={changeArrangement} disabled={busy}>{#each styles as item}<option value={item.value}>{item.label}</option>{/each}</select></label>
  <label>Key<select data-testid="listening-key" bind:value={key} onchange={clearTake} disabled={busy}>{#each PITCH_CLASSES as pitch}<option value={pitch}>{pitch.replace('b','♭').replace('#','♯')}</option>{/each}</select></label>
  <label>Tempo<input data-testid="listening-tempo" type="number" min="40" max="240" step="1" bind:value={tempo} onchange={clearTake} disabled={busy} /></label>
  <label>Solo choruses<select data-testid="listening-choruses" bind:value={solos} onchange={clearTake} disabled={busy}>{#each [1,2,3,4] as count}<option value={count}>{count}</option>{/each}</select></label>
 </section>
 <p class="book-note">{#if library.error}{library.error} {:else if unreadableBookEntries}Some saved charts are unreadable. Open Tunes to check them. {:else if libraryLoaded && !bookEntries.length}Add a saved chart to listen beyond the built-in tunes. {:else}Saved charts are available from your tune book. {/if}<a href="/tunes">Open Tunes ↗</a></p>
 {#if !admission.ok && !busy}<p data-testid="listening-unavailable" role="status" class="error">{admission.reason}</p>{/if}
+{#if endingUnavailable && !busy}<p data-testid="listening-ending-unavailable" role="status" class="error">Hold &amp; release is unavailable: {endingUnavailable}</p>{/if}
 <section class="transport" aria-label="Playback">
  <div class="transport-main">
-  {#if busy}<button class="play" data-testid="listening-stop" onclick={()=>player.stop()}>■ Stop</button>{:else}<button class="play" data-testid="listening-play" onclick={play} disabled={!admission.ok||!Number.isFinite(tempo)||tempo<40||tempo>240}>▶ Listen</button>{/if}
+  {#if busy}<button class="play" data-testid="listening-stop" onclick={()=>player.stop()}>■ Stop</button>{:else}<button class="play" data-testid="listening-play" onclick={play} disabled={!admission.ok||!!endingUnavailable||!Number.isFinite(tempo)||tempo<40||tempo>240}>▶ Listen</button>{/if}
   <div><strong data-testid="listening-status" role="status">{snapshot.status === 'loading' ? 'Loading the band…' : snapshot.status === 'playing' ? snapshot.ending ? 'Letting the last chord ring' : 'Playing' : snapshot.status === 'completed' ? 'Take complete' : snapshot.status === 'stopped' ? 'Stopped' : snapshot.status === 'error' ? 'Unable to play' : 'Ready to listen'}</strong><small>Head in → {solos} solo {solos===1?'chorus':'choruses'} → Head out · {shownSession ? `${shownSession.bars.length} bars` : 'Arrangement unavailable'}</small></div>
  </div>
- <label class="mode">Arrangement<select data-testid="listening-mode" bind:value={mode} onchange={clearTake} disabled={busy}><option value="original">Original</option><option value="coordinated">Coordinated</option></select></label>
+ <div class="arrangement-settings">
+  <label class="mode">Arrangement<select data-testid="listening-mode" bind:value={mode} onchange={changeArrangement} disabled={busy}><option value="original">Original</option><option value="coordinated">Coordinated</option></select></label>
+  {#if endingSupported}<label class="mode">Ending<select data-testid="listening-ending" bind:value={ending} onchange={clearTake} disabled={busy}><option value="continue">Continue time</option><option value="hold-release">Hold &amp; release</option></select></label>{/if}
+ </div>
 </section>
 {#if snapshot.error}<p role="alert" class="error">{snapshot.error}</p>{/if}
 <p class="style-note">{styles.find(s=>s.value===style)?.character} <span>Rhythm section only — play the melody yourself.</span></p>
@@ -165,6 +181,7 @@
  .transport{position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:space-between;border:1px solid var(--color-bg-tertiary);background:var(--color-bg-secondary);padding:1.25rem;gap:1rem}
  .transport-main{display:flex;align-items:center;gap:1.3rem}.play{background:var(--color-brass);color:var(--color-bg);padding:.9rem 1.5rem;min-width:7rem;font-size:.85rem;font-weight:600}
  .transport strong{font-weight:500;font-size:.9rem}.transport small{display:block;color:var(--color-text-secondary);font-size:.65rem;margin-top:.4rem}.mode{display:flex;align-items:center;gap:1rem}.mode select{margin:0;min-width:8.8rem;border:1px solid var(--color-brass);color:var(--color-brass);padding:.6rem}
+ .arrangement-settings{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:.7rem 1.2rem}
  .book-note{font-size:.65rem;line-height:1.6;color:var(--color-text-secondary);margin:-.6rem 0 1.2rem}.book-note a{color:var(--color-brass);white-space:nowrap;margin-inline-start:.3em}
  .style-note{font-size:.68rem;line-height:1.7;color:var(--color-text-secondary);margin:.7rem 0 0}.style-note span{margin-left:.5rem}.error{color:var(--color-error);font-size:.8rem;margin-top:1rem}
  .section-head{display:flex;justify-content:space-between;align-items:center;gap:1rem;margin-bottom:1rem}.eyebrow{font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;color:var(--color-brass)}.section-head>span:last-child{font-size:.65rem;color:var(--color-text-secondary);text-align:right}

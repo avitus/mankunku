@@ -81,6 +81,15 @@ describe('blind full-tune musicality comparison', () => {
   expect(() => create(() => NaN)).toThrow(); expect(() => create(() => 1)).toThrow();
   expect(LISTENING_COMPARISON_CRITERIA.find(c => c.id === 'fatigue')!.hint).toMatch(/higher.*less tiring/i);
  });
+ it('keeps opt-in terminal arrangements out of matched Original/Coordinated comparisons', () => {
+  expect(() => createBlindListeningComparison({ ...input(), ending: 'hold-release' } as BounceParams, { buildVersion: 'ending-test' })).toThrow();
+  expect(() => createBlindListeningComparison({ ...input(), ending: 'continue' } as BounceParams, { buildVersion: 'ending-test' })).not.toThrow();
+  const record = JSON.parse(serializeListeningComparison(finish(create())));
+  record.inputs.ending = 'hold-release';
+  record.takes.A.params.ending = 'hold-release';
+  record.takes.B.params.ending = 'hold-release';
+  expect(restoreListeningComparison(JSON.stringify(record))).toBeNull();
+ });
  it.each(LISTENING_TUNES.map(tune => [tune.title, tune.id] as const))('accepts full %s evidence at tempo, arrangement, style and mix boundaries', (_title, tuneId) => {
   const phrase = buildListeningTuneSession({ tuneId, soloChoruses: 4 }).phrase;
   for (const tempo of [40, 240]) for (const style of ['swing', 'straight', 'bossa-nova', 'ballad'] satisfies BackingStyle[]) {

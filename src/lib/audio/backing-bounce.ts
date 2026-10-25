@@ -16,6 +16,7 @@ import type { Phrase } from '$lib/types/music';
 import type { BackingInstrument, BackingStyle } from '$lib/types/instruments';
 import { fractionToFloat } from '$lib/music/intervals';
 import { BACKING_STYLES } from './backing-styles';
+import { assessTerminalArrangement, type TerminalArrangementInput } from './backing-terminal';
 import { createBackingSampleLoader } from './backing-sample-loader';
 import { loadBackingBass } from './backing-bass-instrument';
 import {
@@ -83,6 +84,8 @@ export interface BounceParams {
 	mix: BackingMixLevels;
 	/** Same generation policy as live playback; original is an A/B reference. */
 	orchestration?: 'original' | 'coordinated';
+	/** Explicit finite ending; omitted/continue retains the current accompaniment. */
+	ending?: 'continue' | 'hold-release';
 	/** Scripted observation trace for the lab, shared with live preview generation. */
 	soloFeatures?: readonly import('./ensemble-plan').SoloFeature[];
 }
@@ -92,6 +95,20 @@ export interface BounceResult {
 	filename: string;
 	generated: GeneratedBacking;
 	durationSeconds: number;
+}
+
+/** Validate declared listening intent before an audio graph or ordinary score is prepared. */
+export function resolveListeningTerminalArrangement(params: BounceParams): TerminalArrangementInput | undefined {
+	if (params.ending !== 'hold-release' || params.orchestration !== 'coordinated' || !['swing', 'straight'].includes(params.style)) return undefined;
+	const phrase = params.phrase;
+	const terminalArrangement: TerminalArrangementInput = { ending: 'hold-release', melody: phrase.notes };
+	const assessment = assessTerminalArrangement(phrase.harmony, BACKING_STYLES[params.style], {
+		phraseId: phrase.id, tempo: params.tempo, ppq: BOUNCE_PPQ, beatsPerBar: phrase.timeSignature[0], swing: params.swing,
+		performanceForm: phrase.timeSignature[1] === 4 ? phrase.performanceForm : undefined,
+		ensemble: {}, terminalArrangement
+	});
+	if (!assessment.available) throw new Error(`Hold & release is unavailable: ${assessment.reason}`);
+	return terminalArrangement;
 }
 
 /** Deterministic-ish filename: preset, style, tempo, seed and date, no spaces. */
@@ -112,6 +129,7 @@ export function generateForBounce(params: BounceParams): GeneratedBacking {
 		throw new Error(`Lab phrase ${phrase.id} has no harmony to bounce`);
 	}
 	const style = BACKING_STYLES[params.style];
+	const terminalArrangement = resolveListeningTerminalArrangement(params);
 	return generateBacking(phrase.harmony, style, {
 		phraseId: phrase.id,
 		tempo,
@@ -120,6 +138,7 @@ export function generateForBounce(params: BounceParams): GeneratedBacking {
 		swing: resolveBackingSwing(params.swing, style, tempo),
 		sectionMap: phrase.sectionMap,
 		performanceForm: phrase.timeSignature[1] === 4 ? phrase.performanceForm : undefined,
+		...(terminalArrangement ? { terminalArrangement } : {}),
 		ensemble: params.orchestration === 'coordinated' && phrase.timeSignature[1] === 4
 			? { soloFeatures: params.soloFeatures } : undefined
 	});

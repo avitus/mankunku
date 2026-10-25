@@ -1,6 +1,6 @@
 /** A finite, reproducible listening take with a view tied to the sounding audio clock. */
 import type { BounceParams } from '$lib/audio/backing-bounce';
-import { harmonyDurationBeats } from '$lib/audio/backing-bounce';
+import { harmonyDurationBeats, resolveListeningTerminalArrangement } from '$lib/audio/backing-bounce';
 import type { GeneratedBacking } from '$lib/audio/backing-generation';
 import type { RollingBackingDispatch } from '$lib/audio/backing-rolling-renderer';
 import type { RollingSessionSnapshot } from '$lib/audio/backing-rolling-session';
@@ -155,6 +155,7 @@ let browserLease = 0;
 /** Uses the existing sample banks, mix and renderer; no microphone or alternate synthesis path. */
 const browserListeningRuntime: ListeningPlayerRuntime = {
 	async prepare(params, isCurrent) {
+		const terminalArrangement = resolveListeningTerminalArrangement(params);
 		const lease = ++browserLease;
 		const current = () => isCurrent() && lease === browserLease;
 		const [audio, backing, Tone] = await Promise.all([
@@ -184,7 +185,8 @@ const browserListeningRuntime: ListeningPlayerRuntime = {
 			const style = BACKING_STYLES[params.style];
 			const definition = createRollingBacking(params.phrase.harmony, style, { phraseId: params.phrase.id, tempo: params.tempo,
 				ppq: transport.PPQ, beatsPerBar: 4, swing: resolveBackingSwing(params.swing, style, params.tempo),
-				sectionMap: params.phrase.sectionMap, performanceForm: params.phrase.performanceForm, ensemble: {} });
+				sectionMap: params.phrase.sectionMap, performanceForm: params.phrase.performanceForm, ensemble: {},
+				...(terminalArrangement ? { terminalArrangement } : {}) });
 			transport.stop(); transport.position = 0; transport.bpm.value = params.tempo;
 			backing.setBackingMix(params.mix); backing.setBackingTrackVolume(params.volume);
 			let playbackError: string | null = null;

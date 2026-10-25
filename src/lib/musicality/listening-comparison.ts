@@ -72,6 +72,8 @@ function boundedJson(value: unknown, depth = 0, budget = { nodes: 0 }): boolean 
 }
 function validInputs(value: unknown): value is ListeningComparisonInputs {
  if (!object(value) || 'orchestration' in value || !object(value.phrase) || !boundedJson(value)) return false;
+ // Original has no opt-in terminal arrangement, so this would not be a matched pair.
+ if (value.ending !== undefined && value.ending !== 'continue') return false;
  const phrase = value.phrase;
  if (!text(phrase.id, 500) || !text(phrase.name, 500) || !Array.isArray(phrase.timeSignature) ||
   phrase.timeSignature[0] !== 4 || phrase.timeSignature[1] !== 4 || !Array.isArray(phrase.harmony) || !phrase.harmony.length ||

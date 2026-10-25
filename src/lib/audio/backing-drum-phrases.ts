@@ -8,7 +8,7 @@ import { createRng, seedFrom } from './generation-rng';
 
 export type DrumCommentaryTransform = 'statement' | 'answer' | 'repeat' | 'displace' | 'orchestrate' | 'space' | 'setup' | 'fallback';
 export type DrumPhraseReason = 'ensemble_silence' | 'response_reserved' | 'arrival_reserved' | 'gesture_does_not_fit'
-	| 'native_groove' | 'setup_does_not_fit' | 'motif_gap' | 'not_selected' | 'short_phrase' | 'partial_harmony';
+	| 'terminal_arrangement' | 'native_groove' | 'setup_does_not_fit' | 'motif_gap' | 'not_selected' | 'short_phrase' | 'partial_harmony';
 export interface DrumPhraseDecision {
 	/** Native groove identity; absence denotes the original swing phrase vocabulary. */
 	readonly style?: BackingStyle;

@@ -1,3 +1,4 @@
+import { assessTerminalArrangement, realizeTerminalArrangement, terminalBarPlan, terminalPianoTrace, terminalDrumTrace, freezeTerminalDecisions, type TerminalArrangementInput, type TerminalReservation, type TerminalArrangementDecision } from './backing-terminal';
 import type { BassScalarContinuation } from './backing-bass-continuation';
 import { sharedArrivalTick } from './backing-arrival';
 /**
@@ -129,6 +130,7 @@ export interface GeneratedBacking {
 
 export interface EnsembleDevelopment {
 	readonly version: 1;
+	readonly terminalArrangements?: readonly TerminalArrangementDecision[];
 	readonly pianoMotifs: readonly CompMotifDecision[];
 	readonly bassTurnarounds: readonly BassTurnaroundTrace[];
 	readonly bassFeel?: readonly StructuralBassFeel[];
@@ -192,6 +194,7 @@ export interface CoordinatedPianoVoicing {
 }
 
 function freezeEnsembleDevelopment(trace: EnsembleDevelopment): EnsembleDevelopment {
+	if (trace.terminalArrangements) freezeTerminalDecisions(trace.terminalArrangements);
 	freezeCompMotifTrace(trace.pianoMotifs);
 	freezeBassTurnaroundTrace(trace.bassTurnarounds);
 	if (trace.bassFeel) {
@@ -260,6 +263,7 @@ function freezeEnsembleDevelopment(trace: EnsembleDevelopment): EnsembleDevelopm
 export type SectionMapEntry = { sourceSection: number; barOffset: number };
 
 export interface BackingGenerationParams {
+	readonly terminalArrangement?: TerminalArrangementInput;
 	phraseId: string;
 	tempo: number;
 	ppq: number;
@@ -277,6 +281,7 @@ export interface BackingGenerationParams {
 
 /** Runtime-only placement, created after the public generation cache key. */
 export interface InstrumentGenerationParams extends BackingGenerationParams {
+	readonly terminalReservation?: TerminalReservation;
 	readonly ensembleTiming?: ReturnType<typeof createEnsembleTiming>;
 	readonly bassScalarContinuation?: true;
 }
@@ -497,7 +502,7 @@ export function generateComping(
 	style: StyleDefinition,
 	params: InstrumentGenerationParams,
 	barInfos: BarInfo[]
-): { events: CompEvent[]; onsetsByBar: Map<number, number[]>; motifTrace?: readonly CompMotifDecision[]; voicingTrace?: readonly CoordinatedPianoVoicing[] } {
+): { events: CompEvent[]; onsetsByBar: Map<number, number[]>; motifTrace?: readonly CompMotifDecision[]; voicingTrace?: readonly CoordinatedPianoVoicing[]; terminalContext?: { voicing?: CoordinatedVoicingMemory; contour?: PianoContourMemory } } {
 	const { phraseId, tempo, swing } = params;
 	const segments = toSegmentInfos(harmony);
 	const beatDuration = 60 / tempo;
@@ -509,6 +514,7 @@ export function generateComping(
 	let voicingMemory: CoordinatedVoicingMemory | undefined;
 	const contourEnabled = coordinatedVoicing && ['swing', 'straight', 'bossa-nova'].includes(style.coordinatedStyle!);
 	let contourMemory: PianoContourMemory | undefined;
+	let terminalContext: { voicing?: CoordinatedVoicingMemory; contour?: PianoContourMemory } | undefined;
 	const voicingTrace: CoordinatedPianoVoicing[] = [];
 
 	// Voicing selection per chord, then voice-lead the whole sequence.
@@ -584,6 +590,7 @@ export function generateComping(
 
 	const clavePhase = clavePhaseFor(phraseId, tempo);
 	for (let bar = 0; bar < totalBars; bar++) {
+		if (params.terminalReservation?.barIndex === bar) terminalContext = { voicing: voicingMemory, contour: contourMemory };
 		const rng = createRng(seedFrom(phraseId, tempo, 'comp', bar));
 		const planned = compPlan?.[bar];
 		const headFigure = compPlan ? headFigureFor(compPlan, bar) : undefined;
@@ -664,7 +671,7 @@ export function generateComping(
 		}
 	}
 
-	return { events, onsetsByBar, ...(coordinatedVoicing ? { voicingTrace: Object.freeze(voicingTrace) } : {}), ...(motifMode ? { motifTrace: compMotifTrace(compPlan ?? []) }
+	return { events, onsetsByBar, ...(terminalContext ? { terminalContext } : {}), ...(coordinatedVoicing ? { voicingTrace: Object.freeze(voicingTrace) } : {}), ...(motifMode ? { motifTrace: compMotifTrace(compPlan ?? []) }
 		: barInfos.some((info) => info.ensemble) ? { motifTrace: freezeCompMotifTrace(barInfos.map((info, barIndex) => ({
 			version: 1 as const, barIndex, phraseStartBar: info.ensemble!.phraseStartBar, motifId: null, sourceFigureId: null,
 			transform: info.ensemble!.piano.maxAttacks === 0 ? 'space' as const : 'fallback' as const,
@@ -789,6 +796,8 @@ export function generateBacking(
 	);
 	const totalBars = Math.max(1, Math.ceil(harmonyBeats / beatsPerBar));
 	const performanceForm = formForHarmony(params.performanceForm, totalBars);
+	const terminalAssessment = params.terminalArrangement?.ending === 'hold-release' ? assessTerminalArrangement(harmony, style, params) : undefined;
+	const terminalReservation = terminalAssessment?.available ? terminalAssessment.reservation : undefined;
 	const performanceEnergy = params.ensemble && style.coordinatedStyle && beatsPerBar === 4 && performanceForm
 		? planPerformanceEnergy(performanceForm) : undefined;
 	let barInfos = buildBarInfos(totalBars, params.sectionMap, performanceForm);
@@ -801,13 +810,14 @@ export function generateBacking(
 	}
 	// Start with the existing vocabulary. The planner reserves space and
 	// assigns commentary before any instrument chooses its notes or hits.
-	const ensembleWindow = params.ensemble && !!style.coordinatedStyle && beatsPerBar === 4
+	let ensembleWindow = params.ensemble && !!style.coordinatedStyle && beatsPerBar === 4
 		? planEnsembleWindow({
 			phraseId: params.phraseId,
 			tempo: params.tempo,
 			bars: barInfos.map((info, barIndex) => ({
 				...info,
 				barIndex,
+				...(terminalReservation?.barIndex === barIndex ? { terminalArrangement: terminalReservation } : {}),
 				...(performanceEnergy ? { performanceEnergy: performanceEnergy[barIndex],
 					...(['swing', 'straight'].includes(style.coordinatedStyle!) ? { pianoArrivalPolicy: 'shared-v1' as const } : {}) } : {}),
 				...(performanceForm ? performanceBarContext(performanceForm, barIndex) : {})
@@ -826,13 +836,13 @@ export function generateBacking(
 		phraseId: params.phraseId, tempo: params.tempo, ppq: params.ppq,
 		swing: params.swing, plan: ensemblePlan, timingProfiles: timing
 	}) : undefined;
-	const timedParams: InstrumentGenerationParams = { ...params, performanceForm, timing, ensembleTiming,
+	const timedParams: InstrumentGenerationParams = { ...params, performanceForm, timing, ensembleTiming, ...(terminalReservation ? { terminalReservation } : {}),
 		...(performanceEnergy && ['swing', 'straight'].includes(style.coordinatedStyle!) ? { bassScalarContinuation: true as const } : {}) };
-	const { events: compEvents, onsetsByBar, motifTrace, voicingTrace } = generateComping(harmony, beatsPerBar, style, timedParams, barInfos);
+	const { events: compEvents, onsetsByBar, motifTrace: ordinaryMotifTrace, voicingTrace: ordinaryVoicingTrace, terminalContext } = generateComping(harmony, beatsPerBar, style, timedParams, barInfos);
 	// Bass engine dispatch: the bossa root–fifth pattern is a 4/4 statement;
 	// 'two' pins the walking planner to permanent two-feel (ballad); other
 	// meters (and every 'auto' style) take the plain walking planner.
-	const { events: bassEvents, onsetsByBar: bassOnsetsByBar, turnaroundTrace, feelTrace, continuationTrace } =
+	const { events: bassEvents, onsetsByBar: bassOnsetsByBar, turnaroundTrace: ordinaryTurnaroundTrace, feelTrace: ordinaryFeelTrace, continuationTrace: ordinaryContinuationTrace } =
 		style.bass === 'pattern' && beatsPerBar === 4
 			? generateBossaBass(harmony, beatsPerBar, timedParams, barInfos)
 			: generateBassLine2(
@@ -870,15 +880,47 @@ export function generateBacking(
 		}
 		for (const hit of drumEvents.filter((event) => event.absBeat === absBeat && event.role === 'accent')) hit.time = time;
 	}
+	let motifTrace = ordinaryMotifTrace, voicingTrace = ordinaryVoicingTrace;
+	let turnaroundTrace = ordinaryTurnaroundTrace, feelTrace = ordinaryFeelTrace, continuationTrace = ordinaryContinuationTrace;
+	let finalDrumTrace = drumPhrases?.trace;
+	let terminalDecision: TerminalArrangementDecision | undefined;
+	if (terminalReservation && ensembleWindow && terminalContext) {
+		const bar = terminalReservation.barIndex;
+		const priorEvents = [...bassEvents, ...compEvents].filter(event => event.absBeat < terminalReservation.absBeat);
+		const candidate = realizeTerminalArrangement({ reservation: terminalReservation, plan: ensembleWindow.plan.bars[bar], style,
+			phraseId: params.phraseId, tempo: params.tempo, ppq: params.ppq, segmentIndex: harmony.length - 1,
+			previousBass: bassEvents.filter(event => event.absBeat < terminalReservation.absBeat).at(-1)?.midi,
+			previousVoicing: terminalContext.voicing, previousContour: terminalContext.contour,
+			precedingRelease: priorEvents.some(event => parseInt(event.time) + event.duration * params.tempo / 60 * params.ppq > terminalReservation.absBeat * params.ppq + 1e-7),
+			committedLaunch: turnaroundTrace?.some(trace => trace.status === 'planned' && trace.arrivalBar === bar) });
+		terminalDecision = candidate.decision;
+		if (candidate.decision.status === 'accepted' && candidate.voicingTrace) {
+			const accepted = candidate.decision;
+			bassEvents.splice(0, bassEvents.length, ...bassEvents.filter(event => event.absBeat < terminalReservation.absBeat), { ...accepted.bass });
+			compEvents.splice(0, compEvents.length, ...compEvents.filter(event => event.absBeat < terminalReservation.absBeat), { ...accepted.piano, notes: [...accepted.piano.notes] });
+			drumEvents.splice(0, drumEvents.length, ...drumEvents.filter(event => event.absBeat < terminalReservation.absBeat), ...accepted.drums.map(event => ({ ...event })));
+			const plan = terminalBarPlan(ensembleWindow.plan.bars[bar]);
+			ensembleWindow = { plan: freezeEnsemblePlan({ ...ensembleWindow.plan,
+				bars: ensembleWindow.plan.bars.map(entry => entry.barIndex === bar ? plan : entry),
+				trace: ensembleWindow.plan.trace.map(entry => entry.barIndex === bar ? { ...entry, reasons: [...entry.reasons, 'terminal_arrangement'] } : entry) }),
+				memory: freezeEnsembleMemory({ ...ensembleWindow.memory, recentBars: ensembleWindow.memory.recentBars.map(entry => entry.barIndex === bar ? { ...entry, pianoAttackBudget: 1, drumCommentaryBudget: 0 } : entry) }) };
+			motifTrace = [...(motifTrace ?? []).filter(entry => entry.barIndex !== bar), terminalPianoTrace(plan, terminalReservation)];
+			voicingTrace = [...(voicingTrace ?? []).filter(entry => Math.floor(entry.absBeat / 4) !== bar), candidate.voicingTrace];
+			finalDrumTrace = (finalDrumTrace ?? []).map(entry => entry.barIndex === bar ? terminalDrumTrace(entry, accepted) : entry);
+			turnaroundTrace = turnaroundTrace?.filter(entry => entry.startBar !== bar);
+			feelTrace = feelTrace?.filter(entry => entry.barIndex !== bar);
+			continuationTrace = continuationTrace?.filter(entry => entry.barIndex !== bar);
+		}
+	}
 	return { bassEvents, compEvents, drumEvents, ...(ensembleWindow ? {
 		ensemblePlan: ensembleWindow.plan, ensembleMemory: ensembleWindow.memory,
 		ensembleTiming: ensembleTiming!.trace,
 		ensembleDevelopment: freezeEnsembleDevelopment({
-			version: 1, pianoMotifs: motifTrace ?? [], bassTurnarounds: turnaroundTrace ?? [],
+			version: 1, ...(terminalDecision ? { terminalArrangements: [terminalDecision] } : {}), pianoMotifs: motifTrace ?? [], bassTurnarounds: turnaroundTrace ?? [],
 			...(feelTrace ? { bassFeel: feelTrace } : {}),
 			...(continuationTrace?.length ? { bassContinuations: continuationTrace } : {}),
 			...(voicingTrace ? { pianoVoicings: voicingTrace } : {}),
-			drumPhrases: drumPhrases?.trace ?? []
+			drumPhrases: finalDrumTrace ?? []
 		})
 	} : {}) };
 }

@@ -28,6 +28,28 @@ function harness() {
 }
 
 describe('committed rolling take aggregation', () => {
+ it('retains terminal receipts as detached immutable evidence without changing an earlier prefix', () => {
+  const h = harness(); h.append();
+  const early = aggregateRollingBacking(h.renderer.snapshot());
+  const original = JSON.stringify(early); h.append();
+  const restored = JSON.parse(JSON.stringify(h.renderer.snapshot()));
+  const receipt = { version: 1, reservationId: 'terminal-example', barIndex: 1, status: 'accepted',
+   bass: { time: '768i', absBeat: 4, midi: 36, duration: .8, velocity: 70 },
+   piano: { time: '768i', absBeat: 4, notes: [52, 57, 60, 67], duration: .8, velocity: 62 },
+   drums: [{ time: '768i', absBeat: 4, drum: 'ride', velocity: .3, role: 'accent' }] };
+  restored.windows[1].ensembleDevelopment.terminalArrangements = [receipt];
+  const result = aggregateRollingBacking(restored);
+  const emitted = (result.ensembleDevelopment as typeof restored.windows[1]['ensembleDevelopment']).terminalArrangements;
+  expect(emitted).toEqual([receipt]);
+  expect(Object.isFrozen(emitted[0].piano.notes)).toBe(true);
+  expect(Object.isFrozen(emitted[0].drums[0])).toBe(true);
+  expect(Object.isFrozen(receipt.piano.notes)).toBe(false);
+  receipt.piano.notes[0] = 99; receipt.drums[0].velocity = .9;
+  expect(emitted[0].piano.notes[0]).toBe(52);
+  expect(emitted[0].drums[0].velocity).toBe(.3);
+  expect(JSON.stringify(early)).toBe(original);
+  expect(early.ensembleDevelopment).not.toHaveProperty('terminalArrangements');
+ });
 	it('contains actual accepted notes and every decision for the committed prefix, with no future score', () => {
 		const h = harness(); h.append(); h.append();
 		const snapshot = h.renderer.snapshot();

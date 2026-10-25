@@ -42,6 +42,7 @@ export function aggregateRollingBacking(snapshot: RollingBackingSnapshot): Gener
 		const pianoAnswers = windows.flatMap((bar) => bar.ensembleDevelopment.pianoAnswers ?? []);
 		const pianoRecoveries = windows.flatMap((bar) => bar.ensembleDevelopment.pianoRecoveries ?? []);
 		const pianoFeedback = windows.flatMap((bar) => bar.ensembleDevelopment.pianoFeedback ?? []);
+		const terminalArrangements = windows.flatMap((bar) => bar.ensembleDevelopment.terminalArrangements ?? []);
 		result.ensembleDevelopment = { version: 1,
 			pianoMotifs: windows.flatMap((bar) => bar.ensembleDevelopment.pianoMotifs),
 			bassTurnarounds: windows.flatMap((bar) => bar.ensembleDevelopment.bassTurnarounds),
@@ -49,6 +50,7 @@ export function aggregateRollingBacking(snapshot: RollingBackingSnapshot): Gener
 			...(bassFeel.length ? { bassFeel } : {}), ...(pianoVoicings.length ? { pianoVoicings } : {}),
 			...(pianoFeedback.length ? { pianoFeedback } : {}), ...(pianoAnswers.length ? { pianoAnswers } : {}),
 			...(pianoRecoveries.length ? { pianoRecoveries } : {}),
+			...(terminalArrangements.length ? { terminalArrangements } : {}),
 			drumPhrases: windows.flatMap((bar) => bar.ensembleDevelopment.drumPhrases)
 		};
 	}

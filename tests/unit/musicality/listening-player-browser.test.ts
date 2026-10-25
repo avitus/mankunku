@@ -4,6 +4,7 @@ import { BACKING_LAB_PRESETS } from '$lib/audio/backing-lab-presets';
 import { DEFAULT_BACKING_MIX } from '$lib/audio/backing-mix';
 import type { BounceParams } from '$lib/audio/backing-bounce';
 import type { RollingBackingPlayback, RollingBackingPlaybackOptions } from '$lib/audio/backing-track';
+import { buildListeningTuneSession, LISTENING_TUNES } from '$lib/musicality/listening-tunes';
 
 const host = vi.hoisted(() => ({
 	context: { state: 'running', currentTime: 0, resume: vi.fn(async () => {}) },
@@ -63,9 +64,53 @@ beforeEach(() => {
 	host.callbacks.clear(); host.playbacks.length = 0; host.pauseAfterClaim = null;
 	vi.stubGlobal('navigator', { mediaDevices: { getUserMedia: host.getUserMedia } });
 });
-afterEach(() => { for (const value of players.splice(0)) value.dispose(); vi.useRealTimers(); vi.unstubAllGlobals(); });
+afterEach(() => { for (const value of players.splice(0)) value.dispose(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe('browser listening runtime routing and ownership', () => {
+ it.each(['unknown', 'late-attack'] as const)('rejects a requested hold with %s melody before loading instruments or scheduling', async kind => {
+  const backing = await import('$lib/audio/backing-track');
+  const params = { ...input(), phrase: buildListeningTuneSession({ tuneId: LISTENING_TUNES.find(tune => tune.title === 'Mankunku Blues')!.id, key: 'C', soloChoruses: 2 }).phrase, ending: 'hold-release' } as BounceParams;
+  if (kind === 'unknown') params.phrase.notes = undefined as unknown as typeof params.phrase.notes;
+  else params.phrase.notes[params.phrase.notes.length - 1] = { pitch: 60, offset: [207, 4], duration: [1, 4] };
+  const take = player(); await take.start(params);
+  expect(take.snapshot().status).toBe('error');
+  expect(take.snapshot().error).toMatch(/melody/i);
+  expect(backing.loadBackingInstruments).not.toHaveBeenCalled();
+  expect(backing.createRollingBackingPlayback).not.toHaveBeenCalled();
+  expect(backing.scheduleBackingTrack).not.toHaveBeenCalled();
+ });
+ it('allows an explicitly instrumental hold with an empty known melody', async () => {
+  const params = { ...input(), phrase: buildListeningTuneSession({ tuneId: LISTENING_TUNES.find(tune => tune.title === 'Mankunku Blues')!.id, key: 'C', soloChoruses: 2 }).phrase, ending: 'hold-release' } as BounceParams;
+  params.phrase.notes = []; const take = player(); await take.start(params);
+  expect(take.snapshot().status).toBe('playing');
+ });
+ it('forwards a captured terminal choice and its score melody to the causal definition', async () => {
+  const rolling = await import('$lib/audio/backing-rolling');
+  const create = vi.spyOn(rolling, 'createRollingBacking');
+  const params = { ...input(), phrase: buildListeningTuneSession({ tuneId: LISTENING_TUNES.find(tune => tune.title === 'Mankunku Blues')!.id, key: 'C', soloChoruses: 2 }).phrase, ending: 'hold-release' } as BounceParams;
+  const melody = structuredClone(params.phrase.notes);
+  const take = player(); await take.start(params);
+  expect(take.snapshot().status).toBe('playing');
+  expect(create.mock.calls.at(-1)?.[2]).toMatchObject({ terminalArrangement: { ending: 'hold-release', melody } });
+  params.phrase.notes.length = 0;
+  expect(take.snapshot().params).toMatchObject({ ending: 'hold-release', phrase: { notes: melody } });
+  create.mockRestore();
+ });
+ it.each(['bossa-nova', 'ballad'] as const)('does not forward a stale terminal choice into native %s playback', async style => {
+  const rolling = await import('$lib/audio/backing-rolling');
+  const create = vi.spyOn(rolling, 'createRollingBacking');
+  const take = player(); await take.start({ ...input(), style, ending: 'hold-release' } as BounceParams);
+  expect(take.snapshot().status).toBe('playing');
+  expect(create.mock.calls.at(-1)?.[2]).not.toHaveProperty('terminalArrangement');
+ });
+ it('does not forward a stale terminal choice to Original scheduling', async () => {
+  const backing = await import('$lib/audio/backing-track');
+  const take = player(); await take.start({ ...input('original'), ending: 'hold-release' } as BounceParams);
+  expect(take.snapshot().status).toBe('playing');
+  expect(backing.scheduleBackingTrack).toHaveBeenCalledOnce();
+  expect(vi.mocked(backing.scheduleBackingTrack).mock.calls[0][1]).not.toHaveProperty('terminalArrangement');
+  expect(vi.mocked(backing.scheduleBackingTrack).mock.calls[0][1]).not.toHaveProperty('ending');
+ });
 	it('uses causal committed prefixes without microphone access and completes only after every dispatch and the tail', async () => {
 		const backing = await import('$lib/audio/backing-track'); const take = player(); await take.start(input());
 		expect(take.snapshot()).toMatchObject({ status: 'playing', barIndex: null, provenance: { engine: 'causal-rolling', committedBars: 2 } });

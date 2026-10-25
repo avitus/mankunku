@@ -336,5 +336,37 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 	}
 	if (acceptedAnswer) drumCard.evidence.push('Leave commentary space for the piano answer');
 	if (plan?.drums.silenceReason) drumCard.evidence.push(`Commentary space: ${plain(plan.drums.silenceReason)}`);
+	const terminal = walking ? plan?.terminalArrangement : undefined;
+	if (terminal?.version === 1 && terminal.barIndex === barIndex && terminal.absBeat === barIndex * beatsPerBar &&
+		plan?.performanceEnergy?.phase === 'ending' && terminal.holdBeats >= 2 && terminal.holdBeats <= beatsPerBar &&
+		terminal.releaseBeat === terminal.absBeat + terminal.holdBeats && terminal.participants.length === 3 &&
+		['bass', 'piano', 'drums'].every(instrument => terminal.participants.includes(instrument as 'bass' | 'piano' | 'drums'))) {
+		const cards = [bassCard, pianoCard, drumCard];
+		for (const card of cards) card.evidence.push('Planned ending: hold and release together');
+		const receipt = development?.terminalArrangements?.find(entry => entry.version === 1 && entry.reservationId === terminal.id && entry.barIndex === barIndex);
+		if (receipt?.status === 'withheld') {
+			const reason = receipt.reason === 'preceding_release' ? 'an earlier note is still sustaining' : 'the closing chord could not be scheduled';
+			for (const card of cards) card.evidence.push(`Ending not applied: ${reason}`);
+		} else if (receipt?.status === 'accepted') {
+			const onCue = (event: { time: string; absBeat: number }) => event.time === `${firstTick}i` && event.absBeat === terminal.absBeat;
+			const sourceBass = receipt.bass; const sourcePiano = receipt.piano;
+			const matched = !plan.bass.keepPulse && !plan.drums.keepTime && bass.length === 1 && piano.length === 1 && drums.length === receipt.drums.length &&
+				receipt.drums.length === 2 && new Set(receipt.drums.map(event => event.drum)).size === 2 &&
+				receipt.drums.every(event => ['ride', 'kick'].includes(event.drum) && event.role === 'accent') &&
+				[sourceBass, sourcePiano, ...receipt.drums].every(onCue) && sourceBass.duration > 0 && sourceBass.duration === sourcePiano.duration &&
+				bass[0].time === sourceBass.time && bass[0].absBeat === sourceBass.absBeat && bass[0].midi === sourceBass.midi && bass[0].duration === sourceBass.duration && bass[0].velocity === sourceBass.velocity &&
+				piano[0].time === sourcePiano.time && piano[0].absBeat === sourcePiano.absBeat && piano[0].duration === sourcePiano.duration && piano[0].velocity === sourcePiano.velocity &&
+				piano[0].notes.length === sourcePiano.notes.length && piano[0].notes.every((note, index) => note === sourcePiano.notes[index]) &&
+				receipt.drums.every(hit => drums.some(event => event.time === hit.time && event.absBeat === hit.absBeat && event.drum === hit.drum && event.velocity === hit.velocity && event.role === hit.role));
+			if (matched) {
+				for (const card of cards) {
+					card.role = roles.mark_form;
+					card.action = card.instrument === 'drums' ? 'Catch the final chord' : 'Hold the final chord';
+					card.detail = card.instrument === 'drums' ? 'A restrained cymbal and kick catch the closing chord.' : 'The final chord is held, with no further attacks in this bar.';
+					card.evidence.push('Scheduled ending: shared final chord, then space');
+				}
+			}
+		}
+	}
 	return [bassCard, pianoCard, drumCard];
 }

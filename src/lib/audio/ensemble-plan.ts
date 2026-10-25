@@ -6,6 +6,7 @@
  * unavailable microphone as a silent soloist. Musical state is explicit and
  * resumable; named RNG streams keep planning independent of instrument draws.
  */
+import { validTerminalReservation, freezeTerminalReservation, type TerminalReservation } from './backing-terminal';
 import { createRng, seedFrom } from './generation-rng';
 import { PERFORMANCE_ENERGY_PHASES, type PerformanceEnergy } from './performance-energy';
 
@@ -28,6 +29,7 @@ export interface EnsembleBarContext {
 	readonly performanceEnergy?: PerformanceEnergy;
 	/** Explicit Swing/Straight shared-hit policy; absent from legacy/native paths. */
 	readonly pianoArrivalPolicy?: 'shared-v1';
+	readonly terminalArrangement?: TerminalReservation;
 	readonly isSectionFirstBar: boolean;
 	readonly isSectionFinalBar: boolean;
 	readonly isChorusFirstBar?: boolean;
@@ -69,6 +71,7 @@ export interface CoordinatedAccent {
 }
 
 export interface EnsembleBarPlan {
+	readonly terminalArrangement?: TerminalReservation;
 	readonly barIndex: number;
 	readonly phraseStartBar: number;
 	readonly phraseIntent: EnsembleIntent;
@@ -97,7 +100,7 @@ export interface EnsembleBarPlan {
 	};
 	readonly drums: {
 		readonly role: EnsembleRole;
-		readonly keepTime: true;
+		readonly keepTime: boolean;
 		readonly maxCommentaryHits: 0 | 1 | 2 | 3;
 		readonly commentaryScale: number;
 		readonly allowFill: boolean;
@@ -105,7 +108,7 @@ export interface EnsembleBarPlan {
 	};
 	readonly bass: {
 		readonly role: 'time' | 'respond';
-		readonly keepPulse: true;
+		readonly keepPulse: boolean;
 		readonly ornamentScale: number;
 	};
 	/** The arrival, attached to its target bar, after a planned preceding setup. */
@@ -233,6 +236,7 @@ export function freezeEnsembleMemory(memory: EnsembleMemory): EnsembleMemory {
 export function freezeEnsemblePlan(plan: EnsemblePlan): EnsemblePlan {
 	for (const bar of plan.bars) {
 		if (bar.performanceEnergy) Object.freeze(bar.performanceEnergy);
+		if (bar.terminalArrangement) freezeTerminalReservation(bar.terminalArrangement);
 		if (bar.piano.rootlessTexture) Object.freeze(bar.piano.rootlessTexture);
 		if (bar.piano.arrival) Object.freeze(bar.piano.arrival);
 		Object.freeze(bar.piano);
@@ -279,7 +283,8 @@ function formFingerprint(bars: readonly EnsembleBarContext[]): string {
 			bar.phrase4.position, bar.phrase4.barsRemaining, bar.phrase4.isFinalBar] : null,
 		...(bar.energyCeiling !== undefined ? [bar.energyCeiling] : []),
 		...(bar.performanceEnergy ? ['performance-energy-v1', bar.performanceEnergy.phase, bar.performanceEnergy.chorusIndex, bar.performanceEnergy.targetEnergy, 'rootless-texture-v2'] : []),
-		...(bar.pianoArrivalPolicy ? ['piano-arrival-v1'] : [])
+		...(bar.pianoArrivalPolicy ? ['piano-arrival-v1'] : []),
+		...(bar.terminalArrangement ? ['terminal-arrangement-v1', bar.terminalArrangement] : [])
 	]));
 	return `form-v1:${bars.length}:${seedFrom('ensemble-form', canonical).toString(16)}`;
 }
@@ -431,6 +436,7 @@ export function planEnsembleWindow(input: EnsembleWindowInput): EnsembleWindowRe
 	if (typeof input.phraseId !== 'string') throw new Error('Ensemble phrase identity must be a string');
 	if (!Number.isFinite(input.tempo) || input.tempo <= 0) throw new Error('Ensemble tempo must be positive');
 	for (const [index, bar] of input.bars.entries()) {
+		if (bar.terminalArrangement !== undefined && (!bar.performanceEnergy || !bar.pianoArrivalPolicy || index !== input.bars.length - 1 || !validTerminalReservation(bar.terminalArrangement, index))) throw new Error('Invalid terminal arrangement context');
 		if (bar.pianoArrivalPolicy !== undefined && (bar.pianoArrivalPolicy !== 'shared-v1' || !bar.performanceEnergy)) {
 			throw new Error('Invalid piano arrival policy context');
 		}
@@ -688,6 +694,7 @@ export function planEnsembleWindow(input: EnsembleWindowInput): EnsembleWindowRe
 			});
 		}
 		if (incomingAccent) plan.coordinatedAccent = incomingAccent;
+		if (bar.terminalArrangement) plan.terminalArrangement = freezeTerminalReservation(JSON.parse(JSON.stringify(bar.terminalArrangement)));
 		pendingArrival = plan.setupFor ?? null;
 		plans.push(plan);
 		trace.push(Object.freeze({

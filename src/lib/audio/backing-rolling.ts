@@ -1,3 +1,5 @@
+import { assessTerminalArrangement, realizeTerminalArrangement, terminalBarPlan, terminalPianoTrace, terminalDrumTrace, type TerminalReservation, type TerminalArrangementDecision } from './backing-terminal';
+import { BACKING_STYLES } from './backing-styles';
 /** Pure append-only, one-bar realization for the finite coordinated listening lab. */
 import type { HarmonicSegment } from '$lib/types/music';
 import { PITCH_CLASSES } from '$lib/types/music';
@@ -55,6 +57,7 @@ export interface RollingBackingDefinition {
 	readonly sourceBars: number;
 	readonly bassScalarContinuation?: true;
 	readonly bassApproachHandoff?: true;
+	readonly terminalArrangement?: TerminalReservation;
 	readonly loopCount: number;
 	readonly loops: readonly RollingLoopSpan[];
 	readonly tempo: number;
@@ -143,6 +146,8 @@ export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDef
 		if (next !== sourceBars) throw new Error('Rolling performance form must cover complete contiguous bars');
 	}
 	const sourceForm = form;
+	const terminalAssessment = params.terminalArrangement?.ending === 'hold-release' ? assessTerminalArrangement(harmony, style, params, { loopCount }) : undefined;
+	const terminalArrangement = terminalAssessment?.available ? terminalAssessment.reservation : undefined;
 	const loops = Array.from({ length: loopCount }, (_, loopIndex) => ({ loopIndex, startBar: loopIndex * sourceBars, endBarExclusive: (loopIndex + 1) * sourceBars }));
 	if (loopCount > 1) {
 		// Repeat declared score data only. Instrument decisions remain causal
@@ -164,7 +169,7 @@ export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDef
 	const bars = buildBarInfos(totalBars, undefined, form).map((info, barIndex) => {
 		const sourceBarIndex = barIndex % sourceBars;
 		const sourceContext = performanceBarContext(sourceForm, sourceBarIndex)!;
-		return { ...info, ...(style.intensityCap !== undefined ? { intensity: Math.min(info.intensity, style.intensityCap), energyCeiling: style.intensityCap } : {}), ...performanceBarContext(form, barIndex)!, ...(performanceEnergy ? { performanceEnergy: performanceEnergy[barIndex], ...(['swing', 'straight'].includes(style.coordinatedStyle!) ? { pianoArrivalPolicy: 'shared-v1' as const } : {}) } : {}), barIndex, loopIndex: Math.floor(barIndex / sourceBars),
+		return { ...info, ...(terminalArrangement?.barIndex === barIndex ? { terminalArrangement } : {}), ...(style.intensityCap !== undefined ? { intensity: Math.min(info.intensity, style.intensityCap), energyCeiling: style.intensityCap } : {}), ...performanceBarContext(form, barIndex)!, ...(performanceEnergy ? { performanceEnergy: performanceEnergy[barIndex], ...(['swing', 'straight'].includes(style.coordinatedStyle!) ? { pianoArrivalPolicy: 'shared-v1' as const } : {}) } : {}), barIndex, loopIndex: Math.floor(barIndex / sourceBars),
 			sourceBarIndex, sourceChorusIndex: sourceContext.chorusIndex, sourceSectionIndex: sourceContext.sectionIndex };
 	});
 	const timingProfiles = params.timing ?? style.timing;
@@ -173,6 +178,7 @@ export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDef
 	const serialized = JSON.stringify([1, params.phraseId, params.tempo, params.ppq, params.swing, copied, form, timingProfiles,
 		...(performanceEnergy ? [{ performanceEnergyVersion: 1, structuralTextureVersion: 1, coordinatedVoicingVersion: 4, reciprocalFeedbackVersion: 1, ...(['swing', 'straight'].includes(style.coordinatedStyle!) ? { pianoArrivalVersion: 1, bassScalarContinuationVersion: 1, bassApproachHandoffVersion: 1, pianoAnswerVersion: 1, pianoContourVersion: 1, pianoRecoveryVersion: 1, pianoPhraseRecallVersion: 1 } : style.coordinatedStyle === 'bossa-nova' ? { pianoContourVersion: 1 } : {}) }] : []),
 		...(loopCount > 1 ? [{ sourceBars, loopCount }] : []),
+		...(terminalArrangement ? [{ terminalArrangementVersion: 1, terminalArrangement }] : []),
 		...(style.coordinatedStyle !== 'swing' ? [{ style: style.coordinatedStyle }] : [])]);
 	// The definition retains the complete immutable score once. Repeating its
 	// raw JSON in every retained bar would make the export grow quadratically.
@@ -182,7 +188,7 @@ export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDef
 		? `rolling-repeat-v1:${serialized.length}:${seedFrom('score-a', serialized).toString(16)}:${seedFrom('score-b', serialized).toString(16)}`
 		: serialized;
 	return freeze({ version: 1, ...(performanceEnergy && ['swing', 'straight'].includes(style.coordinatedStyle!) ? { bassScalarContinuation: true as const, bassApproachHandoff: true as const } : {}), ...(style.coordinatedStyle !== 'swing' ? { style: style.coordinatedStyle } : {}), sessionId: `rolling:${seedFrom(fingerprint).toString(16)}`, fingerprint,
-		phraseId: params.phraseId, totalBars, sourceBars, loopCount, loops, tempo: params.tempo, ppq: params.ppq, beatsPerBar: 4, swing: params.swing,
+		phraseId: params.phraseId, totalBars, sourceBars, loopCount, loops, ...(terminalArrangement ? { terminalArrangement } : {}), tempo: params.tempo, ppq: params.ppq, beatsPerBar: 4, swing: params.swing,
 		performanceForm: form, harmony: copied, bars,
 		...(timingProfiles ? { timingProfiles: JSON.parse(JSON.stringify(timingProfiles)) } : {}) });
 }
@@ -261,7 +267,7 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 		Number.isSafeInteger(feature.observedAtBar) && feature.observedAtBar >= 0 && feature.observedAtBar <= feature.barIndex)
 		.reduce<SoloFeature | undefined>((latest, feature) => !latest || feature.barIndex > latest.barIndex ||
 			(feature.barIndex === latest.barIndex && feature.observedAtBar >= latest.observedAtBar) ? feature : latest, undefined);
-	const window = planEnsembleWindow({ phraseId: definition.phraseId, tempo: definition.tempo, bars: definition.bars,
+	let window = planEnsembleWindow({ phraseId: definition.phraseId, tempo: definition.tempo, bars: definition.bars,
 		startBar: bar, endBarExclusive: bar + 1, memory: checkpoint?.ensemble,
 		soloFeatures: latest ? [{ ...latest, barIndex: bar }] : [] });
 	const ensemble = window.plan.bars[0];
@@ -282,7 +288,7 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 	const answerPolicy = !!feedback && (!definition.style || definition.style === 'swing' || definition.style === 'straight');
 	let piano = realizeRollingPiano(definition, bar, pianoInfo, timing, checkpoint?.piano,
 		answerPolicy ? { feedback: feedback!, previous: checkpoint?.pianoAnswer } : undefined, window.plan.trace[0].soloEvidence);
-	const bass = realizeRollingBass(definition, bar, info, timing, checkpoint?.bass);
+	let bass = realizeRollingBass(definition, bar, info, timing, checkpoint?.bass);
 	const startTick = bar * 4 * definition.ppq;
 	const endTick = (bar + 1) * 4 * definition.ppq;
 	let peakEnd: number | undefined;
@@ -323,10 +329,42 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 		const downbeat = bass.events.find((event) => event.absBeat === bar * 4);
 		if (downbeat) { downbeat.time = `${Math.max(startTick, timing.arrivalTick(bar))}i`; downbeat.velocity = Math.min(110, downbeat.velocity + 5); }
 	}
+	let terminalDecision: TerminalArrangementDecision | undefined;
+	const reservation = definition.terminalArrangement?.barIndex === bar ? definition.terminalArrangement : undefined;
+	if (reservation) {
+		const candidate = realizeTerminalArrangement({ reservation, plan: ensemble, style: BACKING_STYLES[definition.style ?? 'swing'],
+			phraseId: definition.phraseId, tempo: definition.tempo, ppq: definition.ppq, segmentIndex: definition.harmony.length - 1,
+			previousBass: checkpoint?.bass.previousMidi, previousVoicing: checkpoint?.piano.voicing, previousContour: checkpoint?.piano.contour,
+			committedLaunch: !!checkpoint?.bass.pendingLaunch });
+		terminalDecision = candidate.decision;
+		if (candidate.decision.status === 'accepted' && candidate.voicing && candidate.contour && candidate.voicingTrace) {
+			const accepted = candidate.decision;
+			const plan = terminalBarPlan(ensemble);
+			window = { plan: { ...window.plan, bars: [plan], trace: window.plan.trace.map(entry => ({ ...entry, reasons: [...entry.reasons, 'terminal_arrangement'] })) },
+				memory: { ...window.memory, recentBars: window.memory.recentBars.map(entry => entry.barIndex === bar ? { ...entry, pianoAttackBudget: 1, drumCommentaryBudget: 0 } : entry) } };
+			piano = { events: [{ ...accepted.piano, notes: [...accepted.piano.notes] }], trace: terminalPianoTrace(plan, reservation), voicingTrace: [candidate.voicingTrace],
+				memory: { recentFigures: [...(checkpoint?.piano.recentFigures ?? []), 'terminal-arrangement'].slice(-3), motif: null,
+					segmentIndex: definition.harmony.length - 1, segmentVoicing: [...accepted.piano.notes], lastVoicing: [...accepted.piano.notes],
+					voicing: candidate.voicing, contour: candidate.contour, phraseRecall: { version: 1, source: null, recalledAt: null } } };
+			const previousMidi = checkpoint?.bass.previousMidi ?? null;
+			bass = { events: [{ ...accepted.bass }], trace: [], memory: {
+				previousMidi: accepted.bass.midi, previousPreviousMidi: previousMidi,
+				direction: previousMidi === null ? 0 : Math.sign(accepted.bass.midi - previousMidi), segmentIndex: definition.harmony.length - 1,
+				segmentAnchor: accepted.bass.midi, nextTarget: null, approach: checkpoint?.bass.approach ?? 'chromatic-below', feel: 'two', pendingLaunch: null,
+				...(definition.bassScalarContinuation ? { scalarHistory: { pulse: { absBeat: accepted.bass.absBeat, midi: accepted.bass.midi, time: accepted.bass.time }, ornamentAfterPulse: false } } : {}) } };
+			const { motif: _motif, ...drumPhrase } = drums.memory.phrase;
+			const { previousCompIsDrumReply: _reply, previousCompIsSharedArrival: _arrival, ...drumMemory } = drums.memory;
+			drums = { bar: terminalDrumTrace(drums.bar, accepted), memory: { ...drumMemory,
+				phrase: { ...drumPhrase, commentarySelected: false }, previousCompOnsets: [0], previousCompIsSharedArrival: true } };
+			drumEvents = accepted.drums.map(event => ({ ...event }));
+			recovery = undefined;
+		}
+	}
+	const terminalAccepted = terminalDecision?.status === 'accepted';
 	const contents: Omit<RollingBackingCheckpoint, 'checkpointId'> = { version: 1, sessionId: definition.sessionId, fingerprint: definition.fingerprint,
 		nextBar: bar + 1, ...(answerPolicy ? { pianoRecovery: { version: 1 as const, previousAnswer: piano.answer ? { barIndex: bar, attack: { ...piano.answer.attack, notes: [...piano.answer.attack.notes] } } : null }, pianoAnswer: { version: 1 as const, lastAnswerBar: piano.answer ? bar : checkpoint?.pianoAnswer?.lastAnswerBar ?? null } } : {}), ensemble: window.memory, piano: piano.memory, bass: bass.memory, drums: drums.memory, timing: timingTrace,
 		...(feedback ? { feedback: { version: 1 as const, previousDrumStatement: captureDrumStatement(drums.bar, drumEvents),
-			lastYieldBar: feedback.action === 'yield' ? bar : checkpoint?.feedback?.lastYieldBar ?? null } } : {}) };
+			lastYieldBar: !terminalAccepted && feedback.action === 'yield' ? bar : checkpoint?.feedback?.lastYieldBar ?? null } } : {}) };
 	const ticks = [...bass.events, ...piano.events, ...drumEvents].map((event) => parseInt(event.time, 10));
 	return freeze({ version: 1, sessionId: definition.sessionId, fromBar: bar, toBarExclusive: bar + 1,
 		loopIndex: definition.bars[bar].loopIndex, sourceBarIndex: definition.bars[bar].sourceBarIndex,
@@ -335,8 +373,8 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 		previousCheckpointId: checkpoint?.checkpointId ?? null,
 		checkpoint: { ...contents, checkpointId: checkpointId(contents) },
 		bassEvents: bass.events, compEvents: piano.events, drumEvents, ensemblePlan: window.plan, ensembleTiming: [timingTrace],
-		ensembleDevelopment: { version: 1, ...(recovery ? { pianoRecoveries: [{ ...recovery, acceptedAttacks: piano.events.map(event => ({ ...event, notes: [...event.notes] })) }] } : {}), ...(piano.answer ? { pianoAnswers: [piano.answer] } : {}), pianoMotifs: [piano.trace], bassTurnarounds: bass.trace,
-			...(feedback ? { pianoFeedback: [{ ...feedback, acceptedAttacks: piano.events.map(({ time, absBeat, notes }) => ({ time, absBeat, notes: [...notes] })) }] } : {}),
+		ensembleDevelopment: { version: 1, ...(terminalDecision ? { terminalArrangements: [terminalDecision] } : {}), ...(recovery ? { pianoRecoveries: [{ ...recovery, acceptedAttacks: piano.events.map(event => ({ ...event, notes: [...event.notes] })) }] } : {}), ...(piano.answer ? { pianoAnswers: [piano.answer] } : {}), pianoMotifs: [piano.trace], bassTurnarounds: bass.trace,
+			...(feedback && !terminalAccepted ? { pianoFeedback: [{ ...feedback, acceptedAttacks: piano.events.map(({ time, absBeat, notes }) => ({ time, absBeat, notes: [...notes] })) }] } : {}),
 			...(bass.feelTrace ? { bassFeel: [bass.feelTrace] } : {}),
 			...(bass.continuationTrace?.length ? { bassContinuations: bass.continuationTrace } : {}),
 			...(piano.voicingTrace ? { pianoVoicings: piano.voicingTrace } : {}), drumPhrases: [drums.bar] } });

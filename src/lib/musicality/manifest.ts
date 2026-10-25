@@ -201,6 +201,13 @@ const pianoRecallEvidence: MusicalityEvidence[] = [
 	{ ...test('backing-piano-phrase-recall-integration'), revision: 'musicality' },
 	{ kind: 'test', path: 'tests/e2e/musicality-listening.spec.ts', revision: 'musicality' }
 ];
+const terminalEvidence: MusicalityEvidence[] = [
+	{ ...source('backing-terminal'), revision: 'musicality' },
+	{ ...test('backing-terminal'), revision: 'musicality' },
+	{ ...test('backing-terminal-integration'), revision: 'musicality' },
+	{ kind: 'test', path: 'tests/unit/musicality/listening-ending.test.ts', revision: 'musicality' },
+	{ kind: 'test', path: 'tests/e2e/musicality-listening.spec.ts', revision: 'musicality' }
+];
 const bassDevelopmentEvidence: MusicalityEvidence[] = [
 	{ ...source('backing-bass-turnaround'), revision: PIANO_BASS_DEVELOPMENT_REVISION },
 	{ ...source('backing-bass'), revision: PIANO_BASS_DEVELOPMENT_REVISION },
@@ -294,7 +301,7 @@ const foundationAssessments: Record<string, string> = {
 	S20: 'Selected snare cells now repeat, displace or change orchestration over a phrase. A recent emitted piano rhythm can supply the source for a drum answer.',
 	S22: 'A remembered commentary rhythm can change between existing snare, cross-stick, kick and ride-bell voices; accepted gestures have explicit limb occupancy.',
 	S23: 'Coordinated bars resolve coincident strokes by a fixed hand/foot assignment. Commentary and agreed accents replace conflicting ostinato strokes before the complete bar is exported.',
-	S24: 'Explicit form metadata and shared setup/arrival reservations now supplement existing form punctuation.',
+	S24: 'Explicit form metadata and shared setup/arrival reservations supplement form punctuation. A separately declared terminal hold can coordinate the final bass root, piano chord and restrained drum catch without stopping intermediate repeat seams.',
 	S25: 'Shared response ownership and silence reasons constrain whole commentary cells. The drummer can retain and transform a rhythm from the previous bar of actual emitted piano attacks.',
 	S26: 'Coordinated mode now assigns response ownership, suppresses competing commentary, protects bass time and reserves bass/drum arrivals.',
 	S27: "The lab captures completed microphone bars as active, resting or unknown. Qualified density/rest evidence can drive upcoming uncommitted bars across selected loops during a bounded adaptive take, or a separate recorded-feature replay.",
@@ -305,7 +312,7 @@ const foundationAssessments: Record<string, string> = {
 	S37: 'Shared budgets and response/fill cooldowns now address simultaneous busyness and repeated reactions.',
 	S38: "Versioned JSON checkpoints retain ensemble cooldowns and arrivals, piano motif/voicing history, bass pitch history and accepted launches, drum phrase state and prior emitted piano onsets. Rolling realization resumes one absolute bar at a time across declared loops without resetting observation times or instrument history.",
 	S39: 'Piano and drum motifs now develop through scoped repetition, displacement, shortening, orchestration and space. Later cells must fit their current bar; withheld material has an explicit reason and does not rewrite its earlier source.',
-	S40: 'The plan represents reasoned piano/commentary silence. Reserved silent bars and accepted motif gaps constrain scheduled piano sustain and resumed attacks; bass and drum timekeeping continue.',
+	S40: 'The plan represents reasoned piano/commentary silence while ordinary bass and drums continue time. A deliberately selected terminal hold can instead reserve final-bar space after one complete shared chord, with explicit pulse/time exceptions and a bounded release.',
 	S41: "Rolling generation adds one causal instrument window to the shared plan, validates it against the scheduling horizon, and publishes scheduled events and bleed evidence together. Scheduled attacks and releases remain fixed.",
 	S42: 'Shared budgets and response/arrival reservations prevent some ensemble conflicts. The coordinated drum planner also resolves simultaneous hand/foot occupancy and exports the accepted bar.',
 	S44: "Planner, instrument checkpoints, causal observations and rolling clock/lifecycle tests complement existing event and form checks. Adaptive exports retain committed windows, actual dispatch records, loop/source-bar identities and absolute observation receipt times.",
@@ -372,6 +379,15 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 		...entry, status: drumUpdate[0], assessment: drumUpdate[1], remaining: drumUpdate[2],
 		scope: 'Coordinated swing/straight 4/4 listening-lab preview; current kit and complete cells within the performed harmony. Original practice generation is unchanged.',
 		evidence: [...entry.evidence, ...drumDevelopmentEvidence, ...(entry.id === 'D7' ? structuralTextureEvidence : [])]
+	};
+	if (entry.id === 'P15' || entry.id === 'D65') return {
+		...entry, status: 'partial',
+		assessment: entry.id === 'P15'
+			? 'An explicit Hold & release arrangement can place one shared final-bar chord, followed by space. The complete bass/piano/drum gesture uses current harmony and a release admitted against the known closing melody.'
+			: 'Selected shared arrivals retain their existing catch behavior. An explicitly arranged terminal chord can also align restrained ride/kick punctuation with the bass root and piano at one common downbeat.',
+		remaining: 'Only a supported complete final four-beat harmony and compatible known melody qualify. General stop-time sequences, setup fills, native-style endings, fermatas and human listening acceptance remain pending.',
+		scope: 'Opt-in explicit Coordinated Swing/Straight 4/4, fixed and rolling, absolute final declared loop only. Continue time remains default; Original, implicit, Bossa and Ballad retain their policies.',
+		evidence: [...entry.evidence, ...terminalEvidence]
 	};
 	if (entry.id === 'P4') return {
 		...entry,
@@ -501,6 +517,7 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 			...(['S12', 'S18', 'S33', 'S38', 'S44', 'S46'].includes(entry.id) ? structuralTextureEvidence : []),
 			{ ...test('backing-style-coordination'), revision: 'musicality' },
 			...(['S2', 'S24', 'S44', 'S46'].includes(entry.id) ? formEvidence : []),
+			...(['S24', 'S40'].includes(entry.id) ? terminalEvidence : []),
 			...(['S4', 'S32', 'S44'].includes(entry.id) ? phraseTimingEvidence : []),
 			...(['S4', 'S32', 'S44'].includes(entry.id) ? [
 				{ ...source('backing-piano-samples'), revision: 'musicality' },
