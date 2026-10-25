@@ -47,6 +47,7 @@ it('keeps all earlier space, form, ownership, active-soloist and cooldown decisi
 		{ ...plan, piano: { ...plan.piano, maxAttacks: 0 as const } },
 		{ ...plan, piano: { ...plan.piano, maxAttacks: 2 as const } },
 		{ ...plan, piano: { ...plan.piano, rootlessTexture: { request: 'three' as const, reason: 'active_soloist' as const } } },
+		{ ...plan, piano: { ...plan.piano, rootlessTexture: { request: 'two' as const, reason: 'dense_soloist' as const } } },
 		{ ...plan, phraseIntent: 'leave_space' as const }, { ...plan, intent: 'release' as const },
 		{ ...plan, performanceEnergy: { ...plan.performanceEnergy!, phase: 'solo_release' as const } },
 		{ ...plan, performanceEnergy: { ...plan.performanceEnergy!, phase: 'solo_peak' as const } },

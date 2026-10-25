@@ -453,8 +453,13 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 			{ ...source('backing-piano-recovery'), revision: 'musicality' },
 			{ ...test('backing-piano-recovery'), revision: 'musicality' },
 			{ ...test('backing-piano-recovery-integration'), revision: 'musicality' }] };
+	if (entry.id === 'P19') return { ...entry, status: 'partial',
+		assessment: 'Qualified dense solo evidence requests third-and-seventh support for already-permitted selected rootless A/B chords on maj7/min7/7. Existing silence and attack budgets remain authoritative; the musician view requires matching emitted notes and dense evidence before describing an actual reduction.',
+		remaining: 'Other families and qualities retain their existing shapes. Default studio takes contain no solo observations. Broader sparse comping, solo-register avoidance and human full-tune listening acceptance remain pending.',
+		scope: 'Explicit-form Coordinated 4/4 in all four styles with qualified dense evidence; fixed and causal rolling generation. Original, metadata-free and no-observation events remain unchanged.',
+		evidence: [...entry.evidence, ...rootlessTextureEvidence, { ...test('coordinated-dense-texture'), revision: 'musicality' }, { ...test('backing-dense-piano-support-integration'), revision: 'musicality' }] };
 	if (entry.id === 'P20') return { ...entry, status: 'partial',
-		assessment: 'Selected rootless A/B chords use third, seventh and ninth (or thirteenth for dominant B) as three-note support. Explicit heads/releases/endings request support; qualified active-solo evidence overrides fuller development.',
+		assessment: 'Selected rootless A/B chords use third, seventh and ninth (or thirteenth for dominant B) as three-note support. Explicit heads/releases/endings request support; qualified non-dense active-solo evidence overrides fuller development. P19 covers the two-note request under qualified dense activity.',
 		remaining: 'Altered, diminished, suspended and sixth chords retain their existing vocabulary. Broader structural texture development and human listening acceptance remain pending.',
 		scope: 'Explicit-form Coordinated 4/4 in all four styles, restricted to maj7/min7/7 and selected rootless A/B. Original and metadata-free generation remain unchanged.',
 		evidence: [...entry.evidence, ...rootlessTextureEvidence] };

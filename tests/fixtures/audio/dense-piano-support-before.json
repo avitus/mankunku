@@ -1,0 +1,413 @@
+{
+  "head": "d2d4bbd8",
+  "cases": [
+    {
+      "style": "swing",
+      "trajectory": "none",
+      "engine": "fixed",
+      "witness": [],
+      "expected": {
+        "compEvents": "0aaf2ef639d00622ba0608c3d9fc134014bc952d9c0d2ff97c8b1e75f3b0bdd9",
+        "compNonPitches": "7cc7feac0935b4f273b67e5d1470185c1c313bcac75b1c418a4f1e06c9b8e460",
+        "bassEvents": "9516f24c27ea53f019895b436e7a2eca286578c132569ebc359755e97f301aad",
+        "drumEvents": "df1b0f84cf71911e582e743d3d75c9d984a147884f856efd424c551eeb72986d",
+        "families": "2cf84a67bcc1764848b60c50e3d44e98f71f73e16d8c9fc7238a1fcb50a92aa2"
+      }
+    },
+    {
+      "style": "swing",
+      "trajectory": "none",
+      "engine": "rolling",
+      "witness": [],
+      "expected": {
+        "compEvents": "10df41054f3594139b0c9e973f779abbbe98b5c8905b133d36d46dec8795c44b",
+        "compNonPitches": "c165b69b84dd3c5d729686af786a11b6c62a138ae8daf45dca35af3a36041a65",
+        "bassEvents": "8df2401e0139b2f72aff2bb00da18b1499d1ef675743380cbdc74eeb7be87f4c",
+        "drumEvents": "4228be7abfd4f683ebebfe37a8802b0c22dc503fb05d468c612733f58b791178",
+        "families": "057d1c80961d071649695b4a1d41d6914a588ac1c8c3ccbcd5109be2114b4ab8"
+      }
+    },
+    {
+      "style": "swing",
+      "trajectory": "active",
+      "engine": "fixed",
+      "witness": [],
+      "expected": {
+        "compEvents": "75948e7b4ecc8f799a94b56a165399811019d8d4eefef6834c32bd9b7df0b7ec",
+        "compNonPitches": "7cc7feac0935b4f273b67e5d1470185c1c313bcac75b1c418a4f1e06c9b8e460",
+        "bassEvents": "9516f24c27ea53f019895b436e7a2eca286578c132569ebc359755e97f301aad",
+        "drumEvents": "df1b0f84cf71911e582e743d3d75c9d984a147884f856efd424c551eeb72986d",
+        "families": "2cf84a67bcc1764848b60c50e3d44e98f71f73e16d8c9fc7238a1fcb50a92aa2"
+      }
+    },
+    {
+      "style": "swing",
+      "trajectory": "active",
+      "engine": "rolling",
+      "witness": [],
+      "expected": {
+        "compEvents": "d1a03bab268c169cd07f72bfdeffe04dd5f752bde7f0cdcb13eb50894572d669",
+        "compNonPitches": "c165b69b84dd3c5d729686af786a11b6c62a138ae8daf45dca35af3a36041a65",
+        "bassEvents": "8df2401e0139b2f72aff2bb00da18b1499d1ef675743380cbdc74eeb7be87f4c",
+        "drumEvents": "4228be7abfd4f683ebebfe37a8802b0c22dc503fb05d468c612733f58b791178",
+        "families": "057d1c80961d071649695b4a1d41d6914a588ac1c8c3ccbcd5109be2114b4ab8"
+      }
+    },
+    {
+      "style": "swing",
+      "trajectory": "dense",
+      "engine": "fixed",
+      "witness": [
+        {
+          "time": "19910i",
+          "notes": [
+            49,
+            65,
+            67
+          ],
+          "duration": 0.1294642857142857,
+          "velocity": 73,
+          "absBeat": 103.5
+        }
+      ],
+      "expected": {
+        "compEvents": "7703f42c1cde0e8bc16ccd8080d3389c8d98c25f403c62973be54e3cd1103a3e",
+        "compNonPitches": "8aab9f294c7687f839f46c0082c0f28982f556eee266327a1dc9e2cf67abb54c",
+        "bassEvents": "9516f24c27ea53f019895b436e7a2eca286578c132569ebc359755e97f301aad",
+        "drumEvents": "3a4f24cc72ccad2300300f223de79837f4b17cf1a42e8ef05bed5a208b17f9da",
+        "families": "10c75ad23682c625673bebf5726dc138d68fb483d825a2e31d2f138dbbb5e0d5"
+      }
+    },
+    {
+      "style": "swing",
+      "trajectory": "dense",
+      "engine": "rolling",
+      "witness": [
+        {
+          "absBeat": 103.5,
+          "time": "19910i",
+          "notes": [
+            49,
+            65,
+            67
+          ],
+          "duration": 0.12946428571428573,
+          "velocity": 73
+        }
+      ],
+      "expected": {
+        "compEvents": "100da0e26e4d513413e41e9c5d8f0a9c2cf59e8a08377e23bb93471cec18aa5b",
+        "compNonPitches": "788716c36d3c94240099fc89987e6103203f1d1729ea9e2220b602d6462b82ed",
+        "bassEvents": "7872e56d8030bfc7beb035a6ba20a6237686ca20047539ef9cbb0a56ebee3cd0",
+        "drumEvents": "47173405fcb0c889604bf34792c57b1c5e9140582ce5ba39609552fe6918d9a2",
+        "families": "618fec949f58c70999b9abb151fa76f2b9a404eb6f0ba84d9a19cac1f472d46d"
+      }
+    },
+    {
+      "style": "straight",
+      "trajectory": "none",
+      "engine": "fixed",
+      "witness": [],
+      "expected": {
+        "compEvents": "b418382bc5eb3b07b06f6ab67e080d006b5f4379a168a6a85fe49346906f90d8",
+        "compNonPitches": "0f150466cbe04c66ff9aa7bb5b98614ac14d3c623574d0c9cb606ebab10fa1c3",
+        "bassEvents": "e844b3e4f7ee308250c1dd81fc487e3e28fddfe7c61c09537ad1b69e500e5889",
+        "drumEvents": "95f3fdfa6399fc5a156b1f2dcf2ef53281def0a58f2d48ffa2d6d0c2ffbfb49c",
+        "families": "244868de08a35cfa21d42923683701fd7016d347bb0bca5ae9755b07dcf62a3f"
+      }
+    },
+    {
+      "style": "straight",
+      "trajectory": "none",
+      "engine": "rolling",
+      "witness": [],
+      "expected": {
+        "compEvents": "7f7be6b9cbb1b3f8094ddd31c85e663733ec40f82a3890990903c4768becf176",
+        "compNonPitches": "42f124420c7987110a727ddbafdfc17c1b7b104ebcb520b8963463d5a735ad27",
+        "bassEvents": "443be49be3cdff28c5a91772a7795d4c02a6f43b1916c0d5ddbd34c780662fac",
+        "drumEvents": "760c453307a893f591c34fe2afdf8325af5d3cb257f5e4ed2f09ac51d0545d44",
+        "families": "1a6130607cb5982caaecf32d1ad7125b5b80ceb1b511313ab8399be7eb0e65f8"
+      }
+    },
+    {
+      "style": "straight",
+      "trajectory": "active",
+      "engine": "fixed",
+      "witness": [],
+      "expected": {
+        "compEvents": "eb5ab3f0af0531fc382128665939df83fdf41034d4997ca44fe40828e9af6f64",
+        "compNonPitches": "0f150466cbe04c66ff9aa7bb5b98614ac14d3c623574d0c9cb606ebab10fa1c3",
+        "bassEvents": "e844b3e4f7ee308250c1dd81fc487e3e28fddfe7c61c09537ad1b69e500e5889",
+        "drumEvents": "95f3fdfa6399fc5a156b1f2dcf2ef53281def0a58f2d48ffa2d6d0c2ffbfb49c",
+        "families": "244868de08a35cfa21d42923683701fd7016d347bb0bca5ae9755b07dcf62a3f"
+      }
+    },
+    {
+      "style": "straight",
+      "trajectory": "active",
+      "engine": "rolling",
+      "witness": [],
+      "expected": {
+        "compEvents": "7872462bafd62e48d04d0d96316cc7b4eaa36c56a19e133224fe893bb458d55c",
+        "compNonPitches": "42f124420c7987110a727ddbafdfc17c1b7b104ebcb520b8963463d5a735ad27",
+        "bassEvents": "443be49be3cdff28c5a91772a7795d4c02a6f43b1916c0d5ddbd34c780662fac",
+        "drumEvents": "760c453307a893f591c34fe2afdf8325af5d3cb257f5e4ed2f09ac51d0545d44",
+        "families": "1a6130607cb5982caaecf32d1ad7125b5b80ceb1b511313ab8399be7eb0e65f8"
+      }
+    },
+    {
+      "style": "straight",
+      "trajectory": "dense",
+      "engine": "fixed",
+      "witness": [
+        {
+          "time": "19875i",
+          "notes": [
+            49,
+            65,
+            67
+          ],
+          "duration": 0.2075892857142857,
+          "velocity": 73,
+          "absBeat": 103.5
+        }
+      ],
+      "expected": {
+        "compEvents": "b20eb05f98b7c63d6712597c2bc1d25cf721f59cd0d8b0a68dd408450f94556f",
+        "compNonPitches": "1d1befdfd5db408bee37d58407bba7f0602aab684b8bffe3b45329f3549d1a48",
+        "bassEvents": "e844b3e4f7ee308250c1dd81fc487e3e28fddfe7c61c09537ad1b69e500e5889",
+        "drumEvents": "2f6fcb101f85f8681e93a31401aa5f4bf60ee26881dd1001e318f07e9efa3a27",
+        "families": "b292c9bd3941d3c5309b40d21eb9aed9fd927cb20a3c7b125f9612595ed7b6af"
+      }
+    },
+    {
+      "style": "straight",
+      "trajectory": "dense",
+      "engine": "rolling",
+      "witness": [
+        {
+          "absBeat": 103.5,
+          "time": "19875i",
+          "notes": [
+            49,
+            65,
+            67
+          ],
+          "duration": 0.2075892857142857,
+          "velocity": 73
+        }
+      ],
+      "expected": {
+        "compEvents": "a6174a034f1a048071cd2a1ef6d779402c2e36b90969ba9633a2d8a39de73c9c",
+        "compNonPitches": "dcc6ffe7485fb5d25b4901db5a0e9dc290f6e0c10516c3058d9046f9a8ed9284",
+        "bassEvents": "a3b8351889caa93451150675d02ea2ed070d41d2bc4e3bf9f3c66b9bfcd21e25",
+        "drumEvents": "76c345f49ad97c7e87a800412d8bc1f993e0326385fc9383d1e29d34669b741f",
+        "families": "620d10debfefa6d168a00786a1d6bb55e7b31ea79b9c536fe208fe430e92d340"
+      }
+    },
+    {
+      "style": "bossa-nova",
+      "trajectory": "none",
+      "engine": "fixed",
+      "witness": [],
+      "expected": {
+        "compEvents": "a1bd15a51d8c193a36fdcd7b3ed42ef285391364a807041c0af9d867e801204d",
+        "compNonPitches": "edced4633f7ff4958f457fa8fee3538126821cb7b9fd413f4a577aed6a3ba1d6",
+        "bassEvents": "6e97237bbcf9c5084843f250ee0bc4ed98052cb2c2bff25b5060b7814a36bd4c",
+        "drumEvents": "13db425758b7683780fb2ac81433e32bf79f53298c7690c2d711976605a41d16",
+        "families": "0ceebb121ddca9c67880b5fbb42dbfc5c07a49d8f5633e7dcbe0a0af39d86810"
+      }
+    },
+    {
+      "style": "bossa-nova",
+      "trajectory": "none",
+      "engine": "rolling",
+      "witness": [],
+      "expected": {
+        "compEvents": "65580daff781b7ce85d347dba15a27ec8390fa1de6f5058a313e6a960d99518f",
+        "compNonPitches": "c590f449539e2a51ffced881f86a84326ee20bd095bdf6fa08ed0dc7d57e493c",
+        "bassEvents": "19adcfb62ce63b43b83fb013e74bee81f9c0550e36fb460b82a1eb6a0020801b",
+        "drumEvents": "db1e9f0b61a0cd4db9333eb1da0b9fdbd4a2c4516cca2f620e0f2862296060aa",
+        "families": "0ceebb121ddca9c67880b5fbb42dbfc5c07a49d8f5633e7dcbe0a0af39d86810"
+      }
+    },
+    {
+      "style": "bossa-nova",
+      "trajectory": "active",
+      "engine": "fixed",
+      "witness": [],
+      "expected": {
+        "compEvents": "0b5f338bbcbb7a603b75858b8b9f2cd5f3441ebb21681ba7cf7c12e2af7eb9af",
+        "compNonPitches": "edced4633f7ff4958f457fa8fee3538126821cb7b9fd413f4a577aed6a3ba1d6",
+        "bassEvents": "6e97237bbcf9c5084843f250ee0bc4ed98052cb2c2bff25b5060b7814a36bd4c",
+        "drumEvents": "13db425758b7683780fb2ac81433e32bf79f53298c7690c2d711976605a41d16",
+        "families": "0ceebb121ddca9c67880b5fbb42dbfc5c07a49d8f5633e7dcbe0a0af39d86810"
+      }
+    },
+    {
+      "style": "bossa-nova",
+      "trajectory": "active",
+      "engine": "rolling",
+      "witness": [],
+      "expected": {
+        "compEvents": "95ac7c3639e2ad01d905a06d691125280a0e6380ee71388c77cb28f4efff9248",
+        "compNonPitches": "c590f449539e2a51ffced881f86a84326ee20bd095bdf6fa08ed0dc7d57e493c",
+        "bassEvents": "19adcfb62ce63b43b83fb013e74bee81f9c0550e36fb460b82a1eb6a0020801b",
+        "drumEvents": "db1e9f0b61a0cd4db9333eb1da0b9fdbd4a2c4516cca2f620e0f2862296060aa",
+        "families": "0ceebb121ddca9c67880b5fbb42dbfc5c07a49d8f5633e7dcbe0a0af39d86810"
+      }
+    },
+    {
+      "style": "bossa-nova",
+      "trajectory": "dense",
+      "engine": "fixed",
+      "witness": [
+        {
+          "time": "19201i",
+          "notes": [
+            50,
+            60,
+            68
+          ],
+          "duration": 0.32736726503287045,
+          "velocity": 56,
+          "absBeat": 100
+        }
+      ],
+      "expected": {
+        "compEvents": "ddd1a45a0da7fae2a6993845e9adf6c9ec84bc90b694297acf649b0701865869",
+        "compNonPitches": "53deb3fc0cd47b4b1f9f2789dda65fb28ba187159083fc7bc7ae745da3ff9509",
+        "bassEvents": "e2d0e039b0a761fd530353f765be7f25bff90187877a1e767bfd07687dc1e834",
+        "drumEvents": "13db425758b7683780fb2ac81433e32bf79f53298c7690c2d711976605a41d16",
+        "families": "31d493ad6edac9a070514f427f00cc68e85b47a2284c99038d6b1b17fd75a514"
+      }
+    },
+    {
+      "style": "bossa-nova",
+      "trajectory": "dense",
+      "engine": "rolling",
+      "witness": [
+        {
+          "absBeat": 100,
+          "time": "19201i",
+          "notes": [
+            50,
+            60,
+            68
+          ],
+          "duration": 0.3273672650328705,
+          "velocity": 56
+        }
+      ],
+      "expected": {
+        "compEvents": "4dee1e7a1425b6a3dec5f095cded1de8f41ab95624b70adfdef9ab27e21a2a67",
+        "compNonPitches": "d4b9ef4aa2df5bcc9ff092ef27259054f3d2aa70b72deb4eb5a0ee4df43a416f",
+        "bassEvents": "8f4983ce0d21a2a0c91815f3af3bc03e1dbf3c3bf760d04d10bfa4eff46dc395",
+        "drumEvents": "db1e9f0b61a0cd4db9333eb1da0b9fdbd4a2c4516cca2f620e0f2862296060aa",
+        "families": "31d493ad6edac9a070514f427f00cc68e85b47a2284c99038d6b1b17fd75a514"
+      }
+    },
+    {
+      "style": "ballad",
+      "trajectory": "none",
+      "engine": "fixed",
+      "witness": [],
+      "expected": {
+        "compEvents": "24a613b1be43f8b0162d3d64526ac86a394faf185e6131b4e26c508bb2a9cf8c",
+        "compNonPitches": "c5b302ff9324f81f20a81fccc3f97145e3a9f5d6232fbff594baada371a7b580",
+        "bassEvents": "e92b88cd5394bb86ab30ffddc84b48f986031a8f00d032f39da36cfb26c2578f",
+        "drumEvents": "b4ffa0c18fb33b74e431d408a2458253486cdd8c6e3a88bd4fe7b394645afd17",
+        "families": "57d2c31d58081dcae17549045c127a6449014cb956c798f03dd1959dd0dbca39"
+      }
+    },
+    {
+      "style": "ballad",
+      "trajectory": "none",
+      "engine": "rolling",
+      "witness": [],
+      "expected": {
+        "compEvents": "58ac66521a5a7080cb7bb15f8e47e73fd8a695ca14b629b8397e1eed4b00d33e",
+        "compNonPitches": "904645b1286fd6915a9bef0c4ee7bfbaffbe00fd8077423521f08f6e296ecb22",
+        "bassEvents": "f3046e4fa4e3958c9aded2aac8bc13fc5791a33fa420d72842862ceb22fa26fe",
+        "drumEvents": "ba8f688c9a719c7e31e580e91a7923e0c7ba690be008c72f50d4450dc4e25824",
+        "families": "57d2c31d58081dcae17549045c127a6449014cb956c798f03dd1959dd0dbca39"
+      }
+    },
+    {
+      "style": "ballad",
+      "trajectory": "active",
+      "engine": "fixed",
+      "witness": [],
+      "expected": {
+        "compEvents": "bd18834e958ea33e73cb1f6ce0e3a9ebd471046e6fa6d0a542eb71f4c8f09a71",
+        "compNonPitches": "c5b302ff9324f81f20a81fccc3f97145e3a9f5d6232fbff594baada371a7b580",
+        "bassEvents": "e92b88cd5394bb86ab30ffddc84b48f986031a8f00d032f39da36cfb26c2578f",
+        "drumEvents": "b4ffa0c18fb33b74e431d408a2458253486cdd8c6e3a88bd4fe7b394645afd17",
+        "families": "57d2c31d58081dcae17549045c127a6449014cb956c798f03dd1959dd0dbca39"
+      }
+    },
+    {
+      "style": "ballad",
+      "trajectory": "active",
+      "engine": "rolling",
+      "witness": [],
+      "expected": {
+        "compEvents": "29b391e351063c2119107b167a2e680b09b8a1a00de7dca8f5b4da3c7e8cf645",
+        "compNonPitches": "904645b1286fd6915a9bef0c4ee7bfbaffbe00fd8077423521f08f6e296ecb22",
+        "bassEvents": "f3046e4fa4e3958c9aded2aac8bc13fc5791a33fa420d72842862ceb22fa26fe",
+        "drumEvents": "ba8f688c9a719c7e31e580e91a7923e0c7ba690be008c72f50d4450dc4e25824",
+        "families": "57d2c31d58081dcae17549045c127a6449014cb956c798f03dd1959dd0dbca39"
+      }
+    },
+    {
+      "style": "ballad",
+      "trajectory": "dense",
+      "engine": "fixed",
+      "witness": [
+        {
+          "time": "19592i",
+          "notes": [
+            50,
+            56,
+            60
+          ],
+          "duration": 0.7714285714285714,
+          "velocity": 43,
+          "absBeat": 102
+        }
+      ],
+      "expected": {
+        "compEvents": "1d02ad8af59f1558994dfe0923faab9bae920aa835dfb822257dee3c61cc2bd3",
+        "compNonPitches": "18597d46d2c505a12a6ae0f7600b68a3d2e5325f2298f103f676a63552cd1207",
+        "bassEvents": "e92b88cd5394bb86ab30ffddc84b48f986031a8f00d032f39da36cfb26c2578f",
+        "drumEvents": "1424674c30cdd0ef7ef771aa39fe1532e8e35e00158918d685ef153b37062680",
+        "families": "fc8ac3423bc7cf208b84967b072eb6b640032f207815d24204a7ff63a582a966"
+      }
+    },
+    {
+      "style": "ballad",
+      "trajectory": "dense",
+      "engine": "rolling",
+      "witness": [
+        {
+          "absBeat": 102,
+          "time": "19592i",
+          "notes": [
+            50,
+            56,
+            60
+          ],
+          "duration": 0.7714285714285715,
+          "velocity": 43
+        }
+      ],
+      "expected": {
+        "compEvents": "c12d8b0e0a30335f1c7a397d59f1566cccc682bf689322aa2164e2a050393cfc",
+        "compNonPitches": "70f910e76f1c242968d244c6dacce2c93149dbf042b5af5e3320403d1fe45c32",
+        "bassEvents": "f3046e4fa4e3958c9aded2aac8bc13fc5791a33fa420d72842862ceb22fa26fe",
+        "drumEvents": "6aff26090692ebb725c0923107f6d89d3ec41e00440b6d950497afead1a26d94",
+        "families": "fc8ac3423bc7cf208b84967b072eb6b640032f207815d24204a7ff63a582a966"
+      }
+    }
+  ]
+}

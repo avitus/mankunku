@@ -26,7 +26,7 @@ export function proposePianoAnswer(input: {
 	const source = feedback?.source;
 	if (!plan?.performanceEnergy || feedback?.reason !== 'not_selected' || !source || source.barIndex !== bar - 1 ||
 		plan.piano.maxAttacks !== 1 || input.retainedMotif || input.realized.length !== 1 ||
-		plan.piano.silenceReason || plan.piano.rootlessTexture?.reason === 'active_soloist' ||
+		plan.piano.silenceReason || plan.piano.rootlessTexture?.reason === 'active_soloist' || plan.piano.rootlessTexture?.reason === 'dense_soloist' ||
 		plan.phraseIntent === 'leave_space' || plan.phraseIntent === 'release' || plan.intent === 'leave_space' || plan.intent === 'release' ||
 		plan.performanceEnergy.phase !== 'solo_build' ||
 		info.isSectionFirstBar || info.isChorusFirstBar || info.isSectionFinalBar || info.isChorusFinalBar || info.isFinalBar ||

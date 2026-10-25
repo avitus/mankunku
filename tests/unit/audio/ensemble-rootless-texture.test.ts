@@ -57,7 +57,7 @@ describe('ensemble rootless texture requests', () => {
 			const bar = plan.bars[boundary];
 			expect(bar.piano.maxAttacks).toBeLessThanOrEqual(1);
 			expect(bar.drums.maxCommentaryHits).toBe(0);
-			expect(bar.piano.rootlessTexture).toEqual({ request: 'three', reason: 'active_soloist' });
+			expect(bar.piano.rootlessTexture).toEqual({ request: 'two', reason: 'dense_soloist' });
 			if (bar.piano.maxAttacks === 1) survivingBoundaries++;
 		}
 		expect(survivingBoundaries).toBeGreaterThan(0);

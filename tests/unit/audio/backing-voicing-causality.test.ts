@@ -142,9 +142,10 @@ it('rejects prior-policy or malformed emitted-harmony checkpoints before continu
 	for (let bar = 0; bar < score.totalBars - 1 && !checkpoint?.piano.voicing; bar++) checkpoint = advanceRollingBacking(score, checkpoint).checkpoint;
 	expect(checkpoint?.piano.voicing).toBeDefined();
 	for (const priorPolicy of [
-		score.fingerprint.replace('"coordinatedVoicingVersion":3', '"coordinatedVoicingVersion":2'),
-		score.fingerprint.replace('"coordinatedVoicingVersion":3', '"coordinatedVoicingVersion":1'),
-		score.fingerprint.replace(',"coordinatedVoicingVersion":3', '')
+		score.fingerprint.replace('"coordinatedVoicingVersion":4', '"coordinatedVoicingVersion":3'),
+		score.fingerprint.replace('"coordinatedVoicingVersion":4', '"coordinatedVoicingVersion":2'),
+		score.fingerprint.replace('"coordinatedVoicingVersion":4', '"coordinatedVoicingVersion":1'),
+		score.fingerprint.replace(',"coordinatedVoicingVersion":4', '')
 	]) {
 		expect(priorPolicy).not.toBe(score.fingerprint);
 		const { checkpointId: _identity, ...contents } = { ...checkpoint!, fingerprint: priorPolicy };

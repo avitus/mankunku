@@ -217,9 +217,9 @@ describe('audible piano voice-leading evidence', () => {
 });
 
 describe('planned and emitted rootless texture evidence', () => {
-	function score(request: 'three' | 'full' = 'three', applied: 'three' | 'full' = 'three', eligible = true, notes = [62, 64, 71], family = 'rootless-a') {
+	function score(request: 'two' | 'three' | 'full' = 'three', applied: 'two' | 'three' | 'full' = 'three', eligible = true, notes = [62, 64, 71], family = 'rootless-a') {
 		const event = { time: '0i', absBeat: 0, notes, duration: 0.5, velocity: 60 };
-		return { bassEvents: [], compEvents: [event], drumEvents: [], ensemblePlan: { version: 1, trace: [], bars: [{
+		return { bassEvents: [], compEvents: [event], drumEvents: [], ensemblePlan: { version: 1, trace: [] as { barIndex: number; soloEvidence: string; reasons: string[] }[], bars: [{
 			barIndex: 0, phraseIntent: 'support', energy: 0.4, piano: { role: 'support', rootlessTexture: { request, reason: 'melody_support' } },
 			drums: { role: 'time' }, bass: { role: 'time' }
 		}] }, ensembleDevelopment: { version: 1, bassTurnarounds: [], pianoMotifs: [] as { barIndex: number; reason: string; motifId: null }[], drumPhrases: [], pianoVoicings: [{ ...event, decision: {
@@ -282,6 +282,74 @@ describe('planned and emitted rootless texture evidence', () => {
 		const evidence = piano(generated).evidence;
 		expect(evidence).toContain('Planned rootless texture: keep the selected chord shape · support the solo');
 		expect(evidence).toContain('Chord 1 texture: selected chord shape kept · 4 notes');
+	});
+	function denseScore() {
+		const generated = score('two', 'two', true, [64, 70]);
+		generated.ensemblePlan.bars[0].piano.rootlessTexture.reason = 'dense_soloist';
+		generated.ensemblePlan.trace = [{ barIndex: 0, soloEvidence: 'active', reasons: ['soloist_dense'] }];
+		return generated;
+	}
+	it.each(['swing', 'straight', 'bossa-nova', 'ballad'] as const)('explains admitted two-note %s support with exact dense evidence', style => {
+		const generated = denseScore();
+		if (style === 'bossa-nova' || style === 'ballad') generated.ensembleDevelopment.pianoMotifs.push({ barIndex: 0, reason: 'native_pattern', motifId: null });
+		const card = piano(generated, { ...context, style });
+		expect(card.action).toBe('Support the harmony');
+		if (style === 'bossa-nova') expect(card.detail).toContain('native bossa');
+		if (style === 'ballad') expect(card.detail).toContain('native ballad');
+		expect(card.evidence).toContain('Planned rootless texture: two-note support · leave room for dense solo activity');
+		expect(card.evidence).toContain('Chord 1 texture: two-note support under dense solo activity · 2 notes');
+	});
+	it('leaves dense silent bars planned-only', () => {
+		const generated = denseScore(); generated.compEvents = [];
+		const card = piano(generated);
+		expect(card.action).toBe('No new chord attack');
+		expect(card.evidence).toContain('Planned rootless texture: two-note support · leave room for dense solo activity');
+		expect(card.evidence.join(' ')).not.toContain('Chord 1 texture:');
+	});
+	it.each(['time', 'absBeat', 'notes', 'count', 'ineligible', 'family', 'changed-family', 'request', 'applied', 'plan-request', 'plan-reason', 'stale', 'low-confidence', 'missing-source', 'missing-dense-reason'] as const)('withholds a dense support claim for inconsistent %s evidence', field => {
+		const generated = denseScore();
+		const voiced = generated.ensembleDevelopment.pianoVoicings[0];
+		const trace = generated.ensemblePlan.trace;
+		if (field === 'time') voiced.time = '1i';
+		if (field === 'absBeat') voiced.absBeat = .5;
+		if (field === 'notes') voiced.notes = [64, 71];
+		if (field === 'count') voiced.decision.rootlessTexture.noteCount = 3;
+		if (field === 'ineligible') voiced.decision.rootlessTexture.eligible = false;
+		if (field === 'family') voiced.decision.requestedFamily = voiced.decision.resolvedFamily = 'guide';
+		if (field === 'changed-family') voiced.decision.resolvedFamily = 'rootless-b';
+		if (field === 'request') voiced.decision.rootlessTexture.request = 'three';
+		if (field === 'applied') voiced.decision.rootlessTexture.applied = 'three';
+		if (field === 'plan-request') generated.ensemblePlan.bars[0].piano.rootlessTexture.request = 'three';
+		if (field === 'plan-reason') generated.ensemblePlan.bars[0].piano.rootlessTexture.reason = 'active_soloist';
+		if (field === 'stale') trace[0].soloEvidence = 'stale';
+		if (field === 'low-confidence') trace[0].soloEvidence = 'low_confidence';
+		if (field === 'missing-dense-reason') trace[0].reasons = [];
+		if (field === 'missing-source') generated.ensemblePlan.trace = [];
+		expect(piano(generated).evidence.join(' ')).not.toContain('two-note support under dense solo activity');
+	});
+	it('binds an early sounding attack to its logical dense source bar', () => {
+		const generated = denseScore();
+		generated.ensemblePlan.bars[0].barIndex = 1;
+		generated.ensemblePlan.trace[0].barIndex = 1;
+		for (const event of [generated.compEvents[0], generated.ensembleDevelopment.pianoVoicings[0]]) {
+			event.absBeat = 4; event.time = '767i';
+		}
+		expect(piano(generated).evidence).toContain('Chord 1 texture: two-note support under dense solo activity · 2 notes');
+		generated.ensemblePlan.bars[0].barIndex = 0;
+		generated.ensemblePlan.trace[0].barIndex = 0;
+		expect(piano(generated).evidence.join(' ')).not.toContain('two-note support under dense solo activity');
+	});
+	it.each([['guide', [64, 70]], ['shell', [60, 64, 70]], ['quartal', [62, 67, 72]], ['drop2', [55, 60, 64, 70]], ['rootless-b', [62, 64, 69, 70]]] as const)('keeps an unsupported dense %s shape honest', (family, notes) => {
+		const generated = score('two', 'full', false, [...notes], family);
+		generated.ensemblePlan.bars[0].piano.rootlessTexture.reason = 'dense_soloist';
+		expect(piano(generated).evidence).toContain(`Chord 1 texture: selected chord shape kept · ${notes.length} notes`);
+		expect(piano(generated).evidence.join(' ')).not.toContain('two-note support under dense solo activity');
+	});
+	it('does not claim dense support for Original or missing dense receipts', () => {
+		const generated = denseScore();
+		expect(piano(generated, { ...context, orchestration: 'original' }).evidence.join(' ')).not.toContain('texture');
+		generated.ensembleDevelopment.pianoVoicings = [];
+		expect(piano(generated).evidence.join(' ')).not.toContain('two-note support under dense solo activity');
 	});
 	it('shows no new texture claims for Original or old exports without texture fields', () => {
 		const generated = score();

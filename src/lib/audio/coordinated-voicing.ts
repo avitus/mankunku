@@ -22,8 +22,8 @@ export interface CoordinatedVoicingDecision {
 	readonly topLine?: { readonly targetMidi: number; readonly actualMidi: number; readonly distance: number; readonly eligible: boolean };
 	/** 'full' retains the selected family; it does not imply four notes. */
 	readonly rootlessTexture?: {
-		readonly request: 'three' | 'full';
-		readonly applied: 'three' | 'full';
+		readonly request: 'two' | 'three' | 'full';
+		readonly applied: 'two' | 'three' | 'full';
 		readonly eligible: boolean;
 		readonly noteCount: number;
 	};
@@ -108,11 +108,11 @@ function placements(pcs: readonly number[], family: CoordinatedVoicingFamily): n
 export function resolveCoordinatedVoicing(input: {
 	chord: { root: PitchClass; quality: ChordQuality };
 	family: CoordinatedVoicingFamily; registerMidi: number; previous?: CoordinatedVoicingMemory;
-	rootlessTexture?: 'three' | 'full';
+	rootlessTexture?: 'two' | 'three' | 'full';
 	targetTopMidi?: number;
 }): { notes: readonly number[]; memory: CoordinatedVoicingMemory; decision: CoordinatedVoicingDecision } {
 	if (!validChord(input.chord) || !Object.hasOwn(builders, input.family) || !Number.isFinite(input.registerMidi) || input.registerMidi < 0 || input.registerMidi > 127 ||
-		(input.rootlessTexture !== undefined && !['three', 'full'].includes(input.rootlessTexture)) ||
+		(input.rootlessTexture !== undefined && !['two', 'three', 'full'].includes(input.rootlessTexture)) ||
 		(input.targetTopMidi !== undefined && (!Number.isInteger(input.targetTopMidi) || input.targetTopMidi < 48 || input.targetTopMidi > 84))) throw new Error('Invalid coordinated voicing input');
 	const previous = input.previous;
 	if (previous && (previous.version !== 1 || !validChord(previous.chord) || !Array.isArray(previous.notes) || previous.notes.length < 2 || previous.notes.length > 8 ||
@@ -145,7 +145,12 @@ export function resolveCoordinatedVoicing(input: {
 	const textureEligible = (input.family === 'rootless-a' || input.family === 'rootless-b') && family === input.family &&
 		['maj7', 'min7', '7'].includes(chord.quality);
 	const three = input.rootlessTexture === 'three' && textureEligible;
-	if (three) {
+	const two = input.rootlessTexture === 'two' && textureEligible;
+	if (two) {
+		// Spec P19: keep the third and seventh of the accepted harmony.
+		// Reduce the selected family's pitch set before placement, not its output.
+		pcs = [third, other].map((interval) => pc(root + interval));
+	} else if (three) {
 		// Spec P20: select defining tones plus one color before placement:
 		// 9, or 13 for a dominant B shape. Do not truncate placed notes.
 		const color = family === 'rootless-b' && chord.quality === '7' ? 9 : 2;
@@ -172,6 +177,6 @@ export function resolveCoordinatedVoicing(input: {
 		...(input.targetTopMidi !== undefined ? { topLine: Object.freeze({ targetMidi: input.targetTopMidi, actualMidi: notes.at(-1)!,
 			distance: Math.abs(notes.at(-1)! - input.targetTopMidi), eligible: contourEligible }) } : {}),
 		...(input.rootlessTexture ? { rootlessTexture: Object.freeze({ request: input.rootlessTexture,
-			applied: three ? 'three' as const : 'full' as const, eligible: textureEligible, noteCount: notes.length }) } : {}) });
+			applied: two ? 'two' as const : three ? 'three' as const : 'full' as const, eligible: textureEligible, noteCount: notes.length }) } : {}) });
 	return Object.freeze({ notes, memory, decision });
 }

@@ -85,8 +85,8 @@ export interface EnsembleBarPlan {
 		readonly densityScale: number;
 		/** Planned density within an eligible rootless voicing, never an attack budget. */
 		readonly rootlessTexture?: {
-			readonly request: 'three' | 'full';
-			readonly reason: 'melody_support' | 'structural_release' | 'solo_development' | 'active_soloist';
+			readonly request: 'two' | 'three' | 'full';
+			readonly reason: 'melody_support' | 'structural_release' | 'solo_development' | 'active_soloist' | 'dense_soloist';
 		};
 		readonly arrival?: {
 			readonly accentId: string;
@@ -278,7 +278,7 @@ function formFingerprint(bars: readonly EnsembleBarContext[]): string {
 		bar.phrase4 ? [bar.phrase4.index, bar.phrase4.barIndex, bar.phrase4.lengthBars,
 			bar.phrase4.position, bar.phrase4.barsRemaining, bar.phrase4.isFinalBar] : null,
 		...(bar.energyCeiling !== undefined ? [bar.energyCeiling] : []),
-		...(bar.performanceEnergy ? ['performance-energy-v1', bar.performanceEnergy.phase, bar.performanceEnergy.chorusIndex, bar.performanceEnergy.targetEnergy, 'rootless-texture-v1'] : []),
+		...(bar.performanceEnergy ? ['performance-energy-v1', bar.performanceEnergy.phase, bar.performanceEnergy.chorusIndex, bar.performanceEnergy.targetEnergy, 'rootless-texture-v2'] : []),
 		...(bar.pianoArrivalPolicy ? ['piano-arrival-v1'] : [])
 	]));
 	return `form-v1:${bars.length}:${seedFrom('ensemble-form', canonical).toString(16)}`;
@@ -652,8 +652,8 @@ export function planEnsembleWindow(input: EnsembleWindowInput): EnsembleWindowRe
 		const structuralTarget = bar.performanceEnergy ? 0.2 + (bar.performanceEnergy.targetEnergy - 0.2) * (ceiling - 0.2) / 0.7 : undefined;
 		const energy = clamp((structuralTarget ?? bar.intensity) + movement * (bar.performanceEnergy ? 0.35 : 1), 0.2, ceiling);
 		const rootlessTexture: EnsembleBarPlan['piano']['rootlessTexture'] = structuralPhase ? Object.freeze({
-			request: evidence === 'active' || structuralHead || structuralRelease ? 'three' : 'full',
-			reason: evidence === 'active' ? 'active_soloist' : structuralHead ? 'melody_support'
+			request: dense ? 'two' : evidence === 'active' || structuralHead || structuralRelease ? 'three' : 'full',
+			reason: dense ? 'dense_soloist' : evidence === 'active' ? 'active_soloist' : structuralHead ? 'melody_support'
 				: structuralRelease ? 'structural_release' : 'solo_development'
 		}) : undefined;
 		const plan: Draft = {

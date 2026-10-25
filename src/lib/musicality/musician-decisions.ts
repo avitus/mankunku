@@ -208,9 +208,10 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 	if (plannedTexture) {
 		const reasons = {
 			melody_support: 'leave room for the melody', structural_release: 'ease back',
-			solo_development: 'support the solo', active_soloist: 'leave room for the soloist'
+			solo_development: 'support the solo', active_soloist: 'leave room for the soloist',
+			dense_soloist: 'leave room for dense solo activity'
 		};
-		pianoCard.evidence.push(`Planned rootless texture: ${plannedTexture.request === 'three' ? 'three-note support' : 'keep the selected chord shape'} · ${reasons[plannedTexture.reason]}`);
+		pianoCard.evidence.push(`Planned rootless texture: ${plannedTexture.request === 'two' ? 'two-note support' : plannedTexture.request === 'three' ? 'three-note support' : 'keep the selected chord shape'} · ${reasons[plannedTexture.reason]}`);
 	}
 	for (const [index, event] of piano.entries()) {
 		pianoCard.evidence.push(`Chord ${index + 1}: ${event.notes.map(noteName).join(' · ')}`);
@@ -244,7 +245,17 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 		const texture = decision.rootlessTexture;
 		if (texture && texture.noteCount === event.notes.length) {
 			const rootless = (family: string) => family === 'rootless-a' || family === 'rootless-b';
-			if (texture.request === 'three' && texture.applied === 'three' && texture.eligible && event.notes.length === 3 &&
+			// Timing motion can place this attack in a neighboring sounding bar.
+			// Its density evidence belongs to the logical bar that admitted it.
+			const sourceBar = Math.floor(event.absBeat / beatsPerBar);
+			const sourcePlan = generated.ensemblePlan?.bars.find(entry => entry.barIndex === sourceBar);
+			const sourceEvidence = generated.ensemblePlan?.trace?.find(entry => entry.barIndex === sourceBar);
+			if (texture.request === 'two' && texture.applied === 'two' && texture.eligible && event.notes.length === 2 &&
+				rootless(decision.requestedFamily) && decision.resolvedFamily === decision.requestedFamily &&
+				sourcePlan?.piano.rootlessTexture?.request === 'two' && sourcePlan.piano.rootlessTexture.reason === 'dense_soloist' &&
+				sourceEvidence?.soloEvidence === 'active' && sourceEvidence.reasons.includes('soloist_dense')) {
+				pianoCard.evidence.push(`Chord ${index + 1} texture: two-note support under dense solo activity · 2 notes`);
+			} else if (texture.request === 'three' && texture.applied === 'three' && texture.eligible && event.notes.length === 3 &&
 				rootless(decision.requestedFamily) && decision.resolvedFamily === decision.requestedFamily) {
 				pianoCard.evidence.push(`Chord ${index + 1} texture: three-note rootless support · 3 notes`);
 			} else if (texture.applied === 'full') {

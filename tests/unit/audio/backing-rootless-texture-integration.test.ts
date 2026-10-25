@@ -75,7 +75,7 @@ describe.each(['swing', 'straight', 'bossa-nova', 'ballad'] as const)('%s struct
 			.toEqual(advanceRollingBacking(score, checkpoint));
 		const dense = advanceRollingBacking(score, checkpoint, [{ barIndex: checkpoint!.nextBar,
 			observedAtBar: checkpoint!.nextBar - 1, source: 'microphone', confidence: .95, noteDensity: 1, restBeats: 0 }]);
-		expect(dense.ensemblePlan.bars[0].piano.rootlessTexture).toEqual({ request: 'three', reason: 'active_soloist' });
+		expect(dense.ensemblePlan.bars[0].piano.rootlessTexture).toEqual({ request: 'two', reason: 'dense_soloist' });
 		expect(dense.ensemblePlan.bars[0].piano.maxAttacks).toBe(0);
 		expect(dense.compEvents).toEqual([]);
 		expect(dense.ensembleDevelopment.pianoVoicings).toEqual([]);
@@ -84,7 +84,10 @@ describe.each(['swing', 'straight', 'bossa-nova', 'ballad'] as const)('%s struct
 });
 
 
-it('realizes a surviving dense solo-peak boundary chord as three notes within the existing one-attack budget', () => {
+it.each([
+	{ noteDensity: .6, request: 'three', reason: 'active_soloist', count: 3, commentary: 3 },
+	{ noteDensity: 1, request: 'two', reason: 'dense_soloist', count: 2, commentary: 0 }
+] as const)('realizes $request-note support at the permitted solo-peak boundary under density $noteDensity', ({ noteDensity, request, reason, count, commentary }) => {
 	const sectionMap = [{ sourceSection: 0, barOffset: 0 }, { sourceSection: 1, barOffset: 8 }];
 	const performanceForm = buildPerformanceForm({ totalBars: 16, sectionMap,
 		choruses: [{ role: 'solo', startBar: 0, endBarExclusive: 16 }] });
@@ -97,7 +100,7 @@ it('realizes a surviving dense solo-peak boundary chord as three notes within th
 		swing: BACKING_STYLES.swing.defaultSwing, sectionMap, performanceForm };
 	const defaultPlan = generateBacking(harmony, BACKING_STYLES.swing, { ...params, ensemble: {} });
 	const active = generateBacking(harmony, BACKING_STYLES.swing, { ...params, ensemble: { soloFeatures: [
-		{ barIndex: 7, observedAtBar: 7, source: 'scripted', confidence: 1, noteDensity: 1, restBeats: 0 }
+		{ barIndex: 7, observedAtBar: 7, source: 'scripted', confidence: 1, noteDensity, restBeats: 0 }
 	] } });
 	expect(defaultPlan.ensemblePlan!.bars[7].piano.rootlessTexture).toEqual({ request: 'full', reason: 'solo_development' });
 	const plan = active.ensemblePlan!.bars[7];
@@ -105,13 +108,14 @@ it('realizes a surviving dense solo-peak boundary chord as three notes within th
 	expect(active.ensemblePlan!.trace[7].soloEvidence).toBe('active');
 	expect(plan.boundaryStrength).toBe(.85);
 	expect(plan.piano.maxAttacks).toBe(1);
-	expect(plan.drums.maxCommentaryHits).toBe(0);
-	expect(plan.piano.rootlessTexture).toEqual({ request: 'three', reason: 'active_soloist' });
+	expect(plan.drums.maxCommentaryHits).toBe(commentary);
+	expect(plan.piano.rootlessTexture).toEqual({ request, reason });
 	const attacks = active.compEvents.filter(event => Math.floor(event.absBeat / 4) === 7);
 	const traces = active.ensembleDevelopment!.pianoVoicings!.filter(trace => Math.floor(trace.absBeat / 4) === 7);
 	expect(attacks).toHaveLength(1);
 	expect(traces).toHaveLength(1);
-	expect(attacks[0].notes).toHaveLength(3);
+	expect(attacks[0].notes).toHaveLength(count);
+	expect(attacks[0].notes.map(note => note % 12).sort((a, b) => a - b)).toEqual(count === 2 ? [0, 5] : [0, 4, 5]);
 	expect(traces[0]).toMatchObject({ time: attacks[0].time, absBeat: attacks[0].absBeat, notes: attacks[0].notes,
-		decision: { requestedFamily: 'rootless-b', rootlessTexture: { request: 'three', applied: 'three', eligible: true, noteCount: 3 } } });
+		decision: { requestedFamily: 'rootless-b', rootlessTexture: { request, applied: request, eligible: true, noteCount: count } } });
 });
