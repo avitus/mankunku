@@ -309,13 +309,13 @@ const drumDeviceUpdates: Record<string, [ImplementationStatus, string, string]> 
 export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => {
 	if (entry.id === 'S47') return {
 		...entry, status: 'partial',
-		assessment: 'The musicality studio plays complete curated 4/4 tune forms with matched Original/Coordinated settings, audio-clock musician decisions, listening marks and reproducible take exports. The advanced lab retains blind A/B, WAV bounce and adaptive capture/replay.',
-		remaining: 'Recorded human acceptance across styles, broader tune repertoire, blind full-tune comparison and adaptive playback in the simple studio remain pending.',
+		assessment: 'The musicality studio plays complete curated 4/4 tune forms with matched Original/Coordinated settings, audio-clock musician decisions, listening marks and reproducible take exports. An optional blind full-tune review locks matched inputs, requires two complete listens and ratings before reveal, and exports the actual scores with the verdict. The advanced lab retains historical WAV comparison and adaptive capture/replay.',
+		remaining: 'Recorded human acceptance across styles, broader tune repertoire, deliberately counterbalanced review sets and adaptive playback in the simple studio remain pending.',
 		scope: 'Two curated 4/4 tunes, transposed concert keys and one to four solo choruses; rhythm section only. No acceptance status is inferred from decision text or tests.',
-		evidence: [...entry.evidence, ...['listening-tunes', 'listening-player', 'musician-decisions'].flatMap(name => [
+		evidence: [...entry.evidence, ...['listening-tunes', 'listening-player', 'musician-decisions', 'listening-comparison'].flatMap(name => [
 			{ kind: 'source' as const, path: `src/lib/musicality/${name}.ts`, revision: 'musicality' },
 			{ kind: 'test' as const, path: `tests/unit/musicality/${name}.test.ts`, revision: 'musicality' }
-		]), { kind: 'test', path: 'tests/e2e/musicality-listening.spec.ts', revision: 'musicality' }]
+		]), { kind: 'test', path: 'tests/e2e/musicality-listening.spec.ts', revision: 'musicality' }, { kind: 'test', path: 'tests/e2e/musicality-comparison.spec.ts', revision: 'musicality' }]
 	};
 	const drumUpdate = drumDeviceUpdates[entry.id];
 	if (drumUpdate) return {

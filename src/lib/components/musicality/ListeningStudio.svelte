@@ -7,7 +7,7 @@
  import { settings } from '$lib/state/settings.svelte';
  import { PITCH_CLASSES, type PitchClass } from '$lib/types/music';
  import type { BackingStyle } from '$lib/types/instruments';
- let { buildVersion }: { buildVersion: string } = $props();
+ let { buildVersion, oncompare }: { buildVersion: string; oncompare: () => void } = $props();
  const defaultTune = LISTENING_TUNES.find(tune=>tune.title==='Mankunku Blues') ?? LISTENING_TUNES[0];
  let tuneId = $state(defaultTune.id);
  let key = $state<PitchClass>(defaultTune.key);
@@ -78,7 +78,7 @@
  <div class="musicians">{#each ['bass','piano','drums'] as name,i}{@const decision=decisions.find(d=>d.instrument===name)}<article data-testid={`musician-${name}`} data-bar-index={snapshot.barIndex ?? ''}><div class="player-title"><span>0{i+1}</span><h3>{name==='bass'?'Bass':name==='piano'?'Piano':'Drums'}</h3><small>{decision?.role ?? 'Ready'}</small></div><h4>{decision?.action ?? 'Waiting for the first bar'}</h4><p>{decision?.detail ?? 'Actual scheduled events and phrase decisions will appear here.'}</p>{#if decision}<details class="evidence"><summary>{decision.eventCount} scheduled {decision.eventCount===1?'event':'events'} · Details</summary><ul>{#each decision.evidence as evidence}<li>{evidence}</li>{/each}</ul></details>{:else}<div class="waiting">No audio playing</div>{/if}</article>{/each}</div>
 </section>
 <details class="take-notes"><summary>Listening notes & take export <span>+</span></summary><div class="notes-body"><p>Mark a moment worth revisiting. Export preserves this take’s settings, scheduled notes and decision evidence.</p><div class="note-controls"><input aria-label="Listening note" bind:value={note} maxlength="500" placeholder="What did you hear?" /><button onclick={mark} disabled={snapshot.barIndex===null}>Mark this bar</button><button data-testid="listening-export" onclick={exportTake} disabled={!snapshot.generated}>Export take</button></div>{#if marks.length}<ul>{#each marks as item}<li>Bar {item.barIndex+1} · {item.note || 'Marked moment'}</li>{/each}</ul>{/if}</div></details>
-<footer><span>Same tune, key and tempo. Two arrangements. Your ears decide.</span><a href="/docs/architecture/musicality">Architecture & roadmap ↗</a></footer>
+<footer><button data-testid="blind-open" onclick={oncompare}>Try a blind comparison →</button><a href="/docs/architecture/musicality">Architecture & roadmap ↗</a></footer>
 
 <style>
  .setup{display:grid;grid-template-columns:2.4fr 1.35fr .75fr .8fr 1.1fr;gap:1.1rem;padding:1.75rem 0 1.5rem}

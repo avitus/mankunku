@@ -66,6 +66,16 @@ Chromium — so it never fires as part of an ordinary `npm run test:e2e`. The co
 Milestone A set lives at `tests/fixtures/backing/milestone-a/` (old/new × blues at
 90/160/240 + AABA at 160).
 
+## Full-tune blind reviews
+
+On `/musicality`, choose **Try a blind comparison**. Pick a real tune, concert key, style, tempo and one to four solo choruses, then start the comparison. The page locks those inputs and assigns the two arrangements to A/B without showing their identities or musician decisions.
+
+Listen to each full take. Stopping is allowed, but an interrupted take must be replayed completely before it qualifies. Rate each version on the seven musical dimensions, then choose A, B or no preference before revealing the arrangements. For listening ease, a higher rating means less tiring. Include specific moments in the notes, especially crowding, timing, form arrivals or a convincing response. The ordinary listening view remains useful for inspecting each musician's evidence after the blind judgment.
+
+Export the revealed review to retain both exact generated scores, settings and judgments. **Save review locally** keeps a compact summary in this browser (latest 20); its history offers summary exports. Export the current full review before leaving if the actual score traces are needed. A saved verdict is listening evidence, not automatic acceptance or a production rollout decision.
+
+Use the same headphones and listening level for a pair. Repeat across Swing, Straight, Bossa Nova and Ballad at appropriate playing tempos, and preserve ties and unfavorable results. The A/B mapping is randomized per comparison; deliberately vary which label is heard first when assembling a review set. This compares the two modes of the current engine. Historical-engine WAV comparisons and microphone-feature replay remain in the advanced lab.
+
 ## Milestone procedure
 
 For each milestone (A, B, C):

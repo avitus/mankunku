@@ -13,8 +13,9 @@ The current foundation provides:
 5. Scoped bass and piano development. Selected piano phrases reuse and transform an existing rhythm; eligible two-bar bass passages aim at the root of a known following chorus. Event exports include the device decisions and reasons for withholding them.
 6. Drummer phrasing within the current kit. Two-to-four-bar ride cells and selected commentary motifs develop through repetition, displacement and orchestration. A previous bar of emitted piano attacks can supply a drum answer; the accepted kit strokes are included in the trace.
 7. Live observation and recorded-feature replay in the lab. A finite microphone take produces qualified density/rest evidence and an inspectable trace; a coordinated replay generated after the take can use that evidence.
+8. Complete curated tune performances, audio-clock musician decisions, and blind matched A/B reviews with ratings before reveal. Human acceptance remains separate from implementation.
 
-Coordinated generation currently applies to **swing in 4/4**, selected in the [listening lab](/diagnostics/backing-mixer). Ordinary practice keeps the original orchestration mode until the comparison has received listening acceptance. Both modes consume corrected explicit form metadata where available. The lab supports original/coordinated comparison, variation seeds, WAV bounce and event/decision export.
+Coordinated generation applies to **Swing, Straight, Bossa Nova and Ballad in 4/4**, selected in the [listening studio](/musicality) or [advanced lab](/diagnostics/backing-mixer). Bossa and Ballad retain their native grooves rather than using Swing motif transformations. Ordinary practice keeps the original orchestration mode until the comparison has received listening acceptance. Both modes consume corrected explicit form metadata where available. The lab supports original/coordinated comparison, variation seeds, WAV bounce and event/decision export.
 
 The lab supports scripted observations, fixed microphone capture/replay, and a finite **rolling adaptive take**. In rolling mode, qualified completed microphone evidence changes upcoming uncommitted bars while the instruments retain phrase state. Scheduled attacks and releases remain fixed. The adaptive loop option continues this state across a selected number of repeats on one absolute timeline. Ordinary loops still repeat a precomputed timeline; indefinite adaptation and the complete vocabulary specification remain unfinished.
 
@@ -210,6 +211,26 @@ Validation covers tune/endings/transposition, captured inputs, exact score retur
 
 ### Listening review still to do
 
-The two current charts do not yet provide a broad standards repertoire or AABA coverage. Add complete licensed/imported tune selection before claiming repertoire breadth. Further work includes an optional melody track, blind/counterbalanced comparison, post-take timeline scrubbing, captured-feature replay in this page and an adaptive full-tune player. Do not infer improved musicality from plausible cards or test counts.
+The two current charts do not yet provide a broad standards repertoire or AABA coverage. Add complete licensed/imported tune selection before claiming repertoire breadth. Further work includes an optional melody track, deliberately counterbalanced listening sets, post-take timeline scrubbing, captured-feature replay in this page and an adaptive full-tune player. Do not infer improved musicality from plausible cards or test counts.
 
 For review, listen through several choruses with matched tune, key, tempo, seed, mix and renderer. Record groove, harmonic clarity, space, interaction, phrase development, form arrivals and cumulative fatigue separately. For adaptive A/B in the lab, replay one captured feature trace; independent live performances are different inputs. Preserve implementation status separately from recorded human musical acceptance.
+
+
+## Blind full-tune review and release boundary (2026-10-24)
+
+The listening studio now offers **Try a blind comparison** as an optional separate view. A new comparison captures one complete tune, key, tempo, style, swing, keyboard, volume and mix. A randomized concealed mapping assigns Original and Coordinated to A and B. Each uses the existing player and renderer with identical inputs except orchestration. Random assignment reduces order bias; it is not a guarantee of balanced order across a collection of reviews.
+
+A pure comparison model owns eligibility and finalized evidence. It accepts only matching completed takes with the full performed duration, audio-clock completion and actual generated traces. Interrupted, mismatched and stale takes cannot qualify a review. The page hides arrangement labels, musician decisions and score exports while blind. After both complete listens, the listener supplies separate 1–5 ratings for groove, harmonic clarity, space, interaction, development, form arrivals and listening ease (higher means less tiring), plus an A/B/tie preference. Revealing freezes those judgments and exposes the mapping. This is an evaluation aid, not a security boundary against inspecting JavaScript in developer tools.
+
+Finalized JSON exports retain captured inputs, build, dates, both completed score/decision traces, ratings, preference and notes. Optional local saves retain the latest 20 compact review summaries and completion metadata; their history and summary exports are separate from the full current-review export. Storage failure does not prevent a full export. No recording or review is sent to a server. Saved ratings do not automatically alter ledger statuses or declare musical acceptance.
+
+Completion measures the audio clock and captures the generated score; it is not a receipt for every dispatched note or proof that a person heard the take. Browser checks verify normal final-bar sample dispatch, but long scheduler stalls could still leave missing notes undetected. CPU/browser stress checks and human listening remain necessary before release.
+
+**Release recommendation:** evaluate on an isolated `musicality` branch preview first. Keep `dev` available for ordinary iteration. At the 2026-10-24 audit, musicality `46cc320b` and production `012e056d` had 13 and 114 unique commits respectively from merge base `5f6df940`; current dev was `d4f32010`. These are dated observations, not enduring branch counts. A direct deployment of the feature branch would omit later production changes. A normal PR merge combines histories, but overlapping backing playback and tune-form changes require deliberate integration and regression validation.
+
+Before a production release candidate:
+
+1. Record full-tune comparisons across all four styles and more than one tempo, retaining adverse results and listening marks rather than selecting only favorable takes. Broader repertoire remains a gap.
+2. Integrate the current release base and preserve its count-in, continuous tune-loop and first/second-ending behavior. Re-run focused, broad and browser checks on that integrated revision.
+3. Decide the production exposure of the public `/musicality` and diagnostic routes; they currently have no experimental-access gate. Keep ordinary practice on Original until an explicit rollout decision. Shared sample timing and form changes affect Original too and need regression listening against the current release. An Original/Coordinated pair shares those changes, so it cannot establish their production parity.
+4. When ready for release, open the production PR and run the required review and hosted release checks once on the final candidate. Local/sidecar passes do not substitute for that release gate. Do not run hosted CircleCI for each musicality iteration.
