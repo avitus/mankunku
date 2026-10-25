@@ -424,6 +424,18 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 		scope: 'Coordinated swing/straight 4/4 listening-lab preview with explicit consecutive chorus metadata and a following harmony. No forced two-feel change.',
 		evidence: [...entry.evidence, ...bassDevelopmentEvidence, ...crossLoopEvidence]
 	};
+	if (['S11', 'S13', 'B16', 'B17'].includes(entry.id)) return {
+		...entry,
+		assessment: `${entry.assessment} Explicit rolling Swing/Straight can smooth the two free interior quarters into an existing one-note chromatic approach when the ordinary entry would leap more than five semitones. The downbeat, approach, next target and complete rhythmic footprint stay fixed.`,
+		remaining: 'Only complete bar-aligned four-beat walking segments qualify. Safe ordinary lines, protected ensemble roles, accepted launches and two-note approaches retain their policies. General multi-bar contour, broader vocabulary and human listening acceptance remain pending.',
+		scope: 'Existing bass devices plus a narrow explicit Coordinated rolling Swing/Straight repair. Original, fixed, metadata-free, Bossa and Ballad paths remain unchanged.',
+		evidence: [...entry.evidence,
+			{ ...source('backing-bass-handoff'), revision: 'musicality' },
+			{ ...source('backing-rolling-bass'), revision: 'musicality' },
+			{ ...test('backing-bass-handoff'), revision: 'musicality' },
+			{ ...test('backing-bass-handoff-contract'), revision: 'musicality' },
+			{ ...test('backing-bass-handoff-integration'), revision: 'musicality' }]
+	};
 	if (entry.id === 'B28') return {
 		...entry,
 		assessment: 'Selected walking changes continue a preceding step through the new chord into an existing two-note approach. Eligible chorus launches also connect their harmonic changes.',

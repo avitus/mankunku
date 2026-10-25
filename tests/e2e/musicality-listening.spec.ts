@@ -861,3 +861,40 @@ for (const style of ['swing', 'straight']) {
 		await assertNoMicrophone(page);
 	});
 }
+
+for (const style of ['swing', 'straight']) {
+	test(`${style} keeps the Blues bass approach anchored through live playback and review`, async ({ page }) => {
+		test.setTimeout(70_000);
+		await setup(page);
+		await page.getByTestId('listening-tune').selectOption('ls-mankunku-blues');
+		await page.getByTestId('listening-key').selectOption('C');
+		await page.getByTestId('listening-style').selectOption(style);
+		await page.getByTestId('listening-tempo').fill('140');
+		await page.getByTestId('listening-play').click();
+		await expect.poll(() => soundingBar(page), { timeout: 55_000 }).toBe(26);
+		await assertDecisionClock(page, undefined, 140);
+		const current = await exportTake(page);
+		await expect.poll(() => soundingBar(page), { timeout: 5_000 }).toBe(27);
+		await page.getByTestId('listening-stop').click();
+		const stopped = await exportTake(page);
+		assertCommittedPrefix(current.playback, stopped.playback);
+		const route = stopped.playback.generated!.bassEvents.filter(event => event.absBeat >= 104 && event.absBeat <= 108);
+		expect(route.map(event => event.absBeat)).toEqual([104, 105, 106, 107, 108]);
+		expect([route[0].midi, route[3].midi, route[4].midi]).toEqual([48, 37, 36]);
+		for (let i = 1; i < route.length; i++) expect(Math.abs(route[i].midi - route[i - 1].midi)).toBeLessThanOrEqual(5);
+		expect([0, 2, 3, 4, 7, 9]).toContain(route[1].midi % 12);
+		expect([0, 4, 7, 10]).toContain(route[2].midi % 12);
+		expect(causalProvenance(stopped.playback).dispatches.filter(dispatch =>
+			dispatch.status === 'late' || dispatch.status === 'failed')).toEqual([]);
+		const starts = await sourceStarts(page);
+		await page.getByRole('slider', { name: 'Review decisions', exact: true }).fill('26');
+		const names = ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'G♭', 'G', 'A♭', 'A', 'B♭', 'B'];
+		const notes = route.slice(0, 4).map(event => `${names[event.midi % 12]}${Math.floor(event.midi / 12) - 1}`);
+		await expect(page.getByTestId('musician-bass')).toContainText(`Notes: ${notes.join(' · ')}`);
+		const reviewed = await exportTake(page);
+		expect(reviewed.playback).toEqual(stopped.playback);
+		expect(reviewed.review?.barIndex).toBe(26);
+		expect(await sourceStarts(page)).toBe(starts);
+		await assertNoMicrophone(page);
+	});
+}

@@ -1,3 +1,4 @@
+import { assertBassHandoffDelta } from './bass-handoff-assertions';
 import { createHash } from 'node:crypto';
 import { expect, it } from 'vitest';
 import { generateBacking } from '$lib/audio/backing-generation';
@@ -55,7 +56,7 @@ it.each(styles)('%s recalls the actually played Saints cell into the next solo p
 		attacks: recalled.compEvents
 	});
 	expect(actual.windows[25].compEvents).toEqual([]);
-	expect(hash(actual.bassEvents)).toBe(old.expected.bassEvents);
+	expect(hash(assertBassHandoffDelta(actual.bassEvents, actual.windows, phrase.harmony, `SaintsEb-${style}-none`))).toBe(old.expected.bassEvents);
 	expect(hash(actual.drumEvents.filter(event => event.role === 'timekeeping'))).toBe(old.expected.timekeeping);
 });
 

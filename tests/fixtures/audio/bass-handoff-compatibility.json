@@ -1,0 +1,2680 @@
+{
+  "provenance": {
+    "cleanBaseline": "96270710",
+    "scriptedBaseline": "dense-piano-support/after-events; unchanged bass policy through96270710; original SHA assertions retained"
+  },
+  "cases": [
+    {
+      "id": "SaintsEb-swing-none",
+      "sourceFile": "/Users/avitus/.codex/artifacts/musicality-2026-10-25/bass-approach-handoff/before-events/ls-when-the-saints-Eb-swing-0-coordinated-explicit.json",
+      "sourceSha256": "a05a347529b7489ccc6115c33145f2e612f00b340962a418337af6bff81e009d",
+      "beforeBassSha256": "c6828c8363c8d3d200dd4f7cacec0fc498cc188090e5aa351447c9f013f2fbf0",
+      "changes": [
+        {
+          "barIndex": 24,
+          "before": [
+            {
+              "absBeat": 96,
+              "midi": 43,
+              "velocity": 83,
+              "time": "18432i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 97,
+              "midi": 41,
+              "velocity": 87,
+              "time": "18623i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 98,
+              "midi": 36,
+              "velocity": 87,
+              "time": "18815i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 99,
+              "midi": 42,
+              "velocity": 83,
+              "time": "19007i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "after": [
+            {
+              "absBeat": 96,
+              "midi": 43,
+              "velocity": 83,
+              "time": "18432i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 97,
+              "midi": 41,
+              "velocity": 87,
+              "time": "18623i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 98,
+              "midi": 39,
+              "velocity": 87,
+              "time": "18815i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 99,
+              "midi": 42,
+              "velocity": 83,
+              "time": "19007i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "harmony": {
+            "chord": {
+              "root": "Eb",
+              "quality": "maj6"
+            },
+            "scaleId": "major.ionian",
+            "startOffset": [
+              24,
+              1
+            ],
+            "duration": [
+              1,
+              1
+            ],
+            "symbol": "Eb6"
+          },
+          "approach": "chromatic-below",
+          "nextTarget": 43
+        },
+        {
+          "barIndex": 41,
+          "before": [
+            {
+              "absBeat": 164,
+              "midi": 39,
+              "velocity": 88,
+              "time": "31488i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 165,
+              "midi": 43,
+              "velocity": 85,
+              "time": "31679i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 166,
+              "midi": 46,
+              "velocity": 80,
+              "time": "31872i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 167,
+              "midi": 38,
+              "velocity": 80,
+              "time": "32063i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "after": [
+            {
+              "absBeat": 164,
+              "midi": 39,
+              "velocity": 88,
+              "time": "31488i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 165,
+              "midi": 43,
+              "velocity": 85,
+              "time": "31679i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 166,
+              "midi": 39,
+              "velocity": 80,
+              "time": "31872i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 167,
+              "midi": 38,
+              "velocity": 80,
+              "time": "32063i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "harmony": {
+            "chord": {
+              "root": "Eb",
+              "quality": "7"
+            },
+            "scaleId": "major.mixolydian",
+            "startOffset": [
+              41,
+              1
+            ],
+            "duration": [
+              1,
+              1
+            ],
+            "symbol": "Eb7"
+          },
+          "approach": "chromatic-below",
+          "nextTarget": 39
+        }
+      ]
+    },
+    {
+      "id": "SaintsEb-straight-none",
+      "sourceFile": "/Users/avitus/.codex/artifacts/musicality-2026-10-25/bass-approach-handoff/before-events/ls-when-the-saints-Eb-straight-0-coordinated-explicit.json",
+      "sourceSha256": "305d768c237954f545cc2da2739056bfb4922d4ff8a2ead8093cee158f929b5e",
+      "beforeBassSha256": "9449c7fe6c5eae7bacf85711b8432010a0d420d37ebd39e39e07fa339f31edd5",
+      "changes": [
+        {
+          "barIndex": 24,
+          "before": [
+            {
+              "absBeat": 96,
+              "midi": 43,
+              "velocity": 83,
+              "time": "18432i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 97,
+              "midi": 41,
+              "velocity": 87,
+              "time": "18623i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 98,
+              "midi": 36,
+              "velocity": 87,
+              "time": "18815i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 99,
+              "midi": 42,
+              "velocity": 83,
+              "time": "19008i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "after": [
+            {
+              "absBeat": 96,
+              "midi": 43,
+              "velocity": 83,
+              "time": "18432i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 97,
+              "midi": 41,
+              "velocity": 87,
+              "time": "18623i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 98,
+              "midi": 39,
+              "velocity": 87,
+              "time": "18815i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 99,
+              "midi": 42,
+              "velocity": 83,
+              "time": "19008i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "harmony": {
+            "chord": {
+              "root": "Eb",
+              "quality": "maj6"
+            },
+            "scaleId": "major.ionian",
+            "startOffset": [
+              24,
+              1
+            ],
+            "duration": [
+              1,
+              1
+            ],
+            "symbol": "Eb6"
+          },
+          "approach": "chromatic-below",
+          "nextTarget": 43
+        },
+        {
+          "barIndex": 41,
+          "before": [
+            {
+              "absBeat": 164,
+              "midi": 39,
+              "velocity": 88,
+              "time": "31488i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 165,
+              "midi": 43,
+              "velocity": 85,
+              "time": "31680i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 166,
+              "midi": 46,
+              "velocity": 80,
+              "time": "31872i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 167,
+              "midi": 38,
+              "velocity": 80,
+              "time": "32064i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "after": [
+            {
+              "absBeat": 164,
+              "midi": 39,
+              "velocity": 88,
+              "time": "31488i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 165,
+              "midi": 43,
+              "velocity": 85,
+              "time": "31680i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 166,
+              "midi": 39,
+              "velocity": 80,
+              "time": "31872i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 167,
+              "midi": 38,
+              "velocity": 80,
+              "time": "32064i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "harmony": {
+            "chord": {
+              "root": "Eb",
+              "quality": "7"
+            },
+            "scaleId": "major.mixolydian",
+            "startOffset": [
+              41,
+              1
+            ],
+            "duration": [
+              1,
+              1
+            ],
+            "symbol": "Eb7"
+          },
+          "approach": "chromatic-below",
+          "nextTarget": 39
+        }
+      ]
+    },
+    {
+      "id": "BluesFs-swing-none",
+      "sourceFile": "/Users/avitus/.codex/artifacts/musicality-2026-10-25/bass-approach-handoff/before-events/ls-mankunku-blues-F#-swing-0-coordinated-explicit.json",
+      "sourceSha256": "e7b8742c4833d09cf371b9d0773814458428bd69a7d9f793cae8d475812ee2a2",
+      "beforeBassSha256": "aeda4cce8f650a695d2be81ab05b0f2f1105d1d3865b007ef0bb9a69a473f464",
+      "changes": [
+        {
+          "barIndex": 27,
+          "before": [
+            {
+              "absBeat": 108,
+              "midi": 37,
+              "velocity": 90,
+              "time": "20736i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 109,
+              "midi": 39,
+              "velocity": 81,
+              "time": "20927i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 110,
+              "midi": 34,
+              "velocity": 89,
+              "time": "21119i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 111,
+              "midi": 41,
+              "velocity": 84,
+              "time": "21310i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "after": [
+            {
+              "absBeat": 108,
+              "midi": 37,
+              "velocity": 90,
+              "time": "20736i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 109,
+              "midi": 39,
+              "velocity": 81,
+              "time": "20927i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 110,
+              "midi": 37,
+              "velocity": 89,
+              "time": "21119i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 111,
+              "midi": 41,
+              "velocity": 84,
+              "time": "21310i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "harmony": {
+            "chord": {
+              "root": "F#",
+              "quality": "maj6"
+            },
+            "scaleId": "major.ionian",
+            "startOffset": [
+              27,
+              1
+            ],
+            "duration": [
+              1,
+              1
+            ],
+            "symbol": "F#6"
+          },
+          "approach": "chromatic-below",
+          "nextTarget": 42
+        },
+        {
+          "barIndex": 33,
+          "before": [
+            {
+              "absBeat": 132,
+              "midi": 36,
+              "velocity": 81,
+              "time": "25344i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 133,
+              "midi": 34,
+              "velocity": 77,
+              "time": "25535i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 134,
+              "midi": 33,
+              "velocity": 85,
+              "time": "25727i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 135,
+              "midi": 41,
+              "velocity": 85,
+              "time": "25919i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "after": [
+            {
+              "absBeat": 132,
+              "midi": 36,
+              "velocity": 81,
+              "time": "25344i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 133,
+              "midi": 34,
+              "velocity": 77,
+              "time": "25535i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 134,
+              "midi": 36,
+              "velocity": 85,
+              "time": "25727i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 135,
+              "midi": 41,
+              "velocity": 85,
+              "time": "25919i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "harmony": {
+            "chord": {
+              "root": "C",
+              "quality": "dim7"
+            },
+            "scaleId": "harmonic-minor.locrian-sharp6",
+            "startOffset": [
+              33,
+              1
+            ],
+            "duration": [
+              1,
+              1
+            ],
+            "symbol": "Cdim7"
+          },
+          "approach": "chromatic-below",
+          "nextTarget": 42
+        }
+      ]
+    },
+    {
+      "id": "BluesFs-straight-none",
+      "sourceFile": "/Users/avitus/.codex/artifacts/musicality-2026-10-25/bass-approach-handoff/before-events/ls-mankunku-blues-F#-straight-0-coordinated-explicit.json",
+      "sourceSha256": "3ff15299e9175e16d16294b1851bdda0f94bfa58db0c41970f4ae7fda5e349bb",
+      "beforeBassSha256": "0e32568ecebdc3f8b58c9ea6900aa3cb738bacf307c566de695420be02661fea",
+      "changes": [
+        {
+          "barIndex": 27,
+          "before": [
+            {
+              "absBeat": 108,
+              "midi": 37,
+              "velocity": 90,
+              "time": "20736i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 109,
+              "midi": 39,
+              "velocity": 81,
+              "time": "20927i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 110,
+              "midi": 34,
+              "velocity": 89,
+              "time": "21120i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 111,
+              "midi": 41,
+              "velocity": 84,
+              "time": "21311i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "after": [
+            {
+              "absBeat": 108,
+              "midi": 37,
+              "velocity": 90,
+              "time": "20736i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 109,
+              "midi": 39,
+              "velocity": 81,
+              "time": "20927i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 110,
+              "midi": 37,
+              "velocity": 89,
+              "time": "21120i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 111,
+              "midi": 41,
+              "velocity": 84,
+              "time": "21311i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "harmony": {
+            "chord": {
+              "root": "F#",
+              "quality": "maj6"
+            },
+            "scaleId": "major.ionian",
+            "startOffset": [
+              27,
+              1
+            ],
+            "duration": [
+              1,
+              1
+            ],
+            "symbol": "F#6"
+          },
+          "approach": "chromatic-below",
+          "nextTarget": 42
+        },
+        {
+          "barIndex": 33,
+          "before": [
+            {
+              "absBeat": 132,
+              "midi": 36,
+              "velocity": 81,
+              "time": "25344i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 133,
+              "midi": 34,
+              "velocity": 77,
+              "time": "25536i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 134,
+              "midi": 33,
+              "velocity": 85,
+              "time": "25728i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 135,
+              "midi": 41,
+              "velocity": 85,
+              "time": "25919i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "after": [
+            {
+              "absBeat": 132,
+              "midi": 36,
+              "velocity": 81,
+              "time": "25344i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 133,
+              "midi": 34,
+              "velocity": 77,
+              "time": "25536i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 134,
+              "midi": 36,
+              "velocity": 85,
+              "time": "25728i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 135,
+              "midi": 41,
+              "velocity": 85,
+              "time": "25919i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "harmony": {
+            "chord": {
+              "root": "C",
+              "quality": "dim7"
+            },
+            "scaleId": "harmonic-minor.locrian-sharp6",
+            "startOffset": [
+              33,
+              1
+            ],
+            "duration": [
+              1,
+              1
+            ],
+            "symbol": "Cdim7"
+          },
+          "approach": "chromatic-below",
+          "nextTarget": 42
+        }
+      ]
+    },
+    {
+      "id": "BluesEb-swing-none",
+      "sourceFile": "/Users/avitus/.codex/artifacts/musicality-2026-10-25/bass-approach-handoff/before-events/ls-mankunku-blues-Eb-swing-0-coordinated-explicit.json",
+      "sourceSha256": "d06d773faf9887b45175afe6c3dbb2a49f65f571e0e18e296f76ceb18299d8fb",
+      "beforeBassSha256": "8df2401e0139b2f72aff2bb00da18b1499d1ef675743380cbdc74eeb7be87f4c",
+      "changes": [
+        {
+          "barIndex": 21,
+          "before": [
+            {
+              "absBeat": 84,
+              "midi": 33,
+              "velocity": 89,
+              "time": "16128i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 85,
+              "midi": 38,
+              "velocity": 76,
+              "time": "16318i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 86,
+              "midi": 36,
+              "velocity": 83,
+              "time": "16510i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 87,
+              "midi": 44,
+              "velocity": 83,
+              "time": "16702i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "after": [
+            {
+              "absBeat": 84,
+              "midi": 33,
+              "velocity": 89,
+              "time": "16128i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 85,
+              "midi": 38,
+              "velocity": 76,
+              "time": "16318i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 86,
+              "midi": 39,
+              "velocity": 83,
+              "time": "16510i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 87,
+              "midi": 44,
+              "velocity": 83,
+              "time": "16702i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "harmony": {
+            "chord": {
+              "root": "A",
+              "quality": "dim7"
+            },
+            "scaleId": "harmonic-minor.locrian-sharp6",
+            "startOffset": [
+              21,
+              1
+            ],
+            "duration": [
+              1,
+              1
+            ],
+            "symbol": "Adim7"
+          },
+          "approach": "chromatic-above",
+          "nextTarget": 43
+        },
+        {
+          "barIndex": 22,
+          "before": [
+            {
+              "absBeat": 88,
+              "midi": 43,
+              "velocity": 91,
+              "time": "16896i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 89,
+              "midi": 41,
+              "velocity": 83,
+              "time": "17086i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 90,
+              "midi": 43,
+              "velocity": 82,
+              "time": "17278i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 91,
+              "midi": 35,
+              "velocity": 77,
+              "time": "17471i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "after": [
+            {
+              "absBeat": 88,
+              "midi": 43,
+              "velocity": 91,
+              "time": "16896i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 89,
+              "midi": 41,
+              "velocity": 83,
+              "time": "17086i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 90,
+              "midi": 39,
+              "velocity": 82,
+              "time": "17278i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 91,
+              "midi": 35,
+              "velocity": 77,
+              "time": "17471i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "harmony": {
+            "chord": {
+              "root": "Eb",
+              "quality": "7"
+            },
+            "scaleId": "blues.major",
+            "startOffset": [
+              22,
+              1
+            ],
+            "duration": [
+              1,
+              1
+            ],
+            "symbol": "Eb7"
+          },
+          "approach": "chromatic-below",
+          "nextTarget": 36
+        },
+        {
+          "barIndex": 24,
+          "before": [
+            {
+              "absBeat": 96,
+              "midi": 41,
+              "velocity": 81,
+              "time": "18432i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 97,
+              "midi": 43,
+              "velocity": 85,
+              "time": "18622i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 98,
+              "midi": 44,
+              "velocity": 80,
+              "time": "18815i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 99,
+              "midi": 33,
+              "velocity": 77,
+              "time": "19006i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "after": [
+            {
+              "absBeat": 96,
+              "midi": 41,
+              "velocity": 81,
+              "time": "18432i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 97,
+              "midi": 39,
+              "velocity": 85,
+              "time": "18622i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 98,
+              "midi": 36,
+              "velocity": 80,
+              "time": "18815i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 99,
+              "midi": 33,
+              "velocity": 77,
+              "time": "19006i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "harmony": {
+            "chord": {
+              "root": "F",
+              "quality": "min7"
+            },
+            "scaleId": "major.dorian",
+            "startOffset": [
+              24,
+              1
+            ],
+            "duration": [
+              1,
+              1
+            ],
+            "symbol": "F-7"
+          },
+          "approach": "chromatic-below",
+          "nextTarget": 34
+        },
+        {
+          "barIndex": 39,
+          "before": [
+            {
+              "absBeat": 156,
+              "midi": 39,
+              "velocity": 83,
+              "time": "29952i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 157,
+              "midi": 36,
+              "velocity": 86,
+              "time": "30144i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 158,
+              "midi": 34,
+              "velocity": 85,
+              "time": "30336i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 159,
+              "midi": 40,
+              "velocity": 87,
+              "time": "30527i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "after": [
+            {
+              "absBeat": 156,
+              "midi": 39,
+              "velocity": 83,
+              "time": "29952i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 157,
+              "midi": 36,
+              "velocity": 86,
+              "time": "30144i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 158,
+              "midi": 39,
+              "velocity": 85,
+              "time": "30336i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 159,
+              "midi": 40,
+              "velocity": 87,
+              "time": "30527i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "harmony": {
+            "chord": {
+              "root": "Eb",
+              "quality": "maj6"
+            },
+            "scaleId": "major.ionian",
+            "startOffset": [
+              39,
+              1
+            ],
+            "duration": [
+              1,
+              1
+            ],
+            "symbol": "Eb6"
+          },
+          "approach": "chromatic-above",
+          "nextTarget": 39
+        }
+      ]
+    },
+    {
+      "id": "BluesEb-swing-active",
+      "sourceFile": "/Users/avitus/.codex/artifacts/musicality-2026-10-25/dense-piano-support/after-events/ls-mankunku-blues-Eb-swing-active.json",
+      "sourceSha256": "9de946915735a27da495d747a13af409dac1e7e43178661ce8ac6aa1c0aa4659",
+      "beforeBassSha256": "8df2401e0139b2f72aff2bb00da18b1499d1ef675743380cbdc74eeb7be87f4c",
+      "changes": [
+        {
+          "barIndex": 21,
+          "before": [
+            {
+              "absBeat": 84,
+              "midi": 33,
+              "velocity": 89,
+              "time": "16128i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 85,
+              "midi": 38,
+              "velocity": 76,
+              "time": "16318i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 86,
+              "midi": 36,
+              "velocity": 83,
+              "time": "16510i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 87,
+              "midi": 44,
+              "velocity": 83,
+              "time": "16702i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "after": [
+            {
+              "absBeat": 84,
+              "midi": 33,
+              "velocity": 89,
+              "time": "16128i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 85,
+              "midi": 38,
+              "velocity": 76,
+              "time": "16318i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 86,
+              "midi": 39,
+              "velocity": 83,
+              "time": "16510i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 87,
+              "midi": 44,
+              "velocity": 83,
+              "time": "16702i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "harmony": {
+            "chord": {
+              "root": "A",
+              "quality": "dim7"
+            },
+            "scaleId": "harmonic-minor.locrian-sharp6",
+            "startOffset": [
+              21,
+              1
+            ],
+            "duration": [
+              1,
+              1
+            ],
+            "symbol": "Adim7"
+          },
+          "approach": "chromatic-above",
+          "nextTarget": 43
+        },
+        {
+          "barIndex": 22,
+          "before": [
+            {
+              "absBeat": 88,
+              "midi": 43,
+              "velocity": 91,
+              "time": "16896i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 89,
+              "midi": 41,
+              "velocity": 83,
+              "time": "17086i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 90,
+              "midi": 43,
+              "velocity": 82,
+              "time": "17278i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 91,
+              "midi": 35,
+              "velocity": 77,
+              "time": "17471i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "after": [
+            {
+              "absBeat": 88,
+              "midi": 43,
+              "velocity": 91,
+              "time": "16896i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 89,
+              "midi": 41,
+              "velocity": 83,
+              "time": "17086i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 90,
+              "midi": 39,
+              "velocity": 82,
+              "time": "17278i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 91,
+              "midi": 35,
+              "velocity": 77,
+              "time": "17471i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "harmony": {
+            "chord": {
+              "root": "Eb",
+              "quality": "7"
+            },
+            "scaleId": "blues.major",
+            "startOffset": [
+              22,
+              1
+            ],
+            "duration": [
+              1,
+              1
+            ],
+            "symbol": "Eb7"
+          },
+          "approach": "chromatic-below",
+          "nextTarget": 36
+        },
+        {
+          "barIndex": 24,
+          "before": [
+            {
+              "absBeat": 96,
+              "midi": 41,
+              "velocity": 81,
+              "time": "18432i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 97,
+              "midi": 43,
+              "velocity": 85,
+              "time": "18622i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 98,
+              "midi": 44,
+              "velocity": 80,
+              "time": "18815i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 99,
+              "midi": 33,
+              "velocity": 77,
+              "time": "19006i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "after": [
+            {
+              "absBeat": 96,
+              "midi": 41,
+              "velocity": 81,
+              "time": "18432i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 97,
+              "midi": 39,
+              "velocity": 85,
+              "time": "18622i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 98,
+              "midi": 36,
+              "velocity": 80,
+              "time": "18815i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 99,
+              "midi": 33,
+              "velocity": 77,
+              "time": "19006i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "harmony": {
+            "chord": {
+              "root": "F",
+              "quality": "min7"
+            },
+            "scaleId": "major.dorian",
+            "startOffset": [
+              24,
+              1
+            ],
+            "duration": [
+              1,
+              1
+            ],
+            "symbol": "F-7"
+          },
+          "approach": "chromatic-below",
+          "nextTarget": 34
+        },
+        {
+          "barIndex": 39,
+          "before": [
+            {
+              "absBeat": 156,
+              "midi": 39,
+              "velocity": 83,
+              "time": "29952i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 157,
+              "midi": 36,
+              "velocity": 86,
+              "time": "30144i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 158,
+              "midi": 34,
+              "velocity": 85,
+              "time": "30336i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 159,
+              "midi": 40,
+              "velocity": 87,
+              "time": "30527i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "after": [
+            {
+              "absBeat": 156,
+              "midi": 39,
+              "velocity": 83,
+              "time": "29952i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 157,
+              "midi": 36,
+              "velocity": 86,
+              "time": "30144i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 158,
+              "midi": 39,
+              "velocity": 85,
+              "time": "30336i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 159,
+              "midi": 40,
+              "velocity": 87,
+              "time": "30527i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "harmony": {
+            "chord": {
+              "root": "Eb",
+              "quality": "maj6"
+            },
+            "scaleId": "major.ionian",
+            "startOffset": [
+              39,
+              1
+            ],
+            "duration": [
+              1,
+              1
+            ],
+            "symbol": "Eb6"
+          },
+          "approach": "chromatic-above",
+          "nextTarget": 39
+        }
+      ]
+    },
+    {
+      "id": "BluesEb-swing-dense",
+      "sourceFile": "/Users/avitus/.codex/artifacts/musicality-2026-10-25/dense-piano-support/after-events/ls-mankunku-blues-Eb-swing-dense.json",
+      "sourceSha256": "16efdcd1ca1c8e6af9c11607cb15633b6e51b618e71f706b7f5bc0682fe588a7",
+      "beforeBassSha256": "7872e56d8030bfc7beb035a6ba20a6237686ca20047539ef9cbb0a56ebee3cd0",
+      "changes": [
+        {
+          "barIndex": 21,
+          "before": [
+            {
+              "absBeat": 84,
+              "midi": 33,
+              "velocity": 89,
+              "time": "16128i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 85,
+              "midi": 38,
+              "velocity": 76,
+              "time": "16318i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 86,
+              "midi": 36,
+              "velocity": 83,
+              "time": "16510i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 87,
+              "midi": 44,
+              "velocity": 83,
+              "time": "16702i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "after": [
+            {
+              "absBeat": 84,
+              "midi": 33,
+              "velocity": 89,
+              "time": "16128i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 85,
+              "midi": 38,
+              "velocity": 76,
+              "time": "16318i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 86,
+              "midi": 39,
+              "velocity": 83,
+              "time": "16510i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 87,
+              "midi": 44,
+              "velocity": 83,
+              "time": "16702i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "harmony": {
+            "chord": {
+              "root": "A",
+              "quality": "dim7"
+            },
+            "scaleId": "harmonic-minor.locrian-sharp6",
+            "startOffset": [
+              21,
+              1
+            ],
+            "duration": [
+              1,
+              1
+            ],
+            "symbol": "Adim7"
+          },
+          "approach": "chromatic-above",
+          "nextTarget": 43
+        },
+        {
+          "barIndex": 22,
+          "before": [
+            {
+              "absBeat": 88,
+              "midi": 43,
+              "velocity": 91,
+              "time": "16896i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 89,
+              "midi": 41,
+              "velocity": 83,
+              "time": "17086i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 90,
+              "midi": 43,
+              "velocity": 82,
+              "time": "17278i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 91,
+              "midi": 35,
+              "velocity": 77,
+              "time": "17471i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "after": [
+            {
+              "absBeat": 88,
+              "midi": 43,
+              "velocity": 91,
+              "time": "16896i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 89,
+              "midi": 41,
+              "velocity": 83,
+              "time": "17086i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 90,
+              "midi": 39,
+              "velocity": 82,
+              "time": "17278i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 91,
+              "midi": 35,
+              "velocity": 77,
+              "time": "17471i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "harmony": {
+            "chord": {
+              "root": "Eb",
+              "quality": "7"
+            },
+            "scaleId": "blues.major",
+            "startOffset": [
+              22,
+              1
+            ],
+            "duration": [
+              1,
+              1
+            ],
+            "symbol": "Eb7"
+          },
+          "approach": "chromatic-below",
+          "nextTarget": 36
+        },
+        {
+          "barIndex": 24,
+          "before": [
+            {
+              "absBeat": 96,
+              "midi": 41,
+              "velocity": 81,
+              "time": "18432i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 97,
+              "midi": 43,
+              "velocity": 85,
+              "time": "18622i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 98,
+              "midi": 44,
+              "velocity": 80,
+              "time": "18815i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 99,
+              "midi": 33,
+              "velocity": 77,
+              "time": "19006i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "after": [
+            {
+              "absBeat": 96,
+              "midi": 41,
+              "velocity": 81,
+              "time": "18432i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 97,
+              "midi": 39,
+              "velocity": 85,
+              "time": "18622i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 98,
+              "midi": 36,
+              "velocity": 80,
+              "time": "18815i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 99,
+              "midi": 33,
+              "velocity": 77,
+              "time": "19006i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "harmony": {
+            "chord": {
+              "root": "F",
+              "quality": "min7"
+            },
+            "scaleId": "major.dorian",
+            "startOffset": [
+              24,
+              1
+            ],
+            "duration": [
+              1,
+              1
+            ],
+            "symbol": "F-7"
+          },
+          "approach": "chromatic-below",
+          "nextTarget": 34
+        },
+        {
+          "barIndex": 39,
+          "before": [
+            {
+              "absBeat": 156,
+              "midi": 39,
+              "velocity": 83,
+              "time": "29952i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 157,
+              "midi": 36,
+              "velocity": 86,
+              "time": "30144i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 158,
+              "midi": 34,
+              "velocity": 85,
+              "time": "30336i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 159,
+              "midi": 40,
+              "velocity": 87,
+              "time": "30527i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "after": [
+            {
+              "absBeat": 156,
+              "midi": 39,
+              "velocity": 83,
+              "time": "29952i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 157,
+              "midi": 36,
+              "velocity": 86,
+              "time": "30144i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 158,
+              "midi": 39,
+              "velocity": 85,
+              "time": "30336i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 159,
+              "midi": 40,
+              "velocity": 87,
+              "time": "30527i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "harmony": {
+            "chord": {
+              "root": "Eb",
+              "quality": "maj6"
+            },
+            "scaleId": "major.ionian",
+            "startOffset": [
+              39,
+              1
+            ],
+            "duration": [
+              1,
+              1
+            ],
+            "symbol": "Eb6"
+          },
+          "approach": "chromatic-above",
+          "nextTarget": 39
+        }
+      ]
+    },
+    {
+      "id": "BluesEb-straight-none",
+      "sourceFile": "/Users/avitus/.codex/artifacts/musicality-2026-10-25/bass-approach-handoff/before-events/ls-mankunku-blues-Eb-straight-0-coordinated-explicit.json",
+      "sourceSha256": "0277280c69c50b907a7914cfd5974eb19df891896a5212dd9bcf8282a6ed123b",
+      "beforeBassSha256": "443be49be3cdff28c5a91772a7795d4c02a6f43b1916c0d5ddbd34c780662fac",
+      "changes": [
+        {
+          "barIndex": 21,
+          "before": [
+            {
+              "absBeat": 84,
+              "midi": 33,
+              "velocity": 89,
+              "time": "16128i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 85,
+              "midi": 38,
+              "velocity": 76,
+              "time": "16319i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 86,
+              "midi": 36,
+              "velocity": 83,
+              "time": "16511i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 87,
+              "midi": 44,
+              "velocity": 83,
+              "time": "16703i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "after": [
+            {
+              "absBeat": 84,
+              "midi": 33,
+              "velocity": 89,
+              "time": "16128i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 85,
+              "midi": 38,
+              "velocity": 76,
+              "time": "16319i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 86,
+              "midi": 39,
+              "velocity": 83,
+              "time": "16511i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 87,
+              "midi": 44,
+              "velocity": 83,
+              "time": "16703i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "harmony": {
+            "chord": {
+              "root": "A",
+              "quality": "dim7"
+            },
+            "scaleId": "harmonic-minor.locrian-sharp6",
+            "startOffset": [
+              21,
+              1
+            ],
+            "duration": [
+              1,
+              1
+            ],
+            "symbol": "Adim7"
+          },
+          "approach": "chromatic-above",
+          "nextTarget": 43
+        },
+        {
+          "barIndex": 22,
+          "before": [
+            {
+              "absBeat": 88,
+              "midi": 43,
+              "velocity": 91,
+              "time": "16896i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 89,
+              "midi": 41,
+              "velocity": 83,
+              "time": "17086i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 90,
+              "midi": 43,
+              "velocity": 82,
+              "time": "17279i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 91,
+              "midi": 35,
+              "velocity": 77,
+              "time": "17471i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "after": [
+            {
+              "absBeat": 88,
+              "midi": 43,
+              "velocity": 91,
+              "time": "16896i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 89,
+              "midi": 41,
+              "velocity": 83,
+              "time": "17086i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 90,
+              "midi": 39,
+              "velocity": 82,
+              "time": "17279i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 91,
+              "midi": 35,
+              "velocity": 77,
+              "time": "17471i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "harmony": {
+            "chord": {
+              "root": "Eb",
+              "quality": "7"
+            },
+            "scaleId": "blues.major",
+            "startOffset": [
+              22,
+              1
+            ],
+            "duration": [
+              1,
+              1
+            ],
+            "symbol": "Eb7"
+          },
+          "approach": "chromatic-below",
+          "nextTarget": 36
+        },
+        {
+          "barIndex": 24,
+          "before": [
+            {
+              "absBeat": 96,
+              "midi": 41,
+              "velocity": 81,
+              "time": "18432i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 97,
+              "midi": 43,
+              "velocity": 85,
+              "time": "18623i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 98,
+              "midi": 44,
+              "velocity": 80,
+              "time": "18815i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 99,
+              "midi": 33,
+              "velocity": 77,
+              "time": "19007i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "after": [
+            {
+              "absBeat": 96,
+              "midi": 41,
+              "velocity": 81,
+              "time": "18432i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 97,
+              "midi": 39,
+              "velocity": 85,
+              "time": "18623i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 98,
+              "midi": 36,
+              "velocity": 80,
+              "time": "18815i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 99,
+              "midi": 33,
+              "velocity": 77,
+              "time": "19007i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "harmony": {
+            "chord": {
+              "root": "F",
+              "quality": "min7"
+            },
+            "scaleId": "major.dorian",
+            "startOffset": [
+              24,
+              1
+            ],
+            "duration": [
+              1,
+              1
+            ],
+            "symbol": "F-7"
+          },
+          "approach": "chromatic-below",
+          "nextTarget": 34
+        },
+        {
+          "barIndex": 39,
+          "before": [
+            {
+              "absBeat": 156,
+              "midi": 39,
+              "velocity": 83,
+              "time": "29952i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 157,
+              "midi": 36,
+              "velocity": 86,
+              "time": "30145i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 158,
+              "midi": 34,
+              "velocity": 85,
+              "time": "30337i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 159,
+              "midi": 40,
+              "velocity": 87,
+              "time": "30528i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "after": [
+            {
+              "absBeat": 156,
+              "midi": 39,
+              "velocity": 83,
+              "time": "29952i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 157,
+              "midi": 36,
+              "velocity": 86,
+              "time": "30145i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 158,
+              "midi": 39,
+              "velocity": 85,
+              "time": "30337i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 159,
+              "midi": 40,
+              "velocity": 87,
+              "time": "30528i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "harmony": {
+            "chord": {
+              "root": "Eb",
+              "quality": "maj6"
+            },
+            "scaleId": "major.ionian",
+            "startOffset": [
+              39,
+              1
+            ],
+            "duration": [
+              1,
+              1
+            ],
+            "symbol": "Eb6"
+          },
+          "approach": "chromatic-above",
+          "nextTarget": 39
+        }
+      ]
+    },
+    {
+      "id": "BluesEb-straight-active",
+      "sourceFile": "/Users/avitus/.codex/artifacts/musicality-2026-10-25/dense-piano-support/after-events/ls-mankunku-blues-Eb-straight-active.json",
+      "sourceSha256": "3930a007790e00b8582e05b08aa244b5ad03a4e8b3c6c7572e3dc24997ab0f9e",
+      "beforeBassSha256": "443be49be3cdff28c5a91772a7795d4c02a6f43b1916c0d5ddbd34c780662fac",
+      "changes": [
+        {
+          "barIndex": 21,
+          "before": [
+            {
+              "absBeat": 84,
+              "midi": 33,
+              "velocity": 89,
+              "time": "16128i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 85,
+              "midi": 38,
+              "velocity": 76,
+              "time": "16319i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 86,
+              "midi": 36,
+              "velocity": 83,
+              "time": "16511i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 87,
+              "midi": 44,
+              "velocity": 83,
+              "time": "16703i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "after": [
+            {
+              "absBeat": 84,
+              "midi": 33,
+              "velocity": 89,
+              "time": "16128i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 85,
+              "midi": 38,
+              "velocity": 76,
+              "time": "16319i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 86,
+              "midi": 39,
+              "velocity": 83,
+              "time": "16511i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 87,
+              "midi": 44,
+              "velocity": 83,
+              "time": "16703i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "harmony": {
+            "chord": {
+              "root": "A",
+              "quality": "dim7"
+            },
+            "scaleId": "harmonic-minor.locrian-sharp6",
+            "startOffset": [
+              21,
+              1
+            ],
+            "duration": [
+              1,
+              1
+            ],
+            "symbol": "Adim7"
+          },
+          "approach": "chromatic-above",
+          "nextTarget": 43
+        },
+        {
+          "barIndex": 22,
+          "before": [
+            {
+              "absBeat": 88,
+              "midi": 43,
+              "velocity": 91,
+              "time": "16896i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 89,
+              "midi": 41,
+              "velocity": 83,
+              "time": "17086i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 90,
+              "midi": 43,
+              "velocity": 82,
+              "time": "17279i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 91,
+              "midi": 35,
+              "velocity": 77,
+              "time": "17471i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "after": [
+            {
+              "absBeat": 88,
+              "midi": 43,
+              "velocity": 91,
+              "time": "16896i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 89,
+              "midi": 41,
+              "velocity": 83,
+              "time": "17086i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 90,
+              "midi": 39,
+              "velocity": 82,
+              "time": "17279i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 91,
+              "midi": 35,
+              "velocity": 77,
+              "time": "17471i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "harmony": {
+            "chord": {
+              "root": "Eb",
+              "quality": "7"
+            },
+            "scaleId": "blues.major",
+            "startOffset": [
+              22,
+              1
+            ],
+            "duration": [
+              1,
+              1
+            ],
+            "symbol": "Eb7"
+          },
+          "approach": "chromatic-below",
+          "nextTarget": 36
+        },
+        {
+          "barIndex": 24,
+          "before": [
+            {
+              "absBeat": 96,
+              "midi": 41,
+              "velocity": 81,
+              "time": "18432i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 97,
+              "midi": 43,
+              "velocity": 85,
+              "time": "18623i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 98,
+              "midi": 44,
+              "velocity": 80,
+              "time": "18815i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 99,
+              "midi": 33,
+              "velocity": 77,
+              "time": "19007i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "after": [
+            {
+              "absBeat": 96,
+              "midi": 41,
+              "velocity": 81,
+              "time": "18432i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 97,
+              "midi": 39,
+              "velocity": 85,
+              "time": "18623i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 98,
+              "midi": 36,
+              "velocity": 80,
+              "time": "18815i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 99,
+              "midi": 33,
+              "velocity": 77,
+              "time": "19007i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "harmony": {
+            "chord": {
+              "root": "F",
+              "quality": "min7"
+            },
+            "scaleId": "major.dorian",
+            "startOffset": [
+              24,
+              1
+            ],
+            "duration": [
+              1,
+              1
+            ],
+            "symbol": "F-7"
+          },
+          "approach": "chromatic-below",
+          "nextTarget": 34
+        },
+        {
+          "barIndex": 39,
+          "before": [
+            {
+              "absBeat": 156,
+              "midi": 39,
+              "velocity": 83,
+              "time": "29952i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 157,
+              "midi": 36,
+              "velocity": 86,
+              "time": "30145i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 158,
+              "midi": 34,
+              "velocity": 85,
+              "time": "30337i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 159,
+              "midi": 40,
+              "velocity": 87,
+              "time": "30528i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "after": [
+            {
+              "absBeat": 156,
+              "midi": 39,
+              "velocity": 83,
+              "time": "29952i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 157,
+              "midi": 36,
+              "velocity": 86,
+              "time": "30145i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 158,
+              "midi": 39,
+              "velocity": 85,
+              "time": "30337i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 159,
+              "midi": 40,
+              "velocity": 87,
+              "time": "30528i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "harmony": {
+            "chord": {
+              "root": "Eb",
+              "quality": "maj6"
+            },
+            "scaleId": "major.ionian",
+            "startOffset": [
+              39,
+              1
+            ],
+            "duration": [
+              1,
+              1
+            ],
+            "symbol": "Eb6"
+          },
+          "approach": "chromatic-above",
+          "nextTarget": 39
+        }
+      ]
+    },
+    {
+      "id": "BluesEb-straight-dense",
+      "sourceFile": "/Users/avitus/.codex/artifacts/musicality-2026-10-25/dense-piano-support/after-events/ls-mankunku-blues-Eb-straight-dense.json",
+      "sourceSha256": "e58b807caa32072acebc5e13e5569beb86434b5565fe859162066d0fc579548a",
+      "beforeBassSha256": "a3b8351889caa93451150675d02ea2ed070d41d2bc4e3bf9f3c66b9bfcd21e25",
+      "changes": [
+        {
+          "barIndex": 21,
+          "before": [
+            {
+              "absBeat": 84,
+              "midi": 33,
+              "velocity": 89,
+              "time": "16128i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 85,
+              "midi": 38,
+              "velocity": 76,
+              "time": "16319i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 86,
+              "midi": 36,
+              "velocity": 83,
+              "time": "16511i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 87,
+              "midi": 44,
+              "velocity": 83,
+              "time": "16703i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "after": [
+            {
+              "absBeat": 84,
+              "midi": 33,
+              "velocity": 89,
+              "time": "16128i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 85,
+              "midi": 38,
+              "velocity": 76,
+              "time": "16319i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 86,
+              "midi": 39,
+              "velocity": 83,
+              "time": "16511i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 87,
+              "midi": 44,
+              "velocity": 83,
+              "time": "16703i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "harmony": {
+            "chord": {
+              "root": "A",
+              "quality": "dim7"
+            },
+            "scaleId": "harmonic-minor.locrian-sharp6",
+            "startOffset": [
+              21,
+              1
+            ],
+            "duration": [
+              1,
+              1
+            ],
+            "symbol": "Adim7"
+          },
+          "approach": "chromatic-above",
+          "nextTarget": 43
+        },
+        {
+          "barIndex": 22,
+          "before": [
+            {
+              "absBeat": 88,
+              "midi": 43,
+              "velocity": 91,
+              "time": "16896i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 89,
+              "midi": 41,
+              "velocity": 83,
+              "time": "17086i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 90,
+              "midi": 43,
+              "velocity": 82,
+              "time": "17279i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 91,
+              "midi": 35,
+              "velocity": 77,
+              "time": "17471i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "after": [
+            {
+              "absBeat": 88,
+              "midi": 43,
+              "velocity": 91,
+              "time": "16896i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 89,
+              "midi": 41,
+              "velocity": 83,
+              "time": "17086i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 90,
+              "midi": 39,
+              "velocity": 82,
+              "time": "17279i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 91,
+              "midi": 35,
+              "velocity": 77,
+              "time": "17471i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "harmony": {
+            "chord": {
+              "root": "Eb",
+              "quality": "7"
+            },
+            "scaleId": "blues.major",
+            "startOffset": [
+              22,
+              1
+            ],
+            "duration": [
+              1,
+              1
+            ],
+            "symbol": "Eb7"
+          },
+          "approach": "chromatic-below",
+          "nextTarget": 36
+        },
+        {
+          "barIndex": 24,
+          "before": [
+            {
+              "absBeat": 96,
+              "midi": 41,
+              "velocity": 81,
+              "time": "18432i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 97,
+              "midi": 43,
+              "velocity": 85,
+              "time": "18623i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 98,
+              "midi": 44,
+              "velocity": 80,
+              "time": "18815i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 99,
+              "midi": 33,
+              "velocity": 77,
+              "time": "19007i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "after": [
+            {
+              "absBeat": 96,
+              "midi": 41,
+              "velocity": 81,
+              "time": "18432i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 97,
+              "midi": 39,
+              "velocity": 85,
+              "time": "18623i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 98,
+              "midi": 36,
+              "velocity": 80,
+              "time": "18815i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 99,
+              "midi": 33,
+              "velocity": 77,
+              "time": "19007i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "harmony": {
+            "chord": {
+              "root": "F",
+              "quality": "min7"
+            },
+            "scaleId": "major.dorian",
+            "startOffset": [
+              24,
+              1
+            ],
+            "duration": [
+              1,
+              1
+            ],
+            "symbol": "F-7"
+          },
+          "approach": "chromatic-below",
+          "nextTarget": 34
+        },
+        {
+          "barIndex": 39,
+          "before": [
+            {
+              "absBeat": 156,
+              "midi": 39,
+              "velocity": 83,
+              "time": "29952i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 157,
+              "midi": 36,
+              "velocity": 86,
+              "time": "30145i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 158,
+              "midi": 34,
+              "velocity": 85,
+              "time": "30337i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 159,
+              "midi": 40,
+              "velocity": 87,
+              "time": "30528i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "after": [
+            {
+              "absBeat": 156,
+              "midi": 39,
+              "velocity": 83,
+              "time": "29952i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 157,
+              "midi": 36,
+              "velocity": 86,
+              "time": "30145i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 158,
+              "midi": 39,
+              "velocity": 85,
+              "time": "30337i",
+              "duration": 0.36428571428571427
+            },
+            {
+              "absBeat": 159,
+              "midi": 40,
+              "velocity": 87,
+              "time": "30528i",
+              "duration": 0.36428571428571427
+            }
+          ],
+          "harmony": {
+            "chord": {
+              "root": "Eb",
+              "quality": "maj6"
+            },
+            "scaleId": "major.ionian",
+            "startOffset": [
+              39,
+              1
+            ],
+            "duration": [
+              1,
+              1
+            ],
+            "symbol": "Eb6"
+          },
+          "approach": "chromatic-above",
+          "nextTarget": 39
+        }
+      ]
+    }
+  ]
+}

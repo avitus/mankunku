@@ -11,6 +11,7 @@ import { fractionToFloat } from '$lib/music/intervals';
 import { getScale } from '$lib/music/scales';
 import { realizeScale } from '$lib/music/keys';
 import { planStructuralBassFeel, type StructuralBassFeel } from './backing-bass-feel';
+import { filterBassHandoffOptions } from './backing-bass-handoff';
 
 export interface RollingBassMemory {
 	readonly previousMidi: number | null;
@@ -30,8 +31,44 @@ function nearest(pcValue: number, center: number): number {
 	return candidates.reduce((best, midi) => Math.abs(midi - center) < Math.abs(best - center) ? midi : best);
 }
 
+interface RollingBassResult {
+	events: BassEvent[];
+	memory: RollingBassMemory;
+	trace: BassTurnaroundTrace[];
+	feelTrace?: StructuralBassFeel;
+	continuationTrace?: readonly BassScalarContinuation[];
+}
+
 export function realizeRollingBass(score: RollingBackingDefinition, bar: number, info: BarInfo,
-	timing: EnsembleTiming, previous?: RollingBassMemory): { events: BassEvent[]; memory: RollingBassMemory; trace: BassTurnaroundTrace[]; feelTrace?: StructuralBassFeel; continuationTrace?: readonly BassScalarContinuation[] } {
+	timing: EnsembleTiming, previous?: RollingBassMemory): RollingBassResult {
+	const ordinary = realizeBassCandidate(score, bar, info, timing, previous)!;
+	if (!score.bassApproachHandoff || (score.style && !['swing', 'straight'].includes(score.style)) || !info.ensemble?.performanceEnergy ||
+		ordinary.memory.feel !== 'four' || previous?.pendingLaunch || ordinary.memory.pendingLaunch ||
+		ordinary.trace.some(entry => entry.status === 'planned') || info.ensemble.coordinatedAccent ||
+		info.ensemble.setupFor || info.ensemble.responseOwner !== 'nobody' ||
+		!['chromatic-above', 'chromatic-below'].includes(ordinary.memory.approach) || ordinary.memory.nextTarget === null) return ordinary;
+	const segment = score.harmony[ordinary.memory.segmentIndex!];
+	if (!segment || fractionToFloat(segment.startOffset) * 4 !== bar * 4 || fractionToFloat(segment.duration) * 4 !== 4) return ordinary;
+	const pulses = ordinary.events.filter(event => Number.isInteger(event.absBeat));
+	if (pulses.length !== 4 || pulses.some((event, index) => event.absBeat !== bar * 4 + index) ||
+		Math.abs(pulses[2].midi - pulses[3].midi) <= 5) return ordinary;
+	// Both candidates start from the same committed history. A failed bridge
+	// never replaces any part of the ordinary bar or advances its memory.
+	const alternate = realizeBassCandidate(score, bar, info, timing, previous, pulses[3].midi);
+	if (!alternate || alternate.events.length !== ordinary.events.length) return ordinary;
+	const bridged = alternate.events.filter(event => Number.isInteger(event.absBeat));
+	if (bridged.length !== 4 || bridged.some((event, index) => event.absBeat !== pulses[index].absBeat ||
+		(index > 0 && Math.abs(event.midi - bridged[index - 1].midi) > 5))) return ordinary;
+	for (const [index, event] of alternate.events.entries()) {
+		const before = ordinary.events[index];
+		if (event.absBeat !== before.absBeat || event.time !== before.time || event.duration !== before.duration || event.velocity !== before.velocity ||
+			(![1, 2].includes(Math.floor(event.absBeat - bar * 4)) && event.midi !== before.midi)) return ordinary;
+	}
+	return alternate;
+}
+
+function realizeBassCandidate(score: RollingBackingDefinition, bar: number, info: BarInfo,
+	timing: EnsembleTiming, previous?: RollingBassMemory, handoffMidi?: number): RollingBassResult | undefined {
 	const memory: RollingBassMemory = previous ?? { previousMidi: null, previousPreviousMidi: null, direction: 0, segmentIndex: null,
 		segmentAnchor: null, nextTarget: null, approach: 'chromatic-below' as const, feel: 'four' as const, pendingLaunch: null };
 	if (score.style === 'bossa-nova') {
@@ -160,8 +197,12 @@ export function realizeRollingBass(score: RollingBackingDefinition, bar: number,
 		} else {
 			const previousPitch = previousMidi ?? segmentAnchor!;
 			const target = nextTarget ?? nearest(segment.root, centers[bar]);
-			const options = Array.from({ length: 28 }, (_, offset) => offset + 28).filter((candidate) => candidate !== previousPitch && Math.abs(candidate - previousPitch) <= 5 &&
+			let options = Array.from({ length: 28 }, (_, offset) => offset + 28).filter((candidate) => candidate !== previousPitch && Math.abs(candidate - previousPitch) <= 5 &&
 				(beat % 2 === 0 ? segment.chordPcs.includes(pc(candidate)) : segment.scalePcs.includes(pc(candidate))));
+			if (handoffMidi !== undefined && (beat === 1 || beat === 2)) {
+				options = filterBassHandoffOptions(options, { beat, approachMidi: handoffMidi, chordPcs: segment.chordPcs });
+				if (options.length === 0) return undefined;
+			}
 			const rng = createRng(seedFrom(score.phraseId, score.tempo, 'rolling-bass-pitch', absBeat));
 			midi = options.length ? rng.weighted(options.map((candidate) => ({ value: candidate,
 				weight: (Math.abs(candidate - previousPitch) <= 2 ? 4 : 1) * (Math.abs(candidate - target) < Math.abs(previousPitch - target) ? 2 : 1) *

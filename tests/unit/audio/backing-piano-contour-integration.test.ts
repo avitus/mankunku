@@ -1,8 +1,9 @@
+import { assertBassHandoffDelta } from './bass-handoff-assertions';
 import { createHash } from 'node:crypto';
 import { assertPianoPhraseRecallDelta } from './piano-phrase-recall-assertions';
 import { assertBossaContourCompatibility } from './bossa-contour-assertions';
 import { expect, it } from 'vitest';
-import { createRollingBacking, advanceRollingBacking } from '$lib/audio/backing-rolling';
+import { createRollingBacking, advanceRollingBacking, type RollingBackingBar } from '$lib/audio/backing-rolling';
 import { generateBacking } from '$lib/audio/backing-generation';
 import { BACKING_STYLES } from '$lib/audio/backing-styles';
 import { buildListeningTuneSession } from '$lib/musicality/listening-tunes';
@@ -315,6 +316,7 @@ it.each(baselineCases)('$style $mode $engine preserves full-tune contracts outsi
 		swing: BACKING_STYLES[id].defaultSwing
 	};
 	let recallEnergy: number | undefined;
+	let bassWindows: RollingBackingBar[] = [];
 	const current = engine === 'fixed' ? generateBacking(phrase.harmony, BACKING_STYLES[id], input) : (() => {
 		const score = createRollingBacking(phrase.harmony, BACKING_STYLES[id], input);
 		let checkpoint;
@@ -325,6 +327,7 @@ it.each(baselineCases)('$style $mode $engine preserves full-tune contracts outsi
 			bars.push(next);
 		}
 		recallEnergy = bars[24].ensemblePlan.bars[0].energy;
+		bassWindows = bars;
 		return {
 			bassEvents: bars.flatMap(bar => bar.bassEvents),
 			compEvents: bars.flatMap(bar => bar.compEvents),
@@ -336,8 +339,10 @@ it.each(baselineCases)('$style $mode $engine preserves full-tune contracts outsi
 	})();
 	// The earlier pitch-only milestone's hashes remain immutable. Validate the new
 	// exact rhythm/source/harmony delta, then reconstruct its original event footprint.
+	const bassCompatible = engine === 'rolling' && mode === 'coordinated-explicit' && (id === 'swing' || id === 'straight')
+		? { ...current, bassEvents: assertBassHandoffDelta(current.bassEvents, bassWindows, phrase.harmony, `SaintsEb-${id}-none`) } : current;
 	const generated = engine === 'rolling' && mode === 'coordinated-explicit' && (id === 'swing' || id === 'straight')
-		? assertPianoPhraseRecallDelta(current, id, recallEnergy!) : current;
+		? assertPianoPhraseRecallDelta(bassCompatible, id, recallEnergy!) : bassCompatible;
 	const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 	for (const field of ['bassEvents', 'drumEvents'] as const) {
 		expect(hash(generated[field])).toBe(expected[field]);

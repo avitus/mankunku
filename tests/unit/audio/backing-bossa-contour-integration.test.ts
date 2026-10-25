@@ -1,7 +1,8 @@
+import { assertBassHandoffDelta } from './bass-handoff-assertions';
 import { createHash } from 'node:crypto';
 import { expect, it } from 'vitest';
 import { generateBacking } from '$lib/audio/backing-generation';
-import { createRollingBacking, advanceRollingBacking } from '$lib/audio/backing-rolling';
+import { createRollingBacking, advanceRollingBacking, type RollingBackingBar } from '$lib/audio/backing-rolling';
 import { BACKING_STYLES } from '$lib/audio/backing-styles';
 import { buildListeningTuneSession } from '$lib/musicality/listening-tunes';
 import { resolveCoordinatedVoicing, type CoordinatedVoicingMemory } from '$lib/audio/coordinated-voicing';
@@ -319,7 +320,8 @@ it.each(baselineCases)('$style $mode $engine preserves its complete native rhyth
 	const { performanceForm, ensemble, ...plain } = params;
 	const input = { ...plain, ...(mode !== 'coordinated-implicit' ? { performanceForm } : {}),
 		...(mode !== 'original' ? { ensemble } : {}), swing: BACKING_STYLES[id].defaultSwing };
-	const generated = engine === 'fixed' ? generateBacking(phrase.harmony, BACKING_STYLES[id], input) : (() => {
+	let bassWindows: RollingBackingBar[] = [];
+	const current = engine === 'fixed' ? generateBacking(phrase.harmony, BACKING_STYLES[id], input) : (() => {
 		const score = createRollingBacking(phrase.harmony, BACKING_STYLES[id], input);
 		let checkpoint;
 		const bars = [];
@@ -328,10 +330,13 @@ it.each(baselineCases)('$style $mode $engine preserves its complete native rhyth
 			checkpoint = next.checkpoint;
 			bars.push(next);
 		}
+		bassWindows = bars;
 		return { bassEvents: bars.flatMap(bar => bar.bassEvents), compEvents: bars.flatMap(bar => bar.compEvents),
 			drumEvents: bars.flatMap(bar => bar.drumEvents), ensembleDevelopment: {
 				pianoVoicings: bars.flatMap(bar => bar.ensembleDevelopment.pianoVoicings ?? []) } };
 	})();
+	const generated = engine === 'rolling' && mode === 'coordinated-explicit' && (id === 'swing' || id === 'straight')
+		? { ...current, bassEvents: assertBassHandoffDelta(current.bassEvents, bassWindows, phrase.harmony, `BluesFs-${id}-none`) } : current;
 	for (const field of ['bassEvents', 'drumEvents'] as const) expect(hash(generated[field])).toBe(expected[field]);
 	expect(hash(generated.compEvents.map(({ notes, ...event }) => event))).toBe(expected.compNonPitches);
 	expect(generated.compEvents).toHaveLength(expected.compCount);

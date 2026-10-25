@@ -1,3 +1,4 @@
+import { assertBassHandoffDelta } from './bass-handoff-assertions';
 import { createHash } from 'node:crypto';
 import { expect, it } from 'vitest';
 import { generateBacking, type CompEvent } from '$lib/audio/backing-generation';
@@ -44,7 +45,9 @@ it.each(styles)('%s thins a naturally retained real-tune dense boundary chord wi
 	const rolled = rolling(style, features);
 	for (const engine of ['fixed', 'rolling'] as const) {
 		const old = baseline.cases.find(c => c.style === style && c.trajectory === 'dense' && c.engine === engine)!;
-		const actual = engine === 'fixed' ? fixed : rolled;
+		const current = engine === 'fixed' ? fixed : rolled;
+		const actual = engine === 'rolling' && (style === 'swing' || style === 'straight')
+			? { ...current, bassEvents: assertBassHandoffDelta(current.bassEvents, rolled.windows, session.phrase.harmony, `BluesEb-${style}-dense`) } : current;
 		const trace = engine === 'fixed' ? fixed.ensembleDevelopment!.pianoVoicings!
 			: rolled.windows.flatMap(w => w.ensembleDevelopment.pianoVoicings ?? []);
 		const plan = engine === 'fixed' ? fixed.ensemblePlan!.bars[25] : rolled.windows[25].ensemblePlan.bars[0];
@@ -79,14 +82,16 @@ it.each(styles)('%s thins a naturally retained real-tune dense boundary chord wi
 	}
 });
 
-it.each(styles)('%s preserves complete old no-observation and active non-dense performances', style => {
+it.each(styles)('%s preserves old no-observation and active performances outside verified bass handoffs', style => {
 	for (const trajectory of ['none', 'active'] as const) {
 		const features = observations(trajectory);
 		const fixed = generateBacking(session.phrase.harmony, BACKING_STYLES[style], parameters(style, features));
 		const rolled = rolling(style, features);
 		for (const engine of ['fixed', 'rolling'] as const) {
 			const old = baseline.cases.find(c => c.style === style && c.trajectory === trajectory && c.engine === engine)!;
-			const actual = engine === 'fixed' ? fixed : rolled;
+			const current = engine === 'fixed' ? fixed : rolled;
+			const actual = engine === 'rolling' && (style === 'swing' || style === 'straight')
+				? { ...current, bassEvents: assertBassHandoffDelta(current.bassEvents, rolled.windows, session.phrase.harmony, `BluesEb-${style}-${trajectory}`) } : current;
 			for (const field of ['compEvents', 'bassEvents', 'drumEvents'] as const) expect(hash(actual[field])).toBe(old.expected[field]);
 		}
 	}
