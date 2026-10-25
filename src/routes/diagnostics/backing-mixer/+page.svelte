@@ -389,7 +389,16 @@
 	function generatedTake(take: RollingTake): GeneratedBacking {
 		return {
 			bassEvents: [...take.playback.generated.bassEvents], compEvents: [...take.playback.generated.compEvents], drumEvents: [...take.playback.generated.drumEvents],
-			ensemblePlan: { version: 1, bars: take.playback.windows.flatMap((bar) => bar.ensemblePlan.bars), trace: take.playback.windows.flatMap((bar) => bar.ensemblePlan.trace) }
+			ensemblePlan: { version: 1, bars: take.playback.windows.flatMap((bar) => bar.ensemblePlan.bars), trace: take.playback.windows.flatMap((bar) => bar.ensemblePlan.trace) },
+			ensembleDevelopment: {
+				version: 1,
+				pianoMotifs: take.playback.windows.flatMap(bar => bar.ensembleDevelopment.pianoMotifs),
+				bassTurnarounds: take.playback.windows.flatMap(bar => bar.ensembleDevelopment.bassTurnarounds),
+				bassFeel: take.playback.windows.flatMap(bar => bar.ensembleDevelopment.bassFeel ?? []),
+				pianoVoicings: take.playback.windows.flatMap(bar => bar.ensembleDevelopment.pianoVoicings ?? []),
+				pianoFeedback: take.playback.windows.flatMap(bar => bar.ensembleDevelopment.pianoFeedback ?? []),
+				drumPhrases: take.playback.windows.flatMap(bar => bar.ensembleDevelopment.drumPhrases)
+			}
 		};
 	}
 	async function bounce(): Promise<void> {

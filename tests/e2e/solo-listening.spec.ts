@@ -4,6 +4,7 @@ import { stubCdnInstrumentSamples } from './fixtures/audio';
 import { readFile } from 'node:fs/promises';
 import type { Page } from '@playwright/test';
 import type { SoloObservationWindow } from '../../src/lib/audio/solo-observer';
+import type { RollingBackingBar } from '../../src/lib/audio/backing-rolling';
 import type { GeneratedBacking } from '../../src/lib/audio/backing-generation';
 
 /** A real silent stream with explicit ownership counters; never asks the OS for a mic. */
@@ -127,6 +128,27 @@ test('rolling microphone take changes later decisions and exports the committed 
 	expect(data.bassEvents).toEqual(data.rollingTake.playback.generated.bassEvents);
 	expect(data.compEvents).toEqual(data.rollingTake.playback.generated.compEvents);
 	expect(data.drumEvents).toEqual(data.rollingTake.playback.generated.drumEvents);
+	expect(data.ensembleDevelopment).toBeDefined();
+	const windows = data.rollingTake.playback.windows as RollingBackingBar[];
+	for (const field of ['pianoMotifs', 'bassTurnarounds', 'drumPhrases', 'bassFeel', 'pianoVoicings', 'pianoFeedback'] as const) {
+		expect(data.ensembleDevelopment[field]).toEqual(windows.flatMap<unknown>(window => window.ensembleDevelopment[field] ?? []));
+	}
+	expect(data.ensembleDevelopment.pianoFeedback).toHaveLength(windows.length);
+	for (const window of windows) {
+		const feedback = window.ensembleDevelopment.pianoFeedback![0];
+		expect(feedback.barIndex).toBe(window.fromBar);
+		expect(feedback.acceptedAttacks).toEqual(window.compEvents.map(({ time, absBeat, notes }) => ({ time, absBeat, notes })));
+		if (feedback.source) {
+			expect(feedback.source.barIndex).toBe(window.fromBar - 1);
+			const previous = windows.find(candidate => candidate.fromBar === feedback.source!.barIndex)!;
+			for (const hit of feedback.source.hits) expect(previous.drumEvents).toContainEqual(hit);
+		}
+		if (feedback.action === 'yield') {
+			expect(feedback.source).not.toBeNull();
+			expect(window.compEvents).toHaveLength(0);
+			expect(feedback.effectiveMaxAttacks).toBe(0);
+		}
+	}
 	for (const receipt of data.rollingTake.session.receipts) {
 		expect(receipt.receivedAtSeconds).toBeGreaterThanOrEqual(receipt.availableAtSeconds - 0.01);
 		expect(receipt.nextBarAtReceipt).toBeGreaterThan(receipt.windowBar);

@@ -18,6 +18,7 @@ import { realizeRollingBass, type RollingBassMemory } from './backing-rolling-ba
 import { planDrumPhraseBar, type DrumPhraseMemory } from './backing-drum-phrases';
 import type { TimingProfile, TimingRole } from './backing-timing';
 import { MAX_ADAPTIVE_BARS, MAX_ADAPTIVE_LOOPS } from './backing-performance-limits';
+import { captureDrumStatement, planDrumPianoFeedback, validateDrumPianoFeedback, type DrumPianoFeedbackMemory } from './backing-ensemble-feedback';
 
 export interface RollingBackingOptions {
 	/** Explicit finite repetitions of the source form; never an open-ended loop. */
@@ -71,6 +72,8 @@ export interface RollingBackingCheckpoint {
 	readonly bass: RollingBassMemory;
 	readonly drums: DrumPhraseMemory;
 	readonly timing: EnsemblePhraseTimingTrace;
+	/** Actual preceding drum evidence; absent for metadata-free legacy playback. */
+	readonly feedback?: DrumPianoFeedbackMemory;
 }
 
 export interface RollingBackingBar extends RollingBarIdentity {
@@ -160,7 +163,7 @@ export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDef
 	// Preserve the one-pass binding. An explicit repeat is a distinct declared
 	// performance even when its flattened score matches some other source.
 	const serialized = JSON.stringify([1, params.phraseId, params.tempo, params.ppq, params.swing, copied, form, timingProfiles,
-		...(performanceEnergy ? [{ performanceEnergyVersion: 1, structuralTextureVersion: 1, coordinatedVoicingVersion: 3 }] : []),
+		...(performanceEnergy ? [{ performanceEnergyVersion: 1, structuralTextureVersion: 1, coordinatedVoicingVersion: 3, reciprocalFeedbackVersion: 1 }] : []),
 		...(loopCount > 1 ? [{ sourceBars, loopCount }] : []),
 		...(style.coordinatedStyle !== 'swing' ? [{ style: style.coordinatedStyle }] : [])]);
 	// The definition retains the complete immutable score once. Repeating its
@@ -195,6 +198,8 @@ function validateCheckpoint(score: RollingBackingDefinition, checkpoint: Rolling
 		!numeric(checkpoint.piano.segmentIndex)) invalid();
 	const voicing = checkpoint.piano.voicing;
 	const coordinatedVoicing = score.bars[0]?.performanceEnergy !== undefined;
+	if (coordinatedVoicing) validateDrumPianoFeedback(checkpoint.feedback!, checkpoint.nextBar, score.ppq);
+	else if (checkpoint.feedback !== undefined) invalid();
 	if (coordinatedVoicing && checkpoint.piano.lastVoicing.length > 0 && !voicing) invalid();
 	if (voicing) {
 		const index = checkpoint.piano.segmentIndex;
@@ -233,7 +238,13 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 		boundaryStrength: definition.bars[phraseEnd - 1].boundaryStrength ?? 0, timingProfiles: definition.timingProfiles });
 	const timing = restoreEnsembleTiming({ phraseId: definition.phraseId, tempo: definition.tempo, ppq: definition.ppq, swing: definition.swing,
 		trace: [timingTrace], timingProfiles: definition.timingProfiles });
-	const piano = realizeRollingPiano(definition, bar, info, timing, checkpoint?.piano);
+	const feedback = ensemble.performanceEnergy ? planDrumPianoFeedback({ phraseId: definition.phraseId,
+		tempo: definition.tempo, barIndex: bar, info, previous: checkpoint?.feedback }) : undefined;
+	// Keep shared intentions intact. Only this piano realization receives the
+	// optional breath; bass and drums retain their existing native contracts.
+	const pianoInfo = feedback?.action === 'yield'
+		? { ...info, ensemble: { ...ensemble, piano: { ...ensemble.piano, maxAttacks: feedback.effectiveMaxAttacks } } } : info;
+	const piano = realizeRollingPiano(definition, bar, pianoInfo, timing, checkpoint?.piano);
 	const bass = realizeRollingBass(definition, bar, info, timing, checkpoint?.bass);
 	const startTick = bar * 4 * definition.ppq;
 	const endTick = (bar + 1) * 4 * definition.ppq;
@@ -258,7 +269,9 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 		if (downbeat) { downbeat.time = `${Math.max(startTick, timing.arrivalTick(bar))}i`; downbeat.velocity = Math.min(110, downbeat.velocity + 5); }
 	}
 	const contents: Omit<RollingBackingCheckpoint, 'checkpointId'> = { version: 1, sessionId: definition.sessionId, fingerprint: definition.fingerprint,
-		nextBar: bar + 1, ensemble: window.memory, piano: piano.memory, bass: bass.memory, drums: drums.memory, timing: timingTrace };
+		nextBar: bar + 1, ensemble: window.memory, piano: piano.memory, bass: bass.memory, drums: drums.memory, timing: timingTrace,
+		...(feedback ? { feedback: { version: 1 as const, previousDrumStatement: captureDrumStatement(drums.bar, drumEvents),
+			lastYieldBar: feedback.action === 'yield' ? bar : checkpoint?.feedback?.lastYieldBar ?? null } } : {}) };
 	const ticks = [...bass.events, ...piano.events, ...drumEvents].map((event) => parseInt(event.time, 10));
 	return freeze({ version: 1, sessionId: definition.sessionId, fromBar: bar, toBarExclusive: bar + 1,
 		loopIndex: definition.bars[bar].loopIndex, sourceBarIndex: definition.bars[bar].sourceBarIndex,
@@ -268,6 +281,7 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 		checkpoint: { ...contents, checkpointId: checkpointId(contents) },
 		bassEvents: bass.events, compEvents: piano.events, drumEvents, ensemblePlan: window.plan, ensembleTiming: [timingTrace],
 		ensembleDevelopment: { version: 1, pianoMotifs: [piano.trace], bassTurnarounds: bass.trace,
+			...(feedback ? { pianoFeedback: [{ ...feedback, acceptedAttacks: piano.events.map(({ time, absBeat, notes }) => ({ time, absBeat, notes: [...notes] })) }] } : {}),
 			...(bass.feelTrace ? { bassFeel: [bass.feelTrace] } : {}),
 			...(piano.voicingTrace ? { pianoVoicings: piano.voicingTrace } : {}), drumPhrases: [drums.bar] } });
 }

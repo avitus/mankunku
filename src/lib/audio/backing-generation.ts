@@ -130,7 +130,26 @@ export interface EnsembleDevelopment {
 	readonly bassTurnarounds: readonly BassTurnaroundTrace[];
 	readonly bassFeel?: readonly StructuralBassFeel[];
 	readonly pianoVoicings?: readonly CoordinatedPianoVoicing[];
+	/** Causal, committed rolling-bar decisions; absent from fixed generation. */
+	readonly pianoFeedback?: readonly PianoFeedbackDecision[];
 	readonly drumPhrases: readonly DrumPhraseDecision[];
+}
+
+export interface DrumStatementSource {
+	readonly barIndex: number;
+	readonly transform: 'statement' | 'repeat' | 'displace' | 'orchestrate' | 'fallback';
+	readonly hits: readonly Readonly<DrumEvent>[];
+}
+
+export interface PianoFeedbackDecision {
+	readonly version: 1;
+	readonly barIndex: number;
+	readonly source: DrumStatementSource | null;
+	readonly action: 'yield' | 'none';
+	readonly reason: 'drum_statement' | 'no_statement' | 'already_silent' | 'reserved_transition' | 'response_reserved' | 'cooldown' | 'not_selected';
+	readonly originalMaxAttacks: 0 | 1 | 2;
+	readonly effectiveMaxAttacks: 0 | 1 | 2;
+	readonly acceptedAttacks: readonly { readonly time: string; readonly absBeat: number; readonly notes: readonly number[] }[];
 }
 
 /** Objective evidence for one actual accepted piano attack. */
@@ -152,10 +171,27 @@ function freezeEnsembleDevelopment(trace: EnsembleDevelopment): EnsembleDevelopm
 		for (const attack of trace.pianoVoicings) {
 			Object.freeze(attack.notes);
 			Object.freeze(attack.decision.commonTones);
+			if (attack.decision.rootlessTexture) Object.freeze(attack.decision.rootlessTexture);
 			Object.freeze(attack.decision);
 			Object.freeze(attack);
 		}
 		Object.freeze(trace.pianoVoicings);
+	}
+	if (trace.pianoFeedback) {
+		for (const feedback of trace.pianoFeedback) {
+			if (feedback.source) {
+				for (const hit of feedback.source.hits) Object.freeze(hit);
+				Object.freeze(feedback.source.hits);
+				Object.freeze(feedback.source);
+			}
+			for (const attack of feedback.acceptedAttacks) {
+				Object.freeze(attack.notes);
+				Object.freeze(attack);
+			}
+			Object.freeze(feedback.acceptedAttacks);
+			Object.freeze(feedback);
+		}
+		Object.freeze(trace.pianoFeedback);
 	}
 	freezeDrumPhraseTrace(trace.drumPhrases);
 	return Object.freeze(trace);

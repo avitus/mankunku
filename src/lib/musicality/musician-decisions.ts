@@ -102,6 +102,22 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 		detail: piano.length ? 'Comping supports the changes in this bar.' : 'Earlier chords may still sustain through this bar.',
 		evidence: [countText(piano.length, 'chord attack'), ...sharedEvidence('piano')]
 	};
+	const feedback = development?.pianoFeedback?.find(entry => entry.barIndex === barIndex);
+	const source = feedback?.source;
+	// Only a committed previous-bar statement can explain this rolling-bar plan.
+	const sourceMatches = !!source && source.barIndex === barIndex - 1 && new Set(source.hits.map(hit => hit.absBeat)).size >= 2 &&
+		source.hits.every(hit => hit.role === 'commentary' && ['snare', 'crossstick', 'kick'].includes(hit.drum) &&
+			Math.floor(hit.absBeat / beatsPerBar) === source.barIndex &&
+			Number.parseInt(hit.time, 10) >= firstTick - beatsPerBar * ppq && Number.parseInt(hit.time, 10) < firstTick &&
+			generated.drumEvents.some(event => event.time === hit.time && event.absBeat === hit.absBeat &&
+				event.drum === hit.drum && event.velocity === hit.velocity && event.role === hit.role));
+	if (plan?.performanceEnergy && feedback?.action === 'yield' && feedback.reason === 'drum_statement' &&
+		feedback.originalMaxAttacks > 0 && feedback.effectiveMaxAttacks === 0 && source && sourceMatches) {
+		pianoCard.evidence.push(`Drum statement in bar ${source.barIndex + 1}: ${source.hits.map(hit => plain(hit.drum)).join(' · ')}`,
+			'Planned space after the drum statement: no new chord attack');
+		// A zero budget describes intent; only an empty trace AND score establish scheduled silence.
+		if (!feedback.acceptedAttacks.length && !piano.length) pianoCard.evidence.push('Scheduled result: no new chord attack');
+	}
 	const plannedTexture = plan?.piano.rootlessTexture;
 	if (plannedTexture) {
 		const reasons = {
