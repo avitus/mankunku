@@ -143,6 +143,26 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 		// A zero budget describes intent; only an empty trace AND score establish scheduled silence.
 		if (!feedback.acceptedAttacks.length && !piano.length) pianoCard.evidence.push('Scheduled result: no new chord attack');
 	}
+	const answer = development?.pianoAnswers?.find(entry => entry.barIndex === barIndex);
+	const answerSource = answer?.source;
+	const sourcePhrase = development?.drumPhrases.find(entry => entry.barIndex === answerSource?.barIndex);
+	const answeringDrums = development?.drumPhrases.find(entry => entry.barIndex === barIndex);
+	const acceptedAnswer = walking && plan?.performanceEnergy?.phase === 'solo_build' && answer?.version === 1 && answer.drumCommentary === 'space' &&
+		answerSource?.barIndex === barIndex - 1 && ['statement', 'repeat', 'displace', 'orchestrate', 'fallback'].includes(answerSource.transform) &&
+		answerSource.hits.length >= 2 && answerSource.hits.length <= 3 && new Set(answerSource.hits.map(hit => hit.absBeat)).size >= 2 &&
+		sourcePhrase?.commentary.source === 'vocabulary' && sourcePhrase.commentary.transform === answerSource.transform &&
+		answerSource.hits.every(hit => hit.role === 'commentary' && ['snare', 'crossstick', 'kick'].includes(hit.drum) &&
+			Math.floor(hit.absBeat / beatsPerBar) === answerSource.barIndex && Number.parseInt(hit.time, 10) >= firstTick - beatsPerBar * ppq && Number.parseInt(hit.time, 10) < firstTick &&
+			generated.drumEvents.some(event => event.time === hit.time && event.absBeat === hit.absBeat && event.drum === hit.drum && event.velocity === hit.velocity && event.role === hit.role) &&
+			[sourcePhrase.commentary.hits, sourcePhrase.hits].every(hits => hits.some(event => event.role === 'commentary' && event.drum === hit.drum && event.velocity === hit.velocity && event.beatOffset === hit.absBeat - answerSource.barIndex * beatsPerBar))) &&
+		piano.length === 1 && answer.replyOffset >= 0 && answer.replyOffset < beatsPerBar && answer.attack.absBeat === barIndex * beatsPerBar + answer.replyOffset &&
+		piano[0].time === answer.attack.time && piano[0].absBeat === answer.attack.absBeat && piano[0].duration === answer.attack.duration && piano[0].velocity === answer.attack.velocity &&
+		piano[0].notes.length === answer.attack.notes.length && piano[0].notes.every((note, index) => note === answer.attack.notes[index]) &&
+		generated.compEvents.filter(event => Math.floor(event.absBeat / beatsPerBar) === barIndex).length === 1 &&
+		motif?.reason === 'drum_reply' && motif.transform === 'fallback' && motif.motifId === null && motif.sourceFigureId === null && motif.hits.length === 1 && motif.hits[0].b === answer.replyOffset &&
+		answeringDrums?.commentary.transform === 'space' && !answeringDrums.commentary.hits.length && !answeringDrums.hits.some(hit => hit.role === 'commentary') &&
+		!generated.drumEvents.some(event => event.role === 'commentary' && (inBar(event) || Math.floor(event.absBeat / beatsPerBar) === barIndex));
+	if (acceptedAnswer) pianoCard.evidence.push(`Answer the drum phrase from bar ${answerSource!.barIndex + 1} with one chord`);
 	const plannedTexture = plan?.piano.rootlessTexture;
 	if (plannedTexture) {
 		const reasons = {
@@ -224,6 +244,7 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 		if (drumPhrase.commentary.motifId) drumCard.evidence.push(`Commentary: ${plain(drumPhrase.commentary.transform)}`);
 		if (drumPhrase.commentary.reason) drumCard.evidence.push(`Commentary decision: ${plain(drumPhrase.commentary.reason)}`);
 	}
+	if (acceptedAnswer) drumCard.evidence.push('Leave commentary space for the piano answer');
 	if (plan?.drums.silenceReason) drumCard.evidence.push(`Commentary space: ${plain(plan.drums.silenceReason)}`);
 	return [bassCard, pianoCard, drumCard];
 }

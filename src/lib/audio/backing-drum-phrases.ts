@@ -75,6 +75,8 @@ export interface DrumPhraseBarInput {
 	readonly harmonyEndBeat: number;
 	/** Only attacks accepted for emission in this bar, never candidate rhythms. */
 	readonly compOnsets?: readonly number[];
+	/** A committed answer remains actual evidence, not a new independent statement. */
+	readonly compIsDrumReply?: true;
 	readonly bassOnsets?: readonly number[];
 	readonly acceptsOnset?: DrumPhraseInput['acceptsOnset'];
 }
@@ -94,6 +96,7 @@ export interface DrumPhraseMemory {
 	readonly previousCompOnsets: readonly number[];
 	/** Joint arrangement hits remain evidence but are not independent piano statements. */
 	readonly previousCompIsSharedArrival?: true;
+	readonly previousCompIsDrumReply?: true;
 }
 
 export function freezeDrumPhraseTrace(trace: readonly DrumPhraseDecision[]): readonly DrumPhraseDecision[] {
@@ -328,6 +331,12 @@ function validateDrumPhraseBar(input: DrumPhraseBarInput, memory?: DrumPhraseMem
 		throw new Error('Drum phrase bar and static boundaries must fit the harmony extent');
 	}
 	const ensemble = input.info.ensemble;
+	if (input.compIsDrumReply !== undefined && (input.compIsDrumReply !== true ||
+		!ensemble?.performanceEnergy || input.style === 'ballad' || input.style === 'bossa-nova' ||
+		ensemble.drums.maxCommentaryHits !== 0 || input.compOnsets?.length !== 1 ||
+		input.compOnsets[0] < 1 || input.compOnsets[0] >= 3.5 || !Number.isInteger(input.compOnsets[0] * 2))) {
+		throw new Error('Invalid accepted piano reply provenance');
+	}
 	if (input.peakEndBarExclusive !== undefined && (!barNumber(input.peakEndBarExclusive) ||
 		input.peakEndBarExclusive <= input.barIndex || input.peakEndBarExclusive > input.phraseEndBarExclusive ||
 		input.peakEndBarExclusive * 4 > input.harmonyEndBeat || ensemble?.performanceEnergy?.phase !== 'solo_peak')) {
@@ -361,6 +370,9 @@ function validateDrumPhraseBar(input: DrumPhraseBarInput, memory?: DrumPhraseMem
 		(memory.previousCompIsSharedArrival !== undefined && (memory.previousCompIsSharedArrival !== true ||
 			!input.info.ensemble?.performanceEnergy || input.style === 'ballad' || input.style === 'bossa-nova' ||
 			memory.previousCompOnsets.length !== 1 || memory.previousCompOnsets[0] !== 0)) ||
+		(memory.previousCompIsDrumReply !== undefined && (memory.previousCompIsDrumReply !== true ||
+			!input.info.ensemble?.performanceEnergy || input.style === 'ballad' || input.style === 'bossa-nova' ||
+			memory.previousCompOnsets.length !== 1 || memory.previousCompOnsets[0] < 1 || memory.previousCompOnsets[0] >= 3.5 || !Number.isInteger(memory.previousCompOnsets[0] * 2) || memory.previousCompIsSharedArrival)) ||
 		!barNumber(memory.ensemblePhraseStartBar) || memory.ensemblePhraseStartBar > state.start ||
 		![memory.sectionIndex, memory.chorusIndex].every((value) => value === null || barNumber(value))) {
 		throw new Error('Invalid drum phrase checkpoint');
@@ -420,12 +432,13 @@ export function planDrumPhraseBar(input: DrumPhraseBarInput, memory?: DrumPhrase
 			firstTransform: previous.motif.firstTransform, gapAfterStatement: previous.motif.gapAfterStatement
 		} } : {})
 	} : phraseState(input, input.phraseStartBar, input.phraseEndBarExclusive, previous);
-	const bar = realizeDrumPhraseBar(input, state, memory?.previousCompIsSharedArrival ? [] : memory?.previousCompOnsets ?? []);
+	const bar = realizeDrumPhraseBar(input, state, memory?.previousCompIsSharedArrival || memory?.previousCompIsDrumReply ? [] : memory?.previousCompOnsets ?? []);
 	return Object.freeze({ bar, memory: freezeDrumPhraseMemory({
 		version: 1, ...(input.style && input.style !== 'swing' ? { style: input.style } : {}), phraseId: input.phraseId, tempo: input.tempo, harmonyEndBeat: input.harmonyEndBeat,
 		nextBar: input.barIndex + 1, sectionIndex: input.info.sectionIndex ?? null,
 		chorusIndex: input.info.chorusIndex ?? null, ensemblePhraseStartBar: input.info.ensemble!.phraseStartBar,
 		phrase: state, previousCompOnsets: [...input.compOnsets ?? []],
+		...(input.compIsDrumReply && input.compOnsets?.length === 1 ? { previousCompIsDrumReply: true as const } : {}),
 		...(input.info.ensemble!.piano.arrival?.action === 'catch' && input.compOnsets?.length === 1 && input.compOnsets[0] === 0
 			? { previousCompIsSharedArrival: true as const } : {})
 	}) });

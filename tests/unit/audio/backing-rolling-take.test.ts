@@ -104,6 +104,28 @@ describe('committed rolling take aggregation', () => {
 		expect(early.ensembleDevelopment!.bassContinuations).toBeUndefined();
 	});
 
+	it('owns accepted piano answer receipts and their source notes without extending an earlier export', () => {
+		const h = harness(); h.append(); h.append();
+		const early = aggregateRollingBacking(h.renderer.snapshot());
+		const restored = JSON.parse(JSON.stringify(h.renderer.snapshot()));
+		const answer = { version: 1, barIndex: 1, source: { barIndex: 0, transform: 'statement', hits: [
+			{ absBeat: 1.5, time: '288i', drum: 'snare', velocity: .3, role: 'commentary' },
+			{ absBeat: 3.5, time: '672i', drum: 'snare', velocity: .3, role: 'commentary' }
+		] }, attack: { absBeat: 6.5, time: '1248i', notes: [62, 65, 69], duration: .2, velocity: 60 },
+			replyOffset: 2.5, drumCommentary: 'space' };
+		restored.windows[1].ensembleDevelopment.pianoAnswers = [answer];
+		const result = aggregateRollingBacking(restored);
+		expect(result.ensembleDevelopment!.pianoAnswers).toEqual([answer]);
+		const accepted = result.ensembleDevelopment!.pianoAnswers![0];
+		expect(Object.isFrozen(accepted.source.hits[0])).toBe(true);
+		expect(Object.isFrozen(accepted.attack.notes)).toBe(true);
+		expect(Object.isFrozen(accepted)).toBe(true);
+		answer.source.hits[0].velocity = .9; answer.attack.notes[0] = 99;
+		expect(accepted.source.hits[0].velocity).toBe(.3);
+		expect(accepted.attack.notes[0]).toBe(62);
+		expect(early.ensembleDevelopment!.pianoAnswers).toBeUndefined();
+	});
+
 	it('exports an empty committed prefix without fabricating a plan or final checkpoint', () => {
 		const take = aggregateRollingBacking(harness().renderer.snapshot());
 		expect(take).toEqual({ bassEvents: [], compEvents: [], drumEvents: [] });

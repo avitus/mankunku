@@ -398,6 +398,7 @@
 				bassFeel: take.playback.windows.flatMap(bar => bar.ensembleDevelopment.bassFeel ?? []),
 				pianoVoicings: take.playback.windows.flatMap(bar => bar.ensembleDevelopment.pianoVoicings ?? []),
 				pianoFeedback: take.playback.windows.flatMap(bar => bar.ensembleDevelopment.pianoFeedback ?? []),
+				pianoAnswers: take.playback.windows.flatMap(bar => bar.ensembleDevelopment.pianoAnswers ?? []),
 				drumPhrases: take.playback.windows.flatMap(bar => bar.ensembleDevelopment.drumPhrases)
 			}
 		};

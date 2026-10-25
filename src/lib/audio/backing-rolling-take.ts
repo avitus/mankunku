@@ -39,13 +39,14 @@ export function aggregateRollingBacking(snapshot: RollingBackingSnapshot): Gener
 		const bassContinuations = windows.flatMap((bar) => bar.ensembleDevelopment.bassContinuations ?? []);
 		const bassFeel = windows.flatMap((bar) => bar.ensembleDevelopment.bassFeel ?? []);
 		const pianoVoicings = windows.flatMap((bar) => bar.ensembleDevelopment.pianoVoicings ?? []);
+		const pianoAnswers = windows.flatMap((bar) => bar.ensembleDevelopment.pianoAnswers ?? []);
 		const pianoFeedback = windows.flatMap((bar) => bar.ensembleDevelopment.pianoFeedback ?? []);
 		result.ensembleDevelopment = { version: 1,
 			pianoMotifs: windows.flatMap((bar) => bar.ensembleDevelopment.pianoMotifs),
 			bassTurnarounds: windows.flatMap((bar) => bar.ensembleDevelopment.bassTurnarounds),
 			...(bassContinuations.length ? { bassContinuations } : {}),
 			...(bassFeel.length ? { bassFeel } : {}), ...(pianoVoicings.length ? { pianoVoicings } : {}),
-			...(pianoFeedback.length ? { pianoFeedback } : {}),
+			...(pianoFeedback.length ? { pianoFeedback } : {}), ...(pianoAnswers.length ? { pianoAnswers } : {}),
 			drumPhrases: windows.flatMap((bar) => bar.ensembleDevelopment.drumPhrases)
 		};
 	}

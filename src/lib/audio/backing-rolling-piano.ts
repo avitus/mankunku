@@ -1,6 +1,6 @@
 /** Stateful one-bar piano realization. Multi-bar source cells are proposals, not future budgets. */
 import type { RollingBackingDefinition } from './backing-rolling';
-import { clavePhaseFor, type BarInfo, type CompEvent, type CoordinatedPianoVoicing } from './backing-generation';
+import { clavePhaseFor, type BarInfo, type CompEvent, type CoordinatedPianoVoicing, type PianoAnswerDecision, type PianoFeedbackDecision } from './backing-generation';
 import type { CompHitSpec } from './backing-styles';
 import type { EnsembleTiming } from './ensemble-timing';
 import { COMP_FIGURES, type CompFigure, type CompFigureHit, type CompMotifDecision } from './backing-comp-figures';
@@ -9,6 +9,7 @@ import { createRng, seedFrom } from './generation-rng';
 import { fractionToFloat } from '$lib/music/intervals';
 import { CHORD_DEFINITIONS } from '$lib/music/chords';
 import { rootlessVoicingA, rootlessVoicingB, shellVoicing, drop2Voicing, quartalVoicing, guideToneVoicing, voiceLead, type VoicingFn } from './voicings';
+import { proposePianoAnswer, type PianoAnswerMemory } from './backing-piano-answer';
 import { selectCoordinatedVoicingFamily } from './coordinated-voicing-family';
 import { resolveCoordinatedVoicing, type CoordinatedVoicingMemory } from './coordinated-voicing';
 
@@ -27,7 +28,7 @@ const figureById = (id: string) => COMP_FIGURES.find((figure) => figure.id === i
 const shiftsFor = (figure: CompFigure) => [-1, -0.5, 0.5, 1].filter((shift) => figure.hits[0].every((hit) => hit.b + shift >= 0 && hit.b + shift < 3.5));
 
 export function realizeRollingPiano(score: RollingBackingDefinition, bar: number, info: BarInfo,
-	timing: EnsembleTiming, previous?: RollingPianoMemory): { events: CompEvent[]; memory: RollingPianoMemory; trace: CompMotifDecision; voicingTrace?: readonly CoordinatedPianoVoicing[] } {
+	timing: EnsembleTiming, previous?: RollingPianoMemory, answerContext?: { feedback: Omit<PianoFeedbackDecision, 'acceptedAttacks'>; previous?: PianoAnswerMemory }): { answer?: PianoAnswerDecision; events: CompEvent[]; memory: RollingPianoMemory; trace: CompMotifDecision; voicingTrace?: readonly CoordinatedPianoVoicing[] } {
 	const memory = previous ?? emptyMemory();
 	const style = BACKING_STYLES[score.style ?? 'swing'];
 	const ensemble = info.ensemble!;
@@ -105,6 +106,8 @@ export function realizeRollingPiano(score: RollingBackingDefinition, bar: number
 		if (budget === 0) { transform = 'space'; reason = 'ensemble_silence'; }
 		else reason = 'native_pattern';
 	}
+	let proposal = answerContext && coordinatedVoicing && (!score.style || score.style === 'swing' || score.style === 'straight')
+		? proposePianoAnswer({ barIndex: bar, info, feedback: answerContext.feedback, previous: answerContext.previous, retainedMotif: !!motif?.sourceId, realized }) : undefined;
 	const events: CompEvent[] = [];
 	let segmentIndex = memory.segmentIndex;
 	let segmentVoicing = [...memory.segmentVoicing];
@@ -121,28 +124,45 @@ export function realizeRollingPiano(score: RollingBackingDefinition, bar: number
 		if (seventh && quartalVoicing(chord.root, chord.quality).length) options.push({ value: quartalVoicing, weight: (bias.quartal ?? 1) });
 		return voicingRng.weighted(options);
 	};
+	const prepare = (hit: CompHitSpec) => {
+		const absBeat = bar * 4 + hit.beatOffset;
+		const lookup = Math.min(score.totalBars * 4 - 0.001, absBeat + (hit.beatOffset % 1 ? 0.5 : 0));
+		const index = score.harmony.findIndex((segment) => lookup >= fractionToFloat(segment.startOffset) * 4 && lookup < fractionToFloat(segment.startOffset) * 4 + fractionToFloat(segment.duration) * 4);
+		if (index < 0) return;
+		const chord = score.harmony[index].chord;
+		const tick = Math.max(bar * 4 * score.ppq, arrival ? timing.arrivalTick(bar) : timing.place(absBeat, 'comp'));
+		const duration = Math.min(hit.durationBeats * 60 / score.tempo, (barEnd - tick) * 60 / score.tempo / score.ppq);
+		if (!Number.isFinite(tick) || tick >= barEnd || !Number.isFinite(duration) || duration <= 0 || absBeat >= score.totalBars * 4) return;
+		const selected = resolveCoordinatedVoicing({ chord, family: guideTones ? 'guide' : selectCoordinatedVoicingFamily({ chord, phraseId: score.phraseId, tempo: score.tempo, segmentIndex: index, intensity: info.intensity, voicingBias: style.voicingBias }),
+			registerMidi: guideTones ? 62 : Math.round(58 + 8 * info.intensity), previous: voicingMemory,
+			rootlessTexture: ensemble.piano.rootlessTexture?.request });
+		if (!selected.notes.length) return;
+		return { index, selected, event: { absBeat, time: `${tick}i`, notes: [...selected.notes], duration, velocity: hit.velocity } };
+	};
+	// Preparation is pure: rejected replies retain the already valid native fallback,
+	// and neither candidate can advance the last actually emitted voicing.
+	let preparedReply: ReturnType<typeof prepare>;
+	if (proposal) {
+		const ordinary = prepare(realized[0]);
+		preparedReply = ordinary ? prepare({ ...proposal.hit, durationBeats: Math.min(proposal.hit.durationBeats, ordinary.event.duration * score.tempo / 60) }) : undefined;
+		if (!preparedReply) proposal = undefined;
+	}
 	for (const hit of realized) {
+		if (coordinatedVoicing) {
+			const accepted = preparedReply ?? prepare(hit);
+			if (!accepted) continue;
+			const { index, selected, event } = accepted;
+			events.push(event);
+			voicingTrace.push(Object.freeze({ absBeat: event.absBeat, time: event.time, notes: selected.notes, decision: selected.decision, ...(arrival ? { arrivalId: arrival.accentId } : {}) }));
+			voicingMemory = selected.memory;
+			segmentIndex = index; segmentVoicing = event.notes; lastVoicing = event.notes;
+			continue;
+		}
 		const absBeat = bar * 4 + hit.beatOffset;
 		const lookup = Math.min(score.totalBars * 4 - 0.001, absBeat + (hit.beatOffset % 1 ? 0.5 : 0));
 		const index = score.harmony.findIndex((segment) => lookup >= fractionToFloat(segment.startOffset) * 4 && lookup < fractionToFloat(segment.startOffset) * 4 + fractionToFloat(segment.duration) * 4);
 		if (index < 0) continue;
 		const chord = score.harmony[index].chord;
-		if (coordinatedVoicing) {
-			const tick = Math.max(bar * 4 * score.ppq, arrival ? timing.arrivalTick(bar) : timing.place(absBeat, 'comp'));
-			const duration = Math.min(hit.durationBeats * 60 / score.tempo, (barEnd - tick) * 60 / score.tempo / score.ppq);
-			if (!Number.isFinite(tick) || tick >= barEnd || !Number.isFinite(duration) || duration <= 0 || absBeat >= score.totalBars * 4) continue;
-			const selected = resolveCoordinatedVoicing({ chord, family: guideTones ? 'guide' : selectCoordinatedVoicingFamily({ chord, phraseId: score.phraseId, tempo: score.tempo, segmentIndex: index, intensity: info.intensity, voicingBias: style.voicingBias }),
-				registerMidi: guideTones ? 62 : Math.round(58 + 8 * info.intensity), previous: voicingMemory,
-				rootlessTexture: ensemble.piano.rootlessTexture?.request });
-			if (!selected.notes.length) continue;
-			const notes = [...selected.notes];
-			const time = `${tick}i`;
-			events.push({ absBeat, time, notes, duration, velocity: hit.velocity });
-			voicingTrace.push(Object.freeze({ absBeat, time, notes: selected.notes, decision: selected.decision, ...(arrival ? { arrivalId: arrival.accentId } : {}) }));
-			voicingMemory = selected.memory;
-			segmentIndex = index; segmentVoicing = notes; lastVoicing = notes;
-			continue;
-		}
 		if (segmentIndex !== index) {
 			const fn = selectFamily(index);
 			const register = Math.round(58 + 8 * info.intensity);
@@ -157,9 +177,11 @@ export function realizeRollingPiano(score: RollingBackingDefinition, bar: number
 		events.push({ absBeat, time: `${tick}i`, notes, duration, velocity: hit.velocity });
 		lastVoicing = notes;
 	}
-	return { events, ...(coordinatedVoicing ? { voicingTrace: Object.freeze(voicingTrace) } : {}),
-		memory: { recentFigures: [...memory.recentFigures, arrival ? 'shared-arrival' : style.compPlanning ? figure.repeatKey ?? figure.id : `${score.style}:${hits.map((hit) => hit.b).join(',')}`].slice(-3), motif, segmentIndex, segmentVoicing, lastVoicing,
+	const answer: PianoAnswerDecision | undefined = proposal && events.length === 1 ? { version: 1, barIndex: bar, source: proposal.source, attack: events[0], replyOffset: proposal.hit.beatOffset, drumCommentary: 'space' } : undefined;
+	if (answer) { hits = [{ b: proposal!.hit.beatOffset, d: events[0].duration * score.tempo / 60 }]; transform = 'fallback'; shift = 0; reason = 'drum_reply'; }
+	return { events, ...(answer ? { answer } : {}), ...(coordinatedVoicing ? { voicingTrace: Object.freeze(voicingTrace) } : {}),
+		memory: { recentFigures: [...memory.recentFigures, answer ? 'drum-reply' : arrival ? 'shared-arrival' : style.compPlanning ? figure.repeatKey ?? figure.id : `${score.style}:${hits.map((hit) => hit.b).join(',')}`].slice(-3), motif, segmentIndex, segmentVoicing, lastVoicing,
 			...(coordinatedVoicing && voicingMemory ? { voicing: voicingMemory } : {}) },
-		trace: { version: 1, barIndex: bar, phraseStartBar: phraseStart, motifId: !arrival && motif.sourceId ? `motif:${phraseStart}:${motif.sourceId}` : null,
-			sourceFigureId: arrival ? null : motif.sourceId, transform, displacementBeats: shift, hits: hits.filter((hit) => events.some((event) => event.absBeat === bar * 4 + hit.b)), ...(reason ? { reason } : {}) } };
+		trace: { version: 1, barIndex: bar, phraseStartBar: phraseStart, motifId: !answer && !arrival && motif.sourceId ? `motif:${phraseStart}:${motif.sourceId}` : null,
+			sourceFigureId: answer || arrival ? null : motif.sourceId, transform, displacementBeats: shift, hits: hits.filter((hit) => events.some((event) => event.absBeat === bar * 4 + hit.b)), ...(reason ? { reason } : {}) } };
 }

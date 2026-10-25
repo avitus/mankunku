@@ -135,7 +135,18 @@ export interface EnsembleDevelopment {
 	readonly pianoVoicings?: readonly CoordinatedPianoVoicing[];
 	/** Causal, committed rolling-bar decisions; absent from fixed generation. */
 	readonly pianoFeedback?: readonly PianoFeedbackDecision[];
+	readonly pianoAnswers?: readonly PianoAnswerDecision[];
 	readonly drumPhrases: readonly DrumPhraseDecision[];
+}
+
+/** An accepted one-chord response; no counterfactual removal claim. */
+export interface PianoAnswerDecision {
+	readonly version: 1;
+	readonly barIndex: number;
+	readonly source: DrumStatementSource;
+	readonly attack: Readonly<CompEvent>;
+	readonly replyOffset: number;
+	readonly drumCommentary: 'space';
 }
 
 export interface DrumStatementSource {
@@ -197,6 +208,15 @@ function freezeEnsembleDevelopment(trace: EnsembleDevelopment): EnsembleDevelopm
 			Object.freeze(feedback);
 		}
 		Object.freeze(trace.pianoFeedback);
+	}
+	if (trace.pianoAnswers) {
+		for (const answer of trace.pianoAnswers) {
+			for (const hit of answer.source.hits) Object.freeze(hit);
+			Object.freeze(answer.source.hits); Object.freeze(answer.source);
+			Object.freeze(answer.attack.notes); Object.freeze(answer.attack);
+			Object.freeze(answer);
+		}
+		Object.freeze(trace.pianoAnswers);
 	}
 	if (trace.bassContinuations) {
 		for (const continuation of trace.bassContinuations) {

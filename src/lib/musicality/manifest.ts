@@ -277,7 +277,7 @@ const foundationAssessments: Record<string, string> = {
 	S4: 'Coordinated mode layers bounded shared phrase motion, stable player placement and small event residuals over the existing tempo-aware swing grid. Sample-attack calibration separately removes the pedal lead-in and restores ten documented piano sample start offsets; the bass recordings need no timing trim.',
 	S3: 'Coordinated mode adds commentary budgets, turn-taking, reasoned silence and fill cooldowns. Explicit performed forms now supply restrained heads, solo build/peak/release and a returning-head energy contour before phrase choices.',
 	S8: 'Explicit coordinated piano placement follows the previous emitted voicing, prioritizing legal guide-tone motion and exact common-note retention before register distance. Unplayed harmony does not update its memory. Fixed and rolling explicit-form playback share the same energy-aware family selection and native style biases.',
-	S10: "Qualified microphone density and rests can change upcoming piano attack budgets and selective response ownership during a rolling lab take. Explicit-form rolling piano can also choose a one-bar breath after actual independent drum commentary.",
+	S10: "Qualified microphone density and rests can change upcoming piano attack budgets and selective response ownership during a rolling lab take. Explicit-form rolling piano can choose a one-bar breath after independent drum commentary; selected Swing/Straight fallback chords can instead become short replies with drummer commentary space.",
 	S15: 'Existing note duration and velocity shaping now reaches source-defined Smolken velocity layers and round robins: one recording per note in the supported register instead of unintended stacked layers.',
 	S16: 'Bass ornament activity follows the ensemble plan while its pulse remains protected. Eligible two-bar walking passages now plan a directional path into the root of an actual following chorus.',
 	S17: 'The coordinated drummer develops ride cells across two to four bars and selected commentary motifs within shared budgets. It can answer the previous bar of emitted piano attacks while preserving timekeeping and agreed arrivals.',
@@ -308,7 +308,7 @@ const foundationRemaining: Record<string, string> = {
 	S2: "Indefinite looping, changing form during a take, richer register and motif listening, and general arrangement negotiation remain incomplete.",
 	S4: 'Listening acceptance and explicit musical intent controls for timing remain incomplete; the original mode retains independent event jitter.',
 	S8: 'This is a local causal placement objective within existing selected families, not a composed top-note line or multi-phrase melodic plan. Quartal shapes retain their distinct structure. Human listening acceptance remains pending.',
-	S10: "Solo phrase-end recognition, motif imitation, solo-register avoidance and deliberate piano answers to drum motifs remain incomplete.",
+	S10: "Solo phrase-end recognition, complete motif imitation and solo-register avoidance remain incomplete. Piano replies currently use one chord after an accepted independent drum phrase.",
 	S15: 'Muted/dead notes, slides and other articulations still require distinct event/renderer support. Source velocity-curve opcodes remain unsupported; final bass balance and listening acceptance are pending.',
 	S16: "Rolling bass retains pitch history and accepted following-chorus launches while adapting ornament admission. Declared repeat seams can be launch targets; the final loop remains terminal. Broader trajectories and listening acceptance remain incomplete.",
 	S17: "Broader kit vocabulary, articulation lengths and musical acceptance remain incomplete. Rolling memory continues across declared loops; new motifs still follow phrase boundaries.",
@@ -319,7 +319,7 @@ const foundationRemaining: Record<string, string> = {
 	S22: 'Tom voices and a general orchestration/limb-transition model remain absent.',
 	S23: 'The fixed assignment checks simultaneous strokes only; stick travel, recovery times, rolls and more flexible limb allocation remain incomplete. Shared arrivals can include a single piano catch in explicit Swing/Straight; a general arrangement-hit contract remains incomplete.',
 	S24: 'Shared piano catches are scoped to explicit Swing/Straight. Native-style catches, structural dropout/re-entry and richer phrase-boundary hierarchy remain incomplete.',
-	S25: "Explicit-form rolling piano now sometimes leaves the next bar open after a qualifying drum phrase. Fixed playback parity, reciprocal motif imitation, dynamic/register following and deliberate whole-kit dropout remain incomplete.",
+	S25: "Explicit-form rolling piano can leave a breathing bar or, in selected Swing/Straight passages, reply with one chord while optional drums leave space. Fixed parity, complete motif imitation, dynamic/register following and deliberate whole-kit dropout remain incomplete.",
 	S27: "Capture assumes headphones and fixed gain-dependent thresholds. Ambiguous or poorly covered input stays unknown. Acoustic calibration, source separation, MIDI and phrase/motif recognition remain incomplete.",
 	S28: "Register and dynamics remain diagnostic observations. Solo-register avoidance, motif following and broad acoustic validation remain incomplete.",
 	S32: 'Live timing adaptation and richer context-aware placement remain incomplete. The modest build/release timing bias and other bounds still need listening acceptance.',
@@ -346,7 +346,7 @@ const drumDeviceUpdates: Record<string, [ImplementationStatus, string, string]> 
 	D53: ['implemented', 'A repeated commentary rhythm can keep its attack offsets while changing its sound sources within the existing kit.', 'The available orchestration choices are limited; additional kit voices and listening acceptance remain pending.'],
 	D56: ['partial', 'Ride time, foot hi-hat and commentary use separate fixed limbs, with coincident strokes resolved across the complete coordinated bar.', 'This checks simultaneous occupancy; it does not model stick travel, recovery times or more flexible hand allocation.'],
 	D57: ['partial', 'Coordinated bars assign cymbals/stick hats, snare/cross-stick, kick and pedal hat to separate hands and feet before emission.', 'Physical credibility is limited to simultaneous occupancy. Stroke-rate limits, limb transitions and musical acceptance remain incomplete.'],
-	D76: ['implemented', 'Alongside existing onset coupling, a previous bar of emitted piano rhythm can become a drum motif and develop across later bars.', 'The exchange is one-way and limited to short piano rhythms; the piano does not yet answer a drummer’s motif.']
+	D76: ['implemented', 'Alongside existing onset coupling, a previous bar of emitted piano rhythm can become a drum motif and develop across later bars.', 'Selected explicit rolling Swing/Straight piano chords can now answer independent drum commentary with drummer space. Complete reciprocal motif imitation and listening acceptance remain pending.']
 };
 
 export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => {
@@ -432,10 +432,12 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 			{ ...test('backing-piano-arrivals'), revision: 'musicality' }, { ...test('backing-piano-arrival-integration'), revision: 'musicality' }]
 	};
 	if (entry.id === 'P55') return { ...entry, status: 'partial',
-		assessment: 'A qualifying independent multi-hit drum phrase can prompt a seeded one-bar piano breath on the next eligible rolling bar, with a cooldown and protected arrivals and response reservations.',
-		remaining: 'Fixed offline generation parity, piano imitation of drum motifs and human listening acceptance remain incomplete. Bossa currently has no qualifying optional commentary and keeps its native groove.',
+		assessment: 'A qualifying independent drum phrase can prompt a piano breath. Selected rolling Swing/Straight fallback chords in developing solo passages can instead become short replies; only an accepted reply requests drummer commentary space. Both responses preserve protected roles and cooldowns.',
+		remaining: 'Replies are limited to solo development and use a single rhythmic cue; peak phrases and complete motif imitation are outside this scope. Fixed offline parity and human listening acceptance remain incomplete. Bossa and Ballad retain their existing native behavior; Bossa currently has no qualifying optional commentary.',
 		scope: 'Explicit-form Coordinated full-tune studio, blind comparison and rolling adaptive lab takes. Source hits must match accepted optional snare/cross-stick/kick events; timekeeping, setups and piano-derived drum answers do not trigger the response.',
-		evidence: [...entry.evidence, ...reciprocalFeedbackEvidence] };
+		evidence: [...entry.evidence, ...reciprocalFeedbackEvidence,
+			{ ...source('backing-piano-answer'), revision: 'musicality' },
+			{ ...test('backing-piano-answer-integration'), revision: 'musicality' }] };
 	if (entry.id === 'P20') return { ...entry, status: 'partial',
 		assessment: 'Selected rootless A/B chords use third, seventh and ninth (or thirteenth for dominant B) as three-note support. Explicit heads/releases/endings request support; qualified active-solo evidence overrides fuller development.',
 		remaining: 'Altered, diminished, suspended and sixth chords retain their existing vocabulary. Broader structural texture development and human listening acceptance remain pending.',

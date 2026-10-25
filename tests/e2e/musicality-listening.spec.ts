@@ -433,3 +433,33 @@ test('explains an actual scalar bass continuation across a real chord change', a
 	await page.getByTestId('listening-stop').click();
 	await assertNoMicrophone(page);
 });
+
+for (const style of ['swing', 'straight'] as const) {
+	test(`${style} shows one accepted piano reply and the drummer's commentary space`, async ({ page }) => {
+		test.setTimeout(50_000);
+		await setup(page);
+		await page.getByTestId('listening-tune').selectOption('ls-when-the-saints');
+		await page.getByTestId('listening-key').selectOption('F#');
+		await page.getByTestId('listening-style').selectOption(style);
+		await page.getByTestId('listening-tempo').fill('140');
+		await page.getByTestId('listening-play').click();
+		await expect.poll(() => soundingBar(page), { timeout: 40_000 }).toBe(18);
+		await expect(page.getByTestId('musician-piano')).toContainText('Answer the drum phrase from bar 18 with one chord');
+		await expect(page.getByTestId('musician-drums')).toContainText('Leave commentary space for the piano answer');
+		await assertDecisionClock(page, undefined, 140);
+		const take = await exportTake(page);
+		causalProvenance(take.playback);
+		const generated = take.playback.generated!;
+		const answer = generated.ensembleDevelopment!.pianoAnswers!.find(entry => entry.barIndex === 18)!;
+		expect(answer).toMatchObject({ version: 1, barIndex: 18, source: { barIndex: 17 }, replyOffset: 2.5, drumCommentary: 'space' });
+		expect(answer.source.hits.map(hit => hit.absBeat)).toEqual([69.5, 71.5]);
+		for (const hit of answer.source.hits) expect(generated.drumEvents).toContainEqual(hit);
+		expect(generated.compEvents.filter(event => Math.floor(event.absBeat / 4) === 18)).toEqual([answer.attack]);
+		expect(answer.attack.absBeat).toBe(74.5);
+		expect(answer.attack.velocity).toBe(65);
+		expect(answer.attack.duration).toBeCloseTo(style === 'swing' ? 0.3 : 0.20535714285714288);
+		expect(generated.drumEvents.filter(event => Math.floor(event.absBeat / 4) === 18 && event.role === 'commentary')).toEqual([]);
+		await page.getByTestId('listening-stop').click();
+		await assertNoMicrophone(page);
+	});
+}
