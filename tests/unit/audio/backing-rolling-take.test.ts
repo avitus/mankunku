@@ -126,6 +126,27 @@ describe('committed rolling take aggregation', () => {
 		expect(early.ensembleDevelopment!.pianoAnswers).toBeUndefined();
 	});
 
+	it('owns recovery receipts and actual returned drum hits without rewriting an earlier export', () => {
+		const h = harness(); h.append(); h.append();
+		const early = aggregateRollingBacking(h.renderer.snapshot());
+		const restored = JSON.parse(JSON.stringify(h.renderer.snapshot()));
+		const recovery = { version: 1, barIndex: 1, source: { barIndex: 0,
+			attack: { absBeat: 2.5, time: '480i', notes: [62, 65, 69], duration: .2, velocity: 60 } },
+			returningDrums: { motifId: 'drum:0', sourceBar: 0, hits: [{ absBeat: 5.5, time: '1056i', drum: 'snare', velocity: .3, role: 'commentary' }] },
+			action: 'space', reason: 'after_drum_reply', originalMaxAttacks: 1, effectiveMaxAttacks: 0, acceptedAttacks: [] };
+		restored.windows[1].ensembleDevelopment.pianoRecoveries = [recovery];
+		const result = aggregateRollingBacking(restored);
+		expect(result.ensembleDevelopment!.pianoRecoveries).toEqual([recovery]);
+		const accepted = result.ensembleDevelopment!.pianoRecoveries![0];
+		expect(Object.isFrozen(accepted.source.attack.notes)).toBe(true);
+		expect(Object.isFrozen(accepted.returningDrums!.hits[0])).toBe(true);
+		expect(Object.isFrozen(accepted.acceptedAttacks)).toBe(true);
+		recovery.source.attack.notes[0] = 99; recovery.returningDrums.hits[0].velocity = .9;
+		expect(accepted.source.attack.notes[0]).toBe(62);
+		expect(accepted.returningDrums!.hits[0].velocity).toBe(.3);
+		expect(early.ensembleDevelopment!.pianoRecoveries).toBeUndefined();
+	});
+
 	it('exports an empty committed prefix without fabricating a plan or final checkpoint', () => {
 		const take = aggregateRollingBacking(harness().renderer.snapshot());
 		expect(take).toEqual({ bassEvents: [], compEvents: [], drumEvents: [] });

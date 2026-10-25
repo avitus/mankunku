@@ -489,3 +489,38 @@ test('shows the actual piano top and its phrase target in the returning head', a
 	await page.getByTestId('listening-stop').click();
 	await assertNoMicrophone(page);
 });
+
+for (const style of ['swing', 'straight'] as const) {
+	test(`${style} leaves a piano breath for the actual returning drum phrase`, async ({ page }) => {
+		test.setTimeout(55_000);
+		await setup(page);
+		await page.getByTestId('listening-tune').selectOption('ls-when-the-saints');
+		await page.getByTestId('listening-key').selectOption('F#');
+		await page.getByTestId('listening-style').selectOption(style);
+		await page.getByTestId('listening-tempo').fill('140');
+		await page.getByTestId('listening-play').click();
+		await expect.poll(() => soundingBar(page), { timeout: 45_000 }).toBe(19);
+		await expect(page.getByTestId('musician-piano')).toContainText('Leave a breath while the drum phrase returns');
+		await assertDecisionClock(page, undefined, 140);
+		const take = await exportTake(page);
+		causalProvenance(take.playback);
+		const generated = take.playback.generated!;
+		const recovery = generated.ensembleDevelopment!.pianoRecoveries!.find(entry => entry.barIndex === 19)!;
+		expect(recovery).toMatchObject({
+			barIndex: 19, action: 'space', reason: 'after_drum_reply', originalMaxAttacks: 1, effectiveMaxAttacks: 0,
+			source: { barIndex: 18 }, returningDrums: { motifId: 'drum-motif:16:17', sourceBar: 17 }, acceptedAttacks: []
+		});
+		const answer = generated.ensembleDevelopment!.pianoAnswers!.find(entry => entry.barIndex === 18)!;
+		expect(answer.source.barIndex).toBe(17);
+		expect(answer.source.hits.map(hit => hit.absBeat)).toEqual([69.5, 71.5]);
+		for (const hit of answer.source.hits) expect(generated.drumEvents).toContainEqual(hit);
+		expect(recovery.source.attack).toEqual(answer.attack);
+		expect(generated.compEvents).toContainEqual(recovery.source.attack);
+		expect(recovery.source.attack.absBeat).toBe(74.5);
+		expect(generated.compEvents.filter(event => Math.floor(event.absBeat / 4) === 19)).toEqual([]);
+		expect(recovery.returningDrums!.hits.map(hit => [hit.absBeat, hit.drum])).toEqual([[77.5, 'snare'], [79.5, 'kick']]);
+		for (const hit of recovery.returningDrums!.hits) expect(generated.drumEvents).toContainEqual(hit);
+		await page.getByTestId('listening-stop').click();
+		await assertNoMicrophone(page);
+	});
+}

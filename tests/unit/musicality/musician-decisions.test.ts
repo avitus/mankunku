@@ -529,3 +529,74 @@ describe('piano top-note objective evidence', () => {
 		expect(card(legacy).evidence.join(' ')).not.toContain('top-note target');
 	});
 });
+
+describe('piano recovery during a retained drum return', () => {
+	function score() {
+		const sourceHits = [1.5, 3.5].map(absBeat => ({ absBeat, time: `${absBeat * 192}i`, drum: 'snare', velocity: .3, role: 'commentary' }));
+		const returning = [9.5, 11.5].map((absBeat, index) => ({ absBeat, time: `${absBeat * 192}i`, drum: index ? 'kick' : 'snare', velocity: .3, role: 'commentary' }));
+		const specs = (events: typeof sourceHits, bar: number) => events.map(({ absBeat, drum, velocity, role }) => ({ beatOffset: absBeat - bar * 4, drum, velocity, role }));
+		const attack = { absBeat: 6.5, time: '1248i', notes: [62, 65, 69], duration: .2, velocity: 60 };
+		const ride = { mode: 'quarters-only', phase: 'single', skipOffsets: [], velocityScale: 1, onsets: [0, 1, 2, 3] };
+		const drumPhrase = (barIndex: number, transform: string, events: typeof sourceHits) => ({ version: 1, barIndex, phraseStartBar: 0, phraseLength: 4, ride,
+			commentary: { source: 'vocabulary', sourceBar: 0, transform, motifId: 'drum:0', hits: specs(events, barIndex) }, hits: specs(events, barIndex) });
+		return { bassEvents: [], compEvents: [{ ...attack, notes: [...attack.notes] }], drumEvents: [...sourceHits, ...returning],
+			ensemblePlan: { version: 1, trace: [], bars: [1, 2].map(barIndex => ({ barIndex, phraseIntent: 'support', energy: .5,
+				performanceEnergy: { phase: 'solo_build', chorusIndex: 1, targetEnergy: .5 },
+				bass: { role: 'time' }, piano: { role: 'support' }, drums: { role: 'time' }
+			})) }, ensembleDevelopment: { version: 1, bassTurnarounds: [], pianoMotifs: [
+				{ barIndex: 1, motifId: null, sourceFigureId: null, transform: 'fallback', hits: [{ b: 2.5, d: .4 }], reason: 'drum_reply' },
+				{ barIndex: 2, motifId: null, sourceFigureId: null, transform: 'space', hits: [], reason: 'ensemble_silence' }
+			], pianoAnswers: [{ version: 1, barIndex: 1, source: { barIndex: 0, transform: 'statement', hits: sourceHits.map(hit => ({ ...hit })) },
+				attack: { ...attack, notes: [...attack.notes] }, replyOffset: 2.5, drumCommentary: 'space' }],
+				pianoRecoveries: [{ version: 1, barIndex: 2, source: { barIndex: 1, attack },
+					returningDrums: { motifId: 'drum:0', sourceBar: 0, hits: returning.map(hit => ({ ...hit })) },
+					action: 'space', reason: 'after_drum_reply', originalMaxAttacks: 1, effectiveMaxAttacks: 0, acceptedAttacks: [] as typeof attack[] }],
+				drumPhrases: [drumPhrase(0, 'statement', sourceHits), drumPhrase(1, 'space', []), drumPhrase(2, 'orchestrate', returning)]
+			} };
+	}
+	const card = (generated: ReturnType<typeof score>, options = {}) => describeMusicianDecisions(generated as unknown as GeneratedBacking, { ...context, barIndex: 2, ...options })[1];
+	const explanation = 'Leave a breath while the drum phrase returns';
+	it.each(['swing', 'straight'] as const)('explains actual %s recovery without a removed-note or main-action claim', style => {
+		const result = card(score(), { style });
+		expect(result.evidence).toContain(explanation);
+		expect(result.action).toBe('No new chord attack');
+		expect(result.evidence.join(' ')).not.toMatch(/removed|avoided chord/);
+	});
+	it.each(['missing-answer', 'missing-source', 'source-time', 'reply-notes', 'reply-duration', 'reply-velocity', 'same-bar', 'reply-motif',
+		'missing-return', 'return-time', 'return-velocity', 'return-motif', 'return-source-bar', 'new-statement', 'piano-derived', 'retained-motif',
+		'current-chord', 'accepted-chord', 'current-motif', 'zero-budget', 'no-return-receipt', 'outside-build', 'no-op'] as const)(
+		'withholds recovery explanation for %s evidence', field => {
+			const generated = score(); const recovery = generated.ensembleDevelopment.pianoRecoveries[0];
+			if (field === 'missing-answer') generated.ensembleDevelopment.pianoAnswers = [];
+			if (field === 'missing-source') generated.drumEvents.shift();
+			if (field === 'source-time') generated.ensembleDevelopment.pianoAnswers[0].source.hits[0].time = '289i';
+			if (field === 'reply-notes') recovery.source.attack.notes = [62, 66, 69];
+			if (field === 'reply-duration') recovery.source.attack.duration = .5;
+			if (field === 'reply-velocity') recovery.source.attack.velocity = 61;
+			if (field === 'same-bar') recovery.source.barIndex = 2;
+			if (field === 'reply-motif') generated.ensembleDevelopment.pianoMotifs[0].reason = 'not_selected';
+			if (field === 'missing-return') generated.drumEvents.pop();
+			if (field === 'return-time') recovery.returningDrums.hits[0].time = '1825i';
+			if (field === 'return-velocity') recovery.returningDrums.hits[0].velocity = .4;
+			if (field === 'return-motif') generated.ensembleDevelopment.drumPhrases[2].commentary.motifId = 'other';
+			if (field === 'return-source-bar') recovery.returningDrums.sourceBar = 1;
+			if (field === 'new-statement') generated.ensembleDevelopment.drumPhrases[2].commentary.transform = 'statement';
+			if (field === 'piano-derived') generated.ensembleDevelopment.drumPhrases[2].commentary.source = 'piano';
+			if (field === 'retained-motif') generated.ensembleDevelopment.drumPhrases[1].commentary.motifId = 'other';
+			if (field === 'current-chord') generated.compEvents.push({ ...generated.compEvents[0], absBeat: 8, time: '1536i' });
+			if (field === 'accepted-chord') recovery.acceptedAttacks.push({ ...recovery.source.attack, absBeat: 8, time: '1536i' });
+			if (field === 'current-motif') generated.ensembleDevelopment.pianoMotifs[1].transform = 'fallback';
+			if (field === 'zero-budget') recovery.originalMaxAttacks = 0;
+			if (field === 'no-return-receipt') (recovery as { returningDrums: unknown }).returningDrums = null;
+			if (field === 'outside-build') generated.ensemblePlan.bars[1].performanceEnergy.phase = 'solo_peak';
+			if (field === 'no-op') recovery.action = 'none';
+			expect(card(generated).evidence).not.toContain(explanation);
+		});
+	it('does not add recovery claims to old exports or native/Original paths', () => {
+		const generated = score();
+		for (const options of [{ orchestration: 'original' }, { style: 'bossa-nova' }, { style: 'ballad' }, { barIndex: 1 }])
+			expect(card(generated, options).evidence).not.toContain(explanation);
+		delete (generated.ensembleDevelopment as { pianoRecoveries?: unknown }).pianoRecoveries;
+		expect(card(generated).evidence).not.toContain(explanation);
+	});
+});

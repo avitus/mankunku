@@ -442,12 +442,15 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 			{ ...test('backing-piano-arrivals'), revision: 'musicality' }, { ...test('backing-piano-arrival-integration'), revision: 'musicality' }]
 	};
 	if (entry.id === 'P55') return { ...entry, status: 'partial',
-		assessment: 'A qualifying independent drum phrase can prompt a piano breath. Selected rolling Swing/Straight fallback chords in developing solo passages can instead become short replies; only an accepted reply requests drummer commentary space. Both responses preserve protected roles and cooldowns.',
+		assessment: 'A qualifying independent drum phrase can prompt a piano breath. Selected rolling Swing/Straight fallback chords in developing solo passages can instead become short replies with drummer commentary space. If that same drum motif returns in the following bar, the piano can leave one recovery bar, preserving protected roles and cooldowns.',
 		remaining: 'Replies are limited to solo development and use a single rhythmic cue; peak phrases and complete motif imitation are outside this scope. Fixed offline parity and human listening acceptance remain incomplete. Bossa and Ballad retain their existing native behavior; Bossa currently has no qualifying optional commentary.',
 		scope: 'Explicit-form Coordinated full-tune studio, blind comparison and rolling adaptive lab takes. Source hits must match accepted optional snare/cross-stick/kick events; timekeeping, setups and piano-derived drum answers do not trigger the response.',
 		evidence: [...entry.evidence, ...reciprocalFeedbackEvidence,
 			{ ...source('backing-piano-answer'), revision: 'musicality' },
-			{ ...test('backing-piano-answer-integration'), revision: 'musicality' }] };
+			{ ...test('backing-piano-answer-integration'), revision: 'musicality' },
+			{ ...source('backing-piano-recovery'), revision: 'musicality' },
+			{ ...test('backing-piano-recovery'), revision: 'musicality' },
+			{ ...test('backing-piano-recovery-integration'), revision: 'musicality' }] };
 	if (entry.id === 'P20') return { ...entry, status: 'partial',
 		assessment: 'Selected rootless A/B chords use third, seventh and ninth (or thirteenth for dominant B) as three-note support. Explicit heads/releases/endings request support; qualified active-solo evidence overrides fuller development.',
 		remaining: 'Altered, diminished, suspended and sixth chords retain their existing vocabulary. Broader structural texture development and human listening acceptance remain pending.',

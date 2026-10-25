@@ -28,6 +28,38 @@ const plain = (code: string) => code.replaceAll('_', ' ').replaceAll('-', ' ');
 const countText = (count: number, singular: string, plural = `${singular}s`) => `${count} ${count === 1 ? singular : plural}`;
 const noteName = (midi: number) => `${['C', 'D♭', 'D', 'E♭', 'E', 'F', 'G♭', 'G', 'A♭', 'A', 'B♭', 'B'][((midi % 12) + 12) % 12]}${Math.floor(midi / 12) - 1}`;
 
+/** Validate the performed reply before using it as the source of another explanation. */
+function matchesAcceptedPianoAnswer(generated: GeneratedBacking, context: MusicianDecisionContext, barIndex: number): boolean {
+	if (context.orchestration !== 'coordinated') return false;
+	const { beatsPerBar, ppq, style } = context;
+	const firstTick = barIndex * beatsPerBar * ppq;
+	const inBar = (event: { time: string }) => Number.parseInt(event.time, 10) >= firstTick && Number.parseInt(event.time, 10) < firstTick + beatsPerBar * ppq;
+	const piano = generated.compEvents.filter(inBar);
+	const development = generated.ensembleDevelopment;
+	const plan = generated.ensemblePlan?.bars.find(entry => entry.barIndex === barIndex);
+	const motif = development?.pianoMotifs.find(entry => entry.barIndex === barIndex);
+	const walking = style === 'swing' || style === 'straight';
+	const answer = development?.pianoAnswers?.find(entry => entry.barIndex === barIndex);
+	const answerSource = answer?.source;
+	const sourcePhrase = development?.drumPhrases.find(entry => entry.barIndex === answerSource?.barIndex);
+	const answeringDrums = development?.drumPhrases.find(entry => entry.barIndex === barIndex);
+	return walking && plan?.performanceEnergy?.phase === 'solo_build' && answer?.version === 1 && answer.drumCommentary === 'space' &&
+		answerSource?.barIndex === barIndex - 1 && ['statement', 'repeat', 'displace', 'orchestrate', 'fallback'].includes(answerSource.transform) &&
+		answerSource.hits.length >= 2 && answerSource.hits.length <= 3 && new Set(answerSource.hits.map(hit => hit.absBeat)).size >= 2 &&
+		sourcePhrase?.commentary.source === 'vocabulary' && sourcePhrase.commentary.transform === answerSource.transform &&
+		answerSource.hits.every(hit => hit.role === 'commentary' && ['snare', 'crossstick', 'kick'].includes(hit.drum) &&
+			Math.floor(hit.absBeat / beatsPerBar) === answerSource.barIndex && Number.parseInt(hit.time, 10) >= firstTick - beatsPerBar * ppq && Number.parseInt(hit.time, 10) < firstTick &&
+			generated.drumEvents.some(event => event.time === hit.time && event.absBeat === hit.absBeat && event.drum === hit.drum && event.velocity === hit.velocity && event.role === hit.role) &&
+			[sourcePhrase.commentary.hits, sourcePhrase.hits].every(hits => hits.some(event => event.role === 'commentary' && event.drum === hit.drum && event.velocity === hit.velocity && event.beatOffset === hit.absBeat - answerSource.barIndex * beatsPerBar))) &&
+		piano.length === 1 && answer.replyOffset >= 0 && answer.replyOffset < beatsPerBar && answer.attack.absBeat === barIndex * beatsPerBar + answer.replyOffset &&
+		piano[0].time === answer.attack.time && piano[0].absBeat === answer.attack.absBeat && piano[0].duration === answer.attack.duration && piano[0].velocity === answer.attack.velocity &&
+		piano[0].notes.length === answer.attack.notes.length && piano[0].notes.every((note, index) => note === answer.attack.notes[index]) &&
+		generated.compEvents.filter(event => Math.floor(event.absBeat / beatsPerBar) === barIndex).length === 1 &&
+		motif?.reason === 'drum_reply' && motif.transform === 'fallback' && motif.motifId === null && motif.sourceFigureId === null && motif.hits.length === 1 && motif.hits[0].b === answer.replyOffset &&
+		answeringDrums?.commentary.transform === 'space' && !answeringDrums.commentary.hits.length && !answeringDrums.hits.some(hit => hit.role === 'commentary') &&
+		!generated.drumEvents.some(event => event.role === 'commentary' && (inBar(event) || Math.floor(event.absBeat / beatsPerBar) === barIndex));
+}
+
 /** Planned performance direction for the sounding bar; absent for original/legacy takes. */
 export function describePerformanceArc(generated: GeneratedBacking, context: MusicianDecisionContext): { phase: string; label: string; targetEnergy: number } | null {
 	if (context.orchestration !== 'coordinated') return null;
@@ -145,24 +177,33 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 	}
 	const answer = development?.pianoAnswers?.find(entry => entry.barIndex === barIndex);
 	const answerSource = answer?.source;
-	const sourcePhrase = development?.drumPhrases.find(entry => entry.barIndex === answerSource?.barIndex);
-	const answeringDrums = development?.drumPhrases.find(entry => entry.barIndex === barIndex);
-	const acceptedAnswer = walking && plan?.performanceEnergy?.phase === 'solo_build' && answer?.version === 1 && answer.drumCommentary === 'space' &&
-		answerSource?.barIndex === barIndex - 1 && ['statement', 'repeat', 'displace', 'orchestrate', 'fallback'].includes(answerSource.transform) &&
-		answerSource.hits.length >= 2 && answerSource.hits.length <= 3 && new Set(answerSource.hits.map(hit => hit.absBeat)).size >= 2 &&
-		sourcePhrase?.commentary.source === 'vocabulary' && sourcePhrase.commentary.transform === answerSource.transform &&
-		answerSource.hits.every(hit => hit.role === 'commentary' && ['snare', 'crossstick', 'kick'].includes(hit.drum) &&
-			Math.floor(hit.absBeat / beatsPerBar) === answerSource.barIndex && Number.parseInt(hit.time, 10) >= firstTick - beatsPerBar * ppq && Number.parseInt(hit.time, 10) < firstTick &&
-			generated.drumEvents.some(event => event.time === hit.time && event.absBeat === hit.absBeat && event.drum === hit.drum && event.velocity === hit.velocity && event.role === hit.role) &&
-			[sourcePhrase.commentary.hits, sourcePhrase.hits].every(hits => hits.some(event => event.role === 'commentary' && event.drum === hit.drum && event.velocity === hit.velocity && event.beatOffset === hit.absBeat - answerSource.barIndex * beatsPerBar))) &&
-		piano.length === 1 && answer.replyOffset >= 0 && answer.replyOffset < beatsPerBar && answer.attack.absBeat === barIndex * beatsPerBar + answer.replyOffset &&
-		piano[0].time === answer.attack.time && piano[0].absBeat === answer.attack.absBeat && piano[0].duration === answer.attack.duration && piano[0].velocity === answer.attack.velocity &&
-		piano[0].notes.length === answer.attack.notes.length && piano[0].notes.every((note, index) => note === answer.attack.notes[index]) &&
-		generated.compEvents.filter(event => Math.floor(event.absBeat / beatsPerBar) === barIndex).length === 1 &&
-		motif?.reason === 'drum_reply' && motif.transform === 'fallback' && motif.motifId === null && motif.sourceFigureId === null && motif.hits.length === 1 && motif.hits[0].b === answer.replyOffset &&
-		answeringDrums?.commentary.transform === 'space' && !answeringDrums.commentary.hits.length && !answeringDrums.hits.some(hit => hit.role === 'commentary') &&
-		!generated.drumEvents.some(event => event.role === 'commentary' && (inBar(event) || Math.floor(event.absBeat / beatsPerBar) === barIndex));
+	const acceptedAnswer = matchesAcceptedPianoAnswer(generated, context, barIndex);
 	if (acceptedAnswer) pianoCard.evidence.push(`Answer the drum phrase from bar ${answerSource!.barIndex + 1} with one chord`);
+	const recovery = development?.pianoRecoveries?.find(entry => entry.barIndex === barIndex);
+	const priorAnswer = development?.pianoAnswers?.find(entry => entry.barIndex === barIndex - 1);
+	const returning = recovery?.returningDrums;
+	const returnedPhrase = development?.drumPhrases.find(entry => entry.barIndex === barIndex);
+	const heldPhrase = development?.drumPhrases.find(entry => entry.barIndex === barIndex - 1);
+	const originalPhrase = development?.drumPhrases.find(entry => entry.barIndex === priorAnswer?.source.barIndex);
+	const sameAttack = (a: typeof generated.compEvents[number], b: typeof generated.compEvents[number]) =>
+		a.time === b.time && a.absBeat === b.absBeat && a.duration === b.duration && a.velocity === b.velocity &&
+		a.notes.length === b.notes.length && a.notes.every((note, index) => note === b.notes[index]);
+	if (walking && plan?.performanceEnergy?.phase === 'solo_build' && recovery?.version === 1 &&
+		recovery.action === 'space' && recovery.reason === 'after_drum_reply' && recovery.originalMaxAttacks > 0 && recovery.effectiveMaxAttacks === 0 &&
+		recovery.source.barIndex === barIndex - 1 && priorAnswer && sameAttack(recovery.source.attack, priorAnswer.attack) &&
+		matchesAcceptedPianoAnswer(generated, context, barIndex - 1) && !recovery.acceptedAttacks.length && !piano.length &&
+		!generated.compEvents.some(event => Math.floor(event.absBeat / beatsPerBar) === barIndex) && motif?.transform === 'space' && !motif.hits.length &&
+		returning && returning.hits.length > 0 && returnedPhrase?.commentary.source === 'vocabulary' &&
+		['repeat', 'displace', 'orchestrate'].includes(returnedPhrase.commentary.transform) &&
+		[returnedPhrase, heldPhrase, originalPhrase].every(phrase => phrase?.commentary.motifId === returning.motifId &&
+			phrase.commentary.source === 'vocabulary' && phrase.commentary.sourceBar === returning.sourceBar) &&
+		returning.hits.length === returnedPhrase.commentary.hits.length && returning.hits.every(hit => hit.role === 'commentary' &&
+			Math.floor(hit.absBeat / beatsPerBar) === barIndex && inBar(hit) &&
+			generated.drumEvents.some(event => event.time === hit.time && event.absBeat === hit.absBeat && event.drum === hit.drum && event.velocity === hit.velocity && event.role === hit.role) &&
+			[returnedPhrase.commentary.hits, returnedPhrase.hits].every(hits => hits.some(event => event.role === 'commentary' && event.drum === hit.drum && event.velocity === hit.velocity && event.beatOffset === hit.absBeat - barIndex * beatsPerBar)))) {
+		pianoCard.evidence.push('Leave a breath while the drum phrase returns');
+	}
+
 	const plannedTexture = plan?.piano.rootlessTexture;
 	if (plannedTexture) {
 		const reasons = {

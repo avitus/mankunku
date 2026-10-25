@@ -137,6 +137,7 @@ export interface EnsembleDevelopment {
 	/** Causal, committed rolling-bar decisions; absent from fixed generation. */
 	readonly pianoFeedback?: readonly PianoFeedbackDecision[];
 	readonly pianoAnswers?: readonly PianoAnswerDecision[];
+	readonly pianoRecoveries?: readonly PianoRecoveryDecision[];
 	readonly drumPhrases: readonly DrumPhraseDecision[];
 }
 
@@ -148,6 +149,19 @@ export interface PianoAnswerDecision {
 	readonly attack: Readonly<CompEvent>;
 	readonly replyOffset: number;
 	readonly drumCommentary: 'space';
+}
+
+/** A local breathing bar after a real answer; no counterfactual removal claim. */
+export interface PianoRecoveryDecision {
+	readonly version: 1;
+	readonly barIndex: number;
+	readonly source: { readonly barIndex: number; readonly attack: Readonly<CompEvent> };
+	readonly returningDrums: { readonly motifId: string; readonly sourceBar: number; readonly hits: readonly Readonly<DrumEvent>[] } | null;
+	readonly action: 'space' | 'none';
+	readonly reason: 'after_drum_reply' | 'already_silent' | 'reserved_transition' | 'response_reserved' | 'outside_build' | 'higher_priority_space' | 'no_ordinary_attack' | 'no_drum_return';
+	readonly originalMaxAttacks: 0 | 1 | 2;
+	readonly effectiveMaxAttacks: 0 | 1 | 2;
+	readonly acceptedAttacks: readonly Readonly<CompEvent>[];
 }
 
 export interface DrumStatementSource {
@@ -219,6 +233,18 @@ function freezeEnsembleDevelopment(trace: EnsembleDevelopment): EnsembleDevelopm
 			Object.freeze(answer);
 		}
 		Object.freeze(trace.pianoAnswers);
+	}
+	if (trace.pianoRecoveries) {
+		for (const recovery of trace.pianoRecoveries) {
+			Object.freeze(recovery.source.attack.notes); Object.freeze(recovery.source.attack); Object.freeze(recovery.source);
+			if (recovery.returningDrums) {
+				for (const hit of recovery.returningDrums.hits) Object.freeze(hit);
+				Object.freeze(recovery.returningDrums.hits); Object.freeze(recovery.returningDrums);
+			}
+			for (const attack of recovery.acceptedAttacks) { Object.freeze(attack.notes); Object.freeze(attack); }
+			Object.freeze(recovery.acceptedAttacks); Object.freeze(recovery);
+		}
+		Object.freeze(trace.pianoRecoveries);
 	}
 	if (trace.bassContinuations) {
 		for (const continuation of trace.bassContinuations) {

@@ -399,6 +399,7 @@
 				pianoVoicings: take.playback.windows.flatMap(bar => bar.ensembleDevelopment.pianoVoicings ?? []),
 				pianoFeedback: take.playback.windows.flatMap(bar => bar.ensembleDevelopment.pianoFeedback ?? []),
 				pianoAnswers: take.playback.windows.flatMap(bar => bar.ensembleDevelopment.pianoAnswers ?? []),
+				pianoRecoveries: take.playback.windows.flatMap(bar => bar.ensembleDevelopment.pianoRecoveries ?? []),
 				drumPhrases: take.playback.windows.flatMap(bar => bar.ensembleDevelopment.drumPhrases)
 			}
 		};
