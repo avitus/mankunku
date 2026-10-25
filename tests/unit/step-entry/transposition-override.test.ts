@@ -48,7 +48,8 @@ describe('stepEntry.transpositionOverride', () => {
 		stepEntry.enteredNotes = [{ pitch: 46, duration: [1, 4], offset: [0, 1] }];
 		stepEntry.selectedNoteIndex = 0;
 		flipSelectedNoteSpelling();
-		expect(stepEntry.enteredNotes[0].spelling).toBeDefined();
+		// No signature in C, so the first flip spells the chromatic note flat (Bb).
+		expect(stepEntry.enteredNotes[0].spelling).toBe('flat');
 	});
 
 	it('without the override the same flip is a no-op for tenor', () => {

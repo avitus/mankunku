@@ -409,5 +409,9 @@ describe('display helpers', () => {
 			{ key: 'C', scaleType: 'major' },
 			{ key: 'D', scaleType: 'major' }
 		)).toBe(false);
+		expect(tonalitiesEqual(
+			{ key: 'C', scaleType: 'major' },
+			{ key: 'C', scaleType: 'dorian' }
+		)).toBe(false);
 	});
 });

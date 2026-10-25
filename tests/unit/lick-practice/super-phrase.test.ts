@@ -23,7 +23,6 @@ vi.stubGlobal('localStorage', {
 import {
 	lickPractice,
 	getPlannedKey,
-	getUpcomingKeys,
 	buildLickSuperPhrase,
 	getKeyBars,
 	getKeyPasses,
@@ -129,21 +128,19 @@ describe('getPlannedKey lookahead', () => {
 	});
 });
 
-describe('getUpcomingKeys', () => {
-	it('returns current/next/afterNext for the 3-row preview', () => {
+describe('getPlannedKey offsets', () => {
+	it('returns the current, next and after-next planned keys', () => {
 		lickPractice.plan = plan({ id: SHORT_LICK_ID, keys: ['C', 'F', 'Bb', 'Eb'] });
-		const upcoming = getUpcomingKeys();
-		expect(upcoming.current?.key).toBe('C');
-		expect(upcoming.next?.key).toBe('F');
-		expect(upcoming.afterNext?.key).toBe('Bb');
+		expect(getPlannedKey(0)?.key).toBe('C');
+		expect(getPlannedKey(1)?.key).toBe('F');
+		expect(getPlannedKey(2)?.key).toBe('Bb');
 	});
 
-	it('returns nulls past the end of the plan', () => {
+	it('returns null past the end of the plan', () => {
 		lickPractice.plan = plan({ id: SHORT_LICK_ID, keys: ['C'] });
-		const upcoming = getUpcomingKeys();
-		expect(upcoming.current?.key).toBe('C');
-		expect(upcoming.next).toBeNull();
-		expect(upcoming.afterNext).toBeNull();
+		expect(getPlannedKey(0)?.key).toBe('C');
+		expect(getPlannedKey(1)).toBeNull();
+		expect(getPlannedKey(2)).toBeNull();
 	});
 });
 

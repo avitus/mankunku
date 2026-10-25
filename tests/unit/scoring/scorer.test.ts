@@ -63,6 +63,7 @@ describe('scoreAttempt', () => {
 		expect(score.overall).toBe(0);
 		expect(score.notesHit).toBe(0);
 		expect(score.notesTotal).toBe(2);
+		expect(score.grade).toBe('try-again');
 		expect(score.noteResults.every(r => r.missed)).toBe(true);
 	});
 

@@ -4,8 +4,14 @@ Mankunku is a jazz ear training web app built around **call and response**: the 
 
 Named after [Winston "Mankunku" Ngozi's](https://en.wikipedia.org/wiki/Winston_Mankunku_Ngozi) iconic 1968 album *Yakhal' Inkomo*, this app targets jazz musicians practicing ear training, transcription, and improvisation vocabulary.
 
-The player guides, plus a handful of the architecture and reference pages, are also served in the app at `/docs`, beside an AI docs assistant that answers from a core subset of them (`CORE_DOC_SLUGS` in `src/lib/docs/context.ts`) — `src/lib/docs/structure.ts` decides which pages are served, and one absent from that tree 404s there. [`CLAUDE.md`](../CLAUDE.md) at the repo root is the densest current architecture reference.
+The player guides, plus a handful of the architecture and reference pages, are also served in the app at `/docs`, beside an AI docs assistant that answers from a core subset of them (`CORE_DOC_SLUGS` in `src/lib/docs/context.ts`) — `src/lib/docs/structure.ts` decides which pages are served, and one absent from that tree 404s there. [`AGENTS.md`](../AGENTS.md) at the repo root is the densest current architecture reference.
 
+> **2026-10-24** — **the focus drill climbs without stopping.** When Deep Practice drills your weakest key back up to the lick's tempo, the takes now run back to back: there's no bar between them, and under the take you're playing the stack lists the takes still to come, each tagged with its BPM (51, 52, … 56). A take that clears moves up a row; 75–95% adds a row at the same tempo; under 75% steps the tempo down and adds rows for the climb back. Only the sheet music coming or going still gets its one-bar countdown, and the once-more handoff into the next key is unchanged. See [the state diagrams](./architecture/lick-practice-state-machines.md#focus-takes-no-bar-the-climb-drawn-ahead).
+>
+> **2026-10-23** — **Safari keeps its recordings.** Takes are stored in IndexedDB as bytes plus a MIME type, as tune PDFs already were: WebKit aborts a Blob-valued put, so Safari had silently kept no local recording (Play Recording, /diagnostics and Flag Scoring Error found nothing). Older Blob records still play. Flag Scoring Error's two downloads now leave one task apart, because WebKit dropped the first when the second click (or the URL revoke) came in the same task. Ear training logs a refused microphone as a warning and has an e2e for it.
+>
+> **2026-10-23** — **docs re-checked against the code.** README and AGENTS.md now describe the tune desk (per-tune tempo and backing style, the form loop), the drummer's count-in and its click fallback, key-signature unlock order, Deep Practice's sheet-music rescue, six re-articulation tiers and the 652 + 471 lick catalog; the CI descriptions follow CircleCI Smarter Testing (dynamic parallelism and splitting, impact analysis on branches) instead of a fixed six-way shard; the audio pages no longer carry the retired "click grid runs 0.25–0.40 s off" warning (settled 2026-10-03 as a double-counted trim).
+>
 > **2026-10-16** — **keys unlock by key signature.** A lick's next key is now the one with the fewest sharps or flats as you read it — the sharp key before the flat key on a tie — instead of the nearest key on the circle of fifths. A minor lick counts its relative major's signature, so a G minor lick goes to A minor next, not D minor; a G major lick goes to C. Licks keep their unlock count and re-derive their rotation under the new order.
 >
 > **2026-09-16** — **three production reports closed.** The second time a page loaded the trumpet — a second Play on a tune or lick, or a second practice page in one visit — failed: reloading the SoundFont cut its warmth filter's connection before smplr cut it again, and the browser refused (`cleanupInstruments`, Sentry MANKUNKU-1T). A signed-in page load checked the session with the auth server once per cloud initializer — seventeen requests on one load, eleven queued one behind another; the checks that start together now share one request (`getUserCoalesced`, MANKUNKU-1Q). And a production build previewed on a dev machine filed its server errors under production: anything about a request to a loopback host now goes under development, and Fable's content-filter refusal, which the PDF import already answers by retrying on the baseline model, is no longer reported as a crash (MANKUNKU-1V) — [Audio](./api-reference/audio.md), [State Management](./architecture/state-management.md), [Tech Stack](./architecture/tech-stack.md).
@@ -100,7 +106,7 @@ The player guides, plus a handful of the architecture and reference pages, are a
 | [Music](./api-reference/music.md) | scales, chords, keys, intervals, notation, tune-notation, chart/chord/ending layout, chord-symbol, transposition |
 | [Phrases](./api-reference/phrases.md) | combiner, validator, library-loader, duplicate-detection, adopted-phrase-validator |
 | [Difficulty](./api-reference/difficulty.md) | adaptive, params, lick-phase, level-signal, calculate, display |
-| [State](./api-reference/state.md) | session, settings, progress, history, licks, lick-practice (+ rotation), tricks, step-entry, tune-entry, tune-community, tune-practice, tour state modules |
+| [State](./api-reference/state.md) | session, settings, progress, history, licks, lick-practice (+ rotation), tricks, step-entry, tune-entry, tune-community, tune-practice, tune-player, tour state modules |
 | [Components](./api-reference/components.md) | All Svelte components, by domain |
 
 ### Contributing
@@ -110,7 +116,7 @@ The player guides, plus a handful of the architecture and reference pages, are a
 | [Contributing Guide](./contributing/contributing.md) | Setup and environment, migrations, code style, dev → main workflow, CI |
 | [Adding Licks](./contributing/adding-licks.md) | Step-by-step guide to adding curated licks |
 | [Adding Scales](./contributing/adding-scales.md) | Extending the scale catalog |
-| [Testing Guide](./contributing/testing-guide.md) | The four suites, test patterns, mocking audio, writing new tests |
+| [Testing Guide](./contributing/testing-guide.md) | The five suites, Smarter Testing in CI, test patterns, mocking audio, writing new tests |
 | [Backing-track Listening](./contributing/backing-listening.md) | The listening lab, milestone protocol, and committed engine artifacts |
 
 ### Reference

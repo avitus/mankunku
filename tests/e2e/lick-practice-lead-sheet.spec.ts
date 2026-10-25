@@ -330,11 +330,8 @@ test.describe('lick-practice session flow', () => {
 			)
 			.toBe(1);
 
-		// ...and the saved take is the attempt the log references. WebKit cannot
-		// store a Blob in IndexedDB in Playwright's ephemeral context (the put's
-		// transaction aborts; the app warns and keeps going), so no take is
-		// ever saved there and the recorder count above is its pin.
-		if (browserName === 'webkit') return;
+		// ...and the saved take is the attempt the log references. Takes are
+		// stored as bytes, never a Blob (audio-store.ts), so WebKit keeps one too.
 		/**
 		 * Session ids of the saved lick-practice takes in the anon audio store.
 		 * The probe creates the store if the app has not (same shape as
@@ -355,14 +352,14 @@ test.describe('lick-practice session flow', () => {
 				});
 				try {
 					const rows = await new Promise<
-						Array<{ sessionId: string; blob: Blob; metadata: { source?: string } | null }>
+						Array<{ sessionId: string; bytes?: ArrayBuffer; metadata: { source?: string } | null }>
 					>((resolve, reject) => {
 						const req = db.transaction('recordings', 'readonly').objectStore('recordings').getAll();
 						req.onsuccess = () => resolve(req.result);
 						req.onerror = () => reject(req.error);
 					});
 					return rows
-						.filter((r) => r.metadata?.source === 'lick-practice' && r.blob.size > 0)
+						.filter((r) => r.metadata?.source === 'lick-practice' && (r.bytes?.byteLength ?? 0) > 0)
 						.map((r) => r.sessionId);
 				} finally {
 					db.close();

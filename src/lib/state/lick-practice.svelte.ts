@@ -111,6 +111,7 @@ import {
 	nextCycleTempo,
 	focusStartTempo,
 	planFocusRamp,
+	projectFocusTempos,
 	resolveRampCycle,
 	DEFAULT_TEMPO_BUMP_PERCENT
 } from './lick-practice-rotation';
@@ -219,6 +220,17 @@ export interface PlannedKey {
 	 * from memory), otherwise 1. Stamped with `reveal`, same lifetime.
 	 */
 	passes: number;
+	/**
+	 * The tempo this row plays at, shown on the row while the focus ramp
+	 * climbs (`focusRowTempo`); absent everywhere else.
+	 */
+	tempo?: number;
+	/**
+	 * The deep-practice round this row belongs to (`roundNumber` when its
+	 * stack was built). Two rows of the same key can be on screen at once in a
+	 * focus ramp, so a take's score flash matches on this, not the key alone.
+	 */
+	cycle?: number;
 }
 
 /**
@@ -1369,19 +1381,6 @@ export function getPlannedKey(offset: number): PlannedKey | null {
 	return null;
 }
 
-/** Current, next, and after-next planned keys for the 3-row preview. */
-export function getUpcomingKeys(): {
-	current: PlannedKey | null;
-	next: PlannedKey | null;
-	afterNext: PlannedKey | null;
-} {
-	return {
-		current: getPlannedKey(0),
-		next: getPlannedKey(1),
-		afterNext: getPlannedKey(2)
-	};
-}
-
 /**
  * Return all planned keys for a given lick — used by the continuous-scroll
  * preview to render the entire lick's chord charts as a tall stack that
@@ -1406,10 +1405,73 @@ export function getPlannedKeysForLick(lickIdx: number): PlannedKey[] {
 			lickId: item.phraseId,
 			reveal: revealFor(item, key),
 			passes: passesFor(item, key),
-			cycleEntry: getDeepCycleEntry(lickIdx, key)
+			cycleEntry: getDeepCycleEntry(lickIdx, key),
+			tempo: focusRowTempo(key),
+			cycle: lickPractice.roundNumber
 		});
 	}
 	return result;
+}
+
+/**
+ * Is the next cycle a focus-ramp take in continuous mode? Those join on the
+ * downbeat with no bar, the stack draws the takes still to come under them,
+ * and a take of the same key scrolls in like a new key.
+ */
+export function isFocusTake(): boolean {
+	return lickPractice.mode === 'single-lick' &&
+		lickPractice.config.practiceMode === 'continuous' &&
+		lickPractice.ramp?.phase === 'focus';
+}
+
+/**
+ * The tempo tag for a row of `key`: the session tempo on the focus key while
+ * the header reads "Focus" — the staircase, and the once-more repeat that
+ * follows its target clear. Continuous mode only; undefined everywhere else.
+ */
+function focusRowTempo(key: PitchClass): number | undefined {
+	const ramp = lickPractice.ramp;
+	if (lickPractice.mode !== 'single-lick' || lickPractice.config.practiceMode !== 'continuous') return undefined;
+	if (!ramp || key !== ramp.focusKey) return undefined;
+	const focusing = ramp.phase === 'focus' || (ramp.phase === 'handoff' && ramp.admitted.length === 1);
+	return focusing ? lickPractice.currentTempo : undefined;
+}
+
+/**
+ * The focus takes still to come if every one clears, drawn under the current
+ * take while the ramp climbs: one row per `projectFocusTempos` step, each
+ * tagged with its tempo and looking like the current take (sheet or chords —
+ * a change between them always gets its preparation bar, so a row never
+ * changes look on a downbeat). Display only, like the handoff preview: no
+ * audio, no recording window, re-projected at every boundary from the take
+ * just scored.
+ */
+export function getFocusProjectionRows(lickIdx: number): PlannedKey[] {
+	const ramp = lickPractice.ramp;
+	const item = lickPractice.plan[lickIdx];
+	if (!isFocusTake() || !ramp || !item || item.kind === 'trick') return [];
+	const key = ramp.focusKey;
+	if (item.keys[0] !== key) return [];
+	const phrase = buildPhraseFor(item, key);
+	if (!phrase) return [];
+	const tempos = projectFocusTempos(
+		lickPractice.currentTempo,
+		ramp.targetTempo,
+		lickPractice.config.tempoBumpPercent ?? DEFAULT_TEMPO_BUMP_PERCENT
+	);
+	return tempos.map((tempo, i) => ({
+		lickIndex: lickIdx,
+		keyIndex: item.keys.length + i,
+		key,
+		phrase,
+		harmony: phrase.harmony,
+		lickName: item.phraseName,
+		lickId: item.phraseId,
+		reveal: revealFor(item, key),
+		passes: passesFor(item, key),
+		tempo,
+		cycle: lickPractice.roundNumber + 1 + i
+	}));
 }
 
 /** The promised next-cycle chart; display only, never part of this cycle's audio/windows. */
@@ -1571,7 +1633,8 @@ export function isDailyPractice(): boolean {
  * Bars of preparation laid before the key at rotation slot `slot`:
  * Daily and Deep show notation ahead, so a sheet alone adds no pause.
  * Deep retains one bar for a resolved result or sheet graduation (ordinary
- * Deep's head uses its existing turnaround). Focused retains its two-bar
+ * Deep's head uses its existing turnaround; a focus-ramp take stops only when
+ * the sheet comes or goes — see `advanceSingleLickRound`). Focused retains its two-bar
  * sheet preparation. A demo or call already prepares its response.
  */
 function pauseBarsFor(item: LickPracticePlanItem, key: PitchClass, slot: number): number {
@@ -2301,16 +2364,25 @@ export function advanceSingleLickRound(): void {
 	lickPractice.phase = 'inter-lick-rest';
 	if (item.kind !== 'trick') {
 		const entries = new Map<PitchClass, DeepCycleEntry>();
+		// The staircase plays on: a focus take joins on the downbeat, its tempo
+		// and the takes still to come already drawn on the stack.
+		const focusTake = isFocusTake();
 		for (const [slot, key] of item.keys.entries()) {
-			const fromMemory = lastReveals.get(key) === true && !revealFor(item, key);
+			const wasSheet = lastReveals.get(key) === true;
+			const sheet = revealFor(item, key);
+			const fromMemory = wasSheet && !sheet;
 			entries.set(key, {
 				repeat: slot === 0 && key === previousLastKey,
 				fromMemory,
 				tempo: slot === 0 && lickPractice.currentTempo !== previousTempo ? lickPractice.currentTempo : undefined,
 				// A resolved head needs a bar unless its handoff already promised
-				// it (ordinary Deep has a turnaround). Later sheet graduations
-				// need their own bar, even when rejoining after sitting out a round.
-				prepareBars: slot === 0 ? (ramp && (!promisedKey || fromMemory) ? 1 : 0) : (fromMemory ? 1 : 0)
+				// it (ordinary Deep has a turnaround) or it is the next focus
+				// take, which only stops for the sheet coming or going. Later
+				// sheet graduations need their own bar, even when rejoining after
+				// sitting out a round.
+				prepareBars: slot === 0
+					? (focusTake ? (sheet !== wasSheet ? 1 : 0) : ramp && (!promisedKey || fromMemory) ? 1 : 0)
+					: (fromMemory ? 1 : 0)
 			});
 		}
 		cycleEntries.set(item.keys, entries);

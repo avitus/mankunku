@@ -22,6 +22,8 @@ import {
 	nextCycleTempo,
 	focusStartTempo,
 	focusStepDownTempo,
+	focusStepUpTempo,
+	projectFocusTempos,
 	planFocusRamp,
 	resolveRampCycle,
 	FOCUS_START_DISCOUNT,
@@ -550,6 +552,60 @@ describe('planFocusRamp', () => {
 
 	it('queues nothing for a one-key circle', () => {
 		expect(planFocusRamp(['C'], 'C', 60, () => undefined)?.queue).toEqual([]);
+	});
+});
+
+describe('projectFocusTempos', () => {
+	it('lists one take per step up to and including the target (Andy, 2026-10-24: 51 → 56)', () => {
+		expect(projectFocusTempos(51, 56, 1)).toEqual([52, 53, 54, 55, 56]);
+	});
+
+	it('is empty at the target: the take being played is the last one', () => {
+		expect(projectFocusTempos(56, 56, 1)).toEqual([]);
+	});
+
+	it('steps by the rounded-up bump, so two BPM a take from 100 up', () => {
+		expect(projectFocusTempos(180, 190, 1)).toEqual([182, 184, 186, 188, 190]);
+	});
+
+	it('caps the last step at the target', () => {
+		expect(focusStepUpTempo(99, 100, 5)).toBe(100);
+		expect(projectFocusTempos(90, 100, 5)).toEqual([95, 100]);
+		expect(projectFocusTempos(92, 100, 5)).toEqual([97, 100]);
+	});
+
+	it('promises exactly the tempos the staircase plays when every take clears', () => {
+		const ramp: FocusRamp = {
+			focusKey: 'D', targetTempo: 100, phase: 'focus', admitted: ['D'],
+			queue: ['A'], upToSpeedRound: null, rebuiltRound: null
+		};
+		for (const bumpPercent of [1, 2.5, 5]) {
+			const start = focusStartTempo(100);
+			const played: number[] = [];
+			let state = ramp;
+			let tempo = start;
+			for (let round = 1; state.phase === 'focus'; round++) {
+				const out = resolveRampCycle({
+					ramp: state, lastKey: 'D', survivors: [], tempo, bumpPercent,
+					focusScore: 0.97, round
+				});
+				state = out.ramp;
+				tempo = out.tempo;
+				if (state.phase === 'focus') played.push(tempo);
+			}
+			expect(played).toEqual(projectFocusTempos(start, 100, bumpPercent));
+		}
+	});
+
+	it('re-projects a step down as the climb back: three takes below 53, five below 51', () => {
+		const before = projectFocusTempos(53, 56, 1);
+		const after = projectFocusTempos(focusStepDownTempo(53, 1), 56, 1);
+		expect(before).toEqual([54, 55, 56]);
+		expect(after).toEqual([52, 53, 54, 55, 56]);
+	});
+
+	it('stops at MAX_TEMPO instead of looping on a target the clamp never reaches', () => {
+		expect(projectFocusTempos(299, 305, 1)).toEqual([300]);
 	});
 });
 

@@ -119,12 +119,16 @@ export function keyStackLayout(
 	return { translateY, currentRow, viewportHeight };
 }
 
-/** Outgoing row for a Deep cycle's upward scroll; same-key retries do not scroll. */
+/**
+ * Outgoing row for a Deep cycle's upward scroll. Same-key retries stay
+ * still, except a focus-ramp take (`sameKeyScrolls`): the takes to come are
+ * drawn under it, so each take is a row of its own and steps up like a key.
+ */
 export function precedingCycleRow<T extends { key: string; lickId: string }>(
-	previous: readonly T[], next: readonly T[]
+	previous: readonly T[], next: readonly T[], sameKeyScrolls = false
 ): T | null {
 	const last = previous.at(-1);
 	if (!last || !next.length) return null;
-	return last.key === next[0].key && last.lickId === next[0].lickId
+	return !sameKeyScrolls && last.key === next[0].key && last.lickId === next[0].lickId
 		? null : last;
 }

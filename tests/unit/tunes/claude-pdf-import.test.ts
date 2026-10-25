@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { claudeJsonToTune, extractionConsistencyScore } from '$lib/tunes/import/claude-pdf';
+import { claudeJsonToTune, extractionConsistencyScore, toFraction } from '$lib/tunes/import/claude-pdf';
 
 function validDoc(): Record<string, unknown> {
 	return {
@@ -480,5 +480,20 @@ describe('extractionConsistencyScore', () => {
 				'bar 3: unparseable chord "X" — skipped'
 			])
 		).toBe(3); // the unparseable chord is content, not structure
+	});
+});
+
+describe('toFraction', () => {
+	it('returns the smallest exact denominator on the duration grid', () => {
+		expect(toFraction(1)).toEqual([1, 1]);
+		expect(toFraction(0.375)).toEqual([3, 8]);
+		expect(toFraction(1 / 3)).toEqual([1, 3]);
+		expect(toFraction(5 / 12)).toEqual([5, 12]);
+		expect(toFraction(1 / 24)).toEqual([1, 24]);
+	});
+
+	it('snaps a value off the grid to the nearest 24th rather than inventing a denominator', () => {
+		expect(toFraction(0.1)).toEqual([2, 24]);
+		expect(toFraction(1 / 32)).toEqual([1, 24]);
 	});
 });

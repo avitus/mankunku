@@ -16,6 +16,7 @@ import { keyLabel } from '$lib/music/notation';
 import type { LickPracticePlanItem, LickReport, SessionReport } from '$lib/types/lick-practice';
 import { baseSessionId, type LickPracticeSessionLogEntry } from '$lib/persistence/lick-practice-sessions';
 import { KEY_FLOOR_THRESHOLD, KEY_PROFICIENT_THRESHOLD } from '$lib/persistence/lick-practice-store';
+import { median } from '$lib/util/median';
 
 /**
  * Minimum keys attempted before a bad average is read as grinding rather than
@@ -196,13 +197,6 @@ interface WeakKey {
 	scores: number[];
 	weakCount: number;
 	typical: number;
-}
-
-/** Median resists one unusually poor performance (or one unusually good one). */
-function median(scores: readonly number[]): number {
-	const sorted = [...scores].sort((a, b) => a - b);
-	const middle = Math.floor(sorted.length / 2);
-	return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
 }
 
 /** Collapse any repeated key attempts to one outcome for this sitting. */

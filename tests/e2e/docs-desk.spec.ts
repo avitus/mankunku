@@ -12,6 +12,7 @@ test.describe('docs reading desk', () => {
 
 	test('searches the guide index, shows an empty state, and follows the selected guide', async ({ page }) => {
 		await page.goto('/docs');
+		await expect(page.getByRole('heading', { name: /^documentation$/i })).toBeVisible();
 		const search = page.getByRole('searchbox', { name: 'Find a guide' });
 		const index = page.getByRole('navigation', { name: 'Documentation', exact: true });
 		await search.fill('scoring');
@@ -25,6 +26,13 @@ test.describe('docs reading desk', () => {
 		await index.getByRole('link', { name: 'The Daily Key' }).click();
 		await expect(page).toHaveURL(/\/docs\/architecture\/tonality-system$/);
 		await expect(search).toHaveValue('');
+	});
+
+	test('the start card opens the getting-started guide', async ({ page }) => {
+		await page.goto('/docs');
+		await page.locator('.docs-start').getByRole('link', { name: 'Welcome', exact: true }).click();
+		await expect(page).toHaveURL(/\/docs\/getting-started$/);
+		await expect(page.getByRole('heading', { name: /welcome to mankunku/i })).toBeVisible();
 	});
 
 	test('article anchors and sequential guides stay navigable', async ({ page }) => {

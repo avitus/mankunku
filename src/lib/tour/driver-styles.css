@@ -1,8 +1,8 @@
 /*
  * Driver.js base styles + Mankunku theme overrides.
  *
- * Imported from driver-config.ts so any code path that calls runTour() picks
- * up the styles, not just the (rarely-used) <Tour.svelte> component wrapper.
+ * Imported from driver-config.ts so every code path that calls runTour() picks
+ * up the styles.
  *
  * The theme overrides target `.driver-popover.mankunku-tour` (set via
  * popoverClass in createDefaultConfig); without that class the base

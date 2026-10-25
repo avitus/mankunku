@@ -6,70 +6,6 @@ All Svelte components organized by domain. Each uses Svelte 5 `$props()` for inp
 
 ---
 
-## Audio Components
-
-### `MicStatus.svelte`
-
-**Path:** `src/lib/components/audio/MicStatus.svelte`
-
-Displays microphone status with an input level meter and permission request button.
-
-| Prop | Type | Description |
-|---|---|---|
-| `permission` | `MicPermissionState` | Current mic permission state |
-| `inputLevel` | `number` | Input level 0–1 |
-| `onrequest` | `() => void` | Callback to request mic access |
-
-**Behavior:**
-- `granted` → Shows colored dot + "Mic active" + level meter bar (green/yellow/red)
-- `prompt`/`denied` → Shows "Enable Mic" / "Retry Mic" button
-- `unavailable` → Shows "No mic available"
-
-### `PitchMeter.svelte`
-
-**Path:** `src/lib/components/audio/PitchMeter.svelte`
-
-Real-time pitch display with cents deviation meter and clarity bar.
-
-| Prop | Type | Description |
-|---|---|---|
-| `midi` | `number \| null` | Current detected MIDI note |
-| `cents` | `number` | Cents deviation (-50 to +50) |
-| `clarity` | `number` | Detection clarity 0–1 |
-| `active` | `boolean` | Whether detecting/recording |
-
-**Display:**
-- Note name in large text, colored by tuning accuracy
-- Horizontal cents meter with center line and sliding indicator
-- "flat" / "sharp" labels with numeric cents value
-- Clarity progress bar (only when active)
-
-**Tuning color thresholds:**
-- <= 10 cents: green (success)
-- <= 25 cents: yellow (warning)
-- \> 25 cents: red (error)
-
-### `TransportBar.svelte`
-
-**Path:** `src/lib/components/audio/TransportBar.svelte`
-
-Play/stop button, tempo slider, and metronome toggle.
-
-| Prop | Type | Description |
-|---|---|---|
-| `isPlaying` | `boolean` | Playback active |
-| `isLoading` | `boolean` | Instrument loading |
-| `tempo` | `number` | Current BPM |
-| `metronomeEnabled` | `boolean` | Metronome on/off |
-| `onplay` | `() => void` | Play callback |
-| `onstop` | `() => void` | Stop callback |
-| `ontempochange` | `(tempo: number) => void` | Tempo change callback |
-| `onmetronometoggle` | `() => void` | Metronome toggle callback |
-
-**Tempo range:** 40–300 BPM. Disabled during playback.
-
----
-
 ## Notation Component
 
 ### `NotationDisplay.svelte`
@@ -141,26 +77,6 @@ Compact display of the phrase's key and chord symbols.
 
 Shows a pipe-separated list of chord symbols derived from `phrase.harmony` (via `chordSymbol`), rendered only when at least one chord is present.
 
-### `FeedbackPanel.svelte`
-
-**Path:** `src/lib/components/practice/FeedbackPanel.svelte`
-
-Post-attempt scoring feedback with grade display and action buttons.
-
-| Prop | Type | Description |
-|---|---|---|
-| `score` | `Score` | Score from the attempt |
-| `onrepeat` | `() => void` | "Try Again" callback |
-| `onnext` | `() => void` | "Next Phrase" callback |
-
-**Layout:**
-1. Large grade label (`GRADE_LABELS`) in its accuracy-tier colour (`GRADE_COLORS` — "Perfect" in gold)
-2. A liner-note caption (`getGradeCaption`), re-rolled on every new score even when the grade repeats
-3. Overall percentage and notes hit (e.g. "6/8 notes hit")
-4. Pitch/Rhythm breakdown with progress bars
-5. `NoteComparison` grid (musical timing feedback is available when the original take tempo is supplied)
-6. "Try Again" and "Next Phrase" buttons
-
 ### `NoteComparison.svelte`
 
 **Path:** `src/lib/components/practice/NoteComparison.svelte`
@@ -180,19 +96,6 @@ Per-note comparison grid showing expected vs played notes.
 | `diagnostic` | `boolean?` | Defaults to `false`. `/diagnostics` opts in to the numeric Offset column and timing footer. |
 
 Filters out extra notes (only shows matched and missed). Default columns: index, expected note name, played note name (colored by accuracy), pitch %, and rhythm %. Musical feedback reads the change in saved per-note timing, independently of grades and percentages. A robust trend identifies Rushing or Dragging; inconsistent timing reads Uneven time; consistent spacing reads Steady pulse. It requires at least four reliable pitch-matched notes spanning two beats and 75% of the line. A direction requires 75% pairwise agreement and at least 0.2 beats (and 60 ms) of drift. Feedback thresholds do not affect scoring. Missing or unreliable evidence yields no verdict. Constant offsets cannot establish placement against the audible beat, so Laying back and Pushing the beat are withheld until an independent calibrated reference exists. Names go through the shared enharmonic policy (`spellingContextAt` + `resolveUseFlats` in `music/notation.ts`); a played note is read against the chord of the expected note it answered. In diagnostic mode, the grid adds per-note offsets and a footer with bias, spread, and latency correction. Offsets retain their original result indices when extras are hidden. `/diagnostics` shows this original saved score separately from the current detector replay; scoring, persistence, and the JSON export remain unchanged.
-
-### `ScoreStrip.svelte`
-
-**Path:** `src/lib/components/practice/ScoreStrip.svelte`
-
-Horizontal SVG strip of paired pitch/rhythm bars — one pair per matched note — used for compact score visualization.
-
-| Prop | Type | Description |
-|---|---|---|
-| `noteResults` | `NoteResult[]` | Per-note scoring results |
-| `transpositionSemitones` | `number?` | Semitones added for written-pitch display (e.g. `14` for tenor sax). Defaults to `0`. |
-
-Extra notes are filtered out. Each matched note renders a pair of bars; bar **height** encodes the score (`pitchScore` / `rhythmScore` × `MAX_H`). **Color** is a fixed hue per metric — pitch bars use `var(--color-accent)`, rhythm bars use `var(--color-brass)`, matching the progress complexity meters. Missed notes render as a dashed "miss" outline instead of a bar.
 
 ---
 
@@ -235,35 +138,6 @@ opens the existing `/licks/[id]` page.
 
 `CommunityProgression.svelte` accepts a `phrase` and shares the My Licks progression
 color tokens, using the public phrase category instead of personal practice tags.
-
-### `CommunityLickCard.svelte`
-
-**Path:** `src/lib/components/licks/CommunityLickCard.svelte`
-
-Legacy community browse card. The `/licks/community` route now uses `CommunityListeningDesk` with a compact selection index.
-
-| Prop | Type | Description |
-|---|---|---|
-| `lick` | `CommunityLick` | The phrase plus its community metadata (author, favourite count, favourited / stolen by me) |
-| `isOwnLick` | `boolean` | Shows "My lick" instead of the steal / return action |
-| `onclick` / `onplay` | `() => void` | Optional open and preview handlers |
-| `onfavorite` / `onsteal` / `onreturn` | `() => void` | Row actions |
-| `isPlaying` | `boolean` | Optional; default `false` |
-
-Shows name, author, category, the difficulty name + level and bar count. The difficulty badge calls `difficultyDisplay()` (`src/lib/difficulty/display.ts`), mapping the 1–100 scale to 10 bands, each coloured by the theme-aware `var(--difficulty-N)` (muted green → amber → muted brick-red, re-stepped between the dark and light themes) — intentionally independent of the domain accent:
-
-| Band | Range  | Name         | Color                 |
-| ---- | ------ | ------------ | --------------------- |
-| 1    | 1-10   | Beginner     | `var(--difficulty-1)`  |
-| 2    | 11-20  | Elementary   | `var(--difficulty-2)`  |
-| 3    | 21-30  | Easy         | `var(--difficulty-3)`  |
-| 4    | 31-40  | Moderate     | `var(--difficulty-4)`  |
-| 5    | 41-50  | Intermediate | `var(--difficulty-5)`  |
-| 6    | 51-60  | Challenging  | `var(--difficulty-6)`  |
-| 7    | 61-70  | Advanced     | `var(--difficulty-7)`  |
-| 8    | 71-80  | Expert       | `var(--difficulty-8)`  |
-| 9    | 81-90  | Master       | `var(--difficulty-9)`  |
-| 10   | 91-100 | Virtuoso     | `var(--difficulty-10)` |
 
 ---
 
@@ -343,7 +217,7 @@ Cells come from `chordChartCells(harmony, timeSignature)` (`ui/chord-chart-layou
 
 Stepped preview strip showing the previous, current, and upcoming key chord charts. The first row parks at the top of the viewport — no slot above it (the lick-name label that used to hang there is gone; the header's title names the lick) — and from the second key on the current row holds one slot below the top for its whole key (the just-played row and its score flash stay visible above it) and the stack steps by that row's height at each key change after the first, eased by a CSS transition — it never drifts, because an engraved staff crawling a pixel per frame strobes. A lead-sheet row NEXT gets no special parking (the read-ahead rule of 2026-09-03 was withdrawn the same day): it waits below like any upcoming row, showing the key's **chord chart as a placeholder** (`data-testid="lead-sheet-placeholder"`) over the engraved staff, which is `visibility: hidden` until the row becomes current (`.lead-sheet.revealed`, `i <= currentRow`) — and it becomes current at the START of its reading pause, when the previous key's window closes, so the step into the slot and the chart-to-staff cross-fade both land during the pause, before the first pass opens. The tab reads READ (`data-kind="read"`, listen-red: don't play yet, a staff glyph) through the pause and counts the entrance in over its last bar. Row key labels read in each planned phrase's mode (`keyLabel(written, lickMode(pk.phrase))` — "D-" on a minor drill) and the embedded `ChordChart` gets the same `mode`.
 
-A row whose `PlannedKey.reveal` is set (the key being learned — the most recently unlocked — is under the floor) renders as a **lead-sheet row** (`data-testid="lead-sheet-row"`): `leadSheetTuneFor` (`music/lead-sheet.ts`) wraps the row's phrase as a one-section Tune for `NotationDisplay` (`frameless`, `staffWidth` 640, `tuneOptions` from `leadSheetAbcOptions` — the phrase's mode, one stretched system, no bar number), the current bar marked ON the staff via a `playhead` `rangeMarker` (drawn by NotationDisplay from abcjs's bar geometry, so it aligns with the engraved bars by construction; the marker array is derived off an INTEGER bar so it only changes identity when the bar does) — no caption, by decision. The SVG is sized by **width** (abcjs's responsive inline styles overridden with `!important`: static position, no aspect padding box), so `staffWidth` is the zoom — ~1.45× at a 960 px row — capped at the staff box's height so a phrase with ledger lines scales down rather than clipping. Lead sheets are built once per stack so abcjs engraves each row once. Rows are fixed heights (105 px chord row, 212 px lead row = a 200 px clipped staff box + row padding) and `keyStackLayout(heights, scrollFraction, slotHeight, visibleRows, reserveRowHeight = 0) → { translateY, currentRow, viewportHeight }` (`ui/key-stack-layout.ts`, pure) parks row 0 at the top, holds every later row one slot below the top — a slot being the previous row's own height, so mixed heights work — and reserves the viewport for the lead-sheet row plus a chord row (`reserveRowHeight`, passed by the component) whether or not this stack has a lead-sheet row, so the ring below never moves — it used to shift 2 px, 315 ↔ 317, when a stack gained or lost its sheet between cycles or licks. A revealed row plays `passes` windows in ONE held row — 3 in continuous mode, 1 in call-and-response, where each window already replays the app's half — behind a `LEAD_SHEET_PAUSE_BARS` reading pause when it does not open the cycle: the route derives the row-unit scroll and the beat from the scheduled window plan with `cyclePositionAt` (rotation module) — exactly the integer through the pause, then 0 → 1 across the passes — and the PLAY tab reads `Play · n/3` (`data-pass="n"`), the pass derived from the fraction within the row.
+A row whose `PlannedKey.reveal` is set (the key being learned — the most recently unlocked — is under the floor) renders as a **lead-sheet row** (`data-testid="lead-sheet-row"`): `leadSheetTuneFor` (`music/lead-sheet.ts`) wraps the row's phrase as a one-section Tune for `NotationDisplay` (`frameless`, `staffWidth` 640, `tuneOptions` from `leadSheetAbcOptions` — the phrase's mode, one stretched system, no bar number), the current bar marked ON the staff via a `playhead` `rangeMarker` (drawn by NotationDisplay from abcjs's bar geometry, so it aligns with the engraved bars by construction; the marker array is derived off an INTEGER bar so it only changes identity when the bar does) — no caption, by decision. The SVG is sized by **width** (abcjs's responsive inline styles overridden with `!important`: static position, no aspect padding box), so `staffWidth` is the zoom — ~1.45× at a 960 px row — capped at the staff box's height so a phrase with ledger lines scales down rather than clipping. Lead sheets are built once per stack so abcjs engraves each row once. Rows are fixed heights (128 px chord row, 204.8 px lead row — 1.6× — around a 140.8 px staff box under the 28 px cue lane) and `keyStackLayout(heights, scrollFraction, slotHeight, visibleRows, reserveRowHeight = 0) → { translateY, currentRow, viewportHeight }` (`ui/key-stack-layout.ts`, pure) parks row 0 at the top, holds every later row one slot below the top — a slot being the previous row's own height, so mixed heights work — and reserves the viewport for the lead-sheet row plus a chord row (`reserveRowHeight`, passed by the component) whether or not this stack has a lead-sheet row, so the ring below never moves — it used to shift 2 px, 315 ↔ 317, when a stack gained or lost its sheet between cycles or licks. A revealed row plays `passes` windows in ONE held row — 3 in continuous mode, 1 in call-and-response, where each window already replays the app's half — behind a `LEAD_SHEET_PAUSE_BARS` reading pause when it does not open the cycle: the route derives the row-unit scroll and the beat from the scheduled window plan with `cyclePositionAt` (rotation module) — exactly the integer through the pause, then 0 → 1 across the passes — and the PLAY tab reads `Play · n/3` (`data-pass="n"`), the pass derived from the fraction within the row.
 
 | Prop | Type | Description |
 |---|---|---|
@@ -354,7 +228,11 @@ A row whose `PlannedKey.reveal` is set (the key being learned — the most recen
 | `isRecording` | `boolean` | Current key's recording window is open |
 | `cue` | `PhaseCue?` | Drives the phase tab on the active row (LISTEN and READ in on-air red / PLAY in brass — the `--color-phase-*` aliases — with countdown + entry key / "Straight in" turnaround). Omit for no tab |
 | `isArming` | `boolean?` | Lead-in bar before the recording window — dashes the active row's ring |
-| `scoreFlash` | `{ key, score, at }?` | Tier-colored score chip flashed on the matching key's row |
+| `scoreFlash` | `{ key, score, at, cycle? }?` | Tier-colored score chip flashed on the matching key's latest row at or above the current one — the row of the take's own `cycle` when it is still on screen (a finished focus take scrolling out above the next take of its key), never an upcoming occurrence |
+| `daily` / `deep` | `boolean?` | Daily, or either Deep entry path: sheets engraved from the outset and current-action cues; Deep also parks the active row at the top and scrolls finished rows out |
+| `nextCycleKey` | `PlannedKey \| null?` | The promised first key of the next cycle, drawn under a handoff repeat. Display only |
+| `projectedRows` | `PlannedKey[]?` | Focus-ramp takes still to come (`getFocusProjectionRows`), drawn under the current take with their `tempo` tags. Display only: the stack holds on the cycle's own last row, and a projected sheet row below the viewport is not engraved |
+| `precedingKey` | `PlannedKey \| null?` | Deep: the finished row carried into a rebuilt stack for its upward scroll (`precedingCycleRow`) |
 | `instrument` | `InstrumentConfig` | Used for written-pitch chord and key labels |
 
 ### `PhaseCueBar.svelte`
@@ -394,12 +272,6 @@ The session report's single recommendation — one line of advice, the number th
 ## Progress Components
 
 Rendered by the `/progress` dashboard. These components read directly from `history.svelte.ts` state — props are limited to what needs to be parameterized.
-
-### `StreakDisplay.svelte`
-
-**Path:** `src/lib/components/progress/StreakDisplay.svelte`
-
-Current streak, longest streak, and a 30-day practice dot grid. No props — reads `progress.streakDays`, `progressMeta.longestStreak`, and `getLast30Days()` directly.
 
 ### `PracticeCalendar.svelte`
 
@@ -510,15 +382,14 @@ The `DOC_TREE` navigation: collapsible sections (the one holding the current pag
 | `currentSlug` | `string` | Current slug without the `/docs/` prefix. Default `''` |
 | `onnavigate` | `() => void` | Optional; called on link click — closes the mobile drawer |
 
-### `MarkdownRenderer.svelte`
+### `DocContents.svelte`
 
-Renders a doc page through `renderMarkdown` (`docs/markdown.ts`).
+The "On this page" contents for a doc page — a sidebar aside on desktop, a compact nav on mobile. Pages are rendered server-side by `renderMarkdown` (`src/lib/docs/markdown.ts`) in `src/routes/docs/[...slug]/+page.server.ts` and injected as HTML.
 
 | Prop | Type | Description |
 |---|---|---|
-| `markdown` | `string` | Source markdown |
-| `slug` | `string` | The page's slug, used to resolve relative links. Default `''` |
-| `class` | `string` | Optional extra classes |
+| `headings` | `RenderResult['headings']` | The page's headings from `renderMarkdown` |
+| `mobile` | `boolean` | Compact mobile variant. Default `false` |
 
 ### `ChatInterface.svelte`
 
@@ -567,16 +438,6 @@ Book-shelf card for a tune.
 | `onclick` | `() => void` | Open handler |
 
 Shows total bars (summed across sections) and the key **in the player's written pitch**, not concert.
-
-### `CommunityTuneCard.svelte`
-
-Browse card for `/tunes/community`.
-
-| Prop | Type | Description |
-|---|---|---|
-| `item` | `CommunityTune` | Sheet plus its community metadata |
-| `isOwnSheet` | `boolean` | Suppresses adopt actions on your own publications |
-| `onclick` / `onfavorite` / `onadopt` / `onreturn` | `() => void` | Row actions |
 
 ### `ImportResultList.svelte`
 
@@ -821,18 +682,6 @@ invents progress. Used for Home's session count and the setup's time budget.
 
 Guided tours run on [driver.js](https://driverjs.com), configured in `src/lib/tour/driver-config.ts` and defined as step arrays in `src/lib/tour/tours/`. Completion state lives in [`tour.svelte.ts`](./state.md#toursveltets).
 
-### `Tour.svelte`
-
-Declarative driver. Bind `active` to start and stop a tour imperatively; it flips back to `false` on close.
-
-| Prop | Type | Description |
-|---|---|---|
-| `tourId` | `string` | Stable id recorded in `tourState` |
-| `steps` | `DriveStep[]` | Step definitions |
-| `active` | `boolean` (bindable) | Drive control |
-| `onComplete` / `onClose` | `() => void` | Lifecycle hooks |
-| `config` | `Partial<Config>` | driver.js overrides |
-
 ### `TourBanner.svelte`
 
 First-run prompt. Offers the tour, or a Skip that records an explicit dismissal.
@@ -858,7 +707,7 @@ Inline "Need help? Take the tour" link.
 
 > **Completion semantics.** `runTour` marks a tour complete **only** on natural completion (clicking Done on the last step). Closing early — Esc, the X, an overlay click — is "not finished yet", so the banner reappears. Explicit dismissal goes through `TourBanner`'s Skip button, never through driver.js.
 >
-> **Adding a tour:** write the steps in `src/lib/tour/tours/<name>.ts`, add `data-tour="…"` anchors to the route, and register the tour in `TOURS` (`src/lib/tour/tours/index.ts`) with the path it `startsAt`. Registration is all Settings → *Tours & Help* needs — it navigates to `startsAt`, waits for every step selector to mount, and drives.
+> **Adding a tour:** write the steps in `src/lib/tour/tours/<name>.ts`, add `data-tour="…"` anchors to the route, and register the tour in `TOURS` (`src/lib/tour/tours/index.ts`) with the path it `startsAt`. Registration is all Settings → *Tours, help & data* needs — it navigates to `startsAt`, waits for every step selector to mount, and drives.
 
 ---
 
@@ -871,7 +720,6 @@ Inline "Need help? Take the tour" link.
 | `LickKeyDetail.svelte` | `progress/` | Expandable per-key detail on the progress page, with per-note comparison and replay. Props: `sessionId`, `instrument`, `displayKey?`, `harmony?` and `displayMode?` (the progression's mode, so the note list spells as the session chart did), and `onmissing?` — called when the recording lookup fails so the parent can disable the chip |
 | `PrivacyDisclosure.svelte` | `community/` | One-time acknowledgement that saved licks appear in the community browse |
 | `SuggestionCard.svelte` | `step-entry/` | Attribution name suggestions in the lick editor, from `lick-suggestions` state |
-| `BrassPlayGlyph.svelte` | `jazz/` | Decorative brass play glyph (`size = 14`, `class`) |
 | `Tooltip.svelte` | `ui/` | Wraps `children` with a hover/focus tooltip: `content` (string or snippet), `position` (preferred side, default `'top'`), `delay` (200 ms), `disabled`, `class` |
 | `TooltipHint.svelte` | `ui/` | An info icon carrying a tooltip: `text`, optional `learnMore` doc link, `position`, `size`, `class` — the `helpText` of the console controls |
 | `InfoIcon.svelte`, `HelpLink.svelte` | `ui/` | The bare info glyph (`size`, `class`), and a help link to a docs page (`href`, `label` default "Help and documentation", `size`, `class`) |

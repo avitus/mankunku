@@ -2,7 +2,7 @@
  * Score → color mappings (UI/presentation layer).
  *
  * This is the display companion to the *pure* scoring layer: `scoring/` stays
- * free of any UI/CSS concern (see the module boundaries in CLAUDE.md), so the
+ * free of any UI/CSS concern (see the module boundaries in AGENTS.md), so the
  * CSS-variable lookups for accuracy tiers and grade readouts live here instead.
  *
  * ## Accuracy medal scale

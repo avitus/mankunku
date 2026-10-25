@@ -275,6 +275,24 @@ describe('voiceLead', () => {
 		}
 	});
 
+	it('keeps each chord\'s shell pitch classes and the comping register while it re-octaves them', () => {
+		const chords = [
+			{ root: 'D' as PitchClass, quality: 'min7' as ChordQuality },
+			{ root: 'G' as PitchClass, quality: '7' as ChordQuality },
+			{ root: 'C' as PitchClass, quality: 'maj7' as ChordQuality }
+		];
+		const result = voiceLead(chords, shellVoicing, 54);
+		expect(result.map((v) => new Set(v.map((m) => m % 12)))).toEqual([
+			new Set([2, 5, 0]), // D F C
+			new Set([7, 11, 5]), // G B F
+			new Set([0, 4, 11]) // C E B
+		]);
+		for (const midi of result.flat()) {
+			expect(midi).toBeGreaterThanOrEqual(36);
+			expect(midi).toBeLessThanOrEqual(72);
+		}
+	});
+
 	it('returns empty array for empty input', () => {
 		expect(voiceLead([], shellVoicing)).toEqual([]);
 	});

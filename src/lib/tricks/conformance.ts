@@ -44,6 +44,7 @@ import { scaleDegreeOf } from '$lib/music/scale-degree';
 import { realizeScale } from '$lib/music/keys';
 import { getScale } from '$lib/music/scales';
 import { chordTones } from '$lib/music/chords';
+import { median } from '$lib/util/median';
 
 /** Cost for a completely missed slot or extra played note (matches alignment.ts). */
 const SKIP_COST = 2.0;
@@ -103,14 +104,6 @@ function tierFor(
 function slotOnsetSeconds(slot: TrickSlotSpec, tempo: number, swing: number): number {
 	const beats = fractionToFloat(slot.offset) * 4;
 	return applySwingToBeats(beats, swing) * (60 / tempo);
-}
-
-/** Median of an array of numbers (cloned from scorer.ts, which keeps it private). */
-function median(values: number[]): number {
-	if (values.length === 0) return 0;
-	const sorted = [...values].sort((a, b) => a - b);
-	const mid = Math.floor(sorted.length / 2);
-	return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
 /** One matched (slot, played) pair from the DTW backtrack. */

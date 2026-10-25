@@ -1048,3 +1048,39 @@ describe('findReArticulations: timbre-switch tier', () => {
 		expect(findReArticulations(timbreRun({ strip: true }), [])).toEqual([]);
 	});
 });
+
+describe('findReArticulations: a third-harmonic lock does not hide the tongue inside it', () => {
+	// 2026-10-24 Up to the Seventh: a tenor D3 played twice, with its 3rd
+	// harmonic (A4) taking the pick for most of both notes. The tiers scan
+	// contiguous same-MIDI runs, so the locked frames chopped the D into
+	// fragments and the tongue's dip fell between runs. The locked frames
+	// here are only flagged, never moved: the fold must happen at the scan.
+	const FRAME = 1 / 60;
+	const HOLE = 0.2;
+	function lockedPair(opts: { flagged: boolean }): PitchReading[] {
+		const d = (time: number): PitchReading => ({ ...reading(50, time), frequency: 146.83, rms: 0.2 });
+		const a = (time: number): PitchReading => ({
+			...reading(69, time),
+			frequency: 440,
+			rms: 0.2,
+			...(opts.flagged ? { twelfthUp: true } : {})
+		});
+		const before = Array.from({ length: 10 }, (_, i) => d(i * FRAME));
+		const lock = Array.from({ length: 12 }, (_, i) => a((10 + i) * FRAME));
+		const resume = lock[lock.length - 1].time + HOLE;
+		const after = Array.from({ length: 20 }, (_, i) => d(resume + i * FRAME));
+		return [...before, ...lock, ...after];
+	}
+
+	it('finds the reading-gap tongue when the frames before the hole are a flagged lock', () => {
+		const readings = lockedPair({ flagged: true });
+		const onsets = findReArticulations(readings, [0]);
+		expect(onsets).toHaveLength(1);
+		expect(onsets[0]).toBeGreaterThan(readings[21].time);
+		expect(onsets[0]).toBeLessThanOrEqual(readings[22].time);
+	});
+
+	it('an unflagged leap to A4 is three notes, and the hole after it is no tongue', () => {
+		expect(findReArticulations(lockedPair({ flagged: false }), [0])).toEqual([]);
+	});
+});

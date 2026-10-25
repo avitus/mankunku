@@ -10,6 +10,7 @@ import {
 	WEAK_CLARITY_FLOOR,
 	measureShapeBreak,
 	measureTimbre,
+	isOctaveUpLock,
 	isTwelfthUpLock,
 } from '$lib/audio/pitch-frame';
 
@@ -360,6 +361,82 @@ describe('detectFrame octave-up flag', () => {
 		const held = detectFrame(buf, 1.0, lockDet as any, stab, { sampleRate });
 		expect(held.reading!.midi).toBe(52); // stabilizer held the true octave
 		expect(held.reading!.octaveUp).toBeUndefined(); // not flagged → no double drop
+	});
+});
+
+describe('isOctaveUpLock — a lock whose odd partials are weak (2026-10-24 Slow Climb to the Third)', () => {
+	const sampleRate = 44100;
+
+	/** A sum of sines at the given [frequency, amplitude] partials. */
+	function partials(list: Array<[number, number]>, n = 4096): Float32Array {
+		const out = new Float32Array(n);
+		for (let i = 0; i < n; i++) {
+			let s = 0;
+			for (const [f, a] of list) s += a * Math.sin((2 * Math.PI * f * i) / sampleRate);
+			out[i] = s;
+		}
+		return out;
+	}
+
+	// The take's E3 as measured: the 2nd harmonic dominates (~20× the
+	// fundamental), the 4th carries a fifth of it, and the 3rd and 5th
+	// partials are nearly gone — so the odd-harmonic rank reads ~0.04, a third
+	// of the 0.12 the first test asks. The fundamental is still there, and
+	// nothing sits between the partials.
+	/** A tenor E3 locked onto its 2nd harmonic, with weak odd partials. */
+	const weakOddE3 = () =>
+		partials([[164.81, 0.012], [329.63, 0.23], [494.4, 0.004], [659.3, 0.05], [824, 0.004]]);
+
+	it('flags E4 reported over the series of E3 when the odd partials alone are too weak', () => {
+		expect(isOctaveUpLock(weakOddE3(), 329.63, sampleRate)).toBe(true);
+	});
+
+	it('does not flag the same E3 reported at its own fundamental', () => {
+		expect(isOctaveUpLock(weakOddE3(), 164.81, sampleRate)).toBe(false);
+	});
+
+	it('does not flag a genuine E4', () => {
+		expect(isOctaveUpLock(partials([[329.63, 1.0], [659.3, 0.3], [988.9, 0.1]]), 329.63, sampleRate)).toBe(false);
+	});
+
+	it('does not flag a trace of the lower series too faint to be the note', () => {
+		// The same shape at a tenth of the strength: the series is real but the
+		// fundamental it implies carries under 0.05 of the reported partials.
+		const trace = partials([[164.81, 0.0012], [329.63, 0.23], [494.4, 0.0004], [659.3, 0.05], [824, 0.0004]]);
+		expect(isOctaveUpLock(trace, 329.63, sampleRate)).toBe(false);
+	});
+
+	it('does not flag broadband energy under a genuine E4 — the bins between the series hold as much', () => {
+		// Equal energy at every bin the test reads: the would-be E3's odd series
+		// (enough to pass the series ratio) and the half-series bins between it.
+		const g = 329.63 / 2;
+		const broadband: Array<[number, number]> = [1, 1.5, 2.5, 3, 3.5, 4.5, 5].map((k) => [k * g, 0.01]);
+		const buf = partials([[329.63, 0.23], [659.3, 0.05], ...broadband]);
+		expect(isOctaveUpLock(buf, 329.63, sampleRate)).toBe(false);
+	});
+
+	it('detectFrame flags the lock frame', () => {
+		const lock = detectFrame(weakOddE3(), 0, makeMockDetector(329.63, 0.95) as any, null, { sampleRate });
+		expect(lock.reading!.midi).toBe(64);
+		expect(lock.reading!.octaveUp).toBe(true);
+	});
+
+	it('flags the frame when McLeod picked the E3 and the subharmonic pass doubled it', () => {
+		// The subharmonic pass asks the first test's question (are 3f and 5f
+		// there?) and doubles the pick when they are weak; the series test is
+		// the fuller answer and overrules it at the note level. 12 of the
+		// take's E frames were picked at 164.5 Hz and doubled to E4.
+		const doubled = detectFrame(weakOddE3(), 0, makeMockDetector(164.81, 0.99) as any, null, { sampleRate });
+		expect(doubled.reading!.frequency).toBeCloseTo(329.62, 1);
+		expect(doubled.reading!.midi).toBe(64);
+		expect(doubled.reading!.octaveUp).toBe(true);
+	});
+
+	it('leaves a doubled subharmonic of a genuine E4 unflagged', () => {
+		const e4 = partials([[329.63, 1.0], [659.3, 0.3], [988.9, 0.1]]);
+		const doubled = detectFrame(e4, 0, makeMockDetector(164.81, 0.99) as any, null, { sampleRate });
+		expect(doubled.reading!.midi).toBe(64);
+		expect(doubled.reading!.octaveUp).toBeUndefined();
 	});
 });
 

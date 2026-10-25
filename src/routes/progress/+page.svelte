@@ -198,11 +198,11 @@
 			// Both files are ready before either download starts, so the pair
 			// goes out together (a browser may ask once to allow the second).
 			const base = exporter.fixtureBaseName(full.timestamp, full.metadata?.phraseName ?? s.phraseName);
-			exporter.triggerDownload(
+			await exporter.triggerDownload(
 				new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }),
 				`${base}.json`
 			);
-			exporter.triggerDownload(new Blob([wav], { type: 'audio/wav' }), `${base}.wav`);
+			await exporter.triggerDownload(new Blob([wav], { type: 'audio/wav' }), `${base}.wav`);
 			flaggingSessionId = null;
 			flagNote = '';
 		} catch (err) {

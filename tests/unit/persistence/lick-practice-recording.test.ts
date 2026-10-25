@@ -239,7 +239,7 @@ describe('saveLickPracticeRecording', () => {
 
 		// A /diagnostics replay reads these to reuse the exact bleed evidence the
 		// app scored with; a wrapper that dropped the field would silently replay
-		// unsuppressed (CLAUDE.md: the bleed evidence is supplied by the caller).
+		// unsuppressed (AGENTS.md: the bleed evidence is supplied by the caller).
 		const withBleed = await getRecordingFull('lp-session-bleed');
 		expect(withBleed!.metadata!.backingBleedOnsets).toEqual([0.5, 1.0, 1.5]);
 		const noBleed = await getRecordingFull('lp-session-no-bleed');

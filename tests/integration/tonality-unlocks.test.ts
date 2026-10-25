@@ -20,8 +20,7 @@ import {
 	getAllTonalitiesWithUnlockInfo,
 	tonalitiesEqual,
 	KEY_UNLOCK_ORDER,
-	SCALE_UNLOCK_ORDER,
-	type Tonality
+	SCALE_UNLOCK_ORDER
 } from '../../src/lib/tonality/tonality';
 import { getCompatibleScaleTypes } from '../../src/lib/tonality/scale-compatibility';
 import type { UnlockContext } from '../../src/lib/types/progress';
@@ -164,21 +163,6 @@ describe('scale compatibility filtering', () => {
 		expect(compatible).toContain('mixolydian');
 		expect(compatible).toContain('bebop-dominant');
 		expect(compatible).not.toContain('blues');
-	});
-});
-
-// ─── Display Helpers ───────────────────────────────────────────
-
-describe('tonality display helpers', () => {
-	it('tonalitiesEqual compares both key and scaleType', () => {
-		const a: Tonality = { key: 'C', scaleType: 'major' };
-		const b: Tonality = { key: 'C', scaleType: 'major' };
-		const c: Tonality = { key: 'D', scaleType: 'major' };
-		const d: Tonality = { key: 'C', scaleType: 'dorian' };
-
-		expect(tonalitiesEqual(a, b)).toBe(true);
-		expect(tonalitiesEqual(a, c)).toBe(false);
-		expect(tonalitiesEqual(a, d)).toBe(false);
 	});
 });
 

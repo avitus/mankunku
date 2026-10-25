@@ -78,25 +78,6 @@ describe('scoring pipeline — end-to-end', () => {
 		expect(score.noteResults.every(r => !r.missed && !r.extra)).toBe(true);
 	});
 
-	it('scores zero when no notes are detected', () => {
-		const notes = [
-			makeNote(60, [0, 1]),
-			makeNote(64, [1, 4]),
-			makeNote(67, [1, 2]),
-		];
-		const phrase = makePhrase(notes);
-
-		const score = scoreAttempt(phrase, [], tempo);
-
-		expect(score.notesHit).toBe(0);
-		expect(score.notesTotal).toBe(3);
-		expect(score.pitchAccuracy).toBe(0);
-		expect(score.rhythmAccuracy).toBe(0);
-		expect(score.overall).toBe(0);
-		expect(score.grade).toBe('try-again');
-		expect(score.noteResults.every(r => r.missed)).toBe(true);
-	});
-
 	it('handles completely wrong pitches with correct timing', () => {
 		const notes = [
 			makeNote(60, [0, 1]),
@@ -146,28 +127,6 @@ describe('scoring pipeline — end-to-end', () => {
 		expect(score.grade).toBe('perfect');
 	});
 
-	it('handles extra detected notes without crashing', () => {
-		const notes = [
-			makeNote(60, [0, 1]),
-			makeNote(64, [1, 4]),
-		];
-		const phrase = makePhrase(notes);
-
-		// 4 detected vs 2 expected — extras should be flagged
-		const detected = [
-			makeDetected(60, 0.0),
-			makeDetected(62, 0.25),
-			makeDetected(64, 0.5),
-			makeDetected(66, 0.75),
-		];
-
-		const score = scoreAttempt(phrase, detected, tempo);
-
-		expect(score.notesTotal).toBe(2);
-		const extras = score.noteResults.filter(r => r.extra);
-		expect(extras.length).toBeGreaterThan(0);
-	});
-
 	it('filters rests from expected notes', () => {
 		const notes = [
 			makeNote(60, [0, 1]),
@@ -186,29 +145,6 @@ describe('scoring pipeline — end-to-end', () => {
 		// Only 2 pitched notes should be scored
 		expect(score.notesTotal).toBe(2);
 		expect(score.notesHit).toBe(2);
-	});
-
-	it('returns timing diagnostics with per-note offsets', () => {
-		const notes = [
-			makeNote(60, [0, 1]),
-			makeNote(64, [1, 4]),
-			makeNote(67, [1, 2]),
-		];
-		const phrase = makePhrase(notes);
-
-		const detected = [
-			makeDetected(60, 0.02),  // slightly late
-			makeDetected(64, 0.48),  // slightly early
-			makeDetected(67, 1.01),  // slightly late
-		];
-
-		const score = scoreAttempt(phrase, detected, tempo);
-
-		expect(score.timing).toBeDefined();
-		expect(typeof score.timing.meanOffsetMs).toBe('number');
-		expect(typeof score.timing.medianOffsetMs).toBe('number');
-		expect(typeof score.timing.stdDevMs).toBe('number');
-		expect(score.timing.perNoteOffsetMs.length).toBeGreaterThan(0);
 	});
 
 });

@@ -34,8 +34,17 @@ test.describe('lick-practice session flow', () => {
 		await page.goto('/lick-practice');
 		await page.getByRole('button', { name: /start daily practice/i }).click();
 		await expect(page.getByRole('heading', { name: /session report/i })).toBeVisible({ timeout: 60_000 });
+		// The report recommends the lick that scored WORST, and the mocked
+		// oscillator's scores move with CPU load (27% vs 17% under the full
+		// suite), so which lick comes first is not fixed. What is: each Deep
+		// follow-up moves the recommendation to a lick not yet drilled.
+		const recommended = new Set<string>();
 		for (let i = 0; i < ids.length; i++) {
-			await expect(page.getByText(`Drill D on Follow-up ${i + 1}.`, { exact: true })).toBeVisible();
+			const next = page.getByText(/^Drill D on Follow-up \d\.$/);
+			await expect(next).toBeVisible();
+			const name = (await next.textContent())!.replace(/^Drill D on |\.$/g, '');
+			expect(recommended.has(name), `${name} was recommended twice`).toBe(false);
+			recommended.add(name);
 			const previousIds = await page.evaluate(() =>
 				JSON.parse(localStorage.getItem('mankunku:lick-practice-sessions') ?? '[]')
 					.map((entry: { id: string }) => entry.id) as string[]);

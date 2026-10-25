@@ -176,7 +176,7 @@
 			if (!full) throw new Error('recording not found');
 
 			const wavBlob = new Blob([await decodeToWav(full.blob)], { type: 'audio/wav' });
-			triggerDownload(wavBlob, fixtureName(rec));
+			await triggerDownload(wavBlob, fixtureName(rec));
 		} catch (err) {
 			downloadError = err instanceof Error ? err.message : String(err);
 		} finally {
@@ -193,7 +193,7 @@
 	}
 
 	/** The JSON half of the fixture pair — see `buildDiagnosticsPayload`. */
-	function downloadDiagnostics(rec: RecordingSummary) {
+	async function downloadDiagnostics(rec: RecordingSummary) {
 		if (!replay) return;
 		try {
 			const inst = getInstrument();
@@ -201,7 +201,7 @@
 				instrument: { id: settings.instrumentId, name: inst.name, key: inst.key }
 			});
 			const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-			triggerDownload(blob, fixtureName(rec).replace(/\.wav$/, '.json'));
+			await triggerDownload(blob, fixtureName(rec).replace(/\.wav$/, '.json'));
 		} catch (err) {
 			downloadError = err instanceof Error ? err.message : String(err);
 		}

@@ -13,4 +13,13 @@ describe('recording entrance clock', () => {
 		}
 		expect(recordingBeatAt(RECORD_COUNT_IN_BEATS * 192, 192, true)).toBe(8);
 	});
+	it('holds beat 0 for a position just before the transport origin', () => {
+		expect(recordingBeatAt(-5, 192, true)).toBe(0);
+	});
+	it('shows no beat for a position or resolution it cannot read', () => {
+		expect(recordingBeatAt(Number.NaN, 192, true)).toBe(-1);
+		expect(recordingBeatAt(Number.POSITIVE_INFINITY, 192, true)).toBe(-1);
+		expect(recordingBeatAt(192, 0, true)).toBe(-1);
+		expect(recordingBeatAt(192, Number.NaN, true)).toBe(-1);
+	});
 });

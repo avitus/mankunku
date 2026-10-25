@@ -163,6 +163,25 @@ test.describe('lick-practice session flow', () => {
 		await expect(page.locator('.phase-tab[data-kind="play"]')).toBeVisible({ timeout: 30_000 });
 		await expect(page.getByTestId('lead-sheet-row')).toHaveCount(0);
 
+		// The stack lists the takes still to come under the current one, each
+		// tagged with its tempo, climbing to the saved tempo (Andy, 2026-10-24).
+		const [, opening, target] = (await page.getByTestId('focus-ramp').textContent())!
+			.match(/(\d+) → (\d+) BPM/)!.map(Number);
+		/** The tempo-tagged rows of the stack, top to bottom. */
+		const taggedRows = () => page.locator('.stack .row').evaluateAll((rows) => rows
+			.filter((row) => row.querySelector('[data-testid="row-tempo"]'))
+			.map((row) => ({
+				key: row.getAttribute('data-key'),
+				current: row.classList.contains('current'),
+				tempo: Number(row.querySelector('[data-testid="row-tempo"]')!.textContent!.match(/\d+/)![0])
+			})));
+		const opened = await taggedRows();
+		expect(opened[0]).toMatchObject({ current: true, tempo: opening });
+		expect(opened.length).toBeGreaterThan(3);
+		expect(opened.at(-1)!.tempo).toBe(target);
+		expect(new Set(opened.map((row) => row.key)).size).toBe(1);
+		expect(opened.slice(1).every((row, i) => !row.current && row.tempo > opened[i].tempo)).toBe(true);
+
 		// The mock microphone scores poorly. Show music on the next cycle,
 		// allowing the preparation cue but never restarting a Listen phase.
 		await page.setViewportSize({ width: 390, height: 900 });
@@ -216,16 +235,22 @@ test.describe('lick-practice session flow', () => {
 		expect(flow.cueOverlapsSheet).toBe(false);
 		expect(flow.cueOutsideRow).toBe(false);
 		await page.setViewportSize({ width: 1440, height: 1000 });
-		await expect(page.getByTestId('lead-sheet-row')).toBeVisible();
-		const deepSheet = await page.getByTestId('lead-sheet-row').evaluate((sheet) => ({
+		// The takes still to come are drawn under the current one in its look,
+		// so the stack holds several sheets: measure the take being played.
+		const currentSheet = page.locator('.row.current [data-testid="lead-sheet-row"]');
+		await expect(currentSheet).toBeVisible();
+		expect(await page.getByTestId('lead-sheet-row').count()).toBeGreaterThan(1);
+		const deepSheet = await currentSheet.evaluate((sheet) => ({
 			height: sheet.closest('.row')!.getBoundingClientRect().height,
 			noteWidth: sheet.querySelector('.abcjs-notehead')!.getBoundingClientRect().width
 		}));
 		expect(deepSheet.height).toBeCloseTo(204.8, 1);
 		expect(deepSheet.noteWidth).toBeGreaterThan(11);
-		// The preparation cue stays a single line at the top-left on desktop,
-		// preserving the enlarged engraving and the existing row height.
-		const entrance = page.locator('.row.current .phase-tab[data-kind="play-in"]');
+		// The cue stays a single line at the top-left of the sheet on desktop,
+		// preserving the enlarged engraving and the existing row height. The
+		// sheet stays up while the takes keep missing, so no further count-in
+		// comes: measure the Play cue of the take on it.
+		const entrance = page.locator('.row.current .phase-tab[data-kind="play"]');
 		await expect(entrance).toBeVisible({ timeout: 15_000 });
 		const cueGeometry = await entrance.evaluate(tab => {
 			const cue = tab.getBoundingClientRect();
@@ -239,6 +264,37 @@ test.describe('lick-practice session flow', () => {
 		expect(cueGeometry).toMatchObject({ top: 0, left: 0, overlap: false });
 		expect(cueGeometry.height).toBeLessThan(28);
 		await expect(page.locator('.chart-wrap.recording')).toBeVisible({ timeout: 15_000 });
+
+		// The next take on the sheet joins on the downbeat: Play holds through
+		// the boundary with no count-in, and the next row of the same key — a
+		// tempo-tagged take — scrolls up into the current slot.
+		const joined = await page.evaluate(async () => {
+			const kinds = new Set<string>();
+			/** Record the current row's cue kind each frame while `keepGoing` holds. */
+			async function sample(keepGoing: () => boolean): Promise<void> {
+				while (keepGoing()) {
+					kinds.add(document.querySelector('.row.current .phase-tab')?.getAttribute('data-kind') ?? 'missing');
+					await new Promise(requestAnimationFrame);
+				}
+			}
+			const first = document.querySelector('.row.current');
+			const deadline = performance.now() + 45_000;
+			await sample(() => performance.now() < deadline && document.querySelector('.row.current') === first);
+			const next = document.querySelector('.row.current');
+			const settle = performance.now() + 500;
+			await sample(() => performance.now() < settle);
+			return {
+				advanced: next !== first,
+				sameKey: next?.getAttribute('data-key') === first?.getAttribute('data-key'),
+				tagged: !!next?.querySelector('[data-testid="row-tempo"]'),
+				sheet: !!next?.querySelector('[data-testid="lead-sheet-row"]'),
+				kinds: [...kinds]
+			};
+		});
+		expect(joined).toMatchObject({ advanced: true, sameKey: true, tagged: true, sheet: true });
+		expect(joined.kinds).not.toContain('play-in');
+		expect(joined.kinds).not.toContain('read');
+		expect(joined.kinds).toContain('play');
 		await page.getByRole('button', { name: /end session/i }).click();
 		await expect(page.getByText('Session Report', { exact: true })).toBeVisible();
 	});

@@ -22,6 +22,7 @@ const BLEED_LATENCY_MAX = 0.200;
 import type { DetectedNote } from '$lib/types/audio';
 import type { PitchReading } from './pitch-detector';
 import { OCTAVE_CONFIRM_FRAMES, WARMUP_FRAMES } from './pitch-frame';
+import { median } from '$lib/util/median';
 
 /**
  * Warmup frames (emitted during the octave stabilizer's warmup window) are
@@ -2261,14 +2262,6 @@ const TIMBRE_PERSIST_FRAMES = 2;
 const TIMBRE_PERSIST_GUARD = 0.01;
 const TIMBRE_MAX_SWELL = 1.3;
 
-/** Median of a numeric array; 0 if empty. Non-mutating. */
-function median(xs: number[]): number {
-	if (xs.length === 0) return 0;
-	const s = [...xs].sort((a, b) => a - b);
-	const mid = Math.floor(s.length / 2);
-	return s.length % 2 === 1 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
-}
-
 /** Mean RMS over readings[from, to), clamped to bounds; 0 if the range is empty. */
 function meanRms(readings: PitchReading[], from: number, to: number): number {
 	const lo = Math.max(0, from);
@@ -2347,11 +2340,25 @@ function hasReadingInOpenInterval(readings: PitchReading[], from: number, to: nu
  * suppression in tiers 2 and 5 — dropping them at a call site restores phantoms.
  */
 export function findReArticulations(
-	readings: PitchReading[],
+	rawReadings: PitchReading[],
 	baseOnsets: number[],
 	bleedOnsets?: number[]
 ): number[] {
-	if (readings.length === 0) return [];
+	if (rawReadings.length === 0) return [];
+
+	// Fold 3rd-harmonic lock RUNS a twelfth down before anything reads MIDI
+	// here (`foldTwelfthUpLockRuns`, the live onset extractor's fold). The
+	// tiers scan contiguous same-MIDI runs, so a lock inside a held note
+	// chops it into fragments and a tongue whose dip straddles a lock edge
+	// is never seen whole: the 2026-10-24 Up to the Seventh D3 pair read A4
+	// on 46 of 63 frames (runs of 6, 18, 4 and 16), and its envelope floor
+	// fell 0.195 → 0.113 with tongue noise doubled across a run boundary —
+	// the segmenter's own sub-segment fold then reunited the pieces into
+	// ONE 1.22 s note, after the tiers had run. Only `midi`/`midiFloat`
+	// move; every energy, shape and timbre field the tiers measure is
+	// untouched, and an unflagged leap keeps its own runs. The corpus
+	// segments byte-identically with the fold in place.
+	const readings = foldTwelfthUpLockRuns(rawReadings);
 
 	const sortedBleed =
 		bleedOnsets && bleedOnsets.length > 0 ? [...bleedOnsets].sort((a, b) => a - b) : [];
@@ -3196,7 +3203,7 @@ function findReArticulationsInSegment(
 				// loud held Db read 0.947 and 0.928. The energy-sustain gate
 				// refused both, because the note was falling each time, so on a
 				// held or swelling note the schedule is the guard left — and
-				// ear-training's click grid is still off (CLAUDE.md, the OPEN
+				// ear-training's click grid is still off (AGENTS.md, the OPEN
 				// click-grid note).
 				if (
 					sortedBleed.some(

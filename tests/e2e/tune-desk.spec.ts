@@ -122,7 +122,7 @@ test('mobile controls fit, keep focus in the dialog and return it to Settings', 
 });
 
 test('playing locks style changes and stopping releases the chart cursor', async ({ page, browserName }) => {
-	test.skip(browserName === 'firefox' && process.platform === 'linux', 'Headless Linux Firefox audio cannot start');
+	test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI, 'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device');
 	await stubCdnInstrumentSamples(page);
 	await page.goto('/tunes/ls-when-the-saints');
 	await page.getByRole('switch', { name: 'Backing track' }).click();
@@ -150,7 +150,7 @@ test('editor style changes update its preview and survive saving the tune', asyn
 test('transposing a tune and editing a preview note stop the previous playback', async (
 	{ page, browserName }: Pick<PlaywrightTestArgs & PlaywrightWorkerOptions, 'page' | 'browserName'>
 ): Promise<void> => {
-	test.skip(browserName === 'firefox' && process.platform === 'linux', 'Headless Linux Firefox audio cannot start');
+	test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI, 'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device');
 	test.setTimeout(60_000);
 	await stubCdnInstrumentSamples(page);
 	await page.goto('/tunes/test-session-tune');

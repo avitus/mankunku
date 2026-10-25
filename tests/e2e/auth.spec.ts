@@ -101,6 +101,26 @@ test.describe('auth — anonymous', () => {
 			page.locator('main').getByRole('link', { name: 'Sign in', exact: true })
 		).toBeVisible();
 	});
+
+	test('the reset page names each failure it can tell apart, and never shows a signed-out form', async ({
+		page
+	}) => {
+		const problem = page.getByTestId('reset-password-problem');
+		const cases: Array<[string, string, RegExp]> = [
+			// Visited directly, with no session: point at the email.
+			['/auth/reset-password', 'signed-out', /password-reset email/],
+			['/auth/reset-password?link=other-browser', 'other-browser', /same browser/],
+			['/auth/reset-password?link=invalid', 'invalid', /newest email/],
+			// An unknown reason is no reason: the signed-out state, not a guess.
+			['/auth/reset-password?link=bogus', 'signed-out', /password-reset email/]
+		];
+		for (const [path, status, text] of cases) {
+			await page.goto(path);
+			await expect(problem, path).toHaveAttribute('data-status', status);
+			await expect(problem, path).toContainText(text);
+			await expect(page.getByLabel('New password', { exact: true }), path).toHaveCount(0);
+		}
+	});
 });
 
 /**
@@ -308,6 +328,18 @@ test.describe('password reset (authed)', () => {
 		await expect(signedInPage.getByTestId('reset-password-success')).toBeVisible();
 		await expect(signedInPage.getByRole('heading', { name: 'Password Updated' })).toBeVisible();
 		await expect(password).toHaveCount(0);
+	});
+
+	test('a failed link wins over a live session: no form, and the way back is Settings', async ({
+		signedInPage
+	}) => {
+		await signedInPage.goto('/auth/reset-password?link=expired');
+		const problem = signedInPage.getByTestId('reset-password-problem');
+		await expect(problem).toHaveAttribute('data-status', 'expired');
+		await expect(signedInPage.getByLabel('New password', { exact: true })).toHaveCount(0);
+		await expect(
+			signedInPage.locator('main').getByRole('link', { name: 'Request a new link from Settings' })
+		).toHaveAttribute('href', '/settings');
 	});
 });
 

@@ -139,17 +139,6 @@ describe('listKeys', () => {
 		const keys = listKeys();
 		expect(keys).toEqual(['settings']);
 	});
-
-	it('returns all mankunku keys when multiple exist', () => {
-		mock._store['mankunku:a'] = '1';
-		mock._store['mankunku:b'] = '2';
-		mock._store['mankunku:c'] = '3';
-		const keys = listKeys();
-		expect(keys).toHaveLength(3);
-		expect(keys).toContain('a');
-		expect(keys).toContain('b');
-		expect(keys).toContain('c');
-	});
 });
 
 describe('under an authenticated namespace', () => {

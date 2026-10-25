@@ -5866,3 +5866,99 @@ monitor whether it results in faster CI times."
   play still counts in silence — deliberate: no band, no drummer.
 - Fresh worktree needed `.env` and `npm ci` (the circleci coverage
   reporter package was missing from the stale node_modules).
+
+## 2026-10-23 — AGENTS.md is the agent guide
+
+- Local main wouldn't fast-forward: an untracked root `AGENTS.md` (a
+  2026-09 Claude→Codex find-and-replace copy of CLAUDE.md) collided with
+  the tracked Codex testing-rules file added in 672449e0. Moved aside to
+  `.codex/AGENTS.local-2026-09-13.md` (untracked), then fast-forwarded.
+- With both files at the root, Claude Code read only CLAUDE.md and Codex
+  only the short testing file. AGENTS.md (the cross-agent standard) now
+  holds the full guide plus the testing rules; CLAUDE.md is a single
+  `@AGENTS.md` import. Live doc links and three source comments
+  repointed; dated session logs and specs left as written.
+
+## 2026-10-23 — Up to the Seventh: a tongue hidden inside a third-harmonic lock
+
+- Andy flagged a take from /progress ("Missed articulation between first
+  two notes"): D3 · D3 · E3 · G3 on tenor at 100, the second D tongued on
+  beat 2, saved as ONE 1.22 s D3 — 3 of 4, 0.747.
+- Reproduced both ways (saved readings exact; WAV identical). The D's
+  third harmonic took the pick on 46 of 63 frames, all flagged
+  `twelfthUp`, in runs of 6 · 18 · 4 · 16. The tongue at 0.92 s had plain
+  evidence — floor 0.195 → 0.113, band floor 0.175 → 0.101, hfRms
+  doubled — but `findReArticulations` scans contiguous same-MIDI runs,
+  and the dip's edges sat in different runs. The segmenter's sub-segment
+  fold then reunited the fragments AFTER the tiers had run, which is why
+  the saved note was a clean D3 and gave no hint of the fragmentation.
+- Fix: `findReArticulations` folds lock runs on its stream first
+  (`foldTwelfthUpLockRuns`, the live extractor's fold). The envelope tier
+  then takes the dip (HF-corroborated) and anchors at the re-bloom,
+  0.997. Saved readings and WAV, both time bases: 4 of 4, 0.984 / 0.971.
+  Whole corpus unchanged (full suite green; the one red file was the
+  stale worktree's missing coverage-reporter package, fixed by `npm ci`).
+- Unit pin: a flagged lock before a true hole is one run and the gap
+  tier splits it; the same shape unflagged is a leap and splits nothing.
+- Docs: pipeline bullet, API row, CLAUDE.md paragraph ("a third place").
+
+## 2026-10-24 — Slow Climb to the Third: an E3 scored as E4
+
+- Andy flagged a take ("Second note was scored in octave above"): D3 · E3 ·
+  F#3 half notes on tenor at 100, saved as D3 · E4 · F#3 — 2 of 3, 0.775.
+  Reproduced exactly from the saved readings and from the WAV.
+- The E3's 330 Hz partial carried ~20× its fundamental; McLeod reported E4
+  on 52 of 63 confident frames. `isOctaveUpLock` reads only g's 3rd and
+  5th partials (≥ 0.12 of f + 2f); on this E3 they surged mid-note and
+  were nearly gone elsewhere, so 10 frames were flagged and the whole-note
+  60% vote never formed. The fundamental held on every frame (0.034–0.088).
+- Survey over every in-band frame of the 45 takes: a second acceptance in
+  the twelfth-up form — g + 3g + 5g ≥ 0.05 of f + 2f AND mean ≥ 4× the
+  half-series bins 1.5g … 4.5g. 51/52 lock frames here, 84/84 Sixth–Octave
+  Lift; 31/4498 genuine frames, never more than 26% of one note.
+- First run of the fix: the vote reached only 40/63 (0.635, barely over
+  0.6). Twelve frames were McLeod picking the E3 itself, doubled to E4 by
+  `correctSubharmonic` (stage 2 = the same 3rd/5th test, from below) — and
+  the flag skipped doubled frames. My survey had included them, which is
+  why it promised 0.81. Dropped the `frequency === rawFrequency` guard for
+  `octaveUp` only (rule 1 reads the very bins stage 2 found empty, so it
+  can never fire on a doubled frame); the stabilizer guard stays. 51/63.
+- Corpus diff before/after, 45 takes × trimmed/untrimmed × replay/live:
+  only this take's notes change. Full suite green, check clean.
+- Tests: unit predicate (weak-odd E3 flagged, own fundamental / genuine E4 /
+  faint trace / broadband not; doubled pick flagged, doubled subharmonic of
+  a real E4 not), each gate mutation-checked red; corpus block in
+  pitch-replay (saved evidence, saved path still shows the miss — old
+  flags, trim, flag fraction, 3 of 3, live time base).
+- Worktree housekeeping: fast-forwarded to origin/dev first (8 behind),
+  `npm ci` for the coverage-reporter package, copied `.env` for `check`.
+
+## 2026-10-24 — The focus drill climbs without stopping
+
+- Andy asked for the state diagrams to be checked against production and
+  for the bar between focus-ramp takes to go: the same key inserted below
+  as many times as the climb needs (51 → 56: the current take plus five),
+  a missed advance adding one more at the bottom.
+- Audit: the mermaid matched `deb3c1f6`; the stale parts were prose from
+  before Studio Desk (sheet rows 1.6× the 128 px chord row, cue lane above
+  every chart, one engraving for all modes, Deep sheets from the outset),
+  a missing handoff phase in two docs, and four sequence diagrams whose
+  ';' (a mermaid statement break) kept them from rendering.
+- Decisions (Andy): a sub-75% take still steps down and adds the climb
+  back; the once-more handoff stays; a take whose sheet comes or goes
+  keeps its one bar; every focus row carries its BPM.
+- Built as display-only projected rows over the unchanged one-take
+  cycles: `projectFocusTempos` shares `focusStepUpTempo` with
+  `resolveRampCycle`; `prepareBars` 0 for a focus take unless its sheet
+  decision flips; a same-key focus take scrolls in; `PlannedKey.cycle`
+  keeps the finished take's score on its own row (the key-only rule
+  would have handed it to the next take of the same key).
+- A fresh-context review found no bug. Its timing risk — four sheets
+  engraved on a playing downbeat — measured 58 ms worst frame in the
+  2-CPU sandbox (baseline p95 18 ms), under the 93 ms analyser window;
+  projected sheet rows below the viewport are not engraved. Its other
+  catch (projected rows missing until the audio loaded) is fixed.
+- Validation: e2e cannot run on the sidecar any more (the isolation guard
+  wants /.dockerenv or CIRCLECI) — `npm run test:e2e` on the local
+  Colima sandbox instead; vitest and check on the sidecar. Each new test
+  mutation-checked red. Rebased onto origin/dev (9 behind) before the PR.

@@ -5,7 +5,7 @@
  * silently) reported "service-role connection could not be reached" because
  * admin.ts read PUBLIC_SUPABASE_URL from the RUNTIME env — but production's
  * runtime.env provisions only the secrets, and the URL is a build-time
- * variable everywhere else (client.ts and server.ts import it from
+ * variable everywhere else (hooks.server.ts and +layout.ts import it from
  * $env/static/public). The factory must need exactly one runtime value: the
  * service-role key.
  */

@@ -337,8 +337,14 @@ export async function decodeToWav(blob: Blob): Promise<ArrayBuffer> {
 	}
 }
 
-/** Hand the browser a file to save. */
-export function triggerDownload(blob: Blob, filename: string): void {
+/**
+ * Hand the browser a file to save. Resolves once the click has had a task to
+ * itself: WebKit starts a download asynchronously, and a second anchor click
+ * (or a revoke) in the same task cancelled the first, so Safari's Flag
+ * Scoring Error delivered one file of its pair. The URL is revoked later for
+ * the same reason.
+ */
+export async function triggerDownload(blob: Blob, filename: string): Promise<void> {
 	const url = URL.createObjectURL(blob);
 	const a = document.createElement('a');
 	a.href = url;
@@ -346,5 +352,6 @@ export function triggerDownload(blob: Blob, filename: string): void {
 	document.body.appendChild(a);
 	a.click();
 	document.body.removeChild(a);
-	URL.revokeObjectURL(url);
+	setTimeout(() => URL.revokeObjectURL(url), 60_000);
+	await new Promise((resolve) => setTimeout(resolve, 250));
 }
