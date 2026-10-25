@@ -13,6 +13,7 @@
 
 import type { Phrase, HarmonicSegment, Note } from '$lib/types/music';
 import type { PlaybackOptions } from '$lib/types/audio';
+import type { GeneratedBacking } from './backing-generation';
 import type { BackingInstrument, BackingStyle } from '$lib/types/instruments';
 import { fractionToFloat } from '$lib/music/intervals';
 import { initAudio, getMasterGain, getAudioContext } from './audio-context';
@@ -1038,7 +1039,7 @@ export async function scheduleBackingTrack(
 	isStillCurrent: () => boolean = () => true,
 	/** Audio time of an already-dispatched downbeat; non-looping continuations only. */
 	boundaryTime?: number
-): Promise<void> {
+): Promise<GeneratedBacking | undefined> {
 	if (!isBackingLoaded()) return;
 
 	const Tone = await getTone();
@@ -1073,7 +1074,7 @@ export async function scheduleBackingTrack(
 	// Cached: lick-practice loops and per-key restarts reschedule the same
 	// (phrase, tempo, style) many times — the LRU returns the identical
 	// events without re-running the planners.
-	const { bassEvents, compEvents, drumEvents } = generateBackingCached(harmony, style, {
+	const generated = generateBackingCached(harmony, style, {
 		phraseId: phrase.id,
 		tempo: options.tempo,
 		ppq,
@@ -1088,6 +1089,8 @@ export async function scheduleBackingTrack(
 	});
 
 	const harmonyDurationBeats = getHarmonyDurationBeats(harmony);
+	const { bassEvents, compEvents, drumEvents } = generated;
+
 	const harmonyTicks = Math.ceil(harmonyDurationBeats / beatsPerBar) * beatsPerBar * ppq;
 
 	// ── Capture diagnostics log ─────────────────────────────
@@ -1189,6 +1192,7 @@ export async function scheduleBackingTrack(
 		drumPart.loopStart = 0;
 		drumPart.loopEnd = `${harmonyTicks}i`;
 	}
+	return generated;
 }
 
 // ── Exported API ─────────────────────────────────────────────

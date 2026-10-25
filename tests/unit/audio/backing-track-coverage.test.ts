@@ -319,11 +319,15 @@ describe('coordinated backing schedule evidence', () => {
 	it('publishes exactly the coordinated dense events as pitched and transient evidence, including loop offsets', async () => {
 		const mod = await import('$lib/audio/backing-track');
 		await mod.loadBackingInstruments('piano');
-		await mod.scheduleBackingTrack(phrase, {
+		const scheduled = await mod.scheduleBackingTrack(phrase, {
 			...OPTIONS, backingOrchestration: 'coordinated', backingSoloFeatures: features
 		}, tickOffset, true);
 		const generated = generateBacking(phrase.harmony, style, { ...params, ensemble: { soloFeatures: features } });
+		expect(scheduled).toEqual(generated);
 		const parts = recorded.filter((part) => part.kind === 'part');
+		expect(parts[0].events).toEqual(scheduled!.bassEvents);
+		expect(parts[1].events).toEqual(scheduled!.compEvents);
+		expect(parts[2].events).toEqual(scheduled!.drumEvents);
 		expect(parts.map((part) => part.events)).toEqual([
 			generated.bassEvents, generated.compEvents, generated.drumEvents
 		]);

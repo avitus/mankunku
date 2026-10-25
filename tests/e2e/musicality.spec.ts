@@ -5,6 +5,7 @@ test.beforeEach(async ({ page }) => { await seedOnboardedAnonymous(page); });
 
 test('finds audited devices and keeps implementation separate from listening acceptance', async ({ page }) => {
 	await page.goto('/musicality');
+	await page.getByRole('button', { name: 'Specification', exact: true }).click();
 	await expect(page.getByRole('heading', { name: 'Musicality', exact: true })).toBeVisible();
 	await expect(page.getByRole('status')).toHaveText('252 of 252 entries');
 	await expect(page.getByTestId('musicality-build')).not.toBeEmpty();
@@ -36,13 +37,15 @@ test('deep links open the original requirement and the docs directory discovers 
 	await page.goto('/docs');
 	await page.locator('.docs-directory').getByRole('link', { name: /Rhythm Section Musicality/ }).click();
 	await expect(page).toHaveURL(/\/musicality$/);
-	await page.getByRole('link', { name: /Read the original specification/ }).click();
+	await page.getByRole('button', { name: 'Specification', exact: true }).click();
+	await page.locator('#original-spec summary').click();
 	await expect(page.locator('#original-spec')).toHaveAttribute('open', '');
 	await expect(page.locator('#original-spec')).toContainText('The performance sounds like three musicians listening to each other.');
 });
 
 test('native same-document hash changes reveal filtered requirements and the complete source', async ({ page }) => {
 	await page.goto('/musicality');
+	await page.getByRole('button', { name: 'Specification', exact: true }).click();
 	await page.getByLabel('Search the specification').fill('P3');
 	await page.getByRole('combobox', { name: 'Instrument', exact: true }).selectOption('piano');
 	await expect(page.locator('#D15')).toHaveCount(0);
