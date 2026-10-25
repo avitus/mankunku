@@ -1,6 +1,6 @@
 # Daily, standalone Deep and recommended Deep Practice: state machines
 
-Code audit: 2026-10-07. Daily and both Deep entry paths share notation layout and current-action cues. Deep keeps preparation for score-dependent changes while removing sheet-only pauses. This document concerns lick practice, not tune practice or trick drills. Focused progression sessions retain their existing presentation and sheet preparation.
+Code audit: 2026-10-24, against production `deb3c1f6`. Daily and both Deep entry paths share notation layout and current-action cues. Deep keeps preparation for score-dependent changes while removing sheet-only pauses; since 2026-10-24 the recommended drill's focus takes join on the downbeat too, with the takes still to come drawn on the stack (§4). This document concerns lick practice, not tune practice or trick drills. Focused progression sessions retain their existing presentation and sheet preparation.
 
 ## Deep transition audit: predictable next action
 
@@ -12,12 +12,13 @@ The earlier diagrams exposed the reported bug: notation was reevaluated at a cyc
 | --- | --- | --- |
 | Sheet graduation, including later rows and returning keys | Support disappears on a playing downbeat | Chord-only chart appears before recording opens, with at least one preparation bar and a plain Play countdown |
 | Earned handoff, including later admissions | Lower chart suggests advance, while current key repeats | One preparation bar saying “once more”; Play · once more during the repeat; promised chart visible underneath |
-| Focus retry, tempo step up/down, rebuild survivors, full rotation refill | Outcome depends on the just-finished score; no time to react | Keep Play through the final take; resolve result, activate its chart, announce the change and prepare for one bar |
+| Rebuild survivors, full rotation refill | Outcome depends on the just-finished score; no time to react | Keep Play through the final take; resolve result, activate its chart, announce the change and prepare for one bar |
+| Focus retry, tempo step up/down (2026-10-24) | A bar and an in-place redraw between every take broke the climb | The takes still to come are on the stack from the start, one row per tempo; the next take joins on the downbeat and its row scrolls up. Only the sheet coming or going keeps its bar |
 | Deep: three sheet passes with a different key below | Lower chart is not yet the immediate next action | Play · 1/3, 2/3, 3/3 marks the current pass; no next-key names or intervening countdowns |
 | Promised key after handoff | Already announced for an entire loop | Scroll the finished row out and the existing preview to the top; enter directly without a reading pause |
 | Ordinary Deep reorder/refill | Existing turnaround gives time, but does not explain a repeat or graduation | Reuse that bar with the resolved chart and a plain Play countdown |
 | Deep call and response | Per-key call already gives reaction time | Retain calls and turnaround; plain Listen, final-bar key-free Play countdown, steady Play through the full response |
-| Daily key/lick transitions | Upcoming sheets used to appear only at entry, requiring a reading pause | Show notation from the start in equal-height rows; continuous Play between keys, including all three sheet passes; retain two-bar inter-lick rest |
+| Daily key/lick transitions | Upcoming sheets used to appear only at entry, requiring a reading pause | Show notation from the start; continuous Play between keys, including all three sheet passes; retain two-bar inter-lick rest |
 
 Deep preparation uses the same pause plan as backing, microphone windows and visual cues. It never adds scored attempts. A visible sheet alone adds no preparation bars. A later key that graduates from its sheet gets its own one-bar preparation, even if it sat out a round before returning. The active chart identifies the key in the player's written pitch. Score-dependent future keys are not guessed before the result is known.
 
@@ -114,9 +115,9 @@ stateDiagram-v2
 | Score hold | First rest bar, no scored recording | Finished lick's feedback/breather | Advance bookkeeping |
 | Next-lick lead | Second rest bar, enabled ii–V cue into next key | Next chart shown before demo/call | Next lick downbeat |
 
-Daily's sheet rows are visible as notation from the first render, including upcoming rows. They use the same 128 px height as chord-only rows. The CHANGES word is removed while its space remains. The active cue says only Listen, Play, or Rest (plus the sheet-pass number). Only the final bar of a demo/call has a Play countdown, with no key name. Continuous key changes and all three sheet passes join without Read, preparation, or an entrance countdown. The initial audio count-in and two-bar gap between licks remain.
+Daily's sheet rows are visible as notation from the first render, including upcoming rows. A sheet row is 1.6× a 128 px chord row (204.8 px) in every mode, and the viewport always reserves one sheet row plus two chord rows, so it never resizes between cycles. The CHANGES word is removed; the cue sits in a 28 px lane above every chart. The active cue says only Listen, Play, or Rest (plus the sheet-pass number). Only the final bar of a demo/call has a Play countdown, with no key name. Continuous key changes and all three sheet passes join without Read, preparation, or an entrance countdown. The initial audio count-in and two-bar gap between licks remain.
 
-Sheet sizing uses the painted noteheads as well as chord symbols: the compact engraving trims unused vertical canvas while reserving ledger lines and the playback marker. At chart widths of at least 900 px, the cue has a 128 px column alongside the music so the staff can use the full row height; narrower charts keep the cue above it. These layout rules do not add phases or change transition timing.
+Every mode engraves a sheet the same way: the compact engraving fits abcjs's canvas to the painted noteheads and chord symbols, keeping room for ledger lines and the playback marker, inside a 140.8 px staff box below the cue lane. These layout rules do not add phases or change transition timing.
 
 ```mermaid
 sequenceDiagram
@@ -171,6 +172,33 @@ Starting a recommendation retains the Daily report and its resolved plan for the
 
 Opening: validate that the focus key is unlocked; start that key alone at saved tempo minus 10% (rounded to the nearest BPM, at least a 1 BPM reduction unless already at the minimum50). Queue the other unlocked keys worst first by rolling score, with never-practiced keys first. Keep the complete unlocked set as the stable progress ring. Continuous mode plays one opening demo; later misses and tempo changes do not request another demo.
 
+### Focus takes: no bar, the climb drawn ahead
+
+Andy, 2026-10-24: the bar between focus takes, and the redraw of the same row behind it, broke the climb. Each focus take is still its own one-key cycle, scored and resolved at its boundary by the same staircase, but in continuous mode:
+
+- **The stack shows the climb.** Under the current take sit the takes still to come if every one clears: one row per step up to and including the target (`projectFocusTempos`, the same step-up `resolveRampCycle` plays). Every focus-key row is tagged with its BPM while the header reads *Focus*. Starting at 51 for a saved 56, that is six rows: 51 · 52 · 53 · 54 · 55 · 56. About three fit on screen.
+- **No bar between takes.** The next take starts on the next downbeat at its new tempo, and Play holds through the boundary. The finished take scrolls up and out with its score, like a key change; its score stays on its own row, even though the row arriving under it has the same key.
+- **Each result re-projects the rows.** At least 95% moves up one row and the list loses one. 75–95% or no score holds: a row at the same tempo appears under the finished take and the rows below keep their tempos. Under 75% steps down (53 → 51) and adds rows for the climb back.
+- **The sheet is the exception.** A take whose sheet comes on (rescue) or goes away (a gold take) keeps its one preparation bar with a plain Play countdown. Projected rows copy the current take's look, so a row only changes between sheet and chords behind that bar.
+- **Unchanged:** the target clear's once-more handoff (its bar, its repeat, the next key underneath), rebuild, full rotation, call and response, ordinary Deep, Daily and Focused. Projected rows are display only, like the handoff preview: no audio, no recording window, no persistence. A late boundary callback still falls back to a one-bar turnaround.
+
+```mermaid
+sequenceDiagram
+    participant P as Player
+    participant U as Stack
+    participant E as Engine
+    U->>P: 51 current, with 52, 53, 54, 55, 56 below
+    P->>E: Take at 51 scores 97%
+    E->>U: 51 scrolls out with its score, 52 is current
+    E->>P: Take at 52 on the next downbeat, no bar
+    P->>E: Take at 52 scores 88%
+    E->>U: 52 scrolls out, a new 52 row is current, 53 to 56 below it
+    P->>E: Take at 52 scores 60%
+    E->>U: Step down to 50, rows 50 to 56
+    E->>P: Take at 50 on the next downbeat
+    Note over P,U: A take whose sheet comes or goes gets one bar first
+```
+
 ### Baseline failure, before this change
 
 ```mermaid
@@ -206,6 +234,7 @@ stateDiagram-v2
     OpeningDemo --> Focus
     state Focus {
         [*] --> Solo
+        Solo: One take per row, joined on the downbeat<br/>Takes to come drawn below, each with its BPM<br/>One bar only when the sheet comes or goes
         Solo --> Solo: Score below 75% / lower BPM by 3 times bump percentage
         Solo --> Solo: Score 75% to below 95% or missing / hold BPM
         Solo --> Solo: Score at least 95% below target / bump capped at target
@@ -234,15 +263,17 @@ stateDiagram-v2
 
 | Boundary | Next audio rotation | Tempo | Advance visibility |
 | --- | --- | --- | --- |
-| Focus below75% | Same focus | Subtract ceil(BPM × 3 × bump%); minimum50 | Plain Play countdown on the resolved chart |
-| Focus 75%–<95%, or missing score | Same focus | Hold | Plain Play countdown on the same chart |
-| Focus ≥95%, performed below target | Same focus | Add ceil(BPM × bump%), at least1; cap at target | Plain Play countdown on the resolved chart |
+| Focus below75% | Same focus | Subtract ceil(BPM × 3 × bump%); minimum50 | Next row scrolls up on the downbeat at the lower tempo; rows added for the climb back |
+| Focus 75%–<95%, or missing score | Same focus | Hold | Next row scrolls up on the downbeat; one row added at the held tempo |
+| Focus ≥95%, performed below target | Same focus | Add ceil(BPM × bump%), at least1; cap at target | The row already tagged with that tempo scrolls up on the downbeat; one row fewer |
 | Focus ≥95%, performed at target | Repeat focus once; reserve queue head | Hold target | One preparation bar names repeat; reserved key appears underneath for the whole loop |
 | Handoff loop ends, any score or missing score | Reserved key **first**, then previously admitted keys worst first | Hold | The promised chart becomes active on the audible downbeat and scrolls to the top as the completed row and its score leave the viewport |
 | Rebuild has survivors | Survivors worst first | Hold target | Resolved head chart plus plain Play countdown |
 | Rebuild clears | Repeat last-played key once; reserve queue head | Hold target | Preparation announces repeat; reserved chart below it |
 | All keys admitted, survivors | Survivors worst first | Hold | Resolved head chart plus plain Play countdown |
 | All keys admitted, full clear | Full currently unlocked circle worst first | Bump, maximum300 | Resolved head chart plus plain Play countdown |
+
+In the three focus rows, a take whose sheet comes or goes instead gets one preparation bar with a plain Play countdown before its row plays.
 
 Example with target83 and default1% bump:
 
@@ -252,18 +283,17 @@ sequenceDiagram
     participant U as Chart
     participant E as Engine
     P->>E: Pass focus at 82
-    E->>U: Chord-only chart and PLAY entrance countdown
-    Note over P,U: One unscored preparation bar
-    E->>P: Play focus at 83
+    E->>U: Row tagged 83, already below, scrolls up while Play holds
+    E->>P: Play focus at 83 on the next downbeat
     P->>E: Pass focus at 83
     E->>U: Focus remains active, next key visible below
-    E->>U: Play once more; promised chart already visible
+    E->>U: Play once more, promised chart already visible
     Note over P,U: One preparation bar before the repeat
     E->>P: One more focus loop at 83
     Note over P,U: Full lick-length preview, including sheet when eligible
     P->>E: Finish repeat, even with a mistake
     E->>E: Persist actual result, honor reserved admission
-    E->>U: Activate previewed row on audible downbeat; scroll prior row and score out
+    E->>U: Activate previewed row on audible downbeat, scroll prior row and score out
     E->>P: Continue with previewed key at 83
 ```
 
@@ -274,13 +304,14 @@ If that newly admitted key needs notation, its preview shows the sheet immediate
 ```mermaid
 stateDiagram-v2
     [*] --> CurrentAtTop
-    CurrentAtTop --> CurrentAtTop: Sheet passes or same-key retry / no scroll
+    CurrentAtTop --> CurrentAtTop: Sheet passes, or a same-key retry outside the focus phase / no scroll
     CurrentAtTop --> ScrollNext: Different key enters on audible boundary
+    CurrentAtTop --> ScrollNext: Focus take enters / the next row of the same key
     ScrollNext: Outgoing row and score leave upward<br/>Previewed or resolved next chart moves to top
     ScrollNext --> CurrentAtTop: 420 ms transition ends / hold still
 ```
 
-This presentation transition does not change the key order, recording windows, preparation bars, or notation graduation. Reduced-motion preferences make the same row change immediate.
+This presentation transition does not change the key order, recording windows, preparation bars, or notation graduation. Reduced-motion preferences make the same row change immediate. Every row carries the round it belongs to (`PlannedKey.cycle`) and a score flash carries its window's, so a finished focus take's score rides its own row out, never the next take of its key; a same-key retry that stays still shows the score on its one row. A projected sheet row lying wholly below the viewport is not engraved: it is never seen before the next boundary rebuilds the stack.
 
 ## 5. Notation decision and learning substates
 
@@ -301,12 +332,12 @@ flowchart TD
     Reveal --> Freeze[Freeze decision for whole cycle]
     Memory --> Freeze
     Freeze --> Prep{Revealed key in continuous mode?}
-    Prep -->|No| Entrance{Head of score-dependent Deep cycle, or later sheet graduation?}
+    Prep -->|No| Entrance{Head of score-dependent Deep cycle other than a focus take, a focus take just off its sheet, or later sheet graduation?}
     Entrance -->|Yes| Ready[One preparation bar, resolved chart and Play countdown]
     Ready --> OnePass[One play window, C and R includes a call]
     Entrance -->|No| OnePass
     Prep -->|Yes| Shared{Daily or Deep session?}
-    Shared -->|Yes| Result{Deep result requires preparation?}
+    Shared -->|Yes| Result{Deep result requires preparation? Focus take: only when the sheet comes on}
     Result -->|Yes| ResultBar[One result-preparation bar]
     ResultBar --> Three[Three consecutive play windows]
     Result -->|No| Three
@@ -325,11 +356,12 @@ Important boundaries:
 
 - 50% exactly does not trigger the first-attempt rescue; 70% exactly does not trigger the two-attempt rescue. These use final recorded attempts, not rehearsal scores or EWMA.
 - Every final attempt below gold (95%) counts toward sheet support for that key. After three consecutive below-gold turns, notation appears on the next cycle, including for repeated 75–80% scores or near-gold scores. It then stays until a gold result; improving below gold cannot reset this count. Earlier low-score rescue still applies.
+- A focus-ramp take (continuous mode) stops for its one bar only when its sheet decision differs from the take before it: the sheet coming on after a rescue, or going away after a gold take. Every other focus take, on the sheet or not, joins on the downbeat.
 - Rescue applies to any unlocked Deep key, including older keys and fully unlocked licks. Daily uses the legacy newest-key rule only.
 - A final score of at least 95% graduates that key to chord-only playing on its next appearance, even when older low scores still depress its EWMA. This session-local success also resets the rescue history: only attempts after the latest success may restore notation. Without a success, the existing rolling thresholds may provide support sooner, and the three-attempt limit still applies. Decisions remain frozen through the entire three-pass turn. A sheet graduation retains its preparation time, with only Play and the countdown. A slight memory mistake does not automatically start another Listen phase in a recommended drill.
-- Daily and both Deep paths show upcoming notation immediately, including an eligible handoff preview, in equal-height 128 px rows. Sheet eligibility is frozen with the stack, so charts do not turn into sheets at their downbeat. Upcoming rows remain dimmed until active.
-- Focused retains its chord placeholder, later sheet reveal, taller sheet rows and two-bar reading pause.
-- A row remains current through any result preparation and every pass. In both Deep paths the active row holds at the top. At each key change, including handoffs and ordinary reorders/refills, the outgoing row and its feedback scroll out over the existing 420 ms transition. A cycle rebuild carries only that outgoing row for the animation, not a permanent history slot. Same-key retries stay at the top without a scroll. Scores attach only to the latest current/completed occurrence, never a future duplicate. The outgoing row is display-only and adds no recording window. Daily and Focused keep their existing previous-row layout. The same compact engraving and cue clearance apply to Daily and Deep.
+- Daily and both Deep paths show upcoming notation immediately, including an eligible handoff preview. Sheet rows are 1.6× chord rows in every mode. Sheet eligibility is frozen with the stack, so charts do not turn into sheets at their downbeat. Upcoming rows remain dimmed until active.
+- Focused retains its chord placeholder, later sheet reveal and two-bar reading pause.
+- A row remains current through any result preparation and every pass. In both Deep paths the active row holds at the top. At each key change, including handoffs and ordinary reorders/refills, the outgoing row and its feedback scroll out over the existing 420 ms transition. A cycle rebuild carries only that outgoing row for the animation, not a permanent history slot. Same-key retries stay at the top without a scroll. Scores attach only to the latest current/completed occurrence, never a future duplicate. The outgoing row is display-only and adds no recording window. Daily and Focused keep their existing previous-row layout. The same compact engraving and cue lane apply in every mode.
 
 ## 6. Musical cues, boundaries, and clocks
 
@@ -338,8 +370,8 @@ stateDiagram-v2
     [*] --> CountIn
     CountIn --> Listen: Demo or call starts
     Listen --> Play: User window opens
-    Play --> Play: Announced adjacent key, rehearsal, or promised handoff exit
-    Play --> Prepare: Score-dependent Deep result, retry, tempo step, or handoff entry
+    Play --> Play: Announced adjacent key, rehearsal, focus take, or promised handoff exit
+    Play --> Prepare: Score-dependent Deep result outside the focus phase, a focus take's sheet change, or handoff entry
     Play --> Prepare: Focused key has notation preparation
     Prepare --> Play: One Deep result bar or two Focused sheet bars finish
     Play --> Listen: Next C and R call, or ordinary Deep requests demo
@@ -359,7 +391,7 @@ The phase timeline is derived from the very same window plan as recording. Conse
 | --- | --- | --- |
 | Daily continuous | One count-in bar, then one demo per lick | Two rest bars: score hold then next-lick lead |
 | Daily call and response | One count-in bar, then per-key call | Same Daily rest, then next call |
-| Recommended Deep continuous | One count-in bar and one opening demo | One embedded preparation bar for score-dependent outcomes, including post-ramp; no extra sheet bars. Promised handoff exits join directly, including sheets |
+| Recommended Deep continuous | One count-in bar and one opening demo | Focus takes join directly, with a bar only when the sheet comes or goes. One embedded preparation bar for the other score-dependent outcomes, including post-ramp; no extra sheet bars. Promised handoff exits join directly, including sheets |
 | Ordinary Deep continuous | One count-in bar and opening demo | One turnaround bar; on non-clear cycles a head key below90%/unpracticed may get a demo |
 | Deep call and response | One count-in bar; call before each response | Existing one-bar turnaround; calls remain intentional |
 | Actually late focused callback | Opening unchanged | Recover at a future safe bar; cannot schedule audio into the past |
@@ -378,9 +410,9 @@ sequenceDiagram
     R->>V: Audible tick still before boundary
     V-->>R: Keep prior display, including final beat
     R->>V: Audible tick reaches boundary
-    V->>R: Scroll completed row out and new head to top; score stays on completed occurrence
+    V->>R: Scroll completed row out and new head to top, score stays on completed occurrence
     V-->>R: Activate next display atomically
-    Note over A,R: Preparation vamp belongs to new cycle; recording opens after it
+    Note over A,R: Preparation vamp belongs to new cycle, recording opens after it
 ```
 
 ## 7. Persistence and terminal behavior
@@ -396,6 +428,7 @@ sequenceDiagram
 | Focus/rebuild/handoff strategy | Not applicable | Session-local; reset on restart/exit |
 | Up-to-speed milestone | Not applicable | New behavior: actual target-tempo clear, not prospective bump |
 | Rebuilt milestone | Not applicable | Round that actually admits final queued key |
+| Projected focus takes and their tempo tags | Not applicable | Display only; never scheduled, scored or persisted |
 
 Scoring/recording persistence failures are caught so one failed save cannot freeze the session's cycle boundary. A missing scored result is not a pass; it does not advance a focus staircase. The committed handoff is the deliberate exception: a missing or low final-repeat score does not cancel the already announced next key.
 
@@ -411,5 +444,6 @@ Scoring/recording persistence failures are caught so one failed save cannot free
 | Score thresholds, unlock and tempo persistence | `src/lib/persistence/lick-practice-store.ts` |
 | Transport, mic windows, cycle boundary, display and report | `src/routes/lick-practice/session/+page.svelte` |
 | Chart stack, notation visibility, compact cue and geometry | `src/lib/components/lick-practice/UpcomingKeysDisplay.svelte` |
+| Stack scroll math, outgoing-row rule | `src/lib/ui/key-stack-layout.ts` |
 
-Regression obligations: 82→83 alone before actual target clear; full-loop preview after clear, with eligible sheet visible; low/missing final-repeat score cannot revoke the promised key or change tempo; promised key starts first despite rolling-score reordering; later admissions receive the same preview; single-key licks need no preview; preview creates no audio/recording window; one preparation bar before a continuous handoff, no new demo; successful sheet turn graduates despite older scores; graduation gets a preparation bar; completed Deep row scrolls out, the next key settles at the top, same-key retries stay still, and scores never attach to a future duplicate; three sheet passes numbered; resolved retry/reorder/refill/tempo change gets preparation; promised admission adds no redundant gap; old chart survives lookahead through its final audible beat; End Session cancels staged display; Daily and both Deep paths show upcoming notation immediately in equal-height rows with readable notes and chord symbols; Listen has no count, demo/call final-bar Play counts have no key names; regular sheet entrances and passes have no Read segment or pause; Deep retains result preparation, rescue thresholds and saved-tempo behavior; Focused retains its existing sheet preparation.
+Regression obligations: 82→83 alone before actual target clear; full-loop preview after clear, with eligible sheet visible; low/missing final-repeat score cannot revoke the promised key or change tempo; promised key starts first despite rolling-score reordering; later admissions receive the same preview; single-key licks need no preview; preview creates no audio/recording window; one preparation bar before a continuous handoff, no new demo; successful sheet turn graduates despite older scores; graduation gets a preparation bar; completed Deep row scrolls out, the next key settles at the top, same-key retries stay still, and scores never attach to a future duplicate; three sheet passes numbered; resolved rebuild retry/reorder/refill gets preparation; a focus take joins on the downbeat with a bar only when its sheet comes or goes; the stack lists one tagged row per take still needed, re-projected after a hold (one row added) or step down (the climb back), never scheduled; a finished focus take's score stays on its own row as the next take of its key scrolls up; promised admission adds no redundant gap; old chart survives lookahead through its final audible beat; End Session cancels staged display; Daily and both Deep paths show upcoming notation immediately with readable notes and chord symbols; Listen has no count, demo/call final-bar Play counts have no key names; regular sheet entrances and passes have no Read segment or pause; Deep retains result preparation, rescue thresholds and saved-tempo behavior; Focused retains its existing sheet preparation.
