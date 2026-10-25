@@ -289,10 +289,10 @@ describe('coordinated swing generation', () => {
 		);
 	});
 
-	it('keeps the existing non-swing vocabulary untouched', () => {
+	it('keeps unsupported meters on the original vocabulary', () => {
 		for (const style of [BACKING_STYLES['bossa-nova'], BACKING_STYLES.ballad, BACKING_STYLES.straight]) {
-			expect(generateBacking(preset.phrase.harmony, style, { ...base, ensemble: {} }))
-				.toEqual(generateBacking(preset.phrase.harmony, style, base));
+			expect(generateBacking(preset.phrase.harmony, style, { ...base, beatsPerBar: 3, swing: style.defaultSwing, ensemble: {} }))
+				.toEqual(generateBacking(preset.phrase.harmony, style, { ...base, beatsPerBar: 3, swing: style.defaultSwing }));
 		}
 	});
 });

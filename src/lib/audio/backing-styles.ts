@@ -55,7 +55,7 @@ export type DrumVoice =
  * undefined and patterns fall back to position-free choices.
  */
 export interface GenerationContext {
-	/** Shared role assignment, present only for coordinated swing. */
+	/** Shared role assignment, present only for coordinated 4/4. */
 	ensemble?: import('./ensemble-plan').EnsembleBarPlan;
 	/** Whole coordinated drummer bar, already admitted against roles and kit limbs. */
 	plannedDrums?: import('./backing-drum-phrases').DrumPhraseBarPlan;
@@ -127,6 +127,8 @@ export interface DrumHitSpec {
 
 export interface StyleDefinition {
 	name: string;
+	/** Opt-in to shared 4/4 coordination with this built-in vocabulary. */
+	coordinatedStyle?: BackingStyle;
 	/**
 	 * The style's own eighth-note ratio. For a 'fixed' style this IS the
 	 * grid — for both the band and the soloist — regardless of the user's
@@ -269,6 +271,7 @@ function coordinatedSwingBar(ctx: GenerationContext): DrumHitSpec[] {
 
 const swing: StyleDefinition = {
 	name: 'Swing',
+	coordinatedStyle: 'swing',
 	defaultSwing: 0.67,
 	swingModel: 'tempo',
 	timing: SWING_TIMING,
@@ -338,6 +341,7 @@ function bossaClaveSide(barIndex: number, phase: '32' | '23'): 'three' | 'two' {
 
 const bossaNova: StyleDefinition = {
 	name: 'Bossa Nova',
+	coordinatedStyle: 'bossa-nova',
 	defaultSwing: 0.5,
 	swingModel: 'fixed',
 	timing: BOSSA_TIMING,
@@ -403,7 +407,7 @@ const bossaNova: StyleDefinition = {
 						{ b: 2.5, d: 1.1 }
 					];
 		const hits: CompHitSpec[] = [];
-		for (const { b, d } of figure) {
+		for (const { b, d } of (ctx.ensemble ? figure.slice(0, ctx.ensemble.piano.maxAttacks) : figure)) {
 			// Breathe: occasionally thin a non-anchor hit.
 			if (b !== figure[0].b && rng.chance(0.12)) continue;
 			hits.push({
@@ -421,6 +425,7 @@ const bossaNova: StyleDefinition = {
 
 const ballad: StyleDefinition = {
 	name: 'Ballad',
+	coordinatedStyle: 'ballad',
 	defaultSwing: 0.55,
 	swingModel: 'fixed',
 	timing: BALLAD_TIMING,
@@ -488,12 +493,13 @@ const ballad: StyleDefinition = {
 		const anchor = ctx.barIndex === 0 || ctx.isSectionFirstBar;
 		const figure = rng.weighted<Figure>([
 			{ value: 'pad-whole', weight: 3 },
-			{ value: 'pads-halves', weight: 2 },
+			{ value: 'pads-halves', weight: ctx.ensemble && ctx.ensemble.piano.maxAttacks < 2 ? 0 : 2 },
 			{ value: 'late-pad', weight: anchor ? 0 : 1 },
 			{ value: 'rest', weight: anchor ? 0 : 1.2 }
 		]);
 		const vel = (): number => rng.int(42, 54) + Math.round(lerp(-2, 4, ctx.intensity));
 		const hits: CompHitSpec[] = [];
+		if (ctx.ensemble?.piano.maxAttacks === 0) return [];
 		if (figure === 'pad-whole') {
 			hits.push({ beatOffset: 0, velocity: vel(), durationBeats: 3.6 });
 		} else if (figure === 'pads-halves') {
@@ -507,7 +513,7 @@ const ballad: StyleDefinition = {
 		// anchor pad re-attacks it on the downbeat — so the lean must
 		// release before the barline (a tied push would flam against that
 		// re-attack at ballad tempi).
-		if (ctx.isSectionFinalBar && !ctx.isFinalBar && rng.chance(0.35)) {
+		if (ctx.isSectionFinalBar && !ctx.isFinalBar && (!ctx.ensemble || hits.length < ctx.ensemble.piano.maxAttacks) && rng.chance(0.35)) {
 			hits.push({ beatOffset: 3.5, velocity: vel() - 4, durationBeats: 0.45 });
 		}
 		return hits;
@@ -519,6 +525,7 @@ const ballad: StyleDefinition = {
 
 const straight: StyleDefinition = {
 	name: 'Straight',
+	coordinatedStyle: 'straight',
 	defaultSwing: 0.5,
 	swingModel: 'fixed',
 	timing: STRAIGHT_TIMING,

@@ -263,3 +263,24 @@ for (const loopCount of [1, 3]) test(`rolling adaptive playback (${loopCount} lo
 	}
 	console.log(`${browserName} rolling live RMS (${loopCount} loops): ${signal.map((rms) => rms.toFixed(4)).join(', ')}`);
 });
+
+for (const style of ['bossa-nova', 'ballad', 'straight']) {
+	test(`${style} adapts across loops with native events and a single microphone lifetime`, async ({ page }) => {
+		await setup(page);
+		await page.getByRole('combobox', { name: 'Style', exact: true }).selectOption(style);
+		await page.getByTestId('lab-adaptive-loops').selectOption('2');
+		await page.getByTestId('lab-adapt-loops').click();
+		await expect(page.getByTestId('lab-observation-status')).toContainText('Adaptive loops complete', { timeout: 20_000 });
+		expect(await micState(page)).toEqual({ calls: 1, stopped: 1 });
+		const pending = page.waitForEvent('download');
+		await page.getByRole('button', { name: 'Export events JSON' }).click();
+		const data = JSON.parse(await readFile((await (await pending).path())!, 'utf8'));
+		expect(data.rollingTake.definition.style).toBe(style);
+		expect(data.rollingTake.playback.windows).toHaveLength(8);
+		expect(data.rollingTake.session.status).toBe('complete');
+		expect(data.rollingTake.playback.dispatches.every((entry: { status: string }) => entry.status === 'played')).toBe(true);
+		expect(data.ensemblePlan.trace.some((bar: { soloEvidence: string }) => bar.soloEvidence === 'resting')).toBe(true);
+		if (style === 'ballad') expect(data.bassEvents.every((event: { absBeat: number }) => event.absBeat % 2 === 0)).toBe(true);
+		if (style === 'bossa-nova') expect(data.drumEvents.filter((event: { drum: string }) => event.drum === 'hihat')).toHaveLength(8 * 8);
+	});
+}

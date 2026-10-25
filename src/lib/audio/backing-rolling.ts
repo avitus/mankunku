@@ -6,6 +6,7 @@ import { buildBarInfos } from './backing-generation';
 import { buildPerformanceForm, performanceBarContext, type PerformanceBarContext } from './performance-form';
 import { planEnsembleWindow, type EnsembleBarContext, type EnsembleMemory, type EnsemblePlan, type SoloFeature } from './ensemble-plan';
 import { describeEnsemblePhraseTiming, restoreEnsembleTiming, type EnsemblePhraseTimingTrace } from './ensemble-timing';
+import type { BackingStyle } from '$lib/types/instruments';
 import type { StyleDefinition } from './backing-styles';
 import { fractionToFloat } from '$lib/music/intervals';
 import { seedFrom } from './generation-rng';
@@ -36,6 +37,8 @@ export interface RollingBarIdentity {
 }
 
 export interface RollingBackingDefinition {
+	/** Missing on legacy Swing checkpoints. */
+	readonly style?: BackingStyle;
 	readonly version: 1;
 	readonly sessionId: string;
 	readonly fingerprint: string;
@@ -96,8 +99,9 @@ function freeze<T>(value: T): T {
 /** Prepare known score/form data only; no future accompaniment is generated. */
 export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDefinition, params: BackingGenerationParams,
 	options: RollingBackingOptions = {}): RollingBackingDefinition {
-	if (style.name !== 'Swing' || params.beatsPerBar !== 4 || !params.ensemble) throw new Error('Rolling backing requires coordinated swing 4/4');
+	if (!style.coordinatedStyle || params.beatsPerBar !== 4 || !params.ensemble) throw new Error('Rolling backing requires a supported coordinated style in 4/4');
 	if (!Number.isFinite(params.tempo) || params.tempo < 30 || params.tempo > 320 || !Number.isSafeInteger(params.ppq) || params.ppq <= 0 || !Number.isFinite(params.swing) || params.swing < 0.5 || params.swing > 0.8) throw new Error('Invalid rolling backing tempo, PPQ or swing');
+	if (style.swingModel === 'fixed') params = { ...params, swing: style.defaultSwing };
 	const loopCount = options.loopCount ?? 1;
 	if (!Number.isInteger(loopCount) || loopCount < 1 || loopCount > MAX_ADAPTIVE_LOOPS) throw new Error(`Rolling loop count must be 1–${MAX_ADAPTIVE_LOOPS}`);
 	let copied: HarmonicSegment[] = JSON.parse(JSON.stringify(harmony));
@@ -145,14 +149,15 @@ export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDef
 	const bars = buildBarInfos(totalBars, undefined, form).map((info, barIndex) => {
 		const sourceBarIndex = barIndex % sourceBars;
 		const sourceContext = performanceBarContext(sourceForm, sourceBarIndex)!;
-		return { ...info, ...performanceBarContext(form, barIndex)!, barIndex, loopIndex: Math.floor(barIndex / sourceBars),
+		return { ...info, ...(style.intensityCap !== undefined ? { intensity: Math.min(info.intensity, style.intensityCap), energyCeiling: style.intensityCap } : {}), ...performanceBarContext(form, barIndex)!, barIndex, loopIndex: Math.floor(barIndex / sourceBars),
 			sourceBarIndex, sourceChorusIndex: sourceContext.chorusIndex, sourceSectionIndex: sourceContext.sectionIndex };
 	});
 	const timingProfiles = params.timing ?? style.timing;
 	// Preserve the one-pass binding. An explicit repeat is a distinct declared
 	// performance even when its flattened score matches some other source.
 	const serialized = JSON.stringify([1, params.phraseId, params.tempo, params.ppq, params.swing, copied, form, timingProfiles,
-		...(loopCount > 1 ? [{ sourceBars, loopCount }] : [])]);
+		...(loopCount > 1 ? [{ sourceBars, loopCount }] : []),
+		...(style.coordinatedStyle !== 'swing' ? [{ style: style.coordinatedStyle }] : [])]);
 	// The definition retains the complete immutable score once. Repeating its
 	// raw JSON in every retained bar would make the export grow quadratically.
 	// This deterministic binding detects accidental mismatches; it is not an
@@ -160,7 +165,7 @@ export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDef
 	const fingerprint = loopCount > 1
 		? `rolling-repeat-v1:${serialized.length}:${seedFrom('score-a', serialized).toString(16)}:${seedFrom('score-b', serialized).toString(16)}`
 		: serialized;
-	return freeze({ version: 1, sessionId: `rolling:${seedFrom(fingerprint).toString(16)}`, fingerprint,
+	return freeze({ version: 1, ...(style.coordinatedStyle !== 'swing' ? { style: style.coordinatedStyle } : {}), sessionId: `rolling:${seedFrom(fingerprint).toString(16)}`, fingerprint,
 		phraseId: params.phraseId, totalBars, sourceBars, loopCount, loops, tempo: params.tempo, ppq: params.ppq, beatsPerBar: 4, swing: params.swing,
 		performanceForm: form, harmony: copied, bars,
 		...(timingProfiles ? { timingProfiles: JSON.parse(JSON.stringify(timingProfiles)) } : {}) });
@@ -215,7 +220,7 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 	const bass = realizeRollingBass(definition, bar, info, timing, checkpoint?.bass);
 	const startTick = bar * 4 * definition.ppq;
 	const endTick = (bar + 1) * 4 * definition.ppq;
-	const drums = planDrumPhraseBar({ phraseId: definition.phraseId, tempo: definition.tempo, beatsPerBar: 4,
+	const drums = planDrumPhraseBar({ style: definition.style, phraseId: definition.phraseId, tempo: definition.tempo, beatsPerBar: 4,
 		barIndex: bar, info, phraseStartBar: ensemble.phraseStartBar, phraseEndBarExclusive: phraseEnd, harmonyEndBeat: definition.totalBars * 4,
 		compOnsets: piano.events.map((event) => event.absBeat - bar * 4), bassOnsets: bass.events.map((event) => event.absBeat - bar * 4),
 		acceptsOnset: (absBeat, hit) => (hit.role === 'accent' && absBeat === bar * 4 ? timing.arrivalTick(bar) : timing.place(absBeat, hit.drum)) < endTick

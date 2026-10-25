@@ -287,7 +287,7 @@ const foundationRemaining: Record<string, string> = {
 	S40: "Rolling mode owns attacks and pitched releases within each bar and excludes unreserved two-bar piano fallback figures. Sample and room tails can remain audible after release. General full-ensemble silence and phrase recognition remain incomplete.",
 	S42: 'There is still no general post-generation register, harmonic-substitution or ensemble collision resolver.',
 	S44: 'The full ensemble/phrase metric suite and a fresh human listening acceptance pass remain to do.',
-	S41: "Rolling mode is limited to finite coordinated swing 4/4 lab takes. Declared loops share one audio clock and checkpoint chain. Indefinite continuation, broader styles and a general ensemble conflict resolver remain incomplete.",
+	S41: "Rolling mode supports finite coordinated 4/4 lab takes in swing, straight, bossa nova and ballad. Declared loops share one audio clock and checkpoint chain. Bossa keeps its clave and root–fifth pulse; ballad keeps pads, two-feel and a 0.6 energy ceiling. Their native patterns do not use swing motif transforms. Indefinite continuation, other meters and a general ensemble conflict resolver remain incomplete.",
 	S46: "Complete the specification’s broader A–F matrix, varied acoustic capture conditions and human listening validation. Automated event/audio evidence does not establish musical acceptance.",
 };
 
@@ -310,14 +310,14 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 	const drumUpdate = drumDeviceUpdates[entry.id];
 	if (drumUpdate) return {
 		...entry, status: drumUpdate[0], assessment: drumUpdate[1], remaining: drumUpdate[2],
-		scope: 'Coordinated swing 4/4 listening-lab preview; current kit and complete cells within the performed harmony. Original practice generation is unchanged.',
+		scope: 'Coordinated swing/straight 4/4 listening-lab preview; current kit and complete cells within the performed harmony. Original practice generation is unchanged.',
 		evidence: [...entry.evidence, ...drumDevelopmentEvidence]
 	};
 	if (entry.id === 'P4') return {
 		...entry,
 		assessment: 'The original displaced figure is supplemented by motif transformations; shifting a Charleston source by an eighth can produce the specified and-of-1 / beat-3 shape.',
 		remaining: 'The shape is available through selected motif displacement, without a separate reverse-Charleston selection policy or dedicated listening acceptance.',
-		scope: 'Existing swing figures plus coordinated swing 4/4 piano motifs in the listening lab.',
+		scope: 'Existing swing figures plus coordinated swing/straight 4/4 piano motifs in the listening lab.',
 		evidence: [...entry.evidence, ...pianoDevelopmentEvidence]
 	};
 	if (entry.id === 'P12' || entry.id === 'P13') return {
@@ -326,27 +326,27 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 			? 'Selected four-bar phrases reuse a source rhythm from the existing figure library, with repetition, displacement, shortening and deliberate gaps.'
 			: 'A remembered piano rhythm can return two bars later shifted by a beat or an eighth-note subdivision, retaining the complete cell when it fits.',
 		remaining: 'Each later cell is admitted against its current bar, with a reason when withheld. This is within-phrase piano development; live solo motif imitation, development beyond a phrase and listening acceptance remain pending.',
-		scope: 'Coordinated swing 4/4 listening-lab preview; selected complete four-bar phrases. Original practice generation is unchanged.',
+		scope: 'Coordinated swing/straight 4/4 listening-lab preview; selected complete four-bar phrases. Original practice generation is unchanged.',
 		evidence: [...entry.evidence, ...pianoDevelopmentEvidence]
 	};
 	if (entry.id === 'B59') return {
 		...entry, status: 'implemented',
 		assessment: 'Eligible final two-bar walking passages plan a bounded directional line into an actual following chorus, retaining the root octave selected by the existing register arc.',
 		remaining: 'Requires two walking bars, aligned harmonic segment boundaries and a compatible role at the launch. Unsupported or conflicting opportunities keep the existing line and record why; the final declared loop ends without a further target. General long-wave walking and listening acceptance remain pending.',
-		scope: 'Coordinated swing 4/4 listening-lab preview with explicit consecutive chorus metadata and a following harmony. No forced two-feel change.',
+		scope: 'Coordinated swing/straight 4/4 listening-lab preview with explicit consecutive chorus metadata and a following harmony. No forced two-feel change.',
 		evidence: [...entry.evidence, ...bassDevelopmentEvidence, ...crossLoopEvidence]
 	};
 	if (entry.id === 'B28') return {
 		...entry,
 		assessment: 'Local direction history crosses harmonic segments; eligible two-bar chorus launches now plan a connected path across their changes.',
 		remaining: 'Ordinary walking still plans targets per segment. A general cross-change continuation policy beyond the scoped launch remains incomplete.',
-		scope: 'Existing swing walking plus coordinated swing 4/4 launches in the listening lab.',
+		scope: 'Existing swing walking plus coordinated swing/straight 4/4 launches in the listening lab.',
 		evidence: [...entry.evidence, ...bassDevelopmentEvidence]
 	};
 	if (entry.id === 'D15') return {
 		...entry, status: 'implemented',
 		assessment: 'Coordinated mode uses the foot hi-hat sample on beats 2 and 4. Live playback and WAV bounce remove 40 ms of recorded pedal-mechanism lead-in before the chick, preserving the scheduled musical timing.',
-		remaining: 'Human listening acceptance remains pending.', scope: 'Coordinated swing 4/4 listening-lab preview. Original mode retains its stick-hat voice.',
+		remaining: 'Human listening acceptance remains pending.', scope: 'Coordinated swing/straight listening-lab preview and existing ballad pedal time. Bossa retains stick hats; Original swing/straight retain their stick-hat voice.',
 		evidence: [...entry.evidence, { ...source('backing-styles'), revision: FOUNDATION_REVISION }, { ...test('backing-ensemble'), revision: FOUNDATION_REVISION },
 			{ ...source('backing-track'), revision: 'musicality' }, { ...test('backing-drum-samples'), revision: 'musicality' },
 			{ kind: 'test', path: 'tests/e2e/backing-drum-timing.spec.ts', revision: 'musicality' }]
@@ -355,15 +355,21 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 		...entry,
 		assessment: 'Coordinated mode reserves a preceding setup and a shared bass/drum arrival on a common tick.',
 		remaining: 'Piano participation and a general arrangement-hit contract remain incomplete.',
-		scope: 'Coordinated swing 4/4 listening-lab preview.', evidence: [...entry.evidence, ...foundationEvidence]
+		scope: 'All four coordinated 4/4 styles; native bossa/ballad arrivals use a soft kick.', evidence: [...entry.evidence, ...foundationEvidence]
 	};
+	if (entry.id === 'S35') return { ...entry, status: 'partial',
+		assessment: 'All four styles now use shared 4/4 roles, silence budgets, phrase timing, causal adaptation and cross-loop planner memory. Native bossa clave/root–fifth and ballad pads/two-feel remain protected; straight uses motif development on even eighths.',
+		remaining: 'Traditional/bebop/post-bop profiles, native bossa/ballad motif development and human listening acceptance remain incomplete.',
+		scope: 'Coordinated listening-lab preview; Original practice remains available.',
+		evidence: [...entry.evidence, { ...test('backing-style-coordination'), revision: 'musicality' }, { ...source('backing-rolling'), revision: 'musicality' }] };
 	if (!foundationAssessments[entry.id]) return entry;
 	return {
 		...entry, status: 'partial', assessment: foundationAssessments[entry.id],
 		remaining: foundationRemaining[entry.id] ?? 'Broader vocabulary, general ensemble conflict resolution and human listening acceptance remain incomplete.',
-		scope: 'Coordinated swing 4/4 in the listening lab; original generation remains the practice mode pending listening acceptance.',
+		scope: 'Shared planning, timing and rolling adaptation: swing, straight, bossa nova and ballad in 4/4. Motif transformations and walking launches: swing/straight only. Original generation remains the practice mode pending listening acceptance.',
 		evidence: [
 			...entry.evidence, ...foundationEvidence,
+			{ ...test('backing-style-coordination'), revision: 'musicality' },
 			...(['S2', 'S24', 'S44', 'S46'].includes(entry.id) ? formEvidence : []),
 			...(['S4', 'S32', 'S44'].includes(entry.id) ? phraseTimingEvidence : []),
 			...(['S4', 'S32', 'S44'].includes(entry.id) ? [

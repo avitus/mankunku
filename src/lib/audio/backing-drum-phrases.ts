@@ -1,4 +1,6 @@
-/** Phrase-shaped coordinated swing drumming, using the existing kit vocabulary. */
+/** Phrase development for swing/straight, protected native grooves for bossa/ballad. */
+import { BACKING_STYLES } from './backing-styles';
+import type { BackingStyle } from '$lib/types/instruments';
 import type { BarInfo } from './backing-generation';
 import type { DrumHitSpec, DrumVoice, GenerationContext } from './backing-styles';
 import { chooseRideMode, rideBar, hihatBar, featherBar, fillBar, snareBar, couplingBar, type RideMode } from './backing-drum-vocab';
@@ -6,14 +8,16 @@ import { createRng, seedFrom } from './generation-rng';
 
 export type DrumCommentaryTransform = 'statement' | 'answer' | 'repeat' | 'displace' | 'orchestrate' | 'space' | 'setup' | 'fallback';
 export type DrumPhraseReason = 'ensemble_silence' | 'response_reserved' | 'arrival_reserved' | 'gesture_does_not_fit'
-	| 'setup_does_not_fit' | 'motif_gap' | 'not_selected' | 'short_phrase' | 'partial_harmony';
+	| 'native_groove' | 'setup_does_not_fit' | 'motif_gap' | 'not_selected' | 'short_phrase' | 'partial_harmony';
 export interface DrumPhraseDecision {
+	/** Native groove identity; absence denotes the original swing phrase vocabulary. */
+	readonly style?: BackingStyle;
 	readonly version: 1;
 	readonly barIndex: number;
 	readonly phraseStartBar: number;
 	readonly phraseLength: number;
 	readonly ride: {
-		readonly mode: RideMode;
+		readonly mode: RideMode | 'none';
 		readonly phase: 'statement' | 'repeat' | 'variation' | 'release' | 'single';
 		readonly skipOffsets: readonly number[];
 		readonly velocityScale: number;
@@ -41,6 +45,7 @@ export interface DrumPhrasePlan {
 	readonly trace: readonly DrumPhraseDecision[];
 }
 export interface DrumPhraseInput {
+	readonly style?: BackingStyle;
 	readonly phraseId: string;
 	readonly tempo: number;
 	readonly beatsPerBar: number;
@@ -54,6 +59,7 @@ export interface DrumPhraseInput {
 
 /** One committed bar; future instrument choices are deliberately absent. */
 export interface DrumPhraseBarInput {
+	readonly style?: BackingStyle;
 	readonly phraseId: string;
 	readonly tempo: number;
 	readonly beatsPerBar: 4;
@@ -71,6 +77,7 @@ export interface DrumPhraseBarInput {
 
 /** Bounded realization state. The caller's enclosing checkpoint binds the full score. */
 export interface DrumPhraseMemory {
+	readonly style?: BackingStyle;
 	readonly version: 1;
 	readonly phraseId: string;
 	readonly tempo: number;
@@ -293,7 +300,7 @@ function validOnsets(values: readonly number[], max = 32): boolean {
 }
 
 function validateDrumPhraseBar(input: DrumPhraseBarInput, memory?: DrumPhraseMemory): void {
-	if (input.beatsPerBar !== 4) throw new Error('Drum phrases require coordinated four-beat swing');
+	if (input.beatsPerBar !== 4) throw new Error('Drum phrases require coordinated four-beat accompaniment');
 	if (typeof input.phraseId !== 'string' || !input.phraseId || !Number.isFinite(input.tempo) || input.tempo <= 0) {
 		throw new Error('Drum phrase identity and tempo must be valid');
 	}
@@ -318,7 +325,8 @@ function validateDrumPhraseBar(input: DrumPhraseBarInput, memory?: DrumPhraseMem
 		return;
 	}
 	if (memory.version !== 1 || memory.phraseId !== input.phraseId || memory.tempo !== input.tempo ||
-		memory.harmonyEndBeat !== input.harmonyEndBeat || memory.nextBar !== input.barIndex) {
+		memory.harmonyEndBeat !== input.harmonyEndBeat || memory.nextBar !== input.barIndex ||
+		(memory.style ?? 'swing') !== (input.style ?? 'swing')) {
 		throw new Error('Drum continuation requires matching identity and consecutive bars');
 	}
 	const state = memory.phrase;
@@ -365,6 +373,7 @@ export function planDrumPhraseBar(input: DrumPhraseBarInput, memory?: DrumPhrase
 	readonly bar: DrumPhraseDecision; readonly memory: DrumPhraseMemory;
 } {
 	validateDrumPhraseBar(input, memory);
+	if (input.style === 'bossa-nova' || input.style === 'ballad') return realizeNativeDrumBar(input, memory);
 	// The reserved ride and accepted motif survive later budget changes.
 	// Copy before mutation/freezing: a caller may retain an unfrozen JSON checkpoint.
 	const previous = memory?.phrase;
@@ -382,7 +391,7 @@ export function planDrumPhraseBar(input: DrumPhraseBarInput, memory?: DrumPhrase
 	} : phraseState(input, input.phraseStartBar, input.phraseEndBarExclusive);
 	const bar = realizeDrumPhraseBar(input, state, memory?.previousCompOnsets ?? []);
 	return Object.freeze({ bar, memory: freezeDrumPhraseMemory({
-		version: 1, phraseId: input.phraseId, tempo: input.tempo, harmonyEndBeat: input.harmonyEndBeat,
+		version: 1, ...(input.style && input.style !== 'swing' ? { style: input.style } : {}), phraseId: input.phraseId, tempo: input.tempo, harmonyEndBeat: input.harmonyEndBeat,
 		nextBar: input.barIndex + 1, sectionIndex: input.info.sectionIndex ?? null,
 		chorusIndex: input.info.chorusIndex ?? null, ensemblePhraseStartBar: input.info.ensemble!.phraseStartBar,
 		phrase: state, previousCompOnsets: [...input.compOnsets ?? []]
@@ -391,7 +400,7 @@ export function planDrumPhraseBar(input: DrumPhraseBarInput, memory?: DrumPhrase
 
 /** Realize selected cells causally; later evidence cannot rewrite their source. */
 export function planDrumPhrases(input: DrumPhraseInput): DrumPhrasePlan {
-	if (input.beatsPerBar !== 4) throw new Error('Drum phrases require coordinated four-beat swing');
+	if (input.beatsPerBar !== 4) throw new Error('Drum phrases require coordinated four-beat accompaniment');
 	if (!Number.isFinite(input.tempo) || input.tempo <= 0) throw new Error('Drum phrase tempo must be positive');
 	if (input.bars.some((bar, index) => !bar.ensemble || bar.ensemble.barIndex !== index)) {
 		throw new Error('Drum phrases require a contiguous coordinated ensemble plan');
@@ -417,7 +426,7 @@ export function planDrumPhrases(input: DrumPhraseInput): DrumPhrasePlan {
 				input.bars[end].chorusIndex === info.chorusIndex) end++;
 		}
 		const step: DrumPhraseBarInput = {
-			phraseId: input.phraseId, tempo: input.tempo, beatsPerBar: 4, barIndex: bar, info,
+			style: input.style, phraseId: input.phraseId, tempo: input.tempo, beatsPerBar: 4, barIndex: bar, info,
 			phraseStartBar: start, phraseEndBarExclusive: end, harmonyEndBeat: harmonyEnd,
 			compOnsets: input.compOnsetsByBar?.get(bar), bassOnsets: input.bassOnsetsByBar?.get(bar),
 			acceptsOnset: input.acceptsOnset
@@ -428,4 +437,62 @@ export function planDrumPhrases(input: DrumPhraseInput): DrumPhrasePlan {
 	}
 	const trace = freezeDrumPhraseTrace(decisions);
 	return Object.freeze({ version: 1, bars: trace, trace });
+}
+
+/** Native timekeeping is protected; only optional commentary competes for a response slot. */
+function realizeNativeDrumBar(input: DrumPhraseBarInput, memory?: DrumPhraseMemory): {
+	readonly bar: DrumPhraseDecision; readonly memory: DrumPhraseMemory;
+} {
+	const style = BACKING_STYLES[input.style!];
+	const ensemble = input.info.ensemble!;
+	const isBossa = input.style === 'bossa-nova';
+	const rng = createRng(seedFrom(input.phraseId, input.tempo, 'drums', input.barIndex));
+	const raw = style.drumPattern({ ...input.info, ensemble: undefined, barIndex: input.barIndex, beatsPerBar: 4,
+		swing: style.defaultSwing, rng, fillRng: createRng(seedFrom(input.phraseId, input.tempo, 'drum-fill', input.barIndex)),
+		clavePhase: createRng(seedFrom(input.phraseId, input.tempo, 'clave', 0)).chance(0.5) ? '32' : '23' });
+	const time: DrumHitSpec[] = raw.filter((hit) => isBossa || !['snare', 'crossstick'].includes(hit.drum))
+		.map((hit) => ({ ...hit, role: 'timekeeping' }));
+	const canComment = !isBossa && ensemble.drums.maxCommentaryHits > 0 && !ensemble.coordinatedAccent &&
+		(ensemble.responseOwner === 'nobody' || ensemble.responseOwner === 'drums');
+	const previous = memory?.previousCompOnsets ?? [];
+	// A quiet answer uses only a previously emitted piano onset, with the left hand free.
+	const answerOffset = canComment && ensemble.responseOwner === 'drums' ? previous.find((offset) =>
+		offset >= 1 && !(input.compOnsets ?? []).includes(offset) && input.barIndex * 4 + offset < input.harmonyEndBeat &&
+		(!input.acceptsOnset || input.acceptsOnset(input.barIndex * 4 + offset, { drum: 'crossstick', beatOffset: offset, velocity: 0.28, role: 'commentary' }))) : undefined;
+	let commentary: DrumHitSpec[] = !canComment ? [] : answerOffset !== undefined
+		? [{ drum: 'crossstick', beatOffset: answerOffset, velocity: 0.28, role: 'commentary' }]
+		: raw.filter((hit) => ['snare', 'crossstick'].includes(hit.drum) &&
+			(hit.beatOffset !== 3.5 || ensemble.drums.allowFill) && !(input.compOnsets ?? []).includes(hit.beatOffset))
+			.slice(0, ensemble.drums.maxCommentaryHits).map((hit) => ({ ...hit, role: 'commentary' }));
+	// Form arrivals use the existing soft kick, never introduce a swing crash into bossa/ballad.
+	if (ensemble.coordinatedAccent) {
+		const kick = time.find((hit) => hit.drum === 'kick' && hit.beatOffset === 0);
+		if (kick) { kick.role = 'accent'; kick.velocity = Math.min(isBossa ? 0.4 : 0.22, kick.velocity + 0.04); }
+		else time.push({ drum: 'kick', beatOffset: 0, velocity: 0.18, role: 'accent' });
+	}
+	// Shared phrase energy shapes the groove without changing clave or timekeeping density.
+	for (const hit of time) if (hit.role === 'timekeeping') hit.velocity *= 0.9 + 0.2 * ensemble.energy;
+	const accepted = (hit: DrumHitSpec) => input.barIndex * 4 + hit.beatOffset < input.harmonyEndBeat &&
+		(!input.acceptsOnset || input.acceptsOnset(input.barIndex * 4 + hit.beatOffset, hit));
+	commentary = commentary.filter(accepted);
+	const hits = [...time.filter(accepted), ...commentary];
+	const bar: DrumPhraseDecision = { version: 1, style: input.style, barIndex: input.barIndex,
+		phraseStartBar: input.phraseStartBar, phraseLength: input.phraseEndBarExclusive - input.phraseStartBar,
+		ride: { mode: isBossa ? 'none' : 'quarters-only', phase: 'single', skipOffsets: [], velocityScale: 0.9 + 0.2 * ensemble.energy,
+			onsets: hits.filter((hit) => hit.drum === 'ride').map((hit) => hit.beatOffset) },
+		commentary: { motifId: null, source: commentary.length ? answerOffset !== undefined ? 'piano' : 'vocabulary' : 'none',
+			sourceId: commentary.length ? answerOffset !== undefined ? 'previous-piano' : 'ballad-color' : null,
+			sourceBar: commentary.length && answerOffset !== undefined ? input.barIndex - 1 : null,
+			sourceOffsets: commentary.length && answerOffset !== undefined ? [answerOffset] : [],
+			transform: commentary.length ? answerOffset !== undefined ? 'answer' : 'fallback' : 'space', displacementBeats: 0, hits: commentary,
+			...(!commentary.length ? { reason: isBossa ? 'native_groove' as const : ensemble.coordinatedAccent ? 'arrival_reserved' as const
+				: ensemble.responseOwner !== 'nobody' && ensemble.responseOwner !== 'drums' ? 'response_reserved' as const
+				: !canComment ? 'ensemble_silence' as const : 'not_selected' as const } : {}) }, hits };
+	freezeDrumPhraseTrace([bar]);
+	return Object.freeze({ bar, memory: freezeDrumPhraseMemory({ version: 1, style: input.style, phraseId: input.phraseId,
+		tempo: input.tempo, harmonyEndBeat: input.harmonyEndBeat, nextBar: input.barIndex + 1,
+		sectionIndex: input.info.sectionIndex ?? null, chorusIndex: input.info.chorusIndex ?? null,
+		ensemblePhraseStartBar: ensemble.phraseStartBar,
+		phrase: { start: input.phraseStartBar, end: input.phraseEndBarExclusive, mode: 'quarters-only', skips: [], variedSkips: [], commentarySelected: false },
+		previousCompOnsets: [...input.compOnsets ?? []] }) });
 }

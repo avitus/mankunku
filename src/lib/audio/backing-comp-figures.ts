@@ -113,7 +113,7 @@ export interface CompMotifDecision {
 	readonly displacementBeats: number;
 	/** Planned onsets and nominal durations, before articulation and timing. */
 	readonly hits: readonly Readonly<CompFigureHit>[];
-	readonly reason?: 'not_selected' | 'short_phrase' | 'incomplete_harmony' | 'gesture_does_not_fit' | 'ensemble_silence' | 'response_reserved' | 'motif_gap';
+	readonly reason?: 'native_pattern' | 'not_selected' | 'short_phrase' | 'incomplete_harmony' | 'gesture_does_not_fit' | 'ensemble_silence' | 'response_reserved' | 'motif_gap';
 }
 
 export function freezeCompMotifTrace(trace: readonly CompMotifDecision[]): readonly CompMotifDecision[] {

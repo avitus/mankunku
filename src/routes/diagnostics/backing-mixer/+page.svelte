@@ -549,7 +549,7 @@
 				<span class="block text-[var(--color-text-secondary)] mb-1">Ensemble</span>
 				<select bind:value={orchestration} onchange={onRenderParamsChanged} data-testid="lab-orchestration"
 					class="rounded bg-[var(--color-bg-tertiary)] px-2 py-1.5">
-					<option value="coordinated">Coordinated swing · preview</option>
+					<option value="coordinated">Coordinated · preview</option>
 					<option value="original">Original</option>
 				</select>
 			</label>
@@ -557,7 +557,7 @@
 			<label class="text-sm">
 				<span class="block text-[var(--color-text-secondary)] mb-1">Soloist scenario</span>
 				<select bind:value={soloScenario} onchange={onRenderParamsChanged} data-testid="lab-solo-scenario"
-					disabled={listening || orchestration !== 'coordinated' || style !== 'swing'}
+					disabled={listening || orchestration !== 'coordinated'}
 					class="rounded bg-[var(--color-bg-tertiary)] px-2 py-1.5 max-w-64 disabled:opacity-50">
 					{#each LAB_SOLO_SCENARIOS as scenario (scenario.id)}
 						<option value={scenario.id}>{scenario.label}</option>
@@ -598,10 +598,10 @@
 				Recorded microphone observations drive this coordinated replay. It generates a new comparison from the captured evidence.
 			{:else if listening}
 				The band plays its fixed plan while the microphone measures completed bars. Replay becomes available after the take.
-			{:else if orchestration === 'coordinated' && style === 'swing'}
-				Coordinated swing is a listening preview. {LAB_SOLO_SCENARIOS.find((scenario) => scenario.id === soloScenario)?.hint}
+			{:else if orchestration === 'coordinated'}
+				Coordinated 4/4 is a listening preview for all four styles. {LAB_SOLO_SCENARIOS.find((scenario) => scenario.id === soloScenario)?.hint}
 			{:else}
-				Original accompaniment. Coordinated planning and scripted observations apply to swing 4/4 only.
+				Original accompaniment. Choose Coordinated to preview shared musical decisions in this style.
 			{/if}
 		</p>
 		<div class="flex flex-wrap items-end gap-4">
@@ -661,12 +661,12 @@
 		</p>
 		<div class="flex flex-wrap gap-3">
 			<button data-testid="lab-listen" onclick={() => listenToPass()}
-				disabled={adapting || (!listening && (orchestration !== 'coordinated' || style !== 'swing'))}
+				disabled={adapting || (!listening && (orchestration !== 'coordinated'))}
 				class="rounded-full bg-[var(--color-accent)] text-white px-4 py-1.5 text-sm font-semibold disabled:opacity-50">
 				{listening ? (loading ? 'Cancel microphone request' : 'Stop listening') : 'Listen to one pass'}
 			</button>
 			<button data-testid="lab-adapt" onclick={() => listenToPass(true)}
-				disabled={(listening && (!adapting || activeLoops > 1)) || orchestration !== 'coordinated' || style !== 'swing'}
+				disabled={(listening && (!adapting || activeLoops > 1)) || orchestration !== 'coordinated'}
 				class="rounded-full bg-[var(--color-accent)] text-white px-4 py-1.5 text-sm font-semibold disabled:opacity-50">
 				{adapting && activeLoops === 1 ? (loading ? 'Cancel adaptive request' : 'Stop adaptive pass') : 'Adapt during one pass'}
 			</button>
@@ -679,7 +679,7 @@
 				</select>
 			</label>
 			<button data-testid="lab-adapt-loops" onclick={() => listenToPass(true, safeLoopCount)}
-				disabled={(listening && (!adapting || activeLoops === 1)) || orchestration !== 'coordinated' || style !== 'swing'}
+				disabled={(listening && (!adapting || activeLoops === 1)) || orchestration !== 'coordinated'}
 				class="rounded-full bg-[var(--color-accent)] text-white px-4 py-1.5 text-sm font-semibold disabled:opacity-50">
 				{adapting && activeLoops > 1 ? (loading ? 'Cancel adaptive loops' : 'Stop adaptive loops') : 'Adapt across loops'}
 			</button>

@@ -430,7 +430,7 @@ export function generateComping(
 	// concrete hits here so the style's pattern function only realizes
 	// velocity/articulation.
 	const harmonyEnd = segments.reduce((max, s) => Math.max(max, s.startBeats + s.totalBeats), 0);
-	const motifMode = !!params.ensemble && style.name === 'Swing' && beatsPerBar === 4 &&
+	const motifMode = !!params.ensemble && !!style.compPlanning && !!style.coordinatedStyle && beatsPerBar === 4 &&
 		barInfos.length > 0 && barInfos.every((info) => info.ensemble);
 	const compPlan =
 		style.compPlanning && beatsPerBar === 4
@@ -475,7 +475,7 @@ export function generateComping(
 		const hits = style.compPattern(ctx);
 		// Coordinated drums hear emitted attacks, including partial-harmony
 		// filtering, rather than reacting to notes that never sounded.
-		onsetsByBar.set(bar, motifMode ? [] : hits.map((h) => h.beatOffset));
+		onsetsByBar.set(bar, barInfos[bar].ensemble ? [] : hits.map((h) => h.beatOffset));
 
 		for (const hit of hits) {
 			const absBeat = bar * beatsPerBar + hit.beatOffset;
@@ -510,11 +510,18 @@ export function generateComping(
 				velocity: hit.velocity,
 				absBeat
 			});
-			if (motifMode) onsetsByBar.get(bar)!.push(hit.beatOffset);
+			if (barInfos[bar].ensemble) onsetsByBar.get(bar)!.push(hit.beatOffset);
 		}
 	}
 
-	return { events, onsetsByBar, ...(motifMode ? { motifTrace: compMotifTrace(compPlan ?? []) } : {}) };
+	return { events, onsetsByBar, ...(motifMode ? { motifTrace: compMotifTrace(compPlan ?? []) }
+		: barInfos.some((info) => info.ensemble) ? { motifTrace: freezeCompMotifTrace(barInfos.map((info, barIndex) => ({
+			version: 1 as const, barIndex, phraseStartBar: info.ensemble!.phraseStartBar, motifId: null, sourceFigureId: null,
+			transform: info.ensemble!.piano.maxAttacks === 0 ? 'space' as const : 'fallback' as const,
+			displacementBeats: 0, hits: events.filter((event) => Math.floor(event.absBeat / beatsPerBar) === barIndex)
+				.map((event) => ({ b: event.absBeat % beatsPerBar, d: event.duration / beatDuration })),
+			reason: info.ensemble!.piano.maxAttacks === 0 ? 'ensemble_silence' as const : 'native_pattern' as const
+		}))) } : {}) };
 }
 
 /**
@@ -574,7 +581,7 @@ export function generateDrums(
 		// identical tick read as a doubled hit, so the ledger spans bars:
 		// keep the louder one per (voice, absBeat). Map insertion order is
 		// emission order, which fixes each hit's jitter-draw index.
-		for (const hit of style.drumPattern(ctx)) {
+		for (const hit of ctx.plannedDrums?.hits ?? style.drumPattern(ctx)) {
 			const absBeat = bar * beatsPerBar + hit.beatOffset;
 			const key = `${hit.drum}:${absBeat}`;
 			const prev = byAbsBeat.get(key);
@@ -624,6 +631,7 @@ export function generateBacking(
 	style: StyleDefinition,
 	params: BackingGenerationParams
 ): GeneratedBacking {
+	if (params.ensemble && params.beatsPerBar === 4 && style.coordinatedStyle && style.swingModel === 'fixed') params = { ...params, swing: style.defaultSwing };
 	const { beatsPerBar } = params;
 	const harmonyBeats = harmony.reduce(
 		(max, seg) => Math.max(max, fractionToFloat(seg.startOffset) * 4 + fractionToFloat(seg.duration) * 4),
@@ -637,11 +645,11 @@ export function generateBacking(
 	// ceiling.
 	if (style.intensityCap !== undefined) {
 		const cap = style.intensityCap;
-		barInfos = barInfos.map((info) => ({ ...info, intensity: Math.min(info.intensity, cap) }));
+		barInfos = barInfos.map((info) => ({ ...info, intensity: Math.min(info.intensity, cap), energyCeiling: cap }));
 	}
 	// Start with the existing vocabulary. The planner reserves space and
 	// assigns commentary before any instrument chooses its notes or hits.
-	const ensembleWindow = params.ensemble && style.name === 'Swing' && beatsPerBar === 4
+	const ensembleWindow = params.ensemble && !!style.coordinatedStyle && beatsPerBar === 4
 		? planEnsembleWindow({
 			phraseId: params.phraseId,
 			tempo: params.tempo,
@@ -680,6 +688,7 @@ export function generateBacking(
 					style.bass === 'two' ? 'two' : undefined
 				);
 	const drumPhrases = ensemblePlan ? planDrumPhrases({
+		style: style.coordinatedStyle,
 		phraseId: params.phraseId, tempo: params.tempo, beatsPerBar: 4, bars: barInfos,
 		compOnsetsByBar: onsetsByBar, bassOnsetsByBar, harmonyEndBeat: harmonyBeats,
 		// Swing and phrase placement can move an otherwise valid final-bar

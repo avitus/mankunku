@@ -22,6 +22,8 @@ export type SilenceReason =
 export interface EnsembleBarContext {
 	readonly barIndex: number;
 	readonly intensity: number;
+	/** Style ceiling, also binding serialized planner memory. */
+	readonly energyCeiling?: number;
 	readonly isSectionFirstBar: boolean;
 	readonly isSectionFinalBar: boolean;
 	readonly isChorusFirstBar?: boolean;
@@ -256,7 +258,8 @@ function formFingerprint(bars: readonly EnsembleBarContext[]): string {
 		bar.isChorusFirstBar ?? false, bar.isChorusFinalBar ?? false, bar.isFinalBar,
 		bar.boundaryStrength ?? null, bar.role ?? null,
 		bar.phrase4 ? [bar.phrase4.index, bar.phrase4.barIndex, bar.phrase4.lengthBars,
-			bar.phrase4.position, bar.phrase4.barsRemaining, bar.phrase4.isFinalBar] : null
+			bar.phrase4.position, bar.phrase4.barsRemaining, bar.phrase4.isFinalBar] : null,
+		...(bar.energyCeiling !== undefined ? [bar.energyCeiling] : [])
 	]));
 	return `form-v1:${bars.length}:${seedFrom('ensemble-form', canonical).toString(16)}`;
 }
@@ -408,7 +411,7 @@ export function planEnsembleWindow(input: EnsembleWindowInput): EnsembleWindowRe
 	if (typeof input.phraseId !== 'string') throw new Error('Ensemble phrase identity must be a string');
 	if (!Number.isFinite(input.tempo) || input.tempo <= 0) throw new Error('Ensemble tempo must be positive');
 	for (const [index, bar] of input.bars.entries()) {
-		if (bar.barIndex !== index || !Number.isFinite(bar.intensity)) {
+		if (bar.barIndex !== index || !Number.isFinite(bar.intensity) || (bar.energyCeiling !== undefined && (!Number.isFinite(bar.energyCeiling) || bar.energyCeiling < 0.2 || bar.energyCeiling > 0.9))) {
 			throw new Error('Ensemble bars must be contiguous from zero with finite intensity');
 		}
 		if ((bar.boundaryStrength !== undefined && !unit(bar.boundaryStrength)) ||
@@ -586,7 +589,7 @@ export function planEnsembleWindow(input: EnsembleWindowInput): EnsembleWindowRe
 		}
 		const movement = phrase.intent === 'build' ? -0.04 + 0.1 * position
 			: phrase.intent === 'release' ? -0.12 * position : 0;
-		const energy = clamp(bar.intensity + movement, 0.2, 0.9);
+		const energy = clamp(bar.intensity + movement, 0.2, bar.energyCeiling ?? 0.9);
 		const plan: Draft = {
 			barIndex: i, phraseStartBar, phraseIntent: phrase.intent,
 			intent: owner === 'nobody' ? phrase.intent : 'answer',

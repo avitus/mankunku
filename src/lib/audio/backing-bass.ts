@@ -770,7 +770,9 @@ export function generateBossaBass(
 	harmony: HarmonicSegment[],
 	beatsPerBar: number,
 	params: InstrumentGenerationParams,
-	barInfos: BarInfo[]
+	barInfos: BarInfo[],
+	/** A rolling caller realizes only this absolute bar, never future audio. */
+	onlyBar?: number
 ): BassLineResult {
 	const { phraseId, tempo, ppq, swing } = params;
 	const timing = params.timing ?? SWING_TIMING;
@@ -813,9 +815,10 @@ export function generateBossaBass(
 	const fifthFor = (rootMidi: number, seg: BassSegment): number =>
 		rootMidi + chordToneIntervalsForBass(seg.quality).fifth - 12;
 
-	for (let bar = 0; bar < totalBars; bar++) {
+	for (let bar = onlyBar ?? 0; bar < (onlyBar === undefined ? totalBars : onlyBar + 1); bar++) {
 		const barStart = bar * beatsPerBar;
 		const rng = createRng(seedFrom(phraseId, tempo, 'bass', bar));
+		const ornamentScale = barInfos[bar].ensemble?.bass.ornamentScale ?? 1;
 		const isPhraseFinalBar = bar === totalBars - 1;
 		const segAt0 = chordAt(barStart);
 		const segAt2 = chordAt(barStart + 2);
@@ -840,7 +843,7 @@ export function generateBossaBass(
 
 		// And-of-2 pickup leading beat 3: a chromatic approach when the
 		// chord changes there, else the fifth (the feminine half of the lilt).
-		if (rng.chance(0.6)) {
+		if (rng.chance(0.6 * ornamentScale)) {
 			const pickup = changesMidBar
 				? beat3Midi + (rng.chance(0.67) ? -1 : 1)
 				: beat3Midi;
@@ -855,7 +858,7 @@ export function generateBossaBass(
 
 		// And-of-4 pickup into the next bar: an approach when the barline
 		// brings a new chord, else the sounding root again.
-		if (rng.chance(0.7)) {
+		if (rng.chance(0.7 * ornamentScale)) {
 			const nextSeg = chordAt(barStart + beatsPerBar);
 			const soundingRoot = changesMidBar ? rootFor(segAt2) : root0;
 			let pickup = soundingRoot;

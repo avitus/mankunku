@@ -2,7 +2,7 @@
 import type { RollingBackingDefinition } from './backing-rolling';
 import type { BarInfo, BassEvent } from './backing-generation';
 import type { EnsembleTiming } from './ensemble-timing';
-import { chordToneIntervalsForBass, planBassRegisterArc, bassApproachPitches, type BassApproachDevice } from './backing-bass';
+import { generateBossaBass, chordToneIntervalsForBass, planBassRegisterArc, bassApproachPitches, type BassApproachDevice } from './backing-bass';
 import { planBassTurnaround, skippedBassTurnaround, type BassTurnaroundTrace } from './backing-bass-turnaround';
 import { createRng, seedFrom } from './generation-rng';
 import { pitchClassToNumber } from './voicings';
@@ -31,6 +31,21 @@ export function realizeRollingBass(score: RollingBackingDefinition, bar: number,
 	timing: EnsembleTiming, previous?: RollingBassMemory): { events: BassEvent[]; memory: RollingBassMemory; trace: BassTurnaroundTrace[] } {
 	const memory = previous ?? { previousMidi: null, previousPreviousMidi: null, direction: 0, segmentIndex: null,
 		segmentAnchor: null, nextTarget: null, approach: 'chromatic-below' as const, feel: 'four' as const, pendingLaunch: null };
+	if (score.style === 'bossa-nova') {
+		const infos = score.bars.map((entry, index) => index === bar ? info : entry);
+		const events = generateBossaBass([...score.harmony], 4, { phraseId: score.phraseId, tempo: score.tempo,
+			ppq: score.ppq, beatsPerBar: 4, swing: score.swing, timing: score.timingProfiles, ensembleTiming: timing }, infos, bar).events;
+		for (const event of events) {
+			const tick = Math.max(bar * 4 * score.ppq, parseInt(event.time));
+			event.time = `${tick}i`;
+			event.duration = Math.min(event.duration, ((bar + 1) * 4 * score.ppq - tick) * 60 / score.tempo / score.ppq);
+		}
+		const accepted = events.filter((event) => event.duration > 0);
+		const last = accepted.at(-1)?.midi ?? memory.previousMidi;
+		const before = accepted.at(-2)?.midi ?? memory.previousMidi;
+		return { events: accepted, trace: [], memory: { ...memory, previousMidi: last, previousPreviousMidi: before,
+			direction: last !== null && before !== null ? Math.sign(last - before) : 0, feel: 'two', pendingLaunch: null } };
+	}
 	let { previousMidi, previousPreviousMidi, direction, segmentIndex, segmentAnchor, nextTarget, approach } = memory;
 	let pendingLaunch = memory.pendingLaunch;
 	const centers = planBassRegisterArc(score.totalBars, [...score.bars], score.phraseId, score.tempo);
@@ -46,6 +61,7 @@ export function realizeRollingBass(score: RollingBackingDefinition, bar: number,
 			scalePcs: realizeScale(segment.chord.root, scale?.intervals ?? fallback) };
 	});
 	const feelAt = (index: number): 'two' | 'four' => {
+		if (score.style === 'ballad') return 'two';
 		const context = score.bars[index];
 		if ((context.chorusIndex ?? 0) !== 0 || context.isSectionFinalBar) return 'four';
 		if (index % 4 === 3 && createRng(seedFrom(score.phraseId, score.tempo, 'bass-feel-escape', index)).chance(0.3)) return 'four';

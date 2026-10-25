@@ -75,10 +75,12 @@
 		</div>
 	</section>
 	<aside class="foundation-note" aria-labelledby="foundation-title">
-		<h2 id="foundation-title">Cross-loop adaptation · listening review pending</h2>
-		<p>Choose “Adapt across loops” and a loop count in the lab to hear coordinated swing 4/4 respond throughout the take. Piano, bass and drums retain history across repeats as upcoming bars are committed. Exports contain the committed events, musical decisions and observation receipts; the fixed capture and replay comparison remains available.</p>
+		<h2 id="foundation-title">Style-aware coordination · listening review pending</h2>
+		<p>Choose “Adapt across loops” and a loop count in the lab to hear swing, straight, bossa nova or ballad in 4/4 respond throughout the take. Piano, bass and drums retain history across repeats as upcoming bars are committed. Exports contain the committed events, musical decisions and observation receipts; the fixed capture and replay comparison remains available.</p>
+		<p>Bossa keeps its clave and root–fifth bass; ballad keeps sustained chords, two-feel and a quieter energy ceiling. Straight uses the existing motif development on even eighths. Swing motif transformations are not applied to bossa or ballad.</p>
 		<p>Latest timing refinement: the foot hi-hat’s 40 ms lead-in is corrected, and the bass and piano recordings have been audited. The piano now uses ten start offsets specified by its sample library; the bass needs no timing trim. The band’s swing and timing decisions are preserved.</p>
 		<p>Capture assumes headphones; its input thresholds depend on microphone gain. Uncertain input is not silence. Register and dynamics are diagnostic only. Adaptive takes can span up to eight selected loops within 512 bars, with a scoped forward bass policy and piano releases within each bar. Indefinite looping, changing the form during a take, and broader listening remain to build. Practice uses the original mode while the new mode awaits listening acceptance.</p>
+		<p><strong>Next proposed listening milestone:</strong> full tunes over several choruses, with a synchronized “musician decisions” view. It would show the current phrase intention, each player’s role, actual notes and reasons for leaving space. The decision data already exists; tune selection and the live view are not built yet.</p>
 		<div class="foundation-links"><a href="/diagnostics/backing-mixer">Compare Original and Coordinated in the lab →</a><a href="/docs/architecture/musicality">Read the staged roadmap →</a></div>
 	</aside>
 

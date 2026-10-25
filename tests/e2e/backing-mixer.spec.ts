@@ -140,3 +140,25 @@ test('scripted scenarios export the actual coordinated plan and retain an origin
 	expect(original.compEvents.length).toBeGreaterThan(dense.compEvents.length);
 	await expect(page.getByRole('link', { name: 'Musicality specification & progress' })).toHaveAttribute('href', '/musicality');
 });
+
+for (const style of ['bossa-nova', 'ballad', 'straight']) {
+	test(`${style} exports coordinated native decisions and enables adaptation`, async ({ page }) => {
+		await seedOnboardedAnonymous(page);
+		await page.goto('/diagnostics/backing-mixer');
+		await page.getByTestId('lab-preset').selectOption('lab-aaba-c');
+		await page.getByRole('combobox', { name: 'Style', exact: true }).selectOption(style);
+		await page.getByTestId('lab-orchestration').selectOption('coordinated');
+		await page.getByTestId('lab-solo-scenario').selectOption('dense');
+		await expect(page.getByRole('button', { name: 'Adapt across loops', exact: true })).toBeEnabled();
+		const pending = page.waitForEvent('download');
+		await page.getByRole('button', { name: 'Export events JSON' }).click();
+		const result = JSON.parse(await readFile((await (await pending).path())!, 'utf8')) as GeneratedBacking;
+		expect(result.ensemblePlan?.bars).toHaveLength(96);
+		expect(result.ensembleDevelopment?.pianoMotifs).toHaveLength(96);
+		expect(result.ensembleDevelopment?.drumPhrases).toHaveLength(96);
+		expect(result.ensemblePlan!.trace.every((bar) => bar.soloEvidence === 'active')).toBe(true);
+		expect(result.drumEvents.filter((event) => event.role === 'commentary')).toHaveLength(0);
+		if (style === 'ballad') expect(Math.max(...result.ensemblePlan!.bars.map((bar) => bar.energy))).toBeLessThanOrEqual(0.6);
+		if (style === 'bossa-nova') expect(result.drumEvents.filter((event) => event.drum === 'hihat')).toHaveLength(96 * 8);
+	});
+}
