@@ -81,6 +81,11 @@ export interface EnsembleBarPlan {
 		readonly role: EnsembleRole;
 		readonly maxAttacks: 0 | 1 | 2;
 		readonly densityScale: number;
+		/** Planned density within an eligible rootless voicing, never an attack budget. */
+		readonly rootlessTexture?: {
+			readonly request: 'three' | 'full';
+			readonly reason: 'melody_support' | 'structural_release' | 'solo_development' | 'active_soloist';
+		};
 		readonly silenceReason?: SilenceReason;
 	};
 	readonly drums: {
@@ -221,6 +226,7 @@ export function freezeEnsembleMemory(memory: EnsembleMemory): EnsembleMemory {
 export function freezeEnsemblePlan(plan: EnsemblePlan): EnsemblePlan {
 	for (const bar of plan.bars) {
 		if (bar.performanceEnergy) Object.freeze(bar.performanceEnergy);
+		if (bar.piano.rootlessTexture) Object.freeze(bar.piano.rootlessTexture);
 		Object.freeze(bar.piano);
 		Object.freeze(bar.drums);
 		Object.freeze(bar.bass);
@@ -264,7 +270,7 @@ function formFingerprint(bars: readonly EnsembleBarContext[]): string {
 		bar.phrase4 ? [bar.phrase4.index, bar.phrase4.barIndex, bar.phrase4.lengthBars,
 			bar.phrase4.position, bar.phrase4.barsRemaining, bar.phrase4.isFinalBar] : null,
 		...(bar.energyCeiling !== undefined ? [bar.energyCeiling] : []),
-		...(bar.performanceEnergy ? ['performance-energy-v1', bar.performanceEnergy.phase, bar.performanceEnergy.chorusIndex, bar.performanceEnergy.targetEnergy] : [])
+		...(bar.performanceEnergy ? ['performance-energy-v1', bar.performanceEnergy.phase, bar.performanceEnergy.chorusIndex, bar.performanceEnergy.targetEnergy, 'rootless-texture-v1'] : [])
 	]));
 	return `form-v1:${bars.length}:${seedFrom('ensemble-form', canonical).toString(16)}`;
 }
@@ -622,6 +628,11 @@ export function planEnsembleWindow(input: EnsembleWindowInput): EnsembleWindowRe
 		const ceiling = bar.energyCeiling ?? 0.9;
 		const structuralTarget = bar.performanceEnergy ? 0.2 + (bar.performanceEnergy.targetEnergy - 0.2) * (ceiling - 0.2) / 0.7 : undefined;
 		const energy = clamp((structuralTarget ?? bar.intensity) + movement * (bar.performanceEnergy ? 0.35 : 1), 0.2, ceiling);
+		const rootlessTexture: EnsembleBarPlan['piano']['rootlessTexture'] = structuralPhase ? Object.freeze({
+			request: evidence === 'active' || structuralHead || structuralRelease ? 'three' : 'full',
+			reason: evidence === 'active' ? 'active_soloist' : structuralHead ? 'melody_support'
+				: structuralRelease ? 'structural_release' : 'solo_development'
+		}) : undefined;
 		const plan: Draft = {
 			barIndex: i, phraseStartBar, phraseIntent: phrase.intent,
 			intent: owner === 'nobody' ? phrase.intent : 'answer',
@@ -633,6 +644,7 @@ export function planEnsembleWindow(input: EnsembleWindowInput): EnsembleWindowRe
 			piano: Object.freeze({
 				role: owner === 'piano' ? 'respond' : piano === 0 ? 'leave_space' : phrase.lead === 'piano' ? 'lead' : 'support',
 				maxAttacks: piano, densityScale: piano / 2,
+				...(rootlessTexture ? { rootlessTexture } : {}),
 				...(piano === 0 ? { silenceReason: pianoReason ?? 'leave_space' } : {})
 			}),
 			drums: Object.freeze({

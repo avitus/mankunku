@@ -543,7 +543,7 @@ export function generateComping(
 				const selected = resolveCoordinatedVoicing({ chord,
 					family: ctx.plannedComp?.guideTones ? 'guide' : selectCoordinatedVoicingFamily({ chord, phraseId, tempo, segmentIndex: segIdx, intensity: currentIntensity, voicingBias: style.voicingBias }),
 					registerMidi: ctx.plannedComp?.guideTones ? COMP_REGISTER : Math.round(lerp(58, 66, currentIntensity)),
-					previous: voicingMemory });
+					previous: voicingMemory, rootlessTexture: barInfos[bar].ensemble?.piano.rootlessTexture?.request });
 				if (!selected.notes.length) continue;
 				voicing = [...selected.notes];
 				voicingMemory = selected.memory;

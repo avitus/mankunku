@@ -128,7 +128,8 @@ export function realizeRollingPiano(score: RollingBackingDefinition, bar: number
 			const duration = Math.min(hit.durationBeats * 60 / score.tempo, (barEnd - tick) * 60 / score.tempo / score.ppq);
 			if (!Number.isFinite(tick) || tick >= barEnd || !Number.isFinite(duration) || duration <= 0 || absBeat >= score.totalBars * 4) continue;
 			const selected = resolveCoordinatedVoicing({ chord, family: guideTones ? 'guide' : selectCoordinatedVoicingFamily({ chord, phraseId: score.phraseId, tempo: score.tempo, segmentIndex: index, intensity: info.intensity, voicingBias: style.voicingBias }),
-				registerMidi: guideTones ? 62 : Math.round(58 + 8 * info.intensity), previous: voicingMemory });
+				registerMidi: guideTones ? 62 : Math.round(58 + 8 * info.intensity), previous: voicingMemory,
+				rootlessTexture: ensemble.piano.rootlessTexture?.request });
 			if (!selected.notes.length) continue;
 			const notes = [...selected.notes];
 			const time = `${tick}i`;

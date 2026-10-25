@@ -149,3 +149,81 @@ describe('audible piano voice-leading evidence', () => {
 		expect(evidence.join(' ')).not.toMatch(/Guide-tone movement|Common tones held/);
 	});
 });
+
+describe('planned and emitted rootless texture evidence', () => {
+	function score(request: 'three' | 'full' = 'three', applied: 'three' | 'full' = 'three', eligible = true, notes = [62, 64, 71], family = 'rootless-a') {
+		const event = { time: '0i', absBeat: 0, notes, duration: 0.5, velocity: 60 };
+		return { bassEvents: [], compEvents: [event], drumEvents: [], ensemblePlan: { version: 1, trace: [], bars: [{
+			barIndex: 0, phraseIntent: 'support', energy: 0.4, piano: { role: 'support', rootlessTexture: { request, reason: 'melody_support' } },
+			drums: { role: 'time' }, bass: { role: 'time' }
+		}] }, ensembleDevelopment: { version: 1, bassTurnarounds: [], pianoMotifs: [] as { barIndex: number; reason: string; motifId: null }[], drumPhrases: [], pianoVoicings: [{ ...event, decision: {
+			requestedFamily: family, resolvedFamily: family, correction: 'none', guideMotion: null, commonTones: [], totalMovement: 0,
+			registerDistance: 0, candidateCount: 1, rootlessTexture: { request, applied, eligible, noteCount: notes.length }
+		} }] } };
+	}
+	const piano = (generated: ReturnType<typeof score>, options: Parameters<typeof describeMusicianDecisions>[1] = context) => describeMusicianDecisions(generated as unknown as GeneratedBacking, options)[1];
+	it.each(['swing', 'straight', 'bossa-nova', 'ballad'] as const)('explains matching three-note %s attacks without changing the main musical description', (style) => {
+		const generated = score();
+		if (style === 'bossa-nova' || style === 'ballad') generated.ensembleDevelopment.pianoMotifs.push({ barIndex: 0, reason: 'native_pattern', motifId: null });
+		const card = piano(generated, { ...context, style });
+		if (style === 'bossa-nova') expect(card.detail).toContain('native bossa');
+		if (style === 'ballad') expect(card.detail).toContain('native ballad');
+		expect(card.action).toBe('Support the harmony');
+		expect(card.evidence).toContain('Planned rootless texture: three-note support · leave room for the melody');
+		expect(card.evidence).toContain('Chord 1 texture: three-note rootless support · 3 notes');
+	});
+	it('keeps a silent bar planned-only and describes qualified activity in musician language', () => {
+		const generated = score();
+		generated.compEvents = [];
+		generated.ensemblePlan.bars[0].piano.rootlessTexture.reason = 'active_soloist';
+		const card = piano(generated);
+		expect(card.action).toBe('No new chord attack');
+		expect(card.evidence).toContain('Planned rootless texture: three-note support · leave room for the soloist');
+		expect(card.evidence.join(' ')).not.toContain('Chord 1 texture:');
+	});
+	it('describes a release as a plan even when the selected family keeps its shape', () => {
+		const generated = score('three', 'full', false, [64, 71], 'guide');
+		generated.ensemblePlan.bars[0].piano.rootlessTexture.reason = 'structural_release';
+		const evidence = piano(generated).evidence;
+		expect(evidence).toContain('Planned rootless texture: three-note support · ease back');
+		expect(evidence).toContain('Chord 1 texture: selected chord shape kept · 2 notes');
+	});
+	it.each(['ineligible', 'different-family', 'changed-rootless-family', 'wrong-size'] as const)('does not promote inconsistent %s evidence to a three-note rootless claim', (kind) => {
+		const generated = score('three', 'three', kind !== 'ineligible', kind === 'wrong-size' ? [62, 64, 67, 71] : [62, 64, 71], kind === 'different-family' ? 'quartal' : 'rootless-a');
+		if (kind === 'changed-rootless-family') generated.ensembleDevelopment.pianoVoicings[0].decision.resolvedFamily = 'rootless-b';
+		expect(piano(generated).evidence.join(' ')).not.toContain('Chord 1 texture:');
+	});
+	it.each(['time', 'absBeat', 'notes', 'count'] as const)('withholds an emitted claim when %s evidence does not match', (field) => {
+		const generated = score();
+		const voiced = generated.ensembleDevelopment.pianoVoicings[0];
+		if (field === 'time') voiced.time = '1i';
+		if (field === 'absBeat') voiced.absBeat = 0.5;
+		if (field === 'notes') voiced.notes = [62, 65, 71];
+		if (field === 'count') voiced.decision.rootlessTexture.noteCount = 4;
+		expect(piano(generated).evidence.join(' ')).not.toContain('Chord 1 texture:');
+	});
+	it.each([
+		['guide', [64, 71]], ['shell', [60, 64, 71]], ['quartal', [62, 67, 72]], ['rootless-b', [62, 64, 69, 70]]
+	] as const)('describes preserved %s shapes by their actual note count', (family, notes) => {
+		const generated = score('three', 'full', false, [...notes], family);
+		const evidence = piano(generated).evidence;
+		expect(evidence).toContain(`Chord 1 texture: selected chord shape kept · ${notes.length} notes`);
+		expect(evidence).not.toContain('Chord 1 texture: three-note rootless support · 3 notes');
+	});
+	it('describes full texture as keeping the selected shape, not promising four notes', () => {
+		const generated = score('full', 'full', true, [62, 64, 67, 71]);
+		generated.ensemblePlan.bars[0].piano.rootlessTexture.reason = 'solo_development';
+		const evidence = piano(generated).evidence;
+		expect(evidence).toContain('Planned rootless texture: keep the selected chord shape · support the solo');
+		expect(evidence).toContain('Chord 1 texture: selected chord shape kept · 4 notes');
+	});
+	it('shows no new texture claims for Original or old exports without texture fields', () => {
+		const generated = score();
+		const original = describeMusicianDecisions(generated as unknown as GeneratedBacking, { ...context, orchestration: 'original' })[1];
+		expect(original.evidence.join(' ')).not.toMatch(/texture|rootless support/);
+		const legacy = structuredClone(generated) as unknown as GeneratedBacking;
+		delete (legacy.ensemblePlan!.bars[0].piano as { rootlessTexture?: unknown }).rootlessTexture;
+		delete (legacy.ensembleDevelopment!.pianoVoicings![0].decision as { rootlessTexture?: unknown }).rootlessTexture;
+		expect(describeMusicianDecisions(legacy, context)[1].evidence.join(' ')).not.toContain('texture:');
+	});
+});

@@ -18,6 +18,13 @@ export interface CoordinatedVoicingDecision {
 	readonly totalMovement: number;
 	readonly registerDistance: number;
 	readonly candidateCount: number;
+	/** 'full' retains the selected family; it does not imply four notes. */
+	readonly rootlessTexture?: {
+		readonly request: 'three' | 'full';
+		readonly applied: 'three' | 'full';
+		readonly eligible: boolean;
+		readonly noteCount: number;
+	};
 }
 const builders = { 'rootless-a': rootlessVoicingA, 'rootless-b': rootlessVoicingB, shell: shellVoicing, drop2: drop2Voicing, quartal: quartalVoicing, guide: guideToneVoicing };
 /** Preserve the caller's existing seeded family choice without another draw. */
@@ -98,8 +105,10 @@ function placements(pcs: readonly number[], family: CoordinatedVoicingFamily): n
 export function resolveCoordinatedVoicing(input: {
 	chord: { root: PitchClass; quality: ChordQuality };
 	family: CoordinatedVoicingFamily; registerMidi: number; previous?: CoordinatedVoicingMemory;
+	rootlessTexture?: 'three' | 'full';
 }): { notes: readonly number[]; memory: CoordinatedVoicingMemory; decision: CoordinatedVoicingDecision } {
-	if (!validChord(input.chord) || !Object.hasOwn(builders, input.family) || !Number.isFinite(input.registerMidi) || input.registerMidi < 0 || input.registerMidi > 127) throw new Error('Invalid coordinated voicing input');
+	if (!validChord(input.chord) || !Object.hasOwn(builders, input.family) || !Number.isFinite(input.registerMidi) || input.registerMidi < 0 || input.registerMidi > 127 ||
+		(input.rootlessTexture !== undefined && !['three', 'full'].includes(input.rootlessTexture))) throw new Error('Invalid coordinated voicing input');
 	const previous = input.previous;
 	if (previous && (previous.version !== 1 || !validChord(previous.chord) || !Array.isArray(previous.notes) || previous.notes.length < 2 || previous.notes.length > 8 ||
 		previous.notes.some((note, index) => !Number.isInteger(note) || note < 0 || note > 127 || (index > 0 && previous.notes[index - 1] >= note)))) {
@@ -128,6 +137,15 @@ export function resolveCoordinatedVoicing(input: {
 		if (correct.some((tone) => !pcs.includes(tone))) correction = 'defining_tones';
 		pcs = correct;
 	}
+	const textureEligible = (input.family === 'rootless-a' || input.family === 'rootless-b') && family === input.family &&
+		['maj7', 'min7', '7'].includes(chord.quality);
+	const three = input.rootlessTexture === 'three' && textureEligible;
+	if (three) {
+		// Spec P20: select defining tones plus one color before placement:
+		// 9, or 13 for a dominant B shape. Do not truncate placed notes.
+		const color = family === 'rootless-b' && chord.quality === '7' ? 9 : 2;
+		pcs = [third, other, color].map((interval) => pc(root + interval));
+	}
 	const candidates = family === 'quartal'
 		? uniqueCandidates(Array.from({ length: 37 }, (_, offset) => quartalVoicing(chord.root, chord.quality, 48 + offset)), 19)
 		: placements(pcs, family);
@@ -143,6 +161,8 @@ export function resolveCoordinatedVoicing(input: {
 	const memory = Object.freeze({ version: 1 as const, chord: Object.freeze(chord), notes });
 	const decision = Object.freeze({ requestedFamily: input.family, resolvedFamily: family, correction,
 		guideMotion: selected.guideMotion, commonTones: Object.freeze([...selected.commonTones]), totalMovement: selected.totalMovement,
-		registerDistance: selected.registerDistance, candidateCount: candidates.length });
+		registerDistance: selected.registerDistance, candidateCount: candidates.length,
+		...(input.rootlessTexture ? { rootlessTexture: Object.freeze({ request: input.rootlessTexture,
+			applied: three ? 'three' as const : 'full' as const, eligible: textureEligible, noteCount: notes.length }) } : {}) });
 	return Object.freeze({ notes, memory, decision });
 }

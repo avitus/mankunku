@@ -240,6 +240,13 @@ const bassSampleEvidence: MusicalityEvidence[] = [
 	{ kind: 'test', path: 'tests/e2e/backing-bass-selection.spec.ts', revision: 'musicality' }
 ];
 
+const rootlessTextureEvidence: MusicalityEvidence[] = [
+	...['ensemble-plan', 'coordinated-voicing', 'backing-generation', 'backing-rolling-piano', 'backing-rolling'].map(file => ({ ...source(file), revision: 'musicality' })),
+	...['coordinated-rootless-texture', 'ensemble-rootless-texture', 'backing-rootless-texture-integration'].map(file => ({ ...test(file), revision: 'musicality' })),
+	{ kind: 'source', path: 'src/lib/musicality/musician-decisions.ts', revision: 'musicality' },
+	{ kind: 'test', path: 'tests/unit/musicality/musician-decisions.test.ts', revision: 'musicality' }
+];
+
 const causalVoicingEvidence: MusicalityEvidence[] = [
 	...['coordinated-voicing', 'coordinated-voicing-family', 'backing-generation', 'backing-rolling-piano', 'backing-rolling'].map(file => ({ ...source(file), revision: 'musicality' })),
 	...['coordinated-voicing', 'coordinated-voicing-family', 'backing-voicing-policy-integration', 'backing-voicing-causality'].map(file => ({ ...test(file), revision: 'musicality' })),
@@ -305,7 +312,7 @@ const foundationRemaining: Record<string, string> = {
 	S27: "Capture assumes headphones and fixed gain-dependent thresholds. Ambiguous or poorly covered input stays unknown. Acoustic calibration, source separation, MIDI and phrase/motif recognition remain incomplete.",
 	S28: "Register and dynamics remain diagnostic observations. Solo-register avoidance, motif following and broad acoustic validation remain incomplete.",
 	S32: 'Live timing adaptation and richer context-aware placement remain incomplete. The modest build/release timing bias and other bounds still need listening acceptance.',
-	S33: 'Soloist-relative dynamics, remembered climax selection, piano voicing expansion and structural dropout/re-entry remain incomplete. Bass feel and selected sustained bell textures now follow explicit form. The bass adapter now restores source velocity/round-robin selection; measured bank-specific compensation preserves reference levels, while source velocity curves and human balance review remain pending. The new finite-form contour needs human acceptance.',
+	S33: 'Soloist-relative dynamics, remembered climax selection, broader piano texture development and structural dropout/re-entry remain incomplete. Common rootless chords now thin to three notes for support and qualified active-solo evidence, retaining their existing fuller shapes in eligible solo development. Bass feel and selected sustained bell textures now follow explicit form. The bass adapter now restores source velocity/round-robin selection; measured bank-specific compensation preserves reference levels, while source velocity curves and human balance review remain pending. The new finite-form contour needs human acceptance.',
 	S38: "Checkpoints bind the same declared finite form, tempo and generation policy. Indefinite continuation, longer development and checkpoint migration across engine versions remain incomplete.",
 	S39: 'Development stays within selected piano/drum phrases using the existing kit. Piano-to-drum rhythm reuse is one-way; cross-phrase dialogue and live solo imitation remain incomplete. Declared loops retain instrument history without extending motifs beyond their phrase.',
 	S40: "Rolling mode owns attacks and pitched releases within each bar and excludes unreserved two-bar piano fallback figures. Sample and room tails can remain audible after release. General full-ensemble silence and phrase recognition remain incomplete.",
@@ -408,6 +415,11 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 		remaining: 'Piano participation and a general arrangement-hit contract remain incomplete.',
 		scope: 'All four coordinated 4/4 styles; native bossa/ballad arrivals use a soft kick.', evidence: [...entry.evidence, ...foundationEvidence]
 	};
+	if (entry.id === 'P20') return { ...entry, status: 'partial',
+		assessment: 'Selected rootless A/B chords use third, seventh and ninth (or thirteenth for dominant B) as three-note support. Explicit heads/releases/endings request support; qualified active-solo evidence overrides fuller development.',
+		remaining: 'Altered, diminished, suspended and sixth chords retain their existing vocabulary. Broader structural texture development and human listening acceptance remain pending.',
+		scope: 'Explicit-form Coordinated 4/4 in all four styles, restricted to maj7/min7/7 and selected rootless A/B. Original and metadata-free generation remain unchanged.',
+		evidence: [...entry.evidence, ...rootlessTextureEvidence] };
 	if (entry.id === 'S35') return { ...entry, status: 'partial',
 		assessment: 'All four styles now use shared 4/4 roles, silence budgets, phrase timing, causal adaptation and cross-loop planner memory. Native bossa clave/root–fifth and ballad pads/two-feel remain protected; straight uses motif development on even eighths.',
 		remaining: 'Traditional/bebop/post-bop profiles, native bossa/ballad motif development and human listening acceptance remain incomplete.',
@@ -422,6 +434,7 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 			...entry.evidence, ...foundationEvidence,
 			...(['S15', 'S33', 'S44', 'S46'].includes(entry.id) ? bassSampleEvidence : []),
 			...(['S8', 'S38', 'S44', 'S46'].includes(entry.id) ? causalVoicingEvidence : []),
+			...(['S8', 'S33', 'S38', 'S44', 'S46'].includes(entry.id) ? rootlessTextureEvidence : []),
 			...(['S12', 'S18', 'S33', 'S38', 'S44', 'S46'].includes(entry.id) ? structuralTextureEvidence : []),
 			{ ...test('backing-style-coordination'), revision: 'musicality' },
 			...(['S2', 'S24', 'S44', 'S46'].includes(entry.id) ? formEvidence : []),

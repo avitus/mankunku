@@ -69,6 +69,7 @@ async function assertDecisionClock(page: Page, score?: ListeningSnapshot): Promi
 		const arc = document.querySelector('[data-testid="listening-performance-arc"]');
 		return { origin, bar, now: contexts.at(-1)?.currentTime,
 			arc: arc ? { bar: Number(arc.getAttribute('data-bar-index')), phase: arc.getAttribute('data-phase') } : null,
+			pianoEvidence: document.querySelector('[data-testid="musician-piano"]')?.textContent ?? '',
 			cards: ['bass', 'piano', 'drums'].map((instrument) =>
 				Number(document.querySelector(`[data-testid="musician-${instrument}"]`)?.getAttribute('data-bar-index'))),
 			counts: ['bass', 'piano', 'drums'].map((instrument) => Number.parseInt(
@@ -85,6 +86,11 @@ async function assertDecisionClock(page: Page, score?: ListeningSnapshot): Promi
 		const inBar = (event: { time: string }) => Math.floor(parseInt(event.time, 10) / score.ppq / 4) === position.bar;
 		const plannedArc = score.generated.ensemblePlan?.bars[position.bar]?.performanceEnergy;
 		expect(position.arc).toEqual(plannedArc ? { bar: position.bar, phase: plannedArc.phase } : null);
+		const heardThree = score.generated.ensembleDevelopment?.pianoVoicings?.some(entry => inBar(entry) &&
+			entry.decision.rootlessTexture?.applied === 'three' && entry.notes.length === 3) ?? false;
+		expect(position.pianoEvidence.includes('texture: three-note rootless support')).toBe(heardThree);
+		if (score.generated.ensemblePlan?.bars[position.bar]?.piano.rootlessTexture)
+			expect(position.pianoEvidence).toContain('Planned rootless texture:');
 		expect(position.counts).toEqual([score.generated.bassEvents, score.generated.compEvents, score.generated.drumEvents]
 			.map((events) => events.filter(inBar).length));
 	}
@@ -102,6 +108,11 @@ test('listens through a complete real tune and follows each chorus on the audio 
 	const voicings = started.playback.generated!.ensembleDevelopment?.pianoVoicings;
 	expect(voicings?.length).toBe(started.playback.generated!.compEvents.length);
 	expect(voicings!.length).toBeGreaterThan(0);
+	expect(voicings!.some(entry => entry.decision.rootlessTexture?.applied === 'three')).toBe(true);
+	for (const entry of voicings!) {
+		expect(entry.decision.rootlessTexture?.noteCount).toBe(entry.notes.length);
+		if (entry.decision.rootlessTexture?.applied === 'three') expect(entry.notes).toHaveLength(3);
+	}
 	for (const voiced of voicings!) expect(started.playback.generated!.compEvents.some(event =>
 		event.time === voiced.time && event.absBeat === voiced.absBeat && event.notes.join(',') === voiced.notes.join(','))).toBe(true);
 	await assertDecisionClock(page, started.playback);

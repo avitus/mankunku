@@ -117,7 +117,8 @@ it('carries actual emitted guide overrides and anticipation harmony through JSON
 				const chord = score.harmony.find((segment) => lookup >= fractionToFloat(segment.startOffset) * 4 &&
 					lookup < (fractionToFloat(segment.startOffset) + fractionToFloat(segment.duration)) * 4)!.chord;
 				const expected = resolveCoordinatedVoicing({ chord, family: trace.decision.requestedFamily,
-					registerMidi: trace.decision.requestedFamily === 'guide' ? 62 : Math.round(58 + 8 * result.ensemblePlan.bars[0].energy), previous: actual });
+					registerMidi: trace.decision.requestedFamily === 'guide' ? 62 : Math.round(58 + 8 * result.ensemblePlan.bars[0].energy), previous: actual,
+					rootlessTexture: result.ensemblePlan.bars[0].piano.rootlessTexture?.request });
 				expect(event.notes).toEqual(expected.notes);
 				expect(trace).toMatchObject({ absBeat: event.absBeat, time: event.time, notes: event.notes, decision: expected.decision });
 				if (previousGuide) followedGuides++;
@@ -141,8 +142,9 @@ it('rejects prior-policy or malformed emitted-harmony checkpoints before continu
 	for (let bar = 0; bar < score.totalBars - 1 && !checkpoint?.piano.voicing; bar++) checkpoint = advanceRollingBacking(score, checkpoint).checkpoint;
 	expect(checkpoint?.piano.voicing).toBeDefined();
 	for (const priorPolicy of [
-		score.fingerprint.replace('"coordinatedVoicingVersion":2', '"coordinatedVoicingVersion":1'),
-		score.fingerprint.replace(',"coordinatedVoicingVersion":2', '')
+		score.fingerprint.replace('"coordinatedVoicingVersion":3', '"coordinatedVoicingVersion":2'),
+		score.fingerprint.replace('"coordinatedVoicingVersion":3', '"coordinatedVoicingVersion":1'),
+		score.fingerprint.replace(',"coordinatedVoicingVersion":3', '')
 	]) {
 		expect(priorPolicy).not.toBe(score.fingerprint);
 		const { checkpointId: _identity, ...contents } = { ...checkpoint!, fingerprint: priorPolicy };

@@ -102,6 +102,14 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 		detail: piano.length ? 'Comping supports the changes in this bar.' : 'Earlier chords may still sustain through this bar.',
 		evidence: [countText(piano.length, 'chord attack'), ...sharedEvidence('piano')]
 	};
+	const plannedTexture = plan?.piano.rootlessTexture;
+	if (plannedTexture) {
+		const reasons = {
+			melody_support: 'leave room for the melody', structural_release: 'ease back',
+			solo_development: 'support the solo', active_soloist: 'leave room for the soloist'
+		};
+		pianoCard.evidence.push(`Planned rootless texture: ${plannedTexture.request === 'three' ? 'three-note support' : 'keep the selected chord shape'} · ${reasons[plannedTexture.reason]}`);
+	}
 	for (const [index, event] of piano.entries()) {
 		pianoCard.evidence.push(`Chord ${index + 1}: ${event.notes.map(noteName).join(' · ')}`);
 		const voiced = development?.pianoVoicings?.find((entry) => entry.time === event.time && entry.absBeat === event.absBeat &&
@@ -109,6 +117,16 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 		if (!voiced) continue;
 		const decision = voiced.decision;
 		pianoCard.evidence.push(`Chord ${index + 1} voicing: ${plain(decision.resolvedFamily)}`);
+		const texture = decision.rootlessTexture;
+		if (texture && texture.noteCount === event.notes.length) {
+			const rootless = (family: string) => family === 'rootless-a' || family === 'rootless-b';
+			if (texture.request === 'three' && texture.applied === 'three' && texture.eligible && event.notes.length === 3 &&
+				rootless(decision.requestedFamily) && decision.resolvedFamily === decision.requestedFamily) {
+				pianoCard.evidence.push(`Chord ${index + 1} texture: three-note rootless support · 3 notes`);
+			} else if (texture.applied === 'full') {
+				pianoCard.evidence.push(`Chord ${index + 1} texture: selected chord shape kept · ${countText(event.notes.length, 'note')}`);
+			}
+		}
 		if (decision.commonTones.length) pianoCard.evidence.push(`Common tones held: ${decision.commonTones.map(noteName).join(' · ')}`);
 		if (decision.guideMotion !== null) pianoCard.evidence.push(`Guide-tone movement: ${countText(decision.guideMotion, 'semitone')} total`);
 		if (decision.correction !== 'none') pianoCard.evidence.push(`Voicing adjustment: ${plain(decision.correction)}`);
