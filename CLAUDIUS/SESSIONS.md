@@ -5932,3 +5932,33 @@ monitor whether it results in faster CI times."
   flags, trim, flag fraction, 3 of 3, live time base).
 - Worktree housekeeping: fast-forwarded to origin/dev first (8 behind),
   `npm ci` for the coverage-reporter package, copied `.env` for `check`.
+
+## 2026-10-24 — The focus drill climbs without stopping
+
+- Andy asked for the state diagrams to be checked against production and
+  for the bar between focus-ramp takes to go: the same key inserted below
+  as many times as the climb needs (51 → 56: the current take plus five),
+  a missed advance adding one more at the bottom.
+- Audit: the mermaid matched `deb3c1f6`; the stale parts were prose from
+  before Studio Desk (sheet rows 1.6× the 128 px chord row, cue lane above
+  every chart, one engraving for all modes, Deep sheets from the outset),
+  a missing handoff phase in two docs, and four sequence diagrams whose
+  ';' (a mermaid statement break) kept them from rendering.
+- Decisions (Andy): a sub-75% take still steps down and adds the climb
+  back; the once-more handoff stays; a take whose sheet comes or goes
+  keeps its one bar; every focus row carries its BPM.
+- Built as display-only projected rows over the unchanged one-take
+  cycles: `projectFocusTempos` shares `focusStepUpTempo` with
+  `resolveRampCycle`; `prepareBars` 0 for a focus take unless its sheet
+  decision flips; a same-key focus take scrolls in; `PlannedKey.cycle`
+  keeps the finished take's score on its own row (the key-only rule
+  would have handed it to the next take of the same key).
+- A fresh-context review found no bug. Its timing risk — four sheets
+  engraved on a playing downbeat — measured 58 ms worst frame in the
+  2-CPU sandbox (baseline p95 18 ms), under the 93 ms analyser window;
+  projected sheet rows below the viewport are not engraved. Its other
+  catch (projected rows missing until the audio loaded) is fixed.
+- Validation: e2e cannot run on the sidecar any more (the isolation guard
+  wants /.dockerenv or CIRCLECI) — `npm run test:e2e` on the local
+  Colima sandbox instead; vitest and check on the sidecar. Each new test
+  mutation-checked red. Rebased onto origin/dev (9 behind) before the PR.
