@@ -17,6 +17,7 @@ import type { BackingInstrument, BackingStyle } from '$lib/types/instruments';
 import { fractionToFloat } from '$lib/music/intervals';
 import { BACKING_STYLES } from './backing-styles';
 import { createBackingSampleLoader } from './backing-sample-loader';
+import { loadBackingBass } from './backing-bass-instrument';
 import {
 	generateBacking,
 	resolveBackingSwing,
@@ -283,7 +284,7 @@ export async function renderEventsToWav(
 					scheduler
 				}).load;
 			const [bass, comp, kickSampler, snareSampler, cymbalSampler] = await Promise.all([
-				new Smolken(context, { instrument: 'Pizzicato', destination: bassGain, scheduler, loader }).load,
+				loadBackingBass(context, Smolken, { instrument: 'Pizzicato', destination: bassGain, scheduler, loader }),
 				opts.instrument === 'piano'
 					? new SplendidGrandPiano(context, { destination: compGain, scheduler, loader }).load
 					: new Soundfont(context, {

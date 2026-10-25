@@ -161,12 +161,39 @@ local checks passed 6,387 unit tests (40 expected failures), type checking,
 the production build and 24 focused browser checks including this diagnostic,
 the drum timing regression, mixer controls and `/musicality`. No hosted CI ran.
 
-**Separate bass follow-up:** the installed Smolken preset conversion drops
+**Bass selection repair — 25 October 2026:** the installed Smolken preset conversion dropped
 one-sided velocity limits and region-level round-robin lengths. Native rendering
 confirmed 7–12 sample voices per note where the source preset selects one.
-This does not introduce a common timing delay, but changes level and timbre.
-Correcting selection needs its own implementation, balance calibration and
-listening review; the timing repair does not change bass selection or trims.
+The shared loader now restores the pinned Pizzicato bank’s velocity bands
+(0–74, 75–120 and 121–127) and three/four-take round robins for MIDI 28–55,
+before the sampler constructs its matcher. The complete active signature must
+match; foreign, partial or modified banks stay untouched. Ten other source groups
+remain unchanged. The source fixture is SHA-256
+`0aea1def56753b0dcc89914b1ac24054200bacc01dd696572745c70787eaec4f`.
+
+This applies to live playback and offline bounce, in Original and Coordinated
+modes and all styles. It changes sample selection, level and timbre, not generated
+notes, onset trims or envelopes. The existing bass bus trim stays at 0.05. Unit tests use the
+installed converter and region matcher against all supported keys/velocities and
+complete cycles; native tests count actual AudioBufferSourceNode starts and check
+recording identity, finite signal and onset. Source `amp_velcurve_*` opcodes remain
+unsupported. Sampler counters retain their existing per-group behavior; exact
+counter parity with a separate SFZ engine is not claimed.
+
+Raw same-gain full-tune bass stems and before/after RMS/peak measurements are
+retained for audition. Removing accidental layers reduced reference RMS by 17.2–19.2 dB.
+The shared bass constructor adds a linear gain of 7.74 only after a recognized bank
+loads successfully. This is the rounded geometric mean of the four style-specific
+before/after RMS ratios, restoring these raw reference levels within about 1.4 dB.
+It preserves velocity dynamics and user faders; unknown banks get no boost.
+The insert belongs to the instrument channel and is disconnected with it.
+
+The public WAV exporter peak-normalizes its output. Raw pre-normalization mix
+measurements are therefore retained separately; normalized isolated bounces cannot
+establish relative balance. Full-tune artifacts live at
+`/Users/avitus/.codex/artifacts/musicality-2026-10-25/bass-selection/listen.html`.
+This measured reference-level preservation still needs human ensemble listening;
+see the [development log](/docs/contributing/musicality-progress).
 
 ### Milestone B — 2026-08-06 — verdict: NEW preferred at all three tempi
 

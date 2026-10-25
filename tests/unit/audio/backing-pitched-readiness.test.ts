@@ -57,7 +57,8 @@ describe('live pitched readiness', () => {
 		await expect(backing.loadBackingInstruments('piano')).resolves.toBeUndefined();
 		expect(backing.isBackingLoaded()).toBe(true);
 		expect(state.created).toHaveLength(3);
-		expect(state.created[1].loader).toBe(state.created[2].loader);
+		// Bass owns a wrapper so bank recognition cannot leak into concurrent piano loads.
+		expect(state.created[1].loader).not.toBe(state.created[2].loader);
 		backing.disposeBackingTrack();
 	});
 

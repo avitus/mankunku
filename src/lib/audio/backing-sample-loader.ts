@@ -1,5 +1,6 @@
 import type { SampleLoader, SampleLoaderLoadOptions, SmplrPreset, Storage } from 'smplr';
 import { prepareBackingPianoSample } from './backing-piano-samples';
+import { normalizeBackingBassPreset } from './backing-bass-samples';
 
 /**
  * smplr 1.0's default loader selects codecs from media/UA hints and silently
@@ -35,6 +36,9 @@ export function createBackingSampleLoader(context: BaseAudioContext, storage?: S
 
 	return {
 		async load(preset: SmplrPreset, options?: SampleLoaderLoadOptions | ((loaded: number, total: number) => void)) {
+			// Smolken builds its region matcher after this loader resolves. Repair
+			// only the audited Pizzicato bank before any velocity/RR selection.
+			normalizeBackingBassPreset(preset);
 			const { buffers, onProgress } = typeof options === 'function' ? { onProgress: options, buffers: undefined } : options ?? {};
 			const names = [...new Set(preset.groups.flatMap((group) => group.regions.map((region) => region.sample)))];
 			if (!names.length) throw new Error('No playable samples declared for backing instrument');

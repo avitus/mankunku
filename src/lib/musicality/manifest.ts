@@ -234,6 +234,12 @@ const crossLoopEvidence: MusicalityEvidence[] = [
 	{ kind: 'test', path: 'tests/e2e/solo-listening.spec.ts', revision: 'musicality' }
 ];
 
+const bassSampleEvidence: MusicalityEvidence[] = [
+	...['backing-bass-samples', 'backing-bass-instrument', 'backing-sample-loader'].map(file => ({ ...source(file), revision: 'musicality' })),
+	...['backing-bass-samples', 'backing-bass-instrument'].map(file => ({ ...test(file), revision: 'musicality' })),
+	{ kind: 'test', path: 'tests/e2e/backing-bass-selection.spec.ts', revision: 'musicality' }
+];
+
 const causalVoicingEvidence: MusicalityEvidence[] = [
 	...['coordinated-voicing', 'backing-generation', 'backing-rolling-piano', 'backing-rolling'].map(file => ({ ...source(file), revision: 'musicality' })),
 	...['coordinated-voicing', 'backing-voicing-causality'].map(file => ({ ...test(file), revision: 'musicality' })),
@@ -254,6 +260,7 @@ const foundationAssessments: Record<string, string> = {
 	S3: 'Coordinated mode adds commentary budgets, turn-taking, reasoned silence and fill cooldowns. Explicit performed forms now supply restrained heads, solo build/peak/release and a returning-head energy contour before phrase choices.',
 	S8: 'Explicit coordinated piano placement follows the previous emitted voicing, prioritizing legal guide-tone motion and exact common-note retention before register distance. Unplayed harmony does not update its memory.',
 	S10: "Qualified microphone density and rests can change upcoming piano attack budgets and selective response ownership during a rolling lab take.",
+	S15: 'Existing note duration and velocity shaping now reaches source-defined Smolken velocity layers and round robins: one recording per note in the supported register instead of unintended stacked layers.',
 	S16: 'Bass ornament activity follows the ensemble plan while its pulse remains protected. Eligible two-bar walking passages now plan a directional path into the root of an actual following chorus.',
 	S17: 'The coordinated drummer develops ride cells across two to four bars and selected commentary motifs within shared budgets. It can answer the previous bar of emitted piano attacks while preserving timekeeping and agreed arrivals.',
 	S12: 'Explicit coordinated Swing/Straight heads and returning heads now use bass two-feel, solos walk, selected head-to-solo transitions begin walking early, and quiet final phrases can return to two.',
@@ -284,6 +291,7 @@ const foundationRemaining: Record<string, string> = {
 	S4: 'Listening acceptance and explicit musical intent controls for timing remain incomplete; the original mode retains independent event jitter.',
 	S8: 'This is a local causal placement objective within existing selected families, not a composed top-note line or multi-phrase melodic plan. Quartal shapes retain their distinct structure. Human listening acceptance remains pending.',
 	S10: "Solo phrase-end recognition, motif imitation, solo-register avoidance and deliberate piano answers to drum motifs remain incomplete.",
+	S15: 'Muted/dead notes, slides and other articulations still require distinct event/renderer support. Source velocity-curve opcodes remain unsupported; final bass balance and listening acceptance are pending.',
 	S16: "Rolling bass retains pitch history and accepted following-chorus launches while adapting ornament admission. Declared repeat seams can be launch targets; the final loop remains terminal. Broader trajectories and listening acceptance remain incomplete.",
 	S17: "Broader kit vocabulary, articulation lengths and musical acceptance remain incomplete. Rolling memory continues across declared loops; new motifs still follow phrase boundaries.",
 	S12: 'Further bass time devices, solo-density-led feel negotiation and human listening acceptance remain incomplete.',
@@ -297,7 +305,7 @@ const foundationRemaining: Record<string, string> = {
 	S27: "Capture assumes headphones and fixed gain-dependent thresholds. Ambiguous or poorly covered input stays unknown. Acoustic calibration, source separation, MIDI and phrase/motif recognition remain incomplete.",
 	S28: "Register and dynamics remain diagnostic observations. Solo-register avoidance, motif following and broad acoustic validation remain incomplete.",
 	S32: 'Live timing adaptation and richer context-aware placement remain incomplete. The modest build/release timing bias and other bounds still need listening acceptance.',
-	S33: 'Soloist-relative dynamics, remembered climax selection, piano voicing expansion and structural dropout/re-entry remain incomplete. Bass feel and selected sustained bell textures now follow explicit form. The bass adapter still needs corrected velocity/round-robin selection, followed by balance calibration and listening review. The new finite-form contour needs human acceptance.',
+	S33: 'Soloist-relative dynamics, remembered climax selection, piano voicing expansion and structural dropout/re-entry remain incomplete. Bass feel and selected sustained bell textures now follow explicit form. The bass adapter now restores source velocity/round-robin selection; measured bank-specific compensation preserves reference levels, while source velocity curves and human balance review remain pending. The new finite-form contour needs human acceptance.',
 	S38: "Checkpoints bind the same declared finite form, tempo and generation policy. Indefinite continuation, longer development and checkpoint migration across engine versions remain incomplete.",
 	S39: 'Development stays within selected piano/drum phrases using the existing kit. Piano-to-drum rhythm reuse is one-way; cross-phrase dialogue and live solo imitation remain incomplete. Declared loops retain instrument history without extending motifs beyond their phrase.',
 	S40: "Rolling mode owns attacks and pitched releases within each bar and excludes unreserved two-bar piano fallback figures. Sample and room tails can remain audible after release. General full-ensemble silence and phrase recognition remain incomplete.",
@@ -412,6 +420,7 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 		scope: 'Shared planning, timing and rolling adaptation: swing, straight, bossa nova and ballad in 4/4. Motif transformations and walking launches: swing/straight only. Original generation remains the practice mode pending listening acceptance.',
 		evidence: [
 			...entry.evidence, ...foundationEvidence,
+			...(['S15', 'S33', 'S44', 'S46'].includes(entry.id) ? bassSampleEvidence : []),
 			...(['S8', 'S38', 'S44', 'S46'].includes(entry.id) ? causalVoicingEvidence : []),
 			...(['S12', 'S18', 'S33', 'S38', 'S44', 'S46'].includes(entry.id) ? structuralTextureEvidence : []),
 			{ ...test('backing-style-coordination'), revision: 'musicality' },

@@ -52,6 +52,7 @@ import {
 } from './backing-mix';
 import { extendHarmonyTail } from '$lib/data/progressions';
 import { createBackingSampleLoader } from './backing-sample-loader';
+import { loadBackingBass } from './backing-bass-instrument';
 import {
 	createRollingBackingRenderer, type RollingBackingRenderer, type RollingBackingRendererOptions
 } from './backing-rolling-renderer';
@@ -616,14 +617,12 @@ export async function loadBackingInstruments(
 
 	// Load bass if not already loaded — pizzicato upright bass samples
 	if (!bassInstrument) {
-		const bass = new Smolken(audioCtx, {
+		const bass = await loadBackingBass(audioCtx, Smolken, {
 			instrument: 'Pizzicato',
 			destination: bassGain as GainNode,
 			storage,
 			loader
 		});
-		try { await bass.load; }
-		catch (error) { bass.disconnect(); throw error; }
 		if (loadId !== currentLoadId) {
 			bass.disconnect();
 			return;
