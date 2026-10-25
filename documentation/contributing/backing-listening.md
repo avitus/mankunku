@@ -258,8 +258,17 @@ The live piano details distinguish **Planned rootless texture** from an actual e
 
 ## Drum-to-piano space listening focus — 25 October 2026
 
-This increment applies to explicit-form **rolling adaptive takes** in the advanced lab. The current full-tune studio uses fixed generation and does not yet play it. A previous accepted independent drum phrase can prompt a seeded one-bar piano breath. Timekeeping is not commentary; arrivals, endings, reserved responses and existing silence remain protected. The pianist does not echo a drum rhythm in this increment.
+This increment applies to explicit-form Coordinated rolling playback in the full-tune studio, blind comparison and advanced lab. A previous accepted independent drum phrase can prompt a seeded one-bar piano breath. Timekeeping is not commentary; arrivals, endings, reserved responses and existing silence remain protected. The pianist does not echo a drum rhythm in this increment.
 
 Matched full-tune rolling comparisons are retained at `/Users/avitus/.codex/artifacts/musicality-2026-10-25/drum-piano-feedback/listen.html`. For the default Saints example in Swing and Straight, listen to human bar 35's drum phrase and the piano breathing in bar 36. Compare the whole take as well as that cue: the response should feel like room in an ongoing conversation, without a hole in the pulse. Bossa and Ballad are unchanged controls in this reference; do not expect a manufactured response in every style or every take.
 
 Compare at one common volume. Retain adverse judgments such as a late reaction, too much silence or interrupted piano phrasing. The event export identifies source hits, the planned breath and actual accepted piano attacks; it does not establish that a naturally silent counterfactual would have sounded. Human preference and acceptance remain pending.
+
+
+### Audition causal full-tune playback
+
+On `/musicality`, choose Coordinated and listen through the head, two solo choruses, returning head and ending. No microphone is requested. The musician cards follow the sounding bar; exported events can include a small committed lookahead, and an export before completion is marked partial. Stop and replay should begin a fresh performance. A browser suspension or missed scheduling deadline ends the take with an error rather than granting a complete listen.
+
+For a reproducible reciprocal cue, use Mankunku Blues, Swing, 180 BPM and the default swing setting: listen across human bars 21–22 for independent drum commentary followed by piano space. Compare the full performance with Original, then repeat in Straight, Bossa and Ballad. Bossa's clave is timekeeping, not a call requiring a piano answer. Judge continuity, stylistic character and whether the occasional space is useful; the decision text and passing tests cannot answer those questions.
+
+Blind comparison uses these same fixed Original and causal Coordinated players. Wait through each entire tune and its 2.5-second release tail before rating and revealing. A complete exported score is scheduler evidence, not proof of audible quality or human acceptance. Fixed offline bounce still uses its earlier generation path and should not be treated as an exact reproduction of a causal Coordinated studio take.

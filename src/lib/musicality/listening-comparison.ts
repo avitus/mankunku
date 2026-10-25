@@ -101,6 +101,29 @@ function validGenerated(value: unknown, ppq: number, durationBeats: number): boo
   piano.every(e => event(e) && Array.isArray(e.notes) && e.notes.length > 0 && e.notes.length <= 32 && e.notes.every(note) && finite(e.duration) && e.duration > 0 && e.duration <= 60 && (e.velocity as number) >= 0 && (e.velocity as number) <= 127) &&
   drums.every(e => event(e) && ['kick','snare','crossstick','hihat','hihat-pedal','ride','ride-bell','crash'].includes(String(e.drum)) && (e.velocity as number) >= 0 && (e.velocity as number) <= 1);
 }
+/** New causal archives carry dispatch proof; old fixed archives remain readable. */
+function validTakeProvenance(take: Record<string, unknown>, inputs: ListeningComparisonInputs, arrangement: Arrangement): boolean {
+ const provenance = take.provenance;
+ if (provenance === undefined) return true;
+ if (!object(provenance)) return false;
+ const bars = Math.ceil(harmonyDurationBeats(inputs.phrase) / 4);
+ if (provenance.totalBars !== bars || provenance.committedBars !== bars ||
+  provenance.committedThroughTick !== harmonyDurationBeats(inputs.phrase) * (take.ppq as number)) return false;
+ if (provenance.engine === 'fixed') return true;
+ if (provenance.engine !== 'causal-rolling' || arrangement !== 'coordinated' || provenance.sessionStatus !== 'complete' ||
+  !text(provenance.sessionId, 200) || !text(provenance.fingerprint, 200_000) ||
+  (take.audioTime as number) - (take.startAudioTime as number) < harmonyDurationBeats(inputs.phrase) * 60 / inputs.tempo + 2.5 - 1e-6 ||
+  !Array.isArray(provenance.dispatches) || provenance.dispatches.length > 50_000 || !object(take.generated)) return false;
+ const generated = take.generated;
+ const plan = generated.ensemblePlan;
+ if (!object(plan) || !Array.isArray(plan.bars) || plan.bars.length !== bars ||
+  !plan.bars.every((bar, index) => object(bar) && bar.barIndex === index)) return false;
+ const ticks = [...new Set([...(generated.bassEvents as { time: string }[]), ...(generated.compEvents as { time: string }[]),
+  ...(generated.drumEvents as { time: string }[])].map(event => Number.parseInt(event.time, 10)))].sort((a, b) => a - b);
+ return provenance.dispatches.length === ticks.length && provenance.dispatches.every((entry, index) => object(entry) &&
+  entry.status === 'played' && entry.tick === ticks[index] && finite(entry.audioTime) &&
+  Math.abs(entry.audioTime - ((take.startAudioTime as number) + ticks[index] * 60 / inputs.tempo / (take.ppq as number))) < 1e-6);
+}
 function completeTake(value: unknown, inputs: ListeningComparisonInputs, arrangement: Arrangement): value is ListeningSnapshot {
  if (!object(value) || value.status !== 'completed' || value.error !== null || !object(value.params) ||
   canonical(value.params) !== canonical({ ...inputs, orchestration: arrangement })) return false;
@@ -110,7 +133,8 @@ function completeTake(value: unknown, inputs: ListeningComparisonInputs, arrange
   finite(value.startAudioTime) && value.startAudioTime >= 0 && finite(value.audioTime) &&
   value.audioTime - value.startAudioTime >= duration * 60 / inputs.tempo - 1e-6 &&
   finite(value.ppq) && Number.isInteger(value.ppq) && value.ppq > 0 && value.ppq <= 100_000 &&
-  value.barIndex === Math.ceil(duration / inputs.phrase.timeSignature[0]) - 1 && validGenerated(value.generated, value.ppq, duration);
+  value.barIndex === Math.ceil(duration / inputs.phrase.timeSignature[0]) - 1 && validGenerated(value.generated, value.ppq, duration) &&
+  validTakeProvenance(value, inputs, arrangement);
 }
 
 /** Mapping stays outside the public snapshot until both complete, rated takes are locked. */

@@ -3,7 +3,7 @@ import { createRollingSession } from '$lib/audio/backing-rolling-session';
 import type { RollingBackingBar, RollingBackingDefinition } from '$lib/audio/backing-rolling';
 import { createSoloObserver, type SoloObservationWindow } from '$lib/audio/solo-observer';
 
-function harness() {
+function harness(releaseTailSeconds?: number) {
 	let audioNow = 10;
 	let measured = 0;
 	const definition = { sessionId: 'score', tempo: 240, ppq: 192, beatsPerBar: 4, totalBars: 8 } as RollingBackingDefinition;
@@ -13,7 +13,8 @@ function harness() {
 		return { fromBar, toBarExclusive: fromBar + 1, checkpoint: { nextBar: fromBar + 1 } } as RollingBackingBar;
 	});
 	const onError = vi.fn(); const onComplete = vi.fn();
-	const session = createRollingSession({ definition, renderer, generate, startAudioTime: 10.5, observationSessionId: 'take', measureNow: () => measured += 0.001, onError, onComplete });
+	const session = createRollingSession({ definition, renderer, generate, startAudioTime: 10.5, observationSessionId: 'take',
+		releaseTailSeconds, measureNow: () => measured += 0.001, onError, onComplete });
 	return { session, renderer, generate, onError, onComplete, time(value: number) { audioNow = value; } };
 }
 function observation(barIndex = 0, availableAtSeconds = 1.02): SoloObservationWindow {
@@ -91,5 +92,49 @@ describe('rolling session clock and evidence', () => {
 		h.time(18.5); h.session.pump(); h.session.pump();
 		expect(h.onComplete).toHaveBeenCalledOnce();
 		expect(h.renderer.stop).toHaveBeenCalledOnce();
+	});
+	it('lets a fully dispatched finite take ring through its optional audio-clock release tail', () => {
+		const h = harness(2.5); h.session.start();
+		for (let bar = 2; bar < 8; bar++) { h.time(10.5 + bar - 0.22); h.session.pump(); }
+		h.time(18.5); h.session.pump();
+		expect(h.session.snapshot().status).toBe('running');
+		expect(h.renderer.stop).not.toHaveBeenCalled();
+		expect(h.onComplete).not.toHaveBeenCalled();
+		h.time(20.99); h.session.pump(); h.session.pump();
+		expect(h.generate).toHaveBeenCalledTimes(8);
+		expect(h.renderer.stop).not.toHaveBeenCalled();
+		h.time(21); h.session.pump(); h.session.pump();
+		expect(h.onComplete).toHaveBeenCalledOnce();
+		expect(h.renderer.stop).toHaveBeenCalledOnce();
+	});
+	it('rejects an incomplete final dispatch immediately rather than hiding it inside the release tail', () => {
+		const h = harness(2.5); h.session.start();
+		for (let bar = 2; bar < 8; bar++) { h.time(10.5 + bar - 0.22); h.session.pump(); }
+		h.renderer.snapshot.mockReturnValue({ status: 'active', dispatches: [{ status: 'scheduled' }] });
+		h.time(18.5); h.session.pump();
+		expect(h.onError).toHaveBeenCalledWith('incomplete_playback');
+		expect(h.renderer.stop).toHaveBeenCalledOnce();
+		h.time(21); h.session.pump();
+		expect(h.onComplete).not.toHaveBeenCalled();
+	});
+	it('stops promptly on cancellation or a suspended audio context during the release tail', () => {
+		for (const suspend of [false, true]) {
+			const h = harness(2.5); h.session.start();
+			for (let bar = 2; bar < 8; bar++) { h.time(10.5 + bar - 0.22); h.session.pump(); }
+			h.time(18.5); h.session.pump();
+			if (suspend) {
+				h.renderer.horizon = () => { throw new Error('suspended'); };
+				h.session.pump();
+				expect(h.onError).toHaveBeenCalledWith('audio_clock');
+			} else h.session.stop();
+			expect(h.renderer.stop).toHaveBeenCalledOnce();
+			h.time(21); h.session.pump(); h.session.stop();
+			expect(h.renderer.stop).toHaveBeenCalledOnce();
+			expect(h.onComplete).not.toHaveBeenCalled();
+		}
+	});
+	it('bounds the optional release tail without changing the zero-tail diagnostics default', () => {
+		for (const seconds of [-1, NaN, Infinity, 5.01]) expect(() => harness(seconds)).toThrow(/release tail/);
+		for (const seconds of [0, 2.5, 5]) expect(() => harness(seconds)).not.toThrow();
 	});
 });

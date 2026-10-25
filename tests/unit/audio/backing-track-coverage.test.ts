@@ -508,4 +508,55 @@ describe('rolling playback browser wrapper', () => {
 		expect(mod.getActiveSchedule()).toBe(schedule);
 		first.stop();
 	});
+
+	it('retains physical ownership across commits and request cancellation, but never across replacement', async () => {
+		const mod = await import('$lib/audio/backing-track');
+		await mod.loadBackingInstruments('piano');
+		let current = true;
+		const first = await mod.createRollingBackingPlayback({ sessionId: 'rolling-probe', tempo: 120,
+			ppq: 480, totalBars: 4, isCurrent: () => current });
+		expect(first.ownsOutput()).toBe(true);
+		first.commit(openingBar());
+		const oldSchedule = mod.getActiveSchedule();
+		const secondBar = { ...openingBar(), fromBar: 1, toBarExclusive: 2, startTick: 1920, earliestTick: 1920,
+			committedThroughTick: 3840, previousCheckpointId: 'one',
+			checkpoint: { ...openingBar().checkpoint, nextBar: 2, checkpointId: 'two' },
+			bassEvents: [{ time: '1920i', midi: 48, velocity: 80, duration: 0.4, absBeat: 4 }] };
+		expect(first.commit(secondBar).accepted).toBe(true);
+		expect(mod.getActiveSchedule()).not.toBe(oldSchedule);
+		expect(first.ownsOutput()).toBe(true);
+		current = false;
+		expect(first.ownsOutput()).toBe(true);
+		first.stop();
+		expect(mod.getActiveSchedule()).toBeNull();
+		expect(first.ownsOutput()).toBe(true);
+		const replacement = await mod.createRollingBackingPlayback({ sessionId: 'rolling-probe', tempo: 120,
+			ppq: 480, totalBars: 4, isCurrent: () => true });
+		expect(first.ownsOutput()).toBe(false);
+		expect(replacement.ownsOutput()).toBe(true);
+		expect(replacement.commit(openingBar()).accepted).toBe(true);
+		const replacementSchedule = mod.getActiveSchedule();
+		first.stop();
+		expect(mod.getActiveSchedule()).toBe(replacementSchedule);
+		expect(replacement.snapshot().status).toBe('active');
+		mod.disposeBackingParts();
+		expect(replacement.ownsOutput()).toBe(false);
+	});
+
+	it('cannot clear a newer fixed arrangement when a former rolling owner stops late', async () => {
+		const mod = await import('$lib/audio/backing-track');
+		await mod.loadBackingInstruments('piano');
+		const previous = await mod.createRollingBackingPlayback({ sessionId: 'rolling-probe', tempo: 120,
+			ppq: 480, totalBars: 4, isCurrent: () => true });
+		expect(previous.commit(openingBar()).accepted).toBe(true);
+		await mod.scheduleBackingTrack(PHRASE, OPTIONS, 0, false, () => true);
+		const schedule = mod.getActiveSchedule();
+		expect(schedule).not.toBeNull();
+		expect(previous.ownsOutput()).toBe(false);
+		previous.stop();
+		expect(mod.getActiveSchedule()).toBe(schedule);
+		expect(recorded.every((part) => !part.disposed)).toBe(true);
+		mod.disposeBackingTrack();
+		expect(previous.ownsOutput()).toBe(false);
+	});
 });

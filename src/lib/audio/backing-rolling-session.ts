@@ -17,6 +17,8 @@ export interface RollingSessionOptions {
 	generate(definition: RollingBackingDefinition, checkpoint?: RollingBackingCheckpoint, features?: readonly SoloFeature[]): RollingBackingBar;
 	/** Monotonic wall clock, seconds; measures computation even while audio is suspended. */
 	measureNow(): number;
+	/** Keep accepted final voices ringing after verified dispatch; diagnostics default to zero. */
+	releaseTailSeconds?: number;
 	onCommit?(bar: RollingBackingBar): void;
 	onError?(reason: string): void;
 	onComplete?(): void;
@@ -43,6 +45,10 @@ export interface RollingSessionSnapshot {
  */
 export function createRollingSession(options: RollingSessionOptions) {
 	const { definition, renderer } = options;
+	const releaseTailSeconds = options.releaseTailSeconds ?? 0;
+	if (!Number.isFinite(releaseTailSeconds) || releaseTailSeconds < 0 || releaseTailSeconds > 5) {
+		throw new RangeError('Rolling release tail must be between 0 and 5 seconds');
+	}
 	const barSeconds = 240 / definition.tempo;
 	let status: RollingSessionSnapshot['status'] = 'ready';
 	let error: string | null = null;
@@ -75,10 +81,14 @@ export function createRollingSession(options: RollingSessionOptions) {
 		if (status !== 'running') return;
 		let horizon: ReturnType<RollingSessionPort['horizon']>;
 		try { horizon = renderer.horizon(); } catch { fail('audio_clock'); return; }
-		if (horizon.audioNow >= options.startAudioTime + definition.totalBars * barSeconds) {
+		const formEnd = options.startAudioTime + definition.totalBars * barSeconds;
+		if (horizon.audioNow >= formEnd) {
 			if (nextBar !== definition.totalBars) { fail('deadline'); return; }
 			const playback = renderer.snapshot();
 			if (playback.status !== 'active' || playback.dispatches.some((entry) => entry.status !== 'played')) { fail('incomplete_playback'); return; }
+			// Verify the final dispatch at the form boundary, not after the tail:
+			// delayed or cancelled callbacks must never become a completed take.
+			if (horizon.audioNow < formEnd + releaseTailSeconds) return;
 			status = 'complete'; renderer.stop(); options.onComplete?.(); return;
 		}
 		if (nextBar < definition.totalBars && options.startAudioTime + nextBar * barSeconds <= horizon.renderSafeFrom + 0.075) commit();

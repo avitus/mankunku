@@ -969,12 +969,17 @@ export interface RollingBackingPlaybackOptions extends Omit<RollingBackingRender
 	isCurrent(): boolean;
 }
 
+export interface RollingBackingPlayback extends RollingBackingRenderer {
+	/** Physical graph ownership, retained through stop until replaced; independent of request cancellation. */
+	ownsOutput(): boolean;
+}
+
 /**
  * Claim the backing output once, then append complete rolling bars. Existing
  * playback remains untouched on stale async setup; normal bar commits neither
  * dispose Parts nor stop ringing voices. Stop handles use unique run/voice IDs.
  */
-export async function createRollingBackingPlayback(options: RollingBackingPlaybackOptions): Promise<RollingBackingRenderer> {
+export async function createRollingBackingPlayback(options: RollingBackingPlaybackOptions): Promise<RollingBackingPlayback> {
 	const Tone = await getTone();
 	const assertCurrent = () => {
 		if (!options.isCurrent()) throw new DOMException('Rolling playback was cancelled.', 'AbortError');
@@ -1002,20 +1007,27 @@ export async function createRollingBackingPlayback(options: RollingBackingPlayba
 	const epoch = graphEpoch;
 	const playbackId = ++rollingPlaybackId;
 	let renderer: RollingBackingRenderer;
-	const ownsOutput = () => activeRollingPlayback === renderer && epoch === graphEpoch && options.isCurrent();
+	const ownsOutput = () => activeRollingPlayback === renderer && epoch === graphEpoch;
+	const isCurrentOwner = () => ownsOutput() && options.isCurrent();
 	// Validate configuration before replacing the previous session.
 	renderer = createRollingBackingRenderer({ ...options, startAudioTime }, {
 		audioNow, lookAhead: () => context.lookAhead, updateInterval,
-		isCurrent: ownsOutput,
+		isCurrent: isCurrentOwner,
 		scheduleOnce: (callback, ticks) => transport.scheduleOnce(callback, ticks),
 		clear: (id) => { transport.clear(id); },
 		play: (hits, time, eventKey) => playBackingHitsNow(hits, time, `rolling:${playbackId}:${eventKey}`),
-		publishSchedule: (schedule) => { if (ownsOutput()) activeSchedule = schedule; }
+		publishSchedule: (schedule) => { if (isCurrentOwner()) activeSchedule = schedule; }
 	});
 	if (startAudioTime <= renderer.horizon().renderSafeFrom) throw new Error('Rolling playback start is inside the scheduling horizon.');
 	disposeBackingParts();
 	activeRollingPlayback = renderer;
-	return renderer;
+	const stop = renderer.stop;
+	return Object.assign(renderer, { ownsOutput, stop() {
+		stop();
+		// A request can be cancelled before its stop handler runs. Releasing
+		// this physical owner may clear its index even then, never a successor's.
+		if (ownsOutput()) activeSchedule = null;
+	} });
 }
 
 /**

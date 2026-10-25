@@ -66,3 +66,74 @@ describe('full-tune listening player', () => {
 		expect(h.player.snapshot()).toMatchObject({ status: 'stopped', error: null });
 	});
 });
+
+describe('progressive causal listening takes', () => {
+	function rollingHarness() {
+		const h = harness();
+		let progress = {
+			generated: { bassEvents: [], compEvents: [{ time: '0i', absBeat: 0, notes: [60, 64, 67], duration: .5, velocity: 60 }], drumEvents: [] },
+			provenance: { engine: 'causal-rolling', sessionId: 'take-1', fingerprint: 'policy-1', totalBars: 2, committedBars: 1,
+				committedThroughTick: 768, sessionStatus: 'running', dispatches: [{ tick: 0, audioTime: 11, status: 'scheduled' }] }, error: null as string | null
+		};
+		Object.assign(h.take, { progress: () => progress });
+		return { ...h, get progress() { return progress; }, update(next: typeof progress) { progress = next; } };
+	}
+	it('publishes new committed prefixes without rewriting a prior snapshot or showing the lookahead bar', async () => {
+		const h = rollingHarness(); await h.player.start(params);
+		const first = h.player.snapshot();
+		expect(first.generated).toBe(h.progress.generated);
+		expect(first.barIndex).toBeNull();
+		const next = structuredClone(h.progress);
+		next.generated.compEvents.push({ time: '768i', absBeat: 4, notes: [62, 65, 69], duration: .5, velocity: 60 });
+		Object.assign(next.provenance, { committedBars: 2, committedThroughTick: 1536 });
+		next.provenance.dispatches.push({ tick: 768, audioTime: 13, status: 'scheduled' });
+		h.update(next); h.advance(12);
+		expect(h.player.snapshot().generated).toBe(next.generated);
+		expect(h.player.snapshot().barIndex).toBe(0);
+		expect(first.generated!.compEvents).toHaveLength(1);
+		expect(first.provenance?.committedBars).toBe(1);
+	});
+	it('requires committed extent and successful dispatches as well as the tail before completion', async () => {
+		const h = rollingHarness(); await h.player.start(params);
+		h.advance(17.5);
+		expect(h.player.snapshot().status).toBe('playing');
+		h.progress.provenance.sessionStatus = 'complete';
+		h.advance(18);
+		expect(h.player.snapshot().status).toBe('error');
+		expect(h.player.snapshot().error).toMatch(/incomplete/i);
+	});
+	it('completes only a fully played committed take after the release tail', async () => {
+		const h = rollingHarness();
+		Object.assign(h.progress.provenance, { committedBars: 2, committedThroughTick: 1536, sessionStatus: 'complete' });
+		h.progress.provenance.dispatches[0].status = 'played';
+		await h.player.start(params);
+		h.advance(15); expect(h.player.snapshot()).toMatchObject({ status: 'playing', ending: true });
+		h.advance(17.49); expect(h.player.snapshot().status).toBe('playing');
+		h.advance(17.5); expect(h.player.snapshot().status).toBe('completed');
+		expect(h.take.stop).toHaveBeenCalledOnce();
+	});
+	it.each(['failed', 'stopped'] as const)('surfaces %s scheduling without presenting a partial take as complete', async sessionStatus => {
+		const h = rollingHarness(); await h.player.start(params);
+		Object.assign(h.progress.provenance, { sessionStatus }); h.progress.error = 'Audio scheduling fell behind';
+		h.advance(18);
+		expect(h.player.snapshot()).toMatchObject({ status: 'error', error: 'Audio scheduling fell behind' });
+		expect(h.player.snapshot().generated).toBe(h.progress.generated);
+		expect(h.take.stop).toHaveBeenCalledOnce();
+	});
+	it('catches an unavailable clock after startup and retains the committed score', async () => {
+		const h = rollingHarness(); await h.player.start(params);
+		h.take.audioNow = () => { throw new Error('Audio context is suspended'); };
+		expect(() => h.advance(18)).not.toThrow();
+		expect(h.player.snapshot()).toMatchObject({ status: 'error', error: 'Audio context is suspended' });
+		expect(h.player.snapshot().generated).toBe(h.progress.generated);
+	});
+	it('captures final cancelled dispatch evidence on stop without resuming generation', async () => {
+		const h = rollingHarness(); await h.player.start(params);
+		vi.mocked(h.take.stop).mockImplementation(() => {
+			h.update({ ...h.progress, provenance: { ...h.progress.provenance, sessionStatus: 'stopped',
+				dispatches: [{ tick: 0, audioTime: 11, status: 'cancelled' }] } });
+		});
+		h.player.stop();
+		expect(h.player.snapshot()).toMatchObject({ status: 'stopped', provenance: { sessionStatus: 'stopped', dispatches: [{ status: 'cancelled' }] } });
+	});
+});

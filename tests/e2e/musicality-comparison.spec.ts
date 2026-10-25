@@ -12,7 +12,12 @@ async function setup(page: Page): Promise<void> {
 	await seedOnboardedAnonymous(page);
 	await stubCdnInstrumentSamples(page);
 	await page.addInitScript(() => {
-		const observed = { starts: 0, lastScheduledTime: 0 };
+		const observed = { starts: 0, lastScheduledTime: 0, microphoneCalls: 0 };
+		// WebKit may recreate navigator.mediaDevices; the prototype survives wrapper GC.
+		MediaDevices.prototype.getUserMedia = async function () {
+			observed.microphoneCalls++;
+			throw new Error('Listening must not request the microphone');
+		};
 		(window as unknown as { __blindAudio: typeof observed }).__blindAudio = observed;
 		const start = AudioBufferSourceNode.prototype.start;
 		AudioBufferSourceNode.prototype.start = function (...args) {
@@ -132,9 +137,17 @@ test('requires two full actual takes and blind ratings before revealing and savi
 		expect(take.params).toEqual({ ...evidence.inputs, orchestration: evidence.mapping[label] });
 		expect(take.generated!.bassEvents.some((event) => event.absBeat >= 156)).toBe(true);
 		expect(Boolean(take.generated!.ensemblePlan)).toBe(evidence.mapping[label] === 'coordinated');
+		expect(take.provenance).toMatchObject({ engine: evidence.mapping[label] === 'coordinated' ? 'causal-rolling' : 'fixed', totalBars: 40, committedBars: 40, committedThroughTick: 40 * 4 * take.ppq });
+		if (evidence.mapping[label] === 'coordinated') {
+			if (take.provenance?.engine !== 'causal-rolling') throw new Error('Expected causal completed evidence');
+			expect(take.provenance.sessionStatus).toBe('complete');
+			expect(take.provenance.dispatches.every(entry => entry.status === 'played')).toBe(true);
+			expect(take.generated!.ensembleDevelopment!.pianoFeedback).toHaveLength(40);
+		}
 		expect(Object.values(evidence.ratings[label])).toEqual(Array(7).fill(3));
 		await expect(page.getByTestId(`blind-mapping-${label}`)).toHaveText(evidence.mapping[label] === 'original' ? 'Original' : 'Coordinated');
 	}
+	expect(await page.evaluate(() => (window as unknown as { __blindAudio: { microphoneCalls: number } }).__blindAudio.microphoneCalls)).toBe(0);
 	await page.getByTestId('blind-save').click();
 	await expect(page.getByTestId('blind-save')).toHaveText('Saved locally');
 	const saved = await page.evaluate((key) => JSON.parse(localStorage.getItem(key) ?? '[]'), archiveKey);

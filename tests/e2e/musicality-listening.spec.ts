@@ -3,9 +3,10 @@ import { readFile } from 'node:fs/promises';
 import { test, expect } from './fixtures/test';
 import { seedOnboardedAnonymous } from './fixtures/storage';
 import { stubCdnInstrumentSamples } from './fixtures/audio';
-import type { ListeningSnapshot } from '../../src/lib/musicality/listening-player';
+import type { CausalListeningProvenance, ListeningSnapshot } from '../../src/lib/musicality/listening-player';
 
 interface ListeningEvidence {
+	completion: 'complete' | 'partial';
 	playback: ListeningSnapshot;
 	marks: { barIndex: number; elapsedBeats: number; note: string }[];
 }
@@ -13,8 +14,13 @@ interface ListeningEvidence {
 /** Observe real Web Audio dispatch without replacing its clock or the renderer. */
 async function observeAudio(page: Page): Promise<void> {
 	await page.addInitScript(() => {
-		const state = { contexts: [] as BaseAudioContext[], starts: 0, lastScheduledTime: 0 };
+		const state = { contexts: [] as BaseAudioContext[], starts: 0, lastScheduledTime: 0, microphoneCalls: 0 };
 		(window as unknown as { __listeningAudio: typeof state }).__listeningAudio = state;
+		// WebKit may recreate navigator.mediaDevices; the prototype survives wrapper GC.
+		MediaDevices.prototype.getUserMedia = async function () {
+			state.microphoneCalls++;
+			throw new Error('Listening must not request the microphone');
+		};
 		const start = AudioBufferSourceNode.prototype.start;
 		AudioBufferSourceNode.prototype.start = function (...args) {
 			if (!state.contexts.includes(this.context)) state.contexts.push(this.context);
@@ -43,6 +49,53 @@ async function exportTake(page: Page): Promise<ListeningEvidence> {
 	return JSON.parse(await readFile(path!, 'utf8')) as ListeningEvidence;
 }
 
+function causalProvenance(playback: ListeningSnapshot): CausalListeningProvenance {
+	expect(playback.provenance?.engine).toBe('causal-rolling');
+	if (playback.provenance?.engine !== 'causal-rolling') throw new Error('Expected a causal take');
+	return playback.provenance;
+}
+
+/** Every export contains only committed bars; an earlier downloaded score stays a prefix. */
+function assertCommittedPrefix(previous: ListeningSnapshot, current: ListeningSnapshot): void {
+	expect(current.provenance?.engine).toBe('causal-rolling');
+	expect(current.provenance!.committedBars).toBeGreaterThanOrEqual(previous.provenance!.committedBars);
+	for (const field of ['bassEvents', 'compEvents', 'drumEvents'] as const) {
+		const prefix = previous.generated![field];
+		expect(current.generated![field].slice(0, prefix.length)).toEqual(prefix);
+	}
+	expect(current.generated!.ensemblePlan!.bars.slice(0, previous.provenance!.committedBars))
+		.toEqual(previous.generated!.ensemblePlan!.bars);
+	expect(current.generated!.ensembleDevelopment!.pianoFeedback!.slice(0, previous.provenance!.committedBars))
+		.toEqual(previous.generated!.ensembleDevelopment!.pianoFeedback);
+}
+
+function assertActualFeedback(playback: ListeningSnapshot): void {
+	const generated = playback.generated!;
+	const feedback = generated.ensembleDevelopment!.pianoFeedback!;
+	expect(feedback).toHaveLength(playback.provenance!.committedBars);
+	for (const entry of feedback) {
+		expect(entry.acceptedAttacks).toEqual(generated.compEvents.filter(event => Math.floor(event.absBeat! / 4) === entry.barIndex)
+			.map(({ time, absBeat, notes }) => ({ time, absBeat, notes })));
+		if (entry.source) {
+			expect(entry.source.barIndex).toBe(entry.barIndex - 1);
+			for (const hit of entry.source.hits) {
+				expect(hit.role).toBe('commentary');
+				expect(generated.drumEvents).toContainEqual(hit);
+			}
+		}
+		if (entry.action === 'yield') {
+			expect(entry.source!.hits.length).toBeGreaterThanOrEqual(2);
+			expect(entry.acceptedAttacks).toEqual([]);
+			expect(entry.originalMaxAttacks).toBeGreaterThan(0);
+			expect(entry.effectiveMaxAttacks).toBe(0);
+		}
+	}
+}
+
+async function assertNoMicrophone(page: Page): Promise<void> {
+	expect(await page.evaluate(() => (window as unknown as { __listeningAudio: { microphoneCalls: number } }).__listeningAudio.microphoneCalls)).toBe(0);
+}
+
 async function soundingBar(page: Page): Promise<number> {
 	const value = await page.getByTestId('listening-position').getAttribute('data-bar-index');
 	return value === null || value === '' ? -1 : Number(value);
@@ -57,7 +110,7 @@ async function playToBar(page: Page, bar = 1): Promise<void> {
 	await expect.poll(() => soundingBar(page), { timeout: 20_000 }).toBeGreaterThanOrEqual(bar);
 }
 
-async function assertDecisionClock(page: Page, score?: ListeningSnapshot): Promise<void> {
+async function assertDecisionClock(page: Page, score?: ListeningSnapshot, tempo = 240): Promise<void> {
 	// Read all positions and the live clock atomically. A 150 ms allowance
 	// covers the 40 ms UI poll; it does not allow scheduling lookahead to
 	// advance the cards to a future bar.
@@ -79,9 +132,9 @@ async function assertDecisionClock(page: Page, score?: ListeningSnapshot): Promi
 	expect(position.now).toBeDefined();
 	expect(position.cards).toEqual([position.bar, position.bar, position.bar]);
 	const elapsed = position.now! - position.origin;
-	// At 240 BPM, a 4/4 bar lasts one second.
-	expect(elapsed).toBeGreaterThanOrEqual(position.bar);
-	expect(elapsed).toBeLessThan(position.bar + 1.15);
+	const barSeconds = 240 / tempo;
+	expect(elapsed).toBeGreaterThanOrEqual(position.bar * barSeconds);
+	expect(elapsed).toBeLessThan((position.bar + 1) * barSeconds + 0.15);
 	if (score?.generated) {
 		const inBar = (event: { time: string }) => Math.floor(parseInt(event.time, 10) / score.ppq / 4) === position.bar;
 		const plannedArc = score.generated.ensemblePlan?.bars[position.bar]?.performanceEnergy;
@@ -105,16 +158,9 @@ test('listens through a complete real tune and follows each chorus on the audio 
 	await expect(page.getByTestId('listening-performance-arc')).toContainText('Planned arc');
 	await assertDecisionClock(page);
 	const started = await exportTake(page);
-	const voicings = started.playback.generated!.ensembleDevelopment?.pianoVoicings;
-	expect(voicings?.length).toBe(started.playback.generated!.compEvents.length);
-	expect(voicings!.length).toBeGreaterThan(0);
-	expect(voicings!.some(entry => entry.decision.rootlessTexture?.applied === 'three')).toBe(true);
-	for (const entry of voicings!) {
-		expect(entry.decision.rootlessTexture?.noteCount).toBe(entry.notes.length);
-		if (entry.decision.rootlessTexture?.applied === 'three') expect(entry.notes).toHaveLength(3);
-	}
-	for (const voiced of voicings!) expect(started.playback.generated!.compEvents.some(event =>
-		event.time === voiced.time && event.absBeat === voiced.absBeat && event.notes.join(',') === voiced.notes.join(','))).toBe(true);
+	expect(started.completion).toBe('partial');
+	expect(started.playback.provenance?.engine).toBe('causal-rolling');
+	expect(started.playback.provenance!.committedBars).toBeLessThan(52);
 	await assertDecisionClock(page, started.playback);
 	await page.getByLabel('Listening note', { exact: true }).fill('Listen again to the opening bass line');
 	await page.getByRole('button', { name: 'Mark this bar', exact: true }).click();
@@ -123,10 +169,25 @@ test('listens through a complete real tune and follows each chorus on the audio 
 		.toEqual(['head', 'solo', 'solo', 'head']);
 	for (const boundary of [16, 28, 40]) {
 		await expect.poll(() => soundingBar(page), { timeout: 18_000 }).toBeGreaterThanOrEqual(boundary);
-		await assertDecisionClock(page, started.playback);
+		const later = await exportTake(page);
+		assertCommittedPrefix(started.playback, later.playback);
+		expect(later.playback.provenance!.committedBars).toBeGreaterThan(boundary);
+		await assertDecisionClock(page, later.playback);
 	}
 	await expect(page.getByTestId('listening-status')).toContainText(/complete/i, { timeout: 20_000 });
 	const finished = await exportTake(page);
+	expect(finished.completion).toBe('complete');
+	const voicings = finished.playback.generated!.ensembleDevelopment?.pianoVoicings;
+	expect(voicings?.length).toBe(finished.playback.generated!.compEvents.length);
+	expect(voicings!.length).toBeGreaterThan(0);
+	expect(voicings!.some(entry => entry.decision.rootlessTexture?.applied === 'three')).toBe(true);
+	for (const entry of voicings!) {
+		expect(entry.decision.rootlessTexture?.noteCount).toBe(entry.notes.length);
+		if (entry.decision.rootlessTexture?.applied === 'three') expect(entry.notes).toHaveLength(3);
+	}
+	for (const voiced of voicings!) expect(finished.playback.generated!.compEvents.some(event =>
+		event.time === voiced.time && event.absBeat === voiced.absBeat && event.notes.join(',') === voiced.notes.join(','))).toBe(true);
+
 	expect(finished.playback.status).toBe('completed');
 	expect(finished.marks).toHaveLength(1);
 	expect(finished.marks[0].note).toBe('Listen again to the opening bass line');
@@ -136,7 +197,11 @@ test('listens through a complete real tune and follows each chorus on the audio 
 	expect(finished.playback.barIndex).toBe(51);
 	expect(finished.playback.elapsedBeats).toBe(208);
 	expect(finished.playback.audioTime! - finished.playback.startAudioTime!).toBeGreaterThanOrEqual(54.5);
-	expect(finished.playback.generated).toEqual(started.playback.generated);
+	assertCommittedPrefix(started.playback, finished.playback);
+	assertActualFeedback(finished.playback);
+	expect(finished.playback.provenance).toMatchObject({ engine: 'causal-rolling', committedBars: 52, totalBars: 52, committedThroughTick: 52 * 4 * finished.playback.ppq, sessionStatus: 'complete' });
+	expect(causalProvenance(finished.playback).dispatches.every(entry => entry.status === 'played')).toBe(true);
+	await assertNoMicrophone(page);
 	expect(finished.playback.generated!.bassEvents.some((event) => event.absBeat >= 204)).toBe(true);
 	expect(await sourceStarts(page)).toBeGreaterThan(100);
 	const lastAudio = await page.evaluate(() => (window as unknown as { __listeningAudio: { lastScheduledTime: number } }).__listeningAudio.lastScheduledTime);
@@ -155,6 +220,8 @@ test('compares matched Original and Coordinated takes and stops all future dispa
 	expect(await soundingBar(page)).toBe(stoppedBar);
 	expect(await sourceStarts(page)).toBe(stoppedStarts);
 	expect(original.playback.status).toBe('stopped');
+	expect(original.completion).toBe('partial');
+	expect(original.playback.provenance).toMatchObject({ engine: 'fixed', committedBars: 52, totalBars: 52 });
 	expect(original.playback.generated!.ensemblePlan).toBeUndefined();
 	await expect(page.getByTestId('listening-performance-arc')).not.toBeVisible();
 	await page.getByTestId('listening-mode').selectOption('coordinated');
@@ -163,12 +230,19 @@ test('compares matched Original and Coordinated takes and stops all future dispa
 	await page.getByTestId('listening-stop').click();
 	const coordinated = await exportTake(page);
 	expect(coordinated.playback.generated!.ensemblePlan).toBeDefined();
+	expect(coordinated.playback.provenance?.engine).toBe('causal-rolling');
+	expect(coordinated.playback.provenance!.committedBars).toBeLessThan(52);
+	const coordinatedStarts = await sourceStarts(page);
+	await page.waitForTimeout(1_200);
+	expect(await sourceStarts(page)).toBe(coordinatedStarts);
+	await assertNoMicrophone(page);
 	expect(coordinated.playback.params).toEqual({ ...original.playback.params, orchestration: 'coordinated' });
 	expect(coordinated.playback.startAudioTime).toBeGreaterThan(original.playback.startAudioTime!);
 });
 
 for (const style of ['bossa-nova', 'ballad', 'straight'] as const) {
 	test(`${style} keeps its native rhythm throughout the complete generated tune`, async ({ page, browserName }) => {
+		test.setTimeout(90_000);
 		if (style === 'bossa-nova') await page.setViewportSize({ width: 390, height: 844 });
 		await setup(page);
 		if (style === 'bossa-nova') expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -179,8 +253,16 @@ for (const style of ['bossa-nova', 'ballad', 'straight'] as const) {
 			expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 			await page.screenshot({ path: `/tmp/musicality-listening-mobile-${browserName}.png`, fullPage: true });
 		}
-		await page.getByTestId('listening-stop').click();
+		const early = await exportTake(page);
+		expect(early.playback.provenance!.committedBars).toBeLessThan(52);
+		await expect(page.getByTestId('listening-status')).toContainText(/complete/i, { timeout: 65_000 });
 		const { playback } = await exportTake(page);
+		assertCommittedPrefix(early.playback, playback);
+		assertActualFeedback(playback);
+		expect(playback.provenance).toMatchObject({ engine: 'causal-rolling', committedBars: 52, sessionStatus: 'complete' });
+		expect(playback.audioTime! - playback.startAudioTime!).toBeGreaterThanOrEqual(54.5);
+		expect(causalProvenance(playback).dispatches.every(entry => entry.status === 'played')).toBe(true);
+		await assertNoMicrophone(page);
 		expect(playback.params!.style).toBe(style);
 		expect(playback.durationBeats).toBe(208);
 		const generated = playback.generated!;
@@ -251,6 +333,48 @@ test('navigation releases the current take and returning starts from a fresh ses
 	await expect(page.getByTestId('listening-status')).toHaveText('Ready to listen');
 	expect(await soundingBar(page)).toBe(-1);
 	await page.getByTestId('listening-tempo').fill('240');
+	await playToBar(page);
+	await page.getByTestId('listening-stop').click();
+});
+
+
+test('shows a real previous drum statement and the pianist breathing in the current sounding bar', async ({ page }) => {
+	test.setTimeout(60_000);
+	await setup(page);
+	// The real Blues chart and ordinary saved Swing setting produce this
+	// deterministic exchange at 180 BPM; no synthetic soloist or microphone.
+	await page.getByTestId('listening-tempo').fill('180');
+	await playToBar(page);
+	await expect.poll(() => soundingBar(page), { timeout: 38_000, intervals: [50] }).toBe(21);
+	await expect(page.getByTestId('musician-piano')).toContainText('Drum statement in bar 21:');
+	await expect(page.getByTestId('musician-piano')).toContainText('Scheduled result: no new chord attack');
+	const { playback } = await exportTake(page);
+	expect(playback.barIndex).toBe(21);
+	assertActualFeedback(playback);
+	expect(playback.generated!.ensembleDevelopment!.pianoFeedback![21]).toMatchObject({
+		barIndex: 21, action: 'yield', reason: 'drum_statement', source: { barIndex: 20 }, acceptedAttacks: []
+	});
+	await assertDecisionClock(page, playback, 180);
+	await assertNoMicrophone(page);
+	await page.getByTestId('listening-stop').click();
+});
+
+test('a missed scheduling deadline stops the take without reporting completion or dispatching a catch-up burst', async ({ page }) => {
+	await setup(page);
+	await playToBar(page);
+	// Simulate a blocked browser task while its real audio clock keeps running.
+	// This is an actual missed scheduling horizon, not a changed completion badge.
+	await page.evaluate(() => { const until = performance.now() + 1_300; while (performance.now() < until) { /* blocked UI task */ } });
+	await expect(page.getByTestId('listening-status')).toHaveText('Unable to play');
+	const failed = await exportTake(page);
+	expect(failed.playback.status).toBe('error');
+	expect(failed.completion).toBe('partial');
+	expect(failed.playback.provenance?.engine).toBe('causal-rolling');
+	expect(failed.playback.provenance!.committedBars).toBeLessThan(52);
+	const stoppedStarts = await sourceStarts(page);
+	await page.waitForTimeout(1_200);
+	expect(await sourceStarts(page)).toBe(stoppedStarts);
+	await assertNoMicrophone(page);
 	await playToBar(page);
 	await page.getByTestId('listening-stop').click();
 });

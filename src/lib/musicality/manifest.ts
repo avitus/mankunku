@@ -248,7 +248,10 @@ const rootlessTextureEvidence: MusicalityEvidence[] = [
 ];
 
 const reciprocalFeedbackEvidence: MusicalityEvidence[] = [
-	...['backing-ensemble-feedback', 'backing-rolling', 'backing-generation'].map(file => ({ ...source(file), revision: 'musicality' })),
+	{ kind: 'source', path: 'src/lib/musicality/listening-player.ts', revision: 'musicality' },
+	{ kind: 'test', path: 'tests/unit/musicality/listening-causal-integration.test.ts', revision: 'musicality' },
+	{ kind: 'test', path: 'tests/e2e/musicality-listening.spec.ts', revision: 'musicality' },
+	...['backing-ensemble-feedback', 'backing-rolling', 'backing-generation', 'backing-rolling-take'].map(file => ({ ...source(file), revision: 'musicality' })),
 	...['backing-drum-piano-feedback', 'backing-drum-piano-feedback-integration', 'backing-development-immutability'].map(file => ({ ...test(file), revision: 'musicality' })),
 	{ kind: 'source', path: 'src/lib/musicality/musician-decisions.ts', revision: 'musicality' },
 	{ kind: 'source', path: 'src/routes/diagnostics/backing-mixer/+page.svelte', revision: 'musicality' },
@@ -349,8 +352,8 @@ const drumDeviceUpdates: Record<string, [ImplementationStatus, string, string]> 
 export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => {
 	if (entry.id === 'S47') return {
 		...entry, status: 'partial',
-		assessment: 'The musicality studio plays complete curated 4/4 tune forms with matched Original/Coordinated settings, audio-clock musician decisions, listening marks and reproducible take exports. An optional blind full-tune review locks matched inputs, requires two complete listens and ratings before reveal, and exports the actual scores with the verdict. The advanced lab retains historical WAV comparison and adaptive capture/replay.',
-		remaining: 'Recorded human acceptance across styles, broader tune repertoire, deliberately counterbalanced review sets and adaptive playback in the simple studio remain pending.',
+		assessment: 'The musicality studio plays complete curated 4/4 tune forms with matched settings: Original uses fixed playback; Coordinated uses causal rolling orchestration with audio-clock musician decisions, listening marks and committed-event exports. An optional blind full-tune review locks matched inputs, requires two complete listens and ratings before reveal, and exports the actual scores with the verdict. The advanced lab retains historical WAV comparison and adaptive capture/replay.',
+		remaining: 'Recorded human acceptance across styles, broader tune repertoire, deliberately counterbalanced review sets and microphone-driven adaptation in the simple studio remain pending.',
 		scope: 'Two curated 4/4 tunes, transposed concert keys and one to four solo choruses; rhythm section only. No acceptance status is inferred from decision text or tests.',
 		evidence: [...entry.evidence, ...['listening-tunes', 'listening-player', 'musician-decisions', 'listening-comparison'].flatMap(name => [
 			{ kind: 'source' as const, path: `src/lib/musicality/${name}.ts`, revision: 'musicality' },
@@ -425,8 +428,8 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 	};
 	if (entry.id === 'P55') return { ...entry, status: 'partial',
 		assessment: 'A qualifying independent multi-hit drum phrase can prompt a seeded one-bar piano breath on the next eligible rolling bar, with a cooldown and protected arrivals and response reservations.',
-		remaining: 'Fixed full-tune studio playback, piano imitation of drum motifs and human listening acceptance remain incomplete. Bossa currently has no qualifying optional commentary and keeps its native groove.',
-		scope: 'Explicit-form Coordinated rolling adaptive lab takes only. Source hits must match accepted optional snare/cross-stick/kick events; timekeeping, setups and piano-derived drum answers do not trigger the response.',
+		remaining: 'Fixed offline generation parity, piano imitation of drum motifs and human listening acceptance remain incomplete. Bossa currently has no qualifying optional commentary and keeps its native groove.',
+		scope: 'Explicit-form Coordinated full-tune studio, blind comparison and rolling adaptive lab takes. Source hits must match accepted optional snare/cross-stick/kick events; timekeeping, setups and piano-derived drum answers do not trigger the response.',
 		evidence: [...entry.evidence, ...reciprocalFeedbackEvidence] };
 	if (entry.id === 'P20') return { ...entry, status: 'partial',
 		assessment: 'Selected rootless A/B chords use third, seventh and ninth (or thirteenth for dominant B) as three-note support. Explicit heads/releases/endings request support; qualified active-solo evidence overrides fuller development.',

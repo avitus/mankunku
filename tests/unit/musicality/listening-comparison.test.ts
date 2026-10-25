@@ -6,6 +6,10 @@ import { generateForBounce, harmonyDurationBeats, type BounceParams } from '$lib
 import { LISTENING_TUNES, buildListeningTuneSession } from '$lib/musicality/listening-tunes';
 import type { BackingStyle } from '$lib/types/instruments';
 import type { ListeningSnapshot } from '$lib/musicality/listening-player';
+import { advanceRollingBacking, createRollingBacking, type RollingBackingBar } from '$lib/audio/backing-rolling';
+import { aggregateRollingBacking } from '$lib/audio/backing-rolling-take';
+import { BACKING_STYLES } from '$lib/audio/backing-styles';
+import type { RollingBackingSnapshot } from '$lib/audio/backing-rolling-renderer';
 const input = (): BounceParams => ({ phrase: structuredClone(BACKING_LAB_PRESETS[0].phrase), style: 'swing', tempo: 140, swing: 0.67, instrument: 'piano', volume: 0.6, mix: { ...DEFAULT_BACKING_MIX }, orchestration: 'coordinated' });
 function completed(params: BounceParams): ListeningSnapshot {
  const durationBeats = harmonyDurationBeats(params.phrase);
@@ -103,5 +107,64 @@ describe('blind full-tune musicality comparison', () => {
    (v: any) => { v.takes.A.audioTime = 12.01; }
   ]) { const changed = JSON.parse(serialized); mutate(changed); expect(restoreListeningComparison(JSON.stringify(changed))).toBeNull(); }
   expect(restoreListeningComparison('{')).toBeNull(); expect(restoreListeningComparison('{}')).toBeNull();
+ });
+});
+
+describe('causal take completion evidence in blind comparisons', () => {
+ function causalCompleted(params: BounceParams): ListeningSnapshot {
+  const take = completed(params);
+  const definition = createRollingBacking(params.phrase.harmony, BACKING_STYLES[params.style], {
+   phraseId: params.phrase.id, tempo: params.tempo, ppq: take.ppq, beatsPerBar: 4, swing: params.swing,
+   performanceForm: params.phrase.performanceForm, ensemble: {}
+  });
+  const windows: RollingBackingBar[] = [];
+  for (let bar = 0; bar < definition.totalBars; bar++) windows.push(advanceRollingBacking(definition, windows.at(-1)?.checkpoint));
+  const last = windows.at(-1)!;
+  const generated = { bassEvents: windows.flatMap(bar => bar.bassEvents), compEvents: windows.flatMap(bar => bar.compEvents), drumEvents: windows.flatMap(bar => bar.drumEvents) };
+  const dispatches = [...new Set([...generated.bassEvents, ...generated.compEvents, ...generated.drumEvents].map(event => parseInt(event.time)))].sort((a, b) => a - b)
+   .map(tick => ({ tick, audioTime: take.startAudioTime! + tick * 60 / params.tempo / take.ppq, status: 'played' as const }));
+  take.generated = aggregateRollingBacking({ sessionId: definition.sessionId, status: 'stopped', nextBar: definition.totalBars,
+   checkpointId: last.checkpoint.checkpointId, committedThroughTick: last.committedThroughTick, windows, generated, dispatches, schedule: null } satisfies RollingBackingSnapshot);
+  take.provenance = { engine: 'causal-rolling', sessionId: definition.sessionId, fingerprint: definition.fingerprint,
+   totalBars: definition.totalBars, committedBars: definition.totalBars, committedThroughTick: last.committedThroughTick, sessionStatus: 'complete', dispatches };
+  return take;
+ }
+ it('retains actual causal policy and dispatch evidence through a revealed archive', () => {
+  const pair = create();
+  for (const label of ['A', 'B'] as const) {
+   const params = pair.paramsFor(label);
+   expect(pair.recordPlayback(label, params.orchestration === 'coordinated' ? causalCompleted(params) : completed(params))).toBe(true);
+   for (const criterion of LISTENING_COMPARISON_CRITERIA) pair.rate(label, criterion.id, 3);
+  }
+  pair.setPreference('tie');
+  const restored = restoreListeningComparison(serializeListeningComparison(pair.reveal()))!;
+  expect(restored.takes.B.provenance).toMatchObject({ engine: 'causal-rolling', sessionStatus: 'complete' });
+ });
+ it.each(['swing', 'straight', 'bossa-nova', 'ballad'] as const)('archives a complete longest-form %s comparison within the existing evidence bounds', style => {
+  const phrase = buildListeningTuneSession({ tuneId: LISTENING_TUNES.find(tune => tune.title.includes('Saints'))!.id, soloChoruses: 4 }).phrase;
+  const pair = createBlindListeningComparison({ ...input(), phrase, style, swing: BACKING_STYLES[style].defaultSwing }, { buildVersion: 'causal-bound', rng: () => .25 });
+  for (const label of ['A', 'B'] as const) {
+   const params = pair.paramsFor(label);
+   expect(pair.recordPlayback(label, label === 'A' ? completed(params) : causalCompleted(params))).toBe(true);
+   for (const criterion of LISTENING_COMPARISON_CRITERIA) pair.rate(label, criterion.id, 3);
+  }
+  pair.setPreference('tie');
+  expect(restoreListeningComparison(serializeListeningComparison(pair.reveal()))).not.toBeNull();
+ });
+ it.each(['partial', 'ticks', 'session', 'pending', 'missing-dispatch', 'wrong-time', 'wrong-tick', 'missing-plan-bar', 'early-tail', 'wrong-arrangement'] as const)('rejects %s causal evidence even if its public status says completed', field => {
+  const pair = create();
+  const value = structuredClone(causalCompleted(pair.paramsFor('B')));
+  const provenance = value.provenance! as any;
+  if (field === 'partial') provenance.committedBars--;
+  if (field === 'ticks') provenance.committedThroughTick--;
+  if (field === 'session') provenance.sessionStatus = 'failed';
+  if (field === 'pending') provenance.dispatches[0].status = 'scheduled';
+  if (field === 'missing-dispatch') provenance.dispatches.pop();
+  if (field === 'wrong-time') provenance.dispatches[0].audioTime += .5;
+  if (field === 'wrong-tick') provenance.dispatches[0].tick++;
+  if (field === 'missing-plan-bar') (value.generated!.ensemblePlan!.bars as unknown[]).pop();
+  if (field === 'early-tail') value.audioTime = value.startAudioTime! + value.durationBeats * 60 / value.params!.tempo;
+  if (field === 'wrong-arrangement') { value.params = pair.paramsFor('A'); expect(pair.recordPlayback('A', value)).toBe(false); return; }
+  expect(pair.recordPlayback('B', value)).toBe(false);
  });
 });

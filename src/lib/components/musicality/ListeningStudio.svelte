@@ -36,7 +36,7 @@
  const performanceArc = $derived(snapshot.generated && snapshot.barIndex !== null ? describePerformanceArc(snapshot.generated,{barIndex:snapshot.barIndex,ppq:snapshot.ppq,beatsPerBar:4,style:snapshot.params?.style ?? style,orchestration:snapshot.params?.orchestration ?? mode}) : null);
  const position = $derived(bar ? `${passName(bar.context.chorusIndex)} · ${bar.sectionLabel} · Bar ${bar.context.barInChorus+1} of ${bar.context.barsInChorus}` : 'Ready to listen');
  function passName(index:number):string { return index === 0 ? 'Head in' : index === shownSession.phrase.performanceForm.choruses.length-1 ? 'Head out' : `Solo ${index}`; }
- function clearTake() { player.stop();snapshot={...player.snapshot(),status:'idle',generated:null,params:null,barIndex:null,startAudioTime:null};takeSession=null;marks=[];note=''; }
+ function clearTake() { player.stop();snapshot={...player.snapshot(),status:'idle',generated:null,params:null,barIndex:null,startAudioTime:null,provenance:undefined};takeSession=null;marks=[];note=''; }
  function changeTune() { key=LISTENING_TUNES.find(t=>t.id===tuneId)!.key;clearTake(); }
  async function play() {
   if(!Number.isFinite(tempo) || tempo < 40 || tempo > 240) return;
@@ -46,7 +46,7 @@
  function mark() { if(snapshot.barIndex !== null) {marks=[...marks,{barIndex:snapshot.barIndex,elapsedBeats:snapshot.elapsedBeats,note:note.trim()}];note='';} }
  function exportTake() {
   if(!snapshot.generated || !takeSession) return;
-  const content={version:1,buildVersion,session:{tuneId:takeSession.tune.id,headBars:takeSession.headBars,chorusBars:takeSession.chorusBars,soloChoruses:takeSession.soloChoruses,bars:takeSession.bars},playback:snapshot,decisions,marks};
+  const content={version:1,buildVersion,completion:snapshot.status==='completed'?'complete':'partial',session:{tuneId:takeSession.tune.id,headBars:takeSession.headBars,chorusBars:takeSession.chorusBars,soloChoruses:takeSession.soloChoruses,bars:takeSession.bars},playback:snapshot,decisions,marks};
   const url=URL.createObjectURL(new Blob([JSON.stringify(content,null,2)],{type:'application/json'}));
   const a=document.createElement('a');a.href=url;a.download=`musicality-${takeSession.tune.id}-${snapshot.params?.orchestration}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
  }
@@ -79,7 +79,7 @@
  {#if performanceArc}<p class="performance-arc" data-testid="listening-performance-arc" data-bar-index={snapshot.barIndex} data-phase={performanceArc.phase}><span>Planned arc</span> {performanceArc.label}</p>{/if}
  <div class="musicians">{#each ['bass','piano','drums'] as name,i}{@const decision=decisions.find(d=>d.instrument===name)}<article data-testid={`musician-${name}`} data-bar-index={snapshot.barIndex ?? ''}><div class="player-title"><span>0{i+1}</span><h3>{name==='bass'?'Bass':name==='piano'?'Piano':'Drums'}</h3><small>{decision?.role ?? 'Ready'}</small></div><h4>{decision?.action ?? 'Waiting for the first bar'}</h4><p>{decision?.detail ?? 'Actual scheduled events and phrase decisions will appear here.'}</p>{#if decision}<details class="evidence"><summary>{decision.eventCount} scheduled {decision.eventCount===1?'event':'events'} · Details</summary><ul>{#each decision.evidence as evidence}<li>{evidence}</li>{/each}</ul></details>{:else}<div class="waiting">No audio playing</div>{/if}</article>{/each}</div>
 </section>
-<details class="take-notes"><summary>Listening notes & take export <span>+</span></summary><div class="notes-body"><p>Mark a moment worth revisiting. Export preserves this take’s settings, scheduled notes and decision evidence.</p><div class="note-controls"><input aria-label="Listening note" bind:value={note} maxlength="500" placeholder="What did you hear?" /><button onclick={mark} disabled={snapshot.barIndex===null}>Mark this bar</button><button data-testid="listening-export" onclick={exportTake} disabled={!snapshot.generated}>Export take</button></div>{#if marks.length}<ul>{#each marks as item}<li>Bar {item.barIndex+1} · {item.note || 'Marked moment'}</li>{/each}</ul>{/if}</div></details>
+<details class="take-notes"><summary>Listening notes & take export <span>+</span></summary><div class="notes-body"><p>Mark a moment worth revisiting. Export preserves this take’s settings, scheduled notes and decision evidence. Exports made before the take finishes are partial.</p><div class="note-controls"><input aria-label="Listening note" bind:value={note} maxlength="500" placeholder="What did you hear?" /><button onclick={mark} disabled={snapshot.barIndex===null}>Mark this bar</button><button data-testid="listening-export" onclick={exportTake} disabled={!snapshot.generated}>Export take</button></div>{#if marks.length}<ul>{#each marks as item}<li>Bar {item.barIndex+1} · {item.note || 'Marked moment'}</li>{/each}</ul>{/if}</div></details>
 <footer><button data-testid="blind-open" onclick={oncompare}>Try a blind comparison →</button><a href="/docs/architecture/musicality">Architecture & roadmap ↗</a></footer>
 
 <style>

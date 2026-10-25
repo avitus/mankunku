@@ -18,7 +18,7 @@
     "repo": "mankunku"
   },
   "validation": {
-    "sidecarImage": "8c258c5b-274a-4883-b977-a06239486dd4"
+    "sidecarImage": "0a461fa1-34bf-448c-a554-30cd3fbbae00"
   },
   "environment": {
     "stack": "javascript",
