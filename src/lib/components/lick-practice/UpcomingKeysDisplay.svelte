@@ -154,6 +154,7 @@
 	const scoredRow = $derived.by(() => {
 		const flash = scoreFlash;
 		if (!flash) return -1;
+		/** The latest row of the flashed key at or above the current row, optionally of its own round. */
 		const rowOf = (sameCycle: boolean): number => displayKeys.findLastIndex((pk, index) =>
 			index <= visualCurrentRow && pk.key === flash.key &&
 			(!sameCycle || flash.cycle === undefined || pk.cycle === undefined || pk.cycle === flash.cycle));

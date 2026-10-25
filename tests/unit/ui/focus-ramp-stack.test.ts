@@ -13,6 +13,7 @@ import type { PlannedKey } from '$lib/state/lick-practice.svelte';
 import type { PitchClass } from '$lib/types/music';
 import { INSTRUMENTS } from '$lib/types/instruments';
 
+/** A planned row of `key` with a one-note phrase, overridden by `extra`. */
 function row(key: PitchClass, keyIndex: number, extra: Partial<PlannedKey> = {}): PlannedKey {
 	return {
 		key, keyIndex, lickIndex: 0, lickId: 'test', lickName: 'Test', reveal: false, passes: 1, harmony: [],

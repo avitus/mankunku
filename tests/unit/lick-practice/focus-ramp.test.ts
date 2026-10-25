@@ -292,6 +292,7 @@ describe('focus phase staircase', () => {
 
 	it('stops a focus take for one bar only when the sheet comes or goes', () => {
 		startSingleLickSession(seedTwelveKeyLick(), { focusKey: 'D' });
+		/** Score the focus take, close its cycle, and read the next take's sheet and bars. */
 		const step = (score: number) => {
 			play('D', score);
 			advanceSingleLickRound();
@@ -460,6 +461,7 @@ describe('focus takes on the stack', () => {
 			below: getFocusProjectionRows(0).map((row) => row.tempo)
 		};
 	}
+	/** The whole numbers from `from` to `to`, inclusive. */
 	const range = (from: number, to: number): number[] =>
 		Array.from({ length: to - from + 1 }, (_, i) => from + i);
 
