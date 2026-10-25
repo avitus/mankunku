@@ -210,7 +210,15 @@ function validateCheckpoint(score: RollingBackingDefinition, checkpoint: Rolling
 	if (checkpoint.piano.recentFigures.length > 3 || checkpoint.piano.segmentVoicing.length > 12 || checkpoint.piano.lastVoicing.length > 12 ||
 		![...checkpoint.piano.segmentVoicing, ...checkpoint.piano.lastVoicing].every((value) => Number.isInteger(value) && value >= 0 && value <= 127) ||
 		!numeric(checkpoint.piano.segmentIndex)) invalid();
-	if (checkpoint.drums.previousCompIsSharedArrival !== undefined && !score.bars[checkpoint.nextBar - 1]?.pianoArrivalPolicy) invalid();
+	const balladTerminal = score.style === 'ballad' && score.terminalArrangement?.profile === 'ballad-v1' &&
+		checkpoint.nextBar === score.totalBars && score.terminalArrangement.barIndex === checkpoint.nextBar - 1 &&
+		checkpoint.piano.recentFigures.at(-1) === 'terminal-arrangement' && checkpoint.piano.motif === null;
+	if (checkpoint.drums.previousCompIsSharedArrival !== undefined && !score.bars[checkpoint.nextBar - 1]?.pianoArrivalPolicy && !balladTerminal) invalid();
+	if (balladTerminal && (checkpoint.drums.previousCompIsSharedArrival !== true || checkpoint.drums.previousCompIsDrumReply !== undefined ||
+		checkpoint.drums.previousCompOnsets.length !== 1 || checkpoint.drums.previousCompOnsets[0] !== 0 ||
+		checkpoint.piano.lastVoicing.length < 2 || checkpoint.bass.previousMidi === null ||
+		checkpoint.bass.previousMidi % 12 !== PITCH_CLASSES.indexOf(score.terminalArrangement!.chord.root) ||
+		checkpoint.bass.nextTarget !== null || checkpoint.bass.pendingLaunch !== null)) invalid();
 	const answerPolicy = !!score.bars[0]?.performanceEnergy && (!score.style || score.style === 'swing' || score.style === 'straight');
 	if (pianoPhraseRecallEnabled(score)) validatePianoPhraseRecall(checkpoint.piano.phraseRecall, score, checkpoint.nextBar, checkpoint.piano.motif);
 	else if (checkpoint.piano.phraseRecall !== undefined) invalid();
@@ -335,9 +343,10 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 		const candidate = realizeTerminalArrangement({ reservation, plan: ensemble, style: BACKING_STYLES[definition.style ?? 'swing'],
 			phraseId: definition.phraseId, tempo: definition.tempo, ppq: definition.ppq, segmentIndex: definition.harmony.length - 1,
 			previousBass: checkpoint?.bass.previousMidi, previousVoicing: checkpoint?.piano.voicing, previousContour: checkpoint?.piano.contour,
+			...(reservation.profile === 'ballad-v1' ? { ordinaryBass: bass.events, ordinaryDrums: drumEvents } : {}),
 			committedLaunch: !!checkpoint?.bass.pendingLaunch });
 		terminalDecision = candidate.decision;
-		if (candidate.decision.status === 'accepted' && candidate.voicing && candidate.contour && candidate.voicingTrace) {
+		if (candidate.decision.status === 'accepted' && candidate.voicing && (reservation.profile === 'ballad-v1' || candidate.contour) && candidate.voicingTrace) {
 			const accepted = candidate.decision;
 			const plan = terminalBarPlan(ensemble);
 			window = { plan: { ...window.plan, bars: [plan], trace: window.plan.trace.map(entry => ({ ...entry, reasons: [...entry.reasons, 'terminal_arrangement'] })) },
@@ -345,7 +354,8 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 			piano = { events: [{ ...accepted.piano, notes: [...accepted.piano.notes] }], trace: terminalPianoTrace(plan, reservation), voicingTrace: [candidate.voicingTrace],
 				memory: { recentFigures: [...(checkpoint?.piano.recentFigures ?? []), 'terminal-arrangement'].slice(-3), motif: null,
 					segmentIndex: definition.harmony.length - 1, segmentVoicing: [...accepted.piano.notes], lastVoicing: [...accepted.piano.notes],
-					voicing: candidate.voicing, contour: candidate.contour, phraseRecall: { version: 1, source: null, recalledAt: null } } };
+					voicing: candidate.voicing, ...(candidate.contour ? { contour: candidate.contour } : {}),
+					...(pianoPhraseRecallEnabled(definition) ? { phraseRecall: { version: 1 as const, source: null, recalledAt: null } } : {}) } };
 			const previousMidi = checkpoint?.bass.previousMidi ?? null;
 			bass = { events: [{ ...accepted.bass }], trace: [], memory: {
 				previousMidi: accepted.bass.midi, previousPreviousMidi: previousMidi,

@@ -37,7 +37,7 @@ it.each(baseline.controls)('$style $mode $engine preserves the complete continue
 	const input = { ...common, ...(mode !== 'coordinated-implicit' ? { performanceForm } : {}),
 		...(mode !== 'original' ? { ensemble } : {}) };
 	const choices = [input, { ...input, terminalArrangement: { ending: 'continue' as const, melody: phrase.notes } },
-		...(mode !== 'coordinated-explicit' || ['bossa-nova', 'ballad'].includes(style)
+		...(mode !== 'coordinated-explicit' || style === 'bossa-nova'
 			? [{ ...input, terminalArrangement: { ending: 'hold-release' as const, melody: phrase.notes } }] : [])];
 	for (const selected of choices) {
 		const actual = engine === 'fixed' ? generateBacking(phrase.harmony, BACKING_STYLES[style], selected) : rolling(style, selected);
@@ -69,7 +69,7 @@ it.each(['swing', 'straight'] as const)('%s preserves the first repeat seam and 
 	expect(() => advanceRollingBacking(control.score, actual.windows[102].checkpoint)).toThrow();
 });
 
-it.each(['bossa-nova', 'ballad'] as const)('%s retains its exact native ending when a stale hold choice reaches the engine', style => {
+it.each(['bossa-nova'] as const)('%s retains its exact native ending when a stale hold choice reaches the engine', style => {
 	const before = baseline.finalBars.find(value => value.style === style)!;
 	const fixed = generateBacking(phrase.harmony, BACKING_STYLES[style], ending(style));
 	const causal = rolling(style, ending(style));

@@ -21,6 +21,56 @@ describe('explicit terminal arrangement evidence', () => {
   };
  }
  const cards = (value: ReturnType<typeof score>, overrides = {}) => describeMusicianDecisions(value as unknown as GeneratedBacking, { ...context, barIndex: 3, ...overrides });
+ function balladScore(kick = false) {
+  const value = score();
+  Object.assign(value.ensemblePlan.bars[0].terminalArrangement, { profile: 'ballad-v1' });
+  value.drumEvents = value.drumEvents.filter(event => kick || event.drum === 'ride');
+  value.drumEvents[0].velocity = .21;
+  value.ensembleDevelopment.terminalArrangements[0].drums = structuredClone(value.drumEvents);
+  return value;
+ }
+ it.each([false, true])('describes an actual Ballad terminal ride with optional kick=%s', kick => {
+  const result = cards(balladScore(kick), { style: 'ballad' });
+  expect(result.map(card => card.action)).toEqual(['Hold the final chord', 'Hold the final chord', 'Catch the final chord']);
+  expect(result.map(card => card.role)).toEqual(['Mark the form', 'Mark the form', 'Mark the form']);
+  expect(result.every(card => card.evidence.includes('Scheduled ending: shared final chord, then space'))).toBe(true);
+  expect(result[2].eventCount).toBe(kick ? 2 : 1);
+  expect(result[2].detail).toBe(kick ? 'A quiet ride and soft kick catch the closing chord.' : 'A quiet ride catches the closing chord.');
+  expect(result[2].detail).not.toMatch(/brush|swing/i);
+ });
+ it.each(['no-profile', 'wrong-profile', 'wrong-style', 'bossa', 'original', 'missing-ride', 'duplicate-ride', 'crash', 'pedal-hat', 'receipt-level', 'extra-pulse', 'wrong-time'] as const)('rejects incoherent Ballad ending evidence: %s', change => {
+  const value = balladScore(true); let style = 'ballad'; let orchestration = 'coordinated';
+  if (change === 'no-profile') Reflect.deleteProperty(value.ensemblePlan.bars[0].terminalArrangement, 'profile');
+  if (change === 'wrong-profile') Object.assign(value.ensemblePlan.bars[0].terminalArrangement, { profile: 'future-profile' });
+  if (change === 'wrong-style') style = 'swing';
+  if (change === 'bossa') style = 'bossa-nova';
+  if (change === 'original') orchestration = 'original';
+  if (change === 'missing-ride') value.drumEvents = value.drumEvents.filter(event => event.drum === 'kick');
+  if (change === 'duplicate-ride') value.drumEvents[1].drum = 'ride';
+  if (change === 'crash') value.drumEvents[1].drum = 'crash';
+  if (change === 'pedal-hat') value.drumEvents[1].drum = 'hihat-pedal';
+  if (change === 'extra-pulse') value.drumEvents.push({ ...value.drumEvents[0], absBeat: 14, time: '2688i' });
+  if (change === 'wrong-time') value.drumEvents[0].time = '2305i';
+  value.ensembleDevelopment.terminalArrangements[0].drums = structuredClone(value.drumEvents);
+  if (change === 'receipt-level') value.ensembleDevelopment.terminalArrangements[0].drums[0].velocity = .9;
+  expect(cards(value, { style, orchestration }).flatMap(card => card.evidence)).not.toContain('Scheduled ending: shared final chord, then space');
+ });
+ it('keeps a silent Ballad reservation planned and its bass role ordinary', () => {
+  const value = balladScore(); value.bassEvents = []; value.compEvents = []; value.drumEvents = [];
+  const result = cards(value, { style: 'ballad' });
+  expect(result.every(card => card.evidence.includes('Planned ending: hold and release together'))).toBe(true);
+  expect(result[0].role).toBe('Keep time');
+  expect(result.every(card => card.eventCount === 0)).toBe(true);
+  expect(result.flatMap(card => card.evidence)).not.toContain('Scheduled ending: shared final chord, then space');
+ });
+ it('retains the ordinary Ballad role when the native ending is explicitly withheld', () => {
+  const value = balladScore();
+  const withheld = { ...value, ensembleDevelopment: { ...value.ensembleDevelopment, terminalArrangements: [{ version: 1, reservationId: 'terminal-test', barIndex: 3, status: 'withheld', reason: 'preceding_release' }] } };
+  const result = cards(withheld as unknown as ReturnType<typeof score>, { style: 'ballad' });
+  expect(result[0].role).toBe('Keep time');
+  expect(result.every(card => card.evidence.includes('Ending not applied: an earlier note is still sustaining'))).toBe(true);
+  expect(result.flatMap(card => card.evidence)).not.toContain('Scheduled ending: shared final chord, then space');
+ });
  it.each(['swing', 'straight'] as const)('describes a complete exactly scheduled %s closing chord', style => {
   const result = cards(score(), { style });
   expect(result.map(card => card.action)).toEqual(['Hold the final chord', 'Hold the final chord', 'Catch the final chord']);
@@ -58,7 +108,7 @@ describe('explicit terminal arrangement evidence', () => {
   if (change === 'pulse-kept') generated.ensemblePlan.bars[0].bass.keepPulse = true;
   expect(cards(generated).flatMap(card => card.evidence)).not.toContain('Scheduled ending: shared final chord, then space');
  });
- it.each([{ orchestration: 'original' }, { style: 'bossa-nova' }, { style: 'ballad' }, { barIndex: 2 }])('keeps terminal claims out of unsupported or earlier review context %j', overrides => {
+ it.each([{ orchestration: 'original' }, { style: 'bossa-nova' }, { style: 'ballad' }, { barIndex: 2 }])('keeps terminal claims out of unsupported style/profile or earlier review context %j', overrides => {
   expect(cards(score(), overrides).flatMap(card => card.evidence).join(' ')).not.toContain('ending:');
  });
  it('does not turn legacy ending energy into an arranged closing chord', () => {

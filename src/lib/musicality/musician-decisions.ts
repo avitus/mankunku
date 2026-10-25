@@ -336,7 +336,9 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 	}
 	if (acceptedAnswer) drumCard.evidence.push('Leave commentary space for the piano answer');
 	if (plan?.drums.silenceReason) drumCard.evidence.push(`Commentary space: ${plain(plan.drums.silenceReason)}`);
-	const terminal = walking ? plan?.terminalArrangement : undefined;
+	const candidateTerminal = plan?.terminalArrangement;
+	const balladTerminal = style === 'ballad' && candidateTerminal?.profile === 'ballad-v1';
+	const terminal = (walking && candidateTerminal?.profile === undefined) || balladTerminal ? candidateTerminal : undefined;
 	if (terminal?.version === 1 && terminal.barIndex === barIndex && terminal.absBeat === barIndex * beatsPerBar &&
 		plan?.performanceEnergy?.phase === 'ending' && terminal.holdBeats >= 2 && terminal.holdBeats <= beatsPerBar &&
 		terminal.releaseBeat === terminal.absBeat + terminal.holdBeats && terminal.participants.length === 3 &&
@@ -351,7 +353,8 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 			const onCue = (event: { time: string; absBeat: number }) => event.time === `${firstTick}i` && event.absBeat === terminal.absBeat;
 			const sourceBass = receipt.bass; const sourcePiano = receipt.piano;
 			const matched = !plan.bass.keepPulse && !plan.drums.keepTime && bass.length === 1 && piano.length === 1 && drums.length === receipt.drums.length &&
-				receipt.drums.length === 2 && new Set(receipt.drums.map(event => event.drum)).size === 2 &&
+				(balladTerminal ? receipt.drums.length >= 1 && receipt.drums.length <= 2 : receipt.drums.length === 2) &&
+				new Set(receipt.drums.map(event => event.drum)).size === receipt.drums.length && receipt.drums.some(event => event.drum === 'ride') &&
 				receipt.drums.every(event => ['ride', 'kick'].includes(event.drum) && event.role === 'accent') &&
 				[sourceBass, sourcePiano, ...receipt.drums].every(onCue) && sourceBass.duration > 0 && sourceBass.duration === sourcePiano.duration &&
 				bass[0].time === sourceBass.time && bass[0].absBeat === sourceBass.absBeat && bass[0].midi === sourceBass.midi && bass[0].duration === sourceBass.duration && bass[0].velocity === sourceBass.velocity &&
@@ -362,7 +365,11 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 				for (const card of cards) {
 					card.role = roles.mark_form;
 					card.action = card.instrument === 'drums' ? 'Catch the final chord' : 'Hold the final chord';
-					card.detail = card.instrument === 'drums' ? 'A restrained cymbal and kick catch the closing chord.' : 'The final chord is held, with no further attacks in this bar.';
+					card.detail = card.instrument === 'drums'
+						? balladTerminal
+							? receipt.drums.some(event => event.drum === 'kick') ? 'A quiet ride and soft kick catch the closing chord.' : 'A quiet ride catches the closing chord.'
+							: 'A restrained cymbal and kick catch the closing chord.'
+						: 'The final chord is held, with no further attacks in this bar.';
 					card.evidence.push('Scheduled ending: shared final chord, then space');
 				}
 			}

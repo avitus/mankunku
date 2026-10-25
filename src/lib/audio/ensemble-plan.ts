@@ -436,7 +436,8 @@ export function planEnsembleWindow(input: EnsembleWindowInput): EnsembleWindowRe
 	if (typeof input.phraseId !== 'string') throw new Error('Ensemble phrase identity must be a string');
 	if (!Number.isFinite(input.tempo) || input.tempo <= 0) throw new Error('Ensemble tempo must be positive');
 	for (const [index, bar] of input.bars.entries()) {
-		if (bar.terminalArrangement !== undefined && (!bar.performanceEnergy || !bar.pianoArrivalPolicy || index !== input.bars.length - 1 || !validTerminalReservation(bar.terminalArrangement, index))) throw new Error('Invalid terminal arrangement context');
+		if (bar.terminalArrangement !== undefined && (!bar.performanceEnergy ||
+			(bar.terminalArrangement.profile === 'ballad-v1' ? bar.pianoArrivalPolicy !== undefined || bar.energyCeiling !== .6 : !bar.pianoArrivalPolicy) || index !== input.bars.length - 1 || !validTerminalReservation(bar.terminalArrangement, index))) throw new Error('Invalid terminal arrangement context');
 		if (bar.pianoArrivalPolicy !== undefined && (bar.pianoArrivalPolicy !== 'shared-v1' || !bar.performanceEnergy)) {
 			throw new Error('Invalid piano arrival policy context');
 		}

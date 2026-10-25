@@ -891,6 +891,7 @@ export function generateBacking(
 			phraseId: params.phraseId, tempo: params.tempo, ppq: params.ppq, segmentIndex: harmony.length - 1,
 			previousBass: bassEvents.filter(event => event.absBeat < terminalReservation.absBeat).at(-1)?.midi,
 			previousVoicing: terminalContext.voicing, previousContour: terminalContext.contour,
+			...(terminalReservation.profile === 'ballad-v1' ? { ordinaryBass: bassEvents, ordinaryDrums: drumEvents } : {}),
 			precedingRelease: priorEvents.some(event => parseInt(event.time) + event.duration * params.tempo / 60 * params.ppq > terminalReservation.absBeat * params.ppq + 1e-7),
 			committedLaunch: turnaroundTrace?.some(trace => trace.status === 'planned' && trace.arrivalBar === bar) });
 		terminalDecision = candidate.decision;

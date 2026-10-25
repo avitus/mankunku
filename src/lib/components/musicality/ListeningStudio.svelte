@@ -25,7 +25,7 @@
  let solos = $state(2);
  let mode = $state<'original' | 'coordinated'>('coordinated');
  let ending = $state<'continue' | 'hold-release'>('continue');
- const endingSupported = $derived(mode === 'coordinated' && (style === 'swing' || style === 'straight'));
+ const endingSupported = $derived(mode === 'coordinated' && (style === 'swing' || style === 'straight' || style === 'ballad'));
  const styles: {value:BackingStyle;label:string;character:string}[] = [
   {value:'swing',label:'Swing',character:'Walking bass, swung phrasing and ride-led time.'},
   {value:'straight',label:'Straight',character:'Even eighths with a clear bass pulse.'},

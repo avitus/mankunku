@@ -59,8 +59,8 @@ The generator fits the final explicit section/pass to the emitted harmony extent
 Each bar specifies:
 
 - Piano role, maximum attacks, density weight and an explicit silence reason when silent.
-- Drum role, commentary allowance, optional fill permission and an unconditional timekeeping obligation.
-- Bass pulse obligation and ornament allowance.
+- Drum role, commentary allowance, optional fill permission and a timekeeping obligation, except for an explicitly admitted terminal hold.
+- Bass pulse obligation and ornament allowance, with the same declared terminal exception.
 - Response ownership, including `nobody`, with a cooldown and space after a response.
 - Optional preceding setup and target arrival carrying the same accent identity.
 
@@ -433,3 +433,12 @@ The shared reservation identifies the bar, common nominal downbeat, release, har
 Only accepted events update instrument history and support the closing receipt. Planned intent and emitted evidence remain separate in the musician view. The declared arrangement binds opted-in score/checkpoint identity, while omitted/Continue requests preserve the prior policy. JSON replay retains the absolute terminal loop and cannot apply the cue at an intermediate seam. Transport duration, causal scheduling, cancellation and the 2.5-second completion tail are unchanged.
 
 The listening studio exposes the compact choice before playback for supported Coordinated styles. The captured take retains the choice and detached melody; changing mode/style clears it. An unavailable choice explains why playback cannot start. Post-take review reads the same events without audio. Curated blind comparisons retain their matched default arrangements and reject a custom ending request. This is scoped P15/D65 and ensemble Rule 4 support, not general stop-time, an added setup fill, ritardando, fermata or native-style ending policy. Human full-performance listening acceptance remains pending.
+
+
+### Native Ballad terminal realization — 25 October 2026
+
+An explicitly selected Ballad Hold & release uses the same complete final-bar admission and reservation boundary, with a scoped `ballad-v1` terminal profile. Continue time, Original, metadata-free paths and all preceding bars retain their policies. Existing Swing/Straight reservation serialization and output remain unchanged; Bossa has no terminal hold policy yet.
+
+Ballad realizes the final root and current-harmony piano pad using its existing family bias and capped quiet articulation range. The bass keeps its ordinary selected downbeat level. Drum punctuation reuses the actual native downbeat ride and includes a kick only when the ordinary native pattern selected it, at those same levels. The complete group aligns to the reserved nominal tick; no extra ride, kick, fill or brush voice is invented. Later attacks are suppressed only within the admitted terminal bar, while pitched notes sustain to the declared release and drum samples decay naturally.
+
+Ballad does not acquire a piano top-contour, Swing phrase recall or reply/recovery memory. Actual emitted voicing and pitch history remain causal. Joint terminal provenance is admitted narrowly for the native reservation, without enabling Swing's general piano-arrival policy. A missing native participant or conflicting preceding release/response preserves the whole ordinary bar. The musician view checks the native profile and exact emitted events before describing a hold or naming the selected ride and optional kick. Full-tune listening acceptance remains pending.

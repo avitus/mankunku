@@ -1,0 +1,750 @@
+{
+  "head": "739c7a5c",
+  "witnesses": [
+    {
+      "tempo": 80,
+      "engine": "fixed",
+      "finalEvents": {
+        "bassEvents": [
+          {
+            "time": "39167i",
+            "midi": 36,
+            "duration": 1.275,
+            "velocity": 80,
+            "absBeat": 204
+          },
+          {
+            "time": "39551i",
+            "midi": 31,
+            "duration": 1.275,
+            "velocity": 78,
+            "absBeat": 206
+          }
+        ],
+        "compEvents": [],
+        "drumEvents": [
+          {
+            "time": "39168i",
+            "drum": "ride",
+            "velocity": 0.2088671458062583,
+            "absBeat": 204,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39360i",
+            "drum": "ride",
+            "velocity": 0.2333506293488134,
+            "absBeat": 205,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39552i",
+            "drum": "ride",
+            "velocity": 0.2099353699290859,
+            "absBeat": 206,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39744i",
+            "drum": "ride",
+            "velocity": 0.25858356011182604,
+            "absBeat": 207,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39360i",
+            "drum": "hihat-pedal",
+            "velocity": 0.26405399275682867,
+            "absBeat": 205,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39744i",
+            "drum": "hihat-pedal",
+            "velocity": 0.25466327542359274,
+            "absBeat": 207,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39168i",
+            "drum": "kick",
+            "velocity": 0.13985216342053775,
+            "absBeat": 204,
+            "role": "timekeeping"
+          }
+        ]
+      },
+      "priorCheckpoint": null
+    },
+    {
+      "tempo": 80,
+      "engine": "rolling",
+      "finalEvents": {
+        "bassEvents": [
+          {
+            "absBeat": 204,
+            "midi": 36,
+            "velocity": 89,
+            "time": "39168i",
+            "duration": 1.275
+          },
+          {
+            "absBeat": 206,
+            "midi": 31,
+            "velocity": 84,
+            "time": "39551i",
+            "duration": 1.275
+          }
+        ],
+        "compEvents": [],
+        "drumEvents": [
+          {
+            "absBeat": 204,
+            "time": "39168i",
+            "drum": "ride",
+            "velocity": 0.2088671458062583,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 205,
+            "time": "39360i",
+            "drum": "ride",
+            "velocity": 0.2333506293488134,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 206,
+            "time": "39552i",
+            "drum": "ride",
+            "velocity": 0.2099353699290859,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 207,
+            "time": "39744i",
+            "drum": "ride",
+            "velocity": 0.25858356011182604,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 205,
+            "time": "39360i",
+            "drum": "hihat-pedal",
+            "velocity": 0.26405399275682867,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 207,
+            "time": "39744i",
+            "drum": "hihat-pedal",
+            "velocity": 0.25466327542359274,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 204,
+            "time": "39168i",
+            "drum": "kick",
+            "velocity": 0.13985216342053775,
+            "role": "timekeeping"
+          }
+        ]
+      },
+      "priorCheckpoint": {
+        "version": 1,
+        "sessionId": "rolling:dfc1ba8d",
+        "fingerprint": "[1,\"musicality-ls-mankunku-blues-C-2\",80,192,0.55,[{\"chord\":{\"root\":\"C\",\"quality\":\"7\"},\"scaleId\":\"blues.major\",\"startOffset\":[0,1],\"duration\":[1,1],\"symbol\":\"C7\"},{\"chord\":{\"root\":\"F\",\"quality\":\"7\"},\"scaleId\":\"major.mixolydian\",\"startOffset\":[1,1],\"duration\":[1,1],\"symbol\":\"F7\"},{\"chord\":{\"root\":\"C\",\"quality\":\"7\"},\"scaleId\":\"blues.major\",\"startOffset\":[2,1],\"duration\":[1,1],\"symbol\":\"C7\"},{\"chord\":{\"root\":\"G\",\"quality\":\"7#9\"},\"scaleId\":\"melodic-minor.altered\",\"startOffset\":[3,1],\"duration\":[1,1],\"symbol\":\"G7#9\"},{\"chord\":{\"root\":\"C\",\"quality\":\"7\"},\"scaleId\":\"blues.major\",\"startOffset\":[4,1],\"duration\":[1,1],\"symbol\":\"C7\"},{\"chord\":{\"root\":\"F\",\"quality\":\"7\"},\"scaleId\":\"major.mixolydian\",\"startOffset\":[5,1],\"duration\":[1,1],\"symbol\":\"F7\"},{\"chord\":{\"root\":\"C\",\"quality\":\"7\"},\"scaleId\":\"blues.major\",\"startOffset\":[6,1],\"duration\":[1,1],\"symbol\":\"C7\"},{\"chord\":{\"root\":\"G\",\"quality\":\"min7\"},\"scaleId\":\"major.dorian\",\"startOffset\":[7,1],\"duration\":[1,2],\"symbol\":\"G-7\"},{\"chord\":{\"root\":\"C\",\"quality\":\"7\"},\"scaleId\":\"major.mixolydian\",\"startOffset\":[15,2],\"duration\":[1,2],\"symbol\":\"C7\"},{\"chord\":{\"root\":\"F\",\"quality\":\"7\"},\"scaleId\":\"major.mixolydian\",\"startOffset\":[8,1],\"duration\":[1,1],\"symbol\":\"F7\"},{\"chord\":{\"root\":\"F#\",\"quality\":\"dim7\"},\"scaleId\":\"harmonic-minor.locrian-sharp6\",\"startOffset\":[9,1],\"duration\":[1,1],\"symbol\":\"F#dim7\"},{\"chord\":{\"root\":\"C\",\"quality\":\"7\"},\"scaleId\":\"blues.major\",\"startOffset\":[10,1],\"duration\":[1,1],\"symbol\":\"C7\"},{\"chord\":{\"root\":\"A\",\"quality\":\"7b9\"},\"scaleId\":\"melodic-minor.altered\",\"startOffset\":[11,1],\"duration\":[1,1],\"symbol\":\"A7b9\"},{\"chord\":{\"root\":\"D\",\"quality\":\"min7\"},\"scaleId\":\"major.dorian\",\"startOffset\":[12,1],\"duration\":[1,1],\"symbol\":\"D-7\"},{\"chord\":{\"root\":\"G\",\"quality\":\"7\"},\"scaleId\":\"major.mixolydian\",\"startOffset\":[13,1],\"duration\":[1,1],\"symbol\":\"G7\"},{\"chord\":{\"root\":\"C\",\"quality\":\"7\"},\"scaleId\":\"blues.major\",\"startOffset\":[14,1],\"duration\":[1,2],\"symbol\":\"C7\"},{\"chord\":{\"root\":\"A\",\"quality\":\"7b9\"},\"scaleId\":\"melodic-minor.altered\",\"startOffset\":[29,2],\"duration\":[1,2],\"symbol\":\"A7b9\"},{\"chord\":{\"root\":\"D\",\"quality\":\"min7\"},\"scaleId\":\"major.dorian\",\"startOffset\":[15,1],\"duration\":[1,2],\"symbol\":\"D-7\"},{\"chord\":{\"root\":\"G\",\"quality\":\"7\"},\"scaleId\":\"major.mixolydian\",\"startOffset\":[31,2],\"duration\":[1,2],\"symbol\":\"G7\"},{\"chord\":{\"root\":\"C\",\"quality\":\"7\"},\"scaleId\":\"blues.major\",\"startOffset\":[16,1],\"duration\":[1,1],\"symbol\":\"C7\"},{\"chord\":{\"root\":\"F\",\"quality\":\"7\"},\"scaleId\":\"major.mixolydian\",\"startOffset\":[17,1],\"duration\":[1,1],\"symbol\":\"F7\"},{\"chord\":{\"root\":\"C\",\"quality\":\"7\"},\"scaleId\":\"blues.major\",\"startOffset\":[18,1],\"duration\":[1,1],\"symbol\":\"C7\"},{\"chord\":{\"root\":\"G\",\"quality\":\"min7\"},\"scaleId\":\"major.dorian\",\"startOffset\":[19,1],\"duration\":[1,2],\"symbol\":\"G-7\"},{\"chord\":{\"root\":\"C\",\"quality\":\"7\"},\"scaleId\":\"major.mixolydian\",\"startOffset\":[39,2],\"duration\":[1,2],\"symbol\":\"C7\"},{\"chord\":{\"root\":\"F\",\"quality\":\"7\"},\"scaleId\":\"major.mixolydian\",\"startOffset\":[20,1],\"duration\":[1,1],\"symbol\":\"F7\"},{\"chord\":{\"root\":\"F#\",\"quality\":\"dim7\"},\"scaleId\":\"harmonic-minor.locrian-sharp6\",\"startOffset\":[21,1],\"duration\":[1,1],\"symbol\":\"F#dim7\"},{\"chord\":{\"root\":\"C\",\"quality\":\"7\"},\"scaleId\":\"blues.major\",\"startOffset\":[22,1],\"duration\":[1,1],\"symbol\":\"C7\"},{\"chord\":{\"root\":\"A\",\"quality\":\"7b9\"},\"scaleId\":\"melodic-minor.altered\",\"startOffset\":[23,1],\"duration\":[1,1],\"symbol\":\"A7b9\"},{\"chord\":{\"root\":\"D\",\"quality\":\"min7\"},\"scaleId\":\"major.dorian\",\"startOffset\":[24,1],\"duration\":[1,1],\"symbol\":\"D-7\"},{\"chord\":{\"root\":\"G\",\"quality\":\"7\"},\"scaleId\":\"major.mixolydian\",\"startOffset\":[25,1],\"duration\":[1,1],\"symbol\":\"G7\"},{\"chord\":{\"root\":\"C\",\"quality\":\"7\"},\"scaleId\":\"blues.major\",\"startOffset\":[26,1],\"duration\":[1,1],\"symbol\":\"C7\"},{\"chord\":{\"root\":\"C\",\"quality\":\"maj6\"},\"scaleId\":\"major.ionian\",\"startOffset\":[27,1],\"duration\":[1,1],\"symbol\":\"C6\"},{\"chord\":{\"root\":\"C\",\"quality\":\"7\"},\"scaleId\":\"blues.major\",\"startOffset\":[28,1],\"duration\":[1,1],\"symbol\":\"C7\"},{\"chord\":{\"root\":\"F\",\"quality\":\"7\"},\"scaleId\":\"major.mixolydian\",\"startOffset\":[29,1],\"duration\":[1,1],\"symbol\":\"F7\"},{\"chord\":{\"root\":\"C\",\"quality\":\"7\"},\"scaleId\":\"blues.major\",\"startOffset\":[30,1],\"duration\":[1,1],\"symbol\":\"C7\"},{\"chord\":{\"root\":\"G\",\"quality\":\"min7\"},\"scaleId\":\"major.dorian\",\"startOffset\":[31,1],\"duration\":[1,2],\"symbol\":\"G-7\"},{\"chord\":{\"root\":\"C\",\"quality\":\"7\"},\"scaleId\":\"major.mixolydian\",\"startOffset\":[63,2],\"duration\":[1,2],\"symbol\":\"C7\"},{\"chord\":{\"root\":\"F\",\"quality\":\"7\"},\"scaleId\":\"major.mixolydian\",\"startOffset\":[32,1],\"duration\":[1,1],\"symbol\":\"F7\"},{\"chord\":{\"root\":\"F#\",\"quality\":\"dim7\"},\"scaleId\":\"harmonic-minor.locrian-sharp6\",\"startOffset\":[33,1],\"duration\":[1,1],\"symbol\":\"F#dim7\"},{\"chord\":{\"root\":\"C\",\"quality\":\"7\"},\"scaleId\":\"blues.major\",\"startOffset\":[34,1],\"duration\":[1,1],\"symbol\":\"C7\"},{\"chord\":{\"root\":\"A\",\"quality\":\"7b9\"},\"scaleId\":\"melodic-minor.altered\",\"startOffset\":[35,1],\"duration\":[1,1],\"symbol\":\"A7b9\"},{\"chord\":{\"root\":\"D\",\"quality\":\"min7\"},\"scaleId\":\"major.dorian\",\"startOffset\":[36,1],\"duration\":[1,1],\"symbol\":\"D-7\"},{\"chord\":{\"root\":\"G\",\"quality\":\"7\"},\"scaleId\":\"major.mixolydian\",\"startOffset\":[37,1],\"duration\":[1,1],\"symbol\":\"G7\"},{\"chord\":{\"root\":\"C\",\"quality\":\"7\"},\"scaleId\":\"blues.major\",\"startOffset\":[38,1],\"duration\":[1,1],\"symbol\":\"C7\"},{\"chord\":{\"root\":\"C\",\"quality\":\"maj6\"},\"scaleId\":\"major.ionian\",\"startOffset\":[39,1],\"duration\":[1,1],\"symbol\":\"C6\"},{\"chord\":{\"root\":\"C\",\"quality\":\"7\"},\"scaleId\":\"blues.major\",\"startOffset\":[40,1],\"duration\":[1,1],\"symbol\":\"C7\"},{\"chord\":{\"root\":\"F\",\"quality\":\"7\"},\"scaleId\":\"major.mixolydian\",\"startOffset\":[41,1],\"duration\":[1,1],\"symbol\":\"F7\"},{\"chord\":{\"root\":\"C\",\"quality\":\"7\"},\"scaleId\":\"blues.major\",\"startOffset\":[42,1],\"duration\":[1,1],\"symbol\":\"C7\"},{\"chord\":{\"root\":\"G\",\"quality\":\"min7\"},\"scaleId\":\"major.dorian\",\"startOffset\":[43,1],\"duration\":[1,2],\"symbol\":\"G-7\"},{\"chord\":{\"root\":\"C\",\"quality\":\"7\"},\"scaleId\":\"major.mixolydian\",\"startOffset\":[87,2],\"duration\":[1,2],\"symbol\":\"C7\"},{\"chord\":{\"root\":\"F\",\"quality\":\"7\"},\"scaleId\":\"major.mixolydian\",\"startOffset\":[44,1],\"duration\":[1,1],\"symbol\":\"F7\"},{\"chord\":{\"root\":\"F#\",\"quality\":\"dim7\"},\"scaleId\":\"harmonic-minor.locrian-sharp6\",\"startOffset\":[45,1],\"duration\":[1,1],\"symbol\":\"F#dim7\"},{\"chord\":{\"root\":\"C\",\"quality\":\"7\"},\"scaleId\":\"blues.major\",\"startOffset\":[46,1],\"duration\":[1,1],\"symbol\":\"C7\"},{\"chord\":{\"root\":\"A\",\"quality\":\"7b9\"},\"scaleId\":\"melodic-minor.altered\",\"startOffset\":[47,1],\"duration\":[1,1],\"symbol\":\"A7b9\"},{\"chord\":{\"root\":\"D\",\"quality\":\"min7\"},\"scaleId\":\"major.dorian\",\"startOffset\":[48,1],\"duration\":[1,1],\"symbol\":\"D-7\"},{\"chord\":{\"root\":\"G\",\"quality\":\"7\"},\"scaleId\":\"major.mixolydian\",\"startOffset\":[49,1],\"duration\":[1,1],\"symbol\":\"G7\"},{\"chord\":{\"root\":\"C\",\"quality\":\"7\"},\"scaleId\":\"blues.major\",\"startOffset\":[50,1],\"duration\":[1,1],\"symbol\":\"C7\"},{\"chord\":{\"root\":\"C\",\"quality\":\"maj6\"},\"scaleId\":\"major.ionian\",\"startOffset\":[51,1],\"duration\":[1,1],\"symbol\":\"C6\"}],{\"version\":1,\"totalBars\":52,\"choruses\":[{\"role\":\"head\",\"startBar\":0,\"endBarExclusive\":16,\"index\":0},{\"role\":\"solo\",\"startBar\":16,\"endBarExclusive\":28,\"index\":1},{\"role\":\"solo\",\"startBar\":28,\"endBarExclusive\":40,\"index\":2},{\"role\":\"head\",\"startBar\":40,\"endBarExclusive\":52,\"index\":3}],\"sections\":[{\"index\":0,\"sourceSection\":0,\"occurrenceIndex\":0,\"chorusIndex\":0,\"startBar\":0,\"endBarExclusive\":4},{\"index\":1,\"sourceSection\":1,\"occurrenceIndex\":0,\"chorusIndex\":0,\"startBar\":4,\"endBarExclusive\":14},{\"index\":2,\"sourceSection\":2,\"occurrenceIndex\":0,\"chorusIndex\":0,\"startBar\":14,\"endBarExclusive\":16},{\"index\":3,\"sourceSection\":1,\"occurrenceIndex\":1,\"chorusIndex\":1,\"startBar\":16,\"endBarExclusive\":26},{\"index\":4,\"sourceSection\":3,\"occurrenceIndex\":0,\"chorusIndex\":1,\"startBar\":26,\"endBarExclusive\":28},{\"index\":5,\"sourceSection\":1,\"occurrenceIndex\":2,\"chorusIndex\":2,\"startBar\":28,\"endBarExclusive\":38},{\"index\":6,\"sourceSection\":3,\"occurrenceIndex\":1,\"chorusIndex\":2,\"startBar\":38,\"endBarExclusive\":40},{\"index\":7,\"sourceSection\":1,\"occurrenceIndex\":3,\"chorusIndex\":3,\"startBar\":40,\"endBarExclusive\":50},{\"index\":8,\"sourceSection\":3,\"occurrenceIndex\":2,\"chorusIndex\":3,\"startBar\":50,\"endBarExclusive\":52}]},{\"ride\":{\"offsetMs\":0,\"jitterMs\":6},\"ride-bell\":{\"offsetMs\":0,\"jitterMs\":6},\"hihat\":{\"offsetMs\":0,\"jitterMs\":4.5},\"hihat-pedal\":{\"offsetMs\":0,\"jitterMs\":4.5},\"kick\":{\"offsetMs\":2,\"jitterMs\":9},\"snare\":{\"offsetMs\":4,\"jitterMs\":10.5},\"crossstick\":{\"offsetMs\":4,\"jitterMs\":10.5},\"crash\":{\"offsetMs\":0,\"jitterMs\":7.5},\"bass\":{\"offsetMs\":-3,\"jitterMs\":7.5},\"comp\":{\"offsetMs\":18,\"jitterMs\":12}},{\"performanceEnergyVersion\":1,\"structuralTextureVersion\":1,\"coordinatedVoicingVersion\":4,\"reciprocalFeedbackVersion\":1},{\"style\":\"ballad\"}]",
+        "nextBar": 51,
+        "ensemble": {
+          "version": 1,
+          "phraseId": "musicality-ls-mankunku-blues-C-2",
+          "tempo": 80,
+          "formFingerprint": "form-v1:52:a489321d",
+          "totalBars": 52,
+          "nextBar": 51,
+          "activePhrase": {
+            "startBar": 50,
+            "intent": "support",
+            "lead": "nobody"
+          },
+          "previousIntent": "support",
+          "previousLead": "nobody",
+          "lastResponseBar": 31,
+          "lastResponseOwner": "bass",
+          "lastFillBar": 49,
+          "pendingArrival": null,
+          "recentBars": [
+            {
+              "barIndex": 49,
+              "phraseStartBar": 48,
+              "intent": "build",
+              "responseOwner": "nobody",
+              "pianoAttackBudget": 1,
+              "drumCommentaryBudget": 3,
+              "energy": 0.39453225287109583,
+              "density": 0.8333333333333334,
+              "tension": 0.47863306321777394,
+              "fill": true,
+              "setupTargetBar": 50
+            },
+            {
+              "barIndex": 50,
+              "phraseStartBar": 50,
+              "intent": "support",
+              "responseOwner": "nobody",
+              "pianoAttackBudget": 0,
+              "drumCommentaryBudget": 0,
+              "energy": 0.3323172695073522,
+              "density": 0,
+              "tension": 0.23307931737683804,
+              "fill": false,
+              "setupTargetBar": null
+            }
+          ],
+          "recentPhrases": [
+            {
+              "startBar": 40,
+              "endBarExclusive": 44,
+              "intent": "support",
+              "lead": "nobody",
+              "barsPlanned": 4,
+              "energyTotal": 1.580371364173017,
+              "responseCount": 0,
+              "fillCount": 0
+            },
+            {
+              "startBar": 44,
+              "endBarExclusive": 48,
+              "intent": "leave_space",
+              "lead": "nobody",
+              "barsPlanned": 4,
+              "energyTotal": 1.7672469679081249,
+              "responseCount": 0,
+              "fillCount": 0
+            },
+            {
+              "startBar": 48,
+              "endBarExclusive": 50,
+              "intent": "build",
+              "lead": "piano",
+              "barsPlanned": 2,
+              "energyTotal": 0.7991433937962864,
+              "responseCount": 0,
+              "fillCount": 1
+            },
+            {
+              "startBar": 50,
+              "endBarExclusive": 51,
+              "intent": "support",
+              "lead": "nobody",
+              "barsPlanned": 1,
+              "energyTotal": 0.3323172695073522,
+              "responseCount": 0,
+              "fillCount": 0
+            }
+          ],
+          "performance": {
+            "barsPlanned": 51,
+            "phrasesPlanned": 17,
+            "responseCount": 3,
+            "fillCount": 5,
+            "arrivalCount": 2,
+            "peakEnergy": 0.4908489857250188,
+            "peakDensity": 0.8333333333333334,
+            "intentCounts": {
+              "support": 8,
+              "leave_space": 3,
+              "build": 3,
+              "release": 1,
+              "answer": 0,
+              "mark_form": 2
+            },
+            "responseCounts": {
+              "piano": 2,
+              "drums": 0,
+              "bass": 1,
+              "nobody": 48
+            }
+          }
+        },
+        "piano": {
+          "recentFigures": [
+            "ballad:0",
+            "ballad:3.5",
+            "ballad:"
+          ],
+          "motif": {
+            "startBar": 50,
+            "sourceId": null,
+            "shift": 0,
+            "repeat": false
+          },
+          "segmentIndex": 56,
+          "segmentVoicing": [
+            52,
+            58,
+            60,
+            67
+          ],
+          "lastVoicing": [
+            52,
+            58,
+            60,
+            67
+          ],
+          "voicing": {
+            "version": 1,
+            "chord": {
+              "root": "C",
+              "quality": "7"
+            },
+            "notes": [
+              52,
+              58,
+              60,
+              67
+            ]
+          }
+        },
+        "bass": {
+          "previousMidi": 43,
+          "previousPreviousMidi": 40,
+          "direction": 1,
+          "segmentIndex": 56,
+          "segmentAnchor": 40,
+          "nextTarget": 36,
+          "approach": "chromatic-below",
+          "feel": "two",
+          "pendingLaunch": null
+        },
+        "drums": {
+          "version": 1,
+          "style": "ballad",
+          "phraseId": "musicality-ls-mankunku-blues-C-2",
+          "tempo": 80,
+          "harmonyEndBeat": 208,
+          "nextBar": 51,
+          "sectionIndex": 8,
+          "chorusIndex": 3,
+          "ensemblePhraseStartBar": 50,
+          "phrase": {
+            "start": 50,
+            "end": 52,
+            "mode": "quarters-only",
+            "skips": [],
+            "variedSkips": [],
+            "commentarySelected": false
+          },
+          "previousCompOnsets": []
+        },
+        "timing": {
+          "version": 1,
+          "phraseStartBar": 50,
+          "endBarExclusive": 52,
+          "intent": "support",
+          "boundaryStrength": 1,
+          "commonAmplitudeMs": 0.07657862724736333,
+          "playerPlacementMs": {
+            "bass": 0.7191241080872715,
+            "comp": 1.083664693403989,
+            "drums": -0.6507032145746052
+          },
+          "roleOffsetMs": {
+            "ride": 0,
+            "ride-bell": 0,
+            "hihat": 0,
+            "hihat-pedal": 0,
+            "kick": 2,
+            "snare": 4,
+            "crossstick": 4,
+            "crash": 0,
+            "bass": -3,
+            "comp": 18
+          },
+          "residualLimitMs": {
+            "ride": 1.5,
+            "ride-bell": 1.5,
+            "hihat": 1.125,
+            "hihat-pedal": 1.125,
+            "kick": 2,
+            "snare": 2,
+            "crossstick": 2,
+            "crash": 1.875,
+            "bass": 1.875,
+            "comp": 2
+          }
+        },
+        "feedback": {
+          "version": 1,
+          "previousDrumStatement": null,
+          "lastYieldBar": null
+        },
+        "checkpointId": "rolling:dfc1ba8d:51:636cef09"
+      }
+    },
+    {
+      "tempo": 140,
+      "engine": "fixed",
+      "finalEvents": {
+        "bassEvents": [
+          {
+            "time": "39166i",
+            "midi": 36,
+            "duration": 0.7285714285714285,
+            "velocity": 85,
+            "absBeat": 204
+          },
+          {
+            "time": "39550i",
+            "midi": 31,
+            "duration": 0.7285714285714285,
+            "velocity": 85,
+            "absBeat": 206
+          }
+        ],
+        "compEvents": [],
+        "drumEvents": [
+          {
+            "time": "39169i",
+            "drum": "ride",
+            "velocity": 0.21186279507773104,
+            "absBeat": 204,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39360i",
+            "drum": "ride",
+            "velocity": 0.22956155743663811,
+            "absBeat": 205,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39553i",
+            "drum": "ride",
+            "velocity": 0.21304453309588933,
+            "absBeat": 206,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39744i",
+            "drum": "ride",
+            "velocity": 0.2474403799710524,
+            "absBeat": 207,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39361i",
+            "drum": "hihat-pedal",
+            "velocity": 0.23181798193580178,
+            "absBeat": 205,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39744i",
+            "drum": "hihat-pedal",
+            "velocity": 0.24912299752471917,
+            "absBeat": 207,
+            "role": "timekeeping"
+          }
+        ]
+      },
+      "priorCheckpoint": null
+    },
+    {
+      "tempo": 140,
+      "engine": "rolling",
+      "finalEvents": {
+        "bassEvents": [
+          {
+            "absBeat": 204,
+            "midi": 36,
+            "velocity": 84,
+            "time": "39168i",
+            "duration": 0.7285714285714285
+          },
+          {
+            "absBeat": 206,
+            "midi": 31,
+            "velocity": 81,
+            "time": "39550i",
+            "duration": 0.7285714285714285
+          }
+        ],
+        "compEvents": [],
+        "drumEvents": [
+          {
+            "absBeat": 204,
+            "time": "39169i",
+            "drum": "ride",
+            "velocity": 0.21186279507773104,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 205,
+            "time": "39360i",
+            "drum": "ride",
+            "velocity": 0.22956155743663811,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 206,
+            "time": "39553i",
+            "drum": "ride",
+            "velocity": 0.21304453309588933,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 207,
+            "time": "39744i",
+            "drum": "ride",
+            "velocity": 0.2474403799710524,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 205,
+            "time": "39361i",
+            "drum": "hihat-pedal",
+            "velocity": 0.23181798193580178,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 207,
+            "time": "39744i",
+            "drum": "hihat-pedal",
+            "velocity": 0.24912299752471917,
+            "role": "timekeeping"
+          }
+        ]
+      },
+      "priorCheckpoint": {
+        "version": 1,
+        "sessionId": "rolling:66ac98a0",
+        "fingerprint": "[1,\"musicality-ls-mankunku-blues-C-2\",140,192,0.55,[{\"chord\":{\"root\":\"C\",\"quality\":\"7\"},\"scaleId\":\"blues.major\",\"startOffset\":[0,1],\"duration\":[1,1],\"symbol\":\"C7\"},{\"chord\":{\"root\":\"F\",\"quality\":\"7\"},\"scaleId\":\"major.mixolydian\",\"startOffset\":[1,1],\"duration\":[1,1],\"symbol\":\"F7\"},{\"chord\":{\"root\":\"C\",\"quality\":\"7\"},\"scaleId\":\"blues.major\",\"startOffset\":[2,1],\"duration\":[1,1],\"symbol\":\"C7\"},{\"chord\":{\"root\":\"G\",\"quality\":\"7#9\"},\"scaleId\":\"melodic-minor.altered\",\"startOffset\":[3,1],\"duration\":[1,1],\"symbol\":\"G7#9\"},{\"chord\":{\"root\":\"C\",\"quality\":\"7\"},\"scaleId\":\"blues.major\",\"startOffset\":[4,1],\"duration\":[1,1],\"symbol\":\"C7\"},{\"chord\":{\"root\":\"F\",\"quality\":\"7\"},\"scaleId\":\"major.mixolydian\",\"startOffset\":[5,1],\"duration\":[1,1],\"symbol\":\"F7\"},{\"chord\":{\"root\":\"C\",\"quality\":\"7\"},\"scaleId\":\"blues.major\",\"startOffset\":[6,1],\"duration\":[1,1],\"symbol\":\"C7\"},{\"chord\":{\"root\":\"G\",\"quality\":\"min7\"},\"scaleId\":\"major.dorian\",\"startOffset\":[7,1],\"duration\":[1,2],\"symbol\":\"G-7\"},{\"chord\":{\"root\":\"C\",\"quality\":\"7\"},\"scaleId\":\"major.mixolydian\",\"startOffset\":[15,2],\"duration\":[1,2],\"symbol\":\"C7\"},{\"chord\":{\"root\":\"F\",\"quality\":\"7\"},\"scaleId\":\"major.mixolydian\",\"startOffset\":[8,1],\"duration\":[1,1],\"symbol\":\"F7\"},{\"chord\":{\"root\":\"F#\",\"quality\":\"dim7\"},\"scaleId\":\"harmonic-minor.locrian-sharp6\",\"startOffset\":[9,1],\"duration\":[1,1],\"symbol\":\"F#dim7\"},{\"chord\":{\"root\":\"C\",\"quality\":\"7\"},\"scaleId\":\"blues.major\",\"startOffset\":[10,1],\"duration\":[1,1],\"symbol\":\"C7\"},{\"chord\":{\"root\":\"A\",\"quality\":\"7b9\"},\"scaleId\":\"melodic-minor.altered\",\"startOffset\":[11,1],\"duration\":[1,1],\"symbol\":\"A7b9\"},{\"chord\":{\"root\":\"D\",\"quality\":\"min7\"},\"scaleId\":\"major.dorian\",\"startOffset\":[12,1],\"duration\":[1,1],\"symbol\":\"D-7\"},{\"chord\":{\"root\":\"G\",\"quality\":\"7\"},\"scaleId\":\"major.mixolydian\",\"startOffset\":[13,1],\"duration\":[1,1],\"symbol\":\"G7\"},{\"chord\":{\"root\":\"C\",\"quality\":\"7\"},\"scaleId\":\"blues.major\",\"startOffset\":[14,1],\"duration\":[1,2],\"symbol\":\"C7\"},{\"chord\":{\"root\":\"A\",\"quality\":\"7b9\"},\"scaleId\":\"melodic-minor.altered\",\"startOffset\":[29,2],\"duration\":[1,2],\"symbol\":\"A7b9\"},{\"chord\":{\"root\":\"D\",\"quality\":\"min7\"},\"scaleId\":\"major.dorian\",\"startOffset\":[15,1],\"duration\":[1,2],\"symbol\":\"D-7\"},{\"chord\":{\"root\":\"G\",\"quality\":\"7\"},\"scaleId\":\"major.mixolydian\",\"startOffset\":[31,2],\"duration\":[1,2],\"symbol\":\"G7\"},{\"chord\":{\"root\":\"C\",\"quality\":\"7\"},\"scaleId\":\"blues.major\",\"startOffset\":[16,1],\"duration\":[1,1],\"symbol\":\"C7\"},{\"chord\":{\"root\":\"F\",\"quality\":\"7\"},\"scaleId\":\"major.mixolydian\",\"startOffset\":[17,1],\"duration\":[1,1],\"symbol\":\"F7\"},{\"chord\":{\"root\":\"C\",\"quality\":\"7\"},\"scaleId\":\"blues.major\",\"startOffset\":[18,1],\"duration\":[1,1],\"symbol\":\"C7\"},{\"chord\":{\"root\":\"G\",\"quality\":\"min7\"},\"scaleId\":\"major.dorian\",\"startOffset\":[19,1],\"duration\":[1,2],\"symbol\":\"G-7\"},{\"chord\":{\"root\":\"C\",\"quality\":\"7\"},\"scaleId\":\"major.mixolydian\",\"startOffset\":[39,2],\"duration\":[1,2],\"symbol\":\"C7\"},{\"chord\":{\"root\":\"F\",\"quality\":\"7\"},\"scaleId\":\"major.mixolydian\",\"startOffset\":[20,1],\"duration\":[1,1],\"symbol\":\"F7\"},{\"chord\":{\"root\":\"F#\",\"quality\":\"dim7\"},\"scaleId\":\"harmonic-minor.locrian-sharp6\",\"startOffset\":[21,1],\"duration\":[1,1],\"symbol\":\"F#dim7\"},{\"chord\":{\"root\":\"C\",\"quality\":\"7\"},\"scaleId\":\"blues.major\",\"startOffset\":[22,1],\"duration\":[1,1],\"symbol\":\"C7\"},{\"chord\":{\"root\":\"A\",\"quality\":\"7b9\"},\"scaleId\":\"melodic-minor.altered\",\"startOffset\":[23,1],\"duration\":[1,1],\"symbol\":\"A7b9\"},{\"chord\":{\"root\":\"D\",\"quality\":\"min7\"},\"scaleId\":\"major.dorian\",\"startOffset\":[24,1],\"duration\":[1,1],\"symbol\":\"D-7\"},{\"chord\":{\"root\":\"G\",\"quality\":\"7\"},\"scaleId\":\"major.mixolydian\",\"startOffset\":[25,1],\"duration\":[1,1],\"symbol\":\"G7\"},{\"chord\":{\"root\":\"C\",\"quality\":\"7\"},\"scaleId\":\"blues.major\",\"startOffset\":[26,1],\"duration\":[1,1],\"symbol\":\"C7\"},{\"chord\":{\"root\":\"C\",\"quality\":\"maj6\"},\"scaleId\":\"major.ionian\",\"startOffset\":[27,1],\"duration\":[1,1],\"symbol\":\"C6\"},{\"chord\":{\"root\":\"C\",\"quality\":\"7\"},\"scaleId\":\"blues.major\",\"startOffset\":[28,1],\"duration\":[1,1],\"symbol\":\"C7\"},{\"chord\":{\"root\":\"F\",\"quality\":\"7\"},\"scaleId\":\"major.mixolydian\",\"startOffset\":[29,1],\"duration\":[1,1],\"symbol\":\"F7\"},{\"chord\":{\"root\":\"C\",\"quality\":\"7\"},\"scaleId\":\"blues.major\",\"startOffset\":[30,1],\"duration\":[1,1],\"symbol\":\"C7\"},{\"chord\":{\"root\":\"G\",\"quality\":\"min7\"},\"scaleId\":\"major.dorian\",\"startOffset\":[31,1],\"duration\":[1,2],\"symbol\":\"G-7\"},{\"chord\":{\"root\":\"C\",\"quality\":\"7\"},\"scaleId\":\"major.mixolydian\",\"startOffset\":[63,2],\"duration\":[1,2],\"symbol\":\"C7\"},{\"chord\":{\"root\":\"F\",\"quality\":\"7\"},\"scaleId\":\"major.mixolydian\",\"startOffset\":[32,1],\"duration\":[1,1],\"symbol\":\"F7\"},{\"chord\":{\"root\":\"F#\",\"quality\":\"dim7\"},\"scaleId\":\"harmonic-minor.locrian-sharp6\",\"startOffset\":[33,1],\"duration\":[1,1],\"symbol\":\"F#dim7\"},{\"chord\":{\"root\":\"C\",\"quality\":\"7\"},\"scaleId\":\"blues.major\",\"startOffset\":[34,1],\"duration\":[1,1],\"symbol\":\"C7\"},{\"chord\":{\"root\":\"A\",\"quality\":\"7b9\"},\"scaleId\":\"melodic-minor.altered\",\"startOffset\":[35,1],\"duration\":[1,1],\"symbol\":\"A7b9\"},{\"chord\":{\"root\":\"D\",\"quality\":\"min7\"},\"scaleId\":\"major.dorian\",\"startOffset\":[36,1],\"duration\":[1,1],\"symbol\":\"D-7\"},{\"chord\":{\"root\":\"G\",\"quality\":\"7\"},\"scaleId\":\"major.mixolydian\",\"startOffset\":[37,1],\"duration\":[1,1],\"symbol\":\"G7\"},{\"chord\":{\"root\":\"C\",\"quality\":\"7\"},\"scaleId\":\"blues.major\",\"startOffset\":[38,1],\"duration\":[1,1],\"symbol\":\"C7\"},{\"chord\":{\"root\":\"C\",\"quality\":\"maj6\"},\"scaleId\":\"major.ionian\",\"startOffset\":[39,1],\"duration\":[1,1],\"symbol\":\"C6\"},{\"chord\":{\"root\":\"C\",\"quality\":\"7\"},\"scaleId\":\"blues.major\",\"startOffset\":[40,1],\"duration\":[1,1],\"symbol\":\"C7\"},{\"chord\":{\"root\":\"F\",\"quality\":\"7\"},\"scaleId\":\"major.mixolydian\",\"startOffset\":[41,1],\"duration\":[1,1],\"symbol\":\"F7\"},{\"chord\":{\"root\":\"C\",\"quality\":\"7\"},\"scaleId\":\"blues.major\",\"startOffset\":[42,1],\"duration\":[1,1],\"symbol\":\"C7\"},{\"chord\":{\"root\":\"G\",\"quality\":\"min7\"},\"scaleId\":\"major.dorian\",\"startOffset\":[43,1],\"duration\":[1,2],\"symbol\":\"G-7\"},{\"chord\":{\"root\":\"C\",\"quality\":\"7\"},\"scaleId\":\"major.mixolydian\",\"startOffset\":[87,2],\"duration\":[1,2],\"symbol\":\"C7\"},{\"chord\":{\"root\":\"F\",\"quality\":\"7\"},\"scaleId\":\"major.mixolydian\",\"startOffset\":[44,1],\"duration\":[1,1],\"symbol\":\"F7\"},{\"chord\":{\"root\":\"F#\",\"quality\":\"dim7\"},\"scaleId\":\"harmonic-minor.locrian-sharp6\",\"startOffset\":[45,1],\"duration\":[1,1],\"symbol\":\"F#dim7\"},{\"chord\":{\"root\":\"C\",\"quality\":\"7\"},\"scaleId\":\"blues.major\",\"startOffset\":[46,1],\"duration\":[1,1],\"symbol\":\"C7\"},{\"chord\":{\"root\":\"A\",\"quality\":\"7b9\"},\"scaleId\":\"melodic-minor.altered\",\"startOffset\":[47,1],\"duration\":[1,1],\"symbol\":\"A7b9\"},{\"chord\":{\"root\":\"D\",\"quality\":\"min7\"},\"scaleId\":\"major.dorian\",\"startOffset\":[48,1],\"duration\":[1,1],\"symbol\":\"D-7\"},{\"chord\":{\"root\":\"G\",\"quality\":\"7\"},\"scaleId\":\"major.mixolydian\",\"startOffset\":[49,1],\"duration\":[1,1],\"symbol\":\"G7\"},{\"chord\":{\"root\":\"C\",\"quality\":\"7\"},\"scaleId\":\"blues.major\",\"startOffset\":[50,1],\"duration\":[1,1],\"symbol\":\"C7\"},{\"chord\":{\"root\":\"C\",\"quality\":\"maj6\"},\"scaleId\":\"major.ionian\",\"startOffset\":[51,1],\"duration\":[1,1],\"symbol\":\"C6\"}],{\"version\":1,\"totalBars\":52,\"choruses\":[{\"role\":\"head\",\"startBar\":0,\"endBarExclusive\":16,\"index\":0},{\"role\":\"solo\",\"startBar\":16,\"endBarExclusive\":28,\"index\":1},{\"role\":\"solo\",\"startBar\":28,\"endBarExclusive\":40,\"index\":2},{\"role\":\"head\",\"startBar\":40,\"endBarExclusive\":52,\"index\":3}],\"sections\":[{\"index\":0,\"sourceSection\":0,\"occurrenceIndex\":0,\"chorusIndex\":0,\"startBar\":0,\"endBarExclusive\":4},{\"index\":1,\"sourceSection\":1,\"occurrenceIndex\":0,\"chorusIndex\":0,\"startBar\":4,\"endBarExclusive\":14},{\"index\":2,\"sourceSection\":2,\"occurrenceIndex\":0,\"chorusIndex\":0,\"startBar\":14,\"endBarExclusive\":16},{\"index\":3,\"sourceSection\":1,\"occurrenceIndex\":1,\"chorusIndex\":1,\"startBar\":16,\"endBarExclusive\":26},{\"index\":4,\"sourceSection\":3,\"occurrenceIndex\":0,\"chorusIndex\":1,\"startBar\":26,\"endBarExclusive\":28},{\"index\":5,\"sourceSection\":1,\"occurrenceIndex\":2,\"chorusIndex\":2,\"startBar\":28,\"endBarExclusive\":38},{\"index\":6,\"sourceSection\":3,\"occurrenceIndex\":1,\"chorusIndex\":2,\"startBar\":38,\"endBarExclusive\":40},{\"index\":7,\"sourceSection\":1,\"occurrenceIndex\":3,\"chorusIndex\":3,\"startBar\":40,\"endBarExclusive\":50},{\"index\":8,\"sourceSection\":3,\"occurrenceIndex\":2,\"chorusIndex\":3,\"startBar\":50,\"endBarExclusive\":52}]},{\"ride\":{\"offsetMs\":0,\"jitterMs\":6},\"ride-bell\":{\"offsetMs\":0,\"jitterMs\":6},\"hihat\":{\"offsetMs\":0,\"jitterMs\":4.5},\"hihat-pedal\":{\"offsetMs\":0,\"jitterMs\":4.5},\"kick\":{\"offsetMs\":2,\"jitterMs\":9},\"snare\":{\"offsetMs\":4,\"jitterMs\":10.5},\"crossstick\":{\"offsetMs\":4,\"jitterMs\":10.5},\"crash\":{\"offsetMs\":0,\"jitterMs\":7.5},\"bass\":{\"offsetMs\":-3,\"jitterMs\":7.5},\"comp\":{\"offsetMs\":18,\"jitterMs\":12}},{\"performanceEnergyVersion\":1,\"structuralTextureVersion\":1,\"coordinatedVoicingVersion\":4,\"reciprocalFeedbackVersion\":1},{\"style\":\"ballad\"}]",
+        "nextBar": 51,
+        "ensemble": {
+          "version": 1,
+          "phraseId": "musicality-ls-mankunku-blues-C-2",
+          "tempo": 140,
+          "formFingerprint": "form-v1:52:a489321d",
+          "totalBars": 52,
+          "nextBar": 51,
+          "activePhrase": {
+            "startBar": 50,
+            "intent": "release",
+            "lead": "nobody"
+          },
+          "previousIntent": "release",
+          "previousLead": "nobody",
+          "lastResponseBar": 13,
+          "lastResponseOwner": "piano",
+          "lastFillBar": 49,
+          "pendingArrival": null,
+          "recentBars": [
+            {
+              "barIndex": 49,
+              "phraseStartBar": 48,
+              "intent": "support",
+              "responseOwner": "nobody",
+              "pianoAttackBudget": 1,
+              "drumCommentaryBudget": 3,
+              "energy": 0.3735322528710958,
+              "density": 0.8333333333333334,
+              "tension": 0.41338306321777396,
+              "fill": true,
+              "setupTargetBar": null
+            },
+            {
+              "barIndex": 50,
+              "phraseStartBar": 50,
+              "intent": "release",
+              "responseOwner": "nobody",
+              "pianoAttackBudget": 1,
+              "drumCommentaryBudget": 0,
+              "energy": 0.3323172695073522,
+              "density": 0.3333333333333333,
+              "tension": 0.23307931737683804,
+              "fill": false,
+              "setupTargetBar": null
+            }
+          ],
+          "recentPhrases": [
+            {
+              "startBar": 40,
+              "endBarExclusive": 44,
+              "intent": "leave_space",
+              "lead": "nobody",
+              "barsPlanned": 4,
+              "energyTotal": 1.580371364173017,
+              "responseCount": 0,
+              "fillCount": 0
+            },
+            {
+              "startBar": 44,
+              "endBarExclusive": 48,
+              "intent": "support",
+              "lead": "piano",
+              "barsPlanned": 4,
+              "energyTotal": 1.7672469679081249,
+              "responseCount": 0,
+              "fillCount": 0
+            },
+            {
+              "startBar": 48,
+              "endBarExclusive": 50,
+              "intent": "support",
+              "lead": "piano",
+              "barsPlanned": 2,
+              "energyTotal": 0.7921433937962863,
+              "responseCount": 0,
+              "fillCount": 1
+            },
+            {
+              "startBar": 50,
+              "endBarExclusive": 51,
+              "intent": "release",
+              "lead": "nobody",
+              "barsPlanned": 1,
+              "energyTotal": 0.3323172695073522,
+              "responseCount": 0,
+              "fillCount": 0
+            }
+          ],
+          "performance": {
+            "barsPlanned": 51,
+            "phrasesPlanned": 17,
+            "responseCount": 2,
+            "fillCount": 1,
+            "arrivalCount": 0,
+            "peakEnergy": 0.4908489857250188,
+            "peakDensity": 0.8333333333333334,
+            "intentCounts": {
+              "support": 8,
+              "leave_space": 5,
+              "build": 1,
+              "release": 3,
+              "answer": 0,
+              "mark_form": 0
+            },
+            "responseCounts": {
+              "piano": 1,
+              "drums": 1,
+              "bass": 0,
+              "nobody": 49
+            }
+          }
+        },
+        "piano": {
+          "recentFigures": [
+            "ballad:2",
+            "ballad:0",
+            "ballad:0"
+          ],
+          "motif": {
+            "startBar": 50,
+            "sourceId": null,
+            "shift": 0,
+            "repeat": false
+          },
+          "segmentIndex": 56,
+          "segmentVoicing": [
+            52,
+            58,
+            62
+          ],
+          "lastVoicing": [
+            52,
+            58,
+            62
+          ],
+          "voicing": {
+            "version": 1,
+            "chord": {
+              "root": "C",
+              "quality": "7"
+            },
+            "notes": [
+              52,
+              58,
+              62
+            ]
+          }
+        },
+        "bass": {
+          "previousMidi": 43,
+          "previousPreviousMidi": 43,
+          "direction": 0,
+          "segmentIndex": 56,
+          "segmentAnchor": 43,
+          "nextTarget": 36,
+          "approach": "chromatic-above",
+          "feel": "two",
+          "pendingLaunch": null
+        },
+        "drums": {
+          "version": 1,
+          "style": "ballad",
+          "phraseId": "musicality-ls-mankunku-blues-C-2",
+          "tempo": 140,
+          "harmonyEndBeat": 208,
+          "nextBar": 51,
+          "sectionIndex": 8,
+          "chorusIndex": 3,
+          "ensemblePhraseStartBar": 50,
+          "phrase": {
+            "start": 50,
+            "end": 52,
+            "mode": "quarters-only",
+            "skips": [],
+            "variedSkips": [],
+            "commentarySelected": false
+          },
+          "previousCompOnsets": [
+            0
+          ]
+        },
+        "timing": {
+          "version": 1,
+          "phraseStartBar": 50,
+          "endBarExclusive": 52,
+          "intent": "release",
+          "boundaryStrength": 1,
+          "commonAmplitudeMs": 0.9016824125312269,
+          "playerPlacementMs": {
+            "bass": -0.9770780461840332,
+            "comp": -0.3256496083922684,
+            "drums": -0.091281873639673
+          },
+          "roleOffsetMs": {
+            "ride": 0,
+            "ride-bell": 0,
+            "hihat": 0,
+            "hihat-pedal": 0,
+            "kick": 2,
+            "snare": 4,
+            "crossstick": 4,
+            "crash": 0,
+            "bass": -3,
+            "comp": 17.142857142857142
+          },
+          "residualLimitMs": {
+            "ride": 1.5,
+            "ride-bell": 1.5,
+            "hihat": 1.125,
+            "hihat-pedal": 1.125,
+            "kick": 2,
+            "snare": 2,
+            "crossstick": 2,
+            "crash": 1.875,
+            "bass": 1.875,
+            "comp": 2
+          }
+        },
+        "feedback": {
+          "version": 1,
+          "previousDrumStatement": null,
+          "lastYieldBar": null
+        },
+        "checkpointId": "rolling:66ac98a0:51:aab775ee"
+      }
+    }
+  ]
+}
