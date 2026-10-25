@@ -1,12 +1,16 @@
 import type { Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { test, expect } from './fixtures/test';
-import { seedOnboardedAnonymous } from './fixtures/storage';
+import { seedOnboardedAnonymous, seedTunes } from './fixtures/storage';
 import { stubCdnInstrumentSamples } from './fixtures/audio';
 import type { MusicianDecisionCard } from '../../src/lib/musicality/musician-decisions';
 import type { CausalListeningProvenance, ListeningSnapshot } from '../../src/lib/musicality/listening-player';
 
+import type { ListeningTuneBar } from '../../src/lib/musicality/listening-tunes';
+import { LOCAL_LISTENING_AABA } from '../fixtures/musicality-local-aaba';
+
 interface ListeningEvidence {
+	session: { tuneId: string; headBars: number; chorusBars: number; soloChoruses: number; bars: ListeningTuneBar[]; source?: unknown };
 	completion: 'complete' | 'partial';
 	playback: ListeningSnapshot;
 	marks: { barIndex: number; elapsedBeats: number; note: string }[];
@@ -678,4 +682,140 @@ test('reviews a marked Bossa passage after stopping without changing the take or
 	await expect(slider).toHaveCount(0);
 	await expect(page.getByRole('button', { name: 'Bar 20 · Bossa top line', exact: true })).toHaveCount(0);
 	await expect(page.getByTestId('listening-status')).toHaveText('Ready to listen');
+});
+
+
+test('listens to an existing local AABA tune book chart with captured bridge evidence', async ({ page }) => {
+	test.setTimeout(45_000);
+	await seedTunes(page, [LOCAL_LISTENING_AABA]);
+	await setup(page);
+	const picker = page.getByTestId('listening-tune');
+	await expect(picker.locator(`option[value="${LOCAL_LISTENING_AABA.id}"]`))
+		.toHaveText(LOCAL_LISTENING_AABA.title, { timeout: 2000 });
+	await picker.selectOption(LOCAL_LISTENING_AABA.id);
+	await page.getByTestId('listening-key').selectOption('D');
+	await expect(page.locator('.transport')).toContainText('128 bars');
+	await expect(page.locator('.chords')).toContainText('DΔ7');
+	await expect(page.locator('.chords')).toContainText('GΔ7');
+	await playToBar(page);
+	const opening = await exportTake(page);
+	const phrase = opening.playback.params!.phrase;
+	expect(phrase.name).toBe(LOCAL_LISTENING_AABA.title);
+	expect(phrase.source).toBe('user');
+	expect(opening.session.source).toEqual({ id: LOCAL_LISTENING_AABA.id, title: LOCAL_LISTENING_AABA.title, composer: LOCAL_LISTENING_AABA.composer, source: 'user' });
+	expect(phrase.key).toBe('D');
+	expect(phrase.notes).toEqual([]);
+	expect(phrase.performanceForm!.totalBars).toBe(128);
+	expect(phrase.performanceForm!.choruses.map(({ role, startBar, endBarExclusive }) => ({ role, startBar, endBarExclusive })))
+		.toEqual([
+			{ role: 'head', startBar: 0, endBarExclusive: 32 },
+			{ role: 'solo', startBar: 32, endBarExclusive: 64 },
+			{ role: 'solo', startBar: 64, endBarExclusive: 96 },
+			{ role: 'head', startBar: 96, endBarExclusive: 128 }
+		]);
+	expect(opening.session.bars.filter(bar => bar.context.isSectionFirstBar).map(bar => bar.sectionLabel))
+		.toEqual(Array.from({ length: 4 }, () => ['A', 'A', 'B', 'A']).flat());
+	expect(opening.playback.provenance!.committedBars).toBeLessThan(128);
+	// A later edit of the stored chart cannot rewrite the already captured take.
+	await page.evaluate((original) => {
+		const edited = structuredClone(original);
+		edited.title = 'Later library edit';
+		edited.sections[2].label = 'Changed bridge';
+		edited.sections[2].harmony[0].chord.root = 'B';
+		localStorage.setItem('mankunku:user-tunes', JSON.stringify([edited]));
+	}, LOCAL_LISTENING_AABA);
+	await expect.poll(() => soundingBar(page), { timeout: 20_000, intervals: [25] }).toBe(16);
+	await assertDecisionClock(page);
+	await page.getByLabel('Listening note', { exact: true }).fill('First bridge');
+	await page.getByRole('button', { name: 'Mark this bar', exact: true }).click();
+	await expect.poll(() => soundingBar(page), { timeout: 5000, intervals: [25] }).toBeGreaterThanOrEqual(18);
+	await page.getByTestId('listening-stop').click();
+	const stopped = await exportTake(page);
+	assertCommittedPrefix(opening.playback, stopped.playback);
+	expect(stopped.playback.params).toEqual(opening.playback.params);
+	expect(stopped.session).toEqual(opening.session);
+	expect(stopped.marks).toEqual([{ barIndex: 16, elapsedBeats: expect.any(Number), note: 'First bridge' }]);
+	const starts = await sourceStarts(page);
+	await page.getByRole('button', { name: 'Bar 17 · First bridge', exact: true }).click();
+	await expect(page.getByRole('slider', { name: 'Review decisions', exact: true })).toHaveValue('16');
+	await expect(page.getByTestId('listening-position')).toContainText('Head in · B');
+	const reviewed = await exportTake(page);
+	const { review, ...unchanged } = reviewed;
+	expect(unchanged).toEqual(stopped);
+	expect(review!.barIndex).toBe(16);
+	expect(review!.decisions).toHaveLength(3);
+	expect(stopped.session.bars[16].chordSymbols).toEqual(['GΔ7']);
+	expect(await sourceStarts(page)).toBe(starts);
+	await assertNoMicrophone(page);
+});
+
+test('explains unavailable local arrangements without truncating or starting audio', async ({ page }) => {
+	const invalidMeter = { ...LOCAL_LISTENING_AABA, id: 'e2e-listening-waltz', title: 'Local waltz', timeSignature: [3, 4] };
+	const malformed = { ...LOCAL_LISTENING_AABA, id: 'e2e-listening-invalid', title: 'Local incomplete chart', sections: [] };
+	await seedTunes(page, [LOCAL_LISTENING_AABA, invalidMeter, malformed]);
+	await setup(page);
+	const picker = page.getByTestId('listening-tune');
+	await picker.selectOption(LOCAL_LISTENING_AABA.id);
+	const solos = page.getByTestId('listening-choruses');
+	for (const count of ['3', '4']) {
+		await solos.selectOption(count);
+		await expect(solos).toHaveValue(count);
+		await expect(page.getByTestId('listening-unavailable')).toContainText(/128/);
+		await expect(page.getByTestId('listening-play')).toBeDisabled();
+	}
+	await solos.selectOption('1');
+	await expect(page.locator('.transport')).toContainText('96 bars');
+	await expect(page.getByTestId('listening-play')).toBeEnabled();
+	await solos.selectOption('2');
+	await expect(page.locator('.transport')).toContainText('128 bars');
+	for (const [id, reason] of [[invalidMeter.id, /4\/4/], [malformed.id, /chart|section|valid/i]] as const) {
+		await picker.selectOption(id);
+		await expect(page.getByTestId('listening-unavailable')).toContainText(reason);
+		await expect(page.getByTestId('listening-play')).toBeDisabled();
+		await expect(page.getByRole('region', { name: 'Tune form', exact: true })).toHaveCount(0);
+	}
+	expect(await sourceStarts(page)).toBe(0);
+	await assertNoMicrophone(page);
+	await picker.selectOption('ls-mankunku-blues');
+	await expect(page.getByTestId('listening-play')).toBeEnabled();
+	await expect(page.getByTestId('listening-unavailable')).toHaveCount(0);
+	await expect(page.locator('.transport')).toContainText('52 bars');
+	await page.getByTestId('blind-open').click();
+	await expect(page.locator(`option[value="${LOCAL_LISTENING_AABA.id}"]`)).toHaveCount(0);
+});
+
+test('completes all 128 bars of a local tune book AABA on the real audio clock', async ({ page }) => {
+	test.setTimeout(165_000);
+	await seedTunes(page, [LOCAL_LISTENING_AABA]);
+	await setup(page);
+	await page.getByTestId('listening-tune').selectOption(LOCAL_LISTENING_AABA.id);
+	await playToBar(page);
+	const opening = await exportTake(page);
+	for (const boundary of [32, 64, 96]) {
+		await expect.poll(() => soundingBar(page), { timeout: 36_000 }).toBeGreaterThanOrEqual(boundary);
+		await assertDecisionClock(page);
+	}
+	await expect(page.getByTestId('listening-status')).toHaveText('Letting the last chord ring', { timeout: 36_000 });
+	await expect(page.getByRole('slider', { name: 'Review decisions', exact: true })).toHaveCount(0);
+	await expect(page.getByTestId('listening-status')).toHaveText('Take complete', { timeout: 5000 });
+	const complete = await exportTake(page);
+	assertCommittedPrefix(opening.playback, complete.playback);
+	expect(complete.playback.provenance!.committedBars).toBe(128);
+	expect(complete.playback.barIndex).toBe(127);
+	expect(complete.playback.elapsedBeats).toBe(512);
+	expect(complete.playback.durationBeats).toBe(512);
+	expect(complete.playback.audioTime! - complete.playback.startAudioTime!).toBeGreaterThanOrEqual(130.5);
+	expect(complete.completion).toBe('complete');
+	expect(complete.session.bars).toHaveLength(128);
+	const starts = await sourceStarts(page);
+	const slider = page.getByRole('slider', { name: 'Review decisions', exact: true });
+	await expect(slider).toHaveAttribute('max', '127');
+	await slider.fill('112');
+	await expect(page.getByTestId('listening-position')).toContainText('Head out · B');
+	const reviewed = await exportTake(page);
+	const { review, ...unchanged } = reviewed;
+	expect(unchanged).toEqual(complete);
+	expect(review!.barIndex).toBe(112);
+	expect(await sourceStarts(page)).toBe(starts);
+	await assertNoMicrophone(page);
 });

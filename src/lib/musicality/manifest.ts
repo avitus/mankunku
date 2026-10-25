@@ -352,13 +352,13 @@ const drumDeviceUpdates: Record<string, [ImplementationStatus, string, string]> 
 export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => {
 	if (entry.id === 'S47') return {
 		...entry, status: 'partial',
-		assessment: 'The musicality studio plays complete curated 4/4 tune forms with matched settings: Original uses fixed playback; Coordinated uses causal rolling orchestration with audio-clock musician decisions, listening marks and committed-event exports. After a take, a bounded bar selector and existing marks revisit the captured decisions without changing playback or starting audio. An optional blind full-tune review locks matched inputs, requires two complete listens and ratings before reveal, and exports the actual scores with the verdict. The advanced lab retains historical WAV comparison and adaptive capture/replay.',
-		remaining: 'Recorded human acceptance across styles, broader tune repertoire, deliberately counterbalanced review sets and microphone-driven adaptation in the simple studio remain pending.',
-		scope: 'Two curated 4/4 tunes, transposed concert keys and one to four solo choruses; rhythm section only. No acceptance status is inferred from decision text or tests.',
-		evidence: [...entry.evidence, ...['listening-tunes', 'listening-player', 'listening-review', 'musician-decisions', 'listening-comparison'].flatMap(name => [
+		assessment: 'The musicality studio plays complete curated and eligible local tune-book 4/4 forms: Original uses fixed playback; Coordinated uses causal rolling orchestration with audio-clock musician decisions, listening marks and committed-event exports. Local charts use the existing form builders and are checked for complete harmony and the 128-bar arrangement limit before playback. After a take, a bounded bar selector and existing marks revisit captured decisions without starting audio. Optional curated blind review locks matched inputs, requires two complete listens and ratings before reveal, and exports actual scores with the verdict. The advanced lab retains historical WAV comparison and adaptive capture/replay.',
+		remaining: 'Recorded human acceptance across styles and varied real repertoire, local-chart blind comparisons, deliberately counterbalanced review sets and microphone-driven adaptation in the simple studio remain pending.',
+		scope: 'Two curated 4/4 tunes plus eligible saved tune-book charts; concert transposition, one to four solo choruses within 128 total bars, rhythm section only. A regular 32-bar form fits one or two solos. No acceptance is inferred from decision text or tests.',
+		evidence: [...entry.evidence, ...['listening-tunes', 'listening-library', 'listening-player', 'listening-review', 'musician-decisions', 'listening-comparison'].flatMap(name => [
 			{ kind: 'source' as const, path: `src/lib/musicality/${name}.ts`, revision: 'musicality' },
 			{ kind: 'test' as const, path: `tests/unit/musicality/${name}.test.ts`, revision: 'musicality' }
-		]), { kind: 'test', path: 'tests/e2e/musicality-listening.spec.ts', revision: 'musicality' }, { kind: 'test', path: 'tests/e2e/musicality-comparison.spec.ts', revision: 'musicality' }]
+		]), { kind: 'test', path: 'tests/unit/musicality/listening-tunes-library.test.ts', revision: 'musicality' }, { kind: 'test', path: 'tests/unit/musicality/listening-tune-book-integration.test.ts', revision: 'musicality' }, { kind: 'test', path: 'tests/e2e/musicality-listening.spec.ts', revision: 'musicality' }, { kind: 'test', path: 'tests/e2e/musicality-comparison.spec.ts', revision: 'musicality' }]
 	};
 	const drumUpdate = drumDeviceUpdates[entry.id];
 	if (drumUpdate) return {

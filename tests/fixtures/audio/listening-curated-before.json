@@ -1,0 +1,194 @@
+[
+  {
+    "options": {
+      "tuneId": "ls-when-the-saints",
+      "key": "C",
+      "soloChoruses": 1
+    },
+    "sha256": "9bb145ac1631d03e7d9f964fbd58112879430e3006b19cc19b4e7f54d60cf208"
+  },
+  {
+    "options": {
+      "tuneId": "ls-when-the-saints",
+      "key": "C",
+      "soloChoruses": 2
+    },
+    "sha256": "a0d8cd61678fc2e474922fe6f84e462d394eb481d613db397810838246dc206d"
+  },
+  {
+    "options": {
+      "tuneId": "ls-when-the-saints",
+      "key": "C",
+      "soloChoruses": 3
+    },
+    "sha256": "ae9707c6ccc0c0110ed3119e2df54fd273407d838f2a0479aeec928bf072055b"
+  },
+  {
+    "options": {
+      "tuneId": "ls-when-the-saints",
+      "key": "C",
+      "soloChoruses": 4
+    },
+    "sha256": "192bbdcc68b558f8372f70be832a7a99a46df7f1b1c1d78557e7edc5afed3bee"
+  },
+  {
+    "options": {
+      "tuneId": "ls-when-the-saints",
+      "key": "Eb",
+      "soloChoruses": 1
+    },
+    "sha256": "27ce9f0eaaac850e4548d9bb56c0f6117813766c11bee628366671de3fc0074e"
+  },
+  {
+    "options": {
+      "tuneId": "ls-when-the-saints",
+      "key": "Eb",
+      "soloChoruses": 2
+    },
+    "sha256": "4ded41989d6fe5a7bc66a8b0bbc2bc865fa6b17e638c754d3d1ecc01fd18690b"
+  },
+  {
+    "options": {
+      "tuneId": "ls-when-the-saints",
+      "key": "Eb",
+      "soloChoruses": 3
+    },
+    "sha256": "7c7b1dd9e0ce6e83776d78853e8bd37308573ef9ebf7f141b969a53780ea4144"
+  },
+  {
+    "options": {
+      "tuneId": "ls-when-the-saints",
+      "key": "Eb",
+      "soloChoruses": 4
+    },
+    "sha256": "c10acce9dd5407bf66eef60712be46365b86f8b632f76c8c5f10175d8d24ede5"
+  },
+  {
+    "options": {
+      "tuneId": "ls-when-the-saints",
+      "key": "F#",
+      "soloChoruses": 1
+    },
+    "sha256": "973ea2eccce037da3c4367efff96f8083b20fcebfaff86131be96a135bcb98af"
+  },
+  {
+    "options": {
+      "tuneId": "ls-when-the-saints",
+      "key": "F#",
+      "soloChoruses": 2
+    },
+    "sha256": "cb8b0fb9beb9a45e98adbce762af6c05a04ab63b1f94d025f856ddc75adb61fb"
+  },
+  {
+    "options": {
+      "tuneId": "ls-when-the-saints",
+      "key": "F#",
+      "soloChoruses": 3
+    },
+    "sha256": "34769b849822c68d7f496292830f3e54a56f63b978a9b447abcf30468dc35527"
+  },
+  {
+    "options": {
+      "tuneId": "ls-when-the-saints",
+      "key": "F#",
+      "soloChoruses": 4
+    },
+    "sha256": "93b78d17fd8dc17e0186516a2ac0cd2039102d2614cccd9ef6ccc17485da0371"
+  },
+  {
+    "options": {
+      "tuneId": "ls-mankunku-blues",
+      "key": "C",
+      "soloChoruses": 1
+    },
+    "sha256": "f494925c4b8354cf925a1569bb22bf5a1168389dbc64bee3a70694546a7ef933"
+  },
+  {
+    "options": {
+      "tuneId": "ls-mankunku-blues",
+      "key": "C",
+      "soloChoruses": 2
+    },
+    "sha256": "4cbb077dcda83af0d24d1ae0afe06c3b181f24a7d9fa9eb9e3c9246eb87b1b03"
+  },
+  {
+    "options": {
+      "tuneId": "ls-mankunku-blues",
+      "key": "C",
+      "soloChoruses": 3
+    },
+    "sha256": "f0693f50ad69d570a6191c801767564b493c93875e707ace62db769c7e569ce4"
+  },
+  {
+    "options": {
+      "tuneId": "ls-mankunku-blues",
+      "key": "C",
+      "soloChoruses": 4
+    },
+    "sha256": "b0f9f25aae9a2e96a644a9a3b5599bd6874dfbafaf55041ff494ad31a873ea46"
+  },
+  {
+    "options": {
+      "tuneId": "ls-mankunku-blues",
+      "key": "Eb",
+      "soloChoruses": 1
+    },
+    "sha256": "5aeacf98c44530a60f1c42dbab48663a2374628ed09ea43afe1fcfefedee4bff"
+  },
+  {
+    "options": {
+      "tuneId": "ls-mankunku-blues",
+      "key": "Eb",
+      "soloChoruses": 2
+    },
+    "sha256": "807dcbd2a9812386492c202d3776eb62de41c4eb482aeb4ed203e4b3ab6b7bb9"
+  },
+  {
+    "options": {
+      "tuneId": "ls-mankunku-blues",
+      "key": "Eb",
+      "soloChoruses": 3
+    },
+    "sha256": "26dc3a18e1b1bf05be6959dd286f9b5ef6a49574512e08457a1bac3f492544dc"
+  },
+  {
+    "options": {
+      "tuneId": "ls-mankunku-blues",
+      "key": "Eb",
+      "soloChoruses": 4
+    },
+    "sha256": "7526e6e0929c416b3cb6bd1c985cf0e76e6b903e64a870fc3d734966d0644d40"
+  },
+  {
+    "options": {
+      "tuneId": "ls-mankunku-blues",
+      "key": "F#",
+      "soloChoruses": 1
+    },
+    "sha256": "cefebd6c3a0995a8c8037a9b5115b024291126fb56568a8dfaddc729e3d290c8"
+  },
+  {
+    "options": {
+      "tuneId": "ls-mankunku-blues",
+      "key": "F#",
+      "soloChoruses": 2
+    },
+    "sha256": "9aa1516ee4f0f5674cf0eed3c9e72de9083bbd2f7df93b6f61d58e5dd262ad9a"
+  },
+  {
+    "options": {
+      "tuneId": "ls-mankunku-blues",
+      "key": "F#",
+      "soloChoruses": 3
+    },
+    "sha256": "aa6dba6eb8b5102fac797dcdb27e8c6e7554ecd0453ace29d82b11ee3d6e0a32"
+  },
+  {
+    "options": {
+      "tuneId": "ls-mankunku-blues",
+      "key": "F#",
+      "soloChoruses": 4
+    },
+    "sha256": "f991784897058ff60f8fbcc1537c37d9fd59872d19a160cf68eb225b99123da7"
+  }
+]
