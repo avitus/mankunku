@@ -5962,3 +5962,15 @@ monitor whether it results in faster CI times."
   wants /.dockerenv or CIRCLECI) — `npm run test:e2e` on the local
   Colima sandbox instead; vitest and check on the sidecar. Each new test
   mutation-checked red. Rebased onto origin/dev (9 behind) before the PR.
+- Released as #287 (merge 012e056d, 2026-10-25 02:08 UTC) together with
+  dev's nine other commits. CodeRabbit: no actionable comments on the
+  feature; its security-architecture note on 8c39b6a2 (recordings as
+  bytes) found a real account-switch race in `saveRecording` — fixed by
+  choosing the database before awaiting the bytes, pinned by a mid-read
+  uid-switch test; one re-review caught `downloadDiagnostics` firing the
+  now-async `triggerDownload` with `void` — awaited. Skipped with reasons:
+  the Blob-free format's one-way rollback (writing the Blob back would
+  reintroduce the WebKit abort), and scrolling the once-more handoff
+  (Andy kept the handoff unchanged). All CircleCI checks green on head.
+- Poller lesson: zsh `echo "$json" | jq` expands `\n` and kills jq —
+  the first CodeRabbit wait burned 30 minutes on it (memory updated).
