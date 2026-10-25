@@ -407,10 +407,13 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 	};
 	if (entry.id === 'B28') return {
 		...entry,
-		assessment: 'Local direction history crosses harmonic segments; eligible two-bar chorus launches now plan a connected path across their changes.',
-		remaining: 'Ordinary walking still plans targets per segment. A general cross-change continuation policy beyond the scoped launch remains incomplete.',
-		scope: 'Existing swing walking plus coordinated swing/straight 4/4 launches in the listening lab.',
-		evidence: [...entry.evidence, ...bassDevelopmentEvidence]
+		assessment: 'Selected walking changes continue a preceding step through the new chord into an existing two-note approach. Eligible chorus launches also connect their harmonic changes.',
+		remaining: 'The new cell covers one free quarter in a four-beat segment before an enclosure or double-chromatic approach. General scalar lines, other segment lengths and human listening acceptance remain pending.',
+		scope: 'Explicit Coordinated Swing/Straight 4/4, fixed and rolling. Existing targets, approach pitches and pulse remain intact; intervening ornaments and protected ensemble roles withhold the cell. Original, metadata-free, Bossa and Ballad retain their previous behavior.',
+		evidence: [...entry.evidence, ...bassDevelopmentEvidence,
+			{ ...source('backing-bass-continuation'), revision: 'musicality' },
+			{ ...test('backing-bass-continuation'), revision: 'musicality' },
+			{ ...test('backing-bass-continuity-integration'), revision: 'musicality' }]
 	};
 	if (entry.id === 'D15') return {
 		...entry, status: 'implemented',

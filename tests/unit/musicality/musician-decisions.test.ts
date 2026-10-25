@@ -369,3 +369,47 @@ describe('piano shared-arrival evidence', () => {
 		expect(card(generated).evidence.join(' ')).not.toMatch(/Planned piano arrival|shared catch/);
 	});
 });
+
+describe('emitted bass scalar-continuation evidence', () => {
+	function score(direction: 'up' | 'down' = 'up') {
+		const midis = direction === 'up' ? [35, 36, 37] : [39, 37, 36];
+		const notes = midis.map((midi, index) => ({ absBeat: 3 + index, time: `${(3 + index) * 192}i`, midi }));
+		return { bassEvents: notes.map(note => ({ ...note, duration: .4, velocity: 80 })), compEvents: [], drumEvents: [],
+			ensemblePlan: { version: 1, trace: [], bars: [{ barIndex: 1, phraseIntent: 'support', energy: .5,
+				performanceEnergy: { phase: 'solo_build', chorusIndex: 1, targetEnergy: .5 },
+				bass: { role: 'time' }, piano: { role: 'support' }, drums: { role: 'time' }
+			}] }, ensembleDevelopment: { version: 1, pianoMotifs: [], bassTurnarounds: [], drumPhrases: [],
+				bassContinuations: [{ barIndex: 1, boundaryAbsBeat: 4, direction, notes }]
+			} };
+	}
+	const card = (generated: ReturnType<typeof score>, options = {}) => describeMusicianDecisions(generated as unknown as GeneratedBacking, { ...context, barIndex: 1, ...options })[0];
+	it.each(['up', 'down'] as const)('explains an actual %sward quarter-note continuation without changing the main card', direction => {
+		const generated = score(direction);
+		const bass = card(generated);
+		expect(bass.action).toBe('Carry the bass line');
+		expect(bass.evidence).toContain(`Quarter-note line continues ${direction}ward through the chord change`);
+		expect(card(generated, { barIndex: 0 }).evidence.join(' ')).not.toContain('continues');
+	});
+	it.each(['missing-note', 'midi', 'time', 'absBeat', 'direction', 'boundary', 'bar', 'leap', 'ornament', 'out-of-order'] as const)('withholds an audible-continuation claim for %s evidence', field => {
+		const generated = score();
+		const trace = generated.ensembleDevelopment.bassContinuations[0];
+		if (field === 'missing-note') generated.bassEvents.pop();
+		if (field === 'midi') trace.notes[2].midi = 38;
+		if (field === 'time') trace.notes[2].time = '961i';
+		if (field === 'absBeat') trace.notes[2].absBeat = 5.5;
+		if (field === 'direction') trace.direction = 'down';
+		if (field === 'boundary') trace.boundaryAbsBeat = 8;
+		if (field === 'bar') trace.barIndex = 2;
+		if (field === 'leap') { trace.notes[2].midi = 43; generated.bassEvents[2].midi = 43; }
+		if (field === 'ornament') generated.bassEvents.push({ absBeat: 3.5, time: '672i', midi: 34, duration: .1, velocity: 55 });
+		if (field === 'out-of-order') { trace.notes[0].time = '970i'; generated.bassEvents[0].time = '970i'; }
+		expect(card(generated).evidence.join(' ')).not.toContain('continues');
+	});
+	it('keeps silent bars, Original, native patterns and historical exports free of new claims', () => {
+		const generated = score();
+		for (const options of [{ orchestration: 'original' }, { style: 'bossa-nova' }, { style: 'ballad' }, { barIndex: 2 }])
+			expect(card(generated, options).evidence.join(' ')).not.toContain('continues');
+		delete (generated.ensembleDevelopment as { bassContinuations?: unknown }).bassContinuations;
+		expect(card(generated).evidence.join(' ')).not.toContain('continues');
+	});
+});

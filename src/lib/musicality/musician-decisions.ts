@@ -86,6 +86,22 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 		}
 	}
 	if (bass.length) bassCard.evidence.push(`Notes: ${bass.map((e) => noteName(e.midi)).join(' · ')}`);
+	if (walking) for (const continuation of development?.bassContinuations ?? []) {
+		const notes = continuation.notes;
+		const boundary = continuation.boundaryAbsBeat;
+		const target = generated.ensemblePlan?.bars.find(entry => entry.barIndex === continuation.barIndex);
+		const direction = continuation.direction === 'up' ? 1 : continuation.direction === 'down' ? -1 : 0;
+		if (!target?.performanceEnergy || !direction || notes.length !== 3 ||
+			boundary !== continuation.barIndex * beatsPerBar || !inBar(notes[2])) continue;
+		const matched = notes.every((note, index) => note.absBeat === boundary + index - 1 &&
+			generated.bassEvents.some(event => event.absBeat === note.absBeat && event.time === note.time && event.midi === note.midi) &&
+			(index === 0 || (Number.parseInt(note.time, 10) > Number.parseInt(notes[index - 1].time, 10) &&
+				[1, 2].includes((note.midi - notes[index - 1].midi) * direction))));
+		// Extra pitched attacks interrupt this exact three-pulse account, even
+		// when the exported continuation still lists matching quarter notes.
+		const uninterrupted = generated.bassEvents.filter(event => event.absBeat >= boundary - 1 && event.absBeat <= boundary + 1).length === 3;
+		if (matched && uninterrupted) bassCard.evidence.push(`Quarter-note line continues ${continuation.direction}ward through the chord change`);
+	}
 	if (turnaround?.status === 'planned') {
 		const heardTurnaround = bass.some((event) => turnaround.notes.some((note) => note.absBeat === event.absBeat && note.midi === event.midi));
 		if (heardTurnaround) {

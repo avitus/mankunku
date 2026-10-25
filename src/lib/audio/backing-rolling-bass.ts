@@ -1,4 +1,5 @@
 /** Current-bar walking decisions with retained pitch history and committed launches. */
+import { allowsBassScalarContinuation, selectBassScalarContinuation, bassScalarTrace, type BassScalarContinuation, type BassScalarHistory } from './backing-bass-continuation';
 import type { RollingBackingDefinition } from './backing-rolling';
 import type { BarInfo, BassEvent } from './backing-generation';
 import type { EnsembleTiming } from './ensemble-timing';
@@ -21,6 +22,7 @@ export interface RollingBassMemory {
 	readonly approach: BassApproachDevice;
 	readonly feel: 'two' | 'four';
 	readonly pendingLaunch: BassTurnaroundTrace | null;
+	readonly scalarHistory?: BassScalarHistory;
 }
 const pc = (midi: number) => (midi % 12 + 12) % 12;
 function nearest(pcValue: number, center: number): number {
@@ -29,8 +31,8 @@ function nearest(pcValue: number, center: number): number {
 }
 
 export function realizeRollingBass(score: RollingBackingDefinition, bar: number, info: BarInfo,
-	timing: EnsembleTiming, previous?: RollingBassMemory): { events: BassEvent[]; memory: RollingBassMemory; trace: BassTurnaroundTrace[]; feelTrace?: StructuralBassFeel } {
-	const memory = previous ?? { previousMidi: null, previousPreviousMidi: null, direction: 0, segmentIndex: null,
+	timing: EnsembleTiming, previous?: RollingBassMemory): { events: BassEvent[]; memory: RollingBassMemory; trace: BassTurnaroundTrace[]; feelTrace?: StructuralBassFeel; continuationTrace?: readonly BassScalarContinuation[] } {
+	const memory: RollingBassMemory = previous ?? { previousMidi: null, previousPreviousMidi: null, direction: 0, segmentIndex: null,
 		segmentAnchor: null, nextTarget: null, approach: 'chromatic-below' as const, feel: 'four' as const, pendingLaunch: null };
 	if (score.style === 'bossa-nova') {
 		const infos = score.bars.map((entry, index) => index === bar ? info : entry);
@@ -86,19 +88,27 @@ export function realizeRollingBass(score: RollingBackingDefinition, bar: number,
 		return target;
 	};
 	const trace: BassTurnaroundTrace[] = [];
+	const continuationTrace: BassScalarContinuation[] = [];
+	let scalarHistory: BassScalarHistory | undefined;
 	const events: BassEvent[] = [];
 	const endTick = (bar + 1) * 4 * score.ppq;
 	const push = (absBeat: number, midi: number, durationBeats: number, velocity: number) => {
 		const tick = Math.max(bar * 4 * score.ppq, timing.place(absBeat, 'bass'));
-		if (tick >= endTick) return;
+		if (tick >= endTick) return false;
+		if (score.bassScalarContinuation) {
+			if (Number.isInteger(absBeat)) scalarHistory = { pulse: { absBeat, midi, time: `${tick}i` }, ornamentAfterPulse: false };
+			else if (scalarHistory) scalarHistory = { ...scalarHistory, ornamentAfterPulse: true };
+		}
 		events.push({ absBeat, midi, velocity, time: `${tick}i`, duration: Math.min(durationBeats * 60 / score.tempo,
 			(endTick - tick) * 60 / score.tempo / score.ppq) });
+		return true;
 	};
 	for (let beat = 0; beat < 4; beat++) {
 		const absBeat = bar * 4 + beat;
 		const index = segments.findIndex((segment) => absBeat >= segment.start && absBeat < segment.start + segment.length);
 		const segment = segments[index];
 		const isChange = segment.start === absBeat;
+		let scalarChanged = false;
 		if (index !== segmentIndex) {
 			segmentAnchor = pendingLaunch?.notes.find((note) => note.absBeat === absBeat)?.midi ?? nextTarget ?? targetAt(index, previousMidi);
 			segmentIndex = index;
@@ -157,14 +167,39 @@ export function realizeRollingBass(score: RollingBackingDefinition, bar: number,
 				weight: (Math.abs(candidate - previousPitch) <= 2 ? 4 : 1) * (Math.abs(candidate - target) < Math.abs(previousPitch - target) ? 2 : 1) *
 					(candidate === previousPreviousMidi ? 0.4 : 1) * (direction !== 0 && Math.sign(candidate - previousPitch) === direction ? 1.25 : 1) }))) : nearest(segment.root, previousPitch);
 		}
+		if (score.bassScalarContinuation && beat === 1 && committed === undefined && !pendingLaunch && feel === 'four' &&
+			segment.start === bar * 4 && segment.length === 4 && ['enclosure', 'double-chromatic'].includes(approach) && nextTarget !== null &&
+			index > 0 && (score.harmony[index].chord.root !== score.harmony[index - 1].chord.root || score.harmony[index].chord.quality !== score.harmony[index - 1].chord.quality) &&
+			allowsBassScalarContinuation(info.ensemble) && memory.scalarHistory?.pulse.absBeat === bar * 4 - 1 &&
+			!memory.scalarHistory.ornamentAfterPulse && events.some(event => event.absBeat === bar * 4) &&
+			!events.some(event => event.absBeat > bar * 4)) {
+			const arrival = events.find(event => event.absBeat === bar * 4)!;
+			const pitches = bassApproachPitches(approach, nextTarget, segment.scalePcs,
+				createRng(seedFrom(score.phraseId, score.tempo, 'rolling-bass-approach', index)));
+			let deviceEntry = pitches[0];
+			while (deviceEntry < 28) deviceEntry += 12;
+			while (deviceEntry > 55) deviceEntry -= 12;
+			const selected = selectBassScalarContinuation({ phraseId: score.phraseId, tempo: score.tempo, boundaryAbsBeat: bar * 4,
+				previousMidi: memory.scalarHistory.pulse.midi, arrivalMidi: arrival.midi, ordinaryMidi: midi,
+				candidates: Array.from({ length: 28 }, (_, offset) => offset + 28), scalePcs: segment.scalePcs, deviceEntryMidi: deviceEntry });
+			scalarChanged = selected !== midi;
+			midi = selected;
+		}
 		const velocity = createRng(seedFrom(score.phraseId, score.tempo, 'rolling-bass-velocity', absBeat)).int(76, 88) + (beat === 0 ? 4 : beat === 2 ? 2 : 0);
 		const durationBeats = feel === 'two' ? 1.7 : 0.85;
-		push(absBeat, midi, structuralFeels && feel === 'two' ? Math.min(durationBeats, segment.start + segment.length - absBeat) : durationBeats, velocity);
-		if (!pendingLaunch && feel === 'four' && createRng(seedFrom(score.phraseId, score.tempo, 'rolling-bass-ghost', absBeat)).chance(0.06 * info.ensemble!.bass.ornamentScale)) push(absBeat + 0.5, midi, 0.2, 38);
-		previousPreviousMidi = previousMidi;
-		if (previousMidi !== null) direction = Math.sign(midi - previousMidi);
-		previousMidi = midi;
+		const acceptedPulse = push(absBeat, midi, structuralFeels && feel === 'two' ? Math.min(durationBeats, segment.start + segment.length - absBeat) : durationBeats, velocity);
+		if (scalarChanged) {
+			const arrival = events.find(event => event.absBeat === bar * 4);
+			const continuation = events.find(event => event.absBeat === absBeat);
+			if (arrival && continuation) continuationTrace.push(bassScalarTrace(memory.scalarHistory!.pulse, arrival, continuation));
+		}
+		if (!pendingLaunch && feel === 'four'  && createRng(seedFrom(score.phraseId, score.tempo, 'rolling-bass-ghost', absBeat)).chance(0.06 * info.ensemble!.bass.ornamentScale)) push(absBeat + 0.5, midi, 0.2, 38);
+		if (!score.bassScalarContinuation || acceptedPulse) {
+			previousPreviousMidi = previousMidi;
+			if (previousMidi !== null) direction = Math.sign(midi - previousMidi);
+			previousMidi = midi;
+		}
 	}
 	if (pendingLaunch && pendingLaunch.arrivalBar <= bar) pendingLaunch = null;
-	return { events, trace, ...(structuralFeels ? { feelTrace: structuralFeels[bar] } : {}), memory: { previousMidi, previousPreviousMidi, direction, segmentIndex, segmentAnchor, nextTarget, approach, feel, pendingLaunch } };
+	return { events, trace, ...(continuationTrace.length ? { continuationTrace } : {}), ...(structuralFeels ? { feelTrace: structuralFeels[bar] } : {}), memory: { previousMidi, previousPreviousMidi, direction, segmentIndex, segmentAnchor, nextTarget, approach, feel, pendingLaunch, ...(scalarHistory ? { scalarHistory } : {}) } };
 }

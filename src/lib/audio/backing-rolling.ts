@@ -49,6 +49,7 @@ export interface RollingBackingDefinition {
 	readonly phraseId: string;
 	readonly totalBars: number;
 	readonly sourceBars: number;
+	readonly bassScalarContinuation?: true;
 	readonly loopCount: number;
 	readonly loops: readonly RollingLoopSpan[];
 	readonly tempo: number;
@@ -163,7 +164,7 @@ export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDef
 	// Preserve the one-pass binding. An explicit repeat is a distinct declared
 	// performance even when its flattened score matches some other source.
 	const serialized = JSON.stringify([1, params.phraseId, params.tempo, params.ppq, params.swing, copied, form, timingProfiles,
-		...(performanceEnergy ? [{ performanceEnergyVersion: 1, structuralTextureVersion: 1, coordinatedVoicingVersion: 3, reciprocalFeedbackVersion: 1, ...(['swing', 'straight'].includes(style.coordinatedStyle!) ? { pianoArrivalVersion: 1 } : {}) }] : []),
+		...(performanceEnergy ? [{ performanceEnergyVersion: 1, structuralTextureVersion: 1, coordinatedVoicingVersion: 3, reciprocalFeedbackVersion: 1, ...(['swing', 'straight'].includes(style.coordinatedStyle!) ? { pianoArrivalVersion: 1, bassScalarContinuationVersion: 1 } : {}) }] : []),
 		...(loopCount > 1 ? [{ sourceBars, loopCount }] : []),
 		...(style.coordinatedStyle !== 'swing' ? [{ style: style.coordinatedStyle }] : [])]);
 	// The definition retains the complete immutable score once. Repeating its
@@ -173,7 +174,7 @@ export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDef
 	const fingerprint = loopCount > 1
 		? `rolling-repeat-v1:${serialized.length}:${seedFrom('score-a', serialized).toString(16)}:${seedFrom('score-b', serialized).toString(16)}`
 		: serialized;
-	return freeze({ version: 1, ...(style.coordinatedStyle !== 'swing' ? { style: style.coordinatedStyle } : {}), sessionId: `rolling:${seedFrom(fingerprint).toString(16)}`, fingerprint,
+	return freeze({ version: 1, ...(performanceEnergy && ['swing', 'straight'].includes(style.coordinatedStyle!) ? { bassScalarContinuation: true as const } : {}), ...(style.coordinatedStyle !== 'swing' ? { style: style.coordinatedStyle } : {}), sessionId: `rolling:${seedFrom(fingerprint).toString(16)}`, fingerprint,
 		phraseId: params.phraseId, totalBars, sourceBars, loopCount, loops, tempo: params.tempo, ppq: params.ppq, beatsPerBar: 4, swing: params.swing,
 		performanceForm: form, harmony: copied, bars,
 		...(timingProfiles ? { timingProfiles: JSON.parse(JSON.stringify(timingProfiles)) } : {}) });
@@ -197,6 +198,12 @@ function validateCheckpoint(score: RollingBackingDefinition, checkpoint: Rolling
 		![...checkpoint.piano.segmentVoicing, ...checkpoint.piano.lastVoicing].every((value) => Number.isInteger(value) && value >= 0 && value <= 127) ||
 		!numeric(checkpoint.piano.segmentIndex)) invalid();
 	if (checkpoint.drums.previousCompIsSharedArrival !== undefined && !score.bars[checkpoint.nextBar - 1]?.pianoArrivalPolicy) invalid();
+	const scalar = checkpoint.bass.scalarHistory;
+	if (scalar !== undefined && (!score.bassScalarContinuation || !scalar || typeof scalar.ornamentAfterPulse !== 'boolean' ||
+		!scalar.pulse || !Number.isInteger(scalar.pulse.absBeat) || Math.floor(scalar.pulse.absBeat / 4) !== checkpoint.nextBar - 1 ||
+		!Number.isInteger(scalar.pulse.midi) || scalar.pulse.midi < 28 || scalar.pulse.midi > 55 ||
+		typeof scalar.pulse.time !== 'string' || !/^\d+i$/.test(scalar.pulse.time) || parseInt(scalar.pulse.time) < (checkpoint.nextBar - 1) * 4 * score.ppq ||
+		parseInt(scalar.pulse.time) >= checkpoint.nextBar * 4 * score.ppq || scalar.pulse.midi !== checkpoint.bass.previousMidi)) invalid();
 	const voicing = checkpoint.piano.voicing;
 	const coordinatedVoicing = score.bars[0]?.performanceEnergy !== undefined;
 	if (coordinatedVoicing) validateDrumPianoFeedback(checkpoint.feedback!, checkpoint.nextBar, score.ppq);
@@ -284,5 +291,6 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 		ensembleDevelopment: { version: 1, pianoMotifs: [piano.trace], bassTurnarounds: bass.trace,
 			...(feedback ? { pianoFeedback: [{ ...feedback, acceptedAttacks: piano.events.map(({ time, absBeat, notes }) => ({ time, absBeat, notes: [...notes] })) }] } : {}),
 			...(bass.feelTrace ? { bassFeel: [bass.feelTrace] } : {}),
+			...(bass.continuationTrace?.length ? { bassContinuations: bass.continuationTrace } : {}),
 			...(piano.voicingTrace ? { pianoVoicings: piano.voicingTrace } : {}), drumPhrases: [drums.bar] } });
 }

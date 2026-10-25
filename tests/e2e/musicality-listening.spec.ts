@@ -409,3 +409,27 @@ for (const style of ['swing', 'straight'] as const) {
 		await assertNoMicrophone(page);
 	});
 }
+
+test('explains an actual scalar bass continuation across a real chord change', async ({ page }) => {
+	test.setTimeout(50_000);
+	await setup(page);
+	await page.getByTestId('listening-key').selectOption('F');
+	await page.getByTestId('listening-tempo').fill('200');
+	await page.getByTestId('listening-play').click();
+	await expect.poll(() => soundingBar(page), { timeout: 40_000 }).toBe(23);
+	await expect(page.getByTestId('musician-bass')).toContainText('Quarter-note line continues downward through the chord change');
+	await assertDecisionClock(page, undefined, 200);
+	const take = await exportTake(page);
+	causalProvenance(take.playback);
+	const generated = take.playback.generated!;
+	const trace = generated.ensembleDevelopment!.bassContinuations!.find(entry => entry.barIndex === 23)!;
+	expect(trace).toMatchObject({ barIndex: 23, boundaryAbsBeat: 92, direction: 'down' });
+	expect(trace.notes.map(note => [note.absBeat, note.midi])).toEqual([[91, 39], [92, 38], [93, 36]]);
+	for (const note of trace.notes) {
+		expect(generated.bassEvents).toContainEqual(expect.objectContaining({ ...note }));
+	}
+	expect(generated.bassEvents.filter(event => event.absBeat >= 91 && event.absBeat <= 93).map(event => event.absBeat))
+		.toEqual([91, 92, 93]);
+	await page.getByTestId('listening-stop').click();
+	await assertNoMicrophone(page);
+});

@@ -36,12 +36,14 @@ export function aggregateRollingBacking(snapshot: RollingBackingSnapshot): Gener
 			if (!timing.has(trace.phraseStartBar)) timing.set(trace.phraseStartBar, trace);
 		}
 		result.ensembleTiming = [...timing.values()];
+		const bassContinuations = windows.flatMap((bar) => bar.ensembleDevelopment.bassContinuations ?? []);
 		const bassFeel = windows.flatMap((bar) => bar.ensembleDevelopment.bassFeel ?? []);
 		const pianoVoicings = windows.flatMap((bar) => bar.ensembleDevelopment.pianoVoicings ?? []);
 		const pianoFeedback = windows.flatMap((bar) => bar.ensembleDevelopment.pianoFeedback ?? []);
 		result.ensembleDevelopment = { version: 1,
 			pianoMotifs: windows.flatMap((bar) => bar.ensembleDevelopment.pianoMotifs),
 			bassTurnarounds: windows.flatMap((bar) => bar.ensembleDevelopment.bassTurnarounds),
+			...(bassContinuations.length ? { bassContinuations } : {}),
 			...(bassFeel.length ? { bassFeel } : {}), ...(pianoVoicings.length ? { pianoVoicings } : {}),
 			...(pianoFeedback.length ? { pianoFeedback } : {}),
 			drumPhrases: windows.flatMap((bar) => bar.ensembleDevelopment.drumPhrases)

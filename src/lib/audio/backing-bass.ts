@@ -25,6 +25,7 @@
  * probability change in one pass cannot reshuffle another.
  */
 
+import { allowsBassScalarContinuation, selectBassScalarContinuation, bassScalarTrace, type BassScalarContinuation } from './backing-bass-continuation';
 import type { HarmonicSegment, ChordQuality } from '$lib/types/music';
 import { fractionToFloat } from '$lib/music/intervals';
 import { getScale } from '$lib/music/scales';
@@ -75,6 +76,7 @@ export interface BassLineResult {
 	turnaroundTrace?: readonly BassTurnaroundTrace[];
 	/** Actual selected pulse policy; harmonic changes and committed launches may add attacks. */
 	feelTrace?: readonly StructuralBassFeel[];
+	continuationTrace?: readonly BassScalarContinuation[];
 }
 
 // ── Segment analysis ─────────────────────────────────────────
@@ -350,6 +352,7 @@ export function generateBassLine(
 
 	const events: BassEvent[] = [];
 	const onsetsByBar = new Map<number, number[]>();
+	const continuationTrace: BassScalarContinuation[] = [];
 
 	const centerAt = (absBeat: number): number =>
 		centers[Math.min(Math.floor(absBeat / beatsPerBar), centers.length - 1)] ?? ARC_CENTER_BASE;
@@ -574,6 +577,16 @@ export function generateBassLine(
 			admitOrnament('octave', seg.startBeats + proposedOctaveSkipBeat)
 			? proposedOctaveSkipBeat : -1;
 
+		// The one-free-quarter policy leaves every approach/target and subsequent
+		// RNG draw intact. Actual emitted pulse evidence excludes intervening ornaments.
+		const previousPulse = events.findLast(event => Number.isInteger(event.absBeat));
+		const scalarEligible = params.bassScalarContinuation && hasNext && seg.totalBeats === 4 && deviceStart === 2 &&
+			seg.startBeats % 4 === 0 && segIdx > 0 && ['enclosure', 'double-chromatic'].includes(plan.device) &&
+			(seg.rootPc !== segments[segIdx - 1].rootPc || seg.quality !== segments[segIdx - 1].quality) &&
+			feelAt(seg.startBeats) === 'four' && allowsBassScalarContinuation(infoAt(seg.startBeats).ensemble) &&
+			previousPulse?.absBeat === seg.startBeats - 1 && !events.some(event => event.absBeat > previousPulse.absBeat) &&
+			![0, 1, 2, 3].some(beat => turnaroundNotes.has(seg.startBeats + beat));
+		let scalarChanged = false;
 		// Interior walk toward the device start (or the settle note).
 		const goal = notes[deviceStart] ?? notes[L] ?? nextTarget;
 		for (let beat = 1; beat < deviceStart; beat++) {
@@ -637,6 +650,13 @@ export function generateBassLine(
 					: isHandoff
 						? nearestPc(seg.rootPc, goal)
 						: nearestPc(seg.rootPc, prev);
+			if (scalarEligible && beat === 1) {
+				const selected = selectBassScalarContinuation({ phraseId, tempo, boundaryAbsBeat: seg.startBeats,
+					previousMidi: previousPulse!.midi, arrivalMidi: downbeat, ordinaryMidi: notes[beat]!,
+					candidates: weighted.map(candidate => candidate.value), scalePcs: seg.scalePcs, deviceEntryMidi: goal });
+				scalarChanged = selected !== notes[beat];
+				notes[beat] = selected;
+			}
 			// Keep the ordinary draw, then realize the joint score. Subsequent
 			// interior decisions and prevMidi hear the actual committed pitch.
 			notes[beat] = turnaroundNotes.get(absBeat) ?? notes[beat];
@@ -712,6 +732,12 @@ export function generateBassLine(
 			prevMidi = midi;
 		}
 
+		if (scalarChanged) {
+			const arrival = events.find(event => event.absBeat === seg.startBeats)!;
+			const continuation = events.find(event => event.absBeat === seg.startBeats + 1)!;
+			continuationTrace.push(bassScalarTrace(previousPulse!, arrival, continuation));
+		}
+
 		// Swung-eighth pickup into the next downbeat.
 		if (pickupActive) {
 			const absBeat = seg.startBeats + seg.totalBeats - 0.5;
@@ -745,7 +771,7 @@ export function generateBassLine(
 		}
 	}
 
-	return { events, onsetsByBar, ...(structuralFeels ? { feelTrace: structuralFeels } : {}), ...(turnaroundTrace.size ? {
+	return { events, onsetsByBar, ...(continuationTrace.length ? { continuationTrace: Object.freeze(continuationTrace) } : {}), ...(structuralFeels ? { feelTrace: structuralFeels } : {}), ...(turnaroundTrace.size ? {
 		turnaroundTrace: freezeBassTurnaroundTrace([...turnaroundTrace.values()])
 	} : {}) };
 }

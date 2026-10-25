@@ -85,6 +85,25 @@ describe('committed rolling take aggregation', () => {
 		expect(take.bassEvents[0].midi).not.toBe(99);
 	});
 
+	it('preserves optional scalar-continuation evidence as an owned immutable committed prefix', () => {
+		const h = harness(); h.append(); h.append();
+		const early = aggregateRollingBacking(h.renderer.snapshot());
+		const before = JSON.stringify(early);
+		const restored = JSON.parse(JSON.stringify(h.renderer.snapshot()));
+		const notes = restored.generated.bassEvents.slice(0, 3).map(({ absBeat, time, midi }: { absBeat: number; time: string; midi: number }) => ({ absBeat, time, midi }));
+		const evidence = [{ barIndex: 1, boundaryAbsBeat: 4, direction: 'up', notes }];
+		restored.windows[1].ensembleDevelopment.bassContinuations = evidence;
+		const exported = aggregateRollingBacking(restored);
+		expect(exported.ensembleDevelopment!.bassContinuations).toEqual(evidence);
+		expect(Object.isFrozen(exported.ensembleDevelopment!.bassContinuations)).toBe(true);
+		expect(Object.isFrozen(exported.ensembleDevelopment!.bassContinuations![0].notes[0])).toBe(true);
+		expect(Object.isFrozen(evidence[0].notes[0])).toBe(false);
+		evidence[0].notes[0].midi = 99;
+		expect(exported.ensembleDevelopment!.bassContinuations![0].notes[0].midi).not.toBe(99);
+		expect(JSON.stringify(early)).toBe(before);
+		expect(early.ensembleDevelopment!.bassContinuations).toBeUndefined();
+	});
+
 	it('exports an empty committed prefix without fabricating a plan or final checkpoint', () => {
 		const take = aggregateRollingBacking(harness().renderer.snapshot());
 		expect(take).toEqual({ bassEvents: [], compEvents: [], drumEvents: [] });

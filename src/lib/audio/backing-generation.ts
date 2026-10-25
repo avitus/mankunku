@@ -1,3 +1,4 @@
+import type { BassScalarContinuation } from './backing-bass-continuation';
 import { sharedArrivalTick } from './backing-arrival';
 /**
  * Pure backing-track event generation: walking bass, comping, and drums.
@@ -130,6 +131,7 @@ export interface EnsembleDevelopment {
 	readonly pianoMotifs: readonly CompMotifDecision[];
 	readonly bassTurnarounds: readonly BassTurnaroundTrace[];
 	readonly bassFeel?: readonly StructuralBassFeel[];
+	readonly bassContinuations?: readonly BassScalarContinuation[];
 	readonly pianoVoicings?: readonly CoordinatedPianoVoicing[];
 	/** Causal, committed rolling-bar decisions; absent from fixed generation. */
 	readonly pianoFeedback?: readonly PianoFeedbackDecision[];
@@ -196,6 +198,13 @@ function freezeEnsembleDevelopment(trace: EnsembleDevelopment): EnsembleDevelopm
 		}
 		Object.freeze(trace.pianoFeedback);
 	}
+	if (trace.bassContinuations) {
+		for (const continuation of trace.bassContinuations) {
+			for (const note of continuation.notes) Object.freeze(note);
+			Object.freeze(continuation.notes); Object.freeze(continuation);
+		}
+		Object.freeze(trace.bassContinuations);
+	}
 	freezeDrumPhraseTrace(trace.drumPhrases);
 	return Object.freeze(trace);
 }
@@ -221,6 +230,7 @@ export interface BackingGenerationParams {
 /** Runtime-only placement, created after the public generation cache key. */
 export interface InstrumentGenerationParams extends BackingGenerationParams {
 	readonly ensembleTiming?: ReturnType<typeof createEnsembleTiming>;
+	readonly bassScalarContinuation?: true;
 }
 
 /**
@@ -762,12 +772,13 @@ export function generateBacking(
 		phraseId: params.phraseId, tempo: params.tempo, ppq: params.ppq,
 		swing: params.swing, plan: ensemblePlan, timingProfiles: timing
 	}) : undefined;
-	const timedParams: InstrumentGenerationParams = { ...params, performanceForm, timing, ensembleTiming };
+	const timedParams: InstrumentGenerationParams = { ...params, performanceForm, timing, ensembleTiming,
+		...(performanceEnergy && ['swing', 'straight'].includes(style.coordinatedStyle!) ? { bassScalarContinuation: true as const } : {}) };
 	const { events: compEvents, onsetsByBar, motifTrace, voicingTrace } = generateComping(harmony, beatsPerBar, style, timedParams, barInfos);
 	// Bass engine dispatch: the bossa root–fifth pattern is a 4/4 statement;
 	// 'two' pins the walking planner to permanent two-feel (ballad); other
 	// meters (and every 'auto' style) take the plain walking planner.
-	const { events: bassEvents, onsetsByBar: bassOnsetsByBar, turnaroundTrace, feelTrace } =
+	const { events: bassEvents, onsetsByBar: bassOnsetsByBar, turnaroundTrace, feelTrace, continuationTrace } =
 		style.bass === 'pattern' && beatsPerBar === 4
 			? generateBossaBass(harmony, beatsPerBar, timedParams, barInfos)
 			: generateBassLine2(
@@ -811,6 +822,7 @@ export function generateBacking(
 		ensembleDevelopment: freezeEnsembleDevelopment({
 			version: 1, pianoMotifs: motifTrace ?? [], bassTurnarounds: turnaroundTrace ?? [],
 			...(feelTrace ? { bassFeel: feelTrace } : {}),
+			...(continuationTrace?.length ? { bassContinuations: continuationTrace } : {}),
 			...(voicingTrace ? { pianoVoicings: voicingTrace } : {}),
 			drumPhrases: drumPhrases?.trace ?? []
 		})

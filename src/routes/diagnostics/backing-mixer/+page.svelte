@@ -394,6 +394,7 @@
 				version: 1,
 				pianoMotifs: take.playback.windows.flatMap(bar => bar.ensembleDevelopment.pianoMotifs),
 				bassTurnarounds: take.playback.windows.flatMap(bar => bar.ensembleDevelopment.bassTurnarounds),
+				bassContinuations: take.playback.windows.flatMap(bar => bar.ensembleDevelopment.bassContinuations ?? []),
 				bassFeel: take.playback.windows.flatMap(bar => bar.ensembleDevelopment.bassFeel ?? []),
 				pianoVoicings: take.playback.windows.flatMap(bar => bar.ensembleDevelopment.pianoVoicings ?? []),
 				pianoFeedback: take.playback.windows.flatMap(bar => bar.ensembleDevelopment.pianoFeedback ?? []),
