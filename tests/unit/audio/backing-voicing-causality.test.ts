@@ -140,9 +140,15 @@ it('rejects prior-policy or malformed emitted-harmony checkpoints before continu
 	let checkpoint: RollingBackingCheckpoint | undefined;
 	for (let bar = 0; bar < score.totalBars - 1 && !checkpoint?.piano.voicing; bar++) checkpoint = advanceRollingBacking(score, checkpoint).checkpoint;
 	expect(checkpoint?.piano.voicing).toBeDefined();
-	const priorPolicy = score.fingerprint.replace(',"coordinatedVoicingVersion":1', '');
-	expect(priorPolicy).not.toBe(score.fingerprint);
-	expect(() => advanceRollingBacking(score, { ...checkpoint!, fingerprint: priorPolicy })).toThrow(/checkpoint/i);
+	for (const priorPolicy of [
+		score.fingerprint.replace('"coordinatedVoicingVersion":2', '"coordinatedVoicingVersion":1'),
+		score.fingerprint.replace(',"coordinatedVoicingVersion":2', '')
+	]) {
+		expect(priorPolicy).not.toBe(score.fingerprint);
+		const { checkpointId: _identity, ...contents } = { ...checkpoint!, fingerprint: priorPolicy };
+		const checkpointId = `${contents.sessionId}:${contents.nextBar}:${seedFrom(JSON.stringify(contents)).toString(16)}`;
+		expect(() => advanceRollingBacking(score, { ...contents, checkpointId })).toThrow(/checkpoint/i);
+	}
 	for (const mutate of [
 		(value: RollingBackingCheckpoint) => { (value.piano.voicing as { version: number }).version = 2; },
 		(value: RollingBackingCheckpoint) => { (value.piano.voicing!.notes as number[])[0] = 0; },

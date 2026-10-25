@@ -241,8 +241,8 @@ const bassSampleEvidence: MusicalityEvidence[] = [
 ];
 
 const causalVoicingEvidence: MusicalityEvidence[] = [
-	...['coordinated-voicing', 'backing-generation', 'backing-rolling-piano', 'backing-rolling'].map(file => ({ ...source(file), revision: 'musicality' })),
-	...['coordinated-voicing', 'backing-voicing-causality'].map(file => ({ ...test(file), revision: 'musicality' })),
+	...['coordinated-voicing', 'coordinated-voicing-family', 'backing-generation', 'backing-rolling-piano', 'backing-rolling'].map(file => ({ ...source(file), revision: 'musicality' })),
+	...['coordinated-voicing', 'coordinated-voicing-family', 'backing-voicing-policy-integration', 'backing-voicing-causality'].map(file => ({ ...test(file), revision: 'musicality' })),
 	{ kind: 'source', path: 'src/lib/musicality/musician-decisions.ts', revision: 'musicality' },
 	{ kind: 'test', path: 'tests/unit/musicality/musician-decisions.test.ts', revision: 'musicality' }
 ];
@@ -258,7 +258,7 @@ const foundationAssessments: Record<string, string> = {
 	S2: "Explicit form and head/solo context feed ensemble roles, energy, density and tension. A rolling take retains instrument and ensemble checkpoints across declared playback loops while accepting completed microphone evidence.",
 	S4: 'Coordinated mode layers bounded shared phrase motion, stable player placement and small event residuals over the existing tempo-aware swing grid. Sample-attack calibration separately removes the pedal lead-in and restores ten documented piano sample start offsets; the bass recordings need no timing trim.',
 	S3: 'Coordinated mode adds commentary budgets, turn-taking, reasoned silence and fill cooldowns. Explicit performed forms now supply restrained heads, solo build/peak/release and a returning-head energy contour before phrase choices.',
-	S8: 'Explicit coordinated piano placement follows the previous emitted voicing, prioritizing legal guide-tone motion and exact common-note retention before register distance. Unplayed harmony does not update its memory.',
+	S8: 'Explicit coordinated piano placement follows the previous emitted voicing, prioritizing legal guide-tone motion and exact common-note retention before register distance. Unplayed harmony does not update its memory. Fixed and rolling explicit-form playback share the same energy-aware family selection and native style biases.',
 	S10: "Qualified microphone density and rests can change upcoming piano attack budgets and selective response ownership during a rolling lab take.",
 	S15: 'Existing note duration and velocity shaping now reaches source-defined Smolken velocity layers and round robins: one recording per note in the supported register instead of unintended stacked layers.',
 	S16: 'Bass ornament activity follows the ensemble plan while its pulse remains protected. Eligible two-bar walking passages now plan a directional path into the root of an actual following chorus.',

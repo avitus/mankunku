@@ -75,7 +75,8 @@ import { planDrumPhrases, freezeDrumPhraseTrace, type DrumPhraseBarPlan, type Dr
 import type { StyleDefinition, GenerationContext, DrumVoice } from './backing-styles';
 import { generateBassLine as generateBassLine2, generateBossaBass } from './backing-bass';
 import type { StructuralBassFeel } from './backing-bass-feel';
-import { resolveCoordinatedVoicing, coordinatedVoicingFamily, type CoordinatedVoicingMemory, type CoordinatedVoicingDecision } from './coordinated-voicing';
+import { selectCoordinatedVoicingFamily } from './coordinated-voicing-family';
+import { resolveCoordinatedVoicing, type CoordinatedVoicingMemory, type CoordinatedVoicingDecision } from './coordinated-voicing';
 
 // ── Event shapes ─────────────────────────────────────────────
 
@@ -540,7 +541,7 @@ export function generateComping(
 				// future bar's observation-derived energy for this committed attack.
 				const currentIntensity = barInfos[bar].intensity;
 				const selected = resolveCoordinatedVoicing({ chord,
-					family: ctx.plannedComp?.guideTones ? 'guide' : coordinatedVoicingFamily(selectVoicing(chord, segIdx, currentIntensity)),
+					family: ctx.plannedComp?.guideTones ? 'guide' : selectCoordinatedVoicingFamily({ chord, phraseId, tempo, segmentIndex: segIdx, intensity: currentIntensity, voicingBias: style.voicingBias }),
 					registerMidi: ctx.plannedComp?.guideTones ? COMP_REGISTER : Math.round(lerp(58, 66, currentIntensity)),
 					previous: voicingMemory });
 				if (!selected.notes.length) continue;

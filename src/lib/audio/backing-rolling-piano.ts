@@ -9,7 +9,8 @@ import { createRng, seedFrom } from './generation-rng';
 import { fractionToFloat } from '$lib/music/intervals';
 import { CHORD_DEFINITIONS } from '$lib/music/chords';
 import { rootlessVoicingA, rootlessVoicingB, shellVoicing, drop2Voicing, quartalVoicing, guideToneVoicing, voiceLead, type VoicingFn } from './voicings';
-import { resolveCoordinatedVoicing, coordinatedVoicingFamily, type CoordinatedVoicingMemory } from './coordinated-voicing';
+import { selectCoordinatedVoicingFamily } from './coordinated-voicing-family';
+import { resolveCoordinatedVoicing, type CoordinatedVoicingMemory } from './coordinated-voicing';
 
 export interface RollingPianoMemory {
 	readonly recentFigures: readonly string[];
@@ -126,7 +127,7 @@ export function realizeRollingPiano(score: RollingBackingDefinition, bar: number
 			const tick = Math.max(bar * 4 * score.ppq, timing.place(absBeat, 'comp'));
 			const duration = Math.min(hit.durationBeats * 60 / score.tempo, (barEnd - tick) * 60 / score.tempo / score.ppq);
 			if (!Number.isFinite(tick) || tick >= barEnd || !Number.isFinite(duration) || duration <= 0 || absBeat >= score.totalBars * 4) continue;
-			const selected = resolveCoordinatedVoicing({ chord, family: guideTones ? 'guide' : coordinatedVoicingFamily(selectFamily(index)),
+			const selected = resolveCoordinatedVoicing({ chord, family: guideTones ? 'guide' : selectCoordinatedVoicingFamily({ chord, phraseId: score.phraseId, tempo: score.tempo, segmentIndex: index, intensity: info.intensity, voicingBias: style.voicingBias }),
 				registerMidi: guideTones ? 62 : Math.round(58 + 8 * info.intensity), previous: voicingMemory });
 			if (!selected.notes.length) continue;
 			const notes = [...selected.notes];

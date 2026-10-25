@@ -191,7 +191,9 @@ The insert belongs to the instrument channel and is disconnected with it.
 The public WAV exporter peak-normalizes its output. Raw pre-normalization mix
 measurements are therefore retained separately; normalized isolated bounces cannot
 establish relative balance. Full-tune artifacts live at
-`/Users/avitus/.codex/artifacts/musicality-2026-10-25/bass-selection/listen.html`.
+`/Users/avitus/.codex/artifacts/musicality-2026-10-25/bass-selection/listen.html`;
+the calibrated public-app comparison is at
+`/Users/avitus/.codex/artifacts/musicality-2026-10-25/bass-calibration/listen.html`.
 This measured reference-level preservation still needs human ensemble listening;
 see the [development log](/docs/contributing/musicality-progress).
 
