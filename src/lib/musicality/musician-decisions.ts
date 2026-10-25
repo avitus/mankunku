@@ -102,7 +102,17 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 		detail: piano.length ? 'Comping supports the changes in this bar.' : 'Earlier chords may still sustain through this bar.',
 		evidence: [countText(piano.length, 'chord attack'), ...sharedEvidence('piano')]
 	};
-	for (const [index, event] of piano.entries()) pianoCard.evidence.push(`Chord ${index + 1}: ${event.notes.map(noteName).join(' · ')}`);
+	for (const [index, event] of piano.entries()) {
+		pianoCard.evidence.push(`Chord ${index + 1}: ${event.notes.map(noteName).join(' · ')}`);
+		const voiced = development?.pianoVoicings?.find((entry) => entry.time === event.time && entry.absBeat === event.absBeat &&
+			entry.notes.length === event.notes.length && entry.notes.every((note, i) => note === event.notes[i]));
+		if (!voiced) continue;
+		const decision = voiced.decision;
+		pianoCard.evidence.push(`Chord ${index + 1} voicing: ${plain(decision.resolvedFamily)}`);
+		if (decision.commonTones.length) pianoCard.evidence.push(`Common tones held: ${decision.commonTones.map(noteName).join(' · ')}`);
+		if (decision.guideMotion !== null) pianoCard.evidence.push(`Guide-tone movement: ${countText(decision.guideMotion, 'semitone')} total`);
+		if (decision.correction !== 'none') pianoCard.evidence.push(`Voicing adjustment: ${plain(decision.correction)}`);
+	}
 	if (motif) {
 		if (piano.some((event) => Math.floor(event.absBeat / beatsPerBar) === barIndex) && motif.motifId) {
 			pianoCard.action = ({ statement: 'Introduce a comping idea', repeat: 'Repeat the comping idea', displace: 'Shift the comping idea',

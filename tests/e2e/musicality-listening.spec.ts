@@ -99,6 +99,11 @@ test('listens through a complete real tune and follows each chorus on the audio 
 	await expect(page.getByTestId('listening-performance-arc')).toContainText('Planned arc');
 	await assertDecisionClock(page);
 	const started = await exportTake(page);
+	const voicings = started.playback.generated!.ensembleDevelopment?.pianoVoicings;
+	expect(voicings?.length).toBe(started.playback.generated!.compEvents.length);
+	expect(voicings!.length).toBeGreaterThan(0);
+	for (const voiced of voicings!) expect(started.playback.generated!.compEvents.some(event =>
+		event.time === voiced.time && event.absBeat === voiced.absBeat && event.notes.join(',') === voiced.notes.join(','))).toBe(true);
 	await assertDecisionClock(page, started.playback);
 	await page.getByLabel('Listening note', { exact: true }).fill('Listen again to the opening bass line');
 	await page.getByRole('button', { name: 'Mark this bar', exact: true }).click();

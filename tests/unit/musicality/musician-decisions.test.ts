@@ -116,3 +116,36 @@ describe('structural texture evidence', () => {
 		expect(original.flatMap(card => card.evidence).join(' ')).not.toMatch(/Planned bass feel|Cymbal color/);
 	});
 });
+
+describe('audible piano voice-leading evidence', () => {
+	it('binds voicing explanations to the actual sounding attack, including an early boundary attack', () => {
+		const event = { time: '767i', absBeat: 4, notes: [53, 59], duration: 0.5, velocity: 65 };
+		const generated = { bassEvents: [], compEvents: [event], drumEvents: [], ensembleDevelopment: {
+			version: 1, bassTurnarounds: [], pianoMotifs: [], drumPhrases: [], pianoVoicings: [{ ...event, decision: {
+				requestedFamily: 'guide', resolvedFamily: 'guide', correction: 'none', guideMotion: 1,
+				commonTones: [53], totalMovement: 1, registerDistance: 0, candidateCount: 10
+			} }]
+		} } as unknown as GeneratedBacking;
+		const piano = describeMusicianDecisions(generated, context)[1];
+		expect(piano.evidence).toContain('Chord 1 voicing: guide');
+		expect(piano.evidence).toContain('Common tones held: F3');
+		expect(piano.evidence).toContain('Guide-tone movement: 1 semitone total');
+		expect(describeMusicianDecisions(generated, { ...context, barIndex: 1 })[1].evidence.join(' ')).not.toContain('voicing:');
+		generated.compEvents = [{ ...event, notes: [54, 60] }];
+		expect(describeMusicianDecisions(generated, context)[1].evidence.join(' ')).not.toContain('Common tones held:');
+		generated.compEvents = [event];
+		expect(describeMusicianDecisions(generated, { ...context, orchestration: 'original' })[1].evidence.join(' ')).not.toContain('voicing:');
+	});
+	it('does not invent a guide-tone objective when the selected family has none', () => {
+		const event = { time: '0i', absBeat: 0, notes: [62, 67, 72], duration: 0.5, velocity: 65 };
+		const generated = { bassEvents: [], compEvents: [event], drumEvents: [], ensembleDevelopment: {
+			version: 1, bassTurnarounds: [], pianoMotifs: [], drumPhrases: [], pianoVoicings: [{ ...event, decision: {
+				requestedFamily: 'quartal', resolvedFamily: 'quartal', correction: 'none', guideMotion: null,
+				commonTones: [], totalMovement: 0, registerDistance: 0, candidateCount: 10
+			} }]
+		} } as unknown as GeneratedBacking;
+		const evidence = describeMusicianDecisions(generated, context)[1].evidence;
+		expect(evidence).toContain('Chord 1 voicing: quartal');
+		expect(evidence.join(' ')).not.toMatch(/Guide-tone movement|Common tones held/);
+	});
+});

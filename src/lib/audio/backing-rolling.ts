@@ -1,5 +1,7 @@
 /** Pure append-only, one-bar realization for the finite coordinated listening lab. */
 import type { HarmonicSegment } from '$lib/types/music';
+import { PITCH_CLASSES } from '$lib/types/music';
+import { CHORD_DEFINITIONS } from '$lib/music/chords';
 import type { PerformanceForm } from '$lib/types/performance-form';
 import type { BackingGenerationParams, BarInfo, BassEvent, CompEvent, DrumEvent, EnsembleDevelopment } from './backing-generation';
 import { buildBarInfos } from './backing-generation';
@@ -158,7 +160,7 @@ export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDef
 	// Preserve the one-pass binding. An explicit repeat is a distinct declared
 	// performance even when its flattened score matches some other source.
 	const serialized = JSON.stringify([1, params.phraseId, params.tempo, params.ppq, params.swing, copied, form, timingProfiles,
-		...(performanceEnergy ? [{ performanceEnergyVersion: 1, structuralTextureVersion: 1 }] : []),
+		...(performanceEnergy ? [{ performanceEnergyVersion: 1, structuralTextureVersion: 1, coordinatedVoicingVersion: 1 }] : []),
 		...(loopCount > 1 ? [{ sourceBars, loopCount }] : []),
 		...(style.coordinatedStyle !== 'swing' ? [{ style: style.coordinatedStyle }] : [])]);
 	// The definition retains the complete immutable score once. Repeating its
@@ -191,6 +193,18 @@ function validateCheckpoint(score: RollingBackingDefinition, checkpoint: Rolling
 	if (checkpoint.piano.recentFigures.length > 3 || checkpoint.piano.segmentVoicing.length > 12 || checkpoint.piano.lastVoicing.length > 12 ||
 		![...checkpoint.piano.segmentVoicing, ...checkpoint.piano.lastVoicing].every((value) => Number.isInteger(value) && value >= 0 && value <= 127) ||
 		!numeric(checkpoint.piano.segmentIndex)) invalid();
+	const voicing = checkpoint.piano.voicing;
+	const coordinatedVoicing = score.bars[0]?.performanceEnergy !== undefined;
+	if (coordinatedVoicing && checkpoint.piano.lastVoicing.length > 0 && !voicing) invalid();
+	if (voicing) {
+		const index = checkpoint.piano.segmentIndex;
+		const chord = index !== null && Number.isInteger(index) && index >= 0 ? score.harmony[index]?.chord : undefined;
+		if (!coordinatedVoicing || voicing.version !== 1 || !voicing.chord || !PITCH_CLASSES.includes(voicing.chord.root) ||
+			!Object.hasOwn(CHORD_DEFINITIONS, voicing.chord.quality) || !Array.isArray(voicing.notes) || voicing.notes.length < 2 || voicing.notes.length > 8 ||
+			voicing.notes.some((note, i) => !Number.isInteger(note) || note < 48 || note > 84 || (i > 0 && voicing.notes[i - 1] >= note)) ||
+			voicing.notes.length !== checkpoint.piano.lastVoicing.length || voicing.notes.some((note, i) => note !== checkpoint.piano.lastVoicing[i]) ||
+			!chord || chord.root !== voicing.chord.root || chord.quality !== voicing.chord.quality) invalid();
+	}
 }
 
 /** Commit exactly one new bar. Past events are never regenerated or modified. */
@@ -254,5 +268,6 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 		checkpoint: { ...contents, checkpointId: checkpointId(contents) },
 		bassEvents: bass.events, compEvents: piano.events, drumEvents, ensemblePlan: window.plan, ensembleTiming: [timingTrace],
 		ensembleDevelopment: { version: 1, pianoMotifs: [piano.trace], bassTurnarounds: bass.trace,
-			...(bass.feelTrace ? { bassFeel: [bass.feelTrace] } : {}), drumPhrases: [drums.bar] } });
+			...(bass.feelTrace ? { bassFeel: [bass.feelTrace] } : {}),
+			...(piano.voicingTrace ? { pianoVoicings: piano.voicingTrace } : {}), drumPhrases: [drums.bar] } });
 }

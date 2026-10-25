@@ -1,6 +1,6 @@
 /** Stateful one-bar piano realization. Multi-bar source cells are proposals, not future budgets. */
 import type { RollingBackingDefinition } from './backing-rolling';
-import { clavePhaseFor, type BarInfo, type CompEvent } from './backing-generation';
+import { clavePhaseFor, type BarInfo, type CompEvent, type CoordinatedPianoVoicing } from './backing-generation';
 import type { CompHitSpec } from './backing-styles';
 import type { EnsembleTiming } from './ensemble-timing';
 import { COMP_FIGURES, type CompFigure, type CompFigureHit, type CompMotifDecision } from './backing-comp-figures';
@@ -9,6 +9,7 @@ import { createRng, seedFrom } from './generation-rng';
 import { fractionToFloat } from '$lib/music/intervals';
 import { CHORD_DEFINITIONS } from '$lib/music/chords';
 import { rootlessVoicingA, rootlessVoicingB, shellVoicing, drop2Voicing, quartalVoicing, guideToneVoicing, voiceLead, type VoicingFn } from './voicings';
+import { resolveCoordinatedVoicing, coordinatedVoicingFamily, type CoordinatedVoicingMemory } from './coordinated-voicing';
 
 export interface RollingPianoMemory {
 	readonly recentFigures: readonly string[];
@@ -16,6 +17,8 @@ export interface RollingPianoMemory {
 	readonly segmentIndex: number | null;
 	readonly segmentVoicing: readonly number[];
 	readonly lastVoicing: readonly number[];
+	/** Last emitted harmony and pitches, including guide-tone overrides. */
+	readonly voicing?: CoordinatedVoicingMemory;
 }
 
 const emptyMemory = (): RollingPianoMemory => ({ recentFigures: [], motif: null, segmentIndex: null, segmentVoicing: [], lastVoicing: [] });
@@ -23,10 +26,13 @@ const figureById = (id: string) => COMP_FIGURES.find((figure) => figure.id === i
 const shiftsFor = (figure: CompFigure) => [-1, -0.5, 0.5, 1].filter((shift) => figure.hits[0].every((hit) => hit.b + shift >= 0 && hit.b + shift < 3.5));
 
 export function realizeRollingPiano(score: RollingBackingDefinition, bar: number, info: BarInfo,
-	timing: EnsembleTiming, previous?: RollingPianoMemory): { events: CompEvent[]; memory: RollingPianoMemory; trace: CompMotifDecision } {
+	timing: EnsembleTiming, previous?: RollingPianoMemory): { events: CompEvent[]; memory: RollingPianoMemory; trace: CompMotifDecision; voicingTrace?: readonly CoordinatedPianoVoicing[] } {
 	const memory = previous ?? emptyMemory();
 	const style = BACKING_STYLES[score.style ?? 'swing'];
 	const ensemble = info.ensemble!;
+	const coordinatedVoicing = !!ensemble.performanceEnergy;
+	let voicingMemory = memory.voicing;
+	const voicingTrace: CoordinatedPianoVoicing[] = [];
 	const form = score.bars[bar];
 	const phraseStart = ensemble.phraseStartBar;
 	const budget = ensemble.piano.maxAttacks;
@@ -99,21 +105,40 @@ export function realizeRollingPiano(score: RollingBackingDefinition, bar: number
 	let segmentVoicing = [...memory.segmentVoicing];
 	let lastVoicing = [...memory.lastVoicing];
 	const barEnd = (bar + 1) * 4 * score.ppq;
+	const selectFamily = (index: number): VoicingFn => {
+		const chord = score.harmony[index].chord;
+		const voicingRng = createRng(seedFrom(score.phraseId, score.tempo, 'voicing', index));
+		const seventh = CHORD_DEFINITIONS[chord.quality]?.intervals.some((interval) => interval >= 9 && interval <= 11);
+		const bias = style.voicingBias ?? {};
+		const options: Array<{ value: VoicingFn; weight: number }> = seventh
+			? [{ value: rootlessVoicingA, weight: 4 * (bias.rootlessA ?? 1) }, { value: rootlessVoicingB, weight: 3 * (bias.rootlessB ?? 1) }, { value: shellVoicing, weight: 2 * (bias.shell ?? 1) }, { value: drop2Voicing, weight: (bias.drop2 ?? 1) }]
+			: [{ value: shellVoicing, weight: 2 * (bias.shell ?? 1) }, { value: drop2Voicing, weight: (bias.drop2 ?? 1) }];
+		if (seventh && quartalVoicing(chord.root, chord.quality).length) options.push({ value: quartalVoicing, weight: (bias.quartal ?? 1) });
+		return voicingRng.weighted(options);
+	};
 	for (const hit of realized) {
 		const absBeat = bar * 4 + hit.beatOffset;
 		const lookup = Math.min(score.totalBars * 4 - 0.001, absBeat + (hit.beatOffset % 1 ? 0.5 : 0));
 		const index = score.harmony.findIndex((segment) => lookup >= fractionToFloat(segment.startOffset) * 4 && lookup < fractionToFloat(segment.startOffset) * 4 + fractionToFloat(segment.duration) * 4);
 		if (index < 0) continue;
 		const chord = score.harmony[index].chord;
+		if (coordinatedVoicing) {
+			const tick = Math.max(bar * 4 * score.ppq, timing.place(absBeat, 'comp'));
+			const duration = Math.min(hit.durationBeats * 60 / score.tempo, (barEnd - tick) * 60 / score.tempo / score.ppq);
+			if (!Number.isFinite(tick) || tick >= barEnd || !Number.isFinite(duration) || duration <= 0 || absBeat >= score.totalBars * 4) continue;
+			const selected = resolveCoordinatedVoicing({ chord, family: guideTones ? 'guide' : coordinatedVoicingFamily(selectFamily(index)),
+				registerMidi: guideTones ? 62 : Math.round(58 + 8 * info.intensity), previous: voicingMemory });
+			if (!selected.notes.length) continue;
+			const notes = [...selected.notes];
+			const time = `${tick}i`;
+			events.push({ absBeat, time, notes, duration, velocity: hit.velocity });
+			voicingTrace.push(Object.freeze({ absBeat, time, notes: selected.notes, decision: selected.decision }));
+			voicingMemory = selected.memory;
+			segmentIndex = index; segmentVoicing = notes; lastVoicing = notes;
+			continue;
+		}
 		if (segmentIndex !== index) {
-			const voicingRng = createRng(seedFrom(score.phraseId, score.tempo, 'voicing', index));
-			const seventh = CHORD_DEFINITIONS[chord.quality]?.intervals.some((interval) => interval >= 9 && interval <= 11);
-			const bias = style.voicingBias ?? {};
-			const options: Array<{ value: VoicingFn; weight: number }> = seventh
-				? [{ value: rootlessVoicingA, weight: 4 * (bias.rootlessA ?? 1) }, { value: rootlessVoicingB, weight: 3 * (bias.rootlessB ?? 1) }, { value: shellVoicing, weight: 2 * (bias.shell ?? 1) }, { value: drop2Voicing, weight: (bias.drop2 ?? 1) }]
-				: [{ value: shellVoicing, weight: 2 * (bias.shell ?? 1) }, { value: drop2Voicing, weight: (bias.drop2 ?? 1) }];
-			if (seventh && quartalVoicing(chord.root, chord.quality).length) options.push({ value: quartalVoicing, weight: (bias.quartal ?? 1) });
-			const fn = voicingRng.weighted(options);
+			const fn = selectFamily(index);
 			const register = Math.round(58 + 8 * info.intensity);
 			segmentVoicing = lastVoicing.length ? voiceLead([chord, chord], [() => lastVoicing, fn], register)[1] : fn(chord.root, chord.quality, register);
 			segmentIndex = index;
@@ -126,7 +151,9 @@ export function realizeRollingPiano(score: RollingBackingDefinition, bar: number
 		events.push({ absBeat, time: `${tick}i`, notes, duration, velocity: hit.velocity });
 		lastVoicing = notes;
 	}
-	return { events, memory: { recentFigures: [...memory.recentFigures, style.compPlanning ? figure.repeatKey ?? figure.id : `${score.style}:${hits.map((hit) => hit.b).join(',')}`].slice(-3), motif, segmentIndex, segmentVoicing, lastVoicing },
+	return { events, ...(coordinatedVoicing ? { voicingTrace: Object.freeze(voicingTrace) } : {}),
+		memory: { recentFigures: [...memory.recentFigures, style.compPlanning ? figure.repeatKey ?? figure.id : `${score.style}:${hits.map((hit) => hit.b).join(',')}`].slice(-3), motif, segmentIndex, segmentVoicing, lastVoicing,
+			...(coordinatedVoicing && voicingMemory ? { voicing: voicingMemory } : {}) },
 		trace: { version: 1, barIndex: bar, phraseStartBar: phraseStart, motifId: motif.sourceId ? `motif:${phraseStart}:${motif.sourceId}` : null,
 			sourceFigureId: motif.sourceId, transform, displacementBeats: shift, hits: hits.filter((hit) => events.some((event) => event.absBeat === bar * 4 + hit.b)), ...(reason ? { reason } : {}) } };
 }

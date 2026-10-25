@@ -75,6 +75,7 @@ import { planDrumPhrases, freezeDrumPhraseTrace, type DrumPhraseBarPlan, type Dr
 import type { StyleDefinition, GenerationContext, DrumVoice } from './backing-styles';
 import { generateBassLine as generateBassLine2, generateBossaBass } from './backing-bass';
 import type { StructuralBassFeel } from './backing-bass-feel';
+import { resolveCoordinatedVoicing, coordinatedVoicingFamily, type CoordinatedVoicingMemory, type CoordinatedVoicingDecision } from './coordinated-voicing';
 
 // ── Event shapes ─────────────────────────────────────────────
 
@@ -127,7 +128,16 @@ export interface EnsembleDevelopment {
 	readonly pianoMotifs: readonly CompMotifDecision[];
 	readonly bassTurnarounds: readonly BassTurnaroundTrace[];
 	readonly bassFeel?: readonly StructuralBassFeel[];
+	readonly pianoVoicings?: readonly CoordinatedPianoVoicing[];
 	readonly drumPhrases: readonly DrumPhraseDecision[];
+}
+
+/** Objective evidence for one actual accepted piano attack. */
+export interface CoordinatedPianoVoicing {
+	readonly absBeat: number;
+	readonly time: string;
+	readonly notes: readonly number[];
+	readonly decision: CoordinatedVoicingDecision;
 }
 
 function freezeEnsembleDevelopment(trace: EnsembleDevelopment): EnsembleDevelopment {
@@ -136,6 +146,15 @@ function freezeEnsembleDevelopment(trace: EnsembleDevelopment): EnsembleDevelopm
 	if (trace.bassFeel) {
 		for (const bar of trace.bassFeel) Object.freeze(bar);
 		Object.freeze(trace.bassFeel);
+	}
+	if (trace.pianoVoicings) {
+		for (const attack of trace.pianoVoicings) {
+			Object.freeze(attack.notes);
+			Object.freeze(attack.decision.commonTones);
+			Object.freeze(attack.decision);
+			Object.freeze(attack);
+		}
+		Object.freeze(trace.pianoVoicings);
 	}
 	freezeDrumPhraseTrace(trace.drumPhrases);
 	return Object.freeze(trace);
@@ -380,13 +399,17 @@ export function generateComping(
 	style: StyleDefinition,
 	params: InstrumentGenerationParams,
 	barInfos: BarInfo[]
-): { events: CompEvent[]; onsetsByBar: Map<number, number[]>; motifTrace?: readonly CompMotifDecision[] } {
+): { events: CompEvent[]; onsetsByBar: Map<number, number[]>; motifTrace?: readonly CompMotifDecision[]; voicingTrace?: readonly CoordinatedPianoVoicing[] } {
 	const { phraseId, tempo, swing } = params;
 	const segments = toSegmentInfos(harmony);
 	const beatDuration = 60 / tempo;
 	const events: CompEvent[] = [];
 	const onsetsByBar = new Map<number, number[]>();
 	const streams = createTimingStreams(phraseId, tempo);
+	const coordinatedVoicing = !!params.ensemble && !!style.coordinatedStyle && beatsPerBar === 4 &&
+		barInfos.length > 0 && barInfos.every((info) => info.ensemble?.performanceEnergy);
+	let voicingMemory: CoordinatedVoicingMemory | undefined;
+	const voicingTrace: CoordinatedPianoVoicing[] = [];
 
 	// Voicing selection per chord, then voice-lead the whole sequence.
 	// Quartal shapes join the rotation only for the qualities they suit
@@ -402,7 +425,7 @@ export function generateComping(
 				?.intensity ?? 0.5
 	);
 	const bias = style.voicingBias ?? {};
-	const fns: VoicingFn[] = chords.map((c, i) => {
+	const selectVoicing = (c: typeof chords[number], i: number, intensity: number): VoicingFn => {
 		const rng = createRng(seedFrom(phraseId, tempo, 'voicing', i));
 		if (!hasSeventhSlot(c.quality)) {
 			return rng.weighted<VoicingFn>([
@@ -413,18 +436,19 @@ export function generateComping(
 		const options: Array<{ value: VoicingFn; weight: number }> = [
 			{ value: rootlessVoicingA, weight: 4 * (bias.rootlessA ?? 1) },
 			{ value: rootlessVoicingB, weight: 3 * (bias.rootlessB ?? 1) },
-			{ value: shellVoicing, weight: 2 * lerp(1.5, 0.6, chordIntensity[i]) * (bias.shell ?? 1) },
+			{ value: shellVoicing, weight: 2 * lerp(1.5, 0.6, intensity) * (bias.shell ?? 1) },
 			{ value: drop2Voicing, weight: 1 * (bias.drop2 ?? 1) }
 		];
 		if (quartalVoicing(c.root, c.quality).length > 0) {
 			options.push({
 				value: quartalVoicing,
-				weight: lerp(0.5, 1.5, chordIntensity[i]) * (bias.quartal ?? 1)
+				weight: lerp(0.5, 1.5, intensity) * (bias.quartal ?? 1)
 			});
 		}
 		return rng.weighted<VoicingFn>(options);
-	});
-	const voicings = voiceLead(
+	};
+	const fns: VoicingFn[] = coordinatedVoicing ? [] : chords.map((chord, index) => selectVoicing(chord, index, chordIntensity[index]));
+	const voicings = coordinatedVoicing ? [] : voiceLead(
 		chords,
 		fns,
 		chordIntensity.map((n) => Math.round(lerp(58, 66, n)))
@@ -495,10 +519,10 @@ export function generateComping(
 			// Guide-tone bars thin the voicing to the 3rd+7th — the "leave
 			// space" color — regardless of the chord's led shape.
 			const chord = chords[segIdx];
-			const voicing = ctx.plannedComp?.guideTones
+			let voicing = coordinatedVoicing ? undefined : ctx.plannedComp?.guideTones
 				? guideToneVoicing(chord.root, chord.quality, COMP_REGISTER)
 				: voicings[segIdx];
-			if (!voicing || voicing.length === 0) continue;
+			if (!coordinatedVoicing && (!voicing || voicing.length === 0)) continue;
 
 			let time = place(absBeat, 'comp', params, streams, beatsPerBar);
 			let startTick = parseInt(time, 10);
@@ -510,9 +534,23 @@ export function generateComping(
 			const duration = Math.min(beatDuration * hit.durationBeats,
 				(nextSilenceTicks[bar] - startTick) * beatDuration / params.ppq);
 			if (duration <= 0) continue;
+			if (coordinatedVoicing) {
+				if (!Number.isFinite(startTick) || !Number.isFinite(duration) || startTick >= harmonyEnd * params.ppq) continue;
+				// Anticipations may know the upcoming chord, but cannot borrow a
+				// future bar's observation-derived energy for this committed attack.
+				const currentIntensity = barInfos[bar].intensity;
+				const selected = resolveCoordinatedVoicing({ chord,
+					family: ctx.plannedComp?.guideTones ? 'guide' : coordinatedVoicingFamily(selectVoicing(chord, segIdx, currentIntensity)),
+					registerMidi: ctx.plannedComp?.guideTones ? COMP_REGISTER : Math.round(lerp(58, 66, currentIntensity)),
+					previous: voicingMemory });
+				if (!selected.notes.length) continue;
+				voicing = [...selected.notes];
+				voicingMemory = selected.memory;
+				voicingTrace.push(Object.freeze({ absBeat, time, notes: selected.notes, decision: selected.decision }));
+			}
 			events.push({
 				time,
-				notes: voicing,
+				notes: voicing!,
 				duration,
 				velocity: hit.velocity,
 				absBeat
@@ -521,7 +559,7 @@ export function generateComping(
 		}
 	}
 
-	return { events, onsetsByBar, ...(motifMode ? { motifTrace: compMotifTrace(compPlan ?? []) }
+	return { events, onsetsByBar, ...(coordinatedVoicing ? { voicingTrace: Object.freeze(voicingTrace) } : {}), ...(motifMode ? { motifTrace: compMotifTrace(compPlan ?? []) }
 		: barInfos.some((info) => info.ensemble) ? { motifTrace: freezeCompMotifTrace(barInfos.map((info, barIndex) => ({
 			version: 1 as const, barIndex, phraseStartBar: info.ensemble!.phraseStartBar, motifId: null, sourceFigureId: null,
 			transform: info.ensemble!.piano.maxAttacks === 0 ? 'space' as const : 'fallback' as const,
@@ -683,7 +721,7 @@ export function generateBacking(
 		swing: params.swing, plan: ensemblePlan, timingProfiles: timing
 	}) : undefined;
 	const timedParams: InstrumentGenerationParams = { ...params, performanceForm, timing, ensembleTiming };
-	const { events: compEvents, onsetsByBar, motifTrace } = generateComping(harmony, beatsPerBar, style, timedParams, barInfos);
+	const { events: compEvents, onsetsByBar, motifTrace, voicingTrace } = generateComping(harmony, beatsPerBar, style, timedParams, barInfos);
 	// Bass engine dispatch: the bossa root–fifth pattern is a 4/4 statement;
 	// 'two' pins the walking planner to permanent two-feel (ballad); other
 	// meters (and every 'auto' style) take the plain walking planner.
@@ -731,6 +769,7 @@ export function generateBacking(
 		ensembleDevelopment: freezeEnsembleDevelopment({
 			version: 1, pianoMotifs: motifTrace ?? [], bassTurnarounds: turnaroundTrace ?? [],
 			...(feelTrace ? { bassFeel: feelTrace } : {}),
+			...(voicingTrace ? { pianoVoicings: voicingTrace } : {}),
 			drumPhrases: drumPhrases?.trace ?? []
 		})
 	} : {}) };

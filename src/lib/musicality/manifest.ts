@@ -234,6 +234,13 @@ const crossLoopEvidence: MusicalityEvidence[] = [
 	{ kind: 'test', path: 'tests/e2e/solo-listening.spec.ts', revision: 'musicality' }
 ];
 
+const causalVoicingEvidence: MusicalityEvidence[] = [
+	...['coordinated-voicing', 'backing-generation', 'backing-rolling-piano', 'backing-rolling'].map(file => ({ ...source(file), revision: 'musicality' })),
+	...['coordinated-voicing', 'backing-voicing-causality'].map(file => ({ ...test(file), revision: 'musicality' })),
+	{ kind: 'source', path: 'src/lib/musicality/musician-decisions.ts', revision: 'musicality' },
+	{ kind: 'test', path: 'tests/unit/musicality/musician-decisions.test.ts', revision: 'musicality' }
+];
+
 const structuralTextureEvidence: MusicalityEvidence[] = [
 	...['backing-bass-feel', 'backing-drum-phrases', 'backing-generation', 'backing-rolling'].map(file => ({ ...source(file), revision: 'musicality' })),
 	...['backing-bass-feel', 'backing-drum-texture', 'backing-structural-texture'].map(file => ({ ...test(file), revision: 'musicality' }))
@@ -245,6 +252,7 @@ const foundationAssessments: Record<string, string> = {
 	S2: "Explicit form and head/solo context feed ensemble roles, energy, density and tension. A rolling take retains instrument and ensemble checkpoints across declared playback loops while accepting completed microphone evidence.",
 	S4: 'Coordinated mode layers bounded shared phrase motion, stable player placement and small event residuals over the existing tempo-aware swing grid. Sample-attack calibration separately removes the pedal lead-in and restores ten documented piano sample start offsets; the bass recordings need no timing trim.',
 	S3: 'Coordinated mode adds commentary budgets, turn-taking, reasoned silence and fill cooldowns. Explicit performed forms now supply restrained heads, solo build/peak/release and a returning-head energy contour before phrase choices.',
+	S8: 'Explicit coordinated piano placement follows the previous emitted voicing, prioritizing legal guide-tone motion and exact common-note retention before register distance. Unplayed harmony does not update its memory.',
 	S10: "Qualified microphone density and rests can change upcoming piano attack budgets and selective response ownership during a rolling lab take.",
 	S16: 'Bass ornament activity follows the ensemble plan while its pulse remains protected. Eligible two-bar walking passages now plan a directional path into the root of an actual following chorus.',
 	S17: 'The coordinated drummer develops ride cells across two to four bars and selected commentary motifs within shared budgets. It can answer the previous bar of emitted piano attacks while preserving timekeeping and agreed arrivals.',
@@ -274,6 +282,7 @@ const foundationAssessments: Record<string, string> = {
 const foundationRemaining: Record<string, string> = {
 	S2: "Indefinite looping, changing form during a take, richer register and motif listening, and general arrangement negotiation remain incomplete.",
 	S4: 'Listening acceptance and explicit musical intent controls for timing remain incomplete; the original mode retains independent event jitter.',
+	S8: 'This is a local causal placement objective within existing selected families, not a composed top-note line or multi-phrase melodic plan. Quartal shapes retain their distinct structure. Human listening acceptance remains pending.',
 	S10: "Solo phrase-end recognition, motif imitation, solo-register avoidance and deliberate piano answers to drum motifs remain incomplete.",
 	S16: "Rolling bass retains pitch history and accepted following-chorus launches while adapting ornament admission. Declared repeat seams can be launch targets; the final loop remains terminal. Broader trajectories and listening acceptance remain incomplete.",
 	S17: "Broader kit vocabulary, articulation lengths and musical acceptance remain incomplete. Rolling memory continues across declared loops; new motifs still follow phrase boundaries.",
@@ -338,6 +347,15 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 		scope: 'Existing swing figures plus coordinated swing/straight 4/4 piano motifs in the listening lab.',
 		evidence: [...entry.evidence, ...pianoDevelopmentEvidence]
 	};
+	if (entry.id === 'P31' || entry.id === 'P35') return {
+		...entry, status: 'partial',
+		assessment: entry.id === 'P31'
+			? 'The shared causal piano resolver explicitly favors exact common notes from the previous emitted chord, after minimizing eligible defining-tone motion. Rests do not introduce phantom voice-leading steps.'
+			: 'Eligible selected voicing families use legal thirds and sevenths (or the chord’s sixth/suspension/triad roles) to minimize motion from the previous emitted harmony; bounded inversions make smooth ii–V–I lines reachable.',
+		remaining: 'The objective stays within the selected family and current chord. Quartal shapes retain their fourth-stack character and do not claim a guide-tone objective. Multi-phrase top-note planning and human listening acceptance remain pending.',
+		scope: 'Explicit-form Coordinated 4/4 playback in all four styles; native rhythms and family biases retained. Original and metadata-free paths unchanged.',
+		evidence: [...entry.evidence, ...causalVoicingEvidence]
+	};
 	if (entry.id === 'P12' || entry.id === 'P13') return {
 		...entry, status: 'implemented',
 		assessment: entry.id === 'P12'
@@ -394,6 +412,7 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 		scope: 'Shared planning, timing and rolling adaptation: swing, straight, bossa nova and ballad in 4/4. Motif transformations and walking launches: swing/straight only. Original generation remains the practice mode pending listening acceptance.',
 		evidence: [
 			...entry.evidence, ...foundationEvidence,
+			...(['S8', 'S38', 'S44', 'S46'].includes(entry.id) ? causalVoicingEvidence : []),
 			...(['S12', 'S18', 'S33', 'S38', 'S44', 'S46'].includes(entry.id) ? structuralTextureEvidence : []),
 			{ ...test('backing-style-coordination'), revision: 'musicality' },
 			...(['S2', 'S24', 'S44', 'S46'].includes(entry.id) ? formEvidence : []),
