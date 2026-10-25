@@ -99,7 +99,7 @@ export interface BounceResult {
 
 /** Validate declared listening intent before an audio graph or ordinary score is prepared. */
 export function resolveListeningTerminalArrangement(params: BounceParams): TerminalArrangementInput | undefined {
-	if (params.ending !== 'hold-release' || params.orchestration !== 'coordinated' || !['swing', 'straight', 'ballad'].includes(params.style)) return undefined;
+	if (params.ending !== 'hold-release' || params.orchestration !== 'coordinated' || !['swing', 'straight', 'ballad', 'bossa-nova'].includes(params.style)) return undefined;
 	const phrase = params.phrase;
 	const terminalArrangement: TerminalArrangementInput = { ending: 'hold-release', melody: phrase.notes };
 	const assessment = assessTerminalArrangement(phrase.harmony, BACKING_STYLES[params.style], {

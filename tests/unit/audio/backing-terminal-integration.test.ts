@@ -37,7 +37,7 @@ it.each(baseline.controls)('$style $mode $engine preserves the complete continue
 	const input = { ...common, ...(mode !== 'coordinated-implicit' ? { performanceForm } : {}),
 		...(mode !== 'original' ? { ensemble } : {}) };
 	const choices = [input, { ...input, terminalArrangement: { ending: 'continue' as const, melody: phrase.notes } },
-		...(mode !== 'coordinated-explicit' || style === 'bossa-nova'
+		...(mode !== 'coordinated-explicit'
 			? [{ ...input, terminalArrangement: { ending: 'hold-release' as const, melody: phrase.notes } }] : [])];
 	for (const selected of choices) {
 		const actual = engine === 'fixed' ? generateBacking(phrase.harmony, BACKING_STYLES[style], selected) : rolling(style, selected);
@@ -69,10 +69,14 @@ it.each(['swing', 'straight'] as const)('%s preserves the first repeat seam and 
 	expect(() => advanceRollingBacking(control.score, actual.windows[102].checkpoint)).toThrow();
 });
 
-it.each(['bossa-nova'] as const)('%s retains its exact native ending when a stale hold choice reaches the engine', style => {
+it.each(['bossa-nova'] as const)('%s retains its exact native ending when the known melody makes a hold unavailable', style => {
 	const before = baseline.finalBars.find(value => value.style === style)!;
-	const fixed = generateBacking(phrase.harmony, BACKING_STYLES[style], ending(style));
-	const causal = rolling(style, ending(style));
+	const melody = [...phrase.notes, { pitch: 64, offset: [103, 2] as [number, number], duration: [1, 4] as [number, number] }];
+	const unavailable = { ...params(style), terminalArrangement: { ending: 'hold-release' as const, melody } };
+	const fixed = generateBacking(phrase.harmony, BACKING_STYLES[style], unavailable);
+	const causal = rolling(style, unavailable);
+	expect(fixed.ensembleDevelopment!.terminalArrangements).toBeUndefined();
+	expect(causal.windows.at(-1)!.ensembleDevelopment.terminalArrangements).toBeUndefined();
 	for (const field of fields) {
 		expect(fixed[field].filter(event => event.absBeat >= 204)).toEqual(before.fixed[field]);
 		expect(causal[field].filter(event => event.absBeat >= 204)).toEqual(before.rolling[field]);

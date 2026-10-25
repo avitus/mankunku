@@ -891,7 +891,7 @@ export function generateBacking(
 			phraseId: params.phraseId, tempo: params.tempo, ppq: params.ppq, segmentIndex: harmony.length - 1,
 			previousBass: bassEvents.filter(event => event.absBeat < terminalReservation.absBeat).at(-1)?.midi,
 			previousVoicing: terminalContext.voicing, previousContour: terminalContext.contour,
-			...(terminalReservation.profile === 'ballad-v1' ? { ordinaryBass: bassEvents, ordinaryDrums: drumEvents } : {}),
+			...(terminalReservation.profile !== undefined ? { ordinaryBass: bassEvents, ordinaryDrums: drumEvents } : {}),
 			precedingRelease: priorEvents.some(event => parseInt(event.time) + event.duration * params.tempo / 60 * params.ppq > terminalReservation.absBeat * params.ppq + 1e-7),
 			committedLaunch: turnaroundTrace?.some(trace => trace.status === 'planned' && trace.arrivalBar === bar) });
 		terminalDecision = candidate.decision;
@@ -907,7 +907,7 @@ export function generateBacking(
 				memory: freezeEnsembleMemory({ ...ensembleWindow.memory, recentBars: ensembleWindow.memory.recentBars.map(entry => entry.barIndex === bar ? { ...entry, pianoAttackBudget: 1, drumCommentaryBudget: 0 } : entry) }) };
 			motifTrace = [...(motifTrace ?? []).filter(entry => entry.barIndex !== bar), terminalPianoTrace(plan, terminalReservation)];
 			voicingTrace = [...(voicingTrace ?? []).filter(entry => Math.floor(entry.absBeat / 4) !== bar), candidate.voicingTrace];
-			finalDrumTrace = (finalDrumTrace ?? []).map(entry => entry.barIndex === bar ? terminalDrumTrace(entry, accepted) : entry);
+			finalDrumTrace = (finalDrumTrace ?? []).map(entry => entry.barIndex === bar ? terminalDrumTrace(entry, accepted, terminalReservation.profile) : entry);
 			turnaroundTrace = turnaroundTrace?.filter(entry => entry.startBar !== bar);
 			feelTrace = feelTrace?.filter(entry => entry.barIndex !== bar);
 			continuationTrace = continuationTrace?.filter(entry => entry.barIndex !== bar);

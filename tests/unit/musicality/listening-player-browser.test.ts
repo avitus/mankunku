@@ -67,7 +67,7 @@ beforeEach(() => {
 afterEach(() => { for (const value of players.splice(0)) value.dispose(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe('browser listening runtime routing and ownership', () => {
- it.each(['swing', 'ballad'].flatMap(style => ['unknown', 'late-attack'].map(kind => [style, kind])))('rejects a requested %s hold with %s melody before loading instruments or scheduling', async (style, kind) => {
+ it.each(['swing', 'ballad', 'bossa-nova'].flatMap(style => ['unknown', 'late-attack'].map(kind => [style, kind])))('rejects a requested %s hold with %s melody before loading instruments or scheduling', async (style, kind) => {
   const backing = await import('$lib/audio/backing-track');
   const params = { ...input(), style, phrase: buildListeningTuneSession({ tuneId: LISTENING_TUNES.find(tune => tune.title === 'Mankunku Blues')!.id, key: 'C', soloChoruses: 2 }).phrase, ending: 'hold-release' } as BounceParams;
   if (kind === 'unknown') params.phrase.notes = undefined as unknown as typeof params.phrase.notes;
@@ -79,12 +79,23 @@ describe('browser listening runtime routing and ownership', () => {
   expect(backing.createRollingBackingPlayback).not.toHaveBeenCalled();
   expect(backing.scheduleBackingTrack).not.toHaveBeenCalled();
  });
+ it('rejects unavailable Bossa closing harmony before loading or scheduling', async () => {
+  const backing = await import('$lib/audio/backing-track');
+  const params = { ...input(), style: 'bossa-nova', phrase: buildListeningTuneSession({ tuneId: 'ls-mankunku-blues', key: 'C', soloChoruses: 2 }).phrase, ending: 'hold-release' } as BounceParams;
+  params.phrase.harmony.at(-1)!.duration = [1, 2];
+  const take = player(); await take.start(params);
+  expect(take.snapshot().status).toBe('error');
+  expect(take.snapshot().error).toMatch(/harmony/i);
+  expect(backing.loadBackingInstruments).not.toHaveBeenCalled();
+  expect(backing.createRollingBackingPlayback).not.toHaveBeenCalled();
+  expect(backing.scheduleBackingTrack).not.toHaveBeenCalled();
+ });
  it('allows an explicitly instrumental hold with an empty known melody', async () => {
   const params = { ...input(), phrase: buildListeningTuneSession({ tuneId: LISTENING_TUNES.find(tune => tune.title === 'Mankunku Blues')!.id, key: 'C', soloChoruses: 2 }).phrase, ending: 'hold-release' } as BounceParams;
   params.phrase.notes = []; const take = player(); await take.start(params);
   expect(take.snapshot().status).toBe('playing');
  });
- it.each(['swing', 'ballad'] as const)('forwards a captured %s terminal choice and its score melody to the causal definition', async style => {
+ it.each(['swing', 'ballad', 'bossa-nova'] as const)('forwards a captured %s terminal choice and its score melody to the causal definition', async style => {
   const rolling = await import('$lib/audio/backing-rolling');
   const create = vi.spyOn(rolling, 'createRollingBacking');
   const params = { ...input(), style, phrase: buildListeningTuneSession({ tuneId: LISTENING_TUNES.find(tune => tune.title === 'Mankunku Blues')!.id, key: 'C', soloChoruses: 2 }).phrase, ending: 'hold-release' } as BounceParams;
@@ -96,10 +107,10 @@ describe('browser listening runtime routing and ownership', () => {
   expect(take.snapshot().params).toMatchObject({ ending: 'hold-release', phrase: { notes: melody } });
   create.mockRestore();
  });
- it.each(['bossa-nova'] as const)('does not forward a stale terminal choice into unsupported %s playback', async style => {
+ it.each([undefined, 'continue'] as const)('keeps Bossa %s ending intent outside the causal definition', async ending => {
   const rolling = await import('$lib/audio/backing-rolling');
   const create = vi.spyOn(rolling, 'createRollingBacking');
-  const take = player(); await take.start({ ...input(), style, ending: 'hold-release' } as BounceParams);
+  const take = player(); await take.start({ ...input(), style: 'bossa-nova', ending } as BounceParams);
   expect(take.snapshot().status).toBe('playing');
   expect(create.mock.calls.at(-1)?.[2]).not.toHaveProperty('terminalArrangement');
  });

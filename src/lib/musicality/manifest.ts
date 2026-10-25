@@ -207,6 +207,8 @@ const terminalEvidence: MusicalityEvidence[] = [
 	{ ...test('backing-terminal-integration'), revision: 'musicality' },
 	{ ...test('backing-ballad-terminal'), revision: 'musicality' },
 	{ ...test('backing-ballad-terminal-integration'), revision: 'musicality' },
+	{ ...test('backing-bossa-terminal'), revision: 'musicality' },
+	{ ...test('backing-bossa-terminal-integration'), revision: 'musicality' },
 	{ kind: 'test', path: 'tests/unit/musicality/listening-ending.test.ts', revision: 'musicality' },
 	{ kind: 'test', path: 'tests/e2e/musicality-listening.spec.ts', revision: 'musicality' }
 ];
@@ -386,9 +388,9 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 		...entry, status: 'partial',
 		assessment: entry.id === 'P15'
 			? 'An explicit Hold & release arrangement can place one shared final-bar chord, followed by space. The complete bass/piano/drum gesture uses current harmony and a release admitted against the known closing melody.'
-			: 'Selected shared arrivals retain their existing catch behavior. An explicitly arranged terminal chord can also align Swing/Straight ride/kick or Ballad’s selected quiet ride and optional kick with the bass root and piano at one common downbeat.',
-		remaining: 'Only a supported complete final four-beat harmony and compatible known melody qualify. General stop-time sequences, setup fills, Bossa endings, fermatas and human listening acceptance remain pending.',
-		scope: 'Opt-in explicit Coordinated Swing/Straight/Ballad 4/4, fixed and rolling, absolute final declared loop only. Ballad retains its native voicing and selected quiet kit. Continue time remains default; Original, implicit and Bossa retain their policies.',
+			: 'Selected shared arrivals retain their existing catch behavior. An explicitly arranged terminal chord can also align the bass root and piano with style-specific punctuation: Swing/Straight ride/kick, Ballad’s selected quiet ride/optional kick, or Bossa’s selected kick/stick hat/optional crossstick.',
+		remaining: 'Only a supported complete final four-beat harmony and compatible known melody qualify. General stop-time sequences, setup fills, expanded terminal harmonies, fermatas and human listening acceptance remain pending.',
+		scope: 'Opt-in explicit Coordinated Swing/Straight/Bossa/Ballad 4/4, fixed and rolling, absolute final declared loop only. Native styles retain their voicing policies and selected kit; earlier Bossa clave bars remain exact. Continue time remains default; Original and implicit inputs retain their policies.',
 		evidence: [...entry.evidence, ...terminalEvidence]
 	};
 	if (entry.id === 'P4') return {

@@ -81,7 +81,7 @@ describe('blind full-tune musicality comparison', () => {
   expect(() => create(() => NaN)).toThrow(); expect(() => create(() => 1)).toThrow();
   expect(LISTENING_COMPARISON_CRITERIA.find(c => c.id === 'fatigue')!.hint).toMatch(/higher.*less tiring/i);
  });
- it.each(['swing', 'ballad'] as const)('keeps opt-in %s terminal arrangements out of matched Original/Coordinated comparisons', style => {
+ it.each(['swing', 'ballad', 'bossa-nova'] as const)('keeps opt-in %s terminal arrangements out of matched Original/Coordinated comparisons', style => {
   expect(() => createBlindListeningComparison({ ...input(), style, ending: 'hold-release' } as BounceParams, { buildVersion: 'ending-test' })).toThrow();
   expect(() => createBlindListeningComparison({ ...input(), ending: 'continue' } as BounceParams, { buildVersion: 'ending-test' })).not.toThrow();
   const record = JSON.parse(serializeListeningComparison(finish(create())));

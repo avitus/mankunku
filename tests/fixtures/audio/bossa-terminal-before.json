@@ -1,0 +1,969 @@
+{
+  "head": "9b8db71f",
+  "witnesses": [
+    {
+      "key": "C",
+      "engine": "fixed",
+      "lastTwoBars": {
+        "bassEvents": [
+          {
+            "time": "38400i",
+            "midi": 36,
+            "duration": 0.6,
+            "velocity": 78,
+            "absBeat": 200
+          },
+          {
+            "time": "39168i",
+            "midi": 36,
+            "duration": 0.6,
+            "velocity": 79,
+            "absBeat": 204
+          },
+          {
+            "time": "39552i",
+            "midi": 31,
+            "duration": 0.6857142857142857,
+            "velocity": 64,
+            "absBeat": 206
+          }
+        ],
+        "compEvents": [
+          {
+            "time": "38592i",
+            "notes": [
+              52,
+              58,
+              62
+            ],
+            "duration": 0.34297834690128054,
+            "velocity": 54,
+            "absBeat": 201
+          }
+        ],
+        "drumEvents": [
+          {
+            "time": "38400i",
+            "drum": "kick",
+            "velocity": 0.31470690998147005,
+            "absBeat": 200,
+            "role": "timekeeping"
+          },
+          {
+            "time": "38688i",
+            "drum": "kick",
+            "velocity": 0.1975383957961614,
+            "absBeat": 201.5,
+            "role": "timekeeping"
+          },
+          {
+            "time": "38784i",
+            "drum": "kick",
+            "velocity": 0.2697814485251371,
+            "absBeat": 202,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39072i",
+            "drum": "kick",
+            "velocity": 0.22653217738238832,
+            "absBeat": 203.5,
+            "role": "timekeeping"
+          },
+          {
+            "time": "38400i",
+            "drum": "hihat",
+            "velocity": 0.25802591903463123,
+            "absBeat": 200,
+            "role": "timekeeping"
+          },
+          {
+            "time": "38496i",
+            "drum": "hihat",
+            "velocity": 0.19037296423717906,
+            "absBeat": 200.5,
+            "role": "timekeeping"
+          },
+          {
+            "time": "38592i",
+            "drum": "hihat",
+            "velocity": 0.2686719334875051,
+            "absBeat": 201,
+            "role": "timekeeping"
+          },
+          {
+            "time": "38688i",
+            "drum": "hihat",
+            "velocity": 0.2020603056748859,
+            "absBeat": 201.5,
+            "role": "timekeeping"
+          },
+          {
+            "time": "38784i",
+            "drum": "hihat",
+            "velocity": 0.260908068412223,
+            "absBeat": 202,
+            "role": "timekeeping"
+          },
+          {
+            "time": "38880i",
+            "drum": "hihat",
+            "velocity": 0.21120777920851533,
+            "absBeat": 202.5,
+            "role": "timekeeping"
+          },
+          {
+            "time": "38976i",
+            "drum": "hihat",
+            "velocity": 0.2913133699629245,
+            "absBeat": 203,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39072i",
+            "drum": "hihat",
+            "velocity": 0.1967579691179395,
+            "absBeat": 203.5,
+            "role": "timekeeping"
+          },
+          {
+            "time": "38592i",
+            "drum": "crossstick",
+            "velocity": 0.40148149810468764,
+            "absBeat": 201,
+            "role": "timekeeping"
+          },
+          {
+            "time": "38880i",
+            "drum": "crossstick",
+            "velocity": 0.37929166689249866,
+            "absBeat": 202.5,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39169i",
+            "drum": "kick",
+            "velocity": 0.31282802997704967,
+            "absBeat": 204,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39456i",
+            "drum": "kick",
+            "velocity": 0.19469550780227315,
+            "absBeat": 205.5,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39552i",
+            "drum": "kick",
+            "velocity": 0.28488299300900477,
+            "absBeat": 206,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39840i",
+            "drum": "kick",
+            "velocity": 0.20834546377811491,
+            "absBeat": 207.5,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39168i",
+            "drum": "hihat",
+            "velocity": 0.25541362886035074,
+            "absBeat": 204,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39264i",
+            "drum": "hihat",
+            "velocity": 0.2050174571581632,
+            "absBeat": 204.5,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39360i",
+            "drum": "hihat",
+            "velocity": 0.28980017822822185,
+            "absBeat": 205,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39456i",
+            "drum": "hihat",
+            "velocity": 0.20389789304146544,
+            "absBeat": 205.5,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39552i",
+            "drum": "hihat",
+            "velocity": 0.28773655536405746,
+            "absBeat": 206,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39648i",
+            "drum": "hihat",
+            "velocity": 0.20343029033818472,
+            "absBeat": 206.5,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39744i",
+            "drum": "hihat",
+            "velocity": 0.2655031946716681,
+            "absBeat": 207,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39840i",
+            "drum": "hihat",
+            "velocity": 0.2044144821854718,
+            "absBeat": 207.5,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39168i",
+            "drum": "crossstick",
+            "velocity": 0.37124039802877884,
+            "absBeat": 204,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39456i",
+            "drum": "crossstick",
+            "velocity": 0.4002175236005588,
+            "absBeat": 205.5,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39744i",
+            "drum": "crossstick",
+            "velocity": 0.37802493970750556,
+            "absBeat": 207,
+            "role": "timekeeping"
+          }
+        ]
+      }
+    },
+    {
+      "key": "C",
+      "engine": "rolling",
+      "lastTwoBars": {
+        "bassEvents": [
+          {
+            "time": "38400i",
+            "midi": 36,
+            "duration": 0.6,
+            "velocity": 78,
+            "absBeat": 200
+          },
+          {
+            "time": "39168i",
+            "midi": 36,
+            "duration": 0.6,
+            "velocity": 79,
+            "absBeat": 204
+          },
+          {
+            "time": "39552i",
+            "midi": 31,
+            "duration": 0.6857142857142857,
+            "velocity": 64,
+            "absBeat": 206
+          }
+        ],
+        "compEvents": [
+          {
+            "absBeat": 201,
+            "time": "38592i",
+            "notes": [
+              52,
+              58,
+              62
+            ],
+            "duration": 0.3429783469012806,
+            "velocity": 54
+          }
+        ],
+        "drumEvents": [
+          {
+            "absBeat": 200,
+            "time": "38400i",
+            "drum": "kick",
+            "velocity": 0.31470690998147005,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 201.5,
+            "time": "38688i",
+            "drum": "kick",
+            "velocity": 0.1975383957961614,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 202,
+            "time": "38784i",
+            "drum": "kick",
+            "velocity": 0.2697814485251371,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 203.5,
+            "time": "39072i",
+            "drum": "kick",
+            "velocity": 0.22653217738238832,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 200,
+            "time": "38400i",
+            "drum": "hihat",
+            "velocity": 0.25802591903463123,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 200.5,
+            "time": "38496i",
+            "drum": "hihat",
+            "velocity": 0.19037296423717906,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 201,
+            "time": "38592i",
+            "drum": "hihat",
+            "velocity": 0.2686719334875051,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 201.5,
+            "time": "38688i",
+            "drum": "hihat",
+            "velocity": 0.2020603056748859,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 202,
+            "time": "38784i",
+            "drum": "hihat",
+            "velocity": 0.260908068412223,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 202.5,
+            "time": "38880i",
+            "drum": "hihat",
+            "velocity": 0.21120777920851533,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 203,
+            "time": "38976i",
+            "drum": "hihat",
+            "velocity": 0.2913133699629245,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 203.5,
+            "time": "39072i",
+            "drum": "hihat",
+            "velocity": 0.1967579691179395,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 201,
+            "time": "38592i",
+            "drum": "crossstick",
+            "velocity": 0.40148149810468764,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 202.5,
+            "time": "38880i",
+            "drum": "crossstick",
+            "velocity": 0.37929166689249866,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 204,
+            "time": "39169i",
+            "drum": "kick",
+            "velocity": 0.31282802997704967,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 205.5,
+            "time": "39456i",
+            "drum": "kick",
+            "velocity": 0.19469550780227315,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 206,
+            "time": "39552i",
+            "drum": "kick",
+            "velocity": 0.28488299300900477,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 207.5,
+            "time": "39840i",
+            "drum": "kick",
+            "velocity": 0.20834546377811491,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 204,
+            "time": "39168i",
+            "drum": "hihat",
+            "velocity": 0.25541362886035074,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 204.5,
+            "time": "39264i",
+            "drum": "hihat",
+            "velocity": 0.2050174571581632,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 205,
+            "time": "39360i",
+            "drum": "hihat",
+            "velocity": 0.28980017822822185,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 205.5,
+            "time": "39456i",
+            "drum": "hihat",
+            "velocity": 0.20389789304146544,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 206,
+            "time": "39552i",
+            "drum": "hihat",
+            "velocity": 0.28773655536405746,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 206.5,
+            "time": "39648i",
+            "drum": "hihat",
+            "velocity": 0.20343029033818472,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 207,
+            "time": "39744i",
+            "drum": "hihat",
+            "velocity": 0.2655031946716681,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 207.5,
+            "time": "39840i",
+            "drum": "hihat",
+            "velocity": 0.2044144821854718,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 204,
+            "time": "39168i",
+            "drum": "crossstick",
+            "velocity": 0.37124039802877884,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 205.5,
+            "time": "39456i",
+            "drum": "crossstick",
+            "velocity": 0.4002175236005588,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 207,
+            "time": "39744i",
+            "drum": "crossstick",
+            "velocity": 0.37802493970750556,
+            "role": "timekeeping"
+          }
+        ]
+      }
+    },
+    {
+      "key": "F#",
+      "engine": "fixed",
+      "lastTwoBars": {
+        "bassEvents": [
+          {
+            "time": "38400i",
+            "midi": 42,
+            "duration": 0.6,
+            "velocity": 83,
+            "absBeat": 200
+          },
+          {
+            "time": "38784i",
+            "midi": 37,
+            "duration": 0.6,
+            "velocity": 70,
+            "absBeat": 202
+          },
+          {
+            "time": "39169i",
+            "midi": 42,
+            "duration": 0.6,
+            "velocity": 75,
+            "absBeat": 204
+          }
+        ],
+        "compEvents": [],
+        "drumEvents": [
+          {
+            "time": "38400i",
+            "drum": "kick",
+            "velocity": 0.34079232779331503,
+            "absBeat": 200,
+            "role": "accent"
+          },
+          {
+            "time": "38689i",
+            "drum": "kick",
+            "velocity": 0.2243591267430859,
+            "absBeat": 201.5,
+            "role": "timekeeping"
+          },
+          {
+            "time": "38785i",
+            "drum": "kick",
+            "velocity": 0.27652051475174033,
+            "absBeat": 202,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39074i",
+            "drum": "kick",
+            "velocity": 0.1997193134684127,
+            "absBeat": 203.5,
+            "role": "timekeeping"
+          },
+          {
+            "time": "38401i",
+            "drum": "hihat",
+            "velocity": 0.2952064934614899,
+            "absBeat": 200,
+            "role": "timekeeping"
+          },
+          {
+            "time": "38497i",
+            "drum": "hihat",
+            "velocity": 0.20812699760128947,
+            "absBeat": 200.5,
+            "role": "timekeeping"
+          },
+          {
+            "time": "38593i",
+            "drum": "hihat",
+            "velocity": 0.2736833928944385,
+            "absBeat": 201,
+            "role": "timekeeping"
+          },
+          {
+            "time": "38689i",
+            "drum": "hihat",
+            "velocity": 0.2255310446423163,
+            "absBeat": 201.5,
+            "role": "timekeeping"
+          },
+          {
+            "time": "38785i",
+            "drum": "hihat",
+            "velocity": 0.28145232047762314,
+            "absBeat": 202,
+            "role": "timekeeping"
+          },
+          {
+            "time": "38882i",
+            "drum": "hihat",
+            "velocity": 0.1990706037956197,
+            "absBeat": 202.5,
+            "role": "timekeeping"
+          },
+          {
+            "time": "38978i",
+            "drum": "hihat",
+            "velocity": 0.2831380496031044,
+            "absBeat": 203,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39074i",
+            "drum": "hihat",
+            "velocity": 0.20337058147041073,
+            "absBeat": 203.5,
+            "role": "timekeeping"
+          },
+          {
+            "time": "38400i",
+            "drum": "crossstick",
+            "velocity": 0.4186964028391865,
+            "absBeat": 200,
+            "role": "timekeeping"
+          },
+          {
+            "time": "38689i",
+            "drum": "crossstick",
+            "velocity": 0.385033336872919,
+            "absBeat": 201.5,
+            "role": "timekeeping"
+          },
+          {
+            "time": "38978i",
+            "drum": "crossstick",
+            "velocity": 0.39480635628819205,
+            "absBeat": 203,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39170i",
+            "drum": "kick",
+            "velocity": 0.30322475398073345,
+            "absBeat": 204,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39458i",
+            "drum": "kick",
+            "velocity": 0.1952695023933882,
+            "absBeat": 205.5,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39553i",
+            "drum": "kick",
+            "velocity": 0.28683278657614814,
+            "absBeat": 206,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39841i",
+            "drum": "kick",
+            "velocity": 0.19555032050342205,
+            "absBeat": 207.5,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39170i",
+            "drum": "hihat",
+            "velocity": 0.27330831090651825,
+            "absBeat": 204,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39266i",
+            "drum": "hihat",
+            "velocity": 0.18694218738775328,
+            "absBeat": 204.5,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39362i",
+            "drum": "hihat",
+            "velocity": 0.28055276378647237,
+            "absBeat": 205,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39458i",
+            "drum": "hihat",
+            "velocity": 0.22105132476858796,
+            "absBeat": 205.5,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39553i",
+            "drum": "hihat",
+            "velocity": 0.276416219881665,
+            "absBeat": 206,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39649i",
+            "drum": "hihat",
+            "velocity": 0.1957069148387946,
+            "absBeat": 206.5,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39745i",
+            "drum": "hihat",
+            "velocity": 0.27102707663342734,
+            "absBeat": 207,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39841i",
+            "drum": "hihat",
+            "velocity": 0.22337377303041148,
+            "absBeat": 207.5,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39362i",
+            "drum": "crossstick",
+            "velocity": 0.3819181370267151,
+            "absBeat": 205,
+            "role": "timekeeping"
+          },
+          {
+            "time": "39649i",
+            "drum": "crossstick",
+            "velocity": 0.3760226566670016,
+            "absBeat": 206.5,
+            "role": "timekeeping"
+          }
+        ]
+      }
+    },
+    {
+      "key": "F#",
+      "engine": "rolling",
+      "lastTwoBars": {
+        "bassEvents": [
+          {
+            "time": "38400i",
+            "midi": 42,
+            "duration": 0.6,
+            "velocity": 83,
+            "absBeat": 200
+          },
+          {
+            "time": "38784i",
+            "midi": 37,
+            "duration": 0.6,
+            "velocity": 70,
+            "absBeat": 202
+          },
+          {
+            "time": "39169i",
+            "midi": 42,
+            "duration": 0.6,
+            "velocity": 75,
+            "absBeat": 204
+          }
+        ],
+        "compEvents": [],
+        "drumEvents": [
+          {
+            "absBeat": 200,
+            "time": "38400i",
+            "drum": "kick",
+            "velocity": 0.34079232779331503,
+            "role": "accent"
+          },
+          {
+            "absBeat": 201.5,
+            "time": "38689i",
+            "drum": "kick",
+            "velocity": 0.2243591267430859,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 202,
+            "time": "38785i",
+            "drum": "kick",
+            "velocity": 0.27652051475174033,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 203.5,
+            "time": "39074i",
+            "drum": "kick",
+            "velocity": 0.1997193134684127,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 200,
+            "time": "38401i",
+            "drum": "hihat",
+            "velocity": 0.2952064934614899,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 200.5,
+            "time": "38497i",
+            "drum": "hihat",
+            "velocity": 0.20812699760128947,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 201,
+            "time": "38593i",
+            "drum": "hihat",
+            "velocity": 0.2736833928944385,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 201.5,
+            "time": "38689i",
+            "drum": "hihat",
+            "velocity": 0.2255310446423163,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 202,
+            "time": "38785i",
+            "drum": "hihat",
+            "velocity": 0.28145232047762314,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 202.5,
+            "time": "38882i",
+            "drum": "hihat",
+            "velocity": 0.1990706037956197,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 203,
+            "time": "38978i",
+            "drum": "hihat",
+            "velocity": 0.2831380496031044,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 203.5,
+            "time": "39074i",
+            "drum": "hihat",
+            "velocity": 0.20337058147041073,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 200,
+            "time": "38400i",
+            "drum": "crossstick",
+            "velocity": 0.4186964028391865,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 201.5,
+            "time": "38689i",
+            "drum": "crossstick",
+            "velocity": 0.385033336872919,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 203,
+            "time": "38978i",
+            "drum": "crossstick",
+            "velocity": 0.39480635628819205,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 204,
+            "time": "39170i",
+            "drum": "kick",
+            "velocity": 0.30322475398073345,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 205.5,
+            "time": "39458i",
+            "drum": "kick",
+            "velocity": 0.1952695023933882,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 206,
+            "time": "39553i",
+            "drum": "kick",
+            "velocity": 0.28683278657614814,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 207.5,
+            "time": "39841i",
+            "drum": "kick",
+            "velocity": 0.19555032050342205,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 204,
+            "time": "39170i",
+            "drum": "hihat",
+            "velocity": 0.27330831090651825,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 204.5,
+            "time": "39266i",
+            "drum": "hihat",
+            "velocity": 0.18694218738775328,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 205,
+            "time": "39362i",
+            "drum": "hihat",
+            "velocity": 0.28055276378647237,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 205.5,
+            "time": "39458i",
+            "drum": "hihat",
+            "velocity": 0.22105132476858796,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 206,
+            "time": "39553i",
+            "drum": "hihat",
+            "velocity": 0.276416219881665,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 206.5,
+            "time": "39649i",
+            "drum": "hihat",
+            "velocity": 0.1957069148387946,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 207,
+            "time": "39745i",
+            "drum": "hihat",
+            "velocity": 0.27102707663342734,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 207.5,
+            "time": "39841i",
+            "drum": "hihat",
+            "velocity": 0.22337377303041148,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 205,
+            "time": "39362i",
+            "drum": "crossstick",
+            "velocity": 0.3819181370267151,
+            "role": "timekeeping"
+          },
+          {
+            "absBeat": 206.5,
+            "time": "39649i",
+            "drum": "crossstick",
+            "velocity": 0.3760226566670016,
+            "role": "timekeeping"
+          }
+        ]
+      }
+    }
+  ]
+}

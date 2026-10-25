@@ -210,11 +210,12 @@ function validateCheckpoint(score: RollingBackingDefinition, checkpoint: Rolling
 	if (checkpoint.piano.recentFigures.length > 3 || checkpoint.piano.segmentVoicing.length > 12 || checkpoint.piano.lastVoicing.length > 12 ||
 		![...checkpoint.piano.segmentVoicing, ...checkpoint.piano.lastVoicing].every((value) => Number.isInteger(value) && value >= 0 && value <= 127) ||
 		!numeric(checkpoint.piano.segmentIndex)) invalid();
-	const balladTerminal = score.style === 'ballad' && score.terminalArrangement?.profile === 'ballad-v1' &&
+	const nativeTerminal = ((score.style === 'ballad' && score.terminalArrangement?.profile === 'ballad-v1') ||
+		(score.style === 'bossa-nova' && score.terminalArrangement?.profile === 'bossa-v1')) &&
 		checkpoint.nextBar === score.totalBars && score.terminalArrangement.barIndex === checkpoint.nextBar - 1 &&
 		checkpoint.piano.recentFigures.at(-1) === 'terminal-arrangement' && checkpoint.piano.motif === null;
-	if (checkpoint.drums.previousCompIsSharedArrival !== undefined && !score.bars[checkpoint.nextBar - 1]?.pianoArrivalPolicy && !balladTerminal) invalid();
-	if (balladTerminal && (checkpoint.drums.previousCompIsSharedArrival !== true || checkpoint.drums.previousCompIsDrumReply !== undefined ||
+	if (checkpoint.drums.previousCompIsSharedArrival !== undefined && !score.bars[checkpoint.nextBar - 1]?.pianoArrivalPolicy && !nativeTerminal) invalid();
+	if (nativeTerminal && (checkpoint.drums.previousCompIsSharedArrival !== true || checkpoint.drums.previousCompIsDrumReply !== undefined ||
 		checkpoint.drums.previousCompOnsets.length !== 1 || checkpoint.drums.previousCompOnsets[0] !== 0 ||
 		checkpoint.piano.lastVoicing.length < 2 || checkpoint.bass.previousMidi === null ||
 		checkpoint.bass.previousMidi % 12 !== PITCH_CLASSES.indexOf(score.terminalArrangement!.chord.root) ||
@@ -343,7 +344,7 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 		const candidate = realizeTerminalArrangement({ reservation, plan: ensemble, style: BACKING_STYLES[definition.style ?? 'swing'],
 			phraseId: definition.phraseId, tempo: definition.tempo, ppq: definition.ppq, segmentIndex: definition.harmony.length - 1,
 			previousBass: checkpoint?.bass.previousMidi, previousVoicing: checkpoint?.piano.voicing, previousContour: checkpoint?.piano.contour,
-			...(reservation.profile === 'ballad-v1' ? { ordinaryBass: bass.events, ordinaryDrums: drumEvents } : {}),
+			...(reservation.profile !== undefined ? { ordinaryBass: bass.events, ordinaryDrums: drumEvents } : {}),
 			committedLaunch: !!checkpoint?.bass.pendingLaunch });
 		terminalDecision = candidate.decision;
 		if (candidate.decision.status === 'accepted' && candidate.voicing && (reservation.profile === 'ballad-v1' || candidate.contour) && candidate.voicingTrace) {
@@ -364,7 +365,7 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 				...(definition.bassScalarContinuation ? { scalarHistory: { pulse: { absBeat: accepted.bass.absBeat, midi: accepted.bass.midi, time: accepted.bass.time }, ornamentAfterPulse: false } } : {}) } };
 			const { motif: _motif, ...drumPhrase } = drums.memory.phrase;
 			const { previousCompIsDrumReply: _reply, previousCompIsSharedArrival: _arrival, ...drumMemory } = drums.memory;
-			drums = { bar: terminalDrumTrace(drums.bar, accepted), memory: { ...drumMemory,
+			drums = { bar: terminalDrumTrace(drums.bar, accepted, reservation.profile), memory: { ...drumMemory,
 				phrase: { ...drumPhrase, commentarySelected: false }, previousCompOnsets: [0], previousCompIsSharedArrival: true } };
 			drumEvents = accepted.drums.map(event => ({ ...event }));
 			recovery = undefined;

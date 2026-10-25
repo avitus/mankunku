@@ -12,7 +12,7 @@ const input = (): BounceParams => ({
 afterEach(() => vi.restoreAllMocks());
 
 describe('explicit listening ending at the fixed bounce boundary', () => {
- it.each(['swing', 'ballad'].flatMap(style => ['unknown', 'late-attack'].map(kind => [style, kind])))('rejects %s %s closing melody before generating a silently continuing bounce', (style, kind) => {
+ it.each(['swing', 'ballad', 'bossa-nova'].flatMap(style => ['unknown', 'late-attack'].map(kind => [style, kind])))('rejects %s %s closing melody before generating a silently continuing bounce', (style, kind) => {
   const generate = vi.spyOn(generation, 'generateBacking');
   const params = { ...input(), style, ending: 'hold-release' } as BounceParams;
   if (kind === 'unknown') params.phrase.notes = undefined as unknown as typeof params.phrase.notes;
@@ -20,11 +20,18 @@ describe('explicit listening ending at the fixed bounce boundary', () => {
   expect(() => generateForBounce(params)).toThrow(/melody/i);
   expect(generate).not.toHaveBeenCalled();
  });
+ it('rejects an unavailable Bossa closing harmony before fixed generation', () => {
+  const generate = vi.spyOn(generation, 'generateBacking');
+  const params = { ...input(), style: 'bossa-nova', ending: 'hold-release' } as BounceParams;
+  params.phrase.harmony.at(-1)!.duration = [1, 2];
+  expect(() => generateForBounce(params)).toThrow(/harmony/i);
+  expect(generate).not.toHaveBeenCalled();
+ });
  it('admits explicitly known instrumental silence rather than treating it as missing melody', () => {
   const params = { ...input(), ending: 'hold-release' } as BounceParams; params.phrase.notes = [];
   expect(generateForBounce(params).ensembleDevelopment?.terminalArrangements?.[0]?.status).toBe('accepted');
  });
- it.each(['swing', 'straight', 'ballad'] as const)('forwards the declared %s hold with actual score melody', style => {
+ it.each(['swing', 'straight', 'ballad', 'bossa-nova'] as const)('forwards the declared %s hold with actual score melody', style => {
   const generate = vi.spyOn(generation, 'generateBacking');
   const params = { ...input(), style, ending: 'hold-release' } as BounceParams;
   generateForBounce(params);
@@ -33,7 +40,7 @@ describe('explicit listening ending at the fixed bounce boundary', () => {
  it.each([
   { ending: undefined }, { ending: 'continue' },
   { ending: 'hold-release', orchestration: 'original' },
-  { ending: 'hold-release', style: 'bossa-nova' }
+  { style: 'bossa-nova' }, { ending: 'continue', style: 'bossa-nova' }
  ])('keeps unsupported/default intent outside generation: %j', overrides => {
   const generate = vi.spyOn(generation, 'generateBacking');
   generateForBounce({ ...input(), ...overrides } as BounceParams);

@@ -23,7 +23,7 @@ export interface TerminalArrangementInput {
 }
 export interface TerminalReservation {
 	/** Omitted preserves the original Swing/Straight serialization and policy. */
-	readonly profile?: 'ballad-v1';
+	readonly profile?: 'ballad-v1' | 'bossa-v1';
 	readonly version: 1;
 	readonly id: string;
 	readonly barIndex: number;
@@ -55,8 +55,8 @@ export function assessTerminalArrangement(harmony: readonly HarmonicSegment[], s
 	params: BackingGenerationParams, options: { loopCount?: number } = {}): TerminalAssessment {
 	const unavailable = (reason: string): TerminalAssessment => ({ available: false, reason });
 	if (params.terminalArrangement?.ending !== 'hold-release') return unavailable('Continuing accompaniment selected');
-	if (!params.ensemble || !params.performanceForm || params.beatsPerBar !== 4 || !['swing', 'straight', 'ballad'].includes(style.coordinatedStyle ?? '')) {
-		return unavailable('Requires explicit Coordinated Swing, Straight or Ballad in 4/4');
+	if (!params.ensemble || !params.performanceForm || params.beatsPerBar !== 4 || !['swing', 'straight', 'ballad', 'bossa-nova'].includes(style.coordinatedStyle ?? '')) {
+		return unavailable('Requires explicit Coordinated Swing, Straight, Ballad or Bossa in 4/4');
 	}
 	const sourceBars = params.performanceForm.totalBars;
 	const loops = options.loopCount ?? 1;
@@ -100,13 +100,13 @@ export function assessTerminalArrangement(harmony: readonly HarmonicSegment[], s
 	return { available: true, reservation: freezeTerminalReservation({ version: 1,
 		id: `terminal:${seedFrom(params.phraseId, style.coordinatedStyle!, barIndex, chord.root, chord.quality, holdBeats).toString(16)}`,
 		barIndex, absBeat, releaseBeat: absBeat + holdBeats, holdBeats, participants: ['bass', 'piano', 'drums'], chord,
-		...(style.coordinatedStyle === 'ballad' ? { profile: 'ballad-v1' as const } : {}) }) };
+		...(style.coordinatedStyle === 'ballad' ? { profile: 'ballad-v1' as const } : style.coordinatedStyle === 'bossa-nova' ? { profile: 'bossa-v1' as const } : {}) }) };
 }
 
 /** Bounded score contract, also checked on the direct planner's public input. */
 export function validTerminalReservation(value: TerminalReservation, finalBar: number): boolean {
-	return !!value && Object.keys(value).length === (value.profile === 'ballad-v1' ? 9 : 8) &&
-		(value.profile === undefined || value.profile === 'ballad-v1') && value.version === 1 && typeof value.id === 'string' && value.id.startsWith('terminal:') &&
+	return !!value && Object.keys(value).length === (value.profile !== undefined ? 9 : 8) &&
+		(value.profile === undefined || value.profile === 'ballad-v1' || value.profile === 'bossa-v1') && value.version === 1 && typeof value.id === 'string' && value.id.startsWith('terminal:') &&
 		value.barIndex === finalBar && value.absBeat === finalBar * 4 && Number.isFinite(value.holdBeats) && value.holdBeats >= 2 && value.holdBeats <= 4 &&
 		value.releaseBeat === value.absBeat + value.holdBeats && JSON.stringify(value.participants) === '["bass","piano","drums"]' &&
 		chordValid(value.chord) && Object.keys(value.chord).length === 2;
@@ -125,7 +125,7 @@ export interface TerminalCandidateInput {
 	readonly previousContour?: PianoContourMemory;
 	readonly precedingRelease?: boolean;
 	readonly committedLaunch?: boolean;
-	/** Actual ordinary current-bar events supply native Ballad levels, never proposed source hits. */
+	/** Actual ordinary current-bar events supply native levels, never proposed source hits. */
 	readonly ordinaryBass?: readonly BassEvent[];
 	readonly ordinaryDrums?: readonly DrumEvent[];
 }
@@ -142,22 +142,27 @@ export function realizeTerminalArrangement(input: TerminalCandidateInput): Termi
 	const { reservation, plan, tempo, ppq } = input;
 	const base = { version: 1 as const, reservationId: reservation.id, barIndex: reservation.barIndex };
 	const ballad = reservation.profile === 'ballad-v1';
+	const bossa = reservation.profile === 'bossa-v1';
+	const native = ballad || bossa;
 	const withheld = (reason: 'preceding_release' | 'unrealizable') => ({ decision: { ...base, status: 'withheld' as const, reason } });
 	if (input.precedingRelease) return withheld('preceding_release');
 	if (input.committedLaunch || plan.coordinatedAccent || plan.setupFor || plan.responseOwner !== 'nobody' ||
 		(ballad ? input.style.coordinatedStyle !== 'ballad' || plan.energy > .6
-			: !['swing', 'straight'].includes(input.style.coordinatedStyle ?? '')) ||
+			: bossa ? input.style.coordinatedStyle !== 'bossa-nova' : !['swing', 'straight'].includes(input.style.coordinatedStyle ?? '')) ||
 		(input.previousBass != null && (!Number.isInteger(input.previousBass) || input.previousBass < 28 || input.previousBass > 55)) || !validTerminalReservation(reservation, plan.barIndex) || !plan.performanceEnergy ||
 		!Number.isFinite(tempo) || tempo <= 0 || !Number.isSafeInteger(ppq) || ppq <= 0 || !Number.isInteger(input.segmentIndex) || input.segmentIndex < 0) return withheld('unrealizable');
 	const context = { barIndex: plan.barIndex, phraseStartBar: plan.phraseStartBar,
 		chorusIndex: plan.performanceEnergy.chorusIndex, phase: plan.performanceEnergy.phase };
-	const nativeBass = ballad ? (input.ordinaryBass ?? []).filter(event => event.absBeat === reservation.absBeat) : [];
-	const nativeDrums = ballad ? (input.ordinaryDrums ?? []).filter(event => event.absBeat === reservation.absBeat) : [];
-	if (ballad && (nativeBass.length !== 1 || !Number.isInteger(nativeBass[0].velocity) || nativeBass[0].velocity <= 0 || nativeBass[0].velocity > 127 ||
-		!Number.isInteger(nativeBass[0].midi) || nativeBass[0].midi < 28 || nativeBass[0].midi > 55 ||
-		nativeDrums.filter(event => event.drum === 'ride').length !== 1 || nativeDrums.filter(event => event.drum === 'kick').length > 1 ||
-		nativeDrums.some(event => !['ride', 'kick'].includes(event.drum) || event.role !== 'timekeeping' ||
-			!Number.isFinite(event.velocity) || event.velocity <= 0 || event.velocity > 1))) return withheld('unrealizable');
+	const nativeBass = native ? (input.ordinaryBass ?? []).filter(event => event.absBeat === reservation.absBeat) : [];
+	const nativeDrums = native ? (input.ordinaryDrums ?? []).filter(event => event.absBeat === reservation.absBeat) : [];
+	const nativeKitValid = ballad
+		? nativeDrums.filter(event => event.drum === 'ride').length === 1 && nativeDrums.filter(event => event.drum === 'kick').length <= 1 &&
+			nativeDrums.every(event => ['ride', 'kick'].includes(event.drum))
+		: nativeDrums.filter(event => event.drum === 'kick').length === 1 && nativeDrums.filter(event => event.drum === 'hihat').length === 1 &&
+			nativeDrums.filter(event => event.drum === 'crossstick').length <= 1 && nativeDrums.every(event => ['kick', 'hihat', 'crossstick'].includes(event.drum));
+	if (native && (nativeBass.length !== 1 || !Number.isInteger(nativeBass[0].velocity) || nativeBass[0].velocity <= 0 || nativeBass[0].velocity > 127 ||
+		!Number.isInteger(nativeBass[0].midi) || nativeBass[0].midi < 28 || nativeBass[0].midi > 55 || !nativeKitValid ||
+		nativeDrums.some(event => event.role !== 'timekeeping' || !Number.isFinite(event.velocity) || event.velocity <= 0 || event.velocity > 1))) return withheld('unrealizable');
 	const contour = ballad ? undefined : preparePianoContour(context, input.previousContour);
 	const selected = resolveCoordinatedVoicing({ chord: reservation.chord,
 		family: selectCoordinatedVoicingFamily({ chord: reservation.chord, phraseId: input.phraseId, tempo,
@@ -170,9 +175,9 @@ export function realizeTerminalArrangement(input: TerminalCandidateInput): Termi
 	const midi = roots.reduce((best, note) => Math.abs(note - center) < Math.abs(best - center) ? note : best);
 	const time = `${reservation.absBeat * ppq}i`;
 	const duration = reservation.holdBeats * 60 / tempo;
-	const bass: BassEvent = { absBeat: reservation.absBeat, time, midi, duration, velocity: ballad ? nativeBass[0].velocity : Math.round(70 + plan.energy * 12) };
-	const piano: CompEvent = { absBeat: reservation.absBeat, time, notes: [...selected.notes], duration, velocity: ballad ? createRng(seedFrom(input.phraseId, tempo, 'terminal-ballad-piano', plan.barIndex)).int(42, 54) + Math.round(lerp(-2, 4, plan.energy)) : Math.round(64 + plan.energy * 12) };
-	const drums: DrumEvent[] = ballad ? nativeDrums.map(event => ({ ...event, time, role: 'accent' as const })) : [{ absBeat: reservation.absBeat, time, drum: 'ride', velocity: .4, role: 'accent' },
+	const bass: BassEvent = { absBeat: reservation.absBeat, time, midi, duration, velocity: native ? nativeBass[0].velocity : Math.round(70 + plan.energy * 12) };
+	const piano: CompEvent = { absBeat: reservation.absBeat, time, notes: [...selected.notes], duration, velocity: ballad ? createRng(seedFrom(input.phraseId, tempo, 'terminal-ballad-piano', plan.barIndex)).int(42, 54) + Math.round(lerp(-2, 4, plan.energy)) : bossa ? createRng(seedFrom(input.phraseId, tempo, 'terminal-bossa-piano', plan.barIndex)).int(50, 60) : Math.round(64 + plan.energy * 12) };
+	const drums: DrumEvent[] = native ? nativeDrums.map(event => ({ ...event, time, role: 'accent' as const })) : [{ absBeat: reservation.absBeat, time, drum: 'ride', velocity: .4, role: 'accent' },
 		{ absBeat: reservation.absBeat, time, drum: 'kick', velocity: .3, role: 'accent' }];
 	const decision: TerminalArrangementDecision = { ...base, status: 'accepted', bass, piano, drums };
 	const voicingTrace: CoordinatedPianoVoicing = { absBeat: piano.absBeat, time, notes: [...piano.notes], decision: selected.decision };
@@ -190,8 +195,11 @@ export function terminalPianoTrace(plan: EnsembleBarPlan, reservation: TerminalR
 	return { version: 1, barIndex: plan.barIndex, phraseStartBar: plan.phraseStartBar, motifId: null, sourceFigureId: null,
 		transform: 'fallback', displacementBeats: 0, hits: [{ b: 0, d: reservation.holdBeats }], reason: 'terminal_arrangement' };
 }
-export function terminalDrumTrace(ordinary: DrumPhraseDecision, decision: Extract<TerminalArrangementDecision, { status: 'accepted' }>): DrumPhraseDecision {
-	return { ...ordinary, ride: { ...ordinary.ride, voice: 'ride', mode: 'none', phase: 'release', velocityScale: 1, skipOffsets: [], onsets: [0] },
+export function terminalDrumTrace(ordinary: DrumPhraseDecision, decision: Extract<TerminalArrangementDecision, { status: 'accepted' }>, profile?: TerminalReservation['profile']): DrumPhraseDecision {
+	const { voice: _voice, ...nativeRide } = ordinary.ride;
+	return { ...ordinary, ride: profile === 'bossa-v1'
+		? { ...nativeRide, mode: 'none', phase: 'release', velocityScale: 1, skipOffsets: [], onsets: [] }
+		: { ...ordinary.ride, voice: 'ride', mode: 'none', phase: 'release', velocityScale: 1, skipOffsets: [], onsets: [0] },
 		commentary: { motifId: null, source: 'none', sourceId: null, sourceBar: null, sourceOffsets: [], transform: 'space', displacementBeats: 0, hits: [], reason: 'terminal_arrangement' },
 		hits: decision.drums.map(event => ({ beatOffset: 0, drum: event.drum, velocity: event.velocity, role: event.role })) };
 }

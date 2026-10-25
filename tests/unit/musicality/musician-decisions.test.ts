@@ -29,6 +29,58 @@ describe('explicit terminal arrangement evidence', () => {
   value.ensembleDevelopment.terminalArrangements[0].drums = structuredClone(value.drumEvents);
   return value;
  }
+ function bossaScore(crossstick = false) {
+  const value = score();
+  Object.assign(value.ensemblePlan.bars[0].terminalArrangement, { profile: 'bossa-v1' });
+  value.drumEvents[0].drum = 'hihat';
+  value.drumEvents[0].velocity = .27;
+  if (crossstick) value.drumEvents.push({ ...value.drumEvents[0], drum: 'crossstick', velocity: .38 });
+  value.ensembleDevelopment.terminalArrangements[0].drums = structuredClone(value.drumEvents);
+  return value;
+ }
+ it.each([false, true])('describes the actual Bossa closing kit with crossstick=%s', crossstick => {
+  const result = cards(bossaScore(crossstick), { style: 'bossa-nova' });
+  expect(result.map(card => card.action)).toEqual(['Hold the final chord', 'Hold the final chord', 'Catch the final chord']);
+  expect(result.map(card => card.role)).toEqual(['Mark the form', 'Mark the form', 'Mark the form']);
+  expect(result.every(card => card.evidence.includes('Scheduled ending: shared final chord, then space'))).toBe(true);
+  expect(result[2].eventCount).toBe(crossstick ? 3 : 2);
+  expect(result[2].detail).toBe(crossstick ? 'Kick, stick hat and crossstick catch the closing chord.' : 'Kick and stick hat catch the closing chord.');
+  expect(result[2].detail).not.toMatch(/ride|brush|swing/i);
+ });
+ it.each(['no-profile', 'ballad-profile', 'wrong-style', 'original', 'missing-kick', 'missing-hat', 'duplicate-hat', 'ride', 'pedal-hat', 'snare', 'receipt-level', 'extra-pulse', 'wrong-time'] as const)('rejects incoherent Bossa ending evidence: %s', change => {
+  const value = bossaScore(true); let style = 'bossa-nova'; let orchestration = 'coordinated';
+  if (change === 'no-profile') Reflect.deleteProperty(value.ensemblePlan.bars[0].terminalArrangement, 'profile');
+  if (change === 'ballad-profile') Object.assign(value.ensemblePlan.bars[0].terminalArrangement, { profile: 'ballad-v1' });
+  if (change === 'wrong-style') style = 'ballad';
+  if (change === 'original') orchestration = 'original';
+  if (change === 'missing-kick') value.drumEvents = value.drumEvents.filter(event => event.drum !== 'kick');
+  if (change === 'missing-hat') value.drumEvents = value.drumEvents.filter(event => event.drum !== 'hihat');
+  if (change === 'duplicate-hat') value.drumEvents[2].drum = 'hihat';
+  if (change === 'ride') value.drumEvents[0].drum = 'ride';
+  if (change === 'pedal-hat') value.drumEvents[0].drum = 'hihat-pedal';
+  if (change === 'snare') value.drumEvents[2].drum = 'snare';
+  if (change === 'extra-pulse') value.drumEvents.push({ ...value.drumEvents[0], absBeat: 14, time: '2688i' });
+  if (change === 'wrong-time') value.drumEvents[0].time = '2305i';
+  value.ensembleDevelopment.terminalArrangements[0].drums = structuredClone(value.drumEvents);
+  if (change === 'receipt-level') value.ensembleDevelopment.terminalArrangements[0].drums[0].velocity = .9;
+  expect(cards(value, { style, orchestration }).flatMap(card => card.evidence)).not.toContain('Scheduled ending: shared final chord, then space');
+ });
+ it('keeps a silent Bossa reservation planned without claiming a played hold', () => {
+  const value = bossaScore(); value.bassEvents = []; value.compEvents = []; value.drumEvents = [];
+  const result = cards(value, { style: 'bossa-nova' });
+  expect(result.every(card => card.evidence.includes('Planned ending: hold and release together'))).toBe(true);
+  expect(result[0].role).toBe('Keep time');
+  expect(result.every(card => card.eventCount === 0)).toBe(true);
+  expect(result.flatMap(card => card.evidence)).not.toContain('Scheduled ending: shared final chord, then space');
+ });
+ it('keeps a withheld Bossa ending distinct from the ordinary sounding kit', () => {
+  const value = bossaScore();
+  const withheld = { ...value, ensembleDevelopment: { ...value.ensembleDevelopment, terminalArrangements: [{ version: 1, reservationId: 'terminal-test', barIndex: 3, status: 'withheld', reason: 'preceding_release' }] } };
+  const result = cards(withheld as unknown as ReturnType<typeof score>, { style: 'bossa-nova' });
+  expect(result[0].role).toBe('Keep time');
+  expect(result.every(card => card.evidence.includes('Ending not applied: an earlier note is still sustaining'))).toBe(true);
+  expect(result.flatMap(card => card.evidence)).not.toContain('Scheduled ending: shared final chord, then space');
+ });
  it.each([false, true])('describes an actual Ballad terminal ride with optional kick=%s', kick => {
   const result = cards(balladScore(kick), { style: 'ballad' });
   expect(result.map(card => card.action)).toEqual(['Hold the final chord', 'Hold the final chord', 'Catch the final chord']);
