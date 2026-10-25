@@ -213,11 +213,14 @@ export async function saveRecording(
 	// private-mode failure should neither lose the take (the cloud upload below
 	// still runs) nor short-circuit the caller's authoritative post-hoc rescore.
 	try {
-		// Read the bytes before the transaction opens: an await on anything but
-		// an IDB request inside it lets the transaction auto-commit.
-		const bytes = await blob.arrayBuffer();
+		// Pick the destination first: `openDb` reads the active account when
+		// it is called, and that account can change while the bytes are read.
+		// The take belongs to the account that recorded it.
 		const db = await openDb();
 		try {
+			// Read the bytes before the transaction opens: an await on anything
+			// but an IDB request inside it lets the transaction auto-commit.
+			const bytes = await blob.arrayBuffer();
 			const transaction = db.transaction(STORE_NAME, 'readwrite');
 			const store = transaction.objectStore(STORE_NAME);
 			// JSON round-trip strips Svelte 5 $state proxies that structuredClone

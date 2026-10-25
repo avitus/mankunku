@@ -12,6 +12,7 @@ import {
 	MAX_RECORDINGS,
 	type RecordingMetadata
 } from '$lib/persistence/audio-store';
+import { setActiveUid } from '$lib/persistence/namespace';
 
 function makeBlob(size = 100): Blob {
 	return new Blob([new Uint8Array(size)], { type: 'audio/webm' });
@@ -369,6 +370,35 @@ function makeStorageClient(
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	return { client: { storage } as any, storage, uploads, removals, lists, download };
 }
+
+describe('destination account', () => {
+	// CodeRabbit on #287: the byte conversion added for WebKit awaited before
+	// the database was chosen, so an account switch during the read stored the
+	// take in the account that became active.
+	it('stores a take in the account that recorded it, even if the account changes while its bytes are read', async () => {
+		setActiveUid('user-A');
+		try {
+			let release!: () => void;
+			const gate = new Promise<void>((resolve) => { release = resolve; });
+			const blob = makeBlob(64);
+			const read = blob.arrayBuffer.bind(blob);
+			blob.arrayBuffer = async () => { await gate; return read(); };
+
+			const saving = saveRecording('switch-1', blob);
+			setActiveUid('user-B');
+			release();
+			await saving;
+
+			expect(await getRecording('switch-1')).toBeNull();
+			setActiveUid('user-A');
+			expect((await getRecording('switch-1'))!.size).toBe(64);
+		} finally {
+			await clearAllRecordings('user-A');
+			await clearAllRecordings('user-B');
+			setActiveUid(null);
+		}
+	});
+});
 
 describe('cloud mirror', () => {
 	it('uploads to the recordings bucket under {userId}/{sessionId}.webm on save, fire-and-forget', async () => {
