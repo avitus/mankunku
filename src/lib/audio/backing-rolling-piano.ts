@@ -37,7 +37,7 @@ export function realizeRollingPiano(score: RollingBackingDefinition, bar: number
 	const coordinatedVoicing = !!ensemble.performanceEnergy;
 	let voicingMemory = memory.voicing;
 	let contourMemory = memory.contour;
-	const contourEnabled = coordinatedVoicing && (!score.style || score.style === 'swing' || score.style === 'straight');
+	const contourEnabled = coordinatedVoicing && (!score.style || ['swing', 'straight', 'bossa-nova'].includes(score.style));
 	const contourContext = coordinatedVoicing ? { barIndex: bar, phraseStartBar: ensemble.phraseStartBar, chorusIndex: ensemble.performanceEnergy!.chorusIndex, phase: ensemble.performanceEnergy!.phase } : undefined;
 	const voicingTrace: CoordinatedPianoVoicing[] = [];
 	const form = score.bars[bar];

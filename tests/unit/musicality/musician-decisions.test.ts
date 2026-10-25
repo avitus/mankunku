@@ -490,13 +490,29 @@ describe('piano top-note objective evidence', () => {
 		}] } };
 	}
 	const card = (generated: ReturnType<typeof score>, options = {}) => describeMusicianDecisions(generated as unknown as GeneratedBacking, { ...context, barIndex: 1, ...options })[1];
-	it.each(['swing', 'straight'] as const)('shows a %s target miss honestly alongside actual notes and retained priorities', style => {
+	it.each(['swing', 'straight', 'bossa-nova'] as const)('shows a %s target miss honestly alongside actual notes and retained priorities', style => {
 		const piano = card(score(), { style });
 		expect(piano.action).toBe('Support the harmony');
 		expect(piano.evidence).toContain('Chord 1 top-note target: B♭3; actual top: E♭4');
 		expect(piano.evidence).toContain('Guide-tone movement: 2 semitones total');
 		expect(piano.evidence).toContain('Common tones held: C4');
 		expect(piano.evidence.join(' ')).not.toMatch(/melody achieved|improved|soloist/i);
+	});
+	it('keeps Bossa rhythm and unrelated interaction claims separate from its pitch objective', () => {
+		const generated = score();
+		Object.assign(generated.ensembleDevelopment, { pianoMotifs: [{ version: 1, barIndex: 1, phraseStartBar: 0,
+			motifId: null, sourceFigureId: null, transform: 'fallback', displacementBeats: 0, hits: [{ b: 0, d: .8 }], reason: 'native_pattern' }] });
+		const piano = card(generated, { style: 'bossa-nova' });
+		expect(piano.evidence).toContain('Chord 1 top-note target: B♭3; actual top: E♭4');
+		expect(piano.detail).toBe('The native bossa comping pattern keeps its rhythmic character.');
+		expect(piano.evidence.join(' ')).not.toMatch(/shared catch|Answer the drum phrase|drum phrase returns/);
+		expect(card(generated, { style: 'bossa-nova', orchestration: 'original' }).evidence.join(' ')).not.toContain('top-note target');
+		for (const orchestration of ['original', 'coordinated'] as const) {
+			const withoutTrace = score(); delete (withoutTrace.ensembleDevelopment.pianoVoicings[0].decision as { topLine?: unknown }).topLine;
+			expect(card(withoutTrace, { style: 'bossa-nova', orchestration }).evidence.join(' ')).not.toContain('top-note target');
+		}
+		generated.compEvents = [];
+		expect(card(generated, { style: 'bossa-nova' }).evidence.join(' ')).not.toContain('top-note target');
 	});
 	it('reports a reached target without claiming a composed melody or changing rhythmic ownership', () => {
 		const generated = score();
@@ -517,11 +533,12 @@ describe('piano top-note objective evidence', () => {
 			if (field === 'ineligible') voiced.decision.topLine.eligible = false;
 			if (field === 'requested-guide') voiced.decision.requestedFamily = 'guide';
 			if (field === 'resolved-quartal') voiced.decision.resolvedFamily = 'quartal';
-			expect(card(generated).evidence.join(' ')).not.toContain('top-note target');
+			for (const style of ['swing', 'straight', 'bossa-nova'] as const)
+				expect(card(generated, { style }).evidence.join(' ')).not.toContain('top-note target');
 		});
-	it('keeps missing historical evidence, silence and native/Original playback unchanged', () => {
+	it('keeps missing historical evidence, silence and Ballad/Original playback unchanged', () => {
 		const generated = score();
-		for (const options of [{ orchestration: 'original' }, { style: 'bossa-nova' }, { style: 'ballad' }, { barIndex: 2 }])
+		for (const options of [{ orchestration: 'original' }, { style: 'ballad' }, { barIndex: 2 }])
 			expect(card(generated, options).evidence.join(' ')).not.toContain('top-note target');
 		generated.compEvents = [];
 		expect(card(generated).evidence.join(' ')).not.toContain('top-note target');

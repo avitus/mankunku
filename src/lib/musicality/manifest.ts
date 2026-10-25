@@ -276,7 +276,7 @@ const foundationAssessments: Record<string, string> = {
 	S2: "Explicit form and head/solo context feed ensemble roles, energy, density and tension. A rolling take retains instrument and ensemble checkpoints across declared playback loops while accepting completed microphone evidence.",
 	S4: 'Coordinated mode layers bounded shared phrase motion, stable player placement and small event residuals over the existing tempo-aware swing grid. Sample-attack calibration separately removes the pedal lead-in and restores ten documented piano sample start offsets; the bass recordings need no timing trim.',
 	S3: 'Coordinated mode adds commentary budgets, turn-taking, reasoned silence and fill cooldowns. Explicit performed forms now supply restrained heads, solo build/peak/release and a returning-head energy contour before phrase choices.',
-	S8: 'Explicit coordinated piano placement follows the previous emitted voicing, prioritizing legal guide-tone motion and exact common-note retention before register distance. Unplayed harmony does not update its memory. Fixed and rolling explicit-form playback share the same energy-aware family selection and native style biases. Swing/Straight phrase top-note targets break ties only after the existing harmonic and movement priorities.',
+	S8: 'Explicit coordinated piano placement follows the previous emitted voicing, prioritizing legal guide-tone motion and exact common-note retention before register distance. Unplayed harmony does not update its memory. Fixed and rolling explicit-form playback share the same energy-aware family selection and native style biases. Swing/Straight/Bossa phrase top-note targets break ties only after the existing harmonic and movement priorities.',
 	S10: "Qualified microphone density and rests can change upcoming piano attack budgets and selective response ownership during a rolling lab take. Explicit-form rolling piano can choose a one-bar breath after independent drum commentary; selected Swing/Straight fallback chords can instead become short replies with drummer commentary space.",
 	S15: 'Existing note duration and velocity shaping now reaches source-defined Smolken velocity layers and round robins: one recording per note in the supported register instead of unintended stacked layers.',
 	S16: 'Bass ornament activity follows the ensemble plan while its pulse remains protected. Eligible two-bar walking passages now plan a directional path into the root of an actual following chorus.',
@@ -378,7 +378,7 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 		assessment: entry.id === 'P31'
 			? 'The shared causal piano resolver explicitly favors exact common notes from the previous emitted chord, after minimizing eligible defining-tone motion. Rests do not introduce phantom voice-leading steps.'
 			: 'Eligible selected voicing families use legal thirds and sevenths (or the chord’s sixth/suspension/triad roles) to minimize motion from the previous emitted harmony; bounded inversions make smooth ii–V–I lines reachable.',
-		remaining: 'The objective stays within the selected family and current chord. Quartal shapes retain their fourth-stack character and do not claim a guide-tone objective. P36 describes the scoped Swing/Straight phrase target; a composed melodic line and human listening acceptance remain pending.',
+		remaining: 'The objective stays within the selected family and current chord. Quartal shapes retain their fourth-stack character and do not claim a guide-tone objective. P36 describes the scoped Swing/Straight/Bossa phrase target; a composed melodic line and human listening acceptance remain pending.',
 		scope: 'Explicit-form Coordinated 4/4 playback in all four styles; native rhythms and family biases retained. Original and metadata-free paths unchanged.',
 		evidence: [...entry.evidence, ...causalVoicingEvidence]
 	};
@@ -386,11 +386,13 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 		...entry, status: 'partial',
 		assessment: 'A phrase target anchored to the last emitted piano top guides legal inversions only after guide-tone motion, common-note retention and total movement tie. Solo builds request a small rise; releases and returning heads request settling. The live view distinguishes the target from the actual emitted top.',
 		remaining: 'Targets are bounded placement preferences, not a composed melody or guaranteed ascent/descent. Guide and quartal families retain their placement rules. Broader melodic development, solo-register avoidance and human listening acceptance remain pending.',
-		scope: 'Explicit-form Coordinated Swing/Straight 4/4, fixed and rolling playback. Original, metadata-free and native Bossa/Ballad paths retain their existing policies.',
+		scope: 'Explicit-form Coordinated Swing/Straight/Bossa 4/4, fixed and rolling playback. Bossa keeps its native rhythm and voicing families. Original, metadata-free and Ballad paths retain their existing policies.',
 		evidence: [...entry.evidence, ...causalVoicingEvidence,
 			{ ...source('backing-piano-contour'), revision: 'musicality' },
 			{ ...test('backing-piano-contour'), revision: 'musicality' },
-			{ ...test('backing-piano-contour-integration'), revision: 'musicality' }]
+			{ ...test('backing-piano-contour-integration'), revision: 'musicality' },
+			{ ...test('backing-bossa-contour'), revision: 'musicality' },
+			{ ...test('backing-bossa-contour-integration'), revision: 'musicality' }]
 	};
 	if (entry.id === 'P12' || entry.id === 'P13') return {
 		...entry, status: 'implemented',

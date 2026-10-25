@@ -169,7 +169,7 @@ export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDef
 	// Preserve the one-pass binding. An explicit repeat is a distinct declared
 	// performance even when its flattened score matches some other source.
 	const serialized = JSON.stringify([1, params.phraseId, params.tempo, params.ppq, params.swing, copied, form, timingProfiles,
-		...(performanceEnergy ? [{ performanceEnergyVersion: 1, structuralTextureVersion: 1, coordinatedVoicingVersion: 3, reciprocalFeedbackVersion: 1, ...(['swing', 'straight'].includes(style.coordinatedStyle!) ? { pianoArrivalVersion: 1, bassScalarContinuationVersion: 1, pianoAnswerVersion: 1, pianoContourVersion: 1, pianoRecoveryVersion: 1 } : {}) }] : []),
+		...(performanceEnergy ? [{ performanceEnergyVersion: 1, structuralTextureVersion: 1, coordinatedVoicingVersion: 3, reciprocalFeedbackVersion: 1, ...(['swing', 'straight'].includes(style.coordinatedStyle!) ? { pianoArrivalVersion: 1, bassScalarContinuationVersion: 1, pianoAnswerVersion: 1, pianoContourVersion: 1, pianoRecoveryVersion: 1 } : style.coordinatedStyle === 'bossa-nova' ? { pianoContourVersion: 1 } : {}) }] : []),
 		...(loopCount > 1 ? [{ sourceBars, loopCount }] : []),
 		...(style.coordinatedStyle !== 'swing' ? [{ style: style.coordinatedStyle }] : [])]);
 	// The definition retains the complete immutable score once. Repeating its
@@ -215,7 +215,8 @@ function validateCheckpoint(score: RollingBackingDefinition, checkpoint: Rolling
 		previousCompOnsets: checkpoint.drums.previousCompOnsets, lastVoicing: checkpoint.piano.lastVoicing });
 	else if (checkpoint.pianoRecovery !== undefined) invalid();
 	const contour = checkpoint.piano.contour;
-	if (answerPolicy && checkpoint.piano.lastVoicing.length > 0) {
+	const contourPolicy = !!score.bars[0]?.performanceEnergy && (!score.style || ['swing', 'straight', 'bossa-nova'].includes(score.style));
+	if (contourPolicy && checkpoint.piano.lastVoicing.length > 0) {
 		validatePianoContourMemory(contour!, checkpoint.nextBar, checkpoint.piano.lastVoicing);
 		const lastBar = score.bars[contour!.lastBarIndex];
 		if (lastBar.chorusIndex !== contour!.chorusIndex || contour!.lastBarIndex - lastBar.phrase4.barIndex !== contour!.phraseStartBar) invalid();

@@ -1,10 +1,11 @@
+import { assertBossaContourCompatibility, type BossaContourPerformance } from './bossa-contour-assertions';
 import { createHash } from 'node:crypto';
 import { expect, it } from 'vitest';
 import { createRollingBacking, advanceRollingBacking } from '$lib/audio/backing-rolling';
 import priorFixed from '../../fixtures/audio/piano-contour-fixed-before.json';
 import { fractionToFloat } from '$lib/music/intervals';
 import { resolveCoordinatedVoicing, type CoordinatedVoicingMemory } from '$lib/audio/coordinated-voicing';
-import { generateBacking, type GeneratedBacking } from '$lib/audio/backing-generation';
+import { generateBacking } from '$lib/audio/backing-generation';
 import { BACKING_STYLES } from '$lib/audio/backing-styles';
 import { buildListeningTuneSession } from '$lib/musicality/listening-tunes';
 import { seedFrom } from '$lib/audio/generation-rng';
@@ -108,18 +109,21 @@ it.each(controls)('$style $mode $engine preserves rhythm, harmony and native com
 	const { performanceForm, ensemble, ...plain } = params;
 	const input = { ...plain, ...(mode !== 'coordinated-implicit' ? { performanceForm } : {}),
 		...(mode !== 'original' ? { ensemble } : {}), swing: BACKING_STYLES[id].defaultSwing };
-	const generated: GeneratedBacking = engine === 'fixed' ? generateBacking(phrase.harmony, BACKING_STYLES[id], input) : (() => {
+	const generated: BossaContourPerformance = engine === 'fixed' ? generateBacking(phrase.harmony, BACKING_STYLES[id], input) : (() => {
 		const score = createRollingBacking(phrase.harmony, BACKING_STYLES[id], input);
 		const bars = []; let checkpoint;
 		for (let bar = 0; bar < score.totalBars; bar++) {
 			const next = advanceRollingBacking(score, checkpoint); checkpoint = next.checkpoint; bars.push(next);
 		}
-		return { bassEvents: bars.flatMap(b => b.bassEvents), compEvents: bars.flatMap(b => b.compEvents), drumEvents: bars.flatMap(b => b.drumEvents) };
+		return { bassEvents: bars.flatMap(b => b.bassEvents), compEvents: bars.flatMap(b => b.compEvents), drumEvents: bars.flatMap(b => b.drumEvents),
+			ensembleDevelopment: { version: 1 as const, pianoVoicings: bars.flatMap(b => b.ensembleDevelopment.pianoVoicings ?? []) } };
 	})();
 	for (const field of ['bassEvents', 'compEvents', 'drumEvents'] as const) {
 		// P36 deliberately changes scoped fixed inversions. Retain the exact old
 		// fixture and every other contract rather than refreshing a pitch hash.
-		if (field === 'compEvents' && engine === 'fixed' && mode === 'coordinated-explicit' && (id === 'swing' || id === 'straight')) {
+		if (field === 'compEvents' && id === 'bossa-nova' && mode === 'coordinated-explicit') {
+			assertBossaContourCompatibility(generated, expected.compEvents);
+		} else if (field === 'compEvents' && engine === 'fixed' && mode === 'coordinated-explicit' && (id === 'swing' || id === 'straight')) {
 			const before = priorFixed.styles[id];
 			expect(createHash('sha256').update(JSON.stringify(before)).digest('hex')).toBe(expected.compEvents);
 			expect(generated.compEvents.map(({ notes: _, ...event }) => event))

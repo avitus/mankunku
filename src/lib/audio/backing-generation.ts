@@ -507,7 +507,7 @@ export function generateComping(
 	const coordinatedVoicing = !!params.ensemble && !!style.coordinatedStyle && beatsPerBar === 4 &&
 		barInfos.length > 0 && barInfos.every((info) => info.ensemble?.performanceEnergy);
 	let voicingMemory: CoordinatedVoicingMemory | undefined;
-	const contourEnabled = coordinatedVoicing && ['swing', 'straight'].includes(style.coordinatedStyle!);
+	const contourEnabled = coordinatedVoicing && ['swing', 'straight', 'bossa-nova'].includes(style.coordinatedStyle!);
 	let contourMemory: PianoContourMemory | undefined;
 	const voicingTrace: CoordinatedPianoVoicing[] = [];
 

@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { assertBossaContourCompatibility } from './bossa-contour-assertions';
 import { expect, it } from 'vitest';
 import { createRollingBacking, advanceRollingBacking } from '$lib/audio/backing-rolling';
 import { generateBacking } from '$lib/audio/backing-generation';
@@ -324,7 +325,8 @@ it.each(baselineCases)('$style $mode $engine preserves its full-tune timing, dyn
 		return {
 			bassEvents: bars.flatMap(bar => bar.bassEvents),
 			compEvents: bars.flatMap(bar => bar.compEvents),
-			drumEvents: bars.flatMap(bar => bar.drumEvents)
+			drumEvents: bars.flatMap(bar => bar.drumEvents),
+			ensembleDevelopment: { version: 1 as const, pianoVoicings: bars.flatMap(bar => bar.ensembleDevelopment.pianoVoicings ?? []) }
 		};
 	})();
 	const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
@@ -333,7 +335,9 @@ it.each(baselineCases)('$style $mode $engine preserves its full-tune timing, dyn
 	}
 	expect(hash(generated.compEvents.map(({ notes, ...event }) => event))).toBe(expected.compNonPitches);
 	expect(generated.compEvents).toHaveLength(expected.compCount);
-	if (pitchControl) expect(hash(generated.compEvents)).toBe(expected.compEvents);
+	if (id === 'bossa-nova' && mode === 'coordinated-explicit') {
+		assertBossaContourCompatibility(generated, expected.compEvents);
+	} else if (pitchControl) expect(hash(generated.compEvents)).toBe(expected.compEvents);
 });
 
 it.each(['swing', 'straight'] as const)('%s updates phrase contour only from actual accepted chords, including rests and loop seams', id => {

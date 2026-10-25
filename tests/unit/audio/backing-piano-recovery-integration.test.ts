@@ -1,3 +1,4 @@
+import { assertBossaContourCompatibility } from './bossa-contour-assertions';
 import { createHash } from 'node:crypto';
 import { expect, it } from 'vitest';
 import { createRollingBacking, advanceRollingBacking, type RollingBackingCheckpoint } from '$lib/audio/backing-rolling';
@@ -342,11 +343,14 @@ it.each(controls)('$style $mode $engine preserves the complete baseline performa
 		return {
 			bassEvents: bars.flatMap(bar => bar.bassEvents),
 			compEvents: bars.flatMap(bar => bar.compEvents),
-			drumEvents: bars.flatMap(bar => bar.drumEvents)
+			drumEvents: bars.flatMap(bar => bar.drumEvents),
+			ensembleDevelopment: { version: 1 as const, pianoVoicings: bars.flatMap(bar => bar.ensembleDevelopment.pianoVoicings ?? []) }
 		};
 	})();
 	for (const field of ['bassEvents', 'compEvents', 'drumEvents'] as const) {
-		expect(hash(generated[field])).toBe(expected[field]);
+		if (field === 'compEvents' && id === 'bossa-nova' && mode === 'coordinated-explicit') {
+			assertBossaContourCompatibility(generated, expected.compEvents);
+		} else expect(hash(generated[field])).toBe(expected[field]);
 	}
 });
 

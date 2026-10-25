@@ -1,3 +1,4 @@
+import { assertBossaContourCompatibility } from './bossa-contour-assertions';
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { generateBacking } from '$lib/audio/backing-generation';
@@ -85,8 +86,12 @@ it.each(controls)('$style $mode $engine preserves the complete baseline performa
 		for (let bar = 0; bar < score.totalBars; bar++) {
 			const next = advanceRollingBacking(score, checkpoint); checkpoint = next.checkpoint; bars.push(next);
 		}
-		return { bassEvents: bars.flatMap(b => b.bassEvents), compEvents: bars.flatMap(b => b.compEvents), drumEvents: bars.flatMap(b => b.drumEvents) };
+		return { bassEvents: bars.flatMap(b => b.bassEvents), compEvents: bars.flatMap(b => b.compEvents), drumEvents: bars.flatMap(b => b.drumEvents),
+			ensembleDevelopment: { version: 1 as const, pianoVoicings: bars.flatMap(b => b.ensembleDevelopment.pianoVoicings ?? []) } };
 	})();
-	for (const field of ['bassEvents', 'compEvents', 'drumEvents'] as const)
-		expect(createHash('sha256').update(JSON.stringify(generated[field])).digest('hex')).toBe(expected[field]);
+	for (const field of ['bassEvents', 'compEvents', 'drumEvents'] as const) {
+		if (field === 'compEvents' && id === 'bossa-nova' && mode === 'coordinated-explicit') {
+			assertBossaContourCompatibility(generated, expected.compEvents);
+		} else expect(createHash('sha256').update(JSON.stringify(generated[field])).digest('hex')).toBe(expected[field]);
+	}
 });

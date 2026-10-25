@@ -235,7 +235,7 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 			}
 		}
 		const topLine = decision.topLine;
-		if (walking && plan?.performanceEnergy && topLine?.eligible &&
+		if ((walking || style === 'bossa-nova') && plan?.performanceEnergy && topLine?.eligible &&
 			![decision.requestedFamily, decision.resolvedFamily].some(family => family === 'guide' || family === 'quartal') &&
 			Number.isInteger(topLine.targetMidi) && topLine.targetMidi >= 48 && topLine.targetMidi <= 84 &&
 			topLine.actualMidi === Math.max(...event.notes) && topLine.distance === Math.abs(topLine.actualMidi - topLine.targetMidi)) {

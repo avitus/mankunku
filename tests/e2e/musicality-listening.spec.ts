@@ -524,3 +524,42 @@ for (const style of ['swing', 'straight'] as const) {
 		await assertNoMicrophone(page);
 	});
 }
+
+test('shows Bossa native chord targets without importing Swing dialogue', async ({ page }) => {
+	test.setTimeout(55_000);
+	await setup(page);
+	await page.getByTestId('listening-tune').selectOption('ls-mankunku-blues');
+	await page.getByTestId('listening-key').selectOption('F#');
+	await page.getByTestId('listening-style').selectOption('bossa-nova');
+	await page.getByTestId('listening-tempo').fill('140');
+	await page.getByTestId('listening-play').click();
+	await expect.poll(() => soundingBar(page), { timeout: 45_000 }).toBe(19);
+	const piano = page.getByTestId('musician-piano');
+	await expect(piano).toContainText('Chord 1 top-note target: B♭4; actual top: B4');
+	await expect(piano).toContainText('Chord 2 top-note target: B♭4; actual top: B♭4');
+	await expect(piano).toContainText('The native bossa comping pattern keeps its rhythmic character.');
+	await expect(piano).not.toContainText('Answer the drum phrase');
+	await expect(piano).not.toContainText('Leave a breath while the drum phrase returns');
+	await assertDecisionClock(page, undefined, 140);
+	const take = await exportTake(page);
+	causalProvenance(take.playback);
+	const generated = take.playback.generated!;
+	const first = generated.ensembleDevelopment!.pianoVoicings!.find(entry => entry.absBeat === 77)!;
+	const second = generated.ensembleDevelopment!.pianoVoicings!.find(entry => entry.absBeat === 78.5)!;
+	expect(first.notes).toEqual([56, 63, 64, 71]);
+	expect(first.decision).toMatchObject({ requestedFamily: 'rootless-a', resolvedFamily: 'rootless-a',
+		guideMotion: null, commonTones: [56], totalMovement: 16,
+		topLine: { targetMidi: 70, actualMidi: 71, distance: 1, eligible: true } });
+	expect(second.notes).toEqual([56, 63, 64, 70]);
+	expect(second.decision).toMatchObject({ requestedFamily: 'rootless-b', resolvedFamily: 'rootless-b',
+		guideMotion: 1, commonTones: [56, 63, 64], totalMovement: 1,
+		topLine: { targetMidi: 70, actualMidi: 70, distance: 0, eligible: true } });
+	for (const trace of [first, second]) expect(generated.compEvents)
+		.toContainEqual(expect.objectContaining({ time: trace.time, absBeat: trace.absBeat, notes: trace.notes }));
+	expect(generated.compEvents.filter(event => Math.floor(event.absBeat / 4) === 19).map(event => event.absBeat)).toEqual([77, 78.5]);
+	expect(generated.compEvents.find(event => event.absBeat === 73.5)?.notes).toEqual([56, 61, 66]);
+	expect(generated.ensembleDevelopment!.pianoAnswers).toBeUndefined();
+	expect(generated.ensembleDevelopment!.pianoRecoveries).toBeUndefined();
+	await page.getByTestId('listening-stop').click();
+	await assertNoMicrophone(page);
+});

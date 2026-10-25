@@ -1,3 +1,4 @@
+import { assertBossaContourCompatibility, type BossaContourPerformance } from './bossa-contour-assertions';
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { generateBacking } from '$lib/audio/backing-generation';
@@ -247,7 +248,7 @@ it.each(unchanged)('$engine $style $mode preserves the complete pre-change nativ
 	const { performanceForm, ensemble, ...base } = params;
 	const options = { ...base, swing: style.defaultSwing,
 		...(mode === 'coordinated-implicit' ? {} : { performanceForm }), ...(mode === 'original' ? {} : { ensemble }) };
-	let generated;
+	let generated: BossaContourPerformance;
 	if (engine === 'fixed') generated = generateBacking(tune.phrase.harmony, style, options);
 	else {
 		const definition = createRollingBacking(tune.phrase.harmony, style, options);
@@ -255,8 +256,12 @@ it.each(unchanged)('$engine $style $mode preserves the complete pre-change nativ
 		for (let bar = 0; bar < definition.totalBars; bar++) {
 			const next = advanceRollingBacking(definition, checkpoint); checkpoint = next.checkpoint; windows.push(next);
 		}
-		generated = { bassEvents: windows.flatMap(window => window.bassEvents), compEvents: windows.flatMap(window => window.compEvents), drumEvents: windows.flatMap(window => window.drumEvents) };
+		generated = { bassEvents: windows.flatMap(window => window.bassEvents), compEvents: windows.flatMap(window => window.compEvents), drumEvents: windows.flatMap(window => window.drumEvents),
+			ensembleDevelopment: { version: 1 as const, pianoVoicings: windows.flatMap(window => window.ensembleDevelopment.pianoVoicings ?? []) } };
 	}
-	for (const field of ['bassEvents', 'compEvents', 'drumEvents'] as const)
-		expect(createHash('sha256').update(JSON.stringify(generated[field])).digest('hex'), field).toBe(expected[field]);
+	for (const field of ['bassEvents', 'compEvents', 'drumEvents'] as const) {
+		if (field === 'compEvents' && id === 'bossa-nova' && mode === 'coordinated-explicit') {
+			assertBossaContourCompatibility(generated, expected.compEvents);
+		} else expect(createHash('sha256').update(JSON.stringify(generated[field])).digest('hex'), field).toBe(expected[field]);
+	}
 });
