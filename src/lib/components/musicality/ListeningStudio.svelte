@@ -3,6 +3,7 @@
  import { LISTENING_TUNES, buildListeningTuneSession, type ListeningTuneSession } from '$lib/musicality/listening-tunes';
  import { createListeningPlayer, type ListeningSnapshot } from '$lib/musicality/listening-player';
  import { describeMusicianDecisions, describePerformanceArc } from '$lib/musicality/musician-decisions';
+ import { getListeningReviewExtent, selectListeningReviewBar } from '$lib/musicality/listening-review';
  import { getBackingMix } from '$lib/audio/backing-track';
  import { settings } from '$lib/state/settings.svelte';
  import { PITCH_CLASSES, type PitchClass } from '$lib/types/music';
@@ -27,26 +28,43 @@
  let takeSession = $state<ListeningTuneSession | null>(null);
  let marks = $state<{barIndex:number;elapsedBeats:number;note:string}[]>([]);
  let note = $state('');
+ let reviewBarIndex = $state<number | null>(null);
+ let reviewSlider = $state<HTMLInputElement>();
  const busy = $derived(snapshot.status === 'playing' || snapshot.status === 'loading');
  const shownSession = $derived(takeSession ?? session);
- const bar = $derived(snapshot.barIndex === null ? null : shownSession.bars[snapshot.barIndex]);
+ const reviewExtent = $derived(takeSession ? getListeningReviewExtent(snapshot, takeSession.bars.length) : null);
+ const selectedReviewBar = $derived(selectListeningReviewBar(reviewBarIndex, reviewExtent));
+ const displayBarIndex = $derived(selectedReviewBar ?? snapshot.barIndex);
+ const reviewValue = $derived(selectedReviewBar ?? reviewExtent?.lastBarIndex ?? 0);
+ const reviewValueBar = $derived(shownSession.bars[reviewValue]);
+ const reviewValueText = $derived(`Bar ${reviewValue+1} · ${passName(reviewValueBar.context.chorusIndex)} · ${reviewValueBar.sectionLabel}`);
+ const bar = $derived(displayBarIndex === null ? null : shownSession.bars[displayBarIndex]);
  const chorus = $derived(shownSession.phrase.performanceForm.choruses[bar?.context.chorusIndex ?? 0]);
  const shownBars = $derived(shownSession.bars.slice(chorus.startBar,chorus.endBarExclusive));
- const decisions = $derived(snapshot.generated && snapshot.barIndex !== null ? describeMusicianDecisions(snapshot.generated,{barIndex:snapshot.barIndex,ppq:snapshot.ppq,beatsPerBar:4,style:snapshot.params?.style ?? style,orchestration:snapshot.params?.orchestration ?? mode}) : []);
- const performanceArc = $derived(snapshot.generated && snapshot.barIndex !== null ? describePerformanceArc(snapshot.generated,{barIndex:snapshot.barIndex,ppq:snapshot.ppq,beatsPerBar:4,style:snapshot.params?.style ?? style,orchestration:snapshot.params?.orchestration ?? mode}) : null);
+ function decisionsAt(barIndex: number | null) {
+  return snapshot.generated && barIndex !== null ? describeMusicianDecisions(snapshot.generated,{barIndex,ppq:snapshot.ppq,beatsPerBar:4,style:snapshot.params?.style ?? style,orchestration:snapshot.params?.orchestration ?? mode}) : [];
+ }
+ // Review changes only presentation; exported playback decisions keep their original clock cursor.
+ const playbackDecisions = $derived(decisionsAt(snapshot.barIndex));
+ const decisions = $derived(selectedReviewBar === null ? playbackDecisions : decisionsAt(selectedReviewBar));
+ const performanceArc = $derived(snapshot.generated && displayBarIndex !== null ? describePerformanceArc(snapshot.generated,{barIndex:displayBarIndex,ppq:snapshot.ppq,beatsPerBar:4,style:snapshot.params?.style ?? style,orchestration:snapshot.params?.orchestration ?? mode}) : null);
  const position = $derived(bar ? `${passName(bar.context.chorusIndex)} · ${bar.sectionLabel} · Bar ${bar.context.barInChorus+1} of ${bar.context.barsInChorus}` : 'Ready to listen');
  function passName(index:number):string { return index === 0 ? 'Head in' : index === shownSession.phrase.performanceForm.choruses.length-1 ? 'Head out' : `Solo ${index}`; }
- function clearTake() { player.stop();snapshot={...player.snapshot(),status:'idle',generated:null,params:null,barIndex:null,startAudioTime:null,provenance:undefined};takeSession=null;marks=[];note=''; }
+ function clearTake() { reviewBarIndex=null;player.stop();snapshot={...player.snapshot(),status:'idle',generated:null,params:null,barIndex:null,startAudioTime:null,provenance:undefined};takeSession=null;marks=[];note=''; }
  function changeTune() { key=LISTENING_TUNES.find(t=>t.id===tuneId)!.key;clearTake(); }
  async function play() {
   if(!Number.isFinite(tempo) || tempo < 40 || tempo > 240) return;
-  const captured=structuredClone(session);takeSession=captured;marks=[];note='';
+  const captured=structuredClone(session);reviewBarIndex=null;takeSession=captured;marks=[];note='';
   await player.start({phrase:captured.phrase,style,tempo,swing:settings.swing,instrument:'piano',volume:settings.backingTrackVolume,mix:{...getBackingMix()},orchestration:mode});
  }
- function mark() { if(snapshot.barIndex !== null) {marks=[...marks,{barIndex:snapshot.barIndex,elapsedBeats:snapshot.elapsedBeats,note:note.trim()}];note='';} }
+ function mark() { if(selectedReviewBar === null && snapshot.barIndex !== null) {marks=[...marks,{barIndex:snapshot.barIndex,elapsedBeats:snapshot.elapsedBeats,note:note.trim()}];note='';} }
+ function reviewBar(requested: number, focus = false) {
+  reviewBarIndex=selectListeningReviewBar(requested, reviewExtent);
+  if(reviewBarIndex !== null && focus) reviewSlider?.focus();
+ }
  function exportTake() {
   if(!snapshot.generated || !takeSession) return;
-  const content={version:1,buildVersion,completion:snapshot.status==='completed'?'complete':'partial',session:{tuneId:takeSession.tune.id,headBars:takeSession.headBars,chorusBars:takeSession.chorusBars,soloChoruses:takeSession.soloChoruses,bars:takeSession.bars},playback:snapshot,decisions,marks};
+  const content={version:1,buildVersion,completion:snapshot.status==='completed'?'complete':'partial',session:{tuneId:takeSession.tune.id,headBars:takeSession.headBars,chorusBars:takeSession.chorusBars,soloChoruses:takeSession.soloChoruses,bars:takeSession.bars},playback:snapshot,decisions:playbackDecisions,marks,...(selectedReviewBar === null ? {} : {review:{barIndex:selectedReviewBar,decisions}})};
   const url=URL.createObjectURL(new Blob([JSON.stringify(content,null,2)],{type:'application/json'}));
   const a=document.createElement('a');a.href=url;a.download=`musicality-${takeSession.tune.id}-${snapshot.params?.orchestration}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
  }
@@ -70,16 +88,23 @@
 {#if snapshot.error}<p role="alert" class="error">{snapshot.error}</p>{/if}
 <p class="style-note">{styles.find(s=>s.value===style)?.character} <span>Rhythm section only — play the melody yourself.</span></p>
 <section class="chart" aria-label="Tune form">
- <div class="section-head"><span class="eyebrow">The form</span><span data-testid="listening-position" data-bar-index={snapshot.barIndex ?? ''} data-start-audio-time={snapshot.startAudioTime ?? ''}>{position}</span></div>
+ <div class="section-head"><span class="eyebrow">The form</span><span data-testid="listening-position" data-bar-index={displayBarIndex ?? ''} data-start-audio-time={snapshot.startAudioTime ?? ''}>{position}</span></div>
  <div class="form-strip" aria-label="Complete performance">{#each shownSession.phrase.performanceForm.choruses as pass}<div class:current={bar?.context.chorusIndex===pass.index} style:flex-grow={pass.endBarExclusive-pass.startBar}><span>{passName(pass.index)}</span><small>{pass.endBarExclusive-pass.startBar} bars</small></div>{/each}</div>
  <div class="chords">{#each shownBars as chord}<div class:current={bar?.barIndex===chord.barIndex} aria-current={bar?.barIndex===chord.barIndex?'true':undefined}><small>{chord.context.barInChorus+1}</small><strong>{chord.chordSymbols.join(' / ') || '—'}</strong></div>{/each}</div>
 </section>
+{#if reviewExtent}
+ <section class="decision-review" aria-label="Take decision review">
+  <div class="review-heading"><label for="listening-review">Review decisions</label><span>{reviewValueText}</span></div>
+  <input id="listening-review" data-testid="listening-review" bind:this={reviewSlider} type="range" min="0" max={reviewExtent.lastBarIndex} step="1" value={reviewValue} aria-valuetext={reviewValueText} aria-describedby="review-evidence-note" oninput={event=>reviewBar(Number(event.currentTarget.value))} />
+  <p id="review-evidence-note">Scheduled evidence from this take · No audio playback</p>
+ </section>
+{/if}
 <section class="players" aria-labelledby="players-title">
- <div class="section-head"><h2 id="players-title">Inside the band</h2><span>{snapshot.status==='playing'&&!snapshot.ending&&bar ? '● Live · Current sounding bar' : snapshot.generated ? 'Last sounding bar' : 'The decisions appear as the tune plays.'}</span></div>
- {#if performanceArc}<p class="performance-arc" data-testid="listening-performance-arc" data-bar-index={snapshot.barIndex} data-phase={performanceArc.phase}><span>Planned arc</span> {performanceArc.label}</p>{/if}
- <div class="musicians">{#each ['bass','piano','drums'] as name,i}{@const decision=decisions.find(d=>d.instrument===name)}<article data-testid={`musician-${name}`} data-bar-index={snapshot.barIndex ?? ''}><div class="player-title"><span>0{i+1}</span><h3>{name==='bass'?'Bass':name==='piano'?'Piano':'Drums'}</h3><small>{decision?.role ?? 'Ready'}</small></div><h4>{decision?.action ?? 'Waiting for the first bar'}</h4><p>{decision?.detail ?? 'Actual scheduled events and phrase decisions will appear here.'}</p>{#if decision}<details class="evidence"><summary>{decision.eventCount} scheduled {decision.eventCount===1?'event':'events'} · Details</summary><ul>{#each decision.evidence as evidence}<li>{evidence}</li>{/each}</ul></details>{:else}<div class="waiting">No audio playing</div>{/if}</article>{/each}</div>
+ <div class="section-head"><h2 id="players-title">Inside the band</h2><span>{selectedReviewBar !== null ? `Reviewing bar ${selectedReviewBar+1} · Scheduled evidence` : snapshot.status==='playing'&&!snapshot.ending&&bar ? '● Live · Current sounding bar' : snapshot.generated ? 'Last sounding bar' : 'The decisions appear as the tune plays.'}</span></div>
+ {#if performanceArc}<p class="performance-arc" data-testid="listening-performance-arc" data-bar-index={displayBarIndex} data-phase={performanceArc.phase}><span>Planned arc</span> {performanceArc.label}</p>{/if}
+ <div class="musicians">{#each ['bass','piano','drums'] as name,i}{@const decision=decisions.find(d=>d.instrument===name)}<article data-testid={`musician-${name}`} data-bar-index={displayBarIndex ?? ''}><div class="player-title"><span>0{i+1}</span><h3>{name==='bass'?'Bass':name==='piano'?'Piano':'Drums'}</h3><small>{decision?.role ?? 'Ready'}</small></div><h4>{decision?.action ?? 'Waiting for the first bar'}</h4><p>{decision?.detail ?? 'Actual scheduled events and phrase decisions will appear here.'}</p>{#if decision}<details class="evidence"><summary>{decision.eventCount} scheduled {decision.eventCount===1?'event':'events'} · Details</summary><ul>{#each decision.evidence as evidence}<li>{evidence}</li>{/each}</ul></details>{:else}<div class="waiting">No audio playing</div>{/if}</article>{/each}</div>
 </section>
-<details class="take-notes"><summary>Listening notes & take export <span>+</span></summary><div class="notes-body"><p>Mark a moment worth revisiting. Export preserves this take’s settings, scheduled notes and decision evidence. Exports made before the take finishes are partial.</p><div class="note-controls"><input aria-label="Listening note" bind:value={note} maxlength="500" placeholder="What did you hear?" /><button onclick={mark} disabled={snapshot.barIndex===null}>Mark this bar</button><button data-testid="listening-export" onclick={exportTake} disabled={!snapshot.generated}>Export take</button></div>{#if marks.length}<ul>{#each marks as item}<li>Bar {item.barIndex+1} · {item.note || 'Marked moment'}</li>{/each}</ul>{/if}</div></details>
+<details class="take-notes"><summary>Listening notes & take export <span>+</span></summary><div class="notes-body"><p>Mark a moment worth revisiting. Export preserves this take’s settings, scheduled notes and decision evidence. Exports made before the take finishes are partial.</p><div class="note-controls"><input aria-label="Listening note" bind:value={note} maxlength="500" placeholder="What did you hear?" /><button onclick={mark} disabled={snapshot.barIndex===null || selectedReviewBar!==null}>Mark this bar</button><button data-testid="listening-export" onclick={exportTake} disabled={!snapshot.generated}>Export take</button></div>{#if marks.length}<ul>{#each marks as item}<li>{#if selectListeningReviewBar(item.barIndex,reviewExtent)!==null}<button class="marked-moment" onclick={()=>reviewBar(item.barIndex,true)}>Bar {item.barIndex+1} · {item.note || 'Marked moment'}</button>{:else}Bar {item.barIndex+1} · {item.note || 'Marked moment'}{/if}</li>{/each}</ul>{/if}</div></details>
 <footer><button data-testid="blind-open" onclick={oncompare}>Try a blind comparison →</button><a href="/docs/architecture/musicality">Architecture & roadmap ↗</a></footer>
 
 <style>
@@ -96,6 +121,7 @@
  .chart{padding:1.6rem 0}.form-strip{display:flex;gap:.25rem;margin-bottom:.7rem}.form-strip>div{flex-basis:0;border-top:2px solid var(--color-bg-tertiary);padding:.5rem .3rem;color:var(--color-text-secondary)}.form-strip>div.current{border-color:var(--color-brass);color:var(--color-brass)}.form-strip span{font-size:.65rem}.form-strip small{display:block;font-size:.55rem;margin-top:.2rem}
  .chords{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));border-top:1px solid var(--color-bg-tertiary);border-left:1px solid var(--color-bg-tertiary)}.chords>div{padding:.6rem;border-right:1px solid var(--color-bg-tertiary);border-bottom:1px solid var(--color-bg-tertiary);min-height:4.6rem}.chords small{font-size:.55rem;color:var(--color-text-secondary);display:block}.chords strong{font-family:var(--font-display,Georgia,serif);font-size:1.1rem;font-weight:400;display:block;margin-top:.7rem;overflow-wrap:anywhere}.chords .current{background:color-mix(in srgb,var(--color-brass) 15%,transparent);box-shadow:inset 0 -2px var(--color-brass)}
  h2{font-family:var(--font-display,Georgia,serif);font-size:1.6rem;font-weight:400;margin:.5rem 0}.musicians{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-top:1px solid var(--color-bg-tertiary);border-bottom:1px solid var(--color-bg-tertiary)}.musicians article{padding:1.5rem 1.3rem 1.3rem 0}.musicians article+article{padding-left:1.5rem;border-left:1px solid var(--color-bg-tertiary)}.player-title{display:flex;align-items:center;gap:.6rem}.player-title>span{font-size:.55rem;color:var(--color-brass)}h3{font-family:var(--font-display,Georgia,serif);font-size:1.4rem;font-weight:400;margin:0}.player-title small{margin-left:auto;color:var(--color-text-secondary);font-size:.6rem}.musicians h4{font-size:.85rem;font-weight:400;margin:1.5rem 0 .75rem}.musicians p{font-size:.75rem;line-height:1.8;color:var(--color-text-secondary);min-height:3rem}.evidence,.waiting{font-size:.6rem;color:var(--color-brass);margin-top:1.5rem;line-height:1.7}.evidence ul{padding-left:1rem;margin-top:.6rem;color:var(--color-text-secondary)}.waiting{text-transform:uppercase;letter-spacing:.08em}
+ .decision-review{border-top:1px solid var(--color-bg-tertiary);padding:1rem 0 .5rem}.review-heading{display:flex;align-items:baseline;justify-content:space-between;gap:1rem}.review-heading label{color:var(--color-brass)}.review-heading span{font-size:.65rem;color:var(--color-text-secondary);text-align:right}.decision-review input{accent-color:var(--color-brass);padding:0;border:0;margin:.8rem 0 .3rem}.decision-review p{font-size:.6rem;color:var(--color-text-secondary);margin:.2rem 0 .5rem}.marked-moment{color:var(--color-brass);text-align:left;text-decoration:underline;text-underline-offset:.2em}
  .performance-arc{font-size:.75rem;line-height:1.6;color:var(--color-text-secondary);margin:0 0 1rem}.performance-arc span{font-size:.6rem;text-transform:uppercase;letter-spacing:.06em;color:var(--color-brass);margin-right:.7rem}
  .take-notes{padding:1.4rem 0;border-bottom:1px solid var(--color-bg-tertiary);font-size:.75rem;color:var(--color-text-secondary)}summary{cursor:pointer}.take-notes>summary{list-style:none}.take-notes>summary span{float:right}.notes-body{padding-top:1rem}.notes-body p{line-height:1.7}.note-controls{display:flex;gap:1rem;align-items:center}.note-controls input{flex:1;min-width:0}.note-controls button{color:var(--color-brass);border:1px solid var(--color-bg-tertiary);padding:.65rem;white-space:nowrap}.notes-body ul{padding:1rem 0 0 1rem;line-height:1.8}
  footer{display:flex;justify-content:space-between;gap:1rem;padding-top:1.4rem;color:var(--color-text-secondary);font-size:.65rem}a{color:inherit}button{cursor:pointer}button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--color-brass);outline-offset:4px}

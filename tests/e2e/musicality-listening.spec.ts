@@ -3,12 +3,15 @@ import { readFile } from 'node:fs/promises';
 import { test, expect } from './fixtures/test';
 import { seedOnboardedAnonymous } from './fixtures/storage';
 import { stubCdnInstrumentSamples } from './fixtures/audio';
+import type { MusicianDecisionCard } from '../../src/lib/musicality/musician-decisions';
 import type { CausalListeningProvenance, ListeningSnapshot } from '../../src/lib/musicality/listening-player';
 
 interface ListeningEvidence {
 	completion: 'complete' | 'partial';
 	playback: ListeningSnapshot;
 	marks: { barIndex: number; elapsedBeats: number; note: string }[];
+	decisions: MusicianDecisionCard[];
+	review?: { barIndex: number; decisions: MusicianDecisionCard[] };
 }
 
 /** Observe real Web Audio dispatch without replacing its clock or the renderer. */
@@ -174,6 +177,8 @@ test('listens through a complete real tune and follows each chorus on the audio 
 		expect(later.playback.provenance!.committedBars).toBeGreaterThan(boundary);
 		await assertDecisionClock(page, later.playback);
 	}
+	await expect(page.getByTestId('listening-status')).toHaveText('Letting the last chord ring', { timeout: 20_000 });
+	await expect(page.getByRole('slider', { name: 'Review decisions', exact: true })).toHaveCount(0);
 	await expect(page.getByTestId('listening-status')).toContainText(/complete/i, { timeout: 20_000 });
 	const finished = await exportTake(page);
 	expect(finished.completion).toBe('complete');
@@ -206,6 +211,17 @@ test('listens through a complete real tune and follows each chorus on the audio 
 	expect(await sourceStarts(page)).toBeGreaterThan(100);
 	const lastAudio = await page.evaluate(() => (window as unknown as { __listeningAudio: { lastScheduledTime: number } }).__listeningAudio.lastScheduledTime);
 	expect(lastAudio - finished.playback.startAudioTime!).toBeGreaterThanOrEqual(51);
+	const review = page.getByRole('slider', { name: 'Review decisions', exact: true });
+	await expect(review).toHaveAttribute('max', '51');
+	const finishedStarts = await sourceStarts(page);
+	await review.press('Home');
+	await expect(page.getByTestId('musician-piano')).toHaveAttribute('data-bar-index', '0');
+	const revisited = await exportTake(page);
+	const { review: selected, ...unchanged } = revisited;
+	expect(selected?.barIndex).toBe(0);
+	expect(unchanged).toEqual(finished);
+	expect(await sourceStarts(page)).toBe(finishedStarts);
+
 });
 
 test('compares matched Original and Coordinated takes and stops all future dispatch', async ({ page }) => {
@@ -223,8 +239,19 @@ test('compares matched Original and Coordinated takes and stops all future dispa
 	expect(original.completion).toBe('partial');
 	expect(original.playback.provenance).toMatchObject({ engine: 'fixed', committedBars: 52, totalBars: 52 });
 	expect(original.playback.generated!.ensemblePlan).toBeUndefined();
+	const review = page.getByRole('slider', { name: 'Review decisions', exact: true });
+	await expect(review).toHaveAttribute('max', String(original.playback.barIndex));
+	await review.press('Home');
+	await expect(page.getByTestId('musician-piano')).not.toContainText('Planned performance arc');
+	const revisited = await exportTake(page);
+	const { review: selected, ...unchanged } = revisited;
+	expect(selected?.barIndex).toBe(0);
+	expect(unchanged).toEqual(original);
+	expect(await sourceStarts(page)).toBe(stoppedStarts);
+
 	await expect(page.getByTestId('listening-performance-arc')).not.toBeVisible();
 	await page.getByTestId('listening-mode').selectOption('coordinated');
+	await expect(review).toHaveCount(0);
 	await playToBar(page);
 	await assertDecisionClock(page);
 	await page.getByTestId('listening-stop').click();
@@ -266,6 +293,15 @@ for (const style of ['bossa-nova', 'ballad', 'straight'] as const) {
 		expect(playback.params!.style).toBe(style);
 		expect(playback.durationBeats).toBe(208);
 		const generated = playback.generated!;
+		const review = page.getByRole('slider', { name: 'Review decisions', exact: true });
+		await expect(review).toHaveAttribute('max', '51');
+		await review.press('Home');
+		const revisited = await exportTake(page);
+		expect(revisited.playback).toEqual(playback);
+		expect(revisited.review?.barIndex).toBe(0);
+		if (style === 'bossa-nova') await expect(page.getByTestId('musician-drums')).toContainText('bossa');
+		if (style === 'ballad') await expect(page.getByTestId('musician-drums')).toContainText('ballad');
+
 		expect(generated.ensemblePlan).toBeDefined();
 		if (style === 'bossa-nova') {
 			expect(generated.drumEvents.filter((event) => event.drum === 'hihat')).toHaveLength(52 * 8);
@@ -303,12 +339,14 @@ test('cancels instrument loading without starting a late take, then allows repla
 	try {
 		await page.getByTestId('listening-play').click();
 		await expect.poll(() => held).toBe(true);
+		await expect(page.getByRole('slider', { name: 'Review decisions', exact: true })).toHaveCount(0);
 		await page.getByTestId('listening-stop').click();
 		release();
 		await page.unroute('https://smpldsnds.github.io/**', holdSamples);
 		await page.waitForTimeout(1_200);
 		await expect(page.getByTestId('listening-status')).toContainText(/stopped/i);
 		expect(await soundingBar(page)).toBe(-1);
+		await expect(page.getByRole('slider', { name: 'Review decisions', exact: true })).toHaveCount(0);
 		await playToBar(page);
 		await assertDecisionClock(page);
 		await page.getByTestId('listening-stop').click();
@@ -371,6 +409,14 @@ test('a missed scheduling deadline stops the take without reporting completion o
 	expect(failed.completion).toBe('partial');
 	expect(failed.playback.provenance?.engine).toBe('causal-rolling');
 	expect(failed.playback.provenance!.committedBars).toBeLessThan(52);
+	const review = page.getByRole('slider', { name: 'Review decisions', exact: true });
+	await expect(review).toHaveAttribute('max', String(Math.min(failed.playback.barIndex!, failed.playback.provenance!.committedBars - 1)));
+	await review.press('Home');
+	const revisited = await exportTake(page);
+	const { review: selected, ...unchanged } = revisited;
+	expect(selected?.barIndex).toBe(0);
+	expect(unchanged).toEqual(failed);
+
 	const stoppedStarts = await sourceStarts(page);
 	await page.waitForTimeout(1_200);
 	expect(await sourceStarts(page)).toBe(stoppedStarts);
@@ -562,4 +608,74 @@ test('shows Bossa native chord targets without importing Swing dialogue', async 
 	expect(generated.ensembleDevelopment!.pianoRecoveries).toBeUndefined();
 	await page.getByTestId('listening-stop').click();
 	await assertNoMicrophone(page);
+});
+
+
+test('reviews a marked Bossa passage after stopping without changing the take or restarting audio', async ({ page }) => {
+	test.setTimeout(75_000);
+	await setup(page);
+	await page.getByTestId('listening-key').selectOption('F#');
+	await page.getByTestId('listening-style').selectOption('bossa-nova');
+	await page.getByTestId('listening-tempo').fill('140');
+	await page.getByTestId('listening-play').click();
+	await expect(page.getByRole('slider', { name: 'Review decisions', exact: true })).toHaveCount(0);
+	await expect.poll(() => soundingBar(page), { timeout: 45_000 }).toBe(19);
+	const atMark = await exportTake(page);
+	await page.getByLabel('Listening note', { exact: true }).fill('Bossa top line');
+	await page.getByRole('button', { name: 'Mark this bar', exact: true }).click();
+	await expect.poll(() => soundingBar(page), { timeout: 12_000 }).toBeGreaterThanOrEqual(23);
+	await page.getByTestId('listening-stop').click();
+	const before = await exportTake(page);
+	expect(before.marks).toEqual([{ barIndex: 19, elapsedBeats: expect.any(Number), note: 'Bossa top line' }]);
+	expect(before.review).toBeUndefined();
+	expect(before.playback.barIndex).toBeGreaterThanOrEqual(23);
+	const starts = await sourceStarts(page);
+	const slider = page.getByRole('slider', { name: 'Review decisions', exact: true });
+	await expect(slider).toBeVisible({ timeout: 1_500 });
+	const maximum = Math.min(before.playback.barIndex!, before.playback.provenance!.committedBars - 1, 51);
+	await expect(slider).toHaveAttribute('max', String(maximum));
+	await page.getByRole('button', { name: 'Bar 20 · Bossa top line', exact: true }).click();
+	await expect(slider).toBeFocused();
+	await expect(slider).toHaveValue('19');
+	await expect(slider).toHaveAttribute('aria-valuetext', /Bar 20.*Solo 1/);
+	await expect(page.getByText('Reviewing bar 20 · Scheduled evidence', { exact: true })).toBeVisible();
+	await expect(page.getByTestId('musician-piano')).toContainText('Chord 1 top-note target: B♭4; actual top: B4');
+	await expect(page.getByTestId('musician-piano')).toContainText('Chord 2 top-note target: B♭4; actual top: B♭4');
+	await expect(page.getByRole('button', { name: 'Mark this bar', exact: true })).toBeDisabled();
+	const marked = await exportTake(page);
+	expect(marked.review).toEqual({ barIndex: 19, decisions: atMark.decisions });
+	const { review: _review, ...unchanged } = marked;
+	expect(unchanged).toEqual(before);
+	await slider.fill('15');
+	await slider.press('ArrowRight');
+	await expect(slider).toHaveValue('16');
+	await expect(slider).toHaveAttribute('aria-valuetext', /Bar 17.*Solo 1/);
+	const silent = Array.from({ length: maximum }, (_, index) => index + 1).find(bar =>
+		!before.playback.generated!.compEvents.some(event => Math.floor(parseInt(event.time, 10) / before.playback.ppq / 4) === bar));
+	expect(silent).toBeDefined();
+	await slider.fill(String(silent! - 1));
+	await slider.press('ArrowRight');
+	await expect(page.getByTestId('musician-piano')).toContainText('0 scheduled events');
+	await slider.press('Home');
+	await expect(slider).toHaveValue('0');
+	await expect(slider).toHaveAttribute('aria-valuetext', /Bar 1.*Head in/);
+	await slider.press('End');
+	await expect(slider).toHaveValue(String(maximum));
+	const final = await exportTake(page);
+	const { review: _lastReview, ...stillUnchanged } = final;
+	expect(stillUnchanged).toEqual(before);
+	await page.waitForTimeout(700);
+	expect(await sourceStarts(page)).toBe(starts);
+	await assertNoMicrophone(page);
+	await page.getByTestId('listening-play').click();
+	await expect(slider).toHaveCount(0);
+	await expect(page.getByRole('button', { name: 'Bar 20 · Bossa top line', exact: true })).toHaveCount(0);
+	await expect.poll(() => soundingBar(page), { timeout: 5_000 }).toBeGreaterThanOrEqual(0);
+	await assertDecisionClock(page, undefined, 140);
+	await page.getByTestId('listening-stop').click();
+	await page.getByTestId('listening-tempo').fill('180');
+	await page.getByTestId('listening-tempo').press('Tab');
+	await expect(slider).toHaveCount(0);
+	await expect(page.getByRole('button', { name: 'Bar 20 · Bossa top line', exact: true })).toHaveCount(0);
+	await expect(page.getByTestId('listening-status')).toHaveText('Ready to listen');
 });
