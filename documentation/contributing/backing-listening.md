@@ -212,3 +212,9 @@ shipped without one); Milestone A heard it only as the "old" side of the blind p
 The failures expected of it at the time: fixed swing ratio at all tempi,
 mutually-quantized instruments, comping loops on short forms, no snare (so no fills),
 and the synthesized metronome doubling the kit when enabled.
+
+## Structural-energy listening focus — 24 October 2026
+
+In the listening studio, choose Coordinated and play the whole tune with at least two solo choruses. Compare the opening head, early and later solo choruses, the return to the head and the ending. The **Planned arc** cue and instrument details show the structural intention used for the sounding bar, not an assertion that the result sounds convincing.
+
+Listen for development without an endless rise in busyness, useful room for the melody on returning heads, and a release that preserves pulse. Check especially that Bossa keeps its clave and bass pattern and Ballad keeps its spacious two-feel. Use the blind full-tune comparison to record preference without the stage labels influencing it. Retain regressions such as an overly quiet head, a sudden transition, an indistinct peak or a lifeless ending. No human acceptance results have been recorded for this increment.

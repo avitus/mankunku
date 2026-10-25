@@ -4,6 +4,7 @@ import type { PerformanceForm } from '$lib/types/performance-form';
 import type { BackingGenerationParams, BarInfo, BassEvent, CompEvent, DrumEvent, EnsembleDevelopment } from './backing-generation';
 import { buildBarInfos } from './backing-generation';
 import { buildPerformanceForm, performanceBarContext, type PerformanceBarContext } from './performance-form';
+import { planPerformanceEnergy } from './performance-energy';
 import { planEnsembleWindow, type EnsembleBarContext, type EnsembleMemory, type EnsemblePlan, type SoloFeature } from './ensemble-plan';
 import { describeEnsemblePhraseTiming, restoreEnsembleTiming, type EnsemblePhraseTimingTrace } from './ensemble-timing';
 import type { BackingStyle } from '$lib/types/instruments';
@@ -146,16 +147,18 @@ export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDef
 				occurrenceIndex: section.occurrenceIndex + loopIndex * occurrences.get(section.sourceSection)!,
 				startBar: startBar + section.startBar, endBarExclusive: startBar + section.endBarExclusive }))) };
 	}
+	const performanceEnergy = params.performanceForm ? planPerformanceEnergy(form) : undefined;
 	const bars = buildBarInfos(totalBars, undefined, form).map((info, barIndex) => {
 		const sourceBarIndex = barIndex % sourceBars;
 		const sourceContext = performanceBarContext(sourceForm, sourceBarIndex)!;
-		return { ...info, ...(style.intensityCap !== undefined ? { intensity: Math.min(info.intensity, style.intensityCap), energyCeiling: style.intensityCap } : {}), ...performanceBarContext(form, barIndex)!, barIndex, loopIndex: Math.floor(barIndex / sourceBars),
+		return { ...info, ...(style.intensityCap !== undefined ? { intensity: Math.min(info.intensity, style.intensityCap), energyCeiling: style.intensityCap } : {}), ...performanceBarContext(form, barIndex)!, ...(performanceEnergy ? { performanceEnergy: performanceEnergy[barIndex] } : {}), barIndex, loopIndex: Math.floor(barIndex / sourceBars),
 			sourceBarIndex, sourceChorusIndex: sourceContext.chorusIndex, sourceSectionIndex: sourceContext.sectionIndex };
 	});
 	const timingProfiles = params.timing ?? style.timing;
 	// Preserve the one-pass binding. An explicit repeat is a distinct declared
 	// performance even when its flattened score matches some other source.
 	const serialized = JSON.stringify([1, params.phraseId, params.tempo, params.ppq, params.swing, copied, form, timingProfiles,
+		...(performanceEnergy ? [{ performanceEnergyVersion: 1 }] : []),
 		...(loopCount > 1 ? [{ sourceBars, loopCount }] : []),
 		...(style.coordinatedStyle !== 'swing' ? [{ style: style.coordinatedStyle }] : [])]);
 	// The definition retains the complete immutable score once. Repeating its

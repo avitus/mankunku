@@ -66,7 +66,9 @@ async function assertDecisionClock(page: Page, score?: ListeningSnapshot): Promi
 		const origin = Number(row.getAttribute('data-start-audio-time'));
 		const bar = Number(row.getAttribute('data-bar-index'));
 		const contexts = (window as unknown as { __listeningAudio: { contexts: BaseAudioContext[] } }).__listeningAudio.contexts;
+		const arc = document.querySelector('[data-testid="listening-performance-arc"]');
 		return { origin, bar, now: contexts.at(-1)?.currentTime,
+			arc: arc ? { bar: Number(arc.getAttribute('data-bar-index')), phase: arc.getAttribute('data-phase') } : null,
 			cards: ['bass', 'piano', 'drums'].map((instrument) =>
 				Number(document.querySelector(`[data-testid="musician-${instrument}"]`)?.getAttribute('data-bar-index'))),
 			counts: ['bass', 'piano', 'drums'].map((instrument) => Number.parseInt(
@@ -81,6 +83,8 @@ async function assertDecisionClock(page: Page, score?: ListeningSnapshot): Promi
 	expect(elapsed).toBeLessThan(position.bar + 1.15);
 	if (score?.generated) {
 		const inBar = (event: { time: string }) => Math.floor(parseInt(event.time, 10) / score.ppq / 4) === position.bar;
+		const plannedArc = score.generated.ensemblePlan?.bars[position.bar]?.performanceEnergy;
+		expect(position.arc).toEqual(plannedArc ? { bar: position.bar, phase: plannedArc.phase } : null);
 		expect(position.counts).toEqual([score.generated.bassEvents, score.generated.compEvents, score.generated.drumEvents]
 			.map((events) => events.filter(inBar).length));
 	}
@@ -92,6 +96,7 @@ test('listens through a complete real tune and follows each chorus on the audio 
 	await expect(page.getByTestId('listening-tune').locator('option:checked')).toHaveText('Mankunku Blues');
 	await expect(page.getByLabel('Search the specification')).not.toBeVisible();
 	await playToBar(page);
+	await expect(page.getByTestId('listening-performance-arc')).toContainText('Planned arc');
 	await assertDecisionClock(page);
 	const started = await exportTake(page);
 	await assertDecisionClock(page, started.playback);
@@ -135,6 +140,7 @@ test('compares matched Original and Coordinated takes and stops all future dispa
 	expect(await sourceStarts(page)).toBe(stoppedStarts);
 	expect(original.playback.status).toBe('stopped');
 	expect(original.playback.generated!.ensemblePlan).toBeUndefined();
+	await expect(page.getByTestId('listening-performance-arc')).not.toBeVisible();
 	await page.getByTestId('listening-mode').selectOption('coordinated');
 	await playToBar(page);
 	await assertDecisionClock(page);

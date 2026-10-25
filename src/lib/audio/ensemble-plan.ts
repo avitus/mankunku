@@ -7,6 +7,7 @@
  * resumable; named RNG streams keep planning independent of instrument draws.
  */
 import { createRng, seedFrom } from './generation-rng';
+import { PERFORMANCE_ENERGY_PHASES, type PerformanceEnergy } from './performance-energy';
 
 export type EnsembleIntent = 'support' | 'leave_space' | 'build' | 'release' | 'answer' | 'mark_form';
 export type ResponseOwner = 'piano' | 'drums' | 'bass' | 'nobody';
@@ -24,6 +25,7 @@ export interface EnsembleBarContext {
 	readonly intensity: number;
 	/** Style ceiling, also binding serialized planner memory. */
 	readonly energyCeiling?: number;
+	readonly performanceEnergy?: PerformanceEnergy;
 	readonly isSectionFirstBar: boolean;
 	readonly isSectionFinalBar: boolean;
 	readonly isChorusFirstBar?: boolean;
@@ -70,6 +72,7 @@ export interface EnsembleBarPlan {
 	readonly phraseIntent: EnsembleIntent;
 	readonly intent: EnsembleIntent;
 	readonly energy: number;
+	readonly performanceEnergy?: PerformanceEnergy;
 	readonly density: number;
 	readonly tension: number;
 	readonly boundaryStrength: number;
@@ -217,6 +220,7 @@ export function freezeEnsembleMemory(memory: EnsembleMemory): EnsembleMemory {
 /** Restore the immutable plan contract after a serialized cache or event replay. */
 export function freezeEnsemblePlan(plan: EnsemblePlan): EnsemblePlan {
 	for (const bar of plan.bars) {
+		if (bar.performanceEnergy) Object.freeze(bar.performanceEnergy);
 		Object.freeze(bar.piano);
 		Object.freeze(bar.drums);
 		Object.freeze(bar.bass);
@@ -259,7 +263,8 @@ function formFingerprint(bars: readonly EnsembleBarContext[]): string {
 		bar.boundaryStrength ?? null, bar.role ?? null,
 		bar.phrase4 ? [bar.phrase4.index, bar.phrase4.barIndex, bar.phrase4.lengthBars,
 			bar.phrase4.position, bar.phrase4.barsRemaining, bar.phrase4.isFinalBar] : null,
-		...(bar.energyCeiling !== undefined ? [bar.energyCeiling] : [])
+		...(bar.energyCeiling !== undefined ? [bar.energyCeiling] : []),
+		...(bar.performanceEnergy ? ['performance-energy-v1', bar.performanceEnergy.phase, bar.performanceEnergy.chorusIndex, bar.performanceEnergy.targetEnergy] : [])
 	]));
 	return `form-v1:${bars.length}:${seedFrom('ensemble-form', canonical).toString(16)}`;
 }
@@ -411,6 +416,10 @@ export function planEnsembleWindow(input: EnsembleWindowInput): EnsembleWindowRe
 	if (typeof input.phraseId !== 'string') throw new Error('Ensemble phrase identity must be a string');
 	if (!Number.isFinite(input.tempo) || input.tempo <= 0) throw new Error('Ensemble tempo must be positive');
 	for (const [index, bar] of input.bars.entries()) {
+		if (bar.performanceEnergy && (!PERFORMANCE_ENERGY_PHASES.includes(bar.performanceEnergy.phase) ||
+			!count(bar.performanceEnergy.chorusIndex, input.bars.length) || !unit(bar.performanceEnergy.targetEnergy))) {
+			throw new Error('Invalid performance energy context');
+		}
 		if (bar.barIndex !== index || !Number.isFinite(bar.intensity) || (bar.energyCeiling !== undefined && (!Number.isFinite(bar.energyCeiling) || bar.energyCeiling < 0.2 || bar.energyCeiling > 0.9))) {
 			throw new Error('Ensemble bars must be contiguous from zero with finite intensity');
 		}
@@ -483,8 +492,15 @@ export function planEnsembleWindow(input: EnsembleWindowInput): EnsembleWindowRe
 				{ value: 'release', weight: 1 },
 				{ value: 'mark_form', weight: 1 }
 			];
+			const structuralPhase = bar.performanceEnergy?.phase;
+			const structuralWeight = (intent: EnsembleIntent): number => {
+				if (structuralPhase === 'head_in' || structuralPhase === 'head_return') return intent === 'support' ? 3 : intent === 'build' ? 0.3 : 1;
+				if (structuralPhase === 'solo_build') return intent === 'build' ? 3 : 1;
+				if (structuralPhase === 'solo_release' || structuralPhase === 'ending') return intent === 'release' ? 6 : intent === 'build' ? 0 : 1;
+				return 1;
+			};
 			const intent = rng.weighted(weights.map((entry) => ({
-				...entry, weight: entry.weight * (entry.value === previousIntent ? 0.4 : 1)
+				...entry, weight: entry.weight * structuralWeight(entry.value) * (entry.value === previousIntent ? 0.4 : 1)
 			})));
 			const leadRng = createRng(seedFrom(input.phraseId, input.tempo, 'ensemble-lead', phraseStartBar));
 			const lead: PhraseChoice['lead'] = intent === 'leave_space' || intent === 'release' ? 'nobody' : leadRng.weighted<PhraseChoice['lead']>([
@@ -499,6 +515,11 @@ export function planEnsembleWindow(input: EnsembleWindowInput): EnsembleWindowRe
 		}
 
 		const reasons: string[] = [`phrase:${phrase.intent}`, `lead:${phrase.lead}`];
+		const structuralPhase = bar.performanceEnergy?.phase;
+		const structuralRelease = structuralPhase === 'solo_release' || structuralPhase === 'ending';
+		const structuralEnding = structuralPhase === 'ending';
+		const structuralHead = structuralPhase === 'head_in' || structuralPhase === 'head_return';
+		if (structuralPhase) reasons.push(`performance:${structuralPhase}`);
 		// A preceding setup has already committed this arrival. Reserve the
 		// response slot before considering fresh solo evidence, rather than
 		// attaching a formal accent to an independently planned answer later.
@@ -511,7 +532,7 @@ export function planEnsembleWindow(input: EnsembleWindowInput): EnsembleWindowRe
 			: !reliable && phraseFinal && !bar.isFinalBar ? 'phrase_boundary' : 'none';
 		const cooldown = i - lastResponseBar < 3;
 		let owner: ResponseOwner = 'nobody';
-		if (responseWindow !== 'none' && !cooldown && phrase.intent !== 'leave_space') {
+		if (responseWindow !== 'none' && !cooldown && phrase.intent !== 'leave_space' && !structuralRelease) {
 			const rng = createRng(seedFrom(input.phraseId, input.tempo, 'ensemble-response', i));
 			if (rng.chance(responseWindow === 'solo_rest' ? 0.48 : 0.3)) {
 				owner = rng.weighted<ResponseOwner>([
@@ -575,9 +596,18 @@ export function planEnsembleWindow(input: EnsembleWindowInput): EnsembleWindowRe
 			pianoReason = drumReason = 'avoid_overlap';
 			reasons.push('coordinated_arrival_reserved');
 		}
+		// Structural restraint limits optional texture; solo evidence and formal
+		// arrivals above can still demand greater space. Pulse remains obligatory.
+		if (structuralHead || structuralRelease) {
+			piano = Math.min(piano, 1) as 0 | 1;
+			commentary = structuralEnding ? 0 : Math.min(commentary, 1) as 0 | 1;
+			if (structuralRelease) drumReason = 'phrase_resolution';
+		}
 
 		const fillRng = createRng(seedFrom(input.phraseId, input.tempo, 'ensemble-fill', i));
-		const allowFill = !dense && !incomingAccent && !bar.isFinalBar && boundaryStrength >= 0.5 && i - lastFillBar >= 4 &&
+		// A release between choruses can still contain one reserved setup.
+		// Only the terminal ending forbids launches to a following arrival.
+		const allowFill = !structuralEnding && !dense && !incomingAccent && !bar.isFinalBar && boundaryStrength >= 0.5 && i - lastFillBar >= 4 &&
 			i - lastResponseBar !== 1 && owner !== 'piano' && owner !== 'bass' &&
 			phrase.intent !== 'leave_space' && phrase.intent !== 'release' &&
 			fillRng.chance((boundaryStrength >= 0.85 ? 0.62 : 0.24) + (phrase.intent === 'mark_form' ? 0.1 : 0));
@@ -589,11 +619,14 @@ export function planEnsembleWindow(input: EnsembleWindowInput): EnsembleWindowRe
 		}
 		const movement = phrase.intent === 'build' ? -0.04 + 0.1 * position
 			: phrase.intent === 'release' ? -0.12 * position : 0;
-		const energy = clamp(bar.intensity + movement, 0.2, bar.energyCeiling ?? 0.9);
+		const ceiling = bar.energyCeiling ?? 0.9;
+		const structuralTarget = bar.performanceEnergy ? 0.2 + (bar.performanceEnergy.targetEnergy - 0.2) * (ceiling - 0.2) / 0.7 : undefined;
+		const energy = clamp((structuralTarget ?? bar.intensity) + movement * (bar.performanceEnergy ? 0.35 : 1), 0.2, ceiling);
 		const plan: Draft = {
 			barIndex: i, phraseStartBar, phraseIntent: phrase.intent,
 			intent: owner === 'nobody' ? phrase.intent : 'answer',
 			energy,
+			...(bar.performanceEnergy ? { performanceEnergy: Object.freeze({ ...bar.performanceEnergy }) } : {}),
 			density: clamp((piano + commentary * 0.5) / 3),
 			tension: clamp(0.15 + energy * 0.25 + boundaryStrength * 0.2 + movement),
 			boundaryStrength, responseOwner: owner,
@@ -609,7 +642,7 @@ export function planEnsembleWindow(input: EnsembleWindowInput): EnsembleWindowRe
 			}),
 			bass: Object.freeze({
 				role: owner === 'bass' ? 'respond' : 'time', keepPulse: true,
-				ornamentScale: dense ? 0.35 : owner === 'bass' ? 1 : phrase.intent === 'leave_space' ? 0.5 : 0.75
+				ornamentScale: dense ? 0.35 : structuralEnding ? 0.4 : owner === 'bass' ? 1 : phrase.intent === 'leave_space' || structuralHead ? 0.5 : 0.75
 			})
 		};
 		if (allowFill && boundaryStrength >= 0.85 && i + 1 < input.bars.length && fillRng.chance(0.65)) {

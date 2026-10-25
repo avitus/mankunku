@@ -42,6 +42,7 @@
 import type { HarmonicSegment, ChordQuality } from '$lib/types/music';
 import type { PerformanceForm } from '$lib/types/performance-form';
 import { performanceBarContext } from './performance-form';
+import { planPerformanceEnergy } from './performance-energy';
 import { freezeEnsemblePlan, freezeEnsembleMemory, planEnsembleWindow, type EnsembleMemory, type EnsemblePlan, type EnsembleBarPlan, type SoloFeature } from './ensemble-plan';
 import { createEnsembleTiming, freezeEnsembleTimingTrace, type EnsemblePhraseTimingTrace } from './ensemble-timing';
 import { fractionToFloat } from '$lib/music/intervals';
@@ -639,6 +640,8 @@ export function generateBacking(
 	);
 	const totalBars = Math.max(1, Math.ceil(harmonyBeats / beatsPerBar));
 	const performanceForm = formForHarmony(params.performanceForm, totalBars);
+	const performanceEnergy = params.ensemble && style.coordinatedStyle && beatsPerBar === 4 && performanceForm
+		? planPerformanceEnergy(performanceForm) : undefined;
 	let barInfos = buildBarInfos(totalBars, params.sectionMap, performanceForm);
 	// A style may cap the ensemble arc (ballad: never dig in past 0.6);
 	// applied to the whole timeline so every generator reads the same
@@ -656,6 +659,7 @@ export function generateBacking(
 			bars: barInfos.map((info, barIndex) => ({
 				...info,
 				barIndex,
+				...(performanceEnergy ? { performanceEnergy: performanceEnergy[barIndex] } : {}),
 				...(performanceForm ? performanceBarContext(performanceForm, barIndex) : {})
 			})),
 			soloFeatures: params.ensemble.soloFeatures

@@ -28,6 +28,19 @@ const plain = (code: string) => code.replaceAll('_', ' ').replaceAll('-', ' ');
 const countText = (count: number, singular: string, plural = `${singular}s`) => `${count} ${count === 1 ? singular : plural}`;
 const noteName = (midi: number) => `${['C', 'D♭', 'D', 'E♭', 'E', 'F', 'G♭', 'G', 'A♭', 'A', 'B♭', 'B'][((midi % 12) + 12) % 12]}${Math.floor(midi / 12) - 1}`;
 
+/** Planned performance direction for the sounding bar; absent for original/legacy takes. */
+export function describePerformanceArc(generated: GeneratedBacking, context: MusicianDecisionContext): { phase: string; label: string; targetEnergy: number } | null {
+	if (context.orchestration !== 'coordinated') return null;
+	const arc = generated.ensemblePlan?.bars.find((bar) => bar.barIndex === context.barIndex)?.performanceEnergy;
+	if (!arc) return null;
+	const labels = {
+		head_in: 'Head in · Leave room for the melody', solo_build: 'Solo · Build the accompaniment',
+		solo_peak: 'Solo · Sustain the planned peak', solo_release: 'Solo · Ease back',
+		head_return: 'Head return · Return to the melody', ending: 'Ending · Release the energy'
+	};
+	return { phase: arc.phase, label: labels[arc.phase], targetEnergy: arc.targetEnergy };
+}
+
 /** Read the committed score for one sounding bar, counting actual jittered onset ticks. */
 export function describeMusicianDecisions(generated: GeneratedBacking, context: MusicianDecisionContext): MusicianDecisionCard[] {
 	const { barIndex, ppq, beatsPerBar, style } = context;
@@ -41,10 +54,12 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 	const drums = generated.drumEvents.filter(inBar);
 	const plan = context.orchestration === 'coordinated' ? generated.ensemblePlan?.bars.find((b) => b.barIndex === barIndex) : undefined;
 	const development = context.orchestration === 'coordinated' ? generated.ensembleDevelopment : undefined;
+	const arc = describePerformanceArc(generated, context);
 	const role = (instrument: 'bass' | 'piano' | 'drums') => plan ? roles[plan[instrument].role] : 'Original pattern';
 	const sharedEvidence = (instrument: 'bass' | 'piano' | 'drums'): string[] => {
 		if (!plan) return [];
 		const evidence = [`Phrase intent: ${plain(plan.phraseIntent)}`];
+		if (arc) evidence.push(`Planned performance arc: ${arc.label}`, `Nominal arc target: ${arc.targetEnergy.toFixed(2)} / 1; style-adjusted bar plan: ${plan.energy.toFixed(2)} / 1`);
 		if (plan.responseOwner === instrument) evidence.push('Assigned the response');
 		if (plan.coordinatedAccent?.participants.includes(instrument)) evidence.push('Planned shared arrival on this downbeat');
 		if (plan.setupFor?.participants.includes(instrument)) evidence.push(`Setup reserved for bar ${plan.setupFor.targetBarIndex + 1}`);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { describeMusicianDecisions } from '$lib/musicality/musician-decisions';
+import { describeMusicianDecisions, describePerformanceArc } from '$lib/musicality/musician-decisions';
 import { generateForBounce } from '$lib/audio/backing-bounce';
 import { BACKING_LAB_PRESETS } from '$lib/audio/backing-lab-presets';
 import { DEFAULT_BACKING_MIX } from '$lib/audio/backing-mix';
@@ -56,5 +56,42 @@ describe('musician decisions from the actual score', () => {
 		expect(describeMusicianDecisions(generated, { ...context, barIndex: 4 })[2].action).toBe('Keep the groove');
 		generated.drumEvents = [];
 		expect(describeMusicianDecisions(generated, { ...context, barIndex: 4 })[2].action).toBe('No new drum hit');
+	});
+});
+
+
+describe('planned performance arc presentation', () => {
+	const stages = [
+		['head_in', 'Head in · Leave room for the melody'],
+		['solo_build', 'Solo · Build the accompaniment'],
+		['solo_peak', 'Solo · Sustain the planned peak'],
+		['solo_release', 'Solo · Ease back'],
+		['head_return', 'Head return · Return to the melody'],
+		['ending', 'Ending · Release the energy']
+	] as const;
+	function score(phase: string): GeneratedBacking {
+		return { bassEvents: [], compEvents: [], drumEvents: [], ensemblePlan: { version: 1, trace: [], bars: [{
+			barIndex: 0, phraseIntent: 'support', energy: 0.4, piano: { role: 'support' }, drums: { role: 'time' }, bass: { role: 'time' },
+			performanceEnergy: { phase, chorusIndex: 1, targetEnergy: 0.55 }
+		}] } } as unknown as GeneratedBacking;
+	}
+	it.each(stages)('describes %s as a plan separately from actual note activity', (phase, label) => {
+		const generated = score(phase);
+		expect(describePerformanceArc(generated, context)).toEqual({ phase, label, targetEnergy: 0.55 });
+		const cards = describeMusicianDecisions(generated, context);
+		for (const card of cards) {
+			expect(card.eventCount).toBe(0);
+			expect(card.action).toMatch(/^No new/);
+			expect(card.evidence).toContain(`Planned performance arc: ${label}`);
+			expect(card.evidence).toContain('Nominal arc target: 0.55 / 1; style-adjusted bar plan: 0.40 / 1');
+		}
+	});
+	it('does not infer an arc for Original, missing evidence or a different bar', () => {
+		const generated = score('solo_peak');
+		const original = { ...context, orchestration: 'original' as const };
+		expect(describePerformanceArc(generated, original)).toBeNull();
+		expect(describePerformanceArc(generated, { ...context, barIndex: 1 })).toBeNull();
+		expect(describePerformanceArc({ bassEvents: [], compEvents: [], drumEvents: [] }, context)).toBeNull();
+		expect(describeMusicianDecisions(generated, original).flatMap(card => card.evidence).join(' ')).not.toMatch(/arc|energy target/);
 	});
 });
