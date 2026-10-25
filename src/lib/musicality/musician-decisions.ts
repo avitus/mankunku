@@ -193,6 +193,13 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 				pianoCard.evidence.push(`Chord ${index + 1} arrival: shared catch with bass and drums`);
 			}
 		}
+		const topLine = decision.topLine;
+		if (walking && plan?.performanceEnergy && topLine?.eligible &&
+			![decision.requestedFamily, decision.resolvedFamily].some(family => family === 'guide' || family === 'quartal') &&
+			Number.isInteger(topLine.targetMidi) && topLine.targetMidi >= 48 && topLine.targetMidi <= 84 &&
+			topLine.actualMidi === Math.max(...event.notes) && topLine.distance === Math.abs(topLine.actualMidi - topLine.targetMidi)) {
+			pianoCard.evidence.push(`Chord ${index + 1} top-note target: ${noteName(topLine.targetMidi)}; actual top: ${noteName(topLine.actualMidi)}`);
+		}
 		const texture = decision.rootlessTexture;
 		if (texture && texture.noteCount === event.notes.length) {
 			const rootless = (family: string) => family === 'rootless-a' || family === 'rootless-b';

@@ -9,6 +9,7 @@ import { createRng, seedFrom } from './generation-rng';
 import { fractionToFloat } from '$lib/music/intervals';
 import { CHORD_DEFINITIONS } from '$lib/music/chords';
 import { rootlessVoicingA, rootlessVoicingB, shellVoicing, drop2Voicing, quartalVoicing, guideToneVoicing, voiceLead, type VoicingFn } from './voicings';
+import { preparePianoContour, commitPianoContour, type PianoContourMemory } from './backing-piano-contour';
 import { proposePianoAnswer, type PianoAnswerMemory } from './backing-piano-answer';
 import { selectCoordinatedVoicingFamily } from './coordinated-voicing-family';
 import { resolveCoordinatedVoicing, type CoordinatedVoicingMemory } from './coordinated-voicing';
@@ -21,6 +22,7 @@ export interface RollingPianoMemory {
 	readonly lastVoicing: readonly number[];
 	/** Last emitted harmony and pitches, including guide-tone overrides. */
 	readonly voicing?: CoordinatedVoicingMemory;
+	readonly contour?: PianoContourMemory;
 }
 
 const emptyMemory = (): RollingPianoMemory => ({ recentFigures: [], motif: null, segmentIndex: null, segmentVoicing: [], lastVoicing: [] });
@@ -34,6 +36,9 @@ export function realizeRollingPiano(score: RollingBackingDefinition, bar: number
 	const ensemble = info.ensemble!;
 	const coordinatedVoicing = !!ensemble.performanceEnergy;
 	let voicingMemory = memory.voicing;
+	let contourMemory = memory.contour;
+	const contourEnabled = coordinatedVoicing && (!score.style || score.style === 'swing' || score.style === 'straight');
+	const contourContext = coordinatedVoicing ? { barIndex: bar, phraseStartBar: ensemble.phraseStartBar, chorusIndex: ensemble.performanceEnergy!.chorusIndex, phase: ensemble.performanceEnergy!.phase } : undefined;
 	const voicingTrace: CoordinatedPianoVoicing[] = [];
 	const form = score.bars[bar];
 	const phraseStart = ensemble.phraseStartBar;
@@ -133,11 +138,12 @@ export function realizeRollingPiano(score: RollingBackingDefinition, bar: number
 		const tick = Math.max(bar * 4 * score.ppq, arrival ? timing.arrivalTick(bar) : timing.place(absBeat, 'comp'));
 		const duration = Math.min(hit.durationBeats * 60 / score.tempo, (barEnd - tick) * 60 / score.tempo / score.ppq);
 		if (!Number.isFinite(tick) || tick >= barEnd || !Number.isFinite(duration) || duration <= 0 || absBeat >= score.totalBars * 4) return;
+		const contour = contourEnabled ? preparePianoContour(contourContext!, contourMemory) : undefined;
 		const selected = resolveCoordinatedVoicing({ chord, family: guideTones ? 'guide' : selectCoordinatedVoicingFamily({ chord, phraseId: score.phraseId, tempo: score.tempo, segmentIndex: index, intensity: info.intensity, voicingBias: style.voicingBias }),
 			registerMidi: guideTones ? 62 : Math.round(58 + 8 * info.intensity), previous: voicingMemory,
-			rootlessTexture: ensemble.piano.rootlessTexture?.request });
+			rootlessTexture: ensemble.piano.rootlessTexture?.request, ...(contour ? { targetTopMidi: contour.targetMidi } : {}) });
 		if (!selected.notes.length) return;
-		return { index, selected, event: { absBeat, time: `${tick}i`, notes: [...selected.notes], duration, velocity: hit.velocity } };
+		return { index, selected, contour, event: { absBeat, time: `${tick}i`, notes: [...selected.notes], duration, velocity: hit.velocity } };
 	};
 	// Preparation is pure: rejected replies retain the already valid native fallback,
 	// and neither candidate can advance the last actually emitted voicing.
@@ -151,10 +157,11 @@ export function realizeRollingPiano(score: RollingBackingDefinition, bar: number
 		if (coordinatedVoicing) {
 			const accepted = preparedReply ?? prepare(hit);
 			if (!accepted) continue;
-			const { index, selected, event } = accepted;
+			const { index, selected, event, contour } = accepted;
 			events.push(event);
 			voicingTrace.push(Object.freeze({ absBeat: event.absBeat, time: event.time, notes: selected.notes, decision: selected.decision, ...(arrival ? { arrivalId: arrival.accentId } : {}) }));
 			voicingMemory = selected.memory;
+			if (contour) contourMemory = commitPianoContour(contourContext!, contour, selected.notes);
 			segmentIndex = index; segmentVoicing = event.notes; lastVoicing = event.notes;
 			continue;
 		}
@@ -181,7 +188,8 @@ export function realizeRollingPiano(score: RollingBackingDefinition, bar: number
 	if (answer) { hits = [{ b: proposal!.hit.beatOffset, d: events[0].duration * score.tempo / 60 }]; transform = 'fallback'; shift = 0; reason = 'drum_reply'; }
 	return { events, ...(answer ? { answer } : {}), ...(coordinatedVoicing ? { voicingTrace: Object.freeze(voicingTrace) } : {}),
 		memory: { recentFigures: [...memory.recentFigures, answer ? 'drum-reply' : arrival ? 'shared-arrival' : style.compPlanning ? figure.repeatKey ?? figure.id : `${score.style}:${hits.map((hit) => hit.b).join(',')}`].slice(-3), motif, segmentIndex, segmentVoicing, lastVoicing,
-			...(coordinatedVoicing && voicingMemory ? { voicing: voicingMemory } : {}) },
+			...(coordinatedVoicing && voicingMemory ? { voicing: voicingMemory } : {}),
+			...(contourEnabled && contourMemory ? { contour: contourMemory } : {}) },
 		trace: { version: 1, barIndex: bar, phraseStartBar: phraseStart, motifId: !answer && !arrival && motif.sourceId ? `motif:${phraseStart}:${motif.sourceId}` : null,
 			sourceFigureId: answer || arrival ? null : motif.sourceId, transform, displacementBeats: shift, hits: hits.filter((hit) => events.some((event) => event.absBeat === bar * 4 + hit.b)), ...(reason ? { reason } : {}) } };
 }

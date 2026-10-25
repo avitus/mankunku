@@ -1,7 +1,10 @@
 import { createHash } from 'node:crypto';
 import { expect, it } from 'vitest';
 import { createRollingBacking, advanceRollingBacking } from '$lib/audio/backing-rolling';
-import { generateBacking } from '$lib/audio/backing-generation';
+import priorFixed from '../../fixtures/audio/piano-contour-fixed-before.json';
+import { fractionToFloat } from '$lib/music/intervals';
+import { resolveCoordinatedVoicing, type CoordinatedVoicingMemory } from '$lib/audio/coordinated-voicing';
+import { generateBacking, type GeneratedBacking } from '$lib/audio/backing-generation';
 import { BACKING_STYLES } from '$lib/audio/backing-styles';
 import { buildListeningTuneSession } from '$lib/musicality/listening-tunes';
 import { seedFrom } from '$lib/audio/generation-rng';
@@ -101,11 +104,11 @@ const controls = [
 	{"style":"ballad","mode":"coordinated-explicit","engine":"rolling","expected":{"bassEvents":"85ab2dffb7684b0e1ed5cfaaa29ebfce0ec034b2107c1989d28434276d40d1ac","compEvents":"4e6c91018d2a312f06e6ff9861f235fbe417540bc6bcb8b9c2bf2ec7acbe9872","drumEvents":"75ba424f2605fea5309693aef9048545dbdec5b39c3df3f13c424df33ffe9ac5"}}
 ] as const;
 
-it.each(controls)('$style $mode $engine preserves the complete baseline performance', ({ style: id, mode, engine, expected }) => {
+it.each(controls)('$style $mode $engine preserves rhythm, harmony and native compatibility', ({ style: id, mode, engine, expected }) => {
 	const { performanceForm, ensemble, ...plain } = params;
 	const input = { ...plain, ...(mode !== 'coordinated-implicit' ? { performanceForm } : {}),
 		...(mode !== 'original' ? { ensemble } : {}), swing: BACKING_STYLES[id].defaultSwing };
-	const generated = engine === 'fixed' ? generateBacking(phrase.harmony, BACKING_STYLES[id], input) : (() => {
+	const generated: GeneratedBacking = engine === 'fixed' ? generateBacking(phrase.harmony, BACKING_STYLES[id], input) : (() => {
 		const score = createRollingBacking(phrase.harmony, BACKING_STYLES[id], input);
 		const bars = []; let checkpoint;
 		for (let bar = 0; bar < score.totalBars; bar++) {
@@ -113,6 +116,41 @@ it.each(controls)('$style $mode $engine preserves the complete baseline performa
 		}
 		return { bassEvents: bars.flatMap(b => b.bassEvents), compEvents: bars.flatMap(b => b.compEvents), drumEvents: bars.flatMap(b => b.drumEvents) };
 	})();
-	for (const field of ['bassEvents', 'compEvents', 'drumEvents'] as const)
-		expect(createHash('sha256').update(JSON.stringify(generated[field])).digest('hex')).toBe(expected[field]);
+	for (const field of ['bassEvents', 'compEvents', 'drumEvents'] as const) {
+		// P36 deliberately changes scoped fixed inversions. Retain the exact old
+		// fixture and every other contract rather than refreshing a pitch hash.
+		if (field === 'compEvents' && engine === 'fixed' && mode === 'coordinated-explicit' && (id === 'swing' || id === 'straight')) {
+			const before = priorFixed.styles[id];
+			expect(createHash('sha256').update(JSON.stringify(before)).digest('hex')).toBe(expected.compEvents);
+			expect(generated.compEvents.map(({ notes: _, ...event }) => event))
+				.toEqual(before.map(({ notes: _, ...event }) => event));
+			let previous: CoordinatedVoicingMemory | undefined;
+			let changed = 0;
+			let improvedTop = 0;
+			for (const [index, event] of generated.compEvents.entries()) {
+				expect(event.notes.map(note => note % 12).sort((a, b) => a - b))
+					.toEqual(before[index].notes.map(note => note % 12).sort((a, b) => a - b));
+				if (JSON.stringify(event.notes) !== JSON.stringify(before[index].notes)) changed++;
+				const plan = generated.ensemblePlan!.bars[Math.floor(event.absBeat / 4)];
+				const trace = generated.ensembleDevelopment!.pianoVoicings![index];
+				const lookup = event.absBeat + (event.absBeat % 1 ? 0.5 : 0);
+				const chord = phrase.harmony.find(segment => lookup >= fractionToFloat(segment.startOffset) * 4 &&
+					lookup < (fractionToFloat(segment.startOffset) + fractionToFloat(segment.duration)) * 4)!.chord;
+				const base = resolveCoordinatedVoicing({ chord, family: trace.decision.requestedFamily,
+					registerMidi: trace.decision.requestedFamily === 'guide' ? 62 : Math.round(58 + 8 * plan.energy),
+					previous, rootlessTexture: plan.piano.rootlessTexture?.request });
+				expect(trace.decision.guideMotion).toBe(base.decision.guideMotion);
+				expect(trace.decision.commonTones).toHaveLength(base.decision.commonTones.length);
+				expect(trace.decision.totalMovement).toBe(base.decision.totalMovement);
+				if (trace.decision.topLine?.eligible) {
+					if (Math.abs(event.notes.at(-1)! - trace.decision.topLine.targetMidi) < Math.abs(base.notes.at(-1)! - trace.decision.topLine.targetMidi)) improvedTop++;
+					expect(Math.abs(event.notes.at(-1)! - trace.decision.topLine.targetMidi))
+						.toBeLessThanOrEqual(Math.abs(base.notes.at(-1)! - trace.decision.topLine.targetMidi));
+				}
+				previous = { version: 1, chord, notes: event.notes };
+			}
+			expect(changed).toBeGreaterThan(0);
+			expect(improvedTop).toBeGreaterThan(0);
+		} else expect(createHash('sha256').update(JSON.stringify(generated[field])).digest('hex')).toBe(expected[field]);
+	}
 });

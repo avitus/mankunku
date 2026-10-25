@@ -118,7 +118,7 @@ it('carries actual emitted guide overrides and anticipation harmony through JSON
 					lookup < (fractionToFloat(segment.startOffset) + fractionToFloat(segment.duration)) * 4)!.chord;
 				const expected = resolveCoordinatedVoicing({ chord, family: trace.decision.requestedFamily,
 					registerMidi: trace.decision.requestedFamily === 'guide' ? 62 : Math.round(58 + 8 * result.ensemblePlan.bars[0].energy), previous: actual,
-					rootlessTexture: result.ensemblePlan.bars[0].piano.rootlessTexture?.request });
+					rootlessTexture: result.ensemblePlan.bars[0].piano.rootlessTexture?.request, targetTopMidi: trace.decision.topLine?.targetMidi });
 				expect(event.notes).toEqual(expected.notes);
 				expect(trace).toMatchObject({ absBeat: event.absBeat, time: event.time, notes: event.notes, decision: expected.decision });
 				if (previousGuide) followedGuides++;

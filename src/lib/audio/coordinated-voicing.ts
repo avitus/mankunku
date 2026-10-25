@@ -18,6 +18,8 @@ export interface CoordinatedVoicingDecision {
 	readonly totalMovement: number;
 	readonly registerDistance: number;
 	readonly candidateCount: number;
+	/** A tie-breaking phrase objective, not a claim that the target was reached. */
+	readonly topLine?: { readonly targetMidi: number; readonly actualMidi: number; readonly distance: number; readonly eligible: boolean };
 	/** 'full' retains the selected family; it does not imply four notes. */
 	readonly rootlessTexture?: {
 		readonly request: 'three' | 'full';
@@ -99,16 +101,19 @@ function placements(pcs: readonly number[], family: CoordinatedVoicingFamily): n
 /**
  * Causal placement of a caller-selected family. The caller must commit the
  * returned memory only after emitting this chord; unplayed harmony is not input.
- * Ranking is defining-tone movement, exact common notes, total movement, then
- * register distance. Quartal shapes keep their native fourth-stack identity.
+ * Ranking is defining-tone movement, exact common notes, total movement, optional
+ * top-note target distance, then register distance. Quartal shapes keep their
+ * native fourth-stack identity.
  */
 export function resolveCoordinatedVoicing(input: {
 	chord: { root: PitchClass; quality: ChordQuality };
 	family: CoordinatedVoicingFamily; registerMidi: number; previous?: CoordinatedVoicingMemory;
 	rootlessTexture?: 'three' | 'full';
+	targetTopMidi?: number;
 }): { notes: readonly number[]; memory: CoordinatedVoicingMemory; decision: CoordinatedVoicingDecision } {
 	if (!validChord(input.chord) || !Object.hasOwn(builders, input.family) || !Number.isFinite(input.registerMidi) || input.registerMidi < 0 || input.registerMidi > 127 ||
-		(input.rootlessTexture !== undefined && !['three', 'full'].includes(input.rootlessTexture))) throw new Error('Invalid coordinated voicing input');
+		(input.rootlessTexture !== undefined && !['three', 'full'].includes(input.rootlessTexture)) ||
+		(input.targetTopMidi !== undefined && (!Number.isInteger(input.targetTopMidi) || input.targetTopMidi < 48 || input.targetTopMidi > 84))) throw new Error('Invalid coordinated voicing input');
 	const previous = input.previous;
 	if (previous && (previous.version !== 1 || !validChord(previous.chord) || !Array.isArray(previous.notes) || previous.notes.length < 2 || previous.notes.length > 8 ||
 		previous.notes.some((note, index) => !Number.isInteger(note) || note < 0 || note > 127 || (index > 0 && previous.notes[index - 1] >= note)))) {
@@ -154,14 +159,18 @@ export function resolveCoordinatedVoicing(input: {
 	const ranked = candidates.map((notes) => ({ notes, guideMotion: guideMovement(previous, chord, notes, family),
 		commonTones: previous ? notes.filter((note) => previous.notes.includes(note)) : [],
 		totalMovement: previous ? totalMovement(previous.notes, notes) : 0, registerDistance: Math.abs(mean(notes) - target) }));
+	const contourEligible = !['guide', 'quartal'].includes(input.family) && !['guide', 'quartal'].includes(family);
+	const topDistance = (notes: readonly number[]) => input.targetTopMidi !== undefined && contourEligible ? Math.abs(notes.at(-1)! - input.targetTopMidi) : 0;
 	ranked.sort((a, b) => (a.guideMotion ?? 0) - (b.guideMotion ?? 0) || b.commonTones.length - a.commonTones.length ||
-		a.totalMovement - b.totalMovement || a.registerDistance - b.registerDistance || a.notes.reduce((difference, note, index) => difference || note - b.notes[index], 0));
+		a.totalMovement - b.totalMovement || topDistance(a.notes) - topDistance(b.notes) || a.registerDistance - b.registerDistance || a.notes.reduce((difference, note, index) => difference || note - b.notes[index], 0));
 	const selected = ranked[0];
 	const notes = Object.freeze([...selected.notes]);
 	const memory = Object.freeze({ version: 1 as const, chord: Object.freeze(chord), notes });
 	const decision = Object.freeze({ requestedFamily: input.family, resolvedFamily: family, correction,
 		guideMotion: selected.guideMotion, commonTones: Object.freeze([...selected.commonTones]), totalMovement: selected.totalMovement,
 		registerDistance: selected.registerDistance, candidateCount: candidates.length,
+		...(input.targetTopMidi !== undefined ? { topLine: Object.freeze({ targetMidi: input.targetTopMidi, actualMidi: notes.at(-1)!,
+			distance: Math.abs(notes.at(-1)! - input.targetTopMidi), eligible: contourEligible }) } : {}),
 		...(input.rootlessTexture ? { rootlessTexture: Object.freeze({ request: input.rootlessTexture,
 			applied: three ? 'three' as const : 'full' as const, eligible: textureEligible, noteCount: notes.length }) } : {}) });
 	return Object.freeze({ notes, memory, decision });

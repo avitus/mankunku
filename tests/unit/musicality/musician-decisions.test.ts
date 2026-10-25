@@ -475,3 +475,57 @@ describe('accepted piano answer and drummer space', () => {
 		expect(cards(generated).flatMap(card => card.evidence).join(' ')).not.toMatch(/Answer the drum phrase|for the piano answer/);
 	});
 });
+
+describe('piano top-note objective evidence', () => {
+	function score() {
+		const event = { absBeat: 4, time: '768i', notes: [53, 58, 60, 63], duration: .4, velocity: 60 };
+		return { bassEvents: [], compEvents: [event], drumEvents: [], ensemblePlan: { version: 1, trace: [], bars: [{
+			barIndex: 1, phraseIntent: 'support', energy: .4,
+			performanceEnergy: { phase: 'head_return', chorusIndex: 3, targetEnergy: .4 },
+			piano: { role: 'support' }, bass: { role: 'time' }, drums: { role: 'time' }
+		}] }, ensembleDevelopment: { version: 1, bassTurnarounds: [], pianoMotifs: [], drumPhrases: [], pianoVoicings: [{ ...event,
+			notes: [...event.notes], decision: { requestedFamily: 'rootless-b', resolvedFamily: 'rootless-b', correction: 'none',
+				guideMotion: 2, commonTones: [60], totalMovement: 26, registerDistance: 3, candidateCount: 12,
+				topLine: { targetMidi: 58, actualMidi: 63, distance: 5, eligible: true } }
+		}] } };
+	}
+	const card = (generated: ReturnType<typeof score>, options = {}) => describeMusicianDecisions(generated as unknown as GeneratedBacking, { ...context, barIndex: 1, ...options })[1];
+	it.each(['swing', 'straight'] as const)('shows a %s target miss honestly alongside actual notes and retained priorities', style => {
+		const piano = card(score(), { style });
+		expect(piano.action).toBe('Support the harmony');
+		expect(piano.evidence).toContain('Chord 1 top-note target: B♭3; actual top: E♭4');
+		expect(piano.evidence).toContain('Guide-tone movement: 2 semitones total');
+		expect(piano.evidence).toContain('Common tones held: C4');
+		expect(piano.evidence.join(' ')).not.toMatch(/melody achieved|improved|soloist/i);
+	});
+	it('reports a reached target without claiming a composed melody or changing rhythmic ownership', () => {
+		const generated = score();
+		Object.assign(generated.ensembleDevelopment.pianoVoicings[0], { arrivalId: 'existing-arrival' });
+		Object.assign(generated.ensembleDevelopment.pianoVoicings[0].decision.topLine, { targetMidi: 63, distance: 0 });
+		expect(card(generated).evidence).toContain('Chord 1 top-note target: E♭4; actual top: E♭4');
+	});
+	it.each(['notes', 'time', 'absBeat', 'actual-top', 'distance', 'fractional-target', 'range', 'ineligible', 'requested-guide', 'resolved-quartal'] as const)(
+		'does not promote inconsistent %s evidence into a top-note objective', field => {
+			const generated = score(); const voiced = generated.ensembleDevelopment.pianoVoicings[0];
+			if (field === 'notes') voiced.notes = [53, 58, 60, 64];
+			if (field === 'time') voiced.time = '769i';
+			if (field === 'absBeat') voiced.absBeat = 4.5;
+			if (field === 'actual-top') voiced.decision.topLine.actualMidi = 70;
+			if (field === 'distance') voiced.decision.topLine.distance = 0;
+			if (field === 'fractional-target') voiced.decision.topLine.targetMidi = 58.5;
+			if (field === 'range') Object.assign(voiced.decision.topLine, { targetMidi: 100, distance: 37 });
+			if (field === 'ineligible') voiced.decision.topLine.eligible = false;
+			if (field === 'requested-guide') voiced.decision.requestedFamily = 'guide';
+			if (field === 'resolved-quartal') voiced.decision.resolvedFamily = 'quartal';
+			expect(card(generated).evidence.join(' ')).not.toContain('top-note target');
+		});
+	it('keeps missing historical evidence, silence and native/Original playback unchanged', () => {
+		const generated = score();
+		for (const options of [{ orchestration: 'original' }, { style: 'bossa-nova' }, { style: 'ballad' }, { barIndex: 2 }])
+			expect(card(generated, options).evidence.join(' ')).not.toContain('top-note target');
+		generated.compEvents = [];
+		expect(card(generated).evidence.join(' ')).not.toContain('top-note target');
+		const legacy = score(); delete (legacy.ensembleDevelopment.pianoVoicings[0].decision as { topLine?: unknown }).topLine;
+		expect(card(legacy).evidence.join(' ')).not.toContain('top-note target');
+	});
+});

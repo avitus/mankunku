@@ -78,6 +78,7 @@ import type { StyleDefinition, GenerationContext, DrumVoice } from './backing-st
 import { generateBassLine as generateBassLine2, generateBossaBass } from './backing-bass';
 import type { StructuralBassFeel } from './backing-bass-feel';
 import { selectCoordinatedVoicingFamily } from './coordinated-voicing-family';
+import { preparePianoContour, commitPianoContour, type PianoContourMemory } from './backing-piano-contour';
 import { resolveCoordinatedVoicing, type CoordinatedVoicingMemory, type CoordinatedVoicingDecision } from './coordinated-voicing';
 
 // ── Event shapes ─────────────────────────────────────────────
@@ -188,6 +189,7 @@ function freezeEnsembleDevelopment(trace: EnsembleDevelopment): EnsembleDevelopm
 			Object.freeze(attack.notes);
 			Object.freeze(attack.decision.commonTones);
 			if (attack.decision.rootlessTexture) Object.freeze(attack.decision.rootlessTexture);
+			if (attack.decision.topLine) Object.freeze(attack.decision.topLine);
 			Object.freeze(attack.decision);
 			Object.freeze(attack);
 		}
@@ -479,6 +481,8 @@ export function generateComping(
 	const coordinatedVoicing = !!params.ensemble && !!style.coordinatedStyle && beatsPerBar === 4 &&
 		barInfos.length > 0 && barInfos.every((info) => info.ensemble?.performanceEnergy);
 	let voicingMemory: CoordinatedVoicingMemory | undefined;
+	const contourEnabled = coordinatedVoicing && ['swing', 'straight'].includes(style.coordinatedStyle!);
+	let contourMemory: PianoContourMemory | undefined;
 	const voicingTrace: CoordinatedPianoVoicing[] = [];
 
 	// Voicing selection per chord, then voice-lead the whole sequence.
@@ -610,13 +614,17 @@ export function generateComping(
 				// Anticipations may know the upcoming chord, but cannot borrow a
 				// future bar's observation-derived energy for this committed attack.
 				const currentIntensity = barInfos[bar].intensity;
+				const ensemble = barInfos[bar].ensemble!;
+				const contourContext = { barIndex: bar, phraseStartBar: ensemble.phraseStartBar, chorusIndex: ensemble.performanceEnergy!.chorusIndex, phase: ensemble.performanceEnergy!.phase };
+				const contour = contourEnabled ? preparePianoContour(contourContext, contourMemory) : undefined;
 				const selected = resolveCoordinatedVoicing({ chord,
 					family: ctx.plannedComp?.guideTones ? 'guide' : selectCoordinatedVoicingFamily({ chord, phraseId, tempo, segmentIndex: segIdx, intensity: currentIntensity, voicingBias: style.voicingBias }),
 					registerMidi: ctx.plannedComp?.guideTones ? COMP_REGISTER : Math.round(lerp(58, 66, currentIntensity)),
-					previous: voicingMemory, rootlessTexture: barInfos[bar].ensemble?.piano.rootlessTexture?.request });
+					previous: voicingMemory, ...(contour ? { targetTopMidi: contour.targetMidi } : {}), rootlessTexture: barInfos[bar].ensemble?.piano.rootlessTexture?.request });
 				if (!selected.notes.length) continue;
 				voicing = [...selected.notes];
 				voicingMemory = selected.memory;
+				if (contour) contourMemory = commitPianoContour(contourContext, contour, selected.notes);
 				voicingTrace.push(Object.freeze({ absBeat, time, notes: selected.notes, decision: selected.decision, ...(arrival ? { arrivalId: arrival.accentId } : {}) }));
 			}
 			events.push({

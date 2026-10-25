@@ -463,3 +463,29 @@ for (const style of ['swing', 'straight'] as const) {
 		await assertNoMicrophone(page);
 	});
 }
+
+test('shows the actual piano top and its phrase target in the returning head', async ({ page }) => {
+	test.setTimeout(125_000);
+	await setup(page);
+	await page.getByTestId('listening-tune').selectOption('ls-when-the-saints');
+	await page.getByTestId('listening-key').selectOption('Eb');
+	await page.getByTestId('listening-tempo').fill('140');
+	await page.getByTestId('listening-play').click();
+	await expect.poll(() => soundingBar(page), { timeout: 110_000 }).toBe(57);
+	await expect(page.getByTestId('musician-piano')).toContainText('Chord 1 top-note target: B♭3; actual top: C4');
+	await assertDecisionClock(page, undefined, 140);
+	const take = await exportTake(page);
+	causalProvenance(take.playback);
+	const generated = take.playback.generated!;
+	const trace = generated.ensembleDevelopment!.pianoVoicings!.find(entry => entry.absBeat === 231.5)!;
+	expect(trace.notes).toEqual([51, 53, 58, 60]);
+	expect(trace.decision).toMatchObject({
+		requestedFamily: 'rootless-b', resolvedFamily: 'rootless-b',
+		guideMotion: 2, commonTones: [60], totalMovement: 26,
+		topLine: { targetMidi: 58, actualMidi: 60, distance: 2, eligible: true }
+	});
+	expect(generated.compEvents).toContainEqual(expect.objectContaining({ time: trace.time, absBeat: trace.absBeat, notes: trace.notes }));
+	expect(generated.compEvents.find(event => event.absBeat === 223.5)?.notes).toEqual([55, 60]);
+	await page.getByTestId('listening-stop').click();
+	await assertNoMicrophone(page);
+});
