@@ -13,6 +13,8 @@ import { preparePianoContour, commitPianoContour, type PianoContourMemory } from
 import { proposePianoAnswer, type PianoAnswerMemory } from './backing-piano-answer';
 import { selectCoordinatedVoicingFamily } from './coordinated-voicing-family';
 import { resolveCoordinatedVoicing, type CoordinatedVoicingMemory } from './coordinated-voicing';
+import type { SoloEvidence } from './ensemble-plan';
+import { pianoPhraseRecallEnabled, retainPianoPhraseRecall, capturePianoMotifSource, proposePianoMotifRecall, type PianoPhraseRecallMemory } from './backing-piano-motif-memory';
 
 export interface RollingPianoMemory {
 	readonly recentFigures: readonly string[];
@@ -23,6 +25,8 @@ export interface RollingPianoMemory {
 	/** Last emitted harmony and pitches, including guide-tone overrides. */
 	readonly voicing?: CoordinatedVoicingMemory;
 	readonly contour?: PianoContourMemory;
+	/** Bounded accepted source; required (with null source) only by the scoped recall policy. */
+	readonly phraseRecall?: PianoPhraseRecallMemory;
 }
 
 const emptyMemory = (): RollingPianoMemory => ({ recentFigures: [], motif: null, segmentIndex: null, segmentVoicing: [], lastVoicing: [] });
@@ -30,7 +34,35 @@ const figureById = (id: string) => COMP_FIGURES.find((figure) => figure.id === i
 const shiftsFor = (figure: CompFigure) => [-1, -0.5, 0.5, 1].filter((shift) => figure.hits[0].every((hit) => hit.b + shift >= 0 && hit.b + shift < 3.5));
 
 export function realizeRollingPiano(score: RollingBackingDefinition, bar: number, info: BarInfo,
-	timing: EnsembleTiming, previous?: RollingPianoMemory, answerContext?: { feedback: Omit<PianoFeedbackDecision, 'acceptedAttacks'>; previous?: PianoAnswerMemory }): { answer?: PianoAnswerDecision; events: CompEvent[]; memory: RollingPianoMemory; trace: CompMotifDecision; voicingTrace?: readonly CoordinatedPianoVoicing[] } {
+	timing: EnsembleTiming, previous?: RollingPianoMemory, answerContext?: { feedback: Omit<PianoFeedbackDecision, 'acceptedAttacks'>; previous?: PianoAnswerMemory }, soloEvidence: SoloEvidence = 'unavailable') {
+	const ordinary = realizePianoCandidate(score, bar, info, timing, previous, answerContext);
+	if (!pianoPhraseRecallEnabled(score)) return ordinary;
+	const retained = retainPianoPhraseRecall(previous?.phraseRecall, score, bar, soloEvidence);
+	const proposed = proposePianoMotifRecall({ score, bar, info, evidence: soloEvidence, memory: retained,
+		trace: ordinary.trace, events: ordinary.events, motif: ordinary.memory.motif });
+	let selected = ordinary;
+	let recall: CompMotifDecision['recall'];
+	if (proposed) {
+		// Both candidates start from the original actual history and consume the
+		// same existing selection streams. Never commit a partially played recall.
+		const candidate = realizePianoCandidate(score, bar, info, timing, previous, answerContext, proposed);
+		const source = retained.source!;
+		const figure = figureById(source.figureId);
+		if (!candidate.answer && candidate.trace.transform === 'statement' && candidate.events.length === ordinary.events.length &&
+			figure.hits[0].every((hit, index) => candidate.events[index]?.absBeat === bar * 4 + hit.b)) {
+			selected = candidate;
+			recall = { source, attacks: candidate.events.map(event => ({ ...event, notes: [...event.notes] })) };
+		}
+	}
+	const source = recall ? null : capturePianoMotifSource(score, bar, info, soloEvidence, selected.trace, selected.events);
+	const phraseRecall: PianoPhraseRecallMemory = recall ? { version: 1, source: recall.source, recalledAt: bar }
+		: source ? { version: 1, source, recalledAt: null } : retained;
+	return { ...selected, memory: { ...selected.memory, phraseRecall }, trace: { ...selected.trace, ...(recall ? { recall } : {}) } };
+}
+
+function realizePianoCandidate(score: RollingBackingDefinition, bar: number, info: BarInfo,
+	timing: EnsembleTiming, previous?: RollingPianoMemory, answerContext?: { feedback: Omit<PianoFeedbackDecision, 'acceptedAttacks'>; previous?: PianoAnswerMemory },
+	motifOverride?: RollingPianoMemory['motif']): { answer?: PianoAnswerDecision; events: CompEvent[]; memory: RollingPianoMemory; trace: CompMotifDecision; voicingTrace?: readonly CoordinatedPianoVoicing[] } {
 	const memory = previous ?? emptyMemory();
 	const style = BACKING_STYLES[score.style ?? 'swing'];
 	const ensemble = info.ensemble!;
@@ -67,6 +99,7 @@ export function realizeRollingPiano(score: RollingBackingDefinition, bar: number
 			motif = { startBar: phraseStart, sourceId: source?.id ?? null, shift: source ? rng.pick(shiftsFor(source)) : 0,
 				repeat: createRng(seedFrom(score.phraseId, score.tempo, 'comp-motif-development', phraseStart)).chance(0.35) };
 		}
+		if (motifOverride) motif = motifOverride;
 		const rng = createRng(seedFrom(score.phraseId, score.tempo, 'comp-figure', bar));
 
 		if (motif.sourceId) {

@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { assertPianoPhraseRecallDelta } from './piano-phrase-recall-assertions';
 import { assertBossaContourCompatibility } from './bossa-contour-assertions';
 import { expect, it } from 'vitest';
 import { createRollingBacking, advanceRollingBacking } from '$lib/audio/backing-rolling';
@@ -305,7 +306,7 @@ const baselineCases = [
 		}
 	}
 ] as const;
-it.each(baselineCases)('$style $mode $engine preserves its full-tune timing, dynamics and protected instruments', ({ style: id, mode, engine, pitchControl, expected }) => {
+it.each(baselineCases)('$style $mode $engine preserves full-tune contracts outside explicitly admitted recall changes', ({ style: id, mode, engine, pitchControl, expected }) => {
 	const { performanceForm, ensemble, ...plain } = params;
 	const input = {
 		...plain,
@@ -313,7 +314,8 @@ it.each(baselineCases)('$style $mode $engine preserves its full-tune timing, dyn
 		...(mode !== 'original' ? { ensemble } : {}),
 		swing: BACKING_STYLES[id].defaultSwing
 	};
-	const generated = engine === 'fixed' ? generateBacking(phrase.harmony, BACKING_STYLES[id], input) : (() => {
+	let recallEnergy: number | undefined;
+	const current = engine === 'fixed' ? generateBacking(phrase.harmony, BACKING_STYLES[id], input) : (() => {
 		const score = createRollingBacking(phrase.harmony, BACKING_STYLES[id], input);
 		let checkpoint;
 		const bars = [];
@@ -322,13 +324,20 @@ it.each(baselineCases)('$style $mode $engine preserves its full-tune timing, dyn
 			checkpoint = next.checkpoint;
 			bars.push(next);
 		}
+		recallEnergy = bars[24].ensemblePlan.bars[0].energy;
 		return {
 			bassEvents: bars.flatMap(bar => bar.bassEvents),
 			compEvents: bars.flatMap(bar => bar.compEvents),
 			drumEvents: bars.flatMap(bar => bar.drumEvents),
-			ensembleDevelopment: { version: 1 as const, pianoVoicings: bars.flatMap(bar => bar.ensembleDevelopment.pianoVoicings ?? []) }
+			ensembleDevelopment: { version: 1 as const, pianoVoicings: bars.flatMap(bar => bar.ensembleDevelopment.pianoVoicings ?? []),
+				pianoMotifs: bars.flatMap(bar => bar.ensembleDevelopment.pianoMotifs ?? []),
+				drumPhrases: bars.flatMap(bar => bar.ensembleDevelopment.drumPhrases) }
 		};
 	})();
+	// The earlier pitch-only milestone's hashes remain immutable. Validate the new
+	// exact rhythm/source/harmony delta, then reconstruct its original event footprint.
+	const generated = engine === 'rolling' && mode === 'coordinated-explicit' && (id === 'swing' || id === 'straight')
+		? assertPianoPhraseRecallDelta(current, id, recallEnergy!) : current;
 	const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 	for (const field of ['bassEvents', 'drumEvents'] as const) {
 		expect(hash(generated[field])).toBe(expected[field]);

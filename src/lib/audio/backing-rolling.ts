@@ -22,6 +22,7 @@ import { planPianoRecovery, captureReturningDrums, validatePianoRecoveryMemory, 
 import { validatePianoContourMemory } from './backing-piano-contour';
 import { validatePianoAnswerMemory, type PianoAnswerMemory } from './backing-piano-answer';
 import { captureDrumStatement, planDrumPianoFeedback, validateDrumPianoFeedback, type DrumPianoFeedbackMemory } from './backing-ensemble-feedback';
+import { pianoPhraseRecallEnabled, validatePianoPhraseRecall } from './backing-piano-motif-memory';
 
 export interface RollingBackingOptions {
 	/** Explicit finite repetitions of the source form; never an open-ended loop. */
@@ -169,7 +170,7 @@ export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDef
 	// Preserve the one-pass binding. An explicit repeat is a distinct declared
 	// performance even when its flattened score matches some other source.
 	const serialized = JSON.stringify([1, params.phraseId, params.tempo, params.ppq, params.swing, copied, form, timingProfiles,
-		...(performanceEnergy ? [{ performanceEnergyVersion: 1, structuralTextureVersion: 1, coordinatedVoicingVersion: 4, reciprocalFeedbackVersion: 1, ...(['swing', 'straight'].includes(style.coordinatedStyle!) ? { pianoArrivalVersion: 1, bassScalarContinuationVersion: 1, pianoAnswerVersion: 1, pianoContourVersion: 1, pianoRecoveryVersion: 1 } : style.coordinatedStyle === 'bossa-nova' ? { pianoContourVersion: 1 } : {}) }] : []),
+		...(performanceEnergy ? [{ performanceEnergyVersion: 1, structuralTextureVersion: 1, coordinatedVoicingVersion: 4, reciprocalFeedbackVersion: 1, ...(['swing', 'straight'].includes(style.coordinatedStyle!) ? { pianoArrivalVersion: 1, bassScalarContinuationVersion: 1, pianoAnswerVersion: 1, pianoContourVersion: 1, pianoRecoveryVersion: 1, pianoPhraseRecallVersion: 1 } : style.coordinatedStyle === 'bossa-nova' ? { pianoContourVersion: 1 } : {}) }] : []),
 		...(loopCount > 1 ? [{ sourceBars, loopCount }] : []),
 		...(style.coordinatedStyle !== 'swing' ? [{ style: style.coordinatedStyle }] : [])]);
 	// The definition retains the complete immutable score once. Repeating its
@@ -204,6 +205,8 @@ function validateCheckpoint(score: RollingBackingDefinition, checkpoint: Rolling
 		!numeric(checkpoint.piano.segmentIndex)) invalid();
 	if (checkpoint.drums.previousCompIsSharedArrival !== undefined && !score.bars[checkpoint.nextBar - 1]?.pianoArrivalPolicy) invalid();
 	const answerPolicy = !!score.bars[0]?.performanceEnergy && (!score.style || score.style === 'swing' || score.style === 'straight');
+	if (pianoPhraseRecallEnabled(score)) validatePianoPhraseRecall(checkpoint.piano.phraseRecall, score, checkpoint.nextBar, checkpoint.piano.motif);
+	else if (checkpoint.piano.phraseRecall !== undefined) invalid();
 	if (answerPolicy) validatePianoAnswerMemory(checkpoint.pianoAnswer, checkpoint.nextBar);
 	else if (checkpoint.pianoAnswer !== undefined || checkpoint.drums.previousCompIsDrumReply !== undefined) invalid();
 	if (checkpoint.drums.previousCompIsDrumReply !== undefined && (checkpoint.drums.previousCompIsDrumReply !== true ||
@@ -277,7 +280,7 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 		? { ...info, ensemble: { ...ensemble, piano: { ...ensemble.piano, maxAttacks: feedback.effectiveMaxAttacks } } } : info;
 	const answerPolicy = !!feedback && (!definition.style || definition.style === 'swing' || definition.style === 'straight');
 	let piano = realizeRollingPiano(definition, bar, pianoInfo, timing, checkpoint?.piano,
-		answerPolicy ? { feedback: feedback!, previous: checkpoint?.pianoAnswer } : undefined);
+		answerPolicy ? { feedback: feedback!, previous: checkpoint?.pianoAnswer } : undefined, window.plan.trace[0].soloEvidence);
 	const bass = realizeRollingBass(definition, bar, info, timing, checkpoint?.bass);
 	const startTick = bar * 4 * definition.ppq;
 	const endTick = (bar + 1) * 4 * definition.ppq;
@@ -306,7 +309,7 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 		// Both passes start from the original checkpoint. No speculative piano,
 		// contour or drum motif state can leak into the committed result.
 		const recoveredPiano = realizeRollingPiano(definition, bar,
-			{ ...pianoInfo, ensemble: { ...pianoInfo.ensemble!, piano: { ...pianoInfo.ensemble!.piano, maxAttacks: 0 } } }, timing, checkpoint?.piano);
+			{ ...pianoInfo, ensemble: { ...pianoInfo.ensemble!, piano: { ...pianoInfo.ensemble!.piano, maxAttacks: 0 } } }, timing, checkpoint?.piano, undefined, window.plan.trace[0].soloEvidence);
 		const recoveredDrums = realizeDrums(recoveredPiano);
 		const recoveredEvents = scheduleDrums(recoveredDrums);
 		const returningDrums = captureReturningDrums(recoveredDrums.bar, recoveredEvents, checkpoint?.drums.phrase.motif);

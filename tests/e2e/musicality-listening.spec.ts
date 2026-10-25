@@ -819,3 +819,45 @@ test('completes all 128 bars of a local tune book AABA on the real audio clock',
 	expect(await sourceStarts(page)).toBe(starts);
 	await assertNoMicrophone(page);
 });
+
+for (const style of ['swing', 'straight']) {
+	test(`${style} recalls an actually played piano cell across solo phrases and preserves its review evidence`, async ({ page }) => {
+		test.setTimeout(70_000);
+		await setup(page);
+		await page.getByTestId('listening-tune').selectOption('ls-when-the-saints');
+		await page.getByTestId('listening-key').selectOption('Eb');
+		await page.getByTestId('listening-style').selectOption(style);
+		await page.getByTestId('listening-tempo').fill('140');
+		await page.getByTestId('listening-play').click();
+		await expect.poll(() => soundingBar(page), { timeout: 45_000 }).toBe(20);
+		const source = await exportTake(page);
+		const sourceEvents = source.playback.generated!.compEvents.filter(event => Math.floor(event.absBeat / 4) === 20);
+		expect(sourceEvents).toHaveLength(1);
+		expect(sourceEvents[0].absBeat).toBe(81.5);
+		expect(source.playback.generated!.ensembleDevelopment!.pianoMotifs!.find(motif => motif.barIndex === 20)?.recall).toBeUndefined();
+		await expect.poll(() => soundingBar(page), { timeout: 12_000 }).toBe(24);
+		await expect(page.getByTestId('musician-piano')).toContainText('Recall the piano cell from bar 21');
+		await assertDecisionClock(page, undefined, 140);
+		const recalled = await exportTake(page);
+		assertCommittedPrefix(source.playback, recalled.playback);
+		const generated = recalled.playback.generated!;
+		const trace = generated.ensembleDevelopment!.pianoMotifs!.find(motif => motif.barIndex === 24)!;
+		expect(trace.recall).toMatchObject({ source: { barIndex: 20, phraseStartBar: 20, figureId: 'and2-only', attacks: sourceEvents } });
+		expect(trace.recall!.attacks).toEqual(generated.compEvents.filter(event => Math.floor(event.absBeat / 4) === 24));
+		expect(trace.recall!.attacks.map(event => event.absBeat)).toEqual([97.5]);
+		for (const attack of [...trace.recall!.source.attacks, ...trace.recall!.attacks]) expect(generated.compEvents).toContainEqual(attack);
+		await page.getByTestId('listening-stop').click();
+		const stopped = await exportTake(page);
+		const starts = await sourceStarts(page);
+		const review = page.getByRole('slider', { name: 'Review decisions', exact: true });
+		await review.fill('20');
+		await expect(page.getByTestId('musician-piano')).not.toContainText('Recall the piano cell from bar 21');
+		await review.fill('24');
+		await expect(page.getByTestId('musician-piano')).toContainText('Recall the piano cell from bar 21');
+		const reviewed = await exportTake(page);
+		expect(reviewed.playback).toEqual(stopped.playback);
+		expect(reviewed.review?.barIndex).toBe(24);
+		expect(await sourceStarts(page)).toBe(starts);
+		await assertNoMicrophone(page);
+	});
+}

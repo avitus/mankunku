@@ -103,6 +103,23 @@ export interface PlannedBar {
 }
 
 export type CompMotifTransform = 'statement' | 'repeat' | 'displace' | 'shorten' | 'space' | 'fallback';
+export interface PianoMotifAttack {
+	readonly absBeat: number;
+	readonly time: string;
+	readonly notes: readonly number[];
+	readonly duration: number;
+	readonly velocity: number;
+}
+/** A complete independent cell that actually sounded, never a future proposal. */
+export interface PianoMotifRecallSource {
+	readonly barIndex: number;
+	readonly phraseStartBar: number;
+	readonly chorusIndex: number;
+	readonly sectionIndex: number;
+	readonly loopIndex: number;
+	readonly figureId: string;
+	readonly attacks: readonly PianoMotifAttack[];
+}
 export interface CompMotifDecision {
 	readonly version: 1;
 	readonly barIndex: number;
@@ -113,11 +130,20 @@ export interface CompMotifDecision {
 	readonly displacementBeats: number;
 	/** Planned onsets and nominal durations, before articulation and timing. */
 	readonly hits: readonly Readonly<CompFigureHit>[];
+	/** Accepted first statement of a one-use adjacent-phrase recall. */
+	readonly recall?: { readonly source: PianoMotifRecallSource; readonly attacks: readonly PianoMotifAttack[] };
 	readonly reason?: 'native_pattern' | 'not_selected' | 'short_phrase' | 'incomplete_harmony' | 'gesture_does_not_fit' | 'ensemble_silence' | 'response_reserved' | 'motif_gap' | 'shared_arrival' | 'drum_reply';
 }
 
 export function freezeCompMotifTrace(trace: readonly CompMotifDecision[]): readonly CompMotifDecision[] {
 	for (const entry of trace) {
+		if (entry.recall) {
+			for (const attacks of [entry.recall.source.attacks, entry.recall.attacks]) {
+				for (const attack of attacks) { Object.freeze(attack.notes); Object.freeze(attack); }
+				Object.freeze(attacks);
+			}
+			Object.freeze(entry.recall.source); Object.freeze(entry.recall);
+		}
 		for (const hit of entry.hits) Object.freeze(hit);
 		Object.freeze(entry.hits);
 		Object.freeze(entry);

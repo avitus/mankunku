@@ -685,3 +685,106 @@ describe('piano recovery during a retained drum return', () => {
 		expect(card(generated).evidence).not.toContain(explanation);
 	});
 });
+
+describe('accepted piano phrase recall evidence', () => {
+	const label = 'Recall the piano cell from bar 21';
+	function fixture() {
+		const sourceAttack = { time: '15648i', absBeat: 81.5, notes: [55, 60, 63, 70], duration: 0.3, velocity: 73 };
+		const attack = { time: '18720i', absBeat: 97.5, notes: [53, 55, 58, 61], duration: 0.3, velocity: 71 };
+		const source = { barIndex: 20, phraseStartBar: 20, chorusIndex: 1, sectionIndex: 0, loopIndex: 0,
+			figureId: 'and2-only', attacks: [structuredClone(sourceAttack)] };
+		return { bassEvents: [], compEvents: [sourceAttack, attack], drumEvents: [],
+			ensemblePlan: { bars: [20, 24].map(barIndex => ({ barIndex, energy: 0.6, phraseIntent: 'support', responseOwner: 'nobody',
+				performanceEnergy: { phase: 'solo_peak', chorusIndex: 1, targetEnergy: 0.6 },
+				piano: { role: 'support' }, bass: { role: 'time' }, drums: { role: 'time' } })) },
+			ensembleDevelopment: { version: 1, bassTurnarounds: [], drumPhrases: [], pianoMotifs: [
+				{ version: 1, barIndex: 20, phraseStartBar: 20, motifId: 'cell-20', sourceFigureId: 'and2-only', transform: 'statement',
+					displacementBeats: 0, hits: [{ b: 1.5, d: 1.2 }] },
+				{ version: 1, barIndex: 24, phraseStartBar: 24, motifId: 'cell-24', sourceFigureId: 'and2-only', transform: 'statement',
+					displacementBeats: 0, hits: [{ b: 1.5, d: 1.2 }], recall: { source, attacks: [structuredClone(attack)] } }
+			] }
+		};
+	}
+	const card = (generated: ReturnType<typeof fixture>, options = {}) => describeMusicianDecisions(generated as unknown as GeneratedBacking,
+		{ ...context, barIndex: 24, ...options })[1];
+	it.each(['swing', 'straight'] as const)('explains an accepted %s cell using the actual source and current harmony', style => {
+		const generated = fixture();
+		expect(card(generated, { style }).evidence).toContain(label);
+		expect(card(generated, { style }).eventCount).toBe(1);
+		expect(card(generated, { style }).evidence).toContain('Chord 1: F3 · G3 · B♭3 · D♭4');
+	});
+	it('uses scheduled sounding ticks while retaining the complete source for captured review', () => {
+		const generated = fixture();
+		generated.compEvents[1].time = '18431i';
+		generated.ensembleDevelopment.pianoMotifs[1].recall!.attacks[0].time = '18431i';
+		expect(card(generated, { barIndex: 23 }).evidence).toContain(label);
+		expect(card(generated).evidence).not.toContain(label);
+	});
+	it.each(['source-time', 'source-beat', 'source-notes', 'source-duration', 'source-velocity',
+		'current-time', 'current-beat', 'current-notes', 'current-duration', 'current-velocity',
+		'source-missing', 'current-missing', 'source-extra', 'current-extra', 'source-figure', 'current-figure',
+		'source-transform', 'current-transform', 'source-recalled', 'source-arrival', 'source-reply',
+		'current-arrival', 'current-reply', 'phrase-gap', 'source-phrase', 'source-hits', 'current-hits',
+		'source-empty', 'current-empty', 'source-chorus', 'current-chorus', 'source-not-solo', 'current-not-solo'])('withholds a recall claim for %s evidence', field => {
+		const generated = fixture();
+		const [sourceMotif, currentMotif] = generated.ensembleDevelopment.pianoMotifs;
+		const receipt = currentMotif.recall!;
+		for (const [prefix, event] of [['source', receipt.source.attacks[0]], ['current', receipt.attacks[0]]] as const) {
+			if (field === `${prefix}-time`) event.time = '1i';
+			if (field === `${prefix}-beat`) event.absBeat += 0.5;
+			if (field === `${prefix}-notes`) event.notes[0]++;
+			if (field === `${prefix}-duration`) event.duration += 0.1;
+			if (field === `${prefix}-velocity`) event.velocity++;
+		}
+		if (field === 'source-missing') generated.compEvents.shift();
+		if (field === 'current-missing') generated.compEvents.pop();
+		if (field === 'source-extra') generated.compEvents.push({ ...generated.compEvents[0], absBeat: 82, time: '15744i' });
+		if (field === 'current-extra') generated.compEvents.push({ ...generated.compEvents[1], absBeat: 98, time: '18816i' });
+		if (field === 'source-figure') sourceMotif.sourceFigureId = 'push-only';
+		if (field === 'current-figure') currentMotif.sourceFigureId = 'push-only';
+		if (field === 'source-transform') sourceMotif.transform = 'repeat';
+		if (field === 'current-transform') currentMotif.transform = 'repeat';
+		if (field === 'source-recalled') Object.assign(sourceMotif, { recall: structuredClone(receipt) });
+		if (field === 'source-arrival') Object.assign(sourceMotif, { reason: 'shared_arrival' });
+		if (field === 'source-reply') Object.assign(sourceMotif, { reason: 'drum_reply' });
+		if (field === 'current-arrival') Object.assign(currentMotif, { reason: 'shared_arrival' });
+		if (field === 'current-reply') Object.assign(currentMotif, { reason: 'drum_reply' });
+		if (field === 'phrase-gap') currentMotif.phraseStartBar = 28;
+		if (field === 'source-phrase') receipt.source.phraseStartBar = 16;
+		if (field === 'source-hits') sourceMotif.hits[0].b = 2.5;
+		if (field === 'current-hits') currentMotif.hits[0].b = 2.5;
+		if (field === 'source-empty') receipt.source.attacks = [];
+		if (field === 'current-empty') receipt.attacks = [];
+		if (field === 'source-chorus') generated.ensemblePlan.bars[0].performanceEnergy.chorusIndex = 0;
+		if (field === 'current-chorus') generated.ensemblePlan.bars[1].performanceEnergy.chorusIndex = 2;
+		if (field === 'source-not-solo') generated.ensemblePlan.bars[0].performanceEnergy.phase = 'head_in';
+		if (field === 'current-not-solo') generated.ensemblePlan.bars[1].performanceEnergy.phase = 'head_return';
+		expect(card(generated).evidence).not.toContain(label);
+	});
+	it.each(['18720i', '18912i'])('withholds recall when a coherently matched source tick %s is not before the recalled attack', time => {
+		const generated = fixture();
+		generated.compEvents[0].time = time;
+		generated.ensembleDevelopment.pianoMotifs[1].recall!.source.attacks[0].time = time;
+		expect(card(generated).evidence).not.toContain(label);
+	});
+	it('does not call a different accepted onset cell a recall merely because the figure names agree', () => {
+		const generated = fixture();
+		generated.compEvents[1].absBeat = 98.5;
+		generated.compEvents[1].time = '18912i';
+		const current = generated.ensembleDevelopment.pianoMotifs[1];
+		current.hits[0].b = 2.5;
+		Object.assign(current.recall!.attacks[0], generated.compEvents[1]);
+		expect(card(generated).eventCount).toBe(1);
+		expect(card(generated).evidence).not.toContain(label);
+	});
+	it.each(['bossa-nova', 'ballad'] as const)('does not import recall into %s descriptions', style => {
+		expect(card(fixture(), { style }).evidence).not.toContain(label);
+	});
+	it('keeps Original and historical exports readable without inventing recall', () => {
+		const generated = fixture();
+		expect(card(generated, { orchestration: 'original' }).evidence).not.toContain(label);
+		delete generated.ensembleDevelopment.pianoMotifs[1].recall;
+		expect(card(generated).evidence).not.toContain(label);
+		expect(card(generated).action).toBe('Introduce a comping idea');
+	});
+});

@@ -277,6 +277,37 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 		}
 		if (motif.reason) pianoCard.evidence.push(`Comping decision: ${plain(motif.reason)}`);
 	}
+	// A remembered cell is evidence only when both complete statements actually
+	// survived admission. Use logical bars for provenance and ticks for display.
+	if (walking) for (const recalled of development?.pianoMotifs ?? []) {
+		const receipt = recalled.recall;
+		if (!receipt) continue;
+		const source = receipt.source;
+		const original = development?.pianoMotifs.find(entry => entry.barIndex === source.barIndex);
+		const sourceArc = generated.ensemblePlan?.bars.find(entry => entry.barIndex === source.barIndex)?.performanceEnergy;
+		const currentArc = generated.ensemblePlan?.bars.find(entry => entry.barIndex === recalled.barIndex)?.performanceEnergy;
+		const independent = (entry: typeof recalled | undefined) => entry?.transform === 'statement' && !!entry.motifId &&
+			entry.sourceFigureId === source.figureId && entry.reason !== 'shared_arrival' && entry.reason !== 'drum_reply';
+		const complete = (attacks: typeof receipt.attacks, entry: typeof recalled) => {
+			const actual = generated.compEvents.filter(event => Math.floor(event.absBeat / beatsPerBar) === entry.barIndex);
+			return attacks.length > 0 && attacks.length === actual.length && attacks.length === entry.hits.length &&
+				new Set(attacks.map(event => event.absBeat)).size === attacks.length && attacks.every(attack =>
+					entry.hits.some(hit => attack.absBeat === entry.barIndex * beatsPerBar + hit.b) &&
+					actual.some(event => event.time === attack.time && event.absBeat === attack.absBeat &&
+						event.duration === attack.duration && event.velocity === attack.velocity &&
+						event.notes.length === attack.notes.length && event.notes.every((note, index) => note === attack.notes[index])));
+		};
+		if (!original || original.recall || !independent(original) || !independent(recalled) ||
+			source.barIndex !== source.phraseStartBar || original.phraseStartBar !== source.phraseStartBar ||
+			recalled.barIndex !== recalled.phraseStartBar || recalled.phraseStartBar !== source.phraseStartBar + 4 ||
+			!sourceArc || !currentArc || !['solo_build', 'solo_peak'].includes(sourceArc.phase) || !['solo_build', 'solo_peak'].includes(currentArc.phase) ||
+			sourceArc.chorusIndex !== source.chorusIndex || currentArc.chorusIndex !== source.chorusIndex ||
+			!source.attacks.every(attack => Number.parseInt(attack.time, 10) < Math.min(...receipt.attacks.map(event => Number.parseInt(event.time, 10)))) ||
+			receipt.attacks.length !== source.attacks.length || !receipt.attacks.every((attack, index) =>
+				attack.absBeat - recalled.barIndex * beatsPerBar === source.attacks[index].absBeat - source.barIndex * beatsPerBar) ||
+			!complete(source.attacks, original) || !complete(receipt.attacks, recalled) || !receipt.attacks.some(inBar)) continue;
+		pianoCard.evidence.push(`Recall the piano cell from bar ${source.barIndex + 1}`);
+	}
 	if (plan?.piano.silenceReason) pianoCard.evidence.push(`Space reserved: ${plain(plan.piano.silenceReason)}`);
 	const drumPhrase = development?.drumPhrases.find((d) => d.barIndex === barIndex);
 	const drumCard: MusicianDecisionCard = {

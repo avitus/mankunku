@@ -194,6 +194,13 @@ const pianoDevelopmentEvidence: MusicalityEvidence[] = [
 	{ ...source('backing-generation'), revision: PIANO_BASS_DEVELOPMENT_REVISION },
 	{ ...test('backing-comp-motifs'), revision: PIANO_BASS_DEVELOPMENT_REVISION }
 ];
+const pianoRecallEvidence: MusicalityEvidence[] = [
+	{ ...source('backing-piano-motif-memory'), revision: 'musicality' },
+	{ ...source('backing-rolling-piano'), revision: 'musicality' },
+	{ ...test('backing-piano-phrase-recall'), revision: 'musicality' },
+	{ ...test('backing-piano-phrase-recall-integration'), revision: 'musicality' },
+	{ kind: 'test', path: 'tests/e2e/musicality-listening.spec.ts', revision: 'musicality' }
+];
 const bassDevelopmentEvidence: MusicalityEvidence[] = [
 	{ ...source('backing-bass-turnaround'), revision: PIANO_BASS_DEVELOPMENT_REVISION },
 	{ ...source('backing-bass'), revision: PIANO_BASS_DEVELOPMENT_REVISION },
@@ -324,8 +331,8 @@ const foundationRemaining: Record<string, string> = {
 	S28: "Register and dynamics remain diagnostic observations. Solo-register avoidance, motif following and broad acoustic validation remain incomplete.",
 	S32: 'Live timing adaptation and richer context-aware placement remain incomplete. The modest build/release timing bias and other bounds still need listening acceptance.',
 	S33: 'Soloist-relative dynamics, remembered climax selection, broader piano texture development and structural dropout/re-entry remain incomplete. Common rootless chords now thin to three notes for support and qualified active-solo evidence, retaining their existing fuller shapes in eligible solo development. Bass feel and selected sustained bell textures now follow explicit form. The bass adapter now restores source velocity/round-robin selection; measured bank-specific compensation preserves reference levels, while source velocity curves and human balance review remain pending. The new finite-form contour needs human acceptance.',
-	S38: "Checkpoints bind the same declared finite form, tempo and generation policy. Indefinite continuation, longer development and checkpoint migration across engine versions remain incomplete.",
-	S39: 'Development stays within selected piano/drum phrases using the existing kit. Rolling drum-to-piano response creates space or places one short reply after a source offset; complete drum-motif imitation remains pending. Richer cross-phrase dialogue and live solo imitation remain incomplete. Declared loops retain instrument history without extending motifs beyond their phrase.',
+	S38: "Checkpoints bind the same declared finite form, tempo and generation policy. One-use rolling Swing/Straight piano recall retains an accepted source across adjacent solo phrases. Indefinite continuation, broader long-term development and checkpoint migration across engine versions remain incomplete.",
+	S39: 'Selected rolling Swing/Straight piano phrases can recall one actually emitted rhythmic cell at the adjacent phrase; other development stays within its selected phrase using the existing kit. Rolling drum-to-piano response creates space or places one short reply after a source offset; complete drum-motif imitation remains pending. Richer cross-phrase dialogue and live solo imitation remain incomplete. Recall clears at section, chorus and loop boundaries and cannot renew itself; broader medium-term dialogue remains pending.',
 	S40: "Rolling mode owns attacks and pitched releases within each bar and excludes unreserved two-bar piano fallback figures. Sample and room tails can remain audible after release. General full-ensemble silence and phrase recognition remain incomplete.",
 	S42: 'There is still no general post-generation register, harmonic-substitution or ensemble collision resolver.',
 	S44: 'The full ensemble/phrase metric suite and a fresh human listening acceptance pass remain to do.',
@@ -399,9 +406,9 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 		assessment: entry.id === 'P12'
 			? 'Selected four-bar phrases reuse a source rhythm from the existing figure library, with repetition, displacement, shortening and deliberate gaps.'
 			: 'A remembered piano rhythm can return two bars later shifted by a beat or an eighth-note subdivision, retaining the complete cell when it fits.',
-		remaining: 'Each later cell is admitted against its current bar, with a reason when withheld. This is within-phrase piano development; live solo motif imitation, development beyond a phrase and listening acceptance remain pending.',
-		scope: 'Coordinated swing/straight 4/4 listening-lab preview; selected complete four-bar phrases. Original practice generation is unchanged.',
-		evidence: [...entry.evidence, ...pianoDevelopmentEvidence]
+		remaining: 'Each later cell is admitted against its current bar, with a reason when withheld. One-use rolling Swing/Straight recall connects an accepted source to the adjacent phrase inside a solo section. Longer development, fixed recall parity, live solo motif imitation and listening acceptance remain pending.',
+		scope: 'Coordinated Swing/Straight 4/4; four-bar development, plus one-use adjacent-phrase recall in explicit rolling takes. Original practice generation is unchanged.',
+		evidence: [...entry.evidence, ...pianoDevelopmentEvidence, ...pianoRecallEvidence]
 	};
 	if (entry.id === 'B2' || entry.id === 'B5') return {
 		...entry, status: entry.id === 'B2' ? 'partial' : 'implemented',
@@ -501,6 +508,7 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 			...(entry.id === 'S16' ? bassDevelopmentEvidence : []),
 			...(['S39', 'S40'].includes(entry.id) ? pianoDevelopmentEvidence : []),
 			...(['S38', 'S44', 'S46'].includes(entry.id) ? developmentEvidence : []),
+			...(['S38', 'S39', 'S44', 'S46'].includes(entry.id) ? pianoRecallEvidence : []),
 			...(['S17', 'S18', 'S20', 'S22', 'S23', 'S25', 'S38', 'S39', 'S42', 'S44', 'S46'].includes(entry.id) ? drumDevelopmentEvidence : []),
 			...(['S2', 'S10', 'S16', 'S17', 'S25', 'S27', 'S28', 'S44', 'S46'].includes(entry.id) ? observationEvidence : []),
 			...(['S2', 'S10', 'S16', 'S17', 'S25', 'S27', 'S28', 'S38', 'S40', 'S41', 'S44', 'S46'].includes(entry.id) ? [...rollingEvidence, ...crossLoopEvidence] : []),
