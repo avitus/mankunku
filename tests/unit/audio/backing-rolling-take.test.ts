@@ -148,6 +148,24 @@ describe('committed rolling take aggregation', () => {
 		expect(early.ensembleDevelopment!.pianoAnswers).toBeUndefined();
 	});
 
+	it('owns native Ballad reply evidence without extending an earlier committed export', () => {
+  const h = harness(); h.append(); h.append();
+  const early = aggregateRollingBacking(h.renderer.snapshot());
+  const restored = JSON.parse(JSON.stringify(h.renderer.snapshot()));
+  const reply = { version: 1, profile: 'ballad-late-pad-v1', barIndex: 1,
+   source: { barIndex: 0, hit: { absBeat: 2.5, time: '480i', drum: 'snare', velocity: .14, role: 'commentary' } },
+   attack: { absBeat: 6, time: '1152i', notes: [53, 58, 62], duration: .9, velocity: 46 }, drumCommentary: 'space' };
+  restored.windows[1].ensembleDevelopment.nativeBalladReplies = [reply];
+  const result = aggregateRollingBacking(restored);
+  expect(result.ensembleDevelopment!.nativeBalladReplies).toEqual([reply]);
+  const accepted = result.ensembleDevelopment!.nativeBalladReplies![0];
+  expect(Object.isFrozen(accepted.source.hit)).toBe(true); expect(Object.isFrozen(accepted.attack.notes)).toBe(true);
+  expect(Object.isFrozen(accepted)).toBe(true);
+  reply.source.hit.velocity = .9; reply.attack.notes[0] = 99;
+  expect(accepted.source.hit.velocity).toBe(.14); expect(accepted.attack.notes[0]).toBe(53);
+  expect(early.ensembleDevelopment!.nativeBalladReplies).toBeUndefined();
+ });
+
 	it('owns recovery receipts and actual returned drum hits without rewriting an earlier export', () => {
 		const h = harness(); h.append(); h.append();
 		const early = aggregateRollingBacking(h.renderer.snapshot());

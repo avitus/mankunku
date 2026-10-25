@@ -140,6 +140,7 @@ export interface EnsembleDevelopment {
 	readonly pianoFeedback?: readonly PianoFeedbackDecision[];
 	readonly pianoAnswers?: readonly PianoAnswerDecision[];
 	readonly pianoRecoveries?: readonly PianoRecoveryDecision[];
+	readonly nativeBalladReplies?: readonly NativeBalladReplyDecision[];
 	readonly drumPhrases: readonly DrumPhraseDecision[];
 }
 
@@ -172,6 +173,19 @@ export interface DrumStatementSource {
 	readonly hits: readonly Readonly<DrumEvent>[];
 }
 
+export interface NativeBalladColor {
+	readonly barIndex: number;
+	readonly hit: Readonly<DrumEvent>;
+}
+export interface NativeBalladReplyDecision {
+	readonly version: 1;
+	readonly profile: 'ballad-late-pad-v1';
+	readonly barIndex: number;
+	readonly source: NativeBalladColor;
+	readonly attack: Readonly<CompEvent>;
+	readonly drumCommentary: 'space';
+}
+
 export interface PianoFeedbackDecision {
 	readonly version: 1;
 	readonly barIndex: number;
@@ -195,6 +209,13 @@ export interface CoordinatedPianoVoicing {
 
 function freezeEnsembleDevelopment(trace: EnsembleDevelopment): EnsembleDevelopment {
 	if (trace.terminalArrangements) freezeTerminalDecisions(trace.terminalArrangements);
+	if (trace.nativeBalladReplies) {
+		for (const reply of trace.nativeBalladReplies) {
+			Object.freeze(reply.source.hit); Object.freeze(reply.source);
+			Object.freeze(reply.attack.notes); Object.freeze(reply.attack); Object.freeze(reply);
+		}
+		Object.freeze(trace.nativeBalladReplies);
+	}
 	freezeCompMotifTrace(trace.pianoMotifs);
 	freezeBassTurnaroundTrace(trace.bassTurnarounds);
 	if (trace.bassFeel) {

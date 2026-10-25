@@ -1,3 +1,4 @@
+import { nativeBalladReplyEnabled, captureNativeBalladColor, proposeNativeBalladReply, advanceNativeBalladReplyMemory, validateNativeBalladReply, type NativeBalladReplyMemory } from './backing-ballad-reply';
 import { assessTerminalArrangement, realizeTerminalArrangement, terminalBarPlan, terminalPianoTrace, terminalDrumTrace, type TerminalReservation, type TerminalArrangementDecision } from './backing-terminal';
 import { BACKING_STYLES } from './backing-styles';
 /** Pure append-only, one-bar realization for the finite coordinated listening lab. */
@@ -5,7 +6,7 @@ import type { HarmonicSegment } from '$lib/types/music';
 import { PITCH_CLASSES } from '$lib/types/music';
 import { CHORD_DEFINITIONS } from '$lib/music/chords';
 import type { PerformanceForm } from '$lib/types/performance-form';
-import type { BackingGenerationParams, BarInfo, BassEvent, CompEvent, DrumEvent, EnsembleDevelopment } from './backing-generation';
+import type { BackingGenerationParams, BarInfo, BassEvent, CompEvent, DrumEvent, EnsembleDevelopment, NativeBalladReplyDecision } from './backing-generation';
 import { buildBarInfos } from './backing-generation';
 import { buildPerformanceForm, performanceBarContext, type PerformanceBarContext } from './performance-form';
 import { planPerformanceEnergy } from './performance-energy';
@@ -15,7 +16,7 @@ import type { BackingStyle } from '$lib/types/instruments';
 import type { StyleDefinition } from './backing-styles';
 import { fractionToFloat } from '$lib/music/intervals';
 import { seedFrom } from './generation-rng';
-import { realizeRollingPiano, type RollingPianoMemory } from './backing-rolling-piano';
+import { realizeRollingPiano, realizeRollingBalladReply, type RollingPianoMemory } from './backing-rolling-piano';
 import { realizeRollingBass, type RollingBassMemory } from './backing-rolling-bass';
 import { planDrumPhraseBar, type DrumPhraseMemory } from './backing-drum-phrases';
 import type { TimingProfile, TimingRole } from './backing-timing';
@@ -85,6 +86,7 @@ export interface RollingBackingCheckpoint {
 	readonly feedback?: DrumPianoFeedbackMemory;
 	readonly pianoAnswer?: PianoAnswerMemory;
 	readonly pianoRecovery?: PianoRecoveryMemory;
+	readonly nativeBalladReply?: NativeBalladReplyMemory;
 }
 
 export interface RollingBackingBar extends RollingBarIdentity {
@@ -176,7 +178,7 @@ export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDef
 	// Preserve the one-pass binding. An explicit repeat is a distinct declared
 	// performance even when its flattened score matches some other source.
 	const serialized = JSON.stringify([1, params.phraseId, params.tempo, params.ppq, params.swing, copied, form, timingProfiles,
-		...(performanceEnergy ? [{ performanceEnergyVersion: 1, structuralTextureVersion: 1, coordinatedVoicingVersion: 4, reciprocalFeedbackVersion: 1, ...(['swing', 'straight'].includes(style.coordinatedStyle!) ? { pianoArrivalVersion: 1, bassScalarContinuationVersion: 1, bassApproachHandoffVersion: 1, pianoAnswerVersion: 1, pianoContourVersion: 1, pianoRecoveryVersion: 1, pianoPhraseRecallVersion: 1 } : style.coordinatedStyle === 'bossa-nova' ? { pianoContourVersion: 1 } : {}) }] : []),
+		...(performanceEnergy ? [{ performanceEnergyVersion: 1, structuralTextureVersion: 1, coordinatedVoicingVersion: 4, reciprocalFeedbackVersion: 1, ...(['swing', 'straight'].includes(style.coordinatedStyle!) ? { pianoArrivalVersion: 1, bassScalarContinuationVersion: 1, bassApproachHandoffVersion: 1, pianoAnswerVersion: 1, pianoContourVersion: 1, pianoRecoveryVersion: 1, pianoPhraseRecallVersion: 1 } : style.coordinatedStyle === 'bossa-nova' ? { pianoContourVersion: 1 } : style.coordinatedStyle === 'ballad' ? { nativeBalladReplyVersion: 1 } : {}) }] : []),
 		...(loopCount > 1 ? [{ sourceBars, loopCount }] : []),
 		...(terminalArrangement ? [{ terminalArrangementVersion: 1, terminalArrangement }] : []),
 		...(style.coordinatedStyle !== 'swing' ? [{ style: style.coordinatedStyle }] : [])]);
@@ -220,6 +222,9 @@ function validateCheckpoint(score: RollingBackingDefinition, checkpoint: Rolling
 		checkpoint.piano.lastVoicing.length < 2 || checkpoint.bass.previousMidi === null ||
 		checkpoint.bass.previousMidi % 12 !== PITCH_CLASSES.indexOf(score.terminalArrangement!.chord.root) ||
 		checkpoint.bass.nextTarget !== null || checkpoint.bass.pendingLaunch !== null)) invalid();
+	if (nativeBalladReplyEnabled(score)) validateNativeBalladReply(checkpoint.nativeBalladReply, score, checkpoint.nextBar,
+		checkpoint.piano.recentFigures, checkpoint.drums.previousCompOnsets);
+	else if (checkpoint.nativeBalladReply !== undefined) invalid();
 	const answerPolicy = !!score.bars[0]?.performanceEnergy && (!score.style || score.style === 'swing' || score.style === 'straight');
 	if (pianoPhraseRecallEnabled(score)) validatePianoPhraseRecall(checkpoint.piano.phraseRecall, score, checkpoint.nextBar, checkpoint.piano.motif);
 	else if (checkpoint.piano.phraseRecall !== undefined) invalid();
@@ -305,7 +310,8 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 		peakEnd = bar + 1;
 		while (peakEnd < phraseEnd && definition.bars[peakEnd].performanceEnergy?.phase === 'solo_peak') peakEnd++;
 	}
-	const realizeDrums = (pianoResult: typeof piano) => planDrumPhraseBar({ style: definition.style, phraseId: definition.phraseId, tempo: definition.tempo, beatsPerBar: 4,
+	const realizeDrums = (pianoResult: typeof piano) => planDrumPhraseBar({
+		...(nativeBalladReplyEnabled(definition) && checkpoint?.nativeBalladReply?.lastReplyBar === bar - 1 ? { suppressPreviousPianoAnswer: true as const } : {}), style: definition.style, phraseId: definition.phraseId, tempo: definition.tempo, beatsPerBar: 4,
 		barIndex: bar, info: pianoResult.answer ? { ...info, ensemble: { ...ensemble, drums: { ...ensemble.drums, maxCommentaryHits: 0 as const } } } : info, ...(pianoResult.answer ? { compIsDrumReply: true as const } : {}), phraseStartBar: ensemble.phraseStartBar, phraseEndBarExclusive: phraseEnd, harmonyEndBeat: definition.totalBars * 4,
 		...(peakEnd !== undefined ? { peakEndBarExclusive: peakEnd } : {}),
 		compOnsets: pianoResult.events.map((event) => event.absBeat - bar * 4), bassOnsets: bass.events.map((event) => event.absBeat - bar * 4),
@@ -318,6 +324,25 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 	});
 	let drums = realizeDrums(piano);
 	let drumEvents = scheduleDrums(drums);
+	let nativeReply: NativeBalladReplyDecision | undefined;
+	if (nativeBalladReplyEnabled(definition)) {
+		const source = proposeNativeBalladReply({ score: definition, bar, info: pianoInfo, evidence: window.plan.trace[0].soloEvidence,
+			previous: checkpoint?.nativeBalladReply, trace: piano.trace, events: piano.events, drumTrace: drums.bar, drumEvents });
+		if (source) {
+			const candidate = realizeRollingBalladReply(definition, bar, pianoInfo, timing, checkpoint?.piano);
+			const event = candidate.events[0];
+			if (candidate.trace.reason === 'native_drum_reply' && candidate.events.length === 1 && event.absBeat === bar * 4 + 2 &&
+				parseInt(event.time) > parseInt(source.hit.time) && event.velocity === piano.events[0].velocity - 2 &&
+				event.duration > 0 && event.duration <= 1.8 * 60 / definition.tempo + 1e-9) {
+				const candidateDrums = realizeDrums(candidate), candidateEvents = scheduleDrums(candidateDrums);
+				if (JSON.stringify(candidateEvents) === JSON.stringify(drumEvents) && !candidateDrums.bar.commentary.hits.length) {
+					piano = candidate; drums = candidateDrums; drumEvents = candidateEvents;
+					nativeReply = { version: 1, profile: 'ballad-late-pad-v1', barIndex: bar, source,
+						attack: { ...event, notes: [...event.notes] }, drumCommentary: 'space' };
+				}
+			}
+		}
+	}
 	let recovery = answerPolicy ? planPianoRecovery({ barIndex: bar, info, currentMaxAttacks: pianoInfo.ensemble!.piano.maxAttacks,
 		previous: checkpoint?.pianoRecovery, ordinaryAttacks: piano.events,
 		returningDrums: captureReturningDrums(drums.bar, drumEvents, checkpoint?.drums.phrase.motif) }) : undefined;
@@ -373,7 +398,8 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 	}
 	const terminalAccepted = terminalDecision?.status === 'accepted';
 	const contents: Omit<RollingBackingCheckpoint, 'checkpointId'> = { version: 1, sessionId: definition.sessionId, fingerprint: definition.fingerprint,
-		nextBar: bar + 1, ...(answerPolicy ? { pianoRecovery: { version: 1 as const, previousAnswer: piano.answer ? { barIndex: bar, attack: { ...piano.answer.attack, notes: [...piano.answer.attack.notes] } } : null }, pianoAnswer: { version: 1 as const, lastAnswerBar: piano.answer ? bar : checkpoint?.pianoAnswer?.lastAnswerBar ?? null } } : {}), ensemble: window.memory, piano: piano.memory, bass: bass.memory, drums: drums.memory, timing: timingTrace,
+		nextBar: bar + 1, ...(nativeBalladReplyEnabled(definition) ? { nativeBalladReply: advanceNativeBalladReplyMemory(definition, bar,
+			checkpoint?.nativeBalladReply, terminalAccepted ? null : captureNativeBalladColor(info, drums.bar, drumEvents), !!nativeReply) } : {}), ...(answerPolicy ? { pianoRecovery: { version: 1 as const, previousAnswer: piano.answer ? { barIndex: bar, attack: { ...piano.answer.attack, notes: [...piano.answer.attack.notes] } } : null }, pianoAnswer: { version: 1 as const, lastAnswerBar: piano.answer ? bar : checkpoint?.pianoAnswer?.lastAnswerBar ?? null } } : {}), ensemble: window.memory, piano: piano.memory, bass: bass.memory, drums: drums.memory, timing: timingTrace,
 		...(feedback ? { feedback: { version: 1 as const, previousDrumStatement: captureDrumStatement(drums.bar, drumEvents),
 			lastYieldBar: !terminalAccepted && feedback.action === 'yield' ? bar : checkpoint?.feedback?.lastYieldBar ?? null } } : {}) };
 	const ticks = [...bass.events, ...piano.events, ...drumEvents].map((event) => parseInt(event.time, 10));
@@ -384,7 +410,7 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 		previousCheckpointId: checkpoint?.checkpointId ?? null,
 		checkpoint: { ...contents, checkpointId: checkpointId(contents) },
 		bassEvents: bass.events, compEvents: piano.events, drumEvents, ensemblePlan: window.plan, ensembleTiming: [timingTrace],
-		ensembleDevelopment: { version: 1, ...(terminalDecision ? { terminalArrangements: [terminalDecision] } : {}), ...(recovery ? { pianoRecoveries: [{ ...recovery, acceptedAttacks: piano.events.map(event => ({ ...event, notes: [...event.notes] })) }] } : {}), ...(piano.answer ? { pianoAnswers: [piano.answer] } : {}), pianoMotifs: [piano.trace], bassTurnarounds: bass.trace,
+		ensembleDevelopment: { version: 1, ...(nativeReply ? { nativeBalladReplies: [nativeReply] } : {}), ...(terminalDecision ? { terminalArrangements: [terminalDecision] } : {}), ...(recovery ? { pianoRecoveries: [{ ...recovery, acceptedAttacks: piano.events.map(event => ({ ...event, notes: [...event.notes] })) }] } : {}), ...(piano.answer ? { pianoAnswers: [piano.answer] } : {}), pianoMotifs: [piano.trace], bassTurnarounds: bass.trace,
 			...(feedback && !terminalAccepted ? { pianoFeedback: [{ ...feedback, acceptedAttacks: piano.events.map(({ time, absBeat, notes }) => ({ time, absBeat, notes: [...notes] })) }] } : {}),
 			...(bass.feelTrace ? { bassFeel: [bass.feelTrace] } : {}),
 			...(bass.continuationTrace?.length ? { bassContinuations: bass.continuationTrace } : {}),

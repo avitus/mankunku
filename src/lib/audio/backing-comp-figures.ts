@@ -132,7 +132,7 @@ export interface CompMotifDecision {
 	readonly hits: readonly Readonly<CompFigureHit>[];
 	/** Accepted first statement of a one-use adjacent-phrase recall. */
 	readonly recall?: { readonly source: PianoMotifRecallSource; readonly attacks: readonly PianoMotifAttack[] };
-	readonly reason?: 'native_pattern' | 'not_selected' | 'short_phrase' | 'incomplete_harmony' | 'gesture_does_not_fit' | 'ensemble_silence' | 'response_reserved' | 'motif_gap' | 'shared_arrival' | 'drum_reply' | 'terminal_arrangement';
+	readonly reason?: 'native_pattern' | 'native_drum_reply' | 'not_selected' | 'short_phrase' | 'incomplete_harmony' | 'gesture_does_not_fit' | 'ensemble_silence' | 'response_reserved' | 'motif_gap' | 'shared_arrival' | 'drum_reply' | 'terminal_arrangement';
 }
 
 export function freezeCompMotifTrace(trace: readonly CompMotifDecision[]): readonly CompMotifDecision[] {

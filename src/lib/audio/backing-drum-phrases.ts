@@ -77,6 +77,8 @@ export interface DrumPhraseBarInput {
 	readonly compOnsets?: readonly number[];
 	/** A committed answer remains actual evidence, not a new independent statement. */
 	readonly compIsDrumReply?: true;
+	/** Scoped native caller knows the preceding actual piano attack was itself a reply. */
+	readonly suppressPreviousPianoAnswer?: true;
 	readonly bassOnsets?: readonly number[];
 	readonly acceptsOnset?: DrumPhraseInput['acceptsOnset'];
 }
@@ -506,7 +508,7 @@ function realizeNativeDrumBar(input: DrumPhraseBarInput, memory?: DrumPhraseMemo
 		.map((hit) => ({ ...hit, role: 'timekeeping' }));
 	const canComment = !isBossa && ensemble.drums.maxCommentaryHits > 0 && !ensemble.coordinatedAccent &&
 		(ensemble.responseOwner === 'nobody' || ensemble.responseOwner === 'drums');
-	const previous = memory?.previousCompOnsets ?? [];
+	const previous = input.suppressPreviousPianoAnswer ? [] : memory?.previousCompOnsets ?? [];
 	// A quiet answer uses only a previously emitted piano onset, with the left hand free.
 	const answerOffset = canComment && ensemble.responseOwner === 'drums' ? previous.find((offset) =>
 		offset >= 1 && !(input.compOnsets ?? []).includes(offset) && input.barIndex * 4 + offset < input.harmonyEndBeat &&

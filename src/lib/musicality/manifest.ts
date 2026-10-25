@@ -483,15 +483,18 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 			{ ...test('backing-piano-arrivals'), revision: 'musicality' }, { ...test('backing-piano-arrival-integration'), revision: 'musicality' }]
 	};
 	if (entry.id === 'P55') return { ...entry, status: 'partial',
-		assessment: 'A qualifying independent drum phrase can prompt a piano breath. Selected rolling Swing/Straight fallback chords in developing solo passages can instead become short replies with drummer commentary space. If that same drum motif returns in the following bar, the piano can leave one recovery bar, preserving protected roles and cooldowns.',
-		remaining: 'Replies are limited to solo development and use a single rhythmic cue; peak phrases and complete motif imitation are outside this scope. Fixed offline parity and human listening acceptance remain incomplete. Bossa and Ballad retain their existing native behavior; Bossa currently has no qualifying optional commentary.',
+		assessment: 'A qualifying independent drum phrase can prompt a piano breath. Selected rolling Swing/Straight fallback chords in developing solo passages can instead become short replies with drummer commentary space. If that same drum motif returns in the following bar, the piano can leave one recovery bar. A separate native Ballad policy can move an existing whole pad to a late pad after one accepted late drum color, with unchanged current bass and drums.',
+		remaining: 'Replies are limited to solo development and use a single rhythmic cue; peak phrases and complete motif imitation are outside this scope. Fixed offline parity and human listening acceptance remain incomplete. Ballad replies require a late independent snare/crossstick, stable full-bar harmony, an existing whole pad and actual drummer space; slower-tempo benefit is unaccepted. Bossa currently has no qualifying optional commentary.',
 		scope: 'Explicit-form Coordinated full-tune studio, blind comparison and rolling adaptive lab takes. Source hits must match accepted optional snare/cross-stick/kick events; timekeeping, setups and piano-derived drum answers do not trigger the response.',
 		evidence: [...entry.evidence, ...reciprocalFeedbackEvidence,
 			{ ...source('backing-piano-answer'), revision: 'musicality' },
 			{ ...test('backing-piano-answer-integration'), revision: 'musicality' },
 			{ ...source('backing-piano-recovery'), revision: 'musicality' },
 			{ ...test('backing-piano-recovery'), revision: 'musicality' },
-			{ ...test('backing-piano-recovery-integration'), revision: 'musicality' }] };
+			{ ...test('backing-piano-recovery-integration'), revision: 'musicality' },
+			{ ...source('backing-ballad-reply'), revision: 'musicality' },
+			{ ...test('backing-ballad-reply'), revision: 'musicality' },
+			{ ...test('backing-ballad-native-reply-integration'), revision: 'musicality' }] };
 	if (entry.id === 'P19') return { ...entry, status: 'partial',
 		assessment: 'Qualified dense solo evidence requests third-and-seventh support for already-permitted selected rootless A/B chords on maj7/min7/7. Existing silence and attack budgets remain authoritative; the musician view requires matching emitted notes and dense evidence before describing an actual reduction.',
 		remaining: 'Other families and qualities retain their existing shapes. Default studio takes contain no solo observations. Broader sparse comping, solo-register avoidance and human full-tune listening acceptance remain pending.',

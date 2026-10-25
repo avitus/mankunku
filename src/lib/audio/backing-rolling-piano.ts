@@ -60,9 +60,15 @@ export function realizeRollingPiano(score: RollingBackingDefinition, bar: number
 	return { ...selected, memory: { ...selected.memory, phraseRecall }, trace: { ...selected.trace, ...(recall ? { recall } : {}) } };
 }
 
+/** A separate pure native candidate; caller commits only a complete coordinated result. */
+export function realizeRollingBalladReply(score: RollingBackingDefinition, bar: number, info: BarInfo,
+	timing: EnsembleTiming, previous?: RollingPianoMemory) {
+	return realizePianoCandidate(score, bar, info, timing, previous, undefined, undefined, true);
+}
+
 function realizePianoCandidate(score: RollingBackingDefinition, bar: number, info: BarInfo,
 	timing: EnsembleTiming, previous?: RollingPianoMemory, answerContext?: { feedback: Omit<PianoFeedbackDecision, 'acceptedAttacks'>; previous?: PianoAnswerMemory },
-	motifOverride?: RollingPianoMemory['motif']): { answer?: PianoAnswerDecision; events: CompEvent[]; memory: RollingPianoMemory; trace: CompMotifDecision; voicingTrace?: readonly CoordinatedPianoVoicing[] } {
+	motifOverride?: RollingPianoMemory['motif'], nativeLatePad = false): { answer?: PianoAnswerDecision; events: CompEvent[]; memory: RollingPianoMemory; trace: CompMotifDecision; voicingTrace?: readonly CoordinatedPianoVoicing[] } {
 	const memory = previous ?? emptyMemory();
 	const style = BACKING_STYLES[score.style ?? 'swing'];
 	const ensemble = info.ensemble!;
@@ -144,6 +150,11 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 		if (budget === 0) { transform = 'space'; reason = 'ensemble_silence'; }
 		else reason = 'native_pattern';
 	}
+	if (nativeLatePad && score.style === 'ballad' && coordinatedVoicing && realized.length === 1 &&
+		realized[0].beatOffset === 0 && realized[0].durationBeats === 3.6) {
+		realized = [{ ...realized[0], beatOffset: 2, durationBeats: 1.8, velocity: realized[0].velocity - 2 }];
+		hits = [{ b: 2, d: 1.8 }]; reason = 'native_drum_reply';
+	}
 	let proposal = answerContext && coordinatedVoicing && (!score.style || score.style === 'swing' || score.style === 'straight')
 		? proposePianoAnswer({ barIndex: bar, info, feedback: answerContext.feedback, previous: answerContext.previous, retainedMotif: !!motif?.sourceId, realized }) : undefined;
 	const events: CompEvent[] = [];
@@ -220,7 +231,7 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 	const answer: PianoAnswerDecision | undefined = proposal && events.length === 1 ? { version: 1, barIndex: bar, source: proposal.source, attack: events[0], replyOffset: proposal.hit.beatOffset, drumCommentary: 'space' } : undefined;
 	if (answer) { hits = [{ b: proposal!.hit.beatOffset, d: events[0].duration * score.tempo / 60 }]; transform = 'fallback'; shift = 0; reason = 'drum_reply'; }
 	return { events, ...(answer ? { answer } : {}), ...(coordinatedVoicing ? { voicingTrace: Object.freeze(voicingTrace) } : {}),
-		memory: { recentFigures: [...memory.recentFigures, answer ? 'drum-reply' : arrival ? 'shared-arrival' : style.compPlanning ? figure.repeatKey ?? figure.id : `${score.style}:${hits.map((hit) => hit.b).join(',')}`].slice(-3), motif, segmentIndex, segmentVoicing, lastVoicing,
+		memory: { recentFigures: [...memory.recentFigures, reason === 'native_drum_reply' ? 'ballad-drum-reply' : answer ? 'drum-reply' : arrival ? 'shared-arrival' : style.compPlanning ? figure.repeatKey ?? figure.id : `${score.style}:${hits.map((hit) => hit.b).join(',')}`].slice(-3), motif, segmentIndex, segmentVoicing, lastVoicing,
 			...(coordinatedVoicing && voicingMemory ? { voicing: voicingMemory } : {}),
 			...(contourEnabled && contourMemory ? { contour: contourMemory } : {}) },
 		trace: { version: 1, barIndex: bar, phraseStartBar: phraseStart, motifId: !answer && !arrival && motif.sourceId ? `motif:${phraseStart}:${motif.sourceId}` : null,

@@ -400,6 +400,7 @@
 				pianoFeedback: take.playback.windows.flatMap(bar => bar.ensembleDevelopment.pianoFeedback ?? []),
 				pianoAnswers: take.playback.windows.flatMap(bar => bar.ensembleDevelopment.pianoAnswers ?? []),
 				pianoRecoveries: take.playback.windows.flatMap(bar => bar.ensembleDevelopment.pianoRecoveries ?? []),
+				nativeBalladReplies: take.playback.windows.flatMap(bar => bar.ensembleDevelopment.nativeBalladReplies ?? []),
 				terminalArrangements: take.playback.windows.flatMap(bar => bar.ensembleDevelopment.terminalArrangements ?? []),
 				drumPhrases: take.playback.windows.flatMap(bar => bar.ensembleDevelopment.drumPhrases)
 			}

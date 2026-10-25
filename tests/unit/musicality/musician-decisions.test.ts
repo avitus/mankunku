@@ -644,6 +644,87 @@ describe('emitted bass scalar-continuation evidence', () => {
 	});
 });
 
+describe('accepted native Ballad late-pad replies', () => {
+ function score() {
+  const hit = { absBeat: 6.5, time: '1248i', drum: 'snare', velocity: .14, role: 'commentary' };
+  const spec = { beatOffset: 2.5, drum: hit.drum, velocity: hit.velocity, role: hit.role };
+  const attack = { absBeat: 10, time: '1920i', notes: [53, 58, 62], duration: .9, velocity: 46 };
+  const plan = { phraseStartBar: 0, phraseIntent: 'support', intent: 'support', responseOwner: 'nobody', energy: .4,
+   performanceEnergy: { phase: 'solo_build', chorusIndex: 1, targetEnergy: .5 },
+   bass: { role: 'time' }, piano: { role: 'support', maxAttacks: 1 }, drums: { role: 'time' } };
+  const ride = { mode: 'quarters-only', phase: 'single', skipOffsets: [], velocityScale: 1, onsets: [0, 1, 2, 3] };
+  return { bassEvents: [], compEvents: [structuredClone(attack)],
+   drumEvents: [structuredClone(hit), ...[8, 9, 10, 11].map(absBeat => ({ absBeat, time: `${absBeat * 192}i`, drum: 'ride', velocity: .2, role: 'timekeeping' }))],
+   ensemblePlan: { version: 1, trace: [], bars: [{ ...structuredClone(plan), barIndex: 1 }, { ...structuredClone(plan), barIndex: 2 }] },
+   ensembleDevelopment: { version: 1, bassTurnarounds: [],
+    pianoMotifs: [{ barIndex: 2, motifId: null, sourceFigureId: null, transform: 'fallback', hits: [{ b: 2, d: 1.8 }], reason: 'native_drum_reply' }],
+    nativeBalladReplies: [{ version: 1, profile: 'ballad-late-pad-v1', barIndex: 2, source: { barIndex: 1, hit }, attack, drumCommentary: 'space' }],
+    drumPhrases: [{ version: 1, style: 'ballad', barIndex: 1, phraseStartBar: 0, phraseLength: 4, ride,
+     commentary: { source: 'vocabulary', sourceId: 'ballad-color', transform: 'fallback', hits: [spec] }, hits: [spec] },
+     { version: 1, style: 'ballad', barIndex: 2, phraseStartBar: 0, phraseLength: 4, ride,
+      commentary: { source: 'none', sourceId: null, transform: 'space', hits: [] as Array<typeof spec> }, hits: [] as Array<typeof spec> }]
+   } };
+ }
+ const explanation = 'Answer the drum color from bar 2 with a late pad';
+ const cards = (value: ReturnType<typeof score>, options = {}) => describeMusicianDecisions(value as unknown as GeneratedBacking,
+  { ...context, style: 'ballad', barIndex: 2, ...options });
+ it.each(['snare', 'crossstick'])('describes the exact accepted native %s source and late pad in details only', voice => {
+  const value = score(); value.drumEvents[0].drum = voice;
+  value.ensembleDevelopment.nativeBalladReplies[0].source.hit.drum = voice;
+  value.ensembleDevelopment.drumPhrases[0].hits[0].drum = voice;
+  const result = cards(value);
+  expect(result[1].evidence).toContain(explanation);
+  expect(result[1].eventCount).toBe(1); expect(result[1].action).toBe('Support the harmony');
+  expect(result[2].action).toBe('Keep the groove');
+  expect(result.flatMap(card => card.evidence).join(' ')).not.toMatch(/removed|heard|microphone|Leave commentary space for the piano answer/);
+ });
+ it.each(['missing-source', 'source-time', 'source-level', 'early-source', 'setup-source', 'source-future', 'same-bar', 'piano-derived', 'timekeeper',
+  'source-style', 'source-id', 'source-transform', 'multiple-source', 'missing-plan', 'chorus', 'phrase', 'profile', 'solo-peak',
+  'missing-attack', 'notes', 'time', 'duration', 'velocity', 'wrong-offset', 'extra-chord', 'missing-reply-trace', 'drum-commentary', 'drum-trace'] as const)(
+  'withholds native response claims for %s', change => {
+   const value = score(), reply = value.ensembleDevelopment.nativeBalladReplies[0], source = value.ensembleDevelopment.drumPhrases[0];
+   if (change === 'missing-source') value.drumEvents.shift();
+   if (change === 'source-time') reply.source.hit.time = '1249i';
+   if (change === 'source-level') reply.source.hit.velocity = .9;
+   if (change === 'early-source' || change === 'setup-source') {
+    const offset = change === 'early-source' ? 1.5 : 3.5;
+    reply.source.hit.absBeat = 4 + offset; reply.source.hit.time = `${(4 + offset) * 192}i`;
+    Object.assign(value.drumEvents[0], reply.source.hit); source.hits[0].beatOffset = offset;
+   }
+   if (change === 'source-future') { reply.source.hit.time = '2000i'; value.drumEvents[0].time = '2000i'; }
+   if (change === 'same-bar') reply.source.barIndex = 2;
+   if (change === 'piano-derived') source.commentary.source = 'piano';
+   if (change === 'timekeeper') { reply.source.hit.role = 'timekeeping'; value.drumEvents[0].role = 'timekeeping'; source.hits[0].role = 'timekeeping'; }
+   if (change === 'source-style') source.style = 'swing';
+   if (change === 'source-id') source.commentary.sourceId = 'other';
+   if (change === 'source-transform') source.commentary.transform = 'answer';
+   if (change === 'multiple-source') source.commentary.hits.push({ ...source.hits[0], beatOffset: 3 });
+   if (change === 'missing-plan') value.ensemblePlan.bars.shift();
+   if (change === 'chorus') value.ensemblePlan.bars[0].performanceEnergy.chorusIndex = 0;
+   if (change === 'phrase') value.ensemblePlan.bars[0].phraseStartBar = -4;
+   if (change === 'profile') reply.profile = 'swing-reply';
+   if (change === 'solo-peak') value.ensemblePlan.bars[1].performanceEnergy.phase = 'solo_peak';
+   if (change === 'missing-attack') value.compEvents = [];
+   if (change === 'notes') reply.attack.notes[0]++;
+   if (change === 'time') reply.attack.time = '1921i';
+   if (change === 'duration') reply.attack.duration = .5;
+   if (change === 'velocity') reply.attack.velocity = 90;
+   if (change === 'wrong-offset') { reply.attack.absBeat = 9; reply.attack.time = '1728i'; Object.assign(value.compEvents[0], reply.attack); value.ensembleDevelopment.pianoMotifs[0].hits[0].b = 1; }
+   if (change === 'extra-chord') value.compEvents.push({ ...value.compEvents[0], absBeat: 11, time: '2112i' });
+   if (change === 'missing-reply-trace') value.ensembleDevelopment.pianoMotifs = [];
+   if (change === 'drum-commentary') value.drumEvents.push({ absBeat: 11, time: '2112i', drum: 'snare', velocity: .2, role: 'commentary' });
+   if (change === 'drum-trace') value.ensembleDevelopment.drumPhrases[1].commentary.hits = [source.hits[0]];
+   expect(cards(value).flatMap(card => card.evidence)).not.toContain(explanation);
+  });
+ it('keeps legacy exports, Original, other styles and other review bars free of native reply claims', () => {
+  const value = score();
+  for (const options of [{ orchestration: 'original' }, { style: 'swing' }, { style: 'straight' }, { style: 'bossa-nova' }, { barIndex: 1 }])
+   expect(cards(value, options).flatMap(card => card.evidence)).not.toContain(explanation);
+  delete (value.ensembleDevelopment as { nativeBalladReplies?: unknown }).nativeBalladReplies;
+  expect(cards(value).flatMap(card => card.evidence)).not.toContain(explanation);
+ });
+});
+
 describe('accepted piano answer and drummer space', () => {
 	function score() {
 		const sourceHits = [1.5, 3.5].map(absBeat => ({ absBeat, time: `${absBeat * 192}i`, drum: 'snare', velocity: .3, role: 'commentary' }));

@@ -1,9 +1,10 @@
+import { assertHistoricalBalladReplyCompatibility } from './ballad-native-reply-assertions';
 import { assertBossaContourCompatibility } from './bossa-contour-assertions';
 import { createHash } from 'node:crypto';
 import { expect, it } from 'vitest';
 import { createRollingBacking, advanceRollingBacking, type RollingBackingCheckpoint } from '$lib/audio/backing-rolling';
 import { seedFrom } from '$lib/audio/generation-rng';
-import { generateBacking, buildBarInfos } from '$lib/audio/backing-generation';
+import { generateBacking, buildBarInfos, type NativeBalladReplyDecision } from '$lib/audio/backing-generation';
 import { planPianoRecovery } from '$lib/audio/backing-piano-recovery';
 import { BACKING_STYLES } from '$lib/audio/backing-styles';
 import { buildListeningTuneSession } from '$lib/musicality/listening-tunes';
@@ -331,6 +332,7 @@ it.each(controls)('$style $mode $engine preserves the complete baseline performa
 		...(mode !== 'original' ? { ensemble } : {}),
 		swing: BACKING_STYLES[id].defaultSwing
 	};
+	let nativeBalladReplies: readonly NativeBalladReplyDecision[] = [];
 	const generated = engine === 'fixed' ? generateBacking(phrase.harmony, BACKING_STYLES[id], input) : (() => {
 		const score = createRollingBacking(phrase.harmony, BACKING_STYLES[id], input);
 		let checkpoint;
@@ -340,6 +342,7 @@ it.each(controls)('$style $mode $engine preserves the complete baseline performa
 			checkpoint = next.checkpoint;
 			bars.push(next);
 		}
+		nativeBalladReplies = bars.flatMap(bar => bar.ensembleDevelopment.nativeBalladReplies ?? []);
 		return {
 			bassEvents: bars.flatMap(bar => bar.bassEvents),
 			compEvents: bars.flatMap(bar => bar.compEvents),
@@ -348,7 +351,9 @@ it.each(controls)('$style $mode $engine preserves the complete baseline performa
 		};
 	})();
 	for (const field of ['bassEvents', 'compEvents', 'drumEvents'] as const) {
-		if (field === 'compEvents' && id === 'bossa-nova' && mode === 'coordinated-explicit') {
+		if (field === 'compEvents' && id === 'ballad' && engine === 'rolling' && mode === 'coordinated-explicit') {
+			assertHistoricalBalladReplyCompatibility(generated, nativeBalladReplies, expected.compEvents);
+		} else if (field === 'compEvents' && id === 'bossa-nova' && mode === 'coordinated-explicit') {
 			assertBossaContourCompatibility(generated, expected.compEvents);
 		} else expect(hash(generated[field])).toBe(expected[field]);
 	}
