@@ -102,6 +102,15 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 		detail: piano.length ? 'Comping supports the changes in this bar.' : 'Earlier chords may still sustain through this bar.',
 		evidence: [countText(piano.length, 'chord attack'), ...sharedEvidence('piano')]
 	};
+	const plannedArrival = walking && plan?.performanceEnergy ? plan.piano.arrival : undefined;
+	if (plannedArrival && plannedArrival.accentId === plan?.coordinatedAccent?.id) {
+		const reasons = {
+			shared_arrival: 'join the band on the downbeat', soloist_dense: 'leave room for the soloist',
+			deliberate_space: 'keep the planned space', after_response: 'leave space after the response',
+			response_reserved: 'keep the assigned response', ensemble_silence: 'keep the planned rest'
+		};
+		pianoCard.evidence.push(`Planned piano arrival: ${reasons[plannedArrival.reason]}`);
+	}
 	const feedback = development?.pianoFeedback?.find(entry => entry.barIndex === barIndex);
 	const source = feedback?.source;
 	// Only a committed previous-bar statement can explain this rolling-bar plan.
@@ -133,6 +142,21 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 		if (!voiced) continue;
 		const decision = voiced.decision;
 		pianoCard.evidence.push(`Chord ${index + 1} voicing: ${plain(decision.resolvedFamily)}`);
+		if (walking && voiced.arrivalId) {
+			// Bind the explanation to the actual score position and target bar's
+			// admission, including historical exported event positions.
+			const targetBar = Math.floor(event.absBeat / beatsPerBar);
+			const target = generated.ensemblePlan?.bars.find(entry => entry.barIndex === targetBar);
+			const admitted = target?.piano.arrival;
+			if (target?.performanceEnergy && admitted?.action === 'catch' && admitted.reason === 'shared_arrival' &&
+				admitted.accentId === voiced.arrivalId && target.coordinatedAccent?.id === voiced.arrivalId &&
+				target.piano.maxAttacks === 1 && event.absBeat === targetBar * beatsPerBar &&
+				generated.compEvents.filter(entry => Math.floor(entry.absBeat / beatsPerBar) === targetBar).length === 1 &&
+				generated.bassEvents.some(entry => entry.absBeat === event.absBeat && entry.time === event.time) &&
+				generated.drumEvents.some(entry => entry.absBeat === event.absBeat && entry.time === event.time && entry.role === 'accent')) {
+				pianoCard.evidence.push(`Chord ${index + 1} arrival: shared catch with bass and drums`);
+			}
+		}
 		const texture = decision.rootlessTexture;
 		if (texture && texture.noteCount === event.notes.length) {
 			const rootless = (family: string) => family === 'rootless-a' || family === 'rootless-b';

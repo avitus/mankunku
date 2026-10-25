@@ -378,3 +378,34 @@ test('a missed scheduling deadline stops the take without reporting completion o
 	await playToBar(page);
 	await page.getByTestId('listening-stop').click();
 });
+
+for (const style of ['swing', 'straight'] as const) {
+	test(`${style} explains an actual shared piano arrival in the sounding bar`, async ({ page }) => {
+		await setup(page);
+		await page.getByTestId('listening-key').selectOption('F#');
+		await page.getByTestId('listening-style').selectOption(style);
+		await page.getByTestId('listening-tempo').fill('140');
+		await playToBar(page, 4);
+		expect(await soundingBar(page)).toBe(4);
+		await expect(page.getByTestId('musician-piano')).toContainText('Chord 1 arrival: shared catch with bass and drums');
+		await assertDecisionClock(page, undefined, 140);
+		const take = await exportTake(page);
+		causalProvenance(take.playback);
+		const generated = take.playback.generated!;
+		const plan = generated.ensemblePlan!.bars[4];
+		expect(plan.piano).toMatchObject({ maxAttacks: 1, arrival: { action: 'catch', accentId: 'arrival:4' } });
+		expect(generated.ensemblePlan!.bars[3].setupFor).toEqual(plan.coordinatedAccent);
+		const caught = generated.compEvents.filter(event => Math.floor(event.absBeat / 4) === 4);
+		expect(caught).toHaveLength(1);
+		expect(caught[0].absBeat).toBe(16);
+		const bass = generated.bassEvents.find(event => event.absBeat === 16)!;
+		expect(caught[0].time).toBe(bass.time);
+		const accents = generated.drumEvents.filter(event => event.absBeat === 16 && event.role === 'accent');
+		expect(accents.length).toBeGreaterThan(0);
+		expect(accents.every(event => event.time === caught[0].time)).toBe(true);
+		expect(generated.ensembleDevelopment!.pianoVoicings!.filter(entry => entry.arrivalId === 'arrival:4'))
+			.toMatchObject([{ time: caught[0].time, absBeat: 16, notes: caught[0].notes }]);
+		await page.getByTestId('listening-stop').click();
+		await assertNoMicrophone(page);
+	});
+}

@@ -26,6 +26,8 @@ export interface EnsembleBarContext {
 	/** Style ceiling, also binding serialized planner memory. */
 	readonly energyCeiling?: number;
 	readonly performanceEnergy?: PerformanceEnergy;
+	/** Explicit Swing/Straight shared-hit policy; absent from legacy/native paths. */
+	readonly pianoArrivalPolicy?: 'shared-v1';
 	readonly isSectionFirstBar: boolean;
 	readonly isSectionFinalBar: boolean;
 	readonly isChorusFirstBar?: boolean;
@@ -85,6 +87,11 @@ export interface EnsembleBarPlan {
 		readonly rootlessTexture?: {
 			readonly request: 'three' | 'full';
 			readonly reason: 'melody_support' | 'structural_release' | 'solo_development' | 'active_soloist';
+		};
+		readonly arrival?: {
+			readonly accentId: string;
+			readonly action: 'catch' | 'withhold';
+			readonly reason: 'shared_arrival' | 'soloist_dense' | 'deliberate_space' | 'after_response' | 'response_reserved' | 'ensemble_silence';
 		};
 		readonly silenceReason?: SilenceReason;
 	};
@@ -227,6 +234,7 @@ export function freezeEnsemblePlan(plan: EnsemblePlan): EnsemblePlan {
 	for (const bar of plan.bars) {
 		if (bar.performanceEnergy) Object.freeze(bar.performanceEnergy);
 		if (bar.piano.rootlessTexture) Object.freeze(bar.piano.rootlessTexture);
+		if (bar.piano.arrival) Object.freeze(bar.piano.arrival);
 		Object.freeze(bar.piano);
 		Object.freeze(bar.drums);
 		Object.freeze(bar.bass);
@@ -270,7 +278,8 @@ function formFingerprint(bars: readonly EnsembleBarContext[]): string {
 		bar.phrase4 ? [bar.phrase4.index, bar.phrase4.barIndex, bar.phrase4.lengthBars,
 			bar.phrase4.position, bar.phrase4.barsRemaining, bar.phrase4.isFinalBar] : null,
 		...(bar.energyCeiling !== undefined ? [bar.energyCeiling] : []),
-		...(bar.performanceEnergy ? ['performance-energy-v1', bar.performanceEnergy.phase, bar.performanceEnergy.chorusIndex, bar.performanceEnergy.targetEnergy, 'rootless-texture-v1'] : [])
+		...(bar.performanceEnergy ? ['performance-energy-v1', bar.performanceEnergy.phase, bar.performanceEnergy.chorusIndex, bar.performanceEnergy.targetEnergy, 'rootless-texture-v1'] : []),
+		...(bar.pianoArrivalPolicy ? ['piano-arrival-v1'] : [])
 	]));
 	return `form-v1:${bars.length}:${seedFrom('ensemble-form', canonical).toString(16)}`;
 }
@@ -422,6 +431,9 @@ export function planEnsembleWindow(input: EnsembleWindowInput): EnsembleWindowRe
 	if (typeof input.phraseId !== 'string') throw new Error('Ensemble phrase identity must be a string');
 	if (!Number.isFinite(input.tempo) || input.tempo <= 0) throw new Error('Ensemble tempo must be positive');
 	for (const [index, bar] of input.bars.entries()) {
+		if (bar.pianoArrivalPolicy !== undefined && (bar.pianoArrivalPolicy !== 'shared-v1' || !bar.performanceEnergy)) {
+			throw new Error('Invalid piano arrival policy context');
+		}
 		if (bar.performanceEnergy && (!PERFORMANCE_ENERGY_PHASES.includes(bar.performanceEnergy.phase) ||
 			!count(bar.performanceEnergy.chorusIndex, input.bars.length) || !unit(bar.performanceEnergy.targetEnergy))) {
 			throw new Error('Invalid performance energy context');
@@ -593,15 +605,26 @@ export function planEnsembleWindow(input: EnsembleWindowInput): EnsembleWindowRe
 			pianoReason = drumReason = 'soloist_dense';
 			reasons.push('soloist_dense');
 		}
+		let pianoArrival: EnsembleBarPlan['piano']['arrival'];
+		if (incomingAccent && bar.pianoArrivalPolicy) {
+			const reason: NonNullable<typeof pianoArrival>['reason'] = dense ? 'soloist_dense'
+				: i === lastResponseBar + 1 ? 'after_response'
+				: phrase.intent === 'leave_space' || phrase.intent === 'release' ? 'deliberate_space'
+				: owner !== 'nobody' ? 'response_reserved'
+				: piano === 0 ? 'ensemble_silence' : 'shared_arrival';
+			pianoArrival = Object.freeze({ accentId: incomingAccent.id,
+				action: reason === 'shared_arrival' ? 'catch' : 'withhold', reason });
+		}
 		if (incomingAccent) {
-			// The dedicated bass/drum accent is outside commentary budgets.
-			// Give that formal arrival a breathing bar instead of simultaneously
-			// assigning another voice to fill the same space.
-			piano = 0;
+			// Keep the committed bass/drum promise intact. Piano admission is a
+			// separate current-bar decision, never another independent accent.
+			piano = pianoArrival?.action === 'catch' ? 1 : 0;
 			commentary = 0;
-			pianoReason = drumReason = 'avoid_overlap';
+			pianoReason = pianoArrival && pianoArrival.reason !== 'shared_arrival' ? pianoReason ?? 'avoid_overlap' : 'avoid_overlap';
+			drumReason = 'avoid_overlap';
 			reasons.push('coordinated_arrival_reserved');
 		}
+
 		// Structural restraint limits optional texture; solo evidence and formal
 		// arrivals above can still demand greater space. Pulse remains obligatory.
 		if (structuralHead || structuralRelease) {
@@ -645,6 +668,7 @@ export function planEnsembleWindow(input: EnsembleWindowInput): EnsembleWindowRe
 				role: owner === 'piano' ? 'respond' : piano === 0 ? 'leave_space' : phrase.lead === 'piano' ? 'lead' : 'support',
 				maxAttacks: piano, densityScale: piano / 2,
 				...(rootlessTexture ? { rootlessTexture } : {}),
+				...(pianoArrival ? { arrival: pianoArrival } : {}),
 				...(piano === 0 ? { silenceReason: pianoReason ?? 'leave_space' } : {})
 			}),
 			drums: Object.freeze({

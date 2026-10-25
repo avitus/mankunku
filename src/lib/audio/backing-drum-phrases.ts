@@ -92,6 +92,8 @@ export interface DrumPhraseMemory {
 	readonly ensemblePhraseStartBar: number;
 	readonly phrase: Readonly<PhraseState>;
 	readonly previousCompOnsets: readonly number[];
+	/** Joint arrangement hits remain evidence but are not independent piano statements. */
+	readonly previousCompIsSharedArrival?: true;
 }
 
 export function freezeDrumPhraseTrace(trace: readonly DrumPhraseDecision[]): readonly DrumPhraseDecision[] {
@@ -356,6 +358,9 @@ function validateDrumPhraseBar(input: DrumPhraseBarInput, memory?: DrumPhraseMem
 		(state.rideVoice === 'ride-bell' && (state.end - state.start < 2 || input.style === 'ballad' || input.style === 'bossa-nova')) ||
 		!validOnsets(state.skips, 3) || !validOnsets(state.variedSkips, 3) ||
 		typeof state.commentarySelected !== 'boolean' || !validOnsets(memory.previousCompOnsets) ||
+		(memory.previousCompIsSharedArrival !== undefined && (memory.previousCompIsSharedArrival !== true ||
+			!input.info.ensemble?.performanceEnergy || input.style === 'ballad' || input.style === 'bossa-nova' ||
+			memory.previousCompOnsets.length !== 1 || memory.previousCompOnsets[0] !== 0)) ||
 		!barNumber(memory.ensemblePhraseStartBar) || memory.ensemblePhraseStartBar > state.start ||
 		![memory.sectionIndex, memory.chorusIndex].every((value) => value === null || barNumber(value))) {
 		throw new Error('Invalid drum phrase checkpoint');
@@ -415,12 +420,14 @@ export function planDrumPhraseBar(input: DrumPhraseBarInput, memory?: DrumPhrase
 			firstTransform: previous.motif.firstTransform, gapAfterStatement: previous.motif.gapAfterStatement
 		} } : {})
 	} : phraseState(input, input.phraseStartBar, input.phraseEndBarExclusive, previous);
-	const bar = realizeDrumPhraseBar(input, state, memory?.previousCompOnsets ?? []);
+	const bar = realizeDrumPhraseBar(input, state, memory?.previousCompIsSharedArrival ? [] : memory?.previousCompOnsets ?? []);
 	return Object.freeze({ bar, memory: freezeDrumPhraseMemory({
 		version: 1, ...(input.style && input.style !== 'swing' ? { style: input.style } : {}), phraseId: input.phraseId, tempo: input.tempo, harmonyEndBeat: input.harmonyEndBeat,
 		nextBar: input.barIndex + 1, sectionIndex: input.info.sectionIndex ?? null,
 		chorusIndex: input.info.chorusIndex ?? null, ensemblePhraseStartBar: input.info.ensemble!.phraseStartBar,
-		phrase: state, previousCompOnsets: [...input.compOnsets ?? []]
+		phrase: state, previousCompOnsets: [...input.compOnsets ?? []],
+		...(input.info.ensemble!.piano.arrival?.action === 'catch' && input.compOnsets?.length === 1 && input.compOnsets[0] === 0
+			? { previousCompIsSharedArrival: true as const } : {})
 	}) });
 }
 

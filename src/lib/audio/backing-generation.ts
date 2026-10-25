@@ -1,3 +1,4 @@
+import { sharedArrivalTick } from './backing-arrival';
 /**
  * Pure backing-track event generation: walking bass, comping, and drums.
  *
@@ -154,6 +155,8 @@ export interface PianoFeedbackDecision {
 
 /** Objective evidence for one actual accepted piano attack. */
 export interface CoordinatedPianoVoicing {
+	/** Actual accepted catch, linked to the unchanged shared reservation. */
+	readonly arrivalId?: string;
 	readonly absBeat: number;
 	readonly time: string;
 	readonly notes: readonly number[];
@@ -516,7 +519,7 @@ export function generateComping(
 	let silenceTick = Infinity;
 	for (let bar = totalBars - 1; bar >= 0; bar--) {
 		nextSilenceTicks[bar] = silenceTick;
-		if (pianoSilentAt(bar)) silenceTick = bar * beatsPerBar * params.ppq;
+		if (barInfos[bar].ensemble?.piano.arrival || pianoSilentAt(bar)) silenceTick = bar * beatsPerBar * params.ppq;
 	}
 
 	const clavePhase = clavePhaseFor(phraseId, tempo);
@@ -561,10 +564,11 @@ export function generateComping(
 				: voicings[segIdx];
 			if (!coordinatedVoicing && (!voicing || voicing.length === 0)) continue;
 
-			let time = place(absBeat, 'comp', params, streams, beatsPerBar);
+			const arrival = barInfos[bar].ensemble?.piano.arrival?.action === 'catch' ? barInfos[bar].ensemble!.piano.arrival : undefined;
+			let time = arrival ? `${sharedArrivalTick(params.ensembleTiming!, barInfos[bar].ensemble!, params.ppq)}i` : place(absBeat, 'comp', params, streams, beatsPerBar);
 			let startTick = parseInt(time, 10);
 			// An on-top profile must not resume early inside the preceding rest.
-			if (bar > 0 && pianoSilentAt(bar - 1)) {
+			if (!arrival && bar > 0 && pianoSilentAt(bar - 1)) {
 				startTick = Math.max(startTick, bar * beatsPerBar * params.ppq);
 				time = `${startTick}i`;
 			}
@@ -583,7 +587,7 @@ export function generateComping(
 				if (!selected.notes.length) continue;
 				voicing = [...selected.notes];
 				voicingMemory = selected.memory;
-				voicingTrace.push(Object.freeze({ absBeat, time, notes: selected.notes, decision: selected.decision }));
+				voicingTrace.push(Object.freeze({ absBeat, time, notes: selected.notes, decision: selected.decision, ...(arrival ? { arrivalId: arrival.accentId } : {}) }));
 			}
 			events.push({
 				time,
@@ -740,7 +744,8 @@ export function generateBacking(
 			bars: barInfos.map((info, barIndex) => ({
 				...info,
 				barIndex,
-				...(performanceEnergy ? { performanceEnergy: performanceEnergy[barIndex] } : {}),
+				...(performanceEnergy ? { performanceEnergy: performanceEnergy[barIndex],
+					...(['swing', 'straight'].includes(style.coordinatedStyle!) ? { pianoArrivalPolicy: 'shared-v1' as const } : {}) } : {}),
 				...(performanceForm ? performanceBarContext(performanceForm, barIndex) : {})
 			})),
 			soloFeatures: params.ensemble.soloFeatures
@@ -781,7 +786,7 @@ export function generateBacking(
 		acceptsOnset: (absBeat, hit) => {
 			const bar = Math.floor(absBeat / 4);
 			const arrival = hit.role === 'accent' && absBeat % 4 === 0 && ensemblePlan.bars[bar]?.coordinatedAccent;
-			const tick = arrival ? ensembleTiming!.arrivalTick(bar) : ensembleTiming!.place(absBeat, hit.drum);
+			const tick = arrival ? sharedArrivalTick(ensembleTiming!, ensemblePlan.bars[bar], params.ppq) : ensembleTiming!.place(absBeat, hit.drum);
 			return tick < harmonyBeats * params.ppq;
 		}
 	}) : undefined;
@@ -793,7 +798,7 @@ export function generateBacking(
 		const accent = bar.coordinatedAccent;
 		if (!accent) continue;
 		const absBeat = bar.barIndex * beatsPerBar;
-		const time = `${ensembleTiming!.arrivalTick(bar.barIndex)}i`;
+		const time = `${sharedArrivalTick(ensembleTiming!, bar, params.ppq)}i`;
 		if (accent.participants.includes('bass')) {
 			const bass = bassEvents.find((event) => event.absBeat === absBeat);
 			if (bass) { bass.time = time; bass.velocity = Math.min(110, bass.velocity + 5); }

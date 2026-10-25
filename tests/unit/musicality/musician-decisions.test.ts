@@ -293,3 +293,79 @@ describe('planned and emitted rootless texture evidence', () => {
 		expect(describeMusicianDecisions(legacy, context)[1].evidence.join(' ')).not.toContain('texture:');
 	});
 });
+
+describe('piano shared-arrival evidence', () => {
+	function score(time = '768i') {
+		const chord = { time, absBeat: 4, notes: [62, 64, 71], duration: .5, velocity: 60 };
+		return { bassEvents: [{ time, absBeat: 4, midi: 48, duration: .5, velocity: 75 }], compEvents: [chord],
+			drumEvents: [{ time, absBeat: 4, drum: 'kick', velocity: .4, role: 'accent' }],
+			ensemblePlan: { version: 1, trace: [], bars: [{ barIndex: 1, phraseIntent: 'support', energy: .4,
+				performanceEnergy: { phase: 'head_return', chorusIndex: 2, targetEnergy: .4 },
+				coordinatedAccent: { id: 'arrival:1', targetBarIndex: 1, beatOffset: 0, strength: 1, participants: ['bass', 'drums'] },
+				piano: { role: 'mark_form', maxAttacks: 1, arrival: { accentId: 'arrival:1', action: 'catch', reason: 'shared_arrival' } },
+				bass: { role: 'time' }, drums: { role: 'mark_form' }
+			}] }, ensembleDevelopment: { version: 1, bassTurnarounds: [], pianoMotifs: [], drumPhrases: [],
+				pianoVoicings: [{ ...chord, notes: [...chord.notes], arrivalId: 'arrival:1', decision: {
+					requestedFamily: 'rootless-a', resolvedFamily: 'rootless-a', correction: 'none', guideMotion: null,
+					commonTones: [], totalMovement: 0, registerDistance: 0, candidateCount: 1
+				} }]
+			} };
+	}
+	const card = (generated: ReturnType<typeof score>, options = {}) => describeMusicianDecisions(generated as unknown as GeneratedBacking, { ...context, barIndex: 1, ...options })[1];
+	it.each(['swing', 'straight'] as const)('shows an actual single %s catch with the scheduled bass and drum arrival', style => {
+		const piano = card(score(), { style });
+		expect(piano.action).toBe('Support the harmony');
+		expect(piano.evidence).toContain('Planned piano arrival: join the band on the downbeat');
+		expect(piano.evidence).toContain('Chord 1 arrival: shared catch with bass and drums');
+		expect(piano.evidence).toContain('Chord 1: D4 · E4 · B4');
+	});
+	it('does not turn planned admission into an emitted catch in a silent bar', () => {
+		const generated = score(); generated.compEvents = [];
+		const piano = card(generated);
+		expect(piano.action).toBe('No new chord attack');
+		expect(piano.evidence).toContain('Planned piano arrival: join the band on the downbeat');
+		expect(piano.evidence.join(' ')).not.toContain('shared catch');
+	});
+	it.each([
+		['soloist_dense', 'leave room for the soloist'], ['deliberate_space', 'keep the planned space'],
+		['after_response', 'leave space after the response'], ['response_reserved', 'keep the assigned response'],
+		['ensemble_silence', 'keep the planned rest']
+	])('describes %s withholding without implying a played catch', (reason, wording) => {
+		const generated = score(); generated.compEvents = [];
+		Object.assign(generated.ensemblePlan.bars[0].piano.arrival, { action: 'withhold', reason });
+		expect(card(generated).evidence).toContain(`Planned piano arrival: ${wording}`);
+		expect(card(generated).evidence.join(' ')).not.toContain('shared catch');
+	});
+	it.each(['notes', 'time', 'absBeat', 'arrival-id', 'plan-id', 'withheld', 'extra-chord', 'missing-bass', 'drum-time', 'drum-role'] as const)('withholds the shared-catch claim for inconsistent %s evidence', field => {
+		const generated = score();
+		const trace = generated.ensembleDevelopment.pianoVoicings[0];
+		if (field === 'notes') trace.notes = [62, 65, 71];
+		if (field === 'time') trace.time = '769i';
+		if (field === 'absBeat') trace.absBeat = 4.5;
+		if (field === 'arrival-id') trace.arrivalId = 'arrival:2';
+		if (field === 'plan-id') generated.ensemblePlan.bars[0].coordinatedAccent.id = 'arrival:2';
+		if (field === 'withheld') generated.ensemblePlan.bars[0].piano.arrival.action = 'withhold';
+		if (field === 'extra-chord') generated.compEvents.push({ ...generated.compEvents[0], time: '960i', absBeat: 5 });
+		if (field === 'missing-bass') generated.bassEvents = [];
+		if (field === 'drum-time') generated.drumEvents[0].time = '769i';
+		if (field === 'drum-role') generated.drumEvents[0].role = 'timekeeping';
+		expect(card(generated).evidence.join(' ')).not.toContain('shared catch');
+	});
+	it('places an early fixed catch in its actual sounding bar without shifting the planned bar', () => {
+		const generated = score('767i');
+		const sounding = card(generated, { barIndex: 0 });
+		expect(sounding.evidence).toContain('Chord 1 arrival: shared catch with bass and drums');
+		expect(sounding.evidence.join(' ')).not.toContain('Planned piano arrival:');
+		const planned = card(generated);
+		expect(planned.evidence).toContain('Planned piano arrival: join the band on the downbeat');
+		expect(planned.evidence.join(' ')).not.toContain('shared catch');
+	});
+	it('leaves Original, native styles and historical exports without new arrival fields unchanged', () => {
+		const generated = score();
+		for (const options of [{ orchestration: 'original' }, { style: 'bossa-nova' }, { style: 'ballad' }])
+			expect(card(generated, options).evidence.join(' ')).not.toMatch(/Planned piano arrival|shared catch/);
+		delete (generated.ensemblePlan.bars[0].piano as { arrival?: unknown }).arrival;
+		delete (generated.ensembleDevelopment.pianoVoicings[0] as { arrivalId?: unknown }).arrivalId;
+		expect(card(generated).evidence.join(' ')).not.toMatch(/Planned piano arrival|shared catch/);
+	});
+});

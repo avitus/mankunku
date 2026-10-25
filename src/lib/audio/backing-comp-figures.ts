@@ -113,7 +113,7 @@ export interface CompMotifDecision {
 	readonly displacementBeats: number;
 	/** Planned onsets and nominal durations, before articulation and timing. */
 	readonly hits: readonly Readonly<CompFigureHit>[];
-	readonly reason?: 'native_pattern' | 'not_selected' | 'short_phrase' | 'incomplete_harmony' | 'gesture_does_not_fit' | 'ensemble_silence' | 'response_reserved' | 'motif_gap';
+	readonly reason?: 'native_pattern' | 'not_selected' | 'short_phrase' | 'incomplete_harmony' | 'gesture_does_not_fit' | 'ensemble_silence' | 'response_reserved' | 'motif_gap' | 'shared_arrival';
 }
 
 export function freezeCompMotifTrace(trace: readonly CompMotifDecision[]): readonly CompMotifDecision[] {
@@ -242,6 +242,15 @@ export function planCompFigures(
 		if (plan.length > bar) continue; // consumed by a 2-bar figure
 		const info = barInfos[bar];
 		const rng = createRng(seedFrom(phraseId, tempo, 'comp-figure', bar));
+		if (info.ensemble?.piano.arrival?.action === 'catch') {
+			const figure: CompFigure = { ...REST_FIGURE, id: 'shared-arrival', hits: [[{ b: 0, d: 0.45 }]], busy: 1, tags: ['early'] };
+			plan.push({ figureId: figure.id, guideTones: false, transformedFigure: figure,
+				...(motifs ? { motif: { version: 1 as const, barIndex: bar, phraseStartBar: info.ensemble.phraseStartBar,
+					motifId: null, sourceFigureId: null, transform: 'fallback' as const, displacementBeats: 0,
+					hits: [], reason: 'shared_arrival' as const } } : {}) });
+			recent.push(figure.id);
+			continue;
+		}
 		if (motifs && motifPhrase?.startBar !== info.ensemble!.phraseStartBar) {
 			motifPhrase = chooseMotifPhrase(barInfos, info.ensemble!.phraseStartBar, phraseId, tempo, figureBias, options?.harmonyEndBeat);
 		}
@@ -273,7 +282,7 @@ export function planCompFigures(
 			// Select complete figures that fit every reserved bar, rather than
 			// deleting arbitrary notes after a motif has been composed.
 			if (f.hits.some((hits, offset) => hits.length > (barInfos[bar + offset]?.ensemble?.piano.maxAttacks ?? Infinity))) return false;
-			if (f.bars === 2 && !sameSectionNext) return false;
+			if (f.bars === 2 && (!sameSectionNext || barInfos[bar + 1]?.ensemble?.piano.arrival)) return false;
 			if (motifs && f.bars === 2 && barInfos[bar + 1]?.ensemble?.phraseStartBar !== info.ensemble!.phraseStartBar) return false;
 			// A 2-bar figure's tail would swallow the cadence bar and bypass
 			// its push weighting — only push-tagged figures may land there.

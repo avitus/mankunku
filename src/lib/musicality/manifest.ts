@@ -317,8 +317,8 @@ const foundationRemaining: Record<string, string> = {
 	S19: 'Splash/barked hats, sustained hi-hat timekeeping textures and other vocabulary remain incomplete.',
 	S20: 'Live solo motif recognition, solo phrase-end detection, rolls and grace-note articulations remain incomplete.',
 	S22: 'Tom voices and a general orchestration/limb-transition model remain absent.',
-	S23: 'The fixed assignment checks simultaneous strokes only; stick travel, recovery times, rolls and more flexible limb allocation remain incomplete. Shared arrangement hits still cover bass and drums only.',
-	S24: 'Piano participation in shared hits, structural dropout/re-entry and richer phrase-boundary hierarchy remain incomplete.',
+	S23: 'The fixed assignment checks simultaneous strokes only; stick travel, recovery times, rolls and more flexible limb allocation remain incomplete. Shared arrivals can include a single piano catch in explicit Swing/Straight; a general arrangement-hit contract remains incomplete.',
+	S24: 'Shared piano catches are scoped to explicit Swing/Straight. Native-style catches, structural dropout/re-entry and richer phrase-boundary hierarchy remain incomplete.',
 	S25: "Explicit-form rolling piano now sometimes leaves the next bar open after a qualifying drum phrase. Fixed playback parity, reciprocal motif imitation, dynamic/register following and deliberate whole-kit dropout remain incomplete.",
 	S27: "Capture assumes headphones and fixed gain-dependent thresholds. Ambiguous or poorly covered input stays unknown. Acoustic calibration, source separation, MIDI and phrase/motif recognition remain incomplete.",
 	S28: "Register and dynamics remain diagnostic observations. Solo-register avoidance, motif following and broad acoustic validation remain incomplete.",
@@ -422,9 +422,11 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 	};
 	if (entry.id === 'D64') return {
 		...entry,
-		assessment: 'Coordinated mode reserves a preceding setup and a shared bass/drum arrival on a common tick.',
-		remaining: 'Piano participation and a general arrangement-hit contract remain incomplete.',
-		scope: 'All four coordinated 4/4 styles; native bossa/ballad arrivals use a soft kick.', evidence: [...entry.evidence, ...foundationEvidence]
+		assessment: 'Coordinated mode reserves a preceding setup and a shared bass/drum arrival. Explicit Swing/Straight can admit one piano chord on the same tick when current silence and soloist priorities permit it.',
+		remaining: 'Native Bossa/Ballad piano catches, multi-hit arrangement figures and human listening acceptance remain incomplete.',
+		scope: 'Shared bass/drum arrivals in all four coordinated 4/4 styles; piano catches in explicit Swing/Straight only. Existing setup identity is preserved; qualified dense evidence, deliberate space and response recovery can withhold the piano.', evidence: [...entry.evidence, ...foundationEvidence,
+			{ ...source('ensemble-plan'), revision: 'musicality' }, { ...source('backing-arrival'), revision: 'musicality' },
+			{ ...test('backing-piano-arrivals'), revision: 'musicality' }, { ...test('backing-piano-arrival-integration'), revision: 'musicality' }]
 	};
 	if (entry.id === 'P55') return { ...entry, status: 'partial',
 		assessment: 'A qualifying independent multi-hit drum phrase can prompt a seeded one-bar piano breath on the next eligible rolling bar, with a cooldown and protected arrivals and response reservations.',

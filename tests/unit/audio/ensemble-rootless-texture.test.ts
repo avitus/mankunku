@@ -64,7 +64,7 @@ describe('ensemble rootless texture requests', () => {
 	});
 
 	it('does not add texture policy to metadata-free coordination, even with qualified observations', () => {
-		const bars = score.bars.map(({ performanceEnergy: _energy, ...bar }) => bar);
+		const bars = score.bars.map(({ performanceEnergy: _energy, pianoArrivalPolicy: _arrival, ...bar }) => bar);
 		const plan = planEnsemble({ ...input, bars, soloFeatures: [feature()] });
 		expect(plan.bars.every((bar) => bar.piano.rootlessTexture === undefined)).toBe(true);
 	});
@@ -91,7 +91,7 @@ describe('ensemble rootless texture requests', () => {
 		const first = planEnsembleWindow({ ...input, endBarExclusive: 8 });
 		expect(first.memory.formFingerprint).not.toBe(prior.explicit);
 		expect(() => planEnsembleWindow({ ...input, memory: { ...first.memory, formFingerprint: prior.explicit } })).toThrow(/form|timeline/i);
-		const bars = score.bars.map(({ performanceEnergy: _energy, ...bar }) => bar);
+		const bars = score.bars.map(({ performanceEnergy: _energy, pianoArrivalPolicy: _arrival, ...bar }) => bar);
 		expect(planEnsembleWindow({ ...input, bars }).memory.formFingerprint).toBe(prior.implicit);
 	});
 });

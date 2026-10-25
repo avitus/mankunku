@@ -233,7 +233,13 @@ describe('coordinated swing generation', () => {
 				expect(bass).toBeDefined();
 				expect(accents.length).toBeGreaterThan(0);
 				expect(accents.every((e) => e.time === bass!.time)).toBe(true);
-				expect(generated.compEvents.filter((e) => Math.floor(e.absBeat / 4) === bar.barIndex)).toHaveLength(0);
+				const piano = generated.compEvents.filter((e) => Math.floor(e.absBeat / 4) === bar.barIndex);
+				if (bar.piano.arrival?.action === 'catch') {
+					expect(piano).toHaveLength(1);
+					expect(bar.piano.maxAttacks).toBe(1);
+					expect(bar.piano.arrival.accentId).toBe(bar.coordinatedAccent.id);
+					expect(piano[0].time).toBe(bass!.time);
+				} else expect(piano).toHaveLength(0);
 			}
 		}
 		expect(arrivals).toBeGreaterThan(0);
@@ -249,16 +255,17 @@ describe('coordinated swing generation', () => {
 			for (const event of generated.bassEvents) {
 				const barIndex = Math.floor(event.absBeat / 4);
 				const arrival = plan.bars[barIndex]?.coordinatedAccent && event.absBeat % 4 === 0;
-				expect(event.time).toBe(`${arrival ? timing.arrivalTick(barIndex) : timing.place(event.absBeat, 'bass')}i`);
+				expect(event.time).toBe(`${arrival ? (plan.bars[barIndex].piano.arrival ? Math.max(barIndex * 4 * base.ppq, timing.arrivalTick(barIndex)) : timing.arrivalTick(barIndex)) : timing.place(event.absBeat, 'bass')}i`);
 			}
 			for (const event of generated.drumEvents) {
 				const barIndex = Math.floor(event.absBeat / 4);
 				const arrival = plan.bars[barIndex]?.coordinatedAccent && event.role === 'accent' && event.absBeat % 4 === 0;
-				expect(event.time).toBe(`${arrival ? timing.arrivalTick(barIndex) : timing.place(event.absBeat, event.drum)}i`);
+				expect(event.time).toBe(`${arrival ? (plan.bars[barIndex].piano.arrival ? Math.max(barIndex * 4 * base.ppq, timing.arrivalTick(barIndex)) : timing.arrivalTick(barIndex)) : timing.place(event.absBeat, event.drum)}i`);
 			}
 			for (const event of generated.compEvents) {
 				const barIndex = Math.floor(event.absBeat / 4);
-				const tick = timing.place(event.absBeat, 'comp');
+				const catchHit = plan.bars[barIndex].piano.arrival?.action === 'catch';
+				const tick = catchHit ? Math.max(barIndex * 4 * base.ppq, timing.arrivalTick(barIndex)) : timing.place(event.absBeat, 'comp');
 				const afterRest = barIndex > 0 && (plan.bars[barIndex - 1].piano.maxAttacks === 0 ||
 					generated.ensembleDevelopment!.pianoMotifs[barIndex - 1].transform === 'space');
 				expect(event.time).toBe(`${afterRest ? Math.max(tick, barIndex * 4 * base.ppq) : tick}i`);

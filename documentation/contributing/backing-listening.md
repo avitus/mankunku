@@ -272,3 +272,10 @@ On `/musicality`, choose Coordinated and listen through the head, two solo choru
 For a reproducible reciprocal cue, use Mankunku Blues, Swing, 180 BPM and the default swing setting: listen across human bars 21–22 for independent drum commentary followed by piano space. Compare the full performance with Original, then repeat in Straight, Bossa and Ballad. Bossa's clave is timekeeping, not a call requiring a piano answer. Judge continuity, stylistic character and whether the occasional space is useful; the decision text and passing tests cannot answer those questions.
 
 Blind comparison uses these same fixed Original and causal Coordinated players. Wait through each entire tune and its 2.5-second release tail before rating and revealing. A complete exported score is scheduler evidence, not proof of audible quality or human acceptance. Fixed offline bounce still uses its earlier generation path and should not be treated as an exact reproduction of a causal Coordinated studio take.
+
+
+### Audition shared piano arrivals
+
+Choose Mankunku Blues in F-sharp, two solo choruses, 140 BPM, Coordinated Swing, then Straight. Listen through the full form, starting with the reserved arrival at human bar 5: piano can now catch the existing bass/drum downbeat with one short chord. Later selected arrivals retain space when the current silence or soloist priorities require it. The musician details distinguish planned admission from matching actual piano, bass and drum events.
+
+Compare the matched raw before/after full-tune recordings retained with the piano-arrivals milestone, at one common gain. Judge whether catches clarify the form or make it too heavy; avoid evaluating only the isolated hit. Bossa and Ballad remain native-pattern controls. A joint arrangement hit must not be mistaken for an independent piano call that invites another drummer reply. Human acceptance remains pending.

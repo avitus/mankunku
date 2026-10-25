@@ -37,6 +37,7 @@ export function realizeRollingPiano(score: RollingBackingDefinition, bar: number
 	const form = score.bars[bar];
 	const phraseStart = ensemble.phraseStartBar;
 	const budget = ensemble.piano.maxAttacks;
+	const arrival = ensemble.piano.arrival?.action === 'catch' ? ensemble.piano.arrival : undefined;
 	const cellFits = (hits: readonly CompFigureHit[]) => hits.every((hit) => hit.b >= 0 && hit.b < 4 &&
 		timing.place(bar * 4 + hit.b, 'comp') < (bar + 1) * 4 * score.ppq);
 	const fits = (figure: CompFigure) => figure.bars === 1 && figure.hits[0].length <= budget &&
@@ -89,8 +90,11 @@ export function realizeRollingPiano(score: RollingBackingDefinition, bar: number
 				hits = []; transform = 'space'; reason = budget === 0 ? 'ensemble_silence' : 'response_reserved';
 			} else reason = form.phrase4?.lengthBars === 4 ? 'not_selected' : 'short_phrase';
 		}
+		if (arrival) {
+			hits = [{ b: 0, d: 0.45 }]; transform = 'fallback'; shift = 0; reason = 'shared_arrival';
+		}
 		const tags = [...figure.tags.filter((tag) => tag === 'pad'), ...(hits.some((hit) => hit.b === 3.5) ? ['push'] : []), ...(hits.some((hit) => hit.b === 0) ? ['early'] : [])];
-		guideTones = hits.length > 0 && rng.chance(0.06);
+		guideTones = !arrival && hits.length > 0 && rng.chance(0.06);
 		realized = style.compPattern({ ...info, barIndex: bar, beatsPerBar: 4, swing: score.swing,
 			rng: createRng(seedFrom(score.phraseId, score.tempo, 'comp', bar)), plannedComp: { hits, tags, guideTones } });
 	} else {
@@ -124,7 +128,7 @@ export function realizeRollingPiano(score: RollingBackingDefinition, bar: number
 		if (index < 0) continue;
 		const chord = score.harmony[index].chord;
 		if (coordinatedVoicing) {
-			const tick = Math.max(bar * 4 * score.ppq, timing.place(absBeat, 'comp'));
+			const tick = Math.max(bar * 4 * score.ppq, arrival ? timing.arrivalTick(bar) : timing.place(absBeat, 'comp'));
 			const duration = Math.min(hit.durationBeats * 60 / score.tempo, (barEnd - tick) * 60 / score.tempo / score.ppq);
 			if (!Number.isFinite(tick) || tick >= barEnd || !Number.isFinite(duration) || duration <= 0 || absBeat >= score.totalBars * 4) continue;
 			const selected = resolveCoordinatedVoicing({ chord, family: guideTones ? 'guide' : selectCoordinatedVoicingFamily({ chord, phraseId: score.phraseId, tempo: score.tempo, segmentIndex: index, intensity: info.intensity, voicingBias: style.voicingBias }),
@@ -134,7 +138,7 @@ export function realizeRollingPiano(score: RollingBackingDefinition, bar: number
 			const notes = [...selected.notes];
 			const time = `${tick}i`;
 			events.push({ absBeat, time, notes, duration, velocity: hit.velocity });
-			voicingTrace.push(Object.freeze({ absBeat, time, notes: selected.notes, decision: selected.decision }));
+			voicingTrace.push(Object.freeze({ absBeat, time, notes: selected.notes, decision: selected.decision, ...(arrival ? { arrivalId: arrival.accentId } : {}) }));
 			voicingMemory = selected.memory;
 			segmentIndex = index; segmentVoicing = notes; lastVoicing = notes;
 			continue;
@@ -154,8 +158,8 @@ export function realizeRollingPiano(score: RollingBackingDefinition, bar: number
 		lastVoicing = notes;
 	}
 	return { events, ...(coordinatedVoicing ? { voicingTrace: Object.freeze(voicingTrace) } : {}),
-		memory: { recentFigures: [...memory.recentFigures, style.compPlanning ? figure.repeatKey ?? figure.id : `${score.style}:${hits.map((hit) => hit.b).join(',')}`].slice(-3), motif, segmentIndex, segmentVoicing, lastVoicing,
+		memory: { recentFigures: [...memory.recentFigures, arrival ? 'shared-arrival' : style.compPlanning ? figure.repeatKey ?? figure.id : `${score.style}:${hits.map((hit) => hit.b).join(',')}`].slice(-3), motif, segmentIndex, segmentVoicing, lastVoicing,
 			...(coordinatedVoicing && voicingMemory ? { voicing: voicingMemory } : {}) },
-		trace: { version: 1, barIndex: bar, phraseStartBar: phraseStart, motifId: motif.sourceId ? `motif:${phraseStart}:${motif.sourceId}` : null,
-			sourceFigureId: motif.sourceId, transform, displacementBeats: shift, hits: hits.filter((hit) => events.some((event) => event.absBeat === bar * 4 + hit.b)), ...(reason ? { reason } : {}) } };
+		trace: { version: 1, barIndex: bar, phraseStartBar: phraseStart, motifId: !arrival && motif.sourceId ? `motif:${phraseStart}:${motif.sourceId}` : null,
+			sourceFigureId: arrival ? null : motif.sourceId, transform, displacementBeats: shift, hits: hits.filter((hit) => events.some((event) => event.absBeat === bar * 4 + hit.b)), ...(reason ? { reason } : {}) } };
 }
