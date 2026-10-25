@@ -224,7 +224,15 @@ const loaded = loadHistory();
 export const dailySummaries = $state<DailySummary[]>(loaded.summaries);
 export const progressMeta = $state<ProgressMeta>(loaded.meta);
 
-let summaryMap = new Map<string, DailySummary>(loaded.summaries.map((s) => [s.date, s]));
+// Keep the same reactive objects the calendar reads. Mutating the raw loaded
+// objects bypasses Svelte's proxies, leaving rendered counts and saved caches stale.
+let summaryMap = new Map<string, DailySummary>(dailySummaries.map((s) => [s.date, s]));
+
+function appendSummary(summary: DailySummary): void {
+	dailySummaries.push(summary);
+	// Read back through $state before indexing; the input is still a raw object.
+	summaryMap.set(summary.date, dailySummaries[dailySummaries.length - 1]);
+}
 
 function saveAll(): void {
 	save(SUMMARIES_KEY, dailySummaries);
@@ -392,8 +400,7 @@ export function recomputeAllDailySummaries(
 			Object.assign(existing, merged);
 			touched.push(existing);
 		} else {
-			dailySummaries.push(merged);
-			summaryMap.set(date, merged);
+			appendSummary(merged);
 			touched.push(merged);
 		}
 	}
@@ -447,8 +454,7 @@ export function recomputeDailySummary(
 	if (existing) {
 		Object.assign(existing, merged);
 	} else {
-		dailySummaries.push(merged);
-		summaryMap.set(date, merged);
+		appendSummary(merged);
 		dailySummaries.sort((a, b) => a.date.localeCompare(b.date));
 	}
 
@@ -564,8 +570,7 @@ export function reconcileCloudSummaries(cloudSummaries: DailySummary[]): DailySu
 		const existing = summaryMap.get(cs.date);
 		if (!existing) {
 			const corrected = correctPracticeMinutes(cs, earSessions, lickEntries);
-			dailySummaries.push(corrected);
-			summaryMap.set(cs.date, corrected);
+			appendSummary(corrected);
 			if (corrected.practiceMinutes !== cs.practiceMinutes) localWinners.add(cs.date);
 			changed = true;
 			continue;
