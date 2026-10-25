@@ -17,6 +17,8 @@ export interface DrumPhraseDecision {
 	readonly phraseStartBar: number;
 	readonly phraseLength: number;
 	readonly ride: {
+		/** Selected phrase timekeeping voice; actual substitutions remain in hits. */
+		readonly voice?: 'ride' | 'ride-bell';
 		readonly mode: RideMode | 'none';
 		readonly phase: 'statement' | 'repeat' | 'variation' | 'release' | 'single';
 		readonly skipOffsets: readonly number[];
@@ -68,6 +70,8 @@ export interface DrumPhraseBarInput {
 	/** Static score boundaries, clipped to section, chorus and complete harmony. */
 	readonly phraseStartBar: number;
 	readonly phraseEndBarExclusive: number;
+	/** Static structural peak extent, clipped to this phrase; never future solo evidence. */
+	readonly peakEndBarExclusive?: number;
 	readonly harmonyEndBeat: number;
 	/** Only attacks accepted for emission in this bar, never candidate rhythms. */
 	readonly compOnsets?: readonly number[];
@@ -114,6 +118,8 @@ type Motif = {
 };
 type PhraseState = {
 	start: number; end: number; mode: RideMode; skips: readonly number[]; variedSkips: readonly number[];
+	/** Absent in legacy checkpoints, which retain ride for their committed phrase. */
+	rideVoice?: 'ride' | 'ride-bell';
 	commentarySelected: boolean; motif?: Readonly<Motif>;
 };
 
@@ -135,7 +141,7 @@ function fits(hits: readonly DrumHitSpec[], allowance: number, extent: number, a
 			(acceptsOnset?.(hit) ?? true));
 }
 
-function phraseState(input: DrumPhraseBarInput, start: number, end: number): PhraseState {
+function phraseState(input: DrumPhraseBarInput, start: number, end: number, previous?: Readonly<PhraseState>): PhraseState {
 	const rng = createRng(seedFrom(input.phraseId, input.tempo, 'drum-phrase-ride', start));
 	const info = input.info;
 	const mode = input.tempo >= 240 && rng.chance(0.4) ? 'quarters-only' : chooseRideMode(rng, info.intensity);
@@ -145,7 +151,14 @@ function phraseState(input: DrumPhraseBarInput, start: number, end: number): Phr
 	// One recognizable change after the repeated opening, followed by release.
 	const variedSkips = skips.length > 1 ? skips.slice(0, -1) : [...skips];
 	const commentaryRng = createRng(seedFrom(input.phraseId, input.tempo, 'drum-phrase-intent', start));
-	return { start, end, mode, skips, variedSkips, commentarySelected: commentaryRng.chance(0.65) };
+	const structural = info.ensemble!.performanceEnergy;
+	const bellEligible = structural?.phase === 'solo_peak' && info.ensemble!.energy >= 0.7 &&
+		end - start >= 2 && input.peakEndBarExclusive !== undefined && input.peakEndBarExclusive >= end &&
+		previous?.rideVoice !== 'ride-bell' && info.ensemble!.drums.silenceReason !== 'soloist_dense';
+	const rideVoice = bellEligible && createRng(seedFrom(input.phraseId, input.tempo, 'drum-phrase-texture', start)).chance(0.35)
+		? 'ride-bell' as const : 'ride' as const;
+	return { start, end, mode, skips, variedSkips, commentarySelected: commentaryRng.chance(0.65),
+		...(structural ? { rideVoice } : {}) };
 }
 
 function chooseMotif(input: DrumPhraseBarInput, state: PhraseState, bar: number, allowance: number, previous: readonly number[]): Motif | undefined {
@@ -193,7 +206,8 @@ function realizeDrumPhraseBar(input: DrumPhraseBarInput, state: PhraseState, pre
 	const velocityScale = phase === 'release' ? 0.94 : phase === 'variation' ? 1.04 : phase === 'repeat' ? 1.01 : 1;
 	const timeRng = createRng(seedFrom(input.phraseId, input.tempo, 'drum-phrase-time', bar));
 	const ostinato: DrumHitSpec[] = [
-		...rideBar(state.mode, bar, 4, timeRng, skipOffsets).map((hit) => ({ ...hit, velocity: hit.velocity * velocityScale })),
+		...rideBar(state.mode, bar, 4, timeRng, skipOffsets).map((hit) => ({ ...hit,
+			drum: state.rideVoice ?? hit.drum, velocity: hit.velocity * velocityScale })),
 		...hihatBar(4, timeRng).map((hit) => ({ ...hit, drum: 'hihat-pedal' as const })),
 		...featherBar(4, timeRng, info.intensity)
 	].map((hit): DrumHitSpec => ({ ...hit, role: 'timekeeping' }))
@@ -262,7 +276,7 @@ function realizeDrumPhraseBar(input: DrumPhraseBarInput, state: PhraseState, pre
 	const motif = state.motif;
 	const decision: DrumPhraseDecision = {
 		version: 1, barIndex: bar, phraseStartBar: state.start, phraseLength: length,
-		ride: { mode: state.mode, phase, skipOffsets: [...skipOffsets].filter((offset) => offset < extent), velocityScale,
+		ride: { mode: state.mode, phase, ...(state.rideVoice ? { voice: state.rideVoice } : {}), skipOffsets: [...skipOffsets].filter((offset) => offset < extent), velocityScale,
 			onsets: [...new Set(hits.filter((hit) => cymbal(hit.drum)).map((hit) => hit.beatOffset))].sort((a, b) => a - b) },
 		commentary: {
 			motifId: transform === 'setup' ? null : motif?.id ?? null,
@@ -312,6 +326,11 @@ function validateDrumPhraseBar(input: DrumPhraseBarInput, memory?: DrumPhraseMem
 		throw new Error('Drum phrase bar and static boundaries must fit the harmony extent');
 	}
 	const ensemble = input.info.ensemble;
+	if (input.peakEndBarExclusive !== undefined && (!barNumber(input.peakEndBarExclusive) ||
+		input.peakEndBarExclusive <= input.barIndex || input.peakEndBarExclusive > input.phraseEndBarExclusive ||
+		input.peakEndBarExclusive * 4 > input.harmonyEndBeat || ensemble?.performanceEnergy?.phase !== 'solo_peak')) {
+		throw new Error('Invalid static drum peak boundary');
+	}
 	if (!ensemble || ensemble.barIndex !== input.barIndex || !barNumber(ensemble.phraseStartBar) ||
 		ensemble.phraseStartBar > input.phraseStartBar || !Number.isFinite(input.info.intensity) ||
 		input.info.intensity < 0 || input.info.intensity > 1 ||
@@ -333,6 +352,8 @@ function validateDrumPhraseBar(input: DrumPhraseBarInput, memory?: DrumPhraseMem
 	if (!state || !barNumber(state.start) || !barNumber(state.end) || state.end <= state.start || state.end - state.start > 4 ||
 		state.start >= memory.nextBar || state.end < memory.nextBar ||
 		!['standard', 'quarters-only', 'skip-plus', 'broken'].includes(state.mode) ||
+		(state.rideVoice !== undefined && !['ride', 'ride-bell'].includes(state.rideVoice)) ||
+		(state.rideVoice === 'ride-bell' && (state.end - state.start < 2 || input.style === 'ballad' || input.style === 'bossa-nova')) ||
 		!validOnsets(state.skips, 3) || !validOnsets(state.variedSkips, 3) ||
 		typeof state.commentarySelected !== 'boolean' || !validOnsets(memory.previousCompOnsets) ||
 		!barNumber(memory.ensemblePhraseStartBar) || memory.ensemblePhraseStartBar > state.start ||
@@ -340,6 +361,10 @@ function validateDrumPhraseBar(input: DrumPhraseBarInput, memory?: DrumPhraseMem
 		throw new Error('Invalid drum phrase checkpoint');
 	}
 	if (input.barIndex < state.end) {
+		if (state.rideVoice === 'ride-bell' && (input.info.ensemble?.performanceEnergy?.phase !== 'solo_peak' ||
+			input.peakEndBarExclusive === undefined || input.peakEndBarExclusive < state.end)) {
+			throw new Error('A reserved bell phrase requires its declared peak boundary');
+		}
 		if (input.phraseStartBar !== state.start || input.phraseEndBarExclusive !== state.end ||
 			memory.sectionIndex !== (input.info.sectionIndex ?? null) || memory.chorusIndex !== (input.info.chorusIndex ?? null) ||
 			memory.ensemblePhraseStartBar !== ensemble.phraseStartBar) {
@@ -379,6 +404,7 @@ export function planDrumPhraseBar(input: DrumPhraseBarInput, memory?: DrumPhrase
 	const previous = memory?.phrase;
 	const state: PhraseState = previous && input.barIndex < previous.end ? {
 		start: previous.start, end: previous.end, mode: previous.mode,
+		...(previous.rideVoice ? { rideVoice: previous.rideVoice } : {}),
 		skips: [...previous.skips], variedSkips: [...previous.variedSkips], commentarySelected: previous.commentarySelected,
 		...(previous.motif ? { motif: {
 			id: previous.motif.id, source: previous.motif.source, sourceId: previous.motif.sourceId,
@@ -388,7 +414,7 @@ export function planDrumPhraseBar(input: DrumPhraseBarInput, memory?: DrumPhrase
 			shift: previous.motif.shift, orchestration: [...previous.motif.orchestration],
 			firstTransform: previous.motif.firstTransform, gapAfterStatement: previous.motif.gapAfterStatement
 		} } : {})
-	} : phraseState(input, input.phraseStartBar, input.phraseEndBarExclusive);
+	} : phraseState(input, input.phraseStartBar, input.phraseEndBarExclusive, previous);
 	const bar = realizeDrumPhraseBar(input, state, memory?.previousCompOnsets ?? []);
 	return Object.freeze({ bar, memory: freezeDrumPhraseMemory({
 		version: 1, ...(input.style && input.style !== 'swing' ? { style: input.style } : {}), phraseId: input.phraseId, tempo: input.tempo, harmonyEndBeat: input.harmonyEndBeat,
@@ -425,9 +451,15 @@ export function planDrumPhrases(input: DrumPhraseInput): DrumPhrasePlan {
 				input.bars[end].sectionIndex === info.sectionIndex &&
 				input.bars[end].chorusIndex === info.chorusIndex) end++;
 		}
+		let peakEnd: number | undefined;
+		if (ensemble.performanceEnergy?.phase === 'solo_peak' && (bar + 1) * 4 <= harmonyEnd) {
+			peakEnd = bar + 1;
+			while (peakEnd < end && input.bars[peakEnd].ensemble?.performanceEnergy?.phase === 'solo_peak') peakEnd++;
+		}
 		const step: DrumPhraseBarInput = {
 			style: input.style, phraseId: input.phraseId, tempo: input.tempo, beatsPerBar: 4, barIndex: bar, info,
 			phraseStartBar: start, phraseEndBarExclusive: end, harmonyEndBeat: harmonyEnd,
+			...(peakEnd !== undefined ? { peakEndBarExclusive: peakEnd } : {}),
 			compOnsets: input.compOnsetsByBar?.get(bar), bassOnsets: input.bassOnsetsByBar?.get(bar),
 			acceptsOnset: input.acceptsOnset
 		};

@@ -2,6 +2,8 @@
 
 The `musicality` branch develops the accompaniment as an ensemble. The target is the [original specification](/musicality#original-spec); the [implementation ledger](/musicality) records individual requirements, evidence and remaining work. A legal note sequence or passing test does not establish that a performance sounds musical.
 
+The [development log](/docs/contributing/musicality-progress) records milestone checkpoints, validation results, remaining work and audition guidance, including the overnight development run.
+
 ## Current foundation
 
 The current foundation provides:
@@ -139,6 +141,14 @@ This is deliberately bounded repetition of a declared score, not an endless sess
 
 Acceptance evidence is in `backing-rolling-loop.test.ts`, `backing-rolling-loop-session.test.ts`, observer/renderer boundary tests and the cross-loop browser cases in `solo-listening.spec.ts`. These cover real generated events, restored seam checkpoints, absolute observation freshness, scheduling ownership, full-form replay and WAV duration. Automated evidence does not establish musical acceptance.
 
+### Deliberate structural textures — 25 October 2026
+
+Explicit coordinated Swing/Straight forms now share a structural bass-feel policy between fixed and rolling playback. Heads and returning heads use two-feel; solos walk. Selected complete two-bar head-to-solo transitions begin walking before the declared arrival. A quiet final closing phrase can return to two, while a one-phrase solo still establishes walking. Harmonic changes can add attacks between the two primary beats; held notes release before an intervening chord change. Already committed bass launches retain their accepted path.
+
+The drummer can select sustained ride-bell timekeeping for an entire eligible two-to-four-bar solo-peak phrase. Selection requires sufficient energy, a complete phrase within the static peak and no dense solo evidence at selection. Color latches with the phrase and cannot rewrite committed notes. Consecutive bell phrases are excluded; quarter-note pulse, pedal hi-hat and limb allocation remain protected. Short or misaligned peaks retain ordinary ride: the 12-bar Blues peak currently cannot hold the existing four-bar phrase, while later 16-bar Saints solo peaks can. Native Bossa and Ballad patterns remain unchanged.
+
+The live musician view distinguishes planned bass feel/cymbal color from actual attacks. A silent bar never claims to sound a selected texture. Optional trace fields remain compatible with historical exports, while the rolling score fingerprint versions this new structural policy so an older explicit-form checkpoint cannot silently resume under changed generation rules. Tests verify real full-tune events, fixed/rolling choices and JSON restoration inside a selected bell phrase. Piano voicing expansion, section dropout/re-entry and human listening acceptance remain pending.
+
 ## Delivery sequence
 
 Every increment stays on `musicality`, updates the ledger in the same change and preserves an original/reference comparison. Small focused commits allow fixes on `dev` to proceed independently; integrate advancing `dev` deliberately and rerun the relevant regressions before a later merge.
@@ -154,7 +164,7 @@ The exact `musicality` branch has a hosted CircleCI setup-workflow guard, so ong
 | 5. Bass and piano development | Multi-bar bass targets/turnarounds, melodic restraint, rhythmic motifs and transformations, then explicit guide/common/top-note objectives | Scoped following-chorus bass launches and within-phrase piano motifs implemented in the lab; broader melodic objectives and listening acceptance pending |
 | 6. Drummer phrasing | 2–4-bar ride phrases, commentary motifs, shared setups, credible limb allocations, expanded kit articulation when needed | Ride/commentary phrasing, recent-piano answers and simultaneous limb occupancy implemented in the lab; broader physical/articulation models and listening acceptance pending |
 | 7. Live listening | Independent activity/rest/register features, confidence and bleed handling, rolling atomic scheduling, safe reset/replay | 7a capture/replay, 7b rolling adaptation and 7c bounded cross-loop continuity implemented in the lab; indefinite continuation, richer solo understanding, acoustic validation and listening acceptance pending |
-| 8. Structural development and styles | Non-monotonic build/peak/release across choruses; head/solo arrangements; traditional/bebop/post-bop profiles and complexity separate from density | Explicit-form energy arcs implemented in Coordinated mode; broader texture transitions, profiles and listening acceptance pending |
+| 8. Structural development and styles | Non-monotonic build/peak/release across choruses; head/solo arrangements; traditional/bebop/post-bop profiles and complexity separate from density | Explicit-form energy arcs, structural bass feel and selected sustained bell phrases implemented; piano texture expansion, dropout/re-entry, profiles and listening acceptance pending |
 | 9. Musical acceptance and rollout | Recorded A/B reviews at multiple tempos/seeds/forms; maintain evidence in ledger; enable ordinary practice only after acceptance | Lab ready; human acceptance pending |
 
 Vocabulary work should follow the specification's priorities. Do not implement every exotic voicing or substitution before the band leaves appropriate space. Each new device should declare its identity/family, scope, compatible roles, duration, density, required harmonic agreement, cooldown and transformations. A reusable device contract should grow from the existing figure representation rather than duplicating it beside the engine.

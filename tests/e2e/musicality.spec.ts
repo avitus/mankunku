@@ -41,6 +41,10 @@ test('deep links open the original requirement and the docs directory discovers 
 	await page.locator('#original-spec summary').click();
 	await expect(page.locator('#original-spec')).toHaveAttribute('open', '');
 	await expect(page.locator('#original-spec')).toContainText('The performance sounds like three musicians listening to each other.');
+	await page.goto('/docs');
+	await page.locator('.docs-directory').getByRole('link', { name: /Musicality Development Log/ }).click();
+	await expect(page).toHaveURL(/\/docs\/contributing\/musicality-progress$/);
+	await expect(page.getByRole('heading', { name: 'Musicality development progress', exact: true })).toBeVisible();
 });
 
 test('native same-document hash changes reveal filtered requirements and the complete source', async ({ page }) => {

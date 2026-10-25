@@ -234,6 +234,11 @@ const crossLoopEvidence: MusicalityEvidence[] = [
 	{ kind: 'test', path: 'tests/e2e/solo-listening.spec.ts', revision: 'musicality' }
 ];
 
+const structuralTextureEvidence: MusicalityEvidence[] = [
+	...['backing-bass-feel', 'backing-drum-phrases', 'backing-generation', 'backing-rolling'].map(file => ({ ...source(file), revision: 'musicality' })),
+	...['backing-bass-feel', 'backing-drum-texture', 'backing-structural-texture'].map(file => ({ ...test(file), revision: 'musicality' }))
+];
+
 /** Foundations delivered after the baseline audit; these do not imply listening acceptance. */
 const foundationAssessments: Record<string, string> = {
 	S1: 'Coordinated mode now plans phrase intention and player roles before generating notes.',
@@ -243,7 +248,8 @@ const foundationAssessments: Record<string, string> = {
 	S10: "Qualified microphone density and rests can change upcoming piano attack budgets and selective response ownership during a rolling lab take.",
 	S16: 'Bass ornament activity follows the ensemble plan while its pulse remains protected. Eligible two-bar walking passages now plan a directional path into the root of an actual following chorus.',
 	S17: 'The coordinated drummer develops ride cells across two to four bars and selected commentary motifs within shared budgets. It can answer the previous bar of emitted piano attacks while preserving timekeeping and agreed arrivals.',
-	S18: 'Coordinated ride phrases retain a skip-note cell, then repeat, vary or release it with modest velocity shaping while preserving quarter-note pulse.',
+	S12: 'Explicit coordinated Swing/Straight heads and returning heads now use bass two-feel, solos walk, selected head-to-solo transitions begin walking early, and quiet final phrases can return to two.',
+	S18: 'Selected complete solo-peak phrases sustain ride-bell color, with a return to ride and no consecutive bell phrases. Coordinated ride phrases retain a skip-note cell, then repeat, vary or release it with modest velocity shaping while preserving quarter-note pulse.',
 	S19: 'Coordinated mode uses a foot hi-hat on beats 2 and 4. Its decoded sample removes 40 ms of pedal-mechanism lead-in so the chick aligns with the cymbal pulse; the original mode retains its stick-hat pattern and existing offbeat accents.',
 	S20: 'Selected snare cells now repeat, displace or change orchestration over a phrase. A recent emitted piano rhythm can supply the source for a drum answer.',
 	S22: 'A remembered commentary rhythm can change between existing snare, cross-stick, kick and ride-bell voices; accepted gestures have explicit limb occupancy.',
@@ -271,7 +277,8 @@ const foundationRemaining: Record<string, string> = {
 	S10: "Solo phrase-end recognition, motif imitation, solo-register avoidance and deliberate piano answers to drum motifs remain incomplete.",
 	S16: "Rolling bass retains pitch history and accepted following-chorus launches while adapting ornament admission. Declared repeat seams can be launch targets; the final loop remains terminal. Broader trajectories and listening acceptance remain incomplete.",
 	S17: "Broader kit vocabulary, articulation lengths and musical acceptance remain incomplete. Rolling memory continues across declared loops; new motifs still follow phrase boundaries.",
-	S18: 'Cymbal note-length control, deliberate metric/displacement devices and broader modern ride textures remain incomplete.',
+	S12: 'Further bass time devices, solo-density-led feel negotiation and human listening acceptance remain incomplete.',
+	S18: 'Bell color requires a complete eligible peak phrase; short peaks retain ride. Cymbal note-length control, deliberate metric/displacement devices and broader modern ride textures remain incomplete.',
 	S19: 'Splash/barked hats, sustained hi-hat timekeeping textures and other vocabulary remain incomplete.',
 	S20: 'Live solo motif recognition, solo phrase-end detection, rolls and grace-note articulations remain incomplete.',
 	S22: 'Tom voices and a general orchestration/limb-transition model remain absent.',
@@ -281,7 +288,7 @@ const foundationRemaining: Record<string, string> = {
 	S27: "Capture assumes headphones and fixed gain-dependent thresholds. Ambiguous or poorly covered input stays unknown. Acoustic calibration, source separation, MIDI and phrase/motif recognition remain incomplete.",
 	S28: "Register and dynamics remain diagnostic observations. Solo-register avoidance, motif following and broad acoustic validation remain incomplete.",
 	S32: 'Live timing adaptation and richer context-aware placement remain incomplete. The modest build/release timing bias and other bounds still need listening acceptance.',
-	S33: 'Soloist-relative dynamics, remembered climax selection and broader texture transitions remain incomplete. The bass adapter still needs corrected velocity/round-robin selection, followed by balance calibration and listening review. The new finite-form contour needs human acceptance.',
+	S33: 'Soloist-relative dynamics, remembered climax selection, piano voicing expansion and structural dropout/re-entry remain incomplete. Bass feel and selected sustained bell textures now follow explicit form. The bass adapter still needs corrected velocity/round-robin selection, followed by balance calibration and listening review. The new finite-form contour needs human acceptance.',
 	S38: "Checkpoints bind the same declared finite form, tempo and generation policy. Indefinite continuation, longer development and checkpoint migration across engine versions remain incomplete.",
 	S39: 'Development stays within selected piano/drum phrases using the existing kit. Piano-to-drum rhythm reuse is one-way; cross-phrase dialogue and live solo imitation remain incomplete. Declared loops retain instrument history without extending motifs beyond their phrase.',
 	S40: "Rolling mode owns attacks and pitched releases within each bar and excludes unreserved two-bar piano fallback figures. Sample and room tails can remain audible after release. General full-ensemble silence and phrase recognition remain incomplete.",
@@ -293,6 +300,7 @@ const foundationRemaining: Record<string, string> = {
 
 const drumDeviceUpdates: Record<string, [ImplementationStatus, string, string]> = {
 	D1: ['partial', 'Coordinated ride time varies skip placement and velocity within a remembered two-to-four-bar phrase.', 'Cymbal note-length control remains absent; the renderer still uses its existing sample articulation.'],
+	D7: ['implemented', 'Selected complete solo-peak phrases sustain bell timekeeping at higher energy, preserve quarter-note pulse and return to ride; consecutive bell phrases are excluded.', 'Scoped to explicit coordinated Swing/Straight. Short peaks, incomplete phrases, dense solo evidence at selection and quiet energy retain ordinary ride. Human listening acceptance remains pending.'],
 	D4: ['implemented', 'The coordinated drummer retains a ride cell across two to four bars, with repetition, variation and release over its phrase.', 'Quarter-note time remains explicit. Broader ride textures, cross-phrase motif development and listening acceptance remain pending.'],
 	D23: ['implemented', 'A named snare Charleston cell is available as a commentary motif source, subject to the current bar’s allowance.', 'Its reprises can be withheld for space, another response or a setup; listening acceptance remains pending.'],
 	D24: ['implemented', 'An eighth-note displacement of the remembered snare Charleston produces its complementary and-of-1 / beat-3 rhythm as a complete commentary cell.', 'Available through motif displacement within the current phrase; a separate reverse-Charleston selection policy and listening acceptance remain pending.'],
@@ -321,7 +329,7 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 	if (drumUpdate) return {
 		...entry, status: drumUpdate[0], assessment: drumUpdate[1], remaining: drumUpdate[2],
 		scope: 'Coordinated swing/straight 4/4 listening-lab preview; current kit and complete cells within the performed harmony. Original practice generation is unchanged.',
-		evidence: [...entry.evidence, ...drumDevelopmentEvidence]
+		evidence: [...entry.evidence, ...drumDevelopmentEvidence, ...(entry.id === 'D7' ? structuralTextureEvidence : [])]
 	};
 	if (entry.id === 'P4') return {
 		...entry,
@@ -338,6 +346,13 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 		remaining: 'Each later cell is admitted against its current bar, with a reason when withheld. This is within-phrase piano development; live solo motif imitation, development beyond a phrase and listening acceptance remain pending.',
 		scope: 'Coordinated swing/straight 4/4 listening-lab preview; selected complete four-bar phrases. Original practice generation is unchanged.',
 		evidence: [...entry.evidence, ...pianoDevelopmentEvidence]
+	};
+	if (entry.id === 'B2' || entry.id === 'B5') return {
+		...entry, status: entry.id === 'B2' ? 'partial' : 'implemented',
+		assessment: 'Explicit heads and returning heads use two-feel; solos walk. Selected two-bar head-to-solo transitions anticipate the declared arrival, and quiet final phrases can return to two. Fixed and rolling playback share the policy.',
+		remaining: 'Harmonic changes may add attacks, and already committed launches retain their path. Density-led feel negotiation and human listening acceptance remain pending.',
+		scope: 'Explicit coordinated Swing/Straight 4/4 forms. Original, metadata-free accompaniment and native Bossa/Ballad patterns retain their existing policies.',
+		evidence: [...entry.evidence, ...structuralTextureEvidence]
 	};
 	if (entry.id === 'B59') return {
 		...entry, status: 'implemented',
@@ -379,6 +394,7 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 		scope: 'Shared planning, timing and rolling adaptation: swing, straight, bossa nova and ballad in 4/4. Motif transformations and walking launches: swing/straight only. Original generation remains the practice mode pending listening acceptance.',
 		evidence: [
 			...entry.evidence, ...foundationEvidence,
+			...(['S12', 'S18', 'S33', 'S38', 'S44', 'S46'].includes(entry.id) ? structuralTextureEvidence : []),
 			{ ...test('backing-style-coordination'), revision: 'musicality' },
 			...(['S2', 'S24', 'S44', 'S46'].includes(entry.id) ? formEvidence : []),
 			...(['S4', 'S32', 'S44'].includes(entry.id) ? phraseTimingEvidence : []),

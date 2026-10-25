@@ -37,6 +37,7 @@ import { createTimingStreams, placeEventTicks, SWING_TIMING } from './backing-ti
 import { planBassTurnaround, skippedBassTurnaround, freezeBassTurnaroundTrace,
 	type BassTurnaroundBeat, type BassTurnaroundTrace, type BassTurnaroundReason } from './backing-bass-turnaround';
 import type { BassEvent, InstrumentGenerationParams, BarInfo } from './backing-generation';
+import { planStructuralBassFeel, type StructuralBassFeel } from './backing-bass-feel';
 
 /**
  * Chord-tone intervals the bass outlines, read from CHORD_DEFINITIONS so
@@ -72,6 +73,8 @@ export interface BassLineResult {
 	onsetsByBar: Map<number, number[]>;
 	/** Explicit following-chorus opportunities and the exact accepted pitch paths. */
 	turnaroundTrace?: readonly BassTurnaroundTrace[];
+	/** Actual selected pulse policy; harmonic changes and committed launches may add attacks. */
+	feelTrace?: readonly StructuralBassFeel[];
 }
 
 // ── Segment analysis ─────────────────────────────────────────
@@ -341,6 +344,8 @@ export function generateBassLine(
 		(segments[idx].rootPc + plans[idx].downbeatOffset) % 12;
 	const centers = planArc(barInfos.length, barInfos, phraseId, tempo);
 	const feels = feelOverride ? null : planFeel(barInfos, phraseId, tempo);
+	const structuralFeels = feelOverride || beatsPerBar !== 4 ? undefined
+		: planStructuralBassFeel(params.performanceForm, barInfos.map((info) => info.ensemble?.performanceEnergy), phraseId, tempo);
 	const beatDuration = 60 / tempo;
 
 	const events: BassEvent[] = [];
@@ -362,6 +367,7 @@ export function generateBassLine(
 		if (feelOverride) return feelOverride;
 		const fs = feels as Array<'two' | 'four'>;
 		const bar = Math.min(Math.floor(absBeat / beatsPerBar), fs.length - 1);
+		if (structuralFeels) return structuralFeels[bar].feel;
 		const info = infoAt(absBeat);
 		// A two-feel chorus still walks where the form needs motion: the last
 		// bar of each 4-bar group sometimes, section-final bars always.
@@ -686,13 +692,14 @@ export function generateBassLine(
 			// ballad override — the beat-3 half too (swing's chorus-0 two-feel
 			// keeps its detached beat 3; that articulation is the style).
 			const isTwoFeelHalf =
-				feel === 'two' && (beatInBar === 0 || (feelOverride !== undefined && beatInBar === 2));
+				feel === 'two' && (beatInBar === 0 || ((feelOverride !== undefined || structuralFeels !== undefined) && beatInBar === 2));
 			const velocity =
 				rng.int(76, 88) + (beatInBar === 0 ? 4 : 0) + (beatInBar === 2 ? 2 : 0);
+			const durationBeats = isTwoFeelHalf ? 1.7 : beat === L && pickupWillSound ? 0.45 : 0.85;
 			push(
 				absBeat,
 				midi,
-				beatDuration * (isTwoFeelHalf ? 1.7 : beat === L && pickupWillSound ? 0.45 : 0.85),
+				beatDuration * (structuralFeels && feel === 'two' ? Math.min(durationBeats, seg.totalBeats - beat) : durationBeats),
 				velocity
 			);
 
@@ -721,6 +728,7 @@ export function generateBassLine(
 		const lastInfo = infoAt(seg.startBeats + L);
 		if (
 			feelOverride === undefined &&
+			(!structuralFeels || feelAt(seg.startBeats + L) === 'four') &&
 			!pickupActive &&
 			hasNext &&
 			lastInfo.isSectionFinalBar &&
@@ -737,7 +745,7 @@ export function generateBassLine(
 		}
 	}
 
-	return { events, onsetsByBar, ...(turnaroundTrace.size ? {
+	return { events, onsetsByBar, ...(structuralFeels ? { feelTrace: structuralFeels } : {}), ...(turnaroundTrace.size ? {
 		turnaroundTrace: freezeBassTurnaroundTrace([...turnaroundTrace.values()])
 	} : {}) };
 }

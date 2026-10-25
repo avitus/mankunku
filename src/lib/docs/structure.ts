@@ -76,6 +76,11 @@ export const DOC_TREE: DocSection[] = [
 				blurb: 'The architecture, current foundations and staged roadmap for musicians that listen to one another.'
 			},
 			{
+				slug: 'contributing/musicality-progress',
+				title: 'Musicality Development Log',
+				blurb: 'Milestone checkpoints, validation, remaining work and what to listen for in each rhythm-section improvement.'
+			},
+			{
 				slug: 'architecture/overview',
 				title: 'The Practice Modes',
 				blurb:

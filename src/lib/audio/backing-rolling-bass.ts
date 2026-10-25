@@ -9,6 +9,7 @@ import { pitchClassToNumber } from './voicings';
 import { fractionToFloat } from '$lib/music/intervals';
 import { getScale } from '$lib/music/scales';
 import { realizeScale } from '$lib/music/keys';
+import { planStructuralBassFeel, type StructuralBassFeel } from './backing-bass-feel';
 
 export interface RollingBassMemory {
 	readonly previousMidi: number | null;
@@ -28,7 +29,7 @@ function nearest(pcValue: number, center: number): number {
 }
 
 export function realizeRollingBass(score: RollingBackingDefinition, bar: number, info: BarInfo,
-	timing: EnsembleTiming, previous?: RollingBassMemory): { events: BassEvent[]; memory: RollingBassMemory; trace: BassTurnaroundTrace[] } {
+	timing: EnsembleTiming, previous?: RollingBassMemory): { events: BassEvent[]; memory: RollingBassMemory; trace: BassTurnaroundTrace[]; feelTrace?: StructuralBassFeel } {
 	const memory = previous ?? { previousMidi: null, previousPreviousMidi: null, direction: 0, segmentIndex: null,
 		segmentAnchor: null, nextTarget: null, approach: 'chromatic-below' as const, feel: 'four' as const, pendingLaunch: null };
 	if (score.style === 'bossa-nova') {
@@ -60,8 +61,11 @@ export function realizeRollingBass(score: RollingBackingDefinition, bar: number,
 			chordPcs: [0, tones.third, tones.fifth, ...(tones.seventh === null ? [] : [tones.seventh])].map((interval) => pc(root + interval)),
 			scalePcs: realizeScale(segment.chord.root, scale?.intervals ?? fallback) };
 	});
+	const structuralFeels = score.style === 'ballad' ? undefined
+		: planStructuralBassFeel(score.performanceForm, score.bars.map((entry) => entry.performanceEnergy), score.phraseId, score.tempo);
 	const feelAt = (index: number): 'two' | 'four' => {
 		if (score.style === 'ballad') return 'two';
+		if (structuralFeels) return structuralFeels[index].feel;
 		const context = score.bars[index];
 		if ((context.chorusIndex ?? 0) !== 0 || context.isSectionFinalBar) return 'four';
 		if (index % 4 === 3 && createRng(seedFrom(score.phraseId, score.tempo, 'bass-feel-escape', index)).chance(0.3)) return 'four';
@@ -154,12 +158,13 @@ export function realizeRollingBass(score: RollingBackingDefinition, bar: number,
 					(candidate === previousPreviousMidi ? 0.4 : 1) * (direction !== 0 && Math.sign(candidate - previousPitch) === direction ? 1.25 : 1) }))) : nearest(segment.root, previousPitch);
 		}
 		const velocity = createRng(seedFrom(score.phraseId, score.tempo, 'rolling-bass-velocity', absBeat)).int(76, 88) + (beat === 0 ? 4 : beat === 2 ? 2 : 0);
-		push(absBeat, midi, feel === 'two' ? 1.7 : 0.85, velocity);
+		const durationBeats = feel === 'two' ? 1.7 : 0.85;
+		push(absBeat, midi, structuralFeels && feel === 'two' ? Math.min(durationBeats, segment.start + segment.length - absBeat) : durationBeats, velocity);
 		if (!pendingLaunch && feel === 'four' && createRng(seedFrom(score.phraseId, score.tempo, 'rolling-bass-ghost', absBeat)).chance(0.06 * info.ensemble!.bass.ornamentScale)) push(absBeat + 0.5, midi, 0.2, 38);
 		previousPreviousMidi = previousMidi;
 		if (previousMidi !== null) direction = Math.sign(midi - previousMidi);
 		previousMidi = midi;
 	}
 	if (pendingLaunch && pendingLaunch.arrivalBar <= bar) pendingLaunch = null;
-	return { events, trace, memory: { previousMidi, previousPreviousMidi, direction, segmentIndex, segmentAnchor, nextTarget, approach, feel, pendingLaunch } };
+	return { events, trace, ...(structuralFeels ? { feelTrace: structuralFeels[bar] } : {}), memory: { previousMidi, previousPreviousMidi, direction, segmentIndex, segmentAnchor, nextTarget, approach, feel, pendingLaunch } };
 }

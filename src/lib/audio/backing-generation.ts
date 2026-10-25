@@ -74,6 +74,7 @@ import { freezeBassTurnaroundTrace, type BassTurnaroundTrace } from './backing-b
 import { planDrumPhrases, freezeDrumPhraseTrace, type DrumPhraseBarPlan, type DrumPhraseDecision } from './backing-drum-phrases';
 import type { StyleDefinition, GenerationContext, DrumVoice } from './backing-styles';
 import { generateBassLine as generateBassLine2, generateBossaBass } from './backing-bass';
+import type { StructuralBassFeel } from './backing-bass-feel';
 
 // ── Event shapes ─────────────────────────────────────────────
 
@@ -125,12 +126,17 @@ export interface EnsembleDevelopment {
 	readonly version: 1;
 	readonly pianoMotifs: readonly CompMotifDecision[];
 	readonly bassTurnarounds: readonly BassTurnaroundTrace[];
+	readonly bassFeel?: readonly StructuralBassFeel[];
 	readonly drumPhrases: readonly DrumPhraseDecision[];
 }
 
 function freezeEnsembleDevelopment(trace: EnsembleDevelopment): EnsembleDevelopment {
 	freezeCompMotifTrace(trace.pianoMotifs);
 	freezeBassTurnaroundTrace(trace.bassTurnarounds);
+	if (trace.bassFeel) {
+		for (const bar of trace.bassFeel) Object.freeze(bar);
+		Object.freeze(trace.bassFeel);
+	}
 	freezeDrumPhraseTrace(trace.drumPhrases);
 	return Object.freeze(trace);
 }
@@ -681,7 +687,7 @@ export function generateBacking(
 	// Bass engine dispatch: the bossa root–fifth pattern is a 4/4 statement;
 	// 'two' pins the walking planner to permanent two-feel (ballad); other
 	// meters (and every 'auto' style) take the plain walking planner.
-	const { events: bassEvents, onsetsByBar: bassOnsetsByBar, turnaroundTrace } =
+	const { events: bassEvents, onsetsByBar: bassOnsetsByBar, turnaroundTrace, feelTrace } =
 		style.bass === 'pattern' && beatsPerBar === 4
 			? generateBossaBass(harmony, beatsPerBar, timedParams, barInfos)
 			: generateBassLine2(
@@ -724,6 +730,7 @@ export function generateBacking(
 		ensembleTiming: ensembleTiming!.trace,
 		ensembleDevelopment: freezeEnsembleDevelopment({
 			version: 1, pianoMotifs: motifTrace ?? [], bassTurnarounds: turnaroundTrace ?? [],
+			...(feelTrace ? { bassFeel: feelTrace } : {}),
 			drumPhrases: drumPhrases?.trace ?? []
 		})
 	} : {}) };

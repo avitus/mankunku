@@ -75,6 +75,16 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 		evidence: [countText(bass.length, 'note attack'), ...sharedEvidence('bass')]
 	};
 	if (!bass.length) bassCard.detail = 'Earlier bass notes may still sustain through this bar.';
+	const bassFeel = development?.bassFeel?.find((entry) => entry.barIndex === barIndex);
+	if (bassFeel) {
+		bassCard.evidence.push(`Planned bass feel: ${bassFeel.feel} · ${plain(bassFeel.reason)}`);
+		if (bass.length && walking) {
+			bassCard.action = bassFeel.feel === 'two' ? 'Support in two' : 'Walk through the changes';
+			bassCard.detail = bassFeel.feel === 'two'
+				? 'A two-feel supports the melody; harmonic changes can add attacks.'
+				: 'Walking quarter notes carry the harmony forward.';
+		}
+	}
 	if (bass.length) bassCard.evidence.push(`Notes: ${bass.map((e) => noteName(e.midi)).join(' · ')}`);
 	if (turnaround?.status === 'planned') {
 		const heardTurnaround = bass.some((event) => turnaround.notes.some((note) => note.absBeat === event.absBeat && note.midi === event.midi));
@@ -115,6 +125,10 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 		evidence: [countText(drums.length, 'kit hit'), ...sharedEvidence('drums')]
 	};
 	if (drumPhrase) {
+		if (drumPhrase.ride.voice) drumCard.evidence.push(`Cymbal color planned: ${plain(drumPhrase.ride.voice)}`);
+		if (drumPhrase.ride.voice === 'ride-bell' && drums.some((event) => event.drum === 'ride-bell' && event.role === 'timekeeping' && Math.floor(event.absBeat / beatsPerBar) === barIndex)) {
+			drumCard.detail = 'The ride bell colors the pulse through this selected peak phrase.';
+		}
 		const hasCommentary = drums.some((event) => event.role === 'commentary' && Math.floor(event.absBeat / beatsPerBar) === barIndex);
 		if (hasCommentary && drumPhrase.commentary.source === 'piano' && drumPhrase.commentary.hits.length) {
 			drumCard.action = 'Answer the piano';

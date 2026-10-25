@@ -158,7 +158,7 @@ export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDef
 	// Preserve the one-pass binding. An explicit repeat is a distinct declared
 	// performance even when its flattened score matches some other source.
 	const serialized = JSON.stringify([1, params.phraseId, params.tempo, params.ppq, params.swing, copied, form, timingProfiles,
-		...(performanceEnergy ? [{ performanceEnergyVersion: 1 }] : []),
+		...(performanceEnergy ? [{ performanceEnergyVersion: 1, structuralTextureVersion: 1 }] : []),
 		...(loopCount > 1 ? [{ sourceBars, loopCount }] : []),
 		...(style.coordinatedStyle !== 'swing' ? [{ style: style.coordinatedStyle }] : [])]);
 	// The definition retains the complete immutable score once. Repeating its
@@ -223,8 +223,14 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 	const bass = realizeRollingBass(definition, bar, info, timing, checkpoint?.bass);
 	const startTick = bar * 4 * definition.ppq;
 	const endTick = (bar + 1) * 4 * definition.ppq;
+	let peakEnd: number | undefined;
+	if (ensemble.performanceEnergy?.phase === 'solo_peak') {
+		peakEnd = bar + 1;
+		while (peakEnd < phraseEnd && definition.bars[peakEnd].performanceEnergy?.phase === 'solo_peak') peakEnd++;
+	}
 	const drums = planDrumPhraseBar({ style: definition.style, phraseId: definition.phraseId, tempo: definition.tempo, beatsPerBar: 4,
 		barIndex: bar, info, phraseStartBar: ensemble.phraseStartBar, phraseEndBarExclusive: phraseEnd, harmonyEndBeat: definition.totalBars * 4,
+		...(peakEnd !== undefined ? { peakEndBarExclusive: peakEnd } : {}),
 		compOnsets: piano.events.map((event) => event.absBeat - bar * 4), bassOnsets: bass.events.map((event) => event.absBeat - bar * 4),
 		acceptsOnset: (absBeat, hit) => (hit.role === 'accent' && absBeat === bar * 4 ? timing.arrivalTick(bar) : timing.place(absBeat, hit.drum)) < endTick
 	}, checkpoint?.drums);
@@ -247,5 +253,6 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 		previousCheckpointId: checkpoint?.checkpointId ?? null,
 		checkpoint: { ...contents, checkpointId: checkpointId(contents) },
 		bassEvents: bass.events, compEvents: piano.events, drumEvents, ensemblePlan: window.plan, ensembleTiming: [timingTrace],
-		ensembleDevelopment: { version: 1, pianoMotifs: [piano.trace], bassTurnarounds: bass.trace, drumPhrases: [drums.bar] } });
+		ensembleDevelopment: { version: 1, pianoMotifs: [piano.trace], bassTurnarounds: bass.trace,
+			...(bass.feelTrace ? { bassFeel: [bass.feelTrace] } : {}), drumPhrases: [drums.bar] } });
 }

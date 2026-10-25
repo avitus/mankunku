@@ -95,3 +95,24 @@ describe('planned performance arc presentation', () => {
 		expect(describeMusicianDecisions(generated, original).flatMap(card => card.evidence).join(' ')).not.toMatch(/arc|energy target/);
 	});
 });
+
+describe('structural texture evidence', () => {
+	it('describes the selected bass feel and actual bell pulse without inventing sounding notes', () => {
+		const generated = { bassEvents: [{ time: '0i', absBeat: 0, midi: 41, duration: 0.7, velocity: 70 }], compEvents: [],
+			drumEvents: [{ time: '0i', absBeat: 0, drum: 'ride-bell', velocity: 0.4, role: 'timekeeping' }],
+			ensembleDevelopment: { version: 1, bassTurnarounds: [], pianoMotifs: [], bassFeel: [{ barIndex: 0, feel: 'two', reason: 'head_support' }],
+				drumPhrases: [{ barIndex: 0, commentary: { source: 'none', hits: [] }, ride: { mode: 'standard', voice: 'ride-bell' } }] }
+		} as unknown as GeneratedBacking;
+		let cards = describeMusicianDecisions(generated, context);
+		expect(cards[0].action).toBe('Support in two');
+		expect(cards[0].evidence).toContain('Planned bass feel: two · head support');
+		expect(cards[2].detail).toContain('ride bell');
+		generated.bassEvents = []; generated.drumEvents = [];
+		cards = describeMusicianDecisions(generated, context);
+		expect(cards[0].action).toBe('No new bass attack');
+		expect(cards[2].action).toBe('No new drum hit');
+		expect(cards[2].detail).not.toContain('ride bell');
+		const original = describeMusicianDecisions(generated, { ...context, orchestration: 'original' });
+		expect(original.flatMap(card => card.evidence).join(' ')).not.toMatch(/Planned bass feel|Cymbal color/);
+	});
+});
