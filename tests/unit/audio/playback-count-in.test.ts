@@ -118,6 +118,20 @@ const phrase: Phrase = {
 	category: 'user', tags: [], source: 'tune'
 };
 
+/** Black Orpheus's shape: a one-beat pickup on 4, the band from bar 1. */
+const pickupPhrase: Phrase = {
+	...phrase,
+	id: 'pickup-song',
+	notes: [
+		{ pitch: 64, offset: [3, 4], duration: [1, 4] },
+		{ pitch: 60, offset: [1, 1], duration: [2, 1] }
+	],
+	harmony: [
+		{ chord: { root: 'C', quality: 'maj7' }, scaleId: 'major.ionian', startOffset: [1, 1], duration: [2, 1] }
+	],
+	difficulty: { ...phrase.difficulty, lengthBars: 3 }
+};
+
 const options: PlaybackOptions = {
 	tempo: 180, swing: 0.5, countInBeats: 0, metronomeEnabled: true, metronomeVolume: 0.5,
 	backingTrackEnabled: true, backingStyle: 'swing', backingInstrument: 'piano', backingTrackVolume: 0.5
@@ -238,6 +252,41 @@ describe('playPhrase drum count-in', () => {
 		await playing;
 		first.callback(2);
 		expect(mocks.playBackingHitsNow).not.toHaveBeenCalled();
+	});
+
+	// 2026-10-25, Andy (Black Orpheus on production): the drummer counted the
+	// bar before a one-beat pickup, then stopped, leaving the pickup bar's three
+	// silent beats uncounted. The pickup bar is the count's last bar —
+	// "1 _ 3 _ | 1 2 3 4", the pickup note on the 4 — and the band still
+	// enters at the downbeat after it.
+	it('counts on through a pickup bar, which becomes the count\'s last bar', async () => {
+		const { playPhrase, stopPlayback } = await import('$lib/audio/playback');
+		const { scheduleBackingTrack } = await import('$lib/audio/backing-track');
+		const playing = playPhrase(pickupPhrase, options, false, { countIn: { bars: 1, drums: true, pickup: true } });
+		await vi.waitFor(() => expect(mocks.transport.start).toHaveBeenCalled());
+		// The pickup bar stays the phrase's bar 0: only the count runs on.
+		expect(vi.mocked(scheduleBackingTrack).mock.calls[0][2]).toBe(BAR);
+		expect(countInEvents(2 * BAR).map((e) => e.tick / PPQ)).toEqual([0, 2, 4, 5, 6, 7]);
+		await stopPlayback();
+		await playing;
+	});
+
+	it('counts a two-bar lead-in on through the pickup bar too', async () => {
+		const { playPhrase, stopPlayback } = await import('$lib/audio/playback');
+		const playing = playPhrase(pickupPhrase, options, false, { countIn: { bars: 2, drums: true, pickup: true } });
+		await vi.waitFor(() => expect(mocks.transport.start).toHaveBeenCalled());
+		expect(countInEvents(3 * BAR).map((e) => e.tick / PPQ)).toEqual([0, 2, 4, 6, 8, 9, 10, 11]);
+		await stopPlayback();
+		await playing;
+	});
+
+	it('clicks through the pickup bar when the click keeps the count for a band', async () => {
+		const { playPhrase, stopPlayback } = await import('$lib/audio/playback');
+		const playing = playPhrase(pickupPhrase, options, false, { countIn: { bars: 1, drums: false, pickup: true } });
+		await vi.waitFor(() => expect(mocks.transport.start).toHaveBeenCalled());
+		expect(mocks.scheduleMetronome).toHaveBeenCalledWith(4, 2, 0, expect.any(Function));
+		await stopPlayback();
+		await playing;
 	});
 
 	it('starts a looping form behind the count too', async () => {

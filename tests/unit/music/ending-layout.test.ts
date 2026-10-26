@@ -5,6 +5,7 @@ import {
 	endingAlignMatrix,
 	endingGlyphTranslateDx,
 	endingGlyphTranslate,
+	endingLineArtTransform,
 	rigidGlyphScreenSpanAfterTranslate,
 	endingChordGroupNudge,
 	endingLabelHookNudge,
@@ -124,6 +125,39 @@ describe('endingGlyphTranslate — no horizontal squash', () => {
 	it('emits a translate(...) string or null', () => {
 		expect(endingGlyphTranslate(1, 0, 100)).toBeNull();
 		expect(endingGlyphTranslate(xform.sx, xform.tx, 200)).toMatch(/^translate\([-\d.]+,0\)$/);
+	});
+});
+
+describe('endingLineArtTransform — line art follows the glyphs it joins (2026-10-25)', () => {
+	// A full-staff [2] compressed onto a compact [1]: notes move by their centres.
+	const xform = endingAlignTransform({ x: 300, width: 120 }, { x: 40, width: 500 })!;
+	const head = { x: 200, width: 10 };
+	const stemUp = head.x + head.width; // a stem-up beam end sits at the head's right
+	/** How far the rigid pass moves a glyph with this box: by its centre. */
+	const dxOf = (box: { x: number; width: number }) =>
+		endingGlyphTranslateDx(xform.sx, xform.tx, box.x + box.width / 2);
+	/** Where a scale-and-translate transform sends `x`. */
+	const map = (t: { sx: number; tx: number }, x: number) => t.sx * x + t.tx;
+
+	it('lands each end where the glyph under it went', () => {
+		const last = { x: 260, width: 10 };
+		const t = endingLineArtTransform(stemUp, last.x + last.width, dxOf(head), dxOf(last))!;
+		expect(map(t, stemUp)).toBeCloseTo(stemUp + dxOf(head), 6);
+		expect(map(t, last.x + last.width)).toBeCloseTo(last.x + last.width + dxOf(last), 6);
+	});
+
+	it('is what the volta matrix misses by: (1 − sx) × the end’s offset from its glyph’s centre', () => {
+		// Before: beams kept no transform at all (abcjs draws `path.abcjs-beam-elem`,
+		// never the `g.abcjs-beam` the pass selected), and the volta matrix alone
+		// would leave a stem-up beam end half a notehead × (1 − sx) off its stem.
+		const t = endingLineArtTransform(stemUp, 270, dxOf(head), dxOf({ x: 260, width: 10 }))!;
+		const offset = stemUp - (head.x + head.width / 2);
+		expect(map(t, stemUp) - map(xform, stemUp)).toBeCloseTo((1 - xform.sx) * offset, 6);
+	});
+
+	it('refuses a span too short to scale', () => {
+		expect(endingLineArtTransform(100, 100.2, 0, 0)).toBeNull();
+		expect(endingLineArtTransform(100, 90, 0, 0)).toBeNull();
 	});
 });
 

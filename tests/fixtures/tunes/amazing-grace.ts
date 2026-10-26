@@ -5,6 +5,10 @@ import type { Tune } from '$lib/types/tune';
  * 3/4 ballad in concert F. Bar 1 is the one-beat pickup ("A-"), engraved as
  * a partial bar via `pickupLength`; the final "see" is held across the last
  * two bars with a tie.
+ *
+ * Shipped in the curated catalog until 2026-10-25, when Andy cut it to
+ * Mankunku Blues and Rhythm Changes; kept as a test fixture for the 3/4
+ * pickup and meter-relative detection it exercises.
  */
 export const AMAZING_GRACE: Tune = {
 	id: 'ls-amazing-grace',

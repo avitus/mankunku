@@ -1445,6 +1445,13 @@ function focusRowTempo(key: PitchClass): number | undefined {
  * changes look on a downbeat). Display only, like the handoff preview: no
  * audio, no recording window, re-projected at every boundary from the take
  * just scored.
+ *
+ * Never empty: a focus take joins on the downbeat on the strength of this
+ * row being on screen. At the target the climb is done, but the focus key
+ * still comes next at that tempo — the once-more after a clear, another try
+ * after a miss — so that one row is drawn. An empty stack under a missed
+ * target take let the next take appear on the downbeat it had to be played
+ * on (Andy, 2026-10-25).
  */
 export function getFocusProjectionRows(lickIdx: number): PlannedKey[] {
 	const ramp = lickPractice.ramp;
@@ -1454,11 +1461,12 @@ export function getFocusProjectionRows(lickIdx: number): PlannedKey[] {
 	if (item.keys[0] !== key) return [];
 	const phrase = buildPhraseFor(item, key);
 	if (!phrase) return [];
-	const tempos = projectFocusTempos(
+	const climb = projectFocusTempos(
 		lickPractice.currentTempo,
 		ramp.targetTempo,
 		lickPractice.config.tempoBumpPercent ?? DEFAULT_TEMPO_BUMP_PERCENT
 	);
+	const tempos = climb.length > 0 ? climb : [lickPractice.currentTempo];
 	return tempos.map((tempo, i) => ({
 		lickIndex: lickIdx,
 		keyIndex: item.keys.length + i,

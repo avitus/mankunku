@@ -1,16 +1,11 @@
 /**
  * Curated lead-sheet index — re-exports all curated tunes.
- * All melodies are public-domain (traditional) or original.
+ * Both melodies are originals, written for this app.
  */
 import type { Tune } from '$lib/types/tune';
-import { WHEN_THE_SAINTS } from './when-the-saints';
-import { AMAZING_GRACE } from './amazing-grace';
 import { MANKUNKU_BLUES } from './mankunku-blues';
+import { RHYTHM_CHANGES } from './rhythm-changes';
 
-export const ALL_CURATED_TUNES: Tune[] = [
-	WHEN_THE_SAINTS,
-	AMAZING_GRACE,
-	MANKUNKU_BLUES
-];
+export const ALL_CURATED_TUNES: Tune[] = [MANKUNKU_BLUES, RHYTHM_CHANGES];
 
-export { WHEN_THE_SAINTS, AMAZING_GRACE, MANKUNKU_BLUES };
+export { MANKUNKU_BLUES, RHYTHM_CHANGES };

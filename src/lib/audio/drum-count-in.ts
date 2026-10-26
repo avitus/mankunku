@@ -9,6 +9,12 @@
  * bar alone. An odd meter has no half-bar, so its opening bar sounds only the
  * downbeat ("one … | one two three" in a waltz).
  *
+ * A tune that opens on a pickup counts on through the pickup bar, which the
+ * band sits out: it is the count's last bar, so a one-bar count before a
+ * pickup on 4 becomes the two-bar count-off, beats 1 and 3 then every beat,
+ * the pickup on the four (Andy, 2026-10-25, Black Orpheus — the count used to
+ * stop a bar early and leave the pickup bar's silent beats uncounted).
+ *
  * The voice is the cross-stick, the kit's nearest sample to sticks clicked
  * together, at a level that carries over a silent room without a crash's bark.
  */

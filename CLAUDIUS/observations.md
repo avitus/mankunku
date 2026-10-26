@@ -3223,3 +3223,70 @@ Climb to Five G3, Third Walks D3, Up to the Seventh D3, now this E3). Each
 fix is a partial-specific predicate. If a fifth kind shows up, the better
 frame may be one note-level question — "which fundamental best explains
 this note's averaged spectrum?" — instead of one flag per partial.
+
+## 2026-10-25 — A representation choice leaks wherever time is read
+
+"The timeline keeps a FULL bar and only the engraving is short" (pickup.ts,
+2026-09-10) was the right call — every `bars × barLength` consumer stayed
+uniform. But it quietly moved a musical fact, "nothing happens here yet",
+out of the data and into one module's head. Every consumer that reads TIME
+rather than notation — the count-off, the playhead, and (still) the
+practice chorus builder that appends the whole form, pickup bar included —
+inherited a silent bar it didn't know was silent. The engraving side got
+four careful rules; the time side got none, because nothing failed loudly.
+Generalisation: when a normalising representation pads something, list
+the readers of the padded dimension, not just the writers, and give them
+one predicate (`isInPickupLeadIn`) rather than letting each rediscover it.
+The open instance is the appended practice chorus; the desk's form loop
+already learned it (2026-10-22) by a different route.
+
+## 2026-10-25 — A selector is an assertion about someone else's output
+
+The stacked-[2] pass has said "beams" in its header comment, in both of
+its selector lists and in its line-art branch since July, and in all that
+time it never touched a beam: abcjs draws `path.abcjs-beam-elem`, and
+`g.abcjs-beam` matched nothing. Nothing failed, because a selector that
+matches nothing is a no-op, and no chart had a beamed pair in a stacked
+[2]. The same afternoon `getBBox()` turned out to leave out the element's
+own transform, so the chord nudge measured chords where abcjs put them,
+not where the drop pass had moved them. Both are the 2026-09-16 lesson in
+a new costume: code that reads the DOM is making claims about markup and
+geometry it doesn't own, and those claims fail as no-ops or measure the
+wrong thing. The cheap guard is an e2e that asserts the selector matches
+on a chart known to contain the thing. I've added that for beams; the
+triplet branch still has none (no stacked [2] with a triplet exists).
+
+The curated catalog had been the engraver's visual corpus without anyone
+calling it that. Three simple charts covered three shapes, and the first
+render of a fourth, busier one turned up two latent faults and a third in
+the spelling chain (a dim7's seventh written as a sixth, visible in
+Mankunku Blues since July). Cutting the catalog to two makes each chart
+carry more, so I wrote Rhythm Changes to be dense on purpose: beamed
+eighths in a mid-tune stacked [2], a bar of high eighths under two
+chords, a diminished arpeggio. It's worth thinking of each curated chart
+as a test that happens to be music.
+
+Andy wrote "barlines". The picture showed a missing staff and a missing
+opening barline. A player names what they see in their own words, and
+they aren't the engraver's terms. Look at the picture before choosing
+what to fix.
+
+## 2026-10-25 — "Display only" stops being true when a rule leans on it
+
+The focus projection was documented, twice, as display only: never
+scheduled, never persisted. That was true of its EFFECTS and false of
+its role — the same change removed the preparation bar on the grounds
+that the next take is already on screen, which made the projection a
+precondition of the timing. Its edge case was then defined by success
+("the takes still needed if every one clears"), so the one moment the
+precondition failed was a failure: the player stuck at the target. A
+test even named the assumption ("the take being played is the last
+one") and pinned it. When a margin is removed because something else
+covers it, the covering thing inherits the margin's job, and its edges
+need the same scrutiny the margin had — most of all edges reached only
+by the outcome the feature exists to handle. Andy's own description
+("after a triple sheet music rotation") pointed at the sheet, but the
+sheet was only the usual way to stay at the target; I'd have chased the
+engraving cost if I had taken the clue as the cause.
+The appended practice chorus was the third reader, fixed the same day;
+the desk's form loop had learned it (2026-10-22) by a different route.

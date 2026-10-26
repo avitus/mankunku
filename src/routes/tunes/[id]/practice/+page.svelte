@@ -49,6 +49,7 @@
 		annotationsVisible,
 		notationBarForPlaybackBar,
 		playbackBarForSessionBar,
+		playheadChartBar,
 		strictnessKnobs,
 		bestCandidateResult,
 		insertionLabel,
@@ -295,7 +296,6 @@
 		annotationsVisible({ phase: tunePractice.phase, playHead: audioPlan?.playHead ?? false })
 	);
 	const markers = $derived.by<RangeMarker[]>(() => {
-		const leadBars = audioPlan?.leadBars ?? 0;
 		const byKey = new Map<string, RangeMarker>();
 		const annotated = showAnnotations ? tunePractice.plan : [];
 		annotated.forEach((ip, i) => {
@@ -350,31 +350,38 @@
 		});
 		const result: RangeMarker[] = [...byKey.values()];
 
-		// Current-bar playhead (repeat passes land on the same chart bars). On a
-		// duplicated-form session the practice chorus re-runs the form from 0;
-		// on a repeat-form chart the expanded timeline is already continuous.
-		if (audioPlan && (tunePractice.phase === 'head' || tunePractice.phase === 'running')) {
-			const formBars = audioPlan.flat.totalBars;
-			const formBar =
-				playbackBarForSessionBar(currentBar, formBars, leadBars, audioPlan.practiceStartBar);
-			if (formBar >= 0 && formBar < formBars) {
-				const chartBar = notationBarForPlaybackBar(
-					audioPlan.flat.sectionMap,
-					audioPlan.sheet.sections,
-					formBar
-				);
-				if (chartBar !== null) {
-					result.push({
-						id: '__playhead',
-						startBar: chartBar,
-						endBarExclusive: chartBar + 1,
-						status: 'playhead'
-					});
-				}
-			}
+		// Current-bar playhead (repeat passes land on the same chart bars).
+		if (playheadBar !== null && (tunePractice.phase === 'head' || tunePractice.phase === 'running')) {
+			result.push({
+				id: '__playhead',
+				startBar: playheadBar,
+				endBarExclusive: playheadBar + 1,
+				status: 'playhead'
+			});
 		}
 		return result;
 	});
+
+	/**
+	 * The chart bar the playhead marks. On a duplicated-form session the
+	 * practice chorus re-runs the form from 0; on a repeat-form chart the
+	 * expanded timeline is already continuous. Read off the fractional bar so
+	 * a pickup is marked from its first printed beat, never its silent lead-in;
+	 * the value changes only at those boundaries, so the markers above do not
+	 * redraw every frame.
+	 */
+	const playheadBar = $derived(
+		audioPlan
+			? playheadChartBar({
+					sessionBar: playheadBarF,
+					formBars: audioPlan.flat.totalBars,
+					headBars: audioPlan.leadBars,
+					practiceStartBar: audioPlan.practiceStartBar,
+					sectionMap: audioPlan.flat.sectionMap,
+					sheet: audioPlan.sheet
+				})
+			: null
+	);
 
 	/**
 	 * Notation-space fractional bar for continuous follow-scroll. Mirrors the
@@ -568,6 +575,11 @@
 		pitchDetector.start();
 	}
 
+	/**
+	 * Start a scored tune-practice session: open the microphone, load the
+	 * instrument and backing, then hand the planned session to playback.
+	 * Any setup failure unwinds `isLoading` and shows its banner.
+	 */
 	async function startSession() {
 		if (!playback || !toneModule || !baseSheet || isLoading) return;
 		isLoading = true;
@@ -639,7 +651,7 @@
 			await playback.playPhrase(plan.playedPhrase, getPlaybackOptions(), false, {
 				skipMelody,
 				loopBacking: false,
-				countIn: { bars: plan.countInBars, drums: true },
+				countIn: { bars: plan.countInBars, drums: true, pickup: plan.countInPickup },
 				onStarted: scheduleInsertionWindows,
 				onNote: handlePlaybackNote
 			});

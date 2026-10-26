@@ -76,9 +76,10 @@ test('Tunes keeps a large book searchable and preserves written keys and detail 
 	page
 }) => {
 	await seedOnboardedAnonymous(page);
+	// 98 of the player's own + the two curated tunes = 100.
 	await seedTunes(
 		page,
-		Array.from({ length: 97 }, (_, index) => ({
+		Array.from({ length: 98 }, (_, index) => ({
 			...(SAMPLE_USER_TUNES[0] as Record<string, unknown>),
 			id: `studio-tune-${index}`,
 			title: `Studio Tune ${String(index).padStart(3, '0')}`
@@ -97,11 +98,11 @@ test('Tunes keeps a large book searchable and preserves written keys and detail 
 	await page.getByLabel('Tunes per page').selectOption({ label: 'All' });
 	await expect(rows).toHaveCount(100);
 	await page.getByLabel('Filter collection').selectOption('curated');
-	await expect(rows).toHaveCount(3);
+	await expect(rows).toHaveCount(2);
 	await page.getByRole('button', { name: 'Cards', exact: true }).click();
-	await expect(page.locator('.library-cards .library-tune-card')).toHaveCount(3);
-	await page.getByRole('button', { name: 'Open Amazing Grace' }).click();
-	await expect(page).toHaveURL(/\/tunes\/amazing-grace$/);
+	await expect(page.locator('.library-cards .library-tune-card')).toHaveCount(2);
+	await page.getByRole('button', { name: 'Open Rhythm Changes' }).click();
+	await expect(page).toHaveURL(/\/tunes\/rhythm-changes$/);
 });
 
 for (const width of [1440, 768, 390]) {

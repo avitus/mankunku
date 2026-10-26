@@ -5962,3 +5962,141 @@ monitor whether it results in faster CI times."
   wants /.dockerenv or CIRCLECI) — `npm run test:e2e` on the local
   Colima sandbox instead; vitest and check on the sidecar. Each new test
   mutation-checked red. Rebased onto origin/dev (9 behind) before the PR.
+- Released as #287 (merge 012e056d, 2026-10-25 02:08 UTC) together with
+  dev's nine other commits. CodeRabbit: no actionable comments on the
+  feature; its security-architecture note on 8c39b6a2 (recordings as
+  bytes) found a real account-switch race in `saveRecording` — fixed by
+  choosing the database before awaiting the bytes, pinned by a mid-read
+  uid-switch test; one re-review caught `downloadDiagnostics` firing the
+  now-async `triggerDownload` with `void` — awaited. Skipped with reasons:
+  the Blob-free format's one-way rollback (writing the Blob back would
+  reintroduce the WebKit abort), and scrolling the once-more handoff
+  (Andy kept the handoff unchanged). All CircleCI checks green on head.
+- Poller lesson: zsh `echo "$json" | jq` expands `\n` and kills jq —
+  the first CodeRabbit wait burned 30 minutes on it (memory updated).
+
+## 2026-10-25 — The count runs on through a pickup bar
+
+- Andy (Black Orpheus on production): the count-in to a pickup tune is
+  confusing — the drummer counts the bar before, then goes silent through
+  the pickup bar, and the one-beat pickup lights on beat 1 of its bar.
+  Wanted: [1 _ 3 _][1 2 3 4], the pickup on the 4.
+- Cause, both halves one fact: the pickup is a FULL bar on the timeline
+  (silent until beat 4) and nobody but the engraving knew. The count was
+  `drumCountInHits(leadInBars)` and the band sits the pickup bar out (desk:
+  the loop region starts at bar 1; practice: the generator emits nothing in
+  a harmony-less bar — probed), so three beats went uncounted. Both
+  playheads marked chart bar 0 from its timeline downbeat.
+- Fix: `countIn.pickup` — the count sounds `leadInBars + 1` bars, so the
+  pickup bar is the count's LAST (every-beat) bar under the unchanged
+  pattern rule; no tick moves. Above 150 BPM that is three bars,
+  [1 _ 3 _][1 _ 3 _][1 2 3 4] — decided, not asked. The click-only count
+  for a band follows. `isInPickupLeadIn(sheet, chartBar)` in music/pickup.ts
+  gates both playheads; practice reads it through a new pure
+  `playheadChartBar`, derived off the fractional bar but integer-valued, so
+  the markers still redraw only at boundaries.
+- Practice decides the pickup from the session's FIRST played bar (head
+  bar 0, or the solo pass's first without a head), so a Head-off session
+  that opens on the silent pickup bar is counted through it too.
+- Found alongside: a repeat-free practice session's appended chorus
+  re-played the pickup bar — a dead bar between the head and the solos,
+  and before every extra chorus. The desk's loop already skipped it.
+- Production's Black Orpheus (read-only query): one 33-bar "A" with an
+  in-section [1,4] pickup and its first chord (A-) at bar 1, so the band
+  sits the pickup bar out on both surfaces and the fix applies as stored.
+- Validation: unit suite 414 files green, check clean, tune-practice e2e
+  13/13 on Chromium in the sandbox (the first sandbox build died on a
+  Docker "lease does not exist" error; the retry ran). Each new test was
+  red before the fix.
+
+## 2026-10-25 — Mankunku Blues' second ending; two curated tunes
+
+- Andy: Mankunku Blues "is missing barlines in the second repeat"; fix
+  and push to dev. Also: only two curated tunes, the current Mankunku
+  Blues and a Rhythm Changes to be added.
+- Reproduced in the e2e sandbox (screenshot + DOM geometry): the stacked
+  [2] is the chart's LAST system, which `%%stretchlast 0` leaves at its
+  natural width (staff 87–425 px), and the alignment pass slid its bars to
+  590–865 px, past the staff's end, with nothing marking where the ending
+  begins. Take the A Train's mid-tune [2] had its staff (abcjs stretches
+  every system but the last) but no opening barline either.
+- Fix: `%%stretchlast 1` when a stacked [2] ends the tune (a wrapped [2]
+  excepted); every stacked [2] opens on `|[2`, a barline the pass moves
+  under [1]'s. Unit tests (red without, mutation-checked) + an e2e over
+  both tunes (red without: staff 425 vs ink 873; barline 171 px off).
+- Rhythm Changes: an original head in concert Bb, |: A(6) [1](2) :| [2](2)
+  B(8) A(8) — riff A over I-vi-ii-V / iii-VI-ii-V, IV7 to E°7, a sequenced
+  dominant-cycle bridge; range A3–Eb5 like Mankunku's. The form rule reads
+  the whole AABA as the head. Saints and Amazing Grace moved to
+  `tests/fixtures/tunes/` (pickup and detector tests); the tune-practice
+  e2e seeds Saints as the player's own tune per test (`SAINTS_USER_TUNE`;
+  the first seed of a key wins); curated-behaviour specs moved to the two
+  curated tunes; `curated-data.test.ts` pins the two titles.
+- The new chart's first render exposed three older faults, fixed test-first:
+  stacked-[2] beams never moved (`g.abcjs-beam` matches nothing; abcjs draws
+  `path.abcjs-beam-elem`) → `endingLineArtTransform` carries every beam,
+  tie, slur and triplet-bracket end with its note; the chord nudge measured
+  chords without their drop and counted ink a spacing below as a collision,
+  shoving bar 4's chords to the barline → measure as drawn, real overlap
+  only; a dim7's seventh spelled as a sixth (E°7's Db as C#, and Mankunku
+  Blues' B°7 Ab as G# since July) → the seventh's letter, the sixth's when
+  that needs a double flat (Db°7 on tenor).
+- Environment: Docker Desktop hung (API 500s, credential helper never
+  returns); ran the sandbox on the Colima test VM with a credential-free
+  DOCKER_CONFIG (memory: reference_e2e_sandbox_docker_desktop_hang).
+  Worktree needed `npm ci` (coverage-reporter package) and `.env` for check.
+
+## 2026-10-25 — Focus drill: a missed take at the target appeared on its own downbeat
+
+- Andy, after the report's recommended drill: twice the screen cleared
+  and he had to play the first beat of a chart as it appeared, "after a
+  triple sheet music rotation". Asked for diagnosis first, then a fix.
+- Sentry: nothing in 24 h, so a logic gap. Cause: yesterday's no-bar
+  join (87c7f2b5) relies on the next take being drawn under the current
+  one, but `projectFocusTempos` lists the takes needed "if every one
+  clears" and is empty AT the target. A target take that misses (hold or
+  step down) stays in `focus`, so the next take joins with no bar and its
+  row is first drawn at that downbeat; Deep parks the active row at the
+  top, so under the target take the viewport was empty. The sheet case:
+  golds climb (and drop the sheet), three misses at the target bring it
+  back with its bar, and every missed sheet take after that hits the gap.
+  The pinned unit test called the target take "the last one"; the e2e
+  never reaches the target (the mock mic scores poorly).
+- Fix (approved plan): `getFocusProjectionRows` never returns an empty
+  list in a focus phase — at the target it draws one row at the target,
+  which is true for a clear (the once-more) and a miss (another try).
+  `projectFocusTempos` kept pure. Tests: the incident (held + sub-floor
+  sheet take at the target) and an invariant loop — no focus take joins
+  with 0 bars unless it was drawn — both red before the fix. Andy then
+  asked for comprehensive coverage: a render test feeding the real state
+  at the target into the real stack (the planned hand-built-rows version
+  could not fail, the display being unchanged), and an e2e whose lick is
+  saved at 50 BPM — the tempo floor, so the 10% ease-in clamps back and
+  the drill opens AT its target; the silent mic misses, the step down
+  clamps too. With the fix reverted it reproduced the incident: next take
+  joined on the sheet with nothing under the current take for all 1,740
+  sampled frames. Every new test mutation-checked red.
+  The first sandbox run never ran: the image build died on a Docker
+  metadata lease error; `docker pull` of the base image, then fine.
+- Docs: state machines §4 + table + regression list, user guide, state
+  and component API, AGENTS.md.
+- Andy: fix it. `soloPassPickupBars(sheet, flat)` reads whether the solo
+  pass opens on a pickup bar (a repeat-free form's bar 0, or a pickup a
+  whole-form repeat replays — formLoopRegion's `replaysPickup` case);
+  `pickupBars` drops it from every practice chorus in `buildSessionPhrase`
+  and moves windows a bar sooner in `buildSessionPlan` (one subtraction in
+  `leadTicks`, chorus spacing `T - soloStartBar`); `practiceStartBar`
+  includes it, so the playhead maps each chorus onto bar 1. Window
+  offsets keep their frames — they are only ever read relatively — so
+  every existing pin held. Head off now opens on bar 1, so that session no
+  longer counts through a pickup (the earlier test flipped on purpose).
+- The setup e2e caught one the unit corpus didn't: When the Saints writes
+  its C6 from the pickup bar, so the solo pass's skip filtered the vamp
+  window that started there (5 → 4 windows) — and, under the new count,
+  the practice band was playing that pickup bar too. `clearPickupBarHarmony`
+  moves a chord in the opening pickup bar to bar 1 (drops one that sounds
+  only there, with its provenance), so the band sits the pickup out under
+  the count as on the desk, and the window survives a bar shorter.
+- Validation: unit suite 414 files green, check clean, tune-practice e2e
+  13/13 and the A-Train endings e2e 3/3 on Chromium in the sandbox (two
+  more sandbox image builds died on Docker errors first and were rerun).

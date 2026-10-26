@@ -7,6 +7,7 @@ import { saveUserLick } from '$lib/persistence/user-licks';
 import { saveLickPracticeProgress } from '$lib/persistence/lick-practice-store';
 import {
 	initTunePractice,
+	previewSessionPlan,
 	resetTunePractice,
 	startTunePracticeSession,
 	suggestionNameFor,
@@ -139,5 +140,83 @@ describe('the session counts in by tempo', () => {
 		expect(fast.countInBars).toBe(2);
 		const barTicks = autumnLeaves.timeSignature[0] * 480;
 		expect(tunePractice.plan.map((ip) => ip.openTick)).toEqual(slowOpens.map((t) => t + barTicks));
+	});
+
+	// 2026-10-25, Andy: the count stopped at a pickup bar. Autumn Leaves opens
+	// on a three-beat pickup, and with the head the count runs on through its
+	// bar. Without one the session opens on bar 1 — the pickup bar is the
+	// head's alone — so there is nothing to count through. The windows do not
+	// move: the pickup bar is the form's bar 0.
+	it('counts on through the pickup bar the session opens on', () => {
+		tunePractice.config.playHead = true;
+		const withHead = startTunePracticeSession(autumnLeaves, 480);
+		expect(withHead.countInPickup).toBe(true);
+		const opens = tunePractice.plan.map((ip) => ip.openTick);
+
+		resetTunePractice();
+		tunePractice.config.playHead = false;
+		expect(startTunePracticeSession(autumnLeaves, 480).countInPickup).toBe(false);
+
+		resetTunePractice();
+		tunePractice.config.playHead = true;
+		const noPickup: Tune = { ...autumnLeaves, id: 'no-pickup', sections: autumnLeaves.sections.slice(1) };
+		initTunePractice(noPickup);
+		tunePractice.config.playHead = true;
+		expect(startTunePracticeSession(noPickup, 480).countInPickup).toBe(false);
+
+		resetTunePractice();
+		initTunePractice(autumnLeaves);
+		tunePractice.config.mode = 'points';
+		tunePractice.config.playHead = true;
+		startTunePracticeSession(autumnLeaves, 480);
+		expect(tunePractice.plan.map((ip) => ip.openTick)).toEqual(opens);
+	});
+
+	// 2026-10-25, Andy: the appended solo chorus replayed the pickup bar — a
+	// bar with no chord and, after the head, no melody — so the band dropped
+	// out for a bar after the head and before every further chorus. Each
+	// chorus now runs bar 1 to the end, as the desk's form loop does.
+	it('runs every solo chorus from bar 1, the pickup played once with the head', () => {
+		tunePractice.config.playHead = true;
+		tunePractice.config.choruses = 2;
+		const plan = startTunePracticeSession(autumnLeaves, 480);
+		const formBars = plan.flat.totalBars; // 33: the pickup bar and the 32-bar form
+		expect(plan.leadBars).toBe(formBars);
+		expect(plan.practiceStartBar).toBe(1);
+		expect(plan.playedPhrase.difficulty.lengthBars).toBe(formBars + 2 * (formBars - 1));
+		// The first solo chord sounds straight after the head's last bar (4/4:
+		// a bar is one whole note).
+		const solo = plan.playedPhrase.harmony.filter((h) => fractionToFloat(h.startOffset) >= formBars);
+		expect(fractionToFloat(solo[0].startOffset)).toBe(formBars);
+		// The band reads the same timeline (CodeRabbit on #288): each solo
+		// chorus's first section starts on that chorus's bar 1.
+		const soloSections = (plan.playedPhrase.sectionMap ?? []).filter((e) => e.barOffset >= formBars);
+		expect(soloSections[0]?.barOffset).toBe(formBars);
+		expect(soloSections.map((e) => e.barOffset)).toContain(formBars + (formBars - 1));
+		expect(Math.max(...soloSections.map((e) => e.barOffset))).toBeLessThan(formBars + 2 * (formBars - 1));
+		// Every window opens on its chart position counted from bar 1.
+		const barTicks = autumnLeaves.timeSignature[0] * 480;
+		const perChorus = tunePractice.plan.length / 2;
+		tunePractice.plan.forEach((ip, i) => {
+			const chorus = Math.floor(i / perChorus);
+			const formBar = fractionToFloat(ip.startOffset) - chorus * (formBars - 1);
+			expect(ip.openTick).toBe((plan.countInBars + formBars + chorus * (formBars - 1) + formBar - 1) * barTicks);
+		});
+		tunePractice.config.choruses = 1;
+	});
+
+	// When the Saints writes its C6 from the pickup bar. Skipping that bar in
+	// the solo chorus must not lose the vamp it opens: the chord sounds from
+	// bar 1, where the band comes in (the setup e2e counts 5 windows).
+	it('keeps the window a chord over the pickup bar opens, from bar 1', async () => {
+		const { WHEN_THE_SAINTS } = await import('../../fixtures/tunes/when-the-saints');
+		expect(previewSessionPlan(WHEN_THE_SAINTS, true).total).toBe(5);
+		expect(previewSessionPlan(WHEN_THE_SAINTS, true, 12).total).toBe(60);
+		initTunePractice(WHEN_THE_SAINTS);
+		tunePractice.config.playHead = true;
+		const plan = startTunePracticeSession(WHEN_THE_SAINTS, 480);
+		// The head's band enters on bar 1 too, after the counted pickup.
+		expect(plan.countInPickup).toBe(true);
+		expect(plan.playedPhrase.harmony[0].startOffset).toEqual([1, 1]);
 	});
 });

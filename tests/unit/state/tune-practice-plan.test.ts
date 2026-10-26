@@ -13,11 +13,15 @@ import {
 	indexResultsByInsertion,
 	insertionMarkerCleared,
 	notationBarForPlaybackBar,
+	playheadChartBar,
+	soloPassPickupBars,
+	clearPickupBarHarmony,
 	type BuildPlanDeps,
 	type InsertionPoint,
 	type InsertionResult
 } from '$lib/state/tune-practice-plan';
 import { flattenTune } from '$lib/tunes/flatten';
+import { buildBarInfos } from '$lib/audio/backing-generation';
 import { seg, section, sheet } from '../../helpers/tune-fixtures';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -558,6 +562,41 @@ describe('notationBarForPlaybackBar', () => {
 	});
 });
 
+// 2026-10-25, Andy (Black Orpheus): the practice playhead lit the one-beat
+// pickup on beat 1 of its timeline bar. It marks a chart bar only once there
+// is music there to mark.
+describe('playheadChartBar', () => {
+	const pickupSheet = sheet({
+		sections: [
+			section({ label: '', bars: 1, pickupLength: [1, 4], notes: [{ pitch: 64, offset: [3, 4], duration: [1, 4] }] }),
+			section({ bars: 2, notes: [{ pitch: 60, offset: [0, 1], duration: [2, 1] }], harmony: [seg('C', 'maj7', [0, 1], [2, 1])] })
+		]
+	});
+	const flat = flattenTune(pickupSheet, { expandRepeats: true });
+	/** The marked chart bar at session bar `bar` of a head + duplicated-chorus session. */
+	const at = (bar: number, s = pickupSheet, f = flat) =>
+		playheadChartBar({ sessionBar: bar, formBars: f.totalBars, headBars: f.totalBars, practiceStartBar: 0, sectionMap: f.sectionMap, sheet: s });
+
+	it('waits out the count-in and the pickup bar\'s silent beats', () => {
+		expect(at(-0.5)).toBeNull();
+		expect(at(0.2)).toBeNull();
+		expect(at(0.7)).toBeNull();
+		expect(at(0.8)).toBe(0); // the pickup, on beat 4
+	});
+
+	it('marks every full bar from its downbeat, chorus after chorus', () => {
+		expect(at(1)).toBe(1);
+		expect(at(2.5)).toBe(2);
+		expect(at(4.1)).toBe(1);
+	});
+
+	it('marks a full first bar from its downbeat', () => {
+		const plain = sheet({ sections: [section({ bars: 2, notes: [{ pitch: 60, offset: [0, 1], duration: [2, 1] }] })] });
+		const plainFlat = flattenTune(plain, { expandRepeats: true });
+		expect(at(0.2, plain, plainFlat)).toBe(0);
+	});
+});
+
 describe('insertionMarkerCleared', () => {
 	// 4/4 at ppq 480 → 1920 ticks/bar; one-bar count-in shifts real bar 0 to
 	// tick 1920. A window closing at tick 3840 lands on real bar 1.
@@ -623,6 +662,179 @@ describe('indexResultsByInsertion', () => {
 });
 
 
+// 2026-10-25, Andy: a repeat-free practice session appended the WHOLE form,
+// pickup bar included, so the band dropped out for a bar after the head and
+// before every further chorus. A band plays a pickup once, on the way in; a
+// practice chorus runs bar 1 to the end, like the desk's form loop.
+describe('practice choruses skip a pickup bar', () => {
+	// Black Orpheus's shape: a one-beat pickup with no chord, then the form.
+	const pickupSheet = sheet({
+		sections: [
+			section({ label: '', bars: 1, pickupLength: [1, 4], notes: [{ pitch: 64, offset: [3, 4], duration: [1, 4] }] }),
+			section({ bars: 2, notes: [{ pitch: 60, offset: [0, 1], duration: [2, 1] }], harmony: [seg('C', 'maj7', [0, 1], [2, 1])] })
+		]
+	});
+	const flat = flattenTune(pickupSheet, { expandRepeats: true });
+
+	it('reads one pickup bar off the front of a repeat-free form, none without a pickup', () => {
+		expect(soloPassPickupBars(pickupSheet, flat)).toBe(1);
+		const plain = sheet({ sections: [section({ bars: 2, notes: [{ pitch: 60, offset: [0, 1], duration: [2, 1] }] })] });
+		expect(soloPassPickupBars(plain, flattenTune(plain, { expandRepeats: true }))).toBe(0);
+	});
+
+	it('reads the solo pass of a whole-form repeat: a pickup inside the repeat, not one before it', () => {
+		const inside = sheet({
+			sections: [
+				section({ bars: 3, repeatStart: true, pickupLength: [1, 4], notes: [{ pitch: 64, offset: [3, 4], duration: [1, 4] }] }),
+				section({ label: '', bars: 1, ending: 1, repeatEnd: true }),
+				section({ label: '', bars: 1, ending: 2 })
+			]
+		});
+		const insideFlat = flattenTune(inside, { expandRepeats: true });
+		expect(headBarsForFlat(insideFlat)).toEqual({ headBars: 4, formRepeats: true });
+		expect(soloPassPickupBars(inside, insideFlat)).toBe(1);
+		const before = sheet({
+			sections: [
+				section({ label: '', bars: 1, pickupLength: [1, 4], notes: [{ pitch: 64, offset: [3, 4], duration: [1, 4] }] }),
+				section({ bars: 2, repeatStart: true }),
+				section({ label: '', bars: 1, ending: 1, repeatEnd: true }),
+				section({ label: '', bars: 1, ending: 2 })
+			]
+		});
+		const beforeFlat = flattenTune(before, { expandRepeats: true });
+		expect(headBarsForFlat(beforeFlat).formRepeats).toBe(true);
+		expect(soloPassPickupBars(before, beforeFlat)).toBe(0);
+	});
+
+	// When the Saints writes its C6 from the pickup bar. The band sits a pickup
+	// out — on the desk it never plays that bar — so the chord sounds from bar
+	// 1, under no count, and the vamp window it opens is kept, a bar shorter.
+	it('moves a chord written over the opening pickup bar to bar 1', () => {
+		const saints = sheet({
+			sections: [section({ bars: 4, pickupLength: [3, 4], notes: [{ pitch: 60, offset: [1, 4], duration: [1, 4] }],
+				harmony: [seg('C', 'maj6', [0, 1], [3, 1]), seg('G', '7', [3, 1], [1, 1])] })]
+		});
+		const saintsFlat = flattenTune(saints, { expandRepeats: true });
+		const cleared = clearPickupBarHarmony(saints, saintsFlat);
+		expect(cleared.harmony.map((h) => [h.chord.root, h.startOffset, h.duration])).toEqual([
+			['C', [1, 1], [2, 1]],
+			['G', [3, 1], [1, 1]]
+		]);
+		expect(cleared.segmentSourceIndices).toEqual(saintsFlat.segmentSourceIndices);
+		expect(saintsFlat.harmony[0].startOffset).toEqual([0, 1]); // the input is untouched
+	});
+
+	it('drops a chord that sounds only in the pickup bar, with its provenance', () => {
+		const withPickupChord = sheet({
+			sections: [
+				section({ label: '', bars: 1, pickupLength: [1, 4], notes: [{ pitch: 64, offset: [3, 4], duration: [1, 4] }],
+					harmony: [seg('G', '7', [3, 4], [1, 4])] }),
+				section({ bars: 2, harmony: [seg('C', 'maj7', [0, 1], [2, 1])] })
+			]
+		});
+		const f = flattenTune(withPickupChord, { expandRepeats: true });
+		const cleared = clearPickupBarHarmony(withPickupChord, f);
+		expect(cleared.harmony.map((h) => h.chord.root)).toEqual(['C']);
+		expect(cleared.segmentSourceIndices).toEqual([f.segmentSourceIndices[1]]);
+	});
+
+	it('leaves a chart without an opening pickup, and a mid-form pickup, as it is', () => {
+		expect(clearPickupBarHarmony(pickupSheet, flat)).toBe(flat); // no chord in its pickup bar
+		const midForm = sheet({
+			sections: [
+				section({ bars: 2, harmony: [seg('C', 'maj7', [0, 1], [2, 1])] }),
+				section({ label: 'B', bars: 2, pickupLength: [1, 4], notes: [{ pitch: 64, offset: [3, 4], duration: [1, 4] }],
+					harmony: [seg('F', 'maj7', [0, 1], [2, 1])] })
+			]
+		});
+		const midFlat = flattenTune(midForm, { expandRepeats: true });
+		expect(clearPickupBarHarmony(midForm, midFlat)).toBe(midFlat);
+	});
+
+	it('appends choruses of bar 1 to the end after a head that keeps its pickup', () => {
+		const built = buildSessionPhrase({ flat, timeSignature: [4, 4], playHead: true, choruses: 2, pickupBars: 1 });
+		expect(built.headBars).toBe(3);
+		expect(built.phraseBars).toBe(3 + 2 + 2);
+		expect(built.notes.map((n) => n.offset)).toEqual([[3, 4], [1, 1]]);
+		expect(built.harmony.map((h) => h.startOffset)).toEqual([[1, 1], [3, 1], [5, 1]]);
+	});
+
+	it('opens a head-less session on bar 1: the pickup bar is the head\'s alone', () => {
+		const built = buildSessionPhrase({ flat, timeSignature: [4, 4], playHead: false, choruses: 2, pickupBars: 1 });
+		expect(built.phraseBars).toBe(4);
+		expect(built.harmony.map((h) => h.startOffset)).toEqual([[0, 1], [2, 1]]);
+	});
+
+	it('drops a replayed pickup bar from a whole-form repeat\'s solo pass', () => {
+		// |: pickup-bar · A A :| — the second pass opens on the pickup bar again.
+		const repeated = mkFlat({ totalBars: 6,
+			harmony: [seg('C', 'maj7', [1, 1], [2, 1]), seg('C', 'maj7', [4, 1], [2, 1])],
+			segmentSourceIndices: [0, 0],
+			sectionMap: [{ sourceSection: 0, barOffset: 0 }, { sourceSection: 0, barOffset: 3 }] });
+		const built = buildSessionPhrase({ flat: repeated, timeSignature: [4, 4], playHead: true, choruses: 2, pickupBars: 1 });
+		expect(built.headBars).toBe(3);
+		expect(built.phraseBars).toBe(3 + 2 + 2);
+		expect(built.harmony.map((h) => h.startOffset)).toEqual([[1, 1], [3, 1], [5, 1]]);
+		const plan = buildSessionPlan(planDeps({ flat: repeated, notationFlat: repeated, choruses: 2, pickupBars: 1,
+			head: { bars: 3, mode: 'filter' },
+			detect: () => [mkDet({ startOffset: [4, 1], startBar: 4, endBarExclusive: 6, segmentIndices: [1] })] }));
+		expect(plan.map((ip) => ip.openTick)).toEqual([4 * 1920, 6 * 1920]);
+		expect(plan.at(-1)?.closeTick).toBe(8 * 1920);
+	});
+
+	// CodeRabbit on #288: the session phrase carried the flatten's section map,
+	// one pass of the chart. The band reads it for section-final bars, chorus
+	// starts and intensity, so with the pickup skipped every later section sat
+	// a bar late, and the extra choruses had no sections at all.
+	it('maps the sections of the timeline it plays: each solo pass from bar 1, every chorus', () => {
+		/** A map entry: `section` starts at session bar `bar`. */
+		const at = (section: number, bar: number) => ({ sourceSection: section, barOffset: bar });
+		// Pickup bar · A (2 bars): the head keeps the pickup, each chorus is A alone.
+		expect(buildSessionPhrase({ flat, timeSignature: [4, 4], playHead: true, choruses: 2, pickupBars: 1 }).sectionMap)
+			.toEqual([at(0, 0), at(1, 1), at(1, 3), at(1, 5)]);
+		expect(buildSessionPhrase({ flat, timeSignature: [4, 4], playHead: false, choruses: 2, pickupBars: 1 }).sectionMap)
+			.toEqual([at(1, 0), at(1, 2)]);
+
+		// |: pickup-led A (3 bars) [1] :| [2]: the solo pass drops the replayed pickup bar.
+		const inside = sheet({
+			sections: [
+				section({ bars: 3, repeatStart: true, pickupLength: [1, 4], notes: [{ pitch: 64, offset: [3, 4], duration: [1, 4] }],
+					harmony: [seg('C', 'maj7', [1, 1], [2, 1])] }),
+				section({ label: '', bars: 1, ending: 1, repeatEnd: true, harmony: [seg('G', '7', [0, 1], [1, 1])] }),
+				section({ label: '', bars: 1, ending: 2, harmony: [seg('C', 'maj7', [0, 1], [1, 1])] })
+			]
+		});
+		const insideFlat = flattenTune(inside, { expandRepeats: true });
+		expect(insideFlat.sectionMap).toEqual([at(0, 0), at(1, 3), at(0, 4), at(2, 7)]);
+		const built = buildSessionPhrase({ flat: insideFlat, timeSignature: [4, 4], playHead: true, choruses: 2, pickupBars: 1 });
+		expect(built.phraseBars).toBe(10);
+		expect(built.sectionMap).toEqual([at(0, 0), at(1, 3), at(0, 4), at(2, 6), at(0, 7), at(2, 9)]);
+		// What the band reads off it: every chorus starts on its bar 1, and the
+		// [2] that closes each solo pass is its own section, not a bar late.
+		const bars = buildBarInfos(built.phraseBars, built.sectionMap);
+		expect(bars.flatMap((b, i) => (b.isChorusFirstBar ? [i] : []))).toEqual([0, 4, 7]);
+		expect(bars.flatMap((b, i) => (b.isSectionFinalBar ? [i] : []))).toEqual([2, 3, 5, 6, 8, 9]);
+	});
+
+	it('places the windows of every chorus from bar 1, with the head or without it', () => {
+		/** One detection over bars 1–2 of the form. */
+		const det = () => [mkDet({ startOffset: [1, 1], startBar: 1, endBarExclusive: 3 })];
+		// Head: count-in, the 3-bar head, then the chorus's bar 1 at once.
+		const withHead = buildSessionPlan(planDeps({ flat, notationFlat: flat, choruses: 2, pickupBars: 1,
+			head: { bars: 3, mode: 'shift' }, detect: det }));
+		expect(withHead.map((ip) => ip.openTick)).toEqual([4 * 1920, 6 * 1920]);
+		expect(withHead.at(-1)?.closeTick).toBe(8 * 1920);
+		// No head: the count-in, then bar 1.
+		const noHead = buildSessionPlan(planDeps({ flat, notationFlat: flat, choruses: 2, pickupBars: 1, detect: det }));
+		expect(noHead.map((ip) => ip.openTick)).toEqual([1920, 3 * 1920]);
+		expect(noHead.at(-1)?.closeTick).toBe(5 * 1920);
+		// A progression inside the pickup bar is heard with the head, never practiced.
+		const inPickup = buildSessionPlan(planDeps({ flat, notationFlat: flat, pickupBars: 1,
+			head: { bars: 3, mode: 'shift' }, detect: () => [mkDet({ startOffset: [1, 2], duration: [1, 2] })] }));
+		expect(inPickup).toEqual([]);
+	});
+});
+
 describe('multiple practice choruses', () => {
 	it.each([1, 2, 12])('plays the head once and %i practice choruses', (choruses) => {
 		const flat = mkFlat({ totalBars: 2, notes: [{ pitch: 60, offset: [0, 1], duration: [1, 4] }],
@@ -632,6 +844,10 @@ describe('multiple practice choruses', () => {
 			expect(built.phraseBars).toBe((choruses + Number(playHead)) * 2);
 			expect(built.notes).toHaveLength(Number(playHead));
 			expect(built.harmony.at(-1)?.startOffset).toEqual([(choruses - 1 + Number(playHead)) * 2, 1]);
+			// One section-map entry per chorus played, each on its own bar 1.
+			expect(built.sectionMap.map((e) => e.barOffset)).toEqual(
+				Array.from({ length: choruses + Number(playHead) }, (_, i) => i * 2)
+			);
 		}
 	});
 

@@ -1297,7 +1297,13 @@
 				const staffEl = wrapper.querySelector<SVGGraphicsElement>('.abcjs-staff');
 				if (!staffEl) continue;
 				const spacing = staffEl.getBBox().height / 4;
-				const boxes = chordEls.map((el) => el.getBBox());
+				// getBBox leaves out the element's own transform, which is where
+				// dropChordSymbols put each chord: measure the chords as drawn.
+				const boxes = chordEls.map((el) => {
+					const b = el.getBBox();
+					const m = /translate\(\s*[-\d.]+\s*,\s*([-\d.]+)\s*\)/.exec(el.getAttribute('transform') ?? '');
+					return { x: b.x, y: b.y + (m ? Number.parseFloat(m[1]) : 0), width: b.width, height: b.height };
+				});
 				const obstacles = [
 					...wrapper.querySelectorAll<SVGGraphicsElement>('path, ellipse, rect, circle, polygon, line')
 				]

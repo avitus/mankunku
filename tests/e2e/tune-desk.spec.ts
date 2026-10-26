@@ -27,7 +27,7 @@ test('saves a tune style without changing global style or the selected written k
 test('curated choice survives reload, cancel preserves it, and edit-a-copy inherits it', async ({ page }) => {
 	// Several chart loads plus editor startup can exceed 30s in the two-CPU sandbox.
 	test.setTimeout(60_000);
-	await page.goto('/tunes/when-the-saints-go-marching-in');
+	await page.goto('/tunes/mankunku-blues');
 	await page.getByRole('button', { name: 'Change backing style' }).click();
 	await page.getByRole('radio', { name: /^Straight/ }).check();
 	await page.getByRole('button', { name: 'Save for this tune' }).click();
@@ -44,7 +44,7 @@ test('curated choice survives reload, cancel preserves it, and edit-a-copy inher
 
 test('a tune reopens at the tempo last chosen for it, on the desk and in practice setup', async ({ page }) => {
 	test.setTimeout(60_000);
-	await page.goto('/tunes/ls-when-the-saints');
+	await page.goto('/tunes/ls-rhythm-changes');
 	const tempo = page.getByLabel('Tempo', { exact: true });
 	await expect(tempo).toHaveValue('100');
 	// Visible is not hydrated: retry the click until Svelte's handler has run.
@@ -60,19 +60,19 @@ test('a tune reopens at the tempo last chosen for it, on the desk and in practic
 	// Another tune keeps the default.
 	await page.goto('/tunes/ls-mankunku-blues');
 	await expect(page.getByLabel('Tempo', { exact: true })).toHaveValue('100');
-	await page.goto('/tunes/ls-when-the-saints/practice');
+	await page.goto('/tunes/ls-rhythm-changes/practice');
 	await expect(page.getByRole('slider', { name: /^tempo$/i })).toHaveAttribute('aria-valuenow', '132');
 });
 
 test('practice setup picks up a tempo changed on the desk during a client-side round trip', async ({ page }) => {
 	test.setTimeout(60_000);
-	await page.goto('/tunes/ls-when-the-saints/practice');
+	await page.goto('/tunes/ls-rhythm-changes/practice');
 	const slider = page.getByRole('slider', { name: /^tempo$/i });
 	await expect(slider).toHaveAttribute('aria-valuenow', '100');
 	// The practice state outlives the route, so the return below re-enters
 	// setup for the SAME tune without re-initialising it.
 	await page.evaluate(() => { (window as unknown as { roundTrip: boolean }).roundTrip = true; });
-	await page.getByRole('link', { name: /When the Saints/ }).click();
+	await page.getByRole('link', { name: /Rhythm Changes/ }).click();
 	await expect(page).toHaveURL(/\/tunes\/[^/]+$/);
 	const tempo = page.getByLabel('Tempo', { exact: true });
 	await expect(tempo).toHaveValue('100');
@@ -87,7 +87,7 @@ test('practice setup picks up a tempo changed on the desk during a client-side r
 });
 
 test('focus keeps the chart and transport available and restores navigation on Escape', async ({ page }, testInfo) => {
-	await page.goto('/tunes/ls-when-the-saints');
+	await page.goto('/tunes/ls-rhythm-changes');
 	await expect(page.locator('.abcjs-container svg').first()).toBeVisible();
 	const scoreBox = await page.locator('.td-score-well').boundingBox();
 	const transportBox = await page.locator('.td-transport').boundingBox();
@@ -106,7 +106,7 @@ test('focus keeps the chart and transport available and restores navigation on E
 
 test('mobile controls fit, keep focus in the dialog and return it to Settings', async ({ page }, testInfo) => {
 	await page.setViewportSize({ width: 390, height: 844 });
-	await page.goto('/tunes/ls-when-the-saints');
+	await page.goto('/tunes/ls-rhythm-changes');
 	await expect(page.locator('.abcjs-container svg').first()).toBeVisible();
 	expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
 	await page.screenshot({ path: testInfo.outputPath('tune-desk-mobile.png'), fullPage: true });
@@ -124,7 +124,7 @@ test('mobile controls fit, keep focus in the dialog and return it to Settings', 
 test('playing locks style changes and stopping releases the chart cursor', async ({ page, browserName }) => {
 	test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI, 'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device');
 	await stubCdnInstrumentSamples(page);
-	await page.goto('/tunes/ls-when-the-saints');
+	await page.goto('/tunes/ls-rhythm-changes');
 	await page.getByRole('switch', { name: 'Backing track' }).click();
 	await page.getByRole('button', { name: 'Play tune', exact: true }).click();
 	await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeVisible({ timeout: 20000 });

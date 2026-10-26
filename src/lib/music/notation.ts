@@ -42,6 +42,8 @@ const FLAT_FIVE_QUALITIES: ReadonlySet<ChordQuality> = new Set([
 	'min7b5', 'dim7', 'dim', '7alt'
 ]);
 const SHARP_FIVE_QUALITIES: ReadonlySet<ChordQuality> = new Set(['aug', 'aug7']);
+/** The one quality whose ninth semitone is a seventh (bb7), not a sixth. */
+const DIMINISHED_SEVENTH_QUALITIES: ReadonlySet<ChordQuality> = new Set(['dim7']);
 
 /**
  * Preferred enharmonic spelling of a chromatic note against the chord that
@@ -80,12 +82,18 @@ export function chordSpellingPreference(
 		SHARP_FIVE_QUALITIES.has(quality) ? 4 : 5,
 		5, 6, 6
 	][interval];
+	// A diminished seventh chord's ninth semitone is its seventh (bb7 — E°7's
+	// Db, never C#), named by the sixth's letter only when the seventh's would
+	// need a double flat (Db°7's Cbb is printed Bb).
+	const candidates =
+		interval === 9 && DIMINISHED_SEVENTH_QUALITIES.has(quality) ? [6, steps] : [steps];
 
-	const letter =
-		LETTER_SEQUENCE[(LETTER_SEQUENCE.indexOf(rootLetter) + steps) % 7];
-	const diff = (pc - LETTER_NATURAL_PC[letter] + 12) % 12;
-	if (diff === 1) return 'sharp';
-	if (diff === 11) return 'flat';
+	for (const step of candidates) {
+		const letter = LETTER_SEQUENCE[(LETTER_SEQUENCE.indexOf(rootLetter) + step) % 7];
+		const diff = (pc - LETTER_NATURAL_PC[letter] + 12) % 12;
+		if (diff === 1) return 'sharp';
+		if (diff === 11) return 'flat';
+	}
 	return null;
 }
 

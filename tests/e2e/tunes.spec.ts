@@ -39,35 +39,35 @@ test('tune book lists curated tunes and the user book', async ({ page, consoleCo
 	await expect(page.getByRole('button', { name: /Open Test Session Tune/ })).toBeVisible();
 
 	// Curated catalog.
-	await expect(page.getByRole('button', { name: /Open When the Saints/ })).toBeVisible();
-	await expect(page.getByRole('button', { name: /Open Amazing Grace/ })).toBeVisible();
 	await expect(page.getByRole('button', { name: /Open Mankunku Blues/ })).toBeVisible();
+	await expect(page.getByRole('button', { name: /Open Rhythm Changes/ })).toBeVisible();
 });
 
 test('search filters the catalog', async ({ page, consoleCollector: _c }) => {
 	await page.goto('/tunes');
 
-	await page.getByPlaceholder(/search by title/i).fill('amazing');
-	await expect(page.getByRole('button', { name: /Open Amazing Grace/ })).toBeVisible();
-	await expect(page.getByRole('button', { name: /Open When the Saints/ })).toHaveCount(0);
+	await page.getByPlaceholder(/search by title/i).fill('rhythm');
+	await expect(page.getByRole('button', { name: /Open Rhythm Changes/ })).toBeVisible();
+	await expect(page.getByRole('button', { name: /Open Mankunku Blues/ })).toHaveCount(0);
 	await expect(page.getByRole('button', { name: /Open Test Session Tune/ })).toHaveCount(0);
 });
 
 test('detail page renders a multi-system chart with transposed chord symbols', async ({ page, consoleCollector: _c }) => {
-	await page.goto('/tunes/ls-when-the-saints');
+	await page.goto('/tunes/ls-rhythm-changes');
 
-	await expect(page.getByRole('heading', { name: 'When the Saints Go Marching In' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Rhythm Changes' })).toBeVisible();
 
 	// Notation SVG rendered by abcjs.
 	const svg = page.locator('.abcjs-container svg').first();
 	await expect(svg).toBeVisible();
 
-	// Settings seed a tenor sax (+2 written): concert C6/G7 display as D6/A7,
-	// proving chord symbols went through written-pitch transposition.
-	await expect(page.locator('.abcjs-container svg text').filter({ hasText: 'D6' }).first()).toBeVisible();
-	await expect(page.locator('.abcjs-container svg text').filter({ hasText: 'A7' }).first()).toBeVisible();
+	// Settings seed a tenor sax (+2 written): concert Bb6/D7 display as C6/E7 —
+	// two symbols the concert chart never prints — proving chord symbols went
+	// through written-pitch transposition.
+	await expect(page.locator('.abcjs-container svg text').filter({ hasText: 'C6' }).first()).toBeVisible();
+	await expect(page.locator('.abcjs-container svg text').filter({ hasText: 'E7' }).first()).toBeVisible();
 
-	// The 16-bar form reflows across multiple systems: abcjs stamps every
+	// The 26-bar form reflows across multiple systems: abcjs stamps every
 	// element of line N with .abcjs-lN, so a second line existing (.abcjs-l1)
 	// proves the multi-system reflow actually rendered.
 	await expect
@@ -88,8 +88,8 @@ test('tunes link by title slug, and the minted id keeps resolving', async ({ pag
 	await expect(page.getByRole('button', { name: /^start$/i })).toBeVisible();
 
 	// A curated tune resolves by its title slug as well as its `ls-` id.
-	await page.goto('/tunes/amazing-grace');
-	await expect(page.getByRole('heading', { name: 'Amazing Grace' })).toBeVisible();
+	await page.goto('/tunes/rhythm-changes');
+	await expect(page.getByRole('heading', { name: 'Rhythm Changes' })).toBeVisible();
 
 	// Old id URLs — bookmarks, the PDF flow's pre-assigned id — still open the tune.
 	await page.goto('/tunes/e2e-user-sheet-1');
