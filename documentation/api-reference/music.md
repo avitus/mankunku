@@ -347,6 +347,7 @@ The printed length of a section's first bar, or `null` for a full bar. Two sourc
 |---|---|
 | `pickupLengthFromMelody(notes, timeSignature)` | Bar minus the earliest PITCHED onset, floored to the beat unit (a note on the and-of-4 is still a one-beat pickup); stored rests ignored — an explicit leading rest is how the editor writes the prefix back. `null` when bar 0 has no pitched note or starts on the downbeat |
 | `pickupPrefix(length, ts)` / `pickupFirstBeat(length, ts)` | The silent lead-in (one bar minus the length) as a fraction, and as a beat index in denominator-note beats (may be fractional) |
+| `isInPickupLeadIn(sheet, chartBar)` | Whether a fractional chart bar sits in a pickup bar's silent lead-in, before the printed pickup starts — nothing is engraved there and a tune's count is still running, so the desk's and tune practice's playheads wait it out, and a session opening inside one counts on through it |
 | `isPickupOnlySection(sheet, secIdx)` | A blank-labelled one-bar section that IS the pickup — the import shape, and what the editor's Pickup control creates |
 | `pickupLengthOptions(ts)` | Every eighth-note multiple strictly inside one bar — the editor's choices |
 | `pickupLengthLabel(length, ts)` | `"½ beat"`, `"1 beat"`, `"1½ beats"` — named EXACTLY in the meter's beats (eighth multiples are half beats in 4/4 but quarter beats in 2/2); a remainder with no glyph is spelled out (`"1/16 beat"`), never rounded |

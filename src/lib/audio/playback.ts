@@ -687,9 +687,11 @@ export interface PhrasePlaybackOpts {
 	 * first bar in place of the default PHRASE_LEAD_IN_BARS, and with `drums`
 	 * the drummer counts them off (drum-count-in.ts) whenever the kit is
 	 * loaded — the click then gives up its count-in-only bars when a band
-	 * plays, since the kit already counts them.
+	 * plays, since the kit already counts them. With `pickup` the phrase
+	 * opens on a pickup bar, silent until its pickup notes: the count runs on
+	 * through it as its last bar, and the band still enters after it.
 	 */
-	countIn?: { bars: number; drums: boolean };
+	countIn?: { bars: number; drums: boolean; pickup?: boolean };
 }
 
 /**
@@ -762,6 +764,8 @@ export async function playPhrase(
 	const loopBacking = opts.loopBacking ?? keepMetronome;
 	const leadInBars = opts.countIn?.bars ?? PHRASE_LEAD_IN_BARS;
 	const formStartTicks = leadInBars * barTicks;
+	/** Bars the count sounds: the lead-in, and a pickup bar the band sits out. */
+	const countBars = leadInBars + (opts.countIn?.pickup ? 1 : 0);
 	const loop = opts.loop && opts.loop.endBar > opts.loop.startBar ? opts.loop : undefined;
 	const loopStartTicks = loop ? formStartTicks + loop.startBar * printedBarTicks(phrase.timeSignature, ppq) : 0;
 	/** Starts the way-out pass's band at a top (set once the backing is ready). */
@@ -842,7 +846,7 @@ export async function playPhrase(
 		await setMetronomeVolume(options.metronomeVolume);
 		if (scheduleId !== currentScheduleId) return;
 		if (backingWillPlay) {
-			await scheduleMetronome(beatsPerBar, leadInBars, 0, isStillCurrent); // count-in bars only
+			await scheduleMetronome(beatsPerBar, countBars, 0, isStillCurrent); // count-in bars only
 		} else if (keepMetronome || loop) {
 			// Loop indefinitely — will keep playing during recording, or until
 			// a looping form's last pass disposes it
@@ -876,7 +880,7 @@ export async function playPhrase(
 	// kit near-now (playBackingHitsNow's contract), so a stop cancels the
 	// rest of the count with the transport.
 	if (drumsCountIn) {
-		for (const hit of drumCountInHits(leadInBars, beatsPerBar, ppq)) {
+		for (const hit of drumCountInHits(countBars, beatsPerBar, ppq)) {
 			transport.scheduleOnce((time) => {
 				if (scheduleId !== currentScheduleId) return;
 				playBackingHitsNow([{ kind: 'drum', drum: hit.drum, velocity: hit.velocity }], time);

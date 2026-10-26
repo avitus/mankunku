@@ -13,6 +13,7 @@ import {
 	indexResultsByInsertion,
 	insertionMarkerCleared,
 	notationBarForPlaybackBar,
+	playheadChartBar,
 	type BuildPlanDeps,
 	type InsertionPoint,
 	type InsertionResult
@@ -555,6 +556,41 @@ describe('notationBarForPlaybackBar', () => {
 	it('returns null outside the form', () => {
 		expect(notationBarForPlaybackBar(flat.sectionMap, endingsSheet.sections, -1)).toBeNull();
 		expect(notationBarForPlaybackBar(flat.sectionMap, endingsSheet.sections, 4)).toBeNull();
+	});
+});
+
+// 2026-10-25, Andy (Black Orpheus): the practice playhead lit the one-beat
+// pickup on beat 1 of its timeline bar. It marks a chart bar only once there
+// is music there to mark.
+describe('playheadChartBar', () => {
+	const pickupSheet = sheet({
+		sections: [
+			section({ label: '', bars: 1, pickupLength: [1, 4], notes: [{ pitch: 64, offset: [3, 4], duration: [1, 4] }] }),
+			section({ bars: 2, notes: [{ pitch: 60, offset: [0, 1], duration: [2, 1] }], harmony: [seg('C', 'maj7', [0, 1], [2, 1])] })
+		]
+	});
+	const flat = flattenTune(pickupSheet, { expandRepeats: true });
+	/** The marked chart bar at session bar `bar` of a head + duplicated-chorus session. */
+	const at = (bar: number, s = pickupSheet, f = flat) =>
+		playheadChartBar({ sessionBar: bar, formBars: f.totalBars, headBars: f.totalBars, practiceStartBar: 0, sectionMap: f.sectionMap, sheet: s });
+
+	it('waits out the count-in and the pickup bar\'s silent beats', () => {
+		expect(at(-0.5)).toBeNull();
+		expect(at(0.2)).toBeNull();
+		expect(at(0.7)).toBeNull();
+		expect(at(0.8)).toBe(0); // the pickup, on beat 4
+	});
+
+	it('marks every full bar from its downbeat, chorus after chorus', () => {
+		expect(at(1)).toBe(1);
+		expect(at(2.5)).toBe(2);
+		expect(at(4.1)).toBe(1);
+	});
+
+	it('marks a full first bar from its downbeat', () => {
+		const plain = sheet({ sections: [section({ bars: 2, notes: [{ pitch: 60, offset: [0, 1], duration: [2, 1] }] })] });
+		const plainFlat = flattenTune(plain, { expandRepeats: true });
+		expect(at(0.2, plain, plainFlat)).toBe(0);
 	});
 });
 

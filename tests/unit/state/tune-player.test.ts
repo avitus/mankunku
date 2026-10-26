@@ -208,6 +208,11 @@ describe('tune desk playback', () => {
 			return player.chartBar;
 		};
 		expect(at(1)).toBeNull(); // the engine's silent lead-in bar
+		// 2026-10-25: the marker lit the pickup on beat 1 of its bar. The bar's
+		// first three beats print nothing and the drummer is still counting.
+		expect(callbacks.countIn).toEqual({ bars: 1, drums: true, pickup: true });
+		expect(at(2.2)).toBeNull();
+		expect(at(3.4)).toBeNull();
 		expect(at(3.6)).toBeCloseTo(0.8); // the pickup note, beat 4 of the pickup bar
 		expect(at(4.2)).toBeCloseTo(1.1); // the first full bar's downbeat
 		expect(at(6.2)).toBeCloseTo(2.1); // A's second bar
@@ -247,7 +252,7 @@ describe('tune desk playback', () => {
 		player.setTempo(150);
 		void player.toggle(tune, 'swing');
 		await vi.waitFor(() => expect(audio.playPhrase).toHaveBeenCalled());
-		expect(audio.playPhrase.mock.calls[0][3].countIn).toEqual({ bars: 1, drums: true });
+		expect(audio.playPhrase.mock.calls[0][3].countIn).toEqual({ bars: 1, drums: true, pickup: false });
 		finish();
 		await vi.waitFor(() => expect(player.busy).toBe(false));
 
@@ -255,7 +260,7 @@ describe('tune desk playback', () => {
 		const started = player.toggle(tune, 'swing');
 		await vi.waitFor(() => expect(audio.playPhrase).toHaveBeenCalledTimes(2));
 		const callbacks = audio.playPhrase.mock.calls[1][3];
-		expect(callbacks.countIn).toEqual({ bars: 2, drums: true });
+		expect(callbacks.countIn).toEqual({ bars: 2, drums: true, pickup: false });
 		/** The chart bar the marker shows when the audible transport reads `seconds`. */
 		const at = (seconds: number): number | null => {
 			audio.getAudibleTransportSeconds.mockReturnValue(seconds);

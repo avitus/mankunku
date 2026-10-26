@@ -140,4 +140,33 @@ describe('the session counts in by tempo', () => {
 		const barTicks = autumnLeaves.timeSignature[0] * 480;
 		expect(tunePractice.plan.map((ip) => ip.openTick)).toEqual(slowOpens.map((t) => t + barTicks));
 	});
+
+	// 2026-10-25, Andy: the count stopped at a pickup bar. Autumn Leaves opens
+	// on a three-beat pickup, and the count runs on through its bar — with the
+	// head, and without it, where the chords-only session still opens on that
+	// silent bar. The windows do not move: the pickup bar is the form's bar 0.
+	it('counts on through the pickup bar the session opens on', () => {
+		tunePractice.config.playHead = true;
+		const withHead = startTunePracticeSession(autumnLeaves, 480);
+		expect(withHead.countInPickup).toBe(true);
+		const opens = tunePractice.plan.map((ip) => ip.openTick);
+
+		resetTunePractice();
+		tunePractice.config.playHead = false;
+		expect(startTunePracticeSession(autumnLeaves, 480).countInPickup).toBe(true);
+
+		resetTunePractice();
+		tunePractice.config.playHead = true;
+		const noPickup: Tune = { ...autumnLeaves, id: 'no-pickup', sections: autumnLeaves.sections.slice(1) };
+		initTunePractice(noPickup);
+		tunePractice.config.playHead = true;
+		expect(startTunePracticeSession(noPickup, 480).countInPickup).toBe(false);
+
+		resetTunePractice();
+		initTunePractice(autumnLeaves);
+		tunePractice.config.mode = 'points';
+		tunePractice.config.playHead = true;
+		startTunePracticeSession(autumnLeaves, 480);
+		expect(tunePractice.plan.map((ip) => ip.openTick)).toEqual(opens);
+	});
 });

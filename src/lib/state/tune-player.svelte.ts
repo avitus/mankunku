@@ -8,6 +8,7 @@ import { clampTuneTempo, savedTuneTempo } from '$lib/tunes/tune-tempo';
 import { formLoopRegion } from '$lib/tunes/form-loop';
 import { loopPlaybackBar } from '$lib/audio/phrase-loop';
 import { countInBarsForTempo } from '$lib/audio/drum-count-in';
+import { isInPickupLeadIn } from '$lib/music/pickup';
 
 /** Where a desk player keeps its tempo: the open tune's id and how to save a choice for it. */
 export interface TuneTempoStore {
@@ -104,8 +105,9 @@ export class TunePlayer {
 				backingTrackVolume: settings.backingTrackVolume, backingStyle: style
 			}, false, {
 				skipMelody: !melody,
-				// The drummer counts the tune in whenever the band's kit is loaded.
-				countIn: { bars: countInBars, drums: true },
+				// The drummer counts the tune in whenever the band's kit is loaded,
+				// on through a pickup bar: the band enters after it.
+				countIn: { bars: countInBars, drums: true, pickup: isInPickupLeadIn(tune, 0) },
 				loop: { ...region, shouldContinue },
 				onStarted: () => {
 					if (generation !== this.run) return;
@@ -122,8 +124,11 @@ export class TunePlayer {
 						const printedBarQuarters = tune.timeSignature[0] * 4 / tune.timeSignature[1];
 						const bar = (seconds * tempo / 60 - leadInQuarters) / printedBarQuarters;
 						// Past the last bar a looping form is back at its first (never the
-						// pickup) for every return taken, then on its way-out pass.
-						this.chartBar = notationBarForPlaybackBar(flat.sectionMap, tune.sections, loopPlaybackBar(bar, region, returns));
+						// pickup) for every return taken, then on its way-out pass. A
+						// pickup bar is marked from its first printed beat, not its silent
+						// lead-in, which is still the count.
+						const chartBar = notationBarForPlaybackBar(flat.sectionMap, tune.sections, loopPlaybackBar(bar, region, returns));
+						this.chartBar = chartBar !== null && isInPickupLeadIn(tune, chartBar) ? null : chartBar;
 					};
 					update();
 					this.ticker = setInterval(update, 50);

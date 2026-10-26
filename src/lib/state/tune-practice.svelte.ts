@@ -30,6 +30,7 @@ import { buildBookIndex, type FreestyleBook } from '$lib/matching/book-index';
 import type { FreestyleMatch } from '$lib/matching/freestyle';
 import { addFractions, compareFractions, subtractFractions } from '$lib/music/intervals';
 import { countInBarsForTempo } from '$lib/audio/drum-count-in';
+import { isInPickupLeadIn } from '$lib/music/pickup';
 import {
 	applyInsertionResult,
 	assignSuggestRotation,
@@ -37,6 +38,7 @@ import {
 	buildSessionPlan,
 	normalizeChoruses,
 	headBarsForFlat,
+	notationBarForPlaybackBar,
 	resolvePickedSuggestion,
 	windowCandidates,
 	windowLabel,
@@ -106,6 +108,12 @@ export interface TunePracticeAudioPlan {
 	 * lead-in the route hands playPhrase and every transport tick sits behind.
 	 */
 	countInBars: number;
+	/**
+	 * The session opens on a pickup bar the band sits out — silent but for
+	 * the head's pickup notes — so the count runs on through it (playPhrase's
+	 * `countIn.pickup`). The bar stays the form's bar 0: no tick moves.
+	 */
+	countInPickup: boolean;
 	/** Start of the solo pass within the original expanded chart. */
 	practiceStartBar: number;
 	/**
@@ -331,6 +339,11 @@ export function startTunePracticeSession(sheet: Tune, ppq: number): TunePractice
 	const choruses = tunePractice.config.choruses;
 	const built = buildSessionPhrase({ flat, timeSignature: transposed.timeSignature, playHead, choruses });
 	const countInBars = countInBarsForTempo(tunePractice.config.tempo);
+	const practiceStartBar = formRepeats ? headBars : 0;
+	// The played phrase opens on the head's first bar, or without a head on
+	// the solo pass's first; the count runs on when that bar is a pickup.
+	const firstChartBar = notationBarForPlaybackBar(flat.sectionMap, transposed.sections, playHead ? 0 : practiceStartBar);
+	const countInPickup = firstChartBar !== null && isInPickupLeadIn(transposed, firstChartBar);
 	const plan = buildSessionPlan({
 		countInBars,
 		flat,
@@ -398,7 +411,8 @@ export function startTunePracticeSession(sheet: Tune, ppq: number): TunePractice
 		notationFlat,
 		leadBars: built.headBars,
 		countInBars,
-		practiceStartBar: formRepeats ? headBars : 0,
+		countInPickup,
+		practiceStartBar,
 		duplicatedForm: built.duplicatedForm,
 		playHead
 	};

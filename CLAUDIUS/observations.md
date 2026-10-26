@@ -3223,3 +3223,19 @@ Climb to Five G3, Third Walks D3, Up to the Seventh D3, now this E3). Each
 fix is a partial-specific predicate. If a fifth kind shows up, the better
 frame may be one note-level question — "which fundamental best explains
 this note's averaged spectrum?" — instead of one flag per partial.
+
+## 2026-10-25 — A representation choice leaks wherever time is read
+
+"The timeline keeps a FULL bar and only the engraving is short" (pickup.ts,
+2026-09-10) was the right call — every `bars × barLength` consumer stayed
+uniform. But it quietly moved a musical fact, "nothing happens here yet",
+out of the data and into one module's head. Every consumer that reads TIME
+rather than notation — the count-off, the playhead, and (still) the
+practice chorus builder that appends the whole form, pickup bar included —
+inherited a silent bar it didn't know was silent. The engraving side got
+four careful rules; the time side got none, because nothing failed loudly.
+Generalisation: when a normalising representation pads something, list
+the readers of the padded dimension, not just the writers, and give them
+one predicate (`isInPickupLeadIn`) rather than letting each rediscover it.
+The open instance is the appended practice chorus; the desk's form loop
+already learned it (2026-10-22) by a different route.

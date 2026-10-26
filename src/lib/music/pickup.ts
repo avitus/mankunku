@@ -139,6 +139,35 @@ export function pickupFirstBeat(pickupLength: Fraction, timeSignature: [number, 
 	return Math.round(fractionToFloat(pickupPrefix(pickupLength, timeSignature)) * timeSignature[1] * 1e6) / 1e6;
 }
 
+/**
+ * True while a chart position — an absolute bar, fraction included — sits in
+ * a pickup bar's silent lead-in: the timeline's full bar before its printed
+ * pickup starts. Nothing is engraved there and a tune's count is still
+ * running (drum-count-in.ts), so a playhead waits it out (Black Orpheus,
+ * 2026-10-25: the one-beat pickup lit on beat 1 of its bar).
+ */
+export function isInPickupLeadIn(
+	sheet: Pick<Tune, 'sections' | 'timeSignature'>,
+	chartBar: number
+): boolean {
+	if (!Number.isFinite(chartBar) || chartBar < 0) return false;
+	const bar = Math.floor(chartBar);
+	let base = 0;
+	for (let i = 0; i < sheet.sections.length && base <= bar; i++) {
+		const sec = sheet.sections[i];
+		if (sec.bars > 0 && base === bar) {
+			const length = resolvePickupLength(sheet, i);
+			if (!length) return false;
+			const lead =
+				fractionToFloat(pickupPrefix(length, sheet.timeSignature)) /
+				fractionToFloat(barLengthOf(sheet.timeSignature));
+			return chartBar - bar < lead - EPS;
+		}
+		base += sec.bars;
+	}
+	return false;
+}
+
 /** A blank-labelled one-bar section that IS the pickup (the import shape). */
 export function isPickupOnlySection(
 	sheet: Pick<Tune, 'sections' | 'timeSignature'>,

@@ -2,7 +2,7 @@ import type { Fraction, HarmonicSegment, Mode, Note, PhraseCategory, PitchClass 
 import type { ChordProgressionType } from '$lib/types/lick-practice';
 import type { Grade, Score } from '$lib/types/scoring';
 import type { FlattenedTune } from '$lib/tunes/flatten';
-import type { TuneSection } from '$lib/types/tune';
+import type { Tune, TuneSection } from '$lib/types/tune';
 import { SHAPE_PRIORITY, type DetectedProgression } from '$lib/tunes/progression-detector';
 import type { LickSuggestion } from '$lib/tunes/lick-matcher';
 import {
@@ -16,6 +16,7 @@ import { PROGRESSION_TEMPLATES, isChordQualityCategory } from '$lib/data/progres
 import { keyLabel } from '$lib/music/notation';
 import { scoreToGrade } from '$lib/scoring/grades';
 import { KEY_PROFICIENT_THRESHOLD } from '$lib/persistence/lick-practice-store';
+import { isInPickupLeadIn } from '$lib/music/pickup';
 
 /**
  * Pure planning + accumulation logic for the tune-practice session
@@ -662,6 +663,28 @@ export function notationBarForPlaybackBar(
 		}
 	}
 	return null;
+}
+
+/**
+ * The chart bar the session's playhead marks at fractional session bar
+ * `sessionBar`, or null: before the form (the count-in), past it, and inside a
+ * pickup bar's silent lead-in, where nothing is engraved and the count is
+ * still running — the pickup is marked from its first printed beat (Black
+ * Orpheus, 2026-10-25: it lit on beat 1 of its timeline bar).
+ */
+export function playheadChartBar(args: {
+	sessionBar: number;
+	formBars: number;
+	headBars: number;
+	practiceStartBar: number;
+	sectionMap: FlattenedTune['sectionMap'];
+	sheet: Pick<Tune, 'sections' | 'timeSignature'>;
+}): number | null {
+	const formBar = playbackBarForSessionBar(args.sessionBar, args.formBars, args.headBars, args.practiceStartBar);
+	if (!(formBar >= 0 && formBar < args.formBars)) return null;
+	const chartBar = notationBarForPlaybackBar(args.sectionMap, args.sheet.sections, formBar);
+	if (chartBar === null || isInPickupLeadIn(args.sheet, chartBar)) return null;
+	return Math.floor(chartBar);
 }
 
 /**

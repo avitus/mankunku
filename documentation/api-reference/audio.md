@@ -101,6 +101,7 @@ interface PhrasePlaybackOpts {
   onStarted?: () => void;        // Callback fired after Transport start
   startTick?: number;            // Explicit start tick for bar-aligned scheduling
   onNote?: (event: PlaybackNoteEvent) => void;  // Per sounding melody note, at the audible moment
+  countIn?: { bars: number; drums: boolean; pickup?: boolean };  // Tunes: lead-in bars, drummer's count-off (drum-count-in.ts); `pickup` counts on through an opening pickup bar the band sits out, as the count's last bar
 }
 
 interface PlaybackNoteEvent {

@@ -740,6 +740,7 @@ Pure planning + accumulation logic behind the runes wrapper above. Plain module 
 | `indexResultsByInsertion(results)` | Keyed lookup — a skipped window contributes no result, so array-position lookup misaligns everything after a gap |
 | `insertionMarkerCleared(args)` | Whether a chart marker's every playback window has been cleared |
 | `notationBarForPlaybackBar(...)` | Project a playback bar onto its chart bar via `sectionMap` |
+| `playheadChartBar(args)` | The chart bar the session playhead marks at a fractional session bar, or null before and past the form and inside a pickup's silent lead-in (`isInPickupLeadIn`) |
 
 Types: `TunePracticeMode` (`'suggest' | 'points' | 'freestyle'`), `TunePracticeStrictness` (`'guided' | 'standard' | 'solo'`), `CueLevel` (`'lick' | 'progression' | 'none'`), `TunePracticePhase`, `InsertionPoint`, `InsertionResult`, `StrictnessKnobs`, `CandidateResult`, `ResultTally`.
 
@@ -758,7 +759,7 @@ The tune desk's listening controls (`/tunes/[id]`, and a compact preview in the 
 | `new TunePlayer(tempoStore?)` | With a `TuneTempoStore` (`tuneId()`, `save(id, tempo)`) a tempo change is saved per tune into `settings.tuneTempos`; without one (the editor preview) it lasts only as long as the player |
 | `tempo` | The preview tempo, else this tune's saved tempo (`savedTuneTempo`), else `settings.defaultTempo` |
 | `backing` / `melody` / `metronome` / `loop` | The desk switches (`$state`); backing starts off. `loop` may change mid-pass — the engine asks before each return to the top |
-| `toggle(tune, style)` | Play or stop. ONE `playPhrase` call with a `formLoopRegion` loop: the pickup plays once, a whole-tune repeat goes round its first ending and out on its second, the drummer counts in (`countInBarsForTempo`), `chartBar`/`cursorIndex` follow the audible bar and note |
+| `toggle(tune, style)` | Play or stop. ONE `playPhrase` call with a `formLoopRegion` loop: the pickup plays once, a whole-tune repeat goes round its first ending and out on its second, the drummer counts in (`countInBarsForTempo`, on through an opening pickup bar), `chartBar`/`cursorIndex` follow the audible bar and note — `chartBar` is null through a pickup's silent lead-in |
 | `setTempo(value)` / `stop()` / `dispose()` | Tempo changes stop the pass first; `stop` cancels late loads, audio and cursor updates together |
 
 See [Tune System](../architecture/tune-system.md#tune-desk-accompaniment) for the backing-style resolution and the form loop.

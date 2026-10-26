@@ -5974,3 +5974,37 @@ monitor whether it results in faster CI times."
   (Andy kept the handoff unchanged). All CircleCI checks green on head.
 - Poller lesson: zsh `echo "$json" | jq` expands `\n` and kills jq —
   the first CodeRabbit wait burned 30 minutes on it (memory updated).
+
+## 2026-10-25 — The count runs on through a pickup bar
+
+- Andy (Black Orpheus on production): the count-in to a pickup tune is
+  confusing — the drummer counts the bar before, then goes silent through
+  the pickup bar, and the one-beat pickup lights on beat 1 of its bar.
+  Wanted: [1 _ 3 _][1 2 3 4], the pickup on the 4.
+- Cause, both halves one fact: the pickup is a FULL bar on the timeline
+  (silent until beat 4) and nobody but the engraving knew. The count was
+  `drumCountInHits(leadInBars)` and the band sits the pickup bar out (desk:
+  the loop region starts at bar 1; practice: the generator emits nothing in
+  a harmony-less bar — probed), so three beats went uncounted. Both
+  playheads marked chart bar 0 from its timeline downbeat.
+- Fix: `countIn.pickup` — the count sounds `leadInBars + 1` bars, so the
+  pickup bar is the count's LAST (every-beat) bar under the unchanged
+  pattern rule; no tick moves. Above 150 BPM that is three bars,
+  [1 _ 3 _][1 _ 3 _][1 2 3 4] — decided, not asked. The click-only count
+  for a band follows. `isInPickupLeadIn(sheet, chartBar)` in music/pickup.ts
+  gates both playheads; practice reads it through a new pure
+  `playheadChartBar`, derived off the fractional bar but integer-valued, so
+  the markers still redraw only at boundaries.
+- Practice decides the pickup from the session's FIRST played bar (head
+  bar 0, or the solo pass's first without a head), so a Head-off session
+  that opens on the silent pickup bar is counted through it too.
+- Found, not fixed (offered): a repeat-free practice session's appended
+  chorus re-plays the pickup bar — a dead bar between the head and the
+  solos, and before every extra chorus. The desk's loop already skips it.
+- Production's Black Orpheus (read-only query): one 33-bar "A" with an
+  in-section [1,4] pickup and its first chord (A-) at bar 1, so the band
+  sits the pickup bar out on both surfaces and the fix applies as stored.
+- Validation: unit suite 414 files green, check clean, tune-practice e2e
+  13/13 on Chromium in the sandbox (the first sandbox build died on a
+  Docker "lease does not exist" error; the retry ran). Each new test was
+  red before the fix.
