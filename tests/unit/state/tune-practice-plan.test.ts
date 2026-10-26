@@ -782,6 +782,7 @@ describe('practice choruses skip a pickup bar', () => {
 	});
 
 	it('places the windows of every chorus from bar 1, with the head or without it', () => {
+		/** One detection over bars 1–2 of the form. */
 		const det = () => [mkDet({ startOffset: [1, 1], startBar: 1, endBarExclusive: 3 })];
 		// Head: count-in, the 3-bar head, then the chorus's bar 1 at once.
 		const withHead = buildSessionPlan(planDeps({ flat, notationFlat: flat, choruses: 2, pickupBars: 1,

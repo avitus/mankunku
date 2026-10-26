@@ -336,6 +336,7 @@ describe('tuneToAbc — a stacked second ending (Mankunku Blues, 2026-10-25)', (
 			]
 		});
 	}
+	/** The `%%stretchlast` directive in the ABC, if any. */
 	const stretchOf = (abc: string): string | undefined => abc.match(/^%%stretchlast \d$/m)?.[0];
 
 	it('stretches the last system when a stacked [2] ends the tune', () => {

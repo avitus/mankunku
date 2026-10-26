@@ -567,6 +567,7 @@ describe('phraseToAbc octave marks', () => {
 });
 
 describe('phraseToAbc chord-aware enharmonic spelling', () => {
+	/** A one-note phrase in `key` held over a single chord of `root` and `quality`. */
 	function phraseWithChord(
 		midi: number,
 		key: PitchClass,

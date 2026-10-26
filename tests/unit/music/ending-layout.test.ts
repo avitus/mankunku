@@ -133,8 +133,10 @@ describe('endingLineArtTransform — line art follows the glyphs it joins (2026-
 	const xform = endingAlignTransform({ x: 300, width: 120 }, { x: 40, width: 500 })!;
 	const head = { x: 200, width: 10 };
 	const stemUp = head.x + head.width; // a stem-up beam end sits at the head's right
+	/** How far the rigid pass moves a glyph with this box: by its centre. */
 	const dxOf = (box: { x: number; width: number }) =>
 		endingGlyphTranslateDx(xform.sx, xform.tx, box.x + box.width / 2);
+	/** Where a scale-and-translate transform sends `x`. */
 	const map = (t: { sx: number; tx: number }, x: number) => t.sx * x + t.tx;
 
 	it('lands each end where the glyph under it went', () => {

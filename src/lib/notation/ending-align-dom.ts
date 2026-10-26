@@ -132,6 +132,14 @@ export function alignStackedEndingsInSvg(svg: Element): AppliedEndingAlignment[]
 	return applied;
 }
 
+/**
+ * Move one stacked `[2]` ending's glyphs onto its `[1]`'s span: everything
+ * from the `[2]` onward is gathered into an `abcjs-ending-align` layer, line
+ * art (volta, beams, ties, slurs, triplet brackets) is stretched with its ends
+ * anchored to the notes they join, and notes, rests, bars and chords are only
+ * translated so they keep their size. Returns the wrapper and transform for
+ * the zone builder, or null when there is nothing to move.
+ */
 function alignOneSecondEnding(
 	endingG: SVGGElement,
 	firstEndingG: SVGGElement,
@@ -201,6 +209,7 @@ function alignOneSecondEnding(
 		.map((el) => localBox(el))
 		.filter((b): b is NonNullable<typeof b> => b !== null)
 		.map((b) => ({ x0: b.x, x1: b.x + b.width, dx: endingGlyphTranslateDx(sx, tx, b.cx) }));
+	/** The x shift for a line-art end at `x`: the nearest note's or rest's move within reach, else the volta map. */
 	const moveAt = (x: number): number => {
 		let best: { gap: number; dx: number } | null = null;
 		for (const g of glyphMoves) {
@@ -210,6 +219,7 @@ function alignOneSecondEnding(
 		// An end on no glyph (a tie running in from the line before) keeps the volta map.
 		return best ? best.dx : (sx - 1) * x + tx;
 	};
+	/** The matrix that stretches `el` so both of its ends land where `moveAt` sends them. */
 	const anchoredMatrix = (el: SVGGraphicsElement): string => {
 		const b = localBox(el);
 		const t = b ? endingLineArtTransform(b.x, b.x + b.width, moveAt(b.x), moveAt(b.x + b.width)) : null;

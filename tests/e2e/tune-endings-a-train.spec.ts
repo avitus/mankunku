@@ -247,6 +247,7 @@ for (const { name, path, endsTune } of [
 		await expect.poll(async () => page.locator('g.abcjs-ending-align').count()).toBeGreaterThan(0);
 
 		const g = await page.evaluate(() => {
+			/** The volta group whose number reads `label`. */
 			const endingLabelled = (label: string): Element | undefined =>
 				[...document.querySelectorAll('g.abcjs-ending')].find(
 					(e) => (e.querySelector('text')?.textContent ?? '').trim() === label
@@ -257,6 +258,7 @@ for (const { name, path, endsTune } of [
 			const firstWrapper = first?.closest('g.abcjs-staff-wrapper');
 			const staff = wrapper?.querySelector('.abcjs-staff');
 			if (!first || !layer || !wrapper || !firstWrapper || !staff) return null;
+			/** The screen x of every barline under `root`. */
 			const lefts = (root: Element): number[] =>
 				[...root.querySelectorAll('g.abcjs-bar')].map((b) => b.getBoundingClientRect().left);
 			const firstLeft = first.getBoundingClientRect().left;

@@ -21,6 +21,7 @@ test('beams in the stacked [2] meet the stems they join', async ({ page }) => {
 	const misses = await page.evaluate(() => {
 		const system = document.querySelector('g.abcjs-ending-align')!.closest('g.abcjs-staff-wrapper')!;
 		const notes = [...system.querySelectorAll('g.abcjs-note')].map((n) => n.getBoundingClientRect());
+		/** Does `x` fall on a note of the stacked system, within a pixel? */
 		const onNote = (x: number): boolean => notes.some((n) => x >= n.left - 1 && x <= n.right + 1);
 		const beams = [...system.querySelectorAll('path.abcjs-beam-elem')].map((b) => b.getBoundingClientRect());
 		return {

@@ -575,6 +575,11 @@
 		pitchDetector.start();
 	}
 
+	/**
+	 * Start a scored tune-practice session: open the microphone, load the
+	 * instrument and backing, then hand the planned session to playback.
+	 * Any setup failure unwinds `isLoading` and shows its banner.
+	 */
 	async function startSession() {
 		if (!playback || !toneModule || !baseSheet || isLoading) return;
 		isLoading = true;
