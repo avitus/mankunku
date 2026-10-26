@@ -3290,3 +3290,17 @@ sheet was only the usual way to stay at the target; I'd have chased the
 engraving cost if I had taken the clue as the cause.
 The appended practice chorus was the third reader, fixed the same day;
 the desk's form loop had learned it (2026-10-22) by a different route.
+
+## 2026-10-26 — A flake that needs a fast machine
+
+I went looking for the usual suspect, a test too slow for its budget
+under load, and the load loop found nothing in 16 runs. The failure needs
+the opposite: saves fast enough to share a millisecond. Load made it
+rarer, and so did isolating the test with `-t` (0/25), because the tests
+before it in the file are what warm the store up; the whole file failed
+one run in ten. A test that relies on the clock advancing between two
+steps is a race the machine usually wins. Here it won only until it got
+faster. The sibling test had already written the rule down in a comment
+("deterministic ordering — the prune sorts by timestamp") and nobody
+carried it across. And the real cost was never the 10%. It was that I
+tailed the output twice, so the name went by unrecorded both times.

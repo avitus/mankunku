@@ -6132,3 +6132,24 @@ monitor whether it results in faster CI times."
 - Open: one unit test failed twice in full-suite runs under load and
   passed on rerun; not caught (five clean runs since, three concurrent).
 - Merged as 1aa9cefc.
+
+## 2026-10-26 — The intermittent unit failure: a prune test tied on Date.now()
+
+- Andy asked for the one unit test that failed twice in full runs (and
+  passed on rerun) to be found and fixed. Both failures had been tailed,
+  so nothing named it; CircleCI's per-test results for the last 16 unit
+  jobs held no failures either.
+- 16 full runs under double load: clean. The JSON durations ruled out a
+  timeout (the slowest test, 3.4 s, has a 15 s budget).
+- Found by reading the sleeps: `tune-pdf-store`'s prune test sleeps 1 ms
+  between saves "for deterministic ordering"; `audio-store`'s does not.
+  The store stamps `Date.now()` and prunes the oldest; up to ~9 saves land
+  in one millisecond, ties fall back to IndexedDB key order, and
+  'session-10' < 'session-5'. A tie run spanning session-4…session-10
+  prunes the wrong five. The original file failed 4/40 with exactly
+  "expected [ Array(300) ] to not include 'session-4'"; run filtered to
+  that one test it failed 0/25 — the earlier tests in the file warm the
+  store up, which is what makes the saves fast enough to tie.
+- Fix (test only, d1334d39): the test drives `Date.now` a second per call.
+  0/40 after; a frozen clock still turns it red. No store change: two takes
+  are never saved in one millisecond.
