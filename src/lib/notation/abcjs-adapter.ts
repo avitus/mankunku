@@ -539,6 +539,10 @@ const CHORD_H_INK_CLEARANCE_SPACINGS = 0.2;
  * preserves beat alignment for the first symbol of a bar.
  *
  * `boxes` are the chords' current bounding boxes (after any vertical drop).
+ * Only ink that overlaps a box counts: {@link chordSymbolDeltas} already lifted
+ * each chord clear of the ink beneath it, as MuseScore does, and a band
+ * reaching a spacing below the box shoved a chord over a bar of high beamed
+ * eighths past note after note to the barline (Rhythm Changes, 2026-10-25).
  * Returns one dx per chord.
  */
 export function chordHorizontalNudges(
@@ -563,13 +567,12 @@ export function chordHorizontalNudges(
 			const prevRight = left[i - 1] + width[i - 1];
 			if (x < prevRight + gap) x = prevRight + gap;
 		}
-		// Clear x-overlapping ink that reaches into this chord's horizontal band
-		// (same y-band as the chord row — obstacles wholly below the staff top
-		// are still considered; the caller filters ending/part marks).
+		// Clear x-overlapping ink that reaches into this chord's box (the caller
+		// filters ending/part marks).
 		const top = boxes[i].y;
 		const bottom = boxes[i].y + boxes[i].height;
 		for (const o of obstacles) {
-			if (o.y + o.height < top - spacing || o.y > bottom + spacing) continue;
+			if (o.y + o.height <= top || o.y >= bottom) continue;
 			const oRight = o.x + o.width;
 			// If the obstacle overlaps our natural box and sits to our left
 			// edge, push past it.

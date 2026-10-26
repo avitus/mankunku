@@ -592,6 +592,15 @@ describe('chordHorizontalNudges — neighbour + ink clearance', () => {
 		// ink right 25 + clearance 2 → 27
 		expect(20 + dx).toBeCloseTo(27, 5);
 	});
+
+	it('leaves a chord on its beat over ink the vertical pass already cleared (Rhythm Changes, 2026-10-25)', () => {
+		// A bar of high beamed eighths: `chordSymbolDeltas` lifted the chord half
+		// a spacing clear of them. Counting ink within a spacing below as a
+		// collision shoved the chord past every note in turn, to the barline.
+		const boxes = [{ x: 0, y: 0, width: 30, height: 12 }];
+		const run = [0, 22, 44, 66, 88, 110].map((x) => ({ x, y: 17, width: 12, height: 30 }));
+		expect(chordHorizontalNudges(boxes, run, spacing)).toEqual([0]);
+	});
 });
 
 describe('glissandoWave — wavy connector path between notehead boxes', () => {
