@@ -21,6 +21,7 @@ import {
 	type InsertionResult
 } from '$lib/state/tune-practice-plan';
 import { flattenTune } from '$lib/tunes/flatten';
+import { buildBarInfos } from '$lib/audio/backing-generation';
 import { seg, section, sheet } from '../../helpers/tune-fixtures';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -781,6 +782,40 @@ describe('practice choruses skip a pickup bar', () => {
 		expect(plan.at(-1)?.closeTick).toBe(8 * 1920);
 	});
 
+	// CodeRabbit on #288: the session phrase carried the flatten's section map,
+	// one pass of the chart. The band reads it for section-final bars, chorus
+	// starts and intensity, so with the pickup skipped every later section sat
+	// a bar late, and the extra choruses had no sections at all.
+	it('maps the sections of the timeline it plays: each solo pass from bar 1, every chorus', () => {
+		/** A map entry: `section` starts at session bar `bar`. */
+		const at = (section: number, bar: number) => ({ sourceSection: section, barOffset: bar });
+		// Pickup bar · A (2 bars): the head keeps the pickup, each chorus is A alone.
+		expect(buildSessionPhrase({ flat, timeSignature: [4, 4], playHead: true, choruses: 2, pickupBars: 1 }).sectionMap)
+			.toEqual([at(0, 0), at(1, 1), at(1, 3), at(1, 5)]);
+		expect(buildSessionPhrase({ flat, timeSignature: [4, 4], playHead: false, choruses: 2, pickupBars: 1 }).sectionMap)
+			.toEqual([at(1, 0), at(1, 2)]);
+
+		// |: pickup-led A (3 bars) [1] :| [2]: the solo pass drops the replayed pickup bar.
+		const inside = sheet({
+			sections: [
+				section({ bars: 3, repeatStart: true, pickupLength: [1, 4], notes: [{ pitch: 64, offset: [3, 4], duration: [1, 4] }],
+					harmony: [seg('C', 'maj7', [1, 1], [2, 1])] }),
+				section({ label: '', bars: 1, ending: 1, repeatEnd: true, harmony: [seg('G', '7', [0, 1], [1, 1])] }),
+				section({ label: '', bars: 1, ending: 2, harmony: [seg('C', 'maj7', [0, 1], [1, 1])] })
+			]
+		});
+		const insideFlat = flattenTune(inside, { expandRepeats: true });
+		expect(insideFlat.sectionMap).toEqual([at(0, 0), at(1, 3), at(0, 4), at(2, 7)]);
+		const built = buildSessionPhrase({ flat: insideFlat, timeSignature: [4, 4], playHead: true, choruses: 2, pickupBars: 1 });
+		expect(built.phraseBars).toBe(10);
+		expect(built.sectionMap).toEqual([at(0, 0), at(1, 3), at(0, 4), at(2, 6), at(0, 7), at(2, 9)]);
+		// What the band reads off it: every chorus starts on its bar 1, and the
+		// [2] that closes each solo pass is its own section, not a bar late.
+		const bars = buildBarInfos(built.phraseBars, built.sectionMap);
+		expect(bars.flatMap((b, i) => (b.isChorusFirstBar ? [i] : []))).toEqual([0, 4, 7]);
+		expect(bars.flatMap((b, i) => (b.isSectionFinalBar ? [i] : []))).toEqual([2, 3, 5, 6, 8, 9]);
+	});
+
 	it('places the windows of every chorus from bar 1, with the head or without it', () => {
 		/** One detection over bars 1–2 of the form. */
 		const det = () => [mkDet({ startOffset: [1, 1], startBar: 1, endBarExclusive: 3 })];
@@ -809,6 +844,10 @@ describe('multiple practice choruses', () => {
 			expect(built.phraseBars).toBe((choruses + Number(playHead)) * 2);
 			expect(built.notes).toHaveLength(Number(playHead));
 			expect(built.harmony.at(-1)?.startOffset).toEqual([(choruses - 1 + Number(playHead)) * 2, 1]);
+			// One section-map entry per chorus played, each on its own bar 1.
+			expect(built.sectionMap.map((e) => e.barOffset)).toEqual(
+				Array.from({ length: choruses + Number(playHead) }, (_, i) => i * 2)
+			);
 		}
 	});
 

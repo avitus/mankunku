@@ -371,6 +371,26 @@ describe('tuneToAbc — a stacked second ending (Mankunku Blues, 2026-10-25)', (
 		expect(stretchOf(tuneToAbc(wrapped, undefined, BPL4))).toBe('%%stretchlast 0');
 	});
 
+	// CodeRabbit on #288 asked to clear the flag when a [1] continues the
+	// stacked [2]'s system. That system is still the one the alignment pass
+	// slides under [1], full width assumed — mid-tune abcjs justifies it —
+	// so as the last system it keeps the stretch, or the staff stops short.
+	it('stretches a last system that a [1] continues after the stacked [2]', () => {
+		const continued = sheet({
+			sections: [
+				section({ label: 'A', bars: 2, repeatStart: true, harmony: [seg('C', 'maj7', [0, 1], [2, 1])] }),
+				section({ label: 'A', bars: 1, ending: 1, repeatEnd: true, harmony: [seg('G', '7', [0, 1], [1, 1])] }),
+				section({ label: 'A', bars: 1, ending: 2, harmony: [seg('C', 'maj7', [0, 1], [1, 1])] }),
+				section({ label: 'B', bars: 1, ending: 1, repeatEnd: true, harmony: [seg('F', 'maj7', [0, 1], [1, 1])] })
+			]
+		});
+		const abc = tuneToAbc(continued, undefined, BPL4);
+		// The [2] and the [1] after it share the last system...
+		expect(abc).toMatch(/\|\[2[^\n]*\[1[^\n]*:\|\n\[V:H\][^\n]*\n*$/);
+		// ...which is the stacked ending's, so it is stretched.
+		expect(stretchOf(abc)).toBe('%%stretchlast 1');
+	});
+
 	it('keeps the stretch a caller asks for', () => {
 		expect(stretchOf(tuneToAbc(stackedEnding(true), undefined, { ...BPL4, stretchLast: true }))).toBe(
 			'%%stretchlast 1'

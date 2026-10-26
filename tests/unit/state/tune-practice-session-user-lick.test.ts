@@ -188,6 +188,12 @@ describe('the session counts in by tempo', () => {
 		// a bar is one whole note).
 		const solo = plan.playedPhrase.harmony.filter((h) => fractionToFloat(h.startOffset) >= formBars);
 		expect(fractionToFloat(solo[0].startOffset)).toBe(formBars);
+		// The band reads the same timeline (CodeRabbit on #288): each solo
+		// chorus's first section starts on that chorus's bar 1.
+		const soloSections = (plan.playedPhrase.sectionMap ?? []).filter((e) => e.barOffset >= formBars);
+		expect(soloSections[0]?.barOffset).toBe(formBars);
+		expect(soloSections.map((e) => e.barOffset)).toContain(formBars + (formBars - 1));
+		expect(Math.max(...soloSections.map((e) => e.barOffset))).toBeLessThan(formBars + 2 * (formBars - 1));
 		// Every window opens on its chart position counted from bar 1.
 		const barTicks = autumnLeaves.timeSignature[0] * 480;
 		const perChorus = tunePractice.plan.length / 2;

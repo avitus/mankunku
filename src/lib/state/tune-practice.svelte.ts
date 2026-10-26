@@ -393,6 +393,8 @@ export function startTunePracticeSession(sheet: Tune, ppq: number): TunePractice
 		...phrase,
 		notes: built.notes,
 		harmony: built.harmony,
+		// The flatten's map is one pass of the chart; the band needs the session's.
+		sectionMap: built.sectionMap,
 		difficulty: { ...phrase.difficulty, lengthBars: built.phraseBars }
 	};
 	const changesSheet = changesSheetFor(transposed);

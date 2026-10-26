@@ -603,6 +603,8 @@ function buildSingleChorusPhrase(args: {
 }): {
 	notes: Note[];
 	harmony: HarmonicSegment[];
+	/** The sections of the emitted timeline, in session bars — what the band reads. */
+	sectionMap: FlattenedTune['sectionMap'];
 	phraseBars: number;
 	headBars: number;
 	duplicatedForm: boolean;
@@ -616,7 +618,10 @@ function buildSingleChorusPhrase(args: {
 	if (!playHead) {
 		const start = (formRepeats ? headBars : 0) + pickupBars;
 		const practice = harmonyFrom(harmony, multiplyFraction(barDuration, start), [0, 1]);
-		return { notes: [], harmony: practice, phraseBars: flat.totalBars - start, headBars: 0, duplicatedForm: false };
+		return {
+			notes: [], harmony: practice, sectionMap: sectionMapFrom(flat.sectionMap, start, 0),
+			phraseBars: flat.totalBars - start, headBars: 0, duplicatedForm: false
+		};
 	}
 	if (formRepeats) {
 		// The head is pass one of the timeline; keep only its melody (a prefix
@@ -626,7 +631,7 @@ function buildSingleChorusPhrase(args: {
 			.filter((n) => fractionToFloat(n.offset) < boundary - EPSILON)
 			.map((n) => ({ ...n }));
 		if (pickupBars === 0) {
-			return { notes, harmony, phraseBars: flat.totalBars, headBars, duplicatedForm: false };
+			return { notes, harmony, sectionMap: sectionMapFrom(flat.sectionMap, 0, 0), phraseBars: flat.totalBars, headBars, duplicatedForm: false };
 		}
 		// A pickup the repeat replays opens the solo pass again: drop that bar,
 		// so the solo pass follows the head's last bar with its bar 1.
@@ -637,7 +642,11 @@ function buildSingleChorusPhrase(args: {
 			return [compareFractions(end, headEnd) > 0 ? { ...h, duration: subtractFractions(headEnd, h.startOffset) } : h];
 		});
 		const solo = harmonyFrom(harmony, multiplyFraction(barDuration, headBars + pickupBars), headEnd);
-		return { notes, harmony: [...head, ...solo], phraseBars: flat.totalBars - pickupBars, headBars, duplicatedForm: false };
+		const sectionMap = [
+			...flat.sectionMap.filter((e) => e.barOffset < headBars).map((e) => ({ ...e })),
+			...sectionMapFrom(flat.sectionMap, headBars + pickupBars, headBars)
+		];
+		return { notes, harmony: [...head, ...solo], sectionMap, phraseBars: flat.totalBars - pickupBars, headBars, duplicatedForm: false };
 	}
 	// The appended chorus runs from bar 1: the pickup is played once, with the head.
 	const practiceChorus = harmonyFrom(
@@ -648,6 +657,7 @@ function buildSingleChorusPhrase(args: {
 	return {
 		notes: flat.notes.map((n) => ({ ...n })),
 		harmony: [...harmony, ...practiceChorus],
+		sectionMap: [...sectionMapFrom(flat.sectionMap, 0, 0), ...sectionMapFrom(flat.sectionMap, pickupBars, flat.totalBars)],
 		phraseBars: flat.totalBars * 2 - pickupBars,
 		headBars,
 		duplicatedForm: true
@@ -669,6 +679,18 @@ function harmonyFrom(harmony: readonly HarmonicSegment[], from: Fraction, to: Fr
 			startOffset: addFractions(to, subtractFractions(start, from)),
 			duration: subtractFractions(end, start)
 		}];
+	});
+}
+
+/**
+ * The section map from bar `from` on, a section running across it starting
+ * there, moved so that `from` lands on `to` — `harmonyFrom` in bars.
+ */
+function sectionMapFrom(map: FlattenedTune['sectionMap'], from: number, to: number): FlattenedTune['sectionMap'] {
+	return map.flatMap((entry, i) => {
+		const end = map[i + 1]?.barOffset ?? Infinity;
+		if (end <= from) return [];
+		return [{ sourceSection: entry.sourceSection, barOffset: to + Math.max(entry.barOffset, from) - from }];
 	});
 }
 
@@ -696,6 +718,7 @@ export function buildSessionPhrase(args: {
 		const startOffset = compareFractions(h.startOffset, boundary) < 0 ? boundary : h.startOffset;
 		return [{ ...h, startOffset, duration: subtractFractions(end, startOffset) }];
 	});
+	const sectionMap = [...built.sectionMap];
 	for (let chorus = 1; chorus < count; chorus++) {
 		const shift = multiplyFraction(barDuration, chorus * chorusBars);
 		built.harmony.push(...practice.map((h) => ({
@@ -703,8 +726,9 @@ export function buildSessionPhrase(args: {
 			chord: { ...h.chord },
 			startOffset: addFractions(h.startOffset, shift)
 		})));
+		sectionMap.push(...sectionMapFrom(built.sectionMap, built.headBars, built.headBars + chorus * chorusBars));
 	}
-	return { ...built, phraseBars: built.headBars + chorusBars * count };
+	return { ...built, sectionMap, phraseBars: built.headBars + chorusBars * count };
 }
 
 /**
