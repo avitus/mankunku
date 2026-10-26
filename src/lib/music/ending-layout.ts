@@ -240,6 +240,29 @@ export function endingAlignTransform(
 	return { sx, tx };
 }
 
+/**
+ * The map for line art whose ends rest on glyphs the pass moved by pure
+ * translates: a beam on its first and last stems, a tie or slur on the
+ * noteheads it joins. Each end moves with the glyph under it — `x0` by
+ * `dx0`, `x1` by `dx1` — so the art meets the ink it belongs to. The volta
+ * map alone moves an end by `sx` about the system while its glyph moved by
+ * its centre, missing it by (1 − sx) × the end's offset from that centre.
+ * Null when the span is too short to scale.
+ */
+export function endingLineArtTransform(
+	x0: number,
+	x1: number,
+	dx0: number,
+	dx1: number
+): EndingAlignTransform | null {
+	const width = x1 - x0;
+	if (!Number.isFinite(width) || width < 0.5 || !Number.isFinite(dx0) || !Number.isFinite(dx1)) {
+		return null;
+	}
+	const sx = (width + dx1 - dx0) / width;
+	return { sx, tx: x0 + dx0 - sx * x0 };
+}
+
 /** SVG matrix(sx 0 0 1 tx 0) string for {@link endingAlignTransform} (line art only). */
 export function endingAlignMatrix(t: EndingAlignTransform): string {
 	return `matrix(${t.sx.toFixed(5)} 0 0 1 ${t.tx.toFixed(2)} 0)`;

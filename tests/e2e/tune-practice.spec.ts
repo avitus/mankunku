@@ -681,9 +681,10 @@ test.describe.serial('tune practice session follow-scroll', () => {
 		await startPracticeSession(page);
 
 		// The head chart is the lead sheet as the detail page engraves it:
-		// pickup + 4 bars, then the [1] line, the [2] line, and B in fours.
+		// pickup + 4 bars, then the [1] line, the [2] line (opening on its own
+		// barline since 2026-10-25), and B in fours.
 		const headSignature = await systemSignature(page);
-		expect(headSignature).toEqual([5, 4, 3, 4, 4, 4, 4]);
+		expect(headSignature).toEqual([5, 4, 4, 4, 4, 4, 4]);
 
 		await expect(
 			page.getByText(/your turn — play the lick!|comping — insertion/i)

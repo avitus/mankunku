@@ -7,8 +7,9 @@
  * Strategy (no more "scale everything then un-squash"):
  * - **Rigid glyphs** (notes, rests, bars, chords, decorations): pure
  *   `translate` so centers map under [1] but shapes stay full size.
- * - **Line art** (volta path, beams, slurs, ties): `matrix(sx,0,0,1,tx,0)`
- *   so the bracket width matches [1].
+ * - **Line art** (volta path, beams, slurs, ties, triplet brackets):
+ *   `matrix(sx,0,0,1,tx,0)`. The volta takes the [1] span; the rest take the
+ *   map that carries each end with the note it rests on.
  * - **Volta number text**: pure translate (never scaled) + extra inset so
  *   the digit clears the left hook after the path is compressed.
  * - **Chords**: pure translate + clearance past the (nudged) "2".
@@ -23,6 +24,7 @@ import {
 	endingAlignTransform,
 	endingAlignMatrix,
 	endingGlyphTranslateDx,
+	endingLineArtTransform,
 	planStackedEndingRigidGlyphs,
 	endingChordVerticalMatchDy,
 	meanFinite,
@@ -30,6 +32,19 @@ import {
 	ENDING_LABEL_HOOK_MIN_GAP,
 	type EndingAlignTransform
 } from '$lib/music/ending-layout';
+
+/**
+ * How far (local units, about a notehead) a line-art end may sit from a note
+ * or rest and still be taken to rest on it.
+ */
+const LINE_ART_GLYPH_REACH = 8;
+
+/**
+ * Slack (local units) for the barline that opens a stacked [2]: the
+ * bracket's left hook stands on its right edge, so it sits exactly at the
+ * threshold, and Firefox measures a thin barline narrower than Chromium does.
+ */
+const OPENING_BAR_SLACK = 2;
 
 function prependTransform(el: Element, t: string): void {
 	const prior = el.getAttribute('transform');
@@ -127,14 +142,16 @@ function alignOneSecondEnding(
 	if (!wrapper) return null;
 
 	const threshold = secondLeftX - 0.5;
+	// abcjs draws a beam as `path.abcjs-beam-elem` with no group around it.
 	const selector =
-		'g.abcjs-note, g.abcjs-rest, g.abcjs-bar, g.abcjs-ending, g.abcjs-beam, g.abcjs-triplet, text.abcjs-chord, path.abcjs-slur, path.abcjs-tie, g.abcjs-decoration, g.abcjs-annotation';
+		'g.abcjs-note, g.abcjs-rest, g.abcjs-bar, g.abcjs-ending, path.abcjs-beam-elem, g.abcjs-triplet, text.abcjs-chord, path.abcjs-slur, path.abcjs-tie, g.abcjs-decoration, g.abcjs-annotation';
 	const nodes = [...wrapper.querySelectorAll<SVGGraphicsElement>(selector)];
 	const roots = nodes.filter((n) => !nodes.some((o) => o !== n && o.contains(n)));
 	const movers: SVGGraphicsElement[] = [];
 	for (const el of roots) {
 		const b = localBox(el);
-		if (!b || b.x + b.width < threshold) continue;
+		const slack = el.classList.contains('abcjs-bar') ? OPENING_BAR_SLACK : 0;
+		if (!b || b.x + b.width < threshold - slack) continue;
 		if (el.closest('.abcjs-clef, .abcjs-key-signature, .abcjs-time-signature')) continue;
 		movers.push(el);
 	}
@@ -171,11 +188,33 @@ function alignOneSecondEnding(
 
 	// ── Line art: horizontal scale is OK (paths, not noteheads) ─────────
 	const lineArtSel =
-		'g.abcjs-ending, g.abcjs-beam, g.abcjs-triplet, path.abcjs-slur, path.abcjs-tie';
+		'g.abcjs-ending, path.abcjs-beam-elem, g.abcjs-triplet, path.abcjs-slur, path.abcjs-tie';
 	const lineArt = [...layer.querySelectorAll<SVGGraphicsElement>(lineArtSel)].filter(
 		(n, _, all) => !all.some((o) => o !== n && o.contains(n))
 	);
 	const matrix = endingAlignMatrix(xform);
+
+	// Where each note and rest goes (the rigid pass below translates it by its
+	// centre). A beam, tie or slur end that rests on one moves with it; under
+	// the volta map alone a beam stopped short of its stems (2026-10-25).
+	const glyphMoves = [...layer.querySelectorAll<SVGGraphicsElement>('g.abcjs-note, g.abcjs-rest')]
+		.map((el) => localBox(el))
+		.filter((b): b is NonNullable<typeof b> => b !== null)
+		.map((b) => ({ x0: b.x, x1: b.x + b.width, dx: endingGlyphTranslateDx(sx, tx, b.cx) }));
+	const moveAt = (x: number): number => {
+		let best: { gap: number; dx: number } | null = null;
+		for (const g of glyphMoves) {
+			const gap = x < g.x0 ? g.x0 - x : x > g.x1 ? x - g.x1 : 0;
+			if (gap <= LINE_ART_GLYPH_REACH && (!best || gap < best.gap)) best = { gap, dx: g.dx };
+		}
+		// An end on no glyph (a tie running in from the line before) keeps the volta map.
+		return best ? best.dx : (sx - 1) * x + tx;
+	};
+	const anchoredMatrix = (el: SVGGraphicsElement): string => {
+		const b = localBox(el);
+		const t = b ? endingLineArtTransform(b.x, b.x + b.width, moveAt(b.x), moveAt(b.x + b.width)) : null;
+		return t ? endingAlignMatrix(t) : matrix;
+	};
 	for (const el of lineArt) {
 		// Ending number text must NOT inherit the scale — handle separately.
 		if (el.classList.contains('abcjs-ending')) {
@@ -194,14 +233,20 @@ function alignOneSecondEnding(
 					prependTransform(text, `translate(${dx.toFixed(2)},0)`);
 				}
 			}
-		} else {
-			prependTransform(el, matrix);
-			for (const ink of el.querySelectorAll('path, line')) {
+		} else if (el.classList.contains('abcjs-triplet')) {
+			// The bracket follows the notes it spans; the number keeps its shape.
+			for (const ink of el.querySelectorAll<SVGGraphicsElement>('path, line')) {
+				prependTransform(ink, anchoredMatrix(ink));
 				ink.setAttribute('vector-effect', 'non-scaling-stroke');
 			}
-			if (el.tagName.toLowerCase() === 'path' || el.tagName.toLowerCase() === 'line') {
-				el.setAttribute('vector-effect', 'non-scaling-stroke');
+			for (const text of el.querySelectorAll<SVGGraphicsElement>('text')) {
+				const b = localBox(text);
+				const dx = b ? endingGlyphTranslateDx(sx, tx, b.cx) : 0;
+				if (Math.abs(dx) >= 0.5) prependTransform(text, `translate(${dx.toFixed(2)},0)`);
 			}
+		} else {
+			prependTransform(el, anchoredMatrix(el));
+			el.setAttribute('vector-effect', 'non-scaling-stroke');
 		}
 	}
 

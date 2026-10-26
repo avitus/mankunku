@@ -5,6 +5,7 @@ import type { Note } from '$lib/types/music';
 import { INSTRUMENTS } from '$lib/types/instruments';
 import { tuneToAbc, tuneToAbcWithMap } from '$lib/music/tune-notation';
 import { chordDisplayModelFromText } from '$lib/music/chord-layout';
+import { MANKUNKU_BLUES } from '$lib/data/tunes/mankunku-blues';
 import { seg, section, sheet, simpleSheet } from '../../helpers/tune-fixtures';
 
 const TENOR = INSTRUMENTS['tenor-sax'];
@@ -236,8 +237,8 @@ describe('tuneToAbc — sections, repeats, endings', () => {
 		// [1 continues the body's line (no newline before it)…
 		expect(abc).toMatch(/\| \[1/);
 		// …and [2 starts a fresh system with NO invisible pad bars — indent
-		// under [1] is applied post-render in SVG.
-		expect(abc).toMatch(/\[V:M\]\[2/);
+		// under [1] is applied post-render in SVG (its opening barline included).
+		expect(abc).toMatch(/\[V:M\]\|\[2/);
 		expect(abc).not.toMatch(/\[V:M\]x\d+ \[2/);
 		expect(abc).not.toMatch(/\[V:H\]x\d+ /);
 	});
@@ -316,6 +317,91 @@ describe('tuneToAbc — sections, repeats, endings', () => {
 		// The melody line closes with the final barline; the chord voice's
 		// system line follows it.
 		expect(abc).toContain(' |]');
+	});
+});
+
+describe('tuneToAbc — a stacked second ending (Mankunku Blues, 2026-10-25)', () => {
+	// The alignment pass slides a stacked [2]'s glyphs under [1], assuming
+	// abcjs drew its system full width. Under `%%stretchlast 0` the LAST system
+	// keeps its natural width, so a [2] that ends the tune lost its staff: the
+	// staff lines stopped two bars in and the ending's bars floated past them.
+	/** A[2 bars] [1 inline at column 2] [2 stacked], optionally followed by B. */
+	function stackedEnding(withB: boolean): Tune {
+		return sheet({
+			sections: [
+				section({ label: 'A', bars: 2, repeatStart: true, harmony: [seg('C', 'maj7', [0, 1], [2, 1])] }),
+				section({ label: 'A', bars: 1, ending: 1, repeatEnd: true, harmony: [seg('G', '7', [0, 1], [1, 1])] }),
+				section({ label: 'A', bars: 2, ending: 2, harmony: [seg('C', 'maj7', [0, 1], [2, 1])] }),
+				...(withB ? [section({ label: 'B', bars: 2, harmony: [seg('F', 'maj7', [0, 1], [2, 1])] })] : [])
+			]
+		});
+	}
+	const stretchOf = (abc: string): string | undefined => abc.match(/^%%stretchlast \d$/m)?.[0];
+
+	it('stretches the last system when a stacked [2] ends the tune', () => {
+		expect(stretchOf(tuneToAbc(stackedEnding(false), undefined, BPL4))).toBe('%%stretchlast 1');
+	});
+
+	it('stretches the curated chart it was reported on, at concert and written pitch', () => {
+		expect(stretchOf(tuneToAbc(MANKUNKU_BLUES))).toBe('%%stretchlast 1');
+		expect(stretchOf(tuneToAbc(MANKUNKU_BLUES, TENOR))).toBe('%%stretchlast 1');
+	});
+
+	it('leaves a short last system short otherwise', () => {
+		// Mid-tune [2]: its system is not the last, which abcjs stretches anyway.
+		expect(stretchOf(tuneToAbc(stackedEnding(true), undefined, BPL4))).toBe('%%stretchlast 0');
+		// [1] opens at the margin, so [2] is not stacked under it.
+		const atMargin = sheet({
+			sections: [
+				section({ label: 'A', bars: 4, repeatStart: true, harmony: [seg('C', 'maj7', [0, 1], [4, 1])] }),
+				section({ label: 'A', bars: 1, ending: 1, repeatEnd: true, harmony: [seg('G', '7', [0, 1], [1, 1])] }),
+				section({ label: 'A', bars: 1, ending: 2, harmony: [seg('C', 'maj7', [0, 1], [1, 1])] })
+			]
+		});
+		expect(stretchOf(tuneToAbc(atMargin, undefined, BPL4))).toBe('%%stretchlast 0');
+		// A [2] longer than a system wraps; its last line is no stacked ending.
+		const wrapped = sheet({
+			sections: [
+				section({ label: 'A', bars: 2, repeatStart: true, harmony: [seg('C', 'maj7', [0, 1], [2, 1])] }),
+				section({ label: 'A', bars: 1, ending: 1, repeatEnd: true, harmony: [seg('G', '7', [0, 1], [1, 1])] }),
+				section({ label: 'A', bars: 5, ending: 2, harmony: [seg('C', 'maj7', [0, 1], [5, 1])] })
+			]
+		});
+		expect(stretchOf(tuneToAbc(wrapped, undefined, BPL4))).toBe('%%stretchlast 0');
+	});
+
+	it('keeps the stretch a caller asks for', () => {
+		expect(stretchOf(tuneToAbc(stackedEnding(true), undefined, { ...BPL4, stretchLast: true }))).toBe(
+			'%%stretchlast 1'
+		);
+	});
+
+	it('opens a stacked [2] on a barline, which the alignment pass moves under [1]’s', () => {
+		// Without it the ending's first bar runs from the key signature: nothing
+		// marks where the bar the ending replaces begins.
+		for (const withB of [false, true]) {
+			expect(tuneToAbc(stackedEnding(withB), undefined, BPL4)).toMatch(/^\[V:M\]\|\[2/m);
+		}
+		// At the margin [2] opens its system like [1] does, with no barline.
+		const abc = tuneToAbc(
+			sheet({
+				sections: [
+					section({ label: 'A', bars: 4, repeatStart: true }),
+					section({ label: 'A', bars: 1, ending: 1, repeatEnd: true }),
+					section({ label: 'A', bars: 1, ending: 2 })
+				]
+			}),
+			undefined,
+			BPL4
+		);
+		expect(abc).toMatch(/^\[V:M\]\[1/m);
+		expect(abc).toMatch(/^\[V:M\]\[2/m);
+	});
+
+	it('starts the stacked [2]’s first bar span after its opening barline', () => {
+		const { abc, barAnchors } = tuneToAbcWithMap(stackedEnding(false), undefined, BPL4);
+		const ending2 = barAnchors.find((b) => b.sectionIdx === 2 && b.bar === 0)!;
+		expect(abc.slice(ending2.startChar - 3, ending2.startChar)).toBe('|[2');
 	});
 });
 
@@ -709,7 +795,7 @@ describe('tuneToAbc — golden guard (byte-identical output)', () => {
 		expect(tuneToAbc(repeatsSheet(), undefined, BPL4)).toBe(
 			HDR +
 				`P:A\n[V:M]|:${slash} | ${slash} | [1${slash} :|\n[V:H]"CΔ7"x8 | x8 | "G7"x8 |\n` +
-				`[V:M][2${slash} ||\n[V:H]"CΔ7"x8 |\n` +
+				`[V:M]|[2${slash} ||\n[V:H]"CΔ7"x8 |\n` +
 				`P:B\n[V:M]${slash} | ${slash} |]\n[V:H]"FΔ7"x8 | x8 |\n`
 		);
 	});

@@ -13,6 +13,7 @@ import {
 } from './chart-layout';
 import {
 	advanceEndingLayout,
+	columnsOf,
 	initialEndingLayoutState,
 	placeEndingSection,
 	type EndingPlacement
@@ -262,9 +263,10 @@ export function tuneToAbcWithMap(
 		`%%partsbox 1`,
 		// Measure numbers at the start of every system (abcjs: 0 = each line).
 		...(options.measureNumbers === false ? [] : [`%%measurenb 0`]),
-		// Don't stretch short systems (esp. stacked [2] endings) to full width —
-		// empty space under a full-width volta reads as a layout bug. A
-		// one-system lead-sheet row asks for the stretch so its bars span the row.
+		// Don't stretch a short last system to full width — a bar or two spread
+		// across the page reads as a layout bug. A one-system lead-sheet row
+		// asks for the stretch so its bars span the row; a stacked [2] that
+		// ends the tune needs it too (set after the body is placed, below).
 		`%%stretchlast ${options.stretchLast ? 1 : 0}`,
 		// Two voices merged onto ONE staff: M carries the melody (and the
 		// reader's rests / slashes / multi-rests); H is an invisible spacer
@@ -416,6 +418,8 @@ export function tuneToAbcWithMap(
 	// with NO pad bars (alignment under [1] is post-render).
 	let endingState = initialEndingLayoutState();
 	let lineColumn = 0; // bars into the current line where this section starts
+	// The system opened last holds only a stacked [2] (see the header fix-up).
+	let lastSystemIsStackedEnding = false;
 
 	// ── Global chord timeline (absolute whole-note offsets) ──────────────
 	// The chord voice is built per system line from these. Display text is
@@ -600,6 +604,7 @@ export function tuneToAbcWithMap(
 		lineColumn = placement.startColumn;
 
 		if (placement.startsNewLine) {
+			lastSystemIsStackedEnding = placement.alignUnderFirstEnding && columnsOf(sec) <= barsPerLine;
 			flushLine(sectionBaseBars);
 			// Section prelude: part label between systems. Blank labels (front
 			// matter) get no marker and don't disturb the consecutive-duplicate
@@ -628,9 +633,13 @@ export function tuneToAbcWithMap(
 			if (sec.label.trim() !== '') previousLabel = sec.label;
 		}
 		if (sec.repeatStart && !prevPickupOnly) tokens.push('|:');
+		// A stacked [2] opens on a barline as [1] did; the alignment pass moves
+		// it under [1]'s, where the bar the ending replaces begins. Without it
+		// the ending's first bar ran from the key signature.
+		if (placement.alignUnderFirstEnding) tokens.push('|');
 		if (sec.ending) tokens.push(`[${sec.ending}`);
 		// The section body always opens at bar 0 (section-local offsets start
-		// at 0); the span begins after the |: / [n decorations above.
+		// at 0); the span begins after the |: / | / [n decorations above.
 		openBarSpan(secIdx, 0);
 
 		// ── Gap-fill: every bar renders, melody or not (invisible in this
@@ -814,6 +823,15 @@ export function tuneToAbcWithMap(
 		sectionBaseBars += sec.bars;
 	}
 	flushLine(sectionBaseBars);
+
+	// A stacked [2] is engraved on a full-width system and slid under [1]
+	// after render. Mid-tune, abcjs justifies its system like any other; at
+	// the end of the tune it is the LAST system, which `%%stretchlast 0` left
+	// at its natural width — the staff stopped two bars in and the slid bars
+	// floated past its end (Mankunku Blues, 2026-10-25).
+	if (lastSystemIsStackedEnding && !options.stretchLast) {
+		headerLines[headerLines.indexOf('%%stretchlast 0')] = '%%stretchlast 1';
+	}
 
 	// ── Anchor char-offset resolution across all tokens (incl. newlines) ──
 	const headerStr = headerLines.join('\n');

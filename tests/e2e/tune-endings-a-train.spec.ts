@@ -111,6 +111,12 @@ test('Take the A Train: [2] volta number, chords, note shape, and closer', async
 			? [...layer.querySelectorAll<SVGGraphicsElement>('g.abcjs-bar')]
 			: [];
 		const barWidths = bars.map((b) => b.getBoundingClientRect().width);
+		// A thin barline as drawn anywhere else on the chart — the [2] opens on one.
+		const thinBarWidth = Math.min(
+			...[...document.querySelectorAll<SVGGraphicsElement>('g.abcjs-bar')]
+				.filter((b) => !b.closest('g.abcjs-ending-align'))
+				.map((b) => b.getBoundingClientRect().width)
+		);
 
 		const label2 = second.textBox;
 		const firstChord = chordBoxes[0];
@@ -179,6 +185,7 @@ test('Take the A Train: [2] volta number, chords, note shape, and closer', async
 			noteAspects,
 			barCount: bars.length,
 			minBarWidth: barWidths.length ? Math.min(...barWidths) : 0,
+			thinBarWidth,
 			maxBarWidth: barWidths.length ? Math.max(...barWidths) : 0,
 			hasAlignLayer: !!document.querySelector('g.abcjs-ending-align')
 		};
@@ -205,9 +212,11 @@ test('Take the A Train: [2] volta number, chords, note shape, and closer', async
 	expect(report.chordHeightDelta, 'chord height [2]-[1]').not.toBeNull();
 	expect(report.chordHeightDelta!).toBeLessThan(8);
 
-	// Closing / internal barlines present and not sub-pixel crushed.
-	expect(report.barCount).toBeGreaterThanOrEqual(1);
-	expect(report.minBarWidth).toBeGreaterThan(0.8);
+	// Opening, internal and closing barlines present and not crushed: no
+	// thinner than a thin barline elsewhere (the old > 0.8 px floor assumed
+	// the closer was the only one; the [2] opens on a thin bar since 2026-10-25).
+	expect(report.barCount).toBeGreaterThanOrEqual(2);
+	expect(report.minBarWidth).toBeGreaterThanOrEqual(report.thinBarWidth * 0.9);
 
 	// Whole-note (or similar) not a vertical slit: width should be a decent
 	// fraction of height for noteheads in the layer.
@@ -220,6 +229,62 @@ test('Take the A Train: [2] volta number, chords, note shape, and closer', async
 	// Squashed heads were ~0.05–0.15; a healthy whole note is often >0.5.
 	expect(best.aspect).toBeGreaterThan(0.35);
 });
+
+/**
+ * Mankunku Blues ends on its stacked [2] (2026-10-25), which makes the [2]
+ * the LAST system — and `%%stretchlast 0` left that one at its natural width:
+ * the staff stopped two bars in and the aligned bars floated past its end,
+ * with no barline where the ending begins. A Train's [2] is mid-tune, so it
+ * always had its staff; it gained the opening barline in the same change.
+ */
+for (const { name, path, endsTune } of [
+	{ name: 'Mankunku Blues', path: '/tunes/ls-mankunku-blues', endsTune: true },
+	{ name: 'Take the A Train', path: `/tunes/${A_TRAIN_ID}`, endsTune: false }
+]) {
+	test(`${name}: the stacked [2] sits on its staff and opens under [1]’s barline`, async ({ page }) => {
+		await page.goto(path);
+		await expect(page.getByRole('heading', { name, exact: true })).toBeVisible();
+		await expect.poll(async () => page.locator('g.abcjs-ending-align').count()).toBeGreaterThan(0);
+
+		const g = await page.evaluate(() => {
+			const endingLabelled = (label: string): Element | undefined =>
+				[...document.querySelectorAll('g.abcjs-ending')].find(
+					(e) => (e.querySelector('text')?.textContent ?? '').trim() === label
+				);
+			const first = endingLabelled('1');
+			const layer = document.querySelector('g.abcjs-ending-align');
+			const wrapper = layer?.closest('g.abcjs-staff-wrapper');
+			const firstWrapper = first?.closest('g.abcjs-staff-wrapper');
+			const staff = wrapper?.querySelector('.abcjs-staff');
+			if (!first || !layer || !wrapper || !firstWrapper || !staff) return null;
+			const lefts = (root: Element): number[] =>
+				[...root.querySelectorAll('g.abcjs-bar')].map((b) => b.getBoundingClientRect().left);
+			const firstLeft = first.getBoundingClientRect().left;
+			const wrappers = [...document.querySelectorAll('g.abcjs-staff-wrapper')];
+			return {
+				isLastSystem: wrappers[wrappers.length - 1] === wrapper,
+				staffRight: staff.getBoundingClientRect().right,
+				spacing: staff.getBoundingClientRect().height / 4,
+				inkRight: Math.max(
+					...[...layer.querySelectorAll('g.abcjs-note, g.abcjs-rest, g.abcjs-bar')].map(
+						(el) => el.getBoundingClientRect().right
+					)
+				),
+				// [1]'s opening barline: the one its bracket's left hook stands on.
+				firstOpen: lefts(firstWrapper).reduce((a, b) =>
+					Math.abs(b - firstLeft) < Math.abs(a - firstLeft) ? b : a
+				),
+				secondOpen: Math.min(...lefts(layer))
+			};
+		});
+		expect(g, 'aligned [2] system found').not.toBeNull();
+		expect(g!.isLastSystem, 'the [2] ends the chart').toBe(endsTune);
+		expect(g!.inkRight, '[2] glyphs end on the staff').toBeLessThanOrEqual(g!.staffRight + 1);
+		expect(Math.abs(g!.secondOpen - g!.firstOpen), '[2] opening barline under [1]’s').toBeLessThanOrEqual(
+			g!.spacing / 2
+		);
+	});
+}
 
 /** A client rect reduced to what the geometry assertions read. */
 interface Rect {
