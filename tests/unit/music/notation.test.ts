@@ -567,7 +567,12 @@ describe('phraseToAbc octave marks', () => {
 });
 
 describe('phraseToAbc chord-aware enharmonic spelling', () => {
-	function phraseWithChord(midi: number, key: PitchClass, root: PitchClass, quality: '7' | 'min7' | 'maj7'): Phrase {
+	function phraseWithChord(
+		midi: number,
+		key: PitchClass,
+		root: PitchClass,
+		quality: '7' | 'min7' | 'maj7' | 'dim7' | 'maj6'
+	): Phrase {
 		const p = singleNotePhrase(midi, key);
 		p.harmony = [
 			{ chord: { root, quality }, scaleId: 'major.mixolydian', startOffset: [0, 1], duration: [1, 1] }
@@ -595,6 +600,25 @@ describe('phraseToAbc chord-aware enharmonic spelling', () => {
 		const line = noteLine(phraseToAbc(phraseWithChord(73, 'D', 'Bb', 'min7')));
 		expect(line).not.toContain('_D');
 		expect(line).toContain('c');
+	});
+
+	it('spells the seventh of a diminished seventh chord as a seventh, never a sixth (2026-10-25)', () => {
+		// E°7 = E G Bb Db: Rhythm Changes' passing chord printed its Db as C#,
+		// in the bar that opens on the same Db. B°7's seventh is Ab, not the G#
+		// Mankunku Blues printed over it.
+		expect(noteLine(phraseToAbc(phraseWithChord(73, 'Bb', 'E', 'dim7')))).toContain('_d');
+		expect(noteLine(phraseToAbc(phraseWithChord(68, 'F', 'B', 'dim7')))).toContain('_A');
+	});
+
+	it('keeps the sixth’s letter when the diminished seventh would need a double flat', () => {
+		// Mankunku Blues on tenor: B°7 is written over a Db root (the chart's
+		// chromatic-root policy), whose seventh is Cbb. Bb is the single-accidental
+		// name; abstaining fell through to G major's sharp default and printed A#.
+		expect(noteLine(phraseToAbc(phraseWithChord(70, 'G', 'Db', 'dim7')))).toContain('_B');
+	});
+
+	it('still spells the same interval as a sixth over a sixth chord', () => {
+		expect(noteLine(phraseToAbc(phraseWithChord(73, 'Bb', 'E', 'maj6')))).toContain('^c');
 	});
 });
 
