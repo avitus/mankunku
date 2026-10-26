@@ -635,8 +635,9 @@ export function tuneToAbcWithMap(
 		if (sec.repeatStart && !prevPickupOnly) tokens.push('|:');
 		// A stacked [2] opens on a barline as [1] did; the alignment pass moves
 		// it under [1]'s, where the bar the ending replaces begins. Without it
-		// the ending's first bar ran from the key signature.
-		if (placement.alignUnderFirstEnding) tokens.push('|');
+		// the ending's first bar ran from the key signature. A repeat sign
+		// already is that barline (|:|[2 printed two).
+		else if (placement.alignUnderFirstEnding) tokens.push('|');
 		if (sec.ending) tokens.push(`[${sec.ending}`);
 		// The section body always opens at bar 0 (section-local offsets start
 		// at 0); the span begins after the |: / | / [n decorations above.
@@ -730,6 +731,8 @@ export function tuneToAbcWithMap(
 					if (bar > partial && (lineColumn + bar - partial) % barsPerLine === 0) {
 						flushLine(sectionBaseBars + bar);
 						openLine(sectionBaseBars + bar);
+						// A system this wrap opens is never the stacked [2]'s.
+						lastSystemIsStackedEnding = false;
 					} else {
 						tokens.push(' ');
 					}

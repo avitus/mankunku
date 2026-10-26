@@ -391,6 +391,42 @@ describe('tuneToAbc — a stacked second ending (Mankunku Blues, 2026-10-25)', (
 		expect(stretchOf(abc)).toBe('%%stretchlast 1');
 	});
 
+	// CodeRabbit on #288, outside the diff: when that [1] is too long for the
+	// stacked [2]'s line it wraps, and the tune then ends on a plain line of
+	// it, which a stretch would spread one bar across the page.
+	it('leaves the last system short when the [1] after the stacked [2] wraps onto it', () => {
+		const wrapped = sheet({
+			sections: [
+				section({ label: 'A', bars: 2, repeatStart: true, harmony: [seg('C', 'maj7', [0, 1], [2, 1])] }),
+				section({ label: 'A', bars: 1, ending: 1, repeatEnd: true, harmony: [seg('G', '7', [0, 1], [1, 1])] }),
+				section({ label: 'A', bars: 1, ending: 2, harmony: [seg('C', 'maj7', [0, 1], [1, 1])] }),
+				section({ label: 'B', bars: 4, ending: 1, repeatEnd: true, harmony: [seg('F', 'maj7', [0, 1], [4, 1])] })
+			]
+		});
+		const abc = tuneToAbc(wrapped, undefined, BPL4);
+		// Three systems: the [1] starts on the [2]'s line and ends on its own.
+		expect(abc.match(/^\[V:M\]/gm)).toHaveLength(3);
+		expect(stretchOf(abc)).toBe('%%stretchlast 0');
+	});
+
+	// CodeRabbit on #288, outside the diff: a stacked [2] that also opens a
+	// repeat printed |:|[2 — the repeat sign IS the barline it opens on.
+	it('opens a stacked [2] that starts a repeat on its repeat sign alone', () => {
+		const repeatingSecond = sheet({
+			sections: [
+				section({ label: 'A', bars: 2, repeatStart: true, harmony: [seg('C', 'maj7', [0, 1], [2, 1])] }),
+				section({ label: 'A', bars: 1, ending: 1, repeatEnd: true, harmony: [seg('G', '7', [0, 1], [1, 1])] }),
+				section({ label: 'A', bars: 1, ending: 2, repeatStart: true, harmony: [seg('C', 'maj7', [0, 1], [1, 1])] }),
+				section({ label: 'B', bars: 2, repeatEnd: true, harmony: [seg('F', 'maj7', [0, 1], [2, 1])] })
+			]
+		});
+		const abc = tuneToAbc(repeatingSecond, undefined, BPL4);
+		expect(abc).toContain('[V:M]|:[2');
+		expect(abc).not.toContain('|:|');
+		// Without a repeat sign the stacked [2] still opens on its own barline.
+		expect(tuneToAbc(stackedEnding(false), undefined, BPL4)).toContain('[V:M]|[2');
+	});
+
 	it('keeps the stretch a caller asks for', () => {
 		expect(stretchOf(tuneToAbc(stackedEnding(true), undefined, { ...BPL4, stretchLast: true }))).toBe(
 			'%%stretchlast 1'
