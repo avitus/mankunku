@@ -6100,3 +6100,56 @@ monitor whether it results in faster CI times."
 - Validation: unit suite 414 files green, check clean, tune-practice e2e
   13/13 and the A-Train endings e2e 3/3 on Chromium in the sandbox (two
   more sandbox image builds died on Docker errors first and were rerun).
+
+## 2026-10-26 — #288 release: focus-drill target take, review rounds
+
+- Pushed b0a5680d (the focus-drill fix) to dev after the e2e passed on the
+  rebased commit; Andy then asked for the dev → main PR with every review
+  comment handled, and to merge and confirm production.
+- Pre-PR: dev CI green; docstring scan of the release diff read 68.4%
+  (12 functions from the tune commits) → documented, 100% (6e767e42).
+  Opened #288 as a draft, `@coderabbitai rate limit` → available, ready.
+- Round 1 (two threads): declined the `lastSystemIsStackedEnding` reset —
+  a [1] that fits on a stacked [2]'s line leaves that system the one the
+  alignment pass slides, so it keeps `%%stretchlast 1` (pinned; the
+  suggestion fails the pin). Fixed the session phrase's `sectionMap`: it
+  was the flatten's, so the band's section-final bars sat a bar late after
+  a skipped pickup, a head-less session was mapped from the wrong origin,
+  and choruses after the first had no sections (d5ea949e).
+- Round 2 (two outside-diff items, no threads): `|:|[2` doubled barline,
+  and a wrap of the [1] after a stacked [2] kept the stretch on a one-bar
+  last line — both valid, fixed (68550223). Round 3 clean.
+- Rate limited twice (34, 32 min); waited, re-asked, single push each time.
+- Environment: Docker Desktop crashed mid-e2e (engine hung, then its VM
+  restarted and stopped every container). Its credential helper then hung,
+  stalling every docker.io metadata fetch — even from the Colima VM, since
+  the CLI asks `docker-credential-desktop` for Docker Hub. Workaround that
+  worked: `DOCKER_CONFIG=<tmp, no credsStore, cliPluginsExtraDirs>` +
+  `DOCKER_HOST=<colima socket>`; Andy then asked for a Docker Desktop
+  restart, which cleared it. Local Supabase restarted on request: stuck
+  image pulls (CLI 2.122.0 wanted new studio/meta images) were killed and
+  re-pulled directly, data intact, 41 migrations.
+- Open: one unit test failed twice in full-suite runs under load and
+  passed on rerun; not caught (five clean runs since, three concurrent).
+- Merged as 1aa9cefc.
+
+## 2026-10-26 — The intermittent unit failure: a prune test tied on Date.now()
+
+- Andy asked for the one unit test that failed twice in full runs (and
+  passed on rerun) to be found and fixed. Both failures had been tailed,
+  so nothing named it; CircleCI's per-test results for the last 16 unit
+  jobs held no failures either.
+- 16 full runs under double load: clean. The JSON durations ruled out a
+  timeout (the slowest test, 3.4 s, has a 15 s budget).
+- Found by reading the sleeps: `tune-pdf-store`'s prune test sleeps 1 ms
+  between saves "for deterministic ordering"; `audio-store`'s does not.
+  The store stamps `Date.now()` and prunes the oldest; up to ~9 saves land
+  in one millisecond, ties fall back to IndexedDB key order, and
+  'session-10' < 'session-5'. A tie run spanning session-4…session-10
+  prunes the wrong five. The original file failed 4/40 with exactly
+  "expected [ Array(300) ] to not include 'session-4'"; run filtered to
+  that one test it failed 0/25 — the earlier tests in the file warm the
+  store up, which is what makes the saves fast enough to tie.
+- Fix (test only, d1334d39): the test drives `Date.now` a second per call.
+  0/40 after; a frozen clock still turns it red. No store change: two takes
+  are never saved in one millisecond.
