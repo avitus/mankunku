@@ -3270,3 +3270,21 @@ Andy wrote "barlines". The picture showed a missing staff and a missing
 opening barline. A player names what they see in their own words, and
 they aren't the engraver's terms. Look at the picture before choosing
 what to fix.
+
+## 2026-10-25 — "Display only" stops being true when a rule leans on it
+
+The focus projection was documented, twice, as display only: never
+scheduled, never persisted. That was true of its EFFECTS and false of
+its role — the same change removed the preparation bar on the grounds
+that the next take is already on screen, which made the projection a
+precondition of the timing. Its edge case was then defined by success
+("the takes still needed if every one clears"), so the one moment the
+precondition failed was a failure: the player stuck at the target. A
+test even named the assumption ("the take being played is the last
+one") and pinned it. When a margin is removed because something else
+covers it, the covering thing inherits the margin's job, and its edges
+need the same scrutiny the margin had — most of all edges reached only
+by the outcome the feature exists to handle. Andy's own description
+("after a triple sheet music rotation") pointed at the sheet, but the
+sheet was only the usual way to stay at the target; I'd have chased the
+engraving cost if I had taken the clue as the cause.

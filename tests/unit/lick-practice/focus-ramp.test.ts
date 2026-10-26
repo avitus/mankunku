@@ -54,6 +54,9 @@ import type { PitchClass, Phrase } from '$lib/types/music';
 import type { Score } from '$lib/types/scoring';
 import type { TrickParameters } from '$lib/types/tricks';
 import { settings } from '$lib/state/settings.svelte';
+import { render } from 'svelte/server';
+import UpcomingKeysDisplay from '$lib/components/lick-practice/UpcomingKeysDisplay.svelte';
+import { INSTRUMENTS } from '$lib/types/instruments';
 
 const store = new Map<string, string>();
 vi.stubGlobal('localStorage', {
@@ -491,10 +494,12 @@ describe('focus takes on the stack', () => {
 		expect(stack()).toEqual({ current: 88, below: range(89, 100) });
 	});
 
-	it('the target take has nothing under it; its clear keeps the once-more handoff, tagged, with the next key untagged', () => {
+	it('the target take has its next take under it; its clear keeps the once-more handoff, tagged, with the next key untagged', () => {
 		startSingleLickSession(seedTwelveKeyLick(), { focusKey: 'D' });
 		for (let round = 1; round <= 10; round++) clearRotation();
-		expect(stack()).toEqual({ current: SAVED_TEMPO, below: [] });
+		// Whatever the target take scores, the focus key comes again at the
+		// target: the once-more after a clear, another try after a miss.
+		expect(stack()).toEqual({ current: SAVED_TEMPO, below: [SAVED_TEMPO] });
 
 		clearRotation();
 		expect(lickPractice.ramp?.phase).toBe('handoff');
@@ -507,6 +512,81 @@ describe('focus takes on the stack', () => {
 		expect(lickPractice.ramp?.phase).toBe('rebuild');
 		expect(getPlannedKeysForLick(0).map((row) => row.tempo)).toEqual([undefined, undefined]);
 		expect(getFocusProjectionRows(0)).toEqual([]);
+	});
+
+	it('2026-10-25: a missed sheet take at the target is drawn under it before it joins on the downbeat', () => {
+		// Andy's recommended drill: twice the stack emptied after a three-pass
+		// sheet take and the next take appeared on the downbeat it had to be
+		// played on. The take at the target had nothing drawn under it — the
+		// projection listed only the takes still needed if every one cleared.
+		startSingleLickSession(seedTwelveKeyLick(), { focusKey: 'D' });
+		for (let round = 1; round <= 10; round++) clearRotation();
+		expect(lickPractice.currentTempo).toBe(SAVED_TEMPO);
+		// Three takes under gold at the target bring the sheet back, with its bar.
+		for (const score of [0.85, 0.85, 0.85]) {
+			play('D', score);
+			advanceSingleLickRound();
+		}
+		expect(getPlannedKeysForLick(0)[0]).toMatchObject({ reveal: true, passes: 3, tempo: SAVED_TEMPO });
+		expect(getKeyPauses(0)).toEqual([1]);
+
+		// A held sheet take, then a sub-floor one: each next take joins with no
+		// bar, so its row must already be on the stack.
+		for (const [score, nextTempo] of [[0.85, SAVED_TEMPO], [0.6, 97]] as const) {
+			expect(getFocusProjectionRows(0)[0]).toMatchObject({ key: 'D', reveal: true, passes: 3 });
+			play('D', score);
+			advanceSingleLickRound();
+			expect(isFocusTake()).toBe(true);
+			expect(lickPractice.currentTempo).toBe(nextTempo);
+			expect(getKeyPauses(0)).toEqual([0]);
+		}
+	});
+
+	it('2026-10-25: the stack under a take at the target holds its next take, through the cycle end too', () => {
+		startSingleLickSession(seedTwelveKeyLick(), { focusKey: 'D' });
+		for (let round = 1; round <= 10; round++) clearRotation();
+		// A missed take at the target: the next one is the target again.
+		play('D', 0.85);
+		advanceSingleLickRound();
+		for (const scrollFraction of [0, 0.5, 1]) {
+			const { body } = render(UpcomingKeysDisplay, { props: {
+				deep: true, currentBeat: 0, isPlaying: true, isRecording: true, scrollFraction,
+				instrument: INSTRUMENTS['tenor-sax'],
+				cue: { phase: 'play' as const, next: null, beatsUntilNext: null, countdown: 0 },
+				plannedKeys: getPlannedKeysForLick(0),
+				projectedRows: getFocusProjectionRows(0)
+			} });
+			const drawn = body.split('<div class="row ').slice(1);
+			expect(drawn.map((row) => row.match(/data-key="([^"]+)"/)?.[1])).toEqual(['D', 'D']);
+			expect(drawn.map((row) => row.match(/data-testid="row-tempo">(\d+) BPM/)?.[1])).toEqual(
+				[String(SAVED_TEMPO), String(SAVED_TEMPO)]
+			);
+			expect(drawn.map((row) => /^[^"]*\bcurrent\b/.test(row))).toEqual([true, false]);
+		}
+	});
+
+	it('never joins a focus take on the downbeat unless it was drawn under the take before it', () => {
+		startSingleLickSession(seedTwelveKeyLick(), { focusKey: 'D' });
+		// Clears up to the target, a hold and a step down there, the climb
+		// back, three misses that bring the sheet, a held and a sub-floor sheet
+		// take — every boundary the staircase has short of the target clear.
+		const scores = [
+			...Array.from({ length: 10 }, () => 0.97), 0.85, 0.6, 0.97, 0.97, 0.97,
+			0.85, 0.85, 0.85, 0.85, 0.6
+		];
+		let joinsAtTarget = 0;
+		for (const score of scores) {
+			const atTarget = lickPractice.currentTempo === SAVED_TEMPO;
+			const drawn = getFocusProjectionRows(0).some((row) => row.key === 'D');
+			play('D', score);
+			advanceSingleLickRound();
+			expect(isFocusTake()).toBe(true);
+			if (getKeyPauses(0)[0] === 0) {
+				expect(drawn, `the take after ${score} at ${atTarget ? 'the target' : 'a step'}`).toBe(true);
+				if (atTarget) joinsAtTarget++;
+			}
+		}
+		expect(joinsAtTarget).toBeGreaterThanOrEqual(3);
 	});
 
 	it('projected rows look like the current take: a sheet take projects sheet takes', () => {

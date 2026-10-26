@@ -228,6 +228,7 @@ export const progressMeta = $state<ProgressMeta>(loaded.meta);
 // objects bypasses Svelte's proxies, leaving rendered counts and saved caches stale.
 let summaryMap = new Map<string, DailySummary>(dailySummaries.map((s) => [s.date, s]));
 
+/** Add a new day's summary to the reactive list and index the stored proxy, not the raw input, by date. */
 function appendSummary(summary: DailySummary): void {
 	dailySummaries.push(summary);
 	// Read back through $state before indexing; the input is still a raw object.

@@ -6045,3 +6045,38 @@ monitor whether it results in faster CI times."
   returns); ran the sandbox on the Colima test VM with a credential-free
   DOCKER_CONFIG (memory: reference_e2e_sandbox_docker_desktop_hang).
   Worktree needed `npm ci` (coverage-reporter package) and `.env` for check.
+
+## 2026-10-25 — Focus drill: a missed take at the target appeared on its own downbeat
+
+- Andy, after the report's recommended drill: twice the screen cleared
+  and he had to play the first beat of a chart as it appeared, "after a
+  triple sheet music rotation". Asked for diagnosis first, then a fix.
+- Sentry: nothing in 24 h, so a logic gap. Cause: yesterday's no-bar
+  join (87c7f2b5) relies on the next take being drawn under the current
+  one, but `projectFocusTempos` lists the takes needed "if every one
+  clears" and is empty AT the target. A target take that misses (hold or
+  step down) stays in `focus`, so the next take joins with no bar and its
+  row is first drawn at that downbeat; Deep parks the active row at the
+  top, so under the target take the viewport was empty. The sheet case:
+  golds climb (and drop the sheet), three misses at the target bring it
+  back with its bar, and every missed sheet take after that hits the gap.
+  The pinned unit test called the target take "the last one"; the e2e
+  never reaches the target (the mock mic scores poorly).
+- Fix (approved plan): `getFocusProjectionRows` never returns an empty
+  list in a focus phase — at the target it draws one row at the target,
+  which is true for a clear (the once-more) and a miss (another try).
+  `projectFocusTempos` kept pure. Tests: the incident (held + sub-floor
+  sheet take at the target) and an invariant loop — no focus take joins
+  with 0 bars unless it was drawn — both red before the fix. Andy then
+  asked for comprehensive coverage: a render test feeding the real state
+  at the target into the real stack (the planned hand-built-rows version
+  could not fail, the display being unchanged), and an e2e whose lick is
+  saved at 50 BPM — the tempo floor, so the 10% ease-in clamps back and
+  the drill opens AT its target; the silent mic misses, the step down
+  clamps too. With the fix reverted it reproduced the incident: next take
+  joined on the sheet with nothing under the current take for all 1,740
+  sampled frames. Every new test mutation-checked red.
+  The first sandbox run never ran: the image build died on a Docker
+  metadata lease error; `docker pull` of the base image, then fine.
+- Docs: state machines §4 + table + regression list, user guide, state
+  and component API, AGENTS.md.

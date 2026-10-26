@@ -231,7 +231,7 @@ A row whose `PlannedKey.reveal` is set (the key being learned — the most recen
 | `scoreFlash` | `{ key, score, at, cycle? }?` | Tier-colored score chip flashed on the matching key's latest row at or above the current one — the row of the take's own `cycle` when it is still on screen (a finished focus take scrolling out above the next take of its key), never an upcoming occurrence |
 | `daily` / `deep` | `boolean?` | Daily, or either Deep entry path: sheets engraved from the outset and current-action cues; Deep also parks the active row at the top and scrolls finished rows out |
 | `nextCycleKey` | `PlannedKey \| null?` | The promised first key of the next cycle, drawn under a handoff repeat. Display only |
-| `projectedRows` | `PlannedKey[]?` | Focus-ramp takes still to come (`getFocusProjectionRows`), drawn under the current take with their `tempo` tags. Display only: the stack holds on the cycle's own last row, and a projected sheet row below the viewport is not engraved |
+| `projectedRows` | `PlannedKey[]?` | Focus-ramp takes still to come (`getFocusProjectionRows` — never empty under a focus take, one row at the target under the target take), drawn under the current take with their `tempo` tags. Display only: the stack holds on the cycle's own last row, and a projected sheet row below the viewport is not engraved |
 | `precedingKey` | `PlannedKey \| null?` | Deep: the finished row carried into a rebuilt stack for its upward scroll (`precedingCycleRow`) |
 | `instrument` | `InstrumentConfig` | Used for written-pitch chord and key labels |
 
