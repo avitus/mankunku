@@ -294,7 +294,8 @@ interface TuneAbcOptions {
   mode?: Mode;                // How to read sheet.key: 'minor' draws the relative
                               // major's signature and prints K:Dm (default 'major')
   stretchLast?: boolean;      // Stretch the last system to the full staff width
-                              // (default false — short systems stay short)
+                              // (default false — short systems stay short; a
+                              // stacked [2] that ends the tune is stretched anyway)
   measureNumbers?: boolean;   // Measure number at each system start (default true)
 }
 ```
