@@ -180,10 +180,21 @@ describe('pruning', () => {
 	});
 
 	it('prunes oldest recordings beyond MAX_RECORDINGS', async () => {
-		for (let i = 0; i < MAX_RECORDINGS + 5; i++) {
-			await saveRecording(`session-${i}`, makeBlob(), {
-				metadata: makeMetadata({ phraseId: `phrase-${i}` })
-			});
+		// One second between saves. "Oldest" is the record's Date.now() stamp,
+		// and back-to-back saves share a millisecond up to ~9 at a time; a tie
+		// falls back to key order, where 'session-10' sorts before
+		// 'session-5', so a run tied across session-4…session-10 pruned the
+		// wrong five (an intermittent full-suite failure, 2026-10-25/26).
+		let clock = Date.now();
+		const now = vi.spyOn(Date, 'now').mockImplementation(() => (clock += 1_000));
+		try {
+			for (let i = 0; i < MAX_RECORDINGS + 5; i++) {
+				await saveRecording(`session-${i}`, makeBlob(), {
+					metadata: makeMetadata({ phraseId: `phrase-${i}` })
+				});
+			}
+		} finally {
+			now.mockRestore();
 		}
 
 		const summaries = await getAllRecordingSummaries();
