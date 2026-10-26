@@ -5998,9 +5998,9 @@ monitor whether it results in faster CI times."
 - Practice decides the pickup from the session's FIRST played bar (head
   bar 0, or the solo pass's first without a head), so a Head-off session
   that opens on the silent pickup bar is counted through it too.
-- Found, not fixed (offered): a repeat-free practice session's appended
-  chorus re-plays the pickup bar — a dead bar between the head and the
-  solos, and before every extra chorus. The desk's loop already skips it.
+- Found alongside: a repeat-free practice session's appended chorus
+  re-played the pickup bar — a dead bar between the head and the solos,
+  and before every extra chorus. The desk's loop already skipped it.
 - Production's Black Orpheus (read-only query): one 33-bar "A" with an
   in-section [1,4] pickup and its first chord (A-) at bar 1, so the band
   sits the pickup bar out on both surfaces and the fix applies as stored.
@@ -6080,3 +6080,23 @@ monitor whether it results in faster CI times."
   metadata lease error; `docker pull` of the base image, then fine.
 - Docs: state machines §4 + table + regression list, user guide, state
   and component API, AGENTS.md.
+- Andy: fix it. `soloPassPickupBars(sheet, flat)` reads whether the solo
+  pass opens on a pickup bar (a repeat-free form's bar 0, or a pickup a
+  whole-form repeat replays — formLoopRegion's `replaysPickup` case);
+  `pickupBars` drops it from every practice chorus in `buildSessionPhrase`
+  and moves windows a bar sooner in `buildSessionPlan` (one subtraction in
+  `leadTicks`, chorus spacing `T - soloStartBar`); `practiceStartBar`
+  includes it, so the playhead maps each chorus onto bar 1. Window
+  offsets keep their frames — they are only ever read relatively — so
+  every existing pin held. Head off now opens on bar 1, so that session no
+  longer counts through a pickup (the earlier test flipped on purpose).
+- The setup e2e caught one the unit corpus didn't: When the Saints writes
+  its C6 from the pickup bar, so the solo pass's skip filtered the vamp
+  window that started there (5 → 4 windows) — and, under the new count,
+  the practice band was playing that pickup bar too. `clearPickupBarHarmony`
+  moves a chord in the opening pickup bar to bar 1 (drops one that sounds
+  only there, with its provenance), so the band sits the pickup out under
+  the count as on the desk, and the window survives a bar shorter.
+- Validation: unit suite 414 files green, check clean, tune-practice e2e
+  13/13 and the A-Train endings e2e 3/3 on Chromium in the sandbox (two
+  more sandbox image builds died on Docker errors first and were rerun).

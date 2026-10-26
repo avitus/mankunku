@@ -3288,3 +3288,5 @@ by the outcome the feature exists to handle. Andy's own description
 ("after a triple sheet music rotation") pointed at the sheet, but the
 sheet was only the usual way to stay at the target; I'd have chased the
 engraving cost if I had taken the clue as the cause.
+The appended practice chorus was the third reader, fixed the same day;
+the desk's form loop had learned it (2026-10-22) by a different route.

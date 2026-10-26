@@ -729,7 +729,9 @@ Pure planning + accumulation logic behind the runes wrapper above. Plain module 
 |---|---|
 | `buildSessionPlan(deps: BuildPlanDeps)` | Detected progressions → `InsertionPoint[]`, carrying both timelines, transport open/close ticks, ranked suggestions, and a `markerKey` grouping repeat occurrences |
 | `headBarsForFlat(flat) → { headBars, formRepeats }` | The jazz form rule — decides head length from the **expanded section map**, never raw repeat markers, which imports express inconsistently; a form outline needs a tail SHORTER than the pass it follows, so an internal repeat like `\|: A :\| B A` or `\|: A :\| B` with a B as long as the A (Autumn Leaves) is not one |
-| `buildSessionPhrase(args)` | Head chorus (melody once) + melody-free solo material; appends a duplicate chorus on repeat-free charts |
+| `buildSessionPhrase(args)` | Head chorus (melody once) + melody-free solo material; appends a duplicate chorus on repeat-free charts; with `pickupBars` every practice chorus runs bar 1 to the end |
+| `clearPickupBarHarmony(sheet, flat)` | The playback flatten with no chord in a pickup bar a session opens on (the form's first bar, and the solo pass's when a whole-form repeat replays the pickup): a chord written from the pickup bar (When the Saints' C6) sounds from bar 1, a chord only in it is dropped with its provenance, a mid-form pickup is left alone; returns `flat` itself when nothing changes |
+| `soloPassPickupBars(sheet, flat)` | 1 when the solo pass opens on a pickup bar (a repeat-free form's bar 0, or a pickup a whole-form repeat replays), else 0 — the bars a practice chorus skips, since a band plays the pickup once, with the head |
 | `assignSuggestRotation(plan)` | Least-used-first lick rotation per progression type |
 | `strictnessKnobs(strictness)` | Maps strictness onto existing pipeline knobs only — listening is identical at every level; only `cueLevel` differs |
 | `windowCandidates(suggestions, pickedIndex, cueLevel)` | The answers a window accepts: the named lick alone at `'lick'`, every fitting suggestion otherwise |

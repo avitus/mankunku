@@ -120,6 +120,12 @@ export interface BuildPlanDeps {
 	suggestionLimit?: number;
 	/** Bars of drum count-in before the tune (drum-count-in.ts); absent = 1. */
 	countInBars?: number;
+	/**
+	 * Pickup bars at the front of the solo pass (`soloPassPickupBars`). A
+	 * practice chorus skips them — a band plays the pickup once, with the
+	 * head — so its windows run a bar sooner. Absent = 0.
+	 */
+	pickupBars?: number;
 }
 
 const EPSILON = 1e-9;
@@ -302,21 +308,27 @@ export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
 	const barTicks = timeSignature[0] * ppq;
 	const barWholeNotes = timeSignature[0] / timeSignature[1];
 	const head = deps.head;
+	const pickupBars = deps.pickupBars ?? 0;
+	// Where a practice chorus starts on the detection timeline: after a head
+	// pass that lives inside it, and after a pickup bar it skips.
+	const soloStartBar = (head && head.mode !== 'shift' ? head.bars : 0) + pickupBars;
 	// Ticks before the practice timeline's own zero: the count-in, plus
 	// the head chorus when it is an appended-duplicate ('shift') head. A
 	// 'filter' head lives INSIDE the detection timeline, so only the count-in
-	// shifts.
+	// shifts. A skipped pickup bar is absent from the session, so everything
+	// after it plays a bar sooner.
 	const leadTicks = (deps.countInBars ?? 1) * barTicks + (head?.mode === 'shift' ? head.bars * barTicks :
-		head?.mode === 'skip' ? -head.bars * barTicks : 0);
+		head?.mode === 'skip' ? -head.bars * barTicks : 0) - pickupBars * barTicks;
 	const formEndTick = leadTicks + flat.totalBars * barTicks;
 	const ticksOf = (f: Fraction) => Math.round(fractionToFloat(f) * 4 * ppq);
 
 	let detections = [...detect(flat)].sort(
 		(a, b) => compareFractions(a.startOffset, b.startOffset) || a.type.localeCompare(b.type)
 	);
-	if (head && head.mode !== 'shift') {
-		// Detections inside the head pass are heard, not practiced.
-		const boundary = head.bars * barWholeNotes;
+	if (soloStartBar > 0) {
+		// Detections inside the head pass, or in a pickup bar the solo pass
+		// skips, are heard, not practiced.
+		const boundary = soloStartBar * barWholeNotes;
 		detections = detections.filter((det) => fractionToFloat(det.startOffset) >= boundary - EPSILON);
 	}
 
@@ -432,7 +444,7 @@ export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
 			closeTick
 		};
 	});
-	const chorusBars = flat.totalBars - (head && head.mode !== 'shift' ? head.bars : 0);
+	const chorusBars = flat.totalBars - soloStartBar;
 	return Array.from({ length: normalizeChoruses(deps.choruses) }, (_, chorus) => {
 		const bars = chorus * chorusBars;
 		// A skipped head is absent from the practice timeline, including the
@@ -517,6 +529,62 @@ export function headBarsForFlat(flat: FlattenedTune): { headBars: number; formRe
 }
 
 /**
+ * Pickup bars at the front of the solo pass — 1 when it opens on a pickup bar,
+ * else 0. The solo pass starts the form again (after a whole-form repeat's
+ * head pass, or as an appended chorus), and a band plays a pickup once, on
+ * the way in: coming round, bar 1 follows the last bar (the desk's form loop,
+ * `formLoopRegion`; Andy, 2026-10-25 — a practice chorus that kept the pickup
+ * bar dropped the band out for a bar after the head and before every chorus).
+ */
+export function soloPassPickupBars(sheet: Pick<Tune, 'sections' | 'timeSignature'>, flat: FlattenedTune): number {
+	const { headBars, formRepeats } = headBarsForFlat(flat);
+	const chartBar = notationBarForPlaybackBar(flat.sectionMap, sheet.sections, formRepeats ? headBars : 0);
+	return chartBar !== null && isInPickupLeadIn(sheet, chartBar) ? 1 : 0;
+}
+
+/**
+ * The playback flatten with no chord in a pickup bar a session opens on —
+ * the form's first bar, and the solo pass's when a whole-form repeat replays
+ * the pickup. The band sits a pickup out, as on the desk, where it never
+ * plays that bar: the pickup is the melody's, over the count. A chord the
+ * chart writes from the pickup bar (When the Saints' C6) sounds from bar 1,
+ * so the window it opens survives the solo chorus skipping the bar; a chord
+ * only in the pickup bar is dropped with its provenance. A pickup mid-form is
+ * left alone — the band plays on through it. Returns `flat` itself when
+ * nothing changes.
+ */
+export function clearPickupBarHarmony(sheet: Pick<Tune, 'sections' | 'timeSignature'>, flat: FlattenedTune): FlattenedTune {
+	const barDuration: Fraction = [sheet.timeSignature[0], sheet.timeSignature[1]];
+	const barWholeNotes = sheet.timeSignature[0] / sheet.timeSignature[1];
+	const { headBars, formRepeats } = headBarsForFlat(flat);
+	const leadIns = (formRepeats ? [0, headBars] : [0]).filter((bar) => {
+		const chartBar = notationBarForPlaybackBar(flat.sectionMap, sheet.sections, bar);
+		return chartBar !== null && isInPickupLeadIn(sheet, chartBar);
+	});
+	if (leadIns.length === 0) return flat;
+	let changed = false;
+	const harmony: HarmonicSegment[] = [];
+	const segmentSourceIndices: number[] = [];
+	flat.harmony.forEach((h, i) => {
+		const startBar = fractionToFloat(h.startOffset) / barWholeNotes;
+		const leadIn = leadIns.find((bar) => startBar > bar - EPSILON && startBar < bar + 1 - EPSILON);
+		let kept: HarmonicSegment | null = h;
+		if (leadIn !== undefined) {
+			changed = true;
+			const barOne = multiplyFraction(barDuration, leadIn + 1);
+			const end = addFractions(h.startOffset, h.duration);
+			kept = compareFractions(end, barOne) > 0
+				? { ...h, chord: { ...h.chord }, startOffset: barOne, duration: subtractFractions(end, barOne) }
+				: null;
+		}
+		if (!kept) return;
+		harmony.push(kept);
+		if (i < flat.segmentSourceIndices.length) segmentSourceIndices.push(flat.segmentSourceIndices[i]);
+	});
+	return changed ? { ...flat, harmony, segmentSourceIndices } : flat;
+}
+
+/**
  * The audio material for a session: an optional head chorus (the written
  * melody, played ONCE — see `headBarsForFlat`) followed by melody-free solo
  * material. On a whole-form-repeat chart the expanded timeline already holds
@@ -530,6 +598,8 @@ function buildSingleChorusPhrase(args: {
 	flat: FlattenedTune;
 	timeSignature: [number, number];
 	playHead: boolean;
+	/** Pickup bars at the front of the solo pass, which it skips (`soloPassPickupBars`). */
+	pickupBars?: number;
 }): {
 	notes: Note[];
 	harmony: HarmonicSegment[];
@@ -538,19 +608,14 @@ function buildSingleChorusPhrase(args: {
 	duplicatedForm: boolean;
 } {
 	const { flat, timeSignature, playHead } = args;
+	const pickupBars = args.pickupBars ?? 0;
 	const barDuration: Fraction = [timeSignature[0], timeSignature[1]];
 	const barWholeNotes = timeSignature[0] / timeSignature[1];
 	const harmony = flat.harmony.map((h) => ({ ...h, chord: { ...h.chord } }));
 	const { headBars, formRepeats } = headBarsForFlat(flat);
 	if (!playHead) {
-		const start = formRepeats ? headBars : 0;
-		const boundary = multiplyFraction(barDuration, start);
-		const practice = harmony.flatMap((h) => {
-			const end = addFractions(h.startOffset, h.duration);
-			if (compareFractions(end, boundary) <= 0) return [];
-			const from = compareFractions(h.startOffset, boundary) < 0 ? boundary : h.startOffset;
-			return [{ ...h, startOffset: subtractFractions(from, boundary), duration: subtractFractions(end, from) }];
-		});
+		const start = (formRepeats ? headBars : 0) + pickupBars;
+		const practice = harmonyFrom(harmony, multiplyFraction(barDuration, start), [0, 1]);
 		return { notes: [], harmony: practice, phraseBars: flat.totalBars - start, headBars: 0, duplicatedForm: false };
 	}
 	if (formRepeats) {
@@ -560,29 +625,64 @@ function buildSingleChorusPhrase(args: {
 		const notes = flat.notes
 			.filter((n) => fractionToFloat(n.offset) < boundary - EPSILON)
 			.map((n) => ({ ...n }));
-		return { notes, harmony, phraseBars: flat.totalBars, headBars, duplicatedForm: false };
+		if (pickupBars === 0) {
+			return { notes, harmony, phraseBars: flat.totalBars, headBars, duplicatedForm: false };
+		}
+		// A pickup the repeat replays opens the solo pass again: drop that bar,
+		// so the solo pass follows the head's last bar with its bar 1.
+		const headEnd = multiplyFraction(barDuration, headBars);
+		const head = harmony.flatMap((h) => {
+			if (compareFractions(h.startOffset, headEnd) >= 0) return [];
+			const end = addFractions(h.startOffset, h.duration);
+			return [compareFractions(end, headEnd) > 0 ? { ...h, duration: subtractFractions(headEnd, h.startOffset) } : h];
+		});
+		const solo = harmonyFrom(harmony, multiplyFraction(barDuration, headBars + pickupBars), headEnd);
+		return { notes, harmony: [...head, ...solo], phraseBars: flat.totalBars - pickupBars, headBars, duplicatedForm: false };
 	}
-	const shift = multiplyFraction(barDuration, flat.totalBars);
-	const practiceChorus = flat.harmony.map((h) => ({
-		...h,
-		chord: { ...h.chord },
-		startOffset: addFractions(h.startOffset, shift)
-	}));
+	// The appended chorus runs from bar 1: the pickup is played once, with the head.
+	const practiceChorus = harmonyFrom(
+		flat.harmony,
+		multiplyFraction(barDuration, pickupBars),
+		multiplyFraction(barDuration, flat.totalBars)
+	);
 	return {
 		notes: flat.notes.map((n) => ({ ...n })),
 		harmony: [...harmony, ...practiceChorus],
-		phraseBars: flat.totalBars * 2,
+		phraseBars: flat.totalBars * 2 - pickupBars,
 		headBars,
 		duplicatedForm: true
 	};
 }
 
-/** Repeat only the practice material; the optional head always plays once. */
+/**
+ * The harmony from whole-note offset `from` on, a chord sounding across it
+ * clipped there, moved so that `from` lands on `to`.
+ */
+function harmonyFrom(harmony: readonly HarmonicSegment[], from: Fraction, to: Fraction): HarmonicSegment[] {
+	return harmony.flatMap((h) => {
+		const end = addFractions(h.startOffset, h.duration);
+		if (compareFractions(end, from) <= 0) return [];
+		const start = compareFractions(h.startOffset, from) < 0 ? from : h.startOffset;
+		return [{
+			...h,
+			chord: { ...h.chord },
+			startOffset: addFractions(to, subtractFractions(start, from)),
+			duration: subtractFractions(end, start)
+		}];
+	});
+}
+
+/**
+ * Repeat only the practice material; the optional head always plays once. A
+ * pickup is part of the head alone: every practice chorus runs bar 1 to the
+ * end (`pickupBars`, from `soloPassPickupBars`).
+ */
 export function buildSessionPhrase(args: {
 	flat: FlattenedTune;
 	timeSignature: [number, number];
 	playHead: boolean;
 	choruses?: number;
+	pickupBars?: number;
 }): ReturnType<typeof buildSingleChorusPhrase> {
 	const built = buildSingleChorusPhrase(args);
 	const chorusBars = built.phraseBars - built.headBars;

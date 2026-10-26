@@ -36,10 +36,12 @@ import {
 	assignSuggestRotation,
 	buildSessionPhrase,
 	buildSessionPlan,
+	clearPickupBarHarmony,
 	normalizeChoruses,
 	headBarsForFlat,
 	notationBarForPlaybackBar,
 	resolvePickedSuggestion,
+	soloPassPickupBars,
 	windowCandidates,
 	windowLabel,
 	type CueLevel,
@@ -114,7 +116,11 @@ export interface TunePracticeAudioPlan {
 	 * `countIn.pickup`). The bar stays the form's bar 0: no tick moves.
 	 */
 	countInPickup: boolean;
-	/** Start of the solo pass within the original expanded chart. */
+	/**
+	 * Start of the solo pass within the original expanded chart: after a
+	 * whole-form repeat's head pass, and after a pickup bar, which only the
+	 * head plays (`soloPassPickupBars`).
+	 */
 	practiceStartBar: number;
 	/**
 	 * The EFFECTIVE head decision (`config.playHead && hasMelody`). Consumers
@@ -266,7 +272,7 @@ export interface SessionPreview {
  * tags. Chart markers dedupe repeat occurrences by markerKey.
  */
 export function previewSessionPlan(sheet: Tune, playHead: boolean, choruses = 1): SessionPreview {
-	const flat = flattenTune(sheet, { expandRepeats: true });
+	const flat = clearPickupBarHarmony(sheet, flattenTune(sheet, { expandRepeats: true }));
 	const notationFlat = flattenTune(sheet);
 	const hasMelody = flat.notes.some((n) => n.pitch !== null);
 	const effectiveHead = playHead && hasMelody;
@@ -277,6 +283,7 @@ export function previewSessionPlan(sheet: Tune, playHead: boolean, choruses = 1)
 		timeSignature: sheet.timeSignature,
 		ppq: 480,
 		choruses,
+		pickupBars: soloPassPickupBars(sheet, flat),
 		head: formRepeats
 			? { bars: headBars, mode: effectiveHead ? 'filter' : 'skip' }
 			: effectiveHead ? { bars: headBars, mode: 'shift' } : undefined,
@@ -325,7 +332,10 @@ export function startTunePracticeSession(sheet: Tune, ppq: number): TunePractice
 		sheet.key === tunePractice.config.concertKey
 			? sheet
 			: transposeTune(sheet, tunePractice.config.concertKey);
-	const { phrase, flat } = tuneToPhraseWithFlat(transposed, { expandRepeats: true });
+	const expanded = tuneToPhraseWithFlat(transposed, { expandRepeats: true });
+	const phrase = expanded.phrase;
+	// The band sits the pickup bar out; its chord, if the chart writes one, sounds from bar 1.
+	const flat = clearPickupBarHarmony(transposed, expanded.flat);
 	const notationFlat = flattenTune(transposed);
 	const matcherDeps = buildLickMatcherDeps(transposed, getInstrument());
 
@@ -337,15 +347,18 @@ export function startTunePracticeSession(sheet: Tune, ppq: number): TunePractice
 
 	const { headBars, formRepeats } = headBarsForFlat(flat);
 	const choruses = tunePractice.config.choruses;
-	const built = buildSessionPhrase({ flat, timeSignature: transposed.timeSignature, playHead, choruses });
+	// A pickup is played once, with the head; every practice chorus runs bar 1 to the end.
+	const pickupBars = soloPassPickupBars(transposed, flat);
+	const built = buildSessionPhrase({ flat, timeSignature: transposed.timeSignature, playHead, choruses, pickupBars });
 	const countInBars = countInBarsForTempo(tunePractice.config.tempo);
-	const practiceStartBar = formRepeats ? headBars : 0;
+	const practiceStartBar = (formRepeats ? headBars : 0) + pickupBars;
 	// The played phrase opens on the head's first bar, or without a head on
 	// the solo pass's first; the count runs on when that bar is a pickup.
 	const firstChartBar = notationBarForPlaybackBar(flat.sectionMap, transposed.sections, playHead ? 0 : practiceStartBar);
 	const countInPickup = firstChartBar !== null && isInPickupLeadIn(transposed, firstChartBar);
 	const plan = buildSessionPlan({
 		countInBars,
+		pickupBars,
 		flat,
 		notationFlat,
 		timeSignature: transposed.timeSignature,
