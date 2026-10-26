@@ -160,7 +160,7 @@ describe('isInPickupLeadIn', () => {
 	});
 
 	it('measures the lead-in in the meter: two of a 3/4 bar\'s three beats', async () => {
-		const { AMAZING_GRACE } = await import('$lib/data/tunes/amazing-grace');
+		const { AMAZING_GRACE } = await import('../../fixtures/tunes/amazing-grace');
 		expect(isInPickupLeadIn(AMAZING_GRACE, 0.66)).toBe(true);
 		expect(isInPickupLeadIn(AMAZING_GRACE, 0.67)).toBe(false);
 	});
@@ -196,10 +196,10 @@ describe('pickupLengthOptions', () => {
 	});
 });
 
-describe('curated charts', () => {
+describe('the charts that shipped curated until 2026-10-25', () => {
 	it('carry their pickups explicitly (in-section, so the legacy rule cannot see them)', async () => {
-		const { AMAZING_GRACE } = await import('$lib/data/tunes/amazing-grace');
-		const { WHEN_THE_SAINTS } = await import('$lib/data/tunes/when-the-saints');
+		const { AMAZING_GRACE } = await import('../../fixtures/tunes/amazing-grace');
+		const { WHEN_THE_SAINTS } = await import('../../fixtures/tunes/when-the-saints');
 		expect(resolvePickupLength(AMAZING_GRACE, 0)).toEqual([1, 4]); // 3/4: "A-" on beat 3
 		expect(resolvePickupLength(WHEN_THE_SAINTS, 0)).toEqual([3, 4]); // "Oh when the" on 2-3-4
 	});

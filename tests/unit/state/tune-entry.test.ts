@@ -584,8 +584,8 @@ describe('pickup bar', () => {
 
 	/**
 	 * An import whose rehearsal mark sits ON the anacrusis bar: the section
-	 * builder keeps the pickup inside the labelled section (as the curated
-	 * Amazing Grace / Saints charts are entered) — not a lone '' section.
+	 * builder keeps the pickup inside the labelled section (as the Amazing
+	 * Grace / Saints fixture charts are entered) — not a lone '' section.
 	 */
 	function embeddedPickupSheet(): Tune {
 		return {

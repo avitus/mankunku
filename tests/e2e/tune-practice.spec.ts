@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test, expect } from './fixtures/test';
-import { seedOnboardedAnonymous, seedStorage, seedTunes, seedUserLicks } from './fixtures/storage';
+import { SAINTS_USER_TUNE, seedOnboardedAnonymous, seedStorage, seedTunes, seedUserLicks } from './fixtures/storage';
 import { installAudioMock, stubCdnInstrumentSamples } from './fixtures/audio';
 
 const autumnLeavesFixture = JSON.parse(
@@ -153,9 +153,10 @@ test.describe('tune practice setup', () => {
 		page,
 		consoleCollector: _consoleCollector
 	}) => {
-		await page.goto('/tunes/ls-when-the-saints');
+		await seedTunes(page, [SAINTS_USER_TUNE]);
+		await page.goto('/tunes/e2e-when-the-saints');
 		await page.getByRole('button', { name: /practice licks/i }).click();
-		// Links carry the title slug; the curated `ls-` id still resolves too.
+		// Links carry the title slug; the minted id still resolves too.
 		await expect(page).toHaveURL(/\/tunes\/when-the-saints-go-marching-in\/practice$/);
 
 		await expect(page.getByRole('heading', { name: /practice licks/i })).toBeVisible();
@@ -173,7 +174,8 @@ test.describe('tune practice setup', () => {
 	});
 
 	test('choruses range from 1 to 12 and update the planned insertion count', async ({ page }) => {
-		await page.goto('/tunes/ls-when-the-saints/practice');
+		await seedTunes(page, [SAINTS_USER_TUNE]);
+		await page.goto('/tunes/e2e-when-the-saints/practice');
 		const choruses = page.getByRole('slider', { name: /^choruses$/i });
 		await expect(choruses).toHaveAttribute('aria-valuenow', '1');
 		await expect(choruses).toHaveAttribute('aria-valuemin', '1');
@@ -221,7 +223,8 @@ test.describe('tune practice setup', () => {
 		page,
 		consoleCollector: _consoleCollector
 	}) => {
-		await page.goto('/tunes/ls-when-the-saints/practice');
+		await seedTunes(page, [SAINTS_USER_TUNE]);
+		await page.goto('/tunes/e2e-when-the-saints/practice');
 		const head = page.getByRole('switch', { name: /play the head first/i });
 		const modes = page.getByRole('radiogroup', { name: 'Mode', exact: true });
 		// The play-the-head option applies to every mode.
@@ -301,7 +304,8 @@ test.describe('tune practice setup', () => {
 			const parsed = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
 			window.localStorage.setItem(key, JSON.stringify({ ...parsed, backingTrackEnabled: false }));
 		});
-		await page.goto('/tunes/ls-when-the-saints/practice');
+		await seedTunes(page, [SAINTS_USER_TUNE]);
+		await page.goto('/tunes/e2e-when-the-saints/practice');
 
 		const backing = page.getByRole('switch', { name: /backing track this session/i });
 		const style = page.getByRole('radiogroup', { name: 'Backing style', exact: true });
@@ -359,7 +363,8 @@ test.describe('tune practice setup', () => {
 			MediaDevices.prototype.getUserMedia = () =>
 				Promise.reject(new DOMException('Permission denied', 'NotAllowedError'));
 		});
-		await page.goto('/tunes/ls-when-the-saints/practice');
+		await seedTunes(page, [SAINTS_USER_TUNE]);
+		await page.goto('/tunes/e2e-when-the-saints/practice');
 		const start = page.getByRole('button', { name: /^start$/i });
 		await expect(start).toBeEnabled();
 		await start.click();
@@ -516,10 +521,11 @@ test.describe.serial('tune practice session follow-scroll', () => {
 		test.setTimeout(150_000);
 
 		await seedOnboardedAnonymous(page);
+		await seedTunes(page, [SAINTS_USER_TUNE]);
 		await installAudioMock(page);
 		await stubCdnInstrumentSamples(page);
 
-		await page.goto('/tunes/ls-when-the-saints/practice');
+		await page.goto('/tunes/e2e-when-the-saints/practice');
 		await expect(page.getByRole('button', { name: /^start$/i })).toBeVisible();
 
 		await page

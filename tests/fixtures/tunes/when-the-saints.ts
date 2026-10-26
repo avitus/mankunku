@@ -5,6 +5,10 @@ import type { Tune } from '$lib/types/tune';
  * 16-bar single-section form in concert C, lightly simplified. Bar 1 is the
  * three-beat pickup ("Oh when the"), engraved as a partial bar via
  * `pickupLength`.
+ *
+ * Shipped in the curated catalog until 2026-10-25, when Andy cut it to
+ * Mankunku Blues and Rhythm Changes; kept as a test fixture — the tune
+ * practice e2e seeds it as the player's own tune (`SAINTS_USER_TUNE`).
  */
 export const WHEN_THE_SAINTS: Tune = {
 	id: 'ls-when-the-saints',

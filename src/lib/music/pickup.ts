@@ -24,7 +24,7 @@ import { compareFractions, fractionToFloat, gcd, subtractFractions } from './int
  *     `pickupBars ?? detectPickupBars` for licks).
  *
  * Everything else (a labelled section whose first bar is a padded pickup,
- * as the curated Amazing Grace / Saints charts are entered) needs the field.
+ * as the Amazing Grace / Saints test charts are entered) needs the field.
  */
 
 const EPS = 1e-9;

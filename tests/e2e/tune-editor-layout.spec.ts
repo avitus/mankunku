@@ -63,17 +63,17 @@ test('undo and redo preserve notes, composer and the original tune identity',asy
 });
 
 test('editing a curated copy leaves the original intact and creates a new user tune',async({page})=>{
- await page.goto('/tunes/ls-when-the-saints');
+ await page.goto('/tunes/ls-rhythm-changes');
  await expect(page.locator('.abcjs-container svg').first()).toBeVisible();
  await page.getByRole('button',{name:'Edit a copy',exact:true}).click();
- await expect(page.getByRole('textbox',{name:'Tune title'})).toHaveValue('When the Saints Go Marching In');
- await page.getByRole('textbox',{name:'Tune title'}).fill('Saints arrangement');
+ await expect(page.getByRole('textbox',{name:'Tune title'})).toHaveValue('Rhythm Changes');
+ await page.getByRole('textbox',{name:'Tune title'}).fill('Rhythm arrangement');
  await page.getByRole('button',{name:'Save tune',exact:true}).click();
- await page.waitForURL('**/tunes/saints-arrangement');
+ await page.waitForURL('**/tunes/rhythm-arrangement');
  const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('mankunku:user-tunes')||'[]'));
- expect(saved).toHaveLength(1);expect(saved[0].id).not.toBe('ls-when-the-saints');
- await page.goto('/tunes/ls-when-the-saints');
- await expect(page.getByRole('heading',{name:'When the Saints Go Marching In',exact:true})).toBeVisible();
+ expect(saved).toHaveLength(1);expect(saved[0].id).not.toBe('ls-rhythm-changes');
+ await page.goto('/tunes/ls-rhythm-changes');
+ await expect(page.getByRole('heading',{name:'Rhythm Changes',exact:true})).toBeVisible();
  await expect(page.getByRole('button',{name:'Edit a copy',exact:true})).toBeVisible();
 });
 

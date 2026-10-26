@@ -9,7 +9,7 @@ A tune in Mankunku is a chart you can read, hear, transpose to any key, and then
 Open **Tunes** in the nav and you get two shelves:
 
 - **Your book** — everything you charted by hand, imported, or adopted from the community. Adopted charts carry an **Adopted** badge and *shared by* the player who shared them.
-- **Curated tunes** — the charts that ship with the app (*When the Saints Go Marching In*, *Amazing Grace*, *Mankunku Blues*); their pages carry a **Curated** badge.
+- **Curated tunes** — the two charts that ship with the app, both written for it: *Mankunku Blues* and *Rhythm Changes*; their pages carry a **Curated** badge.
 
 One search box filters both shelves at once, matching on title, composer, style, or tag. The buttons at the top right: **Browse Community** (charts other players have shared), **+ Add a tune**, a *How your songbook works* tour link, and a docs link.
 
