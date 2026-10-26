@@ -3239,3 +3239,34 @@ the readers of the padded dimension, not just the writers, and give them
 one predicate (`isInPickupLeadIn`) rather than letting each rediscover it.
 The open instance is the appended practice chorus; the desk's form loop
 already learned it (2026-10-22) by a different route.
+
+## 2026-10-25 — A selector is an assertion about someone else's output
+
+The stacked-[2] pass has said "beams" in its header comment, in both of
+its selector lists and in its line-art branch since July, and in all that
+time it never touched a beam: abcjs draws `path.abcjs-beam-elem`, and
+`g.abcjs-beam` matched nothing. Nothing failed, because a selector that
+matches nothing is a no-op, and no chart had a beamed pair in a stacked
+[2]. The same afternoon `getBBox()` turned out to leave out the element's
+own transform, so the chord nudge measured chords where abcjs put them,
+not where the drop pass had moved them. Both are the 2026-09-16 lesson in
+a new costume: code that reads the DOM is making claims about markup and
+geometry it doesn't own, and those claims fail as no-ops or measure the
+wrong thing. The cheap guard is an e2e that asserts the selector matches
+on a chart known to contain the thing. I've added that for beams; the
+triplet branch still has none (no stacked [2] with a triplet exists).
+
+The curated catalog had been the engraver's visual corpus without anyone
+calling it that. Three simple charts covered three shapes, and the first
+render of a fourth, busier one turned up two latent faults and a third in
+the spelling chain (a dim7's seventh written as a sixth, visible in
+Mankunku Blues since July). Cutting the catalog to two makes each chart
+carry more, so I wrote Rhythm Changes to be dense on purpose: beamed
+eighths in a mid-tune stacked [2], a bar of high eighths under two
+chords, a diminished arpeggio. It's worth thinking of each curated chart
+as a test that happens to be music.
+
+Andy wrote "barlines". The picture showed a missing staff and a missing
+opening barline. A player names what they see in their own words, and
+they aren't the engraver's terms. Look at the picture before choosing
+what to fix.

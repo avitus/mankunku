@@ -6008,3 +6008,40 @@ monitor whether it results in faster CI times."
   13/13 on Chromium in the sandbox (the first sandbox build died on a
   Docker "lease does not exist" error; the retry ran). Each new test was
   red before the fix.
+
+## 2026-10-25 — Mankunku Blues' second ending; two curated tunes
+
+- Andy: Mankunku Blues "is missing barlines in the second repeat"; fix
+  and push to dev. Also: only two curated tunes, the current Mankunku
+  Blues and a Rhythm Changes to be added.
+- Reproduced in the e2e sandbox (screenshot + DOM geometry): the stacked
+  [2] is the chart's LAST system, which `%%stretchlast 0` leaves at its
+  natural width (staff 87–425 px), and the alignment pass slid its bars to
+  590–865 px, past the staff's end, with nothing marking where the ending
+  begins. Take the A Train's mid-tune [2] had its staff (abcjs stretches
+  every system but the last) but no opening barline either.
+- Fix: `%%stretchlast 1` when a stacked [2] ends the tune (a wrapped [2]
+  excepted); every stacked [2] opens on `|[2`, a barline the pass moves
+  under [1]'s. Unit tests (red without, mutation-checked) + an e2e over
+  both tunes (red without: staff 425 vs ink 873; barline 171 px off).
+- Rhythm Changes: an original head in concert Bb, |: A(6) [1](2) :| [2](2)
+  B(8) A(8) — riff A over I-vi-ii-V / iii-VI-ii-V, IV7 to E°7, a sequenced
+  dominant-cycle bridge; range A3–Eb5 like Mankunku's. The form rule reads
+  the whole AABA as the head. Saints and Amazing Grace moved to
+  `tests/fixtures/tunes/` (pickup and detector tests); the tune-practice
+  e2e seeds Saints as the player's own tune per test (`SAINTS_USER_TUNE`;
+  the first seed of a key wins); curated-behaviour specs moved to the two
+  curated tunes; `curated-data.test.ts` pins the two titles.
+- The new chart's first render exposed three older faults, fixed test-first:
+  stacked-[2] beams never moved (`g.abcjs-beam` matches nothing; abcjs draws
+  `path.abcjs-beam-elem`) → `endingLineArtTransform` carries every beam,
+  tie, slur and triplet-bracket end with its note; the chord nudge measured
+  chords without their drop and counted ink a spacing below as a collision,
+  shoving bar 4's chords to the barline → measure as drawn, real overlap
+  only; a dim7's seventh spelled as a sixth (E°7's Db as C#, and Mankunku
+  Blues' B°7 Ab as G# since July) → the seventh's letter, the sixth's when
+  that needs a double flat (Db°7 on tenor).
+- Environment: Docker Desktop hung (API 500s, credential helper never
+  returns); ran the sandbox on the Colima test VM with a credential-free
+  DOCKER_CONFIG (memory: reference_e2e_sandbox_docker_desktop_hang).
+  Worktree needed `npm ci` (coverage-reporter package) and `.env` for check.
