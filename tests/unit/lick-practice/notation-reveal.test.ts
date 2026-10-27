@@ -19,6 +19,7 @@ import {
 	startSingleLickSession,
 	startTrickSession,
 	recordKeyAttempt,
+	startInterLickTransition,
 	advanceSingleLickRound,
 	getCurrentKey,
 	getPlannedKey,
@@ -30,7 +31,7 @@ import {
 	resetSession
 } from '$lib/state/lick-practice.svelte';
 import { LEAD_SHEET_PASSES } from '$lib/state/lick-practice-rotation';
-import { bumpUnlockedKeyCount, updateKeyProgress } from '$lib/persistence/lick-practice-store';
+import { bumpUnlockedKeyCount, updateKeyProgress, getUnlockedKeyCount, loadLickPracticeProgress } from '$lib/persistence/lick-practice-store';
 import { trickVariantKey, type TrickParameters } from '$lib/types/tricks';
 import { settings } from '$lib/state/settings.svelte';
 import type { PitchClass, Phrase } from '$lib/types/music';
@@ -463,5 +464,63 @@ describe('planned rows carry the reveal decision', () => {
 		expect(rows.length).toBeGreaterThan(0);
 		seedRolling(trickVariantKey('enclosures', E1_PARAMS), { [rows[0].key]: 0.2 });
 		expect(getPlannedKeysForLick(0).every((pk) => pk.reveal === false)).toBe(true);
+	});
+});
+
+
+describe('Daily unlocks require the newest key from memory', () => {
+	function daily(rollingScore: number, memoryPassCount = 2, passCount = 20) {
+		const lick = makeLick('C', 'memory-gate');
+		lickPractice.progress = {
+			[lick.id]: { C: { currentTempo: 80, lastPracticedAt: 1, passCount, memoryPassCount, rollingScore } }
+		};
+		startSingleLickSession(lick);
+		lickPractice.mode = 'standard';
+		return lick.id;
+	}
+
+	it.each(['continuous', 'call-response'] as const)('sheet-assisted final pass cannot count or unlock in %s', (mode) => {
+		lickPractice.config.practiceMode = mode;
+		const id = daily(0.7, 3);
+		expect(getPlannedKeysForLick(0)[0].reveal).toBe(true);
+		recordKeyAttempt(makeScore(1));
+		// The EWMA has recovered, but the sheet stays visible for this take.
+		expect(lickPractice.progress[id]?.C?.rollingScore).toBeGreaterThan(0.75);
+		expect(loadLickPracticeProgress()[id]?.C?.memoryPassCount).toBe(3);
+		expect(lickPractice.progress[id]?.C?.passCount).toBe(21);
+		startInterLickTransition();
+		expect(getUnlockedKeyCount(lickPractice.progress, id)).toBe(1);
+	});
+
+	it('unlocks on the third qualifying memory pass at exactly 90%', () => {
+		const id = daily(0.9);
+		expect(getPlannedKeysForLick(0)[0].reveal).toBe(false);
+		recordKeyAttempt(makeScore(0.9));
+		expect(loadLickPracticeProgress()[id]?.C?.memoryPassCount).toBe(3);
+		startInterLickTransition();
+		expect(getUnlockedKeyCount(lickPractice.progress, id)).toBe(2);
+	});
+
+	it('does not infer memory passes from legacy pass counts', () => {
+		const id = daily(0.9);
+		delete lickPractice.progress[id]!.C!.memoryPassCount;
+		recordKeyAttempt(makeScore(1));
+		startInterLickTransition();
+		expect(getUnlockedKeyCount(lickPractice.progress, id)).toBe(1);
+		expect(lickPractice.progress[id]?.C?.memoryPassCount).toBe(1);
+	});
+
+	it.each([0.899, undefined])('requires a fresh newest-key pass despite strong older keys (score=%s)', (score) => {
+		const id = daily(0.9, 4);
+		bumpUnlockedKeyCount(lickPractice.progress, id);
+		lickPractice.plan[0].keys = ['C', 'G'];
+		lickPractice.progress[id]!.G = { currentTempo: 80, lastPracticedAt: 1, passCount: 20, memoryPassCount: 4, rollingScore: 0.9 };
+		recordKeyAttempt(makeScore(1));
+		if (score !== undefined) {
+			lickPractice.currentKeyIndex = 1;
+			recordKeyAttempt(makeScore(score));
+		}
+		startInterLickTransition();
+		expect(getUnlockedKeyCount(lickPractice.progress, id)).toBe(2);
 	});
 });

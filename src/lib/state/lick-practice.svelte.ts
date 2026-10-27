@@ -8,8 +8,9 @@
  * key-signature order — fewest sharps or flats as the player reads them,
  * sharp before flat on a tie (see `planUnlockedKeys`). The unlock gate
  * requires both a strong session (avg score ≥ `UNLOCK_AVG_THRESHOLD`) and
- * consolidation on the most-recently-unlocked key (`passCount >=
- * UNLOCK_PASSES_REQUIRED`); see `shouldUnlockNextKey`. Once a lick has
+ * consolidation from memory on the most-recently-unlocked key
+ * (`memoryPassCount >= UNLOCK_PASSES_REQUIRED`) plus a fresh unaided pass.
+ * See `shouldUnlockNextKey`. Once a lick has
  * earned all 12 keys, `planLickKeys` takes over for staged variety (random
  * starts, chromatic / whole-tone orderings) keyed off the lick's current
  * tempo.
@@ -178,8 +179,8 @@ export type { NextStep, NextStepAction } from './lick-practice-next-steps';
 
 /**
  * Per-key pass bar — score at or above which a key counts as "passed"
- * (increments `passCount`, drives the green tier in the UI, feeds the
- * unlock gate's per-key consolidation requirement). Aliased from
+ * (increments `passCount` and drives the green tier in the UI). Only
+ * unaided passes also increment `memoryPassCount` for unlocking. Aliased from
  * `KEY_PROFICIENT_THRESHOLD` so the proficient bar, the pass bar, and
  * the green-tier color all share one source of truth.
  */
@@ -1952,7 +1953,7 @@ export function getProgressionBars(): number {
  * Record the result of the current key attempt silently — does not change
  * the session phase. The bar-aligned scheduler in the session page drives
  * phase transitions; this function only updates keyResults and writes
- * per-key progress for passed attempts.
+ * per-key progress for every attempt.
  */
 export function recordKeyAttempt(score: Score, sessionId?: string): void {
 	const item = getCurrentPlanItem();
@@ -1960,6 +1961,9 @@ export function recordKeyAttempt(score: Score, sessionId?: string): void {
 	if (!item || !key) return;
 
 	const passed = score.overall >= PASS_THRESHOLD;
+	// Freeze the same reveal decision the chart uses BEFORE updating EWMA.
+	// A successful sheet take may hide notation next cycle, never retroactively.
+	const passedFromMemory = passed && !revealFor(item, key);
 
 	const result: LickPracticeKeyResult = {
 		key,
@@ -1999,7 +2003,7 @@ export function recordKeyAttempt(score: Score, sessionId?: string): void {
 		// because updateKeyProgress merges over getKeyProgress's 100-BPM
 		// default: an implicit write on a failed first attempt would seed a
 		// brand-new lick at 100 and override the 60-BPM new-lick tempo.
-		// passCount stays pass-gated.
+		// Total passes and unaided passes have separate counters.
 		const prev = lickPractice.progress[item.phraseId]?.[key];
 		// Deep practice must not ratchet the lick's stored tempo: the session
 		// opens below it and ramps, and resuming Daily Practice at that ramped
@@ -2021,7 +2025,8 @@ export function recordKeyAttempt(score: Score, sessionId?: string): void {
 				lastPracticedAt: Date.now(),
 				currentTempo: persistedTempo,
 				rollingScore: updateRollingScore(prev?.rollingScore, score.overall),
-				...(passed ? { passCount: (prev?.passCount ?? 0) + 1 } : {})
+				...(passed ? { passCount: (prev?.passCount ?? 0) + 1 } : {}),
+				...(passedFromMemory ? { memoryPassCount: (prev?.memoryPassCount ?? 0) + 1 } : {})
 			}
 		);
 		saveLickPracticeProgress(lickPractice.progress);
@@ -2091,25 +2096,21 @@ export function startInterLickTransition(): 'next-lick' | 'complete' {
 			const rawDelta = computeAutoTempoAdjustment(avgScore);
 			const delta = floorBreached ? Math.min(0, rawDelta) : rawDelta;
 
-			// Bump unlock BEFORE writing progress for this session's keys.
-			// The grandfather fallback in getUnlockedKeyCount treats a lick
-			// with any per-key progress as already at 12 — if we bumped after
-			// the writes, even a brand-new lick (just one entry-key result)
-			// would look "grandfathered" and stay capped at 12.
-			//
-			// Unlock requires a strong session AND consolidation on the
-			// most-recently-unlocked key (passCount, already updated by
-			// recordKeyAttempt during the lick) AND no per-key floor breach
-			// this session — see shouldUnlockNextKey.
+			// Unlock only after consolidation from memory on the actual newest
+			// unlocked key, plus a fresh unaided pass on it in this session.
+			// Scores on older keys cannot substitute for that final proof.
 			const unlockedCount = getUnlockedKeyCount(lickPractice.progress, item.phraseId);
-			const newestKey = item.keys[item.keys.length - 1];
+			const newestKey = planUnlockedKeys(rampForItem(item), unlockedCount)[unlockedCount - 1];
+			const newestResult = lickPractice.keyResults.findLast(result => result.key === newestKey);
+			const newestPassedFromMemory = newestResult !== undefined &&
+				newestResult.score >= PASS_THRESHOLD && !revealFor(item, newestKey);
 			const newestKeyPassCount = getKeyProgress(
 				lickPractice.progress,
 				item.phraseId,
 				newestKey
-			).passCount;
+			).memoryPassCount ?? 0;
 			const unlocked =
-				!floorBreached &&
+				!floorBreached && newestPassedFromMemory &&
 				shouldUnlockNextKey({ avgScore, newestKeyPassCount, unlockedCount });
 			if (unlocked) {
 				bumpUnlockedKeyCount(lickPractice.progress, item.phraseId);

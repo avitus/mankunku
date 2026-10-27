@@ -332,7 +332,7 @@ describe('startInterLickTransition — always-on score-weighted adjustment', () 
 
 describe('startInterLickTransition — unlock count bump', () => {
 	// `setupLick` builds `keyResults` directly without going through
-	// `recordKeyAttempt`, so the per-key `passCount` increment that normally
+	// `recordKeyAttempt`, so the per-key `memoryPassCount` increment that normally
 	// happens during the lick is bypassed. Tests that need the new unlock
 	// gate to clear must seed `progress` to reflect what `recordKeyAttempt`
 	// would have written by the time `startInterLickTransition` runs.
@@ -344,7 +344,7 @@ describe('startInterLickTransition — unlock count bump', () => {
 			plannedKeys: ['C']
 		});
 		lickPractice.progress = {
-			[LICK_ID]: { C: { currentTempo: 60, lastPracticedAt: 0, passCount: 3 } }
+			[LICK_ID]: { C: { currentTempo: 60, lastPracticedAt: 0, passCount: 3, memoryPassCount: 3 } }
 		};
 		startInterLickTransition();
 		expect(loadUnlockCounts()[LICK_ID]).toBe(2);
@@ -357,7 +357,7 @@ describe('startInterLickTransition — unlock count bump', () => {
 			plannedKeys: ['C']
 		});
 		lickPractice.progress = {
-			[LICK_ID]: { C: { currentTempo: 60, lastPracticedAt: 0, passCount: 2 } }
+			[LICK_ID]: { C: { currentTempo: 60, lastPracticedAt: 0, passCount: 2, memoryPassCount: 2 } }
 		};
 		startInterLickTransition();
 		expect(loadUnlockCounts()[LICK_ID]).toBeUndefined();
@@ -370,7 +370,7 @@ describe('startInterLickTransition — unlock count bump', () => {
 			plannedKeys: ['C']
 		});
 		lickPractice.progress = {
-			[LICK_ID]: { C: { currentTempo: 60, lastPracticedAt: 0, passCount: 5 } }
+			[LICK_ID]: { C: { currentTempo: 60, lastPracticedAt: 0, passCount: 5, memoryPassCount: 5 } }
 		};
 		startInterLickTransition();
 		expect(loadUnlockCounts()[LICK_ID]).toBeUndefined();
@@ -391,8 +391,8 @@ describe('startInterLickTransition — unlock count bump', () => {
 		});
 		lickPractice.progress = {
 			[LICK_ID]: {
-				C: { currentTempo: 80, lastPracticedAt: 0, passCount: 5 },
-				F: { currentTempo: 80, lastPracticedAt: 0, passCount: 5 }
+				C: { currentTempo: 80, lastPracticedAt: 0, passCount: 5, memoryPassCount: 5 },
+				F: { currentTempo: 80, lastPracticedAt: 0, passCount: 5, memoryPassCount: 5 }
 			}
 		};
 		startInterLickTransition();
@@ -412,11 +412,11 @@ describe('startInterLickTransition — unlock count bump', () => {
 	it('caps unlock count at 12 even when multiple qualifying sessions accumulate', () => {
 		setupLick({
 			currentTempo: 100,
-			results: [{ key: 'C', score: 0.92 }],
-			plannedKeys: ['C']
+			results: [{ key: 'Db', score: 0.92 }],
+			plannedKeys: ['C', 'Db']
 		});
 		lickPractice.progress = {
-			[LICK_ID]: { C: { currentTempo: 100, lastPracticedAt: 0, passCount: 5 } }
+			[LICK_ID]: { Db: { currentTempo: 100, lastPracticedAt: 0, passCount: 5, memoryPassCount: 5 } }
 		};
 		// Pre-seed near the cap: simulate 11 prior bumps. Storage module
 		// prefixes keys with 'mankunku:' so we write through that key.
@@ -427,11 +427,11 @@ describe('startInterLickTransition — unlock count bump', () => {
 		// A second qualifying session should not push past 12.
 		setupLick({
 			currentTempo: 100,
-			results: [{ key: 'C', score: 0.92 }],
-			plannedKeys: ['C']
+			results: [{ key: 'Db', score: 0.92 }],
+			plannedKeys: ['C', 'Db']
 		});
 		lickPractice.progress = {
-			[LICK_ID]: { C: { currentTempo: 100, lastPracticedAt: 0, passCount: 10 } }
+			[LICK_ID]: { Db: { currentTempo: 100, lastPracticedAt: 0, passCount: 10, memoryPassCount: 10 } }
 		};
 		startInterLickTransition();
 		expect(loadUnlockCounts()[LICK_ID]).toBe(12);
@@ -451,8 +451,8 @@ describe('startInterLickTransition — unlock count bump', () => {
 		// C has been around long enough to be solid; G is brand new.
 		lickPractice.progress = {
 			[LICK_ID]: {
-				C: { currentTempo: 80, lastPracticedAt: 0, passCount: 8 },
-				G: { currentTempo: 80, lastPracticedAt: 0, passCount: 1 }
+				C: { currentTempo: 80, lastPracticedAt: 0, passCount: 8, memoryPassCount: 8 },
+				G: { currentTempo: 80, lastPracticedAt: 0, passCount: 1, memoryPassCount: 1 }
 			}
 		};
 		store['mankunku:lick-unlock-count'] = JSON.stringify({ [LICK_ID]: 2 });
@@ -488,7 +488,7 @@ describe('startInterLickTransition — 10% tempo drop when a key unlocks', () =>
 			plannedKeys: ['C']
 		});
 		lickPractice.progress = {
-			[LICK_ID]: { C: { currentTempo: 100, lastPracticedAt: 0, passCount: 3 } }
+			[LICK_ID]: { C: { currentTempo: 100, lastPracticedAt: 0, passCount: 3, memoryPassCount: 3 } }
 		};
 		startInterLickTransition();
 		expect(loadUnlockCounts()[LICK_ID]).toBe(2);
@@ -508,8 +508,8 @@ describe('startInterLickTransition — 10% tempo drop when a key unlocks', () =>
 		});
 		lickPractice.progress = {
 			[LICK_ID]: {
-				C: { currentTempo: 100, lastPracticedAt: 0, passCount: 5 },
-				G: { currentTempo: 100, lastPracticedAt: 0, passCount: 3 }
+				C: { currentTempo: 100, lastPracticedAt: 0, passCount: 5, memoryPassCount: 5 },
+				G: { currentTempo: 100, lastPracticedAt: 0, passCount: 3, memoryPassCount: 3 }
 			}
 		};
 		startInterLickTransition();
@@ -527,7 +527,7 @@ describe('startInterLickTransition — 10% tempo drop when a key unlocks', () =>
 			plannedKeys: ['C']
 		});
 		lickPractice.progress = {
-			[LICK_ID]: { C: { currentTempo: 100, lastPracticedAt: 0, passCount: 2 } }
+			[LICK_ID]: { C: { currentTempo: 100, lastPracticedAt: 0, passCount: 2, memoryPassCount: 2 } }
 		};
 		startInterLickTransition();
 		expect(loadUnlockCounts()[LICK_ID]).toBeUndefined();
@@ -541,7 +541,7 @@ describe('startInterLickTransition — 10% tempo drop when a key unlocks', () =>
 			plannedKeys: ['C']
 		});
 		lickPractice.progress = {
-			[LICK_ID]: { C: { currentTempo: 54, lastPracticedAt: 0, passCount: 3 } }
+			[LICK_ID]: { C: { currentTempo: 54, lastPracticedAt: 0, passCount: 3, memoryPassCount: 3 } }
 		};
 		startInterLickTransition();
 		expect(loadUnlockCounts()[LICK_ID]).toBe(2);
@@ -560,7 +560,7 @@ describe('startInterLickTransition — slowed unlock cadence (brand-new lick wal
 		// recordKeyAttempt would have set passCount=1 by the time the
 		// transition runs; setupLick bypasses it, so seed it.
 		lickPractice.progress = {
-			[LICK_ID]: { C: { currentTempo: 60, lastPracticedAt: 0, passCount: 1 } }
+			[LICK_ID]: { C: { currentTempo: 60, lastPracticedAt: 0, passCount: 1, memoryPassCount: 1 } }
 		};
 		startInterLickTransition();
 		expect(loadUnlockCounts()[LICK_ID]).toBeUndefined();
@@ -575,7 +575,7 @@ describe('startInterLickTransition — slowed unlock cadence (brand-new lick wal
 			plannedKeys: ['C']
 		});
 		lickPractice.progress = {
-			[LICK_ID]: { C: { currentTempo: 61, lastPracticedAt: 0, passCount: 2 } }
+			[LICK_ID]: { C: { currentTempo: 61, lastPracticedAt: 0, passCount: 2, memoryPassCount: 2 } }
 		};
 		startInterLickTransition();
 		expect(loadUnlockCounts()[LICK_ID]).toBeUndefined();
@@ -588,7 +588,7 @@ describe('startInterLickTransition — slowed unlock cadence (brand-new lick wal
 			plannedKeys: ['C']
 		});
 		lickPractice.progress = {
-			[LICK_ID]: { C: { currentTempo: 62, lastPracticedAt: 0, passCount: 3 } }
+			[LICK_ID]: { C: { currentTempo: 62, lastPracticedAt: 0, passCount: 3, memoryPassCount: 3 } }
 		};
 		startInterLickTransition();
 		expect(loadUnlockCounts()[LICK_ID]).toBe(2);
@@ -604,7 +604,7 @@ describe('startInterLickTransition — slowed unlock cadence (brand-new lick wal
 			plannedKeys: ['C']
 		});
 		lickPractice.progress = {
-			[LICK_ID]: { C: { currentTempo: 60, lastPracticedAt: 0, passCount: 1 } }
+			[LICK_ID]: { C: { currentTempo: 60, lastPracticedAt: 0, passCount: 1, memoryPassCount: 1 } }
 		};
 		startInterLickTransition();
 		expect(loadUnlockCounts()[LICK_ID]).toBeUndefined();
@@ -671,9 +671,9 @@ describe('startInterLickTransition — per-key floor (KEY_FLOOR_THRESHOLD = 0.75
 		});
 		lickPractice.progress = {
 			[LICK_ID]: {
-				C: { currentTempo: 80, lastPracticedAt: 0, passCount: 5 },
-				F: { currentTempo: 80, lastPracticedAt: 0, passCount: 5 },
-				G: { currentTempo: 80, lastPracticedAt: 0, passCount: 5 }
+				C: { currentTempo: 80, lastPracticedAt: 0, passCount: 5, memoryPassCount: 5 },
+				F: { currentTempo: 80, lastPracticedAt: 0, passCount: 5, memoryPassCount: 5 },
+				G: { currentTempo: 80, lastPracticedAt: 0, passCount: 5, memoryPassCount: 5 }
 			}
 		};
 		startInterLickTransition();
@@ -694,9 +694,9 @@ describe('startInterLickTransition — per-key floor (KEY_FLOOR_THRESHOLD = 0.75
 		});
 		lickPractice.progress = {
 			[LICK_ID]: {
-				C: { currentTempo: 80, lastPracticedAt: 0, passCount: 5 },
-				F: { currentTempo: 80, lastPracticedAt: 0, passCount: 5 },
-				G: { currentTempo: 80, lastPracticedAt: 0, passCount: 5 }
+				C: { currentTempo: 80, lastPracticedAt: 0, passCount: 5, memoryPassCount: 5 },
+				F: { currentTempo: 80, lastPracticedAt: 0, passCount: 5, memoryPassCount: 5 },
+				G: { currentTempo: 80, lastPracticedAt: 0, passCount: 5, memoryPassCount: 5 }
 			}
 		};
 		startInterLickTransition();
@@ -715,7 +715,7 @@ describe('getSessionReport — names the key an unlock session adds', () => {
 			plannedKeys: ['C']
 		});
 		lickPractice.progress = {
-			[LICK_ID]: { C: { currentTempo: 100, lastPracticedAt: 0, passCount: 3 } }
+			[LICK_ID]: { C: { currentTempo: 100, lastPracticedAt: 0, passCount: 3, memoryPassCount: 3 } }
 		};
 		startInterLickTransition();
 		const lick = getSessionReport().licks[0];
@@ -736,9 +736,9 @@ describe('getSessionReport — names the key an unlock session adds', () => {
 		});
 		lickPractice.progress = {
 			[LICK_ID]: {
-				C: { currentTempo: 100, lastPracticedAt: 0, passCount: 9 },
-				G: { currentTempo: 100, lastPracticedAt: 0, passCount: 6 },
-				F: { currentTempo: 100, lastPracticedAt: 0, passCount: 3 }
+				C: { currentTempo: 100, lastPracticedAt: 0, passCount: 9, memoryPassCount: 9 },
+				G: { currentTempo: 100, lastPracticedAt: 0, passCount: 6, memoryPassCount: 6 },
+				F: { currentTempo: 100, lastPracticedAt: 0, passCount: 3, memoryPassCount: 3 }
 			}
 		};
 		store['mankunku:lick-unlock-count'] = JSON.stringify({ [LICK_ID]: 3 });
@@ -753,7 +753,7 @@ describe('getSessionReport — names the key an unlock session adds', () => {
 			plannedKeys: ['C']
 		});
 		lickPractice.progress = {
-			[LICK_ID]: { C: { currentTempo: 100, lastPracticedAt: 0, passCount: 2 } }
+			[LICK_ID]: { C: { currentTempo: 100, lastPracticedAt: 0, passCount: 2, memoryPassCount: 2 } }
 		};
 		startInterLickTransition();
 		expect(getSessionReport().licks[0].unlockedKey).toBeUndefined();
