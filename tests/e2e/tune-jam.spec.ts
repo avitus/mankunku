@@ -53,12 +53,26 @@ for (const practice of [false, true]) {
 		await page.getByRole('button', { name: practice ? 'Start' : 'Play tune', exact: true }).click();
 		const chart = page.getByTestId('tune-chord-chart');
 		await expect(chart).toBeVisible({ timeout: 30_000 });
+		await expect.poll(() => chart.locator('.tcc-bar.active').getAttribute('data-bar'), { timeout: 15_000, intervals: [50] }).toBe('4');
+		const offsets = await chart.evaluate(async element => {
+			const samples: number[] = [];
+			const end = performance.now() + 300;
+			while (performance.now() < end) {
+				samples.push(Number(element.getAttribute('data-follow-offset')));
+				await new Promise(requestAnimationFrame);
+			}
+			return samples;
+		});
+		expect(new Set(offsets.map(offset => Math.round(offset))).size).toBeGreaterThan(2);
+		expect(offsets.at(-1)!).toBeLessThan(offsets[0] - 5);
 		await expect.poll(() => chart.locator('.tcc-bar.active').getAttribute('data-bar'), { timeout: 15_000, intervals: [100] }).toBe('8');
 		await expect.poll(() => chart.evaluate(element => {
 			const active = element.querySelector('.tcc-bar.active')!.getBoundingClientRect();
 			const viewport = element.getBoundingClientRect();
-			return element.scrollTop > 0 && active.top >= viewport.top && active.bottom <= viewport.bottom;
+			return getComputedStyle(element).overflowY === 'hidden' && element.scrollTop === 0 && Number(element.getAttribute('data-follow-offset')) < 0 && active.top >= viewport.top && active.bottom <= viewport.bottom;
 		})).toBe(true);
+		await expect(page.getByText(/Solo 2 of 2/).first()).toBeVisible({ timeout: 12_000 });
+		await expect.poll(async () => Number(await chart.getAttribute('data-follow-offset'))).toBe(0);
 		await page.getByRole('button', { name: practice ? 'End' : 'Stop', exact: true }).click();
 	});
 	for (const width of [1440, 390]) {

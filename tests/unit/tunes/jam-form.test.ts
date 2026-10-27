@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Tune } from '$lib/types/tune';
+import { MANKUNKU_BLUES } from '$lib/data/tunes/mankunku-blues';
+import { flattenTune } from '$lib/tunes/flatten';
 import { jamSheets } from '$lib/tunes/jam-sheets';
 import { buildJamForm } from '$lib/tunes/jam-form';
 import { tuneChordBars } from '$lib/tunes/chord-bars';
@@ -38,8 +40,8 @@ describe('a finite jazz jam', () => {
 		expect(jam.noteSourceIndices).toEqual([0, 1, 0, 1]);
 		const sourceBar = playbackBarForSessionBar(11.5, jam.flat.totalBars, jam.headBars, jam.practiceStartBar, jam.closingStartBar, jam.outroSourceStartBar);
 		expect(notationBarForPlaybackBar(jam.closingFlat.sectionMap, jam.closingSheet.sections, sourceBar)).toBe(2.5);
-		expect(jam.sheet.sections.map(section => section.label)).toEqual(['A', 'First']);
-		expect(jam.closingSheet.sections.map(section => section.label)).toEqual(['A', 'Second']);
+		expect(jam.sheet.sections.map(section => section.label)).toEqual(['A']);
+		expect(jam.closingSheet.sections.map(section => section.label)).toEqual(['A']);
 	});
 	it('returns through the first ending on every solo, then closes through the second', () => {
 		const endings: Tune = { ...tune, sections: [
@@ -99,6 +101,18 @@ describe('a finite jazz jam', () => {
 		] };
 		expect(jamSheets(internal)).toEqual({ returning: internal, closing: internal, soloStartBar: 0 });
 		expect(buildJamForm(internal, 1).headBars).toBe(14);
+	});
+	it('flows either blues ending into bars 11 and 12 of the same form', () => {
+		const blues = { ...MANKUNKU_BLUES, sections: MANKUNKU_BLUES.sections.slice(1) };
+		const sheets = jamSheets(blues);
+		for (const [sheet, ending] of [[sheets.returning, 1], [sheets.closing, 2]] as const) {
+			expect(sheet.sections).toHaveLength(1);
+			expect(tuneChordBars(sheet)[0].bars.map(bar => bar.number)).toEqual(Array.from({ length: 12 }, (_, i) => i + 1));
+			const authored = { ...blues, sections: blues.sections.filter(section => !section.ending || section.ending === ending) };
+			expect(flattenTune(sheet).notes).toEqual(flattenTune(authored).notes);
+			expect(flattenTune(sheet).harmony).toEqual(flattenTune(authored).harmony);
+		}
+		expect(blues.sections).toHaveLength(3);
 	});
 	it('splits sustained harmony into actual chord bars', () => {
 		const bars = tuneChordBars(tune)[0].bars;
