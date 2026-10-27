@@ -1,9 +1,11 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
+	import { savedTuneDisplay, saveTuneDisplay } from '$lib/tunes/preferences';
 	import NotationDisplay, { type RangeMarker } from '$lib/components/notation/NotationDisplay.svelte';
 	import EditorIcon from '$lib/components/step-entry/EditorIcon.svelte';
 	import TourTrigger from '$lib/components/ui/TourTrigger.svelte';
 	import HelpLink from '$lib/components/ui/HelpLink.svelte';
-	import { tunePractice, setTunePracticeBacking, setTunePracticeMelody, setTunePracticeMetronome, type SessionPreview } from '$lib/state/tune-practice.svelte';
+	import { tunePractice, setTunePracticeBacking, setTunePracticeMelody, setTunePracticeMetronome, setTunePracticeStyle, type SessionPreview } from '$lib/state/tune-practice.svelte';
 	import { getInstrument } from '$lib/state/settings.svelte';
 	import { BACKING_STYLE_IDS, BACKING_STYLE_NAMES } from '$lib/audio/backing-styles';
 	import { TUNE_STYLE_DESCRIPTIONS } from '$lib/tunes/backing-style';
@@ -36,6 +38,8 @@
 
 	let chartWidth = $state(800);
 	let focus = $state(false);
+	onMount(() => { focus = savedTuneDisplay('practice-focus', false); });
+	function setFocus(enabled: boolean): void { focus = saveTuneDisplay('practice-focus', enabled); }
 	const totalBars = $derived((previewSheet ?? tune).sections.reduce((sum, section) => sum + section.bars, 0));
 	const tuneHasMelody = $derived(tune.sections.some(section => section.notes.some(note => note.pitch !== null)));
 	const startCaption = $derived(!tuneHasMelody
@@ -59,7 +63,7 @@
 	}
 </script>
 
-<svelte:window onkeydown={event => { if (event.key === 'Escape') focus = false; }} />
+<svelte:window onkeydown={event => { if (event.key === 'Escape') setFocus(false); }} />
 
 <div class="lick-editor tune-desk tune-detail studio-desk tune-practice-setup" class:tp-focus={focus}>
 	<a class="le-back" href={tunePath(tune)}><EditorIcon name="back" size={14} />{tune.title}</a>
@@ -71,7 +75,7 @@
 	<div class="td-detail-layout">
 		<div class="td-workspace">
 			<section class="le-panel td-detail-chart" aria-label="Practice chart">
-				<div class="td-score-top"><div class="td-chart-context"><strong>{tune.sections[0]?.label || '♪'}</strong><h2>Practice licks</h2><span>{totalBars} bars</span></div><button class="td-focus-button" aria-pressed={focus} onclick={() => focus = !focus}>{focus ? 'Exit focus' : '⛶ Focus'}</button></div>
+				<div class="td-score-top"><div class="td-chart-context"><strong>{tune.sections[0]?.label || '♪'}</strong><h2>Practice licks</h2><span>{totalBars} bars</span></div><button class="td-focus-button" aria-pressed={focus} onclick={() => setFocus(!focus)}>{focus ? 'Exit focus' : '⛶ Focus'}</button></div>
 				<div class="tp-insertion-status" role="status">
 					<span class="tp-status-dot" aria-hidden="true"></span>
 					<div>
@@ -106,9 +110,9 @@
 				<div class="td-tempo-control"><button aria-label="Decrease tempo" disabled={tunePractice.config.tempo <= 50 || isLoading} onclick={() => changeTempo(tunePractice.config.tempo - 5)}>−</button><div><input id="practice-tempo" type="number" min="50" max="240" value={tunePractice.config.tempo} disabled={isLoading} onchange={event => changeTempo(event.currentTarget.valueAsNumber)} /><span>BPM</span></div><button aria-label="Increase tempo" disabled={tunePractice.config.tempo >= 240 || isLoading} onclick={() => changeTempo(tunePractice.config.tempo + 5)}>+</button></div>
 				<button class="td-setting-toggle td-backing-toggle" role="switch" aria-checked={tunePractice.config.backingTrackEnabled} aria-label="Backing track" disabled={isLoading} onclick={() => setTunePracticeBacking(!tunePractice.config.backingTrackEnabled)}><strong>Backing track</strong><span>{tunePractice.config.backingTrackEnabled ? 'On' : 'Off'}<i class="td-switch" class:active={tunePractice.config.backingTrackEnabled} aria-hidden="true"></i></span></button>
 				<div class="td-saved-style" class:td-style-muted={!tunePractice.config.backingTrackEnabled}>
-					<label class="studio-label" for="practice-style">This session’s feel</label>
-					<select id="practice-style" aria-label="Backing style" value={tunePractice.config.backingStyle} disabled={!tunePractice.config.backingTrackEnabled || isLoading} onchange={event => tunePractice.config.backingStyle = event.currentTarget.value as BackingStyle}>{#each BACKING_STYLE_IDS as style}<option value={style}>{BACKING_STYLE_NAMES[style]}</option>{/each}</select>
-					<p>{TUNE_STYLE_DESCRIPTIONS[tunePractice.config.backingStyle]}</p><small>For this session only</small>
+					<label class="studio-label" for="practice-style">Practice feel</label>
+					<select id="practice-style" aria-label="Backing style" value={tunePractice.config.backingStyle} disabled={!tunePractice.config.backingTrackEnabled || isLoading} onchange={event => setTunePracticeStyle(event.currentTarget.value as BackingStyle)}>{#each BACKING_STYLE_IDS as style}<option value={style}>{BACKING_STYLE_NAMES[style]}</option>{/each}</select>
+					<p>{TUNE_STYLE_DESCRIPTIONS[tunePractice.config.backingStyle]}</p><small>Remembered for this tune</small>
 				</div>
 				<button class="td-setting-toggle" role="switch" aria-checked={tunePractice.config.melodyEnabled} aria-label="Melody" disabled={isLoading} onclick={() => setTunePracticeMelody(!tunePractice.config.melodyEnabled)}><span>Melody</span><span>{tunePractice.config.melodyEnabled ? 'On' : 'Off'}<i class="td-switch" class:active={tunePractice.config.melodyEnabled} aria-hidden="true"></i></span></button>
 				<button class="td-setting-toggle" role="switch" aria-checked={tunePractice.config.metronomeEnabled} aria-label="Metronome" disabled={isLoading} onclick={() => setTunePracticeMetronome(!tunePractice.config.metronomeEnabled)}><span>Metronome</span><span>{tunePractice.config.metronomeEnabled ? 'On' : 'Off'}<i class="td-switch" class:active={tunePractice.config.metronomeEnabled} aria-hidden="true"></i></span></button>

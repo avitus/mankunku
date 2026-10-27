@@ -1,3 +1,5 @@
+import { savedTunePracticePreferences, saveTunePracticePreferences, savedTuneKey, saveTuneKey, savedTunePracticeStyle, saveTunePracticeStyle, type TunePracticePreferences } from '$lib/tunes/preferences';
+import { tuneBackingStyle } from '$lib/tunes/backing-style';
 import { savedTunePlayback, saveTunePlayback } from '$lib/tunes/playback-preferences';
 import { jamSheets } from '$lib/tunes/jam-sheets';
 import { savedSoloChoruses, saveSoloChoruses } from '$lib/tunes/solo-choruses';
@@ -232,12 +234,33 @@ export function setTunePracticeMetronome(enabled: boolean): void {
 	tunePractice.config.metronomeEnabled = saveTunePlayback('metronome', enabled);
 }
 
+/** Restore saved choices on each visit, including a client-side return to the same tune. */
+export function restoreTunePracticeSettings(sheet: Tune): void {
+	Object.assign(tunePractice.config, savedTunePracticePreferences());
+	tunePractice.config.concertKey = savedTuneKey(sheet.id, sheet.key);
+	tunePractice.config.backingStyle = savedTunePracticeStyle(sheet.id, tuneBackingStyle(sheet, settings.tuneBackingStyles));
+	restoreTunePracticeChoruses();
+	restoreTunePracticePlaybackPreferences();
+}
+
+export function setTunePracticeOptions(options: Partial<TunePracticePreferences>): void {
+	Object.assign(tunePractice.config, options);
+	saveTunePracticePreferences(tunePractice.config);
+}
+
+export function setTunePracticeKey(key: PitchClass): void {
+	tunePractice.config.concertKey = key;
+	if (tunePractice.tuneId) saveTuneKey(tunePractice.tuneId, key);
+}
+
+export function setTunePracticeStyle(style: BackingStyle): void {
+	tunePractice.config.backingStyle = style;
+	if (tunePractice.tuneId) saveTunePracticeStyle(tunePractice.tuneId, style);
+}
+
 /** Enter the setup phase for a tune (idempotent per tune). */
 export function initTunePractice(sheet: Tune): void {
-	if (tunePractice.tuneId !== sheet.id) {
-		tunePractice.config.concertKey = sheet.key;
-	}
-	restoreTunePracticePlaybackPreferences();
+	restoreTunePracticeSettings(sheet);
 	tunePractice.tuneId = sheet.id;
 	tunePractice.tuneTitle = sheet.title;
 	tunePractice.phase = 'setup';

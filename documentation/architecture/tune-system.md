@@ -272,30 +272,28 @@ and title slugs never change the persistence key. Editing a curated copy inherit
 the personal choice. The migration adds nullable tune styles for legacy compatibility
 and an empty personal map by default; existing RLS policies continue to apply.
 
-`TunePlayer` owns the desk's local tempo, backing/melody/metronome switches and
-looping. Backing remains off by default on the listening desk. Its production
-`playPhrase` call uses the resolved style for both the band and melody feel.
-Repeat-expanded playback maps notes and the audible transport position back to
-the printed chart. Stop/navigation cancels late loads, audio and cursor updates.
+`TunePlayer` owns the desk's tempo, backing/melody/metronome switches and solo
+chorus count. The desk and tune practice play one finite head → solos → outro
+sequence through `jam-form.ts` and `jam-sheets.ts`. Returning passes use the first
+ending; the closing pass uses the second. Melody notation appears for the heads,
+with smoothly scrolling chord bars during solos. Muting melody does not remove
+heads from the form. Practice's separate Head & outro switch controls that.
+The compact editor preview retains its optional loop through `formLoopRegion`.
+Stop/navigation cancels late loads, audio and cursor updates.
 
-Every play is ONE `playPhrase` call with a `loop` region (2026-10-22), whether
-Loop is on or not. `formLoopRegion` (`tunes/form-loop.ts`) names the form: the
-whole expanded timeline, minus a bar-0 pickup in any shape `resolvePickupLength`
-knows. `audio/phrase-loop.ts` plays the pickup once as an intro Part, loops the
-form on a Tone Part, and loops the backing on the form alone, so the band comes
-in on bar 1. One tick before each return to the top, `shouldContinue` (the Loop
-switch, live) is asked; a no mutes the form and the band from the top on, lets
-the last notes ring a beat, and stops. A repeat around the whole tune outlines
-the form (`headBarsForFlat`), so there the loop goes round A + first ending and
-the region carries a `coda`, A + second ending (a pickup the repeat replays left
-out): a no starts the coda's melody Part AT that top, and its band, generated in
-advance by `prepareBackingSection` because the decision runs inside Tone's tick
-dispatch where an await would miss the downbeat. The marker counts the returns
-taken (`loopPlaybackBar`) to find the coda's bars. The first version re-ran `playPhrase` per
-pass, which put a stop, a silent lead-in bar and a trailing beat between passes
-and replayed the pickup bar. Melody events join the form by WRITTEN offset and
-are clamped inside the loop, because humanized timing can put bar 1's downbeat
-a few ticks early and Tone's looping Part cancels anything before `loopStart`.
-Style changes require stopped playback. Focus hides navigation and the right rail;
-mobile/focus settings use native modal dialogs for focus containment and Escape.
-This listening flow does not change practice scoring or session overrides.
+Tune controls are native Svelte 5 components (`TuneBandControls`, `TuneTransport`,
+`TunePracticeSetup`, and `TunePracticeOptions`), backed by runes state. Their
+local preferences use the active user's storage namespace:
+
+- `playback-preferences.ts`: backing, melody, metronome, shared by both pages.
+- `solo-choruses.ts`: solo count, shared by both pages.
+- `preferences.ts`: mode, cues and head/outro; per-tune concert key shared by
+  both pages; per-tune practice feel; harmony colors, focus views, and disclosure.
+- Tempo uses the existing `settings.tuneTempos` path; main-page backing style
+  uses the tune/personal style paths described above.
+
+Restore occurs on setup entry, including a client-side return to the same tune.
+Changes save immediately; stored keys, styles and option enums are validated.
+Practice playback and bleed evidence use the same captured audio switches.
+Style changes on the desk require stopped playback. Focus hides navigation and
+the right rail; mobile/focus settings use native dialogs and Escape exits Focus.

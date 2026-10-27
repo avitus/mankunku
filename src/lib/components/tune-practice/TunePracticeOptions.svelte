@@ -1,6 +1,11 @@
 <script lang="ts">
-	import { tunePractice, setTunePracticeChoruses } from '$lib/state/tune-practice.svelte';
+	import { onMount } from 'svelte';
+	import { savedTuneDisplay, saveTuneDisplay } from '$lib/tunes/preferences';
+	import { tunePractice, setTunePracticeChoruses, setTunePracticeOptions } from '$lib/state/tune-practice.svelte';
 	import { tooltips } from '$lib/content/tooltips';
+
+	let expanded = $state(false);
+	onMount(() => { expanded = savedTuneDisplay('practice-options-open', false); });
 
 	let { hasMelody, disabled = false }: { hasMelody: boolean; disabled?: boolean } = $props();
 	const head = $derived(hasMelody && tunePractice.config.playHead);
@@ -23,7 +28,7 @@
 	}
 </script>
 
-<details class="tp-options so-panel">
+<details class="tp-options so-panel" bind:open={expanded} ontoggle={event => saveTuneDisplay('practice-options-open', event.currentTarget.open)}>
 	<summary class="so-disclosure">
 		<span class="so-heading"><span class="so-kicker">Make it your session</span><strong>Session options</strong></span>
 		<span class="so-summary">{modeName} · {tunePractice.config.choruses} solo{tunePractice.config.choruses === 1 ? '' : 's'}<span class="so-chevron" aria-hidden="true">⌄</span></span>
@@ -40,16 +45,16 @@
 			</div>
 			{#if head}<span class="so-arrow" aria-hidden="true">→</span><div class="so-head"><span class="so-stage">03 / Out</span><strong>Head again</strong><small>Back to the melody</small></div>{/if}
 		</div>
-		<div class="so-form-footer"><button type="button" role="switch" aria-label="Play head and outro" aria-checked={head} disabled={!hasMelody} title={hasMelody ? tooltips.tunePractice.head.text : tooltips.tunePractice.headNoMelody.text} class="so-switch-row" onclick={() => tunePractice.config.playHead = !tunePractice.config.playHead}><span class="so-switch" class:on={head} aria-hidden="true"><i></i></span>Head & outro</button><span>Solo count remembered for next time</span></div>
+		<div class="so-form-footer"><button type="button" role="switch" aria-label="Play head and outro" aria-checked={head} disabled={!hasMelody} title={hasMelody ? tooltips.tunePractice.head.text : tooltips.tunePractice.headNoMelody.text} class="so-switch-row" onclick={() => setTunePracticeOptions({ playHead: !tunePractice.config.playHead })}><span class="so-switch" class:on={head} aria-hidden="true"><i></i></span>Head & outro</button><span>Settings remembered for next time</span></div>
 		{#if !hasMelody}<p class="so-note so-no-melody">This chart has no melody — straight to the changes.</p>{/if}
 		<fieldset class="so-fieldset" role="radiogroup" aria-label="Mode">
 			<legend>How do you want to play?</legend>
-			<div class="so-choices">{#each modes as mode}<label class="so-choice"><input type="radio" name="tune-practice-mode" aria-label={mode.name} value={mode.id} checked={tunePractice.config.mode === mode.id} onchange={() => tunePractice.config.mode = mode.id} /><span class="so-choice-top"><small>{mode.badge}</small><i aria-hidden="true">{tunePractice.config.mode === mode.id ? '✓' : ''}</i></span><strong>{mode.name}</strong><span>{mode.detail}</span></label>{/each}</div>
+			<div class="so-choices">{#each modes as mode}<label class="so-choice"><input type="radio" name="tune-practice-mode" aria-label={mode.name} value={mode.id} checked={tunePractice.config.mode === mode.id} onchange={() => setTunePracticeOptions({ mode: mode.id })} /><span class="so-choice-top"><small>{mode.badge}</small><i aria-hidden="true">{tunePractice.config.mode === mode.id ? '✓' : ''}</i></span><strong>{mode.name}</strong><span>{mode.detail}</span></label>{/each}</div>
 		</fieldset>
 		{#if tunePractice.config.mode !== 'freestyle'}
 			<fieldset class="so-fieldset so-cues" role="radiogroup" aria-label="Chart cues">
 				<legend>What should the chart tell you?</legend>
-				<div class="so-cue-options">{#each cues as cue}<label><input type="radio" name="tune-practice-cues" aria-label={cue.name} value={cue.id} checked={tunePractice.config.strictness === cue.id} onchange={() => tunePractice.config.strictness = cue.id} /><span class="so-radio" aria-hidden="true"></span><span><strong>{cue.name}</strong><small>{cue.detail}</small></span></label>{/each}</div>
+				<div class="so-cue-options">{#each cues as cue}<label><input type="radio" name="tune-practice-cues" aria-label={cue.name} value={cue.id} checked={tunePractice.config.strictness === cue.id} onchange={() => setTunePracticeOptions({ strictness: cue.id })} /><span class="so-radio" aria-hidden="true"></span><span><strong>{cue.name}</strong><small>{cue.detail}</small></span></label>{/each}</div>
 				<p class="so-note">{tunePractice.config.strictness === 'guided' ? 'A familiar phrase at each matching spot. Just follow the chart.' : tunePractice.config.strictness === 'standard' ? 'Only the progression is named. Any fitting lick from your book counts.' : 'No lick names or progression cues. Any fitting lick from your book counts.'}</p>
 			</fieldset>
 		{:else}

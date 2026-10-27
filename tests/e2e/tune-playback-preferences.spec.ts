@@ -1,7 +1,22 @@
+import type { Page } from '@playwright/test';
 import { test, expect } from './fixtures/test';
 import { SAINTS_USER_TUNE, seedOnboardedAnonymous, seedTunes } from './fixtures/storage';
 
-test.beforeEach(async ({ page }) => { await seedOnboardedAnonymous(page); });
+test.beforeEach(async ({ page }) => {
+	test.setTimeout(60_000);
+	await seedOnboardedAnonymous(page);
+});
+
+async function practiceReady(page: Page): Promise<void> {
+	await expect(page).toHaveURL(/\/tunes\/[^/]+\/practice$/);
+	// Let the route finish loading its audio modules before navigating away.
+	await expect(page.getByRole('button', { name: 'Start', exact: true })).toBeEnabled();
+}
+
+async function reloadTunePage(page: Page): Promise<void> {
+	await page.reload();
+	if (page.url().endsWith('/practice')) await practiceReady(page);
+}
 
 test('playback choices survive navigation and reload on both tune pages', async ({
 	page,
@@ -18,6 +33,7 @@ test('playback choices survive navigation and reload on both tune pages', async 
 	});
 	await seedTunes(page, [SAINTS_USER_TUNE]);
 	await page.goto('/tunes/e2e-when-the-saints/practice');
+	await practiceReady(page);
 	await page.locator('details.tp-options summary').click();
 
 	const expectChoices = async (backing: boolean, melody: boolean, metronome: boolean) => {
@@ -60,9 +76,10 @@ test('playback choices survive navigation and reload on both tune pages', async 
 	await expect(page).toHaveURL(/\/tunes\/when-the-saints-go-marching-in$/);
 	await expectChoices(true, false, true);
 	await page.getByRole('button', { name: /practice licks/i }).click();
+	await practiceReady(page);
 	await expect(page.getByRole('heading', { name: /practice licks/i })).toBeVisible();
 	await expectChoices(true, false, true);
-	await page.reload();
+	await reloadTunePage(page);
 	await expectChoices(true, false, true);
 	await page.getByRole('link', { name: /when the saints go marching in/i }).click();
 	await expect(page).toHaveURL(/\/tunes\/when-the-saints-go-marching-in$/);
@@ -71,9 +88,72 @@ test('playback choices survive navigation and reload on both tune pages', async 
 	await melody.click();
 	await metronome.click();
 	await expectChoices(false, true, false);
-	await page.reload();
+	await reloadTunePage(page);
 	await expectChoices(false, true, false);
 	await page.getByRole('button', { name: /practice licks/i }).click();
+	await practiceReady(page);
 	await expectChoices(false, true, false);
 });
 
+
+test('all practice choices and tune key survive reloads and return visits', async ({ page }) => {
+	await seedTunes(page, [SAINTS_USER_TUNE]);
+	await page.goto('/tunes/e2e-when-the-saints/practice');
+	await practiceReady(page);
+	await page.locator('details.tp-options summary').click();
+	await page.getByRole('radio', { name: 'Play for points', exact: true }).check();
+	await page.getByRole('radio', { name: 'No cues', exact: true }).check();
+	await page.getByRole('switch', { name: 'Play head and outro', exact: true }).click();
+	await page.getByRole('spinbutton', { name: 'Solo choruses', exact: true }).fill('3');
+	await page.getByRole('spinbutton', { name: 'Solo choruses', exact: true }).blur();
+	await page.getByRole('spinbutton', { name: 'Tempo', exact: true }).fill('135');
+	await page.getByRole('spinbutton', { name: 'Tempo', exact: true }).blur();
+	await page.getByLabel('Key', { exact: true }).selectOption('Eb');
+	const backing = page.getByRole('switch', { name: 'Backing track', exact: true });
+	if (await backing.getAttribute('aria-checked') !== 'true') await backing.click();
+	await page.getByRole('combobox', { name: 'Backing style', exact: true }).selectOption('ballad');
+	await reloadTunePage(page);
+	await expect(page.locator('details.tp-options')).toHaveAttribute('open', '');
+	await expect(page.getByRole('radio', { name: 'Play for points', exact: true })).toBeChecked();
+	await expect(page.getByRole('radio', { name: 'No cues', exact: true })).toBeChecked();
+	await expect(page.getByRole('switch', { name: 'Play head and outro', exact: true })).toHaveAttribute('aria-checked', 'false');
+	await expect(page.getByRole('spinbutton', { name: 'Solo choruses', exact: true })).toHaveValue('3');
+	await expect(page.getByRole('spinbutton', { name: 'Tempo', exact: true })).toHaveValue('135');
+	await expect(page.getByLabel('Key', { exact: true })).toHaveValue('Eb');
+	await expect(page.getByRole('combobox', { name: 'Backing style', exact: true })).toHaveValue('ballad');
+
+	await page.getByRole('link', { name: /when the saints go marching in/i }).click();
+	await expect(page).toHaveURL(/\/tunes\/when-the-saints-go-marching-in$/);
+	await expect(page.getByLabel('Key', { exact: true })).toHaveValue('Eb');
+	await expect(page.getByRole('spinbutton', { name: 'Tempo', exact: true })).toHaveValue('135');
+	await page.getByLabel('Key', { exact: true }).selectOption('A');
+	await reloadTunePage(page);
+	await expect(page.getByLabel('Key', { exact: true })).toHaveValue('A');
+	await page.getByRole('button', { name: /practice licks/i }).click();
+	await practiceReady(page);
+	await expect(page.getByLabel('Key', { exact: true })).toHaveValue('A');
+	await expect(page.getByRole('combobox', { name: 'Backing style', exact: true })).toHaveValue('ballad');
+	await expect(page.getByRole('radio', { name: 'No cues', exact: true })).toBeChecked();
+});
+
+test('chart display choices persist while focus remains escapable', async ({ page }) => {
+	await seedTunes(page, [SAINTS_USER_TUNE]);
+	await page.goto('/tunes/e2e-when-the-saints');
+	const colors = page.getByRole('button', { name: 'Harmony colors', exact: true });
+	await colors.click();
+	await page.getByRole('button', { name: /⛶ Focus/ }).click();
+	await reloadTunePage(page);
+	await expect(colors).toHaveAttribute('aria-pressed', 'false');
+	await expect(page.getByRole('button', { name: 'Exit focus', exact: true })).toHaveAttribute('aria-pressed', 'true');
+	await page.keyboard.press('Escape');
+	await reloadTunePage(page);
+	await expect(page.getByRole('button', { name: /⛶ Focus/ })).toHaveAttribute('aria-pressed', 'false');
+	await page.getByRole('button', { name: /practice licks/i }).click();
+	await practiceReady(page);
+	await page.getByRole('button', { name: /⛶ Focus/ }).click();
+	await reloadTunePage(page);
+	await expect(page.getByRole('button', { name: 'Exit focus', exact: true })).toHaveAttribute('aria-pressed', 'true');
+	await page.keyboard.press('Escape');
+	await reloadTunePage(page);
+	await expect(page.getByRole('button', { name: /⛶ Focus/ })).toHaveAttribute('aria-pressed', 'false');
+});

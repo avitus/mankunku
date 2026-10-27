@@ -32,6 +32,8 @@
 		updateElapsedTime,
 		resetTunePractice,
 		restoreTunePracticePlaybackPreferences,
+		restoreTunePracticeSettings,
+		setTunePracticeKey,
 		pickSuggestion,
 		suggestionNameFor,
 		buildFreestyleBook,
@@ -345,6 +347,7 @@
 
 	onMount(async () => {
 		restoreTunePracticeChoruses();
+		if (baseSheet) restoreTunePracticeSettings(baseSheet);
 		// Re-entering the same tune keeps this state module alive; reload the
 		// preference here too, in case it changed on the main tune page.
 		restoreTunePracticePlaybackPreferences();
@@ -852,7 +855,7 @@
 
 	function selectWrittenKey(pc: PitchClass) {
 		selectedWrittenKey = pc;
-		tunePractice.config.concertKey = writtenKeyToConcert(pc, getInstrument());
+		setTunePracticeKey(writtenKeyToConcert(pc, getInstrument()));
 	}
 </script>
 

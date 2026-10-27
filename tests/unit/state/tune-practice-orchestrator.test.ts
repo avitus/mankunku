@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { Score } from '$lib/types/scoring';
 import type { InsertionPoint } from '$lib/state/tune-practice-plan';
 import {
@@ -9,7 +9,8 @@ import {
 	markWindowOpen,
 	recordWindowResult,
 	completeTunePracticeSession,
-	resetTunePractice
+	resetTunePractice,
+	setTunePracticeKey
 } from '$lib/state/tune-practice.svelte';
 import { sheet } from '../../helpers/tune-fixtures';
 
@@ -32,7 +33,16 @@ function fakePlan(n: number): InsertionPoint[] {
 }
 
 describe('tune-practice orchestrator (runes module)', () => {
-	beforeEach(() => resetTunePractice());
+	beforeEach(() => {
+		const values = new Map<string, string>();
+		vi.stubGlobal('localStorage', {
+			getItem: (key: string) => values.get(key) ?? null,
+			setItem: (key: string, value: string) => values.set(key, value),
+			removeItem: (key: string) => values.delete(key)
+		});
+		resetTunePractice();
+	});
+	afterEach(() => vi.unstubAllGlobals());
 
 	describe('phase machine', () => {
 		it('advances count-in → head → running, then complete', () => {
@@ -122,7 +132,7 @@ describe('tune-practice orchestrator (runes module)', () => {
 
 		it('re-entering the SAME tune keeps the chosen key, and still returns to a clean setup', () => {
 			initTunePractice(sheet({ id: 'tune-a', key: 'F' }));
-			tunePractice.config.concertKey = 'Ab';
+			setTunePracticeKey('Ab');
 			tunePractice.config.mode = 'points';
 			tunePractice.plan = fakePlan(1);
 			recordWindowResult('ip-0', 'A', mkScore(0.95));
@@ -138,7 +148,7 @@ describe('tune-practice orchestrator (runes module)', () => {
 
 		it("entering a DIFFERENT tune resets to that tune's stored key", () => {
 			initTunePractice(sheet({ id: 'tune-a', key: 'F' }));
-			tunePractice.config.concertKey = 'Ab';
+			setTunePracticeKey('Ab');
 
 			initTunePractice(sheet({ id: 'tune-b', title: 'Other Tune', key: 'Bb' }));
 
