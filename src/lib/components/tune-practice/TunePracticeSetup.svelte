@@ -53,6 +53,9 @@
 		: tunePractice.config.mode === 'points' ? 'Points' : 'Automatic suggestions');
 	const cueSummary = $derived(tunePractice.config.strictness === 'guided' ? 'Lick cues'
 		: tunePractice.config.strictness === 'solo' ? 'No cues' : 'Progression cues');
+	const proposedLicks = $derived([...new Set(
+		(preview?.markers ?? []).flatMap(marker => marker.lickName ? [marker.lickName] : [])
+	)]);
 
 	/** Keep numeric entry within the same bounds as the former tempo knob. */
 	function changeTempo(value: number): void {
@@ -114,6 +117,11 @@
 						{#if tunePractice.config.mode === 'freestyle'}<p>No insertion windows — play freely through the changes.</p>
 						{:else if preview && preview.total > 0}
 							<p><span>{preview.total} insertion point{preview.total === 1 ? '' : 's'}:</span> {progressionCounts.map(({ type, count }) => `${count}× ${PROGRESSION_TEMPLATES[type].shortName}`).join(', ')}</p>
+							{#if preview.matchedCount > 0}
+								<p>{preview.matchedCount} with a matching lick from your book.{tunePractice.config.choruses > 1 ? ' The chart names the first visit; later choruses rotate your licks automatically.' : ''}</p>
+							{:else}
+								<p>{tunePractice.config.mode === 'suggest' ? 'No matching licks from your book are ready in these keys at this tempo. Try a slower tempo or practise the licks in these keys.' : 'No licks in your book match these progressions yet.'}</p>
+							{/if}
 						{:else}<p>No known progressions detected in this tune yet — you can still play along.</p>{/if}
 					</div>
 				</div>
@@ -141,7 +149,10 @@
 				</div>
 				<div class="td-key-row"><label for="practice-key">Key</label><select id="practice-key" value={writtenKey} disabled={isLoading} onchange={event => onkey(event.currentTarget.value as PitchClass)}>{#each PITCH_CLASSES as pc}<option value={pc}>{pc.replace('b', '♭').replace('#', '♯')}</option>{/each}</select></div><p class="td-written-for">Written for {getInstrument().name}.</p>
 			</section>
-			<section class="td-rail-section tp-guide"><p class="studio-label">Play with your licks</p><h2>Make the changes yours.</h2>{#if tunePractice.config.mode === 'freestyle'}<p>Play freely through the changes. Mankunku listens for the licks you know and celebrates them as you play.</p>
+			<section class="td-rail-section tp-guide"><p class="studio-label">Play with your licks</p><h2>{proposedLicks.length > 0 && tunePractice.config.mode !== 'freestyle' ? 'Your proposed licks.' : 'Make the changes yours.'}</h2>{#if tunePractice.config.mode === 'freestyle'}<p>Play freely through the changes. Mankunku listens for the licks you know and celebrates them as you play.</p>
+				{:else if proposedLicks.length > 0}
+					<ul class="tp-proposed-licks" aria-label="Proposed licks">{#each proposedLicks as name (name)}<li>{name}</li>{/each}</ul>
+					<p>Already placed at their matching spots on the chart. Press Start and follow the cues.</p>
 				{:else}<p>Mankunku automatically finds licks that fit each progression. Play through the tune and follow the cues on the chart.</p><p>Each insertion is scored. Unmarked bars are yours to improvise.</p>{/if}
 				{#if preview && preview.uncategorizedCount > 0}<p class="tp-untagged">{preview.uncategorizedCount} of your licks {preview.uncategorizedCount === 1 ? 'has' : 'have'} no progression tag and can’t be suggested. <a href="/licks">Tag them in My Licks →</a></p>{/if}
 			</section>

@@ -55,7 +55,7 @@ export const tunePracticeTour: DriveStep[] = [
 		popover: {
 			title: 'Strictness',
 			description:
-				"Strictness is also under Session options. Guided names the lick to play over each insertion point. Standard names only the progression, so the vocabulary is yours — any lick of yours that fits counts. Solo shows nothing. It changes what you're told, never how the app listens (any octave, at every level) or the grading scale, so a score means the same thing everywhere.",
+				"Strictness is also under Session options. Guided is the default: it names the lick to play over each insertion point. Standard names only the progression, so the vocabulary is yours — any lick of yours that fits counts. Solo shows nothing. It changes what you're told, never how the app listens (any octave, at every level) or the grading scale, so a score means the same thing everywhere.",
 			align: 'center'
 		}
 	},

@@ -114,6 +114,60 @@ describe('a saved Minor Chord lick reaches the session as its own window', () =>
 	});
 });
 
+describe('setup proposes the same known licks as the playing session', () => {
+	beforeEach(() => {
+		localStorage.clear();
+		resetTunePractice();
+		saveUserLick(minorLick);
+		saveUserLick({ ...minorLick, id: 'second-minor-lick', name: 'Another Minor Line' });
+		saveLickPracticeProgress({
+			'e2e-minor-lick': { E: { passCount: 1, currentTempo: 120, lastPracticedAt: 1 } },
+			'second-minor-lick': { E: { passCount: 1, currentTempo: 120, lastPracticedAt: 1 } }
+		});
+		initTunePractice(autumnLeaves);
+		Object.assign(tunePractice.config, {
+			mode: 'suggest', strictness: 'guided', tempo: 100,
+			concertKey: autumnLeaves.key, playHead: true, choruses: 2
+		});
+	});
+
+	it.each([true, false])('previews automatic rotation and role windows without starting a session (head %s)', (playHead) => {
+		tunePractice.config.playHead = playHead;
+		const startTime = tunePractice.startTime;
+		const preview = previewSessionPlan(autumnLeaves, playHead, 2);
+		expect(tunePractice.phase).toBe('setup');
+		expect(tunePractice.plan).toEqual([]);
+		expect(tunePractice.pickedSuggestion).toEqual({});
+		expect(tunePractice.startTime).toBe(startTime);
+		const names = new Set(preview.markers.map(marker => marker.lickName).filter(Boolean));
+		expect(names).toEqual(new Set(['E2E Minor Lick · F#-', 'Another Minor Line · F#-']));
+		expect(preview.matchedCount).toBeGreaterThan(0);
+
+		startTunePracticeSession(autumnLeaves, 960);
+		expect(preview.total).toBe(tunePractice.plan.length);
+		expect(preview.matchedCount).toBe(tunePractice.plan.filter(ip => ip.suggestions.length > 0).length);
+		for (const marker of preview.markers) {
+			const firstVisit = tunePractice.plan.find(ip => ip.markerKey === marker.id)!;
+			expect(marker.lickName).toBe(suggestionNameFor(firstVisit));
+			expect(marker.label).toBe(suggestionNameFor(firstVisit) ?? firstVisit.bandName);
+			expect(marker.timeRange).toEqual(firstVisit.notationTimeRange);
+		}
+	});
+
+	it('updates eligibility when tempo or concert key changes, without offering unlearned curated licks', () => {
+		expect(previewSessionPlan(autumnLeaves, true).matchedCount).toBeGreaterThan(0);
+		tunePractice.config.tempo = 135;
+		expect(previewSessionPlan(autumnLeaves, true).matchedCount).toBe(0);
+		tunePractice.config.tempo = 100;
+		tunePractice.config.concertKey = 'D';
+		const transposed = previewSessionPlan(autumnLeaves, true);
+		expect(transposed.matchedCount).toBe(0);
+		expect(transposed.markers.every(marker => marker.lickName === null)).toBe(true);
+		tunePractice.config.concertKey = autumnLeaves.key;
+		expect(previewSessionPlan(autumnLeaves, true).matchedCount).toBeGreaterThan(0);
+	});
+});
+
 // 2026-10-22: the drummer counts the tune in — one bar, two above 150 BPM —
 // and the session's windows sit behind that count on the transport.
 describe('the session counts in by tempo', () => {

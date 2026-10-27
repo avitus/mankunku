@@ -165,7 +165,7 @@ export const tunePractice = $state<{
 }>({
 	config: {
 		mode: 'suggest',
-		strictness: 'standard',
+		strictness: 'guided',
 		tempo: 100,
 		concertKey: 'C',
 		backingStyle: 'swing',
@@ -250,9 +250,11 @@ export function initTunePractice(sheet: Tune): void {
 
 export interface SessionPreview {
 	total: number;
+	/** Planned windows with an eligible lick, including repeat/chorus occurrences. */
+	matchedCount: number;
 	byType: Partial<Record<ChordProgressionType, number>>;
 	uncategorizedCount: number;
-	/** Notation-order bar ranges + progression labels for setup-screen chart markers. */
+	/** Notation-order bands naming the first planned lick at each chart position. */
 	markers: {
 		id: string;
 		startBar: number;
@@ -260,36 +262,19 @@ export interface SessionPreview {
 		/** Whole-note span for mid-bar band clipping (see RangeMarker.timeRange). */
 		timeRange: { start: number; end: number };
 		label: string;
+		lickName: string | null;
 		progressionType: ChordProgressionType;
 	}[];
 }
 
 /**
- * Setup-screen preview mirroring the REAL session plan: the same expanded
- * flatten, non-overlap selection, and head filtering the session will use
- * (counts and bar ranges are transposition-invariant, so the base sheet
- * suffices), plus how many user licks can't match anything for lack of prog
- * tags. Chart markers dedupe repeat occurrences by markerKey.
+ * Preview the same eligible licks, role windows and rotation that Start uses,
+ * without arming a session. Repeated chart positions show their first visit.
  */
 export function previewSessionPlan(sheet: Tune, playHead: boolean, choruses = 1): SessionPreview {
-	const flat = clearPickupBarHarmony(sheet, flattenTune(sheet, { expandRepeats: true }));
-	const notationFlat = flattenTune(sheet);
-	const hasMelody = flat.notes.some((n) => n.pitch !== null);
-	const effectiveHead = playHead && hasMelody;
-	const { headBars, formRepeats } = headBarsForFlat(flat);
-	const plan = buildSessionPlan({
-		flat,
-		notationFlat,
-		timeSignature: sheet.timeSignature,
-		ppq: 480,
-		choruses,
-		pickupBars: soloPassPickupBars(sheet, flat),
-		head: formRepeats
-			? { bars: headBars, mode: effectiveHead ? 'filter' : 'skip' }
-			: effectiveHead ? { bars: headBars, mode: 'shift' } : undefined,
-		detect: (f) => detectProgressions(f, sheet),
-		match: () => ({ suggestions: [], uncategorized: [] })
-	});
+	const { plan, pickedSuggestion } = prepareTunePracticeSession(
+		sheet, { ...tunePractice.config, playHead, choruses }, 480
+	);
 
 	const byType: Partial<Record<ChordProgressionType, number>> = {};
 	for (const ip of plan) {
@@ -301,37 +286,42 @@ export function previewSessionPlan(sheet: Tune, playHead: boolean, choruses = 1)
 	for (const ip of plan) {
 		if (seenMarker.has(ip.markerKey)) continue;
 		seenMarker.add(ip.markerKey);
+		const lickName = suggestedWindowLabel(ip, pickedSuggestion[ip.id]);
 		markers.push({
 			id: ip.markerKey,
 			startBar: ip.notationBarRange.start,
 			endBarExclusive: ip.notationBarRange.endExclusive,
 			timeRange: ip.notationTimeRange,
-			label: ip.bandName,
+			label: lickName ?? ip.bandName,
+			lickName,
 			progressionType: ip.progressionType
 		});
 	}
 
-	let uncategorizedCount = 0;
-	const detections = detectProgressions(notationFlat, sheet);
-	if (detections.length > 0) {
-		const deps = buildLickMatcherDeps(sheet, getInstrument());
-		uncategorizedCount = suggestLicksForProgression(detections[0], deps).uncategorized.length;
-	}
-
-	return { total: plan.length, byType, uncategorizedCount, markers };
+	return {
+		total: plan.length,
+		matchedCount: plan.filter(ip => ip.suggestions.length > 0).length,
+		byType,
+		uncategorizedCount: plan[0]?.uncategorizedCount ?? 0,
+		markers
+	};
 }
 
 /**
  * Build the full session: transpose the sheet to the configured concert key,
  * detect progressions on the playback timeline, rank licks per insertion
- * point, carve the melody out of the windows, and arm the state machine.
- * Returns the audio artifacts the route schedules playback from.
+ * point and prepare the audio artifacts. Reads the player's book, but never
+ * starts audio or changes session state: setup and Start share this builder.
  */
-export function startTunePracticeSession(sheet: Tune, ppq: number): TunePracticeAudioPlan {
+function prepareTunePracticeSession(sheet: Tune, config: TunePracticeConfig, ppq: number): {
+	audioPlan: TunePracticeAudioPlan;
+	plan: InsertionPoint[];
+	pickedSuggestion: Record<string, number>;
+} {
 	const transposed =
-		sheet.key === tunePractice.config.concertKey
+		sheet.key === config.concertKey
 			? sheet
-			: transposeTune(sheet, tunePractice.config.concertKey);
+			: transposeTune(sheet, config.concertKey);
 	const expanded = tuneToPhraseWithFlat(transposed, { expandRepeats: true });
 	const phrase = expanded.phrase;
 	// The band sits the pickup bar out; its chord, if the chart writes one, sounds from bar 1.
@@ -342,15 +332,15 @@ export function startTunePracticeSession(sheet: Tune, ppq: number): TunePractice
 	// A head chorus needs a melody — chords-only charts (iReal imports and
 	// most community tunes) would otherwise open with a full silent chorus.
 	const hasMelody = flat.notes.some((n) => n.pitch !== null);
-	const playHead = tunePractice.config.playHead && hasMelody;
-	const mode = tunePractice.config.mode;
+	const playHead = config.playHead && hasMelody;
+	const mode = config.mode;
 
 	const { headBars, formRepeats } = headBarsForFlat(flat);
-	const choruses = tunePractice.config.choruses;
+	const choruses = config.choruses;
 	// A pickup is played once, with the head; every practice chorus runs bar 1 to the end.
 	const pickupBars = soloPassPickupBars(transposed, flat);
 	const built = buildSessionPhrase({ flat, timeSignature: transposed.timeSignature, playHead, choruses, pickupBars });
-	const countInBars = countInBarsForTempo(tunePractice.config.tempo);
+	const countInBars = countInBarsForTempo(config.tempo);
 	const practiceStartBar = (formRepeats ? headBars : 0) + pickupBars;
 	// The played phrase opens on the head's first bar, or without a head on
 	// the solo pass's first; the count runs on when that bar is a pickup.
@@ -378,7 +368,7 @@ export function startTunePracticeSession(sheet: Tune, ppq: number): TunePractice
 			// at this song's tempo and in this spot's key.
 			const options =
 				mode === 'suggest'
-					? { ownBookOnly: true, playableKeysOnly: true, sessionTempo: tunePractice.config.tempo }
+					? { ownBookOnly: true, playableKeysOnly: true, sessionTempo: config.tempo }
 					: { ownBookOnly: true };
 			const result = suggestLicksForProgression(det, matcherDeps, options);
 			return { suggestions: result.suggestions, uncategorized: result.uncategorized };
@@ -400,24 +390,7 @@ export function startTunePracticeSession(sheet: Tune, ppq: number): TunePractice
 	const changesSheet = changesSheetFor(transposed);
 	const chartOptions: TuneAbcOptions = { barsPerLine: suggestBarsPerLine(transposed) };
 
-	tunePractice.tuneId = sheet.id;
-	tunePractice.tuneTitle = sheet.title;
-	tunePractice.plan = plan;
-	tunePractice.pickedSuggestion = mode === 'suggest' ? assignSuggestRotation(plan) : {};
-	tunePractice.uncategorizedCount = plan[0]?.uncategorizedCount ?? 0;
-	tunePractice.currentIndex = 0;
-	tunePractice.windowOpen = false;
-	tunePractice.results = [];
-	tunePractice.totalPoints = 0;
-	tunePractice.streak = 0;
-	tunePractice.bestStreak = 0;
-	tunePractice.freestyleMatches = [];
-	tunePractice.celebration = null;
-	tunePractice.startTime = Date.now();
-	tunePractice.elapsedSeconds = 0;
-	tunePractice.phase = 'count-in';
-
-	return {
+	const audioPlan: TunePracticeAudioPlan = {
 		sheet: transposed,
 		changesSheet,
 		chartOptions,
@@ -431,6 +404,31 @@ export function startTunePracticeSession(sheet: Tune, ppq: number): TunePractice
 		duplicatedForm: built.duplicatedForm,
 		playHead
 	};
+	return { audioPlan, plan, pickedSuggestion: mode === 'suggest' ? assignSuggestRotation(plan) : {} };
+}
+
+/** Arm the already-shared plan only when the player presses Start. */
+export function startTunePracticeSession(sheet: Tune, ppq: number): TunePracticeAudioPlan {
+	const { audioPlan, plan, pickedSuggestion } = prepareTunePracticeSession(sheet, tunePractice.config, ppq);
+
+	tunePractice.tuneId = sheet.id;
+	tunePractice.tuneTitle = sheet.title;
+	tunePractice.plan = plan;
+	tunePractice.pickedSuggestion = pickedSuggestion;
+	tunePractice.uncategorizedCount = plan[0]?.uncategorizedCount ?? 0;
+	tunePractice.currentIndex = 0;
+	tunePractice.windowOpen = false;
+	tunePractice.results = [];
+	tunePractice.totalPoints = 0;
+	tunePractice.streak = 0;
+	tunePractice.bestStreak = 0;
+	tunePractice.freestyleMatches = [];
+	tunePractice.celebration = null;
+	tunePractice.startTime = Date.now();
+	tunePractice.elapsedSeconds = 0;
+	tunePractice.phase = 'count-in';
+
+	return audioPlan;
 }
 
 /**
@@ -561,7 +559,11 @@ export function markRunning(): void {
  * the lick and the written key it is played in (`windowLabel`).
  */
 export function suggestionNameFor(ip: InsertionPoint): string | null {
-	const suggestion = resolvePickedSuggestion(ip.suggestions, tunePractice.pickedSuggestion[ip.id]);
+	return suggestedWindowLabel(ip, tunePractice.pickedSuggestion[ip.id]);
+}
+
+function suggestedWindowLabel(ip: InsertionPoint, pickedIndex: number | undefined): string | null {
+	const suggestion = resolvePickedSuggestion(ip.suggestions, pickedIndex);
 	if (!suggestion) return null;
 	return windowLabel(
 		suggestion.lickName,
