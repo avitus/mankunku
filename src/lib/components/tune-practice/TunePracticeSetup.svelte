@@ -62,6 +62,12 @@
 	function changeTempo(value: number): void {
 		if (Number.isFinite(value)) ontempo(Math.max(50, Math.min(240, Math.round(value))));
 	}
+	/** Restore numeric entry to the session tempo even when clamping leaves state unchanged. */
+	function changeTempoInput(event: Event): void {
+		const input = event.currentTarget as HTMLInputElement;
+		changeTempo(input.valueAsNumber);
+		input.value = String(tunePractice.config.tempo);
+	}
 </script>
 
 <svelte:window onkeydown={event => { if (event.key === 'Escape') setFocus(false); }} />
@@ -108,7 +114,7 @@
 			<section class="td-rhythm" aria-label="Rhythm and band">
 				<p class="studio-label td-rule-label">Rhythm & band</p>
 				<label class="td-tempo-label" for="practice-tempo">Tempo</label>
-				<div class="td-tempo-control"><button aria-label="Decrease tempo" disabled={tunePractice.config.tempo <= 50 || isLoading} onclick={() => changeTempo(tunePractice.config.tempo - 5)}>−</button><div><input id="practice-tempo" type="number" min="50" max="240" value={tunePractice.config.tempo} disabled={isLoading} onchange={event => changeTempo(event.currentTarget.valueAsNumber)} /><span>BPM</span></div><button aria-label="Increase tempo" disabled={tunePractice.config.tempo >= 240 || isLoading} onclick={() => changeTempo(tunePractice.config.tempo + 5)}>+</button></div>
+				<div class="td-tempo-control"><button aria-label="Decrease tempo" disabled={tunePractice.config.tempo <= 50 || isLoading} onclick={() => changeTempo(tunePractice.config.tempo - 5)}>−</button><div><input id="practice-tempo" type="number" min="50" max="240" value={tunePractice.config.tempo} disabled={isLoading} onchange={changeTempoInput} /><span>BPM</span></div><button aria-label="Increase tempo" disabled={tunePractice.config.tempo >= 240 || isLoading} onclick={() => changeTempo(tunePractice.config.tempo + 5)}>+</button></div>
 				<button class="td-setting-toggle td-backing-toggle" role="switch" aria-checked={tunePractice.config.backingTrackEnabled} aria-label="Backing track" disabled={isLoading} onclick={() => setTunePracticeBacking(!tunePractice.config.backingTrackEnabled)}><strong>Backing track</strong><span>{tunePractice.config.backingTrackEnabled ? 'On' : 'Off'}<i class="td-switch" class:active={tunePractice.config.backingTrackEnabled} aria-hidden="true"></i></span></button>
 				<div class="td-saved-style" class:td-style-muted={!tunePractice.config.backingTrackEnabled}>
 					<label class="studio-label" for="practice-style">Practice feel</label>
