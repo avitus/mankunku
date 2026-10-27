@@ -31,7 +31,7 @@
 		completeTunePracticeSession,
 		updateElapsedTime,
 		resetTunePractice,
-		seedSessionBackingFromSettings,
+		restoreTunePracticePlaybackPreferences,
 		pickSuggestion,
 		suggestionNameFor,
 		buildFreestyleBook,
@@ -345,11 +345,9 @@
 
 	onMount(async () => {
 		restoreTunePracticeChoruses();
-		// Synchronous, and first: this is a fresh arrival at setup, and the
-		// $effect below re-inits only when the TUNE changed — returning to the
-		// same tune through the app keeps the surviving module state, override
-		// and all. Not an $effect, so the switch stays where the user puts it.
-		seedSessionBackingFromSettings();
+		// Re-entering the same tune keeps this state module alive; reload the
+		// preference here too, in case it changed on the main tune page.
+		restoreTunePracticePlaybackPreferences();
 		void acquireScreenWakeLock();
 		try {
 			playback = await import('$lib/audio/playback');
@@ -431,18 +429,13 @@
 		stopAll();
 	});
 
-	/**
-	 * Audio options for every play call this session makes. Metronome, backing
-	 * instrument and volumes come from the user's settings; tempo, swing, style
-	 * and whether the band plays at all are the SESSION's — the backing switch
-	 * on the setup screen is a one-time override of the global setting.
-	 */
+	/** Session switches drive both playback and scoring's bleed evidence. */
 	function getPlaybackOptions(): PlaybackOptions {
 		return {
 			tempo: tunePractice.config.tempo,
 			swing: effectiveSwing,
 			countInBeats: 0,
-			metronomeEnabled: settings.metronomeEnabled,
+			metronomeEnabled: tunePractice.config.metronomeEnabled,
 			metronomeVolume: settings.metronomeVolume,
 			backingTrackEnabled: tunePractice.config.backingTrackEnabled,
 			backingInstrument: settings.backingInstrument,
@@ -554,8 +547,8 @@
 		}
 
 		// Use the plan's EFFECTIVE head decision — config.playHead alone would try
-		// to play a head chorus on a melody-less chart.
-		const skipMelody = !plan.playHead;
+		// to play a head chorus on a melody-less chart. Muting keeps the form intact.
+		const skipMelody = !plan.playHead || !tunePractice.config.melodyEnabled;
 		try {
 			await playback.playPhrase(plan.playedPhrase, getPlaybackOptions(), false, {
 				skipMelody,
@@ -692,7 +685,7 @@
 		const bleedOnsets = resolveBleedEvidence({
 			schedule: win.schedule,
 			backingTrackEnabled: tunePractice.config.backingTrackEnabled,
-			metronomeEnabled: settings.metronomeEnabled,
+			metronomeEnabled: tunePractice.config.metronomeEnabled,
 			recordingTransportSeconds: win.recordingTransportSeconds,
 			tempo,
 			recordingDuration: windowSeconds

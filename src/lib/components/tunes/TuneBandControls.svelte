@@ -22,7 +22,7 @@
 		<div><input id={`${idPrefix}-tempo`} type="number" min="40" max="240" value={player.tempo} onchange={e => player.setTempo(Number(e.currentTarget.value))} /><span>BPM</span></div>
 		<button aria-label="Increase tempo" onclick={() => player.setTempo(player.tempo + 5)} disabled={player.tempo >= 240}>+</button>
 	</div>
-	<button class="td-setting-toggle td-backing-toggle" role="switch" aria-checked={player.backing} aria-label="Backing track" onclick={() => { player.stop(); player.backing = !player.backing; }}><strong>Backing track</strong><span>{player.backing ? 'On' : 'Off'}<i class="td-switch" class:active={player.backing} aria-hidden="true"></i></span></button>
+	<button class="td-setting-toggle td-backing-toggle" role="switch" aria-checked={player.backing} aria-label="Backing track" onclick={() => player.setBacking(!player.backing)}><strong>Backing track</strong><span>{player.backing ? 'On' : 'Off'}<i class="td-switch" class:active={player.backing} aria-hidden="true"></i></span></button>
 	<div class="td-saved-style" class:td-style-muted={!player.backing}>
 		<div><span>Tune’s backing style</span><button onclick={openStyle} disabled={player.busy} aria-label="Change backing style">Change</button></div>
 		<h2>{BACKING_STYLE_NAMES[style]}</h2>
@@ -31,8 +31,8 @@
 	</div>
 	{#if player.busy}<p class="td-style-hint">Stop playback to change the style.</p>{/if}
 	<div class="td-feel"><span>Feel</span><strong>{style === 'swing' ? 'Swing eighths' : style === 'ballad' ? 'Gentle swing' : 'Straight eighths'}</strong></div>
-	<button class="td-setting-toggle" role="switch" aria-checked={player.melody} aria-label="Melody" onclick={() => { player.stop(); player.melody = !player.melody; }}><span>Melody</span><span>{player.melody ? 'On' : 'Off'}<i class="td-switch" class:active={player.melody} aria-hidden="true"></i></span></button>
-	<button class="td-setting-toggle" role="switch" aria-checked={player.metronome} aria-label="Metronome" onclick={() => { player.stop(); player.metronome = !player.metronome; }}><span>Metronome</span><span>{player.metronome ? 'On' : 'Off'}<i class="td-switch" class:active={player.metronome} aria-hidden="true"></i></span></button>
+	<button class="td-setting-toggle" role="switch" aria-checked={player.melody} aria-label="Melody" onclick={() => player.setMelody(!player.melody)}><span>Melody</span><span>{player.melody ? 'On' : 'Off'}<i class="td-switch" class:active={player.melody} aria-hidden="true"></i></span></button>
+	<button class="td-setting-toggle" role="switch" aria-checked={player.metronome} aria-label="Metronome" onclick={() => player.setMetronome(!player.metronome)}><span>Metronome</span><span>{player.metronome ? 'On' : 'Off'}<i class="td-switch" class:active={player.metronome} aria-hidden="true"></i></span></button>
 </section>
 
 <dialog bind:this={dialog} class="le-dialog td-style-dialog" aria-labelledby={`${idPrefix}-style-title`}>

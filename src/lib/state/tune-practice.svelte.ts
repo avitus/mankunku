@@ -1,3 +1,4 @@
+import { savedTunePlayback, saveTunePlayback } from '$lib/tunes/playback-preferences';
 import { jamSheets } from '$lib/tunes/jam-sheets';
 import { savedSoloChoruses, saveSoloChoruses } from '$lib/tunes/solo-choruses';
 import type { Fraction, Phrase, PitchClass } from '$lib/types/music';
@@ -57,7 +58,7 @@ import {
  * Scored tune-practice session state — thin Svelte-5 runes wrapper over the
  * pure logic in `tune-practice-plan.ts` (the lick-practice pattern: state
  * module bridges, plain modules carry the testable logic; the route owns the
- * audio orchestration). Results are not persisted; the chorus preference is local per user.
+ * audio orchestration). Results are not persisted; chorus and playback preferences are local per user.
  */
 
 export interface TunePracticeConfig {
@@ -70,14 +71,13 @@ export interface TunePracticeConfig {
 	/** Play the head (the written melody, one chorus) before the practice chorus. */
 	playHead: boolean;
 	/**
-	 * Does the rhythm section play in THIS session? A one-time override of
-	 * `settings.backingTrackEnabled`, re-seeded from it on every entry to
-	 * setup (see `initTunePractice`) and never written back. The route must
-	 * read this rather than the global wherever the two could disagree —
-	 * including the bleed evidence, where claiming a comp grid that isn't
-	 * sounding would suppress real onsets.
+	 * Saved tune-backing preference, captured for this session. Playback and
+	 * bleed evidence read this value so they always agree about the sounding band.
 	 */
 	backingTrackEnabled: boolean;
+	/** Mute melody audio without changing the selected head / solo / outro form. */
+	melodyEnabled: boolean;
+	metronomeEnabled: boolean;
 	/** Practice choruses, excluding the head (1–12). */
 	choruses: number;
 }
@@ -179,9 +179,11 @@ export const tunePractice = $state<{
 		backingStyle: 'swing',
 		choruses: 1,
 		playHead: true,
-		// Overwritten from settings on every initTunePractice; this initial value
-		// only matters before the first setup screen mounts.
-		backingTrackEnabled: settings.backingTrackEnabled
+		// Restored from the saved tune preference on setup entry; this initial
+		// value only matters before the first setup screen mounts.
+		backingTrackEnabled: settings.backingTrackEnabled,
+		melodyEnabled: true,
+		metronomeEnabled: false
 	},
 	phase: 'setup',
 	tuneId: null,
@@ -211,21 +213,23 @@ export function setTunePracticeChoruses(choruses: number): void {
 	tunePractice.config.choruses = saveSoloChoruses(choruses);
 }
 
-/**
- * Seed the session's backing switch from the global setting.
- *
- * Called at EVERY arrival at the setup screen — a fresh tune, a return to the
- * same one, "practice again" after a take — because the switch is a one-time
- * override and must never carry a previous session's choice. This module
- * outlives the route and keeps `tuneId`, so a client-side return to the same
- * tune reaches neither `initTunePractice` nor `resetTunePractice`; the route
- * calls this at mount to cover it.
- *
- * Read ONCE per arrival, never reactively: the switch must not snap back under
- * the user mid-setup, whether they flip it or another tab edits the setting.
- */
-export function seedSessionBackingFromSettings(): void {
-	tunePractice.config.backingTrackEnabled = settings.backingTrackEnabled;
+/** Restore once on setup entry; never overwrite the user's choice mid-session. */
+export function restoreTunePracticePlaybackPreferences(): void {
+	tunePractice.config.backingTrackEnabled = savedTunePlayback('backing', settings.backingTrackEnabled);
+	tunePractice.config.melodyEnabled = savedTunePlayback('melody', true);
+	tunePractice.config.metronomeEnabled = savedTunePlayback('metronome', false);
+}
+
+export function setTunePracticeBacking(enabled: boolean): void {
+	tunePractice.config.backingTrackEnabled = saveTunePlayback('backing', enabled);
+}
+
+export function setTunePracticeMelody(enabled: boolean): void {
+	tunePractice.config.melodyEnabled = saveTunePlayback('melody', enabled);
+}
+
+export function setTunePracticeMetronome(enabled: boolean): void {
+	tunePractice.config.metronomeEnabled = saveTunePlayback('metronome', enabled);
 }
 
 /** Enter the setup phase for a tune (idempotent per tune). */
@@ -233,9 +237,7 @@ export function initTunePractice(sheet: Tune): void {
 	if (tunePractice.tuneId !== sheet.id) {
 		tunePractice.config.concertKey = sheet.key;
 	}
-	// Unlike concertKey, which stays put for the same tune, the backing switch
-	// forgets — see seedSessionBackingFromSettings.
-	seedSessionBackingFromSettings();
+	restoreTunePracticePlaybackPreferences();
 	tunePractice.tuneId = sheet.id;
 	tunePractice.tuneTitle = sheet.title;
 	tunePractice.phase = 'setup';
@@ -678,11 +680,11 @@ export function updateElapsedTime(): void {
  * results, streaks, picks, celebration) while leaving the config's own
  * choices alone. Used by "practice again" and by the route's guard against a
  * mid-session phase left behind by navigating away. It IS an arrival at
- * setup, so the backing switch re-seeds — see seedSessionBackingFromSettings.
+ * setup, so the audio switches restore the last saved tune preferences.
  */
 export function resetTunePractice(): void {
 	tunePractice.phase = 'setup';
-	seedSessionBackingFromSettings();
+	restoreTunePracticePlaybackPreferences();
 	tunePractice.plan = [];
 	tunePractice.currentIndex = 0;
 	tunePractice.windowOpen = false;

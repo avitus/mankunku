@@ -17,7 +17,7 @@
 	export async function togglePlay(): Promise<void> { await player.toggle(tune, effectiveStyle, compact ? undefined : player.soloChoruses); }
 	// Both callers derive a new tune on edits/transposition; track that reference.
 	$effect(() => { tune; effectiveStyle; untrack(() => player.stop()); });
-	onMount(() => { if (!compact) player.restoreSoloChoruses(); });
+	onMount(() => { if (!compact) { player.restoreSoloChoruses(); player.restorePlaybackPreferences(); } });
 	onDestroy(() => { player.stop(); localPlayer.dispose(); });
 </script>
 

@@ -299,59 +299,6 @@ test.describe('tune practice setup', () => {
 		await expect(page.locator('.so-no-melody')).toBeVisible();
 	});
 
-	test('backing switch starts at the global setting and overrides it for one session', async ({
-		page,
-		consoleCollector: _consoleCollector
-	}) => {
-		// Global backing OFF. Written unconditionally AFTER the beforeEach seed
-		// (seedStorage only fills absent keys, so it cannot override it) and on
-		// every navigation, which is what makes the return-visit leg meaningful.
-		await page.addInitScript(() => {
-			const key = 'mankunku:settings';
-			const raw = window.localStorage.getItem(key);
-			const parsed = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
-			window.localStorage.setItem(key, JSON.stringify({ ...parsed, backingTrackEnabled: false }));
-		});
-		await seedTunes(page, [SAINTS_USER_TUNE]);
-		await page.goto('/tunes/e2e-when-the-saints/practice');
-		await openSessionOptions(page);
-
-		const backing = page.getByRole('switch', { name: /backing track this session/i });
-		const style = page.getByRole('combobox', { name: 'Backing style', exact: true });
-		await expect(backing).toBeVisible();
-		await expect(backing).toHaveAttribute('aria-checked', 'false');
-		// The compact rail keeps the chosen style visible while backing is off.
-		await expect(style).toBeVisible();
-		await expect(style).toBeDisabled();
-
-		// The redesigned Freestyle card must not promise a band when backing is off.
-		const freestyle = page
-			.getByRole('radiogroup', { name: 'Mode', exact: true })
-			.getByRole('radio', { name: 'Play freely', exact: true });
-		await expect(freestyle.locator('..')).not.toContainText(/backing only/i);
-
-		await backing.click();
-		await expect(backing).toHaveAttribute('aria-checked', 'true');
-		await expect(style).toBeEnabled();
-		await expect(freestyle.locator('..')).toContainText('No prompts. Hear what comes out.');
-
-		// Checked before navigating: the override must not write the global back.
-		const stored = await page.evaluate(() => {
-			const raw = window.localStorage.getItem('mankunku:settings');
-			return raw ? (JSON.parse(raw) as { backingTrackEnabled?: boolean }) : null;
-		});
-		expect(stored?.backingTrackEnabled).toBe(false);
-
-		// Leave setup and come back THROUGH THE APP: the state module outlives
-		// the route, so only a client-side round trip exercises the re-seed —
-		// a page.goto would reload the module and pass for the wrong reason.
-		await page.getByRole('link', { name: /when the saints go marching in/i }).click();
-		await expect(page).toHaveURL(/\/tunes\/when-the-saints-go-marching-in$/);
-		await page.getByRole('button', { name: /practice licks/i }).click();
-		await expect(page.getByRole('heading', { name: /practice licks/i })).toBeVisible();
-		await expect(backing).toHaveAttribute('aria-checked', 'false');
-	});
-
 	/**
 	 * A refused microphone must stop the session at setup with a reason, and
 	 * leave Start usable for a second try — not spin on "Setting up…", and not
@@ -497,13 +444,17 @@ test.describe.serial('tune practice session follow-scroll', () => {
 		await openSessionOptions(page);
 		await expect(page.getByRole('button', { name: /^start$/i })).toBeVisible();
 
-		const backing = page.getByRole('switch', { name: /backing track this session/i });
-		// New sessions default to metronome only. Exercise the override in both directions.
+		const backing = page.getByRole('switch', { name: /backing track/i });
+		// Exercise both backing states, then take the tune with only the metronome.
 		await expect(backing).toHaveAttribute('aria-checked', 'false');
 		await backing.click();
 		await expect(backing).toHaveAttribute('aria-checked', 'true');
 		await backing.click();
 		await expect(backing).toHaveAttribute('aria-checked', 'false');
+		await page.getByRole('switch', { name: 'Melody', exact: true }).click();
+		await page.getByRole('switch', { name: 'Metronome', exact: true }).click();
+		await expect(page.getByRole('switch', { name: 'Melody', exact: true })).toHaveAttribute('aria-checked', 'false');
+		await expect(page.getByRole('switch', { name: 'Metronome', exact: true })).toHaveAttribute('aria-checked', 'true');
 
 		await setTempoMax(page);
 		await startPracticeSession(page);
@@ -544,7 +495,7 @@ test.describe.serial('tune practice session follow-scroll', () => {
 			.getByRole('radiogroup', { name: 'Mode', exact: true })
 			.getByRole('radio', { name: 'Play freely', exact: true })
 			.click();
-		await expect(page.getByRole('switch', { name: /backing track this session/i }))
+		await expect(page.getByRole('switch', { name: /backing track/i }))
 			.toHaveAttribute('aria-checked', 'false');
 		await setTempoMax(page);
 		await startPracticeSession(page);

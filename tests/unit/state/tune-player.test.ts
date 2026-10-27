@@ -197,6 +197,15 @@ describe('tune desk playback', () => {
 			expect(settings.backingStyle).toBe('swing');
 		}
 	);
+	it.each([true, false])('uses melody and metronome switches without removing the jam head (%s)', async (enabled) => {
+		player.melody = enabled;
+		player.metronome = enabled;
+		await player.toggle(tune, 'swing', 1);
+		expect(audio.playPhrase.mock.calls[0][1]).toMatchObject({ metronomeEnabled: enabled });
+		expect(audio.playPhrase.mock.calls[0][3]).toMatchObject({ skipMelody: !enabled });
+		// Notes for both heads remain in the plan even when their audio is muted.
+		expect(audio.playPhrase.mock.calls[0][0].notes).toHaveLength(2);
+	});
 	it('keeps the saved feel with backing off and supports a backing-only pass', async () => {
 		player.melody = false;
 		await player.toggle(tune, 'bossa-nova');

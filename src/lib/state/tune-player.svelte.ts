@@ -10,6 +10,7 @@ import { loopPlaybackBar } from '$lib/audio/phrase-loop';
 import { countInBarsForTempo } from '$lib/audio/drum-count-in';
 import { isInPickupLeadIn } from '$lib/music/pickup';
 import { buildJamForm } from '$lib/tunes/jam-form';
+import { savedTunePlayback, saveTunePlayback } from '$lib/tunes/playback-preferences';
 import { savedSoloChoruses, saveSoloChoruses } from '$lib/tunes/solo-choruses';
 
 /** Where a desk player keeps its tempo: the open tune's id and how to save a choice for it. */
@@ -29,6 +30,14 @@ export class TunePlayer {
 	closing = $state(false);
 	phase = $state<'head' | 'solo' | 'outro'>('head');
 	soloChorus = $state(0);
+	restorePlaybackPreferences(): void {
+		this.backing = savedTunePlayback('backing', settings.backingTrackEnabled);
+		this.melody = savedTunePlayback('melody', true);
+		this.metronome = savedTunePlayback('metronome', false);
+	}
+	setBacking(enabled: boolean): void { this.stop(); this.backing = saveTunePlayback('backing', enabled); }
+	setMelody(enabled: boolean): void { this.stop(); this.melody = saveTunePlayback('melody', enabled); }
+	setMetronome(enabled: boolean): void { this.stop(); this.metronome = saveTunePlayback('metronome', enabled); }
 	restoreSoloChoruses(): void { this.soloChoruses = savedSoloChoruses(); }
 	setSoloChoruses(value: number): void { this.stop(); this.soloChoruses = saveSoloChoruses(value); }
 	playing = $state(false);
