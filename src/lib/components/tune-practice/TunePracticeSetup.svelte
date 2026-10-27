@@ -3,11 +3,7 @@
 	import EditorIcon from '$lib/components/step-entry/EditorIcon.svelte';
 	import TourTrigger from '$lib/components/ui/TourTrigger.svelte';
 	import HelpLink from '$lib/components/ui/HelpLink.svelte';
-	import Knob from '$lib/components/console/Knob.svelte';
-	import RockerSwitch from '$lib/components/console/RockerSwitch.svelte';
-	import SelectorPad from '$lib/components/console/SelectorPad.svelte';
-	import { tunePractice, setTunePracticeChoruses, type SessionPreview } from '$lib/state/tune-practice.svelte';
-	import type { TunePracticeMode, TunePracticeStrictness } from '$lib/state/tune-practice-plan';
+	import { tunePractice, type SessionPreview } from '$lib/state/tune-practice.svelte';
 	import { getInstrument } from '$lib/state/settings.svelte';
 	import { BACKING_STYLE_IDS, BACKING_STYLE_NAMES } from '$lib/audio/backing-styles';
 	import { TUNE_STYLE_DESCRIPTIONS } from '$lib/tunes/backing-style';
@@ -16,12 +12,12 @@
 	import { PITCH_CLASSES, type PitchClass } from '$lib/types/music';
 	import type { BackingStyle } from '$lib/types/instruments';
 	import type { Tune } from '$lib/types/tune';
-	import { tooltips } from '$lib/content/tooltips';
 	import { tunePracticeTour } from '$lib/tour/tours/tune-practice';
 	import '$lib/components/step-entry/lick-editor.css';
 	import '$lib/components/tunes/tune-desk.css';
 	import '$lib/components/tunes/tune-detail.css';
 	import './tune-practice-setup.css';
+	import TunePracticeOptions from './TunePracticeOptions.svelte';
 
 	let { tune, previewSheet, preview, markers, writtenKey, isLoading, audioModulesReady, micError, loadError, onstart, ontempo, onkey }: {
 		tune: Tune;
@@ -61,40 +57,6 @@
 	function changeTempo(value: number): void {
 		if (Number.isFinite(value)) ontempo(Math.max(50, Math.min(240, Math.round(value))));
 	}
-	const MODE_OPTIONS: {
-		value: TunePracticeMode;
-		label: string;
-		sublabel: string;
-		title: string;
-	}[] = $derived([
-		{
-			value: 'suggest',
-			label: 'Suggest',
-			sublabel: 'lick named for you',
-			title: 'Cued practice — the top lick is named at every insertion point.'
-		},
-		{
-			value: 'points',
-			label: 'Points',
-			sublabel: 'you pick, streaks double',
-			title: 'Pick your lick and earn points; back-to-back hits score double.'
-		},
-		{
-			value: 'freestyle',
-			label: 'Freestyle',
-			sublabel: tunePractice.config.backingTrackEnabled
-				? 'backing only, just solo'
-				: 'no windows, just solo',
-			title: tunePractice.config.backingTrackEnabled
-				? 'Backing only. Take a solo — known licks earn applause.'
-				: 'No insertion windows. Take a solo — known licks earn applause.'
-		}
-	]);
-	const STRICTNESS_OPTIONS: { value: TunePracticeStrictness; label: string; sublabel: string }[] = [
-		{ value: 'guided', label: 'Guided', sublabel: 'names the lick to play' },
-		{ value: 'standard', label: 'Standard', sublabel: 'names the progression only' },
-		{ value: 'solo', label: 'Solo', sublabel: 'no cues — any fitting lick' }
-	];
 </script>
 
 <svelte:window onkeydown={event => { if (event.key === 'Escape') focus = false; }} />
@@ -133,6 +95,7 @@
 				{#if micError}<p class="tp-error" role="alert">Microphone unavailable — check permissions and try again.</p>{/if}
 				{#if loadError}<p class="tp-error" role="alert">Audio setup failed — check your connection and try again.</p>{/if}
 			</section>
+			<TunePracticeOptions hasMelody={tuneHasMelody} disabled={isLoading} />
 			<div class="td-reading-footer"><span>{modeSummary}{tunePractice.config.mode !== 'freestyle' ? ` · ${cueSummary}` : ''}</span><em>Familiar phrases. Real tunes.</em></div>
 		</div>
 
@@ -158,14 +121,4 @@
 			</section>
 		</aside>
 	</div>
-
-	<details class="tp-options le-panel">
-		<summary><span>Session options</span><small>{modeSummary} · {tunePractice.config.choruses} chorus{tunePractice.config.choruses === 1 ? '' : 'es'}{tuneHasMelody && tunePractice.config.playHead ? ' · Head & outro' : ''}</small></summary>
-		<fieldset disabled={isLoading} class="tp-option-grid">
-			<legend class="sr-only">Session options</legend>
-			<div><h3>Mode</h3><SelectorPad ariaLabel="Mode" value={tunePractice.config.mode} options={MODE_OPTIONS} onChange={value => tunePractice.config.mode = value} /></div>
-			<div><h3>Strictness</h3><SelectorPad ariaLabel="Strictness" value={tunePractice.config.strictness} options={STRICTNESS_OPTIONS} onChange={value => tunePractice.config.strictness = value} /></div>
-			<div class="tp-form-options"><RockerSwitch label="Head & outro" ariaLabel="Play head and outro" checked={tuneHasMelody && tunePractice.config.playHead} disabled={!tuneHasMelody || isLoading} helpText={tuneHasMelody ? tooltips.tunePractice.head.text : tooltips.tunePractice.headNoMelody.text} onChange={value => tunePractice.config.playHead = value} /><Knob label="Solo choruses" ariaLabel="Solo choruses" helpText="How many choruses to practice. The melody plays before and after the solos." value={tunePractice.config.choruses} min={1} max={12} step={1} displayValue={`${tunePractice.config.choruses}`} onInput={setTunePracticeChoruses} /></div>
-		</fieldset>
-	</details>
 </div>

@@ -26,10 +26,11 @@ test('both tune pages remember the last solo count across navigation and reload'
 	await count.press('Tab');
 	await page.getByRole('button', { name: /Practice licks/ }).click();
 	await page.locator('details.tp-options summary').click();
-	const practiceCount = page.getByRole('slider', { name: 'Solo choruses' });
-	await expect(practiceCount).toHaveAttribute('aria-valuenow', '3');
+	const practiceCount = page.getByRole('spinbutton', { name: 'Solo choruses' });
+	await expect(practiceCount).toHaveValue('3');
 	await practiceCount.press('ArrowUp');
 	await page.getByRole('link', { name: 'Jam Form', exact: true }).click();
+	await expect(page).toHaveURL(/\/tunes\/jam-form$/);
 	await expect(count).toHaveValue('4');
 	await page.reload();
 	await expect(count).toHaveValue('4');
