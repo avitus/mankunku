@@ -30,9 +30,9 @@ const autumnLeavesFixture = JSON.parse(
 async function expectChartVisibleInFollowViewport(page: Page): Promise<void> {
 	const result = await page.evaluate(() => {
 		const vp = document.querySelector(
-			'[data-testid="chart-scroll-viewport"].following'
+			'[data-testid="tune-chord-chart"], [data-testid="chart-scroll-viewport"].following'
 		) as HTMLElement | null;
-		const svg = vp?.querySelector('svg');
+		const svg = vp?.querySelector('.tcc-bar.active, svg');
 		if (!vp || !svg) return { ok: false as const, reason: 'missing-following-viewport' };
 		const vr = vp.getBoundingClientRect();
 		const sr = svg.getBoundingClientRect();
@@ -139,7 +139,7 @@ async function startPracticeSession(page: Page): Promise<void> {
 	// box saturated by the full parallel suite that reliably starved a 20s
 	// budget (solo runs finish in ~5s), so the budget covers the loaded case.
 	await expect(page.getByRole('button', { name: /^end$/i })).toBeVisible({ timeout: 45_000 });
-	await expect(page.locator('[data-testid="chart-scroll-viewport"].following')).toBeVisible();
+	await expect(page.locator('[data-testid="chart-scroll-viewport"].following, [data-testid="tune-chord-chart"]').first()).toBeVisible();
 	await expectChartVisibleInFollowViewport(page);
 }
 
@@ -176,7 +176,7 @@ test.describe('tune practice setup', () => {
 		await seedTunes(page, [SAINTS_USER_TUNE]);
 		await page.goto('/tunes/e2e-when-the-saints/practice');
 		await openSessionOptions(page);
-		const choruses = page.getByRole('slider', { name: /^choruses$/i });
+		const choruses = page.getByRole('slider', { name: /^solo choruses$/i });
 		await expect(choruses).toHaveAttribute('aria-valuenow', '1');
 		await expect(choruses).toHaveAttribute('aria-valuemin', '1');
 		await expect(choruses).toHaveAttribute('aria-valuemax', '12');
@@ -216,9 +216,9 @@ test.describe('tune practice setup', () => {
 		await expect(summary).toContainText('Short ii-V-I (Maj)');
 		await expect(summary).toContainText('Turnaround');
 		await expect(summary).toContainText('Blues');
-		await page.getByRole('switch', { name: /play the head first/i }).click();
+		await page.getByRole('switch', { name: /play head and outro/i }).click();
 		await expect(summary).toContainText('5 insertion points');
-		await page.getByRole('slider', { name: /^choruses$/i }).press('ArrowUp');
+		await page.getByRole('slider', { name: /^solo choruses$/i }).press('ArrowUp');
 		await expect(summary).toContainText('10 insertion points');
 	});
 
@@ -229,7 +229,7 @@ test.describe('tune practice setup', () => {
 		await seedTunes(page, [SAINTS_USER_TUNE]);
 		await page.goto('/tunes/e2e-when-the-saints/practice');
 		await openSessionOptions(page);
-		const head = page.getByRole('switch', { name: /play the head first/i });
+		const head = page.getByRole('switch', { name: /play head and outro/i });
 		const modes = page.getByRole('radiogroup', { name: 'Mode', exact: true });
 		// The play-the-head option applies to every mode.
 		await expect(head).toBeVisible();
@@ -288,7 +288,7 @@ test.describe('tune practice setup', () => {
 		await seedTunes(page, [chordsOnlyTune]);
 		await page.goto('/tunes/e2e-chords-only/practice');
 		await openSessionOptions(page);
-		const head = page.getByRole('switch', { name: /play the head first/i });
+		const head = page.getByRole('switch', { name: /play head and outro/i });
 		await expect(head).toBeVisible();
 		await expect(head).toBeDisabled();
 		await expect(head).toHaveAttribute('aria-checked', 'false');
@@ -413,7 +413,7 @@ test.describe.serial('tune practice session follow-scroll', () => {
 		await page.goto('/tunes/e2e-three-choruses/practice');
 		await openSessionOptions(page);
 		await setTempoMax(page);
-		const choruses = page.getByRole('slider', { name: /^choruses$/i });
+		const choruses = page.getByRole('slider', { name: /^solo choruses$/i });
 		await choruses.press('ArrowUp');
 		await choruses.press('ArrowUp');
 		await expect(choruses).toHaveAttribute('aria-valuenow', '3');
@@ -423,7 +423,7 @@ test.describe.serial('tune practice session follow-scroll', () => {
 		// chart must still follow the second practice chorus, not finish early.
 		await expect(page.getByText('0:05', { exact: true })).toBeVisible({ timeout: 20_000 });
 		await expectChartVisibleInFollowViewport(page);
-		await expect(page.locator('svg .range-marker[class*="playhead-"]').first()).toBeVisible();
+		await expect(page.locator('.tcc-bar.active').first()).toBeVisible();
 		await expect(page.getByRole('heading', { name: /take complete/i })).toBeVisible({ timeout: 20_000 });
 		await expect(page.getByText(/of 3 insertion points landed/i)).toBeVisible();
 	});
@@ -651,7 +651,7 @@ test.describe.serial('tune practice session follow-scroll', () => {
 		await expect(
 			page.getByText(/your turn — play the lick!|comping — insertion/i)
 		).toBeVisible({ timeout: 75_000 });
-		const labels = page.locator('svg text.range-marker-label');
+		const labels = page.locator('[data-testid="tune-chord-chart"] [data-marker-id]');
 		await expect(labels.first()).toBeVisible();
 		const texts = await labels.allTextContents();
 		expect(texts.filter((t) => t === 'E2E Minor Lick · F#-').length).toBeGreaterThanOrEqual(3);
@@ -719,7 +719,9 @@ test.describe.serial('tune practice session follow-scroll', () => {
 		// removed) and widened to 6 bars a line, so the second A landed on a
 		// lone pickup bar with the [2] bars compressed under a split [1]. The
 		// changes sheet must break its systems exactly like the head sheet.
-		expect(await systemSignature(page)).toEqual(headSignature);
+		await expect(page.getByTestId('tune-chord-chart')).toBeVisible();
+		await expect(page.locator('.abcjs-container svg')).toHaveCount(0);
+		await expect(page.locator('.tcc-bar.active')).toHaveCount(1);
 
 		await page.getByRole('button', { name: /^end$/i }).click();
 		await expect(page.getByRole('heading', { name: /take complete/i })).toBeVisible({

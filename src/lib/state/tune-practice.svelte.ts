@@ -1,4 +1,4 @@
-import { load, save } from '$lib/persistence/storage';
+import { savedSoloChoruses, saveSoloChoruses } from '$lib/tunes/solo-choruses';
 import type { Fraction, Phrase, PitchClass } from '$lib/types/music';
 import type { Score } from '$lib/types/scoring';
 import type { Trick, TrickContext, TrickParameters } from '$lib/types/tricks';
@@ -37,7 +37,6 @@ import {
 	buildSessionPhrase,
 	buildSessionPlan,
 	clearPickupBarHarmony,
-	normalizeChoruses,
 	headBarsForFlat,
 	notationBarForPlaybackBar,
 	resolvePickedSuggestion,
@@ -105,6 +104,9 @@ export interface TunePracticeAudioPlan {
 	notationFlat: FlattenedTune;
 	/** Bars before the practice material starts (0 without a head). */
 	leadBars: number;
+	outroStartBar: number | null;
+	outroSourceStartBar: number;
+	noteSourceIndices: number[];
 	/**
 	 * Bars of drum count-in ahead of the tune, from the session tempo — the
 	 * lead-in the route hands playPhrase and every transport tick sits behind.
@@ -193,18 +195,14 @@ export const tunePractice = $state<{
 	elapsedSeconds: 0
 });
 
-const CHORUSES_STORAGE_KEY = 'tune-practice-choruses';
-
 /** Restore the active user's last chorus count after browser hydration. */
 export function restoreTunePracticeChoruses(): void {
-	const saved = load<unknown>(CHORUSES_STORAGE_KEY);
-	tunePractice.config.choruses = normalizeChoruses(typeof saved === 'number' ? saved : 1);
+	tunePractice.config.choruses = savedSoloChoruses();
 }
 
 /** Remember the chorus count locally for the next tune or visit. */
 export function setTunePracticeChoruses(choruses: number): void {
-	tunePractice.config.choruses = normalizeChoruses(choruses);
-	save(CHORUSES_STORAGE_KEY, tunePractice.config.choruses);
+	tunePractice.config.choruses = saveSoloChoruses(choruses);
 }
 
 /**
@@ -339,7 +337,7 @@ function prepareTunePracticeSession(sheet: Tune, config: TunePracticeConfig, ppq
 	const choruses = config.choruses;
 	// A pickup is played once, with the head; every practice chorus runs bar 1 to the end.
 	const pickupBars = soloPassPickupBars(transposed, flat);
-	const built = buildSessionPhrase({ flat, timeSignature: transposed.timeSignature, playHead, choruses, pickupBars });
+	const built = buildSessionPhrase({ flat, timeSignature: transposed.timeSignature, playHead, playOutro: true, choruses, pickupBars });
 	const countInBars = countInBarsForTempo(config.tempo);
 	const practiceStartBar = (formRepeats ? headBars : 0) + pickupBars;
 	// The played phrase opens on the head's first bar, or without a head on
@@ -398,6 +396,9 @@ function prepareTunePracticeSession(sheet: Tune, config: TunePracticeConfig, ppq
 		flat,
 		notationFlat,
 		leadBars: built.headBars,
+		outroStartBar: built.outroStartBar,
+		outroSourceStartBar: built.outroSourceStartBar,
+		noteSourceIndices: built.noteSourceIndices,
 		countInBars,
 		countInPickup,
 		practiceStartBar,
@@ -548,6 +549,13 @@ export function markHead(): void {
 	if (tunePractice.phase === 'count-in') tunePractice.phase = 'head';
 }
 
+export function markOutro(): void {
+	if (tunePractice.phase === 'running') {
+		tunePractice.phase = 'outro';
+		tunePractice.windowOpen = false;
+	}
+}
+
 export function markRunning(): void {
 	if (tunePractice.phase === 'count-in' || tunePractice.phase === 'head') {
 		tunePractice.phase = 'running';
@@ -636,7 +644,8 @@ export function updateElapsedTime(): void {
 	if (
 		tunePractice.phase === 'count-in' ||
 		tunePractice.phase === 'head' ||
-		tunePractice.phase === 'running'
+		tunePractice.phase === 'running' ||
+		tunePractice.phase === 'outro'
 	) {
 		tunePractice.elapsedSeconds = Math.floor((Date.now() - tunePractice.startTime) / 1000);
 	}

@@ -53,6 +53,36 @@ describe('tune desk tempo', () => {
 });
 
 describe('tune desk playback', () => {
+	it('tracks two solo choruses and the closing melody on one finite playback', async () => {
+		let finish!: () => void;
+		audio.playPhrase.mockImplementation(() => new Promise<void>(resolve => finish = resolve));
+		player.setTempo(120); // Two seconds per bar, with one count-in bar.
+		const started = player.toggle(tune, 'swing', 2);
+		await vi.waitFor(() => expect(audio.playPhrase).toHaveBeenCalled());
+		const callbacks = audio.playPhrase.mock.calls[0][3];
+		expect(callbacks.loop).toBeUndefined();
+		expect(callbacks.loopBacking).toBe(false);
+		const at = (seconds: number) => {
+			audio.getAudibleTransportSeconds.mockReturnValue(seconds);
+			callbacks.onStarted();
+		};
+		at(2.2);
+		expect(player.phase).toBe('head');
+		at(6.2);
+		expect(player.phase).toBe('solo');
+		expect(player.soloChorus).toBe(1);
+		at(10.2);
+		expect(player.soloChorus).toBe(2);
+		at(14.2);
+		expect(player.phase).toBe('outro');
+		expect(player.chartBar).toBeCloseTo(.1);
+		callbacks.onNote({ sourceIndex: 1 });
+		expect(player.cursorIndex).toBe(0); // Closing head points to the original chart.
+		finish();
+		await started;
+		expect(player.busy).toBe(false);
+		expect(audio.playPhrase).toHaveBeenCalledTimes(1);
+	});
 	// 2026-10-22: Loop re-ran the phrase per pass, so every return to the top
 	// stopped the transport, sat through a fresh lead-in bar and a trailing
 	// beat, and replayed the pickup bar. The engine now loops the form on one

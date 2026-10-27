@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onDestroy, untrack } from 'svelte';
+	import { onDestroy, onMount, untrack } from 'svelte';
 	import type { Tune } from '$lib/types/tune';
 	import type { BackingStyle } from '$lib/types/instruments';
 	import EditorIcon from '$lib/components/step-entry/EditorIcon.svelte';
@@ -14,15 +14,16 @@
 	/** Stop both queued and active playback from the parent’s keyboard/navigation handlers. */
 	export function stop(): void { player.stop(); }
 	/** Use the same production engine for buttons and the space shortcut. */
-	export async function togglePlay(): Promise<void> { await player.toggle(tune, effectiveStyle); }
+	export async function togglePlay(): Promise<void> { await player.toggle(tune, effectiveStyle, compact ? undefined : player.soloChoruses); }
 	// Both callers derive a new tune on edits/transposition; track that reference.
 	$effect(() => { tune; effectiveStyle; untrack(() => player.stop()); });
+	onMount(() => { if (!compact) player.restoreSoloChoruses(); });
 	onDestroy(() => { player.stop(); localPlayer.dispose(); });
 </script>
 
 <div class="td-transport" class:td-desk-transport={!compact} aria-label="Tune playback">
 	<button class="le-button le-play" class:td-playing={player.playing} onclick={togglePlay} aria-label={player.starting ? 'Cancel loading playback' : player.playing ? 'Stop' : 'Play tune'}><EditorIcon name={player.busy ? 'stop' : 'play'} size={16} />{player.starting ? 'Loading…' : player.playing ? 'Stop' : 'Play tune'}<kbd>space</kbd></button>
-	<button class="le-loop" aria-pressed={player.loop} onclick={() => { player.loop = !player.loop; }}><EditorIcon name="loop" size={16} />Loop</button>
+	{#if compact}<button class="le-loop" aria-pressed={player.loop} onclick={() => { player.loop = !player.loop; }}><EditorIcon name="loop" size={16} />Loop</button>{:else}<label class="td-solo-count">Solo choruses <input aria-label="Solo choruses" type="number" min="1" max="12" value={player.soloChoruses} onchange={event => player.setSoloChoruses(event.currentTarget.valueAsNumber)} /></label>{/if}
 	{#if compact}
 		<div class="le-tempo"><label for="tune-preview-tempo">Tempo</label><input id="tune-preview-tempo" type="number" min="40" max="240" value={player.tempo} onchange={e => player.setTempo(Number(e.currentTarget.value))} /><span>BPM</span></div>
 	{:else}
@@ -39,3 +40,8 @@
 	</div>
 {/if}
 {#if player.error}<p class="td-playback-error" role="status">{player.error}</p>{/if}
+
+<style>
+.td-solo-count { display:flex; align-items:center; gap:10px; font-size:11px; color:var(--studio-muted); }
+.td-solo-count input { width:52px; padding:6px; border:1px solid var(--studio-border); border-radius:3px; background:var(--studio-well); color:var(--studio-text); }
+</style>

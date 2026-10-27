@@ -3,12 +3,14 @@ import type { BackingStyle } from '$lib/types/instruments';
 import { settings } from './settings.svelte';
 import { melodySwingForStyle } from '$lib/audio/backing-styles';
 import { tuneToPhraseWithFlat } from '$lib/tunes/to-phrase';
-import { notationBarForPlaybackBar } from './tune-practice-plan';
+import { playbackBarForSessionBar, notationBarForPlaybackBar } from './tune-practice-plan';
 import { clampTuneTempo, savedTuneTempo } from '$lib/tunes/tune-tempo';
 import { formLoopRegion } from '$lib/tunes/form-loop';
 import { loopPlaybackBar } from '$lib/audio/phrase-loop';
 import { countInBarsForTempo } from '$lib/audio/drum-count-in';
 import { isInPickupLeadIn } from '$lib/music/pickup';
+import { buildJamForm } from '$lib/tunes/jam-form';
+import { savedSoloChoruses, saveSoloChoruses } from '$lib/tunes/solo-choruses';
 
 /** Where a desk player keeps its tempo: the open tune's id and how to save a choice for it. */
 export interface TuneTempoStore {
@@ -22,7 +24,12 @@ export class TunePlayer {
 	backing = $state(false);
 	melody = $state(true);
 	metronome = $state(false);
-	loop = $state(false);
+	loop = $state(false); // Compact editor preview only.
+	soloChoruses = $state(1);
+	phase = $state<'head' | 'solo' | 'outro'>('head');
+	soloChorus = $state(0);
+	restoreSoloChoruses(): void { this.soloChoruses = savedSoloChoruses(); }
+	setSoloChoruses(value: number): void { this.stop(); this.soloChoruses = saveSoloChoruses(value); }
 	playing = $state(false);
 	starting = $state(false);
 	error = $state('');
@@ -63,16 +70,16 @@ export class TunePlayer {
 		this.starting = false;
 		this.chartBar = null;
 		this.cursorIndex = null;
+		this.phase = 'head';
+		this.soloChorus = 0;
 	}
 
 	/**
-	 * Play the expanded form with the saved style; no global settings are
-	 * changed. ONE engine call carries every pass: with Loop on, bar 1 follows
-	 * the last bar on the next beat and a pickup is played only on the way in;
-	 * a whole-tune repeat goes round its first ending and out on its second.
-	 * Loop may be toggled mid-pass, and the engine asks before each return.
+	 * One engine call carries the complete finite jam on the tune page. The
+	 * compact editor preview keeps its existing optional loop. Both preserve
+	 * the saved feel, pickup entrance and original chart coordinates.
 	 */
-	async toggle(tune: Tune, style: BackingStyle): Promise<void> {
+	async toggle(tune: Tune, style: BackingStyle, soloChoruses?: number): Promise<void> {
 		if (this.busy) { this.stop(); return; }
 		const generation = ++this.run;
 		this.starting = true;
@@ -82,7 +89,10 @@ export class TunePlayer {
 		const melody = this.melody;
 		const countInBars = countInBarsForTempo(tempo);
 		try {
-			const { phrase, flat } = tuneToPhraseWithFlat(tune, { expandRepeats: true });
+			const expanded = tuneToPhraseWithFlat(tune, { expandRepeats: true });
+			const jam = soloChoruses === undefined ? null : buildJamForm(tune, soloChoruses);
+			const phrase = jam?.phrase ?? expanded.phrase;
+			const flat = jam?.flat ?? expanded.flat;
 			this.playback ??= await import('$lib/audio/playback');
 			if (this.disposed || generation !== this.run) return;
 			await this.playback.loadInstrument(settings.instrumentId, settings.masterVolume, backing ? settings.backingInstrument : undefined);
@@ -108,7 +118,8 @@ export class TunePlayer {
 				// The drummer counts the tune in whenever the band's kit is loaded,
 				// on through a pickup bar: the band enters after it.
 				countIn: { bars: countInBars, drums: true, pickup: isInPickupLeadIn(tune, 0) },
-				loop: { ...region, shouldContinue },
+				loop: jam ? undefined : { ...region, shouldContinue },
+				loopBacking: jam ? false : undefined,
 				onStarted: () => {
 					if (generation !== this.run) return;
 					clearInterval(this.ticker);
@@ -127,14 +138,22 @@ export class TunePlayer {
 						// pickup) for every return taken, then on its way-out pass. A
 						// pickup bar is marked from its first printed beat, not its silent
 						// lead-in, which is still the count.
-						const chartBar = notationBarForPlaybackBar(flat.sectionMap, tune.sections, loopPlaybackBar(bar, region, returns));
+						const sourceBar = jam
+							? playbackBarForSessionBar(bar, flat.totalBars, jam.headBars, jam.practiceStartBar, jam.outroStartBar, jam.outroSourceStartBar)
+							: loopPlaybackBar(bar, region, returns);
+						if (jam) {
+							this.phase = bar < jam.headBars ? 'head' : jam.outroStartBar !== null && bar >= jam.outroStartBar ? 'outro' : 'solo';
+							this.soloChorus = this.phase === 'solo' ? Math.min(soloChoruses!, 1 + Math.floor((bar - jam.headBars) / (flat.totalBars - jam.practiceStartBar))) : 0;
+							if (this.phase === 'solo') this.cursorIndex = null;
+						}
+						const chartBar = notationBarForPlaybackBar(flat.sectionMap, tune.sections, sourceBar);
 						this.chartBar = chartBar !== null && isInPickupLeadIn(tune, chartBar) ? null : chartBar;
 					};
 					update();
 					this.ticker = setInterval(update, 50);
 				},
 				onNote: ({ sourceIndex }) => {
-					if (generation === this.run) this.cursorIndex = flat.noteSourceIndices[sourceIndex] ?? null;
+					if (generation === this.run) this.cursorIndex = (jam?.noteSourceIndices ?? flat.noteSourceIndices)[sourceIndex] ?? null;
 				}
 			});
 		} catch {

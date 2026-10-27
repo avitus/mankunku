@@ -37,9 +37,9 @@ export const tunePracticeTour: DriveStep[] = [
 	},
 	{
 		popover: {
-			title: 'The head plays once',
+			title: 'Head, solos, head out',
 			description:
-				"Jazz convention, implemented literally. With the Head switch on, the melody plays one chorus, then the staff clears and the changes are yours. On a chart whose repeats outline the whole form, pass one IS the head and pass two is your chorus; on other charts a solo chorus is appended. A chords-only chart has no head, so the switch sits at OFF — the caption under Start tells you which way the take opens.",
+				"Jazz convention, implemented literally. With Head & outro on, the melody plays before the solos and returns after the final solo. Solos show chords in bars; both heads show melody notation. On a chart whose repeats outline the whole form, pass one IS the head and pass two is your chorus; on other charts a solo chorus is appended. A chords-only chart has no head, so the switch sits at OFF — the caption under Start tells you which way the take opens.",
 			align: 'center'
 		}
 	},

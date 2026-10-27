@@ -3,6 +3,7 @@
 	import { acquireScreenWakeLock, releaseScreenWakeLock } from '$lib/util/wake-lock';
 	import { page } from '$app/state';
 	import NotationDisplay, { type RangeMarker } from '$lib/components/notation/NotationDisplay.svelte';
+	import TuneChordChart from '$lib/components/tunes/TuneChordChart.svelte';
 	import SuggestionPickCard, { type PickEntry } from '$lib/components/tune-practice/SuggestionPickCard.svelte';
 	import TunePracticeSetup from '$lib/components/tune-practice/TunePracticeSetup.svelte';
 	import LickCelebration from '$lib/components/tune-practice/LickCelebration.svelte';
@@ -22,6 +23,7 @@
 		candidatesForWindow,
 		markHead,
 		markRunning,
+		markOutro,
 		markWindowOpen,
 		recordWindowResult,
 		completeTunePracticeSession,
@@ -202,7 +204,7 @@
 	// changes-only sheet (one deliberate re-render at a musical boundary).
 	const displayedSheet = $derived.by(() => {
 		if (!audioPlan) return null;
-		if (audioPlan.leadBars > 0 && (tunePractice.phase === 'count-in' || tunePractice.phase === 'head')) {
+		if (audioPlan.leadBars > 0 && (tunePractice.phase === 'count-in' || tunePractice.phase === 'head' || tunePractice.phase === 'outro')) {
 			return audioPlan.sheet;
 		}
 		return audioPlan.changesSheet;
@@ -279,7 +281,7 @@
 		const result: RangeMarker[] = [...byKey.values()];
 
 		// Current-bar playhead (repeat passes land on the same chart bars).
-		if (playheadBar !== null && (tunePractice.phase === 'head' || tunePractice.phase === 'running')) {
+		if (playheadBar !== null && (tunePractice.phase === 'head' || tunePractice.phase === 'running' || tunePractice.phase === 'outro')) {
 			result.push({
 				id: '__playhead',
 				startBar: playheadBar,
@@ -305,6 +307,8 @@
 					formBars: audioPlan.flat.totalBars,
 					headBars: audioPlan.leadBars,
 					practiceStartBar: audioPlan.practiceStartBar,
+					outroStartBar: audioPlan.outroStartBar,
+					outroSourceStartBar: audioPlan.outroSourceStartBar,
 					sectionMap: audioPlan.flat.sectionMap,
 					sheet: audioPlan.sheet
 				})
@@ -318,10 +322,10 @@
 	 */
 	const playheadBarFraction = $derived.by(() => {
 		if (!audioPlan) return null;
-		if (tunePractice.phase !== 'head' && tunePractice.phase !== 'running') return null;
+		if (tunePractice.phase !== 'head' && tunePractice.phase !== 'running' && tunePractice.phase !== 'outro') return null;
 		const leadBars = audioPlan.leadBars;
 		const formBars = audioPlan.flat.totalBars;
-		const formBarF = playbackBarForSessionBar(playheadBarF, formBars, leadBars, audioPlan.practiceStartBar);
+		const formBarF = playbackBarForSessionBar(playheadBarF, formBars, leadBars, audioPlan.practiceStartBar, audioPlan.outroStartBar, audioPlan.outroSourceStartBar);
 		if (formBarF < 0 || formBarF >= formBars) return null;
 		const floorBar = Math.floor(formBarF);
 		const frac = formBarF - floorBar;
@@ -438,7 +442,7 @@
 			!audioPlan &&
 			(tunePractice.phase === 'count-in' ||
 				tunePractice.phase === 'head' ||
-				tunePractice.phase === 'running')
+				tunePractice.phase === 'running' || tunePractice.phase === 'outro')
 		) {
 			resetTunePractice();
 		}
@@ -608,6 +612,9 @@
 				freestyleFloorSec = micCapture.context.currentTime - sessionPitchStartMicTime;
 			}
 		}, `${practiceStartTick}i`);
+		if (audioPlan.outroStartBar !== null) {
+			transport.scheduleOnce(() => { if (isSessionRunning) { markOutro(); cursorIndex = null; } }, `${countInTicksNR + audioPlan.outroStartBar * barTicksNR}i`);
+		}
 		if (tunePractice.config.mode === 'freestyle') {
 			// No pre-scheduled windows — a bar-cadence scan recognizes known
 			// licks from the live stream instead, starting once the head is
@@ -627,7 +634,7 @@
 	 * machinery) and ask the recognizer. Runs on the audio clock per bar.
 	 */
 	function runFreestyleScan() {
-		if (!isSessionRunning || !pitchDetector || !freestyleRecognizer || !toneModule) return;
+		if (!isSessionRunning || tunePractice.phase !== 'running' || !pitchDetector || !freestyleRecognizer || !toneModule) return;
 		const readings = pitchDetector.getReadings();
 		if (readings.length === 0) return;
 		const nowSec = readings[readings.length - 1].time;
@@ -786,7 +793,7 @@
 	}
 
 	function handlePlaybackNote(event: PlaybackNoteEvent) {
-		cursorIndex = audioPlan?.flat.noteSourceIndices[event.sourceIndex] ?? null;
+		cursorIndex = audioPlan?.noteSourceIndices[event.sourceIndex] ?? null;
 	}
 
 	function startBeatTracking() {
@@ -901,16 +908,19 @@
 			ontempo={setPracticeTempo}
 			onkey={selectWrittenKey}
 		/>
-	{:else if tunePractice.phase === 'count-in' || tunePractice.phase === 'head' || tunePractice.phase === 'running'}
+	{:else if tunePractice.phase === 'count-in' || tunePractice.phase === 'head' || tunePractice.phase === 'running' || tunePractice.phase === 'outro'}
 		<div class="flex flex-wrap items-center justify-between gap-3">
 			<div>
 				<h1 class="text-xl font-bold">{tunePractice.tuneTitle}</h1>
 				<p class="text-sm text-[var(--color-text-secondary)]">
+					{#if tunePractice.phase === 'running' && audioPlan}<span>Solo {Math.min(tunePractice.config.choruses, 1 + Math.max(0, Math.floor((playheadBarF - audioPlan.leadBars) / Math.max(1, audioPlan.flat.totalBars - audioPlan.practiceStartBar))))} of {tunePractice.config.choruses}</span> · {/if}
 					{#if tunePractice.phase === 'count-in'}
 						Count-in…
 					{:else if tunePractice.phase === 'head'}
 						<span class="font-medium text-[var(--color-phase-listen)]">Head</span> — melody once
 						through, then it's yours
+					{:else if tunePractice.phase === 'outro'}
+						<span class="font-medium text-[var(--color-phase-listen)]">Outro</span> — the head again
 					{:else if tunePractice.config.mode === 'freestyle'}
 						<span class="font-medium text-[var(--color-phase-play)]">Your solo</span> —
 						{tunePractice.freestyleMatches.length} known lick{tunePractice.freestyleMatches.length === 1
@@ -945,7 +955,7 @@
 			</div>
 		</div>
 
-		{#if tunePractice.config.mode === 'freestyle'}
+		{#if tunePractice.config.mode === 'freestyle' && tunePractice.phase === 'running'}
 			<LickCelebration celebration={tunePractice.celebration} onDismiss={clearCelebration} />
 		{/if}
 
@@ -957,7 +967,9 @@
 			/>
 		{/if}
 
-		{#if displayedSheet}
+		{#if displayedSheet && tunePractice.phase === 'running'}
+			<TuneChordChart tune={audioPlan!.sheet} instrument={getInstrument()} currentBar={playheadBarFraction} {markers} />
+		{:else if displayedSheet}
 			<!-- The chart follows the playhead by translating within its own clipped
 			     viewport (no scrollbar), so the status/pick header above stays put. -->
 			<NotationDisplay

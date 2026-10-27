@@ -27,7 +27,7 @@ import { isInPickupLeadIn } from '$lib/music/pickup';
 
 export type TunePracticeMode = 'suggest' | 'points' | 'freestyle';
 export type TunePracticeStrictness = 'guided' | 'standard' | 'solo';
-export type TunePracticePhase = 'setup' | 'count-in' | 'head' | 'running' | 'complete';
+export type TunePracticePhase = 'setup' | 'count-in' | 'head' | 'running' | 'outro' | 'complete';
 
 export interface InsertionPoint {
 	id: string;
@@ -140,8 +140,11 @@ export function playbackBarForSessionBar(
 	bar: number,
 	formBars: number,
 	headBars: number,
-	practiceStartBar: number
+	practiceStartBar: number,
+	outroStartBar?: number | null,
+	outroSourceStartBar = practiceStartBar
 ): number {
+	if (outroStartBar != null && bar >= outroStartBar) return outroSourceStartBar + bar - outroStartBar;
 	if (bar < headBars) return bar;
 	const start = practiceStartBar;
 	const chorusBars = formBars - start;
@@ -705,7 +708,9 @@ export function buildSessionPhrase(args: {
 	playHead: boolean;
 	choruses?: number;
 	pickupBars?: number;
-}): ReturnType<typeof buildSingleChorusPhrase> {
+	/** Append the melody on the way out; solos and their windows stay unchanged. */
+	playOutro?: boolean;
+}): ReturnType<typeof buildSingleChorusPhrase> & { outroStartBar: number | null; outroSourceStartBar: number; noteSourceIndices: number[] } {
 	const built = buildSingleChorusPhrase(args);
 	const chorusBars = built.phraseBars - built.headBars;
 	const count = normalizeChoruses(args.choruses);
@@ -728,7 +733,26 @@ export function buildSessionPhrase(args: {
 		})));
 		sectionMap.push(...sectionMapFrom(built.sectionMap, built.headBars, built.headBars + chorus * chorusBars));
 	}
-	return { ...built, sectionMap, phraseBars: built.headBars + chorusBars * count };
+	const soloEnd = built.headBars + chorusBars * count;
+	const { headBars, formRepeats } = headBarsForFlat(args.flat);
+	const outroSourceStartBar = (formRepeats ? headBars : 0) + (args.pickupBars ?? 0);
+	const noteSourceIndices = args.flat.noteSourceIndices.slice(0, built.notes.length);
+	const outroStartBar = args.playOutro && args.playHead ? soloEnd : null;
+	if (outroStartBar !== null) {
+		const from = multiplyFraction(barDuration, outroSourceStartBar);
+		const to = multiplyFraction(barDuration, soloEnd);
+		args.flat.notes.forEach((note, index) => {
+			const end = addFractions(note.offset, note.duration);
+			if (compareFractions(end, from) <= 0) return;
+			const start = compareFractions(note.offset, from) < 0 ? from : note.offset;
+			built.notes.push({ ...note, offset: addFractions(to, subtractFractions(start, from)), duration: subtractFractions(end, start) });
+			noteSourceIndices.push(args.flat.noteSourceIndices[index]);
+		});
+		built.harmony.push(...harmonyFrom(args.flat.harmony, from, to));
+		sectionMap.push(...sectionMapFrom(args.flat.sectionMap, outroSourceStartBar, soloEnd));
+	}
+	return { ...built, sectionMap, noteSourceIndices, outroStartBar, outroSourceStartBar,
+		phraseBars: soloEnd + (outroStartBar === null ? 0 : args.flat.totalBars - outroSourceStartBar) };
 }
 
 /**
@@ -801,10 +825,12 @@ export function playheadChartBar(args: {
 	formBars: number;
 	headBars: number;
 	practiceStartBar: number;
+	outroStartBar?: number | null;
+	outroSourceStartBar?: number;
 	sectionMap: FlattenedTune['sectionMap'];
 	sheet: Pick<Tune, 'sections' | 'timeSignature'>;
 }): number | null {
-	const formBar = playbackBarForSessionBar(args.sessionBar, args.formBars, args.headBars, args.practiceStartBar);
+	const formBar = playbackBarForSessionBar(args.sessionBar, args.formBars, args.headBars, args.practiceStartBar, args.outroStartBar, args.outroSourceStartBar);
 	if (!(formBar >= 0 && formBar < args.formBars)) return null;
 	const chartBar = notationBarForPlaybackBar(args.sectionMap, args.sheet.sections, formBar);
 	if (chartBar === null || isInPickupLeadIn(args.sheet, chartBar)) return null;
@@ -819,6 +845,7 @@ export function playheadChartBar(args: {
  * first, so the annotations show from the count-in as before.
  */
 export function annotationsVisible(args: { phase: TunePracticePhase; playHead: boolean }): boolean {
+	if (args.phase === 'outro') return false;
 	if (!args.playHead) return true;
 	return args.phase !== 'count-in' && args.phase !== 'head';
 }

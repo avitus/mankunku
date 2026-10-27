@@ -18,6 +18,7 @@
 	import '$lib/components/tunes/tune-desk.css';
 	import '$lib/components/tunes/tune-detail.css';
 	import NotationDisplay from '$lib/components/notation/NotationDisplay.svelte';
+	import TuneChordChart from '$lib/components/tunes/TuneChordChart.svelte';
 	import { isCuratedTuneId, transposeTune } from '$lib/tunes/book-loader';
 	import { resolveTuneRef, tunePracticePath } from '$lib/tunes/tune-slug';
 	import { getUserTunesLocal, deleteUserTune, saveUserTune } from '$lib/persistence/user-tunes';
@@ -257,8 +258,8 @@
 						<div class="td-chart-context">{#if tuneDeskView.focus}<h1>{baseSheet.title}</h1>{:else}<strong>{sheet.sections[0]?.label || '♪'}</strong><span>Full tune <i>/</i> {totalBars} bars</span>{/if}</div>
 						<div class="td-chart-tools"><button aria-pressed={harmonyColors} onclick={() => harmonyColors = !harmonyColors}><i class="td-color-dot" aria-hidden="true"></i><span>Harmony colors</span><i class="td-switch" class:active={harmonyColors} aria-hidden="true"></i></button><button class="td-focus-button" aria-pressed={tuneDeskView.focus} onclick={() => tuneDeskView.focus = !tuneDeskView.focus}>{tuneDeskView.focus ? 'Exit focus' : '⛶ Focus'}</button></div>
 					</div>
-					<div class="td-score-well" bind:clientWidth={chartWidth}><NotationDisplay tuneOptions={{ omitMasthead: true, barsPerLine: chartWidth < 550 ? 2 : 4 }} tune={sheet} instrument={getInstrument()} frameless rangeMarkers={markers} cursorIndex={player.cursorIndex} playheadStyle="under-bar" autoScrollPlayhead={player.playing} playheadBarFraction={player.chartBar} /></div>
-					<div class="td-status"><span><i aria-hidden="true"></i><strong>{player.starting ? 'Loading…' : player.playing ? `Playing · Bar ${Math.floor(player.chartBar ?? 0) + 1}` : 'Ready to play'}</strong> Written in {writtenKey.replace('b', '♭').replace('#', '♯')}</span><span>{sheet.timeSignature.join('/')} · {totalBars} bars</span></div>
+					<div class="td-score-well" bind:clientWidth={chartWidth}>{#if player.playing && player.phase === 'solo'}<TuneChordChart tune={sheet} instrument={getInstrument()} currentBar={player.chartBar} />{:else}<NotationDisplay tuneOptions={{ omitMasthead: true, barsPerLine: chartWidth < 550 ? 2 : 4 }} tune={sheet} instrument={getInstrument()} frameless rangeMarkers={markers} cursorIndex={player.cursorIndex} playheadStyle="under-bar" autoScrollPlayhead={player.playing} playheadBarFraction={player.chartBar} />{/if}</div>
+					<div class="td-status"><span><i aria-hidden="true"></i><strong>{player.starting ? 'Loading…' : player.playing ? `${player.phase === 'solo' ? `Solo ${player.soloChorus} of ${player.soloChoruses}` : player.phase === 'outro' ? 'Outro' : 'Head'} · Bar ${Math.floor(player.chartBar ?? 0) + 1}` : 'Ready to play'}</strong> Written in {writtenKey.replace('b', '♭').replace('#', '♯')}</span><span>{sheet.timeSignature.join('/')} · {totalBars} bars</span></div>
 					<TuneTransport bind:this={transport} tune={sheet} {player} style={backingStyle} onsettings={tuneDeskView.focus || viewportWidth <= 800 ? openSettings : undefined} />
 				</section>
 				<div class="td-reading-footer"><span>Space to play or stop</span><em>Listen. Find the changes. Make them yours.</em></div>

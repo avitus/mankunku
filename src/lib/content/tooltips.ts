@@ -129,7 +129,7 @@ export const tooltips = {
 			learnMore: '/docs/tune-practice'
 		},
 		head: {
-			text: 'Play the melody once through first, then the chart clears and the changes are yours.',
+			text: 'Play the melody before and after the solo choruses. Solos show the chords in bars.',
 			learnMore: '/docs/tune-practice'
 		},
 		headNoMelody: {

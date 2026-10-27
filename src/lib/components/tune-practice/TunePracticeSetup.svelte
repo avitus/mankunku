@@ -44,7 +44,7 @@
 	const tuneHasMelody = $derived(tune.sections.some(section => section.notes.some(note => note.pitch !== null)));
 	const startCaption = $derived(!tuneHasMelody
 		? 'This chart has no melody — straight to the changes.'
-		: tunePractice.config.playHead ? 'Head first, then the chart clears for your licks.' : 'Straight to the changes.');
+		: tunePractice.config.playHead ? 'Head, solo choruses, then the head again.' : 'Straight to the changes.');
 	const progressionCounts = $derived(Object.entries(preview?.byType ?? {}).map(([type, count]) => ({
 		type: type as keyof typeof PROGRESSION_TEMPLATES,
 		count
@@ -160,12 +160,12 @@
 	</div>
 
 	<details class="tp-options le-panel">
-		<summary><span>Session options</span><small>{modeSummary} · {tunePractice.config.choruses} chorus{tunePractice.config.choruses === 1 ? '' : 'es'}{tuneHasMelody && tunePractice.config.playHead ? ' · Head first' : ''}</small></summary>
+		<summary><span>Session options</span><small>{modeSummary} · {tunePractice.config.choruses} chorus{tunePractice.config.choruses === 1 ? '' : 'es'}{tuneHasMelody && tunePractice.config.playHead ? ' · Head & outro' : ''}</small></summary>
 		<fieldset disabled={isLoading} class="tp-option-grid">
 			<legend class="sr-only">Session options</legend>
 			<div><h3>Mode</h3><SelectorPad ariaLabel="Mode" value={tunePractice.config.mode} options={MODE_OPTIONS} onChange={value => tunePractice.config.mode = value} /></div>
 			<div><h3>Strictness</h3><SelectorPad ariaLabel="Strictness" value={tunePractice.config.strictness} options={STRICTNESS_OPTIONS} onChange={value => tunePractice.config.strictness = value} /></div>
-			<div class="tp-form-options"><RockerSwitch label="Head" ariaLabel="Play the head first" checked={tuneHasMelody && tunePractice.config.playHead} disabled={!tuneHasMelody || isLoading} helpText={tuneHasMelody ? tooltips.tunePractice.head.text : tooltips.tunePractice.headNoMelody.text} onChange={value => tunePractice.config.playHead = value} /><Knob label="Choruses" ariaLabel="Choruses" helpText="How many choruses to practice. The optional head plays once before them." value={tunePractice.config.choruses} min={1} max={12} step={1} displayValue={`${tunePractice.config.choruses}`} onInput={setTunePracticeChoruses} /></div>
+			<div class="tp-form-options"><RockerSwitch label="Head & outro" ariaLabel="Play head and outro" checked={tuneHasMelody && tunePractice.config.playHead} disabled={!tuneHasMelody || isLoading} helpText={tuneHasMelody ? tooltips.tunePractice.head.text : tooltips.tunePractice.headNoMelody.text} onChange={value => tunePractice.config.playHead = value} /><Knob label="Solo choruses" ariaLabel="Solo choruses" helpText="How many choruses to practice. The melody plays before and after the solos." value={tunePractice.config.choruses} min={1} max={12} step={1} displayValue={`${tunePractice.config.choruses}`} onInput={setTunePracticeChoruses} /></div>
 		</fieldset>
 	</details>
 </div>

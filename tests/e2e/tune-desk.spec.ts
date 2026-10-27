@@ -129,7 +129,7 @@ test('playing locks style changes and stopping releases the chart cursor', async
 	await page.getByRole('button', { name: 'Play tune', exact: true }).click();
 	await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeVisible({ timeout: 20000 });
 	await expect(page.getByRole('button', { name: 'Change backing style' })).toBeDisabled();
-	await expect(page.locator('.td-status')).toContainText('Playing');
+	await expect(page.locator('.td-status')).toContainText('Head');
 	await expect(page.getByTestId('chart-scroll-viewport')).toHaveClass(/following/);
 	await page.getByRole('button', { name: 'Stop', exact: true }).click();
 	await expect(page.getByRole('button', { name: 'Change backing style' })).toBeEnabled();

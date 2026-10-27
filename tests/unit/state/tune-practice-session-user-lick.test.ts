@@ -237,14 +237,16 @@ describe('the session counts in by tempo', () => {
 		const formBars = plan.flat.totalBars; // 33: the pickup bar and the 32-bar form
 		expect(plan.leadBars).toBe(formBars);
 		expect(plan.practiceStartBar).toBe(1);
-		expect(plan.playedPhrase.difficulty.lengthBars).toBe(formBars + 2 * (formBars - 1));
+		expect(plan.outroStartBar).toBe(formBars + 2 * (formBars - 1));
+		expect(plan.playedPhrase.difficulty.lengthBars).toBe(formBars + 3 * (formBars - 1));
+		expect(tunePractice.plan.every(ip => ip.closeTick <= (plan.countInBars + plan.outroStartBar!) * autumnLeaves.timeSignature[0] * 480)).toBe(true);
 		// The first solo chord sounds straight after the head's last bar (4/4:
 		// a bar is one whole note).
 		const solo = plan.playedPhrase.harmony.filter((h) => fractionToFloat(h.startOffset) >= formBars);
 		expect(fractionToFloat(solo[0].startOffset)).toBe(formBars);
 		// The band reads the same timeline (CodeRabbit on #288): each solo
 		// chorus's first section starts on that chorus's bar 1.
-		const soloSections = (plan.playedPhrase.sectionMap ?? []).filter((e) => e.barOffset >= formBars);
+		const soloSections = (plan.playedPhrase.sectionMap ?? []).filter((e) => e.barOffset >= formBars && e.barOffset < plan.outroStartBar!);
 		expect(soloSections[0]?.barOffset).toBe(formBars);
 		expect(soloSections.map((e) => e.barOffset)).toContain(formBars + (formBars - 1));
 		expect(Math.max(...soloSections.map((e) => e.barOffset))).toBeLessThan(formBars + 2 * (formBars - 1));

@@ -65,7 +65,7 @@ for (const viewport of [{ width: 1440, height: 1050 }, { width: 390, height: 844
 		await expect(page.getByRole('radiogroup', { name: 'Mode', exact: true })).toBeVisible();
 		await expect(page.getByRole('radio', { name: /^suggest/i })).toHaveAttribute('aria-checked', 'true');
 		await expect(page.getByRole('radio', { name: /^guided/i })).toHaveAttribute('aria-checked', 'true');
-		await page.getByRole('slider', { name: 'Choruses', exact: true }).press('ArrowUp');
+		await page.getByRole('slider', { name: 'Solo choruses', exact: true }).press('ArrowUp');
 		await expect(page.locator('.tp-insertion-status')).toContainText('10 insertion points');
 		await page.locator('details.tp-options summary').click();
 		await expect(page.locator('details.tp-options summary')).toContainText('2 choruses');
@@ -119,10 +119,10 @@ test('Start carries the proposed lick into the existing playing chart by default
 	await expect(page.locator('svg text.range-marker-label').filter({ hasText: 'My Dominant Line · A' }).first()).toBeVisible();
 	await page.locator('details.tp-options summary').click();
 	await expect(page.getByRole('radio', { name: /^guided/i })).toHaveAttribute('aria-checked', 'true');
-	await page.getByRole('switch', { name: 'Play the head first' }).click();
+	await page.getByRole('switch', { name: 'Play head and outro' }).click();
 	await page.getByRole('button', { name: 'Start', exact: true }).click();
 	await expect(page.getByRole('button', { name: 'End', exact: true })).toBeVisible({ timeout: 45_000 });
-	await expect(page.locator('.chart-scroll-viewport.following svg text.range-marker-label').filter({ hasText: 'My Dominant Line · A' }).first()).toBeAttached({ timeout: 15_000 });
+	await expect(page.locator('[data-testid="tune-chord-chart"] [data-marker-id]').filter({ hasText: 'My Dominant Line · A' }).first()).toBeAttached({ timeout: 15_000 });
 	await page.getByRole('button', { name: 'End', exact: true }).click();
 	await expect(page.getByRole('heading', { name: 'Take complete' })).toBeVisible();
 });
