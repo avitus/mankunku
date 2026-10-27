@@ -79,23 +79,22 @@ async function systemSignature(page: Page): Promise<number[]> {
 	});
 }
 
-/**
- * Max the tempo knob (End key → max) and confirm the value moved.
- *
- * The keypress is retried until `aria-valuenow` reaches the max. Callers
- * reach here as soon as the Start button is VISIBLE, but visible is not
- * hydrated: the setup screen is server-rendered, so a key event can land
- * before Svelte has attached the Knob's keydown handler — nothing runs and
- * `config.tempo` stays at its default. The old range-input version of this
- * helper hit that race ~70% of the time locally on `chart stays visible
- * through first insertion`. The readout is not asserted by text: the Knob
- * draws "240" and "BPM" as two SVG text nodes inside an aria-hidden svg.
- */
+/** Open the secondary controls through the native disclosure. */
+async function openSessionOptions(page: Page): Promise<void> {
+	const options = page.locator('details.tp-options');
+	if (!(await options.evaluate(element => element.hasAttribute('open')))) {
+		await options.locator('summary').click();
+	}
+	await expect(options).toHaveAttribute('open', '');
+}
+
+/** Commit numeric tempo entry and wait for the reactive transport readout. */
 async function setTempoMax(page: Page): Promise<void> {
-	const knob = page.getByRole('slider', { name: /^tempo$/i });
+	const tempo = page.getByRole('spinbutton', { name: /^tempo$/i });
 	await expect(async () => {
-		await knob.press('End');
-		await expect(knob).toHaveAttribute('aria-valuenow', '240', { timeout: 1_000 });
+		await tempo.fill('240');
+		await tempo.press('Tab');
+		await expect(page.locator('.tp-start')).toContainText('240 BPM', { timeout: 1_000 });
 	}).toPass({ timeout: 15_000 });
 }
 
@@ -176,6 +175,7 @@ test.describe('tune practice setup', () => {
 	test('choruses range from 1 to 12 and update the planned insertion count', async ({ page }) => {
 		await seedTunes(page, [SAINTS_USER_TUNE]);
 		await page.goto('/tunes/e2e-when-the-saints/practice');
+		await openSessionOptions(page);
 		const choruses = page.getByRole('slider', { name: /^choruses$/i });
 		await expect(choruses).toHaveAttribute('aria-valuenow', '1');
 		await expect(choruses).toHaveAttribute('aria-valuemin', '1');
@@ -191,10 +191,12 @@ test.describe('tune practice setup', () => {
 		await expect(page.getByText(/10 insertion points/i)).toBeVisible();
 		await expectToneClockRunning(page);
 		await page.reload();
+		await openSessionOptions(page);
 		await expect(choruses).toHaveAttribute('aria-valuenow', '2');
 		await expect(page.getByText(/10 insertion points/i)).toBeVisible();
 		await expectToneClockRunning(page);
 		await page.goto('/tunes/ls-mankunku-blues/practice');
+		await openSessionOptions(page);
 		await expect(choruses).toHaveAttribute('aria-valuenow', '2');
 	});
 
@@ -203,6 +205,7 @@ test.describe('tune practice setup', () => {
 		consoleCollector: _consoleCollector
 	}) => {
 		await page.goto('/tunes/ls-mankunku-blues/practice');
+		await openSessionOptions(page);
 		// With the default head-first setting, only the SOLO pass of the
 		// whole-form repeat is practiceable (the jazz form rule): 3 blues bars +
 		// 1 short ii-V-I + 1 turnaround. Scope to the summary paragraph — the same
@@ -225,6 +228,7 @@ test.describe('tune practice setup', () => {
 	}) => {
 		await seedTunes(page, [SAINTS_USER_TUNE]);
 		await page.goto('/tunes/e2e-when-the-saints/practice');
+		await openSessionOptions(page);
 		const head = page.getByRole('switch', { name: /play the head first/i });
 		const modes = page.getByRole('radiogroup', { name: 'Mode', exact: true });
 		// The play-the-head option applies to every mode.
@@ -283,6 +287,7 @@ test.describe('tune practice setup', () => {
 		};
 		await seedTunes(page, [chordsOnlyTune]);
 		await page.goto('/tunes/e2e-chords-only/practice');
+		await openSessionOptions(page);
 		const head = page.getByRole('switch', { name: /play the head first/i });
 		await expect(head).toBeVisible();
 		await expect(head).toBeDisabled();
@@ -306,14 +311,15 @@ test.describe('tune practice setup', () => {
 		});
 		await seedTunes(page, [SAINTS_USER_TUNE]);
 		await page.goto('/tunes/e2e-when-the-saints/practice');
+		await openSessionOptions(page);
 
 		const backing = page.getByRole('switch', { name: /backing track this session/i });
-		const style = page.getByRole('radiogroup', { name: 'Backing style', exact: true });
+		const style = page.getByRole('combobox', { name: 'Backing style', exact: true });
 		await expect(backing).toBeVisible();
 		await expect(backing).toHaveAttribute('aria-checked', 'false');
-		// Style is a property OF the backing track — with no band there is nothing
-		// to style, as on the settings page.
-		await expect(style).toBeHidden();
+		// The compact rail keeps the chosen style visible while backing is off.
+		await expect(style).toBeVisible();
+		await expect(style).toBeDisabled();
 
 		// Freestyle's copy describes what plays, so it has to follow the switch:
 		// "backing only" is a promise of a band. (A pad option's accessible name
@@ -325,7 +331,7 @@ test.describe('tune practice setup', () => {
 
 		await backing.click();
 		await expect(backing).toHaveAttribute('aria-checked', 'true');
-		await expect(style).toBeVisible();
+		await expect(style).toBeEnabled();
 		await expect(freestyle).toHaveAccessibleName(/backing only/i);
 
 		// Checked before navigating: the override must not write the global back.
@@ -365,6 +371,7 @@ test.describe('tune practice setup', () => {
 		});
 		await seedTunes(page, [SAINTS_USER_TUNE]);
 		await page.goto('/tunes/e2e-when-the-saints/practice');
+		await openSessionOptions(page);
 		const start = page.getByRole('button', { name: /^start$/i });
 		await expect(start).toBeEnabled();
 		await start.click();
@@ -404,6 +411,7 @@ test.describe.serial('tune practice session follow-scroll', () => {
 			}]
 		}]);
 		await page.goto('/tunes/e2e-three-choruses/practice');
+		await openSessionOptions(page);
 		await setTempoMax(page);
 		const choruses = page.getByRole('slider', { name: /^choruses$/i });
 		await choruses.press('ArrowUp');
@@ -439,6 +447,7 @@ test.describe.serial('tune practice session follow-scroll', () => {
 		await stubCdnInstrumentSamples(page);
 
 		await page.goto('/tunes/ls-mankunku-blues/practice');
+		await openSessionOptions(page);
 		await expect(page.getByRole('button', { name: /^start$/i })).toBeVisible();
 
 		// Keep head-first ON (default) — the chart swap is the regression trigger.
@@ -484,6 +493,7 @@ test.describe.serial('tune practice session follow-scroll', () => {
 		await stubCdnInstrumentSamples(page);
 
 		await page.goto('/tunes/ls-mankunku-blues/practice');
+		await openSessionOptions(page);
 		await expect(page.getByRole('button', { name: /^start$/i })).toBeVisible();
 
 		const backing = page.getByRole('switch', { name: /backing track this session/i });
@@ -526,6 +536,7 @@ test.describe.serial('tune practice session follow-scroll', () => {
 		await stubCdnInstrumentSamples(page);
 
 		await page.goto('/tunes/e2e-when-the-saints/practice');
+		await openSessionOptions(page);
 		await expect(page.getByRole('button', { name: /^start$/i })).toBeVisible();
 
 		await page
@@ -603,6 +614,7 @@ test.describe.serial('tune practice session follow-scroll', () => {
 		await stubCdnInstrumentSamples(page);
 
 		await page.goto('/tunes/e2e-autumn-leaves/practice');
+		await openSessionOptions(page);
 		await expect(page.getByRole('button', { name: /^start$/i })).toBeVisible();
 		// Points: no readiness filter, and the pick card is the one prompt a
 		// head could show.
@@ -681,6 +693,7 @@ test.describe.serial('tune practice session follow-scroll', () => {
 		await stubCdnInstrumentSamples(page);
 
 		await page.goto('/tunes/e2e-autumn-leaves/practice');
+		await openSessionOptions(page);
 		await expect(page.getByRole('button', { name: /^start$/i })).toBeVisible();
 
 		await setTempoMax(page);

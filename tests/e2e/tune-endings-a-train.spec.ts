@@ -359,14 +359,15 @@ test('the editor bar hit rect for the stacked [2] bar sits under its music, not 
 });
 
 /**
- * Max the tempo knob (End key → max), retried until the hydrated Knob takes
- * the keypress — see tune-practice.spec.ts for why the retry exists.
+ * Commit the maximum tempo after hydration; the transport readout confirms
+ * that the input reached the practice state.
  */
 async function setTempoMax(page: Page): Promise<void> {
-	const knob = page.getByRole('slider', { name: /^tempo$/i });
+	const tempo = page.getByRole('spinbutton', { name: /^tempo$/i });
 	await expect(async () => {
-		await knob.press('End');
-		await expect(knob).toHaveAttribute('aria-valuenow', '240', { timeout: 1_000 });
+		await tempo.fill('240');
+		await tempo.press('Tab');
+		await expect(page.locator('.tp-start')).toContainText('240 BPM', { timeout: 1_000 });
 	}).toPass({ timeout: 15_000 });
 }
 

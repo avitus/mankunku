@@ -32,7 +32,9 @@ A trick played here earns points and counts toward your take, but it writes **no
 
 ## The setup screen
 
-Under a link back to the tune, the page is headed **Practice licks**, with a line on what's about to happen, a *How this works* link that runs the guided tour, and a docs link. Everything you set lives in one **Session** card, built from the same selector pads, rocker switch and knob as the [settings page](./user-guide.md#settings) — most labels carry a short explanation on hover:
+The tune chart comes first, with detected progressions highlighted and **Start** directly below it. Licks are selected automatically by the existing session engine; there is no insert button or manual placement step. **Rhythm & band** holds tempo, backing style and written key beside the chart (below it on a phone). **Focus** gives the chart more room. The *How this works* tour and docs link remain beside the tune title.
+
+**Session options** is collapsed initially. Open it to change Mode, Strictness, Head or Choruses. Its summary shows the current mode, chorus count and head setting; the existing defaults and remembered choices still apply.
 
 | Control | What it does |
 |---|---|
@@ -40,16 +42,16 @@ Under a link back to the tune, the page is headed **Practice licks**, with a lin
 | **Strictness** | *Guided* — names the lick to play; *Standard* — names only the progression; *Solo* — no cues. How much the chart tells you about each insertion point — see [Strictness](#strictness). Starts on Standard. |
 | **Choruses** | Choose 1–12 practice choruses. Your last choice is remembered on this device for your next visit (1 until you choose). The optional head plays once before them. A tune's pickup belongs to the head: every practice chorus starts on bar 1, straight after the bar before it, and a session without a head starts on bar 1 too. |
 | **Head** | A rocker switch. ON plays the melody once through before your chorus ([the head rule](#the-head-rule)); OFF goes straight to the changes. On a chart with no melody it reads OFF and can't be switched on — there's no head to play. |
-| **Key** | Twelve pads in your written pitch: the key the tune is played and charted in for this session. It starts in the tune's own key. |
-| **Tempo** | A knob, 50–240 BPM in steps of 5 — drag, scroll, or use the arrow keys. It starts at the tempo you last chose for this tune, here or on the tune's page, and at your Settings tempo the first time. In Suggest mode it also decides which licks can be named: only ones you already practise at this speed or faster. |
-| **Backing** | A rocker switch: does the rhythm section play this session? It starts wherever your main backing-track setting is and applies to this session alone — turning the band off to hear one tune unaccompanied leaves the setting itself untouched, and the switch follows it again next time you set the tune up. With it OFF the metronome still follows your Settings, and the insertion points are scheduled and scored exactly as before. |
-| **Style** | Swing, Bossa Nova, Ballad, or Straight — see [The band](./user-guide.md#the-band). It's a property of the band, so it's only there while **Backing** is on. |
+| **Key** | A selector in your written pitch: the key the tune is played and charted in for this session. It starts in the tune's own key. |
+| **Tempo** | A numeric field, 50–240 BPM, with minus and plus buttons that move by 5. It starts at the tempo you last chose for this tune, here or on the tune's page, and at your Settings tempo the first time. In Suggest mode it also decides which licks can be named: only ones you already practise at this speed or faster. |
+| **Backing** | A switch: does the rhythm section play this session? It starts wherever your main backing-track setting is and applies to this session alone — turning the band off to hear one tune unaccompanied leaves the setting itself untouched, and the switch follows it again next time you set the tune up. With it OFF the metronome still follows your Settings, and the insertion points are scheduled and scored exactly as before. |
+| **Style** | Swing, Bossa Nova, Ballad, or Straight — see [The band](./user-guide.md#the-band). The chosen style stays visible with **Backing** off; turn backing on to change it. This is a session override. |
 
-At the foot of the card, a readout says what the detector found (*6 insertion points: …*, or that there are none), with the warning about untagged licks under it when there are any.
+Above the chart, a readout says what the detector found (*6 insertion points: …*, or that there are none). The guide beside the chart links to untagged licks when there are any. Freestyle instead explains that there are no insertion windows.
 
-Below the card sits **Start** — it reads *Setting up…* while the instrument loads — with a caption that says how the take will open: *Head first, then the chart clears for your licks*, *Straight to the changes*, or, on a chords-only chart, *This chart has no melody — straight to the changes*. If the microphone is refused you'll see *Microphone unavailable — check permissions and try again*; if the sounds fail to load, *Audio setup failed — check your connection and try again*.
+Below the chart sits **Start** — it reads *Setting up…* while the instrument loads — with a caption that says how the take will open: *Head first, then the chart clears for your licks*, *Straight to the changes*, or, on a chords-only chart, *This chart has no melody — straight to the changes*. If the microphone is refused you'll see *Microphone unavailable — check permissions and try again*; if the sounds fail to load, *Audio setup failed — check your connection and try again*.
 
-Under that, the chart previews in the chosen key with the insertion points shaded in their progression colours, so you can see where in the form you'll be playing before you commit.
+The chart previews in the chosen key with insertion points shaded in their progression colours. On phones it uses two bars per line at a readable staff size. Starting a session retains the existing playing view, lick cues, scoring and completion report.
 
 ## The head rule
 

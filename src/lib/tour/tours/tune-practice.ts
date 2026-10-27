@@ -47,7 +47,7 @@ export const tunePracticeTour: DriveStep[] = [
 		popover: {
 			title: 'Three modes',
 			description:
-				"Suggest names the lick for you at every insertion point — start here. Points lets you pick, scores you out of 100, and DOUBLES a window when it and the one before it both clear 90%. Freestyle drops the windows entirely: just solo, and the app applauds the licks from your book it recognises.",
+				"Open Session options below the chart to change modes. Suggest names the lick for you at every insertion point — start here. Points lets you pick, scores you out of 100, and DOUBLES a window when it and the one before it both clear 90%. Freestyle drops the windows entirely: just solo, and the app applauds the licks from your book it recognises.",
 			align: 'center'
 		}
 	},
@@ -55,7 +55,7 @@ export const tunePracticeTour: DriveStep[] = [
 		popover: {
 			title: 'Strictness',
 			description:
-				"Guided names the lick to play over each insertion point. Standard names only the progression, so the vocabulary is yours — any lick of yours that fits counts. Solo shows nothing. It changes what you're told, never how the app listens (any octave, at every level) or the grading scale, so a score means the same thing everywhere.",
+				"Strictness is also under Session options. Guided names the lick to play over each insertion point. Standard names only the progression, so the vocabulary is yours — any lick of yours that fits counts. Solo shows nothing. It changes what you're told, never how the app listens (any octave, at every level) or the grading scale, so a score means the same thing everywhere.",
 			align: 'center'
 		}
 	},
