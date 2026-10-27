@@ -21,6 +21,7 @@
 	] as const;
 	const modeName = $derived(modes.find(mode => mode.id === tunePractice.config.mode)?.name);
 
+	/** Keep the displayed count aligned with the normalized session count. */
 	function changeChoruses(event: Event): void {
 		const input = event.currentTarget as HTMLInputElement;
 		setTunePracticeChoruses(input.valueAsNumber);

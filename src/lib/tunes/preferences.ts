@@ -20,6 +20,7 @@ export function savedTunePracticePreferences(): TunePracticePreferences {
 	};
 }
 
+/** Persist the setup choices only, excluding transient session state. */
 export function saveTunePracticePreferences(value: TunePracticePreferences): void {
 	save('tune-practice-options', { mode: value.mode, strictness: value.strictness, playHead: value.playHead });
 }
@@ -30,24 +31,29 @@ export function savedTuneKey(tuneId: string, fallback: PitchClass): PitchClass {
 	return PITCH_CLASSES.includes(value as PitchClass) ? value as PitchClass : fallback;
 }
 
+/** Store a per-tune concert key in the active user’s local namespace. */
 export function saveTuneKey(tuneId: string, key: PitchClass): void {
 	save(`tune-key:${tuneId}`, key);
 }
 
+/** Use this tune’s saved practice feel, rejecting invalid stored style IDs. */
 export function savedTunePracticeStyle(tuneId: string, fallback: BackingStyle): BackingStyle {
 	const value = load<unknown>(`tune-practice-style:${tuneId}`);
 	return isBackingStyle(value) ? value : fallback;
 }
 
+/** Store a practice-only feel for this tune and active user. */
 export function saveTunePracticeStyle(tuneId: string, style: BackingStyle): void {
 	save(`tune-practice-style:${tuneId}`, style);
 }
 
 type TuneDisplayPreference = 'harmony-colors' | 'focus' | 'practice-focus' | 'practice-options-open';
+/** Restore a display choice while preserving an explicitly saved false. */
 export function savedTuneDisplay(preference: TuneDisplayPreference, fallback: boolean): boolean {
 	const value = load<unknown>(`tune-display:${preference}`);
 	return typeof value === 'boolean' ? value : fallback;
 }
+/** Remember a chart display choice and return it for immediate UI updates. */
 export function saveTuneDisplay(preference: TuneDisplayPreference, enabled: boolean): boolean {
 	save(`tune-display:${preference}`, enabled);
 	return enabled;

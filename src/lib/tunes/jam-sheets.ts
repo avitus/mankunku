@@ -9,6 +9,7 @@ export function jamSheets(tune: Tune): { returning: Tune; closing: Tune; soloSta
 	const flat = flattenTune(tune, { expandRepeats: true });
 	const { headBars, formRepeats } = headBarsForFlat(flat);
 	if (!formRepeats) return { returning: tune, closing: tune, soloStartBar: 0 };
+	/** Build one pass’s chart, joining its chosen ending onto the preceding section. */
 	const sheetFor = (closing: boolean): Tune => {
 		const sections: TuneSection[] = [];
 		for (const entry of flat.sectionMap.filter(entry => closing ? entry.barOffset >= headBars : entry.barOffset < headBars)) {

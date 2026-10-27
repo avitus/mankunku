@@ -21,6 +21,7 @@
 		const layer = content;
 		if (!viewportEl || !layer) return;
 		const bars = [...layer.querySelectorAll<HTMLElement>('.tcc-bar')];
+		/** Measure untransformed bar rows for continuous playhead-follow scrolling. */
 		const measure = () => {
 			const systems: FollowSystem[] = [];
 			for (const bar of bars) {

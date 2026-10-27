@@ -39,6 +39,7 @@
 	let chartWidth = $state(800);
 	let focus = $state(false);
 	onMount(() => { focus = savedTuneDisplay('practice-focus', false); });
+	/** Persist the practice setup’s focus view, including an Escape exit. */
 	function setFocus(enabled: boolean): void { focus = saveTuneDisplay('practice-focus', enabled); }
 	const totalBars = $derived((previewSheet ?? tune).sections.reduce((sum, section) => sum + section.bars, 0));
 	const tuneHasMelody = $derived(tune.sections.some(section => section.notes.some(note => note.pitch !== null)));

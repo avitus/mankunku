@@ -853,6 +853,7 @@
 		return `${m}:${s.toString().padStart(2, '0')}`;
 	}
 
+	/** Convert the visible key to concert pitch before saving it for this tune. */
 	function selectWrittenKey(pc: PitchClass) {
 		selectedWrittenKey = pc;
 		setTunePracticeKey(writtenKeyToConcert(pc, getInstrument()));

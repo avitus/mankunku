@@ -8,6 +8,7 @@ export function savedTunePlayback(preference: TunePlaybackPreference, fallback: 
 	return typeof value === 'boolean' ? value : fallback;
 }
 
+/** Remember an audio switch for both tune pages in the active user’s namespace. */
 export function saveTunePlayback(preference: TunePlaybackPreference, enabled: boolean): boolean {
 	save(`tune-${preference}-enabled`, enabled);
 	return enabled;

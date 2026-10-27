@@ -222,14 +222,17 @@ export function restoreTunePracticePlaybackPreferences(): void {
 	tunePractice.config.metronomeEnabled = savedTunePlayback('metronome', false);
 }
 
+/** Persist band enablement while keeping playback and bleed evidence in sync. */
 export function setTunePracticeBacking(enabled: boolean): void {
 	tunePractice.config.backingTrackEnabled = saveTunePlayback('backing', enabled);
 }
 
+/** Remember melody audibility independently of the head/outro form choice. */
 export function setTunePracticeMelody(enabled: boolean): void {
 	tunePractice.config.melodyEnabled = saveTunePlayback('melody', enabled);
 }
 
+/** Persist the click setting used by both playback and scoring. */
 export function setTunePracticeMetronome(enabled: boolean): void {
 	tunePractice.config.metronomeEnabled = saveTunePlayback('metronome', enabled);
 }
@@ -243,16 +246,19 @@ export function restoreTunePracticeSettings(sheet: Tune): void {
 	restoreTunePracticePlaybackPreferences();
 }
 
+/** Save only the practice mode, cue level and head/outro choice. */
 export function setTunePracticeOptions(options: Partial<TunePracticePreferences>): void {
 	Object.assign(tunePractice.config, options);
 	saveTunePracticePreferences(tunePractice.config);
 }
 
+/** Remember the sounding key for this tune on both tune pages. */
 export function setTunePracticeKey(key: PitchClass): void {
 	tunePractice.config.concertKey = key;
 	if (tunePractice.tuneId) saveTuneKey(tunePractice.tuneId, key);
 }
 
+/** Remember this tune’s practice feel without changing its authored style. */
 export function setTunePracticeStyle(style: BackingStyle): void {
 	tunePractice.config.backingStyle = style;
 	if (tunePractice.tuneId) saveTunePracticeStyle(tunePractice.tuneId, style);
@@ -596,6 +602,7 @@ export function markHead(): void {
 	if (tunePractice.phase === 'count-in') tunePractice.phase = 'head';
 }
 
+/** Leave the scored solo phase and close any remaining insertion window. */
 export function markOutro(): void {
 	if (tunePractice.phase === 'running') {
 		tunePractice.phase = 'outro';
@@ -617,6 +624,7 @@ export function suggestionNameFor(ip: InsertionPoint): string | null {
 	return suggestedWindowLabel(ip, tunePractice.pickedSuggestion[ip.id]);
 }
 
+/** Resolve the selected suggestion into a lick name and instrument-written key. */
 function suggestedWindowLabel(ip: InsertionPoint, pickedIndex: number | undefined): string | null {
 	const suggestion = resolvePickedSuggestion(ip.suggestions, pickedIndex);
 	if (!suggestion) return null;
@@ -687,6 +695,7 @@ export function clearCelebration(): void {
 	tunePractice.celebration = null;
 }
 
+/** Refresh elapsed seconds only while the take is active. */
 export function updateElapsedTime(): void {
 	if (
 		tunePractice.phase === 'count-in' ||

@@ -30,15 +30,21 @@ export class TunePlayer {
 	closing = $state(false);
 	phase = $state<'head' | 'solo' | 'outro'>('head');
 	soloChorus = $state(0);
+	/** Restore this user’s shared tune audio switches on desk entry. */
 	restorePlaybackPreferences(): void {
 		this.backing = savedTunePlayback('backing', settings.backingTrackEnabled);
 		this.melody = savedTunePlayback('melody', true);
 		this.metronome = savedTunePlayback('metronome', false);
 	}
+	/** Stop the current take and remember whether the band should play. */
 	setBacking(enabled: boolean): void { this.stop(); this.backing = saveTunePlayback('backing', enabled); }
+	/** Stop the current take and remember melody audibility without changing the form. */
 	setMelody(enabled: boolean): void { this.stop(); this.melody = saveTunePlayback('melody', enabled); }
+	/** Stop the current take and remember the ongoing click preference. */
 	setMetronome(enabled: boolean): void { this.stop(); this.metronome = saveTunePlayback('metronome', enabled); }
+	/** Restore the validated solo count shared with tune practice. */
 	restoreSoloChoruses(): void { this.soloChoruses = savedSoloChoruses(); }
+	/** Stop playback and save a bounded whole-number count for the next take. */
 	setSoloChoruses(value: number): void { this.stop(); this.soloChoruses = saveSoloChoruses(value); }
 	playing = $state(false);
 	starting = $state(false);

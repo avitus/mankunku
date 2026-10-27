@@ -1,10 +1,32 @@
+import type { HarmonicSegment, Note, Phrase } from '$lib/types/music';
+import type { FlattenedTune } from './flatten';
 import type { Tune } from '$lib/types/tune';
 import { jamSheets } from './jam-sheets';
 import { tuneToPhraseWithFlat } from './to-phrase';
 import { buildSessionPhrase, clearPickupBarHarmony, headBarsForFlat, soloPassPickupBars } from '$lib/state/tune-practice-plan';
 
+/** Resolved charts and the finite playback timeline shared by the tune player. */
+export interface JamForm {
+	notes: Note[];
+	harmony: HarmonicSegment[];
+	sectionMap: FlattenedTune['sectionMap'];
+	phraseBars: number;
+	headBars: number;
+	duplicatedForm: boolean;
+	outroStartBar: number | null;
+	outroSourceStartBar: number;
+	noteSourceIndices: number[];
+	closingStartBar: number | null;
+	flat: FlattenedTune;
+	sheet: Tune;
+	closingSheet: Tune;
+	closingFlat: FlattenedTune;
+	practiceStartBar: number;
+	phrase: Phrase;
+}
+
 /** One finite transport timeline: head, silent-melody solos, closing head. */
-export function buildJamForm(tune: Tune, choruses: number) {
+export function buildJamForm(tune: Tune, choruses: number): JamForm {
 	const { returning: sheet, closing: closingSheet, soloStartBar } = jamSheets(tune);
 	const expanded = tuneToPhraseWithFlat(sheet, { expandRepeats: true });
 	const flat = clearPickupBarHarmony(sheet, expanded.flat);

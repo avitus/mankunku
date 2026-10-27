@@ -157,7 +157,9 @@
 		harmonyColors = savedTuneDisplay('harmony-colors', true);
 		tuneDeskView.focus = savedTuneDisplay('focus', false);
 	});
+	/** Persist an explicit focus change; route teardown only clears the live view. */
 	function setFocus(enabled: boolean): void { tuneDeskView.focus = saveTuneDisplay('focus', enabled); }
+	/** Stop playback and persist the selected written key in concert pitch. */
 	function selectWrittenKey(key: PitchClass): void {
 		player.stop();
 		selectedWrittenKey = key;
@@ -193,6 +195,7 @@
 		goto(`/tunes/editor?copy=${baseSheet.id}`);
 	}
 
+	/** Keep playback and focus shortcuts clear of dialogs and editable controls. */
 	function handleKeydown(event: KeyboardEvent): void {
 		if (document.querySelector('dialog[open]')) return;
 		if (event.key === 'Escape') { setFocus(false); return; }

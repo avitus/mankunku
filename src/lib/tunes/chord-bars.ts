@@ -1,11 +1,24 @@
-import type { Tune } from '$lib/types/tune';
+import type { HarmonicSegment } from '$lib/types/music';
+import type { Tune, TuneSection } from '$lib/types/tune';
 import { flattenTune } from './flatten';
 import { addFractions, compareFractions, multiplyFraction, subtractFractions } from '$lib/music/intervals';
 import { isInPickupLeadIn } from '$lib/music/pickup';
 import { clearPickupBarHarmony } from '$lib/state/tune-practice-plan';
 
+export interface ChordBar {
+	index: number;
+	number: number;
+	harmony: HarmonicSegment[];
+}
+
+export interface ChordBarSection {
+	label: string;
+	ending?: TuneSection['ending'];
+	bars: ChordBar[];
+}
+
 /** Notation-order bars, preserving the chart's sections and numbered endings. */
-export function tuneChordBars(tune: Tune) {
+export function tuneChordBars(tune: Tune): ChordBarSection[] {
 	const flat = clearPickupBarHarmony(tune, flattenTune(tune));
 	let absoluteBar = 0;
 	let printedBar = 0;
