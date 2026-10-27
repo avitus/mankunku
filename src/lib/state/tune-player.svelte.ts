@@ -26,6 +26,7 @@ export class TunePlayer {
 	metronome = $state(false);
 	loop = $state(false); // Compact editor preview only.
 	soloChoruses = $state(1);
+	closing = $state(false);
 	phase = $state<'head' | 'solo' | 'outro'>('head');
 	soloChorus = $state(0);
 	restoreSoloChoruses(): void { this.soloChoruses = savedSoloChoruses(); }
@@ -71,6 +72,7 @@ export class TunePlayer {
 		this.chartBar = null;
 		this.cursorIndex = null;
 		this.phase = 'head';
+		this.closing = false;
 		this.soloChorus = 0;
 	}
 
@@ -139,15 +141,18 @@ export class TunePlayer {
 						// pickup bar is marked from its first printed beat, not its silent
 						// lead-in, which is still the count.
 						const sourceBar = jam
-							? playbackBarForSessionBar(bar, flat.totalBars, jam.headBars, jam.practiceStartBar, jam.outroStartBar, jam.outroSourceStartBar)
+							? playbackBarForSessionBar(bar, flat.totalBars, jam.headBars, jam.practiceStartBar, jam.closingStartBar, jam.outroSourceStartBar)
 							: loopPlaybackBar(bar, region, returns);
 						if (jam) {
+							this.closing = jam.closingStartBar !== null && bar >= jam.closingStartBar;
 							this.phase = bar < jam.headBars ? 'head' : jam.outroStartBar !== null && bar >= jam.outroStartBar ? 'outro' : 'solo';
 							this.soloChorus = this.phase === 'solo' ? Math.min(soloChoruses!, 1 + Math.floor((bar - jam.headBars) / (flat.totalBars - jam.practiceStartBar))) : 0;
 							if (this.phase === 'solo') this.cursorIndex = null;
 						}
-						const chartBar = notationBarForPlaybackBar(flat.sectionMap, tune.sections, sourceBar);
-						this.chartBar = chartBar !== null && isInPickupLeadIn(tune, chartBar) ? null : chartBar;
+						const chartFlat = jam && this.closing ? jam.closingFlat : flat;
+						const chartSheet = jam ? (this.closing ? jam.closingSheet : jam.sheet) : tune;
+						const chartBar = notationBarForPlaybackBar(chartFlat.sectionMap, chartSheet.sections, sourceBar);
+						this.chartBar = chartBar !== null && isInPickupLeadIn(chartSheet, chartBar) ? null : chartBar;
 					};
 					update();
 					this.ticker = setInterval(update, 50);

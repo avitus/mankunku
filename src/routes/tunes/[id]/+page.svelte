@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { jamSheets } from '$lib/tunes/jam-sheets';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { onDestroy, tick } from 'svelte';
@@ -146,10 +147,13 @@
 		settingsDialog?.showModal();
 	}
 	const backingStyle = $derived(baseSheet ? tuneBackingStyle(baseSheet, isOwnSheet ? {} : settings.tuneBackingStyles) : 'swing');
-	const totalBars = $derived(sheet?.sections.reduce((sum, section) => sum + section.bars, 0) ?? 0);
+	const jamCharts = $derived(sheet ? jamSheets(sheet) : null);
+	const closingPreview = $derived(player.soloChoruses === 1 && !sheet?.sections.some(section => section.notes.some(note => note.pitch !== null)));
+	const displayedSheet = $derived(player.closing || closingPreview ? jamCharts?.closing : jamCharts?.returning);
+	const totalBars = $derived(displayedSheet?.sections.reduce((sum, section) => sum + section.bars, 0) ?? 0);
 	let harmonyColors = $state(true);
 	const markers: RangeMarker[] = $derived([
-		...(sheet && harmonyColors ? tuneHarmonyMarkers(sheet) : []),
+		...(displayedSheet && harmonyColors ? tuneHarmonyMarkers(displayedSheet) : []),
 		...(player.chartBar === null ? [] : [{ id: 'tune-playhead', startBar: Math.floor(player.chartBar), endBarExclusive: Math.floor(player.chartBar) + 1, status: 'playhead' as const }])
 	]);
 
@@ -255,10 +259,10 @@
 			<div class="td-workspace">
 				<section class="le-panel td-detail-chart" aria-label="Tune chart">
 					<div class="td-score-top">
-						<div class="td-chart-context">{#if tuneDeskView.focus}<h1>{baseSheet.title}</h1>{:else}<strong>{sheet.sections[0]?.label || '♪'}</strong><span>Full tune <i>/</i> {totalBars} bars</span>{/if}</div>
+						<div class="td-chart-context">{#if tuneDeskView.focus}<h1>{baseSheet.title}</h1>{:else}<strong>{displayedSheet?.sections[0]?.label || '♪'}</strong><span>Full tune <i>/</i> {totalBars} bars</span>{/if}</div>
 						<div class="td-chart-tools"><button aria-pressed={harmonyColors} onclick={() => harmonyColors = !harmonyColors}><i class="td-color-dot" aria-hidden="true"></i><span>Harmony colors</span><i class="td-switch" class:active={harmonyColors} aria-hidden="true"></i></button><button class="td-focus-button" aria-pressed={tuneDeskView.focus} onclick={() => tuneDeskView.focus = !tuneDeskView.focus}>{tuneDeskView.focus ? 'Exit focus' : '⛶ Focus'}</button></div>
 					</div>
-					<div class="td-score-well" bind:clientWidth={chartWidth}>{#if player.playing && player.phase === 'solo'}<TuneChordChart tune={sheet} instrument={getInstrument()} currentBar={player.chartBar} />{:else}<NotationDisplay tuneOptions={{ omitMasthead: true, barsPerLine: chartWidth < 550 ? 2 : 4 }} tune={sheet} instrument={getInstrument()} frameless rangeMarkers={markers} cursorIndex={player.cursorIndex} playheadStyle="under-bar" autoScrollPlayhead={player.playing} playheadBarFraction={player.chartBar} />{/if}</div>
+					<div class="td-score-well" bind:clientWidth={chartWidth}>{#if player.playing && player.phase === 'solo'}<TuneChordChart tune={displayedSheet!} instrument={getInstrument()} currentBar={player.chartBar} />{:else}<NotationDisplay tuneOptions={{ omitMasthead: true, barsPerLine: chartWidth < 550 ? 2 : 4 }} tune={displayedSheet!} instrument={getInstrument()} frameless rangeMarkers={markers} cursorIndex={player.cursorIndex} playheadStyle="under-bar" autoScrollPlayhead={player.playing} playheadBarFraction={player.chartBar} />{/if}</div>
 					<div class="td-status"><span><i aria-hidden="true"></i><strong>{player.starting ? 'Loading…' : player.playing ? `${player.phase === 'solo' ? `Solo ${player.soloChorus} of ${player.soloChoruses}` : player.phase === 'outro' ? 'Outro' : 'Head'} · Bar ${Math.floor(player.chartBar ?? 0) + 1}` : 'Ready to play'}</strong> Written in {writtenKey.replace('b', '♭').replace('#', '♯')}</span><span>{sheet.timeSignature.join('/')} · {totalBars} bars</span></div>
 					<TuneTransport bind:this={transport} tune={sheet} {player} style={backingStyle} onsettings={tuneDeskView.focus || viewportWidth <= 800 ? openSettings : undefined} />
 				</section>
@@ -277,7 +281,7 @@
 
 {#snippet chartSettings(prefix: string)}
 	{#if sheet && baseSheet}
-		<section class="td-chart-settings"><p class="studio-label td-rule-label">The chart</p><div class="td-key-row"><label for={`${prefix}-tune-key`}>Key</label><select id={`${prefix}-tune-key`} value={writtenKey} onchange={e => { player.stop(); selectedWrittenKey = e.currentTarget.value as PitchClass; }}>{#each PITCH_CLASSES as pc (pc)}<option value={pc}>{pc.replace('b', '♭').replace('#', '♯')}</option>{/each}</select></div><p class="td-written-for">Written for {getInstrument().name}.</p><dl class="td-chart-facts"><div><dt>Time</dt><dd>{sheet.timeSignature.join('/')}</dd></div><div><dt>Form</dt><dd>{sheet.sections.map(s => s.label).filter(Boolean).join(' · ') || '—'}</dd></div><div><dt>Chart marking</dt><dd>{sheet.style || '—'}</dd></div></dl></section>
+		<section class="td-chart-settings"><p class="studio-label td-rule-label">The chart</p><div class="td-key-row"><label for={`${prefix}-tune-key`}>Key</label><select id={`${prefix}-tune-key`} value={writtenKey} onchange={e => { player.stop(); selectedWrittenKey = e.currentTarget.value as PitchClass; }}>{#each PITCH_CLASSES as pc (pc)}<option value={pc}>{pc.replace('b', '♭').replace('#', '♯')}</option>{/each}</select></div><p class="td-written-for">Written for {getInstrument().name}.</p><dl class="td-chart-facts"><div><dt>Time</dt><dd>{sheet.timeSignature.join('/')}</dd></div><div><dt>Form</dt><dd>{displayedSheet?.sections.map(s => s.label).filter(Boolean).join(' · ') || '—'}</dd></div><div><dt>Chart marking</dt><dd>{sheet.style || '—'}</dd></div></dl></section>
 		<details class="td-chart-details"><summary>Chart details & harmony guide</summary><TuneHarmonyGuide /><div class="td-tags">{#each baseSheet.tags.filter(t => t !== 'practice' && t !== 'user-entered') as tag (tag)}<span>{tag}</span>{/each}</div></details>
 		<div class="td-library-actions">{#if isOwnSheet}<button onclick={handleDelete}>{confirmingDelete ? 'Confirm Delete' : 'Delete'}</button>{:else if isAdopted && bookSheet}<button onclick={handleReturn}>{confirmingReturn ? 'Confirm Return' : 'Return to community'}</button>{/if}</div>
 	{/if}

@@ -36,7 +36,7 @@
 
 	let chartWidth = $state(800);
 	let focus = $state(false);
-	const totalBars = $derived(tune.sections.reduce((sum, section) => sum + section.bars, 0));
+	const totalBars = $derived((previewSheet ?? tune).sections.reduce((sum, section) => sum + section.bars, 0));
 	const tuneHasMelody = $derived(tune.sections.some(section => section.notes.some(note => note.pitch !== null)));
 	const startCaption = $derived(!tuneHasMelody
 		? 'This chart has no melody — straight to the changes.'

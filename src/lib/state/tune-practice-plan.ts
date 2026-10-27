@@ -30,6 +30,8 @@ export type TunePracticeStrictness = 'guided' | 'standard' | 'solo';
 export type TunePracticePhase = 'setup' | 'count-in' | 'head' | 'running' | 'outro' | 'complete';
 
 export interface InsertionPoint {
+	/** Uses the closing chart on a melody-free session’s last solo. */
+	closingPass?: boolean;
 	id: string;
 	/**
 	 * What the window is FOR — the band's colour, name and rotation pool. A
@@ -708,9 +710,12 @@ export function buildSessionPhrase(args: {
 	playHead: boolean;
 	choruses?: number;
 	pickupBars?: number;
-	/** Append the melody on the way out; solos and their windows stay unchanged. */
+	/** Append the melody on the way out. */
 	playOutro?: boolean;
-}): ReturnType<typeof buildSingleChorusPhrase> & { outroStartBar: number | null; outroSourceStartBar: number; noteSourceIndices: number[] } {
+	/** The resolved way-out form. Without a head, the last solo takes this ending. */
+	closingFlat?: FlattenedTune;
+	closingPickupBars?: number;
+}): ReturnType<typeof buildSingleChorusPhrase> & { outroStartBar: number | null; outroSourceStartBar: number; noteSourceIndices: number[]; closingStartBar: number | null } {
 	const built = buildSingleChorusPhrase(args);
 	const chorusBars = built.phraseBars - built.headBars;
 	const count = normalizeChoruses(args.choruses);
@@ -735,24 +740,38 @@ export function buildSessionPhrase(args: {
 	}
 	const soloEnd = built.headBars + chorusBars * count;
 	const { headBars, formRepeats } = headBarsForFlat(args.flat);
-	const outroSourceStartBar = (formRepeats ? headBars : 0) + (args.pickupBars ?? 0);
+	const closingFlat = args.closingFlat ?? args.flat;
+	const outroSourceStartBar = args.closingFlat
+		? (args.closingPickupBars ?? 0)
+		: (formRepeats ? headBars : 0) + (args.pickupBars ?? 0);
 	const noteSourceIndices = args.flat.noteSourceIndices.slice(0, built.notes.length);
 	const outroStartBar = args.playOutro && args.playHead ? soloEnd : null;
-	if (outroStartBar !== null) {
+	const closingStartBar = outroStartBar ?? (args.closingFlat ? built.headBars + chorusBars * (count - 1) : null);
+	if (closingStartBar !== null) {
+		// A melody-free session still resolves on its last solo. Replace that
+		// chorus rather than appending an extra, unrequested pass.
+		if (outroStartBar === null) {
+			const boundary = multiplyFraction(barDuration, closingStartBar);
+			built.harmony = built.harmony.filter(h => compareFractions(h.startOffset, boundary) < 0)
+				.map(h => compareFractions(addFractions(h.startOffset, h.duration), boundary) > 0
+					? { ...h, duration: subtractFractions(boundary, h.startOffset) } : h);
+			const closingSection = sectionMap.findIndex(entry => entry.barOffset >= closingStartBar);
+			if (closingSection >= 0) sectionMap.splice(closingSection);
+		}
 		const from = multiplyFraction(barDuration, outroSourceStartBar);
-		const to = multiplyFraction(barDuration, soloEnd);
-		args.flat.notes.forEach((note, index) => {
+		const to = multiplyFraction(barDuration, closingStartBar);
+		if (outroStartBar !== null) closingFlat.notes.forEach((note, index) => {
 			const end = addFractions(note.offset, note.duration);
 			if (compareFractions(end, from) <= 0) return;
 			const start = compareFractions(note.offset, from) < 0 ? from : note.offset;
 			built.notes.push({ ...note, offset: addFractions(to, subtractFractions(start, from)), duration: subtractFractions(end, start) });
-			noteSourceIndices.push(args.flat.noteSourceIndices[index]);
+			noteSourceIndices.push(closingFlat.noteSourceIndices[index]);
 		});
-		built.harmony.push(...harmonyFrom(args.flat.harmony, from, to));
-		sectionMap.push(...sectionMapFrom(args.flat.sectionMap, outroSourceStartBar, soloEnd));
+		built.harmony.push(...harmonyFrom(closingFlat.harmony, from, to));
+		sectionMap.push(...sectionMapFrom(closingFlat.sectionMap, outroSourceStartBar, closingStartBar));
 	}
-	return { ...built, sectionMap, noteSourceIndices, outroStartBar, outroSourceStartBar,
-		phraseBars: soloEnd + (outroStartBar === null ? 0 : args.flat.totalBars - outroSourceStartBar) };
+	return { ...built, sectionMap, noteSourceIndices, outroStartBar, outroSourceStartBar, closingStartBar,
+		phraseBars: closingStartBar === null ? soloEnd : closingStartBar + closingFlat.totalBars - outroSourceStartBar };
 }
 
 /**

@@ -85,6 +85,36 @@ describe('a saved Minor Chord lick reaches the session as its own window', () =>
 		initTunePractice(autumnLeaves);
 		tunePractice.config.mode = 'points';
 		tunePractice.config.playHead = true;
+		tunePractice.config.choruses = 1;
+	});
+
+	it('plans the turnaround licks on returning solos and the closing licks only on the last headless solo', () => {
+		const endings: Tune = { ...autumnLeaves, id: 'test-endings', key: 'C', timeSignature: [4, 4], sections: [
+			{ label: 'A', bars: 4, repeatStart: true, notes: [{ pitch: 60, offset: [0, 1], duration: [1, 1] }],
+				harmony: [{ chord: { root: 'C', quality: 'maj7' }, startOffset: [0, 1], duration: [4, 1], scaleId: 'major.ionian' }] },
+			{ label: 'Turnaround', bars: 2, ending: 1, repeatEnd: true, notes: [],
+				harmony: [{ chord: { root: 'E', quality: 'min7' }, startOffset: [0, 1], duration: [2, 1], scaleId: 'major.dorian' }] },
+			{ label: 'Finish', bars: 3, ending: 2, notes: [],
+				harmony: [{ chord: { root: 'F', quality: 'min7' }, startOffset: [0, 1], duration: [3, 1], scaleId: 'major.dorian' }] }
+		] };
+		for (const playHead of [true, false]) {
+			initTunePractice(endings);
+			tunePractice.config.playHead = playHead;
+			tunePractice.config.choruses = 2;
+			const audio = startTunePracticeSession(endings, 480);
+			const minorWindows = tunePractice.plan.filter(ip => ip.progressionType === 'minor-vamp');
+			expect(minorWindows.map(ip => ip.keyCenter)).toEqual(playHead ? ['E', 'E'] : ['E', 'F']);
+			expect(minorWindows.map(ip => ip.notationBarRange.start)).toEqual([4, 4]);
+			expect(minorWindows[0].suggestions[0]?.lickId).toBe('e2e-minor-lick');
+			expect(audio.playedPhrase.difficulty.lengthBars).toBe(playHead ? 25 : 13);
+			const firstSolo = playHead ? 6 : 0;
+			expect(minorWindows.map(ip => ip.openTick)).toEqual([
+				(audio.countInBars + firstSolo + 4) * 4 * 480,
+				(audio.countInBars + firstSolo + 10) * 4 * 480
+			]);
+			expect(tunePractice.plan.every(ip => ip.closeTick <= (audio.countInBars + (audio.outroStartBar ?? 13)) * 4 * 480)).toBe(true);
+			resetTunePractice();
+		}
 	});
 
 	it('plans Minor windows on the 2-bar E- stretches of the solo chorus, named with the key', () => {

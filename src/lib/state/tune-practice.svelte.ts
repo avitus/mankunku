@@ -1,3 +1,4 @@
+import { jamSheets } from '$lib/tunes/jam-sheets';
 import { savedSoloChoruses, saveSoloChoruses } from '$lib/tunes/solo-choruses';
 import type { Fraction, Phrase, PitchClass } from '$lib/types/music';
 import type { Score } from '$lib/types/scoring';
@@ -43,6 +44,7 @@ import {
 	soloPassPickupBars,
 	windowCandidates,
 	windowLabel,
+	type BuildPlanDeps,
 	type CueLevel,
 	type InsertionPoint,
 	type InsertionResult,
@@ -100,6 +102,10 @@ export interface TunePracticeAudioPlan {
 	playedPhrase: Phrase;
 	/** Playback-order flatten with provenance (cursor + window projection). */
 	flat: FlattenedTune;
+	closingSheet: Tune;
+	closingFlat: FlattenedTune;
+	closingStartBar: number | null;
+	separateClosingChart: boolean;
 	/** Notation-order flatten (chart markers). */
 	notationFlat: FlattenedTune;
 	/** Bars before the practice material starts (0 without a head). */
@@ -270,7 +276,7 @@ export interface SessionPreview {
  * without arming a session. Repeated chart positions show their first visit.
  */
 export function previewSessionPlan(sheet: Tune, playHead: boolean, choruses = 1): SessionPreview {
-	const { plan, pickedSuggestion } = prepareTunePracticeSession(
+	const { plan, pickedSuggestion, audioPlan } = prepareTunePracticeSession(
 		sheet, { ...tunePractice.config, playHead, choruses }, 480
 	);
 
@@ -282,6 +288,7 @@ export function previewSessionPlan(sheet: Tune, playHead: boolean, choruses = 1)
 	const markers: SessionPreview['markers'] = [];
 	const seenMarker = new Set<string>();
 	for (const ip of plan) {
+		if (!!ip.closingPass !== (audioPlan.closingStartBar === 0 && audioPlan.separateClosingChart)) continue;
 		if (seenMarker.has(ip.markerKey)) continue;
 		seenMarker.add(ip.markerKey);
 		const lickName = suggestedWindowLabel(ip, pickedSuggestion[ip.id]);
@@ -316,10 +323,14 @@ function prepareTunePracticeSession(sheet: Tune, config: TunePracticeConfig, ppq
 	plan: InsertionPoint[];
 	pickedSuggestion: Record<string, number>;
 } {
-	const transposed =
+	const keyed =
 		sheet.key === config.concertKey
 			? sheet
 			: transposeTune(sheet, config.concertKey);
+	const { returning: transposed, closing: closingSheet, soloStartBar } = jamSheets(keyed);
+	const separateClosingChart = closingSheet !== transposed;
+	const closingFlat = clearPickupBarHarmony(closingSheet, flattenTune(closingSheet, { expandRepeats: true }));
+	const closingPickupBars = soloPassPickupBars(closingSheet, closingFlat);
 	const expanded = tuneToPhraseWithFlat(transposed, { expandRepeats: true });
 	const phrase = expanded.phrase;
 	// The band sits the pickup bar out; its chord, if the chart writes one, sounds from bar 1.
@@ -336,15 +347,15 @@ function prepareTunePracticeSession(sheet: Tune, config: TunePracticeConfig, ppq
 	const { headBars, formRepeats } = headBarsForFlat(flat);
 	const choruses = config.choruses;
 	// A pickup is played once, with the head; every practice chorus runs bar 1 to the end.
-	const pickupBars = soloPassPickupBars(transposed, flat);
-	const built = buildSessionPhrase({ flat, timeSignature: transposed.timeSignature, playHead, playOutro: true, choruses, pickupBars });
+	const pickupBars = Math.max(soloStartBar, soloPassPickupBars(transposed, flat));
+	const built = buildSessionPhrase({ flat, timeSignature: transposed.timeSignature, playHead, playOutro: true, choruses, pickupBars, closingFlat, closingPickupBars });
 	const countInBars = countInBarsForTempo(config.tempo);
 	const practiceStartBar = (formRepeats ? headBars : 0) + pickupBars;
 	// The played phrase opens on the head's first bar, or without a head on
 	// the solo pass's first; the count runs on when that bar is a pickup.
 	const firstChartBar = notationBarForPlaybackBar(flat.sectionMap, transposed.sections, playHead ? 0 : practiceStartBar);
 	const countInPickup = firstChartBar !== null && isInPickupLeadIn(transposed, firstChartBar);
-	const plan = buildSessionPlan({
+	const planDeps: BuildPlanDeps = {
 		countInBars,
 		pickupBars,
 		flat,
@@ -375,7 +386,17 @@ function prepareTunePracticeSession(sheet: Tune, config: TunePracticeConfig, ppq
 		// a role's licks are never crowded out by another role's on the same
 		// progression.
 		suggestionLimit: mode === 'suggest' ? undefined : MAX_SUGGESTIONS
-	});
+	};
+	let plan = buildSessionPlan(planDeps);
+	if (!playHead && separateClosingChart) {
+		const closingStart = built.closingStartBar!;
+		const closingTick = (countInBars + closingStart) * transposed.timeSignature[0] * ppq;
+		plan = plan.filter(ip => ip.openTick < closingTick);
+		const lastSolo = buildSessionPlan({ ...planDeps, flat: closingFlat, notationFlat: flattenTune(closingSheet),
+			pickupBars: closingPickupBars, choruses: 1, head: { bars: closingStart, mode: 'shift' },
+			detect: f => detectProgressions(f, closingSheet) });
+		plan.push(...lastSolo.map((ip, i) => ({ ...ip, id: `ip-closing-${i}`, closingPass: true })));
+	}
 
 	const playedPhrase: Phrase = {
 		...phrase,
@@ -390,6 +411,7 @@ function prepareTunePracticeSession(sheet: Tune, config: TunePracticeConfig, ppq
 
 	const audioPlan: TunePracticeAudioPlan = {
 		sheet: transposed,
+		closingSheet, closingFlat, closingStartBar: built.closingStartBar, separateClosingChart,
 		changesSheet,
 		chartOptions,
 		playedPhrase,

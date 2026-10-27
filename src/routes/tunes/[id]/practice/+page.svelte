@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { isInPickupLeadIn } from '$lib/music/pickup';
+	import { jamSheets } from '$lib/tunes/jam-sheets';
 	import { onMount, onDestroy } from 'svelte';
 	import { acquireScreenWakeLock, releaseScreenWakeLock } from '$lib/util/wake-lock';
 	import { page } from '$app/state';
@@ -43,7 +45,6 @@
 		annotationsVisible,
 		notationBarForPlaybackBar,
 		playbackBarForSessionBar,
-		playheadChartBar,
 		strictnessKnobs,
 		bestCandidateResult,
 		insertionLabel,
@@ -183,13 +184,13 @@
 			? previewSessionPlan(baseSheet, tunePractice.config.playHead, tunePractice.config.choruses)
 			: null;
 	});
-	const previewSheet = $derived(
-		baseSheet && tunePractice.phase === 'setup'
-			? baseSheet.key === tunePractice.config.concertKey
-				? baseSheet
-				: transposeTune(baseSheet, tunePractice.config.concertKey)
-			: null
-	);
+	const previewSheet = $derived.by(() => {
+		if (!baseSheet || tunePractice.phase !== 'setup') return null;
+		const keyed = baseSheet.key === tunePractice.config.concertKey ? baseSheet : transposeTune(baseSheet, tunePractice.config.concertKey);
+		const sheets = jamSheets(keyed);
+		const hasHead = tunePractice.config.playHead && keyed.sections.some(section => section.notes.some(note => note.pitch !== null));
+		return !hasHead && tunePractice.config.choruses === 1 ? sheets.closing : sheets.returning;
+	});
 	const previewMarkers = $derived<RangeMarker[]>(
 		(preview?.markers ?? []).map((m) => ({
 			...m,
@@ -200,13 +201,13 @@
 
 	const knobs = $derived(strictnessKnobs(tunePractice.config.strictness));
 
-	// The chart shows the full melody through the head, then swaps to the
-	// changes-only sheet (one deliberate re-render at a musical boundary).
+	const closingChart = $derived(audioPlan?.closingStartBar != null && Math.max(0, playheadBarF) >= audioPlan.closingStartBar);
+	const chartSheet = $derived(audioPlan ? closingChart ? audioPlan.closingSheet : audioPlan.sheet : null);
+	const chartFlat = $derived(audioPlan ? closingChart ? audioPlan.closingFlat : audioPlan.flat : null);
 	const displayedSheet = $derived.by(() => {
 		if (!audioPlan) return null;
-		if (audioPlan.leadBars > 0 && (tunePractice.phase === 'count-in' || tunePractice.phase === 'head' || tunePractice.phase === 'outro')) {
-			return audioPlan.sheet;
-		}
+		if (closingChart) return audioPlan.closingSheet;
+		if (audioPlan.leadBars > 0 && (tunePractice.phase === 'count-in' || tunePractice.phase === 'head')) return audioPlan.sheet;
 		return audioPlan.changesSheet;
 	});
 
@@ -229,6 +230,7 @@
 		const byKey = new Map<string, RangeMarker>();
 		const annotated = showAnnotations ? tunePractice.plan : [];
 		annotated.forEach((ip, i) => {
+			if (!!ip.closingPass !== !!(closingChart && audioPlan?.separateClosingChart && !audioPlan?.playHead)) return;
 			const result = resultByInsertion.get(ip.id);
 			// Clear a played insertion shortly after its window passes (~1 bar past
 			// the window's final bar) so the chart behind the playhead stays clean
@@ -292,51 +294,26 @@
 		return result;
 	});
 
-	/**
-	 * The chart bar the playhead marks. On a duplicated-form session the
-	 * practice chorus re-runs the form from 0; on a repeat-form chart the
-	 * expanded timeline is already continuous. Read off the fractional bar so
-	 * a pickup is marked from its first printed beat, never its silent lead-in;
-	 * the value changes only at those boundaries, so the markers above do not
-	 * redraw every frame.
-	 */
-	const playheadBar = $derived(
-		audioPlan
-			? playheadChartBar({
-					sessionBar: playheadBarF,
-					formBars: audioPlan.flat.totalBars,
-					headBars: audioPlan.leadBars,
-					practiceStartBar: audioPlan.practiceStartBar,
-					outroStartBar: audioPlan.outroStartBar,
-					outroSourceStartBar: audioPlan.outroSourceStartBar,
-					sectionMap: audioPlan.flat.sectionMap,
-					sheet: audioPlan.sheet
-				})
-			: null
-	);
-
-	/**
-	 * Notation-space fractional bar for continuous follow-scroll. Mirrors the
-	 * integer playhead mapping (duplicated-form offset + sectionMap remap) but
-	 * preserves the within-bar fraction so the chart drifts every frame.
-	 */
+	/** Follow the resolved chart for this pass, retaining within-bar position. */
 	const playheadBarFraction = $derived.by(() => {
-		if (!audioPlan) return null;
+		if (!audioPlan || !chartFlat || !chartSheet) return null;
 		if (tunePractice.phase !== 'head' && tunePractice.phase !== 'running' && tunePractice.phase !== 'outro') return null;
 		const leadBars = audioPlan.leadBars;
 		const formBars = audioPlan.flat.totalBars;
-		const formBarF = playbackBarForSessionBar(playheadBarF, formBars, leadBars, audioPlan.practiceStartBar, audioPlan.outroStartBar, audioPlan.outroSourceStartBar);
-		if (formBarF < 0 || formBarF >= formBars) return null;
+		const formBarF = playbackBarForSessionBar(playheadBarF, formBars, leadBars, audioPlan.practiceStartBar, audioPlan.closingStartBar, audioPlan.outroSourceStartBar);
+		if (formBarF < 0 || formBarF >= chartFlat.totalBars) return null;
 		const floorBar = Math.floor(formBarF);
 		const frac = formBarF - floorBar;
 		const chartBar = notationBarForPlaybackBar(
-			audioPlan.flat.sectionMap,
-			audioPlan.sheet.sections,
+			chartFlat.sectionMap,
+			chartSheet.sections,
 			floorBar
 		);
 		if (chartBar === null) return null;
 		return chartBar + frac;
 	});
+
+	const playheadBar = $derived(playheadBarFraction === null || (chartSheet && isInPickupLeadIn(chartSheet, playheadBarFraction)) ? null : Math.floor(playheadBarFraction));
 
 	const hitCount = $derived(
 		tunePractice.results.filter((r) => r.grade !== null && r.grade !== 'try-again').length
@@ -862,11 +839,14 @@
 		if (!audioPlan || barTicksNR <= 0) return 1;
 		const playBar = Math.floor((atTick - countInTicksNR) / barTicksNR);
 		const formBar =
-			playbackBarForSessionBar(playBar, audioPlan.flat.totalBars, audioPlan.leadBars, audioPlan.practiceStartBar);
+			playbackBarForSessionBar(playBar, audioPlan.flat.totalBars, audioPlan.leadBars, audioPlan.practiceStartBar, audioPlan.closingStartBar, audioPlan.outroSourceStartBar);
+		const closing = audioPlan.closingStartBar !== null && playBar >= audioPlan.closingStartBar;
+		const flat = closing ? audioPlan.closingFlat : audioPlan.flat;
+		const sheet = closing ? audioPlan.closingSheet : audioPlan.sheet;
 		const chartBar = notationBarForPlaybackBar(
-			audioPlan.flat.sectionMap,
-			audioPlan.sheet.sections,
-			Math.max(0, Math.min(formBar, audioPlan.flat.totalBars - 1))
+			flat.sectionMap,
+			sheet.sections,
+			Math.max(0, Math.min(formBar, flat.totalBars - 1))
 		);
 		return (chartBar ?? 0) + 1;
 	}
@@ -968,7 +948,7 @@
 		{/if}
 
 		{#if displayedSheet && tunePractice.phase === 'running'}
-			<TuneChordChart tune={audioPlan!.sheet} instrument={getInstrument()} currentBar={playheadBarFraction} {markers} />
+			<TuneChordChart tune={chartSheet!} instrument={getInstrument()} currentBar={playheadBarFraction} {markers} />
 		{:else if displayedSheet}
 			<!-- The chart follows the playhead by translating within its own clipped
 			     viewport (no scrollbar), so the status/pick header above stays put. -->
