@@ -85,6 +85,36 @@ describe('a saved Minor Chord lick reaches the session as its own window', () =>
 		initTunePractice(autumnLeaves);
 		tunePractice.config.mode = 'points';
 		tunePractice.config.playHead = true;
+		tunePractice.config.choruses = 1;
+	});
+
+	it('plans the turnaround licks on returning solos and the closing licks only on the last headless solo', () => {
+		const endings: Tune = { ...autumnLeaves, id: 'test-endings', key: 'C', timeSignature: [4, 4], sections: [
+			{ label: 'A', bars: 4, repeatStart: true, notes: [{ pitch: 60, offset: [0, 1], duration: [1, 1] }],
+				harmony: [{ chord: { root: 'C', quality: 'maj7' }, startOffset: [0, 1], duration: [4, 1], scaleId: 'major.ionian' }] },
+			{ label: 'Turnaround', bars: 2, ending: 1, repeatEnd: true, notes: [],
+				harmony: [{ chord: { root: 'E', quality: 'min7' }, startOffset: [0, 1], duration: [2, 1], scaleId: 'major.dorian' }] },
+			{ label: 'Finish', bars: 3, ending: 2, notes: [],
+				harmony: [{ chord: { root: 'F', quality: 'min7' }, startOffset: [0, 1], duration: [3, 1], scaleId: 'major.dorian' }] }
+		] };
+		for (const playHead of [true, false]) {
+			initTunePractice(endings);
+			tunePractice.config.playHead = playHead;
+			tunePractice.config.choruses = 2;
+			const audio = startTunePracticeSession(endings, 480);
+			const minorWindows = tunePractice.plan.filter(ip => ip.progressionType === 'minor-vamp');
+			expect(minorWindows.map(ip => ip.keyCenter)).toEqual(playHead ? ['E', 'E'] : ['E', 'F']);
+			expect(minorWindows.map(ip => ip.notationBarRange.start)).toEqual([4, 4]);
+			expect(minorWindows[0].suggestions[0]?.lickId).toBe('e2e-minor-lick');
+			expect(audio.playedPhrase.difficulty.lengthBars).toBe(playHead ? 25 : 13);
+			const firstSolo = playHead ? 6 : 0;
+			expect(minorWindows.map(ip => ip.openTick)).toEqual([
+				(audio.countInBars + firstSolo + 4) * 4 * 480,
+				(audio.countInBars + firstSolo + 10) * 4 * 480
+			]);
+			expect(tunePractice.plan.every(ip => ip.closeTick <= (audio.countInBars + (audio.outroStartBar ?? 13)) * 4 * 480)).toBe(true);
+			resetTunePractice();
+		}
 	});
 
 	it('plans Minor windows on the 2-bar E- stretches of the solo chorus, named with the key', () => {
@@ -111,6 +141,60 @@ describe('a saved Minor Chord lick reaches the session as its own window', () =>
 			const offered = new Set(tunePractice.plan.flatMap((ip) => ip.suggestions.map((s) => s.lickId)));
 			expect([...offered], mode).toEqual(['e2e-minor-lick']);
 		}
+	});
+});
+
+describe('setup proposes the same known licks as the playing session', () => {
+	beforeEach(() => {
+		localStorage.clear();
+		resetTunePractice();
+		saveUserLick(minorLick);
+		saveUserLick({ ...minorLick, id: 'second-minor-lick', name: 'Another Minor Line' });
+		saveLickPracticeProgress({
+			'e2e-minor-lick': { E: { passCount: 1, currentTempo: 120, lastPracticedAt: 1 } },
+			'second-minor-lick': { E: { passCount: 1, currentTempo: 120, lastPracticedAt: 1 } }
+		});
+		initTunePractice(autumnLeaves);
+		Object.assign(tunePractice.config, {
+			mode: 'suggest', strictness: 'guided', tempo: 100,
+			concertKey: autumnLeaves.key, playHead: true, choruses: 2
+		});
+	});
+
+	it.each([true, false])('previews automatic rotation and role windows without starting a session (head %s)', (playHead) => {
+		tunePractice.config.playHead = playHead;
+		const startTime = tunePractice.startTime;
+		const preview = previewSessionPlan(autumnLeaves, playHead, 2);
+		expect(tunePractice.phase).toBe('setup');
+		expect(tunePractice.plan).toEqual([]);
+		expect(tunePractice.pickedSuggestion).toEqual({});
+		expect(tunePractice.startTime).toBe(startTime);
+		const names = new Set(preview.markers.map(marker => marker.lickName).filter(Boolean));
+		expect(names).toEqual(new Set(['E2E Minor Lick · F#-', 'Another Minor Line · F#-']));
+		expect(preview.matchedCount).toBeGreaterThan(0);
+
+		startTunePracticeSession(autumnLeaves, 960);
+		expect(preview.total).toBe(tunePractice.plan.length);
+		expect(preview.matchedCount).toBe(tunePractice.plan.filter(ip => ip.suggestions.length > 0).length);
+		for (const marker of preview.markers) {
+			const firstVisit = tunePractice.plan.find(ip => ip.markerKey === marker.id)!;
+			expect(marker.lickName).toBe(suggestionNameFor(firstVisit));
+			expect(marker.label).toBe(suggestionNameFor(firstVisit) ?? firstVisit.bandName);
+			expect(marker.timeRange).toEqual(firstVisit.notationTimeRange);
+		}
+	});
+
+	it('updates eligibility when tempo or concert key changes, without offering unlearned curated licks', () => {
+		expect(previewSessionPlan(autumnLeaves, true).matchedCount).toBeGreaterThan(0);
+		tunePractice.config.tempo = 135;
+		expect(previewSessionPlan(autumnLeaves, true).matchedCount).toBe(0);
+		tunePractice.config.tempo = 100;
+		tunePractice.config.concertKey = 'D';
+		const transposed = previewSessionPlan(autumnLeaves, true);
+		expect(transposed.matchedCount).toBe(0);
+		expect(transposed.markers.every(marker => marker.lickName === null)).toBe(true);
+		tunePractice.config.concertKey = autumnLeaves.key;
+		expect(previewSessionPlan(autumnLeaves, true).matchedCount).toBeGreaterThan(0);
 	});
 });
 
@@ -183,14 +267,16 @@ describe('the session counts in by tempo', () => {
 		const formBars = plan.flat.totalBars; // 33: the pickup bar and the 32-bar form
 		expect(plan.leadBars).toBe(formBars);
 		expect(plan.practiceStartBar).toBe(1);
-		expect(plan.playedPhrase.difficulty.lengthBars).toBe(formBars + 2 * (formBars - 1));
+		expect(plan.outroStartBar).toBe(formBars + 2 * (formBars - 1));
+		expect(plan.playedPhrase.difficulty.lengthBars).toBe(formBars + 3 * (formBars - 1));
+		expect(tunePractice.plan.every(ip => ip.closeTick <= (plan.countInBars + plan.outroStartBar!) * autumnLeaves.timeSignature[0] * 480)).toBe(true);
 		// The first solo chord sounds straight after the head's last bar (4/4:
 		// a bar is one whole note).
 		const solo = plan.playedPhrase.harmony.filter((h) => fractionToFloat(h.startOffset) >= formBars);
 		expect(fractionToFloat(solo[0].startOffset)).toBe(formBars);
 		// The band reads the same timeline (CodeRabbit on #288): each solo
 		// chorus's first section starts on that chorus's bar 1.
-		const soloSections = (plan.playedPhrase.sectionMap ?? []).filter((e) => e.barOffset >= formBars);
+		const soloSections = (plan.playedPhrase.sectionMap ?? []).filter((e) => e.barOffset >= formBars && e.barOffset < plan.outroStartBar!);
 		expect(soloSections[0]?.barOffset).toBe(formBars);
 		expect(soloSections.map((e) => e.barOffset)).toContain(formBars + (formBars - 1));
 		expect(Math.max(...soloSections.map((e) => e.barOffset))).toBeLessThan(formBars + 2 * (formBars - 1));

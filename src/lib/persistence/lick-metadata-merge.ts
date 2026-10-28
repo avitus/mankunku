@@ -22,18 +22,12 @@
  *    idempotent, so it needs no recency signal and can't lose points on merge.
  */
 
-import type { LickProgressPoint } from '$lib/types/lick-practice';
+import type { LickProgressPoint, LickPracticeKeyProgress } from '$lib/types/lick-practice';
 import { MAX_HISTORY_POINTS } from './limits';
 
 export interface LickMetaData {
 	lickTags: Record<string, string[]>;
-	practiceProgress: Record<
-		string,
-		Record<
-			string,
-			{ currentTempo: number; lastPracticedAt: number; passCount: number; rollingScore?: number }
-		>
-	>;
+	practiceProgress: Record<string, Record<string, LickPracticeKeyProgress>>;
 	tagOverrides: Record<string, string[]>;
 	categoryOverrides: Record<string, string>;
 	unlockCounts: Record<string, number>;
@@ -205,10 +199,7 @@ export function mergeLickMetadata(local: LickMetaBundle, cloud: LickMetaBundle):
 		const resetTime = progressResets[id] ?? 0;
 		const localKeys = local.data.practiceProgress?.[id] ?? {};
 		const cloudKeys = cloud.data.practiceProgress?.[id] ?? {};
-		const mergedKeys: Record<
-			string,
-			{ currentTempo: number; lastPracticedAt: number; passCount: number; rollingScore?: number }
-		> = {};
+		const mergedKeys: Record<string, LickPracticeKeyProgress> = {};
 		for (const key of keysOf(localKeys, cloudKeys)) {
 			const lk = localKeys[key];
 			const ck = cloudKeys[key];
@@ -221,7 +212,15 @@ export function mergeLickMetadata(local: LickMetaBundle, cloud: LickMetaBundle):
 			const ckPass = ck && ck.lastPracticedAt >= resetTime ? ck.passCount : 0;
 			mergedKeys[key] = {
 				...winner,
-				passCount: Math.max(lkPass, ckPass)
+				passCount: Math.max(lkPass, ckPass),
+				// Preserve proven memory passes even when a newer legacy client
+				// lacks the field. As with total passes, resets fence off old counts.
+				...(lk?.memoryPassCount !== undefined || ck?.memoryPassCount !== undefined
+					? { memoryPassCount: Math.max(
+						lk && lk.lastPracticedAt >= resetTime ? lk.memoryPassCount ?? 0 : 0,
+						ck && ck.lastPracticedAt >= resetTime ? ck.memoryPassCount ?? 0 : 0
+					) }
+					: {})
 			};
 		}
 		if (Object.keys(mergedKeys).length > 0) practiceProgress[id] = mergedKeys;

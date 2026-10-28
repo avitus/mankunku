@@ -1,4 +1,8 @@
-import { load, save } from '$lib/persistence/storage';
+import { savedTunePracticePreferences, saveTunePracticePreferences, savedTuneKey, saveTuneKey, savedTunePracticeStyle, saveTunePracticeStyle, type TunePracticePreferences } from '$lib/tunes/preferences';
+import { tuneBackingStyle } from '$lib/tunes/backing-style';
+import { savedTunePlayback, saveTunePlayback } from '$lib/tunes/playback-preferences';
+import { jamSheets } from '$lib/tunes/jam-sheets';
+import { savedSoloChoruses, saveSoloChoruses } from '$lib/tunes/solo-choruses';
 import type { Fraction, Phrase, PitchClass } from '$lib/types/music';
 import type { Score } from '$lib/types/scoring';
 import type { Trick, TrickContext, TrickParameters } from '$lib/types/tricks';
@@ -37,13 +41,13 @@ import {
 	buildSessionPhrase,
 	buildSessionPlan,
 	clearPickupBarHarmony,
-	normalizeChoruses,
 	headBarsForFlat,
 	notationBarForPlaybackBar,
 	resolvePickedSuggestion,
 	soloPassPickupBars,
 	windowCandidates,
 	windowLabel,
+	type BuildPlanDeps,
 	type CueLevel,
 	type InsertionPoint,
 	type InsertionResult,
@@ -56,7 +60,7 @@ import {
  * Scored tune-practice session state — thin Svelte-5 runes wrapper over the
  * pure logic in `tune-practice-plan.ts` (the lick-practice pattern: state
  * module bridges, plain modules carry the testable logic; the route owns the
- * audio orchestration). Results are not persisted; the chorus preference is local per user.
+ * audio orchestration). Results are not persisted; chorus and playback preferences are local per user.
  */
 
 export interface TunePracticeConfig {
@@ -69,14 +73,13 @@ export interface TunePracticeConfig {
 	/** Play the head (the written melody, one chorus) before the practice chorus. */
 	playHead: boolean;
 	/**
-	 * Does the rhythm section play in THIS session? A one-time override of
-	 * `settings.backingTrackEnabled`, re-seeded from it on every entry to
-	 * setup (see `initTunePractice`) and never written back. The route must
-	 * read this rather than the global wherever the two could disagree —
-	 * including the bleed evidence, where claiming a comp grid that isn't
-	 * sounding would suppress real onsets.
+	 * Saved tune-backing preference, captured for this session. Playback and
+	 * bleed evidence read this value so they always agree about the sounding band.
 	 */
 	backingTrackEnabled: boolean;
+	/** Mute melody audio without changing the selected head / solo / outro form. */
+	melodyEnabled: boolean;
+	metronomeEnabled: boolean;
 	/** Practice choruses, excluding the head (1–12). */
 	choruses: number;
 }
@@ -101,10 +104,17 @@ export interface TunePracticeAudioPlan {
 	playedPhrase: Phrase;
 	/** Playback-order flatten with provenance (cursor + window projection). */
 	flat: FlattenedTune;
+	closingSheet: Tune;
+	closingFlat: FlattenedTune;
+	closingStartBar: number | null;
+	separateClosingChart: boolean;
 	/** Notation-order flatten (chart markers). */
 	notationFlat: FlattenedTune;
 	/** Bars before the practice material starts (0 without a head). */
 	leadBars: number;
+	outroStartBar: number | null;
+	outroSourceStartBar: number;
+	noteSourceIndices: number[];
 	/**
 	 * Bars of drum count-in ahead of the tune, from the session tempo — the
 	 * lead-in the route hands playPhrase and every transport tick sits behind.
@@ -165,15 +175,17 @@ export const tunePractice = $state<{
 }>({
 	config: {
 		mode: 'suggest',
-		strictness: 'standard',
+		strictness: 'guided',
 		tempo: 100,
 		concertKey: 'C',
 		backingStyle: 'swing',
 		choruses: 1,
 		playHead: true,
-		// Overwritten from settings on every initTunePractice; this initial value
-		// only matters before the first setup screen mounts.
-		backingTrackEnabled: settings.backingTrackEnabled
+		// Restored from the saved tune preference on setup entry; this initial
+		// value only matters before the first setup screen mounts.
+		backingTrackEnabled: settings.backingTrackEnabled,
+		melodyEnabled: true,
+		metronomeEnabled: false
 	},
 	phase: 'setup',
 	tuneId: null,
@@ -193,45 +205,68 @@ export const tunePractice = $state<{
 	elapsedSeconds: 0
 });
 
-const CHORUSES_STORAGE_KEY = 'tune-practice-choruses';
-
 /** Restore the active user's last chorus count after browser hydration. */
 export function restoreTunePracticeChoruses(): void {
-	const saved = load<unknown>(CHORUSES_STORAGE_KEY);
-	tunePractice.config.choruses = normalizeChoruses(typeof saved === 'number' ? saved : 1);
+	tunePractice.config.choruses = savedSoloChoruses();
 }
 
 /** Remember the chorus count locally for the next tune or visit. */
 export function setTunePracticeChoruses(choruses: number): void {
-	tunePractice.config.choruses = normalizeChoruses(choruses);
-	save(CHORUSES_STORAGE_KEY, tunePractice.config.choruses);
+	tunePractice.config.choruses = saveSoloChoruses(choruses);
 }
 
-/**
- * Seed the session's backing switch from the global setting.
- *
- * Called at EVERY arrival at the setup screen — a fresh tune, a return to the
- * same one, "practice again" after a take — because the switch is a one-time
- * override and must never carry a previous session's choice. This module
- * outlives the route and keeps `tuneId`, so a client-side return to the same
- * tune reaches neither `initTunePractice` nor `resetTunePractice`; the route
- * calls this at mount to cover it.
- *
- * Read ONCE per arrival, never reactively: the switch must not snap back under
- * the user mid-setup, whether they flip it or another tab edits the setting.
- */
-export function seedSessionBackingFromSettings(): void {
-	tunePractice.config.backingTrackEnabled = settings.backingTrackEnabled;
+/** Restore once on setup entry; never overwrite the user's choice mid-session. */
+export function restoreTunePracticePlaybackPreferences(): void {
+	tunePractice.config.backingTrackEnabled = savedTunePlayback('backing', settings.backingTrackEnabled);
+	tunePractice.config.melodyEnabled = savedTunePlayback('melody', true);
+	tunePractice.config.metronomeEnabled = savedTunePlayback('metronome', false);
+}
+
+/** Persist band enablement while keeping playback and bleed evidence in sync. */
+export function setTunePracticeBacking(enabled: boolean): void {
+	tunePractice.config.backingTrackEnabled = saveTunePlayback('backing', enabled);
+}
+
+/** Remember melody audibility independently of the head/outro form choice. */
+export function setTunePracticeMelody(enabled: boolean): void {
+	tunePractice.config.melodyEnabled = saveTunePlayback('melody', enabled);
+}
+
+/** Persist the click setting used by both playback and scoring. */
+export function setTunePracticeMetronome(enabled: boolean): void {
+	tunePractice.config.metronomeEnabled = saveTunePlayback('metronome', enabled);
+}
+
+/** Restore saved choices on each visit, including a client-side return to the same tune. */
+export function restoreTunePracticeSettings(sheet: Tune): void {
+	Object.assign(tunePractice.config, savedTunePracticePreferences());
+	tunePractice.config.concertKey = savedTuneKey(sheet.id, sheet.key);
+	tunePractice.config.backingStyle = savedTunePracticeStyle(sheet.id, tuneBackingStyle(sheet, settings.tuneBackingStyles));
+	restoreTunePracticeChoruses();
+	restoreTunePracticePlaybackPreferences();
+}
+
+/** Save only the practice mode, cue level and head/outro choice. */
+export function setTunePracticeOptions(options: Partial<TunePracticePreferences>): void {
+	Object.assign(tunePractice.config, options);
+	saveTunePracticePreferences(tunePractice.config);
+}
+
+/** Remember the sounding key for this tune on both tune pages. */
+export function setTunePracticeKey(key: PitchClass): void {
+	tunePractice.config.concertKey = key;
+	if (tunePractice.tuneId) saveTuneKey(tunePractice.tuneId, key);
+}
+
+/** Remember this tune’s practice feel without changing its authored style. */
+export function setTunePracticeStyle(style: BackingStyle): void {
+	tunePractice.config.backingStyle = style;
+	if (tunePractice.tuneId) saveTunePracticeStyle(tunePractice.tuneId, style);
 }
 
 /** Enter the setup phase for a tune (idempotent per tune). */
 export function initTunePractice(sheet: Tune): void {
-	if (tunePractice.tuneId !== sheet.id) {
-		tunePractice.config.concertKey = sheet.key;
-	}
-	// Unlike concertKey, which stays put for the same tune, the backing switch
-	// forgets — see seedSessionBackingFromSettings.
-	seedSessionBackingFromSettings();
+	restoreTunePracticeSettings(sheet);
 	tunePractice.tuneId = sheet.id;
 	tunePractice.tuneTitle = sheet.title;
 	tunePractice.phase = 'setup';
@@ -250,9 +285,11 @@ export function initTunePractice(sheet: Tune): void {
 
 export interface SessionPreview {
 	total: number;
+	/** Planned windows with an eligible lick, including repeat/chorus occurrences. */
+	matchedCount: number;
 	byType: Partial<Record<ChordProgressionType, number>>;
 	uncategorizedCount: number;
-	/** Notation-order bar ranges + progression labels for setup-screen chart markers. */
+	/** Notation-order bands naming the first planned lick at each chart position. */
 	markers: {
 		id: string;
 		startBar: number;
@@ -260,36 +297,19 @@ export interface SessionPreview {
 		/** Whole-note span for mid-bar band clipping (see RangeMarker.timeRange). */
 		timeRange: { start: number; end: number };
 		label: string;
+		lickName: string | null;
 		progressionType: ChordProgressionType;
 	}[];
 }
 
 /**
- * Setup-screen preview mirroring the REAL session plan: the same expanded
- * flatten, non-overlap selection, and head filtering the session will use
- * (counts and bar ranges are transposition-invariant, so the base sheet
- * suffices), plus how many user licks can't match anything for lack of prog
- * tags. Chart markers dedupe repeat occurrences by markerKey.
+ * Preview the same eligible licks, role windows and rotation that Start uses,
+ * without arming a session. Repeated chart positions show their first visit.
  */
 export function previewSessionPlan(sheet: Tune, playHead: boolean, choruses = 1): SessionPreview {
-	const flat = clearPickupBarHarmony(sheet, flattenTune(sheet, { expandRepeats: true }));
-	const notationFlat = flattenTune(sheet);
-	const hasMelody = flat.notes.some((n) => n.pitch !== null);
-	const effectiveHead = playHead && hasMelody;
-	const { headBars, formRepeats } = headBarsForFlat(flat);
-	const plan = buildSessionPlan({
-		flat,
-		notationFlat,
-		timeSignature: sheet.timeSignature,
-		ppq: 480,
-		choruses,
-		pickupBars: soloPassPickupBars(sheet, flat),
-		head: formRepeats
-			? { bars: headBars, mode: effectiveHead ? 'filter' : 'skip' }
-			: effectiveHead ? { bars: headBars, mode: 'shift' } : undefined,
-		detect: (f) => detectProgressions(f, sheet),
-		match: () => ({ suggestions: [], uncategorized: [] })
-	});
+	const { plan, pickedSuggestion, audioPlan } = prepareTunePracticeSession(
+		sheet, { ...tunePractice.config, playHead, choruses }, 480
+	);
 
 	const byType: Partial<Record<ChordProgressionType, number>> = {};
 	for (const ip of plan) {
@@ -299,39 +319,49 @@ export function previewSessionPlan(sheet: Tune, playHead: boolean, choruses = 1)
 	const markers: SessionPreview['markers'] = [];
 	const seenMarker = new Set<string>();
 	for (const ip of plan) {
+		if (!!ip.closingPass !== (audioPlan.closingStartBar === 0 && audioPlan.separateClosingChart)) continue;
 		if (seenMarker.has(ip.markerKey)) continue;
 		seenMarker.add(ip.markerKey);
+		const lickName = suggestedWindowLabel(ip, pickedSuggestion[ip.id]);
 		markers.push({
 			id: ip.markerKey,
 			startBar: ip.notationBarRange.start,
 			endBarExclusive: ip.notationBarRange.endExclusive,
 			timeRange: ip.notationTimeRange,
-			label: ip.bandName,
+			label: lickName ?? ip.bandName,
+			lickName,
 			progressionType: ip.progressionType
 		});
 	}
 
-	let uncategorizedCount = 0;
-	const detections = detectProgressions(notationFlat, sheet);
-	if (detections.length > 0) {
-		const deps = buildLickMatcherDeps(sheet, getInstrument());
-		uncategorizedCount = suggestLicksForProgression(detections[0], deps).uncategorized.length;
-	}
-
-	return { total: plan.length, byType, uncategorizedCount, markers };
+	return {
+		total: plan.length,
+		matchedCount: plan.filter(ip => ip.suggestions.length > 0).length,
+		byType,
+		uncategorizedCount: plan[0]?.uncategorizedCount ?? 0,
+		markers
+	};
 }
 
 /**
  * Build the full session: transpose the sheet to the configured concert key,
  * detect progressions on the playback timeline, rank licks per insertion
- * point, carve the melody out of the windows, and arm the state machine.
- * Returns the audio artifacts the route schedules playback from.
+ * point and prepare the audio artifacts. Reads the player's book, but never
+ * starts audio or changes session state: setup and Start share this builder.
  */
-export function startTunePracticeSession(sheet: Tune, ppq: number): TunePracticeAudioPlan {
-	const transposed =
-		sheet.key === tunePractice.config.concertKey
+function prepareTunePracticeSession(sheet: Tune, config: TunePracticeConfig, ppq: number): {
+	audioPlan: TunePracticeAudioPlan;
+	plan: InsertionPoint[];
+	pickedSuggestion: Record<string, number>;
+} {
+	const keyed =
+		sheet.key === config.concertKey
 			? sheet
-			: transposeTune(sheet, tunePractice.config.concertKey);
+			: transposeTune(sheet, config.concertKey);
+	const { returning: transposed, closing: closingSheet, soloStartBar } = jamSheets(keyed);
+	const separateClosingChart = closingSheet !== transposed;
+	const closingFlat = clearPickupBarHarmony(closingSheet, flattenTune(closingSheet, { expandRepeats: true }));
+	const closingPickupBars = soloPassPickupBars(closingSheet, closingFlat);
 	const expanded = tuneToPhraseWithFlat(transposed, { expandRepeats: true });
 	const phrase = expanded.phrase;
 	// The band sits the pickup bar out; its chord, if the chart writes one, sounds from bar 1.
@@ -342,21 +372,21 @@ export function startTunePracticeSession(sheet: Tune, ppq: number): TunePractice
 	// A head chorus needs a melody — chords-only charts (iReal imports and
 	// most community tunes) would otherwise open with a full silent chorus.
 	const hasMelody = flat.notes.some((n) => n.pitch !== null);
-	const playHead = tunePractice.config.playHead && hasMelody;
-	const mode = tunePractice.config.mode;
+	const playHead = config.playHead && hasMelody;
+	const mode = config.mode;
 
 	const { headBars, formRepeats } = headBarsForFlat(flat);
-	const choruses = tunePractice.config.choruses;
+	const choruses = config.choruses;
 	// A pickup is played once, with the head; every practice chorus runs bar 1 to the end.
-	const pickupBars = soloPassPickupBars(transposed, flat);
-	const built = buildSessionPhrase({ flat, timeSignature: transposed.timeSignature, playHead, choruses, pickupBars });
-	const countInBars = countInBarsForTempo(tunePractice.config.tempo);
+	const pickupBars = Math.max(soloStartBar, soloPassPickupBars(transposed, flat));
+	const built = buildSessionPhrase({ flat, timeSignature: transposed.timeSignature, playHead, playOutro: true, choruses, pickupBars, closingFlat, closingPickupBars });
+	const countInBars = countInBarsForTempo(config.tempo);
 	const practiceStartBar = (formRepeats ? headBars : 0) + pickupBars;
 	// The played phrase opens on the head's first bar, or without a head on
 	// the solo pass's first; the count runs on when that bar is a pickup.
 	const firstChartBar = notationBarForPlaybackBar(flat.sectionMap, transposed.sections, playHead ? 0 : practiceStartBar);
 	const countInPickup = firstChartBar !== null && isInPickupLeadIn(transposed, firstChartBar);
-	const plan = buildSessionPlan({
+	const planDeps: BuildPlanDeps = {
 		countInBars,
 		pickupBars,
 		flat,
@@ -378,7 +408,7 @@ export function startTunePracticeSession(sheet: Tune, ppq: number): TunePractice
 			// at this song's tempo and in this spot's key.
 			const options =
 				mode === 'suggest'
-					? { ownBookOnly: true, playableKeysOnly: true, sessionTempo: tunePractice.config.tempo }
+					? { ownBookOnly: true, playableKeysOnly: true, sessionTempo: config.tempo }
 					: { ownBookOnly: true };
 			const result = suggestLicksForProgression(det, matcherDeps, options);
 			return { suggestions: result.suggestions, uncategorized: result.uncategorized };
@@ -387,7 +417,17 @@ export function startTunePracticeSession(sheet: Tune, ppq: number): TunePractice
 		// a role's licks are never crowded out by another role's on the same
 		// progression.
 		suggestionLimit: mode === 'suggest' ? undefined : MAX_SUGGESTIONS
-	});
+	};
+	let plan = buildSessionPlan(planDeps);
+	if (!playHead && separateClosingChart) {
+		const closingStart = built.closingStartBar!;
+		const closingTick = (countInBars + closingStart) * transposed.timeSignature[0] * ppq;
+		plan = plan.filter(ip => ip.openTick < closingTick);
+		const lastSolo = buildSessionPlan({ ...planDeps, flat: closingFlat, notationFlat: flattenTune(closingSheet),
+			pickupBars: closingPickupBars, choruses: 1, head: { bars: closingStart, mode: 'shift' },
+			detect: f => detectProgressions(f, closingSheet) });
+		plan.push(...lastSolo.map((ip, i) => ({ ...ip, id: `ip-closing-${i}`, closingPass: true })));
+	}
 
 	const playedPhrase: Phrase = {
 		...phrase,
@@ -400,10 +440,35 @@ export function startTunePracticeSession(sheet: Tune, ppq: number): TunePractice
 	const changesSheet = changesSheetFor(transposed);
 	const chartOptions: TuneAbcOptions = { barsPerLine: suggestBarsPerLine(transposed) };
 
+	const audioPlan: TunePracticeAudioPlan = {
+		sheet: transposed,
+		closingSheet, closingFlat, closingStartBar: built.closingStartBar, separateClosingChart,
+		changesSheet,
+		chartOptions,
+		playedPhrase,
+		flat,
+		notationFlat,
+		leadBars: built.headBars,
+		outroStartBar: built.outroStartBar,
+		outroSourceStartBar: built.outroSourceStartBar,
+		noteSourceIndices: built.noteSourceIndices,
+		countInBars,
+		countInPickup,
+		practiceStartBar,
+		duplicatedForm: built.duplicatedForm,
+		playHead
+	};
+	return { audioPlan, plan, pickedSuggestion: mode === 'suggest' ? assignSuggestRotation(plan) : {} };
+}
+
+/** Arm the already-shared plan only when the player presses Start. */
+export function startTunePracticeSession(sheet: Tune, ppq: number): TunePracticeAudioPlan {
+	const { audioPlan, plan, pickedSuggestion } = prepareTunePracticeSession(sheet, tunePractice.config, ppq);
+
 	tunePractice.tuneId = sheet.id;
 	tunePractice.tuneTitle = sheet.title;
 	tunePractice.plan = plan;
-	tunePractice.pickedSuggestion = mode === 'suggest' ? assignSuggestRotation(plan) : {};
+	tunePractice.pickedSuggestion = pickedSuggestion;
 	tunePractice.uncategorizedCount = plan[0]?.uncategorizedCount ?? 0;
 	tunePractice.currentIndex = 0;
 	tunePractice.windowOpen = false;
@@ -417,20 +482,7 @@ export function startTunePracticeSession(sheet: Tune, ppq: number): TunePractice
 	tunePractice.elapsedSeconds = 0;
 	tunePractice.phase = 'count-in';
 
-	return {
-		sheet: transposed,
-		changesSheet,
-		chartOptions,
-		playedPhrase,
-		flat,
-		notationFlat,
-		leadBars: built.headBars,
-		countInBars,
-		countInPickup,
-		practiceStartBar,
-		duplicatedForm: built.duplicatedForm,
-		playHead
-	};
+	return audioPlan;
 }
 
 /**
@@ -550,6 +602,14 @@ export function markHead(): void {
 	if (tunePractice.phase === 'count-in') tunePractice.phase = 'head';
 }
 
+/** Leave the scored solo phase and close any remaining insertion window. */
+export function markOutro(): void {
+	if (tunePractice.phase === 'running') {
+		tunePractice.phase = 'outro';
+		tunePractice.windowOpen = false;
+	}
+}
+
 export function markRunning(): void {
 	if (tunePractice.phase === 'count-in' || tunePractice.phase === 'head') {
 		tunePractice.phase = 'running';
@@ -561,7 +621,12 @@ export function markRunning(): void {
  * the lick and the written key it is played in (`windowLabel`).
  */
 export function suggestionNameFor(ip: InsertionPoint): string | null {
-	const suggestion = resolvePickedSuggestion(ip.suggestions, tunePractice.pickedSuggestion[ip.id]);
+	return suggestedWindowLabel(ip, tunePractice.pickedSuggestion[ip.id]);
+}
+
+/** Resolve the selected suggestion into a lick name and instrument-written key. */
+function suggestedWindowLabel(ip: InsertionPoint, pickedIndex: number | undefined): string | null {
+	const suggestion = resolvePickedSuggestion(ip.suggestions, pickedIndex);
 	if (!suggestion) return null;
 	return windowLabel(
 		suggestion.lickName,
@@ -630,11 +695,13 @@ export function clearCelebration(): void {
 	tunePractice.celebration = null;
 }
 
+/** Refresh elapsed seconds only while the take is active. */
 export function updateElapsedTime(): void {
 	if (
 		tunePractice.phase === 'count-in' ||
 		tunePractice.phase === 'head' ||
-		tunePractice.phase === 'running'
+		tunePractice.phase === 'running' ||
+		tunePractice.phase === 'outro'
 	) {
 		tunePractice.elapsedSeconds = Math.floor((Date.now() - tunePractice.startTime) / 1000);
 	}
@@ -645,11 +712,11 @@ export function updateElapsedTime(): void {
  * results, streaks, picks, celebration) while leaving the config's own
  * choices alone. Used by "practice again" and by the route's guard against a
  * mid-session phase left behind by navigating away. It IS an arrival at
- * setup, so the backing switch re-seeds — see seedSessionBackingFromSettings.
+ * setup, so the audio switches restore the last saved tune preferences.
  */
 export function resetTunePractice(): void {
 	tunePractice.phase = 'setup';
-	seedSessionBackingFromSettings();
+	restoreTunePracticePlaybackPreferences();
 	tunePractice.plan = [];
 	tunePractice.currentIndex = 0;
 	tunePractice.windowOpen = false;

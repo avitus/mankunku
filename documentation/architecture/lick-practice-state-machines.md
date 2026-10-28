@@ -147,7 +147,7 @@ flowchart TD
     Has -->|Yes| Stats[Compute mean and minimum score]
     Stats --> Floor{Every key at least 75 percent?}
     Floor -->|No| NoUnlock[Block unlock and positive tempo change]
-    Floor -->|Yes| Gate{Mean at least 90 percent AND newest key has 3 passes AND fewer than 12 keys?}
+    Floor -->|Yes| Gate{Mean at least 90 percent AND newest key has 3 memory passes plus a fresh memory pass AND fewer than 12 keys?}
     Gate -->|Yes| Unlock[Unlock one key, reduce saved tempo by 10 percent]
     Gate -->|No| Delta[Apply score-based tempo change]
     NoUnlock --> Delta
@@ -162,7 +162,7 @@ flowchart TD
     Weak -->|Yes| Drill[Recommend Deep Practice with focusKey]
 ```
 
-Daily tempo adjustment: mean ≥95%: +2 BPM; ≥90%: +1; ≥75%: −1; below75%: −3. A minimum below75% caps the delta at zero. A key unlock replaces the delta with the 10% reduction. Tempo is clamped to 50–300 BPM. A persisted pass means ≥90%, distinct from Deep's ≥95% mastery/drop threshold.
+Daily tempo adjustment: mean ≥95%: +2 BPM; ≥90%: +1; ≥75%: −1; below75%: −3. A minimum below75% caps the delta at zero. A key unlock replaces the delta with the 10% reduction. Tempo is clamped to 50–300 BPM. A persisted pass means ≥90%, distinct from Deep's ≥95% mastery/drop threshold. Key unlocks use a separate `memoryPassCount`: only ≥90% attempts with notation hidden for the entire take count. The newest unlocked key must also score ≥90% without notation in the unlocking session itself; an older key's score or a missing newest-key result cannot substitute. Legacy pass totals do not establish memory passes and start with zero proven memory passes. Existing unlocked keys remain unlocked. Both counters sync with reset-aware maximum merging.
 
 Recommendations use up to five recent sittings per key, deduplicating retries and progression slices. More than half must be below90%. Learning licks (fewer than twelve keys) rank before fully unlocked licks; fully unlocked keys additionally need at least three weak sittings. Within that priority the lower median wins. Recommendation text uses the played progression’s mode and the instrument’s written tonic: minor keys read `C-`, never bare `C` or `Cm`. Legacy reports fall back to their plan progression. The action still carries the concert tonic without a display suffix. The recommendation passes the lick and `focusKey` to Deep; it does not unlock a new key.
 

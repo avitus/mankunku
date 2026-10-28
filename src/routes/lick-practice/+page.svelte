@@ -7,6 +7,10 @@
 		saveEnclosureSetup,
 		wasEnclosureSetupActive
 	} from '$lib/persistence/enclosure-setup';
+	import {
+		loadPracticeDuration,
+		savePracticeDuration
+	} from '$lib/persistence/lick-practice-duration';
 	import SeoHead from '$lib/components/seo/SeoHead.svelte';
 	import { page } from '$app/state';
 	import PracticeSetup from '$lib/components/lick-practice/PracticeSetup.svelte';
@@ -29,6 +33,10 @@
 
 	onMount(() => {
 		const config = lickPractice.config;
+		// The config lives in module memory, so a reload starts at its
+		// default; the dialled time budget comes back from storage.
+		const savedMinutes = loadPracticeDuration();
+		if (savedMinutes !== null) config.durationMinutes = savedMinutes;
 		const saved = loadEnclosureSetup();
 		if (config.sessionType === 'trick' && config.trickId === 'enclosures') {
 			// In-memory parameters may be an explicit detail-page handoff. Keep
@@ -96,6 +104,7 @@
 	function handleUpdate(update: Partial<LickPracticeConfig>) {
 		Object.assign(lickPractice.config, update);
 		saveEnclosureSetup(lickPractice.config);
+		if (update.durationMinutes !== undefined) savePracticeDuration(update.durationMinutes);
 	}
 
 	function handleStart() {

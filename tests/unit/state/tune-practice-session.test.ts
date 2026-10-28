@@ -243,6 +243,7 @@ describe('what the chart shows before the solo chorus (2026-09-17)', () => {
 	it('hides every annotation through the count-in and the head when a head plays', () => {
 		expect(annotationsVisible({ phase: 'count-in', playHead: true })).toBe(false);
 		expect(annotationsVisible({ phase: 'head', playHead: true })).toBe(false);
+		expect(annotationsVisible({ phase: 'outro', playHead: true })).toBe(false);
 		expect(annotationsVisible({ phase: 'running', playHead: true })).toBe(true);
 		expect(annotationsVisible({ phase: 'complete', playHead: true })).toBe(true);
 	});

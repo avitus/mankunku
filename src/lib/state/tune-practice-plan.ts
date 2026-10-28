@@ -27,9 +27,11 @@ import { isInPickupLeadIn } from '$lib/music/pickup';
 
 export type TunePracticeMode = 'suggest' | 'points' | 'freestyle';
 export type TunePracticeStrictness = 'guided' | 'standard' | 'solo';
-export type TunePracticePhase = 'setup' | 'count-in' | 'head' | 'running' | 'complete';
+export type TunePracticePhase = 'setup' | 'count-in' | 'head' | 'running' | 'outro' | 'complete';
 
 export interface InsertionPoint {
+	/** Uses the closing chart on a melody-free session’s last solo. */
+	closingPass?: boolean;
 	id: string;
 	/**
 	 * What the window is FOR — the band's colour, name and rotation pool. A
@@ -140,8 +142,11 @@ export function playbackBarForSessionBar(
 	bar: number,
 	formBars: number,
 	headBars: number,
-	practiceStartBar: number
+	practiceStartBar: number,
+	outroStartBar?: number | null,
+	outroSourceStartBar = practiceStartBar
 ): number {
+	if (outroStartBar != null && bar >= outroStartBar) return outroSourceStartBar + bar - outroStartBar;
 	if (bar < headBars) return bar;
 	const start = practiceStartBar;
 	const chorusBars = formBars - start;
@@ -705,7 +710,12 @@ export function buildSessionPhrase(args: {
 	playHead: boolean;
 	choruses?: number;
 	pickupBars?: number;
-}): ReturnType<typeof buildSingleChorusPhrase> {
+	/** Append the melody on the way out. */
+	playOutro?: boolean;
+	/** The resolved way-out form. Without a head, the last solo takes this ending. */
+	closingFlat?: FlattenedTune;
+	closingPickupBars?: number;
+}): ReturnType<typeof buildSingleChorusPhrase> & { outroStartBar: number | null; outroSourceStartBar: number; noteSourceIndices: number[]; closingStartBar: number | null } {
 	const built = buildSingleChorusPhrase(args);
 	const chorusBars = built.phraseBars - built.headBars;
 	const count = normalizeChoruses(args.choruses);
@@ -728,7 +738,40 @@ export function buildSessionPhrase(args: {
 		})));
 		sectionMap.push(...sectionMapFrom(built.sectionMap, built.headBars, built.headBars + chorus * chorusBars));
 	}
-	return { ...built, sectionMap, phraseBars: built.headBars + chorusBars * count };
+	const soloEnd = built.headBars + chorusBars * count;
+	const { headBars, formRepeats } = headBarsForFlat(args.flat);
+	const closingFlat = args.closingFlat ?? args.flat;
+	const outroSourceStartBar = args.closingFlat
+		? (args.closingPickupBars ?? 0)
+		: (formRepeats ? headBars : 0) + (args.pickupBars ?? 0);
+	const noteSourceIndices = args.flat.noteSourceIndices.slice(0, built.notes.length);
+	const outroStartBar = args.playOutro && args.playHead ? soloEnd : null;
+	const closingStartBar = outroStartBar ?? (args.closingFlat ? built.headBars + chorusBars * (count - 1) : null);
+	if (closingStartBar !== null) {
+		// A melody-free session still resolves on its last solo. Replace that
+		// chorus rather than appending an extra, unrequested pass.
+		if (outroStartBar === null) {
+			const boundary = multiplyFraction(barDuration, closingStartBar);
+			built.harmony = built.harmony.filter(h => compareFractions(h.startOffset, boundary) < 0)
+				.map(h => compareFractions(addFractions(h.startOffset, h.duration), boundary) > 0
+					? { ...h, duration: subtractFractions(boundary, h.startOffset) } : h);
+			const closingSection = sectionMap.findIndex(entry => entry.barOffset >= closingStartBar);
+			if (closingSection >= 0) sectionMap.splice(closingSection);
+		}
+		const from = multiplyFraction(barDuration, outroSourceStartBar);
+		const to = multiplyFraction(barDuration, closingStartBar);
+		if (outroStartBar !== null) closingFlat.notes.forEach((note, index) => {
+			const end = addFractions(note.offset, note.duration);
+			if (compareFractions(end, from) <= 0) return;
+			const start = compareFractions(note.offset, from) < 0 ? from : note.offset;
+			built.notes.push({ ...note, offset: addFractions(to, subtractFractions(start, from)), duration: subtractFractions(end, start) });
+			noteSourceIndices.push(closingFlat.noteSourceIndices[index]);
+		});
+		built.harmony.push(...harmonyFrom(closingFlat.harmony, from, to));
+		sectionMap.push(...sectionMapFrom(closingFlat.sectionMap, outroSourceStartBar, closingStartBar));
+	}
+	return { ...built, sectionMap, noteSourceIndices, outroStartBar, outroSourceStartBar, closingStartBar,
+		phraseBars: closingStartBar === null ? soloEnd : closingStartBar + closingFlat.totalBars - outroSourceStartBar };
 }
 
 /**
@@ -801,10 +844,12 @@ export function playheadChartBar(args: {
 	formBars: number;
 	headBars: number;
 	practiceStartBar: number;
+	outroStartBar?: number | null;
+	outroSourceStartBar?: number;
 	sectionMap: FlattenedTune['sectionMap'];
 	sheet: Pick<Tune, 'sections' | 'timeSignature'>;
 }): number | null {
-	const formBar = playbackBarForSessionBar(args.sessionBar, args.formBars, args.headBars, args.practiceStartBar);
+	const formBar = playbackBarForSessionBar(args.sessionBar, args.formBars, args.headBars, args.practiceStartBar, args.outroStartBar, args.outroSourceStartBar);
 	if (!(formBar >= 0 && formBar < args.formBars)) return null;
 	const chartBar = notationBarForPlaybackBar(args.sectionMap, args.sheet.sections, formBar);
 	if (chartBar === null || isInPickupLeadIn(args.sheet, chartBar)) return null;
@@ -819,6 +864,7 @@ export function playheadChartBar(args: {
  * first, so the annotations show from the count-in as before.
  */
 export function annotationsVisible(args: { phase: TunePracticePhase; playHead: boolean }): boolean {
+	if (args.phase === 'outro') return false;
 	if (!args.playHead) return true;
 	return args.phase !== 'count-in' && args.phase !== 'head';
 }

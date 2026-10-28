@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { MANKUNKU_BLUES } from '../../src/lib/data/tunes/mankunku-blues';
 import { test, expect } from './fixtures/test';
 import { seedOnboardedAnonymous, seedTunes } from './fixtures/storage';
 import { installAudioMock, stubCdnInstrumentSamples } from './fixtures/audio';
@@ -36,7 +37,7 @@ function loadATrain(): Record<string, unknown> {
 
 test.beforeEach(async ({ page }) => {
 	await seedOnboardedAnonymous(page);
-	await seedTunes(page, [loadATrain()]);
+	await seedTunes(page, [loadATrain(), { ...MANKUNKU_BLUES, id: 'e2e-blues-endings', source: 'user' }]);
 });
 
 test('Take the A Train: [2] volta number, chords, note shape, and closer', async ({ page }) => {
@@ -238,12 +239,13 @@ test('Take the A Train: [2] volta number, chords, note shape, and closer', async
  * always had its staff; it gained the opening barline in the same change.
  */
 for (const { name, path, endsTune } of [
-	{ name: 'Mankunku Blues', path: '/tunes/ls-mankunku-blues', endsTune: true },
+	{ name: 'Mankunku Blues', path: '/tunes/editor?edit=e2e-blues-endings', endsTune: true },
 	{ name: 'Take the A Train', path: `/tunes/${A_TRAIN_ID}`, endsTune: false }
 ]) {
 	test(`${name}: the stacked [2] sits on its staff and opens under [1]’s barline`, async ({ page }) => {
 		await page.goto(path);
-		await expect(page.getByRole('heading', { name, exact: true })).toBeVisible();
+		// The jam resolves whole-form endings; the editor retains both for engraving.
+		await expect(page.getByRole('heading', { name: endsTune ? 'Tune editor' : name, exact: true })).toBeVisible();
 		await expect.poll(async () => page.locator('g.abcjs-ending-align').count()).toBeGreaterThan(0);
 
 		const g = await page.evaluate(() => {
@@ -359,14 +361,15 @@ test('the editor bar hit rect for the stacked [2] bar sits under its music, not 
 });
 
 /**
- * Max the tempo knob (End key → max), retried until the hydrated Knob takes
- * the keypress — see tune-practice.spec.ts for why the retry exists.
+ * Commit the maximum tempo after hydration; the transport readout confirms
+ * that the input reached the practice state.
  */
 async function setTempoMax(page: Page): Promise<void> {
-	const knob = page.getByRole('slider', { name: /^tempo$/i });
+	const tempo = page.getByRole('spinbutton', { name: /^tempo$/i });
 	await expect(async () => {
-		await knob.press('End');
-		await expect(knob).toHaveAttribute('aria-valuenow', '240', { timeout: 1_000 });
+		await tempo.fill('240');
+		await tempo.press('Tab');
+		await expect(page.locator('.tp-start')).toContainText('240 BPM', { timeout: 1_000 });
 	}).toPass({ timeout: 15_000 });
 }
 
