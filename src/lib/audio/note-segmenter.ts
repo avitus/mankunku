@@ -205,6 +205,7 @@ export function segmentNotes(
 		// matches the caller's onset — the guard only affects which readings
 		// are scanned, not the reported note boundary.
 		const subSegments = splitByPitchChange(segReadings, segStart, segEnd);
+		const completedWarmup = completedWarmupFrames(segReadings);
 
 		for (const sub of subSegments) {
 			const prevMidi = notes.length > 0 ? notes[notes.length - 1].midi : null;
@@ -214,7 +215,8 @@ export function segmentNotes(
 				sub.end - sub.start,
 				prevMidi,
 				minReadings,
-				minNoteDuration
+				minNoteDuration,
+				completedWarmup
 			);
 			if (note) notes.push(note);
 		}
@@ -1125,7 +1127,9 @@ function splitOnReadingGaps(
  * one: nothing but a partial warmup burst, or too few readings (the 2 to
  * `minReadings − 1` case keeps its single clearest reading at half clarity).
  * Otherwise the pitch comes from `pickMidi`, with the median cents and mean
- * clarity of the readings on the chosen MIDI.
+ * clarity of the readings on the chosen MIDI. `completedWarmup` holds the
+ * frames of every completed warmup window in the sub-segment's segment
+ * (`completedWarmupFrames`).
  */
 function emitNote(
 	subReadings: PitchReading[],
@@ -1133,7 +1137,8 @@ function emitNote(
 	subDuration: number,
 	prevMidi: number | null,
 	minReadings: number,
-	minNoteDuration: number
+	minNoteDuration: number,
+	completedWarmup: ReadonlySet<PitchReading>
 ): DetectedNote | null {
 	if (subReadings.length === 0) return null;
 
@@ -1145,7 +1150,26 @@ function emitNote(
 	// the exception: the warmup vote completed there, on that pitch. The
 	// 2026-09-16 "sharp-9-flat-9-dom" A3 is exactly that — five frames on
 	// 57 before the downbeat kick blanked tracking.
-	if (subReadings.every((r) => r.warmup) && !isCompletedWarmup(subReadings)) return null;
+	//
+	// The window is judged across the whole SEGMENT, not the sub-segment: the
+	// stabilizer counts only confident frames, so a stretch under the clarity
+	// threshold inside the window leaves the vote whole while the reading-gap
+	// split cuts its frames into pieces too short to pass on their own. The
+	// 2026-10-28 "little-cry" F3 is the reference — a breathy eighth whose
+	// five warmup frames, all F, were split 4 + 1 by 100 ms of sub-0.80
+	// clarity, so both pieces were dropped and the Ebs either side merged
+	// across the F into one long note (3 of 5 saved, 0.590). A window an
+	// ONSET cuts stays judged piece by piece: the boundary claims a new note,
+	// and the piece before it is a fragment (the 2026-05-22 blues-curl-up and
+	// 2026-08-10 pent-run takes each grew a phantom repeat when the window
+	// was judged across one).
+	if (
+		subReadings.every((r) => r.warmup) &&
+		!isCompletedWarmup(subReadings) &&
+		!subReadings.every((r) => completedWarmup.has(r))
+	) {
+		return null;
+	}
 
 	// Short-note fallback (4d): when a segment has some data but not enough
 	// to run the full vote, pick the single highest-clarity reading so a
@@ -1193,6 +1217,24 @@ function emitNote(
  */
 function isCompletedWarmup(readings: PitchReading[]): boolean {
 	return readings.length >= WARMUP_FRAMES && readings.every((r) => r.midi === readings[0].midi);
+}
+
+/**
+ * The frames of every completed warmup window in a run of readings: each
+ * maximal run of consecutive warmup readings that `isCompletedWarmup`
+ * accepts. Consecutive in the confident stream, whatever the time between
+ * them, because that is how the stabilizer counts its window.
+ */
+function completedWarmupFrames(readings: PitchReading[]): Set<PitchReading> {
+	const frames = new Set<PitchReading>();
+	let runStart = 0;
+	for (let i = 0; i <= readings.length; i++) {
+		if (i < readings.length && readings[i].warmup) continue;
+		const run = readings.slice(runStart, i);
+		if (isCompletedWarmup(run)) for (const r of run) frames.add(r);
+		runStart = i + 1;
+	}
+	return frames;
 }
 
 /**

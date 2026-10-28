@@ -3304,3 +3304,14 @@ faster. The sibling test had already written the rule down in a comment
 ("deterministic ordering — the prune sorts by timestamp") and nobody
 carried it across. And the real cost was never the 10%. It was that I
 tailed the output twice, so the name went by unrecorded both times.
+
+### 2026-10-27 — Where a rule is judged matters as much as the rule
+
+The warmup-completion rule was right; it was evaluated on the wrong unit.
+"Five frames on one pitch" is a property of the stabilizer's window, which
+lives in the confident-frame stream, while the sub-segment is a product of a
+later, unrelated cut (the reading-gap split). The first fix moved the unit
+all the way to the stream and was too wide: an onset is a claim about notes,
+and a window it cuts really is two things. The right unit was the one in
+between — the segment, whose boundaries are exactly the onsets. Next time a
+count-based gate misfires, ask first which cut produced the unit it counts.

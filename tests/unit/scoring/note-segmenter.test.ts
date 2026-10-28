@@ -1442,6 +1442,37 @@ describe('segmentNotes: a short note cut off right after its attack', () => {
 		const notes = segmentNotes([...b, ...a, ...gSharp], [0, 0.35], 1.0, undefined, undefined, undefined, [0, 0.35]);
 		expect(notes.map((n) => n.midi)).toEqual([59, 57, 56]);
 	});
+
+	// The 2026-10-28 "little-cry" F3: a breathy eighth whose five warmup frames
+	// are split 4 + 1 by a 100 ms stretch under the clarity threshold. The
+	// stabilizer counts only confident frames, so the five are still ONE
+	// completed warmup vote; the gap split hid that from each piece.
+	it('keeps a completed warmup window that a reading gap splits in two', () => {
+		const a = [...run(57, 0.44, 4, { warmup: true }), ...run(57, 0.59, 1, { warmup: true })];
+		const notes = segmentNotes([...b, ...a, ...gSharp], [0, 0.35], 1.0, undefined, undefined, undefined, [0, 0.35]);
+		expect(notes.map((n) => n.midi)).toEqual([59, 57, 56]);
+	});
+
+	it('still drops a split warmup burst that never completed', () => {
+		const a = [...run(57, 0.44, 2, { warmup: true }), ...run(57, 0.59, 2, { warmup: true })];
+		const notes = segmentNotes([...b, ...a, ...gSharp], [0, 0.35], 1.0, undefined, undefined, undefined, [0, 0.35]);
+		expect(notes.map((n) => n.midi)).toEqual([59, 56]);
+	});
+
+	it('still drops the pieces of a warmup window an onset cuts in two', () => {
+		// The boundary claims a new note, so the piece before it is a fragment
+		// (2026-05-22 blues-curl-up, 2026-08-10 pent run).
+		const a = [...run(57, 0.44, 4, { warmup: true }), ...run(57, 0.507, 1, { warmup: true })];
+		const onsets = [0, 0.35, 0.5];
+		const notes = segmentNotes([...b, ...a, ...gSharp], onsets, 1.0, undefined, undefined, undefined, onsets);
+		expect(notes.map((n) => n.midi)).toEqual([59, 56]);
+	});
+
+	it('still drops a split warmup window that voted on two pitches', () => {
+		const a = [...run(57, 0.44, 4, { warmup: true }), ...run(58, 0.59, 1, { warmup: true })];
+		const notes = segmentNotes([...b, ...a, ...gSharp], [0, 0.35], 1.0, undefined, undefined, undefined, [0, 0.35]);
+		expect(notes.map((n) => n.midi)).toEqual([59, 56]);
+	});
 });
 
 /**

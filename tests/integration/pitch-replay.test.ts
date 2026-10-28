@@ -4389,3 +4389,135 @@ describe('pitch replay regression: Slow Climb to the Third — an E3 locked on i
 		expect(detected.map((n) => n.midi)).toEqual([50, 52, 54]);
 	});
 });
+
+describe('pitch replay regression: Little Cry — a breathy F whose warmup window a clarity dip split (concert Bb, 2026-10-28)', () => {
+	// Ear training, tenor, 100 BPM, metronome only. The line is F3 · Eb3 · F3 ·
+	// Eb3 · Bb2; Andy flagged "Some breathy notes were missed". The app saved
+	// F3 · Eb3 (1.2 s) · Bb2 — 3 of 5, 0.590.
+	//
+	// The second F (1.418 s on the trimmed clock) is breathy: it carries a
+	// worklet onset, which resets the octave stabilizer, and then only five
+	// confident frames, all F, before it slurs into the Eb — the 100 ms
+	// between its 4th and 5th frame read under the 0.80 clarity threshold
+	// (weak readings at 0.65–0.80). The stabilizer counts only confident
+	// frames, so those five are its completed warmup vote, on F, and every one
+	// is flagged warmup. But `splitByPitchChange` cuts a same-pitch run at a
+	// reading gap, which left a 4-frame and a 1-frame piece, and `emitNote`
+	// judged each piece alone: neither held the five frames a completed
+	// warmup needs, so both were dropped as a partial warmup burst, the Eb
+	// after the F took the segment, and the same-pitch merge joined it to the
+	// Eb before. Completion is now judged across the whole segment's run of
+	// warmup frames. Only this take changes across the corpus (46 takes ×
+	// saved / trimmed / untrimmed × both time bases); judging it across an
+	// onset instead grew a phantom repeat in two others (see the unit tests).
+	const TRANSPORT_SECONDS = 266.24249433106576;
+	const TEMPO = 100;
+	const SWING = 0.6;
+	const FIXTURE = 'recordings/2026-10-28-little-cry';
+
+	const expectedPhrase: Phrase = {
+		id: 'bbn-033_Bb',
+		name: 'Little Cry',
+		timeSignature: [4, 4],
+		key: 'Bb',
+		notes: [
+			{ pitch: 53, duration: [1, 4], offset: [0, 1] }, // F3
+			{ pitch: 51, duration: [1, 8], offset: [1, 4] }, // Eb3
+			{ pitch: 53, duration: [1, 8], offset: [3, 8] }, // F3
+			{ pitch: 51, duration: [1, 4], offset: [1, 2] }, // Eb3
+			{ pitch: 46, duration: [1, 4], offset: [3, 4] } // Bb2
+		],
+		harmony: [{ chord: { root: 'Bb', quality: '7' }, scaleId: 'blues.minor', startOffset: [0, 1], duration: [1, 1] }],
+		difficulty: { level: 11, pitchComplexity: 15, rhythmComplexity: 7, lengthBars: 1 },
+		category: 'blues',
+		tags: ['blue-note', 'neighbor', 'cry'],
+		source: 'curated'
+	};
+
+	const replayPipeline = (opts: { live?: boolean } = {}) =>
+		replayEarTrainingTake(`${FIXTURE}.wav`, TRANSPORT_SECONDS, TEMPO, opts);
+
+	const readJson = () =>
+		JSON.parse(
+			readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '..', 'fixtures', `${FIXTURE}.json`), 'utf8')
+		);
+
+	const score = (detected: DetectedNote[]) =>
+		runScorePipeline({
+			detected,
+			phrase: expectedPhrase,
+			tempo: TEMPO,
+			transportSeconds: TRANSPORT_SECONDS,
+			swing: SWING,
+			bleedFilterEnabled: false
+		}).chosen;
+
+	it('the app saved F3 · Eb3 · Bb2 (3 of 5, 0.590)', () => {
+		const json = readJson();
+		expect(json.flag.note).toMatch(/breathy/i);
+		const saved: DetectedNote[] = json.scoring.savedDetectedNotes;
+		expect(saved.map((n) => n.midi)).toEqual([53, 51, 46]);
+		expect(json.scoring.savedScore.notesHit).toBe(3);
+		expect(json.scoring.savedScore.overall).toBeCloseTo(0.59, 3);
+	});
+
+	it('the second F is five warmup frames on F with a reading gap between the 4th and 5th', () => {
+		const json = readJson();
+		const readings: PitchReading[] = json.detection.readings;
+		const f = readings.filter((r) => r.time > 1.418 && r.time < 1.6);
+		expect(f.map((r) => r.midi)).toEqual([53, 53, 53, 53, 53]);
+		expect(f.every((r) => r.warmup)).toBe(true);
+		expect(f[4].time - f[3].time).toBeGreaterThan(0.09);
+		const weak: PitchReading[] = json.detection.weakReadings;
+		expect(weak.filter((r) => r.time > f[3].time && r.time < f[4].time).length).toBeGreaterThanOrEqual(3);
+	});
+
+	it('the saved readings now segment all five notes', () => {
+		const json = readJson();
+		const readings: PitchReading[] = json.detection.readings;
+		const duration: number = json.audio.duration;
+		const bleed = getMetronomeBleedOnsets(TRANSPORT_SECONDS, TEMPO, duration);
+		const base = resolveOnsets(json.detection.rawWorkletOnsets, readings);
+		const articulation = findReArticulations(readings, base, bleed);
+		const detected = segmentNotes(
+			readings,
+			[...base, ...articulation].sort((a, b) => a - b),
+			duration,
+			undefined,
+			undefined,
+			undefined,
+			json.detection.rawWorkletOnsets,
+			bleed,
+			articulation,
+			json.detection.weakReadings
+		);
+		expect(detected.map((n) => n.midi)).toEqual([53, 51, 53, 51, 46]);
+		expect(score(detected).notesHit).toBe(5);
+	});
+
+	it('trims the pre-armed lead-in back to the performance', async () => {
+		const { trimmed } = await replayPipeline();
+		expect(trimmed.offset).toBeCloseTo(1.467, 2);
+	});
+
+	it('replayed: F3, Eb3, F3, Eb3, Bb2 (saved: F3, Eb3, Bb2)', async () => {
+		const { detected } = await replayPipeline();
+		expect(detected.map((n) => n.midi)).toEqual([53, 51, 53, 51, 46]);
+		expect(detected[2].onsetTime).toBeCloseTo(1.418, 2);
+	});
+
+	it('scores five of five (saved: 3 of 5, 0.590)', async () => {
+		const { detected } = await replayPipeline();
+		const result = score(detected);
+		expect(result.notesHit).toBe(5);
+		expect(result.extrasCharged).toBe(0);
+		expect(result.pitchAccuracy).toBe(1);
+		expect(result.noteResults.some((nr) => nr.missed || nr.extra)).toBe(false);
+		expect(result.overall).toBeGreaterThan(0.9);
+	});
+
+	it('keeps all five in the live detector time base', async () => {
+		const { detected } = await replayPipeline({ live: true });
+		expect(detected.map((n) => n.midi)).toEqual([53, 51, 53, 51, 46]);
+	});
+});

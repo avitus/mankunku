@@ -6153,3 +6153,26 @@ monitor whether it results in faster CI times."
 - Fix (test only, d1334d39): the test drives `Date.now` a second per call.
   0/40 after; a frozen clock still turns it red. No store change: two takes
   are never saved in one millisecond.
+
+## 2026-10-27 — Little Cry: a breathy F lost between two Ebs
+
+- Andy flagged an ear-training take (bbn-033 in Bb, tenor, 100 BPM):
+  "Some breathy notes were missed." Saved F3 · Eb3 (1.2 s) · Bb2, 3 of 5,
+  0.590; reproduced exactly from the export and the WAV.
+- Cause: the second F had a worklet onset (stabilizer reset) and then
+  exactly five confident frames, all F — a completed warmup vote — but
+  100 ms of sub-0.80 clarity between frames 4 and 5. `splitByPitchChange`
+  cut the same-pitch run at that reading gap, and `emitNote` judged each
+  piece (4 + 1) as a partial warmup burst and dropped it. The Ebs either
+  side then merged.
+- Fix: judge completion on the segment's runs of consecutive warmup frames
+  (`completedWarmupFrames(segReadings)`). First tried on the whole stream:
+  blues-curl-up and pent-run each grew a phantom same-pitch fragment where
+  an ONSET cut the window. Per segment, only little-cry changes across the
+  corpus (46 takes, all time bases). Now 5 of 5, 0.971.
+- Side note for Andy: the exported phrase plays the lick's blue note
+  (concert-C F#, the b5) as Eb in Bb — F Eb F Eb Bb — so "Little Cry"
+  arrived without its cry. Looks like scale snapping under the day's
+  tonality; not touched.
+- Worktree needed `.env` copied and `npm ci` (missing
+  @circleci/vitest-circleci-coverage) before `npm run check` was clean.
