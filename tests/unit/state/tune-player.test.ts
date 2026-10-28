@@ -53,6 +53,28 @@ describe('tune desk tempo', () => {
 });
 
 describe('tune desk playback', () => {
+	it('starts directly on solo one when head and outro are disabled', async () => {
+		let finish!: () => void;
+		audio.playPhrase.mockImplementation(() => new Promise<void>(resolve => finish = resolve));
+		player.setTempo(120);
+		player.playHead = false;
+		const started = player.toggle(tune, 'swing', 2);
+		await vi.waitFor(() => expect(audio.playPhrase).toHaveBeenCalled());
+		expect(audio.playPhrase.mock.calls[0][0].notes).toEqual([]);
+		expect(audio.playPhrase.mock.calls[0][0].difficulty.lengthBars).toBe(4);
+		const callbacks = audio.playPhrase.mock.calls[0][3];
+		audio.getAudibleTransportSeconds.mockReturnValue(2.2);
+		callbacks.onStarted();
+		expect(player.phase).toBe('solo');
+		expect(player.soloChorus).toBe(1);
+		expect(player.chartBar).toBeCloseTo(.1);
+		audio.getAudibleTransportSeconds.mockReturnValue(6.2);
+		callbacks.onStarted();
+		expect(player.phase).toBe('solo');
+		expect(player.soloChorus).toBe(2);
+		finish();
+		await started;
+	});
 	it('tracks two solo choruses and the closing melody on one finite playback', async () => {
 		let finish!: () => void;
 		audio.playPhrase.mockImplementation(() => new Promise<void>(resolve => finish = resolve));

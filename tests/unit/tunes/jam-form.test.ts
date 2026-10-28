@@ -16,6 +16,17 @@ const tune: Tune = {
 };
 
 describe('a finite jazz jam', () => {
+	it('omits melody and pickup when the player selects solos only', () => {
+		const pickup: Tune = { ...tune, sections: [
+			{ label: '', bars: 1, pickupLength: [1, 4], notes: [{ pitch: 67, offset: [3, 4], duration: [1, 4] }], harmony: [] }, ...tune.sections
+		] };
+		const jam = buildJamForm(pickup, 3, false);
+		expect(jam.headBars).toBe(0);
+		expect(jam.outroStartBar).toBeNull();
+		expect(jam.phraseBars).toBe(6);
+		expect(jam.notes).toEqual([]);
+		expect(jam.harmony.map(chord => fractionToFloat(chord.startOffset))).toEqual([0, 2, 4]);
+	});
 	it('plays the head, N melody-free solos and the head out on one continuous timeline', () => {
 		const jam = buildJamForm(tune, 3);
 		expect(jam.headBars).toBe(2);
@@ -54,6 +65,10 @@ describe('a finite jazz jam', () => {
 		expect(jam.outroStartBar).toBe(9);
 		expect(jam.phraseBars).toBe(13);
 		const silent = buildJamForm({ ...endings, sections: endings.sections.map(section => ({ ...section, notes: [] })) }, 2);
+		const solosOnly = buildJamForm(endings, 2, false);
+		expect(solosOnly.harmony).toEqual(silent.harmony);
+		expect(solosOnly.notes).toEqual([]);
+		expect(solosOnly.phraseBars).toBe(silent.phraseBars);
 		expect(silent.harmony.map(h => h.chord.root)).toEqual(['C', 'G', 'C', 'F']);
 		expect(silent.headBars).toBe(0);
 		expect(silent.outroStartBar).toBeNull();

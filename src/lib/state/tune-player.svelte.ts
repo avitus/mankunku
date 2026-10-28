@@ -11,6 +11,7 @@ import { countInBarsForTempo } from '$lib/audio/drum-count-in';
 import { isInPickupLeadIn } from '$lib/music/pickup';
 import { buildJamForm } from '$lib/tunes/jam-form';
 import { savedTunePlayback, saveTunePlayback } from '$lib/tunes/playback-preferences';
+import { savedTunePracticePreferences, saveTunePracticePreferences } from '$lib/tunes/preferences';
 import { savedSoloChoruses, saveSoloChoruses } from '$lib/tunes/solo-choruses';
 
 /** Where a desk player keeps its tempo: the open tune's id and how to save a choice for it. */
@@ -27,14 +28,16 @@ export class TunePlayer {
 	metronome = $state(false);
 	loop = $state(false); // Compact editor preview only.
 	soloChoruses = $state(1);
+	playHead = $state(true);
 	closing = $state(false);
 	phase = $state<'head' | 'solo' | 'outro'>('head');
 	soloChorus = $state(0);
-	/** Restore this user’s shared tune audio switches on desk entry. */
+	/** Restore this user’s shared tune audio and head/outro choices on desk entry. */
 	restorePlaybackPreferences(): void {
 		this.backing = savedTunePlayback('backing', settings.backingTrackEnabled);
 		this.melody = savedTunePlayback('melody', true);
 		this.metronome = savedTunePlayback('metronome', false);
+		this.playHead = savedTunePracticePreferences().playHead;
 	}
 	/** Stop the current take and remember whether the band should play. */
 	setBacking(enabled: boolean): void { this.stop(); this.backing = saveTunePlayback('backing', enabled); }
@@ -46,6 +49,12 @@ export class TunePlayer {
 	restoreSoloChoruses(): void { this.soloChoruses = savedSoloChoruses(); }
 	/** Stop playback and save a bounded whole-number count for the next take. */
 	setSoloChoruses(value: number): void { this.stop(); this.soloChoruses = saveSoloChoruses(value); }
+	/** Stop the take and share the head/outro choice with lick practice. */
+	setPlayHead(enabled: boolean): void {
+		this.stop();
+		this.playHead = enabled;
+		saveTunePracticePreferences({ ...savedTunePracticePreferences(), playHead: enabled });
+	}
 	playing = $state(false);
 	starting = $state(false);
 	error = $state('');
@@ -107,7 +116,7 @@ export class TunePlayer {
 		const countInBars = countInBarsForTempo(tempo);
 		try {
 			const expanded = tuneToPhraseWithFlat(tune, { expandRepeats: true });
-			const jam = soloChoruses === undefined ? null : buildJamForm(tune, soloChoruses);
+			const jam = soloChoruses === undefined ? null : buildJamForm(tune, soloChoruses, this.playHead);
 			const phrase = jam?.phrase ?? expanded.phrase;
 			const flat = jam?.flat ?? expanded.flat;
 			this.playback ??= await import('$lib/audio/playback');
@@ -134,7 +143,7 @@ export class TunePlayer {
 				skipMelody: !melody,
 				// The drummer counts the tune in whenever the band's kit is loaded,
 				// on through a pickup bar: the band enters after it.
-				countIn: { bars: countInBars, drums: true, pickup: isInPickupLeadIn(tune, 0) },
+				countIn: { bars: countInBars, drums: true, pickup: (!jam || jam.headBars > 0) && isInPickupLeadIn(tune, 0) },
 				loop: jam ? undefined : { ...region, shouldContinue },
 				loopBacking: jam ? false : undefined,
 				onStarted: () => {

@@ -47,7 +47,7 @@ export function saveTunePracticeStyle(tuneId: string, style: BackingStyle): void
 	save(`tune-practice-style:${tuneId}`, style);
 }
 
-type TuneDisplayPreference = 'harmony-colors' | 'focus' | 'practice-focus' | 'practice-options-open';
+type TuneDisplayPreference = 'harmony-colors' | 'focus' | 'practice-focus' | 'practice-options-open' | 'options-open';
 /** Restore a display choice while preserving an explicitly saved false. */
 export function savedTuneDisplay(preference: TuneDisplayPreference, fallback: boolean): boolean {
 	const value = load<unknown>(`tune-display:${preference}`);

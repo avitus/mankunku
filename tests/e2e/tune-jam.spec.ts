@@ -19,6 +19,7 @@ test.beforeEach(async ({ page }) => {
 
 test('both tune pages remember the last solo count across navigation and reload', async ({ page }) => {
 	await page.goto('/tunes/e2e-jam');
+	await page.locator('details.td-session-options summary').click();
 	const count = page.getByRole('spinbutton', { name: 'Solo choruses' });
 	await expect(count).toHaveValue('2');
 	await expect(page.getByRole('button', { name: 'Loop', exact: true })).toHaveCount(0);
