@@ -6,10 +6,10 @@ export interface MusicalityRelease {
  readonly status: 'listening-preview';
 }
 
-/** First numbered listening release. Automated checks are not human acceptance. */
+/** Current listening candidate. Automated checks are not human acceptance. */
 export const CURRENT_MUSICALITY_RELEASE: Readonly<MusicalityRelease> = Object.freeze({
- version: '0.1.0',
- engineRevision: '545c67b1a1e69c0c997d6232fdf897a8cd066978',
+ version: '0.2.0',
+ engineRevision: '079b335ec69eb90e9777ea6a8b62e2b188c0d683',
  status: 'listening-preview'
 });
 

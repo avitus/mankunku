@@ -17,7 +17,7 @@ describe('full-tune listening player', () => {
 		expect(h.player.snapshot().musicalityRelease).toBeUndefined();
 		await h.player.start(params);
 		const release = h.player.snapshot().musicalityRelease;
-		expect(release).toEqual({ version: '0.1.0', engineRevision: '545c67b1a1e69c0c997d6232fdf897a8cd066978', status: 'listening-preview' });
+		expect(release).toEqual({ version: '0.2.0', engineRevision: '079b335ec69eb90e9777ea6a8b62e2b188c0d683', status: 'listening-preview' });
 		expect(Object.isFrozen(release)).toBe(true);
 		h.player.stop();
 		expect(h.player.snapshot().musicalityRelease).toBe(release);

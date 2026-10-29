@@ -6,6 +6,8 @@ The [development log](/docs/contributing/musicality-progress) records milestone 
 
 ## Numbered listening releases and assessment desk — 29 October 2026
 
+Current listening candidate: **musicality 0.2.0**, engine baseline `079b335ec69eb90e9777ea6a8b62e2b188c0d683`. Coordinated studio and blind A/B enable the bounded returning-head piano breath described below. Older saved 0.1.0 feedback keeps its original identity; the app does not replay archived engine binaries.
+
 **Musicality 0.1.0** is the first numbered listening release. Its engine baseline is `545c67b1a1e69c0c997d6232fdf897a8cd066978`, including the native Ballad reply milestone. The UI redesign does not change that engine. `src/lib/musicality/release.ts` owns the immutable release identity; application build, JSON schema and rolling/checkpoint policy versions remain separate. New takes capture the release before playback, and stop/completion retain it. Original remains an explicitly labelled comparison baseline under the same installed release. Historical unversioned takes/reviews remain unversioned rather than acquiring today's label.
 
 Future musical behavior increments advance the release: minor for added musical behavior, patch for a correction within the same intended contract, major for an incompatible release contract. UI/documentation-only changes retain the musicality release and use the application build to identify their implementation. Update the immutable engine revision only to a verified committed musical baseline; never relabel earlier feedback. A release is a listening candidate, not a claim of human acceptance or production readiness. Comparing archived audio from different releases still requires retaining those audio exports; the studio does not install or replay old engine binaries.
@@ -493,7 +495,7 @@ Failed/late dispatches optionally include a frozen, JSON-safe diagnostic: reason
 Musicality remains **0.1.0**: this increment improves evaluation and runtime evidence cost without changing the musical arrangement. Application build identity records its delivery. Human listening acceptance remains pending.
 
 
-## Returning-head piano breath (2026-10-29)
+## Musicality 0.2.0 — returning-head piano breath (2026-10-29)
 
 The listening studio explicitly enables `RollingBackingOptions.returningMelodySpace` for its new Coordinated release. Eligible explicit forms admit a two-bar piano breath after a returning head's arrival. Curated blind A/B uses the same listening player and policy. Generic rolling callers, ordinary practice and the advanced lab keep their existing policy unless they opt in. The head must immediately follow a declared solo pass, contain at least eight bars, and begin with a section of at least four bars. Offsets one and two receive static `returningMelodySpace` cues; the arrival bar remains unchanged. At offset three the ordinary native comping policy resumes, without forcing an attack through a stronger rest or response. Swing, Straight, Bossa and Ballad retain their vocabulary, timing, bass pulse and drum timekeeping; Bossa's piano clave phase resumes in place rather than restarting. Fixed generation, Original, implicit forms, head-only forms, consecutive heads and shorter/ineligible returns retain their existing policy.
 
