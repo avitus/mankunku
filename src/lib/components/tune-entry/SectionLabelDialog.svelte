@@ -59,7 +59,7 @@
 <style>
 	.label-fields { display: grid; gap: 16px; padding: 24px; }
 	.label-fields label { display: grid; gap: 6px; font-size: 13px; }
-	.label-fields input:not([type='checkbox']) { padding: 10px; border: 1px solid var(--color-border); border-radius: 4px; background: var(--color-bg-secondary); }
+	.label-fields input:not([type='checkbox']) { padding: 10px; border: 1px solid var(--color-bg-tertiary); border-radius: 4px; background: var(--color-bg-secondary); }
 	.label-fields .solo-option { display: flex; align-items: center; gap: 10px; }
 	.label-fields p { color: var(--color-text-secondary); font-size: 12px; margin: 0; }
 	.label-fields [role='alert'] { color: var(--color-error-text); }

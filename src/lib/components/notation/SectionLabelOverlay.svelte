@@ -77,7 +77,7 @@
 
 <style>
 	.section-label-overlay { position: absolute; inset: 0; pointer-events: none; }
-	.section-label-handle { position: absolute; pointer-events: auto; touch-action: none; cursor: grab; border: 1px solid var(--color-brass); border-radius: 3px; background: var(--color-bg-secondary); color: var(--color-text-primary); font: 600 15px var(--font-display, Georgia); min-width: 26px; min-height: 26px; padding: 1px 5px; line-height: 1.2; }
+	.section-label-handle { position: absolute; pointer-events: auto; touch-action: none; cursor: grab; border: 1px solid var(--color-brass); border-radius: 3px; background: var(--color-bg-secondary); color: var(--color-text); font: 600 15px var(--font-display, Georgia); min-width: 26px; min-height: 26px; padding: 1px 5px; line-height: 1.2; }
 	.section-label-handle:hover, .section-label-handle:focus-visible { outline: 2px solid var(--color-brass); outline-offset: 3px; }
 	.section-label-handle.dragging { cursor: grabbing; opacity: .6; }
 	.label-target { position: absolute; border: 2px solid var(--color-brass); background: color-mix(in srgb, var(--color-brass) 18%, transparent); border-radius: 3px; }
