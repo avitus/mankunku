@@ -30,6 +30,8 @@ import { pianoPhraseRecallEnabled, validatePianoPhraseRecall } from './backing-p
 export interface RollingBackingOptions {
 	/** Explicit finite repetitions of the source form; never an open-ended loop. */
 	readonly loopCount?: number;
+	/** Listening release opt-in; generic rolling and the advanced lab keep their prior policy. */
+	readonly returningMelodySpace?: boolean;
 }
 
 export interface RollingLoopSpan {
@@ -58,6 +60,8 @@ export interface RollingBackingDefinition {
 	readonly sourceBars: number;
 	readonly bassScalarContinuation?: true;
 	readonly bassApproachHandoff?: true;
+	/** Only explicit forms containing a qualified solo-to-head return. */
+	readonly returningMelodySpaceVersion?: 1;
 	readonly terminalArrangement?: TerminalReservation;
 	readonly loopCount: number;
 	readonly loops: readonly RollingLoopSpan[];
@@ -168,10 +172,18 @@ export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDef
 				startBar: startBar + section.startBar, endBarExclusive: startBar + section.endBarExclusive }))) };
 	}
 	const performanceEnergy = params.performanceForm ? planPerformanceEnergy(form) : undefined;
+	const returningMelodyBars = new Map<number, NonNullable<EnsembleBarContext['returningMelodySpace']>>();
+	if (options.returningMelodySpace === true && params.performanceForm) for (const [index, chorus] of form.choruses.entries()) {
+		if (chorus.role !== 'head' || form.choruses[index - 1]?.role !== 'solo' || chorus.endBarExclusive - chorus.startBar < 8) continue;
+		const firstSection = form.sections.find(section => section.chorusIndex === index && section.startBar === chorus.startBar);
+		if (!firstSection || firstSection.endBarExclusive - firstSection.startBar < 4) continue;
+		for (const offset of [1, 2] as const) returningMelodyBars.set(chorus.startBar + offset,
+			{ version: 1, headStartBar: chorus.startBar, offset });
+	}
 	const bars = buildBarInfos(totalBars, undefined, form).map((info, barIndex) => {
 		const sourceBarIndex = barIndex % sourceBars;
 		const sourceContext = performanceBarContext(sourceForm, sourceBarIndex)!;
-		return { ...info, ...(terminalArrangement?.barIndex === barIndex ? { terminalArrangement } : {}), ...(style.intensityCap !== undefined ? { intensity: Math.min(info.intensity, style.intensityCap), energyCeiling: style.intensityCap } : {}), ...performanceBarContext(form, barIndex)!, ...(performanceEnergy ? { performanceEnergy: performanceEnergy[barIndex], ...(['swing', 'straight'].includes(style.coordinatedStyle!) ? { pianoArrivalPolicy: 'shared-v1' as const } : {}) } : {}), barIndex, loopIndex: Math.floor(barIndex / sourceBars),
+		return { ...info, ...(returningMelodyBars.has(barIndex) ? { returningMelodySpace: returningMelodyBars.get(barIndex)! } : {}), ...(terminalArrangement?.barIndex === barIndex ? { terminalArrangement } : {}), ...(style.intensityCap !== undefined ? { intensity: Math.min(info.intensity, style.intensityCap), energyCeiling: style.intensityCap } : {}), ...performanceBarContext(form, barIndex)!, ...(performanceEnergy ? { performanceEnergy: performanceEnergy[barIndex], ...(['swing', 'straight'].includes(style.coordinatedStyle!) ? { pianoArrivalPolicy: 'shared-v1' as const } : {}) } : {}), barIndex, loopIndex: Math.floor(barIndex / sourceBars),
 			sourceBarIndex, sourceChorusIndex: sourceContext.chorusIndex, sourceSectionIndex: sourceContext.sectionIndex };
 	});
 	const timingProfiles = params.timing ?? style.timing;
@@ -179,6 +191,7 @@ export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDef
 	// performance even when its flattened score matches some other source.
 	const serialized = JSON.stringify([1, params.phraseId, params.tempo, params.ppq, params.swing, copied, form, timingProfiles,
 		...(performanceEnergy ? [{ performanceEnergyVersion: 1, structuralTextureVersion: 1, coordinatedVoicingVersion: 4, reciprocalFeedbackVersion: 1, ...(['swing', 'straight'].includes(style.coordinatedStyle!) ? { pianoArrivalVersion: 1, bassScalarContinuationVersion: 1, bassApproachHandoffVersion: 1, pianoAnswerVersion: 1, pianoContourVersion: 1, pianoRecoveryVersion: 1, pianoPhraseRecallVersion: 1 } : style.coordinatedStyle === 'bossa-nova' ? { pianoContourVersion: 1 } : style.coordinatedStyle === 'ballad' ? { nativeBalladReplyVersion: 1 } : {}) }] : []),
+		...(returningMelodyBars.size ? [{ returningMelodySpaceVersion: 1 }] : []),
 		...(loopCount > 1 ? [{ sourceBars, loopCount }] : []),
 		...(terminalArrangement ? [{ terminalArrangementVersion: 1, terminalArrangement }] : []),
 		...(style.coordinatedStyle !== 'swing' ? [{ style: style.coordinatedStyle }] : [])]);
@@ -189,7 +202,7 @@ export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDef
 	const fingerprint = loopCount > 1
 		? `rolling-repeat-v1:${serialized.length}:${seedFrom('score-a', serialized).toString(16)}:${seedFrom('score-b', serialized).toString(16)}`
 		: serialized;
-	return freeze({ version: 1, ...(performanceEnergy && ['swing', 'straight'].includes(style.coordinatedStyle!) ? { bassScalarContinuation: true as const, bassApproachHandoff: true as const } : {}), ...(style.coordinatedStyle !== 'swing' ? { style: style.coordinatedStyle } : {}), sessionId: `rolling:${seedFrom(fingerprint).toString(16)}`, fingerprint,
+	return freeze({ version: 1, ...(returningMelodyBars.size ? { returningMelodySpaceVersion: 1 as const } : {}), ...(performanceEnergy && ['swing', 'straight'].includes(style.coordinatedStyle!) ? { bassScalarContinuation: true as const, bassApproachHandoff: true as const } : {}), ...(style.coordinatedStyle !== 'swing' ? { style: style.coordinatedStyle } : {}), sessionId: `rolling:${seedFrom(fingerprint).toString(16)}`, fingerprint,
 		phraseId: params.phraseId, totalBars, sourceBars, loopCount, loops, ...(terminalArrangement ? { terminalArrangement } : {}), tempo: params.tempo, ppq: params.ppq, beatsPerBar: 4, swing: params.swing,
 		performanceForm: form, harmony: copied, bars,
 		...(timingProfiles ? { timingProfiles: JSON.parse(JSON.stringify(timingProfiles)) } : {}) });

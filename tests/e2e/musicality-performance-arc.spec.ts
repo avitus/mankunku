@@ -84,6 +84,8 @@ async function assertArcFollowsSoundingBar(page: Page, totalBars: number, pass: 
 
 const cases = [
 	{ label: 'local AABA Swing', local: true, style: 'swing', bars: 128, boundaries: [32, 64, 96], passes: [32, 32, 32, 32], ending: 'continue' },
+	{ label: 'Blues Straight', local: false, style: 'straight', bars: 52, boundaries: [16, 28, 40], passes: [16, 12, 12, 12], ending: 'continue' },
+	{ label: 'Blues Bossa', local: false, style: 'bossa-nova', bars: 52, boundaries: [16, 28, 40], passes: [16, 12, 12, 12], ending: 'continue' },
 	{ label: 'Blues Ballad hold and release', local: false, style: 'ballad', bars: 52, boundaries: [16, 28, 40], passes: [16, 12, 12, 12], ending: 'hold-release' }
 ] as const;
 
@@ -152,6 +154,17 @@ for (const example of cases) {
 		if (example.style === 'ballad') expect(finished.playback.generated!.ensembleDevelopment!.terminalArrangements)
 			.toEqual([expect.objectContaining({ barIndex: 51, status: 'accepted' })]);
 
+		const headReturn = example.boundaries[2];
+		const breathBars = [headReturn + 1, headReturn + 2];
+		for (const bar of breathBars) {
+			expect(finished.playback.generated!.ensemblePlan!.bars[bar].piano)
+				.toMatchObject({ maxAttacks: 0, silenceReason: 'returning_melody' });
+			expect(finished.playback.generated!.compEvents.filter(event => Math.floor(event.absBeat / 4) === bar)).toEqual([]);
+			expect(finished.playback.generated!.bassEvents.some(event => Math.floor(event.absBeat / 4) === bar)).toBe(true);
+			expect(finished.playback.generated!.drumEvents.some(event => Math.floor(event.absBeat / 4) === bar && event.role === 'timekeeping')).toBe(true);
+		}
+		expect(finished.playback.generated!.compEvents.some(event => Math.floor(event.absBeat / 4) === headReturn + 3)).toBe(true);
+
 		const heard = await audioCounts(page);
 		expect(heard.starts).toBeGreaterThan(100);
 		expect(heard.microphoneCalls).toBe(0);
@@ -168,6 +181,9 @@ for (const example of cases) {
 		await expect(page.getByTestId('listening-arc')).toHaveAttribute('data-bar-index', String(example.bars - 1));
 		await expect(page.getByTestId('listening-arc-position')).toHaveText(`Review · Bar ${example.bars} of ${example.bars}`);
 		await expect(page.locator('[data-testid="listening-arc-pass"][aria-current="step"]')).toHaveText('Head out');
+		for (let bar = example.bars - 1; bar > headReturn + 2; bar--) await review.press('ArrowLeft');
+		await expect(page.getByTestId('musician-piano')).toContainText('Make room for the returning melody');
+		await expect(page.getByTestId('listening-arc')).toHaveAttribute('data-bar-index', String(headReturn + 2));
 		expect(await audioCounts(page)).toEqual(heard);
 	});
 }

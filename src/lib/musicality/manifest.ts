@@ -289,6 +289,16 @@ const structuralTextureEvidence: MusicalityEvidence[] = [
 ];
 
 /** Foundations delivered after the baseline audit; these do not imply listening acceptance. */
+const returningMelodyEvidence: MusicalityAudit['evidence'] = [
+ { ...source('backing-rolling'), revision: 'musicality' },
+ { ...source('ensemble-plan'), revision: 'musicality' },
+ { ...test('returning-melody-space'), revision: 'musicality' },
+ { ...test('backing-head-return-contract'), revision: 'musicality' },
+ { kind: 'source', path: 'src/lib/musicality/musician-decisions.ts', revision: 'musicality' },
+ { kind: 'test', path: 'tests/unit/musicality/returning-melody-decisions.test.ts', revision: 'musicality' },
+ { kind: 'test', path: 'tests/e2e/musicality-performance-arc.spec.ts', revision: 'musicality' }
+];
+
 const foundationAssessments: Record<string, string> = {
 	S1: 'Coordinated mode now plans phrase intention and player roles before generating notes.',
 	S2: "Explicit form and head/solo context feed ensemble roles, energy, density and tension. A rolling take retains instrument and ensemble checkpoints across declared playback loops while accepting completed microphone evidence.",
@@ -312,11 +322,11 @@ const foundationAssessments: Record<string, string> = {
 	S28: "Completed density/rest observations can restrain future piano/drum commentary and bass ornament admission, or reserve a selective response during the same take. Missing or uncertain input retains a form-led accompaniment.",
 	S31: 'The planner assigns multi-bar phrase intentions and instrument roles before realization. A whole-performance energy target now biases phrase choices and restraint budgets while qualified solo evidence retains priority.',
 	S32: 'Coordinated notes share smooth phrase motion, player placement and smaller independent residuals. Bass/drum arrivals share an exact tick, and the lab exports phrase timing decisions.',
-	S33: 'Explicit-form performance arcs now shape shared energy through heads, solo build/peak/release and the ending. The listening desk plots the complete nominal contour with actual pass lengths and a live or silent-review cursor; Original shows form only. Smaller phrase movement feeds existing dynamic, density and color weights, with native style ceilings retained.',
+	S33: 'Explicit-form performance arcs now shape shared energy through heads, solo build/peak/release and the ending. The listening desk plots the complete nominal contour with actual pass lengths and a live or silent-review cursor; Original shows form only. Eligible Coordinated listening-studio returning heads can reserve the two bars after the arrival for piano space; native comping then resumes when admitted. Smaller phrase movement feeds existing dynamic, density and color weights, with native style ceilings retained.',
 	S37: 'Shared budgets and response/fill cooldowns now address simultaneous busyness and repeated reactions.',
 	S38: "Versioned JSON checkpoints retain ensemble cooldowns and arrivals, piano motif/voicing history, bass pitch history and accepted launches, drum phrase state and prior emitted piano onsets. Rolling realization resumes one absolute bar at a time across declared loops without resetting observation times or instrument history. Immutable renderer evidence is reused between state changes, with finite callback diagnostics on failed or late dispatches; musical events and deadline guards are unchanged.",
 	S39: 'Piano and drum motifs now develop through scoped repetition, displacement, shortening, orchestration and space. Later cells must fit their current bar; withheld material has an explicit reason and does not rewrite its earlier source.',
-	S40: 'The plan represents reasoned piano/commentary silence while ordinary bass and drums continue time. A deliberately selected terminal hold can instead reserve final-bar space after one complete shared chord, with explicit pulse/time exceptions and a bounded release.',
+	S40: 'The plan represents reasoned piano/commentary silence while ordinary bass and drums continue time. In eligible Coordinated listening-studio heads immediately after a solo, piano leaves two bars after the arrival; reserved accents, responses, setups and stronger silence retain priority. A deliberately selected terminal hold can instead reserve final-bar space after one complete shared chord, with explicit pulse/time exceptions and a bounded release.',
 	S41: "Rolling generation adds one causal instrument window to the shared plan, validates it against the scheduling horizon, and publishes scheduled events and bleed evidence together. Scheduled attacks and releases remain fixed.",
 	S42: 'Shared budgets and response/arrival reservations prevent some ensemble conflicts. The coordinated drum planner also resolves simultaneous hand/foot occupancy and exports the accepted bar.',
 	S44: "Planner, instrument checkpoints, causal observations and rolling clock/lifecycle tests complement existing event and form checks. Adaptive exports retain committed windows, actual dispatch records, loop/source-bar identities and absolute observation receipt times.",
@@ -341,7 +351,7 @@ const foundationRemaining: Record<string, string> = {
 	S27: "Capture assumes headphones and fixed gain-dependent thresholds. Ambiguous or poorly covered input stays unknown. Acoustic calibration, source separation, MIDI and phrase/motif recognition remain incomplete.",
 	S28: "Register and dynamics remain diagnostic observations. Solo-register avoidance, motif following and broad acoustic validation remain incomplete.",
 	S32: 'Live timing adaptation and richer context-aware placement remain incomplete. The modest build/release timing bias and other bounds still need listening acceptance.',
-	S33: 'Soloist-relative dynamics, remembered climax selection, broader piano texture development and structural dropout/re-entry remain incomplete. Common rootless chords now thin to three notes for support and qualified active-solo evidence, retaining their existing fuller shapes in eligible solo development. Bass feel and selected sustained bell textures now follow explicit form. The bass adapter now restores source velocity/round-robin selection; measured bank-specific compensation preserves reference levels, while source velocity curves and human balance review remain pending. The new finite-form contour needs human acceptance.',
+	S33: 'Soloist-relative dynamics, remembered climax selection, broader piano texture development and general ensemble dropout/re-entry remain incomplete. The returning-head piano breath is limited to explicit rolling forms with at least eight head bars and a first section of at least four bars. Common rootless chords now thin to three notes for support and qualified active-solo evidence, retaining their existing fuller shapes in eligible solo development. Bass feel and selected sustained bell textures now follow explicit form. The bass adapter now restores source velocity/round-robin selection; measured bank-specific compensation preserves reference levels, while source velocity curves and human balance review remain pending. The new finite-form contour needs human acceptance.',
 	S38: "Checkpoints bind the same declared finite form, tempo and generation policy. One-use rolling Swing/Straight piano recall retains an accepted source across adjacent solo phrases. Indefinite continuation, broader long-term development and checkpoint migration across engine versions remain incomplete.",
 	S39: 'Selected rolling Swing/Straight piano phrases can recall one actually emitted rhythmic cell at the adjacent phrase; other development stays within its selected phrase using the existing kit. Rolling drum-to-piano response creates space or places one short reply after a source offset; complete drum-motif imitation remains pending. Richer cross-phrase dialogue and live solo imitation remain incomplete. Recall clears at section, chorus and loop boundaries and cannot renew itself; broader medium-term dialogue remains pending.',
 	S40: "Rolling mode owns attacks and pitched releases within each bar and excludes unreserved two-bar piano fallback figures. Sample and room tails can remain audible after release. General full-ensemble silence and phrase recognition remain incomplete.",
@@ -378,6 +388,7 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 			{ kind: 'test' as const, path: `tests/unit/musicality/${name}.test.ts`, revision: 'musicality' }
 		]), { kind: 'test', path: 'tests/unit/musicality/listening-tunes-library.test.ts', revision: 'musicality' }, { kind: 'test', path: 'tests/unit/musicality/listening-tune-book-integration.test.ts', revision: 'musicality' }, { kind: 'test', path: 'tests/e2e/musicality-listening.spec.ts', revision: 'musicality' }, { kind: 'test', path: 'tests/e2e/musicality-comparison.spec.ts', revision: 'musicality' }]
 	};
+	if (entry.id === 'P57') return { ...entry, assessment: 'Existing rest figures withhold piano attacks. Eligible explicit Coordinated listening-studio returning heads can additionally reserve the two bars after the arrival for piano space while bass and drums carry the groove. Higher-priority reservations and stronger silence remain authoritative.', remaining: 'This is a bounded returning-head gesture, not general phrase recognition or whole-ensemble dropout. Fixed and Original policies remain unchanged; human listening acceptance is pending.', evidence: [...entry.evidence, ...returningMelodyEvidence] };
 	const drumUpdate = drumDeviceUpdates[entry.id];
 	if (drumUpdate) return {
 		...entry, status: drumUpdate[0], assessment: drumUpdate[1], remaining: drumUpdate[2],
@@ -517,6 +528,7 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 		scope: 'Shared planning, timing and rolling adaptation: swing, straight, bossa nova and ballad in 4/4. Motif transformations and walking launches: swing/straight only. Original generation remains the practice mode pending listening acceptance.',
 		evidence: [
 			...entry.evidence, ...foundationEvidence,
+			...(['S25', 'S33', 'S38', 'S40', 'S41', 'S44', 'S46'].includes(entry.id) ? returningMelodyEvidence : []),
 			...(['S15', 'S33', 'S44', 'S46'].includes(entry.id) ? bassSampleEvidence : []),
 			...(['S8', 'S38', 'S44', 'S46'].includes(entry.id) ? causalVoicingEvidence : []),
 			...(['S8', 'S33', 'S38', 'S44', 'S46'].includes(entry.id) ? rootlessTextureEvidence : []),

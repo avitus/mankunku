@@ -18,7 +18,8 @@ export type SilenceReason =
 	| 'leave_space'
 	| 'after_response'
 	| 'avoid_overlap'
-	| 'phrase_resolution';
+	| 'phrase_resolution'
+	| 'returning_melody';
 
 /** Structural subset of PerformanceBarContext, with the existing intensity arc. */
 export interface EnsembleBarContext {
@@ -29,6 +30,12 @@ export interface EnsembleBarContext {
 	readonly performanceEnergy?: PerformanceEnergy;
 	/** Explicit Swing/Straight shared-hit policy; absent from legacy/native paths. */
 	readonly pianoArrivalPolicy?: 'shared-v1';
+	/** Static rolling-form cue; only the two bars after an eligible head arrival. */
+	readonly returningMelodySpace?: {
+		readonly version: 1;
+		readonly headStartBar: number;
+		readonly offset: 1 | 2;
+	};
 	readonly terminalArrangement?: TerminalReservation;
 	readonly isSectionFirstBar: boolean;
 	readonly isSectionFinalBar: boolean;
@@ -284,6 +291,7 @@ function formFingerprint(bars: readonly EnsembleBarContext[]): string {
 		...(bar.energyCeiling !== undefined ? [bar.energyCeiling] : []),
 		...(bar.performanceEnergy ? ['performance-energy-v1', bar.performanceEnergy.phase, bar.performanceEnergy.chorusIndex, bar.performanceEnergy.targetEnergy, 'rootless-texture-v2'] : []),
 		...(bar.pianoArrivalPolicy ? ['piano-arrival-v1'] : []),
+		...(bar.returningMelodySpace ? ['returning-melody-space-v1', bar.returningMelodySpace.headStartBar, bar.returningMelodySpace.offset] : []),
 		...(bar.terminalArrangement ? ['terminal-arrangement-v1', bar.terminalArrangement] : [])
 	]));
 	return `form-v1:${bars.length}:${seedFrom('ensemble-form', canonical).toString(16)}`;
@@ -439,6 +447,13 @@ export function planEnsembleWindow(input: EnsembleWindowInput): EnsembleWindowRe
 		if (bar.terminalArrangement !== undefined && (!bar.performanceEnergy ||
 			(bar.terminalArrangement.profile === 'ballad-v1' ? bar.pianoArrivalPolicy !== undefined || bar.energyCeiling !== .6
 				: bar.terminalArrangement.profile === 'bossa-v1' ? bar.pianoArrivalPolicy !== undefined || bar.energyCeiling !== undefined : !bar.pianoArrivalPolicy) || index !== input.bars.length - 1 || !validTerminalReservation(bar.terminalArrangement, index))) throw new Error('Invalid terminal arrangement context');
+		const melodySpace = bar.returningMelodySpace;
+		if (melodySpace !== undefined && (!melodySpace || !keysAre(melodySpace, ['version', 'headStartBar', 'offset']) ||
+			melodySpace.version !== 1 || !count(melodySpace.headStartBar, index) ||
+			![1, 2].includes(melodySpace.offset) || index !== melodySpace.headStartBar + melodySpace.offset ||
+			bar.role !== 'head' || bar.performanceEnergy?.phase !== 'head_return')) {
+			throw new Error('Invalid returning melody space context');
+		}
 		if (bar.pianoArrivalPolicy !== undefined && (bar.pianoArrivalPolicy !== 'shared-v1' || !bar.performanceEnergy)) {
 			throw new Error('Invalid piano arrival policy context');
 		}
@@ -653,6 +668,14 @@ export function planEnsembleWindow(input: EnsembleWindowInput): EnsembleWindowRe
 			commentary = 3;
 			piano = Math.min(piano, 1) as 0 | 1;
 			reasons.push('formal_setup_reserved');
+		}
+		// Keep the arrival itself, committed reservations and responses intact.
+		// This is an attack budget before native realization, not event deletion;
+		// bass pulse, drum time and an already stronger silence remain untouched.
+		if (bar.returningMelodySpace && piano > 0 && owner === 'nobody' && !incomingAccent && !allowFill && !bar.terminalArrangement) {
+			piano = 0;
+			pianoReason = 'returning_melody';
+			reasons.push('returning_melody');
 		}
 		const movement = phrase.intent === 'build' ? -0.04 + 0.1 * position
 			: phrase.intent === 'release' ? -0.12 * position : 0;

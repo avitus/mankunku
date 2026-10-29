@@ -190,7 +190,7 @@ const browserListeningRuntime: ListeningPlayerRuntime = {
 			const definition = createRollingBacking(params.phrase.harmony, style, { phraseId: params.phrase.id, tempo: params.tempo,
 				ppq: transport.PPQ, beatsPerBar: 4, swing: resolveBackingSwing(params.swing, style, params.tempo),
 				sectionMap: params.phrase.sectionMap, performanceForm: params.phrase.performanceForm, ensemble: {},
-				...(terminalArrangement ? { terminalArrangement } : {}) });
+				...(terminalArrangement ? { terminalArrangement } : {}) }, { returningMelodySpace: true });
 			transport.stop(); transport.position = 0; transport.bpm.value = params.tempo;
 			backing.setBackingMix(params.mix); backing.setBackingTrackVolume(params.volume);
 			let playbackError: string | null = null;

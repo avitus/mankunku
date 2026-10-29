@@ -351,6 +351,14 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 		pianoCard.evidence.push(`Recall the piano cell from bar ${source.barIndex + 1}`);
 	}
 	if (plan?.piano.silenceReason) pianoCard.evidence.push(`Space reserved: ${plain(plan.piano.silenceReason)}`);
+	if (plan?.performanceEnergy?.phase === 'head_return' && plan.piano.silenceReason === 'returning_melody' &&
+		plan.piano.maxAttacks === 0 && !piano.length &&
+		!generated.compEvents.some(event => Math.floor(event.absBeat / beatsPerBar) === barIndex) &&
+		motif?.transform === 'space' && motif.reason === 'ensemble_silence' && !motif.hits.length) {
+		pianoCard.action = 'Make room for the returning melody';
+		pianoCard.detail = 'The piano leaves space after the returning head’s arrival.';
+		pianoCard.evidence.push('Scheduled result: no new chord attack during the returning-melody breath');
+	}
 	const drumPhrase = development?.drumPhrases.find((d) => d.barIndex === barIndex);
 	const drumCard: MusicianDecisionCard = {
 		instrument: 'drums', title: 'Drums', role: role('drums'), eventCount: drums.length,
