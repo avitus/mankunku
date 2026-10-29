@@ -111,6 +111,8 @@ export function validateAdoptedTune(input: unknown): AdoptedTuneValidation {
 		if (!Number.isInteger(sec.bars) || (sec.bars as number) < 1 || (sec.bars as number) > MAX_BARS_PER_SECTION) {
 			errors.push(`section ${s}: invalid bar count`);
 		}
+		if (sec.omitFromSolos !== undefined && typeof sec.omitFromSolos !== 'boolean') errors.push(`section ${s}: invalid solo omission`);
+		if (sec.labelExplicit !== undefined && typeof sec.labelExplicit !== 'boolean') errors.push(`section ${s}: invalid explicit label`);
 		if (sec.ending !== undefined && sec.ending !== 1 && sec.ending !== 2) {
 			errors.push(`section ${s}: invalid ending marker`);
 		}

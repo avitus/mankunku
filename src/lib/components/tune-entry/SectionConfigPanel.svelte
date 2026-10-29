@@ -60,6 +60,7 @@
 </script>
 
 <div class="space-y-3">
+	<p class="text-xs text-[var(--color-text-secondary)]">To move or remove a label without changing the music, click its boxed letter on the chart. Bar counts and section deletion below change the music itself.</p>
 	<label class="flex items-center gap-2 text-xs text-[var(--color-text-secondary)]">
 		Pickup
 		<select
@@ -135,10 +136,10 @@
 					<button
 						type="button"
 						onclick={() => removeSection(i)}
-						aria-label="Remove section {sec.label}"
+						aria-label="Delete section {sec.label} and its music"
 						class="ml-auto rounded px-2 py-1 text-xs text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-error)]/20 hover:text-[var(--color-error-text)]"
 					>
-						Remove
+						Delete section & music
 					</button>
 				{/if}
 			</div>

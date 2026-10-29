@@ -24,8 +24,12 @@ export type TuneSource =
 	| string;
 
 export interface TuneSection {
+	/** Play this material in the heads, but leave it out of solo choruses. */
+	omitFromSolos?: boolean;
 	/** Section label shown on the chart: 'A', 'B', 'Intro', 'Coda', … */
 	label: string;
+	/** An explicitly placed mark, even if the preceding section has the same label. */
+	labelExplicit?: boolean;
 	/** Length of the section in bars. Authoritative even when melody is sparse or empty. */
 	bars: number;
 	/** Opens a repeat (`|:`) at the start of this section. */

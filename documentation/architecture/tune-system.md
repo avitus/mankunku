@@ -297,3 +297,9 @@ Changes save immediately; stored keys, styles and option enums are validated.
 Practice playback and bleed evidence use the same captured audio switches.
 Style changes on the desk require stopped playback. Focus hides navigation and
 the right rail; mobile/focus settings use native dialogs and Escape exits Focus.
+
+### Bar-anchored rehearsal marks and solo omissions
+
+The tune editor uses `tunes/section-labels.ts` to repartition section-local notes and harmony around an absolute bar anchor. Moving or removing a rehearsal mark never moves music: notes crossing a new boundary split with a tie, harmony is clipped/restated, and repeat starts, repeat ends, endings, pickups and solo-omission boundaries stay on their original bars. Only redundant unmarked boundaries are joined. The editor commits its live page through `buildDraftTune` before repartitioning and includes the result in its existing undo snapshots.
+
+`TuneSection.labelExplicit` keeps a deliberately placed mark visible even when the preceding mark uses the same letter; legacy repeated ending labels remain suppressed. It and `TuneSection.omitFromSolos` persist inside the existing sections JSON. When present, `flattenTune` carries the omitted section indices, and `solo-form.ts` builds the explicit head/solo/outro timeline instead of inferring the solo form from a closing repeat. The planner detects on the compact solo harmony while retaining notation provenance; the player and practice route use `sessionBarMap` to skip omitted bars on the original chart. Heads retain the written repeat structure. Without a head, all requested choruses use the solo form. Existing unannotated tunes retain their previous form behavior.

@@ -614,7 +614,7 @@ export function tuneToAbcWithMap(
 			// over that section's first bar).
 			const labelOf = pickupOnly ? (sheet.sections[secIdx + 1]?.label ?? '') : sec.label;
 			if (labelOf.trim() !== '') {
-				if (labelOf !== previousLabel) {
+				if (labelOf !== previousLabel || (pickupOnly ? sheet.sections[secIdx + 1]?.labelExplicit : sec.labelExplicit)) {
 					tokens.push(`P:${labelOf}\n`);
 				}
 				previousLabel = labelOf;

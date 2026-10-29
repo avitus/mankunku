@@ -2,6 +2,7 @@ import type { Fraction, HarmonicSegment, Mode, Note, PhraseCategory, PitchClass 
 import type { ChordProgressionType } from '$lib/types/lick-practice';
 import type { Grade, Score } from '$lib/types/scoring';
 import type { FlattenedTune } from '$lib/tunes/flatten';
+import { sessionWithSoloOmissions, soloPlaybackFlat } from '$lib/tunes/solo-form';
 import type { Tune, TuneSection } from '$lib/types/tune';
 import { SHAPE_PRIORITY, type DetectedProgression } from '$lib/tunes/progression-detector';
 import type { LickSuggestion } from '$lib/tunes/lick-matcher';
@@ -144,8 +145,13 @@ export function playbackBarForSessionBar(
 	headBars: number,
 	practiceStartBar: number,
 	outroStartBar?: number | null,
-	outroSourceStartBar = practiceStartBar
+	outroSourceStartBar = practiceStartBar,
+	sessionBarMap?: number[]
 ): number {
+	if (sessionBarMap && bar >= 0) {
+		const whole = Math.floor(bar);
+		return whole < sessionBarMap.length ? sessionBarMap[whole] + bar - whole : -1;
+	}
 	if (outroStartBar != null && bar >= outroStartBar) return outroSourceStartBar + bar - outroStartBar;
 	if (bar < headBars) return bar;
 	const start = practiceStartBar;
@@ -309,6 +315,10 @@ function roleWindowsFor(
  * a window never overlaps the next open or runs past the end of the form.
  */
 export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
+	if (deps.flat.omittedSoloSections?.length) {
+		const solo = soloPlaybackFlat(deps.flat, deps.timeSignature, deps.pickupBars ?? 0);
+		return buildSessionPlan({ ...deps, flat: solo.flat, pickupBars: 0 });
+	}
 	const { flat, notationFlat, timeSignature, ppq, detect, match, suggestionLimit } = deps;
 	const barTicks = timeSignature[0] * ppq;
 	const barWholeNotes = timeSignature[0] / timeSignature[1];
@@ -499,6 +509,7 @@ export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
  */
 export function headBarsForFlat(flat: FlattenedTune): { headBars: number; formRepeats: boolean } {
 	const noRepeat = { headBars: flat.totalBars, formRepeats: false };
+	if (flat.omittedSoloSections?.length) return noRepeat;
 	const sm = flat.sectionMap;
 
 	const seen = new Set<number>();
@@ -715,7 +726,8 @@ export function buildSessionPhrase(args: {
 	/** The resolved way-out form. Without a head, the last solo takes this ending. */
 	closingFlat?: FlattenedTune;
 	closingPickupBars?: number;
-}): ReturnType<typeof buildSingleChorusPhrase> & { outroStartBar: number | null; outroSourceStartBar: number; noteSourceIndices: number[]; closingStartBar: number | null } {
+}): ReturnType<typeof buildSingleChorusPhrase> & { outroStartBar: number | null; outroSourceStartBar: number; noteSourceIndices: number[]; closingStartBar: number | null; sessionBarMap?: number[]; soloBars?: number } {
+	if (args.flat.omittedSoloSections?.length) return sessionWithSoloOmissions({ ...args, choruses: normalizeChoruses(args.choruses) });
 	const built = buildSingleChorusPhrase(args);
 	const chorusBars = built.phraseBars - built.headBars;
 	const count = normalizeChoruses(args.choruses);
