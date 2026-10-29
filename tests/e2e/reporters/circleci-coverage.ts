@@ -13,6 +13,11 @@ import { COVERAGE_ATTACHMENT } from '../fixtures/circleci-coverage';
 export default class CircleCICoverageReporter implements Reporter {
 	private readonly output: Record<string, Record<string, true>> = {};
 
+	/** Keep Playwright's fallback progress reporter: this reporter only writes a file. */
+	printsToStdio(): boolean {
+		return false;
+	}
+
 	/** Records the source files one test's attachment lists under that test's key (every retry adds the same edges). */
 	onTestEnd(test: TestCase, result: TestResult): void {
 		const attachment = result.attachments.find(({ name }) => name === COVERAGE_ATTACHMENT);
