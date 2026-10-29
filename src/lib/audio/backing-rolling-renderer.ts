@@ -34,10 +34,22 @@ export interface RollingBackingHorizon {
 	renderSafeFrom: number;
 }
 
+export interface RollingBackingDispatchDiagnostic {
+	readonly reason: 'late_callback' | 'nonfinite_clock' | 'nonfinite_callback_time' |
+		'callback_time_mismatch' | 'audio_clock_unavailable' | 'play_failure';
+	/** Invalid/unavailable clocks are omitted rather than serialized as NaN/null. */
+	readonly observedAudioTime?: number;
+	readonly targetAudioTime?: number;
+	readonly callbackAudioTime?: number;
+	readonly latenessSeconds?: number;
+}
+
 export interface RollingBackingDispatch {
 	readonly tick: number;
 	readonly audioTime: number;
 	readonly status: 'scheduled' | 'played' | 'cancelled' | 'late' | 'failed';
+	/** Failure evidence only; successful historical exports keep their exact shape. */
+	readonly diagnostic?: RollingBackingDispatchDiagnostic;
 }
 
 export interface RollingBackingSnapshot {
@@ -91,7 +103,10 @@ export function createRollingBackingRenderer(
 		bassEvents: Object.freeze([]), compEvents: Object.freeze([]), drumEvents: Object.freeze([])
 	});
 	let schedule: BackingTrackSchedule | null = null;
-	const dispatches: { tick: number; audioTime: number; status: RollingBackingDispatch['status'] }[] = [];
+	type DispatchEntry = { -readonly [K in keyof RollingBackingDispatch]: RollingBackingDispatch[K] };
+	const dispatches: DispatchEntry[] = [];
+	let cachedSnapshot: RollingBackingSnapshot | null = null;
+	const cachedDispatches = new WeakMap<DispatchEntry, RollingBackingDispatch>();
 	const pending = new Map<number, typeof dispatches[number]>();
 	const voiceStops = new Set<() => void>();
 
@@ -107,15 +122,42 @@ export function createRollingBackingRenderer(
 	}
 
 	function snapshot(): RollingBackingSnapshot {
-		return Object.freeze({ sessionId: options.sessionId, status, nextBar, checkpointId,
+		// Clock polls do not change evidence. Keep the immutable projection until
+		// a transaction or callback changes it, and share rows unchanged by that
+		// transition instead of cloning the entire played history on every poll.
+		if (cachedSnapshot) return cachedSnapshot;
+		cachedSnapshot = Object.freeze({ sessionId: options.sessionId, status, nextBar, checkpointId,
 			committedThroughTick: nextBar * barTicks, windows, generated, schedule,
-			dispatches: Object.freeze(dispatches.map((entry) => Object.freeze({ ...entry }))) });
+			dispatches: Object.freeze(dispatches.map(entry => {
+				let copied = cachedDispatches.get(entry);
+				if (!copied) { copied = Object.freeze({ ...entry }); cachedDispatches.set(entry, copied); }
+				return copied;
+			})) });
+		return cachedSnapshot;
+	}
+
+	function updateDispatch(entry: DispatchEntry, next: RollingBackingDispatch['status'], diagnostic?: RollingBackingDispatchDiagnostic): void {
+		entry.status = next;
+		if (diagnostic) entry.diagnostic = diagnostic;
+		cachedDispatches.delete(entry);
+		cachedSnapshot = null;
+	}
+
+	function failureDiagnostic(reason: RollingBackingDispatchDiagnostic['reason'], target: number,
+		callback: number, observed?: number): RollingBackingDispatchDiagnostic {
+		const finite = (value: number | undefined): value is number => typeof value === 'number' && Number.isFinite(value);
+		const lateness = finite(observed) && finite(target) ? Math.max(0, observed - target) : undefined;
+		return Object.freeze({ reason,
+			...(finite(observed) ? { observedAudioTime: observed } : {}),
+			...(finite(target) ? { targetAudioTime: target } : {}),
+			...(finite(callback) ? { callbackAudioTime: callback } : {}),
+			...(finite(lateness) ? { latenessSeconds: lateness } : {}) });
 	}
 
 	function stop(): void {
-		if (status === 'active') status = 'stopped';
+		if (status === 'active') { status = 'stopped'; cachedSnapshot = null; }
 		for (const [id, entry] of pending) {
-			if (entry.status === 'scheduled') entry.status = 'cancelled';
+			if (entry.status === 'scheduled') updateDispatch(entry, 'cancelled');
 			try { runtime.clear(id); } catch { /* Continue releasing other owned events. */ }
 		}
 		pending.clear();
@@ -125,13 +167,14 @@ export function createRollingBackingRenderer(
 		voiceStops.clear();
 		if (schedule !== null) {
 			schedule = null;
+			cachedSnapshot = null;
 			if (runtime.isCurrent()) runtime.publishSchedule(null);
 		}
 	}
 
 	function underrun(reason: string): void {
 		if (status !== 'active') return;
-		status = 'underrun';
+		status = 'underrun'; cachedSnapshot = null;
 		stop();
 		options.onUnderrun?.(reason);
 	}
@@ -216,19 +259,22 @@ export function createRollingBackingRenderer(
 					pending.delete(id);
 					let now: number;
 					try { now = runtime.audioNow(); }
-					catch { entry.status = 'failed'; underrun('Audio context is unavailable'); return; }
+					catch { updateDispatch(entry, 'failed', failureDiagnostic('audio_clock_unavailable', entry.audioTime, audioTime)); underrun('Audio context is unavailable'); return; }
 					if (!Number.isFinite(now) || !Number.isFinite(audioTime) || audioTime < now || Math.abs(audioTime - entry.audioTime) > 1e-6) {
-						entry.status = 'late'; underrun('Audio callback missed its committed time'); return;
+						const reason = !Number.isFinite(now) ? 'nonfinite_clock' : !Number.isFinite(audioTime) ? 'nonfinite_callback_time'
+							: Math.abs(audioTime - entry.audioTime) > 1e-6 ? 'callback_time_mismatch' : 'late_callback';
+						updateDispatch(entry, 'late', failureDiagnostic(reason, entry.audioTime, audioTime, now));
+						underrun('Audio callback missed its committed time'); return;
 					}
 					try {
 						const release = runtime.play(hits, audioTime, `${copied.fromBar}:${tick}`);
 						if (status !== 'active' || !runtime.isCurrent()) {
-							entry.status = 'cancelled'; release(); stop(); return;
+							updateDispatch(entry, 'cancelled'); release(); stop(); return;
 						}
 						voiceStops.add(release);
-						entry.status = 'played';
+						updateDispatch(entry, 'played');
 					} catch {
-						entry.status = 'failed'; underrun('Backing instrument could not play a committed batch');
+						updateDispatch(entry, 'failed', failureDiagnostic('play_failure', entry.audioTime, audioTime, now)); underrun('Backing instrument could not play a committed batch');
 					}
 				}, `${tick}i`);
 				prepared.push({ id, entry });
@@ -260,6 +306,7 @@ export function createRollingBackingRenderer(
 		fingerprint = copied.checkpoint.fingerprint;
 		for (const { id, entry } of prepared) { pending.set(id, entry); dispatches.push(entry); }
 		activated = true;
+		cachedSnapshot = null;
 		return { accepted: true, nextBar, committedThroughTick: nextBar * barTicks };
 	}
 

@@ -312,9 +312,9 @@ const foundationAssessments: Record<string, string> = {
 	S28: "Completed density/rest observations can restrain future piano/drum commentary and bass ornament admission, or reserve a selective response during the same take. Missing or uncertain input retains a form-led accompaniment.",
 	S31: 'The planner assigns multi-bar phrase intentions and instrument roles before realization. A whole-performance energy target now biases phrase choices and restraint budgets while qualified solo evidence retains priority.',
 	S32: 'Coordinated notes share smooth phrase motion, player placement and smaller independent residuals. Bass/drum arrivals share an exact tick, and the lab exports phrase timing decisions.',
-	S33: 'Explicit-form performance arcs now shape shared energy through heads, solo build/peak/release and the ending. Smaller phrase movement feeds existing dynamic, density and color weights, with native style ceilings retained.',
+	S33: 'Explicit-form performance arcs now shape shared energy through heads, solo build/peak/release and the ending. The listening desk plots the complete nominal contour with actual pass lengths and a live or silent-review cursor; Original shows form only. Smaller phrase movement feeds existing dynamic, density and color weights, with native style ceilings retained.',
 	S37: 'Shared budgets and response/fill cooldowns now address simultaneous busyness and repeated reactions.',
-	S38: "Versioned JSON checkpoints retain ensemble cooldowns and arrivals, piano motif/voicing history, bass pitch history and accepted launches, drum phrase state and prior emitted piano onsets. Rolling realization resumes one absolute bar at a time across declared loops without resetting observation times or instrument history.",
+	S38: "Versioned JSON checkpoints retain ensemble cooldowns and arrivals, piano motif/voicing history, bass pitch history and accepted launches, drum phrase state and prior emitted piano onsets. Rolling realization resumes one absolute bar at a time across declared loops without resetting observation times or instrument history. Immutable renderer evidence is reused between state changes, with finite callback diagnostics on failed or late dispatches; musical events and deadline guards are unchanged.",
 	S39: 'Piano and drum motifs now develop through scoped repetition, displacement, shortening, orchestration and space. Later cells must fit their current bar; withheld material has an explicit reason and does not rewrite its earlier source.',
 	S40: 'The plan represents reasoned piano/commentary silence while ordinary bass and drums continue time. A deliberately selected terminal hold can instead reserve final-bar space after one complete shared chord, with explicit pulse/time exceptions and a bounded release.',
 	S41: "Rolling generation adds one causal instrument window to the shared plan, validates it against the scheduling horizon, and publishes scheduled events and bleed evidence together. Scheduled attacks and releases remain fixed.",
@@ -390,7 +390,7 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 			? 'An explicit Hold & release arrangement can place one shared final-bar chord, followed by space. The complete bass/piano/drum gesture uses current harmony and a release admitted against the known closing melody.'
 			: 'Selected shared arrivals retain their existing catch behavior. An explicitly arranged terminal chord can also align the bass root and piano with style-specific punctuation: Swing/Straight ride/kick, Ballad’s selected quiet ride/optional kick, or Bossa’s selected kick/stick hat/optional crossstick.',
 		remaining: 'Only a supported complete final four-beat harmony and compatible known melody qualify. General stop-time sequences, setup fills, expanded terminal harmonies, fermatas and human listening acceptance remain pending.',
-		scope: 'Opt-in explicit Coordinated Swing/Straight/Bossa/Ballad 4/4, fixed and rolling, absolute final declared loop only. Native styles retain their voicing policies and selected kit; earlier Bossa clave bars remain exact. Continue time remains default; Original and implicit inputs retain their policies.',
+		scope: 'Opt-in explicit Coordinated Swing/Straight/Bossa/Ballad 4/4, fixed and rolling, absolute final declared loop only. Native styles retain their voicing policies and selected kit; earlier Bossa clave bars remain exact. Keep groove to the end remains default; Original and implicit inputs retain their policies.',
 		evidence: [...entry.evidence, ...terminalEvidence]
 	};
 	if (entry.id === 'P4') return {
@@ -537,9 +537,13 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 				{ ...source('ensemble-plan'), revision: 'musicality' },
 				{ ...test('performance-energy'), revision: 'musicality' },
 				{ ...test('backing-performance-arc'), revision: 'musicality' },
+				{ kind: 'source' as const, path: 'src/lib/components/musicality/ListeningArc.svelte', revision: 'musicality' },
+				{ kind: 'source' as const, path: 'src/lib/musicality/listening-arc.ts', revision: 'musicality' },
+				{ kind: 'test' as const, path: 'tests/unit/musicality/listening-arc.test.ts', revision: 'musicality' },
+				{ kind: 'test' as const, path: 'tests/e2e/musicality-performance-arc.spec.ts', revision: 'musicality' },
 				{ kind: 'test' as const, path: 'tests/e2e/musicality-listening.spec.ts', revision: 'musicality' }
 			] : []),
-			...(['S2', 'S38', 'S41', 'S44', 'S46'].includes(entry.id) ? checkpointEvidence : []),
+			...(['S2', 'S38', 'S41', 'S44', 'S46'].includes(entry.id) ? [...checkpointEvidence, { ...test('backing-rolling-snapshot-contract'), revision: 'musicality' }] : []),
 			...(['S27', 'S28', 'S44', 'S46'].includes(entry.id) ? scriptedEvidence : []),
 			...(entry.id === 'S16' ? bassDevelopmentEvidence : []),
 			...(['S39', 'S40'].includes(entry.id) ? pianoDevelopmentEvidence : []),

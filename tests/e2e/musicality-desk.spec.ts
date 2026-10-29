@@ -17,6 +17,18 @@ test('shows a real score beside factual band insights with a release and compact
  await expect(page.getByTestId('musician-piano')).toContainText('Waiting for the first bar');
  await expect(page.getByText('Three players.',{exact:false})).toHaveCount(0);
  await expect(page.getByText('The shared intention',{exact:true})).toBeVisible();
+ await expect(page.getByTestId('listening-ending').locator('option')).toHaveText(['Keep groove to the end','Hold & release']);
+ await expect(page.getByTestId('listening-arc')).toBeVisible();
+ await expect(page.getByTestId('listening-arc-description')).toContainText('Nominal planned energy:');
+ await expect(page.getByTestId('listening-arc-pass')).toHaveText(['Head in','Solo 1','Solo 2','Head out']);
+ await expect(page.getByTestId('listening-arc-position')).toHaveText('Whole tune');
+ await expect(page.getByTestId('listening-arc-marker')).toHaveCount(0);
+ await expect(page.getByTestId('listening-arc-curve')).toBeVisible();
+ await page.getByTestId('listening-mode').getByRole('button',{name:'Original',exact:true}).click();
+ await expect(page.getByTestId('listening-arc-curve')).toHaveCount(0);
+ await expect(page.getByTestId('listening-arc')).toContainText('no shared energy plan');
+ await page.getByTestId('listening-mode').getByRole('button',{name:'Coordinated',exact:true}).click();
+ await expect(page.getByTestId('listening-arc-curve')).toBeVisible();
  const intention=await page.locator('.intention').boundingBox();
  const panel=await page.locator('.score-panel').boundingBox();
  expect(Math.abs(intention!.y-panel!.y)).toBeLessThan(2);
@@ -51,6 +63,8 @@ test('pins actual sounding decisions, saves release-labelled feedback and preser
  const pinned=await page.getByTestId('musician-piano').getAttribute('data-bar-index');
  await page.waitForTimeout(1500);
  await expect(page.getByTestId('musician-piano')).toHaveAttribute('data-bar-index',pinned!);
+ await expect(page.getByTestId('listening-arc')).toHaveAttribute('data-bar-index',pinned!);
+ await expect(page.getByTestId('listening-arc-position')).toContainText('Review · Bar');
  await page.getByTestId('listening-follow').click();
  await expect.poll(async()=>Number(await page.getByTestId('musician-piano').getAttribute('data-bar-index'))).toBeGreaterThan(Number(pinned));
  await page.getByRole('button',{name:'Mark moment',exact:true}).click();
@@ -101,4 +115,28 @@ test('keeps the current curated catalog within the unchanged full-tune listening
  await page.getByTestId('blind-start').click();
  await expect(page.getByRole('alert')).toContainText('128');
  await expect(page.getByTestId('blind-play-A')).toHaveCount(0);
+});
+
+
+test('waits for client readiness before opening saved feedback', async ({ page }) => {
+ let releaseStartup!: () => void;
+ let startupHeld = false;
+ const startup = new Promise<void>(resolve => { releaseStartup = resolve; });
+ await page.route(/\/_app\/immutable\/entry\/start\.[^/]+\.js$/, async route => {
+  startupHeld = true;
+  await startup;
+  await route.continue();
+ });
+ // The shared goto fixture waits for hydration; inspect SSR while its
+ // navigation is pending, then release startup before awaiting it.
+ const navigation = page.goto('/musicality', { waitUntil: 'commit' });
+ try {
+  await expect.poll(() => startupHeld).toBe(true);
+  await expect(page.getByRole('button', { name: /Saved feedback/ })).toBeDisabled();
+ } finally {
+  releaseStartup();
+  await navigation;
+ }
+ await page.getByRole('button', { name: /Saved feedback/ }).click();
+ await expect(page.getByTestId('listening-feedback-archive')).toContainText('No saved feedback yet');
 });

@@ -45,6 +45,113 @@ function harness() {
 }
 
 describe('append-only rolling audio renderer', () => {
+	it('reuses immutable snapshots between changes and unchanged rows across later dispatch transitions', () => {
+		const h = harness();
+		const empty = h.renderer.snapshot();
+		expect(h.renderer.snapshot()).toBe(empty);
+		h.renderer.commit(bar(0)); h.renderer.commit(bar(1));
+		const scheduled = h.renderer.snapshot();
+		expect(scheduled).not.toBe(empty);
+		expect(h.renderer.snapshot()).toBe(scheduled);
+		const callbacks = [...h.pending.values()];
+		callbacks[0].callback(11);
+		const played = h.renderer.snapshot();
+		expect(played).not.toBe(scheduled);
+		expect(played.dispatches[0]).not.toBe(scheduled.dispatches[0]);
+		expect(played.dispatches[1]).toBe(scheduled.dispatches[1]);
+		expect(scheduled.dispatches.map(entry => entry.status)).toEqual(['scheduled', 'scheduled']);
+		expect(played.dispatches.map(entry => entry.status)).toEqual(['played', 'scheduled']);
+		expect(played.dispatches.every(entry => !('diagnostic' in entry))).toBe(true);
+		expect(Object.isFrozen(played.dispatches[0])).toBe(true);
+		h.renderer.stop();
+		const stopped = h.renderer.snapshot();
+		expect(stopped.status).toBe('stopped');
+		expect(stopped.schedule).toBeNull();
+		expect(stopped.dispatches[0]).toBe(played.dispatches[0]);
+		expect(stopped.dispatches[1].status).toBe('cancelled');
+		expect(stopped.dispatches[1]).not.toHaveProperty('diagnostic');
+		expect(played.dispatches[1].status).toBe('scheduled');
+		h.renderer.stop(); callbacks[1].callback(13);
+		expect(h.renderer.snapshot()).toBe(stopped);
+	});
+
+	it('keeps cached evidence unchanged through rejected commits and publication rollback', () => {
+		const h = harness(); h.renderer.commit(bar(0));
+		const previous = h.renderer.snapshot();
+		expect(h.renderer.commit(bar(2)).accepted).toBe(false);
+		expect(h.renderer.snapshot()).toBe(previous);
+		const publish = h.runtime.publishSchedule;
+		h.runtime.publishSchedule = vi.fn(schedule => {
+			publish(schedule);
+			expect(h.renderer.snapshot()).toBe(previous);
+			if (schedule !== previous.schedule) throw new Error('publisher failure');
+		});
+		expect(h.renderer.commit(bar(1))).toEqual({ accepted: false, reason: 'schedule_failure' });
+		expect(h.renderer.snapshot()).toBe(previous);
+		expect(h.published()).toBe(previous.schedule);
+	});
+
+	it('invalidates reentrant stop snapshots when the triggering batch is subsequently cancelled', () => {
+		const h = harness(); let duringStop: ReturnType<typeof h.renderer.snapshot> | undefined;
+		h.runtime.play = vi.fn(() => {
+			h.renderer.stop(); duringStop = h.renderer.snapshot(); return vi.fn();
+		});
+		h.renderer.commit(bar(0)); [...h.pending.values()][0].callback(11);
+		expect(duringStop!.dispatches[0].status).toBe('scheduled');
+		const after = h.renderer.snapshot();
+		expect(after).not.toBe(duringStop);
+		expect(after.dispatches[0].status).toBe('cancelled');
+		expect(h.renderer.snapshot()).toBe(after);
+	});
+
+	it.each([
+		{ observed: 11.01, callback: 11, reason: 'late_callback' },
+		{ observed: NaN, callback: 11, reason: 'nonfinite_clock' },
+		{ observed: 10.9, callback: Infinity, reason: 'nonfinite_callback_time' },
+		{ observed: 10.9, callback: 11.1, reason: 'callback_time_mismatch' }
+	])('captures finite immutable $reason evidence without playing a rejected callback', ({ observed, callback, reason }) => {
+		const h = harness(); h.renderer.commit(bar(0)); h.renderer.commit(bar(1));
+		const previous = h.renderer.snapshot();
+		h.now(observed); [...h.pending.values()][0].callback(callback);
+		const failed = h.renderer.snapshot();
+		const diagnostic = failed.dispatches[0].diagnostic!;
+		expect(failed.status).toBe('underrun');
+		expect(failed.dispatches.map(entry => entry.status)).toEqual(['late', 'cancelled']);
+		expect(diagnostic.reason).toBe(reason);
+		expect(diagnostic.targetAudioTime).toBe(11);
+		if (Number.isFinite(observed)) {
+			expect(diagnostic.observedAudioTime).toBe(observed);
+			expect(diagnostic.latenessSeconds).toBeCloseTo(Math.max(0, observed - 11), 10);
+		} else {
+			expect(diagnostic).not.toHaveProperty('observedAudioTime');
+			expect(diagnostic).not.toHaveProperty('latenessSeconds');
+		}
+		if (Number.isFinite(callback)) expect(diagnostic.callbackAudioTime).toBe(callback);
+		else expect(diagnostic).not.toHaveProperty('callbackAudioTime');
+		expect(JSON.parse(JSON.stringify(diagnostic))).toEqual(diagnostic);
+		expect(Object.isFrozen(diagnostic)).toBe(true);
+		expect(previous.dispatches[0]).not.toHaveProperty('diagnostic');
+		expect(previous.dispatches[0].status).toBe('scheduled');
+		expect(failed.dispatches[1]).not.toHaveProperty('diagnostic');
+		expect(h.renderer.snapshot()).toBe(failed);
+		expect(h.runtime.play).not.toHaveBeenCalled();
+		expect(h.published()).toBeNull();
+	});
+
+	it.each(['audio_clock_unavailable', 'play_failure'] as const)('records $0 without inventing an unavailable clock', reason => {
+		const h = harness(); h.renderer.commit(bar(0));
+		if (reason === 'audio_clock_unavailable') h.runtime.audioNow = () => { throw new Error('closed context'); };
+		else h.runtime.play = vi.fn(() => { throw new Error('sample failure'); });
+		[...h.pending.values()][0].callback(11);
+		const row = h.renderer.snapshot().dispatches[0];
+		expect(row.status).toBe('failed');
+		expect(row.diagnostic).toMatchObject({ reason, targetAudioTime: 11, callbackAudioTime: 11 });
+		if (reason === 'audio_clock_unavailable') expect(row.diagnostic).not.toHaveProperty('observedAudioTime');
+		else expect(row.diagnostic).toMatchObject({ observedAudioTime: 10, latenessSeconds: 0 });
+		expect(Object.isFrozen(row.diagnostic)).toBe(true);
+		expect(JSON.parse(JSON.stringify(row.diagnostic))).toEqual(row.diagnostic);
+	});
+
 	it('accepts the bounded repeated-form extent and rejects an unbounded session', () => {
 		const h = harness();
 		expect(() => createRollingBackingRenderer({ sessionId: 'long-take', tempo: 120, ppq: 192,
