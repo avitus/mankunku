@@ -129,3 +129,34 @@ describe('bounded browser summaries', () => {
 		}
 	});
 });
+
+
+it('explicitly captures a playing take as partial without stopping, mutating or overstating its reached extent', () => {
+ const source = input(); source.playback.status = 'playing';
+ source.playback.provenance = { engine: 'causal-rolling', sessionId: 'take', fingerprint: 'policy', sessionStatus: 'running', dispatches: [], totalBars: source.session.bars.length, committedBars: 5, committedThroughTick: 5 * 4 * 192 };
+ const before = JSON.stringify(source);
+ const saved = createListeningFeedback(source, { ...options, allowPlaying: true });
+ expect(saved).toMatchObject({ completion: 'partial', reachedBars: 3, note: 'Good pulse' });
+ expect(JSON.stringify(source)).toBe(before);
+ expect(restoreListeningFeedback(serializeListeningFeedback(saved))).toEqual(saved);
+ // The opt-in never changes the stricter historical stopped-take API.
+ expect(() => createListeningFeedback(source, options)).toThrow();
+});
+
+it('live capture still rejects count-in, missing evidence, mismatched tunes and future marks', () => {
+ for (const patch of [{ status: 'loading' }, { status: 'idle' }, { elapsedBeats: 0 }, { startAudioTime: null }, { provenance: undefined }, { generated: null }]) {
+  const source = input(); Object.assign(source.playback, { status: 'playing', ...patch });
+  expect(() => createListeningFeedback(source, { ...options, allowPlaying: true })).toThrow();
+ }
+ const future = input(); future.playback.status = 'playing'; future.marks.push({ barIndex: 3, elapsedBeats: 12, note: 'Not reached' });
+ expect(() => createListeningFeedback(future, { ...options, allowPlaying: true })).toThrow();
+ const mismatch = input(); mismatch.playback.status = 'playing'; mismatch.session = { ...mismatch.session, phrase: { ...mismatch.session.phrase, id: 'other' } };
+ expect(() => createListeningFeedback(mismatch, { ...options, allowPlaying: true })).toThrow();
+});
+
+
+it('never calls a live final-bar snapshot complete before the player completes', () => {
+ const source = input(); const totalBars = source.session.bars.length;
+ Object.assign(source.playback, { status: 'playing', elapsedBeats: totalBars * 4, barIndex: totalBars - 1, audioTime: 10 + totalBars * 4 * 60 / 80 });
+ expect(createListeningFeedback(source, { ...options, allowPlaying: true })).toMatchObject({ completion: 'partial', reachedBars: totalBars });
+});

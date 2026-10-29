@@ -80,10 +80,14 @@ function isFeedback(value: unknown): value is ListeningFeedback {
 		(mark.elapsedBeats < (mark.barIndex + 1) * 4 || (mark.barIndex === totalBars - 1 && mark.elapsedBeats === totalBars * 4)) && text(mark.note, 500, true));
 }
 
-/** Save only a stopped/completed take, using its captured settings rather than editable controls. */
-export function createListeningFeedback(input: ListeningFeedbackInput, options: { id?: string; createdAt?: string } = {}): ListeningFeedback {
+/** Capture take settings and reached evidence. Live capture is explicitly opt-in and always partial. */
+export function createListeningFeedback(input: ListeningFeedbackInput, options: { id?: string; createdAt?: string; allowPlaying?: boolean } = {}): ListeningFeedback {
 	const { playback, session } = input;
-	const extent = getListeningReviewExtent(playback, session.bars.length);
+	// Freeze the current evidence boundary for a live summary without changing the
+	// transport or enabling silent review during playback. The default API still
+	// requires a settled take; all clock/provenance/mark checks remain in force.
+	const extent = getListeningReviewExtent(options.allowPlaying === true && playback.status === 'playing'
+		? { ...playback, status: 'stopped' } : playback, session.bars.length);
 	const params = playback.params;
 	if (!extent || !params || JSON.stringify(params.phrase) !== JSON.stringify(session.phrase) || playback.elapsedBeats <= 0 ||
 		input.marks.some(mark => mark.elapsedBeats > playback.elapsedBeats)) {
