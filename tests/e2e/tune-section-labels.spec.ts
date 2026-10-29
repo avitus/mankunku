@@ -152,7 +152,19 @@ test('groups Black Orpheus ending fragments under the moved label without deleti
 		['C', 3, true, undefined, undefined], ['', 1, undefined, true, 1],
 		['', 1, undefined, undefined, 2], ['', 1, undefined, undefined, undefined]
 	]);
-	expect(saved.sections.flatMap(s => s.notes.map(n => n.pitch))).toEqual(original.sections.flatMap(s => s.notes.map(n => n.pitch)));
+	// The editor fills the pickup's silent prefix with a rest. Compare the
+	// sounding timeline, including absolute offsets and durations.
+	const soundingNotes = (sheet: Tune) => {
+		let base = 0;
+		return sheet.sections.flatMap(section => {
+			const notes = section.notes.filter(note => note.pitch !== null).map(note => ({
+				pitch: note.pitch, start: base + note.offset[0] / note.offset[1], duration: note.duration[0] / note.duration[1]
+			}));
+			base += section.bars;
+			return notes;
+		});
+	};
+	expect(soundingNotes(saved)).toEqual(soundingNotes(original));
 	expect(saved.sections.flatMap(s => s.harmony).reduce((sum, chord) => sum + chord.duration[0] / chord.duration[1], 0)).toBe(39);
 	expect(saved.sections[0].pickupLength).toEqual([1, 4]);
 	await page.goto('/tunes/editor?edit=e2e-labels');
