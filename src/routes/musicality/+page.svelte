@@ -16,32 +16,19 @@
 <svelte:window onhashchange={(event) => reveal(new URL(event.newURL).hash)} />
 <SeoHead title="Musicality — Mankunku" description="Listen to complete tunes and follow the bass, piano and drums. Explore the rhythm section’s living specification." />
 <div class="musicality">
- <header>
-  <div class="eyebrow">Mankunku / The rhythm section</div>
-  <div class="title-line"><h1>Musicality<span aria-hidden="true">.</span></h1><a href="/diagnostics/backing-mixer">Advanced listening lab ↗</a></div>
-  <p>Listen to the whole tune. Follow the conversation.</p>
- </header>
- <nav class="tabs" aria-label="Musicality views">
-  <button class:active={tab === 'listen'} aria-pressed={tab === 'listen'} onclick={() => { tab = 'listen'; comparison = false; }}>Listen</button>
-  <button class:active={tab === 'specification'} aria-pressed={tab === 'specification'} onclick={() => tab = 'specification'}>Specification</button>
-  <span>In development · Listening review pending</span>
- </nav>
+ {#if tab==='specification'}<h1>Musicality</h1>{/if}
  {#if tab === 'listen'}
   {#if comparison}<BlindListeningReview buildVersion={data.buildVersion} onexit={() => comparison = false} />{:else}<ListeningStudio buildVersion={data.buildVersion} oncompare={() => comparison = true} />{/if}
  {:else}<MusicalityLedger {data} />{/if}
+ <nav class="tabs" aria-label="Musicality views">
+  <button class:active={tab === 'listen'} aria-pressed={tab === 'listen'} onclick={() => { tab = 'listen'; comparison = false; }}>Listen</button>
+  <button class:active={tab === 'specification'} aria-pressed={tab === 'specification'} onclick={() => tab = 'specification'}>Specification</button>
+  <a href="/diagnostics/backing-mixer">Advanced listening lab ↗</a><span>In development · Listening review pending</span>
+ </nav>
 </div>
 <style>
- .musicality { padding: 1.5rem 0 3rem; }
- .eyebrow { font-size:.62rem;letter-spacing:.16em;text-transform:uppercase;color:var(--color-brass); }
- .title-line {display:flex;align-items:center;justify-content:space-between;gap:1rem}
- h1 {font-family:var(--font-display,Georgia,serif);font-weight:400;font-size:clamp(3.2rem,7vw,4.8rem);letter-spacing:-.05em;line-height:1.1;margin:.8rem 0 .7rem}
- h1 span{color:var(--color-brass)}
- header p{color:var(--color-text-secondary);font-size:1rem;margin-bottom:2rem}
- a{font-size:.75rem;color:var(--color-text-secondary)}
- .tabs{display:flex;align-items:center;gap:1.75rem;border-bottom:1px solid var(--color-bg-tertiary)}
- .tabs button{padding:1rem 0;border-bottom:2px solid transparent;color:var(--color-text-secondary);font-size:.85rem;cursor:pointer}
- .tabs button.active{color:var(--color-brass);border-color:var(--color-brass)}
- .tabs span{margin-left:auto;text-transform:uppercase;letter-spacing:.07em;font-size:.53rem;color:var(--color-text-secondary)}
- button:focus-visible,a:focus-visible{outline:2px solid var(--color-brass);outline-offset:4px}
- @media(max-width:640px){.tabs span{max-width:11rem;text-align:right;line-height:1.6}.title-line a{max-width:6rem;line-height:1.6}.tabs{gap:1.25rem}}
+ .musicality{--color-bg:#111b2b;--color-bg-secondary:#1d293a;--color-bg-tertiary:#46566b;--color-text:#f3eee5;--color-text-secondary:#9aaabc;--color-brass:#d5ad6c;max-width:1500px;margin:0 auto;padding:1.5rem 2.5rem 3rem;color:#f3eee5;background:#111b2b;min-height:calc(100vh - 4rem)}
+ h1{font:400 2rem var(--font-display);margin:1rem 0}
+ .tabs{display:flex;flex-wrap:wrap;gap:1.4rem;align-items:center;border-bottom:1px solid #46566b;margin-top:1.5rem}.tabs button{padding:.8rem 0;border-bottom:1px solid transparent;color:#9aaabc;font-size:.7rem;cursor:pointer}.tabs button.active{color:#d5ad6c;border-color:#d5ad6c}.tabs a{font-size:.65rem;color:#9aaabc}.tabs span{margin-left:auto;font-size:.55rem;color:#91a1b4}.tabs button:focus-visible{outline:2px solid #d5ad6c;outline-offset:3px}
+ @media(max-width:800px){.musicality{padding:1.25rem 1rem 2rem}.tabs span{text-align:right;max-width:9rem;line-height:1.7}}
 </style>

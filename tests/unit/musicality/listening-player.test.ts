@@ -12,6 +12,24 @@ function harness() {
 	return { player, runtime, take, onChange, advance(time: number) { now = time; tick?.(); }, tick: () => tick };
 }
 describe('full-tune listening player', () => {
+	it('captures an immutable musicality release with a started take and retains it on stop', async () => {
+		const h = harness();
+		expect(h.player.snapshot().musicalityRelease).toBeUndefined();
+		await h.player.start(params);
+		const release = h.player.snapshot().musicalityRelease;
+		expect(release).toEqual({ version: '0.1.0', engineRevision: '545c67b1a1e69c0c997d6232fdf897a8cd066978', status: 'listening-preview' });
+		expect(Object.isFrozen(release)).toBe(true);
+		h.player.stop();
+		expect(h.player.snapshot().musicalityRelease).toBe(release);
+		expect(h.player.snapshot().generated).toBe(generated);
+	});
+	it('clears the previous release when a new take cannot be prepared', async () => {
+		const h = harness(); await h.player.start(params);
+		expect(h.player.snapshot().musicalityRelease).toBeDefined();
+		vi.mocked(h.runtime.prepare).mockRejectedValueOnce(new Error('samples unavailable'));
+		await h.player.start(params);
+		expect(h.player.snapshot().musicalityRelease).toBeUndefined();
+	});
 	it('follows the sounding audio clock, waits for the origin, and preserves the exact generated score', async () => {
 		const h = harness(); await h.player.start(params);
 		expect(h.player.snapshot()).toMatchObject({ status: 'playing', barIndex: null, generated });

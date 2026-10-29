@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { CURRENT_MUSICALITY_RELEASE } from '$lib/musicality/release';
 	import { afterNavigate } from '$app/navigation';
 	import { onMount, tick } from 'svelte';
 	import MarkdownRenderer from '$lib/components/docs/MarkdownRenderer.svelte';
@@ -48,7 +49,7 @@
 </script>
 <svelte:window onhashchange={(event) => void revealHash(new URL(event.newURL).hash)} />
 <div class="ledger-wrap">
-<p class="acceptance">Implementation is separate from musical acceptance. Listening review is still pending. <a href="/docs/architecture/musicality">Architecture & roadmap ↗</a> · <a href="#original-spec" onclick={() => void revealHash('#original-spec')}>Read the original specification</a></p>
+<p class="acceptance">Musicality {CURRENT_MUSICALITY_RELEASE.version} · Implementation is separate from musical acceptance. Listening review is still pending. <a href="/docs/architecture/musicality">Architecture & roadmap ↗</a> · <a href="#original-spec" onclick={() => void revealHash('#original-spec')}>Read the original specification</a></p>
 	<div class="inventory" aria-label="Device implementation counts">
 		<div class="inventory-total"><strong>202</strong><span>devices · 50 specification sections</span></div>
 		{#each deviceCounts as item (item.key)}<div class="inventory-count"><strong>{item.count}</strong><span>{item.label}</span></div>{/each}

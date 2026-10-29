@@ -2,6 +2,7 @@
 import { harmonyDurationBeats, type BounceParams } from '$lib/audio/backing-bounce';
 import { DEFAULT_BACKING_MIX } from '$lib/audio/backing-mix';
 import type { ListeningSnapshot } from './listening-player';
+import { isMusicalityRelease, sameMusicalityRelease, type MusicalityRelease } from './release';
 
 export type ListeningComparisonLabel = 'A' | 'B';
 export type ListeningComparisonPreference = ListeningComparisonLabel | 'tie';
@@ -25,6 +26,8 @@ export interface BlindListeningComparisonRecord {
  readonly createdAt: string;
  readonly revealedAt: string;
  readonly buildVersion: string;
+ /** Common captured engine identity. Legacy evidence stays explicitly unversioned. */
+ readonly musicalityRelease?: Readonly<MusicalityRelease>;
  readonly inputs: ListeningComparisonInputs;
  readonly mapping: Record<ListeningComparisonLabel, Arrangement>;
  /** Full, captured completed snapshots retain actual event and decision traces. */
@@ -128,7 +131,8 @@ function validTakeProvenance(take: Record<string, unknown>, inputs: ListeningCom
 }
 function completeTake(value: unknown, inputs: ListeningComparisonInputs, arrangement: Arrangement): value is ListeningSnapshot {
  if (!object(value) || value.status !== 'completed' || value.error !== null || !object(value.params) ||
-  canonical(value.params) !== canonical({ ...inputs, orchestration: arrangement })) return false;
+  canonical(value.params) !== canonical({ ...inputs, orchestration: arrangement }) ||
+  (value.musicalityRelease !== undefined && !isMusicalityRelease(value.musicalityRelease))) return false;
  const duration = harmonyDurationBeats(inputs.phrase);
  return finite(value.durationBeats) && Math.abs(value.durationBeats - duration) < 1e-6 &&
   finite(value.elapsedBeats) && Math.abs(value.elapsedBeats - duration) < 1e-6 &&
@@ -171,6 +175,8 @@ export function createBlindListeningComparison(input: BounceParams, options: {
   recordPlayback(label: ListeningComparisonLabel, snapshot: ListeningSnapshot): boolean {
    labelValid(label);
    if (record || !completeTake(snapshot, inputs, mapping[label])) return false;
+   const other = takes[label === 'A' ? 'B' : 'A'];
+   if (other && !sameMusicalityRelease(snapshot.musicalityRelease, other.musicalityRelease)) return false;
    takes[label] = freeze(structuredClone(snapshot)); return true;
   },
   rate(label: ListeningComparisonLabel, criterion: ListeningComparisonCriterion, value: number): void {
@@ -194,6 +200,7 @@ export function createBlindListeningComparison(input: BounceParams, options: {
    if (!validDate(revealedAt)) throw new Error('Invalid comparison reveal date.');
    record = freeze({ version: 1 as const, revealed: true as const, id, createdAt, revealedAt,
     buildVersion, inputs, mapping: { ...mapping },
+    ...(takes.A!.musicalityRelease ? { musicalityRelease: takes.A!.musicalityRelease } : {}),
     takes: { A: takes.A!, B: takes.B! }, ratings: structuredClone(ratings) as Record<ListeningComparisonLabel, ListeningComparisonRatings>,
     preference: preference!, notes });
    return record;
@@ -216,9 +223,12 @@ export function restoreListeningComparison(json: string): BlindListeningComparis
    !text(value.buildVersion, 200) || !validDate(value.createdAt) || !validDate(value.revealedAt) ||
    typeof value.notes !== 'string' || value.notes.length > 5000 || !validInputs(value.inputs) ||
    !object(value.mapping) || !object(value.takes) || !object(value.ratings) || !['A','B','tie'].includes(String(value.preference))) return null;
+  if (value.musicalityRelease !== undefined && !isMusicalityRelease(value.musicalityRelease)) return null;
   if (!['original','coordinated'].includes(String(value.mapping.A)) || !['original','coordinated'].includes(String(value.mapping.B)) || value.mapping.A === value.mapping.B) return null;
   for (const label of labels) {
-   if (!validRatings(value.ratings[label]) || !completeTake(value.takes[label], value.inputs, value.mapping[label] as Arrangement)) return null;
+   const take = value.takes[label];
+   if (!validRatings(value.ratings[label]) || !completeTake(take, value.inputs, value.mapping[label] as Arrangement) ||
+    !sameMusicalityRelease(value.musicalityRelease as MusicalityRelease | undefined, take.musicalityRelease)) return null;
   }
   return freeze(value as unknown as BlindListeningComparisonRecord);
  } catch { return null; }

@@ -232,7 +232,7 @@ test('listens through a complete real tune and follows each chorus on the audio 
 
 test('compares matched Original and Coordinated takes and stops all future dispatch', async ({ page }) => {
 	await setup(page);
-	await page.getByTestId('listening-mode').selectOption('original');
+	await page.getByTestId('listening-mode').getByRole('button', {name:'Original',exact:true}).click();
 	await playToBar(page);
 	await page.getByTestId('listening-stop').click();
 	const original = await exportTake(page);
@@ -256,7 +256,7 @@ test('compares matched Original and Coordinated takes and stops all future dispa
 	expect(await sourceStarts(page)).toBe(stoppedStarts);
 
 	await expect(page.getByTestId('listening-performance-arc')).not.toBeVisible();
-	await page.getByTestId('listening-mode').selectOption('coordinated');
+	await page.getByTestId('listening-mode').getByRole('button', {name:'Coordinated',exact:true}).click();
 	await expect(review).toHaveCount(0);
 	await playToBar(page);
 	await assertDecisionClock(page);
@@ -697,8 +697,8 @@ test('listens to an existing local AABA tune book chart with captured bridge evi
 	await picker.selectOption(LOCAL_LISTENING_AABA.id);
 	await page.getByTestId('listening-key').selectOption('D');
 	await expect(page.locator('.transport')).toContainText('128 bars');
-	await expect(page.locator('.chords')).toContainText('DΔ7');
-	await expect(page.locator('.chords')).toContainText('GΔ7');
+	await expect(page.getByTestId('listening-score')).toContainText('DΔ7');
+	await expect(page.getByTestId('listening-score')).toContainText('GΔ7');
 	await playToBar(page);
 	const opening = await exportTake(page);
 	const phrase = opening.playback.params!.phrase;
@@ -921,10 +921,10 @@ test('keeps terminal arrangement opt-in and resets it across style or mode chang
 	await page.getByTestId('listening-style').selectOption('swing');
 	await expect(ending).toHaveValue('continue');
 	await ending.selectOption({ label: 'Hold & release' });
-	await page.getByTestId('listening-mode').selectOption('original');
+	await page.getByTestId('listening-mode').getByRole('button', {name:'Original',exact:true}).click();
 	await expect(ending).toHaveCount(0);
 	await expect(page.getByTestId('listening-play')).toBeEnabled();
-	await page.getByTestId('listening-mode').selectOption('coordinated');
+	await page.getByTestId('listening-mode').getByRole('button', {name:'Coordinated',exact:true}).click();
 	await expect(ending).toHaveValue('continue');
 	expect(await sourceStarts(page)).toBe(0);
 	await assertNoMicrophone(page);

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { isMusicalityRelease } from '$lib/musicality/release';
 	import { onDestroy, onMount } from 'svelte';
 	import { LISTENING_TUNES, buildListeningTuneSession, type ListeningTuneSession } from '$lib/musicality/listening-tunes';
 	import { createListeningPlayer, type ListeningSnapshot } from '$lib/musicality/listening-player';
@@ -198,7 +199,7 @@
 				<section class="take" aria-labelledby={`blind-take-${label}`}>
 					<div class="take-heading"><h3 id={`blind-take-${label}`}>Take {label}</h3><span data-testid={`blind-completed-${label}`}>{review.completed[label] ? 'Full take heard' : 'Full listen pending'}</span></div>
 					<button class="play" data-testid={`blind-play-${label}`} onclick={() => play(label)} disabled={busy}>{review.completed[label] ? '↻ Replay' : '▶ Listen to'} {label}</button>
-					{#if review.record}<p class="revealed-name" data-testid={`blind-mapping-${label}`}>{review.record.mapping[label] === 'coordinated' ? 'Coordinated' : 'Original'}</p>{/if}
+					{#if review.record}<p class="release-caption">{review.record.musicalityRelease ? `Musicality ${review.record.musicalityRelease.version}` : 'Unversioned'}</p><p class="revealed-name" data-testid={`blind-mapping-${label}`}>{review.record.mapping[label] === 'coordinated' ? 'Coordinated' : 'Original'}</p>{/if}
 				</section>
 			{/each}
 		</div>
@@ -229,13 +230,14 @@
 		<details class="archive" data-testid="blind-saved-reviews"><summary>Saved reviews ({archive.length})</summary>
 			<p>Browser-local summaries of your latest 20 reviews. Full score traces are included only in the export made when a review is revealed.</p>
 			{#if archiveError}<p role="status">{archiveError}</p>{/if}
-			{#each archive as item (item.id)}<article data-testid="blind-saved-review" data-review-id={item.id}><div><strong>{item.inputs.phrase.name}</strong><small>{new Date(item.revealedAt).toLocaleDateString()} · {styles.find((entry) => entry.value === item.inputs.style)?.label} · {item.preference === 'tie' ? 'No preference' : `Preferred ${item.preference}`}</small><small>A: {item.mapping.A === 'coordinated' ? 'Coordinated' : 'Original'} · B: {item.mapping.B === 'coordinated' ? 'Coordinated' : 'Original'}</small></div><button data-testid="blind-export-summary" onclick={() => exportSummary(item)}>Export summary</button></article>{:else}<p>No saved reviews yet.</p>{/each}
+			{#each archive as item (item.id)}<article data-testid="blind-saved-review" data-review-id={item.id}><div><strong>{item.inputs.phrase.name} · {isMusicalityRelease(item.musicalityRelease) ? `Musicality ${item.musicalityRelease.version}` : 'Unversioned'}</strong><small>{new Date(item.revealedAt).toLocaleDateString()} · {styles.find((entry) => entry.value === item.inputs.style)?.label} · {item.preference === 'tie' ? 'No preference' : `Preferred ${item.preference}`}</small><small>A: {item.mapping.A === 'coordinated' ? 'Coordinated' : 'Original'} · B: {item.mapping.B === 'coordinated' ? 'Coordinated' : 'Original'}</small></div><button data-testid="blind-export-summary" onclick={() => exportSummary(item)}>Export summary</button></article>{:else}<p>No saved reviews yet.</p>{/each}
 		</details>
 	{/if}
 	{#if error || playback?.error}<p class="error" role="alert">{error || playback?.error}</p>{/if}
 </section>
 
 <style>
+ .release-caption{font-size:.7rem;color:var(--color-text-secondary);margin-top:.7rem}
 	.blind-review{padding-top:1.75rem}.intro,.section-heading,.take-heading{display:flex;align-items:center;justify-content:space-between;gap:1rem}.eyebrow{font-size:.6rem;letter-spacing:.14em;text-transform:uppercase;color:var(--color-brass)}h2,h3{font-family:var(--font-display,Georgia,serif);font-weight:400}h2{font-size:2rem;margin:.5rem 0}h3{font-size:1.4rem;margin:0}.explanation{max-width:42rem;margin:.5rem 0 1rem;font-size:.85rem;color:var(--color-text-secondary);line-height:1.8}
 	.setup{display:grid;grid-template-columns:2.4fr 1.35fr .75fr .8fr 1.1fr;gap:1rem;padding:1rem 0 1.5rem}label{font-size:.6rem;letter-spacing:.07em;text-transform:uppercase;color:var(--color-text-secondary)}select,input,textarea{width:100%;margin-top:.6rem;padding:.6rem 0;background:transparent;color:var(--color-text);border:0;border-bottom:1px solid var(--color-bg-tertiary);font:inherit;font-size:.85rem;letter-spacing:normal;text-transform:none;border-radius:0}option{background:var(--color-bg-secondary);color:var(--color-text)}textarea{resize:vertical;line-height:1.7}button:disabled,select:disabled,input:disabled,textarea:disabled{opacity:.5;cursor:default}button{cursor:pointer}.primary,.play{background:var(--color-brass);color:var(--color-bg);padding:.85rem 1.25rem;font-size:.8rem;font-weight:600}.begin,.reveal{display:flex;align-items:center;gap:1.25rem}.begin p,.reveal p{max-width:32rem;font-size:.7rem;line-height:1.7;color:var(--color-text-secondary)}.primary{white-space:nowrap}.text-button{color:var(--color-brass);font-size:.72rem;text-decoration:underline;text-underline-offset:.3em}
 	.locked-note{font-size:.65rem;color:var(--color-text-secondary);margin-bottom:1rem}.transport{position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;background:var(--color-bg-secondary);border:1px solid var(--color-bg-tertiary);min-height:5rem}.transport strong{font-size:.8rem;font-weight:500}.transport small{display:block;font-size:.65rem;color:var(--color-text-secondary);margin-top:.4rem}.stop{color:var(--color-brass);border:1px solid var(--color-brass);padding:.65rem 1rem}.takes{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin:1.5rem 0 2.5rem}.take{padding:1.2rem 0;border-top:1px solid var(--color-bg-tertiary);border-bottom:1px solid var(--color-bg-tertiary)}.take-heading span{font-size:.6rem;color:var(--color-text-secondary)}.play{margin-top:1.2rem;min-width:8rem}.revealed-name{font-size:.75rem;color:var(--color-brass);margin:.7rem 0 0}

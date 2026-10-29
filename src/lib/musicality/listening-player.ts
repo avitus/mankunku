@@ -5,6 +5,7 @@ import type { GeneratedBacking } from '$lib/audio/backing-generation';
 import type { RollingBackingDispatch } from '$lib/audio/backing-rolling-renderer';
 import type { RollingSessionSnapshot } from '$lib/audio/backing-rolling-session';
 import { fractionToFloat } from '$lib/music/intervals';
+import { CURRENT_MUSICALITY_RELEASE, type MusicalityRelease } from './release';
 
 export interface ListeningTakeExtent {
 	readonly totalBars: number;
@@ -23,6 +24,8 @@ export type ListeningTakeProvenance = CausalListeningProvenance | (ListeningTake
 export type ListeningStatus = 'idle' | 'loading' | 'playing' | 'stopped' | 'completed' | 'error';
 export interface ListeningSnapshot {
 	status: ListeningStatus;
+	/** Captured engine release; absent on takes made before release versioning. */
+	readonly musicalityRelease?: Readonly<MusicalityRelease>;
 	generated: GeneratedBacking | null;
 	/** Captured settings for the take; changing the controls cannot relabel this score. */
 	params: BounceParams | null;
@@ -81,7 +84,7 @@ export function createListeningPlayer(
 			release();
 			const isCurrent = () => !disposed && id === request;
 			publish({ status: 'loading', generated: null, params: null, startAudioTime: null,
-				audioTime: null, elapsedBeats: 0, durationBeats: 0, barIndex: null, ending: false, error: null, provenance: undefined });
+				audioTime: null, elapsedBeats: 0, durationBeats: 0, barIndex: null, ending: false, error: null, provenance: undefined, musicalityRelease: undefined });
 			try {
 				const params = structuredClone(input);
 				const durationBeats = harmonyDurationBeats(params.phrase);
@@ -94,6 +97,7 @@ export function createListeningPlayer(
 				take = prepared;
 				prepared.start();
 				publish({ status: 'playing', params, generated: prepared.generated, ppq: prepared.ppq,
+					musicalityRelease: CURRENT_MUSICALITY_RELEASE,
 					startAudioTime: prepared.startAudioTime, durationBeats,
 					provenance: prepared.progress ? undefined : { engine: 'fixed', totalBars: Math.ceil(durationBeats / params.phrase.timeSignature[0]),
 						committedBars: Math.ceil(durationBeats / params.phrase.timeSignature[0]), committedThroughTick: durationBeats * prepared.ppq } });

@@ -177,3 +177,67 @@ describe('causal take completion evidence in blind comparisons', () => {
   expect(pair.recordPlayback('B', value)).toBe(false);
  });
 });
+
+
+describe('musicality release provenance', () => {
+ const release = { version: '0.1.0', engineRevision: '545c67b1a1e69c0c997d6232fdf897a8cd066978', status: 'listening-preview' as const };
+ function finishVersioned(pair: ReturnType<typeof create>) {
+  for (const label of ['A', 'B'] as const) {
+   expect(pair.recordPlayback(label, { ...completed(pair.paramsFor(label)), musicalityRelease: { ...release } })).toBe(true);
+   for (const criterion of LISTENING_COMPARISON_CRITERIA) pair.rate(label, criterion.id, 3);
+  }
+  pair.setPreference('tie'); return pair.reveal();
+ }
+ it('exports the captured release only after reveal, separately from the archive schema and build', () => {
+  const pair = create();
+  pair.recordPlayback('A', { ...completed(pair.paramsFor('A')), musicalityRelease: { ...release } });
+  expect(pair.snapshot()).not.toHaveProperty('musicalityRelease');
+  expect(pair.snapshot()).not.toHaveProperty('takes');
+  const record = finishVersioned(pair);
+  expect(record.version).toBe(1);
+  expect(record.buildVersion).toBe('test-build');
+  expect(record.musicalityRelease).toEqual(release);
+  expect(record.takes.A.musicalityRelease).toEqual(release);
+  expect(record.takes.B.musicalityRelease).toEqual(release);
+  expect(Object.isFrozen(record.musicalityRelease)).toBe(true);
+  expect(restoreListeningComparison(serializeListeningComparison(record))).toEqual(record);
+ });
+ it('keeps legacy feedback unversioned instead of assigning the current release on restore', () => {
+  const record = finish(create());
+  expect(record).not.toHaveProperty('musicalityRelease');
+  const restored = restoreListeningComparison(serializeListeningComparison(record))!;
+  expect(restored).not.toHaveProperty('musicalityRelease');
+  expect(restored.takes.A).not.toHaveProperty('musicalityRelease');
+ });
+ it('rejects mismatched releases in an otherwise matched Original/Coordinated pair', () => {
+  const pair = create();
+  expect(pair.recordPlayback('A', { ...completed(pair.paramsFor('A')), musicalityRelease: { ...release } })).toBe(true);
+  expect(pair.recordPlayback('B', { ...completed(pair.paramsFor('B')), musicalityRelease: { ...release, version: '0.2.0' } })).toBe(false);
+  expect(pair.recordPlayback('B', completed(pair.paramsFor('B')))).toBe(false);
+  expect(pair.recordPlayback('B', { ...completed(pair.paramsFor('B')), musicalityRelease: { ...release } })).toBe(true);
+ });
+ it('rejects malformed or inconsistent release metadata without silently relabeling it', () => {
+  const serialized = serializeListeningComparison(finishVersioned(create()));
+  for (const mutate of [
+   (v: any) => { v.musicalityRelease.version = 'latest'; },
+   (v: any) => { v.musicalityRelease.engineRevision = 'unknown'; },
+   (v: any) => { v.musicalityRelease.status = 'accepted'; },
+   (v: any) => { v.takes.A.musicalityRelease.version = '0.2.0'; },
+   (v: any) => { delete v.takes.B.musicalityRelease; },
+   (v: any) => { delete v.musicalityRelease; },
+  ]) {
+   const changed = JSON.parse(serialized);
+   changed.musicalityRelease = { ...release }; mutate(changed);
+   expect(restoreListeningComparison(JSON.stringify(changed))).toBeNull();
+  }
+ });
+ it('preserves an archived release identity independently of the currently installed release', () => {
+  const archived = JSON.parse(serializeListeningComparison(finishVersioned(create())));
+  const historical = { ...release, version: '0.0.1', engineRevision: '0123456789abcdef0123456789abcdef01234567' };
+  archived.musicalityRelease = historical;
+  archived.takes.A.musicalityRelease = historical;
+  archived.takes.B.musicalityRelease = historical;
+  const restored = restoreListeningComparison(JSON.stringify(archived));
+  expect(restored?.musicalityRelease).toEqual(historical);
+ });
+});

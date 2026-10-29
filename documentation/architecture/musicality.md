@@ -4,6 +4,22 @@ The `musicality` branch develops the accompaniment as an ensemble. The target is
 
 The [development log](/docs/contributing/musicality-progress) records milestone checkpoints, validation results, remaining work and audition guidance, including the overnight development run.
 
+## Numbered listening releases and assessment desk — 29 October 2026
+
+**Musicality 0.1.0** is the first numbered listening release. Its engine baseline is `545c67b1a1e69c0c997d6232fdf897a8cd066978`, including the native Ballad reply milestone. The UI redesign does not change that engine. `src/lib/musicality/release.ts` owns the immutable release identity; application build, JSON schema and rolling/checkpoint policy versions remain separate. New takes capture the release before playback, and stop/completion retain it. Original remains an explicitly labelled comparison baseline under the same installed release. Historical unversioned takes/reviews remain unversioned rather than acquiring today's label.
+
+Future musical behavior increments advance the release: minor for added musical behavior, patch for a correction within the same intended contract, major for an incompatible release contract. UI/documentation-only changes retain the musicality release and use the application build to identify their implementation. Update the immutable engine revision only to a verified committed musical baseline; never relabel earlier feedback. A release is a listening candidate, not a claim of human acceptance or production readiness. Comparing archived audio from different releases still requires retaining those audio exports; the studio does not install or replay old engine binaries.
+
+The MagicPath assessment desk uses real concert-pitch lead-sheet notation beside the three factual musician cards. Its pinned design is component `466643117894959104`, revision `466647037140672512`, project `459408445339230208`. The tune picker sits in the header; style/key/tempo/solo passes and Original/Coordinated controls sit above the score. Transport and form remain under the score. Specification, advanced lab and architecture stay secondary. Existing tune-book admission, endings, Original compatibility and causal scheduling are preserved.
+
+The score projects the performed bar through expanded section/repeat/ending provenance onto the authored chart, including intros, solo passes and the closing head. It does not synthesize audio. Live cards use the player's current sounding bar; pinning freezes only the displayed score/cards, and Follow music resumes that view without seeking or regenerating the take. Post-take review is limited to the reached, committed extent. Neither view claims scheduled notes were audibly accepted by a human.
+
+Marked moments, a short note and a Promising / Needs work / Not sure yet verdict can be saved after stopping or completion. Browser feedback keeps up to 20 lightweight summaries in the active account namespace, with captured release, app build, tune, actual phrase ID, style/key/tempo/solo count, swing/volume/mix/ending/instrument, partial/complete extent and marks. It contains no audio or complete event trace; Export take retains the existing actual score/provenance plus feedback. Storage failure is visible, and an account/scope change cannot save a former account's take into the new archive. Review summaries may be exported independently after reload. Saved summaries are not replay buttons.
+
+Curated blind A/B keeps matched settings and hides assignment, musician cards and take identities until both full takes have been heard and ratings/preference committed. Revealed comparisons carry the matching release identities; mixed version/unversioned takes are rejected. Existing legacy comparison records still restore unchanged. The older blind-review archive remains its existing browser-local summary store; the new nonblind feedback store is account-namespaced. Full exported traces remain the portable record for either workflow.
+
+Audition: listen to the same complete tune, key, style, tempo and solo count in Original and Coordinated, then use blind A/B to reduce label bias. Mark exact passages and save what changed in pulse, space, voice-leading and ensemble response. Repeat across all four styles and real saved charts. Automation results establish implementation and regression evidence only.
+
 ## Current foundation
 
 The current foundation provides:
