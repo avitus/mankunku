@@ -34,6 +34,9 @@ options:
     - .circleci/*.yml
     - tests/fixtures/**
   test-selection-rules:
+    # The reporter runs in a child process, outside the unit coverage map.
+    - test-atom: tests/unit/build/circleci-e2e-reporter.test.ts
+      include: true
     - test-atom: tests/integration/pitch-replay.test.ts
       include: true
   dynamic-test-splitting: true
