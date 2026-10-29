@@ -21,7 +21,7 @@
 	import DurationSelector from '$lib/components/step-entry/DurationSelector.svelte';
 	import PitchEntryPanel from '$lib/components/step-entry/PitchEntryPanel.svelte';
 	import SectionLabelDialog from '$lib/components/tune-entry/SectionLabelDialog.svelte';
-	import { sectionLabels } from '$lib/tunes/section-labels';
+	import { sectionLabels, sectionGroups } from '$lib/tunes/section-labels';
 	import SectionConfigPanel from '$lib/components/tune-entry/SectionConfigPanel.svelte';
 	import SourceTranspositionSelect from '$lib/components/tunes/SourceTranspositionSelect.svelte';
 	import {
@@ -142,9 +142,10 @@
 		const next = nextSuspectBar(tuneEntry.importReview?.suspectBars ?? [], currentAbsoluteBar + 1);
 		if (next !== null) jumpToAbsoluteBar(next - 1);
 	}
-	const currentSectionLabel = $derived(
-		sectionLabels(draft).filter(m => m.sectionIdx <= tuneEntry.currentSection).at(-1)?.label ?? 'Unlabeled'
-	);
+	const formGroups = $derived(sectionGroups(draft));
+	const currentGroup = $derived(formGroups.find(group => group.sectionIdx <= tuneEntry.currentSection && tuneEntry.currentSection < group.endSectionIdx));
+	const currentSectionLabel = $derived(currentGroup?.label ?? 'Music');
+	const currentSectionBar = $derived(currentAbsoluteBar - (currentGroup?.startBar ?? 0) + 1);
 
 	/** Map the buffer selection onto the full-sheet preview's flattened indices. */
 	const previewSelectedIndex = $derived(
@@ -471,7 +472,7 @@
 </svelte:head>
 
 {#snippet entryStatus()}
-	{`Section ${currentSectionLabel}${cursorPos ? ` · Bar ${cursorPos.barInSection + 1}, Beat ${Math.floor(cursorPos.beatInBar + 1e-9) + 1}` : ''}`}
+	{`Section ${currentSectionLabel}${cursorPos ? ` · Bar ${currentSectionBar}, Beat ${Math.floor(cursorPos.beatInBar + 1e-9) + 1}` : ''}`}
 {/snippet}
 
 <div class="lick-editor tune-desk te-flow studio-desk">
@@ -486,7 +487,7 @@
 		<div class="le-layout"><div class="le-workspace">
 			<section class="le-panel le-chart" aria-label="Tune chart">
 				<header class="td-chart-heading"><div><p class="studio-label">Your chart <span class="le-badge">{tuneEntry.writtenKey} · {tuneEntry.timeSignature.join('/')} · {tuneEntry.style || 'No style'}</span></p><input class="le-title" bind:value={tuneEntry.title} placeholder="Untitled tune" aria-label="Tune title" /><input class="td-composer" bind:value={tuneEntry.composer} placeholder="Composer" aria-label="Composer" /></div><div class="le-history"><button aria-label="Undo" title="Undo (Ctrl/⌘Z)" disabled={!canUndo} onclick={() => restoreHistory('undo')}><EditorIcon name="undo" /></button><button aria-label="Redo" title="Redo (Ctrl/⌘Shift Z)" disabled={!canRedo} onclick={() => restoreHistory('redo')}><EditorIcon name="redo" /></button></div></header>
-				<nav class="te-sections" aria-label="Sections"><span class="studio-label">Form</span>{#each tuneEntry.sections as section, index}<button class:current={index === tuneEntry.currentSection} aria-pressed={index === tuneEntry.currentSection} onclick={() => jumpToSection(index)}><strong>{section.label || 'Unlabeled'}</strong><span>{section.bars} bars</span></button>{/each}<button onclick={() => { const existing = sectionLabels(draft).find(m => m.bar === labelDestination); void labelDialog.open(existing?.sectionIdx ?? null, labelDestination); }}>Add section label</button><button class="te-form-button" onclick={() => formDialog?.showModal()}>Edit form ↗</button></nav>
+				<nav class="te-sections" aria-label="Sections"><span class="studio-label">Form</span>{#each formGroups as group}<button class:current={group === currentGroup} aria-pressed={group === currentGroup} onclick={() => jumpToSection(group.sectionIdx)}><strong>{group.label}</strong><span>{group.bars} bars</span></button>{/each}<button onclick={() => { const existing = sectionLabels(draft).find(m => m.bar === labelDestination); void labelDialog.open(existing?.sectionIdx ?? null, labelDestination); }}>Add section label</button><button class="te-form-button" onclick={() => formDialog?.showModal()}>Edit form ↗</button></nav>
                 <div class="te-listen"><TuneTransport bind:this={transport} tune={draft} compact /></div>
                 <div class="td-score-top"><span>Click a note to edit · click a bar to write</span><button aria-pressed={harmonyColors} onclick={() => harmonyColors = !harmonyColors}><i class="td-color-dot" aria-hidden="true"></i>Harmony colors <i class="td-switch" class:active={harmonyColors} aria-hidden="true"></i></button></div>
 				<div class="td-score-well" bind:this={scoreRoot} data-tour="tune-chart"><NotationDisplay {sectionEditor} tuneOptions={{ omitMasthead: true, barsPerLine: 4 }} bind:this={notationRef} tune={draft} instrument={previewInstrument} selectedIndex={previewSelectedIndex} selectedEndIndex={previewSelectedEndIndex} onSelect={handlePreviewSelect} onBarClick={selectChartBar} onGapClick={gap => tuneSelectGap(gap.sectionIdx, gap.offset, gap.duration)} {chordEditor} rangeMarkers={[...harmonyMarkers, ...reviewMarkers]} frameless /></div>
@@ -543,7 +544,7 @@
                 {#if melodyEditingSupported()}
                     <div class="te-input-group"><p class="te-label">Duration <small>1–5</small></p><DurationSelector /></div>
                     <div class="te-input-group"><p class="te-label">Pitch <small>A–G · 0 for rest</small></p><PitchEntryPanel onAddNote={handlePanelAddNote} onAddRest={handlePanelAddRest} onTie={tuneEnterTiedNote} onDelete={handlePanelDelete} onRemoveTime={handlePanelRemoveTime} /></div>
-                    <div class="te-input-group"><p class="te-label">Bar <small>{cursorPos ? cursorPos.barInSection + 1 : ''}</small></p><div class="te-chord-action te-bar-ops"><button disabled={!cursorPos} onclick={() => { if (cursorPos) insertBar(cursorPos.sectionIdx, cursorPos.barInSection); }} title="Insert an empty bar before this one; the rest of the section moves a bar later">Insert bar</button><button disabled={!cursorPos || (tuneEntry.sections[tuneEntry.currentSection]?.bars ?? 1) <= 1} onclick={() => { if (cursorPos) deleteBar(cursorPos.sectionIdx, cursorPos.barInSection); }} title="Delete this bar with its notes and chords; the rest of the section moves a bar earlier">Delete bar</button></div></div>
+                    <div class="te-input-group"><p class="te-label">Bar <small>{cursorPos ? currentSectionBar : ''}</small></p><div class="te-chord-action te-bar-ops"><button disabled={!cursorPos} onclick={() => { if (cursorPos) insertBar(cursorPos.sectionIdx, cursorPos.barInSection); }} title="Insert an empty bar before this one; the rest of the section moves a bar later">Insert bar</button><button disabled={!cursorPos || (tuneEntry.sections[tuneEntry.currentSection]?.bars ?? 1) <= 1} onclick={() => { if (cursorPos) deleteBar(cursorPos.sectionIdx, cursorPos.barInSection); }} title="Delete this bar with its notes and chords; the rest of the section moves a bar earlier">Delete bar</button></div></div>
                 {:else}<p class="te-hint">This chart is in {tuneEntry.timeSignature.join('/')} — melody entry supports 4/4 only. Tap a chord slot to edit chords; use Edit form for sections.</p>{/if}
                 <div class="te-chord-action"><button disabled={!melodyEditingSupported()} onclick={openChordEditorAtCursor}>Edit chord at cursor <kbd>K</kbd></button></div>
                 <div class="te-rail-footer"><p>Click a note, then use ↑ ↓ to change its pitch.</p><button onclick={() => shortcutsDialog?.showModal()}>Keyboard shortcuts ↗</button></div>
