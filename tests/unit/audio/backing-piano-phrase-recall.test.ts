@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createRollingBacking, advanceRollingBacking, type RollingBackingCheckpoint } from '$lib/audio/backing-rolling';
 import { realizeRollingPiano } from '$lib/audio/backing-rolling-piano';
 import { BACKING_STYLES } from '$lib/audio/backing-styles';
-import { buildListeningTuneSession } from '$lib/musicality/listening-tunes';
+import { buildHistoricalListeningTuneSession as buildListeningTuneSession } from '../../helpers/musicality-tune-fixtures';
 import { seedFrom } from '$lib/audio/generation-rng';
 import type { EnsembleTiming } from '$lib/audio/ensemble-timing';
 import { fractionToFloat } from '$lib/music/intervals';

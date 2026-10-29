@@ -258,3 +258,56 @@ describe('instrument lookups', () => {
 		expect(settingsModule.getEffectiveHighestNote()).toBe(70);
 	});
 });
+
+describe('personal tune backing choices', () => {
+	it('hydrates valid styles from another device and drops unsupported values', async () => {
+		mockFetchSettings.mockResolvedValue({ backingStyle: 'straight', tuneBackingStyles: { song: 'bossa-nova', corrupt: 'unknown' } });
+		await settingsModule.loadSettingsFromCloud(mockSupabase() as any);
+		expect(settingsModule.settings.tuneBackingStyles).toEqual({ song: 'bossa-nova' });
+		expect(settingsModule.settings.backingStyle).toBe('straight');
+	});
+	it('retains an unsynced local tune choice when a stale cloud hydration arrives', async () => {
+		settingsModule.settings.tuneBackingStyles = { song: 'ballad' };
+		settingsModule.saveSettings();
+		mockFetchSettings.mockResolvedValue({ tuneBackingStyles: { song: 'swing' } });
+		await settingsModule.loadSettingsFromCloud(mockSupabase() as any);
+		expect(settingsModule.settings.tuneBackingStyles).toEqual({ song: 'ballad' });
+	});
+});
+
+describe('personal tune tempos', () => {
+	it('hydrates valid tempos from another device and drops corrupt values', async () => {
+		mockFetchSettings.mockResolvedValue({ tuneTempos: { song: 168, corrupt: 'fast' } });
+		await settingsModule.loadSettingsFromCloud(mockSupabase() as any);
+		expect(settingsModule.settings.tuneTempos).toEqual({ song: 168 });
+	});
+	it('saveTuneTempo survives a reload and leaves other tunes alone', async () => {
+		settingsModule.saveTuneTempo('song', 144);
+		settingsModule.saveTuneTempo('other', 300);
+		vi.resetModules();
+		const reloaded = await import('$lib/state/settings.svelte');
+		expect(reloaded.settings.tuneTempos).toEqual({ song: 144, other: 240 });
+		expect(reloaded.settings.defaultTempo).toBe(100);
+	});
+	it('retains an unsynced local tempo when a stale cloud hydration arrives', async () => {
+		settingsModule.saveTuneTempo('song', 144);
+		mockFetchSettings.mockResolvedValue({ tuneTempos: { song: 100 } });
+		await settingsModule.loadSettingsFromCloud(mockSupabase() as any);
+		expect(settingsModule.settings.tuneTempos).toEqual({ song: 144 });
+	});
+	it('discards a cloud read that an edit, already pushed, overtook while it was in flight', async () => {
+		// A first hydration opens the push gate, as an earlier page load would have.
+		mockFetchSettings.mockResolvedValue({ tuneTempos: { song: 100 } });
+		await settingsModule.loadSettingsFromCloud(mockSupabase() as any);
+		// A same-user auth refresh starts a second read ...
+		let answer!: (value: unknown) => void;
+		mockFetchSettings.mockReturnValue(new Promise((resolve) => { answer = resolve; }));
+		const reading = settingsModule.loadSettingsFromCloud(mockSupabase() as any);
+		// ... the user sets a tempo and the outbox pushes it before the read returns.
+		settingsModule.saveTuneTempo('song', 144);
+		await settingsModule.flushSettingsToCloud(mockSupabase() as any);
+		answer({ tuneTempos: { song: 100 } });
+		await reading;
+		expect(settingsModule.settings.tuneTempos).toEqual({ song: 144 });
+	});
+});

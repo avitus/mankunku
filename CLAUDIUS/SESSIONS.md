@@ -5154,3 +5154,1002 @@ mankunkujazz.com reports 1513bf4f, release 20261011-235211-1513bf4.
 - Integrated advancing dev commit `16b81f88` (new steals ready for practice) before final validation.
 - Validation: `npm run check` has zero errors/warnings; 90 focused unit/integration tests pass; 42 Playwright tests pass across Chromium, Firefox and WebKit, including phone dark/light, dense notation, book persistence, filters and a delayed-pagination race. The production build passes with the existing chunk-size warning. A deliberate stop-generation mutation made its regression test fail before restoration.
 - Final validation timings: check + unit/integration run 12.50s, production build + browser suite 27.80s, run concurrently. Direct `origin/dev` delivery only; no PR or production deployment.
+
+## 2026-10-15 — PR #277 (dev → main) reviewed, merged
+
+Andy: open the dev → main PR, address all review comments, merge when done.
+Twelve dev commits (Studio Desk community tunes, imports, recorder, docs
+guidebook, tricks pages; Daily follow-up refresh; admin active days).
+
+- **Before opening:** dev's head was red — e2e failed on all three engines
+  because 03060dfe hid the lick search box for books of ≤ 5 licks and missed
+  `licks-authed.spec.ts`. Fixed the spec (progression filter as the loaded
+  marker, pin the hidden search) and documented the 49 functions the diff
+  touched (docstring scan 23.4% → 100%; three parallel agents, comment-only
+  diff verified). Opened #277 as a draft, asked `rate limit`, then marked it
+  ready — first time using the draft as a free pre-trigger window.
+- **Round 1:** admin inactivity filter took the first non-null date, not the
+  newest (extracted `ui/admin-user-filter.ts`, red on the old rule);
+  failed-sign-in e2e clicked before hydration (shared
+  `waitForAuthFormHydration`). Declined two nitpicks with reasons: ID lists
+  in the community URL (prod has 2 tune authors, 0 favorites/adoptions;
+  server-side membership would change the local-first design) and annotating
+  2 of 151 Playwright callbacks.
+- **Walkthrough security (no thread):** community rows reached the
+  auto-selected preview unvalidated — a numeric chord `symbol` threw at
+  `trim()` (confirmed with a probe). The listing now runs
+  `validateAdoptedTune`.
+- **Round 2–3:** inactivity cutoff compared as a calendar day; dropping rows
+  broke paging (hid Next, and `slice(0, 6)` could pull the look-ahead row
+  into page 1 that page 2 showed again) → `listCommunityTunes` returns
+  `{ tunes, rowCount, hasMore }` decided on rows. Security: the meter
+  numerator was unbounded (10^8 beat marks per preview bar; 4.5 threw at
+  `Array`) → bounded.
+- **Round 4:** importers still saved meters the gate rejected (BIAB 4/128) →
+  one rule in `tunes/meter.ts`, used by the validator and the BIAB
+  MusicXML, MuseScore and PDF importers. Prod: all 5 tunes 4/4, 0 adoptions.
+- Round 5 clean; security "No architecture-level concerns". CodeRabbit rate
+  limited once (5 min). Merged ce4154c1: test → build → db-migrate, e2e,
+  deploy all green; /api/health on mankunkujazz.com reports ce4154c1,
+  release 20261015-233810-ce4154c.
+## 2026-10-15 — The sharp/flat cue fired on 18 takes and nobody saw it
+
+Andy, after an ear-training run whose fader bank read 14 ¢ sharp with every
+note sharp: shouldn't the tuning warning have spoken during the session?
+
+- Pulled the run from production (read-only `supabase db query --linked`):
+  52 takes, F Lydian, 16:43–16:54 PDT, two minutes after the PR #277 deploy
+  (`/api/health` ce4154c1, which carries the 12 ¢ window-pooled rule from
+  2026-10-10). Replayed through the real `createTuningMonitor`: the cue was
+  ON for 18 of 52 takes, including the last five (sharp 13 after the final
+  take); the faders' centre is 14 with seven steady notes at 5–25 ¢; 113
+  matched notes, none rejected for clarity, six for duration.
+- So the rule, the wiring and the deploy were fine. The cue was invisible:
+  `5e30a0d9` (2026-10-12, Ear Training into the Studio Console) put
+  `<TuningNotice>` inside the `tuning` snippet, which `EarTrainingConsole`
+  renders `{#if !practising}` — the fader bank's own rule, applied to the one
+  line meant for live play. Three days on production; the console's tests
+  pinned "no faders while playing" and said nothing about the cue.
+- Fix, RED first (five vectors in `ear-training-console.test.ts`: the cue in
+  listen/play/next, the reserved line when clear, the verdict on pause):
+  `tuningAlert` is a prop of the console, `<TuningNotice>` renders inside the
+  panel under the feedback row on every phase; the snippet keeps the faders.
+  `data-testid="tuning-cue"` on the reserved line, pinned by the saved-take
+  e2e beside the faders' `toHaveCount(0)`. design-system "Focus on sound" and
+  the CLAUDE.md scoring clause now say which tuning line is live and which
+  waits for a pause.
+- Left alone, raised in the report: at a 14 ¢ centre the 12 ¢ rule flickers
+  (window centres 9.3–18 over the run, the cue on 35% of takes; eight takes
+  with ONE clean note clear it outright through the "insufficient" rule).
+  Andy chose 12 five days ago and the production table already said 25%
+  share for runs ≥ 10, so that is his call, not a bug.
+- Verification: console/notice/faders tests 34 green; full suite 379 files /
+  6143 passed / 40 expected fails; svelte-check 0 errors (a worktree has no
+  `.env`, so without `PUBLIC_SUPABASE_*` it reports nine env-import errors
+  that are not code); ear-training e2e on Chromium green.
+
+## 2026-10-15 — Community licks an octave under a soprano
+
+Andy, signed in as a soprano player: every community lick displays an octave
+too low, out of the horn's range.
+
+- Root cause: the listening desk (2026-10-14) engraved and auditioned
+  `lick.phrase` as stored — the AUTHOR's register. Tenor and soprano write
+  one concert note an octave apart (+14 vs +2), so a tenor's concert C3–C4
+  line is written D3–D4 on soprano, under its Bb3. Not a transposition bug:
+  the arithmetic was right, the register was someone else's. The detail
+  page had always fitted through `transposeLick(lick, key, concertRangeLow,
+  getEffectiveHighestNote())`; the old community card showed no notation,
+  so the desk introduced the gap rather than regressing it.
+- Fix: `fitLickToRange` (library-loader) — `transposeLick` same-key with
+  the id kept, because the desk keys selection, favorites, the book and the
+  detail link on it. The desk engraves the fitted phrase and hands it to
+  `onplay`, so Listen plays what the staff shows; the book's Listen fits a
+  stolen lick the same way. One register on every surface.
+- Tests first: four unit tests on the helper (RED on the missing import;
+  one fixture then went red for a reason worth its own observation), and
+  an e2e that signs in a soprano player, seeds a tenor-register row and
+  reads the engraved staff steps off abcjs's `abcjs-p<N>` note classes
+  (N = staff steps from written middle C): every note inside Bb3 (−1) …
+  F#6 (17), the line seven steps up, the detail link still the stored id.
+  Red check: with the desk's fit disabled the e2e fails at −6.
+- Verification: `npm run check` 0 errors; full unit suite 383 files /
+  6178 passed; desk spec 21/21 on Chromium, Firefox, WebKit.
+- The worktree had no `.env` (check and the e2e build both died on
+  `$env/static/public`); copied the main checkout's gitignored one, as every
+  other worktree here already has.
+- Delivered on origin/dev directly (replayed onto 19a165aa); no PR.
+- Andy, on the closing question about which in-range octave a lick should
+  take: "I think you are over-complicating this. When I browse licks in the
+  community, show them as I would play them, which is in the range of my
+  instrument." That is the whole rule and it is what shipped; the octave
+  question is withdrawn. Lesson filed under deciding settled details.
+
+## 2026-10-15 — The convenient range: in range, then on the stave
+
+Andy's second rule, same evening: "have it in the most convenient range of
+the instrument, which is usually when the notes are mostly within the stave
+and furthest from the extreme ranges of the instrument."
+
+- `bestOctaveShift` now ranks candidate octaves: most notes in range › most
+  notes on the written stave (E4–F5; needs the instrument's transposition,
+  passed by every caller that already passes a range — detail page, lick
+  practice, ear training, progress, the community desk and the book's
+  Listen) › mean nearest the range midpoint. Without the transposition the
+  older rule stands, so range-less callers and tune charts are untouched.
+  `fitLickToRange(lick, instrument, rangeHigh)` takes the instrument.
+- The editor's key change passes NO transposition on purpose: the player
+  placed those notes; a key change moves them by the interval and
+  re-octaves only to stay on the horn. `key-change-transpose.test.ts`
+  caught the stave rule dropping a written D5–F#5 figure an octave, and
+  now pins the exception.
+- The stave rule exposed a latent bug: the detail page's Practice button
+  started the deep session with the DISPLAYED phrase. A transposed or
+  octave-shifted display carries a suffixed id, so the session keyed its
+  unlock count, rolling scores and tempo off an id with no progress — one
+  key, no sheet. Three deep-practice e2e tests failed on every engine the
+  moment the fixture lick moved an octave; anyone who changed the key
+  selector before pressing Practice had hit it already. Practice now starts
+  from the stored lick; a new e2e practices from a transposed view and
+  expects "Key 1/2" and the sheet.
+- Tests first: `octave-placement.test.ts` (stave decides, range first,
+  stave tie falls to the midpoint, pass-through of the transposition,
+  fitLickToRange on both horns); my first pass-through vector was a
+  written-C scale snapped to C ionian — written C on tenor is concert Bb.
+- Verification: check 0 errors; unit suite 384 files / 6191 passed; the
+  lick, ear-training and progress e2e specs 200/200 on Chromium, Firefox
+  and WebKit (one skipped by design). Red checks: the desk e2e failed at
+  −6 with the fit disabled; the transposed-view e2e fails with the
+  displayed lick handed to the session.
+- The worktree's `ls` is aliased to long format: `files=$(ls …)` fed
+  Playwright an `ls -l` listing and it ran nothing, exit 0. Pass globs
+  straight to the command.
+
+## 2026-10-15 — Score editing: delete leaves a rest (phase 1 of the editing plan)
+
+Andy: deleting a note in a complete score moved every later note earlier;
+make it leave a rest (MuseScore), perhaps keep the shift for rests, and
+propose a comprehensive plan for editing in general — entry from scratch
+works, correcting an imported score does not. Planned in plan mode (the
+approved plan is `docs/superpowers/specs/2026-10-15-score-editing-design.md`
++ `docs/superpowers/plans/2026-10-15-score-editing.md`), five phases, each
+shippable; a builder-check agent found seven questions and five code
+contradictions before approval, all folded in.
+
+- **Root cause:** one `deleteSelectedNote` for both editors spliced the
+  element out and pulled every later offset back; in the tune editor the
+  pull stopped at the hidden 4-bar page (a hole at the page's end). MuseScore
+  4 (handbook, verified): Del → rest; rests undeletable; Ctrl+Del removes
+  time; note input replaces what sits at the cursor; the toolbar duration
+  follows the selection.
+- **Shipped (phase 1):** `step-entry/buffer-ops.ts` (pure: `replaceWithRest`,
+  `removeTime`, `coalesceRests` — rests merge when their STARTS share a bar,
+  `stripTrailingRests`); `deleteSelectedNote` dispatches — a note before the
+  end → rest in place, selected; a rest, or the LAST element of either kind
+  (the append flow's "undo my keystroke"), → remove time; `removeSelectedTime`
+  = Ctrl/⌘ ⌫ for any element. Tune editor: `tuneDeleteSelected` /
+  `tuneRemoveSelectedTime` — rest-in-place arms the cursor on the rest so
+  the right note types straight in; a whole-bar result (slash bar, no anchor)
+  clears the selection and parks the cursor at the bar; remove-time runs at
+  the SECTION level across pages (`removeTimeInSection`), harmony untouched;
+  a no-selection Backspace mid-section and the pickup lead-in rest are
+  refused with a rail hint (`TuneDeleteResult`). `loadFromPhrase` strips the
+  trailing pad rest (save re-pads) so a re-opened lick has a fresh buffer's
+  shape. Panel "Remove time" button; both shortcut dialogs; docs on four
+  surfaces; the stale `resolveChartClick` comment.
+- **Found and fixed on the way:** leaving `/tunes/editor` and returning
+  without `?edit=` ran `initNewTune()` over an unsaved PDF draft (its
+  pre-assigned id read as stale edit state). The mount now resets only when
+  the id names a STORED sheet — the same test `handleCancel` already made.
+  E2E reproduced it first (title empty after Back).
+- **Tests:** `entry-flow-characterization.test.ts` pinned the from-scratch
+  flow (13 inline snapshots) BEFORE any change and stayed byte-identical
+  through it — broken once on purpose to prove it bites. Rewrote the three
+  note-delete pins; kept every rest-delete pin, the tie pins and the
+  cursor-null pins (phase 2 rewrites those by name). 8 tune-level tests,
+  19 buffer-ops tests, 2 load-strip tests; e2e in both editors + the PDF
+  round trip. 6221 unit/integration green.
+- **Test-construction trap:** the first page load stores its synthesized
+  gap rest on commit, so a flattened index computed from the sheet's notes
+  is off by one after the first commit — find the element by pitch.
+  Playwright clicks on a `.abcjs-note` group land on the staff line or the
+  bar hit zone under its empty centre; click `.abcjs-notehead`, and type a
+  pitch that sits in a space (a written C on the tenor needs a ledger line).
+- Worktree reset onto `origin/dev` (it had started on main's tip); `.env`
+  copied from the main checkout for the build (gitignored).
+
+## 2026-10-15 — Score editing phase 2: editing in place
+
+- `stepEntry.selectionMode`: `entry` (the just-entered element — letters,
+  `0`, `+`, 1–5 keep their entry meaning) vs `edit` (a click or arrow landed
+  here — `selectNote` syncs the duration controls to the element, and the
+  same keys act ON it). Letters re-pitch in place through `spliceElement`
+  (buffer-ops), the ONE write policy: whatever the span covers is
+  overwritten, pitched notes included — a partly covered note keeps its head
+  or tail and its pitch, a tie into the span is cleared. `0` rests the
+  element, 1–5/T/. resize it (shorter → rest remainder; longer → overwrite;
+  refused past the bars with the duration unchanged), `+` toggles a tie to a
+  same-pitch successor or writes a tied continuation. After a replace the
+  FOLLOWING element is selected in edit intent, so a run of letters
+  re-pitches a misread line and keeps its rhythm; the new pitch lands in the
+  octave nearest the note it replaces (the test that expected an ascending
+  A-B-C got A4 B3 C4 — the rule, not the test, was right).
+- Tune editor: `tuneAddNote`/`tuneAddRest`/`tuneEnterTiedNote` delegate to
+  step-entry when an edit selection exists; the 2026-07-26 "block on pitched
+  collision" refusals are gone on cursor entry AND the roll/split onto an
+  occupied page (four pins rewritten by name); `mergeWindow` runs
+  `trimOverlappingNotes` so a straddler from the previous page is shortened
+  where the new note begins, in the draft and on commit.
+- **Simplification over the plan:** decision 9 said every edit selection
+  "arms the cursor". Implemented instead as position = edit selection ??
+  bar cursor ?? page end (`entryCursorPosition`), with the entry functions
+  branching on `isEditSelection()`. Same observable behaviour (the rail reads
+  the selection, letters replace it), and the three cursor-null pins
+  (:144, :162, :863-872) stayed as they were. Phase 1's "cursor armed on the
+  rest" became "the rest is selected in edit intent".
+- E2E: the stored-rest click now reads the rest's beat, and Backspace on it
+  leaves the previous note selected (rail "Beat 1"); new fix-in-place specs
+  in both editors (click, letter, duration key, saved offsets checked).
+
+## 2026-10-15 — Score editing phase 3: navigation and nudges; a reselection fix
+
+- Alt+↑/↓ `adjustSelectedNoteDiatonic`: the next pitch whose WRITTEN letter
+  carries the drawn signature's accidental (F major and D minor both step A
+  to Bb; a chromatic note lands on the key's next letter; spelling cleared).
+  Ctrl/⌘+←/→ `selectBar` / `selectBarAcrossPages`: the next bar's first
+  element — from inside a bar, ← goes to that bar's first first; the tune
+  version loads the page and parks the bar cursor on a silent bar. Home/End
+  `selectFirst`/`selectLast` and the section variants. preventDefault on
+  ⌘← keeps Chrome's Back away.
+- The phase-2 e2e run caught a wart: after a rest's time went, the PREVIOUS
+  element stayed selected in edit intent, so the next `0` rested that note
+  instead of appending. Remove-time now selects the element that slid into
+  the slot (both editors); the 2026-08-11 "previous element" pins were
+  updated to say why, and the old lick-editor rest spec presses Esc before
+  typing on — under the new rules a key on a selected note acts on it.
+- Test trap again: a stored sheet's flattened index drifts by one once the
+  first commit stores page 0's gap rest; `selectPitch()` finds the note.
+
+## 2026-10-16 — Score editing phase 4: insert with push, bar ops, the review loop
+
+- Insert mode (`I`, `stepEntry.insertMode`, an Insert badge in both editors):
+  letters/`0` at an edit selection go in FRONT of it and push the rest later
+  (`insertElement`; the pushed element stays selected so a passage inserts
+  in order); the duration keys choose the NEXT length in insert mode — my
+  first tune test "armed" a half with `setDuration` and resized the selected
+  note instead, which is exactly the trap a user would hit. Tune editor:
+  `insertInSection` pushes the whole SECTION across pages, chords stay,
+  refused (`lastRefusal` 'insert-no-room', rail hint) when a pitched note
+  would leave the section. Bug found on the way: reloading with `loadPage`
+  after a section-level edit COMMITS the stale buffer over it — reload with
+  `loadBuffer`. (`removeTimeInSection` had it right.)
+- Cursor-mode entry overhanging the page window now splits with a tie like
+  append mode (the "no room on the page's last beat" refusal is gone).
+- `insertBar` / `deleteBar` (rail buttons, on the current bar): notes and
+  chords move a bar; the chord in force extends across a new bar; a section
+  keeps ≥ 1 bar.
+- Review loop: `tunes/review-bars.ts` (pure); suspect bars drawn as brass
+  `rangeMarkers` labelled "review"; `N` jumps to the next; a bar clears
+  from the list in the history effect once its note signature changed;
+  `PdfSourceReview` is controlled by the current absolute bar. The chosen
+  key `N` is free in both editors (`k` is the chord editor).
+- `tours/tune-editor.ts` registered (`data-tour` anchors: tune-chart,
+  tune-entry-rail, tune-save); Settings picks it up.
+
+## 2026-10-16 — Score editing phase 5: ranges and the clipboard
+
+- `selectionEnd` beside the anchor; Shift+←/→ (`extendSelection`, clamped,
+  may run past the anchor), Shift+click (`selectRangeTo`; abcjs's
+  clickListener hands the MouseEvent as its 6th argument, so
+  `NotationDisplay.onSelect` now carries `shiftKey`), `rangeBounds()` sorted.
+  Delete on a range → rests, coalesced; Ctrl/⌘⌫ → remove the span (tune:
+  `removeSpanInSection`, which the single-element path now calls too);
+  ↑/↓ transpose the range as one (refused whole if any note would leave
+  the written range; ties between moved notes survive); letters on a range
+  act on the anchor and drop the range.
+- Clipboard: module state shared by both editors and outliving `reset`,
+  so a passage copied from one lick pastes into another or into a tune
+  (`clearClipboard` exists for tests; the first paste test failed because
+  a previous test's copy was still there). Paste overwrites from the
+  selection's start — or appends with no edit selection — leaving out what
+  won't fit; R repeats all-or-nothing right after the selection; both
+  select what they wrote. Ranges never cross pages in the tune editor.
+- The chart highlights every element between the two ends
+  (`selectedEndIndex`); the status lines read "n selected".
+- **All five phases are on `origin/dev`** (6a362d06 docs → bf9ce106 → d9f6d1d4 →
+  229dfd90 → c72df253), each pushed as a fast-forward after a rebase where
+  dev had moved (one rebase conflicted in the tune editor route, where dev
+  had restructured the rail that afternoon — my hooks were re-seated in the
+  new markup). Verified per phase: `npm run check` 0 errors, the full unit
+  suite (6311 + 40 expected fails at the end), the editor e2e specs on
+  Chromium (62) and both editor specs on Firefox + WebKit (33). Not on
+  production: no dev → main PR was opened (Andy's call), and nothing was
+  checked by hand in the browser pane — the e2e runs drove the real app in
+  three engines instead.
+
+## 2026-10-16 — The lick detail chart is the session's phrase
+
+- Andy's ask: on `/licks/user-…` see the lick in the SELECTED key with the
+  chords of its PRIMARY progression. The page already transposed to the
+  selector's key; the chart drew only the lick's own stored harmony — and
+  both user-lick writers (the editor, record-a-lick) save `harmony: []`, so a
+  user lick's chart was bare whatever its "Practice over" pills said.
+- Extracted the session's lick branch of `buildPhraseFor` into
+  `state/lick-practice-phrase.ts` — `placeLickInProgression` (slot-root
+  transposition, pickup-pulled alignment, template chords tail-extended,
+  progression key + mode), plus `lickBarsInProgression`,
+  `progressionHarmonyForLick`, `alignedLickOffset`. The state module's
+  `getLickBars` / `harmonyForLick` / `buildPhraseFor` delegate; the private
+  `resolveAlignedLickOffset` is gone. Parity pinned: a Deep Practice
+  session's `getPhraseFor(0,0)` `toEqual` the page's call.
+- "Primary progression" = `primaryProgressionForLick` (picker module): the
+  first fitting tagged pill in TEMPLATE order (what the pill row reads),
+  else the category's first home (`getProgressionsForLick`), else null and
+  the chart shows the stored chords. Pill order rather than the session
+  log on purpose: the page should read the same on every visit, while
+  `resolveSingleLickProgression` rotates Practice by recency.
+- Key labels: the lick's STATED mode first; unstated borrows the shown
+  progression's reading; else `lickMode`. The progression-first rule I
+  wrote first broke `lick-progress-key-labels.spec.ts` (explicit minor on
+  a major-chord line pins "D-"), which is the right pin — `Phrase.mode` is
+  the player's own statement. Added the unstated case (minor-chord, no
+  mode → "D-").
+- Listen plays `melodyWindow(lick)`: re-origined on the first sounding bar,
+  chords clipped to the line's bars — `playPhrase` sizes a preview by the
+  HARMONY extent, so a major-chord line on the I of the long ii-V-I would
+  have opened with two silent bars and run four.
+- Tests: `tests/unit/lick-practice/lick-in-progression.test.ts` (14);
+  e2e: `lick-detail.spec.ts` gains the tagged short ii-V-I case (E-7 A7 |
+  DΔ7 on tenor, G-7 C7 | FΔ7 after "Play in F", untag → the major vamp's
+  lone FΔ7); the key-labels spec gains the unstated-mode example. Docs:
+  user guide "Lick detail", CLAUDE.md lick-practice paragraph.
+- Worktree gotcha: `.env` is gitignored and absent from a fresh worktree —
+  `npm run check` reports 9 `$env/static/public` errors and the Playwright
+  build fails outright. Copied the main checkout's `.env` in (ignored).
+
+## 2026-10-16 — The half rest Andy could not select was a gap, not a rest
+
+Andy, after #278 (and Codex's #279, which was already in production): the
+note selection and ties work, but he still could not select a half rest and
+replace it with two quarter rests. #279 had fixed exactly that for a STORED
+rest (its Black Orpheus fixture stores one at bar 32). A PDF import stores no
+rests at all; every rest on its chart is a gap the engraver fills in, with no
+element behind it and no anchor, so a click fell through to the bar and set
+the cursor on beat 1. Two changes:
+
+- **Gap anchors.** `tuneToAbcWithMap` now emits a `GapAnchor` per engraved
+  gap segment (slash bars excepted — they stay bar clicks), with the
+  section-local offset and length; `resolveChartClick` returns `kind: 'gap'`;
+  `NotationDisplay.onGapClick` fires (with exact hit targets like #279's
+  element targets); `tuneSelectGap` loads the page, selects a buffer rest
+  already there or materializes the segment as a rest element — bridging the
+  silence before it, clipped to the page window — and selects it in edit
+  intent. Then Andy's flow works: `3` splits it into two quarter rests, the
+  second is clickable (or →), the letter lands on beat 4.
+- **No more rest merging in the data.** Phase 1's `coalesceRests` fought
+  #279's "draw rests as they are" and the split itself; delete-to-rest and
+  range delete now leave one rest per note. `coalesceRests` is gone.
+- The regression spec gained Andy's exact flow on a PDF-shaped sheet (notes
+  only); the engraver's ABC is byte-identical (pinned).
+- **Release PR #280, CodeRabbit round 1** — three findings, all fixed in
+  9baa9b8c, each test-first. (1) A buffer rest that already COVERED the
+  clicked gap was selected whole: after a page's first commit the gap is a
+  stored rest, so a half-note gap drawn as two quarters selected the half;
+  `tuneSelectGap` now splits the covering rest into [head?, segment, tail?]
+  and selects the segment. (2) The other session's third-harmonic fold
+  (3eb05e36, Third Walks Back to Root) never reached the live path: with no
+  worklet onsets `extractOnsetsFromReadings` cut the held note at both edges
+  of the lock before `foldTwelfthUpLocks` could run, and the no-evidence
+  early return meant nothing rejoined the pieces. `foldTwelfthUpLockRuns`
+  folds lock runs on the stream before the extractor reads it (same gate);
+  a control pins that an unflagged leap still earns its onsets; the corpus
+  is unchanged. (3) `melodyWindow` had no upper bound — a trailing rest
+  padded the Listen preview. Docstring gate 100 %. The merge is Andy's (the
+  auto-mode gate blocks `gh pr merge` here).
+- **#280 round 2** — dev moved under the PR (another session's
+  `feat(lick-practice): unlock keys in key-signature order`, ed3554c2, with a
+  Co-Authored-By trailer again) and CodeRabbit raised three items on that
+  code, all fixed here test-first: the user guide's G-minor unlock example
+  named C♯/G♯ where `planUnlockedKeys` returns Db/Ab; the detail page's
+  "Play in" selector labelled a chart drawn in the progression's mode with
+  the lick's stated mode — now `chartModeForLick` (the chart's) feeds the
+  selector and `lickLabelMode` (the lick's: stated › progression › inferred)
+  the unlock markers, pinned by unit tests and the key-labels e2e, which went
+  red in exactly the two cases the rule changes; and the trick ramp in
+  `lick-matcher` is built by `trickUnlockRamp` from the instrument, so the
+  anchor and the signatures it counts cannot drift.
+- **Merged and live.** Andy merged #280 as 6036b9c0 (2026-10-17 19:20 UTC);
+  production's health reported it at 2026-10-17T19:35:03.160Z (release
+  20261017-193155-6036b9c): the gap-rest selection and split, both review rounds
+  and the lick-detail selector fix are live on mankunkujazz.com.
+
+## 2026-10-17 — Blue Note Step-Up: a tongue that only changes the tone
+
+Andy's report: a Blue Note Step-Up take (bbn-009, concert A: D3 D3 E3) scored
+2 of 3 — "the articulation between the first two notes is subtle but, I
+believe, audible and detectable."
+
+- Reproduced exactly both ways (saved readings and the WAV): one 1.2 s D3,
+  0.667. Every tier was blind: no reading gap, hfRms flat, a 6-cent sag, a
+  15% / 20 ms notch inside a swell so window RMS never dipped, and
+  `shapeBreak` at its 0.991 baseline because the reed reset spread over
+  three cycles.
+- Locating it took the waveform, not the readings. The beat-4 click at
+  0.857 brightens the tone too, so there were two candidates; cycle
+  correlation against reference cycles put the timbre change at 0.98–1.01
+  (r 0.99 → 0.957, nothing at the click), and per-harmonic magnitudes showed
+  h5–h9 coming back 6–10 dB stronger and staying — at the beat the rhythm
+  predicts.
+- Then a long corpus survey of candidate measures, each rejected because a
+  non-tongue elsewhere matched it: long-lag shape similarity (clicks deeper),
+  notch depth and rise (Blue Monk, down-to-the-third deeper), whole-window
+  brightness jumps (Third Walks' D3 swell 4.66 vs 5.41), loudness-corrected
+  brightness (blues-curl-up 3.53 vs 3.55). Only the conjunction separated:
+  an abrupt lift across a level dip (inside the window) + a brighter tone
+  that persists (across readings) + held energy that did not swell.
+- Shipped: `measureTimbre` + `brightness`/`brightnessLift`/`brightnessLiftAt`
+  on every reading, and a sixth tier (timbre switch). Thresholds midway
+  between the tongue and the nearest impostor on each test. Corpus diff:
+  1 of 43 takes changes in each time base, this one. Unit tests red-first
+  (10 detector, 11 tier), a regression block of 7 (3 go red with the tier
+  off). Cost cut from 1.6 ms to 0.5 ms per frame at the 80 Hz floor
+  (window once, four Goertzel partials per pass) — the shape scan's cost.
+- Fixed a latent test gap on the way: the three live-restamp helpers now
+  carry the new in-window offset.
+- Docs: api-reference/audio.md (fields, predicate, tier, the three-test
+  rule), audio-pipeline.md (a sixth plain-language step), CLAUDE.md.
+
+## 2026-10-17 / 2026-10-20 — The sharp/flat cue gets hysteresis (on 12, hold 8, carry short takes)
+
+Side session started from the 2026-10-15 cue-visibility session. Andy's
+52-take F Lydian run (fader centre 14 ¢) had the cue on for 18 takes in
+flickers.
+
+- Pulled every ear-training row since the 2026-10-07 dump, read-only (424
+  rows, a second player among them); runs now also cut at a user change.
+- `research/audio-scoring/ts/tuning-cue-variants.ts`: a parameterised copy of
+  the monitor (enter, hold, carry). Its config for the shipped rule is
+  asserted equal to `createTuningMonitor` take for take over 2,367 takes.
+- Per-take share of the cue being on, by run centre, in
+  `results/tuning_cue_hysteresis.md`. In 10–15 ¢ runs: 23% today, 35% with
+  hold 8 + carry; switches per run 5.2 → 3.0; Andy's run 18 → 25 of 52.
+  In-tune runs unchanged at 1% under every variant (the second player's two
+  flat-starting C runs; they fire under the old rule too).
+- Gate tally of the 70 switch-offs in 10–15 ¢ runs: centre under 12 (26),
+  one-note take (26), latest take leaning < 5 ¢ (15). Relaxing the last one
+  raised in-tune runs to 2%, so it was not offered.
+- Andy picked enter 12, hold 8, carry. Shipped TDD: scattered vectors (rise,
+  drift centred 10 whose every prefix stays under 12, a hold-floor clear at
+  7 ¢, direction-only hold, carry through silent and one-note takes, a short
+  take never turns the cue on). Two old verdicts reversed by his pick
+  (silent and one-note takes used to clear the cue).
+- `HOLD_CENTS` moves only the switch-off; the faders' ticks and `tuningTone`
+  stay on `ALERT_CENTS`. Docs: user guide, design system, CLAUDE.md,
+  results notes.
+
+## 2026-10-20 — CircleCI Smarter Testing onboarding
+
+Andy asked to set up CircleCI Smarter Testing (the testsuite skill).
+
+- `.circleci/test-suites.yml` with three suites, one atom per test file, each
+  uploading JUnit via `store-test-results`: `unit tests` (vitest, 395 atoms),
+  `e2e tests` (Playwright, 75), `omr tests` (pytest from omr/, 21). The test,
+  e2e and omr-test jobs call `circleci testsuite run`; e2e keeps parallelism
+  6. `circleci testsuite doctor` is clean on all three.
+- Two runner quirks set the shape. Playwright's JUnit reporter names a file
+  relative to testDir with no `file` attribute, so the e2e atoms are
+  testDir-relative and `run` restores `tests/e2e/` (a bare `smoke.spec.ts`
+  regex also matches stub-cloud-smoke.spec.ts). The junit reporter joins only
+  when `PLAYWRIGHT_JUNIT_OUTPUT_FILE` is set. OMR discovery asks pytest, since
+  the omr_integration files are deselected and would report nothing.
+- Balance check before switching e2e from `--shard` to file splitting:
+  lick-practice-session.spec.ts alone is 5.8 min locally at 2 workers, but
+  build 4012's shards ran 4.7 / 4.6 / 3.1 / 4.6 / 10.0 / 11.0 min — 38
+  node-minutes behind an 11-minute wall — so timing-based file splitting
+  should beat the count-based shard even with that file on one node.
+- The old e2e `store_test_results` uploaded test-results/ (traces, never
+  JUnit), so the e2e Tests tab was empty until now; removed in favour of the
+  suite's upload.
+- No credit-charged feature enabled; asked Andy.
+- Held the push while release PR #282 (dev → main) was open — Andy: push to
+  dev only once PRs are merged. After it merged (18:32Z) the code commit
+  (90efa510) was pushed alone so CI runs on it, then this [skip ci] log.
+- Released as #282 (dev → main, merge fbdc9405), live on mankunkujazz.com
+  2026-10-20 18:47 UTC with every main job green. CodeRabbit round 1 found
+  two real issues, both fixed red-first in a167900b: a triplet group could
+  cross a barline in both chart converters (from the triplet-rest commit
+  riding the same release), and my direction-hold test could not fail.
+  Round 2 clean.
+- Two of my own background pollers failed silently (a quoting error in an
+  inline f-string; a health check read on the wrong field, `version` not
+  `commit`). Each stalled the loop until a check by hand.
+
+## 2026-10-20 (cont.) — Every credit-charged Smarter Testing feature, measured
+
+Andy, after the onboarding: "turn on all the credit-charged features and
+monitor whether it results in faster CI times."
+
+- First, the free-feature baseline broke dev's `test` job: `vitest list`
+  discovered 0 atoms on CircleCI ("cannot mix newline and space
+  separators") while it read clean locally and in cimg/node:26.5.1 with
+  CircleCI's env vars. Switched discovery to `find` (same 396 files) and
+  pushed that alone (3e189496); green next run.
+- Enabled TIA, dynamic splitting, auto-rerun on all suites (omr: no split,
+  one node) and dynamic parallelism via list-unit-tests / list-e2e-tests +
+  the experimental stanza. Analysis on main moved to non-blocking
+  unit-analysis / e2e-analysis jobs. Pushed as 6d17e508.
+- Things the docs didn't say, each found by running it:
+  - CircleCI's Vitest coverage reporter emits Vite ids with queries
+    (`...md?raw`) and the CLI then fails the whole analysis; wrapped
+    the reporter (tests/helpers/circleci-coverage-reporter.ts, TDD).
+  - Per-test V8 coverage made pitch-replay.test.ts take >10 min (32 s
+    plain) and blow the 5 s timeout; it's excluded from analysis and
+    always runs. Full analysis 12.5 min → 44 s.
+  - `max-auto-rerun` reruns a failing ANALYSIS too — three 12.5-min
+    passes before I saw it.
+  - pytest-circleci-coverage 0.3.870 (published that morning) is
+    3.14-only syntax despite >=3.10; pinned 0.2.546.
+  - No Playwright plugin exists: wrote a Chromium chunk-level coverage
+    fixture + reporter; e2e needs a file-mapper because its atoms are
+    testDir-relative.
+  - Local `list-tests` rejects `--key`; CI's accepted it.
+  - Seeded impact data hashes files, and `.circleci/*.yml` are full-run
+    paths: reseed only after the LAST edit or CI runs everything.
+- Found in passing: WebKit's "The network connection was lost" face of the
+  /api/monitoring beacon race (added beside the Chromium rule), and a
+  requestIdleCallback/clearTimeout pageerror under page.clock in
+  progress-trend-chart (1 in ~76) — proposed as its own session.
+- Results (e2e is the critical path):
+  | run | e2e | test |
+  |---|---|---|
+  | before Smarter Testing (6 shards by count) | ~11.3 min | ~1.6 min |
+  | free: static split, first by name | 9.7 | failed (discover) |
+  | free: static split by timing | 7.4 | 1.7 |
+  | all paid, 6d17e508 | 6.5 (8 nodes, 36/75 specs) | 1.83 (6/397 files) |
+  The new floor is ONE spec: lick-practice-session.spec.ts, 11 min of
+  JUnit time = 5.7 min on its node while the other seven finished in
+  2.4–3.6. Unit time is the always-run corpus (~1 min on CI).
+
+## 2026-10-20 (cont.) — Split the e2e floor; the page.clock flake
+
+- Split `lick-practice-session.spec.ts` (54 tests, 11 min JUnit, 5.7 min
+  on one node) into five subject files + `fixtures/lick-practice-seeds.ts`;
+  bodies moved verbatim (1129 lines as a multiset), `--list` identical.
+  First full run after it: 8.4 min — WORSE — node 0's first batch held
+  tune-pdf-import + tune-practice, the four new files having no timing
+  history yet. Second full run: 5.2 min on 10 nodes, all within 3.2–4.2.
+  Full-run e2e so far: ~11.3 → 7.4 (free) → 5.2 (paid + split).
+- Andy asked for the progress-trend-chart flake here. Stack trace from a
+  probe spec (6/60 locally) pointed at Sentry Replay's debounce:
+  page.clock fakes every timer → Sentry's isNativeFunction rejects
+  setTimeout → it takes one from a sandbox iframe, which Playwright gives
+  its own fake clock → timers set there, cleared through the page's clock,
+  both counters starting at 1e12 → a cleared id can be the page's idle
+  callback (web-vitals INP). Harness-only. `fixtures/date.ts` freezeDate
+  replaces Date alone; `freeze-date.spec.ts` fails under setFixedTime and
+  passes under freezeDate; the flaky test is 60/60.
+- Reseeded e2e impact data after the push (39 atoms analysed).
+
+## 2026-10-21 — tune desk gold bar one bar ahead (Black Orpheus)
+
+- Andy suspected the one-note pickup. It wasn't: the pickup is a full bar
+  on the timeline and maps to chart bar 0. `playPhrase` starts the form
+  one bar into the transport (`currentPart.start(barTicks)`, the count-in
+  bar, silent at countInBeats 0) and `TunePlayer` read the raw transport
+  bar — so EVERY tune ran one bar ahead, pickup or not.
+- `PHRASE_LEAD_IN_BARS` now names that bar in playback.ts (melody, backing
+  and end tick read it) and the tune desk subtracts it. Regression in
+  tune-player.test.ts walks a pickup tune: lead-in → no marker, pickup
+  note → bar 0, first downbeat → bar 1.
+- Lesson worth keeping: a cursor computed from the transport clock must
+  know where the engine put bar 0; the onNote path had it right because it
+  rides the melody Part.
+- Released as #284 (merge 2d48f81f, live 2026-10-21 22:30 UTC). CodeRabbit's
+  one finding was real: playPhrase's "bar" is timeSignature[0] QUARTERS, so
+  in 6/8 the lead-in is two printed bars; the cursor now subtracts it in the
+  engine's units (6/8 test added). Whether the engine SHOULD count a 6/8 bar
+  as six quarters is a separate question — melody, backing and click agree
+  with each other, so left alone.
+- Caught myself trusting status lines that weren't real tool output (future
+  timestamps). Re-read live statuses before every merge decision.
+
+## 2026-10-22 — tune tempo remembered per tune
+
+- Andy: a tune's tempo should hold the next time it opens. The desk's
+  tempo lived only in the page-local `TunePlayer` (`previewTempo`), and
+  practice setup reset to `settings.defaultTempo` on every new tune.
+- `settings.tuneTempos` (id-keyed, `tunes/tune-tempo.ts` clamps/cleans),
+  synced through the settings outbox in a new `user_settings.tune_tempos`
+  JSONB column — a copy of yesterday's `tune_backing_styles` shape. ONE
+  tempo per tune shared by desk and practice setup, own charts included:
+  tempo is how this player practises a chart, not a property of it, so
+  unlike the backing style it never goes on the tune row.
+- `TunePlayer` takes an optional `{ tuneId, save }` store; without one
+  (editor preview) the old player-local tempo stands.
+- Practice knob floor is 50, desk floor 40: a saved 40–45 opens practice
+  at 50. A practice deep link on a fresh device may init before settings
+  hydrate and open at the default — the desk reads reactively, practice
+  doesn't re-init. Left alone; small.
+- `db:types:check` in this worktree reads an empty schema (every table
+  "stale") even though `migration up --local` applied; verified the column
+  with psql instead. Environment, not drift.
+- Pushed 7cda8772 to dev; not on production until the next release.
+
+## 2026-10-22 — tune desk Loop: seamless return to the top, pickup once
+
+- Andy: looping tunes is broken — should come back to the top without
+  missing a beat, and drop the partial-bar pickup at the start.
+- Cause: `TunePlayer.toggle` looped by awaiting `playPhrase` per pass. Each
+  pass ended a beat after the last bar, stopped the transport, then the next
+  call played a silent lead-in bar (+0.1 s start) and the pickup bar again —
+  roughly two bars of dead air at every return, plus the pickup.
+- Fix: one `playPhrase` call carries every pass via `opts.loop`
+  ({startBar, endBar, shouldContinue}). `audio/phrase-loop.ts`: intro Part
+  (pickup, once) + looping form Part; backing loops on `loopBodyPhrase`
+  (the form alone, band enters bar 1, last chord stretched to the form end so
+  its loop length matches); a `scheduleRepeat` decision one tick before each
+  top mutes form + band on a "no", rings a beat, stops. `tunes/form-loop.ts`
+  picks startBar 1 for any bar-0 pickup the resolver knows.
+- Pinned on Tone's real clock (headless-tone): pickup once, bar 1 at exactly
+  pass end, every pass. Mutations checked: drop the early-downbeat clamp →
+  red; drop the mute → red.
+- Endings, same day (Andy: "Yes — with Loop on, repeat A + first ending,
+  and play the second ending only on the final pass when Loop is turned
+  off"): `formLoopRegion` uses `headBarsForFlat` — on a whole-tune repeat the
+  loop is pass one and the region carries a `coda` (pass two, minus a
+  replayed pickup). A no at a top starts the coda's melody Part at that top
+  inside the tick-(T-1) callback, and its band via `prepareBackingSection`
+  (generated up front; the decision can't await). The marker counts the
+  returns taken. Headless test pins the coda landing on the declined top.
+- Still open: 6/8 backing loop rounds to engine bars (6 quarters).
+
+## 2026-10-22 — CI/local build times; e2e-analysis timeouts on main
+
+- Andy asked how CI and local build times moved over two months. dev's
+  `ci` workflow median: 4.2 min (late Aug) → 6.8 (early Oct) → 9–12
+  (Oct 12–17) → ~5.5 after Smarter Testing (Oct 20). Driver: the e2e job
+  at 6 shards, 4.1 → 10.1 min as specs went 45 → 81. Unit job flat
+  (~1.5 min); deploy creeping 2.7 → 3.9. Local (same M2 Ultra, old
+  commits checked out): build 10.5 → ~13 s, check 8.8 → 11.5 s, vitest
+  13.2 → 34.4 s (4318 → 6544 tests, and slower per test).
+- Every main workflow since the switch was red: the non-blocking
+  e2e-analysis job timed out the PDF-import tests (and flaked
+  progress-flag). Cause: `page.coverage.startJSCoverage` ALWAYS starts
+  V8 precise block coverage (Playwright hard-codes `detailed: true`),
+  which deoptimises the page — 8.6 → 17.6 s, 10.1 → 20.1 s even on a
+  2-CPU local sandbox; CI's box is slower still, past the 30 s timeout.
+  The fixture only ever used which chunks LOADED, so it now records the
+  context's `/_app/*.js` requests (`fixtures/app-chunks.ts`). Same 18
+  tests → same 221 files as the precise map; timings back to plain.
+- Gotcha: `--reporter=list` on the sandbox CLI REPLACES the configured
+  reporters, coverage reporter included — pass
+  `--reporter=list,./tests/e2e/reporters/circleci-coverage.ts`.
+- Mistake of mine: a broad `pkill -f vitest` while restarting a timing
+  run could have killed another session's vitest. Scope kills by PID.
+
+## 2026-10-22 — #285 release (per-tune tempo, form loop, endings)
+
+- Dev's head had one red e2e: WebKit `tricks.spec.ts` "phrase canvas…"
+  hit 30 s on all three tries (11 s on main). The CI re-run passed at
+  11.4 s. Local sandbox repro (3×) failed or flaked the same two tricks
+  tests in 6 of 6 runs. Probe: WebKit's `requestAnimationFrame` stops
+  delivering (3 s timeout) as soon as workers outnumber CPUs — on /docs
+  too, so it is not the page; 1 worker never stalls. Playwright's
+  "stable" check rides rAF, so the longest click-heavy WebKit specs time
+  out. Left for its own task; not a regression of this release.
+- Pre-documented 25 functions (64% → 100% on the local scan; CodeRabbit
+  read 97.5%). The test-file Tone/smplr stubs went to one hoisted `noop`
+  instead of 14 docstrings.
+- Four CodeRabbit rounds, all fixed: the 6/8 backing loop (the session's
+  own "still open" note above — the band now loops on the melody's exact
+  form length via `scheduleBackingTrack`'s `loopTicks`), the practice
+  page re-reading the saved tempo at setup (client-side return from the
+  desk kept the old one; new e2e asserts no full reload happened), the
+  guard keyed by tune and cleared on a tune change (two rounds — B→A→B),
+  the Juggler console rule pinned to NS_BINDING_ABORTED, the user guide's
+  Settings tempo row, and a settings-hydration race: an edit PUSHED while
+  a read was in flight was overwritten, because `localRev > syncedRev`
+  can't see it — the read now snapshots `localRev`.
+- Merged as c897ac36.
+
+## 2026-10-22 — drummer count-in for tunes
+
+- Andy: no audible signal before a tune starts; wants a one-bar drummer
+  count-in, two bars above 150 BPM, standard jazz convention — and,
+  mid-task, "I don't want a spoken count" (it never was: cross-stick
+  hits only; my status text spelled the rhythm as "one… two…").
+- `audio/drum-count-in.ts` + `playPhrase`'s `countIn: { bars, drums }`.
+  The real work was the tick math: the one-bar lead-in was hard-coded in
+  five places (plan windows, route playhead, band clearing, freestyle
+  bar, desk chart bar). All now read `countInBarsForTempo`.
+- The desk only loads the kit with Backing on, so a melody-only desk
+  play still counts in silence — deliberate: no band, no drummer.
+- Fresh worktree needed `.env` and `npm ci` (the circleci coverage
+  reporter package was missing from the stale node_modules).
+
+## 2026-10-23 — AGENTS.md is the agent guide
+
+- Local main wouldn't fast-forward: an untracked root `AGENTS.md` (a
+  2026-09 Claude→Codex find-and-replace copy of CLAUDE.md) collided with
+  the tracked Codex testing-rules file added in 672449e0. Moved aside to
+  `.codex/AGENTS.local-2026-09-13.md` (untracked), then fast-forwarded.
+- With both files at the root, Claude Code read only CLAUDE.md and Codex
+  only the short testing file. AGENTS.md (the cross-agent standard) now
+  holds the full guide plus the testing rules; CLAUDE.md is a single
+  `@AGENTS.md` import. Live doc links and three source comments
+  repointed; dated session logs and specs left as written.
+
+## 2026-10-23 — Up to the Seventh: a tongue hidden inside a third-harmonic lock
+
+- Andy flagged a take from /progress ("Missed articulation between first
+  two notes"): D3 · D3 · E3 · G3 on tenor at 100, the second D tongued on
+  beat 2, saved as ONE 1.22 s D3 — 3 of 4, 0.747.
+- Reproduced both ways (saved readings exact; WAV identical). The D's
+  third harmonic took the pick on 46 of 63 frames, all flagged
+  `twelfthUp`, in runs of 6 · 18 · 4 · 16. The tongue at 0.92 s had plain
+  evidence — floor 0.195 → 0.113, band floor 0.175 → 0.101, hfRms
+  doubled — but `findReArticulations` scans contiguous same-MIDI runs,
+  and the dip's edges sat in different runs. The segmenter's sub-segment
+  fold then reunited the fragments AFTER the tiers had run, which is why
+  the saved note was a clean D3 and gave no hint of the fragmentation.
+- Fix: `findReArticulations` folds lock runs on its stream first
+  (`foldTwelfthUpLockRuns`, the live extractor's fold). The envelope tier
+  then takes the dip (HF-corroborated) and anchors at the re-bloom,
+  0.997. Saved readings and WAV, both time bases: 4 of 4, 0.984 / 0.971.
+  Whole corpus unchanged (full suite green; the one red file was the
+  stale worktree's missing coverage-reporter package, fixed by `npm ci`).
+- Unit pin: a flagged lock before a true hole is one run and the gap
+  tier splits it; the same shape unflagged is a leap and splits nothing.
+- Docs: pipeline bullet, API row, CLAUDE.md paragraph ("a third place").
+
+## 2026-10-24 — Slow Climb to the Third: an E3 scored as E4
+
+- Andy flagged a take ("Second note was scored in octave above"): D3 · E3 ·
+  F#3 half notes on tenor at 100, saved as D3 · E4 · F#3 — 2 of 3, 0.775.
+  Reproduced exactly from the saved readings and from the WAV.
+- The E3's 330 Hz partial carried ~20× its fundamental; McLeod reported E4
+  on 52 of 63 confident frames. `isOctaveUpLock` reads only g's 3rd and
+  5th partials (≥ 0.12 of f + 2f); on this E3 they surged mid-note and
+  were nearly gone elsewhere, so 10 frames were flagged and the whole-note
+  60% vote never formed. The fundamental held on every frame (0.034–0.088).
+- Survey over every in-band frame of the 45 takes: a second acceptance in
+  the twelfth-up form — g + 3g + 5g ≥ 0.05 of f + 2f AND mean ≥ 4× the
+  half-series bins 1.5g … 4.5g. 51/52 lock frames here, 84/84 Sixth–Octave
+  Lift; 31/4498 genuine frames, never more than 26% of one note.
+- First run of the fix: the vote reached only 40/63 (0.635, barely over
+  0.6). Twelve frames were McLeod picking the E3 itself, doubled to E4 by
+  `correctSubharmonic` (stage 2 = the same 3rd/5th test, from below) — and
+  the flag skipped doubled frames. My survey had included them, which is
+  why it promised 0.81. Dropped the `frequency === rawFrequency` guard for
+  `octaveUp` only (rule 1 reads the very bins stage 2 found empty, so it
+  can never fire on a doubled frame); the stabilizer guard stays. 51/63.
+- Corpus diff before/after, 45 takes × trimmed/untrimmed × replay/live:
+  only this take's notes change. Full suite green, check clean.
+- Tests: unit predicate (weak-odd E3 flagged, own fundamental / genuine E4 /
+  faint trace / broadband not; doubled pick flagged, doubled subharmonic of
+  a real E4 not), each gate mutation-checked red; corpus block in
+  pitch-replay (saved evidence, saved path still shows the miss — old
+  flags, trim, flag fraction, 3 of 3, live time base).
+- Worktree housekeeping: fast-forwarded to origin/dev first (8 behind),
+  `npm ci` for the coverage-reporter package, copied `.env` for `check`.
+
+## 2026-10-24 — The focus drill climbs without stopping
+
+- Andy asked for the state diagrams to be checked against production and
+  for the bar between focus-ramp takes to go: the same key inserted below
+  as many times as the climb needs (51 → 56: the current take plus five),
+  a missed advance adding one more at the bottom.
+- Audit: the mermaid matched `deb3c1f6`; the stale parts were prose from
+  before Studio Desk (sheet rows 1.6× the 128 px chord row, cue lane above
+  every chart, one engraving for all modes, Deep sheets from the outset),
+  a missing handoff phase in two docs, and four sequence diagrams whose
+  ';' (a mermaid statement break) kept them from rendering.
+- Decisions (Andy): a sub-75% take still steps down and adds the climb
+  back; the once-more handoff stays; a take whose sheet comes or goes
+  keeps its one bar; every focus row carries its BPM.
+- Built as display-only projected rows over the unchanged one-take
+  cycles: `projectFocusTempos` shares `focusStepUpTempo` with
+  `resolveRampCycle`; `prepareBars` 0 for a focus take unless its sheet
+  decision flips; a same-key focus take scrolls in; `PlannedKey.cycle`
+  keeps the finished take's score on its own row (the key-only rule
+  would have handed it to the next take of the same key).
+- A fresh-context review found no bug. Its timing risk — four sheets
+  engraved on a playing downbeat — measured 58 ms worst frame in the
+  2-CPU sandbox (baseline p95 18 ms), under the 93 ms analyser window;
+  projected sheet rows below the viewport are not engraved. Its other
+  catch (projected rows missing until the audio loaded) is fixed.
+- Validation: e2e cannot run on the sidecar any more (the isolation guard
+  wants /.dockerenv or CIRCLECI) — `npm run test:e2e` on the local
+  Colima sandbox instead; vitest and check on the sidecar. Each new test
+  mutation-checked red. Rebased onto origin/dev (9 behind) before the PR.
+- Released as #287 (merge 012e056d, 2026-10-25 02:08 UTC) together with
+  dev's nine other commits. CodeRabbit: no actionable comments on the
+  feature; its security-architecture note on 8c39b6a2 (recordings as
+  bytes) found a real account-switch race in `saveRecording` — fixed by
+  choosing the database before awaiting the bytes, pinned by a mid-read
+  uid-switch test; one re-review caught `downloadDiagnostics` firing the
+  now-async `triggerDownload` with `void` — awaited. Skipped with reasons:
+  the Blob-free format's one-way rollback (writing the Blob back would
+  reintroduce the WebKit abort), and scrolling the once-more handoff
+  (Andy kept the handoff unchanged). All CircleCI checks green on head.
+- Poller lesson: zsh `echo "$json" | jq` expands `\n` and kills jq —
+  the first CodeRabbit wait burned 30 minutes on it (memory updated).
+
+## 2026-10-25 — The count runs on through a pickup bar
+
+- Andy (Black Orpheus on production): the count-in to a pickup tune is
+  confusing — the drummer counts the bar before, then goes silent through
+  the pickup bar, and the one-beat pickup lights on beat 1 of its bar.
+  Wanted: [1 _ 3 _][1 2 3 4], the pickup on the 4.
+- Cause, both halves one fact: the pickup is a FULL bar on the timeline
+  (silent until beat 4) and nobody but the engraving knew. The count was
+  `drumCountInHits(leadInBars)` and the band sits the pickup bar out (desk:
+  the loop region starts at bar 1; practice: the generator emits nothing in
+  a harmony-less bar — probed), so three beats went uncounted. Both
+  playheads marked chart bar 0 from its timeline downbeat.
+- Fix: `countIn.pickup` — the count sounds `leadInBars + 1` bars, so the
+  pickup bar is the count's LAST (every-beat) bar under the unchanged
+  pattern rule; no tick moves. Above 150 BPM that is three bars,
+  [1 _ 3 _][1 _ 3 _][1 2 3 4] — decided, not asked. The click-only count
+  for a band follows. `isInPickupLeadIn(sheet, chartBar)` in music/pickup.ts
+  gates both playheads; practice reads it through a new pure
+  `playheadChartBar`, derived off the fractional bar but integer-valued, so
+  the markers still redraw only at boundaries.
+- Practice decides the pickup from the session's FIRST played bar (head
+  bar 0, or the solo pass's first without a head), so a Head-off session
+  that opens on the silent pickup bar is counted through it too.
+- Found alongside: a repeat-free practice session's appended chorus
+  re-played the pickup bar — a dead bar between the head and the solos,
+  and before every extra chorus. The desk's loop already skipped it.
+- Production's Black Orpheus (read-only query): one 33-bar "A" with an
+  in-section [1,4] pickup and its first chord (A-) at bar 1, so the band
+  sits the pickup bar out on both surfaces and the fix applies as stored.
+- Validation: unit suite 414 files green, check clean, tune-practice e2e
+  13/13 on Chromium in the sandbox (the first sandbox build died on a
+  Docker "lease does not exist" error; the retry ran). Each new test was
+  red before the fix.
+
+## 2026-10-25 — Mankunku Blues' second ending; two curated tunes
+
+- Andy: Mankunku Blues "is missing barlines in the second repeat"; fix
+  and push to dev. Also: only two curated tunes, the current Mankunku
+  Blues and a Rhythm Changes to be added.
+- Reproduced in the e2e sandbox (screenshot + DOM geometry): the stacked
+  [2] is the chart's LAST system, which `%%stretchlast 0` leaves at its
+  natural width (staff 87–425 px), and the alignment pass slid its bars to
+  590–865 px, past the staff's end, with nothing marking where the ending
+  begins. Take the A Train's mid-tune [2] had its staff (abcjs stretches
+  every system but the last) but no opening barline either.
+- Fix: `%%stretchlast 1` when a stacked [2] ends the tune (a wrapped [2]
+  excepted); every stacked [2] opens on `|[2`, a barline the pass moves
+  under [1]'s. Unit tests (red without, mutation-checked) + an e2e over
+  both tunes (red without: staff 425 vs ink 873; barline 171 px off).
+- Rhythm Changes: an original head in concert Bb, |: A(6) [1](2) :| [2](2)
+  B(8) A(8) — riff A over I-vi-ii-V / iii-VI-ii-V, IV7 to E°7, a sequenced
+  dominant-cycle bridge; range A3–Eb5 like Mankunku's. The form rule reads
+  the whole AABA as the head. Saints and Amazing Grace moved to
+  `tests/fixtures/tunes/` (pickup and detector tests); the tune-practice
+  e2e seeds Saints as the player's own tune per test (`SAINTS_USER_TUNE`;
+  the first seed of a key wins); curated-behaviour specs moved to the two
+  curated tunes; `curated-data.test.ts` pins the two titles.
+- The new chart's first render exposed three older faults, fixed test-first:
+  stacked-[2] beams never moved (`g.abcjs-beam` matches nothing; abcjs draws
+  `path.abcjs-beam-elem`) → `endingLineArtTransform` carries every beam,
+  tie, slur and triplet-bracket end with its note; the chord nudge measured
+  chords without their drop and counted ink a spacing below as a collision,
+  shoving bar 4's chords to the barline → measure as drawn, real overlap
+  only; a dim7's seventh spelled as a sixth (E°7's Db as C#, and Mankunku
+  Blues' B°7 Ab as G# since July) → the seventh's letter, the sixth's when
+  that needs a double flat (Db°7 on tenor).
+- Environment: Docker Desktop hung (API 500s, credential helper never
+  returns); ran the sandbox on the Colima test VM with a credential-free
+  DOCKER_CONFIG (memory: reference_e2e_sandbox_docker_desktop_hang).
+  Worktree needed `npm ci` (coverage-reporter package) and `.env` for check.
+
+## 2026-10-25 — Focus drill: a missed take at the target appeared on its own downbeat
+
+- Andy, after the report's recommended drill: twice the screen cleared
+  and he had to play the first beat of a chart as it appeared, "after a
+  triple sheet music rotation". Asked for diagnosis first, then a fix.
+- Sentry: nothing in 24 h, so a logic gap. Cause: yesterday's no-bar
+  join (87c7f2b5) relies on the next take being drawn under the current
+  one, but `projectFocusTempos` lists the takes needed "if every one
+  clears" and is empty AT the target. A target take that misses (hold or
+  step down) stays in `focus`, so the next take joins with no bar and its
+  row is first drawn at that downbeat; Deep parks the active row at the
+  top, so under the target take the viewport was empty. The sheet case:
+  golds climb (and drop the sheet), three misses at the target bring it
+  back with its bar, and every missed sheet take after that hits the gap.
+  The pinned unit test called the target take "the last one"; the e2e
+  never reaches the target (the mock mic scores poorly).
+- Fix (approved plan): `getFocusProjectionRows` never returns an empty
+  list in a focus phase — at the target it draws one row at the target,
+  which is true for a clear (the once-more) and a miss (another try).
+  `projectFocusTempos` kept pure. Tests: the incident (held + sub-floor
+  sheet take at the target) and an invariant loop — no focus take joins
+  with 0 bars unless it was drawn — both red before the fix. Andy then
+  asked for comprehensive coverage: a render test feeding the real state
+  at the target into the real stack (the planned hand-built-rows version
+  could not fail, the display being unchanged), and an e2e whose lick is
+  saved at 50 BPM — the tempo floor, so the 10% ease-in clamps back and
+  the drill opens AT its target; the silent mic misses, the step down
+  clamps too. With the fix reverted it reproduced the incident: next take
+  joined on the sheet with nothing under the current take for all 1,740
+  sampled frames. Every new test mutation-checked red.
+  The first sandbox run never ran: the image build died on a Docker
+  metadata lease error; `docker pull` of the base image, then fine.
+- Docs: state machines §4 + table + regression list, user guide, state
+  and component API, AGENTS.md.
+- Andy: fix it. `soloPassPickupBars(sheet, flat)` reads whether the solo
+  pass opens on a pickup bar (a repeat-free form's bar 0, or a pickup a
+  whole-form repeat replays — formLoopRegion's `replaysPickup` case);
+  `pickupBars` drops it from every practice chorus in `buildSessionPhrase`
+  and moves windows a bar sooner in `buildSessionPlan` (one subtraction in
+  `leadTicks`, chorus spacing `T - soloStartBar`); `practiceStartBar`
+  includes it, so the playhead maps each chorus onto bar 1. Window
+  offsets keep their frames — they are only ever read relatively — so
+  every existing pin held. Head off now opens on bar 1, so that session no
+  longer counts through a pickup (the earlier test flipped on purpose).
+- The setup e2e caught one the unit corpus didn't: When the Saints writes
+  its C6 from the pickup bar, so the solo pass's skip filtered the vamp
+  window that started there (5 → 4 windows) — and, under the new count,
+  the practice band was playing that pickup bar too. `clearPickupBarHarmony`
+  moves a chord in the opening pickup bar to bar 1 (drops one that sounds
+  only there, with its provenance), so the band sits the pickup out under
+  the count as on the desk, and the window survives a bar shorter.
+- Validation: unit suite 414 files green, check clean, tune-practice e2e
+  13/13 and the A-Train endings e2e 3/3 on Chromium in the sandbox (two
+  more sandbox image builds died on Docker errors first and were rerun).
+
+## 2026-10-26 — #288 release: focus-drill target take, review rounds
+
+- Pushed b0a5680d (the focus-drill fix) to dev after the e2e passed on the
+  rebased commit; Andy then asked for the dev → main PR with every review
+  comment handled, and to merge and confirm production.
+- Pre-PR: dev CI green; docstring scan of the release diff read 68.4%
+  (12 functions from the tune commits) → documented, 100% (6e767e42).
+  Opened #288 as a draft, `@coderabbitai rate limit` → available, ready.
+- Round 1 (two threads): declined the `lastSystemIsStackedEnding` reset —
+  a [1] that fits on a stacked [2]'s line leaves that system the one the
+  alignment pass slides, so it keeps `%%stretchlast 1` (pinned; the
+  suggestion fails the pin). Fixed the session phrase's `sectionMap`: it
+  was the flatten's, so the band's section-final bars sat a bar late after
+  a skipped pickup, a head-less session was mapped from the wrong origin,
+  and choruses after the first had no sections (d5ea949e).
+- Round 2 (two outside-diff items, no threads): `|:|[2` doubled barline,
+  and a wrap of the [1] after a stacked [2] kept the stretch on a one-bar
+  last line — both valid, fixed (68550223). Round 3 clean.
+- Rate limited twice (34, 32 min); waited, re-asked, single push each time.
+- Environment: Docker Desktop crashed mid-e2e (engine hung, then its VM
+  restarted and stopped every container). Its credential helper then hung,
+  stalling every docker.io metadata fetch — even from the Colima VM, since
+  the CLI asks `docker-credential-desktop` for Docker Hub. Workaround that
+  worked: `DOCKER_CONFIG=<tmp, no credsStore, cliPluginsExtraDirs>` +
+  `DOCKER_HOST=<colima socket>`; Andy then asked for a Docker Desktop
+  restart, which cleared it. Local Supabase restarted on request: stuck
+  image pulls (CLI 2.122.0 wanted new studio/meta images) were killed and
+  re-pulled directly, data intact, 41 migrations.
+- Open: one unit test failed twice in full-suite runs under load and
+  passed on rerun; not caught (five clean runs since, three concurrent).
+- Merged as 1aa9cefc.
+
+## 2026-10-26 — The intermittent unit failure: a prune test tied on Date.now()
+
+- Andy asked for the one unit test that failed twice in full runs (and
+  passed on rerun) to be found and fixed. Both failures had been tailed,
+  so nothing named it; CircleCI's per-test results for the last 16 unit
+  jobs held no failures either.
+- 16 full runs under double load: clean. The JSON durations ruled out a
+  timeout (the slowest test, 3.4 s, has a 15 s budget).
+- Found by reading the sleeps: `tune-pdf-store`'s prune test sleeps 1 ms
+  between saves "for deterministic ordering"; `audio-store`'s does not.
+  The store stamps `Date.now()` and prunes the oldest; up to ~9 saves land
+  in one millisecond, ties fall back to IndexedDB key order, and
+  'session-10' < 'session-5'. A tie run spanning session-4…session-10
+  prunes the wrong five. The original file failed 4/40 with exactly
+  "expected [ Array(300) ] to not include 'session-4'"; run filtered to
+  that one test it failed 0/25 — the earlier tests in the file warm the
+  store up, which is what makes the saves fast enough to tie.
+- Fix (test only, d1334d39): the test drives `Date.now` a second per call.
+  0/40 after; a frozen clock still turns it red. No store change: two takes
+  are never saved in one millisecond.

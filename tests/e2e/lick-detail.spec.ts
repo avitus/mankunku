@@ -74,6 +74,41 @@ test.describe('lick detail page', () => {
 		await expect(pill('Dominant')).toHaveAttribute('title', WRONG_CHORD);
 	});
 
+	test('engraves the lick over its primary progression in the selected key', async ({
+		page,
+		consoleCollector: _consoleCollector
+	}) => {
+		// Tagged onto the short ii-V-I, the one-bar major-chord line sits on the
+		// I bar and the chart carries the template's chords — the lick itself
+		// stores a lone Cmaj7, and user licks usually store none. On tenor the
+		// concert-C cadence reads E-7 A7 | DΔ7.
+		await seedStorage(page, { 'user-lick-tags': { [LICK_ID]: ['prog:ii-V-I-major'] } });
+		await page.goto(`/licks/${LICK_ID}`);
+		await expect(page.getByTestId('lick-progression')).toHaveText('· over Short ii-V-I (Maj)');
+
+		/** The chord symbols engraved above the staff, left to right. */
+		const chordTexts = () =>
+			page.locator('.abcjs-container svg text.abcjs-chord').evaluateAll((els) =>
+				els.map((el) => (el.textContent ?? '').replace(/\s+/g, ''))
+			);
+		await expect.poll(chordTexts).toEqual(['E-7', 'A7', 'DΔ7']);
+		await expect(page.getByLabel('Play in')).toHaveValue('D');
+		await expect
+			.poll(() => page.locator('.abcjs-container svg .abcjs-notehead').count())
+			.toBeGreaterThanOrEqual(4);
+
+		// The selector moves the whole cadence: written F on tenor is concert
+		// Eb, so the ii-V-I reads G-7 C7 | FΔ7 under the line.
+		await page.getByLabel('Play in').selectOption('F');
+		await expect.poll(chordTexts).toEqual(['G-7', 'C7', 'FΔ7']);
+
+		// Untagging the pill falls back to the category's home, the major vamp:
+		// one chord, two bars.
+		await page.getByRole('button', { name: 'Short ii-V-I (Maj)', exact: true }).click();
+		await expect(page.getByTestId('lick-progression')).toHaveText('· over Major');
+		await expect.poll(chordTexts).toEqual(['FΔ7']);
+	});
+
 	test('tagging a fitting progression is written to the tag store', async ({
 		page,
 		consoleCollector: _consoleCollector

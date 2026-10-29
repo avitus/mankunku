@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { generateBacking, generateBackingCached, type BackingGenerationParams } from '$lib/audio/backing-generation';
 import { createRollingBacking, advanceRollingBacking, type RollingBackingCheckpoint } from '$lib/audio/backing-rolling';
 import { BACKING_STYLES } from '$lib/audio/backing-styles';
-import { buildListeningTuneSession } from '$lib/musicality/listening-tunes';
+import { buildHistoricalListeningTuneSession as buildListeningTuneSession } from '../../helpers/musicality-tune-fixtures';
 import { assessTerminalArrangement, realizeTerminalArrangement } from '$lib/audio/backing-terminal';
 import { selectCoordinatedVoicingFamily } from '$lib/audio/coordinated-voicing-family';
 import { seedFrom } from '$lib/audio/generation-rng';

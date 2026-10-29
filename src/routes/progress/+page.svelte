@@ -34,7 +34,7 @@
 	import { concertKeyToWritten } from '$lib/music/transposition';
 	import { CATEGORY_LABELS, PITCH_CLASSES, type HarmonicSegment, type PitchClass, type Phrase } from '$lib/types/music';
 	import { getBaseLickFromId, transposeLick, transposeLickForTonality } from '$lib/phrases/library-loader';
-	import { setMasterVolume } from '$lib/audio/audio-context';
+	import { setMasterVolume, getAudioContext, isAudioInitialized } from '$lib/audio/audio-context';
 	import type { SessionResult } from '$lib/types/progress';
 	import type { Grade } from '$lib/types/scoring';
 	import { page } from '$app/state';
@@ -57,6 +57,14 @@
 	const instrument = $derived(getInstrument());
 	const supabase = $derived(page.data?.supabase ?? null);
 	const session = $derived(page.data?.session ?? null);
+	const isAdmin = $derived(page.data?.isAdmin ?? false);
+
+	// ─── Flag Scoring Error (admin) ─────────────────────────
+	/** The session whose flag form is open. */
+	let flaggingSessionId: string | null = $state(null);
+	let flagNote = $state('');
+	let flagBusy = $state(false);
+	let flagError: string | null = $state(null);
 
 	// ─── Audio playback state ────────────────────────────────
 	let recordingIds = $state<Set<string>>(new Set());
@@ -149,6 +157,61 @@
 		}
 	}
 
+	/** Open the Flag Scoring Error form on a session row, or close it again. */
+	function toggleFlagForm(sessionId: string) {
+		flagError = null;
+		if (flaggingSessionId === sessionId) {
+			flaggingSessionId = null;
+			return;
+		}
+		flaggingSessionId = sessionId;
+		flagNote = '';
+	}
+
+	/**
+	 * Download the take's corpus pair — the /diagnostics JSON export with the
+	 * phrase the session played and the admin's note, plus the untrimmed WAV
+	 * (`recording-export.ts`, the one builder both surfaces share). Admin
+	 * only for now; a player-facing flag is a later step, and it will send
+	 * this same payload rather than download it. The recording must be on
+	 * this device: the cloud copy carries no metadata, so there is nothing to
+	 * replay against.
+	 */
+	async function exportScoringFlag(s: SessionResult) {
+		flagBusy = true;
+		flagError = null;
+		try {
+			const [{ getRecordingFull }, exporter] = await Promise.all([
+				import('$lib/persistence/audio-store'),
+				import('$lib/diagnostics/recording-export')
+			]);
+			const full = await getRecordingFull(s.id);
+			if (!full) throw new Error('This recording is not on this device.');
+			const ctx = isAudioInitialized() ? await getAudioContext() : undefined;
+			const replay = await exporter.replayRecording(full, ctx);
+			const payload = exporter.buildDiagnosticsPayload(full, replay, {
+				instrument: { id: settings.instrumentId, name: instrument.name, key: instrument.key },
+				phrase: findPhraseForSession(s),
+				flag: { note: flagNote.trim(), flaggedAt: new Date().toISOString() }
+			});
+			const wav = await exporter.decodeToWav(full.blob);
+			// Both files are ready before either download starts, so the pair
+			// goes out together (a browser may ask once to allow the second).
+			const base = exporter.fixtureBaseName(full.timestamp, full.metadata?.phraseName ?? s.phraseName);
+			await exporter.triggerDownload(
+				new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }),
+				`${base}.json`
+			);
+			await exporter.triggerDownload(new Blob([wav], { type: 'audio/wav' }), `${base}.wav`);
+			flaggingSessionId = null;
+			flagNote = '';
+		} catch (err) {
+			flagError = err instanceof Error ? err.message : String(err);
+		} finally {
+			flagBusy = false;
+		}
+	}
+
 	/**
 	 * Reconstruct the phrase the user heard for an ear-training session by
 	 * looking up the lick by id (or id with a stripped `_<key>` suffix from
@@ -165,10 +228,10 @@
 		if (s.scaleType) {
 			const scaleId = SCALE_TYPE_TO_SCALE_ID[s.scaleType];
 			if (scaleId) {
-				return transposeLickForTonality(base, sessionKey, scaleId, inst.concertRangeLow, rangeHigh);
+				return transposeLickForTonality(base, sessionKey, scaleId, inst.concertRangeLow, rangeHigh, inst.transpositionSemitones);
 			}
 		}
-		return transposeLick(base, sessionKey, inst.concertRangeLow, rangeHigh);
+		return transposeLick(base, sessionKey, inst.concertRangeLow, rangeHigh, inst.transpositionSemitones);
 	}
 
 	/**
@@ -531,7 +594,58 @@
 													{/if}
 												</button>
 											{/if}
+											{#if isAdmin && recordingIds.has(s.id)}
+												<button
+													onclick={() => toggleFlagForm(s.id)}
+													aria-expanded={flaggingSessionId === s.id}
+													class="flex items-center gap-2 rounded bg-[var(--color-bg-secondary)] px-3 py-2 text-sm hover:opacity-80 transition-opacity"
+												>
+													<svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+														<path d="M5 3h2v18H5zM8 4h10l-2 4 2 4H8z" />
+													</svg>
+													<span>Flag Scoring Error</span>
+												</button>
+											{/if}
 										</div>
+									{/if}
+
+									{#if flaggingSessionId === s.id}
+										<!-- Admin: what was heard, saved into the export beside the files. -->
+										<form
+											class="flex flex-wrap items-end gap-2 rounded bg-[var(--color-bg-secondary)] p-3"
+											onsubmit={(e) => {
+												e.preventDefault();
+												void exportScoringFlag(s);
+											}}
+										>
+											<label class="min-w-[16rem] flex-1 text-sm">
+												<span class="mb-1 block text-xs text-[var(--color-text-secondary)]">What went wrong?</span>
+												<input
+													type="text"
+													name="note"
+													bind:value={flagNote}
+													placeholder="e.g. the held D was split into three notes"
+													class="w-full rounded-lg bg-[var(--color-bg-tertiary)] px-3 py-2 text-sm placeholder:text-[var(--color-text-secondary)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
+												/>
+											</label>
+											<button
+												type="submit"
+												disabled={flagBusy}
+												class="rounded bg-[var(--color-bg-tertiary)] px-3 py-2 text-sm font-medium hover:opacity-80 disabled:opacity-60 transition-opacity"
+											>
+												{flagBusy ? 'Exporting…' : 'Download export'}
+											</button>
+											<button
+												type="button"
+												onclick={() => toggleFlagForm(s.id)}
+												class="rounded px-3 py-2 text-sm text-[var(--color-text-secondary)] hover:opacity-80 transition-opacity"
+											>
+												Cancel
+											</button>
+											{#if flagError}
+												<p class="w-full text-sm text-[var(--color-error-text)]" role="alert">{flagError}</p>
+											{/if}
+										</form>
 									{/if}
 
 									<!-- Score breakdown -->

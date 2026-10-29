@@ -584,8 +584,8 @@ describe('pickup bar', () => {
 
 	/**
 	 * An import whose rehearsal mark sits ON the anacrusis bar: the section
-	 * builder keeps the pickup inside the labelled section (as the curated
-	 * Amazing Grace / Saints charts are entered) — not a lone '' section.
+	 * builder keeps the pickup inside the labelled section (as the Amazing
+	 * Grace / Saints fixture charts are entered) — not a lone '' section.
 	 */
 	function embeddedPickupSheet(): Tune {
 		return {
@@ -695,4 +695,14 @@ it('deduplicates repeated import warnings and retains source comparison for a cl
  setImportReview({warnings:[],suspectBars:[],sourceBarImages:['data:image/png;base64,example']});
  expect(tuneEntry.importReview?.sourceBarImages).toHaveLength(1);
  initNewTune();expect(tuneEntry.importReview).toBeNull();
+});
+
+describe('tune backing style in the editor', () => {
+	it('preserves the saved style through a chart edit and clears it for a new tune', () => {
+		loadFromTune({ id: 'bossa', title: 'Bossa', key: 'C', timeSignature: [4, 4], tags: [], source: 'user', backingStyle: 'bossa-nova', sections: [{ label: 'A', bars: 4, notes: [], harmony: [] }] }, INSTRUMENTS.concert);
+		tuneEntry.title = 'My Bossa';
+		expect(buildDraftTune().backingStyle).toBe('bossa-nova');
+		initNewTune();
+		expect(buildDraftTune().backingStyle).toBeUndefined();
+	});
 });

@@ -130,7 +130,7 @@ icons must remain understandable without color, with stable Listen/Play geometry
 
 ### Intonation poles
 
-`--color-tune-sharp` (brass: `--color-brass-soft` dark, `--color-brass` light) and `--color-tune-flat` (blue: `#7aa7d9` dark, `#365f9e` light) colour the ear-training **Your tuning** fader bank (`TuningFaders`). They are never used raw: `tuningTone(cents)` (`src/lib/ui/tuning-tone.ts`) returns the text colour within ±5¢, steps to half strength the moment a note leaves that zone, and reaches the full pole at 12¢ (`ALERT_CENTS`), the offset the sharp/flat reminder speaks at. Warm-high / cool-low is the reading; blue against orange stays apart under the common colour-vision deficiencies. The exact cents are always printed beside the colour.
+`--color-tune-sharp` (brass: `--color-brass-soft` dark, `--color-brass` light) and `--color-tune-flat` (blue: `#7aa7d9` dark, `#365f9e` light) colour the ear-training **Your tuning** fader bank (`TuningFaders`). They are never used raw: `tuningTone(cents)` (`src/lib/ui/tuning-tone.ts`) returns the text colour within ±5¢, steps to half strength the moment a note leaves that zone, and reaches the full pole at 12¢ (`ALERT_CENTS`), the offset the sharp/flat reminder speaks at. The reminder then holds down to 8¢ (`HOLD_CENTS`, 2026-10-20); that switch-off offset never moves the faders' ticks or this pole, which stay on `ALERT_CENTS`. Warm-high / cool-low is the reading; blue against orange stays apart under the common colour-vision deficiencies. The exact cents are always printed beside the colour.
 
 ### Difficulty & Mastery ramps
 
@@ -460,6 +460,12 @@ session length. Deep Practice and Tricks retain their original configuration log
 Pages visible while playing prioritize listening over reading. Keep the musical
 context, a single Listen/Play cue, transport and exact scores. Move explanatory
 copy, tuning interpretation and attributed jazz quotes to paused moments or help.
+The one-line sharp/flat reminder (`TuningNotice`) is not interpretation: it is the
+tuning feedback meant for live play, so `EarTrainingConsole` renders it through
+Listen and Play as well as on pause, with its line reserved when clear. Only the
+fader bank waits for a pause (2026-10-15: the console had carried the reminder
+into the paused-only region, and a 52-take run centred 14 ¢ sharp earned it on 18
+takes nobody saw).
 Avoid repeated instructions, decorative motion and layout changes between Listen
 and Play. Ear Training has no visible medal badge: its existing five accuracy
 colours are applied to the actual overall, pitch and rhythm percentages; the grade
@@ -531,9 +537,9 @@ Listen and Play share frame geometry, using semantic phase tokens (approved oran
 the entrance frame stays dashed until recording is audible.
 
 Production notation stays in abcjs, preserving real notes, accidentals, written
-pitch and ledger lines. Adjacent chord rows follow the active staff's measured
-bar boundaries when both cover the same full progression. A windowed excerpt of
-a longer progression retains its own geometry. Resize measurements include the
+pitch and ledger lines. Chord-only rows use beat-proportional widths independently
+of the staff's engraving density. The notation wash follows the staff's measured
+bar boundaries, and a windowed excerpt retains its own geometry. Resize measurements include the
 SVG's actual scale; playback updates move only the highlight, never re-engrave.
 The current bar has a restrained wash and thin underline. Ring keys retain tier
 colours and current/pending outlines; percentages are available in accessible
@@ -551,8 +557,9 @@ and vertical chord-cell boundaries, with no extra trailing cell rule. These
 lines retain their contrast from initial load through Listen, Play and key
 changes. Dim inactive/past chord text and beat dots instead of the whole row
 or cell. `UpcomingKeysDisplay` and `ChordChart` share this rule across Daily,
-Deep and Focused Practice; preserve row heights, bar alignment, phase frames and
-the existing musical engraving. The MagicPath kit mirrors the dark token as
+Deep and Focused Practice; preserve row heights, phase frames and the existing
+musical engraving. Chord-only sections use beat-proportional widths, including
+half-bar chords; their boundaries are independent of sheet engraving density. The MagicPath kit mirrors the dark token as
 `--mk-practice-divider`; independent future Deep Practice prototypes must reuse
 this rule rather than fading their structural frames.
 
@@ -628,11 +635,20 @@ uses the shared Studio surface tokens.
 ### Tune Detail and Tune Editor
 
 Tune Detail (`/tunes/[id]`) and Tune Editor (`/tunes/editor`) share the Lick
-Editor Studio Desk shell, inset score, grouped transport/accompaniment and
-right-hand Setup inspector. The approved reference is MagicPath component
-`459518519676121088`, revision `461185056698941440`. Page headings own metadata;
-`omitMasthead` avoids reserving duplicate engraving space. The score scrolls
-inside its well on phones and the inspector stacks below the workspace.
+Editor Studio Desk shell, inset score and grouped transport/accompaniment.
+Tune Detail retains its right-hand Setup inspector (MagicPath component
+`459518519676121088`, revision `461185056698941440`). The Tune Editor reference
+is component `459518430719139840`, revision `461693025576427520`.
+
+The editor puts note entry in a sticky right-hand rail that stays within the
+viewport as the full score scrolls. Section buttons navigate the score above
+the transport; Tune settings and Edit form open dialogs. At 800px and below,
+note entry becomes a collapsible fixed bottom drawer. Use the shared duration
+and pitch controls, with no duplicate state or separate mobile control tree.
+Page headings own metadata; `omitMasthead` avoids duplicate engraving space.
+The editor requests four full bars per system through `tuneOptions.barsPerLine`;
+existing pickup, section and volta rules still determine necessary breaks.
+Keep native engraving and scroll dense scores inside their well on phones.
 
 `TuneTransport` uses production phrase playback with expanded repeats, local
 tempo and loop, instrument samples, swing, metronome and backing controls.
@@ -694,10 +710,12 @@ existing shortcuts (1–5, A–G, 0 for rest), accidental, octave, tie and delet
 behavior; suspend shortcuts in text inputs and dialogs. Keep selected,
 focused and disabled states visibly distinct, with accessible control names.
 
-The shared layout order is score, transport, note entry, then setup/details;
-on wide screens the inspector sits at the right. The inspector stacks below
-900px. Tune-specific sections, inline harmony, pickups and PDF review extend
-that structure. Do not expose melody entry for unsupported meters. Undo/redo
+Lick Editor keeps score, transport and note entry together, with setup/details
+in an inspector that stacks below 900px. Tune Editor keeps its note-entry rail
+on the right of the scrolling score and uses a bottom drawer at 800px; settings
+and form move into dialogs. Tune-specific sections, inline harmony, pickups
+and PDF review extend the shared controls. Do not expose melody entry for
+unsupported meters. Undo/redo
 tracks musical content and setup, not selection/playback or saved identity;
 retain the bounded history and confirmation/undo behavior of Clear.
 

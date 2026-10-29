@@ -70,7 +70,7 @@ export const KEY_FLOOR_THRESHOLD = 0.75;
  * Minimum average session score required to unlock the next key. Derived
  * from `KEY_PROFICIENT_THRESHOLD` so the avg gate stays locked to the
  * green-tier bar. Unlocks fire only when the session is proficient AND
- * the most-recently-unlocked key has consolidated (passCount) AND no
+ * the newest key has consolidated from memory (memoryPassCount) AND no
  * played key fell below `KEY_FLOOR_THRESHOLD` — the floor check lives in
  * `startInterLickTransition`, not here.
  */
@@ -78,8 +78,8 @@ export const UNLOCK_AVG_THRESHOLD = KEY_PROFICIENT_THRESHOLD;
 
 /**
  * Number of qualifying per-key sessions (each scoring at or above
- * `PASS_THRESHOLD`) the most-recently-unlocked key must accumulate before
- * the next key joins the rotation. Pairs with `UNLOCK_AVG_THRESHOLD` to
+ * `PASS_THRESHOLD` with sheet music hidden) the newest key must accumulate
+ * before the next key joins the rotation. Pairs with `UNLOCK_AVG_THRESHOLD` to
  * gate unlocks on both session quality and per-key consolidation.
  */
 export const UNLOCK_PASSES_REQUIRED = 3;
@@ -598,7 +598,7 @@ export function getUnlockedKeyCount(
 export interface ShouldUnlockNextKeyArgs {
 	/** Average score across the keys the user attempted this session. */
 	avgScore: number;
-	/** `passCount` of the most-recently-unlocked key (after this session's writes). */
+	/** `memoryPassCount` of the newest key; legacy totals are not evidence. */
 	newestKeyPassCount: number;
 	/** Currently unlocked-key count BEFORE any potential bump. */
 	unlockedCount: number;
@@ -609,7 +609,8 @@ export interface ShouldUnlockNextKeyArgs {
  * Requires both a strong session (`avgScore >= UNLOCK_AVG_THRESHOLD`) and
  * sufficient consolidation on the most-recently-unlocked key
  * (`newestKeyPassCount >= UNLOCK_PASSES_REQUIRED`). Caps at
- * `MAX_UNLOCKED_KEYS`.
+ * `MAX_UNLOCKED_KEYS`. The caller also requires a fresh newest-key pass
+ * without notation and applies the per-key floor.
  */
 export function shouldUnlockNextKey(args: ShouldUnlockNextKeyArgs): boolean {
 	const { avgScore, newestKeyPassCount, unlockedCount } = args;

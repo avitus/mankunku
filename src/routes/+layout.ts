@@ -94,8 +94,8 @@ export const load: LayoutLoad = async ({ data, depends, fetch }) => {
 	// hydration races the node imports hydration has in flight — which is why
 	// the page-load decision moved to `init`; this call only decides one if a
 	// page arrives without the head verdict. It stays for the client-side
-	// RE-RUNS `init` never sees: login (use:enhance → goto with invalidateAll)
-	// and `invalidate('supabase:auth')` from onAuthStateChange.
+	// RE-RUNS `init` never sees: `invalidate('supabase:auth')` from
+	// onAuthStateChange. Successful sign-in loads a fresh document instead.
 	//
 	// When a reload has started, this realm is about to be torn down: park the
 	// load on a promise that never settles. Returning data would let SvelteKit

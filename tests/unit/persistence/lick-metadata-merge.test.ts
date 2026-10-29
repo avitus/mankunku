@@ -284,3 +284,21 @@ describe('mergeLickMetadata — progressHistory', () => {
 		expect(merged.data.progressHistory.a[499].t).toBe(599);
 	});
 });
+
+
+describe('memory pass consolidation across devices', () => {
+	it('preserves proven memory passes when a newer legacy device has only total passes', () => {
+		const proven = bundle({ practiceProgress: { a: { C: { currentTempo: 80, lastPracticedAt: 50, passCount: 4, memoryPassCount: 3 } } } });
+		const legacy = bundle({ practiceProgress: { a: { C: { currentTempo: 82, lastPracticedAt: 80, passCount: 10 } } } });
+		const merged = mergeLickMetadata(proven, legacy);
+		expect(merged.data.practiceProgress.a.C.memoryPassCount).toBe(3);
+		expect(merged).toEqual(mergeLickMetadata(legacy, proven));
+		expect(mergeLickMetadata(merged, proven)).toEqual(merged);
+	});
+
+	it('does not resurrect memory passes predating a reset', () => {
+		const old = bundle({ practiceProgress: { a: { C: { currentTempo: 80, lastPracticedAt: 50, passCount: 8, memoryPassCount: 6 } } } });
+		const fresh = bundle({ practiceProgress: { a: { C: { currentTempo: 60, lastPracticedAt: 150, passCount: 1, memoryPassCount: 1 } } } }, { progressResets: { a: 100 } });
+		expect(mergeLickMetadata(old, fresh).data.practiceProgress.a.C.memoryPassCount).toBe(1);
+	});
+});

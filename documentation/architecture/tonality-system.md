@@ -76,7 +76,7 @@ The daily rotation is the default, but you don't have to use it. The tonality pi
 
 The override persists in your settings. If you need to grind in F Lydian for a week, you can. The app will keep that override active until you reset.
 
-Side B (Lick Practice) ignores the daily pick entirely — it uses its own per-lick key-unlocking system instead. A new lick starts with just its entry key and earns each additional key by alternating sharp- and flat-side neighbours on the circle of fifths as proficiency rises; only once a lick has earned all 12 keys does it cycle through the full set with staged variety. The daily key is purely a Side A concept.
+Side B (Lick Practice) ignores the daily pick entirely — it uses its own per-lick key-unlocking system instead. A new lick starts with just its entry key and earns each additional key in key-signature order as proficiency rises — the key with the fewest sharps or flats in the player's written pitch comes next, sharp key before flat key on a tie, a minor lick counting its relative major's signature; only once a lick has earned all 12 keys does it cycle through the full set with staged variety. The daily key is purely a Side A concept.
 
 ## Scale-aware lick filtering
 

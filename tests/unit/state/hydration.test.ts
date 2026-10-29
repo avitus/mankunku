@@ -79,4 +79,24 @@ describe('hydration handle', () => {
 			vi.useRealTimers();
 		}
 	});
+
+	it('awaitHydration() with no argument keeps the 2 s ceiling the root layout used to block on', async () => {
+		vi.useFakeTimers();
+		try {
+			setHydrationPromise(new Promise<void>(() => {})); // never resolves
+			let settled = false;
+			const waiter = awaitHydration().then(() => {
+				settled = true;
+			});
+
+			await vi.advanceTimersByTimeAsync(1999);
+			expect(settled).toBe(false);
+
+			await vi.advanceTimersByTimeAsync(1);
+			await waiter;
+			expect(settled).toBe(true);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
 });

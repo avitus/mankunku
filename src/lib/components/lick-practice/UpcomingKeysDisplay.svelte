@@ -36,6 +36,11 @@
 		plannedKeys: PlannedKey[];
 		/** Promised first key of the next cycle, visible during a handoff repeat. */
 		nextCycleKey?: PlannedKey | null;
+		/**
+		 * Focus-ramp takes still to come, drawn under the current take with
+		 * their tempos. Display only, like `nextCycleKey`: never scheduled.
+		 */
+		projectedRows?: PlannedKey[];
 		/** Outgoing row for a Deep cycle's scroll animation. Never scheduled. */
 		precedingKey?: PlannedKey | null;
 		/**
@@ -72,10 +77,12 @@
 		 * Just-scored key result to flash as a tier-colored chip on that
 		 * key's row (single-lick continuous flow — feedback rides the scroll
 		 * instead of pausing it). Matched to the latest current/completed row
-		 * for this key, never an upcoming occurrence of the same key. `at`
-		 * keys the fade animation so back-to-back flashes restart it.
+		 * for this key, never an upcoming occurrence of the same key — and,
+		 * when two rows of the key are on screen (a focus ramp), the row of
+		 * the take's own `cycle`. `at` keys the fade animation so back-to-back
+		 * flashes restart it.
 		 */
-		scoreFlash?: { key: PitchClass; score: number; at: number } | null;
+		scoreFlash?: { key: PitchClass; score: number; at: number; cycle?: number } | null;
 		instrument: InstrumentConfig;
 	}
 
@@ -84,6 +91,7 @@
 		deep = false,
 		plannedKeys,
 		nextCycleKey = null,
+		projectedRows = [],
 		precedingKey = null,
 		scrollFraction,
 		currentBeat,
@@ -121,13 +129,17 @@
 	//
 	// Daily and both Deep entry paths show eligible sheets from the outset,
 	// including the promised handoff row. Focused retains its later reveal.
+	// A focus ramp draws the takes still to come under the current one, each
+	// with its tempo; like the handoff row, they are never played this cycle.
 	const historyRows = $derived(precedingKey ? 1 : 0);
 	const displayKeys = $derived([
 		...(precedingKey ? [precedingKey] : []), ...plannedKeys,
-		...(nextCycleKey ? [nextCycleKey] : [])
+		...(nextCycleKey ? [nextCycleKey] : []), ...projectedRows
 	]);
-	const displayFraction = $derived(historyRows + (nextCycleKey
+	// Rows after the cycle's own are never played in it: hold on its last row.
+	const displayFraction = $derived(historyRows + (nextCycleKey || projectedRows.length > 0
 		? Math.min(scrollFraction, Math.max(0, plannedKeys.length - 0.0001)) : scrollFraction));
+	const firstProjectedRow = $derived(displayKeys.length - projectedRows.length);
 	const rowHeights = $derived(displayKeys.map((pk) => (pk.reveal ? LEAD_ROW_HEIGHT : ROW_HEIGHT)));
 	// Reserve the same viewport between cycles, whether or not a recovered
 	// key still needs notation. Mixed-height scroll positions stay pure.
@@ -136,9 +148,19 @@
 	);
 	const translateYpx = $derived(layout.translateY);
 	const visualCurrentRow = $derived(layout.currentRow);
-	const scoredRow = $derived(scoreFlash ? displayKeys.findLastIndex(
-		(pk, index) => index <= visualCurrentRow && pk.key === scoreFlash.key
-	) : -1);
+	// The take's own row when it is still on screen (a focus take scrolling
+	// out above the next take of its key); otherwise the latest row of the key
+	// — a same-key retry that stays still shows the score where it was played.
+	const scoredRow = $derived.by(() => {
+		const flash = scoreFlash;
+		if (!flash) return -1;
+		/** The latest row of the flashed key at or above the current row, optionally of its own round. */
+		const rowOf = (sameCycle: boolean): number => displayKeys.findLastIndex((pk, index) =>
+			index <= visualCurrentRow && pk.key === flash.key &&
+			(!sameCycle || flash.cycle === undefined || pk.cycle === undefined || pk.cycle === flash.cycle));
+		const own = rowOf(true);
+		return own >= 0 ? own : rowOf(false);
+	});
 
 	// Lead sheets are built ONCE per stack (plannedKeys is set at lick/cycle
 	// start), so each revealed row hands NotationDisplay the same tune and
@@ -151,9 +173,8 @@
 			return { ...sheet, options: leadSheetAbcOptions(pk.phrase, sheet.bars) };
 		})
 	);
-	// Follow the active engraving's real bar geometry rather than stretching
-	// noteheads or accidentals to an artificial grid. Windowed sheets keep
-	// their own layout because their bars cover only part of the progression.
+	// The notation wash follows each sheet's actual engraved bars. Chord-only
+	// rows size their cells by beats independently of the engraving density.
 	let sheetEdges = $state<Record<number, number[]>>({});
 	$effect(() => { void plannedKeys; sheetEdges = {}; });
 	/** Publish geometry only when it changes, avoiding reactive resize churn. */
@@ -162,12 +183,6 @@
 			sheetEdges = { ...sheetEdges, [index]: edges };
 		}
 	}
-	const alignmentIndex = $derived(leadSheets[visualCurrentRow] ? visualCurrentRow : leadSheets.findIndex(Boolean));
-	const alignmentSheet = $derived(leadSheets[alignmentIndex]);
-	const barEdges = $derived(alignmentSheet?.startBar === 0 ? sheetEdges[alignmentIndex] : undefined);
-	// The edges follow ONE lick's engraving; a handoff row (preceding or next
-	// cycle) can belong to another lick that happens to share the bar count.
-	const edgesLickId = $derived(displayKeys[alignmentIndex]?.lickId);
 
 	// The tab names the key of the row it sits on — that row is always the one
 	// about to be played (the turnaround has already swapped the stack).
@@ -243,7 +258,9 @@
 		style="transform: translateY({translateYpx}px); --cycle-from: {translateYpx + (rowHeights[0] ?? 0)}px;">
 		{#each displayKeys as pk, i (pk.lickId + ':' + pk.key + ':' + i)}
 			{@const isCurrent = i === visualCurrentRow}
-			{@const sheet = leadSheets[i]}
+			<!-- A projected focus take below the viewport is never seen before the
+			     next cycle rebuilds the stack: don't engrave it on the downbeat. -->
+			{@const sheet = i >= firstProjectedRow && i >= visualCurrentRow + VISIBLE_ROWS ? null : leadSheets[i]}
 			{@const isRevealed = !!sheet && (compact || i <= visualCurrentRow)}
 			<div
 				class="row"
@@ -300,7 +317,6 @@
 									out:fade={{ duration: 400 }}
 								>
 									<ChordChart
-										barEdges={pk.lickId === edgesLickId ? barEdges : undefined}
 										showLabel={false}
 										harmony={pk.harmony}
 										currentBeat={0}
@@ -314,7 +330,6 @@
 							{/if}
 					{:else}
 						<ChordChart
-							barEdges={pk.lickId === edgesLickId ? barEdges : undefined}
 							showLabel={false}
 							harmony={pk.harmony}
 							currentBeat={isCurrent ? currentBeat : 0}
@@ -325,17 +340,26 @@
 							{instrument}
 						/>
 					{/if}
-					{#if scoreFlash && i === scoredRow}
-						{@const tier = accuracyTierInfo(scoreFlash.score)}
-						{#key scoreFlash.at}
-							<div
-								class="score-flash"
-								style="--flash-color: {tier.color};"
-								aria-live="polite"
-							>
-								{Math.round(scoreFlash.score * 100)}%
-							</div>
-						{/key}
+					{#if (scoreFlash && i === scoredRow) || pk.tempo !== undefined}
+						<div class="lane-end">
+							{#if scoreFlash && i === scoredRow}
+								{@const tier = accuracyTierInfo(scoreFlash.score)}
+								{#key scoreFlash.at}
+									<div
+										class="score-flash"
+										style="--flash-color: {tier.color};"
+										aria-live="polite"
+									>
+										{Math.round(scoreFlash.score * 100)}%
+									</div>
+								{/key}
+							{/if}
+							<!-- The focus ramp's tempo for this take: the rows below the
+							     current one climb to the target as long as each clears. -->
+							{#if pk.tempo !== undefined}
+								<span class="row-tempo" data-testid="row-tempo">{pk.tempo} BPM</span>
+							{/if}
+						</div>
 					{/if}
 					<!-- Phase tab: the booth sign for the row the user is reading.
 					     It rides the scroll for free (the row is its positioning
@@ -490,12 +514,32 @@
 	.lead-sheet :global(svg .abcjs-staff path), .lead-sheet :global(svg .abcjs-staff line) { stroke: color-mix(in srgb, var(--color-text) 55%, transparent) !important; }
 	.lead-sheet :global(svg .playhead-under-bar) { fill: var(--practice-phase) !important; }
 
-	/* Transient per-key score chip: fades in over the just-scored row, holds,
-	   fades out — sized and placed to never obscure the chord boxes' text. */
-	.score-flash {
+	/* The cue lane's right end: the score chip, then a focus take's tempo. */
+	.lane-end {
 		position: absolute;
 		top: 0.4rem;
 		right: 0.6rem;
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		pointer-events: none;
+	}
+	.row-tempo {
+		font-size: 0.75rem;
+		font-weight: 600;
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
+		color: var(--color-text-secondary);
+		opacity: 0.7;
+	}
+	.row.current .row-tempo {
+		color: var(--color-text);
+		opacity: 1;
+	}
+
+	/* Transient per-key score chip: fades in over the just-scored row, holds,
+	   fades out — sized and placed to never obscure the chord boxes' text. */
+	.score-flash {
 		padding: 0.15rem 0.5rem;
 		border-radius: 0.375rem;
 		font-size: 0.85rem;

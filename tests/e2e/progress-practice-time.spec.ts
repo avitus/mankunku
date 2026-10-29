@@ -1,5 +1,6 @@
 import { test, expect } from './fixtures/test';
 import { seedStorage, SETTINGS_ONBOARDED, TOUR_DISMISSED } from './fixtures/storage';
+import { freezeDate } from './fixtures/date';
 
 /**
  * Practice time on /progress.
@@ -18,7 +19,7 @@ import { seedStorage, SETTINGS_ONBOARDED, TOUR_DISMISSED } from './fixtures/stor
  * week ending today), so the clock is pinned: Sunday 2026-07-19 makes
  * 07-13…07-19 the current week and 07-06…07-12 the previous one.
  */
-// Freeze calendar dates only. Keep native timers for Sentry Replay and UI events.
+// Calendar dates only: freezeDate leaves the timers native (see fixtures/date.ts).
 const NOW = new Date('2026-07-19T12:00:00Z');
 
 /**
@@ -48,7 +49,7 @@ test('the period panel reports practice time and its change', async ({
 	page,
 	consoleCollector: _c
 }) => {
-	await page.clock.setFixedTime(NOW);
+	await freezeDate(page, NOW);
 
 	await seedStorage(page, {
 		settings: SETTINGS_ONBOARDED,
@@ -79,7 +80,7 @@ test('the summary card totals every day on record, not the period', async ({
 	page,
 	consoleCollector: _c
 }) => {
-	await page.clock.setFixedTime(NOW);
+	await freezeDate(page, NOW);
 
 	await seedStorage(page, {
 		settings: SETTINGS_ONBOARDED,
@@ -102,7 +103,7 @@ test('the summary card totals every day on record, not the period', async ({
 });
 
 test('a calendar day carries the time practised', async ({ page, consoleCollector: _c }) => {
-	await page.clock.setFixedTime(NOW);
+	await freezeDate(page, NOW);
 
 	await seedStorage(page, {
 		settings: SETTINGS_ONBOARDED,
@@ -121,7 +122,7 @@ test('a calendar day carries the time practised', async ({ page, consoleCollecto
 
 
 test('unknown historical durations stay excluded without practice-time caveats', async ({ page, consoleCollector: _c }) => {
-	await page.clock.setFixedTime(NOW);
+	await freezeDate(page, NOW);
 	await seedStorage(page, {
 		settings: SETTINGS_ONBOARDED, 'tour-state': TOUR_DISMISSED,
 		'daily-summaries': [summary('2026-07-15', 240, 120), summary('2026-07-19', 47)]
@@ -138,7 +139,7 @@ test('unknown historical durations stay excluded without practice-time caveats',
 });
 
 test('an entirely unknown practice history is not displayed as zero hours', async ({ page, consoleCollector: _c }) => {
-	await page.clock.setFixedTime(NOW);
+	await freezeDate(page, NOW);
 	await seedStorage(page, {
 		settings: SETTINGS_ONBOARDED, 'tour-state': TOUR_DISMISSED,
 		'daily-summaries': [summary('2026-07-15', 240, 120)]

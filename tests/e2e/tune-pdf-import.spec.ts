@@ -135,6 +135,8 @@ async function stubParseRoute(
  * slot — the summary's spot in the unengraved layout. `Sheet Music for …` is
  * abcjs's own label on the engraved SVG.
  */
+const CHART_SVG = '.abcjs-container svg';
+
 async function openImportReview(page: Page): Promise<void> {
 	await expect(page.getByRole('img', { name: /^Sheet Music for/ })).toBeVisible();
 	await page
@@ -143,6 +145,27 @@ async function openImportReview(page: Page): Promise<void> {
 		.getByText(/detail/)
 		.first()
 		.click();
+}
+
+/** Track encoded raster buffers without changing their content or forcing GC. */
+async function trackEncodedCanvases(page: Page): Promise<void> {
+	await page.addInitScript(() => {
+		const encoded: HTMLCanvasElement[] = [];
+		(window as unknown as { encodedCanvases: HTMLCanvasElement[] }).encodedCanvases = encoded;
+		const original = HTMLCanvasElement.prototype.toDataURL;
+		HTMLCanvasElement.prototype.toDataURL = function (...args) {
+			if (!encoded.includes(this)) encoded.push(this);
+			return original.apply(this, args);
+		};
+	});
+}
+
+async function expectRasterBuffersReleased(page: Page): Promise<void> {
+	const sizes = await page.evaluate(() =>
+		(window as unknown as { encodedCanvases: HTMLCanvasElement[] }).encodedCanvases
+			.map(canvas => canvas.width * canvas.height));
+	expect(sizes.length).toBeGreaterThan(1);
+	expect(sizes.every(size => size === 0)).toBe(true);
 }
 
 test.beforeEach(async ({ page }) => {
@@ -247,6 +270,7 @@ test('the declared time signature goes out with every line, including the contex
 test('a declared meter that contradicts the print is flagged, not silently applied', async ({
 	page
 }) => {
+	await trackEncodedCanvases(page);
 	await stubParseRoute(page, { printedMeter: [3, 4] });
 	await page.goto('/tunes/import/pdf');
 	// Leave the 4/4 default while the chart reports 3/4.
@@ -256,11 +280,13 @@ test('a declared meter that contradicts the print is flagged, not silently appli
 	await page.getByRole('button', { name: 'Prepare draft', exact: true }).click();
 
 	await page.waitForURL('**/tunes/editor', { timeout: 60_000 });
+	await expectRasterBuffersReleased(page);
 	await openImportReview(page);
 	await expect(page.getByText(/looks like it is in 3\/4/).first()).toBeVisible();
 });
 
 test('a line the AI cannot read is left blank instead of sinking the import', async ({ page }) => {
+	await trackEncodedCanvases(page);
 	await stubParseRoute(page, { failFirstSystem: true });
 	await page.goto('/tunes/import/pdf');
 
@@ -273,13 +299,28 @@ test('a line the AI cannot read is left blank instead of sinking the import', as
 	// the whole-PDF fallback is not used (it would have replaced the title
 	// with the fixture's and taken minutes).
 	await page.waitForURL('**/tunes/editor', { timeout: 60_000 });
+	await expectRasterBuffersReleased(page);
 	await expect(page.getByRole('textbox', { name: 'Tune title' })).toBeVisible();
 
 	// The failed line is not silently blank: the review banner names its bars
 	// up front, and the detail says why they are empty.
-	await expect(page.getByText(/Review bars .* — the import wasn't certain there/)).toBeVisible();
+	const banner = page.getByText(/Review bars .* — the import wasn't certain there/);
+	await expect(banner).toBeVisible();
 	await openImportReview(page);
 	await expect(page.getByText(/could not be transcribed/i).first()).toBeVisible();
+
+	// The flagged bars carry a brass "review" band on the chart (phase 4,
+	// 2026-10-16); N jumps to the next one, and typing a note there clears
+	// that bar's band while the others stay.
+	const flagged = ((await banner.textContent()) ?? '').match(/\d+/g)!.map(Number);
+	const markers = page.locator(`${CHART_SVG} rect[data-marker-id^="review-"]`);
+	await expect(markers).toHaveCount(flagged.length);
+	const target = flagged.find((b) => b > 1) ?? flagged[0];
+	await page.keyboard.press('n');
+	await page.keyboard.press('3');
+	await page.keyboard.press('a');
+	await expect(page.locator(`${CHART_SVG} rect[data-marker-id="review-${target}"]`)).toHaveCount(0);
+	await expect(markers).toHaveCount(flagged.length - 1);
 });
 
 test('the import reports which line it is on, and can be cancelled', async ({ page }) => {
@@ -328,7 +369,11 @@ test('staged PDFs can be removed and reselected; invalid files do not start reco
 	await page.goto('/tunes/import/pdf');
 	const input = page.getByLabel('Tune PDF');
 	const prepare = page.getByRole('button', { name: 'Prepare draft', exact: true });
+	await expect(page.getByRole('heading', { name: 'Import a PDF', exact: true })).toBeVisible();
 	await expect(input).toBeEnabled();
+	await expect(page.getByRole('button', { name: 'Choose a PDF' })).toBeEnabled();
+	// Nothing staged: nothing to prepare.
+	await expect(prepare).toBeDisabled();
 	await input.setInputFiles({ name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('not a PDF') });
 	await expect(page.getByRole('alert')).toHaveText('Choose a PDF file.');
 	await expect(prepare).toBeDisabled();
@@ -535,3 +580,24 @@ for (const [name, measures] of [
 		await expect(page.getByAltText(`Original PDF measure ${measures}`)).toBeVisible();
 	});
 }
+
+test('an unsaved PDF draft survives leaving the editor and coming back', async ({ page }) => {
+	await page.goto('/tunes/import/pdf');
+	const fileInput = page.getByLabel('Tune PDF');
+	await expect(fileInput).toBeEnabled();
+	await fileInput.setInputFiles('tests/fixtures/leadsheets/fly-me-to-the-moon.pdf');
+	await page.getByRole('button', { name: 'Prepare draft', exact: true }).click();
+	await page.waitForURL('**/tunes/editor');
+	await expect(page.getByRole('textbox', { name: 'Tune title' })).toHaveValue('Fly Me to the Moon');
+
+	// Leave by the app's own link and come back with the browser's Back: a
+	// client-side round trip, nothing reloads. The draft has a pre-assigned
+	// id and no stored sheet yet; before 2026-10-15 the editor's mount read
+	// that as stale edit state and started a fresh tune over it.
+	await page.getByRole('link', { name: 'Your tunes', exact: true }).click();
+	await page.waitForURL(/\/tunes$/);
+	await page.goBack();
+	await page.waitForURL('**/tunes/editor');
+	await expect(page.getByRole('textbox', { name: 'Tune title' })).toHaveValue('Fly Me to the Moon');
+	await expect(page.getByRole('button', { name: 'Update tune' })).toBeVisible();
+});

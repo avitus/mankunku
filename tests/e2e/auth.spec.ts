@@ -101,7 +101,40 @@ test.describe('auth — anonymous', () => {
 			page.locator('main').getByRole('link', { name: 'Sign in', exact: true })
 		).toBeVisible();
 	});
+
+	test('the reset page names each failure it can tell apart, and never shows a signed-out form', async ({
+		page
+	}) => {
+		const problem = page.getByTestId('reset-password-problem');
+		const cases: Array<[string, string, RegExp]> = [
+			// Visited directly, with no session: point at the email.
+			['/auth/reset-password', 'signed-out', /password-reset email/],
+			['/auth/reset-password?link=other-browser', 'other-browser', /same browser/],
+			['/auth/reset-password?link=invalid', 'invalid', /newest email/],
+			// An unknown reason is no reason: the signed-out state, not a guess.
+			['/auth/reset-password?link=bogus', 'signed-out', /password-reset email/]
+		];
+		for (const [path, status, text] of cases) {
+			await page.goto(path);
+			await expect(problem, path).toHaveAttribute('data-status', status);
+			await expect(problem, path).toContainText(text);
+			await expect(page.getByLabel('New password', { exact: true }), path).toHaveCount(0);
+		}
+	});
 });
+
+/**
+ * Wait until the sign-in form is hydrated, using the password toggle as the
+ * probe: it only works once client code runs. A submit clicked before
+ * `use:enhance` attaches posts the form natively, and a mocked action
+ * response then replaces the page instead of updating the form.
+ */
+async function waitForAuthFormHydration(page: Page): Promise<void> {
+	await expect(async () => {
+		await page.getByRole('button', { name: 'Show password', exact: true }).click();
+		await expect(page.getByLabel('Password', { exact: true })).toHaveAttribute('type', 'text');
+	}).toPass();
+}
 
 test('account switching keeps sign-in feedback visible until the destination loads', async ({
 	signedInPage: page,
@@ -114,11 +147,7 @@ test('account switching keeps sign-in feedback visible until the destination loa
 	await page.getByRole('button', { name: 'Sign Out', exact: true }).click();
 	await expect(page).toHaveURL(/\/auth$/);
 	// Sign-out re-homes storage with a reload before hydrating the form.
-	// Wait for a working client control before entering the next credentials.
-	await expect(async () => {
-		await page.getByRole('button', { name: 'Show password', exact: true }).click();
-		await expect(page.getByLabel('Password', { exact: true })).toHaveAttribute('type', 'text');
-	}).toPass();
+	await waitForAuthFormHydration(page);
 
 	let releaseLogin!: () => void;
 	const loginGate = new Promise<void>((resolve) => { releaseLogin = resolve; });
@@ -126,6 +155,15 @@ test('account switching keeps sign-in feedback visible until the destination loa
 	const navigationGate = new Promise<void>((resolve) => { releaseNavigation = resolve; });
 	let navigationStarted!: () => void;
 	const navigating = new Promise<void>((resolve) => { navigationStarted = resolve; });
+	const intermediateRequests: string[] = [];
+	page.on('request', (request) => {
+		const url = new URL(request.url());
+		if (request.method() === 'GET' &&
+			(url.pathname === '/auth' || url.pathname.endsWith('/__data.json'))) {
+			intermediateRequests.push(url.pathname);
+			if (request.isNavigationRequest()) navigationStarted();
+		}
+	});
 	await page.route('**/auth?/login', async (route) => {
 		await loginGate;
 		await setE2EAuthCookie(page, {
@@ -137,7 +175,9 @@ test('account switching keeps sign-in feedback visible until the destination loa
 			body: JSON.stringify({ type: 'redirect', status: 303, location: '/' })
 		});
 	});
-	await page.route((url) => url.pathname === '/' || url.pathname === '/__data.json', async (route) => {
+	// Let route-data loads and any /auth reload run. Hold only the destination
+	// document: pausing __data.json hid the later account-switch reload bug.
+	await page.route((url) => url.pathname === '/', async (route) => {
 		navigationStarted();
 		await navigationGate;
 		await route.continue();
@@ -149,13 +189,36 @@ test('account switching keeps sign-in feedback visible until the destination loa
 	try {
 		await expect(submit).toHaveAccessibleName('Signing in…');
 		await expect(submit).toBeDisabled();
+		const formStates: string[] = [];
+		await page.exposeFunction('recordSignInState', (state: string) => { formStates.push(state); });
+		await page.evaluate(() => {
+			const form = document.querySelector('main form')!;
+/** Snapshot the sign-in form's state into the page's recorder on every mutation. */
+			const record = (): void => {
+				void (window as typeof window & { recordSignInState: (state: string) => Promise<void> })
+					.recordSignInState(JSON.stringify({
+						label: form.querySelector<HTMLButtonElement>('button[type="submit"]')!.textContent!.trim(),
+						disabled: form.querySelector<HTMLButtonElement>('button[type="submit"]')!.disabled,
+						busy: form.getAttribute('aria-busy'),
+						emailDisabled: form.querySelector<HTMLInputElement>('[name="email"]')!.disabled
+					}));
+			};
+			new MutationObserver(record).observe(form, { subtree: true, attributes: true, childList: true, characterData: true });
+			window.addEventListener('beforeunload', record);
+			record();
+		});
+		await expect.poll(() => formStates.length).toBeGreaterThan(0);
 		releaseLogin();
 		await navigating;
-		// The auth response has arrived, but the next page is still loading.
-		await expect(submit).toHaveAccessibleName('Signing in…');
-		await expect(submit).toBeDisabled();
-		await expect(page.locator('main form')).toHaveAttribute('aria-busy', 'true');
-		await expect(page.getByLabel('Email')).toBeDisabled();
+		// A successful sign-in must go straight to the destination document,
+		// without a client route load that reloads the still-current /auth URL.
+		expect(intermediateRequests).toEqual([]);
+		// Chromium suspends evaluation in a document navigating away. Record
+		// changes and beforeunload from inside it instead of querying it here.
+		await expect.poll(() => formStates.length).toBeGreaterThan(1);
+		for (const state of formStates) {
+			expect(JSON.parse(state)).toEqual({ label: 'Signing in…', disabled: true, busy: 'true', emailDisabled: true });
+		}
 	} finally {
 		releaseLogin();
 		releaseNavigation();
@@ -175,6 +238,7 @@ test('failed sign-in restores the form for retry', async ({ page }) => {
 			})
 		});
 	});
+	await waitForAuthFormHydration(page);
 	await page.getByLabel('Email').fill('second-user@example.com');
 	await page.getByLabel('Password', { exact: true }).fill('test-password');
 	await page.getByRole('button', { name: 'Sign in', exact: true }).click();
@@ -264,6 +328,18 @@ test.describe('password reset (authed)', () => {
 		await expect(signedInPage.getByTestId('reset-password-success')).toBeVisible();
 		await expect(signedInPage.getByRole('heading', { name: 'Password Updated' })).toBeVisible();
 		await expect(password).toHaveCount(0);
+	});
+
+	test('a failed link wins over a live session: no form, and the way back is Settings', async ({
+		signedInPage
+	}) => {
+		await signedInPage.goto('/auth/reset-password?link=expired');
+		const problem = signedInPage.getByTestId('reset-password-problem');
+		await expect(problem).toHaveAttribute('data-status', 'expired');
+		await expect(signedInPage.getByLabel('New password', { exact: true })).toHaveCount(0);
+		await expect(
+			signedInPage.locator('main').getByRole('link', { name: 'Request a new link from Settings' })
+		).toHaveAttribute('href', '/settings');
 	});
 });
 

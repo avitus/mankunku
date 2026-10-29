@@ -63,8 +63,7 @@ test('lick-practice key chips refresh the score and both note columns', async ({
 		});
 		try {
 			const tx = db.transaction('recordings', 'readwrite');
-			// This view reads metadata only. Omit audio bytes so the fixture also
-			// works in WebKit runners that cannot persist Blob/File data.
+			// This view reads metadata only, so the fixture carries no audio bytes.
 			keys.forEach((key, i) => tx.objectStore('recordings').put({
 				sessionId: key.sessionId,
 				timestamp: Date.now(),

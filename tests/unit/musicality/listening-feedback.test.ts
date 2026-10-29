@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { createListeningFeedback, readListeningFeedback, saveListeningFeedback, serializeListeningFeedback, restoreListeningFeedback, LISTENING_FEEDBACK_STORAGE_KEY, type ListeningFeedbackInput } from '$lib/musicality/listening-feedback';
-import { buildListeningTuneSession, LISTENING_TUNES } from '$lib/musicality/listening-tunes';
+import { buildHistoricalListeningTuneSession as buildListeningTuneSession, HISTORICAL_LISTENING_TUNES as LISTENING_TUNES } from '../../helpers/musicality-tune-fixtures';
 import { DEFAULT_BACKING_MIX } from '$lib/audio/backing-mix';
 import { setActiveUid } from '$lib/persistence/namespace';
 

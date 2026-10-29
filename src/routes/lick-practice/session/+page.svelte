@@ -21,6 +21,8 @@
 		getPhraseFor,
 		getPlannedKeysForLick,
 		getHandoffPreviewKey,
+		getFocusProjectionRows,
+		isFocusTake,
 		buildLickSuperPhrase,
 		getKeyBars,
 		getDemoBars,
@@ -202,6 +204,8 @@
 	// transport.ticks via startBeatTracking().
 	let plannedKeysForLick = $state<PlannedKey[]>([]);
 	let nextCycleKey = $state<PlannedKey | null>(null);
+	// The focus takes still to come, drawn under the current one (display only).
+	let projectedRows = $state<PlannedKey[]>([]);
 	let precedingKey = $state<PlannedKey | null>(null);
 	// Audio must be queued during lookahead, but the chart must retain the
 	// sounding cycle until its final beat has actually finished.
@@ -209,6 +213,9 @@
 		startTick: number;
 		rows: PlannedKey[];
 		preview: PlannedKey | null;
+		projected: PlannedKey[];
+		/** A focus take scrolls in even when it repeats the key just played. */
+		scrollSameKey: boolean;
 		layout: CyclePositionArgs;
 		timeline: PhaseSegment[];
 	} | null = null;
@@ -227,7 +234,7 @@
 	// Single-lick inline feedback: the just-scored key's result, flashed as a
 	// tier-colored chip on its chart row without interrupting the scroll.
 	// `at` keys the CSS animation so back-to-back flashes restart it.
-	let scoreFlash = $state<{ key: PitchClass; score: number; at: number } | null>(null);
+	let scoreFlash = $state<{ key: PitchClass; score: number; at: number; cycle?: number } | null>(null);
 	let scoreFlashTimeout: ReturnType<typeof setTimeout> | null = null;
 	// Idempotence guard for the single-lick cycle boundary: the tick whose
 	// boundary already ran. A cancelled-but-dequeued close event firing after
@@ -320,6 +327,8 @@
 		finalPass: boolean;
 		/** Windows this key gets in the cycle (1, or the lead-sheet passes). */
 		passes: number;
+		/** The round the window belongs to — its score flash lands on that round's row. */
+		cycle: number;
 		/** The clocks at window open, saved with the take for the click-grid investigation (capture-timing.ts). */
 		armTiming: ArmTiming | null;
 	}
@@ -577,6 +586,7 @@
 		// out waiting for the row). startLick rebuilds the same rows when the
 		// audio starts; the keyed rows keep their DOM.
 		plannedKeysForLick = getPlannedKeysForLick(lickPractice.currentLickIndex);
+		projectedRows = getFocusProjectionRows(lickPractice.currentLickIndex);
 		rowOfKey = rowIndexByKey(plannedKeysForLick);
 
 		isLoading = true;
@@ -598,6 +608,7 @@
 			// mic must not leave them standing as a populated, silent stack.
 			micError = true;
 			plannedKeysForLick = [];
+			projectedRows = [];
 			rowOfKey = [];
 			return;
 		}
@@ -637,6 +648,7 @@
 			stopAll();
 			loadError = true;
 			plannedKeysForLick = [];
+			projectedRows = [];
 			rowOfKey = [];
 			return;
 		}
@@ -701,9 +713,10 @@
 		if (boundaryTime === undefined) {
 			const rows = getPlannedKeysForLick(lickIdx);
 			precedingKey = !isFirstLick && lickPractice.mode === 'single-lick' && currentItem?.kind !== 'trick'
-				? precedingCycleRow(plannedKeysForLick, rows) : null;
+				? precedingCycleRow(plannedKeysForLick, rows, isFocusTake()) : null;
 			plannedKeysForLick = rows;
 			nextCycleKey = getHandoffPreviewKey(lickIdx);
+			projectedRows = getFocusProjectionRows(lickIdx);
 			rowOfKey = rowIndexByKey(plannedKeysForLick);
 			cycleLayout = null;
 		}
@@ -876,6 +889,8 @@
 				startTick: audioStartTick,
 				rows: getPlannedKeysForLick(lickIdx),
 				preview: getHandoffPreviewKey(lickIdx),
+				projected: getFocusProjectionRows(lickIdx),
+				scrollSameKey: isFocusTake(),
 				layout: nextLayout,
 				timeline: nextTimeline
 			};
@@ -1134,9 +1149,11 @@
 					: transport.ticks;
 				if (pendingCycleDisplay && ticks >= pendingCycleDisplay.startTick) {
 					precedingKey = currentItem?.kind !== 'trick'
-						? precedingCycleRow(plannedKeysForLick, pendingCycleDisplay.rows) : null;
+						? precedingCycleRow(plannedKeysForLick, pendingCycleDisplay.rows, pendingCycleDisplay.scrollSameKey)
+						: null;
 					plannedKeysForLick = pendingCycleDisplay.rows;
 					nextCycleKey = pendingCycleDisplay.preview;
+					projectedRows = pendingCycleDisplay.projected;
 					rowOfKey = rowIndexByKey(plannedKeysForLick);
 					cycleLayout = pendingCycleDisplay.layout;
 					phaseTimeline = pendingCycleDisplay.timeline;
@@ -1257,6 +1274,7 @@
 			weakReadingsStartCount: pitchDetector.getWeakReadings().length,
 			finalPass,
 			passes,
+			cycle: lickPractice.roundNumber,
 			armTiming: micCapture
 				? snapshotArmTiming(
 						micCapture.context,
@@ -1443,7 +1461,7 @@
 			// every mode: the passes exist to improve across, so each needs its
 			// number.
 			if (lickPractice.mode === 'single-lick' || window.passes > 1) {
-				scoreFlash = { key: window.key, score: score.overall, at: Date.now() };
+				scoreFlash = { key: window.key, score: score.overall, at: Date.now(), cycle: window.cycle };
 				if (scoreFlashTimeout) clearTimeout(scoreFlashTimeout);
 				scoreFlashTimeout = setTimeout(() => {
 					scoreFlash = null;
@@ -1635,6 +1653,7 @@
 		lastBoundaryTick = null;
 		pendingCycleDisplay = null;
 		nextCycleKey = null;
+		projectedRows = [];
 		// Drop the listen/play cue so a stale "Play" can't outlive the session
 		// on the report screen or into a restart.
 		phaseTimeline = [];
@@ -1744,6 +1763,7 @@
 	function resetPageLocalSessionState(): void {
 		plannedKeysForLick = [];
 		precedingKey = null;
+		projectedRows = [];
 		scrollFraction = 0;
 		currentBeat = 0;
 		cycleLayout = null;
@@ -1793,6 +1813,11 @@
 		}
 	}
 
+	/**
+	 * Restarts in place as a focused session pinned to the chosen progression
+	 * (the report's progression buttons). Drops the recommendation context
+	 * first, so the new session is not chained onto earlier report advice.
+	 */
 	async function handleStartProgression(progressionType: ChordProgressionType) {
 		if (isRestarting) return;
 		recommendationContext = undefined;
@@ -1806,11 +1831,13 @@
 		});
 	}
 
-	// Tee up the report's single recommendation. A weak-key step carries the
-	// key as a focus key, so the drill opens on it ALONE and works it back up
-	// to speed before the other keys return (the focus ramp). The plan item's resolved
-	// Phrase is preferred over the bare id because `getLickById` misses for
-	// user/community licks. The tempo-bump knob applies through config.
+	/**
+	 * Tee up the report's single recommendation. A weak-key step carries the
+	 * key as a focus key, so the drill opens on it ALONE and works it back up
+	 * to speed before the other keys return (the focus ramp). The plan item's resolved
+	 * Phrase is preferred over the bare id because `getLickById` misses for
+	 * user/community licks. The tempo-bump knob applies through config.
+	 */
 	async function handleStartNextStep(action: NextStepAction) {
 		if (isRestarting || !sessionReport) return;
 		if (isDailyPractice() || recommendationContext) {
@@ -2177,6 +2204,7 @@
 					deep={lickPractice.mode === 'single-lick' && currentItem.kind !== 'trick'}
 					plannedKeys={plannedKeysForLick}
 					{nextCycleKey}
+					{projectedRows}
 					{precedingKey}
 					{scrollFraction}
 					{currentBeat}

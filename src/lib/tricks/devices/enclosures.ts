@@ -70,7 +70,7 @@ import type { ChordProgressionType } from '$lib/types/lick-practice';
 import { chordSymbol, chordTones } from '$lib/music/chords';
 import { getScale } from '$lib/music/scales';
 import { realizeScale } from '$lib/music/keys';
-import { addFractions, fractionToFloat, gcd, subtractFractions } from '$lib/music/intervals';
+import { addFractions, fractionToFloat, reduceFraction, subtractFractions } from '$lib/music/intervals';
 import { calculateDifficulty } from '$lib/difficulty/calculate';
 import { getProfileForLevel } from '$lib/difficulty/params';
 import { scoreConformanceAgainstSpec } from '../conformance';
@@ -182,12 +182,6 @@ function coerceShape(noteCount: NoteCount, shape: Shape): Shape {
 	if (shape === 'chromatic-below') return 'double-chromatic';
 	if (shape === 'scale-above') return 'above-below';
 	return shape;
-}
-
-function reduceFraction(num: number, den: number): Fraction {
-	if (num === 0) return [0, 1];
-	const g = gcd(num, den);
-	return [num / g, den / g];
 }
 
 function mod12(n: number): number {

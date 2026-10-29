@@ -136,7 +136,7 @@ the column writes `NULL` and erases the value on the next pull.
 - `$state()` for reactive state, `$derived()` for computed values, `$props()` for component inputs, `$effect()` for side effects
 - Components use `interface Props` pattern for typed props
 - Use Tailwind CSS utility classes with CSS custom properties for theming
-- Component files: PascalCase (e.g. `MicStatus.svelte`)
+- Component files: PascalCase (e.g. `NotationDisplay.svelte`)
 
 ### CSS
 
@@ -222,8 +222,10 @@ CI on `musicality`, deliberately remove the setup workflow's `unless` guard.
 
 | Job | Runs on | What it does |
 |---|---|---|
-| `test` | every eligible push | `npx vitest run`, then `npm run test:deploy` |
-| `e2e` | every eligible push, in parallel with `test` | Playwright on all three engines, sharded 6 ways; the config's `webServer` builds the app itself |
+| `list-unit-tests` / `list-e2e-tests` | every eligible push | Select the test files to run (Smarter Testing; impacted files only on branches) and size the next job |
+| `test` | every eligible push, after `list-unit-tests` | `circleci testsuite run "unit tests"` (Vitest), then `npm run test:deploy` on the first node |
+| `e2e` | every eligible push, after `list-e2e-tests`, in parallel with `test` | Playwright on all three engines; each node builds and serves the app once, then runs the spec files dynamic splitting hands it |
+| `unit-analysis` / `e2e-analysis` | `main`, non-blocking | Refresh the test-impact data (per-test coverage) |
 | `build` | `main`, after `test` | `npm run build` |
 | `db-migrate` | `main`, after `build` | `supabase db push --linked` against production |
 | `deploy` | `main`, after `build` + `db-migrate` + `e2e` | Atomic release on the server, then verifies the public `/api/health` reports this commit |
@@ -255,14 +257,16 @@ cd omr && uv run pytest
 ```
 
 `npm test` does **not** cover the last three — CI runs `npm run test:deploy`
-inside the same job as vitest, `npx playwright test` in its own job, and the
-OMR suite only when `omr/` changed. There is no coverage tooling installed.
+inside the same job as vitest, Playwright in its own job, and the OMR suite
+only when `omr/` changed. Coverage tooling (`@vitest/coverage-v8`) is installed
+only to feed CircleCI's test impact analysis; there is no coverage report or
+threshold.
 
-Playwright's `webServer` builds and previews the app on port 4173 and, locally,
-**reuses whatever already holds that port**. Beside another checkout (a
-parallel worktree) that means silently testing the other checkout's build —
-set `PLAYWRIGHT_PORT=<free port>` for the run. The deploy-lock cases in
-`test:deploy` need `flock` and skip on macOS.
+`npm run test:e2e` runs Playwright inside a disposable Linux Docker sandbox
+(`scripts/test-sandbox.mjs`) that snapshots this checkout and owns its own
+server, ports and artifacts, so parallel worktrees cannot collide; direct
+host Playwright runs are blocked. See `tests/e2e/README.md`. The deploy-lock
+cases in `test:deploy` need `flock` and skip on macOS.
 
 See [Testing Guide](testing-guide.md) for patterns and conventions.
 

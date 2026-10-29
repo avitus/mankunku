@@ -3,6 +3,7 @@ import { test, expect } from './fixtures/test';
 import { seedOnboardedAnonymous } from './fixtures/storage';
 import { installAudioMock } from './fixtures/audio';
 
+/** Seed an onboarded anonymous visitor, install the mic mock and open the recorder once "Start count-in" is enabled. */
 async function openRecorder(page: Page): Promise<void> {
 	await seedOnboardedAnonymous(page);
 	await installAudioMock(page, { countGetUserMediaCalls: true });
@@ -19,6 +20,10 @@ test.describe('record a lick: Studio Desk', () => {
 	test('shows every beat in both bars, then records and reviews a real synthetic take', async ({ page }) => {
 		test.setTimeout(60_000);
 		await openRecorder(page);
+		// A full second per beat gives the real audio clock and rendered cues
+		// room under the sandbox's two-CPU ceiling; do not fake either clock.
+		await page.getByRole('spinbutton', { name: 'Tempo' }).fill('60');
+		await page.getByRole('spinbutton', { name: 'Tempo' }).blur();
 		await page.evaluate(() => {
 			const beats = document.querySelector('.rl-beats')!;
 			const observed: string[] = [];
@@ -39,8 +44,9 @@ test.describe('record a lick: Studio Desk', () => {
 			...[1, 2].flatMap(bar => [1, 2, 3, 4].map(beat => `Count-in, bar ${bar}, beat ${beat}`)),
 			'Playing, bar 1, beat 1'
 		]);
-		// Let the real pitch detector collect a phrase from the synthetic oscillator.
-		await expect(page.getByRole('img', { name: 'Playing, bar 1, beat 3', exact: true })).toBeVisible();
+		// Hold the oscillator's unchanged pitch beyond the two-second silence
+		// timeout. A reactive MIDI-value effect used to stop this valid take.
+		await expect(page.getByRole('img', { name: 'Playing, bar 2, beat 1', exact: true })).toBeVisible();
 		await page.getByRole('button', { name: 'Stop recording' }).click();
 		await expect(page.getByRole('heading', { name: 'Make it your own.' })).toBeVisible();
 		await expect(page.locator('.rl-score svg')).toBeVisible();

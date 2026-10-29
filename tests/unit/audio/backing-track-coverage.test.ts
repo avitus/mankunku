@@ -288,6 +288,19 @@ describe('backing track loop mode', () => {
 		expect(mod.getActiveSchedule()!.loopSeconds).toBeCloseTo((loopTicks / PPQ) * (60 / OPTIONS.tempo), 9);
 	});
 
+	it('loops on an exact length when the caller supplies one (a 6/8 form of odd bars)', async () => {
+		const mod = await import('$lib/audio/backing-track');
+		await mod.loadBackingInstruments('piano');
+		// A looping tune form of three 6/8 bars is 9 quarters; rounding the
+		// harmony up to six-quarter bars would loop 12 and drift from the melody.
+		const loopTicks = 9 * PPQ;
+		await mod.scheduleBackingTrack(PHRASE, OPTIONS, 0, true, () => true, undefined, loopTicks);
+		const parts = recorded.filter((r) => r.kind === 'part');
+		expect(parts).toHaveLength(3);
+		for (const p of parts) expect(p.part!.loopEnd).toBe(`${loopTicks}i`);
+		expect(mod.getActiveSchedule()!.loopSeconds).toBeCloseTo((loopTicks / PPQ) * (60 / OPTIONS.tempo), 9);
+	});
+
 	it('plays once, with no loop length on the schedule, when not looping', async () => {
 		const mod = await import('$lib/audio/backing-track');
 		await mod.loadBackingInstruments('piano');

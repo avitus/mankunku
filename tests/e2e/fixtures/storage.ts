@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test';
+import { WHEN_THE_SAINTS } from '../../fixtures/tunes/when-the-saints';
 
 /**
  * Seed localStorage entries before the page loads.
@@ -85,6 +86,8 @@ export const SETTINGS_ONBOARDED = {
 	backingInstrument: 'piano',
 	backingTrackVolume: 0.6,
 	backingStyle: 'swing',
+	tuneBackingStyles: {},
+	tuneTempos: {},
 	swing: 0.62,
 	theme: 'dark',
 	onboardingComplete: true,
@@ -215,6 +218,14 @@ export const SAMPLE_USER_TUNES: unknown[] = [
 		source: 'user'
 	}
 ];
+
+/**
+ * When the Saints, retired from the curated catalog on 2026-10-25, as the
+ * player's own tune. The practice specs were written around its shape — a
+ * 16-bar head on a three-beat pickup that detects as three major vamps, a
+ * dominant vamp and a blues bar — so they seed it rather than lose it.
+ */
+export const SAINTS_USER_TUNE = { ...WHEN_THE_SAINTS, id: 'e2e-when-the-saints', source: 'user' };
 
 /**
  * Seed the user's tune book into localStorage. Call before page.goto().

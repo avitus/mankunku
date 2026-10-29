@@ -90,6 +90,22 @@ describe('parseMscx — basics', () => {
 		expect(sheet.sections[0].harmony[0].startOffset).toEqual([0, 1]);
 	});
 
+	it('refuses a meter the community gate would reject, rather than save a tune it hides (CodeRabbit on #277)', () => {
+		const { sheets, warnings } = parseMscx(mscx({
+			staves: `
+    <Staff id="1">
+      <Measure>
+        <voice>
+          <TimeSig><sigN>4</sigN><sigD>128</sigD></TimeSig>
+          ${CHORD(60, 'quarter')}
+        </voice>
+      </Measure>
+    </Staff>`
+		}));
+		expect(sheets).toEqual([]);
+		expect(warnings).toEqual([expect.stringContaining('4/128')]);
+	});
+
 	it('transposes written harmony roots to concert for transposing parts', () => {
 		const { sheets } = parseMscx(mscx({
 			transposeChromatic: -14, // tenor: concert = written - 14

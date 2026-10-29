@@ -9,6 +9,9 @@ import {
 	DEFAULT_MAX_FREQUENCY,
 	WEAK_CLARITY_FLOOR,
 	measureShapeBreak,
+	measureTimbre,
+	isOctaveUpLock,
+	isTwelfthUpLock,
 } from '$lib/audio/pitch-frame';
 
 type MockDetector = { findPitch: () => [number, number] };
@@ -214,6 +217,14 @@ describe('detectFrame', () => {
 	const buffer = new Float32Array(2048);
 	const baseOpts = { sampleRate };
 
+	it.each([44100, 48000])('preserves the actual analysis-window duration at %i Hz', (rate) => {
+		const detector = makeMockDetector(440, 0.95);
+		for (const size of [2048, 4096]) {
+			const result = detectFrame(new Float32Array(size), 1, detector as any, null, { sampleRate: rate });
+			expect(result.reading!.analysisWindowSeconds).toBeCloseTo(size / rate, 10);
+		}
+	});
+
 	it('returns null reading when clarity is below threshold', () => {
 		const detector = makeMockDetector(440, 0.5);
 		const result = detectFrame(buffer, 0, detector as any, null, baseOpts);
@@ -350,6 +361,82 @@ describe('detectFrame octave-up flag', () => {
 		const held = detectFrame(buf, 1.0, lockDet as any, stab, { sampleRate });
 		expect(held.reading!.midi).toBe(52); // stabilizer held the true octave
 		expect(held.reading!.octaveUp).toBeUndefined(); // not flagged → no double drop
+	});
+});
+
+describe('isOctaveUpLock — a lock whose odd partials are weak (2026-10-24 Slow Climb to the Third)', () => {
+	const sampleRate = 44100;
+
+	/** A sum of sines at the given [frequency, amplitude] partials. */
+	function partials(list: Array<[number, number]>, n = 4096): Float32Array {
+		const out = new Float32Array(n);
+		for (let i = 0; i < n; i++) {
+			let s = 0;
+			for (const [f, a] of list) s += a * Math.sin((2 * Math.PI * f * i) / sampleRate);
+			out[i] = s;
+		}
+		return out;
+	}
+
+	// The take's E3 as measured: the 2nd harmonic dominates (~20× the
+	// fundamental), the 4th carries a fifth of it, and the 3rd and 5th
+	// partials are nearly gone — so the odd-harmonic rank reads ~0.04, a third
+	// of the 0.12 the first test asks. The fundamental is still there, and
+	// nothing sits between the partials.
+	/** A tenor E3 locked onto its 2nd harmonic, with weak odd partials. */
+	const weakOddE3 = () =>
+		partials([[164.81, 0.012], [329.63, 0.23], [494.4, 0.004], [659.3, 0.05], [824, 0.004]]);
+
+	it('flags E4 reported over the series of E3 when the odd partials alone are too weak', () => {
+		expect(isOctaveUpLock(weakOddE3(), 329.63, sampleRate)).toBe(true);
+	});
+
+	it('does not flag the same E3 reported at its own fundamental', () => {
+		expect(isOctaveUpLock(weakOddE3(), 164.81, sampleRate)).toBe(false);
+	});
+
+	it('does not flag a genuine E4', () => {
+		expect(isOctaveUpLock(partials([[329.63, 1.0], [659.3, 0.3], [988.9, 0.1]]), 329.63, sampleRate)).toBe(false);
+	});
+
+	it('does not flag a trace of the lower series too faint to be the note', () => {
+		// The same shape at a tenth of the strength: the series is real but the
+		// fundamental it implies carries under 0.05 of the reported partials.
+		const trace = partials([[164.81, 0.0012], [329.63, 0.23], [494.4, 0.0004], [659.3, 0.05], [824, 0.0004]]);
+		expect(isOctaveUpLock(trace, 329.63, sampleRate)).toBe(false);
+	});
+
+	it('does not flag broadband energy under a genuine E4 — the bins between the series hold as much', () => {
+		// Equal energy at every bin the test reads: the would-be E3's odd series
+		// (enough to pass the series ratio) and the half-series bins between it.
+		const g = 329.63 / 2;
+		const broadband: Array<[number, number]> = [1, 1.5, 2.5, 3, 3.5, 4.5, 5].map((k) => [k * g, 0.01]);
+		const buf = partials([[329.63, 0.23], [659.3, 0.05], ...broadband]);
+		expect(isOctaveUpLock(buf, 329.63, sampleRate)).toBe(false);
+	});
+
+	it('detectFrame flags the lock frame', () => {
+		const lock = detectFrame(weakOddE3(), 0, makeMockDetector(329.63, 0.95) as any, null, { sampleRate });
+		expect(lock.reading!.midi).toBe(64);
+		expect(lock.reading!.octaveUp).toBe(true);
+	});
+
+	it('flags the frame when McLeod picked the E3 and the subharmonic pass doubled it', () => {
+		// The subharmonic pass asks the first test's question (are 3f and 5f
+		// there?) and doubles the pick when they are weak; the series test is
+		// the fuller answer and overrules it at the note level. 12 of the
+		// take's E frames were picked at 164.5 Hz and doubled to E4.
+		const doubled = detectFrame(weakOddE3(), 0, makeMockDetector(164.81, 0.99) as any, null, { sampleRate });
+		expect(doubled.reading!.frequency).toBeCloseTo(329.62, 1);
+		expect(doubled.reading!.midi).toBe(64);
+		expect(doubled.reading!.octaveUp).toBe(true);
+	});
+
+	it('leaves a doubled subharmonic of a genuine E4 unflagged', () => {
+		const e4 = partials([[329.63, 1.0], [659.3, 0.3], [988.9, 0.1]]);
+		const doubled = detectFrame(e4, 0, makeMockDetector(164.81, 0.99) as any, null, { sampleRate });
+		expect(doubled.reading!.midi).toBe(64);
+		expect(doubled.reading!.octaveUp).toBeUndefined();
 	});
 });
 
@@ -586,5 +673,195 @@ describe('detectFrame weak readings', () => {
 		const processSpy = vi.spyOn(stabilizer, 'process');
 		detectFrame(buffer, 0, makeMockDetector(269, 0.65) as any, stabilizer, baseOpts);
 		expect(processSpy).not.toHaveBeenCalled();
+	});
+});
+
+describe('isTwelfthUpLock / detectFrame twelfth-up flag', () => {
+	const sampleRate = 44100;
+
+	/** A sum of sines at the given [frequency, amplitude] partials. */
+	function partials(list: Array<[number, number]>, n = 4096): Float32Array {
+		const out = new Float32Array(n);
+		for (let i = 0; i < n; i++) {
+			let s = 0;
+			for (const [f, a] of list) s += a * Math.sin((2 * Math.PI * f * i) / sampleRate);
+			out[i] = s;
+		}
+		return out;
+	}
+
+	// The 2026-10-17 Third Walks Back to Root lock as measured: a D3 whose
+	// 440 Hz 3rd harmonic carries ~10× its 147 Hz fundamental and ~8× its 2nd
+	// harmonic, with the 4th and 5th partials present — and nothing between them.
+/** A D3 whose tracker locked onto the third harmonic (the A4 partial dominates). */
+	const lockedD3 = () =>
+		partials([[146.83, 0.1], [293.66, 0.12], [440.5, 1.0], [587.3, 0.17], [734.2, 0.06], [881, 0.02]]);
+	// A genuine A4: nothing at the thirds of 440.
+/** A genuine A4 with a normal partial roll-off. */
+	const realA4 = () => partials([[440, 1.0], [880, 0.3], [1320, 0.1]]);
+	// A weak A4 partial under broadband energy — an attack transient. Every bin
+	// is lifted alike, the thirds of 440 and the bins between them both.
+/** An A4 attack transient: harmonics still settling, fundamental not yet dominant. */
+	function attackA4(): Float32Array {
+		const out = partials([[440, 0.1]]);
+		let seed = 12345;
+		for (let i = 0; i < out.length; i++) {
+			seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+			out[i] += seed / 0x7fffffff - 0.5;
+		}
+		return out;
+	}
+
+	it('flags the measured lock: 440 Hz reported over the harmonic series of D3', () => {
+		expect(isTwelfthUpLock(lockedD3(), 440.5, sampleRate)).toBe(true);
+	});
+
+	it('does not flag a real A4', () => {
+		expect(isTwelfthUpLock(realA4(), 440, sampleRate)).toBe(false);
+	});
+
+	it('does not flag broadband energy under a weak partial — the series and the bins between it rise together', () => {
+		expect(isTwelfthUpLock(attackA4(), 440, sampleRate)).toBe(false);
+	});
+
+	it('is bounded to the register whose partials can lock', () => {
+		// The same series on g = 220 (reported 660) and on g = 70 (reported 210).
+		const high = partials([[220, 0.1], [440, 0.12], [660, 1.0], [880, 0.17], [1100, 0.06]]);
+		expect(isTwelfthUpLock(high, 660, sampleRate)).toBe(false);
+		const low = partials([[70, 0.1], [140, 0.12], [210, 1.0], [280, 0.17], [350, 0.06]]);
+		expect(isTwelfthUpLock(low, 210, sampleRate)).toBe(false);
+	});
+
+	it('detectFrame flags the lock frame and leaves the fundamental frame alone', () => {
+		const buf = lockedD3();
+		const lock = detectFrame(buf, 0, makeMockDetector(440.5, 0.9) as any, null, { sampleRate });
+		expect(lock.reading!.midi).toBe(69);
+		expect(lock.reading!.twelfthUp).toBe(true);
+		const fundamental = detectFrame(buf, 0, makeMockDetector(146.83, 0.95) as any, null, { sampleRate });
+		expect(fundamental.reading!.midi).toBe(50);
+		expect(fundamental.reading!.twelfthUp).toBeUndefined();
+	});
+
+	it('does NOT flag a frame the stabilizer is holding in another octave', () => {
+		// Mirror of the octave-up guard: a flag only means "fold a twelfth down
+		// from the pitch this frame REPORTS". A frame the stabilizer has moved
+		// reports something else, so the fold would land in the wrong place.
+		const stab = createOctaveStabilizer();
+		// Seed a stable A3 (57) on a real A3 so the subharmonic pass leaves it be.
+		const a3 = partials([[220, 1.0], [440, 0.3], [660, 0.1]]);
+		for (let i = 0; i < WARMUP_FRAMES; i++) detectFrame(a3, i * 0.016, makeMockDetector(220, 0.95) as any, stab, { sampleRate });
+		// A lock frame arrives: the raw pick is A4 (69) but the stabilizer holds A3.
+		const held = detectFrame(lockedD3(), 1.0, makeMockDetector(440.5, 0.9) as any, stab, { sampleRate });
+		expect(held.reading!.midi).toBe(57); // the octave jump is still unconfirmed
+		expect(held.reading!.twelfthUp).toBeUndefined();
+	});
+});
+
+describe('measureTimbre', () => {
+	const sampleRate = 44100;
+	const f0 = 146.83; // D3 — the 2026-10-17 Blue Note Step-Up pitch
+
+	// The take's partial balance before its tongue (h1–h9, 3rd dominant), then
+	// h10–h13 rolling off under the 2 kHz band top.
+	const BALANCE = [0.1, 0.13, 1.0, 0.17, 0.07, 0.04, 0.02, 0.045, 0.04, 0.03, 0.02, 0.015, 0.01];
+
+	/**
+	 * A continuous D3 (no phase restart, so only the timbre can move).
+	 * `brightAt` multiplies every partial from 600 Hz up by `brightGain` from
+	 * that sample on; `levelAt` scales the whole tone sample by sample.
+	 */
+	function d3(opts: { brightAt?: number; brightGain?: number; levelAt?: (i: number) => number } = {}): Float32Array {
+		const buf = new Float32Array(4096);
+		for (let i = 0; i < buf.length; i++) {
+			const t = i / sampleRate;
+			let s = 0;
+			BALANCE.forEach((a, k) => {
+				const f = f0 * (k + 1);
+				const lifted = opts.brightAt != null && i >= opts.brightAt && f >= 600;
+				s += (lifted ? a * (opts.brightGain ?? 2.5) : a) * Math.sin(2 * Math.PI * f * t);
+			});
+			buf[i] = 0.2 * s * (opts.levelAt?.(i) ?? 1);
+		}
+		return buf;
+	}
+
+	/** A 15% level notch about 20 ms wide centred on `at` — the tongue touching the reed. */
+	const notch = (at: number) => (i: number) => (Math.abs(i - at) < 450 ? 0.85 : 1);
+
+	it('reads a steady tone as one brightness with no lift', () => {
+		const result = measureTimbre(d3(), f0, sampleRate);
+		expect(result).not.toBeNull();
+		expect(Number.isFinite(result!.brightness)).toBe(true);
+		// No span of a steady tone dips in level, so nothing qualifies.
+		expect(result!.lift).toBeNull();
+		expect(result!.liftOffsetSeconds).toBeNull();
+	});
+
+	it('lifts where the upper partials step up across a level notch, and locates it', () => {
+		const at = 2000;
+		const result = measureTimbre(d3({ brightAt: at, levelAt: notch(at) }), f0, sampleRate);
+		expect(result!.lift).toBeGreaterThan(5);
+		expect(result!.liftOffsetSeconds!).toBeGreaterThan(at / sampleRate - 0.02);
+		expect(result!.liftOffsetSeconds!).toBeLessThan(at / sampleRate + 0.02);
+	});
+
+	it('does not lift on the same brightening with no notch — the reed was never damped', () => {
+		expect(measureTimbre(d3({ brightAt: 2000 }), f0, sampleRate)!.lift).toBeNull();
+	});
+
+	it('does not lift through a fade — the level falls but the timbre holds', () => {
+		const fade = measureTimbre(d3({ levelAt: (i) => 1 - 0.5 * (i / 4096) }), f0, sampleRate);
+		expect(fade!.lift ?? 0).toBeLessThan(1);
+	});
+
+	it('does not lift on a swell — the tone brightens as it gets louder, so its level never dips', () => {
+		const swell = measureTimbre(
+			d3({ brightAt: 2000, levelAt: (i) => 0.6 + 0.4 * (i / 4096) }),
+			f0,
+			sampleRate
+		);
+		expect(swell!.lift).toBeNull();
+	});
+
+	it('measures a brighter tone as brighter', () => {
+		const dark = measureTimbre(d3(), f0, sampleRate)!.brightness;
+		const bright = measureTimbre(d3({ brightAt: 0 }), f0, sampleRate)!.brightness;
+		expect(bright - dark).toBeGreaterThan(6);
+	});
+
+	it('returns null where the band holds no partial on one side of 600 Hz, or no pitch', () => {
+		// Every partial of a 700 Hz note sits above the split; a 1.1 kHz note
+		// has only its fundamental under the 2 kHz band top.
+		expect(measureTimbre(d3(), 700, sampleRate)).toBeNull();
+		expect(measureTimbre(d3(), 1100, sampleRate)).toBeNull();
+		expect(measureTimbre(d3(), 0, sampleRate)).toBeNull();
+	});
+
+	it('returns null on silence', () => {
+		expect(measureTimbre(new Float32Array(4096), f0, sampleRate)).toBeNull();
+	});
+
+	it('detectFrame stamps the fields and points at the same instant under either window anchor', () => {
+		const at = 2000;
+		const buf = d3({ brightAt: at, levelAt: notch(at) });
+		const det = makeMockDetector(f0, 0.95);
+		const windowSeconds = buf.length / sampleRate;
+		const fromStart = detectFrame(buf, 1.0, det as any, null, { sampleRate }).reading!;
+		const fromEnd = detectFrame(buf, 1.0 + windowSeconds, det as any, null, {
+			sampleRate,
+			windowAnchor: 'end'
+		}).reading!;
+		expect(fromStart.brightness).toBeCloseTo(fromEnd.brightness!, 10);
+		expect(fromStart.brightnessLift!).toBeGreaterThan(5);
+		expect(fromStart.brightnessLiftAt!).toBeGreaterThan(0);
+		expect(fromEnd.brightnessLiftAt!).toBeLessThan(0);
+		expect(fromEnd.time + fromEnd.brightnessLiftAt!).toBeCloseTo(fromStart.time + fromStart.brightnessLiftAt!, 10);
+	});
+
+	it('detectFrame omits the lift on a steady tone but keeps the brightness', () => {
+		const r = detectFrame(d3(), 0, makeMockDetector(f0, 0.95) as any, null, { sampleRate }).reading!;
+		expect(r.brightness).toBeDefined();
+		expect(r.brightnessLift).toBeUndefined();
+		expect(r.brightnessLiftAt).toBeUndefined();
 	});
 });

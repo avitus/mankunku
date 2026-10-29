@@ -8,8 +8,11 @@ import { fractionToFloat } from '$lib/music/intervals';
 import { getScale } from '$lib/music/scales';
 
 describe('curated lead-sheet library', () => {
-	it('is non-empty with unique, storage-safe ids', () => {
-		expect(ALL_CURATED_TUNES.length).toBeGreaterThanOrEqual(3);
+	it('is exactly Mankunku Blues and Rhythm Changes (Andy, 2026-10-25)', () => {
+		expect(ALL_CURATED_TUNES.map((s) => s.title)).toEqual(['Mankunku Blues', 'Rhythm Changes']);
+	});
+
+	it('has unique, storage-safe ids', () => {
 		const ids = ALL_CURATED_TUNES.map((s) => s.id);
 		expect(new Set(ids).size).toBe(ids.length);
 		for (const id of ids) {

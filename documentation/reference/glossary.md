@@ -196,9 +196,9 @@ Jazz terminology, pitch terminology, and a few app-specific terms — defined in
 
 **Demo** — In Lick Practice and Tricks, the app playing the line to you before your turn (the *Listen* tab, in red). In Deep Practice the first cycle always opens with one; later cycles only while the key at the head of the rotation is under 90% — and never on a refill cycle.
 
-**Focus drill** (focus ramp) — The shape of Deep Practice launched from the report's *Drill <key>* card: that key alone, 10% under the lick's saved tempo, stepping up after a clear and down (three steps) after a miss under 75%, until it's back at the saved tempo; then the other keys return one per cleared rotation, weakest first.
+**Focus drill** (focus ramp) — The shape of Deep Practice launched from the report's *Drill <key>* card: that key alone, 10% under the lick's saved tempo, stepping up after a clear and down (three steps) after a miss under 75%, take after take with no bar between them and the takes still to come listed with their tempos, until it's back at the saved tempo; then the other keys return one per cleared rotation, weakest first.
 
-**Home key** (entry key) — The key a lick is written in, where its key ladder starts. A new lick has only its home key; the others unlock from there around the circle of fifths. For tricks it's your written C.
+**Home key** (entry key) — The key a lick is written in, where its key ladder starts. A new lick has only its home key; the others unlock in key-signature order, fewest sharps or flats first as you read them. For tricks it's your written C.
 
 **Lead-sheet row** — The taller row in a Lick Practice session's chord stack that shows the line as sheet music. It appears for one key per lick — the most recently unlocked, while its rolling score is under 75% — and that key is played three times running in Continuous mode, only the last pass counting.
 

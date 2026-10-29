@@ -64,6 +64,8 @@ export type CloudLoad<T> = { status: 'ok'; data: T } | { status: 'empty' } | { s
 
 /** Minimal typed interface for settings passed to syncSettingsToCloud. */
 interface SyncableSettings {
+	tuneBackingStyles?: Record<string, string>;
+	tuneTempos?: Record<string, number>;
 	instrumentId: string;
 	defaultTempo: number;
 	masterVolume: number;
@@ -671,6 +673,8 @@ export async function syncSettingsToCloud(
 				tonality_override: (settings.tonalityOverride ?? null) as Json,
 				highest_note: settings.highestNote ?? null,
 				backing_style: settings.backingStyle,
+				tune_backing_styles: settings.tuneBackingStyles ?? {},
+				tune_tempos: settings.tuneTempos ?? {},
 				bleed_filter_enabled: settings.bleedFilterEnabled,
 				updated_at: new Date().toISOString()
 			},
@@ -731,6 +735,8 @@ export async function loadSettingsFromCloud(
 				tonalityOverride: isValidTonality(data.tonality_override) ? data.tonality_override : null,
 				highestNote: data.highest_note ?? null,
 				backingStyle: data.backing_style ?? 'swing',
+				tuneBackingStyles: data.tune_backing_styles ?? {},
+				tuneTempos: data.tune_tempos ?? {},
 				bleedFilterEnabled: data.bleed_filter_enabled ?? false
 			}
 		};
@@ -1150,8 +1156,8 @@ export async function upsertLickMetadataRow(
 
 /**
  * Result of a cloud lick-metadata load. The three states matter because
- * consumers gate destructive maintenance (orphan reconciliation, the
- * one-time progression-tag backfill) on hydration health:
+ * consumers gate destructive maintenance (the legacy practice-tag migration,
+ * progression-tag pruning) on hydration health:
  *
  *  - `ok`    — a cloud row exists and was read successfully.
  *  - `empty` — the read succeeded and there is affirmatively no row

@@ -25,7 +25,7 @@
 
 <div class="listening-score" data-testid="listening-score" data-key={session.tune.key} data-notation-bar={notationBar ?? ''}
 	role="region" aria-label="Tune lead sheet, concert pitch">
-	<!-- svelte-ignore a11y_no_noninteractive_tabindex (Arrow-key scrolling needs a focusable, named overflow region.) -->
+	<!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions (Arrow-key scrolling needs a focusable, named overflow region.) -->
 	<div class="score-scroll" data-testid="listening-score-scroll" tabindex="0" onkeydown={scrollWithArrow}
 		role="region" aria-label="Scrollable score. Use arrow keys to move across the music.">
 		<div class="score-sheet" data-testid="listening-score-sheet">

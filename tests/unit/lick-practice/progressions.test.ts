@@ -35,7 +35,11 @@ describe('PROGRESSION_TEMPLATES', () => {
 	it('stamps every template with its own type key', () => {
 		expect(types).toHaveLength(10);
 		for (const type of types) {
-			expect(PROGRESSION_TEMPLATES[type].type).toBe(type);
+			const template = PROGRESSION_TEMPLATES[type];
+			expect(template.type).toBe(type);
+			expect(template.name, type).toBeTruthy();
+			expect(template.shortName, type).toBeTruthy();
+			expect(template.bars, type).toBeGreaterThan(0);
 		}
 	});
 

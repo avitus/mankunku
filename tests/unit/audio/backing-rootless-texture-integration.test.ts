@@ -6,7 +6,7 @@ import { BACKING_STYLES } from '$lib/audio/backing-styles';
 import { createRollingBacking, advanceRollingBacking, type RollingBackingCheckpoint } from '$lib/audio/backing-rolling';
 import { realizeRollingPiano, type RollingPianoMemory } from '$lib/audio/backing-rolling-piano';
 import { restoreEnsembleTiming } from '$lib/audio/ensemble-timing';
-import { buildListeningTuneSession, LISTENING_TUNES } from '$lib/musicality/listening-tunes';
+import { buildHistoricalListeningTuneSession as buildListeningTuneSession, HISTORICAL_LISTENING_TUNES as LISTENING_TUNES } from '../../helpers/musicality-tune-fixtures';
 
 const withoutPitches = (events: readonly CompEvent[]) => events.map(({ notes: _notes, ...event }) => event);
 const session = buildListeningTuneSession({ tuneId: LISTENING_TUNES.find(tune => tune.title.includes('Saints'))!.id, soloChoruses: 2 });

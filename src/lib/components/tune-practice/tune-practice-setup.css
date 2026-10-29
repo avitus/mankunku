@@ -1,0 +1,53 @@
+/* The approved tune desk, applied only to setup. The live session retains its chart and controls. */
+main:has(.tune-practice-setup) { max-width:1440px; padding:30px 40px; }
+.tune-practice-setup .tp-help { display:flex; align-items:center; gap:12px; }
+.tune-practice-setup .td-chart-context h2 { font-size:12px; font-weight:500; color:var(--studio-text); }
+.tune-practice-setup .td-workspace { --td-reading-height:clamp(250px,calc(100dvh - 455px),650px); }
+.tune-practice-setup .tp-insertion-status { display:flex; align-items:flex-start; gap:11px; padding:15px; border:1px solid color-mix(in srgb,var(--color-brass) 35%,var(--studio-border)); border-radius:4px 4px 0 0; background:color-mix(in srgb,var(--studio-well) 65%,transparent); }
+.tune-practice-setup .tp-insertion-status strong { font-size:12px; font-weight:500; }
+.tune-practice-setup .tp-insertion-status p { font-size:10px; line-height:1.8; color:var(--studio-muted); margin-top:4px; }
+.tune-practice-setup .tp-status-dot { width:6px; height:6px; margin-top:7px; flex-shrink:0; border-radius:50%; background:var(--color-brass); }
+.tune-practice-setup .td-score-well { border-radius:0 0 4px 4px; border-top:0; }
+.tune-practice-setup .tp-start { border-top:0; }
+.tune-practice-setup .td-play-summary p { font-size:10px; color:var(--studio-muted); }
+.tune-practice-setup .tp-error { font-size:12px; line-height:1.6; color:var(--color-error-text); padding:0 0 15px; }
+.tune-practice-setup .td-saved-style>label { font-size:8px; letter-spacing:1px; color:var(--studio-muted); }
+.tune-practice-setup .td-saved-style select { width:100%; max-width:100%; margin:10px 0; padding:4px 0; border:0; background:transparent; color:var(--studio-text); font:500 28px/1.3 var(--font-display); }
+.tune-practice-setup select option { background:var(--studio-well); color:var(--studio-text); }
+.tune-practice-setup .td-saved-style select:disabled { opacity:.6; }
+.tune-practice-setup .td-key-row { margin-top:22px; }
+.tune-practice-setup .tp-guide p+p { margin-top:10px; }
+.tune-practice-setup .tp-proposed-licks { margin:12px 0 16px; display:grid; gap:9px; }
+.tune-practice-setup .tp-proposed-licks li { border-left:2px solid var(--color-brass); padding:5px 0 5px 10px; color:var(--studio-text); font-size:12px; line-height:1.5; overflow-wrap:anywhere; }
+.tune-practice-setup .tp-untagged { padding-top:15px; border-top:1px solid var(--studio-border); }
+.tune-practice-setup .tp-untagged a { color:var(--color-brass); display:block; margin-top:4px; }
+.tune-practice-setup.tp-focus .tp-rail,.tune-practice-setup.tp-focus .tp-help { display:none; }
+.tune-practice-setup.tp-focus .td-detail-layout { grid-template-columns:minmax(0,1fr); }
+.tune-practice-setup.tp-focus .td-workspace { --td-reading-height:clamp(250px,calc(100dvh - 390px),850px); }
+@media(max-width:1050px) {
+ main:has(.tune-practice-setup) { padding:24px; }
+ .tune-practice-setup .td-detail-layout { grid-template-columns:minmax(0,1fr) 250px; }
+ .tune-practice-setup .td-chart-context { gap:7px; }
+ .tune-practice-setup .td-chart-context>span { font-size:10px; }
+}
+@media(max-width:800px) {
+ main:has(.tune-practice-setup) { padding:24px 16px; }
+ .tune-practice-setup .td-detail-layout { display:flex; flex-direction:column; gap:22px; }
+ .tune-practice-setup .td-workspace { position:static; width:100%; --td-reading-height:clamp(250px,calc(100dvh - 420px),540px); }
+ .tune-practice-setup .tp-rail { width:100%; display:grid; grid-template-columns:1fr 1fr; gap:24px; }
+ .tune-practice-setup .tp-guide { padding-top:10px; }
+ .tune-practice-setup .tp-help { font-size:10px; }
+}
+@media(max-width:540px) {
+ .tune-practice-setup .tp-rail { display:block; }
+ .tune-practice-setup .tp-guide { padding:24px 5px 0; }
+ .tune-practice-setup .td-detail-heading { gap:12px; }
+ .tune-practice-setup .td-chart-context h2 { font-size:11px; }
+ .tune-practice-setup .td-play-summary { text-align:left; display:block; }
+ .tune-practice-setup .td-play-summary strong { font-size:11px; }
+ .tune-practice-setup .td-play-summary p { margin-top:4px; }
+ .tune-practice-setup .tp-start .le-play { width:100%; }
+ .tune-practice-setup .td-tempo-control>button { width:42px; height:42px; }
+}
+
+.tune-practice-setup.tp-focus .tp-options { display:none; }

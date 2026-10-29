@@ -1,7 +1,7 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { advanceRollingBacking, createRollingBacking, type RollingBackingCheckpoint } from '$lib/audio/backing-rolling';
 import { BACKING_STYLES } from '$lib/audio/backing-styles';
-import { buildListeningTuneSession } from '$lib/musicality/listening-tunes';
+import { buildHistoricalListeningTuneSession as buildListeningTuneSession } from '../../helpers/musicality-tune-fixtures';
 import * as recoveryPolicy from '$lib/audio/backing-piano-recovery';
 import * as drumPhrases from '$lib/audio/backing-drum-phrases';
 import { seedFrom } from '$lib/audio/generation-rng';

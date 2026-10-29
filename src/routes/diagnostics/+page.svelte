@@ -12,12 +12,15 @@
 		deleteRecording,
 		type RecordingSummary
 	} from '$lib/persistence/audio-store';
-	import { replayFromBlob } from '$lib/audio/replay';
 	import { getAudioContext, isAudioInitialized } from '$lib/audio/audio-context';
-	import { segmentNotes, resolveOnsets, findReArticulations, getMetronomeBleedOnsets } from '$lib/audio/note-segmenter';
-	import { diagnosticsReplayFrame } from '$lib/audio/capture-window';
-	import { describeCaptureAlignment, type CaptureAlignment } from '$lib/audio/capture-timing';
-	import type { PitchReading } from '$lib/audio/pitch-detector';
+	import {
+		buildDiagnosticsPayload,
+		decodeToWav,
+		fixtureBaseName,
+		replayRecording,
+		triggerDownload,
+		type RecordingReplay
+	} from '$lib/diagnostics/recording-export';
 	import type { DetectedNote } from '$lib/types/audio';
 	import type { PitchClass } from '$lib/types/music';
 	import { page } from '$app/state';
@@ -42,29 +45,9 @@
 	// where nothing was recorded at all. Kept below the primary list.
 	let btHistory = $state<BackingTrackLog[]>([]);
 
-	interface ReplayState {
+	/** A row's replay (`recording-export.ts`), keyed by the recording it belongs to. */
+	interface ReplayState extends RecordingReplay {
 		sessionId: string;
-		readings: PitchReading[];
-		/** Sub-threshold frames, same (trimmed) frame as `readings`. */
-		weakReadings: PitchReading[];
-		onsets: number[];
-		resolvedOnsets: number[];
-		segmented: DetectedNote[];
-		duration: number;
-		sampleRate: number;
-		/**
-		 * Lead-in `trimToPerformance` removed from the decoded blob — ear
-		 * training only; 0 for every other source (`diagnosticsReplayFrame`).
-		 * Everything else on this object is in the replay frame; the blob and
-		 * the WAV download are not, so anything correlating the two needs this.
-		 */
-		trimOffset: number;
-		/**
-		 * Where the blob's first sample sits on the audio clock, measured from
-		 * the take's saved capture timing against the UNTRIMMED replay. Null on
-		 * takes recorded before 2026-09-17, which carry no capture timing.
-		 */
-		alignment: CaptureAlignment | null;
 	}
 
 	onMount(async () => {
@@ -146,57 +129,9 @@
 			localAudioUrl = URL.createObjectURL(full.blob);
 			audioUrl = localAudioUrl;
 			const ctx = isAudioInitialized() ? await getAudioContext() : undefined;
-			const raw = await replayFromBlob(full.blob, ctx);
+			const replayed = await replayRecording(full, ctx);
 			if (requestId !== replayRequestId || expandedId !== id) return;
-			// Measured on the untrimmed replay: the live readings are stamped
-			// from the arm instant, the replay from the blob's first sample.
-			const timing = full.metadata?.captureTiming;
-			const alignment =
-				timing && full.metadata
-					? describeCaptureAlignment(timing, raw.readings, 4096 / raw.sampleRate, full.metadata.tempo)
-					: null;
-			// Replay in the frame the recording's own scoring path used, so this
-			// panel reproduces the saved result instead of disagreeing with it:
-			// ear training trims the armed lead-in and segments over the blob,
-			// lick practice segments its window untrimmed, through its last
-			// reading. `metadata.transportSeconds` always describes the blob's
-			// first sample, hence the offset is added back on top of it.
-			const trimmed = diagnosticsReplayFrame(full.metadata?.source, raw);
-			const { readings, weakReadings, workletOnsets: onsets, duration } = trimmed;
-			const sampleRate = raw.sampleRate;
-			const baseOnsets = resolveOnsets(onsets, readings);
-			// Reconstruct the bleed evidence the app scored against. Backing
-			// recordings store their transient onsets directly (the metronome
-			// is count-in only when backing plays, so the click grid would be
-			// false evidence); older/metronome-only recordings reconstruct the
-			// click grid. Without either, the segmenter runs unsuppressed and
-			// this panel can disagree with the saved result — a phantom split
-			// on a click, most often — which is exactly backwards for a
-			// debugging tool.
-			const bleedOnsets =
-				full.metadata?.backingBleedOnsets ??
-				(full.metadata?.metronomeEnabled && full.metadata.transportSeconds != null
-					? getMetronomeBleedOnsets(
-							full.metadata.transportSeconds + trimmed.offset,
-							full.metadata.tempo,
-							duration
-						)
-					: undefined);
-			const articulationOnsets = findReArticulations(readings, baseOnsets, bleedOnsets);
-			const resolvedOnsets = [...baseOnsets, ...articulationOnsets].sort((a, b) => a - b);
-			const segmented = segmentNotes(readings, resolvedOnsets, duration, undefined, undefined, undefined, onsets, bleedOnsets, articulationOnsets, weakReadings);
-			replay = {
-				sessionId: id,
-				readings,
-				weakReadings,
-				onsets,
-				resolvedOnsets,
-				segmented,
-				duration,
-				sampleRate,
-				trimOffset: trimmed.offset,
-				alignment
-			};
+			replay = { sessionId: id, ...replayed };
 		} catch (err) {
 			if (requestId === replayRequestId && expandedId === id) {
 				replayError = err instanceof Error ? err.message : String(err);
@@ -227,54 +162,12 @@
 
 	// ── WAV encode & download ───────────────────────────────
 
-	/**
-	 * Encode mono Float32 samples as a 16-bit PCM RIFF/WAVE byte buffer.
-	 * Matches the canonical format parsed by tests/helpers/audio-fixtures.ts
-	 * so the file can drop straight into tests/fixtures/recordings/.
-	 */
-	function encodeWavMono16(samples: Float32Array, sampleRate: number): ArrayBuffer {
-		const dataSize = samples.length * 2;
-		const buffer = new ArrayBuffer(44 + dataSize);
-		const view = new DataView(buffer);
-
-		const writeAscii = (offset: number, s: string) => {
-			for (let i = 0; i < s.length; i++) view.setUint8(offset + i, s.charCodeAt(i));
-		};
-
-		writeAscii(0, 'RIFF');
-		view.setUint32(4, 36 + dataSize, true);
-		writeAscii(8, 'WAVE');
-		writeAscii(12, 'fmt ');
-		view.setUint32(16, 16, true);
-		view.setUint16(20, 1, true); // PCM
-		view.setUint16(22, 1, true); // mono
-		view.setUint32(24, sampleRate, true);
-		view.setUint32(28, sampleRate * 2, true); // byte rate
-		view.setUint16(32, 2, true); // block align
-		view.setUint16(34, 16, true); // bits per sample
-		writeAscii(36, 'data');
-		view.setUint32(40, dataSize, true);
-
-		let offset = 44;
-		for (let i = 0; i < samples.length; i++) {
-			const s = Math.max(-1, Math.min(1, samples[i]));
-			view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
-			offset += 2;
-		}
-		return buffer;
-	}
-
+	/** Name a WAV with the corpus's recording-date and phrase-slug convention. */
 	function fixtureName(rec: RecordingSummary): string {
-		const date = new Date(rec.timestamp).toISOString().slice(0, 10);
-		const rawName = rec.metadata?.phraseName ?? 'recording';
-		const slug = rawName
-			.toLowerCase()
-			.replace(/[^a-z0-9]+/g, '-')
-			.replace(/(^-|-$)/g, '')
-			.slice(0, 32) || 'recording';
-		return `${date}-${slug}.wav`;
+		return `${fixtureBaseName(rec.timestamp, rec.metadata?.phraseName)}.wav`;
 	}
 
+	/** Download a saved recording as mono PCM, exposing failures in the page. */
 	async function downloadAsWav(rec: RecordingSummary) {
 		downloading = true;
 		downloadError = null;
@@ -282,26 +175,8 @@
 			const full = await getRecordingFull(rec.sessionId);
 			if (!full) throw new Error('recording not found');
 
-			const AC = globalThis.AudioContext ?? (globalThis as unknown as {
-				webkitAudioContext?: typeof AudioContext;
-			}).webkitAudioContext;
-			if (!AC) throw new Error('AudioContext not available');
-			const ctx = new AC();
-			const arrayBuffer = await full.blob.arrayBuffer();
-			const audioBuffer = await ctx.decodeAudioData(arrayBuffer.slice(0));
-			const channel = audioBuffer.getChannelData(0);
-			const wavBytes = encodeWavMono16(channel, audioBuffer.sampleRate);
-			ctx.close();
-
-			const wavBlob = new Blob([wavBytes], { type: 'audio/wav' });
-			const url = URL.createObjectURL(wavBlob);
-			const a = document.createElement('a');
-			a.href = url;
-			a.download = fixtureName(rec);
-			document.body.appendChild(a);
-			a.click();
-			document.body.removeChild(a);
-			URL.revokeObjectURL(url);
+			const wavBlob = new Blob([await decodeToWav(full.blob)], { type: 'audio/wav' });
+			await triggerDownload(wavBlob, fixtureName(rec));
 		} catch (err) {
 			downloadError = err instanceof Error ? err.message : String(err);
 		} finally {
@@ -317,95 +192,16 @@
 		}
 	}
 
-	/**
-	 * Self-contained JSON snapshot for bug reports. Captures everything an
-	 * algorithm-side investigation needs without re-running pitch detection:
-	 * raw worklet onsets, resolved onsets, every pitch reading, the current
-	 * segmenter output, and the saved-at-record-time detection / score.
-	 */
-	function downloadDiagnostics(rec: RecordingSummary) {
+	/** The JSON half of the fixture pair — see `buildDiagnosticsPayload`. */
+	async function downloadDiagnostics(rec: RecordingSummary) {
 		if (!replay) return;
 		try {
-			const md = rec.metadata;
 			const inst = getInstrument();
-			const payload = {
-				version: 1,
-				exportedAt: new Date().toISOString(),
-				recording: {
-					sessionId: rec.sessionId,
-					timestamp: rec.timestamp,
-					date: new Date(rec.timestamp).toISOString()
-				},
-				context: {
-					phraseId: md?.phraseId ?? null,
-					phraseName: md?.phraseName ?? null,
-					source: md?.source ?? null,
-					instrument: { id: settings.instrumentId, name: inst.name, key: inst.key },
-					concertKey: md?.key ?? null,
-					tempo: md?.tempo ?? null,
-					swing: md?.swing ?? null,
-					backingTrackUsed: md?.backingTrackLog != null,
-					// Needed to reconstruct the metronome click grid offline —
-					// half of these investigations turn on whether a candidate
-					// onset sits under a click. Null on pre-2026-08-01 captures.
-					metronomeEnabled: md?.metronomeEnabled ?? null,
-					// Replay frame, matching `detection` below — the stored
-					// metadata value describes the blob's first sample, so the
-					// lead-in this replay discarded (if any) is added back on.
-					// Consumers can hand this straight to getMetronomeBleedOnsets.
-					transportSeconds:
-						md?.transportSeconds != null ? md.transportSeconds + replay.trimOffset : null,
-					// Recording-relative backing onsets — the bleed evidence the
-					// live path segmented with when backing was the time source.
-					backingBleedOnsets: md?.backingBleedOnsets ?? null
-				},
-				audio: {
-					// The duration the flow segmented over — for lick practice
-					// the window through its last reading, not the WAV's length.
-					duration: replay.duration,
-					sampleRate: replay.sampleRate,
-					/**
-					 * Seconds `trimToPerformance` dropped off the front. The
-					 * sibling .wav download is the UNTRIMMED blob, so a test
-					 * replaying an ear-training take has to trim before its
-					 * timeline matches the `detection` block here. Always 0 for
-					 * sources whose scoring path does not trim (lick practice),
-					 * and for ear-training takes captured before it pre-armed
-					 * its mic.
-					 */
-					captureTrimSeconds: replay.trimOffset
-				},
-				detection: {
-					rawWorkletOnsets: replay.onsets,
-					resolvedOnsets: replay.resolvedOnsets,
-					segmentedNotes: replay.segmented,
-					readings: replay.readings,
-					// Sub-threshold frames — the ghost-note pass's evidence.
-					// Absent from exports made before 2026-09-16.
-					weakReadings: replay.weakReadings
-				},
-				scoring: {
-					savedDetectedNotes: md?.detectedNotes ?? null,
-					savedScore: md?.score ?? null
-				},
-				bleedFilterLog: md?.bleedFilterLog ?? null,
-				backingTrackLog: md?.backingTrackLog ?? null,
-				// Where the blob's first sample sits on the audio clock
-				// (capture-timing.ts): the saved clocks and live readings, and what
-				// this page measured from them against the untrimmed replay. Null
-				// on takes recorded before 2026-09-17.
-				captureTiming: md?.captureTiming ?? null,
-				captureAlignment: replay.alignment
-			};
+			const payload = buildDiagnosticsPayload(rec, replay, {
+				instrument: { id: settings.instrumentId, name: inst.name, key: inst.key }
+			});
 			const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-			const url = URL.createObjectURL(blob);
-			const a = document.createElement('a');
-			a.href = url;
-			a.download = fixtureName(rec).replace(/\.wav$/, '.json');
-			document.body.appendChild(a);
-			a.click();
-			document.body.removeChild(a);
-			URL.revokeObjectURL(url);
+			await triggerDownload(blob, fixtureName(rec).replace(/\.wav$/, '.json'));
 		} catch (err) {
 			downloadError = err instanceof Error ? err.message : String(err);
 		}

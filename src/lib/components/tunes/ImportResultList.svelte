@@ -21,7 +21,12 @@
 	// Keep original indexes while filtering: added state must stay with its tune.
 	const visible = $derived(sheets.map((sheet, index) => ({ sheet, index })).filter(({ sheet }) =>
 		`${sheet.title} ${sheet.composer ?? ''}`.toLowerCase().includes(query.trim().toLowerCase())));
+	/** Row key from the sheet's original import index plus its id, so added state follows the tune through filtering. */
 	function keyOf(sheet: Tune, index: number): string { return `${index}:${sheet.id}`; }
+	/**
+	 * Saves one sheet straight to the book through `onadd` and remembers the saved id under its row key.
+	 * Skips sheets already added or when `onadd` is omitted; a failed save sets `saveError` rather than throwing.
+	 */
 	function handleAdd(sheet: Tune, index: number): void {
 		if (!onadd || addedIds[keyOf(sheet, index)]) return;
 		saveError = '';

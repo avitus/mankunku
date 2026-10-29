@@ -20,6 +20,12 @@ export interface PitchReading {
 	clarity: number;
 	/** Timestamp relative to recording start (seconds) */
 	time: number;
+	/**
+	 * Duration of this frame's analysis window, from buffer length / sample
+	 * rate. Optional for saved readings that predate this field; their timbre
+	 * persistence check retains the legacy 4096 / 44100 second fallback.
+	 */
+	analysisWindowSeconds?: number;
 	/** Raw frequency in Hz */
 	frequency: number;
 	/**
@@ -93,6 +99,28 @@ export interface PitchReading {
 	 */
 	shapeBreakAt?: number;
 	/**
+	 * The window's BRIGHTNESS in dB: the share of the harmonic energy under
+	 * TIMBRE_BAND_TOP that the partials from TIMBRE_UPPER_FROM up carry. See
+	 * `measureTimbre`. Omitted where the band holds no partial on one side of
+	 * the split (notes from ~600 Hz up), and on readings restored from
+	 * pre-2026-10-17 diagnostic JSON.
+	 */
+	brightness?: number;
+	/**
+	 * The largest rise in brightness (dB) across TIMBRE_LIFT_SPAN inside the
+	 * window, over the spans whose harmonic level dips below where it began —
+	 * a reed damped by the tongue and restarting brighter. See `measureTimbre`.
+	 * Omitted when no span of the window dips.
+	 */
+	brightnessLift?: number;
+	/**
+	 * Offset from this reading's `time` to the midpoint of the
+	 * `brightnessLift` span, in the caller's time base like `shapeBreakAt`
+	 * (negative under the live path's window-end anchor). Omitted with
+	 * `brightnessLift`.
+	 */
+	brightnessLiftAt?: number;
+	/**
 	 * True when this reading was captured during the octave-stabilizer
 	 * warmup window (first few frames after a reset). Aggregation should
 	 * down-weight these because the raw MIDI passes through unstabilized
@@ -110,6 +138,16 @@ export interface PitchReading {
 	 * genuine mid-register note is harmless. Omitted when not flagged.
 	 */
 	octaveUp?: boolean;
+	/**
+	 * True when the frame's spectrum looks like a 3rd-harmonic (twelfth-up)
+	 * lock — under the reported pitch sits the harmonic series of a real
+	 * fundamental a twelfth below, with the bins between its partials empty
+	 * (see `isTwelfthUpLock`). Recorded per frame, acted on per sub-segment:
+	 * the segmenter folds one a twelfth down when a strong majority of its
+	 * frames are flagged (`foldTwelfthUpLocks`), so a stray attack frame on a
+	 * genuine note is harmless. Omitted when not flagged.
+	 */
+	twelfthUp?: boolean;
 	/**
 	 * True on a SUB-threshold frame (clarity in [WEAK_CLARITY_FLOOR,
 	 * threshold)). These never enter the confident reading stream: detectors
@@ -274,6 +312,214 @@ let shapeEnergyScratch = new Float64Array(0);
 let shapeCrossScratch = new Float64Array(0);
 let shapeBestScratch = new Float64Array(0);
 
+/**
+ * `measureTimbre` geometry and band (see that function).
+ *
+ * The band is the harmonic series up to TIMBRE_BAND_TOP, split at
+ * TIMBRE_UPPER_FROM. 2 kHz stays two octaves under the metronome's ride and
+ * hi-hat corners (8 and 6 kHz), so a click cannot brighten the tone; 600 Hz
+ * puts a low tenor note's 5th partial and up on the bright side, which is
+ * where the 2026-10-17 Blue Note Step-Up tongue moved (h5–h9 +6 to +10 dB).
+ *
+ * Sub-windows of TIMBRE_SUB_WINDOW samples (~23 ms, three periods of the
+ * 80 Hz floor) hop by TIMBRE_SUB_HOP (~5.8 ms); a lift is measured across
+ * TIMBRE_LIFT_SPAN hops (~41 ms, the length of that tongue's switch), and a
+ * span counts only when its level falls TIMBRE_LIFT_DIP_DB below where it
+ * began — the notch of a reed the tongue damped. That tongue's notch is
+ * 0.85 dB; a held tone's harmonic level wanders well under it between
+ * neighbouring sub-windows.
+ */
+const TIMBRE_BAND_TOP = 2000;
+const TIMBRE_UPPER_FROM = 600;
+const TIMBRE_SUB_WINDOW = 1024;
+const TIMBRE_SUB_HOP = 256;
+const TIMBRE_LIFT_SPAN = 7;
+const TIMBRE_LIFT_DIP_DB = 0.5;
+
+/** Hann tables by length, shared by every `measureTimbre` call (two lengths in practice). */
+const timbreHann = new Map<number, Float64Array>();
+/**
+ * Scratch reused across frames like the shape scratch, so the 60 fps live
+ * path allocates nothing: the windowed samples of the span being measured,
+ * each sub-window's brightness and level, and `harmonicSplit`'s result
+ * ([upper, total]). Fully rewritten before read.
+ */
+let timbreWindowedScratch = new Float64Array(0);
+let timbreBrightScratch = new Float64Array(0);
+let timbreLevelScratch = new Float64Array(0);
+const timbreSplit = new Float64Array(2);
+
+/** Reuse the Hann weights for a window length across detector frames. */
+function hannTable(n: number): Float64Array {
+	let table = timbreHann.get(n);
+	if (!table) {
+		table = new Float64Array(n);
+		for (let i = 0; i < n; i++) table[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (n - 1));
+		timbreHann.set(n, table);
+	}
+	return table;
+}
+
+/** Goertzel power from the recurrence's last two states and its coefficient. */
+function goertzelPower(s1: number, s2: number, coeff: number): number {
+	return Math.max(0, s1 * s1 + s2 * s2 - coeff * s1 * s2);
+}
+
+/**
+ * Harmonic energy of buffer[start, start + length) split at
+ * TIMBRE_UPPER_FROM: Hann-windowed Goertzel power at each of the first
+ * `count` partials of `frequency`, written to `timbreSplit` as
+ * [upper, total].
+ *
+ * The span is windowed once into scratch and the Goertzel recurrences run four
+ * partials per pass over it — at the 80 Hz floor that is 25 partials over 13
+ * overlapping sub-windows per frame, and re-windowing per partial, one partial
+ * per pass, cost three times the shape scan. A slot past `count` runs with a
+ * zero coefficient and is not counted.
+ */
+function harmonicSplit(
+	buffer: Float32Array,
+	start: number,
+	length: number,
+	frequency: number,
+	count: number,
+	sampleRate: number
+): void {
+	const hann = hannTable(length);
+	if (timbreWindowedScratch.length < length) timbreWindowedScratch = new Float64Array(length);
+	const x = timbreWindowedScratch;
+	for (let i = 0; i < length; i++) x[i] = buffer[start + i] * hann[i];
+	const omega = (2 * Math.PI * frequency) / sampleRate;
+	let upper = 0;
+	let total = 0;
+	for (let k = 1; k <= count; k += 4) {
+		const ca = 2 * Math.cos(omega * k);
+		const cb = k + 1 <= count ? 2 * Math.cos(omega * (k + 1)) : 0;
+		const cc = k + 2 <= count ? 2 * Math.cos(omega * (k + 2)) : 0;
+		const cd = k + 3 <= count ? 2 * Math.cos(omega * (k + 3)) : 0;
+		let a1 = 0, a2 = 0, b1 = 0, b2 = 0, c1 = 0, c2 = 0, d1 = 0, d2 = 0;
+		for (let i = 0; i < length; i++) {
+			const v = x[i];
+			const a = v + ca * a1 - a2;
+			a2 = a1;
+			a1 = a;
+			const b = v + cb * b1 - b2;
+			b2 = b1;
+			b1 = b;
+			const c = v + cc * c1 - c2;
+			c2 = c1;
+			c1 = c;
+			const d = v + cd * d1 - d2;
+			d2 = d1;
+			d1 = d;
+		}
+		for (let j = 0; j < 4 && k + j <= count; j++) {
+			const p =
+				j === 0 ? goertzelPower(a1, a2, ca)
+				: j === 1 ? goertzelPower(b1, b2, cb)
+				: j === 2 ? goertzelPower(c1, c2, cc)
+				: goertzelPower(d1, d2, cd);
+			total += p;
+			if (frequency * (k + j) >= TIMBRE_UPPER_FROM) upper += p;
+		}
+	}
+	timbreSplit[0] = upper;
+	timbreSplit[1] = total;
+}
+
+/** One `measureTimbre` result: see the PitchReading fields it fills. */
+export interface TimbreMeasure {
+	/** Window brightness in dB (≤ 0). */
+	brightness: number;
+	/** Largest brightness rise across a dipping span, dB; null when no span dips. */
+	lift: number | null;
+	/** Seconds from the window start to that span's midpoint; null with `lift`. */
+	liftOffsetSeconds: number | null;
+}
+
+/**
+ * Brightness of the window and the sharpest brightening inside it that rides
+ * a level notch — "did the reed restart brighter?" measured in the spectrum.
+ *
+ * The 2026-10-17 Blue Note Step-Up take is the reason: a D3 tongued twice
+ * with no gap, no tongue noise, a 6-cent pitch sag and a 15% / 20 ms notch —
+ * under every energy tier — and a reset spread over three cycles, so
+ * cycle-to-cycle similarity (`shapeBreak`) never moved off 0.99. What did move
+ * is the timbre: the 5th–9th partials came back 6–10 dB stronger and stayed,
+ * a new, brighter tone that set in across the notch within ~40 ms. Brightness
+ * alone does not tell that from a held note: a swell brightens as it gets
+ * louder, and a breathy tone's brightness wanders by several dB. The notch
+ * does — a swell's level rises through its brightening, and a wandering
+ * tone's does not dip with it.
+ *
+ * So the window is cut into TIMBRE_SUB_WINDOW sub-windows; each gets a level
+ * (the harmonic energy, dB) and a brightness (the upper share, dB). `lift` is
+ * the largest brightness rise across TIMBRE_LIFT_SPAN sub-windows among the
+ * spans whose level falls at least TIMBRE_LIFT_DIP_DB below its starting
+ * level somewhere inside. Whether the new timbre persists, and whether the
+ * note held its energy, are the segmenter's to judge across readings
+ * (`findReArticulations`, the timbre-switch tier).
+ *
+ * Returns null without a fundamental, on silence, or when the band has no
+ * partial on one side of the split (from ~600 Hz up).
+ */
+export function measureTimbre(
+	buffer: Float32Array,
+	frequency: number,
+	sampleRate: number
+): TimbreMeasure | null {
+	if (!(frequency > 0)) return null;
+	const count = Math.floor(Math.min(TIMBRE_BAND_TOP, sampleRate / 2 - 1) / frequency);
+	if (count < 2 || frequency >= TIMBRE_UPPER_FROM || frequency * count < TIMBRE_UPPER_FROM) return null;
+
+	harmonicSplit(buffer, 0, buffer.length, frequency, count, sampleRate);
+	const windowUpper = timbreSplit[0];
+	const windowTotal = timbreSplit[1];
+	if (!(windowTotal > 0) || !(windowUpper > 0)) return null;
+	const brightness = 10 * Math.log10(windowUpper / windowTotal);
+
+	const positions =
+		buffer.length >= TIMBRE_SUB_WINDOW ? Math.floor((buffer.length - TIMBRE_SUB_WINDOW) / TIMBRE_SUB_HOP) + 1 : 0;
+	if (positions <= TIMBRE_LIFT_SPAN) return { brightness, lift: null, liftOffsetSeconds: null };
+	if (timbreBrightScratch.length < positions) {
+		timbreBrightScratch = new Float64Array(positions);
+		timbreLevelScratch = new Float64Array(positions);
+	}
+	const bright = timbreBrightScratch;
+	const level = timbreLevelScratch;
+	for (let p = 0; p < positions; p++) {
+		harmonicSplit(buffer, p * TIMBRE_SUB_HOP, TIMBRE_SUB_WINDOW, frequency, count, sampleRate);
+		const upper = timbreSplit[0];
+		const total = timbreSplit[1];
+		// A silent sub-window has no timbre; it can neither start nor end a lift.
+		if (!(total > 0) || !(upper > 0)) {
+			bright[p] = NaN;
+			level[p] = -Infinity;
+			continue;
+		}
+		bright[p] = 10 * Math.log10(upper / total);
+		level[p] = 10 * Math.log10(total);
+	}
+
+	let lift: number | null = null;
+	let liftStart = 0;
+	for (let a = 0; a + TIMBRE_LIFT_SPAN < positions; a++) {
+		const b = a + TIMBRE_LIFT_SPAN;
+		const rise = bright[b] - bright[a];
+		if (!Number.isFinite(rise)) continue;
+		let lowest = Infinity;
+		for (let p = a; p <= b; p++) if (level[p] < lowest) lowest = level[p];
+		if (lowest > level[a] - TIMBRE_LIFT_DIP_DB) continue;
+		if (lift === null || rise > lift) {
+			lift = rise;
+			liftStart = a;
+		}
+	}
+	if (lift === null) return { brightness, lift: null, liftOffsetSeconds: null };
+	const midpoint = (liftStart + TIMBRE_LIFT_SPAN / 2) * TIMBRE_SUB_HOP + TIMBRE_SUB_WINDOW / 2;
+	return { brightness, lift, liftOffsetSeconds: midpoint / sampleRate };
+}
+
 /** Default clarity floor for accepting a reading */
 export const DEFAULT_CLARITY_THRESHOLD = 0.80;
 
@@ -382,10 +628,69 @@ const SUBHARMONIC_ODD_HARMONIC_RATIO = 0.12;
  * `g = f/2` at or above the supported minimum pitch. The max stops below G3's 2nd
  * harmonic (~392 Hz): notes from ~G3 up detect their own strong fundamental and
  * never mislock, so nothing above the band needs pulling down.
+ *
+ * A lock can also leave the 3rd and 5th partials too weak for that rank: the
+ * 2026-10-24 Slow Climb to the Third E3 carried them strongly for a stretch
+ * mid-note and barely at all elsewhere, so 10 of its 63 frames reached 0.12
+ * and the whole-note vote never formed. Its fundamental held throughout, at
+ * 0.034–0.088 of the 330 Hz partial. The second test reads the lower note's
+ * whole odd series, fundamental included, in the twelfth-up lock's two-ratio
+ * form (with g = f/2):
+ *   1. (mag(g) + mag(3g) + mag(5g)) / (mag(2g) + mag(4g))
+ *      ≥ OCTAVE_UP_SERIES_RATIO. Lock frames: 0.056–0.25.
+ *   2. The mean of those three bins is ≥ OCTAVE_UP_SERIES_RANK × the mean of
+ *      the half-series bins between them, 1.5g, 2.5g, 3.5g, 4.5g, which no
+ *      partial of either note reaches — a series, not room rumble or an
+ *      attack's broadband energy. Lock frames: 3.9–20.
+ * It passes 51 of the take's 52 lock frames and all 84 of the Sixth–Octave
+ * Lift's. On the rest of the corpus it passes 31 of 4498 in-band frames of
+ * genuine notes (noise-floor and attack frames) and never more than 26% of
+ * one note's — under the 60% vote; the two locks reach 81% and 87%.
  */
 const OCTAVE_UP_MIN_FREQUENCY = 160;
 const OCTAVE_UP_MAX_FREQUENCY = 370;
 const OCTAVE_UP_ODD_HARMONIC_RATIO = 0.12;
+const OCTAVE_UP_SERIES_RATIO = 0.05;
+const OCTAVE_UP_SERIES_RANK = 4;
+
+/**
+ * Twelfth-up (3rd-harmonic) lock — the next partial up from the octave case.
+ *
+ * On a low tenor note the 3rd harmonic can outweigh the fundamental AND the
+ * 2nd harmonic. The 2026-10-17 Third Walks Back to Root fixture's final D3
+ * blooms with its 440 Hz partial at ~10× the 147 Hz fundamental and ~8× the
+ * 293 Hz 2nd harmonic, and McLeod reports A4 for 19 frames at clarity 0.9.
+ * The octave stabilizer only questions ±12/±24 jumps, so a 19-semitone one
+ * passes straight through, and the held D came out as D3 · A4 · D3 — two
+ * charged extras, 0.657 "fair".
+ *
+ * Two Goertzel ratios tell the lock from a real note at the reported `f`,
+ * with g = f/3 the fundamental it would be a lock OF:
+ *   1. The harmonic series of g is present under f —
+ *        (mag(g) + mag(2g) + mag(4g) + mag(5g)) / (mag(3g) + mag(6g))
+ *      ≥ TWELFTH_UP_SERIES_RATIO. For a genuine note at f those four bins
+ *      are non-harmonic and empty. The fixture's lock frames measure
+ *      0.35–0.47.
+ *   2. It is a SERIES, not broadband energy — the same sum against the
+ *      half-series bins between those partials, 1.5g, 2.5g, 3.5g, 4.5g,
+ *      which no harmonic of g reaches:
+ *        series / halfSeries ≥ TWELFTH_UP_SERIES_RANK.
+ *      An attack transient or a slur glide lifts every bin alike. Measured
+ *      over every in-band frame of the corpus that reaches ratio 1 (0.2 and
+ *      up, 21 frames: attacks, cracks, glides), ratio 1 runs to 0.84 but
+ *      ratio 2 stays at or under 3.2; the lock frames sit at 11–37.
+ *
+ * Like `isOctaveUpLock` this is a predicate, not a correction: the segmenter
+ * folds a sub-segment a twelfth down only when a strong majority of its
+ * frames carry the flag (`foldTwelfthUpLocks` in note-segmenter.ts).
+ * Bounded to reported frequencies whose third is a supported pitch (3 × the
+ * 80 Hz minimum) up to G3's 3rd harmonic (~590 Hz) — the fundamental-weak
+ * low register where a partial can win the pick.
+ */
+const TWELFTH_UP_MIN_FREQUENCY = 240;
+const TWELFTH_UP_MAX_FREQUENCY = 600;
+const TWELFTH_UP_SERIES_RATIO = 0.2;
+const TWELFTH_UP_SERIES_RANK = 5;
 
 /**
  * Number of consecutive frames an octave-only jump (±12 or ±24 semitones)
@@ -638,7 +943,39 @@ export function isOctaveUpLock(buffer: Float32Array, frequency: number, sampleRa
 	const fifth = goertzelMagnitude(buffer, frequency * 2.5, sampleRate); // 5g
 	const even = second + fourth;
 	if (even <= 0) return false;
-	return (third + fifth) / even >= OCTAVE_UP_ODD_HARMONIC_RATIO;
+	if ((third + fifth) / even >= OCTAVE_UP_ODD_HARMONIC_RATIO) return true;
+	// The odd partials can fade while the fundamental holds: read g's whole odd
+	// series, and only as a series — the bins between its partials stay empty.
+	const series = goertzelMagnitude(buffer, frequency / 2, sampleRate) + third + fifth;
+	if (series / even < OCTAVE_UP_SERIES_RATIO) return false;
+	let halfSeries = 0;
+	for (const k of [0.75, 1.25, 1.75, 2.25]) halfSeries += goertzelMagnitude(buffer, frequency * k, sampleRate);
+	return series / 3 >= (halfSeries / 4) * OCTAVE_UP_SERIES_RANK;
+}
+
+/**
+ * Whether the detected frequency looks like a 3rd-harmonic (twelfth-up) lock
+ * of a true fundamental a twelfth below. See the `TWELFTH_UP_*` constants for
+ * the two-ratio discriminator; like `isOctaveUpLock` this is a predicate the
+ * segmenter acts on only over a majority of a sub-segment's frames.
+ */
+export function isTwelfthUpLock(buffer: Float32Array, frequency: number, sampleRate: number): boolean {
+	if (frequency < TWELFTH_UP_MIN_FREQUENCY || frequency > TWELFTH_UP_MAX_FREQUENCY) {
+		return false;
+	}
+	const g = frequency / 3;
+/** Goertzel magnitude of the k-th harmonic of the candidate fundamental. */
+	const mag = (k: number) => goertzelMagnitude(buffer, g * k, sampleRate);
+	// The reported pitch and its own 2nd harmonic: 3g and 6g.
+	const reported = mag(3) + mag(6);
+	if (reported <= 0) return false;
+	// The fundamental's other partials — empty for a genuine note at 3g.
+	const series = mag(1) + mag(2) + mag(4) + mag(5);
+	if (series / reported < TWELFTH_UP_SERIES_RATIO) return false;
+	// The bins between them, which no harmonic of g reaches: broadband energy
+	// lifts these as much as the series, a real fundamental leaves them empty.
+	const halfSeries = mag(1.5) + mag(2.5) + mag(3.5) + mag(4.5);
+	return series >= halfSeries * TWELFTH_UP_SERIES_RANK;
 }
 
 /**
@@ -828,6 +1165,7 @@ export function detectFrame(
 				cents: weakCents,
 				clarity,
 				time,
+				analysisWindowSeconds: buffer.length / opts.sampleRate,
 				frequency,
 				rms,
 				hfRms,
@@ -848,21 +1186,30 @@ export function detectFrame(
 
 	// Octave-UP (2nd-harmonic) locks are only FLAGGED here, not rewritten — the
 	// segmenter drops the note an octave when a majority of its frames carry the
-	// flag (see `isOctaveUpLock`). Two guards keep the flag from ever stacking a
-	// second octave correction on top of an existing one:
-	//   • `frequency === rawFrequency` — the subharmonic pass didn't already move
-	//     the pick (a doubled subharmonic sits an octave up by construction).
-	//   • `octaveCorrection === 0` — the stabilizer didn't already hold this frame
-	//     an octave down from its raw pick. Without this, a lock frame the
-	//     stabilizer has already pulled to the true fundamental (midi = rawMidi −
-	//     12) would still be flagged off its raw E4 spectrum, and the note-level
-	//     drop would take it a SECOND octave down (E3 → E2).
+	// flag (see `isOctaveUpLock`). `octaveCorrection === 0` keeps the flag from
+	// stacking a second octave correction on top of the stabilizer's: a lock
+	// frame it has already pulled to the true fundamental (midi = rawMidi − 12)
+	// would still be flagged off its raw E4 spectrum, and the note-level drop
+	// would take it a SECOND octave down (E3 → E2).
+	//
+	// A pick the subharmonic pass DOUBLED may carry the flag. That pass doubles
+	// when the 3rd and 5th partials of the low pick are weak — the very bins the
+	// first octave-up test reads at the doubled frequency, so that test cannot
+	// fire here. The series test can, and when it does the doubling was wrong:
+	// the 2026-10-24 Slow Climb to the Third E3 was picked at 164.5 Hz on 12 of
+	// its frames and doubled to E4 on every one.
 	const octaveUp =
+		octaveCorrection === 0 && isOctaveUpLock(buffer, frequency, opts.sampleRate);
+	// The 3rd-harmonic flag keeps both guards: it means "fold a twelfth down
+	// from the pitch this frame REPORTS", so a frame the subharmonic pass or the
+	// stabilizer has already moved must not carry it.
+	const twelfthUp =
 		frequency === rawFrequency &&
 		octaveCorrection === 0 &&
-		isOctaveUpLock(buffer, frequency, opts.sampleRate);
+		isTwelfthUpLock(buffer, frequency, opts.sampleRate);
 
 	const reading: PitchReading = { midiFloat, midi, cents, clarity, time, frequency, rms, hfRms, rmsMin };
+	reading.analysisWindowSeconds = buffer.length / opts.sampleRate;
 	const bandRmsMin = measureBandRmsMin(buffer, opts.sampleRate);
 	if (bandRmsMin !== null) reading.bandRmsMin = bandRmsMin;
 	const shape = measureShapeBreak(buffer, frequency, opts.sampleRate);
@@ -873,8 +1220,23 @@ export function detectFrame(
 				? shape.offsetSeconds - buffer.length / opts.sampleRate
 				: shape.offsetSeconds;
 	}
+	// Measured on the partials of the pitch this frame REPORTS, after the
+	// stabilizer: a frame it holds an octave away would otherwise read the
+	// wrong series.
+	const timbre = measureTimbre(buffer, frequency * Math.pow(2, octaveCorrection / 12), opts.sampleRate);
+	if (timbre) {
+		reading.brightness = timbre.brightness;
+		if (timbre.lift !== null && timbre.liftOffsetSeconds !== null) {
+			reading.brightnessLift = timbre.lift;
+			reading.brightnessLiftAt =
+				opts.windowAnchor === 'end'
+					? timbre.liftOffsetSeconds - buffer.length / opts.sampleRate
+					: timbre.liftOffsetSeconds;
+		}
+	}
 	if (stab.warmup) reading.warmup = true;
 	if (octaveUp) reading.octaveUp = true;
+	if (twelfthUp) reading.twelfthUp = true;
 
 	return { reading, rawClarity: clarity };
 }

@@ -109,6 +109,41 @@ test.describe('ear-training: double-start guard', () => {
 });
 
 /**
+ * A refused microphone is the player's choice, not a fault: the phrase still
+ * plays (listen-only), the console never reaches the PLAY phase, and the
+ * page says why instead of logging an error (the console guard fails on
+ * console.error, so this flow had no e2e until the refusal became a warning).
+ */
+test.describe('ear-training: refused microphone', () => {
+	test('plays listen-only and asks for the microphone, with no error logged', async ({ page, browserName }) => {
+		// Mic capture initialises the AudioContext before getUserMedia.
+		test.skip(
+			browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+			'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device'
+		);
+		await seedOnboardedAnonymous(page);
+		await page.addInitScript(() => {
+			MediaDevices.prototype.getUserMedia = () =>
+				Promise.reject(new DOMException('Permission denied', 'NotAllowedError'));
+		});
+		await stubCdnInstrumentSamples(page);
+		await page.goto('/ear-training', { waitUntil: 'networkidle' });
+
+		const playBtn = page.locator('[data-tour="play-button"]');
+		const phase = page.locator('[data-tour="status-text"]');
+		await expect(playBtn).toBeEnabled();
+		await playBtn.click();
+
+		// The phrase plays, then the console settles back to Ready — never Play.
+		await expect(phase).toHaveAttribute('data-phase', 'listen', { timeout: 30_000 });
+		await expect(phase).not.toHaveAttribute('data-phase', 'listen', { timeout: 30_000 });
+		expect(await phase.getAttribute('data-phase')).toBe('ready');
+		await expect(page.getByText('Microphone access required')).toBeVisible();
+		await expect(playBtn).toBeEnabled();
+	});
+});
+
+/**
  * The practice-time counter is driven off a `practising` flag that spans the
  * whole run — including the awaiting-input and auto-advance phases, where the
  * engine sits at 'ready'. These tests pin the two ends of that behaviour: it
@@ -176,9 +211,6 @@ test.describe('ear-training: saved take', () => {
 		browserName: string;
 		consoleCollector: ConsoleCollector;
 	}): Promise<void> => {
-		// Same limit the lick-practice take spec records: WebKit cannot store a
-		// Blob in IndexedDB in Playwright's ephemeral context.
-		test.skip(browserName === 'webkit', 'WebKit cannot store a Blob in ephemeral IndexedDB');
 		test.skip(
 			browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
 			'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device'
@@ -253,6 +285,11 @@ test.describe('ear-training: saved take', () => {
 		await page.getByRole('button', { name: 'Start practice', exact: true }).click();
 		await expect(quote).toHaveText('');
 		await expect(page.getByTestId('tuning-faders')).toHaveCount(0);
+		// The sharp/flat reminder's line stays in the live panel (its text needs
+		// three sharp takes the steady mock tone never supplies); the fader bank
+		// above is what waits for a pause. 2026-10-15: the console had carried both
+		// into the paused-only region, and an 18-take-long cue went unseen.
+		await expect(page.getByTestId('tuning-cue')).toHaveCount(1);
 		await expect(page.locator('[data-tour="score-display"]')).toHaveText(scoreBefore ?? '');
 
 	});

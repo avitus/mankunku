@@ -5,7 +5,8 @@ import {
 	mergeSamePitchWithoutAttack,
 	mergeOctaveBoundariesWithoutAttack,
 	getMetronomeBleedOnsets,
-	validateOnsets
+	validateOnsets,
+	foldTwelfthUpLockRuns
 } from '$lib/audio/note-segmenter';
 import type { PitchReading } from '$lib/audio/pitch-detector';
 import type { DetectedNote } from '$lib/types/audio';
@@ -1531,5 +1532,88 @@ describe('segmentNotes — an attack that cracks into the neighbouring octave', 
 		];
 		const notes = segment(readings, 0.33 + 2 * FRAME);
 		expect(notes.map((n) => n.midi)).toEqual([50, 62]);
+	});
+});
+
+describe('segmentNotes: third-harmonic (twelfth-up) locks', () => {
+/** Frequency of a MIDI note in Hz (A4 = 440). */
+	const hz = (midi: number) => 440 * Math.pow(2, (midi - 69) / 12);
+	/** `count` frames at 60 fps from `from`, all on `midi`. */
+	function run(midi: number, from: number, count: number, opts: { twelfthUp?: boolean } = {}): PitchReading[] {
+		return Array.from({ length: count }, (_, i) => ({
+			...makeReading(midi, from + i / 60),
+			frequency: hz(midi),
+			...(opts.twelfthUp ? { twelfthUp: true } : {})
+		}));
+	}
+	/** A held D3 (one attack) whose middle third of a second reads as A4, its 3rd harmonic. */
+	function heldD(lock: PitchReading[]): PitchReading[] {
+		return [...run(50, 0, 10), ...lock, ...run(50, 0.5, 30)];
+	}
+/** Segment readings with no onsets, bleed or weak readings. */
+	const segment = (readings: PitchReading[]) =>
+		segmentNotes(readings, [0], readings[readings.length - 1].time + 1 / 60, undefined, undefined, undefined, [0]);
+
+	it('folds a stretch flagged on every frame back into the held note', () => {
+		const notes = segment(heldD(run(69, 10 / 60, 20, { twelfthUp: true })));
+		expect(notes.map((n) => n.midi)).toEqual([50]);
+		expect(notes[0].onsetTime).toBe(0);
+		expect(notes[0].duration).toBeCloseTo(1, 2);
+	});
+
+	it('keeps an unflagged leap as the three notes it reads', () => {
+		expect(segment(heldD(run(69, 10 / 60, 20))).map((n) => n.midi)).toEqual([50, 69, 50]);
+	});
+
+	it('needs a strong majority of the stretch: half its frames flagged is not a lock', () => {
+		const lock = [...run(69, 10 / 60, 10, { twelfthUp: true }), ...run(69, 20 / 60, 10)];
+		expect(segment(heldD(lock)).map((n) => n.midi)).toEqual([50, 69, 50]);
+	});
+
+	it('folds a whole note that locked from attack to release', () => {
+		const notes = segment(run(69, 0, 30, { twelfthUp: true }));
+		expect(notes.map((n) => n.midi)).toEqual([50]);
+	});
+
+	// CodeRabbit on PR #280: live ear training has no worklet onsets, so
+	// resolveOnsets derives them from the readings, and a MIDI change at the
+	// lock's edges cut the held note into three segments before the fold ran.
+	it('folds the lock when the onsets come from the readings themselves (the live path)', () => {
+		const readings = heldD(run(69, 10 / 60, 20, { twelfthUp: true }));
+		const onsets = resolveOnsets([], readings);
+		expect(onsets).toHaveLength(1);
+		const notes = segmentNotes(readings, onsets, readings[readings.length - 1].time + 1 / 60);
+		expect(notes.map((n) => n.midi)).toEqual([50]);
+		expect(notes[0].duration).toBeCloseTo(1, 2);
+	});
+
+	it('an unflagged leap still earns its own onsets from the readings', () => {
+		expect(resolveOnsets([], heldD(run(69, 10 / 60, 20)))).toHaveLength(3);
+	});
+
+	describe('foldTwelfthUpLockRuns (the stream-level fold the onset extractor reads)', () => {
+		it('folds a run of three confident flagged frames a twelfth down, keeping the raw frequency', () => {
+			const lock = run(69, 0, 3, { twelfthUp: true });
+			const folded = foldTwelfthUpLockRuns(lock);
+			expect(folded.map((r) => r.midi)).toEqual([50, 50, 50]);
+			expect(folded.map((r) => r.midiFloat)).toEqual([50, 50, 50]);
+			expect(folded.map((r) => r.frequency)).toEqual(lock.map((r) => r.frequency));
+		});
+
+		it('does not judge a run shorter than three confident frames', () => {
+			expect(foldTwelfthUpLockRuns(run(69, 0, 2, { twelfthUp: true })).map((r) => r.midi)).toEqual([69, 69]);
+		});
+
+		it('counts no warmup frame toward the run, flagged or not', () => {
+			const lock = run(69, 0, 5, { twelfthUp: true }).map((r, i) => ({ ...r, warmup: i < 3 }));
+			expect(foldTwelfthUpLockRuns(lock).map((r) => r.midi)).toEqual([69, 69, 69, 69, 69]);
+		});
+
+		it('returns a new stream and leaves the caller\'s readings alone', () => {
+			const lock = run(69, 0, 3, { twelfthUp: true });
+			const folded = foldTwelfthUpLockRuns(lock);
+			expect(folded).not.toBe(lock);
+			expect(lock.map((r) => r.midi)).toEqual([69, 69, 69]);
+		});
 	});
 });

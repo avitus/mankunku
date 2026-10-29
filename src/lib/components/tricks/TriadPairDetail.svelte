@@ -40,10 +40,16 @@
 	onMount(() => { version++; });
 	onDestroy(audition.dispose);
 
+	/** Selects the unlocked variant for the chosen pair family; a locked or unknown pair is ignored. */
 	function selectPair(value: string): void {
 		const next = unlocked.find(v => v.params.pair === value);
 		if (next) selectedKey = next.key;
 	}
+	/**
+	 * Starts a trick practice session for the selected variant: stops any audition, points the
+	 * lick-practice config at this trick and its parameters (clearing any progression override),
+	 * and navigates to /lick-practice. Does nothing while the variant is still locked.
+	 */
 	function practice(): void {
 		if (!ready) return;
 		void audition.stop();
@@ -51,6 +57,7 @@
 			trickParameters: { ...selected.params }, trickProgressionType: undefined });
 		void goto('/lick-practice');
 	}
+	/** Stars or unstars the selected variant as a tune-practice suggestion and bumps `version` so the view re-reads. No-op while locked. */
 	function toggleSuggestion(): void {
 		if (!ready) return;
 		toggleVariantSelected(selected.key); version++;

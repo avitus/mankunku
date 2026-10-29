@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { test, expect } from './fixtures/test';
 import { seedOnboardedAnonymous } from './fixtures/storage';
 import { stubCdnInstrumentSamples } from './fixtures/audio';
+import { requireRealtimeAudio } from './fixtures/realtime-audio';
 
 test.beforeEach(async ({ page }) => {
  await seedOnboardedAnonymous(page);
@@ -43,6 +44,7 @@ test('shows a real score beside factual band insights with a release and compact
 test('pins actual sounding decisions, saves release-labelled feedback and preserves it after reload', async ({ page }) => {
  await page.goto('/musicality');
  await page.getByTestId('listening-tempo').fill('240');
+ requireRealtimeAudio(page);
  await page.getByTestId('listening-play').click();
  await expect.poll(async()=>Number(await page.getByTestId('listening-position').getAttribute('data-bar-index'))).toBeGreaterThanOrEqual(1);
  await page.getByTestId('listening-pin').click();
@@ -77,4 +79,26 @@ test('pins actual sounding decisions, saves release-labelled feedback and preser
   tempo:240,swing:evidence.playback.params.swing,volume:evidence.playback.params.volume,
   mix:evidence.playback.params.mix,ending:'continue',instrument:'piano'});
  expect(summary.marks).toEqual(evidence.marks);
+});
+
+test('keeps the current curated catalog within the unchanged full-tune listening budget', async ({ page }) => {
+ await page.goto('/musicality');
+ const picker = page.getByTestId('listening-tune');
+ await expect(picker.locator('option')).toHaveText(['Mankunku Blues', 'Rhythm Changes']);
+ await picker.selectOption('ls-rhythm-changes');
+ await expect(page.locator('.transport')).toContainText('128 bars');
+ for (const solos of ['3', '4']) {
+  await page.getByTestId('listening-choruses').selectOption(solos);
+  await expect(page.getByTestId('listening-unavailable')).toContainText('128');
+  await expect(page.getByTestId('listening-play')).toBeDisabled();
+ }
+ await page.getByTestId('listening-choruses').selectOption('1');
+ await expect(page.locator('.transport')).toContainText('96 bars');
+ await expect(page.getByTestId('listening-play')).toBeEnabled();
+ await page.getByTestId('blind-open').click();
+ await page.getByTestId('blind-tune').selectOption('ls-rhythm-changes');
+ await page.getByTestId('blind-choruses').selectOption('3');
+ await page.getByTestId('blind-start').click();
+ await expect(page.getByRole('alert')).toContainText('128');
+ await expect(page.getByTestId('blind-play-A')).toHaveCount(0);
 });

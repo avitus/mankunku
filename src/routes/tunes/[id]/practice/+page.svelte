@@ -1,40 +1,39 @@
 <script lang="ts">
+	import { isInPickupLeadIn } from '$lib/music/pickup';
+	import { jamSheets } from '$lib/tunes/jam-sheets';
 	import { onMount, onDestroy } from 'svelte';
 	import { acquireScreenWakeLock, releaseScreenWakeLock } from '$lib/util/wake-lock';
 	import { page } from '$app/state';
 	import NotationDisplay, { type RangeMarker } from '$lib/components/notation/NotationDisplay.svelte';
+	import TuneChordChart from '$lib/components/tunes/TuneChordChart.svelte';
 	import SuggestionPickCard, { type PickEntry } from '$lib/components/tune-practice/SuggestionPickCard.svelte';
+	import TunePracticeSetup from '$lib/components/tune-practice/TunePracticeSetup.svelte';
 	import LickCelebration from '$lib/components/tune-practice/LickCelebration.svelte';
-	import TourTrigger from '$lib/components/ui/TourTrigger.svelte';
-	import HelpLink from '$lib/components/ui/HelpLink.svelte';
-	import TooltipHint from '$lib/components/ui/TooltipHint.svelte';
-	import Knob from '$lib/components/console/Knob.svelte';
-	import RockerSwitch from '$lib/components/console/RockerSwitch.svelte';
-	import SelectorPad from '$lib/components/console/SelectorPad.svelte';
-	import { tooltips } from '$lib/content/tooltips';
-	import { tunePracticeTour } from '$lib/tour/tours/tune-practice';
 	import { transposeTune } from '$lib/tunes/book-loader';
 	import { resolveTuneRef, tunePath } from '$lib/tunes/tune-slug';
 	import { awaitHydration } from '$lib/state/hydration';
-	import { settings, getInstrument } from '$lib/state/settings.svelte';
-	import { BACKING_STYLE_IDS, BACKING_STYLE_NAMES, melodySwingForStyle } from '$lib/audio/backing-styles';
+	import { settings, getInstrument, saveTuneTempo } from '$lib/state/settings.svelte';
+	import { savedTuneTempo } from '$lib/tunes/tune-tempo';
+	import { melodySwingForStyle } from '$lib/audio/backing-styles';
 	import { setMasterVolume } from '$lib/audio/audio-context';
 	import {
 		tunePractice,
 		initTunePractice,
 		restoreTunePracticeChoruses,
-		setTunePracticeChoruses,
 		previewSessionPlan,
 		startTunePracticeSession,
 		candidatesForWindow,
 		markHead,
 		markRunning,
+		markOutro,
 		markWindowOpen,
 		recordWindowResult,
 		completeTunePracticeSession,
 		updateElapsedTime,
 		resetTunePractice,
-		seedSessionBackingFromSettings,
+		restoreTunePracticePlaybackPreferences,
+		restoreTunePracticeSettings,
+		setTunePracticeKey,
 		pickSuggestion,
 		suggestionNameFor,
 		buildFreestyleBook,
@@ -52,9 +51,7 @@
 		bestCandidateResult,
 		insertionLabel,
 		insertionMarkerCleared,
-		indexResultsByInsertion,
-		type TunePracticeMode,
-		type TunePracticeStrictness
+		indexResultsByInsertion
 	} from '$lib/state/tune-practice-plan';
 	import { createFreestyleRecognizer } from '$lib/matching/freestyle';
 	import type { FreestyleBook } from '$lib/matching/book-index';
@@ -65,11 +62,10 @@
 	import { filterBleed } from '$lib/audio/bleed-filter';
 	import { GRADE_LABELS } from '$lib/scoring/grades';
 	import { accuracyTierInfo } from '$lib/ui/score-colors';
-	import { PROGRESSION_TEMPLATES } from '$lib/data/progressions';
 	import { fractionToFloat } from '$lib/music/intervals';
 	import { progressionColor } from '$lib/music/progression-display';
 	import { concertKeyToWritten, writtenKeyToConcert } from '$lib/music/transposition';
-	import { PITCH_CLASSES, type PitchClass } from '$lib/types/music';
+	import type { PitchClass } from '$lib/types/music';
 	import type { PlaybackOptions } from '$lib/types/audio';
 	import type { Score } from '$lib/types/scoring';
 	import type { PlaybackNoteEvent } from '$lib/audio/playback';
@@ -79,6 +75,7 @@
 	import type { BackingTrackSchedule } from '$lib/audio/backing-track-schedule';
 
 	const session = $derived(page.data?.session ?? null);
+	const supabase = $derived(page.data?.supabase ?? null);
 	/**
 	 * The grid the soloist plays on. Fixed-grid styles (straight, bossa,
 	 * ballad) pin it; only the swing style defers to the user's knob. Used
@@ -146,6 +143,8 @@
 	// because the freestyle report derives bar numbers from it; ppq stays a
 	// plain let (audio-path only).
 	let barTicksNR = $state(0);
+	/** Transport ticks of the drum count-in ahead of the tune (one or two bars). */
+	let countInTicksNR = $state(0);
 	let ppqNR = 0;
 
 	// Freestyle recognition (created per session; torn down in stopAll).
@@ -172,56 +171,6 @@
 	 */
 	let playheadBarF = $state(-1);
 
-	// ── Setup-screen controls ─────────────────────────────────────────────────
-	// The console pads read typed option lists so SelectorPad's generic infers
-	// the config union and onChange assigns without a cast. Sublabels are kept
-	// short so each row of the setup card fits one line at the page's max
-	// width; the fuller mode descriptions survive as hover titles.
-	// Freestyle's copy is the one that moves: it describes what PLAYS, so with
-	// the band switched off "backing only" promises something that never
-	// arrives. What freestyle actually is either way — no scored windows — is
-	// what the copy falls back to.
-	const MODE_OPTIONS: {
-		value: TunePracticeMode;
-		label: string;
-		sublabel: string;
-		title: string;
-	}[] = $derived([
-		{
-			value: 'suggest',
-			label: 'Suggest',
-			sublabel: 'lick named for you',
-			title: 'Cued practice — the top lick is named at every insertion point.'
-		},
-		{
-			value: 'points',
-			label: 'Points',
-			sublabel: 'you pick, streaks double',
-			title: 'Pick your lick and earn points; back-to-back hits score double.'
-		},
-		{
-			value: 'freestyle',
-			label: 'Freestyle',
-			sublabel: tunePractice.config.backingTrackEnabled
-				? 'backing only, just solo'
-				: 'no windows, just solo',
-			title: tunePractice.config.backingTrackEnabled
-				? 'Backing only. Take a solo — known licks earn applause.'
-				: 'No insertion windows. Take a solo — known licks earn applause.'
-		}
-	]);
-	const STRICTNESS_OPTIONS: { value: TunePracticeStrictness; label: string; sublabel: string }[] = [
-		{ value: 'guided', label: 'Guided', sublabel: 'names the lick to play' },
-		{ value: 'standard', label: 'Standard', sublabel: 'names the progression only' },
-		{ value: 'solo', label: 'Solo', sublabel: 'no cues — any fitting lick' }
-	];
-	/** Written-pitch key names as the pad labels; `selectWrittenKey` converts. */
-	const KEY_OPTIONS = PITCH_CLASSES.map((pc) => ({ value: pc, label: pc }));
-	const BACKING_OPTIONS = BACKING_STYLE_IDS.map((id) => ({
-		value: id,
-		label: BACKING_STYLE_NAMES[id]
-	}));
-
 	// ── Setup-screen derived state ────────────────────────────────────────────
 	let selectedWrittenKey: PitchClass | null = $state(null);
 	$effect(() => {
@@ -237,24 +186,13 @@
 			? previewSessionPlan(baseSheet, tunePractice.config.playHead, tunePractice.config.choruses)
 			: null;
 	});
-	const previewSheet = $derived(
-		baseSheet && tunePractice.phase === 'setup'
-			? baseSheet.key === tunePractice.config.concertKey
-				? baseSheet
-				: transposeTune(baseSheet, tunePractice.config.concertKey)
-			: null
-	);
-	const tuneHasMelody = $derived(
-		(baseSheet?.sections ?? []).some((sec) => sec.notes.some((n) => n.pitch !== null))
-	);
-	/** Caption under Start: what the first chorus will be, and why. */
-	const startCaption = $derived(
-		!tuneHasMelody
-			? 'This chart has no melody — straight to the changes.'
-			: tunePractice.config.playHead
-				? 'Head first, then the chart clears for your licks.'
-				: 'Straight to the changes.'
-	);
+	const previewSheet = $derived.by(() => {
+		if (!baseSheet || tunePractice.phase !== 'setup') return null;
+		const keyed = baseSheet.key === tunePractice.config.concertKey ? baseSheet : transposeTune(baseSheet, tunePractice.config.concertKey);
+		const sheets = jamSheets(keyed);
+		const hasHead = tunePractice.config.playHead && keyed.sections.some(section => section.notes.some(note => note.pitch !== null));
+		return !hasHead && tunePractice.config.choruses === 1 ? sheets.closing : sheets.returning;
+	});
 	const previewMarkers = $derived<RangeMarker[]>(
 		(preview?.markers ?? []).map((m) => ({
 			...m,
@@ -265,13 +203,13 @@
 
 	const knobs = $derived(strictnessKnobs(tunePractice.config.strictness));
 
-	// The chart shows the full melody through the head, then swaps to the
-	// changes-only sheet (one deliberate re-render at a musical boundary).
+	const closingChart = $derived(audioPlan?.closingStartBar != null && Math.max(0, playheadBarF) >= audioPlan.closingStartBar);
+	const chartSheet = $derived(audioPlan ? closingChart ? audioPlan.closingSheet : audioPlan.sheet : null);
+	const chartFlat = $derived(audioPlan ? closingChart ? audioPlan.closingFlat : audioPlan.flat : null);
 	const displayedSheet = $derived.by(() => {
 		if (!audioPlan) return null;
-		if (audioPlan.leadBars > 0 && (tunePractice.phase === 'count-in' || tunePractice.phase === 'head')) {
-			return audioPlan.sheet;
-		}
+		if (closingChart) return audioPlan.closingSheet;
+		if (audioPlan.leadBars > 0 && (tunePractice.phase === 'count-in' || tunePractice.phase === 'head')) return audioPlan.sheet;
 		return audioPlan.changesSheet;
 	});
 
@@ -291,10 +229,10 @@
 		annotationsVisible({ phase: tunePractice.phase, playHead: audioPlan?.playHead ?? false })
 	);
 	const markers = $derived.by<RangeMarker[]>(() => {
-		const leadBars = audioPlan?.leadBars ?? 0;
 		const byKey = new Map<string, RangeMarker>();
 		const annotated = showAnnotations ? tunePractice.plan : [];
 		annotated.forEach((ip, i) => {
+			if (!!ip.closingPass !== !!(closingChart && audioPlan?.separateClosingChart && !audioPlan?.playHead)) return;
 			const result = resultByInsertion.get(ip.id);
 			// Clear a played insertion shortly after its window passes (~1 bar past
 			// the window's final bar) so the chart behind the playhead stays clean
@@ -305,6 +243,7 @@
 					played: !!result,
 					closeTick: ip.closeTick,
 					barTicks: barTicksNR,
+					countInTicks: countInTicksNR,
 					currentBar,
 					clearAfterBars: CLEAR_AFTER_PLAYED_BARS
 				})
@@ -345,54 +284,38 @@
 		});
 		const result: RangeMarker[] = [...byKey.values()];
 
-		// Current-bar playhead (repeat passes land on the same chart bars). On a
-		// duplicated-form session the practice chorus re-runs the form from 0;
-		// on a repeat-form chart the expanded timeline is already continuous.
-		if (audioPlan && (tunePractice.phase === 'head' || tunePractice.phase === 'running')) {
-			const formBars = audioPlan.flat.totalBars;
-			const formBar =
-				playbackBarForSessionBar(currentBar, formBars, leadBars, audioPlan.practiceStartBar);
-			if (formBar >= 0 && formBar < formBars) {
-				const chartBar = notationBarForPlaybackBar(
-					audioPlan.flat.sectionMap,
-					audioPlan.sheet.sections,
-					formBar
-				);
-				if (chartBar !== null) {
-					result.push({
-						id: '__playhead',
-						startBar: chartBar,
-						endBarExclusive: chartBar + 1,
-						status: 'playhead'
-					});
-				}
-			}
+		// Current-bar playhead (repeat passes land on the same chart bars).
+		if (playheadBar !== null && (tunePractice.phase === 'head' || tunePractice.phase === 'running' || tunePractice.phase === 'outro')) {
+			result.push({
+				id: '__playhead',
+				startBar: playheadBar,
+				endBarExclusive: playheadBar + 1,
+				status: 'playhead'
+			});
 		}
 		return result;
 	});
 
-	/**
-	 * Notation-space fractional bar for continuous follow-scroll. Mirrors the
-	 * integer playhead mapping (duplicated-form offset + sectionMap remap) but
-	 * preserves the within-bar fraction so the chart drifts every frame.
-	 */
+	/** Follow the resolved chart for this pass, retaining within-bar position. */
 	const playheadBarFraction = $derived.by(() => {
-		if (!audioPlan) return null;
-		if (tunePractice.phase !== 'head' && tunePractice.phase !== 'running') return null;
+		if (!audioPlan || !chartFlat || !chartSheet) return null;
+		if (tunePractice.phase !== 'head' && tunePractice.phase !== 'running' && tunePractice.phase !== 'outro') return null;
 		const leadBars = audioPlan.leadBars;
 		const formBars = audioPlan.flat.totalBars;
-		const formBarF = playbackBarForSessionBar(playheadBarF, formBars, leadBars, audioPlan.practiceStartBar);
-		if (formBarF < 0 || formBarF >= formBars) return null;
+		const formBarF = playbackBarForSessionBar(playheadBarF, formBars, leadBars, audioPlan.practiceStartBar, audioPlan.closingStartBar, audioPlan.outroSourceStartBar);
+		if (formBarF < 0 || formBarF >= chartFlat.totalBars) return null;
 		const floorBar = Math.floor(formBarF);
 		const frac = formBarF - floorBar;
 		const chartBar = notationBarForPlaybackBar(
-			audioPlan.flat.sectionMap,
-			audioPlan.sheet.sections,
+			chartFlat.sectionMap,
+			chartSheet.sections,
 			floorBar
 		);
 		if (chartBar === null) return null;
 		return chartBar + frac;
 	});
+
+	const playheadBar = $derived(playheadBarFraction === null || (chartSheet && isInPickupLeadIn(chartSheet, playheadBarFraction)) ? null : Math.floor(playheadBarFraction));
 
 	const hitCount = $derived(
 		tunePractice.results.filter((r) => r.grade !== null && r.grade !== 'try-again').length
@@ -424,11 +347,10 @@
 
 	onMount(async () => {
 		restoreTunePracticeChoruses();
-		// Synchronous, and first: this is a fresh arrival at setup, and the
-		// $effect below re-inits only when the TUNE changed — returning to the
-		// same tune through the app keeps the surviving module state, override
-		// and all. Not an $effect, so the switch stays where the user puts it.
-		seedSessionBackingFromSettings();
+		if (baseSheet) restoreTunePracticeSettings(baseSheet);
+		// Re-entering the same tune keeps this state module alive; reload the
+		// preference here too, in case it changed on the main tune page.
+		restoreTunePracticePlaybackPreferences();
 		void acquireScreenWakeLock();
 		try {
 			playback = await import('$lib/audio/playback');
@@ -456,12 +378,38 @@
 		timerInterval = setInterval(() => updateElapsedTime(), 1000);
 	});
 
+	const TEMPO_KNOB_MIN = 50;
+
+	// The tune whose knob moved on this visit; a saved tempo arriving later
+	// (cloud hydration, another tab) must not snap it back under the user. Keyed
+	// by tune because the route component is reused across a tune change.
+	let tempoChosenFor: string | null = null;
+
+	/** A tempo set up here is the tune's tempo next time, on this page and the desk. */
+	function setPracticeTempo(tempo: number): void {
+		if (baseSheet) tempoChosenFor = baseSheet.id;
+		tunePractice.config.tempo = tempo;
+		if (baseSheet) saveTuneTempo(baseSheet.id, tempo, supabase ?? undefined);
+	}
+
 	// A fresh tune (or a return visit) always begins at setup.
 	$effect(() => {
 		if (baseSheet && tunePractice.tuneId !== baseSheet.id) {
+			// A new tune starts from its saved tempo, whatever moved the knob before.
+			tempoChosenFor = null;
 			initTunePractice(baseSheet);
-			tunePractice.config.tempo = settings.defaultTempo;
 		}
+	});
+
+	// Setup shows the tempo last chosen for the tune here or on the tune desk.
+	// Read on every arrival and whenever the saved value changes, not only when
+	// the tune is new: the practice state outlives the route, so a client-side
+	// return from the desk reaches setup for the SAME tune, and settings can
+	// hydrate after mount.
+	$effect(() => {
+		if (!baseSheet || tunePractice.phase !== 'setup' || tempoChosenFor === baseSheet.id) return;
+		const saved = savedTuneTempo(settings.tuneTempos, baseSheet.id);
+		tunePractice.config.tempo = saved === undefined ? settings.defaultTempo : Math.max(TEMPO_KNOB_MIN, saved);
 	});
 
 	// The state module outlives the route, but the audio plan does not: a
@@ -472,7 +420,7 @@
 			!audioPlan &&
 			(tunePractice.phase === 'count-in' ||
 				tunePractice.phase === 'head' ||
-				tunePractice.phase === 'running')
+				tunePractice.phase === 'running' || tunePractice.phase === 'outro')
 		) {
 			resetTunePractice();
 		}
@@ -484,18 +432,13 @@
 		stopAll();
 	});
 
-	/**
-	 * Audio options for every play call this session makes. Metronome, backing
-	 * instrument and volumes come from the user's settings; tempo, swing, style
-	 * and whether the band plays at all are the SESSION's — the backing switch
-	 * on the setup screen is a one-time override of the global setting.
-	 */
+	/** Session switches drive both playback and scoring's bleed evidence. */
 	function getPlaybackOptions(): PlaybackOptions {
 		return {
 			tempo: tunePractice.config.tempo,
 			swing: effectiveSwing,
 			countInBeats: 0,
-			metronomeEnabled: settings.metronomeEnabled,
+			metronomeEnabled: tunePractice.config.metronomeEnabled,
 			metronomeVolume: settings.metronomeVolume,
 			backingTrackEnabled: tunePractice.config.backingTrackEnabled,
 			backingInstrument: settings.backingInstrument,
@@ -537,6 +480,11 @@
 		pitchDetector.start();
 	}
 
+	/**
+	 * Start a scored tune-practice session: open the microphone, load the
+	 * instrument and backing, then hand the planned session to playback.
+	 * Any setup failure unwinds `isLoading` and shows its banner.
+	 */
 	async function startSession() {
 		if (!playback || !toneModule || !baseSheet || isLoading) return;
 		isLoading = true;
@@ -576,6 +524,7 @@
 		const plan = startTunePracticeSession(baseSheet, ppqNR);
 		audioPlan = plan;
 		barTicksNR = plan.sheet.timeSignature[0] * ppqNR;
+		countInTicksNR = plan.countInBars * barTicksNR;
 		currentBar = -1;
 		playheadBarF = -1;
 		cursorIndex = null;
@@ -601,12 +550,13 @@
 		}
 
 		// Use the plan's EFFECTIVE head decision — config.playHead alone would try
-		// to play a head chorus on a melody-less chart.
-		const skipMelody = !plan.playHead;
+		// to play a head chorus on a melody-less chart. Muting keeps the form intact.
+		const skipMelody = !plan.playHead || !tunePractice.config.melodyEnabled;
 		try {
 			await playback.playPhrase(plan.playedPhrase, getPlaybackOptions(), false, {
 				skipMelody,
 				loopBacking: false,
+				countIn: { bars: plan.countInBars, drums: true, pickup: plan.countInPickup },
 				onStarted: scheduleInsertionWindows,
 				onNote: handlePlaybackNote
 			});
@@ -622,11 +572,11 @@
 		if (!toneModule || !audioPlan) return;
 		const transport = toneModule.getTransport();
 		const leadBars = audioPlan.leadBars;
-		const practiceStartTick = barTicksNR + leadBars * barTicksNR;
+		const practiceStartTick = countInTicksNR + leadBars * barTicksNR;
 		if (leadBars > 0) {
 			transport.scheduleOnce(() => {
 				if (isSessionRunning) markHead();
-			}, `${barTicksNR}i`);
+			}, `${countInTicksNR}i`);
 		}
 		transport.scheduleOnce(() => {
 			if (!isSessionRunning) return;
@@ -635,6 +585,9 @@
 				freestyleFloorSec = micCapture.context.currentTime - sessionPitchStartMicTime;
 			}
 		}, `${practiceStartTick}i`);
+		if (audioPlan.outroStartBar !== null) {
+			transport.scheduleOnce(() => { if (isSessionRunning) { markOutro(); cursorIndex = null; } }, `${countInTicksNR + audioPlan.outroStartBar * barTicksNR}i`);
+		}
 		if (tunePractice.config.mode === 'freestyle') {
 			// No pre-scheduled windows — a bar-cadence scan recognizes known
 			// licks from the live stream instead, starting once the head is
@@ -654,7 +607,7 @@
 	 * machinery) and ask the recognizer. Runs on the audio clock per bar.
 	 */
 	function runFreestyleScan() {
-		if (!isSessionRunning || !pitchDetector || !freestyleRecognizer || !toneModule) return;
+		if (!isSessionRunning || tunePractice.phase !== 'running' || !pitchDetector || !freestyleRecognizer || !toneModule) return;
 		const readings = pitchDetector.getReadings();
 		if (readings.length === 0) return;
 		const nowSec = readings[readings.length - 1].time;
@@ -735,7 +688,7 @@
 		const bleedOnsets = resolveBleedEvidence({
 			schedule: win.schedule,
 			backingTrackEnabled: tunePractice.config.backingTrackEnabled,
-			metronomeEnabled: settings.metronomeEnabled,
+			metronomeEnabled: tunePractice.config.metronomeEnabled,
 			recordingTransportSeconds: win.recordingTransportSeconds,
 			tempo,
 			recordingDuration: windowSeconds
@@ -813,7 +766,7 @@
 	}
 
 	function handlePlaybackNote(event: PlaybackNoteEvent) {
-		cursorIndex = audioPlan?.flat.noteSourceIndices[event.sourceIndex] ?? null;
+		cursorIndex = audioPlan?.noteSourceIndices[event.sourceIndex] ?? null;
 	}
 
 	function startBeatTracking() {
@@ -823,7 +776,7 @@
 				// Fractional bar from ticks (tempo-independent) — same discipline
 				// as lick-practice scrollFraction. Integer floor feeds markers;
 				// the fraction feeds continuous chart follow-scroll.
-				const formBarF = (toneModule.getTransport().ticks - barTicksNR) / barTicksNR;
+				const formBarF = (toneModule.getTransport().ticks - countInTicksNR) / barTicksNR;
 				playheadBarF = formBarF;
 				const bar = Math.floor(formBarF);
 				if (bar !== currentBar) currentBar = bar;
@@ -880,13 +833,16 @@
 	/** Chart bar (1-based) for a freestyle match's transport tick. */
 	function freestyleDisplayBar(atTick: number): number {
 		if (!audioPlan || barTicksNR <= 0) return 1;
-		const playBar = Math.floor((atTick - barTicksNR) / barTicksNR);
+		const playBar = Math.floor((atTick - countInTicksNR) / barTicksNR);
 		const formBar =
-			playbackBarForSessionBar(playBar, audioPlan.flat.totalBars, audioPlan.leadBars, audioPlan.practiceStartBar);
+			playbackBarForSessionBar(playBar, audioPlan.flat.totalBars, audioPlan.leadBars, audioPlan.practiceStartBar, audioPlan.closingStartBar, audioPlan.outroSourceStartBar);
+		const closing = audioPlan.closingStartBar !== null && playBar >= audioPlan.closingStartBar;
+		const flat = closing ? audioPlan.closingFlat : audioPlan.flat;
+		const sheet = closing ? audioPlan.closingSheet : audioPlan.sheet;
 		const chartBar = notationBarForPlaybackBar(
-			audioPlan.flat.sectionMap,
-			audioPlan.sheet.sections,
-			Math.max(0, Math.min(formBar, audioPlan.flat.totalBars - 1))
+			flat.sectionMap,
+			sheet.sections,
+			Math.max(0, Math.min(formBar, flat.totalBars - 1))
 		);
 		return (chartBar ?? 0) + 1;
 	}
@@ -897,9 +853,10 @@
 		return `${m}:${s.toString().padStart(2, '0')}`;
 	}
 
+	/** Convert the visible key to concert pitch before saving it for this tune. */
 	function selectWrittenKey(pc: PitchClass) {
 		selectedWrittenKey = pc;
-		tunePractice.config.concertKey = writtenKeyToConcert(pc, getInstrument());
+		setTunePracticeKey(writtenKeyToConcert(pc, getInstrument()));
 	}
 </script>
 
@@ -914,265 +871,33 @@
 			<a href="/tunes" class="mt-2 inline-block text-sm text-[var(--color-accent)]">Back to Tunes</a>
 		</div>
 	{:else if tunePractice.phase === 'setup'}
-		<a
-			href={tunePath(baseSheet)}
-			class="inline-flex items-center gap-1 text-sm text-[var(--color-text-secondary)] transition-colors hover:text-[var(--color-text)]"
-		>
-			&larr; {baseSheet.title}
-		</a>
-
-		<!-- Page header — the songbook/settings pattern (neutral domain) -->
-		<div class="flex flex-wrap items-end justify-between gap-3">
-			<div class="min-w-0">
-				<div class="smallcaps text-[var(--color-brass)]">The Songbook</div>
-				<h1 class="font-display text-4xl font-bold tracking-tight">Practice licks</h1>
-				<div class="jazz-rule mt-2 max-w-[140px]"></div>
-				<p class="mt-3 max-w-prose text-sm text-[var(--color-text-secondary)]">
-					The tune plays with the rhythm section; at each highlighted progression the melody rests
-					and you play a lick from your book. Every insertion is scored.
-				</p>
-			</div>
-			<div class="flex shrink-0 items-center gap-3">
-				<TourTrigger
-					tourId="tune-practice"
-					steps={tunePracticeTour}
-					label="How this works"
-					hideIfSeen={false}
-				/>
-				<HelpLink href="/docs/tune-practice" label="Tune practice docs" />
-			</div>
-		</div>
-
-		<!-- ── SESSION ──────────────────────────────────────────────── -->
-		<!-- Same section anatomy as /settings: icon chip + display h2 +
-		     subtitle over a divided card of console rows. -->
-		<div class="space-y-4">
-			<div class="flex items-center gap-3">
-				<div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-[var(--color-bg-tertiary)]">
-					<!-- Play icon -->
-					<svg class="h-4 w-4 text-[var(--color-text-secondary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-						<circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8" fill="currentColor" stroke="none"/>
-					</svg>
-				</div>
-				<div>
-					<h2 class="font-display text-xl font-semibold">Session</h2>
-					<p class="text-xs text-[var(--color-text-secondary)]">Mode, strictness, head, choruses, key, tempo, and backing</p>
-				</div>
-			</div>
-
-			<div class="rounded-xl border border-[var(--color-bg-tertiary)] bg-[var(--color-bg-secondary)] divide-y divide-[var(--color-bg-tertiary)]">
-				<!-- Row 1: how you're scored -->
-				<div class="flex flex-wrap items-end justify-center gap-x-14 gap-y-6 px-5 py-5">
-					<div class="inline-flex flex-col items-center gap-1.5">
-						<div class="flex items-center justify-center" style:min-height="84px">
-							<SelectorPad
-								ariaLabel="Mode"
-								value={tunePractice.config.mode}
-								options={MODE_OPTIONS}
-								onChange={(v) => (tunePractice.config.mode = v)}
-							/>
-						</div>
-						<span class="smallcaps console-engrave inline-flex items-center gap-1">
-							Mode
-							<TooltipHint
-								text={tooltips.tunePractice.mode.text}
-								learnMore={tooltips.tunePractice.mode.learnMore}
-								position="top"
-							/>
-						</span>
-					</div>
-
-					<div class="inline-flex flex-col items-center gap-1.5">
-						<div class="flex items-center justify-center" style:min-height="84px">
-							<SelectorPad
-								ariaLabel="Strictness"
-								value={tunePractice.config.strictness}
-								options={STRICTNESS_OPTIONS}
-								onChange={(v) => (tunePractice.config.strictness = v)}
-							/>
-						</div>
-						<span class="smallcaps console-engrave inline-flex items-center gap-1">
-							Strictness
-							<TooltipHint
-								text={tooltips.tunePractice.strictness.text}
-								learnMore={tooltips.tunePractice.strictness.learnMore}
-								position="top"
-							/>
-						</span>
-					</div>
-				</div>
-
-				<!-- Row 2: what plays -->
-				<div class="flex flex-wrap items-end justify-center gap-x-14 gap-y-6 px-5 py-5">
-					<!-- Reads OFF on a chords-only chart even though config.playHead
-					     defaults true: the plan resolves playHead && hasMelody, and an
-					     ON-but-disabled switch would promise a head that never plays. -->
-					<RockerSwitch
-						label="Head"
-						ariaLabel="Play the head first"
-						checked={tuneHasMelody && tunePractice.config.playHead}
-						disabled={!tuneHasMelody}
-						helpText={tuneHasMelody
-							? tooltips.tunePractice.head.text
-							: tooltips.tunePractice.headNoMelody.text}
-						onChange={(v) => (tunePractice.config.playHead = v)}
-					/>
-
-					<div class="inline-flex flex-col items-center gap-1.5">
-						<div class="flex items-center justify-center" style:min-height="84px">
-							<SelectorPad
-								ariaLabel="Key"
-								size="sm"
-								columns={6}
-								value={writtenKey}
-								options={KEY_OPTIONS}
-								onChange={selectWrittenKey}
-							/>
-						</div>
-						<span class="smallcaps console-engrave">Key</span>
-					</div>
-
-					<Knob
-						label="Choruses"
-						ariaLabel="Choruses"
-						helpText="How many choruses to practice. The optional head plays once before them."
-						value={tunePractice.config.choruses}
-						min={1}
-						max={12}
-						step={1}
-						displayValue={`${tunePractice.config.choruses}`}
-						onInput={setTunePracticeChoruses}
-					/>
-
-					<Knob
-						label="Tempo"
-						ariaLabel="Tempo"
-						helpText={tooltips.tunePractice.tempo.text}
-						value={tunePractice.config.tempo}
-						min={50}
-						max={240}
-						step={5}
-						displayValue={`${tunePractice.config.tempo} BPM`}
-						onInput={(v) => (tunePractice.config.tempo = v)}
-					/>
-				</div>
-
-				<!-- Row 3: the band. Its own row because row 2 already fills the
-				     card's width at the page max, and because Backing and Style
-				     belong together: the switch decides whether there is a band,
-				     the pad what it plays. -->
-				<div class="flex flex-wrap items-end justify-center gap-x-14 gap-y-6 px-5 py-5">
-					<!-- A ONE-TIME override of the global backing-track setting,
-					     seeded from it on every arrival at setup (initTunePractice)
-					     and never written back: taking one tune unaccompanied must
-					     not cost you the band everywhere else. The session value —
-					     not the global — is what reaches playback AND the bleed
-					     evidence; see TunePracticeConfig.backingTrackEnabled. -->
-					<RockerSwitch
-						label="Backing"
-						ariaLabel="Backing track this session"
-						checked={tunePractice.config.backingTrackEnabled}
-						helpText={tooltips.tunePractice.backing.text}
-						onChange={(v) => (tunePractice.config.backingTrackEnabled = v)}
-					/>
-
-					<!-- Style is a property OF the backing track, so it goes with it
-					     rather than reading as a live choice over silence — the
-					     settings page hides instrument and volume the same way. -->
-					{#if tunePractice.config.backingTrackEnabled}
-						<div class="inline-flex flex-col items-center gap-1.5">
-							<div class="flex items-center justify-center" style:min-height="84px">
-								<SelectorPad
-									ariaLabel="Backing style"
-									value={tunePractice.config.backingStyle}
-									options={BACKING_OPTIONS}
-									onChange={(v) => (tunePractice.config.backingStyle = v)}
-								/>
-							</div>
-							<span class="smallcaps console-engrave inline-flex items-center gap-1">
-								Style
-								<TooltipHint
-									text={tooltips.lickPractice.backingStyle.text}
-									learnMore={tooltips.lickPractice.backingStyle.learnMore}
-									position="top"
-								/>
-							</span>
-						</div>
-					{/if}
-				</div>
-
-				<!-- Row 4: what the detector found — settings' status-strip idiom.
-				     The paragraphs are unchanged; the e2e reads the summary with
-				     locator('p', { hasText: /insertion point/i }). -->
-				{#if preview}
-					<div class="px-5 py-4">
-						<div class="rounded-lg bg-[var(--color-bg-tertiary)] px-3 py-2 text-sm">
-				{#if preview.total === 0}
-					<p class="text-[var(--color-text-secondary)]">
-						No known progressions detected in this tune yet — you can still play along, but no
-						scored insertion points will be scheduled.
-					</p>
-				{:else}
-					<p>
-						<span class="font-medium">{preview.total} insertion point{preview.total === 1 ? '' : 's'}:</span>
-						<span class="text-[var(--color-text-secondary)]">
-							{Object.entries(preview.byType)
-								.map(([type, n]) => `${n}× ${PROGRESSION_TEMPLATES[type as keyof typeof PROGRESSION_TEMPLATES].shortName}`)
-								.join(', ')}
-						</span>
-					</p>
-				{/if}
-				{#if preview.uncategorizedCount > 0}
-					<p class="mt-2 text-xs text-[var(--color-text-secondary)]">
-						{preview.uncategorizedCount} of your licks
-						{preview.uncategorizedCount === 1 ? 'has' : 'have'} no progression tag and can't be
-						suggested — tag them from their
-						<a href="/licks" class="text-[var(--color-accent)]">lick pages</a>.
-					</p>
-				{/if}
-						</div>
-					</div>
-				{/if}
-			</div>
-		</div>
-
-		{#if micError}
-			<div class="rounded-lg bg-[var(--color-error)]/15 p-3 text-sm text-[var(--color-error-text)]">
-				Microphone unavailable — check permissions and try again.
-			</div>
-		{/if}
-
-		{#if loadError}
-			<div class="rounded-lg bg-[var(--color-error)]/15 p-3 text-sm text-[var(--color-error-text)]">
-				Audio setup failed — check your connection and try again.
-			</div>
-		{/if}
-
-		<!-- Start — the lick-practice setup's CTA block -->
-		<div class="flex flex-col items-center gap-1.5">
-			<button
-				onclick={startSession}
-				disabled={isLoading || !audioModulesReady}
-				class="rounded-lg bg-[var(--color-accent)] px-8 py-2.5 text-base font-bold text-white shadow-md transition-opacity hover:opacity-90 disabled:opacity-50"
-			>
-				{isLoading ? 'Setting up…' : 'Start'}
-			</button>
-			<p class="text-center text-xs text-[var(--color-text-secondary)]">{startCaption}</p>
-		</div>
-
-		{#if previewSheet}
-			<NotationDisplay tune={previewSheet} instrument={getInstrument()} rangeMarkers={previewMarkers} />
-		{/if}
-	{:else if tunePractice.phase === 'count-in' || tunePractice.phase === 'head' || tunePractice.phase === 'running'}
+		<TunePracticeSetup
+			tune={baseSheet}
+			{previewSheet}
+			{preview}
+			markers={previewMarkers}
+			{writtenKey}
+			{isLoading}
+			{audioModulesReady}
+			{micError}
+			{loadError}
+			onstart={startSession}
+			ontempo={setPracticeTempo}
+			onkey={selectWrittenKey}
+		/>
+	{:else if tunePractice.phase === 'count-in' || tunePractice.phase === 'head' || tunePractice.phase === 'running' || tunePractice.phase === 'outro'}
 		<div class="flex flex-wrap items-center justify-between gap-3">
 			<div>
 				<h1 class="text-xl font-bold">{tunePractice.tuneTitle}</h1>
 				<p class="text-sm text-[var(--color-text-secondary)]">
+					{#if tunePractice.phase === 'running' && audioPlan}<span>Solo {Math.min(tunePractice.config.choruses, 1 + Math.max(0, Math.floor((playheadBarF - audioPlan.leadBars) / Math.max(1, audioPlan.flat.totalBars - audioPlan.practiceStartBar))))} of {tunePractice.config.choruses}</span> · {/if}
 					{#if tunePractice.phase === 'count-in'}
 						Count-in…
 					{:else if tunePractice.phase === 'head'}
 						<span class="font-medium text-[var(--color-phase-listen)]">Head</span> — melody once
 						through, then it's yours
+					{:else if tunePractice.phase === 'outro'}
+						<span class="font-medium text-[var(--color-phase-listen)]">Outro</span> — the head again
 					{:else if tunePractice.config.mode === 'freestyle'}
 						<span class="font-medium text-[var(--color-phase-play)]">Your solo</span> —
 						{tunePractice.freestyleMatches.length} known lick{tunePractice.freestyleMatches.length === 1
@@ -1207,7 +932,7 @@
 			</div>
 		</div>
 
-		{#if tunePractice.config.mode === 'freestyle'}
+		{#if tunePractice.config.mode === 'freestyle' && tunePractice.phase === 'running'}
 			<LickCelebration celebration={tunePractice.celebration} onDismiss={clearCelebration} />
 		{/if}
 
@@ -1219,7 +944,9 @@
 			/>
 		{/if}
 
-		{#if displayedSheet}
+		{#if displayedSheet && tunePractice.phase === 'running'}
+			<TuneChordChart tune={chartSheet!} instrument={getInstrument()} currentBar={playheadBarFraction} {markers} />
+		{:else if displayedSheet}
 			<!-- The chart follows the playhead by translating within its own clipped
 			     viewport (no scrollbar), so the status/pick header above stays put. -->
 			<NotationDisplay

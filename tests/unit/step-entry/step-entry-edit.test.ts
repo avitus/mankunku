@@ -147,3 +147,39 @@ describe('unsaved recording handoff', () => {
 		expect(getCurrentPhrase().source).toBe('user-entered');
 	});
 });
+
+describe('loadFromPhrase and the trailing pad rest (2026-10-15)', () => {
+	// Save writes getPaddedNotes(), so every stored lick ends with a rest that
+	// runs to the end of its bars. The editor drops it on load: trailing
+	// silence is implied, save re-pads, and the re-opened buffer has the same
+	// shape as a fresh one — typing continues at once, and Delete on the last
+	// real note means the same thing in both flows.
+	it('drops the trailing pad rest so the last real note is the entry edge', () => {
+		loadFromPhrase(
+			makePhrase({
+				notes: [
+					{ pitch: 60, duration: [1, 4], offset: [0, 1] },
+					{ pitch: 64, duration: [1, 4], offset: [1, 4] },
+					{ pitch: null, duration: [3, 2], offset: [1, 2] }
+				]
+			}),
+			INSTRUMENTS['concert']
+		);
+		expect(stepEntry.enteredNotes.map((n) => n.pitch)).toEqual([60, 64]);
+	});
+
+	it('keeps a rest that has a note after it', () => {
+		loadFromPhrase(
+			makePhrase({
+				notes: [
+					{ pitch: 60, duration: [1, 4], offset: [0, 1] },
+					{ pitch: null, duration: [1, 4], offset: [1, 4] },
+					{ pitch: 64, duration: [1, 4], offset: [1, 2] },
+					{ pitch: null, duration: [5, 4], offset: [3, 4] }
+				]
+			}),
+			INSTRUMENTS['concert']
+		);
+		expect(stepEntry.enteredNotes.map((n) => n.pitch)).toEqual([60, null, 64]);
+	});
+});

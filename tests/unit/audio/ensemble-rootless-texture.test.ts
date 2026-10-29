@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { planEnsemble, planEnsembleWindow, freezeEnsemblePlan, type SoloFeature } from '$lib/audio/ensemble-plan';
 import { createRollingBacking } from '$lib/audio/backing-rolling';
 import { BACKING_STYLES } from '$lib/audio/backing-styles';
-import { buildListeningTuneSession, LISTENING_TUNES } from '$lib/musicality/listening-tunes';
+import { buildHistoricalListeningTuneSession as buildListeningTuneSession, HISTORICAL_LISTENING_TUNES as LISTENING_TUNES } from '../../helpers/musicality-tune-fixtures';
 
 const session = buildListeningTuneSession({ tuneId: LISTENING_TUNES[0].id, soloChoruses: 2 });
 const params = { phraseId: 'rootless-texture-plan', tempo: 140, ppq: 192, beatsPerBar: 4,

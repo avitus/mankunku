@@ -49,6 +49,15 @@ export function buildListeningTuneSession(options: ListeningTuneOptions): Listen
 	return buildSessionFromSource(original, options);
 }
 
+/** Curated charts obey the same finite renderer budget; rejected options remain a visible UI state. */
+export function assessCuratedListeningTune(options: ListeningTuneOptions): ListeningTuneAssessment {
+	try {
+		return { ok: true, session: buildListeningTuneSession(options) };
+	} catch (error) {
+		return { ok: false, reason: error instanceof Error ? error.message : 'This chart cannot be used for listening' };
+	}
+}
+
 function buildSessionFromSource(original: Tune, options: ListeningTuneBuildOptions): ListeningTuneSession {
 	if (original.timeSignature[0] !== 4 || original.timeSignature[1] !== 4) {
 		throw new Error('Full-tune listening currently supports 4/4 charts');
@@ -65,6 +74,9 @@ function buildSessionFromSource(original: Tune, options: ListeningTuneBuildOptio
 	const chorusBars = (built.phraseBars - built.headBars) / soloChoruses;
 	const headOutStart = built.phraseBars;
 	const totalBars = headOutStart + chorusBars;
+	if (!Number.isSafeInteger(totalBars) || chorusBars <= 0 || totalBars < 1 || totalBars > MAX_LISTENING_SOURCE_BARS) {
+		throw new Error(`This arrangement exceeds the ${MAX_LISTENING_SOURCE_BARS}-bar listening limit; choose fewer solo choruses or a shorter chart`);
+	}
 	// The final resolved pass supplies the closing head, including its second
 	// ending. This retains practice's repeat semantics and does not replay an intro.
 	const sourceStart = flat.totalBars - chorusBars;

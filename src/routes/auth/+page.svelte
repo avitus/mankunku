@@ -100,6 +100,14 @@
 					loading = true;
 					resending = submitter?.getAttribute('formaction') === '?/resend';
 					return async ({ result, update }) => {
+						if (result.type === 'redirect') {
+							// The account changed. Start a fresh document at the target
+							// so init reconciles storage before any route nodes load.
+							// update() would reload the still-current /auth URL instead.
+							// Keep this form busy until the destination replaces it.
+							window.location.assign(result.location);
+							return;
+						}
 						// A new account waits on its emailed link; the next thing the
 						// user does here is sign in.
 						if (result.type === 'success' && result.data?.confirmationSent) {
@@ -112,12 +120,8 @@
 						try {
 							await update({ reset: false });
 						} finally {
-							// A redirect can hand off to a full-page account reload.
-							// Keep feedback visible until this form leaves the screen.
-							if (result.type !== 'redirect') {
-								loading = false;
-								resending = false;
-							}
+							loading = false;
+							resending = false;
 						}
 					};
 				}}

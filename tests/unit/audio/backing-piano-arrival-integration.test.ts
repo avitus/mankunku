@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { generateBacking } from '$lib/audio/backing-generation';
 import { createRollingBacking, advanceRollingBacking } from '$lib/audio/backing-rolling';
 import { BACKING_STYLES } from '$lib/audio/backing-styles';
-import { buildListeningTuneSession } from '$lib/musicality/listening-tunes';
+import { buildHistoricalListeningTuneSession as buildListeningTuneSession } from '../../helpers/musicality-tune-fixtures';
 
 const tune = buildListeningTuneSession({ tuneId: 'ls-mankunku-blues', key: 'F#', soloChoruses: 2 });
 const params = { phraseId: tune.phrase.id, tempo: 140, ppq: 192, beatsPerBar: 4,

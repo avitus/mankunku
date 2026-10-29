@@ -32,12 +32,14 @@
 	let dragging = $state(false);
 	const unavailable = $derived(configured === null || busy);
 
+	/** Hands the file chosen in the input to `onfile`, then clears the input so choosing the same file again still fires change. */
 	function pickFile(event: Event): void {
 		const input = event.currentTarget as HTMLInputElement;
 		if (input.files?.[0]) onfile(input.files[0]);
 		input.value = '';
 	}
 
+	/** Takes the first dropped file: suppresses the browser's default drop, clears the drag highlight, and passes the file to `onfile` unless the desk is unavailable (busy or configuration unknown). */
 	function dropFile(event: DragEvent): void {
 		event.preventDefault();
 		dragging = false;

@@ -13,6 +13,7 @@
 		type ChordSlotAnchor,
 		type TuneAbcOptions
 	} from '$lib/music/tune-notation';
+	import type { GapAnchor } from '$lib/music/tune-notation';
 	import {
 		alignStackedEndingsInContainer,
 		type AppliedEndingAlignment
@@ -112,6 +113,8 @@
 		variant?: ChartVariant;
 		/** Source-array index of the note to highlight, or `null` for no highlight. */
 		selectedIndex?: number | null;
+		/** Other end of a range selection (inclusive, either side of `selectedIndex`); every element between is highlighted. */
+		selectedEndIndex?: number | null;
 		/**
 		 * Playback cursor (notation-order note index), styled distinctly from
 		 * `selectedIndex`. Unlike `selectedIndex`, changing it never re-renders
@@ -141,14 +144,22 @@
 		 * playhead range marker instead.
 		 */
 		playheadBarFraction?: number | null;
-		/** Fires when the user clicks a note or an anchored rest. Receives the source-array index. */
-		onSelect?: (sourceIndex: number) => void;
+		/** Fires when the user clicks a note or an anchored rest. Receives the source-array index and whether Shift was held (range selection). */
+		onSelect?: (sourceIndex: number, modifiers?: { shiftKey: boolean }) => void;
 		/**
 		 * Fires when the user clicks a bar's empty space, an UNANCHORED rest
 		 * (slash bar or pure melody gap), or a chord symbol on a tune chart.
 		 * Enables the invisible per-bar hit rects.
 		 */
 		onBarClick?: (pos: { sectionIdx: number; bar: number }) => void;
+		/**
+		 * Fires when the user clicks a GAP rest — silence the section never
+		 * stored (every rest of a PDF import). Receives the section, the
+		 * section-local whole-note offset and the length of the engraved
+		 * segment, for the editor to materialize and select. Without a
+		 * handler such a click falls through to `onBarClick`.
+		 */
+		onGapClick?: (gap: { sectionIdx: number; offset: number; duration: number }) => void;
 		/**
 		 * Inline on-chart chord editing. Enables per-beat hit rects above the
 		 * staff; clicking one opens a positioned input prefilled via `textAt`.
@@ -192,6 +203,7 @@
 		instrument,
 		variant = 'practice',
 		selectedIndex = null,
+		selectedEndIndex = null,
 		cursorIndex = null,
 		rangeMarkers,
 		playheadStyle = 'under-bar',
@@ -199,6 +211,7 @@
 		playheadBarFraction = null,
 		onSelect,
 		onBarClick,
+		onGapClick,
 		chordEditor,
 		titleArea,
 		tuneOptions,
@@ -302,14 +315,17 @@
 			noteAnchors: NoteAnchor[];
 			barAnchors: BarAnchor[];
 			chordSlotAnchors: ChordSlotAnchor[];
+			gapAnchors: GapAnchor[];
 		} = tune
-			? tuneToAbcWithMap(tune, instrument, tuneOptions)
+			? tuneToAbcWithMap(tune, instrument, { ...tuneOptions, preserveRestBoundaries: !!onSelect })
 			: {
-					...phraseToAbcWithMap(phrase!, instrument),
+					...phraseToAbcWithMap(phrase!, instrument, [1, 8], !!onSelect),
 					barAnchors: [],
-					chordSlotAnchors: []
+					chordSlotAnchors: [],
+					gapAnchors: []
 				};
-		const { abc, noteAnchors, barAnchors, chordSlotAnchors } = rendered;
+		const { abc, noteAnchors, barAnchors, chordSlotAnchors, gapAnchors } = rendered;
+		const barDurationWholeNotes = tune ? tune.timeSignature[0] / tune.timeSignature[1] : 1;
 		// Engraving house style: wider staff, the app chord face, Real Book
 		// masthead fonts. jazzchords is intentionally OFF — its superscript
 		// markers mis-parse ASCII flats ("Bb7" → B + b7); structureChordSymbols
@@ -368,13 +384,22 @@
 					decoration: 'none'
 				}
 			},
-			clickListener: (abcElem, _tuneNumber, _classes, analysis) => {
+			clickListener: function (abcElem, _tuneNumber, _classes, analysis) {
 				if (!abcElem) return;
 				const startChar = (abcElem as { startChar?: number }).startChar;
 				if (typeof startChar !== 'number') return;
-				const target = resolveChartClick(startChar, noteAnchors, chordSlotAnchors, barAnchors);
+				// abcjs hands the originating MouseEvent as a 6th argument (since 6.0)
+				// that its typings leave out; Shift there means "extend the range".
+				// eslint-disable-next-line prefer-rest-params
+				const mouseEvent = arguments[5] as MouseEvent | undefined;
+				const target = resolveChartClick(startChar, noteAnchors, chordSlotAnchors, barAnchors, gapAnchors);
 				if (target?.kind === 'note') {
-					onSelect?.(target.sourceIndex);
+					onSelect?.(target.sourceIndex, { shiftKey: !!mouseEvent?.shiftKey });
+					return;
+				}
+				if (target?.kind === 'gap') {
+					if (onGapClick) onGapClick(target.gap);
+					else onBarClick?.({ sectionIdx: target.gap.sectionIdx, bar: Math.floor(target.gap.offset / barDurationWholeNotes + 1e-9) });
 					return;
 				}
 				if (target?.kind !== 'bar') return;
@@ -410,7 +435,7 @@
 		// follow the moved glyphs, or bands and hit rects draw beside the music.
 		const endingAlignments = alignStackedEndingsInContainer(containerEl);
 		drawGlissandi(vo, noteAnchors);
-		applySelectionHighlight(vo, noteAnchors, selectedIndex);
+		applySelectionHighlight(vo, noteAnchors, selectedIndex, selectedEndIndex);
 		if (compactStaff) {
 			// Chord positioning can leave blank space in abcjs's original canvas.
 			// Fit that canvas to the ink before the host applies its height limit;
@@ -434,6 +459,8 @@
 			}
 		}
 		buildHitZones(containerEl, vo, rendered, endingAlignments);
+		if (onSelect) addElementHitTargets(vo, noteAnchors);
+		if (onGapClick) addGapHitTargets(vo, gapAnchors);
 		// Stash for the cursor/marker effects. The cursor element belonged to
 		// the SVG this render just replaced, so forget it.
 		lastVisualObj = vo;
@@ -847,7 +874,10 @@
 					e.stopPropagation();
 					openChordEditorAt(pos);
 				});
-				band.wrapper.appendChild(rect);
+				// Chord cells sit above empty bar targets but below the music:
+				// high notes can extend into this band and must remain clickable.
+				const firstGlyph = Array.from(band.wrapper.children).find(child => !child.classList.contains('hit-zone'));
+				band.wrapper.insertBefore(rect, firstGlyph ?? null);
 			}
 		}
 	}
@@ -1153,9 +1183,9 @@
 
 	/**
 	 * Seat the boxed letter of a system that opens with a partial pickup bar
-	 * over the first FULL bar (MuseScore / Real Book). The ABC hands the
+	 * just left of the first FULL bar’s opening barline. The ABC hands the
 	 * pickup line the label of the section it leads into, since abcjs draws
-	 * part labels only at a line start; this pass moves it past the pickup.
+	 * part labels only at a line start; this pass seats it before the first full bar.
 	 * Runs once the bar zones are known, composing with the translate that
 	 * repositionPartLabels already set.
 	 */
@@ -1190,7 +1220,7 @@
 					firstFull.x0,
 					spacing
 				);
-				if (dx < 0.01) continue;
+				if (Math.abs(dx) < 0.01) continue;
 				part.setAttribute('transform', `translate(${(dx0 + dx).toFixed(2)}, ${dy0.toFixed(2)})`);
 			}
 		}
@@ -1267,7 +1297,13 @@
 				const staffEl = wrapper.querySelector<SVGGraphicsElement>('.abcjs-staff');
 				if (!staffEl) continue;
 				const spacing = staffEl.getBBox().height / 4;
-				const boxes = chordEls.map((el) => el.getBBox());
+				// getBBox leaves out the element's own transform, which is where
+				// dropChordSymbols put each chord: measure the chords as drawn.
+				const boxes = chordEls.map((el) => {
+					const b = el.getBBox();
+					const m = /translate\(\s*[-\d.]+\s*,\s*([-\d.]+)\s*\)/.exec(el.getAttribute('transform') ?? '');
+					return { x: b.x, y: b.y + (m ? Number.parseFloat(m[1]) : 0), width: b.width, height: b.height };
+				});
 				const obstacles = [
 					...wrapper.querySelectorAll<SVGGraphicsElement>('path, ellipse, rect, circle, polygon, line')
 				]
@@ -1337,13 +1373,75 @@
 		});
 	}
 
+	/**
+	 * The same exact targets for GAP rests (2026-10-16): a click on one goes
+	 * straight to `onGapClick` instead of abcjs's proximity resolver.
+	 */
+	function addGapHitTargets(visualObj: AdapterVisualObj, anchors: GapAnchor[]): void {
+		for (const anchor of anchors) {
+			const el = findVoiceItem(visualObj, anchor.startChar)?.abselem?.elemset?.[0];
+			if (!(el instanceof SVGGraphicsElement)) continue;
+			const box = el.getBBox();
+			const rect = makeHitRect({ x: box.x - 2, y: box.y - 2, w: box.width + 4, h: box.height + 4 }, 'element-hit');
+			rect.setAttribute('data-gap-offset', String(anchor.offset));
+			rect.setAttribute('aria-hidden', 'true');
+			for (const type of ['mousedown', 'mouseup', 'touchstart', 'touchend']) {
+				el.addEventListener(type, (event) => event.stopPropagation());
+			}
+			const gap = { sectionIdx: anchor.sectionIdx, offset: anchor.offset, duration: anchor.duration };
+			el.addEventListener('click', (event) => {
+				event.stopPropagation();
+				onGapClick?.(gap);
+			});
+			el.prepend(rect);
+		}
+	}
+
+	/** Put small, exact selection targets above chord cells and ledger/rehearsal ink. */
+	function addElementHitTargets(visualObj: AdapterVisualObj, anchors: NoteAnchor[]): void {
+		const seen = new Set<SVGGraphicsElement>();
+		for (const anchor of anchors) {
+			const element = elementForAnchor(visualObj, anchor);
+			if (!element || seen.has(element)) continue;
+			seen.add(element);
+			const glyph = (element.querySelector('.abcjs-notehead') ?? element) as SVGGraphicsElement;
+			const box = glyph.getBBox();
+			const rect = makeHitRect({ x: box.x - 2, y: box.y - 2, w: box.width + 4, h: box.height + 4 }, 'element-hit');
+			rect.setAttribute('data-note-index', String(anchor.sourceIndex));
+			rect.setAttribute('aria-hidden', 'true');
+			// Route glyph clicks exactly as well as the padded target. abcjs's
+			// proximity resolver can choose a bar/other voice for a tied note.
+			for (const type of ['mousedown', 'mouseup', 'touchstart', 'touchend']) {
+				element.addEventListener(type, event => event.stopPropagation());
+			}
+			element.addEventListener('click', (event) => {
+				event.stopPropagation();
+				onSelect?.(anchor.sourceIndex, { shiftKey: (event as MouseEvent).shiftKey });
+			});
+			element.prepend(rect);
+		}
+		// Keep document-order navigation intact, including unanchored gap rests.
+		// Raising the groups lets their own notehead/rest targets win overlaps.
+		for (const element of containerEl?.querySelectorAll('.abcjs-note, .abcjs-rest') ?? []) {
+			element.parentElement?.append(element);
+		}
+	}
+
 	/** Colour the selected element's group(s), resolved from anchor charspans. */
 	function applySelectionHighlight(
 		visualObj: AdapterVisualObj,
 		anchors: NoteAnchor[],
-		index: number | null
+		index: number | null,
+		endIndex: number | null = null
 	): void {
 		if (index === null) return;
+		if (endIndex !== null && endIndex !== index) {
+			// A range: every element between the two ends, inclusive.
+			for (let i = Math.min(index, endIndex); i <= Math.max(index, endIndex); i++) {
+				applySelectionHighlight(visualObj, anchors, i);
+			}
+			return;
+		}
 		// A fanned-out source rest owns several display segments — highlight all
 		// of them. A source rest swallowed by a merged display rest has no exact
 		// anchor; fall back to the rest anchor whose source range contains it.
@@ -1358,7 +1456,19 @@
 			);
 		}
 		for (const anchor of targets) {
-			elementForAnchor(visualObj, anchor)?.classList.add('selected-note');
+			const element = elementForAnchor(visualObj, anchor);
+			if (!element || element.classList.contains('selected-note')) continue;
+			element.classList.add('selected-note');
+			const box = element.getBBox();
+			const outline = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+			outline.setAttribute('class', 'selection-outline');
+			outline.setAttribute('x', String(box.x - 4));
+			outline.setAttribute('y', String(box.y - 4));
+			outline.setAttribute('width', String(box.width + 8));
+			outline.setAttribute('height', String(box.height + 8));
+			outline.setAttribute('rx', '4');
+			outline.setAttribute('aria-hidden', 'true');
+			element.prepend(outline);
 		}
 	}
 </script>
@@ -1366,6 +1476,7 @@
 <div
 	class="notation-container {frameless ? 'frameless' : 'rounded-lg p-4'}"
 	class:chart-practice={variant === 'practice'}
+	class:editable={!!onSelect}
 	class:chart-print={variant === 'print'}
 	class:has-custom-title={!!titleArea || variant === 'practice'}
 	class:has-engraved-masthead={showEngravedMasthead}
@@ -1670,6 +1781,21 @@
 	.notation-container :global(.abcjs-rest) {
 		cursor: pointer;
 	}
+	.editable :global(.abcjs-ledger),
+	.editable :global(.abcjs-staff) {
+		pointer-events: none;
+	}
+	.editable :global(.element-hit) {
+		fill: transparent !important;
+		stroke: none !important;
+		pointer-events: all;
+	}
+	.notation-container {
+		--notation-selection-color: #4bbbd5;
+	}
+	:global(:root.light) .notation-container {
+		--notation-selection-color: #006b85;
+	}
 	/* User-selected element — colored notehead + stem (or rest glyph) so it
 	   stands out on the staff. Includes the group itself in case abcjs renders
 	   the glyph directly on that element rather than on a child path/ellipse/
@@ -1680,11 +1806,28 @@
 	.notation-container :global(.abcjs-note.selected-note circle),
 	.notation-container :global(.abcjs-rest.selected-note),
 	.notation-container :global(.abcjs-rest.selected-note path) {
-		fill: var(--color-accent) !important;
-		stroke: var(--color-accent) !important;
+		fill: var(--notation-selection-color) !important;
+		stroke: var(--notation-selection-color) !important;
 	}
 	.notation-container :global(.abcjs-note.selected-note line) {
-		stroke: var(--color-accent) !important;
+		stroke: var(--notation-selection-color) !important;
+	}
+	.notation-container :global(.selection-outline) {
+		fill: color-mix(in srgb, var(--notation-selection-color) 15%, transparent);
+		stroke: var(--notation-selection-color);
+		stroke-width: 1.5px;
+		vector-effect: non-scaling-stroke;
+		pointer-events: none;
+	}
+	/* Light print styling must not mask the editor's selected glyph. */
+	:global(:root.light) .notation-container :global(svg .selected-note path),
+	:global(:root.light) .notation-container :global(svg .selected-note ellipse),
+	:global(:root.light) .notation-container :global(svg .selected-note circle) {
+		fill: var(--notation-selection-color) !important;
+		stroke: var(--notation-selection-color) !important;
+	}
+	:global(:root.light) .notation-container :global(svg .selected-note line) {
+		stroke: var(--notation-selection-color) !important;
 	}
 	/* Playback cursor — brass to contrast the accent-colored selection.
 	   Declared after selected-note so the cursor wins if both land on one note. */

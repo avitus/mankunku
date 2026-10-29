@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { generateBacking, type BassEvent } from '$lib/audio/backing-generation';
 import { BACKING_STYLES } from '$lib/audio/backing-styles';
 import { createRollingBacking, advanceRollingBacking, type RollingBackingCheckpoint } from '$lib/audio/backing-rolling';
-import { buildListeningTuneSession } from '$lib/musicality/listening-tunes';
+import { buildHistoricalListeningTuneSession as buildListeningTuneSession } from '../../helpers/musicality-tune-fixtures';
 
 describe('a single scalar step through a real chord change', () => {
 	it.each(['swing', 'straight'] as const)('%s continues the fixed Blues F# ascent before the unchanged approach', styleId => {

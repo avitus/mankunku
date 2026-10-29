@@ -42,6 +42,8 @@ const FLAT_FIVE_QUALITIES: ReadonlySet<ChordQuality> = new Set([
 	'min7b5', 'dim7', 'dim', '7alt'
 ]);
 const SHARP_FIVE_QUALITIES: ReadonlySet<ChordQuality> = new Set(['aug', 'aug7']);
+/** The one quality whose ninth semitone is a seventh (bb7), not a sixth. */
+const DIMINISHED_SEVENTH_QUALITIES: ReadonlySet<ChordQuality> = new Set(['dim7']);
 
 /**
  * Preferred enharmonic spelling of a chromatic note against the chord that
@@ -80,12 +82,18 @@ export function chordSpellingPreference(
 		SHARP_FIVE_QUALITIES.has(quality) ? 4 : 5,
 		5, 6, 6
 	][interval];
+	// A diminished seventh chord's ninth semitone is its seventh (bb7 — E°7's
+	// Db, never C#), named by the sixth's letter only when the seventh's would
+	// need a double flat (Db°7's Cbb is printed Bb).
+	const candidates =
+		interval === 9 && DIMINISHED_SEVENTH_QUALITIES.has(quality) ? [6, steps] : [steps];
 
-	const letter =
-		LETTER_SEQUENCE[(LETTER_SEQUENCE.indexOf(rootLetter) + steps) % 7];
-	const diff = (pc - LETTER_NATURAL_PC[letter] + 12) % 12;
-	if (diff === 1) return 'sharp';
-	if (diff === 11) return 'flat';
+	for (const step of candidates) {
+		const letter = LETTER_SEQUENCE[(LETTER_SEQUENCE.indexOf(rootLetter) + step) % 7];
+		const diff = (pc - LETTER_NATURAL_PC[letter] + 12) % 12;
+		if (diff === 1) return 'sharp';
+		if (diff === 11) return 'flat';
+	}
 	return null;
 }
 
@@ -591,6 +599,7 @@ function isCompoundMeter(ts: [number, number]): boolean {
  * Merge consecutive non-triplet rests into standard notation groupings.
  *
  * Rules:
+ *  - Editors can preserve source rest boundaries so each remains selectable
  *  - Rests never cross barlines
  *  - A rest spanning an entire bar becomes a single whole-bar rest
  *  - Duple meters: rests don't cross the bar midpoint (beat 3 in 4/4)
@@ -606,7 +615,8 @@ function isCompoundMeter(ts: [number, number]): boolean {
  */
 export function mergeConsecutiveRests(
 	notes: readonly Note[],
-	timeSignature: [number, number]
+	timeSignature: [number, number],
+	preserveRestBoundaries: boolean = false
 ): { display: Note[]; sourceMap: (number | null)[]; sourceEndMap: (number | null)[] } {
 	const barDur = timeSignature[0] / timeSignature[1];
 	const compound = isCompoundMeter(timeSignature);
@@ -645,7 +655,7 @@ export function mergeConsecutiveRests(
 		// Collect contiguous non-triplet rests
 		let spanEnd = fractionToFloat(notes[i].offset) + fractionToFloat(notes[i].duration);
 		let j = i + 1;
-		while (j < notes.length && notes[j].pitch === null && getTripletBase(notes[j].duration) === null) {
+		while (!preserveRestBoundaries && j < notes.length && notes[j].pitch === null && getTripletBase(notes[j].duration) === null) {
 			const nextStart = fractionToFloat(notes[j].offset);
 			if (Math.abs(spanEnd - nextStart) > 1e-9) break;
 			spanEnd = nextStart + fractionToFloat(notes[j].duration);
@@ -777,7 +787,8 @@ export interface NoteAnchor {
 export function phraseToAbcWithMap(
 	phrase: Phrase,
 	instrument?: InstrumentConfig,
-	defaultLength: [number, number] = [1, 8]
+	defaultLength: [number, number] = [1, 8],
+	preserveRestBoundaries: boolean = false
 ): { abc: string; noteAnchors: NoteAnchor[] } {
 	const displayKey = instrument
 		? concertKeyToWritten(phrase.key, instrument)
@@ -795,7 +806,7 @@ export function phraseToAbcWithMap(
 	// Preprocess: merge consecutive rests into standard groupings.
 	// `sourceMap[k]` maps display index k back to the original `phrase.notes`
 	// index — for merged rest segments, the first overlapping source rest.
-	const { display: displayNotes, sourceMap, sourceEndMap } = mergeConsecutiveRests(phrase.notes, phrase.timeSignature);
+	const { display: displayNotes, sourceMap, sourceEndMap } = mergeConsecutiveRests(phrase.notes, phrase.timeSignature, preserveRestBoundaries);
 
 	// Per-bar accidental state — reset when crossing a barline below
 	let barState: BarAccidentalState = initBarState(keySigAccidentals);
@@ -904,23 +915,23 @@ export function phraseToAbcWithMap(
 			}
 		}
 
-		// Check for a complete triplet group (3 consecutive same-duration pitched triplet notes
+		// Check for a complete triplet group (3 consecutive same-duration notes or rests
 		// with rhythmically contiguous offsets)
 		const tripBase = getTripletBase(note.duration);
 		if (tripBase !== null && i + 2 < displayNotes.length &&
 			sameDuration(displayNotes[i + 1].duration, note.duration) &&
-			sameDuration(displayNotes[i + 2].duration, note.duration) &&
-			displayNotes[i].pitch !== null &&
-			displayNotes[i + 1].pitch !== null &&
-			displayNotes[i + 2].pitch !== null) {
+			sameDuration(displayNotes[i + 2].duration, note.duration)) {
 
 			const tripDur = fractionToFloat(note.duration);
 			const off0 = fractionToFloat(displayNotes[i].offset);
 			const off1 = fractionToFloat(displayNotes[i + 1].offset);
 			const off2 = fractionToFloat(displayNotes[i + 2].offset);
 
+			// A group never crosses a barline: the third member must start in the
+			// first one's bar, or the barline between them is never emitted.
 			if (Math.abs(off1 - off0 - tripDur) < 1e-9 &&
-				Math.abs(off2 - off1 - tripDur) < 1e-9) {
+				Math.abs(off2 - off1 - tripDur) < 1e-9 &&
+				Math.floor(off2 / barDuration + 1e-9) === bar) {
 
 				tokens.push('(3');
 				for (let j = 0; j < 3; j++) {

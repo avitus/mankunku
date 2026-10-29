@@ -604,14 +604,6 @@ export function getRecentSessions(count = 10): SessionResult[] {
 }
 
 /**
- * Get category stats sorted by attempt count.
- */
-export function getCategoryStats(): CategoryProgress[] {
-	return Object.values(progress.categoryProgress)
-		.sort((a, b) => b.attemptsTotal - a.attemptsTotal);
-}
-
-/**
  * Reset all progress (destructive).
  *
  * Clears local state and syncs the empty state to cloud. Also deletes

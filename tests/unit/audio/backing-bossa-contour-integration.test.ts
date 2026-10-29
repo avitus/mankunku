@@ -4,7 +4,7 @@ import { expect, it } from 'vitest';
 import { generateBacking } from '$lib/audio/backing-generation';
 import { createRollingBacking, advanceRollingBacking, type RollingBackingBar } from '$lib/audio/backing-rolling';
 import { BACKING_STYLES } from '$lib/audio/backing-styles';
-import { buildListeningTuneSession } from '$lib/musicality/listening-tunes';
+import { buildHistoricalListeningTuneSession as buildListeningTuneSession } from '../../helpers/musicality-tune-fixtures';
 import { resolveCoordinatedVoicing, type CoordinatedVoicingMemory } from '$lib/audio/coordinated-voicing';
 import { fractionToFloat } from '$lib/music/intervals';
 

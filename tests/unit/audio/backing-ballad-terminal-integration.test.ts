@@ -2,7 +2,7 @@ import { expect, it } from 'vitest';
 import { generateBacking, type BackingGenerationParams } from '$lib/audio/backing-generation';
 import { createRollingBacking, advanceRollingBacking, type RollingBackingCheckpoint } from '$lib/audio/backing-rolling';
 import { BACKING_STYLES } from '$lib/audio/backing-styles';
-import { buildListeningTuneSession } from '$lib/musicality/listening-tunes';
+import { buildHistoricalListeningTuneSession as buildListeningTuneSession } from '../../helpers/musicality-tune-fixtures';
 import baseline from '../../fixtures/audio/ballad-terminal-before.json';
 
 const { phrase } = buildListeningTuneSession({ tuneId: 'ls-mankunku-blues', key: 'C', soloChoruses: 2 });

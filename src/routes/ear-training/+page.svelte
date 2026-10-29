@@ -17,7 +17,6 @@
 	import { runScorePipeline } from '$lib/scoring/score-pipeline';
 	import { cleanTuningSamples, createTuningMonitor, type TuningAlert, type TuningSample } from '$lib/scoring/tuning';
 	import { summarizeTuning } from '$lib/scoring/tuning-summary';
-	import TuningNotice from '$lib/components/practice/TuningNotice.svelte';
 	import TuningFaders from '$lib/components/practice/TuningFaders.svelte';
 	import { resolveOnsets, segmentNotes, findReArticulations } from '$lib/audio/note-segmenter';
 	import { durationThroughLastReading, trimToPerformance } from '$lib/audio/capture-window';
@@ -89,7 +88,7 @@
 	);
 	const shuffledLicks = $derived(seededShuffle(filteredLicks, sessionShuffleSeed));
 	const allLicks = $derived(shuffledLicks.map(lick =>
-		transposeEarTrainingLick(lick, activeTonality.key, activeTonality.scaleType, instrument.concertRangeLow, getEffectiveHighestNote())
+		transposeEarTrainingLick(lick, activeTonality.key, activeTonality.scaleType, instrument.concertRangeLow, getEffectiveHighestNote(), instrument.transpositionSemitones)
 	));
 
 	let phraseIndex = $state(0);
@@ -338,7 +337,10 @@
 			}
 			return true;
 		} catch (err) {
-			console.error('Mic error:', err);
+			// A refusal (or no input device) is the player's call, not a fault:
+			// the page falls back to listen-only and says so.
+			const refused = err instanceof DOMException && ['NotAllowedError', 'NotFoundError', 'SecurityError'].includes(err.name);
+			(refused ? console.warn : console.error)('Mic error:', err);
 			session.micPermission = 'denied';
 			return false;
 		}
@@ -978,6 +980,7 @@
 	quote={bottomQuote}
 	message={audioLoadFailed ? "Couldn't load audio — reload to try again" : session.engineState === 'error' ? 'Unable to start audio. Please try again.' : !session.phrase ? 'No phrases fit this scale at your current level.' : !practising && session.micPermission !== 'granted' ? 'Microphone access required' : ''}
 	{levelSignal}
+	{tuningAlert}
 >
 	{#snippet help()}
 		<TourTrigger tourId="ear-training" steps={earTrainingTour} label="Practice tour" />
@@ -995,6 +998,5 @@
 				context="{instrument.name} · {writtenKey} {SCALE_TYPE_NAMES[activeTonality.scaleType]}"
 			/>
 		{/if}
-		<TuningNotice alert={tuningAlert} />
 	{/snippet}
 </EarTrainingConsole>

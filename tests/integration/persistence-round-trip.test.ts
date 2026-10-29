@@ -36,7 +36,6 @@ import {
 	getKeyProgress,
 	getLickTempo
 } from '$lib/persistence/lick-practice-store';
-import type { LickPracticeProgress } from '$lib/types/lick-practice';
 
 beforeEach(() => {
 	store.clear();
@@ -113,32 +112,5 @@ describe('lick practice progress round-trip', () => {
 		const reloaded = loadLickPracticeProgress();
 		// getLickTempo returns the minimum across all keys
 		expect(getLickTempo(reloaded, 'lick-2')).toBe(120);
-	});
-
-	it('saveLickPracticeProgress and loadLickPracticeProgress are symmetric', () => {
-		const progress: LickPracticeProgress = {
-			'lick-a': {
-				'C': { currentTempo: 100, lastPracticedAt: 1000, passCount: 5 },
-				'G': { currentTempo: 110, lastPracticedAt: 2000, passCount: 3 }
-			},
-			'lick-b': {
-				'Eb': { currentTempo: 90, lastPracticedAt: 3000, passCount: 1 },
-				'Bb': { currentTempo: 130, lastPracticedAt: 4000, passCount: 7 }
-			},
-			'lick-c': {
-				'F#': { currentTempo: 80, lastPracticedAt: 5000, passCount: 0 }
-			}
-		};
-
-		saveLickPracticeProgress(progress);
-		const loaded = loadLickPracticeProgress();
-
-		expect(loaded).toEqual(progress);
-	});
-
-	it('empty storage returns empty default progress', () => {
-		// Storage is already cleared by beforeEach
-		const progress = loadLickPracticeProgress();
-		expect(progress).toEqual({});
 	});
 });

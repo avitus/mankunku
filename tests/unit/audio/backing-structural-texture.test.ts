@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { generateBacking } from '$lib/audio/backing-generation';
 import { BACKING_STYLES } from '$lib/audio/backing-styles';
 import { advanceRollingBacking, createRollingBacking, type RollingBackingCheckpoint } from '$lib/audio/backing-rolling';
-import { buildListeningTuneSession, LISTENING_TUNES } from '$lib/musicality/listening-tunes';
+import { buildHistoricalListeningTuneSession as buildListeningTuneSession, HISTORICAL_LISTENING_TUNES as LISTENING_TUNES } from '../../helpers/musicality-tune-fixtures';
 
 const tune = LISTENING_TUNES.find((entry) => entry.title === 'When the Saints Go Marching In')!;
 const session = buildListeningTuneSession({ tuneId: tune.id, soloChoruses: 4 });

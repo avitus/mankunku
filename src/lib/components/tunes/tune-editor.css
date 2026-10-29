@@ -1,0 +1,499 @@
+/* Tune Editor: the shared Studio Desk controls stay beside the scrolling score. */
+.te-flow .studio-page-heading {
+	margin-bottom: 24px;
+	align-items: center;
+}
+
+.te-flow .studio-page-heading h1 {
+	font-size: 40px;
+	margin: 6px 0;
+}
+
+.te-flow .studio-description {
+	font-size: 12px;
+	margin-top: 6px;
+}
+
+.te-flow .le-back {
+	margin-bottom: 12px;
+}
+
+.te-flow .le-layout {
+	grid-template-columns: minmax(0,1fr) 286px;
+	gap: 22px;
+	align-items: start;
+}
+
+.te-flow .le-chart {
+	padding: 24px 26px 8px;
+}
+
+.te-flow .td-chart-heading {
+	margin-bottom: 20px;
+}
+
+.te-flow .le-title {
+	margin: 8px 0;
+	font-size: 31px;
+}
+
+.te-flow .le-badge {
+	text-transform: none;
+	letter-spacing: .03em;
+	font-size: 9px;
+	border: 0;
+	padding: 0;
+	color: var(--studio-muted);
+}
+
+.te-flow .td-composer {
+	max-width: 270px;
+}
+
+.te-flow .te-entry-rail {
+	position: sticky;
+	top: 20px;
+	max-height: calc(100dvh - 40px);
+	overflow-y: auto;
+	scrollbar-width: thin;
+	border: 1px solid var(--studio-border);
+	border-radius: 6px;
+	background: var(--studio-panel);
+	box-shadow: var(--studio-shadow);
+	padding: 20px 18px 16px;
+	min-width: 0;
+}
+
+.te-rail-heading {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.te-rail-heading h2 {
+	font: 500 26px/1.2 var(--font-display);
+	margin: 9px 0 17px;
+}
+
+.te-rail-heading h2>span {
+	color: var(--color-brass);
+}
+
+.te-cursor {
+	display: grid;
+	grid-template-columns: 6px 1fr;
+	align-items: center;
+	gap: 6px 9px;
+	padding: 12px 11px;
+	background: var(--studio-well);
+	border: 1px solid var(--studio-border);
+	border-radius: 4px;
+}
+
+.te-cursor strong {
+	font-size: 11px;
+	font-weight: 500;
+}
+
+.te-cursor small {
+	grid-column: 2;
+	font-size: 10px;
+	color: var(--studio-muted);
+}
+
+.te-cursor-dot {
+	width: 5px;
+	height: 5px;
+	background: var(--color-brass);
+	border-radius: 50%;
+}
+
+.te-input-group {
+	margin-top: 19px;
+}
+
+.te-label {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	font-size: 10px;
+	margin-bottom: 9px;
+	color: var(--studio-text);
+}
+
+.te-label small {
+	font-size: 9px;
+	color: var(--studio-muted);
+}
+
+.te-flow .te-entry-rail .entry-duration {
+	display: block;
+	margin: 0;
+}
+
+.te-flow .te-entry-rail .entry-duration-pads {
+	max-width: none;
+	width: 100%;
+	gap: 4px;
+	padding: 4px;
+}
+
+.te-flow .te-entry-rail .entry-duration-pads button {
+	min-height: 49px;
+	padding: 4px;
+	flex: 1;
+}
+
+.te-flow .te-entry-rail .entry-rhythm-modifiers {
+	display: flex;
+	gap: 7px;
+	margin-top: 8px;
+}
+
+.te-flow .te-entry-rail .entry-rhythm-modifiers button {
+	flex: 1;
+	min-height: 30px;
+}
+
+.te-flow .te-entry-rail .entry-duration-label {
+	display: none;
+}
+
+.te-flow .te-entry-rail .entry-pitch-pads {
+	grid-template-columns: repeat(4,minmax(0,1fr));
+	gap: 6px;
+}
+
+.te-flow .te-entry-rail .entry-pitch-pads button {
+	min-height: 49px;
+	font-size: 24px;
+	padding: 5px;
+}
+
+.te-flow .te-entry-rail .entry-pitch-pads button:last-child {
+	font-size: 11px;
+}
+
+.te-flow .te-entry-rail .entry-pitch-modifiers {
+	margin-top: 11px;
+	gap: 6px;
+	display: flex;
+}
+
+.te-flow .te-entry-rail .entry-pitch-modifiers button {
+	min-height: 32px;
+	font-size: 11px;
+	padding: 3px 8px;
+}
+
+.te-flow .te-entry-rail .entry-pitch-modifiers>div {
+	margin-left: auto;
+}
+
+.te-flow .te-entry-rail .entry-pitch-modifiers>div>span {
+	width: 40px;
+	font-size: 10px;
+}
+
+.te-flow .te-entry-rail .entry-pitch-modifiers>button:nth-last-child(-n+3) {
+	flex: 1;
+	margin: 0;
+}
+
+.te-flow .te-entry-rail .entry-pitch-modifiers button span span {
+	display: none;
+}
+
+.te-chord-action {
+	padding-top: 15px;
+	margin-top: 16px;
+	border-top: 1px solid var(--studio-border);
+}
+
+.te-chord-action button {
+	width: 100%;
+	min-height: 36px;
+	border: 1px solid var(--studio-border);
+	border-radius: 4px;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 0 11px;
+	font-size: 11px;
+	background: var(--studio-well);
+}
+
+.te-rail-footer {
+	margin-top: 15px;
+	color: var(--studio-muted);
+	font-size: 10px;
+	line-height: 1.6;
+}
+
+.te-rail-footer button {
+	color: var(--studio-text);
+	padding-top: 7px;
+}
+
+.te-mobile-toggle {
+	display: none;
+}
+
+.te-sections {
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	padding: 15px 0;
+	border-block: 1px solid var(--studio-border);
+	overflow-x: auto;
+}
+
+.te-sections>.studio-label {
+	color: var(--studio-muted);
+	font-size: 9px;
+	margin-right: 10px;
+}
+
+.te-sections button {
+	display: flex;
+	align-items: center;
+	gap: 9px;
+	flex-shrink: 0;
+	min-height: 35px;
+	border: 1px solid var(--studio-border);
+	border-radius: 4px;
+	padding: 0 11px;
+	color: var(--studio-muted);
+	font-size: 10px;
+}
+
+.te-sections button strong {
+	font: 17px var(--font-display);
+	color: var(--studio-text);
+}
+
+.te-sections button.current {
+	border-color: var(--color-brass);
+	background: color-mix(in srgb,var(--color-brass) 10%,var(--studio-panel));
+}
+
+.te-sections .te-form-button {
+	border: 0;
+	margin-left: auto;
+	font-size: 10px;
+}
+
+.te-flow .te-listen {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 12px 22px;
+	padding: 14px 0 18px;
+}
+
+.te-flow .te-listen .td-transport {
+	padding: 0;
+	border: 0;
+	gap: 16px;
+}
+
+.te-flow .te-listen .le-play {
+	min-height: 36px;
+	min-width: 122px;
+	padding: 7px 10px;
+	font-size: 11px;
+}
+
+.te-flow .te-listen .le-tempo input {
+	font-size: 16px;
+	width: 40px;
+}
+
+.te-flow .te-listen .td-band {
+	border: 0;
+	padding: 0;
+	gap: 14px;
+	flex-wrap: wrap;
+	margin-left: auto;
+}
+
+.te-flow .te-listen .td-band>.studio-label {
+	display: none;
+}
+
+.te-flow .te-listen .td-band button {
+	font-size: 9px;
+}
+
+.te-flow .td-score-top {
+	margin-bottom: 12px;
+	font-size: 10px;
+}
+
+.te-flow .td-score-well {
+	padding: 20px 16px;
+	overflow-x: auto;
+}
+
+.te-flow .td-score-well .notation-container {
+	min-width: 580px;
+}
+
+.te-flow .td-status {
+	font-size: 10px;
+	min-height: 42px;
+}
+
+.te-flow .td-review:empty {
+	display: none;
+}
+
+.te-flow .te-settings-dialog .le-inspector {
+	padding: 0;
+	display: block;
+	background: none;
+	border: 0;
+	box-shadow: none;
+	margin-top: 24px;
+}
+
+.te-settings-dialog label {
+	display: block;
+	font-size: 12px;
+	color: var(--studio-muted);
+	margin-bottom: 8px;
+}
+
+.te-form-content {
+	margin-top: 25px;
+}
+
+.te-form-dialog {
+	max-width: 660px!important;
+}
+
+.te-flow :is(button,input,select):focus-visible {
+	outline: 2px solid var(--color-brass);
+	outline-offset: 3px;
+}
+
+.te-hint {
+	font-size: 12px;
+	line-height: 1.6;
+	color: var(--studio-muted);
+}
+
+@media(max-width:1100px) and (min-width:801px) {
+	.te-flow .le-layout {
+		grid-template-columns: minmax(0,1fr) 264px;
+		gap: 14px;
+	}
+	.te-flow .te-entry-rail {
+		padding: 17px 14px;
+	}
+	.te-flow .le-chart {
+		padding: 20px 16px 6px;
+	}
+	.te-flow .te-listen .td-band {
+		margin-left: 0;
+	}
+	.te-flow .studio-page-heading h1 {
+		font-size: 35px;
+	}
+}
+
+@media(max-width:800px) {
+	.te-flow .le-layout {
+		display: block;
+	}
+	.te-flow .te-entry-rail {
+		position: fixed;
+		inset: auto 12px 12px;
+		z-index: 40;
+		max-height: 75dvh;
+		padding: 14px 17px;
+		box-shadow: 0 -8px 40px #0005;
+	}
+	.te-flow .te-rail-heading h2 {
+		font-size: 20px;
+		margin: 3px 0 0;
+	}
+	.te-flow .te-rail-heading .studio-label {
+		font-size: 8px;
+	}
+	.te-flow .te-mobile-toggle {
+		display: block;
+		padding: 8px 0 8px 20px;
+		font-size: 11px;
+	}
+	.te-flow .te-rail-body {
+		display: none;
+		margin-top: 15px;
+	}
+	.te-flow .te-rail-body.mobile-open {
+		display: block;
+	}
+	.te-flow .te-entry-rail .entry-pitch-pads {
+		grid-template-columns: repeat(8,minmax(0,1fr));
+	}
+	.te-flow .le-chart {
+		padding: 20px 14px 5px;
+	}
+	.te-flow .studio-header-actions {
+		gap: 7px;
+	}
+	.te-flow .le-button {
+		padding: 8px 11px;
+		min-height: 38px;
+		font-size: 11px;
+	}
+	.te-flow .le-footer {
+		padding-bottom: 100px;
+	}
+	.te-flow .studio-page-heading {
+		gap: 20px;
+	}
+	.te-flow .studio-page-heading h1 {
+		font-size: 35px;
+	}
+	.te-flow .td-chart-heading .studio-label {
+		flex-wrap: wrap;
+		gap: 6px;
+	}
+	.te-flow .le-title {
+		font-size: 27px;
+	}
+	.te-flow .td-score-well {
+		padding: 16px 8px;
+	}
+	.te-flow .te-listen .td-band {
+		margin-left: 0;
+	}
+	.te-flow .td-score-top {
+		flex-wrap: wrap;
+		gap: 10px;
+	}
+	.te-flow .td-status {
+		flex-wrap: wrap;
+	}
+	.te-flow .le-back {
+		margin-bottom: 13px;
+	}
+}
+
+@media(max-width:400px) {
+	.te-flow .te-entry-rail .entry-pitch-pads {
+		grid-template-columns: repeat(4,minmax(0,1fr));
+	}
+	.te-flow .studio-header-actions {
+		flex-wrap: wrap;
+	}
+	.te-flow .te-listen .td-transport {
+		gap: 10px;
+	}
+}
+
+.te-flow .te-chord-action button:disabled {
+	opacity: .45;
+	cursor: not-allowed;
+}

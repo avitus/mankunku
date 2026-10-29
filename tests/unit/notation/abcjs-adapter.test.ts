@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { barZones, chordZones, type LayoutItem, type SystemLayout } from '$lib/notation/chart-geometry';
 import { endingAlignTransform } from '$lib/music/ending-layout';
-import type { BarAnchor, ChordSlotAnchor } from '$lib/music/tune-notation';
+import type { BarAnchor, ChordSlotAnchor, GapAnchor } from '$lib/music/tune-notation';
 import type { NoteAnchor } from '$lib/music/notation';
 import {
 	systemsFromVisualObj,
@@ -592,6 +592,15 @@ describe('chordHorizontalNudges — neighbour + ink clearance', () => {
 		// ink right 25 + clearance 2 → 27
 		expect(20 + dx).toBeCloseTo(27, 5);
 	});
+
+	it('leaves a chord on its beat over ink the vertical pass already cleared (Rhythm Changes, 2026-10-25)', () => {
+		// A bar of high beamed eighths: `chordSymbolDeltas` lifted the chord half
+		// a spacing clear of them. Counting ink within a spacing below as a
+		// collision shoved the chord past every note in turn, to the barline.
+		const boxes = [{ x: 0, y: 0, width: 30, height: 12 }];
+		const run = [0, 22, 44, 66, 88, 110].map((x) => ({ x, y: 17, width: 12, height: 30 }));
+		expect(chordHorizontalNudges(boxes, run, spacing)).toEqual([0]);
+	});
 });
 
 describe('glissandoWave — wavy connector path between notehead boxes', () => {
@@ -653,15 +662,15 @@ describe('formShape / bar stepping — partial pickup bars', () => {
 	});
 });
 
-describe('pickupPartLabelDx — seat the boxed letter over the first FULL bar', () => {
-	it('moves a label parked over the pickup right to the first full bar (MuseScore convention)', () => {
+describe('pickupPartLabelDx — seat the boxed letter before the first FULL bar', () => {
+	it('leaves a gap between the entire marker and the first full bar', () => {
 		const part = { x: 23.5, y: 10, width: 22, height: 22 };
-		// First full bar opens at x = 80: target left = 80 + 0.35 * spacing.
-		expect(pickupPartLabelDx(part, 80, 10)).toBeCloseTo(80 + 3.5 - 23.5, 6);
+		// The marker’s right edge stays 0.35 staff spaces before the barline.
+		expect(pickupPartLabelDx(part, 80, 10)).toBeCloseTo(80 - 3.5 - 22 - 23.5, 6);
 	});
 
-	it('never moves a label left', () => {
-		expect(pickupPartLabelDx({ x: 120, y: 10, width: 22, height: 22 }, 80, 10)).toBe(0);
+	it('moves an overlapping label left out of the chord area', () => {
+		expect(pickupPartLabelDx({ x: 120, y: 10, width: 22, height: 22 }, 80, 10)).toBe(-65.5);
 	});
 });
 
@@ -745,5 +754,25 @@ describe('alignSystemLayouts — stacked [2] zones follow the aligned glyphs', (
 		expect(aligned[0]).toEqual(systems[0]);
 		expect(aligned[1]).not.toEqual(systems[1]);
 		expect(JSON.stringify(systems)).toBe(snapshot);
+	});
+});
+
+describe('resolveChartClick — gap rests (2026-10-16)', () => {
+	const noteAnchors: NoteAnchor[] = [{ startChar: 100, endChar: 103, sourceIndex: 7 }];
+	const barAnchors: BarAnchor[] = [{ startChar: 96, endChar: 110, sectionIdx: 0, bar: 3 }];
+	const gapAnchors: GapAnchor[] = [{ startChar: 103, endChar: 106, sectionIdx: 0, offset: 3.5, duration: 0.5 }];
+
+	it('resolves a click on a gap rest to the gap, before the bar fallback', () => {
+		expect(resolveChartClick(104, noteAnchors, [], barAnchors, gapAnchors)).toEqual({
+			kind: 'gap',
+			gap: { sectionIdx: 0, offset: 3.5, duration: 0.5 }
+		});
+	});
+
+	it('still falls through to the bar where no gap anchor covers the click', () => {
+		expect(resolveChartClick(108, noteAnchors, [], barAnchors, gapAnchors)).toEqual({
+			kind: 'bar',
+			pos: { sectionIdx: 0, bar: 3 }
+		});
 	});
 });

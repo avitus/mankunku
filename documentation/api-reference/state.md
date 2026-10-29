@@ -139,10 +139,6 @@ Fetch cloud progress for an authenticated user and merge with local. The read is
 
 Returns the most recent `count` sessions (default 10), newest first.
 
-### `getCategoryStats(): CategoryProgress[]`
-
-Returns category progress sorted by attempt count (descending).
-
 ### `updateSessionScore(sessionId, score, supabase?): void`
 
 Overwrite the score fields of a recorded session with the authoritative post-hoc rescore (ear training records the provisional live score first, then rescores the saved blob ~200–500 ms later). Re-derives that session's day, because the summary is derive-on-write; proficiency and category aggregates deliberately keep their provisional inputs.
@@ -247,10 +243,6 @@ Returns `{ current, previous, delta }` — aggregate `PeriodStats` for each rang
 
 Last 365 days of practice data for calendar heatmap rendering.
 
-### `getLast30Days(): Map<string, boolean>`
-
-For each of the last 30 local dates, whether a practice session occurred.
-
 ### `getWeekRanges(): { currentStart; currentEnd; previousStart; previousEnd }`
 
 This-Monday-through-now vs the prior Monday-through-Sunday (for week-over-week comparisons).
@@ -329,6 +321,15 @@ export interface PlannedKey {
   /** Consecutive play windows this row gets: LEAD_SHEET_PASSES (3) for a
    *  revealed row in continuous mode, else 1. */
   passes: number;
+  /** Deep Practice: the frozen entrance (repeat, from memory, changed
+   *  tempo, preparation bars) of this key's next cycle. */
+  cycleEntry?: DeepCycleEntry | null;
+  /** The tempo tag a focus-ramp take shows (continuous mode, while the
+   *  header reads "Focus"); absent everywhere else. */
+  tempo?: number;
+  /** The round the row belongs to. A score flash matches on it, because a
+   *  focus ramp shows two rows of the same key at once. */
+  cycle?: number;
 }
 ```
 
@@ -355,7 +356,7 @@ export interface PlannedKey {
 
   **The tempo is session-local.** The session opens at `deepPracticeStartTempo(resolveLickTempo(...))` — 2% under the lick's stored tempo, applied here rather than inside the shared `resolveLickTempo` so it can't leak into Daily/Focused — and nothing on the deep path writes `LickPracticeKeyProgress.currentTempo` or appends a progress-history sample. `recordKeyAttempt` detects the mode and persists the lick's *baseline* (the key's existing tempo, or `resolveLickTempo` for a first-ever entry) instead of the ramped session value; it cannot simply omit the field, because `updateKeyProgress` merges over `getKeyProgress`'s 100-BPM default. Rolling score, `passCount` and `lastPracticedAt` are still written normally.
 
-  **Focus ramp.** With `options.focusKey` (set only by the report's `drill-weak-key` next step) the plan's rotation is that key ALONE, `lickPractice.ramp` is `planFocusRamp(circle, focusKey, savedTempo, rollingFor)` (every other unlocked key queued worst-first) and the session opens at `focusStartTempo(savedTempo)` — 10% under. `advanceSingleLickRound` then routes the lick branch through `resolveRampCycle` while `ramp.phase !== 'complete'`: focus staircase (clear → `nextCycleTempo`; sub-floor → `focusStepDownTempo`; else hold) until a clear lands at or above `targetTempo` — that clear is clamped to the target, so rebuild holds at exactly the saved tempo — then one-key-per-clear rebuild at a held tempo, then the ordinary rule. `sessionKeys` is still the full circle. A focus key the lick hasn't unlocked is ignored (ordinary start). The report carries a `ramp` summary (`FocusRampSummary`: focus key, target, lowest tempo, the up-to-speed and rebuilt rounds), which `splitReportByProgression` preserves.
+  **Focus ramp.** With `options.focusKey` (set only by the report's `drill-weak-key` next step) the plan's rotation is that key ALONE, `lickPractice.ramp` is `planFocusRamp(circle, focusKey, savedTempo, rollingFor)` (every other unlocked key queued worst-first) and the session opens at `focusStartTempo(savedTempo)` — 10% under. `advanceSingleLickRound` then routes the lick branch through `resolveRampCycle` while `ramp.phase !== 'complete'`: focus staircase (clear → `nextCycleTempo`; sub-floor → `focusStepDownTempo`; else hold) until a clear lands at or above `targetTempo` — that clear is clamped to the target, so rebuild holds at exactly the saved tempo — then one-key-per-clear rebuild at a held tempo — each admission previewed by a one-loop `handoff` repeat of the last-played key, after which the promised key enters first whatever the repeat scored — then the ordinary rule. `sessionKeys` is still the full circle. A focus key the lick hasn't unlocked is ignored (ordinary start). The report carries a `ramp` summary (`FocusRampSummary`: focus key, target, lowest tempo, the up-to-speed and rebuilt rounds), which `splitReportByProgression` preserves.
 
 - `startTrickSession(): boolean` — Trick entry, driven by `config.trickId`, `config.trickParameters`, and optional `config.trickProgressionType`. `resolveTrickPracticeBed` chooses an allowed explicit enclosure bed or the device's default vamp; `normalizeTrickPracticeParameters` canonicalizes its family. `trickContextFor` generates in concert C with the complete progression harmony, and the rotation starts at `trickEntryKey(instrument)` — the player's **written C**. The `kind: 'trick'` plan item's `phraseId` is its progress key: the existing variant key for single chords, or `trick-progression:<bed>:<variantKey>` for long progressions. `trickPracticeProgressKey` exposes that same key to setup. Passes, tempo, key unlocks, and history persist in the trick store under that key, so progression practice cannot unlock a single-chord mastery step. Per-key phrases and scoring transpose the whole context, and scheduling preserves generated pickup harmony and figure duration. Trick items demo on the first cycle and only on later rounds with a new example style, are never sorted worst-first, and never write to the lick store.
 
@@ -368,11 +369,13 @@ export interface PlannedKey {
 - `getCurrentHarmony(): HarmonicSegment[]` — A progression trick's own generated harmony when the item carries one; otherwise the progression template transposed to the current key, aligned for the lick and carrying the per-lick tail extension when the lick stretches the cycle.
 - `getPhraseFor(lickIdx, keyIdx): Phrase | null` — Pure variant for scoring keys that have already advanced.
 - `getPlannedKey(offset): PlannedKey | null` — Lookahead across lick boundaries.
-- `getUpcomingKeys(): { current; next; afterNext }` — Three-row preview helper.
-- `getPlannedKeysForLick(lickIdx): PlannedKey[]` — Every planned key for a lick (used by the continuous-scroll preview). Each `PlannedKey` carries `reveal` — the key is the most recently unlocked one and its persisted rolling score is defined and under `KEY_FLOOR_THRESHOLD` (`shouldRevealNotation`; unknown → false; never at 12/12; never for trick items) — and `passes`, decided when the stack is built so a row's height never changes mid-scroll — the stack engraves a revealed row as a lead sheet and holds it for its passes.
+- `getPlannedKeysForLick(lickIdx): PlannedKey[]` — Every planned key for a lick (used by the continuous-scroll preview). Each `PlannedKey` carries `reveal` — the key is the most recently unlocked one and its persisted rolling score is defined and under `KEY_FLOOR_THRESHOLD` (`shouldRevealNotation`; unknown → false; never at 12/12; never for trick items), overridden in single-lick Deep Practice by the session-local rescue in `revealDecisionsFor` (gold ≥ 0.95 graduates a key; after it, a first attempt < 0.5, a last-two average < 0.7 or three below-gold turns restore the sheet, for any unlocked key) — and `passes`, decided when the stack is built so a row's height never changes mid-scroll — the stack engraves a revealed row as a lead sheet and holds it for its passes.
+- `getHandoffPreviewKey(lickIdx): PlannedKey | null` — The promised first key of the next cycle while a focus ramp is in `handoff`: drawn under the once-more repeat, never scheduled.
+- `getFocusProjectionRows(lickIdx): PlannedKey[]` — The focus takes still to come if every one clears (`projectFocusTempos`), one row per step to the target, each tagged with its `tempo` and copying the current take's `reveal`/`passes`; at the target, one row at the target (the focus key comes again whatever the take scores), so it is never empty in a focus phase — the next take joins on the downbeat on the strength of that row. Display only, like the handoff preview; empty outside a continuous-mode focus phase. A hold re-projects the same list (one row added under the finished take), a step down adds the climb back.
+- `isFocusTake(): boolean` — The next cycle is a continuous-mode focus-ramp take: it joins on the downbeat, and a take of the same key scrolls in like a new key (`precedingCycleRow(previous, next, true)`).
 - `getKeyPasses(lickIdx): number[]` — Play windows per rotation slot (indexed like `item.keys`, not like the planned rows, which skip a key whose phrase fails to build): `LEAD_SHEET_PASSES` for a revealed key in continuous mode, else 1 (call-response windows already replay the app's half). The single source `buildLickSuperPhrase` and the session page's window scheduler share, as `getDemoBars` is for the demo block. Only a key's **final** pass is the attempt of record — `recordKeyAttempt`, the session-log upsert, `advance()` and the standard score hold run on it alone; a rehearsal pass is scored and flashed on the row and keeps no recording.
 - `isDailyPractice(): boolean` — True only for standard mode with Daily configuration; recommended Deep sessions do not inherit Daily presentation.
-- `getKeyPauses(lickIdx): number[]` — Preparation bars before each rotation slot's first window. Always zero for Daily and call-and-response. Other continuous sessions use `LEAD_SHEET_PAUSE_BARS` for a revealed key unless its opening demo supplies preparation; Deep can also require one bar for an entrance or sheet graduation. The larger applicable pause wins. `buildLickSuperPhrase` fills the pause with turnaround harmony; the scheduler uses the same list in `planCycleWindows`, and `buildPhaseTimeline` maps it to `read`.
+- `getKeyPauses(lickIdx): number[]` — Preparation bars before each rotation slot's first window. Always zero for Daily and call-and-response. Other continuous sessions use `LEAD_SHEET_PAUSE_BARS` for a revealed key unless its opening demo supplies preparation; Deep can also require one bar for an entrance or sheet graduation; a focus-ramp take gets one only when its sheet comes or goes. The larger applicable pause wins. `buildLickSuperPhrase` fills the pause with turnaround harmony; the scheduler uses the same list in `planCycleWindows`, and `buildPhaseTimeline` maps it to `read`.
 
 ### Phrase assembly
 
@@ -417,8 +420,8 @@ Pure cycle policy behind single-lick Deep Practice. Plain module (no rune, no st
 |---|---|---|
 | `sortKeysWorstFirst` | `(keys, rollingFor) → PitchClass[]` | Ascending by rolling score, with an **unknown score coerced to −1** so a never-practiced key sorts worst and gets demoed. Copies the input; relies on a stable sort, so ties keep incoming circle-of-4ths order. |
 | `shouldDemoHeadKey` | `(headRolling, threshold = KEY_PROFICIENT_THRESHOLD) → boolean` | Demo while the head key is unknown or **strictly below** 0.90. At 0.90+ the demo is skipped — the user answers in the struggling key immediately. The score half of the rule only: `advanceSingleLickRound` vetoes the demo outright on a refill cycle. |
-| `newestUnlockedKey` | `(entryKey, unlockedCount) → PitchClass \| null` | The key being learned: the last entry of the `planUnlockedKeys` ramp for the lick's unlock count (count 1 → the entry key). `null` at `MAX_UNLOCKED_KEYS` — nothing is "newest" once every key is unlocked. |
-| `shouldRevealNotation` | `(input: NotationRevealInput, floor = KEY_FLOOR_THRESHOLD) → boolean` — input `{ key, entryKey, unlockedCount, rolling }` | Show the sheet music for `key` only when it IS the newest unlocked key AND its rolling score is **defined and strictly below** 0.75. Unknown → `false` (the first attempt is by ear) — the one deliberate inversion of `shouldDemoHeadKey`'s unknown rule; earlier keys and a fully unlocked lick → `false`. Same rule both ways, so the sheet withdraws once the EWMA recovers. |
+| `newestUnlockedKey` | `(ramp: UnlockRamp, unlockedCount) → PitchClass \| null` | The key being learned: the last entry of the `planUnlockedKeys` ramp for the lick's unlock count (count 1 → the entry key); `ramp` is the lick's entry key, mode and the player's instrument (`lickUnlockRamp`). `null` at `MAX_UNLOCKED_KEYS` — nothing is "newest" once every key is unlocked. |
+| `shouldRevealNotation` | `(input: NotationRevealInput, floor = KEY_FLOOR_THRESHOLD) → boolean` — input `{ key, ramp, unlockedCount, rolling }` | Show the sheet music for `key` only when it IS the newest unlocked key AND its rolling score is **defined and strictly below** 0.75. Unknown → `false` (the first attempt is by ear) — the one deliberate inversion of `shouldDemoHeadKey`'s unknown rule; earlier keys and a fully unlocked lick → `false`. Same rule both ways, so the sheet withdraws once the EWMA recovers. |
 | `LEAD_SHEET_PASSES` | `3` | Consecutive play windows a revealed key gets in continuous mode. The sheet remains visible throughout; only the third pass persists. |
 | `LEAD_SHEET_PAUSE_BARS` | `2` | Outside Daily, bars of band-only reading pause before a revealed key's first pass when it does not open a cycle that demos — the herald of the switch from memory to reading (the previous window closes, the sheet steps in, the band vamps a ii-V, the tab counts the entrance). Two bars, like the inter-lick rest and record-a-lick's count-in — the one-bar turnaround is for a key change in the same mode. |
 | `resolveNextCycleStart` | `(idealStartTick, currentTick, ticksPerBar, minLeadTicks) → number` | Pushes the start forward **by whole bars** until it is at least `minLeadTicks` ahead. A late callback stretches the turnaround; it never schedules audio in the past and never leaves the bar grid. |
@@ -428,6 +431,8 @@ Pure cycle policy behind single-lick Deep Practice. Plain module (no rune, no st
 | `nextCycleTempo` | `(current, percent) → number` | Tempo after a cleared rotation: `current + ceil(current × percent/100)`, clamped at `MAX_TEMPO`. Rounded UP so a 1% bump under 100 BPM can never round to a no-op. |
 | `focusStartTempo` | `(persisted) → number` | Focus ramp's opening tempo: `FOCUS_START_DISCOUNT` (10%, the unlock dip) under the saved tempo, same ≥ 1 BPM guard and `MIN_TEMPO` clamp. |
 | `focusStepDownTempo` | `(current, percent) → number` | Tempo after a sub-floor attempt in the focus phase: down by `FOCUS_STEP_DOWN_MULTIPLIER` (3) × the bump percent, rounded up, clamped at `MIN_TEMPO`. Mirrors the standard rule's −3/+1 asymmetry. |
+| `focusStepUpTempo` | `(current, target, percent) → number` | Tempo after a clear in the focus phase: one `nextCycleTempo` bump, capped at the target. Shared by `resolveRampCycle` and `projectFocusTempos`, so the stack never promises a tempo the staircase would not play. |
+| `projectFocusTempos` | `(current, target, percent) → number[]` | The tempos of the focus takes still to come if every one clears, one per step up to and including the target (51 → 56 at 1%: `[52, 53, 54, 55, 56]`); empty at the target. Stops at `MAX_TEMPO`. Feeds `getFocusProjectionRows`. |
 | `DEEP_PRACTICE_START_DISCOUNT` / `DEFAULT_TEMPO_BUMP_PERCENT` / `FOCUS_START_DISCOUNT` / `FOCUS_STEP_DOWN_MULTIPLIER` | `0.02` / `1` / `0.1` / `3` | The ramp constants above. `FOCUS_START_DISCOUNT` is the same dip a key unlock applies (`tempoAfterKeyUnlock`): a key that just failed is, for drilling, a new key. |
 | `planFocusRamp` | `(circle, focusKey, targetTempo, rollingFor) → FocusRamp \| null` | Opening ramp state: `admitted = [focusKey]`, `queue` = every other unlocked key worst-first, phase `focus`. `null` when the focus key isn't in the circle (caller falls back to an ordinary start). |
 | `resolveRampCycle` | `(input: RampCycleInput) → RampCycleOutput` — `{ ramp, survivors, tempo, bumpPercent, focusScore, round }` → `{ ramp, rotation, tempo }` | One cycle boundary, pure and non-mutating. Focus: cleared → step up, and at/above `targetTempo` clamp to the target, leave focus and admit the first queued key (stamping `upToSpeedRound`; complete outright if nothing is queued); not cleared → step down on a sub-floor `focusScore`, hold otherwise. Rebuild: cleared → admit next (the last admission completes, stamping `rebuiltRound`); not cleared → survivors. Tempo held outside focus. `rotation` comes back unsorted — the caller applies worst-first. |
@@ -622,7 +627,7 @@ export const tuneEntry = $state({
 
 ### Key functions
 
-- `initNewTune()` / `resetTuneEntry()` — Fresh single-section draft seeded from the user's instrument.
+- `initNewTune()` — Fresh single-section draft seeded from the user's instrument.
 - `loadFromTune(sheet, instrument)` — Hydrate for edit mode (concert storage → written-pitch editing surface); the PDF flow reuses it with a pre-assigned id so the stored PDF stays linked.
 - `loadDraftForReview(sheet, instrument)` / `setImportReview(...)` — Hydrate an unsaved import draft in create mode with review warnings/suspect bars.
 - `buildDraftTune(): Tune` — Assemble the concert-pitch `Tune` for save/preview.
@@ -724,7 +729,9 @@ Pure planning + accumulation logic behind the runes wrapper above. Plain module 
 |---|---|
 | `buildSessionPlan(deps: BuildPlanDeps)` | Detected progressions → `InsertionPoint[]`, carrying both timelines, transport open/close ticks, ranked suggestions, and a `markerKey` grouping repeat occurrences |
 | `headBarsForFlat(flat) → { headBars, formRepeats }` | The jazz form rule — decides head length from the **expanded section map**, never raw repeat markers, which imports express inconsistently; a form outline needs a tail SHORTER than the pass it follows, so an internal repeat like `\|: A :\| B A` or `\|: A :\| B` with a B as long as the A (Autumn Leaves) is not one |
-| `buildSessionPhrase(args)` | Head chorus (melody once) + melody-free solo material; appends a duplicate chorus on repeat-free charts |
+| `buildSessionPhrase(args)` | Head chorus (melody once) + melody-free solo material; appends a duplicate chorus on repeat-free charts; with `pickupBars` every practice chorus runs bar 1 to the end. Returns the emitted timeline's `sectionMap` (every chorus, pickup skips applied), which `playedPhrase` carries to the backing |
+| `clearPickupBarHarmony(sheet, flat)` | The playback flatten with no chord in a pickup bar a session opens on (the form's first bar, and the solo pass's when a whole-form repeat replays the pickup): a chord written from the pickup bar (When the Saints' C6) sounds from bar 1, a chord only in it is dropped with its provenance, a mid-form pickup is left alone; returns `flat` itself when nothing changes |
+| `soloPassPickupBars(sheet, flat)` | 1 when the solo pass opens on a pickup bar (a repeat-free form's bar 0, or a pickup a whole-form repeat replays), else 0 — the bars a practice chorus skips, since a band plays the pickup once, with the head |
 | `assignSuggestRotation(plan)` | Least-used-first lick rotation per progression type |
 | `strictnessKnobs(strictness)` | Maps strictness onto existing pipeline knobs only — listening is identical at every level; only `cueLevel` differs |
 | `windowCandidates(suggestions, pickedIndex, cueLevel)` | The answers a window accepts: the named lick alone at `'lick'`, every fitting suggestion otherwise |
@@ -735,10 +742,29 @@ Pure planning + accumulation logic behind the runes wrapper above. Plain module 
 | `indexResultsByInsertion(results)` | Keyed lookup — a skipped window contributes no result, so array-position lookup misaligns everything after a gap |
 | `insertionMarkerCleared(args)` | Whether a chart marker's every playback window has been cleared |
 | `notationBarForPlaybackBar(...)` | Project a playback bar onto its chart bar via `sectionMap` |
+| `playheadChartBar(args)` | The chart bar the session playhead marks at a fractional session bar, or null before and past the form and inside a pickup's silent lead-in (`isInPickupLeadIn`) |
 
 Types: `TunePracticeMode` (`'suggest' | 'points' | 'freestyle'`), `TunePracticeStrictness` (`'guided' | 'standard' | 'solo'`), `CueLevel` (`'lick' | 'progression' | 'none'`), `TunePracticePhase`, `InsertionPoint`, `InsertionResult`, `StrictnessKnobs`, `CandidateResult`, `ResultTally`.
 
 See [Tune System](../architecture/tune-system.md#session-planning) for the design rationale behind each.
+
+---
+
+## tune-player.svelte.ts
+
+The tune desk's listening controls (`/tunes/[id]`, and a compact preview in the tune editor). Not a session — nothing is scored or persisted except the tempo choice.
+
+**Source:** `src/lib/state/tune-player.svelte.ts` (with `tune-desk-view.svelte.ts`, the route-owned `tuneDeskView.focus` flag the layout reads to hide navigation)
+
+| Member | Purpose |
+|---|---|
+| `new TunePlayer(tempoStore?)` | With a `TuneTempoStore` (`tuneId()`, `save(id, tempo)`) a tempo change is saved per tune into `settings.tuneTempos`; without one (the editor preview) it lasts only as long as the player |
+| `tempo` | The preview tempo, else this tune's saved tempo (`savedTuneTempo`), else `settings.defaultTempo` |
+| `backing` / `melody` / `metronome` / `loop` | The desk switches (`$state`); backing starts off. `loop` may change mid-pass — the engine asks before each return to the top |
+| `toggle(tune, style)` | Play or stop. ONE `playPhrase` call with a `formLoopRegion` loop: the pickup plays once, a whole-tune repeat goes round its first ending and out on its second, the drummer counts in (`countInBarsForTempo`, on through an opening pickup bar), `chartBar`/`cursorIndex` follow the audible bar and note — `chartBar` is null through a pickup's silent lead-in |
+| `setTempo(value)` / `stop()` / `dispose()` | Tempo changes stop the pass first; `stop` cancels late loads, audio and cursor updates together |
+
+See [Tune System](../architecture/tune-system.md#tune-desk-accompaniment) for the backing-style resolution and the form loop.
 
 ---
 

@@ -183,6 +183,7 @@ interface Tune {
   key: PitchClass;                 // CONCERT pitch
   timeSignature: [number, number];
   style?: string;                  // Feel label, e.g. 'Medium Swing', 'Ballad'
+  backingStyle?: BackingStyle;     // Saved band style for the tune desk; legacy charts derive it from `style`
   tags: string[];
   sections: TuneSection[];
   source: TuneSource;

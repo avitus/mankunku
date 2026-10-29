@@ -51,18 +51,20 @@
  * circle it opens on the failing key ALONE, `focusStartTempo` under the
  * lick's saved tempo, and staircases that one key (clear → up, sub-floor →
  * `focusStepDownTempo`, in between → hold) until a clear lands back at the
- * saved tempo — "up to speed". Each earned admission gets a one-key repeat
+ * saved tempo — "up to speed". Focus takes join on the downbeat with no
+ * bar between them; the stack shows the takes still to come
+ * (`projectFocusTempos`). Each earned admission gets a one-key repeat
  * with the next chart visible before it enters. The queue is worst first,
  * but the previewed key always enters first, at a held tempo. Once the full set is
  * back hands over to the ordinary clear → bump → refill rule. One rule per
  * phase: focus earns tempo, rebuild earns keys, a full rotation earns tempo
  * again. It is the unlock ladder in miniature, with expertise standing in
- * for circle-of-fifths adjacency as the admission order.
+ * for key-signature order as the admission order.
  */
 
 import type { PitchClass } from '$lib/types/music';
 import type { FocusRamp, SingleLickRoundEntry } from '$lib/types/lick-practice';
-import { MAX_UNLOCKED_KEYS, planUnlockedKeys } from '$lib/music/key-ordering';
+import { MAX_UNLOCKED_KEYS, planUnlockedKeys, type UnlockRamp } from '$lib/music/key-ordering';
 import {
 	KEY_FLOOR_THRESHOLD,
 	KEY_PROFICIENT_THRESHOLD,
@@ -123,20 +125,20 @@ export const LEAD_SHEET_PAUSE_BARS = 2;
  * The key a lick's player is currently learning: the most recently unlocked
  * one. Derivable with no timestamp because the unlock state is a single
  * per-lick count and the ramp (`planUnlockedKeys`) is a pure function of the
- * entry key — the newest key is simply the ramp's last entry. Null once every
- * key is unlocked: nothing is "newest" any more.
+ * lick's `UnlockRamp` — the newest key is simply the ramp's last entry. Null
+ * once every key is unlocked: nothing is "newest" any more.
  */
-export function newestUnlockedKey(entryKey: PitchClass, unlockedCount: number): PitchClass | null {
+export function newestUnlockedKey(ramp: UnlockRamp, unlockedCount: number): PitchClass | null {
 	if (unlockedCount >= MAX_UNLOCKED_KEYS) return null;
-	const ramp = planUnlockedKeys(entryKey, unlockedCount);
-	return ramp[ramp.length - 1] ?? null;
+	const keys = planUnlockedKeys(ramp, unlockedCount);
+	return keys[keys.length - 1] ?? null;
 }
 
 export interface NotationRevealInput {
 	/** The key of the row being decided. */
 	key: PitchClass;
-	/** The lick's own key — the origin of its unlock ramp. */
-	entryKey: PitchClass;
+	/** The lick's unlock ramp — its entry key, mode and the player's instrument. */
+	ramp: UnlockRamp;
 	/** Keys unlocked for the lick so far (1–12). */
 	unlockedCount: number;
 	/** The key's persisted rolling score; undefined = never attempted here. */
@@ -158,7 +160,7 @@ export function shouldRevealNotation(
 	input: NotationRevealInput,
 	floor: number = KEY_FLOOR_THRESHOLD
 ): boolean {
-	if (input.key !== newestUnlockedKey(input.entryKey, input.unlockedCount)) return false;
+	if (input.key !== newestUnlockedKey(input.ramp, input.unlockedCount)) return false;
 	return input.rolling !== undefined && input.rolling < floor;
 }
 
@@ -242,6 +244,37 @@ export function focusStepDownTempo(current: number, percent: number): number {
 }
 
 /**
+ * Tempo after a clear in the focus phase: one `nextCycleTempo` bump, capped
+ * at the target so the last step lands on it exactly. The staircase and the
+ * stack's projection (`projectFocusTempos`) share it, so the rows drawn
+ * under a take can never promise a tempo the ramp would not play.
+ */
+export function focusStepUpTempo(current: number, target: number, percent: number): number {
+	return Math.min(target, nextCycleTempo(current, percent));
+}
+
+/**
+ * The tempos of the focus takes still to come if every one clears, after a
+ * take at `current`: one per step up to and including the target, whose own
+ * clear is what earns the next key. Empty at the target. 51 → 56 at the
+ * default 1% is `[52, 53, 54, 55, 56]`. Display only — the session draws one
+ * row per entry under the current take and re-projects at every boundary,
+ * so a held take adds a row and a stepped-down one adds the climb back.
+ */
+export function projectFocusTempos(current: number, target: number, percent: number): number[] {
+	const tempos: number[] = [];
+	let tempo = current;
+	while (tempo < target) {
+		const next = focusStepUpTempo(tempo, target, percent);
+		// clampTempo stops the bump at MAX_TEMPO; a target past it never arrives.
+		if (next <= tempo) break;
+		tempos.push(next);
+		tempo = next;
+	}
+	return tempos;
+}
+
+/**
  * Build the opening ramp state: the focus key alone, every other unlocked
  * key queued worst-first (never-practiced first, via `sortKeysWorstFirst`).
  * Returns null when the focus key is not in the unlocked circle — the caller
@@ -316,7 +349,7 @@ export function resolveRampCycle(input: RampCycleInput): RampCycleOutput {
 			return { ramp: cloneRamp(ramp), rotation: [ramp.focusKey], tempo };
 		}
 		if (tempo < ramp.targetTempo) {
-			tempo = Math.min(ramp.targetTempo, nextCycleTempo(tempo, bumpPercent));
+			tempo = focusStepUpTempo(tempo, ramp.targetTempo, bumpPercent);
 			return { ramp: cloneRamp(ramp), rotation: [ramp.focusKey], tempo };
 		}
 		tempo = ramp.targetTempo;

@@ -4,7 +4,7 @@ import { realizeRollingPiano } from '$lib/audio/backing-rolling-piano';
 import { planDrumPhraseBar } from '$lib/audio/backing-drum-phrases';
 import { proposePianoAnswer } from '$lib/audio/backing-piano-answer';
 import { BACKING_STYLES } from '$lib/audio/backing-styles';
-import { buildListeningTuneSession } from '$lib/musicality/listening-tunes';
+import { buildHistoricalListeningTuneSession as buildListeningTuneSession } from '../../helpers/musicality-tune-fixtures';
 import { seedFrom } from '$lib/audio/generation-rng';
 import type { EnsembleTiming } from '$lib/audio/ensemble-timing';
 import type { BarInfo } from '$lib/audio/backing-generation';

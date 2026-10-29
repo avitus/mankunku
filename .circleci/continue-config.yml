@@ -11,10 +11,75 @@ parameters:
     type: boolean
     default: false
 
+commands:
+  serve-e2e-app:
+    description: >-
+      Install, build the app once and serve it on :4173 for every Playwright
+      run in the job. Dynamic test splitting runs Playwright once per batch;
+      left to the config's webServer, each batch would rebuild (~90s).
+    parameters:
+      sourcemaps:
+        description: Emit hidden sourcemaps, which e2e impact analysis reads.
+        type: boolean
+        default: false
+    steps:
+      - restore_cache:
+          keys:
+            - deps-v1-{{ checksum "package-lock.json" }}
+            - deps-v1-
+      - run:
+          name: Install dependencies
+          command: npm ci
+      # No save_cache here: with parallelism, all nodes would race to write
+      # the same immutable key and lose to first-write-wins. The `test` job
+      # (which runs on every push) owns the dependency cache.
+      - run:
+          name: Build the app once
+          command: <<# parameters.sourcemaps >>E2E_SOURCEMAPS=1 <</ parameters.sourcemaps >>PLAYWRIGHT=1 npm run build
+      - run:
+          name: Serve the build
+          background: true
+          # PLAYWRIGHT=1 at runtime too: src/hooks.server.ts honours the
+          # e2e-test-user cookie only under it.
+          command: PLAYWRIGHT=1 npm run preview -- --port 4173
+      - run:
+          name: Wait for the app
+          command: |
+            node -e '
+              const until = Date.now() + 120_000;
+              (async () => {
+                for (;;) {
+                  try { await fetch("http://localhost:4173"); return; } catch {}
+                  if (Date.now() > until) { console.error("the app never answered on :4173"); process.exit(1); }
+                  await new Promise((r) => setTimeout(r, 500));
+                }
+              })();'
+
 jobs:
+  # Dynamic parallelism (the `experimental` stanza at the bottom) sizes the
+  # test and e2e jobs from what these select: impacted atoms on branches,
+  # everything on main. Discovery is `find`, so a bare image will do.
+  list-unit-tests:
+    docker:
+      - image: cimg/base:current
+    steps:
+      - checkout
+      # Same flags as the test job's run, so the selection matches.
+      - run: circleci testsuite list-tests "unit tests" --key=unit-tests-parallelism --analyze-tests=none
+
+  list-e2e-tests:
+    docker:
+      - image: cimg/base:current
+    steps:
+      - checkout
+      # Same flags as the e2e job's run, so the selection matches.
+      - run: circleci testsuite list-tests "e2e tests" --key=e2e-tests-parallelism --analyze-tests=none
+
   test:
     docker:
       - image: cimg/node:26.5.1
+    # Used only when dynamic parallelism cannot size the job.
+    parallelism: 3
     steps:
       - checkout
       - restore_cache:
@@ -30,10 +95,36 @@ jobs:
             - node_modules
       - run:
           name: Run unit and integration tests
-          command: npx vitest run
+          # Smarter Testing suite (.circleci/test-suites.yml): vitest with a
+          # JUnit report, uploaded by the suite's store-test-results option.
+          # Impact analysis collects coverage after every test and runs
+          # single-threaded (10+ min locally for the full suite), so it is
+          # unit-analysis's job on main, not this one's: build and deploy
+          # wait on this job.
+          command: circleci testsuite run "unit tests" --analyze-tests=none
       - run:
           name: Test the atomic-release deploy script
-          command: npm run test:deploy
+          # Once per job, not once per parallel node.
+          command: |
+            if [ "${CIRCLE_NODE_INDEX:-0}" = 0 ]; then npm run test:deploy; fi
+
+  unit-analysis:
+    # Refreshes the unit-test impact data on main, for the test files that
+    # changes since the last analysis touched. Nothing waits on it.
+    docker:
+      - image: cimg/node:26.5.1
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - deps-v1-{{ checksum "package-lock.json" }}
+            - deps-v1-
+      - run:
+          name: Install dependencies
+          command: npm ci
+      - run:
+          name: Analyze impacted unit tests
+          command: circleci testsuite run "unit tests" --run-tests=none
 
   omr-test:
     # Hermetic OMR (Python) suite only: `uv sync --frozen` installs the base
@@ -62,7 +153,8 @@ jobs:
           command: cd omr && uv run ruff check src tests
       - run:
           name: Run hermetic OMR tests
-          command: cd omr && uv run pytest
+          # Run from omr/: the suite's atoms are paths under it.
+          command: cd omr && circleci testsuite run "omr tests"
 
   build:
     docker:
@@ -85,6 +177,11 @@ jobs:
           command: npm run build
       - persist_to_workspace:
           root: .
+          # NOTE: ecosystem.config.cjs is NOT persisted here. The deploy job
+          # ships it straight from its own checkout to avoid a mystery where
+          # /tmp/workspace/ecosystem.config.cjs arrived on the server with
+          # pre-atomic-release content (cwd: '/home/deploy/mankunku' without
+          # /current/) even though the committed file was the new version.
           paths:
             - build
             - package.json
@@ -98,31 +195,25 @@ jobs:
     # bump it with the lockfile, or the browsers won't match the runner.
     docker:
       - image: mcr.microsoft.com/playwright:v1.62.1-noble
-    # Shard the spec × browser matrix across containers — this job is the
-    # pipeline's critical path (~12.5 min unsharded vs ~1.5 min for every
-    # other job). Each shard rebuilds the app via the config's webServer
-    # (~90s); that duplication is deliberate. Reusing the `build` job's
-    # output instead would serialize build → e2e and end up SLOWER, and
-    # `build` only runs on main anyway. Reports/artifacts are per-shard.
+    # The pipeline's critical path. Each node builds the app once (~90s);
+    # that duplication is deliberate. Reusing the `build` job's output
+    # instead would serialize build → e2e and end up SLOWER, and `build`
+    # only runs on main anyway. Dynamic parallelism sizes the job; this is
+    # the fallback.
     parallelism: 6
     steps:
       - checkout
-      - restore_cache:
-          keys:
-            - deps-v1-{{ checksum "package-lock.json" }}
-            - deps-v1-
+      - serve-e2e-app
       - run:
-          name: Install dependencies
-          command: npm ci
-      # No save_cache here: with parallelism, all shards would race to write
-      # the same immutable key and lose to first-write-wins. The non-parallel
-      # `test` job (which runs on every push) owns the dependency cache.
-      - run:
-          name: Run Playwright E2E (all browsers, sharded)
-          # The Playwright config's webServer block runs `npm run build &&
-          # npm run preview` itself — no need to start it here separately.
-          # CIRCLE_NODE_INDEX is 0-based; Playwright shards are 1-based.
-          command: npx playwright test --shard=$((CIRCLE_NODE_INDEX + 1))/${CIRCLE_NODE_TOTAL}
+          name: Run Playwright E2E (all browsers, split by file)
+          # The Smarter Testing suite hands spec FILES to the nodes from a
+          # shared queue (dynamic test splitting) and uploads the JUnit
+          # results itself (store-test-results), so this job has no
+          # store_test_results step. Impact analysis is e2e-analysis's job,
+          # off the deploy path, hence --analyze-tests=none even on main.
+          environment:
+            PLAYWRIGHT_REUSE_SERVER: '1'
+          command: circleci testsuite run "e2e tests" --analyze-tests=none
       - store_artifacts:
           # Surface the HTML report and any captured traces/videos/screenshots
           # — the Firefox console-error capture is the whole point of this job.
@@ -131,13 +222,22 @@ jobs:
       - store_artifacts:
           path: test-results
           destination: test-results
-      - store_test_results:
-          path: test-results
-          # NOTE: ecosystem.config.cjs is NOT persisted here. The deploy job
-          # ships it straight from its own checkout to avoid a mystery where
-          # /tmp/workspace/ecosystem.config.cjs arrived on the server with
-          # pre-atomic-release content (cwd: '/home/deploy/mankunku' without
-          # /current/) even though the committed file was the new version.
+
+  e2e-analysis:
+    # Refreshes the e2e impact data on main: Chromium coverage per test, from
+    # a sourcemapped build (tests/e2e/fixtures/circleci-coverage.ts), for the
+    # spec files changes since the last analysis touched. Nothing waits on it.
+    docker:
+      - image: mcr.microsoft.com/playwright:v1.62.1-noble
+    steps:
+      - checkout
+      - serve-e2e-app:
+          sourcemaps: true
+      - run:
+          name: Analyze impacted e2e tests
+          environment:
+            PLAYWRIGHT_REUSE_SERVER: '1'
+          command: circleci testsuite run "e2e tests" --run-tests=none
 
   db-migrate:
     docker:
@@ -339,12 +439,25 @@ workflows:
   # deploy gated to main.
   ci:
     jobs:
-      - test
+      - list-unit-tests
+      - test:
+          requires:
+            - list-unit-tests
+      - list-e2e-tests
       - e2e:
           # E2E runs on every push (not just main) — its primary value is
           # surfacing browser-side errors during development. Don't gate
           # on `test` so feedback comes faster; both jobs run in parallel.
-          requires: []
+          requires:
+            - list-e2e-tests
+      - unit-analysis:
+          filters:
+            branches:
+              only: main
+      - e2e-analysis:
+          filters:
+            branches:
+              only: main
       - build:
           requires:
             - test
@@ -390,3 +503,19 @@ workflows:
     when: << pipeline.parameters.omr-changed >>
     jobs:
       - omr-test
+
+# Smarter Testing dynamic parallelism (experimental: CircleCI says this
+# syntax will change). Each job's node count comes from its list-tests job's
+# selection; `target` is the wanted test time per node, read from JUnit times.
+experimental:
+  dynamic-parallelism:
+    test:
+      key: unit-tests-parallelism
+      min: 1
+      max: 3
+      target: 1m
+    e2e:
+      key: e2e-tests-parallelism
+      min: 1
+      max: 10
+      target: 3m

@@ -4,7 +4,7 @@ import { advanceRollingBacking, createRollingBacking, type RollingBackingCheckpo
 import { realizeRollingPiano } from '$lib/audio/backing-rolling-piano';
 import { generateBacking } from '$lib/audio/backing-generation';
 import { BACKING_STYLES } from '$lib/audio/backing-styles';
-import { buildListeningTuneSession } from '$lib/musicality/listening-tunes';
+import { buildHistoricalListeningTuneSession as buildListeningTuneSession } from '../../helpers/musicality-tune-fixtures';
 import { seedFrom } from '$lib/audio/generation-rng';
 
 const { phrase } = buildListeningTuneSession({ tuneId: 'ls-mankunku-blues', key: 'F#', soloChoruses: 2 });

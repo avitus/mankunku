@@ -1,6 +1,6 @@
 # Mankunku: Jazz Ear Training Web Application
 
-*This is the original product-requirements document from the start of the project, kept for history. `CLAUDE.md` and `documentation/` describe the current system.*
+*This is the original product-requirements document from the start of the project, kept for history. `AGENTS.md` and `documentation/` describe the current system.*
 
 ## Context
 
@@ -33,7 +33,7 @@ A web-based jazz ear training app modeled on PitchBop Pro but with more customiz
 The route map as originally specced. It has since diverged — `/practice` became
 `/ear-training`, `/library` became `/licks`, `/practice/settings` was removed
 outright, and Tunes / Tricks / Lick Practice were added. See the Routes section
-of `CLAUDE.md` for the current list.
+of `AGENTS.md` for the current list.
 
 ```
 /                    -> Dashboard (recent sessions, stats)

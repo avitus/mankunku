@@ -242,6 +242,14 @@ describe('parseBiabMusicXml', () => {
 		// Two chords in bar 1 split it evenly.
 		expect(sheet.sections[0].harmony[1].startOffset).toEqual([1, 2]);
 	});
+
+	it('refuses a meter the community gate would reject, rather than save a tune it hides (CodeRabbit on #277)', () => {
+		const { sheets, warnings } = parseBiabMusicXml(
+			MUSIC_XML.replace('<beat-type>4</beat-type>', '<beat-type>128</beat-type>')
+		);
+		expect(sheets).toEqual([]);
+		expect(warnings).toEqual([expect.stringContaining('4/128')]);
+	});
 });
 
 describe('importBandInABox dispatch', () => {

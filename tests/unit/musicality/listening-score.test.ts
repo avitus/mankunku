@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { listeningScoreBars, listeningScoreBar } from '$lib/musicality/listening-score';
-import { buildListeningTuneSession, buildListeningTuneSessionFromTune } from '$lib/musicality/listening-tunes';
-import { MANKUNKU_BLUES, WHEN_THE_SAINTS } from '$lib/data/tunes';
+import { buildListeningTuneSessionFromTune } from '$lib/musicality/listening-tunes';
+import { MANKUNKU_BLUES } from '$lib/data/tunes';
+import { WHEN_THE_SAINTS } from '../../fixtures/tunes/when-the-saints';
+import { buildHistoricalListeningTuneSession as buildListeningTuneSession } from '../../helpers/musicality-tune-fixtures';
 import { LOCAL_LISTENING_AABA } from '../../fixtures/musicality-local-aaba';
 
 describe('listening lead-sheet position', () => {

@@ -12,6 +12,7 @@ import {
 	MAX_RECORDINGS,
 	type RecordingMetadata
 } from '$lib/persistence/audio-store';
+import { setActiveUid } from '$lib/persistence/namespace';
 
 function makeBlob(size = 100): Blob {
 	return new Blob([new Uint8Array(size)], { type: 'audio/webm' });
@@ -179,10 +180,21 @@ describe('pruning', () => {
 	});
 
 	it('prunes oldest recordings beyond MAX_RECORDINGS', async () => {
-		for (let i = 0; i < MAX_RECORDINGS + 5; i++) {
-			await saveRecording(`session-${i}`, makeBlob(), {
-				metadata: makeMetadata({ phraseId: `phrase-${i}` })
-			});
+		// One second between saves. "Oldest" is the record's Date.now() stamp,
+		// and back-to-back saves share a millisecond up to ~9 at a time; a tie
+		// falls back to key order, where 'session-10' sorts before
+		// 'session-5', so a run tied across session-4…session-10 pruned the
+		// wrong five (an intermittent full-suite failure, 2026-10-25/26).
+		let clock = Date.now();
+		const now = vi.spyOn(Date, 'now').mockImplementation(() => (clock += 1_000));
+		try {
+			for (let i = 0; i < MAX_RECORDINGS + 5; i++) {
+				await saveRecording(`session-${i}`, makeBlob(), {
+					metadata: makeMetadata({ phraseId: `phrase-${i}` })
+				});
+			}
+		} finally {
+			now.mockRestore();
 		}
 
 		const summaries = await getAllRecordingSummaries();
@@ -221,6 +233,104 @@ describe('getRecording (blob only)', () => {
 	it('returns null when recording does not exist', async () => {
 		const blob = await getRecording('nonexistent');
 		expect(blob).toBeNull();
+	});
+});
+
+/** Open the active (anon) recordings database directly. */
+function openAnonDb(): Promise<IDBDatabase> {
+	return new Promise((resolve, reject) => {
+		const req = indexedDB.open('mankunku-audio:anon', 1);
+		req.onupgradeneeded = () => {
+			if (!req.result.objectStoreNames.contains('recordings')) {
+				req.result.createObjectStore('recordings', { keyPath: 'sessionId' });
+			}
+		};
+		req.onsuccess = () => resolve(req.result);
+		req.onerror = () => reject(req.error);
+	});
+}
+
+async function rawRecording(sessionId: string): Promise<Record<string, unknown> | undefined> {
+	const db = await openAnonDb();
+	try {
+		return await new Promise((resolve, reject) => {
+			const req = db.transaction('recordings', 'readonly').objectStore('recordings').get(sessionId);
+			req.onsuccess = () => resolve(req.result);
+			req.onerror = () => reject(req.error);
+		});
+	} finally {
+		db.close();
+	}
+}
+
+/** Seed the Blob-valued record shape builds before 2026-10-23 wrote. */
+async function seedBlobRecording(sessionId: string, blob: Blob, metadata: RecordingMetadata | null): Promise<void> {
+	const db = await openAnonDb();
+	try {
+		await new Promise<void>((resolve, reject) => {
+			const tx = db.transaction('recordings', 'readwrite');
+			tx.objectStore('recordings').put({ sessionId, blob, timestamp: 111, metadata });
+			tx.oncomplete = () => resolve();
+			tx.onerror = () => reject(tx.error);
+		});
+	} finally {
+		db.close();
+	}
+}
+
+// Playwright's WebKit aborts every IndexedDB put whose value holds a Blob
+// (the tune-PDF store, 2026-09-16), and saveRecording swallows the local
+// failure by design — so until 2026-10-23 Safari kept no local copy of any
+// take, and the WebKit e2e for Play Recording, /diagnostics and Flag Scoring
+// Error had to be skipped.
+describe('storage format: bytes, never a Blob (WebKit)', () => {
+	it('stores the take as an ArrayBuffer with its MIME type, not as a Blob', async () => {
+		await saveRecording('bytes-1', new Blob([new Uint8Array(321)], { type: 'audio/mp4' }));
+		const record = await rawRecording('bytes-1');
+		expect(record).toBeDefined();
+		expect(record!.blob).toBeUndefined();
+		expect(record!.bytes).toBeInstanceOf(ArrayBuffer);
+		expect((record!.bytes as ArrayBuffer).byteLength).toBe(321);
+		expect(record!.type).toBe('audio/mp4');
+	});
+
+	it('serves the stored bytes back as a Blob of the same type', async () => {
+		await saveRecording('bytes-2', new Blob([new Uint8Array([1, 2, 3])], { type: 'audio/webm' }));
+		const blob = await getRecording('bytes-2');
+		expect(blob!.type).toBe('audio/webm');
+		expect(Array.from(new Uint8Array(await blob!.arrayBuffer()))).toEqual([1, 2, 3]);
+		const full = await getRecordingFull('bytes-2');
+		expect(full!.blob.size).toBe(3);
+	});
+
+	it('still serves a record an earlier build stored as a Blob', async () => {
+		await seedBlobRecording('old-blob', makeBlob(128), makeMetadata());
+		expect((await getRecording('old-blob'))!.size).toBe(128);
+		const full = await getRecordingFull('old-blob');
+		expect(full!.blob.size).toBe(128);
+		expect(full!.metadata?.phraseId).toBe('test-phrase-1');
+	});
+
+	it('still serves the metadata of a record that carries no audio', async () => {
+		const db = await openAnonDb();
+		await new Promise<void>((resolve, reject) => {
+			const tx = db.transaction('recordings', 'readwrite');
+			tx.objectStore('recordings').put({ sessionId: 'meta-only', timestamp: 5, metadata: makeMetadata() });
+			tx.oncomplete = () => resolve();
+			tx.onerror = () => reject(tx.error);
+		});
+		db.close();
+		const full = await getRecordingFull('meta-only');
+		expect(full!.metadata?.phraseId).toBe('test-phrase-1');
+		expect(full!.blob.size).toBe(0);
+	});
+
+	it('keeps an old Blob record playable after its metadata is rescored', async () => {
+		await seedBlobRecording('old-rescored', makeBlob(64), null);
+		await updateRecordingMetadata('old-rescored', makeMetadata({ tempo: 90 }));
+		const full = await getRecordingFull('old-rescored');
+		expect(full!.blob.size).toBe(64);
+		expect(full!.metadata?.tempo).toBe(90);
 	});
 });
 
@@ -271,6 +381,35 @@ function makeStorageClient(
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	return { client: { storage } as any, storage, uploads, removals, lists, download };
 }
+
+describe('destination account', () => {
+	// CodeRabbit on #287: the byte conversion added for WebKit awaited before
+	// the database was chosen, so an account switch during the read stored the
+	// take in the account that became active.
+	it('stores a take in the account that recorded it, even if the account changes while its bytes are read', async () => {
+		setActiveUid('user-A');
+		try {
+			let release!: () => void;
+			const gate = new Promise<void>((resolve) => { release = resolve; });
+			const blob = makeBlob(64);
+			const read = blob.arrayBuffer.bind(blob);
+			blob.arrayBuffer = async () => { await gate; return read(); };
+
+			const saving = saveRecording('switch-1', blob);
+			setActiveUid('user-B');
+			release();
+			await saving;
+
+			expect(await getRecording('switch-1')).toBeNull();
+			setActiveUid('user-A');
+			expect((await getRecording('switch-1'))!.size).toBe(64);
+		} finally {
+			await clearAllRecordings('user-A');
+			await clearAllRecordings('user-B');
+			setActiveUid(null);
+		}
+	});
+});
 
 describe('cloud mirror', () => {
 	it('uploads to the recordings bucket under {userId}/{sessionId}.webm on save, fire-and-forget', async () => {

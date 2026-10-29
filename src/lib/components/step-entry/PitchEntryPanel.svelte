@@ -1,6 +1,6 @@
 <script lang="ts">
 	import {
-		stepEntry, addNote, addRest, deleteLastNote,
+		stepEntry, addNote, addRest, deleteLastNote, removeSelectedTime,
 		setAccidental, adjustOctave, flipLastNoteSpelling, enterTiedNote
 	} from '$lib/state/step-entry.svelte';
 	import { keyToPitchClass } from '$lib/step-entry/pitch-input';
@@ -18,15 +18,23 @@
 		) => boolean;
 		onAddRest?: () => boolean;
 		onTie?: () => boolean;
+		/** Delete: a note becomes a rest; a rest, or the last element, gives up its time. */
 		onDelete?: () => void;
+		/** Remove the selected element AND its time (Ctrl/⌘ ⌫), whatever its kind. */
+		onRemoveTime?: () => void;
 	}
 
 	let {
 		onAddNote = addNote,
 		onAddRest = addRest,
 		onTie = enterTiedNote,
-		onDelete = deleteLastNote
+		onDelete = deleteLastNote,
+		onRemoveTime = removeSelectedTime
 	}: Props = $props();
+
+	const editTarget = $derived(stepEntry.selectionMode === 'edit' && stepEntry.selectedNoteIndex !== null
+		? stepEntry.enteredNotes[stepEntry.selectedNoteIndex] : null);
+	const tieActive = $derived(!!editTarget?.tied);
 
 	const noteNames = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
 	let lastPressed = $state<string | null>(null);
@@ -156,20 +164,30 @@
 		<button
 			onclick={() => onTie()}
 			class="flex items-center gap-1.5 rounded bg-[var(--color-bg-tertiary)] px-3 py-1.5 text-sm hover:bg-[var(--color-bg-secondary)]"
-			title="Tie to a duplicate of the previous note at the current duration"
+			title={editTarget ? 'Toggle tie to the next note of the same pitch (+)' : 'Tie to a duplicate of the previous note at the current duration (+)'}
+			aria-pressed={tieActive}
 			aria-label="Tie to next note"
 		>
 			<svg viewBox="0 0 20 12" class="h-3 w-5" aria-hidden="true">
 				<path d="M2 8 Q10 1 18 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
 			</svg>
-			<span class="@max-[28rem]/entry:hidden">Tie</span> <span class="text-[10px] opacity-50 @max-[28rem]/entry:hidden">+</span>
+			<span>Tie</span> <span class="text-[10px] opacity-50 @max-[28rem]/entry:hidden">+</span>
 		</button>
 		<button
 			onclick={() => onDelete()}
 			aria-label="Delete selected or last note"
+			title="Delete: a note becomes a rest; a rest, or the last note, gives up its time (⌫)"
 			class="rounded bg-[var(--color-bg-tertiary)] px-3 py-1.5 text-sm hover:bg-[var(--color-bg-secondary)]"
 		>
 			&#9003; <span class="@max-[28rem]/entry:hidden">Delete <span class="text-[10px] opacity-50">⌫</span></span>
+		</button>
+		<button
+			onclick={() => onRemoveTime()}
+			aria-label="Remove selected note or rest and its time"
+			title="Remove time: the element goes and everything after it moves earlier (Ctrl/⌘ ⌫)"
+			class="rounded bg-[var(--color-bg-tertiary)] px-3 py-1.5 text-sm hover:bg-[var(--color-bg-secondary)]"
+		>
+			&#8998; <span class="@max-[28rem]/entry:hidden">Remove time <span class="text-[10px] opacity-50">⌃⌫</span></span>
 		</button>
 	</div>
 </div>

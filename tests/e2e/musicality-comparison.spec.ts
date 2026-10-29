@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { test, expect } from './fixtures/test';
 import { seedOnboardedAnonymous } from './fixtures/storage';
 import { stubCdnInstrumentSamples } from './fixtures/audio';
+import { requireRealtimeAudio } from './fixtures/realtime-audio';
 import type { BlindListeningComparisonRecord } from '../../src/lib/musicality/listening-comparison';
 
 const criteria = ['groove', 'harmonicClarity', 'space', 'interaction', 'development', 'formArrivals', 'fatigue'];
@@ -59,6 +60,7 @@ async function sourceProbe(page: Page): Promise<{ starts: number; lastScheduledT
 }
 
 async function playComplete(page: Page, label: 'A' | 'B'): Promise<number> {
+	requireRealtimeAudio(page);
 	await page.getByTestId(`blind-play-${label}`).click();
 	await expect(page.getByTestId('blind-status')).toHaveText(`Playing take ${label}`, { timeout: 20_000 });
 	await assertBlind(page);
@@ -178,6 +180,7 @@ test('requires two full actual takes and blind ratings before revealing and savi
 test('an interrupted take stays ineligible and restarting discards its unfinished review', async ({ page }) => {
 	await setup(page);
 	await startPair(page);
+	requireRealtimeAudio(page);
 	await page.getByTestId('blind-play-A').click();
 	await expect.poll(async () => Number(await page.getByTestId('blind-position').getAttribute('data-bar-index')), { timeout: 20_000 }).toBeGreaterThanOrEqual(1);
 	await page.getByTestId('blind-stop').click();
@@ -205,6 +208,7 @@ test('leaving during sample loading cannot start or complete an obsolete blind t
 	const holdSamples = async (route: Route) => { held = true; await gate; await route.fallback(); };
 	await page.route('https://smpldsnds.github.io/**', holdSamples);
 	try {
+		requireRealtimeAudio(page);
 		await page.getByTestId('blind-play-A').click();
 		await expect.poll(() => held).toBe(true);
 		await page.getByRole('button', { name: 'Back to listening', exact: true }).click();

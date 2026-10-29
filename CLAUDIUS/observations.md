@@ -2861,3 +2861,446 @@ it in one run: 1943 takes, one cue. The fader bank, built a week later over
 the same clean samples with a single pooled median, agreed with the player's
 ear immediately. When a rule says "typical", compute one typical value and
 test it once; and when pinning a threshold, include a vector that scatters.
+
+## 2026-10-15 — A gate is a contract with every producer upstream of it
+
+PR #277's review ran four rounds, and each finding was caused by fixing the
+one before it. The community listing let unvalidated rows reach an
+auto-preview, so I added the adoption validator there. Dropping rows then
+moved the page boundary. The validator's meter check was too loose to stop
+a DoS, so I tightened it. The tightened check then rejected meters that three
+importers happily saved. None of the fixes was wrong. But a validator is a
+statement about what the whole system may produce, and I had edited it as if
+it were local to its call site. The question to ask when tightening any gate:
+which code writes what this gate reads, and do they agree today? Here the
+answer was a shared predicate (`tunes/meter.ts`) that the writers and the gate
+both call. A gate that the producers do not share means data that exists but
+never appears. The PR #277 case shows how quietly that happens: a 4/128 tune
+imports cleanly and then never shows up in the community, with no error.
+The paging bug has the same shape at a smaller scale: filtering after a page
+boundary is a gate placed downstream of the counter that depends on it.
+## 2026-10-15 — A region's gate quietly becomes every component's gate
+
+The Studio Console commit grouped two components under one snippet and gated
+the snippet on pause. The fader bank had always been pause-only; the one-line
+sharp/flat cue had never been. The `{#if !practising}` read as the faders'
+rule and was accepted as such — the console's tests pinned "no faders while
+playing" and nothing about the cue, and the cue's own tests covered its text
+and its empty slot but not WHEN it is on screen, the one property that
+mattered. When a refactor groups elements under one condition, each element's
+prior visibility rule needs a pin of its own, or the group's rule becomes
+everyone's without anyone deciding it.
+
+The second thing worth keeping: the same complaint, "the cue never fired", had
+a true cause five days ago (a 15 ¢ threshold applied twice) and a different
+true cause today (hidden). Reaching for the previous fix would have been
+wrong twice over — the rule was already fixed, and tightening or loosening it
+changes nothing a player cannot see. One replay of the actual 52 takes
+separated the two in a single step: "fired 18 times" rules out the rule and
+points at the screen. Measure the specific run before trusting the last
+diagnosis.
+
+Independent note on the rule itself, not acted on: at Andy's centre (12–15 ¢)
+a 12 ¢ gate is a coin flip per take. The 10-10 study judged hysteresis by
+run-level counts ("barely changes"), but what a player experiences is the
+per-take share, and a reminder on 35% of takes reads as noise rather than
+advice. If it is to feel like a steady light, the rule needs an enter/hold
+pair judged by share, not by runs. That is Andy's threshold to move.
+
+## 2026-10-15 — "An octave too low" was correct arithmetic in the wrong register
+
+Two things. First, the report's words point at transposition, and the
+transposition was right: a Bb soprano and a Bb tenor write the same concert
+note an octave apart, so a tenor's lick rendered for a soprano IS an octave
+lower on the page than the tenor saw it. The defect was that a shared phrase
+carries its author's register, and register belongs to the viewer, not the
+data. The fix is an octave fit, never a change to `transpositionSemitones` —
+that instinct would have broken every soprano display that was right. When
+a horn player says "octave", ask whose register the data is in before asking
+whose transposition is wrong.
+
+Second, my first "already in range stays untouched" fixture went red for a
+reason I had not predicted: `bestOctaveShift` prefers, among octaves that
+hold EVERY note, the one whose average is nearest the range midpoint.
+[62, 64, 66, 69] on a soprano (56–87, mid 71.5) moved up to 74–81. That rule
+has governed the detail page's view of a player's OWN narrow lick all along:
+a lick that fits whole in two octaves is shown in the midpoint-nearest one,
+not necessarily the one it was entered in. Nobody has reported it; a fixture
+noticed. It is a teaching-policy question — "stay where the author wrote it
+when it fits" against "centre it on the horn" — and Andy's, not mine. Logged,
+not changed; the fix inherits the rule deliberately so the desk and the
+detail page can never disagree about a lick's octave.
+
+Postscript, same day: Andy declined the question — "show them as I would play
+them, which is in the range of my instrument." The rule I was weighing lived
+inside his sentence already. A fix that satisfies the stated rule does not
+need a policy question appended to it; the appended question is what read as
+over-complication.
+
+## 2026-10-15 — A rule change is a probe of every caller's assumptions
+
+Changing which octave `bestOctaveShift` prefers did not break the function;
+it broke two callers that had been leaning on the old answer without
+knowing it. The editor's key change assumed "same octave unless out of
+range" and had never said so — the midpoint rule happened to agree for the
+test's figure. The detail page passed its displayed phrase into deep
+practice, and that was only ever correct while the display's octave shift
+was zero for the lick in question, because a shifted phrase carries a
+suffixed id. Both were invisible under the old rule and both failed on the
+first run under the new one. The lesson is not "don't change rules"; it is
+that a policy function's callers each hold an unstated assumption about
+its answer, and a rule change is the cheapest probe of those assumptions
+there is — so run the whole suite and read every failure as a caller's
+belief, not as noise to re-green.
+## 2026-10-15 — The right axis for "delete" was position, not kind
+
+The request framed delete as note-vs-rest: a note becomes a rest, a rest
+gives up its time. Written that way, the from-scratch flow breaks at once —
+the just-typed note is selected, so Backspace would leave a rest behind every
+slip instead of undoing the keystroke. MuseScore has two modes for this
+(note input vs normal); we have none, and adding one would have been the
+wrong tax on the common case. What reconciled them was a second axis:
+whether anything FOLLOWS the element. Before the end you edit in place; at
+the end you are entering. The kind rule then only has to govern the middle
+of the score. The characterization pin of the entry flow, written before a
+line changed, is what made that visible: it went red the moment I tried the
+kind-only rule in my head, and green under the positional one. A pin of an
+invisible flow is cheaper than a mode.
+
+The same session produced a smaller version of the lesson: the lick editor's
+saved pad rest. With it in the buffer the "last element" is always a rest,
+so the positional rule would have made Delete on the last real note mean
+"rest" in a re-opened lick and "remove" in a fresh one. Dropping the pad on
+load (save re-pads; trailing silence is implied) made both flows the same
+shape. When a rule depends on "the end", make sure the end means the same
+thing on every path that reaches it.
+
+## 2026-10-15 — Once keys act on the selection, every selection is a decision
+
+Phase 1 could leave "which element is selected afterwards" to habit, because
+the keys ignored the selection: the previous element after a removed rest
+was as good as any. Phase 2 made letters, `0` and the duration keys act ON
+the selected element, and the e2e suite found the habit at once — after
+deleting a rest, `0` rested the note before it. Nothing in the unit tests
+saw it, because each unit test asked one question; the e2e asked two in a
+row. The general shape: when an operation gains a target, every place that
+SETS the target inherits a product decision it never had to make, and the
+old answers are now wrong in exactly the places they used to be harmless.
+Grep for every assignment to the selection when you give the selection
+teeth.
+
+The second thing: the plan said "arm the cursor on every edit selection",
+and the implementation says "the position is the selection, else the
+cursor". Same behaviour, three pins untouched, one less piece of state to
+keep in step. The plan was written in the vocabulary of the existing code
+(the cursor was the only position the tune editor knew); the better design
+only appeared when the code for the first version was on the screen. Worth
+leaving room in a plan for that — say what the user sees, not which field
+holds it.
+
+## 2026-10-16 — A plan is a vocabulary; the code gets the last word on nouns
+
+Five phases of editing landed in two days, and the plan held on every
+WHAT. Where it bent was the nouns: "arm the cursor on every edit selection"
+became "the position is the selection"; "a rest delete reselects the
+previous element" became "the element that slid in"; "insert mode uses the
+duration keys like entry" was only visible as a rule once a test tried to
+arm a half note and resized the wrong thing. None of these were mistakes in
+the plan so much as sentences written in the vocabulary the old code had.
+The habit that paid: pin the user-visible behaviour, implement, and let the
+field names fall where the implementation puts them — then rewrite the
+plan's noun, not its promise.
+
+The other recurring shape across the phases: every time an operation gains
+a target, every existing assignment of that target becomes a decision
+(the remove-time reselection, the review panel following the append edge,
+a flattened index drifting after a page's first commit). The e2e suite
+caught two of the three, the unit tests none — because a unit test asks
+one question and these were all about the SECOND keystroke.
+
+## 2026-10-16 — "Show me what you'll ask me to play" is a sharing problem, not a drawing problem
+
+The detail page was never short of a chart; it was short of the SESSION's
+chart. The request looked like "add chords to the page", but every piece
+of the answer already existed inside `buildPhraseFor` — alignment, slot
+root, tail extension, mode — as private session logic. The fix worth
+making was the extraction, so the page and the drill cannot disagree, and
+the parity test is the real deliverable: it turns "shows what Practice
+plays" from a promise into a pin. Pattern to remember: when a surface
+wants to preview what another surface will do, look for the builder the
+other surface already has and lift it out, rather than approximating it.
+
+Two smaller things. "Primary" was my word for Andy's intent and the code
+had three candidate meanings (first tag added, least-recently-practiced,
+first pill in row order); the stable one is right for a page you reread,
+even though Practice rotates. And the broken e2e was a good break: it said
+that an explicit `mode` outranks any inference, including the progression's —
+the player's statement about their own lick beats what we derive from
+where it is filed.
+
+## 2026-10-16 — The rule you wrote inside the segment has a twin where the segments are born
+
+The third-harmonic fold was correct and tested, and the live path still
+split the note — because the test handed the segmenter one onset and the
+app hands it none. With no worklet, `extractOnsetsFromReadings` is a second
+segmenter in disguise: it decides boundaries from MIDI changes, upstream of
+every pass that knows about locks, octaves or attacks. Any rule that says
+"this MIDI change is not a note change" has to be applied there as well as
+in `splitByPitchChange`, or it only works in the harness. The general form:
+when a pipeline has two places that create boundaries, a merge rule written
+for one leaves the other's boundaries standing, and the no-evidence early
+return means nothing downstream repairs them. The question to ask of every
+segmenter change: does the live path reach this code with the onsets the
+test passes? Here the answer was no, and the fold tests' helper (`[0]`
+onsets, `[0]` worklet onsets) is exactly what hid it.
+
+Smaller: the gap-click fix created its own next case. Once a page commits,
+a gap IS a stored rest, so "materialize the segment" became "split the rest
+that already covers it" — the same gesture from the user's seat, a different
+operation in the data. Reviewing a fix against the state it leaves behind
+after ONE more action is where this round's finding sat.
+
+## 2026-10-17 — When every single measure fails, the evidence is a conjunction
+
+The Blue Note Step-Up tongue was the first articulation in the corpus that no
+single scalar could separate from a held note. Each measure I tried had an
+impostor somewhere in the 43 takes at or above it, and the impostors were
+different for each measure: clicks for long-lag shape, a thump ripple for
+notch depth, a swell for brightness, a wandering tone for loudness-corrected
+brightness. That pattern is the useful part. When the impostors DIFFER
+across measures, the conjunction is specific even though no conjunct is; when
+they are the same take, no combination will help. Worth checking that before
+reaching for more features.
+
+Second thing: the readings hid this completely. 93 ms windows average a 20 ms
+notch and a 40 ms timbre switch into nothing, so the investigation had to
+step outside the reading pipeline to the raw waveform, and only then design a
+per-frame measure that carries the evidence back in. "Look at the samples
+when the frames say nothing" has now paid off three times (shapeBreak,
+twelfth-up locks, this).
+
+A caution for myself: with one positive example, "an empty gap in the corpus"
+is necessary, not sufficient. The defence here is that each gate has a
+physical story (a damped reed restarting brighter; a swell is brighter
+because louder; a flicker reverts) and the margins are ~1 dB / 13% on every
+side. The tier should be watched on the next tenor takes Andy flags. A false
+split of a held note is free in scoring but visible in record-a-lick.
+
+## 2026-10-20 — A hysteresis band is only as wide as the gates in front of it
+
+The brief asked for hysteresis on the window centre. The measurement said
+the centre was responsible for only about a third of the switch-offs; the
+rest came from gates checked BEFORE the centre is ever read (a one-note
+take, the latest take's own lean). Widening the band on the one gate moved
+the per-take share from 23% to 28%; adding carry got it to 35%. A cue with
+several conjunctive gates flickers on whichever is narrowest, so the place
+to start is a tally of which gate said no on each on→off transition, not
+the threshold everyone is talking about.
+
+The measure mattered as much: by run counts (10-10's view) none of these
+variants changes anything, since 26 of 28 runs fire either way. Per-take
+share and switches per run are what a player sees. And "in-tune runs must
+stay at 0" was already false on the new data (1%), for a reason unrelated
+to the change — worth saying plainly rather than letting the bar silently
+move.
+
+## 2026-10-20 — The e2e job was never short of parallelism, only of balance
+
+Six e2e shards, ~11 minutes of wall clock, and four of the six nodes finished
+in under five. Playwright's `--shard` with `fullyParallel` cuts the test list
+into equal COUNTS in file order, so the slow transport-driven specs, which sit
+together in the alphabet, landed on the last two nodes. Nobody saw it because
+the job's duration was the only number anyone looked at, and it was steady.
+The worth of Smarter Testing here is less "smart" than "measured": splitting by
+last run's timings is the first time the split uses the cost it is trying to
+balance. Worth checking the first few runs: the floor is now the slowest single
+FILE plus the per-node build, and lick-practice-session is the one to watch.
+
+## 2026-10-20 — Paid test selection mostly bought measurement
+
+With every Smarter Testing feature on, the e2e job went 7.4 → 6.5 min, and
+almost none of that came from what was paid for in the obvious sense: TIA
+still chose 36 of 75 specs, because one NotationDisplay fix is loaded by
+half the app. A component library that every page renders makes
+chunk-level impact coarse by construction — and correctly so. What the
+features DID deliver is a number per file: the floor is one 54-test spec
+that runs 5.7 minutes on its own node. That's an authoring decision about
+how a spec file is cut, invisible until splitting went file-by-file and
+the timings were per file. The fastest next win is free: split the file.
+
+Second, about my own process: three rounds of "seed, then edit config"
+cost ~40 minutes before I saw that the seeded hashes include the full-run
+paths. Any cache keyed on file content wants the same discipline as a
+lockfile — finish the edits, then generate.
+
+## 2026-10-20 — A spec comment stated the intent; the API did something else
+
+progress-trend-chart said "Freeze calendar dates only. Keep native timers
+for Sentry Replay and UI events" directly above `page.clock.setFixedTime`
+— which fakes every timer. The author knew exactly what they needed and
+believed the call delivered it; the name ("fixed time") invites the
+reading. The flake then needed THREE pieces to line up — a timer check
+that judges by `toString`, a sandbox iframe that inherits init scripts,
+and two id counters with the same origin — and none of them is wrong on
+its own. Reading the comment against the call would have found it in a
+minute; reading the stack trace took the rest. Also: the first full run
+after adding test files is a cold-start measurement for any timing-based
+splitter, not a verdict; I nearly reported 8.4 min as "dynamic splitting
+is worse".
+
+## 2026-10-22 — "Loop" is a transport property, not a caller's while-loop
+
+The first tune-desk Loop was a `do { await playPhrase() } while (loop)` —
+the obvious code, and musically wrong by construction: every await is a
+full stop/start of the transport, and the engine's start carries a lead-in
+bar the caller can't see. Time in this app has exactly one owner, the
+transport; anything that must be seamless has to be scheduled on it ahead
+of the beat, never sequenced after a promise resolves. The same lesson the
+lick-practice cycle boundary learnt (close event → schedule one bar out),
+arrived at from the other side.
+
+Second: Tone's looping Part silently CANCELS events outside
+[loopStart, loopEnd). Humanized timing moves downbeats a few ticks early,
+so a loop over our own events must classify by written offset and clamp —
+otherwise bar 1's first note vanishes from every pass and nobody would know
+why the form "sounds late".
+
+The release review spent two rounds on one variable. `tempoChosenHere`
+was a boolean standing in for "the user chose a tempo for THIS tune on
+THIS visit", and each review round found one more axis the boolean
+couldn't carry: which tune, then which arrival. A guard flag is a claim
+about identity; when the thing it guards can change under a reused
+component, the flag has to name it. Same lesson as `localRev > syncedRev`
+in the same review: a counter comparison answers "is anything unsynced",
+not "did anything happen since I asked" — the second question needs its
+own snapshot.
+
+The WebKit flake was a good reminder that "stable" in Playwright is a
+statement about animation frames, and a starved browser stops producing
+them. Slow and stalled look identical from the test's side.
+
+## 2026-10-23 — A later repair erased the evidence of an earlier miss
+
+The twelfth-up fold was built on the sub-segment, after the tiers, and it
+did its job so well on this take that the saved note was a single clean
+D3 — nothing in the export said the note had been in four pieces while
+the articulation tiers looked at it. The export's per-frame flags were
+the only trace, and only because the take was recent enough to carry
+them. Two generalisations. First, the CLAUDE.md rule "a MIDI-change
+correction must live wherever MIDI changes are read" was stated for two
+consumers and was already true for three; the honest form is "for every
+consumer", and a grep for `findSameMidiRuns`-style grouping is the audit.
+Second, when a pipeline stage corrects the stream and a later stage
+re-derives something from the corrected stream, the output can look
+right while an intermediate stage worked on the wrong stream. A clean
+output is not evidence that every stage saw clean input — which is why
+the corpus tests pin the intermediate (`articulationOnsets`) and not just
+the notes.
+
+## 2026-10-24 — A guard that defers to an earlier stage inherits its evidence
+
+`correctSubharmonic`'s stage 2 and `isOctaveUpLock` ask the same question
+of the same bins from opposite sides: is there an odd series under the
+octave? The flag's `frequency === rawFrequency` guard said "the subharmonic
+pass already handled this frame" — true when both used the same test, and
+harmless, since rule 1 could never fire on a doubled frame anyway. The
+moment the octave-up side learned a stronger test, the guard silently
+became "trust the weaker test over the stronger one" on exactly the frames
+where McLeod had been RIGHT. Generalisation: when you strengthen a later
+stage, re-read every guard that defers to an earlier stage; a deferral is
+a claim that the earlier evidence was at least as good.
+
+Second, method: my survey recomputed the measure from the readings'
+frequencies and skipped the production guard, so it promised a 0.81 vote
+where the app produced 0.635 — still passing, by a hair, and I would have
+shipped a fix with 3% margin believing it had 21%. The regression test
+caught it only because it asserted the INTERMEDIATE quantity (the flagged
+fraction) rather than just the final notes. Survey through the production
+predicate path, and pin the margin, not just the outcome.
+
+The low tenor register keeps producing these (Sixth–Octave Lift E3,
+Climb to Five G3, Third Walks D3, Up to the Seventh D3, now this E3). Each
+fix is a partial-specific predicate. If a fifth kind shows up, the better
+frame may be one note-level question — "which fundamental best explains
+this note's averaged spectrum?" — instead of one flag per partial.
+
+## 2026-10-25 — A representation choice leaks wherever time is read
+
+"The timeline keeps a FULL bar and only the engraving is short" (pickup.ts,
+2026-09-10) was the right call — every `bars × barLength` consumer stayed
+uniform. But it quietly moved a musical fact, "nothing happens here yet",
+out of the data and into one module's head. Every consumer that reads TIME
+rather than notation — the count-off, the playhead, and (still) the
+practice chorus builder that appends the whole form, pickup bar included —
+inherited a silent bar it didn't know was silent. The engraving side got
+four careful rules; the time side got none, because nothing failed loudly.
+Generalisation: when a normalising representation pads something, list
+the readers of the padded dimension, not just the writers, and give them
+one predicate (`isInPickupLeadIn`) rather than letting each rediscover it.
+The open instance is the appended practice chorus; the desk's form loop
+already learned it (2026-10-22) by a different route.
+
+## 2026-10-25 — A selector is an assertion about someone else's output
+
+The stacked-[2] pass has said "beams" in its header comment, in both of
+its selector lists and in its line-art branch since July, and in all that
+time it never touched a beam: abcjs draws `path.abcjs-beam-elem`, and
+`g.abcjs-beam` matched nothing. Nothing failed, because a selector that
+matches nothing is a no-op, and no chart had a beamed pair in a stacked
+[2]. The same afternoon `getBBox()` turned out to leave out the element's
+own transform, so the chord nudge measured chords where abcjs put them,
+not where the drop pass had moved them. Both are the 2026-09-16 lesson in
+a new costume: code that reads the DOM is making claims about markup and
+geometry it doesn't own, and those claims fail as no-ops or measure the
+wrong thing. The cheap guard is an e2e that asserts the selector matches
+on a chart known to contain the thing. I've added that for beams; the
+triplet branch still has none (no stacked [2] with a triplet exists).
+
+The curated catalog had been the engraver's visual corpus without anyone
+calling it that. Three simple charts covered three shapes, and the first
+render of a fourth, busier one turned up two latent faults and a third in
+the spelling chain (a dim7's seventh written as a sixth, visible in
+Mankunku Blues since July). Cutting the catalog to two makes each chart
+carry more, so I wrote Rhythm Changes to be dense on purpose: beamed
+eighths in a mid-tune stacked [2], a bar of high eighths under two
+chords, a diminished arpeggio. It's worth thinking of each curated chart
+as a test that happens to be music.
+
+Andy wrote "barlines". The picture showed a missing staff and a missing
+opening barline. A player names what they see in their own words, and
+they aren't the engraver's terms. Look at the picture before choosing
+what to fix.
+
+## 2026-10-25 — "Display only" stops being true when a rule leans on it
+
+The focus projection was documented, twice, as display only: never
+scheduled, never persisted. That was true of its EFFECTS and false of
+its role — the same change removed the preparation bar on the grounds
+that the next take is already on screen, which made the projection a
+precondition of the timing. Its edge case was then defined by success
+("the takes still needed if every one clears"), so the one moment the
+precondition failed was a failure: the player stuck at the target. A
+test even named the assumption ("the take being played is the last
+one") and pinned it. When a margin is removed because something else
+covers it, the covering thing inherits the margin's job, and its edges
+need the same scrutiny the margin had — most of all edges reached only
+by the outcome the feature exists to handle. Andy's own description
+("after a triple sheet music rotation") pointed at the sheet, but the
+sheet was only the usual way to stay at the target; I'd have chased the
+engraving cost if I had taken the clue as the cause.
+The appended practice chorus was the third reader, fixed the same day;
+the desk's form loop had learned it (2026-10-22) by a different route.
+
+## 2026-10-26 — A flake that needs a fast machine
+
+I went looking for the usual suspect, a test too slow for its budget
+under load, and the load loop found nothing in 16 runs. The failure needs
+the opposite: saves fast enough to share a millisecond. Load made it
+rarer, and so did isolating the test with `-t` (0/25), because the tests
+before it in the file are what warm the store up; the whole file failed
+one run in ten. A test that relies on the clock advancing between two
+steps is a race the machine usually wins. Here it won only until it got
+faster. The sibling test had already written the rule down in a comment
+("deterministic ordering — the prune sorts by timestamp") and nobody
+carried it across. And the real cost was never the 10%. It was that I
+tailed the output twice, so the name went by unrecorded both times.

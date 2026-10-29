@@ -6,10 +6,10 @@ const user = { id: 'aaaaaaaa-0000-4000-8000-000000000abc', email: 'desk@e2e.dev'
 const author = { id: 'bbbbbbbb-0000-4000-8000-000000000abc', display_name: 'Maya Thompson', avatar_url: null };
 
 /** Dense real phrases, not decorative notation: the full eighth-note run must engrave. */
-function row(id: string, name: string, bars: number): Row {
+function row(id: string, name: string, bars: number, pitches = [60, 62, 64, 65, 67, 69, 71, 72]): Row {
 	return {
 		id, name, user_id: author.id, key: 'C', time_signature: [4, 4],
-		notes: Array.from({ length: bars * 8 }, (_, i) => ({ pitch: [60, 62, 64, 65, 67, 69, 71, 72][i % 8], offset: [i, 8], duration: [1, 8] })),
+		notes: Array.from({ length: bars * 8 }, (_, i) => ({ pitch: pitches[i % 8], offset: [i, 8], duration: [1, 8] })),
 		harmony: [{ chord: { root: 'C', quality: 'maj7' }, scaleId: 'major.ionian', startOffset: [0, 1], duration: [bars, 1] }],
 		difficulty: { level: 20, pitchComplexity: 20, rhythmComplexity: 20, lengthBars: bars },
 		category: 'major-chord', tags: [], source: 'user-entered', favorite_count: 3,
@@ -18,14 +18,26 @@ function row(id: string, name: string, bars: number): Row {
 }
 const long = row('community-desk-long', 'A little outside, then home', 4);
 const short = row('community-desk-short', 'The blue hour', 2);
+/** A tenor player's line at concert C3–C4: written D4–D5 on tenor, D3–D4 on soprano — under the horn. */
+const tenorLine = row('community-desk-tenor', 'Low and slow', 2, [48, 50, 52, 53, 55, 57, 59, 60]);
 
-async function setup(page: import('@playwright/test').Page, baseURL: string, theme = 'dark') {
+interface SetupOptions {
+	/** The signed-in player's instrument; the fixture default is the tenor. */
+	instrumentId?: string;
+	/** Rows seeded beside the two desk phrases. */
+	rows?: Row[];
+}
+
+/** Seed a stub cloud with community licks, sign in and open the community desk in the given theme. */
+async function setup(page: import('@playwright/test').Page, baseURL: string, theme = 'dark', options: SetupOptions = {}) {
 	const cloud = createStubCloud();
 	cloud.seedRow('user_licks', long);
 	cloud.seedRow('user_licks', short);
+	for (const extra of options.rows ?? []) cloud.seedRow('user_licks', extra);
 	cloud.seedRow('public_lick_authors', author);
 	await installStubCloud(page.context(), cloud, user, baseURL);
-	await seedStorage(page, { settings: { ...SETTINGS_ONBOARDED, theme }, 'tour-state': TOUR_DISMISSED });
+	const settings = { ...SETTINGS_ONBOARDED, theme, ...(options.instrumentId ? { instrumentId: options.instrumentId } : {}) };
+	await seedStorage(page, { settings, 'tour-state': TOUR_DISMISSED });
 	// The shared stub supports equality only; model the browse search seam here.
 	await page.route('**/rest/v1/user_licks?*', async route => {
 		const url = new URL(route.request().url());
@@ -34,10 +46,34 @@ async function setup(page: import('@playwright/test').Page, baseURL: string, the
 		} else await route.fallback();
 	});
 	await page.goto('/licks/community');
-	await expect(page.getByRole('group', { name: 'Choose a lick' }).getByRole('button')).toHaveCount(2);
+	await expect(page.getByRole('group', { name: 'Choose a lick' }).getByRole('button')).toHaveCount(2 + (options.rows?.length ?? 0));
 	await page.getByRole('button', { name: /^A little outside, then home by/ }).click();
 	return cloud;
 }
+
+/** abcjs classes every notehead `abcjs-p<N>`, N in staff steps from written middle C (Bb3 = −1, D4 = 1, F#6 = 17). */
+function engravedSteps(scope: import('@playwright/test').Locator): Promise<number[]> {
+	return scope.locator('.abcjs-note').evaluateAll((els) =>
+		els.map((el) => Number([...el.classList].find((c) => /^abcjs-p-?\d+$/.test(c))!.slice('abcjs-p'.length)))
+	);
+}
+
+test('a soprano player sees a tenor player\'s lick in the soprano\'s register (2026-10-15)', async ({ page, baseURL }) => {
+	await setup(page, baseURL!, 'dark', { instrumentId: 'soprano-sax', rows: [tenorLine] });
+	await page.getByRole('button', { name: /^Low and slow by/ }).click();
+	const desk = page.getByRole('region', { name: 'Selected lick', exact: true });
+	await expect(desk.getByRole('heading', { name: 'Low and slow' })).toBeVisible();
+	await expect(desk.locator('.abcjs-note')).toHaveCount(16);
+	// The stored line is written D3–D4 for a soprano (steps −6 to 1); the horn's
+	// range is written Bb3–F#6. The desk lifts the lick into it, octave for octave.
+	const steps = await engravedSteps(desk);
+	expect(Math.min(...steps)).toBeGreaterThanOrEqual(-1);
+	expect(Math.max(...steps)).toBeLessThanOrEqual(17);
+	// Octave shift only: the staff steps keep their shape, seven steps up.
+	expect(steps.slice(0, 8)).toEqual([-6, -5, -4, -3, -2, -1, 0, 1].map((step) => step + 7));
+	// The fitted phrase still IS the stored lick.
+	await expect(desk.getByRole('link', { name: 'View lick details' })).toHaveAttribute('href', '/licks/community-desk-tenor');
+});
 
 test('desk selection shows the complete phrase and keeps controls aligned', async ({ page, baseURL }, testInfo) => {
 	await page.setViewportSize({ width: 1440, height: 1000 });

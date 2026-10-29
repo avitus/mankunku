@@ -6,7 +6,7 @@ import { expect, it } from 'vitest';
 import { createRollingBacking, advanceRollingBacking, type RollingBackingBar } from '$lib/audio/backing-rolling';
 import { generateBacking } from '$lib/audio/backing-generation';
 import { BACKING_STYLES } from '$lib/audio/backing-styles';
-import { buildListeningTuneSession } from '$lib/musicality/listening-tunes';
+import { buildHistoricalListeningTuneSession as buildListeningTuneSession } from '../../helpers/musicality-tune-fixtures';
 import { resolveCoordinatedVoicing } from '$lib/audio/coordinated-voicing';
 
 it('settles the real Saints returning-head top without sacrificing guide tones, common notes or minimum movement', () => {

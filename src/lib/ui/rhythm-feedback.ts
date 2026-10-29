@@ -1,11 +1,5 @@
 import type { NoteResult, TimingDiagnostics } from '$lib/types/scoring';
-
-/** Median of a nonempty numeric sample, without mutating it. */
-function median(values: readonly number[]): number {
-	const sorted = [...values].sort((a, b) => a - b);
-	const middle = Math.floor(sorted.length / 2);
-	return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
-}
+import { median } from '$lib/util/median';
 
 /** Interpolated quantile of a nonempty numeric sample. */
 function quantile(values: readonly number[], fraction: number): number {

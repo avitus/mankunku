@@ -404,6 +404,48 @@ describe('pdfUrl round-trip', () => {
 	});
 });
 
+describe('full-row round trip', () => {
+	// The reconcile is whole-row LWW, so a column either mapper forgets is
+	// written as NULL on the next push and erased from every device on the
+	// next pull. Push a sheet carrying every field, pull the row it produced
+	// on a fresh device, and the sheet must come back unchanged.
+	it('every Tune field survives tuneToRow → cloud → cloudRowToTune', async () => {
+		const full = saveUserTune(
+			makeSheet({
+				id: 'FULL',
+				title: 'All the Things',
+				composer: 'Jerome Kern',
+				key: 'Ab',
+				timeSignature: [3, 4],
+				style: 'Medium Swing',
+				backingStyle: 'ballad',
+				tags: ['standard', 'ballad'],
+				sections: [
+					{ label: 'A', bars: 8, notes: [], harmony: [] },
+					{ label: 'B', bars: 8, notes: [], harmony: [] }
+				],
+				source: 'imported-pdf',
+				difficulty: { level: 40, pitchComplexity: 35, rhythmComplexity: 30, lengthBars: 16 },
+				pdfUrl: `${CLOUD_UID}/FULL.pdf`
+			})
+		);
+		const { client, upsertedRows } = createMockSupabase([]);
+		await flushTunesToCloud(client);
+		const row = upsertedRows.find((r) => r.id === 'FULL');
+		expect(row).toBeDefined();
+
+		localStorageMock.clear();
+		__resetNamespaceCacheForTests();
+		setActiveUid(CLOUD_UID);
+		const { client: device2 } = createMockSupabase([
+			{ ...row, favorite_count: 0, created_at: '2026-01-01T00:00:00.000Z' }
+		]);
+		await initTunesFromCloud(device2);
+
+		expect(getUserTunesLocal().find((s) => s.id === 'FULL')).toEqual(full);
+	});
+});
+
 describe('failure conventions', () => {
 	it('initTunesFromCloud swallows failures and reports false', async () => {
 		const { client } = createMockSupabase([], { fetchError: 'boom' });
@@ -435,5 +477,22 @@ describe('failure conventions', () => {
 		expect(tombstoneUpdates).toHaveLength(0);
 		expect(localStorageMock.getItem(nsFull('user-tunes'))).toBe(liveBefore);
 		expect(localStorageMock.getItem(nsFull('user-tunes-meta'))).toBe(metaBefore);
+	});
+});
+
+describe('saved backing style', () => {
+	it('assigns a supported style at creation without overwriting an explicit choice', () => {
+		expect(saveUserTune(makeSheet({ style: 'Bossa Nova' })).backingStyle).toBe('bossa-nova');
+		expect(saveUserTune(makeSheet({ style: 'Medium Swing', backingStyle: 'ballad' })).backingStyle).toBe('ballad');
+	});
+	it('round-trips the style through cloud pull and a later full-row update', async () => {
+		const { client } = createMockSupabase([makeCloudRow({ backing_style: 'bossa-nova' })]);
+		await getUserTunes(client);
+		const loaded = getUserTunesLocal()[0];
+		expect(loaded.backingStyle).toBe('bossa-nova');
+		saveUserTune({ ...loaded, title: 'Renamed' });
+		const next = createMockSupabase([makeCloudRow({ backing_style: 'bossa-nova' })]);
+		await flushTunesToCloud(next.client);
+		expect(next.upsertedRows[0]).toMatchObject({ title: 'Renamed', backing_style: 'bossa-nova' });
 	});
 });

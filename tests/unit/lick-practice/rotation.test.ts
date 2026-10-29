@@ -22,12 +22,16 @@ import {
 	nextCycleTempo,
 	focusStartTempo,
 	focusStepDownTempo,
+	focusStepUpTempo,
+	projectFocusTempos,
 	planFocusRamp,
 	resolveRampCycle,
 	FOCUS_START_DISCOUNT,
 	FOCUS_STEP_DOWN_MULTIPLIER
 } from '$lib/state/lick-practice-rotation';
 import type { PitchClass } from '$lib/types/music';
+import type { UnlockRamp } from '$lib/music/key-ordering';
+import { INSTRUMENTS } from '$lib/types/instruments';
 import type { FocusRamp } from '$lib/types/lick-practice';
 
 const rollingFrom =
@@ -90,27 +94,30 @@ describe('shouldDemoHeadKey', () => {
 	});
 });
 
+/** A C major lick on a concert instrument: the ramp runs C, G, F, D, Bb, … */
+const cMajor: UnlockRamp = { entryKey: 'C', mode: 'major', instrument: INSTRUMENTS.concert };
+
 describe('newestUnlockedKey', () => {
 	it('is the entry key itself while only one key is unlocked', () => {
-		expect(newestUnlockedKey('C', 1)).toBe('C');
+		expect(newestUnlockedKey(cMajor, 1)).toBe('C');
 	});
 
-	it('walks the alternating circle-of-fifths ramp: C → G, F, D, Bb …', () => {
-		expect(newestUnlockedKey('C', 2)).toBe('G');
-		expect(newestUnlockedKey('C', 3)).toBe('F');
-		expect(newestUnlockedKey('C', 4)).toBe('D');
-		expect(newestUnlockedKey('C', 5)).toBe('Bb');
+	it('walks the key-signature ramp: C → G, F, D, Bb …', () => {
+		expect(newestUnlockedKey(cMajor, 2)).toBe('G');
+		expect(newestUnlockedKey(cMajor, 3)).toBe('F');
+		expect(newestUnlockedKey(cMajor, 4)).toBe('D');
+		expect(newestUnlockedKey(cMajor, 5)).toBe('Bb');
 	});
 
 	it('is null once every key is unlocked — nothing is "newest" any more', () => {
-		expect(newestUnlockedKey('C', 12)).toBeNull();
-		expect(newestUnlockedKey('C', 13)).toBeNull();
+		expect(newestUnlockedKey(cMajor, 12)).toBeNull();
+		expect(newestUnlockedKey(cMajor, 13)).toBeNull();
 	});
 });
 
 describe('shouldRevealNotation', () => {
 	// Three keys unlocked from C: C, G, F — F is the one being learned.
-	const learning = { entryKey: 'C' as const, unlockedCount: 3 };
+	const learning = { ramp: cMajor, unlockedCount: 3 };
 
 	it('reveals the newest unlocked key while it is under the floor', () => {
 		expect(shouldRevealNotation({ ...learning, key: 'F', rolling: 0.74 })).toBe(true);
@@ -132,13 +139,13 @@ describe('shouldRevealNotation', () => {
 
 	it('reveals the entry key while it is the only key unlocked', () => {
 		expect(
-			shouldRevealNotation({ entryKey: 'C', unlockedCount: 1, key: 'C', rolling: 0.5 })
+			shouldRevealNotation({ ramp: cMajor, unlockedCount: 1, key: 'C', rolling: 0.5 })
 		).toBe(true);
 	});
 
 	it('never reveals once all twelve keys are unlocked', () => {
 		expect(
-			shouldRevealNotation({ entryKey: 'C', unlockedCount: 12, key: 'F#', rolling: 0.1 })
+			shouldRevealNotation({ ramp: cMajor, unlockedCount: 12, key: 'F#', rolling: 0.1 })
 		).toBe(false);
 	});
 
@@ -545,6 +552,60 @@ describe('planFocusRamp', () => {
 
 	it('queues nothing for a one-key circle', () => {
 		expect(planFocusRamp(['C'], 'C', 60, () => undefined)?.queue).toEqual([]);
+	});
+});
+
+describe('projectFocusTempos', () => {
+	it('lists one take per step up to and including the target (Andy, 2026-10-24: 51 → 56)', () => {
+		expect(projectFocusTempos(51, 56, 1)).toEqual([52, 53, 54, 55, 56]);
+	});
+
+	it('is empty at the target: the take being played is the last one', () => {
+		expect(projectFocusTempos(56, 56, 1)).toEqual([]);
+	});
+
+	it('steps by the rounded-up bump, so two BPM a take from 100 up', () => {
+		expect(projectFocusTempos(180, 190, 1)).toEqual([182, 184, 186, 188, 190]);
+	});
+
+	it('caps the last step at the target', () => {
+		expect(focusStepUpTempo(99, 100, 5)).toBe(100);
+		expect(projectFocusTempos(90, 100, 5)).toEqual([95, 100]);
+		expect(projectFocusTempos(92, 100, 5)).toEqual([97, 100]);
+	});
+
+	it('promises exactly the tempos the staircase plays when every take clears', () => {
+		const ramp: FocusRamp = {
+			focusKey: 'D', targetTempo: 100, phase: 'focus', admitted: ['D'],
+			queue: ['A'], upToSpeedRound: null, rebuiltRound: null
+		};
+		for (const bumpPercent of [1, 2.5, 5]) {
+			const start = focusStartTempo(100);
+			const played: number[] = [];
+			let state = ramp;
+			let tempo = start;
+			for (let round = 1; state.phase === 'focus'; round++) {
+				const out = resolveRampCycle({
+					ramp: state, lastKey: 'D', survivors: [], tempo, bumpPercent,
+					focusScore: 0.97, round
+				});
+				state = out.ramp;
+				tempo = out.tempo;
+				if (state.phase === 'focus') played.push(tempo);
+			}
+			expect(played).toEqual(projectFocusTempos(start, 100, bumpPercent));
+		}
+	});
+
+	it('re-projects a step down as the climb back: three takes below 53, five below 51', () => {
+		const before = projectFocusTempos(53, 56, 1);
+		const after = projectFocusTempos(focusStepDownTempo(53, 1), 56, 1);
+		expect(before).toEqual([54, 55, 56]);
+		expect(after).toEqual([52, 53, 54, 55, 56]);
+	});
+
+	it('stops at MAX_TEMPO instead of looping on a target the clamp never reaches', () => {
+		expect(projectFocusTempos(299, 305, 1)).toEqual([300]);
 	});
 });
 

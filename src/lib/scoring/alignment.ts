@@ -27,6 +27,7 @@ import type { AlignmentPair } from '$lib/types/scoring';
 import { midiToPitchClass } from '$lib/music/intervals';
 import { applySwingToBeats } from '$lib/music/swing';
 import { pitchMatches } from './pitch-scoring';
+import { median } from '$lib/util/median';
 
 /**
  * Cost of leaving a note unpaired — a written note missed or a played note
@@ -102,13 +103,6 @@ function noteOnsetSeconds(note: Note, tempo: number, swing = 0.5): number {
 	const rawBeats = (note.offset[0] / note.offset[1]) * 4;
 	const swungBeats = applySwingToBeats(rawBeats, swing);
 	return swungBeats * (60 / tempo);
-}
-
-function median(values: number[]): number {
-	if (values.length === 0) return 0;
-	const sorted = [...values].sort((a, b) => a - b);
-	const mid = Math.floor(sorted.length / 2);
-	return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
 /**

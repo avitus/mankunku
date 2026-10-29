@@ -919,3 +919,168 @@ describe('findReArticulations: envelope dip-recover tier', () => {
 		expect(findReArticulations(softReattackRun({ after: () => 0.88, frames: 45 }), [0.1])).toEqual([]);
 	});
 });
+
+/**
+ * The timbre-switch tier: a tongue that leaves only a NEW, brighter tone
+ * behind a small level notch (2026-10-17 Blue Note Step-Up). Each reading
+ * carries the window's `brightness` and, on the frames whose window holds the
+ * switch, a `brightnessLift` pointing at it.
+ */
+describe('findReArticulations: timbre-switch tier', () => {
+	/**
+	 * A clean D3 run at 60 fps; at `switchAt` (seconds) the tone turns
+	 * `persist` dB brighter and `sustain`× as loud. `anchor` 'end' stamps each
+	 * window by its end, as the live detector does.
+	 */
+	function timbreRun(opts: {
+		switchAt?: number;
+		lift?: number;
+		persist?: number;
+		sustain?: number;
+		shape?: number;
+		frames?: number;
+		anchor?: 'start' | 'end';
+		sampleRate?: number;
+		strip?: boolean;
+	} = {}): PitchReading[] {
+		const switchAt = opts.switchAt ?? 0.65;
+		const frames = opts.frames ?? 45;
+		const windowSeconds = 4096 / (opts.sampleRate ?? 44100);
+		const anchorShift = opts.anchor === 'end' ? windowSeconds : 0;
+		const out: PitchReading[] = [];
+		for (let i = 0; i < frames; i++) {
+			const start = 0.1 + i / 60; // window start in audio time
+			const end = start + windowSeconds;
+			// Share of the window after the switch: 0 before it, 1 once past it.
+			const after = Math.min(1, Math.max(0, (end - switchAt) / windowSeconds));
+			const r: PitchReading = {
+				midiFloat: 50,
+				midi: 50,
+				cents: 0,
+				clarity: 0.99,
+				time: start + anchorShift,
+				frequency: 146.83,
+				rms: 0.18 * (1 + after * ((opts.sustain ?? 1.11) - 1)),
+				hfRms: 0.013,
+				rmsMin: 0.16,
+				shapeBreak: opts.shape ?? 0.991
+			};
+			// Omit the duration by default to retain legacy-export coverage.
+			if (opts.sampleRate != null) r.analysisWindowSeconds = windowSeconds;
+			if (!opts.strip) {
+				r.brightness = -16 + after * (opts.persist ?? 4.7);
+				if (switchAt > start && switchAt < end) {
+					r.brightnessLift = opts.lift ?? 5.4;
+					r.brightnessLiftAt = switchAt - start - anchorShift;
+				}
+			}
+			out.push(r);
+		}
+		return out;
+	}
+
+	it('splits where the tone switches to a brighter one across the notch', () => {
+		const onsets = findReArticulations(timbreRun(), []);
+		expect(onsets).toHaveLength(1);
+		expect(onsets[0]).toBeCloseTo(0.65, 3);
+	});
+
+	it('splits the same switch under the live window-end anchor', () => {
+		const onsets = findReArticulations(timbreRun({ anchor: 'end' }), []);
+		expect(onsets).toHaveLength(1);
+		expect(onsets[0]).toBeCloseTo(0.65, 3);
+	});
+
+	it('keeps both pre-switch windows at 48 kHz when replay has only two brightness readings before the switch', () => {
+		const readings = timbreRun({ sampleRate: 48000 });
+		// The windows starting at 0.5333 and 0.55 end before the 0.64 guard.
+		// Assuming 44.1 kHz wrongly excludes the latter.
+		for (const r of readings) if (r.time < 0.53) delete r.brightness;
+		const onsets = findReArticulations(readings, []);
+		expect(onsets).toHaveLength(1);
+		expect(onsets[0]).toBeCloseTo(0.65, 3);
+	});
+
+	it('keeps both post-switch windows at 48 kHz when a live run ends just after the switch', () => {
+		// Only the last two windows start after the 0.66 guard; subtracting a
+		// 44.1 kHz duration from their end stamps wrongly excludes the first.
+		const onsets = findReArticulations(timbreRun({ sampleRate: 48000, anchor: 'end', frames: 36 }), []);
+		expect(onsets).toHaveLength(1);
+		expect(onsets[0]).toBeCloseTo(0.65, 3);
+	});
+
+	it('does NOT split a lift under the floor — a held tone wanders that much', () => {
+		expect(findReArticulations(timbreRun({ lift: 3.1 }), [])).toEqual([]);
+	});
+
+	it('does NOT split when the brighter tone does not last', () => {
+		expect(findReArticulations(timbreRun({ persist: 2.4 }), [])).toEqual([]);
+	});
+
+	it('does NOT split a swell — the tone brightened because it got louder', () => {
+		expect(findReArticulations(timbreRun({ sustain: 1.5 }), [])).toEqual([]);
+	});
+
+	it('does NOT split a release — a re-attack holds its energy', () => {
+		expect(findReArticulations(timbreRun({ sustain: 0.7 }), [])).toEqual([]);
+	});
+
+	it('does NOT split a breathy run, whose timbre measures noise', () => {
+		expect(findReArticulations(timbreRun({ shape: 0.9 }), [])).toEqual([]);
+	});
+
+	it('does NOT split while the note is still blooming after its attack', () => {
+		expect(findReArticulations(timbreRun({ switchAt: 0.25 }), [])).toEqual([]);
+	});
+
+	it('defers to an onset the baseline already put there — one articulation, one onset', () => {
+		// A baseline onset is returned only as band-stop corroboration, so a
+		// deferring tier leaves the result empty either side of the switch.
+		expect(findReArticulations(timbreRun(), [0.55])).toEqual([]);
+		expect(findReArticulations(timbreRun(), [0.75])).toEqual([]);
+	});
+
+	it('does NOT split at the run exit, where no tone after the switch can be measured', () => {
+		expect(findReArticulations(timbreRun({ switchAt: 0.1 + 44 / 60 + 0.02 }), [])).toEqual([]);
+	});
+
+	it('ignores readings with no brightness (pre-2026-10-17 diagnostic JSON)', () => {
+		expect(findReArticulations(timbreRun({ strip: true }), [])).toEqual([]);
+	});
+});
+
+describe('findReArticulations: a third-harmonic lock does not hide the tongue inside it', () => {
+	// 2026-10-24 Up to the Seventh: a tenor D3 played twice, with its 3rd
+	// harmonic (A4) taking the pick for most of both notes. The tiers scan
+	// contiguous same-MIDI runs, so the locked frames chopped the D into
+	// fragments and the tongue's dip fell between runs. The locked frames
+	// here are only flagged, never moved: the fold must happen at the scan.
+	const FRAME = 1 / 60;
+	const HOLE = 0.2;
+	function lockedPair(opts: { flagged: boolean }): PitchReading[] {
+		const d = (time: number): PitchReading => ({ ...reading(50, time), frequency: 146.83, rms: 0.2 });
+		const a = (time: number): PitchReading => ({
+			...reading(69, time),
+			frequency: 440,
+			rms: 0.2,
+			...(opts.flagged ? { twelfthUp: true } : {})
+		});
+		const before = Array.from({ length: 10 }, (_, i) => d(i * FRAME));
+		const lock = Array.from({ length: 12 }, (_, i) => a((10 + i) * FRAME));
+		const resume = lock[lock.length - 1].time + HOLE;
+		const after = Array.from({ length: 20 }, (_, i) => d(resume + i * FRAME));
+		return [...before, ...lock, ...after];
+	}
+
+	it('finds the reading-gap tongue when the frames before the hole are a flagged lock', () => {
+		const readings = lockedPair({ flagged: true });
+		const onsets = findReArticulations(readings, [0]);
+		expect(onsets).toHaveLength(1);
+		expect(onsets[0]).toBeGreaterThan(readings[21].time);
+		expect(onsets[0]).toBeLessThanOrEqual(readings[22].time);
+	});
+
+	it('an unflagged leap to A4 is three notes, and the hole after it is no tongue', () => {
+		expect(findReArticulations(lockedPair({ flagged: false }), [0])).toEqual([]);
+	});
+});

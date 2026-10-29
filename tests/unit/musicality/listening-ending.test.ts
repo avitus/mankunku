@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { generateForBounce, type BounceParams } from '$lib/audio/backing-bounce';
 import * as generation from '$lib/audio/backing-generation';
 import { DEFAULT_BACKING_MIX } from '$lib/audio/backing-mix';
-import { buildListeningTuneSession, LISTENING_TUNES } from '$lib/musicality/listening-tunes';
+import { buildHistoricalListeningTuneSession as buildListeningTuneSession, HISTORICAL_LISTENING_TUNES as LISTENING_TUNES } from '../../helpers/musicality-tune-fixtures';
 
 const input = (): BounceParams => ({
  phrase: buildListeningTuneSession({ tuneId: LISTENING_TUNES.find(tune => tune.title === 'Mankunku Blues')!.id, key: 'C', soloChoruses: 2 }).phrase,

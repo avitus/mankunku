@@ -6,7 +6,7 @@ import { advanceRollingBacking, createRollingBacking, type RollingBackingCheckpo
 import { resolveCoordinatedVoicing } from '$lib/audio/coordinated-voicing';
 import { seedFrom } from '$lib/audio/generation-rng';
 import { BACKING_STYLES } from '$lib/audio/backing-styles';
-import { buildListeningTuneSession } from '$lib/musicality/listening-tunes';
+import { buildHistoricalListeningTuneSession as buildListeningTuneSession } from '../../helpers/musicality-tune-fixtures';
 import baseline from '../../fixtures/audio/piano-phrase-recall-before.json';
 
 const styles = ['swing', 'straight'] as const;

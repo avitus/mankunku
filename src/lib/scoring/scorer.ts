@@ -27,6 +27,7 @@ import { scoreToGrade } from './grades';
 import { chargeableExtras } from './extras';
 import { fractionToFloat } from '$lib/music/intervals';
 import { extractSoundingNotes, type SoundingNote } from '$lib/music/expression';
+import { median } from '$lib/util/median';
 
 /**
  * Compute the onset time in seconds of an expected note,
@@ -43,18 +44,6 @@ function expectedOnsetSeconds(note: Note, tempo: number, swing = 0.5): number {
 	}
 
 	return onset;
-}
-
-/**
- * Compute the median of an array of numbers.
- */
-function median(values: number[]): number {
-	if (values.length === 0) return 0;
-	const sorted = [...values].sort((a, b) => a - b);
-	const mid = Math.floor(sorted.length / 2);
-	return sorted.length % 2 !== 0
-		? sorted[mid]
-		: (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
 /**

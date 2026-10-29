@@ -3,7 +3,7 @@ import { createBlindListeningComparison, LISTENING_COMPARISON_CRITERIA, restoreL
 import { BACKING_LAB_PRESETS } from '$lib/audio/backing-lab-presets';
 import { DEFAULT_BACKING_MIX } from '$lib/audio/backing-mix';
 import { generateForBounce, harmonyDurationBeats, type BounceParams } from '$lib/audio/backing-bounce';
-import { LISTENING_TUNES, buildListeningTuneSession } from '$lib/musicality/listening-tunes';
+import { HISTORICAL_LISTENING_TUNES as LISTENING_TUNES, buildHistoricalListeningTuneSession as buildListeningTuneSession } from '../../helpers/musicality-tune-fixtures';
 import type { BackingStyle } from '$lib/types/instruments';
 import type { ListeningSnapshot } from '$lib/musicality/listening-player';
 import { advanceRollingBacking, createRollingBacking, type RollingBackingBar } from '$lib/audio/backing-rolling';

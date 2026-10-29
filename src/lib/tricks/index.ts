@@ -8,6 +8,7 @@ import type { ChordProgressionType } from '$lib/types/lick-practice';
 import type { InstrumentConfig } from '$lib/types/instruments';
 import { PROGRESSION_TEMPLATES, transposeProgression } from '$lib/data/progressions';
 import { pitchClassInterval, transposePitchClass, writtenKeyToConcert } from '$lib/music/transposition';
+import type { UnlockRamp } from '$lib/music/key-ordering';
 import { chordSymbol } from '$lib/music/chords';
 import { resolveEnclosurePracticeBed } from './enclosure-practice';
 import { enclosuresTrick } from './devices/enclosures';
@@ -30,6 +31,11 @@ export function getTrickById(id: string): Trick | undefined {
  */
 export function trickEntryKey(instrument: InstrumentConfig): PitchClass {
 	return writtenKeyToConcert('C', instrument);
+}
+
+/** The unlock ramp every trick variant grows along: written C, read as major, on the player's instrument. */
+export function trickUnlockRamp(instrument: InstrumentConfig): UnlockRamp {
+	return { entryKey: trickEntryKey(instrument), mode: 'major', instrument };
 }
 
 /**

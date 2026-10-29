@@ -294,7 +294,8 @@ interface TuneAbcOptions {
   mode?: Mode;                // How to read sheet.key: 'minor' draws the relative
                               // major's signature and prints K:Dm (default 'major')
   stretchLast?: boolean;      // Stretch the last system to the full staff width
-                              // (default false — short systems stay short)
+                              // (default false — short systems stay short; a
+                              // stacked [2] that ends the tune is stretched anyway)
   measureNumbers?: boolean;   // Measure number at each system start (default true)
 }
 ```
@@ -347,6 +348,7 @@ The printed length of a section's first bar, or `null` for a full bar. Two sourc
 |---|---|
 | `pickupLengthFromMelody(notes, timeSignature)` | Bar minus the earliest PITCHED onset, floored to the beat unit (a note on the and-of-4 is still a one-beat pickup); stored rests ignored — an explicit leading rest is how the editor writes the prefix back. `null` when bar 0 has no pitched note or starts on the downbeat |
 | `pickupPrefix(length, ts)` / `pickupFirstBeat(length, ts)` | The silent lead-in (one bar minus the length) as a fraction, and as a beat index in denominator-note beats (may be fractional) |
+| `isInPickupLeadIn(sheet, chartBar)` | Whether a fractional chart bar sits in a pickup bar's silent lead-in, before the printed pickup starts — nothing is engraved there and a tune's count is still running, so the desk's and tune practice's playheads wait it out, and a session opening inside one counts on through it |
 | `isPickupOnlySection(sheet, secIdx)` | A blank-labelled one-bar section that IS the pickup — the import shape, and what the editor's Pickup control creates |
 | `pickupLengthOptions(ts)` | Every eighth-note multiple strictly inside one bar — the editor's choices |
 | `pickupLengthLabel(length, ts)` | `"½ beat"`, `"1 beat"`, `"1½ beats"` — named EXACTLY in the meter's beats (eighth multiples are half beats in 4/4 but quarter beats in 2/2); a remainder with no glyph is spelled out (`"1/16 beat"`), never rounded |
@@ -457,7 +459,7 @@ The colour is carried through the library card (tinted category pill + dots), th
 |---|---|
 | `harmony.ts` | `findHarmonyAt(harmony, wholeNotePosition)` — the segment active at a whole-note position; falls back to the FINAL segment only for positions past its end (a note ringing past the last chord), `null` before the first segment, inside a gap, or with no harmony at all. Shared by playback and scoring |
 | `swing.ts` | Swing-ratio math for eighth-note pairs. `STRAIGHT_SWING` (0.5) is the floor of the setting and the value every "no swing" branch tests against; `MAX_SWING` (0.8) the heaviest the UI allows. `applySwingToBeats(beats, swing)` shifts only off-beat eighths (triplets are immune by construction) and is shared by playback, scoring and backing. `swingForTempo(bpm)` is the Friberg–Sundström curve, `min(0.78, max(0.5, 1 − bpm/600))`. The uncapped `1 − bpm/600` term is what holds the short eighth near 100 ms; the 0.78 clamp overrides it below ~132 BPM, pinning the ratio at ≈3.5:1 and letting the short eighth grow in absolute terms (≈220 ms at 60 BPM). Straight by 300. It belongs only to the **backing** engine: a unit test bans it from playback, scoring and tricks, because the band's feel must never move the grid the player is graded against |
-| `key-ordering.ts` | `planUnlockedKeys` — the alternating sharp/flat-side ramp out from a lick's entry key on the circle of fifths, returning the first N keys while a lick has fewer than 12; `planLickKeys` takes over for staged variety once all 12 are earned. Also the raw orderings (`circleOfFifthsFrom`, `circleOfFourthsFrom`, `chromaticFrom`, `wholeTonePairFrom`, `shufflePitchClasses`), the tempo-gated `unlockedStages`, and `MAX_UNLOCKED_KEYS` (12) — see the full section below |
+| `key-ordering.ts` | `planUnlockedKeys` — the key-signature ramp for a lick (an `UnlockRamp`: entry key, mode, instrument — `lickUnlockRamp` builds one from a phrase): the entry key, then every other key by the signature the player reads (`writtenSignature`), fewest accidentals first and the sharp key before the flat key at each count, returning the first N keys while a lick has fewer than 12; `planLickKeys` takes over for staged variety once all 12 are earned. Also the raw orderings (`circleOfFifthsFrom`, `circleOfFourthsFrom`, `chromaticFrom`, `wholeTonePairFrom`, `shufflePitchClasses`), the tempo-gated `unlockedStages`, and `MAX_UNLOCKED_KEYS` (12) — see the full section below |
 | `expression.ts` | Tier-1 musical expression (dynamics + articulation) applied as a pure pass at `phraseToEvents`. `extractSoundingNotes(notes)` is the rest-skip + tie-merge walk producing `SoundingNote[]` (mirrors `phraseToEvents` exactly, so the two stay aligned; also what `scoreAttempt` scores against); `computeExpression(...)` yields one `NoteExpression` per sounding note — authored `velocity` / `articulation` honoured as explicit intent, everything else derived from metric position, harmonic role, contour and phrase shape. `ExpressionOptions` / `ExpressionIntensity` (`'subtle' \| 'moderate' \| 'pronounced'`) tune the pass |
 | `articulation-abc.ts` | `articulationAbcPrefix(articulation)` / `noteArticulationPrefix(note)` — accent → `!>!`, staccato → `.`, ghost → `!pp!`, bend-up → `!slide!`; legato and normal print nothing (a slur needs a multi-note span) |
 
@@ -509,9 +511,9 @@ Key orderings for lick practice, in two phases: a gradually-unlocked ramp (`plan
 
 The full circle — the ceiling on any per-item unlocked-key count. Lives here rather than in the persistence layer because it is a fact about music, not storage; the stores that clamp their unlock counters import it from this module, and `newestUnlockedKey` (state/lick-practice-rotation.ts) returns `null` at it.
 
-### `planUnlockedKeys(entryKey, unlockedCount): PitchClass[]`
+### `planUnlockedKeys(ramp, unlockedCount): PitchClass[]`
 
-Build the gradually-unlocked key set for a lick that hasn't reached its full 12-key range. Adds keys easiest-to-hardest by accidental count, alternating sharp/flat neighbours of `entryKey` on the circle of fifths (entry, +1 fifth, -1 fifth, +2 fifths, ..., ±6). Returns the first `unlockedCount` keys (clamped to 1..12). For entry key C: C, G, F, D, Bb, A, Eb, E, Ab, B, Db, F#. Once `unlockedCount` reaches 12, callers switch to `planLickKeys`. The ramp's LAST entry is the key being learned — the lead-sheet reveal rule keys off it, no timestamp needed.
+Build the gradually-unlocked key set for a lick that hasn't reached its full 12-key range. `ramp` is the lick's `UnlockRamp` — `{ entryKey, mode, instrument }`, built by `lickUnlockRamp(phrase, instrument)` (tricks use `trickUnlockRamp(instrument)` from `tricks/`, anchored at the player's written C). The entry key comes first; every other key follows in order of the signature the player reads — `writtenSignature(key, mode, instrument)`: the written key's major signature, or its relative major's for a minor lick, sharps positive and flats negative — fewest accidentals first and the sharp key ahead of the flat key with the same count. Returns the first `unlockedCount` keys (clamped to 1..12). For a C major lick on a concert instrument: C, G, F, D, Bb, A, Eb, E, Ab, B, Db, F#; for a G minor lick: G, A, E, D, B, F#, C, Db, F, Ab, Bb, Eb. Once `unlockedCount` reaches 12, callers switch to `planLickKeys`. The ramp's LAST entry is the key being learned — the lead-sheet reveal rule keys off it, no timestamp needed.
 
 ### Ordering generators
 

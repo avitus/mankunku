@@ -22,6 +22,7 @@ const BLEED_LATENCY_MAX = 0.200;
 import type { DetectedNote } from '$lib/types/audio';
 import type { PitchReading } from './pitch-detector';
 import { OCTAVE_CONFIRM_FRAMES, WARMUP_FRAMES } from './pitch-frame';
+import { median } from '$lib/util/median';
 
 /**
  * Warmup frames (emitted during the octave stabilizer's warmup window) are
@@ -751,7 +752,7 @@ function splitByPitchChange(
 ): SubSegment[] {
 	if (segReadings.length < PITCH_CHANGE_MIN_HOLD * 2) {
 		const primaryMidi = segReadings[0]?.midi ?? 0;
-		return [{ start: segStart, end: segEnd, readings: segReadings, primaryMidi }];
+		return foldTwelfthUpLocks([{ start: segStart, end: segEnd, readings: segReadings, primaryMidi }]);
 	}
 
 	const subs: SubSegment[] = [];
@@ -796,7 +797,104 @@ function splitByPitchChange(
 		primaryMidi: stableMidi ?? segReadings[0].midi
 	});
 
-	return splitOnReadingGaps(mergeConsecutiveSameMidi(collapseOctaveArtifacts(subs)));
+	return splitOnReadingGaps(mergeConsecutiveSameMidi(collapseOctaveArtifacts(foldTwelfthUpLocks(subs))));
+}
+
+/**
+ * A sub-segment is a 3rd-harmonic (twelfth-up) lock when at least this
+ * fraction of its confident (non-warmup) frames carry the `twelfthUp` flag —
+ * the same gate as the whole-note octave-up drop: a genuine note trips the
+ * per-frame test on an attack frame or two at most, a lock on nearly all.
+ */
+const TWELFTH_UP_LOCK_MIN_FRACTION = 0.6;
+/** Don't judge a lock on scant evidence — at least this many confident frames. */
+const TWELFTH_UP_LOCK_MIN_FRAMES = 3;
+/** Semitones from a fundamental to its 3rd harmonic: an octave and a fifth. */
+const TWELFTH = 19;
+
+/**
+ * Fold a sub-segment that is a 3rd-harmonic lock a twelfth down onto the
+ * fundamental it was sounding (see `isTwelfthUpLock` in pitch-frame.ts).
+ *
+ * The 2026-10-17 "Third Walks Back to Root" final D3: as the note swells its
+ * 440 Hz partial takes the pick for 19 frames, a 19-semitone jump the octave
+ * stabilizer does not question, and `splitByPitchChange` cuts the held note
+ * into D3 · A4 · D3. No octave pass can reach it (the neighbours are not ±12),
+ * and the sandwich rule would have to accept a slurred leap of a twelfth and
+ * back on no evidence. The spectrum IS evidence: every frame of the stretch
+ * carries D3's harmonic series with nothing between the partials.
+ *
+ * Acting on the SUB-segment — before the octave collapse and the same-MIDI
+ * merge of the segment's subs — is what reunites a mid-note lock with the
+ * note around it: once folded it reads the neighbours' pitch and
+ * `mergeConsecutiveSameMidi` joins the three, so the note keeps its own
+ * attack and runs to its own release. A note that locked from attack to
+ * release is one sub and folds the same way. Only the frames on the locked
+ * pitch move (a stray fundamental frame inside the stretch already reads
+ * right); their raw `frequency` is kept, so the raw-pick checks downstream
+ * still see what McLeod reported. Cents is the deviation from the nearest
+ * semitone and a 3:1 ratio is 2 cents off a twelfth, so it carries over.
+ */
+function foldTwelfthUpLocks(subs: SubSegment[]): SubSegment[] {
+	return subs.map((sub) => {
+		let confident = 0;
+		let flagged = 0;
+		for (const r of sub.readings) {
+			if (r.warmup) continue;
+			confident++;
+			if (r.twelfthUp && r.midi === sub.primaryMidi) flagged++;
+		}
+		if (confident < TWELFTH_UP_LOCK_MIN_FRAMES) return sub;
+		if (flagged / confident < TWELFTH_UP_LOCK_MIN_FRACTION) return sub;
+		const locked = sub.primaryMidi;
+		return {
+			...sub,
+			primaryMidi: locked - TWELFTH,
+			readings: sub.readings.map((r) =>
+				r.midi === locked ? { ...r, midi: r.midi - TWELFTH, midiFloat: r.midiFloat - TWELFTH } : r
+			)
+		};
+	});
+}
+
+/**
+ * Fold every 3rd-harmonic lock RUN of a reading stream a twelfth down — the
+ * same gate as `foldTwelfthUpLocks`, over consecutive frames on one MIDI
+ * (warmup frames ride along uncounted) — for `extractOnsetsFromReadings`.
+ *
+ * Live ear training has no worklet onsets (the worklet never attaches), so
+ * that extractor derives them from the readings and cuts a note at every
+ * MIDI change: the lock's two edges became two attacks, and nothing after
+ * could question them — `foldTwelfthUpLocks` reunites the subs of ONE
+ * segment, and with no attack evidence `mergeSamePitchWithoutAttack` never
+ * runs (CodeRabbit on PR #280). Folded here, the stream reads D3 · D3 · D3
+ * and no onset is born at the lock; the segment then folds its own sub as
+ * before. A genuine leap of a twelfth trips the per-frame flag on an attack
+ * frame or two at most and keeps its onset; a gap still earns one.
+ */
+export function foldTwelfthUpLockRuns(readings: PitchReading[]): PitchReading[] {
+	const out = readings.slice();
+	let i = 0;
+	while (i < out.length) {
+		const midi = out[i].midi;
+		let j = i;
+		let confident = 0;
+		let flagged = 0;
+		while (j < out.length && out[j].midi === midi) {
+			if (!out[j].warmup) {
+				confident++;
+				if (out[j].twelfthUp) flagged++;
+			}
+			j++;
+		}
+		if (confident >= TWELFTH_UP_LOCK_MIN_FRAMES && flagged / confident >= TWELFTH_UP_LOCK_MIN_FRACTION) {
+			for (let k = i; k < j; k++) {
+				out[k] = { ...out[k], midi: midi - TWELFTH, midiFloat: out[k].midiFloat - TWELFTH };
+			}
+		}
+		i = j;
+	}
+	return out;
 }
 
 /**
@@ -1173,7 +1271,8 @@ function pickMidi(readings: PitchReading[], prevMidi: number | null): number {
  * (metronome-only recordings, permission races, etc.). Inferred from
  * gaps and pitch changes in the readings themselves.
  */
-export function extractOnsetsFromReadings(readings: PitchReading[]): number[] {
+export function extractOnsetsFromReadings(rawReadings: PitchReading[]): number[] {
+	const readings = foldTwelfthUpLockRuns(rawReadings);
 	if (readings.length === 0) return [];
 	const onsets: number[] = [readings[0].time];
 	const GAP_THRESHOLD = 0.1;
@@ -2113,13 +2212,55 @@ const SHAPE_MIN_SUSTAIN = 1.0;
 const SHAPE_EDGE_GUARD = 0.1;
 const SHAPE_MIN_TRAILING_FRAMES = 2;
 
-/** Median of a numeric array; 0 if empty. Non-mutating. */
-function median(xs: number[]): number {
-	if (xs.length === 0) return 0;
-	const s = [...xs].sort((a, b) => a - b);
-	const mid = Math.floor(s.length / 2);
-	return s.length % 2 === 1 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
-}
+/**
+ * Timbre-switch re-articulation tier — the shape tier's spectral twin, for a
+ * legato tongue whose reed reset is too gradual for cycle-to-cycle shape.
+ *
+ * The 2026-10-17 Blue Note Step-Up take tongued a repeated D3 with no reading
+ * gap, no tongue noise, a 6-cent sag and a 15% / 20 ms level notch (window
+ * RMS never dipped: the note was swelling), and the reset spread over three
+ * cycles, so `shapeBreak` stayed at its 0.991 baseline. What the ear hears is
+ * a new tone: across the notch the 5th–9th partials came back 6–10 dB stronger
+ * and stayed. The take saved one 1.2 s D3, 2 of 3. `measureTimbre`
+ * (pitch-frame.ts) gives each reading the window's `brightness` and, where a
+ * brightening rides a level dip inside the window, a `brightnessLift`.
+ *
+ * Brightness wanders on a held tone, swells with loudness and collapses on a
+ * release, so the tier asks three things of one lift:
+ *   1. TIMBRE_LIFT_MIN — the switch was abrupt: ≥ 4.25 dB across ~40 ms with
+ *      the level dipping.
+ *   2. TIMBRE_PERSIST_MIN — the new tone lasts: the brightness of the
+ *      TIMBRE_PERSIST_FRAMES readings whose windows lie wholly after the lift
+ *      is ≥ 3.6 dB over those wholly before it.
+ *   3. The note held its energy without swelling: the same readings' RMS
+ *      ratio in [SHAPE_MIN_SUSTAIN, TIMBRE_MAX_SWELL]. A tone that gets
+ *      louder gets brighter; a re-attack brightens at the same level.
+ * plus the shape tier's clean-baseline, settle and trailing-frame gates, and
+ * it defers to any onset within SHAPE_SETTLE_TIME either side.
+ *
+ * Replayed across the fixture corpus (43 takes, both time bases), every lift
+ * against the gates it fails:
+ *
+ *   this tongue ............................ lift 5.44, persist 4.74, ×1.125
+ *   Blue Monk held A (0.99 s) .............. lift 3.06  (persist 4.96, ×1.07)
+ *   Third Walks' D3 flicker (0.80 s) ....... persist 2.47  (lift 4.22, ×1.13)
+ *   Third Walks' D3 swell (0.67 s) ......... ×1.495  (lift 4.46, persist 5.45)
+ *   Third Walks' E3 bloom (2.92 s) ......... 0.14 s into its run (lift 4.37)
+ *   releases and decays .................... ×0.06–0.64
+ * Each threshold sits midway between this tongue and the nearest impostor
+ * that only it rejects. Known tongues the other tiers find also lift, and
+ * defer: Climb to Five's G3 (8.99) and the 2026-10-10 Blue Note Step-Up C
+ * (4.99) both sit inside their own onset's settle window.
+ *
+ * No click suppression: the band stops two octaves under the ride and hi-hat
+ * corners, and no beat-1 kick in the corpus survives the gates (a kick adds
+ * low energy, so the tone after it reads quieter, not as loud).
+ */
+const TIMBRE_LIFT_MIN = 4.25;
+const TIMBRE_PERSIST_MIN = 3.6;
+const TIMBRE_PERSIST_FRAMES = 2;
+const TIMBRE_PERSIST_GUARD = 0.01;
+const TIMBRE_MAX_SWELL = 1.3;
 
 /** Mean RMS over readings[from, to), clamped to bounds; 0 if the range is empty. */
 function meanRms(readings: PitchReading[], from: number, to: number): number {
@@ -2152,7 +2293,7 @@ function hasReadingInOpenInterval(readings: PitchReading[], from: number, to: nu
 
 /**
  * Detect re-articulations (tongued repeats of the same pitch) within same-MIDI
- * runs of the pitch readings, through five evidence tiers.
+ * runs of the pitch readings, through six evidence tiers.
  *
  * Returns extra onset times (relative to recording start) that the worklet
  * missed. These are meant to be merged into the baseline onset list AND
@@ -2189,18 +2330,35 @@ function hasReadingInOpenInterval(readings: PitchReading[], from: number, to: nu
  *      also needs the `rmsMin` floor to collapse (RE_ARTICULATION_GAP_SPAN_FLOOR),
  *      and it defers to a hole an earlier onset already marks — one hole, one onset.
  *   5. Waveform shape. A shallow `shapeBreak` dip on a clean, settled tone with
- *      held energy (SHAPE_*); last, so its settle gate sees every earlier onset.
+ *      held energy (SHAPE_*); its settle gate sees every earlier onset.
+ *   6. Timbre switch. A `brightnessLift` whose brighter tone lasts on a note
+ *      that held its energy without swelling (TIMBRE_*), on the shape tier's
+ *      clean, settled runs; last, so it defers to every onset found above.
  * Each run's onsets from all tiers are merged, sorted and deduped within
  * RE_ARTICULATION_MIN_INTERVAL; runs are concatenated in time order.
  * `bleedOnsets` (scheduled click times) feed tier 1's click rule and the click
  * suppression in tiers 2 and 5 — dropping them at a call site restores phantoms.
  */
 export function findReArticulations(
-	readings: PitchReading[],
+	rawReadings: PitchReading[],
 	baseOnsets: number[],
 	bleedOnsets?: number[]
 ): number[] {
-	if (readings.length === 0) return [];
+	if (rawReadings.length === 0) return [];
+
+	// Fold 3rd-harmonic lock RUNS a twelfth down before anything reads MIDI
+	// here (`foldTwelfthUpLockRuns`, the live onset extractor's fold). The
+	// tiers scan contiguous same-MIDI runs, so a lock inside a held note
+	// chops it into fragments and a tongue whose dip straddles a lock edge
+	// is never seen whole: the 2026-10-24 Up to the Seventh D3 pair read A4
+	// on 46 of 63 frames (runs of 6, 18, 4 and 16), and its envelope floor
+	// fell 0.195 → 0.113 with tongue noise doubled across a run boundary —
+	// the segmenter's own sub-segment fold then reunited the pieces into
+	// ONE 1.22 s note, after the tiers had run. Only `midi`/`midiFloat`
+	// move; every energy, shape and timbre field the tiers measure is
+	// untouched, and an unflagged leap keeps its own runs. The corpus
+	// segments byte-identically with the fold in place.
+	const readings = foldTwelfthUpLockRuns(rawReadings);
 
 	const sortedBleed =
 		bleedOnsets && bleedOnsets.length > 0 ? [...bleedOnsets].sort((a, b) => a - b) : [];
@@ -2459,7 +2617,8 @@ function bandFloorStopsAndHolds(stable: PitchReading[], g: number, preRms: numbe
  * Scan one same-MIDI run for re-articulations the worklet missed and return
  * their onset times, in ascending order and deduped within
  * RE_ARTICULATION_MIN_INTERVAL. The tiers run in evidence order — reading
- * gap, HF transient, envelope dip, clarity dip-and-recover, waveform shape —
+ * gap, HF transient, envelope dip, clarity dip-and-recover, waveform shape,
+ * timbre switch —
  * each with the gates documented at its constants; `allReadings` (the full
  * stream, warmup included) lets the gap tiers tell a true detector silence
  * from a warmup-bridged hole, `sortedBleed` carries the scheduled click
@@ -3044,7 +3203,7 @@ function findReArticulationsInSegment(
 				// loud held Db read 0.947 and 0.928. The energy-sustain gate
 				// refused both, because the note was falling each time, so on a
 				// held or swelling note the schedule is the guard left — and
-				// ear-training's click grid is still off (CLAUDE.md, the OPEN
+				// ear-training's click grid is still off (AGENTS.md, the OPEN
 				// click-grid note).
 				if (
 					sortedBleed.some(
@@ -3053,6 +3212,69 @@ function findReArticulationsInSegment(
 				) {
 					continue;
 				}
+
+				onsets.push(t);
+			}
+		}
+	}
+
+	// Timbre-switch pass — see the TIMBRE_* block comment. Last, so it can
+	// defer to every onset the tiers above found in this run. Gated on
+	// `brightnessLift` being present: readings restored from pre-2026-10-17
+	// diagnostic JSON skip it.
+	if (stable.some((r) => r.brightnessLift != null)) {
+		const shapes = stable.map((r) => r.shapeBreak).filter((s): s is number => s != null);
+		if (shapes.length >= RE_ARTICULATION_PRE_CONTEXT_FRAMES && median(shapes) >= SHAPE_CLEAN_BASELINE) {
+			const found = [...onsets, ...sortedBaseOnsets];
+			/** Missing lift evidence cannot qualify as a timbre switch. */
+			const lift = (r: PitchReading): number => r.brightnessLift ?? -Infinity;
+			let c = 0;
+			while (c < stable.length) {
+				if (lift(stable[c]) < TIMBRE_LIFT_MIN) {
+					c++;
+					continue;
+				}
+				// Successive windows hold the same switch: judge the strongest.
+				let end = c;
+				let best = c;
+				while (end < stable.length && lift(stable[end]) >= TIMBRE_LIFT_MIN) {
+					if (lift(stable[end]) > lift(stable[best])) best = end;
+					end++;
+				}
+				c = end;
+				const candidate = stable[best];
+				const at = candidate.brightnessLiftAt ?? 0;
+				const t = candidate.time + at;
+
+				if (t < segStart + SHAPE_SETTLE_TIME) continue;
+				if (found.some((o) => Math.abs(o - t) < SHAPE_SETTLE_TIME)) continue;
+				if (stable.length - 1 - best < SHAPE_MIN_TRAILING_FRAMES) continue;
+
+				// The tone before and after: readings whose windows lie wholly on
+				// one side of the switch. The offset is negative only under the
+				// live path's window-end anchor (FrameOptions.windowAnchor), which
+				// fixes where every window of this stream starts. New readings
+				// carry their actual duration; old exports retain the legacy value.
+				/** Read the measured window duration, preserving old diagnostic exports. */
+				const windowDuration = (r: PitchReading): number =>
+					r.analysisWindowSeconds ?? ANALYSER_WINDOW_SECONDS;
+				/** Convert either timestamp anchor to the window's start in audio time. */
+				const windowStart = (r: PitchReading): number =>
+					at < 0 ? r.time - windowDuration(r) : r.time;
+				const before = stable
+					.filter((r) => r.brightness != null && windowStart(r) + windowDuration(r) <= t - TIMBRE_PERSIST_GUARD)
+					.slice(-TIMBRE_PERSIST_FRAMES);
+				const after = stable
+					.filter((r) => r.brightness != null && windowStart(r) >= t + TIMBRE_PERSIST_GUARD)
+					.slice(0, TIMBRE_PERSIST_FRAMES);
+				if (before.length < TIMBRE_PERSIST_FRAMES || after.length < TIMBRE_PERSIST_FRAMES) continue;
+				/** Average evidence across a nonempty persistence context. */
+				const mean = (xs: number[]): number => xs.reduce((s, x) => s + x, 0) / xs.length;
+				const persist = mean(after.map((r) => r.brightness!)) - mean(before.map((r) => r.brightness!));
+				if (persist < TIMBRE_PERSIST_MIN) continue;
+				const preRms = mean(before.map((r) => r.rms));
+				const sustain = preRms > 0 ? mean(after.map((r) => r.rms)) / preRms : 0;
+				if (sustain < SHAPE_MIN_SUSTAIN || sustain > TIMBRE_MAX_SWELL) continue;
 
 				onsets.push(t);
 			}

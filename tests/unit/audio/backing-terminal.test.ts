@@ -7,7 +7,7 @@ import { seedFrom } from '$lib/audio/generation-rng';
 import { generateBacking, generateBackingCached, type BackingGenerationParams } from '$lib/audio/backing-generation';
 import { createRollingBacking, advanceRollingBacking, type RollingBackingCheckpoint } from '$lib/audio/backing-rolling';
 import { BACKING_STYLES } from '$lib/audio/backing-styles';
-import { buildListeningTuneSession } from '$lib/musicality/listening-tunes';
+import { buildHistoricalListeningTuneSession as buildListeningTuneSession } from '../../helpers/musicality-tune-fixtures';
 
 const { phrase } = buildListeningTuneSession({ tuneId: 'ls-mankunku-blues', key: 'C', soloChoruses: 2 });
 const params: BackingGenerationParams = { phraseId: phrase.id, tempo: 140, ppq: 192, beatsPerBar: 4, swing: .67,

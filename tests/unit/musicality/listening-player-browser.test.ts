@@ -4,7 +4,7 @@ import { BACKING_LAB_PRESETS } from '$lib/audio/backing-lab-presets';
 import { DEFAULT_BACKING_MIX } from '$lib/audio/backing-mix';
 import type { BounceParams } from '$lib/audio/backing-bounce';
 import type { RollingBackingPlayback, RollingBackingPlaybackOptions } from '$lib/audio/backing-track';
-import { buildListeningTuneSession, LISTENING_TUNES } from '$lib/musicality/listening-tunes';
+import { buildHistoricalListeningTuneSession as buildListeningTuneSession, HISTORICAL_LISTENING_TUNES as LISTENING_TUNES } from '../../helpers/musicality-tune-fixtures';
 
 const host = vi.hoisted(() => ({
 	context: { state: 'running', currentTime: 0, resume: vi.fn(async () => {}) },

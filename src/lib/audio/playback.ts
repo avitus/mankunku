@@ -27,8 +27,21 @@ import {
 	scheduleBackingTrack,
 	disposeBackingParts,
 	disposeBackingTrack,
-	isBackingLoaded
+	isBackingLoaded,
+	canPlayDrum,
+	muteBackingParts,
+	playBackingHitsNow,
+	prepareBackingSection
 } from './backing-track';
+import { COUNT_IN_VOICE, drumCountInHits } from './drum-count-in';
+import {
+	codaPhrase,
+	loopBodyPhrase,
+	printedBarTicks,
+	scheduleFormLoop,
+	splitLoopEvents,
+	type LoopRegion
+} from './phrase-loop';
 import { layerToBuffers, getTuneCorrection, type SampleMap } from './sample-maps';
 import {
 	instrumentVoice,
@@ -84,6 +97,8 @@ let activeSampleMap: SampleMap | null = null;
 /** Shared mix node for routing both velocity layers through one effect chain */
 let mixNode: GainNode | null = null;
 let currentPart: import('tone').Part<PlaybackEvent> | null = null;
+/** A looping form's intro and form Parts (see phrase-loop.ts); empty otherwise. */
+let formLoopParts: import('tone').Part<PlaybackEvent>[] = [];
 let isPlaying = false;
 let onStopCallback: (() => void) | null = null;
 /** Transport event ID for the end-of-phrase cleanup callback.
@@ -658,7 +673,37 @@ export interface PhrasePlaybackOpts {
 	 * by the schedule-generation guard. Never fires when skipMelody is set.
 	 */
 	onNote?: (event: PlaybackNoteEvent) => void;
+	/**
+	 * Loop the form (playPhrase only): everything before `startBar` — a
+	 * pickup — plays once, then bars `startBar`..`endBar` repeat on the same
+	 * transport with no gap, the backing looping over the form alone, until
+	 * `shouldContinue` answers no just before a return to the top. Then the
+	 * `coda` (the way out, if any) plays from that top, the last notes ring
+	 * a beat and playback stops. `resolveAtMelodyEnd` does not apply.
+	 */
+	loop?: LoopRegion & { shouldContinue: () => boolean };
+	/**
+	 * The lead-in (playPhrase only): `bars` of transport before the phrase's
+	 * first bar in place of the default PHRASE_LEAD_IN_BARS, and with `drums`
+	 * the drummer counts them off (drum-count-in.ts) whenever the kit is
+	 * loaded — the click then gives up its count-in-only bars when a band
+	 * plays, since the kit already counts them. With `pickup` the phrase
+	 * opens on a pickup bar, silent until its pickup notes: the count runs on
+	 * through it as its last bar, and the band still enters after it.
+	 */
+	countIn?: { bars: number; drums: boolean; pickup?: boolean };
 }
+
+/**
+ * Bars of transport `playPhrase` runs before the phrase's first bar unless
+ * the caller asks for its own count-in (`PhrasePlaybackOpts.countIn` — tunes
+ * count in by tempo, drum-count-in.ts); silent when no click or drummer is
+ * asked for. A chart cursor reading the transport clock subtracts the
+ * lead-in, or it marks the bar after the music.
+ * The engine's bar is `timeSignature[0]` QUARTER notes, so in 6/8 the
+ * lead-in spans two printed bars.
+ */
+export const PHRASE_LEAD_IN_BARS = 1;
 
 /**
  * Play a phrase through the loaded instrument.
@@ -717,29 +762,72 @@ export async function playPhrase(
 	const barTicks = beatsPerBar * ppq;
 	const skipMelody = opts.skipMelody ?? false;
 	const loopBacking = opts.loopBacking ?? keepMetronome;
+	const leadInBars = opts.countIn?.bars ?? PHRASE_LEAD_IN_BARS;
+	const formStartTicks = leadInBars * barTicks;
+	/** Bars the count sounds: the lead-in, and a pickup bar the band sits out. */
+	const countBars = leadInBars + (opts.countIn?.pickup ? 1 : 0);
+	const loop = opts.loop && opts.loop.endBar > opts.loop.startBar ? opts.loop : undefined;
+	const loopStartTicks = loop ? formStartTicks + loop.startBar * printedBarTicks(phrase.timeSignature, ppq) : 0;
+	/** Starts the way-out pass's band at a top (set once the backing is ready). */
+	let startCodaBacking: ((tickOffset: number) => void) | null = null;
 
 	// Schedule phrase notes with jazz expression.
 	// Offset by 1 bar so the metronome plays a count-in first — this lets
 	// the Transport's audio scheduling stabilise before the melody starts,
 	// preventing the perceived tempo glitch on the first phrase.
-	if (!skipMelody) {
-		const events = phraseToEvents(phrase, options.tempo, options.swing, ppq);
-		const onNote = opts.onNote;
-		currentPart = new Tone.Part((time, event) => {
-			startNote({ ...event, time });
-			if (onNote) {
-				const info: PlaybackNoteEvent = {
-					sourceIndex: event.sourceIndex,
-					midi: event.midi,
-					ticks: event.ticks,
-					durationSec: event.duration
-				};
-				Tone.getDraw().schedule(() => {
-					if (scheduleId === currentScheduleId) onNote(info);
-				}, time);
+	const events = skipMelody ? [] : phraseToEvents(phrase, options.tempo, options.swing, ppq);
+	const onNote = opts.onNote;
+	/** Sound one melody note and, at its audible moment, report it to the cursor. */
+	const playMelodyEvent = (time: number, event: PlaybackEvent): void => {
+		startNote({ ...event, time });
+		if (onNote) {
+			const info: PlaybackNoteEvent = {
+				sourceIndex: event.sourceIndex,
+				midi: event.midi,
+				ticks: event.ticks,
+				durationSec: event.duration
+			};
+			Tone.getDraw().schedule(() => {
+				if (scheduleId === currentScheduleId) onNote(info);
+			}, time);
+		}
+	};
+	if (loop) {
+		const { intro, body, coda } = splitLoopEvents(events, phrase, loop, ppq);
+		const barTicksPrinted = printedBarTicks(phrase.timeSignature, ppq);
+		formLoopParts = scheduleFormLoop({
+			Tone,
+			transport,
+			intro,
+			body,
+			coda,
+			introStartTick: formStartTicks,
+			bodyStartTick: loopStartTicks,
+			loopTicks: (loop.endBar - loop.startBar) * barTicksPrinted,
+			codaTicks: loop.coda ? (loop.coda.endBar - loop.coda.startBar) * barTicksPrinted : 0,
+			play: playMelodyEvent,
+			// A superseded loop decides nothing: its Parts are gone, and a "no"
+			// would mute the newer phrase's backing.
+			shouldContinue: () => scheduleId !== currentScheduleId || loop.shouldContinue(),
+			onLastPass: ({ codaStartTick, endTick }) => {
+				// The form Part is already muted from the top (and the way-out
+				// pass's melody started there); the band hands over the same way.
+				// The click runs to the end, then the last notes ring a beat.
+				muteBackingParts();
+				startCodaBacking?.(codaStartTick);
+				transport.scheduleOnce(() => {
+					if (scheduleId === currentScheduleId) disposeMetronome();
+				}, `${endTick - 1}i`);
+				endPhraseEventId = transport.scheduleOnce(() => {
+					if (scheduleId !== currentScheduleId) return;
+					endPhraseEventId = null;
+					stopPlayback();
+				}, `${endTick + ppq}i`);
 			}
-		}, events);
-		currentPart.start(`${barTicks}i`);
+		}).parts;
+	} else if (!skipMelody) {
+		currentPart = new Tone.Part(playMelodyEvent, events);
+		currentPart.start(`${formStartTicks}i`);
 	}
 
 	// Schedule metronome if enabled. When the backing track plays, the
@@ -748,17 +836,23 @@ export async function playPhrase(
 	// The segmenter's bleed evidence follows the same rule (see
 	// bleed-evidence.ts): backing onsets replace the click grid, which
 	// would otherwise claim clicks on beats where none sounded.
-	if (options.metronomeEnabled) {
+	// The count-off triggers the kit near-now, so a kit that failed to preload,
+	// or could not decode the count's voice, counts in silence; the click keeps
+	// the count then.
+	const drumsCountIn = (opts.countIn?.drums ?? false) && isBackingLoaded()
+		&& canPlayDrum(COUNT_IN_VOICE);
+	const backingWillPlay = (options.backingTrackEnabled ?? false) && isBackingLoaded();
+	if (options.metronomeEnabled && !(backingWillPlay && drumsCountIn)) {
 		await setMetronomeVolume(options.metronomeVolume);
 		if (scheduleId !== currentScheduleId) return;
-		const backingWillPlay = (options.backingTrackEnabled ?? false) && isBackingLoaded();
 		if (backingWillPlay) {
-			await scheduleMetronome(beatsPerBar, 1, 0, isStillCurrent); // count-in bar only
-		} else if (keepMetronome) {
-			// Loop indefinitely — will keep playing during recording
+			await scheduleMetronome(beatsPerBar, countBars, 0, isStillCurrent); // count-in bars only
+		} else if (keepMetronome || loop) {
+			// Loop indefinitely — will keep playing during recording, or until
+			// a looping form's last pass disposes it
 			await scheduleMetronome(beatsPerBar, null, 0, isStillCurrent);
 		} else {
-			const bars = getPhraseBars(phrase) + 1; // +1 for count-in bar
+			const bars = getPhraseBars(phrase) + leadInBars;
 			await scheduleMetronome(beatsPerBar, bars, 0, isStillCurrent);
 		}
 		if (scheduleId !== currentScheduleId) return;
@@ -766,14 +860,38 @@ export async function playPhrase(
 
 	// Schedule backing track if enabled
 	if (options.backingTrackEnabled && isBackingLoaded()) {
-		await scheduleBackingTrack(phrase, options, barTicks, loopBacking, isStillCurrent);
+		// A looping form's band enters on bar 1 and loops on the form alone —
+		// the pickup is the melody's, played once over the count.
+		await (loop
+			? scheduleBackingTrack(loopBodyPhrase(phrase, loop), options, loopStartTicks, true, isStillCurrent, undefined,
+				(loop.endBar - loop.startBar) * printedBarTicks(phrase.timeSignature, ppq))
+			: scheduleBackingTrack(phrase, options, formStartTicks, loopBacking, isStillCurrent));
 		if (scheduleId !== currentScheduleId) return;
+		// The way out is decided inside Tone's tick dispatch, where an await
+		// would miss its downbeat, so its band is generated now.
+		const way = loop && codaPhrase(phrase, loop);
+		if (way) {
+			startCodaBacking = await prepareBackingSection(way, options, isStillCurrent);
+			if (scheduleId !== currentScheduleId) return;
+		}
+	}
+
+	// The drummer's count-off: each hit a transport event that triggers the
+	// kit near-now (playBackingHitsNow's contract), so a stop cancels the
+	// rest of the count with the transport.
+	if (drumsCountIn) {
+		for (const hit of drumCountInHits(countBars, beatsPerBar, ppq)) {
+			transport.scheduleOnce((time) => {
+				if (scheduleId !== currentScheduleId) return;
+				playBackingHitsNow([{ kind: 'drum', drum: hit.drum, velocity: hit.velocity }], time);
+			}, `${hit.tick}i`);
+		}
 	}
 
 	// Schedule end-of-phrase notification — see getPhraseEndTicks for the
 	// whole-bar vs melody-end semantics.
 	const resolveAtMelodyEnd = (opts.resolveAtMelodyEnd ?? false) && !skipMelody;
-	const endTick = barTicks + getPhraseEndTicks(phrase, ppq, resolveAtMelodyEnd);
+	const endTick = formStartTicks + getPhraseEndTicks(phrase, ppq, resolveAtMelodyEnd);
 
 	return new Promise<void>((resolve) => {
 		if (scheduleId !== currentScheduleId) {
@@ -782,7 +900,9 @@ export async function playPhrase(
 		}
 		isPlaying = true;
 
-		if (keepMetronome) {
+		if (loop) {
+			// The last pass schedules the stop (scheduleFormLoop's onLastPass).
+		} else if (keepMetronome) {
 			// Resolve when phrase ends but keep transport + metronome alive
 			endPhraseEventId = transport.scheduleOnce(() => {
 				if (scheduleId !== currentScheduleId) return;
@@ -819,6 +939,12 @@ export async function playPhrase(
 	});
 }
 
+/** Release a looping form's melody Parts; its pass decision dies with transport.cancel(). */
+function disposeFormLoopParts(): void {
+	for (const part of formLoopParts) part.dispose();
+	formLoopParts = [];
+}
+
 /**
  * Stop current playback immediately (transport, metronome, everything).
  */
@@ -843,6 +969,7 @@ function stopPlaybackResources(Tone: ToneModule): void {
 		currentPart.dispose();
 		currentPart = null;
 	}
+	disposeFormLoopParts();
 
 	disposeMetronome();
 	disposeBackingParts();
@@ -917,6 +1044,7 @@ export async function scheduleNextPhrase(
 		currentPart.dispose();
 		currentPart = null;
 	}
+	disposeFormLoopParts();
 	disposeBackingParts();
 	stopNotes();
 
@@ -1013,6 +1141,12 @@ export function getIsPlaying(): boolean {
 export function getTransportSeconds(): number {
 	if (!tone) return 0;
 	return tone.getTransport().seconds;
+}
+
+/** Current audible position for chart cursors, without the scheduler's lookahead. */
+export function getAudibleTransportSeconds(): number {
+	if (!tone) return 0;
+	return tone.getTransport().getSecondsAtTime(tone.getContext().rawContext.currentTime);
 }
 
 /**

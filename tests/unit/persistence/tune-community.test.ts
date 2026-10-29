@@ -70,7 +70,9 @@ function makeSupabaseMock(response: {
 			const chain = {
 				select() { return chain; },
 				eq(col: string, val: unknown) { q.filters.push({ op: 'eq', args: [col, val] }); return chain; },
+				/** Record an `ilike` pattern filter. */
 				ilike(col: string, val: unknown) { q.filters.push({ op: 'ilike', args: [col, val] }); return chain; },
+				/** Record a negated filter (column, operator, value). */
 				not(col: string, op: string, val: unknown) { q.filters.push({ op: 'not', args: [col, op, val] }); return chain; },
 				neq(col: string, val: unknown) { q.filters.push({ op: 'neq', args: [col, val] }); return chain; },
 				is(col: string, val: unknown) { q.filters.push({ op: 'is', args: [col, val] }); return chain; },
@@ -181,7 +183,7 @@ describe('listCommunityTunes', () => {
 				public_tune_authors: [{ id: 'author-1', display_name: 'Dizzy', avatar_url: null }]
 			}
 		});
-		const results = await listCommunityTunes(sb as never, {}, 0);
+		const { tunes: results } = await listCommunityTunes(sb as never, {}, 0);
 		expect(results).toHaveLength(1);
 		expect(results[0].sheet.title).toBe('Shared Tune');
 		expect(results[0].authorName).toBe('Dizzy');
@@ -201,7 +203,8 @@ describe('listCommunityTunes', () => {
 		const q = captured.find((c) => c.from === 'tunes');
 		expect(q?.filters).toContainEqual({ op: 'is', args: ['deleted_at', null] });
 		expect(q?.filters).toContainEqual({ op: 'neq', args: ['user_id', ME.id] });
-		expect(q?.range).toEqual([0, TUNE_PAGE_SIZE - 1]);
+		// One look-ahead row past the page decides whether there is a next page.
+		expect(q?.range).toEqual([0, TUNE_PAGE_SIZE]);
 	});
 
 	it('sanitizes search terms before building the or() filter', async () => {
@@ -225,6 +228,71 @@ describe('listCommunityTunes', () => {
 		expect(tagsClause![1]).not.toMatch(/[{}"%,\\]/u);
 	});
 
+	/** A shared row whose chord `symbol` is a number, which `validateAdoptedTune` rejects. */
+	function malformedRow(id: string): Record<string, unknown> {
+		return makeSheetRow({
+			id,
+			sections: [{
+				label: 'A',
+				bars: 1,
+				notes: [],
+				harmony: [{
+					chord: { root: 'C', quality: 'maj7' },
+					scaleId: 'major.ionian',
+					startOffset: [0, 1],
+					duration: [1, 1],
+					symbol: 7
+				}]
+			}]
+		});
+	}
+	/** Mock answering the tunes query with `rows` (in order) and one known author. */
+	function pageOf(rows: Record<string, unknown>[]): unknown {
+		return makeSupabaseMock({
+			user: ME,
+			data: {
+				tunes: rows,
+				public_tune_authors: [{ id: 'author-1', display_name: 'Dizzy', avatar_url: null }]
+			}
+		});
+	}
+	const ids = (page: { tunes: { sheet: { id: string } }[] }): string[] => page.tunes.map((t) => t.sheet.id);
+
+	it('drops a row that fails adopted-tune validation before the desk can preview it (CodeRabbit on #277)', async () => {
+		// The desk previews its first row automatically, and the preview
+		// transposes each chord `symbol`; a truthy non-string one threw at the
+		// tokenizer's trim(). The detail page already validated; the list did not.
+		const page = await listCommunityTunes(pageOf([malformedRow('bad'), makeSheetRow()]) as never, {}, 0);
+		expect(ids(page)).toEqual(['sheet-9-wxyz']);
+		expect(page.rowCount).toBe(2);
+	});
+
+	it('decides the next page from the rows, not the valid tunes (CodeRabbit on #277)', async () => {
+		// Six-tune pages fetch seven rows. A dropped row inside the page must
+		// neither hide Next nor let the look-ahead row in, which page 2 shows.
+		const rows = ['t0', 't1', 'bad', 't3', 't4', 't5', 't6'].map((id) =>
+			id === 'bad' ? malformedRow(id) : makeSheetRow({ id })
+		);
+		const page = await listCommunityTunes(pageOf(rows) as never, { limit: 6 }, 0);
+		expect(ids(page)).toEqual(['t0', 't1', 't3', 't4', 't5']);
+		expect(page.hasMore).toBe(true);
+		expect(page.rowCount).toBe(6);
+	});
+
+	it('keeps Next when the look-ahead row itself is invalid', async () => {
+		const rows = ['t0', 't1', 't2', 't3', 't4', 't5', 'bad'].map((id) =>
+			id === 'bad' ? malformedRow(id) : makeSheetRow({ id })
+		);
+		const page = await listCommunityTunes(pageOf(rows) as never, { limit: 6 }, 0);
+		expect(ids(page)).toEqual(['t0', 't1', 't2', 't3', 't4', 't5']);
+		expect(page.hasMore).toBe(true);
+	});
+
+	it('reports a page of only invalid rows as rows, not as past the end', async () => {
+		const page = await listCommunityTunes(pageOf([malformedRow('bad-1'), malformedRow('bad-2')]) as never, { limit: 6 }, 6);
+		expect(page).toEqual({ tunes: [], rowCount: 2, hasMore: false });
+	});
+
 	it('surfaces a query error so failure is not shown as an empty collection', async () => {
 		const sb = makeSupabaseMock({ user: ME, errors: { tunes: { message: 'boom' } } });
 		await expect(listCommunityTunes(sb as never)).rejects.toEqual({ message: 'boom' });
@@ -235,7 +303,7 @@ describe('community desk filters', () => {
 	it('resolves contributors before paginating tunes and preserves the look-ahead limit', async () => {
 		const queries: QueryState[] = [];
 		const sb = makeSupabaseMock({ data: { public_tune_authors: [{ id: 'author-beyond-page', display_name: 'Dizzy' }] }, captureQueries: queries });
-		await listCommunityTunes(sb as never, { authorSearch: 'Dizzy', limit: 7 }, 6);
+		await listCommunityTunes(sb as never, { authorSearch: 'Dizzy', limit: 6 }, 6);
 		expect(queries[0].from).toBe('public_tune_authors');
 		expect(queries[0].filters).toContainEqual({ op: 'ilike', args: ['display_name', '%Dizzy%'] });
 		const query = queries.find(q => q.from === 'tunes')!;
@@ -246,7 +314,7 @@ describe('community desk filters', () => {
 	it('applies membership before pagination and short-circuits empty favorites', async () => {
 		const queries: QueryState[] = [];
 		const sb = makeSupabaseMock({ user: ME, captureQueries: queries });
-		expect(await listCommunityTunes(sb as never, { scope: 'favorites' })).toEqual([]);
+		expect(await listCommunityTunes(sb as never, { scope: 'favorites' })).toEqual({ tunes: [], rowCount: 0, hasMore: false });
 		expect(queries).toHaveLength(0);
 		await toggleTuneFavorite(sb as never, 'sheet-outside-first-page');
 		queries.length = 0;

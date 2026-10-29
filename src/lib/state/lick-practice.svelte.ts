@@ -4,14 +4,16 @@
  * Flow: user picks a progression type (ii-V-I, turnaround, blues, etc.),
  * we build a plan of practice-tagged licks sorted by least-recently-practiced,
  * each lick is played through its currently-unlocked keys. A brand-new lick
- * starts with one unlocked key (its entry key) and earns each next key by
- * alternating sharp- and flat-side neighbours on the circle of fifths from
- * the entry key (see `planUnlockedKeys`). The unlock gate requires both a
- * strong session (avg score ≥ `UNLOCK_AVG_THRESHOLD`) and consolidation on
- * the most-recently-unlocked key (`passCount >= UNLOCK_PASSES_REQUIRED`); see
- * `shouldUnlockNextKey`. Once a lick has earned all 12 keys, `planLickKeys`
- * takes over for staged variety (random starts, chromatic / whole-tone
- * orderings) keyed off the lick's current tempo.
+ * starts with one unlocked key (its entry key) and earns each next key in
+ * key-signature order — fewest sharps or flats as the player reads them,
+ * sharp before flat on a tie (see `planUnlockedKeys`). The unlock gate
+ * requires both a strong session (avg score ≥ `UNLOCK_AVG_THRESHOLD`) and
+ * consolidation from memory on the most-recently-unlocked key
+ * (`memoryPassCount >= UNLOCK_PASSES_REQUIRED`) plus a fresh unaided pass.
+ * See `shouldUnlockNextKey`. Once a lick has
+ * earned all 12 keys, `planLickKeys` takes over for staged variety (random
+ * starts, chromatic / whole-tone orderings) keyed off the lick's current
+ * tempo.
  *
  * Two practice modes, both with continuous backing (the beat never stops):
  * - 'continuous' — app plays the lick once as a demo in the first key, then
@@ -64,7 +66,13 @@ import type {
 } from '$lib/types/lick-practice';
 import type { Score } from '$lib/types/scoring';
 import { addFractions } from '$lib/music/intervals';
-import { planLickKeys, planUnlockedKeys, circleOfFourthsFrom } from '$lib/music/key-ordering';
+import {
+	planLickKeys,
+	planUnlockedKeys,
+	circleOfFourthsFrom,
+	lickUnlockRamp,
+	type UnlockRamp
+} from '$lib/music/key-ordering';
 import {
 	loadLickPracticeProgress,
 	saveLickPracticeProgress,
@@ -104,6 +112,7 @@ import {
 	nextCycleTempo,
 	focusStartTempo,
 	planFocusRamp,
+	projectFocusTempos,
 	resolveRampCycle,
 	DEFAULT_TEMPO_BUMP_PERCENT
 } from './lick-practice-rotation';
@@ -124,6 +133,7 @@ import {
 	resolveTrickPracticeBed,
 	trickContextFor,
 	trickEntryKey,
+	trickUnlockRamp,
 	trickRoundIntroducesStyle,
 	transposeTrickContext
 } from '$lib/tricks';
@@ -143,12 +153,7 @@ import {
 	PROGRESSION_TEMPLATES,
 	getProgressionsForCategory,
 	getSubstitutionCategories,
-	resolveLickAlignmentOffset,
-	resolveTransposeTarget,
 	transposeProgression,
-	applyPickupBarShift,
-	detectPickupBars,
-	extendHarmonyTail,
 	progressionMode,
 	progressionFitsLick,
 	getProgressionsForLick
@@ -166,6 +171,7 @@ import {
 	type UpcomingLickEntry
 } from './lick-practice-picker';
 import { buildNextStep, type RecommendationContext, type NextStep } from './lick-practice-next-steps';
+import { placeLickInProgression, lickBarsInProgression, progressionHarmonyForLick } from './lick-practice-phrase';
 import { concertKeyToWritten } from '$lib/music/transposition';
 
 export type { UpcomingLickEntry };
@@ -173,8 +179,8 @@ export type { NextStep, NextStepAction } from './lick-practice-next-steps';
 
 /**
  * Per-key pass bar — score at or above which a key counts as "passed"
- * (increments `passCount`, drives the green tier in the UI, feeds the
- * unlock gate's per-key consolidation requirement). Aliased from
+ * (increments `passCount` and drives the green tier in the UI). Only
+ * unaided passes also increment `memoryPassCount` for unlocking. Aliased from
  * `KEY_PROFICIENT_THRESHOLD` so the proficient bar, the pass bar, and
  * the green-tier color all share one source of truth.
  */
@@ -215,6 +221,17 @@ export interface PlannedKey {
 	 * from memory), otherwise 1. Stamped with `reveal`, same lifetime.
 	 */
 	passes: number;
+	/**
+	 * The tempo this row plays at, shown on the row while the focus ramp
+	 * climbs (`focusRowTempo`); absent everywhere else.
+	 */
+	tempo?: number;
+	/**
+	 * The deep-practice round this row belongs to (`roundNumber` when its
+	 * stack was built). Two rows of the same key can be on screen at once in a
+	 * focus ramp, so a take's score flash matches on this, not the key alone.
+	 */
+	cycle?: number;
 }
 
 /**
@@ -573,7 +590,7 @@ function timingSpecForItem(item: LickPracticePlanItem): LickTimingSpec | null {
 			keyCount: item.keys.length,
 			lickBars,
 			mode: lickPractice.config.practiceMode,
-			...leadSheetExtras(item.phraseId, lick.key, item.keys)
+			...leadSheetExtras(item.phraseId, lickUnlockRamp(lick, getInstrument()), item.keys)
 		}),
 		beatsPerBar: lick.timeSignature[0],
 		tempo: resolveLickTempo(lickPractice.progress, item.phraseId)
@@ -627,13 +644,14 @@ export function computeSessionPlan(): LickPracticePlanItem[] {
 		const lick = sorted[i];
 		const tempo = resolveLickTempo(progress, lick.id);
 		const unlockedCount = getUnlockedKeyCount(progress, lick.id);
-		// Below the 12-key cap, ramp predictably from the lick's entry key by
-		// alternating sharp- and flat-side neighbours on the circle of fifths,
-		// so each session adds the next-easiest key by accidental count.
-		// Once the lick has earned all 12 keys, hand off to planLickKeys for
-		// staged variety (random starts, chromatic / whole-tone orderings).
+		const ramp = lickUnlockRamp(lick, getInstrument());
+		// Below the 12-key cap, ramp predictably from the lick's entry key in
+		// key-signature order, so each session adds the easiest key left as
+		// the player reads it. Once the lick has earned all 12 keys, hand off
+		// to planLickKeys for staged variety (random starts, chromatic /
+		// whole-tone orderings).
 		const keys = unlockedCount < 12
-			? planUnlockedKeys(lick.key, unlockedCount)
+			? planUnlockedKeys(ramp, unlockedCount)
 			: planLickKeys({
 					tempo,
 					minBpm: NEW_LICK_DEFAULT_TEMPO,
@@ -649,7 +667,7 @@ export function computeSessionPlan(): LickPracticePlanItem[] {
 				keyCount: keys.length,
 				lickBars: getLickBars(lick, progressionType, enableSubstitutions),
 				mode: lickPractice.config.practiceMode,
-				...leadSheetExtras(lick.id, lick.key, keys)
+				...leadSheetExtras(lick.id, ramp, keys)
 			}),
 			beatsPerBar: lick.timeSignature[0],
 			tempo
@@ -766,8 +784,9 @@ export function computeDailyPracticePlan(): LickPracticePlanItem[] {
 
 		const tempo = resolveLickTempo(progress, lick.id);
 		const unlockedCount = getUnlockedKeyCount(progress, lick.id);
+		const ramp = lickUnlockRamp(lick, getInstrument());
 		const keys = unlockedCount < 12
-			? planUnlockedKeys(lick.key, unlockedCount)
+			? planUnlockedKeys(ramp, unlockedCount)
 			: planLickKeys({
 					tempo,
 					minBpm: NEW_LICK_DEFAULT_TEMPO,
@@ -782,7 +801,7 @@ export function computeDailyPracticePlan(): LickPracticePlanItem[] {
 				keyCount: keys.length,
 				lickBars: getLickBars(lick, progressionType, enableSubstitutions),
 				mode: lickPractice.config.practiceMode,
-				...leadSheetExtras(lick.id, lick.key, keys)
+				...leadSheetExtras(lick.id, ramp, keys)
 			}),
 			beatsPerBar: lick.timeSignature[0],
 			tempo
@@ -866,9 +885,9 @@ export function startDailyPracticeSession(): void {
 }
 
 /**
- * Circle-of-4ths rotation starting at `entryKey`, restricted to the lick's
- * per-lick unlocked-key set (the same `planUnlockedKeys` ramp Standard mode
- * uses). Used by single-lick Deep Practice so a brand-new lick starts at its
+ * Circle-of-4ths rotation starting at the ramp's entry key, restricted to
+ * the lick's per-lick unlocked-key set (the same `planUnlockedKeys` ramp
+ * Standard mode uses). Used by single-lick Deep Practice so a brand-new lick starts at its
  * entry key only and grows as the per-lick unlock count bumps — Deep Practice
  * used to draw from the global tonality unlock pool, which gave new licks
  * unearned keys.
@@ -877,10 +896,10 @@ export function startDailyPracticeSession(): void {
  * (defensive — `entryKey` is always in the unlocked set, so this only
  * triggers if `planUnlockedKeys` is somehow malformed).
  */
-function unlockedCircleFrom(entryKey: PitchClass, unlockedCount: number): PitchClass[] {
-	const unlocked = new Set(planUnlockedKeys(entryKey, unlockedCount));
-	const filtered = circleOfFourthsFrom(entryKey).filter(k => unlocked.has(k));
-	return filtered.length > 0 ? filtered : circleOfFourthsFrom(entryKey);
+function unlockedCircleFrom(ramp: UnlockRamp, unlockedCount: number): PitchClass[] {
+	const unlocked = new Set(planUnlockedKeys(ramp, unlockedCount));
+	const filtered = circleOfFourthsFrom(ramp.entryKey).filter(k => unlocked.has(k));
+	return filtered.length > 0 ? filtered : circleOfFourthsFrom(ramp.entryKey);
 }
 
 /**
@@ -952,6 +971,13 @@ export interface SingleLickSessionOptions {
 	focusKey?: PitchClass;
 }
 
+/**
+ * Open a Deep Practice session on one lick: its currently-unlocked keys in
+ * circle-of-4ths order from the entry key (`unlockedCircleFrom`), sorted
+ * worst-first, at a tempo eased in below the lick's saved one — or, with a
+ * `focusKey`, that key alone behind a focus ramp. Returns false while saved
+ * progress is still loading or the lick cannot be resolved.
+ */
 export function startSingleLickSession(
 	lickOrId: string | Phrase,
 	options: SingleLickSessionOptions = {}
@@ -973,7 +999,7 @@ export function startSingleLickSession(
 	const progressionType = resolveSingleLickProgression(lick);
 
 	const unlockedCount = getUnlockedKeyCount(lickPractice.progress, lick.id);
-	const circle = unlockedCircleFrom(lick.key, unlockedCount);
+	const circle = unlockedCircleFrom(lickUnlockRamp(lick, getInstrument()), unlockedCount);
 	const rollingFor = (k: PitchClass) => getRollingScore(lickPractice.progress, lick.id, k);
 	const savedTempo = resolveLickTempo(lickPractice.progress, lick.id);
 	// The focus ramp opens on ONE key (the other unlocked keys queue up
@@ -1121,7 +1147,7 @@ export function startTrickSession(): boolean {
 	const variantLabel = trickPracticeLabel(trick, trickParameters);
 
 	const trickCircle = unlockedCircleFrom(
-		trickEntryKey(getInstrument()),
+		trickUnlockRamp(getInstrument()),
 		getTrickUnlockedKeyCount(progressKey)
 	);
 	lickPractice.plan = [
@@ -1191,6 +1217,20 @@ export function getCurrentProgressionType(): ChordProgressionType {
  */
 function resolveLickFor(item: LickPracticePlanItem): Phrase | undefined {
 	return getLickById(item.phraseId) ?? item.phrase;
+}
+
+/**
+ * The unlock ramp a plan item grows along: a trick's written-C anchor, or
+ * the lick's own key, mode and the player's instrument. A lick that can no
+ * longer be resolved (deleted mid-plan) ramps from its first planned key —
+ * its entry key — read as major.
+ */
+function rampForItem(item: LickPracticePlanItem): UnlockRamp {
+	if (item.kind === 'trick') return trickUnlockRamp(getInstrument());
+	const lick = resolveLickFor(item);
+	return lick
+		? lickUnlockRamp(lick, getInstrument())
+		: { entryKey: item.keys[0] ?? 'C', mode: 'major', instrument: getInstrument() };
 }
 
 /** The generated progression figure already includes its pickup and harmony. */
@@ -1285,7 +1325,7 @@ function buildPhraseFor(item: LickPracticePlanItem, key: PitchClass): Phrase | n
 		// This is a complete ii–V–I figure, not a chord-quality lick that
 		// should be moved to just one compatible chord of the template.
 		return {
-			...transposeLick(baseLick, key, instrument.concertRangeLow, getEffectiveHighestNote()),
+			...transposeLick(baseLick, key, instrument.concertRangeLow, getEffectiveHighestNote(), instrument.transpositionSemitones),
 			key,
 			mode: progressionMode(progressionType),
 			// transposeLick preserves literal chord symbols. Rebuild those
@@ -1294,60 +1334,19 @@ function buildPhraseFor(item: LickPracticePlanItem, key: PitchClass): Phrase | n
 		};
 	}
 
-	const enableSubstitutions = lickPractice.config.enableSubstitutions ?? false;
-	// Two alignment offsets, both needed:
-	// - `alignmentOffset` (pickup-shifted) places the melody's notes inside the
-	//   progression cycle so the pickup falls on V where applicable.
-	// - `bodyAlignment` (un-shifted) is what `resolveTransposeTarget` reads to
-	//   pick the lick's body chord — using the shifted version here would
-	//   transpose the lick to the pickup chord (e.g. G7) instead of its
-	//   intended target (e.g. Cmaj7).
-	const alignmentOffset = resolveAlignedLickOffset(baseLick, progressionType, enableSubstitutions);
-	const bodyAlignment = resolveLickAlignmentOffset(progressionType, baseLick.category, enableSubstitutions);
-
-	// Chord-quality licks (e.g. a 1-bar `minor-chord` lick) are rooted on a
-	// single chord. They must transpose to the ROOT of the target chord in
-	// the progression, not the session key — otherwise a Cm7 lick placed at
-	// the ii of an F ii-V-I would play in Fm7 instead of Gm7.
-	//
-	// When a substitution rule applies (e.g. minor-over-dominant), the target
-	// root is then shifted by the rule's semitone offset — a Cm7 lick played
-	// over G7 transposes to Ab, producing Abm7 over G7 for altered sonority.
-	const transposeTarget = resolveTransposeTarget(
-		key,
-		baseLick.category,
-		progressionType,
-		bodyAlignment,
-		enableSubstitutions
-	);
-
-	const transposed = transposeLick(
-		baseLick,
-		transposeTarget,
-		instrument.concertRangeLow,
-		getEffectiveHighestNote()
-	);
-
-	const progressionHarmony = harmonyForLick(baseLick, key, progressionType, enableSubstitutions);
-
-	const alignedNotes = alignmentOffset[0] === 0
-		? transposed.notes
-		: transposed.notes.map(n => ({
-			...n,
-			offset: addFractions(n.offset, alignmentOffset)
-		}));
-
-	// The session's "key" is driven by the progression, not the chord-quality
-	// lick's transposition target, so restore it on the returned phrase — and
-	// read it in the PROGRESSION's mode (a D-minor ii-V-i prints K:Dm even
-	// for a major lick drilled over it).
-	return {
-		...transposed,
-		key,
-		mode: progressionMode(progressionType),
-		notes: alignedNotes,
-		harmony: progressionHarmony
-	};
+	// The ONE placement rule, shared with the lick detail page's chart
+	// (`lick-practice-phrase.ts`): a chord-quality lick is rooted on its slot
+	// chord (a Cm7 lick on the ii of an F ii-V-I plays in G, not F), the
+	// melody is aligned into the cycle with its pickup pulled back, the
+	// template's chords replace the lick's own, and the phrase reads in the
+	// PROGRESSION's key and mode (a D-minor ii-V-i prints K:Dm even for a
+	// major lick drilled over it).
+	return placeLickInProgression(baseLick, key, progressionType, {
+		enableSubstitutions: lickPractice.config.enableSubstitutions ?? false,
+		rangeLow: instrument.concertRangeLow,
+		rangeHigh: getEffectiveHighestNote(),
+		transposition: instrument.transpositionSemitones
+	});
 }
 
 /**
@@ -1383,19 +1382,6 @@ export function getPlannedKey(offset: number): PlannedKey | null {
 	return null;
 }
 
-/** Current, next, and after-next planned keys for the 3-row preview. */
-export function getUpcomingKeys(): {
-	current: PlannedKey | null;
-	next: PlannedKey | null;
-	afterNext: PlannedKey | null;
-} {
-	return {
-		current: getPlannedKey(0),
-		next: getPlannedKey(1),
-		afterNext: getPlannedKey(2)
-	};
-}
-
 /**
  * Return all planned keys for a given lick — used by the continuous-scroll
  * preview to render the entire lick's chord charts as a tall stack that
@@ -1420,10 +1406,81 @@ export function getPlannedKeysForLick(lickIdx: number): PlannedKey[] {
 			lickId: item.phraseId,
 			reveal: revealFor(item, key),
 			passes: passesFor(item, key),
-			cycleEntry: getDeepCycleEntry(lickIdx, key)
+			cycleEntry: getDeepCycleEntry(lickIdx, key),
+			tempo: focusRowTempo(key),
+			cycle: lickPractice.roundNumber
 		});
 	}
 	return result;
+}
+
+/**
+ * Is the next cycle a focus-ramp take in continuous mode? Those join on the
+ * downbeat with no bar, the stack draws the takes still to come under them,
+ * and a take of the same key scrolls in like a new key.
+ */
+export function isFocusTake(): boolean {
+	return lickPractice.mode === 'single-lick' &&
+		lickPractice.config.practiceMode === 'continuous' &&
+		lickPractice.ramp?.phase === 'focus';
+}
+
+/**
+ * The tempo tag for a row of `key`: the session tempo on the focus key while
+ * the header reads "Focus" — the staircase, and the once-more repeat that
+ * follows its target clear. Continuous mode only; undefined everywhere else.
+ */
+function focusRowTempo(key: PitchClass): number | undefined {
+	const ramp = lickPractice.ramp;
+	if (lickPractice.mode !== 'single-lick' || lickPractice.config.practiceMode !== 'continuous') return undefined;
+	if (!ramp || key !== ramp.focusKey) return undefined;
+	const focusing = ramp.phase === 'focus' || (ramp.phase === 'handoff' && ramp.admitted.length === 1);
+	return focusing ? lickPractice.currentTempo : undefined;
+}
+
+/**
+ * The focus takes still to come if every one clears, drawn under the current
+ * take while the ramp climbs: one row per `projectFocusTempos` step, each
+ * tagged with its tempo and looking like the current take (sheet or chords —
+ * a change between them always gets its preparation bar, so a row never
+ * changes look on a downbeat). Display only, like the handoff preview: no
+ * audio, no recording window, re-projected at every boundary from the take
+ * just scored.
+ *
+ * Never empty: a focus take joins on the downbeat on the strength of this
+ * row being on screen. At the target the climb is done, but the focus key
+ * still comes next at that tempo — the once-more after a clear, another try
+ * after a miss — so that one row is drawn. An empty stack under a missed
+ * target take let the next take appear on the downbeat it had to be played
+ * on (Andy, 2026-10-25).
+ */
+export function getFocusProjectionRows(lickIdx: number): PlannedKey[] {
+	const ramp = lickPractice.ramp;
+	const item = lickPractice.plan[lickIdx];
+	if (!isFocusTake() || !ramp || !item || item.kind === 'trick') return [];
+	const key = ramp.focusKey;
+	if (item.keys[0] !== key) return [];
+	const phrase = buildPhraseFor(item, key);
+	if (!phrase) return [];
+	const climb = projectFocusTempos(
+		lickPractice.currentTempo,
+		ramp.targetTempo,
+		lickPractice.config.tempoBumpPercent ?? DEFAULT_TEMPO_BUMP_PERCENT
+	);
+	const tempos = climb.length > 0 ? climb : [lickPractice.currentTempo];
+	return tempos.map((tempo, i) => ({
+		lickIndex: lickIdx,
+		keyIndex: item.keys.length + i,
+		key,
+		phrase,
+		harmony: phrase.harmony,
+		lickName: item.phraseName,
+		lickId: item.phraseId,
+		reveal: revealFor(item, key),
+		passes: passesFor(item, key),
+		tempo,
+		cycle: lickPractice.roundNumber + 1 + i
+	}));
 }
 
 /** The promised next-cycle chart; display only, never part of this cycle's audio/windows. */
@@ -1476,15 +1533,15 @@ export function getDeepCycleEntry(lickIdx: number, key?: PitchClass): DeepCycleE
 
 /**
  * The reveal rule applied to one lick's key list — the single place
- * `shouldRevealNotation` is fed from progress: the lick's own key is the
- * ramp origin, the unlock count is read ONCE per call (it parses storage),
+ * `shouldRevealNotation` is fed from progress: the lick's own unlock ramp
+ * is passed in, the unlock count is read ONCE per call (it parses storage),
  * and each key's persisted rolling score is looked up. Shared by the
  * per-rotation decisions below and the plan-time cost model, so the session
  * and its estimate can never disagree about which key reveals.
  */
 function decideReveals(
 	phraseId: string,
-	entryKey: PitchClass,
+	ramp: UnlockRamp,
 	keys: readonly PitchClass[]
 ): Map<PitchClass, boolean> {
 	const unlockedCount = getUnlockedKeyCount(lickPractice.progress, phraseId);
@@ -1494,7 +1551,7 @@ function decideReveals(
 			key,
 			shouldRevealNotation({
 				key,
-				entryKey,
+				ramp,
 				unlockedCount,
 				rolling: getRollingScore(lickPractice.progress, phraseId, key)
 			})
@@ -1507,23 +1564,24 @@ function decideReveals(
  * The rotation's reveal decisions, taken the first time the rotation is
  * asked about and held until it is replaced. A trick's regenerated figure is
  * drilled for fluency, not read, so trick rows never reveal; a lick that can
- * no longer be resolved (deleted mid-plan) has no entry key and never
+ * no longer be resolved (deleted mid-plan) has no unlock ramp and never
  * reveals either.
  */
 function revealDecisionsFor(item: LickPracticePlanItem): Map<PitchClass, boolean> {
 	let decisions = revealDecisions.get(item.keys);
 	if (decisions) return decisions;
-	const entryKey = item.kind === 'trick' ? undefined : resolveLickFor(item)?.key;
+	const lick = item.kind === 'trick' ? undefined : resolveLickFor(item);
+	const ramp = lick ? lickUnlockRamp(lick, getInstrument()) : undefined;
 	// Freeze the promised preview with the current stack too. It remains
 	// display-only; including its reveal decision creates no audio window.
 	const previewKey = lickPractice.mode === 'single-lick' && lickPractice.ramp?.phase === 'handoff'
 		? lickPractice.ramp.queue[0] : undefined;
 	const keys = previewKey ? [...item.keys, previewKey] : item.keys;
-	decisions = entryKey ? decideReveals(item.phraseId, entryKey, keys) : new Map();
+	decisions = ramp ? decideReveals(item.phraseId, ramp, keys) : new Map();
 	// Deep practice can revisit an unfamiliar older key, including after all
 	// twelve have unlocked. Recent attempts must override the unlock gate.
 	// Only completed, scored turns count; rehearsal passes are not recorded.
-	if (entryKey && lickPractice.mode === 'single-lick') {
+	if (ramp && lickPractice.mode === 'single-lick') {
 		const attempts = lickPractice.allAttempts.flat();
 		for (const key of keys) {
 			const keyAttempts = attempts.filter((attempt) => attempt.key === key);
@@ -1584,7 +1642,8 @@ export function isDailyPractice(): boolean {
  * Bars of preparation laid before the key at rotation slot `slot`:
  * Daily and Deep show notation ahead, so a sheet alone adds no pause.
  * Deep retains one bar for a resolved result or sheet graduation (ordinary
- * Deep's head uses its existing turnaround). Focused retains its two-bar
+ * Deep's head uses its existing turnaround; a focus-ramp take stops only when
+ * the sheet comes or goes — see `advanceSingleLickRound`). Focused retains its two-bar
  * sheet preparation. A demo or call already prepares its response.
  */
 function pauseBarsFor(item: LickPracticePlanItem, key: PitchClass, slot: number): number {
@@ -1619,14 +1678,14 @@ export function getKeyPauses(lickIdx: number): number[] {
  */
 function leadSheetExtras(
 	phraseId: string,
-	entryKey: PitchClass,
+	ramp: UnlockRamp,
 	keys: readonly PitchClass[]
 ): { extraWindows: number; pauseBars: number } {
 	if (lickPractice.config.practiceMode !== 'continuous') return { extraWindows: 0, pauseBars: 0 };
 	let extraWindows = 0;
 	let pauseBars = 0;
 	let slot = 0;
-	for (const reveal of decideReveals(phraseId, entryKey, keys).values()) {
+	for (const reveal of decideReveals(phraseId, ramp, keys).values()) {
 		if (reveal) {
 			extraWindows += LEAD_SHEET_PASSES - 1;
 			if (slot > 0 && lickPractice.config.sessionType !== 'daily') pauseBars += LEAD_SHEET_PAUSE_BARS;
@@ -1785,25 +1844,6 @@ export function buildLickSuperPhrase(lickIdx: number): Phrase | null {
 }
 
 /**
- * Resolve the per-lick alignment offset, including the `pickupBars` shift.
- * Returns the category's base alignment shifted left by the lick's pickup
- * bars (clamped at the start of the progression).
- *
- * Falls back to inferring pickupBars from note positions when the field is
- * absent — this keeps user/community licks authored before the field
- * existed working correctly without forcing a re-save.
- */
-function resolveAlignedLickOffset(
-	lick: Phrase,
-	progressionType: ChordProgressionType,
-	enableSubstitutions: boolean
-): Fraction {
-	const base = resolveLickAlignmentOffset(progressionType, lick.category, enableSubstitutions);
-	const pickupBars = lick.difficulty.pickupBars ?? detectPickupBars(lick.notes);
-	return applyPickupBarShift(base, pickupBars);
-}
-
-/**
  * Number of bars one cycle of this lick occupies in the current progression.
  * Equals `progressionBars` for licks that fit inside the cycle, otherwise
  * extends to `alignmentBars + lengthBars` so the lick's resolution note fits.
@@ -1817,11 +1857,7 @@ export function getLickBars(
 	progressionType: ChordProgressionType,
 	enableSubstitutions: boolean
 ): number {
-	const template = PROGRESSION_TEMPLATES[progressionType];
-	const alignment = resolveAlignedLickOffset(lick, progressionType, enableSubstitutions);
-	const alignmentBars = Math.ceil(alignment[0] / alignment[1]);
-	const required = alignmentBars + lick.difficulty.lengthBars;
-	return Math.max(template.bars, required);
+	return lickBarsInProgression(lick, progressionType, enableSubstitutions);
 }
 
 /** lickBars for the lick currently at the head of the plan, or progressionBars
@@ -1847,10 +1883,7 @@ function harmonyForLick(
 	progressionType: ChordProgressionType,
 	enableSubstitutions: boolean
 ): HarmonicSegment[] {
-	const template = PROGRESSION_TEMPLATES[progressionType];
-	const lickBars = getLickBars(lick, progressionType, enableSubstitutions);
-	const extended = extendHarmonyTail(template.harmony, lickBars - template.bars);
-	return transposeProgression(extended, key);
+	return progressionHarmonyForLick(lick, key, progressionType, enableSubstitutions);
 }
 
 /**
@@ -1920,7 +1953,7 @@ export function getProgressionBars(): number {
  * Record the result of the current key attempt silently — does not change
  * the session phase. The bar-aligned scheduler in the session page drives
  * phase transitions; this function only updates keyResults and writes
- * per-key progress for passed attempts.
+ * per-key progress for every attempt.
  */
 export function recordKeyAttempt(score: Score, sessionId?: string): void {
 	const item = getCurrentPlanItem();
@@ -1928,6 +1961,9 @@ export function recordKeyAttempt(score: Score, sessionId?: string): void {
 	if (!item || !key) return;
 
 	const passed = score.overall >= PASS_THRESHOLD;
+	// Freeze the same reveal decision the chart uses BEFORE updating EWMA.
+	// A successful sheet take may hide notation next cycle, never retroactively.
+	const passedFromMemory = passed && !revealFor(item, key);
 
 	const result: LickPracticeKeyResult = {
 		key,
@@ -1967,7 +2003,7 @@ export function recordKeyAttempt(score: Score, sessionId?: string): void {
 		// because updateKeyProgress merges over getKeyProgress's 100-BPM
 		// default: an implicit write on a failed first attempt would seed a
 		// brand-new lick at 100 and override the 60-BPM new-lick tempo.
-		// passCount stays pass-gated.
+		// Total passes and unaided passes have separate counters.
 		const prev = lickPractice.progress[item.phraseId]?.[key];
 		// Deep practice must not ratchet the lick's stored tempo: the session
 		// opens below it and ramps, and resuming Daily Practice at that ramped
@@ -1989,7 +2025,8 @@ export function recordKeyAttempt(score: Score, sessionId?: string): void {
 				lastPracticedAt: Date.now(),
 				currentTempo: persistedTempo,
 				rollingScore: updateRollingScore(prev?.rollingScore, score.overall),
-				...(passed ? { passCount: (prev?.passCount ?? 0) + 1 } : {})
+				...(passed ? { passCount: (prev?.passCount ?? 0) + 1 } : {}),
+				...(passedFromMemory ? { memoryPassCount: (prev?.memoryPassCount ?? 0) + 1 } : {})
 			}
 		);
 		saveLickPracticeProgress(lickPractice.progress);
@@ -2059,30 +2096,25 @@ export function startInterLickTransition(): 'next-lick' | 'complete' {
 			const rawDelta = computeAutoTempoAdjustment(avgScore);
 			const delta = floorBreached ? Math.min(0, rawDelta) : rawDelta;
 
-			// Bump unlock BEFORE writing progress for this session's keys.
-			// The grandfather fallback in getUnlockedKeyCount treats a lick
-			// with any per-key progress as already at 12 — if we bumped after
-			// the writes, even a brand-new lick (just one entry-key result)
-			// would look "grandfathered" and stay capped at 12.
-			//
-			// Unlock requires a strong session AND consolidation on the
-			// most-recently-unlocked key (passCount, already updated by
-			// recordKeyAttempt during the lick) AND no per-key floor breach
-			// this session — see shouldUnlockNextKey.
+			// Unlock only after consolidation from memory on the actual newest
+			// unlocked key, plus a fresh unaided pass on it in this session.
+			// Scores on older keys cannot substitute for that final proof.
 			const unlockedCount = getUnlockedKeyCount(lickPractice.progress, item.phraseId);
-			const newestKey = item.keys[item.keys.length - 1];
+			const newestKey = planUnlockedKeys(rampForItem(item), unlockedCount)[unlockedCount - 1];
+			const newestResult = lickPractice.keyResults.findLast(result => result.key === newestKey);
+			const newestPassedFromMemory = newestResult !== undefined &&
+				newestResult.score >= PASS_THRESHOLD && !revealFor(item, newestKey);
 			const newestKeyPassCount = getKeyProgress(
 				lickPractice.progress,
 				item.phraseId,
 				newestKey
-			).passCount;
+			).memoryPassCount ?? 0;
 			const unlocked =
-				!floorBreached &&
+				!floorBreached && newestPassedFromMemory &&
 				shouldUnlockNextKey({ avgScore, newestKeyPassCount, unlockedCount });
 			if (unlocked) {
 				bumpUnlockedKeyCount(lickPractice.progress, item.phraseId);
-				// Both plan builders ramp from the entry key, so keys[0] is it.
-				const added = planUnlockedKeys(item.keys[0], unlockedCount + 1)[unlockedCount];
+				const added = planUnlockedKeys(rampForItem(item), unlockedCount + 1)[unlockedCount];
 				if (added) lickPractice.sessionUnlocks[lickPractice.allAttempts.length - 1] = added;
 			}
 
@@ -2231,7 +2263,7 @@ export function advanceSingleLickRound(): void {
 			// the TRICK store — item.phraseId is a practice key, so the lick
 			// store must never see it.
 			const newCount = bumpTrickUnlockedKeyCount(item.phraseId);
-			const fullCircle = unlockedCircleFrom(trickEntryKey(getInstrument()), newCount);
+			const fullCircle = unlockedCircleFrom(trickUnlockRamp(getInstrument()), newCount);
 			let trickProgress = loadTrickPracticeProgress();
 			for (const key of fullCircle) {
 				trickProgress = updateTrickKeyProgress(trickProgress, item.phraseId, key, {
@@ -2252,10 +2284,8 @@ export function advanceSingleLickRound(): void {
 		} else {
 			// Re-read the per-lick unlock count so any keys earned in a Standard
 			// session between rounds join on this cycle.
-			const baseLick = resolveLickFor(item);
-			const refillStart = baseLick?.key ?? item.keys[0] ?? 'C';
 			const unlockedCount = getUnlockedKeyCount(lickPractice.progress, item.phraseId);
-			const fullCircle = unlockedCircleFrom(refillStart as PitchClass, unlockedCount);
+			const fullCircle = unlockedCircleFrom(rampForItem(item), unlockedCount);
 
 			// Nothing is persisted here. The bumped tempo stays in session state
 			// so the report can show what the user reached, but it never reaches
@@ -2343,16 +2373,25 @@ export function advanceSingleLickRound(): void {
 	lickPractice.phase = 'inter-lick-rest';
 	if (item.kind !== 'trick') {
 		const entries = new Map<PitchClass, DeepCycleEntry>();
+		// The staircase plays on: a focus take joins on the downbeat, its tempo
+		// and the takes still to come already drawn on the stack.
+		const focusTake = isFocusTake();
 		for (const [slot, key] of item.keys.entries()) {
-			const fromMemory = lastReveals.get(key) === true && !revealFor(item, key);
+			const wasSheet = lastReveals.get(key) === true;
+			const sheet = revealFor(item, key);
+			const fromMemory = wasSheet && !sheet;
 			entries.set(key, {
 				repeat: slot === 0 && key === previousLastKey,
 				fromMemory,
 				tempo: slot === 0 && lickPractice.currentTempo !== previousTempo ? lickPractice.currentTempo : undefined,
 				// A resolved head needs a bar unless its handoff already promised
-				// it (ordinary Deep has a turnaround). Later sheet graduations
-				// need their own bar, even when rejoining after sitting out a round.
-				prepareBars: slot === 0 ? (ramp && (!promisedKey || fromMemory) ? 1 : 0) : (fromMemory ? 1 : 0)
+				// it (ordinary Deep has a turnaround) or it is the next focus
+				// take, which only stops for the sheet coming or going. Later
+				// sheet graduations need their own bar, even when rejoining after
+				// sitting out a round.
+				prepareBars: slot === 0
+					? (focusTake ? (sheet !== wasSheet ? 1 : 0) : ramp && (!promisedKey || fromMemory) ? 1 : 0)
+					: (fromMemory ? 1 : 0)
 			});
 		}
 		cycleEntries.set(item.keys, entries);

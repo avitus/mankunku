@@ -118,3 +118,12 @@ describe('phraseToAbcWithMap rest anchors', () => {
 		`);
 	});
 });
+
+describe('editable rest boundaries', () => {
+	it('keeps two quarter rests individually selectable in editor notation', () => {
+		const notes = [q([0, 1], 60), q([1, 4], 62), q([1, 2]), q([3, 4])];
+		const { display, sourceMap } = mergeConsecutiveRests(notes, [4, 4], true);
+		expect(display.map(n => n.duration)).toEqual([[1, 4], [1, 4], [1, 4], [1, 4]]);
+		expect(sourceMap).toEqual([0, 1, 2, 3]);
+	});
+});

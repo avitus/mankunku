@@ -4,7 +4,7 @@
  import { CURRENT_MUSICALITY_RELEASE } from '$lib/musicality/release';
  import { createListeningFeedback, readListeningFeedback, saveListeningFeedback, serializeListeningFeedback, type ListeningFeedback } from '$lib/musicality/listening-feedback';
  import { page } from '$app/state';
- import { LISTENING_TUNES, buildListeningTuneSession, assessListeningTune, type ListeningTuneSession } from '$lib/musicality/listening-tunes';
+ import { LISTENING_TUNES, assessCuratedListeningTune, assessListeningTune, type ListeningTuneSession } from '$lib/musicality/listening-tunes';
  import { createListeningPlayer, type ListeningSnapshot } from '$lib/musicality/listening-player';
  import { describeMusicianDecisions, describePerformanceArc } from '$lib/musicality/musician-decisions';
  import { getListeningReviewExtent, selectListeningReviewBar } from '$lib/musicality/listening-review';
@@ -46,7 +46,7 @@
  const unreadableBookEntries = $derived(library.tunes.some(tune=>!tune || typeof tune!=='object' || typeof (tune as Record<string,unknown>).id!=='string' || !(tune as Record<string,unknown>).id));
  const selectedBookEntry = $derived(bookEntries.find(tune=>tune.id===tuneId));
  const admission = $derived(isCuratedTuneId(tuneId)
-  ? {ok:true as const,session:buildListeningTuneSession({tuneId,key,soloChoruses:solos})}
+  ? assessCuratedListeningTune({tuneId,key,soloChoruses:solos})
   : assessListeningTune(selectedBookEntry?.tune,{key,soloChoruses:solos}));
  const session = $derived(admission.ok ? admission.session : null);
  const endingAssessment = $derived(endingSupported && ending === 'hold-release' && session

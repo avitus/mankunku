@@ -116,6 +116,9 @@ export interface LickPracticeKeyProgress {
 	currentTempo: number;
 	lastPracticedAt: number;
 	passCount: number;
+	/** Passes at >=90% with notation hidden for the entire take. Legacy totals
+	 * cannot prove this; an absent count means zero for key unlocking. */
+	memoryPassCount?: number;
 	/**
 	 * EWMA of this key's attempt scores (0-1), updated on EVERY scored attempt
 	 * — not just passes — so single-lick Deep Practice can rank keys

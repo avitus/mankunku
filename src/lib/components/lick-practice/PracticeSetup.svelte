@@ -42,7 +42,7 @@
 	import EnclosurePhraseCanvas from '$lib/components/tricks/EnclosurePhraseCanvas.svelte';
 	import { DEFAULT_TEMPO_BUMP_PERCENT } from '$lib/state/lick-practice-rotation';
 	import { getInstrument } from '$lib/state/settings.svelte';
-	import { circleOfFourthsFrom, planUnlockedKeys } from '$lib/music/key-ordering';
+	import { circleOfFourthsFrom, lickUnlockRamp, planUnlockedKeys } from '$lib/music/key-ordering';
 	import { concertKeyToWritten } from '$lib/music/transposition';
 	import TooltipHint from '$lib/components/ui/TooltipHint.svelte';
 	import { tooltips } from '$lib/content/tooltips';
@@ -146,7 +146,7 @@
 	const rotationKeys = $derived.by<PitchClass[]>(() => {
 		if (!selectedLick) return [];
 		const unlockedCount = getUnlockedKeyCount(lickPractice.progress, selectedLick.id);
-		const unlocked = new Set(planUnlockedKeys(selectedLick.key, unlockedCount));
+		const unlocked = new Set(planUnlockedKeys(lickUnlockRamp(selectedLick, instrument), unlockedCount));
 		const circle = circleOfFourthsFrom(selectedLick.key);
 		const filtered = circle.filter((k) => unlocked.has(k));
 		return filtered.length > 0 ? filtered : circle;

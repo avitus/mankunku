@@ -5,17 +5,14 @@
  * in for the first time on this device, the merge rule depends on the data
  * domain:
  *
- *   - Progress (sessions): count-based merge. Cloud ≥ local → cloud wins.
- *     Local > cloud → local kept. Equal → cloud wins (>= semantics).
+ *   - Progress (sessions): union by id, capped at 100 newest; adaptive state
+ *     follows whichever side practiced most recently.
  *   - Tour state: union merge — local + cloud combined, no information lost.
- *   - Community favorites: union merge — same as tour state.
  *
- * `cloud-sync-multi-device.test.ts` already covers the count-based merge for
- * progress, but it pre-seeds `progress` and treats both inputs as "cloud" vs
- * "local" abstractly. This file pins down the *anonymous → login* boundary
- * explicitly: the same logical merge from the perspective of "I was signed
- * out, then I signed in for the first time." Different scenario, same code
- * path — but the test name documents the user-facing behavior.
+ * `cloud-sync-multi-device.test.ts` covers the union across local/cloud size
+ * orderings; this file pins the *anonymous → login* boundary explicitly — an
+ * empty cloud keeps the offline burst, and a more-recent cloud wins the cap
+ * and the adaptive state.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -147,27 +144,6 @@ describe('anonymous → first-login: progress migration', () => {
 		// All 50 anonymous sessions preserved (local > cloud → local kept).
 		expect(progressModule.progress.sessions).toHaveLength(50);
 		expect(progressModule.progress.sessions[0].id).toBe('anon-0');
-	});
-
-	it('50 anonymous sessions + cloud has 30 → union keeps all 80', async () => {
-		const localSessions = Array.from({ length: 50 }, (_, i) => session(`anon-${i}`));
-		store.set('mankunku:progress', JSON.stringify(progressWith(localSessions)));
-
-		vi.resetModules();
-		const progressModule = await import('$lib/state/progress.svelte');
-
-		const cloudSessions = Array.from({ length: 30 }, (_, i) => session(`cloud-${i}`));
-		mockLoadProgress.mockResolvedValue(progressWith(cloudSessions));
-
-		const supabase = { auth: {} };
-		await progressModule.initFromCloud(supabase as never);
-
-		// New contract: UNION, not count-based "local kept". Every anon session
-		// AND every cloud session survives (80 distinct, under the 100 cap).
-		const ids = new Set(progressModule.progress.sessions.map((s) => s.id));
-		expect(progressModule.progress.sessions).toHaveLength(80);
-		for (let i = 0; i < 50; i++) expect(ids.has(`anon-${i}`)).toBe(true);
-		for (let i = 0; i < 30; i++) expect(ids.has(`cloud-${i}`)).toBe(true);
 	});
 
 	it('50 anonymous sessions + cloud 60 more-recent → union + cap, cloud adaptive wins', async () => {

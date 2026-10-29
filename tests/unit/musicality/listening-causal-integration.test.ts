@@ -4,12 +4,15 @@ import { createRollingBackingRenderer } from '$lib/audio/backing-rolling-rendere
 import { createRollingSession } from '$lib/audio/backing-rolling-session';
 import { aggregateRollingBacking } from '$lib/audio/backing-rolling-take';
 import { BACKING_STYLES } from '$lib/audio/backing-styles';
-import { buildListeningTuneSession, LISTENING_TUNES } from '$lib/musicality/listening-tunes';
+import { buildHistoricalListeningTuneSession as buildListeningTuneSession, HISTORICAL_LISTENING_TUNES as LISTENING_TUNES } from '../../helpers/musicality-tune-fixtures';
 import type { BackingStyle } from '$lib/types/instruments';
+import { RHYTHM_CHANGES } from '$lib/data/tunes';
+import { buildListeningTuneSession as buildPublicListeningTuneSession } from '$lib/musicality/listening-tunes';
 
 /** Real generation, scheduling, session and export; only the hardware clock is controlled. */
 function finiteTake(tuneId: string, solos: number, styleId: BackingStyle, tempo = 240) {
-	const tune = buildListeningTuneSession({ tuneId, soloChoruses: solos });
+	const build = tuneId === RHYTHM_CHANGES.id ? buildPublicListeningTuneSession : buildListeningTuneSession;
+	const tune = build({ tuneId, soloChoruses: solos });
 	const definition = createRollingBacking(tune.phrase.harmony, BACKING_STYLES[styleId], {
 		phraseId: tune.phrase.id, tempo, ppq: 192, beatsPerBar: 4, swing: .62,
 		performanceForm: tune.phrase.performanceForm, sectionMap: tune.phrase.sectionMap, ensemble: {}
@@ -38,11 +41,17 @@ function finiteTake(tuneId: string, solos: number, styleId: BackingStyle, tempo 
 
 const inputs = LISTENING_TUNES.flatMap(tune => [1, 2, 3, 4].flatMap(solos =>
 	['swing', 'straight', 'bossa-nova', 'ballad'].map(style => ({ tuneId: tune.id, solos, style: style as BackingStyle }))));
+// The public 32-bar chart has two supported finite arrangements; retain the
+// entire historical Saints/Blues matrix above and exercise the new chart too.
+inputs.push(...[1, 2].flatMap(solos => ['swing', 'straight', 'bossa-nova', 'ballad'].map(style => ({
+	tuneId: RHYTHM_CHANGES.id, solos, style: style as BackingStyle
+}))));
 
 describe('finite curated listening through causal playback', () => {
 	it.each(inputs)('$tuneId / $solos solo passes / $style fits the existing source bound and completes actual committed dispatch', ({ tuneId, solos, style }) => {
 		const h = finiteTake(tuneId, solos, style);
-		const expectedBars = tuneId.includes('saints') ? 32 + solos * 16 : 28 + solos * 12;
+		const expectedBars = tuneId === RHYTHM_CHANGES.id ? 32 * (solos + 2)
+			: tuneId.includes('saints') ? 32 + solos * 16 : 28 + solos * 12;
 		expect(h.definition.sourceBars).toBe(expectedBars);
 		expect(expectedBars).toBeLessThanOrEqual(128);
 		h.session.start();

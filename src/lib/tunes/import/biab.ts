@@ -2,6 +2,7 @@ import type { Fraction, HarmonicSegment, PitchClass } from '$lib/types/music';
 import type { Tune } from '$lib/types/tune';
 import { addFractions, multiplyFraction, subtractFractions } from '$lib/music/intervals';
 import { harmonicSegmentFromSymbol, scaleIdForQuality } from '$lib/tunes/segment-from-symbol';
+import { isSupportedMeter } from '$lib/tunes/meter';
 
 /**
  * Band-in-a-Box importer.
@@ -416,6 +417,9 @@ export function parseBiabMusicXml(xml: string): BiabImportResult {
 	let timeSignature: [number, number] = [4, 4];
 	const timeMatch = /<time[^>]*>[\s\S]*?<beats>(\d+)<\/beats>[\s\S]*?<beat-type>(\d+)<\/beat-type>/.exec(xml);
 	if (timeMatch) timeSignature = [Number(timeMatch[1]), Number(timeMatch[2])];
+	if (!isSupportedMeter(timeSignature)) {
+		return { sheets: [], warnings: [`Time signature ${timeSignature[0]}/${timeSignature[1]} is not supported.`] };
+	}
 	const barDuration: Fraction = [timeSignature[0], timeSignature[1]];
 
 	const measures = [...xml.matchAll(/<measure[^>]*>([\s\S]*?)<\/measure>/g)].map((m) => m[1]);

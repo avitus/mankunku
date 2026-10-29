@@ -10,6 +10,7 @@ import {
 } from '$lib/music/intervals';
 import { harmonicSegmentFromSymbol } from '$lib/tunes/segment-from-symbol';
 import { buildSections } from '$lib/tunes/section-builder';
+import { isSupportedMeter } from '$lib/tunes/meter';
 
 /**
  * MuseScore importer (.mscz / .mscx, MuseScore 3-4 formats).
@@ -481,6 +482,16 @@ export function parseMscx(xml: string, preferred?: PreferredInstrument): MuseSco
 
 		measures.push(info);
 		measureStart = addFractions(measureStart, nominal);
+	}
+
+	// A meter the community gate rejects is refused here, so the import never
+	// saves a tune that sharing would hide.
+	if (timeSignature && !isSupportedMeter(timeSignature)) {
+		return {
+			sheets: [],
+			warnings: [`Time signature ${timeSignature[0]}/${timeSignature[1]} is not supported.`],
+			declaredTransposition: transpose
+		};
 	}
 
 	const sections = buildSections(measures, notes, harmonies, warnOnce);

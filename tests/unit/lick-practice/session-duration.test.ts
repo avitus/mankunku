@@ -80,9 +80,14 @@ import {
 	newestUnlockedKey
 } from '$lib/state/lick-practice-rotation';
 import type { PitchClass } from '$lib/types/music';
+import { lickUnlockRamp } from '$lib/music/key-ordering';
+import { getInstrument, settings } from '$lib/state/settings.svelte';
 import type { ChordProgressionType } from '$lib/types/lick-practice';
 
 beforeEach(() => {
+	// These fixtures spell the unlock ramp in concert pitch (C, G, F, …);
+	// the ramp counts accidentals in WRITTEN pitch, so pin a C instrument.
+	settings.instrumentId = 'concert';
 	store.clear();
 	lickPractice.progress = {};
 	lickPractice.plan = [];
@@ -419,7 +424,7 @@ describe('lead-sheet passes across a multi-lick Daily plan', () => {
 		return picks.map(({ id }) => {
 			const lick = getAllLicks().find((l) => l.id === id)!;
 			bumpUnlockedKeyCount(lickPractice.progress, id);
-			const newest = newestUnlockedKey(lick.key, 2)!;
+			const newest = newestUnlockedKey(lickUnlockRamp(lick, getInstrument()), 2)!;
 			lickPractice.progress = updateKeyProgress(lickPractice.progress, id, newest, {
 				lastPracticedAt: 1,
 				rollingScore: 0.5

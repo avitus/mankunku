@@ -2,7 +2,7 @@ import { expect, it } from 'vitest';
 import { generateBacking, type BackingGenerationParams } from '$lib/audio/backing-generation';
 import { advanceRollingBacking, createRollingBacking, type RollingBackingCheckpoint } from '$lib/audio/backing-rolling';
 import { BACKING_STYLES } from '$lib/audio/backing-styles';
-import { buildListeningTuneSession } from '$lib/musicality/listening-tunes';
+import { buildHistoricalListeningTuneSession as buildListeningTuneSession } from '../../helpers/musicality-tune-fixtures';
 import baseline from '../../fixtures/audio/bossa-terminal-before.json';
 
 const style = BACKING_STYLES['bossa-nova'];

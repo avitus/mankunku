@@ -1,11 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { buildListeningTuneSession, LISTENING_TUNES } from '$lib/musicality/listening-tunes';
-import { MANKUNKU_BLUES, WHEN_THE_SAINTS, AMAZING_GRACE } from '$lib/data/tunes';
+import { buildListeningTuneSession as buildPublicListeningTuneSession, LISTENING_TUNES as PUBLIC_LISTENING_TUNES } from '$lib/musicality/listening-tunes';
+import { MANKUNKU_BLUES, RHYTHM_CHANGES } from '$lib/data/tunes';
+import { WHEN_THE_SAINTS } from '../../fixtures/tunes/when-the-saints';
+import { AMAZING_GRACE } from '../../fixtures/tunes/amazing-grace';
+import { buildHistoricalListeningTuneSession as buildListeningTuneSession, HISTORICAL_LISTENING_TUNES as LISTENING_TUNES } from '../../helpers/musicality-tune-fixtures';
 import { fractionToFloat } from '$lib/music/intervals';
 import { MAX_ADAPTIVE_BARS } from '$lib/audio/backing-performance-limits';
 
 describe('full-tune listening sessions', () => {
 	it('offers actual built-in 4/4 charts and keeps unsupported meters out of the picker', () => {
+		expect(PUBLIC_LISTENING_TUNES.map((tune) => tune.id).sort()).toEqual([MANKUNKU_BLUES.id, RHYTHM_CHANGES.id].sort());
+		expect(() => buildPublicListeningTuneSession({ tuneId: WHEN_THE_SAINTS.id })).toThrow(/unknown listening tune/i);
 		expect(LISTENING_TUNES.map((tune) => tune.id).sort()).toEqual([MANKUNKU_BLUES.id, WHEN_THE_SAINTS.id].sort());
 		expect(() => buildListeningTuneSession({ tuneId: AMAZING_GRACE.id })).toThrow(/4\/4/);
 	});
@@ -81,6 +86,7 @@ describe('full-tune listening sessions', () => {
 
 	it('rejects unknown charts, invalid keys and invalid chorus counts instead of quietly changing the arrangement', () => {
 		expect(() => buildListeningTuneSession({ tuneId: 'missing-tune' })).toThrow(/unknown listening tune/i);
+		expect(() => buildPublicListeningTuneSession({ tuneId: 'missing-tune' })).toThrow(/unknown listening tune/i);
 		expect(() => buildListeningTuneSession({ tuneId: MANKUNKU_BLUES.id, key: 'H' as 'C' })).toThrow(/concert key/i);
 		for (const soloChoruses of [0, 5, 1.5, NaN, Infinity]) {
 			expect(() => buildListeningTuneSession({ tuneId: MANKUNKU_BLUES.id, soloChoruses })).toThrow(/1 and 4/);

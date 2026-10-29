@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { test, expect } from './fixtures/test';
 import { seedOnboardedAnonymous, seedTunes } from './fixtures/storage';
 import { stubCdnInstrumentSamples } from './fixtures/audio';
+import { requireRealtimeAudio } from './fixtures/realtime-audio';
 import type { MusicianDecisionCard } from '../../src/lib/musicality/musician-decisions';
 import type { CausalListeningProvenance, ListeningSnapshot } from '../../src/lib/musicality/listening-player';
 
@@ -10,6 +11,7 @@ import bossaTerminalBefore from '../fixtures/audio/bossa-terminal-before.json' w
 
 import type { ListeningTuneBar } from '../../src/lib/musicality/listening-tunes';
 import { LOCAL_LISTENING_AABA } from '../fixtures/musicality-local-aaba';
+import { WHEN_THE_SAINTS } from '../fixtures/tunes/when-the-saints';
 
 interface ListeningEvidence {
 	session: { tuneId: string; headBars: number; chorusBars: number; soloChoruses: number; bars: ListeningTuneBar[]; source?: unknown };
@@ -115,6 +117,7 @@ async function sourceStarts(page: Page): Promise<number> {
 }
 
 async function playToBar(page: Page, bar = 1): Promise<void> {
+	requireRealtimeAudio(page);
 	await page.getByTestId('listening-play').click();
 	await expect.poll(() => soundingBar(page), { timeout: 20_000 }).toBeGreaterThanOrEqual(bar);
 }
@@ -343,6 +346,7 @@ test('cancels instrument loading without starting a late take, then allows repla
 	};
 	await page.route('https://smpldsnds.github.io/**', holdSamples);
 	try {
+		requireRealtimeAudio(page);
 		await page.getByTestId('listening-play').click();
 		await expect.poll(() => held).toBe(true);
 		await expect(page.getByRole('slider', { name: 'Review decisions', exact: true })).toHaveCount(0);
@@ -467,6 +471,7 @@ test('explains an actual scalar bass continuation across a real chord change', a
 	await setup(page);
 	await page.getByTestId('listening-key').selectOption('F');
 	await page.getByTestId('listening-tempo').fill('200');
+	requireRealtimeAudio(page);
 	await page.getByTestId('listening-play').click();
 	await expect.poll(() => soundingBar(page), { timeout: 40_000 }).toBe(23);
 	await expect(page.getByTestId('musician-bass')).toContainText('Quarter-note line continues downward through the chord change');
@@ -489,11 +494,13 @@ test('explains an actual scalar bass continuation across a real chord change', a
 for (const style of ['swing', 'straight'] as const) {
 	test(`${style} shows one accepted piano reply and the drummer's commentary space`, async ({ page }) => {
 		test.setTimeout(50_000);
+		await seedTunes(page, [WHEN_THE_SAINTS]);
 		await setup(page);
 		await page.getByTestId('listening-tune').selectOption('ls-when-the-saints');
 		await page.getByTestId('listening-key').selectOption('F#');
 		await page.getByTestId('listening-style').selectOption(style);
 		await page.getByTestId('listening-tempo').fill('140');
+		requireRealtimeAudio(page);
 		await page.getByTestId('listening-play').click();
 		await expect.poll(() => soundingBar(page), { timeout: 40_000 }).toBe(18);
 		await expect(page.getByTestId('musician-piano')).toContainText('Answer the drum phrase from bar 18 with one chord');
@@ -518,10 +525,12 @@ for (const style of ['swing', 'straight'] as const) {
 
 test('shows the actual piano top and its phrase target in the returning head', async ({ page }) => {
 	test.setTimeout(125_000);
+	await seedTunes(page, [WHEN_THE_SAINTS]);
 	await setup(page);
 	await page.getByTestId('listening-tune').selectOption('ls-when-the-saints');
 	await page.getByTestId('listening-key').selectOption('Eb');
 	await page.getByTestId('listening-tempo').fill('140');
+	requireRealtimeAudio(page);
 	await page.getByTestId('listening-play').click();
 	await expect.poll(() => soundingBar(page), { timeout: 110_000 }).toBe(57);
 	await expect(page.getByTestId('musician-piano')).toContainText('Chord 1 top-note target: B♭3; actual top: C4');
@@ -545,11 +554,13 @@ test('shows the actual piano top and its phrase target in the returning head', a
 for (const style of ['swing', 'straight'] as const) {
 	test(`${style} leaves a piano breath for the actual returning drum phrase`, async ({ page }) => {
 		test.setTimeout(55_000);
+		await seedTunes(page, [WHEN_THE_SAINTS]);
 		await setup(page);
 		await page.getByTestId('listening-tune').selectOption('ls-when-the-saints');
 		await page.getByTestId('listening-key').selectOption('F#');
 		await page.getByTestId('listening-style').selectOption(style);
 		await page.getByTestId('listening-tempo').fill('140');
+		requireRealtimeAudio(page);
 		await page.getByTestId('listening-play').click();
 		await expect.poll(() => soundingBar(page), { timeout: 45_000 }).toBe(19);
 		await expect(page.getByTestId('musician-piano')).toContainText('Leave a breath while the drum phrase returns');
@@ -584,6 +595,7 @@ test('shows Bossa native chord targets without importing Swing dialogue', async 
 	await page.getByTestId('listening-key').selectOption('F#');
 	await page.getByTestId('listening-style').selectOption('bossa-nova');
 	await page.getByTestId('listening-tempo').fill('140');
+	requireRealtimeAudio(page);
 	await page.getByTestId('listening-play').click();
 	await expect.poll(() => soundingBar(page), { timeout: 45_000 }).toBe(19);
 	const piano = page.getByTestId('musician-piano');
@@ -623,6 +635,7 @@ test('reviews a marked Bossa passage after stopping without changing the take or
 	await page.getByTestId('listening-key').selectOption('F#');
 	await page.getByTestId('listening-style').selectOption('bossa-nova');
 	await page.getByTestId('listening-tempo').fill('140');
+	requireRealtimeAudio(page);
 	await page.getByTestId('listening-play').click();
 	await expect(page.getByRole('slider', { name: 'Review decisions', exact: true })).toHaveCount(0);
 	await expect.poll(() => soundingBar(page), { timeout: 45_000 }).toBe(19);
@@ -673,6 +686,7 @@ test('reviews a marked Bossa passage after stopping without changing the take or
 	await page.waitForTimeout(700);
 	expect(await sourceStarts(page)).toBe(starts);
 	await assertNoMicrophone(page);
+	requireRealtimeAudio(page);
 	await page.getByTestId('listening-play').click();
 	await expect(slider).toHaveCount(0);
 	await expect(page.getByRole('button', { name: 'Bar 20 · Bossa top line', exact: true })).toHaveCount(0);
@@ -825,11 +839,13 @@ test('completes all 128 bars of a local tune book AABA on the real audio clock',
 for (const style of ['swing', 'straight']) {
 	test(`${style} recalls an actually played piano cell across solo phrases and preserves its review evidence`, async ({ page }) => {
 		test.setTimeout(70_000);
+		await seedTunes(page, [WHEN_THE_SAINTS]);
 		await setup(page);
 		await page.getByTestId('listening-tune').selectOption('ls-when-the-saints');
 		await page.getByTestId('listening-key').selectOption('Eb');
 		await page.getByTestId('listening-style').selectOption(style);
 		await page.getByTestId('listening-tempo').fill('140');
+		requireRealtimeAudio(page);
 		await page.getByTestId('listening-play').click();
 		await expect.poll(() => soundingBar(page), { timeout: 45_000 }).toBe(20);
 		const source = await exportTake(page);
@@ -872,6 +888,7 @@ for (const style of ['swing', 'straight']) {
 		await page.getByTestId('listening-key').selectOption('C');
 		await page.getByTestId('listening-style').selectOption(style);
 		await page.getByTestId('listening-tempo').fill('140');
+		requireRealtimeAudio(page);
 		await page.getByTestId('listening-play').click();
 		await expect.poll(() => soundingBar(page), { timeout: 55_000 }).toBe(26);
 		await assertDecisionClock(page, undefined, 140);
@@ -937,6 +954,7 @@ for (const style of ['swing', 'straight'] as const) {
 		await page.getByTestId('listening-key').selectOption('C');
 		await page.getByTestId('listening-style').selectOption(style);
 		await page.getByTestId('listening-ending').selectOption('hold-release');
+		requireRealtimeAudio(page);
 		await page.getByTestId('listening-play').click();
 		await expect.poll(() => soundingBar(page), { timeout: 65_000 }).toBeGreaterThanOrEqual(49);
 		const beforeEnding = await exportTake(page);
@@ -1032,6 +1050,7 @@ test('Ballad completes its native quiet terminal hold and preserves review evide
 	await page.getByTestId('listening-key').selectOption('C');
 	await page.getByTestId('listening-style').selectOption('ballad');
 	await page.getByTestId('listening-ending').selectOption('hold-release');
+	requireRealtimeAudio(page);
 	await page.getByTestId('listening-play').click();
 	await expect.poll(() => soundingBar(page), { timeout: 65_000 }).toBeGreaterThanOrEqual(49);
 	const beforeEnding = await exportTake(page);
@@ -1109,6 +1128,7 @@ for (const key of ['C', 'F#'] as const) {
 		await page.getByTestId('listening-style').selectOption('bossa-nova');
 		await page.getByTestId('listening-tempo').fill('140');
 		await page.getByTestId('listening-ending').selectOption('hold-release');
+		requireRealtimeAudio(page);
 		await page.getByTestId('listening-play').click();
 		await expect.poll(() => soundingBar(page), { timeout: 105_000 }).toBeGreaterThanOrEqual(49);
 		const beforeEnding = await exportTake(page);
@@ -1195,11 +1215,13 @@ for (const witness of [
 ]) {
 	test(`Ballad ${witness.tempo} answers its actual ${witness.drum} color with a native late pad and silent review`, async ({ page }) => {
 		test.setTimeout(100_000);
+		await seedTunes(page, [WHEN_THE_SAINTS]);
 		await setup(page);
 		await page.getByTestId('listening-tune').selectOption('ls-when-the-saints');
 		await page.getByTestId('listening-key').selectOption('D');
 		await page.getByTestId('listening-style').selectOption('ballad');
 		await page.getByTestId('listening-tempo').fill(String(witness.tempo));
+		requireRealtimeAudio(page);
 		await page.getByTestId('listening-play').click();
 		await expect.poll(() => soundingBar(page), { timeout: 75_000 }).toBe(witness.sourceBar);
 		const before = await exportTake(page);

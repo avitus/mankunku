@@ -3,7 +3,7 @@ import { generateBacking } from '$lib/audio/backing-generation';
 import { createRollingBacking, advanceRollingBacking, type RollingBackingCheckpoint } from '$lib/audio/backing-rolling';
 import { BACKING_STYLES } from '$lib/audio/backing-styles';
 import { buildPerformanceForm } from '$lib/audio/performance-form';
-import { buildListeningTuneSession, LISTENING_TUNES } from '$lib/musicality/listening-tunes';
+import { buildHistoricalListeningTuneSession as buildListeningTuneSession, HISTORICAL_LISTENING_TUNES as LISTENING_TUNES } from '../../helpers/musicality-tune-fixtures';
 import type { HarmonicSegment } from '$lib/types/music';
 
 const harmony: HarmonicSegment[] = [{ chord: { root: 'D', quality: 'min7' }, scaleId: 'major.dorian', startOffset: [0, 1], duration: [8, 1] }];

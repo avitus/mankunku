@@ -12,6 +12,7 @@
  */
 
 import type { DifficultyMetadata, PitchClass } from '$lib/types/music';
+import { isBackingStyle, tuneBackingStyle } from '$lib/tunes/backing-style';
 import type { Tune, TuneSection } from '$lib/types/tune';
 import { save, load } from './storage';
 import { getScopeGeneration, getLastUserId } from './user-scope';
@@ -137,6 +138,7 @@ export function cloudRowToTune(row: TuneRow): Tune {
 	};
 	if (row.composer !== null) sheet.composer = row.composer;
 	if (row.style !== null) sheet.style = row.style;
+	if (isBackingStyle(row.backing_style)) sheet.backingStyle = row.backing_style;
 	if (row.difficulty !== null) sheet.difficulty = row.difficulty as unknown as DifficultyMetadata;
 	if (row.pdf_url !== null) sheet.pdfUrl = row.pdf_url;
 	return sheet;
@@ -156,6 +158,7 @@ function tuneToRow(
 		key: sheet.key as string,
 		time_signature: sheet.timeSignature as number[],
 		style: sheet.style ?? null,
+		backing_style: tuneBackingStyle(sheet),
 		tags: sheet.tags,
 		sections: sheet.sections as unknown as Json,
 		difficulty: (sheet.difficulty as unknown as Json) ?? null,
@@ -362,7 +365,8 @@ export function saveUserTune(sheet: Tune): Tune {
 	const toSave: Tune = {
 		...sheet,
 		id: sheet.id || generateId(),
-		source: sheet.source || 'user'
+		source: sheet.source || 'user',
+		backingStyle: tuneBackingStyle(sheet)
 	};
 	const existingIdx = sheets.findIndex((s) => s.id === toSave.id);
 	if (existingIdx === -1) {

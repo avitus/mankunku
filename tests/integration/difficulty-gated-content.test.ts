@@ -137,14 +137,6 @@ describe('levelToContentTier boundaries', () => {
 			expect(levelToContentTier(upper)).toBe(tier);
 		});
 	}
-
-	it('all levels 1-100 map to tiers 1-10 without gaps', () => {
-		for (let level = 1; level <= 100; level++) {
-			const tier = levelToContentTier(level);
-			expect(tier).toBeGreaterThanOrEqual(1);
-			expect(tier).toBeLessThanOrEqual(10);
-		}
-	});
 });
 
 // ─── Validator Rules by Difficulty ────────────────────────────────

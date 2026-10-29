@@ -8,7 +8,7 @@ import {
 	type SystemLayout
 } from '$lib/notation/chart-geometry';
 import type { NoteAnchor } from '$lib/music/notation';
-import type { BarAnchor, ChordSlotAnchor } from '$lib/music/tune-notation';
+import type { BarAnchor, ChordSlotAnchor, GapAnchor } from '$lib/music/tune-notation';
 import type { TuneSection } from '$lib/types/tune';
 import { pickupFirstBeat, resolvePickupLength } from '$lib/music/pickup';
 import { endingGlyphTranslateDx } from '$lib/music/ending-layout';
@@ -291,24 +291,32 @@ export function chordKeyAction(
 /** What a chart click at some charspan position should do. */
 export type ChartClickTarget =
 	| { kind: 'note'; sourceIndex: number }
+	| { kind: 'gap'; gap: { sectionIdx: number; offset: number; duration: number } }
 	| { kind: 'bar'; pos: { sectionIdx: number; bar: number } };
 
 /**
- * Resolve a clicked abcjs element's `startChar` in priority order: pitched
- * melody note (exact start, then charspan containment) → chord-voice slot →
- * melody bar span. Rests carry no note anchor, so clicking one falls through
- * to its bar — a click anywhere in a bar can move the cursor there.
+ * Resolve a clicked abcjs element's `startChar` in priority order: melody
+ * note or anchored rest (exact start, then charspan containment) →
+ * chord-voice slot → melody bar span. A STORED rest carries an anchor since
+ * 2026-08-11 (`NoteAnchor.rest`); a pure gap rest and a slash bar's rests do
+ * not, so clicking those falls through to the bar — a click anywhere in a
+ * bar can move the cursor there.
  */
 export function resolveChartClick(
 	startChar: number,
 	noteAnchors: NoteAnchor[],
 	chordSlotAnchors: ChordSlotAnchor[],
-	barAnchors: BarAnchor[]
+	barAnchors: BarAnchor[],
+	gapAnchors: GapAnchor[] = []
 ): ChartClickTarget | null {
 	const note =
 		noteAnchors.find((a) => a.startChar === startChar) ??
 		noteAnchors.find((a) => startChar >= a.startChar && startChar < a.endChar);
 	if (note) return { kind: 'note', sourceIndex: note.sourceIndex };
+	// A gap rest (2026-10-16): silence the section never stored, which the
+	// editor can materialize and select rather than falling through to the bar.
+	const gap = gapAnchors.find((a) => startChar >= a.startChar && startChar < a.endChar);
+	if (gap) return { kind: 'gap', gap: { sectionIdx: gap.sectionIdx, offset: gap.offset, duration: gap.duration } };
 	const slot = chordSlotAnchors.find((a) => startChar >= a.startChar && startChar < a.endChar);
 	if (slot) return { kind: 'bar', pos: { sectionIdx: slot.sectionIdx, bar: slot.bar } };
 	const bar = barAnchors.find((a) => startChar >= a.startChar && startChar < a.endChar);
@@ -465,11 +473,11 @@ export function partLabelDelta(
 }
 
 /**
- * Horizontal shift seating a boxed part letter over the first FULL bar of a
+ * Horizontal shift seating a boxed part letter just left of the first FULL bar of a
  * system that opens with a partial pickup bar. abcjs can only draw a part
  * label at the line start, so the ABC hands the pickup line the label of the
- * section it leads into and NotationDisplay moves it past the pickup, the way
- * MuseScore and the Real Book print it. Never moves a label left.
+ * section it leads into. Keep the entire box before the opening barline so
+ * it cannot overlap the first chord inside the full bar.
  *
  * @param partBox — the label's CURRENT box (prior translate applied)
  * @param firstFullBarX0 — left edge of the first full bar's zone (its opening barline)
@@ -477,9 +485,8 @@ export function partLabelDelta(
  */
 export function pickupPartLabelDx(partBox: Box, firstFullBarX0: number, spacing: number): number {
 	if (!Number.isFinite(spacing) || spacing <= 0 || !Number.isFinite(firstFullBarX0)) return 0;
-	const targetLeft = firstFullBarX0 + PART_CLEF_INSET_SPACINGS * spacing;
-	const dx = targetLeft - partBox.x;
-	return dx > 0 ? dx : 0;
+	const targetRight = firstFullBarX0 - PART_CLEF_INSET_SPACINGS * spacing;
+	return targetRight - (partBox.x + partBox.width);
 }
 
 /**
@@ -532,6 +539,10 @@ const CHORD_H_INK_CLEARANCE_SPACINGS = 0.2;
  * preserves beat alignment for the first symbol of a bar.
  *
  * `boxes` are the chords' current bounding boxes (after any vertical drop).
+ * Only ink that overlaps a box counts: {@link chordSymbolDeltas} already lifted
+ * each chord clear of the ink beneath it, as MuseScore does, and a band
+ * reaching a spacing below the box shoved a chord over a bar of high beamed
+ * eighths past note after note to the barline (Rhythm Changes, 2026-10-25).
  * Returns one dx per chord.
  */
 export function chordHorizontalNudges(
@@ -556,13 +567,12 @@ export function chordHorizontalNudges(
 			const prevRight = left[i - 1] + width[i - 1];
 			if (x < prevRight + gap) x = prevRight + gap;
 		}
-		// Clear x-overlapping ink that reaches into this chord's horizontal band
-		// (same y-band as the chord row — obstacles wholly below the staff top
-		// are still considered; the caller filters ending/part marks).
+		// Clear x-overlapping ink that reaches into this chord's box (the caller
+		// filters ending/part marks).
 		const top = boxes[i].y;
 		const bottom = boxes[i].y + boxes[i].height;
 		for (const o of obstacles) {
-			if (o.y + o.height < top - spacing || o.y > bottom + spacing) continue;
+			if (o.y + o.height <= top || o.y >= bottom) continue;
 			const oRight = o.x + o.width;
 			// If the obstacle overlaps our natural box and sits to our left
 			// edge, push past it.

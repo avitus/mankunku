@@ -13,6 +13,7 @@ import {
 } from './chart-layout';
 import {
 	advanceEndingLayout,
+	columnsOf,
 	initialEndingLayoutState,
 	placeEndingSection,
 	type EndingPlacement
@@ -62,6 +63,8 @@ export { placeEndingSection } from './ending-layout';
  */
 
 export interface TuneAbcOptions {
+	/** Keep adjacent source rests separately selectable in an editor. */
+	preserveRestBoundaries?: boolean;
 	/** Page UI owns the title, composer and style; omit their engraving space. */
 	omitMasthead?: boolean;
 	/** ABC L: default note length. */
@@ -93,6 +96,23 @@ export interface BarAnchor {
 	sectionIdx: number;
 	/** 0-based bar within the section. */
 	bar: number;
+}
+
+/**
+ * Maps one engraved GAP rest — silence a section stores no element for — back
+ * to its position (2026-10-16). A PDF import stores no rests at all, so
+ * without this a click on such a rest had nothing to select and fell through
+ * to the bar; the editor materializes the gap as a rest element and selects
+ * it. Slash bars (whole-bar silence) stay bar clicks and get no gap anchor.
+ */
+export interface GapAnchor {
+	startChar: number;
+	endChar: number;
+	sectionIdx: number;
+	/** Section-local whole-note offset of the rest, as a float. */
+	offset: number;
+	/** Length in whole notes, as a float. */
+	duration: number;
 }
 
 /**
@@ -215,6 +235,7 @@ export function tuneToAbcWithMap(
 	noteAnchors: NoteAnchor[];
 	barAnchors: BarAnchor[];
 	chordSlotAnchors: ChordSlotAnchor[];
+	gapAnchors: GapAnchor[];
 } {
 	const defaultLength = options.defaultLength ?? [1, 8];
 	const barsPerLine = options.barsPerLine ?? suggestBarsPerLine(sheet);
@@ -242,9 +263,10 @@ export function tuneToAbcWithMap(
 		`%%partsbox 1`,
 		// Measure numbers at the start of every system (abcjs: 0 = each line).
 		...(options.measureNumbers === false ? [] : [`%%measurenb 0`]),
-		// Don't stretch short systems (esp. stacked [2] endings) to full width —
-		// empty space under a full-width volta reads as a layout bug. A
-		// one-system lead-sheet row asks for the stretch so its bars span the row.
+		// Don't stretch a short last system to full width — a bar or two spread
+		// across the page reads as a layout bug. A one-system lead-sheet row
+		// asks for the stretch so its bars span the row; a stacked [2] that
+		// ends the tune needs it too (set after the body is placed, below).
 		`%%stretchlast ${options.stretchLast ? 1 : 0}`,
 		// Two voices merged onto ONE staff: M carries the melody (and the
 		// reader's rests / slashes / multi-rests); H is an invisible spacer
@@ -261,6 +283,9 @@ export function tuneToAbcWithMap(
 	];
 
 	const tokens: string[] = [];
+	/** Gap rests awaiting their char positions (see `GapAnchor`). */
+	const pendingGapAnchors: { tokenIndex: number; sectionIdx: number; offset: number; duration: number }[] = [];
+	let currentSectionIdx = 0;
 	const pendingAnchors: Array<{
 		tokenIndex: number;
 		sourceIndex: number;
@@ -353,7 +378,18 @@ export function tuneToAbcWithMap(
 		return `${art}${pitch}${durationToAbc(duration, defaultLength)}${tieSuffix}`;
 	}
 
+/** Push one engraved element's token, recording its note anchor (stored elements) or gap anchor (gap rests) first. */
 	function emitElement(el: DisplayElement, duration: Fraction, barState: ReturnType<typeof initBarState>): void {
+		if (el.sourceIndex === null && el.note.pitch === null && !isSlashBarRest(el.note, duration)) {
+			// A gap rest: no stored element behind it, but a place the editor
+			// can materialize and select (one anchor per engraved segment).
+			pendingGapAnchors.push({
+				tokenIndex: tokens.length,
+				sectionIdx: currentSectionIdx,
+				offset: fractionToFloat(el.note.offset),
+				duration: fractionToFloat(el.note.duration)
+			});
+		}
 		if (el.sourceIndex !== null && !isSlashBarRest(el.note, duration)) {
 			pendingAnchors.push({
 				tokenIndex: tokens.length,
@@ -382,6 +418,8 @@ export function tuneToAbcWithMap(
 	// with NO pad bars (alignment under [1] is post-render).
 	let endingState = initialEndingLayoutState();
 	let lineColumn = 0; // bars into the current line where this section starts
+	// The system opened last holds only a stacked [2] (see the header fix-up).
+	let lastSystemIsStackedEnding = false;
 
 	// ── Global chord timeline (absolute whole-note offsets) ──────────────
 	// The chord voice is built per system line from these. Display text is
@@ -546,6 +584,7 @@ export function tuneToAbcWithMap(
 
 	for (let secIdx = 0; secIdx < sheet.sections.length; secIdx++) {
 		const sec = sheet.sections[secIdx];
+		currentSectionIdx = secIdx;
 		const sectionEnd = sec.bars * barDuration;
 		const prevSec = secIdx > 0 ? sheet.sections[secIdx - 1] : null;
 		const pickup = sectionPickup[secIdx];
@@ -565,6 +604,7 @@ export function tuneToAbcWithMap(
 		lineColumn = placement.startColumn;
 
 		if (placement.startsNewLine) {
+			lastSystemIsStackedEnding = placement.alignUnderFirstEnding && columnsOf(sec) <= barsPerLine;
 			flushLine(sectionBaseBars);
 			// Section prelude: part label between systems. Blank labels (front
 			// matter) get no marker and don't disturb the consecutive-duplicate
@@ -593,9 +633,14 @@ export function tuneToAbcWithMap(
 			if (sec.label.trim() !== '') previousLabel = sec.label;
 		}
 		if (sec.repeatStart && !prevPickupOnly) tokens.push('|:');
+		// A stacked [2] opens on a barline as [1] did; the alignment pass moves
+		// it under [1]'s, where the bar the ending replaces begins. Without it
+		// the ending's first bar ran from the key signature. A repeat sign
+		// already is that barline (|:|[2 printed two).
+		else if (placement.alignUnderFirstEnding) tokens.push('|');
 		if (sec.ending) tokens.push(`[${sec.ending}`);
 		// The section body always opens at bar 0 (section-local offsets start
-		// at 0); the span begins after the |: / [n decorations above.
+		// at 0); the span begins after the |: / | / [n decorations above.
 		openBarSpan(secIdx, 0);
 
 		// ── Gap-fill: every bar renders, melody or not (invisible in this
@@ -633,7 +678,7 @@ export function tuneToAbcWithMap(
 		}
 		flattenedNoteBase += sec.notes.length;
 
-		const { display, sourceMap, sourceEndMap } = mergeConsecutiveRests(inputNotes, sheet.timeSignature);
+		const { display, sourceMap, sourceEndMap } = mergeConsecutiveRests(inputNotes, sheet.timeSignature, options.preserveRestBoundaries);
 		const elements: DisplayElement[] = display.map((note: Note, k: number): DisplayElement => {
 			// A merged display rest can cover several input elements — gaps
 			// (inputSources null) and stored rests interleaved. Anchor it to
@@ -686,6 +731,8 @@ export function tuneToAbcWithMap(
 					if (bar > partial && (lineColumn + bar - partial) % barsPerLine === 0) {
 						flushLine(sectionBaseBars + bar);
 						openLine(sectionBaseBars + bar);
+						// A system this wrap opens is never the stacked [2]'s.
+						lastSystemIsStackedEnding = false;
 					} else {
 						tokens.push(' ');
 					}
@@ -700,22 +747,22 @@ export function tuneToAbcWithMap(
 				}
 			}
 
-			// Complete triplet group: 3 consecutive same-duration pitched triplet
-			// notes with contiguous offsets.
+			// Complete triplet group: 3 consecutive same-duration triplet notes
+			// or rests with contiguous offsets.
 			const tripBase = getTripletBase(el.note.duration);
 			if (tripBase !== null && i + 2 < elements.length &&
 				sameDuration(elements[i + 1].note.duration, el.note.duration) &&
-				sameDuration(elements[i + 2].note.duration, el.note.duration) &&
-				elements[i].note.pitch !== null &&
-				elements[i + 1].note.pitch !== null &&
-				elements[i + 2].note.pitch !== null) {
+				sameDuration(elements[i + 2].note.duration, el.note.duration)) {
 
 				const tripDur = fractionToFloat(el.note.duration);
 				const off0 = fractionToFloat(elements[i].note.offset);
 				const off1 = fractionToFloat(elements[i + 1].note.offset);
 				const off2 = fractionToFloat(elements[i + 2].note.offset);
 
-				if (Math.abs(off1 - off0 - tripDur) < 1e-9 && Math.abs(off2 - off1 - tripDur) < 1e-9) {
+				// A group never crosses a barline: the third member must start in
+				// the first one's bar, or its barline and bar anchor are lost.
+				if (Math.abs(off1 - off0 - tripDur) < 1e-9 && Math.abs(off2 - off1 - tripDur) < 1e-9 &&
+					Math.floor(off2 / barDuration + 1e-9) === bar) {
 					tokens.push('(3');
 					for (let j = 0; j < 3; j++) emitElement(elements[i + j], tripBase, barState);
 					prevBar = Math.floor(off2 / barDuration + 1e-9);
@@ -780,6 +827,15 @@ export function tuneToAbcWithMap(
 	}
 	flushLine(sectionBaseBars);
 
+	// A stacked [2] is engraved on a full-width system and slid under [1]
+	// after render. Mid-tune, abcjs justifies its system like any other; at
+	// the end of the tune it is the LAST system, which `%%stretchlast 0` left
+	// at its natural width — the staff stopped two bars in and the slid bars
+	// floated past its end (Mankunku Blues, 2026-10-25).
+	if (lastSystemIsStackedEnding && !options.stretchLast) {
+		headerLines[headerLines.indexOf('%%stretchlast 0')] = '%%stretchlast 1';
+	}
+
 	// ── Anchor char-offset resolution across all tokens (incl. newlines) ──
 	const headerStr = headerLines.join('\n');
 	const bodyStart = headerStr.length + 1;
@@ -790,6 +846,11 @@ export function tuneToAbcWithMap(
 		charCursor += tokens[t].length;
 	}
 	const noteAnchors: NoteAnchor[] = pendingAnchors.map(({ tokenIndex, ...fields }): NoteAnchor => ({
+		startChar: bodyStart + tokenStarts[tokenIndex],
+		endChar: bodyStart + tokenStarts[tokenIndex] + tokens[tokenIndex].length,
+		...fields
+	}));
+	const gapAnchors: GapAnchor[] = pendingGapAnchors.map(({ tokenIndex, ...fields }): GapAnchor => ({
 		startChar: bodyStart + tokenStarts[tokenIndex],
 		endChar: bodyStart + tokenStarts[tokenIndex] + tokens[tokenIndex].length,
 		...fields
@@ -817,7 +878,8 @@ export function tuneToAbcWithMap(
 		abc: headerStr + '\n' + tokens.join(''),
 		noteAnchors,
 		barAnchors,
-		chordSlotAnchors
+		chordSlotAnchors,
+		gapAnchors
 	};
 }
 

@@ -2,7 +2,7 @@ import { expect, it } from 'vitest';
 import { seedFrom } from '$lib/audio/generation-rng';
 import { advanceRollingBacking, createRollingBacking, type RollingBackingCheckpoint } from '$lib/audio/backing-rolling';
 import { BACKING_STYLES } from '$lib/audio/backing-styles';
-import { buildListeningTuneSession } from '$lib/musicality/listening-tunes';
+import { buildHistoricalListeningTuneSession as buildListeningTuneSession } from '../../helpers/musicality-tune-fixtures';
 import baseline from '../../fixtures/audio/ballad-native-reply-before.json';
 
 const fields = ['bassEvents', 'compEvents', 'drumEvents'] as const;

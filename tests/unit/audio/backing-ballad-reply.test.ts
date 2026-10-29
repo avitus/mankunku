@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createRollingBacking, advanceRollingBacking, type RollingBackingCheckpoint } from '$lib/audio/backing-rolling';
 import { BACKING_STYLES } from '$lib/audio/backing-styles';
-import { buildListeningTuneSession } from '$lib/musicality/listening-tunes';
+import { buildHistoricalListeningTuneSession as buildListeningTuneSession } from '../../helpers/musicality-tune-fixtures';
 import { captureNativeBalladColor, proposeNativeBalladReply, advanceNativeBalladReplyMemory, validateNativeBalladReply } from '$lib/audio/backing-ballad-reply';
 import { seedFrom } from '$lib/audio/generation-rng';
 import * as voices from '$lib/audio/coordinated-voicing';

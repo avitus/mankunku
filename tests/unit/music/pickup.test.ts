@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { Fraction, Note } from '$lib/types/music';
 import type { TuneSection } from '$lib/types/tune';
 import {
+	isInPickupLeadIn,
 	isPickupOnlySection,
 	pickupFirstBeat,
 	pickupLengthFromMelody,
@@ -126,6 +127,54 @@ describe('pickupPrefix / pickupFirstBeat', () => {
 	});
 });
 
+// 2026-10-25, Andy (Black Orpheus): the playhead marked the one-beat pickup
+// from beat 1 of its timeline bar, three beats before the note sounded. The
+// timeline's full pickup bar is silent until the printed pickup starts, and
+// a playhead waits that out.
+describe('isInPickupLeadIn', () => {
+	const late = [{ pitch: 64, duration: [1, 4], offset: [3, 4] }] as Note[];
+
+	it('holds a pickup bar\'s silent beats, up to its first printed beat', () => {
+		const sheet = sheetOf(sec({ pickupLength: [1, 4], notes: late }));
+		expect(isInPickupLeadIn(sheet, 0)).toBe(true);
+		expect(isInPickupLeadIn(sheet, 0.74)).toBe(true);
+		expect(isInPickupLeadIn(sheet, 0.75)).toBe(false); // beat 4: the pickup sounds
+		expect(isInPickupLeadIn(sheet, 0.9)).toBe(false);
+		expect(isInPickupLeadIn(sheet, 1)).toBe(false);
+		expect(isInPickupLeadIn(sheet, 4.2)).toBe(false);
+	});
+
+	it('reads a legacy pickup, an in-section one and a later section\'s', () => {
+		expect(isInPickupLeadIn(sheetOf(sec({ notes: late })), 0.5)).toBe(true);
+		const inSection = sheetOf(sec({ label: 'A', bars: 8, pickupLength: [1, 4], notes: late }));
+		expect(isInPickupLeadIn(inSection, 0.5)).toBe(true);
+		expect(isInPickupLeadIn(inSection, 1.5)).toBe(false); // the section's second bar is full
+		const later = sheetOf(
+			sec({ label: 'A', bars: 8 }),
+			FOUR_FOUR,
+			sec({ label: 'B', bars: 8, pickupLength: [1, 2], notes: [{ pitch: 60, duration: [1, 2], offset: [1, 2] }] })
+		);
+		expect(isInPickupLeadIn(later, 0.5)).toBe(false);
+		expect(isInPickupLeadIn(later, 8.4)).toBe(true);
+		expect(isInPickupLeadIn(later, 8.5)).toBe(false);
+	});
+
+	it('measures the lead-in in the meter: two of a 3/4 bar\'s three beats', async () => {
+		const { AMAZING_GRACE } = await import('../../fixtures/tunes/amazing-grace');
+		expect(isInPickupLeadIn(AMAZING_GRACE, 0.66)).toBe(true);
+		expect(isInPickupLeadIn(AMAZING_GRACE, 0.67)).toBe(false);
+	});
+
+	it('is false for a full first bar and outside the chart', () => {
+		const full = sheetOf(sec({ label: 'A', bars: 8, notes: [{ pitch: 60, duration: [1, 1], offset: [0, 1] }] }));
+		expect(isInPickupLeadIn(full, 0)).toBe(false);
+		const sheet = sheetOf(sec({ pickupLength: [1, 4], notes: late }));
+		expect(isInPickupLeadIn(sheet, -0.5)).toBe(false);
+		expect(isInPickupLeadIn(sheet, 99)).toBe(false);
+		expect(isInPickupLeadIn(sheet, Number.NaN)).toBe(false);
+	});
+});
+
 describe('isPickupOnlySection', () => {
 	it('is true only for a blank-labelled one-bar section with a resolvable pickup', () => {
 		const late = [{ pitch: 46, duration: [1, 4], offset: [3, 4] }] as Note[];
@@ -147,10 +196,10 @@ describe('pickupLengthOptions', () => {
 	});
 });
 
-describe('curated charts', () => {
+describe('the charts that shipped curated until 2026-10-25', () => {
 	it('carry their pickups explicitly (in-section, so the legacy rule cannot see them)', async () => {
-		const { AMAZING_GRACE } = await import('$lib/data/tunes/amazing-grace');
-		const { WHEN_THE_SAINTS } = await import('$lib/data/tunes/when-the-saints');
+		const { AMAZING_GRACE } = await import('../../fixtures/tunes/amazing-grace');
+		const { WHEN_THE_SAINTS } = await import('../../fixtures/tunes/when-the-saints');
 		expect(resolvePickupLength(AMAZING_GRACE, 0)).toEqual([1, 4]); // 3/4: "A-" on beat 3
 		expect(resolvePickupLength(WHEN_THE_SAINTS, 0)).toEqual([3, 4]); // "Oh when the" on 2-3-4
 	});

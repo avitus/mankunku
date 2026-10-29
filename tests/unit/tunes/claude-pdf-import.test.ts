@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { claudeJsonToTune, extractionConsistencyScore } from '$lib/tunes/import/claude-pdf';
+import { claudeJsonToTune, extractionConsistencyScore, toFraction } from '$lib/tunes/import/claude-pdf';
 
 function validDoc(): Record<string, unknown> {
 	return {
@@ -59,6 +59,14 @@ describe('claudeJsonToTune', () => {
 		expect(a.notes).toHaveLength(2);
 		expect(a.notes[0]).toMatchObject({ pitch: 70, duration: [1, 2], offset: [0, 1] });
 		expect(a.notes[1]).toMatchObject({ pitch: 74, duration: [3, 8], offset: [1, 2] });
+	});
+
+	it('rejects a meter the community gate would reject (CodeRabbit on #277)', () => {
+		const doc = validDoc();
+		doc.timeSignature = [4, 128];
+		const { sheet, errors } = claudeJsonToTune(doc);
+		expect(sheet).toBeNull();
+		expect(errors).toContain('invalid timeSignature');
 	});
 
 	it('respects non-4/4 time signatures in offset math', () => {
@@ -472,5 +480,20 @@ describe('extractionConsistencyScore', () => {
 				'bar 3: unparseable chord "X" — skipped'
 			])
 		).toBe(3); // the unparseable chord is content, not structure
+	});
+});
+
+describe('toFraction', () => {
+	it('returns the smallest exact denominator on the duration grid', () => {
+		expect(toFraction(1)).toEqual([1, 1]);
+		expect(toFraction(0.375)).toEqual([3, 8]);
+		expect(toFraction(1 / 3)).toEqual([1, 3]);
+		expect(toFraction(5 / 12)).toEqual([5, 12]);
+		expect(toFraction(1 / 24)).toEqual([1, 24]);
+	});
+
+	it('snaps a value off the grid to the nearest 24th rather than inventing a denominator', () => {
+		expect(toFraction(0.1)).toEqual([2, 24]);
+		expect(toFraction(1 / 32)).toEqual([1, 24]);
 	});
 });

@@ -10,15 +10,16 @@ Named after Winston "Mankunku" Ngozi's 1968 album [*Yakhal' Inkomo*](https://en.
 
 - Call-and-response ear training in the day's key and scale, with automatic scoring (`/ear-training`)
 - Lick practice: your own licks through all 12 keys over a generated rhythm section, with per-lick gradual key unlocking and tempo adaptation — sessions pinned to one progression, **Daily Practice** across every progression you've tagged, and single-lick **Deep Practice** on a worst-first key rotation; the report's weak-key recommendation starts a focus ramp on that key alone
-- Sheet music only where it helps: the newest-unlocked key, while it scores under 75%, gets an engraved lead-sheet row, heralded by a two-bar reading pause and (in continuous mode) held for three passes
+- Sheet music only where it helps: the newest-unlocked key, while it scores under 75% (and, in Deep Practice, any key you keep missing), gets an engraved lead-sheet row, heralded by a two-bar reading pause and (in continuous mode) held for three passes
 - Tricks: parameterized melodic devices — enclosures (major, minor and dominant ladders) and eight triad-pair families — drilled for fluency, scored on conformance to the device rather than note-for-note reproduction, with a mastery ladder of variants
-- Tune practice: runtime progression detection inside a song form, mastery-aware lick suggestions at each insertion point, and freestyle solo recognition
+- Tune practice: runtime progression detection inside a song form, lick suggestions from your own book at each insertion point, freestyle solo recognition, and a drummer's count-in
+- The tune desk: play any chart back with the band, melody and click, loop the form (first ending round, second ending out), each tune remembering its tempo and backing style
 - Adaptive difficulty: per-scale and per-key proficiency levels 1-100 over 10 content tiers
-- Guided tours of the app, ear training, lick practice, your licks, your tunes and tune practice, replayable from Settings
+- Guided tours of the app, ear training, lick practice, your licks, your tunes, the tune editor and tune practice, replayable from Settings
 
 **Your book**
 
-- Licks: a step-entry notation editor (with Weimar Jazz Database attribution suggestions while you name a line), record-a-lick — play it over a two-bar count-in and get it transcribed, swung eighths notated straight — and major/minor mode per lick
+- Licks: a step-entry notation editor with MuseScore-style editing — select, re-pitch, resize, insert, ranges, copy/paste — (with Weimar Jazz Database attribution suggestions while you name a line), record-a-lick — play it over a two-bar count-in and get it transcribed, swung eighths notated straight — and major/minor mode per lick
 - Tunes: a songbook with Real Book–style engraving — jazz chord stacking, section markers, repeats, stacked voltas, pickup bars, multi-system reflow — shown in your instrument's written key
 - Tune importers: iReal Pro links, Band-in-a-Box `.SGU`/`.MGU` (with a MusicXML fallback), MuseScore `.mscz`/`.mscx`, and PDF lead sheets — AI-assisted extraction with a review pass, optionally fused with an OMR transcription from the `omr/` subsystem
 - Community sharing for both licks and tunes
@@ -28,18 +29,20 @@ Named after Winston "Mankunku" Ngozi's 1968 album [*Yakhal' Inkomo*](https://en.
 
 - Real-time pitch detection (McLeod method via Pitchy, 60fps)
 - Note onset detection via custom AudioWorklet (HFC algorithm)
-- Five-tier re-articulation detection down to legato tonguing that leaves no energy evidence — only a waveform-shape break
+- Six-tier re-articulation detection down to legato tonguing that leaves no energy evidence — only a waveform-shape break, or only a change of tone colour
+- Ghost notes recovered from below the confidence threshold, cracked attacks and harmonic locks folded back into the note you played
 - Band-limited (250–5000 Hz) evidence so metronome clicks can neither mask nor fake an articulation
-- DTW alignment-based scoring (pitch 60% + rhythm 40%, with latency correction)
+- DTW alignment-based scoring (pitch 60% + rhythm 40%, with latency correction); stray extra notes cost points, detector artefacts don't
+- A sharp/flat tuning cue and a per-note tuning fader bank in ear training
 
 **The band**
 
 - A generated rhythm section in four styles — swing, bossa nova, ballad, straight — with planned walking bass in swing, rootless voice-led comping and a composed drum vocabulary, seeded so a replay is identical
-- Tenor, alto and soprano sax play bundled multi-layer samples; trumpet and a concert-pitch setting play through a General MIDI SoundFont
+- Tenor, alto and soprano sax play bundled multi-layer samples with per-note vibrato; trumpet and the concert-pitch instruments (piano, guitar, bass, trombone, flute, vibraphone, violin, voice, other) play through a General MIDI SoundFont
 
 **Content**
 
-- 33 scales and 452 curated jazz licks (ii-V-I, blues, bebop, modal, and more), plus 471 generated by combining scale patterns with rhythm templates
+- 33 scales and 652 hand-written jazz licks (ii-V-I, blues, bebop, modal, and more), plus 471 generated by combining scale patterns with rhythm templates
 - In-app documentation (`/docs`) with an AI docs assistant, and a scales reference (`/scales`)
 
 **Platform**
@@ -121,7 +124,7 @@ src/
     components/     Svelte UI components, by domain
     ui/             Pure layout and colour helpers used by components
     server/         Server-only code: health snapshot, error handler, Anthropic client, account deletion, admin
-    supabase/       Client factories and hand-maintained DB types
+    supabase/       Admin client, auth helpers and hand-maintained DB types
     types/          TypeScript interfaces grouped by domain
     data/           Curated lick + tune catalogs, pattern tables, progression templates and shapes
     util/           Small shared utilities
@@ -157,7 +160,7 @@ docs/               OMR docs, WJazzD attribution
 
 **Tunes bridge into the Phrase pipeline** — Tunes were added without forking playback, scoring, or notation. `flattenTune` collapses a tune's sections into one continuous timeline (in notation order or repeat-expanded playback order, with index maps between them), and `tuneToPhrase` wraps that in a `Phrase` so the existing engines consume a song form with no new orchestration. See [Tune System](documentation/architecture/tune-system.md).
 
-See [Architecture Overview](documentation/architecture/overview.md) for detailed system design documentation, and [`CLAUDE.md`](CLAUDE.md) for the densest current reference.
+See [Architecture Overview](documentation/architecture/overview.md) for detailed system design documentation, and [`AGENTS.md`](AGENTS.md) for the densest current reference.
 
 ## Contributing
 
@@ -177,19 +180,19 @@ See the full [Contributing Guide](documentation/contributing/contributing.md) fo
 ```sh
 npm test              # Unit + integration tests (Vitest)
 npm run test:watch    # Watch mode
-npm run test:e2e      # Playwright E2E tests (Chromium, Firefox, WebKit)
+npm run test:e2e      # Sandboxed Playwright tests (Docker required; see tests/e2e/README.md)
 npm run test:deploy   # The server-side release script (bash, stubbed npm/pm2/curl)
 npm run check         # TypeScript + svelte-check
 cd omr && uv run pytest   # The Python OMR subsystem (hermetic)
 ```
 
-Playwright builds and previews the app on port 4173 and locally reuses whatever already holds that port — beside another checkout, set `PLAYWRIGHT_PORT` to a free port or you will test the other checkout's build.
+Each sandbox builds and previews its own checkout on internal port 4173. Separate container networks prevent parallel runs from sharing another checkout's server; no host port override is needed.
 
 See the [Testing Guide](documentation/contributing/testing-guide.md) for patterns, audio mocking strategies, and conventions.
 
 ## Deployment
 
-Production is a single Node process (SvelteKit's Node adapter) under PM2 on a Digital Ocean droplet, behind nginx. CircleCI deploys every merge to `main` — test → build → db-migrate → deploy, with the cross-browser E2E job also gating the deploy.
+Production is a single Node process (SvelteKit's Node adapter) under PM2 on a Digital Ocean droplet, behind nginx. CircleCI deploys every merge to `main` — test → build → db-migrate → deploy, with the cross-browser E2E job also gating the deploy. Tests run through CircleCI Smarter Testing (`.circleci/test-suites.yml`): dynamic parallelism and test splitting, auto-rerun of failed files, and — on branches — only the test files a change reaches.
 
 ### App releases
 
@@ -236,7 +239,7 @@ Set in the CircleCI project settings (none of these live in the repo):
 | `SUPABASE_ACCESS_TOKEN` | Lets `db-migrate` run `supabase link` + `supabase db push --linked` — no database password needed |
 | `PRODUCTION_URL` | *(optional)* Base URL for the public health check; defaults to `https://mankunkujazz.com` |
 
-The `build` job — and the `e2e` job, whose Playwright `webServer` builds the app itself — also need `PUBLIC_SUPABASE_URL` / `PUBLIC_SUPABASE_ANON_KEY` in the environment, since they are inlined at build time. The SSH key is attached via `add_ssh_keys` using the fingerprint registered for the deploy jobs.
+The `build` job — and the `e2e` job, which builds and serves the app once per node — also need `PUBLIC_SUPABASE_URL` / `PUBLIC_SUPABASE_ANON_KEY` in the environment, since they are inlined at build time. The SSH key is attached via `add_ssh_keys` using the fingerprint registered for the deploy jobs.
 
 **Manual nginx deploy.** Copy `nginx/mankunku.conf` to the server (e.g. `/tmp/mankunku.nginx.staged`) and run:
 

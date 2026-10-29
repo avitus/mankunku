@@ -6,7 +6,7 @@ import { PITCH_CLASSES, type ChordQuality } from '$lib/types/music';
 import { planEnsembleWindow, type SoloFeature } from '$lib/audio/ensemble-plan';
 import { createRollingBacking, advanceRollingBacking, type RollingBackingCheckpoint } from '$lib/audio/backing-rolling';
 import { BACKING_STYLES } from '$lib/audio/backing-styles';
-import { buildListeningTuneSession } from '$lib/musicality/listening-tunes';
+import { buildHistoricalListeningTuneSession as buildListeningTuneSession } from '../../helpers/musicality-tune-fixtures';
 import { seedFrom } from '$lib/audio/generation-rng';
 
 const { phrase } = buildListeningTuneSession({ tuneId: 'ls-mankunku-blues', key: 'Eb', soloChoruses: 2 });

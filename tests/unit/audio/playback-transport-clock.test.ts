@@ -18,7 +18,7 @@ const transport = vi.hoisted(() => ({
 
 vi.mock('tone', () => ({
 	getTransport: () => transport,
-	getContext: () => ({ lookAhead: 0.1 })
+	getContext: () => ({ lookAhead: 0.1, rawContext: { currentTime: 12 } })
 }));
 vi.mock('$lib/audio/metronome', () => ({ disposeMetronome: vi.fn() }));
 vi.mock('$lib/audio/backing-track', () => ({ disposeBackingParts: vi.fn() }));
@@ -26,11 +26,13 @@ vi.mock('$lib/audio/audio-context', () => ({}));
 
 describe('getTransportClockAt', () => {
 	it('is null before Tone loads, then reads the position at the given audio time and the lookahead', async () => {
-		const { getTransportClockAt, stopPlayback } = await import('$lib/audio/playback');
+		const { getTransportClockAt, getAudibleTransportSeconds, stopPlayback } = await import('$lib/audio/playback');
 		expect(getTransportClockAt(12)).toBeNull();
+		expect(getAudibleTransportSeconds()).toBe(0);
 
 		await stopPlayback(); // loads Tone
 		expect(getTransportClockAt(12)).toEqual({ secondsAtContextTime: 10, lookAhead: 0.1 });
+		expect(getAudibleTransportSeconds()).toBe(10); // .seconds would be the lookahead value 99
 		expect(transport.getSecondsAtTime).toHaveBeenCalledWith(12);
 	});
 });
