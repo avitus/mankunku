@@ -37,7 +37,8 @@ test('records coverage', async ({}, info) => {
 	const cli = join(dirname(require.resolve('playwright/package.json')), 'cli.js');
 	const result = spawnSync(process.execPath, [cli, 'test', '--config', config], {
 		encoding: 'utf8', timeout: 15_000,
-		env: { ...process.env, CIRCLECI_COVERAGE: coverage, FORCE_COLOR: '0' }
+		env: { ...process.env, CIRCLECI_COVERAGE: coverage, FORCE_COLOR: '0',
+			PLAYWRIGHT_HTML_OUTPUT_DIR: join(dir, 'report') }
 	});
 	expect(result.status, result.stderr).toBe(0);
 	// The file-only reporter used to suppress Playwright's fallback reporter:
