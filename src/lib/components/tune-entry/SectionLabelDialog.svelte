@@ -11,10 +11,12 @@
 	let omit = $state(false);
 	let initialOmit = false;
 	let error = $state('');
-	const pickup = $derived(resolvePickupLength(buildDraftTune(), 0) ? 1 : 0);
+	let pickup = $state(0);
 	const total = $derived(tuneEntry.sections.reduce((n, s) => n + s.bars, 0));
 	export async function open(index: number | null, absoluteBar = 0) {
-		const marks = sectionLabels(buildDraftTune());
+		const draft = buildDraftTune();
+		pickup = resolvePickupLength(draft, 0) ? 1 : 0;
+		const marks = sectionLabels(draft);
 		const mark = marks.find(m => m.sectionIdx === index);
 		from = index;
 		label = mark?.label ?? Array.from({ length: 26 }, (_, i) => String.fromCharCode(65 + i)).find(l => !marks.some(m => m.label === l)) ?? 'Section';

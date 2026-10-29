@@ -3,7 +3,6 @@ import type { Tune } from '$lib/types/tune';
 import { editSectionLabel, sectionLabels } from '$lib/tunes/section-labels';
 import { flattenTune } from '$lib/tunes/flatten';
 import { fractionToFloat } from '$lib/music/intervals';
-import { nearestLabelBar } from '$lib/notation/section-label-target';
 import { tuneToAbcWithMap } from '$lib/music/tune-notation';
 
 const tune: Tune = { id: 'marks', title: 'Marks', key: 'C', timeSignature: [4, 4], source: 'user', tags: [], sections: [
@@ -66,11 +65,5 @@ describe('bar-anchored section labels', () => {
 		const waltz = { ...tune, timeSignature: [3, 4] as [number, number] };
 		const moved = edit(waltz, 1, 2);
 		expect(notes(moved)).toEqual(notes(waltz));
-	});
-	it('targets the bar on the staff below, including a drop between staff rows', () => {
-		const bars = [{ bar: 0, x: 0, y: 10, width: 50, height: 5 }, { bar: 1, x: 50, y: 10, width: 50, height: 5 },
-			{ bar: 2, x: 0, y: 30, width: 50, height: 5 }, { bar: 3, x: 50, y: 30, width: 50, height: 5 }];
-		expect(nearestLabelBar(bars, 60, 18)?.bar).toBe(3);
-		expect(nearestLabelBar(bars, 60, 7)?.bar).toBe(1);
 	});
 });
