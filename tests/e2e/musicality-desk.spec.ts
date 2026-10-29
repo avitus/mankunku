@@ -14,8 +14,13 @@ test('shows a real score beside factual band insights with a release and compact
  await expect(page.getByTestId('musicality-release')).toContainText('0.1.0');
  await expect(page.getByTestId('listening-score').locator('svg').first()).toBeVisible();
  await expect(page.getByTestId('musician-piano')).toContainText('Waiting for the first bar');
+ await expect(page.getByText('Three players.',{exact:false})).toHaveCount(0);
+ await expect(page.getByText('The shared intention',{exact:true})).toBeVisible();
+ const intention=await page.locator('.intention').boundingBox();
+ const panel=await page.locator('.score-panel').boundingBox();
+ expect(Math.abs(intention!.y-panel!.y)).toBeLessThan(2);
  const score=await page.getByTestId('listening-score').boundingBox();
- const insights=await page.getByRole('region',{name:'Inside the band',exact:true}).boundingBox();
+ const insights=await page.getByRole('region',{name:'The shared intention',exact:true}).boundingBox();
  expect(score!.x+score!.width).toBeLessThan(insights!.x);
  await page.screenshot({path:testInfo.outputPath('desktop.png'),fullPage:true});
  await page.getByTestId('listening-key').selectOption('F');

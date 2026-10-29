@@ -9,6 +9,12 @@
 		/** Clip and follow the active staff instead of showing the complete chart. */
 		follow?: boolean;
 	} = $props();
+	function scrollWithArrow(event: KeyboardEvent & { currentTarget: EventTarget & HTMLDivElement }) {
+		if (event.target !== event.currentTarget || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey ||
+			(event.key !== 'ArrowLeft' && event.key !== 'ArrowRight')) return;
+		event.preventDefault();
+		event.currentTarget.scrollLeft += event.key === 'ArrowRight' ? 48 : -48;
+	}
 	const scoreMap = $derived(listeningScoreBars(session));
 	const notationBar = $derived(listeningScoreBar(scoreMap, barIndex));
 	const markers = $derived(notationBar === null ? [] : [{
@@ -19,8 +25,8 @@
 
 <div class="listening-score" data-testid="listening-score" data-key={session.tune.key} data-notation-bar={notationBar ?? ''}
 	role="region" aria-label="Tune lead sheet, concert pitch">
-	<!-- svelte-ignore a11y_no_noninteractive_tabindex (Native arrow-key scrolling needs a focusable, named overflow region.) -->
-	<div class="score-scroll" data-testid="listening-score-scroll" tabindex="0"
+	<!-- svelte-ignore a11y_no_noninteractive_tabindex (Arrow-key scrolling needs a focusable, named overflow region.) -->
+	<div class="score-scroll" data-testid="listening-score-scroll" tabindex="0" onkeydown={scrollWithArrow}
 		role="region" aria-label="Scrollable score. Use arrow keys to move across the music.">
 		<div class="score-sheet" data-testid="listening-score-sheet">
 			<NotationDisplay tune={session.tune} tuneOptions={{ omitMasthead: true }}
