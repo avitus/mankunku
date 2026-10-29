@@ -1010,3 +1010,34 @@ describe('merged session form follows pickup trimming and resolved closing passe
 		expect(performanceBarContext(built.performanceForm, built.phraseBars)).toBeNull();
 	});
 });
+
+
+describe('omitted solo sections retain the actual performed form', () => {
+	const flat = mkFlat({ totalBars: 6, omittedSoloSections: [1],
+		harmony: [seg('C', 'maj7', [0, 1], [2, 1]), seg('D', 'min7', [2, 1], [2, 1]), seg('G', '7', [4, 1], [2, 1])],
+		sectionMap: [{ sourceSection: 0, barOffset: 0 }, { sourceSection: 1, barOffset: 2 }, { sourceSection: 2, barOffset: 4 }]
+	});
+	it.each([true, false])('keeps noncontiguous A+C solos aligned with harmony and chart provenance (head=%s)', playHead => {
+		const built = buildSessionPhrase({ flat, timeSignature: [4, 4], playHead, playOutro: true, choruses: 2 });
+		const head = [['head', 0, 'C'], ['head', 0, 'C'], ['head', 1, 'D'], ['head', 1, 'D'], ['head', 2, 'G'], ['head', 2, 'G']];
+		const solo = [['solo', 0, 'C'], ['solo', 0, 'C'], ['solo', 2, 'G'], ['solo', 2, 'G']];
+		const actual = Array.from({ length: built.phraseBars }, (_, bar) => {
+			const context = performanceBarContext(built.performanceForm, bar)!;
+			const sounding = built.harmony.filter(h => fractionToFloat(h.startOffset) <= bar && fractionToFloat(h.startOffset) + fractionToFloat(h.duration) > bar);
+			expect(sounding).toHaveLength(1);
+			return [context.role, context.sourceSection, sounding[0].chord.root];
+		});
+		expect(actual).toEqual(playHead ? [...head, ...solo, ...solo, ...head] : [...solo, ...solo]);
+		expect(built.performanceForm.choruses.map(c => [c.role, c.startBar, c.endBarExclusive])).toEqual(playHead
+			? [['head', 0, 6], ['solo', 6, 10], ['solo', 10, 14], ['head', 14, 20]]
+			: [['solo', 0, 4], ['solo', 4, 8]]);
+		expect(built.sessionBarMap?.slice(built.headBars, built.headBars + 8)).toEqual([0, 1, 4, 5, 0, 1, 4, 5]);
+		expect(performanceBarContext(built.performanceForm, built.phraseBars - 1)?.isFinalBar).toBe(true);
+	});
+	it.each([true, false])('creates no phantom solo when all sections are omitted (head=%s)', playHead => {
+		const built = buildSessionPhrase({ flat: { ...flat, omittedSoloSections: [0, 1, 2] }, timeSignature: [4, 4], playHead, playOutro: true, choruses: 2 });
+		expect(built.performanceForm.totalBars).toBe(playHead ? 6 : 0);
+		expect(built.performanceForm.choruses.map(c => c.role)).toEqual(playHead ? ['head'] : []);
+		expect(built.performanceForm.totalBars).toBe(built.phraseBars);
+	});
+});

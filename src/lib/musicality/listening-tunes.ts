@@ -58,7 +58,15 @@ export function assessCuratedListeningTune(options: ListeningTuneOptions): Liste
 	}
 }
 
+/** The closing-head adapter currently requires a contiguous solo form. */
+function assertSupportedListeningArrangement(tune: Tune): void {
+	if (tune.sections.some(section => section.omitFromSolos === true)) {
+		throw new Error('Full-tune listening does not yet support sections omitted from solos; use an arrangement that keeps every section');
+	}
+}
+
 function buildSessionFromSource(original: Tune, options: ListeningTuneBuildOptions): ListeningTuneSession {
+	assertSupportedListeningArrangement(original);
 	if (original.timeSignature[0] !== 4 || original.timeSignature[1] !== 4) {
 		throw new Error('Full-tune listening currently supports 4/4 charts');
 	}
@@ -140,6 +148,7 @@ function validateListeningSource(input: unknown, options: ListeningTuneBuildOpti
 	const shape = validateAdoptedTune(input);
 	if (!shape.valid) throw new Error(`This chart cannot be used for listening: ${shape.errors[0]}`);
 	const tune = input as Tune;
+	assertSupportedListeningArrangement(tune);
 	if (tune.timeSignature[0] !== 4 || tune.timeSignature[1] !== 4) throw new Error('Full-tune listening currently supports 4/4 charts');
 	if (typeof tune.source !== 'string' || !tune.source.length) throw new Error('This chart has no source identity');
 	const solos = options.soloChoruses ?? 2;

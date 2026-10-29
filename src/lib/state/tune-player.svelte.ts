@@ -156,12 +156,12 @@ export class TunePlayer {
 						// pickup bar is marked from its first printed beat, not its silent
 						// lead-in, which is still the count.
 						const sourceBar = jam
-							? playbackBarForSessionBar(bar, flat.totalBars, jam.headBars, jam.practiceStartBar, jam.closingStartBar, jam.outroSourceStartBar)
+							? playbackBarForSessionBar(bar, flat.totalBars, jam.headBars, jam.practiceStartBar, jam.closingStartBar, jam.outroSourceStartBar, jam.sessionBarMap)
 							: loopPlaybackBar(bar, region, returns);
 						if (jam) {
 							this.closing = jam.closingStartBar !== null && bar >= jam.closingStartBar;
 							this.phase = bar < jam.headBars ? 'head' : jam.outroStartBar !== null && bar >= jam.outroStartBar ? 'outro' : 'solo';
-							this.soloChorus = this.phase === 'solo' ? Math.min(soloChoruses!, 1 + Math.floor((bar - jam.headBars) / (flat.totalBars - jam.practiceStartBar))) : 0;
+							this.soloChorus = this.phase === 'solo' ? Math.min(soloChoruses!, 1 + Math.floor((bar - jam.headBars) / Math.max(1, jam.soloBars ?? (flat.totalBars - jam.practiceStartBar)))) : 0;
 							if (this.phase === 'solo') this.cursorIndex = null;
 						}
 						const chartFlat = jam && this.closing ? jam.closingFlat : flat;

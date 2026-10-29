@@ -107,6 +107,8 @@ export interface TunePracticeAudioPlan {
 	closingSheet: Tune;
 	closingFlat: FlattenedTune;
 	closingStartBar: number | null;
+	sessionBarMap?: number[];
+	soloBars?: number;
 	separateClosingChart: boolean;
 	/** Notation-order flatten (chart markers). */
 	notationFlat: FlattenedTune;
@@ -444,6 +446,7 @@ function prepareTunePracticeSession(sheet: Tune, config: TunePracticeConfig, ppq
 	const audioPlan: TunePracticeAudioPlan = {
 		sheet: transposed,
 		closingSheet, closingFlat, closingStartBar: built.closingStartBar, separateClosingChart,
+		sessionBarMap: built.sessionBarMap, soloBars: built.soloBars,
 		changesSheet,
 		chartOptions,
 		playedPhrase,

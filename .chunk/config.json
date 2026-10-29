@@ -18,8 +18,9 @@
     "repo": "mankunku"
   },
   "validation": {
-    "sidecarImage": "7a1d5279-1c91-4bcd-951d-a4b485c60adb"
+    "sidecarImage": "a876c8a6-35f5-4cd0-9207-ddc17e31997c"
   },
+  "orgID": "033101c2-ad4f-4e6f-bc5b-276d1c9b7635",
   "environment": {
     "stack": "javascript",
     "setup": [

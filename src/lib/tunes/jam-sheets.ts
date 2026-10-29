@@ -6,6 +6,8 @@ import { headBarsForFlat } from '$lib/state/tune-practice-plan';
 /** Resolve whole-form voltas into the actual chart for each pass. Internal
  * repeats still belong to the form and keep their written repeat structure. */
 export function jamSheets(tune: Tune): { returning: Tune; closing: Tune; soloStartBar: number } {
+	// An explicit head-only section (e.g. Black Orpheus C) is not a solo-form repeat.
+	if (tune.sections.some(s => s.omitFromSolos)) return { returning: tune, closing: tune, soloStartBar: 0 };
 	const flat = flattenTune(tune, { expandRepeats: true });
 	const { headBars, formRepeats } = headBarsForFlat(flat);
 	if (!formRepeats) return { returning: tune, closing: tune, soloStartBar: 0 };

@@ -177,6 +177,17 @@ function createMockSupabase(cloudRows: Record<string, unknown>[], opts: { fetchE
 // ─── Local CRUD ───────────────────────────────────────────────────────────
 
 describe('saveUserTune', () => {
+	it('round-trips solo omission through local save, cloud push and cloud pull', async () => {
+		const sections = [{ label: 'C', bars: 4, notes: [], harmony: [], omitFromSolos: true }];
+		saveUserTune(makeSheet({ sections }));
+		seedOwners({ X: CLOUD_UID });
+		const upload = createMockSupabase([]);
+		await initTunesFromCloud(upload.client);
+		expect(upload.upsertedRows.find(r => r.id === 'X')?.sections).toEqual(sections);
+		const download = createMockSupabase([makeCloudRow({ sections, client_mtime: Date.now() + 10000 })]);
+		await initTunesFromCloud(download.client);
+		expect(getUserTunesLocal().find(s => s.id === 'X')?.sections).toEqual(sections);
+	});
 	it('generates a sheet- prefixed id when none is given', () => {
 		const saved = saveUserTune(makeSheet({ id: '' }));
 		expect(saved.id).toMatch(/^sheet-\d+-[a-z0-9]{4}$/);
