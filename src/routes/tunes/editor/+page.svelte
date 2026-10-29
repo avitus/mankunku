@@ -20,10 +20,13 @@
 	import NotationDisplay from '$lib/components/notation/NotationDisplay.svelte';
 	import DurationSelector from '$lib/components/step-entry/DurationSelector.svelte';
 	import PitchEntryPanel from '$lib/components/step-entry/PitchEntryPanel.svelte';
+	import SectionLabelDialog from '$lib/components/tune-entry/SectionLabelDialog.svelte';
+	import { sectionLabels } from '$lib/tunes/section-labels';
 	import SectionConfigPanel from '$lib/components/tune-entry/SectionConfigPanel.svelte';
 	import SourceTranspositionSelect from '$lib/components/tunes/SourceTranspositionSelect.svelte';
 	import {
 		tuneEntry,
+		changeSectionLabel,
 		initNewTune,
 		loadFromTune,
 		loadPage,
@@ -101,6 +104,11 @@
 	});
 	/** Where the next entered note lands (null on non-4/4 sheets). */
 	const cursorPos = $derived(entryCursorPosition());
+	let labelBarSelection = $state(0);
+	function selectChartBar(pos: { sectionIdx: number; bar: number }): void {
+		labelBarSelection = tuneEntry.sections.slice(0, pos.sectionIdx).reduce((n, s) => n + s.bars, 0) + pos.bar;
+		cursorToBar(pos.sectionIdx, pos.bar);
+	}
 	/** The position's 0-based absolute bar (notation order), for the review panel and `N`. */
 	const currentAbsoluteBar = $derived.by(() => {
 		if (!cursorPos) return 0;
@@ -108,6 +116,7 @@
 		for (let i = 0; i < cursorPos.sectionIdx; i++) base += tuneEntry.sections[i]?.bars ?? 0;
 		return base + cursorPos.barInSection;
 	});
+	const labelDestination = $derived(cursorPos ? currentAbsoluteBar : labelBarSelection);
 	/** The user has pointed somewhere (a selected element or a bar cursor); the append edge is not a place they chose. */
 	const hasExplicitPosition = $derived((stepEntry.selectionMode === 'edit' && stepEntry.selectedNoteIndex !== null) || tuneEntry.entryCursor !== null);
 	/** Brass bands under the bars the PDF import flagged; a band clears once its bar is edited. */
@@ -134,7 +143,7 @@
 		if (next !== null) jumpToAbsoluteBar(next - 1);
 	}
 	const currentSectionLabel = $derived(
-		tuneEntry.sections[tuneEntry.currentSection]?.label ?? 'A'
+		sectionLabels(draft).filter(m => m.sectionIdx <= tuneEntry.currentSection).at(-1)?.label ?? 'Unlabeled'
 	);
 
 	/** Map the buffer selection onto the full-sheet preview's flattened indices. */
@@ -243,6 +252,19 @@
 	}
 	let shortcutsDialog: HTMLDialogElement | undefined = $state();
 	let settingsDialog: HTMLDialogElement | undefined = $state();
+	let labelDialog: SectionLabelDialog;
+	const sectionEditor = {
+		select: (index: number) => { void labelDialog.open(index); },
+		move: (index: number, bar: number) => {
+			if (!changeSectionLabel(index, bar)) showHint("That bar already has a label, or is outside the tune.");
+			else void tick().then(() => {
+				const mark = sectionLabels(buildDraftTune()).find(m => m.bar === bar);
+				const handle = scoreRoot?.querySelector<HTMLButtonElement>(`[data-section-index="${mark?.sectionIdx}"]`);
+				handle?.focus({ preventScroll: true });
+			});
+		},
+		remove: (index: number) => { changeSectionLabel(index, null); }
+	};
 	let formDialog: HTMLDialogElement | undefined = $state();
 	let mobileEntryOpen = $state(false);
 	let scoreRoot: HTMLDivElement | undefined = $state();
@@ -362,7 +384,7 @@
 
 /** The editor's keyboard — durations, pitches, selection, delete, insert mode, bar-wise navigation and the clipboard — when focus is outside a text field. */
 	function handleKeydown(e: KeyboardEvent): void {
-		if (shortcutsDialog?.open || settingsDialog?.open || formDialog?.open) return;
+		if (shortcutsDialog?.open || settingsDialog?.open || formDialog?.open || (e.target as HTMLElement)?.closest('dialog[open]')) return;
 		const target = e.target as HTMLElement | null;
 		if (target && ['INPUT', 'SELECT', 'TEXTAREA'].includes(target.tagName)) return;
 		if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); restoreHistory(e.shiftKey ? 'redo' : 'undo'); return; }
@@ -464,10 +486,10 @@
 		<div class="le-layout"><div class="le-workspace">
 			<section class="le-panel le-chart" aria-label="Tune chart">
 				<header class="td-chart-heading"><div><p class="studio-label">Your chart <span class="le-badge">{tuneEntry.writtenKey} · {tuneEntry.timeSignature.join('/')} · {tuneEntry.style || 'No style'}</span></p><input class="le-title" bind:value={tuneEntry.title} placeholder="Untitled tune" aria-label="Tune title" /><input class="td-composer" bind:value={tuneEntry.composer} placeholder="Composer" aria-label="Composer" /></div><div class="le-history"><button aria-label="Undo" title="Undo (Ctrl/⌘Z)" disabled={!canUndo} onclick={() => restoreHistory('undo')}><EditorIcon name="undo" /></button><button aria-label="Redo" title="Redo (Ctrl/⌘Shift Z)" disabled={!canRedo} onclick={() => restoreHistory('redo')}><EditorIcon name="redo" /></button></div></header>
-				<nav class="te-sections" aria-label="Sections"><span class="studio-label">Form</span>{#each tuneEntry.sections as section, index}<button class:current={index === tuneEntry.currentSection} aria-pressed={index === tuneEntry.currentSection} onclick={() => jumpToSection(index)}><strong>{section.label || 'Pickup'}</strong><span>{section.bars} bars</span></button>{/each}<button class="te-form-button" onclick={() => formDialog?.showModal()}>Edit form ↗</button></nav>
+				<nav class="te-sections" aria-label="Sections"><span class="studio-label">Form</span>{#each tuneEntry.sections as section, index}<button class:current={index === tuneEntry.currentSection} aria-pressed={index === tuneEntry.currentSection} onclick={() => jumpToSection(index)}><strong>{section.label || 'Unlabeled'}</strong><span>{section.bars} bars</span></button>{/each}<button onclick={() => { const existing = sectionLabels(draft).find(m => m.bar === labelDestination); void labelDialog.open(existing?.sectionIdx ?? null, labelDestination); }}>Add section label</button><button class="te-form-button" onclick={() => formDialog?.showModal()}>Edit form ↗</button></nav>
                 <div class="te-listen"><TuneTransport bind:this={transport} tune={draft} compact /></div>
                 <div class="td-score-top"><span>Click a note to edit · click a bar to write</span><button aria-pressed={harmonyColors} onclick={() => harmonyColors = !harmonyColors}><i class="td-color-dot" aria-hidden="true"></i>Harmony colors <i class="td-switch" class:active={harmonyColors} aria-hidden="true"></i></button></div>
-				<div class="td-score-well" bind:this={scoreRoot} data-tour="tune-chart"><NotationDisplay tuneOptions={{ omitMasthead: true, barsPerLine: 4 }} bind:this={notationRef} tune={draft} instrument={previewInstrument} selectedIndex={previewSelectedIndex} selectedEndIndex={previewSelectedEndIndex} onSelect={handlePreviewSelect} onBarClick={pos => cursorToBar(pos.sectionIdx, pos.bar)} onGapClick={gap => tuneSelectGap(gap.sectionIdx, gap.offset, gap.duration)} {chordEditor} rangeMarkers={[...harmonyMarkers, ...reviewMarkers]} frameless /></div>
+				<div class="td-score-well" bind:this={scoreRoot} data-tour="tune-chart"><NotationDisplay {sectionEditor} tuneOptions={{ omitMasthead: true, barsPerLine: 4 }} bind:this={notationRef} tune={draft} instrument={previewInstrument} selectedIndex={previewSelectedIndex} selectedEndIndex={previewSelectedEndIndex} onSelect={handlePreviewSelect} onBarClick={selectChartBar} onGapClick={gap => tuneSelectGap(gap.sectionIdx, gap.offset, gap.duration)} {chordEditor} rangeMarkers={[...harmonyMarkers, ...reviewMarkers]} frameless /></div>
 				<div class="td-status"><span><i aria-hidden="true"></i>{selectedRange ? `${selectedRange.end - selectedRange.start + 1} selected` : (selectedName ?? 'Ready to write')} · {@render entryStatus()}</span><button onclick={() => { selectNote(null); clearEntryCursor(); }}>Clear selection</button></div>
 			</section>
 			<div class="td-review">			{#if tuneEntry.importReview?.warnings.length}
@@ -530,6 +552,7 @@
         </section></div>
 		<footer class="le-footer"><span>MANKUNKU <i>/</i> YOUR REPERTOIRE, IN YOUR HANDS.</span><a href="/tunes">Back to your tunes ↗</a></footer>
 	</StudioPage>
+    <SectionLabelDialog bind:this={labelDialog} />
     <dialog bind:this={settingsDialog} class="le-dialog te-settings-dialog" aria-labelledby="settings-heading"><header><div><p class="studio-label">Tune settings</p><h2 id="settings-heading">The musical context.</h2></div><button aria-label="Close tune settings" onclick={() => settingsDialog?.close()}>×</button></header><div class="le-inspector"><section class="td-editor-setup">
         <label for="editor-tune-key">Key</label><select id="editor-tune-key" value={tuneEntry.writtenKey} onchange={handleKeyChange}>{#each PITCH_CLASSES as pc (pc)}<option value={pc}>{pc}</option>{/each}</select>
         {#if draft.sections.some(s => s.notes.length > 0)}<label class="td-move-notes"><input type="checkbox" bind:checked={moveNotes} />Move notes with key</label>{/if}

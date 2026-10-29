@@ -302,7 +302,7 @@
 		if (tunePractice.phase !== 'head' && tunePractice.phase !== 'running' && tunePractice.phase !== 'outro') return null;
 		const leadBars = audioPlan.leadBars;
 		const formBars = audioPlan.flat.totalBars;
-		const formBarF = playbackBarForSessionBar(playheadBarF, formBars, leadBars, audioPlan.practiceStartBar, audioPlan.closingStartBar, audioPlan.outroSourceStartBar);
+		const formBarF = playbackBarForSessionBar(playheadBarF, formBars, leadBars, audioPlan.practiceStartBar, audioPlan.closingStartBar, audioPlan.outroSourceStartBar, audioPlan.sessionBarMap);
 		if (formBarF < 0 || formBarF >= chartFlat.totalBars) return null;
 		const floorBar = Math.floor(formBarF);
 		const frac = formBarF - floorBar;
@@ -835,7 +835,7 @@
 		if (!audioPlan || barTicksNR <= 0) return 1;
 		const playBar = Math.floor((atTick - countInTicksNR) / barTicksNR);
 		const formBar =
-			playbackBarForSessionBar(playBar, audioPlan.flat.totalBars, audioPlan.leadBars, audioPlan.practiceStartBar, audioPlan.closingStartBar, audioPlan.outroSourceStartBar);
+			playbackBarForSessionBar(playBar, audioPlan.flat.totalBars, audioPlan.leadBars, audioPlan.practiceStartBar, audioPlan.closingStartBar, audioPlan.outroSourceStartBar, audioPlan.sessionBarMap);
 		const closing = audioPlan.closingStartBar !== null && playBar >= audioPlan.closingStartBar;
 		const flat = closing ? audioPlan.closingFlat : audioPlan.flat;
 		const sheet = closing ? audioPlan.closingSheet : audioPlan.sheet;
@@ -890,7 +890,7 @@
 			<div>
 				<h1 class="text-xl font-bold">{tunePractice.tuneTitle}</h1>
 				<p class="text-sm text-[var(--color-text-secondary)]">
-					{#if tunePractice.phase === 'running' && audioPlan}<span>Solo {Math.min(tunePractice.config.choruses, 1 + Math.max(0, Math.floor((playheadBarF - audioPlan.leadBars) / Math.max(1, audioPlan.flat.totalBars - audioPlan.practiceStartBar))))} of {tunePractice.config.choruses}</span> · {/if}
+					{#if tunePractice.phase === 'running' && audioPlan}<span>Solo {Math.min(tunePractice.config.choruses, 1 + Math.max(0, Math.floor((playheadBarF - audioPlan.leadBars) / Math.max(1, audioPlan.soloBars ?? (audioPlan.flat.totalBars - audioPlan.practiceStartBar)))))} of {tunePractice.config.choruses}</span> · {/if}
 					{#if tunePractice.phase === 'count-in'}
 						Count-in…
 					{:else if tunePractice.phase === 'head'}

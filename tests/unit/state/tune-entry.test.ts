@@ -12,6 +12,8 @@ import {
 	buildDraftTune,
 	addSection,
 	removeSection,
+	changeSectionLabel,
+	setSectionSoloOmission,
 	updateSectionMeta,
 	setSectionBars,
 	setChord,
@@ -135,6 +137,17 @@ describe('draft building', () => {
 });
 
 describe('sections', () => {
+	it('keeps unsaved page edits when moving a label and preserves solo instructions through a draft reload', () => {
+		addNote(0, 4, 'natural');
+		expect(changeSectionLabel(null, 4, 'B')).toBe(true);
+		expect(buildDraftTune().sections[0].notes.find(n => n.pitch !== null)?.pitch).toBe(60);
+		setSectionSoloOmission(1, true);
+		const draft = buildDraftTune();
+		loadFromTune(draft, INSTRUMENTS.concert);
+		expect(buildDraftTune().sections[1].omitFromSolos).toBe(true);
+		expect(changeSectionLabel(1, null)).toBe(true);
+		expect(buildDraftTune().sections.reduce((sum, s) => sum + s.bars, 0)).toBe(8);
+	});
 	it('adds sections with successive labels and navigates to them', () => {
 		addSection();
 		expect(tuneEntry.sections).toHaveLength(2);

@@ -53,6 +53,30 @@ describe('tune desk tempo', () => {
 });
 
 describe('tune desk playback', () => {
+	it('skips head-only bars on the chart and counts the shorter solo choruses', async () => {
+		const annotated: Tune = { ...tune, sections: [
+			{ ...tune.sections[0], repeatStart: undefined, repeatEnd: undefined },
+			{ label: 'B', bars: 2, omitFromSolos: true, notes: [{ pitch: 62, offset: [0, 1], duration: [1, 1] }], harmony: [] },
+			{ label: 'C', bars: 2, notes: [{ pitch: 64, offset: [0, 1], duration: [1, 1] }], harmony: [] }
+		] };
+		let finish!: () => void;
+		audio.playPhrase.mockImplementation(() => new Promise<void>(resolve => finish = resolve));
+		player.setTempo(120);
+		const started = player.toggle(annotated, 'swing', 2);
+		await vi.waitFor(() => expect(audio.playPhrase).toHaveBeenCalled());
+		const callbacks = audio.playPhrase.mock.calls[0][3];
+		const at = (bar: number) => { audio.getAudibleTransportSeconds.mockReturnValue(2 + bar * 2); callbacks.onStarted(); };
+		at(8.25); // six-bar head + two bars of A, then straight to C
+		expect(player.chartBar).toBeCloseTo(4.25);
+		expect(player.soloChorus).toBe(1);
+		at(10.25);
+		expect(player.chartBar).toBeCloseTo(.25);
+		expect(player.soloChorus).toBe(2);
+		at(16.25); // outro includes B again
+		expect(player.phase).toBe('outro');
+		expect(player.chartBar).toBeCloseTo(2.25);
+		finish(); await started;
+	});
 	it('tracks two solo choruses and the closing melody on one finite playback', async () => {
 		let finish!: () => void;
 		audio.playPhrase.mockImplementation(() => new Promise<void>(resolve => finish = resolve));
