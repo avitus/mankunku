@@ -3645,7 +3645,8 @@ describe('pitch replay regression: ghost notes appear only where they were playe
 	const recordings = resolve(here, '../fixtures/recordings');
 	const wavs = readdirSync(recordings).filter((f) => f.endsWith('.wav'));
 	const EXPECTED_GHOSTS: Record<string, number> = {
-		'2026-09-16-sharp-9-flat-9-dom.wav': 3
+		'2026-09-16-sharp-9-flat-9-dom.wav': 3,
+		'2026-10-30-pent-turn-syncopated.wav': 1
 	};
 
 	it.each(wavs)('%s', async (file) => {
@@ -4520,4 +4521,101 @@ describe('pitch replay regression: Little Cry — a breathy F whose warmup windo
 		const { detected } = await replayPipeline({ live: true });
 		expect(detected.map((n) => n.midi)).toEqual([53, 51, 53, 51, 46]);
 	});
+});
+
+// The opening C has four warmup-only frames (three an octave low), preceded
+// by a stable weak C plateau. The incomplete warmup was discarded, and the
+// interior-only ghost pass had no left neighbour from which to recover it.
+describe('pitch replay regression: Pent Turn / Syncopated missed opening C (2026-10-30)', () => {
+	const FIXTURE = 'recordings/2026-10-30-pent-turn-syncopated';
+	const TRANSPORT_SECONDS = 417.20009070294793;
+	const expectedPhrase: Phrase = {
+		id: 'cmb-sp-pent-turn_rp-4-synco_Bb',
+		name: 'Pent Turn / Syncopated',
+		timeSignature: [4, 4],
+		key: 'Bb',
+		notes: [
+			{ pitch: 60, duration: [1, 8], offset: [1, 8] },
+			{ pitch: 58, duration: [1, 4], offset: [1, 4] },
+			{ pitch: 55, duration: [1, 8], offset: [5, 8] },
+			{ pitch: 58, duration: [1, 4], offset: [3, 4] }
+		],
+		harmony: [
+			{
+				chord: { root: 'Bb', quality: 'maj7' },
+				scaleId: 'pentatonic.major',
+				startOffset: [0, 1],
+				duration: [1, 1]
+			}
+		],
+		difficulty: { level: 25, pitchComplexity: 6, rhythmComplexity: 49, lengthBars: 1 },
+		category: 'pentatonic',
+		tags: ['turn', 'ornament', 'syncopated', 'off-beat', 'combined'],
+		source: 'combined'
+	};
+	const readJson = () =>
+		JSON.parse(
+			readFileSync(
+				resolve(dirname(fileURLToPath(import.meta.url)), '../fixtures', `${FIXTURE}.json`),
+				'utf8'
+			)
+		);
+	const score = (detected: DetectedNote[]) =>
+		runScorePipeline({
+			detected,
+			phrase: expectedPhrase,
+			tempo: 100,
+			transportSeconds: TRANSPORT_SECONDS,
+			swing: 0.6,
+			bleedFilterEnabled: false
+		}).chosen;
+	it('pins the saved miss and reproduces the original score from its saved notes', () => {
+		const json = readJson();
+		expect(json.flag.note).toBe('First note was missed');
+		expect(json.scoring.savedDetectedNotes.map((n: DetectedNote) => n.midi)).toEqual([
+			58, 55, 55, 58
+		]);
+		const { audioCheck: _audioCheck, ...savedScore } = json.scoring.savedScore;
+		expect(score(json.scoring.savedDetectedNotes)).toEqual(savedScore);
+	});
+	it('recovers the opening C from the saved reading evidence', () => {
+		const json = readJson();
+		const readings = json.detection.readings;
+		const bleed = getMetronomeBleedOnsets(TRANSPORT_SECONDS, 100, json.audio.duration);
+		const base = resolveOnsets(json.detection.rawWorkletOnsets, readings);
+		const articulation = findReArticulations(readings, base, bleed);
+		const detected = segmentNotes(
+			readings,
+			[...base, ...articulation].sort((a, b) => a - b),
+			json.audio.duration,
+			undefined,
+			undefined,
+			undefined,
+			json.detection.rawWorkletOnsets,
+			bleed,
+			articulation,
+			json.detection.weakReadings
+		);
+		expect(detected[0].midi).toBe(60);
+		expect(score(detected).notesHit).toBe(4);
+	});
+	it.each([false, true])(
+		'recovers and scores all four notes (live time base: %s)',
+		async (live) => {
+			const { trimmed, detected } = await replayEarTrainingTake(
+				`${FIXTURE}.wav`,
+				TRANSPORT_SECONDS,
+				100,
+				{ live }
+			);
+			expect(trimmed.offset).toBeCloseTo(1.2333333333333334 + (live ? 4096 / 44100 : 0), 6);
+			expect(detected.map((n) => n.midi)).toEqual(live ? [60, 58, 55, 58] : [60, 58, 55, 55, 58]);
+			expect(detected[0].ghost).toBe(true);
+			const result = score(detected);
+			expect(result.notesHit).toBe(4);
+			expect(result.extrasCharged).toBe(0);
+			expect(result.pitchAccuracy).toBe(1);
+			expect(result.overall).toBeGreaterThan(0.9);
+		}
+	);
 });

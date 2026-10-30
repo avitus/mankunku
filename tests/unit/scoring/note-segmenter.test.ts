@@ -1648,3 +1648,69 @@ describe('segmentNotes: third-harmonic (twelfth-up) locks', () => {
 		});
 	});
 });
+
+
+describe('opening weak note recovery', () => {
+	const frame = (midi: number, time: number, extra: Partial<PitchReading> = {}): PitchReading => ({
+		...makeReading(midi, time),
+		frequency: 440 * 2 ** ((midi - 69) / 12),
+		...extra
+	});
+	const burst = () =>
+		[0.35, 0.3667, 0.3833, 0.4].map((t, i) => frame(i === 3 ? 60 : 48, t, { warmup: true }));
+	const following = () =>
+		Array.from({ length: 12 }, (_, i) => frame(58, 0.6 + i / 60, { warmup: i < 5 }));
+	const weak = () =>
+		Array.from({ length: 4 }, (_, i) => frame(48, 0.2833 + i / 60, { weak: true, clarity: 0.65 }));
+	const detect = (rs = [...burst(), ...following()], ws = weak()) =>
+		segmentNotes(
+			rs,
+			[0.3369, 0.5024],
+			1,
+			undefined,
+			undefined,
+			undefined,
+			[0.3369, 0.5024],
+			[],
+			[],
+			ws
+		);
+	it('recovers an incomplete opening warmup corroborated by a weak plateau', () => {
+		expect(detect().map((n) => n.midi)).toEqual([60, 58]);
+	});
+	it('keeps rejecting an uncorroborated startup burst', () => {
+		expect(detect(undefined, []).map((n) => n.midi)).toEqual([58]);
+	});
+	it('rejects a weak plateau separated from the burst', () => {
+		expect(
+			detect(
+				undefined,
+				weak().map((r) => ({ ...r, time: r.time - 0.15 }))
+			).map((n) => n.midi)
+		).toEqual([58]);
+	});
+	it('rejects a plateau on a different pitch class', () => {
+		expect(
+			detect(
+				undefined,
+				weak().map((r) => ({ ...r, frequency: 440 * 2 ** ((49 - 69) / 12) }))
+			).map((n) => n.midi)
+		).toEqual([58]);
+	});
+	it('rejects low-level ring and non-plateau noise', () => {
+		expect(
+			detect(
+				undefined,
+				weak().map((r) => ({ ...r, rms: 0.001 }))
+			).map((n) => n.midi)
+		).toEqual([58]);
+		expect(detect(undefined, weak().slice(0, 2)).map((n) => n.midi)).toEqual([58]);
+	});
+	it('does not reinterpret an opening burst on the following note', () => {
+		expect(
+			detect([...burst().map((r) => frame(58, r.time, { warmup: true })), ...following()]).some(
+				(n) => n.ghost
+			)
+		).toBe(false);
+	});
+});

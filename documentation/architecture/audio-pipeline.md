@@ -48,6 +48,8 @@ A ghosted note — half-fingered, breathed rather than blown, the swallowed off-
 
 Once found, a ghost is scored like any other note: by the nearest semitone to the pitch it actually sounded. Being quiet doesn't earn it any leeway — a ghosted C that sounds more than half a semitone sharp is heard as a C♯ and counts as a wrong note. Finding the ghost still matters even then: the rest of the line stays lined up with what you played, instead of the app treating the note as missing.
 
+- **Opening notes (2026-10-30):** a stable weak-pitch plateau can corroborate an incomplete opening startup burst (three or four confident frames on the same pitch class). It must meet the existing ghost-note level and continuity limits and lead into a different, stabilized note within 0.4 seconds. This recovers Pent Turn / Syncopated’s first C without accepting uncorroborated startup noise. All other 46 recordings remain unchanged.
+
 ### Telling a glitch from a real re-articulation
 
 This is the hard part, and it's where most of the app's listening intelligence lives. When you play two notes of the same pitch back to back, *something* changes between them — but what changes depends entirely on how you tongue, and a hard tongue and a legato "doodle" tongue leave almost nothing in common.

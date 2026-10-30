@@ -3501,8 +3501,73 @@ function skipAbsorbed(
 }
 
 /**
- * Recover ghosted notes from the sub-threshold frames inside the holes of the
- * confident reading stream (see the section comment above).
+ * Recover an opening ghost only when a weak plateau runs directly into an
+ * incomplete, same-pitch-class warmup burst. Interior ghosts have two flanks;
+ * at the recording edge the startup burst supplies the missing corroboration.
+ * Reuse the ghost pass's plateau, continuity, level and duration limits, and
+ * fold its octave toward the following note just as interior ghosts do.
+ *
+ * 2026-10-30 Pent Turn: four weak C frames (47.67–47.73 MIDI) lead into
+ * four warmup C frames (48/60), then Bb. The weak plateau is 0.86x the
+ * following attack's level, well above the existing 0.1 floor. Across all
+ * 47 WAVs this is the only incomplete opening burst with a preceding plateau;
+ * complete warmups and uncorroborated startup noise remain untouched.
+ */
+function findOpeningGhost(readings: PitchReading[], weak: PitchReading[]): DetectedNote | null {
+	const first = readings[0];
+	if (!first?.warmup) return null;
+	let end = 0;
+	while (
+		end < readings.length &&
+		readings[end].warmup &&
+		pitchClassDistance(readings[end].midi, first.midi) === 0
+	)
+		end++;
+	// A complete warmup already belongs to the ordinary segmentation path.
+	if (end < GHOST_MIN_FRAMES || end >= WARMUP_FRAMES || end === readings.length) return null;
+	const next = readings[end];
+	if (pitchClassDistance(first.midi, next.midi) < GHOST_MIN_FLANK_DISTANCE) return null;
+	// The following pitch must actually stabilize, not be another startup blip.
+	const stable = readings.slice(end).find((r) => !r.warmup);
+	if (!stable || stable.midi !== next.midi || stable.time - first.time > GHOST_MAX_HOLE)
+		return null;
+	const frames = weak.filter((r) => r.time < first.time && r.time >= next.time - GHOST_MAX_HOLE);
+	const plateau = findGhostPlateau(
+		frames,
+		frames.map((r) => foldToward(rawMidiFloat(r), next.midi))
+	);
+	if (
+		!plateau ||
+		pitchClassDistance(Math.round(plateau.pitch), first.midi) !== 0 ||
+		pitchClassDistance(plateau.pitch, next.midi) < GHOST_MIN_FLANK_DISTANCE
+	)
+		return null;
+	const held = frames.slice(plateau.start, plateau.end);
+	if (first.time - held[held.length - 1].time > GHOST_MAX_FRAME_STEP) return null;
+	for (let i = 1; i < end; i++) {
+		if (readings[i].time - readings[i - 1].time > GHOST_MAX_FRAME_STEP) return null;
+	}
+	if (
+		median(held.map((r) => r.rms)) <
+		GHOST_MIN_LEVEL * Math.max(next.rms, ...readings.slice(0, end).map((r) => r.rms))
+	)
+		return null;
+	const onsetTime = held[0].time;
+	const midi = Math.round(plateau.pitch);
+	return {
+		midi,
+		cents: Math.round((plateau.pitch - midi) * 100),
+		onsetTime,
+		duration: next.time - onsetTime,
+		clarity: held.reduce((sum, r) => sum + r.clarity, 0) / held.length,
+		ghost: true
+	};
+}
+
+/**
+ * Recover ghosted notes from sub-threshold frames inside reading holes, or
+ * at the opening edge when an incomplete warmup corroborates the plateau
+ * (`findOpeningGhost`). Interior recovery follows the rules below.
  *
  * A hole between consecutive readings, `GHOST_MIN_HOLE`–`GHOST_MAX_HOLE` long,
  * yields a ghost when its weak frames hold a plateau (`findGhostPlateau`) that
@@ -3528,7 +3593,8 @@ export function findGhostNotes(
 	if (readings.length < 2 || weakReadings.length < GHOST_MIN_FRAMES) return [];
 	const weak = [...weakReadings].sort((a, b) => a.time - b.time);
 
-	const ghosts: DetectedNote[] = [];
+	const opening = findOpeningGhost(readings, weak);
+	const ghosts: DetectedNote[] = opening ? [opening] : [];
 	for (let i = 1; i < readings.length; i++) {
 		const holeStart = readings[i - 1].time;
 		const holeEnd = readings[i].time;
