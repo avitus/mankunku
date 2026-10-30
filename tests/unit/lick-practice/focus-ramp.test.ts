@@ -307,10 +307,10 @@ describe('focus phase staircase', () => {
 		// The third below-gold take brings the sheet back: a bar to switch to reading.
 		expect(step(0.85)).toEqual({ sheet: true, pauses: [1] });
 		expect(getKeyPasses(0)).toEqual([3]);
-		// Still struggling on the sheet: the next take joins directly.
-		expect(step(0.85)).toEqual({ sheet: true, pauses: [0] });
-		// A gold take graduates it: a bar to switch to memory.
-		expect(step(0.97)).toEqual({ sheet: false, pauses: [1] });
+		// Even a missed triple commits to memory, with a bar to prepare.
+		expect(step(0.85)).toEqual({ sheet: false, pauses: [1] });
+		// A successful memory turn keeps playing without a new preparation bar.
+		expect(step(0.97)).toEqual({ sheet: false, pauses: [0] });
 		expect(lickPractice.ramp?.phase).toBe('focus');
 	});
 
@@ -457,6 +457,34 @@ describe('focus phase staircase', () => {
 });
 
 describe('focus takes on the stack', () => {
+	it.each([0, 0.6, 0.85, 0.95, 0.99, undefined])('commits to the previewed memory turn after a sheet triple scoring %s', (score) => {
+		const lick = makeLick('C', LICK_ID);
+		seedKeys(LICK_ID, { C: { tempo: SAVED_TEMPO, rolling: 0.5 } });
+		startSingleLickSession(lick, { focusKey: 'C' });
+		expect(getPlannedKeysForLick(0)[0]).toMatchObject({ key: 'C', reveal: true, passes: 3 });
+		const preview = getFocusProjectionRows(0)[0];
+		expect(preview).toMatchObject({ key: 'C', reveal: false, passes: 1 });
+		if (score !== undefined) play('C', score);
+		// Scoring cannot change the current sheet or the promised memory row.
+		expect(getPlannedKeysForLick(0)[0].reveal).toBe(true);
+		expect(getFocusProjectionRows(0)[0]).toEqual(preview);
+		advanceSingleLickRound();
+		expect(getPlannedKeysForLick(0)[0]).toMatchObject({
+			key: preview.key, reveal: preview.reveal, passes: preview.passes, cycle: preview.cycle
+		});
+		expect(getKeyPasses(0)).toEqual([1]);
+		expect(getKeyPauses(0)).toEqual([1]);
+		expect(getDemoBars(0)).toBe(0);
+		expect(getDeepCycleEntry(0)).toMatchObject({ fromMemory: true, prepareBars: 1 });
+		const ticksPerBar = 4 * 192;
+		const windows = planCycleWindows({
+			audioStartTick: 0, demoBars: getDemoBars(0), keyBars: 2, ticksPerBar,
+			keyCount: 1, passes: getKeyPasses(0), pauses: getKeyPauses(0), userBarsOffsetTicks: 0
+		});
+		expect(windows.opens).toEqual([ticksPerBar]);
+		expect(windows.closes).toEqual([3 * ticksPerBar]);
+	});
+
 	/** The current take's tempo tag, then the tags of the takes drawn under it. */
 	function stack(): { current: number | undefined; below: (number | undefined)[] } {
 		return {
@@ -514,7 +542,7 @@ describe('focus takes on the stack', () => {
 		expect(getFocusProjectionRows(0)).toEqual([]);
 	});
 
-	it('2026-10-25: a missed sheet take at the target is drawn under it before it joins on the downbeat', () => {
+	it('a missed sheet triple at the target honors its memory preview before rescue can return', () => {
 		// Andy's recommended drill: twice the stack emptied after a three-pass
 		// sheet take and the next take appeared on the downbeat it had to be
 		// played on. The take at the target had nothing drawn under it — the
@@ -530,15 +558,16 @@ describe('focus takes on the stack', () => {
 		expect(getPlannedKeysForLick(0)[0]).toMatchObject({ reveal: true, passes: 3, tempo: SAVED_TEMPO });
 		expect(getKeyPauses(0)).toEqual([1]);
 
-		// A held sheet take, then a sub-floor one: each next take joins with no
-		// bar, so its row must already be on the stack.
-		for (const [score, nextTempo] of [[0.85, SAVED_TEMPO], [0.6, 97]] as const) {
-			expect(getFocusProjectionRows(0)[0]).toMatchObject({ key: 'D', reveal: true, passes: 3 });
+		// The triple commits to memory; only a subsequent memory miss may
+		// restore the sheet, with preparation for both display changes.
+		for (const [score, nextTempo, reveal, passes] of [[0.85, SAVED_TEMPO, false, 1], [0.6, 97, true, 3]] as const) {
+			expect(getFocusProjectionRows(0)[0]).toMatchObject({ key: 'D', reveal: false, passes: 1 });
 			play('D', score);
 			advanceSingleLickRound();
 			expect(isFocusTake()).toBe(true);
 			expect(lickPractice.currentTempo).toBe(nextTempo);
-			expect(getKeyPauses(0)).toEqual([0]);
+			expect(getPlannedKeysForLick(0)[0]).toMatchObject({ reveal, passes });
+			expect(getKeyPauses(0)).toEqual([1]);
 		}
 	});
 
@@ -589,14 +618,14 @@ describe('focus takes on the stack', () => {
 		expect(joinsAtTarget).toBeGreaterThanOrEqual(3);
 	});
 
-	it('projected rows look like the current take: a sheet take projects sheet takes', () => {
+	it('a sheet triple projects memory turns for the rest of the successful climb', () => {
 		const lick = makeLick('C', LICK_ID);
 		seedKeys(LICK_ID, { C: { tempo: SAVED_TEMPO, rolling: 0.7 } });
 		startSingleLickSession(lick, { focusKey: 'C' });
 		expect(getPlannedKeysForLick(0)[0]).toMatchObject({ reveal: true, passes: 3 });
 		const rows = getFocusProjectionRows(0);
 		expect(rows).toHaveLength(10);
-		expect(rows.every((row) => row.reveal && row.passes === 3)).toBe(true);
+		expect(rows.every((row) => !row.reveal && row.passes === 1)).toBe(true);
 	});
 
 	it('stamps each row with its round, so a score lands on its own take', () => {
