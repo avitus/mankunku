@@ -221,6 +221,14 @@ describe('chords', () => {
 		expect(tuneEntry.sections[0].harmony).toHaveLength(0);
 	});
 
+	it('accepts a chord typed in lower case and saves it capitalized', () => {
+		expect(setChord(0, 0, 0, 'a-7')).toBe(true);
+		expect(setChord(0, 1, 0, 'bb7/d')).toBe(true);
+		expect(chordTextAt(0, 0, 0)).toBe('A-7');
+		expect(chordTextAt(0, 1, 0)).toBe('Bb7/D');
+		expect(tuneEntry.sections[0].harmony[0].chord.root).toBe('A');
+	});
+
 	it('replaces a chord at the same position and removes chords', () => {
 		setChord(0, 1, 2, 'Fmaj7');
 		setChord(0, 1, 2, 'F7');
