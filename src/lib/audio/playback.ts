@@ -120,6 +120,8 @@ let vibratoGain: GainNode | null = null;
 /** Modulated delay line: the pitch vibrato. */
 let vibratoDelay: DelayNode | null = null;
 let warmthFilter: BiquadFilterNode | null = null;
+/** Last node of the melody chain; each playPhrase sets its level. */
+let melodyTrim: GainNode | null = null;
 /** The loaded voice's vibrato, and its full-depth delay swing in seconds. */
 let activeVibrato: VibratoProfile | null = null;
 let vibratoSwingSeconds = 0;
@@ -161,7 +163,10 @@ function setupJazzExpression(audioCtx: AudioContext, instrumentId: string): void
 	warmthFilter.frequency.value = voice.warmthCutoffHz;
 	warmthFilter.Q.value = 0.7; // Gentle slope, no resonance peak
 
-	vibratoDelay = audioCtx.createDelay(VIBRATO_BASE_DELAY_SECONDS * 2);
+	melodyTrim = audioCtx.createGain();
+	warmthFilter.connect(melodyTrim);
+
+	vibratoDelay =audioCtx.createDelay(VIBRATO_BASE_DELAY_SECONDS * 2);
 	vibratoDelay.delayTime.value = VIBRATO_BASE_DELAY_SECONDS;
 	vibratoDelay.connect(warmthFilter);
 
@@ -188,12 +193,12 @@ function setupJazzExpression(audioCtx: AudioContext, instrumentId: string): void
 		// chain covers all notes regardless of which layer triggered.
 		mixNode!.disconnect();
 		mixNode!.connect(vibratoDelay);
-		warmthFilter.connect(getMasterGain());
+		melodyTrim.connect(getMasterGain());
 	} else {
 		// SoundFont: add as insert on the instrument's output channel.
 		instrument!.output.addInsert({
 			input: vibratoDelay,
-			output: warmthFilter
+			output: melodyTrim
 		});
 	}
 }
@@ -249,6 +254,10 @@ function cleanupJazzExpression(): void {
 	if (warmthFilter) {
 		warmthFilter.disconnect();
 		warmthFilter = null;
+	}
+	if (melodyTrim) {
+		melodyTrim.disconnect();
+		melodyTrim = null;
 	}
 }
 
@@ -692,6 +701,12 @@ export interface PhrasePlaybackOpts {
 	 * through it as its last bar, and the band still enters after it.
 	 */
 	countIn?: { bars: number; drums: boolean; pickup?: boolean };
+	/**
+	 * Linear gain on the melody for this take (playPhrase only). Omitted, it
+	 * returns to unity, so a level set for a tune never carries into the next
+	 * caller's demo. A continuation keeps the take's level.
+	 */
+	melodyLevel?: number;
 }
 
 /**
@@ -747,6 +762,8 @@ export async function playPhrase(
 	// Release the prior playback without yielding or replacing our token.
 	// Calling public stopPlayback here would invalidate this invocation too.
 	stopPlaybackResources(Tone);
+
+	if (melodyTrim) melodyTrim.gain.value = opts.melodyLevel ?? 1;
 
 	// Configure transport
 	transport.bpm.value = options.tempo;

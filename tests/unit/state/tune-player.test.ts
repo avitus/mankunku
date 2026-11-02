@@ -228,6 +228,11 @@ describe('tune desk playback', () => {
 		// Notes for both heads remain in the plan even when their audio is muted.
 		expect(audio.playPhrase.mock.calls[0][0].notes).toHaveLength(2);
 	});
+	it.each([[true, 0.5], [false, 1]])('sits the melody under the band only when one plays (backing %s)', async (backing, level) => {
+		player.backing = backing;
+		await player.toggle(tune, 'swing');
+		expect(audio.playPhrase.mock.calls[0][3]).toMatchObject({ melodyLevel: level });
+	});
 	it('keeps the saved feel with backing off and supports a backing-only pass', async () => {
 		player.melody = false;
 		await player.toggle(tune, 'bossa-nova');

@@ -2,6 +2,7 @@ import type { Tune } from '$lib/types/tune';
 import type { BackingStyle } from '$lib/types/instruments';
 import { settings } from './settings.svelte';
 import { melodySwingForStyle } from '$lib/audio/backing-styles';
+import { tuneMelodyLevel } from '$lib/audio/backing-mix';
 import { tuneToPhraseWithFlat } from '$lib/tunes/to-phrase';
 import { playbackBarForSessionBar, notationBarForPlaybackBar } from './tune-practice-plan';
 import { clampTuneTempo, savedTuneTempo } from '$lib/tunes/tune-tempo';
@@ -141,6 +142,7 @@ export class TunePlayer {
 				backingTrackVolume: settings.backingTrackVolume, backingStyle: style
 			}, false, {
 				skipMelody: !melody,
+				melodyLevel: tuneMelodyLevel(backing),
 				// The drummer counts the tune in whenever the band's kit is loaded,
 				// on through a pickup bar: the band enters after it.
 				countIn: { bars: countInBars, drums: true, pickup: (!jam || jam.headBars > 0) && isInPickupLeadIn(tune, 0) },

@@ -97,6 +97,7 @@ Returns `true` if an instrument (custom sampler or SoundFont) is loaded and read
 interface PhrasePlaybackOpts {
   skipMelody?: boolean;          // Don't schedule melody notes (backing-only rescheduling)
   loopBacking?: boolean;         // Loop the backing track at phrase end
+  melodyLevel?: number;          // Linear gain on the melody for this take, playPhrase only (default 1); tunes pass tuneMelodyLevel() from backing-mix.ts
   resolveAtMelodyEnd?: boolean;  // Resolve the promise 1 beat after the melody's last note (call-and-response handoffs); ignored when skipMelody is set or the phrase has no melody
   onStarted?: () => void;        // Callback fired after Transport start
   startTick?: number;            // Explicit start tick for bar-aligned scheduling
