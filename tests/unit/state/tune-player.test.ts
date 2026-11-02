@@ -206,7 +206,7 @@ describe('tune desk playback', () => {
 		finish();
 		await started;
 	});
-	it.each([['bossa-nova', 0.5], ['ballad', 0.55], ['straight', 0.5], ['swing', 0.62]] as const)(
+	it.each([['bossa-nova', 0.5], ['ballad', 0.53], ['straight', 0.5], ['swing', 0.62]] as const)(
 		'passes saved %s to the production engine with matching melody feel', async (style, swing) => {
 			player.backing = true;
 			await player.toggle(tune, style);
