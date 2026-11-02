@@ -622,12 +622,26 @@ const SUBHARMONIC_ODD_HARMONIC_RATIO = 0.12;
  * ~0.01–0.03, because the odd bins of E2 are empty — so a real low note is never
  * dragged down an octave.
  *
- * Bounded to a low reported-frequency window: 2nd-harmonic locks only occur on
- * low tones (their reported freq is 2× a low fundamental). The [min, max] band
- * keeps the extra Goertzels off the mid/high register and holds the corrected
- * `g = f/2` at or above the supported minimum pitch. The max stops below G3's 2nd
- * harmonic (~392 Hz): notes from ~G3 up detect their own strong fundamental and
- * never mislock, so nothing above the band needs pulling down.
+ * Bounded to a reported-frequency window. The floor holds the corrected
+ * `g = f/2` at or above the supported minimum pitch. The odd-partial test runs
+ * up to OCTAVE_UP_ODD_MAX_FREQUENCY, the 2nd harmonic of the tenor's
+ * lower-register top (concert B3, 247 Hz → 494 Hz). Until 2026-11-02 both tests
+ * stopped at 370 Hz on the belief that notes from G3 up detect their own strong
+ * fundamental and never mislock; the Root–Flat Third Ab3 (207.6 Hz) locked
+ * onto its 416 Hz partial for its first 0.2 s and its whole decay — 36 of 72
+ * frames, the fundamental at clarity 1.00 between — and was saved as Ab4.
+ * Above 370 Hz the odd test flags 29 of that take's 34 lock frames
+ * (0.070–0.227) and, across the corpus's 405 genuine frames reported in
+ * 370–587 Hz, passes no uncorrected frame of a note beyond one in three (a
+ * 3-frame F#4 at 372–379 Hz); the G4s, A4s and C5s read ≤ 0.09.
+ *
+ * The SERIES test keeps the 370 Hz ceiling (OCTAVE_UP_SERIES_MAX_FREQUENCY).
+ * An upper-register (octave-key) note leaks its fingering's first mode an
+ * octave down with no odd partials of its own: the 2026-05-19 Octave–Flat-Seven
+ * Drop's genuine C5 at 526 Hz carries 0.13–0.16 of its partials at 263 Hz,
+ * ranked 4.5–8.5 over the bins between, with the odd bins at 0.02 — the series
+ * test would have flagged 28 of its 34 frames and voted a correct note down to
+ * C4. Below 370 Hz the corpus margins quoted above stand.
  *
  * A lock can also leave the 3rd and 5th partials too weak for that rank: the
  * 2026-10-24 Slow Climb to the Third E3 carried them strongly for a stretch
@@ -648,7 +662,8 @@ const SUBHARMONIC_ODD_HARMONIC_RATIO = 0.12;
  * one note's — under the 60% vote; the two locks reach 81% and 87%.
  */
 const OCTAVE_UP_MIN_FREQUENCY = 160;
-const OCTAVE_UP_MAX_FREQUENCY = 370;
+const OCTAVE_UP_ODD_MAX_FREQUENCY = 500;
+const OCTAVE_UP_SERIES_MAX_FREQUENCY = 370;
 const OCTAVE_UP_ODD_HARMONIC_RATIO = 0.12;
 const OCTAVE_UP_SERIES_RATIO = 0.05;
 const OCTAVE_UP_SERIES_RANK = 4;
@@ -932,7 +947,7 @@ export function correctSubharmonic(buffer: Float32Array, frequency: number, samp
  * strong majority of its frames carry it (`mergeWholeNoteOctaveUpLocks`).
  */
 export function isOctaveUpLock(buffer: Float32Array, frequency: number, sampleRate: number): boolean {
-	if (frequency < OCTAVE_UP_MIN_FREQUENCY || frequency > OCTAVE_UP_MAX_FREQUENCY) {
+	if (frequency < OCTAVE_UP_MIN_FREQUENCY || frequency > OCTAVE_UP_ODD_MAX_FREQUENCY) {
 		return false;
 	}
 	// A genuine note at `f` has no energy at the odd half-multiples 1.5f / 2.5f;
@@ -946,6 +961,9 @@ export function isOctaveUpLock(buffer: Float32Array, frequency: number, sampleRa
 	if ((third + fifth) / even >= OCTAVE_UP_ODD_HARMONIC_RATIO) return true;
 	// The odd partials can fade while the fundamental holds: read g's whole odd
 	// series, and only as a series — the bins between its partials stay empty.
+	// Not above the series ceiling: there an octave-key note's leaked first
+	// mode is a fundamental with no series of its own, and passes this test.
+	if (frequency > OCTAVE_UP_SERIES_MAX_FREQUENCY) return false;
 	const series = goertzelMagnitude(buffer, frequency / 2, sampleRate) + third + fifth;
 	if (series / even < OCTAVE_UP_SERIES_RATIO) return false;
 	let halfSeries = 0;

@@ -799,7 +799,9 @@ function splitByPitchChange(
 		primaryMidi: stableMidi ?? segReadings[0].midi
 	});
 
-	return splitOnReadingGaps(mergeConsecutiveSameMidi(collapseOctaveArtifacts(foldTwelfthUpLocks(subs))));
+	return splitOnReadingGaps(
+		mergeConsecutiveSameMidi(collapseOctaveArtifacts(foldOctaveUpLocks(foldTwelfthUpLocks(subs))))
+	);
 }
 
 /**
@@ -838,22 +840,71 @@ const TWELFTH = 19;
  * semitone and a 3:1 ratio is 2 cents off a twelfth, so it carries over.
  */
 function foldTwelfthUpLocks(subs: SubSegment[]): SubSegment[] {
+	return foldLockSubs(subs, TWELFTH_UP_LOCK);
+}
+
+/**
+ * Fold a sub-segment that is a 2nd-harmonic (octave-up) lock an octave down
+ * onto the fundamental it was sounding (see `isOctaveUpLock` in
+ * pitch-frame.ts) — the octave twin of `foldTwelfthUpLocks`, same gate as
+ * `mergeWholeNoteOctaveUpLocks`.
+ *
+ * That whole-note vote needs the lock to hold a strong majority of the NOTE.
+ * The 2026-11-02 Root–Flat Third Ab3 locked for its first 0.2 s and its whole
+ * decay and spoke its own fundamental, at clarity 1.00, for the sustain
+ * between: 36 flagged frames of 72, so the vote could never form, and the
+ * subs read Ab4 · Ab3 · Ab4 — a sandwich whose two matching OUTER notes are
+ * the artifact, which `collapseSandwichArtifacts` takes as the note. Folded
+ * here, each flagged edge reads Ab3 before the subs merge, and the note keeps
+ * its own attack and runs to its own release. A note that locked from attack
+ * to release folds the same way, and the whole-note vote cannot drop it a
+ * second octave: it counts only flags whose reported MIDI still matches the
+ * note.
+ */
+function foldOctaveUpLocks(subs: SubSegment[]): SubSegment[] {
+	return foldLockSubs(subs, OCTAVE_UP_LOCK);
+}
+
+/** A per-frame harmonic-lock flag, the interval it folds down by, and its vote. */
+interface HarmonicLock {
+	flag: 'twelfthUp' | 'octaveUp';
+	interval: number;
+	minFrames: number;
+	minFraction: number;
+}
+const TWELFTH_UP_LOCK: HarmonicLock = {
+	flag: 'twelfthUp',
+	interval: TWELFTH,
+	minFrames: TWELFTH_UP_LOCK_MIN_FRAMES,
+	minFraction: TWELFTH_UP_LOCK_MIN_FRACTION
+};
+const OCTAVE_UP_LOCK: HarmonicLock = {
+	flag: 'octaveUp',
+	interval: 12,
+	minFrames: OCTAVE_UP_LOCK_MIN_FRAMES,
+	minFraction: OCTAVE_UP_LOCK_MIN_FRACTION
+};
+
+/** The sub-segment fold both harmonic locks share; see `foldTwelfthUpLocks`. */
+function foldLockSubs(subs: SubSegment[], lock: HarmonicLock): SubSegment[] {
 	return subs.map((sub) => {
 		let confident = 0;
 		let flagged = 0;
 		for (const r of sub.readings) {
 			if (r.warmup) continue;
 			confident++;
-			if (r.twelfthUp && r.midi === sub.primaryMidi) flagged++;
+			if (r[lock.flag] && r.midi === sub.primaryMidi) flagged++;
 		}
-		if (confident < TWELFTH_UP_LOCK_MIN_FRAMES) return sub;
-		if (flagged / confident < TWELFTH_UP_LOCK_MIN_FRACTION) return sub;
+		if (confident < lock.minFrames) return sub;
+		if (flagged / confident < lock.minFraction) return sub;
 		const locked = sub.primaryMidi;
 		return {
 			...sub,
-			primaryMidi: locked - TWELFTH,
+			primaryMidi: locked - lock.interval,
 			readings: sub.readings.map((r) =>
-				r.midi === locked ? { ...r, midi: r.midi - TWELFTH, midiFloat: r.midiFloat - TWELFTH } : r
+				r.midi === locked
+					? { ...r, midi: r.midi - lock.interval, midiFloat: r.midiFloat - lock.interval }
+					: r
 			)
 		};
 	});
@@ -875,6 +926,32 @@ function foldTwelfthUpLocks(subs: SubSegment[]): SubSegment[] {
  * frame or two at most and keeps its onset; a gap still earns one.
  */
 export function foldTwelfthUpLockRuns(readings: PitchReading[]): PitchReading[] {
+	return foldLockRuns(readings, TWELFTH_UP_LOCK);
+}
+
+/**
+ * Fold every 2nd-harmonic lock RUN of a reading stream an octave down — the
+ * octave twin of `foldTwelfthUpLockRuns`, for the same two readers: the live
+ * onset extractor, which would otherwise cut a note at the lock's edges, and
+ * the re-articulation scan, whose tiers read same-MIDI runs. The Root–Flat
+ * Third Ab3's edges (see `foldOctaveUpLocks`) read as Ab4 on the stream, so
+ * live ear training would have born an onset at 1.40, 1.62 and 2.22 s and
+ * kept three notes even after the sub-segment fold.
+ */
+export function foldOctaveUpLockRuns(readings: PitchReading[]): PitchReading[] {
+	return foldLockRuns(readings, OCTAVE_UP_LOCK);
+}
+
+/**
+ * Fold both harmonic locks on a stream, the twelfth first: a flag means
+ * "fold from the pitch this frame REPORTS", and no frame carries both.
+ */
+function foldHarmonicLockRuns(readings: PitchReading[]): PitchReading[] {
+	return foldOctaveUpLockRuns(foldTwelfthUpLockRuns(readings));
+}
+
+/** The stream-level fold both harmonic locks share; see `foldTwelfthUpLockRuns`. */
+function foldLockRuns(readings: PitchReading[], lock: HarmonicLock): PitchReading[] {
 	const out = readings.slice();
 	let i = 0;
 	while (i < out.length) {
@@ -885,13 +962,13 @@ export function foldTwelfthUpLockRuns(readings: PitchReading[]): PitchReading[] 
 		while (j < out.length && out[j].midi === midi) {
 			if (!out[j].warmup) {
 				confident++;
-				if (out[j].twelfthUp) flagged++;
+				if (out[j][lock.flag]) flagged++;
 			}
 			j++;
 		}
-		if (confident >= TWELFTH_UP_LOCK_MIN_FRAMES && flagged / confident >= TWELFTH_UP_LOCK_MIN_FRACTION) {
+		if (confident >= lock.minFrames && flagged / confident >= lock.minFraction) {
 			for (let k = i; k < j; k++) {
-				out[k] = { ...out[k], midi: midi - TWELFTH, midiFloat: out[k].midiFloat - TWELFTH };
+				out[k] = { ...out[k], midi: midi - lock.interval, midiFloat: out[k].midiFloat - lock.interval };
 			}
 		}
 		i = j;
@@ -1314,7 +1391,7 @@ function pickMidi(readings: PitchReading[], prevMidi: number | null): number {
  * gaps and pitch changes in the readings themselves.
  */
 export function extractOnsetsFromReadings(rawReadings: PitchReading[]): number[] {
-	const readings = foldTwelfthUpLockRuns(rawReadings);
+	const readings = foldHarmonicLockRuns(rawReadings);
 	if (readings.length === 0) return [];
 	const onsets: number[] = [readings[0].time];
 	const GAP_THRESHOLD = 0.1;
@@ -2399,8 +2476,11 @@ export function findReArticulations(
 	// ONE 1.22 s note, after the tiers had run. Only `midi`/`midiFloat`
 	// move; every energy, shape and timbre field the tiers measure is
 	// untouched, and an unflagged leap keeps its own runs. The corpus
-	// segments byte-identically with the fold in place.
-	const readings = foldTwelfthUpLockRuns(rawReadings);
+	// segments byte-identically with the fold in place. The octave fold
+	// joined it on 2026-11-02 (`foldOctaveUpLockRuns`): the Root–Flat Third
+	// Ab3's locked attack and decay would otherwise bound the run the tiers
+	// scan to its sustain.
+	const readings = foldHarmonicLockRuns(rawReadings);
 
 	const sortedBleed =
 		bleedOnsets && bleedOnsets.length > 0 ? [...bleedOnsets].sort((a, b) => a - b) : [];

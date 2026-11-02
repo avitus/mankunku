@@ -4619,3 +4619,149 @@ describe('pitch replay regression: Pent Turn / Syncopated missed opening C (2026
 		}
 	);
 });
+
+describe('pitch replay regression: Root–Flat Third — an Ab3 whose attack and decay speak on the 2nd harmonic (concert F, 2026-11-02)', () => {
+	// Ear training, tenor, 100 BPM, metronome only. The line is F3 · Ab3, a
+	// half note each; Andy flagged "Second note was scored in octave above".
+	// The app saved F3 · Ab4 — 1 of 2, 0.675 "fair".
+	//
+	// The Ab3 (207.6 Hz) reads as its 416 Hz 2nd harmonic for the first
+	// 0.2 s and the whole decay — 36 of the note's 72 confident frames — and
+	// as its own fundamental, at clarity 1.00, for the sustain between. The
+	// 2nd-harmonic lock rule (`isOctaveUpLock`) stopped at 370 Hz on the
+	// belief that notes from G3 up never mislock, so no frame was flagged;
+	// `splitByPitchChange` then cut the note into Ab4 · Ab3 · Ab4, and the
+	// sandwich rule, which takes the two matching outer notes as the real
+	// pitch, swallowed the fundamental into the lock. The odd-partial test
+	// now runs up to 500 Hz (the 2nd harmonic of the tenor's lower-register
+	// top): it flags 85% of the attack stretch and 74% of the decay, and the
+	// segmenter folds a flagged sub-segment an octave down before the subs
+	// merge (`foldOctaveUpLocks`, the twelfth-up fold's form), so the three
+	// read Ab3 and rejoin. The series test keeps its 370 Hz ceiling: a
+	// genuine upper-register note leaks its fingering's first mode an
+	// octave down (the 2026-05-19 Octave–Flat-Seven Drop C5 at 526 Hz reads
+	// 0.13–0.16 of its partials there, with the odd bins empty), and the
+	// series test would have flagged 28 of its 34 frames.
+	const TRANSPORT_SECONDS = 259.0109750566894;
+	const TEMPO = 100;
+	const SWING = 0.6;
+	const FIXTURE = 'recordings/2026-11-02-root-flat-third';
+
+	const expectedPhrase: Phrase = {
+		id: 'bc-011_F',
+		name: 'Root–Flat Third',
+		timeSignature: [4, 4],
+		key: 'F',
+		notes: [
+			{ pitch: 53, duration: [1, 2], offset: [0, 1] }, // F3
+			{ pitch: 56, duration: [1, 2], offset: [1, 2] } // Ab3
+		],
+		harmony: [
+			{ chord: { root: 'F', quality: 'min7' }, scaleId: 'pentatonic.minor', startOffset: [0, 1], duration: [1, 1] }
+		],
+		difficulty: { level: 6, pitchComplexity: 11, rhythmComplexity: 1, lengthBars: 1 },
+		category: 'pentatonic',
+		tags: ['beginner', 'minor-pentatonic', 'interval', 'ascending'],
+		source: 'curated'
+	};
+
+	const replayPipeline = (opts: { live?: boolean } = {}) =>
+		replayEarTrainingTake(`${FIXTURE}.wav`, TRANSPORT_SECONDS, TEMPO, opts);
+
+	const readJson = () =>
+		JSON.parse(
+			readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '..', 'fixtures', `${FIXTURE}.json`), 'utf8')
+		);
+
+	/** Confident frames inside the second note (Ab3, 1.4–2.6 s on the trimmed clock). */
+	const inAb = (readings: PitchReading[]) => readings.filter((r) => !r.warmup && r.time >= 1.35 && r.time < 2.65);
+
+	it('the app saved the Ab3 as Ab4 (1 of 2, 0.675)', () => {
+		const json = readJson();
+		expect(json.flag.note).toMatch(/octave above/i);
+		const saved: DetectedNote[] = json.scoring.savedDetectedNotes;
+		expect(saved.map((n) => n.midi)).toEqual([53, 68]);
+		expect(json.scoring.savedScore.notesHit).toBe(1);
+		expect(json.scoring.savedScore.noteResults[1].pitchScore).toBe(0);
+		expect(json.scoring.savedScore.overall).toBeCloseTo(0.6748, 3);
+	});
+
+	it('the saved readings reproduce the saved detection: the lock sat above the old 370 Hz ceiling, so nothing was flagged', () => {
+		const json = readJson();
+		const readings: PitchReading[] = json.detection.readings;
+		const duration: number = json.audio.duration;
+		const bleed = getMetronomeBleedOnsets(TRANSPORT_SECONDS, TEMPO, duration);
+		const base = resolveOnsets(json.detection.rawWorkletOnsets, readings);
+		const articulation = findReArticulations(readings, base, bleed);
+		const detected = segmentNotes(
+			readings,
+			[...base, ...articulation].sort((a, b) => a - b),
+			duration,
+			undefined,
+			undefined,
+			undefined,
+			json.detection.rawWorkletOnsets,
+			bleed,
+			articulation,
+			json.detection.weakReadings
+		);
+		expect(detected.map((n) => n.midi)).toEqual([53, 68]);
+		const ab = inAb(readings);
+		expect(ab.filter((r) => r.midi === 68).length).toBe(36);
+		expect(ab.filter((r) => r.midi === 56).length).toBe(36);
+		expect(ab.some((r) => r.octaveUp)).toBe(false);
+	});
+
+	it('trims the pre-armed lead-in back to the performance', async () => {
+		const { trimmed } = await replayPipeline();
+		expect(trimmed.offset).toBeCloseTo(1.433, 2);
+	});
+
+	it('the Ab3 reads at 416 Hz on its attack and decay and both stretches carry the flag', async () => {
+		const { trimmed } = await replayPipeline();
+		const ab = inAb(trimmed.readings);
+		expect(ab.length).toBe(72);
+		const attack = ab.filter((r) => r.midi === 68 && r.time < 1.61);
+		const decay = ab.filter((r) => r.midi === 68 && r.time > 2.21);
+		expect(attack.length).toBe(13);
+		expect(decay.length).toBe(23);
+		expect(attack.filter((r) => Math.abs(r.frequency - 415.3) < 2).length).toBe(11);
+		expect(decay.every((r) => Math.abs(r.frequency - 416) < 2)).toBe(true);
+		// The sub-segment fold needs 60% of each stretch's confident frames.
+		expect(attack.filter((r) => r.octaveUp).length / attack.length).toBeGreaterThan(0.75);
+		expect(decay.filter((r) => r.octaveUp).length / decay.length).toBeGreaterThan(0.7);
+		// The fundamental between them reads at clarity 1.00 and is never flagged.
+		const sustain = ab.filter((r) => r.midi === 56);
+		expect(sustain.length).toBe(36);
+		expect(sustain.filter((r) => r.clarity >= 0.98).length).toBeGreaterThan(30);
+		expect(sustain.some((r) => r.octaveUp)).toBe(false);
+	});
+
+	it('replayed: F3, Ab3 (saved: F3, Ab4)', async () => {
+		const { detected } = await replayPipeline();
+		expect(detected.map((n) => n.midi)).toEqual([53, 56]);
+		expect(detected[1].onsetTime).toBeCloseTo(1.4, 1);
+	});
+
+	it('scores two of two (saved: 1 of 2, 0.675)', async () => {
+		const { detected } = await replayPipeline();
+		const result = runScorePipeline({
+			detected,
+			phrase: expectedPhrase,
+			tempo: TEMPO,
+			transportSeconds: TRANSPORT_SECONDS,
+			swing: SWING,
+			bleedFilterEnabled: false
+		});
+		expect(result.chosen.notesHit).toBe(2);
+		expect(result.chosen.extrasCharged).toBe(0);
+		expect(result.chosen.pitchAccuracy).toBe(1);
+		expect(result.chosen.noteResults.some((nr) => nr.missed || nr.extra)).toBe(false);
+		expect(result.chosen.overall).toBeGreaterThan(0.9);
+	});
+
+	it('folds the lock the same way in the live detector time base', async () => {
+		const { detected } = await replayPipeline({ live: true });
+		expect(detected.map((n) => n.midi)).toEqual([53, 56]);
+	});
+});

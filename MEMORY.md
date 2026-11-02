@@ -470,6 +470,13 @@ All suites run through `circleci testsuite run` (`.circleci/test-suites.yml`); A
 - **Fix:** a second acceptance in the twelfth-up form — g + 3g + 5g ≥ 0.05 of f + 2f AND mean ≥ 4× the half-series bins (1.5g … 4.5g). AND the flag's `frequency === rawFrequency` guard dropped for `octaveUp` (not `twelfthUp`): 12 frames were McLeod picking E3, doubled to E4 by `correctSubharmonic`, whose stage 2 is the same weak-odd test. Stabilizer guard stays.
 - **Gotcha:** a survey that recomputes a measure from readings skips production guards — it promised 0.81 where the app gave 0.635. Assert the flagged fraction in the regression test.
 
+## Second-harmonic lock at a note's EDGES; the odd test's ceiling (2026-11-01)
+
+- **The take:** 2026-11-02 Root–Flat Third (bc-011 in F: F3 · Ab3 halves, tenor), Ab3 saved as Ab4 — 1 of 2, 0.675. The 416 Hz partial took the pick for the first 0.2 s and the whole decay (36 of 72 frames), the fundamental held at clarity 1.00 between. `isOctaveUpLock`'s 370 Hz ceiling ("notes from G3 up never mislock") kept every frame unflagged; and half a note can never pass the whole-note 60% vote anyway — the subs Ab4 · Ab3 · Ab4 went to the sandwich rule, which takes the two matching OUTER subs as the note.
+- **Fix:** odd-partial test to 500 Hz (`OCTAVE_UP_ODD_MAX_FREQUENCY`, the 2nd harmonic of the tenor's lower-register top); series test held at 370 (`OCTAVE_UP_SERIES_MAX_FREQUENCY`); `foldOctaveUpLocks` (sub-segment) + `foldOctaveUpLockRuns` (stream, at the onset extractor and the re-articulation scan) in the twelfth fold's form via a shared `HarmonicLock` descriptor.
+- **Why the series test stays low:** an octave-key (upper-register) note leaks its fingering's first mode an octave down with NO odd partials — the 2026-05-19 Octave–Flat-Seven Drop's genuine C5 at 526 Hz reads 0.13–0.16 at 263 Hz, rank 4.5–8.5 — and the series test would vote it down to C4 (28 of 34 frames). The odd test is immune: the leak has no 3g/5g.
+- **Method:** dump every corpus take × trimmed/untrimmed × replay/live before and after and diff; the pins alone would have hidden the two E3 takes' clarity shift (≤ 0.003, benign, documented).
+
 ## Two curated tunes; the stacked [2] engraving (2026-10-25)
 
 - **Catalog (Andy):** exactly Mankunku Blues and Rhythm Changes (`ls-rhythm-changes`, an original head in concert Bb: |: A(6) [1](2) :| [2](2) B(8) A(8), the whole AABA is the head). Saints and Amazing Grace moved to `tests/fixtures/tunes/`; the tune-practice e2e seeds Saints as the player's own tune (`SAINTS_USER_TUNE`) per test, since the first seed of a storage key wins. Don't add curated tunes without asking.

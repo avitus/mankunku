@@ -3315,3 +3315,19 @@ all the way to the stream and was too wide: an onset is a claim about notes,
 and a window it cuts really is two things. The right unit was the one in
 between — the segment, whose boundaries are exactly the onsets. Next time a
 count-based gate misfires, ask first which cut produced the unit it counts.
+
+### 2026-11-01 — A rule's stated boundary is a hypothesis with a date
+
+"Notes from G3 up detect their own strong fundamental and never mislock"
+was written into a comment on 2026-07-29 as the reason for a 370 Hz
+ceiling, and it held for three months because no take tested it. Today an
+Ab3 — a semitone above the line — locked at both its edges. The sentence
+was never evidence; it was the absence of a counterexample dressed as a
+mechanism. Worth separating in future comments: "measured on N frames up to
+X Hz" from "and above that the physics says…". The first ages gracefully
+(a new take extends the measurement); the second looks like a law until it
+isn't. The series test taught the opposite lesson the same hour: its
+extension past 370 Hz would have been wrong, and only because a genuine C5
+in a May take happened to be an upper-register note. The corpus is the
+only boundary that means anything, and it needs the band surveyed in BOTH
+directions before a ceiling moves.

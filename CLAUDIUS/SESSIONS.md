@@ -6176,3 +6176,40 @@ monitor whether it results in faster CI times."
   tonality; not touched.
 - Worktree needed `.env` copied and `npm ci` (missing
   @circleci/vitest-circleci-coverage) before `npm run check` was clean.
+
+## 2026-11-01 — Root–Flat Third: an Ab3 locked on its 2nd harmonic at both edges
+
+- Andy flagged an ear-training take (bc-011 in F: F3 · Ab3 halves, tenor,
+  100 BPM, metronome only): "Second note was scored in octave above". Saved
+  F3 · Ab4, 1 of 2, 0.675 "fair". Reproduced exactly from the saved
+  readings and from the WAV in both time bases.
+- Mechanism, from the readings: the Ab3 (207.6 Hz) reads its 416 Hz
+  partial for the first 0.2 s and the whole decay (36 of 72 frames) and its
+  own fundamental at clarity 1.00 between. `isOctaveUpLock` stopped at
+  370 Hz ("notes from G3 up never mislock"), so nothing was flagged; the
+  subs were Ab4 · Ab3 · Ab4 and `collapseSandwichArtifacts` took the two
+  matching outer subs as the note. Even flagged, half a note is under the
+  whole-note 60% vote.
+- Survey (odd-partial test alone, every corpus frame reported 370–3000 Hz:
+  439 frames, 405 genuine): the lock frames read 0.070–0.227, 29 of 34 over
+  0.12; no genuine note passes on more than one uncorrected frame in three
+  (a 3-frame F#4 at 372–379 Hz); G4s, A4s, C5s ≤ 0.09. The SERIES test is
+  NOT safe up there: the 2026-05-19 Octave–Flat-Seven Drop's genuine C5 at
+  526 Hz carries 0.13–0.16 of its partials at 263 Hz (rank 4.5–8.5, odd
+  bins 0.02) — an octave-key note leaking its fingering's first mode —
+  and would have been voted down to C4 on 28 of 34 frames.
+- Fix (red first, 10 failures on the old sources): `OCTAVE_UP_ODD_MAX_FREQUENCY`
+  500 (the 2nd harmonic of the tenor's lower-register top), the series test
+  held at `OCTAVE_UP_SERIES_MAX_FREQUENCY` 370; `foldOctaveUpLocks` on the
+  sub-segment and `foldOctaveUpLockRuns` on the stream, both the twelfth
+  fold's form through a shared `HarmonicLock` descriptor, applied at the
+  onset extractor and the re-articulation scan as `foldHarmonicLockRuns`.
+- Corpus diff (every take × trimmed/untrimmed × replay/live, dumped before
+  and after): this take folds to Ab3 (0.975); Sixth–Octave Lift and Slow
+  Climb keep every note, onset, duration and cents, clarity −0.001/−0.003
+  (the fundamental frames now average into the merged note). Nothing else.
+- Verification: unit + integration suite 6800 passed, 40 expected fails;
+  `npm run check` clean — both after `npm install`, since this worktree's
+  node_modules predated dev's `@circleci/vitest-circleci-coverage`.
+- Branch: the worktree branch sat on main's tip, diverged from dev; worked
+  detached on origin/dev and pushed HEAD:dev.
