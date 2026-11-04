@@ -192,7 +192,7 @@
 			const replay = await exporter.replayRecording(full, ctx);
 			const payload = exporter.buildDiagnosticsPayload(full, replay, {
 				instrument: { id: settings.instrumentId, name: instrument.name, key: instrument.key },
-				phrase: findPhraseForSession(s),
+				phrase: phraseForScoringExport(s),
 				flag: { note: flagNote.trim(), flaggedAt: new Date().toISOString() }
 			});
 			const wav = await exporter.decodeToWav(full.blob);
@@ -214,7 +214,7 @@
 	}
 
 	/**
-	 * Reconstruct the phrase the user heard for an ear-training session by
+	 * Reconstruct a session phrase in the current instrument range by
 	 * looking up the lick by id (or id with a stripped `_<key>` suffix from
 	 * transposition) and re-applying the session's key/scale transposition.
 	 * Returns null if the lick is no longer in the library.
@@ -227,9 +227,14 @@
 		const inst = instrument;
 		const rangeHigh = getEffectiveHighestNote();
 		const scaleId = s.scaleType && SCALE_TYPE_TO_SCALE_ID[s.scaleType];
-		const phrase = scaleId
+		return scaleId
 			? transposeLickForTonality(base, sessionKey, scaleId, inst.concertRangeLow, rangeHigh, inst.transpositionSemitones)
 			: transposeLick(base, sessionKey, inst.concertRangeLow, rangeHigh, inst.transpositionSemitones);
+	}
+
+	function phraseForScoringExport(s: SessionResult): Phrase | null {
+		const phrase = findPhraseForSession(s);
+		if (!phrase) return null;
 
 		// The instrument, range setting or octave-placement policy may have
 		// changed since the take. Restore its register only when the saved
