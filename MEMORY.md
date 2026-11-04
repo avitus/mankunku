@@ -488,4 +488,4 @@ All suites run through `circleci testsuite run` (`.circleci/test-suites.yml`); A
 
 - **Fixed:** a flagged harmonic-lock run of 1–2 frames with the fundamental on both sides folds on the stream (`foldLockRuns`). Through the Blue to the Root's clear take went from 4 of 5 to 5 of 5.
 - **Noted, not built (Andy):** take 1's tongue reads as an ordinary held note on level, timbre and phase, and left the corpus at his call. When an articulation across repeated notes is that subtle but the rest of the lick lines up perfectly, we should probably assume it was played and missed. That is a scoring allowance: ask first, measure on the population.
-- **Measured:** `research/audio-scoring/results/repeat_allowance.md`. 23 of 2839 production takes qualify; full credit makes all perfect and also pays a never-sounded note. Pitch credit alone gives 20 great, 3 good. Andy's decision pending.
+- **Measured:** `research/audio-scoring/results/repeat_allowance.md`. 23 of 2839 production takes qualify; full credit makes all perfect and also pays a never-sounded note. Pitch credit alone gives 20 great, 3 good. **Andy's decision: leave scoring as is.**

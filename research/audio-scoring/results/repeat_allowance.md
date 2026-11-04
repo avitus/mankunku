@@ -1,6 +1,8 @@
 # Assuming a missed articulation on a repeated note
 
-Andy's idea (2026-11-03): when the articulation across two repeated notes is very subtle but the rest of the lick lines up perfectly, assume it was played and missed. Nothing here changes scoring.
+Andy's idea (2026-11-03): when the articulation across two repeated notes is very subtle but the rest of the lick lines up perfectly, assume it was played and missed.
+
+**Decision (Andy, 2026-11-03): leave scoring as is.** Neither credit rule below was built.
 
 ## Which takes qualify
 
