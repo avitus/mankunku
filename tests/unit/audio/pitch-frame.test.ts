@@ -908,6 +908,14 @@ describe('isOctaveUpLock above 370 Hz — a lock at the top of the lower registe
 		expect(isOctaveUpLock(c5, 523.25, sampleRate)).toBe(false);
 	});
 
+	it('stops the series test at 370 Hz even where the odd test still reads', () => {
+		// C5 above is turned away by the odd test's 500 Hz gate and never reaches
+		// the series ceiling. An A4 with the same leaked first mode does: its odd
+		// bins are empty, so only the 370 Hz ceiling refuses it.
+		const a4 = partials([[220, 0.08], [440, 0.5], [880, 0.15]]);
+		expect(isOctaveUpLock(a4, 440, sampleRate)).toBe(false);
+	});
+
 	it('does not read the odd test above 500 Hz', () => {
 		// The lock shape on a 280 Hz fundamental, reported at 560 Hz.
 		const high = partials([[280, 0.03], [560, 0.5], [840, 0.08], [1120, 0.12], [1400, 0.05]]);

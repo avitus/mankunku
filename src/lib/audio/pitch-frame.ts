@@ -641,7 +641,9 @@ const SUBHARMONIC_ODD_HARMONIC_RATIO = 0.12;
  * Drop's genuine C5 at 526 Hz carries 0.13–0.16 of its partials at 263 Hz,
  * ranked 4.5–8.5 over the bins between, with the odd bins at 0.02 — the series
  * test would have flagged 28 of its 34 frames and voted a correct note down to
- * C4. Below 370 Hz the corpus margins quoted above stand.
+ * C4. That C5 sits above the odd test's 500 Hz gate as well, so the ceiling
+ * itself decides only 370–500 Hz. Below 370 Hz the corpus margins quoted above
+ * stand.
  *
  * A lock can also leave the 3rd and 5th partials too weak for that rank: the
  * 2026-10-24 Slow Climb to the Third E3 carried them strongly for a stretch
