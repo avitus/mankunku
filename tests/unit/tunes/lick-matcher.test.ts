@@ -219,6 +219,7 @@ describe('suggestLicksForProgression — eligibility', () => {
  * Lick practice has always refused both through `progressionFitsLick`.
  */
 describe('suggestLicksForProgression — the lick must fit the progression', () => {
+	/** A one-bar chord segment starting at the given bar. */
 	const seg1 = (root: 'D' | 'G' | 'C', quality: 'min7' | '7' | 'maj7', at: number) => ({
 		chord: { root, quality },
 		scaleId: 'major.ionian',
@@ -248,6 +249,7 @@ describe('suggestLicksForProgression — the lick must fit the progression', () 
 		difficulty: { ...threeBars, lengthBars: 2 }
 	});
 
+	/** Detects the one-chord-a-bar long ii-V-I in a four-bar tune. */
 	function detectThreeBarCadence(): DetectedProgression {
 		const tune = sheet({
 			sections: [
@@ -267,6 +269,7 @@ describe('suggestLicksForProgression — the lick must fit the progression', () 
 		return long;
 	}
 
+	/** The ids of the licks suggested for a detected progression, in order. */
 	const ids = (det: DetectedProgression, deps: LickMatcherDeps): string[] =>
 		suggestLicksForProgression(det, deps).suggestions.map((s) => s.lickId);
 

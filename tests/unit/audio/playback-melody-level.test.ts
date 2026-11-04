@@ -16,6 +16,7 @@ const { noop, audio } = vi.hoisted(() => {
 		connect: (target: unknown) => void;
 		disconnect: () => void;
 	}
+	/** Stands in for audio-node methods whose effect these tests never read. */
 	const noop = (): void => {};
 	/** An audio node remembering where it was connected. */
 	const node = (): FakeNode => {

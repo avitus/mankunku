@@ -4435,14 +4435,17 @@ describe('pitch replay regression: Little Cry — a breathy F whose warmup windo
 		source: 'curated'
 	};
 
+	/** Replays this take's WAV through the real detector and segmenter. */
 	const replayPipeline = (opts: { live?: boolean } = {}) =>
 		replayEarTrainingTake(`${FIXTURE}.wav`, TRANSPORT_SECONDS, TEMPO, opts);
 
+	/** Reads this take's saved diagnostic export. */
 	const readJson = () =>
 		JSON.parse(
 			readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '..', 'fixtures', `${FIXTURE}.json`), 'utf8')
 		);
 
+	/** Scores detected notes against this take's phrase, bleed filter off, as the take was saved. */
 	const score = (detected: DetectedNote[]) =>
 		runScorePipeline({
 			detected,
@@ -4553,6 +4556,7 @@ describe('pitch replay regression: Pent Turn / Syncopated missed opening C (2026
 		tags: ['turn', 'ornament', 'syncopated', 'off-beat', 'combined'],
 		source: 'combined'
 	};
+	/** Reads this take's saved diagnostic export. */
 	const readJson = () =>
 		JSON.parse(
 			readFileSync(
@@ -4560,6 +4564,7 @@ describe('pitch replay regression: Pent Turn / Syncopated missed opening C (2026
 				'utf8'
 			)
 		);
+	/** Scores detected notes against this take's phrase, bleed filter off, as the take was saved. */
 	const score = (detected: DetectedNote[]) =>
 		runScorePipeline({
 			detected,
@@ -4665,9 +4670,11 @@ describe('pitch replay regression: Root–Flat Third — an Ab3 whose attack and
 		source: 'curated'
 	};
 
+	/** Replays this take's WAV through the real detector and segmenter. */
 	const replayPipeline = (opts: { live?: boolean } = {}) =>
 		replayEarTrainingTake(`${FIXTURE}.wav`, TRANSPORT_SECONDS, TEMPO, opts);
 
+	/** Reads this take's saved diagnostic export. */
 	const readJson = () =>
 		JSON.parse(
 			readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '..', 'fixtures', `${FIXTURE}.json`), 'utf8')
@@ -4810,11 +4817,13 @@ describe('pitch replay regression: Through the Blue to the Root — a tongued D3
 		source: 'curated'
 	};
 
+	/** Reads a saved diagnostic export by its fixture path. */
 	const readJson = (fixture: string) =>
 		JSON.parse(
 			readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '..', 'fixtures', `${fixture}.json`), 'utf8')
 		);
 
+	/** Scores detected notes on the given transport clock, bleed filter off, as the take was saved. */
 	const scoreOf = (detected: DetectedNote[], transportSeconds: number) =>
 		runScorePipeline({
 			detected,
@@ -4827,6 +4836,7 @@ describe('pitch replay regression: Through the Blue to the Root — a tongued D3
 
 	const TRANSPORT_SECONDS = 83.76641723356006;
 	const FIXTURE = 'recordings/2026-11-04-through-the-blue-to-the-root-2';
+	/** Replays this take's WAV through the real detector and segmenter. */
 	const replayPipeline = (opts: { live?: boolean } = {}) =>
 		replayEarTrainingTake(`${FIXTURE}.wav`, TRANSPORT_SECONDS, TEMPO, opts);
 

@@ -1644,6 +1644,7 @@ describe('segmentNotes: third-harmonic (twelfth-up) locks', () => {
 		// at the bottom of a tongue's dip chopped the D3 run the re-articulation
 		// tiers scan, so the dip never recovered inside a run.
 		describe('a run too short to vote, with the fundamental on both sides', () => {
+			/** Puts the given frames between two ten-frame runs of the fundamental. */
 			const sandwich = (middle: PitchReading[]) => [
 				...run(50, 0, 10),
 				...middle,
@@ -1707,17 +1708,22 @@ describe('segmentNotes: third-harmonic (twelfth-up) locks', () => {
 
 
 describe('opening weak note recovery', () => {
+	/** A reading at this MIDI whose raw frequency agrees with it. */
 	const frame = (midi: number, time: number, extra: Partial<PitchReading> = {}): PitchReading => ({
 		...makeReading(midi, time),
 		frequency: 440 * 2 ** ((midi - 69) / 12),
 		...extra
 	});
+	/** A four-frame warmup burst that never completes a window on one pitch. */
 	const burst = () =>
 		[0.35, 0.3667, 0.3833, 0.4].map((t, i) => frame(i === 3 ? 60 : 48, t, { warmup: true }));
+	/** The confirmed note that follows the opening burst. */
 	const following = () =>
 		Array.from({ length: 12 }, (_, i) => frame(58, 0.6 + i / 60, { warmup: i < 5 }));
+	/** A low-clarity plateau on the opening note, just ahead of the burst. */
 	const weak = () =>
 		Array.from({ length: 4 }, (_, i) => frame(48, 0.2833 + i / 60, { weak: true, clarity: 0.65 }));
+	/** Segments the readings with the weak side channel and both onsets as worklet evidence. */
 	const detect = (rs = [...burst(), ...following()], ws = weak()) =>
 		segmentNotes(
 			rs,
@@ -1787,7 +1793,9 @@ describe('segmentNotes: second-harmonic (octave-up) locks at the edges of a note
 	// subs were Ab4 · Ab3 · Ab4 and the sandwich rule took the two outer
 	// locks as the note. A flagged sub folds an octave down before the subs
 	// merge, in the twelfth-up fold's form.
+	/** The equal-tempered frequency of a MIDI note. */
 	const hz = (midi: number) => 440 * Math.pow(2, (midi - 69) / 12);
+	/** A run of consecutive 60 fps readings on one MIDI, optionally flagged as an octave-up lock. */
 	function run(midi: number, from: number, count: number, opts: { octaveUp?: boolean } = {}): PitchReading[] {
 		return Array.from({ length: count }, (_, i) => ({
 			...makeReading(midi, from + i / 60),
@@ -1799,6 +1807,7 @@ describe('segmentNotes: second-harmonic (octave-up) locks at the edges of a note
 	function heldAb(attack: PitchReading[], decay: PitchReading[]): PitchReading[] {
 		return [...attack, ...run(56, 12 / 60, 30), ...decay];
 	}
+	/** Segments readings as one note: a single attack at time zero, through the last frame. */
 	const segment = (readings: PitchReading[]) =>
 		segmentNotes(readings, [0], readings[readings.length - 1].time + 1 / 60, undefined, undefined, undefined, [0]);
 

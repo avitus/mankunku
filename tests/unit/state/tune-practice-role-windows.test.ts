@@ -397,6 +397,7 @@ describe('role windows — what the band is called', () => {
  * its three-bar window: the long template's fourth bar is lick practice's.
  */
 describe('tune practice — a cadence window holds only licks that fit it', () => {
+	/** A four-bar one-section tune carrying the given harmony. */
 	const tuneOf = (harmony: Tune['sections'][number]['harmony']): Tune =>
 		sheet({ sections: [section({ bars: 4, harmony })] });
 	const halfBarCadence = tuneOf([
