@@ -6238,3 +6238,13 @@ Andy noticed a three-bar long ii-V-I lick plays a four-bar cycle in lick practic
 - **Fix:** the matcher now applies `progressionFitsLick`, the rule lick practice already serves by; substitution matches are exempt. Five tests failed first.
 - **Measured** on 14 charts × his book and the whole catalog, before and after: 0 suggestions added, every removal a cadence lick on a shape it doesn't fit. Windows freed by the stretch: Rhythm Changes goes from 5 to 7 short ii-V-I windows.
 - **Left open, asked:** the rule only measures LENGTH for harmony-less cadence licks, so Wail and Donna Lee are still offered on I-VI-ii-V and on iii-VI-ii-V-I's half-bar ii-V, where the same curated line is refused. Closing it changes the rule itself, so lick-practice pills and the tag prune on hydrate move with it.
+
+## 2026-11-03 — Release PR #295, dev to main
+
+- **Asked:** open a PR from dev to main, handle all review comments, merge when done.
+- **Before opening:** main had 13 commits dev lacked (#291–#294 landed on main directly), and the merge conflicted in `documentation/tunes.md` and `tune-player.test.ts`. Kept both sides and pushed the merge to dev. Documented 24 test helpers (63.6% → 100% on `scripts/docstring-coverage.mjs`).
+- **Red e2e found on dev:** `02666fe0` changed the Daily report's per-lick line to "N/M keys passed · P% average" and `lick-practice-focus-drill.spec.ts` still read the old wording. Failing on dev before the merge; updated the test, then CI went green.
+- **Review:** two rounds with findings, four threads, all fixed and resolved. A 440 Hz test that can actually reach the octave lock's 370 Hz series ceiling; a substitution test that uses a lick the fit rule refuses; the swing default in the audio docs; and one real bug: a tune take asked for the −6 dB melody level on the backing SETTING, so a band that failed to load left the melody quiet on its own. `playPhrase` now applies the level only when `backingWillPlay`.
+- **Merged:** `7bb6ca6d`, at Andy's request in the original ask. Live on mankunkujazz.com, confirmed by `/api/health` and the deploy job. `e2e-analysis` was still running at that point; it is off the deploy path.
+- **Not verified:** real-microphone playback, and the melody level by ear. CodeRabbit marked its last review "incomplete coverage": 3 files not fully reviewed, unnamed in the walkthrough and the check run.
+- **Checker gap:** `check_pr_review.py` read NOT_REVIEWED at the end, because CodeRabbit on this repo now reports through a check run and posts no commit status. So it can't reach DONE here. Merged on the check run instead: completed, success, on the head, walkthrough range ending at that head, 0 unresolved threads.

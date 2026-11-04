@@ -3345,3 +3345,9 @@ The best evidence in the allowance measurement wasn't a new number; it was a sen
 ## 2026-11-03 — A filter downstream can hide a bug from the person best placed to see it
 
 Andy's "I've never seen that" was evidence, and I had answered him from a synthetic chart. Both of us were right: the code path was wrong in nine of fourteen charts, and it reached him in almost none of them, because the tempo gate and the five-lick card stood between the bug and his eyes. His lick stored at 52 BPM was the thing keeping it quiet. It would have got louder as he improved. The lesson is to run a claim about behaviour on the person's real data before asserting it. Reading the code tells you what can happen, and only their data tells you what does.
+
+## 2026-11-03 — The review's one real bug was in a line that read as correct
+
+`tuneMelodyLevel(backing)` looks right, and its tests agreed, because "backing" meant the setting and the tests never asked whether the band could play. Every note on the fix was about test quality except this one, which was about the gap between what a user asked for and what the engine can deliver. `playPhrase` already computed that difference for the metronome (`backingWillPlay`) a hundred lines further down. When a setting and a capability are both in scope, the setting is the easy one to reach for.
+
+Separately: my first monitor took a review object on the head as evidence of a review, and it was only CodeRabbit answering my thread replies. Then the checker said NOT_REVIEWED about a finished review. Both were reading a signal that had stopped meaning what they assumed. What settled it was asking a third source, the check run, rather than trusting either one's verdict.
