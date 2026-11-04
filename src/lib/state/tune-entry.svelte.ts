@@ -56,6 +56,7 @@ import { getDurationFraction } from '$lib/step-entry/durations';
 import { removeTime, replaceWithRest, spliceElement, trimOverlappingNotes } from '$lib/step-entry/buffer-ops';
 import { approxToFraction } from '$lib/music/notation';
 import { transposeTune } from '$lib/tunes/book-loader';
+import { editSectionLabel, sectionLabels } from '$lib/tunes/section-labels';
 import { isPickupOnlySection, pickupPrefix, resolvePickupLength } from '$lib/music/pickup';
 import {
 	defaultSourceTransposition,
@@ -1494,6 +1495,27 @@ export function entryCursorPosition(): {
 // ─── Sections ───────────────────────────────────────────────────────────
 
 const SECTION_LABELS = 'ABCDEFGH';
+
+/** Edit a rehearsal mark, committing the live page before repartitioning. */
+export function changeSectionLabel(from: number | null, to: number | null, text?: string): boolean {
+	const draft = buildDraftTune();
+	const sections = editSectionLabel(draft, from, to, text);
+	if (!sections) return false;
+	tuneEntry.sections = sections;
+	let base = 0;
+	const destination = to ?? 0;
+	const index = sections.findIndex(s => { const hit = destination < base + s.bars; base += s.bars; return hit; });
+	tuneEntry.currentSection = Math.max(0, index);
+	tuneEntry.currentPage = 0;
+	loadBuffer(tuneEntry.currentSection, 0);
+	return true;
+}
+
+/** Apply the solo instruction through the next visible mark, including endings. */
+export function setSectionSoloOmission(index: number, omit: boolean): void {
+	const next = sectionLabels(buildDraftTune()).find(m => m.sectionIdx > index)?.sectionIdx ?? tuneEntry.sections.length;
+	for (let i = index; i < next; i++) tuneEntry.sections[i].omitFromSolos = omit || undefined;
+}
 
 /** Append a new section (auto-labeled) and navigate to it. */
 export function addSection(): void {

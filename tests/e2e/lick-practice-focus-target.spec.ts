@@ -15,9 +15,10 @@ import { installAudioMock, stubCdnInstrumentSamples } from './fixtures/audio';
  * The lick is saved at 50 BPM, the tempo floor: the drill's 10% ease-in
  * clamps back up to it, so the drill opens AT its target. The mocked mic
  * scores silence, a sub-floor miss whose step down clamps at the floor too,
- * so the next take is the target again, on the sheet, with no bar — the
- * incident's path. 50 BPM is slow for real-time playback, but the lick's
- * progression is two bars: about ten seconds a take.
+ * so the next take is the target again. Every sheet triple now commits to
+ * a chord-only memory turn, even after silence, with one preparation bar.
+ * 50 BPM is slow for real-time playback, but the lick's progression is two
+ * bars: about ten seconds a take.
  *
  * One of the lick-practice session specs, cut by subject for CircleCI's
  * file-level test splitting. It seeds its own 50 BPM progress rather than
@@ -26,7 +27,7 @@ import { installAudioMock, stubCdnInstrumentSamples } from './fixtures/audio';
 const TARGET_TEMPO = 50;
 
 test.describe('lick-practice focus drill at the target', () => {
-	test('a missed take at the target has its next take drawn under it before it joins', async ({
+	test('a sheet triple at the target previews and plays a chord-only memory turn even after a miss', async ({
 		page,
 		browserName,
 		consoleCollector: _consoleCollector
@@ -71,12 +72,13 @@ test.describe('lick-practice focus drill at the target', () => {
 
 		// From the first take's window to just after the next take's downbeat,
 		// every frame: the row under the current take is the focus key again,
-		// tagged with its tempo. The incident was that row missing — the
-		// current take alone on the stack, the next one drawn at its downbeat.
+		// tagged with its tempo and already chord-only. The original incident
+		// was that row missing, with the next take drawn only at its downbeat.
 		const flow = await page.evaluate(async () => {
 			const kinds = new Set<string>();
 			let frames = 0;
 			let bareFrames = 0;
+			let sheetPreviewFrames = 0;
 			/** Sample the stack each frame while `keepGoing` holds. */
 			async function sample(keepGoing: () => boolean): Promise<void> {
 				while (keepGoing()) {
@@ -85,6 +87,7 @@ test.describe('lick-practice focus drill at the target', () => {
 					frames++;
 					if (!below || below.getAttribute('data-key') !== current?.getAttribute('data-key') ||
 						!below.querySelector('[data-testid="row-tempo"]')) bareFrames++;
+					if (below?.querySelector('[data-testid="lead-sheet-row"]')) sheetPreviewFrames++;
 					kinds.add(document.querySelector('.row.current .phase-tab')?.getAttribute('data-kind') ?? 'missing');
 					await new Promise(requestAnimationFrame);
 				}
@@ -102,18 +105,22 @@ test.describe('lick-practice focus drill at the target', () => {
 				tempo: next?.querySelector('[data-testid="row-tempo"]')?.textContent?.trim(),
 				frames,
 				bareFrames,
+				sheetPreviewFrames,
 				kinds: [...kinds]
 			};
 		});
 		expect(flow).toMatchObject({
-			advanced: true, sameKey: true, sheet: true, tempo: `${TARGET_TEMPO} BPM`, bareFrames: 0
+			advanced: true, sameKey: true, sheet: false, tempo: `${TARGET_TEMPO} BPM`, bareFrames: 0, sheetPreviewFrames: 0
 		});
 		expect(flow.frames).toBeGreaterThan(0);
-		// It joined on the downbeat: Play throughout, no preparation bar.
-		expect(flow.kinds).not.toContain('play-in');
+		// The committed memory turn retains its unscored preparation bar.
+		expect(flow.kinds).toContain('play-in');
 		expect(flow.kinds).not.toContain('read');
 		expect(flow.kinds).toContain('play');
 		await expect(page.getByTestId('focus-ramp')).toContainText(`${TARGET_TEMPO} → ${TARGET_TEMPO} BPM`);
+
+		await expect(page.locator('.row.current .chart-wrap.recording')).toBeVisible({ timeout: 15_000 });
+		await expect(page.locator('.row.current [data-testid="lead-sheet-row"]')).toHaveCount(0);
 
 		await page.getByRole('button', { name: /end session/i }).click();
 		await expect(page.getByText('Session Report', { exact: true })).toBeVisible();

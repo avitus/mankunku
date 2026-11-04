@@ -126,6 +126,7 @@ describe('validateAdoptedTune', () => {
 
 	it('rejects the remaining malformed fields each by name', () => {
 		const cases: Array<[string, (s: Tune) => void, RegExp]> = [
+			['solo omission string', (s) => (s.sections[0].omitFromSolos = 'true' as never), /invalid solo omission/],
 			['ending 3', (s) => ((s.sections[0] as { ending?: number }).ending = 3), /invalid ending marker/],
 			['difficulty level 0', (s) => (s.difficulty = { level: 0, pitchComplexity: 1, rhythmComplexity: 1, lengthBars: 1 }), /invalid difficulty/],
 			['difficulty not an object', (s) => ((s as unknown as { difficulty: unknown }).difficulty = 'hard'), /invalid difficulty/],

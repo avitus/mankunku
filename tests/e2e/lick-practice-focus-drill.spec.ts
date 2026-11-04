@@ -235,11 +235,11 @@ test.describe('lick-practice session flow', () => {
 		expect(flow.cueOverlapsSheet).toBe(false);
 		expect(flow.cueOutsideRow).toBe(false);
 		await page.setViewportSize({ width: 1440, height: 1000 });
-		// The takes still to come are drawn under the current one in its look,
-		// so the stack holds several sheets: measure the take being played.
+		// The chord-only memory turn is already below the current sheet.
+		// Measure the sheet being played, not the future memory rows.
 		const currentSheet = page.locator('.row.current [data-testid="lead-sheet-row"]');
 		await expect(currentSheet).toBeVisible();
-		expect(await page.getByTestId('lead-sheet-row').count()).toBeGreaterThan(1);
+		await expect(page.locator('.row.current + .row [data-testid="lead-sheet-row"]')).toHaveCount(0);
 		const deepSheet = await currentSheet.evaluate((sheet) => ({
 			height: sheet.closest('.row')!.getBoundingClientRect().height,
 			noteWidth: sheet.querySelector('.abcjs-notehead')!.getBoundingClientRect().width
@@ -248,7 +248,7 @@ test.describe('lick-practice session flow', () => {
 		expect(deepSheet.noteWidth).toBeGreaterThan(11);
 		// The cue stays a single line at the top-left of the sheet on desktop,
 		// preserving the enlarged engraving and the existing row height. The
-		// sheet stays up while the takes keep missing, so no further count-in
+		// sheet stays up throughout all three passes, so no further count-in
 		// comes: measure the Play cue of the take on it.
 		const entrance = page.locator('.row.current .phase-tab[data-kind="play"]');
 		await expect(entrance).toBeVisible({ timeout: 15_000 });
@@ -265,9 +265,8 @@ test.describe('lick-practice session flow', () => {
 		expect(cueGeometry.height).toBeLessThan(28);
 		await expect(page.locator('.chart-wrap.recording')).toBeVisible({ timeout: 15_000 });
 
-		// The next take on the sheet joins on the downbeat: Play holds through
-		// the boundary with no count-in, and the next row of the same key — a
-		// tempo-tagged take — scrolls up into the current slot.
+		// The next take honors the chord-only memory preview even after a miss.
+		// It scrolls into the current slot with its preparation countdown.
 		const joined = await page.evaluate(async () => {
 			const kinds = new Set<string>();
 			/** Record the current row's cue kind each frame while `keepGoing` holds. */
@@ -291,8 +290,8 @@ test.describe('lick-practice session flow', () => {
 				kinds: [...kinds]
 			};
 		});
-		expect(joined).toMatchObject({ advanced: true, sameKey: true, tagged: true, sheet: true });
-		expect(joined.kinds).not.toContain('play-in');
+		expect(joined).toMatchObject({ advanced: true, sameKey: true, tagged: true, sheet: false });
+		expect(joined.kinds).toContain('play-in');
 		expect(joined.kinds).not.toContain('read');
 		expect(joined.kinds).toContain('play');
 		await page.getByRole('button', { name: /end session/i }).click();

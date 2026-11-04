@@ -9,6 +9,8 @@ import { addFractions, multiplyFraction } from '$lib/music/intervals';
  */
 
 export interface FlattenedTune {
+	/** Explicit head-only material, addressed by authored section index. */
+	omittedSoloSections?: number[];
 	/** Continuous melody with offsets shifted to the sheet timeline. */
 	notes: Note[];
 	/** Continuous harmony with startOffsets shifted to the sheet timeline. */
@@ -161,5 +163,7 @@ export function flattenTune(
 		barsBefore += sec.bars;
 	}
 
-	return { notes, harmony, totalBars: barsBefore, noteSourceIndices, segmentSourceIndices, sectionMap };
+	const omittedSoloSections = sheet.sections.flatMap((s, i) => s.omitFromSolos ? [i] : []);
+	return { notes, harmony, totalBars: barsBefore, noteSourceIndices, segmentSourceIndices, sectionMap,
+		...(omittedSoloSections.length ? { omittedSoloSections } : {}) };
 }

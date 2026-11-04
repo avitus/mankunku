@@ -1,5 +1,8 @@
 <script lang="ts">
 	import { tick, untrack } from 'svelte';
+	import SectionLabelOverlay from './SectionLabelOverlay.svelte';
+	import { sectionLabels } from '$lib/tunes/section-labels';
+	import type { LabelBarTarget } from '$lib/notation/section-label-target';
 	import { abcjsLoader, joinAbcjsLoad, type AbcjsModule } from '$lib/notation/abcjs-loader';
 	import type { Snippet } from 'svelte';
 	import type { Phrase } from '$lib/types/music';
@@ -97,6 +100,7 @@
 	export type ChartVariant = 'practice' | 'print';
 
 	interface Props {
+		sectionEditor?: { select: (index: number) => void; move: (index: number, bar: number) => void; remove: (index: number) => void };
 		phrase?: Phrase | null;
 		/**
 		 * Full song form rendered with chord symbols, section markers, and
@@ -199,6 +203,7 @@
 	}
 
 	let {
+		sectionEditor,
 		phrase = null,
 		tune = null,
 		instrument,
@@ -264,6 +269,8 @@
 	let lastVisualObj: AdapterVisualObj | null = null;
 	let lastNoteAnchors: NoteAnchor[] = [];
 	let lastBarZones: ReturnType<typeof barZones> = [];
+	let labelBars = $state<LabelBarTarget[]>([]);
+	let labelMarks = $state<Array<{ sectionIdx: number; label: string; bar: number; x: number; y: number }>>([]);
 	let prevCursorEl: SVGGraphicsElement | null = null;
 
 	/** Absolute-notation-bar start of each section (for marker/scroll mapping). */
@@ -838,6 +845,27 @@
 
 		lastBarZones = barZones(systems, anchors.barAnchors);
 		nudgePartLabelsPastPickups(lastBarZones, sheet);
+		if (sectionEditor) {
+			const bases = sectionBarBases(sheet);
+			labelBars = lastBarZones.flatMap(zone => {
+				const band = systemBands[zone.systemIdx];
+				if (!band) return [];
+				return [{ bar: bases[zone.sectionIdx] + zone.bar,
+				x: zone.x0 / vb.width * 100, width: (zone.x1 - zone.x0) / vb.width * 100,
+				y: band.staffTop / vb.height * 100,
+				height: (band.staffBottom - band.staffTop) / vb.height * 100 }];
+			});
+			const svgBox = svg.getBoundingClientRect();
+			labelMarks = sectionLabels(sheet).flatMap(mark => {
+				const zone = lastBarZones.find(z => bases[z.sectionIdx] + z.bar === mark.bar);
+				if (!zone) return [];
+				const band = systemBands[zone.systemIdx];
+				if (!band) return [];
+				const part = partLabelElements(band.wrapper)[0]?.getBoundingClientRect();
+				return [{ ...mark, x: part ? (part.left - svgBox.left) / svgBox.width * 100 : zone.x0 / vb.width * 100,
+					y: part ? (part.top - svgBox.top) / svgBox.height * 100 : Math.max(0, band.top - 20) / vb.height * 100 }];
+			});
+		}
 
 		if (onBarClick) {
 			for (const zone of lastBarZones) {
@@ -1488,6 +1516,7 @@
 	class="notation-container {frameless ? 'frameless' : 'rounded-lg p-4'}"
 	class:chart-practice={variant === 'practice'}
 	class:editable={!!onSelect}
+	class:editing-labels={!!sectionEditor}
 	class:chart-print={variant === 'print'}
 	class:has-custom-title={!!titleArea || variant === 'practice'}
 	class:has-engraved-masthead={showEngravedMasthead}
@@ -1547,6 +1576,9 @@
 						: 'bg-[var(--color-bg-secondary)] ring-[var(--color-accent)]'}"
 				/>
 			{/if}
+			{#if sectionEditor}
+				<SectionLabelOverlay marks={labelMarks} bars={labelBars} {...sectionEditor} />
+			{/if}
 		</div>
 	{:else}
 		<div class="flex h-24 items-center justify-center italic text-[var(--color-text-secondary)]">
@@ -1556,6 +1588,7 @@
 </div>
 
 <style>
+	.editing-labels :global(.abcjs-part) { visibility: hidden; }
 	.notation-container :global(svg) {
 		width: 100%;
 		max-width: 100%;

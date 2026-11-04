@@ -7,6 +7,8 @@ import { buildSessionPhrase, clearPickupBarHarmony, headBarsForFlat, soloPassPic
 
 /** Resolved charts and the finite playback timeline shared by the tune player. */
 export interface JamForm {
+	sessionBarMap?: number[];
+	soloBars?: number;
 	notes: Note[];
 	harmony: HarmonicSegment[];
 	sectionMap: FlattenedTune['sectionMap'];

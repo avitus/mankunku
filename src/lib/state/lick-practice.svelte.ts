@@ -217,8 +217,9 @@ export interface PlannedKey {
 	reveal: boolean;
 	/**
 	 * Consecutive play windows this row gets in the cycle: `LEAD_SHEET_PASSES`
-	 * for a revealed row in continuous mode (read it, read it again, play it
-	 * from memory), otherwise 1. Stamped with `reveal`, same lifetime.
+	 * for a revealed row in continuous mode (all three with the sheet),
+	 * otherwise 1. Deep follows the triple with a separate memory turn.
+	 * Stamped with `reveal`, same lifetime.
 	 */
 	passes: number;
 	/**
@@ -1441,9 +1442,10 @@ function focusRowTempo(key: PitchClass): number | undefined {
 /**
  * The focus takes still to come if every one clears, drawn under the current
  * take while the ramp climbs: one row per `projectFocusTempos` step, each
- * tagged with its tempo and looking like the current take (sheet or chords —
- * a change between them always gets its preparation bar, so a row never
- * changes look on a downbeat). Display only, like the handoff preview: no
+ * tagged with its tempo and shown as chords. A sheet triple commits to a
+ * memory turn regardless of its score; later projected clears stay on
+ * chords too. Rescue after a memory miss still gets its preparation bar.
+ * Display only, like the handoff preview: no
  * audio, no recording window, re-projected at every boundary from the take
  * just scored.
  *
@@ -1476,8 +1478,8 @@ export function getFocusProjectionRows(lickIdx: number): PlannedKey[] {
 		harmony: phrase.harmony,
 		lickName: item.phraseName,
 		lickId: item.phraseId,
-		reveal: revealFor(item, key),
-		passes: passesFor(item, key),
+		reveal: false,
+		passes: 1,
 		tempo,
 		cycle: lickPractice.roundNumber + 1 + i
 	}));
@@ -1522,7 +1524,14 @@ export interface DeepCycleEntry {
 }
 
 const cycleEntries = new WeakMap<readonly PitchClass[], Map<PitchClass, DeepCycleEntry>>();
-const lastPlayedReveals = new WeakMap<LickPracticePlanItem, Map<PitchClass, boolean>>();
+type PlayedTurn = Pick<PlannedKey, 'reveal' | 'passes'>;
+const lastPlayedTurns = new WeakMap<LickPracticePlanItem, Map<PitchClass, PlayedTurn>>();
+
+/** A completed sheet triple commits the key's next turn to memory, even after a miss. */
+function owesMemoryTurn(item: LickPracticePlanItem, key: PitchClass): boolean {
+	return lickPractice.mode === 'single-lick' && lickPractice.config.practiceMode === 'continuous' &&
+		lastPlayedTurns.get(item)?.get(key)?.passes === LEAD_SHEET_PASSES;
+}
 
 /** Snapshot for the chart; null outside lick Deep Practice. */
 export function getDeepCycleEntry(lickIdx: number, key?: PitchClass): DeepCycleEntry | null {
@@ -1584,6 +1593,13 @@ function revealDecisionsFor(item: LickPracticePlanItem): Map<PitchClass, boolean
 	if (ramp && lickPractice.mode === 'single-lick') {
 		const attempts = lickPractice.allAttempts.flat();
 		for (const key of keys) {
+			// Honor the sheet triple's memory commitment before considering rescue.
+			// It expires only when this key actually plays its next turn, so a
+			// mastered key sitting out a round cannot lose the commitment.
+			if (owesMemoryTurn(item, key)) {
+				decisions.set(key, false);
+				continue;
+			}
 			const keyAttempts = attempts.filter((attempt) => attempt.key === key);
 			// A successful final turn earns memory playing next time, even when
 			// older scores still depress the EWMA. Only fresh difficulty after
@@ -1592,7 +1608,8 @@ function revealDecisionsFor(item: LickPracticePlanItem): Map<PitchClass, boolean
 			const recent = keyAttempts.slice(lastClear + 1);
 			const latestTwo = recent.slice(-2);
 			// Bound memory retries even when scores plateau above the early
-			// rescue thresholds. Once reached, support lasts until a gold turn.
+			// rescue thresholds. A triple always yields one memory turn before
+			// these thresholds can restore support.
 			const struggling = recent.length >= DEEP_RESCUE_ATTEMPTS || (latestTwo.length === 1
 				? latestTwo[0].score < 0.5
 				: latestTwo.length === 2 && (latestTwo[0].score + latestTwo[1].score) / 2 < 0.7);
@@ -1963,7 +1980,8 @@ export function recordKeyAttempt(score: Score, sessionId?: string): void {
 	const passed = score.overall >= PASS_THRESHOLD;
 	// Freeze the same reveal decision the chart uses BEFORE updating EWMA.
 	// A successful sheet take may hide notation next cycle, never retroactively.
-	const passedFromMemory = passed && !revealFor(item, key);
+	const revealed = revealFor(item, key);
+	const passedFromMemory = passed && !revealed;
 
 	const result: LickPracticeKeyResult = {
 		key,
@@ -2206,9 +2224,12 @@ export function advanceSingleLickRound(): void {
 	const previousLastKey = item.keys.at(-1);
 	const previousReveals = revealDecisionsFor(item);
 	const previousTempo = lickPractice.currentTempo;
-	const lastReveals = lastPlayedReveals.get(item) ?? new Map<PitchClass, boolean>();
-	for (const key of item.keys) lastReveals.set(key, previousReveals.get(key) ?? false);
-	lastPlayedReveals.set(item, lastReveals);
+	const playedTurns = item.keys.map((key) => ({
+		key, reveal: previousReveals.get(key) ?? false, passes: passesFor(item, key)
+	}));
+	const lastTurns = lastPlayedTurns.get(item) ?? new Map<PitchClass, PlayedTurn>();
+	for (const { key, reveal, passes } of playedTurns) lastTurns.set(key, { reveal, passes });
+	lastPlayedTurns.set(item, lastTurns);
 
 	// Snapshot this round's results before archiving — the focus ramp reads
 	// the focus key's score from it, and `keyResults` is reassigned below.
@@ -2346,6 +2367,7 @@ export function advanceSingleLickRound(): void {
 			lickPractice.config.practiceMode === 'continuous' &&
 			lickPractice.ramp === null &&
 			survivors.length > 0 &&
+			!owesMemoryTurn(item, item.keys[0]) &&
 			shouldDemoHeadKey(getRollingScore(lickPractice.progress, item.phraseId, item.keys[0]));
 	}
 
@@ -2377,7 +2399,7 @@ export function advanceSingleLickRound(): void {
 		// and the takes still to come already drawn on the stack.
 		const focusTake = isFocusTake();
 		for (const [slot, key] of item.keys.entries()) {
-			const wasSheet = lastReveals.get(key) === true;
+			const wasSheet = lastTurns.get(key)?.reveal === true;
 			const sheet = revealFor(item, key);
 			const fromMemory = wasSheet && !sheet;
 			entries.set(key, {
