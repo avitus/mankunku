@@ -486,5 +486,5 @@ All suites run through `circleci testsuite run` (`.circleci/test-suites.yml`); A
 
 ## Short lock runs at a tongue's floor (2026-11-03)
 
-- **Fixed:** a flagged harmonic-lock run of 1–2 frames with the fundamental on both sides folds on the stream (`foldLockRuns`). Through the Blue to the Root take 2 went from 4 of 5 to 5 of 5.
-- **Open:** take 1's slight tongue (near 0.84 s) reads as an ordinary held note on level, timbre and phase, so it stays an `it.fails` pin. A new measure must beat the held-note population before it ships.
+- **Fixed:** a flagged harmonic-lock run of 1–2 frames with the fundamental on both sides folds on the stream (`foldLockRuns`). Through the Blue to the Root's clear take went from 4 of 5 to 5 of 5.
+- **Noted, not built (Andy):** take 1's tongue reads as an ordinary held note on level, timbre and phase, and left the corpus at his call. When an articulation across repeated notes is that subtle but the rest of the lick lines up perfectly, we should probably assume it was played and missed. That is a scoring allowance: ask first, measure on the population.

@@ -6223,3 +6223,5 @@ monitor whether it results in faster CI times."
 - **Verification:** unit + integration 6840 passed, 41 expected fails; `npm run check` clean. E2E not run; the change is Node-only audio logic.
 - **Branch:** the worktree branch sat on main's tip, diverged from dev; reset to origin/dev (nothing unique on it) and pushed HEAD:dev as b0c6798d.
 - **Slip:** a stray `cat > /tmp/ignore` hung a command on stdin until its 2-minute timeout. Nothing was lost; the file was removed.
+
+- **Follow-up, same night:** Andy agreed take 1's articulation was very subtle. Its fixture and `it.fails` pin are gone, so `findOpeningGhost`'s level gate rests on its unit test alone. His judgement went into AGENTS.md as a note, not code: when the articulation across two repeated notes is that subtle but the rest of the lick lines up perfectly, probably assume it was played and missed. Unit + integration and `npm run check` re-run clean.
