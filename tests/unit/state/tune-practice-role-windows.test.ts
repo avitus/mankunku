@@ -116,6 +116,17 @@ function matcherFor(
 	};
 }
 
+/** A lick's real length, with the editor's empty chord list. */
+function editorLick(id: string, lengthBars: number): Phrase {
+	return makePhrase({
+		id,
+		name: id,
+		category: 'ii-V-I-major',
+		harmony: [],
+		difficulty: { level: 20, pitchComplexity: 20, rhythmComplexity: 20, lengthBars }
+	});
+}
+
 function planFor(
 	tune: Tune,
 	licks: Phrase[],
@@ -376,5 +387,49 @@ describe('role windows — what the band is called', () => {
 			'Long ii-V-I (Min)',
 			'Minor'
 		]);
+	});
+});
+
+/**
+ * 2026-11-03: a three-bar line in the book stretched every half-bar ii-V's
+ * window to three bars, taking in the next chord, for the two-bar licks sharing
+ * that window too (Autumn in New York, bar 13). A three-bar ii | V | I keeps
+ * its three-bar window: the long template's fourth bar is lick practice's.
+ */
+describe('tune practice — a cadence window holds only licks that fit it', () => {
+	/** A four-bar one-section tune carrying the given harmony. */
+	const tuneOf = (harmony: Tune['sections'][number]['harmony']): Tune =>
+		sheet({ sections: [section({ bars: 4, harmony })] });
+	const halfBarCadence = tuneOf([
+		seg('D', 'min7', [0, 1], [1, 2]),
+		seg('G', '7', [1, 2], [1, 2]),
+		seg('C', 'maj7', [1, 1], [1, 1]),
+		seg('A', 'min7', [2, 1], [2, 1])
+	]);
+	const threeBarCadence = tuneOf([
+		seg('D', 'min7', [0, 1], [1, 1]),
+		seg('G', '7', [1, 1], [1, 1]),
+		seg('C', 'maj7', [2, 1], [1, 1]),
+		seg('A', 'min7', [3, 1], [1, 1])
+	]);
+	const twoBars = editorLick('two-bars', 2);
+	const threeBars = editorLick('three-bars', 3);
+
+	it('a half-bar ii-V keeps its two-bar window, without the three-bar line', () => {
+		const window = planFor(halfBarCadence, [twoBars, threeBars]).find((ip) => ip.suggestions.length > 0)!;
+		expect(window.detectedType).toBe('ii-V-I-major');
+		expect(fractionToFloat(window.duration)).toBe(2);
+		expect(window.suggestions.map((s) => s.lickId)).toEqual(['two-bars']);
+	});
+
+	it('a half-bar ii-V gets no lick window from a three-bar line alone', () => {
+		const plan = planFor(halfBarCadence, [threeBars]);
+		expect(plan.flatMap((ip) => ip.suggestions)).toEqual([]);
+	});
+
+	it('a three-bar ii | V | I gets a three-bar window for a three-bar line', () => {
+		const window = planFor(threeBarCadence, [threeBars]).find((ip) => ip.suggestions.length > 0)!;
+		expect(window.detectedType).toBe('ii-V-I-major-long');
+		expect(fractionToFloat(window.duration)).toBe(3);
 	});
 });

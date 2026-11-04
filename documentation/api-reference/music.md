@@ -426,6 +426,7 @@ The canonical chord model. `ChordSymbol` preserves what a lead sheet actually sa
 |---|---|
 | `ChordBaseQuality` | `'maj' \| 'min' \| 'dom' \| 'dim' \| 'halfdim' \| 'aug' \| 'minmaj' \| 'sus4' \| 'sus2'` |
 | `parseChordSymbol(input)` | Text → `ChordSymbol`, or `null` when unparseable |
+| `capitalizeTypedChord(input)` | Typed chord text with its root and slash-bass letters capitalized (`a-7/g` → `A-7/G`, `bb7` → `Bb7`), for `setChord`. `parseChordSymbol` itself stays case-sensitive because the PDF importers use it to tell chord text from prose |
 | `chordSymbolSpellings(input)` | `{ root, bass }` exactly as the text spells them (`G#` from `G#ø7`, `Ab` from `Db-7/Ab`, `♯`/`♭` normalised to ASCII), or `null` when the text does not parse. Shares `parseChordSymbol`'s tokenizer (root token, `6/9` collapsed before the split, bass after the last slash), so the two cannot disagree about which characters are the root. The display layer's source for a chart's own spelling, which the canonical `PitchClass` root has already lost |
 | `formatChordSymbol(cs)` | `ChordSymbol` → canonical display text |
 | `transposeChordSymbol(symbol, semitones)` | Takes the raw chord TEXT: parses it, transposes root and slash bass by pitch class, re-formats canonically. `undefined` for missing or unparseable text — callers drop the symbol rather than display a wrong-key one |

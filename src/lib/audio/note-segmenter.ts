@@ -205,6 +205,7 @@ export function segmentNotes(
 		// matches the caller's onset — the guard only affects which readings
 		// are scanned, not the reported note boundary.
 		const subSegments = splitByPitchChange(segReadings, segStart, segEnd);
+		const completedWarmup = completedWarmupFrames(segReadings);
 
 		for (const sub of subSegments) {
 			const prevMidi = notes.length > 0 ? notes[notes.length - 1].midi : null;
@@ -214,7 +215,8 @@ export function segmentNotes(
 				sub.end - sub.start,
 				prevMidi,
 				minReadings,
-				minNoteDuration
+				minNoteDuration,
+				completedWarmup
 			);
 			if (note) notes.push(note);
 		}
@@ -797,7 +799,9 @@ function splitByPitchChange(
 		primaryMidi: stableMidi ?? segReadings[0].midi
 	});
 
-	return splitOnReadingGaps(mergeConsecutiveSameMidi(collapseOctaveArtifacts(foldTwelfthUpLocks(subs))));
+	return splitOnReadingGaps(
+		mergeConsecutiveSameMidi(collapseOctaveArtifacts(foldOctaveUpLocks(foldTwelfthUpLocks(subs))))
+	);
 }
 
 /**
@@ -836,22 +840,71 @@ const TWELFTH = 19;
  * semitone and a 3:1 ratio is 2 cents off a twelfth, so it carries over.
  */
 function foldTwelfthUpLocks(subs: SubSegment[]): SubSegment[] {
+	return foldLockSubs(subs, TWELFTH_UP_LOCK);
+}
+
+/**
+ * Fold a sub-segment that is a 2nd-harmonic (octave-up) lock an octave down
+ * onto the fundamental it was sounding (see `isOctaveUpLock` in
+ * pitch-frame.ts) — the octave twin of `foldTwelfthUpLocks`, same gate as
+ * `mergeWholeNoteOctaveUpLocks`.
+ *
+ * That whole-note vote needs the lock to hold a strong majority of the NOTE.
+ * The 2026-11-02 Root–Flat Third Ab3 locked for its first 0.2 s and its whole
+ * decay and spoke its own fundamental, at clarity 1.00, for the sustain
+ * between: 36 flagged frames of 72, so the vote could never form, and the
+ * subs read Ab4 · Ab3 · Ab4 — a sandwich whose two matching OUTER notes are
+ * the artifact, which `collapseSandwichArtifacts` takes as the note. Folded
+ * here, each flagged edge reads Ab3 before the subs merge, and the note keeps
+ * its own attack and runs to its own release. A note that locked from attack
+ * to release folds the same way, and the whole-note vote cannot drop it a
+ * second octave: it counts only flags whose reported MIDI still matches the
+ * note.
+ */
+function foldOctaveUpLocks(subs: SubSegment[]): SubSegment[] {
+	return foldLockSubs(subs, OCTAVE_UP_LOCK);
+}
+
+/** A per-frame harmonic-lock flag, the interval it folds down by, and its vote. */
+interface HarmonicLock {
+	flag: 'twelfthUp' | 'octaveUp';
+	interval: number;
+	minFrames: number;
+	minFraction: number;
+}
+const TWELFTH_UP_LOCK: HarmonicLock = {
+	flag: 'twelfthUp',
+	interval: TWELFTH,
+	minFrames: TWELFTH_UP_LOCK_MIN_FRAMES,
+	minFraction: TWELFTH_UP_LOCK_MIN_FRACTION
+};
+const OCTAVE_UP_LOCK: HarmonicLock = {
+	flag: 'octaveUp',
+	interval: 12,
+	minFrames: OCTAVE_UP_LOCK_MIN_FRAMES,
+	minFraction: OCTAVE_UP_LOCK_MIN_FRACTION
+};
+
+/** The sub-segment fold both harmonic locks share; see `foldTwelfthUpLocks`. */
+function foldLockSubs(subs: SubSegment[], lock: HarmonicLock): SubSegment[] {
 	return subs.map((sub) => {
 		let confident = 0;
 		let flagged = 0;
 		for (const r of sub.readings) {
 			if (r.warmup) continue;
 			confident++;
-			if (r.twelfthUp && r.midi === sub.primaryMidi) flagged++;
+			if (r[lock.flag] && r.midi === sub.primaryMidi) flagged++;
 		}
-		if (confident < TWELFTH_UP_LOCK_MIN_FRAMES) return sub;
-		if (flagged / confident < TWELFTH_UP_LOCK_MIN_FRACTION) return sub;
+		if (confident < lock.minFrames) return sub;
+		if (flagged / confident < lock.minFraction) return sub;
 		const locked = sub.primaryMidi;
 		return {
 			...sub,
-			primaryMidi: locked - TWELFTH,
+			primaryMidi: locked - lock.interval,
 			readings: sub.readings.map((r) =>
-				r.midi === locked ? { ...r, midi: r.midi - TWELFTH, midiFloat: r.midiFloat - TWELFTH } : r
+				r.midi === locked
+					? { ...r, midi: r.midi - lock.interval, midiFloat: r.midiFloat - lock.interval }
+					: r
 			)
 		};
 	});
@@ -873,6 +926,43 @@ function foldTwelfthUpLocks(subs: SubSegment[]): SubSegment[] {
  * frame or two at most and keeps its onset; a gap still earns one.
  */
 export function foldTwelfthUpLockRuns(readings: PitchReading[]): PitchReading[] {
+	return foldLockRuns(readings, TWELFTH_UP_LOCK);
+}
+
+/**
+ * Fold every 2nd-harmonic lock RUN of a reading stream an octave down — the
+ * octave twin of `foldTwelfthUpLockRuns`, for the same two readers: the live
+ * onset extractor, which would otherwise cut a note at the lock's edges, and
+ * the re-articulation scan, whose tiers read same-MIDI runs. The Root–Flat
+ * Third Ab3's edges (see `foldOctaveUpLocks`) read as Ab4 on the stream, so
+ * live ear training would have born an onset at 1.40, 1.62 and 2.22 s and
+ * kept three notes even after the sub-segment fold.
+ */
+export function foldOctaveUpLockRuns(readings: PitchReading[]): PitchReading[] {
+	return foldLockRuns(readings, OCTAVE_UP_LOCK);
+}
+
+/**
+ * Fold both harmonic locks on a stream, the twelfth first: a flag means
+ * "fold from the pitch this frame REPORTS", and no frame carries both.
+ */
+function foldHarmonicLockRuns(readings: PitchReading[]): PitchReading[] {
+	return foldOctaveUpLockRuns(foldTwelfthUpLockRuns(readings));
+}
+
+/**
+ * The stream-level fold both harmonic locks share; see `foldTwelfthUpLockRuns`.
+ *
+ * A run too short for the vote folds only when every confident frame is
+ * flagged and the fundamental reads on BOTH sides: nobody leaps a twelfth and
+ * back inside 33 ms, and with another note on either side it stays a leap. The
+ * vote's minimum exists to outvote an attack frame, which has no such
+ * neighbours. The 2026-11-04 Through the Blue to the Root take needs this:
+ * locks of 1 and 2 frames at the bottom of a tongue's −12 dB dip ended the run
+ * the re-articulation tiers scan, so the dip never recovered inside it. Across
+ * the 50-take corpus only that take changes.
+ */
+function foldLockRuns(readings: PitchReading[], lock: HarmonicLock): PitchReading[] {
 	const out = readings.slice();
 	let i = 0;
 	while (i < out.length) {
@@ -883,13 +973,23 @@ export function foldTwelfthUpLockRuns(readings: PitchReading[]): PitchReading[] 
 		while (j < out.length && out[j].midi === midi) {
 			if (!out[j].warmup) {
 				confident++;
-				if (out[j].twelfthUp) flagged++;
+				if (out[j][lock.flag]) flagged++;
 			}
 			j++;
 		}
-		if (confident >= TWELFTH_UP_LOCK_MIN_FRAMES && flagged / confident >= TWELFTH_UP_LOCK_MIN_FRACTION) {
+		const fundamental = midi - lock.interval;
+		const voted = confident >= lock.minFrames && flagged / confident >= lock.minFraction;
+		const sandwiched =
+			confident > 0 &&
+			confident < lock.minFrames &&
+			flagged === confident &&
+			i > 0 &&
+			j < out.length &&
+			out[i - 1].midi === fundamental &&
+			out[j].midi === fundamental;
+		if (voted || sandwiched) {
 			for (let k = i; k < j; k++) {
-				out[k] = { ...out[k], midi: midi - TWELFTH, midiFloat: out[k].midiFloat - TWELFTH };
+				out[k] = { ...out[k], midi: midi - lock.interval, midiFloat: out[k].midiFloat - lock.interval };
 			}
 		}
 		i = j;
@@ -1125,7 +1225,9 @@ function splitOnReadingGaps(
  * one: nothing but a partial warmup burst, or too few readings (the 2 to
  * `minReadings − 1` case keeps its single clearest reading at half clarity).
  * Otherwise the pitch comes from `pickMidi`, with the median cents and mean
- * clarity of the readings on the chosen MIDI.
+ * clarity of the readings on the chosen MIDI. `completedWarmup` holds the
+ * frames of every completed warmup window in the sub-segment's segment
+ * (`completedWarmupFrames`).
  */
 function emitNote(
 	subReadings: PitchReading[],
@@ -1133,7 +1235,8 @@ function emitNote(
 	subDuration: number,
 	prevMidi: number | null,
 	minReadings: number,
-	minNoteDuration: number
+	minNoteDuration: number,
+	completedWarmup: ReadonlySet<PitchReading>
 ): DetectedNote | null {
 	if (subReadings.length === 0) return null;
 
@@ -1145,7 +1248,26 @@ function emitNote(
 	// the exception: the warmup vote completed there, on that pitch. The
 	// 2026-09-16 "sharp-9-flat-9-dom" A3 is exactly that — five frames on
 	// 57 before the downbeat kick blanked tracking.
-	if (subReadings.every((r) => r.warmup) && !isCompletedWarmup(subReadings)) return null;
+	//
+	// The window is judged across the whole SEGMENT, not the sub-segment: the
+	// stabilizer counts only confident frames, so a stretch under the clarity
+	// threshold inside the window leaves the vote whole while the reading-gap
+	// split cuts its frames into pieces too short to pass on their own. The
+	// 2026-10-28 "little-cry" F3 is the reference — a breathy eighth whose
+	// five warmup frames, all F, were split 4 + 1 by 100 ms of sub-0.80
+	// clarity, so both pieces were dropped and the Ebs either side merged
+	// across the F into one long note (3 of 5 saved, 0.590). A window an
+	// ONSET cuts stays judged piece by piece: the boundary claims a new note,
+	// and the piece before it is a fragment (the 2026-05-22 blues-curl-up and
+	// 2026-08-10 pent-run takes each grew a phantom repeat when the window
+	// was judged across one).
+	if (
+		subReadings.every((r) => r.warmup) &&
+		!isCompletedWarmup(subReadings) &&
+		!subReadings.every((r) => completedWarmup.has(r))
+	) {
+		return null;
+	}
 
 	// Short-note fallback (4d): when a segment has some data but not enough
 	// to run the full vote, pick the single highest-clarity reading so a
@@ -1193,6 +1315,24 @@ function emitNote(
  */
 function isCompletedWarmup(readings: PitchReading[]): boolean {
 	return readings.length >= WARMUP_FRAMES && readings.every((r) => r.midi === readings[0].midi);
+}
+
+/**
+ * The frames of every completed warmup window in a run of readings: each
+ * maximal run of consecutive warmup readings that `isCompletedWarmup`
+ * accepts. Consecutive in the confident stream, whatever the time between
+ * them, because that is how the stabilizer counts its window.
+ */
+function completedWarmupFrames(readings: PitchReading[]): Set<PitchReading> {
+	const frames = new Set<PitchReading>();
+	let runStart = 0;
+	for (let i = 0; i <= readings.length; i++) {
+		if (i < readings.length && readings[i].warmup) continue;
+		const run = readings.slice(runStart, i);
+		if (isCompletedWarmup(run)) for (const r of run) frames.add(r);
+		runStart = i + 1;
+	}
+	return frames;
 }
 
 /**
@@ -1272,7 +1412,7 @@ function pickMidi(readings: PitchReading[], prevMidi: number | null): number {
  * gaps and pitch changes in the readings themselves.
  */
 export function extractOnsetsFromReadings(rawReadings: PitchReading[]): number[] {
-	const readings = foldTwelfthUpLockRuns(rawReadings);
+	const readings = foldHarmonicLockRuns(rawReadings);
 	if (readings.length === 0) return [];
 	const onsets: number[] = [readings[0].time];
 	const GAP_THRESHOLD = 0.1;
@@ -2357,8 +2497,11 @@ export function findReArticulations(
 	// ONE 1.22 s note, after the tiers had run. Only `midi`/`midiFloat`
 	// move; every energy, shape and timbre field the tiers measure is
 	// untouched, and an unflagged leap keeps its own runs. The corpus
-	// segments byte-identically with the fold in place.
-	const readings = foldTwelfthUpLockRuns(rawReadings);
+	// segments byte-identically with the fold in place. The octave fold
+	// joined it on 2026-11-02 (`foldOctaveUpLockRuns`): the Root–Flat Third
+	// Ab3's locked attack and decay would otherwise bound the run the tiers
+	// scan to its sustain.
+	const readings = foldHarmonicLockRuns(rawReadings);
 
 	const sortedBleed =
 		bleedOnsets && bleedOnsets.length > 0 ? [...bleedOnsets].sort((a, b) => a - b) : [];
@@ -3459,8 +3602,79 @@ function skipAbsorbed(
 }
 
 /**
- * Recover ghosted notes from the sub-threshold frames inside the holes of the
- * confident reading stream (see the section comment above).
+ * Recover an opening ghost only when a weak plateau runs directly into an
+ * incomplete, same-pitch-class warmup burst. Interior ghosts have two flanks;
+ * at the recording edge the startup burst supplies the missing corroboration.
+ * Reuse the ghost pass's plateau, continuity, level and duration limits, and
+ * fold its octave toward the following note just as interior ghosts do.
+ *
+ * 2026-10-30 Pent Turn: four weak C frames (47.67–47.73 MIDI) lead into
+ * four warmup C frames (48/60), then Bb. The weak plateau is 0.86x the
+ * following attack's level, well above the existing 0.1 floor. Across all
+ * 47 WAVs this is the only incomplete opening burst with a preceding plateau;
+ * complete warmups and uncorroborated startup noise remain untouched.
+ *
+ * The level gate includes the frame the note stabilizes on, because `next` can
+ * be noise too: untrimmed, a 2026-11-04 Through the Blue to the Root take (not
+ * kept in the corpus) opened on pre-entrance frames at rms 0.001, `next` among
+ * them, and a weak plateau at 0.007 cleared a gate measured on those while the
+ * D3 read 0.17.
+ */
+function findOpeningGhost(readings: PitchReading[], weak: PitchReading[]): DetectedNote | null {
+	const first = readings[0];
+	if (!first?.warmup) return null;
+	let end = 0;
+	while (
+		end < readings.length &&
+		readings[end].warmup &&
+		pitchClassDistance(readings[end].midi, first.midi) === 0
+	)
+		end++;
+	// A complete warmup already belongs to the ordinary segmentation path.
+	if (end < GHOST_MIN_FRAMES || end >= WARMUP_FRAMES || end === readings.length) return null;
+	const next = readings[end];
+	if (pitchClassDistance(first.midi, next.midi) < GHOST_MIN_FLANK_DISTANCE) return null;
+	// The following pitch must actually stabilize, not be another startup blip.
+	const stable = readings.slice(end).find((r) => !r.warmup);
+	if (!stable || stable.midi !== next.midi || stable.time - first.time > GHOST_MAX_HOLE)
+		return null;
+	const frames = weak.filter((r) => r.time < first.time && r.time >= next.time - GHOST_MAX_HOLE);
+	const plateau = findGhostPlateau(
+		frames,
+		frames.map((r) => foldToward(rawMidiFloat(r), next.midi))
+	);
+	if (
+		!plateau ||
+		pitchClassDistance(Math.round(plateau.pitch), first.midi) !== 0 ||
+		pitchClassDistance(plateau.pitch, next.midi) < GHOST_MIN_FLANK_DISTANCE
+	)
+		return null;
+	const held = frames.slice(plateau.start, plateau.end);
+	if (first.time - held[held.length - 1].time > GHOST_MAX_FRAME_STEP) return null;
+	for (let i = 1; i < end; i++) {
+		if (readings[i].time - readings[i - 1].time > GHOST_MAX_FRAME_STEP) return null;
+	}
+	if (
+		median(held.map((r) => r.rms)) <
+		GHOST_MIN_LEVEL * Math.max(next.rms, stable.rms, ...readings.slice(0, end).map((r) => r.rms))
+	)
+		return null;
+	const onsetTime = held[0].time;
+	const midi = Math.round(plateau.pitch);
+	return {
+		midi,
+		cents: Math.round((plateau.pitch - midi) * 100),
+		onsetTime,
+		duration: next.time - onsetTime,
+		clarity: held.reduce((sum, r) => sum + r.clarity, 0) / held.length,
+		ghost: true
+	};
+}
+
+/**
+ * Recover ghosted notes from sub-threshold frames inside reading holes, or
+ * at the opening edge when an incomplete warmup corroborates the plateau
+ * (`findOpeningGhost`). Interior recovery follows the rules below.
  *
  * A hole between consecutive readings, `GHOST_MIN_HOLE`–`GHOST_MAX_HOLE` long,
  * yields a ghost when its weak frames hold a plateau (`findGhostPlateau`) that
@@ -3486,7 +3700,8 @@ export function findGhostNotes(
 	if (readings.length < 2 || weakReadings.length < GHOST_MIN_FRAMES) return [];
 	const weak = [...weakReadings].sort((a, b) => a.time - b.time);
 
-	const ghosts: DetectedNote[] = [];
+	const opening = findOpeningGhost(readings, weak);
+	const ghosts: DetectedNote[] = opening ? [opening] : [];
 	for (let i = 1; i < readings.length; i++) {
 		const holeStart = readings[i - 1].time;
 		const holeEnd = readings[i].time;

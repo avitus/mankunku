@@ -12,6 +12,7 @@
 	import { settings, saveSettings, saveTuneTempo } from '$lib/state/settings.svelte';
 	import type { RangeMarker } from '$lib/components/notation/NotationDisplay.svelte';
 	import EditorIcon from '$lib/components/step-entry/EditorIcon.svelte';
+	import TuneSessionOptions from '$lib/components/tunes/TuneSessionOptions.svelte';
 	import TuneTransport from '$lib/components/tunes/TuneTransport.svelte';
 	import TuneHarmonyGuide from '$lib/components/tunes/TuneHarmonyGuide.svelte';
 	import { tuneHarmonyMarkers } from '$lib/tunes/harmony-colors';
@@ -149,7 +150,8 @@
 	}
 	const backingStyle = $derived(baseSheet ? tuneBackingStyle(baseSheet, isOwnSheet ? {} : settings.tuneBackingStyles) : 'swing');
 	const jamCharts = $derived(sheet ? jamSheets(sheet) : null);
-	const closingPreview = $derived(player.soloChoruses === 1 && !sheet?.sections.some(section => section.notes.some(note => note.pitch !== null)));
+	const hasMelody = $derived(sheet?.sections.some(section => section.notes.some(note => note.pitch !== null)) ?? false);
+	const closingPreview = $derived(player.soloChoruses === 1 && (!player.playHead || !hasMelody));
 	const displayedSheet = $derived(player.closing || closingPreview ? jamCharts?.closing : jamCharts?.returning);
 	const totalBars = $derived(displayedSheet?.sections.reduce((sum, section) => sum + section.bars, 0) ?? 0);
 	let harmonyColors = $state(true);
@@ -280,6 +282,9 @@
 					<div class="td-status"><span><i aria-hidden="true"></i><strong>{player.starting ? 'Loading…' : player.playing ? `${player.phase === 'solo' ? `Solo ${player.soloChorus} of ${player.soloChoruses}` : player.phase === 'outro' ? 'Outro' : 'Head'} · Bar ${Math.floor(player.chartBar ?? 0) + 1}` : 'Ready to play'}</strong> Written in {writtenKey.replace('b', '♭').replace('#', '♯')}</span><span>{sheet.timeSignature.join('/')} · {totalBars} bars</span></div>
 					<TuneTransport bind:this={transport} tune={sheet} {player} style={backingStyle} onsettings={tuneDeskView.focus || viewportWidth <= 800 ? openSettings : undefined} />
 				</section>
+				{#if !tuneDeskView.focus}<TuneSessionOptions {hasMelody} disabled={player.busy}
+					choruses={player.soloChoruses} playHead={player.playHead}
+					onchoruses={value => player.setSoloChoruses(value)} onhead={value => player.setPlayHead(value)} />{/if}
 				<div class="td-reading-footer"><span>Space to play or stop</span><em>Listen. Find the changes. Make them yours.</em></div>
 			</div>
 			{#if !tuneDeskView.focus && viewportWidth > 800 && !drawerOpen}<aside class="td-detail-rail" aria-label="Tune settings">

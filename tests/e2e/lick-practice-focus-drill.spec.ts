@@ -128,7 +128,7 @@ test.describe('lick-practice session flow', () => {
 			'href',
 			'/licks/e2e-user-lick-bebop'
 		);
-		await expect(page.getByText(/[01]\/1 · \d+%/)).toBeVisible();
+		await expect(page.getByText(/[01]\/1 keys passed · \d+% average/)).toBeVisible();
 
 		// Tempo UI on the report: the per-lick row shows the lick's BPM (with
 		// the session's auto-adjustment delta when one applied).

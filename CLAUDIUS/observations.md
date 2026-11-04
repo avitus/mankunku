@@ -3304,3 +3304,44 @@ faster. The sibling test had already written the rule down in a comment
 ("deterministic ordering — the prune sorts by timestamp") and nobody
 carried it across. And the real cost was never the 10%. It was that I
 tailed the output twice, so the name went by unrecorded both times.
+
+### 2026-10-27 — Where a rule is judged matters as much as the rule
+
+The warmup-completion rule was right; it was evaluated on the wrong unit.
+"Five frames on one pitch" is a property of the stabilizer's window, which
+lives in the confident-frame stream, while the sub-segment is a product of a
+later, unrelated cut (the reading-gap split). The first fix moved the unit
+all the way to the stream and was too wide: an onset is a claim about notes,
+and a window it cuts really is two things. The right unit was the one in
+between — the segment, whose boundaries are exactly the onsets. Next time a
+count-based gate misfires, ask first which cut produced the unit it counts.
+
+### 2026-11-01 — A rule's stated boundary is a hypothesis with a date
+
+"Notes from G3 up detect their own strong fundamental and never mislock"
+was written into a comment on 2026-07-29 as the reason for a 370 Hz
+ceiling, and it held for three months because no take tested it. Today an
+Ab3 — a semitone above the line — locked at both its edges. The sentence
+was never evidence; it was the absence of a counterexample dressed as a
+mechanism. Worth separating in future comments: "measured on N frames up to
+X Hz" from "and above that the physics says…". The first ages gracefully
+(a new take extends the measurement); the second looks like a law until it
+isn't. The series test taught the opposite lesson the same hour: its
+extension past 370 Hz would have been wrong, and only because a genuine C5
+in a May take happened to be an upper-register note. The corpus is the
+only boundary that means anything, and it needs the band surveyed in BOTH
+directions before a ceiling moves.
+
+### 2026-11-03 — The ear and the frame disagree, and the second take settled which bug was real
+
+Andy's first take was the harder report and the less useful one. I spent a long time on it, and a spectrogram showed nothing a held note doesn't also show. Then he played it again, tongued harder, and the bug had nothing to do with sensitivity: the −12 dB dip was in plain view and a one-frame harmonic pick cut the run at its floor. Had I tuned for the first take, I'd have lowered gates for a problem the pipeline doesn't have, and the second take would still have failed. A user replaying with more emphasis is an experiment worth more than another measure on the first recording.
+
+The unsettled part: he hears take 1's tongue and I can't find it. Three measures rank it mid-corpus, which only says those three measures can't see it, not that it isn't there. I should keep saying that plainly rather than letting "reads as a held note" harden into "there was no articulation".
+
+Andy's follow-up moved the question from "can the detector see it" to "who should carry the doubt". I'd framed take 1 as an open detection problem. He framed it as fairness: if everything else lines up, a player who can tongue that lightly shouldn't lose a note to our instrument. One risk is worth weighing if it's ever built: a repeated note slurred with no tongue at all looks identical, so the allowance would pay for that too. On a beginner's lick, the tongue may be the point of the exercise.
+
+The best evidence in the allowance measurement wasn't a new number; it was a sentence I'd already pinned three weeks earlier: "the final A was never sounded". Old fixture tests turn out to be a labelled control set for a question nobody had asked when they were written. Worth checking the truth files before designing a new experiment.
+
+## 2026-11-03 — A filter downstream can hide a bug from the person best placed to see it
+
+Andy's "I've never seen that" was evidence, and I had answered him from a synthetic chart. Both of us were right: the code path was wrong in nine of fourteen charts, and it reached him in almost none of them, because the tempo gate and the five-lick card stood between the bug and his eyes. His lick stored at 52 BPM was the thing keeping it quiet. It would have got louder as he improved. The lesson is to run a claim about behaviour on the person's real data before asserting it. Reading the code tells you what can happen, and only their data tells you what does.

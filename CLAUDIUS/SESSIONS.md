@@ -6153,3 +6153,88 @@ monitor whether it results in faster CI times."
 - Fix (test only, d1334d39): the test drives `Date.now` a second per call.
   0/40 after; a frozen clock still turns it red. No store change: two takes
   are never saved in one millisecond.
+
+## 2026-10-27 — Little Cry: a breathy F lost between two Ebs
+
+- Andy flagged an ear-training take (bbn-033 in Bb, tenor, 100 BPM):
+  "Some breathy notes were missed." Saved F3 · Eb3 (1.2 s) · Bb2, 3 of 5,
+  0.590; reproduced exactly from the export and the WAV.
+- Cause: the second F had a worklet onset (stabilizer reset) and then
+  exactly five confident frames, all F — a completed warmup vote — but
+  100 ms of sub-0.80 clarity between frames 4 and 5. `splitByPitchChange`
+  cut the same-pitch run at that reading gap, and `emitNote` judged each
+  piece (4 + 1) as a partial warmup burst and dropped it. The Ebs either
+  side then merged.
+- Fix: judge completion on the segment's runs of consecutive warmup frames
+  (`completedWarmupFrames(segReadings)`). First tried on the whole stream:
+  blues-curl-up and pent-run each grew a phantom same-pitch fragment where
+  an ONSET cut the window. Per segment, only little-cry changes across the
+  corpus (46 takes, all time bases). Now 5 of 5, 0.971.
+- Side note for Andy: the exported phrase plays the lick's blue note
+  (concert-C F#, the b5) as Eb in Bb — F Eb F Eb Bb — so "Little Cry"
+  arrived without its cry. Looks like scale snapping under the day's
+  tonality; not touched.
+- Worktree needed `.env` copied and `npm ci` (missing
+  @circleci/vitest-circleci-coverage) before `npm run check` was clean.
+
+## 2026-11-01 — Root–Flat Third: an Ab3 locked on its 2nd harmonic at both edges
+
+- Andy flagged an ear-training take (bc-011 in F: F3 · Ab3 halves, tenor,
+  100 BPM, metronome only): "Second note was scored in octave above". Saved
+  F3 · Ab4, 1 of 2, 0.675 "fair". Reproduced exactly from the saved
+  readings and from the WAV in both time bases.
+- Mechanism, from the readings: the Ab3 (207.6 Hz) reads its 416 Hz
+  partial for the first 0.2 s and the whole decay (36 of 72 frames) and its
+  own fundamental at clarity 1.00 between. `isOctaveUpLock` stopped at
+  370 Hz ("notes from G3 up never mislock"), so nothing was flagged; the
+  subs were Ab4 · Ab3 · Ab4 and `collapseSandwichArtifacts` took the two
+  matching outer subs as the note. Even flagged, half a note is under the
+  whole-note 60% vote.
+- Survey (odd-partial test alone, every corpus frame reported 370–3000 Hz:
+  439 frames, 405 genuine): the lock frames read 0.070–0.227, 29 of 34 over
+  0.12; no genuine note passes on more than one uncorrected frame in three
+  (a 3-frame F#4 at 372–379 Hz); G4s, A4s, C5s ≤ 0.09. The SERIES test is
+  NOT safe up there: the 2026-05-19 Octave–Flat-Seven Drop's genuine C5 at
+  526 Hz carries 0.13–0.16 of its partials at 263 Hz (rank 4.5–8.5, odd
+  bins 0.02) — an octave-key note leaking its fingering's first mode —
+  and would have been voted down to C4 on 28 of 34 frames.
+- Fix (red first, 10 failures on the old sources): `OCTAVE_UP_ODD_MAX_FREQUENCY`
+  500 (the 2nd harmonic of the tenor's lower-register top), the series test
+  held at `OCTAVE_UP_SERIES_MAX_FREQUENCY` 370; `foldOctaveUpLocks` on the
+  sub-segment and `foldOctaveUpLockRuns` on the stream, both the twelfth
+  fold's form through a shared `HarmonicLock` descriptor, applied at the
+  onset extractor and the re-articulation scan as `foldHarmonicLockRuns`.
+- Corpus diff (every take × trimmed/untrimmed × replay/live, dumped before
+  and after): this take folds to Ab3 (0.975); Sixth–Octave Lift and Slow
+  Climb keep every note, onset, duration and cents, clarity −0.001/−0.003
+  (the fundamental frames now average into the merged note). Nothing else.
+- Verification: unit + integration suite 6800 passed, 40 expected fails;
+  `npm run check` clean — both after `npm install`, since this worktree's
+  node_modules predated dev's `@circleci/vitest-circleci-coverage`.
+- Branch: the worktree branch sat on main's tip, diverged from dev; worked
+  detached on origin/dev and pushed HEAD:dev.
+
+## 2026-11-03 — Through the Blue to the Root: one tongue fixed, one left open
+
+- **Asked:** two takes of bbn-011 in A flagged in a row, each saved 4 of 5 with the repeated D3 merged (0.772, 0.793). Andy called the first articulation slight and the second more audible.
+- **Take 2, fixed:** a −12 dB tongue at 0.79 s. McLeod took the D3's 440 Hz partial for 4, 1 and 2 frames, all flagged `twelfthUp`. The 1-frame run sat at the dip's floor, under the 3-frame vote, and ended the run the tiers scan. Flagged 1–2 frame runs with the fundamental on both sides now fold. Now D D E G A, 5 of 5, 0.989. Only this take changes across 50 takes × trimmed/untrimmed × replay/live × worklet onsets/none.
+- **Take 1, open:** the best candidate is a 16% notch at 0.84 s. Level notch 0.84 (median 0.84), timbre change 7.0 dB (median 9.6), phase jump 0.25 rad (median 0.18). Pinned as `it.fails`; it still saves 0.772.
+- **Also fixed:** take 1's untrimmed stream produced a C#3 opening ghost because `findOpeningGhost` measured its plateau against noise-level frames. The gate now includes the stabilized note. The corpus-wide ghost test caught it when the fixture was added.
+- **Verification:** unit + integration 6840 passed, 41 expected fails; `npm run check` clean. E2E not run; the change is Node-only audio logic.
+- **Branch:** the worktree branch sat on main's tip, diverged from dev; reset to origin/dev (nothing unique on it) and pushed HEAD:dev as b0c6798d.
+- **Slip:** a stray `cat > /tmp/ignore` hung a command on stdin until its 2-minute timeout. Nothing was lost; the file was removed.
+
+- **Follow-up, same night:** Andy agreed take 1's articulation was very subtle. Its fixture and `it.fails` pin are gone, so `findOpeningGhost`'s level gate rests on its unit test alone. His judgement went into AGENTS.md as a note, not code: when the articulation across two repeated notes is that subtle but the rest of the lick lines up perfectly, probably assume it was played and missed. Unit + integration and `npm run check` re-run clean.
+
+- **Measured the allowance, same night:** read-only pull of all 2839 `session_results` rows plus replay of 18 takes with audio; results in `research/audio-scoring/results/repeat_allowance.md`. 23 takes qualify and full credit makes all of them perfect. The 2026-10-03 Four to Five qualifies though its final A was never sounded. Scoring unchanged; decision is Andy's. The session rows and one fetched recording stayed in the scratchpad, outside the repo. The Supabase CLI now needs `--read-only` for these queries, and `storage cp` fails inside a checkout because of its `[inbucket]` config, so run it from an empty directory.
+
+- **Decision:** Andy chose to leave scoring as is. Neither credit rule was built; AGENTS.md, the results file and memory say so.
+
+## 2026-11-03 — Long ii-V-I licks over half-bar ii-Vs
+
+Andy noticed a three-bar long ii-V-I lick plays a four-bar cycle in lick practice and asked why. No decision is on record: the template has been ii | V | I I since the MVP (2026-04-09), and `max(template.bars, alignment + length)` (2026-04-26) was written for licks LONGER than the cycle. Asked next whether three-bar song cadences lose the lick. They don't: tune practice sizes its own windows, and a ii | V | I gets a three-bar window.
+
+- **The bug that question turned up:** `suggestLicksForProgression` read category and tags, never shape, so a 1|1|1 line was offered over a half-bar ii-V and stretched that window to three bars for every lick sharing it. Andy doubted it ("I don't think I've ever seen that"), and he was nearly right: on his real book and five real tunes it reached the session in only one tune per mode (Wail at the ≤ 52 BPM its tempo allows, Indiana on a points card), because the tempo gate and the five-lick card hide it.
+- **Fix:** the matcher now applies `progressionFitsLick`, the rule lick practice already serves by; substitution matches are exempt. Five tests failed first.
+- **Measured** on 14 charts × his book and the whole catalog, before and after: 0 suggestions added, every removal a cadence lick on a shape it doesn't fit. Windows freed by the stretch: Rhythm Changes goes from 5 to 7 short ii-V-I windows.
+- **Left open, asked:** the rule only measures LENGTH for harmony-less cadence licks, so Wail and Donna Lee are still offered on I-VI-ii-V and on iii-VI-ii-V-I's half-bar ii-V, where the same curated line is refused. Closing it changes the rule itself, so lick-practice pills and the tag prune on hydrate move with it.

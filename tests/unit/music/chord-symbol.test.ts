@@ -5,6 +5,7 @@ import {
 	chordSymbolToQuality,
 	transposeChordSymbol,
 	chordSymbolSpellings,
+	capitalizeTypedChord,
 	type ChordSymbol
 } from '$lib/music/chord-symbol';
 
@@ -282,6 +283,55 @@ describe('parseChordSymbol — rejects', () => {
 
 	it('returns null for unrecognized trailing junk', () => {
 		expect(parseChordSymbol('Cxyz')).toBeNull();
+	});
+
+	// pdf-text-chords decides what is a chord line by parsing each word, so a
+	// lyric "a" or "g" must not read as a chord. Lower case is typed entry only.
+	it('stays case-sensitive about the root', () => {
+		expect(parseChordSymbol('a')).toBeNull();
+		expect(parseChordSymbol('a-7')).toBeNull();
+		expect(parseChordSymbol('C7/g')).toBeNull();
+	});
+});
+
+describe('capitalizeTypedChord — the letters a player left in lower case', () => {
+	it('capitalizes the root', () => {
+		expect(capitalizeTypedChord('a-7')).toBe('A-7');
+		expect(capitalizeTypedChord('g')).toBe('G');
+		expect(capitalizeTypedChord('  e-7b5 ')).toBe('E-7b5');
+	});
+
+	it('reads a following b as the flat, not as a second letter', () => {
+		expect(capitalizeTypedChord('bb7')).toBe('Bb7');
+		expect(capitalizeTypedChord('ab')).toBe('Ab');
+		expect(capitalizeTypedChord('b7')).toBe('B7');
+		expect(capitalizeTypedChord('b-7b5')).toBe('B-7b5');
+		expect(parseChordSymbol(capitalizeTypedChord('bb7'))?.root).toBe('Bb');
+	});
+
+	it('capitalizes the slash bass', () => {
+		expect(capitalizeTypedChord('a-7/g')).toBe('A-7/G');
+		expect(capitalizeTypedChord('c/bb')).toBe('C/Bb');
+		expect(capitalizeTypedChord('d/f#')).toBe('D/F#');
+		expect(capitalizeTypedChord('D-7/c')).toBe('D-7/C');
+	});
+
+	it('leaves everything after the root alone', () => {
+		expect(capitalizeTypedChord('g7b9')).toBe('G7b9');
+		expect(capitalizeTypedChord('cmaj7')).toBe('Cmaj7');
+		expect(capitalizeTypedChord('c6/9')).toBe('C6/9');
+		expect(parseChordSymbol(capitalizeTypedChord('cm7'))?.quality).toBe('min');
+		expect(parseChordSymbol(capitalizeTypedChord('cM7'))?.quality).toBe('maj');
+	});
+
+	it('does not rescue text that was never a chord', () => {
+		for (const text of ['add9', 'dim7', 'aug', 'xyz', 'n.c.']) {
+			expect(parseChordSymbol(capitalizeTypedChord(text))).toBeNull();
+		}
+	});
+
+	it('passes correctly cased text through', () => {
+		expect(capitalizeTypedChord('Bb-7/Ab')).toBe('Bb-7/Ab');
 	});
 });
 

@@ -16,11 +16,11 @@
 <div
 	class="flex h-full flex-col items-center justify-center gap-1.5 rounded-lg bg-[var(--color-bg-secondary)] px-6 text-center"
 >
-	<div class="max-w-full truncate text-sm text-[var(--color-text-secondary)]">
+	<div class="max-w-full truncate font-display text-xl text-[var(--color-text)]">
 		{lickName}
 	</div>
 
-	<div class="text-5xl font-bold tabular-nums" style="color: {tier.color};">
+	<div class="font-display text-5xl font-medium tabular-nums" style="color: {tier.color};">
 		{pct}%
 	</div>
 	<div
@@ -30,7 +30,7 @@
 		{tier.label}
 	</div>
 
-	<div class="mt-1 text-base font-medium text-[var(--color-text-secondary)]">
+	<div class="mt-4 text-sm font-medium text-[var(--color-text-secondary)]">
 		{#if next.kind === 'next'}
 			Next up: <span class="text-[var(--color-text)]">{next.name}</span>
 		{:else}

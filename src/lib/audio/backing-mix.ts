@@ -180,6 +180,20 @@ export const ROOM_RETURN_GAIN = 0.126;
 export const ROOM_IR_URL = '/samples/ir/room.ogg';
 
 /**
+ * Melody level under the band when a tune plays (−6 dB, linear gain). The
+ * melody has no fader of its own: it reaches master at unity while the band
+ * rides the backing fader and its trims, so a head sat on top of the rhythm
+ * section. Tunes only: a lick or ear-training demo is the thing to copy and
+ * stays forward, and a melody with no band under it has nothing to sit in.
+ */
+export const TUNE_MELODY_LEVEL = 0.5;
+
+/** The melody level for a tune take, given whether the band is playing. */
+export function tuneMelodyLevel(backing: boolean): number {
+	return backing ? TUNE_MELODY_LEVEL : 1;
+}
+
+/**
  * Glue compressor on the backing bus only (master carries the melody and
  * stays untouched): gentle 2:1 over a soft knee, fast-ish attack to catch
  * stacked transients (crash + comp push + bass on a downbeat), musical

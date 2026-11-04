@@ -53,6 +53,28 @@ describe('tune desk tempo', () => {
 });
 
 describe('tune desk playback', () => {
+	it('starts directly on solo one when head and outro are disabled', async () => {
+		let finish!: () => void;
+		audio.playPhrase.mockImplementation(() => new Promise<void>(resolve => finish = resolve));
+		player.setTempo(120);
+		player.playHead = false;
+		const started = player.toggle(tune, 'swing', 2);
+		await vi.waitFor(() => expect(audio.playPhrase).toHaveBeenCalled());
+		expect(audio.playPhrase.mock.calls[0][0].notes).toEqual([]);
+		expect(audio.playPhrase.mock.calls[0][0].difficulty.lengthBars).toBe(4);
+		const callbacks = audio.playPhrase.mock.calls[0][3];
+		audio.getAudibleTransportSeconds.mockReturnValue(2.2);
+		callbacks.onStarted();
+		expect(player.phase).toBe('solo');
+		expect(player.soloChorus).toBe(1);
+		expect(player.chartBar).toBeCloseTo(.1);
+		audio.getAudibleTransportSeconds.mockReturnValue(6.2);
+		callbacks.onStarted();
+		expect(player.phase).toBe('solo');
+		expect(player.soloChorus).toBe(2);
+		finish();
+		await started;
+	});
 	it('skips head-only bars on the chart and counts the shorter solo choruses', async () => {
 		const annotated: Tune = { ...tune, sections: [
 			{ ...tune.sections[0], repeatStart: undefined, repeatEnd: undefined },
@@ -208,7 +230,7 @@ describe('tune desk playback', () => {
 		finish();
 		await started;
 	});
-	it.each([['bossa-nova', 0.5], ['ballad', 0.55], ['straight', 0.5], ['swing', 0.62]] as const)(
+	it.each([['bossa-nova', 0.5], ['ballad', 0.53], ['straight', 0.5], ['swing', 0.62]] as const)(
 		'passes saved %s to the production engine with matching melody feel', async (style, swing) => {
 			player.backing = true;
 			await player.toggle(tune, style);
@@ -229,6 +251,11 @@ describe('tune desk playback', () => {
 		expect(audio.playPhrase.mock.calls[0][3]).toMatchObject({ skipMelody: !enabled });
 		// Notes for both heads remain in the plan even when their audio is muted.
 		expect(audio.playPhrase.mock.calls[0][0].notes).toHaveLength(2);
+	});
+	it.each([[true, 0.5], [false, 1]])('sits the melody under the band only when one plays (backing %s)', async (backing, level) => {
+		player.backing = backing;
+		await player.toggle(tune, 'swing');
+		expect(audio.playPhrase.mock.calls[0][3]).toMatchObject({ melodyLevel: level });
 	});
 	it('keeps the saved feel with backing off and supports a backing-only pass', async () => {
 		player.melody = false;

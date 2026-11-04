@@ -865,3 +865,66 @@ describe('measureTimbre', () => {
 		expect(r.brightnessLiftAt).toBeUndefined();
 	});
 });
+
+describe('isOctaveUpLock above 370 Hz — a lock at the top of the lower register (2026-11-02 Root–Flat Third)', () => {
+	const sampleRate = 44100;
+
+	/** A sum of sines at the given [frequency, amplitude] partials. */
+	function partials(list: Array<[number, number]>, n = 4096): Float32Array {
+		const out = new Float32Array(n);
+		for (let i = 0; i < n; i++) {
+			let s = 0;
+			for (const [f, a] of list) s += a * Math.sin((2 * Math.PI * f * i) / sampleRate);
+			out[i] = s;
+		}
+		return out;
+	}
+
+	// The take's Ab3 (207.6 Hz) at its attack and through its decay: the 2nd
+	// harmonic carries the note, the fundamental a few percent of it, and the
+	// 3rd and 5th partials a fifth — so the odd-harmonic rank reads ~0.2 at
+	// the reported 416 Hz, above the old 370 Hz ceiling.
+	/** A tenor Ab3 locked onto its 2nd harmonic. */
+	const lockedAb3 = () =>
+		partials([[207.65, 0.03], [415.3, 0.5], [622.95, 0.08], [830.6, 0.12], [1038.3, 0.05]]);
+
+	it('flags Ab4 reported over the series of Ab3', () => {
+		expect(isOctaveUpLock(lockedAb3(), 415.3, sampleRate)).toBe(true);
+	});
+
+	it('does not flag the same Ab3 reported at its own fundamental', () => {
+		expect(isOctaveUpLock(lockedAb3(), 207.65, sampleRate)).toBe(false);
+	});
+
+	it('does not flag a genuine Ab4', () => {
+		expect(isOctaveUpLock(partials([[415.3, 1.0], [830.6, 0.3], [1245.9, 0.1]]), 415.3, sampleRate)).toBe(false);
+	});
+
+	it('does not flag an upper-register note leaking its first mode an octave down — the series test stops at 370 Hz', () => {
+		// The 2026-05-19 Octave–Flat-Seven Drop's genuine C5: 0.13–0.16 of its
+		// partials at 263 Hz, the octave-key fingering's first mode, and nothing
+		// at 785 or 1308 Hz. The series test alone would call it a lock of C4.
+		const c5 = partials([[261.63, 0.08], [523.25, 0.5], [1046.5, 0.15], [1569.75, 0.05]]);
+		expect(isOctaveUpLock(c5, 523.25, sampleRate)).toBe(false);
+	});
+
+	it('stops the series test at 370 Hz even where the odd test still reads', () => {
+		// C5 above is turned away by the odd test's 500 Hz gate and never reaches
+		// the series ceiling. An A4 with the same leaked first mode does: its odd
+		// bins are empty, so only the 370 Hz ceiling refuses it.
+		const a4 = partials([[220, 0.08], [440, 0.5], [880, 0.15]]);
+		expect(isOctaveUpLock(a4, 440, sampleRate)).toBe(false);
+	});
+
+	it('does not read the odd test above 500 Hz', () => {
+		// The lock shape on a 280 Hz fundamental, reported at 560 Hz.
+		const high = partials([[280, 0.03], [560, 0.5], [840, 0.08], [1120, 0.12], [1400, 0.05]]);
+		expect(isOctaveUpLock(high, 560, sampleRate)).toBe(false);
+	});
+
+	it('detectFrame flags the lock frame at 416 Hz', () => {
+		const lock = detectFrame(lockedAb3(), 0, makeMockDetector(415.3, 0.9) as any, null, { sampleRate });
+		expect(lock.reading!.midi).toBe(68);
+		expect(lock.reading!.octaveUp).toBe(true);
+	});
+});

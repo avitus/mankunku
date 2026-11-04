@@ -15,6 +15,7 @@
 	import { settings, getInstrument, saveTuneTempo } from '$lib/state/settings.svelte';
 	import { savedTuneTempo } from '$lib/tunes/tune-tempo';
 	import { melodySwingForStyle } from '$lib/audio/backing-styles';
+	import { tuneMelodyLevel } from '$lib/audio/backing-mix';
 	import { setMasterVolume } from '$lib/audio/audio-context';
 	import {
 		tunePractice,
@@ -555,6 +556,7 @@
 		try {
 			await playback.playPhrase(plan.playedPhrase, getPlaybackOptions(), false, {
 				skipMelody,
+				melodyLevel: tuneMelodyLevel(tunePractice.config.backingTrackEnabled),
 				loopBacking: false,
 				countIn: { bars: plan.countInBars, drums: true, pickup: plan.countInPickup },
 				onStarted: scheduleInsertionWindows,

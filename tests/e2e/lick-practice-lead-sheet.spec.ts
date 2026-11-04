@@ -1,7 +1,20 @@
+import type { Locator } from '@playwright/test';
 import { test, expect } from './fixtures/test';
 import { seedOnboardedAnonymous, seedUserLicks, seedStorage, SAMPLE_USER_LICKS } from './fixtures/storage';
 import { installAudioMock, stubCdnInstrumentSamples } from './fixtures/audio';
 import { SUB_FLOOR_PROGRESS, LEAD_AHEAD_PROGRESS } from './fixtures/lick-practice-seeds';
+
+/** The painted phase outline and its contents both end at the progression separator. */
+async function expectFlushFrame(content: Locator) {
+	const gaps = await content.evaluate((element) => {
+		const wrap = element.closest('.chart-wrap')!;
+		const rowBottom = wrap.closest('.row')!.getBoundingClientRect().bottom;
+		const outline = getComputedStyle(wrap, '::after');
+		const frameBottom = wrap.getBoundingClientRect().top + parseFloat(outline.top) + parseFloat(outline.height);
+		return [rowBottom - frameBottom, rowBottom - element.getBoundingClientRect().bottom];
+	});
+	for (const gap of gaps) expect(Math.abs(gap)).toBeLessThan(1);
+}
 
 /**
  * The lead-sheet row of the key being learned: visible ahead in a taller row,
@@ -37,6 +50,7 @@ test.describe('lick-practice session flow', () => {
 		const listen = page.locator('.phase-tab[data-kind="listen"]');
 		await expect(listen).toBeVisible({ timeout: 60_000 });
 		await expect(listen).toHaveText('Listen');
+		if (practice === 'daily') await expectFlushFrame(page.locator('.row.current .chord-cells'));
 		await expect(listen.locator('.tab-count')).toHaveCount(0);
 		await expect.poll(async () => page.locator('.chord-cell.active .scale-125').evaluateAll(dots =>
 			dots.some(dot => !['transparent', 'rgba(0, 0, 0, 0)'].includes(getComputedStyle(dot).backgroundColor))
@@ -93,6 +107,7 @@ test.describe('lick-practice session flow', () => {
 		await expect(play).toHaveAttribute('data-pass', '1', { timeout: 15_000 });
 		await expect(play).toHaveText('Play · 1/3');
 		await expect(sheet.locator('.playhead-under-bar').first()).toBeVisible();
+		if (practice === 'daily') await expectFlushFrame(sheet);
 		const markerInside = await sheet.evaluate((lead) => {
 			const row = lead.getBoundingClientRect();
 			const marker = lead.querySelector('.playhead-under-bar')!.getBoundingClientRect();

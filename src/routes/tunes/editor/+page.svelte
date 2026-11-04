@@ -416,7 +416,8 @@
 		if (e.key === '=') { adjustOctave(1); return; }
 		if (e.key === '-') { adjustOctave(-1); return; }
 		if (e.key === '+') { tuneEnterTiedNote(); return; }
-		if (e.key === 'k' || e.key === 'K') { openChordEditorAtCursor(); return; }
+		// preventDefault: focus reaches the chord input before the browser inserts this keystroke, so the letter would land in the box.
+		if (e.key === 'k' || e.key === 'K') { e.preventDefault(); openChordEditorAtCursor(); return; }
 		if (e.key === 'ArrowLeft') { e.preventDefault(); if (e.shiftKey) extendSelection(-1); else selectPrevAcrossPages(); return; }
 		if (e.key === 'ArrowRight') { e.preventDefault(); if (e.shiftKey) extendSelection(1); else selectNextAcrossPages(); return; }
 		if (e.key === 'r' || e.key === 'R') { repeatSelection(); return; }

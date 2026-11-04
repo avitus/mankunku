@@ -1,10 +1,11 @@
 <script lang="ts">
 	interface Props {
+		daily?: boolean;
 		elapsedSeconds: number;
 		totalSeconds: number;
 	}
 
-	let { elapsedSeconds, totalSeconds }: Props = $props();
+	let { daily = false, elapsedSeconds, totalSeconds }: Props = $props();
 
 	const progress = $derived(totalSeconds <= 0 ? 0 : Math.min(1, elapsedSeconds / totalSeconds));
 	const remainingSeconds = $derived(totalSeconds <= 0 ? 0 : Math.max(0, totalSeconds - elapsedSeconds));
@@ -28,5 +29,6 @@
 	</div>
 	<span class="text-xs font-medium tabular-nums {isOvertime ? 'text-[var(--color-error-text)]' : 'text-[var(--color-text-secondary)]'}">
 		{isOvertime ? '+' : ''}{formatTime(isOvertime ? elapsedSeconds - totalSeconds : remainingSeconds)}
+		{#if daily}<small>{isOvertime ? 'over' : 'left'}</small>{/if}
 	</span>
 </div>

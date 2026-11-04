@@ -4,6 +4,7 @@
 	import { progressionColor } from '$lib/music/progression-display';
 
 	interface Props {
+		daily?: boolean;
 		phraseNumber: number;
 		phraseName: string;
 		progressionType: ChordProgressionType;
@@ -20,6 +21,7 @@
 	}
 
 	let {
+		daily = false,
 		phraseNumber,
 		phraseName,
 		progressionType,
@@ -33,15 +35,15 @@
 	const progressionHue = $derived(progressionColor(progressionType));
 </script>
 
-<div class="flex items-center justify-between gap-4">
+<div class:daily class="flex items-center justify-between gap-4">
 	<div class="min-w-0">
-		<div class="flex items-center gap-2">
+		<div class="title-line flex items-center gap-2">
 			<span class="text-sm font-medium text-[var(--color-text-secondary)]">
 				#{phraseNumber}
 			</span>
 			<h2 class="lick-title">{phraseName}</h2>
 		</div>
-		<div class="mt-0.5 flex items-center gap-2 text-sm text-[var(--color-text-secondary)]">
+		<div class="metadata mt-0.5 flex flex-wrap items-center gap-2 text-sm text-[var(--color-text-secondary)]">
 			<span
 				class="rounded px-2 py-0.5 text-xs font-medium"
 				style="background: color-mix(in srgb, {progressionHue} 18%, transparent); color: {progressionHue};"
@@ -59,7 +61,7 @@
 			{#if statusLabel}
 				<span data-testid="focus-ramp">{statusLabel}</span>
 			{:else}
-				<span>Key {keyIndex + 1}/{totalKeys}</span>
+				<span>Key {keyIndex + 1}{daily ? ' of ' : '/'}{totalKeys}</span>
 			{/if}
 		</div>
 	</div>
@@ -67,4 +69,8 @@
 
 <style>
 	.lick-title { font: 500 clamp(22px, 2.5vw, 30px)/1.25 var(--font-display); overflow-wrap: anywhere; }
+	.daily .title-line { align-items: baseline; gap: 12px; }
+	.daily .title-line > span { font: 11px ui-monospace, monospace; }
+	.daily .metadata { margin-top: 8px; gap: 12px; font-size: 12px; font-variant-numeric: tabular-nums; }
+	.daily .metadata > span:last-child { border-left: 1px solid var(--studio-border); padding-left: 12px; }
 </style>
