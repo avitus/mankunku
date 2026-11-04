@@ -1880,7 +1880,7 @@
 	<title>Practice Session — Mankunku</title>
 </svelte:head>
 
-<div class="studio-desk practice-desk">
+<div class="studio-desk practice-desk" class:daily={isDailyPractice()} class:report={!!sessionReport && lickPractice.phase === 'complete'}>
 <div class="studio-panel space-y-4" data-domain="lick-practice">
 	{#if lickPractice.phase === 'complete' && sessionReport}
 		<!-- Session report -->
@@ -2000,7 +2000,7 @@
 		<!-- Per-lick breakdown -->
 		{#each sessionReport.licks as lick}
 			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 space-y-2">
-				<div class="flex items-center justify-between">
+				<div class="flex flex-wrap items-center justify-between gap-2">
 					<div>
 						<!-- A trick entry's lickId is a composite variant key, not a
 						     lick id — no detail page to link to. -->
@@ -2009,7 +2009,7 @@
 						{:else}
 							<a
 								href="/licks/{lick.lickId}"
-								class="font-medium hover:text-[var(--color-accent)] hover:underline transition-colors"
+								class="lick-link font-medium hover:text-[var(--color-accent)] hover:underline transition-colors"
 							>
 								{lick.lickName}
 							</a>
@@ -2035,7 +2035,7 @@
 						</span>
 					</div>
 					<span class="text-sm font-bold tabular-nums">
-						{lick.passedCount}/{lick.keys.length} · {pct(lick.averageScore)}%
+						{lick.passedCount}/{lick.keys.length}{isDailyPractice() ? ' keys passed' : ''} · {pct(lick.averageScore)}%{isDailyPractice() ? ' average' : ''}
 					</span>
 				</div>
 				<div class="flex flex-wrap gap-1.5">
@@ -2046,7 +2046,7 @@
 								? tier.key
 								: null}
 						<div
-							class="flex flex-col items-center rounded px-2 py-1 text-xs {medal
+							class="score-chip flex flex-col items-center rounded px-2 py-1 text-xs {medal
 								? `lp-medal-chip lp-chip-${medal}`
 								: ''}"
 							style={medal
@@ -2090,6 +2090,7 @@
 				class="rounded-lg bg-[var(--color-bg-secondary)] p-8 text-center text-[var(--color-text-secondary)]"
 			>
 				No attempts recorded this session.
+				{#if isDailyPractice()}<p class="mt-2 text-sm">Start a new session to record your first take.</p>{/if}
 			</div>
 		{/if}
 
@@ -2152,11 +2153,12 @@
 		<!-- Timer — single-lick mode has no time budget so the countdown is
 		     suppressed; everything else is identical to standard mode. -->
 		{#if lickPractice.mode !== 'single-lick'}
-			<SessionTimer elapsedSeconds={lickPractice.elapsedSeconds} {totalSeconds} />
+			<SessionTimer daily={isDailyPractice()} elapsedSeconds={lickPractice.elapsedSeconds} {totalSeconds} />
 		{/if}
 
 		<!-- Lick header -->
 		<LickHeader
+			daily={isDailyPractice()}
 			phraseNumber={currentItem.phraseNumber}
 			phraseName={currentItem.phraseName}
 			progressionType={currentProgressionType}
@@ -2181,7 +2183,8 @@
 				role="alert"
 				data-testid="mic-error"
 			>
-				Microphone unavailable — check permissions and try again.
+				<strong>Microphone unavailable</strong>
+				<span>Allow microphone access in your browser, then try again.</span>
 			</div>
 		{:else if loadError}
 			<div
@@ -2189,7 +2192,8 @@
 				role="alert"
 				data-testid="load-error"
 			>
-				Audio setup failed — check your connection and reload.
+				<strong>Audio setup failed</strong>
+				<span>Check your connection, then reload the session.</span>
 			</div>
 		{:else}
 		<div class="relative">
@@ -2255,8 +2259,8 @@
 		</aside>
 		</div>
 	{:else}
-		<div class="flex min-h-[70vh] items-center justify-center">
-			<p class="text-[var(--color-text-secondary)]">Loading session...</p>
+		<div class="loading-state flex min-h-[70vh] items-center justify-center" role="status">
+			<p class="text-[var(--color-text-secondary)]">Preparing your session…</p>
 		</div>
 	{/if}
 </div>
@@ -2270,8 +2274,23 @@
 	.session-rail { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px; border-left: 1px solid color-mix(in srgb, var(--studio-border) 35%, transparent); padding-left: 16px; }
 	.session-rail button { min-height: 40px; border: 1px solid var(--studio-border); border-radius: 4px; background: transparent; color: var(--studio-muted); }
 	.session-rail button:hover { background: var(--studio-panel-highlight); color: var(--studio-text); }
-	.session-music [role='alert'] { min-height: var(--key-stack-min-height); display: flex; align-items: center; justify-content: center; padding: 24px; }
+	.session-music [role='alert'] { flex-direction: column; gap: 8px; text-align: center; min-height: var(--key-stack-min-height); display: flex; align-items: center; justify-content: center; padding: 24px; }
+	.daily > .studio-panel { --color-phase-listen: var(--color-accent); }
+	.daily.report { width: 100%; max-width: 1000px; margin-inline: auto; }
+	.daily.report h1 { color: var(--studio-text); font-weight: 500; }
+	.daily.report .jazz-rule { display: none; }
+	.daily.report .score-chip { min-width: 43px; gap: 3px; font-variant-numeric: tabular-nums; }
+	.daily.report .lick-link { font-family: var(--font-display); }
+	.daily .session-workspace { padding-top: 8px; }
+	.daily .session-rail button { min-height: 44px; }
+	.daily .session-rail :global(svg > g text) { font-size: 14px; }
+	.daily .loading-state { flex-direction: column; gap: 8px; }
+	.daily .loading-state::before { content: ''; width: 24px; height: 3px; background: var(--color-brass); }
+	.daily .session-music [role='alert'] strong { color: var(--studio-text); font: 500 22px var(--font-display); }
+
 	@media (max-width: 1050px) {
+		.daily .session-rail { justify-content: space-between; flex-wrap: wrap; }
+		.daily .session-rail :global(svg) { width: 152px; height: 152px; }
 		.session-workspace { grid-template-columns: minmax(0, 1fr); gap: 16px; }
 		.session-rail { flex-direction: row; border-left: 0; border-top: 1px solid color-mix(in srgb, var(--studio-border) 35%, transparent); padding: 12px 0 0; gap: 24px; }
 	}

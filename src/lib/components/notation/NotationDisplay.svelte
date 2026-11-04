@@ -193,6 +193,7 @@
 		staffWidth?: number;
 		/** One compact staff: remove outer engraving padding and enlarge its chord symbols. */
 		compactStaff?: boolean;
+		compactChordAccidentals?: boolean;
 		/** One-system bar edges in host-width fractions, for adjacent practice chord rows. */
 		onBarLayout?: (edges: number[]) => void;
 	}
@@ -218,6 +219,7 @@
 		frameless = false,
 		staffWidth,
 		compactStaff = false,
+		compactChordAccidentals = false,
 		onBarLayout
 	}: Props = $props();
 
@@ -1002,7 +1004,8 @@
 					!model.baselineQuality && !model.sup && !model.supStack && !model.bass;
 				// Unparseable text (root === raw) keeps abcjs's own rendering;
 				// a parseable bare root may still need its accidental prettified.
-				if (bare && model.root === raw) continue;
+				const smallAccidental = compactChordAccidentals && /^[A-G][♯♭]$/.test(model.root);
+				if (bare && model.root === raw && !smallAccidental) continue;
 
 				const specs = chordTspanSpecs(model);
 				const baseSize = Number.parseFloat(el.getAttribute('font-size') ?? '') || 15;
@@ -1019,7 +1022,15 @@
 						tspan.setAttribute('y', (baseY + spec.dyEm * baseSize).toFixed(2));
 					}
 					tspan.setAttribute('data-chord-part', spec.role);
-					tspan.textContent = spec.text;
+					if (smallAccidental && spec.role === 'root') {
+						tspan.textContent = spec.text[0];
+						const accidental = document.createElementNS('http://www.w3.org/2000/svg', 'tspan');
+						accidental.setAttribute('font-size', '0.66em');
+						accidental.textContent = spec.text[1];
+						tspan.appendChild(accidental);
+					} else {
+						tspan.textContent = spec.text;
+					}
 					el.appendChild(tspan);
 				}
 

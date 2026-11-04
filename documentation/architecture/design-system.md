@@ -106,16 +106,15 @@ palette hue is borrowed from an activity color.
 
 | Meaning | Prototype token | Dark value / text | Native status |
 | --- | --- | --- | --- |
-| App demonstrates / Listen | `--mk-phase-listen`, `--mk-phase-listen-text` | `#c96a3e` / `#e09972` | Pending migration of `--color-phase-listen` |
+| App demonstrates / Listen | `--mk-phase-listen`, `--mk-phase-listen-text` | `#c96a3e` / `#e09972` | Daily desk uses the approved orange; other native phase surfaces await migration |
 | User's turn / Play | `--mk-phase-play` | brass / brass soft | Existing `--color-phase-play` |
 | Stop / recording button | `--mk-onair` | `#a8463a` | Existing `--color-onair` |
 
-**Implementation gap verified at `35eff0ec`:** `src/app.css` still maps
+**Native scope:** Daily sets the phase alias on its session panel and uses the theme’s text-safe Studio Desk orange for the cue label. Elsewhere, `src/app.css` still maps
 `--color-phase-listen` to `--color-onair`, and the existing token contract test
-pins that legacy mapping. The design-system update changes the reference kit
-and guidance, not those runtime files. Migrate the native phase alias and its
+pins that legacy mapping. Migrate the native phase alias and its
 tests together, verifying text contrast and all phase surfaces in both themes;
-do not claim that the orange direction is already delivered in Svelte. Use a
+use a
 text-safe orange for small labels, not the lower-contrast fill hue. Keep stop /
 record buttons and rocker LEDs on their separate on-air token. Phase text and
 icons must remain understandable without color, with stable Listen/Play geometry.
@@ -530,11 +529,14 @@ with a recessed music area and a 220px key-progress rail on wide screens. The
 current key is identified in the progress ring; omit the duplicate large
 accent-coloured key readout from the upper-right header in every session mode.
 Below 1050px the ring and End Session move below the music. Chord rows remain 128px;
-notation rows are 204.8px (60% taller), with a 140.8px music frame, 10px inner
-vertical padding and a separate 28px cue lane. The viewport reserves 460.8px so
-notation appearing or disappearing between cycles does not move the controls.
-Listen and Play share frame geometry, using semantic phase tokens (approved orange/brass; native orange migration pending);
-the entrance frame stays dashed until recording is audible.
+notation rows are 204.8px (60% taller), with 10px inner vertical padding and a
+separate 28px cue lane. The viewport reserves 460.8px so notation appearing or
+disappearing between cycles does not move the controls. In Daily, the current
+phase frame and its bar wash extend to the row separator, which the coloured
+frame replaces during the cue. Daily pairs terracotta Listen with brass Play;
+the entrance frame stays dashed until recording is audible. Chord charts and
+lead sheets use the shared chord voice, with Daily root accidentals at 0.66em
+and superscript qualities and extensions at 0.58em.
 
 Production notation stays in abcjs, preserving real notes, accidentals, written
 pitch and ledger lines. Chord-only rows use beat-proportional widths independently
