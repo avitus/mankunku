@@ -212,7 +212,9 @@ type ChordProgressionType =
   | 'minor-vamp' | 'major-vamp' | 'dominant-vamp'
   | 'ii-V-I-major' | 'ii-V-I-minor'
   | 'ii-V-I-major-long' | 'ii-V-I-minor-long'
-  | 'turnaround' | 'iii-VI-ii-V-I' | 'blues';
+  | 'turnaround-short' | 'turnaround' // Short, Long: I-VI-ii-V at two chords a bar, or one
+  | 'iii-VI-ii-V-I' | 'iii-VI-ii-V-I-long' // Short, Long: the walk at two chords a bar, or one
+  | 'blues';
 ```
 
 The ten backing-track progressions. `PROGRESSION_TEMPLATES` (`$lib/data/progressions`) holds each one's harmony and bar count; `PROGRESSION_SHAPES` (`$lib/data/progression-shapes`) holds the degree patterns the tune detector scans for; `progressionColor` (`$lib/music/progression-display`) holds each one's identity hue. All three are exhaustive `Record`s, so adding a progression won't type-check until it has a template, a shape, and a colour.

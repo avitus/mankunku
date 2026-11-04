@@ -141,6 +141,8 @@ const II_V_I_MINOR_LONG: HarmonicSegment[] = [
 	}
 ];
 
+// Long turnaround: one chord a bar. Its id stays plain `turnaround` (not
+// `-long`) because saved `prog:turnaround` tags were made for these chords.
 const TURNAROUND: HarmonicSegment[] = [
 	{
 		chord: { root: 'C', quality: 'maj7' },
@@ -168,9 +170,39 @@ const TURNAROUND: HarmonicSegment[] = [
 	}
 ];
 
-// Extended turnaround: iii-VI-ii-V-I. The four cycle chords fill the first two
-// bars (half a bar each), resolving to a two-bar tonic — a 4-bar form, like the
-// long ii-V-I. VI is a secondary dominant (A7), voiced like TURNAROUND's.
+// Short turnaround: the same four chords at two a bar (Mankunku Blues' second
+// turnaround).
+const TURNAROUND_SHORT: HarmonicSegment[] = [
+	{
+		chord: { root: 'C', quality: 'maj7' },
+		scaleId: 'major.ionian',
+		startOffset: [0, 1],
+		duration: [1, 2]
+	},
+	{
+		chord: { root: 'A', quality: '7' },
+		scaleId: 'melodic-minor.mixolydian-b6',
+		startOffset: [1, 2],
+		duration: [1, 2]
+	},
+	{
+		chord: { root: 'D', quality: 'min7' },
+		scaleId: 'major.dorian',
+		startOffset: [1, 1],
+		duration: [1, 2]
+	},
+	{
+		chord: { root: 'G', quality: '7' },
+		scaleId: 'major.mixolydian',
+		startOffset: [3, 2],
+		duration: [1, 2]
+	}
+];
+
+// Short extended turnaround: iii-VI-ii-V-I. The four cycle chords fill the first
+// two bars (half a bar each), resolving to a two-bar tonic — a 4-bar form, like
+// the long ii-V-I. VI is a secondary dominant (A7), voiced like TURNAROUND's.
+// Its id stays plain `iii-VI-ii-V-I` (not `-short`) for the saved tags' sake.
 const III_VI_II_V_I: HarmonicSegment[] = [
 	{
 		chord: { root: 'E', quality: 'min7' },
@@ -200,6 +232,41 @@ const III_VI_II_V_I: HarmonicSegment[] = [
 		chord: { root: 'C', quality: 'maj7' },
 		scaleId: 'major.ionian',
 		startOffset: [2, 1],
+		duration: [2, 1]
+	}
+];
+
+// Long extended turnaround: the same five chords, one a bar through the cycle
+// (Fly Me to the Moon's last line), so a ii | V | I line fits from its Dm7.
+const III_VI_II_V_I_LONG: HarmonicSegment[] = [
+	{
+		chord: { root: 'E', quality: 'min7' },
+		scaleId: 'major.phrygian',
+		startOffset: [0, 1],
+		duration: [1, 1]
+	},
+	{
+		chord: { root: 'A', quality: '7' },
+		scaleId: 'melodic-minor.mixolydian-b6',
+		startOffset: [1, 1],
+		duration: [1, 1]
+	},
+	{
+		chord: { root: 'D', quality: 'min7' },
+		scaleId: 'major.dorian',
+		startOffset: [2, 1],
+		duration: [1, 1]
+	},
+	{
+		chord: { root: 'G', quality: '7' },
+		scaleId: 'major.mixolydian',
+		startOffset: [3, 1],
+		duration: [1, 1]
+	},
+	{
+		chord: { root: 'C', quality: 'maj7' },
+		scaleId: 'major.ionian',
+		startOffset: [4, 1],
 		duration: [2, 1]
 	}
 ];
@@ -264,19 +331,33 @@ export const PROGRESSION_TEMPLATES: Record<ChordProgressionType, ProgressionTemp
 		harmony: II_V_I_MINOR_LONG,
 		bars: 4
 	},
+	'turnaround-short': {
+		type: 'turnaround-short',
+		name: 'Short Turnaround',
+		shortName: 'Short Turnaround',
+		harmony: TURNAROUND_SHORT,
+		bars: 2
+	},
 	turnaround: {
 		type: 'turnaround',
-		name: 'Turnaround (I-VI-ii-V)',
-		shortName: 'Turnaround',
+		name: 'Long Turnaround',
+		shortName: 'Long Turnaround',
 		harmony: TURNAROUND,
 		bars: 4
 	},
 	'iii-VI-ii-V-I': {
 		type: 'iii-VI-ii-V-I',
-		name: 'iii-VI-ii-V-I',
-		shortName: 'iii-VI-ii-V-I',
+		name: 'Short iii-VI-ii-V-I',
+		shortName: 'Short iii-VI-ii-V-I',
 		harmony: III_VI_II_V_I,
 		bars: 4
+	},
+	'iii-VI-ii-V-I-long': {
+		type: 'iii-VI-ii-V-I-long',
+		name: 'Long iii-VI-ii-V-I',
+		shortName: 'Long iii-VI-ii-V-I',
+		harmony: III_VI_II_V_I_LONG,
+		bars: 6
 	},
 	blues: {
 		type: 'blues',
@@ -393,6 +474,12 @@ export interface CompatibleLickCategory {
 	category: PhraseCategory;
 	/** Start offset in whole-note fractions (i.e. bars). `[0, 1]` = no shift. */
 	offset: Fraction;
+	/**
+	 * Longest line WITHOUT stored chords (every editor lick) this slot takes,
+	 * where the form's own length would admit more than the chords can carry.
+	 * A cadence line that has its chords is judged by them instead.
+	 */
+	maxLickBars?: number;
 }
 
 /**
@@ -462,19 +549,34 @@ export const PROGRESSION_LICK_CATEGORIES: Record<ChordProgressionType, Compatibl
 		{ category: 'enclosures',        offset: [2, 1] }, // the I bar, like minor-chord
 		{ category: 'triad-pairs',       offset: [2, 1] }
 	],
+	// Only whole-form lines: none of its chords lasts a bar. A ii-V-I line
+	// reaches the ii-V inside it through that passage's own ii-V-I detection.
+	'turnaround-short': [
+		{ category: 'rhythm-changes', offset: [0, 1] }
+	],
+	// No ii-V-I entry here: at bar 0 it would start the line's ii on the I and
+	// land its V on the VI7. The ii-V inside has its own ii-V-I detection.
 	turnaround: [
-		{ category: 'ii-V-I-major',   offset: [0, 1] },
 		{ category: 'rhythm-changes', offset: [0, 1] },
 		{ category: 'major-chord',    offset: [0, 1] }, // I = maj7 on bar 0
 		{ category: 'dominant-chord', offset: [1, 1] }, // VI7 on bar 1
 		{ category: 'minor-chord',    offset: [2, 1] }  // ii = min7 on bar 2
 	],
 	'iii-VI-ii-V-I': [
-		{ category: 'ii-V-I-major',   offset: [1, 1] }, // ii-V-I starts on bar 1 (Dm7 G7 | Cmaj7)
+		// ii-V-I starts on bar 1 (Dm7 G7 | Cmaj7). The two-bar tonic leaves room
+		// for three bars, but a longer line was written a chord a bar and its V
+		// would land on the Cmaj7, so the cap is the cadence's own two bars.
+		{ category: 'ii-V-I-major',   offset: [1, 1], maxLickBars: 2 },
 		{ category: 'rhythm-changes', offset: [0, 1] },
 		{ category: 'minor-chord',    offset: [0, 1] }, // iii = min7 on bar 0
 		{ category: 'dominant-chord', offset: [1, 2] }, // VI7 on the second half of bar 0
 		{ category: 'major-chord',    offset: [2, 1] }  // I = maj7 starts bar 2
+	],
+	'iii-VI-ii-V-I-long': [
+		{ category: 'ii-V-I-major',   offset: [2, 1] }, // ii-V-I starts on bar 2 (Dm7 | G7 | Cmaj7)
+		{ category: 'minor-chord',    offset: [0, 1] }, // iii = min7 on bar 0
+		{ category: 'dominant-chord', offset: [1, 1] }, // VI7 on bar 1
+		{ category: 'major-chord',    offset: [4, 1] }  // I = maj7 starts bar 4
 	],
 	blues: [
 		{ category: 'blues',          offset: [0, 1] },
@@ -922,9 +1024,11 @@ function addFractionsLocal(a: Fraction, b: Fraction): Fraction {
  *   shorter (or sit on the template's final segment, which the engine
  *   tail-extends). A 1|1|1-bar ii-V-i therefore fits the long template
  *   only; a ½|½|1 one fits the short template (and the iii-VI-ii-V-I's
- *   second bar); nothing cadential fits a vamp or a blues.
+ *   second bar, a 1|1|1 the long one's third); nothing cadential fits a vamp,
+ *   a blues or a turnaround.
  * - Cadence categories WITHOUT harmony (editor licks): a native entry in
- *   the category table, and `lengthBars` must fit after the offset.
+ *   the category table, and `lengthBars` must fit after the offset and under
+ *   the entry's `maxLickBars`.
  * - Chord-quality categories: the chord in the lick's slot must be of the
  *   category's family.
  * - Everything else fits wherever the user tagged it — explicit intent —
@@ -961,9 +1065,12 @@ export function progressionFitsLick(
 			return { fits: true };
 		}
 		// Harmony-less cadence lick: a native home, long enough for the lick.
-		const native = PROGRESSION_LICK_CATEGORIES[type]?.some((e) => e.category === lick.category);
+		const native = PROGRESSION_LICK_CATEGORIES[type]?.find((e) => e.category === lick.category);
 		if (!native) return { fits: false, reason: 'shape' };
-		const room = template.bars - Math.ceil(fractionToFloat(offset) - 1e-9);
+		const room = Math.min(
+			template.bars - Math.ceil(fractionToFloat(offset) - 1e-9),
+			native.maxLickBars ?? Infinity
+		);
 		if (lick.difficulty.lengthBars > room) return { fits: false, reason: 'length' };
 		return { fits: true };
 	}

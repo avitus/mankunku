@@ -6269,3 +6269,17 @@ Andy entered Hank Mobley - Summertime at written D5–B5 on tenor and the app dr
 - **Effect:** 15 of Andy's 18 licks now sit where they were entered, up from 12. Catalog, 12 keys: tenor and soprano placements change 16.2%, alto 12.6%; on-stave share on tenor 88% → 82%. A tenor C major scale written C4–C5 now shows C5–C6.
 - **Tests:** `octave-placement.test.ts` rewritten on Andy's own licks, red first; four mutations (square for fourth power, band 0, band 6, no under-stave case) each caught. Full unit suite and `npm run check` pass. Five affected e2e specs pass on Chromium in the sandbox (Colima, credential-free DOCKER_CONFIG, because Docker Desktop was not answering).
 - **Not verified:** the rule by eye or ear on the live app, and how Andy's other licks feel in every key. Firefox and WebKit are left to CI.
+
+## 2026-11-04 — Short and long turnarounds and iii-VI-ii-V-Is
+
+Started from Andy asking why a 3-bar ii-V-I lick gets a fourth bar in lick practice. It ended at Andy's own diagnosis: the app has no idea of a short and a long iii-VI-ii-V-I, so detection gave both speeds one label and the fit rule could only measure length.
+
+- **Fit fix first (`2975fd23`):** tune suggestions now pass `progressionFitsLick`. No recorded decision behind the fourth bar: it's the MVP template's own length, and a 3-bar song cadence always kept a 3-bar window.
+- **Split:** `turnaround-short` and `iii-VI-ii-V-I-long` added. The plain ids keep their chords so saved tags stay valid, and the names now say the speed. The ii decides the label, so a mixed passage gets exactly one.
+- **Placement:** `ii-V-I-major` came off the turnaround table, whose bar 0 is the I. `maxLickBars` caps that category at 2 bars on the short iii-VI-ii-V-I. The short turnaround lists only `rhythm-changes`, since none of its chords lasts a bar.
+- **Measured:** 7 passages across 14 tunes, 4 slow and 3 fast, none mixed, each holding a ii-V-I at its own speed. Before and after on Andy's book: Wail and Donna Lee leave the turnarounds and the fast iii-VI-ii-V-Is, and land on the long ii-V-Is inside. Mankunku Blues, Fly Me and Black Orpheus each gain windows.
+- **Tags:** the hydrate prune will drop 14 `prog:turnaround` tags from Andy's account. All are generated `cmb-sp-*` catalog phrases, none in the 18 licks of the book.
+- **New exposure, left alone:** Blue Monk (2 bars) now gets a window at Mankunku Blues bar 11, F7 | D7b9. It's the existing rule that a blues detection stretches to its longest lick; the turnaround used to cover that bar.
+- **Corrections to what I told Andy:** the Fly Me passage I used as the fast example is the slow form, where Wail fits. Also, "licks saved without chords" sounded like a corner case and is every lick in the book.
+- **Not verified:** the new forms by ear in a live session, and the two new backing tracks.
+

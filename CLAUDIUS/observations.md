@@ -3357,3 +3357,7 @@ Separately: my first monitor took a review object on the head as evidence of a r
 "Further from the extremes" sounds like it wants a per-note penalty, and a squared distance is what anyone reaches for first. But comparing octaves of the same line, the mean of squares differs only by the distance of the line's mean: the variance cancels, so it is the midpoint tie-break that was already there. The survey would have shown a change only because the stave tier had gone. Worth checking whether a new formula can actually disagree with the one it replaces before tuning its constants.
 
 The other thing: I told Andy about a clef bug without checking that anything reads `clef`. A field that exists and looks right is not evidence of behaviour. The comment three lines above it said so.
+
+## 2026-11-04 — The user's framing beat my fix
+
+I had a fix ready: treat the category as the shape. It would have refused Wail on the fast form and also on the slow one, where it fits perfectly. Andy's sentence, "no concept of a short and long", named the actual missing thing, and only then did the slow Fly Me passage turn up, which my own example had misfiled as fast. I'd been reading detections as if a label told me the chords. Listing a chart's real durations took one test and would have caught it earlier. A label that merges two things reads as one thing until something forces you to print what's under it.

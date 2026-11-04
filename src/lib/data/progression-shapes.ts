@@ -81,6 +81,16 @@ export const MAJOR_TONIC_QUALITIES: readonly ChordQuality[] = ['maj7', 'maj6', '
 
 export const MINOR_TONIC_QUALITIES: readonly ChordQuality[] = ['min7', 'min6', 'minMaj7'];
 
+/**
+ * Which speed a turnaround or iii-VI-ii-V-I is goes by its ii, the chord a
+ * ii-V-I line lands on, so a mixed passage (Em7 A7 | Dm7 | G7) still gets
+ * exactly one label. The two bounds leave no musical length between them:
+ * two beats and under is short (two of three beats in 3/4 reads 0.67), three
+ * beats and over is long.
+ */
+const SHORT_II_MAX_BARS = 0.7;
+const LONG_II_MIN_BARS = 0.75;
+
 export const PROGRESSION_SHAPES: readonly ProgressionShape[] = [
 	{
 		type: 'minor-vamp',
@@ -160,20 +170,42 @@ export const PROGRESSION_SHAPES: readonly ProgressionShape[] = [
 		slots: [
 			{ rootOffset: 4, qualities: ['min7'], maxBars: 1, templateOffset: [0, 1] },
 			{ rootOffset: 9, qualities: DOMINANT_QUALITIES, maxBars: 1, templateOffset: [1, 2] },
-			{ rootOffset: 2, qualities: ['min7'], maxBars: 1, templateOffset: [1, 1] },
+			{ rootOffset: 2, qualities: ['min7'], maxBars: SHORT_II_MAX_BARS, templateOffset: [1, 1] },
 			{ rootOffset: 7, qualities: DOMINANT_QUALITIES, maxBars: 1, templateOffset: [3, 2] },
 			{ rootOffset: 0, qualities: MAJOR_TONIC_QUALITIES, minBars: 0.5, templateOffset: [2, 1] }
+		]
+	},
+	{
+		// The same walk, a chord a bar through the cycle.
+		type: 'iii-VI-ii-V-I-long',
+		tonicSlot: 4,
+		slots: [
+			{ rootOffset: 4, qualities: ['min7'], maxBars: 1, templateOffset: [0, 1] },
+			{ rootOffset: 9, qualities: DOMINANT_QUALITIES, maxBars: 1, templateOffset: [1, 1] },
+			{ rootOffset: 2, qualities: ['min7'], minBars: LONG_II_MIN_BARS, maxBars: 1, templateOffset: [2, 1] },
+			{ rootOffset: 7, qualities: DOMINANT_QUALITIES, maxBars: 1, templateOffset: [3, 1] },
+			{ rootOffset: 0, qualities: MAJOR_TONIC_QUALITIES, minBars: 0.5, templateOffset: [4, 1] }
+		]
+	},
+	{
+		type: 'turnaround-short',
+		tonicSlot: 0,
+		slots: [
+			// max 1 keeps a long tonic stretch from reading as the top of a turnaround.
+			{ rootOffset: 0, qualities: MAJOR_TONIC_QUALITIES, minBars: 0.5, maxBars: 1, templateOffset: [0, 1] },
+			{ rootOffset: 9, qualities: DOMINANT_QUALITIES, minBars: 0.5, maxBars: 1, templateOffset: [1, 2] },
+			{ rootOffset: 2, qualities: ['min7'], minBars: 0.5, maxBars: SHORT_II_MAX_BARS, templateOffset: [1, 1] },
+			{ rootOffset: 7, qualities: DOMINANT_QUALITIES, minBars: 0.5, maxBars: 1, templateOffset: [3, 2] }
 		]
 	},
 	{
 		type: 'turnaround',
 		tonicSlot: 0,
 		slots: [
-			// min 0.5 admits two-chords-per-bar turnarounds; max 1 keeps a long
-			// tonic stretch from reading as the top of a turnaround.
+			// max 1 keeps a long tonic stretch from reading as the top of a turnaround.
 			{ rootOffset: 0, qualities: MAJOR_TONIC_QUALITIES, minBars: 0.5, maxBars: 1, templateOffset: [0, 1] },
 			{ rootOffset: 9, qualities: DOMINANT_QUALITIES, minBars: 0.5, maxBars: 1, templateOffset: [1, 1] },
-			{ rootOffset: 2, qualities: ['min7'], minBars: 0.5, maxBars: 1, templateOffset: [2, 1] },
+			{ rootOffset: 2, qualities: ['min7'], minBars: LONG_II_MIN_BARS, maxBars: 1, templateOffset: [2, 1] },
 			{ rootOffset: 7, qualities: DOMINANT_QUALITIES, minBars: 0.5, maxBars: 1, templateOffset: [3, 1] }
 		]
 	},

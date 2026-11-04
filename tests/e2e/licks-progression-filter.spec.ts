@@ -100,9 +100,9 @@ test.describe('licks progression filter', () => {
 		await page.goto('/licks');
 		await expect(page.locator('main').getByRole('heading', { level: 3 }).first()).toBeVisible();
 
-		await page.getByLabel('Filter by progression').selectOption({ label: 'Turnaround (I-VI-ii-V)' });
+		await page.getByLabel('Filter by progression').selectOption({ label: 'Long Turnaround' });
 
-		await expect(page.getByText(/no licks are tagged for turnaround/i)).toBeVisible();
+		await expect(page.getByText(/no licks are tagged for long turnaround/i)).toBeVisible();
 		await expect(page.locator('main').getByRole('heading', { level: 3 })).toHaveCount(0);
 	});
 

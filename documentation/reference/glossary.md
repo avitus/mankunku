@@ -116,7 +116,7 @@ Jazz terminology, pitch terminology, and a few app-specific terms — defined in
 
 **Transposing instrument** — An instrument whose written notes don't match concert pitch. Tenor sax is in B♭: when you read a C, you sound a B♭ (a major 9th lower than written, when treated as the same octave; actually a major 2nd lower in the same staff position). Alto sax is in E♭. Trumpet is in B♭. The app handles transposition automatically — you read in your written key, the app stores in concert.
 
-**Turnaround** — A short cadence (often I-vi-ii-V) at the end of a chorus that loops the form back to the top. Builds harmonic tension that resolves at the next downbeat. *Turnaround* is also one of Lick Practice's ten progressions (I–VI7–ii–V, a bar each). Mankunku also plays a one-bar ii-V turnaround between cycles of a Deep Practice or Tricks drill, aimed at the key you're about to play.
+**Turnaround** — A short cadence (often I-vi-ii-V) at the end of a chorus that loops the form back to the top. Builds harmonic tension that resolves at the next downbeat. Lick Practice has two of them among its twelve progressions: *Long Turnaround* (I–VI7–ii–V, a bar each) and *Short Turnaround* (two chords a bar). Mankunku also plays a one-bar ii-V turnaround between cycles of a Deep Practice or Tricks drill, aimed at the key you're about to play.
 
 **Two-feel** — Playing half notes in the bass instead of walking quarters, giving a section a lighter, more open lift. Jazz convention often puts the head in 2 and opens up to 4 for the solos. Mankunku's ballad style is permanently in 2; swing and straight may sit in 2 for the first chorus of a tune and then latch into 4 for the rest of the take.
 
@@ -168,7 +168,7 @@ Jazz terminology, pitch terminology, and a few app-specific terms — defined in
 
 **Strictness** — How much Tune Practice tells you about each insertion point. Guided names the lick to play, Standard names only the progression, Solo names nothing; at Standard and Solo any of your licks that fits the spot counts, and the best match is your result. It never changes how the app listens (any octave, at every level) or the grading scale.
 
-**Progression colour** — Each of the ten progression types has an identity hue that follows it everywhere: the category pill on a lick card, the Side B session header, and the bands on a tune chart. Consistent colour means a ii-V is recognisable at a glance wherever it appears.
+**Progression colour** — Each of the twelve progression types has an identity hue that follows it everywhere: the category pill on a lick card, the Side B session header, and the bands on a tune chart. Consistent colour means a ii-V is recognisable at a glance wherever it appears.
 
 **Practice tag** — The mark that puts a lick in your Side B practice set: **+ Practice** on its card on the Licks page, or *☆ Add to Practice* on its own page. Tagged licks rotate through the keys they've earned in Lick Practice sessions, gaining keys toward all 12. A tagged lick also needs a *progression tag* before a session will schedule it.
 

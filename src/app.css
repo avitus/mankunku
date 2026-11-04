@@ -171,8 +171,10 @@
 	--prog-ii-V-I-minor: #5f8fce;
 	--prog-ii-V-I-minor-long: #7c7fd0;
 	--prog-blues: #9d6fc4;
+	--prog-iii-VI-ii-V-I-long: #ae6fb3;
 	--prog-iii-VI-ii-V-I: #c06f9f;
 	--prog-turnaround: #cf7288;
+	--prog-turnaround-short: #d27a6b;
 	--prog-dominant-vamp: #d5804e;
 	--prog-major-vamp: #cf9c3d;
 	--prog-ii-V-I-major: #bda94f;
@@ -281,8 +283,10 @@
 	--prog-ii-V-I-minor: #365f9e;
 	--prog-ii-V-I-minor-long: #4a4da8;
 	--prog-blues: #6f3f97;
+	--prog-iii-VI-ii-V-I-long: #7f3f85;
 	--prog-iii-VI-ii-V-I: #8f3f72;
 	--prog-turnaround: #a03d57;
+	--prog-turnaround-short: #a4463b;
 	--prog-dominant-vamp: #a8501f;
 	--prog-major-vamp: #8a6410;
 	--prog-ii-V-I-major: #746615;

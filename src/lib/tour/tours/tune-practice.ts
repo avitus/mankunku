@@ -23,7 +23,7 @@ export const tunePracticeTour: DriveStep[] = [
 		popover: {
 			title: 'Insertion points',
 			description:
-				"Before you start, Mankunku reads the tune's changes and finds the progressions it knows — short and long ii-V-Is, turnarounds, iii-VI-ii-V-I, vamps, blues. Each match becomes a scored window in a specific local key, and the setup screen tells you what it found: “6 insertion points: 3× Short ii-V-I (Maj)…”",
+				"Before you start, Mankunku reads the tune's changes and finds the progressions it knows — short and long ii-V-Is, turnarounds and iii-VI-ii-V-Is, vamps, blues. Each match becomes a scored window in a specific local key, and the setup screen tells you what it found: “6 insertion points: 3× Short ii-V-I (Maj)…”",
 			align: 'center'
 		}
 	},

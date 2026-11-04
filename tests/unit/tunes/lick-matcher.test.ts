@@ -373,13 +373,28 @@ describe('suggestLicksForProgression — transposition targets on Mankunku detec
 		expect(sMin.substitution).toBeNull();
 	});
 
-	it('maps slot alignment through compressed harmonic rhythm (half-bar first-ending turnaround)', () => {
-		const turn2 = mankunkuDetections().filter((d) => d.type === 'turnaround')[1];
-		expect(turn2.startBar).toBe(14);
-		const result = suggestLicksForProgression(turn2, makeDeps({ licks: [lickDom] }));
+	it('maps slot alignment through compressed harmonic rhythm (a long turnaround with a half-bar I and VI)', () => {
+		// The template's VI7 is at bar 1, the chart's half a bar in. The ii and V
+		// go a bar each, which is what makes this the long form.
+		const tune = sheet({
+			key: 'F',
+			sections: [
+				section({
+					bars: 3,
+					harmony: [
+						seg('F', 'maj7', [0, 1], [1, 2]),
+						seg('D', '7', [1, 2], [1, 2]),
+						seg('G', 'min7', [1, 1], [1, 1]),
+						seg('C', '7', [2, 1], [1, 1])
+					]
+				})
+			]
+		});
+		const turn = detectProgressions(flattenTune(tune), tune).find((d) => d.type === 'turnaround')!;
+		const result = suggestLicksForProgression(turn, makeDeps({ licks: [lickDom] }));
 		const sDom = result.suggestions.find((s) => s.lickId === 'l-dom')!;
-		expect(sDom.insertionOffset).toEqual([29, 2]);
-		expect(sDom.insertionBar).toBe(14);
+		expect(sDom.insertionOffset).toEqual([1, 2]);
+		expect(sDom.insertionBar).toBe(0);
 	});
 });
 
