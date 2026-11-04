@@ -950,7 +950,18 @@ function foldHarmonicLockRuns(readings: PitchReading[]): PitchReading[] {
 	return foldOctaveUpLockRuns(foldTwelfthUpLockRuns(readings));
 }
 
-/** The stream-level fold both harmonic locks share; see `foldTwelfthUpLockRuns`. */
+/**
+ * The stream-level fold both harmonic locks share; see `foldTwelfthUpLockRuns`.
+ *
+ * A run too short for the vote folds only when every confident frame is
+ * flagged and the fundamental reads on BOTH sides: nobody leaps a twelfth and
+ * back inside 33 ms, and with another note on either side it stays a leap. The
+ * vote's minimum exists to outvote an attack frame, which has no such
+ * neighbours. The 2026-11-04 Through the Blue to the Root take 2 needs this:
+ * locks of 1 and 2 frames at the bottom of a tongue's −12 dB dip ended the run
+ * the re-articulation tiers scan, so the dip never recovered inside it. Across
+ * the 50-take corpus only that take changes.
+ */
 function foldLockRuns(readings: PitchReading[], lock: HarmonicLock): PitchReading[] {
 	const out = readings.slice();
 	let i = 0;
@@ -966,7 +977,17 @@ function foldLockRuns(readings: PitchReading[], lock: HarmonicLock): PitchReadin
 			}
 			j++;
 		}
-		if (confident >= lock.minFrames && flagged / confident >= lock.minFraction) {
+		const fundamental = midi - lock.interval;
+		const voted = confident >= lock.minFrames && flagged / confident >= lock.minFraction;
+		const sandwiched =
+			confident > 0 &&
+			confident < lock.minFrames &&
+			flagged === confident &&
+			i > 0 &&
+			j < out.length &&
+			out[i - 1].midi === fundamental &&
+			out[j].midi === fundamental;
+		if (voted || sandwiched) {
 			for (let k = i; k < j; k++) {
 				out[k] = { ...out[k], midi: midi - lock.interval, midiFloat: out[k].midiFloat - lock.interval };
 			}
@@ -3592,6 +3613,11 @@ function skipAbsorbed(
  * following attack's level, well above the existing 0.1 floor. Across all
  * 47 WAVs this is the only incomplete opening burst with a preceding plateau;
  * complete warmups and uncorroborated startup noise remain untouched.
+ *
+ * The level gate includes the frame the note stabilizes on, because `next` can
+ * be noise too: untrimmed, the 2026-11-04 Through the Blue to the Root take 1
+ * opens on pre-entrance frames at rms 0.001, `next` among them, and a weak
+ * plateau at 0.007 cleared a gate measured on those while the D3 reads 0.17.
  */
 function findOpeningGhost(readings: PitchReading[], weak: PitchReading[]): DetectedNote | null {
 	const first = readings[0];
@@ -3629,7 +3655,7 @@ function findOpeningGhost(readings: PitchReading[], weak: PitchReading[]): Detec
 	}
 	if (
 		median(held.map((r) => r.rms)) <
-		GHOST_MIN_LEVEL * Math.max(next.rms, ...readings.slice(0, end).map((r) => r.rms))
+		GHOST_MIN_LEVEL * Math.max(next.rms, stable.rms, ...readings.slice(0, end).map((r) => r.rms))
 	)
 		return null;
 	const onsetTime = held[0].time;

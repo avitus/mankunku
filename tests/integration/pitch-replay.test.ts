@@ -4765,3 +4765,201 @@ describe('pitch replay regression: Root–Flat Third — an Ab3 whose attack and
 		expect(detected.map((n) => n.midi)).toEqual([53, 56]);
 	});
 });
+
+describe('pitch replay regression: Through the Blue to the Root — a tongued D3 pair under short third-harmonic locks (concert A, 2026-11-04)', () => {
+	// Ear training, tenor, 100 BPM, metronome only. The line is D3 · D3 · E3 ·
+	// G3 · A3 on swung eighths and quarters. Andy played it twice in a row and
+	// flagged both; each saved 4 of 5 with the repeated D merged.
+	//
+	// The second take's tongue is plain: 2-cycle RMS 0.21 → 0.055 (−12 dB) at
+	// 0.79 s, every partial falling with it, back at 0.25 by 0.85 s. Each tier
+	// that could read it scans contiguous same-MIDI runs. But the D3's 3rd
+	// harmonic carries ~20 dB over its fundamental, and McLeod took that 440 Hz
+	// partial for 4 frames, then 1 frame at the very bottom of the dip, then 2
+	// more, all flagged `twelfthUp`. `foldLockRuns` folded the 4 and left the
+	// short ones, whose 3-frame vote exists to outvote an attack frame, so the
+	// run the tiers saw ended at the floor (0.767 s) and nothing ever recovered
+	// inside it. A flagged run of 1–2 frames with the fundamental on BOTH sides
+	// now folds too. A flagged frame leading on to another note stays a leap.
+	//
+	// Across all 50 takes, both time bases, trimmed and untrimmed, with worklet
+	// onsets and without, plus the saved-readings path, only this take changes.
+	const TEMPO = 100;
+	const SWING = 0.6;
+
+	const expectedPhrase: Phrase = {
+		id: 'bbn-011_A',
+		name: 'Through the Blue to the Root',
+		timeSignature: [4, 4],
+		key: 'A',
+		notes: [
+			{ pitch: 50, duration: [1, 8], offset: [0, 1] }, // D3
+			{ pitch: 50, duration: [1, 8], offset: [1, 8] }, // D3
+			{ pitch: 52, duration: [1, 4], offset: [1, 4] }, // E3
+			{ pitch: 55, duration: [1, 4], offset: [1, 2] }, // G3
+			{ pitch: 57, duration: [1, 4], offset: [3, 4] } // A3
+		],
+		harmony: [
+			{ chord: { root: 'A', quality: '7' }, scaleId: 'blues.minor', startOffset: [0, 1], duration: [1, 1] }
+		],
+		difficulty: { level: 4, pitchComplexity: 8, rhythmComplexity: 1, lengthBars: 1 },
+		category: 'blues',
+		tags: ['blue-note', 'blues', 'beginner', 'passing-up'],
+		source: 'curated'
+	};
+
+	const readJson = (fixture: string) =>
+		JSON.parse(
+			readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '..', 'fixtures', `${fixture}.json`), 'utf8')
+		);
+
+	const scoreOf = (detected: DetectedNote[], transportSeconds: number) =>
+		runScorePipeline({
+			detected,
+			phrase: expectedPhrase,
+			tempo: TEMPO,
+			transportSeconds,
+			swing: SWING,
+			bleedFilterEnabled: false
+		}).chosen;
+
+	describe('take 2: the tongue Andy called more audible', () => {
+		const TRANSPORT_SECONDS = 83.76641723356006;
+		const FIXTURE = 'recordings/2026-11-04-through-the-blue-to-the-root-2';
+		const replayPipeline = (opts: { live?: boolean } = {}) =>
+			replayEarTrainingTake(`${FIXTURE}.wav`, TRANSPORT_SECONDS, TEMPO, opts);
+
+		it('the app saved one long D3 (4 of 5, 0.793)', () => {
+			const { scoring } = readJson(FIXTURE);
+			const saved: DetectedNote[] = scoring.savedDetectedNotes;
+			expect(saved.map((n) => n.midi)).toEqual([50, 52, 55, 57]);
+			expect(scoring.savedScore.notesHit).toBe(4);
+			expect(scoring.savedScore.noteResults[1].missed).toBe(true);
+			expect(scoring.savedScore.overall).toBeCloseTo(0.793, 3);
+		});
+
+		it('the floor collapses inside a D3 chopped by flagged locks of 4, 1 and 2 frames', () => {
+			const readings: PitchReading[] = readJson(FIXTURE).detection.readings;
+			const dip = readings.filter((r) => r.time >= 0.64 && r.time < 0.86);
+			expect(dip.map((r) => r.midi)).toEqual([
+				69, 69, 69, 69, 50, 50, 50, 50, 69, 50, 50, 69, 69
+			]);
+			expect(dip.filter((r) => r.midi === 69).every((r) => r.twelfthUp)).toBe(true);
+			const floor = Math.min(...dip.map((r) => r.rmsMin ?? Infinity));
+			expect(floor).toBeLessThan(0.06);
+			expect(Math.max(...readings.filter((r) => r.time > 0.8 && r.time < 0.86).map((r) => r.rms))).toBeGreaterThan(0.22);
+		});
+
+		it('the saved readings carry the flags, so they show the fix too', () => {
+			const json = readJson(FIXTURE);
+			const { readings, rawWorkletOnsets, weakReadings } = json.detection;
+			const duration: number = json.audio.duration;
+			const bleed = getMetronomeBleedOnsets(TRANSPORT_SECONDS, TEMPO, duration);
+			const base = resolveOnsets(rawWorkletOnsets, readings);
+			const articulation = findReArticulations(readings, base, bleed);
+			const detected = segmentNotes(
+				readings,
+				[...base, ...articulation].sort((a, b) => a - b),
+				duration,
+				undefined,
+				undefined,
+				undefined,
+				rawWorkletOnsets,
+				bleed,
+				articulation,
+				weakReadings
+			);
+			expect(detected.map((n) => n.midi)).toEqual([50, 50, 52, 55, 57]);
+		});
+
+		it('trims the pre-armed lead-in back to the performance', async () => {
+			const { trimmed } = await replayPipeline();
+			expect(trimmed.offset).toBeCloseTo(1.3833, 3);
+		});
+
+		it('replayed: finds the tongue and keeps both Ds (saved: one)', async () => {
+			const { articulationOnsets, detected } = await replayPipeline();
+			expect(articulationOnsets).toHaveLength(1);
+			expect(articulationOnsets[0]).toBeGreaterThan(0.72);
+			expect(articulationOnsets[0]).toBeLessThan(0.82);
+			expect(detected.map((n) => n.midi)).toEqual([50, 50, 52, 55, 57]);
+		});
+
+		it('scores five of five (saved: 4 of 5, 0.793)', async () => {
+			const { detected } = await replayPipeline();
+			const score = scoreOf(detected, TRANSPORT_SECONDS);
+			expect(score.notesHit).toBe(5);
+			expect(score.extrasCharged).toBe(0);
+			expect(score.pitchAccuracy).toBe(1);
+			expect(score.noteResults.some((nr) => nr.missed || nr.extra)).toBe(false);
+			expect(score.overall).toBeGreaterThan(0.95);
+		});
+
+		it('keeps both Ds in the live detector time base', async () => {
+			const { detected } = await replayPipeline({ live: true });
+			expect(detected.map((n) => n.midi)).toEqual([50, 50, 52, 55, 57]);
+		});
+
+		it('keeps two Ds, not three fragments, with no worklet onsets (live ear training)', async () => {
+			const { trimmed } = await replayPipeline({ live: true });
+			const bleed = getMetronomeBleedOnsets(TRANSPORT_SECONDS, TEMPO, trimmed.duration);
+			const base = resolveOnsets([], trimmed.readings);
+			const articulation = findReArticulations(trimmed.readings, base, bleed);
+			const detected = segmentNotes(
+				trimmed.readings,
+				[...base, ...articulation].sort((a, b) => a - b),
+				trimmed.duration,
+				undefined,
+				undefined,
+				undefined,
+				[],
+				bleed,
+				articulation,
+				trimmed.weakReadings
+			);
+			expect(detected.map((n) => n.midi)).toEqual([50, 50, 52, 55, 57]);
+		});
+	});
+
+	describe('take 1: the slight tongue, OPEN', () => {
+		// Andy hears a slight articulation; the signal holds almost none. The best
+		// candidate is a 16% level notch at 0.84 s, 70 ms ahead of the beat-2 click,
+		// with no pick change and no frame the tiers could read clear of the click.
+		// Measured on the sustain of 142–155 corpus notes, its strongest evidence
+		// sits among ordinary held notes: level notch 0.84 (corpus median 0.84),
+		// timbre change 7.0 dB (median 9.6), phase jump 0.25 rad (median 0.18). A
+		// rule low enough to fire here would split held notes, so this stays pinned.
+		const TRANSPORT_SECONDS = 71.77256235827664;
+		const FIXTURE = 'recordings/2026-11-04-through-the-blue-to-the-root';
+		const replayPipeline = () => replayEarTrainingTake(`${FIXTURE}.wav`, TRANSPORT_SECONDS, TEMPO);
+
+		it('the app saved one long D3 (4 of 5, 0.772), flagged by ear', () => {
+			const { scoring, flag } = readJson(FIXTURE);
+			expect(flag.note).toMatch(/articulation/i);
+			expect(scoring.savedDetectedNotes.map((n: DetectedNote) => n.midi)).toEqual([50, 52, 55, 57]);
+			expect(scoring.savedScore.notesHit).toBe(4);
+			expect(scoring.savedScore.overall).toBeCloseTo(0.772, 3);
+		});
+
+		it('no lock chops this D3, and the notch at 0.84 s stays over the envelope gate', () => {
+			const readings: PitchReading[] = readJson(FIXTURE).detection.readings;
+			const held = readings.filter((r) => !r.warmup && r.time >= 0.6 && r.time < 0.95);
+			expect(held.every((r) => r.midi === 50)).toBe(true);
+			// Windows that hold the notch and end before the next dip, at 0.97 s.
+			const overNotch = readings.filter((r) => r.time >= 0.75 && r.time < 0.85);
+			const level = Math.max(...overNotch.map((r) => r.rms));
+			expect(Math.min(...overNotch.map((r) => r.rmsMin ?? Infinity))).toBeGreaterThan(level * 0.72);
+		});
+
+		it('replays the saved score exactly', async () => {
+			const { detected } = await replayPipeline();
+			expect(detected.map((n) => n.midi)).toEqual([50, 52, 55, 57]);
+			expect(scoreOf(detected, TRANSPORT_SECONDS).overall).toBeCloseTo(0.772, 3);
+		});
+
+		it.fails('keeps both Ds (OPEN: the signal does not separate this tongue from a held note)', async () => {
+			const { detected } = await replayPipeline();
+			expect(detected.map((n) => n.midi)).toEqual([50, 50, 52, 55, 57]);
+		});
+	});
+});
