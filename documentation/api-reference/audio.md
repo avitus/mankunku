@@ -97,7 +97,7 @@ Returns `true` if an instrument (custom sampler or SoundFont) is loaded and read
 interface PhrasePlaybackOpts {
   skipMelody?: boolean;          // Don't schedule melody notes (backing-only rescheduling)
   loopBacking?: boolean;         // Loop the backing track at phrase end
-  melodyLevel?: number;          // Linear gain on the melody for this take, playPhrase only (default 1); tunes pass tuneMelodyLevel() from backing-mix.ts
+  melodyLevel?: number;          // Linear gain on the melody under the band for this take, playPhrase only (default 1, and 1 when no band can play); tunes pass tuneMelodyLevel() from backing-mix.ts
   resolveAtMelodyEnd?: boolean;  // Resolve the promise 1 beat after the melody's last note (call-and-response handoffs); ignored when skipMelody is set or the phrase has no melody
   onStarted?: () => void;        // Callback fired after Transport start
   startTick?: number;            // Explicit start tick for bar-aligned scheduling
@@ -937,7 +937,7 @@ Shared by the live scheduler and the listening-lab bounce. `swingForTempo` remai
 
 In `backing-styles.ts`. The melody's swing — what playback shifts and what the scorer expects. `'fixed'` styles return `defaultSwing` so the soloist shares the band's grid; `'tempo'` returns `userSwing` untouched. Deliberately tempo-independent and free of any `swingForTempo` reference.
 
-Consumed by the three routes where a non-swing style is selectable (lick-practice session, ear-training, tune practice), including the swing value persisted with a recording and the one used to rescore it — otherwise a rescore would grade a take against a different grid than it was played on. Note ballad's `defaultSwing` is 0.53, so on ballad the melody grid differs from the raw knob even at the knob's 0.50 default.
+Consumed by the three routes where a non-swing style is selectable (lick-practice session, ear-training, tune practice), including the swing value persisted with a recording and the one used to rescore it — otherwise a rescore would grade a take against a different grid than it was played on. Note ballad's `defaultSwing` is 0.53, so on ballad the melody grid differs from the raw knob even with the knob at 0.50.
 
 ---
 

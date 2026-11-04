@@ -18,6 +18,7 @@ import {
 	bumpUnlockedKeyCount
 } from '$lib/persistence/lick-practice-store';
 import { MANKUNKU_BLUES } from '$lib/data/tunes/mankunku-blues';
+import { progressionFitsLick } from '$lib/data/progressions';
 import { seg, section, sheet, simpleSheet } from '../../helpers/tune-fixtures';
 import { makePhrase } from '../../helpers/lick-builders';
 
@@ -299,7 +300,9 @@ describe('suggestLicksForProgression — the lick must fit the progression', () 
 
 	it('a substitution keeps its chord-for-chord match, which the fit rule does not judge', () => {
 		const minor = makePhrase({ id: 'sub', name: 'Minor over dominant', category: 'minor-chord' });
-		const result = suggestLicksForProgression(detectShortInC(), makeDeps({ licks: [minor] }), {
+		const blues = mankunkuDetections().find((d) => d.type === 'blues')!;
+		expect(progressionFitsLick(minor, blues.type).fits).toBe(false);
+		const result = suggestLicksForProgression(blues, makeDeps({ licks: [minor] }), {
 			enableSubstitutions: true
 		});
 		expect(result.suggestions.map((s) => s.matchSources)).toEqual([['substitution']]);

@@ -42,7 +42,7 @@ const { noop, audio } = vi.hoisted(() => {
 		createGain: () => { const gain = node(); gains.push(gain); return gain; },
 		createDelay: () => ({ ...node(), delayTime: {} })
 	};
-	return { noop, audio: { master, gains, inserts, transport, context } };
+	return { noop, audio: { master, gains, inserts, transport, context, backingLoaded: true } };
 });
 
 vi.mock('tone', () => {
@@ -87,10 +87,11 @@ vi.mock('$lib/audio/metronome', () => ({
 }));
 vi.mock('$lib/audio/backing-track', () => ({
 	loadBackingInstruments: vi.fn(async () => {}),
+	scheduleBackingTrack: vi.fn(async () => {}),
 	startBackingTrack: vi.fn(),
 	disposeBackingTrack: vi.fn(),
 	disposeBackingParts: vi.fn(),
-	isBackingLoaded: () => false
+	isBackingLoaded: () => audio.backingLoaded
 }));
 
 const phrase: Phrase = {
@@ -103,7 +104,8 @@ const phrase: Phrase = {
 	category: 'user', tags: [], source: 'tune'
 };
 const options: PlaybackOptions = {
-	tempo: 120, swing: 0.5, countInBeats: 0, metronomeEnabled: false, metronomeVolume: 0
+	tempo: 120, swing: 0.5, countInBeats: 0, metronomeEnabled: false, metronomeVolume: 0,
+	backingTrackEnabled: true
 };
 
 /** Start a take far enough for its setup to have run, then stop it. */
@@ -121,6 +123,7 @@ describe('the melody level', () => {
 		audio.gains.length = 0;
 		audio.inserts.length = 0;
 		audio.master.targets.length = 0;
+		audio.backingLoaded = true;
 	});
 
 	/** The trim the loaded voice's chain ends in, by how that voice reaches master. */
@@ -137,6 +140,16 @@ describe('the melody level', () => {
 		await playTake(0.5);
 		expect(trim.gain.value).toBe(0.5);
 		await playTake();
+		expect(trim.gain.value).toBe(1);
+	});
+
+	it('stays at unity when the band failed to load, so the melody is not left quiet on its own', async () => {
+		const { loadInstrument } = await import('$lib/audio/playback');
+		await loadInstrument('trumpet', 1);
+		const trim = trimFor.trumpet();
+		audio.backingLoaded = false;
+
+		await playTake(0.5);
 		expect(trim.gain.value).toBe(1);
 	});
 });

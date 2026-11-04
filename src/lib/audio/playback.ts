@@ -702,9 +702,11 @@ export interface PhrasePlaybackOpts {
 	 */
 	countIn?: { bars: number; drums: boolean; pickup?: boolean };
 	/**
-	 * Linear gain on the melody for this take (playPhrase only). Omitted, it
-	 * returns to unity, so a level set for a tune never carries into the next
-	 * caller's demo. A continuation keeps the take's level.
+	 * Linear gain on the melody under the band for this take (playPhrase only).
+	 * Omitted, or with no band able to play, it returns to unity: a level set for
+	 * a tune never carries into the next caller's demo, and a band that failed to
+	 * load does not leave the melody quiet on its own. A continuation keeps the
+	 * take's level.
 	 */
 	melodyLevel?: number;
 }
@@ -763,7 +765,8 @@ export async function playPhrase(
 	// Calling public stopPlayback here would invalidate this invocation too.
 	stopPlaybackResources(Tone);
 
-	if (melodyTrim) melodyTrim.gain.value = opts.melodyLevel ?? 1;
+	const backingWillPlay = (options.backingTrackEnabled ?? false) && isBackingLoaded();
+	if (melodyTrim) melodyTrim.gain.value = backingWillPlay ? opts.melodyLevel ?? 1 : 1;
 
 	// Configure transport
 	transport.bpm.value = options.tempo;
@@ -858,7 +861,6 @@ export async function playPhrase(
 	// the count then.
 	const drumsCountIn = (opts.countIn?.drums ?? false) && isBackingLoaded()
 		&& canPlayDrum(COUNT_IN_VOICE);
-	const backingWillPlay = (options.backingTrackEnabled ?? false) && isBackingLoaded();
 	if (options.metronomeEnabled && !(backingWillPlay && drumsCountIn)) {
 		await setMetronomeVolume(options.metronomeVolume);
 		if (scheduleId !== currentScheduleId) return;
