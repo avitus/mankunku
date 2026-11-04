@@ -6257,3 +6257,15 @@ Andy asked to fix the gap above. `~/.claude/skills/coderabbit-loop/` is outside 
 - **Fix:** `read_review` takes the newer of check run and commit status (one head can carry both). Paused, skipped and cancelled reviews are NOT_REVIEWED with exit 3, since exit 2 would sleep forever. `--review-state` gives the guard one line to read.
 - **Tests:** the checker had none. Added `test_check_pr_review.py`, 23 cases, 13 red on the old code. Also run live: #295 now reads DONE, #288 through its commit status, and real rate-limited, paused, skipped and cancelled commits on veetbot each read correctly.
 - **Not verified:** the guard catching a rate limit as it happens. Its mapping is tested, but no head was rate-limited to watch live.
+
+## 2026-11-04 — Lick octave placement: the comfort rule
+
+Andy entered Hank Mobley - Summertime at written D5–B5 on tenor and the app drew it an octave down. The 2026-10-15 ranking did it: both octaves fit the horn, and 6 notes on the stave beat 3.
+
+- **First answer, withdrawn by Andy:** "keep my octave" for licks the player entered. Before the code landed Andy redirected: less stave, more comfortable range, "notes are more comfortable further away from the extremes". Asked for worked examples first, then chose "Comfort rule for all". No own-lick exemption.
+- **Rule:** `bestOctaveShift` keeps the octaves with the most notes in range, takes the least average discomfort (100 × (distance from centre ÷ half the range)⁴ per note), and lets the stave settle only a gap within 3 points.
+- **Kept older rankings:** no transposition gets the midpoint (tune charts, editor key change). A range centre under the treble stave gets stave-first (guitar, trombone, bass, voice).
+- **Correction to what I told Andy:** I reported a bass-clef bug in the stave check. There is none: `InstrumentConfig.clef` is read by nothing and every instrument is drawn on treble. That also meant the guitar exception had to cover trombone and bass, so it became a position test rather than a list.
+- **Effect:** 15 of Andy's 18 licks now sit where they were entered, up from 12. Catalog, 12 keys: tenor and soprano placements change 16.2%, alto 12.6%; on-stave share on tenor 88% → 82%. A tenor C major scale written C4–C5 now shows C5–C6.
+- **Tests:** `octave-placement.test.ts` rewritten on Andy's own licks, red first; four mutations (square for fourth power, band 0, band 6, no under-stave case) each caught. Full unit suite and `npm run check` pass. Five affected e2e specs pass on Chromium in the sandbox (Colima, credential-free DOCKER_CONFIG, because Docker Desktop was not answering).
+- **Not verified:** the rule by eye or ear on the live app, and how Andy's other licks feel in every key. Firefox and WebKit are left to CI.
