@@ -6248,3 +6248,12 @@ Andy noticed a three-bar long ii-V-I lick plays a four-bar cycle in lick practic
 - **Merged:** `7bb6ca6d`, at Andy's request in the original ask. Live on mankunkujazz.com, confirmed by `/api/health` and the deploy job. `e2e-analysis` was still running at that point; it is off the deploy path.
 - **Not verified:** real-microphone playback, and the melody level by ear. CodeRabbit marked its last review "incomplete coverage": 3 files not fully reviewed, unnamed in the walkthrough and the check run.
 - **Checker gap:** `check_pr_review.py` read NOT_REVIEWED at the end, because CodeRabbit on this repo now reports through a check run and posts no commit status. So it can't reach DONE here. Merged on the check run instead: completed, success, on the head, walkthrough range ending at that head, 0 unresolved threads.
+
+## 2026-11-04 — CodeRabbit checker reads check runs
+
+Andy asked to fix the gap above. `~/.claude/skills/coderabbit-loop/` is outside any repo, so the change lives only on this machine.
+
+- **Bigger than the DONE miss:** a survey of 198 check runs on mankunku and veetbot showed the switch from commit statuses around 2026-10-27. The skill's rate-limit guard read statuses too, so it had gone blind and would have slept through any rate limit. A cancelled review also read as a CI failure.
+- **Fix:** `read_review` takes the newer of check run and commit status (one head can carry both). Paused, skipped and cancelled reviews are NOT_REVIEWED with exit 3, since exit 2 would sleep forever. `--review-state` gives the guard one line to read.
+- **Tests:** the checker had none. Added `test_check_pr_review.py`, 23 cases, 13 red on the old code. Also run live: #295 now reads DONE, #288 through its commit status, and real rate-limited, paused, skipped and cancelled commits on veetbot each read correctly.
+- **Not verified:** the guard catching a rate limit as it happens. Its mapping is tested, but no head was rate-limited to watch live.
