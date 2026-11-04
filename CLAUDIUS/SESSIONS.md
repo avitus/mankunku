@@ -6213,3 +6213,13 @@ monitor whether it results in faster CI times."
   node_modules predated dev's `@circleci/vitest-circleci-coverage`.
 - Branch: the worktree branch sat on main's tip, diverged from dev; worked
   detached on origin/dev and pushed HEAD:dev.
+
+## 2026-11-03 — Through the Blue to the Root: one tongue fixed, one left open
+
+- **Asked:** two takes of bbn-011 in A flagged in a row, each saved 4 of 5 with the repeated D3 merged (0.772, 0.793). Andy called the first articulation slight and the second more audible.
+- **Take 2, fixed:** a −12 dB tongue at 0.79 s. McLeod took the D3's 440 Hz partial for 4, 1 and 2 frames, all flagged `twelfthUp`. The 1-frame run sat at the dip's floor, under the 3-frame vote, and ended the run the tiers scan. Flagged 1–2 frame runs with the fundamental on both sides now fold. Now D D E G A, 5 of 5, 0.989. Only this take changes across 50 takes × trimmed/untrimmed × replay/live × worklet onsets/none.
+- **Take 1, open:** the best candidate is a 16% notch at 0.84 s. Level notch 0.84 (median 0.84), timbre change 7.0 dB (median 9.6), phase jump 0.25 rad (median 0.18). Pinned as `it.fails`; it still saves 0.772.
+- **Also fixed:** take 1's untrimmed stream produced a C#3 opening ghost because `findOpeningGhost` measured its plateau against noise-level frames. The gate now includes the stabilized note. The corpus-wide ghost test caught it when the fixture was added.
+- **Verification:** unit + integration 6840 passed, 41 expected fails; `npm run check` clean. E2E not run; the change is Node-only audio logic.
+- **Branch:** the worktree branch sat on main's tip, diverged from dev; reset to origin/dev (nothing unique on it) and pushed HEAD:dev as b0c6798d.
+- **Slip:** a stray `cat > /tmp/ignore` hung a command on stdin until its 2-minute timeout. Nothing was lost; the file was removed.

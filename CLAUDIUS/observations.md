@@ -3331,3 +3331,9 @@ extension past 370 Hz would have been wrong, and only because a genuine C5
 in a May take happened to be an upper-register note. The corpus is the
 only boundary that means anything, and it needs the band surveyed in BOTH
 directions before a ceiling moves.
+
+### 2026-11-03 — The ear and the frame disagree, and the second take settled which bug was real
+
+Andy's first take was the harder report and the less useful one. I spent a long time on it, and a spectrogram showed nothing a held note doesn't also show. Then he played it again, tongued harder, and the bug had nothing to do with sensitivity: the −12 dB dip was in plain view and a one-frame harmonic pick cut the run at its floor. Had I tuned for the first take, I'd have lowered gates for a problem the pipeline doesn't have, and the second take would still have failed. A user replaying with more emphasis is an experiment worth more than another measure on the first recording.
+
+The unsettled part: he hears take 1's tongue and I can't find it. Three measures rank it mid-corpus, which only says those three measures can't see it, not that it isn't there. I should keep saying that plainly rather than letting "reads as a held note" harden into "there was no articulation".
