@@ -1640,7 +1640,7 @@ describe('segmentNotes: third-harmonic (twelfth-up) locks', () => {
 			expect(foldTwelfthUpLockRuns(lock).map((r) => r.midi)).toEqual([69, 69, 69, 69, 69]);
 		});
 
-		// 2026-11-04 Through the Blue to the Root, take 2: one and two-frame locks
+		// 2026-11-04 Through the Blue to the Root: one and two-frame locks
 		// at the bottom of a tongue's dip chopped the D3 run the re-articulation
 		// tiers scan, so the dip never recovered inside a run.
 		describe('a run too short to vote, with the fundamental on both sides', () => {
@@ -1762,9 +1762,10 @@ describe('opening weak note recovery', () => {
 		).toEqual([58]);
 		expect(detect(undefined, weak().slice(0, 2)).map((n) => n.midi)).toEqual([58]);
 	});
-	// 2026-11-04 Through the Blue to the Root, take 1, untrimmed: pre-entrance
-	// noise at 0.001 read as both the burst and the frame after it, so a weak
-	// plateau 28 dB under the note cleared a level gate measured on noise.
+	// 2026-11-04 Through the Blue to the Root, a take no longer in the corpus,
+	// so this test is the rule's only guard. Untrimmed, pre-entrance noise at
+	// 0.001 read as both the burst and the frame after it, so a weak plateau
+	// 28 dB under the note cleared a level gate measured on noise.
 	it('measures the plateau against the note that stabilizes, not a noise-level warmup frame', () => {
 		const quietBurst = burst().map((r) => ({ ...r, rms: 0.001 }));
 		const note = following().map((r) => ({ ...r, rms: r.warmup ? 0.001 : 0.2 }));

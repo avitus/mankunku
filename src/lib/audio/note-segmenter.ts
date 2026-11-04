@@ -957,7 +957,7 @@ function foldHarmonicLockRuns(readings: PitchReading[]): PitchReading[] {
  * flagged and the fundamental reads on BOTH sides: nobody leaps a twelfth and
  * back inside 33 ms, and with another note on either side it stays a leap. The
  * vote's minimum exists to outvote an attack frame, which has no such
- * neighbours. The 2026-11-04 Through the Blue to the Root take 2 needs this:
+ * neighbours. The 2026-11-04 Through the Blue to the Root take needs this:
  * locks of 1 and 2 frames at the bottom of a tongue's −12 dB dip ended the run
  * the re-articulation tiers scan, so the dip never recovered inside it. Across
  * the 50-take corpus only that take changes.
@@ -3615,9 +3615,10 @@ function skipAbsorbed(
  * complete warmups and uncorroborated startup noise remain untouched.
  *
  * The level gate includes the frame the note stabilizes on, because `next` can
- * be noise too: untrimmed, the 2026-11-04 Through the Blue to the Root take 1
- * opens on pre-entrance frames at rms 0.001, `next` among them, and a weak
- * plateau at 0.007 cleared a gate measured on those while the D3 reads 0.17.
+ * be noise too: untrimmed, a 2026-11-04 Through the Blue to the Root take (not
+ * kept in the corpus) opened on pre-entrance frames at rms 0.001, `next` among
+ * them, and a weak plateau at 0.007 cleared a gate measured on those while the
+ * D3 read 0.17.
  */
 function findOpeningGhost(readings: PitchReading[], weak: PitchReading[]): DetectedNote | null {
 	const first = readings[0];
