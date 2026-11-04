@@ -211,6 +211,98 @@ describe('suggestLicksForProgression — eligibility', () => {
 	});
 });
 
+/**
+ * 2026-11-03: the matcher read a lick's category and tags but never its shape,
+ * so a three-bar ii | V | I line (Fats Navarro's Wail) was offered over a
+ * half-bar ii-V in Autumn in New York, its ii and V bars off the chords, and a
+ * four-bar minor line (Sonny Stitt's Indiana) over a short minor cadence.
+ * Lick practice has always refused both through `progressionFitsLick`.
+ */
+describe('suggestLicksForProgression — the lick must fit the progression', () => {
+	const seg1 = (root: 'D' | 'G' | 'C', quality: 'min7' | '7' | 'maj7', at: number) => ({
+		chord: { root, quality },
+		scaleId: 'major.ionian',
+		startOffset: [at, 1] as [number, number],
+		duration: [1, 1] as [number, number]
+	});
+	const threeBars = { level: 20, pitchComplexity: 20, rhythmComplexity: 20, lengthBars: 3 };
+	const curatedLong = makePhrase({
+		id: 'long-curated',
+		name: 'Long, one chord a bar',
+		category: 'ii-V-I-major',
+		harmony: [seg1('D', 'min7', 0), seg1('G', '7', 1), seg1('C', 'maj7', 2)],
+		difficulty: threeBars
+	});
+	const editorLong = makePhrase({
+		id: 'long-editor',
+		name: 'Long, entered in the editor',
+		category: 'ii-V-I-major',
+		harmony: [],
+		difficulty: threeBars
+	});
+	const editorTwoBars = makePhrase({
+		id: 'two-editor',
+		name: 'Two bars, entered in the editor',
+		category: 'ii-V-I-major',
+		harmony: [],
+		difficulty: { ...threeBars, lengthBars: 2 }
+	});
+
+	function detectThreeBarCadence(): DetectedProgression {
+		const tune = sheet({
+			sections: [
+				section({
+					bars: 4,
+					harmony: [
+						seg('D', 'min7', [0, 1], [1, 1]),
+						seg('G', '7', [1, 1], [1, 1]),
+						seg('C', 'maj7', [2, 1], [1, 1]),
+						seg('A', 'min7', [3, 1], [1, 1])
+					]
+				})
+			]
+		});
+		const long = detectProgressions(flattenTune(tune), tune).find((d) => d.type === 'ii-V-I-major-long');
+		if (!long) throw new Error('fixture should contain a long ii-V-I');
+		return long;
+	}
+
+	const ids = (det: DetectedProgression, deps: LickMatcherDeps): string[] =>
+		suggestLicksForProgression(det, deps).suggestions.map((s) => s.lickId);
+
+	it('does not offer a one-chord-a-bar line over a half-bar ii-V', () => {
+		expect(ids(detectShortInC(), makeDeps({ licks: [curatedLong] }))).toEqual([]);
+	});
+
+	it('does not offer a three-bar editor line, which stores no chords, over a half-bar ii-V', () => {
+		expect(ids(detectShortInC(), makeDeps({ licks: [editorLong] }))).toEqual([]);
+	});
+
+	it('still offers a two-bar line over a half-bar ii-V', () => {
+		expect(ids(detectShortInC(), makeDeps({ licks: [editorTwoBars] }))).toEqual(['two-editor']);
+	});
+
+	it('offers the long lines over a ii | V | I that lasts only three bars', () => {
+		expect(ids(detectThreeBarCadence(), makeDeps({ licks: [curatedLong, editorLong] })).sort()).toEqual([
+			'long-curated',
+			'long-editor'
+		]);
+	});
+
+	it('a stale progression tag does not bring an unfit lick back', () => {
+		const deps = makeDeps({ licks: [editorLong], progTags: { 'long-editor': ['ii-V-I-major'] } });
+		expect(ids(detectShortInC(), deps)).toEqual([]);
+	});
+
+	it('a substitution keeps its chord-for-chord match, which the fit rule does not judge', () => {
+		const minor = makePhrase({ id: 'sub', name: 'Minor over dominant', category: 'minor-chord' });
+		const result = suggestLicksForProgression(detectShortInC(), makeDeps({ licks: [minor] }), {
+			enableSubstitutions: true
+		});
+		expect(result.suggestions.map((s) => s.matchSources)).toEqual([['substitution']]);
+	});
+});
+
 describe('suggestLicksForProgression — transposition targets on Mankunku detections', () => {
 	const lick251 = makePhrase({ id: 'l-251', name: 'Major 251', category: 'ii-V-I-major' });
 	const lickMaj = makePhrase({ id: 'l-maj', name: 'Major Chord Lick', category: 'major-chord' });

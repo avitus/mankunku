@@ -15,6 +15,7 @@ import {
 	getActiveSubstitution,
 	getChordRootAtOffset,
 	getCompatibleLickCategories,
+	progressionFitsLick,
 	resolveLickAlignmentOffset,
 	resolveQualityRoleEntry,
 	resolveTransposeTarget
@@ -248,9 +249,14 @@ export function suggestLicksForProgression(
 			continue;
 		}
 
+		// The one fit rule lick practice serves by: a line written ii | V | I,
+		// one chord a bar, has no place over a half-bar ii-V, whatever its
+		// category or tags say. A substitution plays a lick over a chord it was
+		// not written for by design, so the rule does not judge that path.
+		const fits = progressionFitsLick(lick, type).fits;
 		const matchSources: MatchSource[] = [];
-		if (progTags.includes(type)) matchSources.push('prog-tag');
-		if (compatibleCategories.includes(lick.category)) matchSources.push('category');
+		if (fits && progTags.includes(type)) matchSources.push('prog-tag');
+		if (fits && compatibleCategories.includes(lick.category)) matchSources.push('category');
 		const substitution = getActiveSubstitution(type, lick.category, enableSubstitutions);
 		if (substitution) matchSources.push('substitution');
 		if (matchSources.length === 0) continue;

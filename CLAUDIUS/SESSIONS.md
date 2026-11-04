@@ -6229,3 +6229,12 @@ monitor whether it results in faster CI times."
 - **Measured the allowance, same night:** read-only pull of all 2839 `session_results` rows plus replay of 18 takes with audio; results in `research/audio-scoring/results/repeat_allowance.md`. 23 takes qualify and full credit makes all of them perfect. The 2026-10-03 Four to Five qualifies though its final A was never sounded. Scoring unchanged; decision is Andy's. The session rows and one fetched recording stayed in the scratchpad, outside the repo. The Supabase CLI now needs `--read-only` for these queries, and `storage cp` fails inside a checkout because of its `[inbucket]` config, so run it from an empty directory.
 
 - **Decision:** Andy chose to leave scoring as is. Neither credit rule was built; AGENTS.md, the results file and memory say so.
+
+## 2026-11-03 — Long ii-V-I licks over half-bar ii-Vs
+
+Andy noticed a three-bar long ii-V-I lick plays a four-bar cycle in lick practice and asked why. No decision is on record: the template has been ii | V | I I since the MVP (2026-04-09), and `max(template.bars, alignment + length)` (2026-04-26) was written for licks LONGER than the cycle. Asked next whether three-bar song cadences lose the lick. They don't: tune practice sizes its own windows, and a ii | V | I gets a three-bar window.
+
+- **The bug that question turned up:** `suggestLicksForProgression` read category and tags, never shape, so a 1|1|1 line was offered over a half-bar ii-V and stretched that window to three bars for every lick sharing it. Andy doubted it ("I don't think I've ever seen that"), and he was nearly right: on his real book and five real tunes it reached the session in only one tune per mode (Wail at the ≤ 52 BPM its tempo allows, Indiana on a points card), because the tempo gate and the five-lick card hide it.
+- **Fix:** the matcher now applies `progressionFitsLick`, the rule lick practice already serves by; substitution matches are exempt. Five tests failed first.
+- **Measured** on 14 charts × his book and the whole catalog, before and after: 0 suggestions added, every removal a cadence lick on a shape it doesn't fit. Windows freed by the stretch: Rhythm Changes goes from 5 to 7 short ii-V-I windows.
+- **Left open, asked:** the rule only measures LENGTH for harmony-less cadence licks, so Wail and Donna Lee are still offered on I-VI-ii-V and on iii-VI-ii-V-I's half-bar ii-V, where the same curated line is refused. Closing it changes the rule itself, so lick-practice pills and the tag prune on hydrate move with it.
