@@ -319,8 +319,9 @@ test.describe('password reset (authed)', () => {
 		// A mismatch is refused by the action and keeps the form up.
 		await password.fill('new-secret-1');
 		await confirm.fill('new-secret-2');
-		await submit.click();
+		await confirm.press('Enter');
 		await expect(signedInPage.getByText('Passwords do not match.')).toBeVisible();
+		await expect(confirm).toBeFocused();
 
 		await password.fill('new-secret-1');
 		await confirm.fill('new-secret-1');

@@ -114,6 +114,22 @@ describe('the four forms', () => {
 });
 
 describe('detection labels each passage with its one speed', () => {
+	it.each([
+		{ beats: 7, iiBeats: 5, speed: 'turnaround-short' },
+		{ beats: 4, iiBeats: 3, speed: 'turnaround' }
+	])('classifies a ii lasting $iiBeats/$beats of a bar exactly once', ({ beats, iiBeats, speed }) => {
+		const tune = sheet({
+			timeSignature: [beats, 8],
+			sections: [section({ harmony: [
+				seg('C', 'maj7', [0, 1], [beats, 8]),
+				seg('A', '7', [beats, 8], [beats, 8]),
+				seg('D', 'min7', [2 * beats, 8], [iiBeats, 8]),
+				seg('G', '7', [2 * beats + iiBeats, 8], [beats, 8])
+			] })]
+		});
+		expect(speedLabels(tune)).toEqual([[speed, 0]]);
+	});
+
 	it('Fly Me: a slow turnaround and the slow iii-VI-ii-V-I', () => {
 		expect(speedLabels(chart('fly-me-to-the-moon'))).toEqual([
 			['turnaround', 10],

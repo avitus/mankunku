@@ -198,7 +198,8 @@ export function detectProgressions(
 				(fractionToFloat(runEnd) - fractionToFloat(first.startOffset)) / barFloat;
 			if (
 				(slot.minBars !== undefined && runBars < slot.minBars - EPSILON) ||
-				(slot.maxBars !== undefined && runBars > slot.maxBars + EPSILON)
+				(slot.maxBars !== undefined && runBars > slot.maxBars + EPSILON) ||
+				(slot.maxBarsExclusive !== undefined && runBars >= slot.maxBarsExclusive - EPSILON)
 			) {
 				outcome = fail();
 				if (outcome === 'stop') break;

@@ -75,7 +75,7 @@
 						<div class="auth-password">
 							<input id="password" name="password" type={showPassword ? 'text' : 'password'}
 								required minlength={6} autocomplete="new-password" aria-describedby="password-hint"
-								placeholder="Enter a new password" disabled={saving} />
+								placeholder="Enter a new password" readonly={saving} />
 							<button type="button" aria-label={showPassword ? 'Hide new password' : 'Show new password'}
 								onclick={() => { showPassword = !showPassword; }} disabled={saving}>{showPassword ? 'Hide' : 'Show'}</button>
 						</div>
@@ -85,7 +85,7 @@
 						<label for="confirm">Confirm new password</label>
 						<div class="auth-password">
 							<input id="confirm" name="confirm" type={showConfirm ? 'text' : 'password'}
-								required minlength={6} autocomplete="new-password" placeholder="Re-enter your new password" disabled={saving} />
+								required minlength={6} autocomplete="new-password" placeholder="Re-enter your new password" readonly={saving} />
 							<button type="button" aria-label={showConfirm ? 'Hide confirmation' : 'Show confirmation'}
 								onclick={() => { showConfirm = !showConfirm; }} disabled={saving}>{showConfirm ? 'Hide' : 'Show'}</button>
 						</div>
