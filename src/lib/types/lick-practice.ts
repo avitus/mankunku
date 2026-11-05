@@ -10,8 +10,10 @@ export type ChordProgressionType =
 	| 'ii-V-I-minor'
 	| 'ii-V-I-major-long'
 	| 'ii-V-I-minor-long'
+	| 'turnaround-short'
 	| 'turnaround'
 	| 'iii-VI-ii-V-I'
+	| 'iii-VI-ii-V-I-long'
 	| 'blues';
 
 /**

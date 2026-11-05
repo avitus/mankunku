@@ -28,10 +28,10 @@ function byType(dets: DetectedProgression[], type: ChordProgressionType): Detect
 }
 
 describe('progression shapes mirror PROGRESSION_TEMPLATES', () => {
-	it('covers all ten progression types exactly once', () => {
+	it('covers all twelve progression types exactly once', () => {
 		const types = PROGRESSION_SHAPES.map((s) => s.type);
-		expect(new Set(types).size).toBe(10);
-		expect(types.length).toBe(10);
+		expect(new Set(types).size).toBe(12);
+		expect(types.length).toBe(12);
 	});
 
 	it('every slot matches its template segment (offset, root interval, quality membership)', () => {
@@ -365,16 +365,18 @@ describe('detectProgressions — curated tunes', () => {
 		expect(longs[0].startBar).toBe(12);
 		expect(longs[0].endBarExclusive).toBe(15);
 
-		const turnarounds = byType(dets, 'turnaround');
-		expect(turnarounds.map((d) => d.segmentIndices)).toEqual([
-			[11, 12, 13, 14],
-			[15, 16, 17, 18]
-		]);
-		expect(turnarounds[0].startBar).toBe(10);
-		expect(turnarounds[0].endBarExclusive).toBe(14);
-		expect(turnarounds[1].startBar).toBe(14);
-		expect(turnarounds[1].endBarExclusive).toBe(16);
-		expect(turnarounds.every((d) => d.localKey === 'F')).toBe(true);
+		const [slow, ...moreSlow] = byType(dets, 'turnaround');
+		expect(moreSlow).toEqual([]);
+		expect(slow.segmentIndices).toEqual([11, 12, 13, 14]);
+		expect(slow.startBar).toBe(10);
+		expect(slow.endBarExclusive).toBe(14);
+		expect(slow.localKey).toBe('F');
+		const [fast, ...moreFast] = byType(dets, 'turnaround-short');
+		expect(moreFast).toEqual([]);
+		expect(fast.segmentIndices).toEqual([15, 16, 17, 18]);
+		expect(fast.startBar).toBe(14);
+		expect(fast.endBarExclusive).toBe(16);
+		expect(fast.localKey).toBe('F');
 
 		const blues = byType(dets, 'blues');
 		expect(blues.map((d) => d.segmentIndices)).toEqual([[0], [2], [4], [6], [11], [19]]);
@@ -452,7 +454,7 @@ describe('selectNonOverlapping', () => {
 			['blues', 6],
 			['ii-V-I-major', 7],
 			['turnaround', 10],
-			['turnaround', 14],
+			['turnaround-short', 14],
 			['blues', 16]
 		]);
 	});

@@ -33,7 +33,7 @@ describe('PROGRESSION_TEMPLATES', () => {
 	const types = Object.keys(PROGRESSION_TEMPLATES) as ChordProgressionType[];
 
 	it('stamps every template with its own type key', () => {
-		expect(types).toHaveLength(10);
+		expect(types).toHaveLength(12);
 		for (const type of types) {
 			const template = PROGRESSION_TEMPLATES[type];
 			expect(template.type).toBe(type);
@@ -198,7 +198,7 @@ describe('getProgressionsForCategory', () => {
 		expect(getProgressionsForCategory('user')).toEqual([]);
 	});
 
-	it('returns the full list for minor-chord (6 progressions)', () => {
+	it('returns the full list for minor-chord (7 progressions)', () => {
 		const got = getProgressionsForCategory('minor-chord');
 		expect(new Set(got)).toEqual(
 			new Set([
@@ -207,7 +207,8 @@ describe('getProgressionsForCategory', () => {
 				'ii-V-I-major-long',
 				'ii-V-I-minor-long',
 				'turnaround',
-				'iii-VI-ii-V-I'
+				'iii-VI-ii-V-I',
+				'iii-VI-ii-V-I-long'
 			])
 		);
 	});
@@ -711,8 +712,10 @@ describe('progressionMode', () => {
 			'ii-V-I-minor': 'minor',
 			'ii-V-I-major-long': 'major',
 			'ii-V-I-minor-long': 'minor',
+			'turnaround-short': 'major',
 			turnaround: 'major',
 			'iii-VI-ii-V-I': 'major',
+			'iii-VI-ii-V-I-long': 'major',
 			blues: 'major'
 		};
 		for (const type of Object.keys(PROGRESSION_TEMPLATES) as ChordProgressionType[]) {

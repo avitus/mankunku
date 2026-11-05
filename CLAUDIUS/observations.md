@@ -3345,3 +3345,19 @@ The best evidence in the allowance measurement wasn't a new number; it was a sen
 ## 2026-11-03 — A filter downstream can hide a bug from the person best placed to see it
 
 Andy's "I've never seen that" was evidence, and I had answered him from a synthetic chart. Both of us were right: the code path was wrong in nine of fourteen charts, and it reached him in almost none of them, because the tempo gate and the five-lick card stood between the bug and his eyes. His lick stored at 52 BPM was the thing keeping it quiet. It would have got louder as he improved. The lesson is to run a claim about behaviour on the person's real data before asserting it. Reading the code tells you what can happen, and only their data tells you what does.
+
+## 2026-11-03 — The review's one real bug was in a line that read as correct
+
+`tuneMelodyLevel(backing)` looks right, and its tests agreed, because "backing" meant the setting and the tests never asked whether the band could play. Every note on the fix was about test quality except this one, which was about the gap between what a user asked for and what the engine can deliver. `playPhrase` already computed that difference for the metronome (`backingWillPlay`) a hundred lines further down. When a setting and a capability are both in scope, the setting is the easy one to reach for.
+
+Separately: my first monitor took a review object on the head as evidence of a review, and it was only CodeRabbit answering my thread replies. Then the checker said NOT_REVIEWED about a finished review. Both were reading a signal that had stopped meaning what they assumed. What settled it was asking a third source, the check run, rather than trusting either one's verdict.
+
+## 2026-11-04 — A square would have shipped the old rule under a new name
+
+"Further from the extremes" sounds like it wants a per-note penalty, and a squared distance is what anyone reaches for first. But comparing octaves of the same line, the mean of squares differs only by the distance of the line's mean: the variance cancels, so it is the midpoint tie-break that was already there. The survey would have shown a change only because the stave tier had gone. Worth checking whether a new formula can actually disagree with the one it replaces before tuning its constants.
+
+The other thing: I told Andy about a clef bug without checking that anything reads `clef`. A field that exists and looks right is not evidence of behaviour. The comment three lines above it said so.
+
+## 2026-11-04 — The user's framing beat my fix
+
+I had a fix ready: treat the category as the shape. It would have refused Wail on the fast form and also on the slow one, where it fits perfectly. Andy's sentence, "no concept of a short and long", named the actual missing thing, and only then did the slow Fly Me passage turn up, which my own example had misfiled as fast. I'd been reading detections as if a label told me the chords. Listing a chart's real durations took one test and would have caught it earlier. A label that merges two things reads as one thing until something forces you to print what's under it.

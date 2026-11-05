@@ -204,7 +204,7 @@ describe('updateLickCategory', () => {
 		saveUserLick(makePhrase({ id: 'lick-mc', category: 'user' }));
 		updateLickCategory('lick-mc', 'major-chord');
 		expect(new Set(getProgressionTags('lick-mc'))).toEqual(
-			new Set(['major-vamp', 'ii-V-I-major', 'ii-V-I-major-long', 'turnaround', 'iii-VI-ii-V-I'])
+			new Set(['major-vamp', 'ii-V-I-major', 'ii-V-I-major-long', 'turnaround', 'iii-VI-ii-V-I', 'iii-VI-ii-V-I-long'])
 		);
 	});
 
@@ -231,7 +231,7 @@ describe('updateLickCategory', () => {
 		updateLickCategory('lick-edit', 'major-chord');
 		// Original tag persists alongside the freshly-added major-chord set.
 		expect(new Set(getProgressionTags('lick-edit'))).toEqual(
-			new Set(['major-vamp', 'ii-V-I-major', 'ii-V-I-major-long', 'turnaround', 'iii-VI-ii-V-I'])
+			new Set(['major-vamp', 'ii-V-I-major', 'ii-V-I-major-long', 'turnaround', 'iii-VI-ii-V-I', 'iii-VI-ii-V-I-long'])
 		);
 	});
 });
