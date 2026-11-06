@@ -2482,7 +2482,8 @@ function hasReadingInOpenInterval(readings: PitchReading[], from: number, to: nu
 export function findReArticulations(
 	rawReadings: PitchReading[],
 	baseOnsets: number[],
-	bleedOnsets?: number[]
+	bleedOnsets?: number[],
+	onReedReset?: (time: number) => void
 ): number[] {
 	if (rawReadings.length === 0) return [];
 
@@ -2526,7 +2527,8 @@ export function findReArticulations(
 				run.end,
 				readings,
 				sortedBleed,
-				sortedBase
+				sortedBase,
+				onReedReset
 			)
 		);
 	}
@@ -2774,7 +2776,8 @@ function findReArticulationsInSegment(
 	segEnd: number,
 	allReadings: PitchReading[],
 	sortedBleed: number[] = [],
-	sortedBaseOnsets: number[] = []
+	sortedBaseOnsets: number[] = [],
+	onReedReset?: (time: number) => void
 ): number[] {
 	// Restrict to the segment's stable-MIDI run. Skip warmup frames and a
 	// short post-onset guard so the segment-start attack transient isn't
@@ -3084,8 +3087,8 @@ function findReArticulationsInSegment(
 					if (Math.abs(stable[k].midiFloat - localMf) >= ENV_PITCH_PERTURB) corroborated = true;
 				}
 			}
-			if (!corroborated) corroborated = resetsReed(stable, e, j);
-			if (!corroborated) {
+			const reedReset = (!corroborated || !!onReedReset) && resetsReed(stable, e, j);
+			if (!corroborated && !reedReset) {
 				e = j + 1;
 				continue;
 			}
@@ -3093,6 +3096,9 @@ function findReArticulationsInSegment(
 			const onsetTime = stable[recoveryIdx].time - RE_ARTICULATION_ATTACK_LATENCY;
 			if (onsetTime > segStart + RE_ARTICULATION_ONSET_GUARD) {
 				onsets.push(onsetTime);
+				// The timestamp is the recovery of the dip. By then the tone
+				// may already be steady; retain the observed reed reset.
+				if (onReedReset && reedReset && bandFloorDips(stable, e, j) && bandFloorRecovers(stable, e, j)) onReedReset(onsetTime);
 			}
 			e = recoveryIdx + 1;
 		}
@@ -3751,7 +3757,7 @@ export function findGhostNotes(
  * `minNoteDuration` is dropped, and a ghost that starts inside an earlier
  * ghost is skipped.
  */
-function insertGhostNotes(
+export function insertGhostNotes(
 	notes: DetectedNote[],
 	ghosts: DetectedNote[],
 	minNoteDuration: number

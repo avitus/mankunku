@@ -288,11 +288,19 @@ The grid error the measured offset implies, observed − predicted: `transportSe
 
 The record-a-lick transcription tail, extracted from `/licks/record` so the whole pipeline is one pure, Node-testable function. The page owns audio plumbing and UI state; this owns everything from raw capture to `Phrase`.
 
-### `transcribeTake({ readings, workletOnsets, anchorOffset, tempo }): Phrase | null`
+### `transcribeTake({ readings, weakReadings?, workletOnsets, anchorOffset, tempo }): Phrase | null`
 
-Rebases the raw capture onto the scheduled entrance (`rebaseToAnchor`), computes the take duration (guarded to ≥ 0 — the rebase keeps readings down to −tolerance), then runs the SAME segmentation pipeline as ear training: `resolveOnsets` → `findReArticulations` → `segmentNotes`, with `getMetronomeBleedOnsets` over the take as bleed evidence at a transport offset of `RECORD_COUNT_IN_BEATS` (8 — the two woodblock bars). The kit clicks through the whole take, so dropping that grid restores phantom splits. It then quantizes in 4/4 and normalizes to concert C (`detectKey` → shift, `key: 'C'`) with `calculateDifficulty` stamped. Returns `null` when no readings survive the anchor or nothing survives segmentation — the page returns to idle. The phrase comes back with an empty `name` and `id`; the page assigns the name, and the id is stamped when the lick is saved (`saveUserLick`).
+Rebases the raw capture onto the scheduled entrance (`rebaseToAnchor`), computes the take duration (guarded to ≥ 0 — the rebase keeps readings down to −tolerance), then runs the SAME segmentation pipeline as ear training: `resolveOnsets` → `findReArticulations` → `segmentNotes`, with `getMetronomeBleedOnsets` over the take as bleed evidence at a transport offset of `RECORD_COUNT_IN_BEATS` (8 — the two woodblock bars). The kit clicks through the whole take, so dropping that grid restores phantom splits. It then quantizes in 4/4 and normalizes to concert C (`inferRecorderKey` → shift, `key: 'C'`) with `calculateDifficulty` stamped. Returns `null` when no readings survive the anchor or nothing survives segmentation — the page returns to idle. The phrase comes back with an empty `name` and `id`; the page assigns the name, and the id is stamped when the lick is saved (`saveUserLick`).
 
 ---
+
+## Recorder capture and review
+
+The recorder captures mono microphone PCM on the native audio clock. Its capture window includes 250 ms of pre-roll and is capped at eight bars plus an analysis tail. When recording stops, a worker replays those samples through the pitch and onset detectors. If continuous capture or replay is unavailable, the page transcribes the live readings. Original audio is available locally for review when PCM capture succeeds.
+
+`transcribeTakeWithKey` returns the performed notes, inferred key, recovered passing notes, and omitted-boundary times and reasons. The review chart and notation playback use the performed register. A musician can choose the written key, place the first attack on a beat or offbeat, and change the ending length. Each adjustment is used for staff review, playback, editor and save. “Review in editor” passes the performed concert pitches and selected key unchanged; the editor displays them in instrument pitch and saves that register. “Save to Book” on the recorder converts the reviewed notes to concert C.
+
+The automatic tonic guess scores each candidate against the phrase’s pitch classes and ending. A leading-tone resolution with a minor third and lowered sixth also allows a harmonic-minor reading. An isolated high note is lowered by an octave only when its lower fundamental and odd harmonics persist across multiple pitched PCM windows.
 
 ## pitch-detector.ts
 
@@ -494,7 +502,7 @@ All parameters are positional (there is no `options` bag).
 | `workletOnsets` | `number[]?` | — | Raw AudioWorklet onset times. Used by the same-pitch consolidation pass to tell artifact splits apart from real re-articulations. |
 | `bleedOnsets` | `number[]?` | — | Timestamps of scheduled audible events. The scored surfaces (ear training, lick practice, tune-practice windows) supply `resolveBleedEvidence(...)` (see `bleed-evidence.ts`): backing-track transient onsets when backing is enabled and a schedule exists (the metronome is count-in only under backing), else the metronome click grid via `getMetronomeBleedOnsets(...)` when the metronome is enabled, else `undefined`. Record-a-lick always passes the metronome grid (the kit clicks through the whole take); /diagnostics re-derives it from the stored recording metadata; tune practice's live freestyle scan passes none (pitch-derived onsets only). **No call site passes demo- or melody-playback events**. Worklet onsets landing inside the 50–200 ms speaker→mic bleed window after one of these are not counted as attack evidence during `mergeSamePitchWithoutAttack`, so an artifact split a click or backing hit caused gets collapsed back into one note. These timestamps don't drop any onsets pre-segmentation — segmentation uses `onsets` as given. |
 | `articulationOnsets` | `number[]?` | — | Articulation onset times used by the re-articulation detector. |
-| `weakReadings` | `PitchReading[]?` | — | The capture's sub-threshold frames, same time base as `readings`. When supplied, ghosted notes recovered from them (`findGhostNotes`) are carved into the result as the last step. Ear training (live and rescore), lick practice, tune-practice scored windows and /diagnostics pass them; record-a-lick and the tune-practice freestyle scan do not. |
+| `weakReadings` | `PitchReading[]?` | — | The capture's sub-threshold frames, same time base as `readings`. When supplied, ghosted notes recovered from them (`findGhostNotes`) are carved into the result as the last step. Ear training (live and rescore), lick practice, tune-practice scored windows and /diagnostics pass them; record-a-lick recovers recorder-length ghost notes separately after segmentation. The tune-practice freestyle scan omits weak readings. |
 
 **Algorithm:**
 1. Use the resolved `onsets` as segment boundaries (no pre-segmentation drop; bleed-window suppression happens in the cleanup phase below). If there are no onsets, all readings form one note.
@@ -533,7 +541,9 @@ The baseline onset list for segmentation — **no bleed argument**. Worklet onse
 
 Fallback onset extractor for when the worklet produced nothing useful: the first reading, then every reading after a hole > 0.1 s (backdated 50 ms for attack latency) or on a MIDI change, at least 80 ms apart.
 
-### `findReArticulations(readings, baseOnsets, bleedOnsets?): number[]`
+### `findReArticulations(readings, baseOnsets, bleedOnsets?, onReedReset?): number[]`
+
+The optional callback reports the recovered onset of an envelope dip with a reed reset and a drop and recovery in instrument-band energy. The lick recorder uses this evidence to protect a tongued final note during rhythm transcription.
 
 The counterpart to the merge passes — it *splits* a same-MIDI run where the player re-attacked but the worklet's amplitude-weighted HFC threshold missed it. Scans contiguous same-MIDI runs of the READINGS (not the baseline segments, because a re-articulation can straddle a boundary the merge pass would collapse) — after folding 3rd-harmonic lock RUNS a twelfth down and, since 2026-11-02, 2nd-harmonic lock RUNS an octave down (`foldTwelfthUpLockRuns` and `foldOctaveUpLockRuns`, the live onset extractor's folds, applied together as `foldHarmonicLockRuns`), because a lock inside a held note chops it into short runs and a tongue whose dip straddles a lock edge is never seen whole (2026-10-24 Up to the Seventh: a D3 pair read A4 on 46 of 63 frames, runs of 6 · 18 · 4 · 16, and the segmenter's later sub-segment fold reunited the fragments into ONE note after the tiers had run; since 2026-11-04 a flagged run of 1–2 frames with the fundamental on both sides folds too, because locks that short at the floor of the Through the Blue to the Root tongue ended the run mid-dip); only `midi`/`midiFloat` move, every measured field stays — and returns extra onset times the caller merges into the onset list AND passes to `segmentNotes` as `articulationOnsets`, so the merge passes keep the new boundaries. `baseOnsets` (the `resolveOnsets` output) lets the shape tier treat an attack the baseline already found as the start of a settle window; `bleedOnsets` carries the scheduled click times. Six tiers run in this order, each rejecting an impostor the others let through, and each run's onsets are sorted and deduped within 60 ms:
 
@@ -655,9 +665,17 @@ Decodes a `MediaRecorder` blob and replays it. Pass the shared `AudioContext` wh
 
 ---
 
+## recorder-rhythm.ts
+
+### `quantizeRecorderRhythm(detected, tempo, skipCosts?, firstTick?, endingRelease?)`
+
+Used by the record-a-lick transcription pipeline. Returns the written `notes`, the fitted clock offset in seconds (`phaseSeconds`), and the number of in-range attacks sharing a slot (`collisions`), plus the indices of optional acoustic boundaries omitted from the winning path. A finite skip cost lets the decoder consider a continuation. The optional first position is in sixths of a quarter note. An optional release time in seconds joins two final attacks of equal pitch when the PCM confirms a single sustain. It is applied after fitting the clock. The note fractions are relative to the scheduled entrance in 4/4. See [Rhythmic Quantization](../reference/algorithm-details.md#rhythmic-quantization) for the figure search and release rules.
+
 ## quantizer.ts
 
-Rhythmic quantization: converts `DetectedNote[]` into `Note[]` with fraction-based offsets and durations on a 1/48 whole-note grid. Jazz-aware by design: **swung eighths are WRITTEN straight**, so the output vocabulary per quarter-note beat is only {0, 1/3, 1/2, 2/3} — sixteenths and finer degrade to the nearest allowed position, and anything surviving the capture's rebase tolerance ahead of the entrance downbeat clamps to beat 0. The swing-eighth logic assumes a quarter-note beat; the only production caller (record-a-lick) records in 4/4, and the time signature affects only the 8-bar cap.
+The baseline harness retains the earlier beat-local quantizer for comparisons on the same detected attacks. The historical comparison uses this module’s most-frequent-note `detectKey`.
+
+Rhythmic quantization: converts `DetectedNote[]` into `Note[]` with fraction-based offsets and durations on a 1/48 whole-note grid. Jazz-aware by design: **swung eighths are WRITTEN straight**, so the output vocabulary per quarter-note beat is only {0, 1/3, 1/2, 2/3} — sixteenths and finer degrade to the nearest allowed position, and anything surviving the capture's rebase tolerance ahead of the entrance downbeat clamps to beat 0. The swing-eighth logic assumes a quarter-note beat; the baseline uses 4/4, and the time signature affects only the 8-bar cap.
 
 ### `quantizeNotes(detected, tempo, timeSignature): Note[]`
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Note, Phrase } from '$lib/types/music';
-import { phraseToAbcWithMap } from '$lib/music/notation';
+import { mergeConsecutiveRests, phraseToAbcWithMap } from '$lib/music/notation';
 import { tuneToAbcWithMap } from '$lib/music/tune-notation';
 import { section, sheet } from '../../helpers/tune-fixtures';
 
@@ -71,4 +71,11 @@ describe.each([false, true])('a triplet run across a barline, preserveRestBounda
 			expect(abc.slice(second.endChar, third.startChar)).toContain('|');
 		}
 	});
+});
+
+it('engraves the 1/48 remainder of a rest spanning triplet and sixteenth grids', () => {
+	const { display } = mergeConsecutiveRests([
+		{ pitch: null, offset: [7, 6], duration: [5, 6] }
+	], [4, 4]);
+	expect(display.map(note => note.duration)).toEqual([[1, 4], [1, 16], [1, 48], [1, 2]]);
 });

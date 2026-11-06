@@ -195,20 +195,15 @@ The cents deviation *is* a median, but only over the readings that already match
 
 ## Rhythmic Quantization
 
-**Source:** `src/lib/audio/quantizer.ts` (used by record-a-lick to turn a take into notation)
+**Source:** `src/lib/audio/recorder-rhythm.ts`
 
-`quantizeNotes` snaps detected onsets to a 48-ticks-per-whole-note grid whose per-beat vocabulary is **{0, 1/3, 1/2, 2/3}** of a quarter-note beat — no sixteenths (a played sixteenth degrades to the nearest allowed position), and nothing before the entrance downbeat (clamped to beat 0). Swung eighths are *written straight*, so the swing ratio never decides the notation; the onset pattern of each beat does.
+Record-a-lick keeps the count-in tempo fixed. It tests several swing ratios and a bounded common offset from the entrance (at most 90 ms early or 300 ms late, with a narrower beat range for short phrases). For each combination, dynamic programming chooses an ordered path through downbeats, straight offbeats and triplet positions. The cost includes both attack timing and successive intervals. A swung offbeat can land at two-thirds of the beat and still print as an ordinary eighth. Three attacks spaced by a third or two-thirds of a beat provide evidence for a triplet figure. One phrase can use both subdivisions.
 
-Each onset is labelled by its fraction `f` of the beat:
+Before fitting the rhythm, `recorder-boundaries.ts` checks candidate attacks against centered pitch windows. It can move an early onset toward a stable change of pitch, shorten a segment with a long silent tail, or make a brief unsupported pitch, octave transient, or continuously tracked repeated tone optional. A detected gap, tongue stop, or reed reset protects repeated attacks. When PCM is available, an isolated sample discontinuity in an otherwise level tone favors joining the two segments. The decoder also recognizes a short packet of digital zeros when the waveform resumes at the same value and slope. Stable quiet pitches found between confident frames can supply a ghosted note. The alignment can omit optional candidates at a cost and still compare the timing between the surrounding retained attacks. Repeated long–short pairs also help distinguish the onbeat from its swung offbeat.
 
-| Fraction | Label |
-|---|---|
-| `f < 1/6` | downbeat |
-| `1/6 ≤ f < 5/12` | triplet middle (the 1/3 point) |
-| `5/12 ≤ f < MAX_SWING + 0.05` (`MAX_SWING` = 0.8, `music/swing.ts`) | off-beat |
-| `f ≥ MAX_SWING + 0.05` | the *next* beat's downbeat — a rushed downbeat, not a swing the knob can express |
+A stable intermediate pitch can split the end of a segment into a passing note when three closely spaced windows agree, at least two are confident, and the neighboring notes leave enough time to write it. For adjacent equal pitches at the end of a phrase, the recorder checks whether the strongest harmonic continues through the proposed attack with steady phase and a level or fading envelope. A verified reed reset with an instrument-band dip and recovery preserves a real repeat. A confirmed continuous ending is joined after fitting the rhythm, retaining the clock and every earlier note.
 
-A beat is a **triplet beat** iff it holds a triplet-middle onset (no swing feel puts an upbeat that early), or its off-beat sits at `f ≥ 7/12` and the next beat is a triplet beat with no downbeat of its own — the quarter-note-triplet continuation, which is why the classification walks the beats right to left. On a triplet beat an off-beat snaps to 1/3 or 2/3; on any other beat everything from straight 0.5 through `MAX_SWING` collapses to the straight off-beat eighth. Classification is per beat, not per take, so one bar can mix swung eighths with a genuine triplet. Durations run to the next note's grid position (the last note rounds to its beat's own unit); a gap over 1.5 ticks becomes a rest; takes are capped at 8 bars.
+Straight eighths, quarters and their multiples receive the lowest notation cost. Durations usually reach the following attack. A sufficiently long measured silence lets the quantizer write a rest; the last detected release helps choose a conventional ending or a longer tied value. Positions and durations are stored as whole-note fractions. The recorder is capped at eight bars of 4/4. If two in-range attacks must occupy one written slot, the later note occupies it and the benchmark counts the collision.
 
 ## Proficiency Advancement
 

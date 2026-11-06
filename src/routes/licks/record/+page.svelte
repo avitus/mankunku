@@ -7,9 +7,13 @@
 	import { loadRecordingDraft } from '$lib/state/step-entry.svelte';
 	import { recordingBeatAt } from '$lib/audio/recording-cue';
 	import '$lib/components/record/record-lick.css';
-	import { midiToNoteName } from '$lib/music/intervals';
-	import type { Phrase } from '$lib/types/music';
-	import { transcribeTake, RECORD_COUNT_IN_BEATS } from '$lib/audio/record-transcription';
+	import { addFractions, compareFractions, midiToNoteName } from '$lib/music/intervals';
+	import { PITCH_CLASSES, type PitchClass, type Phrase, type Fraction } from '$lib/types/music';
+	import { concertKeyToWritten } from '$lib/music/transposition';
+	import { quantizeRecorderRhythm } from '$lib/audio/recorder-rhythm';
+	import { createTakeCapture, transcribeCapturedTake, type TakeCapture } from '$lib/audio/record-take-capture';
+	import { encodeWavMono16 } from '$lib/diagnostics/recording-export';
+	import { recordedPhrase, transcribeTakeWithKey, RECORD_COUNT_IN_BEATS } from '$lib/audio/record-transcription';
 	import { saveUserLick, getUserLicksLocal } from '$lib/persistence/user-licks';
 	import { settings, getInstrument } from '$lib/state/settings.svelte';
 	import { setMasterVolume } from '$lib/audio/audio-context';
@@ -48,6 +52,7 @@
 	// start, during the count-in); the anchor is the context time of the
 	// bar-3 downbeat, and the take is re-origined onto it in stopRecording.
 	let silenceTimeout: ReturnType<typeof setTimeout> | null = null;
+	let lastPitchFrame = 0;
 	let pitchStartContextTime = 0;
 	let anchorContextTime = 0;
 
@@ -75,7 +80,47 @@
 	const cueDescription = $derived.by(() => recordState === 'review' ? 'Listen back and check the notes before saving.' : recordState === 'processing' ? 'Turning your playing into notation.' : playing ? 'Your phrase starts here. Keep going until you’re done.' : counting ? countBar === 1 ? 'One more count-in bar before your entrance.' : 'Start on the next 1, when you see “Play now”.' : active ? 'The count-in will begin on beat 1.' : 'Two bars of clicks. Start on the next 1.');
 
 	// Review
-	let reviewPhrase: Phrase | null = $state(null);
+	let originalAudio = $state('');
+	let originalPlayer = $state<HTMLAudioElement>();
+	function releaseOriginalAudio() {
+		if (originalAudio) URL.revokeObjectURL(originalAudio);
+		originalAudio = '';
+	}
+	let reviewedTake = $state.raw<ReturnType<typeof transcribeTakeWithKey>>(null);
+	let takeCapture: TakeCapture | null = null;
+	let analysis: AbortController | null = null;
+	let captureLimit: ReturnType<typeof setTimeout> | undefined;
+	let chosenKey = $state<PitchClass | ''>('');
+	let firstAttack = $state<number | undefined>(undefined);
+	const takeKey = $derived(chosenKey || reviewedTake?.detectedKey || 'C');
+	let endingLabel = $state('');
+	const endingLengths: { label: string; duration: Fraction }[] = [
+		{ label: 'Eighth', duration: [1, 8] }, { label: 'Quarter', duration: [1, 4] },
+		{ label: 'Dotted quarter', duration: [3, 8] }, { label: 'Half', duration: [1, 2] },
+		{ label: '2½ beats', duration: [5, 8] }, { label: 'Dotted half', duration: [3, 4] },
+		{ label: 'Whole', duration: [1, 1] }
+	];
+	const transcribedNotes = $derived.by(() => {
+		if (!reviewedTake) return [];
+		if (firstAttack === undefined) return reviewedTake.performedNotes;
+		const { notes, skipCosts } = reviewedTake.candidates;
+		return quantizeRecorderRhythm(notes, tempo, skipCosts, firstAttack, reviewedTake.endingRelease).notes;
+	});
+	const lastNote = $derived(transcribedNotes.at(-1));
+	const availableEndings = $derived(lastNote && lastNote.pitch !== null ? endingLengths.filter(
+		option => compareFractions(addFractions(lastNote.offset, option.duration), [8, 1]) <= 0
+	) : []);
+	function setFirstAttack(position: number | undefined) {
+		firstAttack = position;
+		if (endingLabel && !availableEndings.some(option => option.label === endingLabel)) endingLabel = '';
+	}
+	const performedNotes = $derived.by(() => {
+		const ending = availableEndings.find(option => option.label === endingLabel);
+		if (!ending || !lastNote) return transcribedNotes;
+		return [...transcribedNotes.slice(0, -1), { ...lastNote, duration: ending.duration }];
+	});
+	const reviewPhrase = $derived(reviewedTake ? recordedPhrase(performedNotes, takeKey) : null);
+	const performedPhrase: Phrase | null = $derived(reviewPhrase ? { ...reviewPhrase, key: takeKey, notes: performedNotes } : null);
 	let lickName = $state('');
 	let savedConfirmation = $state(false);
 
@@ -121,6 +166,8 @@
 		destroyed = true;
 		run++;
 		clearTimeout(saveTimer);
+		analysis?.abort();
+		releaseOriginalAudio();
 		releaseScreenWakeLock();
 		cleanup();
 	});
@@ -132,7 +179,9 @@
 	 */
 	function cleanup() {
 		if (silenceTimeout) clearTimeout(silenceTimeout);
-
+		clearTimeout(captureLimit);
+		takeCapture?.dispose();
+		takeCapture = null;
 		stopCueTracking();
 		pitchDetector?.stop();
 		onsetDetector?.dispose();
@@ -215,6 +264,24 @@
 				return;
 			}
 
+			// The display still updates live; the authoritative pass can read
+			// every sample, even if animation frames stall during an attack.
+			try {
+				const handle = await createTakeCapture(micCapture!.stream, () => {
+					// Only bridge gaps in the display-driven detector. On a
+					// healthy frame stream its pitched-silence policy wins.
+					if (recordState === 'recording' && performance.now() - lastPitchFrame > 150) {
+						if (silenceTimeout) clearTimeout(silenceTimeout);
+						silenceTimeout = setTimeout(stopRecording, 2000);
+					}
+				});
+				if (!isCurrent()) { handle.dispose(); return; }
+				takeCapture = handle;
+			} catch (error) {
+				if (!isCurrent()) return;
+				console.warn('Sample capture unavailable; using live pitch readings', error);
+			}
+
 			// Load instrument if needed for playback later
 			if (!playbackModule.isInstrumentLoaded()) {
 				await playbackModule.loadInstrument(settings.instrumentId, settings.masterVolume);
@@ -258,6 +325,7 @@
 			pitchDetector = await pitchModule.createPitchDetector(
 				micCapture!.analyser,
 				(reading) => {
+					lastPitchFrame = performance.now();
 					if (reading) {
 						currentPitchMidi = reading.midi;
 						// A held note produces the same MIDI value on every frame:
@@ -283,6 +351,7 @@
 			}, `${entranceTick}i`);
 
 			transportStartTime = tone.now() + 0.1;
+			takeCapture?.arm(transportStartTime + RECORD_COUNT_IN_BEATS * 60 / tempo, tempo);
 			transport.start(transportStartTime);
 			recordState = 'counting-in';
 			startCueTracking();
@@ -304,6 +373,7 @@
 		// take's true t=0. The detectors keep running from the count-in, so
 		// nothing is cleared here; stopRecording discards the pre-anchor part.
 		anchorContextTime = time;
+		captureLimit = setTimeout(stopRecording, (32 * 60 / tempo + 0.25) * 1000);
 
 		// Auto-stop after 2s silence
 		silenceTimeout = setTimeout(stopRecording, 2000);
@@ -363,22 +433,30 @@
 
 		// Collect the raw capture before tearing the audio graph down.
 		const rawReadings = pitchDetector?.getReadings() ?? [];
+		const weakReadings = pitchDetector?.getWeakReadings() ?? [];
 		const rawWorkletOnsets = onsetDetector?.getOnsets() ?? [];
 		const anchorOffset = anchorContextTime - pitchStartContextTime;
 
-		cleanup();
+		const pcm = await takeCapture?.finish();
 		if (destroyed || thisRun !== run) return;
+		cleanup();
+		let result: ReturnType<typeof transcribeTakeWithKey> = null;
+		if (pcm) {
+			const downbeat = Math.max(0, Math.round((anchorContextTime - pcm.startTime) * pcm.sampleRate));
+			const wav = encodeWavMono16(pcm.samples.subarray(downbeat), pcm.sampleRate);
+			originalAudio = URL.createObjectURL(new Blob([wav], { type: 'audio/wav' }));
+			analysis = new AbortController();
+			try {
+				result = await transcribeCapturedTake(pcm, anchorContextTime, tempo, analysis.signal);
+			} catch (error) {
+				if (!destroyed && thisRun === run) console.warn('Sample replay unavailable; using live pitch readings', error);
+			} finally { analysis = null; }
+		}
+		if (destroyed || thisRun !== run) return;
+		result ??= transcribeTakeWithKey({ readings: rawReadings, weakReadings, workletOnsets: rawWorkletOnsets, anchorOffset, tempo });
 
-		// Rebase onto the bar-3 downbeat and run the shared segmentation →
-		// quantize → concert-C pipeline (record-transcription.ts).
-		const phrase = transcribeTake({
-			readings: rawReadings,
-			workletOnsets: rawWorkletOnsets,
-			anchorOffset,
-			tempo
-		});
-
-		if (!phrase) {
+		if (!result) {
+			releaseOriginalAudio();
 			recordingError = 'No clear notes were detected. Try again, starting when you see “Play now”.';
 			recordState = 'idle';
 			return;
@@ -387,9 +465,10 @@
 		const userLickCount = getUserLicksLocal().length;
 		const defaultName = `My Lick #${userLickCount + 1}`;
 		lickName = defaultName;
-		phrase.name = defaultName;
 
-		reviewPhrase = phrase;
+		firstAttack = undefined;
+		endingLabel = '';
+		reviewedTake = result;
 		savedConfirmation = false;
 		recordState = 'review';
 	}
@@ -397,8 +476,9 @@
 	// ─── Review actions ─────────────────────────────────────
 
 	async function handlePlayBack() {
-		if (!playbackModule || !reviewPhrase) return;
-		await playbackModule.playPhrase(reviewPhrase, {
+		if (!playbackModule || !performedPhrase) return;
+		originalPlayer?.pause();
+		await playbackModule.playPhrase(performedPhrase, {
 			tempo,
 			// Swung eighths are NOTATED straight, so the review must re-apply
 			// the user's feel or the playback won't sound like the take.
@@ -417,31 +497,36 @@
 	function handleSave() {
 		if (!reviewPhrase || savedConfirmation) return;
 		void playbackModule?.stopPlayback();
-		reviewPhrase.name = lickName || reviewPhrase.name;
 
 		// Local-first: save lick to localStorage, with optional cloud sync for authenticated users
-		saveUserLick(reviewPhrase, supabase ?? undefined);
+		saveUserLick({ ...reviewPhrase, name: lickName || reviewPhrase.name }, supabase ?? undefined);
 
 		savedConfirmation = true;
 		saveTimer = setTimeout(() => {
 			recordState = 'idle';
-			reviewPhrase = null;
+			releaseOriginalAudio();
+			reviewedTake = null;
 			savedConfirmation = false;
 		}, 1500);
 	}
 
 	/** Sends the reviewed take, under the typed name, to the lick editor as a draft. Does nothing without a take or when it runs past 4 bars. */
 	function handleEdit(): void {
-		if (!reviewPhrase || reviewPhrase.difficulty.lengthBars > 4) return;
-		loadRecordingDraft({ ...reviewPhrase, name: lickName || reviewPhrase.name }, instrument);
+		if (!performedPhrase || performedPhrase.difficulty.lengthBars > 4) return;
+		// The editor holds concert pitches and renders them for the instrument.
+		// Pass the same take shown above: the C-normalized storage copy can
+		// lower the line by eleven semitones, even below the instrument's range.
+		loadRecordingDraft({ ...performedPhrase, name: lickName || performedPhrase.name }, instrument);
 		void goto('/licks/editor');
 	}
 
 	/** Discards the reviewed take and returns to idle, cancelling a pending post-save reset and any review playback. */
 	function handleReRecord() {
+		savedConfirmation = false;
+		releaseOriginalAudio();
 		clearTimeout(saveTimer);
 		playbackModule?.stopPlayback();
-		reviewPhrase = null;
+		reviewedTake = null;
 		recordState = 'idle';
 	}
 
@@ -462,7 +547,10 @@
 				{#if recordState === 'review' && reviewPhrase}
 					<div class="rl-review-head"><label for="lick-name">Lick name</label></div>
 					<input id="lick-name" class="rl-name" bind:value={lickName} disabled={savedConfirmation} />
-					<div class="rl-score"><NotationDisplay phrase={reviewPhrase} {instrument} frameless /></div>
+					{#if originalAudio}<div class="rl-original"><span id="original-recording-label">Your recording</span>
+						<audio aria-labelledby="original-recording-label" bind:this={originalPlayer} src={originalAudio} controls preload="metadata" onplay={() => playbackModule?.stopPlayback()}></audio>
+					</div>{/if}
+					<div class="rl-score"><NotationDisplay phrase={performedPhrase!} {instrument} frameless /></div>
 					<p class="rl-review-note">A first draft of your playing. Check the rhythm and pitches.</p>
 					<div class="rl-playback"><button class="rl-button rl-quiet" onclick={handlePlayBack} disabled={savedConfirmation}>Play back</button><button class="rl-button rl-quiet" onclick={handleSave} disabled={savedConfirmation}>{savedConfirmation ? 'Saved!' : 'Save to Book'}</button></div>
 					<PrivacyDisclosure />
@@ -493,6 +581,28 @@
 					<span class="studio-label">{recordState === 'review' ? 'Your take' : 'Session setup'}</span><h2>{recordState === 'review' ? 'The idea is here.' : 'Set your pace.'}</h2><p>{recordState === 'review' ? 'Fine-tune it in the editor.' : 'A tempo you can settle into.'}</p>
 					{#if recordState === 'review'}<div class="rl-fixed-row"><span>Recorded at</span><strong>{tempo} BPM</strong></div>
 					{:else}<label class="rl-field-label" for="record-tempo">Tempo</label><div class="rl-tempo"><button disabled={recordState !== 'idle' || tempo <= 40} aria-label="Decrease tempo" onclick={() => tempo = Math.max(40, tempo - 5)}>−</button><div><input id="record-tempo" type="number" min="40" max="240" step="5" disabled={recordState !== 'idle'} value={tempo} onchange={(event) => tempo = Math.max(40, Math.min(240, Number(event.currentTarget.value) || 100))} /><span>BPM</span></div><button disabled={recordState !== 'idle' || tempo >= 240} aria-label="Increase tempo" onclick={() => tempo = Math.min(240, tempo + 5)}>+</button></div><div class="rl-fixed-row"><span>Count-in</span><strong>{countInBars} bars <small>· {RECORD_COUNT_IN_BEATS} beats</small></strong></div>{/if}
+					{#if recordState === 'idle' || recordState === 'review'}
+						<label class="rl-field-label" for="record-key">Written key</label>
+						<select id="record-key" bind:value={chosenKey} disabled={savedConfirmation}>
+							<option value="">Auto{reviewedTake ? ` · ${concertKeyToWritten(reviewedTake.detectedKey, instrument)}` : ''}</option>
+							{#each PITCH_CLASSES as key}<option value={key}>{concertKeyToWritten(key, instrument)}</option>{/each}
+						</select>
+					{/if}
+					{#if recordState === 'review'}
+						<label class="rl-field-label" for="record-entry">First note starts on</label>
+						<select id="record-entry" bind:value={() => firstAttack, setFirstAttack} disabled={savedConfirmation}>
+							<option value={undefined}>Auto</option>
+							{#each [0, 1, 2, 3] as beat}
+								<option value={beat * 6}>Beat {beat + 1}</option>
+								<option value={beat * 6 + 3}>And of {beat + 1}</option>
+							{/each}
+						</select>
+						<label class="rl-field-label" for="record-ending">Last note length</label>
+						<select id="record-ending" bind:value={endingLabel} disabled={savedConfirmation}>
+							<option value="">As transcribed</option>
+							{#each availableEndings as option}<option value={option.label}>{option.label}</option>{/each}
+						</select>
+					{/if}
 					<div class="rl-fixed-row"><span>Time</span><strong>4/4</strong></div><div class="rl-instrument"><span class="rl-field-label">Your instrument</span><strong>{instrument.name}</strong><p>Notation in your written pitch.</p></div>
 				</section>
 				<div class="rl-side-note"><span class="studio-label">{recordState === 'review' ? 'Before you keep it' : 'Your entrance'}</span><h3>{recordState === 'review' ? 'Check what you hear.' : 'Wait for “Play now”.'}</h3><p>{recordState === 'review' ? 'Review the rhythm and pitches in the editor, then save the phrase to your book.' : 'The count-in stays orange. On the next downbeat, the cue turns gold and your take begins.'}</p>{#if recordState !== 'review'}<span class="rl-legend"><i></i> Count in <b>→</b><i></i> Play</span>{/if}</div>
