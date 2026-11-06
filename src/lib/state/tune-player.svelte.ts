@@ -7,6 +7,7 @@ import { tuneToPhraseWithFlat } from '$lib/tunes/to-phrase';
 import { playbackBarForSessionBar, notationBarForPlaybackBar } from './tune-practice-plan';
 import { clampTuneTempo, savedTuneTempo } from '$lib/tunes/tune-tempo';
 import { formLoopRegion } from '$lib/tunes/form-loop';
+import { anticipatoryFollowBar } from '$lib/notation/follow-scroll';
 import { loopPlaybackBar } from '$lib/audio/phrase-loop';
 import { countInBarsForTempo } from '$lib/audio/drum-count-in';
 import { isInPickupLeadIn } from '$lib/music/pickup';
@@ -60,6 +61,7 @@ export class TunePlayer {
 	starting = $state(false);
 	error = $state('');
 	chartBar = $state<number | null>(null);
+	followBar = $state<number | null>(null);
 	cursorIndex = $state<number | null>(null);
 	private playback: typeof import('$lib/audio/playback') | null = null;
 	private run = 0;
@@ -95,6 +97,7 @@ export class TunePlayer {
 		this.playing = false;
 		this.starting = false;
 		this.chartBar = null;
+		this.followBar = null;
 		this.cursorIndex = null;
 		this.phase = 'head';
 		this.closing = false;
@@ -179,6 +182,17 @@ export class TunePlayer {
 						const chartSheet = jam ? (this.closing ? jam.closingSheet : jam.sheet) : tune;
 						const chartBar = notationBarForPlaybackBar(chartFlat.sectionMap, chartSheet.sections, sourceBar);
 						this.chartBar = chartBar !== null && isInPickupLeadIn(chartSheet, chartBar) ? null : chartBar;
+						this.followBar = anticipatoryFollowBar(bar, printedBarQuarters, (position) => {
+							if (jam && position >= jam.phraseBars) return null;
+							const closing = jam && jam.closingStartBar !== null && position >= jam.closingStartBar;
+							const targetFlat = closing ? jam.closingFlat : flat;
+							const targetSheet = jam ? (closing ? jam.closingSheet : jam.sheet) : tune;
+							const source = jam
+								? playbackBarForSessionBar(position, flat.totalBars, jam.headBars, jam.practiceStartBar, jam.closingStartBar, jam.outroSourceStartBar, jam.sessionBarMap)
+								: loopPlaybackBar(position, region, returns + (this.loop ? 1 : 0));
+							const target = notationBarForPlaybackBar(targetFlat.sectionMap, targetSheet.sections, source);
+							return target !== null && isInPickupLeadIn(targetSheet, target) ? null : target;
+						});
 					};
 					update();
 					this.ticker = setInterval(update, 50);

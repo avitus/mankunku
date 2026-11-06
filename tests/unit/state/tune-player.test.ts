@@ -53,6 +53,31 @@ describe('tune desk tempo', () => {
 });
 
 describe('tune desk playback', () => {
+	it('returns the chart two beats early while the sounding bar stays at the end', async () => {
+		let finish!: () => void;
+		audio.playPhrase.mockImplementation(() => new Promise<void>(resolve => finish = resolve));
+		player.setTempo(120);
+		player.playHead = false;
+		const started = player.toggle(tune, 'swing', 2);
+		await vi.waitFor(() => expect(audio.playPhrase).toHaveBeenCalled());
+		const callbacks = audio.playPhrase.mock.calls[0][3];
+		const at = (bar: number) => { audio.getAudibleTransportSeconds.mockReturnValue(2 + bar * 2); callbacks.onStarted(); };
+		at(1.49);
+		expect(player.followBar).toBeCloseTo(1.49);
+		at(1.5);
+		expect(player.followBar).toBe(0);
+		expect(player.chartBar).toBe(1.5);
+		expect(player.soloChorus).toBe(1);
+		at(1.99);
+		expect(player.followBar).toBe(0);
+		at(2.1);
+		expect(player.followBar).toBeCloseTo(.1);
+		at(3.5); // Final chorus: there is no next form to preview.
+		expect(player.followBar).toBe(1.5);
+		finish(); await started;
+		expect(player.followBar).toBeNull();
+	});
+
 	it('starts directly on solo one when head and outro are disabled', async () => {
 		let finish!: () => void;
 		audio.playPhrase.mockImplementation(() => new Promise<void>(resolve => finish = resolve));

@@ -9,6 +9,28 @@
  * No DOM. Callers measure SVG geometry and pass numbers.
  */
 
+/**
+ * Give the eye two quarter-note beats to find a backward repeat. Only the
+ * scroll target anticipates it: callers keep the sounding bar for highlights.
+ * Resolve actual playback boundaries so pickups, internal repeats, omitted
+ * solo sections and the finite session end follow the same map as the music.
+ */
+export function anticipatoryFollowBar(
+	playbackBar: number,
+	quartersPerBar: number,
+	chartBarAt: (bar: number) => number | null
+): number | null {
+	const current = chartBarAt(playbackBar);
+	if (current === null || !Number.isFinite(playbackBar) || !Number.isFinite(quartersPerBar) || !(quartersPerBar > 0)) return current;
+	const horizon = playbackBar + 2 / quartersPerBar;
+	for (let boundary = Math.floor(playbackBar) + 1; boundary <= horizon; boundary++) {
+		const before = chartBarAt(boundary - 1);
+		const after = chartBarAt(boundary);
+		if (before !== null && after !== null && after < before + 1) return after;
+	}
+	return current;
+}
+
 /** One rendered staff system and the absolute notation bars it covers. */
 export interface FollowSystem {
 	/** Absolute notation bar at the start of this system (inclusive). */
