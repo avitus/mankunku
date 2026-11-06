@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import hashlib
 import json
 import sqlite3
 import struct
@@ -280,7 +281,7 @@ def convert(idb_dir: Path, out_dir: Path, test: int | None, account: str | None 
             skipped["no_blob"] += 1; continue
         ts = rec.get("timestamp") or 0
         date = dt.datetime.fromtimestamp(ts / 1000, dt.timezone.utc).date()
-        sid = str(rec.get("sessionId") or r["file"].name)
+        sid = str(rec.get("sessionId") or (r["file"].name if r["file"] else hashlib.sha256(inline).hexdigest()))
         base = f"{date.isoformat()}-{slug(md.get('phraseName') or md.get('phraseId') or 'take')}-{sid[:6]}"
         wav = out_dir / f"{base}.wav"
         if not wav.exists():

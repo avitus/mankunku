@@ -109,7 +109,10 @@ export function transcribeTakeWithKey({
 	onSegmented?.(segmented);
 	const additions = recorderPassingNotes(segmented.notes, readings, weak, tempo);
 	const lastSegment = segmented.notes.at(-1);
-	const protectRepeat = !!lastSegment && lastSegment.midi === segmented.notes.at(-2)?.midi && reedResets.has(lastSegment.onsetTime);
+	// Tier deduplication can retain a nearby onset instead of the reset's
+	// timestamp. Use the segmenter's 75 ms same-pitch attack window.
+	const protectRepeat = !!lastSegment && lastSegment.midi === segmented.notes.at(-2)?.midi &&
+		[...reedResets].some(time => Math.abs(time - lastSegment.onsetTime) <= 0.075);
 	const candidates = refineRecorderNotes(segmented, additions, protectRepeat);
 	const last = candidates.notes.at(-1);
 	const previous = candidates.notes.at(-2);
@@ -129,6 +132,7 @@ export function transcribeTakeWithKey({
 		})) };
 }
 
+/** Insert recovered passing tones and make a confirmed final tongue mandatory. */
 function refineRecorderNotes(segmented: BoundaryEvidence, additions: Map<number, DetectedNote>, protectRepeat: boolean): BoundaryEvidence {
 	if (!additions.size && !protectRepeat) return segmented;
 	const refined: BoundaryEvidence = { notes: [], skipCosts: [], reasons: [] };

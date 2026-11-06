@@ -20,6 +20,7 @@ function minorCadenceScore(degrees: number[]) {
 	return degrees.reduce((score, degree) => score + MINOR_WEIGHT[degree], 0) + ENDING_WEIGHT[0];
 }
 
+/** Infer the tonic from pitch-class support and the ending cadence; empty takes use C. */
 export function inferRecorderKey(notes: Pick<DetectedNote, 'midi'>[]): PitchClass {
 	if (!notes.length) return 'C';
 	const last = notes[notes.length - 1].midi;

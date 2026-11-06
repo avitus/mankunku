@@ -11,6 +11,7 @@ const SLOTS = [0, 2, 3, 4] as const;
 const SWINGS = [0.5, 0.6, 2 / 3, 0.75, MAX_SWING];
 const isTriplet = (tick: number) => tick % TICKS === 2 || tick % TICKS === 4;
 
+/** Reject straight and triplet offbeats occupying the same quarter-note beat. */
 function mixesSubdivisions(from: number, to: number) {
 	return Math.floor(from / TICKS) === Math.floor(to / TICKS) &&
 		from % TICKS !== 0 && isTriplet(from) !== isTriplet(to);
@@ -23,6 +24,7 @@ interface Path {
 	previous?: Path;
 }
 
+/** Cost a candidate interval against elapsed beats, allowing penalized collisions. */
 function transition(from: number, to: number, elapsed: number, swing: number, pitchChanged: boolean): number {
 	const length = to - from;
 	if (length < 0) return Infinity;
@@ -37,8 +39,8 @@ function transition(from: number, to: number, elapsed: number, swing: number, pi
 	return shapeCost + 0.055; // irregular spans between rhythmic figures
 }
 
-// Keep the cheapest complete history ending at each candidate slot. A later
-// attack can resolve an ambiguous earlier one, including across a barline.
+/** Keep the cheapest history ending at each slot so later attacks can resolve
+ * earlier ambiguity, including across a barline. */
 function align(times: number[], input: DetectedNote[], tripletEvidence: boolean[], swingAccent: number[], phase: number, swing: number, skipCosts?: number[], firstTick?: number): Path {
 	let previous: Path[] = [];
 	for (const [i, time] of times.entries()) {
@@ -78,6 +80,7 @@ function align(times: number[], input: DetectedNote[], tripletEvidence: boolean[
 	return previous.reduce((a, b) => a.cost <= b.cost ? a : b);
 }
 
+/** Fit a release to a conventional duration without crossing the next attack. */
 function releaseTick(start: number, limit: number, releaseBeat: number, phase: number, swing: number) {
 	let bestEnd = limit;
 	let bestCost = Infinity;
@@ -111,6 +114,7 @@ export function previousRecorderRhythm(detected: DetectedNote[], tempo: number) 
 	return fitRhythm(detected, tempo);
 }
 
+/** Fit a shared clock and swing feel, then emit notes and rests within eight bars. */
 function fitRhythm(detected: DetectedNote[], tempo: number, skipCosts?: number[], firstTick?: number, endingRelease?: number) {
 	const beatSec = 60 / tempo;
 	const input = detected.filter(n => n.onsetTime < END / TICKS * beatSec);
