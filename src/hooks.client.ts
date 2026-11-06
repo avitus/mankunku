@@ -10,6 +10,7 @@ import {
   pendingNavTarget
 } from '$lib/util/stale-chunk';
 import { isEmptyErrorEvent, isLocalHostname } from '$lib/util/sentry-filters';
+import { TRACES_SAMPLE_RATE } from '$lib/util/sentry-sampling';
 import { serverReachable } from '$lib/util/server-reachable';
 import { documentSettled } from '$lib/util/document-settled';
 import { readAuthVerdict } from '$lib/persistence/auth-verdict';
@@ -136,7 +137,8 @@ function startSentry(): void {
     // Firefox ETP don't cancel them. See src/routes/api/monitoring/+server.ts.
     tunnel: '/api/monitoring',
 
-    tracesSampleRate: 1.0,
+    // A fraction, not every page load: see $lib/util/sentry-sampling.
+    tracesSampleRate: TRACES_SAMPLE_RATE,
 
     // Enable logs to be sent to Sentry
     enableLogs: true,

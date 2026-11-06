@@ -5,15 +5,15 @@
 	import ChordChart from '$lib/components/lick-practice/ChordChart.svelte';
 	import { followOffsetPx, type FollowSystem } from '$lib/notation/follow-scroll';
 	import { tuneChordBars } from '$lib/tunes/chord-bars';
-	let { tune, instrument, currentBar = null, markers = [] }: {
-		tune: Tune; instrument: InstrumentConfig; currentBar?: number | null; markers?: RangeMarker[];
+	let { tune, instrument, currentBar = null, followBar = currentBar, markers = [] }: {
+		tune: Tune; instrument: InstrumentConfig; currentBar?: number | null; followBar?: number | null; markers?: RangeMarker[];
 	} = $props();
 	let viewport = $state<HTMLDivElement>();
 	let content = $state<HTMLDivElement>();
 	let geometry = $state<{ systems: FollowSystem[]; viewportPx: number; contentPx: number }>({ systems: [], viewportPx: 0, contentPx: 0 });
 	const sections = $derived(tuneChordBars(tune));
 	const activeBar = $derived(currentBar === null ? -1 : Math.floor(currentBar));
-	const followOffset = $derived(currentBar === null ? 0 : followOffsetPx({ ...geometry, barFraction: currentBar }));
+	const followOffset = $derived(followBar === null ? 0 : followOffsetPx({ ...geometry, barFraction: followBar }));
 
 	$effect(() => {
 		void sections;
@@ -51,7 +51,7 @@
 				<div class="tcc-bars">
 					{#each section.bars as bar (bar.index)}
 						{@const bands = markers.filter(marker => marker.status !== 'playhead' && marker.startBar <= bar.index && marker.endBarExclusive > bar.index)}
-						{@const labels = markers.filter(marker => marker.status !== 'playhead' && marker.startBar === bar.index && marker.label)}
+						{@const labels = markers.filter(marker => marker.status !== 'playhead' && (marker.labelBar ?? marker.startBar) === bar.index && marker.label)}
 						<div class="tcc-bar" class:active={activeBar === bar.index} data-bar={bar.index} aria-current={activeBar === bar.index ? 'true' : undefined}>
 							{#each bands as band}<div class="tcc-cue" style:background={band.color ?? 'var(--color-brass)'} data-cue-status={band.status}></div>{/each}
 							<small>{bar.number}</small>

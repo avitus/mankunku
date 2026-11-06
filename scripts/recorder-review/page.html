@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Lick recorder review · Mankunku</title>
+<style>
+/* FONT_LICENSE */
+@font-face{font-family:Fraunces;src:url(data:font/woff2;base64,FONT_DATA) format('woff2');font-weight:100 900}
+:root{color-scheme:light;--ink:#241f18;--paper:#f5f0e6;--rule:#cec5b4;--accent:#8d3e24;--serif:Fraunces,Georgia,serif;font:16px/1.45 system-ui,sans-serif;color:var(--ink);background:var(--paper)}
+*{box-sizing:border-box}body{margin:0}button,select{font:inherit;color:inherit}a{color:inherit}:focus-visible{outline:3px solid #c77e25;outline-offset:3px}
+header{display:flex;align-items:center;gap:18px;border-bottom:1px solid var(--rule);height:68px;padding:0 clamp(20px,4vw,60px)}header strong{font:650 24px var(--serif);letter-spacing:-1.3px}header span{border-left:1px solid var(--rule);padding-left:18px;font-size:14px;color:#60594d}
+.layout{max-width:1480px;margin:auto;display:grid;grid-template-columns:clamp(220px,23%,310px) minmax(0,1fr);padding:36px clamp(20px,4vw,60px) 45px;gap:clamp(24px,4vw,64px)}aside{border-right:1px solid var(--rule);padding-right:20px}aside h2{font:600 22px var(--serif);margin:4px 0 18px}nav{display:grid;gap:2px}nav a{display:block;text-decoration:none;padding:8px 12px;border-left:3px solid transparent;font-size:14px}nav a:hover{background:#eae3d6}nav a[aria-current=true]{color:#71351f;background:#e9dfca;border-color:var(--accent);font-weight:650}.mobile{display:none}
+main{min-width:0}h1{font:520 clamp(36px,4vw,58px)/1.03 var(--serif);letter-spacing:-.045em;margin:0 0 12px}.meta{font-size:14px;color:#60594d;margin:0 0 20px}.recording{background:#272820;color:#f9f4e9;border-radius:6px;padding:16px 20px;display:flex;align-items:center;gap:22px}.recording label{font:500 19px var(--serif);white-space:nowrap}.recording audio{width:100%;height:42px;color-scheme:dark}.view{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:24px 0 15px;font-size:13px}.view label{color:#625b50}select{border:1px solid #b9ad99;border-radius:4px;padding:5px 8px;background:#fbf8f1}
+#ending{cursor:pointer;white-space:nowrap;padding:7px 10px;border:1px solid #aaa693;border-radius:4px;background:transparent;color:inherit;font:inherit;font-size:13px}#excerpts{display:flex;flex-wrap:wrap;gap:6px;padding-bottom:8px}#excerpts button{cursor:pointer;background:#fffdf7;border:1px solid var(--rule);border-radius:4px;padding:5px 8px}
+#boundaries{margin-top:10px}#effort{margin-top:16px;font-size:14px}#effort summary{font-weight:600;color:var(--ink)}
+article{border:1px solid var(--rule);border-top:3px solid var(--accent);background:#fffdf7;margin:0 0 16px;padding:16px 20px 12px;border-radius:3px}article + article{border-top-color:#59664e}article h2{font:500 24px var(--serif);letter-spacing:-.03em;margin:0}article .title{display:flex;justify-content:space-between;align-items:baseline;gap:12px}.key{font-size:13px;color:#63594d} .staff{overflow-x:auto}.staff svg{display:block}.staff>div{min-width:0}details{border-top:1px solid var(--rule);padding-top:7px;font-size:13px;color:#60594d}summary{cursor:pointer;width:fit-content}table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}td,th{text-align:left;padding:3px 8px;border-bottom:1px solid #ded9ce}
+.comparison{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.comparison article{min-width:0}.comparison article + article{border-top-color:#978976}.comparison + article{border-top-color:#59664e}
+@media(max-width:1060px){.comparison{display:block}}
+@media(max-width:780px){.layout{display:block;padding-top:18px}aside{border:0;padding:0;margin-bottom:22px}aside h2,nav{display:none}.mobile{display:flex;align-items:center;gap:12px;font-size:14px}.mobile select{min-width:0;max-width:75%}header{height:54px}.recording{display:block;padding:12px}.recording audio{display:block;margin:6px 0 0}.title{flex-wrap:wrap}article{padding:13px 12px}.layout{padding-left:16px;padding-right:16px}}
+</style></head>
+<body><header><strong>Mankunku</strong><span>Lick recorder review</span></header>
+<div class="layout"><aside><h2>Recordings</h2><nav aria-label="Recordings"></nav><label class="mobile">Recording <select id="take"></select></label></aside>
+<main><h1 id="name"></h1><p class="meta" id="meta"></p>
+<div class="recording"><label for="player">Original recording</label><audio id="player" controls preload="metadata"></audio><button id="ending" type="button">Play ending</button></div>
+<details id="effort"><summary></summary><p id="editBreakdown"></p><p>One edit is a pitch change, duration change, insertion, removal, or whole-line transposition. The estimate compares both melodies in the saved lick’s written key.</p></details>
+<details id="boundaries" hidden><summary>Listen to note decisions</summary>
+<p>Play an excerpt where the recorder recovered a passing note or treated an apparent attack as a continuation.</p><div id="excerpts"></div></details>
+<div class="view"><label for="pitch">Compare charts</label><select id="pitch"><option value="performed">As played</option><option value="saved">As saved</option></select></div>
+<div class="comparison"><article><div class="title"><h2>New transcription</h2><span class="key" id="inferred"></span></div><div class="staff" id="output"></div><details><summary>Note details</summary><table aria-label="Recorder output notes"></table></details></article>
+<article><div class="title"><h2>Previous transcription</h2><span class="key" id="previousKey"></span></div><div class="staff" id="previous"></div><details><summary>Note details</summary><table aria-label="Previous transcription notes"></table></details></article></div>
+<article><div class="title"><h2>Correct lick</h2><span class="key" id="reference"></span></div><div class="staff" id="correct"></div><details><summary>Note details</summary><table aria-label="Correct lick notes"></table></details></article>
+</main></div>
+<script>/* ABCJS */</script><script id="takes" type="application/json">TAKE_DATA</script>
+<script>
+const takes = JSON.parse(document.getElementById('takes').textContent);
+const get = id => document.getElementById(id);
+const keyLabel = key => key ? key.replace('b','♭').replace('#','♯') : 'Unknown';
+const takeDate = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Los_Angeles' });
+const links = new Map();
+for (const t of takes) {
+  const a = document.createElement('a');
+  a.href = '#' + encodeURIComponent(t.id); a.textContent = t.name;
+  document.querySelector('nav').append(a); links.set(t.id,a);
+  get('take').add(new Option(t.name,t.id));
+}
+let current;
+let excerptEnd = Infinity;
+get('player').addEventListener('timeupdate', () => {
+  if (get('player').currentTime >= excerptEnd) get('player').pause();
+});
+get('player').addEventListener('pause', () => { excerptEnd = Infinity; });
+function draw() {
+  if (!current) return;
+  const mode = get('pitch').value;
+  const charts = current[mode];
+  ['output','previous','correct'].forEach((id,i) => {
+    const box = get(id);
+    box.replaceChildren();
+    const chart = charts[i];
+    const table = box.parentElement.querySelector('table');
+    table.replaceChildren();
+    const header = table.createTHead().insertRow();
+    for (const label of ['Note','Offset (whole notes)','Duration (whole notes)']) {
+      const th = document.createElement('th'); th.textContent = label; header.append(th);
+    }
+    const body = table.createTBody();
+    for (const event of chart.events) {
+      const row = body.insertRow();
+      for (const value of event) row.insertCell().textContent = value;
+    }
+    if (!chart.abc) { box.textContent = 'No notes detected.'; return; }
+    const width = Math.max(280,box.clientWidth);
+    ABCJS.renderAbc(box,chart.abc,{staffwidth:width-18, responsive:'resize',paddingtop:8,paddingbottom:8,paddingleft:4,paddingright:4});
+    box.querySelectorAll('svg').forEach(svg => { svg.setAttribute('role','img'); svg.setAttribute('aria-label',['New transcription','Previous transcription','Correct lick'][i]+' for '+current.name); });
+  });
+  get('inferred').textContent = charts[0].abc ? (mode === 'saved' ? 'Saved key · ' : 'Inferred key · ')+keyLabel(charts[0].key) : '';
+  get('previousKey').textContent = charts[1].abc ? (mode === 'saved' ? 'Saved key · ' : 'Inferred key · ')+keyLabel(charts[1].key) : '';
+  get('reference').textContent = (mode === 'saved' ? 'Normalized key · ' : 'Practice key · ')+keyLabel(charts[2].key);
+}
+function selectTake() {
+  const requested = location.hash.slice(1);
+  current = takes.find(t => t.id === requested) || takes.find(t => t.name === 'Honeysuckle Rose') || takes[0];
+  get('player').pause();
+  get('player').src = 'data:audio/wav;base64,'+current.audio;
+  get('take').value = current.id;
+  for (const [id,a] of links) a.setAttribute('aria-current',String(id === current.id));
+  get('name').textContent = current.name;
+  get('meta').textContent = 'Best of '+current.candidateCount+' archived takes: '+(100*current.practiceScore).toFixed(2)+'%  ·  '+takeDate.format(current.recordedAt)+'  ·  '+current.tempo+' BPM  ·  '+current.instrument+'  ·  Written '+keyLabel(current.performed[2].key);
+  const e = current.edits;
+  get('effort').querySelector('summary').textContent = 'Estimated corrections: '+current.oldEdits.total+' → '+e.total+' for '+current.performed[2].events.filter(row => row[0] !== 'Rest').length+' reference notes';
+  const changes = [[e.pitch,'repitch'],[e.duration,'resize'],[e.insert,'insert'],[e.remove,'remove']]
+    .filter(([count]) => count).map(([count,label]) => label+' × '+count);
+  if (e.shift) changes.unshift('transpose line by '+(e.shift > 0 ? '+' : '')+e.shift+' semitones');
+  get('editBreakdown').textContent = (changes.join(' · ') || 'Ready as recorded')+'. Attacks sharing a written slot: '+current.oldCollisions+' before, '+current.collisions+' now.'+(current.editorTooLong ? ' This draft exceeds the editor’s four-bar limit.' : '');
+  get('boundaries').hidden = !current.boundaries.length;
+  get('boundaries').open = false;
+  get('excerpts').replaceChildren();
+  for (const boundary of current.boundaries) {
+    const button = document.createElement('button');
+    button.textContent = '▶ '+boundary.note+' · '+boundary.time.toFixed(2)+' s · '+boundary.reason;
+    button.onclick = () => {
+      get('player').currentTime = Math.max(0,boundary.time - 0.50);
+      excerptEnd = boundary.time + 0.80;
+      get('player').play().catch(() => { excerptEnd = Infinity; });
+    };
+    get('excerpts').append(button);
+  }
+  document.title = current.name+' · Lick recorder review';
+  draw();
+}
+get('ending').onclick = () => {
+  const player = get('player');
+  excerptEnd = Infinity;
+  player.currentTime = Math.max(0, current.endingTime - 0.65);
+  player.play().catch(() => {});
+};
+get('take').onchange = event => { location.hash = event.target.value; };
+get('pitch').onchange = draw;
+addEventListener('hashchange',selectTake);
+selectTake();
+let timer;
+addEventListener('resize',() => { clearTimeout(timer); timer = setTimeout(draw,100); });
+</script></body></html>

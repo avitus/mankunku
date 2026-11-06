@@ -2,7 +2,8 @@
 
 Firefox stores each IndexedDB value as a Snappy-compressed SpiderMonkey
 structured clone in `object_data.data`, with Blob payloads as separate
-files under `<db>.files/<fileId>` (ids in `object_data.file_ids`). The
+files under `<db>.files/<fileId>` (ids in `object_data.file_ids`), or inline
+ArrayBuffers in the newer `bytes` record shape. The
 record is `{ sessionId, blob, timestamp, metadata }` (audio-store.ts), and
 `metadata` is the RecordingMetadata snapshot: phrase, source, key, tempo,
 swing, the full saved Score (noteResults carry the expected notes),
@@ -16,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import hashlib
 import json
 import sqlite3
 import struct
@@ -122,8 +124,7 @@ class Reader:
     def value(self):
         """Read one value, recursing into arrays and objects. A tag below
         SCTAG_FLOAT_MAX means the pair itself is a float64; a Date becomes
-        {"$date": ms}, a Blob/File a Blob, and ArrayBuffer/typed-array bytes are
-        skipped, sizes kept. Array elements with string keys are dropped; an
+        {"$date": ms}, a Blob/File a Blob, and inline ArrayBuffer contents are retained. Array elements with string keys are dropped; an
         unhandled tag (Map, Set, ...) raises ValueError."""
         data, tag = self.pair()
         if tag < SCTAG_FLOAT_MAX:
@@ -182,8 +183,9 @@ class Reader:
             return b
         if tag == SCTAG_ARRAY_BUFFER_OBJECT:
             n = self.u64() if data == 0 else data
-            self.objs.append(None)
-            return {"$bytes": len(self.raw(n))}
+            payload = self.raw(n)
+            self.objs.append(payload)
+            return payload
         if tag == SCTAG_TYPED_ARRAY_OBJECT:
             n = self.u64()
             buf = self.value()
@@ -221,7 +223,7 @@ def decode_record(blob: bytes) -> dict:
         return {"sessionId": sid, "metadata": md, "_fallback": str(e)}
 
 
-def load_records(idb_dir: Path):
+def load_records(idb_dir: Path, account: str | None = None):
     """Every object_data row of every *.sqlite in `idb_dir`, opened read-only, as
     {"db": database name, "file": `<db>.files/<first file id>` or None, "rec":
     decoded record}. A row that fails to decode is printed and skipped."""
@@ -229,6 +231,9 @@ def load_records(idb_dir: Path):
     for db in sorted(idb_dir.glob("*.sqlite")):
         con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
         name = con.execute("select name from database").fetchone()[0]
+        if account is not None and name != f"mankunku-audio:{account}":
+            con.close()
+            continue
         files_dir = db.with_suffix(".files")
         for key, file_ids, data in con.execute("select key, file_ids, data from object_data"):
             try:
@@ -242,7 +247,7 @@ def load_records(idb_dir: Path):
     return out
 
 
-def convert(idb_dir: Path, out_dir: Path, test: int | None):
+def convert(idb_dir: Path, out_dir: Path, test: int | None, account: str | None = None):
     """Write each scorable record to `out_dir` as a 48 kHz mono 16-bit WAV
     (ffmpeg; an existing WAV is kept) plus a diagnostic-export JSON, always as
     tenor sax, and rewrite truth-firefox.yaml beside `out_dir` (the harness's
@@ -250,7 +255,7 @@ def convert(idb_dir: Path, out_dir: Path, test: int | None):
     unverified. Records lacking metadata, a saved score with a non-extra
     note, or their blob file are skipped and counted. With `test`,
     summarise the first `test` records and write nothing."""
-    recs = load_records(idb_dir)
+    recs = load_records(idb_dir, account)
     print(f"{len(recs)} records decoded from {idb_dir}")
     if test:
         for r in recs[:test]:
@@ -271,16 +276,17 @@ def convert(idb_dir: Path, out_dir: Path, test: int | None):
         sc = md.get("score")
         if not sc or not any(not x.get("extra") for x in (sc.get("noteResults") or [])):
             skipped["no_score"] += 1; continue
-        if not r["file"] or not r["file"].exists():
+        inline = rec.get("bytes")
+        if not inline and (not r["file"] or not r["file"].exists()):
             skipped["no_blob"] += 1; continue
         ts = rec.get("timestamp") or 0
         date = dt.datetime.fromtimestamp(ts / 1000, dt.timezone.utc).date()
-        sid = str(rec.get("sessionId") or r["file"].name)
+        sid = str(rec.get("sessionId") or (r["file"].name if r["file"] else hashlib.sha256(inline).hexdigest()))
         base = f"{date.isoformat()}-{slug(md.get('phraseName') or md.get('phraseId') or 'take')}-{sid[:6]}"
         wav = out_dir / f"{base}.wav"
         if not wav.exists():
-            subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(r["file"]), "-ac", "1", "-ar", "48000",
-                            "-acodec", "pcm_s16le", str(wav)], check=True)
+            subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", ("pipe:0" if inline else str(r["file"])), "-ac", "1", "-ar", "48000",
+                            "-acodec", "pcm_s16le", str(wav)], input=inline if inline else None, check=True)
         info = sf.info(wav)
         audio = {"duration": info.duration, "sampleRate": info.samplerate}
         if date >= PREARM_DATE:
@@ -316,5 +322,6 @@ if __name__ == "__main__":
     ap.add_argument("idb_dir")
     ap.add_argument("--out", default=str(ROOT / "takes" / "firefox"))
     ap.add_argument("--test", type=int)
+    ap.add_argument("--account", help="Import only this account’s audio database")
     a = ap.parse_args()
-    convert(Path(a.idb_dir), Path(a.out), a.test)
+    convert(Path(a.idb_dir), Path(a.out), a.test, a.account)

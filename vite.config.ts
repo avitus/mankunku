@@ -42,6 +42,7 @@ const circleciCoverage = process.env.CIRCLECI_COVERAGE
 	: {};
 
 export default defineConfig({
+	worker: { format: 'es' },
 	// No PWA/service-worker plugin — removed 2026-07-25. The generated worker
 	// was never registered by SSR pages (the registerSW <script> injection
 	// only applies to prerendered HTML, and this app SSRs everything), and the

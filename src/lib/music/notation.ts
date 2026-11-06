@@ -583,7 +583,7 @@ const REST_DURATIONS: [number, number][] = [[1, 2], [1, 4], [1, 8], [1, 16]];
 
 /** Convert a float to the nearest standard musical fraction */
 export function approxToFraction(f: number): [number, number] {
-	for (const den of [1, 2, 3, 4, 6, 8, 12, 16, 24]) {
+	for (const den of [1, 2, 3, 4, 6, 8, 12, 16, 24, 48]) {
 		const num = Math.round(f * den);
 		if (Math.abs(num / den - f) < 1e-9) return [num, den];
 	}
@@ -734,6 +734,9 @@ function fillRests(
 		for (const std of restDurations) {
 			if (std[0] / std[1] <= remaining + 1e-9) { dur = std; break; }
 		}
+		// A tuplet span split after a sixteenth can leave 1/48. Stop if
+		// an off-grid residue is too small to engrave.
+		if (dur[0] === 0) break;
 		result.push({ pitch: null, duration: dur, offset: approxToFraction(cursor) });
 		cursor += dur[0] / dur[1];
 	}

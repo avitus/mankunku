@@ -72,6 +72,12 @@ for (const practice of [false, true]) {
 			const viewport = element.getBoundingClientRect();
 			return getComputedStyle(element).overflowY === 'hidden' && element.scrollTop === 0 && Number(element.getAttribute('data-follow-offset')) < 0 && active.top >= viewport.top && active.bottom <= viewport.bottom;
 		})).toBe(true);
+		// The top is readable before the downbeat; the active chord still
+		// belongs to the final bar of the sounding chorus.
+		await expect.poll(() => chart.evaluate(element => ({
+			offset: Number(element.getAttribute('data-follow-offset')),
+			active: element.querySelector('.tcc-bar.active')?.getAttribute('data-bar')
+		})), { timeout: 8_000, intervals: [25] }).toEqual({ offset: 0, active: '11' });
 		await expect(page.getByText(/Solo 2 of 2/).first()).toBeVisible({ timeout: 12_000 });
 		await expect.poll(async () => Number(await chart.getAttribute('data-follow-offset'))).toBe(0);
 		await page.getByRole('button', { name: practice ? 'End' : 'Stop', exact: true }).click();

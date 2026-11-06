@@ -5,6 +5,7 @@
 	import { acquireScreenWakeLock, releaseScreenWakeLock } from '$lib/util/wake-lock';
 	import { page } from '$app/state';
 	import NotationDisplay, { type RangeMarker } from '$lib/components/notation/NotationDisplay.svelte';
+	import { anticipatoryFollowBar } from '$lib/notation/follow-scroll';
 	import TuneChordChart from '$lib/components/tunes/TuneChordChart.svelte';
 	import SuggestionPickCard, { type PickEntry } from '$lib/components/tune-practice/SuggestionPickCard.svelte';
 	import TunePracticeSetup from '$lib/components/tune-practice/TunePracticeSetup.svelte';
@@ -273,6 +274,7 @@
 					timeRange: ip.notationTimeRange,
 					status,
 					label,
+					labelBar: ip.notationLabelBar,
 					color: progressionColor(ip.progressionType)
 				});
 			} else {
@@ -297,24 +299,20 @@
 		return result;
 	});
 
-	/** Follow the resolved chart for this pass, retaining within-bar position. */
-	const playheadBarFraction = $derived.by(() => {
-		if (!audioPlan || !chartFlat || !chartSheet) return null;
+	/** Resolve each position against the chart belonging to that session pass. */
+	function chartBarAt(sessionBar: number): number | null {
+		if (!audioPlan || sessionBar >= audioPlan.playedPhrase.difficulty.lengthBars) return null;
 		if (tunePractice.phase !== 'head' && tunePractice.phase !== 'running' && tunePractice.phase !== 'outro') return null;
-		const leadBars = audioPlan.leadBars;
-		const formBars = audioPlan.flat.totalBars;
-		const formBarF = playbackBarForSessionBar(playheadBarF, formBars, leadBars, audioPlan.practiceStartBar, audioPlan.closingStartBar, audioPlan.outroSourceStartBar, audioPlan.sessionBarMap);
-		if (formBarF < 0 || formBarF >= chartFlat.totalBars) return null;
-		const floorBar = Math.floor(formBarF);
-		const frac = formBarF - floorBar;
-		const chartBar = notationBarForPlaybackBar(
-			chartFlat.sectionMap,
-			chartSheet.sections,
-			floorBar
-		);
-		if (chartBar === null) return null;
-		return chartBar + frac;
-	});
+		const closing = audioPlan.closingStartBar !== null && sessionBar >= audioPlan.closingStartBar;
+		const flat = closing ? audioPlan.closingFlat : audioPlan.flat;
+		const sheet = closing ? audioPlan.closingSheet : audioPlan.sheet;
+		const source = playbackBarForSessionBar(sessionBar, audioPlan.flat.totalBars, audioPlan.leadBars, audioPlan.practiceStartBar, audioPlan.closingStartBar, audioPlan.outroSourceStartBar, audioPlan.sessionBarMap);
+		return notationBarForPlaybackBar(flat.sectionMap, sheet.sections, source);
+	}
+	const playheadBarFraction = $derived(chartBarAt(playheadBarF));
+	const followBarFraction = $derived(audioPlan
+		? anticipatoryFollowBar(playheadBarF, audioPlan.sheet.timeSignature[0] * 4 / audioPlan.sheet.timeSignature[1], chartBarAt)
+		: null);
 
 	const playheadBar = $derived(playheadBarFraction === null || (chartSheet && isInPickupLeadIn(chartSheet, playheadBarFraction)) ? null : Math.floor(playheadBarFraction));
 
@@ -947,7 +945,7 @@
 		{/if}
 
 		{#if displayedSheet && tunePractice.phase === 'running'}
-			<TuneChordChart tune={chartSheet!} instrument={getInstrument()} currentBar={playheadBarFraction} {markers} />
+			<TuneChordChart tune={chartSheet!} instrument={getInstrument()} currentBar={playheadBarFraction} followBar={followBarFraction} {markers} />
 		{:else if displayedSheet}
 			<!-- The chart follows the playhead by translating within its own clipped
 			     viewport (no scrollbar), so the status/pick header above stays put. -->
@@ -958,7 +956,7 @@
 				{cursorIndex}
 				rangeMarkers={markers}
 				autoScrollPlayhead
-				{playheadBarFraction}
+				playheadBarFraction={followBarFraction}
 			/>
 		{/if}
 	{:else}
