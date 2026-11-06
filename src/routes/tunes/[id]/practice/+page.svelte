@@ -274,6 +274,7 @@
 					timeRange: ip.notationTimeRange,
 					status,
 					label,
+					labelBar: ip.notationLabelBar,
 					color: progressionColor(ip.progressionType)
 				});
 			} else {

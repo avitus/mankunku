@@ -181,6 +181,7 @@ describe('setup proposes the same known licks as the playing session', () => {
 			expect(marker.lickName).toBe(suggestionNameFor(firstVisit));
 			expect(marker.label).toBe(suggestionNameFor(firstVisit) ?? firstVisit.bandName);
 			expect(marker.timeRange).toEqual(firstVisit.notationTimeRange);
+			expect(marker.labelBar).toBe(firstVisit.notationLabelBar);
 		}
 	});
 

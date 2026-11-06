@@ -80,6 +80,8 @@
 		status: 'upcoming' | 'active' | 'hit' | 'missed' | 'playhead';
 		/** Text drawn inside the band below the staff (e.g. the lick's name). */
 		label?: string;
+		/** Explicit musical start for a label when coverage wraps to earlier chart bars. */
+		labelBar?: number;
 		/**
 		 * Progression identity colour (a CSS colour, e.g. a `var(--prog-*)` ref).
 		 * When set it tints the band + label to the matched progression's hue for
@@ -604,6 +606,7 @@
 			// With timeRange, each bar is clipped to the span first so mid-bar
 			// abutments split the shared bar rather than double-painting it.
 			const runs = new Map<number, { x0: number; x1: number }>();
+			let labelAnchor: { systemIdx: number; x: number } | undefined;
 			for (const zone of lastBarZones) {
 				const absBar = sectionBases[zone.sectionIdx] + zone.bar;
 				if (absBar < marker.startBar || absBar >= marker.endBarExclusive) continue;
@@ -624,6 +627,7 @@
 					x0 = clipped.x0;
 					x1 = clipped.x1;
 				}
+				if (absBar === marker.labelBar) labelAnchor = { systemIdx: zone.systemIdx, x: x0 };
 				const run = runs.get(zone.systemIdx);
 				if (run) {
 					run.x0 = Math.min(run.x0, x0);
@@ -666,21 +670,29 @@
 				band.wrapper.insertBefore(rect, band.wrapper.firstChild);
 
 				// Lick/progression name inside the band, below the staff — on the
-				// marker's first system wide enough to hold any text (a
-				// degenerately narrow run passes the label on to the next system).
+				// explicit musical start, or the first system wide enough when
+				// no anchor is supplied. Wrapped coverage must not move the name
+				// to the resolution at the top of the chart.
 				// Truncated to the run width so long names can't bleed into the
 				// next insertion point.
 				// (Playhead markers already `continue`d above — never labeled.)
-				if (marker.label && !labelPlaced && run.x1 - run.x0 > band.spacing * 4) {
+				const labelX = labelAnchor?.x ?? run.x0;
+				const labelHere = marker.labelBar === undefined || labelAnchor?.systemIdx === systemIdx;
+				const fontSize = band.spacing * 1.8;
+				const maxChars = Math.floor((run.x1 - labelX - band.spacing) / (fontSize * 0.58));
+				// An anchored label cannot move to a later system: allow even a
+				// single ellipsis in a narrow starting segment instead of hiding it.
+				const fitsLabel = marker.labelBar === undefined
+					? run.x1 - labelX > band.spacing * 4
+					: maxChars >= 1;
+				if (marker.label && !labelPlaced && labelHere && fitsLabel) {
 					labelPlaced = true;
-					const fontSize = band.spacing * 1.8;
-					const maxChars = Math.max(3, Math.floor((run.x1 - run.x0 - band.spacing) / (fontSize * 0.58)));
 					const text =
 						marker.label.length > maxChars
-							? marker.label.slice(0, Math.max(1, maxChars - 1)) + '…'
+							? marker.label.slice(0, Math.max(0, maxChars - 1)) + '…'
 							: marker.label;
 					const el = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-					el.setAttribute('x', (run.x0 + band.spacing * 0.6).toFixed(2));
+					el.setAttribute('x', (labelX + band.spacing * 0.6).toFixed(2));
 					el.setAttribute('y', (band.staffBottom + band.spacing * 1.9).toFixed(2));
 					el.setAttribute('font-size', fontSize.toFixed(2));
 					el.setAttribute('class', `range-marker range-marker-label marker-label-${marker.status}`);

@@ -299,6 +299,7 @@ export interface SessionPreview {
 		/** Whole-note span for mid-bar band clipping (see RangeMarker.timeRange). */
 		timeRange: { start: number; end: number };
 		label: string;
+		labelBar: number;
 		lickName: string | null;
 		progressionType: ChordProgressionType;
 	}[];
@@ -331,6 +332,7 @@ export function previewSessionPlan(sheet: Tune, playHead: boolean, choruses = 1)
 			endBarExclusive: ip.notationBarRange.endExclusive,
 			timeRange: ip.notationTimeRange,
 			label: lickName ?? ip.bandName,
+			labelBar: ip.notationLabelBar,
 			lickName,
 			progressionType: ip.progressionType
 		});

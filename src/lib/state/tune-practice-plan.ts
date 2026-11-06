@@ -65,6 +65,8 @@ export interface InsertionPoint {
 	/** Projection onto the notation timeline (chart markers). */
 	notationSegmentIndices: number[];
 	notationBarRange: { start: number; endExclusive: number };
+	/** First musical bar of the window, which can follow its resolution on the page. */
+	notationLabelBar: number;
 	/**
 	 * Notation-timeline span in whole-note units (half-open). Used to clip
 	 * chart bands to mid-bar boundaries so abutted progressions split a bar
@@ -425,6 +427,10 @@ export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
 		const notationTimeRange = Number.isFinite(notationStart)
 			? { start: notationStart, end: notationEnd }
 			: { start: startFloat, end: endFloat };
+		const firstNotationSegment = notationFlat.harmony[notationSegmentIndices[0]];
+		const notationLabelBar = firstNotationSegment
+			? Math.floor(fractionToFloat(firstNotationSegment.startOffset) / barWholeNotes + EPSILON)
+			: notationBarRange.start;
 
 		const suggestions =
 			suggestionLimit !== undefined ? w.suggestions.slice(0, suggestionLimit) : w.suggestions;
@@ -445,6 +451,7 @@ export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
 			},
 			notationSegmentIndices,
 			notationBarRange,
+			notationLabelBar,
 			notationTimeRange,
 			// Group markers by their notation segment set; fall back to the unique
 			// insertion id when provenance is missing, so points with no segment
