@@ -38,7 +38,7 @@
 | Library | Version | Role |
 |---|---|---|
 | [@supabase/supabase-js](https://supabase.com/docs/reference/javascript) + [@supabase/ssr](https://supabase.com/docs/guides/auth/server-side) | ^2.99 / ^0.12 | Auth + Postgres cloud sync; browser and per-request server clients (`src/lib/supabase/`) |
-| [@sentry/sveltekit](https://docs.sentry.io/platforms/javascript/guides/sveltekit/) | ^10.49 | Error monitoring, client replay tunnelled through `/api/monitoring`; source maps uploaded at build when a token is present |
+| [@sentry/sveltekit](https://docs.sentry.io/platforms/javascript/guides/sveltekit/) | ^10.49 | Error monitoring, client replay tunnelled through `/api/monitoring`; source maps uploaded at build when a token is present. Traces are sampled at `TRACES_SAMPLE_RATE` (`$lib/util/sentry-sampling`, 0.1) on both sides — tracing every request spent the organisation's shared span quota by 2026-10-24. The tunnel hands Sentry's 429, `X-Sentry-Rate-Limits` and `Retry-After` back to the SDK so it backs off a limited category instead of retrying into it |
 | [@anthropic-ai/sdk](https://github.com/anthropics/anthropic-sdk-typescript) | ^0.115 | The docs assistant (`/api/chat`) and lead-sheet PDF transcription (`/api/tune-parse`) |
 | [pdfjs-dist](https://mozilla.github.io/pdf.js/) | ^6.1 | Client-side PDF geometry + text-layer extraction for the PDF importer |
 | [driver.js](https://driverjs.com) | ^1.4 | Guided tours (`src/lib/tour/`) |

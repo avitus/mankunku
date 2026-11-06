@@ -10,6 +10,7 @@
  * seen on a 13-hour-old `vite dev`, 2026-09-10). The init must run once per process.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { TRACES_SAMPLE_RATE } from '../../../src/lib/util/sentry-sampling';
 
 const sentry = vi.hoisted(() => {
 	const state = { initialized: false };
@@ -38,6 +39,7 @@ interface SentOptions {
 	environment: string;
 	beforeSend(event: Record<string, unknown>, hint: unknown): Record<string, unknown> | null;
 	beforeSendTransaction(event: Record<string, unknown>): Record<string, unknown> | null;
+	tracesSampleRate: number;
 }
 
 async function initOptions(): Promise<SentOptions> {
@@ -82,6 +84,15 @@ describe('instrumentation.server', () => {
 			exception: { values: [{ type: 'Error', value: 'boom' }] }
 		};
 		expect(beforeSend(event, {})).toMatchObject({ environment: 'production' });
+	});
+
+	// 2026-11-05: tracing every request (1.0) on both sides spent the Sentry
+	// organisation's span quota by 2026-10-24, after which ingest refused every
+	// trace. The server samples at the shared rate the browser uses.
+	it('samples traces at the shared rate, not every request', async () => {
+		const { tracesSampleRate } = await initOptions();
+		expect(tracesSampleRate).toBe(TRACES_SAMPLE_RATE);
+		expect(tracesSampleRate).toBeLessThanOrEqual(0.1);
 	});
 
 	it('files a trace from a request to a local server under development', async () => {

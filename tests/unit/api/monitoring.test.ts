@@ -247,6 +247,43 @@ describe('POST /api/monitoring — happy path forwarding', () => {
 		expect(res.status).toBe(502);
 	});
 
+	it('passes Sentry\'s 429 and its back-off headers through to the SDK (2026-11-05)', async () => {
+		// The organisation's span quota ran out on 2026-10-24 and ingest answered
+		// every trace envelope with 429 + `X-Sentry-Rate-Limits: …:span_usage_exceeded`.
+		// The tunnel turned that into a bare 502, so the browser SDK never saw
+		// the limit, never backed off, and kept posting traces — 100–170 502s a
+		// day in nginx's log. The SDK reads both headers off whatever answers the
+		// tunnel URL, so the tunnel must hand them on with the real status.
+		const limits = '60:transaction;span:organization:span_usage_exceeded';
+		const upstream = vi.fn(
+			async () =>
+				new Response(null, {
+					status: 429,
+					headers: { 'X-Sentry-Rate-Limits': limits, 'Retry-After': '60' }
+				})
+		);
+		const envelope = `${JSON.stringify({ dsn: VALID_DSN })}\n{"type":"transaction"}\n{}`;
+		const res = await call(makeRequest(envelope), upstream as unknown as typeof fetch);
+		expect(res.status).toBe(429);
+		expect(res.headers.get('X-Sentry-Rate-Limits')).toBe(limits);
+		expect(res.headers.get('Retry-After')).toBe('60');
+	});
+
+	it('passes a partial rate limit through on an accepted envelope', async () => {
+		// Ingest can accept an envelope (200) while announcing a limit on one of
+		// its categories; the SDK must learn that too.
+		const limits = '60:replay:organization:replay_usage_exceeded';
+		const upstream = vi.fn(
+			async () =>
+				new Response(null, { status: 200, headers: { 'X-Sentry-Rate-Limits': limits } })
+		);
+		const envelope = `${JSON.stringify({ dsn: VALID_DSN })}\n{"type":"event"}\n{}`;
+		const res = await call(makeRequest(envelope), upstream as unknown as typeof fetch);
+		expect(res.status).toBe(200);
+		expect(res.headers.get('X-Sentry-Rate-Limits')).toBe(limits);
+		expect(res.headers.has('Retry-After')).toBe(false);
+	});
+
 	it('returns 504 when the upstream fetch times out', async () => {
 		const upstream = vi.fn(async () => {
 			const err = new Error('aborted');

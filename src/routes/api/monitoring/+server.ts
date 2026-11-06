@@ -25,6 +25,23 @@ const ALLOWED_PROJECT_IDS = new Set(['4511259307081728']);
  *  the cap stops an attacker from streaming arbitrary bytes into our process. */
 const MAX_ENVELOPE_SIZE_BYTES = 1_000_000;
 
+/**
+ * Sentry's back-off instructions, copied off an ingest response. The SDK reads
+ * `X-Sentry-Rate-Limits` and `Retry-After` from whatever answers the tunnel URL
+ * and stops sending a limited category until the window passes. Dropping them
+ * (and flattening a 429 to 502) left the SDK posting traces into an exhausted
+ * span quota on every page load: 100–170 refused envelopes a day from
+ * 2026-10-24, when the organisation's quota ran out.
+ */
+function rateLimitHeaders(upstream: Response): Headers {
+	const headers = new Headers();
+	for (const name of ['X-Sentry-Rate-Limits', 'Retry-After']) {
+		const value = upstream.headers.get(name);
+		if (value !== null) headers.set(name, value);
+	}
+	return headers;
+}
+
 async function readEnvelope(request: Request): Promise<string | Response> {
 	const body = request.body;
 	if (!body) return '';
@@ -118,7 +135,10 @@ export const POST: RequestHandler = async ({ request, fetch }) => {
 			body: envelope,
 			signal: AbortSignal.timeout(5000)
 		});
-		return new Response(null, { status: upstream.ok ? 200 : 502 });
+		return new Response(null, {
+			status: upstream.ok ? 200 : upstream.status === 429 ? 429 : 502,
+			headers: rateLimitHeaders(upstream)
+		});
 	} catch (err) {
 		const isTimeout = err instanceof Error && err.name === 'TimeoutError';
 		return new Response(null, { status: isTimeout ? 504 : 502 });

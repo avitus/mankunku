@@ -5,6 +5,7 @@ import {
   isEmptyErrorEvent,
   isLocalRequestEvent
 } from '$lib/util/sentry-filters';
+import { TRACES_SAMPLE_RATE } from '$lib/util/sentry-sampling';
 
 // SvelteKit loads this file via Node's `--import` flag, BEFORE Vite's transform
 // pipeline kicks in. That means `import.meta.env.DEV` is undefined here even
@@ -68,7 +69,8 @@ if (!Sentry.isInitialized()) {
       return event;
     },
 
-    tracesSampleRate: 1.0,
+    // A fraction, not every request: see $lib/util/sentry-sampling.
+    tracesSampleRate: TRACES_SAMPLE_RATE,
 
     // Enable logs to be sent to Sentry
     enableLogs: true,
