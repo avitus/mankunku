@@ -790,22 +790,22 @@ No exported functions — the community page reads/writes fields directly.
 
 ## lick-suggestions.svelte.ts
 
-Attribution-suggestion state for the `/licks/editor` page. Holds the locally-computed descriptive fallback name plus the server-returned attribution candidates. **Not persisted.**
+Optional song-name suggestions shared by the recorder and editor, including existing-lick edits. Never assigns or overwrites a title automatically. **Not persisted.**
 
 ### `suggestions`
 
 ```typescript
 export const suggestions = $state<{
-  fallbackName: string;               // Deterministic local fallback; always populated
-  matches: SuggestionMatch[];         // Async attribution candidates (may be empty)
+  matches: SuggestionMatch[];         // WJazzD candidates with an Artist - Song Name title
   loading: boolean;
+  unavailable: boolean;               // Lookup failed; custom naming remains available
   pickedFromSuggestion: string | null; // Name the user picked from a suggestion
 }>();
 ```
 
 ### Functions
 
-- `requestMatches(phrase): void` — Update the fallback name synchronously, clear stale matches, then debounce (600ms) a `/api/lick-match` request. Skips the network call for phrases with fewer than 6 pitched notes. Cancels any pending debounce / in-flight fetch first. The endpoint scores against the WJazzD attribution corpus with the shared n-gram matcher (`searchMatches` in `matching/search.ts`), passing `pitchWeight: 0.7` explicitly; the matcher's default of 0.6 is what tune practice's freestyle recognition uses.
+- `requestMatches(phrase): void` — Clear stale matches, then debounce (600ms) a `/api/lick-match` request. Skips the network call for phrases with fewer than 6 pitched notes. Cancels any pending debounce / in-flight fetch first. The endpoint scores against the WJazzD attribution corpus with the shared n-gram matcher (`searchMatches` in `matching/search.ts`), passing `pitchWeight: 0.7` explicitly; the matcher's default of 0.6 is what tune practice's freestyle recognition uses.
 - `clearSuggestions(): void` — Cancel timers/requests and reset all fields.
 - `markPickedFromSuggestion(label): void` — Record that the user adopted a suggested name.
 - `clearPickedFromSuggestion(): void` — Clear the picked-name marker.

@@ -34,12 +34,13 @@ test('preserves the recorded tenor register and written key in the editor', asyn
 	await page.waitForTimeout(1200);
 	await page.getByRole('button', { name: 'Stop recording' }).click();
 	await expect(page.getByRole('heading', { name: 'Make it your own.' })).toBeVisible();
-	await page.getByLabel('Lick name').fill('Tenor register handoff');
+	await expect(page.getByLabel('Lick name')).toHaveValue('');
 	await page.getByLabel('First note starts on').selectOption({ label: 'Beat 1' });
 	await page.getByLabel('Last note length').selectOption({ label: 'Half' });
 	await page.getByRole('button', { name: 'Review in editor' }).click();
 	await expect(page).toHaveURL(/\/licks\/editor$/);
-	await expect(page.locator('input.le-title')).toHaveValue('Tenor register handoff');
+	await expect(page.locator('input.le-title')).toHaveValue('');
+	await page.locator('input.le-title').fill('Tenor register handoff');
 	await expect(page.getByRole('combobox', { name: 'Key', exact: true })).toHaveValue('B');
 	await page.getByRole('button', { name: 'Save lick', exact: true }).click();
 	await expect.poll(() => page.evaluate(() => {

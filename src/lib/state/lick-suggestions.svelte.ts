@@ -1,18 +1,12 @@
-/**
- * Lick-suggestion state for the /licks/editor page.
- *
- * Holds the most recent descriptive fallback name and the server-returned
- * attribution candidates (if any). The fallback is computed locally and is
- * always populated; the matches arrive asynchronously and may be empty.
- */
+/** Optional attribution suggestions shared by the recorder and editor. Never assigns a name. */
 import type { Phrase } from '$lib/types/music';
 import { encodePhrase } from '$lib/matching/encode';
-import { fallbackName as computeFallback } from '$lib/matching/fallback-name';
 
 export interface SuggestionMatch {
 	kind: 'wjazzd' | 'quote';
 	sourceId: string;
 	label: string;
+	suggestedName?: string | null;
 	attribution: string;
 	license: 'CC-BY-NC-SA' | 'curated';
 	confidence: 'quote' | 'reminiscent';
@@ -20,17 +14,17 @@ export interface SuggestionMatch {
 }
 
 interface SuggestionsState {
-	fallbackName: string;
 	matches: SuggestionMatch[];
 	loading: boolean;
+	unavailable: boolean;
 	/** Name the user picked from a suggestion; cleared on reset. */
 	pickedFromSuggestion: string | null;
 }
 
 export const suggestions = $state<SuggestionsState>({
-	fallbackName: '',
 	matches: [],
 	loading: false,
+	unavailable: false,
 	pickedFromSuggestion: null
 });
 
@@ -40,6 +34,7 @@ const MIN_PITCHED_NOTES = 6;
 let debounceTimer: ReturnType<typeof setTimeout> | undefined;
 let inflight: AbortController | null = null;
 
+/** Debounce a song lookup, cancelling stale work without choosing a name. */
 export function requestMatches(phrase: Phrase): void {
 	// Cancel any pending debounce or in-flight fetch from a prior phrase so
 	// stale results can't resolve after a newer request has started.
@@ -51,14 +46,11 @@ export function requestMatches(phrase: Phrase): void {
 		inflight.abort();
 		inflight = null;
 	}
-
-	// Fallback is cheap and deterministic — update synchronously so the UI
-	// always has a name to show as a placeholder.
-	suggestions.fallbackName = computeFallback(phrase);
 	// Clear any stale matches from the previous phrase so they can't be applied
 	// to the edited phrase during the debounce/network gap.
 	suggestions.matches = [];
 	suggestions.loading = true;
+	suggestions.unavailable = false;
 
 	const feature = encodePhrase(phrase);
 	if (feature.intervals.length < MIN_PITCHED_NOTES - 1) {
@@ -72,6 +64,7 @@ export function requestMatches(phrase: Phrase): void {
 	}, DEBOUNCE_MS);
 }
 
+/** Publish only the current request, exposing failures for the custom-name prompt. */
 async function fetchMatches(intervals: number[], iois: number[]): Promise<void> {
 	if (inflight) inflight.abort();
 	const controller = new AbortController();
@@ -85,15 +78,18 @@ async function fetchMatches(intervals: number[], iois: number[]): Promise<void> 
 			body: JSON.stringify({ intervals, iois }),
 			signal: controller.signal
 		});
+		if (controller.signal.aborted) return;
 		if (!response.ok) {
+			suggestions.unavailable = true;
 			suggestions.matches = [];
 			return;
 		}
 		const data = (await response.json()) as { matches: SuggestionMatch[] };
 		if (controller.signal.aborted) return;
-		suggestions.matches = data.matches ?? [];
+		suggestions.matches = (data.matches ?? []).filter((match) => match.kind === 'wjazzd' && match.suggestedName?.trim());
 	} catch (err) {
-		if ((err as { name?: string })?.name === 'AbortError') return;
+		if (controller.signal.aborted || (err as { name?: string })?.name === 'AbortError') return;
+		suggestions.unavailable = true;
 		suggestions.matches = [];
 	} finally {
 		if (inflight === controller) {
@@ -103,15 +99,16 @@ async function fetchMatches(intervals: number[], iois: number[]): Promise<void> 
 	}
 }
 
+/** Cancel outstanding work and clear page-local naming suggestions. */
 export function clearSuggestions(): void {
 	if (debounceTimer) clearTimeout(debounceTimer);
 	debounceTimer = undefined;
 	if (inflight) inflight.abort();
 	inflight = null;
-	suggestions.fallbackName = '';
 	suggestions.matches = [];
 	suggestions.loading = false;
 	suggestions.pickedFromSuggestion = null;
+	suggestions.unavailable = false;
 }
 
 export function markPickedFromSuggestion(label: string): void {

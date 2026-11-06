@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, onDestroy, tick } from 'svelte';
+	import { onMount, onDestroy, tick, untrack } from 'svelte';
 	import { acquireScreenWakeLock, releaseScreenWakeLock } from '$lib/util/wake-lock';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
@@ -14,7 +14,10 @@
 	import { createTakeCapture, transcribeCapturedTake, type TakeCapture } from '$lib/audio/record-take-capture';
 	import { encodeWavMono16 } from '$lib/diagnostics/recording-export';
 	import { recordedPhrase, transcribeTakeWithKey, RECORD_COUNT_IN_BEATS } from '$lib/audio/record-transcription';
-	import { saveUserLick, getUserLicksLocal } from '$lib/persistence/user-licks';
+	import { saveUserLick } from '$lib/persistence/user-licks';
+	import SuggestionCard from '$lib/components/step-entry/SuggestionCard.svelte';
+	import { LICK_NAME_TEMPLATE } from '$lib/matching/lick-name';
+	import { suggestions, requestMatches, clearSuggestions, clearPickedFromSuggestion } from '$lib/state/lick-suggestions.svelte';
 	import { settings, getInstrument } from '$lib/state/settings.svelte';
 	import { setMasterVolume } from '$lib/audio/audio-context';
 	import NotationDisplay from '$lib/components/notation/NotationDisplay.svelte';
@@ -122,6 +125,20 @@
 	const reviewPhrase = $derived(reviewedTake ? recordedPhrase(performedNotes, takeKey) : null);
 	const performedPhrase: Phrase | null = $derived(reviewPhrase ? { ...reviewPhrase, key: takeKey, notes: performedNotes } : null);
 	let lickName = $state('');
+	let nameInput = $state<HTMLInputElement>();
+	const matchNotes = $derived(JSON.stringify(performedPhrase?.notes ?? []));
+	$effect(() => {
+		void matchNotes;
+		if (recordState === 'review') untrack(() => {
+			if (performedPhrase) requestMatches(performedPhrase);
+		});
+		else clearSuggestions();
+	});
+	$effect(() => {
+		if (suggestions.pickedFromSuggestion !== null && lickName !== suggestions.pickedFromSuggestion) {
+			clearPickedFromSuggestion();
+		}
+	});
 	let savedConfirmation = $state(false);
 
 	// Helpers
@@ -164,6 +181,7 @@
 
 	onDestroy(() => {
 		destroyed = true;
+		clearSuggestions();
 		run++;
 		clearTimeout(saveTimer);
 		analysis?.abort();
@@ -462,9 +480,7 @@
 			return;
 		}
 
-		const userLickCount = getUserLicksLocal().length;
-		const defaultName = `My Lick #${userLickCount + 1}`;
-		lickName = defaultName;
+		lickName = '';
 
 		firstAttack = undefined;
 		endingLabel = '';
@@ -490,16 +506,18 @@
 	}
 
 	/**
-	 * Saves the reviewed take under the typed name (falling back to its own), local
+	 * Saves the reviewed take under a nonblank typed or selected name, local
 	 * first with cloud sync when signed in, shows the confirmation and returns to
 	 * idle after 1.5 s. Ignored with no take or while the confirmation is showing.
 	 */
 	function handleSave() {
 		if (!reviewPhrase || savedConfirmation) return;
+		const name = lickName.trim();
+		if (!name) { nameInput?.focus(); return; }
 		void playbackModule?.stopPlayback();
 
 		// Local-first: save lick to localStorage, with optional cloud sync for authenticated users
-		saveUserLick({ ...reviewPhrase, name: lickName || reviewPhrase.name }, supabase ?? undefined);
+		saveUserLick({ ...reviewPhrase, name }, supabase ?? undefined);
 
 		savedConfirmation = true;
 		saveTimer = setTimeout(() => {
@@ -516,7 +534,7 @@
 		// The editor holds concert pitches and renders them for the instrument.
 		// Pass the same take shown above: the C-normalized storage copy can
 		// lower the line by eleven semitones, even below the instrument's range.
-		loadRecordingDraft({ ...performedPhrase, name: lickName || performedPhrase.name }, instrument);
+		loadRecordingDraft({ ...performedPhrase, name: lickName.trim() }, instrument);
 		void goto('/licks/editor');
 	}
 
@@ -546,7 +564,10 @@
 				</div>
 				{#if recordState === 'review' && reviewPhrase}
 					<div class="rl-review-head"><label for="lick-name">Lick name</label></div>
-					<input id="lick-name" class="rl-name" bind:value={lickName} disabled={savedConfirmation} />
+					<input id="lick-name" class="rl-name" bind:this={nameInput} bind:value={lickName} placeholder={LICK_NAME_TEMPLATE} aria-describedby="lick-name-help" disabled={savedConfirmation} />
+					<p id="lick-name-help" class="rl-review-note">Use Artist - Song Name, adding a number if needed. Example: Art Pepper - Stardust 2. Or enter your own name.</p>
+					{#if suggestions.pickedFromSuggestion}<p class="rl-review-note">Suggestion — not verified</p>{/if}
+					<SuggestionCard onpick={(name) => lickName = name} disabled={savedConfirmation} />
 					{#if originalAudio}<div class="rl-original"><span id="original-recording-label">Your recording</span>
 						<audio aria-labelledby="original-recording-label" bind:this={originalPlayer} src={originalAudio} controls preload="metadata" onplay={() => playbackModule?.stopPlayback()}></audio>
 					</div>{/if}

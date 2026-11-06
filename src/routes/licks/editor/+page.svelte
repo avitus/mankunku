@@ -40,6 +40,7 @@
 	import DurationSelector from '$lib/components/step-entry/DurationSelector.svelte';
 	import PitchEntryPanel from '$lib/components/step-entry/PitchEntryPanel.svelte';
 	import EntryConfig from '$lib/components/step-entry/EntryConfig.svelte';
+	import { LICK_NAME_TEMPLATE } from '$lib/matching/lick-name';
 	import SuggestionCard from '$lib/components/step-entry/SuggestionCard.svelte';
 	import {
 		suggestions,
@@ -76,15 +77,12 @@
 			: null
 	);
 
-	// Kick off suggestion lookup whenever the lick changes. The state module
-	// debounces the network call internally. Skip while editing — the user
-	// didn't ask for an attribution lookup on a lick they already own.
+	// Lookup depends on the music, never on typing or choosing a title.
+	const matchNotes = $derived(JSON.stringify(currentPhrase.notes));
 	$effect(() => {
-		if (hasNotes && !isEditing) {
-			requestMatches(currentPhrase);
-		} else {
-			clearSuggestions();
-		}
+		void matchNotes;
+		if (hasNotes) untrack(() => requestMatches(currentPhrase));
+		else clearSuggestions();
 	});
 
 	// If the user edits the name after picking a suggestion, stop calling it "not verified".
@@ -372,6 +370,7 @@
 		}
 	}
 
+	/** Save a named draft, update an existing lick, or adopt a library duplicate. */
 	function handleSave() {
 		if (!hasNotes) return;
 		stopPreview();
@@ -435,8 +434,7 @@
 			return;
 		}
 
-		const typed = stepEntry.phraseName.trim();
-		const effectiveName = typed || suggestions.fallbackName.trim();
+		const effectiveName = stepEntry.phraseName.trim();
 		if (!effectiveName) {
 			nameInput?.focus();
 			return;
@@ -516,7 +514,8 @@
 					<header class="le-chart-heading">
 						<div>
 							<p class="studio-label">01 / Your phrase</p>
-							<input class="le-title" type="text" bind:this={nameInput} bind:value={stepEntry.phraseName} onkeydown={handleTitleInputKeydown} placeholder={suggestions.fallbackName || 'Untitled lick'} aria-label="Lick title" />
+							<input class="le-title" type="text" bind:this={nameInput} bind:value={stepEntry.phraseName} onkeydown={handleTitleInputKeydown} placeholder={LICK_NAME_TEMPLATE} aria-describedby="lick-name-help" aria-label="Lick title" />
+							<p id="lick-name-help" class="le-suggestion-caption">Use Artist - Song Name, adding a number if needed. Example: Art Pepper - Stardust 2. Or enter your own name.</p>
 							{#if suggestions.pickedFromSuggestion}<p class="le-suggestion-caption">Suggestion — not verified</p>{/if}
 							<div class="le-chart-meta"><span>{keyLabelLong(stepEntry.phraseKey, stepEntry.phraseMode)}</span><span>·</span><span>4/4</span><span>·</span><span>{stepEntry.barCount} bars</span><span class="le-badge">{isEditing ? 'Editing' : 'Draft'}</span></div>
 						</div>
@@ -564,7 +563,7 @@
 					{:else}Notes follow the written key for your instrument.{/if}
 				</div>
 				{#if duplicateMatch && !isEditing}<p class="le-duplicate">Already in the library as <strong>{duplicateMatch.name}</strong>. Saving will steal it into your library instead of creating a duplicate.</p>{/if}
-				<SuggestionCard />
+				<SuggestionCard onpick={(name) => stepEntry.phraseName = name} editingId={stepEntry.editingId} disabled={savedConfirmation} />
 			</div>
 
 			<aside class="le-inspector" aria-label="Phrase settings">
