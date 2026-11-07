@@ -5,7 +5,7 @@
 	import { acquireScreenWakeLock, releaseScreenWakeLock } from '$lib/util/wake-lock';
 	import { page } from '$app/state';
 	import NotationDisplay, { type RangeMarker } from '$lib/components/notation/NotationDisplay.svelte';
-	import { anticipatoryFollowBar } from '$lib/notation/follow-scroll';
+	import { anticipatoryFollowPosition } from '$lib/notation/follow-scroll';
 	import TuneChordChart from '$lib/components/tunes/TuneChordChart.svelte';
 	import SuggestionPickCard, { type PickEntry } from '$lib/components/tune-practice/SuggestionPickCard.svelte';
 	import TunePracticeSetup from '$lib/components/tune-practice/TunePracticeSetup.svelte';
@@ -310,9 +310,13 @@
 		return notationBarForPlaybackBar(flat.sectionMap, sheet.sections, source);
 	}
 	const playheadBarFraction = $derived(chartBarAt(playheadBarF));
-	const followBarFraction = $derived(audioPlan
-		? anticipatoryFollowBar(playheadBarF, audioPlan.sheet.timeSignature[0] * 4 / audioPlan.sheet.timeSignature[1], chartBarAt)
-		: null);
+	const followPosition = $derived(audioPlan
+		? anticipatoryFollowPosition(playheadBarF, audioPlan.sheet.timeSignature[0] * 4 / audioPlan.sheet.timeSignature[1], chartBarAt)
+		: playheadBarF);
+	const followBarFraction = $derived(chartBarAt(followPosition));
+	// Switch presentation at the early return without advancing audio or scoring.
+	const showSoloChart = $derived(tunePractice.phase === 'running' ||
+		(tunePractice.phase === 'head' && audioPlan !== null && followPosition >= audioPlan.leadBars));
 
 	const playheadBar = $derived(playheadBarFraction === null || (chartSheet && isInPickupLeadIn(chartSheet, playheadBarFraction)) ? null : Math.floor(playheadBarFraction));
 
@@ -944,7 +948,7 @@
 			/>
 		{/if}
 
-		{#if displayedSheet && tunePractice.phase === 'running'}
+		{#if displayedSheet && showSoloChart}
 			<TuneChordChart tune={chartSheet!} instrument={getInstrument()} currentBar={playheadBarFraction} followBar={followBarFraction} {markers} />
 		{:else if displayedSheet}
 			<!-- The chart follows the playhead by translating within its own clipped

@@ -121,6 +121,7 @@ describe('tune desk playback', () => {
 		expect(player.soloChorus).toBe(2);
 		at(16.25); // outro includes B again
 		expect(player.phase).toBe('outro');
+		expect(player.showSoloChart).toBe(false);
 		expect(player.chartBar).toBeCloseTo(2.25);
 		finish(); await started;
 	});
@@ -139,13 +140,21 @@ describe('tune desk playback', () => {
 		};
 		at(2.2);
 		expect(player.phase).toBe('head');
+		at(4.98); // Just before the two-beat return.
+		expect(player.showSoloChart).toBe(false);
+		at(5); // Return begins while the head still sounds.
+		expect(player.phase).toBe('head');
+		expect(player.followBar).toBe(0);
+		expect(player.showSoloChart).toBe(true);
 		at(6.2);
 		expect(player.phase).toBe('solo');
+		expect(player.showSoloChart).toBe(true);
 		expect(player.soloChorus).toBe(1);
 		at(10.2);
 		expect(player.soloChorus).toBe(2);
 		at(14.2);
 		expect(player.phase).toBe('outro');
+		expect(player.showSoloChart).toBe(false);
 		expect(player.chartBar).toBeCloseTo(.1);
 		callbacks.onNote({ sourceIndex: 1 });
 		expect(player.cursorIndex).toBe(0); // Closing head points to the original chart.
