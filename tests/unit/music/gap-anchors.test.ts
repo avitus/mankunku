@@ -13,10 +13,12 @@ function sheet(notes: Tune['sections'][number]['notes'], bars = 2): Tune {
 }
 
 describe('gap anchors', () => {
-	it('anchors the gap after a half note with its section-local offset and length, and leaves a slash bar alone', () => {
+	it('anchors the gap after a half note with its section-local offset and length, and anchors the following full-bar rest', () => {
 		const { abc, gapAnchors, noteAnchors } = tuneToAbcWithMap(sheet([{ pitch: 62, duration: [1, 2], offset: [0, 1] }]), undefined, { preserveRestBoundaries: true });
 		expect(noteAnchors).toHaveLength(1);
-		expect(gapAnchors).toHaveLength(1); // bar 2 is a slash bar: a bar click, not a gap
+		expect(gapAnchors).toHaveLength(2);
+		expect(gapAnchors[1]).toMatchObject({ sectionIdx: 0, offset: 1, duration: 1 });
+		expect(abc.slice(gapAnchors[1].startChar, gapAnchors[1].endChar)).toBe('z8');
 		expect(gapAnchors[0]).toMatchObject({ sectionIdx: 0, offset: 0.5, duration: 0.5 });
 		expect(gapAnchors[0].startChar).toBeGreaterThan(noteAnchors[0].endChar - 1);
 		expect(abc).toBe(tuneToAbcWithMap(sheet([{ pitch: 62, duration: [1, 2], offset: [0, 1] }])).abc);
@@ -39,6 +41,7 @@ describe('gap anchors', () => {
 			{ pitch: null, duration: [1, 2], offset: [1, 2] }
 		]), undefined, { preserveRestBoundaries: true });
 		expect(noteAnchors.filter((a) => a.rest)).toHaveLength(1);
-		expect(gapAnchors).toHaveLength(0);
+		expect(gapAnchors).toHaveLength(1);
+		expect(gapAnchors[0]).toMatchObject({ sectionIdx: 0, offset: 1, duration: 1 });
 	});
 });

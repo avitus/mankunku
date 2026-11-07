@@ -309,18 +309,18 @@ export const tourState = $state({
 
 ### Lick Suggestions State (`src/lib/state/lick-suggestions.svelte.ts`)
 
-Descriptive fallback name plus server-returned attribution candidates for the lick editor (`/licks/editor`). **Not persisted.**
+Optional artist/song title candidates shared by recorder review and the lick editor (`/licks/editor`). **Not persisted.**
 
 ```typescript
 export const suggestions = $state<SuggestionsState>({
-  fallbackName: '',                    // computed locally, always populated
-  matches: [],                         // arrive asynchronously, may be empty
+  matches: [],                         // Song matches arrive asynchronously, may be empty
   loading: false,
-  pickedFromSuggestion: null           // name the user picked; cleared on reset
+  unavailable: false,                 // Failed lookup; custom naming still works
+  pickedFromSuggestion: null           // Name the user picked; cleared on reset
 });
 ```
 
-The fallback name is computed locally from the entered phrase (`fallback-name.ts`); the `matches` (quote / wjazzd attribution candidates from `/api/lick-match`) arrive asynchronously via `requestMatches(phrase)` and may be empty. `clearSuggestions()`, `markPickedFromSuggestion(label)`, `clearPickedFromSuggestion()`.
+Song matches from `/api/lick-match` arrive asynchronously via `requestMatches(phrase)` and may be empty. Only WJazzD results with `suggestedName` are offered as titles; generic curated patterns are not artist/song names. Selection is optional, uses `Artist - Song Name`, and numbers local collisions starting at 2. Both pages prompt for a nonblank custom title when nothing matches. Typing a title does not restart lookup. `clearSuggestions()`, `markPickedFromSuggestion(label)`, `clearPickedFromSuggestion()`.
 
 ### Tune Entry State (`src/lib/state/tune-entry.svelte.ts`)
 

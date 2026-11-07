@@ -18,12 +18,17 @@ test.describe('record a lick: Studio Desk', () => {
 	});
 
 	for (const figure of [
+		{ name: 'song suggestion', played: [0, 0.5, 1, 1.5, 2, 2.5], written: [0, 3, 6, 9, 12, 15] },
 		{ name: 'swung eighths', played: [0, 0.65, 1, 1.65, 2], written: [0, 3, 6, 9, 12] },
 		{ name: 'even triplets', played: [0, 1/3, 2/3, 1, 2], written: [0, 2, 4, 6, 12] }
 	]) {
 		test(`records and saves ${figure.name} against the live count-in`, async ({ page }, info) => {
 			test.setTimeout(60_000);
 			await openRecorder(page);
+			await page.route('**/api/lick-match', route => route.fulfill({ json: { matches: figure.name === 'song suggestion' ? [{
+				kind: 'wjazzd', sourceId: 'test', label: 'Art Pepper — Stardust, bar -1', suggestedName: 'Art Pepper - Stardust',
+				attribution: 'Weimar Jazz Database: Art Pepper — Stardust', license: 'CC-BY-NC-SA', confidence: 'quote', score: 1
+			}] : [] } }));
 			await page.getByRole('spinbutton', { name: 'Tempo' }).fill('80');
 			await page.getByRole('spinbutton', { name: 'Tempo' }).blur();
 			// Schedule pitched attacks on an actual Web Audio clock when the
@@ -37,7 +42,7 @@ test.describe('record a lick: Studio Desk', () => {
 						if (!document.querySelector('.rl-console h2')?.textContent?.includes('Play now.')) return;
 						observer.disconnect();
 						const start = ctx.currentTime + 0.10;
-						const pitches = [60, 64, 67, 65, 62];
+						const pitches = [60, 64, 67, 65, 62, 63];
 						for (const [i, beat] of played.entries()) {
 							const on = start + beat * 0.75;
 							const off = start + (played[i + 1] ?? 4) * 0.75 - 0.025;
@@ -63,8 +68,22 @@ test.describe('record a lick: Studio Desk', () => {
 			// jumps or drops a block during the synthetic performance.
 			const recorded = await page.locator('audio').evaluateHandle(async player =>
 				(await fetch((player as HTMLAudioElement).currentSrc)).blob());
-			await page.getByLabel('Lick name').fill(figure.name);
+			await expect(page.getByLabel('Lick name')).toHaveValue('');
+			await expect(page.locator('#lick-name-help')).toContainText('Artist - Song Name');
 			await page.getByRole('button', { name: 'Save to Book' }).click();
+			await expect(page.getByLabel('Lick name')).toBeFocused();
+			if (figure.name === 'song suggestion') {
+				await page.getByRole('button', { name: /Art Pepper - Stardust/ }).click();
+				await expect(page.getByLabel('Lick name')).toHaveValue('Art Pepper - Stardust');
+				await page.setViewportSize({ width: 390, height: 1000 });
+				await info.attach('Recorder naming on mobile', { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' });
+			} else {
+				await expect(page.getByText('No song match found. Enter your own name.', { exact: true })).toBeVisible();
+				await page.getByLabel('Lick name').fill(figure.name);
+			}
+			await page.getByRole('button', { name: 'Save to Book' }).click();
+			await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('mankunku:user-licks') ?? '[]')[0]?.name))
+				.toBe(figure.name === 'song suggestion' ? 'Art Pepper - Stardust' : figure.name);
 			const savedTicks = () => page.evaluate(() => {
 				const [lick] = JSON.parse(localStorage.getItem('mankunku:user-licks') ?? '[]');
 				return lick?.notes.filter((n: { pitch: number | null }) => n.pitch !== null)
@@ -72,7 +91,13 @@ test.describe('record a lick: Studio Desk', () => {
 						[24 * n.offset[0] / n.offset[1], 24 * n.duration[0] / n.duration[1]]);
 			});
 			try {
-				await expect.poll(savedTicks).toEqual(figure.written.map((t, i) => [t, (figure.written[i + 1] ?? 24) - t]));
+				if (figure.name === 'song suggestion') {
+					// This case covers naming and saving a matchable recording. The
+					// rhythm cases below retain their exact transcription assertions.
+					await expect.poll(async () => (await savedTicks())?.length ?? 0).toBeGreaterThanOrEqual(6);
+				} else {
+					await expect.poll(savedTicks).toEqual(figure.written.map((t, i) => [t, (figure.written[i + 1] ?? 24) - t]));
+				}
 			} catch (error) {
 				const bytes = await recorded.evaluate(async blob => Array.from(new Uint8Array(await blob.arrayBuffer())));
 				await info.attach('recorded microphone input', { body: Buffer.from(bytes), contentType: 'audio/wav' });

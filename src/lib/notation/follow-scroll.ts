@@ -20,15 +20,24 @@ export function anticipatoryFollowBar(
 	quartersPerBar: number,
 	chartBarAt: (bar: number) => number | null
 ): number | null {
+	return chartBarAt(anticipatoryFollowPosition(playbackBar, quartersPerBar, chartBarAt));
+}
+
+/** Session position being previewed, so chart presentation can follow the same return. */
+export function anticipatoryFollowPosition(
+	playbackBar: number,
+	quartersPerBar: number,
+	chartBarAt: (bar: number) => number | null
+): number {
 	const current = chartBarAt(playbackBar);
-	if (current === null || !Number.isFinite(playbackBar) || !Number.isFinite(quartersPerBar) || !(quartersPerBar > 0)) return current;
+	if (current === null || !Number.isFinite(playbackBar) || !Number.isFinite(quartersPerBar) || !(quartersPerBar > 0)) return playbackBar;
 	const horizon = playbackBar + 2 / quartersPerBar;
 	for (let boundary = Math.floor(playbackBar) + 1; boundary <= horizon; boundary++) {
 		const before = chartBarAt(boundary - 1);
 		const after = chartBarAt(boundary);
-		if (before !== null && after !== null && after < before + 1) return after;
+		if (before !== null && after !== null && after < before + 1) return boundary;
 	}
-	return current;
+	return playbackBar;
 }
 
 /** One rendered staff system and the absolute notation bars it covers. */

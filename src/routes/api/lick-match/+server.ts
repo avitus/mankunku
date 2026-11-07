@@ -5,8 +5,7 @@
  * (intervals + IOIs) and POSTs the two arrays. The server searches an
  * in-memory index built from the Weimar Jazz Database (CC-BY-NC-SA) and a
  * curated quote library, returning ranked attribution candidates. The
- * client is responsible for the descriptive fallback name; this endpoint
- * only does matching.
+ * client offers a naming template when no song match is found.
  */
 import type { RequestHandler } from './$types';
 import quotesData from '$lib/matching/data/quotes.json';
@@ -83,6 +82,7 @@ interface MatchResponse {
 	kind: 'wjazzd' | 'quote';
 	sourceId: string;
 	label: string;
+	suggestedName: string | null;
 	attribution: string;
 	license: 'CC-BY-NC-SA' | 'curated';
 	confidence: 'quote' | 'reminiscent';
@@ -91,6 +91,7 @@ interface MatchResponse {
 	queryLength: number;
 }
 
+/** Search the attribution corpus and return optional artist/song titles with source metadata. */
 export const POST: RequestHandler = async ({ request }) => {
 	// Fast path on the declared size; readBodyBounded below is the real gate.
 	const contentLength = Number(request.headers.get('content-length'));
@@ -176,6 +177,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		kind: r.source.kind === 'wjazzd' ? 'wjazzd' : 'quote',
 		sourceId: r.sourceId,
 		label: formatLabel(r.source, r.startBar),
+		suggestedName: r.source.kind === 'wjazzd' ? `${r.source.performer} - ${r.source.title}` : null,
 		attribution: formatAttribution(r.source),
 		license: r.source.kind === 'wjazzd' ? 'CC-BY-NC-SA' : 'curated',
 		confidence: r.score >= 0.9 ? 'quote' : 'reminiscent',

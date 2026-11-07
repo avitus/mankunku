@@ -2,12 +2,12 @@ import type { Tune } from '$lib/types/tune';
 import type { BackingStyle } from '$lib/types/instruments';
 import { settings } from './settings.svelte';
 import { melodySwingForStyle } from '$lib/audio/backing-styles';
-import { tuneMelodyLevel } from '$lib/audio/backing-mix';
+import { TUNE_BACKING_LEVEL } from '$lib/audio/backing-mix';
 import { tuneToPhraseWithFlat } from '$lib/tunes/to-phrase';
 import { playbackBarForSessionBar, notationBarForPlaybackBar } from './tune-practice-plan';
 import { clampTuneTempo, savedTuneTempo } from '$lib/tunes/tune-tempo';
 import { formLoopRegion } from '$lib/tunes/form-loop';
-import { anticipatoryFollowBar } from '$lib/notation/follow-scroll';
+import { anticipatoryFollowPosition } from '$lib/notation/follow-scroll';
 import { loopPlaybackBar } from '$lib/audio/phrase-loop';
 import { countInBarsForTempo } from '$lib/audio/drum-count-in';
 import { isInPickupLeadIn } from '$lib/music/pickup';
@@ -33,6 +33,7 @@ export class TunePlayer {
 	playHead = $state(true);
 	closing = $state(false);
 	phase = $state<'head' | 'solo' | 'outro'>('head');
+	showSoloChart = $state(false);
 	soloChorus = $state(0);
 	/** Restore this user’s shared tune audio and head/outro choices on desk entry. */
 	restorePlaybackPreferences(): void {
@@ -100,6 +101,7 @@ export class TunePlayer {
 		this.followBar = null;
 		this.cursorIndex = null;
 		this.phase = 'head';
+		this.showSoloChart = false;
 		this.closing = false;
 		this.soloChorus = 0;
 	}
@@ -142,10 +144,9 @@ export class TunePlayer {
 				tempo, swing: melodySwingForStyle(settings.swing, style),
 				countInBeats: 0, metronomeEnabled: this.metronome, metronomeVolume: settings.metronomeVolume,
 				backingTrackEnabled: backing, backingInstrument: settings.backingInstrument,
-				backingTrackVolume: settings.backingTrackVolume, backingStyle: style
+				backingTrackVolume: settings.backingTrackVolume, backingOutputLevel: TUNE_BACKING_LEVEL, backingStyle: style
 			}, false, {
 				skipMelody: !melody,
-				melodyLevel: tuneMelodyLevel(backing),
 				// The drummer counts the tune in whenever the band's kit is loaded,
 				// on through a pickup bar: the band enters after it.
 				countIn: { bars: countInBars, drums: true, pickup: (!jam || jam.headBars > 0) && isInPickupLeadIn(tune, 0) },
@@ -182,7 +183,7 @@ export class TunePlayer {
 						const chartSheet = jam ? (this.closing ? jam.closingSheet : jam.sheet) : tune;
 						const chartBar = notationBarForPlaybackBar(chartFlat.sectionMap, chartSheet.sections, sourceBar);
 						this.chartBar = chartBar !== null && isInPickupLeadIn(chartSheet, chartBar) ? null : chartBar;
-						this.followBar = anticipatoryFollowBar(bar, printedBarQuarters, (position) => {
+						const chartBarAt = (position: number): number | null => {
 							if (jam && position >= jam.phraseBars) return null;
 							const closing = jam && jam.closingStartBar !== null && position >= jam.closingStartBar;
 							const targetFlat = closing ? jam.closingFlat : flat;
@@ -192,7 +193,11 @@ export class TunePlayer {
 								: loopPlaybackBar(position, region, returns + (this.loop ? 1 : 0));
 							const target = notationBarForPlaybackBar(targetFlat.sectionMap, targetSheet.sections, source);
 							return target !== null && isInPickupLeadIn(targetSheet, target) ? null : target;
-						});
+						};
+						const followPosition = anticipatoryFollowPosition(bar, printedBarQuarters, chartBarAt);
+						this.followBar = chartBarAt(followPosition);
+						// Preview the solo chart with the return; audio phase stays on the head.
+						this.showSoloChart = this.phase === 'solo' || !!(jam && this.phase === 'head' && followPosition >= jam.headBars);
 					};
 					update();
 					this.ticker = setInterval(update, 50);

@@ -14,8 +14,8 @@ export const CHART_STAFF_WIDTH = 750;
 
 /** Minimum bars per system (dense 16th-note heads, stacked alterations). */
 export const BARS_PER_LINE_MIN = 3;
-/** Maximum bars per system (sparse / empty intro stretches). */
-export const BARS_PER_LINE_MAX = 6;
+/** Preserve four-bar phrasing even in sparse / empty stretches. */
+export const BARS_PER_LINE_MAX = 4;
 /** Classic Real Book default when density is unremarkable. */
 export const BARS_PER_LINE_DEFAULT = 4;
 
@@ -142,21 +142,17 @@ export function multiRestRuns(
 
 /**
  * Choose bars-per-system from melody + chord density.
- * Dense bars (many notes or several mid-bar chords) get fewer bars/line so
- * spacing stays readable; sparse / empty stretches get more.
+ * Four bars are standard, including empty bars and ordinary eighth-note runs.
+ * Only exceptionally dense bars (12+ notes or 4+ chord changes) use three.
+ * A passing third chord must not reflow the entire head (Autumn in New York).
  */
 export function suggestBarsPerLine(sheet: Tune): number {
 	const barDuration = sheet.timeSignature[0] / sheet.timeSignature[1];
-	let totalBars = 0;
-	let totalNotes = 0;
 	let maxNotes = 0;
 	let maxChords = 0;
-	let denseBars = 0;
-	let sparseBars = 0;
 
 	for (const sec of sheet.sections) {
 		for (let b = 0; b < sec.bars; b++) {
-			totalBars += 1;
 			const barStart = b * barDuration;
 			const barEnd = barStart + barDuration;
 			let notes = 0;
@@ -171,33 +167,10 @@ export function suggestBarsPerLine(sheet: Tune): number {
 				const at = fractionToFloat(h.startOffset);
 				if (at >= barStart - 1e-9 && at < barEnd - 1e-9) chords += 1;
 			}
-			totalNotes += notes;
 			if (notes > maxNotes) maxNotes = notes;
 			if (chords > maxChords) maxChords = chords;
-			if (notes >= 8 || chords >= 3) denseBars += 1;
-			// "Sparse" means melody-silent (comp-only) — a single whole note is
-			// ordinary lead-sheet density, not a candidate for 5–6 bars/line.
-			if (notes === 0) sparseBars += 1;
 		}
 	}
 
-	if (totalBars === 0) return BARS_PER_LINE_DEFAULT;
-
-	const avg = totalNotes / totalBars;
-	const denseShare = denseBars / totalBars;
-	const sparseShare = sparseBars / totalBars;
-
-	let bpl = BARS_PER_LINE_DEFAULT;
-	if (denseShare >= 0.35 || avg >= 7 || maxNotes >= 12) bpl = 3;
-	else if (avg >= 5 || maxChords >= 3) bpl = 3;
-	// The dense/medium cases above have already diverted, so anything reaching
-	// here is genuinely sparse (avg < 5, no dense bars, maxNotes < 12). Grade the
-	// widening on the empty-bar share alone: gating this on `avg === 0` (as it was)
-	// made the 5-branch unreachable, since a fully melody-silent chart always has
-	// sparseShare === 1 and took the 6-branch. A mostly-empty chart with a few
-	// melodic bars still reads as sparse and should widen too.
-	else if (sparseShare >= 0.85) bpl = 6;
-	else if (sparseShare >= 0.6) bpl = 5;
-
-	return Math.min(BARS_PER_LINE_MAX, Math.max(BARS_PER_LINE_MIN, bpl));
+	return maxNotes >= 12 || maxChords >= 4 ? BARS_PER_LINE_MIN : BARS_PER_LINE_DEFAULT;
 }

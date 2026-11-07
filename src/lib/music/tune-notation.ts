@@ -48,8 +48,8 @@ export {
 } from './chart-layout';
 export { placeEndingSection } from './ending-layout';
 // multiRestRuns is exported for callers/tests; empty bars currently engrave
-// as beat-aligned slashes (jazz idiom). Collapsing them to ABC Z{n} multi-
-// rests is deferred — it fights bar anchors, system reflow, and playhead zones.
+// as individual rests in heads and slashes in chord-only charts. ABC Z{n} multi-
+// rests remain deferred — they fight bar anchors, system reflow, and playhead zones.
 
 /**
  * ABC generation for tunes — full song forms with chord symbols,
@@ -103,7 +103,7 @@ export interface BarAnchor {
  * to its position (2026-10-16). A PDF import stores no rests at all, so
  * without this a click on such a rest had nothing to select and fell through
  * to the bar; the editor materializes the gap as a rest element and selects
- * it. Slash bars (whole-bar silence) stay bar clicks and get no gap anchor.
+ * it. Chord-only slash bars stay bar clicks and get no gap anchor.
  */
 export interface GapAnchor {
 	startChar: number;
@@ -245,10 +245,12 @@ export function tuneToAbcWithMap(
 	const keySigAccidentals: KeySigMap = signatureAccidentalsFor(displayKey, mode);
 
 	const barDuration = sheet.timeSignature[0] / sheet.timeSignature[1];
-	// Melody-silent bars engrave as beat-aligned rhythm slashes (jazz chart
-	// idiom) instead of whole rests; the chord voice uses invisible spacers
-	// there so rests and slashes never double-print.
-	const slashAbsBars = emptyMelodyBars(sheet);
+	// Only a chart with no melody entries is a chord-only slash chart.
+	// Silence inside a head (including an entirely silent section) is a rest.
+	// Explicit stored rests also carry musical intent, even without pitches.
+	const slashAbsBars = sheet.sections.every((section) => section.notes.length === 0)
+		? emptyMelodyBars(sheet)
+		: new Set<number>();
 
 	const headerLines: string[] = [
 		`X:1`,
@@ -326,7 +328,7 @@ export function tuneToAbcWithMap(
 		openBar = null;
 	}
 
-	// Whole empty bar → beat-aligned jazz slashes in the melody voice. Shared
+	// Whole empty bar in a chord-only chart → beat-aligned jazz slashes. Shared
 	// by renderElement (what to draw) and emitElement (slash bars are never
 	// anchored — clicking one keeps arming the bar cursor) so the two can't
 	// drift.
@@ -340,8 +342,8 @@ export function tuneToAbcWithMap(
 	}
 
 	/**
-	 * The ABC token for one display element: a whole empty bar draws as
-	 * rhythm slashes, any other rest as `z`, and a note as its written pitch —
+	 * The ABC token for one display element: chord-only bars draw as rhythm
+	 * slashes, rests as `z`, and notes as their written pitch —
 	 * spelled by the app's ONE enharmonic policy against the running bar
 	 * state — with its articulation prefix and tie.
 	 */
@@ -351,8 +353,8 @@ export function tuneToAbcWithMap(
 			if (isSlashBarRest(note, duration)) {
 				return slashBarAbc(sheet.timeSignature, defaultLength);
 			}
-			// Partial rest inside a bar that has melody: visible rest in M
-			// (single-voice placement — H no longer draws rests).
+			// abcjs engraves a measure-length z as a whole-measure rest in
+			// any meter; shorter rests retain their ordinary duration glyph.
 			return `z${durationToAbc(duration, defaultLength)}`;
 		}
 		const midi = instrument ? concertToWritten(note.pitch, instrument) : note.pitch;

@@ -138,10 +138,10 @@ let currentInstrumentType: BackingInstrument | null = null;
 
 // The backing bus (increment 9). Everything backing — bass, panned comp,
 // the split drum kit and the room return — flows through `backingGain`
-// (the volume fader) into a gentle glue compressor and only then into
+// (the volume fader) into a gentle glue compressor, a session output gain, then into
 // master, which itself stays untouched (it carries the melody):
 //
-//   bassGain ──────────────────────► backingGain ─► busCompressor ─► master
+//   bassGain ──────────────────────► backingGain ─► busCompressor ─► backingOutput ─► master
 //   compGain ─► compPan ───────────►      ▲
 //   drum samplers ─► pans ─► drumBus ─────┤
 //   sends ─► roomConvolver ─► roomReturn ─┘
@@ -150,6 +150,7 @@ let currentInstrumentType: BackingInstrument | null = null;
 // balance track the dry signal; drum-family sends are scaled by the kit
 // trim in `applyMixGains` because `drumBus` sits downstream of the taps.
 let backingGain: GainNode | null = null;
+let backingOutput: GainNode | null = null;
 let busCompressor: DynamicsCompressorNode | null = null;
 let bassGain: GainNode | null = null;
 let compGain: GainNode | null = null;
@@ -186,7 +187,7 @@ function applyMixGains(): void {
 }
 
 /**
- * Create the shared backing bus (volume fader → glue compressor → master)
+ * Create the shared backing bus (fader → compressor → session level → master)
  * and the bass/comp branches, idempotently. Both `loadBackingInstruments`
  * and `ensureDrums` call this, so whichever runs first builds the bus.
  */
@@ -198,7 +199,10 @@ function ensureBackingGraph(audioCtx: AudioContext): void {
 		compressor.ratio.value = BACKING_BUS_COMPRESSOR.ratio;
 		compressor.attack.value = BACKING_BUS_COMPRESSOR.attack;
 		compressor.release.value = BACKING_BUS_COMPRESSOR.release;
-		compressor.connect(getMasterGain());
+		backingOutput = audioCtx.createGain();
+		backingOutput.gain.value = 1;
+		backingOutput.connect(getMasterGain());
+		compressor.connect(backingOutput);
 		const gain = audioCtx.createGain();
 		gain.gain.value = currentBackingVolume;
 		gain.connect(compressor);
@@ -1153,6 +1157,7 @@ export async function scheduleBackingTrack(
 	// swung ride eighths and section-final setups are tick-placed events,
 	// generated up front so the whole kit shares the swing grid.
 	setBackingTrackVolume(options.backingTrackVolume ?? 0.5);
+	if (backingOutput) backingOutput.gain.value = options.backingOutputLevel ?? 1;
 
 	drumPart = new Tone.Part(playDrum, scheduleBoundaryEvents(drumEvents, playDrum, boundary));
 	drumPart.start(`${tickOffset}i`);
@@ -1240,6 +1245,10 @@ export function disposeBackingTrack(): void {
 	if (backingGain) {
 		backingGain.disconnect();
 		backingGain = null;
+	}
+	if (backingOutput) {
+		backingOutput.disconnect();
+		backingOutput = null;
 	}
 	if (busCompressor) {
 		busCompressor.disconnect();

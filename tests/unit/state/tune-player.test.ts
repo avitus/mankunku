@@ -121,6 +121,7 @@ describe('tune desk playback', () => {
 		expect(player.soloChorus).toBe(2);
 		at(16.25); // outro includes B again
 		expect(player.phase).toBe('outro');
+		expect(player.showSoloChart).toBe(false);
 		expect(player.chartBar).toBeCloseTo(2.25);
 		finish(); await started;
 	});
@@ -139,13 +140,21 @@ describe('tune desk playback', () => {
 		};
 		at(2.2);
 		expect(player.phase).toBe('head');
+		at(4.98); // Just before the two-beat return.
+		expect(player.showSoloChart).toBe(false);
+		at(5); // Return begins while the head still sounds.
+		expect(player.phase).toBe('head');
+		expect(player.followBar).toBe(0);
+		expect(player.showSoloChart).toBe(true);
 		at(6.2);
 		expect(player.phase).toBe('solo');
+		expect(player.showSoloChart).toBe(true);
 		expect(player.soloChorus).toBe(1);
 		at(10.2);
 		expect(player.soloChorus).toBe(2);
 		at(14.2);
 		expect(player.phase).toBe('outro');
+		expect(player.showSoloChart).toBe(false);
 		expect(player.chartBar).toBeCloseTo(.1);
 		callbacks.onNote({ sourceIndex: 1 });
 		expect(player.cursorIndex).toBe(0); // Closing head points to the original chart.
@@ -277,10 +286,11 @@ describe('tune desk playback', () => {
 		// Notes for both heads remain in the plan even when their audio is muted.
 		expect(audio.playPhrase.mock.calls[0][0].notes).toHaveLength(2);
 	});
-	it.each([[true, 0.5], [false, 1]])('sits the melody under the band only when one plays (backing %s)', async (backing, level) => {
+	it.each([true, false])('keeps tune melody at normal demo level (backing %s)', async (backing) => {
 		player.backing = backing;
 		await player.toggle(tune, 'swing');
-		expect(audio.playPhrase.mock.calls[0][3]).toMatchObject({ melodyLevel: level });
+		expect(audio.playPhrase.mock.calls[0][3].melodyLevel ?? 1).toBe(1);
+		expect(audio.playPhrase.mock.calls[0][1]).toMatchObject({ backingOutputLevel: 2, backingTrackVolume: settings.backingTrackVolume });
 	});
 	it('keeps the saved feel with backing off and supports a backing-only pass', async () => {
 		player.melody = false;

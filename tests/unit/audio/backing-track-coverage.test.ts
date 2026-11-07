@@ -91,12 +91,29 @@ function fakeGain() {
 	return { gain: { value: 0 }, connect: vi.fn(), disconnect: vi.fn() };
 }
 
+const compressors: Array<{ connect: ReturnType<typeof vi.fn> }> = [];
+const master = fakeGain();
+const gains: ReturnType<typeof fakeGain>[] = [];
+
 vi.mock('$lib/audio/audio-context', async () => {
 	const { fakeAudioContext } = await import('../../helpers/fake-audio-context');
+	const context = fakeAudioContext();
+	const createGain = context.createGain;
+	context.createGain = () => {
+		const gain = createGain();
+		gains.push(gain);
+		return gain;
+	};
+	const createCompressor = context.createDynamicsCompressor;
+	context.createDynamicsCompressor = () => {
+		const compressor = createCompressor();
+		compressors.push(compressor);
+		return compressor;
+	};
 	return {
-		initAudio: async () => fakeAudioContext(),
-		getAudioContext: () => fakeAudioContext(),
-		getMasterGain: () => fakeGain()
+		initAudio: async () => context,
+		getAudioContext: () => context,
+		getMasterGain: () => master
 	};
 });
 
@@ -339,5 +356,31 @@ describe('playBackingHitsNow', () => {
 			expect.objectContaining({ note: drumBufferForVelocity('kick', 0.3), time: 12.5 })
 		);
 		expect(drumAt(-0.1).start).not.toHaveBeenCalled();
+	});
+});
+
+
+describe('tune backing output level', () => {
+	it('raises the compressed band, preserves the fader, and resets for the next practice mode', async () => {
+		vi.resetModules();
+		const mod = await import('$lib/audio/backing-track');
+		await mod.loadBackingInstruments('piano');
+		await mod.scheduleBackingTrack(PHRASE, { ...OPTIONS, backingOutputLevel: 2 }, 0, false);
+		const compressor = compressors.at(-1)!;
+		const output = compressor.connect.mock.calls[0][0] as ReturnType<typeof fakeGain>;
+		const fader = gains.find((gain) => gain.connect.mock.calls.some(([target]) => target === compressor))!;
+		expect(fader.gain.value).toBe(OPTIONS.backingTrackVolume);
+		expect(output.gain.value).toBe(2);
+		expect(output.connect).toHaveBeenCalledWith(master);
+		mod.setBackingTrackVolume(0);
+		expect(fader.gain.value).toBe(0);
+		expect(output.gain.value).toBe(2);
+		mod.setBackingTrackVolume(0.8);
+		expect(fader.gain.value).toBe(0.8);
+		expect(output.gain.value).toBe(2);
+		await mod.scheduleBackingTrack(PHRASE, OPTIONS, 0, false);
+		expect(output.gain.value).toBe(1);
+		mod.disposeBackingTrack();
+		expect(output.disconnect).toHaveBeenCalled();
 	});
 });

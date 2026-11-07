@@ -95,6 +95,8 @@ for (const practice of [false, true]) {
 			await page.getByRole('button', { name: practice ? 'Start' : 'Play tune', exact: true }).click();
 			await expect(page.getByRole('button', { name: practice ? 'End' : 'Stop', exact: true })).toBeVisible({ timeout: 30_000 });
 			await expect(page.getByTestId('tune-chord-chart')).toBeVisible({ timeout: 20_000 });
+			// Chords must arrive during the head's early return, before solo audio starts.
+			await expect(page.getByText(practice ? /Head — melody once/ : /Head · Bar/).first()).toBeVisible();
 			await expect(page.locator('.abcjs-container svg')).toHaveCount(0);
 			await expect(page.locator('.tcc-bar.active')).toHaveCount(1);
 			await expect(page.locator('.tcc-bar .chord-symbol').first()).toContainText('D');

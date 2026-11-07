@@ -1,15 +1,4 @@
-/**
- * Tests for `src/lib/state/lick-suggestions.svelte.ts`.
- *
- * The state module wraps a debounced fetch to /api/lick-match with two
- * race-prone guards:
- *   1. abort() the previous controller before starting a new request
- *   2. ignore the response if a newer request superseded the in-flight one
- *
- * Both guards are easy to break in a refactor and have no test today. The
- * MIN_PITCHED_NOTES gate (≥ 6 sounded notes before fetching) is the third
- * non-obvious behavior and is also untested.
- */
+/** Debounce, cancellation, song-only suggestions and lookup failure behavior. */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
 	suggestions,
@@ -63,15 +52,14 @@ afterEach(() => {
 	vi.restoreAllMocks();
 });
 
-describe('requestMatches — synchronous fallback name + clears prior matches', () => {
-	it('updates fallbackName synchronously before any fetch happens', async () => {
+describe('requestMatches — clears prior matches', () => {
+	it('starts loading without assigning a name', async () => {
 		const fetchMock = vi.fn(() => new Promise<Response>(() => {})); // never resolves
 		vi.stubGlobal('fetch', fetchMock);
 		try {
 			requestMatches(sixNotes());
-			// No timer advance, no microtask flush — the fallback must already
-			// be populated from the synchronous path.
-			expect(suggestions.fallbackName.length).toBeGreaterThan(0);
+			// Lookup never chooses a title for the user.
+			expect(suggestions.pickedFromSuggestion).toBeNull();
 			expect(suggestions.matches).toEqual([]);
 			expect(suggestions.loading).toBe(true);
 			// Fetch is debounced 600ms — has not been called yet.
@@ -118,8 +106,8 @@ describe('requestMatches — MIN_PITCHED_NOTES gate', () => {
 			await Promise.resolve();
 			expect(fetchMock).not.toHaveBeenCalled();
 			expect(suggestions.loading).toBe(false);
-			// Fallback name is still populated (synchronous path runs first).
-			expect(suggestions.fallbackName.length).toBeGreaterThan(0);
+			// A short phrase still leaves the user free to name it.
+			expect(suggestions.pickedFromSuggestion).toBeNull();
 		} finally {
 			vi.unstubAllGlobals();
 		}
@@ -204,7 +192,6 @@ describe('clearSuggestions', () => {
 			clearSuggestions();
 
 			expect(capturedSignal?.aborted).toBe(true);
-			expect(suggestions.fallbackName).toBe('');
 			expect(suggestions.matches).toEqual([]);
 			expect(suggestions.loading).toBe(false);
 			expect(suggestions.pickedFromSuggestion).toBeNull();
@@ -236,4 +223,47 @@ describe('pickedFromSuggestion helpers', () => {
 		clearPickedFromSuggestion();
 		expect(suggestions.pickedFromSuggestion).toBeNull();
 	});
+});
+
+it('offers song titles only and never automatically picks the best match', async () => {
+	vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ matches: [
+		{ kind: 'quote', label: 'Chromatic descent', suggestedName: null },
+		{ kind: 'wjazzd', label: 'Art Pepper — Stardust, bar -1', suggestedName: 'Art Pepper - Stardust' }
+	] }))));
+	try {
+		requestMatches(sixNotes());
+		await vi.advanceTimersByTimeAsync(700);
+		expect(suggestions.matches.map(m => m.suggestedName)).toEqual(['Art Pepper - Stardust']);
+		expect(suggestions.pickedFromSuggestion).toBeNull();
+	} finally { vi.unstubAllGlobals(); }
+});
+
+it('does not let a stale failure clear newer suggestions', async () => {
+	let rejectOld!: (error: Error) => void;
+	vi.stubGlobal('fetch', vi.fn()
+		.mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectOld = reject; }))
+		.mockResolvedValueOnce(new Response(JSON.stringify({ matches: [
+			{ kind: 'wjazzd', suggestedName: 'Art Pepper - Stardust' }
+		] }))));
+	try {
+		requestMatches(sixNotes());
+		await vi.advanceTimersByTimeAsync(700);
+		requestMatches(sixNotes());
+		await vi.advanceTimersByTimeAsync(700);
+		rejectOld(new Error('Offline'));
+		await vi.advanceTimersByTimeAsync(0);
+		expect(suggestions.matches).toHaveLength(1);
+		expect(suggestions.unavailable).toBe(false);
+	} finally { vi.unstubAllGlobals(); }
+});
+
+it('exposes lookup failure without blocking custom naming', async () => {
+	vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Offline')));
+	try {
+		requestMatches(sixNotes());
+		await vi.advanceTimersByTimeAsync(700);
+		expect(suggestions.loading).toBe(false);
+		expect(suggestions.unavailable).toBe(true);
+		expect(suggestions.matches).toEqual([]);
+	} finally { vi.unstubAllGlobals(); }
 });
