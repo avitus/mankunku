@@ -41,6 +41,8 @@ export interface PlaybackOptions {
 	backingInstrument?: BackingInstrument;
 	/** Backing track volume (0-1) */
 	backingTrackVolume?: number;
+	/** Post-compressor backing gain; defaults to unity for accompaniment. */
+	backingOutputLevel?: number;
 	/** Backing track musical style */
 	backingStyle?: BackingStyle;
 }
