@@ -19,6 +19,7 @@ for (const width of [1440, 390]) {
 	test(`main session form shares choices with practice at ${width}px`, async ({ page }, info) => {
 		await page.setViewportSize({ width, height: 1000 });
 		await page.goto('/tunes/e2e-session-form');
+		await expect(page.locator('.abcjs-container svg')).toBeVisible();
 		const panel = page.locator('details.td-session-options');
 		await panel.locator('summary').click();
 		await expect(panel.getByText('Head again', { exact: true })).toBeVisible();
@@ -29,10 +30,14 @@ for (const width of [1440, 390]) {
 		const head = page.getByRole('switch', { name: 'Play head and outro', exact: true });
 		const count = page.getByRole('spinbutton', { name: 'Solo choruses', exact: true });
 		await head.click();
+		await expect(page.getByTestId('tune-chord-chart')).toBeVisible();
+		await expect(page.locator('.abcjs-container svg')).toHaveCount(0);
 		await count.fill('3');
 		await count.blur();
 		await expect(panel.locator('.so-head')).toHaveCount(0);
 		await page.reload();
+		await expect(page.getByTestId('tune-chord-chart')).toBeVisible();
+		await expect(page.locator('.abcjs-container svg')).toHaveCount(0);
 		await expect(head).toHaveAttribute('aria-checked', 'false');
 		await expect(count).toHaveValue('3');
 		await page.getByRole('button', { name: /Practice licks/ }).click();
@@ -46,11 +51,14 @@ for (const width of [1440, 390]) {
 		await expect(page).toHaveURL(/\/tunes\/session-form$/);
 		await expect(head).toHaveAttribute('aria-checked', 'true');
 		await expect(count).toHaveValue('4');
+		await expect(page.getByTestId('tune-chord-chart')).toHaveCount(0);
+		await expect(page.locator('.abcjs-container svg')).toBeVisible();
 	});
 }
 
 test('chord-only charts disable head and outro without overwriting the saved choice', async ({ page }) => {
 	await page.goto('/tunes/e2e-chords-only');
+	await expect(page.getByTestId('tune-chord-chart')).toBeVisible();
 	await page.locator('details.td-session-options summary').click();
 	const head = page.getByRole('switch', { name: 'Play head and outro', exact: true });
 	await expect(head).toBeDisabled();
@@ -74,9 +82,13 @@ test('solos-only form plays the chord chart directly and ends without an outro',
 	await page.getByRole('spinbutton', { name: 'Tempo', exact: true }).blur();
 	await page.getByRole('button', { name: 'Play tune', exact: true }).click();
 	await expect(head).toBeDisabled();
+	await expect(page.getByTestId('tune-chord-chart')).toBeVisible();
+	await expect(page.locator('.abcjs-container svg')).toHaveCount(0);
 	await expect(page.getByText(/Solo 1 of 1/)).toBeVisible({ timeout: 15_000 });
 	await expect(page.getByTestId('tune-chord-chart')).toBeVisible();
 	await expect(page.locator('.abcjs-container svg')).toHaveCount(0);
 	await expect(page.getByRole('button', { name: 'Play tune', exact: true })).toBeVisible({ timeout: 5_000 });
 	await expect(head).toBeEnabled();
+	await expect(page.getByTestId('tune-chord-chart')).toBeVisible();
+	await expect(page.locator('.abcjs-container svg')).toHaveCount(0);
 });
