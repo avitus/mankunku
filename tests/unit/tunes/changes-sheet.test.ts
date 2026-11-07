@@ -42,6 +42,15 @@ function bareStrip(t: Tune): Tune {
 }
 
 describe('changesSheetFor', () => {
+	it('Autumn in New York 2026-11-06: the production head keeps four bars per line', () => {
+		const data = JSON.parse(readFileSync(resolve('tests/fixtures/leadsheets/autumn-in-new-york.json'), 'utf8'));
+		const tune = sheet(data);
+		const opts = { barsPerLine: suggestBarsPerLine(tune) };
+		expect(opts.barsPerLine).toBe(4);
+		expect(systemBarCounts(tuneToAbc(tune, TENOR))).toEqual(Array(8).fill(4));
+		expect(systemBarCounts(tuneToAbc(changesSheetFor(tune), TENOR, opts))).toEqual(Array(8).fill(4));
+	});
+
 	it('Autumn Leaves 2026-09-16: the changes sheet engraves the melody sheet’s systems', () => {
 		// pickup(3/4) |: A(5) [1 (3) :| [2 (3) | B(16). The detail page shows the
 		// pickup sharing system 1 with four full bars; the practice page’s
@@ -60,7 +69,7 @@ describe('changesSheetFor', () => {
 
 	it('control: a bare note strip does NOT engrave congruently at the default options', () => {
 		// What the session did before: no pickup (inferred from the melody that
-		// was just removed) and a melody-density pick of 6 bars per line.
+		// was just removed) even though both sheets use four bars per line.
 		const t = corpusTune('autumn-leaves.musescore-import.json');
 		const melody = systemBarCounts(tuneToAbc(t, TENOR));
 		const stripped = systemBarCounts(tuneToAbc(bareStrip(t), TENOR));
