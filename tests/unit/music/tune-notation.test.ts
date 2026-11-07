@@ -147,6 +147,40 @@ describe('tuneToAbc — chord symbols over the melody', () => {
 		expect(abc).not.toContain('"FΔ7"z8');
 	});
 
+	it.each<[number, number]>([[4, 4], [3, 4], [6, 8], [5, 4]])(
+		'prints full-bar gaps in the head as rests in %i/%i, including a silent section',
+		(numerator, denominator) => {
+			const duration: [number, number] = [numerator, denominator];
+			const { abc, gapAnchors, barAnchors } = tuneToAbcWithMap(sheet({
+				timeSignature: [numerator, denominator],
+				sections: [
+					section({ bars: 2, notes: [{ pitch: 60, duration, offset: [0, 1] }] }),
+					section({ label: 'B', bars: 1, harmony: [seg('G', '7', [0, 1], duration)] })
+				]
+			}));
+			expect(abc).not.toContain('!style=rhythm!');
+			expect(gapAnchors).toHaveLength(2);
+			for (const anchor of gapAnchors) {
+				expect(abc.slice(anchor.startChar, anchor.endChar)).toBe(`z${numerator * 8 / denominator}`);
+				expect(anchor.duration).toBe(numerator / denominator);
+			}
+			expect(barAnchors).toHaveLength(3);
+			expect(abc).toContain(`"G7"x${numerator * 8 / denominator}`);
+		}
+	);
+
+	it('preserves an explicitly stored full-bar rest even when the chart has no pitches', () => {
+		const { abc, noteAnchors } = tuneToAbcWithMap(sheet({ sections: [section({
+			bars: 1,
+			notes: [{ pitch: null, duration: [1, 1], offset: [0, 1] }],
+			harmony: [seg('C', 'maj7', [0, 1], [1, 1])]
+		})] }));
+		expect(abc).toContain('[V:M]z8 |]');
+		expect(abc).not.toContain('!style=rhythm!');
+		expect(noteAnchors).toHaveLength(1);
+		expect(noteAnchors[0]).toMatchObject({ sourceIndex: 0, offset: 0, rest: true });
+	});
+
 	it('emits the style field on the masthead when present', () => {
 		const abc = tuneToAbc({ ...simpleSheet(), style: 'Medium Swing' });
 		expect(abc).toMatch(/^R:Medium Swing$/m);
@@ -858,12 +892,11 @@ describe('tuneToAbc — golden guard (byte-identical output)', () => {
 	});
 
 	it('3/4 sheet', () => {
-		// Second bar is melody-silent → three beat-aligned slashes; H uses x.
-		const slash34 = '!style=rhythm!z2 !style=rhythm!z2 !style=rhythm!z2';
+		// Second bar is a full-measure rest; H uses invisible spacers.
 		const hdr34 =
 			'X:1\nT:Test Tune\nM:3/4\nL:1/8\n%%partsbox 1\n%%measurenb 0\n%%stretchlast 0\n%%score (M H)\nK:C\nV:M\nV:H stem=down\n';
 		expect(tuneToAbc(threeFourSheet())).toBe(
-			hdr34 + `P:A\n[V:M]C2 D2 E2 | ${slash34} |]\n[V:H]"D-7"x4 "G7"x2 | "CΔ7"x6 |\n`
+			hdr34 + `P:A\n[V:M]C2 D2 E2 | z6 |]\n[V:H]"D-7"x4 "G7"x2 | "CΔ7"x6 |\n`
 		);
 	});
 });
@@ -1070,7 +1103,7 @@ describe('tuneToAbcWithMap — rest anchors', () => {
 		expect(noteAnchors.every((a) => !a.rest)).toBe(true);
 	});
 
-	it('does not anchor a stored whole-bar rest (renders as a slash bar)', () => {
+	it('anchors a stored whole-bar rest in the head', () => {
 		const { noteAnchors } = tuneToAbcWithMap(
 			sheet({
 				sections: [
@@ -1084,8 +1117,8 @@ describe('tuneToAbcWithMap — rest anchors', () => {
 				]
 			})
 		);
-		expect(noteAnchors).toHaveLength(1);
-		expect(noteAnchors[0].rest).toBeUndefined();
+		expect(noteAnchors).toHaveLength(2);
+		expect(noteAnchors[1]).toMatchObject({ sourceIndex: 1, offset: 1, rest: true });
 	});
 
 	// Characterization pin: anchoring rests must not change the rendered ABC.
