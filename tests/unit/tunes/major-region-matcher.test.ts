@@ -10,10 +10,12 @@ import { makePhrase } from '../../helpers/lick-builders';
 const region: MajorRegion = { key: 'F', mode: 'major', startOffset: [2, 1], duration: [3, 1],
 	segmentIndices: [4, 5, 6], evidence: { tonicSegmentIndices: [6], cadences: [[5, 6]], matchesTuneKey: true } };
 
+/** Create an ordinary major lick whose identity can be overridden per case. */
 function line(overrides: Partial<Phrase> = {}): Phrase {
 	return { ...makePhrase({ id: 'my-major', category: 'major-chord', harmony: [] }), ...overrides };
 }
 
+/** Supply deterministic book and progression-tag dependencies without stores. */
 function deps(licks: Phrase[], tags: ChordProgressionType[] = []): LickMatcherDeps {
 	return { licks, timeSignature: [4, 4], progress: {}, getProgressionTags: () => tags,
 		getUnlockedKeyCount: () => 1, practiceLickIds: new Set() };

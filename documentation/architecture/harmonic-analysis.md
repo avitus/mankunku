@@ -347,6 +347,19 @@ circleci testsuite run 'e2e tests' --local --run-tests=all \
   -t '^(tune-harmonic-regions|tune-practice-setup|tune-practice|tune-wrap-label|tune-jam-endings)\.spec\.ts$'
 ```
 
+### PR #300 review follow-up
+
+- A malformed imported tail (for example, retained 3/4 meter followed by 4/4
+  harmony) can make strict analysis reject the whole timeline. An empty analyzed
+  progression list now falls back to the existing shape detector, retaining
+  usable windows whose starts lie inside the played form. Normal capture clamps
+  still apply; starts beyond the form are discarded. Analysis reservations are
+  unchanged and invalid timelines still produce no general major regions.
+- A real preview/Start regression failed before the fix (zero windows), then
+  passed with it. The focused sandbox suite now passes **299 tests in 15 files**.
+- Added function documentation for practice-target helpers, region scanning and
+  fixture setup in response to the review's docstring-coverage warning.
+
 ## Maintenance and rollout
 
 For each increment, update this document with what is implemented, what is

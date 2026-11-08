@@ -14,10 +14,12 @@ import { section, sheet, seg, simpleSheet } from '../../helpers/tune-fixtures';
 
 const autumn = sheet(JSON.parse(readFileSync('tests/fixtures/leadsheets/autumn-in-new-york.json', 'utf8')));
 
+/** Analyze a finite fixture without assuming a return to its opening. */
 function analyze(tune: Tune) {
 	return analyzeHarmony(flattenTune(tune), tune, { cyclic: false });
 }
 
+/** Build a one-chord-per-bar chart from authoritative written symbols. */
 function chords(symbols: string[], key: Tune['key'] = 'C'): Tune {
 	return sheet({ key, sections: [section({ bars: symbols.length,
 		harmony: symbols.map((symbol, i) => harmonicSegmentFromSymbol(symbol, [i, 1], [1, 1])!) })] });

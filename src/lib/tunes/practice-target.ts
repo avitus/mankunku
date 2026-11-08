@@ -22,10 +22,12 @@ export interface MajorRegionTarget {
 
 export type PracticeTarget = DetectedProgression | MajorRegionTarget;
 
+/** Return the chart label without treating a region as a progression template. */
 export function practiceTargetName(type: PracticeTargetType): string {
 	return type === 'major-region' ? 'Major region' : PROGRESSION_TEMPLATES[type].shortName;
 }
 
+/** Share the major color for regions while retaining named progression colors. */
 export function practiceTargetColor(type: PracticeTargetType): string {
 	return type === 'major-region' ? 'var(--prog-major-vamp)' : progressionColor(type);
 }
@@ -36,6 +38,7 @@ export function practiceTargetColor(type: PracticeTargetType): string {
  * remain unassigned; pitch-class order and lick availability never settle a tie.
  */
 export function majorRegionTargets(regions: readonly MajorRegion[], tuneKey: PitchClass): MajorRegionTarget[] {
+	/** Prefer harmonic evidence before span length when regions compete. */
 	const compare = (a: MajorRegion, b: MajorRegion): number =>
 		Number(a.evidence.cadences.length > 0) - Number(b.evidence.cadences.length > 0) ||
 		Number(a.evidence.matchesTuneKey) - Number(b.evidence.matchesTuneKey) ||

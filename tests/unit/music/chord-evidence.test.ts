@@ -3,6 +3,7 @@ import { chordEvidence } from '$lib/music/chord-evidence';
 import { harmonicSegmentFromSymbol } from '$lib/tunes/segment-from-symbol';
 import { seg } from '../../helpers/tune-fixtures';
 
+/** Resolve a written fixture through the same import and evidence path as tunes. */
 function pitches(symbol: string): string[] | undefined {
 	return chordEvidence(harmonicSegmentFromSymbol(symbol, [0, 1], [1, 1])!)?.pitchClasses;
 }

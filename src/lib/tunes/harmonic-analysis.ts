@@ -50,6 +50,7 @@ interface Run extends HarmonicSpan {
 
 const MAJOR_INTERVALS = [0, 2, 4, 5, 7, 9, 11];
 
+/** Compute a span's exclusive end in exact whole-note fractions. */
 function endOf(span: Pick<HarmonicSpan, 'startOffset' | 'duration'>): Fraction {
 	return addFractions(span.startOffset, span.duration);
 }
@@ -104,6 +105,7 @@ function minorArrivals(runs: Run[], formEnd: Fraction, cyclic: boolean): Corners
 
 /** Reject impossible timelines before detector arithmetic; gaps remain valid boundaries. */
 function validTimeline(harmony: HarmonicSegment[], order: number[], formEnd: Fraction): boolean {
+	/** Reject unsafe or zero-denominator fractions before timeline arithmetic. */
 	const validFraction = (f: Fraction): boolean => Number.isSafeInteger(f[0]) &&
 		Number.isSafeInteger(f[1]) && f[1] > 0;
 	let previousEnd: Fraction = [0, 1];
@@ -155,11 +157,13 @@ export function analyzeHarmony(
 			compareFractions(flat.harmony[index].startOffset, cornerstone.startOffset) >= 0) : cornerstone.segmentIndices));
 	const evidence = flat.harmony.map(chordEvidence);
 	const sectionBoundaries = flat.sectionMap.map((entry) => entry.barOffset * beats / unit);
+	/** Scan the same chord evidence with or without exercise reservations. */
 	const scanRegions = (blocked: ReadonlySet<number>): MajorRegion[] => {
 		const majorRegions: MajorRegion[] = [];
 		for (const key of PITCH_CLASSES) {
 			const scale = new Set(MAJOR_INTERVALS.map((interval) => transposePitchClass(key, interval)));
 			let run: number[] = [];
+			/** Emit a supported tonic-bearing region before starting a new contiguous run. */
 			const flush = (): void => {
 				if (run.length === 0) return;
 				const startOffset = flat.harmony[run[0]].startOffset;

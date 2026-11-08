@@ -7,6 +7,7 @@ import type { Page } from '@playwright/test';
 const tune = { ...JSON.parse(readFileSync('tests/fixtures/leadsheets/autumn-in-new-york.json', 'utf8')),
 	id: 'e2e-autumn-harmony', source: 'user', tags: [] };
 
+/** Seed Autumn and a three-bar major line ready in concert F for tenor G. */
 async function seedMajorLine(page: Page): Promise<void> {
 	await seedOnboardedAnonymous(page);
 	await seedTunes(page, [tune]);

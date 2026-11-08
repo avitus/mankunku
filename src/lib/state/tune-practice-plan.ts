@@ -202,6 +202,7 @@ interface CandidateWindow {
 	uncategorizedCount: number;
 }
 
+/** Rank general regions after named shapes when other window scores tie. */
 function targetPriority(type: PracticeTargetType): number {
 	return type === 'major-region' ? 5 : SHAPE_PRIORITY[type];
 }
@@ -358,9 +359,21 @@ export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
 
 	const analysis = deps.harmonicAnalysis?.analyze(flat);
 	const reserved = new Set(analysis?.reservedSegmentIndices ?? []);
-	let detections = [...(analysis?.progressions ?? detect(flat))].sort(
+	const progressions = analysis?.progressions;
+	let detections = [...(progressions?.length ? progressions : detect(flat))].sort(
 		(a, b) => compareFractions(a.startOffset, b.startOffset) || a.type.localeCompare(b.type)
 	);
+	if (analysis && !progressions?.length) {
+		// A malformed imported tail can invalidate strict scale analysis without
+		// invalidating earlier template matches. Keep starts inside the played
+		// form; the existing capture clamp handles a tail that straddles its end.
+		detections = detections.filter(det => {
+			const start = fractionToFloat(det.startOffset);
+			const duration = fractionToFloat(det.duration);
+			return Number.isFinite(start) && Number.isFinite(duration) && duration > 0 &&
+				start >= 0 && start < flat.totalBars * barWholeNotes;
+		});
+	}
 	if (soloStartBar > 0) {
 		// Detections inside the head pass, or in a pickup bar the solo pass
 		// skips, are heard, not practiced.
@@ -376,6 +389,7 @@ export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
 		// Live windows never capture across choruses. Keep cyclic identity for
 		// the final-bar label, but reserve only occurrences inside this form.
 		const formScoped = !!analysis && det.wrapsAround;
+		/** Retain only the current occurrence of a wrapped progression. */
 		const physicalIndices = (indices: number[]) => formScoped ? indices.filter(index =>
 			compareFractions(flat.harmony[index].startOffset, det.startOffset) >= 0) : indices;
 		const roles = roleWindowsFor(det, suggestions, uncategorized.length, flat, timeSignature);
@@ -417,6 +431,7 @@ export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
 		}
 	}
 
+	/** Preserve readiness and span ordering within each reservation tier. */
 	const rank = (a: CandidateWindow, b: CandidateWindow): number =>
 		Number(hasReadyLick(b)) - Number(hasReadyLick(a)) ||
 		spanBars(b) - spanBars(a) ||
@@ -426,6 +441,7 @@ export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
 		a.bandType.localeCompare(b.bandType);
 	const used = new Set<number>();
 	const kept: CandidateWindow[] = [];
+	/** Greedily claim disjoint segment sets in ranked order. */
 	const place = (candidates: CandidateWindow[]): void => {
 		for (const w of [...candidates].sort(rank)) {
 			if (w.segmentIndices.some((i) => used.has(i))) continue;

@@ -28,6 +28,7 @@ const major: Phrase = { ...makePhrase({ id: 'my-three-bar-major', name: 'My Majo
 		{ pitch: null, offset: [3, 1], duration: [1, 1] }],
 	difficulty: { level: 20, pitchComplexity: 20, rhythmComplexity: 20, lengthBars: 4 } }), mode: 'major' };
 
+/** Mark the saved major line as playable in selected concert keys. */
 function ready(keys: PitchClass[] = ['F']): void {
 	saveLickPracticeProgress({ [major.id]: Object.fromEntries(keys.map(key => [key,
 		{ passCount: 1, currentTempo: 240, lastPracticedAt: 1 }])) });
@@ -72,6 +73,29 @@ describe('live major-region sessions', () => {
 		expect(audio.playedPhrase.harmony.slice(0, 8).map(h => h.chord))
 			.toEqual(autumn.sections[0].harmony.slice(0, 8).map(h => h.chord));
 		expect(autumn).toEqual(before);
+	});
+
+	it('preserves in-bounds progression windows when imported meter changes invalidate strict analysis', () => {
+		// A 3/4 header retained on a chart whose later measures were imported in
+		// 4/4: the closing harmony extends past the nominal four-bar form.
+		const tune = sheet({ key: 'C', timeSignature: [3, 4], sections: [section({ bars: 4, harmony: [
+			seg('D', 'min7', [0, 1], [3, 4]), seg('G', '7', [3, 4], [3, 4]),
+			seg('C', 'maj7', [3, 2], [1, 1]), seg('Ab', '7', [5, 2], [1, 1]),
+			seg('Bb', '7', [7, 2], [1, 1])
+		] })] });
+		const analysis = analyzeHarmony(flattenTune(tune), tune);
+		expect(analysis.issues).toEqual(['invalid-timeline']);
+		expect(analysis.majorRegions).toEqual([]);
+		initTunePractice(tune); tunePractice.config.playHead = false;
+		const preview = previewSessionPlan(tune, false);
+		expect(preview.total).toBeGreaterThan(0);
+		const audio = startTunePracticeSession(tune, 480);
+		expect(tunePractice.plan[0].notationTimeRange.start).toBe(0);
+		expect(tunePractice.plan.some(ip => ip.detectedType === 'major-region')).toBe(false);
+		for (const ip of tunePractice.plan) {
+			expect(ip.openTick).toBeLessThan(ip.closeTick);
+			expect(ip.closeTick).toBeLessThanOrEqual((audio.countInBars + 4) * 3 * 480);
+		}
 	});
 
 	it('keeps the bare major window and cornerstone reservation when the lick is not ready at tempo', () => {
