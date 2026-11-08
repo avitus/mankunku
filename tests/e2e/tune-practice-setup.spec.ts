@@ -79,7 +79,7 @@ for (const viewport of [{ width: 1440, height: 1050 }, { width: 390, height: 844
 		expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
 		await options.screenshot({ path: info.outputPath(`session-options-${viewport.width}.png`) });
 		await page.getByRole('spinbutton', { name: 'Solo choruses', exact: true }).press('ArrowUp');
-		await expect(page.locator('.tp-insertion-status')).toContainText('10 insertion points');
+		await expect(page.locator('.tp-insertion-status')).toContainText('6 insertion points');
 		await page.locator('details.tp-options summary').click();
 		await expect(page.locator('details.tp-options summary')).toContainText('2 solos');
 

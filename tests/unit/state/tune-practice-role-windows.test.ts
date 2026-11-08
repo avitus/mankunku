@@ -145,7 +145,7 @@ function planFor(
 	});
 }
 
-type Sig = [ChordProgressionType, number, number, string[]];
+type Sig = [InsertionPoint['progressionType'], number, number, string[]];
 /** (band type, start bar, end, named licks) — whole-note offsets, so ½-bar ends read as .5. */
 function signature(plan: InsertionPoint[]): Sig[] {
 	return plan.map((ip) => [

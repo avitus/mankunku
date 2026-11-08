@@ -6,6 +6,8 @@ import { sessionWithSoloOmissions, soloPlaybackFlat } from '$lib/tunes/solo-form
 import type { Tune, TuneSection } from '$lib/types/tune';
 import { SHAPE_PRIORITY, type DetectedProgression } from '$lib/tunes/progression-detector';
 import type { LickSuggestion } from '$lib/tunes/lick-matcher';
+import type { HarmonicAnalysis, MajorRegion } from '$lib/tunes/harmonic-analysis';
+import { majorRegionTargets, practiceTargetName, type PracticeTarget, type PracticeTargetType } from '$lib/tunes/practice-target';
 import {
 	addFractions,
 	compareFractions,
@@ -40,7 +42,7 @@ export interface InsertionPoint {
 	 * of a longer progression carries the chord's own vamp type (a Minor Chord
 	 * lick on the i of a ii-V-i is a `minor-vamp` window on those bars).
 	 */
-	progressionType: ChordProgressionType;
+	progressionType: PracticeTargetType;
 	/**
 	 * What the band says the window is for: the band type's short name, or
 	 * the chord's for a single-chord role with no vamp type of its own
@@ -48,7 +50,9 @@ export interface InsertionPoint {
 	 */
 	bandName: string;
 	/** The detected progression the window was carved from. */
-	detectedType: ChordProgressionType;
+	detectedType: PracticeTargetType;
+	/** Analysis-timeline evidence for a major region; repeats retain the source evidence. */
+	harmonicRegion?: MajorRegion;
 	localKey: PitchClass;
 	/**
 	 * The concert key the window is named in: the top suggestion's target
@@ -121,6 +125,12 @@ export interface BuildPlanDeps {
 		suggestions: LickSuggestion[];
 		uncategorized: unknown[];
 	};
+	/** Live harmony analysis, separate from lick availability and legacy shape-only callers. */
+	harmonicAnalysis?: {
+		key: PitchClass;
+		analyze: (flat: FlattenedTune) => HarmonicAnalysis;
+		match: (region: MajorRegion) => { suggestions: LickSuggestion[]; uncategorized: unknown[] };
+	};
 	/** Cap on suggestions per window, applied after the window is chosen. Absent = unlimited. */
 	suggestionLimit?: number;
 	/** Bars of drum count-in before the tune (drum-count-in.ts); absent = 1. */
@@ -181,8 +191,8 @@ const CHORD_ROLE_BAND: Partial<
 
 /** A window the planner may keep: a lick-bearing role, or a bare progression. */
 interface CandidateWindow {
-	det: DetectedProgression;
-	bandType: ChordProgressionType;
+	det: PracticeTarget;
+	bandType: PracticeTargetType;
 	bandName: string;
 	start: Fraction;
 	end: Fraction;
@@ -190,6 +200,10 @@ interface CandidateWindow {
 	segmentIndices: number[];
 	suggestions: LickSuggestion[];
 	uncategorizedCount: number;
+}
+
+function targetPriority(type: PracticeTargetType): number {
+	return type === 'major-region' ? 5 : SHAPE_PRIORITY[type];
 }
 
 function spanBars(w: CandidateWindow): number {
@@ -301,7 +315,9 @@ function roleWindowsFor(
  * player has ready wins an overlap, and the bars it leaves are filled by
  * shorter ones — so a long ii-V-i with no cadence lick ready hands its i
  * chord to a single-chord lick as that chord's own window, instead of naming
- * that lick across the whole cadence. Windows with a lick are placed first:
+ * that lick across the whole cadence. Live harmonic analysis reserves
+ * cornerstones before general regions, even without a ready lick. Within each
+ * tier, windows with a lick are placed first:
  * one holding a lick the player HAS in the key (`hasReadyLick`) before one
  * holding only unknown material, then longest first (shape specificity, then
  * chart position, break ties); the bare progressions are placed after them by
@@ -315,6 +331,7 @@ function roleWindowsFor(
  * offset. No lead-in — the scorer's DTW + median-latency correction absorb
  * early entries; a 1-beat lead-out captures the resolution's tail, clamped so
  * a window never overlaps the next open or runs past the end of the form.
+ * Major regions close at their exact harmonic boundary without a lead-out.
  */
 export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
 	if (deps.flat.omittedSoloSections?.length) {
@@ -339,7 +356,9 @@ export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
 	const formEndTick = leadTicks + flat.totalBars * barTicks;
 	const ticksOf = (f: Fraction) => Math.round(fractionToFloat(f) * 4 * ppq);
 
-	let detections = [...detect(flat)].sort(
+	const analysis = deps.harmonicAnalysis?.analyze(flat);
+	const reserved = new Set(analysis?.reservedSegmentIndices ?? []);
+	let detections = [...(analysis?.progressions ?? detect(flat))].sort(
 		(a, b) => compareFractions(a.startOffset, b.startOffset) || a.type.localeCompare(b.type)
 	);
 	if (soloStartBar > 0) {
@@ -353,23 +372,55 @@ export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
 	const bare: CandidateWindow[] = [];
 	for (const det of detections) {
 		const { suggestions, uncategorized } = match(det);
-		filled.push(...roleWindowsFor(det, suggestions, uncategorized.length, flat, timeSignature));
+		const formEnd: Fraction = [flat.totalBars * timeSignature[0], timeSignature[1]];
+		// Live windows never capture across choruses. Keep cyclic identity for
+		// the final-bar label, but reserve only occurrences inside this form.
+		const formScoped = !!analysis && det.wrapsAround;
+		const physicalIndices = (indices: number[]) => formScoped ? indices.filter(index =>
+			compareFractions(flat.harmony[index].startOffset, det.startOffset) >= 0) : indices;
+		const roles = roleWindowsFor(det, suggestions, uncategorized.length, flat, timeSignature);
+		for (const role of roles) {
+			if (formScoped) {
+				if (compareFractions(role.start, det.startOffset) < 0) continue;
+				role.segmentIndices = physicalIndices(role.segmentIndices);
+				role.end = compareFractions(role.end, formEnd) > 0 ? formEnd : role.end;
+				role.suggestions = role.suggestions.filter(s =>
+					fractionToFloat(s.insertionOffset) + s.lengthBars * barWholeNotes <= fractionToFloat(formEnd) + EPSILON);
+			}
+			if (role.suggestions.length) filled.push(role);
+		}
 		bare.push({
 			det,
 			bandType: det.type,
 			bandName: PROGRESSION_TEMPLATES[det.type].shortName,
 			start: det.startOffset,
-			end: addFractions(det.startOffset, det.duration),
-			segmentIndices: det.segmentIndices,
+			end: formScoped ? formEnd : addFractions(det.startOffset, det.duration),
+			segmentIndices: physicalIndices(det.segmentIndices),
 			suggestions: [],
 			uncategorizedCount: uncategorized.length
 		});
+	}
+	if (analysis && deps.harmonicAnalysis) {
+		for (const det of majorRegionTargets(analysis.majorRegions, deps.harmonicAnalysis.key)) {
+			if (fractionToFloat(det.startOffset) < soloStartBar * barWholeNotes - EPSILON ||
+				det.segmentIndices.some((index) => reserved.has(index))) continue;
+			const result = deps.harmonicAnalysis.match(det.region);
+			// A region never grows to fit a lick. This also guards injected matcher results.
+			const suggestions = result.suggestions.filter((suggestion) =>
+				compareFractions(suggestion.insertionOffset, det.startOffset) === 0 &&
+				suggestion.lengthBars * barWholeNotes <= fractionToFloat(det.duration) + EPSILON);
+			const window: CandidateWindow = { det, bandType: 'major-region', bandName: practiceTargetName(det.type),
+				start: det.startOffset, end: addFractions(det.startOffset, det.duration),
+				segmentIndices: det.segmentIndices, suggestions, uncategorizedCount: result.uncategorized.length };
+			if (suggestions.length) filled.push(window);
+			else bare.push(window);
+		}
 	}
 
 	const rank = (a: CandidateWindow, b: CandidateWindow): number =>
 		Number(hasReadyLick(b)) - Number(hasReadyLick(a)) ||
 		spanBars(b) - spanBars(a) ||
-		SHAPE_PRIORITY[a.det.type] - SHAPE_PRIORITY[b.det.type] ||
+		targetPriority(a.det.type) - targetPriority(b.det.type) ||
 		compareFractions(a.start, b.start) ||
 		a.det.type.localeCompare(b.det.type) ||
 		a.bandType.localeCompare(b.bandType);
@@ -382,19 +433,26 @@ export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
 			kept.push(w);
 		}
 	};
-	place(filled);
-	place(bare);
+	// Preserve lick-aware choices WITHIN cornerstones, but even a bare cornerstone
+	// is placed before any broad region. Its full reservation survives those choices.
+	const inCornerstone = (w: CandidateWindow): boolean => w.det.type !== 'major-region' &&
+		w.segmentIndices.some((index) => reserved.has(index));
+	place(filled.filter(inCornerstone));
+	place(bare.filter(inCornerstone));
+	place(filled.filter((w) => !inCornerstone(w)));
+	place(bare.filter((w) => !inCornerstone(w)));
 	kept.sort(
 		(a, b) =>
 			compareFractions(a.start, b.start) ||
-			SHAPE_PRIORITY[a.det.type] - SHAPE_PRIORITY[b.det.type] ||
+			targetPriority(a.det.type) - targetPriority(b.det.type) ||
 			a.det.type.localeCompare(b.det.type)
 	);
 
 	const points = kept.map((w, i) => {
 		const det = w.det;
 		const openTick = leadTicks + ticksOf(w.start);
-		let closeTick = leadTicks + ticksOf(w.end) + ppq;
+		// No region lead-out: it would capture the next cornerstone's first beat.
+		let closeTick = leadTicks + ticksOf(w.end) + (det.type === 'major-region' ? 0 : ppq);
 		const next = kept[i + 1];
 		if (next) closeTick = Math.min(closeTick, leadTicks + ticksOf(next.start));
 		closeTick = Math.min(closeTick, formEndTick);
@@ -440,6 +498,7 @@ export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
 			progressionType: w.bandType,
 			bandName: w.bandName,
 			detectedType: det.type,
+			...(det.type === 'major-region' ? { harmonicRegion: det.region } : {}),
 			localKey: det.localKey,
 			keyCenter: suggestions[0]?.targetKey ?? det.localKey,
 			degreeLabel: det.tuneKeyDegree.label,
@@ -803,7 +862,7 @@ export function buildSessionPhrase(args: {
  * index-modulo would repeat one lick and starve another.
  */
 export function assignSuggestRotation(plan: readonly InsertionPoint[]): Record<string, number> {
-	const usesByType = new Map<ChordProgressionType, Map<string, number>>();
+	const usesByType = new Map<PracticeTargetType, Map<string, number>>();
 	const picks: Record<string, number> = {};
 	for (const ip of plan) {
 		if (ip.suggestions.length === 0) continue;
