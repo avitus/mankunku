@@ -95,7 +95,44 @@ describe('live major-region sessions', () => {
 		for (const ip of tunePractice.plan) {
 			expect(ip.openTick).toBeLessThan(ip.closeTick);
 			expect(ip.closeTick).toBeLessThanOrEqual((audio.countInBars + 4) * 3 * 480);
+			expect(fractionToFloat(ip.startOffset) + fractionToFloat(ip.duration)).toBeLessThanOrEqual(3);
+			expect(ip.notationTimeRange.end).toBeLessThanOrEqual(3);
 		}
+	});
+
+	it.each([[2, 1], [1, 2]])('drops fallback tonic licks after or across the form edge (cadence starts %i/%i)', (n, d) => {
+		const tune = sheet({ key: 'C', sections: [section({ bars: 3, harmony: [
+			seg('D', 'min7', [n, d], [1, 1]), seg('G', '7', [n + d, d], [1, 1]),
+			seg('C', 'maj7', [n + 2 * d, d], [2, 1])
+		] })] });
+		saveUserLick({ ...major, notes: [{ pitch: 60, offset: [0, 1], duration: [1, 1] }],
+			difficulty: { ...major.difficulty, lengthBars: 1 } });
+		ready(['C']); initTunePractice(tune); tunePractice.config.playHead = false;
+		const audio = startTunePracticeSession(tune, 480);
+		expect(tunePractice.plan.length).toBeGreaterThan(0);
+		for (const ip of tunePractice.plan) {
+			expect(ip.suggestions).toEqual([]);
+			expect(ip.openTick).toBeLessThan(ip.closeTick);
+			expect(ip.closeTick).toBeLessThanOrEqual((audio.countInBars + 3) * 4 * 480);
+			expect(fractionToFloat(ip.startOffset) + fractionToFloat(ip.duration)).toBeLessThanOrEqual(3);
+			expect(ip.notationTimeRange.end).toBeLessThanOrEqual(3);
+			expect(ip.notationBarRange.endExclusive).toBeLessThanOrEqual(3);
+		}
+	});
+
+	it('keeps a fitting tonic-role lick and clips its fallback marker to the played tail', () => {
+		const tune = sheet({ key: 'C', sections: [section({ bars: 3, harmony: [
+			seg('D', 'min7', [1, 2], [1, 1]), seg('G', '7', [3, 2], [1, 1]),
+			seg('C', 'maj7', [5, 2], [2, 1])
+		] })] });
+		saveUserLick({ ...major, notes: [{ pitch: 60, offset: [0, 1], duration: [1, 4] }],
+			difficulty: { ...major.difficulty, lengthBars: 0.25 } });
+		ready(['C']); initTunePractice(tune); tunePractice.config.playHead = false;
+		startTunePracticeSession(tune, 480);
+		const tonic = tunePractice.plan.find(ip => ip.suggestions.some(s => s.lickId === major.id))!;
+		expect(tonic.notationTimeRange).toEqual({ start: 2.5, end: 3 });
+		expect(fractionToFloat(tonic.duration)).toBe(0.5);
+		expect(tonic.closeTick - tonic.openTick).toBe(2 * 480);
 	});
 
 	it('keeps the bare major window and cornerstone reservation when the lick is not ready at tempo', () => {

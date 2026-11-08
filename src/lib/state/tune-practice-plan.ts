@@ -363,10 +363,11 @@ export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
 	let detections = [...(progressions?.length ? progressions : detect(flat))].sort(
 		(a, b) => compareFractions(a.startOffset, b.startOffset) || a.type.localeCompare(b.type)
 	);
-	if (analysis && !progressions?.length) {
+	const fallback = !!analysis && !progressions?.length;
+	if (fallback) {
 		// A malformed imported tail can invalidate strict scale analysis without
 		// invalidating earlier template matches. Keep starts inside the played
-		// form; the existing capture clamp handles a tail that straddles its end.
+		// form. Role windows and their suggestions are bounded below as well.
 		detections = detections.filter(det => {
 			const start = fractionToFloat(det.startOffset);
 			const duration = fractionToFloat(det.duration);
@@ -388,27 +389,32 @@ export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
 		const formEnd: Fraction = [flat.totalBars * timeSignature[0], timeSignature[1]];
 		// Live windows never capture across choruses. Keep cyclic identity for
 		// the final-bar label, but reserve only occurrences inside this form.
-		const formScoped = !!analysis && det.wrapsAround;
-		/** Retain only the current occurrence of a wrapped progression. */
+		const formScoped = fallback || (!!analysis && det.wrapsAround);
+		/** Retain only chord occurrences inside this finite form. */
 		const physicalIndices = (indices: number[]) => formScoped ? indices.filter(index =>
-			compareFractions(flat.harmony[index].startOffset, det.startOffset) >= 0) : indices;
+			compareFractions(flat.harmony[index].startOffset, det.startOffset) >= 0 &&
+			compareFractions(flat.harmony[index].startOffset, formEnd) < 0) : indices;
 		const roles = roleWindowsFor(det, suggestions, uncategorized.length, flat, timeSignature);
 		for (const role of roles) {
 			if (formScoped) {
-				if (compareFractions(role.start, det.startOffset) < 0) continue;
+				if (compareFractions(role.start, det.startOffset) < 0 ||
+					compareFractions(role.start, formEnd) >= 0) continue;
 				role.segmentIndices = physicalIndices(role.segmentIndices);
 				role.end = compareFractions(role.end, formEnd) > 0 ? formEnd : role.end;
-				role.suggestions = role.suggestions.filter(s =>
-					fractionToFloat(s.insertionOffset) + s.lengthBars * barWholeNotes <= fractionToFloat(formEnd) + EPSILON);
+				if (compareFractions(role.end, role.start) <= 0) continue;
+				role.suggestions = role.suggestions.filter(s => s.lengthBars > 0 &&
+					compareFractions(s.insertionOffset, role.start) >= 0 &&
+					fractionToFloat(s.insertionOffset) + s.lengthBars * barWholeNotes <= fractionToFloat(role.end) + EPSILON);
 			}
 			if (role.suggestions.length) filled.push(role);
 		}
+		const detEnd = addFractions(det.startOffset, det.duration);
 		bare.push({
 			det,
 			bandType: det.type,
 			bandName: PROGRESSION_TEMPLATES[det.type].shortName,
 			start: det.startOffset,
-			end: formScoped ? formEnd : addFractions(det.startOffset, det.duration),
+			end: formScoped && compareFractions(detEnd, formEnd) > 0 ? formEnd : detEnd,
 			segmentIndices: physicalIndices(det.segmentIndices),
 			suggestions: [],
 			uncategorizedCount: uncategorized.length
@@ -476,19 +482,29 @@ export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
 		const notationSegmentIndices = w.segmentIndices
 			.map((s) => flat.segmentSourceIndices[s])
 			.filter((idx): idx is number => idx !== undefined);
-		let notationStart = Infinity;
-		let notationEnd = -Infinity;
-		for (const idx of notationSegmentIndices) {
-			const seg = notationFlat.harmony[idx];
-			if (!seg) continue;
-			notationStart = Math.min(notationStart, fractionToFloat(seg.startOffset));
-			notationEnd = Math.max(
-				notationEnd,
-				fractionToFloat(addFractions(seg.startOffset, seg.duration))
-			);
-		}
 		const startFloat = fractionToFloat(w.start);
 		const endFloat = fractionToFloat(w.end);
+		const clipNotation = fallback || (!!analysis && det.type !== 'major-region' && det.wrapsAround);
+		let notationStart = Infinity;
+		let notationEnd = -Infinity;
+		for (const index of w.segmentIndices) {
+			const seg = notationFlat.harmony[flat.segmentSourceIndices[index]];
+			if (!seg) continue;
+			let start = fractionToFloat(seg.startOffset);
+			let end = fractionToFloat(addFractions(seg.startOffset, seg.duration));
+			if (clipNotation) {
+				const played = flat.harmony[index];
+				const playedEnd = fractionToFloat(addFractions(played.startOffset, played.duration));
+				// Align source and playback ends: a skipped pickup may have trimmed
+				// the playback segment's beginning while retaining its source index.
+				const shift = end - playedEnd;
+				start = Math.max(startFloat, fractionToFloat(played.startOffset)) + shift;
+				end = Math.min(endFloat, playedEnd) + shift;
+				if (end <= start) continue;
+			}
+			notationStart = Math.min(notationStart, start);
+			notationEnd = Math.max(notationEnd, end);
+		}
 		const notationBarRange = Number.isFinite(notationStart)
 			? {
 					start: Math.floor(notationStart / barWholeNotes + EPSILON),
@@ -502,7 +518,9 @@ export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
 			? { start: notationStart, end: notationEnd }
 			: { start: startFloat, end: endFloat };
 		const firstNotationSegment = notationFlat.harmony[notationSegmentIndices[0]];
-		const notationLabelBar = firstNotationSegment
+		const notationLabelBar = clipNotation && Number.isFinite(notationStart)
+			? Math.floor(notationStart / barWholeNotes + EPSILON)
+			: firstNotationSegment
 			? Math.floor(fractionToFloat(firstNotationSegment.startOffset) / barWholeNotes + EPSILON)
 			: notationBarRange.start;
 

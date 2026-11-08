@@ -359,6 +359,12 @@ circleci testsuite run 'e2e tests' --local --run-tests=all \
   passed with it. The focused sandbox suite now passes **299 tests in 15 files**.
 - Added function documentation for practice-target helpers, region scanning and
   fixture setup in response to the review's docstring-coverage warning.
+- Follow-up review extended the finite-form rule to fallback roles, suggestions
+  and chart markers. Roles opening after the form are dropped, crossing windows
+  are clipped, and only licks fitting the retained span remain eligible. Two
+  new negative cases failed before this fix; a positive case retains a short
+  tonic lick inside a clipped tail. The focused sandbox suite now passes
+  **302 tests in 15 files**, with a clean TypeScript/Svelte check.
 
 ## Maintenance and rollout
 
