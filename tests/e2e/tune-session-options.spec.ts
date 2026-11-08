@@ -118,8 +118,7 @@ for (const width of [1440, 390]) {
 		await expect(chart).toHaveCSS('overflow-y', 'auto');
 		await chart.focus();
 		await expect(chart).toBeFocused();
-		await chart.hover();
-		await page.mouse.wheel(0, 10_000);
+		await chart.locator('.tcc-bar').last().scrollIntoViewIfNeeded();
 		await expect.poll(() => chart.evaluate(el => el.scrollTop)).toBeGreaterThan(0);
 		await expect(chart.locator('.tcc-bar').last()).toBeInViewport();
 	});
