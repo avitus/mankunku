@@ -69,20 +69,16 @@
 		return getPracticeLicks().length;
 	});
 
-	// Total practice-tagged licks across all progressions — drives the Daily
-	// Practice caption and start-availability check.
+	// Total practice-tagged licks across all progressions — drives empty-state
+	// guidance and start availability.
 	const dailyLickCount = $derived.by(() => {
 		void lickPractice.progress;
 		return getDailyPracticeLicks().length;
 	});
 
-	// What the configured session would actually cost: the licks that would be
-	// planned and how long playing them takes. A standard session plays its
-	// plan once and stops, so this — not the duration knob — is the estimate
-	// worth showing; with a typical book the plan is capped by tagged licks
-	// long before the budget bites. Re-derives on any config/progress change
-	// because the underlying reads (tags, unlock counts, tempos) are
-	// non-reactive localStorage.
+	// Show the planned count beneath Duration, rather than the full eligible
+	// collection. Re-derive on config/progress changes because the underlying
+	// tags, unlock counts and tempos come from non-reactive localStorage.
 	const sessionPreview = $derived.by(() => {
 		lickPractice.config.sessionType;
 		lickPractice.config.progressionType;
@@ -174,7 +170,6 @@
 		{availableLickCount}
 		{dailyLickCount}
 		plannedLickCount={sessionPreview.lickCount}
-		plannedSeconds={sessionPreview.seconds}
 		onstart={handleStart}
 		onupdate={handleUpdate}
 	/>

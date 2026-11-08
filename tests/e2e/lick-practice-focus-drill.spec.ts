@@ -59,7 +59,7 @@ test.describe('lick-practice session flow', () => {
 		await page.goto('/lick-practice');
 
 		// The tagged lick makes Daily Practice (the default session type) startable.
-		await expect(page.getByText(/1 lick across your tagged progressions/i)).toBeVisible();
+		await expect(page.getByText(/1 lick in this session/i)).toBeVisible();
 		const startBtn = page.getByRole('button', { name: /start daily practice/i });
 		await expect(startBtn).toBeEnabled();
 		await startBtn.click();

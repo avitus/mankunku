@@ -1,6 +1,6 @@
 <script lang="ts">
 	import StudioPanel from '$lib/components/console/StudioPanel.svelte';
-	import StudioMeter from '$lib/components/console/StudioMeter.svelte';
+	import PracticeLaunch from './PracticeLaunch.svelte';
 	import type {
 		LickPracticeConfig,
 		LickPracticeMode,
@@ -56,8 +56,6 @@
 		dailyLickCount: number;
 		/** Licks the plan would actually contain (≤ the eligible count above). */
 		plannedLickCount: number;
-		/** Seconds that plan takes to play — the real session-length estimate. */
-		plannedSeconds: number;
 		onstart: () => void;
 		onupdate: (config: Partial<LickPracticeConfig>) => void;
 	}
@@ -67,20 +65,9 @@
 		availableLickCount,
 		dailyLickCount,
 		plannedLickCount,
-		plannedSeconds,
 		onstart,
 		onupdate
 	}: Props = $props();
-
-	/**
-	 * Session length for the start caption. Whole minutes at a minute or more,
-	 * seconds below it — a single-lick book runs ~24 s, and rounding that up to
-	 * "~1 min" would repeat the overstatement this estimate exists to remove.
-	 */
-	function formatEstimate(seconds: number): string {
-		if (seconds < 60) return `~${Math.max(10, Math.round(seconds / 10) * 10)} sec`;
-		return `~${Math.round(seconds / 60)} min`;
-	}
 
 	const progressionTypes = Object.values(PROGRESSION_TEMPLATES);
 	const backingStyles = Object.keys(BACKING_STYLE_NAMES) as BackingStyle[];
@@ -93,14 +80,14 @@
 		{
 			value: 'daily',
 			label: 'Daily Practice',
-			sublabel: 'Rotate all progressions'
+			sublabel: 'Rotate all licks'
 		},
+		{ value: 'deep', label: 'Deep Practice', sublabel: 'Master one lick' },
 		{
 			value: 'focused',
 			label: 'Focused Session',
 			sublabel: 'One progression at a time'
 		},
-		{ value: 'deep', label: 'Deep Practice', sublabel: 'Master one lick' },
 		{ value: 'trick', label: 'Tricks', sublabel: 'Drill a melodic device' }
 	];
 
@@ -331,10 +318,7 @@
 			if (dailyLickCount === 0) {
 				return 'No licks tagged for practice yet.';
 			}
-			// The planned count, not the eligible count: the budget can cut the
-			// rotation short, and quoting the full tally next to a shorter time
-			// reads as a contradiction.
-			return `${plannedLickCount} lick${plannedLickCount === 1 ? '' : 's'} across your tagged progressions · ${formatEstimate(plannedSeconds)}`;
+			return '';
 		}
 		// focused
 		if (availableLickCount === 0) {
@@ -342,7 +326,7 @@
 				? `No licks tagged for this progression — try Daily Practice or tag more in your book.`
 				: 'No licks tagged for practice yet.';
 		}
-		return `${plannedLickCount} lick${plannedLickCount === 1 ? '' : 's'} on this progression · ${formatEstimate(plannedSeconds)}`;
+		return '';
 	});
 </script>
 
@@ -356,8 +340,8 @@
 			domain="lick-practice"
 		>
 			<div class="practice-session-controls">
-				<!-- 3-way mode picker -->
-				<div class="flex justify-center">
+				<!-- Session picker -->
+				<div class="practice-session-picker">
 					<SelectorPad
 						ariaLabel="Session type"
 						columns={4}
@@ -378,21 +362,8 @@
 				{#if config.sessionType === 'daily'}
 					<div class="practice-duration-row">
 						<p class="studio-caption">
-							A little of everything. Keep your whole vocabulary moving.<br />Set a time budget;
-							your actual session may be shorter.
+							A little of everything. Keep your whole vocabulary moving.
 						</p>
-						<Knob
-							size="lg"
-							label="Duration"
-							ariaLabel="Practice time"
-							helpText="Target session length. Mankunku queues licks until the budget fills — with a small book the session ends sooner, and a single lick longer than the whole budget still gets queued on its own. The caption under Start shows what it will actually take."
-							value={config.durationMinutes}
-							min={3}
-							max={20}
-							step={1}
-							displayValue={`${config.durationMinutes} min`}
-							onInput={(v) => onupdate({ durationMinutes: v })}
-						/>
 					</div>
 				{:else if config.sessionType === 'focused'}
 					<div class="flex flex-wrap items-end justify-center gap-x-10 gap-y-4">
@@ -418,19 +389,6 @@
 								/>
 							</span>
 						</div>
-
-						<Knob
-							size="lg"
-							label="Duration"
-							ariaLabel="Practice time"
-							helpText="Target session length. Licks are queued until the budget fills — with a small book the session ends sooner, and a single lick longer than the whole budget still gets queued on its own. The caption under Start shows what it will actually take."
-							value={config.durationMinutes}
-							min={3}
-							max={20}
-							step={1}
-							displayValue={`${config.durationMinutes} min`}
-							onInput={(v) => onupdate({ durationMinutes: v })}
-						/>
 
 						{#if showSubstitutions}
 							<RockerSwitch
@@ -626,10 +584,26 @@
 			</section>
 		{/if}
 
+		<PracticeLaunch
+			sessionType={config.sessionType}
+			durationMinutes={config.durationMinutes}
+			{plannedLickCount}
+			{canStart}
+			loading={config.sessionType !== 'trick' && lickPractice.progressLoading}
+			{startLabel}
+			{startCaption}
+			showBrowseLink={!canStart && dailyLickCount === 0 && config.sessionType !== 'trick'}
+			ondurationchange={(durationMinutes) => onupdate({ durationMinutes })}
+			onstart={() => {
+				void audition.stop();
+				onstart();
+			}}
+		/>
+
 		<!-- ── BACKING & FLOW ──────────────────────────────────────── -->
 		<StudioPanel
 			id="practice-band"
-			number="02"
+			number="03"
 			title={isEnclosure ? 'Practice settings' : 'Set the band'}
 			domain="lick-practice"
 		>
@@ -701,202 +675,27 @@
 			</div>
 		</StudioPanel>
 	</div>
-	<aside class="studio-panel practice-session-summary" aria-label="Your session">
-		<p class="studio-label">Your session</p>
-		{#if config.sessionType === 'daily' || config.sessionType === 'focused'}
-			<StudioMeter value={config.durationMinutes} max={20} label="Time budget · Minutes" />
-		{:else}<div class="studio-well">
-				<strong
-					>{config.sessionType === 'deep'
-						? (selectedLick?.name ?? 'Choose a lick')
-						: (selectedTrick?.name ?? 'Choose a trick')}</strong
-				>
-				<p class="studio-caption">Open-ended practice</p>
-			</div>{/if}
-		<dl>
-			<div>
-				<dt>Session</dt>
-				<dd>
-					{sessionTypeOptions.find((option) => option.value === config.sessionType)?.label}
-				</dd>
-			</div>
-			{#if config.sessionType === 'daily' || config.sessionType === 'focused'}
-				<div>
-					<dt>Time budget</dt>
-					<dd>{config.durationMinutes} min</dd>
-				</div>
-				<div>
-					<dt>Estimated session</dt>
-					<dd>
-						{plannedLickCount > 0 ? formatEstimate(plannedSeconds) : 'No licks queued'}
-					</dd>
-				</div>
-			{/if}
-			<div>
-				<dt>Feel</dt>
-				<dd>{BACKING_STYLE_NAMES[config.backingStyle]}</dd>
-			</div>
-			<div>
-				<dt>Mode</dt>
-				<dd>
-					{config.practiceMode === 'continuous' ? 'Continuous' : 'Call & Response'}
-				</dd>
-			</div>
-		</dl>
-		<p class="studio-caption">
-			{dailyLickCount} lick{dailyLickCount === 1 ? '' : 's'} in your practice set
-		</p>
-	</aside>
-
-	<!-- ── START ───────────────────────────────────────────────── -->
-	<div class="practice-start">
-		{#if canStart}
-			<button
-				disabled={config.sessionType !== 'trick' && lickPractice.progressLoading}
-				onclick={() => {
-					void audition.stop();
-					onstart();
-				}}
-				class="studio-action disabled:opacity-50"
-			>
-				{config.sessionType !== 'trick' && lickPractice.progressLoading
-					? 'Loading progress…'
-					: startLabel}
-			</button>
-		{/if}
-		<p class="text-center text-xs text-[var(--color-text-secondary)]">
-			{startCaption}
-		</p>
-		{#if !canStart && dailyLickCount === 0 && config.sessionType !== 'trick'}
-			<a href="/licks" class="text-xs text-[var(--color-accent)] underline">
-				Browse your licks to tag more
-			</a>
-		{/if}
-	</div>
 </div>
 
 <style>
-	.practice-console-grid {
-		display: grid;
-		grid-template-columns: minmax(0, 1fr) 260px;
-		gap: 24px;
-		align-items: start;
-	}
-	.practice-console-main {
-		display: grid;
-		gap: 24px;
-		min-width: 0;
-	}
-	.practice-session-controls {
-		display: grid;
-		gap: 24px;
-	}
-	.practice-session-controls > div:first-child {
-		display: block;
-	}
-	.practice-session-controls :global([aria-label='Session type']) {
-		--selector-columns: 4;
-		width: 100%;
-	}
+	.practice-console-grid { min-width: 0; }
+	.practice-console-main { display: grid; gap: 18px; min-width: 0; }
+	.practice-session-controls { display: grid; gap: 16px; }
+	.practice-session-picker { display: block; }
+	.practice-session-controls :global([aria-label='Session type']) { --selector-columns: 4; width: 100%; }
 	.practice-session-controls :global([aria-label='Session type'] .pad-btn) {
-		min-height: 96px;
-		text-align: left;
-		align-items: flex-start;
-		padding: 18px 12px;
+		min-height: 80px; text-align: left; align-items: flex-start; padding: 14px 12px;
 	}
-	.practice-session-controls :global([aria-label='Session type'] .pad-sublabel) {
-		font-size: 10px;
-	}
-	.practice-duration-row {
-		display: grid;
-		grid-template-columns: 1fr 180px;
-		align-items: center;
-		gap: 24px;
-		border-top: 1px solid var(--studio-border);
-		padding-top: 24px;
-	}
+	.practice-session-controls :global([aria-label='Session type'] .pad-sublabel) { font-size: 10px; }
+	.practice-duration-row p { margin: 0; }
 	.practice-band-controls > div:last-child {
-		display: grid;
-		grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
-		gap: 28px;
-		align-items: start;
+		display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 28px; align-items: start;
 	}
-	.practice-band-controls :global(.pad-frame) {
-		width: 100%;
-	}
-	.practice-session-summary {
-		border-top: 3px solid var(--color-brass);
-		padding: 26px 22px;
-	}
-	.practice-session-summary > p:first-child {
-		margin-bottom: 24px;
-	}
-	.practice-session-summary dl {
-		margin: 26px 0;
-	}
-	.practice-session-summary dl > div {
-		display: flex;
-		justify-content: space-between;
-		gap: 14px;
-		padding: 14px 0;
-		border-bottom: 1px solid var(--studio-border);
-		font-size: 12px;
-	}
-	.practice-session-summary dt {
-		color: var(--studio-muted);
-	}
-	.practice-session-summary dd {
-		text-align: right;
-		max-width: 60%;
-	}
-	.practice-start {
-		grid-column: 1/-1;
-		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
-		gap: 18px;
-		padding: 24px;
-		border: 1px solid var(--studio-border);
-		border-radius: 6px;
-		background: var(--studio-panel);
-	}
-	.practice-start p {
-		max-width: 620px;
-	}
-	@media (max-width: 1200px) {
-		.practice-console-grid {
-			grid-template-columns: minmax(0, 1fr) 230px;
-		}
-		.practice-band-controls > div:last-child {
-			grid-template-columns: 1fr;
-		}
-	}
-	@media (max-width: 950px) {
-		.practice-console-grid {
-			grid-template-columns: 1fr;
-		}
-		.practice-session-summary :global(.studio-meter) {
-			max-width: 240px;
-		}
-	}
-	@media (max-width: 600px) {
-		.practice-session-controls :global([aria-label='Session type']) {
-			--selector-columns: 2;
-		}
-		.practice-duration-row {
-			grid-template-columns: 1fr 100px;
-			gap: 12px;
-		}
-		.practice-band-controls :global([aria-label='Backing style']) {
-			--selector-columns: 2;
-		}
-		.practice-session-controls :global(.pad-frame-flex) {
-			flex-wrap: wrap;
-		}
-		.practice-start {
-			flex-direction: column;
-			align-items: stretch;
-			padding: 20px;
-		}
+	.practice-band-controls :global(.pad-frame) { width: 100%; }
+	@media (max-width: 700px) {
+		.practice-session-controls :global([aria-label='Session type']) { --selector-columns: 2; }
+		.practice-band-controls > div:last-child { grid-template-columns: 1fr; }
+		.practice-band-controls :global([aria-label='Backing style']) { --selector-columns: 2; }
+		.practice-session-controls :global(.pad-frame-flex) { flex-wrap: wrap; }
 	}
 </style>

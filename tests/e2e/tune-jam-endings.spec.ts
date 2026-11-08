@@ -37,8 +37,14 @@ for (const practice of [false, true]) {
 				await page.getByRole('switch', { name: 'Play head and outro' }).click();
 			}
 			const score = page.locator('.abcjs-container');
-			await expect(score).toContainText('A7');
-			await expect(score).not.toContainText('GΔ7');
+			if (!practice && !head) {
+				const preview = page.getByTestId('tune-chord-chart');
+				await expect(preview.getByLabel('A7', { exact: true })).toBeVisible();
+				await expect(preview.getByLabel('GΔ7', { exact: true })).toHaveCount(0);
+			} else {
+				await expect(score).toContainText('A7');
+				await expect(score).not.toContainText('GΔ7');
+			}
 			const tempo = page.getByRole('spinbutton', { name: 'Tempo', exact: true });
 			await tempo.fill('180');
 			await tempo.press('Tab');

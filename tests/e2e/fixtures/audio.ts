@@ -257,14 +257,13 @@ function soundfontJsStub(wavBase64: string): string {
  *    from here on EVERY WebKit test that plays melody.
  *  - goldst.dev — soundfont loop metadata (loadLoopData: true).
  *
- * OPT-IN PER SPEC, and only for flow tests that never assert audible output.
- * Specs that verify produced audio (backing-render RMS coverage checks,
- * sample decode tests) must keep loading the real samples.
+ * Defaults to silence for flow tests. An audio-routing test may supply a
+ * deterministic WAV to exercise the real sampler and audio graph without
+ * depending on external CDNs. Sample fidelity/codec tests keep real samples.
  *
  * Call BEFORE page.goto().
  */
-export async function stubCdnInstrumentSamples(page: Page): Promise<void> {
-	const wav = silentWavBuffer();
+export async function stubCdnInstrumentSamples(page: Page, wav = silentWavBuffer()): Promise<void> {
 	const soundfontJs = soundfontJsStub(wav.toString('base64'));
 	// Fulfilled cross-origin fetches still go through CORS checks.
 	const CORS = { 'access-control-allow-origin': '*' };

@@ -40,7 +40,7 @@ test('iReal link imports straight into the book', async ({ page }) => {
 	await page.waitForURL('**/tunes/imported-blues');
 	await expect(page.getByRole('heading', { name: 'Imported Blues' })).toBeVisible();
 	// The chart renders with chords (tenor settings: concert F7 → written G7).
-	await expect(page.locator('.abcjs-container svg text').filter({ hasText: 'G7' }).first()).toBeVisible();
+	await expect(page.getByTestId('tune-chord-chart').getByLabel('G7', { exact: true }).first()).toBeVisible();
 });
 
 test('iReal review flow opens the imported form in the editor', async ({ page }) => {
@@ -80,7 +80,7 @@ test('the source selector re-interprets a chart as a written-pitch part', async 
 
 	// A saved tune lands on its title slug, never the minted `sheet-…` id.
 	await page.waitForURL(/\/tunes\/(?!editor$|sheet-)[a-z0-9-]+$/);
-	await expect(page.locator('.abcjs-container svg text').filter({ hasText: /^F7$/ }).first()).toBeVisible();
+	await expect(page.getByTestId('tune-chord-chart').getByLabel('F7', { exact: true }).first()).toBeVisible();
 });
 
 test('a real Band-in-a-Box file imports with sections and a chorus repeat', async ({ page }) => {
@@ -104,14 +104,13 @@ test('a real Band-in-a-Box file imports with sections and a chorus repeat', asyn
 
 	// A saved tune lands on its title slug, never the minted `sheet-…` id.
 	await page.waitForURL(/\/tunes\/(?!editor$|sheet-)[a-z0-9-]+$/);
-	// Boxed part labels for both sections render on the chart.
-	await expect(page.locator('.abcjs-container svg text').filter({ hasText: /^A$/ }).first()).toBeVisible();
-	await expect(page.locator('.abcjs-container svg text').filter({ hasText: /^B$/ }).first()).toBeVisible();
-	// Chords in written pitch and compact spelling for the seeded tenor
-	// (concert Am7 → written B-7), with bar 8's beat-3 chord (concert A7 →
-	// B7) present as its own element.
-	await expect(page.locator('.abcjs-container svg text').filter({ hasText: 'B-7' }).first()).toBeVisible();
-	await expect(page.locator('.abcjs-container svg text').filter({ hasText: /^B7$/ }).first()).toBeVisible();
+	const chart = page.getByTestId('tune-chord-chart');
+	// Chord-only imports show their section headings on the solo chart.
+	await expect(chart.getByRole('heading', { name: 'A', exact: true }).first()).toBeVisible();
+	await expect(chart.getByRole('heading', { name: 'B', exact: true }).first()).toBeVisible();
+	// Preserve written pitch and the separate beat-3 change (Am7 → B-7, A7 → B7).
+	await expect(chart.getByLabel('B-7', { exact: true }).first()).toBeVisible();
+	await expect(chart.getByLabel('B7', { exact: true }).first()).toBeVisible();
 });
 
 test('a real MuseScore file imports melody and changes at concert pitch', async ({ page }) => {
