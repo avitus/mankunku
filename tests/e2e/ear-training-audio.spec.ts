@@ -26,7 +26,7 @@ function audibleSample(): Buffer {
 }
 
 for (const instrumentId of ['tenor-sax', 'soprano-sax'])
-for (const sampleFailure of ['none', 'decode', 'stalled']) test(`ear-training sounds ${instrumentId} alongside the band (sample failure: ${sampleFailure})`, async ({ page, browserName }) => {
+for (const sampleScenario of ['real', 'valid-wav', 'decode', 'stalled']) test(`ear-training sounds ${instrumentId} alongside the band (samples: ${sampleScenario})`, async ({ page, browserName }) => {
 	// Opt in only in an isolated executor with a running virtual audio sink.
 	// Firefox otherwise hangs in AudioContext.resume() on headless Linux.
 	test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI && process.env.MANKUNKU_TEST_AUDIO_SINK !== '1', 'Headless Linux Firefox has no audio output device');
@@ -36,13 +36,26 @@ for (const sampleFailure of ['none', 'decode', 'stalled']) test(`ear-training so
 		'tour-state': TOUR_DISMISSED
 	});
 	await installAudioMock(page);
-	// Audible, deterministic stand-in for external libraries; the app still
-	// loads its real sax samples unless this test exercises decode failure.
-	await stubCdnInstrumentSamples(page, audibleSample());
-	if (sampleFailure === 'stalled') {
+	// Keep real-sample coverage, plus a codec-independent custom-loader success case.
+	const wav = audibleSample();
+	await stubCdnInstrumentSamples(page, wav);
+	const fallbackRequests: string[] = [];
+	page.on('request', request => {
+		const url = new URL(request.url());
+		if (url.hostname === 'gleitz.github.io' && url.pathname.includes(instrumentId.replace('-', '_'))) {
+			fallbackRequests.push(request.url());
+		}
+	});
+	let customSampleRequests = 0;
+	if (sampleScenario === 'valid-wav') {
+		await page.route(`**/samples/${instrumentId}/**`, route => {
+			customSampleRequests++;
+			return route.fulfill({ contentType: 'audio/wav', body: wav });
+		});
+	} else if (sampleScenario === 'stalled') {
 		// Leave requests pending: the app must time out and use the SoundFont.
 		await page.route(`**/samples/${instrumentId}/**`, () => {});
-	} else if (sampleFailure === 'decode') {
+	} else if (sampleScenario === 'decode') {
 		await page.route(`**/samples/${instrumentId}/**`, route => route.fulfill({ status: 200, body: 'invalid audio' }));
 		// smplr silently retries missing buffers at /C4.ogg, losing the
 		// original sample URL. Keep those failed decodes deterministic too.
@@ -79,7 +92,13 @@ for (const sampleFailure of ['none', 'decode', 'stalled']) test(`ear-training so
 	await expect(phase).toHaveAttribute('data-phase', 'listen', { timeout: 30_000 });
 	await expect(phase).not.toHaveAttribute('data-phase', 'listen', { timeout: 30_000 });
 	const peaks = await page.evaluate(() => (window as unknown as { __audioPeaks: { melody: number; backing: number } }).__audioPeaks);
-	console.log('ear-training audio peaks', { instrumentId, sampleFailure, ...peaks });
+	console.log('ear-training audio peaks', { instrumentId, sampleScenario, ...peaks });
+	if (sampleScenario === 'valid-wav') {
+		expect(customSampleRequests, 'the custom sampler must request its buffers').toBeGreaterThan(0);
+		expect(fallbackRequests, 'valid custom samples must not load the sax SoundFont').toEqual([]);
+	} else if (sampleScenario === 'decode' || sampleScenario === 'stalled') {
+		expect(fallbackRequests, 'failed custom samples must load the sax SoundFont').not.toEqual([]);
+	}
 	expect(peaks.backing, 'the backing must actually sound').toBeGreaterThan(0.001);
 	expect(peaks.melody, 'the lick must actually sound, including after sample decode failure').toBeGreaterThan(0.001);
 });
