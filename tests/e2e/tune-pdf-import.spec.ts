@@ -573,6 +573,10 @@ for (const [name, measures] of [
 		await expect(page.getByRole('textbox', { name: 'Tune title' })).toHaveValue(
 			new RegExp(name.replace('Till', 'Till?'))
 		);
+		// The title appears before the lazy engraver inserts the tall chart
+		// above this disclosure. Wait for the chart before targeting the
+		// native details toggle with a pointer.
+		await expect(page.locator('.td-score-well .abcjs-notehead').first()).toBeVisible();
 		await page.getByText('Compare with original PDF', { exact: true }).click();
 		await page
 			.getByLabel('Source measure', { exact: true })
