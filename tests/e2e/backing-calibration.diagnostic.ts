@@ -11,9 +11,9 @@ import { join } from 'node:path';
  * at a directory of calibration JSONs via CALIB_DIR.
  */
 
-test('measure per-voice render peaks', async ({ page, browserName }) => {
+test('measure per-voice render peaks', async ({ page }) => {
 	const calibDir = process.env.CALIB_DIR;
-	test.skip(!calibDir || !!process.env.CI || browserName !== 'chromium', 'calibration harness — run locally with CALIB_DIR');
+	if (!calibDir) throw new Error('Set CALIB_DIR to a repository-relative directory of calibration JSON files.');
 	test.setTimeout(600_000);
 
 	await seedOnboardedAnonymous(page);

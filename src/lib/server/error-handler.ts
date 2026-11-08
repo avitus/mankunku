@@ -18,16 +18,20 @@
  * a credential belongs. The logger is injected so the policy is
  * unit-testable in plain Node.
  */
-import type { HandleServerError } from '@sveltejs/kit';
+import type { HandleServerError } from '@sveltejs/kit/hooks';
 
 export type ErrorLogger = (...args: unknown[]) => void;
 
 /** The `handleError` for hooks.server.ts; `log` defaults to console.error and is injected for tests. */
 export function createServerErrorHandler(log: ErrorLogger = console.error): HandleServerError {
-	return ({ error, event, status }) => {
+	return (input) => {
+		const { error, event } = input;
+		const status = input.kind === 'unknown' ? 500 : input.error.status;
 		if (status >= 400 && status < 500) return;
 
-		const detail = error instanceof Error && error.stack ? error.stack : String(error);
+		const detail = error instanceof Error && error.stack
+			? error.stack
+			: input.kind === 'unknown' ? String(error) : input.error.message;
 		// Method + path only — see the module comment for why the query stays out.
 		const requestLine = `${event.request.method} ${event.url.pathname}`;
 		log(`[server error] ${status} ${requestLine}\n${detail}`);

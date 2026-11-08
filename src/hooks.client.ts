@@ -1,7 +1,7 @@
 import { handleErrorWithSentry, replayIntegration } from "@sentry/sveltekit";
 import * as Sentry from '@sentry/sveltekit';
 import type { ErrorEvent, EventHint } from '@sentry/sveltekit';
-import type { ClientInit, HandleClientError } from '@sveltejs/kit';
+import type { ClientInit, HandleClientError } from '@sveltejs/kit/hooks';
 import {
   isStaleChunkErrorMessage,
   shouldDropStaleChunkReport,
@@ -11,6 +11,7 @@ import {
 } from '$lib/util/stale-chunk';
 import { isEmptyErrorEvent, isLocalHostname } from '$lib/util/sentry-filters';
 import { TRACES_SAMPLE_RATE } from '$lib/util/sentry-sampling';
+import { SENTRY_COMMON_OPTIONS } from '$lib/util/sentry-options';
 import { serverReachable } from '$lib/util/server-reachable';
 import { documentSettled } from '$lib/util/document-settled';
 import { readAuthVerdict } from '$lib/persistence/auth-verdict';
@@ -48,6 +49,7 @@ const SENTRY_ENVIRONMENT = detectEnvironment();
  */
 function startSentry(): void {
   Sentry.init({
+    ...SENTRY_COMMON_OPTIONS,
     dsn: 'https://a12d5e915778d470c90bf492a29f1bb4@o135479.ingest.us.sentry.io/4511259307081728',
 
     // Tag events with the actual environment so dev sessions on localhost don't
@@ -140,9 +142,6 @@ function startSentry(): void {
     // A fraction, not every page load: see $lib/util/sentry-sampling.
     tracesSampleRate: TRACES_SAMPLE_RATE,
 
-    // Enable logs to be sent to Sentry
-    enableLogs: true,
-
     // This sets the sample rate to be 10%. You may want this to be 100% while
     // in development and sample at a lower rate in production
     replaysSessionSampleRate: 0.1,
@@ -154,9 +153,8 @@ function startSentry(): void {
     // If you don't want to use Session Replay, just remove the line below:
     integrations: [replayIntegration()],
 
-    // Enable sending user PII (Personally Identifiable Information)
-    // https://docs.sentry.io/platforms/javascript/guides/sveltekit/configuration/options/#sendDefaultPii
-    sendDefaultPii: true,
+    // Preserve the browser client's explicit user-info opt-in.
+    dataCollection: { ...SENTRY_COMMON_OPTIONS.dataCollection, userInfo: true },
   });
 }
 

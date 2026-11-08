@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { env } from '$env/dynamic/private';
+import * as env from '$app/env/private';
 
 /**
  * Server-only singleton for the Anthropic SDK.

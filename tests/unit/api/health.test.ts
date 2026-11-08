@@ -102,7 +102,7 @@ describe('GET /api/health — the route wiring', () => {
 
 	afterEach(() => {
 		vi.restoreAllMocks();
-		vi.doUnmock('$app/environment');
+		vi.doUnmock('$app/env');
 		for (const dir of tmpRoots.splice(0)) rmSync(dir, { recursive: true, force: true });
 	});
 
@@ -112,7 +112,7 @@ describe('GET /api/health — the route wiring', () => {
 	 */
 	async function loadRouteWithCwd(cwd: string) {
 		vi.resetModules();
-		vi.doMock('$app/environment', () => ({ version: 'd40ed2540e194e07befbf324837b52c7c2807528' }));
+		vi.doMock('$app/env', () => ({ version: 'd40ed2540e194e07befbf324837b52c7c2807528' }));
 		vi.spyOn(process, 'cwd').mockReturnValue(cwd);
 		return await import('../../../src/routes/api/health/+server');
 	}

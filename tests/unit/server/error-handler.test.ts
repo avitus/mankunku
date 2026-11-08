@@ -29,13 +29,11 @@ describe('createServerErrorHandler', () => {
 	it('logs nothing for a route-less 404 — scanner noise belongs to the access log', async () => {
 		const log = vi.fn();
 		const handleError = createServerErrorHandler(log);
-		const error = new Error('Not found: /+CSCOE+/logon.html');
 
 		const result = await handleError({
-			error,
-			event: makeEvent('GET', '/+CSCOE+/logon.html'),
-			status: 404,
-			message: 'Not Found'
+			kind: 'framework',
+			error: { status: 404, message: 'Not Found' },
+			event: makeEvent('GET', '/+CSCOE+/logon.html')
 		});
 
 		expect(log).not.toHaveBeenCalled();
@@ -47,13 +45,22 @@ describe('createServerErrorHandler', () => {
 		const handleError = createServerErrorHandler(log);
 
 		await handleError({
-			error: new Error('Bad Request'),
-			event: makeEvent('POST', '/api/chat', '/api/chat'),
-			status: 400,
-			message: 'Bad Request'
+			kind: 'app',
+			error: {status: 400, message: 'Bad Request'},
+			event: makeEvent('POST', '/api/chat', '/api/chat')
 		});
 
 		expect(log).not.toHaveBeenCalled();
+	});
+
+	it('ignores validation failures but logs structured application failures', async () => {
+		const log = vi.fn();
+		const handler = createServerErrorHandler(log);
+		const event = makeEvent('POST', '/api/chat', '/api/chat');
+		await handler({kind: 'validation', error: {status: 422, message: 'Invalid input'}, issues: [], event});
+		expect(log).not.toHaveBeenCalled();
+		await handler({kind: 'app', error: {status: 503, message: 'Service unavailable'}, event});
+		expect(log).toHaveBeenCalledExactlyOnceWith('[server error] 503 POST /api/chat\nService unavailable');
 	});
 
 	it('logs a 5xx once, with the request line and the stack', async () => {
@@ -62,10 +69,9 @@ describe('createServerErrorHandler', () => {
 		const error = new Error('boom');
 
 		await handleError({
+			kind: 'unknown',
 			error,
-			event: makeEvent('GET', '/tunes/abc/practice', '/tunes/[id]/practice'),
-			status: 500,
-			message: 'Internal Error'
+			event: makeEvent('GET', '/tunes/abc/practice', '/tunes/[id]/practice')
 		});
 
 		expect(log).toHaveBeenCalledTimes(1);
@@ -80,10 +86,9 @@ describe('createServerErrorHandler', () => {
 		const handleError = createServerErrorHandler(log);
 
 		await handleError({
+			kind: 'unknown',
 			error: new Error('exchange failed'),
-			event: makeEvent('GET', '/auth/callback?code=s3cret-authorization-code&next=%2Fprogress', '/auth/callback'),
-			status: 500,
-			message: 'Internal Error'
+			event: makeEvent('GET', '/auth/callback?code=s3cret-authorization-code&next=%2Fprogress', '/auth/callback')
 		});
 
 		expect(log).toHaveBeenCalledTimes(1);
@@ -98,10 +103,9 @@ describe('createServerErrorHandler', () => {
 		const handleError = createServerErrorHandler(log);
 
 		await handleError({
+			kind: 'unknown',
 			error: 'a string was thrown',
-			event: makeEvent('GET', '/progress', '/progress'),
-			status: 500,
-			message: 'Internal Error'
+			event: makeEvent('GET', '/progress', '/progress')
 		});
 
 		expect(log).toHaveBeenCalledTimes(1);

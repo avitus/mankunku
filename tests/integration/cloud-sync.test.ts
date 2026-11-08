@@ -11,13 +11,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock SvelteKit env modules (must come before imports)
-vi.mock('$env/static/public', () => ({
+vi.mock('$app/env/public', () => ({
 	PUBLIC_SUPABASE_URL: 'http://localhost:54321',
 	PUBLIC_SUPABASE_ANON_KEY: 'mock-anon-key'
 }));
 
-vi.mock('$env/dynamic/private', () => ({
-	env: { SUPABASE_SERVICE_ROLE_KEY: 'mock-service-key' }
+vi.mock('$app/env/private', () => ({
+	SUPABASE_SERVICE_ROLE_KEY: 'mock-service-key'
 }));
 
 vi.mock('@supabase/supabase-js', () => ({

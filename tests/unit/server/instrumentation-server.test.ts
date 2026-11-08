@@ -40,6 +40,8 @@ interface SentOptions {
 	beforeSend(event: Record<string, unknown>, hint: unknown): Record<string, unknown> | null;
 	beforeSendTransaction(event: Record<string, unknown>): Record<string, unknown> | null;
 	tracesSampleRate: number;
+	traceLifecycle: string;
+	dataCollection: Record<string, unknown>;
 }
 
 async function initOptions(): Promise<SentOptions> {
@@ -93,6 +95,16 @@ describe('instrumentation.server', () => {
 		const { tracesSampleRate } = await initOptions();
 		expect(tracesSampleRate).toBe(TRACES_SAMPLE_RATE);
 		expect(tracesSampleRate).toBeLessThanOrEqual(0.1);
+	});
+
+	it('keeps transaction hooks active and request, user and AI payloads private after SDK upgrades', async () => {
+		const options = await initOptions();
+		expect(options.traceLifecycle).toBe('static');
+		expect(options.dataCollection).toMatchObject({
+			userInfo: false, cookies: false, httpBodies: [],
+			genAI: { inputs: false, outputs: false }, databaseQueryData: false,
+			graphQL: { document: false, variables: false }
+		});
 	});
 
 	it('files a trace from a request to a local server under development', async () => {

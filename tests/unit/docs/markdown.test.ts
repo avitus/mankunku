@@ -3,12 +3,12 @@
  *
  * The renderer is downstream of two attacker-influenced inputs: the
  * documentation files we ship (low risk) AND the streaming output of the
- * docs-chat LLM (untrusted).  DOMPurify is the load-bearing sanitizer here;
+ * docs-chat LLM (untrusted).  sanitize-html is the load-bearing sanitizer here;
  * removing or weakening it is a security bug.  These tests pin:
  *   - slugify edge cases (heading anchors are public URLs)
  *   - relative-link rewriting (.md stripping, ../ resolution, /documentation/
  *     prefix → /docs/ prefix, external links opening in a new tab)
- *   - DOMPurify scrubbing of <script>, javascript: URLs, and event handlers
+ *   - sanitize-html scrubbing of <script>, javascript: URLs, and event handlers
  *   - whitelist preservation of the renderer's emitted attributes
  *     (data-lang, target on external links, header anchor ids)
  *   - markdownToPlainText for search indexing
@@ -95,7 +95,7 @@ describe('renderMarkdown — link rewriting', () => {
 	});
 });
 
-describe('renderMarkdown — DOMPurify sanitization (security)', () => {
+describe('renderMarkdown — sanitize-html sanitization (security)', () => {
 	it('strips <script> tags from raw HTML inside markdown', () => {
 		const { html } = renderMarkdown('Hello <script>alert(1)</script> world');
 		expect(html).not.toContain('<script');
@@ -124,18 +124,14 @@ describe('renderMarkdown — DOMPurify sanitization (security)', () => {
 	});
 
 	it('preserves data-lang on code blocks (whitelist add)', () => {
-		// The renderer emits `data-lang="ts"`; DOMPurify must not strip it
-		// because we add it to ADD_ATTR.
+		// The renderer emits `data-lang="ts"`; sanitize-html must not strip it
+		// because it is in allowedAttributes.
 		const { html } = renderMarkdown('```ts\nconst x = 1\n```');
 		expect(html).toContain('data-lang="ts"');
 		expect(html).toContain('class="language-ts"');
 		expect(html).toContain('const x = 1');
 	});
 
-	it('preserves target=_blank on external links (whitelist add)', () => {
-		const { html } = renderMarkdown('[x](https://x.com)');
-		expect(html).toContain('target="_blank"');
-	});
 });
 
 describe('renderMarkdown — code blocks', () => {

@@ -25,7 +25,7 @@ import {
 	peek
 } from '../helpers/cloud-sync-mocks';
 
-vi.mock('$env/static/public', () => ({
+vi.mock('$app/env/public', () => ({
 	PUBLIC_SUPABASE_URL: 'http://localhost:54321',
 	PUBLIC_SUPABASE_ANON_KEY: 'mock-anon-key'
 }));

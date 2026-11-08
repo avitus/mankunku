@@ -11,7 +11,7 @@ Known, deliberate limitations (documented, never hidden):
   replaces every text span (titles, annotations, and ABC's quoted chord
   symbols) with a single ``<|text|>`` token. Every result carries a
   standing ``TEXT_ELIDED_BY_MODEL`` warning. The text-aware tokenizer is a
-  LEGATO 2 feature, and LEGATO 2 is unreleased — see docs/omr/legato2.md.
+  LEGATO 2 feature, not yet integrated here — see docs/omr/legato2.md.
 - **Out-of-domain input.** The model trains on PDMX-Synth (classical /
   piano-heavy); jazz lead sheets are out of distribution. Quality is
   measured by the benchmark harness, not assumed.

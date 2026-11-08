@@ -16,6 +16,10 @@
 
 ---
 
+## Maintenance, 2026-11-08
+
+Current framework configuration is in `vite.config.ts` (SvelteKit 3, adapter-node 6); the Rollup warning wrapper was removed because the adapter now uses Rolldown. Runtime env exports and error-hook types changed with Kit 3. Sentry 11 requires explicit data collection and static trace lifecycle to preserve existing filters. Browser recording tools are separate diagnostics, not regressions. See `docs/maintenance/2026-11-08-audit.md` for verified results, skipped coverage and unresolved dependencies. Historical entries below remain incident evidence, not current package/config instructions.
+
 ## User profile
 
 ### Instrument and transposition
@@ -479,7 +483,7 @@ All suites run through `circleci testsuite run` (`.circleci/test-suites.yml`); A
 
 ## Two curated tunes; the stacked [2] engraving (2026-10-25)
 
-- **Catalog (Andy):** exactly Mankunku Blues and Rhythm Changes (`ls-rhythm-changes`, an original head in concert Bb: |: A(6) [1](2) :| [2](2) B(8) A(8), the whole AABA is the head). Saints and Amazing Grace moved to `tests/fixtures/tunes/`; the tune-practice e2e seeds Saints as the player's own tune (`SAINTS_USER_TUNE`) per test, since the first seed of a storage key wins. Don't add curated tunes without asking.
+- **Catalog (Andy):** exactly Mankunku Blues and Rhythm Changes (`ls-rhythm-changes`, an original head in concert Bb: `|: A(6) [1](2) :| [2](2) B(8) A(8)`, the whole AABA is the head). Saints and Amazing Grace moved to `tests/fixtures/tunes/`; the tune-practice e2e seeds Saints as the player's own tune (`SAINTS_USER_TUNE`) per test, since the first seed of a storage key wins. Don't add curated tunes without asking.
 - **The reported bug:** Mankunku Blues ends on its stacked [2], i.e. the LAST system, which `%%stretchlast 0` leaves at natural width; the alignment pass assumes a full-width system, so the staff stopped two bars in and the slid bars floated past it. Fix: `%%stretchlast 1` when a stacked [2] ends the tune, and every stacked [2] opens on `|[2` (a barline moved under [1]'s).
 - **Found by the new chart's first render:** beams in a stacked [2] never moved (abcjs draws `path.abcjs-beam-elem`; the pass selected `g.abcjs-beam`) → `endingLineArtTransform` carries each beam/tie/slur/triplet-bracket end with the note it rests on; the chord nudge measured chords without their vertical drop (`getBBox` omits the element's own transform) and counted ink a whole spacing below as a collision, shoving chords over high beamed eighths to the barline → measure as drawn, count only real overlap; a dim7's ninth semitone was spelled as a sixth (E°7's Db as C#, B°7's Ab as G# in Mankunku Blues) → the seventh's letter, the sixth's when the seventh needs a double flat.
 - **Method:** look at the chart. Andy said "barlines"; the picture showed a missing staff and a missing opening barline. Screenshot every new chart at written pitch in the e2e sandbox (Docker Desktop hung this session — recipe in the `reference_e2e_sandbox_docker_desktop_hang` memory).

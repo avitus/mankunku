@@ -3361,3 +3361,7 @@ The other thing: I told Andy about a clef bug without checking that anything rea
 ## 2026-11-04 — The user's framing beat my fix
 
 I had a fix ready: treat the category as the shape. It would have refused Wail on the fast form and also on the slow one, where it fits perfectly. Andy's sentence, "no concept of a short and long", named the actual missing thing, and only then did the slow Fly Me passage turn up, which my own example had misfiled as fast. I'd been reading detections as if a label told me the chords. Listing a chart's real durations took one test and would have caught it earlier. A label that merges two things reads as one thing until something forces you to print what's under it.
+
+## 2026-11-08 — Test inventories need several categories
+
+A recording tool, an expected-failure regression and a platform-skipped test are three different kinds of evidence. Counting all three as ordinary tests hides what is actually protected. The cross-tab switch test also showed why waiting for a reload is weaker than checking the new account's visible settings and where a subsequent write lands. The useful maintenance target is observable behavior and ownership boundaries, rather than a smaller test count by itself.

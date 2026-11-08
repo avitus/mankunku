@@ -93,6 +93,34 @@ test.describe('docs reading desk', () => {
 		await expect(page.getByRole('dialog')).toContainText('You can still browse all of the guides.');
 		await expect(page.getByRole('textbox', { name: 'Ask the assistant' })).toBeDisabled();
 	});
+
+	test('assistant renders untrusted markdown safely and keeps guide links usable', async ({ page }) => {
+		const answer = [
+			'Here is a safe answer.',
+			'<script>window.__unsafeDocs = true</script>',
+			'<p onclick="window.__unsafeDocs = true">Click this text</p>',
+			'<a href="javascript:window.__unsafeDocs=true">Unsafe link</a>',
+			'```html\n<img src=x onerror="window.__unsafeDocs=true">\n```',
+			'[Welcome](/docs/getting-started)'
+		].join('\n\n');
+		await page.route('**/api/chat', route => route.fulfill(
+			route.request().method() === 'GET'
+				? { json: { configured: true } }
+				: { contentType: 'text/event-stream', body: `data: ${JSON.stringify({ type: 'delta', text: answer })}\n\ndata: {"type":"done"}\n\n` }
+		));
+		await page.goto('/docs');
+		await page.getByRole('button', { name: 'Ask AI' }).click();
+		const dialog = page.getByRole('dialog', { name: 'AI assistant' });
+		await dialog.getByRole('textbox', { name: 'Ask the assistant' }).fill('Show the welcome guide');
+		await dialog.getByRole('button', { name: 'Send', exact: true }).click();
+		await expect(dialog).toContainText('Here is a safe answer.');
+		await expect(dialog.locator('script, [onclick], [onerror], a[href^="javascript:"]')).toHaveCount(0);
+		await expect(dialog.locator('pre code')).toContainText('<img src=x');
+		await dialog.getByText('Click this text', { exact: true }).click();
+		expect(await page.evaluate(() => '__unsafeDocs' in window)).toBe(false);
+		await dialog.getByRole('link', { name: 'Welcome', exact: true }).click();
+		await expect(page).toHaveURL(/\/docs\/getting-started$/);
+	});
 });
 
 test('light theme keeps article and reference tables within the mobile page', async ({ page }) => {

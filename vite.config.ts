@@ -1,7 +1,8 @@
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { sentrySvelteKit } from "@sentry/sveltekit";
+import { sentrySvelteKit } from "@sentry/sveltekit/vite";
 import { sveltekit } from '@sveltejs/kit/vite';
+import adapter from '@sveltejs/adapter-node';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vitest/config';
 
@@ -43,6 +44,7 @@ const circleciCoverage = process.env.CIRCLECI_COVERAGE
 
 export default defineConfig({
 	worker: { format: 'es' },
+	ssr: { noExternal: ['@anthropic-ai/sdk'] },
 	// No PWA/service-worker plugin — removed 2026-07-25. The generated worker
 	// was never registered by SSR pages (the registerSW <script> injection
 	// only applies to prerendered HTML, and this app SSRs everything), and the
@@ -57,7 +59,18 @@ export default defineConfig({
         org: "veetle",
         project: "mankunku",
         autoUploadSourceMaps: uploadSourceMaps
-    }), tailwindcss(), sveltekit()],
+    }), tailwindcss(), sveltekit({
+		adapter: adapter(),
+		// Preserve the app's established imports; Kit 3 no longer supplies $lib.
+		alias: { $lib: './src/lib' },
+		version: {
+			...(process.env.CIRCLE_SHA1 ? { name: process.env.CIRCLE_SHA1 } : {}),
+			pollInterval: 60_000
+		},
+		tracing: { server: true },
+		dynamicCompileOptions: ({ filename }) =>
+			filename.includes('node_modules') ? undefined : { runes: true }
+	})],
 	server: { watch: { ignored: [claudeWorktrees] } },
 	// The e2e impact-analysis build (tests/e2e/fixtures/circleci-coverage.ts)
 	// maps each chunk the browser loaded back to its sources through these

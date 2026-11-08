@@ -200,11 +200,11 @@ Jazz terminology, pitch terminology, and a few app-specific terms — defined in
 
 **Home key** (entry key) — The key a lick is written in, where its key ladder starts. A new lick has only its home key; the others unlock in key-signature order, fewest sharps or flats first as you read them. For tricks it's your written C.
 
-**Lead-sheet row** — The taller row in a Lick Practice session's chord stack that shows the line as sheet music. It appears for one key per lick — the most recently unlocked, while its rolling score is under 75% — and that key is played three times running in Continuous mode, only the last pass counting.
+**Lead-sheet row** — A 128 px row in the Lick Practice chord stack showing the line in written pitch. Daily shows it for the newest unlocked key while its rolling score is below 75%. Deep Practice can also help older keys after a first attempt below 50% or two recent attempts averaging below 70%. Upcoming sheets appear immediately. Continuous mode gives three uninterrupted passes, only the last counting; a successful Deep final pass at 95% returns the key to memory playing.
 
 **Phase of expertise** — The four stages a lick's progress chart names: *new* (fewer than 12 keys unlocked), *learning* (all 12, under 120 BPM), *proficient* (120–149 BPM), *expert* (150 BPM and up). A mirror, not a gate.
 
-**Reading pause** — The two bars the band vamps (a ii-V into the new key) before a lead-sheet row's first pass, when that key doesn't open the cycle — time to switch from playing by memory to reading. The tab reads *Read*, then counts you in.
+**Memory preparation bar** — An unscored bar before switching from sheet-assisted practice to playing from memory in Deep Practice. Ordinary sheet passes and key changes continue without an extra reading pause.
 
 **Refill cycle** — In Deep Practice, the cycle after you've cleared every key in the rotation: the full set comes back, the tempo steps up, and there's no demo.
 

@@ -45,10 +45,11 @@ export function testCommand(mode, args) {
 		case 'e2e': return ['xvfb-run', '-a', 'npx', 'playwright', 'test', '--workers=2', ...args];
 		case 'ui': return ['xvfb-run', '-a', 'npx', 'playwright', 'test', '--workers=2',
 			'--ui-host=0.0.0.0', '--ui-port=9323', ...args];
+		case 'diagnostics': return ['xvfb-run', '-a', 'npx', 'playwright', 'test', '--config=playwright.diagnostics.config.ts', ...args];
 		case 'unit': return ['npx', 'vitest', 'run', '--maxWorkers=2', ...args];
 		case 'check': return ['npm', 'run', 'check', '--', ...args];
 		case 'deploy': return ['npm', 'run', 'test:deploy', '--', ...args];
-		default: throw new Error('Usage: npm run test:sandbox -- <e2e|ui|unit|check|deploy> [runner arguments]');
+		default: throw new Error('Usage: npm run test:sandbox -- <e2e|ui|diagnostics|unit|check|deploy> [runner arguments]');
 	}
 }
 
@@ -139,6 +140,16 @@ async function main() {
 		const image = (await readFile(imageFile, 'utf8')).trim();
 		const ports = mode === 'ui' ? ['--publish', '127.0.0.1::9323'] : [];
 		const environment = outputs.flatMap(([variable, file]) => ['--env', `${variable}=/workspace/test-results/${file}`]);
+		if (mode === 'diagnostics') {
+			for (const key of ['CALIB_DIR', 'RENDER_DIR']) {
+				const value = process.env[key];
+				if (!value) continue;
+				if (path.isAbsolute(value) || value.split(/[\\/]/).includes('..')) {
+					throw new Error(`${key} must be a repository-relative directory included in the snapshot.`);
+				}
+				environment.push('--env', `${key}=${value}`);
+			}
+		}
 		if (process.env.E2E_SOURCEMAPS === '1') environment.push('--env', 'E2E_SOURCEMAPS=1');
 		if (await docker('create', '--name', name, '--init', '--cpus=2', '--memory=4g',
 			'--memory-swap=4g', '--shm-size=1g', '--pids-limit=512', '--cap-drop=ALL',

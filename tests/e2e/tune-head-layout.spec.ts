@@ -11,7 +11,8 @@ const tune = sheet({ ...production as Partial<Tune>, id: 'autumn-layout' });
 for (const focus of [false, true]) {
 	test(`Autumn in New York head has four-bar lines with focus ${focus}`, async ({ page, browserName }, info) => {
 		test.setTimeout(75_000);
-		test.skip(browserName === 'firefox', 'Head playback needs an audio device in Linux Firefox');
+		test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+			'Head playback needs an audio device in headless Linux Firefox');
 		await page.setViewportSize({ width: 1440, height: 1000 });
 		await seedOnboardedAnonymous(page);
 		await seedTunes(page, [tune]);

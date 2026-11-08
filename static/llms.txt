@@ -17,9 +17,11 @@ SvelteKit installable web app.
   rhythm is segmented from a custom AudioWorklet onset detector. Dynamic
   Time Warping aligns the user's notes to the expected sequence and absorbs
   human/detection latency.
-- **Lick practice** — Drill curated jazz licks through all twelve keys
-  over a backing-track rhythm section (bass, comping, drums, generated
-  with smplr). Tempo adapts as the user masters keys.
+- **Lick practice** — Drill your own lick book through all twelve keys in
+  Daily or Deep Practice. Tempo adapts; new keys require unaided memory passes.
+  A generated rhythm section provides bass, comping and drums.
+- **Tune practice** — Rehearse song forms with progression and harmonic-region
+  suggestions drawn from your own licks, or improvise over the changes.
 - **Editor** — A keyboard-driven note-by-note UI for adding personal licks, with
   instrument-aware transposition (Bb / Eb / concert).
 
@@ -39,7 +41,7 @@ SvelteKit installable web app.
 
 ## Routes worth crawling
 
-- [/](https://mankunkujazz.com/) — Home, two doors into Ear Training and Lick Practice.
+- [/](https://mankunkujazz.com/) — Landing page when signed out; practice dashboard when signed in.
 - [/ear-training](https://mankunkujazz.com/ear-training) — Call-and-response practice.
 - [/lick-practice](https://mankunkujazz.com/lick-practice) — Multi-key lick drills.
 - [/licks](https://mankunkujazz.com/licks) — Your lick book: licks you recorded, wrote in the editor, or stole from the community.
@@ -62,5 +64,5 @@ Source code: <https://github.com/avitus/mankunku>
 
 ## Tech
 
-SvelteKit 2 · Svelte 5 (runes) · TypeScript · Tailwind CSS 4 · Tone.js ·
+SvelteKit 3 · Svelte 5 (runes) · TypeScript · Tailwind CSS 4 · Tone.js ·
 Pitchy · Supabase · Node adapter · installable web app.

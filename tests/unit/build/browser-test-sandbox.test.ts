@@ -46,6 +46,13 @@ describe('Test sandbox snapshot and invocation', () => {
 			'xvfb-run', '-a', 'npx', 'playwright', 'test', '--workers=2', '--grep', pattern
 		]);
 	});
+	it('selects artifact producers only through the isolated diagnostics config', () => {
+		expect(testCommand('diagnostics', ['record-omr-fixtures'])).toEqual([
+			'xvfb-run', '-a', 'npx', 'playwright', 'test', '--config=playwright.diagnostics.config.ts', 'record-omr-fixtures'
+		]);
+		expect(testCommand('e2e', [])).not.toContain('--config=playwright.diagnostics.config.ts');
+	});
+
 	it('keeps headed tests in Xvfb and serves interactive UI without opening a desktop browser', () => {
 		expect(testCommand('e2e', ['--headed'])).toContain('xvfb-run');
 		expect(testCommand('ui', [])).toContain('--ui-host=0.0.0.0');

@@ -32,7 +32,7 @@ test.describe('shipped audio samples decode in every engine', () => {
 		await seedOnboardedAnonymous(page);
 	});
 
-	test('decodeAudioData accepts every sample the app loads', async ({
+	test('decodeAudioData accepts every drum and a representative sample from each sax', async ({
 		page,
 		consoleCollector: _consoleCollector
 	}) => {

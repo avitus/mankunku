@@ -102,7 +102,11 @@ export async function extractPdfSystems(
 		})
 	]);
 
-	const loading = pdfjs.getDocument({ data: buffer.slice(0), disableFontFace: true });
+	// PDF.js 6.5 exposes original font names only with extra properties. The
+	// legacy Inkpen decoder needs that identity to distinguish music from text.
+	const loading = pdfjs.getDocument({
+		data: buffer.slice(0), disableFontFace: true, fontExtraProperties: true
+	});
 	const doc = await loading.promise;
 	const pageCanvases: HTMLCanvasElement[] = [];
 	try {

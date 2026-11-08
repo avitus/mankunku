@@ -143,7 +143,7 @@ tests/e2e/
 - **`audio.ts`** patches `MediaDevices.prototype.getUserMedia` (WebKit re-creates the `navigator.mediaDevices` wrapper, so an instance patch gets lost — `audio-mock.spec.ts` pins this) and hands back a synthetic oscillator stream. It never calls the real `getUserMedia`, so the suite never waits on an OS microphone prompt. `stubCdnInstrumentSamples` serves instrument samples locally.
 - **`stub-cloud.ts`** runs one in-memory Supabase in the Node process and bridges every context to it, so two "devices" can converge (`cloud-convergence`, `stub-cloud-smoke`, `anon-lick-absorption`).
 
-**Import rule:** anonymous specs import from `./fixtures/test`; signed-in specs import from `./fixtures/auth`, which extends the same guarded `test`. Never import `test` from `@playwright/test` (type-only imports are fine). The one exception is `record-omr-fixtures.spec.ts`, a local producer.
+**Import rule:** anonymous specs import from `./fixtures/test`; signed-in specs import from `./fixtures/auth`, which extends the same guarded `test`. Never import `test` from `@playwright/test` (type-only imports are fine).
 
 ## The console guard
 
@@ -158,7 +158,7 @@ The guard is automatic: every test that uses the fixture `test` fails on any une
 ## Skips and local-only specs
 
 - Transport-driven specs (ear training, lick practice, tune practice, record-a-lick) skip on headless Linux Firefox in CI, where `Tone.start()` hangs without an audio device. The sandbox uses the same skips; Chromium and WebKit still exercise those flows.
-- Four specs are local producers or diagnostics, not suite members: `backing-calibration`, `backing-milestone-render` (the WAV producer for the backing listening protocol), `record-omr-fixtures` (re-records OMR fixtures; gated by `RECORD_OMR_FIXTURES=1`) and `backing-render-audio` (needs real CDN samples). Each self-skips unless its environment is set.
+- Three artifact producers are selected only by the diagnostics config (see below). The backing WAV regression is part of normal CI with deterministic external samples.
 
 ## Debugging tips
 
@@ -168,3 +168,19 @@ The guard is automatic: every test that uses the fixture `test` fails on any une
 - A hang at a count-in on macOS usually means the host process is waiting on an OS permission dialog; Chromium runs with `--disable-audio-output` so output devices are irrelevant.
 - CI's WebKit flakes reproduce under a one-core throttle: `docker run --cpus=1` on the Playwright image.
 - WebKit runs one worker at a time (`workers: 1` on the `webkit` project). Two WebKits on two CPUs stop delivering `requestAnimationFrame` for seconds, and every click waits two frames for "stable": `tricks.spec.ts` timed out on every attempt at two WebKit workers, on `/docs` as much as the enclosure canvas. A click stuck at "waiting for element to be visible, enabled and stable" on WebKit is CPU starvation before it is the component.
+
+## Artifact recording tools
+
+Normal E2E discovery includes `*.spec.ts`. The calibration, milestone WAV and OMR fixture recorders are `*.diagnostic.ts`, selected only by `playwright.diagnostics.config.ts`:
+
+```sh
+CALIB_DIR=tests/fixtures/backing npm run test:sandbox -- diagnostics backing-calibration
+RENDER_DIR=tests/fixtures/backing/milestone-a npm run test:sandbox -- diagnostics backing-milestone-render
+npm run test:sandbox -- diagnostics record-omr-fixtures
+```
+
+Inputs must be repository-relative directories. Outputs are stored under the recovered sandbox artifacts; review generated files before replacing a committed fixture. These commands are tools for collecting evidence, not correctness tests. The normal backing-render regression now supplies audible deterministic CDN samples and asserts output over the whole form, including isolated stems.
+
+See the [maintenance audit](../../docs/maintenance/2026-11-08-audit.md) for the remaining platform skips and expected failures.
+
+The automatic console guard also watches additional tabs and popups in the test context. `console-errors.spec.ts` verifies that errors from a second tab are retained even after it closes.

@@ -4,19 +4,20 @@ version = "0.1.0"
 description = "Standalone OMR (Optical Music Recognition) subsystem for Mankunku lead-sheet import. Backend-agnostic; see docs/omr/."
 requires-python = "==3.12.*"
 dependencies = [
-    "pypdfium2>=4.30,<5",
-    "pillow>=11.1,<12",
+    "pypdfium2>=5.15.1,<6",
+    "pillow>=13.0.0,<14",
 ]
 
 [project.optional-dependencies]
-# Model-runtime deps for LegatoV1Backend. Pinned to match the vendored
-# guang-yng/legato code's tested versions. Never installed in CI.
+# Model-runtime deps validated together against the gated transcription benchmark.
+# Newer Transformers candidates fail its quality gate; see vendor/legato/VENDORED.md.
+# Never installed in CI.
 legato = [
-    "torch==2.6.0",
-    "transformers==4.54.0",
-    "numpy==1.26.4",
-    "accelerate==1.8.0",
-    "huggingface_hub>=0.28",
+    "torch==2.15.0",
+    "transformers==4.54.1",
+    "numpy==2.5.4",
+    "accelerate==1.15.0",
+    "huggingface_hub==0.36.2",
 ]
 
 [dependency-groups]

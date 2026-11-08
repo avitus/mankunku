@@ -1,5 +1,5 @@
 import { realpathSync } from 'node:fs';
-import { version } from '$app/environment';
+import { version } from '$app/env';
 import { buildHealthSnapshot, resolveReleaseId } from '$lib/server/health';
 import type { RequestHandler } from './$types';
 
