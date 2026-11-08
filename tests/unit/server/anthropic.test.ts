@@ -6,12 +6,12 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
+/** Supply a runtime key before importing the lazy singleton. */
 function setEnv(key: string | undefined): void {
-	// `$env/dynamic/private` exposes a mutable `env` object; tests configure
-	// it through the same vi.mock factory each time.  Resetting modules
+	// Mock the runtime environment exports. Resetting modules
 	// between tests forces re-import so the lazy `attempted` flag resets.
-	vi.doMock('$env/dynamic/private', () => ({
-		env: key === undefined ? {} : { ANTHROPIC_API_KEY: key }
+	vi.doMock('$app/env/private', () => ({
+		ANTHROPIC_API_KEY: key
 	}));
 }
 

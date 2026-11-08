@@ -6,14 +6,14 @@ import { join } from 'node:path';
 /**
  * LOCAL milestone WAV producer, not a CI test: feeds every events JSON in
  * RENDER_DIR through the lab's "Render WAV from events JSON" control and
- * saves the resulting downloads into OUT_DIR. Produces the listening-pass
+ * saves the resulting downloads into the sandbox's recovered artifacts. Produces the listening-pass
  * files without any manual clicking.
  */
 
-test('render milestone JSONs to WAV files', async ({ page, browserName }) => {
+test('render milestone JSONs to WAV files', async ({ page }, testInfo) => {
 	const renderDir = process.env.RENDER_DIR;
-	const outDir = process.env.OUT_DIR;
-	test.skip(!renderDir || !outDir || !!process.env.CI || browserName !== 'chromium', 'local producer — set RENDER_DIR/OUT_DIR');
+	const outDir = testInfo.outputPath('renders');
+	if (!renderDir) throw new Error('Set RENDER_DIR to a repository-relative directory of events JSON files.');
 	test.setTimeout(1_800_000);
 
 	mkdirSync(outDir!, { recursive: true });

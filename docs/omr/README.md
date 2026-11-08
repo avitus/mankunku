@@ -1,5 +1,8 @@
 # OMR subsystem (`omr/`)
 
+Maintenance status (2026-11-08): PDFium/Pillow and the optional model runtime were upgraded and tested in isolated Linux containers. The compatible Transformers 4.54 line still has outstanding security advisories; newer inference implementations failed the transcription-quality gate. See the [maintenance audit](../maintenance/2026-11-08-audit.md#packages-and-security). The default PDF/ABC runtime scans clean. Real-model tests remain opt-in and gated.
+
+
 Exported PDFs now use a direct SMuFL/vector reader in the browser before optical recognition. A `.omr.json` is optional; it is most relevant to scans and unsupported notation. See [PDF recognition and accuracy](pdf-import-accuracy.md) for the architecture, nine-chart evaluation command, measured results, and remaining scan limitations.
 
 
@@ -16,8 +19,8 @@ produced by `python -m omr transcribe`. Systems that pass alignment and quality
 checks bypass melody recognition; scanned chords are still read separately.
 Rejected or uncovered systems fall back to the vision reader. Nothing else
 in the app calls the Python subsystem.
-The intended engine — **LEGATO 2 — is not publicly released** (re-checked
-2026-09-10; see [legato2.md](legato2.md)); a clearly-labeled LEGATO **v1**
+The intended engine — **LEGATO 2 — now has published artifacts but is not integrated here** (re-checked
+2026-11-08; see [legato2.md](legato2.md)); a clearly-labeled LEGATO **v1**
 backend exists for experimentation, with a hard limitation: **it transcribes
 no text, so chord symbols are absent from its output.**
 
@@ -39,7 +42,7 @@ PDF / image  ─►  ingest (pdfium render / EXIF)  ─►  conservative preproc
   (pipeline, CLI, benchmark) depends on this, never on a concrete engine, so
   OMR engines are swappable and comparable.
 - `backends/legato_v1.py` — LEGATO v1 (temporary experimentation backend).
-- `backends/legato2.py` — documented stub; raises until LEGATO 2 is released.
+- `backends/legato2.py` — documented stub; raises until LEGATO 2 is integrated and validated.
 - `abc_parser.py` — resilient lead-sheet-subset ABC parser. Built for hostile
   input: an unlexable span costs one measure (kept verbatim in
   `raw_unparsed` + `UNPARSEABLE_REGION` warning), never the score. A quoted
@@ -87,6 +90,15 @@ uv sync --extra legato  # + torch/transformers for real LEGATO v1 inference
 
 Python 3.12 (pinned in `.python-version`), uv-managed (`uv.lock`).
 
+For a Linux CPU-only model sandbox, start with `uv sync`, then use
+`uv pip install --torch-backend cpu -e '.[legato]'` to select PyTorch's CPU
+wheel instead of downloading the CUDA dependency stack. Run that environment
+with `uv run --no-sync ...` so project synchronization does not replace the
+selected wheel. The optional acceptance command there is
+`uv run --no-sync pytest -m omr_integration`. The model checkpoint and encoder
+cache still require the access grants below. This CPU wheel variant was used
+for the maintenance acceptance; the ordinary lockfile retains CUDA support.
+
 ### Model access (one-time, for `--extra legato`)
 
 Real inference needs access to **two** gated Hugging Face repos. The LEGATO
@@ -115,16 +127,16 @@ repo. A missing grant fails loudly with the exact URL to visit
 
 - **CPU**: the default on Macs — works, slower (beam search over up to
   2,048 tokens). `--beams 1` trades accuracy for speed.
-- **Apple Silicon (MPS)**: **broken on torch 2.6 — do not use.** Generation
+- **Apple Silicon (MPS)**: disabled in automatic selection after a torch 2.6 failure. Generation
   aborts the entire process (SIGABRT, `LLVM ERROR: Failed to infer result
   type(s)` in `mps.matmul` on the Mllama cross-attention; verified on a
   2023 Mac Studio, 2026-08-09). Because a process abort cannot be caught,
-  `--device auto` never selects MPS; `--device mps` remains available for
-  retesting after a torch upgrade, at your own risk.
-- **CUDA**: upstream's tested path (CUDA 12.4); auto-selected when present.
+  `--device auto` never selects MPS; `--device mps` remains available for explicit retesting. The upgraded
+  torch 2.15 runtime was validated on Linux CPU only; MPS remains unverified.
+- **CUDA**: upstream's accelerated path; auto-selected when present. This maintenance run did not validate CUDA.
 - **Never the production droplet** (4GB RAM + 2GB swap since the 2026-09-08
-  move; a CPU run peaks near 3.6GB RSS after a ≈20GB encoder download, on a
-  box that is busy serving the app). OMR inference is a local/dev tool; if it
+  move; the 2026-11-08 Linux CPU acceptance run needed a 12GB VM, after a
+  ≈20GB encoder download). OMR inference is a local/dev tool; if it
   ever serves production it runs as a separate GPU service behind the same
   `OMRBackend` seam.
 
@@ -135,7 +147,7 @@ cd omr
 uv run python -m omr transcribe "../Leadsheets/PDF/Lady Bird.pdf"
 uv run python -m omr transcribe chart.pdf --output out.json --raw
 uv run python -m omr transcribe chart.pdf --debug          # artifact dir
-uv run python -m omr transcribe chart.pdf --backend legato2  # exits 3: unreleased
+uv run python -m omr transcribe chart.pdf --backend legato2  # exits 3: not integrated
 uv run python -m omr transcribe chart.pdf --device cpu --beams 1 --pages 1
 uv run python -m omr benchmark --backend legato_v1
 ```
@@ -177,7 +189,7 @@ happens downstream, on top of this record, never inside it.
 - **LEGATO v1 transcribes no text**: titles, annotations, and **chord
   symbols** all become `<|text|>` placeholders (standing
   `TEXT_ELIDED_BY_MODEL` warning on every result; benchmark chord metrics
-  will read ≈ 0 by design). Restoring chords is precisely the unreleased
+  will read ≈ 0 by design). Restoring chords is precisely the
   LEGATO 2 capability.
 - Whole-page recognition with a 2,048-token output cap; dense pages risk
   tail truncation (`POSSIBLE_TRUNCATION` fires from real token counts).
@@ -293,5 +305,4 @@ in `.circleci/config.yml`, mirroring `nginx-changed`. The Python suite runs
 separately from the app's tests; on the app side, the hybrid `.omr.json`
 import path has its own Vitest coverage (`tests/unit/tunes/omr-*.test.ts`,
 `pdf-vs-musescore`'s OMR family) and an env-gated Playwright fixture recorder
-(`RECORD_OMR_FIXTURES=1 npx playwright test record-omr-fixtures
---project=chromium`), so CI never rewrites fixtures.
+(`npm run test:sandbox -- diagnostics record-omr-fixtures`), so CI never rewrites fixtures.

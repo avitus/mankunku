@@ -1,6 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { assertBrowserTestIsolation } from '../../../scripts/browser-test-boundary.js';
-import { includeInSnapshot, playwrightVersion, testCommand } from '../../../scripts/test-sandbox.mjs';
+import { diagnosticEnvironment, includeInSnapshot, playwrightVersion, testCommand } from '../../../scripts/test-sandbox.mjs';
 
 describe('Browser isolation boundary', () => {
 	it.each(['darwin', 'win32', 'linux'])('refuses host browsers on %s, including CI=1 and forged sandbox flags', (platform) => {
@@ -13,6 +16,54 @@ describe('Browser isolation boundary', () => {
 			env: { CIRCLECI: 'true' } })).not.toThrow();
 		expect(() => assertBrowserTestIsolation({ platform: 'darwin', container: false,
 			env: { CIRCLECI: 'true' } })).toThrow();
+	});
+});
+
+describe('Diagnostic input directories', () => {
+	let worktree: string;
+	let snapshot: string;
+	beforeEach(async () => {
+		worktree = await mkdtemp(path.join(tmpdir(), 'diagnostic-inputs-'));
+		snapshot = path.join(worktree, 'snapshot');
+		await mkdir(snapshot);
+	});
+	afterEach(async () => {
+		await rm(worktree, { recursive: true, force: true });
+	});
+
+	it('preserves both configured directories, including spaces, when copied into the snapshot', async () => {
+		await mkdir(path.join(snapshot, 'fixtures/calibration'), { recursive: true });
+		await mkdir(path.join(snapshot, 'fixtures/render inputs'));
+		await expect(diagnosticEnvironment(snapshot, {
+			CALIB_DIR: 'fixtures/calibration', RENDER_DIR: 'fixtures/render inputs'
+		})).resolves.toEqual([
+			'--env', 'CALIB_DIR=fixtures/calibration', '--env', 'RENDER_DIR=fixtures/render inputs'
+		]);
+	});
+
+	it('rejects a host directory that was omitted from the snapshot', async () => {
+		await mkdir(path.join(worktree, 'ignored-fixtures'));
+		await expect(diagnosticEnvironment(snapshot, { CALIB_DIR: 'ignored-fixtures' }))
+			.rejects.toThrow('CALIB_DIR must be a repository-relative directory included in the snapshot.');
+	});
+
+	it('rejects files and paths whose parent is a file', async () => {
+		await writeFile(path.join(snapshot, 'fixture.json'), '{}');
+		for (const value of ['fixture.json', 'fixture.json/child']) {
+			await expect(diagnosticEnvironment(snapshot, { RENDER_DIR: value }))
+				.rejects.toThrow('RENDER_DIR must be a repository-relative directory included in the snapshot.');
+		}
+	});
+
+	it.each(['/tmp', '../outside', '..\\outside'])('rejects non-relative input %s', async (value) => {
+		await expect(diagnosticEnvironment(snapshot, { CALIB_DIR: value }))
+			.rejects.toThrow('repository-relative directory');
+	});
+
+	it('preserves unexpected filesystem errors', async () => {
+		await symlink('loop', path.join(snapshot, 'loop'));
+		await expect(diagnosticEnvironment(snapshot, { RENDER_DIR: 'loop/child' }))
+			.rejects.toMatchObject({ code: 'ELOOP' });
 	});
 });
 
@@ -46,6 +97,13 @@ describe('Test sandbox snapshot and invocation', () => {
 			'xvfb-run', '-a', 'npx', 'playwright', 'test', '--workers=2', '--grep', pattern
 		]);
 	});
+	it('selects artifact producers only through the isolated diagnostics config', () => {
+		expect(testCommand('diagnostics', ['record-omr-fixtures'])).toEqual([
+			'xvfb-run', '-a', 'npx', 'playwright', 'test', '--config=playwright.diagnostics.config.ts', 'record-omr-fixtures'
+		]);
+		expect(testCommand('e2e', [])).not.toContain('--config=playwright.diagnostics.config.ts');
+	});
+
 	it('keeps headed tests in Xvfb and serves interactive UI without opening a desktop browser', () => {
 		expect(testCommand('e2e', ['--headed'])).toContain('xvfb-run');
 		expect(testCommand('ui', [])).toContain('--ui-host=0.0.0.0');

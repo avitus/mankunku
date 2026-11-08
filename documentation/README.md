@@ -1,5 +1,8 @@
 # Mankunku Documentation
 
+Current contributor setup and framework references were reviewed on 2026-11-08. See the [maintenance audit](../docs/maintenance/2026-11-08-audit.md) for test exclusions, dependency risks and validation. Dated incident notes below preserve what happened at the time; current instructions live in the linked reference pages.
+
+
 Mankunku is a jazz ear training web app built around **call and response**: the app plays a phrase, you play it back on your instrument, and it scores your pitch and rhythm accuracy. Three practice surfaces grow out of that loop — ear training on the day's key and scale, lick practice through all twelve keys over a generated rhythm section, and scored practice over the form of a real tune — with tricks (melodic devices drilled for fluency) riding the lick-practice engine.
 
 Named after [Winston "Mankunku" Ngozi's](https://en.wikipedia.org/wiki/Winston_Mankunku_Ngozi) iconic 1968 album *Yakhal' Inkomo*, this app targets jazz musicians practicing ear training, transcription, and improvisation vocabulary.

@@ -191,10 +191,10 @@ jobs:
     # Playwright's official image bundles all three browsers preinstalled,
     # so no `npx playwright install` step is needed and there's no need to
     # apt-install browser deps. Tag matches the @playwright/test version
-    # package-lock.json resolves (1.62.1), not package.json's ^1.58.2 range —
+    # package-lock.json resolves (1.65.0), matching package.json's ^1.65.0 range —
     # bump it with the lockfile, or the browsers won't match the runner.
     docker:
-      - image: mcr.microsoft.com/playwright:v1.62.1-noble
+      - image: mcr.microsoft.com/playwright:v1.65.0-noble
     # The pipeline's critical path. Each node builds the app once (~90s);
     # that duplication is deliberate. Reusing the `build` job's output
     # instead would serialize build → e2e and end up SLOWER, and `build`
@@ -228,7 +228,7 @@ jobs:
     # a sourcemapped build (tests/e2e/fixtures/circleci-coverage.ts), for the
     # spec files changes since the last analysis touched. Nothing waits on it.
     docker:
-      - image: mcr.microsoft.com/playwright:v1.62.1-noble
+      - image: mcr.microsoft.com/playwright:v1.65.0-noble
     steps:
       - checkout
       - serve-e2e-app:
@@ -376,7 +376,7 @@ jobs:
             # only step that would catch nginx pointing somewhere stale, and it
             # turns "the pipeline went green" into a statement about what users
             # actually receive. /api/health reports `version` as SvelteKit's
-            # app version, pinned to CIRCLE_SHA1 in svelte.config.js.
+            # app version, pinned to CIRCLE_SHA1 in vite.config.ts.
             URL="${PRODUCTION_URL:-https://mankunkujazz.com}/api/health"
 
             for attempt in $(seq 1 6); do

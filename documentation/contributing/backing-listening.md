@@ -53,18 +53,15 @@ The backing-track upgrade program ("professional session musicians") is verified
 ### Producing a comparison set headlessly
 
 Clicking through eight bounces by hand is how the first milestone went; don't repeat it.
-`tests/e2e/backing-milestone-render.spec.ts` drives the lab in a real browser and saves
+`tests/e2e/backing-milestone-render.diagnostic.ts` drives the lab in a real browser and saves
 one WAV per events JSON:
 
 ```sh
-RENDER_DIR=tests/fixtures/backing/milestone-a OUT_DIR=~/Desktop/milestone-a \
-  npx playwright test tests/e2e/backing-milestone-render.spec.ts --project=chromium
+RENDER_DIR=tests/fixtures/backing/milestone-a \
+  npm run test:sandbox -- diagnostics backing-milestone-render
 ```
 
-It self-skips unless both env vars are set, it is not running in CI, and the project is
-Chromium — so it never fires as part of an ordinary `npm run test:e2e`. The committed
-Milestone A set lives at `tests/fixtures/backing/milestone-a/` (old/new × blues at
-90/160/240 + AABA at 160).
+This explicit diagnostic command uses Chromium in Linux. `RENDER_DIR` must be repository-relative. Generated WAVs are saved under the run's recovered test artifacts, never to an arbitrary desktop directory. The recording tool is excluded from ordinary E2E discovery. The committed Milestone A set lives at `tests/fixtures/backing/milestone-a/` (old/new × blues at 90/160/240 + AABA at 160).
 
 ## Milestone procedure
 

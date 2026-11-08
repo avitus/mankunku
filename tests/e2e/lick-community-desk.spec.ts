@@ -52,10 +52,11 @@ async function setup(page: import('@playwright/test').Page, baseURL: string, the
 }
 
 /** abcjs classes every notehead `abcjs-p<N>`, N in staff steps from written middle C (Bb3 = −1, D4 = 1, F#6 = 17). */
-function engravedSteps(scope: import('@playwright/test').Locator): Promise<number[]> {
-	return scope.locator('.abcjs-note').evaluateAll((els) =>
-		els.map((el) => Number([...el.classList].find((c) => /^abcjs-p-?\d+$/.test(c))!.slice('abcjs-p'.length)))
-	);
+async function engravedSteps(scope: import('@playwright/test').Locator): Promise<number[]> {
+	// Read rendered SVG attributes through locators and parse them in the runner.
+	const notes = await scope.locator('.abcjs-note').all();
+	const classes = await Promise.all(notes.map(async (note) => (await note.getAttribute('class')) ?? ''));
+	return classes.map((value) => Number(value.match(/\babcjs-p(-?\d+)\b/)?.[1]));
 }
 
 test('a soprano player sees a tenor player\'s lick in the soprano\'s register (2026-10-15)', async ({ page, baseURL }) => {

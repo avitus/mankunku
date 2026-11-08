@@ -6,13 +6,13 @@
  * admin.ts read PUBLIC_SUPABASE_URL from the RUNTIME env — but production's
  * runtime.env provisions only the secrets, and the URL is a build-time
  * variable everywhere else (hooks.server.ts and +layout.ts import it from
- * $env/static/public). The factory must need exactly one runtime value: the
+ * $app/env/public). The factory must need exactly one runtime value: the
  * service-role key.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-vi.mock('$env/static/public', () => ({
+vi.mock('$app/env/public', () => ({
 	PUBLIC_SUPABASE_URL: 'https://build-time.supabase.co',
 	PUBLIC_SUPABASE_ANON_KEY: 'mock-anon-key'
 }));
@@ -20,7 +20,10 @@ vi.mock('$env/static/public', () => ({
 const dynamicEnv = vi.hoisted(() => ({
 	env: {} as Record<string, string | undefined>
 }));
-vi.mock('$env/dynamic/private', () => dynamicEnv);
+vi.mock('$app/env/private', () => ({
+	/** Read the current test environment rather than capturing its initial value. */
+	get SUPABASE_SERVICE_ROLE_KEY() { return dynamicEnv.env.SUPABASE_SERVICE_ROLE_KEY; }
+}));
 
 import { createAdminClient } from '../../../src/lib/supabase/admin';
 

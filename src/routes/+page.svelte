@@ -13,7 +13,7 @@
 	import { concertKeyToWritten } from '$lib/music/transposition';
 	import { getTodaysTonality, formatTonality } from '$lib/tonality/tonality';
 	import { page } from '$app/state';
-	import { browser } from '$app/environment';
+	import { browser } from '$app/env';
 	import StudioPage from '$lib/components/console/StudioPage.svelte';
 	import StudioPanel from '$lib/components/console/StudioPanel.svelte';
 	import StudioMeter from '$lib/components/console/StudioMeter.svelte';

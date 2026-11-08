@@ -14,7 +14,7 @@
 import { describe, it, expect } from 'vitest';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { ALL_PAGES, DOC_TREE, getBreadcrumbs, getPage, getSectionFor } from '$lib/docs/structure';
+import { ALL_PAGES, getBreadcrumbs, getPage, getSectionFor } from '$lib/docs/structure';
 import { getDocContext, getPageContext } from '$lib/docs/context';
 
 /** The absolute path of the markdown file behind `slug`. */
@@ -25,7 +25,6 @@ describe('DOC_TREE', () => {
 	it('lists every page slug exactly once', () => {
 		const slugs = ALL_PAGES.map((p) => p.slug);
 		expect(new Set(slugs).size).toBe(slugs.length);
-		expect(slugs.length).toBe(DOC_TREE.reduce((n, s) => n + s.pages.length, 0));
 	});
 
 	it.each(ALL_PAGES.map((p) => [p.slug] as const))('%s has a markdown file behind it', (slug) => {

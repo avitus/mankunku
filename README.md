@@ -10,9 +10,9 @@ Named after Winston "Mankunku" Ngozi's 1968 album [*Yakhal' Inkomo*](https://en.
 
 - Call-and-response ear training in the day's key and scale, with automatic scoring (`/ear-training`)
 - Lick practice: your own licks through all 12 keys over a generated rhythm section, with per-lick gradual key unlocking and tempo adaptation — sessions pinned to one progression, **Daily Practice** across every progression you've tagged, and single-lick **Deep Practice** on a worst-first key rotation; the report's weak-key recommendation starts a focus ramp on that key alone
-- Sheet music only where it helps: the newest-unlocked key, while it scores under 75% (and, in Deep Practice, any key you keep missing), gets an engraved lead-sheet row, heralded by a two-bar reading pause and (in continuous mode) held for three passes
+- Sheet music only where it helps: the newest-unlocked key, while it scores under 75% (and, in Deep Practice, any key you keep missing), gets an engraved lead-sheet row and three continuous rehearsal passes; Daily and Deep Practice show eligible sheets for upcoming keys immediately, while Focused Practice shows a chord-chart placeholder until the key becomes current; only the final pass counts toward progress
 - Tricks: parameterized melodic devices — enclosures (major, minor and dominant ladders) and eight triad-pair families — drilled for fluency, scored on conformance to the device rather than note-for-note reproduction, with a mastery ladder of variants
-- Tune practice: runtime progression detection inside a song form, lick suggestions from your own book at each insertion point, freestyle solo recognition, and a drummer's count-in
+- Tune practice: progression detection and major-scale harmonic regions inside a song form, lick suggestions from your own book at each insertion point, freestyle solo recognition, and a drummer's count-in
 - The tune desk: play any chart back with the band, melody and click, loop the form (first ending round, second ending out), each tune remembering its tempo and backing style
 - Adaptive difficulty: per-scale and per-key proficiency levels 1-100 over 10 content tiers
 - Guided tours of the app, ear training, lick practice, your licks, your tunes, the tune editor and tune practice, replayable from Settings
@@ -58,7 +58,7 @@ Named after Winston "Mankunku" Ngozi's 1968 album [*Yakhal' Inkomo*](https://en.
 
 | Technology | Role |
 |---|---|
-| SvelteKit 2 + Svelte 5 (runes), Vite 8 | Framework, SSR (Node adapter), file-based routing |
+| SvelteKit 3 + Svelte 5 (runes), Vite 8 | Framework, SSR (Node adapter), file-based routing |
 | TypeScript 6 (strict mode) | Type safety throughout |
 | Tailwind CSS 4 | Utility-first styling, dark/light theming |
 | Tone.js 15 + smplr | Audio scheduling, sampled instruments and SoundFont fallback |
@@ -73,11 +73,11 @@ Named after Winston "Mankunku" Ngozi's 1968 album [*Yakhal' Inkomo*](https://en.
 | Vitest 4 + Playwright | Unit/integration and cross-browser E2E testing |
 | Python 3.12 (uv) | The standalone OMR subsystem under `omr/` |
 
-Node: `package.json` requires `>=22.12.0` (enforced by `engine-strict`); `.nvmrc` pins 26.5.1, the version CI and production run. Production runs under PM2 behind nginx.
+Node: `package.json` requires `>=22.17.0` (enforced by `engine-strict`); `.nvmrc` pins 26.5.1, the version CI and production run. Production runs under PM2 behind nginx.
 
 ## Quick Start
 
-**Prerequisites:** Node.js 22.12+ (`nvm use` picks up `.nvmrc`), a modern browser with Web Audio API support
+**Prerequisites:** Node.js 22.17+ (`nvm use` picks up `.nvmrc`), a modern browser with Web Audio API support
 
 ```sh
 git clone https://github.com/avitus/mankunku.git
@@ -87,7 +87,7 @@ cp .env.example .env
 npm run dev
 ```
 
-The app opens at `http://localhost:5173`. The `.env` step is required even without a backend: the Supabase client reads `PUBLIC_SUPABASE_URL` / `PUBLIC_SUPABASE_ANON_KEY` from `$env/static/public`, so without them the build fails and every dev-server page answers 500 — the placeholder values in `.env.example` are enough for local-first practice. Signed out, `/` is the landing page; the onboarding flow (instrument, microphone) opens the first time you visit a practice route. A microphone is needed for full functionality but not required to explore the codebase.
+The app opens at `http://localhost:5173`. The `.env` step is required even without a backend: the Supabase client reads `PUBLIC_SUPABASE_URL` / `PUBLIC_SUPABASE_ANON_KEY` from `$app/env/public`, so without them the build fails and every dev-server page answers 500 — the placeholder values in `.env.example` are enough for local-first practice. Signed out, `/` is the landing page; the onboarding flow (instrument, microphone) opens the first time you visit a practice route. A microphone is needed for full functionality but not required to explore the codebase.
 
 `.env.example` also lists two server-only keys: `ANTHROPIC_API_KEY` (docs assistant and PDF tune import) and `SUPABASE_SERVICE_ROLE_KEY` (account deletion and the owner-only admin page). See [Development Setup](documentation/contributing/contributing.md#development-setup) for what each one unlocks.
 
@@ -178,15 +178,17 @@ See the full [Contributing Guide](documentation/contributing/contributing.md) fo
 ## Testing
 
 ```sh
-npm test              # Unit + integration tests (Vitest)
-npm run test:watch    # Watch mode
-npm run test:e2e      # Sandboxed Playwright tests (Docker required; see tests/e2e/README.md)
-npm run test:deploy   # The server-side release script (bash, stubbed npm/pm2/curl)
-npm run check         # TypeScript + svelte-check
-cd omr && uv run pytest   # The Python OMR subsystem (hermetic)
+npm run test:sandbox -- unit     # Unit + integration tests in Linux
+npm run test:e2e                 # Chromium, Firefox and WebKit in Linux
+npm run test:sandbox -- deploy   # Release-script invariants, including flock
+npm run test:sandbox -- check    # TypeScript + svelte-check
+# In a Python 3.12 Linux sandbox with this checkout and uv:
+# cd omr && circleci testsuite run "omr tests" --local --run-tests=all --analyze-tests=none
 ```
 
-Each sandbox builds and previews its own checkout on internal port 4173. Separate container networks prevent parallel runs from sharing another checkout's server; no host port override is needed.
+Use CircleCI Smarter Testing inside the sandbox when selecting test atoms; see the [Testing Guide](documentation/contributing/testing-guide.md). The [maintenance audit](docs/maintenance/2026-11-08-audit.md) records inactive coverage and dependency limitations.
+
+Each browser sandbox builds and previews its own checkout on internal port 4173. Separate container networks prevent parallel runs from sharing another checkout's server; no host port override is needed.
 
 See the [Testing Guide](documentation/contributing/testing-guide.md) for patterns, audio mocking strategies, and conventions.
 

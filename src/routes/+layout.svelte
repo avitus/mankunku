@@ -34,7 +34,7 @@
 	let { supabase, session, user, isAdmin } = $derived(data);
 
 	// Proactive stale-chunk guard (Sentry MANKUNKU-8). `kit.version.pollInterval`
-	// (svelte.config.js) polls for a new deployment; when one goes live,
+	// (vite.config.ts) polls for a new deployment; when one goes live,
 	// `updated.current` flips true. On the next client navigation we do a
 	// full-page load of the target instead of a client-side one, so a fresh HTML
 	// shell + manifest are fetched and the next lazy `import()` resolves to a

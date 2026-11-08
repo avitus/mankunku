@@ -18,10 +18,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 /**
  * Mock SvelteKit environment variables.
- * $env/static/public is a SvelteKit virtual module that does not exist on disk.
+ * $app/env/public is a SvelteKit virtual module that does not exist on disk.
  * Must be mocked to prevent import failures in hooks.server.ts.
  */
-vi.mock('$env/static/public', () => ({
+vi.mock('$app/env/public', () => ({
 	PUBLIC_SUPABASE_URL: 'http://localhost:54321',
 	PUBLIC_SUPABASE_ANON_KEY: 'test-anon-key'
 }));

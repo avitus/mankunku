@@ -185,7 +185,11 @@ test.describe('lick-practice session flow', () => {
 		// The mock microphone scores poorly. Show music on the next cycle,
 		// allowing the preparation cue but never restarting a Listen phase.
 		await page.setViewportSize({ width: 390, height: 900 });
-		const flow = await page.evaluate(async () => {
+		const flow = await page.evaluate(() => new Promise<{
+			cues: string[]; showedSheet: boolean; preparedForMs: number | null;
+			entranceText: string; recordedDuringPreparation: boolean;
+			cueOverlapsSheet: boolean; cueOutsideRow: boolean; counts: string[];
+		}>((resolve) => {
 			const cues = new Set<string>();
 			let showedSheet = false;
 			let preparationAt: number | null = null;
@@ -195,8 +199,11 @@ test.describe('lick-practice session flow', () => {
 			let cueOverlapsSheet = false;
 			let cueOutsideRow = false;
 			const counts = new Set<string>();
-			const until = performance.now() + 12_000;
-			while (performance.now() < until) {
+			// Capture the cue's DOM changes, including counts between painted
+			// frames. Only measure SVG geometry when the rendered state changes,
+			// avoiding an expensive layout scan on every animation frame.
+			/** Record the cue, timing and geometry when its rendered state changes. */
+			function sample(): void {
 				const tab = document.querySelector('.phase-tab');
 				const kind = tab?.getAttribute('data-kind') ?? 'missing';
 				cues.add(kind);
@@ -220,10 +227,18 @@ test.describe('lick-practice session flow', () => {
 					preparedForMs = performance.now() - preparationAt;
 				}
 				showedSheet ||= !!document.querySelector('[data-testid="lead-sheet-row"]');
-				await new Promise(requestAnimationFrame);
 			}
-			return { cues: [...cues], showedSheet, preparedForMs, entranceText, recordedDuringPreparation, cueOverlapsSheet, cueOutsideRow, counts: [...counts] };
-		});
+			const observer = new MutationObserver(sample);
+			observer.observe(document.querySelector('.stack')!.closest('.viewport')!, {
+				subtree: true, childList: true, characterData: true,
+				attributes: true, attributeFilter: ['data-kind']
+			});
+			sample();
+			setTimeout(() => {
+				observer.disconnect();
+				resolve({ cues: [...cues], showedSheet, preparedForMs, entranceText, recordedDuringPreparation, cueOverlapsSheet, cueOutsideRow, counts: [...counts] });
+			}, 12_000);
+		}));
 		expect(flow.showedSheet).toBe(true);
 		expect(flow.cues).not.toContain('listen');
 		expect(flow.entranceText.trim()).toMatch(/^Play\s*[1-4]$/);

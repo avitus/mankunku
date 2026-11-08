@@ -6,6 +6,17 @@ test.describe('settings persistence', () => {
 		await seedOnboardedAnonymous(page);
 	});
 
+	test('explains per-lick tempo and opens the actual practice setup', async ({ page }) => {
+		await page.goto('/settings');
+		const card = page.getByRole('region', { name: 'The session starts over there.' });
+		await expect(card).toContainText('Each new lick starts at 60 BPM');
+		await expect(card).toContainText('tempos adapt with your scores');
+		await expect(card).toContainText('Choose your session, progression, duration, backing style, and mode');
+		await card.getByRole('link', { name: 'Go to Lick Practice' }).click();
+		await expect(page).toHaveURL(/\/lick-practice$/);
+		await expect(page.getByRole('slider', { name: /tempo/i })).toHaveCount(0);
+	});
+
 	test('theme toggle persists across reload', async ({
 		page,
 		consoleCollector: _consoleCollector

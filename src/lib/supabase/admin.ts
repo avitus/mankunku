@@ -10,8 +10,8 @@
 
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
-import { PUBLIC_SUPABASE_URL } from '$env/static/public';
-import { env } from '$env/dynamic/private';
+import { PUBLIC_SUPABASE_URL } from '$app/env/public';
+import * as env from '$app/env/private';
 
 export function createAdminClient() {
 	// The URL is BUILD-TIME (same source as client.ts/server.ts) — production's

@@ -6024,7 +6024,7 @@ monitor whether it results in faster CI times."
   excepted); every stacked [2] opens on `|[2`, a barline the pass moves
   under [1]'s. Unit tests (red without, mutation-checked) + an e2e over
   both tunes (red without: staff 425 vs ink 873; barline 171 px off).
-- Rhythm Changes: an original head in concert Bb, |: A(6) [1](2) :| [2](2)
+- Rhythm Changes: an original head in concert Bb, `|: A(6) [1](2) :| [2](2)`
   B(8) A(8) — riff A over I-vi-ii-V / iii-VI-ii-V, IV7 to E°7, a sequenced
   dominant-cycle bridge; range A3–Eb5 like Mankunku's. The form rule reads
   the whole AABA as the head. Saints and Amazing Grace moved to
@@ -6283,3 +6283,7 @@ Started from Andy asking why a 3-bar ii-V-I lick gets a fourth bar in lick pract
 - **Corrections to what I told Andy:** the Fly Me passage I used as the fast example is the slow form, where Wail fits. Also, "licks saved without chords" sounded like a corner case and is every lick in the book.
 - **Not verified:** the new forms by ear in a live session, and the two new backing tracks.
 
+
+## 2026-11-08 — Repository maintenance audit
+
+Audited suite discovery, assertions and exclusions; separated browser artifact producers from regressions; strengthened cross-tab account isolation, docs sanitization, endpoint and rendered-audio coverage. Updated the framework/dependency stack and maintained player/contributor/architecture documentation. Removed the adapter's obsolete Rollup warning wrapper and safely removed merged, unoccupied branches. The maintained evidence and unresolved items are in `docs/maintenance/2026-11-08-audit.md`, including validation results and Sentry access limitations.

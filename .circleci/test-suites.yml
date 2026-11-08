@@ -28,8 +28,8 @@ options:
     - package.json
     - package-lock.json
     - vite.config.ts
+    - src/env.ts
     - vitest.setup.ts
-    - svelte.config.js
     - tsconfig.json
     - .circleci/*.yml
     - tests/fixtures/**
@@ -71,7 +71,7 @@ options:
     - scripts/test-sandbox.mjs
     - scripts/test-sandbox/**
     - vite.config.ts
-    - svelte.config.js
+    - src/env.ts
     - tsconfig.json
     - .circleci/*.yml
     - tests/e2e/fixtures/**

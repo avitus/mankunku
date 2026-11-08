@@ -10,14 +10,8 @@ Guidelines for contributing to Mankunku.
 
 ### Prerequisites
 
-- **Node 22.12 or newer.** This is enforced, not advisory: `package.json` declares
-  `engines.node: ">=22.12.0"` and `.npmrc` sets `engine-strict=true`, so `npm install`
-  fails with `EBADENGINE` on anything older rather than warning. The floor is
-  22.12 because Vite 8 requires `^20.19.0 || >=22.12.0`; 22.0–22.11 would install
-  a Vite that cannot run. `.nvmrc` pins `26.5.1` to match CI
-  (`cimg/node:26.5.1`) — run `nvm use` to switch to it. Any version at or above
-  the floor is fine, and newer majors are what most local work happens on.
-- **Docker**, only if you want the local Supabase stack. The app runs fine without it.
+- **Node 22.17 or newer.** `package.json` and `engine-strict` enforce the dependency floor. Use `.nvmrc` (26.5.1) to match CI and production. The lockfile is authoritative; install with `npm ci` for reproducible builds.
+- **Docker**, required for automated tests and the optional local Supabase stack. On macOS use the dedicated headless Colima profile described in [the E2E guide](../../tests/e2e/README.md).
 - **[uv](https://docs.astral.sh/uv/)**, only for the Python OMR subsystem under `omr/` (it pins Python 3.12 itself) — see [docs/omr/README.md](../../docs/omr/README.md).
 - A **microphone**, to exercise anything in the audio pipeline by hand.
 
@@ -30,10 +24,9 @@ npm run dev            # http://localhost:5173
 ```
 
 The `.env` is not optional: the Supabase clients import `PUBLIC_SUPABASE_URL`
-and `PUBLIC_SUPABASE_ANON_KEY` from `$env/static/public`, which exports only
-variables that exist — without them `npm run build` fails with
-`MISSING_EXPORT`, and every dev-server page answers 500 ("Your project's URL
-and Key are required to create a Supabase client!"). Their *values* can
+and `PUBLIC_SUPABASE_ANON_KEY` from `$app/env/public`. Both are required
+static variables declared in `src/env.ts`; Kit validates them at build time.
+Their *values* can
 stay the placeholders — Mankunku is **local-first**: every write goes to
 localStorage/IndexedDB, and practice works fully signed out with no backend
 behind those URLs. Sign-in, cloud sync and the community pages need the local
@@ -49,7 +42,7 @@ practice, tricks, record-a-lick, tune practice.
 
 | Variable | Read by | Without it |
 |---|---|---|
-| `PUBLIC_SUPABASE_URL`, `PUBLIC_SUPABASE_ANON_KEY` | Browser + server Supabase clients (`$env/static/public`, inlined at build) | Build fails — set placeholders at minimum |
+| `PUBLIC_SUPABASE_URL`, `PUBLIC_SUPABASE_ANON_KEY` | Browser + server Supabase clients (`$app/env/public`, inlined at build) | Build fails — set placeholders at minimum |
 | `SUPABASE_SERVICE_ROLE_KEY` | `src/lib/supabase/admin.ts` — account deletion (`/api/account`) and the owner-only `/admin` page. Server-only; bypasses RLS | Account deletion answers 500; `/admin` reports its client unavailable |
 | `ANTHROPIC_API_KEY` | `src/lib/server/anthropic.ts` — the docs assistant (`/api/chat`) and PDF tune import (`/api/tune-parse`). Server-only, read at runtime | Chat answers 503 "not configured"; PDF import offers manual entry or an OMR-only import |
 
@@ -198,7 +191,7 @@ test(e2e): pin the mic-error banner on WebKit
 
 - Include description of what changed and why
 - Reference any related issues
-- Ensure all tests pass (`npm test`; plus `npm run test:deploy` if you touched `deploy/`, and `cd omr && uv run pytest` if you touched `omr/`)
+- Run the relevant isolated suites below, including browser regressions for user flows, release tests for `deploy/`, and Python tests for `omr/`
 - Ensure build succeeds (`npm run build`)
 - Ensure types are clean (`npm run check`) — `svelte-check` prints its error count
   *before* the word ERRORS, so gate on the exit code, never on the summary line
@@ -226,23 +219,13 @@ A failed Firefox/WebKit spec blocks the deploy just like a unit test does.
 ## Running Tests
 
 ```bash
-# Unit + integration tests (Vitest, Node)
-npm test
-
-# Watch mode
-npm run test:watch
-
-# Specific test file
-npx vitest run tests/unit/audio/capture.test.ts
-
-# Real-browser flows (Chromium, Firefox, WebKit)
+npm run test:sandbox -- unit
+npm run test:sandbox -- unit tests/unit/audio/capture.test.ts
 npm run test:e2e
-
-# The server-side release script's invariants (bash, stubbed binaries)
-npm run test:deploy
-
-# The Python OMR subsystem (hermetic; no model, no network)
-cd omr && uv run pytest
+npm run test:sandbox -- deploy
+npm run test:sandbox -- check
+# In an isolated Python 3.12 checkout with uv and the CircleCI CLI:
+# cd omr && circleci testsuite run "omr tests" --local --run-tests=all --analyze-tests=none
 ```
 
 `npm test` does **not** cover the last three — CI runs `npm run test:deploy`

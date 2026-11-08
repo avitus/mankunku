@@ -1,41 +1,17 @@
 # LEGATO 2 availability — findings and integration readiness
 
-**Verdict (verified 2026-08-09, re-checked 2026-09-10): LEGATO 2 is
-published as a paper but its code and weights have NOT been publicly
-released.** The `Legato2Backend` in this repo is a documented stub; nothing
-here pretends otherwise, and LEGATO 1 is never presented as LEGATO 2.
+**Re-checked 2026-11-08: official LEGATO 2 weights and a segmenter are now published. This repository has not integrated or benchmarked them.** The August/September finding that no checkpoint existed is superseded.
 
-The 2026-09-10 re-check: arXiv still shows only v1 (2026-07-07) with no venue
-or journal reference; the GitHub repo still implements LEGATO 1 only; the
-`guangyangmusic` HF profile still lists exactly `legato`, `legato-small`,
-`legato-1.5` and `legato-1.5-YOLO` — no `legato-2`-class model.
+The [official model card](https://huggingface.co/guangyangmusic/legato-2) documents `legato.pipeline.Legato2.from_pretrained(...)`. Its [file listing](https://huggingface.co/guangyangmusic/legato-2/tree/main) includes a 1.9 GB transcriber and 52 MB segmenter. The card identifies separate Llama 3.2 Community and AGPL-3.0 licenses. Access is gated.
 
-## The questions, answered
+The [public source tree](https://github.com/guang-yng/legato/tree/main/legato) checked on this date still has no `pipeline` module. A reproducible source revision matching the documented API, dependency set, access and fixture acceptance remain integration work. The local `Legato2Backend` raises an explicit “not integrated” error; LEGATO v1 is still the available experimental backend.
 
-| Question | Answer |
-|---|---|
-| 1. Official LEGATO 2 source code available? | **No.** [github.com/guang-yng/legato](https://github.com/guang-yng/legato) implements LEGATO 1's whole-page inference only (last update 2026-02-22, before the LEGATO 2 paper). No LEGATO 2 repo exists on the author's profile. |
-| 2. Official pretrained LEGATO 2 weights available? | **No.** Two undocumented, LEGATO-2-adjacent uploads exist (below) but neither is licensed or usable. |
-| 3. Repository/model IDs containing them? | Closest artifacts: [`guangyangmusic/legato-1.5`](https://huggingface.co/guangyangmusic/legato-1.5) (0.9B params F32, `model_type: legato`, **gated: manual**, empty model card, uploaded 2026-02-13) and [`guangyangmusic/legato-1.5-YOLO`](https://huggingface.co/guangyangmusic/legato-1.5-YOLO) (bare `.pt`, matches the paper's YOLO segmentation stage). Neither is referenced by any code or paper. |
-| 4. License? | **None declared** on either `legato-1.5` artifact — legally unusable regardless of the gate. (LEGATO 1's repo and checkpoint are MIT.) |
-| 5. Runtime and hardware required? | Unknown for LEGATO 2 (unreleased). From the paper: YOLOv8-m (~26M) + a VLM with Llama-3.2-11B-Vision's frozen vision encoder and a 113.7M-trainable decoder; trained on 180 Nvidia L40 GPU-hours. Inference-hardware needs will be known only at release. |
-| 6. Actual inference API? | Does not exist publicly. The paper describes system-conditioned autoregressive decoding (below); no released code implements it. |
-| 7. Symbolic output format? | Per the paper: **ABC notation including embedded text** (titles, composers, inline annotations — hence chord symbols), via a text-aware BPE tokenizer with byte fallback, vocab 4,096. Emitted per system as "System-Level ABC", merged to standard ABC by a rule-based converter. |
-| 8. Does the release include the system segmentation stage? | There is no release. The paper's stage: YOLOv8-medium finetuned from Jung et al.'s piano-score checkpoint on 1,024 annotated pages (mAP50 = 0.990, input 800px, boxes stretched to full page width). The `legato-1.5-YOLO` upload *looks* like that model but is unlicensed and undocumented. |
+## Sources and next acceptance checks
 
-## Authoritative sources
-
-- Paper: [arXiv:2607.05769](https://arxiv.org/abs/2607.05769) — "LEGATO 2:
-  Toward Multimodal Sheet Music Recognition and Understanding", Guang Yang,
-  Brian Siyuan Zheng, Victoria Ebert, Noah A. Smith (UW / AI2), v1 submitted
-  2026-07-07, status "Preprint". The paper states verbatim: *"We will enable
-  reproduction by releasing data and code upon publication."* No code or
-  model URL appears anywhere in it.
-- Code: [github.com/guang-yng/legato](https://github.com/guang-yng/legato)
-  (LEGATO 1, MIT).
-- Models: [huggingface.co/guangyangmusic](https://huggingface.co/guangyangmusic)
-  — released: `legato` (MIT, 107M, gated auto), `legato-small`; unreleased-in-practice: `legato-1.5`, `legato-1.5-YOLO`.
-- LEGATO 1 paper: [arXiv:2506.19065](https://arxiv.org/abs/2506.19065).
+- [Official model card](https://huggingface.co/guangyangmusic/legato-2) and [files](https://huggingface.co/guangyangmusic/legato-2/tree/main).
+- [Official source](https://github.com/guang-yng/legato).
+- [LEGATO 2 paper](https://arxiv.org/abs/2607.05769); the pipeline sketch below records the paper's design, not a tested local implementation.
+- Before replacing the stub: pin matching source and both artifacts, establish the runtime, preserve raw output, and compare melody, form and chord results on this repository's fixtures.
 
 ## The LEGATO 2 pipeline (paper facts, for whoever fills in the stub)
 
@@ -84,7 +60,7 @@ All three, together:
 3. The segmentation model with license + integration code (or a documented
    replacement recipe).
 
-When they exist: implement `transcribe()` per the pipeline sketch in
+Once those inputs are verified together: implement `transcribe()` per the pipeline sketch in
 `backends/legato2.py`, set `supports_system_segmentation()` truthfully,
 expose per-system crops in debug artifacts, re-run
 `uv run python -m omr benchmark` on the identical fixtures, and compare
@@ -92,16 +68,9 @@ against the recorded LEGATO v1 report. The chord metrics are the headline:
 they are ≈ 0 under v1 *by design* (text elision) and are exactly what the
 text-aware tokenizer should restore.
 
-## Watch list
+## Follow-up sources
 
-- https://arxiv.org/abs/2607.05769 — publication/venue status ("upon
-  publication" is the release trigger the authors named)
-- https://github.com/guang-yng/legato — code release
-- https://huggingface.co/guangyangmusic — weights release
-- Optional accelerators: request access to the gated `legato-1.5` repo
-  (manual approval by the author), and/or email the authors
-  ({gyang1, nasmith}@cs.washington.edu per the paper) asking about the
-  release timeline.
+Track the [official source](https://github.com/guang-yng/legato) for the documented pipeline module and the [model repository](https://huggingface.co/guangyangmusic/legato-2) for versioned artifacts. The old suggestion to seek undocumented `legato-1.5` weights is superseded.
 
 ## Milestone report: the proven inference path (2026-08-09)
 
@@ -114,7 +83,14 @@ The "first deliverable" facts, measured on real hardware with the real model:
 - **Input**: 300-DPI lossless PNG renders of the PDF page (pypdfium2), conservative preprocessing only.
 - **Output**: ABC notation, verbatim-preserved; per-page token counts recorded (Lady Bird page 1: well under the 2,048 cap, no truncation).
 - **Transcription quality** (3-chart benchmark, [full report](benchmark-2026-08-09-legato-v1.md)): melody pitch **94.8%** (MIDI) / 87.0% (strict spelling incl. octave), accidental spelling 91.7%, rhythm (exact onset+duration) **96.8%**, measure alignment **100%** (73/73 measures), key and time signature **100%**, printed repeat structure **F1 1.0** (A-Train's `:|` + both endings read exactly). All charts: zero measure-count errors, zero validation warnings.
-- **Limitations, observed**: chord symbols **0/60** and rehearsal marks 0.0 — every text span became `<|text|>`, precisely as the LEGATO 2 paper documents for v1. This is the measured, quantified argument for LEGATO 2: on clean typeset jazz charts v1's *melody* reading is already strong (the out-of-domain concern did not materialize there, even with the corpus PDFs' colored practice-highlight boxes), and the entire remaining gap is text — the exact capability the unreleased text-aware tokenizer adds. Enharmonic slips (Db-vs-C# class errors) account for most of the strict-vs-MIDI pitch spread.
+- **Limitations, observed**: chord symbols **0/60** and rehearsal marks 0.0 — every text span became `<|text|>`, precisely as the LEGATO 2 paper documents for v1. This is the measured, quantified argument for LEGATO 2: on clean typeset jazz charts v1's *melody* reading is already strong (the out-of-domain concern did not materialize there, even with the corpus PDFs' colored practice-highlight boxes), and the entire remaining gap is text — the exact capability the text-aware tokenizer is intended to add. Enharmonic slips (Db-vs-C# class errors) account for most of the strict-vs-MIDI pitch spread.
+
+The 2026-11-08 maintenance run retained the Lady Bird baseline with updated
+PyTorch, NumPy, Accelerate and the Transformers 4.54 patch release in an
+isolated Linux CPU VM. Newer Transformers 4.57.6 and 5.22.2 produced an extra
+measure and poorer rhythm accuracy, so those candidates were rejected. See
+the [maintenance audit](../maintenance/2026-11-08-audit.md) for current pins,
+remaining advisories and the limited scope of this one-chart acceptance.
 
 ## Interim reality (LEGATO v1)
 
@@ -123,7 +99,7 @@ experimentation. Its hard limits are documented in [README.md](README.md):
 no text → **no chord symbols** (the exact capability this app needs most),
 whole-page 2,048-token cap, classical training data. That gap is measured
 by the benchmark, not hidden — and it is the concrete, quantified argument
-for adopting LEGATO 2 when it ships.
+for evaluating the published LEGATO 2 artifacts once their inference package is available and integrated.
 
 v1 is also what the app's hybrid PDF import consumes today (since
 2026-08-10): its **melody** only, with chord symbols, marks and endings read

@@ -128,7 +128,7 @@ interface ConsoleGuardOptions {
 
 export const test = base.extend<ConsoleGuardFixtures & ConsoleGuardOptions>({
 	allowDocument404: [false, { option: true }],
-	// goto() additionally waits for the app to hydrate before returning.
+	// goto() and reload() wait for the app to hydrate before returning.
 	// Until PR #229 the SSR'd onboarding overlay covered every page and
 	// incidentally blocked clicks until hydration tore it down; with the
 	// overlay gone from SSR, a click fired straight after navigation can land
@@ -140,18 +140,28 @@ export const test = base.extend<ConsoleGuardFixtures & ConsoleGuardOptions>({
 	// error pages, which render inside the root layout), so a missing marker
 	// means hydration itself broke — fail loudly here, not confusingly later.
 	page: async ({ page }, use: (page: Page) => Promise<void>): Promise<void> => {
+		/** Wait until the root layout has attached the client event handlers. */
+		const waitForHydration = async (): Promise<void> => {
+			await page
+				.locator('[data-hydrated="true"]')
+				.first()
+				.waitFor({ state: 'attached', timeout: 15000 });
+		};
 		const originalGoto = page.goto.bind(page);
 		page.goto = (async (
 			url: string,
 			options?: Parameters<Page['goto']>[1]
 		): Promise<Response | null> => {
 			const response = await originalGoto(url, options);
-			await page
-				.locator('[data-hydrated="true"]')
-				.first()
-				.waitFor({ state: 'attached', timeout: 15000 });
+			await waitForHydration();
 			return response;
 		}) as typeof page.goto;
+		const originalReload = page.reload.bind(page);
+		page.reload = async (options): Promise<Response | null> => {
+			const response = await originalReload(options);
+			await waitForHydration();
+			return response;
+		};
 		await use(page);
 	},
 	// AUTO: every test gets the guard whether or not it names the fixture — a
@@ -175,7 +185,7 @@ export const test = base.extend<ConsoleGuardFixtures & ConsoleGuardOptions>({
 				if (
 					response.status() === 404 &&
 					request.isNavigationRequest() &&
-					request.frame() === page.mainFrame()
+					request.frame().parentFrame() === null
 				) {
 					const url = response.url();
 					document404Navigations.set(url, (document404Navigations.get(url) ?? 0) + 1);
@@ -214,16 +224,29 @@ export const test = base.extend<ConsoleGuardFixtures & ConsoleGuardOptions>({
 				pageErrors.push(text);
 			};
 
-			if (allowDocument404) page.on('response', onResponse);
-			page.on('console', onConsole);
-			page.on('pageerror', onPageError);
+			// Account switches and popup flows create additional pages. Guard all
+			// of them, including pages created after this auto fixture starts.
+			const guardedPages = new Set<Page>();
+			/** Attach the shared collectors once per page, including later popups. */
+			const guardPage = (target: Page): void => {
+				if (guardedPages.has(target)) return;
+				guardedPages.add(target);
+				if (allowDocument404) target.on('response', onResponse);
+				target.on('console', onConsole);
+				target.on('pageerror', onPageError);
+			};
+			page.context().on('page', guardPage);
+			page.context().pages().forEach(guardPage);
 
 			const collector: ConsoleCollector = { errors, warnings, pageErrors };
 			await use(collector);
 
-			if (allowDocument404) page.off('response', onResponse);
-			page.off('console', onConsole);
-			page.off('pageerror', onPageError);
+			page.context().off('page', guardPage);
+			for (const target of guardedPages) {
+				if (allowDocument404) target.off('response', onResponse);
+				target.off('console', onConsole);
+				target.off('pageerror', onPageError);
+			}
 
 			// A 404 line beyond the count of main-frame navigations that answered
 			// 404 at its URL was a fetch or an asset, not the document under test.

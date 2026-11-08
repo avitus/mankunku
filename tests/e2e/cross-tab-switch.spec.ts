@@ -38,22 +38,29 @@ async function seedOnboardedA(page: Page): Promise<void> {
 	);
 }
 
-test('a user switch in one tab reloads the other open tab', async ({ page, browser }, testInfo) => {
+test('a user switch re-homes the other tab without overwriting the previous account', async ({ page }, testInfo) => {
 	const baseURL =
 		(typeof testInfo.project.use.baseURL === 'string' && testInfo.project.use.baseURL) || 'http://localhost:4173';
 
 	await stubSupabase(page);
 	await setE2EAuthCookie(page, USER_A, baseURL);
 	await seedOnboardedA(page);
-	await page.goto('/');
+	await page.goto('/settings');
 	await page.waitForLoadState('networkidle');
 
 	// Second tab in the SAME context (shares cookies + localStorage).
 	const tab2 = await page.context().newPage();
 	await stubSupabase(tab2);
 	await seedOnboardedA(tab2);
-	await tab2.goto('/');
+	await tab2.goto('/settings');
 	await tab2.waitForLoadState('networkidle');
+	await expect(tab2.getByRole('radio', { name: /Tenor/ })).toHaveAttribute('aria-checked', 'true');
+	const previousSettings = await page.evaluate((uid) => localStorage.getItem(`mankunku:u:${uid}:settings`), USER_A.id);
+
+	// Cookies and storage switch together, as they do after a real sign-in.
+	// The old test changed only the pointer, then merely waited for Alice to
+	// be restored. That could pass without ever showing the second account.
+	await setE2EAuthCookie(page, { id: OTHER_UID, email: 'bob@e2e.dev' }, baseURL);
 
 	// Arm a navigation watcher on tab2 BEFORE triggering, so we observe its
 	// re-home reload directly.
@@ -62,24 +69,25 @@ test('a user switch in one tab reloads the other open tab', async ({ page, brows
 	// Simulate another tab switching the active user by flipping the shared
 	// `__active` pointer — this fires a `storage` event in tab2, whose
 	// initCrossTabSync listener re-homes by reloading.
-	await page.evaluate((other) => {
+	await page.evaluate(({ other, settings, tour }) => {
+		localStorage.setItem(`mankunku:u:${other}:settings`, JSON.stringify({ ...settings, instrumentId: 'alto-sax' }));
+		localStorage.setItem(`mankunku:u:${other}:tour-state`, JSON.stringify(tour));
 		localStorage.setItem('mankunku:__active', JSON.stringify(other));
-	}, OTHER_UID);
+	}, { other: OTHER_UID, settings: SETTINGS_ONBOARDED, tour: TOUR_DISMISSED });
 
 	await tab2Reloaded;
 
-	// The re-homed tab reloads a SECOND time: the e2e cookie still says Alice,
-	// so the reconcile step flips `__active` back to her and reloads once more
-	// (in production the cookie would follow the switch and there is only one).
-	// Closing a page mid-navigation races Chromium's target teardown — close()
-	// hung ~28 s into the 30 s test budget, 3/3 on CI — so wait for the realm
-	// to settle (pointer back on Alice, reload guard cleared) before closing.
-	await tab2.waitForFunction(
-		(uid) =>
-			localStorage.getItem('mankunku:__active') === JSON.stringify(uid) &&
-			sessionStorage.getItem('mankunku:reload-target') === null,
-		USER_A.id,
-		{ timeout: 10_000 }
-	);
+	await expect(tab2.getByRole('radio', { name: /Alto/ })).toHaveAttribute('aria-checked', 'true');
+	await tab2.getByRole('radio', { name: /Trumpet/ }).click();
+	await tab2.reload();
+	await expect(tab2.getByRole('radio', { name: /Trumpet/ })).toHaveAttribute('aria-checked', 'true');
+	const stores = await tab2.evaluate(({ first, second }) => ({
+		active: JSON.parse(localStorage.getItem('mankunku:__active') ?? 'null'),
+		previous: localStorage.getItem(`mankunku:u:${first}:settings`),
+		current: JSON.parse(localStorage.getItem(`mankunku:u:${second}:settings`) ?? '{}')
+	}), { first: USER_A.id, second: OTHER_UID });
+	expect(stores.active).toBe(OTHER_UID);
+	expect(stores.previous).toBe(previousSettings);
+	expect(stores.current.instrumentId).toBe('trumpet');
 	await tab2.close();
 });

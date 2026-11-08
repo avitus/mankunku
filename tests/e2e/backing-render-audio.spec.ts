@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures/test';
+import { audibleSample, stubCdnInstrumentSamples } from './fixtures/audio';
 import { seedOnboardedAnonymous } from './fixtures/storage';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -7,17 +8,16 @@ import { join } from 'node:path';
  * End-to-end audio verification of the listening lab's offline renders:
  * the bounce and the golden-JSON reference render must produce a WAV with
  * actual signal, not a silent file. Decodes the produced blob in-page and
- * measures peak amplitude. Chromium-only and network-dependent (CDN
- * instrument samples), so CI runs skip it — it exists because a silent
- * render is invisible to every unit test we have.
+ * measures peak amplitude. External instrument samples use a deterministic audible WAV; the real
+ * browser rendering graph must produce sound throughout the form.
  */
 
 test('bounce and golden-JSON render produce non-silent WAVs', async ({ page, browserName }) => {
-	test.skip(!!process.env.CI, 'needs CDN instrument fetches — local diagnostic only');
 	test.skip(browserName === 'firefox', 'Tone-less render path — verify on Chromium and WebKit, the engines with divergent audio stacks');
 	test.setTimeout(300_000);
 
 	await seedOnboardedAnonymous(page);
+	await stubCdnInstrumentSamples(page, audibleSample());
 	// Capture blobs handed to object URLs so we can decode what the user hears.
 	await page.addInitScript(() => {
 		const orig = URL.createObjectURL.bind(URL);
@@ -109,7 +109,8 @@ test('bounce and golden-JSON render produce non-silent WAVs', async ({ page, bro
 	await expect(page.getByTestId('lab-bounce')).toHaveText(/Bounce to WAV/, { timeout: 240_000 });
 	{
 		const p = await profileOfLastBlob(6.8);
-		console.log(`drums-only: peak=${p.peak.toFixed(3)} coverage=${p.coverage.toFixed(2)}`);
+		expect(p.peak, 'drums-only render is silent').toBeGreaterThan(0.01);
+		expect(p.coverage, 'drums die before the loop ends').toBeGreaterThan(0.7);
 	}
 
 	await page.getByTestId('mix-bass').fill('1');
@@ -118,7 +119,8 @@ test('bounce and golden-JSON render produce non-silent WAVs', async ({ page, bro
 	await expect(page.getByTestId('lab-bounce')).toHaveText(/Bounce to WAV/, { timeout: 240_000 });
 	{
 		const p = await profileOfLastBlob(6.8);
-		console.log(`bass-only: peak=${p.peak.toFixed(3)} coverage=${p.coverage.toFixed(2)}`);
+		expect(p.peak, 'bass-only render is silent').toBeGreaterThan(0.01);
+		expect(p.coverage, 'bass dies before the loop ends').toBeGreaterThan(0.7);
 	}
 
 	expect(bounce.peak, 'bounce WAV is silent').toBeGreaterThan(0.05);

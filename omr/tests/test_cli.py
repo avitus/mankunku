@@ -93,7 +93,7 @@ def test_legato2_stub_exits_3_with_blocker(png_score: Path, capsys) -> None:
     assert code == 3
     err = capsys.readouterr().err
     assert "LEGATO 2" in err
-    assert "not been released" in err
+    assert "not integrated" in err
 
 
 def test_backend_failure_exits_4(png_score: Path, capsys) -> None:

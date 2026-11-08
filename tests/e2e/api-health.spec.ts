@@ -7,6 +7,24 @@ import { test, expect } from './fixtures/test';
  */
 
 test.describe('/api/health', () => {
+	test('HEAD preserves liveness headers without sending a body', async ({ request }) => {
+		const response = await request.head('/api/health');
+		expect(response.status()).toBe(200);
+		expect(response.headers()['cache-control']).toBe('no-store');
+		expect(await response.body()).toHaveLength(0);
+	});
+
+	for (const [path, method, allowed] of [
+		['/api/health', 'POST', 'GET'],
+		['/api/account', 'GET', 'DELETE'],
+		['/api/lick-match', 'GET', 'POST']
+	]) {
+		test(`${method} ${path} rejects an unsupported method`, async ({ request, baseURL }) => {
+			const response = await request.fetch(path, { method, headers: { origin: baseURL! } });
+			expect(response.status()).toBe(405);
+			expect(response.headers()['allow'].split(/,\s*/)).toContain(allowed);
+		});
+	}
 	test('answers 200 with the running process identity, uncached', async ({ page }) => {
 		const response = await page.request.get('/api/health');
 		expect(response.status()).toBe(200);

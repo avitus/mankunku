@@ -10,9 +10,11 @@ import ts from 'typescript';
 import { chromium } from 'playwright';
 import Anthropic from '@anthropic-ai/sdk';
 import { createMelodyReplay } from './pdf-melody-replay.mjs';
+import { assertBrowserTestIsolation } from './browser-test-boundary.js';
 
 const repo = fileURLToPath(new URL('../', import.meta.url));
 const args = process.argv.slice(2);
+if (!args.includes('--rescore')) assertBrowserTestIsolation();
 const option = (name, fallback) => {
 	const i = args.indexOf(name);
 	return i < 0 ? fallback : args[i + 1];
@@ -35,6 +37,7 @@ const sourceFiles = (directory) =>
 const files = [
 	'scripts/evaluate-pdf-import.mjs',
 	'scripts/pdf-melody-replay.mjs',
+	'scripts/browser-test-boundary.js',
 	'package-lock.json',
 	...sourceFiles('src')
 ].sort();
@@ -64,9 +67,10 @@ save('manifest.json', manifest);
 
 // Load the same TS modules as the app, without SvelteKit or a credential-bearing server.
 registerHooks({
+	/** Resolve app aliases and extensionless TS imports in the isolated evaluator. */
 	resolve(specifier, context, next) {
-		if (specifier === '$env/dynamic/private')
-			return { url: 'data:text/javascript,export const env = process.env;', shortCircuit: true };
+		if (specifier === '$app/env/private')
+			return { url: 'data:text/javascript,export const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;', shortCircuit: true };
 		let candidate;
 		if (specifier.startsWith('$lib/')) candidate = path.join(repo, 'src/lib', specifier.slice(5));
 		else if (specifier.startsWith('.') && context.parentURL?.startsWith('file:'))

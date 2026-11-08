@@ -1,5 +1,5 @@
 /**
- * FIXTURE RECORDER — not a test; skipped unless RECORD_OMR_FIXTURES=1.
+ * FIXTURE RECORDER — invoked explicitly through the diagnostics sandbox.
  *
  * Drives the real import page with the committed OMR transcriptions and
  * records the saved concert-pitch Tune as
@@ -8,19 +8,15 @@
  * /api/tune-parse aborts the recording (the fused path must cover every
  * line). Re-run after an intentional fusion change:
  *
- *     RECORD_OMR_FIXTURES=1 npx playwright test record-omr-fixtures --project=chromium
+ *     npm run test:sandbox -- diagnostics record-omr-fixtures
  *
  * (Committed, unlike the original pdf-import recorder, precisely because
  * that one living in a scratchpad made re-recording a rediscovery project.)
  */
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures/test';
 import { writeFileSync } from 'node:fs';
 import { seedOnboardedAnonymous } from './fixtures/storage';
 
-test.skip(
-	!process.env.RECORD_OMR_FIXTURES,
-	'fixture recorder — set RECORD_OMR_FIXTURES=1 to re-record'
-);
 
 const CHARTS = [
 	{ slug: 'lady-bird', pdf: 'Leadsheets/PDF/Lady Bird.pdf' },
@@ -44,7 +40,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 for (const { slug, pdf } of CHARTS) {
-	test(`record ${slug}`, async ({ page }) => {
+	test(`record ${slug}`, async ({ page }, testInfo) => {
 		await page.goto('/tunes/import/pdf');
 
 		await page.locator('summary').filter({ hasText: 'Have a transcription?' }).click();
@@ -67,7 +63,7 @@ for (const { slug, pdf } of CHARTS) {
 		const sheets = JSON.parse(stored ?? '[]') as Array<Record<string, unknown>>;
 		expect(sheets).toHaveLength(1);
 		writeFileSync(
-			`tests/fixtures/leadsheets/pdf-vs-musescore/${slug}.omr-import.json`,
+			testInfo.outputPath(`${slug}.omr-import.json`),
 			JSON.stringify({ sheet: sheets[0] }, null, '\t') + '\n'
 		);
 	});
