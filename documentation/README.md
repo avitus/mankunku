@@ -90,6 +90,7 @@ The player guides, plus a handful of the architecture and reference pages, are a
 | [Trick Scoring](./architecture/trick-scoring.md) | Conformance tiers, fluency weighting, per-device slot philosophy |
 | [Phrase System](./architecture/phrase-system.md) | The lick catalog: categories, storage in C, octave centering, tonality-aware transposition, the combinatorial generator |
 | [Tune System](./architecture/tune-system.md) | Tune model, flatten timelines, importers, engraving, progression detection, lick matching, session planning |
+| [Harmonic Analysis](./architecture/harmonic-analysis.md) | Living plan and implementation status for cornerstone priority and general diatonic regions |
 | [Lick Alignment](./architecture/lick-alignment.md) | Per-progression placement, `pickupBars`, tail extension, auto-inference |
 | [Adaptive Difficulty](./architecture/adaptive-difficulty.md) | Algorithm, leveling (1-100), difficulty profiles |
 | [Tonality System](./architecture/tonality-system.md) | Daily key/scale selection, progressive unlocking |

@@ -4,6 +4,12 @@ Everything that turns a full song form into something the app can render, play, 
 
 Source lives in `src/lib/tunes/` (domain + importers), `src/lib/music/tune-notation.ts` + the layout modules (engraving), `src/lib/notation/` (DOM-adjacent geometry), `src/lib/matching/` (melodic recognition), and `src/lib/state/tune-*.ts` (UI state).
 
+The [Harmonic Analysis plan](./harmonic-analysis.md) tracks overlapping key-center
+and progression analysis, now shared by live lick-practice preview and session
+planning. Cornerstones take priority when assigning exercises; compatible major
+regions offer eligible major licks in the remaining space. The plan records
+finite-chorus boundaries, validation and future milestones.
+
 ## The data model
 
 ```typescript

@@ -294,11 +294,11 @@ describe('the session counts in by tempo', () => {
 
 	// When the Saints writes its C6 from the pickup bar. Skipping that bar in
 	// the solo chorus must not lose the vamp it opens: the chord sounds from
-	// bar 1, where the band comes in (the setup e2e counts 5 windows).
+	// bar 1, where the band comes in (broader major regions now combine compatible vamps).
 	it('keeps the window a chord over the pickup bar opens, from bar 1', async () => {
 		const { WHEN_THE_SAINTS } = await import('../../fixtures/tunes/when-the-saints');
-		expect(previewSessionPlan(WHEN_THE_SAINTS, true).total).toBe(5);
-		expect(previewSessionPlan(WHEN_THE_SAINTS, true, 12).total).toBe(60);
+		expect(previewSessionPlan(WHEN_THE_SAINTS, true).total).toBe(3);
+		expect(previewSessionPlan(WHEN_THE_SAINTS, true, 12).total).toBe(36);
 		initTunePractice(WHEN_THE_SAINTS);
 		tunePractice.config.playHead = true;
 		const plan = startTunePracticeSession(WHEN_THE_SAINTS, 480);

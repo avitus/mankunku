@@ -65,7 +65,7 @@
 	import { GRADE_LABELS } from '$lib/scoring/grades';
 	import { accuracyTierInfo } from '$lib/ui/score-colors';
 	import { fractionToFloat } from '$lib/music/intervals';
-	import { progressionColor } from '$lib/music/progression-display';
+	import { practiceTargetColor } from '$lib/tunes/practice-target';
 	import { concertKeyToWritten, writtenKeyToConcert } from '$lib/music/transposition';
 	import type { PitchClass } from '$lib/types/music';
 	import type { PlaybackOptions } from '$lib/types/audio';
@@ -199,7 +199,7 @@
 		(preview?.markers ?? []).map((m) => ({
 			...m,
 			status: 'upcoming' as const,
-			color: progressionColor(m.progressionType)
+			color: practiceTargetColor(m.progressionType)
 		}))
 	);
 
@@ -275,7 +275,7 @@
 					status,
 					label,
 					labelBar: ip.notationLabelBar,
-					color: progressionColor(ip.progressionType)
+					color: practiceTargetColor(ip.progressionType)
 				});
 			} else {
 				if (status === 'active' || (existing.status === 'upcoming' && status !== 'upcoming')) {

@@ -10,7 +10,7 @@
 	import { BACKING_STYLE_IDS, BACKING_STYLE_NAMES } from '$lib/audio/backing-styles';
 	import { TUNE_STYLE_DESCRIPTIONS } from '$lib/tunes/backing-style';
 	import { tunePath } from '$lib/tunes/tune-slug';
-	import { PROGRESSION_TEMPLATES } from '$lib/data/progressions';
+	import { practiceTargetName, type PracticeTargetType } from '$lib/tunes/practice-target';
 	import { PITCH_CLASSES, type PitchClass } from '$lib/types/music';
 	import type { BackingStyle } from '$lib/types/instruments';
 	import type { Tune } from '$lib/types/tune';
@@ -47,7 +47,7 @@
 		? 'This chart has no melody — straight to the changes.'
 		: tunePractice.config.playHead ? 'Head, solo choruses, then the head again.' : 'Straight to the changes.');
 	const progressionCounts = $derived(Object.entries(preview?.byType ?? {}).map(([type, count]) => ({
-		type: type as keyof typeof PROGRESSION_TEMPLATES,
+		type: type as PracticeTargetType,
 		count
 	})));
 	const modeSummary = $derived(tunePractice.config.mode === 'freestyle' ? 'Freestyle'
@@ -89,7 +89,7 @@
 						<strong>{tunePractice.config.mode === 'freestyle' ? 'Your solo, your vocabulary' : 'Your licks, in the right places'}</strong>
 						{#if tunePractice.config.mode === 'freestyle'}<p>No insertion windows — play freely through the changes.</p>
 						{:else if preview && preview.total > 0}
-							<p><span>{preview.total} insertion point{preview.total === 1 ? '' : 's'}:</span> {progressionCounts.map(({ type, count }) => `${count}× ${PROGRESSION_TEMPLATES[type].shortName}`).join(', ')}</p>
+							<p><span>{preview.total} insertion point{preview.total === 1 ? '' : 's'}:</span> {progressionCounts.map(({ type, count }) => `${count}× ${practiceTargetName(type)}`).join(', ')}</p>
 							{#if preview.matchedCount > 0}
 								<p>{preview.matchedCount} with a matching lick from your book.{tunePractice.config.choruses > 1 ? ' The chart names the first visit; later choruses rotate your licks automatically.' : ''}</p>
 							{:else}
