@@ -26,7 +26,7 @@ function audibleSample(): Buffer {
 }
 
 for (const instrumentId of ['tenor-sax', 'soprano-sax'])
-for (const brokenSamples of [false, true]) test(`ear-training sounds ${instrumentId} alongside the band (failed samples: ${brokenSamples})`, async ({ page, browserName }) => {
+for (const sampleFailure of ['none', 'decode', 'stalled']) test(`ear-training sounds ${instrumentId} alongside the band (sample failure: ${sampleFailure})`, async ({ page, browserName }) => {
 	// Opt in only in an isolated executor with a running virtual audio sink.
 	// Firefox otherwise hangs in AudioContext.resume() on headless Linux.
 	test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI && process.env.MANKUNKU_TEST_AUDIO_SINK !== '1', 'Headless Linux Firefox has no audio output device');
@@ -39,7 +39,10 @@ for (const brokenSamples of [false, true]) test(`ear-training sounds ${instrumen
 	// Audible, deterministic stand-in for external libraries; the app still
 	// loads its real sax samples unless this test exercises decode failure.
 	await stubCdnInstrumentSamples(page, audibleSample());
-	if (brokenSamples) {
+	if (sampleFailure === 'stalled') {
+		// Leave requests pending: the app must time out and use the SoundFont.
+		await page.route(`**/samples/${instrumentId}/**`, () => {});
+	} else if (sampleFailure === 'decode') {
 		await page.route(`**/samples/${instrumentId}/**`, route => route.fulfill({ status: 200, body: 'invalid audio' }));
 		// smplr silently retries missing buffers at /C4.ogg, losing the
 		// original sample URL. Keep those failed decodes deterministic too.
@@ -76,7 +79,7 @@ for (const brokenSamples of [false, true]) test(`ear-training sounds ${instrumen
 	await expect(phase).toHaveAttribute('data-phase', 'listen', { timeout: 30_000 });
 	await expect(phase).not.toHaveAttribute('data-phase', 'listen', { timeout: 30_000 });
 	const peaks = await page.evaluate(() => (window as unknown as { __audioPeaks: { melody: number; backing: number } }).__audioPeaks);
-	console.log('ear-training audio peaks', { instrumentId, brokenSamples, ...peaks });
+	console.log('ear-training audio peaks', { instrumentId, sampleFailure, ...peaks });
 	expect(peaks.backing, 'the backing must actually sound').toBeGreaterThan(0.001);
 	expect(peaks.melody, 'the lick must actually sound, including after sample decode failure').toBeGreaterThan(0.001);
 });

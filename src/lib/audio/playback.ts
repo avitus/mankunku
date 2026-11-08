@@ -321,9 +321,22 @@ async function loadCustomSamples(
 			buffers: Record<string | number, AudioBuffer | undefined>
 		): Promise<void> => {
 			await Promise.all(Object.entries(urls).map(async ([note, url]) => {
-				const response = await fetch(url);
-				if (!response.ok) throw new Error(`Could not load instrument sample ${url}: ${response.status}`);
-				buffers[note] = await context.decodeAudioData(await response.arrayBuffer());
+				let timer: ReturnType<typeof setTimeout> | undefined;
+				const load = (async () => {
+					const response = await fetch(url);
+					if (!response.ok) throw new Error(`Could not load instrument sample ${url}: ${response.status}`);
+					return context.decodeAudioData(await response.arrayBuffer());
+				})();
+				// Stop waiting without aborting: WebKit reports aborted requests
+				// as console errors. A late result must never replace the fallback.
+				const timeout = new Promise<never>((_, reject) => {
+					timer = setTimeout(() => reject(new Error(`Timed out loading instrument sample ${url}`)), 15_000);
+				});
+				try {
+					buffers[note] = await Promise.race([load, timeout]);
+				} finally {
+					clearTimeout(timer);
+				}
 			}));
 		};
 		// Explicit defaults required — smplr's samplerToSmplrJson puts

@@ -5,15 +5,20 @@
 	import ChordChart from '$lib/components/lick-practice/ChordChart.svelte';
 	import { followOffsetPx, type FollowSystem } from '$lib/notation/follow-scroll';
 	import { tuneChordBars } from '$lib/tunes/chord-bars';
-	let { tune, instrument, currentBar = null, followBar = currentBar, markers = [] }: {
-		tune: Tune; instrument: InstrumentConfig; currentBar?: number | null; followBar?: number | null; markers?: RangeMarker[];
+	let { tune, instrument, currentBar = null, followBar = currentBar, markers = [], playing = true }: {
+		tune: Tune; instrument: InstrumentConfig; currentBar?: number | null; followBar?: number | null; markers?: RangeMarker[]; playing?: boolean;
 	} = $props();
 	let viewport = $state<HTMLDivElement>();
 	let content = $state<HTMLDivElement>();
 	let geometry = $state<{ systems: FollowSystem[]; viewportPx: number; contentPx: number }>({ systems: [], viewportPx: 0, contentPx: 0 });
 	const sections = $derived(tuneChordBars(tune));
 	const activeBar = $derived(currentBar === null ? -1 : Math.floor(currentBar));
-	const followOffset = $derived(followBar === null ? 0 : followOffsetPx({ ...geometry, barFraction: followBar }));
+	const followOffset = $derived(!playing || followBar === null ? 0 : followOffsetPx({ ...geometry, barFraction: followBar }));
+
+	// Manual scrolling must not add an offset to the playback follow transform.
+	$effect(() => {
+		if (playing && viewport) viewport.scrollTop = 0;
+	});
 
 	$effect(() => {
 		void sections;
@@ -43,11 +48,13 @@
 	});
 </script>
 
-<div class="tune-chord-chart" data-testid="tune-chord-chart" bind:this={viewport} aria-label="Solo chord chart" data-follow-offset={followOffset}>
+<!-- Keyboard focus lets players scroll the idle chart without a pointer. -->
+<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+<div class="tune-chord-chart" class:idle={!playing} tabindex={!playing ? 0 : undefined} role="region" data-testid="tune-chord-chart" bind:this={viewport} aria-label="Solo chord chart" data-follow-offset={followOffset}>
 	<div class="tcc-follow-layer" bind:this={content} style:transform={`translateY(${followOffset}px)`}>
 		{#each sections as section}
 			<section>
-				<h2>{section.label}{section.ending ? ` · Ending ${section.ending}` : ''}</h2>
+				<h2>{section.label}{section.ending ? ` · Ending ${section.ending}` : ''}{section.omitFromSolos ? ' · Head only — skipped in solos' : ''}</h2>
 				<div class="tcc-bars">
 					{#each section.bars as bar (bar.index)}
 						{@const bands = markers.filter(marker => marker.status !== 'playhead' && marker.startBar <= bar.index && marker.endBarExclusive > bar.index)}
@@ -69,6 +76,7 @@
 
 <style>
 	.tune-chord-chart { position:relative; height:60vh; overflow:hidden; }
+	.tune-chord-chart.idle { overflow-y:auto; }
 	.tcc-follow-layer { position:relative; padding:8px; will-change:transform; }
 	section + section { margin-top:22px; }
 	h2 { color:var(--color-text-secondary); font-size:12px; margin:0 0 10px; }

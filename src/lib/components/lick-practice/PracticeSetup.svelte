@@ -341,7 +341,7 @@
 		>
 			<div class="practice-session-controls">
 				<!-- Session picker -->
-				<div class="flex justify-center">
+				<div class="practice-session-picker">
 					<SelectorPad
 						ariaLabel="Session type"
 						columns={4}
@@ -681,7 +681,7 @@
 	.practice-console-grid { min-width: 0; }
 	.practice-console-main { display: grid; gap: 18px; min-width: 0; }
 	.practice-session-controls { display: grid; gap: 16px; }
-	.practice-session-controls > div:first-child { display: block; }
+	.practice-session-picker { display: block; }
 	.practice-session-controls :global([aria-label='Session type']) { --selector-columns: 4; width: 100%; }
 	.practice-session-controls :global([aria-label='Session type'] .pad-btn) {
 		min-height: 80px; text-align: left; align-items: flex-start; padding: 14px 12px;

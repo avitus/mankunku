@@ -43,8 +43,8 @@
 					onInput={ondurationchange}
 				/>
 			{/if}
-			<div class="launch-count" aria-live="polite" aria-atomic="true">
-				<strong>
+			<div class="launch-count">
+				<strong aria-live="polite" aria-atomic="true">
 					{#if loading}Preparing your session…
 					{:else if timed}{plannedLickCount} lick{plannedLickCount === 1 ? '' : 's'} in this session
 					{:else}Open-ended practice{/if}

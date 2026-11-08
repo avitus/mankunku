@@ -82,6 +82,7 @@ test('solos-only form plays the chord chart directly and ends without an outro',
 	await page.getByRole('spinbutton', { name: 'Tempo', exact: true }).blur();
 	await page.getByRole('button', { name: 'Play tune', exact: true }).click();
 	await expect(head).toBeDisabled();
+	await expect(page.getByTestId('tune-chord-chart')).toHaveCSS('overflow-y', 'hidden');
 	await expect(page.getByTestId('tune-chord-chart')).toBeVisible();
 	await expect(page.locator('.abcjs-container svg')).toHaveCount(0);
 	await expect(page.getByText(/Solo 1 of 1/)).toBeVisible({ timeout: 15_000 });
@@ -89,6 +90,33 @@ test('solos-only form plays the chord chart directly and ends without an outro',
 	await expect(page.locator('.abcjs-container svg')).toHaveCount(0);
 	await expect(page.getByRole('button', { name: 'Play tune', exact: true })).toBeVisible({ timeout: 5_000 });
 	await expect(head).toBeEnabled();
+	await expect(page.getByTestId('tune-chord-chart')).toHaveCSS('overflow-y', 'auto');
 	await expect(page.getByTestId('tune-chord-chart')).toBeVisible();
 	await expect(page.locator('.abcjs-container svg')).toHaveCount(0);
 });
+
+for (const width of [1440, 390]) {
+	test(`idle chord chart scrolls through the full form and preserves harmony colors at ${width}px`, async ({ page }) => {
+		await page.setViewportSize({ width, height: 800 });
+		await seedTunes(page, [{ ...tune, id: 'long-chord-form', title: 'Long Chord Form', sections: [
+			{ ...tune.sections[0], label: 'Head ending', omitFromSolos: true, notes: [] },
+			{ ...tune.sections[0], label: 'Solo form', bars: 32, notes: [] }
+		] }]);
+		await page.goto('/tunes/long-chord-form');
+		const chart = page.getByTestId('tune-chord-chart');
+		await expect(chart.getByRole('heading', { name: 'Head ending · Head only — skipped in solos', exact: true })).toBeVisible();
+		// Omitted sections keep their chart indices so playback still maps correctly.
+		await expect(chart.locator('.tcc-bar')).toHaveCount(34);
+		await expect(chart.locator('section').nth(1).locator('.tcc-bar').first()).toHaveAttribute('data-bar', '2');
+		await expect(chart.locator('[data-cue-status]').first()).toBeVisible();
+		await page.getByRole('button', { name: 'Harmony colors', exact: true }).click();
+		await expect(chart.locator('[data-cue-status]')).toHaveCount(0);
+		await page.getByRole('button', { name: 'Harmony colors', exact: true }).click();
+		await expect(chart.locator('[data-cue-status]').first()).toBeVisible();
+		await expect(chart).toHaveCSS('overflow-y', 'auto');
+		await chart.focus();
+		await page.keyboard.press('ControlOrMeta+End');
+		await expect.poll(() => chart.evaluate(el => el.scrollTop)).toBeGreaterThan(0);
+		await expect(chart.locator('.tcc-bar').last()).toBeInViewport();
+	});
+}

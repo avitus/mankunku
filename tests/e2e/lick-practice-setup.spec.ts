@@ -1,3 +1,4 @@
+import type { Page } from '@playwright/test';
 import { test, expect } from './fixtures/test';
 import { seedOnboardedAnonymous, seedStorage, seedUserLicks, SAMPLE_USER_LICKS } from './fixtures/storage';
 
@@ -34,7 +35,7 @@ test.describe('lick-practice setup', () => {
 });
 
 
-test('Duration controls the queued count beside Start and keeps its value across session choices', async ({ page }, testInfo) => {
+async function seedPracticeSet(page: Page): Promise<void> {
 	await seedOnboardedAnonymous(page);
 	const licks = Array.from({ length: 12 }, (_, index) => ({
 		...(SAMPLE_USER_LICKS[0] as Record<string, unknown>),
@@ -44,6 +45,10 @@ test('Duration controls the queued count beside Start and keeps its value across
 	await seedStorage(page, {
 		'user-lick-tags': Object.fromEntries(licks.map(lick => [lick.id, ['practice', 'prog:ii-V-I-major']]))
 	});
+}
+
+test('Duration controls the queued count beside Start and keeps its value across session choices', async ({ page }) => {
+	await seedPracticeSet(page);
 	await page.goto('/lick-practice');
 	const launch = page.getByRole('region', { name: 'Set your time. Make it count.' });
 	const duration = launch.getByRole('slider', { name: 'Practice time' });
@@ -73,10 +78,16 @@ test('Duration controls the queued count beside Start and keeps its value across
 	await expect(page.locator('[aria-label="Backing style"]')).toBeVisible();
 	await expect(page.locator('[aria-label="Practice mode"]')).toBeVisible();
 	await expect(launch).not.toContainText(/of playing|may finish before the time budget/);
-	for (const width of [1200, 390, 320]) {
-		await page.setViewportSize({ width, height: 1000 });
-		await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-		await expect(launch.getByRole('button', { name: 'Start Daily Practice', exact: true })).toBeVisible();
-		await page.screenshot({ path: testInfo.outputPath(`setup-${width}.png`), fullPage: true });
-	}
 });
+
+for (const width of [1200, 390, 320]) {
+	test(`Practice launch fits ${width}px`, async ({ page }, testInfo) => {
+		await seedPracticeSet(page);
+		await page.setViewportSize({ width, height: 1000 });
+		await page.goto('/lick-practice');
+		const launch = page.getByRole('region', { name: 'Set your time. Make it count.' });
+		await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+		await expect(launch.getByRole('button', { name: 'Start Daily Practice', exact: true })).toBeEnabled();
+		await page.screenshot({ path: testInfo.outputPath(`setup-${width}.png`), fullPage: true });
+	});
+}
