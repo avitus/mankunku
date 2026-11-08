@@ -10,9 +10,14 @@ const tune = {
 	}]
 };
 
+const longTune = { ...tune, id: 'long-chord-form', title: 'Long Chord Form', sections: [
+			{ ...tune.sections[0], label: 'Head ending', omitFromSolos: true, notes: [] },
+			{ ...tune.sections[0], label: 'Solo form', bars: 32, notes: [] }
+		] };
+
 test.beforeEach(async ({ page }) => {
 	await seedOnboardedAnonymous(page);
-	await seedTunes(page, [tune, { ...tune, id: 'e2e-chords-only', title: 'Chord Form', sections: tune.sections.map(section => ({ ...section, notes: [] })) }]);
+	await seedTunes(page, [tune, longTune, { ...tune, id: 'e2e-chords-only', title: 'Chord Form', sections: tune.sections.map(section => ({ ...section, notes: [] })) }]);
 });
 
 for (const width of [1440, 390]) {
@@ -98,10 +103,7 @@ test('solos-only form plays the chord chart directly and ends without an outro',
 for (const width of [1440, 390]) {
 	test(`idle chord chart scrolls through the full form and preserves harmony colors at ${width}px`, async ({ page }) => {
 		await page.setViewportSize({ width, height: 800 });
-		await seedTunes(page, [{ ...tune, id: 'long-chord-form', title: 'Long Chord Form', sections: [
-			{ ...tune.sections[0], label: 'Head ending', omitFromSolos: true, notes: [] },
-			{ ...tune.sections[0], label: 'Solo form', bars: 32, notes: [] }
-		] }]);
+
 		await page.goto('/tunes/long-chord-form');
 		const chart = page.getByTestId('tune-chord-chart');
 		await expect(chart.getByRole('heading', { name: 'Head ending · Head only — skipped in solos', exact: true })).toBeVisible();
