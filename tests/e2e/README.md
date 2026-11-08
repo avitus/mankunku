@@ -145,6 +145,8 @@ tests/e2e/
 
 **Import rule:** anonymous specs import from `./fixtures/test`; signed-in specs import from `./fixtures/auth`, which extends the same guarded `test`. Never import `test` from `@playwright/test` (type-only imports are fine).
 
+The shared `page` fixture waits for the root layout's `data-hydrated="true"` marker after both `goto()` and `reload()`. Visible server-rendered controls alone do not prove their client event handlers are attached. Additional pages created directly from a browser context need their own readiness check before interaction.
+
 ## The console guard
 
 The guard is automatic: every test that uses the fixture `test` fails on any unexpected `console.error` or `pageerror`. Warnings are attached to the report but don't fail. Name `consoleCollector` only when a test needs to read the collected output mid-test.

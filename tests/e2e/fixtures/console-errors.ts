@@ -128,7 +128,7 @@ interface ConsoleGuardOptions {
 
 export const test = base.extend<ConsoleGuardFixtures & ConsoleGuardOptions>({
 	allowDocument404: [false, { option: true }],
-	// goto() additionally waits for the app to hydrate before returning.
+	// goto() and reload() wait for the app to hydrate before returning.
 	// Until PR #229 the SSR'd onboarding overlay covered every page and
 	// incidentally blocked clicks until hydration tore it down; with the
 	// overlay gone from SSR, a click fired straight after navigation can land
@@ -140,18 +140,28 @@ export const test = base.extend<ConsoleGuardFixtures & ConsoleGuardOptions>({
 	// error pages, which render inside the root layout), so a missing marker
 	// means hydration itself broke — fail loudly here, not confusingly later.
 	page: async ({ page }, use: (page: Page) => Promise<void>): Promise<void> => {
+		/** Wait until the root layout has attached the client event handlers. */
+		const waitForHydration = async (): Promise<void> => {
+			await page
+				.locator('[data-hydrated="true"]')
+				.first()
+				.waitFor({ state: 'attached', timeout: 15000 });
+		};
 		const originalGoto = page.goto.bind(page);
 		page.goto = (async (
 			url: string,
 			options?: Parameters<Page['goto']>[1]
 		): Promise<Response | null> => {
 			const response = await originalGoto(url, options);
-			await page
-				.locator('[data-hydrated="true"]')
-				.first()
-				.waitFor({ state: 'attached', timeout: 15000 });
+			await waitForHydration();
 			return response;
 		}) as typeof page.goto;
+		const originalReload = page.reload.bind(page);
+		page.reload = async (options): Promise<Response | null> => {
+			const response = await originalReload(options);
+			await waitForHydration();
+			return response;
+		};
 		await use(page);
 	},
 	// AUTO: every test gets the guard whether or not it names the fixture — a
