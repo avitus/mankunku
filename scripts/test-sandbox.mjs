@@ -53,6 +53,28 @@ export function testCommand(mode, args) {
 	}
 }
 
+/** Validate diagnostic inputs in the copied snapshot before building an image.
+ * @param {string} snapshot
+ * @param {Record<string, string | undefined>} env
+ * @returns {Promise<string[]>}
+ */
+export async function diagnosticEnvironment(snapshot, env) {
+	const environment = [];
+	for (const key of ['CALIB_DIR', 'RENDER_DIR']) {
+		const value = env[key];
+		if (!value) continue;
+		const invalid = `${key} must be a repository-relative directory included in the snapshot.`;
+		if (path.isAbsolute(value) || value.split(/[\\/]/).includes('..')) throw new Error(invalid);
+		const stat = await lstat(path.join(snapshot, value)).catch((error) => {
+			if (error.code === 'ENOENT' || error.code === 'ENOTDIR') return null;
+			throw error;
+		});
+		if (!stat?.isDirectory()) throw new Error(invalid);
+		environment.push('--env', `${key}=${value}`);
+	}
+	return environment;
+}
+
 /** Run a process without a shell and preserve its exit status.
  * @param {string} command
  * @param {string[]} args
@@ -128,6 +150,9 @@ async function main() {
 			await mkdir(path.dirname(path.join(snapshot, file)), { recursive: true });
 			await cp(source, path.join(snapshot, file));
 		}
+		const diagnosticArgs = mode === 'diagnostics'
+			? await diagnosticEnvironment(snapshot, process.env)
+			: [];
 		// Preserve engine checks without forwarding a developer's registry credentials.
 		await writeFile(path.join(snapshot, '.npmrc'), 'engine-strict=true\n');
 		// No build context can accidentally include host dependencies or .env files.
@@ -139,17 +164,10 @@ async function main() {
 		if (interrupted) return interrupted;
 		const image = (await readFile(imageFile, 'utf8')).trim();
 		const ports = mode === 'ui' ? ['--publish', '127.0.0.1::9323'] : [];
-		const environment = outputs.flatMap(([variable, file]) => ['--env', `${variable}=/workspace/test-results/${file}`]);
-		if (mode === 'diagnostics') {
-			for (const key of ['CALIB_DIR', 'RENDER_DIR']) {
-				const value = process.env[key];
-				if (!value) continue;
-				if (path.isAbsolute(value) || value.split(/[\\/]/).includes('..')) {
-					throw new Error(`${key} must be a repository-relative directory included in the snapshot.`);
-				}
-				environment.push('--env', `${key}=${value}`);
-			}
-		}
+		const environment = [
+			...outputs.flatMap(([variable, file]) => ['--env', `${variable}=/workspace/test-results/${file}`]),
+			...diagnosticArgs
+		];
 		if (process.env.E2E_SOURCEMAPS === '1') environment.push('--env', 'E2E_SOURCEMAPS=1');
 		if (await docker('create', '--name', name, '--init', '--cpus=2', '--memory=4g',
 			'--memory-swap=4g', '--shm-size=1g', '--pids-limit=512', '--cap-drop=ALL',

@@ -153,7 +153,7 @@ The guard is automatic: every test that uses the fixture `test` fails on any une
 
 - **Expected 404 pages.** A spec whose subject is a 404 page (the error page, admin's stealth 404s) opts in with `test.use({ allowDocument404: true })`. That admits only the navigated document's own "Failed to load resource … 404" line — never a fetch, asset or API 404, and never a pageerror. A test that only checks a status code should use `page.request.get` instead of navigating.
 - **WebKit pageerrors.** Playwright reports every WebKit console message with level `error` and source `javascript` as a pageerror, so a WebKit "pageerror" is not always an uncaught exception.
-- **Scope.** The guard listens to the test's own `page`. Extra tabs and contexts a spec opens itself (`cross-tab-switch`, `cloud-convergence`) are not guarded.
+- **Scope.** The guard listens to every page in the test's own browser context, including later tabs and popups. Separate browser contexts a spec creates itself are not guarded.
 
 **Adding an allowlist entry.** If a real, unavoidable and benign message pollutes tests, add the narrowest possible entry to `IGNORED_PATTERNS` in `fixtures/console-errors.ts`, with a comment naming the spec and engine that need it. Don't suppress real errors: a test that surfaces a console error almost always means the app needs fixing.
 

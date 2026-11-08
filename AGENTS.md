@@ -181,8 +181,9 @@ A uv-managed Python 3.12 project (own `pyproject.toml`/`uv.lock`/`.venv`) that t
 - Keep each run's checkout, server and artifacts separate. The runner already
   does this, limits CPU/memory, excludes local secrets, and saves results under
   `test-results/sandbox/<run-id>/`. Do not mount host devices or display sockets.
-- Node-only tests can run locally through `circleci testsuite run "unit tests"`.
-  Optional container commands are `npm run test:sandbox -- unit`, `-- check`,
+- Run Node-only tests in the Linux sandbox too: `npm run test:sandbox -- unit`.
+  Inside that sandbox, use `circleci testsuite run "unit tests"` for Smarter
+  Testing selection. Other container commands are `npm run test:sandbox -- check`
   and `-- deploy`. CI already runs inside isolated Linux executors.
 - Setup, troubleshooting and coverage limits are in `tests/e2e/README.md`.
   Native Safari and real microphone/device checks require an explicitly
