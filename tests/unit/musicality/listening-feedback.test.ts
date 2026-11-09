@@ -160,3 +160,18 @@ it('never calls a live final-bar snapshot complete before the player completes',
  Object.assign(source.playback, { status: 'playing', elapsedBeats: totalBars * 4, barIndex: totalBars - 1, audioTime: 10 + totalBars * 4 * 60 / 80 });
  expect(createListeningFeedback(source, { ...options, allowPlaying: true })).toMatchObject({ completion: 'partial', reachedBars: totalBars });
 });
+
+it('captures seeded arc and proxy-backed monitoring as honest portable feedback', () => {
+ const source = input();
+ source.playback.params!.performanceEnergySeed = 42;
+ const monitoring = { adjusted: true, mix: { ...DEFAULT_BACKING_MIX, comp: 0 } };
+ Object.assign(source.playback, { monitoring: new Proxy(monitoring, {}) });
+ const saved = createListeningFeedback(source, options);
+ monitoring.mix.comp = 1;
+ expect(saved.monitoring).toEqual({ adjusted: true, mix: { ...DEFAULT_BACKING_MIX, comp: 0 } });
+ expect(saved.settings.performanceEnergySeed).toBe(42);
+ expect(restoreListeningFeedback(serializeListeningFeedback(saved))).toEqual(saved);
+ for (const monitoring of [{adjusted:'true',mix:DEFAULT_BACKING_MIX},{adjusted:true,mix:{...DEFAULT_BACKING_MIX,comp:99}}]) {
+  expect(restoreListeningFeedback(JSON.stringify({...saved,monitoring}))).toBeNull();
+ }
+});

@@ -241,3 +241,24 @@ describe('musicality release provenance', () => {
   expect(restored?.musicalityRelease).toEqual(historical);
  });
 });
+
+
+it('does not accept an adjusted monitor take as a matched blind audition, even after restoring its mix', () => {
+ const pair = create(); const take = completed(pair.paramsFor('A'));
+ expect(pair.recordPlayback('A', { ...take, monitoring: { mix: { ...take.params!.mix }, adjusted: true } })).toBe(false);
+ expect(pair.recordPlayback('A', { ...take, monitoring: { mix: { ...take.params!.mix, bass: 0 }, adjusted: false } })).toBe(false);
+ expect(pair.recordPlayback('A', { ...take, monitoring: { mix: { ...take.params!.mix }, adjusted: false } })).toBe(true);
+});
+
+
+it('clears accepted evidence and ratings before replaying a label while retaining notes', () => {
+ const pair = create();
+ for (const label of ['A', 'B'] as const) {
+  pair.recordPlayback(label, completed(pair.paramsFor(label)));
+  for (const criterion of LISTENING_COMPARISON_CRITERIA) pair.rate(label, criterion.id, 4);
+ }
+ pair.setPreference('A'); pair.setNotes('Keep my observations');
+ pair.beginPlayback('A');
+ expect(pair.snapshot()).toMatchObject({ completed: { A: false, B: true }, ratings: { A: {} }, preference: null, notes: 'Keep my observations', canReveal: false });
+ expect(() => pair.rate('A', 'groove', 5)).toThrow(/complete/i);
+});

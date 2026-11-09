@@ -2,13 +2,14 @@
  import type { PerformanceForm } from '$lib/types/performance-form';
  import { buildListeningArc } from '$lib/musicality/listening-arc';
 
- let { form, orchestration, barIndex = null, reviewing = false }: {
+ let { form, orchestration, seed, barIndex = null, reviewing = false }: {
   form: PerformanceForm;
+  seed?: number;
   orchestration: 'original' | 'coordinated';
   barIndex?: number | null;
   reviewing?: boolean;
  } = $props();
- const arc = $derived(buildListeningArc(form, orchestration));
+ const arc = $derived(buildListeningArc(form, orchestration, seed));
  const selected = $derived(barIndex !== null && Number.isInteger(barIndex) && barIndex >= 0 && barIndex < arc.totalBars ? barIndex : null);
  const currentPass = $derived(selected === null ? null : arc.passes.find(pass => selected >= pass.startBar && selected < pass.endBarExclusive));
  const x = (bar: number) => (bar + .5) / arc.totalBars * 1000;

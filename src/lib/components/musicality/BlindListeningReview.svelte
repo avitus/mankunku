@@ -1,4 +1,6 @@
 <script lang="ts">
+	import ListeningMixer from './ListeningMixer.svelte';
+	import type { BackingMixLevels } from '$lib/audio/backing-mix';
 	import { isMusicalityRelease } from '$lib/musicality/release';
 	import { onDestroy, onMount } from 'svelte';
 	import { LISTENING_TUNES, buildListeningTuneSession, type ListeningTuneSession } from '$lib/musicality/listening-tunes';
@@ -32,6 +34,11 @@
 		{ value: 'swing', label: 'Swing' }, { value: 'straight', label: 'Straight' },
 		{ value: 'bossa-nova', label: 'Bossa nova' }, { value: 'ballad', label: 'Ballad' }
 	];
+	let monitorMix = $state(getBackingMix());
+	function changeMix(mix: BackingMixLevels) {
+		if (playback?.status === 'playing' && !player.setMix(mix)) return;
+		monitorMix = mix;
+	}
 	let tuneId = $state(defaultTune.id);
 	let key = $state<PitchClass>(defaultTune.key);
 	let style = $state<BackingStyle>(settings.backingStyle);
@@ -54,7 +61,9 @@
 			try {
 				const accepted = comparison.recordPlayback(activeLabel, next);
 				review = comparison.snapshot();
-				if (!accepted && !review.completed[activeLabel]) error = 'This take could not be verified as complete. Replay it before rating.';
+				if (!accepted && !review.completed[activeLabel]) error = next.monitoring?.adjusted
+					? 'The mix changed during this take. Replay it at the fixed comparison mix before rating.'
+					: 'This take could not be verified as complete. Replay it before rating.';
 			} catch (cause) { error = message(cause); }
 		}
 	} });
@@ -74,9 +83,9 @@
 		error = ''; storageMessage = ''; saved = false;
 		try {
 			const captured = buildListeningTuneSession({ tuneId, key, soloChoruses: solos });
-			comparison = createBlindListeningComparison({ phrase: captured.phrase, style, tempo,
+			comparison = createBlindListeningComparison({ performanceEnergySeed: crypto.getRandomValues(new Uint32Array(1))[0], phrase: captured.phrase, style, tempo,
 				swing: settings.swing, instrument: 'piano', volume: settings.backingTrackVolume,
-				mix: { ...getBackingMix() } }, { buildVersion });
+				mix: { ...$state.snapshot(monitorMix) } }, { buildVersion });
 			takeSession = captured;
 			review = comparison.snapshot();
 			playback = null; activeLabel = null;
@@ -85,7 +94,8 @@
 	async function play(label: Label) {
 		if (!comparison || busy) return;
 		error = ''; activeLabel = label;
-		try { await player.start(comparison.paramsFor(label)); }
+		monitorMix = comparison.paramsFor(label).mix;
+		try { if (!review?.record) { comparison.beginPlayback(label); review = comparison.snapshot(); } await player.start(comparison.paramsFor(label)); }
 		catch (cause) { error = message(cause); }
 	}
 	function rate(label: Label, criterion: Criterion, value: string) {
@@ -179,6 +189,7 @@
 		<button class="text-button" onclick={onexit}>Back to listening</button>
 	</div>
 	<p class="explanation">Two arrangements of the same full tune, labelled A and B. Listen to both, record your impressions, then reveal which you preferred.</p>
+	<div class="blind-layout"><div class="blind-main">
 	<div class="setup" aria-label="Blind comparison setup">
 		<label class="tune">Tune<select data-testid="blind-tune" bind:value={tuneId} onchange={changeTune} disabled={review !== null}>{#each LISTENING_TUNES as tune}<option value={tune.id}>{tune.title}</option>{/each}</select></label>
 		<label>Style<select data-testid="blind-style" bind:value={style} disabled={review !== null}>{#each styles as item}<option value={item.value}>{item.label}</option>{/each}</select></label>
@@ -234,9 +245,11 @@
 		</details>
 	{/if}
 	{#if error || playback?.error}<p class="error" role="alert">{error || playback?.error}</p>{/if}
+</div><aside class="blind-mixer"><ListeningMixer mix={monitorMix} onchange={changeMix} disabled={!!review && (playback?.status !== 'playing' || !!review.record)} /><p>{review ? 'Both takes start at the fixed mix. Adjust during playback to explore; replay unchanged to rate. Start a new comparison to choose another shared mix.' : 'Choose a balance for both takes before starting. You can also mute parts while listening.'}</p></aside></div>
 </section>
 
 <style>
+ .blind-layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:2rem}.blind-main{min-width:0}.blind-mixer{align-self:start;position:sticky;top:1rem}.blind-mixer>p{font-size:.7rem;color:var(--color-text-secondary);line-height:1.7}@media(max-width:950px){.blind-layout{grid-template-columns:1fr}.blind-mixer{grid-row:1;position:static}}
  .release-caption{font-size:.7rem;color:var(--color-text-secondary);margin-top:.7rem}
 	.blind-review{padding-top:1.75rem}.intro,.section-heading,.take-heading{display:flex;align-items:center;justify-content:space-between;gap:1rem}.eyebrow{font-size:.6rem;letter-spacing:.14em;text-transform:uppercase;color:var(--color-brass)}h2,h3{font-family:var(--font-display,Georgia,serif);font-weight:400}h2{font-size:2rem;margin:.5rem 0}h3{font-size:1.4rem;margin:0}.explanation{max-width:42rem;margin:.5rem 0 1rem;font-size:.85rem;color:var(--color-text-secondary);line-height:1.8}
 	.setup{display:grid;grid-template-columns:2.4fr 1.35fr .75fr .8fr 1.1fr;gap:1rem;padding:1rem 0 1.5rem}label{font-size:.6rem;letter-spacing:.07em;text-transform:uppercase;color:var(--color-text-secondary)}select,input,textarea{width:100%;margin-top:.6rem;padding:.6rem 0;background:transparent;color:var(--color-text);border:0;border-bottom:1px solid var(--color-bg-tertiary);font:inherit;font-size:.85rem;letter-spacing:normal;text-transform:none;border-radius:0}option{background:var(--color-bg-secondary);color:var(--color-text)}textarea{resize:vertical;line-height:1.7}button:disabled,select:disabled,input:disabled,textarea:disabled{opacity:.5;cursor:default}button{cursor:pointer}.primary,.play{background:var(--color-brass);color:var(--color-bg);padding:.85rem 1.25rem;font-size:.8rem;font-weight:600}.begin,.reveal{display:flex;align-items:center;gap:1.25rem}.begin p,.reveal p{max-width:32rem;font-size:.7rem;line-height:1.7;color:var(--color-text-secondary)}.primary{white-space:nowrap}.text-button{color:var(--color-brass);font-size:.72rem;text-decoration:underline;text-underline-offset:.3em}

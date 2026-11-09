@@ -110,3 +110,29 @@ describe.each((['swing', 'straight', 'bossa-nova', 'ballad'] as const).flatMap(s
   expect(() => advanceRollingBacking(legacy, checkpoint)).toThrow('Invalid rolling checkpoint');
  });
 });
+
+// Fixed witness for the real-clock browser suite, whose existing breath/re-entry
+// assertions must not depend on the new per-performance random seed.
+describe.each(['swing', 'straight', 'bossa-nova', 'ballad'] as const)('%s seeded browser witness', style => {
+ it('keeps both admitted returning-head breaths and the native chord at offset three with seed 42 at 240 BPM', () => {
+  const admitted = assessListeningTune(LOCAL_LISTENING_AABA, { soloChoruses: 2 });
+  if (!admitted.ok) throw new Error(admitted.reason);
+  const session = style === 'swing' ? admitted.session : buildListeningTuneSession({ tuneId: MANKUNKU_BLUES.id, soloChoruses: 2 });
+  const { phrase } = session;
+  const head = session.headBars + 2 * session.chorusBars;
+  const score = createRollingBacking(phrase.harmony!, BACKING_STYLES[style], {
+   phraseId: phrase.id, tempo: 240, ppq: 192, beatsPerBar: 4, swing: resolveBackingSwing(.62, BACKING_STYLES[style], 240),
+   sectionMap: phrase.sectionMap, performanceForm: phrase.performanceForm, ensemble: {},
+   ...(style === 'ballad' ? { terminalArrangement: { ending: 'hold-release' as const, melody: phrase.notes } } : {})
+  }, { returningMelodySpace: true, performanceEnergySeed: 42 });
+  let checkpoint: RollingBackingCheckpoint | undefined;
+  const bars = Array.from({ length: score.totalBars }, () => { const bar = advanceRollingBacking(score, checkpoint); checkpoint = bar.checkpoint; return bar; });
+  for (const bar of bars.slice(head + 1, head + 3)) {
+   expect(bar.ensemblePlan.bars[0].piano).toMatchObject({ maxAttacks: 0, silenceReason: 'returning_melody' });
+   expect(bar.compEvents).toHaveLength(0);
+   expect(bar.bassEvents.length).toBeGreaterThan(0);
+   expect(bar.drumEvents.some(event => event.role === 'timekeeping')).toBe(true);
+  }
+  expect(bars[head + 3].compEvents.length).toBeGreaterThan(0);
+ });
+});

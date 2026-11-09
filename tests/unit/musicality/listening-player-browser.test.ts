@@ -20,7 +20,7 @@ vi.mock('tone', () => ({ getTransport: () => host.transport, now: () => host.con
 vi.mock('$lib/audio/backing-track', async () => {
 	const { createRollingBackingRenderer } = await import('$lib/audio/backing-rolling-renderer');
 	return {
-		loadBackingInstruments: vi.fn(async () => {}), setBackingMix: vi.fn(), setBackingTrackVolume: vi.fn(),
+		getBackingMix: () => ({ ...DEFAULT_BACKING_MIX }), loadBackingInstruments: vi.fn(async () => {}), setBackingMix: vi.fn(), setBackingTrackVolume: vi.fn(),
 		getActiveSchedule: () => host.schedule, disposeBackingParts: vi.fn(() => { host.schedule = null; host.active = null; }),
 		scheduleBackingTrack: vi.fn(async () => { host.active = null; host.schedule = {}; return { bassEvents: [], compEvents: [], drumEvents: [] }; }),
 		createRollingBackingPlayback: vi.fn(async (options: RollingBackingPlaybackOptions): Promise<RollingBackingPlayback> => {
@@ -127,7 +127,7 @@ describe('browser listening runtime routing and ownership', () => {
 		expect(take.snapshot()).toMatchObject({ status: 'playing', barIndex: null, provenance: { engine: 'causal-rolling', committedBars: 2 } });
 		expect(backing.scheduleBackingTrack).not.toHaveBeenCalled();
 		expect(backing.setBackingTrackVolume).toHaveBeenCalledWith(.37);
-		expect(backing.setBackingMix).toHaveBeenCalledWith(DEFAULT_BACKING_MIX);
+		expect(backing.setBackingMix).toHaveBeenCalledWith(DEFAULT_BACKING_MIX, { persist: false });
 		expect(host.getUserMedia).not.toHaveBeenCalled();
 		const prefix = take.snapshot().generated!;
 		const count = prefix.ensemblePlan!.bars.length;
@@ -173,4 +173,30 @@ describe('browser listening runtime routing and ownership', () => {
 		expect(newer.snapshot().status).toBe('error');
 		expect(newer.snapshot().error).toMatch(/audio|suspend/i);
 	});
+});
+
+
+it('does not apply a temporary mix while preparation is cancellable, and restores it after a started take', async () => {
+ const backing = await import('$lib/audio/backing-track');
+ let release!: () => void; host.pauseAfterClaim = new Promise<void>(resolve => { release = resolve; });
+ const take = player(); const muted = { ...input(), mix: { ...DEFAULT_BACKING_MIX, comp: 0 } };
+ const pending = take.start(muted);
+ await vi.waitFor(() => expect(host.playbacks).toHaveLength(1));
+ expect(backing.setBackingMix).not.toHaveBeenCalled();
+ take.stop(); release(); await pending;
+ expect(backing.setBackingMix).not.toHaveBeenCalled();
+ host.pauseAfterClaim = null;
+ await take.start(muted);
+ expect(backing.setBackingMix).toHaveBeenLastCalledWith(muted.mix, { persist: false });
+ take.stop();
+ expect(backing.setBackingMix).toHaveBeenLastCalledWith(DEFAULT_BACKING_MIX, { persist: false });
+});
+
+it('forwards the captured energy seed only into coordinated rolling generation', async () => {
+ const rolling = await import('$lib/audio/backing-rolling'); const create = vi.spyOn(rolling, 'createRollingBacking');
+ const take = player(); await take.start({ ...input(), performanceEnergySeed: 42 });
+ expect(create.mock.calls.at(-1)?.[3]).toMatchObject({ performanceEnergySeed: 42, returningMelodySpace: true });
+ expect(take.snapshot().params!.performanceEnergySeed).toBe(42);
+ take.stop(); create.mockClear(); await take.start({ ...input('original'), performanceEnergySeed: 42 });
+ expect(create).not.toHaveBeenCalled();
 });

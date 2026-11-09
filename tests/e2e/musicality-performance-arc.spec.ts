@@ -18,6 +18,12 @@ interface Take {
 /** Count actual source starts; never replace or accelerate the audio clock. */
 async function observeAudio(page: Page): Promise<void> {
 	await page.addInitScript(() => {
+		// Stable arrangement seed for exact full-tune witnesses; the product still chooses fresh arcs.
+		const random = crypto.getRandomValues.bind(crypto);
+		crypto.getRandomValues = ((array: ArrayBufferView<ArrayBuffer>) => {
+			if (array instanceof Uint32Array && array.length === 1) { array[0] = 42; return array; }
+			return random(array);
+		}) as typeof crypto.getRandomValues;
 		const state = { starts: 0, microphoneCalls: 0 };
 		(window as unknown as { __arcAudio: typeof state }).__arcAudio = state;
 		MediaDevices.prototype.getUserMedia = async function () {
@@ -129,6 +135,8 @@ for (const example of cases) {
 		await expect(page.getByTestId('listening-arc-position')).toHaveText(`Bar ${example.bars} of ${example.bars}`);
 		const finished = await exportTake(page);
 		expect(finished.completion).toBe('complete');
+		expect(finished.playback.params!.performanceEnergySeed).toBe(42);
+		await test.info().attach('complete-seeded-performance', { body: JSON.stringify(finished), contentType: 'application/json' });
 		expect(finished.session.bars).toHaveLength(example.bars);
 		if (example.local) expect(finished.session.source).toMatchObject({ id: LOCAL_LISTENING_AABA.id, source: 'user' });
 		expect(finished.playback).toMatchObject({ status: 'completed', barIndex: example.bars - 1,

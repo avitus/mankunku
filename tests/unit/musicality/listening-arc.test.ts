@@ -73,3 +73,11 @@ describe('full-performance listening arc', () => {
 		expect(() => buildListeningArc({ ...form, sections: [] }, mode)).toThrow('closing section');
 	});
 });
+
+it('draws the captured seeded policy exactly while leaving Original as form only', () => {
+ const form = formFor([['head',16],['solo',12],['solo',12],['head',12]]);
+ const arc = buildListeningArc(form, 'coordinated', 42);
+ expect(arc.points).toEqual(planPerformanceEnergy(form, { seed:42 }).map(({phase,targetEnergy},barIndex)=>({barIndex,phase,targetEnergy})));
+ expect(arc.points).not.toEqual(buildListeningArc(form,'coordinated',43).points);
+ expect(buildListeningArc(form,'original',42).points).toEqual([]);
+});

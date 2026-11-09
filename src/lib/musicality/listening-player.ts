@@ -1,4 +1,5 @@
 /** A finite, reproducible listening take with a view tied to the sounding audio clock. */
+import { normalizeBackingMix, type BackingMixLevels } from '$lib/audio/backing-mix';
 import type { BounceParams } from '$lib/audio/backing-bounce';
 import { harmonyDurationBeats, resolveListeningTerminalArrangement } from '$lib/audio/backing-bounce';
 import type { GeneratedBacking } from '$lib/audio/backing-generation';
@@ -21,9 +22,13 @@ export interface CausalListeningProvenance extends ListeningTakeExtent {
 }
 export type ListeningTakeProvenance = CausalListeningProvenance | (ListeningTakeExtent & { readonly engine: 'fixed' });
 
+export interface ListeningMonitor { readonly mix: BackingMixLevels; readonly adjusted: boolean }
+
 export type ListeningStatus = 'idle' | 'loading' | 'playing' | 'stopped' | 'completed' | 'error';
 export interface ListeningSnapshot {
 	status: ListeningStatus;
+	/** Monitor only: initial mix stays in params; adjusted takes are exploratory. */
+	monitoring?: ListeningMonitor;
 	/** Captured engine release; absent on takes made before release versioning. */
 	readonly musicalityRelease?: Readonly<MusicalityRelease>;
 	generated: GeneratedBacking | null;
@@ -48,6 +53,8 @@ export interface PreparedListeningTake {
 	start(): void;
 	/** Releases only this take's scheduled parts/voices, never a newer owner's graph. */
 	stop(): void;
+	/** Returns false when this take no longer owns the output. Never changes generation. */
+	setMix?(mix: BackingMixLevels): boolean;
 	/** Read committed evidence only. Generation is driven by the independent audio scheduler pump. */
 	progress?(): { generated: GeneratedBacking; provenance: CausalListeningProvenance; error: string | null };
 }
@@ -78,13 +85,21 @@ export function createListeningPlayer(
 	};
 	return {
 		snapshot: () => state,
+		setMix(input: BackingMixLevels): boolean {
+			if (disposed || state.status !== 'playing' || !state.params || !take?.setMix) return false;
+			const mix = normalizeBackingMix(input);
+			if (!take.setMix(mix)) return false;
+			const changed = Object.keys(mix).some(key => mix[key as keyof BackingMixLevels] !== state.params!.mix[key as keyof BackingMixLevels]);
+			publish({ monitoring: { mix, adjusted: state.monitoring?.adjusted === true || changed } });
+			return true;
+		},
 		async start(input: BounceParams): Promise<void> {
 			if (disposed) return;
 			const id = ++request;
 			release();
 			const isCurrent = () => !disposed && id === request;
 			publish({ status: 'loading', generated: null, params: null, startAudioTime: null,
-				audioTime: null, elapsedBeats: 0, durationBeats: 0, barIndex: null, ending: false, error: null, provenance: undefined, musicalityRelease: undefined });
+				audioTime: null, elapsedBeats: 0, durationBeats: 0, barIndex: null, ending: false, error: null, provenance: undefined, musicalityRelease: undefined, monitoring: undefined });
 			try {
 				const params = structuredClone(input);
 				const durationBeats = harmonyDurationBeats(params.phrase);
@@ -174,6 +189,7 @@ const browserListeningRuntime: ListeningPlayerRuntime = {
 		await backing.loadBackingInstruments(params.instrument);
 		if (!current()) return null;
 		const transport = Tone.getTransport();
+		const previousMix = backing.getBackingMix();
 		if (params.orchestration === 'coordinated') {
 			const [{ createRollingBacking, advanceRollingBacking }, { createRollingSession }, { aggregateRollingBacking },
 				{ BACKING_STYLES }, { resolveBackingSwing }] = await Promise.all([
@@ -190,9 +206,8 @@ const browserListeningRuntime: ListeningPlayerRuntime = {
 			const definition = createRollingBacking(params.phrase.harmony, style, { phraseId: params.phrase.id, tempo: params.tempo,
 				ppq: transport.PPQ, beatsPerBar: 4, swing: resolveBackingSwing(params.swing, style, params.tempo),
 				sectionMap: params.phrase.sectionMap, performanceForm: params.phrase.performanceForm, ensemble: {},
-				...(terminalArrangement ? { terminalArrangement } : {}) }, { returningMelodySpace: true });
+				...(terminalArrangement ? { terminalArrangement } : {}) }, { returningMelodySpace: true, performanceEnergySeed: params.performanceEnergySeed });
 			transport.stop(); transport.position = 0; transport.bpm.value = params.tempo;
-			backing.setBackingMix(params.mix); backing.setBackingTrackVolume(params.volume);
 			let playbackError: string | null = null;
 			const playback = await backing.createRollingBackingPlayback({ sessionId: definition.sessionId, tempo: params.tempo,
 				ppq: definition.ppq, totalBars: definition.totalBars, isCurrent: current,
@@ -212,6 +227,7 @@ const browserListeningRuntime: ListeningPlayerRuntime = {
 				audioNow() { if (context.state !== 'running') throw new Error('Audio context is suspended. Start a new take.'); return context.currentTime; },
 				start() {
 					if (!current() || !playback.ownsOutput()) throw new Error('This listening take no longer owns the audio output.');
+					backing.setBackingMix(params.mix, { persist: false }); backing.setBackingTrackVolume(params.volume);
 					session.start();
 					if (session.snapshot().status !== 'running') throw new Error(playbackError ?? 'The causal take could not start.');
 					transport.start(playback.startAudioTime);
@@ -231,11 +247,11 @@ const browserListeningRuntime: ListeningPlayerRuntime = {
 							fingerprint: definition.fingerprint, totalBars: definition.totalBars, committedBars,
 							committedThroughTick: snapshot.committedThroughTick, sessionStatus: state.status, dispatches: snapshot.dispatches }) };
 				},
-				stop() { clearPump(); session.stop(); if (playback.ownsOutput()) transport.stop(); }
+				setMix(mix) { if (!current() || !playback.ownsOutput()) return false; backing.setBackingMix(mix, { persist: false }); return true; },
+				stop() { const owned = playback.ownsOutput(); clearPump(); session.stop(); if (owned) { transport.stop(); backing.setBackingMix(previousMix, { persist: false }); } }
 			};
 		}
 		transport.stop(); transport.position = 0; transport.bpm.value = params.tempo;
-		backing.setBackingMix(params.mix);
 		const generated = await backing.scheduleBackingTrack(params.phrase, {
 			tempo: params.tempo, swing: params.swing, countInBeats: 0, metronomeEnabled: false,
 			metronomeVolume: 0, backingTrackEnabled: true, backingInstrument: params.instrument,
@@ -247,8 +263,9 @@ const browserListeningRuntime: ListeningPlayerRuntime = {
 		const ownsParts = () => backing.getActiveSchedule() === schedule;
 		const startAudioTime = Tone.now() + 0.05;
 		return { generated, ppq: transport.PPQ, startAudioTime, audioNow: () => context.currentTime,
-			start() { if (current() && ownsParts()) transport.start(startAudioTime); },
-			stop() { if (ownsParts()) { transport.stop(); backing.disposeBackingParts(); } }
+			start() { if (!current() || !ownsParts()) throw new Error('This listening take no longer owns the audio output.'); backing.setBackingMix(params.mix, { persist: false }); transport.start(startAudioTime); },
+			setMix(mix) { if (!current() || !ownsParts()) return false; backing.setBackingMix(mix, { persist: false }); return true; },
+			stop() { if (ownsParts()) { transport.stop(); backing.disposeBackingParts(); backing.setBackingMix(previousMix, { persist: false }); } }
 		};
 	},
 	poll(callback) { const timer = setInterval(callback, 40); return () => clearInterval(timer); }

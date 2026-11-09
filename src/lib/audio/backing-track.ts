@@ -290,12 +290,13 @@ export function getBackingMix(): BackingMixLevels {
 
 /**
  * Update per-instrument mix levels, apply them to any live gain nodes
- * immediately, and persist them for future sessions on this device.
+ * immediately, and persist them by default. A scoped listening monitor uses
+ * persist:false and restores its prior levels when releasing the output.
  * Kick/ride/hihat trims take effect from the next drum trigger.
  */
-export function setBackingMix(partial: Partial<BackingMixLevels>): void {
+export function setBackingMix(partial: Partial<BackingMixLevels>, options: { persist?: boolean } = {}): void {
 	mixLevels = normalizeBackingMix({ ...mixLevels, ...partial });
-	saveBackingMix(mixLevels);
+	if (options.persist !== false) saveBackingMix(mixLevels);
 	applyMixGains();
 }
 

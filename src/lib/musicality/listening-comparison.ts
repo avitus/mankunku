@@ -77,6 +77,7 @@ function validInputs(value: unknown): value is ListeningComparisonInputs {
  if (!object(value) || 'orchestration' in value || !object(value.phrase) || !boundedJson(value)) return false;
  // Original has no opt-in terminal arrangement, so this would not be a matched pair.
  if (value.ending !== undefined && value.ending !== 'continue') return false;
+ if (value.performanceEnergySeed !== undefined && (!Number.isInteger(value.performanceEnergySeed) || (value.performanceEnergySeed as number) < 0 || (value.performanceEnergySeed as number) > 0xffffffff)) return false;
  const phrase = value.phrase;
  if (!text(phrase.id, 500) || !text(phrase.name, 500) || !Array.isArray(phrase.timeSignature) ||
   phrase.timeSignature[0] !== 4 || phrase.timeSignature[1] !== 4 || !Array.isArray(phrase.harmony) || !phrase.harmony.length ||
@@ -130,7 +131,7 @@ function validTakeProvenance(take: Record<string, unknown>, inputs: ListeningCom
   Math.abs(entry.audioTime - ((take.startAudioTime as number) + ticks[index] * 60 / inputs.tempo / (take.ppq as number))) < 1e-6);
 }
 function completeTake(value: unknown, inputs: ListeningComparisonInputs, arrangement: Arrangement): value is ListeningSnapshot {
- if (!object(value) || value.status !== 'completed' || value.error !== null || !object(value.params) ||
+ if (!object(value) || (value.monitoring !== undefined && (!object(value.monitoring) || value.monitoring.adjusted !== false || canonical(value.monitoring.mix) !== canonical(inputs.mix))) || value.status !== 'completed' || value.error !== null || !object(value.params) ||
   canonical(value.params) !== canonical({ ...inputs, orchestration: arrangement }) ||
   (value.musicalityRelease !== undefined && !isMusicalityRelease(value.musicalityRelease))) return false;
  const duration = harmonyDurationBeats(inputs.phrase);
@@ -171,6 +172,9 @@ export function createBlindListeningComparison(input: BounceParams, options: {
   snapshot(): BlindListeningComparisonSnapshot {
    return freeze({ id, inputs, completed: { A: Boolean(takes.A), B: Boolean(takes.B) },
     ratings: structuredClone(ratings), preference, notes, canReveal: canReveal(), record });
+  },
+  beginPlayback(label: ListeningComparisonLabel): void {
+   editable(); labelValid(label); delete takes[label]; ratings[label] = {}; preference = null;
   },
   recordPlayback(label: ListeningComparisonLabel, snapshot: ListeningSnapshot): boolean {
    labelValid(label);

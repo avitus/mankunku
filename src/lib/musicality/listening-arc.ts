@@ -24,10 +24,10 @@ export interface ListeningArc {
  * Present the engine's nominal structural intention, not measured loudness or
  * future played notes. Original keeps the form but has no shared energy plan.
  */
-export function buildListeningArc(form: PerformanceForm, orchestration: 'original' | 'coordinated'): ListeningArc {
+export function buildListeningArc(form: PerformanceForm, orchestration: 'original' | 'coordinated', seed?: number): ListeningArc {
 	// Validate the same declared form in both modes. Do not repair gaps or
 	// normalize unequal pass lengths merely to draw a convenient chart.
-	const energy = planPerformanceEnergy(form);
+	const energy = planPerformanceEnergy(form, { seed });
 	const hasSolo = form.choruses.some(pass => pass.role === 'solo');
 	let soloCount = 0;
 	let headCount = 0;

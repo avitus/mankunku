@@ -74,6 +74,8 @@ export function harmonyDurationBeats(phrase: Phrase): number {
 }
 
 export interface BounceParams {
+	/** Listening-studio rolling policy only; captured separately from note generation RNG. */
+	performanceEnergySeed?: number;
 	phrase: Phrase;
 	style: BackingStyle;
 	tempo: number;

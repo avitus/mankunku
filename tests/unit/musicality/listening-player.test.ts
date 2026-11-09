@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createListeningPlayer, type ListeningPlayerRuntime, type PreparedListeningTake } from '$lib/musicality/listening-player';
+import { DEFAULT_BACKING_MIX } from '$lib/audio/backing-mix';
 import type { BounceParams } from '$lib/audio/backing-bounce';
 
 const params = { tempo: 120, phrase: { timeSignature: [4, 4], harmony: [{ startOffset: [0, 1], duration: [2, 1] }] } } as unknown as BounceParams;
@@ -17,7 +18,7 @@ describe('full-tune listening player', () => {
 		expect(h.player.snapshot().musicalityRelease).toBeUndefined();
 		await h.player.start(params);
 		const release = h.player.snapshot().musicalityRelease;
-		expect(release).toEqual({ version: '0.2.0', engineRevision: '079b335ec69eb90e9777ea6a8b62e2b188c0d683', status: 'listening-preview' });
+		expect(release).toEqual({ version: '0.3.0', engineRevision: '0c4351328e0dec22fb943991b0c116124ca6628a', status: 'listening-preview' });
 		expect(Object.isFrozen(release)).toBe(true);
 		h.player.stop();
 		expect(h.player.snapshot().musicalityRelease).toBe(release);
@@ -154,4 +155,38 @@ describe('progressive causal listening takes', () => {
 		h.player.stop();
 		expect(h.player.snapshot()).toMatchObject({ status: 'stopped', provenance: { sessionStatus: 'stopped', dispatches: [{ status: 'cancelled' }] } });
 	});
+});
+
+
+describe('listening monitor controls', () => {
+ it('changes the owned output without regenerating, relabelling or stopping the take', async () => {
+  const h = harness();
+  const setMix = vi.fn(() => true);
+  Object.assign(h.take, { setMix });
+  await h.player.start({ ...params, mix: { ...DEFAULT_BACKING_MIX } });
+  h.advance(13);
+  const score = h.player.snapshot().generated;
+  const changed = { ...DEFAULT_BACKING_MIX, comp: 0 };
+  expect(h.player.setMix(changed)).toBe(true);
+  changed.comp = 2;
+  expect(setMix).toHaveBeenCalledWith({ ...DEFAULT_BACKING_MIX, comp: 0 });
+  expect(h.player.snapshot().monitoring).toEqual({ mix: { ...DEFAULT_BACKING_MIX, comp: 0 }, adjusted: true });
+  expect(h.player.snapshot().params!.mix.comp).toBe(1);
+  expect(h.player.snapshot().generated).toBe(score);
+  expect(h.player.snapshot().status).toBe('playing');
+  expect(h.runtime.prepare).toHaveBeenCalledOnce();
+  expect(h.take.stop).not.toHaveBeenCalled();
+  h.player.setMix(DEFAULT_BACKING_MIX);
+  expect(h.player.snapshot().monitoring!.adjusted).toBe(true);
+  h.player.stop();
+  expect(h.player.setMix(changed)).toBe(false);
+  await h.player.start({ ...params, mix: { ...DEFAULT_BACKING_MIX } });
+  expect(h.player.snapshot().monitoring).toBeUndefined();
+ });
+ it('refuses output mutations after ownership is lost', async () => {
+  const h = harness(); Object.assign(h.take, { setMix: () => false });
+  await h.player.start({ ...params, mix: { ...DEFAULT_BACKING_MIX } });
+  expect(h.player.setMix({ ...DEFAULT_BACKING_MIX, bass: 0 })).toBe(false);
+  expect(h.player.snapshot().monitoring).toBeUndefined();
+ });
 });
