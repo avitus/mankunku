@@ -319,6 +319,14 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 		}
 		if (motif.reason) pianoCard.evidence.push(`Comping decision: ${plain(motif.reason)}`);
 	}
+	// Admission alone is not an audible result: require the native figure's
+	// logical onsets and actual scheduled attacks in the displayed bar.
+	if (plan?.piano.presence && plan.piano.maxAttacks > 0 && !plan.piano.silenceReason &&
+		plan.responseOwner === 'nobody' && motif?.hits.length && piano.length === motif.hits.length &&
+		piano.every(event => Math.floor(event.absBeat / beatsPerBar) === barIndex &&
+			motif.hits.some(hit => event.absBeat === barIndex * beatsPerBar + hit.b))) {
+		pianoCard.evidence.push('Phrase support: a native comping figure keeps the accompaniment connected');
+	}
 	// A remembered cell is evidence only when both complete statements actually
 	// survived admission. Use logical bars for provenance and ticks for display.
 	if (walking) for (const recalled of development?.pianoMotifs ?? []) {

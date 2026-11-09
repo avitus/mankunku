@@ -1031,3 +1031,29 @@ describe('accepted piano phrase recall evidence', () => {
 		expect(card(generated).action).toBe('Introduce a comping idea');
 	});
 });
+
+describe('piano phrase support evidence', () => {
+ function supportedBar() {
+  const event = { time: '768i', absBeat: 4, notes: [52, 58, 62], duration: .5, velocity: 60 };
+  return {
+   bassEvents: [], drumEvents: [], compEvents: [event],
+   ensemblePlan: { version: 1, trace: [], bars: [{ barIndex: 1, phraseIntent: 'support', energy: .4, responseOwner: 'nobody',
+    piano: { role: 'support', maxAttacks: 1, presence: 'reentry' }, bass: { role: 'time' }, drums: { role: 'time' } }] },
+   ensembleDevelopment: { version: 1, drumPhrases: [], bassTurnarounds: [], pianoMotifs: [{ barIndex: 1,
+    phraseStartBar: 0, motifId: null, sourceFigureId: 'single', transform: 'fallback', reason: 'phrase_reentry', hits: [{ b: 0 }] }] }
+  };
+ }
+ const evidence = (score: ReturnType<typeof supportedBar>, orchestration: 'coordinated' | 'original' = 'coordinated') =>
+  describeMusicianDecisions(score as unknown as GeneratedBacking, { ...context, barIndex: 1, orchestration })[1].evidence;
+ it('shows phrase support only when the admitted native figure has scheduled attacks', () => {
+  expect(evidence(supportedBar())).toContain('Phrase support: a native comping figure keeps the accompaniment connected');
+ });
+ it.each(['empty', 'wrong-beat', 'wrong-tick', 'reserved', 'original'] as const)('does not claim support for %s evidence', change => {
+  const score = supportedBar();
+  if (change === 'empty') score.compEvents = [];
+  if (change === 'wrong-beat') score.compEvents[0].absBeat = 5;
+  if (change === 'wrong-tick') score.compEvents[0].time = '1536i';
+  if (change === 'reserved') Object.assign(score.ensemblePlan.bars[0].piano, { silenceReason: 'returning_melody', maxAttacks: 0 });
+  expect(evidence(score, change === 'original' ? 'original' : 'coordinated')).not.toContain('Phrase support: a native comping figure keeps the accompaniment connected');
+ });
+});

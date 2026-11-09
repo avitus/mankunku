@@ -162,6 +162,13 @@ for (const example of cases) {
 		if (example.style === 'ballad') expect(finished.playback.generated!.ensembleDevelopment!.terminalArrangements)
 			.toEqual([expect.objectContaining({ barIndex: 51, status: 'accepted' })]);
 
+		// This release actually opts into phrase support through the browser
+		// runtime; a planner-only unit test cannot establish this routing.
+		const supported = finished.playback.generated!.ensemblePlan!.bars.filter(bar => bar.piano.presence);
+		expect(supported.length).toBeGreaterThan(0);
+		expect(supported.some(bar => finished.playback.generated!.compEvents.some(event =>
+			Math.floor(event.absBeat / 4) === bar.barIndex))).toBe(true);
+
 		const headReturn = example.boundaries[2];
 		const breathBars = [headReturn + 1, headReturn + 2];
 		for (const bar of breathBars) {
