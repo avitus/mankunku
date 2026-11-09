@@ -1045,6 +1045,14 @@ describe('piano phrase support evidence', () => {
  }
  const evidence = (score: ReturnType<typeof supportedBar>, orchestration: 'coordinated' | 'original' = 'coordinated') =>
   describeMusicianDecisions(score as unknown as GeneratedBacking, { ...context, barIndex: 1, orchestration })[1].evidence;
+ it.each(['steady', 'sparse'] as const)('distinguishes planned %s texture from an actually silent bar', texture => {
+  const score = supportedBar();
+  Object.assign(score.ensemblePlan.bars[0].piano, { texture }); score.compEvents = [];
+  const expected = texture === 'steady' ? 'Planned piano texture: regular, light support' : 'Planned piano texture: sparse phrase contrast';
+  expect(evidence(score)).toContain(expected);
+  expect(evidence(score)).not.toContain('Phrase support: a native comping figure keeps the accompaniment connected');
+  expect(evidence(score, 'original')).not.toContain(expected);
+ });
  it('shows phrase support only when the admitted native figure has scheduled attacks', () => {
   expect(evidence(supportedBar())).toContain('Phrase support: a native comping figure keeps the accompaniment connected');
  });

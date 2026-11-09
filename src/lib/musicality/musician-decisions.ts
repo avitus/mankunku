@@ -367,6 +367,8 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 		pianoCard.detail = 'The piano leaves space after the returning head’s arrival.';
 		pianoCard.evidence.push('Scheduled result: no new chord attack during the returning-melody breath');
 	}
+	if (plan?.piano.texture) pianoCard.evidence.push(plan.piano.texture === 'steady'
+		? 'Planned piano texture: regular, light support' : 'Planned piano texture: sparse phrase contrast');
 	const drumPhrase = development?.drumPhrases.find((d) => d.barIndex === barIndex);
 	const drumCard: MusicianDecisionCard = {
 		instrument: 'drums', title: 'Drums', role: role('drums'), eventCount: drums.length,
