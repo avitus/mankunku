@@ -103,7 +103,7 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 			const selected = form.phrase4?.lengthBars === 4 && budget > 0 && ensemble.responseOwner === 'nobody' && !ensemble.coordinatedAccent && rng.chance(0.55) && candidates.length > 0;
 			const source = selected ? rng.weighted(candidates.map((figure) => ({ value: figure, weight: figure.weight }))) : undefined;
 			motif = { startBar: phraseStart, sourceId: source?.id ?? null, shift: source ? rng.pick(shiftsFor(source)) : 0,
-				repeat: createRng(seedFrom(score.phraseId, score.tempo, 'comp-motif-development', phraseStart)).chance(0.35) };
+				repeat: createRng(seedFrom(score.phraseId, score.tempo, 'comp-motif-development', phraseStart)).chance(ensemble.piano.texture === 'steady' ? .7 : .35) };
 		}
 		if (motifOverride) motif = motifOverride;
 		const rng = createRng(seedFrom(score.phraseId, score.tempo, 'comp-figure', bar));
@@ -124,6 +124,7 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 			const options = COMP_FIGURES.filter(fits).map((candidate) => {
 				const key = candidate.repeatKey ?? candidate.id;
 				let weight = candidate.weight * (style.compFigureBias?.[candidate.id] ?? 1) * (candidate.busy > 0 ? ensemble.piano.densityScale : 1);
+				if (ensemble.piano.texture === 'steady' && !candidate.hits[0].length) weight *= .2;
 				if (memory.recentFigures.at(-1) === key && memory.recentFigures.at(-2) === key) weight = 0;
 				else if (memory.recentFigures.at(-1) === key) weight *= 0.25;
 				if (info.isSectionFinalBar && !info.isFinalBar) weight *= candidate.tags.includes('push') ? 5 : 0.5;
@@ -135,13 +136,22 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 				hits = []; transform = 'space'; reason = budget === 0 ? 'ensemble_silence' : 'response_reserved';
 			} else reason = form.phrase4?.lengthBars === 4 ? 'not_selected' : 'short_phrase';
 		}
-		// Choose a complete native cell before realization. This only removes
-		// a stacked discretionary rest after an actually silent accepted bar.
-		if (!hits.length && budget > 0 && ensemble.piano.presence === 'reentry' && !ensemble.coordinatedAccent && ensemble.responseOwner === 'nobody') {
-			const candidates = COMP_FIGURES.filter(candidate => fits(candidate) && candidate.hits[0].length > 0);
+		// Choose a complete native cell before realization: either causal
+		// re-entry after accepted silence, or a steady phrase whose retained
+		// gesture no longer fits the current permission.
+		if (!hits.length && budget > 0 && (ensemble.piano.presence === 'reentry' || ensemble.piano.texture === 'steady' && reason === 'gesture_does_not_fit') && !ensemble.coordinatedAccent && ensemble.responseOwner === 'nobody') {
+			const candidates = COMP_FIGURES.filter(candidate => fits(candidate) && candidate.hits[0].length > 0).map(candidate => {
+				let weight = candidate.weight * (style.compFigureBias?.[candidate.id] ?? 1);
+				if (ensemble.piano.texture === 'steady') {
+					const key = candidate.repeatKey ?? candidate.id;
+					if (memory.recentFigures.at(-1) === key && memory.recentFigures.at(-2) === key) weight = 0;
+					else if (memory.recentFigures.at(-1) === key) weight *= .25;
+				}
+				return { value: candidate, weight };
+			}).filter(candidate => candidate.weight > 0);
 			if (candidates.length) {
-				figure = rng.weighted(candidates.map(candidate => ({ value: candidate, weight: candidate.weight * (style.compFigureBias?.[candidate.id] ?? 1) })));
-				hits = figure.hits[0].map(hit => ({ ...hit })); transform = 'fallback'; shift = 0; reason = 'phrase_reentry';
+				figure = rng.weighted(candidates);
+				hits = figure.hits[0].map(hit => ({ ...hit })); transform = 'fallback'; shift = 0; reason = ensemble.piano.presence === 'reentry' ? 'phrase_reentry' : 'gesture_refit';
 			}
 		}
 		if (arrival) {
@@ -243,6 +253,6 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 		memory: { recentFigures: [...memory.recentFigures, reason === 'native_drum_reply' ? 'ballad-drum-reply' : answer ? 'drum-reply' : arrival ? 'shared-arrival' : style.compPlanning ? figure.repeatKey ?? figure.id : `${score.style}:${hits.map((hit) => hit.b).join(',')}`].slice(-3), motif, segmentIndex, segmentVoicing, lastVoicing,
 			...(coordinatedVoicing && voicingMemory ? { voicing: voicingMemory } : {}),
 			...(contourEnabled && contourMemory ? { contour: contourMemory } : {}) },
-		trace: { version: 1, barIndex: bar, phraseStartBar: phraseStart, motifId: reason !== 'phrase_reentry' && !answer && !arrival && motif.sourceId ? `motif:${phraseStart}:${motif.sourceId}` : null,
-			sourceFigureId: reason === 'phrase_reentry' ? figure.id : answer || arrival ? null : motif.sourceId, transform, displacementBeats: shift, hits: hits.filter((hit) => events.some((event) => event.absBeat === bar * 4 + hit.b)), ...(reason ? { reason } : {}) } };
+		trace: { version: 1, barIndex: bar, phraseStartBar: phraseStart, motifId: reason !== 'phrase_reentry' && reason !== 'gesture_refit' && !answer && !arrival && motif.sourceId ? `motif:${phraseStart}:${motif.sourceId}` : null,
+			sourceFigureId: reason === 'phrase_reentry' || reason === 'gesture_refit' ? figure.id : answer || arrival ? null : motif.sourceId, transform, displacementBeats: shift, hits: hits.filter((hit) => events.some((event) => event.absBeat === bar * 4 + hit.b)), ...(reason ? { reason } : {}) } };
 }

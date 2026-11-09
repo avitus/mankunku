@@ -495,7 +495,7 @@ const ballad: StyleDefinition = {
 			{ value: 'pad-whole', weight: 3 },
 			{ value: 'pads-halves', weight: ctx.ensemble && ctx.ensemble.piano.maxAttacks < 2 ? 0 : 2 },
 			{ value: 'late-pad', weight: anchor ? 0 : 1 },
-			{ value: 'rest', weight: anchor || ctx.ensemble?.piano.presence === 'reentry' ? 0 : 1.2 }
+			{ value: 'rest', weight: anchor || ctx.ensemble?.piano.presence === 'reentry' ? 0 : ctx.ensemble?.piano.texture === 'steady' ? .2 : 1.2 }
 		]);
 		const vel = (): number => rng.int(42, 54) + Math.round(lerp(-2, 4, ctx.intensity));
 		const hits: CompHitSpec[] = [];
