@@ -20,6 +20,13 @@ test('shows compact accessible mixer controls and changes the planned arc withou
  const mixer = page.getByTestId('listening-mixer');
  for (const label of ['Bass', 'Piano', 'Drums']) {
   await expect(mixer.getByRole('slider', { name: `${label} volume` })).toBeVisible();
+  const fader = mixer.getByRole('slider', { name: `${label} volume` });
+  await expect(fader).toHaveAttribute('aria-orientation', 'vertical');
+  const size = await fader.boundingBox();
+  expect(size!.height).toBeGreaterThan(size!.width * 3);
+  await fader.fill('1');
+  await fader.press('ArrowUp');
+  await expect(fader).toHaveValue('1.05');
   await mixer.getByRole('slider', { name: `${label} volume` }).fill('0.65');
   await mixer.getByRole('button', { name: `Mute ${label}`, exact: true }).click();
   await expect(mixer.getByRole('slider', { name: `${label} volume` })).toHaveValue('0');

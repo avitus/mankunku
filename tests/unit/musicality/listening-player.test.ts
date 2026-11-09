@@ -13,12 +13,27 @@ function harness() {
 	return { player, runtime, take, onChange, advance(time: number) { now = time; tick?.(); }, tick: () => tick };
 }
 describe('full-tune listening player', () => {
+	it('retains observed output evidence for export and clears it for a failed new take', async () => {
+		const h = harness();
+		const signal = { bass: { peak: .02, peakSoFar: .04 }, comp: { peak: 0, peakSoFar: .03 }, drums: null };
+		h.take.readOutputSignal = () => signal;
+		await h.player.start(params); h.advance(13);
+		expect(h.player.snapshot().outputSignal).toEqual(signal);
+		h.player.stop(); expect(h.player.snapshot().outputSignal).toEqual(signal);
+		vi.mocked(h.runtime.prepare).mockRejectedValueOnce(new Error('sample failure'));
+		await h.player.start(params); expect(h.player.snapshot().outputSignal).toBeUndefined();
+	});
+	it('does not interrupt music when an optional signal diagnostic is unavailable', async () => {
+		const h = harness(); h.take.readOutputSignal = () => { throw new Error('no analyser'); };
+		await h.player.start(params); h.advance(13);
+		expect(h.player.snapshot()).toMatchObject({ status: 'playing', outputSignal: null, error: null });
+	});
 	it('captures an immutable musicality release with a started take and retains it on stop', async () => {
 		const h = harness();
 		expect(h.player.snapshot().musicalityRelease).toBeUndefined();
 		await h.player.start(params);
 		const release = h.player.snapshot().musicalityRelease;
-		expect(release).toEqual({ version: '0.3.0', engineRevision: '30bdeff766a0ed914429005f955a88bcd78f3fd4', status: 'listening-preview' });
+		expect(release).toEqual({ version: '0.3.0', engineRevision: 'a8294cfa2f4fd523ea9d475335b311f19b7042d1', status: 'listening-preview' });
 		expect(Object.isFrozen(release)).toBe(true);
 		h.player.stop();
 		expect(h.player.snapshot().musicalityRelease).toBe(release);

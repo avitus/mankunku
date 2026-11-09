@@ -13,6 +13,7 @@ test('shows a real score beside factual band insights with a release and compact
  await page.setViewportSize({width:1440,height:1000});
  await page.goto('/musicality');
  await expect(page.getByTestId('musicality-release')).toContainText('0.3.0');
+ await expect(page.getByTestId('musicality-engine-revision')).toHaveText(/^[a-f0-9]{8}$/);
  await expect(page.getByTestId('listening-score').locator('svg').first()).toBeVisible();
  await expect(page.getByTestId('musician-piano')).toContainText('Waiting for the first bar');
  await expect(page.getByText('Three players.',{exact:false})).toHaveCount(0);

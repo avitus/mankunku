@@ -54,6 +54,7 @@ import {
 import { extendHarmonyTail } from '$lib/data/progressions';
 import { createBackingSampleLoader } from './backing-sample-loader';
 import { loadBackingBass } from './backing-bass-instrument';
+import { createSignalMonitor, type BackingSignalMonitor } from './backing-signal-monitor';
 import {
 	createRollingBackingRenderer, type RollingBackingRenderer, type RollingBackingRendererOptions
 } from './backing-rolling-renderer';
@@ -173,6 +174,20 @@ let roomSends: Partial<Record<'bass' | 'comp' | DrumFamily, GainNode>> = {};
 
 // Per-instrument mix levels, persisted per device (see backing-mix.ts).
 let mixLevels: BackingMixLevels = loadBackingMix();
+const signalMonitors = new Set<BackingSignalMonitor>();
+
+/** Measure actual post-mix instrument PCM; scheduled notes alone are not audio evidence. */
+export function createBackingSignalMonitor(): BackingSignalMonitor | null {
+	const epoch = graphEpoch;
+	const monitor = createSignalMonitor({ bass: bassGain, comp: compGain, drums: drumBus }, () => graphEpoch === epoch);
+	if (!monitor) return null;
+	const owned: BackingSignalMonitor = {
+		read: () => monitor.read(),
+		dispose() { monitor.dispose(); signalMonitors.delete(owned); }
+	};
+	signalMonitors.add(owned);
+	return owned;
+}
 
 /** Push the current volume + base trims + mix levels onto every live gain node. */
 function applyMixGains(): void {
@@ -1306,6 +1321,7 @@ export async function startBackingTrack(
 
 /** Full cleanup: dispose parts and instruments. */
 export function disposeBackingTrack(): void {
+	for (const monitor of signalMonitors) monitor.dispose();
 	// Invalidate in-flight async loads (kit, IR) so they tear their local
 	// nodes down instead of promoting onto the disposed graph.
 	graphEpoch++;

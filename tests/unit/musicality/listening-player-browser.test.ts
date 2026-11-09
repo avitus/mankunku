@@ -20,7 +20,7 @@ vi.mock('tone', () => ({ getTransport: () => host.transport, now: () => host.con
 vi.mock('$lib/audio/backing-track', async () => {
 	const { createRollingBackingRenderer } = await import('$lib/audio/backing-rolling-renderer');
 	return {
-		getBackingMix: () => ({ ...DEFAULT_BACKING_MIX }), loadBackingInstruments: vi.fn(async () => {}), setBackingMix: vi.fn(), setBackingTrackVolume: vi.fn(),
+		createBackingSignalMonitor: vi.fn(() => null), getBackingMix: () => ({ ...DEFAULT_BACKING_MIX }), loadBackingInstruments: vi.fn(async () => {}), setBackingMix: vi.fn(), setBackingTrackVolume: vi.fn(),
 		getActiveSchedule: () => host.schedule, disposeBackingParts: vi.fn(() => { host.schedule = null; host.active = null; }),
 		scheduleBackingTrack: vi.fn(async () => { host.active = null; host.schedule = {}; return { bassEvents: [], compEvents: [], drumEvents: [] }; }),
 		createRollingBackingPlayback: vi.fn(async (options: RollingBackingPlaybackOptions): Promise<RollingBackingPlayback> => {
@@ -48,6 +48,19 @@ const input = (orchestration: 'original' | 'coordinated' = 'coordinated'): Bounc
 });
 const players: ReturnType<typeof createListeningPlayer>[] = [];
 const player = () => { const value = createListeningPlayer({ onChange: () => {} }); players.push(value); return value; };
+
+it.each(['original', 'coordinated'] as const)('observes and releases only its owned %s audio taps', async mode => {
+ const backing = await import('$lib/audio/backing-track');
+ const value = { bass: { peak: .02, peakSoFar: .03 }, comp: null, drums: { peak: .1, peakSoFar: .2 } };
+ const monitor = { read: vi.fn(() => value), dispose: vi.fn() };
+ vi.mocked(backing.createBackingSignalMonitor).mockReturnValueOnce(monitor);
+ const take = player(); await take.start(input(mode)); advance(400);
+ expect(take.snapshot().outputSignal).toEqual(value);
+ expect(monitor.read).toHaveBeenCalled();
+ take.stop(); expect(monitor.dispose).toHaveBeenCalledTimes(1);
+ const calls = monitor.read.mock.calls.length; advance(200);
+ expect(monitor.read).toHaveBeenCalledTimes(calls);
+});
 function advance(milliseconds: number) {
 	for (let elapsed = 0; elapsed < milliseconds; elapsed += 10) {
 		host.context.currentTime += .01;
@@ -195,7 +208,7 @@ it('does not apply a temporary mix while preparation is cancellable, and restore
 it('forwards the captured energy seed only into coordinated rolling generation', async () => {
  const rolling = await import('$lib/audio/backing-rolling'); const create = vi.spyOn(rolling, 'createRollingBacking');
  const take = player(); await take.start({ ...input(), performanceEnergySeed: 42 });
- expect(create.mock.calls.at(-1)?.[3]).toMatchObject({ performanceEnergySeed: 42, returningMelodySpace: true, pianoPresence: 'steady' });
+ expect(create.mock.calls.at(-1)?.[3]).toMatchObject({ performanceEnergySeed: 42, returningMelodySpace: true, pianoPresence: 'accompaniment' });
  expect(take.snapshot().params!.performanceEnergySeed).toBe(42);
  take.stop(); create.mockClear(); await take.start({ ...input('original'), performanceEnergySeed: 42 });
  expect(create).not.toHaveBeenCalled();
