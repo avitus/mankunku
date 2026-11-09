@@ -158,8 +158,9 @@
 </div>
 
 <style>
-	.chord-cells { height: 88px; overflow: hidden; border-radius: 2px; }
-	.daily, .daily .chord-cells { height: var(--practice-cell-height, 88px); }
+	/* The parent practice frame owns height in both Daily and Deep. */
+	.chord-chart { height: var(--practice-cell-height, auto); }
+	.chord-cells { height: var(--practice-cell-height, 88px); overflow: hidden; border-radius: 2px; }
 	.daily .chord-symbol { font-size: clamp(23px, 2.5vw, 30px); }
 	.root-accidental { font-size: 0.66em; }
 	.chord-cell { min-width: 0; padding: 4px; border-right: 1px solid var(--color-practice-divider); }

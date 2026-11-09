@@ -531,9 +531,21 @@ accent-coloured key readout from the upper-right header in every session mode.
 Below 1050px the ring and End Session move below the music. Chord rows remain 128px;
 notation rows are 204.8px (60% taller), with 10px inner vertical padding and a
 separate 28px cue lane. The viewport reserves 460.8px so notation appearing or
-disappearing between cycles does not move the controls. In Daily, the current
-phase frame and its bar wash extend to the row separator, which the coloured
-frame replaces during the cue. Daily pairs terracotta Listen with brass Play;
+disappearing between cycles does not move the controls. Daily and Deep Practice,
+including Deep sessions opened from a Daily report recommendation, share the
+same frame geometry in `UpcomingKeysDisplay` and `ChordChart`. The current phase
+frame, chord cells or taller lead sheet, and bar wash end flush at the progression
+boundary (0px gap). The coloured frame replaces the separator during Listen,
+Play and the dashed entrance; never draw a second line beneath it. Keep the cue
+in its separate lane above the frame. `--practice-cell-height` lets the shared
+chart fill that frame without a Daily-only sizing rule. Verify both entry paths,
+chord and notation rows, and desktop/tablet/phone widths.
+
+MagicPath references: Lick Practice · Studio Console `459464126830383104`,
+revision `470341725584523264`; Design System `460231915702722560`, revision
+`470342025477234688`. The canvas sample data and preview controls are not shipped.
+
+Daily pairs terracotta Listen with brass Play;
 the entrance frame stays dashed until recording is audible. Chord charts and
 lead sheets use the shared chord voice, with Daily root accidentals at 0.66em
 and superscript qualities and extensions at 0.58em.
