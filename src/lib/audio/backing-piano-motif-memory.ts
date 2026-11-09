@@ -1,6 +1,7 @@
 /** One-use adjacent-phrase recall grounded in a complete emitted piano cell. */
 import type { BarInfo, CompEvent } from './backing-generation';
-import { COMP_FIGURES, type CompMotifDecision, type PianoMotifRecallSource } from './backing-comp-figures';
+import { type CompMotifDecision, type PianoMotifRecallSource } from './backing-comp-figures';
+import { keyboardFigures } from './backing-keyboard-vocabulary';
 import type { SoloEvidence } from './ensemble-plan';
 import type { RollingBackingDefinition } from './backing-rolling';
 import type { RollingPianoMemory } from './backing-rolling-piano';
@@ -25,8 +26,8 @@ function eligible(info: BarInfo, evidence: SoloEvidence): boolean {
 		!info.isSectionFirstBar && !info.isChorusFirstBar && !info.isSectionFinalBar && !info.isChorusFinalBar && !info.isFinalBar;
 }
 const cloneAttacks = (events: readonly CompEvent[]) => events.map(event => ({ ...event, notes: [...event.notes] }));
-const completeStatement = (trace: CompMotifDecision, events: readonly CompEvent[]): boolean => {
-	const figure = COMP_FIGURES.find(figure => figure.id === trace.sourceFigureId);
+const completeStatement = (score: RollingBackingDefinition, trace: CompMotifDecision, events: readonly CompEvent[]): boolean => {
+	const figure = keyboardFigures(score).find(figure => figure.id === trace.sourceFigureId);
 	return trace.transform === 'statement' && !trace.recall && !!figure && figure.bars === 1 && !figure.tags.includes('pad') &&
 		figure.hits[0].length > 0 && figure.hits[0].length === events.length &&
 		figure.hits[0].every((hit, index) => events[index].absBeat === trace.barIndex * 4 + hit.b);
@@ -46,7 +47,7 @@ export function retainPianoPhraseRecall(previous: PianoPhraseRecallMemory | unde
 export function capturePianoMotifSource(score: RollingBackingDefinition, bar: number, info: BarInfo, evidence: SoloEvidence,
 	trace: CompMotifDecision, events: readonly CompEvent[]): PianoMotifRecallSource | null {
 	const form = score.bars[bar];
-	if (!eligible(info, evidence) || form.phrase4.lengthBars !== 4 || info.ensemble!.phraseStartBar !== bar || !completeStatement(trace, events)) return null;
+	if (!eligible(info, evidence) || form.phrase4.lengthBars !== 4 || info.ensemble!.phraseStartBar !== bar || !completeStatement(score, trace, events)) return null;
 	return { barIndex: bar, phraseStartBar: bar, chorusIndex: form.chorusIndex, sectionIndex: form.sectionIndex,
 		loopIndex: form.loopIndex, figureId: trace.sourceFigureId!, attacks: cloneAttacks(events) };
 }
@@ -59,8 +60,8 @@ export function proposePianoMotifRecall(input: {
 	const { bar, info, motif, score } = input;
 	if (!source || recalledAt !== null || bar !== source.barIndex + 4 || !motif || motif.startBar !== bar ||
 		info.ensemble!.phraseStartBar !== bar || score.bars[bar].phrase4.lengthBars !== 4 || !eligible(info, input.evidence) ||
-		!completeStatement(input.trace, input.events) || motif.sourceId === source.figureId || source.attacks.length !== input.events.length) return;
-	const figure = COMP_FIGURES.find(figure => figure.id === source.figureId)!;
+		!completeStatement(score, input.trace, input.events) || motif.sourceId === source.figureId || source.attacks.length !== input.events.length) return;
+	const figure = keyboardFigures(score).find(figure => figure.id === source.figureId)!;
 	if (figure.hits[0].length > info.ensemble!.piano.maxAttacks ||
 		figure.hits[0].some(hit => hit.b + motif.shift < 0 || hit.b + motif.shift >= 3.5)) return;
 	return { ...motif, sourceId: source.figureId };
@@ -85,7 +86,7 @@ export function validatePianoPhraseRecall(memory: PianoPhraseRecallMemory | unde
 	if (memory.recalledAt !== null && (!Number.isSafeInteger(memory.recalledAt) || memory.recalledAt !== source.barIndex + 4 || memory.recalledAt >= nextBar ||
 		motif?.startBar !== memory.recalledAt || motif.sourceId !== source.figureId)) invalid();
 	if (memory.recalledAt === null && nextBar - 1 > source.barIndex + 4) invalid();
-	const figure = COMP_FIGURES.find(figure => figure.id === source.figureId);
+	const figure = keyboardFigures(score).find(figure => figure.id === source.figureId);
 	if (!figure || figure.bars !== 1 || figure.tags.includes('pad') || !figure.hits[0].length || !Array.isArray(source.attacks) ||
 		source.attacks.length !== figure.hits[0].length || source.attacks.length > 2) return invalid();
 	for (const [index, event] of source.attacks.entries()) {

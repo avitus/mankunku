@@ -96,7 +96,7 @@ export interface GenerationContext {
 	 * resolved to concrete hits by the planner: the pattern function only
 	 * realizes velocity/articulation.
 	 */
-	plannedComp?: { hits: Array<{ b: number; d: number }>; tags: string[]; guideTones: boolean };
+	plannedComp?: { hits: Array<{ b: number; d: number }>; tags: string[]; guideTones: boolean; articulation?: 'written' };
 	/**
 	 * Which clave side even-indexed bars carry — drawn ONCE per phrase from
 	 * the `clave` stream, constant across bars (a clave that flips
@@ -303,7 +303,7 @@ const swing: StyleDefinition = {
 				// length to audibly tie across the barline, everything else
 				// stabs short.
 				let d = h.d * (0.9 + rng.float() * 0.2);
-				if (!isPad && offBeat && !isPush) d = Math.min(d, 0.7);
+				if (!isPad && offBeat && !isPush && planned.articulation !== 'written') d = Math.min(d, 0.7);
 				if (isPush && h.b >= beatsPerBar - 0.5) d = Math.max(d, 1.1);
 				return {
 					beatOffset: h.b,

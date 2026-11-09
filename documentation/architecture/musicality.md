@@ -4,6 +4,16 @@ The `musicality` branch develops the accompaniment as an ensemble. The target is
 
 The [development log](/docs/contributing/musicality-progress) records milestone checkpoints, validation results, remaining work and audition guidance, including the overnight development run.
 
+## Keyboard vocabulary listening candidate — 8 November 2026
+
+The next candidate, **0.4.0**, expands Coordinated Swing/Straight keyboard comping while retaining 0.3.0's ordinary harmonic support. Five complete cells add reverse Charleston, short–long, late answer, anticipation answer and offbeat hold. The selected rhythm can be stated, repeated, displaced and shortened by the existing phrase planner. Recent emitted figures also reduce the weight of a repeated phrase source. New short–long cells preserve their written sustained offbeat instead of the older blanket short-stab cap; accepted attacks and releases still belong to the current bar. Quiet two-note harmony beneath another player's response, actual dense-solo restraint, selected sparse contrasts, returning-head breaths and terminal reservations retain priority.
+
+`keyboardVariety: true` is a separate rolling opt-in, admitted only with explicit-form `pianoPresence: 'accompaniment'` in Swing/Straight. Its version participates in the score fingerprint, so earlier checkpoint policies cannot be mixed. The historical figure registry stays unchanged; score-aware vocabulary lookup is shared by realization and motif recall validation. Omitted options remain byte-identical across all four styles. Original, ordinary practice, Bossa and Ballad retain their prior musical policies. This increment does not introduce harmonic substitutions, triplets or a busier attack budget. Piano and organ use the same generated comping events with their existing renderers.
+
+The listening desk and blind review place sampled signal meters immediately beside the vertical level controls. These read the instrument buses after their mix gains and before master/device output, on a -60 to 0 dBFS display. Mute and stopped playback clear the live level; observed-signal status remains take evidence, not proof of speaker output or musical acceptance. The user has now confirmed audible bass after refreshing; the earlier missing-bass cause was not isolated, and no bass rendering fix is claimed.
+
+Audition a complete Swing Blues and Rhythm Changes in Coordinated mode: listen for complementary offbeat answers and short chords followed by a held chord, with steady harmony under rhythm-section comments. Repeat with organ, then Straight. The rhythm should remain connected across phrases rather than merely producing more attacks. Compare Bossa/Ballad as unchanged controls. Human listening acceptance remains pending.
+
 ## Numbered listening releases and assessment desk — 29 October 2026
 
 Current listening candidate: **musicality 0.2.0**, engine baseline `079b335ec69eb90e9777ea6a8b62e2b188c0d683`. Coordinated studio and blind A/B enable the bounded returning-head piano breath described below. Older saved 0.1.0 feedback keeps its original identity; the app does not replay archived engine binaries.
