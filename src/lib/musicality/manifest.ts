@@ -405,11 +405,11 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 		evidence: [...entry.evidence, ...terminalEvidence]
 	};
 	if (entry.id === 'P4') return {
-		...entry,
-		assessment: 'The original displaced figure is supplemented by motif transformations; shifting a Charleston source by an eighth can produce the specified and-of-1 / beat-3 shape.',
-		remaining: 'The shape is available through selected motif displacement, without a separate reverse-Charleston selection policy or dedicated listening acceptance.',
-		scope: 'Existing swing figures plus coordinated swing/straight 4/4 piano motifs in the listening lab.',
-		evidence: [...entry.evidence, ...pianoDevelopmentEvidence]
+		...entry, status: 'implemented',
+		assessment: 'Musicality 0.4.0 adds a named reverse Charleston cell at and-of-1 / beat 3 to Coordinated Swing/Straight keyboard comping, alongside short–long, late-answer, anticipation-answer and offbeat-hold cells. Complete cells use existing phrase development and current attack budgets.',
+		remaining: 'Human full-tune listening acceptance is pending. Bossa/Ballad keep their native patterns; triplets, richer cross-bar cells and harmonic substitutions remain future work.',
+		scope: 'Explicit-form Coordinated Swing/Straight listening studio and blind review, piano or organ; Original and historical policies unchanged.',
+		evidence: [...entry.evidence, ...pianoDevelopmentEvidence, { ...source('backing-keyboard-vocabulary'), revision: 'musicality' }, { ...test('backing-keyboard-variety'), revision: 'musicality' }]
 	};
 	if (entry.id === 'P31' || entry.id === 'P35') return {
 		...entry, status: 'partial',

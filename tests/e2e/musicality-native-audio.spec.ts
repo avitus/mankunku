@@ -50,7 +50,7 @@ test('native bass recordings render through the production loader and gain chain
 
 // Network-dependent diagnostic: real sample banks, local isolated Linux only.
 // Silent CDN stubs cannot establish instrument audibility.
-test('Swing full tune produces actual bass and piano signal at the listening buses', async ({ page }) => {
+for (const keyboard of ['piano', 'organ'] as const) test(`Swing full tune produces actual bass and ${keyboard} signal at the listening buses`, async ({ page }) => {
  test.skip(process.env.MANKUNKU_TEST_SANDBOX !== '1', 'local isolated native-sample diagnostic only');
  requireRealtimeAudio(page);
  test.setTimeout(300_000);
@@ -68,10 +68,12 @@ test('Swing full tune produces actual bass and piano signal at the listening bus
  });
  await page.goto('/musicality');
  await page.getByTestId('listening-style').selectOption('swing');
+ await page.getByTestId('listening-keyboard').selectOption(keyboard);
  await page.getByTestId('listening-tempo').fill('140');
  await expect(page.getByRole('slider', { name: 'Bass volume' })).toHaveValue('1');
  await page.getByTestId('listening-play').click();
  await expect.poll(async () => Number(await page.getByTestId('listening-position').getAttribute('data-bar-index')), { timeout: 240_000 }).toBeGreaterThanOrEqual(1);
+ await expect.poll(async () => Number(await page.getByRole('meter', { name: `${keyboard === 'organ' ? 'Organ' : 'Piano'} audio signal` }).getAttribute('aria-valuenow')), { timeout: 15_000 }).toBeGreaterThan(-60);
  const signal = await page.evaluate(async () => {
   const gains = (window as unknown as { __nativeGains: GainNode[] }).__nativeGains;
   const sources = [0.05, 0.1, 1.8].map(trim => gains.find(node => Math.abs(node.gain.value - trim) < 1e-6));
@@ -102,7 +104,7 @@ test('Swing full tune produces actual bass and piano signal at the listening bus
    return { meters: meters.map(m => ({ peak: m.peak, rms: Math.sqrt(m.sum / m.count), active: m.active / m.windows })), bars };
   } finally { for (const meter of meters) { meter.source.disconnect(meter.analyser); meter.analyser.disconnect(); } }
  });
- console.log('Native Swing listening signal:', JSON.stringify({meters:signal.meters, pianoBars:Object.values(signal.bars).filter(bar=>bar[1]>.0001).length, measuredBars:Object.keys(signal.bars).length}));
+ console.log(`Native Swing ${keyboard} listening signal:`, JSON.stringify({meters:signal.meters, pianoBars:Object.values(signal.bars).filter(bar=>bar[1]>.0001).length, measuredBars:Object.keys(signal.bars).length}));
  await test.info().attach('native-signal', { body: JSON.stringify(signal, null, 2), contentType: 'application/json' });
  await page.locator('details.take-notes > summary').click();
  const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('listening-export').click()]);
@@ -110,6 +112,7 @@ test('Swing full tune produces actual bass and piano signal at the listening bus
  if (!file) throw new Error('No performed-take export');
  const take = JSON.parse(await readFile(file, 'utf8'));
  await test.info().attach('native-performed-take', { path: file, contentType: 'application/json' });
+ expect(take.playback.params.instrument).toBe(keyboard);
  expect(take.playback.status, take.playback.error ?? 'native take ended before completion').toBe('completed');
  await expect(page.getByTestId('listening-position')).toHaveAttribute('data-bar-index', '51');
  await expect(page.getByRole('alert')).toHaveCount(0);
@@ -126,7 +129,7 @@ test('Swing full tune produces actual bass and piano signal at the listening bus
  // Original renderer. A cold-session success must not hide a disconnected reuse.
  await page.getByTestId('listening-mode').getByRole('button', { name: 'Original', exact: true }).click();
  await expect(page.getByTestId('signal-bass')).toHaveCount(0);
- await page.getByRole('slider', { name: 'Piano volume' }).fill('0');
+ await page.getByRole('slider', { name: keyboard === 'organ' ? 'Organ volume' : 'Piano volume' }).fill('0');
  await page.getByRole('slider', { name: 'Drums volume' }).fill('0');
  await page.getByTestId('listening-play').click();
  await expect.poll(async () => Number(await page.getByTestId('listening-position').getAttribute('data-bar-index'))).toBeGreaterThanOrEqual(3);

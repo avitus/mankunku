@@ -317,6 +317,7 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 		} else if (motif.reason === 'native_pattern') {
 			pianoCard.detail = style === 'bossa-nova' ? 'The native bossa comping pattern keeps its rhythmic character.' : 'The native ballad voicing pattern keeps its spacious pacing.';
 		}
+		if (!motif.motifId && motif.sourceFigureId && piano.length && motif.hits.length) pianoCard.evidence.push(`Comping cell: ${plain(motif.sourceFigureId)}`);
 		if (motif.reason) pianoCard.evidence.push(`Comping decision: ${plain(motif.reason)}`);
 	}
 	// Admission alone is not an audible result: require the native figure's
