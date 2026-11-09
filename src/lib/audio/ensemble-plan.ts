@@ -28,6 +28,8 @@ export interface EnsembleBarContext {
 	/** Style ceiling, also binding serialized planner memory. */
 	readonly energyCeiling?: number;
 	readonly performanceEnergy?: PerformanceEnergy;
+	/** Explicit listening piano phrase policy; absent from historical paths. */
+	readonly pianoPresencePolicy?: 'phrase-v1';
 	/** Explicit Swing/Straight shared-hit policy; absent from legacy/native paths. */
 	readonly pianoArrivalPolicy?: 'shared-v1';
 	/** Static rolling-form cue; only the two bars after an eligible head arrival. */
@@ -93,6 +95,8 @@ export interface EnsembleBarPlan {
 		readonly role: EnsembleRole;
 		readonly maxAttacks: 0 | 1 | 2;
 		readonly densityScale: number;
+		/** Permission for connected native phrasing, still subject to later interaction decisions. */
+		readonly presence?: 'support' | 'reentry';
 		/** Planned density within an eligible rootless voicing, never an attack budget. */
 		readonly rootlessTexture?: {
 			readonly request: 'two' | 'three' | 'full';
@@ -211,6 +215,8 @@ export interface EnsembleMemory {
 }
 
 export interface EnsembleWindowInput extends EnsemblePlanInput {
+	/** Actual preceding accepted silence, supplied by the one-bar rolling caller. */
+	readonly pianoSilentBars?: number;
 	/** Every call receives the full known form, not a sliced list of bars. */
 	readonly startBar?: number;
 	readonly endBarExclusive?: number;
@@ -291,6 +297,7 @@ function formFingerprint(bars: readonly EnsembleBarContext[]): string {
 		...(bar.energyCeiling !== undefined ? [bar.energyCeiling] : []),
 		...(bar.performanceEnergy ? ['performance-energy-v1', bar.performanceEnergy.phase, bar.performanceEnergy.chorusIndex, bar.performanceEnergy.targetEnergy, 'rootless-texture-v2'] : []),
 		...(bar.pianoArrivalPolicy ? ['piano-arrival-v1'] : []),
+		...(bar.pianoPresencePolicy ? ['piano-presence-v1'] : []),
 		...(bar.returningMelodySpace ? ['returning-melody-space-v1', bar.returningMelodySpace.headStartBar, bar.returningMelodySpace.offset] : []),
 		...(bar.terminalArrangement ? ['terminal-arrangement-v1', bar.terminalArrangement] : [])
 	]));
@@ -454,6 +461,7 @@ export function planEnsembleWindow(input: EnsembleWindowInput): EnsembleWindowRe
 			bar.role !== 'head' || bar.performanceEnergy?.phase !== 'head_return')) {
 			throw new Error('Invalid returning melody space context');
 		}
+		if (bar.pianoPresencePolicy !== undefined && (bar.pianoPresencePolicy !== 'phrase-v1' || !bar.performanceEnergy)) throw new Error('Invalid piano presence policy context');
 		if (bar.pianoArrivalPolicy !== undefined && (bar.pianoArrivalPolicy !== 'shared-v1' || !bar.performanceEnergy)) {
 			throw new Error('Invalid piano arrival policy context');
 		}
@@ -480,6 +488,7 @@ export function planEnsembleWindow(input: EnsembleWindowInput): EnsembleWindowRe
 	if (!count(startBar, input.bars.length) || !count(endBarExclusive, input.bars.length) || endBarExclusive < startBar) {
 		throw new Error('Ensemble window must be an ordered range within the full form timeline');
 	}
+	if (input.pianoSilentBars !== undefined && (!Number.isInteger(input.pianoSilentBars) || input.pianoSilentBars < 0 || input.pianoSilentBars > startBar || endBarExclusive !== startBar + 1 || !input.bars[startBar]?.pianoPresencePolicy)) throw new Error('Invalid piano presence history');
 	if (startBar !== checkpoint.nextBar) {
 		throw new Error('Ensemble windows must be consecutive from the checkpoint next bar, or zero without memory');
 	}
@@ -591,12 +600,15 @@ export function planEnsembleWindow(input: EnsembleWindowInput): EnsembleWindowRe
 		let pianoReason: SilenceReason | undefined;
 		let drumReason: SilenceReason | undefined = commentary === 0 ? 'avoid_overlap' : undefined;
 		if (phrase.intent === 'leave_space') {
-			piano = position >= 1 ? 1 : 0;
+			// Space is a thin phrase with one seeded interior breath, rather
+			// than withholding its harmony for the first three bars.
+			const breath = createRng(seedFrom(input.phraseId, input.tempo, 'piano-presence-phrase', phraseStartBar)).chance(0.5) ? 1 : 2;
+			piano = bar.pianoPresencePolicy ? (i - phraseStartBar === breath ? 0 : 1) : position >= 1 ? 1 : 0;
 			commentary = 0;
 			pianoReason = 'leave_space';
 			drumReason = 'leave_space';
 		} else if (phrase.intent === 'release') {
-			piano = position >= 0.5 ? 0 : 1;
+			piano = bar.pianoPresencePolicy ? (phraseFinal ? 0 : 1) : position >= 0.5 ? 0 : 1;
 			commentary = position >= 0.5 ? 0 : 1;
 			pianoReason = 'phrase_resolution';
 			drumReason = 'phrase_resolution';
@@ -677,6 +689,12 @@ export function planEnsembleWindow(input: EnsembleWindowInput): EnsembleWindowRe
 			pianoReason = 'returning_melody';
 			reasons.push('returning_melody');
 		}
+		// Native realization may decline a rest after actual silence, but never
+		// erase a deliberate breath, response, arrival or melody reservation.
+		const reentryAfter = createRng(seedFrom(input.phraseId, input.tempo, 'piano-presence-reentry', phraseStartBar)).chance(.75) ? 1 : 2;
+		const presence: EnsembleBarPlan['piano']['presence'] = bar.pianoPresencePolicy && piano > 0 && !dense && owner === 'nobody' && !incomingAccent && !allowFill && !bar.returningMelodySpace && !bar.terminalArrangement && i !== lastResponseBar + 1
+			? (input.pianoSilentBars ?? 0) >= reentryAfter ? 'reentry' : 'support' : undefined;
+		if (presence) reasons.push('piano_phrase_support');
 		const movement = phrase.intent === 'build' ? -0.04 + 0.1 * position
 			: phrase.intent === 'release' ? -0.12 * position : 0;
 		const ceiling = bar.energyCeiling ?? 0.9;
@@ -699,6 +717,7 @@ export function planEnsembleWindow(input: EnsembleWindowInput): EnsembleWindowRe
 				role: owner === 'piano' ? 'respond' : piano === 0 ? 'leave_space' : phrase.lead === 'piano' ? 'lead' : 'support',
 				maxAttacks: piano, densityScale: piano / 2,
 				...(rootlessTexture ? { rootlessTexture } : {}),
+				...(presence ? { presence } : {}),
 				...(pianoArrival ? { arrival: pianoArrival } : {}),
 				...(piano === 0 ? { silenceReason: pianoReason ?? 'leave_space' } : {})
 			}),

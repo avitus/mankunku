@@ -135,6 +135,15 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 				hits = []; transform = 'space'; reason = budget === 0 ? 'ensemble_silence' : 'response_reserved';
 			} else reason = form.phrase4?.lengthBars === 4 ? 'not_selected' : 'short_phrase';
 		}
+		// Choose a complete native cell before realization. This only removes
+		// a stacked discretionary rest after an actually silent accepted bar.
+		if (!hits.length && budget > 0 && ensemble.piano.presence === 'reentry' && !ensemble.coordinatedAccent && ensemble.responseOwner === 'nobody') {
+			const candidates = COMP_FIGURES.filter(candidate => fits(candidate) && candidate.hits[0].length > 0);
+			if (candidates.length) {
+				figure = rng.weighted(candidates.map(candidate => ({ value: candidate, weight: candidate.weight * (style.compFigureBias?.[candidate.id] ?? 1) })));
+				hits = figure.hits[0].map(hit => ({ ...hit })); transform = 'fallback'; shift = 0; reason = 'phrase_reentry';
+			}
+		}
 		if (arrival) {
 			hits = [{ b: 0, d: 0.45 }]; transform = 'fallback'; shift = 0; reason = 'shared_arrival';
 		}
@@ -234,6 +243,6 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 		memory: { recentFigures: [...memory.recentFigures, reason === 'native_drum_reply' ? 'ballad-drum-reply' : answer ? 'drum-reply' : arrival ? 'shared-arrival' : style.compPlanning ? figure.repeatKey ?? figure.id : `${score.style}:${hits.map((hit) => hit.b).join(',')}`].slice(-3), motif, segmentIndex, segmentVoicing, lastVoicing,
 			...(coordinatedVoicing && voicingMemory ? { voicing: voicingMemory } : {}),
 			...(contourEnabled && contourMemory ? { contour: contourMemory } : {}) },
-		trace: { version: 1, barIndex: bar, phraseStartBar: phraseStart, motifId: !answer && !arrival && motif.sourceId ? `motif:${phraseStart}:${motif.sourceId}` : null,
-			sourceFigureId: answer || arrival ? null : motif.sourceId, transform, displacementBeats: shift, hits: hits.filter((hit) => events.some((event) => event.absBeat === bar * 4 + hit.b)), ...(reason ? { reason } : {}) } };
+		trace: { version: 1, barIndex: bar, phraseStartBar: phraseStart, motifId: reason !== 'phrase_reentry' && !answer && !arrival && motif.sourceId ? `motif:${phraseStart}:${motif.sourceId}` : null,
+			sourceFigureId: reason === 'phrase_reentry' ? figure.id : answer || arrival ? null : motif.sourceId, transform, displacementBeats: shift, hits: hits.filter((hit) => events.some((event) => event.absBeat === bar * 4 + hit.b)), ...(reason ? { reason } : {}) } };
 }
