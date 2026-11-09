@@ -32,6 +32,8 @@ export interface RollingBackingOptions {
 	readonly loopCount?: number;
 	/** Listening release opt-in; generic rolling and the advanced lab keep their prior policy. */
 	readonly returningMelodySpace?: boolean;
+	/** Listening opt-in to reproducible waves across contiguous solo choruses. */
+	readonly performanceEnergySeed?: number;
 }
 
 export interface RollingLoopSpan {
@@ -171,7 +173,7 @@ export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDef
 				occurrenceIndex: section.occurrenceIndex + loopIndex * occurrences.get(section.sourceSection)!,
 				startBar: startBar + section.startBar, endBarExclusive: startBar + section.endBarExclusive }))) };
 	}
-	const performanceEnergy = params.performanceForm ? planPerformanceEnergy(form) : undefined;
+	const performanceEnergy = params.performanceForm ? planPerformanceEnergy(form, { seed: options.performanceEnergySeed }) : undefined;
 	const returningMelodyBars = new Map<number, NonNullable<EnsembleBarContext['returningMelodySpace']>>();
 	if (options.returningMelodySpace === true && params.performanceForm) for (const [index, chorus] of form.choruses.entries()) {
 		if (chorus.role !== 'head' || form.choruses[index - 1]?.role !== 'solo' || chorus.endBarExclusive - chorus.startBar < 8) continue;
@@ -192,6 +194,7 @@ export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDef
 	const serialized = JSON.stringify([1, params.phraseId, params.tempo, params.ppq, params.swing, copied, form, timingProfiles,
 		...(performanceEnergy ? [{ performanceEnergyVersion: 1, structuralTextureVersion: 1, coordinatedVoicingVersion: 4, reciprocalFeedbackVersion: 1, ...(['swing', 'straight'].includes(style.coordinatedStyle!) ? { pianoArrivalVersion: 1, bassScalarContinuationVersion: 1, bassApproachHandoffVersion: 1, pianoAnswerVersion: 1, pianoContourVersion: 1, pianoRecoveryVersion: 1, pianoPhraseRecallVersion: 1 } : style.coordinatedStyle === 'bossa-nova' ? { pianoContourVersion: 1 } : style.coordinatedStyle === 'ballad' ? { nativeBalladReplyVersion: 1 } : {}) }] : []),
 		...(returningMelodyBars.size ? [{ returningMelodySpaceVersion: 1 }] : []),
+		...(performanceEnergy && options.performanceEnergySeed !== undefined ? [{ performanceEnergyWavesVersion: 1, seed: options.performanceEnergySeed }] : []),
 		...(loopCount > 1 ? [{ sourceBars, loopCount }] : []),
 		...(terminalArrangement ? [{ terminalArrangementVersion: 1, terminalArrangement }] : []),
 		...(style.coordinatedStyle !== 'swing' ? [{ style: style.coordinatedStyle }] : [])]);

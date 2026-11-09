@@ -1,4 +1,5 @@
 import type { PerformanceForm } from '$lib/types/performance-form';
+import { createRng, seedFrom } from './generation-rng';
 
 export const PERFORMANCE_ENERGY_PHASES = ['head_in', 'solo_build', 'solo_peak', 'solo_release', 'head_return', 'ending'] as const;
 export interface PerformanceEnergy {
@@ -20,7 +21,10 @@ function contour(position: number, start: number, peak: number, end: number): nu
  * Shape only an explicitly declared finite performance. Section repetitions do
  * not imply new choruses. This is a structural intention, not audible evidence.
  */
-export function planPerformanceEnergy(form: PerformanceForm): readonly PerformanceEnergy[] {
+export function planPerformanceEnergy(form: PerformanceForm, options: { seed?: number } = {}): readonly PerformanceEnergy[] {
+	if (options.seed !== undefined && (!Number.isInteger(options.seed) || options.seed < 0 || options.seed > 0xffffffff)) {
+		throw new Error('Performance energy seed must be an unsigned 32-bit integer');
+	}
 	if (form.version !== 1 || !Number.isInteger(form.totalBars) || form.totalBars < 0) throw new Error('Invalid performance energy form');
 	let next = 0;
 	for (const [index, chorus] of form.choruses.entries()) {
@@ -69,5 +73,56 @@ export function planPerformanceEnergy(form: PerformanceForm): readonly Performan
 		}
 		if (isSolo) { soloIndex++; heardSolo = true; }
 	}
+	if (options.seed !== undefined) applySoloWaves(form, result, options.seed);
 	return Object.freeze(result);
+}
+
+/**
+ * A separate arrangement stream: note RNG and historical callers do not move.
+ * Each contiguous solo run carries its wave across chorus boundaries. Durations
+ * depend on the first declared solo and elapsed music, never the future number
+ * of passes, so extending the form cannot rewrite an earlier target.
+ */
+function applySoloWaves(form: PerformanceForm, result: PerformanceEnergy[], seed: number): void {
+	let run = 0;
+	for (let index = 0; index < form.choruses.length; index++) {
+		const first = form.choruses[index];
+		if (first.role !== 'solo') continue;
+		let last = first;
+		while (form.choruses[index + 1]?.role === 'solo') last = form.choruses[++index];
+		const rng = createRng(seedFrom('performance-energy-waves-v1', seed, run++));
+		// 12-bar blues uses four-bar gestures; a 32-bar chorus can sustain
+		// eight-bar gestures. Neither resets the contour at the next chorus.
+		const unit = Math.max(4, Math.min(8, Math.ceil((first.endBarExclusive - first.startBar) / 4)));
+		let cursor = first.startBar;
+		let level = .42 + rng.float() * .08;
+		const span = (target: number, length: number, phase: PerformanceEnergy['phase']) => {
+			const start = level;
+			for (let offset = 0; offset < length && cursor < last.endBarExclusive; offset++, cursor++) {
+				const p = offset / length;
+				const targetEnergy = start + (target - start) * p * p * (3 - 2 * p);
+				result[cursor] = Object.freeze({ ...result[cursor], phase, targetEnergy });
+			}
+			level = target;
+		};
+		// Recompute only the declared terminal phrase after the wave is known.
+		const endingStart = result.findIndex((bar, barIndex) => barIndex >= first.startBar && barIndex < last.endBarExclusive && bar.phase === 'ending');
+		// Some takes stay relaxed before developing; a replay keeps that choice.
+		span(level, unit * rng.int(0, 2), 'solo_release');
+		while (cursor < last.endBarExclusive) {
+			span(.74 + rng.float() * .1, unit * rng.int(3, 6), 'solo_build');
+			span(level, unit * rng.int(0, 2), 'solo_peak');
+			span(.36 + rng.float() * .14, unit * rng.int(2, 4), 'solo_release');
+			span(level, unit * rng.int(0, 2), 'solo_release');
+		}
+		if (endingStart >= 0) {
+			const initial = result[endingStart].targetEnergy;
+			const length = last.endBarExclusive - endingStart;
+			for (let offset = 0; offset < length; offset++) {
+				const p = length === 1 ? 1 : offset / (length - 1);
+				result[endingStart + offset] = Object.freeze({ ...result[endingStart + offset], phase: 'ending',
+					targetEnergy: initial + (Math.min(initial, .4) - initial) * p * p * (3 - 2 * p) });
+			}
+		}
+	}
 }
