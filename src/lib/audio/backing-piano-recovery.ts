@@ -43,7 +43,7 @@ export function planPianoRecovery(input: {
 	else if (plan.responseOwner !== 'nobody') reason = 'response_reserved';
 	else if (input.ordinaryAttacks.length !== 1) reason = 'no_ordinary_attack';
 	else if (!input.returningDrums) reason = 'no_drum_return';
-	else reason = 'after_drum_reply';
+	else reason = plan.piano.harmonicSupport ? 'harmonic_support' : 'after_drum_reply';
 	return { version: 1, barIndex: bar, source, returningDrums: input.returningDrums,
 		action: reason === 'after_drum_reply' ? 'space' : 'none', reason,
 		originalMaxAttacks: plan.piano.maxAttacks, effectiveMaxAttacks: reason === 'after_drum_reply' ? 0 : input.currentMaxAttacks };

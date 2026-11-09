@@ -161,7 +161,7 @@ export interface PianoRecoveryDecision {
 	readonly source: { readonly barIndex: number; readonly attack: Readonly<CompEvent> };
 	readonly returningDrums: { readonly motifId: string; readonly sourceBar: number; readonly hits: readonly Readonly<DrumEvent>[] } | null;
 	readonly action: 'space' | 'none';
-	readonly reason: 'after_drum_reply' | 'already_silent' | 'reserved_transition' | 'response_reserved' | 'outside_build' | 'higher_priority_space' | 'no_ordinary_attack' | 'no_drum_return';
+	readonly reason: 'harmonic_support' | 'after_drum_reply' | 'already_silent' | 'reserved_transition' | 'response_reserved' | 'outside_build' | 'higher_priority_space' | 'no_ordinary_attack' | 'no_drum_return';
 	readonly originalMaxAttacks: 0 | 1 | 2;
 	readonly effectiveMaxAttacks: 0 | 1 | 2;
 	readonly acceptedAttacks: readonly Readonly<CompEvent>[];

@@ -47,7 +47,7 @@ export function planDrumPianoFeedback(input: {
 	else if (!createRng(seedFrom(input.phraseId, input.tempo, 'drum-piano-yield', bar)).chance(1 / 3)) reason = 'not_selected';
 	else reason = 'drum_statement';
 	return { version: 1, barIndex: bar, source, action: reason === 'drum_statement' ? 'yield' : 'none', reason,
-		originalMaxAttacks: plan.piano.maxAttacks, effectiveMaxAttacks: reason === 'drum_statement' ? 0 : plan.piano.maxAttacks };
+		originalMaxAttacks: plan.piano.maxAttacks, effectiveMaxAttacks: reason === 'drum_statement' ? plan.piano.harmonicSupport ? 1 : 0 : plan.piano.maxAttacks };
 }
 
 /** Shape and timeline validation, not authentication of externally supplied musical evidence. */

@@ -81,10 +81,13 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 	const form = score.bars[bar];
 	const phraseStart = ensemble.phraseStartBar;
 	const budget = ensemble.piano.maxAttacks;
+	const harmonicSupport = ensemble.piano.harmonicSupport !== undefined;
+	const backgroundHarmony = harmonicSupport && ensemble.piano.harmonicSupport !== 'ordinary';
 	const arrival = ensemble.piano.arrival?.action === 'catch' ? ensemble.piano.arrival : undefined;
 	const cellFits = (hits: readonly CompFigureHit[]) => hits.every((hit) => hit.b >= 0 && hit.b < 4 &&
 		timing.place(bar * 4 + hit.b, 'comp') < (bar + 1) * 4 * score.ppq);
 	const fits = (figure: CompFigure) => figure.bars === 1 && figure.hits[0].length <= budget &&
+		(!harmonicSupport || figure.hits[0].length > 0) &&
 		cellFits(figure.hits[0]) &&
 		(bar !== 0 || budget === 0 || figure.tags.includes('early')) &&
 		(!info.isFinalBar || figure.hits[0].every((hit) => hit.b < 3.5));
@@ -100,7 +103,7 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 		if (!motif || motif.startBar !== phraseStart) {
 			const rng = createRng(seedFrom(score.phraseId, score.tempo, 'comp-motif', phraseStart));
 			const candidates = COMP_FIGURES.filter((figure) => fits(figure) && figure.hits[0].length > 0 && !figure.tags.includes('pad') && shiftsFor(figure).length > 0);
-			const selected = form.phrase4?.lengthBars === 4 && budget > 0 && ensemble.responseOwner === 'nobody' && !ensemble.coordinatedAccent && rng.chance(0.55) && candidates.length > 0;
+			const selected = !backgroundHarmony && form.phrase4?.lengthBars === 4 && budget > 0 && ensemble.responseOwner === 'nobody' && !ensemble.coordinatedAccent && rng.chance(0.55) && candidates.length > 0;
 			const source = selected ? rng.weighted(candidates.map((figure) => ({ value: figure, weight: figure.weight }))) : undefined;
 			motif = { startBar: phraseStart, sourceId: source?.id ?? null, shift: source ? rng.pick(shiftsFor(source)) : 0,
 				repeat: createRng(seedFrom(score.phraseId, score.tempo, 'comp-motif-development', phraseStart)).chance(ensemble.piano.texture === 'steady' ? .7 : .35) };
@@ -139,7 +142,7 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 		// Choose a complete native cell before realization: either causal
 		// re-entry after accepted silence, or a steady phrase whose retained
 		// gesture no longer fits the current permission.
-		if (!hits.length && budget > 0 && (ensemble.piano.presence === 'reentry' || ensemble.piano.texture === 'steady' && reason === 'gesture_does_not_fit') && !ensemble.coordinatedAccent && ensemble.responseOwner === 'nobody') {
+		if (!hits.length && budget > 0 && (harmonicSupport || ensemble.piano.presence === 'reentry' || ensemble.piano.texture === 'steady' && reason === 'gesture_does_not_fit') && !ensemble.coordinatedAccent && (harmonicSupport || ensemble.responseOwner === 'nobody')) {
 			const candidates = COMP_FIGURES.filter(candidate => fits(candidate) && candidate.hits[0].length > 0).map(candidate => {
 				let weight = candidate.weight * (style.compFigureBias?.[candidate.id] ?? 1);
 				if (ensemble.piano.texture === 'steady') {
@@ -151,14 +154,21 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 			}).filter(candidate => candidate.weight > 0);
 			if (candidates.length) {
 				figure = rng.weighted(candidates);
-				hits = figure.hits[0].map(hit => ({ ...hit })); transform = 'fallback'; shift = 0; reason = ensemble.piano.presence === 'reentry' ? 'phrase_reentry' : 'gesture_refit';
+				hits = figure.hits[0].map(hit => ({ ...hit })); transform = 'fallback'; shift = 0; reason = harmonicSupport ? 'harmonic_support' : ensemble.piano.presence === 'reentry' ? 'phrase_reentry' : 'gesture_refit';
 			}
+		}
+		// A foreground bass/drum response still needs harmonic support. Use
+		// the native sustained cell with a smaller, quieter voicing, not a
+		// competing rhythmic answer. The response owner remains unchanged.
+		if (backgroundHarmony && budget > 0 && !ensemble.coordinatedAccent) {
+			figure = figureById('pad-whole'); hits = figure.hits[0].map(hit => ({ ...hit }));
+			transform = 'fallback'; shift = 0; reason = 'harmonic_support';
 		}
 		if (arrival) {
 			hits = [{ b: 0, d: 0.45 }]; transform = 'fallback'; shift = 0; reason = 'shared_arrival';
 		}
 		const tags = [...figure.tags.filter((tag) => tag === 'pad'), ...(hits.some((hit) => hit.b === 3.5) ? ['push'] : []), ...(hits.some((hit) => hit.b === 0) ? ['early'] : [])];
-		guideTones = !arrival && hits.length > 0 && rng.chance(0.06);
+		guideTones = !backgroundHarmony && !arrival && hits.length > 0 && rng.chance(0.06);
 		realized = style.compPattern({ ...info, barIndex: bar, beatsPerBar: 4, swing: score.swing,
 			rng: createRng(seedFrom(score.phraseId, score.tempo, 'comp', bar)), plannedComp: { hits, tags, guideTones } });
 	} else {
@@ -169,12 +179,13 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 		if (budget === 0) { transform = 'space'; reason = 'ensemble_silence'; }
 		else reason = 'native_pattern';
 	}
+	if (backgroundHarmony) realized = realized.map(hit => ({ ...hit, velocity: Math.max(24, hit.velocity - 12) }));
 	if (nativeLatePad && score.style === 'ballad' && coordinatedVoicing && realized.length === 1 &&
 		realized[0].beatOffset === 0 && realized[0].durationBeats === 3.6) {
 		realized = [{ ...realized[0], beatOffset: 2, durationBeats: 1.8, velocity: realized[0].velocity - 2 }];
 		hits = [{ b: 2, d: 1.8 }]; reason = 'native_drum_reply';
 	}
-	let proposal = answerContext && coordinatedVoicing && (!score.style || score.style === 'swing' || score.style === 'straight')
+	let proposal = !backgroundHarmony && answerContext && coordinatedVoicing && (!score.style || score.style === 'swing' || score.style === 'straight')
 		? proposePianoAnswer({ barIndex: bar, info, feedback: answerContext.feedback, previous: answerContext.previous, retainedMotif: !!motif?.sourceId, realized }) : undefined;
 	const events: CompEvent[] = [];
 	let segmentIndex = memory.segmentIndex;
@@ -202,7 +213,7 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 		const duration = Math.min(hit.durationBeats * 60 / score.tempo, (barEnd - tick) * 60 / score.tempo / score.ppq);
 		if (!Number.isFinite(tick) || tick >= barEnd || !Number.isFinite(duration) || duration <= 0 || absBeat >= score.totalBars * 4) return;
 		const contour = contourEnabled ? preparePianoContour(contourContext!, contourMemory) : undefined;
-		const selected = resolveCoordinatedVoicing({ chord, family: guideTones ? 'guide' : selectCoordinatedVoicingFamily({ chord, phraseId: score.phraseId, tempo: score.tempo, segmentIndex: index, intensity: info.intensity, voicingBias: style.voicingBias }),
+		const selected = resolveCoordinatedVoicing({ chord, family: backgroundHarmony || guideTones ? 'guide' : selectCoordinatedVoicingFamily({ chord, phraseId: score.phraseId, tempo: score.tempo, segmentIndex: index, intensity: info.intensity, voicingBias: style.voicingBias }),
 			registerMidi: guideTones ? 62 : Math.round(58 + 8 * info.intensity), previous: voicingMemory,
 			rootlessTexture: ensemble.piano.rootlessTexture?.request, ...(contour ? { targetTopMidi: contour.targetMidi } : {}) });
 		if (!selected.notes.length) return;
@@ -253,6 +264,6 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 		memory: { recentFigures: [...memory.recentFigures, reason === 'native_drum_reply' ? 'ballad-drum-reply' : answer ? 'drum-reply' : arrival ? 'shared-arrival' : style.compPlanning ? figure.repeatKey ?? figure.id : `${score.style}:${hits.map((hit) => hit.b).join(',')}`].slice(-3), motif, segmentIndex, segmentVoicing, lastVoicing,
 			...(coordinatedVoicing && voicingMemory ? { voicing: voicingMemory } : {}),
 			...(contourEnabled && contourMemory ? { contour: contourMemory } : {}) },
-		trace: { version: 1, barIndex: bar, phraseStartBar: phraseStart, motifId: reason !== 'phrase_reentry' && reason !== 'gesture_refit' && !answer && !arrival && motif.sourceId ? `motif:${phraseStart}:${motif.sourceId}` : null,
-			sourceFigureId: reason === 'phrase_reentry' || reason === 'gesture_refit' ? figure.id : answer || arrival ? null : motif.sourceId, transform, displacementBeats: shift, hits: hits.filter((hit) => events.some((event) => event.absBeat === bar * 4 + hit.b)), ...(reason ? { reason } : {}) } };
+		trace: { version: 1, barIndex: bar, phraseStartBar: phraseStart, motifId: reason !== 'harmonic_support' && reason !== 'phrase_reentry' && reason !== 'gesture_refit' && !answer && !arrival && motif.sourceId ? `motif:${phraseStart}:${motif.sourceId}` : null,
+			sourceFigureId: reason === 'harmonic_support' || reason === 'phrase_reentry' || reason === 'gesture_refit' ? figure.id : answer || arrival ? null : motif.sourceId, transform, displacementBeats: shift, hits: hits.filter((hit) => events.some((event) => event.absBeat === bar * 4 + hit.b)), ...(reason ? { reason } : {}) } };
 }

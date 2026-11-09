@@ -249,7 +249,7 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 	const plannedTexture = plan?.piano.rootlessTexture;
 	if (plannedTexture) {
 		const reasons = {
-			melody_support: 'leave room for the melody', structural_release: 'ease back',
+			melody_support: 'leave room for the melody', structural_release: 'ease back', under_response: 'keep light harmony beneath the response',
 			solo_development: 'support the solo', active_soloist: 'leave room for the soloist',
 			dense_soloist: 'leave room for dense solo activity'
 		};
