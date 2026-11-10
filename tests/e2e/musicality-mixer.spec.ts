@@ -1,3 +1,4 @@
+import { backingKeyboardTrim } from '../../src/lib/audio/backing-keyboard-level';
 import { readFile } from 'node:fs/promises';
 import { test, expect } from './fixtures/test';
 import { seedOnboardedAnonymous } from './fixtures/storage';
@@ -67,7 +68,7 @@ for (const mode of ['coordinated', 'original']) test(`mutes all three real outpu
  await page.getByTestId('listening-play').click();
  await expect.poll(async () => Number(await page.getByTestId('listening-position').getAttribute('data-bar-index'))).toBeGreaterThanOrEqual(1);
  await expect(page.getByTestId('listening-keyboard')).toBeDisabled();
- for (const [label, level] of [['Bass', .05], [keyboard, .1], ['Drums', 1.8]] as const) {
+ for (const [label, level] of [['Bass', .05], [keyboard, backingKeyboardTrim(keyboard === 'Organ' ? 'organ' : 'piano')], ['Drums', 1.8]] as const) {
   // Identify the actual mix bus by its baseline trim before changing it.
   const index = await page.evaluate(value => (window as unknown as { __monitorGains: GainNode[] }).__monitorGains.findIndex(node => Math.abs(node.gain.value - value) < 1e-6), level);
   expect(index).toBeGreaterThanOrEqual(0);
