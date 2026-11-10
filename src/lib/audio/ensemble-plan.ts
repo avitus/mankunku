@@ -33,6 +33,8 @@ export interface EnsembleBarContext {
 	readonly pianoPresenceSeed?: number;
 	/** Explicit Swing/Straight shared-hit policy; absent from legacy/native paths. */
 	readonly pianoArrivalPolicy?: 'shared-v1';
+	/** Prefer the declared chorus seam to an engraving section split just before it. */
+	readonly chorusBoundaryPriority?: true;
 	/** Static rolling-form cue; only the two bars after an eligible head arrival. */
 	readonly returningMelodySpace?: {
 		readonly version: 1;
@@ -302,6 +304,7 @@ function formFingerprint(bars: readonly EnsembleBarContext[]): string {
 		...(bar.energyCeiling !== undefined ? [bar.energyCeiling] : []),
 		...(bar.performanceEnergy ? ['performance-energy-v1', bar.performanceEnergy.phase, bar.performanceEnergy.chorusIndex, bar.performanceEnergy.targetEnergy, 'rootless-texture-v2'] : []),
 		...(bar.pianoArrivalPolicy ? ['piano-arrival-v1'] : []),
+		...(bar.chorusBoundaryPriority ? ['chorus-boundary-priority-v1'] : []),
 		...(bar.pianoPresencePolicy === 'accompaniment-v3' ? ['piano-presence-v3', bar.pianoPresenceSeed] : bar.pianoPresencePolicy === 'steady-v2' ? ['piano-presence-v2', bar.pianoPresenceSeed] : bar.pianoPresencePolicy ? ['piano-presence-v1'] : []),
 		...(bar.returningMelodySpace ? ['returning-melody-space-v1', bar.returningMelodySpace.headStartBar, bar.returningMelodySpace.offset] : []),
 		...(bar.terminalArrangement ? ['terminal-arrangement-v1', bar.terminalArrangement] : [])
@@ -468,6 +471,7 @@ export function planEnsembleWindow(input: EnsembleWindowInput): EnsembleWindowRe
 		}
 		if (bar.pianoPresencePolicy !== undefined && (!['phrase-v1', 'steady-v2', 'accompaniment-v3'].includes(bar.pianoPresencePolicy) || !bar.performanceEnergy)) throw new Error('Invalid piano presence policy context');
 		if (['steady-v2', 'accompaniment-v3'].includes(bar.pianoPresencePolicy ?? '') ? !Number.isSafeInteger(bar.pianoPresenceSeed) || bar.pianoPresenceSeed! < 0 || bar.pianoPresenceSeed! > 0xffffffff : bar.pianoPresenceSeed !== undefined) throw new Error('Invalid piano presence seed');
+		if (bar.chorusBoundaryPriority !== undefined && (bar.chorusBoundaryPriority !== true || !bar.performanceEnergy)) throw new Error('Invalid chorus boundary priority context');
 		if (bar.pianoArrivalPolicy !== undefined && (bar.pianoArrivalPolicy !== 'shared-v1' || !bar.performanceEnergy)) {
 			throw new Error('Invalid piano arrival policy context');
 		}
@@ -692,9 +696,16 @@ export function planEnsembleWindow(input: EnsembleWindowInput): EnsembleWindowRe
 		const fillRng = createRng(seedFrom(input.phraseId, input.tempo, 'ensemble-fill', i));
 		// A release between choruses can still contain one reserved setup.
 		// Only the terminal ending forbids launches to a following arrival.
-		const allowFill = !structuralEnding && !dense && !incomingAccent && !bar.isFinalBar && boundaryStrength >= 0.5 && i - lastFillBar >= 4 &&
+		// Engraving may split a twelve-bar chorus into ten bars plus a two-bar
+		// ending. Do not spend the four-bar fill cooldown on that internal seam.
+		// The static score is known; no future performance evidence is consumed.
+		const imminentChorus = bar.chorusBoundaryPriority && bar.isSectionFinalBar && !bar.isChorusFinalBar &&
+			input.bars.slice(i + 1, i + 3).some(next => next.isChorusFinalBar && (next.boundaryStrength ?? 1) > boundaryStrength);
+		const chorusRelease = bar.chorusBoundaryPriority && bar.isChorusFinalBar;
+		if (imminentChorus) reasons.push('chorus_seam_priority');
+		const allowFill = !imminentChorus && !structuralEnding && !dense && !incomingAccent && !bar.isFinalBar && boundaryStrength >= 0.5 && i - lastFillBar >= 4 &&
 			i - lastResponseBar !== 1 && owner !== 'piano' && owner !== 'bass' &&
-			phrase.intent !== 'leave_space' && phrase.intent !== 'release' &&
+			(chorusRelease || (phrase.intent !== 'leave_space' && phrase.intent !== 'release')) &&
 			fillRng.chance((boundaryStrength >= 0.85 ? 0.62 : 0.24) + (phrase.intent === 'mark_form' ? 0.1 : 0));
 		if (allowFill) {
 			lastFillBar = i;

@@ -102,7 +102,7 @@ export interface PlannedBar {
 	motif?: CompMotifDecision;
 }
 
-export type CompMotifTransform = 'statement' | 'repeat' | 'displace' | 'shorten' | 'space' | 'fallback';
+export type CompMotifTransform = 'statement' | 'repeat' | 'displace' | 'shorten' | 'answer' | 'space' | 'fallback';
 export interface PianoMotifAttack {
 	readonly absBeat: number;
 	readonly time: string;
@@ -128,6 +128,9 @@ export interface CompMotifDecision {
 	readonly sourceFigureId: string | null;
 	readonly transform: CompMotifTransform;
 	readonly displacementBeats: number;
+	/** New-policy phrase shape and actual complementary cell, only when realized. */
+	readonly development?: import('./backing-keyboard-development').KeyboardDevelopment;
+	readonly answerFigureId?: string;
 	/** Planned onsets and nominal durations, before articulation and timing. */
 	readonly hits: readonly Readonly<CompFigureHit>[];
 	/** Accepted first statement of a one-use adjacent-phrase recall. */

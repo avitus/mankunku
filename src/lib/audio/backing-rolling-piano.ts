@@ -5,6 +5,7 @@ import type { CompHitSpec } from './backing-styles';
 import type { EnsembleTiming } from './ensemble-timing';
 import { type CompFigure, type CompFigureHit, type CompMotifDecision } from './backing-comp-figures';
 import { keyboardFigures, hasWrittenKeyboardArticulation } from './backing-keyboard-vocabulary';
+import { KEYBOARD_DEVELOPMENTS, keyboardDevelopment, keyboardAnswerFigure, articulateKeyboardDevelopment, keyboardDevelopmentVelocity, type KeyboardDevelopment } from './backing-keyboard-development';
 import { BACKING_STYLES } from './backing-styles';
 import { createRng, seedFrom } from './generation-rng';
 import { fractionToFloat } from '$lib/music/intervals';
@@ -98,6 +99,8 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 	let transform: CompMotifDecision['transform'] = 'fallback';
 	let shift = 0;
 	let reason: CompMotifDecision['reason'];
+	let development: KeyboardDevelopment | undefined;
+	let answerFigureId: string | undefined;
 	let guideTones = false;
 	let realized: CompHitSpec[];
 	if (style.compPlanning) {
@@ -117,13 +120,23 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 			const position = bar - motif.startBar;
 			transform = position === 0 ? 'statement' : position === 1 ? motif.repeat ? 'repeat' : 'space' : position === 2 ? 'displace' : 'shorten';
 			shift = position >= 2 ? motif.shift : 0;
+			if (score.keyboardVarietyVersion === 2) {
+				development = keyboardDevelopment(score.phraseId, score.tempo, phraseStart, score.bars[phraseStart].pianoPresenceSeed ?? 0);
+				transform = KEYBOARD_DEVELOPMENTS[development][position];
+				shift = transform === 'displace' ? motif.shift : 0;
+				if (transform === 'answer') {
+					figure = keyboardAnswerFigure(keyboardFigures(score), figure, score.phraseId, score.tempo, phraseStart);
+					answerFigureId = figure.id;
+				}
+			}
 			hits = transform === 'space' ? [] : figure.hits[0].map((hit) => ({ b: hit.b + shift, d: hit.d }));
 			if (transform === 'shorten') hits = [{ b: hits[0].b, d: Math.min(hits[0].d, 0.45) }];
+			if (development) hits = articulateKeyboardDevelopment(hits, transform, development);
 			if (transform === 'space') reason = 'motif_gap';
 			const withheld = budget === 0 || ensemble.coordinatedAccent ? 'ensemble_silence'
 				: ensemble.responseOwner !== 'nobody' ? 'response_reserved'
 					: hits.length > budget || !cellFits(hits) ? 'gesture_does_not_fit' : undefined;
-			if (withheld) { hits = []; transform = 'space'; shift = 0; reason = withheld; }
+			if (withheld) { hits = []; transform = 'space'; shift = 0; reason = withheld; development = undefined; answerFigureId = undefined; }
 		} else {
 			const options = keyboardFigures(score).filter(fits).map((candidate) => {
 				const key = candidate.repeatKey ?? candidate.id;
@@ -154,7 +167,7 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 				return { value: candidate, weight };
 			}).filter(candidate => candidate.weight > 0);
 			if (candidates.length) {
-				figure = rng.weighted(candidates);
+				figure = rng.weighted(candidates); development = undefined; answerFigureId = undefined;
 				hits = figure.hits[0].map(hit => ({ ...hit })); transform = 'fallback'; shift = 0; reason = harmonicSupport ? 'harmonic_support' : ensemble.piano.presence === 'reentry' ? 'phrase_reentry' : 'gesture_refit';
 			}
 		}
@@ -162,16 +175,18 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 		// the native sustained cell with a smaller, quieter voicing, not a
 		// competing rhythmic answer. The response owner remains unchanged.
 		if (backgroundHarmony && budget > 0 && !ensemble.coordinatedAccent) {
+			development = undefined; answerFigureId = undefined;
 			figure = figureById(score, 'pad-whole'); hits = figure.hits[0].map(hit => ({ ...hit }));
 			transform = 'fallback'; shift = 0; reason = 'harmonic_support';
 		}
 		if (arrival) {
+			development = undefined; answerFigureId = undefined;
 			hits = [{ b: 0, d: 0.45 }]; transform = 'fallback'; shift = 0; reason = 'shared_arrival';
 		}
 		const tags = [...figure.tags.filter((tag) => tag === 'pad'), ...(hits.some((hit) => hit.b === 3.5) ? ['push'] : []), ...(hits.some((hit) => hit.b === 0) ? ['early'] : [])];
 		guideTones = !backgroundHarmony && !arrival && hits.length > 0 && rng.chance(0.06);
 		realized = style.compPattern({ ...info, barIndex: bar, beatsPerBar: 4, swing: score.swing,
-			rng: createRng(seedFrom(score.phraseId, score.tempo, 'comp', bar)), plannedComp: { hits, tags, guideTones, ...(score.keyboardVarietyVersion && hasWrittenKeyboardArticulation(figure.id) ? { articulation: 'written' as const } : {}) } });
+			rng: createRng(seedFrom(score.phraseId, score.tempo, 'comp', bar)), plannedComp: { hits, tags, guideTones, ...(development || score.keyboardVarietyVersion && hasWrittenKeyboardArticulation(figure.id) ? { articulation: 'written' as const } : {}) } });
 	} else {
 		motif = { startBar: phraseStart, sourceId: null, shift: 0, repeat: false };
 		realized = style.compPattern({ ...info, barIndex: bar, beatsPerBar: 4, swing: score.swing,
@@ -179,6 +194,11 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 		hits = realized.map((hit) => ({ b: hit.beatOffset, d: hit.durationBeats }));
 		if (budget === 0) { transform = 'space'; reason = 'ensemble_silence'; }
 		else reason = 'native_pattern';
+	}
+	if (development && realized.length) {
+		const base = realized[0].velocity;
+		realized = realized.map((hit, index) => ({ ...hit,
+			velocity: keyboardDevelopmentVelocity(base, index, realized.length, transform) }));
 	}
 	if (backgroundHarmony) realized = realized.map(hit => ({ ...hit, velocity: Math.max(24, hit.velocity - 12) }));
 	if (nativeLatePad && score.style === 'ballad' && coordinatedVoicing && realized.length === 1 &&
@@ -211,7 +231,11 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 		if (index < 0) return;
 		const chord = score.harmony[index].chord;
 		const tick = Math.max(bar * 4 * score.ppq, arrival ? timing.arrivalTick(bar) : timing.place(absBeat, 'comp'));
-		const duration = Math.min(hit.durationBeats * 60 / score.tempo, (barEnd - tick) * 60 / score.tempo / score.ppq);
+		// The style's articulation jitter and swing happen after the written
+		// contrast. Bound the new phrase's release against its next actual tick.
+		const nextHit = development ? realized.find(candidate => candidate.beatOffset > hit.beatOffset) : undefined;
+		const releaseLimit = nextHit ? Math.min(barEnd, timing.place(bar * 4 + nextHit.beatOffset, 'comp')) : barEnd;
+		const duration = Math.min(hit.durationBeats * 60 / score.tempo, (releaseLimit - tick) * 60 / score.tempo / score.ppq);
 		if (!Number.isFinite(tick) || tick >= barEnd || !Number.isFinite(duration) || duration <= 0 || absBeat >= score.totalBars * 4) return;
 		const contour = contourEnabled ? preparePianoContour(contourContext!, contourMemory) : undefined;
 		const selected = resolveCoordinatedVoicing({ chord, family: backgroundHarmony || guideTones ? 'guide' : selectCoordinatedVoicingFamily({ chord, phraseId: score.phraseId, tempo: score.tempo, segmentIndex: index, intensity: info.intensity, voicingBias: style.voicingBias }),
@@ -260,11 +284,11 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 		lastVoicing = notes;
 	}
 	const answer: PianoAnswerDecision | undefined = proposal && events.length === 1 ? { version: 1, barIndex: bar, source: proposal.source, attack: events[0], replyOffset: proposal.hit.beatOffset, drumCommentary: 'space' } : undefined;
-	if (answer) { hits = [{ b: proposal!.hit.beatOffset, d: events[0].duration * score.tempo / 60 }]; transform = 'fallback'; shift = 0; reason = 'drum_reply'; }
+	if (answer) { hits = [{ b: proposal!.hit.beatOffset, d: events[0].duration * score.tempo / 60 }]; transform = 'fallback'; shift = 0; reason = 'drum_reply'; development = undefined; answerFigureId = undefined; }
 	return { events, ...(answer ? { answer } : {}), ...(coordinatedVoicing ? { voicingTrace: Object.freeze(voicingTrace) } : {}),
 		memory: { recentFigures: [...memory.recentFigures, reason === 'native_drum_reply' ? 'ballad-drum-reply' : answer ? 'drum-reply' : arrival ? 'shared-arrival' : style.compPlanning ? figure.repeatKey ?? figure.id : `${score.style}:${hits.map((hit) => hit.b).join(',')}`].slice(-3), motif, segmentIndex, segmentVoicing, lastVoicing,
 			...(coordinatedVoicing && voicingMemory ? { voicing: voicingMemory } : {}),
 			...(contourEnabled && contourMemory ? { contour: contourMemory } : {}) },
 		trace: { version: 1, barIndex: bar, phraseStartBar: phraseStart, motifId: reason !== 'harmonic_support' && reason !== 'phrase_reentry' && reason !== 'gesture_refit' && !answer && !arrival && motif.sourceId ? `motif:${phraseStart}:${motif.sourceId}` : null,
-			sourceFigureId: answer || arrival ? null : reason === 'harmonic_support' || reason === 'phrase_reentry' || reason === 'gesture_refit' || score.keyboardVarietyVersion && !motif.sourceId ? figure.id : motif.sourceId, transform, displacementBeats: shift, hits: hits.filter((hit) => events.some((event) => event.absBeat === bar * 4 + hit.b)), ...(reason ? { reason } : {}) } };
+			sourceFigureId: answer || arrival ? null : reason === 'harmonic_support' || reason === 'phrase_reentry' || reason === 'gesture_refit' || score.keyboardVarietyVersion && !motif.sourceId ? figure.id : motif.sourceId, transform, displacementBeats: shift, ...(development && events.length ? { development } : {}), ...(answerFigureId && events.length ? { answerFigureId } : {}), hits: hits.filter((hit) => events.some((event) => event.absBeat === bar * 4 + hit.b)), ...(reason ? { reason } : {}) } };
 }
