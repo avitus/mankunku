@@ -18,6 +18,7 @@ import { fractionToFloat } from '$lib/music/intervals';
 import { BACKING_STYLES } from './backing-styles';
 import { assessTerminalArrangement, type TerminalArrangementInput } from './backing-terminal';
 import { createBackingSampleLoader } from './backing-sample-loader';
+import { backingKeyboardTrim } from './backing-keyboard-level';
 import { loadBackingBass } from './backing-bass-instrument';
 import {
 	generateBacking,
@@ -234,7 +235,7 @@ export async function renderEventsToWav(
 			compPan.pan.value = BACKING_PANS.comp;
 			compPan.connect(backingGain);
 			const compGain = context.createGain();
-			compGain.gain.value = BACKING_BASE_TRIMS.comp * mix.comp;
+			compGain.gain.value = backingKeyboardTrim(opts.instrument) * mix.comp;
 			compGain.connect(compPan);
 
 			const drumBus = context.createGain();

@@ -20,6 +20,9 @@ export interface CoordinatedVoicingDecision {
 	readonly candidateCount: number;
 	/** A tie-breaking phrase objective, not a claim that the target was reached. */
 	readonly topLine?: { readonly targetMidi: number; readonly actualMidi: number; readonly distance: number; readonly eligible: boolean };
+	/** The phrase request; spacing and rootlessTexture below report actual realization. */
+	readonly keyboardTexture?: { readonly profile: 'light' | 'compact' | 'open'; readonly phraseStartBar: number; readonly source: 'phrase' | 'answer' };
+	readonly spacing?: { readonly request: 'compact' | 'open'; readonly applied: 'compact' | 'open' | 'unchanged'; readonly reason: 'applied' | 'voice_leading' | 'family_ineligible' | 'unavailable'; readonly spanSemitones: number };
 	/** 'full' retains the selected family; it does not imply four notes. */
 	readonly rootlessTexture?: {
 		readonly request: 'two' | 'three' | 'full';
@@ -110,8 +113,11 @@ export function resolveCoordinatedVoicing(input: {
 	family: CoordinatedVoicingFamily; registerMidi: number; previous?: CoordinatedVoicingMemory;
 	rootlessTexture?: 'two' | 'three' | 'full';
 	targetTopMidi?: number;
+	/** Optional admission of a compact or open rootless placement before ordinary voice-leading ranking. */
+	spacing?: 'compact' | 'open';
 }): { notes: readonly number[]; memory: CoordinatedVoicingMemory; decision: CoordinatedVoicingDecision } {
 	if (!validChord(input.chord) || !Object.hasOwn(builders, input.family) || !Number.isFinite(input.registerMidi) || input.registerMidi < 0 || input.registerMidi > 127 ||
+		(input.spacing !== undefined && !['compact', 'open'].includes(input.spacing)) ||
 		(input.rootlessTexture !== undefined && !['two', 'three', 'full'].includes(input.rootlessTexture)) ||
 		(input.targetTopMidi !== undefined && (!Number.isInteger(input.targetTopMidi) || input.targetTopMidi < 48 || input.targetTopMidi > 84))) throw new Error('Invalid coordinated voicing input');
 	const previous = input.previous;
@@ -161,9 +167,24 @@ export function resolveCoordinatedVoicing(input: {
 		: placements(pcs, family);
 	if (!candidates.length) throw new Error('No legal coordinated voicing placement');
 	const target = Math.max(48, Math.min(84, input.registerMidi));
-	const ranked = candidates.map((notes) => ({ notes, guideMotion: guideMovement(previous, chord, notes, family),
+	let ranked = candidates.map((notes) => ({ notes, guideMotion: guideMovement(previous, chord, notes, family),
 		commonTones: previous ? notes.filter((note) => previous.notes.includes(note)) : [],
 		totalMovement: previous ? totalMovement(previous.notes, notes) : 0, registerDistance: Math.abs(mean(notes) - target) }));
+	let spacingReason: NonNullable<CoordinatedVoicingDecision['spacing']>['reason'] = 'family_ineligible';
+	let spacingApplied: NonNullable<CoordinatedVoicingDecision['spacing']>['applied'] = 'unchanged';
+	if (input.spacing && textureEligible && pcs.length >= 3) {
+		const matching = ranked.filter(candidate => {
+			const span = candidate.notes.at(-1)! - candidate.notes[0];
+			return input.spacing === 'compact' ? span <= 12 : span >= 14;
+		});
+		const bestMotion = Math.min(...ranked.map(candidate => candidate.guideMotion ?? 0));
+		// Texture must not force an octave-scale detour in the defining voices.
+		// Preserve the ordinary pool if its requested spacing costs over four
+		// additional semitones relative to the best available guide connection.
+		if (!matching.length) spacingReason = 'unavailable';
+		else if (Math.min(...matching.map(candidate => candidate.guideMotion ?? 0)) > bestMotion + 4) spacingReason = 'voice_leading';
+		else { ranked = matching; spacingApplied = input.spacing; spacingReason = 'applied'; }
+	}
 	const contourEligible = !['guide', 'quartal'].includes(input.family) && !['guide', 'quartal'].includes(family);
 	const topDistance = (notes: readonly number[]) => input.targetTopMidi !== undefined && contourEligible ? Math.abs(notes.at(-1)! - input.targetTopMidi) : 0;
 	ranked.sort((a, b) => (a.guideMotion ?? 0) - (b.guideMotion ?? 0) || b.commonTones.length - a.commonTones.length ||
@@ -173,7 +194,8 @@ export function resolveCoordinatedVoicing(input: {
 	const memory = Object.freeze({ version: 1 as const, chord: Object.freeze(chord), notes });
 	const decision = Object.freeze({ requestedFamily: input.family, resolvedFamily: family, correction,
 		guideMotion: selected.guideMotion, commonTones: Object.freeze([...selected.commonTones]), totalMovement: selected.totalMovement,
-		registerDistance: selected.registerDistance, candidateCount: candidates.length,
+		registerDistance: selected.registerDistance, candidateCount: ranked.length,
+		...(input.spacing ? { spacing: Object.freeze({ request: input.spacing, applied: spacingApplied, reason: spacingReason, spanSemitones: notes.at(-1)! - notes[0] }) } : {}),
 		...(input.targetTopMidi !== undefined ? { topLine: Object.freeze({ targetMidi: input.targetTopMidi, actualMidi: notes.at(-1)!,
 			distance: Math.abs(notes.at(-1)! - input.targetTopMidi), eligible: contourEligible }) } : {}),
 		...(input.rootlessTexture ? { rootlessTexture: Object.freeze({ request: input.rootlessTexture,

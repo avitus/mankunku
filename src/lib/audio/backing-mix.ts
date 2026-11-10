@@ -68,6 +68,7 @@ export const DEFAULT_BACKING_MIX: BackingMixLevels = {
  */
 export const BACKING_BASE_TRIMS: Record<Exclude<keyof BackingMixLevels, 'room'>, number> = {
 	bass: 0.05,
+	// Piano reference; live/bounce use backingKeyboardTrim for organ calibration.
 	comp: 0.1,
 	drums: 1.8,
 	kick: 2.0,

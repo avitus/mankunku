@@ -53,6 +53,7 @@ import {
 } from './backing-mix';
 import { extendHarmonyTail } from '$lib/data/progressions';
 import { createBackingSampleLoader } from './backing-sample-loader';
+import { backingKeyboardTrim } from './backing-keyboard-level';
 import { loadBackingBass } from './backing-bass-instrument';
 import { createSignalMonitor, type BackingSignalMonitor } from './backing-signal-monitor';
 import {
@@ -193,7 +194,7 @@ export function createBackingSignalMonitor(): BackingSignalMonitor | null {
 function applyMixGains(): void {
 	if (backingGain) backingGain.gain.value = currentBackingVolume;
 	if (bassGain) bassGain.gain.value = BACKING_BASE_TRIMS.bass * mixLevels.bass;
-	if (compGain) compGain.gain.value = BACKING_BASE_TRIMS.comp * mixLevels.comp;
+	if (compGain) compGain.gain.value = backingKeyboardTrim(currentInstrumentType) * mixLevels.comp;
 	if (drumBus) drumBus.gain.value = BACKING_BASE_TRIMS.drums * mixLevels.drums;
 	if (roomReturn) roomReturn.gain.value = ROOM_RETURN_GAIN * mixLevels.room;
 	// Bass/comp taps sit post-trim, so their sends are the raw policy level;
@@ -671,6 +672,9 @@ export async function loadBackingInstruments(
 		const oldComp = compInstrument;
 		compInstrument = newComp;
 		currentInstrumentType = instrumentType;
+		// Publish the new bank and its calibration together; a failed or stale
+		// load must leave the previous sounding instrument at its own level.
+		applyMixGains();
 		if (oldComp) {
 			oldComp.stop();
 			oldComp.disconnect();

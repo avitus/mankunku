@@ -13,6 +13,7 @@ import { CHORD_DEFINITIONS } from '$lib/music/chords';
 import { rootlessVoicingA, rootlessVoicingB, shellVoicing, drop2Voicing, quartalVoicing, guideToneVoicing, voiceLead, type VoicingFn } from './voicings';
 import { preparePianoContour, commitPianoContour, type PianoContourMemory } from './backing-piano-contour';
 import { proposePianoAnswer, type PianoAnswerMemory } from './backing-piano-answer';
+import { planKeyboardTexture } from './backing-keyboard-texture';
 import { selectCoordinatedVoicingFamily } from './coordinated-voicing-family';
 import { resolveCoordinatedVoicing, type CoordinatedVoicingMemory } from './coordinated-voicing';
 import type { SoloEvidence } from './ensemble-plan';
@@ -238,9 +239,18 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 		const duration = Math.min(hit.durationBeats * 60 / score.tempo, (releaseLimit - tick) * 60 / score.tempo / score.ppq);
 		if (!Number.isFinite(tick) || tick >= barEnd || !Number.isFinite(duration) || duration <= 0 || absBeat >= score.totalBars * 4) return;
 		const contour = contourEnabled ? preparePianoContour(contourContext!, contourMemory) : undefined;
-		const selected = resolveCoordinatedVoicing({ chord, family: backgroundHarmony || guideTones ? 'guide' : selectCoordinatedVoicingFamily({ chord, phraseId: score.phraseId, tempo: score.tempo, segmentIndex: index, intensity: info.intensity, voicingBias: style.voicingBias }),
+		const family = backgroundHarmony || guideTones ? 'guide' : selectCoordinatedVoicingFamily({ chord, phraseId: score.phraseId, tempo: score.tempo, segmentIndex: index, intensity: info.intensity, voicingBias: style.voicingBias });
+		const texture = score.keyboardTextureVersion === 1 && !backgroundHarmony && !guideTones && !arrival && !proposal &&
+			ensemble.responseOwner === 'nobody' && !ensemble.coordinatedAccent &&
+			!['active_soloist', 'dense_soloist', 'under_response'].includes(ensemble.piano.rootlessTexture?.reason ?? '')
+			? planKeyboardTexture({ quality: chord.quality, family, phraseId: score.phraseId, tempo: score.tempo,
+				phraseStartBar: phraseStart, seed: score.bars[phraseStart].pianoPresenceSeed ?? 0, answering: transform === 'answer',
+				allowedTexture: ensemble.piano.rootlessTexture?.request ?? 'full' }) : undefined;
+		const resolved = resolveCoordinatedVoicing({ chord, family: texture?.family ?? family,
 			registerMidi: guideTones ? 62 : Math.round(58 + 8 * info.intensity), previous: voicingMemory,
-			rootlessTexture: ensemble.piano.rootlessTexture?.request, ...(contour ? { targetTopMidi: contour.targetMidi } : {}) });
+			rootlessTexture: texture?.rootlessTexture ?? ensemble.piano.rootlessTexture?.request,
+			...(texture ? { spacing: texture.spacing } : {}), ...(contour ? { targetTopMidi: contour.targetMidi } : {}) });
+		const selected = texture ? { ...resolved, decision: Object.freeze({ ...resolved.decision, keyboardTexture: texture.trace }) } : resolved;
 		if (!selected.notes.length) return;
 		return { index, selected, contour, event: { absBeat, time: `${tick}i`, notes: [...selected.notes], duration, velocity: hit.velocity } };
 	};
