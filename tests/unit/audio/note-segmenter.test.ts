@@ -346,6 +346,35 @@ describe('findReArticulations: stop-and-hold short-gap path', () => {
 		expect(onsets[0]).toBeCloseTo(0.1 + 37 / 60 - 0.02, 3);
 	});
 
+	/** A tongue whose band floor falls before tracking disappears. */
+	function entryStop(holdRms = 0.1): PitchReading[] {
+		const readings = holeRun({ bandAfter: 0.045, rmsAfter: 0.09, holdRms });
+		for (const r of readings.slice(27, 30)) r.bandRmsMin = 0.04;
+		return readings;
+	}
+
+	it('keeps a repeat when the stop precedes the hole and the band is already recovering', () => {
+		const onsets = findReArticulations(entryStop(), [0.1], [0.65]);
+		expect(onsets).toHaveLength(1);
+		expect(onsets[0]).toBeCloseTo(0.1 + 37 / 60 - 0.02, 3);
+	});
+
+	it('rejects a pre-hole stop if the note continues fading', () => {
+		expect(findReArticulations(entryStop(0.04), [0.1], [0.65])).toEqual([]);
+	});
+
+	it('does not rescue a warmup-bridged gap with a pre-hole stop', () => {
+		const readings = entryStop();
+		readings.splice(30, 0, { ...readings[29], time: 0.65, warmup: true });
+		expect(findReArticulations(readings, [0.1])).toEqual([]);
+	});
+
+	it('requires measured pre-hole band evidence', () => {
+		const readings = entryStop();
+		for (const r of readings.slice(19, 30)) delete r.bandRmsMin;
+		expect(findReArticulations(readings, [0.1])).toEqual([]);
+	});
+
 	it('does not split a click-blanked sustain — the band floor barely moves', () => {
 		// The 2026-08-01 down-to-the-third kick hole measures 0.83×; the corpus
 		// impostor the STOP gate is cut against.
