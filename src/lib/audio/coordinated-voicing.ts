@@ -11,6 +11,13 @@ export interface CoordinatedVoicingMemory {
 	readonly notes: readonly number[];
 }
 export interface CoordinatedVoicingDecision {
+	readonly keyboardContraryMotion?: {
+		readonly status: 'changed' | 'retained' | 'unavailable' | 'family_ineligible';
+		readonly previousNotes: readonly number[]; readonly ordinaryNotes: readonly number[]; readonly actualNotes: readonly number[];
+		readonly topFromMidi: number | null; readonly topToMidi: number;
+		readonly voiceIndex?: number; readonly fromMidi?: number; readonly toMidi?: number;
+		readonly guideDetour: number; readonly movementDetour: number;
+	};
 	readonly keyboardArticulation?: { readonly instrument: 'piano' | 'organ'; readonly profile: string; readonly durationBeats: number; readonly durationSeconds: number; readonly originalDurationBeats: number };
 	readonly keyboardLine?: {
 		readonly status: 'connected' | 'retained' | 'bounded_fallback' | 'family_ineligible';
@@ -126,6 +133,8 @@ export function resolveCoordinatedVoicing(input: {
 	spacing?: 'compact' | 'open';
 	/** A melodic preference admitted only within the current spacing and explicit motion bounds. */
 	keyboardLine?: KeyboardLineRequest;
+	/** Seek bounded opposite inner motion; prefer the selected upper note, never worsen the line target. */
+	keyboardContraryMotion?: true;
 }): { notes: readonly number[]; memory: CoordinatedVoicingMemory; decision: CoordinatedVoicingDecision } {
 	if (!validChord(input.chord) || !Object.hasOwn(builders, input.family) || !Number.isFinite(input.registerMidi) || input.registerMidi < 0 || input.registerMidi > 127 ||
 		(input.spacing !== undefined && !['compact', 'open'].includes(input.spacing)) ||
@@ -224,11 +233,57 @@ export function resolveCoordinatedVoicing(input: {
 		} else lineStatus = ordinaryDistance === 0 ? 'retained' : 'bounded_fallback';
 	}
 
+
+	const beforeContrary = selected;
+	let contraryStatus: NonNullable<CoordinatedVoicingDecision['keyboardContraryMotion']>['status'] = 'family_ineligible';
+	let contraryVoice: number | undefined;
+	if (input.keyboardContraryMotion && contourEligible) {
+		contraryStatus = 'unavailable';
+		// Sorted rank is an unambiguous, non-crossing voice correspondence only
+		// when both chords have the same number of voices. New/removed voices
+		// never count as contrary motion.
+		if (previous && previous.notes.length === selected.notes.length && selected.notes.length >= 3) {
+			const top = selected.notes.at(-1)!;
+			const topStep = top - previous.notes.at(-1)!;
+			const oppositeVoice = (candidate: typeof selected): number | undefined => {
+				for (let index = 1; index < candidate.notes.length - 1; index++) {
+					const step = candidate.notes[index] - previous.notes[index];
+					const upperStep = candidate.notes.at(-1)! - previous.notes.at(-1)!;
+					if (step * upperStep < 0 && Math.abs(step) <= 5) return index;
+				}
+			};
+			contraryVoice = oppositeVoice(selected);
+			if (contraryVoice !== undefined) contraryStatus = 'retained';
+			else if (topStep !== 0) {
+				const alternatives = ranked.filter(candidate =>
+					(candidate.notes.at(-1) === top || line &&
+						Math.abs(candidate.notes.at(-1)! - line.targetMidi) === Math.abs(top - line.targetMidi) &&
+						Math.abs(candidate.notes.at(-1)! - line.anchorMidi) <= line.maxTopLeap) &&
+					(candidate.guideMotion ?? 0) <= (beforeContrary.guideMotion ?? 0) + 2 &&
+					candidate.totalMovement <= beforeContrary.totalMovement + 4 &&
+					// A connected-line claim must still satisfy its original bounds.
+					(!line || lineStatus !== 'connected' ||
+						(candidate.guideMotion ?? 0) <= (ordinary.guideMotion ?? 0) + line.maxGuideDetour &&
+						candidate.totalMovement <= ordinary.totalMovement + line.maxMovementDetour) &&
+					oppositeVoice(candidate) !== undefined);
+				// Keep the 0.7 upper note whenever that admits contrary motion;
+				// otherwise an equally close line target may change the upper pitch.
+				const alternative = alternatives.find(candidate => candidate.notes.at(-1) === top) ?? alternatives[0];
+				if (alternative) { selected = alternative; contraryVoice = oppositeVoice(selected); contraryStatus = 'changed'; }
+			}
+		}
+	}
+
 	const notes = Object.freeze([...selected.notes]);
 	const memory = Object.freeze({ version: 1 as const, chord: Object.freeze(chord), notes });
 	const decision = Object.freeze({ requestedFamily: input.family, resolvedFamily: family, correction,
 		guideMotion: selected.guideMotion, commonTones: Object.freeze([...selected.commonTones]), totalMovement: selected.totalMovement,
 		registerDistance: selected.registerDistance, candidateCount: ranked.length,
+		...(input.keyboardContraryMotion ? { keyboardContraryMotion: Object.freeze({ status: contraryStatus,
+			previousNotes: Object.freeze([...(previous?.notes ?? [])]), ordinaryNotes: Object.freeze([...beforeContrary.notes]), actualNotes: notes,
+			topFromMidi: previous?.notes.at(-1) ?? null, topToMidi: notes.at(-1)!,
+			...(contraryVoice !== undefined ? { voiceIndex: contraryVoice, fromMidi: previous!.notes[contraryVoice], toMidi: notes[contraryVoice] } : {}),
+			guideDetour: (selected.guideMotion ?? 0) - (beforeContrary.guideMotion ?? 0), movementDetour: selected.totalMovement - beforeContrary.totalMovement }) } : {}),
 		...(line ? { keyboardLine: Object.freeze({ status: lineStatus, contour: line.contour, targetMidi: line.targetMidi,
 			anchorMidi: line.anchorMidi, actualMidi: notes.at(-1)!, ordinaryMidi: ordinary.notes.at(-1)!,
 			distance: Math.abs(notes.at(-1)! - line.targetMidi), ordinaryDistance: Math.abs(ordinary.notes.at(-1)! - line.targetMidi),

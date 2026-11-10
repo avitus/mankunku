@@ -12,6 +12,7 @@ import { getScale } from '$lib/music/scales';
 import { realizeScale } from '$lib/music/keys';
 import { planStructuralBassFeel, type StructuralBassFeel } from './backing-bass-feel';
 import { filterBassHandoffOptions } from './backing-bass-handoff';
+import { planBassDelayedRoot, bassDelayedRootTrace, type BassDelayedRootPlan, type BassDelayedRootTrace } from './backing-bass-delayed-root';
 
 export interface RollingBassMemory {
 	readonly previousMidi: number | null;
@@ -37,9 +38,51 @@ interface RollingBassResult {
 	trace: BassTurnaroundTrace[];
 	feelTrace?: StructuralBassFeel;
 	continuationTrace?: readonly BassScalarContinuation[];
+	delayedRootTrace?: BassDelayedRootTrace;
 }
 
 export function realizeRollingBass(score: RollingBackingDefinition, bar: number, info: BarInfo,
+	timing: EnsembleTiming, previous?: RollingBassMemory): RollingBassResult {
+	const ordinary = realizeBassWithHandoff(score, bar, info, timing, previous);
+	const plan = info.ensemble;
+	if (!score.bassDelayedRootVersion || !plan?.performanceEnergy || !previous || previous.previousMidi === null ||
+		bar === 0 || info.isSectionFirstBar || info.isSectionFinalBar || info.isChorusFirstBar || info.isChorusFinalBar || info.isFinalBar ||
+		plan.terminalArrangement || plan.coordinatedAccent || plan.setupFor || plan.responseOwner !== 'nobody' || plan.drums.allowFill ||
+		!plan.bass.keepPulse || plan.bass.role !== 'time' || plan.bass.ornamentScale < .5 ||
+		['leave_space', 'release'].includes(plan.intent) || ['leave_space', 'release'].includes(plan.phraseIntent) ||
+		['solo_release', 'ending'].includes(plan.performanceEnergy.phase) ||
+		['active_soloist', 'dense_soloist'].includes(plan.piano.rootlessTexture?.reason ?? '') ||
+		previous.pendingLaunch || ordinary.memory.pendingLaunch || ordinary.trace.some(entry => entry.status === 'planned')) return ordinary;
+	const start = bar * 4;
+	const segmentAt = (beat: number) => score.harmony.findIndex(segment => fractionToFloat(segment.startOffset) * 4 <= beat &&
+		(fractionToFloat(segment.startOffset) + fractionToFloat(segment.duration)) * 4 > beat);
+	const index = segmentAt(start), priorIndex = segmentAt(start - .001), segment = score.harmony[index];
+	if (!segment || priorIndex < 0) return ordinary;
+	const same = (candidate: typeof segment) => candidate.chord.root === segment.chord.root && candidate.chord.quality === segment.chord.quality;
+	if (!score.harmony.filter(candidate => fractionToFloat(candidate.startOffset) * 4 < start + 4 &&
+		(fractionToFloat(candidate.startOffset) + fractionToFloat(candidate.duration)) * 4 > start).every(same)) return ordinary;
+	const rootPc = pitchClassToNumber(segment.chord.root), tones = chordToneIntervalsForBass(segment.chord.quality);
+	const proposal = planBassDelayedRoot({ phraseId: score.phraseId, tempo: score.tempo, barIndex: bar, style: score.style ?? 'swing',
+		rootPc, third: tones.third, fifth: tones.fifth, previousMidi: previous.previousMidi,
+		rootOffset: ordinary.memory.feel === 'four' ? 1 : 2, repeatedHarmony: same(score.harmony[priorIndex]), events: ordinary.events });
+	if (!proposal) return ordinary;
+	// An already played walking approach owns its exact entrance, including a
+	// selected third/fifth. Its later root may be developed without moving that entrance.
+	if (ordinary.memory.feel === 'four' && previous.segmentIndex !== index && previous.nextTarget !== null &&
+		proposal.startMidi !== ordinary.events.find(event => event.absBeat === start)?.midi) return ordinary;
+	const alternate = realizeBassCandidate(score, bar, info, timing, previous, undefined, proposal);
+	if (!alternate || alternate.events.length !== ordinary.events.length || alternate.events.some((event, index) => {
+		const before = ordinary.events[index];
+		return event.absBeat !== before.absBeat || event.time !== before.time || event.duration !== before.duration || event.velocity !== before.velocity ||
+			(index > 0 && Math.abs(event.midi - alternate.events[index - 1].midi) > 7);
+	})) return ordinary;
+	const entrance = alternate.events.find(event => event.absBeat === start), landing = alternate.events.find(event => event.absBeat === start + proposal.rootOffset);
+	if (!entrance || !landing || entrance.midi !== proposal.startMidi || landing.midi !== proposal.rootMidi ||
+		alternate.events.some(event => event.absBeat > start && event.absBeat < landing.absBeat && pc(event.midi) === rootPc)) return ordinary;
+	return { ...alternate, delayedRootTrace: bassDelayedRootTrace(bar, rootPc, proposal, entrance, landing) };
+}
+
+function realizeBassWithHandoff(score: RollingBackingDefinition, bar: number, info: BarInfo,
 	timing: EnsembleTiming, previous?: RollingBassMemory): RollingBassResult {
 	const ordinary = realizeBassCandidate(score, bar, info, timing, previous)!;
 	if (!score.bassApproachHandoff || (score.style && !['swing', 'straight'].includes(score.style)) || !info.ensemble?.performanceEnergy ||
@@ -68,7 +111,7 @@ export function realizeRollingBass(score: RollingBackingDefinition, bar: number,
 }
 
 function realizeBassCandidate(score: RollingBackingDefinition, bar: number, info: BarInfo,
-	timing: EnsembleTiming, previous?: RollingBassMemory, handoffMidi?: number): RollingBassResult | undefined {
+	timing: EnsembleTiming, previous?: RollingBassMemory, handoffMidi?: number, delayedRoot?: BassDelayedRootPlan): RollingBassResult | undefined {
 	const memory: RollingBassMemory = previous ?? { previousMidi: null, previousPreviousMidi: null, direction: 0, segmentIndex: null,
 		segmentAnchor: null, nextTarget: null, approach: 'chromatic-below' as const, feel: 'four' as const, pendingLaunch: null };
 	if (score.style === 'bossa-nova') {
@@ -76,6 +119,8 @@ function realizeBassCandidate(score: RollingBackingDefinition, bar: number, info
 		const events = generateBossaBass([...score.harmony], 4, { phraseId: score.phraseId, tempo: score.tempo,
 			ppq: score.ppq, beatsPerBar: 4, swing: score.swing, timing: score.timingProfiles, ensembleTiming: timing }, infos, bar).events;
 		for (const event of events) {
+			if (delayedRoot && event.absBeat === bar * 4) event.midi = delayedRoot.startMidi;
+			if (delayedRoot && event.absBeat === bar * 4 + delayedRoot.rootOffset) event.midi = delayedRoot.rootMidi;
 			const tick = Math.max(bar * 4 * score.ppq, parseInt(event.time));
 			event.time = `${tick}i`;
 			event.duration = Math.min(event.duration, ((bar + 1) * 4 * score.ppq - tick) * 60 / score.tempo / score.ppq);
@@ -225,6 +270,11 @@ function realizeBassCandidate(score: RollingBackingDefinition, bar: number, info
 				candidates: Array.from({ length: 28 }, (_, offset) => offset + 28), scalePcs: segment.scalePcs, deviceEntryMidi: deviceEntry });
 			scalarChanged = selected !== midi;
 			midi = selected;
+		}
+		if (delayedRoot && (beat === 0 || beat === delayedRoot.rootOffset)) {
+			midi = beat === 0 ? delayedRoot.startMidi : delayedRoot.rootMidi;
+			scalarChanged = false;
+			if (isChange) segmentAnchor = midi;
 		}
 		const velocity = createRng(seedFrom(score.phraseId, score.tempo, 'rolling-bass-velocity', absBeat)).int(76, 88) + (beat === 0 ? 4 : beat === 2 ? 2 : 0);
 		const durationBeats = feel === 'two' ? 1.7 : 0.85;

@@ -1,4 +1,5 @@
 import { assessTerminalArrangement, realizeTerminalArrangement, terminalBarPlan, terminalPianoTrace, terminalDrumTrace, freezeTerminalDecisions, type TerminalArrangementInput, type TerminalReservation, type TerminalArrangementDecision } from './backing-terminal';
+import type { BassDelayedRootTrace } from './backing-bass-delayed-root';
 import type { BassScalarContinuation } from './backing-bass-continuation';
 import { sharedArrivalTick } from './backing-arrival';
 /**
@@ -135,6 +136,7 @@ export interface EnsembleDevelopment {
 	readonly bassTurnarounds: readonly BassTurnaroundTrace[];
 	readonly bassFeel?: readonly StructuralBassFeel[];
 	readonly bassContinuations?: readonly BassScalarContinuation[];
+	readonly bassDelayedRoots?: readonly BassDelayedRootTrace[];
 	readonly pianoVoicings?: readonly CoordinatedPianoVoicing[];
 	/** Causal, committed rolling-bar decisions; absent from fixed generation. */
 	readonly pianoFeedback?: readonly PianoFeedbackDecision[];
@@ -228,6 +230,11 @@ function freezeEnsembleDevelopment(trace: EnsembleDevelopment): EnsembleDevelopm
 			Object.freeze(attack.decision.commonTones);
 			if (attack.decision.rootlessTexture) Object.freeze(attack.decision.rootlessTexture);
 			if (attack.decision.topLine) Object.freeze(attack.decision.topLine);
+			if (attack.decision.keyboardContraryMotion) {
+				const motion = attack.decision.keyboardContraryMotion;
+				Object.freeze(motion.previousNotes); Object.freeze(motion.ordinaryNotes); Object.freeze(motion.actualNotes); Object.freeze(motion);
+			}
+			for (const detail of [attack.decision.keyboardLine, attack.decision.keyboardArticulation, attack.decision.keyboardTexture, attack.decision.spacing]) if (detail) Object.freeze(detail);
 			Object.freeze(attack.decision);
 			Object.freeze(attack);
 		}
@@ -276,6 +283,10 @@ function freezeEnsembleDevelopment(trace: EnsembleDevelopment): EnsembleDevelopm
 			Object.freeze(continuation.notes); Object.freeze(continuation);
 		}
 		Object.freeze(trace.bassContinuations);
+	}
+	if (trace.bassDelayedRoots) {
+		for (const entry of trace.bassDelayedRoots) { entry.notes.forEach(Object.freeze); Object.freeze(entry.notes); Object.freeze(entry); }
+		Object.freeze(trace.bassDelayedRoots);
 	}
 	freezeDrumPhraseTrace(trace.drumPhrases);
 	return Object.freeze(trace);

@@ -9,7 +9,22 @@ import { createRng, seedFrom } from './generation-rng';
 export type DrumCommentaryTransform = 'statement' | 'answer' | 'repeat' | 'displace' | 'orchestrate' | 'space' | 'setup' | 'fallback';
 export type DrumPhraseReason = 'ensemble_silence' | 'response_reserved' | 'arrival_reserved' | 'gesture_does_not_fit'
 	| 'terminal_arrangement' | 'native_groove' | 'setup_does_not_fit' | 'motif_gap' | 'not_selected' | 'short_phrase' | 'partial_harmony';
+export interface DrumKeyboardAttack {
+	readonly beatOffset: number;
+	readonly durationBeats: number;
+	readonly time: string;
+	readonly durationSeconds: number;
+}
+export interface DrumPhraseCushioning {
+	readonly basis: 'structural_keyboard_release';
+	readonly phase: 'solo_release' | 'head_return' | 'ending';
+	/** Current accepted keyboard gate; not evidence of a heard human solo. */
+	readonly compAttack: DrumKeyboardAttack;
+	readonly removedHits: readonly Readonly<DrumHitSpec>[];
+	readonly softenedHits: readonly { readonly before: Readonly<DrumHitSpec>; readonly after: Readonly<DrumHitSpec> }[];
+}
 export interface DrumPhraseDecision {
+	readonly cushioning?: DrumPhraseCushioning;
 	/** Native groove identity; absence denotes the original swing phrase vocabulary. */
 	readonly style?: BackingStyle;
 	readonly version: 1;
@@ -61,6 +76,9 @@ export interface DrumPhraseInput {
 
 /** One committed bar; future instrument choices are deliberately absent. */
 export interface DrumPhraseBarInput {
+	readonly phraseCushioning?: true;
+	/** Actual current keyboard gates paired with accepted compOnsets. */
+	readonly compAttacks?: readonly DrumKeyboardAttack[];
 	readonly style?: BackingStyle;
 	readonly phraseId: string;
 	readonly tempo: number;
@@ -103,6 +121,12 @@ export interface DrumPhraseMemory {
 
 export function freezeDrumPhraseTrace(trace: readonly DrumPhraseDecision[]): readonly DrumPhraseDecision[] {
 	for (const entry of trace) {
+		if (entry.cushioning) {
+			Object.freeze(entry.cushioning.compAttack);
+			for (const hit of entry.cushioning.removedHits) Object.freeze(hit);
+			for (const hit of entry.cushioning.softenedHits) { Object.freeze(hit.before); Object.freeze(hit.after); Object.freeze(hit); }
+			Object.freeze(entry.cushioning.removedHits); Object.freeze(entry.cushioning.softenedHits); Object.freeze(entry.cushioning);
+		}
 		for (const hit of entry.hits) Object.freeze(hit);
 		for (const hit of entry.commentary.hits) Object.freeze(hit);
 		Object.freeze(entry.hits);
@@ -140,6 +164,56 @@ const cymbal = (drum: DrumVoice): boolean => drum === 'ride' || drum === 'ride-b
 const limb = (drum: DrumVoice): string => drum === 'kick' ? 'right-foot' : drum === 'hihat-pedal' ? 'left-foot'
 	: drum === 'snare' || drum === 'crossstick' ? 'left-hand' : 'right-hand';
 const slot = (hit: DrumHitSpec): string => `${limb(hit.drum)}:${hit.beatOffset}`;
+
+/** Ease a selected late phrase around an actual held keyboard chord, without moving the groove. */
+function cushionPhrase(input: DrumPhraseBarInput, bar: DrumPhraseDecision): DrumPhraseDecision {
+	if (!input.phraseCushioning) return bar;
+	const ensemble = input.info.ensemble!;
+	const phase = ensemble.performanceEnergy?.phase;
+	if ((phase !== 'solo_release' && phase !== 'head_return' && phase !== 'ending') ||
+		input.phraseEndBarExclusive - input.phraseStartBar < 3 || input.barIndex !== input.phraseEndBarExclusive - 1 ||
+		(input.barIndex + 1) * 4 >= input.harmonyEndBeat || ensemble.terminalArrangement || ensemble.setupFor || ensemble.coordinatedAccent ||
+		ensemble.responseOwner !== 'nobody' || ensemble.drums.allowFill ||
+		(ensemble.drums.silenceReason && ensemble.drums.silenceReason !== 'phrase_resolution') ||
+		input.compIsDrumReply || input.suppressPreviousPianoAnswer || bar.commentary.source === 'piano' ||
+		bar.commentary.transform === 'setup') return bar;
+	const compAttack = input.compAttacks?.filter(attack => attack.beatOffset <= 3 && attack.durationBeats >= .6)
+		.sort((a,b) => a.beatOffset - b.beatOffset).at(-1);
+	if (!compAttack || !createRng(seedFrom(input.phraseId, input.tempo, 'drum-cushion-v1', input.phraseStartBar)).chance(.55)) return bar;
+	const style = input.style ?? 'swing';
+	const from = Math.max(1, compAttack.beatOffset);
+	const end = Math.min(4, compAttack.beatOffset + compAttack.durationBeats);
+	const inside = (hit: Readonly<DrumHitSpec>) => hit.beatOffset >= from && hit.beatOffset < end;
+	// Remove complete optional commentary gestures, never fragments of a motif.
+	const removeCommentary = bar.commentary.hits.some(inside);
+	const removedHits: DrumHitSpec[] = [];
+	const softenedHits: { before: DrumHitSpec; after: DrumHitSpec }[] = [];
+	const hits = bar.hits.flatMap(hit => {
+		if ((removeCommentary && hit.role === 'commentary') ||
+			((style === 'swing' || style === 'straight') && hit.role === 'timekeeping' &&
+				(hit.drum === 'ride' || hit.drum === 'ride-bell') && inside(hit) && !Number.isInteger(hit.beatOffset))) {
+			removedHits.push({ ...hit }); return [];
+		}
+		// Bossa's complete clave, surdo kick and hat grid stay intact. Ballad
+		// retains every native ride pulse, easing its late dynamic rather than
+		// introducing swing skips or taking away its already sparse time.
+		const soften = hit.role === 'timekeeping' && inside(hit) && (style === 'bossa-nova'
+			? hit.drum === 'hihat' && !Number.isInteger(hit.beatOffset) : hit.drum === 'ride' || hit.drum === 'ride-bell');
+		if (!soften) return [hit];
+		const after = { ...hit, velocity: hit.velocity * (style === 'bossa-nova' ? .78 : style === 'ballad' ? .82 : .86) };
+		softenedHits.push({ before: { ...hit }, after }); return [after];
+	});
+	if (!removedHits.length && !softenedHits.length) return bar;
+	const commentaryHits = hits.filter(hit => hit.role === 'commentary');
+	const result: DrumPhraseDecision = { ...bar, hits,
+		cushioning: { basis: 'structural_keyboard_release', phase, compAttack: { ...compAttack }, removedHits, softenedHits },
+		ride: { ...bar.ride, skipOffsets: bar.ride.skipOffsets.filter(offset => hits.some(hit => cymbal(hit.drum) && hit.beatOffset === offset)),
+			onsets: [...new Set(hits.filter(hit => cymbal(hit.drum)).map(hit => hit.beatOffset))].sort((a,b) => a-b) },
+		commentary: { ...bar.commentary, hits: commentaryHits,
+			...(removeCommentary ? { transform: 'space' as const, displacementBeats: 0 } : {}) }
+	};
+	return freezeDrumPhraseTrace([result])[0];
+}
 
 /** A complete gesture must fit both the actual bar and one player of each limb. */
 function fits(hits: readonly DrumHitSpec[], allowance: number, extent: number, acceptsOnset?: (hit: DrumHitSpec) => boolean): boolean {
@@ -333,6 +407,13 @@ function validateDrumPhraseBar(input: DrumPhraseBarInput, memory?: DrumPhraseMem
 		throw new Error('Drum phrase bar and static boundaries must fit the harmony extent');
 	}
 	const ensemble = input.info.ensemble;
+	if ((input.phraseCushioning !== undefined && input.phraseCushioning !== true) ||
+		(input.compAttacks !== undefined && (!Array.isArray(input.compAttacks) || input.compAttacks.length > 32 ||
+			input.compAttacks.some(attack => !Number.isFinite(attack.beatOffset) || attack.beatOffset < 0 || attack.beatOffset >= 4 ||
+				!Number.isFinite(attack.durationBeats) || attack.durationBeats <= 0 || attack.durationBeats > 8 ||
+				typeof attack.time !== 'string' || !/^\d+i$/.test(attack.time) || !Number.isFinite(attack.durationSeconds) ||
+				Math.abs(attack.durationSeconds * input.tempo / 60 - attack.durationBeats) > 1e-8 ||
+				!input.compOnsets?.includes(attack.beatOffset))))) throw new Error('Invalid accepted keyboard attack evidence');
 	if (input.compIsDrumReply !== undefined && (input.compIsDrumReply !== true ||
 		!ensemble?.performanceEnergy || input.style === 'ballad' || input.style === 'bossa-nova' ||
 		ensemble.drums.maxCommentaryHits !== 0 || input.compOnsets?.length !== 1 ||
@@ -417,7 +498,10 @@ export function planDrumPhraseBar(input: DrumPhraseBarInput, memory?: DrumPhrase
 	readonly bar: DrumPhraseDecision; readonly memory: DrumPhraseMemory;
 } {
 	validateDrumPhraseBar(input, memory);
-	if (input.style === 'bossa-nova' || input.style === 'ballad') return realizeNativeDrumBar(input, memory);
+	if (input.style === 'bossa-nova' || input.style === 'ballad') {
+		const result = realizeNativeDrumBar(input, memory);
+		return Object.freeze({ ...result, bar: cushionPhrase(input, result.bar) });
+	}
 	// The reserved ride and accepted motif survive later budget changes.
 	// Copy before mutation/freezing: a caller may retain an unfrozen JSON checkpoint.
 	const previous = memory?.phrase;
@@ -434,7 +518,7 @@ export function planDrumPhraseBar(input: DrumPhraseBarInput, memory?: DrumPhrase
 			firstTransform: previous.motif.firstTransform, gapAfterStatement: previous.motif.gapAfterStatement
 		} } : {})
 	} : phraseState(input, input.phraseStartBar, input.phraseEndBarExclusive, previous);
-	const bar = realizeDrumPhraseBar(input, state, memory?.previousCompIsSharedArrival || memory?.previousCompIsDrumReply ? [] : memory?.previousCompOnsets ?? []);
+	const bar = cushionPhrase(input, realizeDrumPhraseBar(input, state, memory?.previousCompIsSharedArrival || memory?.previousCompIsDrumReply ? [] : memory?.previousCompOnsets ?? []));
 	return Object.freeze({ bar, memory: freezeDrumPhraseMemory({
 		version: 1, ...(input.style && input.style !== 'swing' ? { style: input.style } : {}), phraseId: input.phraseId, tempo: input.tempo, harmonyEndBeat: input.harmonyEndBeat,
 		nextBar: input.barIndex + 1, sectionIndex: input.info.sectionIndex ?? null,

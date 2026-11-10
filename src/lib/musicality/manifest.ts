@@ -378,6 +378,28 @@ const drumDeviceUpdates: Record<string, [ImplementationStatus, string, string]> 
 };
 
 export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => {
+	if (entry.id === 'B35') return {
+		...entry, status: 'partial',
+		assessment: 'Musicality 0.8.0 deliberately resolves selected third/fifth bass entrances to a later root. Repeated harmony can also admit a chord-tone opening. The existing native pulse, timing, gates and dynamics stay intact; actual emitted entrance and landing support the musician card.',
+		remaining: 'Bounded third/fifth openings only; no seventh-led entry or harmonic substitution. Committed approaches, turnarounds, shared arrivals, dense activity and endings retain priority. Human listening acceptance of this release remains pending.',
+		scope: 'Explicit Coordinated 0.8.0 listening in Swing, Straight, Bossa and Ballad. Bossa keeps its native rhythmic pattern and Ballad its two-feel. Omitted policy and Original remain unchanged.',
+		evidence: [...entry.evidence, source('backing-bass-delayed-root'), source('backing-rolling-bass'), test('backing-bass-delayed-root'), test('backing-bass-delayed-root-integration'), test('backing-release-eight')]
+	};
+	if (entry.id === 'P33') return {
+		...entry, status: 'partial',
+		assessment: 'Musicality 0.8.0 can choose a bounded inner voice moving against the actual upper voice, within the selected legal family and spacing. It preserves the connected-line target distance and uses actual preceding chords rather than planned unplayed harmony.',
+		remaining: 'Only equal voice counts with eligible non-guide/non-quartal placement qualify. Opportunities are intentionally limited by harmonic legality and motion bounds. This is contrary movement within the keyboard, not counterpoint against bass or a human solo. Human acceptance remains pending.',
+		scope: 'Explicit Coordinated 0.8.0 Piano and Organ in all four styles; native attacks and articulation retained. Omitted policy retains 0.7.0.',
+		evidence: [...entry.evidence, source('coordinated-voicing'), source('backing-rolling-piano'), test('backing-keyboard-contrary'), test('backing-keyboard-contrary-performance'), test('backing-release-eight')]
+	};
+	if (entry.id === 'D85') return {
+		...entry, status: 'partial',
+		assessment: 'Musicality 0.8.0 cushions selected structural phrase resolutions around an actually scheduled keyboard chord. Swing/Straight ease optional ride/commentary activity; Bossa eases offbeat hats while preserving its groove; Ballad softens its native ride. The card reports only actual removed or softened hits.',
+		remaining: 'This follows declared release/head-return/ending context and accepted keyboard gates; it does not recognize a live soloist’s melodic resolution. Setup, arrival, response ownership, dense activity and terminal arrangements retain priority. Human listening acceptance remains pending.',
+		scope: 'Explicit Coordinated 0.8.0 listening in all four styles; omitted policy and Original remain unchanged.',
+		evidence: [...entry.evidence, source('backing-drum-phrases'), test('backing-drum-cushioning'), test('backing-release-eight')]
+	};
+
 	if (entry.id === 'S47') return {
 		...entry, status: 'partial',
 		assessment: 'The musicality studio plays complete curated and eligible local tune-book 4/4 forms: Original uses fixed playback; Coordinated uses causal rolling orchestration with audio-clock musician decisions, listening marks and committed-event exports. Local charts use the existing form builders and are checked for complete harmony and the 128-bar arrangement limit before playback. After a take, a bounded bar selector and existing marks revisit captured decisions without starting audio. Optional curated blind review locks matched inputs, requires two complete listens and ratings before reveal, and exports actual scores with the verdict. The advanced lab retains historical WAV comparison and adaptive capture/replay.',

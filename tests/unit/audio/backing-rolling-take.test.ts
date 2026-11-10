@@ -28,6 +28,18 @@ function harness() {
 }
 
 describe('committed rolling take aggregation', () => {
+ it('retains detached 0.8 delayed-root receipts in a committed export', () => {
+  const h=harness(); h.append(); h.append();
+  const restored=JSON.parse(JSON.stringify(h.renderer.snapshot()));
+  const receipt={version:1,barIndex:1,degree:'third',rootPc:0,notes:[{time:'768i',absBeat:4,midi:40},{time:'960i',absBeat:5,midi:36}]};
+  restored.windows[1].ensembleDevelopment.bassDelayedRoots=[receipt];
+  const take=aggregateRollingBacking(restored);
+  expect(take.ensembleDevelopment?.bassDelayedRoots).toEqual([receipt]);
+  expect(Object.isFrozen(take.ensembleDevelopment?.bassDelayedRoots?.[0].notes[0])).toBe(true);
+  receipt.notes[0].midi=99;
+  expect(take.ensembleDevelopment?.bassDelayedRoots?.[0].notes[0].midi).toBe(40);
+ });
+
  it('retains terminal receipts as detached immutable evidence without changing an earlier prefix', () => {
   const h = harness(); h.append();
   const early = aggregateRollingBacking(h.renderer.snapshot());

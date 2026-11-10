@@ -156,6 +156,20 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 		}
 	}
 	if (bass.length) bassCard.evidence.push(`Notes: ${bass.map((e) => noteName(e.midi)).join(' · ')}`);
+	const delayedRoot = development?.bassDelayedRoots?.find(entry => entry.barIndex === barIndex);
+	if (delayedRoot && delayedRoot.notes.length === 2) {
+		const [entrance, landing] = delayedRoot.notes;
+		const degree = ((entrance.midi - delayedRoot.rootPc) % 12 + 12) % 12;
+		if (entrance.absBeat === barIndex * beatsPerBar && [1, 2].includes(landing.absBeat - entrance.absBeat) &&
+			landing.midi % 12 === delayedRoot.rootPc &&
+			(delayedRoot.degree === 'third' ? [3, 4].includes(degree) : [6, 7, 8].includes(degree)) &&
+			delayedRoot.notes.every(note => bass.some(event => event.time === note.time && event.absBeat === note.absBeat && event.midi === note.midi)) &&
+			!bass.some(event => event.absBeat > entrance.absBeat && event.absBeat < landing.absBeat && event.midi % 12 === delayedRoot.rootPc)) {
+			bassCard.action = 'Let the root arrive later';
+			bassCard.detail = `Start on the ${delayedRoot.degree}, then settle on the root without changing the native pulse.`;
+			bassCard.evidence.push(`Delayed root: ${noteName(entrance.midi)} → ${noteName(landing.midi)} on beat ${landing.absBeat - entrance.absBeat + 1}`);
+		}
+	}
 	if (walking) for (const continuation of development?.bassContinuations ?? []) {
 		const notes = continuation.notes;
 		const boundary = continuation.boundaryAbsBeat;
@@ -273,6 +287,25 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 				pianoCard.evidence.push(`Chord ${index + 1} top voice: ${noteName(connection.anchorMidi)} → ${noteName(connection.actualMidi)} · ${plain(connection.contour)}`);
 				keyboardTextures.push('Connected top voice');
 			} else if (connection.status === 'bounded_fallback') pianoCard.evidence.push(`Chord ${index + 1} top voice: kept the available voice-led shape`);
+		}
+		const contrary = decision.keyboardContraryMotion;
+		if (contrary && ['changed', 'retained'].includes(contrary.status)) {
+			const preceding = generated.compEvents.filter(prior => prior.absBeat < event.absBeat).sort((a, b) => b.absBeat - a.absBeat)[0];
+			const index = contrary.voiceIndex;
+			if (preceding && Number.isInteger(index) && index! > 0 && index! < event.notes.length - 1 &&
+				preceding.notes.length === event.notes.length && contrary.previousNotes.length === preceding.notes.length &&
+				contrary.previousNotes.every((note, i) => note === preceding.notes[i]) &&
+				contrary.actualNotes.length === event.notes.length && contrary.actualNotes.every((note, i) => note === event.notes[i]) &&
+				contrary.fromMidi === preceding.notes[index!] && contrary.toMidi === event.notes[index!] &&
+				contrary.topFromMidi === preceding.notes.at(-1) && contrary.topToMidi === event.notes.at(-1) &&
+				(contrary.ordinaryNotes.at(-1) === contrary.topToMidi || connection &&
+					connection.actualMidi === contrary.topToMidi && Math.abs(contrary.topToMidi - connection.targetMidi) === Math.abs(contrary.ordinaryNotes.at(-1)! - connection.targetMidi)) &&
+				Number.isFinite(contrary.guideDetour) && Number.isFinite(contrary.movementDetour) && contrary.guideDetour <= 2 && contrary.movementDetour <= 4 &&
+				(contrary.toMidi! - contrary.fromMidi!) * (contrary.topToMidi - contrary.topFromMidi!) < 0 &&
+				Math.abs(contrary.toMidi! - contrary.fromMidi!) <= 5) {
+				pianoCard.evidence.push(`Inner voice ${noteName(contrary.fromMidi!)} → ${noteName(contrary.toMidi!)} moves against the top line`);
+				keyboardTextures.push('Contrary inner voice');
+			}
 		}
 		const articulation = decision.keyboardArticulation;
 		if (articulation && articulation.durationSeconds === event.duration && event.duration > 0 &&
@@ -427,6 +460,21 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 		if (drumPhrase.ride.mode !== 'none') drumCard.evidence.push(`Ride pattern: ${plain(drumPhrase.ride.mode)}`);
 		if (drumPhrase.commentary.motifId) drumCard.evidence.push(`Commentary: ${plain(drumPhrase.commentary.transform)}`);
 		if (drumPhrase.commentary.reason) drumCard.evidence.push(`Commentary decision: ${plain(drumPhrase.commentary.reason)}`);
+	}
+	const cushion = drumPhrase?.cushioning;
+	if (cushion && cushion.basis === 'structural_keyboard_release' && cushion.phase === plan?.performanceEnergy?.phase &&
+		piano.some(event => event.absBeat === barIndex * beatsPerBar + cushion.compAttack.beatOffset &&
+			event.time === cushion.compAttack.time && event.duration === cushion.compAttack.durationSeconds) &&
+		cushion.removedHits.length + cushion.softenedHits.length > 0) {
+		const matches = (event: typeof drums[number], hit: { beatOffset: number; drum: string; velocity: number; role?: string }) =>
+			event.absBeat === barIndex * beatsPerBar + hit.beatOffset && event.drum === hit.drum && event.velocity === hit.velocity && event.role === hit.role;
+		if (cushion.removedHits.every(hit => !drums.some(event => event.drum === hit.drum && event.absBeat === barIndex * beatsPerBar + hit.beatOffset)) &&
+			cushion.softenedHits.every(({before, after}) => before.drum === after.drum && before.beatOffset === after.beatOffset &&
+				before.role === after.role && after.velocity > 0 && after.velocity < before.velocity && drums.some(event => matches(event, after)))) {
+			drumCard.action = 'Ease around the resolution';
+			drumCard.detail = 'The kit softens the end of this phrase around the keyboard while keeping the native pulse.';
+			drumCard.evidence.push(`Phrase cushioning: ${cushion.removedHits.length} optional hits withheld · ${cushion.softenedHits.length} hits softened`);
+		}
 	}
 	if (acceptedAnswer) drumCard.evidence.push('Leave commentary space for the piano answer');
 	if (plan?.drums.silenceReason) drumCard.evidence.push(`Commentary space: ${plain(plan.drums.silenceReason)}`);

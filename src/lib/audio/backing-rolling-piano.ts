@@ -266,10 +266,13 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 		const keyboardLine = phrasing && !guideTones ? planKeyboardLine({ style: score.style ?? 'swing', phraseId: score.phraseId, tempo: score.tempo,
 			seed: score.bars[phraseStart].pianoPresenceSeed ?? 0, barIndex: bar, phraseStartBar: phraseStart,
 			phase: ensemble.performanceEnergy!.phase, attackIndex: events.length, previous: voicingMemory }) : undefined;
+		// Native rhythm, selected families and strict motion bounds already make
+		// this a rare opportunity. Only the first accepted chord may propose it.
+		const contraryMotion = score.keyboardContraryMotionVersion === 1 && phrasing && !guideTones && events.length === 0;
 		const resolved = resolveCoordinatedVoicing({ chord, family: texture?.family ?? family,
 			registerMidi: guideTones ? 62 : Math.round(58 + 8 * info.intensity), previous: voicingMemory,
 			rootlessTexture: texture?.rootlessTexture ?? ensemble.piano.rootlessTexture?.request,
-			...(keyboardLine ? { keyboardLine } : {}), ...(texture ? { spacing: texture.spacing } : {}), ...(contour ? { targetTopMidi: contour.targetMidi } : {}) });
+			...(contraryMotion ? { keyboardContraryMotion: true } : {}), ...(keyboardLine ? { keyboardLine } : {}), ...(texture ? { spacing: texture.spacing } : {}), ...(contour ? { targetTopMidi: contour.targetMidi } : {}) });
 		const selected = texture || articulation ? { ...resolved, decision: Object.freeze({ ...resolved.decision,
 			...(texture ? { keyboardTexture: texture.trace } : {}), ...(articulation ? { keyboardArticulation: Object.freeze({ instrument: phrasing!.instrument,
 				profile: articulation.profile, durationSeconds: duration, durationBeats: duration * score.tempo / 60, originalDurationBeats: hit.durationBeats }) } : {}) }) } : resolved;

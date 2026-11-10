@@ -197,7 +197,8 @@ export function terminalPianoTrace(plan: EnsembleBarPlan, reservation: TerminalR
 }
 export function terminalDrumTrace(ordinary: DrumPhraseDecision, decision: Extract<TerminalArrangementDecision, { status: 'accepted' }>, profile?: TerminalReservation['profile']): DrumPhraseDecision {
 	const { voice: _voice, ...nativeRide } = ordinary.ride;
-	return { ...ordinary, ride: profile === 'bossa-v1'
+	const { cushioning: _cushioning, ...retained } = ordinary;
+	return { ...retained, ride: profile === 'bossa-v1'
 		? { ...nativeRide, mode: 'none', phase: 'release', velocityScale: 1, skipOffsets: [], onsets: [] }
 		: { ...ordinary.ride, voice: 'ride', mode: 'none', phase: 'release', velocityScale: 1, skipOffsets: [], onsets: [0] },
 		commentary: { motifId: null, source: 'none', sourceId: null, sourceBar: null, sourceOffsets: [], transform: 'space', displacementBeats: 0, hits: [], reason: 'terminal_arrangement' },

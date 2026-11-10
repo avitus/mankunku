@@ -44,6 +44,10 @@ export interface RollingBackingOptions {
 	readonly keyboardTexture?: true;
 	/** Connected lines and captured instrument articulation, all native styles. */
 	readonly keyboardPhrasing?: 'piano' | 'organ';
+	/** Listening 0.8 policies; omission preserves earlier event streams. */
+	readonly bassDelayedRoot?: true;
+	readonly keyboardContraryMotion?: true;
+	readonly drumPhraseCushioning?: true;
 }
 
 export interface RollingLoopSpan {
@@ -79,6 +83,9 @@ export interface RollingBackingDefinition {
 	readonly chorusBoundaryPriorityVersion?: 1;
 	readonly keyboardTextureVersion?: 1;
 	readonly keyboardPhrasing?: { readonly version: 1; readonly instrument: 'piano' | 'organ' };
+	readonly bassDelayedRootVersion?: 1;
+	readonly keyboardContraryMotionVersion?: 1;
+	readonly drumPhraseCushioningVersion?: 1;
 	readonly terminalArrangement?: TerminalReservation;
 	readonly loopCount: number;
 	readonly loops: readonly RollingLoopSpan[];
@@ -203,6 +210,11 @@ export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDef
 	const keyboardVariety = (options.keyboardVariety === true || options.keyboardVariety === 'developed') && accompanimentPiano && ['swing', 'straight'].includes(style.coordinatedStyle!);
 	const keyboardPhrasing = accompanimentPiano && (options.keyboardPhrasing === 'piano' || options.keyboardPhrasing === 'organ')
 		? { version: 1 as const, instrument: options.keyboardPhrasing } : undefined;
+	const releaseEightPolicies = {
+		...(performanceEnergy && options.bassDelayedRoot === true ? { bassDelayedRootVersion: 1 as const } : {}),
+		...(keyboardPhrasing && options.keyboardContraryMotion === true ? { keyboardContraryMotionVersion: 1 as const } : {}),
+		...(performanceEnergy && options.drumPhraseCushioning === true ? { drumPhraseCushioningVersion: 1 as const } : {})
+	};
 	const keyboardTexture = options.keyboardTexture === true && accompanimentPiano && ['swing', 'straight'].includes(style.coordinatedStyle!);
 	const keyboardVarietyVersion = options.keyboardVariety === 'developed' ? 2 as const : 1 as const;
 	const chorusBoundaryPriority = options.chorusBoundaryPriority === true && !!params.performanceForm && ['swing', 'straight'].includes(style.coordinatedStyle!);
@@ -222,6 +234,7 @@ export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDef
 		...(keyboardVariety ? [{ keyboardVarietyVersion }] : []),
 		...(keyboardTexture ? [{ keyboardTextureVersion: 1 }] : []),
 		...(keyboardPhrasing ? [{ keyboardPhrasing }] : []),
+		...(Object.keys(releaseEightPolicies).length ? [releaseEightPolicies] : []),
 		...(chorusBoundaryPriority ? [{ chorusBoundaryPriorityVersion: 1 }] : []),
 		...(pianoPresence ? [{ pianoPresenceVersion: accompanimentPiano ? 3 : steadyPiano ? 2 : 1, ...(steadyPiano ? { seed: options.performanceEnergySeed ?? 0 } : {}) }] : []),
 		...(performanceEnergy && options.performanceEnergySeed !== undefined ? [{ performanceEnergyWavesVersion: 1, seed: options.performanceEnergySeed }] : []),
@@ -235,7 +248,7 @@ export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDef
 	const fingerprint = loopCount > 1
 		? `rolling-repeat-v1:${serialized.length}:${seedFrom('score-a', serialized).toString(16)}:${seedFrom('score-b', serialized).toString(16)}`
 		: serialized;
-	return freeze({ version: 1, ...(keyboardPhrasing ? { keyboardPhrasing } : {}), ...(keyboardTexture ? { keyboardTextureVersion: 1 as const } : {}), ...(keyboardVariety ? { keyboardVarietyVersion } : {}), ...(chorusBoundaryPriority ? { chorusBoundaryPriorityVersion: 1 as const } : {}), ...(pianoPresence ? { pianoPresenceVersion: accompanimentPiano ? 3 as const : steadyPiano ? 2 as const : 1 as const } : {}), ...(returningMelodyBars.size ? { returningMelodySpaceVersion: 1 as const } : {}), ...(performanceEnergy && ['swing', 'straight'].includes(style.coordinatedStyle!) ? { bassScalarContinuation: true as const, bassApproachHandoff: true as const } : {}), ...(style.coordinatedStyle !== 'swing' ? { style: style.coordinatedStyle } : {}), sessionId: `rolling:${seedFrom(fingerprint).toString(16)}`, fingerprint,
+	return freeze({ version: 1, ...releaseEightPolicies, ...(keyboardPhrasing ? { keyboardPhrasing } : {}), ...(keyboardTexture ? { keyboardTextureVersion: 1 as const } : {}), ...(keyboardVariety ? { keyboardVarietyVersion } : {}), ...(chorusBoundaryPriority ? { chorusBoundaryPriorityVersion: 1 as const } : {}), ...(pianoPresence ? { pianoPresenceVersion: accompanimentPiano ? 3 as const : steadyPiano ? 2 as const : 1 as const } : {}), ...(returningMelodyBars.size ? { returningMelodySpaceVersion: 1 as const } : {}), ...(performanceEnergy && ['swing', 'straight'].includes(style.coordinatedStyle!) ? { bassScalarContinuation: true as const, bassApproachHandoff: true as const } : {}), ...(style.coordinatedStyle !== 'swing' ? { style: style.coordinatedStyle } : {}), sessionId: `rolling:${seedFrom(fingerprint).toString(16)}`, fingerprint,
 		phraseId: params.phraseId, totalBars, sourceBars, loopCount, loops, ...(terminalArrangement ? { terminalArrangement } : {}), tempo: params.tempo, ppq: params.ppq, beatsPerBar: 4, swing: params.swing,
 		performanceForm: form, harmony: copied, bars,
 		...(timingProfiles ? { timingProfiles: JSON.parse(JSON.stringify(timingProfiles)) } : {}) });
@@ -367,6 +380,7 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 		while (peakEnd < phraseEnd && definition.bars[peakEnd].performanceEnergy?.phase === 'solo_peak') peakEnd++;
 	}
 	const realizeDrums = (pianoResult: typeof piano) => planDrumPhraseBar({
+		...(definition.drumPhraseCushioningVersion ? { phraseCushioning: true as const, compAttacks: pianoResult.events.map(event => ({ beatOffset: event.absBeat - bar * 4, durationBeats: event.duration * definition.tempo / 60, time: event.time, durationSeconds: event.duration })) } : {}),
 		...(nativeBalladReplyEnabled(definition) && checkpoint?.nativeBalladReply?.lastReplyBar === bar - 1 ? { suppressPreviousPianoAnswer: true as const } : {}), style: definition.style, phraseId: definition.phraseId, tempo: definition.tempo, beatsPerBar: 4,
 		barIndex: bar, info: pianoResult.answer ? { ...info, ensemble: { ...ensemble, drums: { ...ensemble.drums, maxCommentaryHits: 0 as const } } } : info, ...(pianoResult.answer ? { compIsDrumReply: true as const } : {}), phraseStartBar: ensemble.phraseStartBar, phraseEndBarExclusive: phraseEnd, harmonyEndBeat: definition.totalBars * 4,
 		...(peakEnd !== undefined ? { peakEndBarExclusive: peakEnd } : {}),
@@ -471,5 +485,6 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 			...(feedback && !terminalAccepted ? { pianoFeedback: [{ ...feedback, acceptedAttacks: piano.events.map(({ time, absBeat, notes }) => ({ time, absBeat, notes: [...notes] })) }] } : {}),
 			...(bass.feelTrace ? { bassFeel: [bass.feelTrace] } : {}),
 			...(bass.continuationTrace?.length ? { bassContinuations: bass.continuationTrace } : {}),
+			...(!terminalAccepted && bass.delayedRootTrace ? { bassDelayedRoots: [bass.delayedRootTrace] } : {}),
 			...(piano.voicingTrace ? { pianoVoicings: piano.voicingTrace } : {}), drumPhrases: [drums.bar] } });
 }

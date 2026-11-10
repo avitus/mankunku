@@ -20,8 +20,8 @@ async function browserModule(path: string): Promise<string> {
 	return source;
 }
 
-for (const style of ['swing', 'straight', 'bossa-nova', 'ballad'] as const) {
-	test(`${style}: full Blues keyboard phrasing remains audible, balanced and releases cleanly`, async ({ page, browserName }) => {
+for (const releaseEight of [false, true]) for (const seed of releaseEight ? [42, 19] : [42]) for (const style of ['swing', 'straight', 'bossa-nova', 'ballad'] as const) {
+	test(`${releaseEight ? '0.8' : '0.7'} seed ${seed} ${style}: full Blues keyboard phrasing remains audible, balanced and releases cleanly`, async ({ page, browserName }) => {
 		test.skip(process.env.MANKUNKU_TEST_SANDBOX !== '1', 'native sample rendering in the local Linux sandbox only');
 		test.setTimeout(240_000);
 		const phrase = buildNativeBluesFixture();
@@ -33,9 +33,10 @@ for (const style of ['swing', 'straight', 'bossa-nova', 'ballad'] as const) {
 				swing: resolveBackingSwing(.67, BACKING_STYLES[style], tempo),
 				sectionMap: phrase.sectionMap, performanceForm: phrase.performanceForm, ensemble: {}
 			}, {
-				returningMelodySpace: true, performanceEnergySeed: 42, pianoPresence: 'accompaniment',
+				returningMelodySpace: true, performanceEnergySeed: seed, pianoPresence: 'accompaniment',
 				keyboardVariety: 'developed', chorusBoundaryPriority: true,
-				keyboardTexture: true, keyboardPhrasing: instrument
+				keyboardTexture: true, keyboardPhrasing: instrument,
+				...(releaseEight ? { bassDelayedRoot: true, keyboardContraryMotion: true, drumPhraseCushioning: true } as const : {})
 			});
 			expect(score.keyboardPhrasing?.instrument).toBe(instrument);
 			let checkpoint: RollingBackingCheckpoint | undefined;
@@ -101,7 +102,7 @@ for (const style of ['swing', 'straight', 'bossa-nova', 'ballad'] as const) {
 			return output;
 		}, { smplr, loader, levels, performances, durationSeconds });
 		const differenceDb = 20 * Math.log10(measurements[1].rms / measurements[0].rms);
-		const report = { browserName, style, tempo, durationSeconds, differenceDb, measurements };
+		const report = { browserName, style, seed, tempo, durationSeconds, differenceDb, measurements };
 		console.log('Full Blues keyboard phrasing levels', JSON.stringify(report));
 		await test.info().attach(`keyboard-phrasing-${style}`, { body: JSON.stringify(report, null, 2), contentType: 'application/json' });
 		for (const measurement of measurements) {

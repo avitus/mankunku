@@ -36,6 +36,7 @@ export function aggregateRollingBacking(snapshot: RollingBackingSnapshot): Gener
 			if (!timing.has(trace.phraseStartBar)) timing.set(trace.phraseStartBar, trace);
 		}
 		result.ensembleTiming = [...timing.values()];
+		const bassDelayedRoots = windows.flatMap((bar) => bar.ensembleDevelopment.bassDelayedRoots ?? []);
 		const bassContinuations = windows.flatMap((bar) => bar.ensembleDevelopment.bassContinuations ?? []);
 		const bassFeel = windows.flatMap((bar) => bar.ensembleDevelopment.bassFeel ?? []);
 		const pianoVoicings = windows.flatMap((bar) => bar.ensembleDevelopment.pianoVoicings ?? []);
@@ -47,6 +48,7 @@ export function aggregateRollingBacking(snapshot: RollingBackingSnapshot): Gener
 		result.ensembleDevelopment = { version: 1,
 			pianoMotifs: windows.flatMap((bar) => bar.ensembleDevelopment.pianoMotifs),
 			bassTurnarounds: windows.flatMap((bar) => bar.ensembleDevelopment.bassTurnarounds),
+			...(bassDelayedRoots.length ? { bassDelayedRoots } : {}),
 			...(bassContinuations.length ? { bassContinuations } : {}),
 			...(bassFeel.length ? { bassFeel } : {}), ...(pianoVoicings.length ? { pianoVoicings } : {}),
 			...(pianoFeedback.length ? { pianoFeedback } : {}), ...(pianoAnswers.length ? { pianoAnswers } : {}),

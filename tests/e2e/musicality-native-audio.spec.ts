@@ -121,6 +121,18 @@ for (const keyboard of ['piano', 'organ'] as const) test(`Swing full tune produc
  expect(take.playback.elapsedBeats).toBe(208);
  expect(take.playback.provenance.committedBars).toBe(52);
  const generated = take.playback.generated as GeneratedBacking;
+ const delayedRoots = generated.ensembleDevelopment!.bassDelayedRoots!;
+ expect(delayedRoots.length).toBeGreaterThan(0);
+ await page.getByTestId('listening-review').fill(String(delayedRoots[0].barIndex));
+ await expect(page.getByTestId('musician-bass')).toContainText('Let the root arrive later');
+ const cushions = generated.ensembleDevelopment!.drumPhrases.filter(phrase => phrase.cushioning);
+ expect(cushions.length).toBeGreaterThan(0);
+ await page.getByTestId('listening-review').fill(String(cushions[0].barIndex));
+ await expect(page.getByTestId('musician-drums')).toContainText('Ease around the resolution');
+ const contrary = generated.ensembleDevelopment!.pianoVoicings!.find(voicing => ['changed','retained'].includes(voicing.decision.keyboardContraryMotion?.status ?? ''));
+ expect(contrary).toBeTruthy();
+ await page.getByTestId('listening-review').fill(String(Math.floor(contrary!.absBeat / 4)));
+ await expect(page.getByTestId('musician-piano')).toContainText('Contrary inner voice');
  const connected = generated.ensembleDevelopment!.pianoVoicings!.filter(voicing => voicing.decision.keyboardLine?.status === 'connected');
  expect(connected.length).toBeGreaterThan(0);
  const articulated = generated.ensembleDevelopment!.pianoVoicings!.filter(voicing => voicing.decision.keyboardArticulation);
