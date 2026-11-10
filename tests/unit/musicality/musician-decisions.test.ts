@@ -1092,3 +1092,34 @@ describe('developed keyboard phrase evidence', () => {
   expect(result.evidence).not.toContain('Answering cell: late answer');
  });
 });
+
+
+describe('actual keyboard voicing texture evidence', () => {
+ function fixture() {
+  const notes = [51, 57, 60, 67];
+  return { bassEvents: [], drumEvents: [], compEvents: [{ time: '0i', absBeat: 0, notes, duration: .5, velocity: 70 }],
+   ensembleDevelopment: { version: 1, bassTurnarounds: [], pianoMotifs: [], drumPhrases: [], pianoVoicings: [{
+    time: '0i', absBeat: 0, notes: [...notes], decision: { requestedFamily: 'rootless-a', resolvedFamily: 'rootless-a',
+     commonTones: [], guideMotion: 0, correction: 'none', keyboardTexture: { profile: 'open', source: 'phrase', phraseStartBar: 0 },
+     spacing: { request: 'open', applied: 'open', reason: 'applied', spanSemitones: 16 },
+     rootlessTexture: { request: 'full', applied: 'full', eligible: true, noteCount: 4 }
+    }
+   }] }
+  };
+ }
+ const card = (generated: ReturnType<typeof fixture>) => describeMusicianDecisions(generated as unknown as GeneratedBacking, context)[1];
+ it('shows actual wide voicing texture in the visible detail and evidence', () => {
+  const result = card(fixture());
+  expect(result.detail).toContain('Open four-note voicing');
+  expect(result.evidence).toContain('Chord 1 spacing: open · 16 semitones');
+ });
+ it.each(['missing-events', 'mismatched-notes', 'wrong-span', 'fallback'])('does not claim an applied open texture for %s', change => {
+  const generated = fixture();
+  if (change === 'missing-events') generated.compEvents = [];
+  if (change === 'mismatched-notes') generated.ensembleDevelopment.pianoVoicings[0].notes[0]++;
+  if (change === 'wrong-span') generated.ensembleDevelopment.pianoVoicings[0].decision.spacing.spanSemitones = 17;
+  if (change === 'fallback') generated.ensembleDevelopment.pianoVoicings[0].decision.spacing.applied = 'unchanged';
+  expect(card(generated).detail).not.toContain('Open four-note voicing');
+  expect(card(generated).evidence).not.toContain('Chord 1 spacing: open · 16 semitones');
+ });
+});

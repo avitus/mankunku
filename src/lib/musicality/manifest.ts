@@ -511,9 +511,17 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 		remaining: 'Other families and qualities retain their existing shapes. Default studio takes contain no solo observations. Broader sparse comping, solo-register avoidance and human full-tune listening acceptance remain pending.',
 		scope: 'Explicit-form Coordinated 4/4 in all four styles with qualified dense evidence; fixed and causal rolling generation. Original, metadata-free and no-observation events remain unchanged.',
 		evidence: [...entry.evidence, ...rootlessTextureEvidence, { ...test('coordinated-dense-texture'), revision: 'musicality' }, { ...test('backing-dense-piano-support-integration'), revision: 'musicality' }] };
+	if (entry.id === 'P21' || entry.id === 'P22') return { ...entry, status: 'partial',
+		assessment: entry.id === 'P21'
+			? 'Musicality 0.6.0 adds phrase-level open rootless voicings, with at least a fourteen-semitone span, alongside lighter and compact support. Answering rhythms can change the texture. Actual notes and spacing are shown in the musician view.'
+			: 'Musicality 0.6.0 adds compact rootless voicings within an octave, contrasted with open shapes and light three-note support across phrases. The selected spacing admits candidates before the existing voice-leading ranking.',
+		remaining: 'Limited to eligible maj7/min7/7 rootless A/B in explicit Coordinated Swing/Straight listening takes. Existing density and response constraints retain priority; an excessive guide-tone detour keeps ordinary spacing. Other families, native style development, solo-register avoidance and human listening acceptance remain pending.',
+		scope: 'New listening texture policy only; historical and Original event generation remain unchanged. Piano and organ share generated voicings.',
+		evidence: [...entry.evidence, ...causalVoicingEvidence, { ...source('backing-keyboard-texture'), revision: 'musicality' }, { ...test('backing-keyboard-texture'), revision: 'musicality' }]
+	};
 	if (entry.id === 'P20') return { ...entry, status: 'partial',
 		assessment: 'Selected rootless A/B chords use third, seventh and ninth (or thirteenth for dominant B) as three-note support. Explicit heads/releases/endings request support; qualified non-dense active-solo evidence overrides fuller development. P19 covers the two-note request under qualified dense activity.',
-		remaining: 'Altered, diminished, suspended and sixth chords retain their existing vocabulary. Broader structural texture development and human listening acceptance remain pending.',
+		remaining: 'Altered, diminished, suspended and sixth chords retain their existing vocabulary. The 0.6.0 listening policy adds phrase-level light/compact/open rootless texture contrast. Broader harmonic language, native-style development and human listening acceptance remain pending.',
 		scope: 'Explicit-form Coordinated 4/4 in all four styles, restricted to maj7/min7/7 and selected rootless A/B. Original and metadata-free generation remain unchanged.',
 		evidence: [...entry.evidence, ...rootlessTextureEvidence] };
 	if (entry.id === 'S35') return { ...entry, status: 'partial',

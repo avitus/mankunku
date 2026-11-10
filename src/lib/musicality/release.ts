@@ -8,8 +8,8 @@ export interface MusicalityRelease {
 
 /** Current listening candidate. Automated checks are not human acceptance. */
 export const CURRENT_MUSICALITY_RELEASE: Readonly<MusicalityRelease> = Object.freeze({
- version: '0.5.0',
- engineRevision: '05ae3c8745b3f41e86063cb9a54c83d6cef47115',
+ version: '0.6.0',
+ engineRevision: 'ead40331ebc76ffcda7d7355ab23ca98f9c01e41',
  status: 'listening-preview'
 });
 

@@ -208,7 +208,7 @@ it('does not apply a temporary mix while preparation is cancellable, and restore
 it('forwards the captured energy seed only into coordinated rolling generation', async () => {
  const rolling = await import('$lib/audio/backing-rolling'); const create = vi.spyOn(rolling, 'createRollingBacking');
  const take = player(); await take.start({ ...input(), performanceEnergySeed: 42 });
- expect(create.mock.calls.at(-1)?.[3]).toMatchObject({ performanceEnergySeed: 42, returningMelodySpace: true, pianoPresence: 'accompaniment', keyboardVariety: 'developed', chorusBoundaryPriority: true });
+ expect(create.mock.calls.at(-1)?.[3]).toMatchObject({ performanceEnergySeed: 42, returningMelodySpace: true, pianoPresence: 'accompaniment', keyboardVariety: 'developed', chorusBoundaryPriority: true, keyboardTexture: true });
  expect(take.snapshot().params!.performanceEnergySeed).toBe(42);
  take.stop(); create.mockClear(); await take.start({ ...input('original'), performanceEnergySeed: 42 });
  expect(create).not.toHaveBeenCalled();

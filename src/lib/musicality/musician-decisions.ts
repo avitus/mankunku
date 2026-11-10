@@ -182,6 +182,7 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 		if (turnaround.targetMidi !== null) bassCard.evidence.push(`Arrival target: ${noteName(turnaround.targetMidi)}`);
 	} else if (turnaround) bassCard.evidence.push(`Turnaround omitted: ${plain(turnaround.reason)}`);
 	const motif = development?.pianoMotifs.find((m) => m.barIndex === barIndex);
+	const keyboardTextures: string[] = [];
 	const pianoCard: MusicianDecisionCard = {
 		instrument: 'piano', title: 'Piano', role: role('piano'), eventCount: piano.length,
 		action: piano.length ? 'Support the harmony' : 'No new chord attack',
@@ -262,6 +263,19 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 		if (!voiced) continue;
 		const decision = voiced.decision;
 		pianoCard.evidence.push(`Chord ${index + 1} voicing: ${plain(decision.resolvedFamily)}`);
+		const spacing = decision.spacing;
+		const keyboardTexture = decision.keyboardTexture;
+		const span = Math.max(...event.notes) - Math.min(...event.notes);
+		if (walking && keyboardTexture && spacing && spacing.spanSemitones === span &&
+			['rootless-a', 'rootless-b'].includes(decision.resolvedFamily) && [3, 4].includes(event.notes.length)) {
+			if (spacing.reason === 'applied' && (spacing.applied === 'compact' && span <= 12 || spacing.applied === 'open' && span >= 14)) {
+				pianoCard.evidence.push(`Chord ${index + 1} spacing: ${spacing.applied} · ${span} semitones`);
+				const texture = keyboardTexture.profile === 'light' && event.notes.length === 3 ? 'Light' : spacing.applied === 'open' ? 'Open' : 'Compact';
+				keyboardTextures.push(`${texture} ${event.notes.length === 3 ? 'three' : 'four'}-note voicing`);
+			} else if (spacing.applied === 'unchanged') {
+				pianoCard.evidence.push(`Requested ${spacing.request} spacing; kept the available voice-led shape`);
+			}
+		}
 		if (walking && voiced.arrivalId) {
 			// Bind the explanation to the actual score position and target bar's
 			// admission, including historical exported event positions.
@@ -446,5 +460,6 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 			}
 		}
 	}
+	if (keyboardTextures.length) pianoCard.detail += ` ${[...new Set(keyboardTextures)].join(', then ')}.`;
 	return [bassCard, pianoCard, drumCard];
 }
