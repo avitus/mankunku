@@ -1,3 +1,4 @@
+import type { KeyboardLineRequest } from './backing-keyboard-line';
 import type { PitchClass, ChordQuality } from '$lib/types/music';
 import { CHORD_DEFINITIONS } from '$lib/music/chords';
 import { PITCH_CLASSES } from '$lib/types/music';
@@ -10,6 +11,13 @@ export interface CoordinatedVoicingMemory {
 	readonly notes: readonly number[];
 }
 export interface CoordinatedVoicingDecision {
+	readonly keyboardArticulation?: { readonly instrument: 'piano' | 'organ'; readonly profile: string; readonly durationBeats: number; readonly durationSeconds: number; readonly originalDurationBeats: number };
+	readonly keyboardLine?: {
+		readonly status: 'connected' | 'retained' | 'bounded_fallback' | 'family_ineligible';
+		readonly contour: KeyboardLineRequest['contour']; readonly targetMidi: number; readonly anchorMidi: number;
+		readonly actualMidi: number; readonly ordinaryMidi: number; readonly distance: number; readonly ordinaryDistance: number;
+		readonly guideDetour: number; readonly movementDetour: number; readonly maxTopLeap: number;
+	};
 	readonly requestedFamily: CoordinatedVoicingFamily;
 	readonly resolvedFamily: CoordinatedVoicingFamily;
 	readonly correction: 'none' | 'defining_tones' | 'family_unavailable';
@@ -106,7 +114,8 @@ function placements(pcs: readonly number[], family: CoordinatedVoicingFamily): n
  * returned memory only after emitting this chord; unplayed harmony is not input.
  * Ranking is defining-tone movement, exact common notes, total movement, optional
  * top-note target distance, then register distance. Quartal shapes keep their
- * native fourth-stack identity.
+ * native fourth-stack identity. The optional keyboard line can improve the upper
+ * connection before those tie-breaks, within its bounded movement detour.
  */
 export function resolveCoordinatedVoicing(input: {
 	chord: { root: PitchClass; quality: ChordQuality };
@@ -115,6 +124,8 @@ export function resolveCoordinatedVoicing(input: {
 	targetTopMidi?: number;
 	/** Optional admission of a compact or open rootless placement before ordinary voice-leading ranking. */
 	spacing?: 'compact' | 'open';
+	/** A melodic preference admitted only within the current spacing and explicit motion bounds. */
+	keyboardLine?: KeyboardLineRequest;
 }): { notes: readonly number[]; memory: CoordinatedVoicingMemory; decision: CoordinatedVoicingDecision } {
 	if (!validChord(input.chord) || !Object.hasOwn(builders, input.family) || !Number.isFinite(input.registerMidi) || input.registerMidi < 0 || input.registerMidi > 127 ||
 		(input.spacing !== undefined && !['compact', 'open'].includes(input.spacing)) ||
@@ -125,6 +136,9 @@ export function resolveCoordinatedVoicing(input: {
 		previous.notes.some((note, index) => !Number.isInteger(note) || note < 0 || note > 127 || (index > 0 && previous.notes[index - 1] >= note)))) {
 		throw new Error('Invalid coordinated voicing memory');
 	}
+	const line = input.keyboardLine;
+	if (line && (!previous || line.anchorMidi !== previous.notes.at(-1) || !Number.isInteger(line.targetMidi) || line.targetMidi < 48 || line.targetMidi > 84 ||
+		line.maxGuideDetour !== 2 || line.maxMovementDetour !== 4 || ![3,4,5].includes(line.maxTopLeap))) throw new Error('Invalid keyboard line request');
 	const chord = { root: input.chord.root, quality: input.chord.quality };
 	const root = PITCH_CLASSES.indexOf(chord.root);
 	const [third, other] = definingIntervals(chord);
@@ -189,12 +203,38 @@ export function resolveCoordinatedVoicing(input: {
 	const topDistance = (notes: readonly number[]) => input.targetTopMidi !== undefined && contourEligible ? Math.abs(notes.at(-1)! - input.targetTopMidi) : 0;
 	ranked.sort((a, b) => (a.guideMotion ?? 0) - (b.guideMotion ?? 0) || b.commonTones.length - a.commonTones.length ||
 		a.totalMovement - b.totalMovement || topDistance(a.notes) - topDistance(b.notes) || a.registerDistance - b.registerDistance || a.notes.reduce((difference, note, index) => difference || note - b.notes[index], 0));
-	const selected = ranked[0];
+	const ordinary = ranked[0];
+	let selected = ordinary;
+	let lineStatus: NonNullable<CoordinatedVoicingDecision['keyboardLine']>['status'] = 'family_ineligible';
+	if (line && contourEligible) {
+		const distance = (notes: readonly number[]) => Math.abs(notes.at(-1)! - line.targetMidi);
+		const ordinaryDistance = distance(ordinary.notes);
+		// Spacing admission has already happened. A line may trade a small
+		// amount of inner movement for a better upper connection, never select
+		// an excluded spacing, change chord tones, or force an octave leap.
+		const bounded = ranked.filter(candidate =>
+			(candidate.guideMotion ?? 0) <= (ordinary.guideMotion ?? 0) + line.maxGuideDetour &&
+			candidate.totalMovement <= ordinary.totalMovement + line.maxMovementDetour &&
+			Math.abs(candidate.notes.at(-1)! - line.anchorMidi) <= line.maxTopLeap);
+		// ranked is already in historical preference order; stable sorting
+		// only puts the bounded melodic objective ahead of that ordering.
+		bounded.sort((a,b) => distance(a.notes)-distance(b.notes));
+		if (bounded.length && distance(bounded[0].notes) < ordinaryDistance) {
+			selected = bounded[0]; lineStatus = 'connected';
+		} else lineStatus = ordinaryDistance === 0 ? 'retained' : 'bounded_fallback';
+	}
+
 	const notes = Object.freeze([...selected.notes]);
 	const memory = Object.freeze({ version: 1 as const, chord: Object.freeze(chord), notes });
 	const decision = Object.freeze({ requestedFamily: input.family, resolvedFamily: family, correction,
 		guideMotion: selected.guideMotion, commonTones: Object.freeze([...selected.commonTones]), totalMovement: selected.totalMovement,
 		registerDistance: selected.registerDistance, candidateCount: ranked.length,
+		...(line ? { keyboardLine: Object.freeze({ status: lineStatus, contour: line.contour, targetMidi: line.targetMidi,
+			anchorMidi: line.anchorMidi, actualMidi: notes.at(-1)!, ordinaryMidi: ordinary.notes.at(-1)!,
+			distance: Math.abs(notes.at(-1)! - line.targetMidi), ordinaryDistance: Math.abs(ordinary.notes.at(-1)! - line.targetMidi),
+			guideDetour: (selected.guideMotion ?? 0) - (ordinary.guideMotion ?? 0), movementDetour: selected.totalMovement - ordinary.totalMovement,
+			maxTopLeap: line.maxTopLeap }) } : {}),
+
 		...(input.spacing ? { spacing: Object.freeze({ request: input.spacing, applied: spacingApplied, reason: spacingReason, spanSemitones: notes.at(-1)! - notes[0] }) } : {}),
 		...(input.targetTopMidi !== undefined ? { topLine: Object.freeze({ targetMidi: input.targetTopMidi, actualMidi: notes.at(-1)!,
 			distance: Math.abs(notes.at(-1)! - input.targetTopMidi), eligible: contourEligible }) } : {}),

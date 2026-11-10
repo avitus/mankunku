@@ -13,7 +13,9 @@ import { CHORD_DEFINITIONS } from '$lib/music/chords';
 import { rootlessVoicingA, rootlessVoicingB, shellVoicing, drop2Voicing, quartalVoicing, guideToneVoicing, voiceLead, type VoicingFn } from './voicings';
 import { preparePianoContour, commitPianoContour, type PianoContourMemory } from './backing-piano-contour';
 import { proposePianoAnswer, type PianoAnswerMemory } from './backing-piano-answer';
-import { planKeyboardTexture } from './backing-keyboard-texture';
+import { planKeyboardLine } from './backing-keyboard-line';
+import { articulateKeyboardHit } from './backing-keyboard-articulation';
+import { planKeyboardTexture, planNativeKeyboardTexture } from './backing-keyboard-texture';
 import { selectCoordinatedVoicingFamily } from './coordinated-voicing-family';
 import { resolveCoordinatedVoicing, type CoordinatedVoicingMemory } from './coordinated-voicing';
 import type { SoloEvidence } from './ensemble-plan';
@@ -226,6 +228,9 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 		return voicingRng.weighted(options);
 	};
 	const prepare = (hit: CompHitSpec) => {
+		const protectedGesture = backgroundHarmony || !!arrival || !!proposal || nativeLatePad || ensemble.responseOwner !== 'nobody' ||
+			ensemble.coordinatedAccent || ['active_soloist', 'dense_soloist', 'under_response'].includes(ensemble.piano.rootlessTexture?.reason ?? '');
+		const phrasing = score.keyboardPhrasing && !protectedGesture ? score.keyboardPhrasing : undefined;
 		const absBeat = bar * 4 + hit.beatOffset;
 		const lookup = Math.min(score.totalBars * 4 - 0.001, absBeat + (hit.beatOffset % 1 ? 0.5 : 0));
 		const index = score.harmony.findIndex((segment) => lookup >= fractionToFloat(segment.startOffset) * 4 && lookup < fractionToFloat(segment.startOffset) * 4 + fractionToFloat(segment.duration) * 4);
@@ -234,23 +239,40 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 		const tick = Math.max(bar * 4 * score.ppq, arrival ? timing.arrivalTick(bar) : timing.place(absBeat, 'comp'));
 		// The style's articulation jitter and swing happen after the written
 		// contrast. Bound the new phrase's release against its next actual tick.
-		const nextHit = development ? realized.find(candidate => candidate.beatOffset > hit.beatOffset) : undefined;
-		const releaseLimit = nextHit ? Math.min(barEnd, timing.place(bar * 4 + nextHit.beatOffset, 'comp')) : barEnd;
-		const duration = Math.min(hit.durationBeats * 60 / score.tempo, (releaseLimit - tick) * 60 / score.tempo / score.ppq);
+		const nextHit = development || phrasing ? realized.find(candidate => candidate.beatOffset > hit.beatOffset) : undefined;
+		const nextLimit = nextHit ? Math.min(barEnd, timing.place(bar * 4 + nextHit.beatOffset, 'comp')) : barEnd;
+		const segment = score.harmony[index];
+		const harmonyEnd = (fractionToFloat(segment.startOffset) + fractionToFloat(segment.duration)) * 4 * score.ppq;
+		const releaseLimit = phrasing ? Math.min(nextLimit, harmonyEnd) : nextLimit;
+		const availableBeats = (releaseLimit - tick) / score.ppq;
+		const articulation = phrasing && availableBeats > 0 ? articulateKeyboardHit({ style: score.style ?? 'swing', instrument: phrasing.instrument,
+			durationBeats: hit.durationBeats, velocity: hit.velocity, availableBeats }) : undefined;
+		const duration = articulation ? articulation.durationBeats * 60 / score.tempo
+			: Math.min(hit.durationBeats * 60 / score.tempo, (releaseLimit - tick) * 60 / score.tempo / score.ppq);
 		if (!Number.isFinite(tick) || tick >= barEnd || !Number.isFinite(duration) || duration <= 0 || absBeat >= score.totalBars * 4) return;
 		const contour = contourEnabled ? preparePianoContour(contourContext!, contourMemory) : undefined;
 		const family = backgroundHarmony || guideTones ? 'guide' : selectCoordinatedVoicingFamily({ chord, phraseId: score.phraseId, tempo: score.tempo, segmentIndex: index, intensity: info.intensity, voicingBias: style.voicingBias });
-		const texture = score.keyboardTextureVersion === 1 && !backgroundHarmony && !guideTones && !arrival && !proposal &&
+		const textureInput: Parameters<typeof planKeyboardTexture>[0] = { quality: chord.quality, family, phraseId: score.phraseId, tempo: score.tempo,
+			phraseStartBar: phraseStart, seed: score.bars[phraseStart].pianoPresenceSeed ?? 0, answering: transform === 'answer',
+			allowedTexture: ensemble.piano.rootlessTexture?.request ?? 'full' as const };
+		const nativeTexture = phrasing && (score.style === 'bossa-nova' || score.style === 'ballad') && !guideTones
+			? planNativeKeyboardTexture({ ...textureInput, style: score.style, barIndex: bar }) : undefined;
+		const texture = nativeTexture ?? (score.keyboardTextureVersion === 1 && !backgroundHarmony && !guideTones && !arrival && !proposal &&
 			ensemble.responseOwner === 'nobody' && !ensemble.coordinatedAccent &&
 			!['active_soloist', 'dense_soloist', 'under_response'].includes(ensemble.piano.rootlessTexture?.reason ?? '')
 			? planKeyboardTexture({ quality: chord.quality, family, phraseId: score.phraseId, tempo: score.tempo,
 				phraseStartBar: phraseStart, seed: score.bars[phraseStart].pianoPresenceSeed ?? 0, answering: transform === 'answer',
-				allowedTexture: ensemble.piano.rootlessTexture?.request ?? 'full' }) : undefined;
+				allowedTexture: ensemble.piano.rootlessTexture?.request ?? 'full' }) : undefined);
+		const keyboardLine = phrasing && !guideTones ? planKeyboardLine({ style: score.style ?? 'swing', phraseId: score.phraseId, tempo: score.tempo,
+			seed: score.bars[phraseStart].pianoPresenceSeed ?? 0, barIndex: bar, phraseStartBar: phraseStart,
+			phase: ensemble.performanceEnergy!.phase, attackIndex: events.length, previous: voicingMemory }) : undefined;
 		const resolved = resolveCoordinatedVoicing({ chord, family: texture?.family ?? family,
 			registerMidi: guideTones ? 62 : Math.round(58 + 8 * info.intensity), previous: voicingMemory,
 			rootlessTexture: texture?.rootlessTexture ?? ensemble.piano.rootlessTexture?.request,
-			...(texture ? { spacing: texture.spacing } : {}), ...(contour ? { targetTopMidi: contour.targetMidi } : {}) });
-		const selected = texture ? { ...resolved, decision: Object.freeze({ ...resolved.decision, keyboardTexture: texture.trace }) } : resolved;
+			...(keyboardLine ? { keyboardLine } : {}), ...(texture ? { spacing: texture.spacing } : {}), ...(contour ? { targetTopMidi: contour.targetMidi } : {}) });
+		const selected = texture || articulation ? { ...resolved, decision: Object.freeze({ ...resolved.decision,
+			...(texture ? { keyboardTexture: texture.trace } : {}), ...(articulation ? { keyboardArticulation: Object.freeze({ instrument: phrasing!.instrument,
+				profile: articulation.profile, durationSeconds: duration, durationBeats: duration * score.tempo / 60, originalDurationBeats: hit.durationBeats }) } : {}) }) } : resolved;
 		if (!selected.notes.length) return;
 		return { index, selected, contour, event: { absBeat, time: `${tick}i`, notes: [...selected.notes], duration, velocity: hit.velocity } };
 	};

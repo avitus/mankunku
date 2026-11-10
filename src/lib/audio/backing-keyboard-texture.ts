@@ -21,3 +21,24 @@ export function planKeyboardTexture(input: {
   spacing: profile === 'open' ? 'open' : 'compact',
   trace: Object.freeze({ profile, phraseStartBar: input.phraseStartBar, source: input.answering ? 'answer' : 'phrase' }) };
 }
+
+/** Native 0.7 colors retain their own rhythmic grammar and more original families. */
+export function planNativeKeyboardTexture(input: Parameters<typeof planKeyboardTexture>[0] & {
+ readonly style: 'bossa-nova' | 'ballad'; readonly barIndex: number;
+}): ReturnType<typeof planKeyboardTexture> {
+ const rng = createRng(seedFrom(input.phraseId, input.tempo, 'native-keyboard-texture-v1', input.phraseStartBar, input.seed));
+ // Ballad preserves its native drop-2/quartal palette in most phrases.
+ if (rng.chance(input.style === 'ballad' ? .6 : .25)) return;
+ const texture = planKeyboardTexture({ ...input, answering: false });
+ if (!texture) return;
+ if (input.style === 'bossa-nova') {
+  // A small compact chord supports the native clave; never import a Swing cell.
+  const profile = texture.trace.profile === 'light' ? 'light' as const : 'compact' as const;
+  return { ...texture, spacing: 'compact', trace: { ...texture.trace, profile } };
+ }
+ // Ballad texture can change at half-phrase pace; the native sustained attacks stay put.
+ const opening = input.barIndex - input.phraseStartBar < 2;
+ const profile = opening ? 'compact' as const : texture.trace.profile;
+ return { ...texture, spacing: profile === 'open' ? 'open' : 'compact',
+  trace: { ...texture.trace, profile } };
+}
