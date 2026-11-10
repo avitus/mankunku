@@ -49,6 +49,8 @@ export interface RollingBackingOptions {
 	readonly bassDelayedRoot?: true;
 	readonly keyboardContraryMotion?: true;
 	readonly drumPhraseCushioning?: true;
+	/** Listening 0.9: complete inner-voice 4–3 cells within existing native attacks. */
+	readonly keyboardSuspensions?: true;
 }
 
 export interface RollingLoopSpan {
@@ -87,6 +89,7 @@ export interface RollingBackingDefinition {
 	readonly bassDelayedRootVersion?: 1;
 	readonly keyboardContraryMotionVersion?: 1;
 	readonly drumPhraseCushioningVersion?: 1;
+	readonly keyboardSuspensionsVersion?: 1;
 	readonly terminalArrangement?: TerminalReservation;
 	readonly loopCount: number;
 	readonly loops: readonly RollingLoopSpan[];
@@ -219,6 +222,7 @@ export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDef
 	const keyboardVariety = (options.keyboardVariety === true || options.keyboardVariety === 'developed') && accompanimentPiano && ['swing', 'straight'].includes(style.coordinatedStyle!);
 	const keyboardPhrasing = accompanimentPiano && (options.keyboardPhrasing === 'piano' || options.keyboardPhrasing === 'organ')
 		? { version: 1 as const, instrument: options.keyboardPhrasing } : undefined;
+	const keyboardSuspensions = keyboardPhrasing && options.keyboardSuspensions === true;
 	const releaseEightPolicies = {
 		...(performanceEnergy && options.bassDelayedRoot === true ? { bassDelayedRootVersion: 1 as const } : {}),
 		...(keyboardPhrasing && options.keyboardContraryMotion === true ? { keyboardContraryMotionVersion: 1 as const } : {}),
@@ -243,6 +247,7 @@ export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDef
 		...(keyboardVariety ? [{ keyboardVarietyVersion }] : []),
 		...(keyboardTexture ? [{ keyboardTextureVersion: 1 }] : []),
 		...(keyboardPhrasing ? [{ keyboardPhrasing }] : []),
+		...(keyboardSuspensions ? [{ keyboardSuspensionsVersion: 1 }] : []),
 		...(Object.keys(releaseEightPolicies).length ? [releaseEightPolicies] : []),
 		...(chorusBoundaryPriority ? [{ chorusBoundaryPriorityVersion: 1 }] : []),
 		...(pianoPresence ? [{ pianoPresenceVersion: accompanimentPiano ? 3 : steadyPiano ? 2 : 1, ...(steadyPiano ? { seed: options.performanceEnergySeed ?? 0 } : {}) }] : []),
@@ -257,7 +262,7 @@ export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDef
 	const fingerprint = loopCount > 1
 		? `rolling-repeat-v1:${serialized.length}:${seedFrom('score-a', serialized).toString(16)}:${seedFrom('score-b', serialized).toString(16)}`
 		: serialized;
-	const definition: RollingBackingDefinition = freeze({ version: 1, ...releaseEightPolicies, ...(keyboardPhrasing ? { keyboardPhrasing } : {}), ...(keyboardTexture ? { keyboardTextureVersion: 1 as const } : {}), ...(keyboardVariety ? { keyboardVarietyVersion } : {}), ...(chorusBoundaryPriority ? { chorusBoundaryPriorityVersion: 1 as const } : {}), ...(pianoPresence ? { pianoPresenceVersion: accompanimentPiano ? 3 as const : steadyPiano ? 2 as const : 1 as const } : {}), ...(returningMelodyBars.size ? { returningMelodySpaceVersion: 1 as const } : {}), ...(performanceEnergy && ['swing', 'straight'].includes(style.coordinatedStyle!) ? { bassScalarContinuation: true as const, bassApproachHandoff: true as const } : {}), ...(style.coordinatedStyle !== 'swing' ? { style: style.coordinatedStyle } : {}), sessionId: `rolling:${seedFrom(fingerprint).toString(16)}`, fingerprint,
+	const definition: RollingBackingDefinition = freeze({ version: 1, ...(keyboardSuspensions ? { keyboardSuspensionsVersion: 1 as const } : {}), ...releaseEightPolicies, ...(keyboardPhrasing ? { keyboardPhrasing } : {}), ...(keyboardTexture ? { keyboardTextureVersion: 1 as const } : {}), ...(keyboardVariety ? { keyboardVarietyVersion } : {}), ...(chorusBoundaryPriority ? { chorusBoundaryPriorityVersion: 1 as const } : {}), ...(pianoPresence ? { pianoPresenceVersion: accompanimentPiano ? 3 as const : steadyPiano ? 2 as const : 1 as const } : {}), ...(returningMelodyBars.size ? { returningMelodySpaceVersion: 1 as const } : {}), ...(performanceEnergy && ['swing', 'straight'].includes(style.coordinatedStyle!) ? { bassScalarContinuation: true as const, bassApproachHandoff: true as const } : {}), ...(style.coordinatedStyle !== 'swing' ? { style: style.coordinatedStyle } : {}), sessionId: `rolling:${seedFrom(fingerprint).toString(16)}`, fingerprint,
 		phraseId: params.phraseId, totalBars, sourceBars, loopCount, loops, ...(terminalArrangement ? { terminalArrangement } : {}), tempo: params.tempo, ppq: params.ppq, beatsPerBar: 4, swing: params.swing,
 		performanceForm: form, harmony: copied, bars: prepareEnsembleBars(bars),
 		...(timingProfiles ? { timingProfiles: JSON.parse(JSON.stringify(timingProfiles)) } : {}) });
@@ -335,6 +340,10 @@ function validateCheckpoint(score: RollingBackingDefinition, checkpoint: Rolling
 		typeof scalar.pulse.time !== 'string' || !/^\d+i$/.test(scalar.pulse.time) || parseInt(scalar.pulse.time) < (checkpoint.nextBar - 1) * 4 * score.ppq ||
 		parseInt(scalar.pulse.time) >= checkpoint.nextBar * 4 * score.ppq || scalar.pulse.midi !== checkpoint.bass.previousMidi)) invalid();
 	const voicing = checkpoint.piano.voicing;
+	const lastSuspensionBar = checkpoint.piano.lastSuspensionBar;
+	if (lastSuspensionBar !== undefined && (score.keyboardSuspensionsVersion !== 1 || !Number.isSafeInteger(lastSuspensionBar) ||
+		lastSuspensionBar < 0 || lastSuspensionBar >= checkpoint.nextBar ||
+		!['solo_build', 'solo_peak', 'solo_release'].includes(score.bars[lastSuspensionBar].performanceEnergy?.phase ?? ''))) invalid();
 	const coordinatedVoicing = score.bars[0]?.performanceEnergy !== undefined;
 	if (coordinatedVoicing) validateDrumPianoFeedback(checkpoint.feedback!, checkpoint.nextBar, score.ppq);
 	else if (checkpoint.feedback !== undefined) invalid();
@@ -383,9 +392,9 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 	const pianoInfo = feedback?.action === 'yield'
 		? { ...info, ensemble: { ...ensemble, piano: { ...ensemble.piano, maxAttacks: feedback.effectiveMaxAttacks, ...(ensemble.piano.harmonicSupport ? { harmonicSupport: 'under_drums' as const, rootlessTexture: { request: 'two' as const, reason: 'under_response' as const } } : {}) } } } : info;
 	const answerPolicy = !!feedback && (!definition.style || definition.style === 'swing' || definition.style === 'straight');
-	let piano = realizeRollingPiano(definition, bar, pianoInfo, timing, checkpoint?.piano,
-		answerPolicy ? { feedback: feedback!, previous: checkpoint?.pianoAnswer } : undefined, window.plan.trace[0].soloEvidence);
 	let bass = realizeRollingBass(definition, bar, info, timing, checkpoint?.bass, preparedBassScores.get(definition));
+	let piano = realizeRollingPiano(definition, bar, pianoInfo, timing, checkpoint?.piano,
+		answerPolicy ? { feedback: feedback!, previous: checkpoint?.pianoAnswer } : undefined, window.plan.trace[0].soloEvidence, bass.events);
 	const startTick = bar * 4 * definition.ppq;
 	const endTick = (bar + 1) * 4 * definition.ppq;
 	let peakEnd: number | undefined;
@@ -465,6 +474,7 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 				memory: { recentFigures: [...(checkpoint?.piano.recentFigures ?? []), 'terminal-arrangement'].slice(-3), motif: null,
 					segmentIndex: definition.harmony.length - 1, segmentVoicing: [...accepted.piano.notes], lastVoicing: [...accepted.piano.notes],
 					voicing: candidate.voicing, ...(candidate.contour ? { contour: candidate.contour } : {}),
+					...(checkpoint?.piano.lastSuspensionBar !== undefined ? { lastSuspensionBar: checkpoint.piano.lastSuspensionBar } : {}),
 					...(pianoPhraseRecallEnabled(definition) ? { phraseRecall: { version: 1 as const, source: null, recalledAt: null } } : {}) } };
 			const previousMidi = checkpoint?.bass.previousMidi ?? null;
 			bass = { events: [{ ...accepted.bass }], trace: [], memory: {

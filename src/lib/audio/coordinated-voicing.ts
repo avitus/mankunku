@@ -11,6 +11,11 @@ export interface CoordinatedVoicingMemory {
 	readonly notes: readonly number[];
 }
 export interface CoordinatedVoicingDecision {
+	readonly keyboardSuspension?: {
+		readonly phase: 'suspension' | 'resolution';
+		readonly fromMidi: number; readonly toMidi: number;
+		readonly suspensionAbsBeat: number; readonly resolutionAbsBeat: number;
+	};
 	readonly keyboardContraryMotion?: {
 		readonly status: 'changed' | 'retained' | 'unavailable' | 'family_ineligible';
 		readonly previousNotes: readonly number[]; readonly ordinaryNotes: readonly number[]; readonly actualNotes: readonly number[];
@@ -86,6 +91,15 @@ function totalMovement(from: readonly number[], to: readonly number[]): number {
 			costs[a - 1][b - 1] + Math.abs(from[a - 1] - to[b - 1]), costs[a - 1][b] + 12, costs[a][b - 1] + 12);
 	}
 	return costs[from.length][to.length];
+}
+
+/** Reassess an authored complete cell against what it actually sounds. */
+export function describeCoordinatedPlacement(chord: Chord, notes: readonly number[], family: CoordinatedVoicingFamily,
+	registerMidi: number, previous?: CoordinatedVoicingMemory) {
+	return { guideMotion: guideMovement(previous, chord, notes, family),
+		commonTones: Object.freeze(previous ? notes.filter(note => previous.notes.includes(note)) : []),
+		totalMovement: previous ? totalMovement(previous.notes, notes) : 0,
+		registerDistance: Math.abs(mean(notes) - Math.max(48, Math.min(84, registerMidi))) };
 }
 function uniqueCandidates(candidates: number[][], maxSpan: number): number[][] {
 	const seen = new Set<string>();

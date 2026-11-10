@@ -277,6 +277,23 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 		if (!voiced) continue;
 		const decision = voiced.decision;
 		pianoCard.evidence.push(`Chord ${index + 1} voicing: ${plain(decision.resolvedFamily)}`);
+		const suspension = decision.keyboardSuspension;
+		if (suspension?.phase === 'suspension' && suspension.suspensionAbsBeat === event.absBeat &&
+			suspension.fromMidi === suspension.toMidi + 1 && event.notes.includes(suspension.fromMidi) &&
+			!event.notes.includes(suspension.toMidi) && event.notes.at(-1) !== suspension.fromMidi &&
+			Math.floor(suspension.resolutionAbsBeat / beatsPerBar) === Math.floor(event.absBeat / beatsPerBar)) {
+			const resolution = generated.compEvents.find(next => next.absBeat === suspension.resolutionAbsBeat &&
+				parseInt(next.time) > parseInt(event.time) && next.notes.length === event.notes.length &&
+				event.notes.every((note, i) => next.notes[i] === (note === suspension.fromMidi ? suspension.toMidi : note)));
+			const receipt = resolution && development?.pianoVoicings?.find(next => next.time === resolution.time &&
+				next.absBeat === resolution.absBeat && next.notes.length === resolution.notes.length &&
+				next.notes.every((note, i) => note === resolution.notes[i]))?.decision.keyboardSuspension;
+			if (receipt?.phase === 'resolution' && receipt.suspensionAbsBeat === suspension.suspensionAbsBeat &&
+				receipt.resolutionAbsBeat === suspension.resolutionAbsBeat && receipt.fromMidi === suspension.fromMidi && receipt.toMidi === suspension.toMidi) {
+				pianoCard.evidence.push(`Suspension ${noteName(suspension.fromMidi)} → ${noteName(suspension.toMidi)} · fourth resolves to third on the next chord attack`);
+				keyboardTextures.push('Suspension → resolution');
+			}
+		}
 		const connection = decision.keyboardLine;
 		if (connection && connection.actualMidi === Math.max(...event.notes) &&
 			connection.distance === Math.abs(connection.actualMidi - connection.targetMidi) &&

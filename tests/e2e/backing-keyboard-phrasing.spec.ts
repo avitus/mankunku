@@ -20,8 +20,9 @@ async function browserModule(path: string): Promise<string> {
 	return source;
 }
 
-for (const releaseEight of [false, true]) for (const seed of releaseEight ? [42, 19] : [42]) for (const style of ['swing', 'straight', 'bossa-nova', 'ballad'] as const) {
-	test(`${releaseEight ? '0.8' : '0.7'} seed ${seed} ${style}: full Blues keyboard phrasing remains audible, balanced and releases cleanly`, async ({ page, browserName }) => {
+for (const release of ['0.7', '0.8', '0.9'] as const) for (const seed of release === '0.7' ? [42] : [42, 19]) for (const style of ['swing', 'straight', 'bossa-nova', 'ballad'] as const) {
+	const releaseEight = release !== '0.7';
+	test(`${release} seed ${seed} ${style}: full Blues keyboard phrasing remains audible, balanced and releases cleanly`, async ({ page, browserName }) => {
 		test.skip(process.env.MANKUNKU_TEST_SANDBOX !== '1', 'native sample rendering in the local Linux sandbox only');
 		test.setTimeout(240_000);
 		const phrase = buildNativeBluesFixture();
@@ -36,6 +37,7 @@ for (const releaseEight of [false, true]) for (const seed of releaseEight ? [42,
 				returningMelodySpace: true, performanceEnergySeed: seed, pianoPresence: 'accompaniment',
 				keyboardVariety: 'developed', chorusBoundaryPriority: true,
 				keyboardTexture: true, keyboardPhrasing: instrument,
+				...(release === '0.9' ? { keyboardSuspensions: true } as const : {}),
 				...(releaseEight ? { bassDelayedRoot: true, keyboardContraryMotion: true, drumPhraseCushioning: true } as const : {})
 			});
 			expect(score.keyboardPhrasing?.instrument).toBe(instrument);
@@ -45,6 +47,7 @@ for (const releaseEight of [false, true]) for (const seed of releaseEight ? [42,
 				checkpoint = bar.checkpoint;
 				return bar;
 			});
+			if (release === '0.9' && seed === 42) expect(bars.flatMap(bar => bar.ensembleDevelopment.pianoVoicings ?? []).some(v => v.decision.keyboardSuspension)).toBe(true);
 			const events = bars.flatMap(bar => bar.compEvents).map(event => ({
 				// Actual swung and humanized event ticks, rather than the nominal beat.
 				time: .25 + parseInt(event.time, 10) / ppq * 60 / tempo,

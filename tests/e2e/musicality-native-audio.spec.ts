@@ -121,6 +121,10 @@ for (const keyboard of ['piano', 'organ'] as const) test(`Swing full tune produc
  expect(take.playback.elapsedBeats).toBe(208);
  expect(take.playback.provenance.committedBars).toBe(52);
  const generated = take.playback.generated as GeneratedBacking;
+ const suspension = generated.ensembleDevelopment!.pianoVoicings!.find(voicing => voicing.decision.keyboardSuspension?.phase === 'suspension');
+ expect(suspension).toBeTruthy();
+ await page.getByTestId('listening-review').fill(String(Math.floor(suspension!.absBeat / 4)));
+ await expect(page.getByTestId('musician-piano')).toContainText('fourth resolves to third');
  const delayedRoots = generated.ensembleDevelopment!.bassDelayedRoots!;
  expect(delayedRoots.length).toBeGreaterThan(0);
  await page.getByTestId('listening-review').fill(String(delayedRoots[0].barIndex));

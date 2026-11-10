@@ -14,6 +14,7 @@ test('shows a real score beside factual band insights with a release and compact
  await page.setViewportSize({width:1440,height:1000});
  await page.goto('/musicality');
  await expect(page.getByTestId('musicality-release')).toContainText(CURRENT_MUSICALITY_RELEASE.version);
+ await expect(page.getByTestId('listening-release-focus')).toContainText('keyboard suspension');
  await expect(page.getByTestId('musicality-engine-revision')).toHaveText(/^[a-f0-9]{8}$/);
  await expect(page.getByTestId('listening-score').locator('svg').first()).toBeVisible();
  await expect(page.getByTestId('musician-piano')).toContainText('Waiting for the first bar');
@@ -27,6 +28,7 @@ test('shows a real score beside factual band insights with a release and compact
  await expect(page.getByTestId('listening-arc-marker')).toHaveCount(0);
  await expect(page.getByTestId('listening-arc-curve')).toBeVisible();
  await page.getByTestId('listening-mode').getByRole('button',{name:'Original',exact:true}).click();
+ await expect(page.getByTestId('listening-release-focus')).toHaveCount(0);
  await expect(page.getByTestId('listening-arc-curve')).toHaveCount(0);
  await expect(page.getByTestId('listening-arc')).toContainText('no shared energy plan');
  await page.getByTestId('listening-mode').getByRole('button',{name:'Coordinated',exact:true}).click();
