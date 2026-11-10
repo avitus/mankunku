@@ -34,6 +34,32 @@ describe('rolling session clock and evidence', () => {
 		h.session.pump(); expect(h.generate).toHaveBeenCalledTimes(3);
 		expect(h.renderer.commit.mock.calls[0][0].fromBar).toBe(0);
 	});
+	it('prepares the next bar before a 180 ms browser-task stall crosses the old decision window', () => {
+		const h = harness(); h.session.start();
+		// Next bar is at 12.5. Old 75 ms pump allowance waits until 12.26,
+		// then a blocked task from 12.16 to 12.34 misses the 12.335 deadline.
+		h.time(12.08); h.session.pump();
+		expect(h.generate).toHaveBeenCalledTimes(2);
+		h.time(12.10); h.session.pump();
+		expect(h.generate).toHaveBeenCalledTimes(3);
+		h.time(12.16); h.session.pump();
+		h.time(12.34); h.session.pump();
+		expect(h.session.snapshot().status).toBe('running');
+		expect(h.generate).toHaveBeenCalledTimes(3);
+		expect(h.onError).not.toHaveBeenCalled();
+	});
+	it('keeps evidence arriving after early commitment for the following decision without rewriting the committed bar', () => {
+		const h = harness(); h.session.start();
+		h.time(12.10); h.session.pump();
+		expect(h.generate).toHaveBeenCalledTimes(3);
+		expect(h.generate.mock.calls[2][2]).toEqual([]);
+		h.time(12.20); expect(h.session.observe(observation(0, 1.65))).toBe(true);
+		expect(h.session.snapshot().receipts[0]).toMatchObject({ nextBarAtReceipt: 3, availableAtSeconds: 1.65 });
+		h.session.pump(); expect(h.generate).toHaveBeenCalledTimes(3);
+		h.time(13.10); h.session.pump();
+		expect(h.generate.mock.calls[3][2]).toEqual([observation(0, 1.65).feature]);
+		expect(h.generate.mock.calls[2][2]).toEqual([]);
+	});
 	it('rejects foreign, future and duplicated observations without restamping stale evidence', () => {
 		const h = harness(); h.session.start();
 		expect(h.session.observe(observation())).toBe(false);

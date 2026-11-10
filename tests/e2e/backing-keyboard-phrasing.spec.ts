@@ -25,6 +25,11 @@ for (const release of ['0.7', '0.8', '0.9'] as const) for (const seed of release
 	test(`${release} seed ${seed} ${style}: full Blues keyboard phrasing remains audible, balanced and releases cleanly`, async ({ page, browserName }) => {
 		test.skip(process.env.MANKUNKU_TEST_SANDBOX !== '1', 'native sample rendering in the local Linux sandbox only');
 		test.setTimeout(240_000);
+		// Keep native network/load/render stalls distinguishable from a musical
+		// assertion failure. These diagnostics do not alter clocks or deadlines.
+		page.on('console', message => {
+			if (message.text().startsWith('native-keyboard-stage ')) console.log(message.text());
+		});
 		const phrase = buildNativeBluesFixture();
 		const tempo = style === 'ballad' ? 80 : 140;
 		const ppq = 192;
@@ -74,6 +79,8 @@ for (const release of ['0.7', '0.8', '0.9'] as const) for (const seed of release
 			const sampleRate = 48000;
 			const output = [];
 			for (const performance of performances) {
+				const stage = (name: string) => console.info(`native-keyboard-stage ${performance.instrument} ${name} ${Math.round(globalThis.performance.now())}ms`);
+				stage('create-context');
 				const context = new OfflineAudioContext(2, Math.ceil(durationSeconds * sampleRate), sampleRate);
 				const gain = context.createGain();
 				gain.gain.value = backingKeyboardTrim(performance.instrument);
@@ -82,11 +89,15 @@ for (const release of ['0.7', '0.8', '0.9'] as const) for (const seed of release
 				const player = performance.instrument === 'piano'
 					? new library.SplendidGrandPiano(context, { destination: gain, scheduler, loader: createBackingSampleLoader(context) })
 					: new library.Soundfont(context, { instrument: 'drawbar_organ', kit: 'MusyngKite', destination: gain, scheduler });
+				stage('loading-samples');
 				await player.load;
+				stage('samples-ready');
 				for (const event of performance.events) for (const note of event.notes) {
 					player.start({ note, velocity: event.velocity, duration: event.duration, time: event.time });
 				}
+				stage('render-start');
 				const rendered = await context.startRendering();
+				stage('render-complete');
 				let sum = 0, peak = 0, tailSum = 0, tailPeak = 0, count = 0, tailCount = 0, nonfinite = 0;
 				const tailStart = rendered.length - sampleRate;
 				for (let c = 0; c < rendered.numberOfChannels; c++) {

@@ -407,6 +407,40 @@ test('shows a real previous drum statement and the pianist breathing in the curr
 	await page.getByTestId('listening-stop').click();
 });
 
+test('an early committed bar survives a bounded UI stall across the former decision window', async ({ page }) => {
+	test.setTimeout(100_000);
+	await setup(page);
+	await playToBar(page);
+	const initial = await exportTake(page);
+	const barStart = initial.playback.startAudioTime! + 11; // 240 BPM: one second per bar.
+	const stall = await page.evaluate(async (barStart) => {
+		const contexts = (window as unknown as { __listeningAudio: { contexts: BaseAudioContext[] } }).__listeningAudio.contexts;
+		const context = contexts.find(context => context.state === 'running');
+		if (!context) throw new Error('No running audio clock');
+		return await new Promise<{ before: number; after: number }>(resolve => {
+			setTimeout(() => {
+				const before = context.currentTime;
+				const until = performance.now() + 180;
+				while (performance.now() < until) { /* bounded UI task, real audio clock continues */ }
+				resolve({ before, after: context.currentTime });
+			}, Math.max(0, (barStart - 0.28 - context.currentTime) * 1000));
+		});
+	}, barStart);
+	await test.info().attach('bounded-pump-stall', { body: JSON.stringify({ barStart, ...stall }), contentType: 'application/json' });
+	// Prove that the interruption covers the OLD trigger (.235 s before bar)
+	// and passes the unchanged render-safe deadline (.160 s before bar).
+	expect(stall.before).toBeLessThan(barStart - .235);
+	expect(stall.before).toBeGreaterThan(barStart - .36);
+	expect(stall.after).toBeGreaterThan(barStart - .160);
+	await expect(page.getByTestId('listening-status')).toHaveText('Take complete', { timeout: 65_000 });
+	const completed = await exportTake(page);
+	expect(completed.playback.status).toBe('completed');
+	expect(completed.playback.provenance!.committedBars).toBe(52);
+	expect(causalProvenance(completed.playback).dispatches.every(dispatch => dispatch.status === 'played')).toBe(true);
+	assertCommittedPrefix(initial.playback, completed.playback);
+	await expect(page.getByRole('alert')).toHaveCount(0);
+});
+
 test('a missed scheduling deadline stops the take without reporting completion or dispatching a catch-up burst', async ({ page }) => {
 	await setup(page);
 	await playToBar(page);

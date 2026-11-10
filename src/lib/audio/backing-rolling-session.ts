@@ -39,8 +39,10 @@ export interface RollingSessionSnapshot {
 
 /**
  * Prime two bars, then commit just before the measured scheduling horizon.
- * The 75 ms pump margin accommodates the browser's 25 ms timer cadence;
- * the renderer independently rechecks its deadline after computation.
+ * A 250 ms preparation allowance tolerates bounded main-thread timer stalls.
+ * This commits decisions up to 175 ms earlier than the original 75 ms margin;
+ * observations arriving afterwards apply only to a subsequent uncommitted bar.
+ * Renderer compute, publication and native-source deadlines remain unchanged.
  * A stalled clock stops the take: there is never a burst of overdue notes.
  */
 export function createRollingSession(options: RollingSessionOptions) {
@@ -92,7 +94,7 @@ export function createRollingSession(options: RollingSessionOptions) {
 			if (horizon.audioNow < formEnd + releaseTailSeconds) return;
 			status = 'complete'; renderer.stop(); options.onComplete?.(); return;
 		}
-		if (nextBar < definition.totalBars && options.startAudioTime + nextBar * barSeconds <= horizon.renderSafeFrom + 0.075) commit();
+		if (nextBar < definition.totalBars && options.startAudioTime + nextBar * barSeconds <= horizon.renderSafeFrom + 0.250) commit();
 	}
 	return {
 		start(): void {

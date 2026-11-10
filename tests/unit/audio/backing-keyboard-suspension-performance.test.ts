@@ -64,7 +64,7 @@ describe('0.9 complete suspension and resolution cells', () => {
      expect(bar.ensemblePlan.bars[0].responseOwner).toBe('nobody');
      const start=parseFloat(first.time),end=start+first.duration*score.tempo/60*score.ppq;
      expect(bar.bassEvents.some(e=>e.midi%12===trace.toMidi%12 && parseFloat(e.time)<end && parseFloat(e.time)+e.duration*score.tempo/60*score.ppq>start)).toBe(false);
-     expect(i===0 || !(after[i-1].ensembleDevelopment.pianoVoicings??[]).some(v=>v.decision.keyboardSuspension)).toBe(true);
+     for(const prior of after.slice(Math.max(0,i-2),i)) expect((prior.ensembleDevelopment.pianoVoicings??[]).some(v=>v.decision.keyboardSuspension)).toBe(false);
     }
    }
    process.stdout.write(`suspension-witness ${style} ${JSON.stringify({cells,witnesses})}\n`);
@@ -113,6 +113,11 @@ describe('suspension admission and honest musician evidence',()=>{
   expect(declined.memory.lastSuspensionBar).toBe(prior.piano.lastSuspensionBar);
   const missing=realizeRollingPiano(score,index,info,timing,prior.piano);
   expect(missing.voicingTrace?.some(v=>v.decision.keyboardSuspension)).toBe(false);
+  const recent=realizeRollingPiano(score,index,info,timing,{...prior.piano,lastSuspensionBar:index-2},undefined,'unavailable',bar.bassEvents);
+  expect(recent.voicingTrace?.some(v=>v.decision.keyboardSuspension)).toBe(false);
+  expect(recent.memory.lastSuspensionBar).toBe(index-2);
+  const rested=realizeRollingPiano(score,index,info,timing,{...prior.piano,lastSuspensionBar:index-3},undefined,'unavailable',bar.bassEvents);
+  expect(rested.voicingTrace?.[0].decision.keyboardSuspension).toBeDefined();
  });
  it('protects dense live evidence and ignores observations from future bars',()=>{
   const {score,index,bar,prior}=witness();
