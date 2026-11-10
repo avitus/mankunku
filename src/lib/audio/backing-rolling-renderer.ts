@@ -158,7 +158,7 @@ export function createRollingBackingRenderer(
 	}
 
 	function failureDiagnostic(reason: RollingBackingDispatchDiagnostic['reason'], target: number,
-		callback: number, observed?: number): RollingBackingDispatchDiagnostic {
+		callback: number | undefined, observed?: number): RollingBackingDispatchDiagnostic {
 		const finite = (value: number | undefined): value is number => typeof value === 'number' && Number.isFinite(value);
 		const lateness = finite(observed) && finite(target) ? Math.max(0, observed - target) : undefined;
 		return Object.freeze({ reason,
@@ -351,7 +351,8 @@ export function createRollingBackingRenderer(
 				if (!runtime.isCurrent() || status !== 'active') { updateDispatch(entry, 'cancelled'); stop(); break; }
 				updateDispatch(entry, 'played');
 			} catch {
-				updateDispatch(entry, 'failed', failureDiagnostic('play_failure', entry.audioTime, entry.audioTime, now));
+				try { now = runtime.audioNow(); } catch { /* Keep the last available native clock reading. */ }
+				updateDispatch(entry, 'failed', failureDiagnostic('play_failure', entry.audioTime, undefined, now));
 				underrun('Backing instrument could not arm a committed batch'); break;
 			}
 		}

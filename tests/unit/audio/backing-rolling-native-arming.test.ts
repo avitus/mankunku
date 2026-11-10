@@ -95,6 +95,16 @@ describe('rolling renderer native audio arming', () => {
   expect(h.renderer.commit(bar(0))).toEqual({ accepted: false, reason: 'stopped' });
   expect(h.runtime.scheduleOnce).not.toHaveBeenCalled();
  });
+ it('records the native failure clock without inventing a transport callback timestamp', () => {
+  const h = harness();
+  h.runtime.arm.mockImplementationOnce(() => { h.now(11.2); throw new Error('native start missed'); });
+  h.renderer.commit(bar(0));
+  const failed = h.renderer.snapshot().dispatches[0];
+  expect(failed.status).toBe('failed');
+  expect(failed.diagnostic).toMatchObject({ reason: 'play_failure', targetAudioTime: 11, observedAudioTime: 11.2 });
+  expect(failed.diagnostic?.latenessSeconds).toBeCloseTo(.2);
+  expect(failed.diagnostic).not.toHaveProperty('callbackAudioTime');
+ });
  it('publication failure arms no new sources and restores the previously committed ledger', () => {
   const h = harness(); h.renderer.commit(bar(0));
   const previous = h.renderer.snapshot(), publish = h.runtime.publishSchedule;
