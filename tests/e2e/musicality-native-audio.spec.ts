@@ -4,6 +4,7 @@ import { requireRealtimeAudio } from './fixtures/realtime-audio';
 import { readFile } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import ts from 'typescript';
+import type { GeneratedBacking } from '../../src/lib/audio/backing-generation';
 
 async function browserModule(path: string): Promise<string> {
  let source = ts.transpileModule(await readFile(path, 'utf8'), {
@@ -118,6 +119,26 @@ for (const keyboard of ['piano', 'organ'] as const) test(`Swing full tune produc
  await expect(page.getByRole('alert')).toHaveCount(0);
  expect(take.playback.elapsedBeats).toBe(208);
  expect(take.playback.provenance.committedBars).toBe(52);
+ const generated = take.playback.generated as GeneratedBacking;
+ const answers = generated.ensembleDevelopment!.pianoMotifs.filter(motif => motif.transform === 'answer');
+ expect(answers.length, 'full take should actually play complementary keyboard answers').toBeGreaterThanOrEqual(2);
+ for (const answer of answers) {
+  const events = generated.compEvents.filter(event => Math.floor(event.absBeat / 4) === answer.barIndex);
+  expect(events).toHaveLength(2);
+  expect(events.map(event => event.absBeat % 4)).toEqual(answer.hits.map(hit => hit.b));
+  expect(answer.answerFigureId).toBeTruthy();
+  expect(answer.answerFigureId).not.toBe(answer.sourceFigureId);
+  expect(Math.abs(events[0].velocity - events[1].velocity)).toBeGreaterThanOrEqual(8);
+ }
+ const setups = generated.ensembleDevelopment!.drumPhrases.filter(phrase => phrase.commentary.transform === 'setup');
+ // Four intro bars precede the twelve-bar choruses. Their ten-bar body /
+ // two-bar ending engraving split must no longer spend the fill cooldown.
+ expect(setups.some(phrase => [13, 25, 37, 49].includes(phrase.barIndex))).toBe(false);
+ const chorusSetups = setups.filter(phrase => [15, 27, 39].includes(phrase.barIndex));
+ expect(chorusSetups.length).toBeGreaterThan(0);
+ for (const setup of chorusSetups) for (const hit of setup.commentary.hits) {
+  expect(generated.drumEvents.some(event => event.absBeat === setup.barIndex * 4 + hit.beatOffset && event.drum === hit.drum && event.role === 'commentary')).toBe(true);
+ }
  for (const [index, name] of ['bass', 'piano', 'drums'].entries()) {
   expect(signal.meters[index].peak, `${name} bus has no actual sample signal`).toBeGreaterThan(0.005);
  }

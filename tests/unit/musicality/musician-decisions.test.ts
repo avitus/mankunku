@@ -1065,3 +1065,30 @@ describe('piano phrase support evidence', () => {
   expect(evidence(score, change === 'original' ? 'original' : 'coordinated')).not.toContain('Phrase support: a native comping figure keeps the accompaniment connected');
  });
 });
+
+
+describe('developed keyboard phrase evidence', () => {
+ function fixture() {
+  return { bassEvents: [], drumEvents: [], compEvents: [
+   { absBeat: 9, time: '1728i', notes: [53, 57, 60, 63], duration: .2, velocity: 66 },
+   { absBeat: 10.5, time: '2016i', notes: [53, 57, 60, 63], duration: .6, velocity: 73 }
+  ], ensembleDevelopment: { version: 1, bassTurnarounds: [], drumPhrases: [], pianoMotifs: [{
+   version: 1, barIndex: 2, phraseStartBar: 0, motifId: 'motif:0:charleston', sourceFigureId: 'charleston',
+   transform: 'answer', displacementBeats: 0, hits: [{ b: 1, d: .45 }, { b: 2.5, d: 1.35 }],
+   answerFigureId: 'late-answer', development: 'question_answer'
+  }] } };
+ }
+ const card = (generated: ReturnType<typeof fixture>) => describeMusicianDecisions(generated as unknown as GeneratedBacking, { ...context, barIndex: 2 })[1];
+ it('describes the played answering cell rather than claiming a literal source repetition', () => {
+  const result = card(fixture());
+  expect(result.action).toBe('Answer the comping idea');
+  expect(result.detail).toContain('late answer');
+  expect(result.evidence).toContain('Answering cell: late answer');
+ });
+ it('does not describe a planned answer as played when its events are absent', () => {
+  const generated = fixture(); generated.compEvents = [];
+  const result = card(generated);
+  expect(result.action).not.toBe('Answer the comping idea');
+  expect(result.evidence).not.toContain('Answering cell: late answer');
+ });
+});

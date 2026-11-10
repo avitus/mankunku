@@ -315,7 +315,7 @@ const foundationAssessments: Record<string, string> = {
 	S20: 'Selected snare cells now repeat, displace or change orchestration over a phrase. A recent emitted piano rhythm can supply the source for a drum answer.',
 	S22: 'A remembered commentary rhythm can change between existing snare, cross-stick, kick and ride-bell voices; accepted gestures have explicit limb occupancy.',
 	S23: 'Coordinated bars resolve coincident strokes by a fixed hand/foot assignment. Commentary and agreed accents replace conflicting ostinato strokes before the complete bar is exported.',
-	S24: 'Explicit form metadata and shared setup/arrival reservations supplement form punctuation. A separately declared terminal hold can coordinate the final bass root, piano chord and restrained drum catch without stopping intermediate repeat seams.',
+	S24: 'Musicality 0.5.0 gives declared chorus endings priority over an internal section split within the last two bars, so a ten-plus-two-bar Blues chart does not spend its fill cooldown before bar 11. Setups remain selective and use the existing compact drum vocabulary. Explicit form metadata and shared setup/arrival reservations supplement form punctuation. A separately declared terminal hold can coordinate the final bass root, piano chord and restrained drum catch without stopping intermediate repeat seams.',
 	S25: 'Shared response ownership and silence reasons constrain whole commentary cells. The drummer can retain and transform a rhythm from the previous bar of actual emitted piano attacks.',
 	S26: 'Coordinated mode now assigns response ownership, suppresses competing commentary, protects bass time and reserves bass/drum arrivals.',
 	S27: "The lab captures completed microphone bars as active, resting or unknown. Qualified density/rest evidence can drive upcoming uncommitted bars across selected loops during a bounded adaptive take, or a separate recorded-feature replay.",
@@ -435,11 +435,11 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 	if (entry.id === 'P12' || entry.id === 'P13') return {
 		...entry, status: 'implemented',
 		assessment: entry.id === 'P12'
-			? 'Selected four-bar phrases reuse a source rhythm from the existing figure library, with repetition, displacement, shortening and deliberate gaps.'
+			? 'Musicality 0.5.0 develops selected keyboard ideas through varied four-bar phrase shapes, complementary answering cells, repetition, displacement and shortening, with short/held articulation and accent contrasts. Ordinary harmonic support and the existing attack budget remain intact.'
 			: 'A remembered piano rhythm can return two bars later shifted by a beat or an eighth-note subdivision, retaining the complete cell when it fits.',
 		remaining: 'Each later cell is admitted against its current bar, with a reason when withheld. One-use rolling Swing/Straight recall connects an accepted source to the adjacent phrase inside a solo section. Longer development, fixed recall parity, live solo motif imitation and listening acceptance remain pending.',
-		scope: 'Coordinated Swing/Straight 4/4; four-bar development, plus one-use adjacent-phrase recall in explicit rolling takes. Original practice generation is unchanged.',
-		evidence: [...entry.evidence, ...pianoDevelopmentEvidence, ...pianoRecallEvidence]
+		scope: 'Coordinated Swing/Straight 4/4; the 0.5.0 listening policy adds varied four-bar development, alongside one-use adjacent-phrase recall in explicit rolling takes. Original practice generation is unchanged.',
+		evidence: [...entry.evidence, ...pianoDevelopmentEvidence, ...pianoRecallEvidence, { ...source('backing-keyboard-development'), revision: 'musicality' }, { ...test('backing-keyboard-development'), revision: 'musicality' }]
 	};
 	if (entry.id === 'B2' || entry.id === 'B5') return {
 		...entry, status: entry.id === 'B2' ? 'partial' : 'implemented',
@@ -537,6 +537,7 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 			{ ...test('backing-style-coordination'), revision: 'musicality' },
 			...(['S2', 'S24', 'S44', 'S46'].includes(entry.id) ? formEvidence : []),
 			...(['S24', 'S40'].includes(entry.id) ? terminalEvidence : []),
+			...(entry.id === 'S24' ? [{ ...source('ensemble-plan'), revision: 'musicality' }, { ...test('backing-chorus-boundary-priority'), revision: 'musicality' }] : []),
 			...(['S4', 'S32', 'S44'].includes(entry.id) ? phraseTimingEvidence : []),
 			...(['S4', 'S32', 'S44'].includes(entry.id) ? [
 				{ ...source('backing-piano-samples'), revision: 'musicality' },

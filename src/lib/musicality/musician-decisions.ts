@@ -311,9 +311,12 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 	if (motif) {
 		if (piano.some((event) => Math.floor(event.absBeat / beatsPerBar) === barIndex) && motif.motifId) {
 			pianoCard.action = ({ statement: 'Introduce a comping idea', repeat: 'Repeat the comping idea', displace: 'Shift the comping idea',
-				shorten: 'Shorten the comping idea', space: 'Leave space', fallback: 'Support the harmony' })[motif.transform];
-			pianoCard.detail = `The phrase uses ${plain(motif.sourceFigureId ?? motif.motifId)}.`;
+				answer: 'Answer the comping idea', shorten: 'Shorten the comping idea', space: 'Leave space', fallback: 'Support the harmony' })[motif.transform];
+			pianoCard.detail = motif.transform === 'answer' && motif.answerFigureId
+				? `A ${plain(motif.answerFigureId)} answers the ${plain(motif.sourceFigureId ?? motif.motifId)} idea.`
+				: `The phrase uses ${plain(motif.sourceFigureId ?? motif.motifId)}.`;
 			pianoCard.evidence.push(`Motif: ${motif.motifId}`, `Development: ${plain(motif.transform)}`);
+			if (motif.transform === 'answer' && motif.answerFigureId) pianoCard.evidence.push(`Answering cell: ${plain(motif.answerFigureId)}`);
 		} else if (motif.reason === 'native_pattern') {
 			pianoCard.detail = style === 'bossa-nova' ? 'The native bossa comping pattern keeps its rhythmic character.' : 'The native ballad voicing pattern keeps its spacious pacing.';
 		}
