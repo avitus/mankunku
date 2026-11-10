@@ -1123,3 +1123,29 @@ describe('actual keyboard voicing texture evidence', () => {
   expect(card(generated).evidence).not.toContain('Chord 1 spacing: open · 16 semitones');
  });
 });
+
+
+describe('connected keyboard phrasing evidence', () => {
+ const fixture = () => ({ bassEvents:[],drumEvents:[],compEvents:[{time:'0i',absBeat:0,notes:[51,57,60,67],duration:.6,velocity:64}],
+  ensembleDevelopment:{version:1,bassTurnarounds:[],pianoMotifs:[],drumPhrases:[],pianoVoicings:[{time:'0i',absBeat:0,notes:[51,57,60,67],decision:{
+   requestedFamily:'rootless-a',resolvedFamily:'rootless-a',commonTones:[],guideMotion:0,correction:'none', keyboardLine:{status:'connected',contour:'arch',targetMidi:67,anchorMidi:65,actualMidi:67,ordinaryMidi:72,distance:0,ordinaryDistance:5,guideDetour:2,movementDetour:2,maxTopLeap:5},
+   keyboardArticulation:{instrument:'organ',profile:'organ-held',durationSeconds:.6,durationBeats:1.4,originalDurationBeats:1.25}
+  }}]}});
+ it.each(['swing','straight','bossa-nova','ballad'] as const)('describes an actual top-note connection and articulation in %s', style => {
+  const card=describeMusicianDecisions(fixture() as unknown as GeneratedBacking,{...context,style})[1];
+  expect(card.detail).toContain('Connected top voice');
+  expect(card.evidence).toContain('Chord 1 top voice: F4 → G4 · arch');
+  expect(card.evidence).toContain('Chord 1 articulation: organ held · 0.60 s');
+ });
+ it.each(['notes','top','distance','fallback','duration'])('does not claim unperformed %s evidence', change => {
+  const value=fixture(),decision=value.ensembleDevelopment.pianoVoicings[0].decision;
+  if(change==='notes') value.compEvents[0].notes[0]++;
+  if(change==='top') decision.keyboardLine.actualMidi++;
+  if(change==='distance') decision.keyboardLine.distance++;
+  if(change==='fallback') decision.keyboardLine.status='bounded_fallback';
+  if(change==='duration') decision.keyboardArticulation.durationSeconds=.7;
+  const card=describeMusicianDecisions(value as unknown as GeneratedBacking,context)[1];
+  if(change==='duration') expect(card.evidence).not.toContain('Chord 1 articulation: organ held · 0.60 s');
+  else expect(card.detail).not.toContain('Connected top voice');
+ });
+});

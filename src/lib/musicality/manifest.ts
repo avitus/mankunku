@@ -411,21 +411,30 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 		scope: 'Explicit-form Coordinated Swing/Straight listening studio and blind review, piano or organ; Original and historical policies unchanged.',
 		evidence: [...entry.evidence, ...pianoDevelopmentEvidence, { ...source('backing-keyboard-vocabulary'), revision: 'musicality' }, { ...test('backing-keyboard-variety'), revision: 'musicality' }]
 	};
+	if (entry.id === 'P14') return {
+		...entry, status: 'implemented',
+		assessment: 'Musicality 0.7.0 retains short/held native cells and adds captured Piano/Organ articulation: clearer short piano releases, bounded organ sustain, compact Bossa gates and slower Ballad pads. Each adapted gate respects the next scheduled attack, harmony and bar boundary.',
+		remaining: 'This changes note gates, not sampled release envelopes or organ registration. Human full-tune articulation and balance acceptance remains pending.',
+		scope: 'Coordinated listening in all four styles; protected support, replies, arrivals and endings retain their established release ownership. Original and earlier policies stay unchanged.',
+		evidence: [...entry.evidence, { ...source('backing-keyboard-articulation'), revision: 'musicality' }, { ...test('backing-keyboard-articulation'), revision: 'musicality' }, { ...test('backing-keyboard-phrasing-contracts'), revision: 'musicality' }]
+	};
 	if (entry.id === 'P31' || entry.id === 'P35') return {
 		...entry, status: 'partial',
 		assessment: entry.id === 'P31'
 			? 'The shared causal piano resolver explicitly favors exact common notes from the previous emitted chord, after minimizing eligible defining-tone motion. Rests do not introduce phantom voice-leading steps.'
 			: 'Eligible selected voicing families use legal thirds and sevenths (or the chord’s sixth/suspension/triad roles) to minimize motion from the previous emitted harmony; bounded inversions make smooth ii–V–I lines reachable.',
-		remaining: 'The objective stays within the selected family and current chord. Quartal shapes retain their fourth-stack character and do not claim a guide-tone objective. P36 describes the scoped Swing/Straight/Bossa phrase target; a composed melodic line and human listening acceptance remain pending.',
+		remaining: 'The objective stays within the selected family and current chord. Quartal shapes retain their fourth-stack character and do not claim a guide-tone objective. P36 describes the new bounded 0.7.0 top-voice connection policy. Broader melodic composition and human listening acceptance remain pending.',
 		scope: 'Explicit-form Coordinated 4/4 playback in all four styles; native rhythms and family biases retained. Original and metadata-free paths unchanged.',
 		evidence: [...entry.evidence, ...causalVoicingEvidence]
 	};
 	if (entry.id === 'P36') return {
 		...entry, status: 'partial',
-		assessment: 'A phrase target anchored to the last emitted piano top guides legal inversions only after guide-tone motion, common-note retention and total movement tie. Solo builds request a small rise; releases and returning heads request settling. The live view distinguishes the target from the actual emitted top.',
-		remaining: 'Targets are bounded placement preferences, not a composed melody or guaranteed ascent/descent. Guide and quartal families retain their placement rules. Broader melodic development, solo-register avoidance and human listening acceptance remain pending.',
-		scope: 'Explicit-form Coordinated Swing/Straight/Bossa 4/4, fixed and rolling playback. Bossa keeps its native rhythm and voicing families. Original, metadata-free and Ballad paths retain their existing policies.',
+		assessment: 'Musicality 0.7.0 adds seeded short top-voice contours anchored to actual preceding chords. A bounded choice can improve the requested connection ahead of ordinary movement ranking, with at most two extra semitones of guide motion and four of total movement. Bossa repeats/cadences; Ballad moves at half-phrase pace. The musician view describes actual connections and declined targets.',
+		remaining: 'Connections stay within each legal family and spacing. Guide and quartal shapes retain their native placement; unavailable melodic choices fall back. This is short causal contour development, not a through-composed melody, solo-register avoidance or completed human acceptance.',
+		scope: '0.7.0 Coordinated listening takes in all four styles. Native attack patterns remain intact. Original, fixed generation and omitted-policy histories retain their previous behavior.',
 		evidence: [...entry.evidence, ...causalVoicingEvidence,
+			{ ...source('backing-keyboard-line'), revision: 'musicality' },
+			{ ...test('backing-keyboard-phrasing'), revision: 'musicality' },
 			{ ...source('backing-piano-contour'), revision: 'musicality' },
 			{ ...test('backing-piano-contour'), revision: 'musicality' },
 			{ ...test('backing-piano-contour-integration'), revision: 'musicality' },
@@ -515,8 +524,8 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 		assessment: entry.id === 'P21'
 			? 'Musicality 0.6.0 adds phrase-level open rootless voicings, with at least a fourteen-semitone span, alongside lighter and compact support. Answering rhythms can change the texture. Actual notes and spacing are shown in the musician view.'
 			: 'Musicality 0.6.0 adds compact rootless voicings within an octave, contrasted with open shapes and light three-note support across phrases. The selected spacing admits candidates before the existing voice-leading ranking.',
-		remaining: 'Limited to eligible maj7/min7/7 rootless A/B in explicit Coordinated Swing/Straight listening takes. Existing density and response constraints retain priority; an excessive guide-tone detour keeps ordinary spacing. Other families, native style development, solo-register avoidance and human listening acceptance remain pending.',
-		scope: 'New listening texture policy only; historical and Original event generation remain unchanged. Piano and organ share generated voicings.',
+		remaining: 'Eligible maj7/min7/7 rootless A/B; 0.7.0 extends compact/light color to Bossa and slower texture changes to Ballad while retaining more native families. Density and response constraints retain priority. Broader families, solo-register avoidance and human listening acceptance remain pending.',
+		scope: 'New listening texture policy only; historical and Original event generation remain unchanged. Piano and organ share generated voicings; 0.7.0 separately captures instrument-specific articulation.',
 		evidence: [...entry.evidence, ...causalVoicingEvidence, { ...source('backing-keyboard-texture'), revision: 'musicality' }, { ...test('backing-keyboard-texture'), revision: 'musicality' }]
 	};
 	if (entry.id === 'P20') return { ...entry, status: 'partial',

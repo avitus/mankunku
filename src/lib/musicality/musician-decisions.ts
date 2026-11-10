@@ -263,10 +263,26 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 		if (!voiced) continue;
 		const decision = voiced.decision;
 		pianoCard.evidence.push(`Chord ${index + 1} voicing: ${plain(decision.resolvedFamily)}`);
+		const connection = decision.keyboardLine;
+		if (connection && connection.actualMidi === Math.max(...event.notes) &&
+			connection.distance === Math.abs(connection.actualMidi - connection.targetMidi) &&
+			connection.ordinaryDistance === Math.abs(connection.ordinaryMidi - connection.targetMidi) &&
+			[connection.anchorMidi, connection.targetMidi, connection.actualMidi].every(note => Number.isInteger(note) && note >= 48 && note <= 84)) {
+			if (connection.status === 'connected' && connection.distance < connection.ordinaryDistance &&
+				connection.guideDetour <= 2 && connection.movementDetour <= 4 && Math.abs(connection.actualMidi - connection.anchorMidi) <= connection.maxTopLeap) {
+				pianoCard.evidence.push(`Chord ${index + 1} top voice: ${noteName(connection.anchorMidi)} → ${noteName(connection.actualMidi)} · ${plain(connection.contour)}`);
+				keyboardTextures.push('Connected top voice');
+			} else if (connection.status === 'bounded_fallback') pianoCard.evidence.push(`Chord ${index + 1} top voice: kept the available voice-led shape`);
+		}
+		const articulation = decision.keyboardArticulation;
+		if (articulation && articulation.durationSeconds === event.duration && event.duration > 0 &&
+			['piano', 'organ'].includes(articulation.instrument) && articulation.profile.includes(articulation.instrument)) {
+			pianoCard.evidence.push(`Chord ${index + 1} articulation: ${plain(articulation.profile)} · ${event.duration.toFixed(2)} s`);
+		}
 		const spacing = decision.spacing;
 		const keyboardTexture = decision.keyboardTexture;
 		const span = Math.max(...event.notes) - Math.min(...event.notes);
-		if (walking && keyboardTexture && spacing && spacing.spanSemitones === span &&
+		if (keyboardTexture && spacing && spacing.spanSemitones === span &&
 			['rootless-a', 'rootless-b'].includes(decision.resolvedFamily) && [3, 4].includes(event.notes.length)) {
 			if (spacing.reason === 'applied' && (spacing.applied === 'compact' && span <= 12 || spacing.applied === 'open' && span >= 14)) {
 				pianoCard.evidence.push(`Chord ${index + 1} spacing: ${spacing.applied} · ${span} semitones`);

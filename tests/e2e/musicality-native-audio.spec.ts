@@ -121,6 +121,16 @@ for (const keyboard of ['piano', 'organ'] as const) test(`Swing full tune produc
  expect(take.playback.elapsedBeats).toBe(208);
  expect(take.playback.provenance.committedBars).toBe(52);
  const generated = take.playback.generated as GeneratedBacking;
+ const connected = generated.ensembleDevelopment!.pianoVoicings!.filter(voicing => voicing.decision.keyboardLine?.status === 'connected');
+ expect(connected.length).toBeGreaterThan(0);
+ const articulated = generated.ensembleDevelopment!.pianoVoicings!.filter(voicing => voicing.decision.keyboardArticulation);
+ expect(articulated.length).toBeGreaterThan(0);
+ for (const voicing of articulated) {
+  expect(voicing.decision.keyboardArticulation!.instrument).toBe(keyboard);
+  expect(generated.compEvents.some(event => event.time === voicing.time && event.duration === voicing.decision.keyboardArticulation!.durationSeconds)).toBe(true);
+ }
+ await page.getByTestId('listening-review').fill(String(Math.floor(connected[0].absBeat / 4)));
+ await expect(page.getByTestId('musician-piano')).toContainText('Connected top voice');
  const textured = generated.ensembleDevelopment!.pianoVoicings!.filter(voicing => voicing.decision.keyboardTexture);
  expect(textured.some(voicing => voicing.notes.length === 3)).toBe(true);
  expect(textured.some(voicing => voicing.notes.length === 4)).toBe(true);

@@ -1198,7 +1198,7 @@ Release pre-commit 20:48 PST: approximately 26 minutes total. Estimated reading/
 Next: human full-tune comparison of texture variety and piano/organ balance, especially held chords; native Bossa/Ballad texture development separately; profile the known intermittent WebKit scheduling budget before promotion. No CircleCI CLI, sidecars, hosted pipelines, dev/main changes or production deployment were used for this increment.
 
 
-### 2026-11-09 — Connected keyboard phrases and native instrument articulation (in progress)
+### 2026-11-09 — Connected keyboard phrases and native instrument articulation (delivered)
 
 Intent: Andy likes 0.6.0 and authorizes 0.7.0: more connected keyboard voice leading, distinct Piano/Organ articulation, and extension to Bossa/Ballad using their own rhythmic character. Preserve regular harmonic support, native rhythm ownership, causal scheduling/replay and Original compatibility. Positive feedback on 0.6.0 is acknowledged; 0.7.0 listening acceptance remains pending.
 
@@ -1229,3 +1229,18 @@ Final native balance: `MANKUNKU_DOCKER_CONTEXT=colima-mankunku-musicality-tests 
 Final full local unit rerun after the envelope correction: 8,393 passed plus 40 existing expected failures across 525 files, 49.53 s. Ledger/fixture parity 7/7 in 732 ms. The earlier broad results are superseded by this final runtime check. No regression assertion or audio tolerance was weakened.
 
 Engine pre-commit 21:54 PST: approximately 17 minutes since initial inspection (first integrated red run at 21:41). Estimated reading/design 3 minutes, implementation/contracts 6 minutes, review/documentation 3 minutes and commit preparation 1 minute; independent work and validation overlap. Measured final broad 49.53 s, focused full-form 4.71 s, protection 7.37 s, final native Ballad 42.9 s; the earlier full native batch 2.5 minutes was the slowest completed check. Commit the verified engine on musicality using [skip ci] and Reading-Lane: A, then advance captured listening identity to 0.7.0 and validate real-time page behavior before publication. No CircleCI CLI, sidecar or hosted pipeline was used.
+
+
+Verified engine checkpoint: `fc248f2d25d67c0ce9a2de9c05f43105456a9fcb`. New listening captures now identify 0.7.0 with this immutable engine baseline. Historical feedback/takes retain their original identity.
+
+
+Release integration checks: `VITEST_MAX_WORKERS=4 npm test -- --run tests/unit/musicality` passed 553/553 across 18 files in 8.39 s, including new factual connection/articulation descriptions, captured instrument routing and the 0.7.0 release identity. The final real-time browser snapshot includes the committed engine and these final runtime changes. The consolidated twelve native full-tune level measurements are saved in `native-levels.json` beside the raw logs, keyed by style and browser; their organ-minus-piano range is −1.3349 to +1.9197 dB.
+
+
+Final real-time local browser command: `MANKUNKU_DOCKER_CONTEXT=colima-mankunku-musicality-tests npm run test:e2e -- tests/e2e/musicality-native-audio.spec.ts tests/e2e/musicality-performance-arc.spec.ts`. Result: 15 passed, 6 expected Linux Firefox live-audio skips, no failures or retries, 13.2 minutes. Chromium and WebKit each completed real-sample Piano and Organ Blues takes, with 52 committed bars / 208 beats, actual connected top voices and instrument-specific gate traces, matching visible musician-card descriptions, continuing bass and Original isolated-bass reuse after teardown. Keyboard signal appeared in 49/51 sampled bars for Chromium piano and 48/51 for its organ; WebKit both 48/51. Offline bass passed all three engines. Full-form checks also covered Swing AABA and native Straight/Bossa/Ballad performance arcs, returning melody, final release and silent review. No scheduling budget or completion assertion was weakened.
+
+Artifacts: `test-results/sandbox/mankunku-test-8be9bf86-17e3-411c-aed8-2b4044f67bef/`. The four exported real-sample takes were independently checked as completed 0.7.0 / fc248f2d with actual connection and captured instrument-articulation traces, then copied into the external connected-keyboard artifact folder. The historical intermittent WebKit compute-budget interruption did not recur; it remains undiagnosed and is not claimed fixed. Human listening acceptance of 0.7.0 remains pending.
+
+Release pre-commit 22:09 PST: approximately 31 minutes total. Estimated reading/design 3 minutes, implementation/contracts 6 minutes, native balance refinement 4 minutes, review/documentation 3 minutes and release preparation 2 minutes; phases overlap validation and independent work. Final measured broad 49.53 s, release 8.39 s, full-form witnesses 4.71 s, protection 7.37 s, corrected native Ballad 42.9 s, real-time browser 13.2 minutes (slowest). No runtime edits followed the final browser snapshot. Publish only musicality, non-force with [skip ci] and Reading-Lane: A; build locally, restart port 4387 and verify remote/served SHA. Exact delivery receipt: `/Users/avitus/.codex/artifacts/musicality-2026-11-09/connected-keyboard/delivery-receipt.json`.
+
+Next: human full-tune assessment of connected upper voices and native instrument articulation across keys/tempos; broader harmonic vocabulary and solo-register interaction after that feedback; stage-level WebKit budget diagnosis before production promotion. No CircleCI CLI, hosted pipeline, sidecar, dev/main merge or production deployment was used for this increment.
