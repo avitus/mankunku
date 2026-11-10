@@ -41,9 +41,39 @@ interface RollingBassResult {
 	delayedRootTrace?: BassDelayedRootTrace;
 }
 
+/** Static chart descriptors only; no performed note choices or mutable history. */
+export interface PreparedRollingBass {
+	readonly centers: readonly number[];
+	readonly segments: readonly {
+		readonly start: number; readonly length: number; readonly root: number;
+		readonly chordPcs: readonly number[]; readonly scalePcs: readonly number[];
+	}[];
+	readonly structuralFeels: readonly StructuralBassFeel[] | undefined;
+}
+
+/** The definition factory may retain this immutable data for its own immutable score. */
+export function prepareRollingBass(score: RollingBackingDefinition): PreparedRollingBass | undefined {
+	if (score.style === 'bossa-nova') return undefined;
+	const centers = Object.freeze(planBassRegisterArc(score.totalBars, [...score.bars], score.phraseId, score.tempo));
+	const segments = Object.freeze(score.harmony.map((segment) => {
+		const root = pitchClassToNumber(segment.chord.root);
+		const tones = chordToneIntervalsForBass(segment.chord.quality);
+		const scale = getScale(segment.scaleId);
+		const fallback = segment.chord.quality === 'min7b5' ? [1, 2, 2, 1, 2, 2, 2]
+			: segment.chord.quality.startsWith('min') ? [2, 1, 2, 2, 2, 1, 2]
+				: segment.chord.quality.startsWith('maj') ? [2, 2, 1, 2, 2, 2, 1] : [2, 2, 1, 2, 2, 1, 2];
+		return Object.freeze({ start: fractionToFloat(segment.startOffset) * 4, length: fractionToFloat(segment.duration) * 4, root,
+			chordPcs: Object.freeze([0, tones.third, tones.fifth, ...(tones.seventh === null ? [] : [tones.seventh])].map((interval) => pc(root + interval))),
+			scalePcs: Object.freeze(realizeScale(segment.chord.root, scale?.intervals ?? fallback)) });
+	}));
+	const structuralFeels = score.style === 'ballad' ? undefined
+		: planStructuralBassFeel(score.performanceForm, score.bars.map((entry) => entry.performanceEnergy), score.phraseId, score.tempo);
+	return Object.freeze({ centers, segments, structuralFeels });
+}
+
 export function realizeRollingBass(score: RollingBackingDefinition, bar: number, info: BarInfo,
-	timing: EnsembleTiming, previous?: RollingBassMemory): RollingBassResult {
-	const ordinary = realizeBassWithHandoff(score, bar, info, timing, previous);
+	timing: EnsembleTiming, previous?: RollingBassMemory, prepared?: PreparedRollingBass): RollingBassResult {
+	const ordinary = realizeBassWithHandoff(score, bar, info, timing, previous, prepared);
 	const plan = info.ensemble;
 	if (!score.bassDelayedRootVersion || !plan?.performanceEnergy || !previous || previous.previousMidi === null ||
 		bar === 0 || info.isSectionFirstBar || info.isSectionFinalBar || info.isChorusFirstBar || info.isChorusFinalBar || info.isFinalBar ||
@@ -70,7 +100,7 @@ export function realizeRollingBass(score: RollingBackingDefinition, bar: number,
 	// selected third/fifth. Its later root may be developed without moving that entrance.
 	if (ordinary.memory.feel === 'four' && previous.segmentIndex !== index && previous.nextTarget !== null &&
 		proposal.startMidi !== ordinary.events.find(event => event.absBeat === start)?.midi) return ordinary;
-	const alternate = realizeBassCandidate(score, bar, info, timing, previous, undefined, proposal);
+	const alternate = realizeBassCandidate(score, bar, info, timing, previous, undefined, proposal, prepared);
 	if (!alternate || alternate.events.length !== ordinary.events.length || alternate.events.some((event, index) => {
 		const before = ordinary.events[index];
 		return event.absBeat !== before.absBeat || event.time !== before.time || event.duration !== before.duration || event.velocity !== before.velocity ||
@@ -83,8 +113,8 @@ export function realizeRollingBass(score: RollingBackingDefinition, bar: number,
 }
 
 function realizeBassWithHandoff(score: RollingBackingDefinition, bar: number, info: BarInfo,
-	timing: EnsembleTiming, previous?: RollingBassMemory): RollingBassResult {
-	const ordinary = realizeBassCandidate(score, bar, info, timing, previous)!;
+	timing: EnsembleTiming, previous?: RollingBassMemory, prepared?: PreparedRollingBass): RollingBassResult {
+	const ordinary = realizeBassCandidate(score, bar, info, timing, previous, undefined, undefined, prepared)!;
 	if (!score.bassApproachHandoff || (score.style && !['swing', 'straight'].includes(score.style)) || !info.ensemble?.performanceEnergy ||
 		ordinary.memory.feel !== 'four' || previous?.pendingLaunch || ordinary.memory.pendingLaunch ||
 		ordinary.trace.some(entry => entry.status === 'planned') || info.ensemble.coordinatedAccent ||
@@ -97,7 +127,7 @@ function realizeBassWithHandoff(score: RollingBackingDefinition, bar: number, in
 		Math.abs(pulses[2].midi - pulses[3].midi) <= 5) return ordinary;
 	// Both candidates start from the same committed history. A failed bridge
 	// never replaces any part of the ordinary bar or advances its memory.
-	const alternate = realizeBassCandidate(score, bar, info, timing, previous, pulses[3].midi);
+	const alternate = realizeBassCandidate(score, bar, info, timing, previous, pulses[3].midi, undefined, prepared);
 	if (!alternate || alternate.events.length !== ordinary.events.length) return ordinary;
 	const bridged = alternate.events.filter(event => Number.isInteger(event.absBeat));
 	if (bridged.length !== 4 || bridged.some((event, index) => event.absBeat !== pulses[index].absBeat ||
@@ -111,7 +141,7 @@ function realizeBassWithHandoff(score: RollingBackingDefinition, bar: number, in
 }
 
 function realizeBassCandidate(score: RollingBackingDefinition, bar: number, info: BarInfo,
-	timing: EnsembleTiming, previous?: RollingBassMemory, handoffMidi?: number, delayedRoot?: BassDelayedRootPlan): RollingBassResult | undefined {
+	timing: EnsembleTiming, previous?: RollingBassMemory, handoffMidi?: number, delayedRoot?: BassDelayedRootPlan, prepared?: PreparedRollingBass): RollingBassResult | undefined {
 	const memory: RollingBassMemory = previous ?? { previousMidi: null, previousPreviousMidi: null, direction: 0, segmentIndex: null,
 		segmentAnchor: null, nextTarget: null, approach: 'chromatic-below' as const, feel: 'four' as const, pendingLaunch: null };
 	if (score.style === 'bossa-nova') {
@@ -133,20 +163,7 @@ function realizeBassCandidate(score: RollingBackingDefinition, bar: number, info
 	}
 	let { previousMidi, previousPreviousMidi, direction, segmentIndex, segmentAnchor, nextTarget, approach } = memory;
 	let pendingLaunch = memory.pendingLaunch;
-	const centers = planBassRegisterArc(score.totalBars, [...score.bars], score.phraseId, score.tempo);
-	const segments = score.harmony.map((segment) => {
-		const root = pitchClassToNumber(segment.chord.root);
-		const tones = chordToneIntervalsForBass(segment.chord.quality);
-		const scale = getScale(segment.scaleId);
-		const fallback = segment.chord.quality === 'min7b5' ? [1, 2, 2, 1, 2, 2, 2]
-			: segment.chord.quality.startsWith('min') ? [2, 1, 2, 2, 2, 1, 2]
-				: segment.chord.quality.startsWith('maj') ? [2, 2, 1, 2, 2, 2, 1] : [2, 2, 1, 2, 2, 1, 2];
-		return { start: fractionToFloat(segment.startOffset) * 4, length: fractionToFloat(segment.duration) * 4, root,
-			chordPcs: [0, tones.third, tones.fifth, ...(tones.seventh === null ? [] : [tones.seventh])].map((interval) => pc(root + interval)),
-			scalePcs: realizeScale(segment.chord.root, scale?.intervals ?? fallback) };
-	});
-	const structuralFeels = score.style === 'ballad' ? undefined
-		: planStructuralBassFeel(score.performanceForm, score.bars.map((entry) => entry.performanceEnergy), score.phraseId, score.tempo);
+	const { centers, segments, structuralFeels } = prepared ?? prepareRollingBass(score)!;
 	const feelAt = (index: number): 'two' | 'four' => {
 		if (score.style === 'ballad') return 'two';
 		if (structuralFeels) return structuralFeels[index].feel;

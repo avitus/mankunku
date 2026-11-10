@@ -287,7 +287,7 @@ function planSegments(
 function devicePitches(
 	device: ApproachDevice,
 	target: number,
-	scalePcs: number[],
+	scalePcs: readonly number[],
 	rng: SeededRng
 ): number[] {
 	switch (device) {

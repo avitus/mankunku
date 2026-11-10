@@ -1,3 +1,4 @@
+import { prepareCoordinatedVoicings } from './coordinated-voicing';
 import { nativeBalladReplyEnabled, captureNativeBalladColor, proposeNativeBalladReply, advanceNativeBalladReplyMemory, validateNativeBalladReply, type NativeBalladReplyMemory } from './backing-ballad-reply';
 import { assessTerminalArrangement, realizeTerminalArrangement, terminalBarPlan, terminalPianoTrace, terminalDrumTrace, type TerminalReservation, type TerminalArrangementDecision } from './backing-terminal';
 import { BACKING_STYLES } from './backing-styles';
@@ -10,14 +11,14 @@ import type { BackingGenerationParams, BarInfo, BassEvent, CompEvent, DrumEvent,
 import { buildBarInfos } from './backing-generation';
 import { buildPerformanceForm, performanceBarContext, type PerformanceBarContext } from './performance-form';
 import { planPerformanceEnergy } from './performance-energy';
-import { planEnsembleWindow, type EnsembleBarContext, type EnsembleMemory, type EnsemblePlan, type SoloFeature } from './ensemble-plan';
+import { prepareEnsembleBars, planEnsembleWindow, type EnsembleBarContext, type EnsembleMemory, type EnsemblePlan, type SoloFeature } from './ensemble-plan';
 import { describeEnsemblePhraseTiming, restoreEnsembleTiming, type EnsemblePhraseTimingTrace } from './ensemble-timing';
 import type { BackingStyle } from '$lib/types/instruments';
 import type { StyleDefinition } from './backing-styles';
 import { fractionToFloat } from '$lib/music/intervals';
 import { seedFrom } from './generation-rng';
 import { realizeRollingPiano, realizeRollingBalladReply, type RollingPianoMemory } from './backing-rolling-piano';
-import { realizeRollingBass, type RollingBassMemory } from './backing-rolling-bass';
+import { prepareRollingBass, type PreparedRollingBass, realizeRollingBass, type RollingBassMemory } from './backing-rolling-bass';
 import { planDrumPhraseBar, type DrumPhraseMemory } from './backing-drum-phrases';
 import type { TimingProfile, TimingRole } from './backing-timing';
 import { MAX_ADAPTIVE_BARS, MAX_ADAPTIVE_LOOPS } from './backing-performance-limits';
@@ -144,6 +145,14 @@ function freeze<T>(value: T): T {
 	return value;
 }
 
+// Only the factory owns these deeply frozen scores. Restored or caller-edited
+// definitions use fresh preparation; a shallow freeze is not proof of ownership.
+const preparedBassScores = new WeakMap<RollingBackingDefinition, PreparedRollingBass>();
+const ownedDefinitions = new WeakSet<RollingBackingDefinition>();
+// Identity binds deeply frozen, actually produced history to its exact owned
+// score. Weak keys retain nothing after callers release their checkpoints.
+const ownedCheckpoints = new WeakMap<RollingBackingCheckpoint, RollingBackingDefinition>();
+
 /** Prepare known score/form data only; no future accompaniment is generated. */
 export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDefinition, params: BackingGenerationParams,
 	options: RollingBackingOptions = {}): RollingBackingDefinition {
@@ -248,10 +257,15 @@ export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDef
 	const fingerprint = loopCount > 1
 		? `rolling-repeat-v1:${serialized.length}:${seedFrom('score-a', serialized).toString(16)}:${seedFrom('score-b', serialized).toString(16)}`
 		: serialized;
-	return freeze({ version: 1, ...releaseEightPolicies, ...(keyboardPhrasing ? { keyboardPhrasing } : {}), ...(keyboardTexture ? { keyboardTextureVersion: 1 as const } : {}), ...(keyboardVariety ? { keyboardVarietyVersion } : {}), ...(chorusBoundaryPriority ? { chorusBoundaryPriorityVersion: 1 as const } : {}), ...(pianoPresence ? { pianoPresenceVersion: accompanimentPiano ? 3 as const : steadyPiano ? 2 as const : 1 as const } : {}), ...(returningMelodyBars.size ? { returningMelodySpaceVersion: 1 as const } : {}), ...(performanceEnergy && ['swing', 'straight'].includes(style.coordinatedStyle!) ? { bassScalarContinuation: true as const, bassApproachHandoff: true as const } : {}), ...(style.coordinatedStyle !== 'swing' ? { style: style.coordinatedStyle } : {}), sessionId: `rolling:${seedFrom(fingerprint).toString(16)}`, fingerprint,
+	const definition: RollingBackingDefinition = freeze({ version: 1, ...releaseEightPolicies, ...(keyboardPhrasing ? { keyboardPhrasing } : {}), ...(keyboardTexture ? { keyboardTextureVersion: 1 as const } : {}), ...(keyboardVariety ? { keyboardVarietyVersion } : {}), ...(chorusBoundaryPriority ? { chorusBoundaryPriorityVersion: 1 as const } : {}), ...(pianoPresence ? { pianoPresenceVersion: accompanimentPiano ? 3 as const : steadyPiano ? 2 as const : 1 as const } : {}), ...(returningMelodyBars.size ? { returningMelodySpaceVersion: 1 as const } : {}), ...(performanceEnergy && ['swing', 'straight'].includes(style.coordinatedStyle!) ? { bassScalarContinuation: true as const, bassApproachHandoff: true as const } : {}), ...(style.coordinatedStyle !== 'swing' ? { style: style.coordinatedStyle } : {}), sessionId: `rolling:${seedFrom(fingerprint).toString(16)}`, fingerprint,
 		phraseId: params.phraseId, totalBars, sourceBars, loopCount, loops, ...(terminalArrangement ? { terminalArrangement } : {}), tempo: params.tempo, ppq: params.ppq, beatsPerBar: 4, swing: params.swing,
-		performanceForm: form, harmony: copied, bars,
+		performanceForm: form, harmony: copied, bars: prepareEnsembleBars(bars),
 		...(timingProfiles ? { timingProfiles: JSON.parse(JSON.stringify(timingProfiles)) } : {}) });
+	prepareCoordinatedVoicings(definition.harmony.map(segment => segment.chord));
+	const bass = prepareRollingBass(definition);
+	if (bass) preparedBassScores.set(definition, bass);
+	ownedDefinitions.add(definition);
+	return definition;
 }
 
 function checkpointId(checkpoint: Omit<RollingBackingCheckpoint, 'checkpointId'>): string {
@@ -338,7 +352,7 @@ function validateCheckpoint(score: RollingBackingDefinition, checkpoint: Rolling
 
 /** Commit exactly one new bar. Past events are never regenerated or modified. */
 export function advanceRollingBacking(definition: RollingBackingDefinition, checkpoint?: RollingBackingCheckpoint, soloFeatures: readonly SoloFeature[] = []): RollingBackingBar {
-	if (checkpoint) {
+	if (checkpoint && ownedCheckpoints.get(checkpoint) !== definition) {
 		validateCheckpoint(definition, checkpoint);
 		// A caller may keep editing its restored JSON. The returned frozen
 		// transaction owns every nested object, including latched motifs/timing.
@@ -371,7 +385,7 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 	const answerPolicy = !!feedback && (!definition.style || definition.style === 'swing' || definition.style === 'straight');
 	let piano = realizeRollingPiano(definition, bar, pianoInfo, timing, checkpoint?.piano,
 		answerPolicy ? { feedback: feedback!, previous: checkpoint?.pianoAnswer } : undefined, window.plan.trace[0].soloEvidence);
-	let bass = realizeRollingBass(definition, bar, info, timing, checkpoint?.bass);
+	let bass = realizeRollingBass(definition, bar, info, timing, checkpoint?.bass, preparedBassScores.get(definition));
 	const startTick = bar * 4 * definition.ppq;
 	const endTick = (bar + 1) * 4 * definition.ppq;
 	let peakEnd: number | undefined;
@@ -474,7 +488,7 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 		...(feedback ? { feedback: { version: 1 as const, previousDrumStatement: captureDrumStatement(drums.bar, drumEvents),
 			lastYieldBar: !terminalAccepted && feedback.action === 'yield' ? bar : checkpoint?.feedback?.lastYieldBar ?? null } } : {}) };
 	const ticks = [...bass.events, ...piano.events, ...drumEvents].map((event) => parseInt(event.time, 10));
-	return freeze({ version: 1, sessionId: definition.sessionId, fromBar: bar, toBarExclusive: bar + 1,
+	const result: RollingBackingBar = freeze({ version: 1, sessionId: definition.sessionId, fromBar: bar, toBarExclusive: bar + 1,
 		loopIndex: definition.bars[bar].loopIndex, sourceBarIndex: definition.bars[bar].sourceBarIndex,
 		sourceChorusIndex: definition.bars[bar].sourceChorusIndex, sourceSectionIndex: definition.bars[bar].sourceSectionIndex,
 		startTick, earliestTick: ticks.length ? Math.min(...ticks) : startTick, committedThroughTick: endTick,
@@ -487,4 +501,6 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 			...(bass.continuationTrace?.length ? { bassContinuations: bass.continuationTrace } : {}),
 			...(!terminalAccepted && bass.delayedRootTrace ? { bassDelayedRoots: [bass.delayedRootTrace] } : {}),
 			...(piano.voicingTrace ? { pianoVoicings: piano.voicingTrace } : {}), drumPhrases: [drums.bar] } });
+	if (ownedDefinitions.has(definition)) ownedCheckpoints.set(result.checkpoint, definition);
+	return result;
 }

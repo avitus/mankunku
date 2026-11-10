@@ -116,6 +116,112 @@ function placements(pcs: readonly number[], family: CoordinatedVoicingFamily): n
 	return uniqueCandidates(candidates, family === 'guide' ? 12 : 19);
 }
 
+interface VoicingGeometry {
+	readonly family: CoordinatedVoicingFamily;
+	readonly correction: CoordinatedVoicingDecision['correction'];
+	readonly textureEligible: boolean;
+	readonly three: boolean;
+	readonly two: boolean;
+	readonly pcs: readonly number[];
+	readonly candidates: readonly (readonly number[])[];
+}
+// Geometry depends only on chord/family/texture, never on accepted history, register
+// or melodic preferences. Bound retention for long sessions traversing many keys.
+const GEOMETRY_CACHE_LIMIT = 256;
+const geometryCache = new Map<string, VoicingGeometry>();
+function canReduceRootlessGeometry(chord: Chord, family: CoordinatedVoicingFamily): boolean {
+	return (family === 'rootless-a' || family === 'rootless-b') && ['maj7', 'min7', '7'].includes(chord.quality);
+}
+
+/**
+ * Prepare only legal pitch geometry from the known chart before playback. All
+ * six families remain available to each style's own selection policy; neither
+ * family selection nor history/register/line ranking happens here. Only plain
+ * rootless sevenths need separate two/three/full geometry.
+ *
+ * Limit the warm set to complete chords fitting the existing cache. A larger
+ * chart keeps ordinary lazy resolution beyond that prefix rather than spending
+ * setup time enumerating geometry this same preparation would immediately evict.
+ */
+export function prepareCoordinatedVoicings(chords: readonly Chord[]): void {
+	const unique = new Set<string>();
+	const prepared: Chord[] = [];
+	let entries = 0;
+	let full = false;
+	for (const chord of chords) {
+		if (!validChord(chord)) throw new Error('Invalid coordinated preparation chord');
+		const key = `${chord.root}:${chord.quality}`;
+		if (full || unique.has(key)) continue;
+		const cost = canReduceRootlessGeometry(chord, 'rootless-a') ? 10 : 6;
+		if (entries + cost > GEOMETRY_CACHE_LIMIT) { full = true; continue; }
+		unique.add(key); entries += cost; prepared.push(chord);
+	}
+	for (const chord of prepared) for (const family of Object.keys(builders) as CoordinatedVoicingFamily[]) {
+		voicingGeometry(chord, family, 'full');
+		if (canReduceRootlessGeometry(chord, family)) {
+			voicingGeometry(chord, family, 'two');
+			voicingGeometry(chord, family, 'three');
+		}
+	}
+}
+
+function voicingGeometry(chord: Chord, requestedFamily: CoordinatedVoicingFamily,
+	texture: 'two' | 'three' | 'full' | undefined): VoicingGeometry {
+	// Ineligible texture requests resolve to the full family already. Reuse that
+	// same geometry instead of allocating duplicate cache entries for each label.
+	const geometryTexture = canReduceRootlessGeometry(chord, requestedFamily) ? texture ?? 'full' : 'full';
+	const key = `${chord.root}:${chord.quality}:${requestedFamily}:${geometryTexture}`;
+	const cached = geometryCache.get(key);
+	if (cached) {
+		geometryCache.delete(key); geometryCache.set(key, cached);
+		return cached;
+	}
+	const root = PITCH_CLASSES.indexOf(chord.root);
+	const [third, other] = definingIntervals(chord);
+	let family = requestedFamily;
+	let correction: CoordinatedVoicingDecision['correction'] = 'none';
+	let base = builders[family](chord.root, chord.quality, 62);
+	if (!base.length || (family === 'drop2' && !CHORD_DEFINITIONS[chord.quality].intervals.some((interval) => interval >= 9 && interval <= 11))) {
+		family = rootlessVoicingA(chord.root, chord.quality, 62).length ? 'rootless-a' : 'shell';
+		base = builders[family](chord.root, chord.quality, 62); correction = 'family_unavailable';
+	}
+	let pcs = base.map(pc);
+	if (family === 'guide' || family === 'shell') {
+		const correct = (family === 'shell' ? [0, third, other] : [third, other]).map((interval) => pc(root + interval));
+		if (correct.some((tone) => !pcs.includes(tone))) correction = 'defining_tones';
+		pcs = correct;
+	} else if (family === 'drop2') {
+		const intervals = CHORD_DEFINITIONS[chord.quality].intervals;
+		const color = chord.quality === '7b9' ? 1 : chord.quality === '7#9' ? 3
+			: intervals.includes(8) ? 8 : intervals.includes(6) ? 6 : 7;
+		const correct = [0, third, color, other].map((interval) => pc(root + interval));
+		if (correct.some((tone) => !pcs.includes(tone))) correction = 'defining_tones';
+		pcs = correct;
+	}
+	const textureEligible = canReduceRootlessGeometry(chord, requestedFamily) && family === requestedFamily;
+	const three = texture === 'three' && textureEligible;
+	const two = texture === 'two' && textureEligible;
+	if (two) {
+		// Spec P19: keep the third and seventh of the accepted harmony.
+		// Reduce the selected family's pitch set before placement, not its output.
+		pcs = [third, other].map((interval) => pc(root + interval));
+	} else if (three) {
+		// Spec P20: select defining tones plus one color before placement:
+		// 9, or 13 for a dominant B shape. Do not truncate placed notes.
+		const color = family === 'rootless-b' && chord.quality === '7' ? 9 : 2;
+		pcs = [third, other, color].map((interval) => pc(root + interval));
+	}
+	const candidates = family === 'quartal'
+		? uniqueCandidates(Array.from({ length: 37 }, (_, offset) => quartalVoicing(chord.root, chord.quality, 48 + offset)), 19)
+		: placements(pcs, family);
+	if (!candidates.length) throw new Error('No legal coordinated voicing placement');
+	const geometry = Object.freeze({ family, correction, textureEligible, three, two,
+		pcs: Object.freeze(pcs), candidates: Object.freeze(candidates.map(notes => Object.freeze(notes))) });
+	if (geometryCache.size >= GEOMETRY_CACHE_LIMIT) geometryCache.delete(geometryCache.keys().next().value!);
+	geometryCache.set(key, geometry);
+	return geometry;
+}
+
 /**
  * Causal placement of a caller-selected family. The caller must commit the
  * returned memory only after emitting this chord; unplayed harmony is not input.
@@ -149,46 +255,7 @@ export function resolveCoordinatedVoicing(input: {
 	if (line && (!previous || line.anchorMidi !== previous.notes.at(-1) || !Number.isInteger(line.targetMidi) || line.targetMidi < 48 || line.targetMidi > 84 ||
 		line.maxGuideDetour !== 2 || line.maxMovementDetour !== 4 || ![3,4,5].includes(line.maxTopLeap))) throw new Error('Invalid keyboard line request');
 	const chord = { root: input.chord.root, quality: input.chord.quality };
-	const root = PITCH_CLASSES.indexOf(chord.root);
-	const [third, other] = definingIntervals(chord);
-	let family = input.family;
-	let correction: CoordinatedVoicingDecision['correction'] = 'none';
-	let base = builders[family](chord.root, chord.quality, 62);
-	if (!base.length || (family === 'drop2' && !CHORD_DEFINITIONS[chord.quality].intervals.some((interval) => interval >= 9 && interval <= 11))) {
-		family = rootlessVoicingA(chord.root, chord.quality, 62).length ? 'rootless-a' : 'shell';
-		base = builders[family](chord.root, chord.quality, 62); correction = 'family_unavailable';
-	}
-	let pcs = base.map(pc);
-	if (family === 'guide' || family === 'shell') {
-		const correct = (family === 'shell' ? [0, third, other] : [third, other]).map((interval) => pc(root + interval));
-		if (correct.some((tone) => !pcs.includes(tone))) correction = 'defining_tones';
-		pcs = correct;
-	} else if (family === 'drop2') {
-		const intervals = CHORD_DEFINITIONS[chord.quality].intervals;
-		const color = chord.quality === '7b9' ? 1 : chord.quality === '7#9' ? 3
-			: intervals.includes(8) ? 8 : intervals.includes(6) ? 6 : 7;
-		const correct = [0, third, color, other].map((interval) => pc(root + interval));
-		if (correct.some((tone) => !pcs.includes(tone))) correction = 'defining_tones';
-		pcs = correct;
-	}
-	const textureEligible = (input.family === 'rootless-a' || input.family === 'rootless-b') && family === input.family &&
-		['maj7', 'min7', '7'].includes(chord.quality);
-	const three = input.rootlessTexture === 'three' && textureEligible;
-	const two = input.rootlessTexture === 'two' && textureEligible;
-	if (two) {
-		// Spec P19: keep the third and seventh of the accepted harmony.
-		// Reduce the selected family's pitch set before placement, not its output.
-		pcs = [third, other].map((interval) => pc(root + interval));
-	} else if (three) {
-		// Spec P20: select defining tones plus one color before placement:
-		// 9, or 13 for a dominant B shape. Do not truncate placed notes.
-		const color = family === 'rootless-b' && chord.quality === '7' ? 9 : 2;
-		pcs = [third, other, color].map((interval) => pc(root + interval));
-	}
-	const candidates = family === 'quartal'
-		? uniqueCandidates(Array.from({ length: 37 }, (_, offset) => quartalVoicing(chord.root, chord.quality, 48 + offset)), 19)
-		: placements(pcs, family);
-	if (!candidates.length) throw new Error('No legal coordinated voicing placement');
+	const { family, correction, textureEligible, three, two, pcs, candidates } = voicingGeometry(chord, input.family, input.rootlessTexture);
 	const target = Math.max(48, Math.min(84, input.registerMidi));
 	let ranked = candidates.map((notes) => ({ notes, guideMotion: guideMovement(previous, chord, notes, family),
 		commonTones: previous ? notes.filter((note) => previous.notes.includes(note)) : [],

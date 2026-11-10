@@ -25,6 +25,8 @@ export interface RollingBackingRuntime {
 	scheduleOnce(callback: (audioTime: number) => void, tickTime: string): number;
 	clear(id: number): void;
 	play(hits: readonly BackingHit[], audioTime: number, eventKey: string): () => void;
+	/** Materialize already-committed hits on the native audio clock; cancellation must stop future sources. */
+	arm?(hits: readonly BackingHit[], audioTime: number, eventKey: string): () => void;
 	publishSchedule(schedule: BackingTrackSchedule | null): void;
 }
 
@@ -47,6 +49,7 @@ export interface RollingBackingDispatchDiagnostic {
 export interface RollingBackingDispatch {
 	readonly tick: number;
 	readonly audioTime: number;
+	/** played means submitted at its exact time to Web Audio, not proof of audibility or listener acceptance. */
 	readonly status: 'scheduled' | 'played' | 'cancelled' | 'late' | 'failed';
 	/** Failure evidence only; successful historical exports keep their exact shape. */
 	readonly diagnostic?: RollingBackingDispatchDiagnostic;
@@ -66,6 +69,15 @@ export interface RollingBackingSnapshot {
 	};
 	readonly schedule: BackingTrackSchedule | null;
 	readonly dispatches: readonly RollingBackingDispatch[];
+}
+
+// Ownership is an exact object identity, never an externally reproducible flag
+// or a shallow Object.isFrozen check. Only snapshots assembled from the
+// renderer's detached, deeply frozen evidence can share that evidence safely.
+const ownedSnapshots = new WeakSet<RollingBackingSnapshot>();
+
+export function isOwnedRollingBackingSnapshot(snapshot: RollingBackingSnapshot): boolean {
+	return ownedSnapshots.has(snapshot);
 }
 
 export type RollingBackingCommitResult =
@@ -109,6 +121,7 @@ export function createRollingBackingRenderer(
 	const cachedDispatches = new WeakMap<DispatchEntry, RollingBackingDispatch>();
 	const pending = new Map<number, typeof dispatches[number]>();
 	const voiceStops = new Set<() => void>();
+	const armed = new Set<DispatchEntry>();
 
 	function horizon(): RollingBackingHorizon {
 		const audioNow = runtime.audioNow();
@@ -133,6 +146,7 @@ export function createRollingBackingRenderer(
 				if (!copied) { copied = Object.freeze({ ...entry }); cachedDispatches.set(entry, copied); }
 				return copied;
 			})) });
+		ownedSnapshots.add(cachedSnapshot);
 		return cachedSnapshot;
 	}
 
@@ -161,10 +175,15 @@ export function createRollingBackingRenderer(
 			try { runtime.clear(id); } catch { /* Continue releasing other owned events. */ }
 		}
 		pending.clear();
+		let now = Infinity;
+		try { now = runtime.audioNow(); } catch { /* Preserve known dispatch evidence if the clock is unavailable. */ }
 		for (const release of voiceStops) {
 			try { release(); } catch { /* Continue releasing other owned voices. */ }
 		}
 		voiceStops.clear();
+		for (const entry of armed) if (entry.audioTime > now) updateDispatch(entry, 'cancelled');
+		armed.clear();
+		if (runtime.arm) for (const entry of dispatches) if (entry.status === 'scheduled') updateDispatch(entry, 'cancelled');
 		if (schedule !== null) {
 			schedule = null;
 			cachedSnapshot = null;
@@ -245,14 +264,20 @@ export function createRollingBackingRenderer(
 		for (const event of copied.bassEvents) add(event.time, { kind: 'bass', midi: event.midi, velocity: event.velocity, duration: event.duration });
 		for (const event of copied.compEvents) add(event.time, { kind: 'comp', notes: event.notes, velocity: event.velocity, duration: event.duration });
 		for (const event of copied.drumEvents) add(event.time, { kind: 'drum', drum: event.drum, velocity: event.velocity });
-		const prepared: { id: number; entry: typeof dispatches[number] }[] = [];
+		const prepared: { id?: number; hits?: readonly BackingHit[]; entry: typeof dispatches[number] }[] = [];
 		let activated = false;
 		const rollback = () => {
-			for (const { id } of prepared) { try { runtime.clear(id); } catch { /* Inactive callbacks cannot play. */ } }
+			for (const { id } of prepared) {
+				try { if (id !== undefined) runtime.clear(id); } catch { /* Inactive callbacks cannot play. */ }
+			}
 		};
 		try {
 			for (const [tick, hits] of [...groups.entries()].sort(([a], [b]) => a - b)) {
 				const entry: typeof dispatches[number] = { tick, audioTime: options.startAudioTime + tick * secondsPerTick, status: 'scheduled' };
+				if (runtime.arm) {
+					prepared.push({ hits, entry });
+					continue;
+				}
 				const id = runtime.scheduleOnce((audioTime) => {
 					if (!activated || status !== 'active' || entry.status !== 'scheduled') return;
 					if (!runtime.isCurrent()) { stop(); return; }
@@ -304,9 +329,33 @@ export function createRollingBackingRenderer(
 		nextBar = copied.toBarExclusive;
 		checkpointId = copied.checkpoint.checkpointId;
 		fingerprint = copied.checkpoint.fingerprint;
-		for (const { id, entry } of prepared) { pending.set(id, entry); dispatches.push(entry); }
+		for (const { id, entry } of prepared) {
+			if (id !== undefined) pending.set(id, entry);
+			dispatches.push(entry);
+		}
 		activated = true;
 		cachedSnapshot = null;
+		// The publication transaction is now accepted. No provisional source
+		// can sound during validation or rollback. Only these committed events
+		// are handed to the native clock; future musical decisions stay causal.
+		// An arming failure is a failed committed playback, just like a failed
+		// legacy callback: retain its evidence and stop, never retry the bar.
+		if (runtime.arm) for (const { entry, hits } of prepared) {
+			if (!runtime.isCurrent() || status !== 'active') { stop(); break; }
+			let now: number | undefined;
+			try {
+				now = runtime.audioNow();
+				if (!Number.isFinite(now) || entry.audioTime <= now) throw new Error('Native arming deadline');
+				const release = runtime.arm(hits!, entry.audioTime, `${copied.fromBar}:${entry.tick}`);
+				voiceStops.add(release); armed.add(entry);
+				if (!runtime.isCurrent() || status !== 'active') { updateDispatch(entry, 'cancelled'); stop(); break; }
+				updateDispatch(entry, 'played');
+			} catch {
+				updateDispatch(entry, 'failed', failureDiagnostic('play_failure', entry.audioTime, entry.audioTime, now));
+				underrun('Backing instrument could not arm a committed batch'); break;
+			}
+		}
+
 		return { accepted: true, nextBar, committedThroughTick: nextBar * barTicks };
 	}
 

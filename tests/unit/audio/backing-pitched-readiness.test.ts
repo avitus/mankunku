@@ -33,7 +33,7 @@ vi.mock('smplr', () => {
 				? new Promise((resolve) => { state.release = () => resolve(buffers); }) : buffers);
 		}
 	}
-	return { Smolken: Pitched, SplendidGrandPiano: Pitched, Soundfont: Pitched, CacheStorage: class {},
+	return { Scheduler: function Scheduler() { return { schedule(event: unknown, callback: (event: unknown) => void) { callback(event); return () => {}; }, stop() {} }; }, Smolken: Pitched, SplendidGrandPiano: Pitched, Soundfont: Pitched, CacheStorage: class {},
 		Sampler: class { load = Promise.resolve(); disconnect = vi.fn(); stop = vi.fn(); } };
 });
 

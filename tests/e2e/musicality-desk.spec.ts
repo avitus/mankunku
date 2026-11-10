@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { CURRENT_MUSICALITY_RELEASE } from '../../src/lib/musicality/release';
 import { test, expect } from './fixtures/test';
 import { seedOnboardedAnonymous } from './fixtures/storage';
 import { stubCdnInstrumentSamples } from './fixtures/audio';
@@ -12,7 +13,7 @@ test.beforeEach(async ({ page }) => {
 test('shows a real score beside factual band insights with a release and compact assessment controls', async ({ page }, testInfo) => {
  await page.setViewportSize({width:1440,height:1000});
  await page.goto('/musicality');
- await expect(page.getByTestId('musicality-release')).toContainText('0.3.0');
+ await expect(page.getByTestId('musicality-release')).toContainText(CURRENT_MUSICALITY_RELEASE.version);
  await expect(page.getByTestId('musicality-engine-revision')).toHaveText(/^[a-f0-9]{8}$/);
  await expect(page.getByTestId('listening-score').locator('svg').first()).toBeVisible();
  await expect(page.getByTestId('musician-piano')).toContainText('Waiting for the first bar');
@@ -77,13 +78,13 @@ test('pins actual sounding decisions, saves release-labelled feedback and preser
  const downloaded=page.waitForEvent('download');
  await page.getByTestId('listening-export').click();
  const evidence=JSON.parse(await readFile((await(await downloaded).path())!,'utf8'));
- expect(evidence.playback.musicalityRelease.version).toBe('0.3.0');
+ expect(evidence.playback.musicalityRelease).toEqual(CURRENT_MUSICALITY_RELEASE);
  expect(evidence.marks[0].note).toBe('The piano leaves useful space.');
  expect(evidence.feedback.verdict).toBe('promising');
  expect(evidence.completion).toBe('partial');
  await page.reload();
  await page.getByRole('button',{name:/Saved feedback/}).click();
- await expect(page.getByTestId('listening-feedback-archive')).toContainText('0.3.0');
+ await expect(page.getByTestId('listening-feedback-archive')).toContainText(CURRENT_MUSICALITY_RELEASE.version);
  await expect(page.getByTestId('listening-feedback-archive')).toContainText('The piano leaves useful space.');
  await expect(page.getByTestId('listening-feedback-archive')).toContainText('Partial');
  const summaryDownloaded=page.waitForEvent('download');

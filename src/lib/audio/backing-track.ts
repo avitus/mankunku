@@ -1,3 +1,4 @@
+import { getBackingNativeArming } from './backing-native-arming';
 /**
  * Jazz backing track engine.
  *
@@ -478,7 +479,8 @@ async function ensureDrums(): Promise<void> {
 	let flight: Promise<void> | null = null;
 	flight = (async () => {
 		const audioCtx = await initAudio();
-		const { Sampler } = await import('smplr');
+		const { Sampler, Scheduler } = await import('smplr');
+		const native = getBackingNativeArming(audioCtx, Scheduler);
 		// Disposed while awaiting? Abort BEFORE ensureBackingGraph — a stale
 		// flight must not resurrect a fresh bus onto master.
 		if (epoch !== graphEpoch) return;
@@ -535,7 +537,8 @@ async function ensureDrums(): Promise<void> {
 		// producing NaN detune at playback and throwing inside Voice.
 		const samplers = {} as Record<DrumFamily, SmplrSampler>;
 		for (const family of ['kick', 'snare', 'cymbals'] as const) {
-			samplers[family] = new Sampler(audioCtx, {
+			samplers[family] = new Sampler(native.context, {
+				scheduler: native.createScheduler(),
 				buffers: byFamily[family],
 				destination: pans[family],
 				detune: 0,
@@ -600,7 +603,8 @@ export async function loadBackingInstruments(
 	// path — the backing simply plays dry until (unless) it decodes.
 	void ensureRoomIr(audioCtx);
 
-	const { Soundfont, SplendidGrandPiano, Smolken, CacheStorage } = await import('smplr');
+	const { Soundfont, SplendidGrandPiano, Smolken, CacheStorage, Scheduler } = await import('smplr');
+	const native = getBackingNativeArming(audioCtx, Scheduler);
 	if (loadId !== currentLoadId) return;
 
 	// Cache the CDN sample libraries in CacheStorage so revisits (and full
@@ -640,7 +644,8 @@ export async function loadBackingInstruments(
 
 	// Load bass if not already loaded — pizzicato upright bass samples
 	if (!bassInstrument) {
-		const bass = await loadBackingBass(audioCtx, Smolken, {
+		const bass = await loadBackingBass(native.context, Smolken, {
+			scheduler: native.createScheduler(),
 			instrument: 'Pizzicato',
 			destination: bassGain as GainNode,
 			storage,
@@ -656,8 +661,9 @@ export async function loadBackingInstruments(
 	// Reload comp instrument only when type changes
 	if (!compInstrument || currentInstrumentType !== instrumentType) {
 		const newComp: CompInstrument = instrumentType === 'piano'
-			? new SplendidGrandPiano(audioCtx, { destination: compGain as GainNode, storage, loader })
-			: new Soundfont(audioCtx, {
+			? new SplendidGrandPiano(native.context, { scheduler: native.createScheduler(), destination: compGain as GainNode, storage, loader })
+			: new Soundfont(native.context, {
+				scheduler: native.createScheduler(),
 				instrument: 'drawbar_organ',
 				kit: 'MusyngKite',
 				destination: compGain as GainNode,
@@ -965,6 +971,9 @@ export function playTransitionChords(
  * callback's `time` through. Lives here because the drum velocity-layer and
  * trim mapping (drumBufferForVelocity, BACKING_BASE_TRIMS, mixLevels) is
  * module-private — this mirrors the backing Parts' trigger callbacks.
+ * The rolling renderer additionally calls this inside an explicit native-arming
+ * scope after committing a bar. That scope bypasses smplr's timer queue and
+ * owns native cancellation, so those already-known hits may be farther ahead.
  */
 export function playBackingHitsNow(hits: readonly BackingHit[], time: number, ownershipPrefix?: string): () => void {
 	const stops: (() => void)[] = [];
@@ -1053,6 +1062,9 @@ export async function createRollingBackingPlayback(options: RollingBackingPlayba
 		if (context.rawContext.state !== 'running') throw new Error('Rolling playback requires a running audio context.');
 		return context.rawContext.currentTime;
 	};
+	const { Scheduler } = await import('smplr');
+	assertCurrent();
+	const native = getBackingNativeArming(context.rawContext as AudioContext, Scheduler);
 	const readyAt = audioNow();
 	const startAudioTime = options.startAudioTime ?? readyAt + context.lookAhead + updateInterval() + 0.2;
 	const epoch = graphEpoch;
@@ -1067,6 +1079,7 @@ export async function createRollingBackingPlayback(options: RollingBackingPlayba
 		scheduleOnce: (callback, ticks) => transport.scheduleOnce(callback, ticks),
 		clear: (id) => { transport.clear(id); },
 		play: (hits, time, eventKey) => playBackingHitsNow(hits, time, `rolling:${playbackId}:${eventKey}`),
+		arm: (hits, time, eventKey) => native.arm(() => playBackingHitsNow(hits, time, `rolling:${playbackId}:${eventKey}`)),
 		publishSchedule: (schedule) => { if (isCurrentOwner()) activeSchedule = schedule; }
 	});
 	if (startAudioTime <= renderer.horizon().renderSafeFrom) throw new Error('Rolling playback start is inside the scheduling horizon.');

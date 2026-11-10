@@ -68,7 +68,10 @@
    terminalArrangement: { ending: 'hold-release', melody: session.phrase.notes }
   }) : null);
  const endingUnavailable = $derived(endingAssessment?.available === false ? endingAssessment.reason : null);
- let snapshot = $state<ListeningSnapshot>({status:'idle',generated:null,params:null,ppq:192,startAudioTime:null,audioTime:null,elapsedBeats:0,durationBeats:0,barIndex:null,ending:false,error:null});
+ // Player publications replace the whole snapshot; this component never edits
+ // its children. Keep immutable generated evidence at its original identity
+ // instead of wrapping it in a new nested proxy on every clock/meter poll.
+ let snapshot = $state.raw<ListeningSnapshot>({status:'idle',generated:null,params:null,ppq:192,startAudioTime:null,audioTime:null,elapsedBeats:0,durationBeats:0,barIndex:null,ending:false,error:null});
  const player = createListeningPlayer({onChange: next => snapshot = next});
  let takeScope = '';
  let takeSession = $state<ListeningTuneSession | null>(null);
@@ -97,13 +100,20 @@
  const bar = $derived(displayBarIndex === null ? null : shownSession?.bars[displayBarIndex]);
  const chorus = $derived(shownSession?.phrase.performanceForm.choruses[bar?.context.chorusIndex ?? 0]);
  const shownBars = $derived(shownSession && chorus ? shownSession.bars.slice(chorus.startBar,chorus.endBarExclusive) : []);
+ // Clock and meter polls replace snapshot every 40 ms. Select the stable
+ // evidence/context first so unchanged values do not rerun the presenters.
+ const decisionGenerated = $derived(snapshot.generated);
+ const decisionPpq = $derived(snapshot.ppq);
+ const decisionStyle = $derived(snapshot.params?.style ?? style);
+ const decisionMode = $derived(snapshot.params?.orchestration ?? mode);
+ const playbackBarIndex = $derived(snapshot.barIndex);
  function decisionsAt(barIndex: number | null) {
-  return snapshot.generated && barIndex !== null ? describeMusicianDecisions(snapshot.generated,{barIndex,ppq:snapshot.ppq,beatsPerBar:4,style:snapshot.params?.style ?? style,orchestration:snapshot.params?.orchestration ?? mode}) : [];
+  return decisionGenerated && barIndex !== null ? describeMusicianDecisions(decisionGenerated,{barIndex,ppq:decisionPpq,beatsPerBar:4,style:decisionStyle,orchestration:decisionMode}) : [];
  }
  // Review changes only presentation; exported playback decisions keep their original clock cursor.
- const playbackDecisions = $derived(decisionsAt(snapshot.barIndex));
+ const playbackDecisions = $derived(decisionsAt(playbackBarIndex));
  const decisions = $derived(selectedReviewBar === null ? playbackDecisions : decisionsAt(selectedReviewBar));
- const performanceArc = $derived(snapshot.generated && displayBarIndex !== null ? describePerformanceArc(snapshot.generated,{barIndex:displayBarIndex,ppq:snapshot.ppq,beatsPerBar:4,style:snapshot.params?.style ?? style,orchestration:snapshot.params?.orchestration ?? mode}) : null);
+ const performanceArc = $derived(decisionGenerated && displayBarIndex !== null ? describePerformanceArc(decisionGenerated,{barIndex:displayBarIndex,ppq:decisionPpq,beatsPerBar:4,style:decisionStyle,orchestration:decisionMode}) : null);
  const position = $derived(bar ? `${passName(bar.context.chorusIndex)} · ${bar.sectionLabel} · Bar ${bar.context.barInChorus+1} of ${bar.context.barsInChorus}` : 'Ready to listen');
  function passName(index:number):string { return index === 0 ? 'Head in' : index === (shownSession?.phrase.performanceForm.choruses.length ?? 0)-1 ? 'Head out' : `Solo ${index}`; }
  function clearTake() { pinnedBarIndex=null;feedbackMessage='';feedbackError='';verdict='unsure';reviewBarIndex=null;player.stop();snapshot={...player.snapshot(),status:'idle',generated:null,params:null,barIndex:null,startAudioTime:null,provenance:undefined,outputSignal:undefined};takeSession=null;takeSource=null;marks=[];note=''; }

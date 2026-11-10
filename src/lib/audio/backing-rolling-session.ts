@@ -73,6 +73,7 @@ export function createRollingSession(options: RollingSessionOptions) {
 			const bar = options.generate(definition, checkpoint, receipts.map((receipt) => receipt.feature));
 			const result = renderer.commit(bar, { renderStartedAt: horizon.audioNow, renderElapsedSeconds: options.measureNow() - before });
 			if (!result.accepted) { fail(result.reason ?? 'commit_rejected'); return; }
+			if (renderer.snapshot().status !== 'active') { fail('committed_playback_failed'); return; }
 			checkpoint = bar.checkpoint; nextBar = bar.toBarExclusive;
 			options.onCommit?.(bar);
 		} catch (cause) { fail(cause instanceof Error ? cause.message : String(cause)); }

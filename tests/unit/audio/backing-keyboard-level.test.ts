@@ -17,7 +17,7 @@ vi.mock('smplr', async () => {
  }
  return {
   Smolken: class Smolken extends Instrument {}, SplendidGrandPiano: class SplendidGrandPiano extends Instrument {},
-  Soundfont: class Soundfont extends Instrument {}, Sampler: class Sampler extends Instrument {}, CacheStorage: class {}, Scheduler: class {},
+  Soundfont: class Soundfont extends Instrument {}, Sampler: class Sampler extends Instrument {}, CacheStorage: class {}, Scheduler: function Scheduler() { return { schedule(event: unknown, callback: (event: unknown) => void) { callback(event); return () => {}; }, stop() {} }; },
   renderOffline: async (render: (ctx: unknown) => Promise<void>) => {
    const context = { ...fakeAudioContext(), sampleRate: 48000, destination: {} };
    await render(context);

@@ -450,18 +450,15 @@ export function planEnsemble(input: EnsemblePlanInput): EnsemblePlan {
 	}).plan;
 }
 
-/**
- * Plan one consecutive window against the same complete form on every call.
- * A checkpoint commits the prefix: only observations for newly planned bars are
- * consumed. The caller owns scheduling and decides when to advance the window.
- */
-export function planEnsembleWindow(input: EnsembleWindowInput): EnsembleWindowResult {
-	if (typeof input.phraseId !== 'string') throw new Error('Ensemble phrase identity must be a string');
-	if (!Number.isFinite(input.tempo) || input.tempo <= 0) throw new Error('Ensemble tempo must be positive');
-	for (const [index, bar] of input.bars.entries()) {
+// Only arrays detached and deeply frozen by prepareEnsembleBars are admitted.
+// Shallow-frozen or restored external data must still be validated on every use.
+const preparedForms = new WeakMap<readonly EnsembleBarContext[], ReturnType<typeof describeEnsembleForm>>();
+
+function describeEnsembleForm(bars: readonly EnsembleBarContext[]) {
+	for (const [index, bar] of bars.entries()) {
 		if (bar.terminalArrangement !== undefined && (!bar.performanceEnergy ||
 			(bar.terminalArrangement.profile === 'ballad-v1' ? bar.pianoArrivalPolicy !== undefined || bar.energyCeiling !== .6
-				: bar.terminalArrangement.profile === 'bossa-v1' ? bar.pianoArrivalPolicy !== undefined || bar.energyCeiling !== undefined : !bar.pianoArrivalPolicy) || index !== input.bars.length - 1 || !validTerminalReservation(bar.terminalArrangement, index))) throw new Error('Invalid terminal arrangement context');
+				: bar.terminalArrangement.profile === 'bossa-v1' ? bar.pianoArrivalPolicy !== undefined || bar.energyCeiling !== undefined : !bar.pianoArrivalPolicy) || index !== bars.length - 1 || !validTerminalReservation(bar.terminalArrangement, index))) throw new Error('Invalid terminal arrangement context');
 		const melodySpace = bar.returningMelodySpace;
 		if (melodySpace !== undefined && (!melodySpace || !keysAre(melodySpace, ['version', 'headStartBar', 'offset']) ||
 			melodySpace.version !== 1 || !count(melodySpace.headStartBar, index) ||
@@ -476,21 +473,59 @@ export function planEnsembleWindow(input: EnsembleWindowInput): EnsembleWindowRe
 			throw new Error('Invalid piano arrival policy context');
 		}
 		if (bar.performanceEnergy && (!PERFORMANCE_ENERGY_PHASES.includes(bar.performanceEnergy.phase) ||
-			!count(bar.performanceEnergy.chorusIndex, input.bars.length) || !unit(bar.performanceEnergy.targetEnergy))) {
+			!count(bar.performanceEnergy.chorusIndex, bars.length) || !unit(bar.performanceEnergy.targetEnergy))) {
 			throw new Error('Invalid performance energy context');
 		}
 		if (bar.barIndex !== index || !Number.isFinite(bar.intensity) || (bar.energyCeiling !== undefined && (!Number.isFinite(bar.energyCeiling) || bar.energyCeiling < 0.2 || bar.energyCeiling > 0.9))) {
 			throw new Error('Ensemble bars must be contiguous from zero with finite intensity');
 		}
 		if ((bar.boundaryStrength !== undefined && !unit(bar.boundaryStrength)) ||
-			(bar.phrase4 && (!count(bar.phrase4.index, input.bars.length) ||
+			(bar.phrase4 && (!count(bar.phrase4.index, bars.length) ||
 				!count(bar.phrase4.lengthBars, 4) || bar.phrase4.lengthBars < 1 ||
 				!count(bar.phrase4.barIndex, Math.min(index, bar.phrase4.lengthBars - 1)) ||
 				!unit(bar.phrase4.position) || bar.phrase4.barsRemaining !== bar.phrase4.lengthBars - bar.phrase4.barIndex))) {
 			throw new Error('Ensemble form context must contain finite valid phrase positions and boundaries');
 		}
 	}
-	const fingerprint = formFingerprint(input.bars);
+	const sectionStarts: number[] = [];
+	const sectionEnds: number[] = [];
+	let start = 0, end = bars.length;
+	for (let i = 0; i < bars.length; i++) {
+		if (bars[i].isSectionFirstBar) start = i;
+		sectionStarts[i] = start;
+	}
+	for (let i = bars.length - 1; i >= 0; i--) {
+		sectionEnds[i] = end;
+		if (bars[i].isSectionFirstBar) end = i;
+	}
+	return { fingerprint: formFingerprint(bars), sectionStarts, sectionEnds };
+}
+
+/** Prepare known form data once; no musical decisions or solo observations are consumed. */
+export function prepareEnsembleBars<T extends EnsembleBarContext>(bars: readonly T[]): readonly T[] {
+	const owned = structuredClone(bars);
+	const prepared = describeEnsembleForm(owned);
+	function freeze(value: unknown): void {
+		if (value && typeof value === 'object') {
+		 for (const child of Object.values(value)) freeze(child);
+		 Object.freeze(value);
+		}
+	}
+	freeze(owned);
+	preparedForms.set(owned, prepared);
+	return owned;
+}
+
+/**
+ * Plan one consecutive window against the same complete form on every call.
+ * A checkpoint commits the prefix: only observations for newly planned bars are
+ * consumed. The caller owns scheduling and decides when to advance the window.
+ */
+export function planEnsembleWindow(input: EnsembleWindowInput): EnsembleWindowResult {
+	if (typeof input.phraseId !== 'string') throw new Error('Ensemble phrase identity must be a string');
+	if (!Number.isFinite(input.tempo) || input.tempo <= 0) throw new Error('Ensemble tempo must be positive');
+	const form = preparedForms.get(input.bars) ?? describeEnsembleForm(input.bars);
+	const fingerprint = form.fingerprint;
 	if (input.memory) validateMemory(input.memory, input, fingerprint);
 	const checkpoint = input.memory ?? initialMemory(input, fingerprint);
 	const startBar = input.startBar ?? checkpoint.nextBar;
@@ -521,14 +556,8 @@ export function planEnsembleWindow(input: EnsembleWindowInput): EnsembleWindowRe
 		intentCounts: { ...checkpoint.performance.intentCounts },
 		responseCounts: { ...checkpoint.performance.responseCounts }
 	};
-	let sectionStart = 0;
-	for (let i = 0; i < startBar; i++) if (input.bars[i].isSectionFirstBar) sectionStart = i;
-	const sectionEnds: number[] = [];
-	let end = input.bars.length;
-	for (let i = input.bars.length - 1; i >= 0; i--) {
-		sectionEnds[i] = end;
-		if (input.bars[i].isSectionFirstBar) end = i;
-	}
+	let sectionStart = form.sectionStarts[startBar] ?? 0;
+	const sectionEnds = form.sectionEnds;
 
 	for (const bar of input.bars.slice(startBar, endBarExclusive)) {
 		const i = bar.barIndex;

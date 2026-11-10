@@ -100,6 +100,7 @@ class FakeInstrument {
 }
 
 vi.mock('smplr', () => ({
+	Scheduler: function Scheduler() { return { schedule(event: unknown, callback: (event: unknown) => void) { callback(event); return () => {}; }, stop() {} }; },
 	Sampler: class extends FakeInstrument {},
 	Smolken: class extends FakeInstrument {},
 	SplendidGrandPiano: class extends FakeInstrument {},
@@ -495,18 +496,22 @@ describe('rolling playback browser wrapper', () => {
 		} as unknown as RollingBackingBar;
 	}
 
-	it('anchors after readiness and publishes/clears the actual schedule while cancelling already dispatched voices', async () => {
+	it('anchors after readiness, arms native audio at commit and clears the schedule while cancelling owned voices', async () => {
 		const mod = await import('$lib/audio/backing-track');
 		await mod.loadBackingInstruments('piano');
 		const release = vi.fn();
-		instruments.find((item) => item.kind === 'Smolken')!.inst.start.mockReturnValue(release);
+		const bass = instruments.find((item) => item.kind === 'Smolken')!.inst;
+		bass.start.mockReturnValue(release);
 		const playback = await mod.createRollingBackingPlayback({ sessionId: 'rolling-probe', tempo: 120, ppq: 480, totalBars: 4, isCurrent: () => true });
 		expect(playback.startAudioTime).toBeCloseTo(10.325, 8);
 		expect(playback.commit(openingBar()).accepted).toBe(true);
 		expect(mod.getActiveSchedule()).toBe(playback.snapshot().schedule);
 		expect(recorded).toHaveLength(0);
-		const callback = [...rollingCallbacks.values()][0]; callback(playback.startAudioTime);
-		mod.disposeBackingParts(); callback(playback.startAudioTime);
+		expect(rollingCallbacks.size).toBe(0);
+		expect(bass.start).toHaveBeenCalledOnce();
+		expect(bass.start).toHaveBeenCalledWith(expect.objectContaining({ note: 48, velocity: 80, duration: .4, time: playback.startAudioTime }));
+		expect(playback.snapshot().dispatches[0].status).toBe('played');
+		mod.disposeBackingParts(); mod.disposeBackingParts();
 		expect(release).toHaveBeenCalledOnce();
 		expect(mod.getActiveSchedule()).toBeNull();
 		expect(playback.snapshot().status).toBe('stopped');

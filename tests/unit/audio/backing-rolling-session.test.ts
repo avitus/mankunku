@@ -69,6 +69,15 @@ describe('rolling session clock and evidence', () => {
 		expect(h.renderer.stop).toHaveBeenCalledOnce();
 		expect(h.session.observe(observation())).toBe(false);
 	});
+	it('fails startup after a committed native batch cannot be armed and never retries it', () => {
+		const h = harness();
+		h.renderer.snapshot.mockReturnValue({ status: 'underrun', dispatches: [{ status: 'failed' }] });
+		h.session.start(); h.session.pump(); h.session.start();
+		expect(h.session.snapshot().status).toBe('failed');
+		expect(h.onError).toHaveBeenCalledWith('committed_playback_failed');
+		expect(h.generate).toHaveBeenCalledOnce();
+		expect(h.renderer.stop).toHaveBeenCalledOnce();
+	});
 	it('does not advance a rejected batch or restart after stop', () => {
 		const h = harness(); h.renderer.commit.mockReturnValueOnce({ accepted: false }); h.session.start();
 		expect(h.session.snapshot().nextBar).toBe(0);

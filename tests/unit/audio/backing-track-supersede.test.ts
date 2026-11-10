@@ -83,6 +83,7 @@ class FakeInstrument {
 }
 
 vi.mock('smplr', () => ({
+	Scheduler: function Scheduler() { return { schedule(event: unknown, callback: (event: unknown) => void) { callback(event); return () => {}; }, stop() {} }; },
 	Sampler: class {
 		load: Promise<void>;
 		constructor() {

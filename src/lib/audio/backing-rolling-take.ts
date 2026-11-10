@@ -1,6 +1,6 @@
 /** Export only the renderer's committed prefix, never a regenerated future score. */
 import type { GeneratedBacking } from './backing-generation';
-import type { RollingBackingSnapshot } from './backing-rolling-renderer';
+import { isOwnedRollingBackingSnapshot, type RollingBackingSnapshot } from './backing-rolling-renderer';
 import { MAX_ADAPTIVE_BARS } from './backing-performance-limits';
 
 /** Cache the returned value when a new bar commits, not on every UI clock poll. */
@@ -58,14 +58,19 @@ export function aggregateRollingBacking(snapshot: RollingBackingSnapshot): Gener
 			drumPhrases: windows.flatMap((bar) => bar.ensembleDevelopment.drumPhrases)
 		};
 	}
-	// Copy only the JSON-safe musical projection, not the live schedule index.
-	// A restored caller snapshot stays mutable and cannot rewrite this export.
-	return freeze(structuredClone(result));
+	// Renderer-owned evidence is already detached and deeply immutable. Freeze
+	// only the fresh projection containers, retaining those immutable descendants
+	// instead of cloning the full history after every bar. Restored/external
+	// snapshots still need a detached copy, even when their outer object is frozen.
+	return isOwnedRollingBackingSnapshot(snapshot)
+		? freeze(result, true)
+		: freeze(structuredClone(result));
 }
 
-function freeze<T>(value: T): T {
+function freeze<T>(value: T, shareOwnedFrozen = false): T {
 	if (value && typeof value === 'object') {
-		for (const child of Object.values(value)) freeze(child);
+		if (shareOwnedFrozen && Object.isFrozen(value)) return value;
+		for (const child of Object.values(value)) freeze(child, shareOwnedFrozen);
 		Object.freeze(value);
 	}
 	return value;

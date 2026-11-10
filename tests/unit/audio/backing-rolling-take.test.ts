@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { aggregateRollingBacking } from '$lib/audio/backing-rolling-take';
-import { createRollingBackingRenderer } from '$lib/audio/backing-rolling-renderer';
+import { createRollingBackingRenderer, isOwnedRollingBackingSnapshot } from '$lib/audio/backing-rolling-renderer';
 import { advanceRollingBacking, createRollingBacking, type RollingBackingCheckpoint } from '$lib/audio/backing-rolling';
 import { BACKING_STYLES } from '$lib/audio/backing-styles';
 import { buildHistoricalListeningTuneSession as buildListeningTuneSession, HISTORICAL_LISTENING_TUNES as LISTENING_TUNES } from '../../helpers/musicality-tune-fixtures';
@@ -28,6 +28,57 @@ function harness() {
 }
 
 describe('committed rolling take aggregation', () => {
+	it('shares immutable renderer evidence without cloning the full committed history', () => {
+		const h = harness();
+		for (let bar = 0; bar < 24; bar++) h.append();
+		const snapshot = h.renderer.snapshot();
+		const restored = JSON.parse(JSON.stringify(snapshot));
+		const expected = aggregateRollingBacking(restored);
+		const clone = vi.spyOn(globalThis, 'structuredClone');
+		try {
+			const take = aggregateRollingBacking(snapshot);
+			const second = aggregateRollingBacking(snapshot);
+			expect(clone).not.toHaveBeenCalled();
+			expect(take).toEqual(expected);
+			expect(second).toEqual(take);
+			expect(take.bassEvents).not.toBe(snapshot.generated.bassEvents);
+			expect(second.bassEvents).not.toBe(take.bassEvents);
+			expect(take.bassEvents[0]).toBe(snapshot.generated.bassEvents[0]);
+			expect(take.ensembleMemory).toBe(snapshot.windows.at(-1)!.checkpoint.ensemble);
+			expect(take.ensembleDevelopment!.drumPhrases[0]).toBe(snapshot.windows[0].ensembleDevelopment.drumPhrases[0]);
+			expect(() => { take.bassEvents[0].midi = 99; }).toThrow(TypeError);
+			expect(() => { take.bassEvents.push({ ...take.bassEvents[0] }); }).toThrow(TypeError);
+			expect(() => { (take.ensemblePlan!.bars[0].piano as { maxAttacks: number }).maxAttacks = 99; }).toThrow(TypeError);
+			expect(aggregateRollingBacking(restored)).toEqual(take);
+			expect(clone).toHaveBeenCalledTimes(1);
+		} finally { clone.mockRestore(); }
+	});
+
+	it('brands only actual renderer snapshots, never restored or superficially frozen copies', () => {
+		const h = harness(); h.append();
+		const owned = h.renderer.snapshot();
+		expect(isOwnedRollingBackingSnapshot(owned)).toBe(true);
+		for (const external of [JSON.parse(JSON.stringify(owned)), Object.freeze(JSON.parse(JSON.stringify(owned))), { ...owned }, Object.freeze({ ...owned })]) {
+			expect(isOwnedRollingBackingSnapshot(external)).toBe(false);
+			const take = aggregateRollingBacking(external);
+			expect(take.bassEvents[0]).not.toBe(external.generated.bassEvents[0]);
+			expect(take.ensembleMemory).not.toBe(external.windows[0].checkpoint.ensemble);
+			expect(take).toEqual(aggregateRollingBacking(owned));
+		}
+	});
+
+	it('detaches mutable descendants of shallow-frozen caller snapshots', () => {
+		const h = harness(); h.append();
+		const external = Object.freeze(JSON.parse(JSON.stringify(h.renderer.snapshot())));
+		const take = aggregateRollingBacking(external);
+		const before = JSON.stringify(take);
+		expect(Object.isFrozen(external.generated.bassEvents[0])).toBe(false);
+		external.generated.bassEvents[0].midi = 99;
+		external.windows[0].ensemblePlan.bars[0].piano.maxAttacks = 99;
+		external.windows[0].ensembleDevelopment.drumPhrases[0].hits[0].velocity = .99;
+		expect(JSON.stringify(take)).toBe(before);
+	});
+
  it('retains detached 0.8 delayed-root receipts in a committed export', () => {
   const h=harness(); h.append(); h.append();
   const restored=JSON.parse(JSON.stringify(h.renderer.snapshot()));
