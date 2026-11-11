@@ -4,15 +4,15 @@ import { getBackingNativeArming } from '$lib/audio/backing-native-arming';
 
 function fixture() {
 	let now = 1;
-	const sources: { start: ReturnType<typeof vi.fn>; stop: ReturnType<typeof vi.fn> }[] = [];
+	const sources: { start: ReturnType<typeof vi.fn>; stop: ReturnType<typeof vi.fn>; end: () => void }[] = [];
 	const actual = {
 		get currentTime() { expect(this).toBe(actual); return now; },
 		sampleRate: 48000,
 		destination: {},
 		createBufferSource: vi.fn(function (this: unknown) {
 			expect(this).toBe(actual);
-			const source = { start: vi.fn(), stop: vi.fn() };
-			sources.push({ start: source.start, stop: source.stop });
+			const source = Object.assign(new EventTarget(), { start: vi.fn(), stop: vi.fn() });
+			sources.push({ start: source.start, stop: source.stop, end: () => { source.dispatchEvent(new Event('ended')); } });
 			return source;
 		}),
 		createGain: vi.fn(function (this: unknown) { expect(this).toBe(actual); return { gain: 1 }; }),
@@ -27,6 +27,49 @@ function fixture() {
 }
 
 describe('native backing source arming', () => {
+ it('keeps ordinary cancellation when no tracked source provides completion evidence', () => {
+  const f = fixture(), arming = getBackingNativeArming(f.context, f.factory);
+  const ordinaryStop = vi.fn(), ended = vi.fn();
+  const stop = arming.arm(() => ordinaryStop, ended);
+  expect(ended).not.toHaveBeenCalled();
+  stop(); expect(ordinaryStop).toHaveBeenCalledOnce();
+ });
+
+ it('releases naturally ended sources from cancellation ownership without stopping a still-active sibling', () => {
+  const f = fixture(), arming = getBackingNativeArming(f.context, f.factory);
+  const ordinaryStop = vi.fn(), ended = vi.fn();
+  const stop = arming.arm(() => {
+   arming.context.createBufferSource().start(2);
+   arming.context.createBufferSource().start(2);
+   return ordinaryStop;
+  }, ended);
+  f.sources[0].end();
+  expect(ended).not.toHaveBeenCalled();
+  stop();
+  expect(ordinaryStop).toHaveBeenCalledOnce();
+  expect(f.sources[0].stop).not.toHaveBeenCalled();
+  expect(f.sources[1].stop).toHaveBeenCalledExactlyOnceWith(1);
+  f.sources[1].end();
+  expect(ended).toHaveBeenCalledOnce();
+ });
+
+ it('notifies only after the last native source ends and makes a completed stop handle inert', () => {
+  const f = fixture(), arming = getBackingNativeArming(f.context, f.factory);
+  const ordinaryStop = vi.fn(), ended = vi.fn(), instrumentEnded = vi.fn();
+  const stop = arming.arm(() => {
+   const source = arming.context.createBufferSource();
+   source.addEventListener('ended', instrumentEnded);
+   source.start(2);
+   arming.context.createBufferSource().start(2);
+   return ordinaryStop;
+  }, ended);
+  f.sources[1].end(); expect(ended).not.toHaveBeenCalled();
+  f.sources[0].end(); expect(ended).toHaveBeenCalledOnce();
+  expect(instrumentEnded).toHaveBeenCalledOnce();
+  stop(); expect(ordinaryStop).not.toHaveBeenCalled();
+  for (const source of f.sources) expect(source.stop).not.toHaveBeenCalled();
+ });
+
 	it('rejects a deadline missed between source creation and native start, rolling back earlier voices', () => {
 		const f = fixture(); const arming = getBackingNativeArming(f.context, f.factory);
 		expect(() => arming.arm(() => {

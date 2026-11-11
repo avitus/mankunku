@@ -7,7 +7,7 @@ export interface BackingNativeArming {
 	/** Each instrument owns its queue so disconnect cannot clear another bank. */
 	createScheduler(): Scheduler;
 	/** start must synchronously create its sources and return its normal stop function. */
-	arm(start: () => () => void): () => void;
+	arm(start: () => () => void, onEnded?: () => void): () => void;
 }
 
 const armingByContext = new WeakMap<BaseAudioContext, BackingNativeArming>();
@@ -30,11 +30,25 @@ export function getBackingNativeArming(
 ): BackingNativeArming {
 	const existing = armingByContext.get(context);
 	if (existing) return existing;
-	let activeSources: AudioBufferSourceNode[] | null = null;
+	type SourceScope = { sources: Set<AudioBufferSourceNode>; accepted: boolean; completed: boolean; hadSources: boolean; onEnded?: () => void };
+	let activeScope: SourceScope | null = null;
+	function finish(scope: SourceScope): void {
+		if (!scope.accepted || scope.completed || !scope.hadSources || scope.sources.size) return;
+		scope.completed = true;
+		scope.onEnded?.();
+	}
 	const createBufferSource = () => {
 		const source = context.createBufferSource();
-		if (activeSources) {
-			activeSources.push(source);
+		if (activeScope) {
+			const scope = activeScope;
+			scope.sources.add(source);
+			scope.hadSources = true;
+			// Keep the instrument's onended handler intact. Cancellation needs only
+			// live/future sources, not every native node created earlier in the tune.
+			source.addEventListener('ended', () => {
+				scope.sources.delete(source);
+				finish(scope);
+			}, { once: true });
 			const nativeStart = source.start.bind(source);
 			// Allocation and instrument setup can consume the remaining lead time.
 			// Check at the actual native start boundary, not only before the batch;
@@ -68,24 +82,25 @@ export function getBackingNativeArming(
 		const delegate = createScheduler(context);
 		return {
 			schedule(event, callback) {
-				if (!activeSources) return delegate.schedule(event, callback);
+				if (!activeScope) return delegate.schedule(event, callback);
 				callback(event);
 				return () => {}; // Dispatch has happened; arm owns native cancellation.
 			},
 			stop() { delegate.stop(); }
 		};
 	}
-	function stopSources(sources: AudioBufferSourceNode[]): void {
+	function stopSources(sources: ReadonlySet<AudioBufferSourceNode>): void {
 		for (const source of sources) {
 			try { source.stop(context.currentTime); }
 			catch { /* An ended or never-started source must not strand other voices. */ }
 		}
 	}
 	const result: BackingNativeArming = Object.freeze({ context: facade, createScheduler: instrumentScheduler,
-		arm(start: () => () => void): () => void {
-			if (activeSources) throw new Error('Reentrant backing native arming is not supported');
-			const sources: AudioBufferSourceNode[] = [];
-			activeSources = sources;
+		arm(start: () => () => void, onEnded?: () => void): () => void {
+			if (activeScope) throw new Error('Reentrant backing native arming is not supported');
+			const scope: SourceScope = { sources: new Set(), accepted: false, completed: false, hadSources: false, onEnded };
+			const { sources } = scope;
+			activeScope = scope;
 			let stop: () => void;
 			try {
 				stop = start();
@@ -93,10 +108,12 @@ export function getBackingNativeArming(
 			} catch (error) {
 				stopSources(sources);
 				throw error;
-			} finally { activeSources = null; }
+			} finally { activeScope = null; }
+			scope.accepted = true;
+			finish(scope);
 			let stopped = false;
 			return () => {
-				if (stopped) return;
+				if (stopped || scope.completed) return;
 				stopped = true;
 				try { stop(); }
 				finally { stopSources(sources); }

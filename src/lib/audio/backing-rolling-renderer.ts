@@ -25,8 +25,8 @@ export interface RollingBackingRuntime {
 	scheduleOnce(callback: (audioTime: number) => void, tickTime: string): number;
 	clear(id: number): void;
 	play(hits: readonly BackingHit[], audioTime: number, eventKey: string): () => void;
-	/** Materialize already-committed hits on the native audio clock; cancellation must stop future sources. */
-	arm?(hits: readonly BackingHit[], audioTime: number, eventKey: string): () => void;
+	/** Materialize committed hits; stop must cancel future sources. Notify onEnded only after all release tails finish. */
+	arm?(hits: readonly BackingHit[], audioTime: number, eventKey: string, onEnded?: () => void): () => void;
 	publishSchedule(schedule: BackingTrackSchedule | null): void;
 }
 
@@ -346,8 +346,16 @@ export function createRollingBackingRenderer(
 			try {
 				now = runtime.audioNow();
 				if (!Number.isFinite(now) || entry.audioTime <= now) throw new Error('Native arming deadline');
-				const release = runtime.arm(hits!, entry.audioTime, `${copied.fromBar}:${entry.tick}`);
-				voiceStops.add(release); armed.add(entry);
+				let ended = false;
+				let release: (() => void) | undefined;
+				const onEnded = () => {
+					ended = true;
+					if (release) voiceStops.delete(release);
+					armed.delete(entry);
+				};
+				release = runtime.arm(hits!, entry.audioTime, `${copied.fromBar}:${entry.tick}`, onEnded);
+				// Synchronously completed batches need no cancellation handle.
+				if (!ended) { voiceStops.add(release); armed.add(entry); }
 				if (!runtime.isCurrent() || status !== 'active') { updateDispatch(entry, 'cancelled'); stop(); break; }
 				updateDispatch(entry, 'played');
 			} catch {

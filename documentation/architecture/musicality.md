@@ -4,6 +4,14 @@ The `musicality` branch develops the accompaniment as an ensemble. The target is
 
 The [development log](/docs/contributing/musicality-progress) records milestone checkpoints, validation results, remaining work and audition guidance, including the overnight development run.
 
+## Playback reliability — 0.16.1, 11 November 2026
+
+This patch preserves the 0.16 musical policies. Keyboard candidate ranking scans guide-tone assignments without materializing filtered pairs and Cartesian products; ordered voice movement uses one local dynamic-programming row instead of allocating a matrix for every candidate. The same guide matching, voice-entry/exit costs, ranking and tie-break order remain. Scratch storage is local, with no new history cache or checkpoint state. The keyboard realizer delegates decorations to seven small stages in `backing-keyboard-decorations.ts`: suspension, expression, dominant color, upper structure, spread, fourth stack and inner motion, in their original priority order. One candidate-local state object carries the same accepted voicing/contour history; no future bar is generated or warmed. This keeps the per-attack planner from accumulating every release’s decoration code in one large hot function. Eighty captured full-performance event/decision/checkpoint hashes cover four styles, Blues/AABA, five seeds and both keyboards.
+
+Native arming owns only sources that have not emitted `ended`. It uses an additional one-shot event listener, preserving smplr's own cleanup handler, and drops the renderer's cancellation handle only after the last source in that batch has finished. Live releases and future sources stay cancellable; natural completion does not rewrite dispatch evidence or musical checkpoints. Batches with no tracked source retain their ordinary cancellation because completion is unknown. This prevents a full tune from retaining all of its finished native nodes until Stop.
+
+The 25 ms generation budget, causal scheduling horizon, dispatch-completeness checks and replay validation are unchanged. Full-tune browser regressions export rejected attempts before asserting completion and exercise the previously affected seeds in fresh contexts. Linux WebKit evidence is distinct from native Safari and human listening acceptance; measured outcomes and limitations are recorded in the progress log. No 0.17 vocabulary is introduced here.
+
 ## Inner motion and foot-hat lift — 0.16.0, 11 November 2026
 
 The listening player enables independently fingerprinted `innerMotion: true` alongside all 0.15 policies. Omission preserves 48 captured complete 0.15 event/trace/checkpoint baselines; Original generation and all fader/sample calibration remain unchanged. No new musical checkpoint state is required. Human listening acceptance remains pending.

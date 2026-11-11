@@ -182,3 +182,66 @@ test('already armed audio keeps its exact onset through a 450 ms main-thread pau
 	expect(measured.last).toBeLessThan(measured.target + .1);
 	expect(measured.last).toBeLessThan(measured.pauseEnd);
 });
+
+// Natural completion must relinquish cancellation ownership without shortening
+// either voice's release, and without replacing smplr's own ended handler.
+test('native completion releases a whole batch only after both voices finish', async ({ page }) => {
+ const [smplr, source] = await Promise.all([
+  readFile(resolve('node_modules/smplr/dist/index.mjs'), 'utf8'),
+  readFile(resolve('src/lib/audio/backing-native-arming.ts'), 'utf8')
+ ]);
+ const adapter = ts.transpileModule(source, {
+  compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 }
+ }).outputText;
+ const measured = await page.evaluate(async ({ smplr, adapter }) => {
+  const load = (text: string) => import(URL.createObjectURL(new Blob([text], { type: 'text/javascript' })));
+  const [library, { getBackingNativeArming }] = await Promise.all([load(smplr), load(adapter)]);
+  const context = new OfflineAudioContext(1, 3 * 48000, 48000);
+  const sample = context.createBuffer(1, 2 * 48000, 48000), wave = sample.getChannelData(0);
+  for (let i = 0; i < wave.length; i++) wave[i] = .25 * Math.sin(2 * Math.PI * 440 * i / 48000);
+  let ended = 0, nativeStops = 0, ordinaryStops = 0;
+  const createSource = context.createBufferSource.bind(context);
+  context.createBufferSource = () => {
+   const source = createSource(), stop = source.stop.bind(source);
+   source.addEventListener('ended', () => ended++, { once: true });
+   source.stop = (...args) => { nativeStops++; stop(...args); };
+   return source;
+  };
+  const arming = getBackingNativeArming(context, library.Scheduler), scheduler = arming.createScheduler();
+  const player = library.Sampler(arming.context, { buffers: { C4: sample }, scheduler,
+   volume: 100, destination: context.destination, detune: 0, decayTime: .3, lpfCutoffHz: 20000 });
+  await player.load;
+  const notifications: number[] = [];
+  const cancel = arming.arm(() => {
+   const stops = [.25, 1.25].map((time, index) => player.start({ note: 60, stopId: `voice-${index}`,
+    velocity: 100, time, duration: .5, ampRelease: .2 }));
+   return () => { ordinaryStops++; stops.forEach(stop => stop()); };
+  }, () => notifications.push(ended));
+  const premature = notifications.length;
+  const rendered = await context.startRendering();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  const beforeCancel = nativeStops;
+  cancel();
+  const data = rendered.getChannelData(0);
+  const peak = (start: number, end: number) => {
+   let result = 0;
+   for (let i = Math.floor(start * 48000); i < Math.floor(end * 48000); i++) {
+    if (!Number.isFinite(data[i])) throw new Error('Nonfinite native completion PCM');
+    result = Math.max(result, Math.abs(data[i]));
+   }
+   return result;
+  };
+  const result = { premature, notifications, ended, beforeCancel, afterCancel: nativeStops, ordinaryStops,
+   firstRelease: peak(.85,.9), secondRelease: peak(1.85,1.9), tail: peak(2.2,3) };
+  player.disconnect(); scheduler.stop(); return result;
+ }, { smplr, adapter });
+ await test.info().attach('native-completion', { body: JSON.stringify(measured,null,2), contentType: 'application/json' });
+ expect(measured.premature).toBe(0);
+ expect(measured.notifications).toEqual([2]);
+ expect(measured.ended).toBe(2);
+ expect(measured.ordinaryStops).toBe(0);
+ expect(measured.afterCancel).toBe(measured.beforeCancel);
+ expect(measured.firstRelease).toBeGreaterThan(.01);
+ expect(measured.secondRelease).toBeGreaterThan(.01);
+ expect(measured.tail).toBeLessThan(1e-7);
+});

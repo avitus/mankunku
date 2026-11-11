@@ -86,24 +86,39 @@ function definingPcs(chord: Chord): [number, number] {
 	const root = PITCH_CLASSES.indexOf(chord.root);
 	return definingIntervals(chord).map((interval) => pc(root + interval)) as [number, number];
 }
-function pairChoices(notes: readonly number[], chord: Chord): number[][] {
-	const [first, second] = definingPcs(chord);
-	return notes.filter((note) => pc(note) === first).flatMap((a) => notes.filter((note) => pc(note) === second).map((b) => [a, b]));
-}
 function guideMovement(previous: CoordinatedVoicingMemory | undefined, chord: Chord, notes: readonly number[], family: CoordinatedVoicingFamily): number | null {
 	if (!previous || family === 'quartal') return null;
-	const from = pairChoices(previous.notes, previous.chord); const to = pairChoices(notes, chord);
-	if (!from.length || !to.length) return null;
-	return Math.min(...from.flatMap(([a, b]) => to.map(([c, d]) => Math.min(Math.abs(a - c) + Math.abs(b - d), Math.abs(a - d) + Math.abs(b - c)))));
+	const [fromThird, fromOther] = definingPcs(previous.chord);
+	const [toThird, toOther] = definingPcs(chord);
+	let best = Infinity;
+	// Enumerate the same doubled-guide assignments without allocating filter,
+	// pair and Cartesian-product arrays for every ranked candidate.
+	for (const a of previous.notes) if (pc(a) === fromThird) {
+		for (const b of previous.notes) if (pc(b) === fromOther) {
+			for (const c of notes) if (pc(c) === toThird) {
+				for (const d of notes) if (pc(d) === toOther) {
+					best = Math.min(best, Math.abs(a - c) + Math.abs(b - d), Math.abs(a - d) + Math.abs(b - c));
+				}
+			}
+		}
+	}
+	return best === Infinity ? null : best;
 }
 /** Minimum ordered movement, allowing a voice to enter or leave at a fixed cost. */
 function totalMovement(from: readonly number[], to: readonly number[]): number {
-	const costs = Array.from({ length: from.length + 1 }, () => Array<number>(to.length + 1).fill(0));
-	for (let a = 0; a <= from.length; a++) for (let b = 0; b <= to.length; b++) {
-		costs[a][b] = a === 0 ? b * 12 : b === 0 ? a * 12 : Math.min(
-			costs[a - 1][b - 1] + Math.abs(from[a - 1] - to[b - 1]), costs[a - 1][b] + 12, costs[a][b - 1] + 12);
+	// Only the previous row and left neighbour are needed. Keep one local row
+	// rather than a matrix per candidate; no scratch state survives this call.
+	const costs = Array.from({ length: to.length + 1 }, (_, b) => b * 12);
+	for (let a = 1; a <= from.length; a++) {
+		let diagonal = costs[0];
+		costs[0] = a * 12;
+		for (let b = 1; b <= to.length; b++) {
+			const above = costs[b];
+			costs[b] = Math.min(diagonal + Math.abs(from[a - 1] - to[b - 1]), above + 12, costs[b - 1] + 12);
+			diagonal = above;
+		}
 	}
-	return costs[from.length][to.length];
+	return costs[to.length];
 }
 
 /** Reassess an authored complete cell against what it actually sounds. */

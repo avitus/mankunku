@@ -9,7 +9,7 @@ for(const keyboard of ['piano','organ'] as const)test(`0.16 full Blues with ${ke
  test.setTimeout(240_000);
  await seedOnboardedAnonymous(page);
  await page.goto('/musicality');
- await expect(page.getByTestId('listening-release-focus')).toContainText('0.16.0');
+ await expect(page.getByTestId('listening-release-focus')).toContainText('0.16.1');
  await page.getByTestId('listening-keyboard').selectOption(keyboard);
  await page.getByTestId('listening-release-example').click();
  await expect(page.getByTestId('listening-keyboard')).toHaveValue(keyboard);
@@ -44,7 +44,7 @@ for(const keyboard of ['piano','organ'] as const)test(`0.16 full Blues with ${ke
  await test.info().attach('inner-motion-performed-take',{path,contentType:'application/json'});
  await test.info().attach('inner-motion-live-evidence',{body:JSON.stringify(observed,null,2),contentType:'application/json'});
  await expect(page.getByTestId('listening-status')).toHaveText('Take complete');
- expect(take.playback.musicalityRelease.version).toBe('0.16.0');
+ expect(take.playback.musicalityRelease.version).toBe('0.16.1');
  expect(take.playback.params.performanceEnergySeed).toBe(256);
  expect(take.playback.provenance.committedBars).toBe(52);
  expect(take.playback.provenance.dispatches.every((d:{status:string})=>d.status==='played')).toBe(true);

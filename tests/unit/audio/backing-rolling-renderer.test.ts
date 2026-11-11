@@ -45,6 +45,31 @@ function harness() {
 }
 
 describe('append-only rolling audio renderer', () => {
+ it('forgets naturally completed native handles while retaining cancellation of future batches', () => {
+  const h = harness(), stops: ReturnType<typeof vi.fn>[] = [], ends: (() => void)[] = [];
+  h.runtime.arm = vi.fn((_hits, _time, _key, onEnded) => {
+   const stop = vi.fn(); stops.push(stop); ends.push(onEnded!); return stop;
+  });
+  expect(h.renderer.commit(bar(0)).accepted).toBe(true);
+  expect(h.renderer.commit(bar(1)).accepted).toBe(true);
+  const played = h.renderer.snapshot();
+  h.now(11.5); ends[0]();
+  expect(h.renderer.snapshot()).toBe(played);
+  h.renderer.stop();
+  expect(stops[0]).not.toHaveBeenCalled();
+  expect(stops[1]).toHaveBeenCalledOnce();
+  expect(h.renderer.snapshot().dispatches.map(d => d.status)).toEqual(['played', 'cancelled']);
+  expect(played.dispatches.map(d => d.status)).toEqual(['played', 'played']);
+ });
+
+ it('does not retain a native batch that completes during arming', () => {
+  const h = harness(), stop = vi.fn();
+  h.runtime.arm = vi.fn((_hits, _time, _key, onEnded) => { onEnded!(); return stop; });
+  expect(h.renderer.commit(bar(0)).accepted).toBe(true);
+  h.renderer.stop();
+  expect(stop).not.toHaveBeenCalled();
+ });
+
 	it('reuses immutable snapshots between changes and unchanged rows across later dispatch transitions', () => {
 		const h = harness();
 		const empty = h.renderer.snapshot();

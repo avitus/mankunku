@@ -197,6 +197,7 @@ const pianoDevelopmentEvidence: MusicalityEvidence[] = [
 const pianoRecallEvidence: MusicalityEvidence[] = [
 	{ ...source('backing-piano-motif-memory'), revision: 'musicality' },
 	{ ...source('backing-rolling-piano'), revision: 'musicality' },
+	{ ...source('backing-keyboard-decorations'), revision: 'musicality' },
 	{ ...test('backing-piano-phrase-recall'), revision: 'musicality' },
 	{ ...test('backing-piano-phrase-recall-integration'), revision: 'musicality' },
 	{ kind: 'test', path: 'tests/e2e/musicality-listening.spec.ts', revision: 'musicality' }
@@ -386,8 +387,8 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
     ? 'Musicality 0.16.0 resolves an inner flat ninth to ninth, or sharp eleventh to fifth, across two existing dominant-chord attacks. Defining 3/7 tones, outer voices, native rhythm and harmonic support remain.'
     : 'Musicality 0.16.0 occasionally lifts the existing beat-four foot hi-hat at a quiet phrase close, leaving ride, beat two and attack count intact. Late keyboard attacks and competing commentary veto the lift.',
   remaining:'Ninth-only bass extension targets; keyboard movement is a bounded lower-neighbor resolution on plain dominants; the hat uses the existing pedal sample rather than a dedicated bark articulation. Human listening acceptance remains pending.',
-  scope:'Independent inner-motion policy. Omission preserves 48 captured 0.15 performances. Bass/drums are Swing/Straight; keyboards also use Bossa/Ballad native rhythm. Load 0.16 example for reproducible full-tune listening. Exported causal takes now include measured render attempts for playback diagnosis.',
-  evidence:[...entry.evidence,source('backing-inner-motion'),source('backing-rolling-bass'),source('backing-rolling-piano'),source('backing-rolling'),test('backing-inner-motion'),test('backing-inner-motion-performance')]
+  scope:'Independent inner-motion policy. Omission preserves 48 captured 0.15 performances. Bass/drums are Swing/Straight; keyboards also use Bossa/Ballad native rhythm. Load 0.16 example for reproducible full-tune listening. Exported causal takes now include measured render attempts for playback diagnosis. The 0.16.1 playback patch reduces keyboard ranking allocations and releases finished native-voice ownership, preserving 80 complete 0.16 output baselines and the 25 ms generation guard.',
+  evidence:[...entry.evidence,source('backing-inner-motion'),source('backing-rolling-bass'),source('backing-rolling-piano'),source('backing-keyboard-decorations'),source('backing-rolling'),test('backing-inner-motion'),test('backing-inner-motion-performance')]
  };
 
  if(['B32','P25','D47'].includes(entry.id))return {
@@ -399,7 +400,7 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
     : 'Musicality 0.15.0 can move the last stroke of a complete two- or three-snare figure to the kick. Existing middle ghost notes, onsets and snare timing remain; both nominal and scheduled foot clearance are checked.',
   remaining:'These are bounded gestures, not unrestricted improvisation. Bass and drums apply to Swing/Straight; keyboard color also respects Bossa/Ballad rhythm. Human listening acceptance remains pending.',
   scope:'Independent phrase-dialogue policy. Omission preserves 48 complete 0.14 event baselines; Original note generation remains unchanged. Shared Organ trim gains 0.51 dB in Bossa and loses 0.40 dB in Ballad for balance. Source-backed live cards and the repeatable 0.15 example support full-tune listening.',
-  evidence:[...entry.evidence,source('backing-phrase-dialogue'),source('backing-rolling-bass'),source('backing-rolling-piano'),source('backing-rolling'),test('backing-phrase-dialogue'),test('backing-phrase-dialogue-performance')]
+  evidence:[...entry.evidence,source('backing-phrase-dialogue'),source('backing-rolling-bass'),source('backing-rolling-piano'),source('backing-keyboard-decorations'),source('backing-rolling'),test('backing-phrase-dialogue'),test('backing-phrase-dialogue-performance')]
  };
 
  if(['B27','P24','D32'].includes(entry.id))return {
@@ -411,7 +412,7 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
     : 'Musicality 0.14.0 can replace an existing Swing/Straight snare comment with softer cross-stick beneath an actually held keyboard chord. Scheduled swing timing, gate overlap, limb and response reservations are checked before acceptance.',
   remaining:'Selections are occasional and protected responses, cadences and earlier colors take priority. Bass/drum additions are Swing/Straight; drop-3 also uses native Bossa/Ballad rhythm. Broader arpeggios, voicing families and human listening acceptance remain pending.',
   scope:'Explicit independently fingerprinted ensemble-colors policy. Omission preserves complete 0.13 performances; Original is unchanged.',
-  evidence:[...entry.evidence,source('backing-ensemble-colors'),source('backing-rolling-bass'),source('backing-rolling-piano'),source('backing-rolling'),test('backing-ensemble-colors'),test('backing-ensemble-colors-performance')]
+  evidence:[...entry.evidence,source('backing-ensemble-colors'),source('backing-rolling-bass'),source('backing-rolling-piano'),source('backing-keyboard-decorations'),source('backing-rolling'),test('backing-ensemble-colors'),test('backing-ensemble-colors-performance')]
  };
 
  if(['B26','P26','D20'].includes(entry.id))return {
@@ -423,7 +424,7 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
     : 'Musicality 0.13.0 occasionally moves right-hand timekeeping from ride to quieter closed stick hi-hat for a two-to-four-bar head or solo-release phrase, preserving attack timing, pedal time, commentary and fills. Consecutive selected hat phrases are excluded.',
   remaining:'Bass and drum additions are Swing/Straight only. Keyboard color also uses native Bossa/Ballad rhythm. Other upper structures, broader bass motifs and human listening acceptance remain pending.',
   scope:'Explicit Coordinated phrase-colors policy, independently fingerprinted. Omission preserves complete 0.12 performances; Original is unchanged.',
-  evidence:[...entry.evidence,source('backing-phrase-colors'),source('backing-rolling-bass'),source('backing-rolling-piano'),source('backing-drum-phrases'),test('backing-phrase-colors'),test('backing-phrase-colors-performance')]
+  evidence:[...entry.evidence,source('backing-phrase-colors'),source('backing-rolling-bass'),source('backing-rolling-piano'),source('backing-keyboard-decorations'),source('backing-drum-phrases'),test('backing-phrase-colors'),test('backing-phrase-colors-performance')]
  };
 
  if(['B9','P48','D77'].includes(entry.id))return {
@@ -435,7 +436,7 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
     : 'Musicality 0.12.0 can lower an existing inner ninth to a flat ninth on the last keyboard attack before a declared dominant-to-tonic change. Defining tones, top voice, native attacks and gates remain intact; actual colored notes become the voice-leading memory. Conflicting bass notes veto the color.',
   remaining: 'Occasional generated-event interaction, not microphone motif recognition. Bass/drum additions are Swing/Straight only; keyboard color also uses existing Bossa/Ballad attacks. Other altered colors, broader bass motifs and human listening acceptance remain pending.',
   scope:'Explicit Coordinated 0.12.0 trio-conversation policy, independently fingerprinted. Omission retains complete 0.11 events, traces and checkpoints; Original generation is unchanged.',
-  evidence:[...entry.evidence,source('backing-trio-conversation'),source('backing-rolling-bass'),source('backing-rolling-piano'),source('backing-drum-phrases'),test('backing-trio-conversation'),test('backing-trio-conversation-performance')]
+  evidence:[...entry.evidence,source('backing-trio-conversation'),source('backing-rolling-bass'),source('backing-rolling-piano'),source('backing-keyboard-decorations'),source('backing-drum-phrases'),test('backing-trio-conversation'),test('backing-trio-conversation-performance')]
  };
 
 	if (['B49','P14','D37'].includes(entry.id)) return {
@@ -454,7 +455,7 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 		assessment: 'Musicality 0.10.0 adds ninth-to-root and thirteenth-to-fifth resolutions to the 0.9 fourth-to-third vocabulary. Existing lower/inner color tones resolve on the next native attack; both defining tones and the top voice stay in place. The actual resolved chord becomes the next voice-leading memory. Bass conflicts at either attack can decline the complete pair, and only an accepted gesture spends the three-bar cooldown.',
 		remaining: 'Plain-dominant, same-bar pairs during eligible solo passages only. No extra attacks, cross-bar promises, altered-harmony substitutions or acoustic solo recognition. Heads, responses, arrivals, busy solo evidence and endings retain priority. Ballad has fewer eligible paired pads. Human listening acceptance remains pending.',
 		scope: 'Explicit Coordinated 0.10.0 Piano/Organ in Swing, Straight, Bossa and Ballad. The developed policy is independently fingerprinted; the earlier true option retains exact 0.9 events/traces/checkpoints. Original is unchanged.',
-		evidence: [...entry.evidence, source('backing-keyboard-suspension'), source('backing-rolling-piano'), test('backing-keyboard-suspension'), test('backing-keyboard-suspension-performance'), test('backing-keyboard-resolution-colors'), test('backing-keyboard-resolution-performance')]
+		evidence: [...entry.evidence, source('backing-keyboard-suspension'), source('backing-rolling-piano'),source('backing-keyboard-decorations'), test('backing-keyboard-suspension'), test('backing-keyboard-suspension-performance'), test('backing-keyboard-resolution-colors'), test('backing-keyboard-resolution-performance')]
 	};
 	if (entry.id === 'B35') return {
 		...entry, status: 'partial',
@@ -468,7 +469,7 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 		assessment: 'Musicality 0.8.0 can choose a bounded inner voice moving against the actual upper voice, within the selected legal family and spacing. It preserves the connected-line target distance and uses actual preceding chords rather than planned unplayed harmony.',
 		remaining: 'Only equal voice counts with eligible non-guide/non-quartal placement qualify. Opportunities are intentionally limited by harmonic legality and motion bounds. This is contrary movement within the keyboard, not counterpoint against bass or a human solo. Human acceptance remains pending.',
 		scope: 'Explicit Coordinated 0.8.0 Piano and Organ in all four styles; native attacks and articulation retained. Omitted policy retains 0.7.0.',
-		evidence: [...entry.evidence, source('coordinated-voicing'), source('backing-rolling-piano'), test('backing-keyboard-contrary'), test('backing-keyboard-contrary-performance'), test('backing-release-eight')]
+		evidence: [...entry.evidence, source('coordinated-voicing'), source('backing-rolling-piano'),source('backing-keyboard-decorations'), test('backing-keyboard-contrary'), test('backing-keyboard-contrary-performance'), test('backing-release-eight')]
 	};
 	if (entry.id === 'D85') return {
 		...entry, status: 'partial',

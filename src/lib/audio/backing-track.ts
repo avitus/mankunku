@@ -1089,7 +1089,7 @@ export async function createRollingBackingPlayback(options: RollingBackingPlayba
 		scheduleOnce: (callback, ticks) => transport.scheduleOnce(callback, ticks),
 		clear: (id) => { transport.clear(id); },
 		play: (hits, time, eventKey) => playBackingHitsNow(hits, time, `rolling:${playbackId}:${eventKey}`),
-		arm: (hits, time, eventKey) => native.arm(() => playBackingHitsNow(hits, time, `rolling:${playbackId}:${eventKey}`)),
+		arm: (hits, time, eventKey, onEnded) => native.arm(() => playBackingHitsNow(hits, time, `rolling:${playbackId}:${eventKey}`), onEnded),
 		publishSchedule: (schedule) => { if (isCurrentOwner()) activeSchedule = schedule; }
 	});
 	if (startAudioTime <= renderer.horizon().renderSafeFrom) throw new Error('Rolling playback start is inside the scheduling horizon.');
