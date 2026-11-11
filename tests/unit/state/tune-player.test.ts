@@ -290,7 +290,7 @@ describe('tune desk playback', () => {
 		player.backing = backing;
 		await player.toggle(tune, 'swing');
 		expect(audio.playPhrase.mock.calls[0][3].melodyLevel ?? 1).toBe(1);
-		expect(audio.playPhrase.mock.calls[0][1]).toMatchObject({ backingOutputLevel: 2, backingTrackVolume: settings.backingTrackVolume });
+		expect(audio.playPhrase.mock.calls[0][1]).toMatchObject({ backingOutputLevel: 4, backingTrackVolume: settings.backingTrackVolume });
 	});
 	it('keeps the saved feel with backing off and supports a backing-only pass', async () => {
 		player.melody = false;

@@ -179,10 +179,10 @@ export const ROOM_RETURN_GAIN = 0.126;
  *  as the drum samples). Load is best-effort: no IR → dry backing. */
 export const ROOM_IR_URL = '/samples/ir/room.ogg';
 
-/** Tune backing plays 6 dB above the accompaniment bed, letting the melody
- * stay at the same unity level as ear-training and lick-practice demos.
- * Applied after compression to preserve the existing ensemble balance. */
-export const TUNE_BACKING_LEVEL = 2;
+/** Tune backing plays 12 dB above the accompaniment bed, with melody
+ * kept at the same unity level as ear-training and lick-practice demos.
+ * Applied after compression so the boost does not change compression. */
+export const TUNE_BACKING_LEVEL = 4;
 
 /**
  * Glue compressor on the backing bus only (master carries the melody and
