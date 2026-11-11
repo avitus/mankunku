@@ -713,6 +713,36 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
   }
  }
 
+ if(development) {
+  const ninth=bass.find(e=>e.innerMotion?.kind==='ninth-pulse');
+  const receipt=ninth?.innerMotion;
+  if(ninth && receipt?.kind==='ninth-pulse' && walking && ninth.absBeat===barIndex*4+2 && bass[0]?.midi===receipt.rootMidi && (ninth.midi-receipt.rootMidi+120)%12===2) {
+   bassCard.action='Walk through the ninth';
+   bassCard.detail='The third pulse reaches the ninth for a more melodic line. The root entrance, quarter-note pulse and final approach remain.';
+   bassCard.evidence.push(`Ninth target: ${noteName(ninth.midi)} over ${noteName(receipt.rootMidi)}`);
+  }
+  const approach=piano.find(e=>e.innerMotion?.kind==='chromatic-inner'&&e.innerMotion.phase==='approach'),cell=approach?.innerMotion;
+  if(approach && cell?.kind==='chromatic-inner') {
+   const resolution=piano.find(e=>e.absBeat===cell.resolutionBeat&&e.innerMotion?.kind==='chromatic-inner'&&e.innerMotion.phase==='resolution');
+   const accepted=(e:typeof approach)=>development.pianoVoicings?.some(v=>v.time===e.time&&v.absBeat===e.absBeat&&JSON.stringify(v.notes)===JSON.stringify(e.notes)&&JSON.stringify(v.decision.chromaticInner)===JSON.stringify(e.innerMotion));
+   if(resolution && cell.fromMidi+1===cell.toMidi && [2,7].includes((cell.toMidi-cell.rootPc+120)%12) && approach.absBeat===cell.approachBeat &&
+    approach.notes.slice(1,-1).includes(cell.fromMidi) && resolution.notes.slice(1,-1).includes(cell.toMidi) &&
+    JSON.stringify({...resolution.innerMotion,phase:'approach'})===JSON.stringify(cell) && accepted(approach) && accepted(resolution)) {
+    const articulation=pianoCard.action==='Short chord → held answer'?' The short chord → held answer articulation remains.':'';
+    pianoCard.action='Resolve an inner voice';
+    pianoCard.detail=((cell.toMidi-cell.rootPc+120)%12===2 ? 'An inner flat ninth rises a semitone into the ninth' : 'An inner sharp eleventh rises a semitone into the fifth')+' on the next existing chord attack. The defining third, seventh and top stay in their harmonic roles.'+articulation;
+    pianoCard.evidence.push(`Chromatic inner line: ${noteName(cell.fromMidi)} → ${noteName(cell.toMidi)}`);
+   }
+  }
+  const hat=drums.find(e=>e.innerMotion?.kind==='hat-lift'),lift=hat?.innerMotion;
+  if(hat && lift?.kind==='hat-lift' && hat.drum==='hihat-pedal' && hat.absBeat===barIndex*4+3 && hat.velocity===lift.originalVelocity*1.5 &&
+   drumPhrase?.hits.some(h=>h.drum===hat.drum&&h.beatOffset===3&&h.velocity===hat.velocity&&JSON.stringify(h.innerMotion)===JSON.stringify(lift))) {
+   drumCard.action='Lift the foot hi-hat';
+   drumCard.detail='The existing foot chick on beat four is stronger in this clear phrase-ending space. Beat two and the cymbal pulse continue.';
+   drumCard.evidence.push('Left-foot accent: beat 4 · no extra hit');
+  }
+ }
+
 	if (keyboardTextures.length) pianoCard.detail += ` ${piano.some(e=>e.phraseColor?.kind==='upper-structure'||e.ensembleColor?.kind==='drop3'||e.phraseDialogue?.kind==='fourth-stack')?'Other attacks: ':''}${[...new Set(keyboardTextures)].join(', then ')}.`;
 	return [bassCard, pianoCard, drumCard];
 }

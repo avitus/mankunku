@@ -19,6 +19,7 @@ export interface CausalListeningProvenance extends ListeningTakeExtent {
 	readonly sessionId: string;
 	readonly fingerprint: string;
 	readonly sessionStatus: RollingSessionSnapshot['status'];
+ readonly renderTimings?: RollingSessionSnapshot['renderTimings'];
 	readonly dispatches: readonly RollingBackingDispatch[];
 }
 export type ListeningTakeProvenance = CausalListeningProvenance | (ListeningTakeExtent & { readonly engine: 'fixed' });
@@ -212,7 +213,7 @@ const browserListeningRuntime: ListeningPlayerRuntime = {
 			const definition = createRollingBacking(params.phrase.harmony, style, { phraseId: params.phrase.id, tempo: params.tempo,
 				ppq: transport.PPQ, beatsPerBar: 4, swing: resolveBackingSwing(params.swing, style, params.tempo),
 				sectionMap: params.phrase.sectionMap, performanceForm: params.phrase.performanceForm, ensemble: {},
-				...(terminalArrangement ? { terminalArrangement } : {}) }, { returningMelodySpace: true, performanceEnergySeed: params.performanceEnergySeed, pianoPresence: 'accompaniment', keyboardVariety: 'developed', chorusBoundaryPriority: true, keyboardTexture: true, keyboardPhrasing: params.instrument, bassDelayedRoot: true, keyboardContraryMotion: true, drumPhraseCushioning: true, keyboardSuspensions: 'developed', phraseExpression: true, trioConversation: true, phraseColors: true, ensembleColors: true, phraseDialogue: true });
+				...(terminalArrangement ? { terminalArrangement } : {}) }, { returningMelodySpace: true, performanceEnergySeed: params.performanceEnergySeed, pianoPresence: 'accompaniment', keyboardVariety: 'developed', chorusBoundaryPriority: true, keyboardTexture: true, keyboardPhrasing: params.instrument, bassDelayedRoot: true, keyboardContraryMotion: true, drumPhraseCushioning: true, keyboardSuspensions: 'developed', phraseExpression: true, trioConversation: true, phraseColors: true, ensembleColors: true, phraseDialogue: true, innerMotion: true });
 			transport.stop(); transport.position = 0; transport.bpm.value = params.tempo;
 			let playbackError: string | null = null;
 			const playback = await backing.createRollingBackingPlayback({ sessionId: definition.sessionId, tempo: params.tempo,
@@ -224,7 +225,7 @@ const browserListeningRuntime: ListeningPlayerRuntime = {
 			let timer: ReturnType<typeof setInterval> | null = null;
 			const clearPump = () => { if (timer !== null) clearInterval(timer); timer = null; };
 			const session = createRollingSession({ definition, renderer: playback, startAudioTime: playback.startAudioTime,
-				observationSessionId: definition.sessionId, releaseTailSeconds: RELEASE_TAIL_SECONDS,
+				observationSessionId: definition.sessionId, captureRenderTiming: true, releaseTailSeconds: RELEASE_TAIL_SECONDS,
 				generate: (score, checkpoint) => advanceRollingBacking(score, checkpoint, params.soloFeatures),
 				measureNow: () => performance.now() / 1000,
 				onError: reason => { playbackError = `Audio scheduling stopped: ${reason}`; clearPump(); },
@@ -253,7 +254,7 @@ const browserListeningRuntime: ListeningPlayerRuntime = {
 					return { generated, error: playbackError ?? state.error ?? ownershipError,
 						provenance: Object.freeze({ engine: 'causal-rolling' as const, sessionId: definition.sessionId,
 							fingerprint: definition.fingerprint, totalBars: definition.totalBars, committedBars,
-							committedThroughTick: snapshot.committedThroughTick, sessionStatus: state.status, dispatches: snapshot.dispatches }) };
+							committedThroughTick: snapshot.committedThroughTick, sessionStatus: state.status, ...(state.renderTimings ? {renderTimings:state.renderTimings} : {}), dispatches: snapshot.dispatches }) };
 				},
 				setMix(mix) { if (!current() || !playback.ownsOutput()) return false; backing.setBackingMix(mix, { persist: false }); return true; },
 				stop() { const owned = playback.ownsOutput(); signal?.dispose(); clearPump(); session.stop(); if (owned) { transport.stop(); backing.setBackingMix(previousMix, { persist: false }); } }

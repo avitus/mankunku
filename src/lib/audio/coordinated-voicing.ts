@@ -1,3 +1,4 @@
+import type { InnerMotion } from './backing-inner-motion';
 import type { PhraseDialogue } from './backing-phrase-dialogue';
 import type { EnsembleColor } from './backing-ensemble-colors';
 import type { PhraseColor } from './backing-phrase-colors';
@@ -15,6 +16,7 @@ export interface CoordinatedVoicingMemory {
 	readonly notes: readonly number[];
 }
 export interface CoordinatedVoicingDecision {
+ readonly chromaticInner?: Extract<InnerMotion,{kind:'chromatic-inner'}>;
  readonly fourthStack?: Extract<PhraseDialogue,{kind:'fourth-stack'}>;
  readonly spreadVoicing?: Extract<EnsembleColor,{kind:'drop3'}>;
  readonly upperStructure?: Extract<PhraseColor,{kind:'upper-structure'}>;

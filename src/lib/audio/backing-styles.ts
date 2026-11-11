@@ -1,3 +1,4 @@
+import type { InnerMotion } from './backing-inner-motion';
 import type { PhraseDialogue } from './backing-phrase-dialogue';
 import type { EnsembleColor } from './backing-ensemble-colors';
 import type { TrioConversation } from './backing-trio-conversation';
@@ -120,6 +121,7 @@ export interface CompHitSpec {
 }
 
 export interface DrumHitSpec {
+ readonly innerMotion?: InnerMotion;
  readonly phraseDialogue?: PhraseDialogue;
  readonly ensembleColor?: EnsembleColor;
 	readonly expression?: PhraseExpression;

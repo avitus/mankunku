@@ -21,7 +21,7 @@ async function browserModule(path: string): Promise<string> {
 	return source;
 }
 
-for (const release of ['0.7', '0.8', '0.9', '0.10', '0.11', '0.12', '0.13', '0.14', '0.15'] as const) for (const seed of release === '0.15' ? [42,7,19,147,243] : release === '0.7' ? [42] : ['0.12','0.13','0.14', '0.15'].includes(release) ? [42,7,19] : [42, 19]) for (const style of (release==='0.15'&&seed===243?['swing'] as const:['swing', 'straight', 'bossa-nova', 'ballad'] as const)) for(const tune of release==='0.15'&&style==='ballad'&&seed===7?['blues','aaba']:['blues']) {
+for (const release of ['0.7', '0.8', '0.9', '0.10', '0.11', '0.12', '0.13', '0.14', '0.15', '0.16'] as const) for (const seed of release === '0.16' ? [42,7,19,256,1,2] : release === '0.15' ? [42,7,19,147,243] : release === '0.7' ? [42] : ['0.12','0.13','0.14', '0.15', '0.16'].includes(release) ? [42,7,19] : [42, 19]) for (const style of ((release==='0.15'&&seed===243||release==='0.16'&&seed===256)?['swing'] as const:release==='0.16'&&seed===1?['ballad'] as const:release==='0.16'&&seed===2?['bossa-nova'] as const:['swing', 'straight', 'bossa-nova', 'ballad'] as const)) for(const tune of release==='0.15'&&style==='ballad'&&seed===7?['blues','aaba']:['blues']) {
 	const releaseEight = release !== '0.7';
 	test(`${release} seed ${seed} ${style}${tune==='aaba'?' AABA':''}: full tune keyboard phrasing remains audible, balanced and releases cleanly`, async ({ page, browserName }) => {
 		test.skip(process.env.MANKUNKU_TEST_SANDBOX !== '1', 'native sample rendering in the local Linux sandbox only');
@@ -37,18 +37,19 @@ for (const release of ['0.7', '0.8', '0.9', '0.10', '0.11', '0.12', '0.13', '0.1
 		const performances = (['piano', 'organ'] as const).map(instrument => {
 			const score = createRollingBacking(phrase.harmony!, BACKING_STYLES[style], {
 				phraseId: phrase.id, tempo, ppq, beatsPerBar: 4,
-				swing: resolveBackingSwing(seed===243?.62:.67, BACKING_STYLES[style], tempo),
+				swing: resolveBackingSwing(seed===243||release==='0.16'?.62:.67, BACKING_STYLES[style], tempo),
 				sectionMap: phrase.sectionMap, performanceForm: phrase.performanceForm, ensemble: {}
 			}, {
 				returningMelodySpace: true, performanceEnergySeed: seed, pianoPresence: 'accompaniment',
 				keyboardVariety: 'developed', chorusBoundaryPriority: true,
 				keyboardTexture: true, keyboardPhrasing: instrument,
-                ...(['0.11','0.12','0.13','0.14', '0.15'].includes(release) ? { phraseExpression: true } as const : {}),
-                ...(['0.14','0.15'].includes(release) ? { ensembleColors: true } as const : {}),
-                ...(['0.13','0.14', '0.15'].includes(release) ? { phraseColors: true } as const : {}),
-                ...(['0.12','0.13','0.14', '0.15'].includes(release) ? { trioConversation: true } as const : {}),
-				...(release === '0.15' ? { phraseDialogue: true } as const : {}),
-				...(release === '0.9' ? { keyboardSuspensions: true } as const : (release === '0.10' || release === '0.11' || release === '0.12' || release === '0.13' || release === '0.14' || release === '0.15') ? { keyboardSuspensions: 'developed' } as const : {}),
+                ...(['0.11','0.12','0.13','0.14', '0.15', '0.16'].includes(release) ? { phraseExpression: true } as const : {}),
+                ...(['0.14','0.15','0.16'].includes(release) ? { ensembleColors: true } as const : {}),
+                ...(['0.13','0.14', '0.15', '0.16'].includes(release) ? { phraseColors: true } as const : {}),
+                ...(['0.12','0.13','0.14', '0.15', '0.16'].includes(release) ? { trioConversation: true } as const : {}),
+				...(release === '0.16' ? { innerMotion:true } as const : {}),
+                ...(['0.15','0.16'].includes(release) ? { phraseDialogue: true } as const : {}),
+				...(release === '0.9' ? { keyboardSuspensions: true } as const : (release === '0.10' || release === '0.11' || release === '0.12' || release === '0.13' || release === '0.14' || release === '0.15' || release === '0.16') ? { keyboardSuspensions: 'developed' } as const : {}),
 				...(releaseEight ? { bassDelayedRoot: true, keyboardContraryMotion: true, drumPhraseCushioning: true } as const : {})
 			});
 			expect(score.keyboardPhrasing?.instrument).toBe(instrument);
@@ -127,7 +128,7 @@ for (const release of ['0.7', '0.8', '0.9', '0.10', '0.11', '0.12', '0.13', '0.1
 				player.disconnect(); gain.disconnect();
 			}
 			return output;
-		}, { smplr, loader, levels, performances, durationSeconds, calibrationStyle: ['0.12','0.13','0.14', '0.15'].includes(release) ? style : undefined });
+		}, { smplr, loader, levels, performances, durationSeconds, calibrationStyle: ['0.12','0.13','0.14', '0.15', '0.16'].includes(release) ? style : undefined });
 		const differenceDb = 20 * Math.log10(measurements[1].rms / measurements[0].rms);
 		const report = { browserName, style, seed, tune, tempo, durationSeconds, differenceDb, measurements };
 		console.log('Full Blues keyboard phrasing levels', JSON.stringify(report));

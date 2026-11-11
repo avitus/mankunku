@@ -19,6 +19,8 @@ export interface RollingSessionOptions {
 	measureNow(): number;
 	/** Keep accepted final voices ringing after verified dispatch; diagnostics default to zero. */
 	releaseTailSeconds?: number;
+ /** Opt-in, bounded by the finite form; reuses measurements already needed by the guard. */
+ captureRenderTiming?: boolean;
 	onCommit?(bar: RollingBackingBar): void;
 	onError?(reason: string): void;
 	onComplete?(): void;
@@ -30,11 +32,19 @@ export interface RollingObservationReceipt {
 	readonly nextBarAtReceipt: number;
 	readonly feature: SoloFeature;
 }
+export interface RollingRenderTiming {
+ readonly barIndex: number;
+ readonly renderStartedAt: number;
+ readonly renderElapsedSeconds: number;
+ readonly accepted: boolean;
+ readonly reason?: string;
+}
 export interface RollingSessionSnapshot {
 	readonly status: 'ready' | 'running' | 'complete' | 'stopped' | 'failed';
 	readonly nextBar: number;
 	readonly error: string | null;
 	readonly receipts: readonly RollingObservationReceipt[];
+ readonly renderTimings?: readonly RollingRenderTiming[];
 }
 
 /**
@@ -57,6 +67,7 @@ export function createRollingSession(options: RollingSessionOptions) {
 	let checkpoint: RollingBackingCheckpoint | undefined;
 	let nextBar = 0;
 	const receipts: RollingObservationReceipt[] = [];
+ const renderTimings: RollingRenderTiming[] = [];
 	const seen = new Set<number>();
 	function fail(reason: string): void {
 		if (status !== 'running') return;
@@ -73,7 +84,10 @@ export function createRollingSession(options: RollingSessionOptions) {
 		try {
 			const before = options.measureNow();
 			const bar = options.generate(definition, checkpoint, receipts.map((receipt) => receipt.feature));
-			const result = renderer.commit(bar, { renderStartedAt: horizon.audioNow, renderElapsedSeconds: options.measureNow() - before });
+			const timing = { renderStartedAt: horizon.audioNow, renderElapsedSeconds: options.measureNow() - before };
+   const result = renderer.commit(bar, timing);
+   if (options.captureRenderTiming) renderTimings.push(Object.freeze({ barIndex: nextBar, ...timing, accepted: result.accepted,
+    ...(result.reason ? { reason: result.reason } : {}) }));
 			if (!result.accepted) { fail(result.reason ?? 'commit_rejected'); return; }
 			if (renderer.snapshot().status !== 'active') { fail('committed_playback_failed'); return; }
 			checkpoint = bar.checkpoint; nextBar = bar.toBarExclusive;
@@ -126,7 +140,7 @@ export function createRollingSession(options: RollingSessionOptions) {
 			if (status === 'complete' || status === 'failed' || status === 'stopped') return;
 			status = 'stopped'; renderer.stop();
 		},
-		snapshot(): RollingSessionSnapshot { return Object.freeze({ status, nextBar, error, receipts: Object.freeze([...receipts]) }); }
+		snapshot(): RollingSessionSnapshot { return Object.freeze({ status, nextBar, error, receipts: Object.freeze([...receipts]), ...(options.captureRenderTiming ? {renderTimings:Object.freeze([...renderTimings])} : {}) }); }
 	};
 }
 

@@ -1,3 +1,4 @@
+import { ninthPulse } from './backing-inner-motion';
 import { recallBassOpening, type BassOpening } from './backing-phrase-dialogue';
 import { arpeggiateWalk } from './backing-ensemble-colors';
 import { rootSeventhPulse } from './backing-phrase-colors';
@@ -135,6 +136,16 @@ export function realizeRollingBass(score: RollingBackingDefinition, bar: number,
    e.length===4&&e.every((n,i)=>n.absBeat===bar*4+i&&!n.phraseDialogue)&&Math.abs(e[1].midi-e[0].midi)>0&&Math.abs(e[1].midi-e[0].midi)<=5)
    openingMotif={barIndex:bar,notes:[e[0].midi,e[1].midi]};
   result={...result,memory:{...result.memory,openingMotif}};
+ }
+ if(score.innerMotionVersion && ['swing','straight'].includes(score.style??'swing') && allowsTrioConversation(info) && result.memory.feel==='four' &&
+  !result.delayedRootTrace && !result.memory.pendingLaunch && !previous?.pendingLaunch && !result.continuationTrace?.length &&
+  !['enclosure','double-chromatic'].includes(result.memory.approach) && info.ensemble?.bass.role==='time' && info.ensemble.bass.keepPulse) {
+  const segments=(prepared??prepareRollingBass(score))!.segments.filter(s=>s.start<bar*4+4&&s.start+s.length>bar*4);
+  const rng=createRng(seedFrom(score.phraseId,score.bars[bar].pianoPresenceSeed??0,bar,'bass-ninth'));
+  if(rng.chance(.55) && segments.length===1 && segments[0].scalePcs.includes((segments[0].root+2)%12)) {
+   const events=ninthPulse(result.events,bar,segments[0].root);
+   if(events.some(e=>e.innerMotion))result={...result,events,memory:{...result.memory,previousPreviousMidi:events[2].midi,direction:Math.sign(events[3].midi-events[2].midi)}};
+  }
  }
  return result;
 }

@@ -23,7 +23,9 @@ export function captureDrumStatement(decision: DrumPhraseDecision, events: reado
 		decision.commentary.hits.some((hit) => matches(event, hit)) && decision.hits.some((hit) => matches(event, hit)));
 	if (hits.length < 2 || hits.length > 3 || new Set(hits.map((hit) => hit.absBeat)).size < 2) return null;
 	return { barIndex: decision.barIndex, transform: decision.commentary.transform as DrumStatementSource['transform'],
-		hits: hits.map((hit) => ({ ...hit })) };
+		// Feedback retains only the scheduled stroke contract, not optional color
+  // receipts. Extra fields made an otherwise valid JSON checkpoint fail validation.
+  hits: hits.map(({ absBeat, time, drum, velocity, role }) => ({ absBeat, time, drum, velocity, role })) };
 }
 
 /** A conservative one-in-three breath; unchanged native patterns handle every other bar. */

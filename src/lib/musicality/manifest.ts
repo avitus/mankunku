@@ -378,6 +378,18 @@ const drumDeviceUpdates: Record<string, [ImplementationStatus, string, string]> 
 };
 
 export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => {
+ if(['B36','P32','D17'].includes(entry.id))return {
+  ...entry,status:'partial',
+  assessment:entry.id==='B36'
+   ? 'Musicality 0.16.0 occasionally puts a nearby ninth on the third walking pulse. Root entrance, accepted opening recall, quarter-note pulse and final approach remain; the actual changed pitch updates bass memory.'
+   :entry.id==='P32'
+    ? 'Musicality 0.16.0 resolves an inner flat ninth to ninth, or sharp eleventh to fifth, across two existing dominant-chord attacks. Defining 3/7 tones, outer voices, native rhythm and harmonic support remain.'
+    : 'Musicality 0.16.0 occasionally lifts the existing beat-four foot hi-hat at a quiet phrase close, leaving ride, beat two and attack count intact. Late keyboard attacks and competing commentary veto the lift.',
+  remaining:'Ninth-only bass extension targets; keyboard movement is a bounded lower-neighbor resolution on plain dominants; the hat uses the existing pedal sample rather than a dedicated bark articulation. Human listening acceptance remains pending.',
+  scope:'Independent inner-motion policy. Omission preserves 48 captured 0.15 performances. Bass/drums are Swing/Straight; keyboards also use Bossa/Ballad native rhythm. Load 0.16 example for reproducible full-tune listening. Exported causal takes now include measured render attempts for playback diagnosis.',
+  evidence:[...entry.evidence,source('backing-inner-motion'),source('backing-rolling-bass'),source('backing-rolling-piano'),source('backing-rolling'),test('backing-inner-motion'),test('backing-inner-motion-performance')]
+ };
+
  if(['B32','P25','D47'].includes(entry.id))return {
   ...entry,status:'partial',
   assessment:entry.id==='B32'

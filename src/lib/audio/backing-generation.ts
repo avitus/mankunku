@@ -1,3 +1,4 @@
+import type { InnerMotion } from './backing-inner-motion';
 import type { PhraseDialogue } from './backing-phrase-dialogue';
 import type { EnsembleColor } from './backing-ensemble-colors';
 import type { PhraseColor } from './backing-phrase-colors';
@@ -91,6 +92,7 @@ import { resolveCoordinatedVoicing, type CoordinatedVoicingMemory, type Coordina
 // ── Event shapes ─────────────────────────────────────────────
 
 export interface BassEvent {
+ readonly innerMotion?: InnerMotion;
  readonly phraseDialogue?: PhraseDialogue;
  readonly ensembleColor?: EnsembleColor;
  readonly phraseColor?: PhraseColor;
@@ -108,6 +110,7 @@ export interface BassEvent {
 }
 
 export interface CompEvent {
+ readonly innerMotion?: InnerMotion;
  readonly phraseDialogue?: PhraseDialogue;
  readonly ensembleColor?: EnsembleColor;
  readonly phraseColor?: PhraseColor;
@@ -121,6 +124,7 @@ export interface CompEvent {
 }
 
 export interface DrumEvent {
+ readonly innerMotion?: InnerMotion;
  readonly phraseDialogue?: PhraseDialogue;
  readonly ensembleColor?: EnsembleColor;
 	readonly expression?: PhraseExpression;

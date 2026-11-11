@@ -3,7 +3,7 @@ import { createRollingSession } from '$lib/audio/backing-rolling-session';
 import type { RollingBackingBar, RollingBackingDefinition } from '$lib/audio/backing-rolling';
 import { createSoloObserver, type SoloObservationWindow } from '$lib/audio/solo-observer';
 
-function harness(releaseTailSeconds?: number) {
+function harness(releaseTailSeconds?: number, captureRenderTiming = false) {
 	let audioNow = 10;
 	let measured = 0;
 	const definition = { sessionId: 'score', tempo: 240, ppq: 192, beatsPerBar: 4, totalBars: 8 } as RollingBackingDefinition;
@@ -14,7 +14,7 @@ function harness(releaseTailSeconds?: number) {
 	});
 	const onError = vi.fn(); const onComplete = vi.fn();
 	const session = createRollingSession({ definition, renderer, generate, startAudioTime: 10.5, observationSessionId: 'take',
-		releaseTailSeconds, measureNow: () => measured += 0.001, onError, onComplete });
+		releaseTailSeconds, captureRenderTiming, measureNow: () => measured += 0.001, onError, onComplete });
 	return { session, renderer, generate, onError, onComplete, time(value: number) { audioNow = value; } };
 }
 function observation(barIndex = 0, availableAtSeconds = 1.02): SoloObservationWindow {
@@ -172,4 +172,18 @@ describe('rolling session clock and evidence', () => {
 		for (const seconds of [-1, NaN, Infinity, 5.01]) expect(() => harness(seconds)).toThrow(/release tail/);
 		for (const seconds of [0, 2.5, 5]) expect(() => harness(seconds)).not.toThrow();
 	});
+});
+
+it('retains measured render attempts including rejected bars without advancing their checkpoint',()=>{
+ const h=harness(undefined,true);h.session.start();const before=h.session.snapshot();
+ expect(before.renderTimings).toHaveLength(2);
+ expect(before.renderTimings![0]).toMatchObject({barIndex:0,renderStartedAt:10,accepted:true});
+ expect(before.renderTimings![0].renderElapsedSeconds).toBeCloseTo(.001);
+ h.renderer.commit.mockReturnValueOnce({accepted:false,reason:'compute_budget'} as {accepted:boolean});
+ h.time(12.1);h.session.pump();const after=h.session.snapshot();
+ expect(after.nextBar).toBe(2);expect(after.status).toBe('failed');
+ expect(after.renderTimings).toHaveLength(3);expect(after.renderTimings![2]).toMatchObject({barIndex:2,accepted:false,reason:'compute_budget'});
+ expect(before.renderTimings).toHaveLength(2);expect(Object.isFrozen(after.renderTimings)).toBe(true);expect(Object.isFrozen(after.renderTimings![2])).toBe(true);
+ h.session.pump();expect(h.session.snapshot().renderTimings).toHaveLength(3);
+ expect(harness().session.snapshot()).not.toHaveProperty('renderTimings');
 });

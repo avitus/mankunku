@@ -1,3 +1,4 @@
+import { chromaticInnerPair } from './backing-inner-motion';
 import { fourthStack } from './backing-phrase-dialogue';
 import { dropThirdVoice, spreadFitsBass } from './backing-ensemble-colors';
 import { upperStructureTriad, upperStructureFitsBass } from './backing-phrase-colors';
@@ -507,6 +508,26 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
     voicingTrace[voicingTrace.length-1]=Object.freeze({...trace,notes:receipt.notes,decision:Object.freeze({...decision,
      resolvedFamily:'quartal' as const,...describeCoordinatedPlacement(segment.chord,notes,'quartal',Math.round(58+8*info.intensity),lastVoicingPredecessor),
      ...(decision.topLine?{topLine:Object.freeze({...decision.topLine,actualMidi:notes.at(-1)!,distance:Math.abs(notes.at(-1)!-decision.topLine.targetMidi)})}:{}),fourthStack:receipt})});
+   }
+  }
+ }
+ // Resolve a chromatic inner approach within an already accepted native pair.
+ if(score.innerMotionVersion && allowsDominantColor(info) && !info.isSectionFinalBar && !backgroundHarmony && !arrival && !proposal && !nativeLatePad && !guideTones &&
+  events.length===2 && voicingTrace.length===2 && !voicingTrace.some(v=>v.decision.keyboardSuspension || v.decision.keyboardContraryMotion?.status==='changed')) {
+  const rng=createRng(seedFrom(score.phraseId,score.bars[bar].pianoPresenceSeed??0,bar,'chromatic-inner'));
+  const at=(event:CompEvent)=>score.harmony.find(s=>event.absBeat+(event.absBeat%1?.5:0)>=fractionToFloat(s.startOffset)*4 && event.absBeat+(event.absBeat%1?.5:0)<(fractionToFloat(s.startOffset)+fractionToFloat(s.duration))*4);
+  const segment=at(events[0]);
+  if(rng.chance(.6) && segment?.chord.quality==='7' && segment===at(events[1]) && events[0].absBeat>=fractionToFloat(segment.startOffset)*4) {
+   const colored=chromaticInnerPair(events,pitchClassToNumber(segment.chord.root),bassEvents,score.tempo,score.ppq);
+   if(colored[0].innerMotion?.kind==='chromatic-inner') {
+    for(const i of [0,1] as const) {
+     events[i]=colored[i];const voiced=voicingTrace[i];
+     const {keyboardLine:_line,keyboardContraryMotion:_contrary,...decision}=voiced.decision;
+     const previous=i===0?memory.voicing:{version:1 as const,chord:segment.chord,notes:colored[0].notes};
+     voicingTrace[i]=Object.freeze({...voiced,notes:Object.freeze([...colored[i].notes]),decision:Object.freeze({...decision,
+      ...describeCoordinatedPlacement(segment.chord,colored[i].notes,decision.resolvedFamily,Math.round(58+8*info.intensity),previous),
+      chromaticInner:colored[i].innerMotion as Extract<NonNullable<CompEvent['innerMotion']>,{kind:'chromatic-inner'}>})});
+    }
    }
   }
  }
