@@ -2,6 +2,50 @@
 
 Guidance for coding agents (Codex, Claude Code and others) working in this repository. Claude Code loads it through the `@AGENTS.md` import in `CLAUDE.md`; edit this file, not that one.
 
+## Required code review completion
+
+**Code reviews must be correctly completed before a PR is declared ready or merged.**
+Use hosted CodeRabbit reviews on the PR; use direct inspection and sandboxed
+validation for local/pre-push review. A green CodeRabbit check is not sufficient:
+CodeRabbit can return `success` with **"Review completed with incomplete coverage"**.
+
+- Verify the PR's current head SHA immediately before merge. Required CI and
+  CodeRabbit review must finish for that head; any new commit requires checking
+  again. An incremental review is sufficient only when earlier completed reviews
+  plus that increment cover the entire required PR diff without unresolved gaps.
+- Read the check's full summary, CodeRabbit's review submissions and walkthrough,
+  including **Review info**, operational warnings, skipped/unavailable/oversized
+  files, and tool failures. Compare review scope with all changed files across
+  every API page. Selection for processing is not proof of completed review.
+  Account explicitly for established exclusions such as binary audio assets.
+- Treat incomplete coverage, failed review tools, pending/cancelled reviews and
+  rate-limited/skipped attempts as unresolved review work. Identify the affected
+  files and cause, remedy it, and obtain completed review evidence. Do not add
+  exclusions, disable checks, or substitute passing tests/local inspection merely
+  to turn an incomplete hosted review into a claimed pass. If completion is
+  impossible, report the exact blocker and keep the PR unmerged unless the owner
+  explicitly authorizes an exception for that gap.
+- Address **all** review feedback, including inline threads, additional comments,
+  nits and follow-up findings. Implement valid fixes and validate them; record a
+  concrete reason for any declined suggestion. Resolve threads only after their
+  disposition is supported, then wait for review of the final changes and inspect
+  any new feedback. Resolved threads alone do not establish complete coverage.
+- Avoid duplicate review commands while an automatic or requested review is
+  queued/running. Retry only after diagnosing the previous attempt. Do not issue
+  review commands after merge/closure; redundant cancelled runs can obscure a
+  successful earlier run. Inspect all attempts (`check-runs?filter=all`) when
+  reconstructing what completed before merge.
+- Report the reviewed head, completed review/check links, coverage disposition,
+  feedback disposition and CI result accurately. Never report simply "review
+  passed" while a coverage or tool warning remains unresolved. A later edit that
+  removes a warning from the walkthrough is not evidence that the gap was closed;
+  inspect review submissions and comment edit history when records disagree.
+
+Incident: PR #303's green final check retained an incomplete-coverage warning
+because a recording JSON exceeded CodeRabbit's per-file size limit; the later
+seven-file increment did not revisit it. See
+`docs/maintenance/2026-11-11-pr-303-review-coverage.md` for the evidence.
+
 ## Commands
 
 ```sh
