@@ -1,3 +1,5 @@
+import { pitchClassToNumber } from './voicings';
+import { allowsDominantColor, colorDominantNinth, dominantColorFitsBass } from './backing-trio-conversation';
 import { selectsPhraseExpression, contrastKeyboardPair } from './backing-phrase-expression';
 /** Stateful one-bar piano realization. Multi-bar source cells are proposals, not future budgets. */
 import type { RollingBackingDefinition } from './backing-rolling';
@@ -84,6 +86,7 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 	const ensemble = info.ensemble!;
 	const coordinatedVoicing = !!ensemble.performanceEnergy;
 	let voicingMemory = memory.voicing;
+	let lastVoicingPredecessor = voicingMemory;
 	let contourMemory = memory.contour;
 	const contourEnabled = coordinatedVoicing && (!score.style || ['swing', 'straight', 'bossa-nova'].includes(score.style));
 	const contourContext = coordinatedVoicing ? { barIndex: bar, phraseStartBar: ensemble.phraseStartBar, chorusIndex: ensemble.performanceEnergy!.chorusIndex, phase: ensemble.performanceEnergy!.phase } : undefined;
@@ -299,6 +302,7 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 			const { index, selected, event, contour } = accepted;
 			events.push(event);
 			voicingTrace.push(Object.freeze({ absBeat: event.absBeat, time: event.time, notes: selected.notes, decision: selected.decision, ...(arrival ? { arrivalId: arrival.accentId } : {}) }));
+			lastVoicingPredecessor = voicingMemory;
 			voicingMemory = selected.memory;
 			if (contour) contourMemory = commitPianoContour(contourContext!, contour, selected.notes);
 			segmentIndex = index; segmentVoicing = event.notes; lastVoicing = event.notes;
@@ -404,6 +408,35 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
    events[i] = event;
    const { keyboardArticulation: _articulation, ...decision } = voicingTrace[i].decision;
    voicingTrace[i] = Object.freeze({ ...voicingTrace[i], decision: Object.freeze(decision) });
+  }
+ }
+ // Color only the last accepted attack before a declared dominant-to-tonic
+ // boundary. The next harmony is chart knowledge, never a future performed note.
+ if(score.trioConversationVersion && allowsDominantColor(info) && !backgroundHarmony && !arrival && !proposal &&
+  !nativeLatePad && !guideTones && events.length && voicingTrace.length===events.length &&
+  !voicingTrace.some(v=>v.decision.keyboardSuspension) &&
+  createRng(seedFrom(score.phraseId,score.bars[bar].pianoPresenceSeed??0,bar,'dominant-b9')).chance(.8)) {
+  const event=events.at(-1)!, trace=voicingTrace.at(-1)!;
+  const index=score.harmony.findIndex(s=>event.absBeat>=fractionToFloat(s.startOffset)*4 && event.absBeat<(fractionToFloat(s.startOffset)+fractionToFloat(s.duration))*4);
+  const segment=score.harmony[index], next=score.harmony[index+1];
+  if(segment?.chord.quality==='7' && next && event.absBeat+(event.absBeat % 1 ? 0.5 : 0)<(bar+1)*4 && ['rootless-a','rootless-b','shell','drop2'].includes(trace.decision.resolvedFamily) &&
+   (fractionToFloat(segment.startOffset)+fractionToFloat(segment.duration))*4===(bar+1)*4 &&
+   fractionToFloat(next.startOffset)*4===(bar+1)*4 &&
+   (pitchClassToNumber(next.chord.root)-pitchClassToNumber(segment.chord.root)+12)%12===5) {
+   const rootPc=pitchClassToNumber(segment.chord.root), cell=colorDominantNinth(event.notes,rootPc);
+   const onset=parseInt(event.time), release=onset+event.duration*score.tempo/60*score.ppq;
+   if(cell && dominantColorFitsBass(event,bassEvents,rootPc,score.tempo,score.ppq) && release<=barEnd+1e-8) {
+    const receipt=Object.freeze({kind:'dominant-b9' as const,fromMidi:cell.fromMidi,toMidi:cell.toMidi,rootPc,targetRootPc:pitchClassToNumber(next.chord.root)});
+    events[events.length-1]={...event,notes:cell.notes,conversation:receipt};
+    lastVoicing=cell.notes;segmentVoicing=cell.notes;
+    // Retain the actual preceding harmony too: a bar may contain two chords.
+    const previous=lastVoicingPredecessor;
+    voicingMemory=Object.freeze({version:1,chord:Object.freeze({...segment.chord}),notes:Object.freeze([...cell.notes])});
+    const {keyboardLine:_line,keyboardContraryMotion:_contrary,...decision}=trace.decision;
+    voicingTrace[voicingTrace.length-1]=Object.freeze({...trace,notes:Object.freeze([...cell.notes]),decision:Object.freeze({...decision,
+     ...describeCoordinatedPlacement(segment.chord,cell.notes,decision.resolvedFamily,Math.round(58+8*info.intensity),previous),
+     ...(decision.spacing?{spacing:Object.freeze({...decision.spacing,spanSemitones:cell.notes.at(-1)!-cell.notes[0]})}:{}),keyboardColor:receipt})});
+   }
   }
  }
 	const answer: PianoAnswerDecision | undefined = proposal && events.length === 1 ? { version: 1, barIndex: bar, source: proposal.source, attack: events[0], replyOffset: proposal.hit.beatOffset, drumCommentary: 'space' } : undefined;

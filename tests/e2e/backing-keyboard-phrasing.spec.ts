@@ -20,7 +20,7 @@ async function browserModule(path: string): Promise<string> {
 	return source;
 }
 
-for (const release of ['0.7', '0.8', '0.9', '0.10', '0.11'] as const) for (const seed of release === '0.7' ? [42] : [42, 19]) for (const style of ['swing', 'straight', 'bossa-nova', 'ballad'] as const) {
+for (const release of ['0.7', '0.8', '0.9', '0.10', '0.11', '0.12'] as const) for (const seed of release === '0.7' ? [42] : release === '0.12' ? [42,7,19] : [42, 19]) for (const style of ['swing', 'straight', 'bossa-nova', 'ballad'] as const) {
 	const releaseEight = release !== '0.7';
 	test(`${release} seed ${seed} ${style}: full Blues keyboard phrasing remains audible, balanced and releases cleanly`, async ({ page, browserName }) => {
 		test.skip(process.env.MANKUNKU_TEST_SANDBOX !== '1', 'native sample rendering in the local Linux sandbox only');
@@ -42,8 +42,9 @@ for (const release of ['0.7', '0.8', '0.9', '0.10', '0.11'] as const) for (const
 				returningMelodySpace: true, performanceEnergySeed: seed, pianoPresence: 'accompaniment',
 				keyboardVariety: 'developed', chorusBoundaryPriority: true,
 				keyboardTexture: true, keyboardPhrasing: instrument,
-                ...(release === '0.11' ? { phraseExpression: true } as const : {}),
-				...(release === '0.9' ? { keyboardSuspensions: true } as const : (release === '0.10' || release === '0.11') ? { keyboardSuspensions: 'developed' } as const : {}),
+                ...(['0.11','0.12'].includes(release) ? { phraseExpression: true } as const : {}),
+                ...(release === '0.12' ? { trioConversation: true } as const : {}),
+				...(release === '0.9' ? { keyboardSuspensions: true } as const : (release === '0.10' || release === '0.11' || release === '0.12') ? { keyboardSuspensions: 'developed' } as const : {}),
 				...(releaseEight ? { bassDelayedRoot: true, keyboardContraryMotion: true, drumPhraseCushioning: true } as const : {})
 			});
 			expect(score.keyboardPhrasing?.instrument).toBe(instrument);
@@ -53,7 +54,8 @@ for (const release of ['0.7', '0.8', '0.9', '0.10', '0.11'] as const) for (const
 				checkpoint = bar.checkpoint;
 				return bar;
 			});
-			if (release === '0.11' && seed === 42 && ['swing','straight'].includes(style)) {
+			if (release === '0.12' && (style==='ballad'?seed!==42:style==='bossa-nova'?seed!==19:true)) expect(bars.some(b=>b.compEvents.some(e=>e.conversation?.kind==='dominant-b9'))).toBe(true);
+            if (release === '0.11' && seed === 42 && ['swing','straight'].includes(style)) {
                 for (const field of ['bassEvents','compEvents','drumEvents'] as const) expect(bars.some(b => b[field].some(e => e.expression))).toBe(true);
             }
 			if (release === '0.10' && seed === 42) expect(bars.flatMap(bar => bar.ensembleDevelopment.pianoVoicings ?? []).some(v => v.decision.keyboardSuspension?.kind)).toBe(true);
@@ -75,7 +77,7 @@ for (const release of ['0.7', '0.8', '0.9', '0.10', '0.11'] as const) for (const
 			browserModule(resolve('src/lib/audio/backing-sample-loader.ts')),
 			browserModule(resolve('src/lib/audio/backing-keyboard-level.ts'))
 		]);
-		const measurements = await page.evaluate(async ({ smplr, loader, levels, performances, durationSeconds }) => {
+		const measurements = await page.evaluate(async ({ smplr, loader, levels, performances, durationSeconds, calibrationStyle }) => {
 			const load = async (source: string) => {
 				const url = URL.createObjectURL(new Blob([source], { type: 'text/javascript' }));
 				try { return await import(url); } finally { URL.revokeObjectURL(url); }
@@ -88,7 +90,7 @@ for (const release of ['0.7', '0.8', '0.9', '0.10', '0.11'] as const) for (const
 				stage('create-context');
 				const context = new OfflineAudioContext(2, Math.ceil(durationSeconds * sampleRate), sampleRate);
 				const gain = context.createGain();
-				gain.gain.value = backingKeyboardTrim(performance.instrument);
+				gain.gain.value = backingKeyboardTrim(performance.instrument, calibrationStyle);
 				gain.connect(context.destination);
 				const scheduler = new library.Scheduler(context, { lookaheadMs: Math.ceil((durationSeconds + 1) * 1000) });
 				const player = performance.instrument === 'piano'
@@ -119,7 +121,7 @@ for (const release of ['0.7', '0.8', '0.9', '0.10', '0.11'] as const) for (const
 				player.disconnect(); gain.disconnect();
 			}
 			return output;
-		}, { smplr, loader, levels, performances, durationSeconds });
+		}, { smplr, loader, levels, performances, durationSeconds, calibrationStyle: release === '0.12' ? style : undefined });
 		const differenceDb = 20 * Math.log10(measurements[1].rms / measurements[0].rms);
 		const report = { browserName, style, seed, tempo, durationSeconds, differenceDb, measurements };
 		console.log('Full Blues keyboard phrasing levels', JSON.stringify(report));

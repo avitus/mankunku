@@ -277,7 +277,7 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 			entry.notes.length === event.notes.length && entry.notes.every((note, i) => note === event.notes[i]));
 		if (!voiced) continue;
 		const decision = voiced.decision;
-		pianoCard.evidence.push(`Chord ${index + 1} voicing: ${plain(decision.resolvedFamily)}${decision.keyboardSuspension?.kind && decision.keyboardSuspension.phase === 'resolution' ? ' base with resolved color' : ''}`);
+		pianoCard.evidence.push(`Chord ${index + 1} voicing: ${plain(decision.resolvedFamily)}${decision.keyboardColor ? ' base with flat ninth' : decision.keyboardSuspension?.kind && decision.keyboardSuspension.phase === 'resolution' ? ' base with resolved color' : ''}`);
 		const suspension = decision.keyboardSuspension;
 		const colorRoot = suspension?.chordRoot ? PITCH_CLASSES.indexOf(suspension.chordRoot) : -1;
 		const colorLabel = suspension?.kind === '9-1' ? 'ninth resolves to root' : suspension?.kind === '13-5' ? 'thirteenth resolves to fifth' : undefined;
@@ -569,6 +569,39 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
    drumCard.action=drumPhrase?.commentary.transform==='setup'?'Shape the fill':'Ghosted snare answer';
    drumCard.detail=drumPhrase?.commentary.transform==='setup'?'A softer inner snare stroke gives the fill shape; its launch and landing stay strong.':'The snare statement has a softer answering stroke, while the cymbal pulse continues.';
    drumCard.evidence.push('Snare expression: ghosted inner stroke / answer');
+  }
+ }
+ if(development) {
+  const repeated=bass.find(e=>e.conversation?.kind==='repeated-bass');
+  const source=repeated?.conversation;
+  const actualRepeat=walking && repeated && source?.kind==='repeated-bass' && bass.length===4 &&
+   repeated.absBeat===barIndex*4+1 && repeated.midi===source.sourceMidi && source.originalMidi!==repeated.midi &&
+   source.sourceAbsBeat===barIndex*4 && bass.some(e=>e.absBeat===source.sourceAbsBeat&&e.midi===source.sourceMidi);
+  if(actualRepeat) {
+   bassCard.action='Repeat, then move';
+   bassCard.detail='The first walking note repeats on beat two, then the line moves on toward the next harmony.';
+   bassCard.evidence.push('Repeated-note propulsion: beats 1 and 2 share the same sounded pitch');
+  }
+  const catchHit=drums.find(e=>e.conversation?.kind==='bass-catch'),catchReceipt=catchHit?.conversation;
+  if(actualRepeat && catchHit && catchReceipt?.kind==='bass-catch' && catchHit.drum==='kick' && catchHit.role==='timekeeping' &&
+   catchHit.absBeat===barIndex*4+2 && catchReceipt.sourceAbsBeat===source.sourceAbsBeat && catchReceipt.repeatAbsBeat===repeated.absBeat &&
+   catchReceipt.sourceMidi===repeated.midi && catchReceipt.originalVelocity>0 && catchReceipt.originalVelocity<=.24 &&
+   Math.abs(catchHit.velocity-catchReceipt.originalVelocity*1.7)<1e-8 && drumPhrase?.hits.some(h=>h.drum==='kick'&&h.beatOffset===2&&
+    h.velocity===catchHit.velocity&&JSON.stringify(h.conversation)===JSON.stringify(catchReceipt))) {
+   drumCard.action='Catch the bass figure';
+   drumCard.detail='A little extra weight on the existing beat-three kick answers the bass’s repeated note; the ride keeps its pulse.';
+   drumCard.evidence.push('Bass dialogue: repeated bass on 1 / 2 → kick on 3');
+  }
+  for(const event of piano) {
+   const c=event.conversation;
+   const trace=development.pianoVoicings?.find(v=>v.time===event.time&&v.absBeat===event.absBeat&&v.notes.length===event.notes.length&&v.notes.every((n,i)=>n===event.notes[i]));
+   if(c?.kind==='dominant-b9'&&c.fromMidi-c.toMidi===1&&(c.toMidi-c.rootPc+120)%12===1&&
+    (c.targetRootPc-c.rootPc+12)%12===5&&event.notes.includes(c.toMidi)&&!event.notes.includes(c.fromMidi)&&event.notes.at(-1)!==c.toMidi&&
+    [4,10].every(pc=>event.notes.some(n=>(n-c.rootPc+120)%12===pc))&&JSON.stringify(trace?.decision.keyboardColor)===JSON.stringify(c)) {
+    pianoCard.action='Color the dominant';
+    pianoCard.detail='An inner ninth drops to a flat ninth before the next written harmony. The top voice and harmonic support stay in place.';
+    pianoCard.evidence.push(`Altered dominant: ${noteName(c.fromMidi)} → ${noteName(c.toMidi)} · flat ninth`);
+   }
   }
  }
 	if (keyboardTextures.length) pianoCard.detail += ` ${[...new Set(keyboardTextures)].join(', then ')}.`;

@@ -1,8 +1,9 @@
+import { allowsTrioConversation, catchBassRepeat } from './backing-trio-conversation';
 import { selectsPhraseExpression, ghostSnareAnswer } from './backing-phrase-expression';
 /** Phrase development for swing/straight, protected native grooves for bossa/ballad. */
 import { BACKING_STYLES } from './backing-styles';
 import type { BackingStyle } from '$lib/types/instruments';
-import type { BarInfo } from './backing-generation';
+import type { BarInfo, BassEvent } from './backing-generation';
 import type { DrumHitSpec, DrumVoice, GenerationContext } from './backing-styles';
 import { chooseRideMode, rideBar, hihatBar, featherBar, fillBar, snareBar, couplingBar, type RideMode } from './backing-drum-vocab';
 import { createRng, seedFrom } from './generation-rng';
@@ -79,6 +80,8 @@ export interface DrumPhraseInput {
 export interface DrumPhraseBarInput {
 	readonly phraseCushioning?: true;
 	readonly phraseExpression?: true;
+	readonly trioConversation?: true;
+	readonly bassEvents?: readonly BassEvent[];
 	/** Actual current keyboard gates paired with accepted compOnsets. */
 	readonly compAttacks?: readonly DrumKeyboardAttack[];
 	readonly style?: BackingStyle;
@@ -409,7 +412,11 @@ function validateDrumPhraseBar(input: DrumPhraseBarInput, memory?: DrumPhraseMem
 		throw new Error('Drum phrase bar and static boundaries must fit the harmony extent');
 	}
 	const ensemble = input.info.ensemble;
-	if ((input.phraseExpression !== undefined && input.phraseExpression !== true) ||
+	if ((input.trioConversation !== undefined && input.trioConversation !== true) ||
+		(input.bassEvents !== undefined && (!Array.isArray(input.bassEvents) || input.bassEvents.length > 32 ||
+		 input.bassEvents.some(e=>!Number.isFinite(e.absBeat)||e.absBeat<input.barIndex*4||e.absBeat>=(input.barIndex+1)*4||
+		 !Number.isInteger(e.midi)||e.midi<0||e.midi>127||!/^\d+i$/.test(e.time)||!Number.isFinite(e.duration)||e.duration<=0))) ||
+		(input.phraseExpression !== undefined && input.phraseExpression !== true) ||
 		(input.phraseCushioning !== undefined && input.phraseCushioning !== true) ||
 		(input.compAttacks !== undefined && (!Array.isArray(input.compAttacks) || input.compAttacks.length > 32 ||
 			input.compAttacks.some(attack => !Number.isFinite(attack.beatOffset) || attack.beatOffset < 0 || attack.beatOffset >= 4 ||
@@ -532,6 +539,10 @@ export function planDrumPhraseBar(input: DrumPhraseBarInput, memory?: DrumPhrase
    }) };
    freezeDrumPhraseTrace([bar]);
   }
+ }
+ if(input.trioConversation && allowsTrioConversation(input.info) && !bar.cushioning) {
+  const hits=catchBassRepeat(bar.hits,input.bassEvents??[],input.barIndex,input.compOnsets??[]);
+  if(hits.some(hit=>hit.conversation)) { bar={...bar,hits}; freezeDrumPhraseTrace([bar]); }
  }
 	return Object.freeze({ bar, memory: freezeDrumPhraseMemory({
 		version: 1, ...(input.style && input.style !== 'swing' ? { style: input.style } : {}), phraseId: input.phraseId, tempo: input.tempo, harmonyEndBeat: input.harmonyEndBeat,

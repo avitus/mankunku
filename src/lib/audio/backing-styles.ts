@@ -1,3 +1,4 @@
+import type { TrioConversation } from './backing-trio-conversation';
 import type { PhraseExpression } from './backing-phrase-expression';
 /**
  * Backing track style definitions.
@@ -118,6 +119,7 @@ export interface CompHitSpec {
 
 export interface DrumHitSpec {
 	readonly expression?: PhraseExpression;
+	readonly conversation?: TrioConversation;
 	/** Retained in the event ledger for ensemble metrics and replay evidence. */
 	role?: 'timekeeping' | 'commentary' | 'accent';
 	drum: DrumVoice;

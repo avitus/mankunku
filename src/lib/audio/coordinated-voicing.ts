@@ -1,3 +1,4 @@
+import type { TrioConversation } from './backing-trio-conversation';
 import type { KeyboardLineRequest } from './backing-keyboard-line';
 import type { PitchClass, ChordQuality } from '$lib/types/music';
 import { CHORD_DEFINITIONS } from '$lib/music/chords';
@@ -11,6 +12,7 @@ export interface CoordinatedVoicingMemory {
 	readonly notes: readonly number[];
 }
 export interface CoordinatedVoicingDecision {
+	readonly keyboardColor?: Extract<TrioConversation, {kind: 'dominant-b9'}>;
 	readonly keyboardSuspension?: {
 		/** Absent on the original 0.9 fourth-to-third cell. */
 		readonly kind?: '9-1' | '13-5';

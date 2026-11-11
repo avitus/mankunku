@@ -145,6 +145,7 @@ let tone: ToneModule | null = null;
 let compInstrument: CompInstrument | null = null;
 let bassInstrument: BassInstrument | null = null;
 let currentInstrumentType: BackingInstrument | null = null;
+let currentKeyboardStyle: BackingStyle = 'swing';
 
 // The backing bus (increment 9). Everything backing — bass, panned comp,
 // the split drum kit and the room return — flows through `backingGain`
@@ -198,7 +199,7 @@ function applyMixGains(): void {
 	if (backingGain) backingGain.gain.value = currentBackingVolume;
 	if (backingOutput) backingOutput.gain.value = backingOutputGain(mixLevels.master);
 	if (bassGain) bassGain.gain.value = BACKING_BASE_TRIMS.bass * mixLevels.bass;
-	if (compGain) compGain.gain.value = backingKeyboardTrim(currentInstrumentType) * mixLevels.comp;
+	if (compGain) compGain.gain.value = backingKeyboardTrim(currentInstrumentType, currentKeyboardStyle) * mixLevels.comp;
 	if (drumBus) drumBus.gain.value = BACKING_BASE_TRIMS.drums * mixLevels.drums;
 	if (roomReturn) roomReturn.gain.value = ROOM_RETURN_GAIN * mixLevels.room;
 	// Bass/comp taps sit post-trim, so their sends are the raw policy level;
@@ -593,7 +594,8 @@ async function ensureDrums(): Promise<void> {
  * Organ: SoundFont drawbar_organ (MusyngKite kit — no better smplr option).
  */
 export async function loadBackingInstruments(
-	instrumentType: BackingInstrument = 'piano'
+	instrumentType: BackingInstrument = 'piano',
+	style: BackingStyle = 'swing'
 ): Promise<void> {
 	const loadId = ++currentLoadId;
 	const audioCtx = await initAudio();
@@ -681,6 +683,7 @@ export async function loadBackingInstruments(
 		const oldComp = compInstrument;
 		compInstrument = newComp;
 		currentInstrumentType = instrumentType;
+		currentKeyboardStyle = style;
 		// Publish the new bank and its calibration together; a failed or stale
 		// load must leave the previous sounding instrument at its own level.
 		applyMixGains();
@@ -689,6 +692,10 @@ export async function loadBackingInstruments(
 			oldComp.disconnect();
 		}
 	}
+
+	// A reused bank still needs the selected style's output calibration.
+	currentKeyboardStyle = style;
+	applyMixGains();
 
 	// Preload the drum kit alongside the pitched instruments so
 	// `scheduleBackingTrack`'s `ensureDrums()` resolves as a microtask rather
@@ -1306,6 +1313,8 @@ export async function scheduleBackingTrack(
 	// Drums are a Part like bass and comp (not a per-beat Sequence): the
 	// swung ride eighths and section-final setups are tick-placed events,
 	// generated up front so the whole kit shares the swing grid.
+	currentKeyboardStyle = options.backingStyle ?? 'swing';
+	applyMixGains();
 	setBackingTrackVolume(options.backingTrackVolume ?? 0.5);
 
 	drumPart = new Tone.Part(playDrum, scheduleBoundaryEvents(drumEvents, playDrum, boundary));
@@ -1335,7 +1344,7 @@ export async function startBackingTrack(
 	const beatsPerBar = phrase.timeSignature[0];
 	const barTicks = beatsPerBar * ppq;
 
-	await loadBackingInstruments(options.backingInstrument);
+	await loadBackingInstruments(options.backingInstrument, options.backingStyle);
 	await scheduleBackingTrack(phrase, options, barTicks, keepLooping);
 }
 
@@ -1358,6 +1367,7 @@ export function disposeBackingTrack(): void {
 		compInstrument.disconnect();
 		compInstrument = null;
 		currentInstrumentType = null;
+		currentKeyboardStyle = 'swing';
 	}
 	if (drumSamplers) {
 		for (const sampler of Object.values(drumSamplers)) sampler.disconnect();

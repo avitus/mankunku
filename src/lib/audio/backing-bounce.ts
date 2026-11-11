@@ -149,6 +149,7 @@ export function generateForBounce(params: BounceParams): GeneratedBacking {
 }
 
 export interface RenderOpts {
+	style?: BackingStyle;
 	tempo: number;
 	instrument: BackingInstrument;
 	volume: number;
@@ -175,6 +176,7 @@ export async function bounceBacking(
 	const blob = await renderEventsToWav(generated, drumBuffers, {
 		tempo: params.tempo,
 		instrument: params.instrument,
+		style: params.style,
 		volume: params.volume,
 		mix: params.mix,
 		durationSeconds,
@@ -236,7 +238,7 @@ export async function renderEventsToWav(
 			compPan.pan.value = BACKING_PANS.comp;
 			compPan.connect(backingGain);
 			const compGain = context.createGain();
-			compGain.gain.value = backingKeyboardTrim(opts.instrument) * mix.comp;
+			compGain.gain.value = backingKeyboardTrim(opts.instrument, opts.style) * mix.comp;
 			compGain.connect(compPan);
 
 			const drumBus = context.createGain();

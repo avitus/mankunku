@@ -1,3 +1,4 @@
+import { allowsTrioConversation, repeatBassPulse } from './backing-trio-conversation';
 import { selectsPhraseExpression, shapeBassPulse } from './backing-phrase-expression';
 /** Current-bar walking decisions with retained pitch history and committed launches. */
 import { allowsBassScalarContinuation, selectBassScalarContinuation, bassScalarTrace, type BassScalarContinuation, type BassScalarHistory } from './backing-bass-continuation';
@@ -74,7 +75,19 @@ export function prepareRollingBass(score: RollingBackingDefinition): PreparedRol
 
 export function realizeRollingBass(score: RollingBackingDefinition, bar: number, info: BarInfo,
 	timing: EnsembleTiming, previous?: RollingBassMemory, prepared?: PreparedRollingBass): RollingBassResult {
- const result = realizeBassPitch(score, bar, info, timing, previous, prepared);
+ let result = realizeBassPitch(score, bar, info, timing, previous, prepared);
+ if(score.trioConversationVersion && allowsTrioConversation(info) && result.memory.feel==='four' &&
+  !result.delayedRootTrace && !result.memory.pendingLaunch && !previous?.pendingLaunch &&
+  !result.continuationTrace?.length && info.ensemble?.bass.role==='time' && info.ensemble.bass.keepPulse) {
+  const start=bar*4;
+  const segments=score.harmony.filter(s=>fractionToFloat(s.startOffset)*4<start+4 && (fractionToFloat(s.startOffset)+fractionToFloat(s.duration))*4>start);
+  const selected=createRng(seedFrom(score.phraseId,score.bars[bar].pianoPresenceSeed??0,info.ensemble.phraseStartBar,'bass-repeat'));
+  const offset=selected.pick([1,2]);
+  if(bar-info.ensemble.phraseStartBar===offset && selected.chance(.8) && segments.length===1 &&
+   result.events[0]?.midi%12===pitchClassToNumber(segments[0].chord.root)) {
+   result={...result,events:repeatBassPulse(result.events,bar,score.style??'swing')};
+  }
+ }
  if (!score.phraseExpressionVersion || !selectsPhraseExpression(info, score.phraseId, 'bass') ||
   result.memory.feel !== 'four' || result.memory.pendingLaunch || previous?.pendingLaunch ||
   info.ensemble?.bass.role !== 'time' || !info.ensemble.bass.keepPulse) return result;

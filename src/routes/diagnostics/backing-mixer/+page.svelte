@@ -193,7 +193,7 @@
 				if (id !== playRequest) return;
 			}
 
-			await loadBackingInstruments(instrument);
+			await loadBackingInstruments(instrument, style);
 			if (id !== playRequest) return;
 			const transport = toneModule.getTransport();
 			transport.stop();
@@ -415,7 +415,7 @@
 			const drumBuffers = await getDecodedDrumBuffersForBounce();
 			const roomIr = await getDecodedRoomIrForBounce(BOUNCE_SAMPLE_RATE);
 			const result = rollingTake ? {
-				blob: await renderEventsToWav(generatedTake(rollingTake), drumBuffers, { tempo, instrument, volume, mix,
+				blob: await renderEventsToWav(generatedTake(rollingTake), drumBuffers, { tempo, instrument, style, volume, mix,
 					durationSeconds: rollingTake.definition.totalBars * 240 / tempo + 2.5, roomIr }), filename: `${phrase.id}-${tempo}-${rollingTake.definition.loopCount}loops.wav`
 			} : await bounceBacking(bounceParams(), drumBuffers, roomIr);
 			if (id !== bounceRequest) return; // superseded by a param change or newer bounce

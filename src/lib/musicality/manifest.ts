@@ -378,6 +378,18 @@ const drumDeviceUpdates: Record<string, [ImplementationStatus, string, string]> 
 };
 
 export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => {
+ if(['B9','P48','D77'].includes(entry.id))return {
+  ...entry,status:'partial',
+  assessment:entry.id==='B9'
+   ? 'Musicality 0.12.0 occasionally repeats a root on the second walking pulse, retaining the final approach, note count, gates and dynamics. Actual repeated notes can be heard by the drummer.'
+   :entry.id==='D77'
+    ? 'Musicality 0.12.0 can give the existing beat-three kick more weight after an actually emitted bass repeat on beats one/two. A simultaneous keyboard attack, reserved response, setup or busy solo evidence prevents the catch. No extra drum onset is added.'
+    : 'Musicality 0.12.0 can lower an existing inner ninth to a flat ninth on the last keyboard attack before a declared dominant-to-tonic change. Defining tones, top voice, native attacks and gates remain intact; actual colored notes become the voice-leading memory. Conflicting bass notes veto the color.',
+  remaining: 'Occasional generated-event interaction, not microphone motif recognition. Bass/drum additions are Swing/Straight only; keyboard color also uses existing Bossa/Ballad attacks. Other altered colors, broader bass motifs and human listening acceptance remain pending.',
+  scope:'Explicit Coordinated 0.12.0 trio-conversation policy, independently fingerprinted. Omission retains complete 0.11 events, traces and checkpoints; Original generation is unchanged.',
+  evidence:[...entry.evidence,source('backing-trio-conversation'),source('backing-rolling-bass'),source('backing-rolling-piano'),source('backing-drum-phrases'),test('backing-trio-conversation'),test('backing-trio-conversation-performance')]
+ };
+
 	if (['B49','P14','D37'].includes(entry.id)) return {
   ...entry, status: 'partial',
   assessment: entry.id === 'B49'

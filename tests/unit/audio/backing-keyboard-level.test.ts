@@ -83,3 +83,20 @@ describe('calibrated keyboard output ownership', () => {
   expect(player.start.mock.calls.map(([event]) => event)).toEqual([57,60,63].map(note => ({ note, time: 0, velocity: 72, duration: .4 })));
  });
 });
+
+it('balances sustained Ballad organ without changing its fader or other styles',async()=>{
+ const track=await import('$lib/audio/backing-track');
+ track.setBackingMix({...DEFAULT_BACKING_MIX,comp:.75},{persist:false});
+ await track.loadBackingInstruments('organ','ballad');
+ const organ=bank('Soundfont');expect(organ.destination.gain.value).toBeCloseTo(.14715);
+ await track.loadBackingInstruments('organ','swing');expect(organ.destination.gain.value).toBeCloseTo(.1635);
+ track.setBackingMix({comp:0},{persist:false});
+ await track.loadBackingInstruments('organ','ballad');expect(organ.destination.gain.value).toBe(0);
+});
+it('uses the same Ballad organ trim in WAV rendering without changing note dynamics',async()=>{
+ const {renderEventsToWav}=await import('$lib/audio/backing-bounce');
+ await renderEventsToWav({bassEvents:[],drumEvents:[],compEvents:[{absBeat:0,time:'0i',notes:[57,60,63],duration:1.4,velocity:72}]},{},
+  {tempo:80,volume:.7,mix:{...DEFAULT_BACKING_MIX,comp:.75},durationSeconds:3,instrument:'organ',style:'ballad'});
+ const player=bank('Soundfont');expect(player.destination.gain.value).toBeCloseTo(.14715);
+ expect(player.start.mock.calls.map(([event])=>event)).toEqual([57,60,63].map(note=>({note,time:0,velocity:72,duration:1.4})));
+});

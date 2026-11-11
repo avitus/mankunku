@@ -192,7 +192,7 @@ const browserListeningRuntime: ListeningPlayerRuntime = {
 		// initAudio initializes once; resume again after tab/browser suspension.
 		if (context.state === 'suspended') await context.resume();
 		if (!current()) return null;
-		await backing.loadBackingInstruments(params.instrument);
+		await backing.loadBackingInstruments(params.instrument, params.style);
 		if (!current()) return null;
 		const transport = Tone.getTransport();
 		const previousMix = backing.getBackingMix();
@@ -212,7 +212,7 @@ const browserListeningRuntime: ListeningPlayerRuntime = {
 			const definition = createRollingBacking(params.phrase.harmony, style, { phraseId: params.phrase.id, tempo: params.tempo,
 				ppq: transport.PPQ, beatsPerBar: 4, swing: resolveBackingSwing(params.swing, style, params.tempo),
 				sectionMap: params.phrase.sectionMap, performanceForm: params.phrase.performanceForm, ensemble: {},
-				...(terminalArrangement ? { terminalArrangement } : {}) }, { returningMelodySpace: true, performanceEnergySeed: params.performanceEnergySeed, pianoPresence: 'accompaniment', keyboardVariety: 'developed', chorusBoundaryPriority: true, keyboardTexture: true, keyboardPhrasing: params.instrument, bassDelayedRoot: true, keyboardContraryMotion: true, drumPhraseCushioning: true, keyboardSuspensions: 'developed', phraseExpression: true });
+				...(terminalArrangement ? { terminalArrangement } : {}) }, { returningMelodySpace: true, performanceEnergySeed: params.performanceEnergySeed, pianoPresence: 'accompaniment', keyboardVariety: 'developed', chorusBoundaryPriority: true, keyboardTexture: true, keyboardPhrasing: params.instrument, bassDelayedRoot: true, keyboardContraryMotion: true, drumPhraseCushioning: true, keyboardSuspensions: 'developed', phraseExpression: true, trioConversation: true });
 			transport.stop(); transport.position = 0; transport.bpm.value = params.tempo;
 			let playbackError: string | null = null;
 			const playback = await backing.createRollingBackingPlayback({ sessionId: definition.sessionId, tempo: params.tempo,

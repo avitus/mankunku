@@ -1,3 +1,4 @@
+import type { TrioConversation } from './backing-trio-conversation';
 import type { PhraseExpression } from './backing-phrase-expression';
 import { assessTerminalArrangement, realizeTerminalArrangement, terminalBarPlan, terminalPianoTrace, terminalDrumTrace, freezeTerminalDecisions, type TerminalArrangementInput, type TerminalReservation, type TerminalArrangementDecision } from './backing-terminal';
 import type { BassDelayedRootTrace } from './backing-bass-delayed-root';
@@ -88,6 +89,7 @@ import { resolveCoordinatedVoicing, type CoordinatedVoicingMemory, type Coordina
 
 export interface BassEvent {
 	readonly expression?: PhraseExpression;
+	readonly conversation?: TrioConversation;
 	/** Tick-based Transport time, e.g. "480i" (swing + jitter applied). */
 	time: string;
 	midi: number;
@@ -101,6 +103,7 @@ export interface BassEvent {
 
 export interface CompEvent {
 	readonly expression?: PhraseExpression;
+	readonly conversation?: TrioConversation;
 	time: string;
 	notes: number[];
 	duration: number;
@@ -110,6 +113,7 @@ export interface CompEvent {
 
 export interface DrumEvent {
 	readonly expression?: PhraseExpression;
+	readonly conversation?: TrioConversation;
 	time: string;
 	drum: DrumVoice;
 	/** Normalized velocity 0–1 (converted to MIDI at trigger time). */
