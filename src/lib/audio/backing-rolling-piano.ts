@@ -1,3 +1,4 @@
+import { dropThirdVoice, spreadFitsBass } from './backing-ensemble-colors';
 import { upperStructureTriad, upperStructureFitsBass } from './backing-phrase-colors';
 import { pitchClassToNumber } from './voicings';
 import { allowsDominantColor, colorDominantNinth, dominantColorFitsBass } from './backing-trio-conversation';
@@ -461,6 +462,25 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
      ...describeCoordinatedPlacement(segment.chord,cell.notes,decision.resolvedFamily,Math.round(58+8*info.intensity),lastVoicingPredecessor),
      ...(decision.topLine?{topLine:Object.freeze({...decision.topLine,actualMidi:cell.notes.at(-1)!,distance:Math.abs(cell.notes.at(-1)!-decision.topLine.targetMidi)})}:{}),upperStructure:receipt})});
    }
+  }
+ }
+ // Open one admitted chord downward without changing its melody, rhythm or gate.
+ if(score.ensembleColorsVersion && allowsDominantColor(info) && !backgroundHarmony && !arrival && !proposal && !nativeLatePad && !guideTones &&
+  events.length && voicingTrace.length===events.length && !voicingTrace.some(v=>v.decision.keyboardSuspension) &&
+  createRng(seedFrom(score.phraseId,score.bars[bar].pianoPresenceSeed??0,bar,'drop-three')).chance(.75)) {
+  const event=events.at(-1)!,trace=voicingTrace.at(-1)!;
+  const lookup=event.absBeat+(event.absBeat%1?0.5:0);
+  const segment=score.harmony.find(s=>lookup>=fractionToFloat(s.startOffset)*4&&lookup<(fractionToFloat(s.startOffset)+fractionToFloat(s.duration))*4);
+  const cell=dropThirdVoice(event.notes);
+  if(!event.conversation && !event.phraseColor && cell && segment && ['rootless-a','rootless-b','drop2','shell'].includes(trace.decision.resolvedFamily) &&
+   spreadFitsBass(event,cell.notes[0],bassEvents,score.tempo,score.ppq)) {
+   const receipt=Object.freeze({kind:'drop3' as const,fromMidi:cell.fromMidi,toMidi:cell.toMidi,originalNotes:Object.freeze([...event.notes])});
+   events[events.length-1]={...event,notes:cell.notes,ensembleColor:receipt};
+   lastVoicing=cell.notes;segmentVoicing=cell.notes;
+   voicingMemory=Object.freeze({version:1,chord:Object.freeze({...segment.chord}),notes:Object.freeze([...cell.notes])});
+   const {keyboardLine:_line,keyboardContraryMotion:_contrary,keyboardTexture:_texture,rootlessTexture:_rootless,spacing:_spacing,...decision}=trace.decision;
+   voicingTrace[voicingTrace.length-1]=Object.freeze({...trace,notes:Object.freeze([...cell.notes]),decision:Object.freeze({...decision,
+    ...describeCoordinatedPlacement(segment.chord,cell.notes,decision.resolvedFamily,Math.round(58+8*info.intensity),lastVoicingPredecessor),spreadVoicing:receipt})});
   }
  }
 	const answer: PianoAnswerDecision | undefined = proposal && events.length === 1 ? { version: 1, barIndex: bar, source: proposal.source, attack: events[0], replyOffset: proposal.hit.beatOffset, drumCommentary: 'space' } : undefined;

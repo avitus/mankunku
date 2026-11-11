@@ -1,3 +1,4 @@
+import { arpeggiateWalk } from './backing-ensemble-colors';
 import { rootSeventhPulse } from './backing-phrase-colors';
 import { allowsTrioConversation, repeatBassPulse } from './backing-trio-conversation';
 import { selectsPhraseExpression, shapeBassPulse } from './backing-phrase-expression';
@@ -97,6 +98,19 @@ export function realizeRollingBass(score: RollingBackingDefinition, bar: number,
   const offset=rng.pick([1,2]);
   if(bar-info.ensemble.phraseStartBar===offset && rng.chance(.75) && segments.length===1 && ['7','min7','maj7'].includes(segments[0].chord.quality)) {
    result={...result,events:rootSeventhPulse(result.events,bar,pitchClassToNumber(segments[0].chord.root),segments[0].chord.quality==='maj7'?11:10)};
+  }
+ }
+ if(score.ensembleColorsVersion && ['swing','straight'].includes(score.style??'swing') && allowsTrioConversation(info) && result.memory.feel==='four' &&
+  !result.delayedRootTrace && !result.memory.pendingLaunch && !previous?.pendingLaunch && !result.continuationTrace?.length &&
+  info.ensemble?.bass.role==='time' && info.ensemble.bass.keepPulse) {
+  const start=bar*4,segments=score.harmony.filter(s=>fractionToFloat(s.startOffset)*4<start+4 && (fractionToFloat(s.startOffset)+fractionToFloat(s.duration))*4>start);
+  const rng=createRng(seedFrom(score.phraseId,score.bars[bar].pianoPresenceSeed??0,bar,'bass-arpeggio'));
+  if(rng.chance(.65) && segments.length===1 && ['7','min7','maj7'].includes(segments[0].chord.quality) &&
+   (!['enclosure','double-chromatic'].includes(result.memory.approach) ||
+    (fractionToFloat(segments[0].startOffset)+fractionToFloat(segments[0].duration))*4>start+4)) {
+   const events=arpeggiateWalk(result.events,bar,pitchClassToNumber(segments[0].chord.root),segments[0].chord.quality==='min7'?3:4);
+   if(events.some(e=>e.ensembleColor?.kind==='arpeggio'))result={...result,events,memory:{...result.memory,
+    previousPreviousMidi:events[2].midi,direction:Math.sign(events[3].midi-events[2].midi)}};
   }
  }
  if (!score.phraseExpressionVersion || !selectsPhraseExpression(info, score.phraseId, 'bass') ||

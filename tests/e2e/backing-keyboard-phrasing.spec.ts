@@ -20,7 +20,7 @@ async function browserModule(path: string): Promise<string> {
 	return source;
 }
 
-for (const release of ['0.7', '0.8', '0.9', '0.10', '0.11', '0.12', '0.13'] as const) for (const seed of release === '0.7' ? [42] : ['0.12','0.13'].includes(release) ? [42,7,19] : [42, 19]) for (const style of ['swing', 'straight', 'bossa-nova', 'ballad'] as const) {
+for (const release of ['0.7', '0.8', '0.9', '0.10', '0.11', '0.12', '0.13', '0.14'] as const) for (const seed of release === '0.7' ? [42] : ['0.12','0.13','0.14'].includes(release) ? [42,7,19] : [42, 19]) for (const style of ['swing', 'straight', 'bossa-nova', 'ballad'] as const) {
 	const releaseEight = release !== '0.7';
 	test(`${release} seed ${seed} ${style}: full Blues keyboard phrasing remains audible, balanced and releases cleanly`, async ({ page, browserName }) => {
 		test.skip(process.env.MANKUNKU_TEST_SANDBOX !== '1', 'native sample rendering in the local Linux sandbox only');
@@ -42,10 +42,11 @@ for (const release of ['0.7', '0.8', '0.9', '0.10', '0.11', '0.12', '0.13'] as c
 				returningMelodySpace: true, performanceEnergySeed: seed, pianoPresence: 'accompaniment',
 				keyboardVariety: 'developed', chorusBoundaryPriority: true,
 				keyboardTexture: true, keyboardPhrasing: instrument,
-                ...(['0.11','0.12','0.13'].includes(release) ? { phraseExpression: true } as const : {}),
-                ...(release === '0.13' ? { phraseColors: true } as const : {}),
-                ...(['0.12','0.13'].includes(release) ? { trioConversation: true } as const : {}),
-				...(release === '0.9' ? { keyboardSuspensions: true } as const : (release === '0.10' || release === '0.11' || release === '0.12' || release === '0.13') ? { keyboardSuspensions: 'developed' } as const : {}),
+                ...(['0.11','0.12','0.13','0.14'].includes(release) ? { phraseExpression: true } as const : {}),
+                ...(release === '0.14' ? { ensembleColors: true } as const : {}),
+                ...(['0.13','0.14'].includes(release) ? { phraseColors: true } as const : {}),
+                ...(['0.12','0.13','0.14'].includes(release) ? { trioConversation: true } as const : {}),
+				...(release === '0.9' ? { keyboardSuspensions: true } as const : (release === '0.10' || release === '0.11' || release === '0.12' || release === '0.13' || release === '0.14') ? { keyboardSuspensions: 'developed' } as const : {}),
 				...(releaseEight ? { bassDelayedRoot: true, keyboardContraryMotion: true, drumPhraseCushioning: true } as const : {})
 			});
 			expect(score.keyboardPhrasing?.instrument).toBe(instrument);
@@ -123,7 +124,7 @@ for (const release of ['0.7', '0.8', '0.9', '0.10', '0.11', '0.12', '0.13'] as c
 				player.disconnect(); gain.disconnect();
 			}
 			return output;
-		}, { smplr, loader, levels, performances, durationSeconds, calibrationStyle: ['0.12','0.13'].includes(release) ? style : undefined });
+		}, { smplr, loader, levels, performances, durationSeconds, calibrationStyle: ['0.12','0.13','0.14'].includes(release) ? style : undefined });
 		const differenceDb = 20 * Math.log10(measurements[1].rms / measurements[0].rms);
 		const report = { browserName, style, seed, tempo, durationSeconds, differenceDb, measurements };
 		console.log('Full Blues keyboard phrasing levels', JSON.stringify(report));

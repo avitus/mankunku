@@ -1,3 +1,4 @@
+import type { EnsembleColor } from './backing-ensemble-colors';
 import type { PhraseColor } from './backing-phrase-colors';
 import type { TrioConversation } from './backing-trio-conversation';
 import type { KeyboardLineRequest } from './backing-keyboard-line';
@@ -13,6 +14,7 @@ export interface CoordinatedVoicingMemory {
 	readonly notes: readonly number[];
 }
 export interface CoordinatedVoicingDecision {
+ readonly spreadVoicing?: Extract<EnsembleColor,{kind:'drop3'}>;
  readonly upperStructure?: Extract<PhraseColor,{kind:'upper-structure'}>;
 	readonly keyboardColor?: Extract<TrioConversation, {kind: 'dominant-b9'}>;
 	readonly keyboardSuspension?: {

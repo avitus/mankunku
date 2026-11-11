@@ -14,7 +14,7 @@ test('shows a real score beside factual band insights with a release and compact
  await page.setViewportSize({width:1440,height:1000});
  await page.goto('/musicality');
  await expect(page.getByTestId('musicality-release')).toContainText(CURRENT_MUSICALITY_RELEASE.version);
- await expect(page.getByTestId('listening-release-focus')).toContainText('a root-to-seventh bass dip');
+ await expect(page.getByTestId('listening-release-focus')).toContainText('climbing bass chord outlines');
  await expect(page.getByTestId('musicality-engine-revision')).toHaveText(/^[a-f0-9]{8}$/);
  await expect(page.getByTestId('listening-score').locator('svg').first()).toBeVisible();
  await expect(page.getByTestId('musician-piano')).toContainText('Waiting for the first bar');
@@ -155,4 +155,19 @@ test('waits for client readiness before opening saved feedback', async ({ page }
  }
  await page.getByRole('button', { name: /Saved feedback/ }).click();
  await expect(page.getByTestId('listening-feedback-archive')).toContainText('No saved feedback yet');
+});
+
+test('loads the release example without autoplay and keeps the chosen keyboard', async ({ page }) => {
+ await page.goto('/musicality');
+ await page.getByTestId('listening-keyboard').selectOption('organ');
+ await page.getByTestId('listening-style').selectOption('ballad');
+ await page.getByTestId('listening-tempo').fill('80');
+ await page.getByTestId('listening-choruses').selectOption('1');
+ await page.getByTestId('listening-release-example').click();
+ await expect(page.getByTestId('listening-keyboard')).toHaveValue('organ');
+ await expect(page.getByTestId('listening-style')).toHaveValue('swing');
+ await expect(page.getByTestId('listening-tempo')).toHaveValue('140');
+ await expect(page.getByTestId('listening-choruses')).toHaveValue('2');
+ await expect(page.getByTestId('listening-stop')).toHaveCount(0);
+ await expect(page.getByTestId('listening-play')).toBeEnabled();
 });

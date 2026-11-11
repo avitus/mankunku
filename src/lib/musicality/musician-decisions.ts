@@ -639,6 +639,37 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
   }
  }
 
-	if (keyboardTextures.length) pianoCard.detail += ` ${piano.some(e=>e.phraseColor?.kind==='upper-structure')?'Other attacks: ':''}${[...new Set(keyboardTextures)].join(', then ')}.`;
+ if(development) {
+  const c=bass[0]?.ensembleColor;
+  if(walking && c?.kind==='arpeggio' && bass.length===4 && bass.every((e,i)=>e.absBeat===barIndex*4+i) &&
+   bass.slice(0,3).every((e,i)=>e.midi===[c.rootMidi,c.rootMidi+c.third,c.rootMidi+7][i] && JSON.stringify(e.ensembleColor)===JSON.stringify(c)) && bass[3].midi===c.originalNotes[3]) {
+   bassCard.action='Outline the chord';
+   bassCard.detail='The walking line climbs through root, third and fifth before returning to its final approach. Four pulses keep the groove moving.';
+   bassCard.evidence.push(`Chord outline: ${bass.slice(0,3).map(e=>noteName(e.midi)).join(' → ')}`);
+  }
+  for(const event of piano) {
+   const c=event.ensembleColor;
+   const trace=development.pianoVoicings?.find(v=>v.time===event.time&&v.absBeat===event.absBeat&&JSON.stringify(v.notes)===JSON.stringify(event.notes));
+   if(c?.kind==='drop3' && c.originalNotes.length===4 && c.fromMidi===c.originalNotes[1] && c.toMidi===c.fromMidi-12 &&
+    JSON.stringify(event.notes)===JSON.stringify([c.toMidi,c.originalNotes[0],...c.originalNotes.slice(2)]) && JSON.stringify(trace?.decision.spreadVoicing)===JSON.stringify(c)) {
+    const articulation=pianoCard.action==='Short chord → held answer'?' Short chord → held answer: a detached first chord leads into this longer, wider chord.':'';
+    pianoCard.action='Open drop-3 voicing';
+    pianoCard.detail='One inner voice drops an octave, opening the chord beneath the same melody note. The rhythm and held harmonic support remain.'+articulation;
+    pianoCard.evidence.push(`Wider chord: ${noteName(c.fromMidi)} → ${noteName(c.toMidi)} · top voice unchanged`);
+   }
+  }
+  for(const event of drums) {
+   const c=event.ensembleColor;
+   const source=c?.kind==='cross-stick'?piano.find(e=>e.absBeat===c.sourceAbsBeat&&e.time===c.sourceTime&&e.duration===c.sourceDuration&&JSON.stringify(e.notes)===JSON.stringify(c.sourceNotes)):undefined;
+   if(c?.kind==='cross-stick' && source && event.drum==='crossstick' && event.role==='commentary' && event.velocity===c.originalVelocity*.85 &&
+    event.absBeat-source.absBeat>=.5 && parseInt(event.time)>parseInt(source.time) && parseInt(event.time)<c.sourceEndTick && drumPhrase?.hits.some(h=>h.drum===event.drum&&h.beatOffset===event.absBeat-barIndex*4&&h.velocity===event.velocity&&JSON.stringify(h.ensembleColor)===JSON.stringify(c))) {
+    drumCard.action='Cross-stick under the chord';
+    drumCard.detail='An existing snare comment becomes a quieter, woody cross-stick while the keyboard chord is still held. The cymbal groove continues.';
+    drumCard.evidence.push(`Held-chord response: cross-stick after beat ${source.absBeat-barIndex*4+1}`);
+   }
+  }
+ }
+
+	if (keyboardTextures.length) pianoCard.detail += ` ${piano.some(e=>e.phraseColor?.kind==='upper-structure'||e.ensembleColor?.kind==='drop3')?'Other attacks: ':''}${[...new Set(keyboardTextures)].join(', then ')}.`;
 	return [bassCard, pianoCard, drumCard];
 }

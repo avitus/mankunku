@@ -378,6 +378,18 @@ const drumDeviceUpdates: Record<string, [ImplementationStatus, string, string]> 
 };
 
 export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => {
+ if(['B27','P24','D32'].includes(entry.id))return {
+  ...entry,status:'partial',
+  assessment:entry.id==='B27'
+   ? 'Musicality 0.14.0 can continue a Swing/Straight walking bar through root, third and fifth before its existing final approach. Actual accepted pitches update subsequent bass memory; four pulses and their envelopes remain.'
+   :entry.id==='P24'
+    ? 'Musicality 0.14.0 lowers the third voice from the top of a four-note keyboard chord by an octave, preserving its pitch classes and melody. The widened chord requires room above actually sounding bass and enters actual voice-leading memory.'
+    : 'Musicality 0.14.0 can replace an existing Swing/Straight snare comment with softer cross-stick beneath an actually held keyboard chord. Scheduled swing timing, gate overlap, limb and response reservations are checked before acceptance.',
+  remaining:'Selections are occasional and protected responses, cadences and earlier colors take priority. Bass/drum additions are Swing/Straight; drop-3 also uses native Bossa/Ballad rhythm. Broader arpeggios, voicing families and human listening acceptance remain pending.',
+  scope:'Explicit independently fingerprinted ensemble-colors policy. Omission preserves complete 0.13 performances; Original is unchanged.',
+  evidence:[...entry.evidence,source('backing-ensemble-colors'),source('backing-rolling-bass'),source('backing-rolling-piano'),source('backing-rolling'),test('backing-ensemble-colors'),test('backing-ensemble-colors-performance')]
+ };
+
  if(['B26','P26','D20'].includes(entry.id))return {
   ...entry,status:'partial',
   assessment:entry.id==='B26'
