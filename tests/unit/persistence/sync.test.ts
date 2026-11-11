@@ -82,6 +82,7 @@ function createMockSupabase(overrides: {
 		// takes precedence, then the global selectResult override, then
 		// the default { data: null, error: null }.
 		const result = overrides.tableResults?.[tableName] ?? defaultSelectResult;
+		let bounds: [number, number] | null = tableName === 'daily_summaries' ? [0, 999] : null;
 
 		// Build a query-builder-like object that supports full chaining.
 		const builder: Record<string, any> = {};
@@ -90,6 +91,7 @@ function createMockSupabase(overrides: {
 		builder.in = vi.fn(() => builder);
 		builder.order = vi.fn(() => builder);
 		builder.limit = vi.fn(() => builder);
+		builder.range = vi.fn((from: number, to: number) => { bounds = [from, to]; return builder; });
 		builder.single = vi.fn().mockResolvedValue(result);
 		builder.maybeSingle = vi.fn().mockResolvedValue(result);
 		builder.upsert = upsertFn;
@@ -98,8 +100,11 @@ function createMockSupabase(overrides: {
 
 		// Make the builder itself thenable so `await ...eq(...)` resolves
 		// to the per-table result without requiring a terminal method.
-		builder.then = (resolve: any, reject: any) =>
-			Promise.resolve(result).then(resolve, reject);
+		builder.then = (resolve: any, reject: any) => Promise.resolve(
+			bounds && Array.isArray(result.data)
+				? { ...result, data: result.data.slice(bounds[0], bounds[1] + 1) }
+				: result
+		).then(resolve, reject);
 
 		return builder;
 	});
@@ -1308,6 +1313,39 @@ describe('syncAllDailySummariesToCloud', () => {
 });
 
 describe('loadDailySummariesFromCloud', () => {
+	it.each([1001, 2000])('loads all %i days in ascending pages, including recent history', async count => {
+		const writer = createMockSupabase();
+		await syncDailySummaryToCloud(writer as any, TEST_SUMMARY);
+		const row = writer._upsertFn.mock.calls[0][0];
+		const rows = Array.from({ length: count }, (_, i) => ({
+			...row, date: new Date(Date.UTC(2020, 0, i + 1)).toISOString().slice(0, 10)
+		}));
+		const mock = createMockSupabase({ tableResults: { daily_summaries: { data: rows, error: null } } });
+		const out = await loadDailySummariesFromCloud(mock as any);
+		expect(out?.map(summary => summary.date)).toEqual(rows.map(row => row.date));
+		expect(mock._fromFn).toHaveBeenCalledTimes(Math.floor(count / 1000) + 1);
+		for (const [page, result] of mock._fromFn.mock.results.entries()) {
+			expect(result.value.eq).toHaveBeenCalledWith('user_id', 'test-user-id');
+			expect(result.value.order).toHaveBeenCalledWith('date', { ascending: true });
+			expect(result.value.range).toHaveBeenCalledWith(page * 1000, page * 1000 + 999);
+		}
+	});
+
+	it('returns null rather than partial history when a later page fails', async () => {
+		const mock = createMockSupabase();
+		const firstPage = mock.from('daily_summaries');
+		firstPage.then = (resolve: (value: unknown) => unknown) => Promise.resolve({
+			data: Array.from({ length: 1000 }, () => ({ date: '2026-04-30' })), error: null
+		}).then(resolve);
+		const failedPage = mock.from('daily_summaries');
+		failedPage.then = (resolve: (value: unknown) => unknown) => Promise.resolve({
+			data: null, error: { message: 'second page unavailable' }
+		}).then(resolve);
+		mock._fromFn.mockReturnValueOnce(firstPage).mockReturnValueOnce(failedPage);
+		expect(await loadDailySummariesFromCloud(mock as any)).toBeNull();
+		expect(failedPage.range).toHaveBeenCalledWith(1000, 1999);
+	});
+
 	it('maps snake_case columns back to DailySummary camelCase fields', async () => {
 		const cloudRow = {
 			date: '2026-04-30',

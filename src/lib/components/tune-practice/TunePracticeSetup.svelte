@@ -158,7 +158,11 @@
 						{/each}
 					</ul>
 					{#if highlighted}<button class="tp-show-plan" onclick={() => selectedLick = null}>Show planned licks on chart</button>{/if}
-					<p>The session selects one lick per window and rotates ready alternatives. Other fitting licks remain available here.</p>
+					{#if tunePractice.config.mode === 'suggest'}
+						<p>The session selects one lick per window and rotates ready alternatives. Other fitting licks remain available here.</p>
+					{:else}
+						<p>Readiness is shown for reference. Points mode offers fitting licks from your book without requiring a practised key or tempo.</p>
+					{/if}
 				{:else}<p>No fitting licks from your book yet. Add progression tags in My Licks to describe where you play each phrase.</p>{/if}
 				{#if preview && preview.uncategorizedCount > 0}<p class="tp-untagged">{preview.uncategorizedCount} of your licks {preview.uncategorizedCount === 1 ? 'has' : 'have'} no progression tag and can’t be suggested. <a href="/licks">Tag them in My Licks →</a></p>{/if}
 			</section>

@@ -48,7 +48,7 @@ test.describe('lick-practice session flow', () => {
 			const previousIds = await page.evaluate(() =>
 				JSON.parse(localStorage.getItem('mankunku:lick-practice-sessions') ?? '[]')
 					.map((entry: { id: string }) => entry.id) as string[]);
-			await page.getByRole('button', { name: /start deep practice/i }).last().click();
+			await next.click();
 			await expect(page.getByTestId('focus-ramp')).toBeVisible();
 			// End only after an actual scored attempt, not during the opening demo.
 			await expect.poll(() => page.evaluate((prior) =>

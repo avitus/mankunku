@@ -194,7 +194,8 @@ export function buildNextSteps(input: NextStepInput): NextStep[] {
 		seen.add(candidate.lick.lickId);
 		return true;
 	});
-	const choices = [...distinct, ...unique.filter(candidate => !distinct.includes(candidate))].slice(0, 3);
+	const picked = new Set(distinct);
+	const choices = [...distinct, ...unique.filter(candidate => !picked.has(candidate))].slice(0, 3);
 	return choices.map(weakest => {
 		const { lick, key, learning, unlockedCount, scores, weakCount, typical } = weakest;
 		const progression = lick.progressionType ?? plan.find((item: LickPracticePlanItem): boolean => item.phraseId === lick.lickId)?.progressionType;

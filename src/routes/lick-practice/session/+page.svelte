@@ -1978,8 +1978,9 @@
 <div class="studio-panel space-y-4" data-domain="lick-practice">
 	{#if lickPractice.phase === 'complete' && sessionReport}
 		{#if useKeyMap}
+			{@const steps = getNextSteps(sessionReport, lickPracticeSessionLogId, completedRecommendationContext)}
 			<SessionKeyMap report={sessionReport} progress={lickPractice.progress} plan={lickPractice.plan} {instrument}
-				steps={getNextSteps(sessionReport, lickPracticeSessionLogId, completedRecommendationContext)}
+				{steps}
 				onstart={handleStartNextStep} ondone={handleDone} onreset={handleReportReset} {confirmingResetId} {resetLickIds}>
 				{@render deepReportSummary(sessionReport)}
 			</SessionKeyMap>
