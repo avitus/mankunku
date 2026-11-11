@@ -380,10 +380,10 @@ const drumDeviceUpdates: Record<string, [ImplementationStatus, string, string]> 
 export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => {
 	if (entry.id === 'P47') return {
 		...entry, status: 'partial',
-		assessment: 'Musicality 0.9.0 decorates selected repeated plain-dominant rootless chords with a fourth resolving down to the third on the next existing attack. The top voice, native rhythm, gates, dynamics and final chord remain intact. The complete pair is admitted together; actual overlapping bass thirds veto the color. A three-bar cooldown remembers accepted gestures only.',
-		remaining: 'Scoped 4–3 lower/inner-voice cells during solo choruses only. No new attacks, altered-harmony substitutions, 9–root or 13–5 cells, unresolved cross-bar promises or acoustic solo recognition. Heads, responses, arrivals, dense activity and endings retain priority. Human listening acceptance remains pending.',
-		scope: 'Explicit Coordinated 0.9.0 Piano/Organ in Swing, Straight, Bossa and Ballad. Native patterns stay intact; a compatible two-attack cell is required. Omission retains exact 0.8 behavior; Original is unchanged.',
-		evidence: [...entry.evidence, source('backing-keyboard-suspension'), source('backing-rolling-piano'), test('backing-keyboard-suspension'), test('backing-keyboard-suspension-performance')]
+		assessment: 'Musicality 0.10.0 adds ninth-to-root and thirteenth-to-fifth resolutions to the 0.9 fourth-to-third vocabulary. Existing lower/inner color tones resolve on the next native attack; both defining tones and the top voice stay in place. The actual resolved chord becomes the next voice-leading memory. Bass conflicts at either attack can decline the complete pair, and only an accepted gesture spends the three-bar cooldown.',
+		remaining: 'Plain-dominant, same-bar pairs during eligible solo passages only. No extra attacks, cross-bar promises, altered-harmony substitutions or acoustic solo recognition. Heads, responses, arrivals, busy solo evidence and endings retain priority. Ballad has fewer eligible paired pads. Human listening acceptance remains pending.',
+		scope: 'Explicit Coordinated 0.10.0 Piano/Organ in Swing, Straight, Bossa and Ballad. The developed policy is independently fingerprinted; the earlier true option retains exact 0.9 events/traces/checkpoints. Original is unchanged.',
+		evidence: [...entry.evidence, source('backing-keyboard-suspension'), source('backing-rolling-piano'), test('backing-keyboard-suspension'), test('backing-keyboard-suspension-performance'), test('backing-keyboard-resolution-colors'), test('backing-keyboard-resolution-performance')]
 	};
 	if (entry.id === 'B35') return {
 		...entry, status: 'partial',

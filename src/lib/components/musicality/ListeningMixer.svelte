@@ -1,8 +1,8 @@
 <script lang="ts">
  import type { BackingMixLevels } from '$lib/audio/backing-mix';
  import type { BackingSignalSnapshot } from '$lib/audio/backing-signal-monitor';
- let { mix, onchange, disabled = false, dark = false, signal, playing = false, elapsedBeats = 0, keyboardLabel = 'Piano' }: {
-  mix: BackingMixLevels; onchange: (mix: BackingMixLevels) => void; disabled?: boolean; dark?: boolean;
+ let { mix, onchange, disabled = false, dark = false, compact = false, signal, playing = false, elapsedBeats = 0, keyboardLabel = 'Piano' }: {
+  mix: BackingMixLevels; onchange: (mix: BackingMixLevels) => void; disabled?: boolean; dark?: boolean; compact?: boolean;
   signal?: BackingSignalSnapshot | null; playing?: boolean; elapsedBeats?: number; keyboardLabel?: 'Piano' | 'Organ';
  } = $props();
  const instruments = $derived([{ key: 'bass', label: 'Bass' }, { key: 'comp', label: keyboardLabel }, { key: 'drums', label: 'Drums' }] as const);
@@ -30,7 +30,7 @@
    <span class="signal-status">{#if signal}<span data-testid={`signal-${instrument.key==='comp'?'piano':instrument.key}`}>{mix[instrument.key]===0?'Muted':!level?'Signal unavailable':level.peakSoFar>0.00001?'Signal observed':elapsedBeats<4?'Checking signal…':'No signal observed'}</span>{/if}</span>
   </div>
  {/each}</div>
- <p>Hear each part clearly. The band keeps playing; only your listening balance changes.</p>
+ {#if !compact}<p>Hear each part clearly. The band keeps playing; only your listening balance changes.</p>{/if}
 </section>
 <style>
  .mixer{--ink:var(--color-text);--subtle:var(--color-text-secondary);--line:var(--color-bg-tertiary);--accent:var(--color-brass);padding:1rem 0;border-block:1px solid var(--line);color:var(--ink);margin-bottom:1.25rem}

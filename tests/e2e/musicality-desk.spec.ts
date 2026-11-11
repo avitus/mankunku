@@ -14,7 +14,7 @@ test('shows a real score beside factual band insights with a release and compact
  await page.setViewportSize({width:1440,height:1000});
  await page.goto('/musicality');
  await expect(page.getByTestId('musicality-release')).toContainText(CURRENT_MUSICALITY_RELEASE.version);
- await expect(page.getByTestId('listening-release-focus')).toContainText('keyboard suspension');
+ await expect(page.getByTestId('listening-release-focus')).toContainText('keyboard ninths and thirteenths');
  await expect(page.getByTestId('musicality-engine-revision')).toHaveText(/^[a-f0-9]{8}$/);
  await expect(page.getByTestId('listening-score').locator('svg').first()).toBeVisible();
  await expect(page.getByTestId('musician-piano')).toContainText('Waiting for the first bar');
@@ -39,6 +39,17 @@ test('shows a real score beside factual band insights with a release and compact
  const score=await page.getByTestId('listening-score').boundingBox();
  const insights=await page.getByRole('region',{name:'The shared intention',exact:true}).boundingBox();
  expect(score!.x+score!.width).toBeLessThan(insights!.x);
+ const mixer = page.getByTestId('listening-mixer');
+ const narrative = page.locator('.musicians');
+ const assertMixBelowNarrative = async () => {
+  const [cards, controls] = await Promise.all([narrative.boundingBox(), mixer.boundingBox()]);
+  expect(controls!.y).toBeGreaterThanOrEqual(cards!.y + cards!.height);
+ };
+ await assertMixBelowNarrative();
+ await expect(page.getByText('No invented commentary.', {exact:false})).toHaveCount(0);
+ await expect(page.getByText('Hear each part clearly.', {exact:false})).toHaveCount(0);
+ await expect(page.getByText('Structural intention, not measured loudness.', {exact:true})).toHaveCount(0);
+ await expect(page.getByRole('slider', {name:'Bass volume'})).toBeVisible();
  await page.screenshot({path:testInfo.outputPath('desktop.png'),fullPage:true});
  await page.getByTestId('listening-key').selectOption('F');
  await expect(page.getByTestId('listening-score')).toHaveAttribute('data-key','F');
@@ -52,6 +63,7 @@ test('shows a real score beside factual band insights with a release and compact
  await scroll.focus();
  await scroll.press('ArrowRight');
  await expect.poll(()=>scroll.evaluate(el=>el.scrollLeft)).toBeGreaterThan(0);
+ await assertMixBelowNarrative();
  await page.screenshot({path:testInfo.outputPath('mobile.png'),fullPage:true});
  await page.getByTestId('blind-open').click();
  await expect(page.getByRole('heading',{name:'Blind comparison',exact:true})).toBeVisible();

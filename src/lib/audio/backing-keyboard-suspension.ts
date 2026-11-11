@@ -33,3 +33,30 @@ export function proposeKeyboardSuspension(input: {
 	return Object.freeze({ suspendedNotes: Object.freeze(suspendedNotes),
 		resolutionNotes: Object.freeze([...resolutionNotes]), fromMidi, toMidi });
 }
+
+export type KeyboardResolutionColor = KeyboardSuspension & { readonly kind: '9-1' | '13-5' };
+
+/** Resolve an existing color on the second native attack; the caller commits its actual final voicing. */
+export function proposeKeyboardResolutionColors(input: Parameters<typeof proposeKeyboardSuspension>[0]): readonly KeyboardResolutionColor[] {
+ const { chord, notes, resolutionNotes, family } = input;
+ if (chord.quality !== '7' || !['rootless-a','rootless-b','shell','drop2'].includes(family) ||
+  notes.length < 3 || notes.length > 4 || notes.length !== resolutionNotes.length ||
+  notes.some((note,i) => !Number.isInteger(note) || note < 48 || note > 84 || note !== resolutionNotes[i] || i > 0 && note <= notes[i-1])) return [];
+ const root = PITCH_CLASSES.indexOf(chord.root);
+ if (root < 0) return [];
+ const interval = (note: number) => (note - root + 120) % 12;
+ // These colors retain both defining tones; they do not turn an unsupported
+ // chord into a dominant. Root/fifth targets must not duplicate another voice.
+ if (!notes.some(note => interval(note) === 4) || !notes.some(note => interval(note) === 10)) return [];
+ const cells: KeyboardResolutionColor[] = [];
+ for (const [source, kind] of [[2, '9-1'], [9, '13-5']] as const) {
+  const indexes = notes.map((note,i) => interval(note) === source ? i : -1).filter(i => i >= 0);
+  if (indexes.length !== 1) continue;
+  const index = indexes[0], fromMidi = notes[index], toMidi = fromMidi - 2;
+  if (index === notes.length - 1 || toMidi < 48 || index > 0 && toMidi - notes[index-1] < 2 || notes.some(note => interval(note) === source - 2)) continue;
+  cells.push(Object.freeze({ kind, fromMidi, toMidi,
+   suspendedNotes: Object.freeze([...notes]),
+   resolutionNotes: Object.freeze(notes.map((note,i) => i === index ? toMidi : note)) }));
+ }
+ return Object.freeze(cells);
+}

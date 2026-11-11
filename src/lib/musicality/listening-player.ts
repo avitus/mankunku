@@ -212,7 +212,7 @@ const browserListeningRuntime: ListeningPlayerRuntime = {
 			const definition = createRollingBacking(params.phrase.harmony, style, { phraseId: params.phrase.id, tempo: params.tempo,
 				ppq: transport.PPQ, beatsPerBar: 4, swing: resolveBackingSwing(params.swing, style, params.tempo),
 				sectionMap: params.phrase.sectionMap, performanceForm: params.phrase.performanceForm, ensemble: {},
-				...(terminalArrangement ? { terminalArrangement } : {}) }, { returningMelodySpace: true, performanceEnergySeed: params.performanceEnergySeed, pianoPresence: 'accompaniment', keyboardVariety: 'developed', chorusBoundaryPriority: true, keyboardTexture: true, keyboardPhrasing: params.instrument, bassDelayedRoot: true, keyboardContraryMotion: true, drumPhraseCushioning: true, keyboardSuspensions: true });
+				...(terminalArrangement ? { terminalArrangement } : {}) }, { returningMelodySpace: true, performanceEnergySeed: params.performanceEnergySeed, pianoPresence: 'accompaniment', keyboardVariety: 'developed', chorusBoundaryPriority: true, keyboardTexture: true, keyboardPhrasing: params.instrument, bassDelayedRoot: true, keyboardContraryMotion: true, drumPhraseCushioning: true, keyboardSuspensions: 'developed' });
 			transport.stop(); transport.position = 0; transport.bpm.value = params.tempo;
 			let playbackError: string | null = null;
 			const playback = await backing.createRollingBackingPlayback({ sessionId: definition.sessionId, tempo: params.tempo,

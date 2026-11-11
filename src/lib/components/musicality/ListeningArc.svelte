@@ -44,7 +44,7 @@
     <span class:current={currentPass?.index === pass.index} style:flex={pass.endBarExclusive - pass.startBar} data-testid="listening-arc-pass" aria-current={currentPass?.index === pass.index ? 'step' : undefined}>{pass.label}</span>
    {/each}
   </div>
-  <p>{orchestration === 'coordinated' ? 'Structural intention, not measured loudness.' : 'Original arrangement · no shared energy plan.'}</p>
+  {#if orchestration === 'original'}<p>Original arrangement · no shared energy plan.</p>{/if}
  </figure>
 {/if}
 

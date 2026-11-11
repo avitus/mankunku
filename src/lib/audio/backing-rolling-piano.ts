@@ -18,7 +18,7 @@ import { articulateKeyboardHit } from './backing-keyboard-articulation';
 import { planKeyboardTexture, planNativeKeyboardTexture } from './backing-keyboard-texture';
 import { selectCoordinatedVoicingFamily } from './coordinated-voicing-family';
 import { describeCoordinatedPlacement, resolveCoordinatedVoicing, type CoordinatedVoicingMemory } from './coordinated-voicing';
-import { proposeKeyboardSuspension } from './backing-keyboard-suspension';
+import { proposeKeyboardSuspension, proposeKeyboardResolutionColors, type KeyboardResolutionColor } from './backing-keyboard-suspension';
 import type { SoloEvidence } from './ensemble-plan';
 import { pianoPhraseRecallEnabled, retainPianoPhraseRecall, capturePianoMotifSource, proposePianoMotifRecall, type PianoPhraseRecallMemory } from './backing-piano-motif-memory';
 
@@ -324,8 +324,9 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 	}
 	// An atomic two-attack cell: the resolution is already in this accepted bar,
 	// never borrowed from a future bar or another player's response allowance.
-	// Its final chord/history and both native attack envelopes remain unchanged.
-	if (score.keyboardSuspensionsVersion === 1 && events.length === 2 && voicingTrace.length === 2 &&
+	// The 0.10 color cell commits its actual resolution to subsequent history;
+	// both native attack envelopes remain unchanged.
+	if (score.keyboardSuspensionsVersion && events.length === 2 && voicingTrace.length === 2 &&
 		!backgroundHarmony && !arrival && !proposal && !nativeLatePad && !guideTones &&
 		ensemble.responseOwner === 'nobody' && !ensemble.coordinatedAccent && !info.isSectionFinalBar && !info.isFinalBar &&
 		['solo_build', 'solo_peak', 'solo_release'].includes(ensemble.performanceEnergy?.phase ?? '') &&
@@ -344,17 +345,32 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 		if (segment && index === segmentAt(second) && first.absBeat >= fractionToFloat(segment.startOffset) * 4 &&
 			gap >= .5 && gap <= 3 && parseFloat(first.time) + first.duration * score.tempo / 60 * score.ppq <= parseFloat(second.time) + 1e-8 &&
 			voicingTrace[0].decision.resolvedFamily === voicingTrace[1].decision.resolvedFamily) {
-			const cell = proposeKeyboardSuspension({ chord: segment.chord, family: voicingTrace[0].decision.resolvedFamily,
-				notes: first.notes, resolutionNotes: second.notes });
-			const thirdPc = cell ? cell.toMidi % 12 : -1;
-			const onset = parseFloat(first.time), release = onset + first.duration * score.tempo / 60 * score.ppq;
-			const bassClash = !bassEvents || bassEvents.some(event => event.midi % 12 === thirdPc &&
-				parseFloat(event.time) < release && parseFloat(event.time) + event.duration * score.tempo / 60 * score.ppq > onset);
-			const spacing = voicingTrace[0].decision.spacing;
-			const span = cell ? cell.suspendedNotes.at(-1)! - cell.suspendedNotes[0] : 0;
-			if (cell && !bassClash && !(spacing?.applied === 'open' && span < 14)) {
+			const input = { chord: segment.chord, family: voicingTrace[0].decision.resolvedFamily,
+				notes: first.notes, resolutionNotes: second.notes };
+			const original = proposeKeyboardSuspension(input);
+			const candidates: (NonNullable<typeof original> & { kind?: KeyboardResolutionColor['kind'] })[] = [
+				...(original ? [original] : []), ...(score.keyboardSuspensionsVersion === 2 ? proposeKeyboardResolutionColors(input) : [])
+			];
+			const compatible = candidates.filter(cell => {
+				const conflicts = (event: CompEvent, note: number) => !bassEvents || bassEvents.some(bass => {
+					const distance = (bass.midi - note + 120) % 12;
+					const clashes = score.keyboardSuspensionsVersion === 2 ? distance === 1 || distance === 11 : bass.midi % 12 === cell.toMidi % 12;
+					const onset = parseFloat(event.time), release = onset + event.duration * score.tempo / 60 * score.ppq;
+					return clashes && parseFloat(bass.time) < release && parseFloat(bass.time) + bass.duration * score.tempo / 60 * score.ppq > onset;
+				});
+				return !conflicts(first, cell.fromMidi) && (!cell.kind || !conflicts(second, cell.toMidi)) &&
+					![cell.suspendedNotes,cell.resolutionNotes].some(notes => voicingTrace[0].decision.spacing?.applied === 'open' && notes.at(-1)! - notes[0] < 14);
+			});
+			const cell = !compatible.length ? undefined : score.keyboardSuspensionsVersion === 2
+				? createRng(seedFrom(score.phraseId, score.bars[phraseStart].pianoPresenceSeed ?? 0, bar, 'resolution-color')).pick(compatible) : compatible[0];
+			if (cell) {
 				lastSuspensionBar = bar;
 				events[0] = { ...first, notes: [...cell.suspendedNotes] };
+				events[1] = { ...second, notes: [...cell.resolutionNotes] };
+				if (cell.kind) {
+					lastVoicing = events[1].notes; segmentVoicing = events[1].notes;
+					voicingMemory = Object.freeze({ version: 1, chord: Object.freeze({ ...segment.chord }), notes: Object.freeze([...events[1].notes]) });
+				}
 				for (const attack of [0, 1] as const) {
 					const voiced = voicingTrace[attack], notes = Object.freeze([...events[attack].notes]);
 					// These comparisons were made before decoration, so do not expose
@@ -364,7 +380,7 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 					voicingTrace[attack] = Object.freeze({ ...voiced, notes, decision: Object.freeze({ ...decision,
 						...describeCoordinatedPlacement(segment.chord, notes, decision.resolvedFamily, Math.round(58 + 8 * info.intensity), previous),
 						...(decision.spacing ? { spacing: Object.freeze({ ...decision.spacing, spanSemitones: notes.at(-1)! - notes[0] }) } : {}),
-						keyboardSuspension: Object.freeze({ phase: attack === 0 ? 'suspension' as const : 'resolution' as const,
+						keyboardSuspension: Object.freeze({ ...(cell.kind ? { kind: cell.kind, chordRoot: segment.chord.root } : {}), phase: attack === 0 ? 'suspension' as const : 'resolution' as const,
 							fromMidi: cell.fromMidi, toMidi: cell.toMidi, suspensionAbsBeat: first.absBeat, resolutionAbsBeat: second.absBeat }) }) });
 				}
 			}
@@ -375,7 +391,7 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 	return { events, ...(answer ? { answer } : {}), ...(coordinatedVoicing ? { voicingTrace: Object.freeze(voicingTrace) } : {}),
 		memory: { recentFigures: [...memory.recentFigures, reason === 'native_drum_reply' ? 'ballad-drum-reply' : answer ? 'drum-reply' : arrival ? 'shared-arrival' : style.compPlanning ? figure.repeatKey ?? figure.id : `${score.style}:${hits.map((hit) => hit.b).join(',')}`].slice(-3), motif, segmentIndex, segmentVoicing, lastVoicing,
 			...(coordinatedVoicing && voicingMemory ? { voicing: voicingMemory } : {}),
-			...(score.keyboardSuspensionsVersion === 1 && lastSuspensionBar !== undefined ? { lastSuspensionBar } : {}),
+			...(score.keyboardSuspensionsVersion && lastSuspensionBar !== undefined ? { lastSuspensionBar } : {}),
 			...(contourEnabled && contourMemory ? { contour: contourMemory } : {}) },
 		trace: { version: 1, barIndex: bar, phraseStartBar: phraseStart, motifId: reason !== 'harmonic_support' && reason !== 'phrase_reentry' && reason !== 'gesture_refit' && !answer && !arrival && motif.sourceId ? `motif:${phraseStart}:${motif.sourceId}` : null,
 			sourceFigureId: answer || arrival ? null : reason === 'harmonic_support' || reason === 'phrase_reentry' || reason === 'gesture_refit' || score.keyboardVarietyVersion && !motif.sourceId ? figure.id : motif.sourceId, transform, displacementBeats: shift, ...(development && events.length ? { development } : {}), ...(answerFigureId && events.length ? { answerFigureId } : {}), hits: hits.filter((hit) => events.some((event) => event.absBeat === bar * 4 + hit.b)), ...(reason ? { reason } : {}) } };

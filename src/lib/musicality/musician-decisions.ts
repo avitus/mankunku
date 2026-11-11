@@ -1,6 +1,7 @@
 /** Compact, literal explanations of generated decisions; never an imagined musician monologue. */
 import type { GeneratedBacking } from '$lib/audio/backing-generation';
 import type { BackingStyle } from '$lib/types/instruments';
+import { PITCH_CLASSES } from '$lib/types/music';
 import type { EnsembleRole } from '$lib/audio/ensemble-plan';
 
 export interface MusicianDecisionCard {
@@ -276,10 +277,14 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 			entry.notes.length === event.notes.length && entry.notes.every((note, i) => note === event.notes[i]));
 		if (!voiced) continue;
 		const decision = voiced.decision;
-		pianoCard.evidence.push(`Chord ${index + 1} voicing: ${plain(decision.resolvedFamily)}`);
+		pianoCard.evidence.push(`Chord ${index + 1} voicing: ${plain(decision.resolvedFamily)}${decision.keyboardSuspension?.kind && decision.keyboardSuspension.phase === 'resolution' ? ' base with resolved color' : ''}`);
 		const suspension = decision.keyboardSuspension;
+		const colorRoot = suspension?.chordRoot ? PITCH_CLASSES.indexOf(suspension.chordRoot) : -1;
+		const colorLabel = suspension?.kind === '9-1' ? 'ninth resolves to root' : suspension?.kind === '13-5' ? 'thirteenth resolves to fifth' : undefined;
+		const colorValid = colorLabel && colorRoot >= 0 && suspension!.fromMidi - suspension!.toMidi === 2 &&
+			(suspension!.toMidi - colorRoot + 120) % 12 === (suspension!.kind === '9-1' ? 0 : 7);
 		if (suspension?.phase === 'suspension' && suspension.suspensionAbsBeat === event.absBeat &&
-			suspension.fromMidi === suspension.toMidi + 1 && event.notes.includes(suspension.fromMidi) &&
+			(suspension.kind === undefined ? suspension.fromMidi === suspension.toMidi + 1 : colorValid) && event.notes.includes(suspension.fromMidi) &&
 			!event.notes.includes(suspension.toMidi) && event.notes.at(-1) !== suspension.fromMidi &&
 			Math.floor(suspension.resolutionAbsBeat / beatsPerBar) === Math.floor(event.absBeat / beatsPerBar)) {
 			const resolution = generated.compEvents.find(next => next.absBeat === suspension.resolutionAbsBeat &&
@@ -288,10 +293,10 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
 			const receipt = resolution && development?.pianoVoicings?.find(next => next.time === resolution.time &&
 				next.absBeat === resolution.absBeat && next.notes.length === resolution.notes.length &&
 				next.notes.every((note, i) => note === resolution.notes[i]))?.decision.keyboardSuspension;
-			if (receipt?.phase === 'resolution' && receipt.suspensionAbsBeat === suspension.suspensionAbsBeat &&
+			if (receipt?.phase === 'resolution' && receipt.kind === suspension.kind && receipt.chordRoot === suspension.chordRoot && receipt.suspensionAbsBeat === suspension.suspensionAbsBeat &&
 				receipt.resolutionAbsBeat === suspension.resolutionAbsBeat && receipt.fromMidi === suspension.fromMidi && receipt.toMidi === suspension.toMidi) {
-				pianoCard.evidence.push(`Suspension ${noteName(suspension.fromMidi)} → ${noteName(suspension.toMidi)} · fourth resolves to third on the next chord attack`);
-				keyboardTextures.push('Suspension → resolution');
+				pianoCard.evidence.push(`Suspension ${noteName(suspension.fromMidi)} → ${noteName(suspension.toMidi)} · ${colorLabel ?? 'fourth resolves to third'} on the next chord attack`);
+				keyboardTextures.push(colorLabel ? 'Color → resolution' : 'Suspension → resolution');
 			}
 		}
 		const connection = decision.keyboardLine;

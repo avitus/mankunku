@@ -12,6 +12,9 @@ export interface CoordinatedVoicingMemory {
 }
 export interface CoordinatedVoicingDecision {
 	readonly keyboardSuspension?: {
+		/** Absent on the original 0.9 fourth-to-third cell. */
+		readonly kind?: '9-1' | '13-5';
+		readonly chordRoot?: PitchClass;
 		readonly phase: 'suspension' | 'resolution';
 		readonly fromMidi: number; readonly toMidi: number;
 		readonly suspensionAbsBeat: number; readonly resolutionAbsBeat: number;
