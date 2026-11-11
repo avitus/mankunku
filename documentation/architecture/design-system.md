@@ -384,7 +384,7 @@ The approved MagicPath pages are implemented natively in Svelte 5 (migration sta
 
 | Page | Component | Approved revision |
 |---|---|---|
-| Home · Studio Desk | `460227723458142208` | `460231044206071808` |
+| Home · Studio Desk | `460227723458142208` | `471099909966278656` |
 | Settings · Studio Desk | `459540987434397696` | `460225985468596224` |
 | Lick Practice · Studio Console | `459464126830383104` | `459511600479637504` |
 | Licks · Studio Library | `460234239577821184` | `460236188301803520` |
@@ -449,6 +449,28 @@ practice actions, audition and attribution; tunes retain written-key conversion
 and detail navigation. The sidebar uses actual collection counts.
 
 Home retains actual progress and practice-set data with aligned practice actions.
+The shared `StudioMeter` uses a fixed **0–366** scale for the home summary,
+with **183** at SVG y=18, clear of the division lines (top tick y=23).
+Keep the original subtext, **“A little practice, every day.”**, including the empty state.
+The displayed label remains **Practice Sessions**, but its value counts **distinct
+days with any recorded practice**, not attempts or session-log rows. Use the same
+reactive `dailySummaries` as the Progress calendar, including its legacy activity
+fallback; include today and the preceding 364 local dates, exclude future dates,
+and count a mixed ear/lick day once. Calendar arithmetic preserves the window over
+DST and leap days. Refresh the date while the page stays open and when it resumes.
+Do not derive this count from the bounded recent-session cache. This intentionally
+follows the calendar's recorded activity; it does not invent history for unlogged practice.
+
+Give the meter a 260px desktop summary rail (240px below 1200px), a readable exact
+count in tabular figures, and a separate **Past 365 days** caption. Explain the
+one-day-one-count rule in the accessible meter description and the label tooltip.
+The needle clamps to the scale while the adjacent figure remains exact. Tablet
+places the summary below the practice cards; mobile centers the meter above the text.
+The MagicPath Design System reference `460231915702722560`, revision
+`471098811054444544` (v1.5), includes reusable `PracticeMeter.tsx` / `.css` and
+empty, midpoint and full-year specimens. Home revision `471099909966278656`
+applies this pattern; its displayed data is illustrative.
+
 The landing page explains Ear Training and Vocabulary (Licks and Tricks); its
 interactive previews are explicitly illustrative. Lick Practice keeps one duration
 dial and a read-only summary that distinguishes the time budget from the planned

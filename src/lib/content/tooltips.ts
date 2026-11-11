@@ -18,6 +18,9 @@ export type TooltipMap = Record<string, TooltipEntry>;
 
 export const tooltips = {
 	home: {
+		practiceDays: {
+			text: 'Days with any recorded practice on your Progress calendar, including today and the previous 364 days. Each day counts once, however many sessions you play.'
+		},
 		streak: {
 			text: 'Practice on consecutive days to build a streak. Skip a day and it resets to one — your longest streak is preserved in your progress history.'
 		},
