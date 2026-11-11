@@ -596,18 +596,22 @@ export async function loadDailySummariesFromCloud(
 		const userId = await getAuthUserId(supabase);
 		if (!userId) return null;
 
-		const { data, error } = await supabase
-			.from('daily_summaries')
-			.select('*')
-			.eq('user_id', userId)
-			.order('date', { ascending: true });
-
-		if (error) {
-			console.warn('Failed to load daily summaries from cloud:', error);
-			return null;
+		// PostgREST caps a response at 1,000 rows. Read every page before
+		// reconciliation so a fresh device also receives the most recent days.
+		const pageSize = 1000;
+		const summaries: DailySummary[] = [];
+		for (let from = 0; ; from += pageSize) {
+			const { data, error } = await supabase
+				.from('daily_summaries')
+				.select('*')
+				.eq('user_id', userId)
+				.order('date', { ascending: true })
+				.range(from, from + pageSize - 1);
+			if (error) throw error;
+			const rows = data ?? [];
+			summaries.push(...rows.map(rowToDailySummary));
+			if (rows.length < pageSize) return summaries;
 		}
-
-		return (data ?? []).map(rowToDailySummary);
 	} catch (error) {
 		console.warn('Failed to load daily summaries from cloud:', error);
 		return null;

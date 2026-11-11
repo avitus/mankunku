@@ -1,11 +1,13 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { PITCH_CLASSES } from '$lib/types/music';
 import type { Phrase } from '$lib/types/music';
 import type { Tune } from '$lib/types/tune';
 import { saveUserLick } from '$lib/persistence/user-licks';
-import { saveLickPracticeProgress } from '$lib/persistence/lick-practice-store';
+import { saveLickPracticeProgress, saveUserLickTags } from '$lib/persistence/lick-practice-store';
 import {
+	expectedForSuggestion,
 	initTunePractice,
 	previewSessionPlan,
 	resetTunePractice,
@@ -305,5 +307,48 @@ describe('the session counts in by tempo', () => {
 		// The head's band enters on bar 1 too, after the counted pickup.
 		expect(plan.countInPickup).toBe(true);
 		expect(plan.playedPhrase.harmony[0].startOffset).toEqual([1, 1]);
+	});
+});
+
+
+describe('All the Things You Are — explicit major vocabulary', () => {
+	it('offers all three ready major lines, retains slow alternatives, and starts the same full-cadence plan', () => {
+		localStorage.clear();
+		resetTunePractice();
+		const tune = JSON.parse(readFileSync(resolve(
+			'tests/fixtures/leadsheets/pdf-vs-musescore/all-the-things-you-are.musescore-import.json'), 'utf8')) as Tune;
+		const names = ['Major A', 'Major B', 'Major C', 'Slower Major'];
+		for (const [i, name] of names.entries()) saveUserLick({ ...minorLick, id: `major-vocab-${i}`, name,
+			category: 'major-chord', mode: 'major', harmony: [], notes: [
+				{ pitch: 60, offset: [0, 1], duration: [1, 1] },
+				{ pitch: 64, offset: [1, 1], duration: [1, 1] },
+				{ pitch: 67, offset: [2, 1], duration: [1, 1] }
+			], difficulty: { ...minorLick.difficulty, lengthBars: 3 } });
+		saveUserLickTags(Object.fromEntries(names.map((_, i) =>
+			[`major-vocab-${i}`, ['practice', 'prog:ii-V-I-major-long']])));
+		saveLickPracticeProgress(Object.fromEntries(names.map((_, i) => [`major-vocab-${i}`,
+			Object.fromEntries(PITCH_CLASSES.map(key => [key, { passCount: 3, currentTempo: i === 3 ? 80 : 140, lastPracticedAt: 1 }]))])));
+		initTunePractice(tune);
+		Object.assign(tunePractice.config, { mode: 'suggest', strictness: 'guided', tempo: 120,
+			concertKey: tune.key, playHead: false, choruses: 2 });
+		const preview = previewSessionPlan(tune, false, 2);
+		expect(preview.fittingLicks.map(l => l.name)).toEqual(names);
+		expect(preview.fittingLicks.map(l => l.ready)).toEqual([true, true, true, false]);
+		expect(preview.fittingLicks[0].placements.length).toBeGreaterThan(1);
+		startTunePracticeSession(tune, 480);
+		const cadences = tunePractice.plan.filter(p => p.suggestions.some(s => s.placement === 'progression'));
+		expect(cadences.length).toBeGreaterThan(3);
+		const picked = cadences.map(p => p.suggestions[tunePractice.pickedSuggestion[p.id]]);
+		expect(new Set(picked.map(s => s.lickName))).toEqual(new Set(names.slice(0, 3)));
+		for (const [index, point] of cadences.entries()) {
+			const suggestion = picked[index];
+			expect(suggestion.targetKey).toBe(point.localKey);
+			expect(suggestion.insertionOffset).toEqual(point.startOffset);
+			expect(expectedForSuggestion(point, suggestion)?.phrase.notes[0].offset).toEqual([0, 1]);
+		}
+		for (const marker of preview.markers) {
+			const point = tunePractice.plan.find(p => p.markerKey === marker.id && !!p.closingPass === preview.closingChart)!;
+			expect(marker.lickName).toBe(suggestionNameFor(point));
+		}
 	});
 });

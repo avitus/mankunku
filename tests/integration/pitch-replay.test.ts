@@ -4931,3 +4931,66 @@ describe('pitch replay regression: Through the Blue to the Root — a tongued D3
 		expect(detected.map((n) => n.midi)).toEqual([50, 50, 52, 55, 57]);
 	});
 });
+
+// The G3 · F3 · F3 take saved as G3 · F3 (2/3, 0.5605). The tongue
+// drops the band floor to 0.208× BEFORE a 100 ms tracking hole; across the
+// hole it has already recovered to 1.036×, then holds at 1.213×. The short-gap
+// stop-and-hold path now also accepts the existing pre-hole stop evidence.
+// The saved readings reproduce the miss exactly; replay and live timestamps
+// both recover the repeat, with the click grid and weak readings retained.
+describe('pitch replay regression: Blue Note Drop — F3 stops before the tracking gap (concert C, 2026-11-10)', () => {
+	const fixture = 'recordings/2026-11-10-blue-note-drop';
+	const json = JSON.parse(readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '..', 'fixtures', `${fixture}.json`), 'utf8'));
+	const phrase: Phrase = json.phrase;
+	const { tempo, swing, transportSeconds } = json.context;
+	/** Score this fixture with the saved ear-training settings. */
+	const scoreOf = (detected: DetectedNote[]) => runScorePipeline({
+		detected, phrase, tempo, swing, transportSeconds, bleedFilterEnabled: false
+	}).chosen;
+
+	it('preserves the original merged F3 and reproduces the saved score', () => {
+		expect(json.scoring.savedDetectedNotes.map((n: DetectedNote) => n.midi)).toEqual([55, 53]);
+		const score = scoreOf(json.scoring.savedDetectedNotes);
+		expect(score.notesHit).toBe(2);
+		expect(score.overall).toBeCloseTo(json.scoring.savedScore.overall, 12);
+	});
+
+	it('recovers the repeat from the saved readings', () => {
+		const { readings, rawWorkletOnsets, weakReadings } = json.detection;
+		const bleed = getMetronomeBleedOnsets(transportSeconds, tempo, json.audio.duration);
+		const base = resolveOnsets(rawWorkletOnsets, readings);
+		const articulation = findReArticulations(readings, base, bleed);
+		const detected = segmentNotes(readings, [...base, ...articulation].sort((a, b) => a - b),
+			json.audio.duration, undefined, undefined, undefined, rawWorkletOnsets, bleed, articulation, weakReadings);
+		expect(detected.map((n) => n.midi)).toEqual([55, 53, 53]);
+		const score = scoreOf(detected);
+		expect(score.notesHit).toBe(3);
+		expect(score.extrasCharged).toBe(0);
+		expect(score.overall).toBeCloseTo(0.9932098765, 8);
+	});
+
+	for (const live of [false, true]) {
+		it(`keeps and scores both Fs in the ${live ? 'live' : 'replay'} time base`, async () => {
+			const { trimmed, detected, articulationOnsets } = await replayEarTrainingTake(`${fixture}.wav`, transportSeconds, tempo, { live });
+			expect(trimmed.offset).toBeCloseTo(json.audio.captureTrimSeconds + (live ? 4096 / 44100 : 0), 3);
+			expect(detected.map((n) => n.midi)).toEqual([55, 53, 53]);
+			expect(articulationOnsets).toHaveLength(1);
+			expect(articulationOnsets[0]).toBeGreaterThan(1.4);
+			expect(articulationOnsets[0]).toBeLessThan(1.7);
+			const score = scoreOf(detected);
+			expect(score.notesHit).toBe(3);
+			expect(score.extrasCharged).toBe(0);
+			expect(score.pitchAccuracy).toBe(1);
+			expect(score.overall).toBeGreaterThan(0.95);
+
+			const bleed = getMetronomeBleedOnsets(transportSeconds, tempo, trimmed.duration);
+			const base = resolveOnsets([], trimmed.readings);
+			const articulation = findReArticulations(trimmed.readings, base, bleed);
+			const withoutWorklet = segmentNotes(trimmed.readings,
+				[...base, ...articulation].sort((a, b) => a - b), trimmed.duration,
+				undefined, undefined, undefined, [], bleed, articulation, trimmed.weakReadings);
+			expect(withoutWorklet.map((n) => n.midi)).toEqual([55, 53, 53]);
+			expect(scoreOf(withoutWorklet).extrasCharged).toBe(0);
+		});
+	}
+});

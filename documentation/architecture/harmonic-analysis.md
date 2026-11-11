@@ -151,7 +151,7 @@ Status: implemented locally and sandbox-validated. Preview and Start share the
 analysis, matching and planning path. Unit, browser and TypeScript/Svelte checks
 are complete. No deployment has been performed.
 
-Integration decisions for this increment:
+Original integration decisions (tag eligibility and rotation are revised in phase 3):
 
 - `PracticeTarget` distinguishes a named progression from a `major-region`.
   No generated progression template, persisted tag or backing track is added.
@@ -237,6 +237,93 @@ Use a player-facing label such as “G major” / “Major region”; never labe
 chords as “Major vamp.” Preserve the actual tune harmony for accompaniment and
 scoring. Verify notation/playback provenance, head/solo/outro variants, repeated
 choruses, pickups and partial-bar transitions before enabling the new path.
+
+## Phase 3: progression vocabulary, setup inventory, and session variety
+
+Status: implemented and locally validated (2026-11-10). Production rollout and
+human musical acceptance remain separate from code delivery.
+
+The All the Things You Are example exposed an overly narrow reading of practice
+intent. With no ready cadence-category lick, the planner repeatedly filled ii
+and V with separate minor and dominant lines. Major lines explicitly tagged for
+long ii–V–I still landed only on I. A cornerstone identifies the musical passage;
+it must not restrict that passage to licks bearing the same category name.
+
+### Explicit whole-progression uses
+
+- An ordinary tonic-major lick carrying `prog:ii-V-I-major-long` can start at ii
+  in the detected cadence's tonic key. Keep its category and stored tags intact;
+  the suggestion carries its whole-progression placement independently.
+- A matching tag is required for this first increment. Untagged major licks keep
+  their tonic-chord placement. Do not infer new whole-cadence uses, short-cadence
+  tags, minor uses, or altered-harmony substitutions.
+- Require positive major identity and retain the changing-root/cadence-category
+  fit path. A tag adds a use; it no longer removes an otherwise valid general
+  major-region use.
+- Check actual sounding end, meter, and pickup offsets against the detected span.
+  Trailing rest padding does not consume harmonic room. Never stretch, truncate,
+  or move a pickup before the window to make a tagged line fit.
+- Whole-progression suggestions join the cadence phrase pool before chord-role
+  fallbacks. A short phrase may leave space inside its cadence; that space does
+  not demand a second automatic lick. Existing cornerstone reservations remain.
+- Preserve the existing target-key and tempo readiness rules. Broader harmonic
+  eligibility is not permission to automatically suggest unready vocabulary.
+
+### Setup inventory versus the performed plan
+
+- Setup collects fitting alternatives before overlap selection and per-window
+  limits, using the same matching, role sizing, finite-form clipping, repeat and
+  closing-chart projection as the session planner.
+- Group by underlying lick and retain per-placement key, chart span, musical use,
+  and separate key/tempo readiness. Deduplicate repeated chorus occurrences.
+- Show every fitting own-book lick, including those not selected by rotation.
+  Distinguish ready now from needs practice; expand to show exact placements and
+  the readiness reason, including the practiced tempo.
+- Opening a lick highlights its placements on the visible chart. The user can
+  restore the selected session plan. Inspection does not change the next session.
+- Keep the chart primary, with compact expandable rows in the existing sidebar.
+  Setup inventory never feeds unready suggestions back into automatic sessions.
+
+### Rotation
+
+Count usage by underlying lick across the session's keys, progression types and
+choruses. Avoid consecutive repeats when another eligible lick exists, then pick
+the least-used option, retaining matcher rank for ties. Reset usage per session;
+no persistence or invented cross-session proficiency is added. This permits
+native cadence phrases and tagged major phrases to share the same opportunities.
+
+### Validation targets
+
+- Tagged Major lines begin at ii in the local tonic; untagged lines still begin
+  at I. Long tags do not authorize short-cadence whole-progression use.
+- Reject sounding overflow, invalid offsets, silence-only lines and wrong meter;
+  retain valid pickups and ignore trailing padding.
+- A ready whole phrase wins over separate ii/V lines; when unavailable, the
+  original chord-role fallback survives. Setup retains both alternatives.
+- Inventory includes unselected ready lines and unready lines with correct
+  reasons, responds to tempo/key changes, and never alters preview/Start parity.
+- Rotation shares counts across keys and progression types, including transposed
+  IDs, and avoids consecutive repeats when possible.
+- Browser checks at desktop/mobile widths verify the full candidate list,
+  placement highlights, written keys, tempo reactivity and layout containment.
+
+### Validation evidence (2026-11-10)
+
+- CircleCI Smarter Testing: 314 focused unit tests across 16 files passed,
+  including the stored All the Things You Are chart with three ready major
+  lines and a slower alternative. Preview/Start agree, phrases start at ii,
+  and target keys follow the local tonic.
+- Setup browser suite: 23 passed, one expected Linux Firefox audio skip across
+  Chromium, Firefox and WebKit, at 1440px and 390px. Screenshots inspected;
+  candidate visibility, written keys, tempo updates, accordion selection and
+  chart highlighting verified.
+- Live-session browser suite: 29 passed, seven expected Linux Firefox audio
+  skips; combined with setup, 52 passed and eight skipped across two spec files.
+- `npm run check`: zero errors and warnings. Existing SvelteKit alias deprecation
+  notices remain outside the diagnostics count.
+- CodeRabbit local review: one minor finding, fixed by synchronizing the expanded
+  candidate row with the chart selection; browser regression checks passed.
+- No database changes, proficiency edits or production-account writes.
 
 ## Later milestones
 
@@ -373,13 +460,18 @@ connected to the app, validation results and remaining decisions. Keep the
 fixture cases as executable specifications; add counterexamples before loosening
 rules. Measure missed opportunities separately from incorrect suggestions.
 
-Neither phase needs a migration or network service. Phase 2 now connects the
+These phases need no migration or network service. Phase 2 now connects the
 complete preview/session path, including scoring candidates and chart labels.
 Production deployment and human musical acceptance are separate from local
 implementation and tests. Further changes should keep both surfaces on the same
 planning path.
 
 ## Decision log
+
+- 2026-11-10: explicit long ii–V–I tags authorize whole-cadence placement for
+  tonic-major lines. Keep cornerstone identity; prefer a ready phrase before
+  chord-role fallbacks, expose all fitting alternatives, and rotate across the
+  entire session by underlying lick.
 
 - 2026-11-07: major-scale compatibility generalizes beyond named progressions.
 - 2026-11-07: cornerstone priority overrides maximal diatonic extent and lick

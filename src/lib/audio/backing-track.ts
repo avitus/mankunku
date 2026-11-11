@@ -318,6 +318,9 @@ let compPart: import('tone').Part<CompEvent> | null = null;
 let drumPart: import('tone').Part<DrumEvent> | null = null;
 /** A section started later on a running transport (prepareBackingSection); never looped. */
 let sectionParts: import('tone').Part<BassEvent | CompEvent | DrumEvent>[] = [];
+/** Outgoing Parts stop on the next phrase's downbeat, then are reclaimed on
+ * the next schedule (or session stop). Keep them owned during the handoff. */
+let retiringParts: { part: import('tone').Part; stopTick: number }[] = [];
 let activeSchedule: BackingTrackSchedule | null = null;
 
 /** Monotonically increasing ID for cancelling stale loads. */
@@ -844,6 +847,8 @@ function captureLog(
 
 /** Dispose only the scheduled parts (not the instruments). */
 export function disposeBackingParts(): void {
+	for (const { part } of retiringParts) part.dispose();
+	retiringParts = [];
 	if (bassPart) {
 		bassPart.dispose();
 		bassPart = null;
@@ -864,6 +869,29 @@ export function disposeBackingParts(): void {
 		for (const sampler of Object.values(drumSamplers)) sampler.stop();
 	}
 	activeSchedule = null;
+}
+
+/** Hand the band over at a future tick without cutting the outgoing bar or
+ * its ringing samples. Part.stop excludes attacks AT the new downbeat. */
+function retireBackingParts(tickOffset: number, currentTicks: number): void {
+	retiringParts = retiringParts.filter(({ part, stopTick }) => {
+		if (stopTick > currentTicks) return true;
+		part.dispose();
+		return false;
+	});
+	for (const part of [bassPart, compPart, drumPart, ...sectionParts]) {
+		if (part) retiringParts.push({ part, stopTick: tickOffset });
+	}
+	for (const retiring of retiringParts) {
+		// A replacement queued before another handoff may bring the boundary
+		// forward, but must never extend an earlier band's scheduled lifetime.
+		retiring.stopTick = Math.min(retiring.stopTick, tickOffset);
+		retiring.part.stop(`${retiring.stopTick}i`);
+	}
+	bassPart = null;
+	compPart = null;
+	drumPart = null;
+	sectionParts = [];
 }
 
 /**
@@ -1097,9 +1125,12 @@ export async function scheduleBackingTrack(
 	await ensureDrums();
 	if (!isStillCurrent()) return;
 
-	disposeBackingParts();
-
 	const { harmony, bassEvents, compEvents, drumEvents } = generateFor(phrase, options, ppq);
+	if (transport.state === 'started' && tickOffset > transport.ticks) {
+		retireBackingParts(tickOffset, transport.ticks);
+	} else {
+		disposeBackingParts();
+	}
 
 	const harmonyDurationBeats = getHarmonyDurationBeats(harmony);
 	const harmonyTicks = loopTicks ?? Math.ceil(harmonyDurationBeats / beatsPerBar) * beatsPerBar * ppq;

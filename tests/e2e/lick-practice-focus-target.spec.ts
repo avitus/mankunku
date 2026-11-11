@@ -1,4 +1,5 @@
 import { test, expect } from './fixtures/test';
+import { expectFlushPracticeFrame } from './helpers/practice-frame';
 import { seedOnboardedAnonymous, seedUserLicks, seedStorage } from './fixtures/storage';
 import { installAudioMock, stubCdnInstrumentSamples } from './fixtures/audio';
 
@@ -69,6 +70,13 @@ test.describe('lick-practice focus drill at the target', () => {
 			{ timeout: 30_000 }
 		);
 		await expect(page.locator('.chart-wrap.recording')).toBeVisible({ timeout: 60_000 });
+		// The Daily report entry must share the flush frame too, including a
+		// taller revealed sheet at desktop, tablet and phone widths.
+		for (const width of [1440, 768, 390]) {
+			await page.setViewportSize({ width, height: 1000 });
+			await expectFlushPracticeFrame(page.locator('.row.current [data-testid="lead-sheet-row"]'));
+		}
+		await page.setViewportSize({ width: 1440, height: 1000 });
 
 		// From the first take's window to just after the next take's downbeat,
 		// every frame: the row under the current take is the focus key again,
@@ -121,6 +129,11 @@ test.describe('lick-practice focus drill at the target', () => {
 
 		await expect(page.locator('.row.current .chart-wrap.recording')).toBeVisible({ timeout: 15_000 });
 		await expect(page.locator('.row.current [data-testid="lead-sheet-row"]')).toHaveCount(0);
+		for (const width of [1440, 768, 390]) {
+			await page.setViewportSize({ width, height: 1000 });
+			await expectFlushPracticeFrame(page.locator('.row.current .chord-cells'));
+		}
+		await page.screenshot({ path: test.info().outputPath('recommended-deep-flush-frame.png') });
 
 		await page.getByRole('button', { name: /end session/i }).click();
 		await expect(page.getByText('Session Report', { exact: true })).toBeVisible();

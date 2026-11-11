@@ -1,4 +1,7 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
+	import { dailySummaries, localDateStr } from '$lib/state/history.svelte';
+	import { countRecentPracticeDays } from '$lib/util/practice-days';
 	import {
 		progress,
 		getRecentSessions,
@@ -63,6 +66,19 @@
 	);
 
 	const hasEarTrainingHistory = $derived(progress.sessions.length > 0);
+	let today = $state(localDateStr(new Date()));
+	const practiceDays = $derived(countRecentPracticeDays(dailySummaries, today));
+	// A home tab left open overnight must drop the expired day, including after sleep.
+	onMount(() => {
+		const refreshDate = () => { today = localDateStr(new Date()); };
+		refreshDate();
+		const timer = window.setInterval(refreshDate, 60_000);
+		document.addEventListener('visibilitychange', refreshDate);
+		return () => {
+			window.clearInterval(timer);
+			document.removeEventListener('visibilitychange', refreshDate);
+		};
+	});
 
 	// ── Lick Practice panel data ─────────────────────────────────────
 	const taggedLickIds = $derived.by(() => {
@@ -224,20 +240,22 @@
 			<aside class="studio-panel home-progress" aria-label="Your practice">
 				<p class="studio-label">Your practice</p>
 				<StudioMeter
-					value={progress.sessions.length}
-					max={Math.max(20, Math.ceil(progress.sessions.length / 20) * 20)}
-					label="Ear training sessions"
+					value={practiceDays}
+					max={366}
+					label="Practice Sessions"
+					description="Days with any practice in the past 365 days. Each day counts once. Scale 0 to 366."
 				/>
 				<h2>Every note counts.</h2>
 				<p class="studio-caption">
-					{hasEarTrainingHistory
-						? 'A little practice, every day.'
-						: 'Your first session starts the story.'}
+					A little practice, every day.
 				</p>
 				<dl>
 					<div>
-						<dt>Ear training sessions</dt>
-						<dd>{progress.sessions.length}</dd>
+						<dt>
+							Practice Sessions <TooltipHint text={tooltips.home.practiceDays.text} position="bottom" />
+							<small class="home-practice-period">Past 365 days</small>
+						</dt>
+						<dd>{practiceDays}</dd>
 					</div>
 					<div>
 						<dt>Tonal mastery</dt>
@@ -287,7 +305,7 @@
 	}
 	.home-workspace {
 		display: grid;
-		grid-template-columns: minmax(0, 1fr) 240px;
+		grid-template-columns: minmax(0, 1fr) 260px;
 		gap: 24px;
 	}
 	.home-channels {
@@ -357,6 +375,24 @@
 	.home-progress dt {
 		color: var(--studio-muted);
 	}
+	.home-practice-period {
+		display: block;
+		font-size: 10px;
+		line-height: 1.5;
+		margin-top: 5px;
+		letter-spacing: .02em;
+	}
+	.home-progress dl > div:first-child {
+		align-items: center;
+		padding: 14px 0 18px;
+	}
+	.home-progress dl > div:first-child dd {
+		font: 32px/1 var(--font-display);
+		color: var(--studio-text);
+	}
+	.home-progress dd {
+		font-variant-numeric: tabular-nums;
+	}
 	.home-library {
 		display: grid;
 		grid-template-columns: 160px minmax(0, 1fr);
@@ -414,7 +450,7 @@
 	}
 	@media (max-width: 1200px) {
 		.home-workspace {
-			grid-template-columns: minmax(0, 1fr) 215px;
+			grid-template-columns: minmax(0, 1fr) 240px;
 			gap: 18px;
 		}
 		.home-channels {
@@ -430,7 +466,7 @@
 		}
 		.home-progress {
 			display: grid;
-			grid-template-columns: 180px minmax(0, 1fr);
+			grid-template-columns: 220px minmax(0, 1fr);
 			column-gap: 24px;
 			align-content: start;
 		}
@@ -457,8 +493,10 @@
 			display: block;
 		}
 		.home-progress :global(.studio-meter) {
-			max-width: 240px;
+			max-width: 260px;
 			margin-bottom: 22px;
+			margin-left: auto;
+			margin-right: auto;
 		}
 		.home-channels {
 			grid-template-columns: 1fr;

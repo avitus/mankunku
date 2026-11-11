@@ -111,15 +111,9 @@ test.describe('lick-practice session flow', () => {
 			timeout: 90_000
 		});
 
-		// Score UI: summary stats plus the per-lick breakdown. Exactly one key
-		// was attempted, so the "Keys Passed" stat and the per-lick line both
-		// read N/1, and the attempted key renders a percentage chip.
-		await expect(page.getByText(/^Overall$/)).toBeVisible();
-		await expect(page.getByText(/^\d+%$/).first()).toBeVisible();
-		await expect(page.getByText(/^Keys Passed$/)).toBeVisible();
-		await expect(page.getByText(/^[01]\/1$/)).toBeVisible();
-		// The lick name renders in the per-lick breakdown and again inside the
-		// "Upcoming Licks" collapsible — assert the breakdown copy (first).
+		// The report replaces aggregate counters with this key's session and rolling scores.
+		await expect(page.getByText(/^Overall$/)).toHaveCount(0);
+		await expect(page.getByText(/^Keys Passed$/)).toHaveCount(0);
 		await expect(page.getByText('Test Bebop Line').first()).toBeVisible();
 		// The breakdown name links through to the lick's detail page. Assert the
 		// href rather than clicking — navigating away would tear down the report
@@ -128,7 +122,7 @@ test.describe('lick-practice session flow', () => {
 			'href',
 			'/licks/e2e-user-lick-bebop'
 		);
-		await expect(page.getByText(/[01]\/1 keys passed · \d+% average/)).toBeVisible();
+		await expect(page.getByRole('region', { name: 'Scores by lick and key' }).getByRole('button', { name: /this session.*rolling score/ })).toHaveCount(1);
 
 		// Tempo UI on the report: the per-lick row shows the lick's BPM (with
 		// the session's auto-adjustment delta when one applied).
@@ -144,12 +138,12 @@ test.describe('lick-practice session flow', () => {
 		}
 
 		// The one attempt scored silence (0%), so the report's Next card names
-		// the key and offers Deep Practice on it. That CTA is the ONLY entry
+		// the key and offers Deep Practice on it. The recommendation is an entry
 		// to the focus ramp: the drill must open on that key ALONE, which the
 		// lick header announces in place of its "Key n/N" slot. This pins the
 		// handleStartNextStep → focusKey → startSingleLickSession wiring that
 		// no unit test can reach.
-		await expect(page.getByText(/^Drill /)).toBeVisible();
+		await expect(page.getByRole('heading', { name: 'Go deeper' })).toBeVisible();
 		// Make C a previously learned key before opening the focused drill.
 		// Its low score still earns the drill. The first deep attempt starts
 		// from memory, then a poor attempt must reveal this older key too.

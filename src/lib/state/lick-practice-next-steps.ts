@@ -51,6 +51,8 @@ export interface NextStepAction {
 }
 
 export interface NextStep {
+	/** Structured presentation for the report's compact practice cards. */
+	focus?: { lickName: string; keyLabel: string; typicalScore: number; sessions: number; weakSessions: number };
 	kind: NextStepKind;
 	/** Imperative one-liner. */
 	headline: string;
@@ -120,30 +122,35 @@ const pct = (value: number): number => Math.round(value * 100);
  * report on at all (no attempts recorded).
  */
 export function buildNextStep(input: NextStepInput): NextStep | null {
+	return buildNextSteps(input)[0] ?? null;
+}
+
+/** Up to three eligible targets, preserving the single-step policy and rest veto. */
+export function buildNextSteps(input: NextStepInput): NextStep[] {
 	const { report, recommendationContext } = input;
 	const plan = recommendationContext?.plan ?? input.plan;
 	const candidateReport = recommendationContext?.report ?? report;
 	const completed = new Set(recommendationContext?.completedLickIds);
 	const formatKey = input.formatKey ?? keyLabel;
 
-	if (report.licks.length === 0) return null;
+	if (report.licks.length === 0) return [];
 
 	// Rule 1 — exclusive. Evaluated over the session totals, so a grind is a
 	// grind whether the reps were licks or tricks.
 	if (report.overallAverage < KEY_FLOOR_THRESHOLD && report.totalAttempts >= REST_MIN_ATTEMPTS) {
-		return {
+		return [{
 			kind: 'rest',
 			headline: 'Call it for today.',
 			reason: `You averaged ${pct(report.overallAverage)}% over ${report.totalAttempts} keys. Another round now just rehearses the mistakes.`,
 			action: null
-		};
+		}];
 	}
 
 	const trickIds = new Set(
 		plan.filter((item) => item.kind === 'trick').map((item) => item.phraseId)
 	);
 	const lickReports = candidateReport.licks.filter((l) => !trickIds.has(l.lickId) && !completed.has(l.lickId));
-	if (lickReports.length === 0) return doneStep(report, completed.size > 0);
+	if (lickReports.length === 0) return [doneStep(report, completed.size > 0)];
 
 	// Learning licks always rank before fully unlocked licks. A session's
 	// worst individual score is never the ranking signal: use typical recent
@@ -169,24 +176,44 @@ export function buildNextStep(input: NextStepInput): NextStep | null {
 		a.typical - b.typical ||
 		a.lick.lickId.localeCompare(b.lick.lickId) || a.key.localeCompare(b.key)
 	);
-	const weakest = candidates[0];
-	if (!weakest) return doneStep(report, completed.size > 0);
-
-	const { lick, key, learning, unlockedCount, scores, weakCount, typical } = weakest;
-	const progression = lick.progressionType ?? plan.find((item: LickPracticePlanItem): boolean => item.phraseId === lick.lickId)?.progressionType;
-	const label = formatKey(key, progression ? progressionMode(progression) : 'major');
-	const stage = learning
-		? `Still learning: ${unlockedCount}/12 keys unlocked.`
-		: 'All 12 keys unlocked; this key is persistently weak.';
-	const evidence = scores.length === 1
-		? `${label} scored ${pct(typical)}% ${recommendationContext ? 'in daily practice' : 'this session'}.`
-		: `${label} was below ${pct(KEY_PROFICIENT_THRESHOLD)}% in ${weakCount} of its last ${scores.length} sessions (typical score ${pct(typical)}%).`;
-	return {
-		kind: 'drill-weak-key',
-		headline: `Drill ${label} on ${lick.lickName}.`,
-		reason: `${stage} ${evidence} Deep practice starts on ${label} alone and brings the other keys back once it's up to speed.`,
-		action: deepAction(lick.lickId, plan, key)
-	};
+	if (!candidates.length) return [doneStep(report, completed.size > 0)];
+	// The same lick/key can appear in multiple Daily progression slices, but
+	// those would launch the identical follow-up. Offer it only once.
+	const targetIds = new Set<string>();
+	const unique = candidates.filter(candidate => {
+		const id = `${candidate.lick.lickId}:${candidate.key}`;
+		if (targetIds.has(id)) return false;
+		targetIds.add(id);
+		return true;
+	});
+	// Give different licks a place before filling spare slots with another key
+	// of the same lick. The first recommendation remains exactly the same.
+	const seen = new Set<string>();
+	const distinct = unique.filter(candidate => {
+		if (seen.has(candidate.lick.lickId)) return false;
+		seen.add(candidate.lick.lickId);
+		return true;
+	});
+	const picked = new Set(distinct);
+	const choices = [...distinct, ...unique.filter(candidate => !picked.has(candidate))].slice(0, 3);
+	return choices.map(weakest => {
+		const { lick, key, learning, unlockedCount, scores, weakCount, typical } = weakest;
+		const progression = lick.progressionType ?? plan.find((item: LickPracticePlanItem): boolean => item.phraseId === lick.lickId)?.progressionType;
+		const label = formatKey(key, progression ? progressionMode(progression) : 'major');
+		const stage = learning
+			? `Still learning: ${unlockedCount}/12 keys unlocked.`
+			: 'All 12 keys unlocked; this key is persistently weak.';
+		const evidence = scores.length === 1
+			? `${label} scored ${pct(typical)}% ${recommendationContext ? 'in daily practice' : 'this session'}.`
+			: `${label} was below ${pct(KEY_PROFICIENT_THRESHOLD)}% in ${weakCount} of its last ${scores.length} sessions (typical score ${pct(typical)}%).`;
+		return {
+			kind: 'drill-weak-key',
+			focus: { lickName: lick.lickName, keyLabel: label, typicalScore: typical, sessions: scores.length, weakSessions: weakCount },
+			headline: `Drill ${label} on ${lick.lickName}.`,
+			reason: `${stage} ${evidence} Deep practice starts on ${label} alone and brings the other keys back once it's up to speed.`,
+			action: deepAction(lick.lickId, plan, key)
+		};
+	});
 }
 
 interface WeakKey {

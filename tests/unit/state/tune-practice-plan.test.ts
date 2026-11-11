@@ -479,6 +479,15 @@ describe('assignSuggestRotation', () => {
 		expect(new Set(chosen)).toEqual(new Set(['known', 'other']));
 	});
 
+	it('shares usage across progression types and transpositions, avoiding consecutive repeats', () => {
+		const plan = [mkIp('a', 'major-vamp', ['line_C']),
+			mkIp('b', 'ii-V-I-major-long', ['line_F', 'other']),
+			mkIp('c', 'major-region', ['other', 'line_Bb', 'third']),
+			mkIp('d', 'major-vamp', ['third', 'line_C'])];
+		const picks = assignSuggestRotation(plan);
+		expect(plan.map(p => p.suggestions[picks[p.id]].lickId)).toEqual(['line_C', 'other', 'third', 'line_C']);
+	});
+
 	it('skips insertion points with no suggestions', () => {
 		expect(assignSuggestRotation([mkIp('a', 'blues', [])])).toEqual({});
 	});

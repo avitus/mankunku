@@ -4,12 +4,15 @@
 		value: number;
 		max?: number;
 		label: string;
+		description?: string;
 	}
-	let { value, max = 20, label }: Props = $props();
+	let { value, max = 366, label, description }: Props = $props();
+	const descriptionId = $props.id();
 	const angle = $derived(-65 + Math.min(1, Math.max(0, value / max)) * 130);
 </script>
 
-<div class="studio-meter" role="img" aria-label="{label}: {value}">
+<div class="studio-meter" role="img" aria-label="{label}: {value}" aria-describedby={description ? descriptionId : undefined}>
+	{#if description}<span id={descriptionId} class="sr-only">{description}</span>{/if}
 	<svg viewBox="0 0 280 150" aria-hidden="true">
 		<path d="M30 98 Q140 -12 250 98" fill="none" stroke="#86754e" />
 		{#each Array.from({ length: 21 }, (_, i) => i) as i}
@@ -22,7 +25,7 @@
 				stroke="#6b6047"
 			/>
 		{/each}
-		<text x="23" y="108">0</text><text x="140" y="27" text-anchor="middle">{max / 2}</text><text
+		<text x="23" y="108">0</text><text x="140" y="18" text-anchor="middle">{max / 2}</text><text
 			x="250"
 			y="108">{max}</text
 		>
@@ -56,13 +59,13 @@
 	}
 	text {
 		font:
-			10px Georgia,
+			11px Georgia,
 			serif;
 		fill: #65583f;
 	}
 	.studio-meter-label {
 		font:
-			7px system-ui,
+			8px system-ui,
 			sans-serif;
 		letter-spacing: 1px;
 		text-transform: uppercase;

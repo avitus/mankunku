@@ -67,6 +67,8 @@ When waveform shape is the only evidence, the waveform tier requires a **shallow
 
 The envelope scan keeps looking for a tongue inside a gradual decrescendo. An existing onset near a metronome click is also preserved when the instrument-band floor stops and recovers on the same pitch class, even if octave tracking briefly glitches. For short notes, an unconfirmed octave held by the pitch stabilizer yields to a more strongly supported raw fundamental; a confirmed octave keeps its vote. The October 10 UTC Blue Note Step-Up, Climb Through the Blue and Flat Five Chromatic Down recordings cover these cases in the audio regression suite, and the October 17 Blue Note Step-Up recording — a repeated D tongued so lightly that only the tone changed — covers the sixth.
 
+- **A stop can precede the tracking gap (2026-11-10 Blue Note Drop).** The horn's instrument-band floor fell to 21% of its earlier level before tracking disappeared for 100 ms. By the time tracking returned, the floor was already rising, so comparing only the two sides of the gap missed the tongue. The short-gap stop-and-hold rule now also accepts the existing pre-gap stop evidence, while still requiring a true tracking silence and sustained energy afterwards. Only this recording changes across the 50-take corpus's replay variants and saved exports.
+
 The net result: legato held notes stay one note, repeated notes stay separate, and you don't have to tongue hard to make the app hear what you're doing.
 
 ## Why the room matters

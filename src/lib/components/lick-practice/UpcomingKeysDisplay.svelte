@@ -516,16 +516,17 @@
 	.lead-sheet :global(svg .abcjs-staff path), .lead-sheet :global(svg .abcjs-staff line) { stroke: color-mix(in srgb, var(--color-text) 55%, transparent) !important; }
 	.lead-sheet :global(svg .playhead-under-bar) { fill: var(--practice-phase) !important; }
 
-	/* Daily uses the row bottom as the common edge for the phase frame,
-	   the bar wash and the progression separator. The stack owns row heights. */
+	/* Daily and Deep (including report recommendations) share one frame:
+	   border, bar wash and progression end at the row bottom with zero gap.
+	   The stack owns row heights; the cue remains in its separate lane. */
 	.daily .row:not(.current) { --practice-content-opacity: 0.67; }
-	.daily .row.current, .daily .row.has-sheet { padding-bottom: 0; }
-	.daily :is(.row.current, .row.has-sheet) .chart-wrap { height: 100%; }
-	.daily .row.current .chart-wrap { --practice-cell-height: 100%; }
-	.daily .row.current .chart-wrap::after,
-	.daily .row.current .notation-wash { bottom: 0; height: auto; }
-	.daily :is(.row.current, .row.has-sheet) .lead-sheet { height: 100%; }
-	.daily .row:has(.recording, .listening, .arming)::after { display: none; }
+	.compact .row.current, .compact .row.has-sheet { padding-bottom: 0; }
+	.compact :is(.row.current, .row.has-sheet) .chart-wrap { height: 100%; }
+	.compact .row.current .chart-wrap { --practice-cell-height: 100%; }
+	.compact .row.current .chart-wrap::after,
+	.compact .row.current .notation-wash { bottom: 0; height: auto; }
+	.compact :is(.row.current, .row.has-sheet) .lead-sheet { height: 100%; }
+	.compact .row:has(.recording, .listening, .arming)::after { display: none; }
 	.daily .phase-tab {
 		min-height: 24px; border-radius: 3px; font-weight: 600;
 	}

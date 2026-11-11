@@ -2730,8 +2730,8 @@ function bandFloorFellIntoHole(stable: PitchReading[], g: number): boolean {
 }
 
 /**
- * Whether the instrument-band floor collapsed across the hole ending at
- * `stable[g]` and the note then held its level — see
+ * Whether the instrument-band floor collapsed before or across the hole
+ * ending at `stable[g]` and the note then held its level — see
  * RE_ARTICULATION_GAP_BAND_STOP. `preRms` is the pre-hole level the hold is
  * measured against.
  */
@@ -2743,7 +2743,17 @@ function bandFloorStopsAndHolds(stable: PitchReading[], g: number, preRms: numbe
 	const preBand = pre.reduce((sum, r) => sum + (r.bandRmsMin as number), 0) / pre.length;
 	const postBand = post.reduce((sum, r) => sum + (r.bandRmsMin as number), 0) / post.length;
 	if (preBand < BAND_FLOOR_STOP_MIN_SUSTAIN) return false;
-	if (postBand > preBand * RE_ARTICULATION_GAP_BAND_STOP) return false;
+	// A tongue can stop the horn BEFORE tracking disappears. Blue Note Drop
+	// (2026-11-10) falls to 0.208× its earlier band floor, then recovers across
+	// the 100 ms hole (1.036×), so an across-hole-only comparison misses it.
+	// Reuse the bare-gap entry evidence and retain this tier's true-silence
+	// and hold gates (this take holds at 1.213×). No thresholds change. Across
+	// 50 recordings × 8 replay variants plus 45 saved exports, only this take
+	// changes; held-note clicks, fading tails and warmup bridges stay rejected.
+	if (
+		postBand > preBand * RE_ARTICULATION_GAP_BAND_STOP &&
+		!bandFloorFellIntoHole(stable, g)
+	) return false;
 	const resumed = stable[g].time;
 	let held = 0;
 	let count = 0;

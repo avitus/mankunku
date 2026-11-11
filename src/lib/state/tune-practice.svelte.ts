@@ -9,6 +9,7 @@ import type { Trick, TrickContext, TrickParameters } from '$lib/types/tricks';
 import type { Tune } from '$lib/types/tune';
 import type { BackingStyle } from '$lib/types/instruments';
 import type { PracticeTargetType } from '$lib/tunes/practice-target';
+import { practiceVocabulary, type FittingLick } from '$lib/tunes/practice-vocabulary';
 import { analyzeHarmony, type MajorRegion } from '$lib/tunes/harmonic-analysis';
 import { flattenTune, type FlattenedTune } from '$lib/tunes/flatten';
 import { changesSheetFor } from '$lib/tunes/changes-sheet';
@@ -288,6 +289,9 @@ export function initTunePractice(sheet: Tune): void {
 }
 
 export interface SessionPreview {
+	fittingLicks: FittingLick[];
+	/** Which chart is visible in setup; the inventory can also include the closing chart. */
+	closingChart: boolean;
 	total: number;
 	/** Planned windows with an eligible lick, including repeat/chorus occurrences. */
 	matchedCount: number;
@@ -317,6 +321,9 @@ export function previewSessionPlan(sheet: Tune, playHead: boolean, choruses = 1)
 		sheet, { ...tunePractice.config, playHead, choruses }, 480
 	);
 
+	const inventory = prepareTunePracticeSession(
+		sheet, { ...tunePractice.config, playHead, choruses }, 480, true
+	).plan;
 	const byType: Partial<Record<PracticeTargetType, number>> = {};
 	for (const ip of plan) {
 		byType[ip.progressionType] = (byType[ip.progressionType] ?? 0) + 1;
@@ -343,6 +350,8 @@ export function previewSessionPlan(sheet: Tune, playHead: boolean, choruses = 1)
 	}
 
 	return {
+		fittingLicks: practiceVocabulary(inventory),
+		closingChart: audioPlan.closingStartBar === 0 && audioPlan.separateClosingChart,
 		total: plan.length,
 		matchedCount: plan.filter(ip => ip.suggestions.length > 0).length,
 		byType,
@@ -357,7 +366,7 @@ export function previewSessionPlan(sheet: Tune, playHead: boolean, choruses = 1)
  * point and prepare the audio artifacts. Reads the player's book, but never
  * starts audio or changes session state: setup and Start share this builder.
  */
-function prepareTunePracticeSession(sheet: Tune, config: TunePracticeConfig, ppq: number): {
+function prepareTunePracticeSession(sheet: Tune, config: TunePracticeConfig, ppq: number, inventory = false): {
 	audioPlan: TunePracticeAudioPlan;
 	plan: InsertionPoint[];
 	pickedSuggestion: Record<string, number>;
@@ -394,10 +403,13 @@ function prepareTunePracticeSession(sheet: Tune, config: TunePracticeConfig, ppq
 	// the solo pass's first; the count runs on when that bar is a pickup.
 	const firstChartBar = notationBarForPlaybackBar(flat.sectionMap, transposed.sections, playHead ? 0 : practiceStartBar);
 	const countInPickup = firstChartBar !== null && isInPickupLeadIn(transposed, firstChartBar);
-	const matchOptions = mode === 'suggest'
+	const matchOptions = inventory
+		? { ownBookOnly: true, playableKeysOnly: true, sessionTempo: config.tempo, includeUnready: true }
+		: mode === 'suggest'
 		? { ownBookOnly: true, playableKeysOnly: true, sessionTempo: config.tempo }
 		: { ownBookOnly: true };
 	const planDeps: BuildPlanDeps = {
+		includeAlternatives: inventory,
 		countInBars,
 		pickupBars,
 		flat,
@@ -428,7 +440,7 @@ function prepareTunePracticeSession(sheet: Tune, config: TunePracticeConfig, ppq
 		// Points mode caps the pick card; the cap applies per chosen window, so
 		// a role's licks are never crowded out by another role's on the same
 		// progression.
-		suggestionLimit: mode === 'suggest' ? undefined : MAX_SUGGESTIONS
+		suggestionLimit: inventory || mode === 'suggest' ? undefined : MAX_SUGGESTIONS
 	};
 	let plan = buildSessionPlan(planDeps);
 	if (!playHead && separateClosingChart) {
