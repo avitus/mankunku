@@ -51,7 +51,7 @@ describe('major-region lick eligibility', () => {
 	it('retains cadence and changing-root fit requirements even for explicitly major lines', () => {
 		const explicit = line({ mode: 'major' });
 		expect(suggestLicksForMajorRegion(region, deps([{ ...explicit, category: 'ii-V-I-major' }])).suggestions).toEqual([]);
-		expect(suggestLicksForMajorRegion(region, deps([explicit], ['ii-V-I-major'])).suggestions).toEqual([]);
+		expect(suggestLicksForMajorRegion(region, deps([explicit], ['ii-V-I-major-long'])).suggestions).toHaveLength(1);
 		expect(suggestLicksForMajorRegion(region, deps([{ ...explicit, harmony: [{
 			chord: { root: 'D', quality: 'min7' }, startOffset: [0, 1], duration: [1, 1], scaleId: 'major.dorian'
 		}] }])).suggestions).toEqual([]);

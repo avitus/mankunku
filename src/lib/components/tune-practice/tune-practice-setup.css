@@ -17,8 +17,14 @@ main:has(.tune-practice-setup) { max-width:1440px; padding:30px 40px; }
 .tune-practice-setup .td-saved-style select:disabled { opacity:.6; }
 .tune-practice-setup .td-key-row { margin-top:22px; }
 .tune-practice-setup .tp-guide p+p { margin-top:10px; }
-.tune-practice-setup .tp-proposed-licks { margin:12px 0 16px; display:grid; gap:9px; }
-.tune-practice-setup .tp-proposed-licks li { border-left:2px solid var(--color-brass); padding:5px 0 5px 10px; color:var(--studio-text); font-size:12px; line-height:1.5; overflow-wrap:anywhere; }
+.tune-practice-setup .tp-fitting-licks { margin:14px 0; display:grid; gap:0; }
+.tune-practice-setup .tp-fitting-licks>li { border-bottom:1px solid var(--studio-border); padding:10px 0; }
+.tune-practice-setup .tp-fitting-licks summary { cursor:pointer; color:var(--studio-text); font-size:12px; line-height:1.6; overflow-wrap:anywhere; }
+.tune-practice-setup .tp-fitting-licks small { display:block; margin-left:14px; color:var(--studio-muted); font-size:10px; }
+.tune-practice-setup .tp-fitting-licks ul { margin:10px 0 0 14px; display:grid; gap:10px; }
+.tune-practice-setup .tp-fitting-licks ul li { padding-left:10px; border-left:2px solid var(--color-brass); font-size:10px; line-height:1.7; }
+.tune-practice-setup .tp-fitting-licks ul span { display:block; color:var(--studio-muted); }
+.tune-practice-setup .tp-show-plan { color:var(--color-brass); font-size:11px; text-decoration:underline; margin-bottom:12px; cursor:pointer; }
 .tune-practice-setup .tp-untagged { padding-top:15px; border-top:1px solid var(--studio-border); }
 .tune-practice-setup .tp-untagged a { color:var(--color-brass); display:block; margin-top:4px; }
 .tune-practice-setup.tp-focus .tp-rail,.tune-practice-setup.tp-focus .tp-help { display:none; }

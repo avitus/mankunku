@@ -16,6 +16,7 @@ import {
 	subtractFractions
 } from '$lib/music/intervals';
 import { PROGRESSION_TEMPLATES, isChordQualityCategory } from '$lib/data/progressions';
+import { baseLickId } from '$lib/phrases/library-loader';
 import { keyLabel } from '$lib/music/notation';
 import { scoreToGrade } from '$lib/scoring/grades';
 import { KEY_PROFICIENT_THRESHOLD } from '$lib/persistence/lick-practice-store';
@@ -37,7 +38,7 @@ export interface InsertionPoint {
 	closingPass?: boolean;
 	id: string;
 	/**
-	 * What the window is FOR — the band's colour, name and rotation pool. A
+	 * What the window is FOR — the band's colour and name. A
 	 * cadence window carries its progression; a single-chord role carved out
 	 * of a longer progression carries the chord's own vamp type (a Minor Chord
 	 * lick on the i of a ii-V-i is a `minor-vamp` window on those bars).
@@ -98,6 +99,8 @@ export interface InsertionResult {
 }
 
 export interface BuildPlanDeps {
+	/** Setup inventory: retain overlapping fitting alternatives before window selection. */
+	includeAlternatives?: boolean;
 	/** Playback-order flatten (expandRepeats), with provenance. */
 	flat: FlattenedTune;
 	/** Notation-order flatten (chart markers). */
@@ -241,7 +244,7 @@ function roleWindowsFor(
 ): CandidateWindow[] {
 	const groups = new Map<string, { kind: 'chord' | 'phrase'; suggestions: LickSuggestion[] }>();
 	for (const s of suggestions) {
-		const kind = isChordQualityCategory(s.category) ? 'chord' : 'phrase';
+		const kind = s.placement === 'progression' ? 'phrase' : isChordQualityCategory(s.category) ? 'chord' : 'phrase';
 		const key = `${fractionToFloat(s.templateAlignmentOffset)}|${kind}`;
 		const group = groups.get(key) ?? { kind, suggestions: [] };
 		group.suggestions.push(s);
@@ -459,10 +462,13 @@ export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
 	// is placed before any broad region. Its full reservation survives those choices.
 	const inCornerstone = (w: CandidateWindow): boolean => w.det.type !== 'major-region' &&
 		w.segmentIndices.some((index) => reserved.has(index));
-	place(filled.filter(inCornerstone));
-	place(bare.filter(inCornerstone));
-	place(filled.filter((w) => !inCornerstone(w)));
-	place(bare.filter((w) => !inCornerstone(w)));
+	if (deps.includeAlternatives) kept.push(...filled);
+	else {
+		place(filled.filter(inCornerstone));
+		place(bare.filter(inCornerstone));
+		place(filled.filter((w) => !inCornerstone(w)));
+		place(bare.filter((w) => !inCornerstone(w)));
+	}
 	kept.sort(
 		(a, b) =>
 			compareFractions(a.start, b.start) ||
@@ -473,9 +479,10 @@ export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
 	const points = kept.map((w, i) => {
 		const det = w.det;
 		const openTick = leadTicks + ticksOf(w.start);
-		// No region lead-out: it would capture the next cornerstone's first beat.
-		let closeTick = leadTicks + ticksOf(w.end) + (det.type === 'major-region' ? 0 : ppq);
-		const next = kept[i + 1];
+		// No region or tagged-cadence lead-out: it would capture the next cornerstone's first beat.
+		const bounded = det.type === 'major-region' || w.suggestions.some(s => s.placement === 'progression');
+		let closeTick = leadTicks + ticksOf(w.end) + (bounded ? 0 : ppq);
+		const next = deps.includeAlternatives ? undefined : kept[i + 1];
 		if (next) closeTick = Math.min(closeTick, leadTicks + ticksOf(next.start));
 		closeTick = Math.min(closeTick, formEndTick);
 
@@ -887,33 +894,28 @@ export function buildSessionPhrase(args: {
 }
 
 /**
- * Suggest-mode variety: cycle each progression type through its full eligible
- * lick pool across the session's insertion points. Tracks how often each lick
- * has been assigned per progression type and, at every point, picks the
- * least-used eligible lick (ties broken by rank = list order). This surfaces
- * genuinely-different licks even though each point's eligible list can differ
- * in order and length — the target key varies per spot, so a positional
- * index-modulo would repeat one lick and starve another.
+ * Rotate the underlying lick across the entire session, independent of key or
+ * progression. Avoid consecutive repeats whenever another eligible lick exists;
+ * then prefer the least used, breaking ties by the matcher's musical ranking.
  */
 export function assignSuggestRotation(plan: readonly InsertionPoint[]): Record<string, number> {
-	const usesByType = new Map<PracticeTargetType, Map<string, number>>();
+	const uses = new Map<string, number>();
 	const picks: Record<string, number> = {};
+	let previous: string | undefined;
 	for (const ip of plan) {
 		if (ip.suggestions.length === 0) continue;
-		const uses = usesByType.get(ip.progressionType) ?? new Map<string, number>();
+		const alternatives = ip.suggestions.some(s => baseLickId(s.lickId) !== previous);
 		let bestIdx = 0;
 		let bestUses = Infinity;
 		ip.suggestions.forEach((s, idx) => {
-			const u = uses.get(s.lickId) ?? 0;
-			if (u < bestUses) {
-				bestUses = u;
-				bestIdx = idx;
-			}
+			const id = baseLickId(s.lickId);
+			if (alternatives && id === previous) return;
+			const count = uses.get(id) ?? 0;
+			if (count < bestUses) { bestUses = count; bestIdx = idx; }
 		});
 		picks[ip.id] = bestIdx;
-		const chosen = ip.suggestions[bestIdx].lickId;
-		uses.set(chosen, (uses.get(chosen) ?? 0) + 1);
-		usesByType.set(ip.progressionType, uses);
+		previous = baseLickId(ip.suggestions[bestIdx].lickId);
+		uses.set(previous, (uses.get(previous) ?? 0) + 1);
 	}
 	return picks;
 }

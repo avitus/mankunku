@@ -10,7 +10,9 @@
 	import { BACKING_STYLE_IDS, BACKING_STYLE_NAMES } from '$lib/audio/backing-styles';
 	import { TUNE_STYLE_DESCRIPTIONS } from '$lib/tunes/backing-style';
 	import { tunePath } from '$lib/tunes/tune-slug';
-	import { practiceTargetName, type PracticeTargetType } from '$lib/tunes/practice-target';
+	import { concertKeyToWritten } from '$lib/music/transposition';
+	import { keyLabel } from '$lib/music/notation';
+	import { practiceTargetColor, practiceTargetName, type PracticeTargetType } from '$lib/tunes/practice-target';
 	import { PITCH_CLASSES, type PitchClass } from '$lib/types/music';
 	import type { BackingStyle } from '$lib/types/instruments';
 	import type { Tune } from '$lib/types/tune';
@@ -54,9 +56,14 @@
 		: tunePractice.config.mode === 'points' ? 'Points' : 'Automatic suggestions');
 	const cueSummary = $derived(tunePractice.config.strictness === 'guided' ? 'Lick cues'
 		: tunePractice.config.strictness === 'solo' ? 'No cues' : 'Progression cues');
-	const proposedLicks = $derived([...new Set(
-		(preview?.markers ?? []).flatMap(marker => marker.lickName ? [marker.lickName] : [])
-	)]);
+	let selectedLick = $state<string | null>(null);
+	const fittingLicks = $derived(preview?.fittingLicks ?? []);
+	const highlighted = $derived(fittingLicks.find(lick => lick.id === selectedLick));
+	const chartMarkers = $derived<RangeMarker[]>(highlighted ? highlighted.placements
+		.filter(p => p.closingPass === !!preview?.closingChart)
+		.map((p, i) => ({ id: `vocabulary-${i}`, startBar: p.startBar, endBarExclusive: p.endBarExclusive,
+			timeRange: p.timeRange, status: 'upcoming', label: `${highlighted.name} · ${keyLabel(concertKeyToWritten(p.key, getInstrument()), p.mode)}`,
+			color: practiceTargetColor(p.progressionType) })) : markers);
 
 	/** Keep numeric entry within the same bounds as the former tempo knob. */
 	function changeTempo(value: number): void {
@@ -98,7 +105,7 @@
 						{:else}<p>No known progressions detected in this tune yet — you can still play along.</p>{/if}
 					</div>
 				</div>
-				{#if previewSheet}<div class="td-score-well" bind:clientWidth={chartWidth}><NotationDisplay tune={previewSheet} instrument={getInstrument()} staffWidth={chartWidth < 550 ? Math.max(260, chartWidth - 24) : undefined} rangeMarkers={tunePractice.config.mode === 'freestyle' ? [] : markers} tuneOptions={{ omitMasthead: true, barsPerLine: chartWidth < 550 ? 2 : 4 }} frameless /></div>{/if}
+				{#if previewSheet}<div class="td-score-well" bind:clientWidth={chartWidth}><NotationDisplay tune={previewSheet} instrument={getInstrument()} staffWidth={chartWidth < 550 ? Math.max(260, chartWidth - 24) : undefined} rangeMarkers={tunePractice.config.mode === 'freestyle' ? [] : chartMarkers} tuneOptions={{ omitMasthead: true, barsPerLine: chartWidth < 550 ? 2 : 4 }} frameless /></div>{/if}
 				<div class="td-transport td-desk-transport tp-start">
 					<button class="le-button le-play" onclick={onstart} disabled={isLoading || !audioModulesReady}><EditorIcon name="play" size={16} />{isLoading ? 'Setting up…' : 'Start'}</button>
 					<div class="td-play-summary"><strong>{tunePractice.config.backingTrackEnabled ? `${BACKING_STYLE_NAMES[tunePractice.config.backingStyle]} backing` : 'Backing off'} · {tunePractice.config.tempo} BPM</strong><p>{startCaption}</p></div>
@@ -125,11 +132,34 @@
 				<button class="td-setting-toggle" role="switch" aria-checked={tunePractice.config.metronomeEnabled} aria-label="Metronome" disabled={isLoading} onclick={() => setTunePracticeMetronome(!tunePractice.config.metronomeEnabled)}><span>Metronome</span><span>{tunePractice.config.metronomeEnabled ? 'On' : 'Off'}<i class="td-switch" class:active={tunePractice.config.metronomeEnabled} aria-hidden="true"></i></span></button>
 				<div class="td-key-row"><label for="practice-key">Key</label><select id="practice-key" value={writtenKey} disabled={isLoading} onchange={event => onkey(event.currentTarget.value as PitchClass)}>{#each PITCH_CLASSES as pc}<option value={pc}>{pc.replace('b', '♭').replace('#', '♯')}</option>{/each}</select></div><p class="td-written-for">Written for {getInstrument().name}.</p>
 			</section>
-			<section class="td-rail-section tp-guide"><p class="studio-label">Play with your licks</p><h2>{proposedLicks.length > 0 && tunePractice.config.mode !== 'freestyle' ? 'Your proposed licks.' : 'Make the changes yours.'}</h2>{#if tunePractice.config.mode === 'freestyle'}<p>Play freely through the changes. Mankunku listens for the licks you know and celebrates them as you play.</p>
-				{:else if proposedLicks.length > 0}
-					<ul class="tp-proposed-licks" aria-label="Proposed licks">{#each proposedLicks as name (name)}<li>{name}</li>{/each}</ul>
-					<p>Already placed at their matching spots on the chart. Press Start and follow the cues.</p>
-				{:else}<p>Mankunku automatically finds licks that fit each progression. Play through the tune and follow the cues on the chart.</p><p>Each insertion is scored. Unmarked bars are yours to improvise.</p>{/if}
+			<section class="td-rail-section tp-guide">
+				<p class="studio-label">Play with your licks</p>
+				<h2>{tunePractice.config.mode === 'freestyle' ? 'Make the changes yours.' : 'Licks that fit this tune.'}</h2>
+				{#if tunePractice.config.mode === 'freestyle'}
+					<p>Play freely through the changes. Mankunku listens for the licks you know and celebrates them as you play.</p>
+				{:else if fittingLicks.length > 0}
+					<p>{fittingLicks.filter(lick => lick.ready).length} ready now · {fittingLicks.filter(lick => !lick.ready).length} need practice. Open a lick to see where it fits.</p>
+					<ul class="tp-fitting-licks" aria-label="Licks that fit this tune">
+						{#each fittingLicks as lick (lick.id)}
+							<li><details open={selectedLick === lick.id} ontoggle={event => {
+								if (event.currentTarget.open) selectedLick = lick.id;
+								else if (selectedLick === lick.id) selectedLick = null;
+							}}>
+								<summary><span>{lick.name}</span><small>{lick.ready ? 'Ready now' : 'Needs practice'}</small></summary>
+								<ul aria-label={`Placements for ${lick.name}`}>
+									{#each lick.placements as p}
+										<li><strong>{keyLabel(concertKeyToWritten(p.key, getInstrument()), p.mode)} · {p.context}</strong>
+											<span>Bars {p.startBar + 1}–{p.endBarExclusive}{p.closingPass ? ' · Closing chart' : ''}</span>
+											<span>{p.keyReady && p.tempoReady ? 'Ready now' : [!p.keyReady ? 'Practise this key' : '', !p.tempoReady ? `Practised to ${p.practicedTempo} BPM` : ''].filter(Boolean).join(' · ')}</span>
+										</li>
+									{/each}
+								</ul>
+							</details></li>
+						{/each}
+					</ul>
+					{#if highlighted}<button class="tp-show-plan" onclick={() => selectedLick = null}>Show planned licks on chart</button>{/if}
+					<p>The session selects one lick per window and rotates ready alternatives. Other fitting licks remain available here.</p>
+				{:else}<p>No fitting licks from your book yet. Add progression tags in My Licks to describe where you play each phrase.</p>{/if}
 				{#if preview && preview.uncategorizedCount > 0}<p class="tp-untagged">{preview.uncategorizedCount} of your licks {preview.uncategorizedCount === 1 ? 'has' : 'have'} no progression tag and can’t be suggested. <a href="/licks">Tag them in My Licks →</a></p>{/if}
 			</section>
 		</aside>

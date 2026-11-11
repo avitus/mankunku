@@ -65,6 +65,10 @@ export type MasteryTier = 'known' | 'learning' | 'unknown';
 export type MatchSource = 'prog-tag' | 'category' | 'substitution' | 'major-region';
 
 export interface LickSuggestion {
+	/** Explicit tag authorizes a tonic-major line across the whole cadence. */
+	placement?: 'progression';
+	/** Availability is separate from harmonic fit, so setup can explain exclusions. */
+	readiness?: { keyReady: boolean; tempoReady: boolean; practicedTempo: number };
 	lickId: string;
 	lickName: string;
 	category: PhraseCategory;
@@ -143,6 +147,8 @@ export interface LickMatcherDeps {
 }
 
 export interface SuggestLicksOptions {
+	/** Setup inventory only: retain fitting licks with their readiness reasons. */
+	includeUnready?: boolean;
 	enableSubstitutions?: boolean;
 	/** Cap the ranked list (applied after ranking and dedupe). */
 	limit?: number;
@@ -256,7 +262,12 @@ export function suggestLicksForProgression(
 		// one chord a bar, has no place over a half-bar ii-V, whatever its
 		// category or tags say. A substitution plays a lick over a chord it was
 		// not written for by design, so the rule does not judge that path.
-		const fits = progressionFitsLick(lick, type).fits;
+		const wholeProgression = type === 'ii-V-I-major-long' && progTags.includes(type) &&
+			isRegionMajorLick(lick, progTags);
+		const soundingBars = wholeProgression ? soundingLengthBars(lick, deps.timeSignature) : null;
+		if (wholeProgression && (soundingBars === null ||
+			soundingBars * barFloat > fractionToFloat(detected.duration) + EPSILON)) continue;
+		const fits = wholeProgression || progressionFitsLick(lick, type).fits;
 		const matchSources: MatchSource[] = [];
 		if (fits && progTags.includes(type)) matchSources.push('prog-tag');
 		if (fits && compatibleCategories.includes(lick.category)) matchSources.push('category');
@@ -264,7 +275,7 @@ export function suggestLicksForProgression(
 		if (substitution) matchSources.push('substitution');
 		if (matchSources.length === 0) continue;
 
-		const templateAlignmentOffset = resolveLickAlignmentOffset(
+		const templateAlignmentOffset: Fraction = wholeProgression ? [0, 1] : resolveLickAlignmentOffset(
 			type,
 			lick.category,
 			enableSubstitutions
@@ -277,7 +288,7 @@ export function suggestLicksForProgression(
 		const slot = slotAtTemplateOffset(detected, templateAlignmentOffset);
 		if (!slot) continue;
 		const insertionOffset = slot.startOffset;
-		const targetKey = resolveTransposeTarget(
+		const targetKey = wholeProgression ? detected.localKey : resolveTransposeTarget(
 			detected.localKey,
 			lick.category,
 			type,
@@ -286,6 +297,7 @@ export function suggestLicksForProgression(
 		);
 
 		suggestions.push({
+			...(wholeProgression ? { placement: 'progression' as const } : {}),
 			lickId: lick.id,
 			lickName: lick.name,
 			category: lick.category,
@@ -304,7 +316,7 @@ export function suggestLicksForProgression(
 			substitution,
 			inPracticeSet: deps.practiceLickIds.has(lick.id),
 			difficultyLevel: lick.difficulty.level,
-			lengthBars: lick.difficulty.lengthBars,
+			lengthBars: soundingBars ?? lick.difficulty.lengthBars,
 			mode: lickMode(lick)
 		});
 	}
@@ -442,25 +454,18 @@ function rankSuggestions(
 	type?: ChordProgressionType
 ): LickSuggestion[] {
 	const { limit } = options;
-	// Song requirements: only licks the user can actually deploy here.
-	let eligible = suggestions;
-	if (options.playableKeysOnly) {
-		eligible = eligible.filter((s) => s.masteryTier !== 'unknown');
-	}
-	if (options.sessionTempo !== undefined) {
-		const sessionTempo = options.sessionTempo;
-		const trickProgress = deps.trickProgress ?? {};
-		eligible = eligible.filter((s) => {
-			if (s.trick) {
-				// Tricks carry their own progress store: at-key tempo first, then
-				// the variant-wide minimum (default 60) — the lick rule, mirrored.
-				const variantKey = trickVariantKey(s.trick.trickId, s.trick.parameters);
-				const atKey = trickProgress[variantKey]?.[s.targetKey]?.currentTempo;
-				return (atKey ?? getTrickTempo(trickProgress, variantKey)) >= sessionTempo;
-			}
-			const atKey = deps.progress[s.lickId]?.[s.targetKey]?.currentTempo;
-			return (atKey ?? getLickTempo(deps.progress, s.lickId)) >= sessionTempo;
-		});
+	// Retain the same evidence for setup and automatic selection.
+	let eligible = suggestions.map(s => {
+		const variantKey = s.trick ? trickVariantKey(s.trick.trickId, s.trick.parameters) : null;
+		const practicedTempo = variantKey
+			? (deps.trickProgress?.[variantKey]?.[s.targetKey]?.currentTempo ?? getTrickTempo(deps.trickProgress ?? {}, variantKey))
+			: (deps.progress[s.lickId]?.[s.targetKey]?.currentTempo ?? getLickTempo(deps.progress, s.lickId));
+		return { ...s, readiness: { keyReady: s.masteryTier !== 'unknown',
+			tempoReady: options.sessionTempo === undefined || practicedTempo >= options.sessionTempo, practicedTempo } };
+	});
+	if (!options.includeUnready) {
+		if (options.playableKeysOnly) eligible = eligible.filter(s => s.readiness.keyReady);
+		if (options.sessionTempo !== undefined) eligible = eligible.filter(s => s.readiness.tempoReady);
 	}
 
 	eligible.sort(
@@ -487,13 +492,25 @@ function rankSuggestions(
 
 /** Positive major identity only; the legacy default-to-major is not evidence. */
 function isRegionMajorLick(lick: Phrase, tags: ChordProgressionType[]): boolean {
-	if (lick.mode === 'minor' || CADENCE_CATEGORIES.has(lick.category) ||
-		tags.some((type) => PROGRESSION_TEMPLATES[type].harmony.length > 1)) return false;
+	if (lick.mode === 'minor' || CADENCE_CATEGORIES.has(lick.category)) return false;
 	// A line written for changing chord roots keeps its existing progression-fit path.
 	if (lick.harmony.some((segment) => segment.chord.root !== lick.key)) return false;
 	if (lick.mode === 'major' || lick.category === 'major-chord' || tags.includes('major-vamp')) return true;
 	const tonic = [...lick.harmony].sort((a, b) => compareFractions(b.startOffset, a.startOffset))[0];
 	return tonic !== undefined && chordEvidence(tonic)?.majorTonic === true;
+}
+
+/** Sounding length includes authored pickup time, but excludes trailing rest padding. */
+function soundingLengthBars(lick: Phrase, meter: [number, number]): number | null {
+	if (lick.timeSignature[0] !== meter[0] || lick.timeSignature[1] !== meter[1]) return null;
+	const notes = lick.notes.filter(note => note.pitch !== null);
+	if (!notes.length || notes.some(note => {
+		const start = fractionToFloat(note.offset);
+		const duration = fractionToFloat(note.duration);
+		return !Number.isFinite(start) || !Number.isFinite(duration) || start < 0 || duration <= 0;
+	})) return null;
+	return Math.max(...notes.map(note => fractionToFloat(note.offset) + fractionToFloat(note.duration))) /
+		(meter[0] / meter[1]);
 }
 
 /**
@@ -516,15 +533,8 @@ export function suggestLicksForMajorRegion(
 			if (lick.category === 'user' && tags.length === 0) uncategorized.push(lick);
 			continue;
 		}
-		if (lick.timeSignature[0] !== deps.timeSignature[0] || lick.timeSignature[1] !== deps.timeSignature[1]) continue;
-		const notes = lick.notes.filter((note) => note.pitch !== null);
-		if (!notes.length || notes.some((note) => {
-			const start = fractionToFloat(note.offset);
-			const duration = fractionToFloat(note.duration);
-			return !Number.isFinite(start) || !Number.isFinite(duration) || start < 0 || duration <= 0;
-		})) continue;
-		const end = Math.max(...notes.map((note) => fractionToFloat(note.offset) + fractionToFloat(note.duration)));
-		if (end > available + EPSILON) continue;
+		const lengthBars = soundingLengthBars(lick, deps.timeSignature);
+		if (lengthBars === null || lengthBars * barLength > available + EPSILON) continue;
 		suggestions.push({
 			lickId: lick.id, lickName: lick.name, category: lick.category,
 			targetKey: region.key, insertionOffset: region.startOffset,
@@ -535,7 +545,7 @@ export function suggestLicksForMajorRegion(
 				unlockedCount: deps.getUnlockedKeyCount(deps.progress, lick.id) }),
 			matchSources: ['major-region'], substitution: null,
 			inPracticeSet: deps.practiceLickIds.has(lick.id), difficultyLevel: lick.difficulty.level,
-			lengthBars: end / barLength, mode: 'major'
+			lengthBars, mode: 'major'
 		});
 	}
 	return { suggestions: rankSuggestions(suggestions, deps, options), uncategorized };
