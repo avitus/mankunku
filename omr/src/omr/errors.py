@@ -18,4 +18,4 @@ class BackendUnavailableError(OMRError):
 
 
 class Legato2NotAvailableError(BackendUnavailableError):
-    """LEGATO 2 has not been publicly released; see docs/omr/legato2.md."""
+    """LEGATO 2 is not integrated in this repository; see docs/omr/legato2.md."""

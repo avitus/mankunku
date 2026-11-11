@@ -59,7 +59,7 @@ test.describe('lick-practice session flow', () => {
 		await page.goto('/lick-practice');
 
 		// The tagged lick makes Daily Practice (the default session type) startable.
-		await expect(page.getByText(/1 lick across your tagged progressions/i)).toBeVisible();
+		await expect(page.getByText(/1 lick in this session/i)).toBeVisible();
 		const startBtn = page.getByRole('button', { name: /start daily practice/i });
 		await expect(startBtn).toBeEnabled();
 		await startBtn.click();
@@ -111,15 +111,9 @@ test.describe('lick-practice session flow', () => {
 			timeout: 90_000
 		});
 
-		// Score UI: summary stats plus the per-lick breakdown. Exactly one key
-		// was attempted, so the "Keys Passed" stat and the per-lick line both
-		// read N/1, and the attempted key renders a percentage chip.
-		await expect(page.getByText(/^Overall$/)).toBeVisible();
-		await expect(page.getByText(/^\d+%$/).first()).toBeVisible();
-		await expect(page.getByText(/^Keys Passed$/)).toBeVisible();
-		await expect(page.getByText(/^[01]\/1$/)).toBeVisible();
-		// The lick name renders in the per-lick breakdown and again inside the
-		// "Upcoming Licks" collapsible — assert the breakdown copy (first).
+		// The report replaces aggregate counters with this key's session and rolling scores.
+		await expect(page.getByText(/^Overall$/)).toHaveCount(0);
+		await expect(page.getByText(/^Keys Passed$/)).toHaveCount(0);
 		await expect(page.getByText('Test Bebop Line').first()).toBeVisible();
 		// The breakdown name links through to the lick's detail page. Assert the
 		// href rather than clicking — navigating away would tear down the report
@@ -128,7 +122,7 @@ test.describe('lick-practice session flow', () => {
 			'href',
 			'/licks/e2e-user-lick-bebop'
 		);
-		await expect(page.getByText(/[01]\/1 · \d+%/)).toBeVisible();
+		await expect(page.getByRole('region', { name: 'Scores by lick and key' }).getByRole('button', { name: /this session.*rolling score/ })).toHaveCount(1);
 
 		// Tempo UI on the report: the per-lick row shows the lick's BPM (with
 		// the session's auto-adjustment delta when one applied).
@@ -144,12 +138,12 @@ test.describe('lick-practice session flow', () => {
 		}
 
 		// The one attempt scored silence (0%), so the report's Next card names
-		// the key and offers Deep Practice on it. That CTA is the ONLY entry
+		// the key and offers Deep Practice on it. The recommendation is an entry
 		// to the focus ramp: the drill must open on that key ALONE, which the
 		// lick header announces in place of its "Key n/N" slot. This pins the
 		// handleStartNextStep → focusKey → startSingleLickSession wiring that
 		// no unit test can reach.
-		await expect(page.getByText(/^Drill /)).toBeVisible();
+		await expect(page.getByRole('heading', { name: 'Go deeper' })).toBeVisible();
 		// Make C a previously learned key before opening the focused drill.
 		// Its low score still earns the drill. The first deep attempt starts
 		// from memory, then a poor attempt must reveal this older key too.
@@ -185,7 +179,11 @@ test.describe('lick-practice session flow', () => {
 		// The mock microphone scores poorly. Show music on the next cycle,
 		// allowing the preparation cue but never restarting a Listen phase.
 		await page.setViewportSize({ width: 390, height: 900 });
-		const flow = await page.evaluate(async () => {
+		const flow = await page.evaluate(() => new Promise<{
+			cues: string[]; showedSheet: boolean; preparedForMs: number | null;
+			entranceText: string; recordedDuringPreparation: boolean;
+			cueOverlapsSheet: boolean; cueOutsideRow: boolean; counts: string[];
+		}>((resolve) => {
 			const cues = new Set<string>();
 			let showedSheet = false;
 			let preparationAt: number | null = null;
@@ -195,8 +193,11 @@ test.describe('lick-practice session flow', () => {
 			let cueOverlapsSheet = false;
 			let cueOutsideRow = false;
 			const counts = new Set<string>();
-			const until = performance.now() + 12_000;
-			while (performance.now() < until) {
+			// Capture the cue's DOM changes, including counts between painted
+			// frames. Only measure SVG geometry when the rendered state changes,
+			// avoiding an expensive layout scan on every animation frame.
+			/** Record the cue, timing and geometry when its rendered state changes. */
+			function sample(): void {
 				const tab = document.querySelector('.phase-tab');
 				const kind = tab?.getAttribute('data-kind') ?? 'missing';
 				cues.add(kind);
@@ -220,10 +221,18 @@ test.describe('lick-practice session flow', () => {
 					preparedForMs = performance.now() - preparationAt;
 				}
 				showedSheet ||= !!document.querySelector('[data-testid="lead-sheet-row"]');
-				await new Promise(requestAnimationFrame);
 			}
-			return { cues: [...cues], showedSheet, preparedForMs, entranceText, recordedDuringPreparation, cueOverlapsSheet, cueOutsideRow, counts: [...counts] };
-		});
+			const observer = new MutationObserver(sample);
+			observer.observe(document.querySelector('.stack')!.closest('.viewport')!, {
+				subtree: true, childList: true, characterData: true,
+				attributes: true, attributeFilter: ['data-kind']
+			});
+			sample();
+			setTimeout(() => {
+				observer.disconnect();
+				resolve({ cues: [...cues], showedSheet, preparedForMs, entranceText, recordedDuringPreparation, cueOverlapsSheet, cueOutsideRow, counts: [...counts] });
+			}, 12_000);
+		}));
 		expect(flow.showedSheet).toBe(true);
 		expect(flow.cues).not.toContain('listen');
 		expect(flow.entranceText.trim()).toMatch(/^Play\s*[1-4]$/);
@@ -235,11 +244,11 @@ test.describe('lick-practice session flow', () => {
 		expect(flow.cueOverlapsSheet).toBe(false);
 		expect(flow.cueOutsideRow).toBe(false);
 		await page.setViewportSize({ width: 1440, height: 1000 });
-		// The takes still to come are drawn under the current one in its look,
-		// so the stack holds several sheets: measure the take being played.
+		// The chord-only memory turn is already below the current sheet.
+		// Measure the sheet being played, not the future memory rows.
 		const currentSheet = page.locator('.row.current [data-testid="lead-sheet-row"]');
 		await expect(currentSheet).toBeVisible();
-		expect(await page.getByTestId('lead-sheet-row').count()).toBeGreaterThan(1);
+		await expect(page.locator('.row.current + .row [data-testid="lead-sheet-row"]')).toHaveCount(0);
 		const deepSheet = await currentSheet.evaluate((sheet) => ({
 			height: sheet.closest('.row')!.getBoundingClientRect().height,
 			noteWidth: sheet.querySelector('.abcjs-notehead')!.getBoundingClientRect().width
@@ -248,7 +257,7 @@ test.describe('lick-practice session flow', () => {
 		expect(deepSheet.noteWidth).toBeGreaterThan(11);
 		// The cue stays a single line at the top-left of the sheet on desktop,
 		// preserving the enlarged engraving and the existing row height. The
-		// sheet stays up while the takes keep missing, so no further count-in
+		// sheet stays up throughout all three passes, so no further count-in
 		// comes: measure the Play cue of the take on it.
 		const entrance = page.locator('.row.current .phase-tab[data-kind="play"]');
 		await expect(entrance).toBeVisible({ timeout: 15_000 });
@@ -265,9 +274,8 @@ test.describe('lick-practice session flow', () => {
 		expect(cueGeometry.height).toBeLessThan(28);
 		await expect(page.locator('.chart-wrap.recording')).toBeVisible({ timeout: 15_000 });
 
-		// The next take on the sheet joins on the downbeat: Play holds through
-		// the boundary with no count-in, and the next row of the same key — a
-		// tempo-tagged take — scrolls up into the current slot.
+		// The next take honors the chord-only memory preview even after a miss.
+		// It scrolls into the current slot with its preparation countdown.
 		const joined = await page.evaluate(async () => {
 			const kinds = new Set<string>();
 			/** Record the current row's cue kind each frame while `keepGoing` holds. */
@@ -291,8 +299,8 @@ test.describe('lick-practice session flow', () => {
 				kinds: [...kinds]
 			};
 		});
-		expect(joined).toMatchObject({ advanced: true, sameKey: true, tagged: true, sheet: true });
-		expect(joined.kinds).not.toContain('play-in');
+		expect(joined).toMatchObject({ advanced: true, sameKey: true, tagged: true, sheet: false });
+		expect(joined.kinds).toContain('play-in');
 		expect(joined.kinds).not.toContain('read');
 		expect(joined.kinds).toContain('play');
 		await page.getByRole('button', { name: /end session/i }).click();

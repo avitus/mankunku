@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { BACKING_OUTPUT_GAIN } from '$lib/audio/backing-output';
 	// Backing listening lab + mixer. Loops a chosen progression preset,
 	// balances the rhythm section per instrument (levels persist on this
 	// device), bounces the current engine to WAV for blind A/B against a
@@ -39,7 +40,7 @@
 	import ListeningChecklist from '$lib/components/diagnostics/ListeningChecklist.svelte';
 	import { settings } from '$lib/state/settings.svelte';
 	import { LAB_SOLO_SCENARIOS, scriptedSoloFeatures, type LabSoloScenario } from '$lib/audio/backing-lab-scenarios';
-	import { version } from '$app/environment';
+	import { version } from '$app/env';
 	import { createSoloListener, type SoloListener } from '$lib/audio/solo-listener';
 	import type { SoloObservationWindow } from '$lib/audio/solo-observer';
 
@@ -242,7 +243,7 @@
 					backingTrackEnabled: true,
 					backingInstrument: instrument,
 					backingTrackVolume: volume,
-					backingStyle: style,
+					backingStyle: style, backingOutputLevel: BACKING_OUTPUT_GAIN,
 					backingOrchestration: orchestration,
 					backingSoloFeatures: soloFeatures
 				},

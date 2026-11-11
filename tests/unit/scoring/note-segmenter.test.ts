@@ -6,7 +6,7 @@ import {
 	mergeOctaveBoundariesWithoutAttack,
 	getMetronomeBleedOnsets,
 	validateOnsets,
-	foldTwelfthUpLockRuns
+	foldTwelfthUpLockRuns, foldOctaveUpLockRuns
 } from '$lib/audio/note-segmenter';
 import type { PitchReading } from '$lib/audio/pitch-detector';
 import type { DetectedNote } from '$lib/types/audio';
@@ -1442,6 +1442,37 @@ describe('segmentNotes: a short note cut off right after its attack', () => {
 		const notes = segmentNotes([...b, ...a, ...gSharp], [0, 0.35], 1.0, undefined, undefined, undefined, [0, 0.35]);
 		expect(notes.map((n) => n.midi)).toEqual([59, 57, 56]);
 	});
+
+	// The 2026-10-28 "little-cry" F3: a breathy eighth whose five warmup frames
+	// are split 4 + 1 by a 100 ms stretch under the clarity threshold. The
+	// stabilizer counts only confident frames, so the five are still ONE
+	// completed warmup vote; the gap split hid that from each piece.
+	it('keeps a completed warmup window that a reading gap splits in two', () => {
+		const a = [...run(57, 0.44, 4, { warmup: true }), ...run(57, 0.59, 1, { warmup: true })];
+		const notes = segmentNotes([...b, ...a, ...gSharp], [0, 0.35], 1.0, undefined, undefined, undefined, [0, 0.35]);
+		expect(notes.map((n) => n.midi)).toEqual([59, 57, 56]);
+	});
+
+	it('still drops a split warmup burst that never completed', () => {
+		const a = [...run(57, 0.44, 2, { warmup: true }), ...run(57, 0.59, 2, { warmup: true })];
+		const notes = segmentNotes([...b, ...a, ...gSharp], [0, 0.35], 1.0, undefined, undefined, undefined, [0, 0.35]);
+		expect(notes.map((n) => n.midi)).toEqual([59, 56]);
+	});
+
+	it('still drops the pieces of a warmup window an onset cuts in two', () => {
+		// The boundary claims a new note, so the piece before it is a fragment
+		// (2026-05-22 blues-curl-up, 2026-08-10 pent run).
+		const a = [...run(57, 0.44, 4, { warmup: true }), ...run(57, 0.507, 1, { warmup: true })];
+		const onsets = [0, 0.35, 0.5];
+		const notes = segmentNotes([...b, ...a, ...gSharp], onsets, 1.0, undefined, undefined, undefined, onsets);
+		expect(notes.map((n) => n.midi)).toEqual([59, 56]);
+	});
+
+	it('still drops a split warmup window that voted on two pitches', () => {
+		const a = [...run(57, 0.44, 4, { warmup: true }), ...run(58, 0.59, 1, { warmup: true })];
+		const notes = segmentNotes([...b, ...a, ...gSharp], [0, 0.35], 1.0, undefined, undefined, undefined, [0, 0.35]);
+		expect(notes.map((n) => n.midi)).toEqual([59, 56]);
+	});
 });
 
 /**
@@ -1609,11 +1640,243 @@ describe('segmentNotes: third-harmonic (twelfth-up) locks', () => {
 			expect(foldTwelfthUpLockRuns(lock).map((r) => r.midi)).toEqual([69, 69, 69, 69, 69]);
 		});
 
+		// 2026-11-04 Through the Blue to the Root: one and two-frame locks
+		// at the bottom of a tongue's dip chopped the D3 run the re-articulation
+		// tiers scan, so the dip never recovered inside a run.
+		describe('a run too short to vote, with the fundamental on both sides', () => {
+			/** Puts the given frames between two ten-frame runs of the fundamental. */
+			const sandwich = (middle: PitchReading[]) => [
+				...run(50, 0, 10),
+				...middle,
+				...run(50, (10 + middle.length) / 60, 10)
+			];
+
+			it('folds a single flagged frame', () => {
+				const folded = foldTwelfthUpLockRuns(sandwich(run(69, 10 / 60, 1, { twelfthUp: true })));
+				expect(new Set(folded.map((r) => r.midi))).toEqual(new Set([50]));
+			});
+
+			it('folds two flagged frames, keeping the raw frequency', () => {
+				const stream = sandwich(run(69, 10 / 60, 2, { twelfthUp: true }));
+				const folded = foldTwelfthUpLockRuns(stream);
+				expect(new Set(folded.map((r) => r.midi))).toEqual(new Set([50]));
+				expect(folded.map((r) => r.frequency)).toEqual(stream.map((r) => r.frequency));
+			});
+
+			it('folds each of two locks with one fundamental frame between them', () => {
+				const stream = sandwich([
+					...run(69, 10 / 60, 1, { twelfthUp: true }),
+					...run(50, 11 / 60, 1),
+					...run(69, 12 / 60, 2, { twelfthUp: true })
+				]);
+				expect(new Set(foldTwelfthUpLockRuns(stream).map((r) => r.midi))).toEqual(new Set([50]));
+			});
+
+			it('leaves an unflagged run alone', () => {
+				const stream = sandwich(run(69, 10 / 60, 2));
+				expect(foldTwelfthUpLockRuns(stream).filter((r) => r.midi === 69)).toHaveLength(2);
+			});
+
+			it('leaves a flagged run that leads to another note: a leap, not a lock', () => {
+				const stream = [
+					...run(50, 0, 10),
+					...run(69, 10 / 60, 2, { twelfthUp: true }),
+					...run(52, 12 / 60, 10)
+				];
+				expect(foldTwelfthUpLockRuns(stream).filter((r) => r.midi === 69)).toHaveLength(2);
+			});
+
+			it('leaves a flagged run at the edge of the stream', () => {
+				const stream = [...run(69, 0, 2, { twelfthUp: true }), ...run(50, 2 / 60, 10)];
+				expect(foldTwelfthUpLockRuns(stream).filter((r) => r.midi === 69)).toHaveLength(2);
+			});
+
+			it('leaves a run whose only flagged frames are warmup', () => {
+				const stream = sandwich(run(69, 10 / 60, 2, { twelfthUp: true }).map((r) => ({ ...r, warmup: true })));
+				expect(foldTwelfthUpLockRuns(stream).filter((r) => r.midi === 69)).toHaveLength(2);
+			});
+		});
+
 		it('returns a new stream and leaves the caller\'s readings alone', () => {
 			const lock = run(69, 0, 3, { twelfthUp: true });
 			const folded = foldTwelfthUpLockRuns(lock);
 			expect(folded).not.toBe(lock);
 			expect(lock.map((r) => r.midi)).toEqual([69, 69, 69]);
+		});
+	});
+});
+
+
+describe('opening weak note recovery', () => {
+	/** A reading at this MIDI whose raw frequency agrees with it. */
+	const frame = (midi: number, time: number, extra: Partial<PitchReading> = {}): PitchReading => ({
+		...makeReading(midi, time),
+		frequency: 440 * 2 ** ((midi - 69) / 12),
+		...extra
+	});
+	/** A four-frame warmup burst that never completes a window on one pitch. */
+	const burst = () =>
+		[0.35, 0.3667, 0.3833, 0.4].map((t, i) => frame(i === 3 ? 60 : 48, t, { warmup: true }));
+	/** The confirmed note that follows the opening burst. */
+	const following = () =>
+		Array.from({ length: 12 }, (_, i) => frame(58, 0.6 + i / 60, { warmup: i < 5 }));
+	/** A low-clarity plateau on the opening note, just ahead of the burst. */
+	const weak = () =>
+		Array.from({ length: 4 }, (_, i) => frame(48, 0.2833 + i / 60, { weak: true, clarity: 0.65 }));
+	/** Segments the readings with the weak side channel and both onsets as worklet evidence. */
+	const detect = (rs = [...burst(), ...following()], ws = weak()) =>
+		segmentNotes(
+			rs,
+			[0.3369, 0.5024],
+			1,
+			undefined,
+			undefined,
+			undefined,
+			[0.3369, 0.5024],
+			[],
+			[],
+			ws
+		);
+	it('recovers an incomplete opening warmup corroborated by a weak plateau', () => {
+		expect(detect().map((n) => n.midi)).toEqual([60, 58]);
+	});
+	it('keeps rejecting an uncorroborated startup burst', () => {
+		expect(detect(undefined, []).map((n) => n.midi)).toEqual([58]);
+	});
+	it('rejects a weak plateau separated from the burst', () => {
+		expect(
+			detect(
+				undefined,
+				weak().map((r) => ({ ...r, time: r.time - 0.15 }))
+			).map((n) => n.midi)
+		).toEqual([58]);
+	});
+	it('rejects a plateau on a different pitch class', () => {
+		expect(
+			detect(
+				undefined,
+				weak().map((r) => ({ ...r, frequency: 440 * 2 ** ((49 - 69) / 12) }))
+			).map((n) => n.midi)
+		).toEqual([58]);
+	});
+	it('rejects low-level ring and non-plateau noise', () => {
+		expect(
+			detect(
+				undefined,
+				weak().map((r) => ({ ...r, rms: 0.001 }))
+			).map((n) => n.midi)
+		).toEqual([58]);
+		expect(detect(undefined, weak().slice(0, 2)).map((n) => n.midi)).toEqual([58]);
+	});
+	// 2026-11-04 Through the Blue to the Root, a take no longer in the corpus,
+	// so this test is the rule's only guard. Untrimmed, pre-entrance noise at
+	// 0.001 read as both the burst and the frame after it, so a weak plateau
+	// 28 dB under the note cleared a level gate measured on noise.
+	it('measures the plateau against the note that stabilizes, not a noise-level warmup frame', () => {
+		const quietBurst = burst().map((r) => ({ ...r, rms: 0.001 }));
+		const note = following().map((r) => ({ ...r, rms: r.warmup ? 0.001 : 0.2 }));
+		const quietWeak = weak().map((r) => ({ ...r, rms: 0.007 }));
+		expect(detect([...quietBurst, ...note], quietWeak).some((n) => n.ghost)).toBe(false);
+	});
+	it('does not reinterpret an opening burst on the following note', () => {
+		expect(
+			detect([...burst().map((r) => frame(58, r.time, { warmup: true })), ...following()]).some(
+				(n) => n.ghost
+			)
+		).toBe(false);
+	});
+});
+
+describe('segmentNotes: second-harmonic (octave-up) locks at the edges of a note', () => {
+	// The 2026-11-02 Root–Flat Third Ab3: its attack and decay read as its
+	// 416 Hz 2nd harmonic and the sustain between as the fundamental, so the
+	// subs were Ab4 · Ab3 · Ab4 and the sandwich rule took the two outer
+	// locks as the note. A flagged sub folds an octave down before the subs
+	// merge, in the twelfth-up fold's form.
+	/** The equal-tempered frequency of a MIDI note. */
+	const hz = (midi: number) => 440 * Math.pow(2, (midi - 69) / 12);
+	/** A run of consecutive 60 fps readings on one MIDI, optionally flagged as an octave-up lock. */
+	function run(midi: number, from: number, count: number, opts: { octaveUp?: boolean } = {}): PitchReading[] {
+		return Array.from({ length: count }, (_, i) => ({
+			...makeReading(midi, from + i / 60),
+			frequency: hz(midi),
+			...(opts.octaveUp ? { octaveUp: true } : {})
+		}));
+	}
+	/** A held Ab3 (one attack) whose attack and decay read as Ab4. */
+	function heldAb(attack: PitchReading[], decay: PitchReading[]): PitchReading[] {
+		return [...attack, ...run(56, 12 / 60, 30), ...decay];
+	}
+	/** Segments readings as one note: a single attack at time zero, through the last frame. */
+	const segment = (readings: PitchReading[]) =>
+		segmentNotes(readings, [0], readings[readings.length - 1].time + 1 / 60, undefined, undefined, undefined, [0]);
+
+	it('folds flagged attack and decay stretches back onto the fundamental between them', () => {
+		const notes = segment(heldAb(run(68, 0, 12, { octaveUp: true }), run(68, 42 / 60, 20, { octaveUp: true })));
+		expect(notes.map((n) => n.midi)).toEqual([56]);
+		expect(notes[0].onsetTime).toBe(0);
+		expect(notes[0].duration).toBeCloseTo(62 / 60, 2);
+	});
+
+	it('without the flag the sandwich rule still takes the outer stretches as the note', () => {
+		expect(segment(heldAb(run(68, 0, 12), run(68, 42 / 60, 20))).map((n) => n.midi)).toEqual([68]);
+	});
+
+	it('needs a strong majority of each stretch: half its frames flagged is not a lock', () => {
+		const attack = [...run(68, 0, 6, { octaveUp: true }), ...run(68, 6 / 60, 6)];
+		const decay = [...run(68, 42 / 60, 10, { octaveUp: true }), ...run(68, 52 / 60, 10)];
+		expect(segment(heldAb(attack, decay)).map((n) => n.midi)).toEqual([68]);
+	});
+
+	it('folds a whole note that locked from attack to release, and the whole-note vote does not drop it twice', () => {
+		const notes = segment(run(68, 0, 30, { octaveUp: true }));
+		expect(notes.map((n) => n.midi)).toEqual([56]);
+	});
+
+	it('folds the lock when the onsets come from the readings themselves (the live path)', () => {
+		const readings = heldAb(run(68, 0, 12, { octaveUp: true }), run(68, 42 / 60, 20, { octaveUp: true }));
+		const onsets = resolveOnsets([], readings);
+		expect(onsets).toHaveLength(1);
+		const notes = segmentNotes(readings, onsets, readings[readings.length - 1].time + 1 / 60);
+		expect(notes.map((n) => n.midi)).toEqual([56]);
+		expect(notes[0].duration).toBeCloseTo(62 / 60, 2);
+	});
+
+	it('an unflagged octave leap still earns its own onsets from the readings', () => {
+		expect(resolveOnsets([], heldAb(run(68, 0, 12), run(68, 42 / 60, 20)))).toHaveLength(3);
+	});
+
+	describe('foldOctaveUpLockRuns (the stream-level fold the onset extractor reads)', () => {
+		it('folds a run of three confident flagged frames an octave down, keeping the raw frequency', () => {
+			const lock = run(68, 0, 3, { octaveUp: true });
+			const folded = foldOctaveUpLockRuns(lock);
+			expect(folded.map((r) => r.midi)).toEqual([56, 56, 56]);
+			expect(folded.map((r) => r.midiFloat)).toEqual([56, 56, 56]);
+			expect(folded.map((r) => r.frequency)).toEqual(lock.map((r) => r.frequency));
+		});
+
+		it('does not judge a run shorter than three confident frames', () => {
+			expect(foldOctaveUpLockRuns(run(68, 0, 2, { octaveUp: true })).map((r) => r.midi)).toEqual([68, 68]);
+		});
+
+		it('counts no warmup frame toward the run, flagged or not', () => {
+			const lock = run(68, 0, 5, { octaveUp: true }).map((r, i) => ({ ...r, warmup: i < 3 }));
+			expect(foldOctaveUpLockRuns(lock).map((r) => r.midi)).toEqual([68, 68, 68, 68, 68]);
+		});
+
+		it('folds a short flagged run with the fundamental on both sides', () => {
+			const stream = [...run(56, 0, 10), ...run(68, 10 / 60, 2, { octaveUp: true }), ...run(56, 12 / 60, 10)];
+			expect(new Set(foldOctaveUpLockRuns(stream).map((r) => r.midi))).toEqual(new Set([56]));
+		});
+
+		it('leaves a short flagged run that leads to another note', () => {
+			const stream = [...run(56, 0, 10), ...run(68, 10 / 60, 2, { octaveUp: true }), ...run(58, 12 / 60, 10)];
+			expect(foldOctaveUpLockRuns(stream).filter((r) => r.midi === 68)).toHaveLength(2);
+		});
+
+		it('leaves a twelfth-up flag to its own fold', () => {
+			const lock = run(69, 0, 3).map((r) => ({ ...r, twelfthUp: true }));
+			expect(foldOctaveUpLockRuns(lock).map((r) => r.midi)).toEqual([69, 69, 69]);
 		});
 	});
 });

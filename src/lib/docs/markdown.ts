@@ -117,9 +117,7 @@ export function renderMarkdown(markdown: string, currentSlug = ''): RenderResult
 	// renderer streams untrusted LLM output through this. sanitize-html drops
 	// `<script>`, inline event handlers, and unsafe URL schemes while keeping
 	// our renderer's emitted attributes (id, class, href, target, rel, title,
-	// data-lang, aria-hidden) intact. Pure JS — works on the prod Node 18
-	// server unlike isomorphic-dompurify, which pulls in jsdom + the
-	// ESM-only @exodus/bytes (see Sentry MANKUNKU-H).
+	// data-lang, aria-hidden) intact. Pure JS, shared by SSR and the browser without a DOM emulator.
 	const html = sanitizeHtml(rawHtml, {
 		allowedTags: [...sanitizeHtml.defaults.allowedTags, 'img'],
 		allowedAttributes: {

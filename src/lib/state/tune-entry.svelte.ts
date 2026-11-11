@@ -28,7 +28,7 @@ import {
 	subtractFractions
 } from '$lib/music/intervals';
 import { transposePitchClass } from '$lib/music/transposition';
-import { parseChordSymbol, formatChordSymbol, type ChordSymbol } from '$lib/music/chord-symbol';
+import { capitalizeTypedChord, parseChordSymbol, formatChordSymbol, type ChordSymbol } from '$lib/music/chord-symbol';
 import { CHORD_DEFINITIONS } from '$lib/music/chords';
 import { harmonicSegmentFromChordSymbol } from '$lib/tunes/segment-from-symbol';
 import { getInstrument, getEffectiveHighestNote } from '$lib/state/settings.svelte';
@@ -1678,13 +1678,14 @@ function chordOffset(bar: number, beat: number): Fraction {
 
 /**
  * Set (or replace) the chord at a bar/beat position in a section. The text
- * is a WRITTEN-pitch symbol as the user reads it; storage is concert with a
- * concert-canonical raw symbol. Returns false for unparseable text.
+ * is a WRITTEN-pitch symbol as the user reads it, root and bass in either
+ * case; storage is concert with a concert-canonical raw symbol. Returns false
+ * for unparseable text.
  */
 export function setChord(sectionIdx: number, bar: number, beat: number, symbolText: string): boolean {
 	const sec = tuneEntry.sections[sectionIdx];
 	if (!sec) return false;
-	const parsed = parseChordSymbol(symbolText);
+	const parsed = parseChordSymbol(capitalizeTypedChord(symbolText));
 	if (!parsed) return false;
 
 	const semitones = entryTranspositionSemitones();

@@ -7,7 +7,7 @@ import { fractionToFloat } from '$lib/music/intervals';
 import { resolveCoordinatedVoicing, type CoordinatedVoicingMemory } from '$lib/audio/coordinated-voicing';
 import { generateBacking, type NativeBalladReplyDecision } from '$lib/audio/backing-generation';
 import { assertHistoricalBalladReplyCompatibility } from './ballad-native-reply-assertions';
-import { BACKING_STYLES } from '$lib/audio/backing-styles';
+import { HISTORICAL_MUSICALITY_STYLES as BACKING_STYLES } from '../../helpers/musicality-style-fixtures';
 import { buildHistoricalListeningTuneSession as buildListeningTuneSession } from '../../helpers/musicality-tune-fixtures';
 import { seedFrom } from '$lib/audio/generation-rng';
 

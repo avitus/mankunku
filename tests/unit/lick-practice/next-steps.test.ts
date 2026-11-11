@@ -1,6 +1,6 @@
 /** Recent session evidence, learning priority, and the report-to-focus-ramp boundary. */
 import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
-import { buildNextStep, continueRecommendations, type NextStepInput } from '$lib/state/lick-practice-next-steps';
+import { buildNextStep, buildNextSteps, continueRecommendations, type NextStepInput } from '$lib/state/lick-practice-next-steps';
 import { getNextStep, lickPractice } from '$lib/state/lick-practice.svelte';
 import { settings } from '$lib/state/settings.svelte';
 import { saveLickPracticeSessions, type LickPracticeSessionLogEntry } from '$lib/persistence/lick-practice-sessions';
@@ -422,5 +422,44 @@ describe('recommendations after Daily follow-up practice', () => {
 		expect(step?.action?.phrase).toBe(phrase);
 		expect(step?.reason).toContain('70%');
 		expect(step?.reason).not.toContain('2 sessions');
+	});
+});
+
+
+describe('multiple report choices', () => {
+	it('does not offer the same lick/key twice across progression slices', () => {
+		const repeated = makeLickReport({ lickId: 'same', keys: [{ key: 'C', score: .6 }] });
+		const report = makeReport([repeated, { ...repeated, progressionType: 'major-vamp' },
+			makeLickReport({ lickId: 'other', keys: [{ key: 'F', score: .8 }] })]);
+		expect(buildNextSteps(inputFor(report)).map(step => step.action?.lickId)).toEqual(['same', 'other']);
+	});
+
+	it('offers three distinct targets, preferring another lick before a second key', () => {
+		const report = makeReport([
+			makeLickReport({ lickId: 'a', keys: [{ key: 'C', score: .5 }, { key: 'F', score: .6 }, { key: 'Bb', score: .7 }] }),
+			makeLickReport({ lickId: 'b', keys: [{ key: 'C', score: .8 }] })
+		]);
+		const choices = buildNextSteps(inputFor(report));
+		expect(choices.map(step => [step.action?.lickId, step.action?.focusKey])).toEqual([
+			['a', 'C'], ['b', 'C'], ['a', 'F']
+		]);
+		expect(choices[0]).toEqual(buildNextStep(inputFor(report)));
+		expect(choices[1].focus).toMatchObject({ typicalScore: .8, sessions: 1, weakSessions: 1 });
+	});
+
+	it('never pads choices with a healthy key or a completed follow-up', () => {
+		const report = reportFor([.7, .8, .99], ['first', 'second', 'healthy']);
+		const input = inputFor(report, { recommendationContext: {
+			report, plan: planFor(report), sessionId: 'current', timestamp: 1, completedLickIds: ['first']
+		} });
+		expect(buildNextSteps(input).map(step => step.action?.lickId)).toEqual(['second']);
+		expect(buildNextSteps(inputFor(makeReport([])))).toEqual([]);
+	});
+
+	it('rest remains exclusive even when there are multiple weak targets', () => {
+		const report = reportFor([.4, .5]);
+		report.totalAttempts = 8;
+		expect(buildNextSteps(inputFor(report))).toEqual([buildNextStep(inputFor(report))]);
+		expect(buildNextSteps(inputFor(report))[0].action).toBeNull();
 	});
 });

@@ -170,7 +170,7 @@ describe('PROGRESSION_LICK_CATEGORIES trick registrations', () => {
 	});
 
 	it('leaves unregistered progressions trick-free', () => {
-		for (const type of ['turnaround', 'iii-VI-ii-V-I', 'blues'] as const) {
+		for (const type of ['turnaround', 'turnaround-short', 'iii-VI-ii-V-I', 'iii-VI-ii-V-I-long', 'blues'] as const) {
 			expect(getCompatibleLickCategories(type)).not.toContain('enclosures');
 			expect(getCompatibleLickCategories(type)).not.toContain('triad-pairs');
 		}

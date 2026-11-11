@@ -159,14 +159,14 @@ test.describe('tune practice setup', () => {
 		await expect(page).toHaveURL(/\/tunes\/when-the-saints-go-marching-in\/practice$/);
 
 		await expect(page.getByRole('heading', { name: /practice licks/i })).toBeVisible();
-		// When the Saints: 3 major-vamps + 1 dominant-vamp + 1 blues bar.
-		await expect(page.getByText(/5 insertion points/i)).toBeVisible();
+		// Compatible major vamps now combine into broader major-region windows.
+		await expect(page.getByText(/3 insertion points/i)).toBeVisible();
 		await expect(page.getByRole('button', { name: /^start$/i })).toBeVisible();
 
 		// The detector's bar ranges render as marker bands inside the chart SVG,
 		// each labeled with its progression name.
 		await expect(page.locator('svg rect.range-marker').first()).toBeVisible();
-		expect(await page.locator('svg rect.range-marker').count()).toBeGreaterThanOrEqual(5);
+		expect(await page.locator('svg rect.range-marker').count()).toBeGreaterThanOrEqual(3);
 		await expect(page.locator('svg text.range-marker-label').first()).toBeVisible();
 		const labels = await page.locator('svg text.range-marker-label').allTextContents();
 		expect(labels.join(' ')).toMatch(/Major|Dominant|Blues/);
@@ -185,17 +185,17 @@ test.describe('tune practice setup', () => {
 			await choruses.press('Tab');
 			await expect(choruses).toHaveValue('12', { timeout: 1000 });
 		}).toPass();
-		await expect(page.getByText(/60 insertion points/i)).toBeVisible();
+		await expect(page.getByText(/36 insertion points/i)).toBeVisible();
 		await choruses.fill('1');
 		await choruses.press('Tab');
-		await expect(page.getByText(/5 insertion points/i)).toBeVisible();
+		await expect(page.getByText(/3 insertion points/i)).toBeVisible();
 		await choruses.press('ArrowUp');
-		await expect(page.getByText(/10 insertion points/i)).toBeVisible();
+		await expect(page.getByText(/6 insertion points/i)).toBeVisible();
 		await expectToneClockRunning(page);
 		await page.reload();
 		await openSessionOptions(page);
 		await expect(choruses).toHaveValue('2');
-		await expect(page.getByText(/10 insertion points/i)).toBeVisible();
+		await expect(page.getByText(/6 insertion points/i)).toBeVisible();
 		await expectToneClockRunning(page);
 		await page.goto('/tunes/ls-mankunku-blues/practice');
 		await openSessionOptions(page);
@@ -209,14 +209,14 @@ test.describe('tune practice setup', () => {
 		await page.goto('/tunes/ls-mankunku-blues/practice');
 		await openSessionOptions(page);
 		// With the default head-first setting, only the SOLO pass of the
-		// whole-form repeat is practiceable (the jazz form rule): 3 blues bars +
-		// 1 short ii-V-I + 1 turnaround. Scope to the summary paragraph — the same
+		// whole-form repeat is practiceable (the jazz form rule): 2 blues windows,
+		// 1 short ii-V-I, 1 long turnaround and 1 short turnaround. Scope to the summary paragraph — the same
 		// progression names also render as on-chart marker labels (short ones like
 		// "Turnaround" un-truncated), so a bare getByText would match twice.
 		const summary = page.locator('p', { hasText: /insertion point/i });
 		await expect(summary).toContainText('5 insertion points');
 		await expect(summary).toContainText('Short ii-V-I (Maj)');
-		await expect(summary).toContainText('Turnaround');
+		await expect(summary).toContainText('Long Turnaround');
 		await expect(summary).toContainText('Blues');
 		await page.getByRole('switch', { name: /play head and outro/i }).click();
 		await expect(summary).toContainText('5 insertion points');

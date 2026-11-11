@@ -13,7 +13,7 @@
  */
 
 export interface BackingMixLevels {
-	/** Band output after compression; 1 is the +6 dB reference level. */
+	/** Band output after compression; 1 preserves the session reference level. */
 	master: number;
 	bass: number;
 	comp: number;
@@ -182,6 +182,11 @@ export const ROOM_RETURN_GAIN = 0.126;
 /** Path to the small-room impulse response (Opus, same fetch+decode path
  *  as the drum samples). Load is best-effort: no IR → dry backing. */
 export const ROOM_IR_URL = '/samples/ir/room.ogg';
+
+/** Tune backing plays 12 dB above the accompaniment bed, with melody
+ * kept at the same unity level as ear-training and lick-practice demos.
+ * Applied after compression so the boost does not change compression. */
+export const TUNE_BACKING_LEVEL = 4;
 
 /**
  * Glue compressor on the backing bus only (master carries the melody and

@@ -3645,7 +3645,8 @@ describe('pitch replay regression: ghost notes appear only where they were playe
 	const recordings = resolve(here, '../fixtures/recordings');
 	const wavs = readdirSync(recordings).filter((f) => f.endsWith('.wav'));
 	const EXPECTED_GHOSTS: Record<string, number> = {
-		'2026-09-16-sharp-9-flat-9-dom.wav': 3
+		'2026-09-16-sharp-9-flat-9-dom.wav': 3,
+		'2026-10-30-pent-turn-syncopated.wav': 1
 	};
 
 	it.each(wavs)('%s', async (file) => {
@@ -4388,4 +4389,608 @@ describe('pitch replay regression: Slow Climb to the Third — an E3 locked on i
 		const { detected } = await replayPipeline({ live: true });
 		expect(detected.map((n) => n.midi)).toEqual([50, 52, 54]);
 	});
+});
+
+describe('pitch replay regression: Little Cry — a breathy F whose warmup window a clarity dip split (concert Bb, 2026-10-28)', () => {
+	// Ear training, tenor, 100 BPM, metronome only. The line is F3 · Eb3 · F3 ·
+	// Eb3 · Bb2; Andy flagged "Some breathy notes were missed". The app saved
+	// F3 · Eb3 (1.2 s) · Bb2 — 3 of 5, 0.590.
+	//
+	// The second F (1.418 s on the trimmed clock) is breathy: it carries a
+	// worklet onset, which resets the octave stabilizer, and then only five
+	// confident frames, all F, before it slurs into the Eb — the 100 ms
+	// between its 4th and 5th frame read under the 0.80 clarity threshold
+	// (weak readings at 0.65–0.80). The stabilizer counts only confident
+	// frames, so those five are its completed warmup vote, on F, and every one
+	// is flagged warmup. But `splitByPitchChange` cuts a same-pitch run at a
+	// reading gap, which left a 4-frame and a 1-frame piece, and `emitNote`
+	// judged each piece alone: neither held the five frames a completed
+	// warmup needs, so both were dropped as a partial warmup burst, the Eb
+	// after the F took the segment, and the same-pitch merge joined it to the
+	// Eb before. Completion is now judged across the whole segment's run of
+	// warmup frames. Only this take changes across the corpus (46 takes ×
+	// saved / trimmed / untrimmed × both time bases); judging it across an
+	// onset instead grew a phantom repeat in two others (see the unit tests).
+	const TRANSPORT_SECONDS = 266.24249433106576;
+	const TEMPO = 100;
+	const SWING = 0.6;
+	const FIXTURE = 'recordings/2026-10-28-little-cry';
+
+	const expectedPhrase: Phrase = {
+		id: 'bbn-033_Bb',
+		name: 'Little Cry',
+		timeSignature: [4, 4],
+		key: 'Bb',
+		notes: [
+			{ pitch: 53, duration: [1, 4], offset: [0, 1] }, // F3
+			{ pitch: 51, duration: [1, 8], offset: [1, 4] }, // Eb3
+			{ pitch: 53, duration: [1, 8], offset: [3, 8] }, // F3
+			{ pitch: 51, duration: [1, 4], offset: [1, 2] }, // Eb3
+			{ pitch: 46, duration: [1, 4], offset: [3, 4] } // Bb2
+		],
+		harmony: [{ chord: { root: 'Bb', quality: '7' }, scaleId: 'blues.minor', startOffset: [0, 1], duration: [1, 1] }],
+		difficulty: { level: 11, pitchComplexity: 15, rhythmComplexity: 7, lengthBars: 1 },
+		category: 'blues',
+		tags: ['blue-note', 'neighbor', 'cry'],
+		source: 'curated'
+	};
+
+	/** Replays this take's WAV through the real detector and segmenter. */
+	const replayPipeline = (opts: { live?: boolean } = {}) =>
+		replayEarTrainingTake(`${FIXTURE}.wav`, TRANSPORT_SECONDS, TEMPO, opts);
+
+	/** Reads this take's saved diagnostic export. */
+	const readJson = () =>
+		JSON.parse(
+			readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '..', 'fixtures', `${FIXTURE}.json`), 'utf8')
+		);
+
+	/** Scores detected notes against this take's phrase, bleed filter off, as the take was saved. */
+	const score = (detected: DetectedNote[]) =>
+		runScorePipeline({
+			detected,
+			phrase: expectedPhrase,
+			tempo: TEMPO,
+			transportSeconds: TRANSPORT_SECONDS,
+			swing: SWING,
+			bleedFilterEnabled: false
+		}).chosen;
+
+	it('the app saved F3 · Eb3 · Bb2 (3 of 5, 0.590)', () => {
+		const json = readJson();
+		expect(json.flag.note).toMatch(/breathy/i);
+		const saved: DetectedNote[] = json.scoring.savedDetectedNotes;
+		expect(saved.map((n) => n.midi)).toEqual([53, 51, 46]);
+		expect(json.scoring.savedScore.notesHit).toBe(3);
+		expect(json.scoring.savedScore.overall).toBeCloseTo(0.59, 3);
+	});
+
+	it('the second F is five warmup frames on F with a reading gap between the 4th and 5th', () => {
+		const json = readJson();
+		const readings: PitchReading[] = json.detection.readings;
+		const f = readings.filter((r) => r.time > 1.418 && r.time < 1.6);
+		expect(f.map((r) => r.midi)).toEqual([53, 53, 53, 53, 53]);
+		expect(f.every((r) => r.warmup)).toBe(true);
+		expect(f[4].time - f[3].time).toBeGreaterThan(0.09);
+		const weak: PitchReading[] = json.detection.weakReadings;
+		expect(weak.filter((r) => r.time > f[3].time && r.time < f[4].time).length).toBeGreaterThanOrEqual(3);
+	});
+
+	it('the saved readings now segment all five notes', () => {
+		const json = readJson();
+		const readings: PitchReading[] = json.detection.readings;
+		const duration: number = json.audio.duration;
+		const bleed = getMetronomeBleedOnsets(TRANSPORT_SECONDS, TEMPO, duration);
+		const base = resolveOnsets(json.detection.rawWorkletOnsets, readings);
+		const articulation = findReArticulations(readings, base, bleed);
+		const detected = segmentNotes(
+			readings,
+			[...base, ...articulation].sort((a, b) => a - b),
+			duration,
+			undefined,
+			undefined,
+			undefined,
+			json.detection.rawWorkletOnsets,
+			bleed,
+			articulation,
+			json.detection.weakReadings
+		);
+		expect(detected.map((n) => n.midi)).toEqual([53, 51, 53, 51, 46]);
+		expect(score(detected).notesHit).toBe(5);
+	});
+
+	it('trims the pre-armed lead-in back to the performance', async () => {
+		const { trimmed } = await replayPipeline();
+		expect(trimmed.offset).toBeCloseTo(1.467, 2);
+	});
+
+	it('replayed: F3, Eb3, F3, Eb3, Bb2 (saved: F3, Eb3, Bb2)', async () => {
+		const { detected } = await replayPipeline();
+		expect(detected.map((n) => n.midi)).toEqual([53, 51, 53, 51, 46]);
+		expect(detected[2].onsetTime).toBeCloseTo(1.418, 2);
+	});
+
+	it('scores five of five (saved: 3 of 5, 0.590)', async () => {
+		const { detected } = await replayPipeline();
+		const result = score(detected);
+		expect(result.notesHit).toBe(5);
+		expect(result.extrasCharged).toBe(0);
+		expect(result.pitchAccuracy).toBe(1);
+		expect(result.noteResults.some((nr) => nr.missed || nr.extra)).toBe(false);
+		expect(result.overall).toBeGreaterThan(0.9);
+	});
+
+	it('keeps all five in the live detector time base', async () => {
+		const { detected } = await replayPipeline({ live: true });
+		expect(detected.map((n) => n.midi)).toEqual([53, 51, 53, 51, 46]);
+	});
+});
+
+// The opening C has four warmup-only frames (three an octave low), preceded
+// by a stable weak C plateau. The incomplete warmup was discarded, and the
+// interior-only ghost pass had no left neighbour from which to recover it.
+describe('pitch replay regression: Pent Turn / Syncopated missed opening C (2026-10-30)', () => {
+	const FIXTURE = 'recordings/2026-10-30-pent-turn-syncopated';
+	const TRANSPORT_SECONDS = 417.20009070294793;
+	const expectedPhrase: Phrase = {
+		id: 'cmb-sp-pent-turn_rp-4-synco_Bb',
+		name: 'Pent Turn / Syncopated',
+		timeSignature: [4, 4],
+		key: 'Bb',
+		notes: [
+			{ pitch: 60, duration: [1, 8], offset: [1, 8] },
+			{ pitch: 58, duration: [1, 4], offset: [1, 4] },
+			{ pitch: 55, duration: [1, 8], offset: [5, 8] },
+			{ pitch: 58, duration: [1, 4], offset: [3, 4] }
+		],
+		harmony: [
+			{
+				chord: { root: 'Bb', quality: 'maj7' },
+				scaleId: 'pentatonic.major',
+				startOffset: [0, 1],
+				duration: [1, 1]
+			}
+		],
+		difficulty: { level: 25, pitchComplexity: 6, rhythmComplexity: 49, lengthBars: 1 },
+		category: 'pentatonic',
+		tags: ['turn', 'ornament', 'syncopated', 'off-beat', 'combined'],
+		source: 'combined'
+	};
+	/** Reads this take's saved diagnostic export. */
+	const readJson = () =>
+		JSON.parse(
+			readFileSync(
+				resolve(dirname(fileURLToPath(import.meta.url)), '../fixtures', `${FIXTURE}.json`),
+				'utf8'
+			)
+		);
+	/** Scores detected notes against this take's phrase, bleed filter off, as the take was saved. */
+	const score = (detected: DetectedNote[]) =>
+		runScorePipeline({
+			detected,
+			phrase: expectedPhrase,
+			tempo: 100,
+			transportSeconds: TRANSPORT_SECONDS,
+			swing: 0.6,
+			bleedFilterEnabled: false
+		}).chosen;
+	it('pins the saved miss and reproduces the original score from its saved notes', () => {
+		const json = readJson();
+		expect(json.flag.note).toBe('First note was missed');
+		expect(json.scoring.savedDetectedNotes.map((n: DetectedNote) => n.midi)).toEqual([
+			58, 55, 55, 58
+		]);
+		const { audioCheck: _audioCheck, ...savedScore } = json.scoring.savedScore;
+		expect(score(json.scoring.savedDetectedNotes)).toEqual(savedScore);
+	});
+	it('recovers the opening C from the saved reading evidence', () => {
+		const json = readJson();
+		const readings = json.detection.readings;
+		const bleed = getMetronomeBleedOnsets(TRANSPORT_SECONDS, 100, json.audio.duration);
+		const base = resolveOnsets(json.detection.rawWorkletOnsets, readings);
+		const articulation = findReArticulations(readings, base, bleed);
+		const detected = segmentNotes(
+			readings,
+			[...base, ...articulation].sort((a, b) => a - b),
+			json.audio.duration,
+			undefined,
+			undefined,
+			undefined,
+			json.detection.rawWorkletOnsets,
+			bleed,
+			articulation,
+			json.detection.weakReadings
+		);
+		expect(detected[0].midi).toBe(60);
+		expect(score(detected).notesHit).toBe(4);
+	});
+	it.each([false, true])(
+		'recovers and scores all four notes (live time base: %s)',
+		async (live) => {
+			const { trimmed, detected } = await replayEarTrainingTake(
+				`${FIXTURE}.wav`,
+				TRANSPORT_SECONDS,
+				100,
+				{ live }
+			);
+			expect(trimmed.offset).toBeCloseTo(1.2333333333333334 + (live ? 4096 / 44100 : 0), 6);
+			expect(detected.map((n) => n.midi)).toEqual(live ? [60, 58, 55, 58] : [60, 58, 55, 55, 58]);
+			expect(detected[0].ghost).toBe(true);
+			const result = score(detected);
+			expect(result.notesHit).toBe(4);
+			expect(result.extrasCharged).toBe(0);
+			expect(result.pitchAccuracy).toBe(1);
+			expect(result.overall).toBeGreaterThan(0.9);
+		}
+	);
+});
+
+describe('pitch replay regression: Root–Flat Third — an Ab3 whose attack and decay speak on the 2nd harmonic (concert F, 2026-11-02)', () => {
+	// Ear training, tenor, 100 BPM, metronome only. The line is F3 · Ab3, a
+	// half note each; Andy flagged "Second note was scored in octave above".
+	// The app saved F3 · Ab4 — 1 of 2, 0.675 "fair".
+	//
+	// The Ab3 (207.6 Hz) reads as its 416 Hz 2nd harmonic for the first
+	// 0.2 s and the whole decay — 36 of the note's 72 confident frames — and
+	// as its own fundamental, at clarity 1.00, for the sustain between. The
+	// 2nd-harmonic lock rule (`isOctaveUpLock`) stopped at 370 Hz on the
+	// belief that notes from G3 up never mislock, so no frame was flagged;
+	// `splitByPitchChange` then cut the note into Ab4 · Ab3 · Ab4, and the
+	// sandwich rule, which takes the two matching outer notes as the real
+	// pitch, swallowed the fundamental into the lock. The odd-partial test
+	// now runs up to 500 Hz (the 2nd harmonic of the tenor's lower-register
+	// top): it flags 85% of the attack stretch and 74% of the decay, and the
+	// segmenter folds a flagged sub-segment an octave down before the subs
+	// merge (`foldOctaveUpLocks`, the twelfth-up fold's form), so the three
+	// read Ab3 and rejoin. The series test keeps its 370 Hz ceiling: a
+	// genuine upper-register note leaks its fingering's first mode an
+	// octave down (the 2026-05-19 Octave–Flat-Seven Drop C5 at 526 Hz reads
+	// 0.13–0.16 of its partials there, with the odd bins empty), and the
+	// series test would have flagged 28 of its 34 frames.
+	const TRANSPORT_SECONDS = 259.0109750566894;
+	const TEMPO = 100;
+	const SWING = 0.6;
+	const FIXTURE = 'recordings/2026-11-02-root-flat-third';
+
+	const expectedPhrase: Phrase = {
+		id: 'bc-011_F',
+		name: 'Root–Flat Third',
+		timeSignature: [4, 4],
+		key: 'F',
+		notes: [
+			{ pitch: 53, duration: [1, 2], offset: [0, 1] }, // F3
+			{ pitch: 56, duration: [1, 2], offset: [1, 2] } // Ab3
+		],
+		harmony: [
+			{ chord: { root: 'F', quality: 'min7' }, scaleId: 'pentatonic.minor', startOffset: [0, 1], duration: [1, 1] }
+		],
+		difficulty: { level: 6, pitchComplexity: 11, rhythmComplexity: 1, lengthBars: 1 },
+		category: 'pentatonic',
+		tags: ['beginner', 'minor-pentatonic', 'interval', 'ascending'],
+		source: 'curated'
+	};
+
+	/** Replays this take's WAV through the real detector and segmenter. */
+	const replayPipeline = (opts: { live?: boolean } = {}) =>
+		replayEarTrainingTake(`${FIXTURE}.wav`, TRANSPORT_SECONDS, TEMPO, opts);
+
+	/** Reads this take's saved diagnostic export. */
+	const readJson = () =>
+		JSON.parse(
+			readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '..', 'fixtures', `${FIXTURE}.json`), 'utf8')
+		);
+
+	/** Confident frames inside the second note (Ab3, 1.4–2.6 s on the trimmed clock). */
+	const inAb = (readings: PitchReading[]) => readings.filter((r) => !r.warmup && r.time >= 1.35 && r.time < 2.65);
+
+	it('the app saved the Ab3 as Ab4 (1 of 2, 0.675)', () => {
+		const json = readJson();
+		expect(json.flag.note).toMatch(/octave above/i);
+		const saved: DetectedNote[] = json.scoring.savedDetectedNotes;
+		expect(saved.map((n) => n.midi)).toEqual([53, 68]);
+		expect(json.scoring.savedScore.notesHit).toBe(1);
+		expect(json.scoring.savedScore.noteResults[1].pitchScore).toBe(0);
+		expect(json.scoring.savedScore.overall).toBeCloseTo(0.6748, 3);
+	});
+
+	it('the saved readings reproduce the saved detection: the lock sat above the old 370 Hz ceiling, so nothing was flagged', () => {
+		const json = readJson();
+		const readings: PitchReading[] = json.detection.readings;
+		const duration: number = json.audio.duration;
+		const bleed = getMetronomeBleedOnsets(TRANSPORT_SECONDS, TEMPO, duration);
+		const base = resolveOnsets(json.detection.rawWorkletOnsets, readings);
+		const articulation = findReArticulations(readings, base, bleed);
+		const detected = segmentNotes(
+			readings,
+			[...base, ...articulation].sort((a, b) => a - b),
+			duration,
+			undefined,
+			undefined,
+			undefined,
+			json.detection.rawWorkletOnsets,
+			bleed,
+			articulation,
+			json.detection.weakReadings
+		);
+		expect(detected.map((n) => n.midi)).toEqual([53, 68]);
+		const ab = inAb(readings);
+		expect(ab.filter((r) => r.midi === 68).length).toBe(36);
+		expect(ab.filter((r) => r.midi === 56).length).toBe(36);
+		expect(ab.some((r) => r.octaveUp)).toBe(false);
+	});
+
+	it('trims the pre-armed lead-in back to the performance', async () => {
+		const { trimmed } = await replayPipeline();
+		expect(trimmed.offset).toBeCloseTo(1.433, 2);
+	});
+
+	it('the Ab3 reads at 416 Hz on its attack and decay and both stretches carry the flag', async () => {
+		const { trimmed } = await replayPipeline();
+		const ab = inAb(trimmed.readings);
+		expect(ab.length).toBe(72);
+		const attack = ab.filter((r) => r.midi === 68 && r.time < 1.61);
+		const decay = ab.filter((r) => r.midi === 68 && r.time > 2.21);
+		expect(attack.length).toBe(13);
+		expect(decay.length).toBe(23);
+		expect(attack.filter((r) => Math.abs(r.frequency - 415.3) < 2).length).toBe(11);
+		expect(decay.every((r) => Math.abs(r.frequency - 416) < 2)).toBe(true);
+		// The sub-segment fold needs 60% of each stretch's confident frames.
+		expect(attack.filter((r) => r.octaveUp).length / attack.length).toBeGreaterThan(0.75);
+		expect(decay.filter((r) => r.octaveUp).length / decay.length).toBeGreaterThan(0.7);
+		// The fundamental between them reads at clarity 1.00 and is never flagged.
+		const sustain = ab.filter((r) => r.midi === 56);
+		expect(sustain.length).toBe(36);
+		expect(sustain.filter((r) => r.clarity >= 0.98).length).toBeGreaterThan(30);
+		expect(sustain.some((r) => r.octaveUp)).toBe(false);
+	});
+
+	it('replayed: F3, Ab3 (saved: F3, Ab4)', async () => {
+		const { detected } = await replayPipeline();
+		expect(detected.map((n) => n.midi)).toEqual([53, 56]);
+		expect(detected[1].onsetTime).toBeCloseTo(1.4, 1);
+	});
+
+	it('scores two of two (saved: 1 of 2, 0.675)', async () => {
+		const { detected } = await replayPipeline();
+		const result = runScorePipeline({
+			detected,
+			phrase: expectedPhrase,
+			tempo: TEMPO,
+			transportSeconds: TRANSPORT_SECONDS,
+			swing: SWING,
+			bleedFilterEnabled: false
+		});
+		expect(result.chosen.notesHit).toBe(2);
+		expect(result.chosen.extrasCharged).toBe(0);
+		expect(result.chosen.pitchAccuracy).toBe(1);
+		expect(result.chosen.noteResults.some((nr) => nr.missed || nr.extra)).toBe(false);
+		expect(result.chosen.overall).toBeGreaterThan(0.9);
+	});
+
+	it('folds the lock the same way in the live detector time base', async () => {
+		const { detected } = await replayPipeline({ live: true });
+		expect(detected.map((n) => n.midi)).toEqual([53, 56]);
+	});
+});
+
+describe('pitch replay regression: Through the Blue to the Root — a tongued D3 pair under short third-harmonic locks (concert A, 2026-11-04)', () => {
+	// Ear training, tenor, 100 BPM, metronome only. The line is D3 · D3 · E3 ·
+	// G3 · A3 on swung eighths and quarters. The take saved 4 of 5 with the
+	// repeated D merged, 0.793. (The fixture is "-2": Andy's first take that
+	// night, a far subtler tongue the signal cannot separate from a held note,
+	// was left out of the corpus at his call. AGENTS.md has the note.)
+	//
+	// The tongue is plain: 2-cycle RMS 0.21 → 0.055 (−12 dB) at
+	// 0.79 s, every partial falling with it, back at 0.25 by 0.85 s. Each tier
+	// that could read it scans contiguous same-MIDI runs. But the D3's 3rd
+	// harmonic carries ~20 dB over its fundamental, and McLeod took that 440 Hz
+	// partial for 4 frames, then 1 frame at the very bottom of the dip, then 2
+	// more, all flagged `twelfthUp`. `foldLockRuns` folded the 4 and left the
+	// short ones, whose 3-frame vote exists to outvote an attack frame, so the
+	// run the tiers saw ended at the floor (0.767 s) and nothing ever recovered
+	// inside it. A flagged run of 1–2 frames with the fundamental on BOTH sides
+	// now folds too. A flagged frame leading on to another note stays a leap.
+	//
+	// Across all 50 takes, both time bases, trimmed and untrimmed, with worklet
+	// onsets and without, plus the saved-readings path, only this take changes.
+	const TEMPO = 100;
+	const SWING = 0.6;
+
+	const expectedPhrase: Phrase = {
+		id: 'bbn-011_A',
+		name: 'Through the Blue to the Root',
+		timeSignature: [4, 4],
+		key: 'A',
+		notes: [
+			{ pitch: 50, duration: [1, 8], offset: [0, 1] }, // D3
+			{ pitch: 50, duration: [1, 8], offset: [1, 8] }, // D3
+			{ pitch: 52, duration: [1, 4], offset: [1, 4] }, // E3
+			{ pitch: 55, duration: [1, 4], offset: [1, 2] }, // G3
+			{ pitch: 57, duration: [1, 4], offset: [3, 4] } // A3
+		],
+		harmony: [
+			{ chord: { root: 'A', quality: '7' }, scaleId: 'blues.minor', startOffset: [0, 1], duration: [1, 1] }
+		],
+		difficulty: { level: 4, pitchComplexity: 8, rhythmComplexity: 1, lengthBars: 1 },
+		category: 'blues',
+		tags: ['blue-note', 'blues', 'beginner', 'passing-up'],
+		source: 'curated'
+	};
+
+	/** Reads a saved diagnostic export by its fixture path. */
+	const readJson = (fixture: string) =>
+		JSON.parse(
+			readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '..', 'fixtures', `${fixture}.json`), 'utf8')
+		);
+
+	/** Scores detected notes on the given transport clock, bleed filter off, as the take was saved. */
+	const scoreOf = (detected: DetectedNote[], transportSeconds: number) =>
+		runScorePipeline({
+			detected,
+			phrase: expectedPhrase,
+			tempo: TEMPO,
+			transportSeconds,
+			swing: SWING,
+			bleedFilterEnabled: false
+		}).chosen;
+
+	const TRANSPORT_SECONDS = 83.76641723356006;
+	const FIXTURE = 'recordings/2026-11-04-through-the-blue-to-the-root-2';
+	/** Replays this take's WAV through the real detector and segmenter. */
+	const replayPipeline = (opts: { live?: boolean } = {}) =>
+		replayEarTrainingTake(`${FIXTURE}.wav`, TRANSPORT_SECONDS, TEMPO, opts);
+
+	it('the app saved one long D3 (4 of 5, 0.793)', () => {
+		const { scoring } = readJson(FIXTURE);
+		const saved: DetectedNote[] = scoring.savedDetectedNotes;
+		expect(saved.map((n) => n.midi)).toEqual([50, 52, 55, 57]);
+		expect(scoring.savedScore.notesHit).toBe(4);
+		expect(scoring.savedScore.noteResults[1].missed).toBe(true);
+		expect(scoring.savedScore.overall).toBeCloseTo(0.793, 3);
+	});
+
+	it('the floor collapses inside a D3 chopped by flagged locks of 4, 1 and 2 frames', () => {
+		const readings: PitchReading[] = readJson(FIXTURE).detection.readings;
+		const dip = readings.filter((r) => r.time >= 0.64 && r.time < 0.86);
+		expect(dip.map((r) => r.midi)).toEqual([
+			69, 69, 69, 69, 50, 50, 50, 50, 69, 50, 50, 69, 69
+		]);
+		expect(dip.filter((r) => r.midi === 69).every((r) => r.twelfthUp)).toBe(true);
+		const floor = Math.min(...dip.map((r) => r.rmsMin ?? Infinity));
+		expect(floor).toBeLessThan(0.06);
+		expect(Math.max(...readings.filter((r) => r.time > 0.8 && r.time < 0.86).map((r) => r.rms))).toBeGreaterThan(0.22);
+	});
+
+	it('the saved readings carry the flags, so they show the fix too', () => {
+		const json = readJson(FIXTURE);
+		const { readings, rawWorkletOnsets, weakReadings } = json.detection;
+		const duration: number = json.audio.duration;
+		const bleed = getMetronomeBleedOnsets(TRANSPORT_SECONDS, TEMPO, duration);
+		const base = resolveOnsets(rawWorkletOnsets, readings);
+		const articulation = findReArticulations(readings, base, bleed);
+		const detected = segmentNotes(
+			readings,
+			[...base, ...articulation].sort((a, b) => a - b),
+			duration,
+			undefined,
+			undefined,
+			undefined,
+			rawWorkletOnsets,
+			bleed,
+			articulation,
+			weakReadings
+		);
+		expect(detected.map((n) => n.midi)).toEqual([50, 50, 52, 55, 57]);
+	});
+
+	it('trims the pre-armed lead-in back to the performance', async () => {
+		const { trimmed } = await replayPipeline();
+		expect(trimmed.offset).toBeCloseTo(1.3833, 3);
+	});
+
+	it('replayed: finds the tongue and keeps both Ds (saved: one)', async () => {
+		const { articulationOnsets, detected } = await replayPipeline();
+		expect(articulationOnsets).toHaveLength(1);
+		expect(articulationOnsets[0]).toBeGreaterThan(0.72);
+		expect(articulationOnsets[0]).toBeLessThan(0.82);
+		expect(detected.map((n) => n.midi)).toEqual([50, 50, 52, 55, 57]);
+	});
+
+	it('scores five of five (saved: 4 of 5, 0.793)', async () => {
+		const { detected } = await replayPipeline();
+		const score = scoreOf(detected, TRANSPORT_SECONDS);
+		expect(score.notesHit).toBe(5);
+		expect(score.extrasCharged).toBe(0);
+		expect(score.pitchAccuracy).toBe(1);
+		expect(score.noteResults.some((nr) => nr.missed || nr.extra)).toBe(false);
+		expect(score.overall).toBeGreaterThan(0.95);
+	});
+
+	it('keeps both Ds in the live detector time base', async () => {
+		const { detected } = await replayPipeline({ live: true });
+		expect(detected.map((n) => n.midi)).toEqual([50, 50, 52, 55, 57]);
+	});
+
+	it('keeps two Ds, not three fragments, with no worklet onsets (live ear training)', async () => {
+		const { trimmed } = await replayPipeline({ live: true });
+		const bleed = getMetronomeBleedOnsets(TRANSPORT_SECONDS, TEMPO, trimmed.duration);
+		const base = resolveOnsets([], trimmed.readings);
+		const articulation = findReArticulations(trimmed.readings, base, bleed);
+		const detected = segmentNotes(
+			trimmed.readings,
+			[...base, ...articulation].sort((a, b) => a - b),
+			trimmed.duration,
+			undefined,
+			undefined,
+			undefined,
+			[],
+			bleed,
+			articulation,
+			trimmed.weakReadings
+		);
+		expect(detected.map((n) => n.midi)).toEqual([50, 50, 52, 55, 57]);
+	});
+});
+
+// The G3 · F3 · F3 take saved as G3 · F3 (2/3, 0.5605). The tongue
+// drops the band floor to 0.208× BEFORE a 100 ms tracking hole; across the
+// hole it has already recovered to 1.036×, then holds at 1.213×. The short-gap
+// stop-and-hold path now also accepts the existing pre-hole stop evidence.
+// The saved readings reproduce the miss exactly; replay and live timestamps
+// both recover the repeat, with the click grid and weak readings retained.
+describe('pitch replay regression: Blue Note Drop — F3 stops before the tracking gap (concert C, 2026-11-10)', () => {
+	const fixture = 'recordings/2026-11-10-blue-note-drop';
+	const json = JSON.parse(readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), '..', 'fixtures', `${fixture}.json`), 'utf8'));
+	const phrase: Phrase = json.phrase;
+	const { tempo, swing, transportSeconds } = json.context;
+	/** Score this fixture with the saved ear-training settings. */
+	const scoreOf = (detected: DetectedNote[]) => runScorePipeline({
+		detected, phrase, tempo, swing, transportSeconds, bleedFilterEnabled: false
+	}).chosen;
+
+	it('preserves the original merged F3 and reproduces the saved score', () => {
+		expect(json.scoring.savedDetectedNotes.map((n: DetectedNote) => n.midi)).toEqual([55, 53]);
+		const score = scoreOf(json.scoring.savedDetectedNotes);
+		expect(score.notesHit).toBe(2);
+		expect(score.overall).toBeCloseTo(json.scoring.savedScore.overall, 12);
+	});
+
+	it('recovers the repeat from the saved readings', () => {
+		const { readings, rawWorkletOnsets, weakReadings } = json.detection;
+		const bleed = getMetronomeBleedOnsets(transportSeconds, tempo, json.audio.duration);
+		const base = resolveOnsets(rawWorkletOnsets, readings);
+		const articulation = findReArticulations(readings, base, bleed);
+		const detected = segmentNotes(readings, [...base, ...articulation].sort((a, b) => a - b),
+			json.audio.duration, undefined, undefined, undefined, rawWorkletOnsets, bleed, articulation, weakReadings);
+		expect(detected.map((n) => n.midi)).toEqual([55, 53, 53]);
+		const score = scoreOf(detected);
+		expect(score.notesHit).toBe(3);
+		expect(score.extrasCharged).toBe(0);
+		expect(score.overall).toBeCloseTo(0.9932098765, 8);
+	});
+
+	for (const live of [false, true]) {
+		it(`keeps and scores both Fs in the ${live ? 'live' : 'replay'} time base`, async () => {
+			const { trimmed, detected, articulationOnsets } = await replayEarTrainingTake(`${fixture}.wav`, transportSeconds, tempo, { live });
+			expect(trimmed.offset).toBeCloseTo(json.audio.captureTrimSeconds + (live ? 4096 / 44100 : 0), 3);
+			expect(detected.map((n) => n.midi)).toEqual([55, 53, 53]);
+			expect(articulationOnsets).toHaveLength(1);
+			expect(articulationOnsets[0]).toBeGreaterThan(1.4);
+			expect(articulationOnsets[0]).toBeLessThan(1.7);
+			const score = scoreOf(detected);
+			expect(score.notesHit).toBe(3);
+			expect(score.extrasCharged).toBe(0);
+			expect(score.pitchAccuracy).toBe(1);
+			expect(score.overall).toBeGreaterThan(0.95);
+
+			const bleed = getMetronomeBleedOnsets(transportSeconds, tempo, trimmed.duration);
+			const base = resolveOnsets([], trimmed.readings);
+			const articulation = findReArticulations(trimmed.readings, base, bleed);
+			const withoutWorklet = segmentNotes(trimmed.readings,
+				[...base, ...articulation].sort((a, b) => a - b), trimmed.duration,
+				undefined, undefined, undefined, [], bleed, articulation, trimmed.weakReadings);
+			expect(withoutWorklet.map((n) => n.midi)).toEqual([55, 53, 53]);
+			expect(scoreOf(withoutWorklet).extrasCharged).toBe(0);
+		});
+	}
 });

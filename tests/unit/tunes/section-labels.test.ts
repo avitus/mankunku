@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { Tune } from '$lib/types/tune';
-import { editSectionLabel, sectionLabels } from '$lib/tunes/section-labels';
+import { editSectionLabel, sectionLabels, sectionGroups } from '$lib/tunes/section-labels';
 import { flattenTune } from '$lib/tunes/flatten';
 import { fractionToFloat } from '$lib/music/intervals';
 import { tuneToAbcWithMap } from '$lib/music/tune-notation';
@@ -65,5 +65,43 @@ describe('bar-anchored section labels', () => {
 		const waltz = { ...tune, timeSignature: [3, 4] as [number, number] };
 		const moved = edit(waltz, 1, 2);
 		expect(notes(moved)).toEqual(notes(waltz));
+	});
+});
+
+describe('rehearsal section groups', () => {
+	it('keeps Black Orpheus endings and continuation under C after moving B and C', () => {
+		const original: Tune = { ...tune, sections: [
+			{ label: 'A', bars: 33, pickupLength: [1, 4], notes: [{ pitch: 60, offset: [3, 4], duration: [1, 4] }], harmony: [] },
+			{ label: 'B', bars: 3, repeatStart: true, notes: [], harmony: [] },
+			{ label: 'B', bars: 1, ending: 1, repeatEnd: true, notes: [], harmony: [] },
+			{ label: 'B', bars: 1, ending: 2, notes: [], harmony: [] },
+			{ label: 'C', bars: 1, notes: [], harmony: [] }
+		] };
+		const movedB = edit(original, 1, 17);
+		const moved = edit(movedB, sectionLabels(movedB).find(m => m.label === 'C')!.sectionIdx, 33);
+		const beforeGrouping = structuredClone(moved);
+		expect(sectionGroups(moved).map(g => [g.label, g.bars, g.sectionIdx, g.endSectionIdx, g.startBar])).toEqual([
+			['A', 17, 0, 1, 0], ['B', 16, 1, 2, 17], ['C', 6, 2, 6, 33]
+		]);
+		expect(moved).toEqual(beforeGrouping);
+		expect(flattenTune(moved, { expandRepeats: true }).totalBars).toBe(flattenTune(original, { expandRepeats: true }).totalBars);
+		const removed = edit(moved, 2, null);
+		expect(sectionGroups(removed).map(g => [g.label, g.bars])).toEqual([['A', 17], ['B', 22]]);
+		expect(flattenTune(removed, { expandRepeats: true })).toEqual(flattenTune(moved, { expandRepeats: true }));
+	});
+	it('groups inherited duplicate labels but keeps explicit repeated rehearsal marks separate', () => {
+		const sheet: Tune = { ...tune, sections: [
+			{ label: 'A', bars: 3, notes: [], harmony: [] },
+			{ label: 'A', bars: 1, ending: 1, notes: [], harmony: [] },
+			{ label: 'A', labelExplicit: true, bars: 4, notes: [], harmony: [] }
+		] };
+		expect(sectionGroups(sheet).map(g => [g.label, g.bars])).toEqual([['A', 4], ['A', 4]]);
+	});
+	it('names the leading pickup or intro, and keeps a completely unmarked form together', () => {
+		const pickup: Tune['sections'][number] = { label: '', bars: 1, pickupLength: [1, 4], notes: [{ pitch: 60, offset: [3, 4], duration: [1, 4] }], harmony: [] };
+		expect(sectionGroups({ ...tune, sections: [pickup, ...tune.sections] }).map(g => g.label)).toEqual(['Pickup', 'A', 'B']);
+		expect(sectionGroups({ ...tune, sections: [{ ...pickup, pickupLength: undefined, notes: [], bars: 4 }, ...tune.sections] }).map(g => g.label)).toEqual(['Intro', 'A', 'B']);
+		expect(sectionGroups({ ...tune, sections: tune.sections.map(s => ({ ...s, label: '' })) }).map(g => [g.label, g.bars])).toEqual([['Music', 12]]);
+		expect(sectionGroups({ ...tune, sections: [] })).toEqual([]);
 	});
 });

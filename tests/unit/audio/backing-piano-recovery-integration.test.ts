@@ -6,7 +6,7 @@ import { createRollingBacking, advanceRollingBacking, type RollingBackingCheckpo
 import { seedFrom } from '$lib/audio/generation-rng';
 import { generateBacking, buildBarInfos, type NativeBalladReplyDecision } from '$lib/audio/backing-generation';
 import { planPianoRecovery } from '$lib/audio/backing-piano-recovery';
-import { BACKING_STYLES } from '$lib/audio/backing-styles';
+import { HISTORICAL_MUSICALITY_STYLES as BACKING_STYLES } from '../../helpers/musicality-style-fixtures';
 import { buildHistoricalListeningTuneSession as buildListeningTuneSession } from '../../helpers/musicality-tune-fixtures';
 
 const { phrase } = buildListeningTuneSession({ tuneId: 'ls-when-the-saints', key: 'F#', soloChoruses: 2 });

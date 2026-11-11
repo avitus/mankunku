@@ -1,3 +1,5 @@
+import { BACKING_OUTPUT_GAIN } from '$lib/audio/backing-output';
+import { releasedBackingOptions } from '$lib/audio/backing-release';
 /** A finite, reproducible listening take with a view tied to the sounding audio clock. */
 import { normalizeBackingMix, type BackingMixLevels } from '$lib/audio/backing-mix';
 import type { BounceParams } from '$lib/audio/backing-bounce';
@@ -213,7 +215,7 @@ const browserListeningRuntime: ListeningPlayerRuntime = {
 			const definition = createRollingBacking(params.phrase.harmony, style, { phraseId: params.phrase.id, tempo: params.tempo,
 				ppq: transport.PPQ, beatsPerBar: 4, swing: resolveBackingSwing(params.swing, style, params.tempo),
 				sectionMap: params.phrase.sectionMap, performanceForm: params.phrase.performanceForm, ensemble: {},
-				...(terminalArrangement ? { terminalArrangement } : {}) }, { returningMelodySpace: true, performanceEnergySeed: params.performanceEnergySeed, pianoPresence: 'accompaniment', keyboardVariety: 'developed', chorusBoundaryPriority: true, keyboardTexture: true, keyboardPhrasing: params.instrument, bassDelayedRoot: true, keyboardContraryMotion: true, drumPhraseCushioning: true, keyboardSuspensions: 'developed', phraseExpression: true, trioConversation: true, phraseColors: true, ensembleColors: true, phraseDialogue: true, innerMotion: true });
+				...(terminalArrangement ? { terminalArrangement } : {}) }, releasedBackingOptions(params.instrument, params.performanceEnergySeed));
 			transport.stop(); transport.position = 0; transport.bpm.value = params.tempo;
 			let playbackError: string | null = null;
 			const playback = await backing.createRollingBackingPlayback({ sessionId: definition.sessionId, tempo: params.tempo,
@@ -264,7 +266,7 @@ const browserListeningRuntime: ListeningPlayerRuntime = {
 		const generated = await backing.scheduleBackingTrack(params.phrase, {
 			tempo: params.tempo, swing: params.swing, countInBeats: 0, metronomeEnabled: false,
 			metronomeVolume: 0, backingTrackEnabled: true, backingInstrument: params.instrument,
-			backingTrackVolume: params.volume, backingStyle: params.style,
+			backingTrackVolume: params.volume, backingOutputLevel: BACKING_OUTPUT_GAIN, backingStyle: params.style,
 			backingOrchestration: params.orchestration, backingSoloFeatures: params.soloFeatures
 		}, 0, false, current);
 		if (!generated) return null;

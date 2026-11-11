@@ -135,7 +135,7 @@ for (const width of [1440, 768, 390]) {
 	});
 }
 
-test('Practice setup has one duration dial and an accurate read-only summary', async ({ page }) => {
+test('Practice setup keeps one duration dial with launch guidance across modes', async ({ page }) => {
 	await seedOnboardedAnonymous(page);
 	await page.goto('/lick-practice');
 	const time = page.getByRole('slider', { name: 'Practice time' });
@@ -143,17 +143,20 @@ test('Practice setup has one duration dial and an accurate read-only summary', a
 	await time.press('Home');
 	await time.press('ArrowUp');
 	await expect(time).toHaveAttribute('aria-valuetext', '4 min');
-	const summary = page.getByRole('complementary', { name: 'Your session' });
-	await expect(summary).toContainText('4 min');
-	await expect(summary).toContainText('No licks queued');
+	const launch = page.locator('section').filter({ has: page.locator('#practice-launch-title') });
+	await expect(launch.getByRole('slider', { name: 'Practice time' })).toHaveAttribute('aria-valuetext', '4 min');
+	await expect(launch).toContainText('0 licks in this session');
+	await expect(launch.getByRole('button', { name: 'Start Daily Practice', exact: true })).toBeDisabled();
+	await expect(launch).toContainText('No licks tagged for practice yet.');
 	await page.getByRole('radio', { name: /Focused Session/ }).click();
 	await expect(time).toHaveCount(1);
 	await expect(time).toHaveAttribute('aria-valuetext', '4 min');
 	await page.getByRole('radio', { name: 'Bossa Nova', exact: true }).click();
-	await expect(summary).toContainText('Bossa Nova');
+	await expect(page.getByRole('radio', { name: 'Bossa Nova', exact: true })).toHaveAttribute('aria-checked', 'true');
 	await page.getByRole('radio', { name: /Deep Practice/ }).click();
 	await expect(time).toHaveCount(0);
-	await expect(summary).toContainText('Open-ended practice');
+	await expect(launch).toContainText('Open-ended practice');
+	await expect(launch.getByRole('button', { name: 'Start Drill', exact: true })).toBeDisabled();
 });
 
 for (const width of [1440, 768, 390]) {

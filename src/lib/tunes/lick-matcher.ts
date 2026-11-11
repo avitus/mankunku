@@ -8,13 +8,17 @@ import type { TrickContext, TrickParameters, TrickPracticeProgress } from '$lib/
 import { INSTRUMENTS, type InstrumentConfig } from '$lib/types/instruments';
 import type { Tune } from '$lib/types/tune';
 import type { DetectedProgression, DetectedSlot } from './progression-detector';
+import type { MajorRegion } from './harmonic-analysis';
+import { chordEvidence } from '$lib/music/chord-evidence';
 import { trickVariantKey } from '$lib/types/tricks';
 import {
 	PROGRESSION_LICK_CATEGORIES,
+	CADENCE_CATEGORIES,
 	PROGRESSION_TEMPLATES,
 	getActiveSubstitution,
 	getChordRootAtOffset,
 	getCompatibleLickCategories,
+	progressionFitsLick,
 	resolveLickAlignmentOffset,
 	resolveQualityRoleEntry,
 	resolveTransposeTarget
@@ -58,9 +62,13 @@ import {
  */
 
 export type MasteryTier = 'known' | 'learning' | 'unknown';
-export type MatchSource = 'prog-tag' | 'category' | 'substitution';
+export type MatchSource = 'prog-tag' | 'category' | 'substitution' | 'major-region';
 
 export interface LickSuggestion {
+	/** Explicit tag authorizes a tonic-major line across the whole cadence. */
+	placement?: 'progression';
+	/** Availability is separate from harmonic fit, so setup can explain exclusions. */
+	readiness?: { keyReady: boolean; tempoReady: boolean; practicedTempo: number };
 	lickId: string;
 	lickName: string;
 	category: PhraseCategory;
@@ -139,6 +147,8 @@ export interface LickMatcherDeps {
 }
 
 export interface SuggestLicksOptions {
+	/** Setup inventory only: retain fitting licks with their readiness reasons. */
+	includeUnready?: boolean;
 	enableSubstitutions?: boolean;
 	/** Cap the ranked list (applied after ranking and dedupe). */
 	limit?: number;
@@ -172,7 +182,7 @@ export function isInPlayersBook(
 }
 
 const TIER_RANK: Record<MasteryTier, number> = { known: 0, learning: 1, unknown: 2 };
-const SOURCE_RANK: Record<MatchSource, number> = { 'prog-tag': 0, category: 1, substitution: 2 };
+const SOURCE_RANK: Record<MatchSource, number> = { 'prog-tag': 0, category: 1, substitution: 2, 'major-region': 3 };
 const EPSILON = 1e-9;
 
 /**
@@ -232,7 +242,7 @@ export function suggestLicksForProgression(
 	deps: LickMatcherDeps,
 	options: SuggestLicksOptions = {}
 ): LickSuggestionResult {
-	const { enableSubstitutions = false, limit } = options;
+	const { enableSubstitutions = false } = options;
 	const type = detected.type;
 	const compatibleCategories = getCompatibleLickCategories(type);
 	const barFloat = deps.timeSignature[0] / deps.timeSignature[1];
@@ -248,14 +258,24 @@ export function suggestLicksForProgression(
 			continue;
 		}
 
+		// The one fit rule lick practice serves by: a line written ii | V | I,
+		// one chord a bar, has no place over a half-bar ii-V, whatever its
+		// category or tags say. A substitution plays a lick over a chord it was
+		// not written for by design, so the rule does not judge that path.
+		const wholeProgression = type === 'ii-V-I-major-long' && progTags.includes(type) &&
+			isRegionMajorLick(lick, progTags);
+		const soundingBars = wholeProgression ? soundingLengthBars(lick, deps.timeSignature) : null;
+		if (wholeProgression && (soundingBars === null ||
+			soundingBars * barFloat > fractionToFloat(detected.duration) + EPSILON)) continue;
+		const fits = wholeProgression || progressionFitsLick(lick, type).fits;
 		const matchSources: MatchSource[] = [];
-		if (progTags.includes(type)) matchSources.push('prog-tag');
-		if (compatibleCategories.includes(lick.category)) matchSources.push('category');
+		if (fits && progTags.includes(type)) matchSources.push('prog-tag');
+		if (fits && compatibleCategories.includes(lick.category)) matchSources.push('category');
 		const substitution = getActiveSubstitution(type, lick.category, enableSubstitutions);
 		if (substitution) matchSources.push('substitution');
 		if (matchSources.length === 0) continue;
 
-		const templateAlignmentOffset = resolveLickAlignmentOffset(
+		const templateAlignmentOffset: Fraction = wholeProgression ? [0, 1] : resolveLickAlignmentOffset(
 			type,
 			lick.category,
 			enableSubstitutions
@@ -268,7 +288,7 @@ export function suggestLicksForProgression(
 		const slot = slotAtTemplateOffset(detected, templateAlignmentOffset);
 		if (!slot) continue;
 		const insertionOffset = slot.startOffset;
-		const targetKey = resolveTransposeTarget(
+		const targetKey = wholeProgression ? detected.localKey : resolveTransposeTarget(
 			detected.localKey,
 			lick.category,
 			type,
@@ -277,6 +297,7 @@ export function suggestLicksForProgression(
 		);
 
 		suggestions.push({
+			...(wholeProgression ? { placement: 'progression' as const } : {}),
 			lickId: lick.id,
 			lickName: lick.name,
 			category: lick.category,
@@ -295,7 +316,7 @@ export function suggestLicksForProgression(
 			substitution,
 			inPracticeSet: deps.practiceLickIds.has(lick.id),
 			difficultyLevel: lick.difficulty.level,
-			lengthBars: lick.difficulty.lengthBars,
+			lengthBars: soundingBars ?? lick.difficulty.lengthBars,
 			mode: lickMode(lick)
 		});
 	}
@@ -424,25 +445,27 @@ export function suggestLicksForProgression(
 		}
 	}
 
-	// Song requirements: only licks the user can actually deploy here.
-	let eligible = suggestions;
-	if (options.playableKeysOnly) {
-		eligible = eligible.filter((s) => s.masteryTier !== 'unknown');
-	}
-	if (options.sessionTempo !== undefined) {
-		const sessionTempo = options.sessionTempo;
-		const trickProgress = deps.trickProgress ?? {};
-		eligible = eligible.filter((s) => {
-			if (s.trick) {
-				// Tricks carry their own progress store: at-key tempo first, then
-				// the variant-wide minimum (default 60) — the lick rule, mirrored.
-				const variantKey = trickVariantKey(s.trick.trickId, s.trick.parameters);
-				const atKey = trickProgress[variantKey]?.[s.targetKey]?.currentTempo;
-				return (atKey ?? getTrickTempo(trickProgress, variantKey)) >= sessionTempo;
-			}
-			const atKey = deps.progress[s.lickId]?.[s.targetKey]?.currentTempo;
-			return (atKey ?? getLickTempo(deps.progress, s.lickId)) >= sessionTempo;
-		});
+	return { suggestions: rankSuggestions(suggestions, deps, options, type), uncategorized };
+}
+
+/** Shared readiness, tempo, ordering and deduplication for both kinds of target. */
+function rankSuggestions(
+	suggestions: LickSuggestion[], deps: LickMatcherDeps, options: SuggestLicksOptions,
+	type?: ChordProgressionType
+): LickSuggestion[] {
+	const { limit } = options;
+	// Retain the same evidence for setup and automatic selection.
+	let eligible = suggestions.map(s => {
+		const variantKey = s.trick ? trickVariantKey(s.trick.trickId, s.trick.parameters) : null;
+		const practicedTempo = variantKey
+			? (deps.trickProgress?.[variantKey]?.[s.targetKey]?.currentTempo ?? getTrickTempo(deps.trickProgress ?? {}, variantKey))
+			: (deps.progress[s.lickId]?.[s.targetKey]?.currentTempo ?? getLickTempo(deps.progress, s.lickId));
+		return { ...s, readiness: { keyReady: s.masteryTier !== 'unknown',
+			tempoReady: options.sessionTempo === undefined || practicedTempo >= options.sessionTempo, practicedTempo } };
+	});
+	if (!options.includeUnready) {
+		if (options.playableKeysOnly) eligible = eligible.filter(s => s.readiness.keyReady);
+		if (options.sessionTempo !== undefined) eligible = eligible.filter(s => s.readiness.tempoReady);
 	}
 
 	eligible.sort(
@@ -450,7 +473,7 @@ export function suggestLicksForProgression(
 			TIER_RANK[a.masteryTier] - TIER_RANK[b.masteryTier] ||
 			SOURCE_RANK[a.matchSources[0]] - SOURCE_RANK[b.matchSources[0]] ||
 			Number(b.inPracticeSet) - Number(a.inPracticeSet) ||
-			categorySpecificity(type, a.category) - categorySpecificity(type, b.category) ||
+			(type ? categorySpecificity(type, a.category) - categorySpecificity(type, b.category) : 0) ||
 			a.difficultyLevel - b.difficultyLevel ||
 			a.lickName.localeCompare(b.lickName) ||
 			a.lickId.localeCompare(b.lickId)
@@ -464,10 +487,68 @@ export function suggestLicksForProgression(
 		return true;
 	});
 
-	return {
-		suggestions: limit !== undefined ? deduped.slice(0, limit) : deduped,
-		uncategorized
-	};
+	return limit !== undefined ? deduped.slice(0, limit) : deduped;
+}
+
+/** Positive major identity only; the legacy default-to-major is not evidence. */
+function isRegionMajorLick(lick: Phrase, tags: ChordProgressionType[]): boolean {
+	if (lick.mode === 'minor' || CADENCE_CATEGORIES.has(lick.category)) return false;
+	// A line written for changing chord roots keeps its existing progression-fit path.
+	if (lick.harmony.some((segment) => segment.chord.root !== lick.key)) return false;
+	if (lick.mode === 'major' || lick.category === 'major-chord' || tags.includes('major-vamp')) return true;
+	const tonic = [...lick.harmony].sort((a, b) => compareFractions(b.startOffset, a.startOffset))[0];
+	return tonic !== undefined && chordEvidence(tonic)?.majorTonic === true;
+}
+
+/** Sounding length includes authored pickup time, but excludes trailing rest padding. */
+function soundingLengthBars(lick: Phrase, meter: [number, number]): number | null {
+	if (lick.timeSignature[0] !== meter[0] || lick.timeSignature[1] !== meter[1]) return null;
+	const notes = lick.notes.filter(note => note.pitch !== null);
+	if (!notes.length || notes.some(note => {
+		const start = fractionToFloat(note.offset);
+		const duration = fractionToFloat(note.duration);
+		return !Number.isFinite(start) || !Number.isFinite(duration) || start < 0 || duration <= 0;
+	})) return null;
+	return Math.max(...notes.map(note => fractionToFloat(note.offset) + fractionToFloat(note.duration))) /
+		(meter[0] / meter[1]);
+}
+
+/**
+ * Suggest ordinary major lines over a compatible region. Notes retain their
+ * authored offsets (including pickup rests); neither pickups nor padding move
+ * the line across a region boundary. No progression substitution or trick is
+ * inferred from scale compatibility alone.
+ */
+export function suggestLicksForMajorRegion(
+	region: MajorRegion, deps: LickMatcherDeps, options: SuggestLicksOptions = {}
+): LickSuggestionResult {
+	const suggestions: LickSuggestion[] = [];
+	const uncategorized: Phrase[] = [];
+	const barLength = deps.timeSignature[0] / deps.timeSignature[1];
+	const available = fractionToFloat(region.duration);
+	for (const lick of deps.licks) {
+		if (options.ownBookOnly && !isInPlayersBook(lick.id, deps.practiceLickIds, deps.progress)) continue;
+		const tags = deps.getProgressionTags(lick.id);
+		if (!isRegionMajorLick(lick, tags)) {
+			if (lick.category === 'user' && tags.length === 0) uncategorized.push(lick);
+			continue;
+		}
+		const lengthBars = soundingLengthBars(lick, deps.timeSignature);
+		if (lengthBars === null || lengthBars * barLength > available + EPSILON) continue;
+		suggestions.push({
+			lickId: lick.id, lickName: lick.name, category: lick.category,
+			targetKey: region.key, insertionOffset: region.startOffset,
+			insertionBar: Math.floor(fractionToFloat(region.startOffset) / barLength + EPSILON),
+			templateAlignmentOffset: [0, 1],
+			masteryTier: classifyMasteryTier({ progress: deps.progress, lickId: lick.id,
+				ramp: lickUnlockRamp(lick, deps.instrument ?? INSTRUMENTS.concert), targetKey: region.key,
+				unlockedCount: deps.getUnlockedKeyCount(deps.progress, lick.id) }),
+			matchSources: ['major-region'], substitution: null,
+			inPracticeSet: deps.practiceLickIds.has(lick.id), difficultyLevel: lick.difficulty.level,
+			lengthBars, mode: 'major'
+		});
+	}
+	return { suggestions: rankSuggestions(suggestions, deps, options), uncategorized };
 }
 
 /**

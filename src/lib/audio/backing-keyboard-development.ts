@@ -24,6 +24,7 @@ export function keyboardAnswerFigure(figures: readonly CompFigure[], source: Com
 		: ['charleston', 'short-long', 'reverse-charleston', 'offbeat-pair'];
 	const candidates = figures.filter(figure => ids.includes(figure.id) && figure.id !== source.id &&
 		figure.hits[0].map(hit => hit.b).join(',') !== source.hits[0].map(hit => hit.b).join(','));
+	if (candidates.length === 0) return source;
 	return createRng(seedFrom(phraseId, tempo, 'keyboard-answer-v2', startBar, source.id)).pick(candidates);
 }
 

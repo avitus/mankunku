@@ -155,6 +155,45 @@ test('k opens the chord editor at the selected note and commits there', async ({
 	).toBeVisible();
 });
 
+test('the k that opens the chord editor is not typed into it', async ({ page }) => {
+	await openEditor(page);
+
+	await page.keyboard.press('c');
+	await expect(page.locator(`${CHART_SVG} .abcjs-note`)).toHaveCount(1);
+	await page.keyboard.press('ArrowLeft');
+	await expect(page.locator(`${CHART_SVG} .selected-note`)).toHaveCount(1);
+	await page.keyboard.press('k');
+
+	const input = page.getByTestId('chord-input');
+	await expect(input).toBeFocused();
+	await expect(input).toHaveValue('');
+
+	// Typed straight in, without clearing anything first.
+	await page.keyboard.type('c7');
+	await expect(input).toHaveValue('c7');
+	await page.keyboard.press('Enter');
+	await expect(input).toHaveCount(0);
+
+	// Reopening prefills the saved chord; the k must not replace it either.
+	await page.keyboard.press('k');
+	await expect(input).toBeFocused();
+	await expect(input).toHaveValue('C7');
+});
+
+test('a chord typed in lower case is accepted and saved capitalized', async ({ page }) => {
+	await openEditor(page);
+
+	await page.locator('[data-chord-pos="0:0:0"]').click();
+	const input = page.getByTestId('chord-input');
+	await input.fill('a-7');
+	await input.press('Enter');
+
+	await expect(input).toHaveCount(0);
+	await expect(
+		page.locator(`${CHART_SVG} text`).filter({ hasText: 'A-7' }).first()
+	).toBeVisible();
+});
+
 test.describe('touch', () => {
 	test.use({ hasTouch: true });
 

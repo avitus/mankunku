@@ -20,8 +20,10 @@ const PROGRESSION_COLOR_VARS: Record<ChordProgressionType, string> = {
 	'ii-V-I-minor': 'var(--prog-ii-V-I-minor)',
 	'ii-V-I-major-long': 'var(--prog-ii-V-I-major-long)',
 	'ii-V-I-minor-long': 'var(--prog-ii-V-I-minor-long)',
+	'turnaround-short': 'var(--prog-turnaround-short)',
 	turnaround: 'var(--prog-turnaround)',
 	'iii-VI-ii-V-I': 'var(--prog-iii-VI-ii-V-I)',
+	'iii-VI-ii-V-I-long': 'var(--prog-iii-VI-ii-V-I-long)',
 	blues: 'var(--prog-blues)'
 };
 

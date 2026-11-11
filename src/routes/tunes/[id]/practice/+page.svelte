@@ -5,6 +5,7 @@
 	import { acquireScreenWakeLock, releaseScreenWakeLock } from '$lib/util/wake-lock';
 	import { page } from '$app/state';
 	import NotationDisplay, { type RangeMarker } from '$lib/components/notation/NotationDisplay.svelte';
+	import { anticipatoryFollowPosition } from '$lib/notation/follow-scroll';
 	import TuneChordChart from '$lib/components/tunes/TuneChordChart.svelte';
 	import SuggestionPickCard, { type PickEntry } from '$lib/components/tune-practice/SuggestionPickCard.svelte';
 	import TunePracticeSetup from '$lib/components/tune-practice/TunePracticeSetup.svelte';
@@ -15,6 +16,7 @@
 	import { settings, getInstrument, saveTuneTempo } from '$lib/state/settings.svelte';
 	import { savedTuneTempo } from '$lib/tunes/tune-tempo';
 	import { melodySwingForStyle } from '$lib/audio/backing-styles';
+	import { TUNE_BACKING_LEVEL } from '$lib/audio/backing-mix';
 	import { setMasterVolume } from '$lib/audio/audio-context';
 	import {
 		tunePractice,
@@ -63,7 +65,7 @@
 	import { GRADE_LABELS } from '$lib/scoring/grades';
 	import { accuracyTierInfo } from '$lib/ui/score-colors';
 	import { fractionToFloat } from '$lib/music/intervals';
-	import { progressionColor } from '$lib/music/progression-display';
+	import { practiceTargetColor } from '$lib/tunes/practice-target';
 	import { concertKeyToWritten, writtenKeyToConcert } from '$lib/music/transposition';
 	import type { PitchClass } from '$lib/types/music';
 	import type { PlaybackOptions } from '$lib/types/audio';
@@ -197,7 +199,7 @@
 		(preview?.markers ?? []).map((m) => ({
 			...m,
 			status: 'upcoming' as const,
-			color: progressionColor(m.progressionType)
+			color: practiceTargetColor(m.progressionType)
 		}))
 	);
 
@@ -272,7 +274,8 @@
 					timeRange: ip.notationTimeRange,
 					status,
 					label,
-					color: progressionColor(ip.progressionType)
+					labelBar: ip.notationLabelBar,
+					color: practiceTargetColor(ip.progressionType)
 				});
 			} else {
 				if (status === 'active' || (existing.status === 'upcoming' && status !== 'upcoming')) {
@@ -296,24 +299,24 @@
 		return result;
 	});
 
-	/** Follow the resolved chart for this pass, retaining within-bar position. */
-	const playheadBarFraction = $derived.by(() => {
-		if (!audioPlan || !chartFlat || !chartSheet) return null;
+	/** Resolve each position against the chart belonging to that session pass. */
+	function chartBarAt(sessionBar: number): number | null {
+		if (!audioPlan || sessionBar >= audioPlan.playedPhrase.difficulty.lengthBars) return null;
 		if (tunePractice.phase !== 'head' && tunePractice.phase !== 'running' && tunePractice.phase !== 'outro') return null;
-		const leadBars = audioPlan.leadBars;
-		const formBars = audioPlan.flat.totalBars;
-		const formBarF = playbackBarForSessionBar(playheadBarF, formBars, leadBars, audioPlan.practiceStartBar, audioPlan.closingStartBar, audioPlan.outroSourceStartBar, audioPlan.sessionBarMap);
-		if (formBarF < 0 || formBarF >= chartFlat.totalBars) return null;
-		const floorBar = Math.floor(formBarF);
-		const frac = formBarF - floorBar;
-		const chartBar = notationBarForPlaybackBar(
-			chartFlat.sectionMap,
-			chartSheet.sections,
-			floorBar
-		);
-		if (chartBar === null) return null;
-		return chartBar + frac;
-	});
+		const closing = audioPlan.closingStartBar !== null && sessionBar >= audioPlan.closingStartBar;
+		const flat = closing ? audioPlan.closingFlat : audioPlan.flat;
+		const sheet = closing ? audioPlan.closingSheet : audioPlan.sheet;
+		const source = playbackBarForSessionBar(sessionBar, audioPlan.flat.totalBars, audioPlan.leadBars, audioPlan.practiceStartBar, audioPlan.closingStartBar, audioPlan.outroSourceStartBar, audioPlan.sessionBarMap);
+		return notationBarForPlaybackBar(flat.sectionMap, sheet.sections, source);
+	}
+	const playheadBarFraction = $derived(chartBarAt(playheadBarF));
+	const followPosition = $derived(audioPlan
+		? anticipatoryFollowPosition(playheadBarF, audioPlan.sheet.timeSignature[0] * 4 / audioPlan.sheet.timeSignature[1], chartBarAt)
+		: playheadBarF);
+	const followBarFraction = $derived(chartBarAt(followPosition));
+	// Switch presentation at the early return without advancing audio or scoring.
+	const showSoloChart = $derived(tunePractice.phase === 'running' ||
+		(tunePractice.phase === 'head' && audioPlan !== null && followPosition >= audioPlan.leadBars));
 
 	const playheadBar = $derived(playheadBarFraction === null || (chartSheet && isInPickupLeadIn(chartSheet, playheadBarFraction)) ? null : Math.floor(playheadBarFraction));
 
@@ -443,6 +446,7 @@
 			backingTrackEnabled: tunePractice.config.backingTrackEnabled,
 			backingInstrument: settings.backingInstrument,
 			backingTrackVolume: settings.backingTrackVolume,
+			backingOutputLevel: TUNE_BACKING_LEVEL,
 			backingStyle: tunePractice.config.backingStyle
 		};
 	}
@@ -944,8 +948,8 @@
 			/>
 		{/if}
 
-		{#if displayedSheet && tunePractice.phase === 'running'}
-			<TuneChordChart tune={chartSheet!} instrument={getInstrument()} currentBar={playheadBarFraction} {markers} />
+		{#if displayedSheet && showSoloChart}
+			<TuneChordChart tune={chartSheet!} instrument={getInstrument()} currentBar={playheadBarFraction} followBar={followBarFraction} {markers} />
 		{:else if displayedSheet}
 			<!-- The chart follows the playhead by translating within its own clipped
 			     viewport (no scrollbar), so the status/pick header above stays put. -->
@@ -956,7 +960,7 @@
 				{cursorIndex}
 				rangeMarkers={markers}
 				autoScrollPlayhead
-				{playheadBarFraction}
+				playheadBarFraction={followBarFraction}
 			/>
 		{/if}
 	{:else}

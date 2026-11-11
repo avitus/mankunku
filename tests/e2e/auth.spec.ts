@@ -1,12 +1,22 @@
 import { test, expect, setE2EAuthCookie } from './fixtures/auth';
 import { seedOnboardedAnonymous, seedStorage, SETTINGS_ONBOARDED, TOUR_DISMISSED } from './fixtures/storage';
 import type { Page } from '@playwright/test';
+import type { ConsoleCollector } from './fixtures/test';
 
 /**
  * Auth flows — exercises the anonymous sign-in form and the password-reset
  * round trip. Route-level rendering of /auth is covered by smoke.spec.ts;
  * this spec asserts the form's credential fields actually mount.
  */
+
+/** Consume only the resource log for a validation response explicitly asserted by this test. */
+function consumeValidationLog(collector: ConsoleCollector, actionPath: string): void {
+	for (let i = collector.errors.length - 1; i >= 0; i--) {
+		const message = collector.errors[i];
+		if (/^Failed to load resource: the server responded with a status of 400 /.test(message)
+			&& message.endsWith(`${actionPath}]`)) collector.errors.splice(i, 1);
+	}
+}
 
 test.describe('auth — anonymous', () => {
 	test.beforeEach(async ({ page }) => {
@@ -52,7 +62,7 @@ test.describe('auth — anonymous', () => {
 	// "Authentication failed. Please try again." with no way to a new link.
 	test('an expired confirmation link offers a new one, and the resend button posts to ?/resend', async ({
 		page,
-		consoleCollector: _consoleCollector
+		consoleCollector
 	}) => {
 		await page.goto('/auth?error=link_expired');
 		await expect(page.locator('main').getByRole('alert')).toContainText('expired or was already used');
@@ -62,11 +72,16 @@ test.describe('auth — anonymous', () => {
 		// formnovalidate lets it submit without a password; with no email the
 		// resend action answers before contacting Supabase, which proves the
 		// button reached ?/resend rather than the login action.
+		const rejected = page.waitForResponse(response => response.url().endsWith('/auth?/resend') && response.request().method() === 'POST');
 		await resend.click();
+		expect((await rejected).status()).toBe(400);
 		await expect(page.locator('main').getByRole('alert')).toHaveText(
 			'Enter your email address to get a new confirmation link.'
 		);
 		await expect(resend).toBeVisible();
+		// Kit 3 exposes the validation status to fetch. Consume only the
+		// browser's resource log for the exact 400 this test deliberately caused.
+		consumeValidationLog(consoleCollector, '/auth?/resend');
 	});
 
 	test('a link confirmed in another browser says the email is confirmed', async ({
@@ -305,7 +320,7 @@ test.describe('password reset (authed)', () => {
 		expect(await alertMessage).toMatch(/open the link in this browser/i);
 	});
 
-	test('a recovery session sets a new password on the reset page', async ({ signedInPage }) => {
+	test('a recovery session sets a new password on the reset page', async ({ signedInPage, consoleCollector }) => {
 		await signedInPage.goto('/auth/reset-password');
 		await expect(
 			signedInPage.getByRole('heading', { name: 'Choose a New Password' })
@@ -319,8 +334,11 @@ test.describe('password reset (authed)', () => {
 		// A mismatch is refused by the action and keeps the form up.
 		await password.fill('new-secret-1');
 		await confirm.fill('new-secret-2');
-		await submit.click();
+		const rejected = signedInPage.waitForResponse(response => response.url().endsWith('/auth/reset-password?/update') && response.request().method() === 'POST');
+		await confirm.press('Enter');
+		expect((await rejected).status()).toBe(400);
 		await expect(signedInPage.getByText('Passwords do not match.')).toBeVisible();
+		await expect(confirm).toBeFocused();
 
 		await password.fill('new-secret-1');
 		await confirm.fill('new-secret-1');
@@ -328,6 +346,7 @@ test.describe('password reset (authed)', () => {
 		await expect(signedInPage.getByTestId('reset-password-success')).toBeVisible();
 		await expect(signedInPage.getByRole('heading', { name: 'Password Updated' })).toBeVisible();
 		await expect(password).toHaveCount(0);
+		consumeValidationLog(consoleCollector, '/auth/reset-password?/update');
 	});
 
 	test('a failed link wins over a live session: no form, and the way back is Settings', async ({

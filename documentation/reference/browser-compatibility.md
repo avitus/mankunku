@@ -17,7 +17,7 @@ Mankunku relies on modern Web APIs. This page documents compatibility requiremen
 | `requestAnimationFrame` | Pitch detection loop | 10+ | 23+ | 6.1+ | 12+ |
 | Modern CSS + JS baseline | Tailwind CSS 4; Vite 8's default build target | 111+ | 128+ | 16.4+ | 111+ |
 
-## Minimum Browser Versions
+## Interface Browser Baseline
 
 | Browser | Minimum Version | Limiting Factor |
 |---|---|---|
@@ -26,9 +26,13 @@ Mankunku relies on modern Web APIs. This page documents compatibility requiremen
 | Safari (macOS and iOS) | 16.4+ | Tailwind CSS 4, Vite build target |
 | Edge | 111+ | Chromium-based |
 
-The floor is set by the toolchain, not the audio APIs. Tailwind CSS 4 states Chrome 111, Safari 16.4 and Firefox 128 as the versions its core depends on, and `vite.config.ts` sets no `build.target`, so Vite 8's default `baseline-widely-available` target (Chrome/Edge 111, Firefox 114, Safari/iOS 16.4) decides which syntax gets down-levelled. Every audio API above is supported well below that.
+These are toolchain baselines, not a test result for every feature on each minimum version. Tailwind CSS 4 states Chrome 111, Safari 16.4 and Firefox 128 as the versions its core depends on, and `vite.config.ts` sets no `build.target`, so Vite 8's default `baseline-widely-available` target (Chrome/Edge 111, Firefox 114, Safari/iOS 16.4) decides which syntax gets down-levelled. Every audio API above is supported well below that.
 
-**Not supported:** Internet Explorer, Opera Mini, browsers older than the floor.
+**Not supported:** Internet Explorer, Opera Mini, browsers older than the interface baseline.
+
+### PDF import
+
+Use a current browser for PDF import. The app uses PDF.js's modern build, which upstream targets at current engines; the interface baseline above does not establish PDF support on an old browser. See [PDF.js browser support](https://github.com/mozilla/pdf.js/wiki/Frequently-Asked-Questions#which-browsersenvironments-are-supported). The local `Math.sumPrecise` fallback addresses one missing API, not every possible compatibility difference.
 
 ## Mobile Considerations
 
@@ -101,7 +105,7 @@ The scoring system's latency correction absorbs constant delays, so latency prim
 
 ## Testing Across Engines
 
-The Playwright suite runs every spec on Chromium, Firefox and WebKit (`playwright.config.ts`), and each engine needs a different route to a microphone:
+The Playwright suite targets Chromium, Firefox and WebKit (`playwright.config.ts`) in a Linux sandbox. The installed Playwright versions are tested, not all historical browser versions. Audio-dependent cases are conditionally skipped on headless Linux Firefox without an output device. Linux WebKit does not establish native Safari or real-microphone parity; those require a manual device check. See the [Testing Guide](../contributing/testing-guide.md). Each engine needs a different route to a microphone:
 
 - **Chromium** — `permissions: ['microphone']` plus `--use-fake-ui-for-media-stream`, `--use-fake-device-for-media-stream` and `--autoplay-policy=no-user-gesture-required`; `--disable-audio-output` renders Web Audio into a fake sink so the suite is silent while the AudioContext clock still runs in real time.
 - **Firefox** — rejects the `'microphone'` permission name at the Playwright API level, so it uses prefs instead: `media.navigator.permission.disabled`, `media.navigator.streams.fake`, and autoplay unblocked.

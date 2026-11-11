@@ -1,4 +1,4 @@
-import { version } from '$app/environment';
+import { version } from '$app/env';
 import specification from '/documentation/musicality/spec.md?raw';
 import { buildMusicalityRequirements } from '$lib/musicality/manifest';
 

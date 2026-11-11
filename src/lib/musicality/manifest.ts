@@ -1,3 +1,4 @@
+import { CURRENT_MUSICALITY_RELEASE } from './release';
 import {
 	parseMusicalitySpec, validateMusicalityManifest,
 	type ImplementationStatus, type MusicalityAudit, type MusicalityEvidence, type MusicalityRequirement
@@ -8,8 +9,8 @@ export const MUSICALITY_AUDIT_DATE = '2026-10-15';
 export const MUSICALITY_AUDIT_REVISION = 'ced5186931aafc4b75151d8704db88217861672c';
 export const MUSICALITY_AUDIT_SCOPE = 'Source inspection of the reachable accompaniment engine. Core devices are distinguished from their missing musical context. Test links are references, not a claim that this audit ran them. The new specification has not passed a listening acceptance review.';
 
-const source = (file: string, line = 1): MusicalityEvidence => ({ kind: 'source', path: `src/lib/audio/${file}.ts`, line });
-const test = (file: string): MusicalityEvidence => ({ kind: 'test', path: `tests/unit/audio/${file}.test.ts` });
+const source = (file: string, line = 1): MusicalityEvidence => ({ kind: 'source', path: `src/lib/audio/${file}.ts`, line, revision: 'musicality' });
+const test = (file: string): MusicalityEvidence => ({ kind: 'test', path: `tests/unit/audio/${file}.test.ts`, revision: 'musicality' });
 const generation = [source('backing-generation', 516), test('backing-generation')];
 const comp = [source('backing-comp-figures', 45), source('backing-generation', 350), test('backing-comp-figures')];
 const voicings = [source('voicings', 41), source('backing-generation', 320), test('voicings')];
@@ -160,7 +161,7 @@ const baselineAudit: MusicalityAudit[] = [
 	...deviceRows('P', 58, pianoImplemented, pianoPartial),
 	...deviceRows('B', 59, bassImplemented, bassPartial),
 	...deviceRows('D', 85, drumsImplemented, drumsPartial)
-];
+].map(entry => ({ ...entry, evidence: entry.evidence.map(evidence => ({ ...evidence, revision: MUSICALITY_AUDIT_REVISION })) }));
 
 const FOUNDATION_REVISION = 'dfa5421a6f198152595a094a11b7414e3d8d9d7c';
 const CHECKPOINT_TIMING_REVISION = '19ab6bf3b23ae74fa35d4ae37c7993f1a2c4bad0';
@@ -387,8 +388,8 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
     ? 'Musicality 0.16.0 resolves an inner flat ninth to ninth, or sharp eleventh to fifth, across two existing dominant-chord attacks. Defining 3/7 tones, outer voices, native rhythm and harmonic support remain.'
     : 'Musicality 0.16.0 occasionally lifts the existing beat-four foot hi-hat at a quiet phrase close, leaving ride, beat two and attack count intact. Late keyboard attacks and competing commentary veto the lift.',
   remaining:'Ninth-only bass extension targets; keyboard movement is a bounded lower-neighbor resolution on plain dominants; the hat uses the existing pedal sample rather than a dedicated bark articulation. Human listening acceptance remains pending.',
-  scope:'Independent inner-motion policy. Omission preserves 48 captured 0.15 performances. Bass/drums are Swing/Straight; keyboards also use Bossa/Ballad native rhythm. Load 0.16 example for reproducible full-tune listening. Exported causal takes now include measured render attempts for playback diagnosis. The 0.16.1 playback patch reduces keyboard ranking allocations and releases finished native-voice ownership, preserving 80 complete 0.16 output baselines and the 25 ms generation guard.',
-  evidence:[...entry.evidence,source('backing-inner-motion'),source('backing-rolling-bass'),source('backing-rolling-piano'),source('backing-keyboard-decorations'),source('backing-rolling'),test('backing-inner-motion'),test('backing-inner-motion-performance')]
+  scope:'Independent inner-motion policy. Omission preserves 48 captured 0.15 performances. Bass/drums are Swing/Straight; keyboards also use Bossa/Ballad native rhythm. Load 0.16 example for reproducible full-tune listening. Exported causal takes now include measured render attempts for playback diagnosis. 0.16.1 also enables the released trio in supported normal 4/4 playback (1–128 bars), with a device-local Original rollback in Settings. Normal loops repeat the prepared arrangement; live microphone and cross-loop adaptation remain lab-only. The 0.16.1 playback patch reduces keyboard ranking allocations and releases finished native-voice ownership, preserving 80 complete 0.16 output baselines and the 25 ms generation guard.',
+  evidence:[...entry.evidence,source('backing-inner-motion'),source('backing-rolling-bass'),source('backing-rolling-piano'),source('backing-keyboard-decorations'),source('backing-rolling'),test('backing-inner-motion'),test('backing-inner-motion-performance'),source('backing-arrangement'),source('backing-release'),test('backing-arrangement')]
  };
 
  if(['B32','P25','D47'].includes(entry.id))return {
@@ -439,12 +440,10 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
   evidence:[...entry.evidence,source('backing-trio-conversation'),source('backing-rolling-bass'),source('backing-rolling-piano'),source('backing-keyboard-decorations'),source('backing-drum-phrases'),test('backing-trio-conversation'),test('backing-trio-conversation-performance')]
  };
 
-	if (['B49','P14','D37'].includes(entry.id)) return {
+	if (['B49','D37'].includes(entry.id)) return {
   ...entry, status: 'partial',
   assessment: entry.id === 'B49'
    ? 'Musicality 0.11.0 shapes selected walking phrases with lighter beats 1/3 and stronger 2/4. Pitches, attack times, gates and pulse count stay intact. Two-feel, ornaments and reserved launches keep their original dynamics.'
-   : entry.id === 'P14'
-    ? 'Musicality 0.11.0 adds deliberate short-chord / held-answer contrast to eligible existing two-attack keyboard cells. Piano and Organ use different gate lengths. A complete pair must fit the actual harmony and bar boundaries without reducing total gated support.'
     : 'Musicality 0.11.0 can soften an existing inner snare stroke in a three-hit fill while retaining its launch and landing, or shape an eligible two-snare commentary pair into a stronger statement and ghosted answer. No new hit is inserted and timekeeping remains intact.',
   remaining: 'Scoped to selected explicit Coordinated Swing/Straight solo passages. Bossa, Ballad and Original retain their prior policy. Dense solo evidence and joint endings take priority. Velocity/gate shaping uses existing sample articulations; human listening acceptance and native-style expansion remain pending.',
   scope: '0.11.0 phrase-expression policy, separately fingerprinted. Omission preserves complete 0.10 event, trace and checkpoint baselines.',
@@ -513,11 +512,11 @@ export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => 
 		evidence: [...entry.evidence, ...pianoDevelopmentEvidence, { ...source('backing-keyboard-vocabulary'), revision: 'musicality' }, { ...test('backing-keyboard-variety'), revision: 'musicality' }]
 	};
 	if (entry.id === 'P14') return {
-		...entry, status: 'implemented',
-		assessment: 'Musicality 0.7.0 retains short/held native cells and adds captured Piano/Organ articulation: clearer short piano releases, bounded organ sustain, compact Bossa gates and slower Ballad pads. Each adapted gate respects the next scheduled attack, harmony and bar boundary.',
+		...entry, status: 'partial',
+		assessment: 'Musicality 0.7.0 retains short/held native cells and adds captured Piano/Organ articulation: clearer short piano releases, bounded organ sustain, compact Bossa gates and slower Ballad pads. Each adapted gate respects the next scheduled attack, harmony and bar boundary. The 0.11.0 phrase-expression policy adds short-chord / held-answer contrast to eligible two-attack Swing/Straight solo cells, without reducing total gated support.',
 		remaining: 'This changes note gates, not sampled release envelopes or organ registration. Human full-tune articulation and balance acceptance remains pending.',
 		scope: 'Coordinated listening in all four styles; protected support, replies, arrivals and endings retain their established release ownership. Original and earlier policies stay unchanged.',
-		evidence: [...entry.evidence, { ...source('backing-keyboard-articulation'), revision: 'musicality' }, { ...test('backing-keyboard-articulation'), revision: 'musicality' }, { ...test('backing-keyboard-phrasing-contracts'), revision: 'musicality' }]
+		evidence: [...entry.evidence, { ...source('backing-keyboard-articulation'), revision: 'musicality' }, { ...test('backing-keyboard-articulation'), revision: 'musicality' }, { ...test('backing-keyboard-phrasing-contracts'), revision: 'musicality' }, source('backing-phrase-expression'), test('backing-phrase-expression-performance')]
 	};
 	if (entry.id === 'P31' || entry.id === 'P35') return {
 		...entry, status: 'partial',
@@ -701,5 +700,6 @@ export function buildMusicalityRequirements(markdown: string): MusicalityRequire
 
 /** Pin evidence links so later source movement cannot silently rewrite this audit. */
 export function musicalityEvidenceUrl(evidence: MusicalityEvidence): string {
-	return `https://github.com/avitus/mankunku/blob/${evidence.revision ?? MUSICALITY_AUDIT_REVISION}/${evidence.path}${evidence.line ? `#L${evidence.line}` : ''}`;
+	const revision = evidence.revision === 'musicality' ? CURRENT_MUSICALITY_RELEASE.engineRevision : evidence.revision ?? MUSICALITY_AUDIT_REVISION;
+	return `https://github.com/avitus/mankunku/blob/${revision}/${evidence.path}${evidence.line ? `#L${evidence.line}` : ''}`;
 }

@@ -1,0 +1,2673 @@
+{
+  "version": 1,
+  "exportedAt": "2026-10-30T00:01:45.664Z",
+  "recording": {
+    "sessionId": "b0585389-4e39-4b07-8528-985cd7819e5a",
+    "timestamp": 1793318447329,
+    "date": "2026-10-30T00:00:47.329Z"
+  },
+  "context": {
+    "phraseId": "cmb-sp-pent-turn_rp-4-synco_Bb",
+    "phraseName": "Pent Turn / Syncopated",
+    "source": "ear-training",
+    "instrument": {
+      "id": "tenor-sax",
+      "name": "Tenor Saxophone",
+      "key": "Bb"
+    },
+    "concertKey": "Bb",
+    "tempo": 100,
+    "swing": 0.6,
+    "backingTrackUsed": false,
+    "metronomeEnabled": true,
+    "transportSeconds": 417.20009070294793,
+    "backingBleedOnsets": null
+  },
+  "audio": {
+    "duration": 4.080181405895692,
+    "sampleRate": 44100,
+    "captureTrimSeconds": 1.2333333333333334
+  },
+  "detection": {
+    "rawWorkletOnsets": [
+      0.33691609977324255,
+      0.5023582766439909,
+      1.5095238095238095,
+      2.3048072562358275,
+      2.9027210884353742,
+      3.5035374149659866
+    ],
+    "resolvedOnsets": [
+      0.33691609977324255,
+      0.5023582766439909,
+      1.5095238095238095
+    ],
+    "segmentedNotes": [
+      {
+        "midi": 58,
+        "cents": 1,
+        "onsetTime": 0.5023582766439909,
+        "duration": 0.9476417233560088,
+        "clarity": 0.9656431408122206
+      },
+      {
+        "midi": 55,
+        "cents": -1,
+        "onsetTime": 1.4499999999999997,
+        "duration": 0.059523809523809756,
+        "clarity": 0.950946723114285
+      },
+      {
+        "midi": 55,
+        "cents": 3,
+        "onsetTime": 1.5095238095238095,
+        "duration": 0.29047619047619033,
+        "clarity": 0.9388798851860329
+      },
+      {
+        "midi": 58,
+        "cents": 6,
+        "onsetTime": 1.7999999999999998,
+        "duration": 2.280181405895692,
+        "clarity": 0.9810589524476464
+      }
+    ],
+    "readings": [
+      {
+        "midiFloat": 47.856105171405474,
+        "midi": 48,
+        "cents": -14,
+        "clarity": 0.82663744325896,
+        "time": 0.34999999999999987,
+        "frequency": 129.73001324820478,
+        "rms": 0.06787160215188362,
+        "hfRms": 0.008319028159878578,
+        "rmsMin": 0.03812675697954294,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.026620714995433562,
+        "shapeBreak": 0.750072651838474,
+        "shapeBreakAt": 0.007709750566893424,
+        "brightness": -15.319666601047206,
+        "brightnessLift": 1.2270696102773755,
+        "brightnessLiftAt": 0.05514739229024943,
+        "warmup": true
+      },
+      {
+        "midiFloat": 48.0822802976264,
+        "midi": 48,
+        "cents": 8,
+        "clarity": 0.8988785918958513,
+        "time": 0.3666666666666667,
+        "frequency": 131.43597583712432,
+        "rms": 0.060734370663220474,
+        "hfRms": 0.006035618706146706,
+        "rmsMin": 0.03900444658255133,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.02375739971173879,
+        "shapeBreak": 0.872583429642418,
+        "shapeBreakAt": 0.007619047619047619,
+        "brightness": -12.559673725331539,
+        "brightnessLift": 1.545535559404776,
+        "brightnessLiftAt": 0.03773242630385488,
+        "warmup": true
+      },
+      {
+        "midiFloat": 48.17363043592547,
+        "midi": 48,
+        "cents": 17,
+        "clarity": 0.9345195924248344,
+        "time": 0.3833333333333333,
+        "frequency": 132.13134268101265,
+        "rms": 0.05410335239644617,
+        "hfRms": 0.004896899724910456,
+        "rmsMin": 0.038641843020048104,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.024481652316223648,
+        "shapeBreak": 0.902353254181927,
+        "shapeBreakAt": 0.010476190476190476,
+        "brightness": -12.964480993104534,
+        "brightnessLift": -0.6589683979263103,
+        "brightnessLiftAt": 0.03192743764172336,
+        "warmup": true
+      },
+      {
+        "midiFloat": 60.25694763894752,
+        "midi": 60,
+        "cents": 26,
+        "clarity": 0.9014435871974698,
+        "time": 0.3999999999999999,
+        "frequency": 265.537538627835,
+        "rms": 0.049943845359264036,
+        "hfRms": 0.004637933291450796,
+        "rmsMin": 0.03845743257320688,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.024926066744128686,
+        "shapeBreak": 0.7710848723879211,
+        "shapeBreakAt": 0.003764172335600907,
+        "brightness": -13.711528452141412,
+        "brightnessLift": -0.3053571852080559,
+        "brightnessLiftAt": 0.03773242630385488,
+        "warmup": true,
+        "octaveUp": true
+      },
+      {
+        "midiFloat": 58.137051958473805,
+        "midi": 58,
+        "cents": 14,
+        "clarity": 0.876222541969554,
+        "time": 0.5999999999999999,
+        "frequency": 234.93438043252124,
+        "rms": 0.07714889984990303,
+        "hfRms": 0.006124733780176169,
+        "rmsMin": 0.04658659426619968,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.032935010227475484,
+        "shapeBreak": 0.277764007370711,
+        "shapeBreakAt": 0.010068027210884354,
+        "brightness": -13.901593474869529,
+        "brightnessLift": 5.886263647390162,
+        "brightnessLiftAt": 0.04353741496598639,
+        "warmup": true
+      },
+      {
+        "midiFloat": 58.0616057549816,
+        "midi": 58,
+        "cents": 6,
+        "clarity": 0.9474377517759933,
+        "time": 0.6166666666666667,
+        "frequency": 233.9127773134361,
+        "rms": 0.08602747513850571,
+        "hfRms": 0.0068512938342577484,
+        "rmsMin": 0.047948156093191294,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.036414059011764546,
+        "shapeBreak": 0.55917872996235,
+        "shapeBreakAt": 0.018798185941043082,
+        "brightness": -11.854144869592831,
+        "brightnessLift": 4.559425154869258,
+        "brightnessLiftAt": 0.03192743764172336,
+        "warmup": true
+      },
+      {
+        "midiFloat": 58.03001776547089,
+        "midi": 58,
+        "cents": 3,
+        "clarity": 0.9754819380757169,
+        "time": 0.6333333333333333,
+        "frequency": 233.48637063276254,
+        "rms": 0.09603669203207697,
+        "hfRms": 0.007617203946870074,
+        "rmsMin": 0.047925368971415215,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.04124467909034709,
+        "shapeBreak": 0.737637173509499,
+        "shapeBreakAt": 0.004285714285714286,
+        "brightness": -11.816438870358109,
+        "warmup": true
+      },
+      {
+        "midiFloat": 58.02247593696129,
+        "midi": 58,
+        "cents": 2,
+        "clarity": 0.9875759309271928,
+        "time": 0.6499999999999999,
+        "frequency": 233.3846783938054,
+        "rms": 0.1065040493121285,
+        "hfRms": 0.008294006500538817,
+        "rmsMin": 0.08498512824465235,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.07161656284192588,
+        "shapeBreak": 0.9449645424252806,
+        "shapeBreakAt": 0.004285714285714286,
+        "brightness": -12.245511502438621,
+        "warmup": true
+      },
+      {
+        "midiFloat": 58.01493506277926,
+        "midi": 58,
+        "cents": 1,
+        "clarity": 0.993874778691989,
+        "time": 0.6666666666666665,
+        "frequency": 233.28304330522772,
+        "rms": 0.11439181039296684,
+        "hfRms": 0.00873769996739351,
+        "rmsMin": 0.09629054362321288,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.07851332228077895,
+        "shapeBreak": 0.9880695775208864,
+        "shapeBreakAt": 0.004285714285714286,
+        "brightness": -12.093672441158418,
+        "warmup": true
+      },
+      {
+        "midiFloat": 58.00783714786509,
+        "midi": 58,
+        "cents": 1,
+        "clarity": 0.994663635221869,
+        "time": 0.6833333333333333,
+        "frequency": 233.18741881108497,
+        "rms": 0.11785617538196078,
+        "hfRms": 0.009137519151622003,
+        "rmsMin": 0.09355242260690866,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.0809156067681219,
+        "shapeBreak": 0.986799637181458,
+        "shapeBreakAt": 0.012993197278911565,
+        "brightness": -11.395177899303334
+      },
+      {
+        "midiFloat": 58.007126013347765,
+        "midi": 58,
+        "cents": 1,
+        "clarity": 0.995826967961662,
+        "time": 0.7,
+        "frequency": 233.1778404287265,
+        "rms": 0.12135437952728838,
+        "hfRms": 0.009513254294008568,
+        "rmsMin": 0.10735258964986595,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.09068835691267402,
+        "shapeBreak": 0.9909029446059798,
+        "shapeBreakAt": 0.027505668934240363,
+        "brightness": -10.450637407308012,
+        "brightnessLift": 2.401728694757196,
+        "brightnessLiftAt": 0.06095238095238095
+      },
+      {
+        "midiFloat": 58.0041609522997,
+        "midi": 58,
+        "cents": 0,
+        "clarity": 0.9960403723670055,
+        "time": 0.7166666666666666,
+        "frequency": 233.1379077963211,
+        "rms": 0.12335320106321404,
+        "hfRms": 0.009806046344989933,
+        "rmsMin": 0.11187414302919199,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.09235367300241114,
+        "shapeBreak": 0.9910167374407272,
+        "shapeBreakAt": 0.010090702947845805,
+        "brightness": -9.523502198073494,
+        "brightnessLift": 2.3781323908806353,
+        "brightnessLiftAt": 0.04934240362811791
+      },
+      {
+        "midiFloat": 58.00588855642252,
+        "midi": 58,
+        "cents": 1,
+        "clarity": 0.9966887596695813,
+        "time": 0.7333333333333332,
+        "frequency": 233.16117386527668,
+        "rms": 0.12386450860349862,
+        "hfRms": 0.009948578888778339,
+        "rmsMin": 0.11362353089363154,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.09667880312874913,
+        "shapeBreak": 0.9936930859537694,
+        "shapeBreakAt": 0.05653061224489796,
+        "brightness": -8.889599447132557,
+        "brightnessLift": 2.3953400697841953,
+        "brightnessLiftAt": 0.03192743764172336
+      },
+      {
+        "midiFloat": 58.00499514956498,
+        "midi": 58,
+        "cents": 0,
+        "clarity": 0.9969010098262743,
+        "time": 0.75,
+        "frequency": 233.1491418458645,
+        "rms": 0.12402053927791001,
+        "hfRms": 0.009894067764665697,
+        "rmsMin": 0.112884612201345,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.09705803327243902,
+        "shapeBreak": 0.993519691771801,
+        "shapeBreakAt": 0.04201814058956916,
+        "brightness": -8.67850419118757,
+        "brightnessLift": 0.6392590802971707,
+        "brightnessLiftAt": 0.03192743764172336
+      },
+      {
+        "midiFloat": 58.00831302794699,
+        "midi": 58,
+        "cents": 1,
+        "clarity": 0.9974351816607765,
+        "time": 0.7666666666666666,
+        "frequency": 233.1938287342951,
+        "rms": 0.12357760539932307,
+        "hfRms": 0.009658736404002178,
+        "rmsMin": 0.11395102472976057,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.0962653867531053,
+        "shapeBreak": 0.9935889844421573,
+        "shapeBreakAt": 0.021700680272108842,
+        "brightness": -8.835288558242127
+      },
+      {
+        "midiFloat": 58.00553992540853,
+        "midi": 58,
+        "cents": 1,
+        "clarity": 0.9976831182868722,
+        "time": 0.7833333333333332,
+        "frequency": 233.15647857881055,
+        "rms": 0.12433535446897213,
+        "hfRms": 0.009335250387563745,
+        "rmsMin": 0.11638297992130393,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.09515357192648491,
+        "shapeBreak": 0.993689071836346,
+        "shapeBreakAt": 0.004285714285714286,
+        "brightness": -9.150664262065538
+      },
+      {
+        "midiFloat": 58.00308630873046,
+        "midi": 58,
+        "cents": 0,
+        "clarity": 0.9978887814152131,
+        "time": 0.7999999999999998,
+        "frequency": 233.1234364787277,
+        "rms": 0.1222300591917795,
+        "hfRms": 0.008960086716119581,
+        "rmsMin": 0.10682703607955933,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.08189129550483196,
+        "shapeBreak": 0.9959491102138482,
+        "shapeBreakAt": 0.0826530612244898,
+        "brightness": -9.472680938398268,
+        "brightnessLift": 0.19399207339020563,
+        "brightnessLiftAt": 0.06095238095238095
+      },
+      {
+        "midiFloat": 57.99783879821644,
+        "midi": 58,
+        "cents": 0,
+        "clarity": 0.9977310068603487,
+        "time": 0.8166666666666664,
+        "frequency": 233.0527855863987,
+        "rms": 0.11923928891627378,
+        "hfRms": 0.00845935390432711,
+        "rmsMin": 0.10304779353381718,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.0775020944834307,
+        "shapeBreak": 0.9908420667065304,
+        "shapeBreakAt": 0.07104308390022676,
+        "brightness": -9.569698757590398,
+        "brightnessLift": 0.4743169401588805,
+        "brightnessLiftAt": 0.04934240362811791
+      },
+      {
+        "midiFloat": 57.99740623343891,
+        "midi": 58,
+        "cents": 0,
+        "clarity": 0.9972022362210851,
+        "time": 0.8333333333333335,
+        "frequency": 233.04696262057868,
+        "rms": 0.11382323493819654,
+        "hfRms": 0.007947743842508992,
+        "rmsMin": 0.09430752604955762,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.0758832768473789,
+        "shapeBreak": 0.9902053201473335,
+        "shapeBreakAt": 0.0536281179138322,
+        "brightness": -9.424256847018004,
+        "brightnessLift": 1.0237266028209717,
+        "brightnessLiftAt": 0.06095238095238095
+      },
+      {
+        "midiFloat": 57.99738723699684,
+        "midi": 58,
+        "cents": 0,
+        "clarity": 0.996547183383683,
+        "time": 0.8500000000000001,
+        "frequency": 233.0467069035255,
+        "rms": 0.1075472165506195,
+        "hfRms": 0.0074630529781431,
+        "rmsMin": 0.09150507021049947,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.07569524792345289,
+        "shapeBreak": 0.989589211241459,
+        "shapeBreakAt": 0.03621315192743764,
+        "brightness": -9.174556987119976,
+        "brightnessLift": 0.9836086585046555,
+        "brightnessLiftAt": 0.04353741496598639
+      },
+      {
+        "midiFloat": 58.003218615815314,
+        "midi": 58,
+        "cents": 0,
+        "clarity": 0.9953166700275204,
+        "time": 0.8666666666666667,
+        "frequency": 233.12521809803968,
+        "rms": 0.10279459516129937,
+        "hfRms": 0.007015910111098227,
+        "rmsMin": 0.09138143734281126,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.07289447286304435,
+        "shapeBreak": 0.9905165596365882,
+        "shapeBreakAt": 0.021700680272108842,
+        "brightness": -9.026285569333384,
+        "brightnessLift": 0.8763097882738755,
+        "brightnessLiftAt": 0.03192743764172336
+      },
+      {
+        "midiFloat": 58.00876410625121,
+        "midi": 58,
+        "cents": 1,
+        "clarity": 0.9952080676487469,
+        "time": 0.8833333333333333,
+        "frequency": 233.19990474968145,
+        "rms": 0.0984792757212759,
+        "hfRms": 0.006517545878653613,
+        "rmsMin": 0.09150495431633424,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.06799271032059294,
+        "shapeBreak": 0.9908115452544606,
+        "shapeBreakAt": 0.004285714285714286,
+        "brightness": -9.205325796022148,
+        "brightnessLift": 0.13122815032687463,
+        "brightnessLiftAt": 0.03192743764172336
+      },
+      {
+        "midiFloat": 58.016587740718215,
+        "midi": 58,
+        "cents": 2,
+        "clarity": 0.9960585815526173,
+        "time": 0.8999999999999999,
+        "frequency": 233.30531413235087,
+        "rms": 0.09529355369313401,
+        "hfRms": 0.0061779543829807515,
+        "rmsMin": 0.08431685681294546,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.06398874306189227,
+        "shapeBreak": 0.9907509713175037,
+        "shapeBreakAt": 0.05072562358276644,
+        "brightness": -9.640124087113323,
+        "brightnessLift": -0.5345762235581013,
+        "brightnessLiftAt": 0.06095238095238095
+      },
+      {
+        "midiFloat": 58.02525072154711,
+        "midi": 58,
+        "cents": 3,
+        "clarity": 0.9963841802475031,
+        "time": 0.9166666666666665,
+        "frequency": 233.42208778444416,
+        "rms": 0.09121170351519373,
+        "hfRms": 0.005843420668682454,
+        "rmsMin": 0.07213725480917331,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.05873327261202243,
+        "shapeBreak": 0.9905389899023078,
+        "shapeBreakAt": 0.03331065759637188,
+        "brightness": -9.957311939308461,
+        "brightnessLift": 1.363770758947366,
+        "brightnessLiftAt": 0.06095238095238095
+      },
+      {
+        "midiFloat": 58.032034919964005,
+        "midi": 58,
+        "cents": 3,
+        "clarity": 0.9959200089200664,
+        "time": 0.9333333333333331,
+        "frequency": 233.51357697849187,
+        "rms": 0.08753738711396833,
+        "hfRms": 0.005439979213079324,
+        "rmsMin": 0.06723095094716114,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.05074536018408563,
+        "shapeBreak": 0.9878012534678541,
+        "shapeBreakAt": 0.07684807256235827,
+        "brightness": -9.80966792080059,
+        "brightnessLift": 1.775436477747613,
+        "brightnessLiftAt": 0.04934240362811791
+      },
+      {
+        "midiFloat": 58.037630951882456,
+        "midi": 58,
+        "cents": 4,
+        "clarity": 0.9953233019927126,
+        "time": 0.9499999999999997,
+        "frequency": 233.58906998592937,
+        "rms": 0.08268586582624286,
+        "hfRms": 0.005043852627137713,
+        "rmsMin": 0.060545632413493415,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.04758479160029285,
+        "shapeBreak": 0.9871777356562175,
+        "shapeBreakAt": 0.05943310657596372,
+        "brightness": -9.42423569721376,
+        "brightnessLift": 1.7727689998773908,
+        "brightnessLiftAt": 0.03773242630385488
+      },
+      {
+        "midiFloat": 58.04256191785858,
+        "midi": 58,
+        "cents": 4,
+        "clarity": 0.9954539023138977,
+        "time": 0.9666666666666668,
+        "frequency": 233.65561117979675,
+        "rms": 0.0755655084424424,
+        "hfRms": 0.004611637865971472,
+        "rmsMin": 0.05260824944719707,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.04116103068137894,
+        "shapeBreak": 0.9892790176427615,
+        "shapeBreakAt": 0.04492063492063492,
+        "brightness": -9.127278720439616,
+        "brightnessLift": 1.1155489226698938,
+        "brightnessLiftAt": 0.05514739229024943
+      },
+      {
+        "midiFloat": 58.04814318890467,
+        "midi": 58,
+        "cents": 5,
+        "clarity": 0.9945722487442481,
+        "time": 0.9833333333333334,
+        "frequency": 233.73095082161592,
+        "rms": 0.06852301214380616,
+        "hfRms": 0.004200592322521751,
+        "rmsMin": 0.05265248026526828,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.03872112406813158,
+        "shapeBreak": 0.9882487353917273,
+        "shapeBreakAt": 0.027505668934240363,
+        "brightness": -8.87114720945497,
+        "brightnessLift": 1.0892869981943232,
+        "brightnessLiftAt": 0.03773242630385488
+      },
+      {
+        "midiFloat": 58.05234890830813,
+        "midi": 58,
+        "cents": 5,
+        "clarity": 0.9930615482456062,
+        "time": 1,
+        "frequency": 233.78773841813435,
+        "rms": 0.060783502669438834,
+        "hfRms": 0.0037235025841093877,
+        "rmsMin": 0.03843805524589361,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.031291568939989425,
+        "shapeBreak": 0.986078288974758,
+        "shapeBreakAt": 0.0826530612244898,
+        "brightness": -8.668447231930699,
+        "brightnessLift": 0.5180210963392256,
+        "brightnessLiftAt": 0.03192743764172336
+      },
+      {
+        "midiFloat": 58.17889337772955,
+        "midi": 58,
+        "cents": 18,
+        "clarity": 0.9571910168478723,
+        "time": 1.0166666666666666,
+        "frequency": 235.50286950068661,
+        "rms": 0.05599177094425273,
+        "hfRms": 0.018503871820722596,
+        "rmsMin": 0.04071840596924602,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.026151812997203778,
+        "shapeBreak": 0.6865943779608877,
+        "shapeBreakAt": 0.08260770975056689,
+        "brightness": -9.60611305363906,
+        "brightnessLift": 0.4595362337664781,
+        "brightnessLiftAt": 0.03773242630385488
+      },
+      {
+        "midiFloat": 57.88776039125028,
+        "midi": 58,
+        "cents": -11,
+        "clarity": 0.8768785478751511,
+        "time": 1.0333333333333332,
+        "frequency": 231.57564892722823,
+        "rms": 0.04996029835284875,
+        "hfRms": 0.026063619352603394,
+        "rmsMin": 0.03985011949145627,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.02131648617197991,
+        "shapeBreak": 0.46602494250204535,
+        "shapeBreakAt": 0.07396825396825397,
+        "brightness": -9.896719816256459,
+        "brightnessLift": 0.7044475918066446,
+        "brightnessLiftAt": 0.05514739229024943
+      },
+      {
+        "midiFloat": 57.874114255979876,
+        "midi": 58,
+        "cents": -13,
+        "clarity": 0.8338361845525242,
+        "time": 1.0499999999999998,
+        "frequency": 231.39318558502342,
+        "rms": 0.04563675006604619,
+        "hfRms": 0.02783267424743033,
+        "rmsMin": 0.026826787753368518,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.016606541792563788,
+        "shapeBreak": 0.46639052061500086,
+        "shapeBreakAt": 0.056575963718820864,
+        "brightness": -10.371763549277581,
+        "brightnessLift": 0.7217948199018913,
+        "brightnessLiftAt": 0.03773242630385488
+      },
+      {
+        "midiFloat": 58.23261920852692,
+        "midi": 58,
+        "cents": 23,
+        "clarity": 0.8018647020962248,
+        "time": 1.1166666666666667,
+        "frequency": 236.23484679745823,
+        "rms": 0.02382502415248533,
+        "hfRms": 0.016725979182019055,
+        "rmsMin": 0.010194945330920349,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.006578307093551579,
+        "shapeBreak": 0.7083775532448235,
+        "shapeBreakAt": 0.004240362811791383,
+        "brightness": -11.490043650487802,
+        "brightnessLift": -0.7621557267426642,
+        "brightnessLiftAt": 0.04353741496598639
+      },
+      {
+        "midiFloat": 57.92710972346359,
+        "midi": 58,
+        "cents": -7,
+        "clarity": 0.8883221459989272,
+        "time": 1.1333333333333333,
+        "frequency": 232.1025973634723,
+        "rms": 0.018180808396657897,
+        "hfRms": 0.009147641617188429,
+        "rmsMin": 0.00849104761729475,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.00490851601689664,
+        "shapeBreak": 0.806139695126016,
+        "shapeBreakAt": 0.004308390022675737,
+        "brightness": -12.307412944542204,
+        "brightnessLift": -0.8899573596913051,
+        "brightnessLiftAt": 0.04353741496598639
+      },
+      {
+        "midiFloat": 57.95805747746718,
+        "midi": 58,
+        "cents": -4,
+        "clarity": 0.9294515244107373,
+        "time": 1.15,
+        "frequency": 232.5178779072092,
+        "rms": 0.014294074547463018,
+        "hfRms": 0.004928039191451628,
+        "rmsMin": 0.005858229010185692,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.0034239074120041993,
+        "shapeBreak": 0.9109886937770569,
+        "shapeBreakAt": 0.027528344671201813,
+        "brightness": -12.628827888993994,
+        "brightnessLift": 0.8359179955244294,
+        "brightnessLiftAt": 0.06095238095238095
+      },
+      {
+        "midiFloat": 57.96404919267619,
+        "midi": 58,
+        "cents": -4,
+        "clarity": 0.9420564114067673,
+        "time": 1.1666666666666665,
+        "frequency": 232.59836511923535,
+        "rms": 0.011067071888186049,
+        "hfRms": 0.002984031106498867,
+        "rmsMin": 0.005310184039924107,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.002905137707264398,
+        "shapeBreak": 0.911251684784659,
+        "shapeBreakAt": 0.010113378684807257,
+        "brightness": -13.316463567228132,
+        "brightnessLift": 0.6966316226054303,
+        "brightnessLiftAt": 0.04353741496598639
+      },
+      {
+        "midiFloat": 57.988689265560176,
+        "midi": 58,
+        "cents": -1,
+        "clarity": 0.9553111319608263,
+        "time": 1.1833333333333331,
+        "frequency": 232.92965025940225,
+        "rms": 0.008748173897985007,
+        "hfRms": 0.0017446080406079063,
+        "rmsMin": 0.004031123106960354,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.002039069954904649,
+        "shapeBreak": 0.9304727193664026,
+        "shapeBreakAt": 0.012993197278911565,
+        "brightness": -13.053697097570945,
+        "brightnessLift": 1.044210008927692,
+        "brightnessLiftAt": 0.05514739229024943
+      },
+      {
+        "midiFloat": 58.067172524645294,
+        "midi": 58,
+        "cents": 7,
+        "clarity": 0.9630281027986669,
+        "time": 1.1999999999999997,
+        "frequency": 233.9880038795184,
+        "rms": 0.006674551083702977,
+        "hfRms": 0.0010565871976800187,
+        "rmsMin": 0.0034398299995739537,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.0016701598430405814,
+        "shapeBreak": 0.949667963118737,
+        "shapeBreakAt": 0.03328798185941043,
+        "brightness": -12.210191299472893,
+        "brightnessLift": 1.0580543078403757,
+        "brightnessLiftAt": 0.03773242630385488
+      },
+      {
+        "midiFloat": 58.07508723352472,
+        "midi": 58,
+        "cents": 8,
+        "clarity": 0.9633882072618718,
+        "time": 1.2166666666666668,
+        "frequency": 234.0950009852067,
+        "rms": 0.005142217118118675,
+        "hfRms": 0.000702207316339478,
+        "rmsMin": 0.0023468833496749345,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.0011040211300575784,
+        "shapeBreak": 0.9413087956861372,
+        "shapeBreakAt": 0.018775510204081632,
+        "brightness": -12.195093989783183,
+        "brightnessLift": 0.4595162229691425,
+        "brightnessLiftAt": 0.04934240362811791
+      },
+      {
+        "midiFloat": 58.09643996055967,
+        "midi": 58,
+        "cents": 10,
+        "clarity": 0.9637926107848003,
+        "time": 1.2333333333333334,
+        "frequency": 234.3839076467564,
+        "rms": 0.0040716609474394,
+        "hfRms": 0.0004507057885156366,
+        "rmsMin": 0.002048684507944058,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.0010642911608192318,
+        "shapeBreak": 0.935756222350222,
+        "shapeBreakAt": 0.07972789115646259,
+        "brightness": -12.353294122868297,
+        "brightnessLift": 0.5908728615573438,
+        "brightnessLiftAt": 0.03192743764172336
+      },
+      {
+        "midiFloat": 58.131611698118455,
+        "midi": 58,
+        "cents": 13,
+        "clarity": 0.9661315746584407,
+        "time": 1.25,
+        "frequency": 234.8605658376176,
+        "rms": 0.0032192472331937457,
+        "hfRms": 0.0003221827550611921,
+        "rmsMin": 0.0013476267464603115,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.0006748279276928969,
+        "shapeBreak": 0.9390305347594723,
+        "shapeBreakAt": 0.06231292517006803,
+        "brightness": -12.671009487940836,
+        "brightnessLift": 1.7741196010765563,
+        "brightnessLiftAt": 0.06095238095238095
+      },
+      {
+        "midiFloat": 58.11295660480969,
+        "midi": 58,
+        "cents": 11,
+        "clarity": 0.9641617899432191,
+        "time": 1.2666666666666666,
+        "frequency": 234.60762568560145,
+        "rms": 0.002528054091142995,
+        "hfRms": 0.00024831617572136145,
+        "rmsMin": 0.001235449421705044,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.0006223085513429297,
+        "shapeBreak": 0.9386073458514361,
+        "shapeBreakAt": 0.044897959183673466,
+        "brightness": -12.493737220865277,
+        "brightnessLift": 1.6277331342204437,
+        "brightnessLiftAt": 0.04353741496598639
+      },
+      {
+        "midiFloat": 58.11009993844267,
+        "midi": 58,
+        "cents": 11,
+        "clarity": 0.9521688370728363,
+        "time": 1.2833333333333332,
+        "frequency": 234.56891685686296,
+        "rms": 0.00195538972583748,
+        "hfRms": 0.0001985623611297852,
+        "rmsMin": 0.0006522698114863634,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.000384351365455031,
+        "shapeBreak": 0.6898192312993634,
+        "shapeBreakAt": 0.08263038548752834,
+        "brightness": -12.17456742053228,
+        "brightnessLift": 3.531764618360274,
+        "brightnessLiftAt": 0.06095238095238095
+      },
+      {
+        "midiFloat": 54.93630356793497,
+        "midi": 55,
+        "cents": -6,
+        "clarity": 0.9128609331174857,
+        "time": 1.4499999999999997,
+        "frequency": 195.2779183229494,
+        "rms": 0.04226329771489191,
+        "hfRms": 0.0038465853738558955,
+        "rmsMin": 0.0006822973056183754,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.00048583243772592555,
+        "shapeBreak": 0.023048629077659033,
+        "shapeBreakAt": 0.045759637188208614,
+        "brightness": -8.478043269038483,
+        "brightnessLift": 0.26671760936731825,
+        "brightnessLiftAt": 0.04353741496598639,
+        "octaveUp": true
+      },
+      {
+        "midiFloat": 54.96670252371239,
+        "midi": 55,
+        "cents": -3,
+        "clarity": 0.9577605544417906,
+        "time": 1.4666666666666668,
+        "frequency": 195.62111048820074,
+        "rms": 0.06473422334620917,
+        "hfRms": 0.005796463782278216,
+        "rmsMin": 0.0006768049450138798,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.00048581518067744247,
+        "shapeBreak": 0.06186785121808406,
+        "shapeBreakAt": 0.034126984126984124,
+        "brightness": -11.674839844304973,
+        "brightnessLift": -1.5878694713159938,
+        "brightnessLiftAt": 0.03192743764172336
+      },
+      {
+        "midiFloat": 54.991293310963286,
+        "midi": 55,
+        "cents": -1,
+        "clarity": 0.9649908270145886,
+        "time": 1.4833333333333334,
+        "frequency": 195.89917197725708,
+        "rms": 0.0790397944890048,
+        "hfRms": 0.007437230291386658,
+        "rmsMin": 0.0006800208860808177,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.0006191574989368035,
+        "shapeBreak": 0.03928685837337888,
+        "shapeBreakAt": 0.01380952380952381,
+        "brightness": -11.255687048947767
+      },
+      {
+        "midiFloat": 54.99586620608717,
+        "midi": 55,
+        "cents": 0,
+        "clarity": 0.9681745778832749,
+        "time": 1.5,
+        "frequency": 195.95092377195795,
+        "rms": 0.0885480390170589,
+        "hfRms": 0.008219854305474058,
+        "rmsMin": 0.027841414738298223,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.0289615330349691,
+        "shapeBreak": 0.5646059409992702,
+        "shapeBreakAt": 0.00510204081632653,
+        "brightness": -10.12335477916535
+      },
+      {
+        "midiFloat": 55.003124640571535,
+        "midi": 55,
+        "cents": 0,
+        "clarity": 0.9781299370204692,
+        "time": 1.5166666666666666,
+        "frequency": 196.0330960896448,
+        "rms": 0.09722501754783411,
+        "hfRms": 0.008641763107486574,
+        "rmsMin": 0.04998891063714317,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.05143139422236519,
+        "shapeBreak": 0.9570218938360696,
+        "shapeBreakAt": 0.00510204081632653,
+        "brightness": -9.91257749700892,
+        "brightnessLift": -1.1458799114637017,
+        "brightnessLiftAt": 0.04934240362811791,
+        "warmup": true
+      },
+      {
+        "midiFloat": 55.00938010103566,
+        "midi": 55,
+        "cents": 1,
+        "clarity": 0.983479182097966,
+        "time": 1.5333333333333332,
+        "frequency": 196.10394144153207,
+        "rms": 0.10257253857170669,
+        "hfRms": 0.009032717642779048,
+        "rmsMin": 0.08535080139538488,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.0711203574730461,
+        "shapeBreak": 0.9768235210823892,
+        "shapeBreakAt": 0.06024943310657596,
+        "brightness": -10.71623430373698,
+        "brightnessLift": -1.0040238277236035,
+        "brightnessLiftAt": 0.03192743764172336,
+        "warmup": true
+      },
+      {
+        "midiFloat": 55.02383072650852,
+        "midi": 55,
+        "cents": 2,
+        "clarity": 0.9858412815018767,
+        "time": 1.5499999999999998,
+        "frequency": 196.26769790416083,
+        "rms": 0.1021063126729611,
+        "hfRms": 0.009020292468451865,
+        "rmsMin": 0.08439428814075094,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.06898339441942775,
+        "shapeBreak": 0.9778101196892144,
+        "shapeBreakAt": 0.01090702947845805,
+        "brightness": -11.698358614280508,
+        "brightnessLift": -1.0244432381488817,
+        "brightnessLiftAt": 0.04934240362811791,
+        "warmup": true
+      },
+      {
+        "midiFloat": 55.02959517294896,
+        "midi": 55,
+        "cents": 3,
+        "clarity": 0.9884431086066456,
+        "time": 1.5666666666666664,
+        "frequency": 196.33305954660054,
+        "rms": 0.09911323276666477,
+        "hfRms": 0.008564157993191393,
+        "rmsMin": 0.08371781660304606,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.06848875865325289,
+        "shapeBreak": 0.9788571457311729,
+        "shapeBreakAt": 0.00800453514739229,
+        "brightness": -12.099593836473993,
+        "brightnessLift": 0.8762669491070678,
+        "brightnessLiftAt": 0.06095238095238095,
+        "warmup": true
+      },
+      {
+        "midiFloat": 55.0396082627218,
+        "midi": 55,
+        "cents": 4,
+        "clarity": 0.9912645942975473,
+        "time": 1.5833333333333335,
+        "frequency": 196.4466472604539,
+        "rms": 0.09483135583131383,
+        "hfRms": 0.008120336938799742,
+        "rmsMin": 0.07888573408149004,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.06810213663974832,
+        "shapeBreak": 0.9775642610187801,
+        "shapeBreakAt": 0.010884353741496598,
+        "brightness": -11.859128692459805,
+        "brightnessLift": 1.6481749337846097,
+        "brightnessLiftAt": 0.05514739229024943,
+        "warmup": true
+      },
+      {
+        "midiFloat": 55.040198082431296,
+        "midi": 55,
+        "cents": 4,
+        "clarity": 0.9940483210032767,
+        "time": 1.6,
+        "frequency": 196.4533401786227,
+        "rms": 0.09420707505200705,
+        "hfRms": 0.00796874217256138,
+        "rmsMin": 0.07572863536657723,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.06413270128965468,
+        "shapeBreak": 0.9823152661664047,
+        "shapeBreakAt": 0.07183673469387755,
+        "brightness": -11.422396157074147,
+        "brightnessLift": 1.7066761167223756,
+        "brightnessLiftAt": 0.04353741496598639
+      },
+      {
+        "midiFloat": 55.03031632753573,
+        "midi": 55,
+        "cents": 3,
+        "clarity": 0.9798751543757476,
+        "time": 1.6166666666666667,
+        "frequency": 196.3412380730958,
+        "rms": 0.09062765384903962,
+        "hfRms": 0.022127787567913264,
+        "rmsMin": 0.07650515679253242,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.06462091599830809,
+        "shapeBreak": 0.9021404801442393,
+        "shapeBreakAt": 0.08056689342403628,
+        "brightness": -11.406787616673347,
+        "brightnessLift": 1.17022087902164,
+        "brightnessLiftAt": 0.03192743764172336
+      },
+      {
+        "midiFloat": 55.02807057836295,
+        "midi": 55,
+        "cents": 3,
+        "clarity": 0.9533999640547677,
+        "time": 1.6333333333333333,
+        "frequency": 196.31577042615163,
+        "rms": 0.08731048856559642,
+        "hfRms": 0.028735908098059332,
+        "rmsMin": 0.07477815568912209,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.05826944867483437,
+        "shapeBreak": 0.8268531725787996,
+        "shapeBreakAt": 0.071859410430839,
+        "brightness": -12.004500972392167,
+        "brightnessLift": -0.47125327754985946,
+        "brightnessLiftAt": 0.03192743764172336
+      },
+      {
+        "midiFloat": 55.022965775961005,
+        "midi": 55,
+        "cents": 2,
+        "clarity": 0.9388069082348807,
+        "time": 1.65,
+        "frequency": 196.2578923199797,
+        "rms": 0.08197707916267276,
+        "hfRms": 0.030258634967395396,
+        "rmsMin": 0.06067249612595472,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.045626668011466316,
+        "shapeBreak": 0.8274743531271515,
+        "shapeBreakAt": 0.05444444444444444,
+        "brightness": -12.966940266693825,
+        "brightnessLift": 0.48610492196291055,
+        "brightnessLiftAt": 0.06095238095238095
+      },
+      {
+        "midiFloat": 55.02355194481012,
+        "midi": 55,
+        "cents": 2,
+        "clarity": 0.9308379158360935,
+        "time": 1.6666666666666665,
+        "frequency": 196.2645374186304,
+        "rms": 0.0781983721382271,
+        "hfRms": 0.0305514425027071,
+        "rmsMin": 0.06200416811252475,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.04657973837371542,
+        "shapeBreak": 0.8289651353332054,
+        "shapeBreakAt": 0.03702947845804989,
+        "brightness": -13.349362244407292,
+        "brightnessLift": 2.588541977386903,
+        "brightnessLiftAt": 0.06095238095238095
+      },
+      {
+        "midiFloat": 55.024829156544754,
+        "midi": 55,
+        "cents": 2,
+        "clarity": 0.927364560410183,
+        "time": 1.6833333333333331,
+        "frequency": 196.2790172988777,
+        "rms": 0.07610498188726374,
+        "hfRms": 0.030649853157777754,
+        "rmsMin": 0.06260952701861046,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.047483643563709835,
+        "shapeBreak": 0.8315363570469987,
+        "shapeBreakAt": 0.01961451247165533,
+        "brightness": -12.905701638194715,
+        "brightnessLift": 2.816672158812951,
+        "brightnessLiftAt": 0.04934240362811791
+      },
+      {
+        "midiFloat": 55.020113547809295,
+        "midi": 55,
+        "cents": 2,
+        "clarity": 0.9083170085974643,
+        "time": 1.6999999999999997,
+        "frequency": 196.22556126822283,
+        "rms": 0.07140174914078296,
+        "hfRms": 0.030644279124466996,
+        "rmsMin": 0.047303255646443415,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.03681876921301451,
+        "shapeBreak": 0.8144256793759673,
+        "shapeBreakAt": 0.08056689342403628,
+        "brightness": -12.355468034617903,
+        "brightnessLift": 2.8335797270423573,
+        "brightnessLiftAt": 0.03192743764172336
+      },
+      {
+        "midiFloat": 55.085188570919435,
+        "midi": 55,
+        "cents": 9,
+        "clarity": 0.87838924897585,
+        "time": 1.7166666666666668,
+        "frequency": 196.96453774187793,
+        "rms": 0.06540762240283311,
+        "hfRms": 0.017284726325138465,
+        "rmsMin": 0.04680216948026753,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.03871391436611742,
+        "shapeBreak": 0.5006171489160592,
+        "shapeBreakAt": 0.08054421768707483,
+        "brightness": -11.493757043654378,
+        "brightnessLift": 1.7191257667131392,
+        "brightnessLiftAt": 0.04353741496598639
+      },
+      {
+        "midiFloat": 57.9537910291972,
+        "midi": 58,
+        "cents": -5,
+        "clarity": 0.8274223201158151,
+        "time": 1.7999999999999998,
+        "frequency": 232.4605833275842,
+        "rms": 0.08310734422873668,
+        "hfRms": 0.006014847709299506,
+        "rmsMin": 0.0567014585358113,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.04997087870087547,
+        "shapeBreak": 0.1877295546142456,
+        "shapeBreakAt": 0.004308390022675737,
+        "brightness": -14.752449158888153,
+        "brightnessLift": 2.2319336289570266,
+        "brightnessLiftAt": 0.04353741496598639
+      },
+      {
+        "midiFloat": 57.98921912072553,
+        "midi": 58,
+        "cents": -1,
+        "clarity": 0.9235073819869228,
+        "time": 1.8166666666666664,
+        "frequency": 232.936779328236,
+        "rms": 0.09051949130903954,
+        "hfRms": 0.006295416801509427,
+        "rmsMin": 0.0608463907252686,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.05165305794732705,
+        "shapeBreak": 0.7084228206311367,
+        "shapeBreakAt": 0.010090702947845805,
+        "brightness": -14.420593005662013
+      },
+      {
+        "midiFloat": 58.02255994454856,
+        "midi": 58,
+        "cents": 2,
+        "clarity": 0.9666041705459492,
+        "time": 1.8333333333333335,
+        "frequency": 233.38581088835844,
+        "rms": 0.09458757408149036,
+        "hfRms": 0.006490671626989663,
+        "rmsMin": 0.07459325690657534,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.06297469016619855,
+        "shapeBreak": 0.8826611207706806,
+        "shapeBreakAt": 0.004285714285714286,
+        "brightness": -14.426836398612103
+      },
+      {
+        "midiFloat": 58.04599667550812,
+        "midi": 58,
+        "cents": 5,
+        "clarity": 0.9772196752157498,
+        "time": 1.85,
+        "frequency": 233.70197290750824,
+        "rms": 0.0968042411885794,
+        "hfRms": 0.006608203987727833,
+        "rmsMin": 0.08277354782069954,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.0705586678284959,
+        "shapeBreak": 0.9389863105350817,
+        "shapeBreakAt": 0.012993197278911565,
+        "brightness": -14.510717141686214,
+        "brightnessLift": 2.8626708757228148,
+        "brightnessLiftAt": 0.06095238095238095
+      },
+      {
+        "midiFloat": 58.04167099400226,
+        "midi": 58,
+        "cents": 4,
+        "clarity": 0.985779106760134,
+        "time": 1.8666666666666667,
+        "frequency": 233.64358715554752,
+        "rms": 0.10060083092753257,
+        "hfRms": 0.006651567101366786,
+        "rmsMin": 0.08377263078758881,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.07121645334837555,
+        "shapeBreak": 0.9727414304944864,
+        "shapeBreakAt": 0.004285714285714286,
+        "brightness": -14.007673265732144,
+        "brightnessLift": 2.928593189193755,
+        "brightnessLiftAt": 0.04934240362811791
+      },
+      {
+        "midiFloat": 58.03796464029853,
+        "midi": 58,
+        "cents": 4,
+        "clarity": 0.9893915326333484,
+        "time": 1.8833333333333333,
+        "frequency": 233.59357236491223,
+        "rms": 0.10197219918401383,
+        "hfRms": 0.006706955344211336,
+        "rmsMin": 0.08782081095154776,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.07192081356964797,
+        "shapeBreak": 0.9811489841811599,
+        "shapeBreakAt": 0.05072562358276644,
+        "brightness": -13.323909401599956,
+        "brightnessLift": 2.933797953543758,
+        "brightnessLiftAt": 0.03192743764172336
+      },
+      {
+        "midiFloat": 58.04317224178567,
+        "midi": 58,
+        "cents": 4,
+        "clarity": 0.9908982439963125,
+        "time": 1.9,
+        "frequency": 233.66384854804838,
+        "rms": 0.10096708994211483,
+        "hfRms": 0.006563571863980998,
+        "rmsMin": 0.08826627297250103,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.06842947872881605,
+        "shapeBreak": 0.9820985278718429,
+        "shapeBreakAt": 0.03331065759637188,
+        "brightness": -12.902917295425523,
+        "brightnessLift": 1.1156960952434236,
+        "brightnessLiftAt": 0.03773242630385488
+      },
+      {
+        "midiFloat": 58.04503030799957,
+        "midi": 58,
+        "cents": 5,
+        "clarity": 0.9916440844436778,
+        "time": 1.9166666666666665,
+        "frequency": 233.68892812651285,
+        "rms": 0.09794501617248086,
+        "hfRms": 0.006330404093307203,
+        "rmsMin": 0.0770741901371765,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.060819151078339496,
+        "shapeBreak": 0.9838493910504899,
+        "shapeBreakAt": 0.018798185941043082,
+        "brightness": -12.605168323898583,
+        "brightnessLift": 1.2850051476378717,
+        "brightnessLiftAt": 0.04934240362811791
+      },
+      {
+        "midiFloat": 58.045460472760084,
+        "midi": 58,
+        "cents": 5,
+        "clarity": 0.9930172812175186,
+        "time": 1.9333333333333331,
+        "frequency": 233.69473473543155,
+        "rms": 0.09490747438846267,
+        "hfRms": 0.005995259793194042,
+        "rmsMin": 0.0713267425323312,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.054309595782355766,
+        "shapeBreak": 0.9860103812509915,
+        "shapeBreakAt": 0.05072562358276644,
+        "brightness": -12.232378793038507,
+        "brightnessLift": 1.3419552584401906,
+        "brightnessLiftAt": 0.03192743764172336
+      },
+      {
+        "midiFloat": 58.04598706286063,
+        "midi": 58,
+        "cents": 5,
+        "clarity": 0.9925544346553181,
+        "time": 1.9499999999999997,
+        "frequency": 233.7018431449229,
+        "rms": 0.08886685517917427,
+        "hfRms": 0.0055597375877036725,
+        "rmsMin": 0.06635060905169178,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.05357025642978107,
+        "shapeBreak": 0.9843508830270271,
+        "shapeBreakAt": 0.0826530612244898,
+        "brightness": -11.99598863346208,
+        "brightnessLift": 1.192102923636254,
+        "brightnessLiftAt": 0.03192743764172336
+      },
+      {
+        "midiFloat": 58.04703103028193,
+        "midi": 58,
+        "cents": 5,
+        "clarity": 0.9918084338648612,
+        "time": 1.9666666666666668,
+        "frequency": 233.71593624036336,
+        "rms": 0.08272366655067911,
+        "hfRms": 0.0050290352707400955,
+        "rmsMin": 0.06590938557653224,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.0503848595412805,
+        "shapeBreak": 0.9770827081392879,
+        "shapeBreakAt": 0.068140589569161,
+        "brightness": -11.958957237473413,
+        "brightnessLift": 0.12912616148494038,
+        "brightnessLiftAt": 0.04353741496598639
+      },
+      {
+        "midiFloat": 58.0513312531118,
+        "midi": 58,
+        "cents": 5,
+        "clarity": 0.9909926502084119,
+        "time": 1.9833333333333334,
+        "frequency": 233.77399629502122,
+        "rms": 0.07696822946657507,
+        "hfRms": 0.00459005055725519,
+        "rmsMin": 0.06591137397680207,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.04879681389792996,
+        "shapeBreak": 0.9777408071222721,
+        "shapeBreakAt": 0.05072562358276644,
+        "brightness": -12.023731643345014,
+        "brightnessLift": 0.9617030864124434,
+        "brightnessLiftAt": 0.06095238095238095
+      },
+      {
+        "midiFloat": 58.05564405133498,
+        "midi": 58,
+        "cents": 6,
+        "clarity": 0.9912083378300807,
+        "time": 2,
+        "frequency": 233.83224062479266,
+        "rms": 0.07080397128921517,
+        "hfRms": 0.0041960917906623055,
+        "rmsMin": 0.05748503769658801,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.04391483823824537,
+        "shapeBreak": 0.9773936697426193,
+        "shapeBreakAt": 0.03621315192743764,
+        "brightness": -11.911903045669835,
+        "brightnessLift": 2.310433819657229,
+        "brightnessLiftAt": 0.06095238095238095
+      },
+      {
+        "midiFloat": 58.05682996144908,
+        "midi": 58,
+        "cents": 6,
+        "clarity": 0.9908834772373751,
+        "time": 2.0166666666666666,
+        "frequency": 233.84825888167177,
+        "rms": 0.06803428815371426,
+        "hfRms": 0.00397802497862597,
+        "rmsMin": 0.053098829259965646,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.04224645736372049,
+        "shapeBreak": 0.9759027458441213,
+        "shapeBreakAt": 0.018798185941043082,
+        "brightness": -11.403230613654372,
+        "brightnessLift": 2.8478098727711956,
+        "brightnessLiftAt": 0.04934240362811791
+      },
+      {
+        "midiFloat": 58.05826844896027,
+        "midi": 58,
+        "cents": 6,
+        "clarity": 0.9900215074797174,
+        "time": 2.033333333333333,
+        "frequency": 233.86769021019506,
+        "rms": 0.0649685977809302,
+        "hfRms": 0.003729809192617453,
+        "rmsMin": 0.048085660811559156,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.040135138925992075,
+        "shapeBreak": 0.97859195321199,
+        "shapeBreakAt": 0.0536281179138322,
+        "brightness": -10.975985135844713,
+        "brightnessLift": 2.8078480088775546,
+        "brightnessLiftAt": 0.03192743764172336
+      },
+      {
+        "midiFloat": 58.068839709088536,
+        "midi": 58,
+        "cents": 7,
+        "clarity": 0.9912340106254618,
+        "time": 2.05,
+        "frequency": 234.01053809112454,
+        "rms": 0.06041888612881292,
+        "hfRms": 0.003478072239899597,
+        "rmsMin": 0.044570327286785553,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.03655466749499433,
+        "shapeBreak": 0.9817629429092615,
+        "shapeBreakAt": 0.03619047619047619,
+        "brightness": -11.061282842989037,
+        "brightnessLift": -0.22319166070974283,
+        "brightnessLiftAt": 0.03192743764172336
+      },
+      {
+        "midiFloat": 58.07265822060975,
+        "midi": 58,
+        "cents": 7,
+        "clarity": 0.9919324518519801,
+        "time": 2.0666666666666664,
+        "frequency": 234.06215852276128,
+        "rms": 0.056241743930532016,
+        "hfRms": 0.00328458551256273,
+        "rmsMin": 0.045084175616651484,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.034397605741668384,
+        "shapeBreak": 0.9795162939754131,
+        "shapeBreakAt": 0.021678004535147392,
+        "brightness": -11.424532711670643,
+        "brightnessLift": -0.6350997603017525,
+        "brightnessLiftAt": 0.04353741496598639
+      },
+      {
+        "midiFloat": 58.083676264388075,
+        "midi": 58,
+        "cents": 8,
+        "clarity": 0.9923572711065702,
+        "time": 2.0833333333333335,
+        "frequency": 234.21116945101994,
+        "rms": 0.05253957074926436,
+        "hfRms": 0.003069147339254118,
+        "rmsMin": 0.04053377702873297,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.03275021840739194,
+        "shapeBreak": 0.9792906815929558,
+        "shapeBreakAt": 0.004263038548752834,
+        "brightness": -11.862655942911955,
+        "brightnessLift": -0.6141051860972695,
+        "brightnessLiftAt": 0.03192743764172336
+      },
+      {
+        "midiFloat": 58.09465962921459,
+        "midi": 58,
+        "cents": 9,
+        "clarity": 0.9946862776043801,
+        "time": 2.1,
+        "frequency": 234.35980578931094,
+        "rms": 0.049204310734672796,
+        "hfRms": 0.002840822626032929,
+        "rmsMin": 0.0366220429685973,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.028764167048939502,
+        "shapeBreak": 0.9842952266276942,
+        "shapeBreakAt": 0.030385487528344673,
+        "brightness": -12.314315542449892,
+        "brightnessLift": -0.3567227019741548,
+        "brightnessLiftAt": 0.06095238095238095
+      },
+      {
+        "midiFloat": 58.097094636449626,
+        "midi": 58,
+        "cents": 10,
+        "clarity": 0.994067394708793,
+        "time": 2.1166666666666667,
+        "frequency": 234.3927711736009,
+        "rms": 0.044577416448090226,
+        "hfRms": 0.00260888195653674,
+        "rmsMin": 0.032859398941917396,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.026056481856790995,
+        "shapeBreak": 0.9840906073894627,
+        "shapeBreakAt": 0.012970521541950114,
+        "brightness": -12.67686535195969,
+        "brightnessLift": 0.4760972244548789,
+        "brightnessLiftAt": 0.05514739229024943
+      },
+      {
+        "midiFloat": 58.10333215261336,
+        "midi": 58,
+        "cents": 10,
+        "clarity": 0.9960070527391878,
+        "time": 2.1333333333333333,
+        "frequency": 234.477236478028,
+        "rms": 0.04149399730163342,
+        "hfRms": 0.002379227787707572,
+        "rmsMin": 0.030368617231784575,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.02116517472366124,
+        "shapeBreak": 0.9917420813785826,
+        "shapeBreakAt": 0.06521541950113378,
+        "brightness": -12.751957888522043,
+        "brightnessLift": 0.5128084634138883,
+        "brightnessLiftAt": 0.03773242630385488
+      },
+      {
+        "midiFloat": 58.10935204269232,
+        "midi": 58,
+        "cents": 11,
+        "clarity": 0.9948933355407661,
+        "time": 2.15,
+        "frequency": 234.55878366274843,
+        "rms": 0.036696344767020765,
+        "hfRms": 0.0021176379380692194,
+        "rmsMin": 0.02430856436366455,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.01872736589466694,
+        "shapeBreak": 0.980694887790235,
+        "shapeBreakAt": 0.07972789115646259,
+        "brightness": -12.705445936879373,
+        "brightnessLift": 0.5508963859303169,
+        "brightnessLiftAt": 0.04934240362811791
+      },
+      {
+        "midiFloat": 58.114387879062335,
+        "midi": 58,
+        "cents": 11,
+        "clarity": 0.994918329801628,
+        "time": 2.1666666666666665,
+        "frequency": 234.62702235441606,
+        "rms": 0.03266006022960529,
+        "hfRms": 0.0018607327538154028,
+        "rmsMin": 0.022150141520835925,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.015397931916962615,
+        "shapeBreak": 0.9800159977153027,
+        "shapeBreakAt": 0.06521541950113378,
+        "brightness": -12.628390013754853,
+        "brightnessLift": 0.573242364527335,
+        "brightnessLiftAt": 0.03773242630385488
+      },
+      {
+        "midiFloat": 58.11852974995125,
+        "midi": 58,
+        "cents": 12,
+        "clarity": 0.9923647454185627,
+        "time": 2.183333333333333,
+        "frequency": 234.68316214044924,
+        "rms": 0.02825130323191059,
+        "hfRms": 0.0016053983255857865,
+        "rmsMin": 0.019049905769528502,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.012496930388307898,
+        "shapeBreak": 0.9788639398199359,
+        "shapeBreakAt": 0.04780045351473923,
+        "brightness": -12.585635324786892,
+        "brightnessLift": 0.7828703125589946,
+        "brightnessLiftAt": 0.04934240362811791
+      },
+      {
+        "midiFloat": 58.12298644498186,
+        "midi": 58,
+        "cents": 12,
+        "clarity": 0.9910603036026373,
+        "time": 2.1999999999999997,
+        "frequency": 234.74358412200849,
+        "rms": 0.024620940004395395,
+        "hfRms": 0.001380065304810994,
+        "rmsMin": 0.013059044643526025,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "bandRmsMin": 0.009466134230218528,
+        "shapeBreak": 0.9795671816893229,
+        "shapeBreakAt": 0.030385487528344673,
+        "brightness": -12.517700727596136,
+        "brightnessLift": 1.24909337762589,
+        "brightnessLiftAt": 0.06095238095238095
+      }
+    ],
+    "weakReadings": [
+      {
+        "midiFloat": 48.90252699679282,
+        "midi": 49,
+        "cents": -10,
+        "clarity": 0.5359677321175695,
+        "time": 0.2666666666666666,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "frequency": 137.8132026928111,
+        "rms": 0.040700918493665646,
+        "hfRms": 0.007080043335530303,
+        "rmsMin": 0.000054638427404652104,
+        "weak": true
+      },
+      {
+        "midiFloat": 47.66905409324036,
+        "midi": 48,
+        "cents": -33,
+        "clarity": 0.5862884792082923,
+        "time": 0.2833333333333332,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "frequency": 128.3358910588853,
+        "rms": 0.056483123647552244,
+        "hfRms": 0.00885121930899349,
+        "rmsMin": 0.000058124750739751284,
+        "weak": true
+      },
+      {
+        "midiFloat": 47.69832078159341,
+        "midi": 48,
+        "cents": -30,
+        "clarity": 0.6493468897805315,
+        "time": 0.30000000000000004,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "frequency": 128.55302767711308,
+        "rms": 0.0643220563939982,
+        "hfRms": 0.009228726159276082,
+        "rmsMin": 0.00005857454806893779,
+        "weak": true
+      },
+      {
+        "midiFloat": 47.715024787877965,
+        "midi": 48,
+        "cents": -28,
+        "clarity": 0.6764168410356888,
+        "time": 0.31666666666666665,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "frequency": 128.67712336852512,
+        "rms": 0.0690152601313634,
+        "hfRms": 0.009500264916020363,
+        "rmsMin": 0.0028850582691305046,
+        "weak": true
+      },
+      {
+        "midiFloat": 47.729461103992506,
+        "midi": 48,
+        "cents": -27,
+        "clarity": 0.7279622315502934,
+        "time": 0.33333333333333326,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "frequency": 128.7844686670019,
+        "rms": 0.07219608336785581,
+        "hfRms": 0.009672002203771216,
+        "rmsMin": 0.04697860892726771,
+        "weak": true
+      },
+      {
+        "midiFloat": 60.23093189589585,
+        "midi": 60,
+        "cents": 23,
+        "clarity": 0.7911904817501352,
+        "time": 0.4166666666666665,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "frequency": 265.13880753556043,
+        "rms": 0.060818921631784456,
+        "hfRms": 0.004688915661707301,
+        "rmsMin": 0.03807950353284025,
+        "weak": true
+      },
+      {
+        "midiFloat": 48.25507877592979,
+        "midi": 48,
+        "cents": 26,
+        "clarity": 0.6677720872969815,
+        "time": 0.43333333333333335,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "frequency": 132.75443773056566,
+        "rms": 0.07026456303740006,
+        "hfRms": 0.0047850420518154475,
+        "rmsMin": 0.039077536121728505,
+        "weak": true
+      },
+      {
+        "midiFloat": 60.3998566109806,
+        "midi": 60,
+        "cents": 40,
+        "clarity": 0.5770958616321096,
+        "time": 0.5166666666666666,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "frequency": 267.7385554605767,
+        "rms": 0.06266016711280298,
+        "hfRms": 0.004629528746075653,
+        "rmsMin": 0.043344280935434,
+        "weak": true
+      },
+      {
+        "midiFloat": 59.340951090990565,
+        "midi": 59,
+        "cents": 34,
+        "clarity": 0.6561791663217598,
+        "time": 0.5666666666666667,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "frequency": 251.85315105100372,
+        "rms": 0.060640077327908125,
+        "hfRms": 0.004673244479061194,
+        "rmsMin": 0.04056693738787794,
+        "weak": true
+      },
+      {
+        "midiFloat": 58.26966187860203,
+        "midi": 58,
+        "cents": 27,
+        "clarity": 0.7848595703236683,
+        "time": 0.5833333333333333,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "frequency": 236.74085221299353,
+        "rms": 0.0673140876600153,
+        "hfRms": 0.005383125441343877,
+        "rmsMin": 0.04353110257475346,
+        "weak": true
+      },
+      {
+        "midiFloat": 57.86719332326038,
+        "midi": 58,
+        "cents": -13,
+        "clarity": 0.7722274467045054,
+        "time": 1.0666666666666664,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "frequency": 231.30070030803083,
+        "rms": 0.039669706614590995,
+        "hfRms": 0.028262214374406625,
+        "rmsMin": 0.02259091718465471,
+        "weak": true
+      },
+      {
+        "midiFloat": 57.86064606713509,
+        "midi": 58,
+        "cents": -14,
+        "clarity": 0.722385403122189,
+        "time": 1.0833333333333335,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "frequency": 231.21324254312307,
+        "rms": 0.0354839854606291,
+        "hfRms": 0.02839627065897924,
+        "rmsMin": 0.018060295087928994,
+        "weak": true
+      },
+      {
+        "midiFloat": 57.856296759446195,
+        "midi": 58,
+        "cents": -14,
+        "clarity": 0.6600149343254316,
+        "time": 1.1,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "frequency": 231.1551630924491,
+        "rms": 0.031279320019933,
+        "hfRms": 0.028428746394068335,
+        "rmsMin": 0.01395012456265081,
+        "weak": true
+      },
+      {
+        "midiFloat": 57.939985562061096,
+        "midi": 58,
+        "cents": -6,
+        "clarity": 0.7846777713156712,
+        "time": 1.2999999999999998,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "frequency": 232.27528500178428,
+        "rms": 0.0017425608947715411,
+        "hfRms": 0.00035441472599695797,
+        "rmsMin": 0.000642921127333423,
+        "weak": true
+      },
+      {
+        "midiFloat": 57.95428595052613,
+        "midi": 58,
+        "cents": -5,
+        "clarity": 0.5331483543050695,
+        "time": 1.3166666666666664,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "frequency": 232.4672289538882,
+        "rms": 0.0016541236133008614,
+        "hfRms": 0.0004084612576142483,
+        "rmsMin": 0.0006212338253204373,
+        "weak": true
+      },
+      {
+        "midiFloat": 54.92868747581403,
+        "midi": 55,
+        "cents": -7,
+        "clarity": 0.7463339667194191,
+        "time": 1.4333333333333331,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "frequency": 195.19203002117158,
+        "rms": 0.021111080107890565,
+        "hfRms": 0.0025995899635240555,
+        "rmsMin": 0.0006623548368121534,
+        "weak": true
+      },
+      {
+        "midiFloat": 55.176230483119966,
+        "midi": 55,
+        "cents": 18,
+        "clarity": 0.7764754350879315,
+        "time": 1.7333333333333334,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "frequency": 198.00306059673068,
+        "rms": 0.06775356504059711,
+        "hfRms": 0.010587160537215918,
+        "rmsMin": 0.04733659520030323,
+        "weak": true
+      },
+      {
+        "midiFloat": 58.08396911042444,
+        "midi": 58,
+        "cents": 8,
+        "clarity": 0.7901491554171116,
+        "time": 2.216666666666667,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "frequency": 234.21513127194092,
+        "rms": 0.02409379241838062,
+        "hfRms": 0.019454501048115434,
+        "rmsMin": 0.01224298640108835,
+        "weak": true
+      },
+      {
+        "midiFloat": 58.10260853265061,
+        "midi": 58,
+        "cents": 10,
+        "clarity": 0.5422217511859344,
+        "time": 2.2333333333333334,
+        "analysisWindowSeconds": 0.09287981859410431,
+        "frequency": 234.4674360201819,
+        "rms": 0.024679767813814358,
+        "hfRms": 0.02741955998437857,
+        "rmsMin": 0.01303628309460932,
+        "weak": true
+      }
+    ]
+  },
+  "scoring": {
+    "savedDetectedNotes": [
+      {
+        "midi": 58,
+        "cents": 1,
+        "onsetTime": 0.5023582766439909,
+        "duration": 0.9476417233560088,
+        "clarity": 0.9656431408122206
+      },
+      {
+        "midi": 55,
+        "cents": -1,
+        "onsetTime": 1.4499999999999997,
+        "duration": 0.059523809523809756,
+        "clarity": 0.950946723114285
+      },
+      {
+        "midi": 55,
+        "cents": 3,
+        "onsetTime": 1.5095238095238095,
+        "duration": 0.29047619047619033,
+        "clarity": 0.9388798851860329
+      },
+      {
+        "midi": 58,
+        "cents": 6,
+        "onsetTime": 1.7999999999999998,
+        "duration": 2.280181405895692,
+        "clarity": 0.9810589524476464
+      }
+    ],
+    "savedScore": {
+      "pitchAccuracy": 0.75,
+      "extrasCharged": 0,
+      "rhythmAccuracy": 0.7160966238347191,
+      "overall": 0.7364386495338876,
+      "grade": "good",
+      "noteResults": [
+        {
+          "expected": {
+            "pitch": 60,
+            "offset": [
+              1,
+              8
+            ],
+            "duration": [
+              1,
+              8
+            ]
+          },
+          "detected": null,
+          "pitchScore": 0,
+          "rhythmScore": 0,
+          "missed": true,
+          "extra": false
+        },
+        {
+          "expected": {
+            "pitch": 58,
+            "offset": [
+              1,
+              4
+            ],
+            "duration": [
+              1,
+              4
+            ]
+          },
+          "detected": {
+            "midi": 58,
+            "cents": 1,
+            "onsetTime": 0.5528344671201815,
+            "duration": 0.9476417233560088,
+            "clarity": 0.9656431408122206
+          },
+          "pitchScore": 1,
+          "rhythmScore": 0.9344923154446965,
+          "missed": false,
+          "extra": false
+        },
+        {
+          "expected": {
+            "pitch": 60,
+            "offset": [
+              1,
+              8
+            ],
+            "duration": [
+              1,
+              8
+            ]
+          },
+          "detected": {
+            "midi": 55,
+            "cents": -1,
+            "onsetTime": 1.5004761904761903,
+            "duration": 0.059523809523809756,
+            "clarity": 0.950946723114285
+          },
+          "pitchScore": 0,
+          "rhythmScore": 0,
+          "missed": false,
+          "extra": true
+        },
+        {
+          "expected": {
+            "pitch": 55,
+            "offset": [
+              5,
+              8
+            ],
+            "duration": [
+              1,
+              8
+            ]
+          },
+          "detected": {
+            "midi": 55,
+            "cents": 3,
+            "onsetTime": 1.56,
+            "duration": 0.29047619047619033,
+            "clarity": 0.9388798851860329
+          },
+          "pitchScore": 1,
+          "rhythmScore": 1,
+          "missed": false,
+          "extra": false
+        },
+        {
+          "expected": {
+            "pitch": 58,
+            "offset": [
+              3,
+              4
+            ],
+            "duration": [
+              1,
+              4
+            ]
+          },
+          "detected": {
+            "midi": 58,
+            "cents": 6,
+            "onsetTime": 1.8504761904761904,
+            "duration": 2.280181405895692,
+            "clarity": 0.9810589524476464
+          },
+          "pitchScore": 1,
+          "rhythmScore": 0.9298941798941798,
+          "missed": false,
+          "extra": false
+        }
+      ],
+      "notesHit": 3,
+      "notesTotal": 4,
+      "timing": {
+        "meanOffsetMs": 1.10355253212402,
+        "medianOffsetMs": 0,
+        "stdDevMs": 39.86970367021573,
+        "latencyCorrectionMs": -50.47619047619057,
+        "perNoteOffsetMs": [
+          null,
+          -47.16553287981851,
+          null,
+          0,
+          50.47619047619057
+        ]
+      },
+      "audioCheck": {
+        "precision": 0.9058823529411765,
+        "recall": 0.8333333333333334,
+        "soundedFrames": 85,
+        "expectedNotes": 4
+      }
+    }
+  },
+  "bleedFilterLog": null,
+  "backingTrackLog": null,
+  "captureTiming": {
+    "version": 1,
+    "arm": {
+      "contextTime": 419.927074829932,
+      "performanceNowMs": 556703,
+      "transportSeconds": 415.9667573696146,
+      "transportSecondsAtContextTime": 415.86675736961456,
+      "lookAhead": 0.1,
+      "sampleRate": 44100,
+      "liveWindowSeconds": 0.09287981859410431,
+      "baseLatency": 0,
+      "outputLatency": 0.007868458333333333,
+      "outputTimestamp": {
+        "contextTime": 419.91920637159865,
+        "performanceTime": 556695.1315416667
+      }
+    },
+    "recorder": {
+      "mimeType": "audio/webm;codecs=opus",
+      "startCall": {
+        "contextTime": 419.927074829932,
+        "performanceNowMs": 556704
+      },
+      "startEvent": {
+        "contextTime": 419.927074829932,
+        "performanceNowMs": 556707
+      }
+    },
+    "liveOnsets": [],
+    "liveReadings": [
+      [
+        1.6718367346938408,
+        47.81255117184307,
+        0.16825972085614385
+      ],
+      [
+        1.689251700680245,
+        48.0602129043814,
+        0.1494326072517567
+      ],
+      [
+        1.7066666666666492,
+        48.1619491187134,
+        0.13385630778899008
+      ],
+      [
+        1.7240816326530535,
+        60.27489510160022,
+        0.1261271979260879
+      ],
+      [
+        1.7414965986394577,
+        48.25886376384679,
+        0.12269139867896253
+      ],
+      [
+        1.7589115646258051,
+        48.26586848419765,
+        0.12588001465738302
+      ],
+      [
+        1.7763265306122094,
+        48.27828688912263,
+        0.12979141642984332
+      ],
+      [
+        1.7879365079364788,
+        60.28707135366387,
+        0.1308627169706284
+      ],
+      [
+        1.805351473922883,
+        60.28664864456209,
+        0.13112428348761285
+      ],
+      [
+        1.9214512471655212,
+        58.15532828404258,
+        0.18710395573709426
+      ],
+      [
+        1.9388662131519254,
+        58.07283165126461,
+        0.20957433708633386
+      ],
+      [
+        1.9562811791382728,
+        58.03127896719382,
+        0.23506001402605842
+      ],
+      [
+        1.973696145124677,
+        58.02366181859837,
+        0.2620476200794266
+      ],
+      [
+        1.9911111111110813,
+        58.01553094273006,
+        0.2837719435265328
+      ],
+      [
+        2.0085260770974855,
+        58.00833670364446,
+        0.29456465435724577
+      ],
+      [
+        2.020136054421755,
+        58.006623150052654,
+        0.29939556954856567
+      ],
+      [
+        2.043356009070294,
+        58.00485324227671,
+        0.3130581534117995
+      ],
+      [
+        2.0549659863945067,
+        58.00697850022036,
+        0.31377836087127914
+      ],
+      [
+        2.072380952380911,
+        58.00522207302966,
+        0.31692075180923374
+      ],
+      [
+        2.089795918367315,
+        58.00732175510172,
+        0.31753837647673105
+      ],
+      [
+        2.1072108843537194,
+        58.005226717052935,
+        0.31971202593578585
+      ],
+      [
+        2.1246258503401236,
+        58.00310387420923,
+        0.313452783566905
+      ],
+      [
+        2.142040816326528,
+        57.99815870352674,
+        0.30377048672904944
+      ],
+      [
+        2.1594557823128753,
+        57.99738157182201,
+        0.2884406840188257
+      ],
+      [
+        2.1768707482992795,
+        57.99701513325312,
+        0.27041615354821774
+      ],
+      [
+        2.188480725623549,
+        58.0020440705884,
+        0.256614111689835
+      ],
+      [
+        2.2058956916099532,
+        58.00798815583988,
+        0.2494423889176571
+      ],
+      [
+        2.2233106575963575,
+        58.01568326724548,
+        0.24014514820239038
+      ],
+      [
+        2.2407256235827617,
+        58.023927822753045,
+        0.22911908094636363
+      ],
+      [
+        2.258140589569166,
+        58.03185213832647,
+        0.21873008341713931
+      ],
+      [
+        2.2755555555555134,
+        58.03747279408141,
+        0.20574341997103157
+      ],
+      [
+        2.2929705215419176,
+        58.04316967160449,
+        0.1861820219460426
+      ],
+      [
+        2.310385487528322,
+        58.05057368638543,
+        0.1676700198077394
+      ],
+      [
+        2.3219954648525913,
+        58.05211147353934,
+        0.15468294868956237
+      ],
+      [
+        2.3394104308389956,
+        58.0532583674367,
+        0.14047091960220623
+      ],
+      [
+        2.3568253968254,
+        58.062096247367194,
+        0.12078026838324889
+      ],
+      [
+        2.374240362811747,
+        58.05916338135211,
+        0.10597619310996906
+      ],
+      [
+        2.3916553287981515,
+        58.06687428324773,
+        0.08866289903008748
+      ],
+      [
+        2.4090702947845557,
+        58.05789652548813,
+        0.07476637235843113
+      ],
+      [
+        2.420680272108825,
+        58.066142318599915,
+        0.06674309805954863
+      ],
+      [
+        2.4380952380952294,
+        58.04991512704012,
+        0.05479575763963089
+      ],
+      [
+        2.4555102040816337,
+        58.03790163550387,
+        0.04398887884913791
+      ],
+      [
+        2.472925170067981,
+        58.01408608165009,
+        0.035780713259638386
+      ],
+      [
+        2.4903401360543853,
+        57.98787480580138,
+        0.027599045584781483
+      ],
+      [
+        2.5077551020407896,
+        57.99458082357626,
+        0.021759355353320502
+      ],
+      [
+        2.525170068027194,
+        58.059325355911355,
+        0.016703469654586113
+      ],
+      [
+        2.542585034013598,
+        58.05802407035601,
+        0.012861181700570292
+      ],
+      [
+        2.5600000000000023,
+        58.10108938139005,
+        0.010025999516740257
+      ],
+      [
+        2.5774149659863497,
+        58.10388975423809,
+        0.007747167742867274
+      ],
+      [
+        2.589024943310619,
+        58.08953207338003,
+        0.006432006664210039
+      ],
+      [
+        2.6064399092970234,
+        58.11230930772781,
+        0.00493911183934356
+      ],
+      [
+        2.6238548752834276,
+        57.9058700293231,
+        0.0042164373608490156
+      ],
+      [
+        2.7747845804988174,
+        54.94045665726555,
+        0.10218697877718488
+      ],
+      [
+        2.7921995464852216,
+        54.96775401283223,
+        0.16083899634650192
+      ],
+      [
+        2.809614512471626,
+        54.992905267262906,
+        0.1971121044916649
+      ],
+      [
+        2.82702947845803,
+        54.99579393249196,
+        0.22133946297008494
+      ],
+      [
+        2.8444444444444343,
+        55.00426744924927,
+        0.2374630511264823
+      ],
+      [
+        2.856054421768704,
+        55.00915900543296,
+        0.2558936998985422
+      ],
+      [
+        2.8734693877550512,
+        55.020054281004164,
+        0.2574964534990481
+      ],
+      [
+        2.8908843537414555,
+        55.03001374375784,
+        0.25000677482891814
+      ],
+      [
+        2.9082993197278597,
+        55.03929930153866,
+        0.23823305536292258
+      ],
+      [
+        2.925714285714264,
+        55.04080908670663,
+        0.2363719885362805
+      ],
+      [
+        2.9373242630385334,
+        55.048095985952266,
+        0.22682898956019934
+      ],
+      [
+        2.9605442176870724,
+        55.053921143016666,
+        0.2113580758297652
+      ],
+      [
+        2.972154195011342,
+        55.054214100339365,
+        0.20150086711842452
+      ],
+      [
+        2.9895691609976893,
+        55.06343587607056,
+        0.1888877585534987
+      ],
+      [
+        3.0069841269840936,
+        55.07369178693028,
+        0.18533173382748133
+      ],
+      [
+        3.024399092970498,
+        55.0656483130961,
+        0.1722701590468922
+      ],
+      [
+        3.041814058956902,
+        55.08316075991341,
+        0.1613498223233802
+      ],
+      [
+        3.1230839002267317,
+        57.944711423984074,
+        0.20159854562366447
+      ],
+      [
+        3.140498866213136,
+        57.99554385590357,
+        0.22165897103036633
+      ],
+      [
+        3.15791383219954,
+        58.02004696501338,
+        0.2320603412000035
+      ],
+      [
+        3.1753287981859444,
+        58.04469586563772,
+        0.23921506910199136
+      ],
+      [
+        3.186938775510157,
+        58.04219486980023,
+        0.24795779387800626
+      ],
+      [
+        3.2043537414965613,
+        58.04170869580731,
+        0.25034846720780973
+      ],
+      [
+        3.2217687074829655,
+        58.03962801808595,
+        0.24905700952520474
+      ],
+      [
+        3.2391836734693698,
+        58.037126374804316,
+        0.24103584599356204
+      ],
+      [
+        3.256598639455774,
+        58.04438887481088,
+        0.23250409181533332
+      ],
+      [
+        3.2740136054421782,
+        58.049642411485316,
+        0.21717987853567516
+      ],
+      [
+        3.2914285714285256,
+        58.04701648100559,
+        0.20402799629108587
+      ],
+      [
+        3.30884353741493,
+        58.0514749663306,
+        0.18992889483951697
+      ],
+      [
+        3.3204535147391994,
+        58.055966847769014,
+        0.17771985772364732
+      ],
+      [
+        3.3436734693877384,
+        58.05678641739943,
+        0.16991268742167234
+      ],
+      [
+        3.355283446712008,
+        58.0553307213802,
+        0.16258446359067016
+      ],
+      [
+        3.372698412698412,
+        58.065252794109014,
+        0.1516525681430801
+      ],
+      [
+        3.3901133786847595,
+        58.069016593743015,
+        0.1408472211557911
+      ],
+      [
+        3.4075283446711637,
+        58.08282623371991,
+        0.13159205890660644
+      ],
+      [
+        3.424943310657568,
+        58.09301498096785,
+        0.1230199312307067
+      ],
+      [
+        3.442358276643972,
+        58.09846135708038,
+        0.111952589253279
+      ],
+      [
+        3.4597732426303764,
+        58.10074668065228,
+        0.10473653896707133
+      ],
+      [
+        3.471383219954646,
+        58.10681646955816,
+        0.0957897350464167
+      ],
+      [
+        3.4887981859409933,
+        58.11500354914578,
+        0.08515831456894951
+      ],
+      [
+        3.5062131519273976,
+        58.11694535283823,
+        0.0741525118104191
+      ],
+      [
+        3.523628117913802,
+        58.116364627840916,
+        0.0642544884574966
+      ],
+      [
+        3.541043083900206,
+        58.122930319617424,
+        0.05340500350581228
+      ],
+      [
+        3.5584580498866103,
+        58.11679949252776,
+        0.0442614264190907
+      ],
+      [
+        3.5758730158730145,
+        58.12720960800249,
+        0.03505216239809004
+      ],
+      [
+        3.587482993197227,
+        58.11860942151325,
+        0.030519843473934636
+      ],
+      [
+        3.610702947845766,
+        58.169913936592245,
+        0.02069147466459443
+      ],
+      [
+        3.6223129251700357,
+        58.19231268792901,
+        0.017508675770842027
+      ],
+      [
+        3.63972789115644,
+        58.28132988755101,
+        0.013194117245811253
+      ]
+    ]
+  },
+  "captureAlignment": {
+    "blobStart": {
+      "blobStartOffset": -0.0025,
+      "matchedFrames": 85,
+      "meanPitchError": 0.016128376207371155
+    },
+    "stampLead": 0.10000000000002274,
+    "recorderStartCallDelay": 0,
+    "recorderStartEventDelay": 0,
+    "gridError": {
+      "seconds": 0.10250000000002274,
+      "modBeat": 0.1025000000000228
+    }
+  },
+  "phrase": {
+    "id": "cmb-sp-pent-turn_rp-4-synco_Bb",
+    "name": "Pent Turn / Syncopated",
+    "timeSignature": [
+      4,
+      4
+    ],
+    "key": "Bb",
+    "notes": [
+      {
+        "pitch": 60,
+        "duration": [
+          1,
+          8
+        ],
+        "offset": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 58,
+        "duration": [
+          1,
+          4
+        ],
+        "offset": [
+          1,
+          4
+        ]
+      },
+      {
+        "pitch": 55,
+        "duration": [
+          1,
+          8
+        ],
+        "offset": [
+          5,
+          8
+        ]
+      },
+      {
+        "pitch": 58,
+        "duration": [
+          1,
+          4
+        ],
+        "offset": [
+          3,
+          4
+        ]
+      }
+    ],
+    "harmony": [
+      {
+        "chord": {
+          "root": "Bb",
+          "quality": "maj7"
+        },
+        "scaleId": "pentatonic.major",
+        "startOffset": [
+          0,
+          1
+        ],
+        "duration": [
+          1,
+          1
+        ]
+      }
+    ],
+    "difficulty": {
+      "level": 25,
+      "pitchComplexity": 6,
+      "rhythmComplexity": 49,
+      "lengthBars": 1
+    },
+    "category": "pentatonic",
+    "tags": [
+      "turn",
+      "ornament",
+      "syncopated",
+      "off-beat",
+      "combined"
+    ],
+    "source": "combined"
+  },
+  "flag": {
+    "note": "First note was missed",
+    "flaggedAt": "2026-10-30T00:01:45.664Z"
+  }
+}

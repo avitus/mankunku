@@ -90,7 +90,7 @@ def test_midtones_are_not_binarized() -> None:
 
     out = preprocess_page(_page(img), trim=False, min_short_side=0).image
 
-    assert sorted(set(out.getdata())) == [64, 128, 192, 255]
+    assert sorted(set(out.get_flattened_data())) == [64, 128, 192, 255]
 
 
 def test_blank_page_is_returned_untouched() -> None:

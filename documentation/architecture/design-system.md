@@ -106,16 +106,15 @@ palette hue is borrowed from an activity color.
 
 | Meaning | Prototype token | Dark value / text | Native status |
 | --- | --- | --- | --- |
-| App demonstrates / Listen | `--mk-phase-listen`, `--mk-phase-listen-text` | `#c96a3e` / `#e09972` | Pending migration of `--color-phase-listen` |
+| App demonstrates / Listen | `--mk-phase-listen`, `--mk-phase-listen-text` | `#c96a3e` / `#e09972` | Daily desk uses the approved orange; other native phase surfaces await migration |
 | User's turn / Play | `--mk-phase-play` | brass / brass soft | Existing `--color-phase-play` |
 | Stop / recording button | `--mk-onair` | `#a8463a` | Existing `--color-onair` |
 
-**Implementation gap verified at `35eff0ec`:** `src/app.css` still maps
+**Native scope:** Daily sets the phase alias on its session panel and uses the theme’s text-safe Studio Desk orange for the cue label. Elsewhere, `src/app.css` still maps
 `--color-phase-listen` to `--color-onair`, and the existing token contract test
-pins that legacy mapping. The design-system update changes the reference kit
-and guidance, not those runtime files. Migrate the native phase alias and its
+pins that legacy mapping. Migrate the native phase alias and its
 tests together, verifying text contrast and all phase surfaces in both themes;
-do not claim that the orange direction is already delivered in Svelte. Use a
+use a
 text-safe orange for small labels, not the lower-contrast fill hue. Keep stop /
 record buttons and rocker LEDs on their separate on-air token. Phase text and
 icons must remain understandable without color, with stable Listen/Play geometry.
@@ -385,7 +384,7 @@ The approved MagicPath pages are implemented natively in Svelte 5 (migration sta
 
 | Page | Component | Approved revision |
 |---|---|---|
-| Home · Studio Desk | `460227723458142208` | `460231044206071808` |
+| Home · Studio Desk | `460227723458142208` | `471099909966278656` |
 | Settings · Studio Desk | `459540987434397696` | `460225985468596224` |
 | Lick Practice · Studio Console | `459464126830383104` | `459511600479637504` |
 | Licks · Studio Library | `460234239577821184` | `460236188301803520` |
@@ -450,6 +449,28 @@ practice actions, audition and attribution; tunes retain written-key conversion
 and detail navigation. The sidebar uses actual collection counts.
 
 Home retains actual progress and practice-set data with aligned practice actions.
+The shared `StudioMeter` uses a fixed **0–366** scale for the home summary,
+with **183** at SVG y=18, clear of the division lines (top tick y=23).
+Keep the original subtext, **“A little practice, every day.”**, including the empty state.
+The displayed label remains **Practice Sessions**, but its value counts **distinct
+days with any recorded practice**, not attempts or session-log rows. Use the same
+reactive `dailySummaries` as the Progress calendar, including its legacy activity
+fallback; include today and the preceding 364 local dates, exclude future dates,
+and count a mixed ear/lick day once. Calendar arithmetic preserves the window over
+DST and leap days. Refresh the date while the page stays open and when it resumes.
+Do not derive this count from the bounded recent-session cache. This intentionally
+follows the calendar's recorded activity; it does not invent history for unlogged practice.
+
+Give the meter a 260px desktop summary rail (240px below 1200px), a readable exact
+count in tabular figures, and a separate **Past 365 days** caption. Explain the
+one-day-one-count rule in the accessible meter description and the label tooltip.
+The needle clamps to the scale while the adjacent figure remains exact. Tablet
+places the summary below the practice cards; mobile centers the meter above the text.
+The MagicPath Design System reference `460231915702722560`, revision
+`471098811054444544` (v1.5), includes reusable `PracticeMeter.tsx` / `.css` and
+empty, midpoint and full-year specimens. Home revision `471099909966278656`
+applies this pattern; its displayed data is illustrative.
+
 The landing page explains Ear Training and Vocabulary (Licks and Tricks); its
 interactive previews are explicitly illustrative. Lick Practice keeps one duration
 dial and a read-only summary that distinguishes the time budget from the planned
@@ -530,11 +551,26 @@ with a recessed music area and a 220px key-progress rail on wide screens. The
 current key is identified in the progress ring; omit the duplicate large
 accent-coloured key readout from the upper-right header in every session mode.
 Below 1050px the ring and End Session move below the music. Chord rows remain 128px;
-notation rows are 204.8px (60% taller), with a 140.8px music frame, 10px inner
-vertical padding and a separate 28px cue lane. The viewport reserves 460.8px so
-notation appearing or disappearing between cycles does not move the controls.
-Listen and Play share frame geometry, using semantic phase tokens (approved orange/brass; native orange migration pending);
-the entrance frame stays dashed until recording is audible.
+notation rows are 204.8px (60% taller), with 10px inner vertical padding and a
+separate 28px cue lane. The viewport reserves 460.8px so notation appearing or
+disappearing between cycles does not move the controls. Daily and Deep Practice,
+including Deep sessions opened from a Daily report recommendation, share the
+same frame geometry in `UpcomingKeysDisplay` and `ChordChart`. The current phase
+frame, chord cells or taller lead sheet, and bar wash end flush at the progression
+boundary (0px gap). The coloured frame replaces the separator during Listen,
+Play and the dashed entrance; never draw a second line beneath it. Keep the cue
+in its separate lane above the frame. `--practice-cell-height` lets the shared
+chart fill that frame without a Daily-only sizing rule. Verify both entry paths,
+chord and notation rows, and desktop/tablet/phone widths.
+
+MagicPath references: Lick Practice · Studio Console `459464126830383104`,
+revision `470341725584523264`; Design System `460231915702722560`, revision
+`470342025477234688`. The canvas sample data and preview controls are not shipped.
+
+Daily pairs terracotta Listen with brass Play;
+the entrance frame stays dashed until recording is audible. Chord charts and
+lead sheets use the shared chord voice, with Daily root accidentals at 0.66em
+and superscript qualities and extensions at 0.58em.
 
 Production notation stays in abcjs, preserving real notes, accidentals, written
 pitch and ledger lines. Chord-only rows use beat-proportional widths independently

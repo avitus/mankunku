@@ -5,7 +5,7 @@ Mankunku's lick-naming feature uses a compact index derived from the
 maintained by the Jazzomat Research Project at the Hochschule für Musik
 Franz Liszt Weimar.
 
-Where it is used: the lick editor (`/licks/editor`) posts a
+Where it is used: the recorder review and lick editor (`/licks/editor`) post a
 transposition-invariant encoding of the line (intervals + inter-onset
 intervals) to `POST /api/lick-match`, which searches the WJazzD index plus a
 small curated quote library (`src/lib/matching/data/quotes.json`) with the
@@ -55,3 +55,20 @@ repo. To regenerate `wjazzd-index.json`:
 
 The rebuild is idempotent and only needs to happen when WJazzD itself
 ships a new release or when the preprocessing script changes.
+
+## Naming flow
+
+Recorder review and the editor suggest **Artist - Song Name**, with an optional
+trailing number. Suggestions are opt-in, never overwrite a typed title, and retain
+source attribution separately from the proposed name (bar numbers are not titles).
+Choosing a title already in the user's own book adds the first available number
+starting at 2; editing excludes the current lick from that check. This numbering
+is a local convenience, not a global uniqueness constraint.
+
+When there is no song match, fewer than six pitched notes, or a lookup failure,
+the user can enter their own name. Both pages show the template and the example
+**Art Pepper - Stardust 2**. Any nonblank custom title is accepted; blank names
+are not saved as “My Lick”, “Untitled”, or a generated musical description.
+An unnamed recording can still be passed to the editor to finish naming it.
+Generic curated patterns remain in the matching API but are not offered as
+artist/song titles. Suggestions are similarities, not verified authorship.

@@ -13,10 +13,13 @@
 - **Why vendored**: upstream has no `pyproject.toml`/`setup.py`, so it cannot
   be pip-installed or pinned as a dependency. Copying the inference-relevant
   package (permitted by MIT) with a pinned commit is the reproducible option.
-- **Pinned runtime**: `transformers==4.54.0`, `torch==2.6.0`,
-  `numpy==1.26.4` (the `legato` optional-dependency group in
-  `omr/pyproject.toml`) — matching upstream `requirements.txt`. A vendor
-  refresh must revisit these pins together.
+- **Pinned runtime**: `transformers==4.54.1`, `torch==2.15.0`,
+  `numpy==2.5.4`, `accelerate==1.15.0`, `huggingface_hub==0.36.2` (the `legato` optional-dependency group in
+  `omr/pyproject.toml`) — validated together on the isolated Linux CPU Lady Bird benchmark on
+  2026-11-08. These security updates differ from upstream requirements.
+  Transformers 4.57.6 and 5.22.2 failed the transcription quality gate; see
+  `docs/maintenance/2026-11-08-audit.md`. A vendor refresh must revisit the
+  runtime and quality gate together.
 - **Checkpoint**: `guangyangmusic/legato` on Hugging Face (MIT, gated "auto"),
   pinned to revision `2d07c5d0e73186f2c0b12e35ea187bbc30dec18c` in
   `omr/src/omr/backends/legato_v1.py`. NOT self-contained: `modeling_legato.py`
@@ -34,14 +37,14 @@
     vanishes under `python -O`/`PYTHONOPTIMIZE`. Accepted: this repo never
     runs the vendored code optimized.
   - `models/__init__.py` registers with string keys; under
-    `transformers==4.54.0` config-type lookup wants `LegatoConfig` and
+    `transformers==4.54.1` config-type lookup wants `LegatoConfig` and
     `AutoModel._model_mapping` is private — class-name lookup still works,
     which is the path `from_pretrained` uses here.
   - `modeling_legato.py` checks `isinstance(outputs, typing.Tuple)`
     (deprecated as a runtime target; behaves as `tuple` today).
   - `modeling_legato.py`'s
   `save_pretrained` filters state-dict keys by the `vision_model.` prefix,
-  but under the pinned `transformers==4.54.0` the encoder lives at
+  but under the pinned `transformers==4.54.1` the encoder lives at
   `model.vision_model.`, so the filter matches nothing and a save would
   include the full encoder weights. This repo never calls `save_pretrained`
   (inference only), and the files stay byte-identical to upstream by policy

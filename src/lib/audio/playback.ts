@@ -42,6 +42,7 @@ import {
 	splitLoopEvents,
 	type LoopRegion
 } from './phrase-loop';
+import { loadSampleLayer } from './sample-loader';
 import { layerToBuffers, getTuneCorrection, type SampleMap } from './sample-maps';
 import {
 	instrumentVoice,
@@ -120,6 +121,8 @@ let vibratoGain: GainNode | null = null;
 /** Modulated delay line: the pitch vibrato. */
 let vibratoDelay: DelayNode | null = null;
 let warmthFilter: BiquadFilterNode | null = null;
+/** Last node of the melody chain; each playPhrase sets its level. */
+let melodyTrim: GainNode | null = null;
 /** The loaded voice's vibrato, and its full-depth delay swing in seconds. */
 let activeVibrato: VibratoProfile | null = null;
 let vibratoSwingSeconds = 0;
@@ -161,7 +164,10 @@ function setupJazzExpression(audioCtx: AudioContext, instrumentId: string): void
 	warmthFilter.frequency.value = voice.warmthCutoffHz;
 	warmthFilter.Q.value = 0.7; // Gentle slope, no resonance peak
 
-	vibratoDelay = audioCtx.createDelay(VIBRATO_BASE_DELAY_SECONDS * 2);
+	melodyTrim = audioCtx.createGain();
+	warmthFilter.connect(melodyTrim);
+
+	vibratoDelay =audioCtx.createDelay(VIBRATO_BASE_DELAY_SECONDS * 2);
 	vibratoDelay.delayTime.value = VIBRATO_BASE_DELAY_SECONDS;
 	vibratoDelay.connect(warmthFilter);
 
@@ -188,12 +194,12 @@ function setupJazzExpression(audioCtx: AudioContext, instrumentId: string): void
 		// chain covers all notes regardless of which layer triggered.
 		mixNode!.disconnect();
 		mixNode!.connect(vibratoDelay);
-		warmthFilter.connect(getMasterGain());
+		melodyTrim.connect(getMasterGain());
 	} else {
 		// SoundFont: add as insert on the instrument's output channel.
 		instrument!.output.addInsert({
 			input: vibratoDelay,
-			output: warmthFilter
+			output: melodyTrim
 		});
 	}
 }
@@ -249,6 +255,10 @@ function cleanupJazzExpression(): void {
 	if (warmthFilter) {
 		warmthFilter.disconnect();
 		warmthFilter = null;
+	}
+	if (melodyTrim) {
+		melodyTrim.disconnect();
+		melodyTrim = null;
 	}
 }
 
@@ -308,12 +318,12 @@ async function loadCustomSamples(
 		// undefined values clobber PARAM_DEFAULTS via object spread.
 		const samplerDefaults = { detune: 0, decayTime: 0.3, lpfCutoffHz: 20000 };
 		newPiano = new Sampler(audioCtx, {
-			buffers: layerToBuffers(sampleMap.piano),
+			buffers: loadSampleLayer(layerToBuffers(sampleMap.piano)),
 			destination: newMixNode,
 			...samplerDefaults
 		});
 		newForte = new Sampler(audioCtx, {
-			buffers: layerToBuffers(sampleMap.forte),
+			buffers: loadSampleLayer(layerToBuffers(sampleMap.forte)),
 			destination: newMixNode,
 			...samplerDefaults
 		});
@@ -692,6 +702,14 @@ export interface PhrasePlaybackOpts {
 	 * through it as its last bar, and the band still enters after it.
 	 */
 	countIn?: { bars: number; drums: boolean; pickup?: boolean };
+	/**
+	 * Linear gain on the melody under the band for this take (playPhrase only).
+	 * Omitted, or with no band able to play, it returns to unity: a level set for
+	 * a tune never carries into the next caller's demo, and a band that failed to
+	 * load does not leave the melody quiet on its own. A continuation keeps the
+	 * take's level.
+	 */
+	melodyLevel?: number;
 }
 
 /**
@@ -704,6 +722,12 @@ export interface PhrasePlaybackOpts {
  * lead-in spans two printed bars.
  */
 export const PHRASE_LEAD_IN_BARS = 1;
+
+let backingPerformanceSeed = 0;
+function newBackingPerformanceSeed(): number {
+ return globalThis.crypto?.getRandomValues(new Uint32Array(1))[0] ?? Math.floor(Math.random() * 0x100000000);
+}
+
 
 /**
  * Play a phrase through the loaded instrument.
@@ -731,6 +755,8 @@ export async function playPhrase(
 	// Claim setup before yielding so a teardown or newer play cancels even
 	// the initial Tone lookup and AudioContext activation.
 	const scheduleId = ++currentScheduleId;
+	backingPerformanceSeed = options.backingPerformanceSeed ?? newBackingPerformanceSeed();
+	options = { ...options, backingPerformanceSeed };
 	// The one cancellation boundary, shared with the helpers awaited below:
 	// they yield before they allocate, and must allocate nothing once a
 	// stopPlayback() or a newer phrase has bumped the generation.
@@ -747,6 +773,9 @@ export async function playPhrase(
 	// Release the prior playback without yielding or replacing our token.
 	// Calling public stopPlayback here would invalidate this invocation too.
 	stopPlaybackResources(Tone);
+
+	const backingWillPlay = (options.backingTrackEnabled ?? false) && isBackingLoaded();
+	if (melodyTrim) melodyTrim.gain.value = backingWillPlay ? opts.melodyLevel ?? 1 : 1;
 
 	// Configure transport
 	transport.bpm.value = options.tempo;
@@ -841,7 +870,6 @@ export async function playPhrase(
 	// the count then.
 	const drumsCountIn = (opts.countIn?.drums ?? false) && isBackingLoaded()
 		&& canPlayDrum(COUNT_IN_VOICE);
-	const backingWillPlay = (options.backingTrackEnabled ?? false) && isBackingLoaded();
 	if (options.metronomeEnabled && !(backingWillPlay && drumsCountIn)) {
 		await setMetronomeVolume(options.metronomeVolume);
 		if (scheduleId !== currentScheduleId) return;
@@ -1007,6 +1035,7 @@ export async function scheduleNextPhrase(
 	// supersedes us, our `scheduleId` will no longer match and we bail
 	// out before installing stale callbacks.
 	const scheduleId = ++currentScheduleId;
+	options = { ...options, backingPerformanceSeed: options.backingPerformanceSeed ?? backingPerformanceSeed };
 
 	const Tone = await getTone();
 	if (scheduleId !== currentScheduleId) return;
@@ -1045,7 +1074,6 @@ export async function scheduleNextPhrase(
 		currentPart = null;
 	}
 	disposeFormLoopParts();
-	disposeBackingParts();
 	stopNotes();
 
 	// Find the next bar downbeat with at least 1 beat of lead time.
@@ -1097,6 +1125,10 @@ export async function scheduleNextPhrase(
 			opts.boundaryTime
 		);
 		if (scheduleId !== currentScheduleId) return;
+	} else {
+		// The scheduler owns the outgoing band's handoff when backing is on.
+		// Only an explicitly silent continuation should remove it immediately.
+		disposeBackingParts();
 	}
 
 	// The continuation opens its recording windows only once the new backing

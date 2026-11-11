@@ -5,7 +5,7 @@ import { assertBossaContourCompatibility } from './bossa-contour-assertions';
 import { expect, it } from 'vitest';
 import { createRollingBacking, advanceRollingBacking, type RollingBackingBar } from '$lib/audio/backing-rolling';
 import { generateBacking } from '$lib/audio/backing-generation';
-import { BACKING_STYLES } from '$lib/audio/backing-styles';
+import { HISTORICAL_MUSICALITY_STYLES as BACKING_STYLES } from '../../helpers/musicality-style-fixtures';
 import { buildHistoricalListeningTuneSession as buildListeningTuneSession } from '../../helpers/musicality-tune-fixtures';
 import { resolveCoordinatedVoicing } from '$lib/audio/coordinated-voicing';
 

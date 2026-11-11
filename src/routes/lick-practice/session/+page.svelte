@@ -9,6 +9,7 @@
 	import SessionTimer from '$lib/components/lick-practice/SessionTimer.svelte';
 	import UpcomingKeysDisplay, { KEY_STACK_MIN_HEIGHT } from '$lib/components/lick-practice/UpcomingKeysDisplay.svelte';
 	import LickBreatherCard from '$lib/components/lick-practice/LickBreatherCard.svelte';
+	import SessionKeyMap from '$lib/components/lick-practice/SessionKeyMap.svelte';
 	import NextStepCard from '$lib/components/lick-practice/NextStepCard.svelte';
 	import { continueRecommendations, type RecommendationContext } from '$lib/state/lick-practice-next-steps';
 	import {
@@ -40,7 +41,8 @@
 		startSingleLickSession,
 		getSessionReport,
 		getUpcomingLicks,
-		getNextStep
+		getNextStep,
+		getNextSteps
 	} from '$lib/state/lick-practice.svelte';
 	import { scoreToGrade } from '$lib/scoring/grades';
 	import { accuracyTierInfo } from '$lib/ui/score-colors';
@@ -164,6 +166,7 @@
 	let destroyed = false;
 	let currentBeat = $state(0);
 	let sessionReport: SessionReport | null = $state(null);
+	const useKeyMap = $derived.by(() => !!sessionReport && lickPractice.phase === 'complete' && !sessionReport.licks.some(lick => isTrickReportEntry(lick.lickId)));
 
 	// Reset-a-struggling-lick UI state on the final report. A low-scoring lick
 	// card offers a two-stage inline confirm (matching the library Delete
@@ -1880,9 +1883,108 @@
 	<title>Practice Session — Mankunku</title>
 </svelte:head>
 
-<div class="studio-desk practice-desk">
+{#snippet deepReportSummary(sessionReport: SessionReport)}
+	{#if sessionReport.roundsCompleted !== undefined && sessionReport.licks[0]}
+		{@const sl = sessionReport.licks[0]}
+		{@const isTrick = lickPractice.plan[0]?.kind === 'trick'}
+		{@const tempoDelta = sl.newTempo != null ? sl.newTempo - sl.tempo : 0}
+		<!--
+		  Only a trick drill's ramp is a real gain: it persists, so the green
+		  delta describes something the user keeps. Deep practice opens 2%
+		  under the lick's saved tempo and rewinds to it, so the same delta
+		  would read as progress the user did not make — worse, clearing one
+		  rotation on a 120 lick would show "+2" for having climbed 118 → 120.
+		  The lick branch shows the range plainly and names the saved tempo.
+		-->
+		{@const savedTempo = isTrick ? null : getLickTempo(lickPractice.progress, sl.lickId)}
+		<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 space-y-3">
+			<div class="flex items-center justify-between">
+				<div>
+					<div class="smallcaps text-[var(--color-brass)]">
+						{lickPractice.plan[0]?.kind === 'trick' ? 'Trick Drill' : 'Deep Practice'}
+					</div>
+					<div class="text-base font-medium">
+						{#if isTrick}
+							{sl.lickName}
+						{:else}
+							<a
+								href="/licks/{sl.lickId}"
+								class="hover:text-[var(--color-accent)] hover:underline transition-colors"
+							>
+								{sl.lickName}
+							</a>
+						{/if}
+					</div>
+				</div>
+				<div class="flex gap-6 text-right tabular-nums">
+					<div>
+						<div class="font-display text-2xl font-bold">{sessionReport.roundsCompleted}</div>
+						<div class="smallcaps text-[var(--color-text-secondary)]">Rounds</div>
+					</div>
+					<div>
+						<div class="font-display text-2xl font-bold">
+							{sessionReport.finalTempo}
+							{#if isTrick && tempoDelta !== 0}
+								<span class="ml-1 text-xs font-medium {tempoDelta > 0 ? 'text-[var(--color-success)]' : 'text-[var(--color-error-text)]'}">
+									({tempoDelta > 0 ? '+' : ''}{tempoDelta})
+								</span>
+							{:else if !isTrick && tempoDelta !== 0}
+								<span class="ml-1 text-xs font-medium text-[var(--color-text-secondary)]">
+									(from {sl.tempo})
+								</span>
+							{/if}
+						</div>
+						<div class="smallcaps text-[var(--color-text-secondary)]">
+							{isTrick ? 'Final BPM' : 'Session BPM'}
+						</div>
+					</div>
+				</div>
+			</div>
+			{#if savedTempo != null}
+				<p class="text-xs text-[var(--color-text-secondary)]">
+					{#if sessionReport.ramp}
+						{rampSummaryText(sessionReport.ramp, sl.tempo)}
+					{:else}
+						Deep practice starts just under your saved tempo and ramps from there.
+					{/if}
+					{sl.lickName} stays saved at <span class="tabular-nums">{savedTempo}</span> BPM
+					for daily practice.
+				</p>
+			{/if}
+			{#if sessionReport.keysMasteredByRound && sessionReport.licks.length > 0}
+				{@const clears = fastestClearByKey(
+					sessionReport.keysMasteredByRound,
+					sessionReport.licks[0].keys.map((k) => k.key)
+				)}
+				<div class="flex flex-wrap items-center gap-1.5 text-xs">
+					<span class="mr-1 text-[var(--color-text-secondary)]">Fastest clear</span>
+					{#each clears as c (c.key)}
+						<span
+							class="rounded px-1.5 py-0.5 tabular-nums {c.tempo != null
+								? 'bg-[var(--color-success)]/20 text-[var(--color-success)]'
+								: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)]'}"
+						>
+							{keyLabel(concertKeyToWritten(c.key, instrument), progressionMode(currentProgressionType))}
+							{c.tempo ?? '—'}
+						</span>
+					{/each}
+				</div>
+			{/if}
+		</div>
+	{/if}
+{/snippet}
+
+<div class="studio-desk practice-desk" class:keymap={useKeyMap} class:daily={isDailyPractice()} class:report={!!sessionReport && lickPractice.phase === 'complete'}>
 <div class="studio-panel space-y-4" data-domain="lick-practice">
 	{#if lickPractice.phase === 'complete' && sessionReport}
+		{#if useKeyMap}
+			{@const steps = getNextSteps(sessionReport, lickPracticeSessionLogId, completedRecommendationContext)}
+			<SessionKeyMap report={sessionReport} progress={lickPractice.progress} plan={lickPractice.plan} {instrument}
+				{steps}
+				onstart={handleStartNextStep} ondone={handleDone} onreset={handleReportReset} {confirmingResetId} {resetLickIds}>
+				{@render deepReportSummary(sessionReport)}
+			</SessionKeyMap>
+		{:else}
 		<!-- Session report -->
 		<div class="text-center">
 			<div class="smallcaps text-[var(--color-brass)]">Session notes</div>
@@ -1908,99 +2010,12 @@
 			</div>
 		</div>
 
-		{#if sessionReport.roundsCompleted !== undefined && sessionReport.licks[0]}
-			{@const sl = sessionReport.licks[0]}
-			{@const isTrick = lickPractice.plan[0]?.kind === 'trick'}
-			{@const tempoDelta = sl.newTempo != null ? sl.newTempo - sl.tempo : 0}
-			<!--
-			  Only a trick drill's ramp is a real gain: it persists, so the green
-			  delta describes something the user keeps. Deep practice opens 2%
-			  under the lick's saved tempo and rewinds to it, so the same delta
-			  would read as progress the user did not make — worse, clearing one
-			  rotation on a 120 lick would show "+2" for having climbed 118 → 120.
-			  The lick branch shows the range plainly and names the saved tempo.
-			-->
-			{@const savedTempo = isTrick ? null : getLickTempo(lickPractice.progress, sl.lickId)}
-			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 space-y-3">
-				<div class="flex items-center justify-between">
-					<div>
-						<div class="smallcaps text-[var(--color-brass)]">
-							{lickPractice.plan[0]?.kind === 'trick' ? 'Trick Drill' : 'Deep Practice'}
-						</div>
-						<div class="text-base font-medium">
-							{#if isTrick}
-								{sl.lickName}
-							{:else}
-								<a
-									href="/licks/{sl.lickId}"
-									class="hover:text-[var(--color-accent)] hover:underline transition-colors"
-								>
-									{sl.lickName}
-								</a>
-							{/if}
-						</div>
-					</div>
-					<div class="flex gap-6 text-right tabular-nums">
-						<div>
-							<div class="font-display text-2xl font-bold">{sessionReport.roundsCompleted}</div>
-							<div class="smallcaps text-[var(--color-text-secondary)]">Rounds</div>
-						</div>
-						<div>
-							<div class="font-display text-2xl font-bold">
-								{sessionReport.finalTempo}
-								{#if isTrick && tempoDelta !== 0}
-									<span class="ml-1 text-xs font-medium {tempoDelta > 0 ? 'text-[var(--color-success)]' : 'text-[var(--color-error-text)]'}">
-										({tempoDelta > 0 ? '+' : ''}{tempoDelta})
-									</span>
-								{:else if !isTrick && tempoDelta !== 0}
-									<span class="ml-1 text-xs font-medium text-[var(--color-text-secondary)]">
-										(from {sl.tempo})
-									</span>
-								{/if}
-							</div>
-							<div class="smallcaps text-[var(--color-text-secondary)]">
-								{isTrick ? 'Final BPM' : 'Session BPM'}
-							</div>
-						</div>
-					</div>
-				</div>
-				{#if savedTempo != null}
-					<p class="text-xs text-[var(--color-text-secondary)]">
-						{#if sessionReport.ramp}
-							{rampSummaryText(sessionReport.ramp, sl.tempo)}
-						{:else}
-							Deep practice starts just under your saved tempo and ramps from there.
-						{/if}
-						{sl.lickName} stays saved at <span class="tabular-nums">{savedTempo}</span> BPM
-						for daily practice.
-					</p>
-				{/if}
-				{#if sessionReport.keysMasteredByRound && sessionReport.licks.length > 0}
-					{@const clears = fastestClearByKey(
-						sessionReport.keysMasteredByRound,
-						sessionReport.licks[0].keys.map((k) => k.key)
-					)}
-					<div class="flex flex-wrap items-center gap-1.5 text-xs">
-						<span class="mr-1 text-[var(--color-text-secondary)]">Fastest clear</span>
-						{#each clears as c (c.key)}
-							<span
-								class="rounded px-1.5 py-0.5 tabular-nums {c.tempo != null
-									? 'bg-[var(--color-success)]/20 text-[var(--color-success)]'
-									: 'bg-[var(--color-bg-tertiary)] text-[var(--color-text-secondary)]'}"
-							>
-								{keyLabel(concertKeyToWritten(c.key, instrument), progressionMode(currentProgressionType))}
-								{c.tempo ?? '—'}
-							</span>
-						{/each}
-					</div>
-				{/if}
-			</div>
-		{/if}
+		{@render deepReportSummary(sessionReport)}
 
 		<!-- Per-lick breakdown -->
 		{#each sessionReport.licks as lick}
 			<div class="rounded-lg bg-[var(--color-bg-secondary)] p-4 space-y-2">
-				<div class="flex items-center justify-between">
+				<div class="flex flex-wrap items-center justify-between gap-2">
 					<div>
 						<!-- A trick entry's lickId is a composite variant key, not a
 						     lick id — no detail page to link to. -->
@@ -2009,7 +2024,7 @@
 						{:else}
 							<a
 								href="/licks/{lick.lickId}"
-								class="font-medium hover:text-[var(--color-accent)] hover:underline transition-colors"
+								class="lick-link font-medium hover:text-[var(--color-accent)] hover:underline transition-colors"
 							>
 								{lick.lickName}
 							</a>
@@ -2035,7 +2050,7 @@
 						</span>
 					</div>
 					<span class="text-sm font-bold tabular-nums">
-						{lick.passedCount}/{lick.keys.length} · {pct(lick.averageScore)}%
+						{lick.passedCount}/{lick.keys.length}{isDailyPractice() ? ' keys passed' : ''} · {pct(lick.averageScore)}%{isDailyPractice() ? ' average' : ''}
 					</span>
 				</div>
 				<div class="flex flex-wrap gap-1.5">
@@ -2046,7 +2061,7 @@
 								? tier.key
 								: null}
 						<div
-							class="flex flex-col items-center rounded px-2 py-1 text-xs {medal
+							class="score-chip flex flex-col items-center rounded px-2 py-1 text-xs {medal
 								? `lp-medal-chip lp-chip-${medal}`
 								: ''}"
 							style={medal
@@ -2090,6 +2105,7 @@
 				class="rounded-lg bg-[var(--color-bg-secondary)] p-8 text-center text-[var(--color-text-secondary)]"
 			>
 				No attempts recorded this session.
+				{#if isDailyPractice()}<p class="mt-2 text-sm">Start a new session to record your first take.</p>{/if}
 			</div>
 		{/if}
 
@@ -2148,15 +2164,17 @@
 				Home
 			</a>
 		</div>
+		{/if}
 	{:else if currentItem && currentKey}
 		<!-- Timer — single-lick mode has no time budget so the countdown is
 		     suppressed; everything else is identical to standard mode. -->
 		{#if lickPractice.mode !== 'single-lick'}
-			<SessionTimer elapsedSeconds={lickPractice.elapsedSeconds} {totalSeconds} />
+			<SessionTimer daily={isDailyPractice()} elapsedSeconds={lickPractice.elapsedSeconds} {totalSeconds} />
 		{/if}
 
 		<!-- Lick header -->
 		<LickHeader
+			daily={isDailyPractice()}
 			phraseNumber={currentItem.phraseNumber}
 			phraseName={currentItem.phraseName}
 			progressionType={currentProgressionType}
@@ -2181,7 +2199,8 @@
 				role="alert"
 				data-testid="mic-error"
 			>
-				Microphone unavailable — check permissions and try again.
+				<strong>Microphone unavailable</strong>
+				<span>Allow microphone access in your browser, then try again.</span>
 			</div>
 		{:else if loadError}
 			<div
@@ -2189,7 +2208,8 @@
 				role="alert"
 				data-testid="load-error"
 			>
-				Audio setup failed — check your connection and reload.
+				<strong>Audio setup failed</strong>
+				<span>Check your connection, then reload the session.</span>
 			</div>
 		{:else}
 		<div class="relative">
@@ -2255,8 +2275,8 @@
 		</aside>
 		</div>
 	{:else}
-		<div class="flex min-h-[70vh] items-center justify-center">
-			<p class="text-[var(--color-text-secondary)]">Loading session...</p>
+		<div class="loading-state flex min-h-[70vh] items-center justify-center" role="status">
+			<p class="text-[var(--color-text-secondary)]">Preparing your session…</p>
 		</div>
 	{/if}
 </div>
@@ -2265,13 +2285,31 @@
 
 <style>
 	.practice-desk { --studio-gap: 20px; }
+	.practice-desk.keymap.report { width:100%; max-width:1280px; margin-inline:auto; }
+	.practice-desk.keymap > .studio-panel { padding:0; border:0; background:none; box-shadow:none; }
+	.practice-desk.keymap > .studio-panel::before,.practice-desk.keymap > .studio-panel::after { display:none; }
 	.session-workspace { display: grid; grid-template-columns: minmax(0, 1fr) 220px; gap: 24px; padding-top: 12px; }
 	.session-music { min-width: 0; border: 1px solid color-mix(in srgb, var(--studio-border) 35%, transparent); border-radius: 4px; background: var(--studio-well); box-shadow: inset 0 2px 5px #0003; }
 	.session-rail { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 28px; border-left: 1px solid color-mix(in srgb, var(--studio-border) 35%, transparent); padding-left: 16px; }
 	.session-rail button { min-height: 40px; border: 1px solid var(--studio-border); border-radius: 4px; background: transparent; color: var(--studio-muted); }
 	.session-rail button:hover { background: var(--studio-panel-highlight); color: var(--studio-text); }
-	.session-music [role='alert'] { min-height: var(--key-stack-min-height); display: flex; align-items: center; justify-content: center; padding: 24px; }
+	.session-music [role='alert'] { flex-direction: column; gap: 8px; text-align: center; min-height: var(--key-stack-min-height); display: flex; align-items: center; justify-content: center; padding: 24px; }
+	.daily > .studio-panel { --color-phase-listen: var(--color-accent); }
+	.daily.report { width: 100%; max-width: 1000px; margin-inline: auto; }
+	.daily.report h1 { color: var(--studio-text); font-weight: 500; }
+	.daily.report .jazz-rule { display: none; }
+	.daily.report .score-chip { min-width: 43px; gap: 3px; font-variant-numeric: tabular-nums; }
+	.daily.report .lick-link { font-family: var(--font-display); }
+	.daily .session-workspace { padding-top: 8px; }
+	.daily .session-rail button { min-height: 44px; }
+	.daily .session-rail :global(svg > g text) { font-size: 14px; }
+	.daily .loading-state { flex-direction: column; gap: 8px; }
+	.daily .loading-state::before { content: ''; width: 24px; height: 3px; background: var(--color-brass); }
+	.daily .session-music [role='alert'] strong { color: var(--studio-text); font: 500 22px var(--font-display); }
+
 	@media (max-width: 1050px) {
+		.daily .session-rail { justify-content: space-between; flex-wrap: wrap; }
+		.daily .session-rail :global(svg) { width: 152px; height: 152px; }
 		.session-workspace { grid-template-columns: minmax(0, 1fr); gap: 16px; }
 		.session-rail { flex-direction: row; border-left: 0; border-top: 1px solid color-mix(in srgb, var(--studio-border) 35%, transparent); padding: 12px 0 0; gap: 24px; }
 	}

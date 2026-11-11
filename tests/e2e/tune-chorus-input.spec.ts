@@ -5,6 +5,7 @@ test('solo chorus input displays the saved count when already at a clamp boundar
 	await seedOnboardedAnonymous(page);
 	await seedTunes(page, [SAINTS_USER_TUNE]);
 	await page.goto('/tunes/e2e-when-the-saints');
+	await page.locator('details.td-session-options summary').click();
 	const count = page.getByRole('spinbutton', { name: 'Solo choruses', exact: true });
 	for (const [entered, normalized] of [['12', '12'], ['20', '12'], ['1', '1'], ['0', '1'], ['', '1']] as const) {
 		await count.fill(entered);

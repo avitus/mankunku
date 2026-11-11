@@ -60,6 +60,18 @@ describe('emptyMelodyBars', () => {
 });
 
 describe('suggestBarsPerLine', () => {
+	it('allows three bars for an extraordinarily dense sixteenth-note passage', () => {
+		const notes: Note[] = Array.from({ length: 16 }, (_, i) => ({
+			pitch: 60 + i % 5, offset: [i, 16], duration: [1, 16]
+		}));
+		expect(suggestBarsPerLine(sheet({ sections: [section({ bars: 8, notes })] }))).toBe(3);
+	});
+
+	it('allows three bars for a chord change on every beat', () => {
+		const harmony = Array.from({ length: 4 }, (_, beat) => seg('C', '7', [beat, 4], [1, 4]));
+		expect(suggestBarsPerLine(sheet({ sections: [section({ bars: 4, harmony })] }))).toBe(3);
+	});
+
 	it('returns the default for moderate whole-note density', () => {
 		const notes: Note[] = Array.from({ length: 8 }, (_, bar) => ({
 			pitch: 60,
@@ -70,18 +82,7 @@ describe('suggestBarsPerLine', () => {
 		expect(suggestBarsPerLine(s)).toBe(BARS_PER_LINE_DEFAULT);
 	});
 
-	it('tightens to 3 bars/line for dense eighth-note runs', () => {
-		const notes: Note[] = [];
-		for (let bar = 0; bar < 4; bar++) {
-			for (let i = 0; i < 8; i++) {
-				notes.push({
-					pitch: 60 + (i % 5),
-					duration: [1, 8],
-					offset: [bar + i / 8, 1]
-				});
-			}
-		}
-		// Fix offsets properly as fractions of whole notes.
+	it('keeps four bars/line for ordinary eighth-note runs', () => {
 		const fixed: Note[] = [];
 		for (let bar = 0; bar < 4; bar++) {
 			for (let i = 0; i < 8; i++) {
@@ -93,10 +94,10 @@ describe('suggestBarsPerLine', () => {
 			}
 		}
 		const s = sheet({ sections: [section({ bars: 4, notes: fixed })] });
-		expect(suggestBarsPerLine(s)).toBe(3);
+		expect(suggestBarsPerLine(s)).toBe(4);
 	});
 
-	it('tightens to 3 bars/line when a bar carries three chords, even with no melody', () => {
+	it('keeps four bars/line when one bar carries three chords', () => {
 		const s = sheet({
 			sections: [
 				section({
@@ -110,20 +111,19 @@ describe('suggestBarsPerLine', () => {
 				})
 			]
 		});
-		// Melody-silent alone would widen to 6; the chord density wins.
-		expect(suggestBarsPerLine(s)).toBe(3);
+		// A passing chord must not change the layout of the whole head.
+		expect(suggestBarsPerLine(s)).toBe(4);
 	});
 
-	it('grades the widening: fully melody-silent → 6, mostly-empty → 5', () => {
+	it('keeps four bars/line for silent and mostly-empty charts', () => {
 		const chords = (bars: number) =>
 			Array.from({ length: bars }, (_, b) => seg('F', '7', [b, 1], [1, 1]));
 
-		// 8 bars, no melody at all → sparseShare 1.0 → widest (6).
+		// Empty bars retain the same four-bar phrasing.
 		const silent = sheet({ sections: [section({ bars: 8, harmony: chords(8) })] });
-		expect(suggestBarsPerLine(silent)).toBe(6);
+		expect(suggestBarsPerLine(silent)).toBe(4);
 
-		// 8 bars, 2 carry a single melody note → sparseShare 0.75 (in [0.6,0.85)) → 5.
-		// Before the fix both cases collapsed to 6 and the 5-branch was dead code.
+		// Sparse melody must not widen the systems either.
 		const mostlyEmpty = sheet({
 			sections: [
 				section({
@@ -136,7 +136,7 @@ describe('suggestBarsPerLine', () => {
 				})
 			]
 		});
-		expect(suggestBarsPerLine(mostlyEmpty)).toBe(5);
+		expect(suggestBarsPerLine(mostlyEmpty)).toBe(4);
 	});
 });
 

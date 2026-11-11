@@ -1,3 +1,4 @@
+import { expectFlushPracticeFrame } from './helpers/practice-frame';
 import { test, expect } from './fixtures/test';
 import { seedOnboardedAnonymous, seedUserLicks, seedStorage, SAMPLE_USER_LICKS } from './fixtures/storage';
 import { installAudioMock, stubCdnInstrumentSamples } from './fixtures/audio';
@@ -37,6 +38,7 @@ test.describe('lick-practice session flow', () => {
 		const listen = page.locator('.phase-tab[data-kind="listen"]');
 		await expect(listen).toBeVisible({ timeout: 60_000 });
 		await expect(listen).toHaveText('Listen');
+		await expectFlushPracticeFrame(page.locator('.row.current .chord-cells'));
 		await expect(listen.locator('.tab-count')).toHaveCount(0);
 		await expect.poll(async () => page.locator('.chord-cell.active .scale-125').evaluateAll(dots =>
 			dots.some(dot => !['transparent', 'rgba(0, 0, 0, 0)'].includes(getComputedStyle(dot).backgroundColor))
@@ -93,6 +95,7 @@ test.describe('lick-practice session flow', () => {
 		await expect(play).toHaveAttribute('data-pass', '1', { timeout: 15_000 });
 		await expect(play).toHaveText('Play · 1/3');
 		await expect(sheet.locator('.playhead-under-bar').first()).toBeVisible();
+		await expectFlushPracticeFrame(sheet);
 		const markerInside = await sheet.evaluate((lead) => {
 			const row = lead.getBoundingClientRect();
 			const marker = lead.querySelector('.playhead-under-bar')!.getBoundingClientRect();

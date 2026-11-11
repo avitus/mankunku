@@ -28,7 +28,9 @@ test.describe('lick-practice session flow', () => {
 		// WebKit sample decoding can consume much of a cycle's timeout. Wait
 		// for audible playback before timing the following three-pass keys.
 		await expect(page.locator('.row.current[data-key="C"] .phase-tab[data-kind="play"]')).toBeVisible({ timeout: 30_000 });
-		await expect(page.locator('.row.current[data-key="Bb"] .phase-tab[data-pass="3"]')).toBeVisible({ timeout: 30_000 });
+		// Arm while the first key is still playing. Waiting for Bb's final
+		// pass and then crossing the browser connection can miss the entire
+		// 420 ms cycle animation on a busy runner.
 		// Inspect the real CSS animation at deterministic checkpoints. Under
 		// CI load, WebKit can miss its early frames in a requestAnimationFrame
 		// sampler even though the animation starts in the correct position.
@@ -37,7 +39,7 @@ test.describe('lick-practice session flow', () => {
 			const timeout = setTimeout(() => {
 				observer.disconnect();
 				reject(new Error('Next Deep cycle did not animate into C'));
-			}, 15_000);
+			}, 30_000);
 			/** Once the cycle-scroll animation exists, pauses it and measures the current row at its start, middle and end. */
 			function sample(): void {
 				const row = document.querySelector('.row.current[data-key="C"]');

@@ -16,6 +16,22 @@ export function sectionLabels(tune: Pick<Tune, 'sections' | 'timeSignature'>) {
 	});
 }
 
+/** Form navigation follows rehearsal marks, not the storage boundaries needed by repeats. */
+export function sectionGroups(tune: Pick<Tune, 'sections' | 'timeSignature'>) {
+	const marks = sectionLabels(tune);
+	const starts = [...new Set([0, ...marks.map(mark => mark.sectionIdx)])];
+	let startBar = 0;
+	return starts.filter(index => index < tune.sections.length).map((sectionIdx, index) => {
+		const endSectionIdx = starts[index + 1] ?? tune.sections.length;
+		const mark = marks.find(mark => mark.sectionIdx === sectionIdx);
+		const bars = tune.sections.slice(sectionIdx, endSectionIdx).reduce((sum, section) => sum + section.bars, 0);
+		const label = mark?.label ?? (bars === 1 && resolvePickupLength(tune, sectionIdx) ? 'Pickup' : marks.length ? 'Intro' : 'Music');
+		const group = { sectionIdx, endSectionIdx, mark, label, bars, startBar };
+		startBar += bars;
+		return group;
+	});
+}
+
 /** Split a section without moving its music or its repeat/ending anchors. */
 function split(section: TuneSection, bars: number, meter: Tune['timeSignature']): [TuneSection, TuneSection] {
 	const at = multiplyFraction(meter, bars);

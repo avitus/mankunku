@@ -6024,7 +6024,7 @@ monitor whether it results in faster CI times."
   excepted); every stacked [2] opens on `|[2`, a barline the pass moves
   under [1]'s. Unit tests (red without, mutation-checked) + an e2e over
   both tunes (red without: staff 425 vs ink 873; barline 171 px off).
-- Rhythm Changes: an original head in concert Bb, |: A(6) [1](2) :| [2](2)
+- Rhythm Changes: an original head in concert Bb, `|: A(6) [1](2) :| [2](2)`
   B(8) A(8) — riff A over I-vi-ii-V / iii-VI-ii-V, IV7 to E°7, a sequenced
   dominant-cycle bridge; range A3–Eb5 like Mankunku's. The form rule reads
   the whole AABA as the head. Saints and Amazing Grace moved to
@@ -6153,3 +6153,137 @@ monitor whether it results in faster CI times."
 - Fix (test only, d1334d39): the test drives `Date.now` a second per call.
   0/40 after; a frozen clock still turns it red. No store change: two takes
   are never saved in one millisecond.
+
+## 2026-10-27 — Little Cry: a breathy F lost between two Ebs
+
+- Andy flagged an ear-training take (bbn-033 in Bb, tenor, 100 BPM):
+  "Some breathy notes were missed." Saved F3 · Eb3 (1.2 s) · Bb2, 3 of 5,
+  0.590; reproduced exactly from the export and the WAV.
+- Cause: the second F had a worklet onset (stabilizer reset) and then
+  exactly five confident frames, all F — a completed warmup vote — but
+  100 ms of sub-0.80 clarity between frames 4 and 5. `splitByPitchChange`
+  cut the same-pitch run at that reading gap, and `emitNote` judged each
+  piece (4 + 1) as a partial warmup burst and dropped it. The Ebs either
+  side then merged.
+- Fix: judge completion on the segment's runs of consecutive warmup frames
+  (`completedWarmupFrames(segReadings)`). First tried on the whole stream:
+  blues-curl-up and pent-run each grew a phantom same-pitch fragment where
+  an ONSET cut the window. Per segment, only little-cry changes across the
+  corpus (46 takes, all time bases). Now 5 of 5, 0.971.
+- Side note for Andy: the exported phrase plays the lick's blue note
+  (concert-C F#, the b5) as Eb in Bb — F Eb F Eb Bb — so "Little Cry"
+  arrived without its cry. Looks like scale snapping under the day's
+  tonality; not touched.
+- Worktree needed `.env` copied and `npm ci` (missing
+  @circleci/vitest-circleci-coverage) before `npm run check` was clean.
+
+## 2026-11-01 — Root–Flat Third: an Ab3 locked on its 2nd harmonic at both edges
+
+- Andy flagged an ear-training take (bc-011 in F: F3 · Ab3 halves, tenor,
+  100 BPM, metronome only): "Second note was scored in octave above". Saved
+  F3 · Ab4, 1 of 2, 0.675 "fair". Reproduced exactly from the saved
+  readings and from the WAV in both time bases.
+- Mechanism, from the readings: the Ab3 (207.6 Hz) reads its 416 Hz
+  partial for the first 0.2 s and the whole decay (36 of 72 frames) and its
+  own fundamental at clarity 1.00 between. `isOctaveUpLock` stopped at
+  370 Hz ("notes from G3 up never mislock"), so nothing was flagged; the
+  subs were Ab4 · Ab3 · Ab4 and `collapseSandwichArtifacts` took the two
+  matching outer subs as the note. Even flagged, half a note is under the
+  whole-note 60% vote.
+- Survey (odd-partial test alone, every corpus frame reported 370–3000 Hz:
+  439 frames, 405 genuine): the lock frames read 0.070–0.227, 29 of 34 over
+  0.12; no genuine note passes on more than one uncorrected frame in three
+  (a 3-frame F#4 at 372–379 Hz); G4s, A4s, C5s ≤ 0.09. The SERIES test is
+  NOT safe up there: the 2026-05-19 Octave–Flat-Seven Drop's genuine C5 at
+  526 Hz carries 0.13–0.16 of its partials at 263 Hz (rank 4.5–8.5, odd
+  bins 0.02) — an octave-key note leaking its fingering's first mode —
+  and would have been voted down to C4 on 28 of 34 frames.
+- Fix (red first, 10 failures on the old sources): `OCTAVE_UP_ODD_MAX_FREQUENCY`
+  500 (the 2nd harmonic of the tenor's lower-register top), the series test
+  held at `OCTAVE_UP_SERIES_MAX_FREQUENCY` 370; `foldOctaveUpLocks` on the
+  sub-segment and `foldOctaveUpLockRuns` on the stream, both the twelfth
+  fold's form through a shared `HarmonicLock` descriptor, applied at the
+  onset extractor and the re-articulation scan as `foldHarmonicLockRuns`.
+- Corpus diff (every take × trimmed/untrimmed × replay/live, dumped before
+  and after): this take folds to Ab3 (0.975); Sixth–Octave Lift and Slow
+  Climb keep every note, onset, duration and cents, clarity −0.001/−0.003
+  (the fundamental frames now average into the merged note). Nothing else.
+- Verification: unit + integration suite 6800 passed, 40 expected fails;
+  `npm run check` clean — both after `npm install`, since this worktree's
+  node_modules predated dev's `@circleci/vitest-circleci-coverage`.
+- Branch: the worktree branch sat on main's tip, diverged from dev; worked
+  detached on origin/dev and pushed HEAD:dev.
+
+## 2026-11-03 — Through the Blue to the Root: one tongue fixed, one left open
+
+- **Asked:** two takes of bbn-011 in A flagged in a row, each saved 4 of 5 with the repeated D3 merged (0.772, 0.793). Andy called the first articulation slight and the second more audible.
+- **Take 2, fixed:** a −12 dB tongue at 0.79 s. McLeod took the D3's 440 Hz partial for 4, 1 and 2 frames, all flagged `twelfthUp`. The 1-frame run sat at the dip's floor, under the 3-frame vote, and ended the run the tiers scan. Flagged 1–2 frame runs with the fundamental on both sides now fold. Now D D E G A, 5 of 5, 0.989. Only this take changes across 50 takes × trimmed/untrimmed × replay/live × worklet onsets/none.
+- **Take 1, open:** the best candidate is a 16% notch at 0.84 s. Level notch 0.84 (median 0.84), timbre change 7.0 dB (median 9.6), phase jump 0.25 rad (median 0.18). Pinned as `it.fails`; it still saves 0.772.
+- **Also fixed:** take 1's untrimmed stream produced a C#3 opening ghost because `findOpeningGhost` measured its plateau against noise-level frames. The gate now includes the stabilized note. The corpus-wide ghost test caught it when the fixture was added.
+- **Verification:** unit + integration 6840 passed, 41 expected fails; `npm run check` clean. E2E not run; the change is Node-only audio logic.
+- **Branch:** the worktree branch sat on main's tip, diverged from dev; reset to origin/dev (nothing unique on it) and pushed HEAD:dev as b0c6798d.
+- **Slip:** a stray `cat > /tmp/ignore` hung a command on stdin until its 2-minute timeout. Nothing was lost; the file was removed.
+
+- **Follow-up, same night:** Andy agreed take 1's articulation was very subtle. Its fixture and `it.fails` pin are gone, so `findOpeningGhost`'s level gate rests on its unit test alone. His judgement went into AGENTS.md as a note, not code: when the articulation across two repeated notes is that subtle but the rest of the lick lines up perfectly, probably assume it was played and missed. Unit + integration and `npm run check` re-run clean.
+
+- **Measured the allowance, same night:** read-only pull of all 2839 `session_results` rows plus replay of 18 takes with audio; results in `research/audio-scoring/results/repeat_allowance.md`. 23 takes qualify and full credit makes all of them perfect. The 2026-10-03 Four to Five qualifies though its final A was never sounded. Scoring unchanged; decision is Andy's. The session rows and one fetched recording stayed in the scratchpad, outside the repo. The Supabase CLI now needs `--read-only` for these queries, and `storage cp` fails inside a checkout because of its `[inbucket]` config, so run it from an empty directory.
+
+- **Decision:** Andy chose to leave scoring as is. Neither credit rule was built; AGENTS.md, the results file and memory say so.
+
+## 2026-11-03 — Long ii-V-I licks over half-bar ii-Vs
+
+Andy noticed a three-bar long ii-V-I lick plays a four-bar cycle in lick practice and asked why. No decision is on record: the template has been ii | V | I I since the MVP (2026-04-09), and `max(template.bars, alignment + length)` (2026-04-26) was written for licks LONGER than the cycle. Asked next whether three-bar song cadences lose the lick. They don't: tune practice sizes its own windows, and a ii | V | I gets a three-bar window.
+
+- **The bug that question turned up:** `suggestLicksForProgression` read category and tags, never shape, so a 1|1|1 line was offered over a half-bar ii-V and stretched that window to three bars for every lick sharing it. Andy doubted it ("I don't think I've ever seen that"), and he was nearly right: on his real book and five real tunes it reached the session in only one tune per mode (Wail at the ≤ 52 BPM its tempo allows, Indiana on a points card), because the tempo gate and the five-lick card hide it.
+- **Fix:** the matcher now applies `progressionFitsLick`, the rule lick practice already serves by; substitution matches are exempt. Five tests failed first.
+- **Measured** on 14 charts × his book and the whole catalog, before and after: 0 suggestions added, every removal a cadence lick on a shape it doesn't fit. Windows freed by the stretch: Rhythm Changes goes from 5 to 7 short ii-V-I windows.
+- **Left open, asked:** the rule only measures LENGTH for harmony-less cadence licks, so Wail and Donna Lee are still offered on I-VI-ii-V and on iii-VI-ii-V-I's half-bar ii-V, where the same curated line is refused. Closing it changes the rule itself, so lick-practice pills and the tag prune on hydrate move with it.
+
+## 2026-11-03 — Release PR #295, dev to main
+
+- **Asked:** open a PR from dev to main, handle all review comments, merge when done.
+- **Before opening:** main had 13 commits dev lacked (#291–#294 landed on main directly), and the merge conflicted in `documentation/tunes.md` and `tune-player.test.ts`. Kept both sides and pushed the merge to dev. Documented 24 test helpers (63.6% → 100% on `scripts/docstring-coverage.mjs`).
+- **Red e2e found on dev:** `02666fe0` changed the Daily report's per-lick line to "N/M keys passed · P% average" and `lick-practice-focus-drill.spec.ts` still read the old wording. Failing on dev before the merge; updated the test, then CI went green.
+- **Review:** two rounds with findings, four threads, all fixed and resolved. A 440 Hz test that can actually reach the octave lock's 370 Hz series ceiling; a substitution test that uses a lick the fit rule refuses; the swing default in the audio docs; and one real bug: a tune take asked for the −6 dB melody level on the backing SETTING, so a band that failed to load left the melody quiet on its own. `playPhrase` now applies the level only when `backingWillPlay`.
+- **Merged:** `7bb6ca6d`, at Andy's request in the original ask. Live on mankunkujazz.com, confirmed by `/api/health` and the deploy job. `e2e-analysis` was still running at that point; it is off the deploy path.
+- **Not verified:** real-microphone playback, and the melody level by ear. CodeRabbit marked its last review "incomplete coverage": 3 files not fully reviewed, unnamed in the walkthrough and the check run.
+- **Checker gap:** `check_pr_review.py` read NOT_REVIEWED at the end, because CodeRabbit on this repo now reports through a check run and posts no commit status. So it can't reach DONE here. Merged on the check run instead: completed, success, on the head, walkthrough range ending at that head, 0 unresolved threads.
+
+## 2026-11-04 — CodeRabbit checker reads check runs
+
+Andy asked to fix the gap above. `~/.claude/skills/coderabbit-loop/` is outside any repo, so the change lives only on this machine.
+
+- **Bigger than the DONE miss:** a survey of 198 check runs on mankunku and veetbot showed the switch from commit statuses around 2026-10-27. The skill's rate-limit guard read statuses too, so it had gone blind and would have slept through any rate limit. A cancelled review also read as a CI failure.
+- **Fix:** `read_review` takes the newer of check run and commit status (one head can carry both). Paused, skipped and cancelled reviews are NOT_REVIEWED with exit 3, since exit 2 would sleep forever. `--review-state` gives the guard one line to read.
+- **Tests:** the checker had none. Added `test_check_pr_review.py`, 23 cases, 13 red on the old code. Also run live: #295 now reads DONE, #288 through its commit status, and real rate-limited, paused, skipped and cancelled commits on veetbot each read correctly.
+- **Not verified:** the guard catching a rate limit as it happens. Its mapping is tested, but no head was rate-limited to watch live.
+
+## 2026-11-04 — Lick octave placement: the comfort rule
+
+Andy entered Hank Mobley - Summertime at written D5–B5 on tenor and the app drew it an octave down. The 2026-10-15 ranking did it: both octaves fit the horn, and 6 notes on the stave beat 3.
+
+- **First answer, withdrawn by Andy:** "keep my octave" for licks the player entered. Before the code landed Andy redirected: less stave, more comfortable range, "notes are more comfortable further away from the extremes". Asked for worked examples first, then chose "Comfort rule for all". No own-lick exemption.
+- **Rule:** `bestOctaveShift` keeps the octaves with the most notes in range, takes the least average discomfort (100 × (distance from centre ÷ half the range)⁴ per note), and lets the stave settle only a gap within 3 points.
+- **Kept older rankings:** no transposition gets the midpoint (tune charts, editor key change). A range centre under the treble stave gets stave-first (guitar, trombone, bass, voice).
+- **Correction to what I told Andy:** I reported a bass-clef bug in the stave check. There is none: `InstrumentConfig.clef` is read by nothing and every instrument is drawn on treble. That also meant the guitar exception had to cover trombone and bass, so it became a position test rather than a list.
+- **Effect:** 15 of Andy's 18 licks now sit where they were entered, up from 12. Catalog, 12 keys: tenor and soprano placements change 16.2%, alto 12.6%; on-stave share on tenor 88% → 82%. A tenor C major scale written C4–C5 now shows C5–C6.
+- **Tests:** `octave-placement.test.ts` rewritten on Andy's own licks, red first; four mutations (square for fourth power, band 0, band 6, no under-stave case) each caught. Full unit suite and `npm run check` pass. Five affected e2e specs pass on Chromium in the sandbox (Colima, credential-free DOCKER_CONFIG, because Docker Desktop was not answering).
+- **Not verified:** the rule by eye or ear on the live app, and how Andy's other licks feel in every key. Firefox and WebKit are left to CI.
+
+## 2026-11-04 — Short and long turnarounds and iii-VI-ii-V-Is
+
+Started from Andy asking why a 3-bar ii-V-I lick gets a fourth bar in lick practice. It ended at Andy's own diagnosis: the app has no idea of a short and a long iii-VI-ii-V-I, so detection gave both speeds one label and the fit rule could only measure length.
+
+- **Fit fix first (`2975fd23`):** tune suggestions now pass `progressionFitsLick`. No recorded decision behind the fourth bar: it's the MVP template's own length, and a 3-bar song cadence always kept a 3-bar window.
+- **Split:** `turnaround-short` and `iii-VI-ii-V-I-long` added. The plain ids keep their chords so saved tags stay valid, and the names now say the speed. The ii decides the label, so a mixed passage gets exactly one.
+- **Placement:** `ii-V-I-major` came off the turnaround table, whose bar 0 is the I. `maxLickBars` caps that category at 2 bars on the short iii-VI-ii-V-I. The short turnaround lists only `rhythm-changes`, since none of its chords lasts a bar.
+- **Measured:** 7 passages across 14 tunes, 4 slow and 3 fast, none mixed, each holding a ii-V-I at its own speed. Before and after on Andy's book: Wail and Donna Lee leave the turnarounds and the fast iii-VI-ii-V-Is, and land on the long ii-V-Is inside. Mankunku Blues, Fly Me and Black Orpheus each gain windows.
+- **Tags:** the hydrate prune will drop 14 `prog:turnaround` tags from Andy's account. All are generated `cmb-sp-*` catalog phrases, none in the 18 licks of the book.
+- **New exposure, left alone:** Blue Monk (2 bars) now gets a window at Mankunku Blues bar 11, F7 | D7b9. It's the existing rule that a blues detection stretches to its longest lick; the turnaround used to cover that bar.
+- **Corrections to what I told Andy:** the Fly Me passage I used as the fast example is the slow form, where Wail fits. Also, "licks saved without chords" sounded like a corner case and is every lick in the book.
+- **Not verified:** the new forms by ear in a live session, and the two new backing tracks.
+
+
+## 2026-11-08 — Repository maintenance audit
+
+Audited suite discovery, assertions and exclusions; separated browser artifact producers from regressions; strengthened cross-tab account isolation, docs sanitization, endpoint and rendered-audio coverage. Updated the framework/dependency stack and maintained player/contributor/architecture documentation. Removed the adapter's obsolete Rollup warning wrapper and safely removed merged, unoccupied branches. The maintained evidence and unresolved items are in `docs/maintenance/2026-11-08-audit.md`, including validation results and Sentry access limitations.

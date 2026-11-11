@@ -535,6 +535,8 @@ test('an exported PDF imports offline and keeps the original measures available 
 	await page.waitForURL('**/tunes/editor');
 	expect(posts).toEqual([]);
 	await expect(page.getByRole('textbox', { name: 'Tune title' })).toHaveValue(/Lady Bird/);
+	// Lazy engraving moves the disclosure after the title is already visible.
+	await expect(page.locator('.td-score-well .abcjs-notehead').first()).toBeVisible();
 	await page.getByText('Compare with original PDF', { exact: true }).click();
 	await expect(page.getByAltText('Original PDF measure 1')).toBeVisible();
 	await page.getByLabel('Source measure', { exact: true }).selectOption({ label: '3' });
@@ -573,6 +575,10 @@ for (const [name, measures] of [
 		await expect(page.getByRole('textbox', { name: 'Tune title' })).toHaveValue(
 			new RegExp(name.replace('Till', 'Till?'))
 		);
+		// The title appears before the lazy engraver inserts the tall chart
+		// above this disclosure. Wait for the chart before targeting the
+		// native details toggle with a pointer.
+		await expect(page.locator('.td-score-well .abcjs-notehead').first()).toBeVisible();
 		await page.getByText('Compare with original PDF', { exact: true }).click();
 		await page
 			.getByLabel('Source measure', { exact: true })

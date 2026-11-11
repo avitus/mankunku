@@ -99,14 +99,38 @@ const STAVE_WRITTEN_LOW = 64;
 const STAVE_WRITTEN_HIGH = 77;
 
 /**
+ * How far apart two octaves' discomfort can be and still count as equally
+ * comfortable, leaving the stave to choose. 3 keeps the stave out of every clear
+ * call: across Andy's 18 licks it changes only Basis of Everything (2.1 apart),
+ * and Summertime, 4.9 apart, stays in the octave it was entered in.
+ */
+const COMFORT_NEAR_TIE = 3;
+
+/**
+ * A note's discomfort: 0 at the centre of the range, 100 at either extreme,
+ * rising with the fourth power of the distance so a note near the edge costs
+ * far more than one halfway there (6). A square would not do: across octaves
+ * the mean of squares differs only by the distance of the line's mean, which is
+ * the midpoint ranking again.
+ */
+function noteDiscomfort(note: number, rangeLow: number, rangeHigh: number): number {
+	const halfRange = (rangeHigh - rangeLow) / 2 || 1;
+	return 100 * ((note - (rangeLow + rangeHigh) / 2) / halfRange) ** 4;
+}
+
+/**
  * Find the octave shift that places a line best on the player's instrument
- * (Andy, 2026-10-15: "in the range of my instrument", then "the most
- * convenient range … usually when the notes are mostly within the stave and
- * furthest from the extreme ranges"). Candidates are ranked by notes within
- * the range first; among those, by notes on the written stave — the stave
- * needs `transposition` (concert → written), and a call without it skips this
- * tier, so range-only callers keep the older rule; then by the mean's
- * distance from the range midpoint, furthest from the extremes. A full tie
+ * (Andy, 2026-11-04: "more on the comfortable part of the instrument range.
+ * Notes are more comfortable further away from the extremes"). The octaves with
+ * the most notes in range are the candidates; the least average discomfort
+ * wins, and the written stave settles only a gap within `COMFORT_NEAR_TIE`.
+ *
+ * Without `transposition` (concert → written) the stave is unknown and the
+ * caller gets the older midpoint ranking, as tune charts and the editor's key
+ * change do. An instrument whose centre sits under the treble stave
+ * (guitar, trombone, bass, voice: every instrument is drawn on the treble stave)
+ * keeps the stave first, since comfort would put its lines on ledger lines
+ * (guitar's on-stave share across the catalog falls from 75% to 18%). A full tie
  * keeps the lower shift.
  */
 export function bestOctaveShift(
@@ -120,38 +144,36 @@ export function bestOctaveShift(
 	const mid = (rangeLow + rangeHigh) / 2;
 	const staveLow = transposition == null ? null : STAVE_WRITTEN_LOW - transposition;
 	const staveHigh = transposition == null ? null : STAVE_WRITTEN_HIGH - transposition;
-	let bestShift = 0;
-	let bestInRange = -1;
-	let bestOnStave = -1;
-	let bestDistance = Infinity;
 
-	// Check shifts from -3 to +3 octaves — more than enough for any instrument
-	for (let shift = -3; shift <= 3; shift++) {
-		const offset = shift * 12;
-		let inRange = 0;
-		let onStave = 0;
-		let sum = 0;
-		for (const note of midiNotes) {
-			const shifted = note + offset;
-			if (shifted >= rangeLow && shifted <= rangeHigh) inRange++;
-			if (staveLow !== null && staveHigh !== null && shifted >= staveLow && shifted <= staveHigh) onStave++;
-			sum += shifted;
-		}
-		const dist = Math.abs(sum / midiNotes.length - mid);
+	// Shifts from -3 to +3 octaves are more than enough for any instrument. In
+	// ascending order, so the stable sorts below keep the lower shift on a full tie.
+	const candidates = [-3, -2, -1, 0, 1, 2, 3].map((shift) => {
+		const shifted = midiNotes.map((note) => note + shift * 12);
+		const average = (values: number[]) => values.reduce((sum, value) => sum + value, 0) / values.length;
+		return {
+			shift,
+			inRange: shifted.filter((note) => note >= rangeLow && note <= rangeHigh).length,
+			onStave:
+				staveLow === null || staveHigh === null
+					? 0
+					: shifted.filter((note) => note >= staveLow && note <= staveHigh).length,
+			discomfort: average(shifted.map((note) => noteDiscomfort(note, rangeLow, rangeHigh))),
+			midpointDistance: Math.abs(average(shifted) - mid)
+		};
+	});
+	const mostInRange = Math.max(...candidates.map((c) => c.inRange));
+	const onHorn = candidates.filter((c) => c.inRange === mostInRange);
 
-		const better =
-			inRange > bestInRange ||
-			(inRange === bestInRange && onStave > bestOnStave) ||
-			(inRange === bestInRange && onStave === bestOnStave && dist < bestDistance);
-		if (better) {
-			bestShift = shift;
-			bestInRange = inRange;
-			bestOnStave = onStave;
-			bestDistance = dist;
-		}
+	if (staveLow === null || mid < staveLow) {
+		return [...onHorn].sort(
+			(a, b) => b.onStave - a.onStave || a.midpointDistance - b.midpointDistance
+		)[0].shift;
 	}
 
-	return bestShift;
+	const leastDiscomfort = Math.min(...onHorn.map((c) => c.discomfort));
+	return onHorn
+		.filter((c) => c.discomfort <= leastDiscomfort + COMFORT_NEAR_TIE)
+		.sort((a, b) => b.onStave - a.onStave || a.discomfort - b.discomfort)[0].shift;
 }
 
 /**
@@ -160,8 +182,8 @@ export function bestOctaveShift(
  * Computes the interval from the lick's current key to the target key
  * and shifts every pitched note and harmony root by that interval,
  * then applies an octave adjustment to keep notes within instrument range —
- * and, given the instrument's `transposition` (concert → written), on its
- * stave (`bestOctaveShift`).
+ * and, given the instrument's `transposition` (concert → written), in its
+ * comfortable part (`bestOctaveShift`).
  */
 export function transposeLick(
 	lick: Phrase,
@@ -220,8 +242,8 @@ export function transposeLick(
  * player's line sits around concert C3–C4, which a soprano (written = concert
  * + 2, lowest written Bb3) cannot play — written for the soprano it reads an
  * octave under the horn. This is the same-key octave fit the lick detail page
- * already applies through `transposeLick` — in range, then on the stave, then
- * away from the extremes (`bestOctaveShift`) — so the community desk's staff,
+ * already applies through `transposeLick` — in range, then away from the
+ * extremes (`bestOctaveShift`) — so the community desk's staff,
  * its Listen, the book's Listen and the detail page all put a lick in ONE
  * register. `rangeHigh` is the player's effective highest note, a setting
  * beside the instrument. The id is kept: the fit changes nothing the lick is

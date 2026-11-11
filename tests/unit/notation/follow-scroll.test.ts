@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+	anticipatoryFollowBar,
 	followOffsetPx,
 	targetContentY,
 	buildFollowSystems,
@@ -250,3 +251,31 @@ describe('followOffsetPx — non-finite guards', () => {
 	});
 });
 
+
+
+describe('anticipatoryFollowBar', () => {
+	const chartAt = (bar: number) => bar < 0 || bar >= 24 ? null : bar % 12;
+	it('holds the repeat destination for the last two beats, then resumes normal following', () => {
+		expect(anticipatoryFollowBar(11.49, 4, chartAt)).toBe(11.49);
+		expect(anticipatoryFollowBar(11.5, 4, chartAt)).toBe(0);
+		expect(anticipatoryFollowBar(11.99, 4, chartAt)).toBe(0);
+		expect(anticipatoryFollowBar(12.25, 4, chartAt)).toBe(.25);
+	});
+	it('does not anticipate ordinary forward movement or the final stop', () => {
+		expect(anticipatoryFollowBar(7.75, 4, chartAt)).toBe(7.75);
+		expect(anticipatoryFollowBar(23.75, 4, chartAt)).toBe(11.75);
+		expect(anticipatoryFollowBar(-.25, 4, chartAt)).toBeNull();
+	});
+	it('measures the lead in quarter-note beats in triple and compound meters', () => {
+		expect(anticipatoryFollowBar(11.3, 3, chartAt)).toBe(11.3);
+		expect(anticipatoryFollowBar(11.34, 3, chartAt)).toBe(0); // 3/4 or 6/8
+		expect(anticipatoryFollowBar(10.99, 2, chartAt)).toBe(10.99);
+		expect(anticipatoryFollowBar(11, 2, chartAt)).toBe(0); // 2/4
+	});
+	it('lands after a pickup and at an internal repeat, while allowing forward section skips', () => {
+		const map = [0, 1, 2, 3, 1, 2, 5, 6];
+		const at = (bar: number) => map[Math.floor(bar)] === undefined ? null : map[Math.floor(bar)] + bar % 1;
+		expect(anticipatoryFollowBar(3.5, 4, at)).toBe(1);
+		expect(anticipatoryFollowBar(5.5, 4, at)).toBe(2.5);
+	});
+});

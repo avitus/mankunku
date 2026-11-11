@@ -1,6 +1,6 @@
 import { MANKUNKU_BLUES } from '../../src/lib/data/tunes/mankunku-blues';
 import { test, expect } from './fixtures/test';
-import { seedOnboardedAnonymous, seedStorage, seedTunes } from './fixtures/storage';
+import { seedOnboardedAnonymous, seedStorage, seedTunes, SETTINGS_ONBOARDED, TOUR_DISMISSED } from './fixtures/storage';
 import { installAudioMock, stubCdnInstrumentSamples } from './fixtures/audio';
 import type { Tune } from '../../src/lib/types/tune';
 
@@ -26,7 +26,9 @@ for (const practice of [false, true]) {
 				'Linux Firefox has no audio device for Tone.start');
 			test.setTimeout(60_000);
 			await page.setViewportSize({ width: practice ? 390 : 1440, height: 1000 });
-			await seedOnboardedAnonymous(page);
+			// Keep the band enabled so loop/coda handoffs also exercise the
+			// released arrangement and its rebased performance-form metadata.
+			await seedStorage(page, { settings: { ...SETTINGS_ONBOARDED, backingTrackEnabled: true }, 'tour-state': TOUR_DISMISSED });
 			await seedStorage(page, { 'tune-practice-choruses': 2 });
 			await seedTunes(page, [head || practice ? endings : { ...endings, sections: endings.sections.map(section => ({ ...section, notes: [] })) }]);
 			await installAudioMock(page);
@@ -37,8 +39,14 @@ for (const practice of [false, true]) {
 				await page.getByRole('switch', { name: 'Play head and outro' }).click();
 			}
 			const score = page.locator('.abcjs-container');
-			await expect(score).toContainText('A7');
-			await expect(score).not.toContainText('GΔ7');
+			if (!practice && !head) {
+				const preview = page.getByTestId('tune-chord-chart');
+				await expect(preview.getByLabel('A7', { exact: true })).toBeVisible();
+				await expect(preview.getByLabel('GΔ7', { exact: true })).toHaveCount(0);
+			} else {
+				await expect(score).toContainText('A7');
+				await expect(score).not.toContainText('GΔ7');
+			}
 			const tempo = page.getByRole('spinbutton', { name: 'Tempo', exact: true });
 			await tempo.fill('180');
 			await tempo.press('Tab');

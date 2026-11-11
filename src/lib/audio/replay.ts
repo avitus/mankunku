@@ -32,6 +32,8 @@ export interface ReplayOptions {
 	hopSize?: number;
 	/** Window size for pitch detection (default: 4096 — matches AnalyserNode.fftSize) */
 	fftSize?: number;
+	/** The live recorder timestamps each analyser window at its end. */
+	windowAnchor?: FrameOptions['windowAnchor'];
 	clarityThreshold?: number;
 	minFrequency?: number;
 	maxFrequency?: number;
@@ -91,6 +93,7 @@ export async function replayFromAudioBuffer(
 
 	const frameOpts: FrameOptions = {
 		sampleRate,
+		windowAnchor: opts.windowAnchor,
 		clarityThreshold: opts.clarityThreshold,
 		minFrequency: opts.minFrequency,
 		maxFrequency: opts.maxFrequency
@@ -121,7 +124,7 @@ export async function replayFromAudioBuffer(
 	let nextOnsetIdx = 0;
 
 	for (let start = 0; start + fftSize <= totalSamples; start += hopSize) {
-		const time = start / sampleRate;
+		const time = (opts.windowAnchor === 'end' ? start + fftSize : start) / sampleRate;
 		while (nextOnsetIdx < onsets.length && onsets[nextOnsetIdx] <= time) {
 			stabilizer.reset();
 			nextOnsetIdx++;

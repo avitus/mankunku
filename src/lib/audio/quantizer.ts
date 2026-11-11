@@ -1,6 +1,7 @@
 /**
- * Rhythmic quantization: converts DetectedNote[] to Note[] with Fraction
- * offsets/durations.
+ * The original beat-local quantizer, retained as the fixed before/after
+ * comparator for the recorder benchmark. Live transcription now calls
+ * quantizeRecorderRhythm and inferRecorderKey; both functions below are legacy comparators.
  *
  * Jazz-aware by design: swung eighths are WRITTEN straight, so a lone upbeat
  * landing anywhere in the swing range (straight 0.5 through MAX_SWING, which
@@ -18,8 +19,8 @@
  *   position rather than producing garbage.
  * - Pickup notes ahead of the entrance downbeat: anything surviving the
  *   capture's rebase tolerance clamps to beat 0.
- * The swing-eighth logic assumes a quarter-note beat; the only production
- * caller records in 4/4. The time signature affects only the 8-bar cap.
+ * The swing-eighth logic assumes a quarter-note beat; the recorder
+ * records in 4/4. The time signature affects only the 8-bar cap.
  */
 
 import type { DetectedNote } from '$lib/types/audio';

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createHash } from 'node:crypto';
 import { createRollingBacking, advanceRollingBacking, type RollingBackingCheckpoint } from '$lib/audio/backing-rolling';
-import { BACKING_STYLES } from '$lib/audio/backing-styles';
+import { HISTORICAL_MUSICALITY_STYLES as BACKING_STYLES } from '../../helpers/musicality-style-fixtures';
 import { generateBacking, resolveBackingSwing } from '$lib/audio/backing-generation';
 import { buildPerformanceForm } from '$lib/audio/performance-form';
 import { buildListeningTuneSession, assessListeningTune } from '$lib/musicality/listening-tunes';

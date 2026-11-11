@@ -53,6 +53,53 @@ describe('tune desk tempo', () => {
 });
 
 describe('tune desk playback', () => {
+	it('returns the chart two beats early while the sounding bar stays at the end', async () => {
+		let finish!: () => void;
+		audio.playPhrase.mockImplementation(() => new Promise<void>(resolve => finish = resolve));
+		player.setTempo(120);
+		player.playHead = false;
+		const started = player.toggle(tune, 'swing', 2);
+		await vi.waitFor(() => expect(audio.playPhrase).toHaveBeenCalled());
+		const callbacks = audio.playPhrase.mock.calls[0][3];
+		const at = (bar: number) => { audio.getAudibleTransportSeconds.mockReturnValue(2 + bar * 2); callbacks.onStarted(); };
+		at(1.49);
+		expect(player.followBar).toBeCloseTo(1.49);
+		at(1.5);
+		expect(player.followBar).toBe(0);
+		expect(player.chartBar).toBe(1.5);
+		expect(player.soloChorus).toBe(1);
+		at(1.99);
+		expect(player.followBar).toBe(0);
+		at(2.1);
+		expect(player.followBar).toBeCloseTo(.1);
+		at(3.5); // Final chorus: there is no next form to preview.
+		expect(player.followBar).toBe(1.5);
+		finish(); await started;
+		expect(player.followBar).toBeNull();
+	});
+
+	it('starts directly on solo one when head and outro are disabled', async () => {
+		let finish!: () => void;
+		audio.playPhrase.mockImplementation(() => new Promise<void>(resolve => finish = resolve));
+		player.setTempo(120);
+		player.playHead = false;
+		const started = player.toggle(tune, 'swing', 2);
+		await vi.waitFor(() => expect(audio.playPhrase).toHaveBeenCalled());
+		expect(audio.playPhrase.mock.calls[0][0].notes).toEqual([]);
+		expect(audio.playPhrase.mock.calls[0][0].difficulty.lengthBars).toBe(4);
+		const callbacks = audio.playPhrase.mock.calls[0][3];
+		audio.getAudibleTransportSeconds.mockReturnValue(2.2);
+		callbacks.onStarted();
+		expect(player.phase).toBe('solo');
+		expect(player.soloChorus).toBe(1);
+		expect(player.chartBar).toBeCloseTo(.1);
+		audio.getAudibleTransportSeconds.mockReturnValue(6.2);
+		callbacks.onStarted();
+		expect(player.phase).toBe('solo');
+		expect(player.soloChorus).toBe(2);
+		finish();
+		await started;
+	});
 	it('skips head-only bars on the chart and counts the shorter solo choruses', async () => {
 		const annotated: Tune = { ...tune, sections: [
 			{ ...tune.sections[0], repeatStart: undefined, repeatEnd: undefined },
@@ -74,6 +121,7 @@ describe('tune desk playback', () => {
 		expect(player.soloChorus).toBe(2);
 		at(16.25); // outro includes B again
 		expect(player.phase).toBe('outro');
+		expect(player.showSoloChart).toBe(false);
 		expect(player.chartBar).toBeCloseTo(2.25);
 		finish(); await started;
 	});
@@ -92,13 +140,21 @@ describe('tune desk playback', () => {
 		};
 		at(2.2);
 		expect(player.phase).toBe('head');
+		at(4.98); // Just before the two-beat return.
+		expect(player.showSoloChart).toBe(false);
+		at(5); // Return begins while the head still sounds.
+		expect(player.phase).toBe('head');
+		expect(player.followBar).toBe(0);
+		expect(player.showSoloChart).toBe(true);
 		at(6.2);
 		expect(player.phase).toBe('solo');
+		expect(player.showSoloChart).toBe(true);
 		expect(player.soloChorus).toBe(1);
 		at(10.2);
 		expect(player.soloChorus).toBe(2);
 		at(14.2);
 		expect(player.phase).toBe('outro');
+		expect(player.showSoloChart).toBe(false);
 		expect(player.chartBar).toBeCloseTo(.1);
 		callbacks.onNote({ sourceIndex: 1 });
 		expect(player.cursorIndex).toBe(0); // Closing head points to the original chart.
@@ -208,7 +264,7 @@ describe('tune desk playback', () => {
 		finish();
 		await started;
 	});
-	it.each([['bossa-nova', 0.5], ['ballad', 0.55], ['straight', 0.5], ['swing', 0.62]] as const)(
+	it.each([['bossa-nova', 0.5], ['ballad', 0.53], ['straight', 0.5], ['swing', 0.62]] as const)(
 		'passes saved %s to the production engine with matching melody feel', async (style, swing) => {
 			player.backing = true;
 			await player.toggle(tune, style);
@@ -229,6 +285,12 @@ describe('tune desk playback', () => {
 		expect(audio.playPhrase.mock.calls[0][3]).toMatchObject({ skipMelody: !enabled });
 		// Notes for both heads remain in the plan even when their audio is muted.
 		expect(audio.playPhrase.mock.calls[0][0].notes).toHaveLength(2);
+	});
+	it.each([true, false])('keeps tune melody at normal demo level (backing %s)', async (backing) => {
+		player.backing = backing;
+		await player.toggle(tune, 'swing');
+		expect(audio.playPhrase.mock.calls[0][3].melodyLevel ?? 1).toBe(1);
+		expect(audio.playPhrase.mock.calls[0][1]).toMatchObject({ backingOutputLevel: 4, backingTrackVolume: settings.backingTrackVolume });
 	});
 	it('keeps the saved feel with backing off and supports a backing-only pass', async () => {
 		player.melody = false;

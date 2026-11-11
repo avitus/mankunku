@@ -149,7 +149,7 @@ export interface StyleDefinition {
 	 * Who owns the eighth-note grid.
 	 *
 	 * 'fixed' — the style does, unconditionally: a bossa is straight and a
-	 * ballad leans 0.55 whatever the user's knob says. Both the backing and
+	 * ballad leans 0.53 whatever the user's knob says. Both the backing and
 	 * the melody resolve to `defaultSwing`.
 	 *
 	 * 'tempo' — the user does, and when their knob sits straight the backing
@@ -436,7 +436,7 @@ const bossaNova: StyleDefinition = {
 const ballad: StyleDefinition = {
 	name: 'Ballad',
 	coordinatedStyle: 'ballad',
-	defaultSwing: 0.55,
+	defaultSwing: 0.53,
 	swingModel: 'fixed',
 	timing: BALLAD_TIMING,
 	intensityCap: 0.6,
@@ -585,7 +585,7 @@ export const BACKING_STYLE_IDS = Object.keys(BACKING_STYLES) as BackingStyle[];
  * For a 'fixed' style, soloist and band share one grid: `resolveBackingSwing`
  * puts the band on `defaultSwing`, and the melody follows it here, so over a
  * bossa both play straight. Note this bites at the knob's DEFAULT position
- * too — ballad is 0.55, so its melody grid differs from a raw 0.50 knob.
+ * too — ballad is 0.53, so its melody grid differs from a raw 0.50 knob.
  *
  * For 'tempo' (the swing style) the user's knob rules the melody, exactly as
  * before. The two deliberately diverge there: with the knob straight the band

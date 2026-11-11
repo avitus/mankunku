@@ -5,6 +5,8 @@ import {
   isEmptyErrorEvent,
   isLocalRequestEvent
 } from '$lib/util/sentry-filters';
+import { TRACES_SAMPLE_RATE } from '$lib/util/sentry-sampling';
+import { SENTRY_COMMON_OPTIONS } from '$lib/util/sentry-options';
 
 // SvelteKit loads this file via Node's `--import` flag, BEFORE Vite's transform
 // pipeline kicks in. That means `import.meta.env.DEV` is undefined here even
@@ -29,6 +31,7 @@ const SENTRY_ENVIRONMENT =
 // to apply an edit to the options below in dev, restart the dev server.
 if (!Sentry.isInitialized()) {
   Sentry.init({
+    ...SENTRY_COMMON_OPTIONS,
     dsn: 'https://a12d5e915778d470c90bf492a29f1bb4@o135479.ingest.us.sentry.io/4511259307081728',
 
     environment: SENTRY_ENVIRONMENT,
@@ -68,10 +71,8 @@ if (!Sentry.isInitialized()) {
       return event;
     },
 
-    tracesSampleRate: 1.0,
-
-    // Enable logs to be sent to Sentry
-    enableLogs: true,
+    // A fraction, not every request: see $lib/util/sentry-sampling.
+    tracesSampleRate: TRACES_SAMPLE_RATE,
 
     // uncomment the line below to enable Spotlight (https://spotlightjs.com)
     // spotlight: import.meta.env.DEV,

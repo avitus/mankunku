@@ -183,11 +183,15 @@ export function createRollingBackingRenderer(
 		voiceStops.clear();
 		for (const entry of armed) if (entry.audioTime > now) updateDispatch(entry, 'cancelled');
 		armed.clear();
+		// A legacy scheduler can dispatch ahead too; stopping its future voice
+		// must not leave a receipt claiming it sounded. Past receipts stay intact.
+		for (const entry of dispatches) if (entry.status === 'played' && entry.audioTime > now) updateDispatch(entry, 'cancelled');
 		if (runtime.arm) for (const entry of dispatches) if (entry.status === 'scheduled') updateDispatch(entry, 'cancelled');
 		if (schedule !== null) {
 			schedule = null;
 			cachedSnapshot = null;
-			if (runtime.isCurrent()) runtime.publishSchedule(null);
+			try { if (runtime.isCurrent()) runtime.publishSchedule(null); }
+			catch { /* Publication must not prevent voice cleanup or terminal notification. */ }
 		}
 	}
 

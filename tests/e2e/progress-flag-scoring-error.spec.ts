@@ -22,6 +22,11 @@ const SESSION_ID = 'flag-me';
 const TIMESTAMP = Date.UTC(2026, 9, 17, 0, 45, 32);
 const BLOB_SECONDS = 3.5;
 const NOTE = 'the final D split into three notes';
+// Keep the actual scored targets, including the extra detections. Today's
+// octave-placement policy puts this same lick an octave above the 2026 take.
+const { savedScore } = JSON.parse(readFileSync(
+	'tests/fixtures/recordings/2026-10-17-third-walks-back-to-root.json', 'utf8'
+)).scoring;
 
 // signedInPage sets its cookie from testUser during FIXTURE SETUP, so the
 // admin variant overrides the fixture rather than mutating it mid-test.
@@ -49,7 +54,7 @@ function session() {
 		grade: 'fair',
 		notesHit: 4,
 		notesTotal: 4,
-		noteResults: [],
+		noteResults: savedScore.noteResults,
 		timing: null
 	};
 }
@@ -148,6 +153,8 @@ async function seedRecording(page: Page, uid: string) {
 		{ uid, sessionId: SESSION_ID, timestamp: TIMESTAMP, blobSeconds: BLOB_SECONDS }
 	);
 	await page.reload();
+	// The shared goto fixture waits for hydration, but reload does not.
+	await page.locator('[data-hydrated="true"]').waitFor();
 }
 
 async function expandSession(page: Page) {

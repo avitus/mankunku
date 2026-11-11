@@ -195,3 +195,18 @@ describe('scheduleFormLoop (real Tone clock)', () => {
 		expect(lastPass).toEqual({ codaStartTick: top, endTick: top + BAR });
 	});
 });
+
+it('rebases authored performance roles with the loop body and way-out pass', async () => {
+ const { buildPerformanceForm } = await import('$lib/audio/performance-form');
+ const phrase=pickupPhrase();
+ phrase.performanceForm=buildPerformanceForm({totalBars:3,sectionMap:phrase.sectionMap!,choruses:[
+  {role:'head',startBar:0,endBarExclusive:1},{role:'solo',startBar:1,endBarExclusive:2},{role:'head',startBar:2,endBarExclusive:3}
+ ]});
+ const body=loopBodyPhrase(phrase,{startBar:1,endBar:2});
+ expect(body.performanceForm?.totalBars).toBe(1);
+ expect(body.performanceForm?.choruses.map(c=>[c.role,c.startBar,c.endBarExclusive])).toEqual([['solo',0,1]]);
+ const coda=codaPhrase(phrase,{startBar:1,endBar:2,coda:{startBar:2,endBar:3}})!;
+ expect(coda.performanceForm?.totalBars).toBe(1);
+ expect(coda.performanceForm?.choruses.map(c=>[c.role,c.startBar,c.endBarExclusive])).toEqual([['head',0,1]]);
+ expect(phrase.performanceForm.totalBars).toBe(3);
+});

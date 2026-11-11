@@ -1,0 +1,56 @@
+research/audio-scoring/ts/tuning-cue.test.ts:44:	it.skipIf(!existsSync(ROWS))('writes results/tuning_cue.md', () => {
+research/audio-scoring/ts/tuning-cue.test.ts:105:	it.skipIf(!existsSync(ROWS))('writes results/tuning_cue_hysteresis.md', () => {
+omr/tests/integration/test_benchmark_integration.py:24:        pytest.skip("legato extra not installed")
+omr/tests/integration/test_benchmark_integration.py:26:        pytest.skip("HF auth required (accept terms + HF_TOKEN / `hf auth login`)")
+tests/integration/pitch-replay.test.ts:3029:	it.fails('does not split the held G3 at the beat-4 click (OPEN)', async () => {
+tests/integration/pitch-replay.test.ts:3627:		it.fails(`${take.file} (lick practice after a tempo change: the stamp is off the tick grid by stamp mod beat)`, () => {
+tests/integration/pitch-replay.test.ts:3837:	it.fails("concert C replayed: the pairing holds on the recording's own segmentation (a 50 ms F# from the slur sits in the F's slot)", async () => {
+tests/e2e/tune-session-options.spec.ts:78:	test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+tests/integration/pdf-vs-musescore.test.ts:55: * When an `it.fails` starts passing, vitest flags it — promote it to `it`.
+tests/integration/pdf-vs-musescore.test.ts:156:	const target = (id: string) => (defects.has(id) ? it.fails : it);
+tests/integration/pdf-vs-musescore.test.ts:241:		const target = (id: string) => (defects.has(id) ? it.fails : it);
+tests/e2e/tune-head-layout.spec.ts:14:		test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+tests/e2e/tune-practice.spec.ts:312:		test.skip(
+tests/e2e/tune-practice.spec.ts:346:		test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+tests/e2e/tune-practice.spec.ts:385:		test.skip(
+tests/e2e/tune-practice.spec.ts:429:		test.skip(
+tests/e2e/tune-practice.spec.ts:479:		test.skip(
+tests/e2e/tune-practice.spec.ts:519:		test.skip(
+tests/e2e/tune-practice.spec.ts:628:		test.skip(
+tests/e2e/tune-practice-setup.spec.ts:126:	test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+tests/e2e/tune-desk.spec.ts:125:	test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI, 'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device');
+tests/e2e/tune-desk.spec.ts:153:	test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI, 'Tone.start() / AudioContext.resume() hangs in headless Linux Firefox without an audio device');
+tests/e2e/tune-endings-a-train.spec.ts:386:		test.skip(
+tests/e2e/lick-detail.spec.ts:179:		test.skip(
+tests/e2e/ear-training-audio.spec.ts:9:	test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI && process.env.MANKUNKU_TEST_AUDIO_SINK !== '1', 'Headless Linux Firefox has no audio output device');
+tests/e2e/lick-practice-focus-drill.spec.ts:22:		test.skip(
+tests/e2e/tune-jam.spec.ts:42:		test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+tests/e2e/tune-jam.spec.ts:87:			test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+tests/e2e/backing-render-audio.spec.ts:16:	test.skip(browserName === 'firefox', 'Tone-less render path — verify on Chromium and WebKit, the engines with divergent audio stacks');
+tests/e2e/lick-practice-lead-sheet.spec.ts:32:		test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+tests/e2e/lick-practice-lead-sheet.spec.ts:126:		test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+tests/e2e/lick-practice-lead-sheet.spec.ts:157:			test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+tests/e2e/lick-practice-lead-sheet.spec.ts:219:		test.skip(
+tests/e2e/lick-practice-session.spec.ts:29:		test.skip(
+tests/e2e/lick-practice-session.spec.ts:84:		test.skip(
+tests/e2e/lick-practice-session.spec.ts:155:		test.skip(
+tests/e2e/tune-jam-endings.spec.ts:25:			test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+tests/e2e/tune-jam-endings.spec.ts:78:	test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+tests/e2e/tune-jam-endings.spec.ts:101:		test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+tests/e2e/lick-practice-daily-report.spec.ts:18:		test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+tests/e2e/lick-practice-daily-report.spec.ts:67:		test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+tests/e2e/lick-practice-daily-report.spec.ts:95:		test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+tests/e2e/tricks.spec.ts:247:		test.skip(
+tests/e2e/tricks.spec.ts:280:			test.skip(
+tests/e2e/ear-training.spec.ts:60:		test.skip(
+tests/e2e/ear-training.spec.ts:120:		test.skip(
+tests/e2e/ear-training.spec.ts:214:		test.skip(
+tests/e2e/lick-practice-deep.spec.ts:17:		test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+tests/e2e/lick-practice-deep.spec.ts:112:		test.skip(
+tests/e2e/lick-practice-deep.spec.ts:215:		test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+tests/e2e/lick-practice-deep.spec.ts:232:		test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+tests/e2e/record-lick.spec.ts:16:		test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+tests/e2e/tune-harmonic-regions.spec.ts:40:	test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+tests/e2e/lick-practice-focus-target.spec.ts:36:		test.skip(
+tests/e2e/recorder-editor-pitch.spec.ts:8:	test.skip(browserName === 'firefox' && process.platform === 'linux' && !!process.env.CI,
+tests/unit/audio/tick-redelivery.test.ts:117:	it.fails('guarded, a looping transport plays its loop-start events once per pass (OPEN)', async () => {

@@ -60,3 +60,23 @@ describe('living musicality specification', () => {
 		expect(filterMusicalityRequirements(entries, { search: 'unfindable-musicality-device' })).toEqual([]);
 	});
 });
+
+it('retains both native keyboard articulation and later phrase expression in the P14 ledger', () => {
+ const row = MUSICALITY_AUDIT.find(entry => entry.id === 'P14')!;
+ expect(row.assessment).toContain('0.7.0');
+ expect(row.assessment).toContain('0.11.0');
+ expect(row.evidence.some(e => e.path.endsWith('/backing-keyboard-articulation.ts'))).toBe(true);
+ expect(row.evidence.some(e => e.path.endsWith('/backing-phrase-expression.ts'))).toBe(true);
+});
+
+it('pins current evidence to the release engine while retaining the original audit and historical revisions', async () => {
+ const { musicalityEvidenceUrl, MUSICALITY_AUDIT_REVISION } = await import('$lib/musicality/manifest');
+ const { CURRENT_MUSICALITY_RELEASE } = await import('$lib/musicality/release');
+ const evidence = { kind: 'source' as const, path: 'src/lib/audio/backing-arrangement.ts', revision: 'musicality' };
+ expect(musicalityEvidenceUrl(evidence)).toContain(`/blob/${CURRENT_MUSICALITY_RELEASE.engineRevision}/`);
+ expect(musicalityEvidenceUrl({ ...evidence, revision: '1234' })).toContain('/blob/1234/');
+ expect(musicalityEvidenceUrl({ ...evidence, revision: undefined })).toContain(`/blob/${MUSICALITY_AUDIT_REVISION}/`);
+ const row = MUSICALITY_AUDIT.find(entry => entry.id === 'P32')!;
+ expect(row.evidence.filter(e => e.path.endsWith('/backing-inner-motion.ts')).every(e => e.revision === 'musicality')).toBe(true);
+ expect(row.evidence[0].revision).toBe(MUSICALITY_AUDIT_REVISION);
+});

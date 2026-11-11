@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { Note } from '$lib/types/music';
 import type { FlattenedTune } from '$lib/tunes/flatten';
 import type { DetectedProgression } from '$lib/tunes/progression-detector';
+import { detectProgressions } from '$lib/tunes/progression-detector';
 import type { LickSuggestion } from '$lib/tunes/lick-matcher';
 import {
 	assignSuggestRotation,
@@ -181,6 +182,25 @@ describe('buildSessionPlan — window tick math', () => {
 		expect(plan[0].closeTick).toBe(1920 + 8 * 1920);
 	});
 
+	it('anchors a wrapped minor ii-V-i label to the final bar while preserving its band coverage', () => {
+		const tune = sheet({ key: 'G', sections: [section({ bars: 4, harmony: [
+			seg('G', 'min7', [0, 1], [1, 1]),
+			seg('Ab', 'maj7', [1, 1], [2, 1]),
+			seg('A', 'min7b5', [3, 1], [1, 2]),
+			seg('D', '7', [7, 2], [1, 2])
+		] })] });
+		const flat = flattenTune(tune);
+		const plan = buildSessionPlan(planDeps({
+			flat, notationFlat: flat,
+			detect: () => detectProgressions(flat, tune)
+		}));
+		const cadence = plan.find(ip => ip.progressionType === 'ii-V-I-minor')!;
+		expect(cadence.notationSegmentIndices).toEqual([2, 3, 0]);
+		expect(cadence.notationLabelBar).toBe(3);
+		expect(cadence.notationBarRange).toEqual({ start: 0, endExclusive: 4 });
+		expect(cadence.notationTimeRange).toEqual({ start: 0, end: 4 });
+	});
+
 	it('groups repeat occurrences under one markerKey and projects notation bars', () => {
 		// Playback flat has two passes: segments [0,1] (first pass) and [2,3]
 		// (second pass) both mapping to notation segments [0,1].
@@ -208,6 +228,7 @@ describe('buildSessionPlan — window tick math', () => {
 		expect(plan[0].notationSegmentIndices).toEqual([0, 1]);
 		expect(plan[1].notationSegmentIndices).toEqual([0, 1]);
 		expect(plan[1].notationBarRange).toEqual({ start: 0, endExclusive: 2 });
+		expect(plan.map(ip => ip.notationLabelBar)).toEqual([0, 0]);
 		expect(plan[0].id).not.toBe(plan[1].id);
 	});
 
@@ -424,6 +445,7 @@ describe('assignSuggestRotation', () => {
 		playbackBarRange: { start: 0, endExclusive: 2 },
 		notationSegmentIndices: [0],
 		notationBarRange: { start: 0, endExclusive: 2 },
+		notationLabelBar: 0,
 		notationTimeRange: { start: 0, end: 2 },
 		markerKey: id,
 		suggestions: lickIds.map((lid) => mkSuggestion(lid)),
@@ -457,6 +479,15 @@ describe('assignSuggestRotation', () => {
 			plan[1].suggestions[picks['b']].lickId
 		];
 		expect(new Set(chosen)).toEqual(new Set(['known', 'other']));
+	});
+
+	it('shares usage across progression types and transpositions, avoiding consecutive repeats', () => {
+		const plan = [mkIp('a', 'major-vamp', ['line_C']),
+			mkIp('b', 'ii-V-I-major-long', ['line_F', 'other']),
+			mkIp('c', 'major-region', ['other', 'line_Bb', 'third']),
+			mkIp('d', 'major-vamp', ['third', 'line_C'])];
+		const picks = assignSuggestRotation(plan);
+		expect(plan.map(p => p.suggestions[picks[p.id]].lickId)).toEqual(['line_C', 'other', 'third', 'line_C']);
 	});
 
 	it('skips insertion points with no suggestions', () => {

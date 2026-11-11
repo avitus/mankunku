@@ -9,6 +9,7 @@
 	interface Props {
 		/** Show the Changes label for standalone charts; sessions own their cue lane. */
 		showLabel?: boolean;
+		daily?: boolean;
 		harmony: HarmonicSegment[];
 		currentBeat: number;
 		timeSignature: [number, number];
@@ -27,6 +28,7 @@
 
 	let {
 		showLabel = true,
+		daily = false,
 		harmony,
 		currentBeat,
 		timeSignature,
@@ -84,7 +86,7 @@
 	});
 </script>
 
-<div class="chord-chart flex flex-col gap-0">
+<div class:daily class="chord-chart flex flex-col gap-0">
 	{#if showLabel}<div class="smallcaps mb-1 text-[var(--color-brass)]">Changes</div>{/if}
 	<!-- One structural row, never wrapped: the host (UpcomingKeysDisplay)
 	     sizes each key row to exactly one chart row, so a second row could
@@ -109,7 +111,7 @@
 					title={cellSymbol(cell.segmentIndex)}
 					aria-label={cellSymbol(cell.segmentIndex)}
 				>
-					<span>{parts.root}{parts.baselineQuality}</span>
+					<span>{#if daily && parts.root.length === 2}{parts.root[0]}<span class="root-accidental">{parts.root[1]}</span>{:else}{parts.root}{/if}{parts.baselineQuality}</span>
 					{#if parts.sup}
 						<span class="chord-sup" aria-hidden="true">{parts.sup}</span>
 					{/if}
@@ -156,7 +158,11 @@
 </div>
 
 <style>
-	.chord-cells { height: 88px; overflow: hidden; border-radius: 2px; }
+	/* The parent practice frame owns height in both Daily and Deep. */
+	.chord-chart { height: var(--practice-cell-height, auto); }
+	.chord-cells { height: var(--practice-cell-height, 88px); overflow: hidden; border-radius: 2px; }
+	.daily .chord-symbol { font-size: clamp(23px, 2.5vw, 30px); }
+	.root-accidental { font-size: 0.66em; }
 	.chord-cell { min-width: 0; padding: 4px; border-right: 1px solid var(--color-practice-divider); }
 	.chord-cell:last-child { border-right: 0; }
 	/* Fade the played chords, never the bar boundaries. */

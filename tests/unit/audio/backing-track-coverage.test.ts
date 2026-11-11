@@ -112,12 +112,29 @@ function fakeGain() {
 	return { gain: { value: 0 }, connect: vi.fn(), disconnect: vi.fn() };
 }
 
+const compressors: Array<{ connect: ReturnType<typeof vi.fn> }> = [];
+const master = fakeGain();
+const gains: ReturnType<typeof fakeGain>[] = [];
+
 vi.mock('$lib/audio/audio-context', async () => {
 	const { fakeAudioContext } = await import('../../helpers/fake-audio-context');
+	const context = fakeAudioContext();
+	const createGain = context.createGain;
+	context.createGain = () => {
+		const gain = createGain();
+		gains.push(gain);
+		return gain;
+	};
+	const createCompressor = context.createDynamicsCompressor;
+	context.createDynamicsCompressor = () => {
+		const compressor = createCompressor();
+		compressors.push(compressor);
+		return compressor;
+	};
 	return {
-		initAudio: async () => fakeAudioContext(),
-		getAudioContext: () => fakeAudioContext(),
-		getMasterGain: () => fakeGain()
+		initAudio: async () => context,
+		getAudioContext: () => context,
+		getMasterGain: () => master
 	};
 });
 
@@ -372,7 +389,7 @@ describe('coordinated backing schedule evidence', () => {
 		expect(parts.every((part) => part.disposed)).toBe(true);
 	});
 
-	it('resets coordinated evidence when rescheduled with the default original mode, ignoring solo fixtures', async () => {
+	it('resets coordinated evidence when rescheduled with explicit Original mode, ignoring solo fixtures', async () => {
 		const mod = await import('$lib/audio/backing-track');
 		await mod.loadBackingInstruments('piano');
 		await mod.scheduleBackingTrack(phrase, {
@@ -380,7 +397,7 @@ describe('coordinated backing schedule evidence', () => {
 		}, tickOffset, true);
 		const previous = [...recorded];
 		const previousSchedule = mod.getActiveSchedule();
-		await mod.scheduleBackingTrack(phrase, { ...OPTIONS, backingSoloFeatures: features }, tickOffset, false);
+		await mod.scheduleBackingTrack(phrase, { ...OPTIONS, backingOrchestration: 'original', backingSoloFeatures: features }, tickOffset, false);
 		const generated = generateBacking(phrase.harmony, style, params);
 		expect(recorded.slice(previous.length).map((part) => part.events)).toEqual([
 			generated.bassEvents, generated.compEvents, generated.drumEvents
@@ -577,4 +594,54 @@ describe('rolling playback browser wrapper', () => {
 		mod.disposeBackingTrack();
 		expect(previous.ownsOutput()).toBe(false);
 	});
+});
+
+
+describe('tune backing output level', () => {
+	it('raises the compressed band, preserves the fader, and resets for the next practice mode', async () => {
+		vi.resetModules();
+		const mod = await import('$lib/audio/backing-track');
+		await mod.loadBackingInstruments('piano');
+		await mod.scheduleBackingTrack(PHRASE, { ...OPTIONS, backingOutputLevel: 4 }, 0, false);
+		const compressor = compressors.at(-1)!;
+		const output = compressor.connect.mock.calls[0][0] as ReturnType<typeof fakeGain>;
+		const fader = gains.find((gain) => gain.connect.mock.calls.some(([target]) => target === compressor))!;
+		expect(fader.gain.value).toBe(OPTIONS.backingTrackVolume);
+		expect(output.gain.value).toBe(4);
+		expect(output.connect).toHaveBeenCalledWith(master);
+		mod.setBackingMix({ master: 0.5 }, { persist: false });
+		expect(output.gain.value).toBe(2); // Reference × fader, with no second +6 dB boost.
+		mod.setBackingMix({ master: 1 }, { persist: false });
+		mod.setBackingTrackVolume(0);
+		expect(fader.gain.value).toBe(0);
+		expect(output.gain.value).toBe(4);
+		mod.setBackingTrackVolume(0.8);
+		expect(fader.gain.value).toBe(0.8);
+		expect(output.gain.value).toBe(4);
+		await mod.scheduleBackingTrack(PHRASE, OPTIONS, 0, false);
+		expect(output.gain.value).toBe(1);
+		mod.disposeBackingTrack();
+		expect(output.disconnect).toHaveBeenCalled();
+	});
+});
+
+it('normal playback installs the released full-tune attacks and explicit Original still selects the reference engine', async () => {
+ const { buildListeningTuneSession } = await import('$lib/musicality/listening-tunes');
+ const { MANKUNKU_BLUES } = await import('$lib/data/tunes');
+ const { prepareReleasedArrangement } = await import('$lib/audio/backing-arrangement');
+ const { phrase } = buildListeningTuneSession({ tuneId: MANKUNKU_BLUES.id, soloChoruses: 2 });
+ const mod=await import('$lib/audio/backing-track'); await mod.loadBackingInstruments('piano');
+ const options={...OPTIONS,tempo:140,swing:.62,backingPerformanceSeed:256};
+ const expected=prepareReleasedArrangement(phrase.harmony,BACKING_STYLES.swing,{
+  phraseId:phrase.id,tempo:140,swing:.62,ppq:PPQ,beatsPerBar:4,sectionMap:phrase.sectionMap,performanceForm:phrase.performanceForm
+ },'piano',4,256)!;
+ const start=recorded.length;
+ const generated=await mod.scheduleBackingTrack(phrase,options,2*PPQ,false);
+ expect(generated).toEqual(expected);
+ expect(recorded.slice(start).map(p=>p.events)).toEqual([expected.bassEvents,expected.compEvents,expected.drumEvents]);
+ expect(recorded.slice(start).every(p=>p.startedAt===`${2*PPQ}i`)).toBe(true);
+ const original=await mod.scheduleBackingTrack(phrase,{...options,backingOrchestration:'original'},2*PPQ,false);
+ expect(original?.compEvents).not.toEqual(expected.compEvents);
+ expect(mod.getActiveSchedule()?.notes.length).toBeGreaterThan(0);
+ mod.disposeBackingTrack();
 });

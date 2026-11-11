@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { generateBacking } from '$lib/audio/backing-generation';
 import { createRollingBacking, advanceRollingBacking } from '$lib/audio/backing-rolling';
-import { BACKING_STYLES } from '$lib/audio/backing-styles';
+import { HISTORICAL_MUSICALITY_STYLES as BACKING_STYLES } from '../../helpers/musicality-style-fixtures';
 import { buildHistoricalListeningTuneSession as buildListeningTuneSession } from '../../helpers/musicality-tune-fixtures';
 
 function fixture(key: 'C' | 'Eb' | 'F#', variant = 0) {

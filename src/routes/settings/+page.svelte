@@ -1,4 +1,9 @@
 <script lang="ts">
+ import { onMount } from 'svelte';
+ import { getBackingArrangementPreference, setBackingArrangementPreference, type BackingArrangementPreference } from '$lib/audio/backing-preference';
+ import { CURRENT_MUSICALITY_RELEASE } from '$lib/musicality/release';
+ let accompaniment = $state<BackingArrangementPreference>('coordinated');
+ onMount(() => { accompaniment = getBackingArrangementPreference(); });
 	import {
 		INSTRUMENTS,
 		TRANSPOSING_INSTRUMENT_IDS,
@@ -541,6 +546,12 @@
 								onCommit={syncSettingsToCloud}
 							/>
 						</div>
+      <div class="settings-band-voice">
+       <SelectorPad ariaLabel="Accompaniment arrangement" value={accompaniment}
+        options={[{ value: 'coordinated', label: `Musicality ${CURRENT_MUSICALITY_RELEASE.version}` }, { value: 'original', label: 'Original' }]}
+        onChange={(value) => { accompaniment = value === 'original' ? 'original' : 'coordinated'; setBackingArrangementPreference(accompaniment); }} />
+       <small>On this device. Musicality supports complete 4/4 forms up to 128 bars; other passages use Original.</small>
+      </div>
 						<fieldset
 							disabled={!settings.backingTrackEnabled}
 							aria-label="Backing track settings"

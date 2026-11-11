@@ -14,6 +14,7 @@ export interface ChordBar {
 export interface ChordBarSection {
 	label: string;
 	ending?: TuneSection['ending'];
+	omitFromSolos?: boolean;
 	bars: ChordBar[];
 }
 
@@ -37,6 +38,6 @@ export function tuneChordBars(tune: Tune): ChordBarSection[] {
 			});
 			return { index, number: ++printedBar, harmony };
 		}).filter(bar => bar !== null);
-		return { label: section.label, ending: section.ending, bars };
+		return { label: section.label, ending: section.ending, omitFromSolos: section.omitFromSolos, bars };
 	}).filter(section => section.bars.length > 0);
 }

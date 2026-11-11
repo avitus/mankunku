@@ -19,6 +19,7 @@ test.beforeEach(async ({ page }) => {
 
 test('both tune pages remember the last solo count across navigation and reload', async ({ page }) => {
 	await page.goto('/tunes/e2e-jam');
+	await page.locator('details.td-session-options summary').click();
 	const count = page.getByRole('spinbutton', { name: 'Solo choruses' });
 	await expect(count).toHaveValue('2');
 	await expect(page.getByRole('button', { name: 'Loop', exact: true })).toHaveCount(0);
@@ -71,6 +72,12 @@ for (const practice of [false, true]) {
 			const viewport = element.getBoundingClientRect();
 			return getComputedStyle(element).overflowY === 'hidden' && element.scrollTop === 0 && Number(element.getAttribute('data-follow-offset')) < 0 && active.top >= viewport.top && active.bottom <= viewport.bottom;
 		})).toBe(true);
+		// The top is readable before the downbeat; the active chord still
+		// belongs to the final bar of the sounding chorus.
+		await expect.poll(() => chart.evaluate(element => ({
+			offset: Number(element.getAttribute('data-follow-offset')),
+			active: element.querySelector('.tcc-bar.active')?.getAttribute('data-bar')
+		})), { timeout: 8_000, intervals: [25] }).toEqual({ offset: 0, active: '11' });
 		await expect(page.getByText(/Solo 2 of 2/).first()).toBeVisible({ timeout: 12_000 });
 		await expect.poll(async () => Number(await chart.getAttribute('data-follow-offset'))).toBe(0);
 		await page.getByRole('button', { name: practice ? 'End' : 'Stop', exact: true }).click();
@@ -88,6 +95,8 @@ for (const practice of [false, true]) {
 			await page.getByRole('button', { name: practice ? 'Start' : 'Play tune', exact: true }).click();
 			await expect(page.getByRole('button', { name: practice ? 'End' : 'Stop', exact: true })).toBeVisible({ timeout: 30_000 });
 			await expect(page.getByTestId('tune-chord-chart')).toBeVisible({ timeout: 20_000 });
+			// Chords must arrive during the head's early return, before solo audio starts.
+			await expect(page.getByText(practice ? /Head — melody once/ : /Head · Bar/).first()).toBeVisible();
 			await expect(page.locator('.abcjs-container svg')).toHaveCount(0);
 			await expect(page.locator('.tcc-bar.active')).toHaveCount(1);
 			await expect(page.locator('.tcc-bar .chord-symbol').first()).toContainText('D');

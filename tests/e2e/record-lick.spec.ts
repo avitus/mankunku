@@ -17,6 +17,97 @@ test.describe('record a lick: Studio Desk', () => {
 			'Headless Linux Firefox has no audio device for Tone.start()');
 	});
 
+	for (const figure of [
+		{ name: 'song suggestion', played: [0, 0.5, 1, 1.5, 2, 2.5], written: [0, 3, 6, 9, 12, 15] },
+		{ name: 'swung eighths', played: [0, 0.65, 1, 1.65, 2], written: [0, 3, 6, 9, 12] },
+		{ name: 'even triplets', played: [0, 1/3, 2/3, 1, 2], written: [0, 2, 4, 6, 12] }
+	]) {
+		test(`records and saves ${figure.name} against the live count-in`, async ({ page }, info) => {
+			test.setTimeout(60_000);
+			await openRecorder(page);
+			await page.route('**/api/lick-match', route => route.fulfill({ json: { matches: figure.name === 'song suggestion' ? [{
+				kind: 'wjazzd', sourceId: 'test', label: 'Art Pepper — Stardust, bar -1', suggestedName: 'Art Pepper - Stardust',
+				attribution: 'Weimar Jazz Database: Art Pepper — Stardust', license: 'CC-BY-NC-SA', confidence: 'quote', score: 1
+			}] : [] } }));
+			await page.getByRole('spinbutton', { name: 'Tempo' }).fill('80');
+			await page.getByRole('spinbutton', { name: 'Tempo' }).blur();
+			// Schedule pitched attacks on an actual Web Audio clock when the
+			// recorder opens its window. Only the microphone is synthetic.
+			await page.evaluate(played => {
+				MediaDevices.prototype.getUserMedia = async () => {
+					const ctx = new AudioContext();
+					await ctx.resume();
+					const mic = ctx.createMediaStreamDestination();
+					const observer = new MutationObserver(() => {
+						if (!document.querySelector('.rl-console h2')?.textContent?.includes('Play now.')) return;
+						observer.disconnect();
+						const start = ctx.currentTime + 0.10;
+						const pitches = [60, 64, 67, 65, 62, 63];
+						for (const [i, beat] of played.entries()) {
+							const on = start + beat * 0.75;
+							const off = start + (played[i + 1] ?? 4) * 0.75 - 0.025;
+							const osc = ctx.createOscillator();
+							osc.frequency.value = 440 * 2 ** ((pitches[i] - 69) / 12);
+							const gain = ctx.createGain();
+							gain.gain.setValueAtTime(0, on);
+							gain.gain.linearRampToValueAtTime(0.35, on + 0.01);
+							gain.gain.setValueAtTime(0.35, off - 0.01);
+							gain.gain.linearRampToValueAtTime(0, off);
+							osc.connect(gain).connect(mic);
+							osc.start(on);
+							osc.stop(off);
+						}
+					});
+					observer.observe(document.body, { subtree: true, characterData: true, childList: true });
+					return mic.stream;
+				};
+			}, figure.played);
+			await page.getByRole('button', { name: 'Start count-in' }).click();
+			await expect(page.getByRole('heading', { name: 'Make it your own.' })).toBeVisible({ timeout: 25_000 });
+			// Keep the exact browser input available if a headless audio driver
+			// jumps or drops a block during the synthetic performance.
+			const recorded = await page.locator('audio').evaluateHandle(async player =>
+				(await fetch((player as HTMLAudioElement).currentSrc)).blob());
+			await expect(page.getByLabel('Lick name')).toHaveValue('');
+			await expect(page.locator('#lick-name-help')).toContainText('Artist - Song Name');
+			await page.getByRole('button', { name: 'Save to Book' }).click();
+			await expect(page.getByLabel('Lick name')).toBeFocused();
+			if (figure.name === 'song suggestion') {
+				await page.getByRole('button', { name: /Art Pepper - Stardust/ }).click();
+				await expect(page.getByLabel('Lick name')).toHaveValue('Art Pepper - Stardust');
+				await page.setViewportSize({ width: 390, height: 1000 });
+				await info.attach('Recorder naming on mobile', { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' });
+			} else {
+				await expect(page.getByText('No song match found. Enter your own name.', { exact: true })).toBeVisible();
+				await page.getByLabel('Lick name').fill(figure.name);
+			}
+			await page.getByRole('button', { name: 'Save to Book' }).click();
+			await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('mankunku:user-licks') ?? '[]')[0]?.name))
+				.toBe(figure.name === 'song suggestion' ? 'Art Pepper - Stardust' : figure.name);
+			const savedTicks = () => page.evaluate(() => {
+				const [lick] = JSON.parse(localStorage.getItem('mankunku:user-licks') ?? '[]');
+				return lick?.notes.filter((n: { pitch: number | null }) => n.pitch !== null)
+					.map((n: { offset: number[]; duration: number[] }) =>
+						[24 * n.offset[0] / n.offset[1], 24 * n.duration[0] / n.duration[1]]);
+			});
+			try {
+				if (figure.name === 'song suggestion') {
+					// This case covers naming and saving a matchable recording. The
+					// rhythm cases below retain their exact transcription assertions.
+					await expect.poll(async () => (await savedTicks())?.length ?? 0).toBeGreaterThanOrEqual(6);
+				} else {
+					await expect.poll(savedTicks).toEqual(figure.written.map((t, i) => [t, (figure.written[i + 1] ?? 24) - t]));
+				}
+			} catch (error) {
+				const bytes = await recorded.evaluate(async blob => Array.from(new Uint8Array(await blob.arrayBuffer())));
+				await info.attach('recorded microphone input', { body: Buffer.from(bytes), contentType: 'audio/wav' });
+				throw error;
+			} finally {
+				await recorded.dispose();
+			}
+		});
+	}
+
 	test('shows every beat in both bars, then records and reviews a real synthetic take', async ({ page }) => {
 		test.setTimeout(60_000);
 		await openRecorder(page);
@@ -50,6 +141,11 @@ test.describe('record a lick: Studio Desk', () => {
 		await page.getByRole('button', { name: 'Stop recording' }).click();
 		await expect(page.getByRole('heading', { name: 'Make it your own.' })).toBeVisible();
 		await expect(page.locator('.rl-score svg')).toBeVisible();
+		await expect(page.locator('audio[aria-labelledby="original-recording-label"]')).toHaveAttribute('src', /^blob:/);
+		await page.getByLabel('Written key').selectOption('F');
+		await page.getByLabel('Last note length').selectOption({ label: 'Half' });
+		await page.getByLabel('First note starts on').selectOption({ label: 'And of 1' });
+		await expect(page.getByLabel('Last note length')).toHaveValue('Half');
 		await page.getByLabel('Lick name').fill('Recorded desk test');
 		await page.getByRole('button', { name: 'Play back', exact: true }).click();
 		await page.getByRole('button', { name: 'Review in editor' }).click();
@@ -58,7 +154,7 @@ test.describe('record a lick: Studio Desk', () => {
 		expect(await page.evaluate(() => JSON.parse(localStorage.getItem('mankunku:user-licks') ?? '[]'))).toEqual([]);
 		await page.getByRole('button', { name: 'Save lick', exact: true }).click();
 		await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('mankunku:user-licks') ?? '[]'))).toMatchObject([
-			{ name: 'Recorded desk test', source: 'user-recorded', tags: ['user-recorded'] }
+			{ name: 'Recorded desk test', source: 'user-recorded', tags: ['user-recorded'], notes: expect.arrayContaining([expect.objectContaining({ pitch: null, offset: [0, 1], duration: [1, 8] }), expect.objectContaining({ pitch: expect.any(Number), duration: [1, 2] })]) }
 		]);
 	});
 

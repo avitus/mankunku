@@ -11,12 +11,12 @@ name: unit tests
 discover: find tests/unit tests/integration -name '*.test.ts' | sort
 run: npx vitest run --reporter=default --reporter=junit --outputFile.junit="<< outputs.junit >>" << test.atoms >>
 # Single pass over every atom: vite.config.ts swaps in CircleCI's coverage
-# runner/reporter when CIRCLECI_COVERAGE is set. The recorded-take corpus is
-# left out: it replays real WAVs through the detector, 32 s plain but over
-# 10 min with coverage collected after each of its 192 tests, and nearly every
-# audio change reaches it anyway. With no impact data it is always selected,
-# which the always-run rule below makes explicit.
-analysis: CIRCLECI_COVERAGE="<< outputs.circleci-coverage >>" npx vitest run --silent=true --passWithNoTests --exclude tests/integration/pitch-replay.test.ts << test.atoms >>
+# runner/reporter when CIRCLECI_COVERAGE is set. The two recorded-audio corpora
+# are left out of impact collection: pitch replay takes over 10 min under
+# coverage, and the recorder baseline repeatedly exceeds its 120 s timeout.
+# Both still run in normal validation on every change, explicitly selected
+# below rather than relying on an absent impact map.
+analysis: CIRCLECI_COVERAGE="<< outputs.circleci-coverage >>" npx vitest run --silent=true --passWithNoTests --exclude tests/integration/pitch-replay.test.ts --exclude tests/integration/recorder-baseline.test.ts << test.atoms >>
 options:
   store-test-results: true
   test-impact-analysis: true
@@ -28,13 +28,18 @@ options:
     - package.json
     - package-lock.json
     - vite.config.ts
+    - src/env.ts
     - vitest.setup.ts
-    - svelte.config.js
     - tsconfig.json
     - .circleci/*.yml
     - tests/fixtures/**
   test-selection-rules:
+    # The reporter runs in a child process, outside the unit coverage map.
+    - test-atom: tests/unit/build/circleci-e2e-reporter.test.ts
+      include: true
     - test-atom: tests/integration/pitch-replay.test.ts
+      include: true
+    - test-atom: tests/integration/recorder-baseline.test.ts
       include: true
   dynamic-test-splitting: true
   max-auto-rerun: 2
@@ -68,7 +73,7 @@ options:
     - scripts/test-sandbox.mjs
     - scripts/test-sandbox/**
     - vite.config.ts
-    - svelte.config.js
+    - src/env.ts
     - tsconfig.json
     - .circleci/*.yml
     - tests/e2e/fixtures/**

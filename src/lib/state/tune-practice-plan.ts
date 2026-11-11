@@ -6,6 +6,8 @@ import { sessionWithSoloOmissions, soloPlaybackFlat } from '$lib/tunes/solo-form
 import type { Tune, TuneSection } from '$lib/types/tune';
 import { SHAPE_PRIORITY, type DetectedProgression } from '$lib/tunes/progression-detector';
 import type { LickSuggestion } from '$lib/tunes/lick-matcher';
+import type { HarmonicAnalysis, MajorRegion } from '$lib/tunes/harmonic-analysis';
+import { majorRegionTargets, practiceTargetName, type PracticeTarget, type PracticeTargetType } from '$lib/tunes/practice-target';
 import {
 	addFractions,
 	compareFractions,
@@ -14,6 +16,7 @@ import {
 	subtractFractions
 } from '$lib/music/intervals';
 import { PROGRESSION_TEMPLATES, isChordQualityCategory } from '$lib/data/progressions';
+import { baseLickId } from '$lib/phrases/library-loader';
 import { keyLabel } from '$lib/music/notation';
 import { scoreToGrade } from '$lib/scoring/grades';
 import { KEY_PROFICIENT_THRESHOLD } from '$lib/persistence/lick-practice-store';
@@ -36,12 +39,12 @@ export interface InsertionPoint {
 	closingPass?: boolean;
 	id: string;
 	/**
-	 * What the window is FOR — the band's colour, name and rotation pool. A
+	 * What the window is FOR — the band's colour and name. A
 	 * cadence window carries its progression; a single-chord role carved out
 	 * of a longer progression carries the chord's own vamp type (a Minor Chord
 	 * lick on the i of a ii-V-i is a `minor-vamp` window on those bars).
 	 */
-	progressionType: ChordProgressionType;
+	progressionType: PracticeTargetType;
 	/**
 	 * What the band says the window is for: the band type's short name, or
 	 * the chord's for a single-chord role with no vamp type of its own
@@ -49,7 +52,9 @@ export interface InsertionPoint {
 	 */
 	bandName: string;
 	/** The detected progression the window was carved from. */
-	detectedType: ChordProgressionType;
+	detectedType: PracticeTargetType;
+	/** Analysis-timeline evidence for a major region; repeats retain the source evidence. */
+	harmonicRegion?: MajorRegion;
 	localKey: PitchClass;
 	/**
 	 * The concert key the window is named in: the top suggestion's target
@@ -66,6 +71,8 @@ export interface InsertionPoint {
 	/** Projection onto the notation timeline (chart markers). */
 	notationSegmentIndices: number[];
 	notationBarRange: { start: number; endExclusive: number };
+	/** First musical bar of the window, which can follow its resolution on the page. */
+	notationLabelBar: number;
 	/**
 	 * Notation-timeline span in whole-note units (half-open). Used to clip
 	 * chart bands to mid-bar boundaries so abutted progressions split a bar
@@ -93,6 +100,8 @@ export interface InsertionResult {
 }
 
 export interface BuildPlanDeps {
+	/** Setup inventory: retain overlapping fitting alternatives before window selection. */
+	includeAlternatives?: boolean;
 	/** Playback-order flatten (expandRepeats), with provenance. */
 	flat: FlattenedTune;
 	/** Notation-order flatten (chart markers). */
@@ -119,6 +128,12 @@ export interface BuildPlanDeps {
 	match: (detection: DetectedProgression) => {
 		suggestions: LickSuggestion[];
 		uncategorized: unknown[];
+	};
+	/** Live harmony analysis, separate from lick availability and legacy shape-only callers. */
+	harmonicAnalysis?: {
+		key: PitchClass;
+		analyze: (flat: FlattenedTune) => HarmonicAnalysis;
+		match: (region: MajorRegion) => { suggestions: LickSuggestion[]; uncategorized: unknown[] };
 	};
 	/** Cap on suggestions per window, applied after the window is chosen. Absent = unlimited. */
 	suggestionLimit?: number;
@@ -180,8 +195,8 @@ const CHORD_ROLE_BAND: Partial<
 
 /** A window the planner may keep: a lick-bearing role, or a bare progression. */
 interface CandidateWindow {
-	det: DetectedProgression;
-	bandType: ChordProgressionType;
+	det: PracticeTarget;
+	bandType: PracticeTargetType;
 	bandName: string;
 	start: Fraction;
 	end: Fraction;
@@ -189,6 +204,11 @@ interface CandidateWindow {
 	segmentIndices: number[];
 	suggestions: LickSuggestion[];
 	uncategorizedCount: number;
+}
+
+/** Rank general regions after named shapes when other window scores tie. */
+function targetPriority(type: PracticeTargetType): number {
+	return type === 'major-region' ? 5 : SHAPE_PRIORITY[type];
 }
 
 function spanBars(w: CandidateWindow): number {
@@ -225,7 +245,7 @@ function roleWindowsFor(
 ): CandidateWindow[] {
 	const groups = new Map<string, { kind: 'chord' | 'phrase'; suggestions: LickSuggestion[] }>();
 	for (const s of suggestions) {
-		const kind = isChordQualityCategory(s.category) ? 'chord' : 'phrase';
+		const kind = s.placement === 'progression' ? 'phrase' : isChordQualityCategory(s.category) ? 'chord' : 'phrase';
 		const key = `${fractionToFloat(s.templateAlignmentOffset)}|${kind}`;
 		const group = groups.get(key) ?? { kind, suggestions: [] };
 		group.suggestions.push(s);
@@ -300,7 +320,9 @@ function roleWindowsFor(
  * player has ready wins an overlap, and the bars it leaves are filled by
  * shorter ones — so a long ii-V-i with no cadence lick ready hands its i
  * chord to a single-chord lick as that chord's own window, instead of naming
- * that lick across the whole cadence. Windows with a lick are placed first:
+ * that lick across the whole cadence. Live harmonic analysis reserves
+ * cornerstones before general regions, even without a ready lick. Within each
+ * tier, windows with a lick are placed first:
  * one holding a lick the player HAS in the key (`hasReadyLick`) before one
  * holding only unknown material, then longest first (shape specificity, then
  * chart position, break ties); the bare progressions are placed after them by
@@ -314,6 +336,7 @@ function roleWindowsFor(
  * offset. No lead-in — the scorer's DTW + median-latency correction absorb
  * early entries; a 1-beat lead-out captures the resolution's tail, clamped so
  * a window never overlaps the next open or runs past the end of the form.
+ * Major regions close at their exact harmonic boundary without a lead-out.
  */
 export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
 	if (deps.flat.omittedSoloSections?.length) {
@@ -338,9 +361,24 @@ export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
 	const formEndTick = leadTicks + flat.totalBars * barTicks;
 	const ticksOf = (f: Fraction) => Math.round(fractionToFloat(f) * 4 * ppq);
 
-	let detections = [...detect(flat)].sort(
+	const analysis = deps.harmonicAnalysis?.analyze(flat);
+	const reserved = new Set(analysis?.reservedSegmentIndices ?? []);
+	const progressions = analysis?.progressions;
+	let detections = [...(progressions?.length ? progressions : detect(flat))].sort(
 		(a, b) => compareFractions(a.startOffset, b.startOffset) || a.type.localeCompare(b.type)
 	);
+	const fallback = !!analysis && !progressions?.length;
+	if (fallback) {
+		// A malformed imported tail can invalidate strict scale analysis without
+		// invalidating earlier template matches. Keep starts inside the played
+		// form. Role windows and their suggestions are bounded below as well.
+		detections = detections.filter(det => {
+			const start = fractionToFloat(det.startOffset);
+			const duration = fractionToFloat(det.duration);
+			return Number.isFinite(start) && Number.isFinite(duration) && duration > 0 &&
+				start >= 0 && start < flat.totalBars * barWholeNotes;
+		});
+	}
 	if (soloStartBar > 0) {
 		// Detections inside the head pass, or in a pickup bar the solo pass
 		// skips, are heard, not practiced.
@@ -352,28 +390,68 @@ export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
 	const bare: CandidateWindow[] = [];
 	for (const det of detections) {
 		const { suggestions, uncategorized } = match(det);
-		filled.push(...roleWindowsFor(det, suggestions, uncategorized.length, flat, timeSignature));
+		const formEnd: Fraction = [flat.totalBars * timeSignature[0], timeSignature[1]];
+		// Live windows never capture across choruses. Keep cyclic identity for
+		// the final-bar label, but reserve only occurrences inside this form.
+		const formScoped = fallback || (!!analysis && det.wrapsAround);
+		/** Retain only chord occurrences inside this finite form. */
+		const physicalIndices = (indices: number[]) => formScoped ? indices.filter(index =>
+			compareFractions(flat.harmony[index].startOffset, det.startOffset) >= 0 &&
+			compareFractions(flat.harmony[index].startOffset, formEnd) < 0) : indices;
+		const roles = roleWindowsFor(det, suggestions, uncategorized.length, flat, timeSignature);
+		for (const role of roles) {
+			if (formScoped) {
+				if (compareFractions(role.start, det.startOffset) < 0 ||
+					compareFractions(role.start, formEnd) >= 0) continue;
+				role.segmentIndices = physicalIndices(role.segmentIndices);
+				role.end = compareFractions(role.end, formEnd) > 0 ? formEnd : role.end;
+				if (compareFractions(role.end, role.start) <= 0) continue;
+				role.suggestions = role.suggestions.filter(s => s.lengthBars > 0 &&
+					compareFractions(s.insertionOffset, role.start) >= 0 &&
+					fractionToFloat(s.insertionOffset) + s.lengthBars * barWholeNotes <= fractionToFloat(role.end) + EPSILON);
+			}
+			if (role.suggestions.length) filled.push(role);
+		}
+		const detEnd = addFractions(det.startOffset, det.duration);
 		bare.push({
 			det,
 			bandType: det.type,
 			bandName: PROGRESSION_TEMPLATES[det.type].shortName,
 			start: det.startOffset,
-			end: addFractions(det.startOffset, det.duration),
-			segmentIndices: det.segmentIndices,
+			end: formScoped && compareFractions(detEnd, formEnd) > 0 ? formEnd : detEnd,
+			segmentIndices: physicalIndices(det.segmentIndices),
 			suggestions: [],
 			uncategorizedCount: uncategorized.length
 		});
 	}
+	if (analysis && deps.harmonicAnalysis) {
+		for (const det of majorRegionTargets(analysis.majorRegions, deps.harmonicAnalysis.key)) {
+			if (fractionToFloat(det.startOffset) < soloStartBar * barWholeNotes - EPSILON ||
+				det.segmentIndices.some((index) => reserved.has(index))) continue;
+			const result = deps.harmonicAnalysis.match(det.region);
+			// A region never grows to fit a lick. This also guards injected matcher results.
+			const suggestions = result.suggestions.filter((suggestion) =>
+				compareFractions(suggestion.insertionOffset, det.startOffset) === 0 &&
+				suggestion.lengthBars * barWholeNotes <= fractionToFloat(det.duration) + EPSILON);
+			const window: CandidateWindow = { det, bandType: 'major-region', bandName: practiceTargetName(det.type),
+				start: det.startOffset, end: addFractions(det.startOffset, det.duration),
+				segmentIndices: det.segmentIndices, suggestions, uncategorizedCount: result.uncategorized.length };
+			if (suggestions.length) filled.push(window);
+			else bare.push(window);
+		}
+	}
 
+	/** Preserve readiness and span ordering within each reservation tier. */
 	const rank = (a: CandidateWindow, b: CandidateWindow): number =>
 		Number(hasReadyLick(b)) - Number(hasReadyLick(a)) ||
 		spanBars(b) - spanBars(a) ||
-		SHAPE_PRIORITY[a.det.type] - SHAPE_PRIORITY[b.det.type] ||
+		targetPriority(a.det.type) - targetPriority(b.det.type) ||
 		compareFractions(a.start, b.start) ||
 		a.det.type.localeCompare(b.det.type) ||
 		a.bandType.localeCompare(b.bandType);
 	const used = new Set<number>();
 	const kept: CandidateWindow[] = [];
+	/** Greedily claim disjoint segment sets in ranked order. */
 	const place = (candidates: CandidateWindow[]): void => {
 		for (const w of [...candidates].sort(rank)) {
 			if (w.segmentIndices.some((i) => used.has(i))) continue;
@@ -381,39 +459,60 @@ export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
 			kept.push(w);
 		}
 	};
-	place(filled);
-	place(bare);
+	// Preserve lick-aware choices WITHIN cornerstones, but even a bare cornerstone
+	// is placed before any broad region. Its full reservation survives those choices.
+	const inCornerstone = (w: CandidateWindow): boolean => w.det.type !== 'major-region' &&
+		w.segmentIndices.some((index) => reserved.has(index));
+	if (deps.includeAlternatives) kept.push(...filled);
+	else {
+		place(filled.filter(inCornerstone));
+		place(bare.filter(inCornerstone));
+		place(filled.filter((w) => !inCornerstone(w)));
+		place(bare.filter((w) => !inCornerstone(w)));
+	}
 	kept.sort(
 		(a, b) =>
 			compareFractions(a.start, b.start) ||
-			SHAPE_PRIORITY[a.det.type] - SHAPE_PRIORITY[b.det.type] ||
+			targetPriority(a.det.type) - targetPriority(b.det.type) ||
 			a.det.type.localeCompare(b.det.type)
 	);
 
 	const points = kept.map((w, i) => {
 		const det = w.det;
 		const openTick = leadTicks + ticksOf(w.start);
-		let closeTick = leadTicks + ticksOf(w.end) + ppq;
-		const next = kept[i + 1];
+		// No region or tagged-cadence lead-out: it would capture the next cornerstone's first beat.
+		const bounded = det.type === 'major-region' || w.suggestions.some(s => s.placement === 'progression');
+		let closeTick = leadTicks + ticksOf(w.end) + (bounded ? 0 : ppq);
+		const next = deps.includeAlternatives ? undefined : kept[i + 1];
 		if (next) closeTick = Math.min(closeTick, leadTicks + ticksOf(next.start));
 		closeTick = Math.min(closeTick, formEndTick);
 
 		const notationSegmentIndices = w.segmentIndices
 			.map((s) => flat.segmentSourceIndices[s])
 			.filter((idx): idx is number => idx !== undefined);
-		let notationStart = Infinity;
-		let notationEnd = -Infinity;
-		for (const idx of notationSegmentIndices) {
-			const seg = notationFlat.harmony[idx];
-			if (!seg) continue;
-			notationStart = Math.min(notationStart, fractionToFloat(seg.startOffset));
-			notationEnd = Math.max(
-				notationEnd,
-				fractionToFloat(addFractions(seg.startOffset, seg.duration))
-			);
-		}
 		const startFloat = fractionToFloat(w.start);
 		const endFloat = fractionToFloat(w.end);
+		const clipNotation = fallback || (!!analysis && det.type !== 'major-region' && det.wrapsAround);
+		let notationStart = Infinity;
+		let notationEnd = -Infinity;
+		for (const index of w.segmentIndices) {
+			const seg = notationFlat.harmony[flat.segmentSourceIndices[index]];
+			if (!seg) continue;
+			let start = fractionToFloat(seg.startOffset);
+			let end = fractionToFloat(addFractions(seg.startOffset, seg.duration));
+			if (clipNotation) {
+				const played = flat.harmony[index];
+				const playedEnd = fractionToFloat(addFractions(played.startOffset, played.duration));
+				// Align source and playback ends: a skipped pickup may have trimmed
+				// the playback segment's beginning while retaining its source index.
+				const shift = end - playedEnd;
+				start = Math.max(startFloat, fractionToFloat(played.startOffset)) + shift;
+				end = Math.min(endFloat, playedEnd) + shift;
+				if (end <= start) continue;
+			}
+			notationStart = Math.min(notationStart, start);
+			notationEnd = Math.max(notationEnd, end);
+		}
 		const notationBarRange = Number.isFinite(notationStart)
 			? {
 					start: Math.floor(notationStart / barWholeNotes + EPSILON),
@@ -426,6 +525,12 @@ export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
 		const notationTimeRange = Number.isFinite(notationStart)
 			? { start: notationStart, end: notationEnd }
 			: { start: startFloat, end: endFloat };
+		const firstNotationSegment = notationFlat.harmony[notationSegmentIndices[0]];
+		const notationLabelBar = clipNotation && Number.isFinite(notationStart)
+			? Math.floor(notationStart / barWholeNotes + EPSILON)
+			: firstNotationSegment
+			? Math.floor(fractionToFloat(firstNotationSegment.startOffset) / barWholeNotes + EPSILON)
+			: notationBarRange.start;
 
 		const suggestions =
 			suggestionLimit !== undefined ? w.suggestions.slice(0, suggestionLimit) : w.suggestions;
@@ -435,6 +540,7 @@ export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
 			progressionType: w.bandType,
 			bandName: w.bandName,
 			detectedType: det.type,
+			...(det.type === 'major-region' ? { harmonicRegion: det.region } : {}),
 			localKey: det.localKey,
 			keyCenter: suggestions[0]?.targetKey ?? det.localKey,
 			degreeLabel: det.tuneKeyDegree.label,
@@ -446,6 +552,7 @@ export function buildSessionPlan(deps: BuildPlanDeps): InsertionPoint[] {
 			},
 			notationSegmentIndices,
 			notationBarRange,
+			notationLabelBar,
 			notationTimeRange,
 			// Group markers by their notation segment set; fall back to the unique
 			// insertion id when provenance is missing, so points with no segment
@@ -826,33 +933,28 @@ export function buildSessionPhrase(args: {
 }
 
 /**
- * Suggest-mode variety: cycle each progression type through its full eligible
- * lick pool across the session's insertion points. Tracks how often each lick
- * has been assigned per progression type and, at every point, picks the
- * least-used eligible lick (ties broken by rank = list order). This surfaces
- * genuinely-different licks even though each point's eligible list can differ
- * in order and length — the target key varies per spot, so a positional
- * index-modulo would repeat one lick and starve another.
+ * Rotate the underlying lick across the entire session, independent of key or
+ * progression. Avoid consecutive repeats whenever another eligible lick exists;
+ * then prefer the least used, breaking ties by the matcher's musical ranking.
  */
 export function assignSuggestRotation(plan: readonly InsertionPoint[]): Record<string, number> {
-	const usesByType = new Map<ChordProgressionType, Map<string, number>>();
+	const uses = new Map<string, number>();
 	const picks: Record<string, number> = {};
+	let previous: string | undefined;
 	for (const ip of plan) {
 		if (ip.suggestions.length === 0) continue;
-		const uses = usesByType.get(ip.progressionType) ?? new Map<string, number>();
+		const alternatives = ip.suggestions.some(s => baseLickId(s.lickId) !== previous);
 		let bestIdx = 0;
 		let bestUses = Infinity;
 		ip.suggestions.forEach((s, idx) => {
-			const u = uses.get(s.lickId) ?? 0;
-			if (u < bestUses) {
-				bestUses = u;
-				bestIdx = idx;
-			}
+			const id = baseLickId(s.lickId);
+			if (alternatives && id === previous) return;
+			const count = uses.get(id) ?? 0;
+			if (count < bestUses) { bestUses = count; bestIdx = idx; }
 		});
 		picks[ip.id] = bestIdx;
-		const chosen = ip.suggestions[bestIdx].lickId;
-		uses.set(chosen, (uses.get(chosen) ?? 0) + 1);
-		usesByType.set(ip.progressionType, uses);
+		previous = baseLickId(ip.suggestions[bestIdx].lickId);
+		uses.set(previous, (uses.get(previous) ?? 0) + 1);
 	}
 	return picks;
 }

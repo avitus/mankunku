@@ -28,6 +28,7 @@ import {
 	getDeepCycleEntry,
 	getKeyPasses,
 	getKeyPauses,
+	getDemoBars,
 	resetSession
 } from '$lib/state/lick-practice.svelte';
 import { LEAD_SHEET_PASSES } from '$lib/state/lick-practice-rotation';
@@ -118,6 +119,41 @@ beforeEach(() => {
 });
 
 describe('deep practice rescue for any unlocked key', () => {
+	it.each([false, true])('honors a missed triple before rescue and resets the commitment on restart (recommended=%s)', (recommended) => {
+		const lick = makeLick('C', 'memory-commitment');
+		seedRolling(lick.id, { C: 0.1 });
+		const options = recommended ? { focusKey: 'C' as const } : undefined;
+		startSingleLickSession(lick, options);
+		for (let turn = 0; turn < 4; turn++) {
+			const sheet = turn % 2 === 0;
+			expect(getPlannedKeysForLick(0)[0]).toMatchObject({ reveal: sheet, passes: sheet ? 3 : 1 });
+			if (!sheet) expect(getDemoBars(0)).toBe(0);
+			recordKeyAttempt(makeScore(0.4));
+			advanceSingleLickRound();
+		}
+		// Leave a memory commitment pending, then start a new session. The
+		// new session can offer its initial sheet support from persisted scores.
+		expect(getKeyPasses(0)).toEqual([3]);
+		recordKeyAttempt(makeScore(0.4));
+		advanceSingleLickRound();
+		expect(getKeyPasses(0)).toEqual([1]);
+		startSingleLickSession(lick, options);
+		expect(getPlannedKeysForLick(0)[0]).toMatchObject({ reveal: true, passes: 3 });
+	});
+
+	it('does not treat a single call-response sheet turn as a triple', () => {
+		const lick = makeLick('C', 'response-sheet');
+		seedRolling(lick.id, { C: 0.1 });
+		lickPractice.config.practiceMode = 'call-response';
+		startSingleLickSession(lick, { focusKey: 'C' });
+		for (let turn = 0; turn < 3; turn++) {
+			expect(getPlannedKeysForLick(0)[0]).toMatchObject({ reveal: true, passes: 1 });
+			recordKeyAttempt(makeScore(0.4));
+			advanceSingleLickRound();
+		}
+		expect(getPlannedKeysForLick(0)[0]).toMatchObject({ reveal: true, passes: 1 });
+	});
+
 	it.each([
 		[false, 'continuous', 0.75],
 		[true, 'continuous', 0.8],
@@ -148,7 +184,7 @@ describe('deep practice rescue for any unlocked key', () => {
 		startSingleLickSession(lick, { focusKey: 'C' });
 		for (const [score, reveal] of [
 			[0.8, false], [0.8, false], [0.95, false],
-			[0.8, false], [0.9, false], [0.94, true], [0.94, true], [0.95, false]
+			[0.8, false], [0.9, false], [0.94, true], [0.94, false], [0.95, false]
 		] as const) {
 			recordKeyAttempt(makeScore(score));
 			advanceSingleLickRound();
@@ -229,17 +265,14 @@ describe('deep practice rescue for any unlocked key', () => {
 		expect(getPlannedKeysForLick(0).every((row) => !row.reveal)).toBe(true);
 	});
 
-	it('keeps rescue after repeated below-gold turns and clears session history on restart', () => {
+	it('alternates rescue triples and memory turns while struggling, and clears history on restart', () => {
 		setUnlockedCount('rescue', 12);
 		startSingleLickSession(makeLick('C', 'rescue'), { focusKey: 'C' });
-		for (const score of [0.35, 0.35, 0.9]) {
+		for (const [score, reveal] of [[0.35, true], [0.35, false], [0.9, true], [0.9, false]] as const) {
 			recordKeyAttempt(makeScore(score));
 			advanceSingleLickRound();
-			expect(getPlannedKeysForLick(0)[0].reveal).toBe(true);
+			expect(getPlannedKeysForLick(0)[0].reveal).toBe(reveal);
 		}
-		recordKeyAttempt(makeScore(0.9));
-		advanceSingleLickRound();
-		expect(getPlannedKeysForLick(0)[0].reveal).toBe(true);
 		startSingleLickSession(makeLick('C', 'rescue'), { focusKey: 'C' });
 		expect(getPlannedKeysForLick(0)[0].reveal).toBe(false);
 	});

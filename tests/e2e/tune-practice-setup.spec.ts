@@ -79,7 +79,7 @@ for (const viewport of [{ width: 1440, height: 1050 }, { width: 390, height: 844
 		expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
 		await options.screenshot({ path: info.outputPath(`session-options-${viewport.width}.png`) });
 		await page.getByRole('spinbutton', { name: 'Solo choruses', exact: true }).press('ArrowUp');
-		await expect(page.locator('.tp-insertion-status')).toContainText('10 insertion points');
+		await expect(page.locator('.tp-insertion-status')).toContainText('6 insertion points');
 		await page.locator('details.tp-options summary').click();
 		await expect(page.locator('details.tp-options summary')).toContainText('2 solos');
 
@@ -98,7 +98,8 @@ for (const width of [1440, 390]) {
 		await page.goto('/tunes/e2e-when-the-saints/practice');
 		// The chart deliberately truncates long names to the band width on a phone;
 		// the setup list must retain the full name and written key at every width.
-		const name = page.getByRole('list', { name: 'Proposed licks' }).getByText('My Dominant Line · A', { exact: true });
+		const inventory = page.getByRole('list', { name: 'Licks that fit this tune', exact: true });
+		const name = inventory.getByText('My Dominant Line', { exact: true });
 		await expect(name.first()).toBeVisible();
 		await expect(page.locator('svg text.range-marker-label').filter({ hasText: /My Dominant/ }).first()).toBeVisible();
 		await expect(page.getByRole('radiogroup', { name: 'Mode', exact: true })).toBeHidden();
@@ -109,14 +110,16 @@ for (const width of [1440, 390]) {
 		const tempo = page.getByRole('spinbutton', { name: 'Tempo', exact: true });
 		await tempo.fill('135');
 		await tempo.press('Tab');
-		await expect(name).toHaveCount(0);
+		await expect(name).toBeVisible();
+		await expect(inventory).toContainText('Needs practice');
 		await expect(page.locator('svg text.range-marker-label').filter({ hasText: /My Dominant/ })).toHaveCount(0);
 		await expect(page.locator('.tp-insertion-status')).toContainText('No matching licks from your book are ready');
 		await tempo.fill('100');
 		await tempo.press('Tab');
 		await expect(name.first()).toBeVisible();
 		await page.getByLabel('Key', { exact: true }).selectOption('E');
-		await expect(name).toHaveCount(0);
+		await expect(name).toBeVisible();
+		await expect(inventory).toContainText('Needs practice');
 		await page.getByLabel('Key', { exact: true }).selectOption('D');
 		await expect(name.first()).toBeVisible();
 	});
@@ -148,3 +151,58 @@ test('a tune without detected changes still offers the existing play-along path'
 	await expect(page.getByRole('button', { name: 'Start', exact: true })).toBeEnabled();
 	await expect(page.locator('svg rect.range-marker')).toHaveCount(0);
 });
+
+for (const width of [1440, 390]) {
+	test(`tagged major vocabulary stays visible beyond the selected licks at ${width}px`, async ({ page }, info) => {
+		await page.setViewportSize({ width, height: 1000 });
+		await seedOnboardedAnonymous(page);
+		const chord = (root: string, quality: string, at: number, duration = 1) => ({
+			chord: { root, quality }, startOffset: [at, 1], duration: [duration, 1], scaleId: 'major.ionian'
+		});
+		await seedTunes(page, [{ id: 'e2e-cadence-vocabulary', title: 'Cadence Vocabulary', composer: 'Test',
+			key: 'C', timeSignature: [4, 4], tempo: 100, tags: [], sections: [{ label: 'A', bars: 8, notes: [],
+				harmony: [chord('D', 'min7', 0), chord('G', '7', 1), chord('C', 'maj7', 2, 2),
+					chord('G', 'min7', 4), chord('C', '7', 5), chord('F', 'maj7', 6, 2)] }] }]);
+		const names = ['Major A', 'Major B', 'Major C', 'Slower Major'];
+		await seedUserLicks(page, names.map((name, i) => ({
+			id: `vocab-${i}`, name, key: 'C', mode: 'major', category: 'major-chord', timeSignature: [4, 4],
+			notes: [{ pitch: 60, offset: [0, 1], duration: [3, 1] }], harmony: [chord('C', 'maj7', 0, 3)],
+			difficulty: { level: 20, pitchComplexity: 20, rhythmComplexity: 20, lengthBars: 3 },
+			tags: ['practice'], source: 'user-entered'
+		})));
+		await seedStorage(page, {
+			'user-lick-tags': Object.fromEntries(names.map((_, i) => [`vocab-${i}`, ['practice', 'prog:ii-V-I-major-long']])),
+			'lick-practice-progress': Object.fromEntries(names.map((_, i) => [`vocab-${i}`, Object.fromEntries(
+				['C', 'F'].map(key => [key, { passCount: 3, currentTempo: i === 3 ? 80 : 140, lastPracticedAt: 1 }])
+			)]))
+		});
+		await page.goto('/tunes/e2e-cadence-vocabulary/practice');
+		const list = page.getByRole('list', { name: 'Licks that fit this tune', exact: true });
+		for (const name of names) await expect(list.getByText(name, { exact: true })).toBeVisible();
+		await expect(page.locator('.tp-guide')).toContainText('3 ready now · 1 need practice');
+		const labels = page.locator('svg text.range-marker-label');
+		await expect(labels.filter({ hasText: 'Major A' }).first()).toBeVisible();
+		await expect(labels.filter({ hasText: 'Major B' }).first()).toBeVisible();
+		await expect(labels.filter({ hasText: 'Major C' })).toHaveCount(0);
+		await list.getByText('Major C', { exact: true }).click();
+		await expect(labels.filter({ hasText: 'Major C' }).first()).toBeVisible();
+		await expect(page.getByRole('list', { name: 'Placements for Major C' })).toContainText('Whole ii–V–I');
+		await expect(page.getByRole('list', { name: 'Placements for Major C' })).toContainText('D · Whole');
+		await page.screenshot({ path: info.outputPath(`major-vocabulary-${width}.png`), fullPage: true });
+		await list.getByText('Slower Major', { exact: true }).click();
+		await expect(page.getByRole('list', { name: 'Placements for Major C' })).toBeHidden();
+		await expect(page.getByRole('list', { name: 'Placements for Slower Major' })).toContainText('Practised to 80 BPM');
+		await page.getByRole('button', { name: 'Show planned licks on chart' }).click();
+		await expect(labels.filter({ hasText: 'Slower Major' })).toHaveCount(0);
+		await expect(page.getByRole('list', { name: 'Placements for Slower Major' })).toBeHidden();
+		await list.getByText('Major C', { exact: true }).click();
+		await expect(labels.filter({ hasText: 'Major C' }).first()).toBeVisible();
+		await list.getByText('Major C', { exact: true }).click();
+		await expect(labels.filter({ hasText: 'Major C' })).toHaveCount(0);
+		const tempo = page.getByRole('spinbutton', { name: 'Tempo', exact: true });
+		await tempo.fill('80');
+		await tempo.press('Tab');
+		await expect(page.locator('.tp-guide')).toContainText('4 ready now · 0 need practice');
+		await expect(page.locator('body')).toHaveJSProperty('scrollWidth', width);
+	});
+}

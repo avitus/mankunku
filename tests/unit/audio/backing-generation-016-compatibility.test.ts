@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto';
+import { releasedBackingOptions } from '$lib/audio/backing-release';
 import baseline from '../../fixtures/audio/musicality-0.16-hashes.json';
 import { expect, it } from 'vitest';
 import { advanceRollingBacking, createRollingBacking, type RollingBackingCheckpoint } from '$lib/audio/backing-rolling';
-import { BACKING_STYLES } from '$lib/audio/backing-styles';
+import { HISTORICAL_MUSICALITY_STYLES as BACKING_STYLES } from '../../helpers/musicality-style-fixtures';
 import { resolveBackingSwing } from '$lib/audio/backing-generation';
 import { assessListeningTune, buildListeningTuneSession } from '$lib/musicality/listening-tunes';
 import { MANKUNKU_BLUES } from '$lib/data/tunes';
@@ -19,14 +20,8 @@ function scoreFor(style: Style, tune: 'blues' | 'aaba', seed: number, instrument
   phraseId: phrase.id, tempo, ppq: 192, beatsPerBar: 4,
   swing: resolveBackingSwing(.62, BACKING_STYLES[style], tempo),
   sectionMap: phrase.sectionMap, performanceForm: phrase.performanceForm, ensemble: {}
- }, {
-  innerMotion: true, phraseDialogue: true, ensembleColors: true, phraseColors: true,
-  returningMelodySpace: true, performanceEnergySeed: seed, pianoPresence: 'accompaniment',
-  keyboardVariety: 'developed', chorusBoundaryPriority: true, loopCount: 1,
-  trioConversation: true, phraseExpression: true, keyboardTexture: true,
-  keyboardPhrasing: instrument, bassDelayedRoot: true, keyboardContraryMotion: true,
-  drumPhraseCushioning: true, keyboardSuspensions: 'developed'
- });
+ }, { ...releasedBackingOptions(instrument, seed), loopCount: 1 }
+ );
 }
 function run(score: ReturnType<typeof createRollingBacking>) {
  let checkpoint: RollingBackingCheckpoint | undefined;

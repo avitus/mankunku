@@ -18,7 +18,7 @@ import { SUPABASE_URL, resolveSupabaseTarget } from '../../e2e/fixtures/stub-clo
  */
 
 /**
- * Ground truth: what Vite itself resolves for `$env/static/public` at build
+ * Ground truth: what Vite itself resolves for `$app/env/public` at build
  * time. Deliberately calls `loadEnv` directly rather than reusing the
  * fixture's helper — a test that re-invokes the code under test agrees with it
  * by construction, including when both are wrong. This is the assertion that

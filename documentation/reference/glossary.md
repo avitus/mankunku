@@ -116,7 +116,7 @@ Jazz terminology, pitch terminology, and a few app-specific terms — defined in
 
 **Transposing instrument** — An instrument whose written notes don't match concert pitch. Tenor sax is in B♭: when you read a C, you sound a B♭ (a major 9th lower than written, when treated as the same octave; actually a major 2nd lower in the same staff position). Alto sax is in E♭. Trumpet is in B♭. The app handles transposition automatically — you read in your written key, the app stores in concert.
 
-**Turnaround** — A short cadence (often I-vi-ii-V) at the end of a chorus that loops the form back to the top. Builds harmonic tension that resolves at the next downbeat. *Turnaround* is also one of Lick Practice's ten progressions (I–VI7–ii–V, a bar each). Mankunku also plays a one-bar ii-V turnaround between cycles of a Deep Practice or Tricks drill, aimed at the key you're about to play.
+**Turnaround** — A short cadence (often I-vi-ii-V) at the end of a chorus that loops the form back to the top. Builds harmonic tension that resolves at the next downbeat. Lick Practice has two of them among its twelve progressions: *Long Turnaround* (I–VI7–ii–V, a bar each) and *Short Turnaround* (two chords a bar). Mankunku also plays a one-bar ii-V turnaround between cycles of a Deep Practice or Tricks drill, aimed at the key you're about to play.
 
 **Two-feel** — Playing half notes in the bass instead of walking quarters, giving a section a lighter, more open lift. Jazz convention often puts the head in 2 and opens up to 4 for the solos. Mankunku's ballad style is permanently in 2; swing and straight may sit in 2 for the first chorus of a tune and then latch into 4 for the rest of the take.
 
@@ -168,7 +168,7 @@ Jazz terminology, pitch terminology, and a few app-specific terms — defined in
 
 **Strictness** — How much Tune Practice tells you about each insertion point. Guided names the lick to play, Standard names only the progression, Solo names nothing; at Standard and Solo any of your licks that fits the spot counts, and the best match is your result. It never changes how the app listens (any octave, at every level) or the grading scale.
 
-**Progression colour** — Each of the ten progression types has an identity hue that follows it everywhere: the category pill on a lick card, the Side B session header, and the bands on a tune chart. Consistent colour means a ii-V is recognisable at a glance wherever it appears.
+**Progression colour** — Each of the twelve progression types has an identity hue that follows it everywhere: the category pill on a lick card, the Side B session header, and the bands on a tune chart. Consistent colour means a ii-V is recognisable at a glance wherever it appears.
 
 **Practice tag** — The mark that puts a lick in your Side B practice set: **+ Practice** on its card on the Licks page, or *☆ Add to Practice* on its own page. Tagged licks rotate through the keys they've earned in Lick Practice sessions, gaining keys toward all 12. A tagged lick also needs a *progression tag* before a session will schedule it.
 
@@ -200,11 +200,11 @@ Jazz terminology, pitch terminology, and a few app-specific terms — defined in
 
 **Home key** (entry key) — The key a lick is written in, where its key ladder starts. A new lick has only its home key; the others unlock in key-signature order, fewest sharps or flats first as you read them. For tricks it's your written C.
 
-**Lead-sheet row** — The taller row in a Lick Practice session's chord stack that shows the line as sheet music. It appears for one key per lick — the most recently unlocked, while its rolling score is under 75% — and that key is played three times running in Continuous mode, only the last pass counting.
+**Lead-sheet row** — A 128 px row in the Lick Practice chord stack showing the line in written pitch. Daily shows it for the newest unlocked key while its rolling score is below 75%. Deep Practice can also help older keys after a first attempt below 50% or two recent attempts averaging below 70%. Upcoming sheets appear immediately. Continuous mode gives three uninterrupted passes, only the last counting; a successful Deep final pass at 95% returns the key to memory playing.
 
 **Phase of expertise** — The four stages a lick's progress chart names: *new* (fewer than 12 keys unlocked), *learning* (all 12, under 120 BPM), *proficient* (120–149 BPM), *expert* (150 BPM and up). A mirror, not a gate.
 
-**Reading pause** — The two bars the band vamps (a ii-V into the new key) before a lead-sheet row's first pass, when that key doesn't open the cycle — time to switch from playing by memory to reading. The tab reads *Read*, then counts you in.
+**Memory preparation bar** — An unscored bar before switching from sheet-assisted practice to playing from memory in Deep Practice. Ordinary sheet passes and key changes continue without an extra reading pause.
 
 **Refill cycle** — In Deep Practice, the cycle after you've cleared every key in the rotation: the full set comes back, the tempo steps up, and there's no demo.
 

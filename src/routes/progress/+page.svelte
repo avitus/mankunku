@@ -1,5 +1,6 @@
 <script lang="ts">
 	import StudioPanel from '$lib/components/console/StudioPanel.svelte';
+	import { extractSoundingNotes } from '$lib/music/expression';
 	import { lickMode } from '$lib/music/mode';
 	import { keyLabel } from '$lib/music/notation';
 	import { onMount, onDestroy } from 'svelte';
@@ -191,7 +192,7 @@
 			const replay = await exporter.replayRecording(full, ctx);
 			const payload = exporter.buildDiagnosticsPayload(full, replay, {
 				instrument: { id: settings.instrumentId, name: instrument.name, key: instrument.key },
-				phrase: findPhraseForSession(s),
+				phrase: phraseForScoringExport(s),
 				flag: { note: flagNote.trim(), flaggedAt: new Date().toISOString() }
 			});
 			const wav = await exporter.decodeToWav(full.blob);
@@ -213,7 +214,7 @@
 	}
 
 	/**
-	 * Reconstruct the phrase the user heard for an ear-training session by
+	 * Reconstruct a session phrase in the current instrument range by
 	 * looking up the lick by id (or id with a stripped `_<key>` suffix from
 	 * transposition) and re-applying the session's key/scale transposition.
 	 * Returns null if the lick is no longer in the library.
@@ -225,13 +226,26 @@
 		const sessionKey = s.key as PitchClass;
 		const inst = instrument;
 		const rangeHigh = getEffectiveHighestNote();
-		if (s.scaleType) {
-			const scaleId = SCALE_TYPE_TO_SCALE_ID[s.scaleType];
-			if (scaleId) {
-				return transposeLickForTonality(base, sessionKey, scaleId, inst.concertRangeLow, rangeHigh, inst.transpositionSemitones);
-			}
-		}
-		return transposeLick(base, sessionKey, inst.concertRangeLow, rangeHigh, inst.transpositionSemitones);
+		const scaleId = s.scaleType && SCALE_TYPE_TO_SCALE_ID[s.scaleType];
+		return scaleId
+			? transposeLickForTonality(base, sessionKey, scaleId, inst.concertRangeLow, rangeHigh, inst.transpositionSemitones)
+			: transposeLick(base, sessionKey, inst.concertRangeLow, rangeHigh, inst.transpositionSemitones);
+	}
+
+	function phraseForScoringExport(s: SessionResult): Phrase | null {
+		const phrase = findPhraseForSession(s);
+		if (!phrase) return null;
+
+		// The instrument, range setting or octave-placement policy may have
+		// changed since the take. Restore its register only when the saved
+		// targets and today's lick agree up to a single octave displacement.
+		const targets = s.noteResults?.filter(result => !result.extra).map(result => result.expected.pitch);
+		if (!targets?.length || targets[0] == null) return phrase;
+		const sounding = extractSoundingNotes(phrase.notes);
+		if (sounding.length !== targets.length) return phrase;
+		const shift = targets[0] - sounding[0].pitch;
+		if (shift === 0 || shift % 12 !== 0 || !sounding.every((note, i) => note.pitch + shift === targets[i])) return phrase;
+		return { ...phrase, notes: phrase.notes.map(note => note.pitch === null ? note : { ...note, pitch: note.pitch + shift }) };
 	}
 
 	/**

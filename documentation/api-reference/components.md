@@ -719,7 +719,7 @@ Inline "Need help? Take the tour" link.
 | `LickBreatherCard.svelte` | `lick-practice/` | The inter-lick score-hold card: finished lick's name, percentage in its accuracy-tier colour, and the next lick. Takes a `LickBreatherInfo` spread as props (`lickName`, `scorePct`, `next`). Presentational only — the session page snapshots its content when the last key scores |
 | `LickKeyDetail.svelte` | `progress/` | Expandable per-key detail on the progress page, with per-note comparison and replay. Props: `sessionId`, `instrument`, `displayKey?`, `harmony?` and `displayMode?` (the progression's mode, so the note list spells as the session chart did), and `onmissing?` — called when the recording lookup fails so the parent can disable the chip |
 | `PrivacyDisclosure.svelte` | `community/` | One-time acknowledgement that saved licks appear in the community browse |
-| `SuggestionCard.svelte` | `step-entry/` | Attribution name suggestions in the lick editor, from `lick-suggestions` state |
+| `SuggestionCard.svelte` | `step-entry/` | Optional artist/song names in recorder review and the editor; `onpick`, optional `editingId` and `disabled` props; shares `lick-suggestions` state |
 | `Tooltip.svelte` | `ui/` | Wraps `children` with a hover/focus tooltip: `content` (string or snippet), `position` (preferred side, default `'top'`), `delay` (200 ms), `disabled`, `class` |
 | `TooltipHint.svelte` | `ui/` | An info icon carrying a tooltip: `text`, optional `learnMore` doc link, `position`, `size`, `class` — the `helpText` of the console controls |
 | `InfoIcon.svelte`, `HelpLink.svelte` | `ui/` | The bare info glyph (`size`, `class`), and a help link to a docs page (`href`, `label` default "Help and documentation", `size`, `class`) |

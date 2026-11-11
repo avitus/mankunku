@@ -65,7 +65,9 @@ export const SHAPE_PRIORITY: Record<ChordProgressionType, number> = {
 	// turnaround and the ii-V-I it embeds. Duration already favours it (4 bars vs
 	// the embedded cadence's ~1½), so this only settles equal-length overlaps.
 	'iii-VI-ii-V-I': 0,
+	'iii-VI-ii-V-I-long': 0,
 	turnaround: 0,
+	'turnaround-short': 0,
 	'ii-V-I-major-long': 1,
 	'ii-V-I-minor-long': 1,
 	'ii-V-I-major': 2,
@@ -196,7 +198,8 @@ export function detectProgressions(
 				(fractionToFloat(runEnd) - fractionToFloat(first.startOffset)) / barFloat;
 			if (
 				(slot.minBars !== undefined && runBars < slot.minBars - EPSILON) ||
-				(slot.maxBars !== undefined && runBars > slot.maxBars + EPSILON)
+				(slot.maxBars !== undefined && runBars > slot.maxBars + EPSILON) ||
+				(slot.maxBarsExclusive !== undefined && runBars >= slot.maxBarsExclusive - EPSILON)
 			) {
 				outcome = fail();
 				if (outcome === 'stop') break;

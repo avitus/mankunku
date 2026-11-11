@@ -1,0 +1,779 @@
+[
+  {
+    "ref": "refs/heads/claude/admiring-raman-c8f717",
+    "name": "claude/admiring-raman-c8f717",
+    "sha": "6c24428060e137a1ab5306ff36b8b0288abfe761",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/amazing-kalam-22e5e3",
+    "name": "claude/amazing-kalam-22e5e3",
+    "sha": "2718b166999a41e19ff61cdb264099a0c7f3dcf0",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/autumn-leaves-lick-assignment-8fb5d8",
+    "name": "claude/autumn-leaves-lick-assignment-8fb5d8",
+    "sha": "bb7048fafcf3d31c8aff5bd8a53a1af8c49feda6",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/blue-note-articulation-fix-9905ce",
+    "name": "claude/blue-note-articulation-fix-9905ce",
+    "sha": "7460629a5f2a54de84c47c7be5eb7408168965a5",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/build-times-analysis-544d67",
+    "name": "claude/build-times-analysis-544d67",
+    "sha": "6134d94f9794cd6bab006accbc27831e68c103d3",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/circleci-smarter-testing-setup-e8c1ab",
+    "name": "claude/circleci-smarter-testing-setup-e8c1ab",
+    "sha": "ffba00f1a79b6759a20a3973bb65288d427ef7d1",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/count-in-pickup-drummer-ecb901",
+    "name": "claude/count-in-pickup-drummer-ecb901",
+    "sha": "616704b1b27ee091b9dc1009610801f1697eb37e",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/daily-lick-practice-spacing-d2ae6b",
+    "name": "claude/daily-lick-practice-spacing-d2ae6b",
+    "sha": "b7e343f26403db641199526aa2c3a50e6a61d96c",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/daily-lick-time-calc-746237",
+    "name": "claude/daily-lick-time-calc-746237",
+    "sha": "7c8d535c36330f0cb9f9da6ae04f003b8075c970",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/drummer-count-in-61916a",
+    "name": "claude/drummer-count-in-61916a",
+    "sha": "9753928977d6240c213f6de1c25859fd1b7b69fa",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/ear-practice-tuning-notification-dba268",
+    "name": "claude/ear-practice-tuning-notification-dba268",
+    "sha": "28b46af6e10540dd56c7e7ffd3954726e5fd7492",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/ear-training-articulation-fix-38ed0f",
+    "name": "claude/ear-training-articulation-fix-38ed0f",
+    "sha": "111d7a0f446736c980d02acb7b309649145e5447",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/ear-training-lick-scoring-60fc89",
+    "name": "claude/ear-training-lick-scoring-60fc89",
+    "sha": "6f30e5dbeec3038cab6d1c3d529d8aa8fc0db8a8",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/ear-training-lick-scoring-d7eeb2",
+    "name": "claude/ear-training-lick-scoring-d7eeb2",
+    "sha": "f62489531ea404291b6a2e4f0d7acfc7ebe1dfe7",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/ear-training-licks-scoring-cac62a",
+    "name": "claude/ear-training-licks-scoring-cac62a",
+    "sha": "44ddda3e8460cc65e3e565b62b17f6cd8b38a545",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/ear-training-octave-scoring-f0ad03",
+    "name": "claude/ear-training-octave-scoring-f0ad03",
+    "sha": "d03b6dd1119815fb052ecbf052c83b8ef3fb7e7a",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/ear-training-octave-scoring-f884fc",
+    "name": "claude/ear-training-octave-scoring-f884fc",
+    "sha": "d6598ee9fbecec737dca9e08515477e698942465",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/ear-training-tuning-display-74d111",
+    "name": "claude/ear-training-tuning-display-74d111",
+    "sha": "c2dcde27a8ce861fb5f753203bb465b7122bfe6e",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/honeysuckle-rose-scoring-diagnosis-b28de1",
+    "name": "claude/honeysuckle-rose-scoring-diagnosis-b28de1",
+    "sha": "b2415ae681aa4978b5568bb8ed443e3799620868",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/ii-v-i-lick-padding-6b64d9",
+    "name": "claude/ii-v-i-lick-padding-6b64d9",
+    "sha": "2216481e594300c520335f55b7f247982718f415",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/intelligent-cori-970e0a",
+    "name": "claude/intelligent-cori-970e0a",
+    "sha": "273c1206145ac80c585bec0bd73a00dc5d878a68",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/jolly-driscoll-189b6a",
+    "name": "claude/jolly-driscoll-189b6a",
+    "sha": "58fc764d56133055cff5128b55f4eaa856061a0f",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/lick-articulation-regression-d127e1",
+    "name": "claude/lick-articulation-regression-d127e1",
+    "sha": "0ef375e3285317f7752493a8ff62d84ad9d4bdf4",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/lick-octave-centering-8c8c7a",
+    "name": "claude/lick-octave-centering-8c8c7a",
+    "sha": "5cdc814f7a9531a69083cfea2d55eb1e9e16e1a2",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/lick-practice-backing-track-11beab",
+    "name": "claude/lick-practice-backing-track-11beab",
+    "sha": "bd1655f0d1f75ffd3951c5f97af0a528028bd35a",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/lick-practice-dial-persistence-624f41",
+    "name": "claude/lick-practice-dial-persistence-624f41",
+    "sha": "3cb93becc7be9e4284b0e5063dcd7644999e5e28",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/lick-practice-report-messaging-a48e7d",
+    "name": "claude/lick-practice-report-messaging-a48e7d",
+    "sha": "661d36006ba31126542ab18018ada1b323c5586a",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/lick-practice-screen-clear-bug-fd996d",
+    "name": "claude/lick-practice-screen-clear-bug-fd996d",
+    "sha": "4c930f856df4b4e25b9d1fafd06e281feba96125",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/lick-scoring-correction-274f70",
+    "name": "claude/lick-scoring-correction-274f70",
+    "sha": "7a9063ab9ef2e0afe635e8e484cbffd54cb09089",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/lick-view-chord-progression-cb0068",
+    "name": "claude/lick-view-chord-progression-cb0068",
+    "sha": "7d1582652e8da94e605096bac9ac9f08c197d0f0",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/licks-insertion-playback-09f11d",
+    "name": "claude/licks-insertion-playback-09f11d",
+    "sha": "78483c1e668e089c8b75ae82cda4f8a5512947a6",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/little-cry-blue-note-export-06f90f",
+    "name": "claude/little-cry-blue-note-export-06f90f",
+    "sha": "93ac9e039796f2d4c582b1c76bc31d81eca09188",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/looping-tunes-jazz-form-711a96",
+    "name": "claude/looping-tunes-jazz-form-711a96",
+    "sha": "6762f6943a73fbeed5e21e6fda75888846617bb6",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/lucid-agnesi-f6f621",
+    "name": "claude/lucid-agnesi-f6f621",
+    "sha": "7aa90c1f60a3e48319f43aa648f5e9eaca23ba4e",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/mankunku-blues-barlines-fec22e",
+    "name": "claude/mankunku-blues-barlines-fec22e",
+    "sha": "e8109805a0db0a2bb078359e7d45c485179d4e12",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/maxlisteners-warning-e43d24",
+    "name": "claude/maxlisteners-warning-e43d24",
+    "sha": "fa19324e6ab4e096e9241cd5f208d1e269c0ad6b",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/pickup-bar-rendering-6c3745",
+    "name": "claude/pickup-bar-rendering-6c3745",
+    "sha": "c57d5e20f2be77a408d2d37cfbde7e4d02e2c60a",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/playback-bar-marker-offset-695971",
+    "name": "claude/playback-bar-marker-offset-695971",
+    "sha": "9b8ffc46eb57a5ccc6ea29bba1b04baa84374b84",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/post-practice-report-section-c4db83",
+    "name": "claude/post-practice-report-section-c4db83",
+    "sha": "2fc098eb9653f6fc2cba9796c74c89d10e97c1ca",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/pr-247-ci-failures-4ac8c6",
+    "name": "claude/pr-247-ci-failures-4ac8c6",
+    "sha": "b96c92aebda34c3bbae75993b349015e4ef94d94",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/pr-dev-to-main-ae77f2",
+    "name": "claude/pr-dev-to-main-ae77f2",
+    "sha": "1f9280eafd8ea1a1c884b523966ac05c91ab3c4b",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/pr-dev-to-main-f131aa",
+    "name": "claude/pr-dev-to-main-f131aa",
+    "sha": "c7c3ee625a8fa6c6d98c7c2bd34e12f062e5f2eb",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/pr-review-deploy-99fa32",
+    "name": "claude/pr-review-deploy-99fa32",
+    "sha": "885af4479e09c1e84a54172c8c1d9b5e142e422a",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/pr-review-merge-2a8aff",
+    "name": "claude/pr-review-merge-2a8aff",
+    "sha": "a2096b474803fef23c7b138f50bc659cea042703",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/pr-review-merge-9da540",
+    "name": "claude/pr-review-merge-9da540",
+    "sha": "ced5186931aafc4b75151d8704db88217861672c",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/pr-review-merge-a1b878",
+    "name": "claude/pr-review-merge-a1b878",
+    "sha": "2d48f81fb785cd25c07b7b6cf0a56d30da6921a9",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/score-editing-note-deletion-38e1bc",
+    "name": "claude/score-editing-note-deletion-38e1bc",
+    "sha": "ad6907bd167d8e7ed020aed43dabc9d1f3a9ea71",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/sentry-production-errors-041e12",
+    "name": "claude/sentry-production-errors-041e12",
+    "sha": "2f49df31fd8f01b1b8bc3f4cb25e1d04a278286c",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/sleepy-cori-cbf3c2",
+    "name": "claude/sleepy-cori-cbf3c2",
+    "sha": "03499a287e42a496c954c30918fd7e7846918034",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/soprano-sax-licks-octave-29efe6",
+    "name": "claude/soprano-sax-licks-octave-29efe6",
+    "sha": "e8619ade5ca35e9344fcb1a112ba25a5606aab70",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/strange-brattain-6322fc",
+    "name": "claude/strange-brattain-6322fc",
+    "sha": "951c74125cef15915229e5996fd461e84d4a67c3",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/strange-sammet-7d7ff2",
+    "name": "claude/strange-sammet-7d7ff2",
+    "sha": "b013e4646d2fdb6d311be7e369811c393df8b864",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/supabase-storage-utilization-8edd51",
+    "name": "claude/supabase-storage-utilization-8edd51",
+    "sha": "2718b166999a41e19ff61cdb264099a0c7f3dcf0",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/test-coverage-docs-review-a6f1ef",
+    "name": "claude/test-coverage-docs-review-a6f1ef",
+    "sha": "06c19274c69d01a4ae9aaebce984a6ab55123e8e",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/tune-not-found-community-fb06be",
+    "name": "claude/tune-not-found-community-fb06be",
+    "sha": "874cb88360cc94b4957e6156f2ca03b17de12318",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/tune-practice-setup-redesign-61fb2f",
+    "name": "claude/tune-practice-setup-redesign-61fb2f",
+    "sha": "0a904f8d1606412dab649b42b6f5c4c43b339c63",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/tune-practice-strictness-modes-e5f17a",
+    "name": "claude/tune-practice-strictness-modes-e5f17a",
+    "sha": "c150587e7f8f472085bb2aec17620ad7a4b6124f",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/tune-tempo-persistence-9e482f",
+    "name": "claude/tune-tempo-persistence-9e482f",
+    "sha": "ae2f2b6a4f4969cd00415eb5b93dd7fa9b265820",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/tuning-warning-sharp-notes-a71322",
+    "name": "claude/tuning-warning-sharp-notes-a71322",
+    "sha": "19a165aa0886f57a1ffef22162fee60a3b39ea54",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/unruffled-hertz-e0513c",
+    "name": "claude/unruffled-hertz-e0513c",
+    "sha": "f94de2b0f26c2051b0ed7952f60929e226b7bf07",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/claude/wonderful-pike-21c239",
+    "name": "claude/wonderful-pike-21c239",
+    "sha": "06c19274c69d01a4ae9aaebce984a6ab55123e8e",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/codex/admin-content-management",
+    "name": "codex/admin-content-management",
+    "sha": "6d42b1b1a2988193e2914d75fc4e7d7f6a892644",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/codex/backing-off-default",
+    "name": "codex/backing-off-default",
+    "sha": "b1f51b333678f6de379789459b6494647f53f955",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/codex/calendar-cloud-reactivity",
+    "name": "codex/calendar-cloud-reactivity",
+    "sha": "e886ae08b083ace1d6e7328d9de901aa7bbf4b1f",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/codex/community-lick-loading",
+    "name": "codex/community-lick-loading",
+    "sha": "75ab63d3878cb561a90b44cea6bd1f50529b578b",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/codex/daily-practice-flow",
+    "name": "codex/daily-practice-flow",
+    "sha": "40bfbd2e6cf41e5ab6911aaa4ddcc438b50f7b35",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/codex/daily-practice-learning-first",
+    "name": "codex/daily-practice-learning-first",
+    "sha": "2fd47a148d5ab89e27264c394540f43833030813",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/codex/deep-practice-consistency",
+    "name": "codex/deep-practice-consistency",
+    "sha": "195e81c870b7d3febc55557ce2191c843d9ada90",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/codex/deep-practice-handoff-graduation",
+    "name": "codex/deep-practice-handoff-graduation",
+    "sha": "89535b10cabf6f1c086595fd4ef4274eaeef3405",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/codex/deep-practice-memory-commitment",
+    "name": "codex/deep-practice-memory-commitment",
+    "sha": "68785b3933a928528fe280ec256ebd614c273d12",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/codex/deep-practice-row-release",
+    "name": "codex/deep-practice-row-release",
+    "sha": "12b81eefad58c02cd788d200469c864042c5bb5c",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/codex/deep-practice-sheet-rescue",
+    "name": "codex/deep-practice-sheet-rescue",
+    "sha": "5bdf592267c1a7dc0b7c5e2583d208cc7b993692",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/codex/deep-practice-transition-cues",
+    "name": "codex/deep-practice-transition-cues",
+    "sha": "00922d45ef3bdc1c3f13fd1d180f769428975c6b",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/codex/e2e-analysis-progress",
+    "name": "codex/e2e-analysis-progress",
+    "sha": "f1940d40ba885df31a096236585a8168ec9d2508",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/codex/ear-training-note-separations",
+    "name": "codex/ear-training-note-separations",
+    "sha": "d4f8f30eea83c48338472e978cab82067804c360",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/codex/ear-training-tuning-position",
+    "name": "codex/ear-training-tuning-position",
+    "sha": "bd920d6ad7fcdb581dae07feeb98a269ba5a12cf",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/codex/ear-training-tuning-release",
+    "name": "codex/ear-training-tuning-release",
+    "sha": "b0f7330f77457a1c4f19f95304392524b070587a",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/codex/early-form-return",
+    "name": "codex/early-form-return",
+    "sha": "8456da40f4d8b43961eb835a400d8fada92d6c77",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/codex/fix-lick-progress-startup",
+    "name": "codex/fix-lick-progress-startup",
+    "sha": "6c6eae116620324a14e37fc5f1171669bf74b93c",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/codex/fix-rest-triplets",
+    "name": "codex/fix-rest-triplets",
+    "sha": "d831e348e5e75ad3d6f3fe402af800628dc1bda0",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/codex/group-section-fragments",
+    "name": "codex/group-section-fragments",
+    "sha": "c4d5be24f637d12c3b331bbcbfd8a9a692a449e1",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/codex/lick-bar-beat-widths",
+    "name": "codex/lick-bar-beat-widths",
+    "sha": "a23d817ad8715cdc9fbac73f5597f2eb3acab93d",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/codex/lick-library-controls",
+    "name": "codex/lick-library-controls",
+    "sha": "03060dfe7cf08097ece82a727c08aeb9571effc4",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/codex/lick-practice-launch-panel",
+    "name": "codex/lick-practice-launch-panel",
+    "sha": "89c0561f27ba9e24388bf7733ef4817dcf23825a",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/codex/musical-timing-feedback",
+    "name": "codex/musical-timing-feedback",
+    "sha": "69f4af92925e69e944e38392b7b46215a245330d",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/codex/musicality-evaluation-ui",
+    "name": "codex/musicality-evaluation-ui",
+    "sha": "f0ec5afd975cbe79360a3b2849cb016b75494208",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/codex/no-head-initial-chords",
+    "name": "codex/no-head-initial-chords",
+    "sha": "6aa53974c08a8fff8061320c86dde605b0b29590",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/codex/pdf-import-accuracy",
+    "name": "codex/pdf-import-accuracy",
+    "sha": "169dcc7f7abb16a493f673514d73257d49217c98",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/codex/pent-turn-first-note",
+    "name": "codex/pent-turn-first-note",
+    "sha": "c0251bb35c946208e7e419bae432aa7e76dedca9",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/codex/pickup-section-marker",
+    "name": "codex/pickup-section-marker",
+    "sha": "6248ff4653e23973ccbd11070299c51fc1a57c8f",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/codex/pr-299-review",
+    "name": "codex/pr-299-review",
+    "sha": "3f97dcb8bcb57d210a6186dbdab566e8c4aa86ee",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/codex/recorder-transcription",
+    "name": "codex/recorder-transcription",
+    "sha": "11a754673064e03ea8d8345b4108a150da5e53dc",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/codex/refresh-daily-recommendations",
+    "name": "codex/refresh-daily-recommendations",
+    "sha": "2e8e3df242d65dd7906df6751fb2678676213156",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/codex/release-dev-main-276",
+    "name": "codex/release-dev-main-276",
+    "sha": "7c9036cf938991a62985d284c23a630161a2cfa7",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/codex/require-memory-key-passes",
+    "name": "codex/require-memory-key-passes",
+    "sha": "2b9a691165253561e5efcc2a5d8315b93f70bb3e",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/codex/retry-pr255-deploy",
+    "name": "codex/retry-pr255-deploy",
+    "sha": "da23120fa5c4ce0b4329247a1665b11ebe65d61b",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/codex/sax-sample-fallback",
+    "name": "codex/sax-sample-fallback",
+    "sha": "b81875525405134296b0ce74f8e79f25285fa5bc",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/codex/score-editing-repairs",
+    "name": "codex/score-editing-repairs",
+    "sha": "54ba7b158f8cb80402980f2f1e1867d30aa065be",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/codex/section-label-editing",
+    "name": "codex/section-label-editing",
+    "sha": "3b0870547ffa8dea0fef9ade8ba0709ea43205b6",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/codex/sign-in-progress",
+    "name": "codex/sign-in-progress",
+    "sha": "226fa929bc37da0a733c8abfb0a51e199bd77cd9",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/codex/stolen-lick-practice-defaults",
+    "name": "codex/stolen-lick-practice-defaults",
+    "sha": "16b81f88bbc3636a6c358ead8995beec62ed5f0b",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/codex/tune-detail-backing-style",
+    "name": "codex/tune-detail-backing-style",
+    "sha": "3f1600f30b7a1f613381604f18d7aad1ddd0fc77",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/codex/tune-practice-desk",
+    "name": "codex/tune-practice-desk",
+    "sha": "f0ec5afd975cbe79360a3b2849cb016b75494208",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/codex/webkit-recording-pdf-fixes",
+    "name": "codex/webkit-recording-pdf-fixes",
+    "sha": "e95565955f7db63045d096ffe215c1b5b7198358",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/codex/wrapped-progression-label",
+    "name": "codex/wrapped-progression-label",
+    "sha": "eef8dbf34d149d480e7fafb363e478ec92a9b946",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/fix/third-harmonic-lock-third-walks-back",
+    "name": "fix/third-harmonic-lock-third-walks-back",
+    "sha": "d0f36bb304b9b873610fe6a9dd89e2785160c0ed",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/heads/worktree-fix-noise-floor-phantom-notes",
+    "name": "worktree-fix-noise-floor-phantom-notes",
+    "sha": "ed664bb80b28e62c6603fc761c4f065f2c2350fa",
+    "local": true,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/remotes/origin/codex/deep-practice-memory-commitment",
+    "name": "codex/deep-practice-memory-commitment",
+    "sha": "68785b3933a928528fe280ec256ebd614c273d12",
+    "local": false,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/remotes/origin/codex/e2e-analysis-progress",
+    "name": "codex/e2e-analysis-progress",
+    "sha": "f1940d40ba885df31a096236585a8168ec9d2508",
+    "local": false,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/remotes/origin/codex/group-section-fragments",
+    "name": "codex/group-section-fragments",
+    "sha": "c4d5be24f637d12c3b331bbcbfd8a9a692a449e1",
+    "local": false,
+    "reason": "merged; removable"
+  },
+  {
+    "ref": "refs/remotes/origin/codex/section-label-editing",
+    "name": "codex/section-label-editing",
+    "sha": "3b0870547ffa8dea0fef9ade8ba0709ea43205b6",
+    "local": false,
+    "reason": "merged; removable"
+  }
+]

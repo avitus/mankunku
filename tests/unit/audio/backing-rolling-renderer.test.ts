@@ -88,6 +88,7 @@ describe('append-only rolling audio renderer', () => {
 		expect(played.dispatches.map(entry => entry.status)).toEqual(['played', 'scheduled']);
 		expect(played.dispatches.every(entry => !('diagnostic' in entry))).toBe(true);
 		expect(Object.isFrozen(played.dispatches[0])).toBe(true);
+		h.now(11.5); // The first batch has sounded; the second is still future.
 		h.renderer.stop();
 		const stopped = h.renderer.snapshot();
 		expect(stopped.status).toBe('stopped');
@@ -330,4 +331,22 @@ describe('append-only rolling audio renderer', () => {
 		expect(stopVoice).toHaveBeenCalledOnce();
 		expect(h.renderer.snapshot().dispatches[0].status).toBe('cancelled');
 	});
+});
+
+it('still reports an underrun when clearing the published schedule throws', () => {
+ const h = harness(); h.renderer.commit(bar(0));
+ h.runtime.publishSchedule = vi.fn(() => { throw new Error('publisher unavailable'); });
+ h.now(11.01);
+ expect(() => [...h.pending.values()][0].callback(11)).not.toThrow();
+ expect(h.onUnderrun).toHaveBeenCalledOnce();
+ expect(h.renderer.snapshot().status).toBe('underrun');
+});
+
+it('marks a legacy future dispatch cancelled when stopped before it can sound', () => {
+ const h = harness(); h.renderer.commit(bar(0));
+ h.now(10.95); [...h.pending.values()][0].callback(11);
+ expect(h.renderer.snapshot().dispatches[0].status).toBe('played');
+ h.renderer.stop();
+ expect(h.voiceStops[0]).toHaveBeenCalledOnce();
+ expect(h.renderer.snapshot().dispatches[0].status).toBe('cancelled');
 });

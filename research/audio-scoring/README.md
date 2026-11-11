@@ -31,7 +31,7 @@ verdict and numbers are in [REPORT.md](REPORT.md).
   folder (`prod`, `firefox`).
 - `harness/firefox_import.py <idb copy>` — decode a Firefox profile's
   IndexedDB copy of `mankunku-audio[:uid]` (Snappy + SpiderMonkey structured
-  clone, Blob payloads in `<db>.files/`) into `takes/firefox/`: every stored
+  clone, inline ArrayBuffer audio or Blob payloads in `<db>.files/`) into `takes/firefox/`: every stored
   recording with its RecordingMetadata, which includes the lick-practice
   windows the cloud never sees.
 - `harness/evaluate.py` — E1 discrimination (own lick vs transpositions and

@@ -4,47 +4,47 @@
 
 | Technology | Version | Role |
 |---|---|---|
-| [SvelteKit](https://kit.svelte.dev) | ^2.50 | App framework (routing, SSR, adapters) |
-| [Svelte 5](https://svelte.dev) | ^5.51 | UI framework (runes mode for reactivity) |
-| [Vite](https://vitejs.dev) | ^8.2 | Build tool and dev server |
+| [SvelteKit](https://kit.svelte.dev) | ^3.1 | App framework (routing, SSR, adapters) |
+| [Svelte 5](https://svelte.dev) | ^5.57 | UI framework (runes mode for reactivity) |
+| [Vite](https://vitejs.dev) | ^8.3 | Build tool and dev server |
 | [TypeScript](https://typescriptlang.org) | ^6.0 | Type safety (strict mode) |
-| [Tailwind CSS](https://tailwindcss.com) | ^4.2 | Utility-first styling via `@tailwindcss/vite` |
+| [Tailwind CSS](https://tailwindcss.com) | ^4.3 | Utility-first styling via `@tailwindcss/vite` |
 
 ## Audio Libraries
 
 | Library | Version | Role |
 |---|---|---|
 | [Tone.js](https://tonejs.github.io) | ^15.1 | Transport scheduling, audio graph, synths (metronome) |
-| [smplr](https://github.com/danigb/smplr) | ^1.0 | SoundFont instrument playback (GM samples), drum + backing samplers |
+| [smplr](https://github.com/danigb/smplr) | ^1.2 | SoundFont instrument playback (GM samples), drum + backing samplers |
 | [Pitchy](https://github.com/ianprime0509/pitchy) | ^4.1 | McLeod Pitch Method — real-time pitch detection |
 
 ## Music Notation
 
 | Library | Version | Role |
 |---|---|---|
-| [abcjs](https://www.abcjs.net) | ^6.6 | Renders ABC notation to SVG in the browser |
+| [abcjs](https://www.abcjs.net) | ^6.7 | Renders ABC notation to SVG in the browser |
 
 ## Testing
 
 | Tool | Version | Role |
 |---|---|---|
 | [Vitest](https://vitest.dev) | ^4.1 | Unit testing (node environment) |
-| [Playwright](https://playwright.dev) | ^1.58 | End-to-end browser testing |
-| [@testing-library/svelte](https://testing-library.com/svelte) | ^5.3 | Component testing utilities |
+| [Playwright](https://playwright.dev) | ^1.65 | End-to-end browser testing |
+| [@testing-library/svelte](https://testing-library.com/svelte) | ^5.4 | Component testing utilities |
 | [fake-indexeddb](https://github.com/dumbmatter/fakeIndexedDB) | ^6.2 | IndexedDB polyfill for the node test environment (`vitest.setup.ts`) |
 
 ## Platform & services
 
 | Library | Version | Role |
 |---|---|---|
-| [@supabase/supabase-js](https://supabase.com/docs/reference/javascript) + [@supabase/ssr](https://supabase.com/docs/guides/auth/server-side) | ^2.99 / ^0.12 | Auth + Postgres cloud sync; browser and per-request server clients (`src/lib/supabase/`) |
-| [@sentry/sveltekit](https://docs.sentry.io/platforms/javascript/guides/sveltekit/) | ^10.49 | Error monitoring, client replay tunnelled through `/api/monitoring`; source maps uploaded at build when a token is present |
-| [@anthropic-ai/sdk](https://github.com/anthropics/anthropic-sdk-typescript) | ^0.115 | The docs assistant (`/api/chat`) and lead-sheet PDF transcription (`/api/tune-parse`) |
-| [pdfjs-dist](https://mozilla.github.io/pdf.js/) | ^6.1 | Client-side PDF geometry + text-layer extraction for the PDF importer |
-| [driver.js](https://driverjs.com) | ^1.4 | Guided tours (`src/lib/tour/`) |
-| [marked](https://marked.js.org) + [sanitize-html](https://github.com/apostrophecms/sanitize-html) | ^18 / ^2.17 | In-app docs rendering (`src/lib/docs/`) |
+| [@supabase/supabase-js](https://supabase.com/docs/reference/javascript) + [@supabase/ssr](https://supabase.com/docs/guides/auth/server-side) | ^2.119 / ^0.12 | Auth + Postgres cloud sync; browser and per-request server clients (`src/lib/supabase/`) |
+| [@sentry/sveltekit](https://docs.sentry.io/platforms/javascript/guides/sveltekit/) | ^11.11 | Error monitoring, client replay tunnelled through `/api/monitoring`; source maps uploaded at build when a token is present. Traces are sampled at `TRACES_SAMPLE_RATE` (`$lib/util/sentry-sampling`, 0.1) on both sides — tracing every request spent the organisation's shared span quota by 2026-10-24. The tunnel hands Sentry's 429, `X-Sentry-Rate-Limits` and `Retry-After` back to the SDK so it backs off a limited category instead of retrying into it |
+| [@anthropic-ai/sdk](https://github.com/anthropics/anthropic-sdk-typescript) | ^1.6 | The docs assistant (`/api/chat`) and lead-sheet PDF transcription (`/api/tune-parse`) |
+| [pdfjs-dist](https://mozilla.github.io/pdf.js/) | ^6.5 | Client-side PDF geometry + text-layer extraction for the PDF importer |
+| [driver.js](https://driverjs.com) | ^1.10 | Guided tours (`src/lib/tour/`) |
+| [marked](https://marked.js.org) + [sanitize-html](https://github.com/apostrophecms/sanitize-html) | ^18.1 / ^2.18 | In-app docs rendering (`src/lib/docs/`) |
 
-**Node.** `.nvmrc` pins **26.5.1** (what the production server runs); `package.json` `engines` allows `>=22.12.0`. The `omr/` subsystem is a separate uv-managed **Python 3.12** project (its own `pyproject.toml` / `uv.lock` / `.venv`) that nothing in the app calls yet — see the OMR section of [AGENTS.md](../../AGENTS.md) and `docs/omr/README.md`.
+**Node.** `.nvmrc` pins **26.5.1** (what the production server runs); `package.json` `engines` allows `>=22.17.0`. The `omr/` subsystem is a separate uv-managed **Python 3.12** project (its own `pyproject.toml` / `uv.lock` / `.venv`) that nothing in the app calls yet — see the OMR section of [AGENTS.md](../../AGENTS.md) and `docs/omr/README.md`.
 
 ## Installable web app (no service worker)
 
@@ -107,12 +107,16 @@ The display serif **Fraunces** (variable font, weight 300–800, Latin subset, s
 
 ## Configuration Files
 
-- **`svelte.config.js`** — Enables runes mode for all non-node_modules files via `dynamicCompileOptions`. Uses `adapter-node` so the server can run authentication hooks and session middleware. Pins `kit.version.name` to `CIRCLE_SHA1` when CI sets it (what `/api/health` reports as `version`), and turns on `experimental.instrumentation.server` + `tracing.server`, which is what makes SvelteKit load `src/instrumentation.server.ts`. The adapter is wrapped in `withoutEmptyChunkWarnings` (`scripts/quiet-empty-chunks.js`): adapter-node re-bundles Vite's server output with Rollup, its `manualChunks` keeps every Vite server file as its own chunk, and Rollup then warns `Generated an empty chunk` for each browser-only module it tree-shook out of the server bundle — the screen wake lock, the IndexedDB recording store and SvelteKit's own env stub, three lines on every build (2026-09-18). The adapter accepts no Rollup options, so the wrapper drops that ONE message from `console.warn` for the duration of the adapter step and restores it after; every other warning still prints. A new browser-only shared module will be tree-shaken the same way, silently, which is correct.
-- **`tsconfig.json`** — Extends SvelteKit's generated config. Strict mode enabled with bundler module resolution.
-- **`vite.config.ts`** — Registers Sentry, Tailwind, and SvelteKit plugins (source-map upload only when `SENTRY_AUTH_TOKEN` or `.env.sentry-build-plugin` is present and `PLAYWRIGHT` is not `1`). Also carries the **Vitest** config (there is no `vitest.config.ts`): `tests/unit/**` + `tests/integration/**`, `node` environment, `vitest.setup.ts` for the IndexedDB polyfill. `server.watch.ignored` excludes `.claude/worktrees/**`, **anchored at the config file's own path**: Claude Code worktrees are full checkouts nested under the root, and a `tsconfig.json` created or checked out in any of them fired `reloadOnTsconfigChange` in the parent's dev server (module graph invalidated, tab force-reloaded, Sentry re-initialised — 2026-09-10). The unanchored `**/.claude/worktrees/**` form would also blank the watcher of a dev server started *inside* a worktree, because chokidar (v3, bundled by Vite — the hoisted 4.x is a decoy) matches ignore globs against absolute paths, root included.
+- **SvelteKit configuration** — Lives in the `sveltekit({...})` plugin in `vite.config.ts`: Node adapter, runes for app files, the existing `$lib` alias, release version and server tracing. Adapter-node 6 uses Rolldown; the old Rollup empty-chunk warning wrapper and its tests have been removed. `src/env.ts` declares the two static public Supabase variables and the two private runtime secrets. Consumers use `$app/env/public`, `$app/env/private` and `$app/env` for environment flags.
+- **`tsconfig.json`** — Extends `$app/tsconfig` and includes source, tests and root configuration files. Strict mode enabled with bundler module resolution.
+- **`vite.config.ts`** — Registers Sentry, Tailwind, and SvelteKit plugins (source-map upload only when `SENTRY_AUTH_TOKEN` or `.env.sentry-build-plugin` is present and `PLAYWRIGHT` is not `1`). Also carries the **Vitest** config (there is no `vitest.config.ts`): `tests/unit/**` + `tests/integration/**`, `node` environment, `vitest.setup.ts` for the IndexedDB polyfill. `server.watch.ignored` excludes `.claude/worktrees/**`, **anchored at the config file's own path**: Claude Code worktrees are full checkouts nested under the root, and a `tsconfig.json` created or checked out in any of them fired `reloadOnTsconfigChange` in the parent's dev server (module graph invalidated, tab force-reloaded, Sentry re-initialised — 2026-09-10). The unanchored `**/.claude/worktrees/**` form would also blank the watcher of a dev server started *inside* a worktree, because watcher ignore patterns match absolute paths, including the worktree root.
 - **`src/instrumentation.server.ts`** — Server-side Sentry init. Production loads it once, via Node's `--import`; `npm run dev` loads it through `vite.ssrLoadModule` on every request, so any wipe of Vite's SSR module graph (a config/`.env` restart, an edit to the file or its import, any `tsconfig.json` add/change/unlink under the project root — worktrees under `.claude/worktrees/` included) evaluates it again in the same process. Sentry's `init` is not idempotent — each call stacks another `child_process` diagnostics-channel subscriber, another `uncaughtException`/`unhandledRejection`/`beforeExit` handler and, on macOS, a `sw_vers` spawn whose child carries every subscriber's `error` listener; that is where `MaxListenersExceededWarning: 11 error listeners added to [ChildProcess]` came from (2026-09-10) — so the call is guarded by `Sentry.isInitialized()`: one client per process, and an edit to the options in dev needs a dev-server restart. The environment is `production` whenever `NODE_ENV` is, which includes `vite preview` and Playwright's web server, so `beforeSend`/`beforeSendTransaction` file anything about a request to a loopback host under `development` — the server-side twin of the client's hostname check (MANKUNKU-1V: a PDF import on a dev machine filed as a production error). `beforeSend` also drops the Anthropic "Output blocked by content filtering policy" error, which Sentry's AI integration reports as unhandled even though `/api/tune-parse` retries on the baseline model and `/api/chat` shows it to the reader; every other Anthropic error is still reported. The predicates live in `src/lib/util/sentry-filters.ts`. Pinned by `tests/unit/server/instrumentation-server.test.ts`.
-- **`playwright.config.ts`** — E2E: `tests/e2e`, three browser projects, and a `webServer` that builds and previews with `PLAYWRIGHT=1` set (which enables the `e2e-test-user` auth branch in `hooks.server.ts`). The port is `PLAYWRIGHT_PORT`, default 4173. Outside CI `reuseExistingServer` is on, so a run attaches to whatever already answers on that port — from a worktree beside another checkout's preview, that is the other checkout's build, tested silently. Set `PLAYWRIGHT_PORT` to a free port there.
+- **`playwright.config.ts`** — Regression tests in `tests/e2e`, across Chromium, Firefox and WebKit. A container-only boundary rejects host automation. Each local sandbox builds and previews its own snapshot on port 4173; only CI batches explicitly reuse a server. `playwright.diagnostics.config.ts` selects the separate `*.diagnostic.ts` recording tools, Chromium only, one worker.
 - **`src/hooks.server.ts`** — `handle` = Sentry's request handle → Supabase per-request client → security headers; `handleError` = `Sentry.handleErrorWithSentry(createServerErrorHandler())` (`src/lib/server/error-handler.ts`, unit-tested): silent on 4xx, one entry with the status, method + path (never the query string — the auth callback carries its exchange code there) and the stack for anything else. Sentry's wrapper skips capturing 4xx but still calls the handler for them, and its own fallback printed a full stack per route-less 404 — scanner probes filled PM2's error log to 320 MB by 2026-09-09 (`pm2-logrotate` on the droplet now caps the logs regardless — see "Deployment").
+
+### Telemetry compatibility
+
+Sentry 11 receives explicit data collection settings in `src/lib/util/sentry-options.ts`, preserving the server's restrictions on user information, cookies, bodies, AI content and database data. The browser retains its explicit user-information opt-in. Both clients use static trace lifecycle so `beforeSendTransaction` still classifies local requests as development; the 10% trace sample rate is unchanged. Server errors use Kit 3's `kind` discriminator: unknown errors are 500, structured errors carry their own status, and 4xx failures remain silent in PM2.
 
 ## Architecture Summary
 
@@ -120,7 +124,7 @@ Mankunku is a **local-first installable web app** with optional cloud sync:
 
 - **State persistence** — User progress, settings, and session history are stored in `localStorage` first; large binary blobs (tune PDFs, via `src/lib/persistence/tune-pdf-store.ts`) live in IndexedDB. An optional Supabase backend (`src/lib/supabase/`, `src/routes/api/account/`) provides authenticated cloud sync so the same data follows a user across devices.
 - **Audio pipeline** — Built entirely on Web Audio APIs. An `AudioWorklet` handles onset detection, an `AnalyserNode` feeds the pitch detector, and Tone.js manages transport scheduling for metronome and phrase playback.
-- **Music theory** — Scales, intervals, transposition, key signatures, and scoring algorithms are implemented in pure TypeScript with no external music theory libraries. The 33-scale catalog and ~452-lick curated catalog are defined as typed data structures (plus additional runtime-generated combinations).
+- **Music theory** — Scales, intervals, transposition, key signatures, and scoring algorithms are implemented in pure TypeScript with no external music theory libraries. The 33-scale catalog and 652-lick curated catalog are defined as typed data structures (plus additional runtime-generated combinations).
 - **Deployment** — `adapter-node` produces a Node.js server bundle, promoted into place by a symlink-swap release script on a Digital Ocean VM and run under PM2 (see "Deployment" below). Page loads require the network — there is no service worker (see "Installable web app" above); user data stays local-first.
 
 ## Deployment
@@ -251,7 +255,7 @@ halves of the deploy check. Logic is in `src/lib/server/health.ts`, the route in
 }
 ```
 
-`version` is `kit.version.name`, pinned to `CIRCLE_SHA1` in `svelte.config.js`.
+`version` is `kit.version.name`, pinned to `CIRCLE_SHA1` in `vite.config.ts`.
 `releaseId` is derived once at module load from `realpath(process.cwd())` — PM2's
 `cwd` is the `current` symlink, so the value cannot drift from what is actually
 being served, and no env plumbing is needed. A path that doesn't match the
@@ -299,6 +303,7 @@ type at three call sites in `persistence/community.ts`.
 - **Svelte 5 runes** over stores: Fine-grained reactivity without boilerplate. `$state` and `$derived` replace writable/derived stores with simpler semantics.
 - **Tone.js** for transport: Provides sample-accurate scheduling via a centralized Transport, essential for synchronizing metronome clicks with phrase playback.
 - **smplr** over Tone.js sampler: Smaller bundle for GM SoundFont playback. Shares the same AudioContext.
+- **Custom sax sample order:** `sample-loader.ts` downloads and decodes each layer concurrently, then publishes buffers in the sample map's ascending pitch order. smplr sorts pitch ranges but pairs them with source entries by index; publishing in download-completion order assigns recordings to the wrong notes. The loader rejects failed or timed-out samples so playback can use its SoundFont fallback. `sample-loader.test.ts` reproduces out-of-order completion against the real smplr preset conversion, including the concert F4 apex of “Don't Get Around Much Anymore” in tenor's written C.
 - **Pitchy** over Web Audio `AnalyserNode` alone: Implements the McLeod Pitch Method which is more accurate for monophonic instruments than simple FFT peak detection.
 - **ABC notation** over MusicXML: Text-based format is trivial to generate from MIDI data. abcjs renders it to SVG with no server required.
 - **Local-first with optional Supabase**: All writes hit `localStorage` first so user data survives offline; an authenticated user's Supabase sync is background fire-and-forget, not a request path.

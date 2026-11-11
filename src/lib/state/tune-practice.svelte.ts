@@ -8,7 +8,9 @@ import type { Score } from '$lib/types/scoring';
 import type { Trick, TrickContext, TrickParameters } from '$lib/types/tricks';
 import type { Tune } from '$lib/types/tune';
 import type { BackingStyle } from '$lib/types/instruments';
-import type { ChordProgressionType } from '$lib/types/lick-practice';
+import type { PracticeTargetType } from '$lib/tunes/practice-target';
+import { practiceVocabulary, type FittingLick } from '$lib/tunes/practice-vocabulary';
+import { analyzeHarmony, type MajorRegion } from '$lib/tunes/harmonic-analysis';
 import { flattenTune, type FlattenedTune } from '$lib/tunes/flatten';
 import { changesSheetFor } from '$lib/tunes/changes-sheet';
 import { suggestBarsPerLine } from '$lib/music/chart-layout';
@@ -20,6 +22,7 @@ import {
 	buildLickMatcherDeps,
 	isInPlayersBook,
 	suggestLicksForProgression,
+	suggestLicksForMajorRegion,
 	type LickSuggestion
 } from '$lib/tunes/lick-matcher';
 import { transposeTune } from '$lib/tunes/book-loader';
@@ -286,10 +289,13 @@ export function initTunePractice(sheet: Tune): void {
 }
 
 export interface SessionPreview {
+	fittingLicks: FittingLick[];
+	/** Which chart is visible in setup; the inventory can also include the closing chart. */
+	closingChart: boolean;
 	total: number;
 	/** Planned windows with an eligible lick, including repeat/chorus occurrences. */
 	matchedCount: number;
-	byType: Partial<Record<ChordProgressionType, number>>;
+	byType: Partial<Record<PracticeTargetType, number>>;
 	uncategorizedCount: number;
 	/** Notation-order bands naming the first planned lick at each chart position. */
 	markers: {
@@ -299,8 +305,10 @@ export interface SessionPreview {
 		/** Whole-note span for mid-bar band clipping (see RangeMarker.timeRange). */
 		timeRange: { start: number; end: number };
 		label: string;
+		labelBar: number;
 		lickName: string | null;
-		progressionType: ChordProgressionType;
+		progressionType: PracticeTargetType;
+		harmonicRegion?: MajorRegion;
 	}[];
 }
 
@@ -313,7 +321,10 @@ export function previewSessionPlan(sheet: Tune, playHead: boolean, choruses = 1)
 		sheet, { ...tunePractice.config, playHead, choruses }, 480
 	);
 
-	const byType: Partial<Record<ChordProgressionType, number>> = {};
+	const inventory = prepareTunePracticeSession(
+		sheet, { ...tunePractice.config, playHead, choruses }, 480, true
+	).plan;
+	const byType: Partial<Record<PracticeTargetType, number>> = {};
 	for (const ip of plan) {
 		byType[ip.progressionType] = (byType[ip.progressionType] ?? 0) + 1;
 	}
@@ -331,12 +342,16 @@ export function previewSessionPlan(sheet: Tune, playHead: boolean, choruses = 1)
 			endBarExclusive: ip.notationBarRange.endExclusive,
 			timeRange: ip.notationTimeRange,
 			label: lickName ?? ip.bandName,
+			labelBar: ip.notationLabelBar,
 			lickName,
-			progressionType: ip.progressionType
+			progressionType: ip.progressionType,
+			harmonicRegion: ip.harmonicRegion
 		});
 	}
 
 	return {
+		fittingLicks: practiceVocabulary(inventory),
+		closingChart: audioPlan.closingStartBar === 0 && audioPlan.separateClosingChart,
 		total: plan.length,
 		matchedCount: plan.filter(ip => ip.suggestions.length > 0).length,
 		byType,
@@ -351,7 +366,7 @@ export function previewSessionPlan(sheet: Tune, playHead: boolean, choruses = 1)
  * point and prepare the audio artifacts. Reads the player's book, but never
  * starts audio or changes session state: setup and Start share this builder.
  */
-function prepareTunePracticeSession(sheet: Tune, config: TunePracticeConfig, ppq: number): {
+function prepareTunePracticeSession(sheet: Tune, config: TunePracticeConfig, ppq: number, inventory = false): {
 	audioPlan: TunePracticeAudioPlan;
 	plan: InsertionPoint[];
 	pickedSuggestion: Record<string, number>;
@@ -388,7 +403,13 @@ function prepareTunePracticeSession(sheet: Tune, config: TunePracticeConfig, ppq
 	// the solo pass's first; the count runs on when that bar is a pickup.
 	const firstChartBar = notationBarForPlaybackBar(flat.sectionMap, transposed.sections, playHead ? 0 : practiceStartBar);
 	const countInPickup = firstChartBar !== null && isInPickupLeadIn(transposed, firstChartBar);
+	const matchOptions = inventory
+		? { ownBookOnly: true, playableKeysOnly: true, sessionTempo: config.tempo, includeUnready: true }
+		: mode === 'suggest'
+		? { ownBookOnly: true, playableKeysOnly: true, sessionTempo: config.tempo }
+		: { ownBookOnly: true };
 	const planDeps: BuildPlanDeps = {
+		includeAlternatives: inventory,
 		countInBars,
 		pickupBars,
 		flat,
@@ -408,17 +429,18 @@ function prepareTunePracticeSession(sheet: Tune, config: TunePracticeConfig, ppq
 			// a title with nothing to play (2026-10-07). Suggest mode cycles the
 			// FULL eligible list, further restricted to licks the user can deploy
 			// at this song's tempo and in this spot's key.
-			const options =
-				mode === 'suggest'
-					? { ownBookOnly: true, playableKeysOnly: true, sessionTempo: config.tempo }
-					: { ownBookOnly: true };
-			const result = suggestLicksForProgression(det, matcherDeps, options);
+			const result = suggestLicksForProgression(det, matcherDeps, matchOptions);
 			return { suggestions: result.suggestions, uncategorized: result.uncategorized };
+		},
+		harmonicAnalysis: {
+			key: transposed.key,
+			analyze: (f) => analyzeHarmony(f, transposed, { reservationScope: 'form' }),
+			match: (region) => suggestLicksForMajorRegion(region, matcherDeps, matchOptions)
 		},
 		// Points mode caps the pick card; the cap applies per chosen window, so
 		// a role's licks are never crowded out by another role's on the same
 		// progression.
-		suggestionLimit: mode === 'suggest' ? undefined : MAX_SUGGESTIONS
+		suggestionLimit: inventory || mode === 'suggest' ? undefined : MAX_SUGGESTIONS
 	};
 	let plan = buildSessionPlan(planDeps);
 	if (!playHead && separateClosingChart) {
@@ -427,7 +449,9 @@ function prepareTunePracticeSession(sheet: Tune, config: TunePracticeConfig, ppq
 		plan = plan.filter(ip => ip.openTick < closingTick);
 		const lastSolo = buildSessionPlan({ ...planDeps, flat: closingFlat, notationFlat: flattenTune(closingSheet),
 			pickupBars: closingPickupBars, choruses: 1, head: { bars: closingStart, mode: 'shift' },
-			detect: f => detectProgressions(f, closingSheet) });
+			detect: f => detectProgressions(f, closingSheet),
+			harmonicAnalysis: { ...planDeps.harmonicAnalysis!, key: closingSheet.key,
+				analyze: f => analyzeHarmony(f, closingSheet, { reservationScope: 'form' }) } });
 		plan.push(...lastSolo.map((ip, i) => ({ ...ip, id: `ip-closing-${i}`, closingPass: true })));
 	}
 

@@ -13,7 +13,7 @@ orbs:
 
 workflows:
   setup:
-    # Long-running musicality work is validated locally or on a Chunk sidecar.
+    # Long-running musicality work is validated in the local Docker sandbox.
     # Skip before allocating the path-filtering job or continuing the pipeline.
     # Exact branch match: dev, main and other branches keep their existing CI.
     unless:

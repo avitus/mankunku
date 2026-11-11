@@ -1,4 +1,6 @@
-import { backingOutputGain, connectBackingOutput } from './backing-output';
+import { prepareReleasedArrangement } from './backing-arrangement';
+import { getBackingArrangementPreference } from './backing-preference';
+import { BACKING_OUTPUT_GAIN, backingOutputGain, connectBackingOutput } from './backing-output';
 import { getBackingNativeArming } from './backing-native-arming';
 /**
  * Jazz backing track engine.
@@ -149,8 +151,9 @@ let currentKeyboardStyle: BackingStyle = 'swing';
 
 // The backing bus (increment 9). Everything backing — bass, panned comp,
 // the split drum kit and the room return — flows through `backingGain`
-// (the backing setting) into a gentle glue compressor, then the +6 dB band
-// Master fader. The app master stays untouched (it also carries the melody):
+// (the backing setting) into a gentle glue compressor, then the session reference
+// and band Master fader. Tunes/lab use +6 dB; ordinary practice retains unity.
+// The app master stays untouched (it also carries the melody):
 //
 //   bassGain ──────────────────────► backingGain ─► busCompressor ─► backingOutput ─► app master
 //   compGain ─► compPan ───────────►      ▲
@@ -162,6 +165,7 @@ let currentKeyboardStyle: BackingStyle = 'swing';
 // trim in `applyMixGains` because `drumBus` sits downstream of the taps.
 let backingGain: GainNode | null = null;
 let backingOutput: GainNode | null = null;
+let currentOutputLevel = 1;
 let busCompressor: DynamicsCompressorNode | null = null;
 let bassGain: GainNode | null = null;
 let compGain: GainNode | null = null;
@@ -197,7 +201,7 @@ export function createBackingSignalMonitor(): BackingSignalMonitor | null {
 /** Push the current volume + base trims + mix levels onto every live gain node. */
 function applyMixGains(): void {
 	if (backingGain) backingGain.gain.value = currentBackingVolume;
-	if (backingOutput) backingOutput.gain.value = backingOutputGain(mixLevels.master);
+	if (backingOutput) backingOutput.gain.value = backingOutputGain(mixLevels.master, currentOutputLevel);
 	if (bassGain) bassGain.gain.value = BACKING_BASE_TRIMS.bass * mixLevels.bass;
 	if (compGain) compGain.gain.value = backingKeyboardTrim(currentInstrumentType, currentKeyboardStyle) * mixLevels.comp;
 	if (drumBus) drumBus.gain.value = BACKING_BASE_TRIMS.drums * mixLevels.drums;
@@ -342,6 +346,9 @@ let compPart: import('tone').Part<CompEvent> | null = null;
 let drumPart: import('tone').Part<DrumEvent> | null = null;
 /** A section started later on a running transport (prepareBackingSection); never looped. */
 let sectionParts: import('tone').Part<BassEvent | CompEvent | DrumEvent>[] = [];
+/** Outgoing Parts stop on the next phrase's downbeat, then are reclaimed on
+ * the next schedule (or session stop). Keep them owned during the handoff. */
+let retiringParts: { part: import('tone').Part; stopTick: number }[] = [];
 let activeSchedule: BackingTrackSchedule | null = null;
 let activeRollingPlayback: RollingBackingRenderer | null = null;
 let rollingPlaybackId = 0;
@@ -911,6 +918,8 @@ export function disposeBackingParts(): void {
 	const rolling = activeRollingPlayback;
 	activeRollingPlayback = null;
 	rolling?.stop();
+	for (const { part } of retiringParts) part.dispose();
+	retiringParts = [];
 	if (bassPart) {
 		bassPart.dispose();
 		bassPart = null;
@@ -931,6 +940,29 @@ export function disposeBackingParts(): void {
 		for (const sampler of Object.values(drumSamplers)) sampler.stop();
 	}
 	activeSchedule = null;
+}
+
+/** Hand the band over at a future tick without cutting the outgoing bar or
+ * its ringing samples. Part.stop excludes attacks AT the new downbeat. */
+function retireBackingParts(tickOffset: number, currentTicks: number): void {
+	retiringParts = retiringParts.filter(({ part, stopTick }) => {
+		if (stopTick > currentTicks) return true;
+		part.dispose();
+		return false;
+	});
+	for (const part of [bassPart, compPart, drumPart, ...sectionParts]) {
+		if (part) retiringParts.push({ part, stopTick: tickOffset });
+	}
+	for (const retiring of retiringParts) {
+		// A replacement queued before another handoff may bring the boundary
+		// forward, but must never extend an earlier band's scheduled lifetime.
+		retiring.stopTick = Math.min(retiring.stopTick, tickOffset);
+		retiring.part.stop(`${retiring.stopTick}i`);
+	}
+	bassPart = null;
+	compPart = null;
+	drumPart = null;
+	sectionParts = [];
 }
 
 /**
@@ -1095,6 +1127,8 @@ export async function createRollingBackingPlayback(options: RollingBackingPlayba
 	if (startAudioTime <= renderer.horizon().renderSafeFrom) throw new Error('Rolling playback start is inside the scheduling horizon.');
 	disposeBackingParts();
 	activeRollingPlayback = renderer;
+	currentOutputLevel = BACKING_OUTPUT_GAIN;
+	applyMixGains();
 	const stop = renderer.stop;
 	return Object.assign(renderer, { ownsOutput, stop() {
 		stop();
@@ -1154,6 +1188,14 @@ function generateFor(phrase: Phrase, options: PlaybackOptions, ppq: number) {
 	const harmony = extendHarmonyToCoverMelody(baseHarmony, phrase.notes, beatsPerBar);
 	const style = BACKING_STYLES[options.backingStyle ?? 'swing'];
 	const swing = resolveBackingSwing(options.swing, style, options.tempo);
+	const orchestration = options.backingOrchestration ?? getBackingArrangementPreference();
+	if (orchestration === 'coordinated' && !options.backingSoloFeatures?.length) {
+		const generated = prepareReleasedArrangement(harmony, style, {
+			phraseId: phrase.id, tempo: options.tempo, ppq, beatsPerBar, swing,
+			sectionMap: phrase.sectionMap, performanceForm: phrase.performanceForm
+		}, options.backingInstrument ?? currentInstrumentType ?? 'piano', phrase.timeSignature[1], options.backingPerformanceSeed ?? 0);
+		if (generated) return { harmony, generated };
+	}
 	// Cached: lick-practice loops and per-key restarts reschedule the same
 	// (phrase, tempo, style) many times — the LRU returns the identical
 	// events without re-running the planners.
@@ -1169,7 +1211,7 @@ function generateFor(phrase: Phrase, options: PlaybackOptions, ppq: number) {
 			// Form coordinates are bars; the legacy generator counts numerator beats.
 			// Do not misapply bar metadata in denominator-based meters until that path is migrated.
 			performanceForm: phrase.timeSignature[1] === 4 ? phrase.performanceForm : undefined,
-			ensemble: options.backingOrchestration === 'coordinated' && phrase.timeSignature[1] === 4
+			ensemble: orchestration === 'coordinated' && !!options.backingSoloFeatures?.length && phrase.timeSignature[1] === 4
 				? { soloFeatures: options.backingSoloFeatures } : undefined
 		})
 	};
@@ -1254,10 +1296,14 @@ export async function scheduleBackingTrack(
 	await ensureDrums();
 	if (!isStillCurrent()) return;
 
-	disposeBackingParts();
-
 	const { harmony, generated } = generateFor(phrase, options, ppq);
 	const { bassEvents, compEvents, drumEvents } = generated;
+	if (transport.state === 'started' && tickOffset > transport.ticks) {
+		retireBackingParts(tickOffset, transport.ticks);
+	} else {
+		disposeBackingParts();
+	}
+
 	const harmonyDurationBeats = getHarmonyDurationBeats(harmony);
 	const harmonyTicks = loopTicks ?? Math.ceil(harmonyDurationBeats / beatsPerBar) * beatsPerBar * ppq;
 
@@ -1316,6 +1362,8 @@ export async function scheduleBackingTrack(
 	currentKeyboardStyle = options.backingStyle ?? 'swing';
 	applyMixGains();
 	setBackingTrackVolume(options.backingTrackVolume ?? 0.5);
+	currentOutputLevel = options.backingOutputLevel ?? 1;
+	applyMixGains();
 
 	drumPart = new Tone.Part(playDrum, scheduleBoundaryEvents(drumEvents, playDrum, boundary));
 	drumPart.start(`${tickOffset}i`);

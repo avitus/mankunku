@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { expect, it } from 'vitest';
 import { generateBacking } from '$lib/audio/backing-generation';
 import { advanceRollingBacking, createRollingBacking, type RollingBackingCheckpoint } from '$lib/audio/backing-rolling';
-import { BACKING_STYLES } from '$lib/audio/backing-styles';
+import { HISTORICAL_MUSICALITY_STYLES as BACKING_STYLES } from '../../helpers/musicality-style-fixtures';
 import { buildHistoricalListeningTuneSession as buildListeningTuneSession } from '../../helpers/musicality-tune-fixtures';
 import baseline from '../../fixtures/audio/bass-approach-handoff-before.json';
 

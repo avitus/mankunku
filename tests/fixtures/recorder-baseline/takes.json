@@ -1,0 +1,1848 @@
+[
+  {
+    "lickId": "user-1775684777021-62ze",
+    "name": "Apple Jump",
+    "file": "2026-10-06-apple-jump-6bc44e.wav",
+    "instrumentId": "tenor-sax",
+    "key": "B",
+    "tempo": 110,
+    "practiceScore": 0.9876076929537241,
+    "sessionId": "6bc44e94-a1a7-450a-a00b-7420f6b4a70f",
+    "recordedAt": 1791329143893,
+    "candidateCount": 34,
+    "expected": [
+      {
+        "pitch": 64,
+        "offset": [
+          0,
+          1
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 61,
+        "offset": [
+          1,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 59,
+        "offset": [
+          1,
+          4
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 57,
+        "offset": [
+          3,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 58,
+        "offset": [
+          1,
+          2
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 67,
+        "offset": [
+          5,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 66,
+        "offset": [
+          3,
+          4
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 64,
+        "offset": [
+          7,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 59,
+        "offset": [
+          1,
+          1
+        ],
+        "duration": [
+          1,
+          2
+        ]
+      }
+    ]
+  },
+  {
+    "lickId": "user-1784765186204-p10j",
+    "name": "Art Pepper — Stardust",
+    "file": "2026-10-06-art-pepper-stardust-bada94.wav",
+    "instrumentId": "tenor-sax",
+    "key": "G",
+    "tempo": 79,
+    "practiceScore": 0.9900819363399666,
+    "sessionId": "bada94de-0550-4772-b75e-e708a8006ca0",
+    "recordedAt": 1791329196939,
+    "candidateCount": 30,
+    "expected": [
+      {
+        "pitch": 55,
+        "offset": [
+          0,
+          1
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 54,
+        "offset": [
+          1,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 53,
+        "offset": [
+          1,
+          4
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 57,
+        "offset": [
+          3,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 52,
+        "offset": [
+          1,
+          2
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 50,
+        "offset": [
+          5,
+          8
+        ],
+        "duration": [
+          1,
+          4
+        ]
+      }
+    ]
+  },
+  {
+    "lickId": "user-1782862495429-goys",
+    "name": "Basis of Everything",
+    "file": "2026-11-04-basis-of-everything-2d1dd1.wav",
+    "instrumentId": "tenor-sax",
+    "key": "Eb",
+    "tempo": 179,
+    "practiceScore": 0.9901939099448934,
+    "sessionId": "2d1dd1df-ec5c-45d1-9cf6-ec0c61f348af",
+    "recordedAt": 1793760546179,
+    "candidateCount": 36,
+    "expected": [
+      {
+        "pitch": 53,
+        "offset": [
+          0,
+          1
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 56,
+        "offset": [
+          1,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 60,
+        "offset": [
+          1,
+          4
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 63,
+        "offset": [
+          3,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 62,
+        "offset": [
+          1,
+          2
+        ],
+        "duration": [
+          1,
+          4
+        ]
+      },
+      {
+        "pitch": 58,
+        "offset": [
+          3,
+          4
+        ],
+        "duration": [
+          1,
+          4
+        ]
+      },
+      {
+        "pitch": 55,
+        "offset": [
+          1,
+          1
+        ],
+        "duration": [
+          1,
+          1
+        ]
+      }
+    ]
+  },
+  {
+    "lickId": "user-1778368486249-zbxh",
+    "name": "Blue Monk",
+    "file": "2026-10-06-blue-monk-a0ada5.wav",
+    "instrumentId": "tenor-sax",
+    "key": "Ab",
+    "tempo": 52,
+    "practiceScore": 0.9922619596875805,
+    "sessionId": "a0ada593-26a0-4158-9309-d91b8f358f6e",
+    "recordedAt": 1791329308838,
+    "candidateCount": 34,
+    "expected": [
+      {
+        "pitch": 63,
+        "offset": [
+          0,
+          1
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 65,
+        "offset": [
+          1,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 63,
+        "offset": [
+          1,
+          4
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 62,
+        "offset": [
+          3,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 61,
+        "offset": [
+          1,
+          2
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 51,
+        "offset": [
+          5,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 59,
+        "offset": [
+          3,
+          4
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 60,
+        "offset": [
+          7,
+          8
+        ],
+        "duration": [
+          5,
+          8
+        ]
+      }
+    ]
+  },
+  {
+    "lickId": "user-1782428188336-fi1j",
+    "name": "Chromatic Below Chord Tones",
+    "file": "2026-10-06-chromatic-below-chord-tones-4fe32e.wav",
+    "instrumentId": "tenor-sax",
+    "key": "F#",
+    "tempo": 60,
+    "practiceScore": 0.9925318681318681,
+    "sessionId": "4fe32ebb-9555-45c9-b662-832f70646781",
+    "recordedAt": 1791325040963,
+    "candidateCount": 48,
+    "expected": [
+      {
+        "pitch": 49,
+        "offset": [
+          0,
+          1
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 48,
+        "offset": [
+          1,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 49,
+        "offset": [
+          1,
+          4
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 54,
+        "offset": [
+          3,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 53,
+        "offset": [
+          1,
+          2
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 54,
+        "offset": [
+          5,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 58,
+        "offset": [
+          3,
+          4
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 57,
+        "offset": [
+          7,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 58,
+        "offset": [
+          1,
+          1
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 61,
+        "offset": [
+          9,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 60,
+        "offset": [
+          5,
+          4
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 61,
+        "offset": [
+          11,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 66,
+        "offset": [
+          3,
+          2
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      }
+    ]
+  },
+  {
+    "lickId": "user-1776795260698-n3y7",
+    "name": "Cry Me a River",
+    "file": "2026-10-06-cry-me-a-river-00014d.wav",
+    "instrumentId": "tenor-sax",
+    "key": "Db",
+    "tempo": 126,
+    "practiceScore": 0.9928824126984148,
+    "sessionId": "00014d75-c462-4fa8-8c15-cd2c66e8a6b5",
+    "recordedAt": 1791325112762,
+    "candidateCount": 36,
+    "expected": [
+      {
+        "pitch": 63,
+        "offset": [
+          0,
+          1
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 61,
+        "offset": [
+          1,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 56,
+        "offset": [
+          1,
+          4
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 52,
+        "offset": [
+          3,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 51,
+        "offset": [
+          1,
+          2
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 49,
+        "offset": [
+          5,
+          8
+        ],
+        "duration": [
+          3,
+          8
+        ]
+      }
+    ]
+  },
+  {
+    "lickId": "user-1777416884800-8khg",
+    "name": "Dexter Gordon - Go Chromatic",
+    "file": "2026-11-05-dexter-gordon-go-chromatic-03fa32.wav",
+    "instrumentId": "tenor-sax",
+    "key": "Eb",
+    "tempo": 78,
+    "practiceScore": 0.9922503552532087,
+    "sessionId": "03fa32dc-db31-4d76-ba9e-d52dd7088f10",
+    "recordedAt": 1793848422217,
+    "candidateCount": 52,
+    "expected": [
+      {
+        "pitch": 46,
+        "offset": [
+          3,
+          4
+        ],
+        "duration": [
+          1,
+          12
+        ]
+      },
+      {
+        "pitch": 48,
+        "offset": [
+          5,
+          6
+        ],
+        "duration": [
+          1,
+          12
+        ]
+      },
+      {
+        "pitch": 51,
+        "offset": [
+          11,
+          12
+        ],
+        "duration": [
+          1,
+          12
+        ]
+      },
+      {
+        "pitch": 54,
+        "offset": [
+          1,
+          1
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 55,
+        "offset": [
+          9,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 56,
+        "offset": [
+          5,
+          4
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 57,
+        "offset": [
+          11,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 58,
+        "offset": [
+          3,
+          2
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 55,
+        "offset": [
+          13,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 56,
+        "offset": [
+          7,
+          4
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 54,
+        "offset": [
+          15,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 55,
+        "offset": [
+          2,
+          1
+        ],
+        "duration": [
+          1,
+          4
+        ]
+      }
+    ]
+  },
+  {
+    "lickId": "user-1785276273246-59zo",
+    "name": "Do Nothing Till You Hear From Me",
+    "file": "2026-11-04-do-nothing-till-you-hear-from-me-01095d.wav",
+    "instrumentId": "tenor-sax",
+    "key": "Eb",
+    "tempo": 50,
+    "practiceScore": 0.9912192216954153,
+    "sessionId": "01095d71-6598-4f13-b718-56f64c469790",
+    "recordedAt": 1793760054005,
+    "candidateCount": 10,
+    "expected": [
+      {
+        "pitch": 56,
+        "offset": [
+          1,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 53,
+        "offset": [
+          1,
+          4
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 54,
+        "offset": [
+          3,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 55,
+        "offset": [
+          1,
+          2
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 58,
+        "offset": [
+          5,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 56,
+        "offset": [
+          3,
+          4
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 53,
+        "offset": [
+          7,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 55,
+        "offset": [
+          1,
+          1
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 51,
+        "offset": [
+          9,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 46,
+        "offset": [
+          5,
+          4
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 44,
+        "offset": [
+          11,
+          8
+        ],
+        "duration": [
+          5,
+          8
+        ]
+      }
+    ]
+  },
+  {
+    "lickId": "user-1782347655440-yuhv",
+    "name": "Eric Alexander Chord Tone Lick",
+    "file": "2026-11-02-eric-alexander-chord-tone-lick-ef3e65.wav",
+    "instrumentId": "tenor-sax",
+    "key": "G",
+    "tempo": 61,
+    "practiceScore": 0.9938251865394213,
+    "sessionId": "ef3e6520-26fd-4f51-ab43-5fc53b07587e",
+    "recordedAt": 1793587811577,
+    "candidateCount": 36,
+    "expected": [
+      {
+        "pitch": 66,
+        "offset": [
+          0,
+          1
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 67,
+        "offset": [
+          1,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 69,
+        "offset": [
+          1,
+          4
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 66,
+        "offset": [
+          3,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 62,
+        "offset": [
+          1,
+          2
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 64,
+        "offset": [
+          5,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 66,
+        "offset": [
+          3,
+          4
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 62,
+        "offset": [
+          7,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 59,
+        "offset": [
+          1,
+          1
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 60,
+        "offset": [
+          9,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 62,
+        "offset": [
+          5,
+          4
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 59,
+        "offset": [
+          11,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 54,
+        "offset": [
+          3,
+          2
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 55,
+        "offset": [
+          13,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 57,
+        "offset": [
+          7,
+          4
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 54,
+        "offset": [
+          15,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      }
+    ]
+  },
+  {
+    "lickId": "user-1779235892015-kp0v",
+    "name": "Fats Navarro - Wail",
+    "file": "2026-10-06-fats-navarro-wail-beba69.wav",
+    "instrumentId": "tenor-sax",
+    "key": "Db",
+    "tempo": 50,
+    "practiceScore": 0.9931141345427056,
+    "sessionId": "beba6954-e20f-4f5b-a75a-752a7d3117ce",
+    "recordedAt": 1791330197124,
+    "candidateCount": 60,
+    "expected": [
+      {
+        "pitch": 56,
+        "offset": [
+          0,
+          1
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 53,
+        "offset": [
+          1,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 54,
+        "offset": [
+          1,
+          4
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 56,
+        "offset": [
+          3,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 58,
+        "offset": [
+          1,
+          2
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 61,
+        "offset": [
+          5,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 65,
+        "offset": [
+          3,
+          4
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 63,
+        "offset": [
+          7,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 62,
+        "offset": [
+          1,
+          1
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 60,
+        "offset": [
+          9,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 52,
+        "offset": [
+          5,
+          4
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 55,
+        "offset": [
+          11,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 59,
+        "offset": [
+          3,
+          2
+        ],
+        "duration": [
+          1,
+          4
+        ]
+      },
+      {
+        "pitch": 57,
+        "offset": [
+          7,
+          4
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 55,
+        "offset": [
+          15,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 56,
+        "offset": [
+          2,
+          1
+        ],
+        "duration": [
+          1,
+          2
+        ]
+      }
+    ]
+  },
+  {
+    "lickId": "user-1775696356551-tiq6",
+    "name": "Honeysuckle Rose",
+    "file": "2026-11-05-honeysuckle-rose-e827e3.wav",
+    "instrumentId": "tenor-sax",
+    "key": "F#",
+    "tempo": 170,
+    "practiceScore": 0.9886666666666667,
+    "sessionId": "e827e338-fd70-43ac-a93f-68b95c1ad430",
+    "recordedAt": 1793848988592,
+    "candidateCount": 36,
+    "expected": [
+      {
+        "pitch": 61,
+        "offset": [
+          0,
+          1
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 59,
+        "offset": [
+          1,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 51,
+        "offset": [
+          1,
+          4
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 54,
+        "offset": [
+          3,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 58,
+        "offset": [
+          1,
+          2
+        ],
+        "duration": [
+          1,
+          2
+        ]
+      }
+    ]
+  },
+  {
+    "lickId": "user-1775774545194-4dj7",
+    "name": "Sharp 9 Flat 9 Dom",
+    "file": "2026-10-06-sharp-9-flat-9-dom-c36a96.wav",
+    "instrumentId": "tenor-sax",
+    "key": "C",
+    "tempo": 141,
+    "practiceScore": 0.9913091030486288,
+    "sessionId": "c36a964e-2329-49ea-8c8f-9512a945edea",
+    "recordedAt": 1791329386113,
+    "candidateCount": 36,
+    "expected": [
+      {
+        "pitch": 58,
+        "offset": [
+          0,
+          1
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 56,
+        "offset": [
+          1,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 58,
+        "offset": [
+          1,
+          4
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 56,
+        "offset": [
+          3,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 58,
+        "offset": [
+          1,
+          2
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 56,
+        "offset": [
+          5,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 55,
+        "offset": [
+          3,
+          4
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 53,
+        "offset": [
+          7,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 52,
+        "offset": [
+          1,
+          1
+        ],
+        "duration": [
+          1,
+          2
+        ]
+      }
+    ]
+  },
+  {
+    "lickId": "user-1787092647487-cys1",
+    "name": "Sonny Stitt - Indiana",
+    "file": "2026-11-04-sonny-stitt-indiana-a6b07e.wav",
+    "instrumentId": "tenor-sax",
+    "key": "Bb",
+    "tempo": 50,
+    "practiceScore": 0.9936807989188874,
+    "sessionId": "a6b07ee9-592a-4d69-9bb5-86374f471677",
+    "recordedAt": 1793760796793,
+    "candidateCount": 53,
+    "expected": [
+      {
+        "pitch": 62,
+        "offset": [
+          0,
+          1
+        ],
+        "duration": [
+          1,
+          4
+        ]
+      },
+      {
+        "pitch": 58,
+        "offset": [
+          1,
+          4
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 55,
+        "offset": [
+          3,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 50,
+        "offset": [
+          1,
+          2
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 55,
+        "offset": [
+          5,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 58,
+        "offset": [
+          3,
+          4
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 62,
+        "offset": [
+          7,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 60,
+        "offset": [
+          1,
+          1
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 58,
+        "offset": [
+          9,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 57,
+        "offset": [
+          5,
+          4
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 55,
+        "offset": [
+          11,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 54,
+        "offset": [
+          3,
+          2
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 57,
+        "offset": [
+          13,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 60,
+        "offset": [
+          7,
+          4
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 63,
+        "offset": [
+          15,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 62,
+        "offset": [
+          2,
+          1
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 58,
+        "offset": [
+          17,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 60,
+        "offset": [
+          9,
+          4
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 57,
+        "offset": [
+          19,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 58,
+        "offset": [
+          5,
+          2
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 57,
+        "offset": [
+          21,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 55,
+        "offset": [
+          11,
+          4
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      }
+    ]
+  },
+  {
+    "lickId": "user-1775775003144-sc5m",
+    "name": "Wouldn't It Be Loverly",
+    "file": "2026-10-06-wouldn-t-it-be-loverly-c49eeb.wav",
+    "instrumentId": "tenor-sax",
+    "key": "B",
+    "tempo": 150,
+    "practiceScore": 0.9815328798185938,
+    "sessionId": "c49eeb4e-39d0-4dcf-8a0c-71d5333a19c7",
+    "recordedAt": 1791328985671,
+    "candidateCount": 24,
+    "expected": [
+      {
+        "pitch": 54,
+        "offset": [
+          0,
+          1
+        ],
+        "duration": [
+          1,
+          12
+        ]
+      },
+      {
+        "pitch": 56,
+        "offset": [
+          1,
+          12
+        ],
+        "duration": [
+          1,
+          12
+        ]
+      },
+      {
+        "pitch": 54,
+        "offset": [
+          1,
+          6
+        ],
+        "duration": [
+          1,
+          12
+        ]
+      },
+      {
+        "pitch": 53,
+        "offset": [
+          1,
+          4
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 54,
+        "offset": [
+          3,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 58,
+        "offset": [
+          1,
+          2
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 56,
+        "offset": [
+          5,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 54,
+        "offset": [
+          3,
+          4
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 52,
+        "offset": [
+          7,
+          8
+        ],
+        "duration": [
+          1,
+          8
+        ]
+      },
+      {
+        "pitch": 51,
+        "offset": [
+          1,
+          1
+        ],
+        "duration": [
+          1,
+          2
+        ]
+      }
+    ]
+  }
+]

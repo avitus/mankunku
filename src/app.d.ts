@@ -7,7 +7,7 @@ declare global {
 	namespace App {
 		interface Error {
 			message: string;
-			status?: number;
+			status: number;
 		}
 		interface Locals {
 			supabase: SupabaseClient<Database>;

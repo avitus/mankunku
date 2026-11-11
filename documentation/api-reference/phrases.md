@@ -80,13 +80,13 @@ Indexes the curated lick library for fast querying.
 
 Adjust a transposed lick so every note lies in the given scale. When the lick declares one mode of the major scale over a single chord on `key`, and the target is a seven-note scale whose every degree lies within a semitone of the lick's (another major mode, the melodic minor, Lydian Dominant), each note keeps its degree (an Ionian 4th becomes Lydian's #4, an Aeolian b6 Dorian's 6, an Aeolian b7 the melodic minor's 7). Every other out-of-scale pitch snaps to the nearest scale tone, downward on a tie.
 
-### `transposeLick(lick, targetKey, rangeLow?, rangeHigh?): Phrase`
+### `transposeLick(lick, targetKey, rangeLow?, rangeHigh?, transposition?): Phrase`
 
 Transpose a lick from its own `key` to a target key. Shifts all MIDI pitches and harmony roots by the interval between the two, then applies an **octave adjustment** via `bestOctaveShift()` to keep notes within `[rangeLow, rangeHigh]` — defaulting to the tenor-sax fallback range (MIDI 60–75, C4–Eb5) when neither is given. Returns the lick itself when the interval is zero and no custom range was passed; a custom range alone still re-places the octave.
 
-### `bestOctaveShift(midiNotes, rangeLow, rangeHigh): number`
+### `bestOctaveShift(midiNotes, rangeLow, rangeHigh, transposition?): number`
 
-The octave shift (in octaves, −3…+3) that places the most notes inside the range, ties broken by proximity of the shifted average pitch to the range midpoint. `0` for an empty list.
+The octave shift (in octaves, −3…+3) that places the most notes inside the range, then the fewest notes near its extremes: each note scores `100 × (distance from centre ÷ half the range)⁴`, the lowest average wins, and two octaves within 3 points go to the one with more notes on the written stave (E4–F5). Two cases keep an older ranking. Without `transposition` (concert → written), ties go to the average pitch nearest the range midpoint. When the range's centre sits under the written stave (guitar, trombone, bass, voice), more notes on the stave wins, then the midpoint. A full tie keeps the lower shift. `0` for an empty list.
 
 ### `transposeLickForTonality(lick, key, scaleId, rangeLow?, rangeHigh?): Phrase`
 

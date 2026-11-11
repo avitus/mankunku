@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import releaseThirteen from '../../fixtures/audio/musicality-0.13-hashes.json';
 import { expect, it } from 'vitest';
 import { advanceRollingBacking, createRollingBacking, type RollingBackingCheckpoint } from '$lib/audio/backing-rolling';
-import { BACKING_STYLES } from '$lib/audio/backing-styles';
+import { HISTORICAL_MUSICALITY_STYLES as BACKING_STYLES } from '../../helpers/musicality-style-fixtures';
 import { resolveBackingSwing } from '$lib/audio/backing-generation';
 import { assessListeningTune, buildListeningTuneSession } from '$lib/musicality/listening-tunes';
 import { MANKUNKU_BLUES } from '$lib/data/tunes';

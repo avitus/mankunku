@@ -59,7 +59,7 @@ const EXPECTED: Record<string, ChordProgressionType[]> = {
 	'ii-V-I-minor/half': ['ii-V-I-minor'],
 	'short-ii-V-I-minor/short': ['ii-V-I-minor'],
 	'V-I-minor/V-I': ['ii-V-I-minor-long'],
-	'ii-V-I-major/full': ['ii-V-I-major-long'],
+	'ii-V-I-major/full': ['ii-V-I-major-long', 'iii-VI-ii-V-I-long'],
 	'ii-V-I-major/half': ['ii-V-I-major', 'iii-VI-ii-V-I'],
 	'short-ii-V-I-major/short': ['ii-V-I-major'],
 	'V-I-major/V-I': ['ii-V-I-major-long']
@@ -127,7 +127,7 @@ describe('cadence licks (curated, table-driven over every template)', () => {
 		const half = ALL_CURATED_LICKS.find((l) => l.id === 'ii-V-I-min-006')!;
 		expect(getProgressionsForLick(half)).toEqual(['ii-V-I-minor']);
 		const maj = ALL_CURATED_LICKS.find((l) => l.id === 'ii-V-I-maj-001')!;
-		expect(getProgressionsForLick(maj)).toEqual(['ii-V-I-major-long']);
+		expect(getProgressionsForLick(maj)).toEqual(['ii-V-I-major-long', 'iii-VI-ii-V-I-long']);
 	});
 });
 

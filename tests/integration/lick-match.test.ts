@@ -37,6 +37,7 @@ describe('POST /api/lick-match', () => {
 		const top = body.matches[0];
 		expect(top.sourceId).toBe('quote:chromatic-descent');
 		expect(top.kind).toBe('quote');
+		expect(top.suggestedName).toBeNull();
 		expect(top.label).toContain('Chromatic descent');
 		expect(top.license).toBe('curated');
 		expect(top.confidence).toBe('quote');
@@ -235,6 +236,7 @@ describe('POST /api/lick-match', () => {
 		const hit = body.matches.find((m: { sourceId: string }) => m.sourceId === source.id);
 		expect(hit).toBeDefined();
 		expect(hit.kind).toBe('wjazzd');
+		expect(hit.suggestedName).toBe(`${source.performer} - ${source.title}`);
 		expect(hit.license).toBe('CC-BY-NC-SA');
 		expect(hit.confidence).toBe('quote');
 		expect(hit.score).toBeCloseTo(1, 5);

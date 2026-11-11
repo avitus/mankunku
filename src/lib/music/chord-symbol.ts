@@ -112,6 +112,20 @@ export function chordSymbolSpellings(input: string): { root: string; bass: strin
 	return { root: tokens.root, bass: tokens.bass };
 }
 
+/**
+ * Chord text as a player typed it → the spelling `parseChordSymbol` reads:
+ * the root and slash-bass letters capitalized ("a-7/g" → "A-7/G", "bb7" →
+ * "Bb7"), nothing else touched, so "cm7" stays minor and "cM7" major. For typed
+ * entry only: the parser stays case-sensitive because the PDF importers parse
+ * words to tell chord text from prose, where "a" is a word and not an A chord.
+ */
+export function capitalizeTypedChord(input: string): string {
+	return input
+		.trim()
+		.replace(/^[a-g]/, (root) => root.toUpperCase())
+		.replace(/\/\s*[a-g](?=[#♯b♭]?\s*$)/, (bass) => bass.toUpperCase());
+}
+
 const ALTERABLE_DEGREES = new Set(['5', '9', '11', '13']);
 
 /**
