@@ -376,6 +376,9 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
 					// These comparisons were made before decoration, so do not expose
 					// them as claims about the performed suspension or its resolution.
 					const { keyboardLine: _line, keyboardContraryMotion: _contrary, ...decision } = voiced.decision;
+					// A resolved root is no longer an actual rootless texture; the family
+					// and phrase texture still describe the selected base/request.
+					if (cell.kind === '9-1' && attack === 1) delete decision.rootlessTexture;
 					const previous = attack === 0 ? memory.voicing : { version: 1 as const, chord: segment.chord, notes: cell.suspendedNotes };
 					voicingTrace[attack] = Object.freeze({ ...voiced, notes, decision: Object.freeze({ ...decision,
 						...describeCoordinatedPlacement(segment.chord, notes, decision.resolvedFamily, Math.round(58 + 8 * info.intensity), previous),

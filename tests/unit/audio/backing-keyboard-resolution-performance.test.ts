@@ -56,6 +56,7 @@ describe('0.10 full-performance resolution colors', () => {
     expect(bar.checkpoint.piano.lastVoicing).toEqual(last.notes);
     expect(bar.checkpoint.piano.lastSuspensionBar).toBe(i);
     for(const prior of after.slice(Math.max(0,i-2),i)) expect(prior.ensembleDevelopment.pianoVoicings?.some(v=>v.decision.keyboardSuspension)).toBe(false);
+    if(trace.kind === '9-1') expect(bar.ensembleDevelopment.pianoVoicings![1].decision.rootlessTexture).toBeUndefined();
     if(trace.kind) { kinds.add(trace.kind);witnesses.push({tune,seed,instrument,bar:i+1,kind:trace.kind,notes:bar.compEvents.map(e=>e.notes)}); }
    }
   }
