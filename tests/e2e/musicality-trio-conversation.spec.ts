@@ -4,7 +4,7 @@ import { requireRealtimeAudio } from './fixtures/realtime-audio';
 import { readFile } from 'node:fs/promises';
 import type { GeneratedBacking } from '../../src/lib/audio/backing-generation';
 
-test('0.12 full Blues sounds all three gestures and shows their actual live decisions',async({page})=>{
+test('0.12 gestures retained in current full Blues sounds all three gestures and shows their actual live decisions',async({page})=>{
  requireRealtimeAudio(page);
  test.setTimeout(240_000);
  await seedOnboardedAnonymous(page);
@@ -16,7 +16,7 @@ test('0.12 full Blues sounds all three gestures and shows their actual live deci
   }) as typeof crypto.getRandomValues;
  });
  await page.goto('/musicality');
- await expect(page.getByTestId('listening-release-focus')).toContainText('0.12.0');
+ await expect(page.getByTestId('listening-release-focus')).toContainText('0.13.0');
  await page.getByTestId('listening-style').selectOption('swing');
  await page.getByTestId('listening-keyboard').selectOption('piano');
  await page.getByTestId('listening-tempo').fill('140');
@@ -44,7 +44,7 @@ test('0.12 full Blues sounds all three gestures and shows their actual live deci
  const [download]=await Promise.all([page.waitForEvent('download'),page.getByTestId('listening-export').click()]);
  const path=(await download.path())!;
  const take=JSON.parse(await readFile(path,'utf8'));
- expect(take.playback.musicalityRelease.version).toBe('0.12.0');
+ expect(take.playback.musicalityRelease.version).toBe('0.13.0');
  expect(take.playback.provenance.committedBars).toBe(52);
  expect(take.playback.provenance.dispatches.every((d:{status:string})=>d.status==='played')).toBe(true);
  const generated=take.playback.generated as GeneratedBacking;

@@ -1,3 +1,4 @@
+import { rootSeventhPulse } from './backing-phrase-colors';
 import { allowsTrioConversation, repeatBassPulse } from './backing-trio-conversation';
 import { selectsPhraseExpression, shapeBassPulse } from './backing-phrase-expression';
 /** Current-bar walking decisions with retained pitch history and committed launches. */
@@ -86,6 +87,16 @@ export function realizeRollingBass(score: RollingBackingDefinition, bar: number,
   if(bar-info.ensemble.phraseStartBar===offset && selected.chance(.8) && segments.length===1 &&
    result.events[0]?.midi%12===pitchClassToNumber(segments[0].chord.root)) {
    result={...result,events:repeatBassPulse(result.events,bar,score.style??'swing')};
+  }
+ }
+ if(score.phraseColorsVersion && ['swing','straight'].includes(score.style??'swing') && allowsTrioConversation(info) && result.memory.feel==='four' &&
+  !result.delayedRootTrace && !result.memory.pendingLaunch && !previous?.pendingLaunch && !result.continuationTrace?.length &&
+  info.ensemble?.bass.role==='time' && info.ensemble.bass.keepPulse) {
+  const start=bar*4,segments=score.harmony.filter(s=>fractionToFloat(s.startOffset)*4<start+4 && (fractionToFloat(s.startOffset)+fractionToFloat(s.duration))*4>start);
+  const rng=createRng(seedFrom(score.phraseId,score.bars[bar].pianoPresenceSeed??0,info.ensemble.phraseStartBar,'bass-seventh'));
+  const offset=rng.pick([1,2]);
+  if(bar-info.ensemble.phraseStartBar===offset && rng.chance(.75) && segments.length===1 && ['7','min7','maj7'].includes(segments[0].chord.quality)) {
+   result={...result,events:rootSeventhPulse(result.events,bar,pitchClassToNumber(segments[0].chord.root),segments[0].chord.quality==='maj7'?11:10)};
   }
  }
  if (!score.phraseExpressionVersion || !selectsPhraseExpression(info, score.phraseId, 'bass') ||

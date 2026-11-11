@@ -589,7 +589,7 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
    Math.abs(catchHit.velocity-catchReceipt.originalVelocity*1.7)<1e-8 && drumPhrase?.hits.some(h=>h.drum==='kick'&&h.beatOffset===2&&
     h.velocity===catchHit.velocity&&JSON.stringify(h.conversation)===JSON.stringify(catchReceipt))) {
    drumCard.action='Catch the bass figure';
-   drumCard.detail='A little extra weight on the existing beat-three kick answers the bass’s repeated note; the ride keeps its pulse.';
+   drumCard.detail='A little extra weight on the existing beat-three kick answers the bass’s repeated note; the cymbal timekeeper keeps its pulse.';
    drumCard.evidence.push('Bass dialogue: repeated bass on 1 / 2 → kick on 3');
   }
   for(const event of piano) {
@@ -604,6 +604,41 @@ export function describeMusicianDecisions(generated: GeneratedBacking, context: 
    }
   }
  }
-	if (keyboardTextures.length) pianoCard.detail += ` ${[...new Set(keyboardTextures)].join(', then ')}.`;
+ if(development) {
+  const seventh=bass.find(e=>e.phraseColor?.kind==='root-seventh');
+  const color=seventh?.phraseColor;
+  if(walking && seventh && color?.kind==='root-seventh' && bass.length===4 &&
+   bass.every((e,i)=>e.absBeat===barIndex*4+i) && seventh.absBeat===barIndex*4+1 &&
+   bass[0].midi===color.rootMidi && seventh.midi===color.rootMidi+color.seventh-12 && seventh.midi!==color.originalMidi) {
+   bassCard.action='Root → seventh';
+   bassCard.detail='A small downward dip on beat two gives the walking line shape; the final approach continues unchanged.';
+   bassCard.evidence.push(`Walking color: ${noteName(color.rootMidi)} → ${noteName(seventh.midi)}`);
+  }
+  for(const event of piano) {
+   const c=event.phraseColor;
+   const trace=development.pianoVoicings?.find(v=>v.time===event.time&&v.absBeat===event.absBeat&&v.notes.length===event.notes.length&&v.notes.every((n,i)=>n===event.notes[i]));
+   if(c?.kind==='upper-structure' && event.notes.length===5 && event.notes.includes(c.addedMidi) &&
+    (c.addedMidi-c.rootPc+120)%12===6 && [2,4,6,9,10].every(pc=>event.notes.some(n=>(n-c.rootPc+120)%12===pc)) &&
+    JSON.stringify(trace?.decision.upperStructure)===JSON.stringify(c)) {
+    const articulation=pianoCard.action==='Short chord → held answer' ? ' Short chord → held answer: a detached first chord leads into the longer colored chord.' : '';
+    pianoCard.action='Upper-triad color';
+    pianoCard.detail='A bright major triad sits above the dominant shell: ninth, sharp eleventh and thirteenth. The existing rhythm and held support remain.'+articulation;
+    pianoCard.evidence.push('Sounded voicing: 3 / 7 shell + 9 / ♯11 / 13');
+   }
+  }
+  const hats=drums.filter(e=>e.drum==='hihat'&&e.role==='timekeeping');
+  if(walking && drumPhrase?.ride.voice==='hihat' && hats.length>0 &&
+   !drums.some(e=>e.drum==='ride'&&e.role==='timekeeping') &&
+   hats.every(e=>drumPhrase.hits.some(h=>h.drum==='hihat'&&h.role==='timekeeping'&&h.velocity===e.velocity&&Math.abs(h.beatOffset-(e.absBeat-barIndex*4))<1e-8))) {
+   if(!['Catch the bass figure','Ease around the resolution','Shape the fill','Ghosted snare answer'].includes(drumCard.action)){
+    drumCard.action='Stick hi-hat time';
+    drumCard.detail='The right hand moves the cymbal pulse to a quieter closed hi-hat for this phrase. Foot time and existing commentary continue.';
+   }
+   else drumCard.detail+=' The right-hand timekeeping texture is closed stick hi-hat.';
+   drumCard.evidence.push('Phrase texture: closed stick hi-hat replaces ride time');
+  }
+ }
+
+	if (keyboardTextures.length) pianoCard.detail += ` ${piano.some(e=>e.phraseColor?.kind==='upper-structure')?'Other attacks: ':''}${[...new Set(keyboardTextures)].join(', then ')}.`;
 	return [bassCard, pianoCard, drumCard];
 }

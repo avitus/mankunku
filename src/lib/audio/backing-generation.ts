@@ -1,3 +1,4 @@
+import type { PhraseColor } from './backing-phrase-colors';
 import type { TrioConversation } from './backing-trio-conversation';
 import type { PhraseExpression } from './backing-phrase-expression';
 import { assessTerminalArrangement, realizeTerminalArrangement, terminalBarPlan, terminalPianoTrace, terminalDrumTrace, freezeTerminalDecisions, type TerminalArrangementInput, type TerminalReservation, type TerminalArrangementDecision } from './backing-terminal';
@@ -88,6 +89,7 @@ import { resolveCoordinatedVoicing, type CoordinatedVoicingMemory, type Coordina
 // ── Event shapes ─────────────────────────────────────────────
 
 export interface BassEvent {
+ readonly phraseColor?: PhraseColor;
 	readonly expression?: PhraseExpression;
 	readonly conversation?: TrioConversation;
 	/** Tick-based Transport time, e.g. "480i" (swing + jitter applied). */
@@ -102,6 +104,7 @@ export interface BassEvent {
 }
 
 export interface CompEvent {
+ readonly phraseColor?: PhraseColor;
 	readonly expression?: PhraseExpression;
 	readonly conversation?: TrioConversation;
 	time: string;

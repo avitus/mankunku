@@ -35,7 +35,7 @@ export interface DrumPhraseDecision {
 	readonly phraseLength: number;
 	readonly ride: {
 		/** Selected phrase timekeeping voice; actual substitutions remain in hits. */
-		readonly voice?: 'ride' | 'ride-bell';
+		readonly voice?: 'ride' | 'ride-bell' | 'hihat';
 		readonly mode: RideMode | 'none';
 		readonly phase: 'statement' | 'repeat' | 'variation' | 'release' | 'single';
 		readonly skipOffsets: readonly number[];
@@ -81,6 +81,9 @@ export interface DrumPhraseBarInput {
 	readonly phraseCushioning?: true;
 	readonly phraseExpression?: true;
 	readonly trioConversation?: true;
+	readonly phraseColors?: true;
+	/** Captured arrangement seed; independent from existing drum rhythm choices. */
+	readonly phraseColorSeed?: number;
 	readonly bassEvents?: readonly BassEvent[];
 	/** Actual current keyboard gates paired with accepted compOnsets. */
 	readonly compAttacks?: readonly DrumKeyboardAttack[];
@@ -156,6 +159,7 @@ type PhraseState = {
 	start: number; end: number; mode: RideMode; skips: readonly number[]; variedSkips: readonly number[];
 	/** Absent in legacy checkpoints, which retain ride for their committed phrase. */
 	rideVoice?: 'ride' | 'ride-bell';
+	hatTexture?: true;
 	commentarySelected: boolean; motif?: Readonly<Motif>;
 };
 
@@ -243,7 +247,10 @@ function phraseState(input: DrumPhraseBarInput, start: number, end: number, prev
 		previous?.rideVoice !== 'ride-bell' && info.ensemble!.drums.silenceReason !== 'soloist_dense';
 	const rideVoice = bellEligible && createRng(seedFrom(input.phraseId, input.tempo, 'drum-phrase-texture', start)).chance(0.35)
 		? 'ride-bell' as const : 'ride' as const;
-	return { start, end, mode, skips, variedSkips, commentarySelected: commentaryRng.chance(0.65),
+	const hatTexture = input.phraseColors && structural && ['head_in','solo_release'].includes(structural.phase) && end-start>=2 &&
+  !previous?.hatTexture && !info.ensemble!.terminalArrangement &&
+  createRng(seedFrom(input.phraseId,input.tempo,input.phraseColorSeed??0,start,'hat-texture')).chance(.55);
+	return { start, end, mode, skips, variedSkips, ...(hatTexture ? {hatTexture:true as const}:{}), commentarySelected: commentaryRng.chance(0.65),
 		...(structural ? { rideVoice } : {}) };
 }
 
@@ -412,7 +419,9 @@ function validateDrumPhraseBar(input: DrumPhraseBarInput, memory?: DrumPhraseMem
 		throw new Error('Drum phrase bar and static boundaries must fit the harmony extent');
 	}
 	const ensemble = input.info.ensemble;
-	if ((input.trioConversation !== undefined && input.trioConversation !== true) ||
+	if ((input.phraseColorSeed !== undefined && (!Number.isInteger(input.phraseColorSeed) || input.phraseColorSeed < 0 || input.phraseColorSeed > 0xffffffff)) ||
+		(input.phraseColors !== undefined && input.phraseColors !== true) ||
+		(input.trioConversation !== undefined && input.trioConversation !== true) ||
 		(input.bassEvents !== undefined && (!Array.isArray(input.bassEvents) || input.bassEvents.length > 32 ||
 		 input.bassEvents.some(e=>!Number.isFinite(e.absBeat)||e.absBeat<input.barIndex*4||e.absBeat>=(input.barIndex+1)*4||
 		 !Number.isInteger(e.midi)||e.midi<0||e.midi>127||!/^\d+i$/.test(e.time)||!Number.isFinite(e.duration)||e.duration<=0))) ||
@@ -453,7 +462,8 @@ function validateDrumPhraseBar(input: DrumPhraseBarInput, memory?: DrumPhraseMem
 		throw new Error('Drum continuation requires matching identity and consecutive bars');
 	}
 	const state = memory.phrase;
-	if (!state || !barNumber(state.start) || !barNumber(state.end) || state.end <= state.start || state.end - state.start > 4 ||
+	if (!state || (state.hatTexture !== undefined && (state.hatTexture !== true || !input.phraseColors ||
+  state.end-state.start<2 || input.style==='ballad' || input.style==='bossa-nova')) || !barNumber(state.start) || !barNumber(state.end) || state.end <= state.start || state.end - state.start > 4 ||
 		state.start >= memory.nextBar || state.end < memory.nextBar ||
 		!['standard', 'quarters-only', 'skip-plus', 'broken'].includes(state.mode) ||
 		(state.rideVoice !== undefined && !['ride', 'ride-bell'].includes(state.rideVoice)) ||
@@ -518,6 +528,7 @@ export function planDrumPhraseBar(input: DrumPhraseBarInput, memory?: DrumPhrase
 	const state: PhraseState = previous && input.barIndex < previous.end ? {
 		start: previous.start, end: previous.end, mode: previous.mode,
 		...(previous.rideVoice ? { rideVoice: previous.rideVoice } : {}),
+  ...(previous.hatTexture ? {hatTexture:true as const}:{}),
 		skips: [...previous.skips], variedSkips: [...previous.variedSkips], commentarySelected: previous.commentarySelected,
 		...(previous.motif ? { motif: {
 			id: previous.motif.id, source: previous.motif.source, sourceId: previous.motif.sourceId,
@@ -543,6 +554,16 @@ export function planDrumPhraseBar(input: DrumPhraseBarInput, memory?: DrumPhrase
  if(input.trioConversation && allowsTrioConversation(input.info) && !bar.cushioning) {
   const hits=catchBassRepeat(bar.hits,input.bassEvents??[],input.barIndex,input.compOnsets??[]);
   if(hits.some(hit=>hit.conversation)) { bar={...bar,hits}; freezeDrumPhraseTrace([bar]); }
+ }
+ if(state.hatTexture) {
+  const tint=(hit:Readonly<DrumHitSpec>):DrumHitSpec=>hit.drum==='ride'&&hit.role==='timekeeping'
+   ? {...hit,drum:'hihat',velocity:hit.velocity*.8}:hit;
+  // Same right-hand attacks and collision ownership. Color the already accepted
+  // bar, including any cushion evidence, without inserting a second stick voice.
+  bar={...bar,hits:bar.hits.map(tint),ride:{...bar.ride,voice:'hihat'},
+   ...(bar.cushioning?{cushioning:{...bar.cushioning,removedHits:bar.cushioning.removedHits.map(tint),
+    softenedHits:bar.cushioning.softenedHits.map(h=>({before:tint(h.before),after:tint(h.after)}))}}:{})};
+  freezeDrumPhraseTrace([bar]);
  }
 	return Object.freeze({ bar, memory: freezeDrumPhraseMemory({
 		version: 1, ...(input.style && input.style !== 'swing' ? { style: input.style } : {}), phraseId: input.phraseId, tempo: input.tempo, harmonyEndBeat: input.harmonyEndBeat,

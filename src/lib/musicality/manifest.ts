@@ -378,6 +378,18 @@ const drumDeviceUpdates: Record<string, [ImplementationStatus, string, string]> 
 };
 
 export const MUSICALITY_AUDIT: MusicalityAudit[] = baselineAudit.map((entry) => {
+ if(['B26','P26','D20'].includes(entry.id))return {
+  ...entry,status:'partial',
+  assessment:entry.id==='B26'
+   ? 'Musicality 0.13.0 occasionally dips from the root to the seventh below on beat two of a walking bar. Four pulses, the final two approach notes and gates remain intact; reserved bass figures take priority.'
+   :entry.id==='P26'
+    ? 'Musicality 0.13.0 can voice a plain dominant as a 3/7 shell under a major upper triad (9, sharp 11, 13) on an existing attack. The top may rise by up to seven semitones; actual notes enter voice-leading memory. Close bass clashes veto the color.'
+    : 'Musicality 0.13.0 occasionally moves right-hand timekeeping from ride to quieter closed stick hi-hat for a two-to-four-bar head or solo-release phrase, preserving attack timing, pedal time, commentary and fills. Consecutive selected hat phrases are excluded.',
+  remaining:'Bass and drum additions are Swing/Straight only. Keyboard color also uses native Bossa/Ballad rhythm. Other upper structures, broader bass motifs and human listening acceptance remain pending.',
+  scope:'Explicit Coordinated phrase-colors policy, independently fingerprinted. Omission preserves complete 0.12 performances; Original is unchanged.',
+  evidence:[...entry.evidence,source('backing-phrase-colors'),source('backing-rolling-bass'),source('backing-rolling-piano'),source('backing-drum-phrases'),test('backing-phrase-colors'),test('backing-phrase-colors-performance')]
+ };
+
  if(['B9','P48','D77'].includes(entry.id))return {
   ...entry,status:'partial',
   assessment:entry.id==='B9'

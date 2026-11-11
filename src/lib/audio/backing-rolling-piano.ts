@@ -1,3 +1,4 @@
+import { upperStructureTriad, upperStructureFitsBass } from './backing-phrase-colors';
 import { pitchClassToNumber } from './voicings';
 import { allowsDominantColor, colorDominantNinth, dominantColorFitsBass } from './backing-trio-conversation';
 import { selectsPhraseExpression, contrastKeyboardPair } from './backing-phrase-expression';
@@ -436,6 +437,29 @@ function realizePianoCandidate(score: RollingBackingDefinition, bar: number, inf
     voicingTrace[voicingTrace.length-1]=Object.freeze({...trace,notes:Object.freeze([...cell.notes]),decision:Object.freeze({...decision,
      ...describeCoordinatedPlacement(segment.chord,cell.notes,decision.resolvedFamily,Math.round(58+8*info.intensity),previous),
      ...(decision.spacing?{spacing:Object.freeze({...decision.spacing,spanSemitones:cell.notes.at(-1)!-cell.notes[0]})}:{}),keyboardColor:receipt})});
+   }
+  }
+ }
+ // Expand one existing dominant attack into a complete upper structure;
+ // accepted suspensions, replies and 0.12 colors retain their own promises.
+ if(score.phraseColorsVersion && allowsDominantColor(info) && !backgroundHarmony && !arrival && !proposal && !nativeLatePad && !guideTones &&
+  events.length && voicingTrace.length===events.length && !voicingTrace.some(v=>v.decision.keyboardSuspension) &&
+  createRng(seedFrom(score.phraseId,score.bars[bar].pianoPresenceSeed??0,bar,'upper-structure')).chance(.65)) {
+  const event=events.at(-1)!,trace=voicingTrace.at(-1)!;
+  const lookup=event.absBeat+(event.absBeat%1?0.5:0);
+  const segment=score.harmony.find(s=>lookup>=fractionToFloat(s.startOffset)*4&&lookup<(fractionToFloat(s.startOffset)+fractionToFloat(s.duration))*4);
+  if(!event.conversation && segment?.chord.quality==='7' && ['rootless-a','rootless-b','drop2','shell'].includes(trace.decision.resolvedFamily)) {
+   const rootPc=pitchClassToNumber(segment.chord.root),cell=upperStructureTriad(event.notes,rootPc);
+   if(cell && upperStructureFitsBass(event,bassEvents,rootPc,score.tempo,score.ppq,cell.addedMidi)) {
+    const receipt=Object.freeze({kind:'upper-structure' as const,rootPc,addedMidi:cell.addedMidi,originalNotes:Object.freeze([...event.notes])});
+    events[events.length-1]={...event,notes:cell.notes,phraseColor:receipt};
+    if(contourEnabled && contourMemory) contourMemory=Object.freeze({...contourMemory,lastTopMidi:cell.notes.at(-1)!});
+    lastVoicing=cell.notes;segmentVoicing=cell.notes;
+    voicingMemory=Object.freeze({version:1,chord:Object.freeze({...segment.chord}),notes:Object.freeze([...cell.notes])});
+    const {keyboardLine:_line,keyboardContraryMotion:_contrary,keyboardTexture:_texture,rootlessTexture:_rootless,spacing:_spacing,...decision}=trace.decision;
+    voicingTrace[voicingTrace.length-1]=Object.freeze({...trace,notes:Object.freeze([...cell.notes]),decision:Object.freeze({...decision,
+     ...describeCoordinatedPlacement(segment.chord,cell.notes,decision.resolvedFamily,Math.round(58+8*info.intensity),lastVoicingPredecessor),
+     ...(decision.topLine?{topLine:Object.freeze({...decision.topLine,actualMidi:cell.notes.at(-1)!,distance:Math.abs(cell.notes.at(-1)!-decision.topLine.targetMidi)})}:{}),upperStructure:receipt})});
    }
   }
  }

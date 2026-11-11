@@ -48,6 +48,7 @@ export interface RollingBackingOptions {
 	/** Listening 0.11: scoped phrase dynamics and keyboard gate contrast. */
 	readonly phraseExpression?: true;
 	readonly trioConversation?: true;
+	readonly phraseColors?: true;
 	/** Listening 0.8 policies; omission preserves earlier event streams. */
 	readonly bassDelayedRoot?: true;
 	readonly keyboardContraryMotion?: true;
@@ -92,6 +93,7 @@ export interface RollingBackingDefinition {
 	readonly bassDelayedRootVersion?: 1;
 	readonly phraseExpressionVersion?: 1;
 	readonly trioConversationVersion?: 1;
+	readonly phraseColorsVersion?: 1;
 	readonly keyboardContraryMotionVersion?: 1;
 	readonly drumPhraseCushioningVersion?: 1;
 	readonly keyboardSuspensionsVersion?: 1 | 2;
@@ -229,6 +231,7 @@ export function createRollingBacking(harmony: HarmonicSegment[], style: StyleDef
 		? { version: 1 as const, instrument: options.keyboardPhrasing } : undefined;
 	const keyboardSuspensions = keyboardPhrasing ? options.keyboardSuspensions === 'developed' ? 2 as const : options.keyboardSuspensions === true ? 1 as const : undefined : undefined;
 	const versionedPolicies = {
+		...(keyboardPhrasing && options.phraseColors === true ? { phraseColorsVersion: 1 as const } : {}),
 		...(keyboardPhrasing && options.trioConversation === true ? { trioConversationVersion: 1 as const } : {}),
 		...(keyboardPhrasing && ['swing', 'straight'].includes(style.coordinatedStyle!) && options.phraseExpression === true ? { phraseExpressionVersion: 1 as const } : {}),
 		...(performanceEnergy && options.bassDelayedRoot === true ? { bassDelayedRootVersion: 1 as const } : {}),
@@ -410,6 +413,7 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 		while (peakEnd < phraseEnd && definition.bars[peakEnd].performanceEnergy?.phase === 'solo_peak') peakEnd++;
 	}
 	const realizeDrums = (pianoResult: typeof piano) => planDrumPhraseBar({
+		...(definition.phraseColorsVersion ? { phraseColors: true as const, phraseColorSeed: definition.bars[bar].pianoPresenceSeed ?? 0 } : {}),
 		...(definition.phraseExpressionVersion ? { phraseExpression: true as const } : {}),
 		...(definition.trioConversationVersion ? { trioConversation: true as const, bassEvents: bass.events } : {}),
 		...(definition.drumPhraseCushioningVersion ? { phraseCushioning: true as const, compAttacks: pianoResult.events.map(event => ({ beatOffset: event.absBeat - bar * 4, durationBeats: event.duration * definition.tempo / 60, time: event.time, durationSeconds: event.duration })) } : {}),
@@ -421,7 +425,7 @@ export function advanceRollingBacking(definition: RollingBackingDefinition, chec
 	}, checkpoint?.drums);
 	const scheduleDrums = (result: ReturnType<typeof realizeDrums>): DrumEvent[] => result.bar.hits.map((hit) => {
 		const absBeat = bar * 4 + hit.beatOffset;
-		const tick = hit.role === 'accent' && hit.beatOffset === 0 ? timing.arrivalTick(bar) : timing.place(absBeat, hit.drum);
+		const tick = hit.role === 'accent' && hit.beatOffset === 0 ? timing.arrivalTick(bar) : timing.place(absBeat, result.bar.ride.voice === 'hihat' && hit.drum === 'hihat' && hit.role === 'timekeeping' ? 'ride' : hit.drum);
 		return { absBeat, time: `${Math.max(startTick, tick)}i`, drum: hit.drum, velocity: hit.velocity, ...(hit.expression ? { expression: hit.expression } : {}), ...(hit.conversation ? { conversation: hit.conversation } : {}), ...(hit.role ? { role: hit.role } : {}) };
 	});
 	let drums = realizeDrums(piano);
